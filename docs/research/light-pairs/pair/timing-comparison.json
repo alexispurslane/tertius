@@ -1,0 +1,286 @@
+{
+  "units": "milliseconds",
+  "renderSize": [
+    1280,
+    720
+  ],
+  "outputSize": [
+    1920,
+    1080
+  ],
+  "exposureStops": 0.7041458,
+  "passSource": "Instruments busy intervals, includes warm-up frames",
+  "frameSource": "renderer GPU frame span, timed frames only",
+  "variants": {
+    "main": {
+      "direct": {
+        "frames": 151,
+        "medianMs": 4.093083,
+        "meanMs": 4.122333794701986,
+        "alone": {
+          "frames": 151,
+          "meanMs": 4.076923529801324,
+          "medianMs": 4.049625,
+          "p95Ms": 4.121126
+        },
+        "shared": {
+          "frames": 151,
+          "meanMs": 0.04541026490066225,
+          "medianMs": 0.0435,
+          "p95Ms": 0.058416
+        }
+      },
+      "transparent": {
+        "frames": 151,
+        "medianMs": 2.084958,
+        "meanMs": 2.093181774834437,
+        "alone": {
+          "frames": 151,
+          "meanMs": 0.34757590066225164,
+          "medianMs": 0.295667,
+          "p95Ms": 0.953126
+        },
+        "shared": {
+          "frames": 151,
+          "meanMs": 1.7456058741721854,
+          "medianMs": 1.775832,
+          "p95Ms": 1.998167
+        }
+      },
+      "frame": {
+        "frames": 119,
+        "meanMs": 24.374476529411773,
+        "medianMs": 24.381833,
+        "p95Ms": 25.003458
+      },
+      "gpuClock": {
+        "meanMhz": 1292.3364463508155,
+        "p10Mhz": 1291.0,
+        "p90Mhz": 1293.7,
+        "samples": 32
+      },
+      "savingAgainstMain": {
+        "directMedianMs": 0.0,
+        "transparentMedianMs": 0.0,
+        "frameMedianMs": 0.0,
+        "frameP95Ms": 0.0
+      }
+    },
+    "a": {
+      "direct": {
+        "frames": 151,
+        "medianMs": 4.009209,
+        "meanMs": 4.03631898013245,
+        "alone": {
+          "frames": 151,
+          "meanMs": 3.9849251920529802,
+          "medianMs": 3.961584,
+          "p95Ms": 4.055333
+        },
+        "shared": {
+          "frames": 151,
+          "meanMs": 0.051393788079470204,
+          "medianMs": 0.048083,
+          "p95Ms": 0.064167
+        }
+      },
+      "transparent": {
+        "frames": 151,
+        "medianMs": 2.365833,
+        "meanMs": 2.341829225165563,
+        "alone": {
+          "frames": 151,
+          "meanMs": 0.3853542715231788,
+          "medianMs": 0.287209,
+          "p95Ms": 1.034999
+        },
+        "shared": {
+          "frames": 151,
+          "meanMs": 1.9564749536423842,
+          "medianMs": 2.024292,
+          "p95Ms": 2.231457
+        }
+      },
+      "frame": {
+        "frames": 119,
+        "meanMs": 24.477844949579822,
+        "medianMs": 24.383667,
+        "p95Ms": 25.162084
+      },
+      "gpuClock": {
+        "meanMhz": 1292.3588744862473,
+        "p10Mhz": 1290.9,
+        "p90Mhz": 1293.8,
+        "samples": 33
+      },
+      "savingAgainstMain": {
+        "directMedianMs": 0.08387399999999978,
+        "transparentMedianMs": -0.280875,
+        "frameMedianMs": -0.001833999999998781,
+        "frameP95Ms": -0.1586260000000017
+      }
+    },
+    "b": {
+      "direct": {
+        "frames": 151,
+        "medianMs": 4.151416,
+        "meanMs": 4.16843159602649,
+        "alone": {
+          "frames": 151,
+          "meanMs": 4.119023,
+          "medianMs": 4.104249,
+          "p95Ms": 4.200043
+        },
+        "shared": {
+          "frames": 151,
+          "meanMs": 0.049408596026490066,
+          "medianMs": 0.047333,
+          "p95Ms": 0.06125
+        }
+      },
+      "transparent": {
+        "frames": 151,
+        "medianMs": 2.151501,
+        "meanMs": 2.1634644966887415,
+        "alone": {
+          "frames": 151,
+          "meanMs": 0.3922432185430464,
+          "medianMs": 0.316875,
+          "p95Ms": 1.039292
+        },
+        "shared": {
+          "frames": 151,
+          "meanMs": 1.7712212781456953,
+          "medianMs": 1.825623,
+          "p95Ms": 2.002707
+        }
+      },
+      "frame": {
+        "frames": 119,
+        "meanMs": 24.5313098235294,
+        "medianMs": 24.47275,
+        "p95Ms": 25.20425
+      },
+      "gpuClock": {
+        "meanMhz": 1292.017318508404,
+        "p10Mhz": 1290.9,
+        "p90Mhz": 1293.6,
+        "samples": 32
+      },
+      "savingAgainstMain": {
+        "directMedianMs": -0.05833300000000019,
+        "transparentMedianMs": -0.06654300000000024,
+        "frameMedianMs": -0.09091700000000102,
+        "frameP95Ms": -0.20079199999999986
+      }
+    },
+    "c9": {
+      "direct": {
+        "frames": 151,
+        "medianMs": 3.695583,
+        "meanMs": 3.7376962251655628,
+        "alone": {
+          "frames": 151,
+          "meanMs": 3.690094609271523,
+          "medianMs": 3.651541,
+          "p95Ms": 3.803958
+        },
+        "shared": {
+          "frames": 151,
+          "meanMs": 0.04760161589403974,
+          "medianMs": 0.043542,
+          "p95Ms": 0.062041
+        }
+      },
+      "transparent": {
+        "frames": 151,
+        "medianMs": 2.124708,
+        "meanMs": 2.1217692516556292,
+        "alone": {
+          "frames": 151,
+          "meanMs": 0.3304812251655629,
+          "medianMs": 0.311917,
+          "p95Ms": 0.820499
+        },
+        "shared": {
+          "frames": 151,
+          "meanMs": 1.7912880264900661,
+          "medianMs": 1.805917,
+          "p95Ms": 2.124334
+        }
+      },
+      "frame": {
+        "frames": 119,
+        "meanMs": 24.399395697478987,
+        "medianMs": 24.206166,
+        "p95Ms": 25.562125
+      },
+      "gpuClock": {
+        "meanMhz": 1292.9964659974194,
+        "p10Mhz": 1291.0,
+        "p90Mhz": 1294.8,
+        "samples": 33
+      },
+      "savingAgainstMain": {
+        "directMedianMs": 0.39749999999999996,
+        "transparentMedianMs": -0.039750000000000174,
+        "frameMedianMs": 0.17566700000000068,
+        "frameP95Ms": -0.5586670000000034
+      }
+    },
+    "c16": {
+      "direct": {
+        "frames": 150,
+        "medianMs": 3.7595205,
+        "meanMs": 3.7906196999999997,
+        "alone": {
+          "frames": 150,
+          "meanMs": 3.7419602866666666,
+          "medianMs": 3.7137085,
+          "p95Ms": 3.799792
+        },
+        "shared": {
+          "frames": 150,
+          "meanMs": 0.04865941333333333,
+          "medianMs": 0.043062500000000004,
+          "p95Ms": 0.059292
+        }
+      },
+      "transparent": {
+        "frames": 150,
+        "medianMs": 2.3097505,
+        "meanMs": 2.3156446666666666,
+        "alone": {
+          "frames": 150,
+          "meanMs": 0.36394780000000004,
+          "medianMs": 0.303083,
+          "p95Ms": 0.878875
+        },
+        "shared": {
+          "frames": 150,
+          "meanMs": 1.9516968666666665,
+          "medianMs": 1.9706875,
+          "p95Ms": 2.255583
+        }
+      },
+      "frame": {
+        "frames": 119,
+        "meanMs": 24.506807403361343,
+        "medianMs": 24.389625,
+        "p95Ms": 25.488291
+      },
+      "gpuClock": {
+        "meanMhz": 1292.6562857789709,
+        "p10Mhz": 1291.2,
+        "p90Mhz": 1293.8,
+        "samples": 32
+      },
+      "savingAgainstMain": {
+        "directMedianMs": 0.3335625000000002,
+        "transparentMedianMs": -0.22479249999999995,
+        "frameMedianMs": -0.007791999999998467,
+        "frameP95Ms": -0.48483300000000185
+      }
+    }
+  }
+}

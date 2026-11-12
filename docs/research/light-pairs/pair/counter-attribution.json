@@ -1,0 +1,527 @@
+{
+  "warmupFramesExcluded": 32,
+  "timedFrames": 119,
+  "caveat": "Whole-GPU counters by timestamp. Alone excludes other named target passes, not unlabelled or foreign-process work. Alone can select a different pass phase.",
+  "passes": {
+    "direct light": {
+      "all": {
+        "intervalMs": 502.770956,
+        "counters": {
+          "ALU Limiter": {
+            "mean": 39.53640286245838,
+            "samples": 50557
+          },
+          "ALU Utilization": {
+            "mean": 36.60306647561775,
+            "samples": 50557
+          },
+          "F32 Utilization": {
+            "mean": 19.551163107245948,
+            "samples": 50557
+          },
+          "F16 Utilization": {
+            "mean": 0.0068349638159305335,
+            "samples": 50557
+          },
+          "Texture Sample Limiter": {
+            "mean": 4.993573894776344,
+            "samples": 50557
+          },
+          "Texture Sample Utilization": {
+            "mean": 4.909546838949623,
+            "samples": 50557
+          },
+          "Texture Filtering Limiter": {
+            "mean": 4.803250418927898,
+            "samples": 50557
+          },
+          "Texture Cache Limiter": {
+            "mean": 1.0941847446209936,
+            "samples": 50557
+          },
+          "Texture Write Limiter": {
+            "mean": 1.0841160808646848,
+            "samples": 50557
+          },
+          "Texture Write Utilization": {
+            "mean": 1.0837703482009193,
+            "samples": 50557
+          },
+          "Buffer Read Limiter": {
+            "mean": 2.503869835483797,
+            "samples": 50557
+          },
+          "Buffer Load Utilization": {
+            "mean": 2.5007660461753893,
+            "samples": 50557
+          },
+          "Buffer Write Limiter": {
+            "mean": 7.845893743695234e-07,
+            "samples": 50557
+          },
+          "Buffer Store Utilization": {
+            "mean": 7.845893743695234e-07,
+            "samples": 50557
+          },
+          "Threadgroup/Imageblock Load Limiter": {
+            "mean": 0.0035850404416599064,
+            "samples": 50557
+          },
+          "Threadgroup/Imageblock Load Utilization": {
+            "mean": 0.003525339805684673,
+            "samples": 50557
+          },
+          "Threadgroup/Imageblock Store Limiter": {
+            "mean": 0.16647609649233064,
+            "samples": 50557
+          },
+          "Threadgroup/Imageblock Store Utilization": {
+            "mean": 0.10877437678418243,
+            "samples": 50557
+          },
+          "Fragment Input Interpolation Limiter": {
+            "mean": 0.022771548713887285,
+            "samples": 50557
+          },
+          "Fragment Input Interpolation Utilization": {
+            "mean": 0.007064935833198179,
+            "samples": 50557
+          },
+          "GPU Last Level Cache Limiter": {
+            "mean": 4.539324145945243,
+            "samples": 50557
+          },
+          "GPU Last Level Cache Utilization": {
+            "mean": 4.53259122703229,
+            "samples": 50557
+          },
+          "Vertex Occupancy": {
+            "mean": 0.033711942569139765,
+            "samples": 50557
+          },
+          "Fragment Occupancy": {
+            "mean": 12.302598355717574,
+            "samples": 50557
+          },
+          "Compute Occupancy": {
+            "mean": 0.0969893437135313,
+            "samples": 50557
+          },
+          "GPU Read Bandwidth": {
+            "mean": 1.0774198035324354,
+            "samples": 50557
+          },
+          "GPU Write Bandwidth": {
+            "mean": 1.4213481273564301,
+            "samples": 50557
+          },
+          "MMU Limiter": {
+            "mean": 0.7727706492672926,
+            "samples": 50557
+          },
+          "MMU Utilization": {
+            "mean": 0.7698175846170566,
+            "samples": 50557
+          },
+          "MMU TLB Miss Rate": {
+            "mean": 18.064509174034047,
+            "samples": 50557
+          },
+          "Partial Renders Count": {
+            "mean": 0.0,
+            "samples": 50557
+          }
+        }
+      },
+      "alone": {
+        "intervalMs": 497.141204,
+        "counters": {
+          "ALU Limiter": {
+            "mean": 39.815405277875605,
+            "samples": 50001
+          },
+          "ALU Utilization": {
+            "mean": 36.879871254180195,
+            "samples": 50001
+          },
+          "F32 Utilization": {
+            "mean": 19.71900484145393,
+            "samples": 50001
+          },
+          "F16 Utilization": {
+            "mean": 0.00691096709349813,
+            "samples": 50001
+          },
+          "Texture Sample Limiter": {
+            "mean": 5.039955134103387,
+            "samples": 50001
+          },
+          "Texture Sample Utilization": {
+            "mean": 4.9553943662568996,
+            "samples": 50001
+          },
+          "Texture Filtering Limiter": {
+            "mean": 4.847561818375688,
+            "samples": 50001
+          },
+          "Texture Cache Limiter": {
+            "mean": 1.101331401624239,
+            "samples": 50001
+          },
+          "Texture Write Limiter": {
+            "mean": 0.4556968203561767,
+            "samples": 50001
+          },
+          "Texture Write Utilization": {
+            "mean": 0.45569140969394994,
+            "samples": 50001
+          },
+          "Buffer Read Limiter": {
+            "mean": 2.382742519334902,
+            "samples": 50001
+          },
+          "Buffer Load Utilization": {
+            "mean": 2.3823853068755687,
+            "samples": 50001
+          },
+          "Buffer Write Limiter": {
+            "mean": 7.933138337233255e-07,
+            "samples": 50001
+          },
+          "Buffer Store Utilization": {
+            "mean": 7.933138337233255e-07,
+            "samples": 50001
+          },
+          "Threadgroup/Imageblock Load Limiter": {
+            "mean": 0.0034283603508529817,
+            "samples": 50001
+          },
+          "Threadgroup/Imageblock Load Utilization": {
+            "mean": 0.0033679958570828595,
+            "samples": 50001
+          },
+          "Threadgroup/Imageblock Store Limiter": {
+            "mean": 0.054623136900922895,
+            "samples": 50001
+          },
+          "Threadgroup/Imageblock Store Utilization": {
+            "mean": 0.05290532595966136,
+            "samples": 50001
+          },
+          "Fragment Input Interpolation Limiter": {
+            "mean": 0.006715809440951183,
+            "samples": 50001
+          },
+          "Fragment Input Interpolation Utilization": {
+            "mean": 0.003879608368812624,
+            "samples": 50001
+          },
+          "GPU Last Level Cache Limiter": {
+            "mean": 4.362841277473702,
+            "samples": 50001
+          },
+          "GPU Last Level Cache Utilization": {
+            "mean": 4.362030484677454,
+            "samples": 50001
+          },
+          "Vertex Occupancy": {
+            "mean": 0.0014643629245215096,
+            "samples": 50001
+          },
+          "Fragment Occupancy": {
+            "mean": 11.969382987855457,
+            "samples": 50001
+          },
+          "Compute Occupancy": {
+            "mean": 0.09213748740067197,
+            "samples": 50001
+          },
+          "GPU Read Bandwidth": {
+            "mean": 0.9024296518131082,
+            "samples": 50001
+          },
+          "GPU Write Bandwidth": {
+            "mean": 1.0324445564551967,
+            "samples": 50001
+          },
+          "MMU Limiter": {
+            "mean": 0.5977389875802278,
+            "samples": 50001
+          },
+          "MMU Utilization": {
+            "mean": 0.5974940992074551,
+            "samples": 50001
+          },
+          "MMU TLB Miss Rate": {
+            "mean": 18.162477381736757,
+            "samples": 50001
+          },
+          "Partial Renders Count": {
+            "mean": 0.0,
+            "samples": 50001
+          }
+        }
+      }
+    },
+    "transparent": {
+      "all": {
+        "intervalMs": 248.153846,
+        "counters": {
+          "ALU Limiter": {
+            "mean": 25.705718782151052,
+            "samples": 25470
+          },
+          "ALU Utilization": {
+            "mean": 23.56981468296189,
+            "samples": 25470
+          },
+          "F32 Utilization": {
+            "mean": 12.566932295694857,
+            "samples": 25470
+          },
+          "F16 Utilization": {
+            "mean": 0.0027299322414998037,
+            "samples": 25470
+          },
+          "Texture Sample Limiter": {
+            "mean": 2.616933022963603,
+            "samples": 25470
+          },
+          "Texture Sample Utilization": {
+            "mean": 2.555100273486843,
+            "samples": 25470
+          },
+          "Texture Filtering Limiter": {
+            "mean": 2.5775353381592536,
+            "samples": 25470
+          },
+          "Texture Cache Limiter": {
+            "mean": 0.7250224128623873,
+            "samples": 25470
+          },
+          "Texture Write Limiter": {
+            "mean": 0.26212678745508505,
+            "samples": 25470
+          },
+          "Texture Write Utilization": {
+            "mean": 0.23731037602132016,
+            "samples": 25470
+          },
+          "Buffer Read Limiter": {
+            "mean": 1.8844621180728764,
+            "samples": 25470
+          },
+          "Buffer Load Utilization": {
+            "mean": 1.8832127085247856,
+            "samples": 25470
+          },
+          "Buffer Write Limiter": {
+            "mean": 0.5452844761706711,
+            "samples": 25470
+          },
+          "Buffer Store Utilization": {
+            "mean": 0.5452437362141725,
+            "samples": 25470
+          },
+          "Threadgroup/Imageblock Load Limiter": {
+            "mean": 0.014095695438790686,
+            "samples": 25470
+          },
+          "Threadgroup/Imageblock Load Utilization": {
+            "mean": 0.013974090851590083,
+            "samples": 25470
+          },
+          "Threadgroup/Imageblock Store Limiter": {
+            "mean": 0.10699774478735734,
+            "samples": 25470
+          },
+          "Threadgroup/Imageblock Store Utilization": {
+            "mean": 0.06019724019411102,
+            "samples": 25470
+          },
+          "Fragment Input Interpolation Limiter": {
+            "mean": 0.08837051698629714,
+            "samples": 25470
+          },
+          "Fragment Input Interpolation Utilization": {
+            "mean": 0.06359041218649364,
+            "samples": 25470
+          },
+          "GPU Last Level Cache Limiter": {
+            "mean": 4.23697235096685,
+            "samples": 25470
+          },
+          "GPU Last Level Cache Utilization": {
+            "mean": 4.173280493399402,
+            "samples": 25470
+          },
+          "Vertex Occupancy": {
+            "mean": 0.001767378312877897,
+            "samples": 25470
+          },
+          "Fragment Occupancy": {
+            "mean": 8.50419980174361,
+            "samples": 25470
+          },
+          "Compute Occupancy": {
+            "mean": 0.4967600396308207,
+            "samples": 25470
+          },
+          "GPU Read Bandwidth": {
+            "mean": 1.3220328422078367,
+            "samples": 25470
+          },
+          "GPU Write Bandwidth": {
+            "mean": 0.6855853202287869,
+            "samples": 25470
+          },
+          "MMU Limiter": {
+            "mean": 0.7387100933616451,
+            "samples": 25470
+          },
+          "MMU Utilization": {
+            "mean": 0.6149485698996904,
+            "samples": 25470
+          },
+          "MMU TLB Miss Rate": {
+            "mean": 10.838843219692174,
+            "samples": 25470
+          },
+          "Partial Renders Count": {
+            "mean": 0.0,
+            "samples": 25470
+          }
+        }
+      },
+      "alone": {
+        "intervalMs": 33.200199,
+        "counters": {
+          "ALU Limiter": {
+            "mean": 6.041295788786494,
+            "samples": 3419
+          },
+          "ALU Utilization": {
+            "mean": 5.454400610366474,
+            "samples": 3419
+          },
+          "F32 Utilization": {
+            "mean": 2.4145659386361507,
+            "samples": 3419
+          },
+          "F16 Utilization": {
+            "mean": 0.02033675758730623,
+            "samples": 3419
+          },
+          "Texture Sample Limiter": {
+            "mean": 1.4222941468754022,
+            "samples": 3419
+          },
+          "Texture Sample Utilization": {
+            "mean": 1.3054655587864867,
+            "samples": 3419
+          },
+          "Texture Filtering Limiter": {
+            "mean": 1.2853613032512465,
+            "samples": 3419
+          },
+          "Texture Cache Limiter": {
+            "mean": 0.6158386085293952,
+            "samples": 3419
+          },
+          "Texture Write Limiter": {
+            "mean": 1.0641382602810765,
+            "samples": 3419
+          },
+          "Texture Write Utilization": {
+            "mean": 0.913128811182217,
+            "samples": 3419
+          },
+          "Buffer Read Limiter": {
+            "mean": 0.3711282413544898,
+            "samples": 3419
+          },
+          "Buffer Load Utilization": {
+            "mean": 0.3690550508303596,
+            "samples": 3419
+          },
+          "Buffer Write Limiter": {
+            "mean": 0.08521598089470606,
+            "samples": 3419
+          },
+          "Buffer Store Utilization": {
+            "mean": 0.08520769381632054,
+            "samples": 3419
+          },
+          "Threadgroup/Imageblock Load Limiter": {
+            "mean": 0.015999907374963436,
+            "samples": 3419
+          },
+          "Threadgroup/Imageblock Load Utilization": {
+            "mean": 0.015283344740274932,
+            "samples": 3419
+          },
+          "Threadgroup/Imageblock Store Limiter": {
+            "mean": 0.5311917530786787,
+            "samples": 3419
+          },
+          "Threadgroup/Imageblock Store Utilization": {
+            "mean": 0.24241396039397467,
+            "samples": 3419
+          },
+          "Fragment Input Interpolation Limiter": {
+            "mean": 0.06251602050716588,
+            "samples": 3419
+          },
+          "Fragment Input Interpolation Utilization": {
+            "mean": 0.03913143369727986,
+            "samples": 3419
+          },
+          "GPU Last Level Cache Limiter": {
+            "mean": 2.9887393745688833,
+            "samples": 3419
+          },
+          "GPU Last Level Cache Utilization": {
+            "mean": 2.6256280678777486,
+            "samples": 3419
+          },
+          "Vertex Occupancy": {
+            "mean": 0.01042666077332553,
+            "samples": 3419
+          },
+          "Fragment Occupancy": {
+            "mean": 1.803151522947057,
+            "samples": 3419
+          },
+          "Compute Occupancy": {
+            "mean": 3.058268233993858,
+            "samples": 3419
+          },
+          "GPU Read Bandwidth": {
+            "mean": 4.183034612083016,
+            "samples": 3419
+          },
+          "GPU Write Bandwidth": {
+            "mean": 2.2680920585328876,
+            "samples": 3419
+          },
+          "MMU Limiter": {
+            "mean": 2.706359680952332,
+            "samples": 3419
+          },
+          "MMU Utilization": {
+            "mean": 1.9776106339701707,
+            "samples": 3419
+          },
+          "MMU TLB Miss Rate": {
+            "mean": 7.536959273103241,
+            "samples": 3419
+          },
+          "Partial Renders Count": {
+            "mean": 0.0,
+            "samples": 3419
+          }
+        }
+      }
+    }
+  }
+}

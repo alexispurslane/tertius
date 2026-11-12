@@ -1,0 +1,1764 @@
+diff --git a/src/Tertius.Host/ScriptCommand.Options.cs b/src/Tertius.Host/ScriptCommand.Options.cs
+index 9a9d67308..fd0cccbc4 100644
+--- a/src/Tertius.Host/ScriptCommand.Options.cs
++++ b/src/Tertius.Host/ScriptCommand.Options.cs
+@@ -89,6 +89,12 @@ public static partial class ScriptCommand
+         /// <summary>The frame count, 1 or 2, or null to keep the renderer's count and capture policy.</summary>
+         public int? FramesInFlight { get; init; }
+ 
++        /// <summary>The fixed exposure in stops that replaces the renderer's exposure, or null to keep it.</summary>
++        public float? ExposureStops { get; init; }
++
++        /// <summary>The key lights of key and fill, 0 for every light pair in full, or null to keep the renderer's default.</summary>
++        public int? KeyLights { get; init; }
++
+         /// <summary>Replaces the defaults of <paramref name="options"/> with these overrides.</summary>
+         public void ApplyTo(RendererOptions options)
+         {
+@@ -117,6 +123,10 @@ public static partial class ScriptCommand
+                 options.FramesInFlight = count;
+                 options.CapturesInFlight = count > 1;
+             }
++            if (ExposureStops is { } stops)
++                options.Exposure = new FixedExposure(stops);
++            if (KeyLights is { } keyLights)
++                options.LightPairs = keyLights == 0 ? new EveryLightPair() : new KeyAndFill(keyLights);
+         }
+     }
+ }
+diff --git a/src/Tertius.Host/ScriptCommand.cs b/src/Tertius.Host/ScriptCommand.cs
+index da2ae1186..476aeb905 100644
+--- a/src/Tertius.Host/ScriptCommand.cs
++++ b/src/Tertius.Host/ScriptCommand.cs
+@@ -41,6 +41,11 @@ namespace Tertius.Host;
+ /// (<see cref="RendererOptions.CapturesInFlight"/>).</item>
+ /// <item><c>--pass-timestamps on|off</c> keeps a GPU timestamp after every pass, the headless default, or stamps only the
+ /// render scale's cost groups, as the window does, so that a timed run measures the window's frame span.</item>
++/// <item><c>--exposure STOPS</c> gives the headless renderer a <see cref="FixedExposure"/> of that many stops, from −64 to
++/// 64, so that two timed runs whose images differ light their pixels alike (ticket t2-bne2). Without it the exposure
++/// follows the view.</item>
++/// <item><c>--key-lights off|N</c> keeps <see cref="EveryLightPair"/>, the default, or chooses <see cref="KeyAndFill"/>
++/// with N key lights, 1 to 4 (<see cref="RendererOptions.LightPairs"/>).</item>
+ /// <item><c>--scene &lt;name&gt; [--speed &lt;factor&gt;] [--record &lt;file&gt;]</c> runs a scene live in a window until you close it.
+ /// With <c>--record</c>, the command writes your session to the file as a script that replays it.</item>
+ /// </list>
+@@ -98,7 +103,7 @@ public static partial class ScriptCommand
+     public const string ExposureFile = "exposure.json";
+ 
+     private const string Usage =
+-        "Usage: --script <file> --headless --out <folder> [--video none|<file.mkv> [--fps <rate>]] [--size <width>x<height>] [--gpu-run FIRST..LAST]... [--tone-curve aces|hable] [--screen-trace on|off] [--bloom on|off] [--upscaling off|fsr3] [--render-scale <scale>] [--local-shadows off|on] [--local-shadow-tiles <count>] [--cascaded-lights <count>] [--environment-map on|off] [--subsurface on|off] [--in-flight 1|2] [--pass-timestamps on|off]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
++        "Usage: --script <file> --headless --out <folder> [--video none|<file.mkv> [--fps <rate>]] [--size <width>x<height>] [--gpu-run FIRST..LAST]... [--tone-curve aces|hable] [--screen-trace on|off] [--bloom on|off] [--upscaling off|fsr3] [--render-scale <scale>] [--local-shadows off|on] [--local-shadow-tiles <count>] [--cascaded-lights <count>] [--environment-map on|off] [--subsurface on|off] [--in-flight 1|2] [--pass-timestamps on|off] [--exposure <stops>] [--key-lights off|<count>]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
+ 
+     // The value of --video that draws the captures and drops them (Discard), for a run that only times its frames.
+     private const string NoVideo = "none";
+@@ -132,6 +137,8 @@ public static partial class ScriptCommand
+         ("--subsurface", (_, value) => OnOffProblem("--subsurface", value)),
+         ("--in-flight", (_, count) => InFlightProblem(count)),
+         ("--pass-timestamps", (_, value) => OnOffProblem("--pass-timestamps", value)),
++        ("--exposure", (_, stops) => ExposureProblem(stops)),
++        ("--key-lights", (_, count) => KeyLightsProblem(count)),
+     ];
+ 
+     // The options that choose the run, each with the problem when a run that does not take it is given it. A command line
+@@ -941,6 +948,8 @@ public static partial class ScriptCommand
+             FramesInFlight = given.Value("--in-flight") is { } count
+                 ? int.Parse(count, CultureInfo.InvariantCulture)
+                 : null,
++            ExposureStops = ExposureOf(given.Value("--exposure")),
++            KeyLights = KeyLightsOf(given.Value("--key-lights")),
+         };
+ 
+     private static string? SpeedProblem(string speed) =>
+@@ -997,6 +1006,32 @@ public static partial class ScriptCommand
+             ? $"--cascaded-lights needs a whole number from 0 to {RendererOptions.MaxCascadedLights}, not '{count}'."
+             : null;
+ 
++    private static string? ExposureProblem(string stops) =>
++        ExposureOf(stops) is null
++            ? $"--exposure needs a number of stops from -{ExposureSetting.StopsLimit} to {ExposureSetting.StopsLimit}, not '{stops}'."
++            : null;
++
++    private static string? KeyLightsProblem(string count) =>
++        KeyLightsOf(count) is null
++            ? $"--key-lights needs off or a whole number from 1 to {KeyAndFill.MaxKeyLights}, not '{count}'."
++            : null;
++
++    /// <summary>The fixed exposure in stops that the text gives, or null for no text or one outside −64 to 64.</summary>
++    private static float? ExposureOf(string? text)
++    {
++        bool read = float.TryParse(
++            s: text,
++            style: NumberStyles.Float,
++            provider: CultureInfo.InvariantCulture,
++            result: out float stops
++        );
++        return read && MathF.Abs(stops) <= ExposureSetting.StopsLimit ? stops : null;
++    }
++
++    /// <summary>The key lights that the text gives, 0 for <c>off</c>, or null for no text or one that is neither off nor 1 to 4.</summary>
++    private static int? KeyLightsOf(string? text) =>
++        text == "off" ? 0 : WholeNumberOf(text: text, least: 1, most: KeyAndFill.MaxKeyLights);
++
+     /// <summary>The wall-clock speed that the text gives, or null for no text or one that is not a positive finite number.</summary>
+     private static double? SpeedOf(string? text)
+     {
+diff --git a/src/Tertius.Rendering/Frame/DescriptorLayouts.cs b/src/Tertius.Rendering/Frame/DescriptorLayouts.cs
+index 608fba090..c56f8890a 100644
+--- a/src/Tertius.Rendering/Frame/DescriptorLayouts.cs
++++ b/src/Tertius.Rendering/Frame/DescriptorLayouts.cs
+@@ -21,7 +21,8 @@ namespace Tertius.Rendering;
+ /// (rewritten on resize), the shadow cascades of every cascade set (binding 5) and their comparison sampler (binding 6,
+ /// immutable), which the vertex stage also reads for the lit puffs, the local shadow atlas (binding 8, partially bound),
+ /// which the comparison sampler also reads and which stays empty without the atlas, the shading target (binding 10) and
+-/// the atlas's bounds (binding 11, partially bound), empty without the atlas. Bindings 7 and 9 are free. One.</description></item>
++/// the atlas's bounds (binding 11, partially bound), empty without the atlas, and the tile records of key and fill
++/// (binding 7, partially bound), empty without <see cref="KeyAndFill"/>. Binding 9 is free. One.</description></item>
+ /// <item><term>set 3, impostor atlas</term><description>the impostor atlas's color and depth-offset arrays and their
+ /// sampler (immutable), for the billboards in the G-buffer pass. One, written once.</description></item>
+ /// <item><term>post</term><description>the HDR image for tone mapping, and the summed bloom levels (binding 1) with the
+@@ -253,6 +254,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+         DeformSet = CreateDeformSetLayout();
+         ScatterSet = CreateScatterSetLayout();
+         ShadowBoundsSet = CreateShadowBoundsSetLayout();
++        KeyFillTilesSet = CreateKeyFillTilesSetLayout();
+ 
+         // The temporal lighting's sets.
+         SurfaceTestSet = CreateSurfaceTestSetLayout();
+@@ -269,7 +271,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+             PyramidTailLayout,
+             DeformLayout,
+             ScatterLayout,
+-            ShadowBoundsLayout
++            ShadowBoundsLayout,
++            KeyFillTilesLayout
+         ) = CreateComputeLayouts();
+ 
+         (SurfaceTestLayout, AccumulateLayout, DiffuseFilterLayout, ScreenTraceLayout) = CreateTemporalLayouts();
+@@ -434,6 +437,15 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+     /// <summary>The shadow bounds set and <see cref="ShadowBoundsPushConstants"/>, for the dispatch of each drawn tile's bounds.</summary>
+     public PipelineLayout ShadowBoundsLayout { get; }
+ 
++    /// <summary>
++    /// The set of <see cref="KeyFillTilesLayout"/>: the corner pass's three images as sampled images (bindings 0 to 2) and
++    /// the tile records as a storage buffer (binding 3), for the compute stage (Shaders/key_fill_tiles.comp).
++    /// </summary>
++    public DescriptorSetLayout KeyFillTilesSet { get; }
++
++    /// <summary>The key fill tiles set and <see cref="KeyFillTilesPushConstants"/>, for the tile pass of key and fill.</summary>
++    public PipelineLayout KeyFillTilesLayout { get; }
++
+     /// <summary>The deform pass's one set: the region's window, the deform vertices, the morph deltas, the pose rows and the job table.</summary>
+     public DescriptorSetLayout DeformSet { get; }
+ 
+@@ -521,6 +533,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+ 
+     public DescriptorSet AllocateShadowBoundsSet() => Allocate(pool, ShadowBoundsSet, null);
+ 
++    public DescriptorSet AllocateKeyFillTilesSet() => Allocate(pool, KeyFillTilesSet, null);
++
+     public DescriptorSet AllocateSurfaceTestSet() => Allocate(pool, SurfaceTestSet, null);
+ 
+     public DescriptorSet AllocateSignalSet() => Allocate(pool, SignalSet, null);
+@@ -753,7 +767,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+     /// <summary>
+     /// The layout of the G-buffer set: five G-buffer images, the shadow cascades, <paramref name="shadowSampler"/> as an
+     /// immutable sampler, the local shadow atlas, partially bound, the shading target, the sixth
+-    /// G-buffer image, at binding 10, and the atlas's bounds, partially bound. The sampler
++    /// G-buffer image, at binding 10, the atlas's bounds, partially bound, and the tile records of key and fill, a storage
++    /// buffer, partially bound. The sampler
+     /// is immutable because portability implementations may not allow updating comparison sampler descriptors
+     /// (VkPhysicalDevicePortabilitySubsetFeaturesKHR::mutableComparisonSamplers).
+     /// </summary>
+@@ -780,11 +795,18 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+             Image(binding: RenderTargets.ShadingBinding, stages: shading),
+             // Every stage that samples the tiles reads their bounds first.
+             Image(binding: ShadowAtlas.BoundsBinding, stages: graphics),
++            // The direct pass under key and fill reads its pixel's tile record.
++            StorageBuffer(binding: KeyFillImages.TilesBinding, stages: ShaderStageFlags.FragmentBit),
+         ];
+         // The flags follow the bindings' order in the list, which skips binding 9.
+         Span<DescriptorBindingFlags> flags = stackalloc DescriptorBindingFlags[gbuffer.Length];
+         for (int i = 0; i < gbuffer.Length; i++)
+-            if (gbuffer[i].Binding is ShadowAtlas.AtlasBinding or ShadowAtlas.BoundsBinding)
++            if (
++                gbuffer[i].Binding
++                is ShadowAtlas.AtlasBinding
++                    or ShadowAtlas.BoundsBinding
++                    or KeyFillImages.TilesBinding
++            )
+                 flags[i] = DescriptorBindingFlags.PartiallyBoundBit;
+         return CreateLayout(bindings: gbuffer, name: "g-buffer set", bindingFlags: flags);
+     }
+@@ -838,7 +860,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+         PipelineLayout PyramidTail,
+         PipelineLayout Deform,
+         PipelineLayout Scatter,
+-        PipelineLayout ShadowBounds
++        PipelineLayout ShadowBounds,
++        PipelineLayout KeyFillTiles
+     ) CreateComputeLayouts()
+     {
+         PipelineLayout exposure = ComputeLayout<ExposureAdaptPushConstants>(
+@@ -869,7 +892,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+             sets: [ShadowBoundsSet],
+             name: "shadow bounds layout"
+         );
+-        return (exposure, environmentPrefilter, pyramid, pyramidTail, deform, scatter, shadowBounds);
++        PipelineLayout keyFillTiles = ComputeLayout<KeyFillTilesPushConstants>(
++            sets: [KeyFillTilesSet],
++            name: "key fill tiles layout"
++        );
++        return (exposure, environmentPrefilter, pyramid, pyramidTail, deform, scatter, shadowBounds, keyFillTiles);
+     }
+ 
+     /// <summary>A layout of <paramref name="sets"/> whose one push constant range is a <typeparamref name="TPush"/> for the compute stage.</summary>
+@@ -886,13 +913,14 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+         [
+             // One per frame set, and the scatter set's kernel.
+             new(DescriptorType.UniformBuffer, frames + 1),
+-            // Those of each frame set and each deform set, the two of the exposure set and the two lists of each screen
+-            // tracer set.
++            // Those of each frame set and each deform set, the two of the exposure set, the two lists of each screen
++            // tracer set, and the tile records of key and fill in the G-buffer set and in the key fill tiles set.
+             new(
+                 DescriptorType.StorageBuffer,
+                 (FrameSetStorageBuffers + DeformSetStorageBuffers) * frames
+                     + 2
+                     + ScreenTraceStorageBuffers * ScreenTraceSets
++                    + 2
+             ),
+             // Three per frame set (the material sampler and the immutable linear clamp and environment samplers), the
+             // immutable samplers of the G-buffer, atlas, post and prefilter sets, and one per glow source set.
+@@ -900,10 +928,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+             // 20 for the G-buffer, post and atlas sets, five per frame set for the tables, the specular map, the irradiance
+             // cube and the distance cube, one per glow source set, two for the meter set, one per pyramid level set, one for
+             // each pyramid's tail set, one for the prefilter set, one for the shadow bounds set, two for each surface test
+-            // set, two for each signal set and four for each screen tracer set.
++            // set, two for each signal set, four for each screen tracer set and three for the key fill tiles set.
+             new(
+                 DescriptorType.SampledImage,
+                 20
++                    + 3
+                     + 5 * frames
+                     + glowSourceSets
+                     + 2
+@@ -938,13 +967,13 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+     {
+         uint frames = framesInFlight;
+         // The frame sets, the deform sets, the G-buffer, post, atlas, meter, exposure, prefilter, scatter, shadow
+-        // bounds and light sets, the glow source sets, the pyramid level sets, each pyramid's tail set, the environment
++        // bounds, key fill tiles and light sets, the glow source sets, the pyramid level sets, each pyramid's tail set, the environment
+         // levels sets, the surface test sets, the signal sets, the screen tracer sets and the filter sets. The tracer's sets
+         // exist even with the tracer off: they cost nothing per frame.
+         SetPool shared = CreatePool(
+             sizes: SharedPoolSizes(frames, glowSourceSets),
+             maxSets: 2 * frames
+-                + 10
++                + 11
+                 + Pyramids
+                 + glowSourceSets
+                 + PyramidLevelSets
+@@ -1079,6 +1108,18 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+     }
+ 
+     /// <summary>The layout of the shadow bounds set: the atlas as a sampled image and its bounds as a storage image, for the compute stage.</summary>
++    private DescriptorSetLayout CreateKeyFillTilesSetLayout()
++    {
++        Span<DescriptorSetLayoutBinding> tiles =
++        [
++            Image(binding: 0, stages: ShaderStageFlags.ComputeBit),
++            Image(binding: 1, stages: ShaderStageFlags.ComputeBit),
++            Image(binding: 2, stages: ShaderStageFlags.ComputeBit),
++            StorageBuffer(binding: 3, stages: ShaderStageFlags.ComputeBit),
++        ];
++        return CreateLayout(bindings: tiles, name: "key fill tiles set");
++    }
++
+     private DescriptorSetLayout CreateShadowBoundsSetLayout()
+     {
+         Span<DescriptorSetLayoutBinding> bounds =
+diff --git a/src/Tertius.Rendering/Frame/KeyFillImages.cs b/src/Tertius.Rendering/Frame/KeyFillImages.cs
+new file mode 100644
+index 000000000..0e791a62e
+--- /dev/null
++++ b/src/Tertius.Rendering/Frame/KeyFillImages.cs
+@@ -0,0 +1,129 @@
++using System.Diagnostics.CodeAnalysis;
++using Silk.NET.Vulkan;
++
++namespace Tertius.Rendering;
++
++/// <summary>
++/// The images and the tile records of key and fill (docs/plans/light-pairs.md, "Key and fill"), under
++/// <see cref="KeyAndFill"/>: the three images that the corner pass draws, one texel per corner of the tile grid, and the
++/// buffer of one record per tile that the tile pass writes and the direct pass reads, at
++/// <see cref="TilesBinding"/> of the G-buffer set. All have the size of the targets' largest render size. A frame of a
++/// smaller render size uses the first corners and tiles of each, and its tiles count from the frame's own width
++/// (Shaders/key_fill.glsl).
++/// </summary>
++internal sealed unsafe class KeyFillImages : IDisposable
++{
++    /// <summary>The binding of the tile records in the G-buffer set.</summary>
++    public const uint TilesBinding = 7;
++
++    /// <summary>The bytes of one tile's record, LightTile in key_fill.glsl: std430.</summary>
++    public const ulong TileBytes = 272;
++
++    /// <summary>The format of the two fill images: the fill's light is plain irradiance, which no half float holds.</summary>
++    private const Format FillFormat = Format.R32G32B32A32Sfloat;
++
++    /// <summary>The format of the key image: one key per channel.</summary>
++    private const Format KeyFormat = Format.R32G32B32A32Uint;
++
++    private readonly VulkanDevice device;
++    private readonly DeviceAllocator allocator;
++    private readonly DescriptorLayouts layouts;
++
++    public KeyFillImages(VulkanDevice device, DeviceAllocator allocator, DescriptorLayouts layouts, RenderTargets targets)
++    {
++        this.device = device;
++        this.allocator = allocator;
++        this.layouts = layouts;
++        Set = layouts.AllocateKeyFillTilesSet();
++        Create(targets);
++    }
++
++    /// <summary>The fill's light of each corner, and its scale (key_fill_corners.frag).</summary>
++    public GpuImage FillLight { get; private set; }
++
++    /// <summary>The fill's direction sum of each corner, and the corner's distance to the eye.</summary>
++    public GpuImage FillDirection { get; private set; }
++
++    /// <summary>The keys of each corner.</summary>
++    public GpuImage Keys { get; private set; }
++
++    /// <summary>The tile records, <see cref="TileBytes"/> each, in rows of the frame's tiles.</summary>
++    public GpuBuffer Tiles { get; private set; }
++
++    /// <summary>The set of <see cref="DescriptorLayouts.KeyFillTilesLayout"/>: the three corner images and the tile records.</summary>
++    public DescriptorSet Set { get; }
++
++    /// <summary>The tiles of a render size of <paramref name="extent"/> along each axis. The corners are one more.</summary>
++    public static Extent2D TilesOf(Extent2D extent) =>
++        new(
++            (extent.Width + KeyAndFill.TileSize - 1) / KeyAndFill.TileSize,
++            (extent.Height + KeyAndFill.TileSize - 1) / KeyAndFill.TileSize
++        );
++
++    /// <summary>The corners of a render size of <paramref name="extent"/> along each axis.</summary>
++    public static Extent2D CornersOf(Extent2D extent)
++    {
++        Extent2D tiles = TilesOf(extent);
++        return new(tiles.Width + 1, tiles.Height + 1);
++    }
++
++    /// <summary>
++    /// Recreates the images and the records at the targets' size and rewrites both sets. The device must be idle, and the
++    /// targets resized first.
++    /// </summary>
++    public void Resize(RenderTargets targets)
++    {
++        Destroy();
++        Create(targets);
++    }
++
++    [MemberNotNull(nameof(FillLight), nameof(FillDirection), nameof(Keys), nameof(Tiles))]
++    private void Create(RenderTargets targets)
++    {
++        Extent2D corners = CornersOf(targets.Extent);
++        Extent2D tiles = TilesOf(targets.Extent);
++        FillLight = CreateImage(extent: corners, format: FillFormat, name: "key fill light");
++        FillDirection = CreateImage(extent: corners, format: FillFormat, name: "key fill direction");
++        Keys = CreateImage(extent: corners, format: KeyFormat, name: "key fill keys");
++        Tiles = GpuBuffer.Create(
++            device: device,
++            allocator: allocator,
++            size: (ulong)tiles.Width * tiles.Height * TileBytes,
++            usage: BufferUsageFlags.StorageBufferBit,
++            memoryUsage: MemoryUsage.GpuOnly,
++            name: "key fill tiles"
++        );
++        layouts.WriteImage(set: Set, binding: 0, arrayElement: 0, image: FillLight);
++        layouts.WriteImage(set: Set, binding: 1, arrayElement: 0, image: FillDirection);
++        layouts.WriteImage(set: Set, binding: 2, arrayElement: 0, image: Keys);
++        layouts.WriteBuffer(set: Set, binding: 3, type: DescriptorType.StorageBuffer, buffer: Tiles);
++        layouts.WriteBuffer(
++            set: targets.GBufferSet,
++            binding: TilesBinding,
++            type: DescriptorType.StorageBuffer,
++            buffer: Tiles
++        );
++    }
++
++    private GpuImage CreateImage(Extent2D extent, Format format, string name) =>
++        GpuImage.Create(
++            device: device,
++            allocator: allocator,
++            extent: extent,
++            format: format,
++            usage: ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.SampledBit,
++            mipLevels: 1,
++            name: name
++        );
++
++    private void Destroy()
++    {
++        FillLight.Dispose();
++        FillDirection.Dispose();
++        Keys.Dispose();
++        Tiles.Dispose();
++    }
++
++    // The pool of the layouts frees the set.
++    public void Dispose() => Destroy();
++}
+diff --git a/src/Tertius.Rendering/LightPairSetting.cs b/src/Tertius.Rendering/LightPairSetting.cs
+new file mode 100644
+index 000000000..ef7f17a7b
+--- /dev/null
++++ b/src/Tertius.Rendering/LightPairSetting.cs
+@@ -0,0 +1,84 @@
++namespace Tertius.Rendering;
++
++/// <summary>
++/// The direct pass shades every pair of a pixel and a light in full: the light's shadow lookup and its response, at the
++/// pixel (ARCHITECTURE.md, "The shaders").
++/// </summary>
++public readonly record struct EveryLightPair;
++
++/// <summary>
++/// The direct pass shades in full only the key lights of each pixel, and takes every other light from the fill
++/// (docs/plans/light-pairs.md, "Key and fill"). The key lights of a screen corner are the at most
++/// <paramref name="KeyLights"/> lights that show the most light there before their shadows. A corner is a point of a grid
++/// of <see cref="TileSize"/> render pixels. Each light has a key share at each corner (<see cref="KeyShare"/>), and a
++/// pixel takes each light's key share from the four corners around it. The fill of a corner is the diffuse light of every
++/// light's other share with its shadow, and a pixel takes it from the same four corners. So the diffuse light of every
++/// light stays, and a light's shine and the sharp edge of its shadow stay by its key share.
++/// </summary>
++/// <param name="KeyLights">The most key lights of a corner, from 1 to <see cref="MaxKeyLights"/>.</param>
++public readonly record struct KeyAndFill(int KeyLights)
++{
++    /// <summary>The most key lights of a corner: the keys that one texel of the corners' key image holds.</summary>
++    public const int MaxKeyLights = 4;
++
++    /// <summary>The side of a screen tile, in render pixels: the distance between two corners. TileSize in key_fill.glsl.</summary>
++    public const int TileSize = 8;
++
++    /// <summary>The most lights of a tile's list: the key lights of its four corners.</summary>
++    public const int TileEntries = 4 * MaxKeyLights;
++
++    /// <summary>
++    /// The key share of a light of <paramref name="importance"/> at a corner whose threshold is
++    /// <paramref name="threshold"/>: 0 at the threshold or below, 1 at twice the threshold or above, and even in between.
++    /// The importance of a light is the radiance that it shows at the corner before its shadow, and the threshold is the
++    /// importance of the light that follows the key lights in the order of importance, or 0 without such a light. The share
++    /// is continuous in every light's importance, so no light switches between key and fill at once, and it stays the same
++    /// when every importance takes one factor, such as the exposure's. keyShare in key_fill.glsl is the copy.
++    /// </summary>
++    public static double KeyShare(double importance, double threshold)
++    {
++        if (importance <= 0)
++            return 0;
++        return threshold <= 0 ? 1 : Math.Clamp(importance / threshold - 1, 0, 1);
++    }
++
++    /// <summary>
++    /// The threshold of a corner whose lights have <paramref name="importances"/>: the importance of the light that
++    /// follows the <see cref="KeyLights"/> most important ones, or 0 without one.
++    /// </summary>
++    public double Threshold(ReadOnlySpan<double> importances)
++    {
++        if (importances.Length <= KeyLights)
++            return 0;
++        double[] sorted = importances.ToArray();
++        Array.Sort(sorted);
++        return Math.Max(sorted[^(KeyLights + 1)], 0);
++    }
++}
++
++/// <summary>
++/// Which pairs of a pixel and a light the direct pass shades in full: <see cref="EveryLightPair"/> or
++/// <see cref="KeyAndFill"/>. The default value is EveryLightPair. It is a generated union (see
++/// <see cref="GeneratedUnionAttribute"/>).
++/// </summary>
++[GeneratedUnion(typeof(EveryLightPair), typeof(KeyAndFill), ZeroCase = typeof(EveryLightPair))]
++public readonly partial struct LightPairSetting
++{
++    /// <summary>Why the renderer cannot use the setting, or null when it can.</summary>
++    internal string? Problem =>
++        this switch
++        {
++            EveryLightPair => null,
++            KeyAndFill { KeyLights: >= 1 and <= KeyAndFill.MaxKeyLights } => null,
++            KeyAndFill split =>
++                $"KeyAndFill.KeyLights must be 1 to {KeyAndFill.MaxKeyLights}, not {split.KeyLights}.",
++        };
++
++    /// <summary>The key lights of a corner that the shaders take, or 0 for every pair.</summary>
++    internal int KeyLights =>
++        this switch
++        {
++            EveryLightPair => 0,
++            KeyAndFill split => split.KeyLights,
++        };
++}
+diff --git a/src/Tertius.Rendering/Passes/DirectLightPass.cs b/src/Tertius.Rendering/Passes/DirectLightPass.cs
+index 8a86a889b..18f0ba91b 100644
+--- a/src/Tertius.Rendering/Passes/DirectLightPass.cs
++++ b/src/Tertius.Rendering/Passes/DirectLightPass.cs
+@@ -6,26 +6,32 @@ namespace Tertius.Rendering;
+ /// "Direct light" (docs/plans/temporal-renderer.md, section 7): one fullscreen pass over all depth ranges that takes every
+ /// light of the main view with its shadows at each lit pixel, and writes its two parts, the diffuse and the specular light,
+ /// each divided by its material factor and pre-exposed, into <see cref="RenderTargets.DirectDiffuse"/> and
+-/// <see cref="RenderTargets.DirectSpecular"/>. Sky and impostor pixels get 0.
++/// <see cref="RenderTargets.DirectSpecular"/>. Sky and impostor pixels get 0. Under <see cref="KeyAndFill"/>, each lit
++/// pixel takes the key lights and the fill of its tile's record instead, which <see cref="KeyFillPass"/> wrote
++/// (docs/plans/light-pairs.md, "Key and fill").
+ /// </summary>
+ internal sealed unsafe class DirectLightPass : RenderPass
+ {
+     private readonly VulkanDevice device;
++    private readonly KeyFillImages? keyFill;
+     private readonly Pipeline pipeline;
+ 
++    /// <param name="keyFill">The tile records under <see cref="KeyAndFill"/>, or null under <see cref="EveryLightPair"/>.</param>
+     public DirectLightPass(
+         VulkanDevice device,
+         ShaderLibrary shaders,
+         DescriptorLayouts layouts,
+-        ShaderConstants constants
++        ShaderConstants constants,
++        KeyFillImages? keyFill
+     )
+     {
+         this.device = device;
++        this.keyFill = keyFill;
+         pipeline = new GraphicsPipelineDesc
+         {
+             Name = "direct light",
+             VertexShader = "lighting.vert",
+-            FragmentShader = "direct.frag",
++            FragmentShader = keyFill is null ? "direct.frag" : "direct_key_fill.frag",
+             Layout = layouts.SceneLayout,
+             ColorFormats = [RenderTargets.DirectFormat, RenderTargets.DirectFormat],
+             CullMode = CullModeFlags.None,
+@@ -47,6 +53,8 @@ internal sealed unsafe class DirectLightPass : RenderPass
+         barriers.Image(context.Shadows.Image, ImageUse.SampledFragment);
+         context.ShadowAtlas?.DeclareSampled(barriers, ImageUse.SampledFragment);
+         barriers.Buffer(context.Exposure.Buffer, BufferUse.ShaderRead);
++        if (keyFill is not null)
++            barriers.Buffer(keyFill.Tiles, BufferUse.ShaderRead);
+         // Discarded, and still after the last frame's composite and occlusion depth pass read them: the pass writes every
+         // pixel.
+         barriers.Image(targets.DirectDiffuse, ImageUse.ColorAttachment, discard: true);
+diff --git a/src/Tertius.Rendering/Passes/KeyFillPass.cs b/src/Tertius.Rendering/Passes/KeyFillPass.cs
+new file mode 100644
+index 000000000..9ef964f98
+--- /dev/null
++++ b/src/Tertius.Rendering/Passes/KeyFillPass.cs
+@@ -0,0 +1,137 @@
++using Silk.NET.Vulkan;
++
++namespace Tertius.Rendering;
++
++/// <summary>
++/// "Key and fill" (docs/plans/light-pairs.md, "Key and fill"), under <see cref="KeyAndFill"/>, right before the direct
++/// pass: the corner pass draws one fragment per corner of the frame's tile grid, which writes the corner's key lights and
++/// its fill (Shaders/key_fill_corners.frag), and the tile pass gathers each tile's four corners into its record
++/// (Shaders/key_fill_tiles.comp), which the direct pass reads.
++/// </summary>
++internal sealed unsafe class KeyFillPass : RenderPass
++{
++    /// <summary>The width and the height of a workgroup of key_fill_tiles.comp: its local size.</summary>
++    private const uint GroupSize = 8;
++
++    private readonly VulkanDevice device;
++    private readonly DescriptorLayouts layouts;
++    private readonly KeyFillImages images;
++    private readonly Pipeline corners;
++    private readonly Pipeline tiles;
++
++    public KeyFillPass(
++        VulkanDevice device,
++        ShaderLibrary shaders,
++        DescriptorLayouts layouts,
++        ShaderConstants constants,
++        KeyFillImages images
++    )
++    {
++        this.device = device;
++        this.layouts = layouts;
++        this.images = images;
++        corners = new GraphicsPipelineDesc
++        {
++            Name = "key fill corners",
++            VertexShader = "lighting.vert",
++            FragmentShader = "key_fill_corners.frag",
++            Layout = layouts.SceneLayout,
++            ColorFormats = [images.FillLight.Format, images.FillDirection.Format, images.Keys.Format],
++            CullMode = CullModeFlags.None,
++            Constants = constants,
++        }.Create(device, shaders);
++        tiles = new ComputePipelineDesc
++        {
++            Name = "key fill tiles",
++            Shader = "key_fill_tiles.comp",
++            Layout = layouts.KeyFillTilesLayout,
++        }.Create(device, shaders);
++    }
++
++    public override string Name => "key and fill";
++
++    public override void Record(FrameContext context)
++    {
++        RecordCorners(context);
++        RecordTiles(context);
++    }
++
++    /// <summary>Draws the corners of the frame's render size into the first texels of the three corner images.</summary>
++    private void RecordCorners(FrameContext context)
++    {
++        RenderTargets targets = context.Targets;
++        BarrierBatch barriers = context.Barriers;
++        // As the direct pass declares them: the corner pass shades as it does.
++        foreach (GpuImage image in targets.GBuffer)
++            if (image != targets.Motion)
++                barriers.Image(image, ImageUse.SampledFragment);
++        barriers.Image(context.Shadows.Image, ImageUse.SampledFragment);
++        context.ShadowAtlas?.DeclareSampled(barriers, ImageUse.SampledFragment);
++        // Discarded: the tile pass reads only the corners that this draw writes.
++        barriers.Image(images.FillLight, ImageUse.ColorAttachment, discard: true);
++        barriers.Image(images.FillDirection, ImageUse.ColorAttachment, discard: true);
++        barriers.Image(images.Keys, ImageUse.ColorAttachment, discard: true);
++        barriers.Flush(context.Vk, context.CommandBuffer);
++        context.BeginRenderingInto([
++            (images.FillLight, AttachmentLoadOp.DontCare),
++            (images.FillDirection, AttachmentLoadOp.DontCare),
++            (images.Keys, AttachmentLoadOp.DontCare),
++        ]);
++        context.Vk.CmdBindPipeline(context.CommandBuffer, PipelineBindPoint.Graphics, corners);
++        context.BindSceneSets();
++        context.SetViewport(KeyFillImages.CornersOf(context.Extent));
++        context.Vk.CmdDraw(
++            commandBuffer: context.CommandBuffer,
++            vertexCount: 3,
++            instanceCount: 1,
++            firstVertex: 0,
++            firstInstance: 0
++        );
++        context.Vk.CmdEndRendering(context.CommandBuffer);
++    }
++
++    /// <summary>Dispatches one invocation per tile of the frame's render size.</summary>
++    private void RecordTiles(FrameContext context)
++    {
++        BarrierBatch barriers = context.Barriers;
++        barriers.Image(images.FillLight, ImageUse.SampledCompute);
++        barriers.Image(images.FillDirection, ImageUse.SampledCompute);
++        barriers.Image(images.Keys, ImageUse.SampledCompute);
++        barriers.Buffer(images.Tiles, BufferUse.ComputeWrite);
++        barriers.Flush(context.Vk, context.CommandBuffer);
++        context.Vk.CmdBindPipeline(context.CommandBuffer, PipelineBindPoint.Compute, tiles);
++        DescriptorSet set = images.Set;
++        context.Vk.CmdBindDescriptorSets(
++            commandBuffer: context.CommandBuffer,
++            pipelineBindPoint: PipelineBindPoint.Compute,
++            layout: layouts.KeyFillTilesLayout,
++            firstSet: 0,
++            descriptorSetCount: 1,
++            pDescriptorSets: &set,
++            dynamicOffsetCount: 0,
++            pDynamicOffsets: null
++        );
++        Extent2D count = KeyFillImages.TilesOf(context.Extent);
++        var push = new KeyFillTilesPushConstants { TilesWide = count.Width, TilesHigh = count.Height };
++        context.Vk.CmdPushConstants(
++            commandBuffer: context.CommandBuffer,
++            layout: layouts.KeyFillTilesLayout,
++            stageFlags: ShaderStageFlags.ComputeBit,
++            offset: 0,
++            size: (uint)sizeof(KeyFillTilesPushConstants),
++            pValues: &push
++        );
++        context.Vk.CmdDispatch(
++            commandBuffer: context.CommandBuffer,
++            groupCountX: (count.Width + GroupSize - 1) / GroupSize,
++            groupCountY: (count.Height + GroupSize - 1) / GroupSize,
++            groupCountZ: 1
++        );
++    }
++
++    public override void Dispose()
++    {
++        device.Vk.DestroyPipeline(device.Device, corners, null);
++        device.Vk.DestroyPipeline(device.Device, tiles, null);
++    }
++}
+diff --git a/src/Tertius.Rendering/RendererOptions.cs b/src/Tertius.Rendering/RendererOptions.cs
+index e1a6e5a2b..0cd9e9fb2 100644
+--- a/src/Tertius.Rendering/RendererOptions.cs
++++ b/src/Tertius.Rendering/RendererOptions.cs
+@@ -47,6 +47,14 @@ public sealed class RendererOptions
+     /// <summary>Whether near lights cast shadows from a shared atlas. The default is <see cref="LocalShadowAtlas.Default"/>.</summary>
+     public LocalShadowSetting LocalShadows { get; set; } = LocalShadowAtlas.Default;
+ 
++    /// <summary>
++    /// Which pairs of a pixel and a light the direct pass shades in full: every pair, or under <see cref="KeyAndFill"/>
++    /// only each pixel's key lights, with the other lights' diffuse light from the fill. The default is
++    /// <see cref="EveryLightPair"/>. Under <see cref="KeyAndFill"/>, the corner images and the tile records take about 5
++    /// bytes per pixel, about 10 MB at 1920 × 1080 (docs/plans/light-pairs.md, "Key and fill").
++    /// </summary>
++    public LightPairSetting LightPairs { get; set; }
++
+     /// <summary>
+     /// Draws small objects as impostors: below a projected height of 200 px an object is replaced by a captured
+     /// billboard, and above 300 px it returns to geometry. See <see cref="ImpostorTiles"/> for the memory it takes.
+diff --git a/src/Tertius.Rendering/Scene/GpuTypes.cs b/src/Tertius.Rendering/Scene/GpuTypes.cs
+index 90619dd99..afe776f12 100644
+--- a/src/Tertius.Rendering/Scene/GpuTypes.cs
++++ b/src/Tertius.Rendering/Scene/GpuTypes.cs
+@@ -524,7 +524,10 @@ internal struct GpuFrameConstants
+     public Vector4 AmbientGround;
+     public Vector4 Viewport;
+ 
+-    /// <summary>X the main view's mip bias, Y and Z the jitter in render pixels, W unused.</summary>
++    /// <summary>
++    /// X the main view's mip bias, Y and Z the jitter in render pixels, W the key lights of a corner under
++    /// <see cref="KeyAndFill"/>, 0 under <see cref="EveryLightPair"/>.
++    /// </summary>
+     public Vector4 RenderParams;
+     public Vector4 OutputViewport;
+     public Vector4 PreviousJitter;
+@@ -779,6 +782,17 @@ internal struct ShadowBoundsPushConstants
+     public fixed uint Layers[MaxLayers];
+ }
+ 
++/// <summary>The push constants of the tile pass of key and fill, key_fill_tiles.comp (<see cref="KeyFillPass"/>).</summary>
++[StructLayout(LayoutKind.Sequential)]
++internal struct KeyFillTilesPushConstants
++{
++    /// <summary>The tiles of the frame's render size along x.</summary>
++    public uint TilesWide;
++
++    /// <summary>The tiles of the frame's render size along y.</summary>
++    public uint TilesHigh;
++}
++
+ /// <summary>The push constants of the surface test, surface_test.comp (<see cref="SurfaceTestPass"/>).</summary>
+ [StructLayout(LayoutKind.Sequential)]
+ internal struct SurfaceTestPushConstants
+diff --git a/src/Tertius.Rendering/Shaders/direct_key_fill.frag b/src/Tertius.Rendering/Shaders/direct_key_fill.frag
+new file mode 100644
+index 000000000..e3f1f5a00
+--- /dev/null
++++ b/src/Tertius.Rendering/Shaders/direct_key_fill.frag
+@@ -0,0 +1,33 @@
++#version 460
++// The direct pass under key and fill (docs/plans/light-pairs.md, "Key and fill"): direct.frag with the light of each
++// lit pixel from its tile's key lights and fill (key_fill_light.glsl) in place of every light of the list.
++#extension GL_GOOGLE_include_directive : require
++#include "frame.glsl"
++#include "gbuffer_surface.glsl"
++#include "temporal.glsl"
++#include "key_fill_light.glsl"
++
++layout(location = 0) out vec4 outDiffuse;   // the diffuse part
++layout(location = 1) out vec4 outSpecular;  // the specular part
++
++void main()
++{
++    // As in direct.frag: every read stays inside the image.
++    ivec2 pixel = min(ivec2(gl_FragCoord.xy), ivec2(frame.viewport.xy) - 1);
++    float distanceToEye = texelFetch(gbufferDistance, pixel, 0).r;
++    if (distanceToEye <= 0.0 || texelFetch(gbufferBaseColor, pixel, 0).a == 0.0)
++    {
++        outDiffuse = vec4(0.0);
++        outSpecular = vec4(0.0);
++        return;
++    }
++
++    ShadingInput s = materialAt(pixel);
++    vec3 V = -normalize(s.position);
++    SurfaceLobes lobes = lobesOf(s, V);
++    DirectTerms direct = keyFillLight(s, lobes, V, pixel);
++    MaterialFactors factors = materialFactors(s, lobes);
++    float k = exposureScale();
++    outDiffuse = vec4(demodulated(direct.diffuse, factors.diffuse, k), 1.0);
++    outSpecular = vec4(demodulated(direct.specular, factors.specular, k), 1.0);
++}
+diff --git a/src/Tertius.Rendering/Shaders/frame.glsl b/src/Tertius.Rendering/Shaders/frame.glsl
+index 5638725a9..813917ccf 100644
+--- a/src/Tertius.Rendering/Shaders/frame.glsl
++++ b/src/Tertius.Rendering/Shaders/frame.glsl
+@@ -194,7 +194,8 @@ layout(set = 0, binding = 0, std140) uniform FrameBlock
+     vec4 ambientSky;          // rgb sky color × intensity
+     vec4 ambientGround;       // rgb ground color × intensity
+     vec4 viewport;            // width, height, 1 / width, 1 / height
+-    vec4 renderParams;        // x main-view mip bias, yz jitter in render pixels, w unused
++    vec4 renderParams;        // x main-view mip bias, yz jitter in render pixels, w the key lights of a corner under
++                              // key and fill (key_fill_corners.frag), 0 without it
+     vec4 outputViewport;
+     vec4 previousJitter;
+     vec4 params;              // x the most pre-exposed light that one puff adds to a pixel, y time in seconds, z angular size of one pixel
+diff --git a/src/Tertius.Rendering/Shaders/gbuffer_inputs.glsl b/src/Tertius.Rendering/Shaders/gbuffer_inputs.glsl
+index 5d5fe3923..c7bda5390 100644
+--- a/src/Tertius.Rendering/Shaders/gbuffer_inputs.glsl
++++ b/src/Tertius.Rendering/Shaders/gbuffer_inputs.glsl
+@@ -34,6 +34,11 @@ layout(set = 2, binding = 11) uniform texture2DArray shadowBounds;    // RG32F:
+                                                                        // each window (shadow_bounds.comp); partially
+                                                                        // bound
+ 
++// The tile records of key and fill (key_fill.glsl), which only the direct pass under key and fill reads; partially
++// bound, empty without it.
++#include "key_fill.glsl"
++layout(set = 2, binding = 7, std430) readonly buffer LightTileBlock { LightTile lightTiles[]; };
++
+ // The map that a lit pixel's map code names (docs/plans/environment-maps-per-frame.md, decision 20): code c of the 8-bit
+ // alpha, from 1 to 255, names map (256 − c) / 2, rounded down. MapCode.MapOf is the C# twin. Code 0 marks an unlit pixel,
+ // which no caller passes here.
+diff --git a/src/Tertius.Rendering/Shaders/key_fill.glsl b/src/Tertius.Rendering/Shaders/key_fill.glsl
+new file mode 100644
+index 000000000..1e5578988
+--- /dev/null
++++ b/src/Tertius.Rendering/Shaders/key_fill.glsl
+@@ -0,0 +1,76 @@
++// Key and fill (docs/plans/light-pairs.md, "Key and fill"): what the corner pass, the tile pass and the direct pass
++// share. A corner is a point of a grid of TileSize render pixels, and a tile is the square between four corners. The
++// corner pass (key_fill_corners.frag) gives each corner its key lights with their key shares, and its fill: the diffuse
++// light of every light's other share with its shadow. The tile pass (key_fill_tiles.comp) gathers a tile's four corners
++// into one record, and the direct pass (direct_key_fill.frag) shades a pixel from its tile's record alone. This file
++// reads no descriptor, so that the tile pass can include it without the frame set.
++#ifndef TERTIUS_KEY_FILL_GLSL
++#define TERTIUS_KEY_FILL_GLSL
++
++// KeyAndFill.TileSize: the side of a tile, in render pixels.
++const int TileSize = 8;
++// KeyAndFill.MaxKeyLights: the most key lights of a corner, the keys that one texel of the key image holds.
++const uint KeySlots = 4u;
++// KeyAndFill.TileEntries: the most lights of a tile's list, the key lights of its four corners.
++const uint TileEntries = 16u;
++// The key of an empty slot of the key image. A key holds its light's place in the light list in bits 0 to 15, its key
++// share as 8 bits in bits 16 to 23, and its shape's bit (PointShape, TubeShape or RectShape) from bit 24 on.
++const uint NoKey = 0xFFFFFFFFu;
++
++// The weights of a linear RGB color's luminance, as meter.glsl holds them: the tile pass includes this file alone.
++const vec3 KeyLuminanceWeights = vec3(0.2126, 0.7152, 0.0722);
++
++// One tile's record (LightTile.Bytes in C#, std430: 272 bytes). Its corners are in the order (0, 0), (1, 0), (0, 1),
++// (1, 1) from the tile's own corner.
++struct LightTile
++{
++    vec4 fillLight[4];       // per corner: rgb the fill's light in W/m², a its scale (key_fill_corners.frag)
++    vec4 fillDirection[4];   // per corner: xyz the fill's direction sum, w the corner's distance to the eye in m, 0 for
++                             // a corner without a lit surface
++    uvec4 header;            // x: the entries of each shape, 8 bits each: points, tubes, rectangles. yzw unused
++    uvec2 entries[16];       // TileEntries, in the order of the shapes: x the light's place in the light list, y the key
++                             // share at each of the four corners, 8 bits each (unpackUnorm4x8)
++};
++
++// The pixel that the corner at `corner` of the grid samples, in a render target of `size` pixels: the corner's own
++// pixel, or the last pixel of the row or column for the corners of the last tiles' far sides.
++ivec2 cornerPixel(ivec2 corner, ivec2 size)
++{
++    return min(corner * TileSize, size - 1);
++}
++
++// The tiles of a render target of `size` pixels along each axis. The corners are one more.
++ivec2 tileCount(ivec2 size)
++{
++    return (size + TileSize - 1) / TileSize;
++}
++
++// KeyAndFill.KeyShare: the key share of a light of `importance` at a corner whose threshold is `threshold`: 0 at the
++// threshold or below, 1 at twice the threshold or above, and even in between. Without a threshold, every light that
++// shows some light is all key.
++float keyShare(float importance, float threshold)
++{
++    if (importance <= 0.0)
++        return 0.0;
++    return threshold <= 0.0 ? 1.0 : clamp(importance / threshold - 1.0, 0.0, 1.0);
++}
++
++// The share of a fill's light that a surface of unit normal n takes. The fill holds the sum of its lights' irradiances
++// toward each light, whose luminance is `light`, and `direction`, the sum of each light's luminance times its unit
++// direction. The length of `direction` over `light` says how much the lights agree: 1 for one light, 0 for lights from
++// every side. The share is Geomerics' fit of the irradiance of the first two orders of spherical harmonics (Geomerics
++// 2015, "Reconstructing diffuse lighting from spherical harmonic data"): ((1 + cos θ) / 2)³ for one light at θ from n,
++// which is 1 toward the light and 0 away from it, and 1/4 for lights from every side.
++float fillShare(vec3 direction, float light, vec3 n)
++{
++    if (light <= 0.0)
++        return 0.0;
++    float size = length(direction);
++    float agreement = min(size / light, 1.0);
++    float toward = size > 0.0 ? 0.5 * (1.0 + dot(direction, n) / size) : 0.5;
++    float power = 1.0 + 2.0 * agreement;
++    float even = (1.0 - agreement) / (1.0 + agreement);
++    return 0.25 * (even + (1.0 - even) * (power + 1.0) * pow(max(toward, 0.0), power));
++}
++
++#endif
+diff --git a/src/Tertius.Rendering/Shaders/key_fill_corners.frag b/src/Tertius.Rendering/Shaders/key_fill_corners.frag
+new file mode 100644
+index 000000000..81e1bbe67
+--- /dev/null
++++ b/src/Tertius.Rendering/Shaders/key_fill_corners.frag
+@@ -0,0 +1,165 @@
++#version 460
++// The corner pass of key and fill (docs/plans/light-pairs.md, "Key and fill"): one fragment per corner of the tile grid.
++// It samples the surface at the corner's pixel, ranks every light of the main view by its importance there, and writes
++// the corner's key lights with their key shares, and its fill. A corner whose own pixel holds no lit surface samples
++// the nearest lit pixel of the tiles around it instead (nearestLitPixel), so that a thin object between corners, such as
++// an antenna against the sky, has a corner on its surface.
++//
++// The importance of a light is the luminance of the radiance that it shows at the corner before its shadow, on the
++// corner's surface with a white base color, its geometric normal and a lobe at least as wide as a tile. The white base
++// color and the geometric normal keep a texture's or a normal map's change inside a tile out of the choice. The wide
++// lobe gives a highlight that lies between two corners some importance at both. The shadow stays out, because a key
++// light whose share fell at a corner in its shadow would dim the lit pixels beside the shadow's edge.
++//
++// The fill is the light of every light's other share, with its shadow at the corner: the sum of the irradiances toward
++// each light, the sum of their luminances times each light's direction, and a scale. The scale is the fill's true
++// irradiance on the corner's geometric normal over the irradiance that fillShare gives there, so that a flat surface
++// takes the fill's true diffuse light and a normal map only turns it.
++#extension GL_GOOGLE_include_directive : require
++#include "frame.glsl"
++#include "gbuffer_surface.glsl"
++#include "key_fill.glsl"
++
++layout(location = 0) out vec4 outFillLight;      // rgb the fill's light in W/m², a its scale
++layout(location = 1) out vec4 outFillDirection;  // xyz the fill's direction sum, w the corner's distance to the eye
++layout(location = 2) out uvec4 outKeys;          // the corner's keys (NoKey in key_fill.glsl)
++
++// The most that the scale raises the fill above fillShare's irradiance.
++const float MostScale = 2.0;
++
++// The path of light `index` to the corner's surface and its importance there, or −1 where the surface takes none of
++// its light.
++float importanceOf(uint index, bool fiber, uint shape, ShadingInput s, SurfaceLobes lobes, vec3 V, out LightPath p)
++{
++    if (!lightPath(index, fiber, true, shape, s, p))
++        return -1.0;
++    DirectTerms terms = pathLight(index, fiber, shape, s, lobes, V, p);
++    return dot(terms.diffuse + terms.specular, KeyLuminanceWeights);
++}
++
++// The vector irradiance of the light of path p per unit of p.irradiance: toward a point light, a tube's cosine vector
++// over its solid angle, and half the edge sum of a rectangle's face, in sr.
++vec3 fillVector(uint shape, LightPath p)
++{
++    if (shape == TubeShape)
++        return p.cosine;
++    if (shape != RectShape)
++        return p.L;
++    float scale = 1.0 / max(p.d, 1e-6);
++    vec3 c = p.toCenter * scale;
++    vec3 w = p.halfWidth * scale;
++    vec3 h = p.halfHeight * scale;
++    vec3 u[4] = vec3[4](normalizedOr(c - w - h, vec3(0.0)), normalizedOr(c - w + h, vec3(0.0)),
++        normalizedOr(c + w + h, vec3(0.0)), normalizedOr(c + w - h, vec3(0.0)));
++    return 0.5 * (edgeVector(u[0], u[1]) + edgeVector(u[1], u[2]) + edgeVector(u[2], u[3]) + edgeVector(u[3], u[0]));
++}
++
++// Whether the pixel holds a lit surface: the sky and the impostors take no direct light (direct.frag).
++bool holdsLitSurface(ivec2 pixel)
++{
++    return texelFetch(gbufferDistance, pixel, 0).r > 0.0 && texelFetch(gbufferBaseColor, pixel, 0).a != 0.0;
++}
++
++// The lit pixel that the corner samples: its own pixel `own`, or else the first lit pixel of the square rings around it,
++// nearest ring first, inside the four tiles around the corner and the target of `size` pixels. (−1, −1) without one. Only
++// a corner on the sky or an impostor walks the rings, at most 224 pixels.
++ivec2 nearestLitPixel(ivec2 own, ivec2 size)
++{
++    if (holdsLitSurface(own))
++        return own;
++    for (int r = 1; r < TileSize; r++)
++        for (int i = -r; i < r; i++)
++        {
++            // One pixel of each side of the ring, so that the four sides together hold its 8 r pixels once.
++            ivec2 sides[4] = ivec2[4](own + ivec2(i, -r), own + ivec2(r, i), own + ivec2(-i, r), own + ivec2(-r, -i));
++            for (int k = 0; k < 4; k++)
++            {
++                ivec2 pixel = sides[k];
++                bool inside = all(greaterThanEqual(pixel, ivec2(0))) && all(lessThan(pixel, size));
++                if (inside && holdsLitSurface(pixel))
++                    return pixel;
++            }
++        }
++    return ivec2(-1);
++}
++
++void main()
++{
++    outFillLight = vec4(0.0);
++    outFillDirection = vec4(0.0);
++    outKeys = uvec4(NoKey);
++    ivec2 size = ivec2(frame.viewport.xy);
++    ivec2 pixel = nearestLitPixel(cornerPixel(ivec2(gl_FragCoord.xy), size), size);
++    // No lit surface in the tiles around the corner: the corner stays empty.
++    if (pixel.x < 0)
++        return;
++    float distanceToEye = texelFetch(gbufferDistance, pixel, 0).r;
++
++    ShadingInput s = materialAt(pixel);
++    bool fiber = s.model == ShadingHair;
++    if (!fiber)
++        s.normal = s.geometricNormal;
++    s.baseColor = vec3(1.0);
++    vec3 V = -normalize(s.position);
++    SurfaceLobes lobes = lobesOf(s, V);
++    // The mirror direction turns by about the tile's angle from one corner to the next.
++    lobes.alpha = max(lobes.alpha, 2.0 * float(TileSize) * frame.params.z);
++    uint keyLights = min(uint(frame.renderParams.w), KeySlots);
++
++    // The keyLights + 1 greatest importances, greatest first: the last of them is the threshold.
++    float greatest[5] = float[5](0.0, 0.0, 0.0, 0.0, 0.0);
++    for (uint i = 0u; i < frame.counts.x; i++)
++    {
++        if (!viewKeeps(MainView, lights[i]))
++            continue;
++        LightPath p;
++        float importance = importanceOf(i, fiber, shapeOf(lights[i]), s, lobes, V, p);
++        for (uint k = 0u; k <= keyLights; k++)
++            if (importance > greatest[k])
++            {
++                float lower = greatest[k];
++                greatest[k] = importance;
++                importance = lower;
++            }
++    }
++    float threshold = greatest[keyLights];
++
++    uvec4 keys = uvec4(NoKey);
++    uint slot = 0u;
++    vec3 light = vec3(0.0);
++    vec3 direction = vec3(0.0);
++    float onSurface = 0.0;
++    for (uint i = 0u; i < frame.counts.x; i++)
++    {
++        if (!viewKeeps(MainView, lights[i]))
++            continue;
++        uint shape = shapeOf(lights[i]);
++        LightPath p;
++        float importance = importanceOf(i, fiber, shape, s, lobes, V, p);
++        if (importance < 0.0)
++            continue;
++        // In the key's 8 bits, so that the key share and the fill's share add up to the whole light. At most keyLights
++        // lights lie above the threshold, so a slot is free for each.
++        uint share = slot < KeySlots ? uint(keyShare(importance, threshold) * 255.0 + 0.5) : 0u;
++        if (share > 0u)
++            keys[slot++] = i | (share << 16) | (shape << 24);
++        if (share == 255u)
++            continue;
++        float visibility = pathVisibility(i, p, s.position, ShadowMapsMainView) * (1.0 - float(share) / 255.0);
++        if (visibility <= 0.0)
++            continue;
++        vec3 vector = fillVector(shape, p);
++        vec3 irradiance = p.irradiance * visibility;
++        float luminance = dot(irradiance, KeyLuminanceWeights);
++        light += irradiance * length(vector);
++        direction += luminance * vector;
++        onSurface += luminance * max(dot(s.geometricNormal, vector), 0.0);
++    }
++    float luminance = dot(light, KeyLuminanceWeights);
++    float modeled = luminance * fillShare(direction, luminance, s.geometricNormal);
++    // A fiber takes light from every side, so no surface's cosine corrects its fill.
++    float scale = fiber || modeled <= 0.0 ? 1.0 : min(onSurface / modeled, MostScale);
++    outFillLight = vec4(light, scale);
++    outFillDirection = vec4(direction, distanceToEye);
++    outKeys = keys;
++}
+diff --git a/src/Tertius.Rendering/Shaders/key_fill_light.glsl b/src/Tertius.Rendering/Shaders/key_fill_light.glsl
+new file mode 100644
+index 000000000..992f4c05b
+--- /dev/null
++++ b/src/Tertius.Rendering/Shaders/key_fill_light.glsl
+@@ -0,0 +1,115 @@
++// The direct light of a pixel under key and fill (docs/plans/light-pairs.md, "Key and fill"): each key light of the
++// pixel's tile by its key share, as directLight shades it, and the tile's fill. Only direct_key_fill.frag includes it.
++#ifndef TERTIUS_KEY_FILL_LIGHT_GLSL
++#define TERTIUS_KEY_FILL_LIGHT_GLSL
++
++#include "gbuffer_surface.glsl"
++#include "key_fill.glsl"
++
++// The share of the fill of a corner that no surface near the pixel's holds, beside a corner on the pixel's surface.
++const float OffSurfaceShare = 0.01;
++
++// The share of each corner of tile `t`, at `tile` of the grid, in the pixel's key shares and its fill: the bilinear
++// weight of the corner's place, times how near the corner's surface point lies to the plane of the pixel's surface. The
++// shares add up to 1, or all are 0 where no corner of the tile holds a lit surface. A corner counts as on the pixel's
++// plane within the world size of a tile at the pixel. A corner off the plane keeps OffSurfaceShare of its weight, so
++// that a pixel with no corner on its plane takes the corners that it has, and so that the shares stay continuous where a
++// corner leaves the plane.
++vec4 cornerShares(ShadingInput s, ivec2 pixel, ivec2 tile, uint t)
++{
++    ivec2 size = ivec2(frame.viewport.xy);
++    vec2 f = vec2(pixel - tile * TileSize) / float(TileSize);
++    vec4 bilinear = vec4((1.0 - f.x) * (1.0 - f.y), f.x * (1.0 - f.y), (1.0 - f.x) * f.y, f.x * f.y);
++    float tolerance = max(length(s.position) * frame.params.z * float(TileSize), 1e-6);
++    vec4 valid;
++    vec4 near;
++    for (int c = 0; c < 4; c++)
++    {
++        float distanceToEye = lightTiles[t].fillDirection[c].w;
++        ivec2 corner = tile + ivec2(c & 1, c >> 1);
++        vec3 position = normalize(viewRayThrough(vec2(cornerPixel(corner, size)) + 0.5)) * distanceToEye;
++        float off = dot(s.geometricNormal, position - s.position) / tolerance;
++        valid[c] = distanceToEye > 0.0 ? 1.0 : 0.0;
++        near[c] = max(1.0 - off * off, 0.0);
++    }
++    vec4 shares = bilinear * valid * (near + OffSurfaceShare);
++    float sum = shares.x + shares.y + shares.z + shares.w;
++    if (sum <= 0.0)
++    {
++        // Every corner with a bilinear weight is empty: the other corners stand in, evenly.
++        shares = valid;
++        sum = valid.x + valid.y + valid.z + valid.w;
++    }
++    return sum > 0.0 ? shares / sum : vec4(0.0);
++}
++
++// shapeLight's loop over the `count` entries of tile `t` from `first`, all of one shape, `shape`, added to `sum`: each
++// light by the pixel's key share of it, which is its key shares at the four corners by `shares`. `fiber`, `tinted` and
++// `shape` as in shapeLight; keyModelLight is the one caller, and it passes constants.
++void keyShapeLight(bool fiber, bool tinted, uint shape, ShadingInput s, SurfaceLobes lobes, vec3 V, uint t, uint first,
++    uint count, vec4 shares, inout DirectTerms sum)
++{
++    for (uint e = first; e < first + count; e++)
++    {
++        uvec2 entry = lightTiles[t].entries[e];
++        float share = dot(shares, unpackUnorm4x8(entry.y));
++        if (share <= 0.0)
++            continue;
++        LightPath p;
++        if (!lightPath(entry.x, fiber, tinted, shape, s, p))
++            continue;
++        float visibility = pathVisibility(entry.x, p, s.position, ShadowMapsMainView) * share;
++        if (visibility > 0.0)
++        {
++            DirectTerms terms = pathLight(entry.x, fiber, shape, s, lobes, V, p);
++            sum.diffuse += terms.diffuse * visibility;
++            sum.specular += terms.specular * visibility;
++        }
++    }
++}
++
++// modelLight over the key lights of tile `t`: a loop per shape, as modelLight has, over the tile's entries of that shape.
++DirectTerms keyModelLight(bool fiber, bool tinted, ShadingInput s, SurfaceLobes lobes, vec3 V, uint t, vec4 shares)
++{
++    DirectTerms sum;
++    sum.diffuse = vec3(0.0);
++    sum.specular = vec3(0.0);
++    uint counts = lightTiles[t].header.x;
++    uint points = counts & 0xFFu;
++    uint tubes = (counts >> 8) & 0xFFu;
++    uint rects = (counts >> 16) & 0xFFu;
++    keyShapeLight(fiber, tinted, PointShape, s, lobes, V, t, 0u, points, shares, sum);
++    keyShapeLight(fiber, tinted, TubeShape, s, lobes, V, t, points, tubes, shares, sum);
++    keyShapeLight(fiber, tinted, RectShape, s, lobes, V, t, points + tubes, rects, shares, sum);
++    return sum;
++}
++
++// directLight of the main view under key and fill, for the lit pixel at `pixel`: the key lights of its tile in both
++// parts, and the tile's fill in the diffuse part. The fill is the corners' fill light by the pixel's shares of them,
++// times the share of it that the pixel's shading normal takes (fillShare) and the corners' scale.
++DirectTerms keyFillLight(ShadingInput s, SurfaceLobes lobes, vec3 V, ivec2 pixel)
++{
++    ivec2 tile = pixel / TileSize;
++    uint t = uint(tile.y * tileCount(ivec2(frame.viewport.xy)).x + tile.x);
++    vec4 shares = cornerShares(s, pixel, tile, t);
++    bool tinted = frame.counts.y != NoAirSun;
++    DirectTerms sum;
++    if (!dropsFibers && s.model == ShadingHair)
++        sum = tinted ? keyModelLight(true, true, s, lobes, V, t, shares)
++                     : keyModelLight(true, false, s, lobes, V, t, shares);
++    else
++        sum = tinted ? keyModelLight(false, true, s, lobes, V, t, shares)
++                     : keyModelLight(false, false, s, lobes, V, t, shares);
++    vec4 light = vec4(0.0);
++    vec3 direction = vec3(0.0);
++    for (int c = 0; c < 4; c++)
++    {
++        light += shares[c] * lightTiles[t].fillLight[c];
++        direction += shares[c] * lightTiles[t].fillDirection[c].xyz;
++    }
++    float taken = fillShare(direction, dot(light.rgb, KeyLuminanceWeights), s.normal) * light.a;
++    sum.diffuse += lobes.diffuseColor * (light.rgb * (taken / PI));
++    return sum;
++}
++
++#endif
+diff --git a/src/Tertius.Rendering/Shaders/key_fill_tiles.comp b/src/Tertius.Rendering/Shaders/key_fill_tiles.comp
+new file mode 100644
+index 000000000..4cc123f37
+--- /dev/null
++++ b/src/Tertius.Rendering/Shaders/key_fill_tiles.comp
+@@ -0,0 +1,72 @@
++#version 460
++// The tile pass of key and fill (docs/plans/light-pairs.md, "Key and fill"): one invocation per tile gathers its four
++// corners from the corner pass's images into the tile's record, which is all that the direct pass reads of a pixel's
++// tile. The record's list holds each key light of the four corners once, with its key share at each corner, in the order
++// of the shapes, so that the direct pass keeps a loop per shape (lighting.glsl, modelLight).
++#extension GL_GOOGLE_include_directive : require
++#extension GL_EXT_samplerless_texture_functions : require
++#include "key_fill.glsl"
++
++layout(local_size_x = 8, local_size_y = 8) in;
++
++layout(set = 0, binding = 0) uniform texture2D cornerFillLight;       // RGBA32F (key_fill_corners.frag)
++layout(set = 0, binding = 1) uniform texture2D cornerFillDirection;   // RGBA32F
++layout(set = 0, binding = 2) uniform utexture2D cornerKeys;           // RGBA32UI
++layout(set = 0, binding = 3, std430) writeonly buffer LightTileBlock { LightTile lightTiles[]; };
++
++// KeyFillTilesPushConstants.
++layout(push_constant, std430) uniform KeyFillTilesPush
++{
++    uvec2 tiles;  // the tiles of the frame's render size along each axis
++} pass;
++
++void main()
++{
++    uvec2 tile = gl_GlobalInvocationID.xy;
++    if (any(greaterThanEqual(tile, pass.tiles)))
++        return;
++    uint t = tile.y * pass.tiles.x + tile.x;
++    uint indices[16];
++    uint shares[16];
++    uint shapes[16];
++    uint count = 0u;
++    for (uint c = 0u; c < 4u; c++)
++    {
++        ivec2 corner = ivec2(tile) + ivec2(c & 1u, c >> 1);
++        lightTiles[t].fillLight[c] = texelFetch(cornerFillLight, corner, 0);
++        lightTiles[t].fillDirection[c] = texelFetch(cornerFillDirection, corner, 0);
++        uvec4 keys = texelFetch(cornerKeys, corner, 0);
++        for (uint k = 0u; k < KeySlots; k++)
++        {
++            uint key = keys[k];
++            if (key == NoKey)
++                continue;
++            uint index = key & 0xFFFFu;
++            uint e = 0u;
++            while (e < count && indices[e] != index)
++                e++;
++            if (e == count)
++            {
++                indices[e] = index;
++                shares[e] = 0u;
++                shapes[e] = key >> 24;
++                count++;
++            }
++            shares[e] |= ((key >> 16) & 0xFFu) << (8u * c);
++        }
++    }
++    uint written = 0u;
++    uint counts = 0u;
++    for (uint shape = 0u; shape < 3u; shape++)
++    {
++        uint ofShape = 0u;
++        for (uint e = 0u; e < count; e++)
++            if (shapes[e] == (1u << shape))
++            {
++                lightTiles[t].entries[written++] = uvec2(indices[e], shares[e]);
++                ofShape++;
++            }
++        counts |= ofShape << (8u * shape);
++    }
++    lightTiles[t].header = uvec4(counts, 0u, 0u, 0u);
++}
+diff --git a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
+index 6928b741d..bdf4c685d 100644
+--- a/src/Tertius.Rendering/VulkanRenderer.cs
++++ b/src/Tertius.Rendering/VulkanRenderer.cs
+@@ -120,6 +120,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
+     private readonly SlotCapture?[] slotCaptures;
+     private ICaptureSink? pendingCapture;
+     private long pendingResize = -1;
++
++    // The key lights of a corner under KeyAndFill, 0 under EveryLightPair, and the images and tile records of key and
++    // fill, or null under EveryLightPair.
++    private readonly int keyLights;
++    private readonly KeyFillImages? keyFillImages;
+     private FrameClock clock;
+ 
+     /// <summary>The record of the last drawn frame, whose count of drawn frames numbers every frame of the renderer.</summary>
+@@ -188,6 +193,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
+ 
+             // Before every pass, whose shading constants say whether the scatter is on.
+             ScatterImages = CreateScatterImages(options.Subsurface);
++            keyLights = options.LightPairs.KeyLights;
++            keyFillImages = options.LightPairs switch
++            {
++                KeyAndFill => Own(
++                    new KeyFillImages(device: device, allocator: Allocator, layouts: layouts, targets: targets)
++                ),
++                EveryLightPair => null,
++            };
+             Exposure = CreateExposure(options);
+             environmentMap = CreateEnvironmentMap(options);
+             ShadingConstants = new(EnvironmentMap: environmentMap is not null)
+@@ -436,6 +449,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
+         ?? options.Bloom.Problem
+         ?? options.EnvironmentMap.Problem
+         ?? options.Subsurface.Problem
++        ?? options.LightPairs.Problem
+         ?? options.ScreenTrace.Problem
+         ?? options.Upscaling.Problem
+         ?? (options.ScreenTrace is ScreenTrace ? PyramidImages.ScreenProblem(options.Width, options.Height) : null);
+@@ -858,7 +872,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
+             upscaling is Fsr3Upscaling
+                 ? MathF.Log2(pending.RenderSize.Width / (float)targets.OutputExtent.Width) - 1
+                 : 0;
+-        LastScene.Constants.RenderParams = new(x: bias, y: jitter.X, z: jitter.Y, w: 0);
++        LastScene.Constants.RenderParams = new(x: bias, y: jitter.X, z: jitter.Y, w: keyLights);
+         Vector2 previousJitter = Vector2.Zero;
+         if (jitters && !pending.Reset)
+         {
+@@ -1023,6 +1037,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
+         }
+ 
+         ScatterImages?.Resize(targets);
++        keyFillImages?.Resize(targets);
+         compositePass.Resize(targets);
+         upscalePass?.Resize();
+     }
+@@ -2256,9 +2271,27 @@ public sealed unsafe class VulkanRenderer : IRenderer
+     /// </summary>
+     private CompositePass AddLightingPasses(ShaderLibrary shaders)
+     {
++        // Before the direct pass, in its stage: it reads the tile records of this frame.
++        if (keyFillImages is { } keyFill)
++            Graph.Add(
++                FrameGraph.Stage.DirectLight,
++                new KeyFillPass(
++                    device: device,
++                    shaders: shaders,
++                    layouts: layouts,
++                    constants: ShadingConstants,
++                    images: keyFill
++                )
++            );
+         Graph.Add(
+             FrameGraph.Stage.DirectLight,
+-            new DirectLightPass(device: device, shaders: shaders, layouts: layouts, constants: ShadingConstants)
++            new DirectLightPass(
++                device: device,
++                shaders: shaders,
++                layouts: layouts,
++                constants: ShadingConstants,
++                keyFill: keyFillImages
++            )
+         );
+         var composite = new CompositePass(
+             device: device,
+diff --git a/tests/Tertius.Host.Tests/ScriptCommandOptionsTests.cs b/tests/Tertius.Host.Tests/ScriptCommandOptionsTests.cs
+index 8efbdff13..c47b8f9a5 100644
+--- a/tests/Tertius.Host.Tests/ScriptCommandOptionsTests.cs
++++ b/tests/Tertius.Host.Tests/ScriptCommandOptionsTests.cs
+@@ -1,3 +1,4 @@
++using System.Globalization;
+ using System.Text.RegularExpressions;
+ using Tertius.Host.Scripting;
+ using Tertius.Rendering;
+@@ -51,6 +52,8 @@ public sealed class ScriptCommandOptionsTests
+         ["--subsurface", "off"],
+         ["--in-flight", "2"],
+         ["--pass-timestamps", "off"],
++        ["--exposure", "-1.5"],
++        ["--key-lights", "3"],
+     ];
+ 
+     public static TheoryData<string[]> AcceptedCommandLines =>
+@@ -553,6 +556,47 @@ public sealed class ScriptCommandOptionsTests
+             );
+     }
+ 
++    /// <summary>The renderer options that a headless run with <paramref name="args"/> after its own options hands to the renderer.</summary>
++    private static RendererOptions HeadlessRendererOptions(params string[] args)
++    {
++        ScriptCommand.RunOptions? options = ScriptCommand.ReadOptions(
++            ["--script", "s.json", "--headless", "--out", "o", .. args],
++            out string? problem
++        );
++        problem.Should().BeNull();
++        options.Should().NotBeNull();
++        var chosen = new RendererOptions();
++        if (options?.Value is ScriptCommand.ScriptRun run && run.Display.Value is ScriptCommand.Headless headless)
++            headless.Renderer.ApplyTo(chosen);
++        return chosen;
++    }
++
++    [Theory]
++    [InlineData("1")]
++    [InlineData("3")]
++    [InlineData("4")]
++    public void TheKeyLightsOptionChoosesKeyAndFillWithThatManyKeyLights(string count) =>
++        HeadlessRendererOptions("--key-lights", count)
++            .LightPairs.Should()
++            .Be(new LightPairSetting(new KeyAndFill(int.Parse(count, CultureInfo.InvariantCulture))));
++
++    [Fact]
++    public void KeyLightsOffAndNoKeyLightsOptionBothShadeEveryLightPair()
++    {
++        HeadlessRendererOptions("--key-lights", "off").LightPairs.Should().Be(new LightPairSetting(new EveryLightPair()));
++        HeadlessRendererOptions().LightPairs.Should().Be(new LightPairSetting(new EveryLightPair()));
++    }
++
++    [Fact]
++    public void TheExposureOptionFixesTheExposureAtItsStops() =>
++        HeadlessRendererOptions("--exposure", "0.7041458")
++            .Exposure.Should()
++            .Be(new ExposureSetting(new FixedExposure(0.7041458f)));
++
++    [Fact]
++    public void WithoutTheExposureOptionTheRendererKeepsItsOwnExposure() =>
++        HeadlessRendererOptions().Exposure.Should().Be(new RendererOptions().Exposure);
++
+     [Fact]
+     public void AHeadlessRunWithoutVideoWritesPngFilesIntoTheOutputFolderOfItsScriptRun()
+     {
+diff --git a/tests/Tertius.Host.Tests/ScriptCommandTests.cs b/tests/Tertius.Host.Tests/ScriptCommandTests.cs
+index 1154a4a32..aee9fd24b 100644
+--- a/tests/Tertius.Host.Tests/ScriptCommandTests.cs
++++ b/tests/Tertius.Host.Tests/ScriptCommandTests.cs
+@@ -527,6 +527,36 @@ public sealed class ScriptCommandTests : IDisposable
+             .And.Contain($"'{value}'");
+     }
+ 
++    [Theory]
++    [InlineData("0")]
++    [InlineData("5")]
++    [InlineData("on")]
++    [InlineData("2.5")]
++    public void AKeyLightsOptionThatIsNeitherOffNorAWholeNumberFromOneToFourIsAProblem(string value)
++    {
++        int code = Run("--script", "script.json", "--headless", "--out", "out", "--key-lights", value);
++
++        code.Should().Be(ScriptCommand.CommandLineError);
++        error
++            .ToString()
++            .Should()
++            .Contain("--key-lights needs off or a whole number from 1 to 4")
++            .And.Contain($"'{value}'");
++    }
++
++    [Theory]
++    [InlineData("65")]
++    [InlineData("-64.5")]
++    [InlineData("NaN")]
++    [InlineData("bright")]
++    public void AnExposureOptionThatIsNotANumberOfStopsFromMinusSixtyFourToSixtyFourIsAProblem(string value)
++    {
++        int code = Run("--script", "script.json", "--headless", "--out", "out", "--exposure", value);
++
++        code.Should().Be(ScriptCommand.CommandLineError);
++        error.ToString().Should().Contain("--exposure needs a number of stops from -64 to 64").And.Contain($"'{value}'");
++    }
++
+     // The refused rows above name a scene that no table has, or a script file that does not exist. If a rule breaks, the
+     // run then ends in ScriptError or FileError before any window code runs, instead of opening a window on a test thread.
+ 
+diff --git a/tests/Tertius.Rendering.Tests/KeyAndFillRenderTests.cs b/tests/Tertius.Rendering.Tests/KeyAndFillRenderTests.cs
+new file mode 100644
+index 000000000..0d198a34a
+--- /dev/null
++++ b/tests/Tertius.Rendering.Tests/KeyAndFillRenderTests.cs
+@@ -0,0 +1,162 @@
++using System.Numerics;
++using Tertius.Testing;
++
++namespace Tertius.Rendering.Tests;
++
++/// <summary>
++/// Key and fill on the GPU (docs/plans/light-pairs.md, "Key and fill"): a scene with no more lamps than key lights
++/// renders as with every light pair, the fill returns the diffuse light of the lamps that are not key, and no step
++/// shows at the edges of the screen tiles. The exposure is fixed at 0 stops, so the HDR image holds plain radiance. A
++/// square 3 m wide stands 3 m ahead of the camera and faces it, with no ambient light and bulbs 1 m in front of it.
++/// </summary>
++[Collection(GpuCollection.Name)]
++public sealed class KeyAndFillRenderTests
++{
++    private const int Width = 320,
++        Height = 180;
++
++    /// <summary>The bulbs in front of the square: the place of each on the plane 1 m in front of it, in m, and its power in W.</summary>
++    private static readonly (float X, float Y, float Power)[] Bulbs =
++    [
++        (-1.0f, 0.5f, 8),
++        (-0.3f, -0.4f, 3),
++        (0.4f, 0.6f, 5),
++        (1.0f, -0.2f, 2),
++        (0.0f, 0.0f, 1),
++        (0.7f, 0.7f, 4),
++    ];
++
++    /// <summary>A dark snapshot with the square of <paramref name="desc"/> and the first <paramref name="bulbs"/> bulbs, none with a shadow.</summary>
++    private static RenderSnapshot Scene(VulkanRenderer renderer, MaterialDesc desc, int bulbs)
++    {
++        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
++        snapshot.Ambient.Intensity = 0;
++        snapshot.Instances.Add(
++            Gpu.Instance(
++                mesh: renderer.CreateMesh(Primitives.Plane(1.5f)),
++                material: renderer.CreateMaterial(desc),
++                position: new(0, 0, -3),
++                scale: Vector3.One,
++                rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2),
++                radius: 2.2f,
++                chainDepth: TestChains.CamerasFrame
++            )
++        );
++        foreach ((float x, float y, float power) in Bulbs.Take(bulbs))
++            snapshot.Lights.Add(
++                Gpu.Lamp(
++                    position: new(x, y, -2),
++                    color: Vector3.One,
++                    intensity: 0,
++                    chainDepth: TestChains.CamerasFrame
++                ) with
++                {
++                    Power = power,
++                }
++            );
++        return snapshot;
++    }
++
++    /// <summary>The red channel of the HDR image of the scene under <paramref name="lightPairs"/>, row by row from the top.</summary>
++    private static float[] Radiance(LightPairSetting lightPairs, MaterialDesc desc, int bulbs)
++    {
++        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height, lightPairs: lightPairs);
++        try
++        {
++            renderer.Render(Scene(renderer: renderer, desc: desc, bulbs: bulbs), 1f);
++            float[] image = renderer.ReadHdr();
++            return [.. Enumerable.Range(0, Width * Height).Select(pixel => image[pixel * 4])];
++        }
++        finally
++        {
++            Gpu.DisposeAndAssertClean(renderer);
++        }
++    }
++
++    /// <summary>A white square with no shine: its light is its diffuse light alone.</summary>
++    private static MaterialDesc Matte => new(BaseColor: Vector4.One, Roughness: 1, Reflectance: 0);
++
++    /// <summary>A white square whose shine shows each bulb as a soft highlight.</summary>
++    private static MaterialDesc Glossy => new(BaseColor: Vector4.One, Roughness: 0.4f, Reflectance: 0.5f);
++
++    [Theory]
++    [InlineData(1)]
++    [InlineData(3)]
++    public void ASceneWithNoMoreLampsThanKeyLightsRendersAsWithEveryLightPair(int bulbs)
++    {
++        float[] every = Radiance(lightPairs: default, desc: Glossy, bulbs: bulbs);
++
++        float[] split = Radiance(lightPairs: new(new KeyAndFill(KeyLights: 3)), desc: Glossy, bulbs: bulbs);
++
++        every.Max().Should().BeGreaterThan(0.01f, "the bulbs light the square");
++        for (int pixel = 0; pixel < every.Length; pixel++)
++            split[pixel]
++                .Should()
++                .BeApproximately(every[pixel], 1e-4f + 1e-3f * every[pixel], "pixel {0} takes every lamp as a key light", pixel);
++    }
++
++    [Theory]
++    [InlineData(1)]
++    [InlineData(2)]
++    [InlineData(4)]
++    public void TheFillReturnsTheDiffuseLightOfTheLampsThatAreNotKey(int keyLights)
++    {
++        float[] every = Radiance(lightPairs: default, desc: Matte, bulbs: Bulbs.Length);
++
++        float[] split = Radiance(lightPairs: new(new KeyAndFill(keyLights)), desc: Matte, bulbs: Bulbs.Length);
++
++        float brightest = every.Max();
++        brightest.Should().BeGreaterThan(0.01f, "the bulbs light the square");
++        for (int pixel = 0; pixel < every.Length; pixel++)
++            split[pixel]
++                .Should()
++                .BeApproximately(
++                    every[pixel],
++                    0.02f * every[pixel] + 0.002f * brightest,
++                    "pixel {0} keeps the diffuse light of all six bulbs",
++                    pixel
++                );
++    }
++
++    [Fact]
++    public void AnUnlitSceneStaysBlackUnderKeyAndFill()
++    {
++        float[] split = Radiance(lightPairs: new(new KeyAndFill(KeyLights: 3)), desc: Glossy, bulbs: 0);
++
++        split.Should().OnlyContain(radiance => radiance == 0);
++    }
++
++    [Fact]
++    public void NoStepShowsAtTheEdgesOfTheScreenTiles()
++    {
++        // Two key lights of six bulbs on a glossy square: the key shares differ from corner to corner.
++        float[] split = Radiance(lightPairs: new(new KeyAndFill(KeyLights: 2)), desc: Glossy, bulbs: Bulbs.Length);
++
++        // The mean change from a pixel to its right neighbor, across a tile edge and inside a tile. A step at the tile
++        // edges adds its height to the first mean alone.
++        double acrossEdges = 0,
++            inside = 0;
++        int edgePairs = 0,
++            insidePairs = 0;
++        for (int y = 0; y < Height; y++)
++        for (int x = 0; x + 1 < Width; x++)
++        {
++            double change = Math.Abs(split[y * Width + x + 1] - split[y * Width + x]);
++            if ((x + 1) % KeyAndFill.TileSize == 0)
++            {
++                acrossEdges += change;
++                edgePairs++;
++            }
++            else
++            {
++                inside += change;
++                insidePairs++;
++            }
++        }
++
++        (inside / insidePairs).Should().BeGreaterThan(0, "the bulbs' light changes across the square");
++        (acrossEdges / edgePairs)
++            .Should()
++            .BeLessThan(1.25 * inside / insidePairs, "the light changes across a tile edge as it does inside a tile");
++    }
++}
+diff --git a/tests/Tertius.Rendering.Tests/KeyAndFillTests.cs b/tests/Tertius.Rendering.Tests/KeyAndFillTests.cs
+new file mode 100644
+index 000000000..2e07c18ed
+--- /dev/null
++++ b/tests/Tertius.Rendering.Tests/KeyAndFillTests.cs
+@@ -0,0 +1,106 @@
++namespace Tertius.Rendering.Tests;
++
++/// <summary>
++/// The key share of a light at a screen corner (docs/plans/light-pairs.md, "Key and fill"): which lights a corner shades
++/// in full, and how a light moves between key and fill.
++/// </summary>
++public sealed class KeyAndFillTests
++{
++    /// <summary>The key shares of lights of <paramref name="importances"/> at a corner of <paramref name="split"/>.</summary>
++    private static double[] KeyShares(KeyAndFill split, params double[] importances)
++    {
++        double threshold = split.Threshold(importances);
++        return [.. importances.Select(importance => KeyAndFill.KeyShare(importance, threshold))];
++    }
++
++    [Fact]
++    public void ACornerWithNoMoreLightsThanItsKeyLightsShadesEveryLightInFull() =>
++        KeyShares(new KeyAndFill(KeyLights: 3), 5, 0.01, 200).Should().Equal(1, 1, 1);
++
++    [Fact]
++    public void ALightThatShowsNothingAtTheCornerHasNoKeyShare() =>
++        KeyShares(new KeyAndFill(KeyLights: 3), 5, 0, 200).Should().Equal(1, 0, 1);
++
++    [Theory]
++    [InlineData(1)]
++    [InlineData(2)]
++    [InlineData(4)]
++    public void AtMostTheKeyLightsOfACornerHaveAKeyShare(int keyLights)
++    {
++        double[] importances = [0.4, 7, 3, 3.5, 0.9, 12, 2.2, 5, 1.1, 6.5];
++
++        double[] shares = KeyShares(new KeyAndFill(keyLights), importances);
++
++        shares.Count(share => share > 0).Should().BeLessThanOrEqualTo(keyLights);
++    }
++
++    [Fact]
++    public void TheLightsWithAKeyShareAreTheMostImportantOnes()
++    {
++        double[] shares = KeyShares(new KeyAndFill(KeyLights: 2), 1, 9, 2, 30, 4);
++
++        // The third most important light, of 4, is the threshold: 9 and 30 are both more than twice it.
++        shares.Should().Equal(0, 1, 0, 1, 0);
++    }
++
++    [Fact]
++    public void ALightBetweenOneAndTwoThresholdsSharesItsLightBetweenKeyAndFill()
++    {
++        double[] shares = KeyShares(new KeyAndFill(KeyLights: 1), 6, 4);
++
++        // 6 is one and a half times the threshold of 4.
++        shares[0].Should().BeApproximately(0.5, 1e-12);
++        shares[1].Should().Be(0);
++    }
++
++    [Fact]
++    public void ALightThatPassesAnotherInImportanceChangesNoShareAtOnce()
++    {
++        var split = new KeyAndFill(KeyLights: 2);
++        // The second light rises from below the third to above the first, in small steps.
++        double[] before = KeyShares(split, 5, 1, 3, 2.5);
++        for (double importance = 1; importance <= 8; importance += 0.01)
++        {
++            double[] after = KeyShares(split, 5, importance, 3, 2.5);
++            for (int light = 0; light < after.Length; light++)
++                Math.Abs(after[light] - before[light])
++                    .Should()
++                    .BeLessThan(0.02, "light {0} must not jump at importance {1}", light, importance);
++            before = after;
++        }
++    }
++
++    [Fact]
++    public void TheSharesStayTheSameWhenEveryImportanceTakesOneFactor()
++    {
++        var split = new KeyAndFill(KeyLights: 2);
++        double[] importances = [0.4, 7, 3, 3.5, 0.9];
++
++        double[] dim = KeyShares(split, [.. importances.Select(importance => importance * 1e-6)]);
++
++        // The exposure scales every light's shown radiance alike, so it must not move a light between key and fill.
++        double[] plain = KeyShares(split, importances);
++        for (int light = 0; light < plain.Length; light++)
++            dim[light].Should().BeApproximately(plain[light], 1e-9);
++    }
++
++    [Theory]
++    [InlineData(0)]
++    [InlineData(5)]
++    [InlineData(-1)]
++    public void AKeyLightCountOutsideOneToFourHasAProblem(int keyLights) =>
++        new LightPairSetting(new KeyAndFill(keyLights)).Problem.Should().Contain("KeyAndFill.KeyLights");
++
++    [Theory]
++    [InlineData(1)]
++    [InlineData(4)]
++    public void AKeyLightCountFromOneToFourHasNoProblem(int keyLights) =>
++        new LightPairSetting(new KeyAndFill(keyLights)).Problem.Should().BeNull();
++
++    [Fact]
++    public void TheDefaultSettingShadesEveryPair()
++    {
++        default(LightPairSetting).KeyLights.Should().Be(0);
++        default(LightPairSetting).Problem.Should().BeNull();
++    }
++}
+diff --git a/tests/Tertius.Rendering.Tests/TestSupport.cs b/tests/Tertius.Rendering.Tests/TestSupport.cs
+index 0f1433945..726425566 100644
+--- a/tests/Tertius.Rendering.Tests/TestSupport.cs
++++ b/tests/Tertius.Rendering.Tests/TestSupport.cs
+@@ -66,7 +66,8 @@ internal static class Gpu
+         bool capturesInFlight = false,
+         ScreenTraceSetting screenTrace = default,
+         int warmUpFrames = RendererOptions.DefaultWarmUpFrames,
+-        bool passTimestamps = true
++        bool passTimestamps = true,
++        LightPairSetting lightPairs = default
+     ) =>
+         VulkanRenderer.CreateHeadless(
+             new()
+@@ -89,6 +90,7 @@ internal static class Gpu
+                 ScreenTrace = screenTrace,
+                 WarmUpFrames = warmUpFrames,
+                 PassTimestamps = passTimestamps,
++                LightPairs = lightPairs,
+             }
+         );
+ 

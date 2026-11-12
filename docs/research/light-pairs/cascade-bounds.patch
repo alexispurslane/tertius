@@ -1,0 +1,723 @@
+diff --git a/src/Tertius.Rendering/Frame/DescriptorLayouts.cs b/src/Tertius.Rendering/Frame/DescriptorLayouts.cs
+index 608fba090..7aa238bc0 100644
+--- a/src/Tertius.Rendering/Frame/DescriptorLayouts.cs
++++ b/src/Tertius.Rendering/Frame/DescriptorLayouts.cs
+@@ -20,8 +20,9 @@ namespace Tertius.Rendering;
+ /// <description>the G-buffer targets for the direct pass, the composite, the screen tracer and the transparent pass
+ /// (rewritten on resize), the shadow cascades of every cascade set (binding 5) and their comparison sampler (binding 6,
+ /// immutable), which the vertex stage also reads for the lit puffs, the local shadow atlas (binding 8, partially bound),
+-/// which the comparison sampler also reads and which stays empty without the atlas, the shading target (binding 10) and
+-/// the atlas's bounds (binding 11, partially bound), empty without the atlas. Bindings 7 and 9 are free. One.</description></item>
++/// which the comparison sampler also reads and which stays empty without the atlas, the cascades' bounds (binding 9), the
++/// shading target (binding 10) and the atlas's bounds (binding 11, partially bound), empty without the atlas. Binding 7
++/// is free. One.</description></item>
+ /// <item><term>set 3, impostor atlas</term><description>the impostor atlas's color and depth-offset arrays and their
+ /// sampler (immutable), for the billboards in the G-buffer pass. One, written once.</description></item>
+ /// <item><term>post</term><description>the HDR image for tone mapping, and the summed bloom levels (binding 1) with the
+@@ -46,8 +47,8 @@ namespace Tertius.Rendering;
+ /// <item><term>scatter</term><description>set 3 of <see cref="ScatterLayout"/>: the diffuse image, the row image and the
+ /// HDR image as storage images, and the kernel as a uniform buffer, for the skin scatter's passes. One, allocated under
+ /// <see cref="SeparableSubsurface"/> and rewritten on resize.</description></item>
+-/// <item><term>shadow bounds</term><description>the set of <see cref="ShadowBoundsLayout"/>: the local shadow atlas and
+-/// its bounds as a storage image, for the compute stage. One with the atlas, written once.</description></item>
++/// <item><term>shadow bounds</term><description>the set of <see cref="ShadowBoundsLayout"/>: a shadow image and its
++/// bounds as a storage image, for the compute stage. One for the cascades and one with the atlas, each written once.</description></item>
+ /// <item><term>deform</term><description>the set of <see cref="DeformLayout"/>: the deform region's window of the vertex
+ /// buffer, the deform vertices, the morph deltas, the frame's pose rows and its job table, five storage buffers for the
+ /// compute stage (docs/plans/skinning-and-morphs.md, "The pass"), and this frame's kept positions (binding 5). One per
+@@ -426,12 +427,12 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+     public PipelineLayout ScatterLayout { get; }
+ 
+     /// <summary>
+-    /// The set of <see cref="ShadowBoundsLayout"/>: the local shadow atlas as a sampled image (binding 0) and its bounds as
+-    /// a storage image (binding 1) (Shaders/shadow_bounds.comp).
++    /// The set of <see cref="ShadowBoundsLayout"/>: the cascades or the local shadow atlas as a sampled image (binding 0)
++    /// and its bounds as a storage image (binding 1) (Shaders/shadow_bounds.comp).
+     /// </summary>
+     public DescriptorSetLayout ShadowBoundsSet { get; }
+ 
+-    /// <summary>The shadow bounds set and <see cref="ShadowBoundsPushConstants"/>, for the dispatch of each drawn tile's bounds.</summary>
++    /// <summary>The shadow bounds set and <see cref="ShadowBoundsPushConstants"/>, for the dispatch of each drawn layer's bounds.</summary>
+     public PipelineLayout ShadowBoundsLayout { get; }
+ 
+     /// <summary>The deform pass's one set: the region's window, the deform vertices, the morph deltas, the pose rows and the job table.</summary>
+@@ -772,6 +773,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+             // The vertex shader of the lit puffs samples the cascades once per puff, at its center.
+             Image(binding: 5, stages: graphics),
+             ImmutableSampler(binding: 6, stages: graphics, sampler: &shadowSampler),
++            // Every stage that samples the cascades reads their bounds first.
++            Image(binding: ShadowMap.BoundsBinding, stages: graphics),
+             // The lit puffs sample the tiles in the vertex stage, as they do the cascades. The compute shaders that include
+             // the lighting declare the atlas but never use it.
+             Image(binding: ShadowAtlas.AtlasBinding, stages: graphics),
+@@ -781,7 +784,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+             // Every stage that samples the tiles reads their bounds first.
+             Image(binding: ShadowAtlas.BoundsBinding, stages: graphics),
+         ];
+-        // The flags follow the bindings' order in the list, which skips binding 9.
++        // The flags follow the bindings' order in the list, which skips binding 7.
+         Span<DescriptorBindingFlags> flags = stackalloc DescriptorBindingFlags[gbuffer.Length];
+         for (int i = 0; i < gbuffer.Length; i++)
+             if (gbuffer[i].Binding is ShadowAtlas.AtlasBinding or ShadowAtlas.BoundsBinding)
+@@ -897,34 +900,34 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+             // Three per frame set (the material sampler and the immutable linear clamp and environment samplers), the
+             // immutable samplers of the G-buffer, atlas, post and prefilter sets, and one per glow source set.
+             new(DescriptorType.Sampler, 3 * frames + 4 + glowSourceSets),
+-            // 20 for the G-buffer, post and atlas sets, five per frame set for the tables, the specular map, the irradiance
++            // 21 for the G-buffer, post and atlas sets, five per frame set for the tables, the specular map, the irradiance
+             // cube and the distance cube, one per glow source set, two for the meter set, one per pyramid level set, one for
+-            // each pyramid's tail set, one for the prefilter set, one for the shadow bounds set, two for each surface test
+-            // set, two for each signal set and four for each screen tracer set.
++            // each pyramid's tail set, one for the prefilter set, one for each of the two shadow bounds sets, two for each
++            // surface test set, two for each signal set and four for each screen tracer set.
+             new(
+                 DescriptorType.SampledImage,
+-                20
++                21
+                     + 5 * frames
+                     + glowSourceSets
+                     + 2
+                     + PyramidLevelSets
+                     + Pyramids
+                     + 1
+-                    + 1
++                    + 2
+                     + 2 * SurfaceTestSets
+                     + SignalSetSampledImages * SignalSets
+                     + (ScreenTraceSampledImages + ScreenTraceLightImages) * ScreenTraceSets
+             ),
+             // One per pyramid level set, each tail set's mips, four per environment levels set, three for the scatter set,
+-            // one for the shadow bounds set, four per surface test set, SignalSetImages per signal set, six for the light
+-            // set, fifteen per screen tracer set, plus ScreenTraceAgeImages, and four per filter set.
++            // one for each of the two shadow bounds sets, four per surface test set, SignalSetImages per signal set, six for
++            // the light set, fifteen per screen tracer set, plus ScreenTraceAgeImages, and four per filter set.
+             new(
+                 DescriptorType.StorageImage,
+                 PyramidLevelSets
+                     + Pyramids * PyramidTail.Mips
+                     + 4 * EnvironmentLevelsSets
+                     + 3
+-                    + 1
++                    + 2
+                     + 4 * SurfaceTestSets
+                     + SignalSetImages * SignalSets
+                     + LightSetImages
+@@ -937,14 +940,14 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+     private (SetPool Shared, SetPool Textures) CreatePools(uint framesInFlight, uint glowSourceSets)
+     {
+         uint frames = framesInFlight;
+-        // The frame sets, the deform sets, the G-buffer, post, atlas, meter, exposure, prefilter, scatter, shadow
+-        // bounds and light sets, the glow source sets, the pyramid level sets, each pyramid's tail set, the environment
++        // The frame sets, the deform sets, the G-buffer, post, atlas, meter, exposure, prefilter, scatter and light sets,
++        // the two shadow bounds sets, the glow source sets, the pyramid level sets, each pyramid's tail set, the environment
+         // levels sets, the surface test sets, the signal sets, the screen tracer sets and the filter sets. The tracer's sets
+         // exist even with the tracer off: they cost nothing per frame.
+         SetPool shared = CreatePool(
+             sizes: SharedPoolSizes(frames, glowSourceSets),
+             maxSets: 2 * frames
+-                + 10
++                + 11
+                 + Pyramids
+                 + glowSourceSets
+                 + PyramidLevelSets
+diff --git a/src/Tertius.Rendering/Frame/ShadowMap.cs b/src/Tertius.Rendering/Frame/ShadowMap.cs
+index 33deeab15..b34ad5694 100644
+--- a/src/Tertius.Rendering/Frame/ShadowMap.cs
++++ b/src/Tertius.Rendering/Frame/ShadowMap.cs
+@@ -7,7 +7,8 @@ namespace Tertius.Rendering;
+ /// × <see cref="ShadowCascades.Count"/> + cascade, shared by all frames in flight like the G-buffer (every use goes
+ /// through <see cref="BarrierBatch"/>). The shading passes sample the whole array (<see cref="GpuImage.View"/>, G-buffer
+ /// set binding 5) with the comparison sampler of <see cref="DescriptorLayouts.ShadowSampler"/>; the shadow pass renders
+-/// each layer through its own view.
++/// each layer through its own view. Its <see cref="Bounds"/>, derived from it in every frame, let one fetch settle a lookup
++/// whose every tap agrees (ticket t2-mlvy), as the bounds of the local shadow atlas do (<see cref="ShadowAtlas.Bounds"/>).
+ /// </summary>
+ /// <remarks>
+ /// Depth is reversed like the main view: 1 on the light's side of a cascade, 0 on the far side, cleared to 0, compare
+@@ -20,6 +21,9 @@ internal sealed unsafe class ShadowMap : IDisposable
+     public const int DefaultSize = 2048;
+     public const int MinimumSize = 256;
+ 
++    /// <summary>The binding of <see cref="Bounds"/> in the G-buffer set.</summary>
++    public const uint BoundsBinding = 9;
++
+     private const FormatFeatureFlags RequiredFeatures =
+         FormatFeatureFlags.DepthStencilAttachmentBit
+         | FormatFeatureFlags.SampledImageBit
+@@ -30,7 +34,7 @@ internal sealed unsafe class ShadowMap : IDisposable
+ 
+     /// <param name="sets">The cascade sets, 0 to <see cref="ShadowCascades.MaxSets"/>. With none, the image keeps one
+     /// layer, because the G-buffer set's binding 5 must hold an image.</param>
+-    public ShadowMap(VulkanDevice device, DeviceAllocator allocator, int size, int sets)
++    public ShadowMap(VulkanDevice device, DeviceAllocator allocator, DescriptorLayouts layouts, int size, int sets)
+     {
+         this.device = device;
+         ArgumentOutOfRangeException.ThrowIfNegative(sets);
+@@ -60,8 +64,22 @@ internal sealed unsafe class ShadowMap : IDisposable
+         );
+         try
+         {
++            Bounds = GpuImage.Create(
++                device: device,
++                allocator: allocator,
++                extent: new((uint)BoundsSize, (uint)BoundsSize),
++                format: ShadowAtlas.BoundsFormat,
++                usage: ImageUsageFlags.StorageBit | ImageUsageFlags.SampledBit | ImageUsageFlags.TransferSrcBit,
++                mipLevels: 1,
++                name: "shadow cascade bounds",
++                arrayLayers: Image.ArrayLayers,
++                arrayView: true
++            );
+             for (int i = 0; i < layerViews.Length; i++)
+                 layerViews[i] = Image.CreateLayerView((uint)i);
++            BoundsSet = layouts.AllocateShadowBoundsSet();
++            layouts.WriteImage(set: BoundsSet, binding: 0, arrayElement: 0, image: Image);
++            layouts.WriteStorageImage(set: BoundsSet, binding: 1, image: Bounds);
+         }
+         catch
+         {
+@@ -87,6 +105,29 @@ internal sealed unsafe class ShadowMap : IDisposable
+     /// <summary>The array image. Its default view spans every cascade of every set.</summary>
+     public GpuImage Image { get; }
+ 
++    /// <summary>The side of every layer of <see cref="Bounds"/> in texels: one texel per two of the cascade's.</summary>
++    public int BoundsSize => Size / 2;
++
++    /// <summary>
++    /// The bounds of every cascade, <see cref="BoundsSize"/>² texels, one layer per cascade: texel k holds the least (R) and
++    /// the greatest (G) reversed depth of the cascade's texels 2k to 2k + 5 along each axis, clamped to the cascade
++    /// (Shaders/shadow_bounds.comp). <see cref="ShadowPass"/> writes the bounds of every cascade that it draws.
++    /// </summary>
++    public GpuImage Bounds { get; }
++
++    /// <summary>The set of <see cref="DescriptorLayouts.ShadowBoundsLayout"/>: the cascades and <see cref="Bounds"/>.</summary>
++    public DescriptorSet BoundsSet { get; }
++
++    /// <summary>
++    /// Declares that the next pass samples the cascades in <paramref name="use"/>: the cascades and their bounds, which
++    /// every cascade lookup reads first (sampleCascade in Shaders/shadows.glsl).
++    /// </summary>
++    public void DeclareSampled(BarrierBatch barriers, ImageUse use)
++    {
++        barriers.Image(Image, use);
++        barriers.Image(Bounds, use);
++    }
++
+     /// <summary>The layer of one cascade of one set.</summary>
+     public static int Layer(int set, int cascade) => set * ShadowCascades.Count + cascade;
+ 
+@@ -107,6 +148,8 @@ internal sealed unsafe class ShadowMap : IDisposable
+             if (view.Handle != 0)
+                 device.Vk.DestroyImageView(device.Device, view, null);
+         Array.Clear(layerViews);
++        // A constructor that failed disposes before it created the bounds.
++        Bounds?.Dispose();
+         Image.Dispose();
+     }
+ }
+diff --git a/src/Tertius.Rendering/Passes/DirectLightPass.cs b/src/Tertius.Rendering/Passes/DirectLightPass.cs
+index 8a86a889b..a250f1010 100644
+--- a/src/Tertius.Rendering/Passes/DirectLightPass.cs
++++ b/src/Tertius.Rendering/Passes/DirectLightPass.cs
+@@ -44,7 +44,7 @@ internal sealed unsafe class DirectLightPass : RenderPass
+             if (image != targets.Motion)
+                 barriers.Image(image, ImageUse.SampledFragment);
+         // Always, even in a frame without shadow maps: the descriptor promises this layout whenever the shader runs.
+-        barriers.Image(context.Shadows.Image, ImageUse.SampledFragment);
++        context.Shadows.DeclareSampled(barriers, ImageUse.SampledFragment);
+         context.ShadowAtlas?.DeclareSampled(barriers, ImageUse.SampledFragment);
+         barriers.Buffer(context.Exposure.Buffer, BufferUse.ShaderRead);
+         // Discarded, and still after the last frame's composite and occlusion depth pass read them: the pass writes every
+diff --git a/src/Tertius.Rendering/Passes/EnvironmentFacePass.cs b/src/Tertius.Rendering/Passes/EnvironmentFacePass.cs
+index 4583ddde2..0582b8c3a 100644
+--- a/src/Tertius.Rendering/Passes/EnvironmentFacePass.cs
++++ b/src/Tertius.Rendering/Passes/EnvironmentFacePass.cs
+@@ -113,7 +113,7 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
+         barriers.Buffer(context.Geometry.VertexBuffer, BufferUse.VertexInput);
+         barriers.Buffer(context.Geometry.IndexBuffer, BufferUse.VertexInput);
+         barriers.Buffer(context.Materials.Buffer, BufferUse.ShaderRead);
+-        barriers.Image(context.Shadows.Image, ImageUse.SampledFragment);
++        context.Shadows.DeclareSampled(barriers, ImageUse.SampledFragment);
+         context.ShadowAtlas?.DeclareSampled(barriers, ImageUse.SampledFragment);
+         barriers.Flush(context.Vk, context.CommandBuffer);
+ 
+diff --git a/src/Tertius.Rendering/Passes/LocalShadowPass.cs b/src/Tertius.Rendering/Passes/LocalShadowPass.cs
+index 0a1dda796..d9b394016 100644
+--- a/src/Tertius.Rendering/Passes/LocalShadowPass.cs
++++ b/src/Tertius.Rendering/Passes/LocalShadowPass.cs
+@@ -10,9 +10,6 @@ namespace Tertius.Rendering;
+ /// </summary>
+ internal sealed unsafe class LocalShadowPass : RenderPass
+ {
+-    /// <summary>The width and the height of a workgroup of shadow_bounds.comp, its local size.</summary>
+-    private const uint BoundsGroupSize = 8;
+-
+     private readonly VulkanDevice device;
+     private readonly ShadowAtlas atlas;
+     private readonly Pipeline pipeline;
+@@ -49,12 +46,12 @@ internal sealed unsafe class LocalShadowPass : RenderPass
+                 DepthBiasSlope = -ShadowBias.SlopeBias,
+             }
+         );
+-        boundsPipeline = new ComputePipelineDesc
+-        {
+-            Name = "local shadow bounds",
+-            Shader = "shadow_bounds.comp",
+-            Layout = layouts.ShadowBoundsLayout,
+-        }.Create(device, shaders);
++        boundsPipeline = ShadowPass.CreateBoundsPipeline(
++            device: device,
++            shaders: shaders,
++            layouts: layouts,
++            name: "local shadow bounds"
++        );
+     }
+ 
+     public override string Name => "local shadows";
+@@ -164,55 +161,25 @@ internal sealed unsafe class LocalShadowPass : RenderPass
+     }
+ 
+     /// <summary>
+-    /// Writes the bounds of each tile that <see cref="Record"/> drew into its own layer, after its depth writes, in one
+-    /// dispatch per <see cref="ShadowBoundsPushConstants.MaxLayers"/> tiles. The other layers keep the bounds of the tiles
+-    /// that they hold. Each dispatch waits for the one before it: they write disjoint layers, but through one view of every
+-    /// layer, which the barriers track as one image.
++    /// Writes the bounds of each tile that <see cref="Record"/> drew into its own layer, after its depth writes
++    /// (<see cref="ShadowPass.RecordBounds"/>). The other layers keep the bounds of the tiles that they hold.
+     /// </summary>
+     private void RecordBounds(FrameContext context)
+     {
+-        Vk vk = context.Vk;
+-        CommandBuffer commandBuffer = context.CommandBuffer;
+-        BarrierBatch barriers = context.Barriers;
+-        barriers.Image(atlas.Image, ImageUse.SampledCompute);
+-        vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, boundsPipeline);
+-        DescriptorSet set = atlas.BoundsSet;
+-        vk.CmdBindDescriptorSets(
+-            commandBuffer: commandBuffer,
+-            pipelineBindPoint: PipelineBindPoint.Compute,
+-            layout: layouts.ShadowBoundsLayout,
+-            firstSet: 0,
+-            descriptorSetCount: 1,
+-            pDescriptorSets: &set,
+-            dynamicOffsetCount: 0,
+-            pDynamicOffsets: null
+-        );
+-        uint groups = ((uint)atlas.BoundsSize + BoundsGroupSize - 1) / BoundsGroupSize;
+         PreparedScene scene = context.Scene;
+         List<TileCommands> drawn = scene.DrawnTiles;
+-        for (int first = 0; first < drawn.Count; first += ShadowBoundsPushConstants.MaxLayers)
+-        {
+-            int count = Math.Min(ShadowBoundsPushConstants.MaxLayers, drawn.Count - first);
+-            var push = new ShadowBoundsPushConstants();
+-            for (int i = 0; i < count; i++)
+-                push.Layers[i] = scene.ShadowTiles[drawn[first + i].View].Layer;
+-            barriers.Image(atlas.Bounds, ImageUse.StorageCompute);
+-            barriers.Flush(vk, commandBuffer);
+-            vk.CmdPushConstants(
+-                commandBuffer: commandBuffer,
+-                layout: layouts.ShadowBoundsLayout,
+-                stageFlags: ShaderStageFlags.ComputeBit,
+-                offset: 0,
+-                size: (uint)sizeof(ShadowBoundsPushConstants),
+-                pValues: &push
+-            );
+-            vk.CmdDispatch(
+-                commandBuffer: commandBuffer,
+-                groupCountX: groups,
+-                groupCountY: groups,
+-                groupCountZ: (uint)count
+-            );
+-        }
++        Span<uint> layers = stackalloc uint[drawn.Count];
++        for (int i = 0; i < layers.Length; i++)
++            layers[i] = scene.ShadowTiles[drawn[i].View].Layer;
++        ShadowPass.RecordBounds(
++            context: context,
++            layouts: layouts,
++            pipeline: boundsPipeline,
++            set: atlas.BoundsSet,
++            image: atlas.Image,
++            bounds: atlas.Bounds,
++            layers: layers
++        );
+     }
+ 
+     public override void Dispose()
+diff --git a/src/Tertius.Rendering/Passes/ShadowPass.cs b/src/Tertius.Rendering/Passes/ShadowPass.cs
+index b940a197d..e4923ee90 100644
+--- a/src/Tertius.Rendering/Passes/ShadowPass.cs
++++ b/src/Tertius.Rendering/Passes/ShadowPass.cs
+@@ -20,7 +20,8 @@ namespace Tertius.Rendering;
+ /// <para><see cref="Record"/> draws each cascade into its layer of the <see cref="ShadowMap"/> with a depth-only
+ /// vkCmdDrawIndexedIndirect per run, from the same global vertex, index and instance buffers as the G-buffer pass. The
+ /// cutout run's pipeline discards a texel below its material's cutoff (docs/plans/skin-and-hair.md). It clears the
+-/// layers of a set without casters too, because the shading passes sample every set that a light names. Depth clamping
++/// layers of a set without casters too, because the shading passes sample every set that a light names. Then it writes
++/// the bounds of every layer that it drew (<see cref="ShadowMap.Bounds"/>), which the lookups read first. Depth clamping
+ /// pancakes casters between a cascade box and its light onto the box's light side, and the rasterizer adds a slope-scaled
+ /// depth bias. Faces are not culled, so single-sided meshes such as planes cast shadows too.</para>
+ /// <para>The texel grid passes through the origin of the camera's reference frame, which the snapshot gives as
+@@ -28,10 +29,15 @@ namespace Tertius.Rendering;
+ /// </remarks>
+ internal sealed unsafe class ShadowPass : RenderPass
+ {
++    /// <summary>The width and the height of a workgroup of shadow_bounds.comp, its local size.</summary>
++    private const uint BoundsGroupSize = 8;
++
+     private readonly VulkanDevice device;
+     private readonly ShadowMap map;
++    private readonly DescriptorLayouts layouts;
+     private readonly Pipeline pipeline;
+     private readonly Pipeline cutoutPipeline;
++    private readonly Pipeline boundsPipeline;
+     private Caster[] casters = new Caster[64];
+     private int[] order = new int[64];
+     private int[] meshStarts = new int[64];
+@@ -40,6 +46,8 @@ internal sealed unsafe class ShadowPass : RenderPass
+     {
+         this.device = device;
+         this.map = map;
++        this.layouts = layouts;
++        boundsPipeline = CreateBoundsPipeline(device: device, shaders: shaders, layouts: layouts, name: "shadow cascade bounds");
+         (pipeline, cutoutPipeline) = CreatePipelines(
+             device: device,
+             shaders: shaders,
+@@ -63,6 +71,23 @@ internal sealed unsafe class ShadowPass : RenderPass
+         );
+     }
+ 
++    /// <summary>
++    /// The pipeline of shadow_bounds.comp, which writes the bounds of a shadow image's layers (<see cref="RecordBounds"/>).
++    /// The cascades and the local shadow atlas both use it. The caller destroys it.
++    /// </summary>
++    internal static Pipeline CreateBoundsPipeline(
++        VulkanDevice device,
++        ShaderLibrary shaders,
++        DescriptorLayouts layouts,
++        string name
++    ) =>
++        new ComputePipelineDesc
++        {
++            Name = name,
++            Shader = "shadow_bounds.comp",
++            Layout = layouts.ShadowBoundsLayout,
++        }.Create(device, shaders);
++
+     /// <summary>
+     /// The solid pipeline of a shadow image, <paramref name="desc"/>, and its cutout pipeline: the same, with the
+     /// texture coordinate and a fragment stage that discards a texel below the material's cutoff. The cascades and the
+@@ -376,6 +401,78 @@ internal sealed unsafe class ShadowPass : RenderPass
+ 
+             vk.CmdEndRendering(commandBuffer);
+         }
++
++        // Every layer that the frame drew: the lookups of a frame read the bounds of that frame's cascades.
++        Span<uint> layers = stackalloc uint[scene.CascadeSetCount * ShadowCascades.Count];
++        for (int layer = 0; layer < layers.Length; layer++)
++            layers[layer] = (uint)layer;
++        RecordBounds(
++            context: context,
++            layouts: layouts,
++            pipeline: boundsPipeline,
++            set: map.BoundsSet,
++            image: map.Image,
++            bounds: map.Bounds,
++            layers: layers
++        );
++    }
++
++    /// <summary>
++    /// Writes the bounds of the layers <paramref name="layers"/> of the shadow image <paramref name="image"/> into the same
++    /// layers of <paramref name="bounds"/>, after the image's depth writes, in one dispatch per
++    /// <see cref="ShadowBoundsPushConstants.MaxLayers"/> layers. The other layers keep their bounds. Each dispatch waits for
++    /// the one before it: they write disjoint layers, but through one view of every layer, which the barriers track as one
++    /// image. <paramref name="set"/> is the image's shadow bounds set. The cascades and the local shadow atlas both use it.
++    /// </summary>
++    internal static void RecordBounds(
++        FrameContext context,
++        DescriptorLayouts layouts,
++        Pipeline pipeline,
++        DescriptorSet set,
++        GpuImage image,
++        GpuImage bounds,
++        ReadOnlySpan<uint> layers
++    )
++    {
++        Vk vk = context.Vk;
++        CommandBuffer commandBuffer = context.CommandBuffer;
++        BarrierBatch barriers = context.Barriers;
++        barriers.Image(image, ImageUse.SampledCompute);
++        vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, pipeline);
++        vk.CmdBindDescriptorSets(
++            commandBuffer: commandBuffer,
++            pipelineBindPoint: PipelineBindPoint.Compute,
++            layout: layouts.ShadowBoundsLayout,
++            firstSet: 0,
++            descriptorSetCount: 1,
++            pDescriptorSets: &set,
++            dynamicOffsetCount: 0,
++            pDynamicOffsets: null
++        );
++        uint groups = (bounds.Extent.Width + BoundsGroupSize - 1) / BoundsGroupSize;
++        for (int first = 0; first < layers.Length; first += ShadowBoundsPushConstants.MaxLayers)
++        {
++            int count = Math.Min(ShadowBoundsPushConstants.MaxLayers, layers.Length - first);
++            var push = new ShadowBoundsPushConstants();
++            for (int i = 0; i < count; i++)
++                push.Layers[i] = layers[first + i];
++            barriers.Image(bounds, ImageUse.StorageCompute);
++            barriers.Flush(vk, commandBuffer);
++            vk.CmdPushConstants(
++                commandBuffer: commandBuffer,
++                layout: layouts.ShadowBoundsLayout,
++                stageFlags: ShaderStageFlags.ComputeBit,
++                offset: 0,
++                size: (uint)sizeof(ShadowBoundsPushConstants),
++                pValues: &push
++            );
++            vk.CmdDispatch(
++                commandBuffer: commandBuffer,
++                groupCountX: groups,
++                groupCountY: groups,
++                groupCountZ: (uint)count
++            );
++        }
+     }
+ 
+     /// <summary>
+@@ -419,6 +516,7 @@ internal sealed unsafe class ShadowPass : RenderPass
+     {
+         device.Vk.DestroyPipeline(device.Device, pipeline, null);
+         device.Vk.DestroyPipeline(device.Device, cutoutPipeline, null);
++        device.Vk.DestroyPipeline(device.Device, boundsPipeline, null);
+     }
+ 
+     /// <summary>
+diff --git a/src/Tertius.Rendering/Passes/TransparentPass.cs b/src/Tertius.Rendering/Passes/TransparentPass.cs
+index 6be2fdd63..4e61dfac1 100644
+--- a/src/Tertius.Rendering/Passes/TransparentPass.cs
++++ b/src/Tertius.Rendering/Passes/TransparentPass.cs
+@@ -107,7 +107,7 @@ internal sealed unsafe class TransparentPass : RenderPass
+         barriers.Buffer(context.Exposure.Buffer, BufferUse.ShaderRead);
+         barriers.Image(targets.Distance, ImageUse.SampledFragment);
+         // The vertex shader of the lit puffs samples the cascades at each puff's center.
+-        barriers.Image(context.Shadows.Image, ImageUse.SampledVertexFragment);
++        context.Shadows.DeclareSampled(barriers, ImageUse.SampledVertexFragment);
+         context.ShadowAtlas?.DeclareSampled(barriers, ImageUse.SampledVertexFragment);
+         barriers.Image(targets.Hdr, ImageUse.ColorAttachment);
+         barriers.Flush(vk, commandBuffer);
+diff --git a/src/Tertius.Rendering/Shaders/gbuffer_inputs.glsl b/src/Tertius.Rendering/Shaders/gbuffer_inputs.glsl
+index 5d5fe3923..1dfb00972 100644
+--- a/src/Tertius.Rendering/Shaders/gbuffer_inputs.glsl
++++ b/src/Tertius.Rendering/Shaders/gbuffer_inputs.glsl
+@@ -23,6 +23,9 @@ layout(set = 2, binding = 5) uniform texture2DArray shadowCascades;   // D32: on
+ layout(set = 2, binding = 6) uniform samplerShadow shadowSampler;      // linear GREATER_OR_EQUAL comparison (PCF)
+ layout(set = 2, binding = 8) uniform texture2DArray shadowAtlas;      // D32: one tile per layer, reversed depth;
+                                                                        // partially bound, empty without the atlas
++layout(set = 2, binding = 9) uniform texture2DArray cascadeBounds;    // RG32F: per layer of the cascades, at half its
++                                                                       // side, the least and the greatest reversed depth
++                                                                       // of each window (shadow_bounds.comp)
+ layout(set = 2, binding = 10) uniform utexture2D gbufferShading;       // RGBA8 UINT: rg a hair pixel's strand code (strandCode,
+                                                                        // octahedral.glsl), bit 0 of b 1 where the entity
+                                                                        // holds a light, bits 0 and 1 of a the shading
+diff --git a/src/Tertius.Rendering/Shaders/shadows.glsl b/src/Tertius.Rendering/Shaders/shadows.glsl
+index 0315028b9..21d7aba65 100644
+--- a/src/Tertius.Rendering/Shaders/shadows.glsl
++++ b/src/Tertius.Rendering/Shaders/shadows.glsl
+@@ -38,6 +38,21 @@ float sampleCascade(uint set, uint cascade, vec3 position, vec3 geometricNormal,
+     // ShadowMap.Layer: the layers of a set follow those of the sets before it.
+     float layer = float(set * 4u + cascade);
+ 
++    // The taps compare the 5 × 5 texels from the texel floor(corner). The bounds texel at floor(corner / 2) holds the least
++    // (x) and the greatest (y) reversed depth of texels 2k to 2k + 5, which hold the 5 × 5 (shadow_bounds.comp). Below the
++    // least, every one of them lies nearer the light than the lookup, every comparison fails and the taps give 0; at the
++    // greatest or above, every one passes and they give 1. So the bounds decide those lookups with the taps' own result,
++    // as a tile's bounds do (tileLookupOf). The clamp comes before the conversion to int, which is undefined for a float
++    // out of range; the taps' texels clamp to the cascade's edge as the bounds' do.
++    vec2 corner = uv * float(textureSize(shadowCascades, 0).x) - 2.0;
++    vec2 lastWindow = vec2(textureSize(cascadeBounds, 0).xy - 1);
++    ivec2 window = ivec2(clamp(floor(corner * 0.5), vec2(0.0), lastWindow));
++    vec2 bounds = texelFetch(cascadeBounds, ivec3(window, int(set * 4u + cascade)), 0).rg;
++    if (reference < bounds.x)
++        return 0.0;
++    if (reference >= bounds.y)
++        return 1.0;
++
+     float lit = 0.0;
+     for (int y = 0; y < 4; y++)
+     {
+diff --git a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
+index 1c3fcc44f..b88f28cb9 100644
+--- a/src/Tertius.Rendering/VulkanRenderer.cs
++++ b/src/Tertius.Rendering/VulkanRenderer.cs
+@@ -1038,6 +1038,18 @@ public sealed unsafe class VulkanRenderer : IRenderer
+         return ReadDepthLayer(image: ShadowMap.Image, layer: ShadowMap.Layer(set, cascade), size: ShadowMap.Size);
+     }
+ 
++    /// <summary>
++    /// Reads the bounds of one cascade of one cascade set back to the CPU, row by row from the top: per texel the least and
++    /// the greatest reversed depth of its window of the cascade (<see cref="ShadowMap.Bounds"/>). A test and tooling hook,
++    /// like <see cref="ReadShadowCascade"/>.
++    /// </summary>
++    internal float[] ReadShadowCascadeBounds(int set, int cascade)
++    {
++        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)set, (uint)ShadowMap.Sets);
++        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)cascade, (uint)ShadowCascades.Count);
++        return ReadLevel(image: ShadowMap.Bounds, layer: ShadowMap.Layer(set, cascade), mip: 0).Values;
++    }
++
+     /// <summary>
+     /// Reads one layer of the local shadow atlas back to the CPU, row by row from the top: reversed depth, 1 at the tile's
+     /// near plane, 0 at infinity. A test and tooling hook: it waits for the device to be idle and submits its own copy.
+@@ -2046,12 +2058,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
+             new ShadowMap(
+                 device: device,
+                 allocator: Allocator,
++                layouts: layouts,
+                 size: options.ShadowMapSize,
+                 sets: options.CascadedLights
+             )
+         );
+         ShadowAtlas? atlas = CreateShadowAtlas(options.LocalShadows);
+         layouts.WriteImage(set: targets.GBufferSet, binding: 5, arrayElement: 0, image: map.Image);
++        layouts.WriteImage(set: targets.GBufferSet, binding: ShadowMap.BoundsBinding, arrayElement: 0, image: map.Bounds);
+         if (atlas is not null)
+         {
+             layouts.WriteImage(
+diff --git a/tests/Tertius.Rendering.Tests/CascadeBoundsRenderTests.cs b/tests/Tertius.Rendering.Tests/CascadeBoundsRenderTests.cs
+new file mode 100644
+index 000000000..54048a47c
+--- /dev/null
++++ b/tests/Tertius.Rendering.Tests/CascadeBoundsRenderTests.cs
+@@ -0,0 +1,130 @@
++using System.Numerics;
++using Tertius.Testing;
++
++namespace Tertius.Rendering.Tests;
++
++/// <summary>
++/// The bounds of the cascades on the GPU (ticket t2-mlvy): each texel of a cascade's bounds holds the least and the
++/// greatest depth of its window of the cascade, as a tile's bounds do for the tile, so that one fetch settles a lookup
++/// whose every tap agrees. A box stands 5 m ahead of the camera under a sun.
++/// </summary>
++[Collection(GpuCollection.Name)]
++public sealed class CascadeBoundsRenderTests
++{
++    /// <summary>The smallest cascade, so that the readbacks stay small.</summary>
++    private const int MapSize = ShadowMap.MinimumSize;
++
++    private static VulkanRenderer Renderer() =>
++        VulkanRenderer.CreateHeadless(
++            new()
++            {
++                Validation = true,
++                Width = 160,
++                Height = 90,
++                ShadowMapSize = MapSize,
++                Bloom = new NoBloom(),
++                Upscaling = new NoUpscaling(),
++            }
++        );
++
++    /// <summary>A snapshot of a box that casts a shadow under a sun high over the camera's right shoulder.</summary>
++    private static RenderSnapshot BoxUnderASun(VulkanRenderer renderer)
++    {
++        RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 1f, 0.2f));
++        snapshot.Instances.Add(
++            Gpu.Instance(
++                mesh: renderer.CreateMesh(Primitives.Box(new(0.5f))),
++                material: renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.38f)),
++                position: new(0, 0, -5),
++                scale: Vector3.One,
++                flags: RenderFlags.CastsShadow,
++                chainDepth: TestChains.CamerasFrame
++            )
++        );
++        return snapshot;
++    }
++
++    /// <summary>
++    /// How many texels of the bounds of a cascade differ from the least and the greatest depth of the cascade in their
++    /// window: texel k of a bounds row covers the cascade's texels 2k to 2k + 5 along each axis, clamped to the cascade.
++    /// </summary>
++    private static int BoundsMismatches(float[] cascade, float[] bounds)
++    {
++        const int half = MapSize / 2;
++        bounds.Length.Should().Be(half * half * 2, "a bounds texel holds the least and the greatest depth");
++        int mismatches = 0;
++        for (int ky = 0; ky < half; ky++)
++        {
++            for (int kx = 0; kx < half; kx++)
++            {
++                float least = float.MaxValue,
++                    most = float.MinValue;
++                for (int y = 2 * ky; y < 2 * ky + 6; y++)
++                {
++                    for (int x = 2 * kx; x < 2 * kx + 6; x++)
++                    {
++                        float depth = cascade[Math.Min(y, MapSize - 1) * MapSize + Math.Min(x, MapSize - 1)];
++                        least = Math.Min(least, depth);
++                        most = Math.Max(most, depth);
++                    }
++                }
++
++                int texel = 2 * (ky * half + kx);
++                if (bounds[texel] != least || bounds[texel + 1] != most)
++                    mismatches++;
++            }
++        }
++
++        return mismatches;
++    }
++
++    [Fact]
++    public void EachCascadesBoundsHoldTheLeastAndTheGreatestDepthOfEveryWindow()
++    {
++        VulkanRenderer renderer = Renderer();
++        try
++        {
++            renderer.Render(BoxUnderASun(renderer), 1f);
++
++            // The nearest cascade holds the box. A cascade that no caster touches is cleared, and its bounds hold the
++            // cleared depth.
++            renderer.ReadShadowCascade(set: 0, cascade: 0).Should().Contain(depth => depth > 0, "cascade 0 holds the box");
++            for (int cascade = 0; cascade < ShadowCascades.Count; cascade++)
++            {
++                float[] depths = renderer.ReadShadowCascade(set: 0, cascade: cascade);
++                BoundsMismatches(cascade: depths, bounds: renderer.ReadShadowCascadeBounds(set: 0, cascade: cascade))
++                    .Should()
++                    .Be(0, "the bounds of cascade {0} are those of its own windows", cascade);
++            }
++        }
++        finally
++        {
++            Gpu.DisposeAndAssertClean(renderer);
++        }
++    }
++
++    [Fact]
++    public void TheBoundsFollowACasterThatMoves()
++    {
++        // The cascades draw in every frame, so their bounds are those of the frame, not those of an earlier one.
++        VulkanRenderer renderer = Renderer();
++        try
++        {
++            RenderSnapshot snapshot = BoxUnderASun(renderer);
++            renderer.Render(snapshot, 1f);
++            float[] before = renderer.ReadShadowCascadeBounds(set: 0, cascade: 0);
++            RenderInstance box = snapshot.Instances[0];
++            snapshot.Instances[0] = box with { Position = box.Position + new Vector3(0.7f, 0, 0), PreviousPosition = box.Position };
++
++            renderer.Render(snapshot, 1f);
++
++            float[] after = renderer.ReadShadowCascadeBounds(set: 0, cascade: 0);
++            after.Should().NotEqual(before, "the box moved across the cascade");
++            BoundsMismatches(cascade: renderer.ReadShadowCascade(set: 0, cascade: 0), bounds: after).Should().Be(0);
++        }
++        finally
++        {
++            Gpu.DisposeAndAssertClean(renderer);
++        }
++    }
++}
