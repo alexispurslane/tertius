@@ -336,10 +336,13 @@ public sealed class AccumulatorRenderTests
         }
     }
 
-    [Fact]
-    public void ALightChangeOlderThanTheHistoryLeavesTheHistoryAsItIs()
+    [Theory]
+    [InlineData(17u)]
+    [InlineData(21u)]
+    public void ALightChangeAsOldAsTheHistoryOrOlderLeavesTheHistoryAsItIs(uint code)
     {
-        // A change 20 frames ago (code 21) is older than the history of 16 frames, which holds no frame from before it.
+        // A change 16 frames ago (code 17) or more is as old as the history of 16 frames or older: the history holds no
+        // frame from before it, so it is no evidence for the clamp and nothing to cut.
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
         try
         {
@@ -347,7 +350,7 @@ public sealed class AccumulatorRenderTests
             renderer.Render(scene, 1f);
             Continue(renderer, scene, frames: 40);
 
-            sample.AgeCode = 21;
+            sample.AgeCode = code;
             sample.Value = new(x: 2f, y: 2f, z: 2f, w: 1f);
             Continue(renderer, scene, frames: 1);
 

@@ -69,3 +69,27 @@ B. Wait for a fix of the no-evidence case. Design A (retained deviation per pixe
 Recommendation: B, because the cabin lamp-on and walk regressions miss the ter-8hyd goal of settling within 60 draws by a wide margin, and Design A may remove the trade-off. If the user prefers A, the branch merges as it is.
 
 Known uncovered case, for Design A: a bounce change without direct-light evidence where the bounce changes (ter-g3tk's tick-303 step; a moving occluder).
+
+**2026-11-12T09:32:37Z**
+
+Hardening, 2026-11-12. tools/mutate.py, 16 listed mutants (/private/tmp/t7-3e22/mutants.json, results /private/tmp/t7-3e22/mutate and mutate-g03). No Core, Simulation or Physics line changed, so no Stryker run.
+
+| id | place | change | result | answer |
+|---|---|---|---|---|
+| G01 | accumulate_spatial.comp:29 | motion is no evidence | killed | AnImageThatMovesOnScreenIsEvidenceOfAChangeForTheClamp |
+| G02 | accumulate_spatial.comp:36 | a neighbor on another surface counts | survived | Judgment: the same `sameSurface` helper guards the clamp box and the young-history repair, whose tests cover it; a test here needs a second surface in the accumulator harness, which has one wall. |
+| G03 | accumulate_spatial.comp:39 | an age equal to the length counts | killed (after a new case) | ALightChangeAsOldAsTheHistoryOrOlderLeavesTheHistoryAsItIs(code: 17) |
+| G04 | accumulate_spatial.comp:39 | any age counts | killed | ALightChangeAsOldAsTheHistoryOrOlder... |
+| G05 | accumulate_spatial.comp:39 | only the pixel's own age counts | killed | AChangeThatANeighborsRaysSawOnTheSameSurfaceOpensTheClamp |
+| G06 | accumulate_spatial.comp:42 | every history counts as changed | killed | InAStillViewRareBrightDiffuseSamplesKeepTheirShareOfTheSlowHistorysLight |
+| G07 | accumulate_spatial.comp:107 | gate on the specular signal instead | killed | ScreenTraceRenderTests (panel and mirror) |
+| T01 | accumulate_temporal.comp:316 | cut to the age plus 1 | killed | ALightChangeThatTheRaysSawRestartsTheHistoryAtTheChange |
+| T02 | accumulate_temporal.comp:308 | no diffuse cut | killed | AfterALastingDimmingTheDiffuseHistoryKeepsOnlyTheNewLight |
+| R01 | screen_trace_resolve.comp:90 | a ray without light still gives its age | survived | Judgment: such a sample has no light, so it never holds 25 % of a history's light and cannot cut; as a neighbor's evidence it opens the clamp only where its record changed anyway. |
+| R02 | screen_trace_resolve.comp:91 | the resolve writes no diffuse age | killed | AfterALastingDimmingTheDiffuseHistoryKeepsOnlyTheNewLight |
+| R03 | screen_trace_resolve.comp:70 | the early-out leaves the diffuse age unwritten | survived | Equivalent: the early-out pixels show no surface, the accumulation does not run for them, and as a neighbor they fail the same-surface test, so nothing reads their age. |
+| C01 | HistoryInstrumentation.cs:42 | the temporal dispatch takes no light-age variant | killed | HistoryShaderTests, ShaderVariantTests |
+| C02 | DescriptorLayouts.cs:111 | light pyramid on the diagnostic's binding | killed | LightAgeHistoryTests (validation) |
+| C03 | ScreenTracePass.cs:209 | no barrier for the diffuse age | killed | ScreenTraceRenderTests (validation) |
+
+Review (reviewer agent): no serious bug. Fixed: B1 (the 10-frame dimming test now steps to 0.02, so the clamp, not the cut, follows it), F1 (three wiring tests: the real resolve's diffuse cut, motion, a neighbor's age), F2 (ARCHITECTURE's storage-image count 19, 20 under the diagnostic), Q1 (diagnostic doc), Q2 (one macro: every precise build defines TERTIUS_LIGHT_AGE on its compile line), B3 (half-float note on LeastMotion). Open for the user: B2, a moving occluder gives no evidence (the same class as the no-evidence bounce change). Not done: Q3 to Q5 (naming and structure of the variant selection), judged out of scope. Suites: Checked and Release, all modules, 0 failures (2026-11-12 02:16, before the G03 case).
