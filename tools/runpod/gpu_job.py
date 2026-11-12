@@ -281,9 +281,9 @@ def have(repo: Path, config: Config, sha: str) -> bool:
     return git_maybe(repo, "cat-file", "-t", sha) == "commit"
 
 
-def image_for(config: Config, registry, repo: Path, shell: tuple, shas: list, main: str) -> str:
-    """The commit of the image that runs the job, among the images that have the shell and speak this script's
-    protocol. A branch's own image comes first: one that the job's commits descend from and that main does not hold,
+def images_for(config: Config, registry, repo: Path, shell: tuple, shas: list, main: str) -> list:
+    """The commits of the images that can run the job, the best first, among the images that have the shell and speak
+    this script's protocol. A branch's own image comes first: one that the job's commits descend from and that main does not hold,
     built from the branch's tag. Otherwise the newest image of main, so that all jobs of main's images share one
     endpoint. An image of another branch never runs the job. The newest by commit time, and of two at the same second
     the one with more history."""
@@ -298,8 +298,8 @@ def image_for(config: Config, registry, repo: Path, shell: tuple, shas: list, ma
         raise Refused(f"no image has the dev shell of {shas[0]} and the handler protocol {PROTOCOL}: build "
                       f"{config.image_repository}:{shas[0]} with the workflow gpu-image first (tools/runpod/README.md, "
                       f"\"A new dev shell\").{unread}")
-    return max(own or on_main, key=lambda image: (int(git(repo, "show", "-s", "--format=%ct", image)),
-                                                  int(git(repo, "rev-list", "--count", image))))
+    return sorted(own or on_main, key=lambda image: (int(git(repo, "show", "-s", "--format=%ct", image)),
+                                                     int(git(repo, "rev-list", "--count", image))), reverse=True)
 
 
 def ancestor(repo: Path, older: str, newer: str) -> bool:
@@ -317,51 +317,72 @@ def refuse_if_stopped(endpoints: list):
         raise Refused(f"the endpoint {', '.join(ids)} is stopped at 0 workers; the orchestrator restarts it")
 
 
+def free_workers(endpoints: list, beside: str | None = None) -> int:
+    """How many workers the account's quota leaves beside the endpoint `beside`, over all endpoints of the account."""
+    return WORKER_QUOTA - sum(endpoint["workers"]["max"] for endpoint in endpoints if endpoint["id"] != beside)
+
+
 def grow(api, live: str):
-    """Give the live endpoint its WORKERS once the quota leaves room: an endpoint made beside an old one got less."""
+    """Give the live endpoint its WORKERS once the quota leaves room: an endpoint made beside an old one got less. One
+    read of all endpoints gives both the stop and the room."""
     endpoints = api.endpoints()
     refuse_if_stopped([endpoint for endpoint in endpoints if OURS.match(endpoint.get("name", ""))])
-    mine = next(endpoint for endpoint in endpoints if endpoint["id"] == live)
-    others = sum(endpoint["workers"]["max"] for endpoint in endpoints if endpoint["id"] != live)
-    most = min(WORKERS, WORKER_QUOTA - others)
+    mine = next((endpoint for endpoint in endpoints if endpoint["id"] == live), None)
+    if mine is None:
+        raise Refused(f"the endpoint {live} went away during the routing")
+    most = min(WORKERS, free_workers(endpoints, beside=live))
     if most > mine["workers"]["max"]:
         api.update_endpoint(live, {"workers": {"max": most}})
 
 
-def route(config: Config, api, state: Path, image: str) -> str:
-    """Under the lock, after the jobs in flight are settled: the id of the endpoint that runs `image`, created if no
-    endpoint runs it. Every other endpoint of the script's that no job in flight names and no worker runs on goes. An
-    endpoint at 0 workers was stopped by the watchdog or by hand, so then no job runs and nothing is deleted. The
-    watchdog does not take the lock, so every read of the list applies that rule: the first, one after a creation and
-    one before each deletion. A stop that one of them sees removes this run's new endpoint again."""
+def route(config: Config, api, state: Path, images: list) -> tuple:
+    """Under the lock, after the jobs in flight are settled: the endpoint that runs the job and its image, in three
+    steps.
+
+    1. Every endpoint of the script's goes that does not run the best of `images`, no job in flight names, and no
+       worker runs on. So idle old endpoints give their workers back to the quota first.
+    2. If no endpoint runs the best image, the script creates one with the workers that the quota leaves. While it
+       leaves none, the job runs on the endpoint of the best image that has one, or is refused.
+    3. The live endpoint grows to its WORKERS once the quota leaves room.
+
+    An endpoint at 0 workers was stopped by the watchdog or by hand, so then no job runs and nothing is deleted. The
+    watchdog does not take the lock, so every read of the list applies that rule: the first, one before each deletion,
+    one after a creation and one before the growth. A stop that one of them sees removes this run's new endpoint again.
+    The rule narrows the race with the watchdog but cannot close it (README.md, "The dev shell, the image and the
+    endpoint")."""
     endpoints = ours(api)
     refuse_if_stopped(endpoints)
-    wanted = f"{config.image_repository}:{image}"
-    live = next((endpoint["id"] for endpoint in endpoints if endpoint["image"] == wanted), None)
-    created = None
-    if live is None:
-        room = WORKER_QUOTA - sum(endpoint["workers"]["max"] for endpoint in api.endpoints())
-        if room < 1:
+    best = f"{config.image_repository}:{images[0]}"
+    busy = {pending["endpoint"] for pending in in_flight(state)}
+    for endpoint in endpoints:
+        if endpoint["image"] == best or endpoint["id"] in busy or any(
+                worker.get("status") == "RUNNING" for worker in api.workers(endpoint["id"])):
+            continue
+        refuse_if_stopped(ours(api))
+        api.delete_endpoint(endpoint["id"])
+    endpoints = ours(api)
+    refuse_if_stopped(endpoints)
+    running = {endpoint["image"]: endpoint["id"] for endpoint in endpoints}
+    if best in running:
+        grow(api, running[best])
+        return running[best], images[0]
+    room = free_workers(api.endpoints())
+    if room < 1:
+        image = next((image for image in images if f"{config.image_repository}:{image}" in running), None)
+        if image is None:
             raise Refused(f"the other endpoints hold the account's whole worker quota of {WORKER_QUOTA}, so no "
-                          f"endpoint of {image} fits until their jobs end")
-        request = endpoint_request(config, image)
-        request["workers"]["max"] = min(WORKERS, room)
-        live = created = api.create_endpoint(request)["id"]
+                          f"endpoint of {images[0]} fits until their jobs end")
+        return running[f"{config.image_repository}:{image}"], image
+    request = endpoint_request(config, images[0])
+    request["workers"]["max"] = min(WORKERS, room)
+    created = api.create_endpoint(request)["id"]
     try:
         refuse_if_stopped(ours(api))
-        busy = {pending["endpoint"] for pending in in_flight(state)}
-        for endpoint in endpoints:
-            if endpoint["id"] == live or endpoint["id"] in busy or any(
-                    worker.get("status") == "RUNNING" for worker in api.workers(endpoint["id"])):
-                continue
-            refuse_if_stopped(ours(api))
-            api.delete_endpoint(endpoint["id"])
-        grow(api, live)
-    except Refused:
-        if created is not None:
-            api.delete_endpoint(created)
+        grow(api, created)
+    except (Refused, OSError):
+        api.delete_endpoint(created)
         raise
-    return live
+    return created, images[0]
 
 
 def execution_seconds(config: Config, seconds: int) -> int:
@@ -584,14 +605,15 @@ def submit(request: Request, *, config: Config, api, registry, github, scan=scan
             findings = scan(repo, github.new_commits(sorted(set(shas.values()))))
             if findings:
                 raise Refused(f"the secrets scan found {'; '.join(findings)}; nothing was published")
-            pending["image"] = image_for(config, registry, repo, shells.pop(), list(shas.values()),
+            images = images_for(config, registry, repo, shells.pop(), list(shas.values()),
                                          git(repo, "rev-parse", "--verify", MAIN).decode().strip())
+            pending["image"] = images[0]
             with locked(state):
                 settle_lost(config, state, api, now())
                 reason = refusal(config, state, api, worst, now())
                 if reason is not None:
                     raise Refused(reason)
-                pending["endpoint"] = route(config, api, state, pending["image"])
+                pending["endpoint"], pending["image"] = route(config, api, state, images)
                 write_pending(state, name, pending)
         except (Refused, subprocess.CalledProcessError, OSError, ValueError, KeyError) as error:
             # Before the record of the job in flight, nothing was published or sent. A failed git command, registry or
