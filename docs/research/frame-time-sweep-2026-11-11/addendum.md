@@ -680,7 +680,7 @@ The order is by gain for the risk. All gains are for the deck as a window, at 19
 | # | Change | Gain (ms) | From | Effect on the image | State |
 |---:|---|---:|---|---|---|
 | 1 | Row 1: one byte per pixel holds the same-surface answers of the 3 × 3 neighbors | 0.45 | Bound 0.69, less 0.2 estimated for the write | None | `ter-yaqk` waits for Design A of the mottle agent |
-| 2 | A reflection walk of at most 96 steps, found by the search of section A13 | 0.21 | Measured, takes 10 and 12 | Not visible at a still's own size. FLIP flags up to 0.08 % of a still, at the rims of mirror balls. | A question for Alexis. The bounce-light cap stays. |
+| 2 | A reflection walk of at most 96 steps, found by the search of section A13 | 0.21 | Measured, takes 10 and 12 | Not visible at a still's own size. FLIP flags up to 0.08 % of a still, at the rims of mirror balls. | Alexis chose it, and ticket `t2-pw52` built it. On main at `b93ab3570` it saves 0.15 ms. The bounce-light cap stays. |
 | 3 | Buffer updates out of the middle of the frame | 0.00 to 0.06 | Measured with a proxy build in take 11 | None | `ter-n8bk`: not worth a build |
 | 4 | The local shadow tiles of a frame in one render pass | up to 0.25 | 13 render encoder breaks of 21 µs, not measured | None | `ter-jr0f`, in the tile agent's files |
 | 5 | Fewer time stamps in a window | at most 0.05 | 5 stamp encoders, at the measured price of a removed encoder | None | `ter-wp7u` |
@@ -698,7 +698,7 @@ The budget is a 95th percentile of 16.7 ms, so the mean must reach about 16.1 ms
 | Source | Gain (ms) | Who decides or builds |
 |---|---:|---|
 | The exact cuts of rows 1 and 3 to 6 | 0.5 to 0.8 | Row 1 after Design A, and row 4 in the tile agent's files |
-| A reflection cap of 96 | 0.21 | Alexis, because the strict FLIP condition fails (section A13) |
+| A reflection cap of 96 | 0.21, and 0.15 on the code that merged | Alexis, because the strict FLIP condition fails (section A13). Built by ticket `t2-pw52` |
 | The key-and-fill design for the direct light and the transparent pass, 5.9 ms today | the tile agent's estimate | The tile agent |
 | Rows 7 to 9 | up to 0.7, 1.0 to 1.3 and about 3.5 | Alexis |
 | The reserve for the mottle fixes | costs up to 1.5 | The mottle agent |
@@ -775,6 +775,8 @@ One highlight in the same still is not a trend. With the automatic exposure, a l
 | The mottle score does not rise | Holds |
 
 The accepted step from 256 to 128 fails the same strict reading, with more pixels. I did not change the cap, because one condition fails as written. The question for Alexis: a reflection cap of 96 for 0.21 ms, with the mirror rims a little fainter again.
+
+The answer, 2026-11-12: Alexis chose the cap of 96, and ticket `t2-pw52` built it. Main then held the blue-noise draws of the reflection rays (ticket `ter-s97m`), so every measurement ran again on main at `b93ab3570`. The image numbers agree with the search. The gain on that code is smaller: a median of 0.15 ms in five pairs of traces, from 0.09 to 0.21 ms. The record is [acceptance-t2-pw52/README.md](acceptance-t2-pw52/README.md).
 
 ### A side finding: the light loop of an environment face
 
