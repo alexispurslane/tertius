@@ -1,6 +1,6 @@
 ---
 id: t2-gfq5
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-12T06:39:03Z
