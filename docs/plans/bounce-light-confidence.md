@@ -327,6 +327,22 @@ Why R and not S (take T3's filter test, 2026-11-12, workbench job `filter-ab`, `
 
 The reflections' D did not change with the diffuse filter: ratios 1.58, 2.18 and 3.76 with it on and 1.54, 2.12 and 3.63 with it off. Their kept fires are drops of about 6.6 % of the light at z of about −4.6. The ratio grows with the window, so their errors are correlated across ray blocks, or their narrow clamp moves S. R removes the clamp's part. Take T3 measures what remains. A remaining ratio becomes the reflections' variance scale per window: the design effect of a cluster sample (Kish 1965), the measured variance of a window's mean over the variance of independent streams.
 
+Take T3 with R (workbench job `t3-own`, 2026-11-12, four stills to draw 924, action off, the step-4 constants):
+
+| Still | Bounce: false windows per block-draw | Bounce: deviation ratio, windows 1, 3, 7 | Reflections: false windows | Reflections: deviation ratio |
+|---|---:|---|---:|---|
+| `rect-lamps` | 1.8 × 10^−2 | 1.39, 1.39, 1.49 | 4.6 × 10^−3 | 1.58, 2.18, 3.76 |
+| `bay-sunbeam` | 2.0 × 10^−5 | 1.02, 1.02, 1.02 | 5.3 × 10^−6 | 1.02, 1.02, 1.03 |
+| `docking-bay` | 2.8 × 10^−5 | 1.00, 1.00, 1.01 | 1.1 × 10^−6 | 1.00, 1.01, 1.02 |
+| `station-cabin` | 0 | 1.76, 1.77, 1.74 | 0 | 0.98, 1.00, 1.03 |
+
+- R fixes the write-back's part, which the filter test of the fixture shows (1,269 false cuts before R, 0 after). But `rect-lamps` did not change. So the filter acts there through the samples themselves, not through S.
+- The cause, as far as the numbers show: the bounce rays' hits read the last draw's filtered light. In `rect-lamps`, that light carries slow, wide blotches. So the samples of neighboring pixels share a slow wave. Two means of such samples differ in a still by up to about a fifth of the light (the 99.99th percentile of F̄ − R̄ over R̄ is 0.21 to 0.31). With the filter off, the hits read unfiltered light and the ratio is 1.0.
+- No noise model separates that wave from a change of the light, so the floor must lie above it. That is the rule that this section already gave for the floor: above the stationary difference of the stills.
+- The constants that the sweep finds for all four stills, at most 10^−4 false windows each: `BlockSigmas` 5, `BlockNoiseScale` 1.5, `TailStreams` 2,000, `ChangeShare` 1/4 for bounce light and 1/20 for reflections. The worst still is `rect-lamps`' reflections at 3.4 × 10^−5.
+- With these constants, the floor binds for bounce light: a window that passes the tail rule has a noise bar of at most 5 × 1.5 / √(2,000 × 1.5²) = 0.11 of the light, below the floor of 1/4. So only drops of more than about 37 % and rises of more than about 45 % count. Takes T4 to T6 show what that costs in the settle cases, against the step-4 constants on the same build.
+- When the blotches shrink, the stationary wave shrinks, and the floor can drop again. The floor follows the blotches, not the other way around.
+
 A contributing pixel shows a lit surface and has L above `FastCap` after the blend. That is the clamp's own condition, because a shorter history averages no more draws than its fast history.
 
 For each ray block, the dispatch takes the mean of d, v and s over its contributing pixels. A ray block without one contributes nothing. Then the dispatch sums the 16 ray blocks of its 8 × 8 workgroup in shared memory. It stores one texel per block: (Σd, Σv, n, Σs), in pre-exposed luminance.

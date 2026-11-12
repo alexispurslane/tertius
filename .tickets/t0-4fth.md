@@ -31,3 +31,7 @@ Rule from Alexis via the orchestrator, 2026-11-12: judge mottle and specks with 
 **2026-11-12T19:00:12Z**
 
 Take T3 started early (job filter-ab, $0.0437, rect-lamps to draw 924, action off, filter on and off). Result: the filter's write-back into S causes the false block evidence of bounce light (2.1e-2 against 1.9e-4 per block-draw; D's deviation ratio 1.4 against 1.0). Design change in section 8: compare F with the own-sample mean R. New step ticket t0-y4qv blocks this one. Spent so far under the $3 budget: $0.0342 (step 6 smoke) + $0.0437 (filter-ab) = $0.078.
+
+**2026-11-12T20:47:21Z**
+
+Take T3 with R (job t3-own, $0.0704): bay-sunbeam, docking-bay and station-cabin pass at the step-4 constants (deviation ratio about 1.0); rect-lamps does not (1.8e-2 bounce, 4.6e-3 reflections). Cause: hits read the filtered light's slow blotches, so the samples share a slow wave of up to about 21 % of the light. Sweep: BlockSigmas 5, BlockNoiseScale 1.5, TailStreams 2000, ChangeShare 1/4 bounce, 1/20 reflections pass all four stills (worst 3.4e-5). Takes T4-T6 (job t456) compare these constants with the step-4 constants and main. Spent: $0.078 + $0.0704 = $0.148 of $3.
