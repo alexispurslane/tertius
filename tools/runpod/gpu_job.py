@@ -46,8 +46,10 @@ _spec.loader.exec_module(handler)
 
 CONFIG_FILE = Path(__file__).with_name("endpoint.json")
 STATE = Path.home() / ".local/state/tertius/gpu-jobs"
-# Runpod's bill of an hour can still grow for this many hours after the hour ends (README.md, "The caps").
-BILL_FINAL_HOURS = 3
+# The hours after the current one's start before an hour's bill counts as final (README.md, "The caps"). On 2026-11-12
+# the bill of 17:00 UTC grew from 18:12 to 19:02 and then stayed, so a bill is final about one hour after its hour
+# ends. With 2, the bill of 17:00 counts as final from 20:00 on, one hour of margin.
+BILL_FINAL_HOURS = 2
 # A file outside the repository that holds the path of the key's file, so that no agent needs to know or set it.
 KEY_POINTER = Path.home() / ".config/tertius/runpod-key-file"
 JOB_API = "https://api.runpod.ai/v2"
