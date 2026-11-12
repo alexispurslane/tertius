@@ -3106,7 +3106,7 @@ The two ways to read a tile (`t2-gfq5`, 2026-11-12). The filter is the one of "S
 - Nine bilinear comparisons: the hardware weighs the first two texels of each axis. It is not exact, because the hardware rounds that weight to its sub-texel precision. On the M1 Max, with 8 bits, the edge's ramp leaves its line by 6.7e-4 of the light, and a device with 4 bits shows bands of about 3 %.
 - Gathers in a row loop: the nine gathers, with a loop bound that the shader reads at run time, so that the compiler holds one row of values at once. It is exact.
 
-On the Apple M1 Max: Release, `tools/gpu-trace.sh --no-counters --start 1 --frames 120`, each trace under the exclusive GPU lock with the GPU clock at 1,290 MHz. The deck is `scripts/temporal-upscale-timing.json` at 1920 × 1080, three traces of each build in turns. The hall is `scripts/lamp-hall-64-moving.json` at 1280 × 720, one trace of each build. The pass columns are the mean of each trace's busy median, in ms. The frame span is the median of the run's 119 or 120 timed frames, as the mean over the traces and as their range. The first take is main at `5c83ef6c` under the stock MoltenVK. The second take is main at `8a71d1c1` under the patched MoltenVK of `ter-2zga`.
+On the Apple M1 Max: Release, `tools/gpu-trace.sh --no-counters --start 1 --frames 120`, each trace under the exclusive GPU lock with the GPU clock at 1,290 MHz. The deck is `scripts/temporal-upscale-timing.json` at 1920 × 1080, three traces of each build in turns. The hall is `scripts/lamp-hall-64-moving.json` at 1280 × 720, one trace of each build. The pass columns are the mean of each trace's busy median, in ms. The frame span is the median of the run's 119 or 120 timed frames, as the mean over the traces and as their range. The first take is main at `5c83ef6c` under the stock MoltenVK. The second take is main at `8a71d1c1` under the patched MoltenVK of `ter-2zga`. The third take is the merged choice by driver against main at `65cec716`, under the patched MoltenVK. Its frame spans are lower because the reflection rays stop after 128 steps there (`ter-w1o3`).
 
 | Take | Scene | Reads | Direct light | Transparent | Frame span | Range of the frame span |
 |---|---|---|---|---|---|---|
@@ -3122,6 +3122,10 @@ On the Apple M1 Max: Release, `tools/gpu-trace.sh --no-counters --start 1 --fram
 | patched | hall | nine gathers | 4.140 | | 17.487 | |
 | patched | hall | gathers in a row loop | 3.964 | | 17.258 | |
 | patched | hall | sixteen corner means | 3.820 | | 17.185 | |
+| merged | deck | nine gathers | 4.087 | 2.070 | 20.562 | 20.543 to 20.584 |
+| merged | deck | sixteen corner means, by driver | 3.787 | 2.025 | 20.187 | 20.131 to 20.291 |
+| merged | hall | nine gathers | 4.179 | | 17.441 | |
+| merged | hall | sixteen corner means, by driver | 3.822 | | 17.002 | |
 
 On an RTX 2000 Ada under NVIDIA's Linux driver: the GPU workbench (tools/runpod/WORKBENCH.md), the same two scripts, five runs of each build in one job. The column is the change of the frame's GPU time against the nine gathers, in ms.
 
@@ -3130,11 +3134,12 @@ On an RTX 2000 Ada under NVIDIA's Linux driver: the GPU workbench (tools/runpod/
 | deck | +0.329 | 0.000 | +0.803 |
 | hall | +0.399 | +0.051 | +0.785 |
 
-- On the M1 Max, the corner means take 0.30 ms less in the deck's direct pass and 0.06 ms less in its transparent pass. The deck's frame span falls by about 0.5 ms in each take. Every trace of the corner means lies below every trace of the gathers.
+- On the M1 Max, the corner means take 0.30 ms less in the deck's direct pass and about 0.05 ms less in its transparent pass. The deck's frame span falls by 0.4 to 0.6 ms. In each take, every trace of the corner means lies below every trace of the gathers.
 - The reads are 16 where the gathers are 9, and the pass is still faster there. A gather returns four comparisons, so nine gathers hold 36 values until the weights reduce them. An offline compile for this GPU gives r116 as the highest register of the direct shader with the gathers, and r112 with one value per read (`docs/research/light-pairs/pair/notes.md`). In the open-source driver's table, that is one step more of shader copies at once. The trace fits that reading and does not prove it.
 - On the NVIDIA card, the corner means take 0.8 ms more in each scene: the deck's direct pass goes from 1.763 to 2.252 ms, and its transparent pass from 0.565 to 0.849 ms. That GPU pays for each filtered comparison read, and a gather is its cheapest way to four comparisons.
 - No one form wins on both GPUs. The nine bilinear comparisons are not exact, and they lose 0.33 ms on the NVIDIA card. The row loop costs the NVIDIA card nothing on the deck and 0.05 ms in the hall. On the M1 Max it gains less than the corner means, and its transparent pass takes 0.12 ms more than the gathers'.
 - So the choice goes by driver, in one place: `VulkanRenderer.HeldValuesCost` is true on MoltenVK, by the driver id of `VkPhysicalDeviceDriverProperties`, as `StampsLatchLate` is. Every other driver keeps the nine gathers, the reads from before `t2-gfq5`. KosmicKrisp drives the same GPU and was not measured, so it keeps the gathers too.
+- With the choice by driver, the NVIDIA card runs the gathers of main again. In an A/B of the merged form against main at `65cec716`, the deck's frame differs by +0.004 ms and the hall's by +0.015 ms, both within the noise of five runs.
 - Both ways follow the Vulkan spec on every driver. A gather is a core feature. The spec compares each texel before it filters, and the atlas's format is chosen with linear filtering (`ShadowMap.ChooseFormat`). A tile's side is a power of two, so a corner's coordinate is exact in a float, and the hardware's weights there are a half at any sub-texel precision.
 
 ### Impostors

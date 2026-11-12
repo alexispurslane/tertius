@@ -89,3 +89,11 @@ The mutant run also found two gaps, both fixed on the branch. `ShaderConstantsTe
 **2026-11-12T16:49:27Z**
 
 The commit hook reported the renderer's constructor as too long (85 lines), so the making of the shading constants moved into VulkanRenderer.ShadingConstantsFor. The constructor is now 76 lines, still over the limit of 60: the rest of it is the creation order of the renderer's parts, which this ticket does not touch. The mutants C04 and C05 ran again on the moved lines (VulkanRenderer.cs:2077 and 2076), and both are killed again.
+
+**2026-11-12T17:17:25Z**
+
+The checks of the choice by driver, on the branch after the merge of main at 65cec716 (2026-11-12):
+
+- Linux, the workbench's RTX 2000 Ada, five runs per side in one job per scene: the deck's frame differs from main's by +0.004 ms and the hall's by +0.015 ms, both within the noise. So Linux is unchanged. The two jobs counted $0.10.
+- Mac, Apple M1 Max, one exclusive take, the deck three traces per build in turns: the direct pass takes 3.787 ms against 4.087 ms, the transparent pass 2.025 ms against 2.070 ms, and the frame span 20.187 ms (20.131 to 20.291) against 20.562 ms (20.543 to 20.584). Every trace of the branch lies below every trace of main.
+- The hall, one trace per build: the direct pass takes 3.822 ms against 4.179 ms, and the frame span 17.002 ms against 17.441 ms. The first hall trace of main was not valid, because the GPU clock fell to 993 MHz in it, so the hall's pair ran again.
