@@ -1,11 +1,13 @@
 #version 460
 // The spatial dispatch of an accumulation (docs/plans/temporal-renderer.md, section 8, steps 3 to 5): one invocation per
 // pixel fixes a short history from its neighbors in the scratch image, clamps the slow history into the box of this
-// frame's fast history around the pixel, shortens the length by the clamp's move, and writes the slow history.
+// frame's fast history around the pixel, shortens the length by the clamp's move, and writes the slow history. The diffuse
+// signal's dispatch also writes the diffuse filter's input (diffuse_filter_input.glsl).
 #extension GL_GOOGLE_include_directive : require
 #include "accumulate.glsl"
 #include "accumulate_reflection_guide.glsl"
 #include "meter.glsl"
+#include "diffuse_filter_input.glsl"
 
 void main()
 {
@@ -19,6 +21,7 @@ void main()
     if (texelFetch(gbufferDistance, pixel, 0).r <= 0.0)
     {
         imageStore(slowHistory, pixel, vec4(0.0));
+        storeSkyFilterInput(pixel);
         if (reflectionSharingPrototype && parameters.light == SpecularLight)
             imageStore(reflectionGuide, pixel, vec4(0.0));
 #ifdef TERTIUS_ACCUMULATION_TRACE
@@ -108,6 +111,7 @@ void main()
 
     // Step 5.
     imageStore(slowHistory, pixel, vec4(slow, historyLength));
+    storeFilterInput(pixel, key, slow, historyLength);
     if (reflectionSharingPrototype && parameters.light == SpecularLight)
         imageStore(reflectionGuide, pixel, vec4(guide, 0.0, 0.0));
 }

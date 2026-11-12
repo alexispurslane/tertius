@@ -15,8 +15,17 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
     public bool NeighborLimitPrototype { get; init; }
     public bool ReflectionSharingPrototype { get; init; }
 
+    /// <summary>
+    /// True in the spatial dispatch of a signal that feeds the diffuse filter, which also writes the filter's input
+    /// (<see cref="TemporalSignal.FeedsFilter"/>).
+    /// </summary>
+    public bool FeedsDiffuseFilter { get; init; }
+
     public const uint NeighborLimitPrototypeId = 9;
     public const uint ReflectionSharingPrototypeId = 10;
+
+    /// <summary>The constant_id of feedsDiffuseFilter in diffuse_filter_input.glsl.</summary>
+    public const uint FeedsDiffuseFilterId = 11;
 
     /// <summary>The constant_id of environmentMapOn in environment.glsl.</summary>
     public const uint EnvironmentMapId = 0;
@@ -113,6 +122,7 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
             (MainViewId, VkBool(values.MainView)),
             (NeighborLimitPrototypeId, VkBool(values.NeighborLimitPrototype)),
             (ReflectionSharingPrototypeId, VkBool(values.ReflectionSharingPrototype)),
+            (FeedsDiffuseFilterId, VkBool(values.FeedsDiffuseFilter)),
         ];
         for (int i = 0; i < rows.Length; i++)
         {
@@ -144,7 +154,7 @@ internal struct SpecializationStorage
     /// The number of constants: one per field of <see cref="ShaderConstants"/>, the subsurface setting's being its taps per
     /// side. <see cref="ShaderConstants.Specialization"/> writes one row per constant, and a row past this count throws.
     /// </summary>
-    public const int Count = 10;
+    public const int Count = 11;
 
     public SpecializationValues Data;
     public SpecializationEntries Entries;

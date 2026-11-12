@@ -8,7 +8,8 @@ namespace Tertius.Rendering.Tests;
 /// The diffuse filter (ticket ter-9371, <see cref="DiffuseFilter"/>): it spreads a bright sample over its neighbors on the
 /// same surface and keeps its light, it lets no light cross a depth edge or a crease, it leaves a smooth image without
 /// noise as it is, and a ray's hit reads its output. A test signal and its producer stand for the diffuse signal, and the
-/// filter runs after their accumulation. The camera stands still, and each frame steps one tick.
+/// filter runs after their accumulation, which writes its input. The tests run the default thin kernel unless they name
+/// one. The camera stands still, and each frame steps one tick.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class DiffuseFilterRenderTests
@@ -23,19 +24,20 @@ public sealed class DiffuseFilterRenderTests
     private static readonly SignalParameters Parameters = SignalParameters.Diffuse with { Cap = 16, SmoothCap = 16 };
 
     /// <summary>
-    /// The renderer with the test signal, its producer, its accumulation and its filter after the direct pass, before the
-    /// white boxes of <paramref name="boxes"/>, each a center, a rotation about +Y in radians and a scale.
+    /// The renderer with the test signal, its producer, its accumulation and its filter of the thin kernel after the direct
+    /// pass, before the white boxes of <paramref name="boxes"/>, each a center, a rotation about +Y in radians and a scale.
     /// </summary>
     private static (VulkanRenderer Renderer, SamplePass Sample, DiffuseFilter Filter, RenderSnapshot Scene) Filtering(
         params (Vector3 Center, float Turn, Vector3 Scale)[] boxes
-    ) => Filtering(filtered: true, boxes);
+    ) => Filtering(filtered: true, DiffuseFilterKernel.Thin, boxes);
 
     /// <summary>
-    /// The renderer of <see cref="Filtering(ValueTuple{Vector3, float, Vector3}[])"/>, whose filter runs only when
-    /// <paramref name="filtered"/>.
+    /// The renderer of <see cref="Filtering(ValueTuple{Vector3, float, Vector3}[])"/> with a filter of
+    /// <paramref name="kernel"/>, which runs only when <paramref name="filtered"/>.
     /// </summary>
     private static (VulkanRenderer Renderer, SamplePass Sample, DiffuseFilter Filter, RenderSnapshot Scene) Filtering(
         bool filtered,
+        DiffuseFilterKernel kernel,
         params (Vector3 Center, float Turn, Vector3 Scale)[] boxes
     )
     {
@@ -56,9 +58,9 @@ public sealed class DiffuseFilterRenderTests
                     entity: entity++
                 )
             );
-        TemporalSignal signal = renderer.CreateSignal(parameters: Parameters, name: "test", parts: 1);
+        TemporalSignal signal = renderer.CreateSignal(parameters: Parameters, name: "test", parts: 1, filtered: true);
         var sample = new SamplePass(signal, renderer.Allocator);
-        DiffuseFilter filter = renderer.CreateDiffuseFilter(signal, DiffuseFilterKernel.Wide);
+        DiffuseFilter filter = renderer.CreateDiffuseFilter(signal, kernel);
         renderer.Graph.Add(FrameGraph.Stage.DirectLight, sample);
         renderer.Graph.Add(FrameGraph.Stage.DirectLight, new AccumulatePass(signal));
         if (filtered)
@@ -168,6 +170,7 @@ public sealed class DiffuseFilterRenderTests
         (VulkanRenderer renderer, SamplePass sample, DiffuseFilter filter, RenderSnapshot scene) = Filtering(Wall);
         (VulkanRenderer unfiltered, SamplePass unfilteredSample, _, RenderSnapshot unfilteredScene) = Filtering(
             filtered: false,
+            DiffuseFilterKernel.Thin,
             Wall
         );
         try
@@ -418,24 +421,44 @@ public sealed class DiffuseFilterRenderTests
         }
     }
 
-    [Fact]
-    public void ASpecksLightReachesAsFarAsTheWidestStep()
+    /// <summary>The kernels by name, and how far each one's steps together reach along an axis, in pixels.</summary>
+    public static TheoryData<string, int> Reaches =>
+        new()
+        {
+            // 1 + 2 + 4 + 8 + 16 + 32: six steps of one tap to each side.
+            { nameof(DiffuseFilterKernel.Thin), 63 },
+            // 2 × (1 + 2 + 4 + 8 + 16): five steps of two taps to each side.
+            { nameof(DiffuseFilterKernel.Wide), 62 },
+        };
+
+    private static DiffuseFilterKernel KernelNamed(string name) =>
+        name == nameof(DiffuseFilterKernel.Thin) ? DiffuseFilterKernel.Thin : DiffuseFilterKernel.Wide;
+
+    [Theory]
+    [MemberData(nameof(Reaches))]
+    public void ASpecksLightReachesAsFarAsTheKernelsStepsTogetherAndNoFarther(string kernel, int reach)
     {
-        // The last step takes taps 16 pixels apart, so the five steps together reach 2 × (1 + 2 + 4 + 8 + 16) = 62
-        // pixels. A pixel 32 pixels away gets light only through the last step's outer tap.
-        (VulkanRenderer renderer, SamplePass sample, DiffuseFilter filter, RenderSnapshot scene) = Filtering(Wall);
+        // The speck sits at the row's left half, so that its reach and one pixel more lie inside the image.
+        const int speck = Width / 2 - 1;
+        (VulkanRenderer renderer, SamplePass sample, DiffuseFilter filter, RenderSnapshot scene) = Filtering(
+            filtered: true,
+            KernelNamed(kernel),
+            Wall
+        );
         try
         {
             sample.Value = new(x: 0, y: 0, z: 0, w: 1);
             renderer.Render(scene, 1f);
             Continue(renderer, scene, frames: 30);
             sample.Samples = (column, row) =>
-                new Vector4(new Vector3(column == Width / 2 && row == Height / 2 ? 1000 : 0), 1);
+                new Vector4(new Vector3(column == speck && row == Height / 2 ? 1000 : 0), 1);
 
             Continue(renderer, scene, frames: 1);
 
             float[] red = FilteredRed(renderer, filter);
-            red[Height / 2 * Width + Width / 2 + 32].Should().BePositive("the widest step's tap lies 32 pixels away");
+            int row = Height / 2 * Width;
+            red[row + speck + reach].Should().BePositive("the outer taps of every step together reach {0} pixels", reach);
+            red[row + speck + reach + 1].Should().Be(0, "no chain of taps reaches past {0} pixels", reach);
         }
         finally
         {
@@ -476,8 +499,8 @@ public sealed class DiffuseFilterRenderTests
     public void TheFilteredDeviationIsThatOfAMeanOfItsTaps()
     {
         // Every pixel holds the same light, so every stop is 1 and each step takes the plain kernel. A weighted mean of
-        // independent values with the weights w has the deviation √(Σ w²) of one value: (70 / 256)² for the 5 × 5
-        // B-spline, so a deviation of 0.273 in each step and 0.0015 after five. Taps near the border lose weight, which
+        // independent values with the weights w has the deviation √(Σ w²) of one value: (6 / 16)² for the 3 × 3
+        // B-spline, so a deviation of 0.375 in each step and 0.0028 after six. Taps near the border lose weight, which
         // keeps their deviation higher.
         int frame = 0;
         (VulkanRenderer renderer, SamplePass sample, DiffuseFilter filter, RenderSnapshot scene) = Filtering(Wall);
@@ -493,7 +516,7 @@ public sealed class DiffuseFilterRenderTests
                 4 * center + 3
             ];
             float after = renderer.ReadImage(filter.Filtered)[4 * center + 3];
-            after.Should().BeInRange(0.0005f * before, 0.01f * before, "five means of 25 taps divide the deviation");
+            after.Should().BeInRange(0.0005f * before, 0.01f * before, "six means of 9 taps divide the deviation");
         }
         finally
         {
@@ -618,6 +641,57 @@ public sealed class DiffuseFilterRenderTests
 
             Extent2D extent = renderer.ScreenTraceImages.Filter!.Filtered.Extent;
             (extent.Width, extent.Height).Should().Be(((uint)Width / 2, (uint)Height / 2));
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void TheAccumulationPairsTheSlowHistorysLightWithTheDeviationOfItsSamples()
+    {
+        // Samples of 0 and 2 in turn: after 40 frames every history is older than the young estimate's four frames, so the
+        // filter's input takes the fast history's deviation. The filter does not run, so its feedback leaves the slow
+        // history as the accumulation wrote it.
+        int frame = 0;
+        (VulkanRenderer renderer, SamplePass sample, _, RenderSnapshot scene) = Filtering(
+            filtered: false,
+            DiffuseFilterKernel.Thin,
+            Wall
+        );
+        try
+        {
+            sample.Samples = Blink(() => frame);
+
+            for (frame = 0; frame < 40; frame++)
+                Continue(renderer, scene, frames: 1);
+
+            TemporalSignal signal = sample.Signal;
+            float[] input = renderer.ReadImage(signal.FilterInput(0));
+            float[] slow = renderer.ReadImage(signal.Slow(0));
+            float[] fast = renderer.ReadImage(signal.Fast(part: 0, parity: (int)(renderer.DrawnFrames & 1) ^ 1));
+            int center = 4 * (Height / 2 * Width + Width / 2);
+            input[center].Should().Be(slow[center], "the input's light is the slow history's");
+            input[center + 3].Should().Be(fast[center + 3], "an old history's deviation is its fast history's").And.BePositive();
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ASignalThatFeedsNoFilterTakesNoFilter()
+    {
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            TemporalSignal signal = renderer.CreateSignal(parameters: Parameters, name: "test", parts: 1, filtered: false);
+
+            Action create = () => renderer.CreateDiffuseFilter(signal, DiffuseFilterKernel.Thin);
+
+            create.Should().Throw<ArgumentException>().WithMessage("*feeds no diffuse filter*");
         }
         finally
         {

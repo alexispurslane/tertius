@@ -1,7 +1,7 @@
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The debug switch TERTIUS_DIFFUSE_FILTER (ticket ter-9371, <see cref="DiffuseFilter.SwitchedOn"/>): which diffuse light
+/// The debug switch TERTIUS_DIFFUSE_FILTER (ticket ter-9371, <see cref="DiffuseFilter.Selected"/>): which diffuse light
 /// the composite shows and a ray's hit reads, with the filter and without it.
 /// </summary>
 [Collection(ProcessEnvironmentCollection.Name)]
@@ -38,6 +38,21 @@ public sealed class DiffuseFilterSwitchTests
     [Fact]
     public void TheOnSettingKeepsTheFilter() =>
         WithTracer("on", images => images.ShownDiffuse.Should().BeSameAs(images.Filter!.Filtered));
+
+    [Fact]
+    public void WithoutTheSwitchTheFilterTakesTheThinKernel() =>
+        WithTracer(null, images => images.Filter!.Kernel.Should().BeSameAs(DiffuseFilterKernel.Thin));
+
+    [Fact]
+    public void TheWideSettingFiltersWithThePapersKernel() =>
+        WithTracer(
+            "wide",
+            images =>
+            {
+                images.Filter!.Kernel.Should().BeSameAs(DiffuseFilterKernel.Wide);
+                images.ShownDiffuse.Should().BeSameAs(images.Filter.Filtered);
+            }
+        );
 
     [Fact]
     public void AnUnknownSettingIsRefused()

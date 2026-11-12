@@ -59,7 +59,7 @@ public sealed class AccumulatorRenderTests
             )
         );
         var sample = new SamplePass(
-            renderer.CreateSignal(parameters: parameters ?? Parameters, name: "test", parts: 2),
+            renderer.CreateSignal(parameters: parameters ?? Parameters, name: "test", parts: 2, filtered: false),
             renderer.Allocator
         );
         renderer.Graph.Add(FrameGraph.Stage.DirectLight, sample);
