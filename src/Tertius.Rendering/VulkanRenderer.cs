@@ -1184,7 +1184,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
         return CreateDiffuseFilter(shaders, signal, kernel);
     }
 
-    private DiffuseFilter CreateDiffuseFilter(ShaderLibrary shaders, TemporalSignal signal, DiffuseFilterKernel kernel) =>
+    private DiffuseFilter CreateDiffuseFilter(
+        ShaderLibrary shaders,
+        TemporalSignal signal,
+        DiffuseFilterKernel kernel
+    ) =>
         Own(
             new DiffuseFilter(
                 device: device,

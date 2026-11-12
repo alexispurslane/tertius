@@ -457,14 +457,15 @@ public sealed class DiffuseFilterRenderTests
             sample.Value = new(x: 0, y: 0, z: 0, w: 1);
             renderer.Render(scene, 1f);
             Continue(renderer, scene, frames: 30);
-            sample.Samples = (column, row) =>
-                new Vector4(new Vector3(column == speck ? 4000 : 0), 1);
+            sample.Samples = (column, row) => new Vector4(new Vector3(column == speck ? 4000 : 0), 1);
 
             Continue(renderer, scene, frames: 1);
 
             float[] red = FilteredRed(renderer, filter);
             int row = Height / 2 * Width;
-            red[row + speck + reach].Should().BePositive("the outer taps of every step together reach {0} pixels", reach);
+            red[row + speck + reach]
+                .Should()
+                .BePositive("the outer taps of every step together reach {0} pixels", reach);
             red[row + speck + reach + 1].Should().Be(0, "no chain of taps reaches past {0} pixels", reach);
         }
         finally
