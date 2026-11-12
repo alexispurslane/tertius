@@ -1,6 +1,6 @@
 ---
 id: ter-net6
-status: open
+status: closed
 deps: []
 links: [t8-pkag]
 created: 2026-11-12T02:50:00Z
@@ -27,3 +27,7 @@ Kind (b), a fault of the test setup on a regular machine. xunit runs one test pe
 **2026-11-12T22:03:22Z**
 
 2026-11-12, the cap of 10 on the card (diag3): 140 of 2,043 Host tests still failed with ErrorOutOfDeviceMemory, while nvidia-smi never showed more than 1,041 MiB of the 16 GB in use. So the total memory is not the limit. Cause: DeviceAllocator gave an Upload the type that is device-local and host-visible where one exists. On a discrete NVIDIA GPU without resizable BAR, that type lies in a heap of 256 MiB, and each renderer takes 64 MiB blocks from it. A few renderers in one process fill it. Fix: Allocate tries the allowed types best first, and a type that the driver refuses as out of device memory passes the allocation to the next type. Red first: DeviceAllocatorTests on a fake NVIDIA table whose BAR type is full (3 tests failed, then 25 of 25 passed). The cap of 10 stays, so that a 48-core worker does not start 48 renderers.
+
+**2026-11-12T22:55:21Z**
+
+Card confirmation on a7924ebd7 (2026-11-12): the fixed Rendering methods 10 of 10, the fixed classes 80 of 80 and the Host edit classes 40 of 40 pass on the RTX 2000 Ada. The Mac's Checked and Release suites pass.

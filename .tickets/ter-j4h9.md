@@ -1,6 +1,6 @@
 ---
 id: ter-j4h9
-status: open
+status: closed
 deps: []
 links: [t8-pkag]
 created: 2026-11-12T02:50:00Z
@@ -19,3 +19,7 @@ tags: [linux]
 **2026-11-12T21:52:41Z**
 
 Kind (b), a real Linux fault. The card names macOS fonts (Avenir Next, Menlo); Linux falls back to a wider font, and WrapStyle 2 (no wrapping) lets a long credit run past the margin. Fix: Card() starts the event with {\q0}, smart wrapping for the card only. The test TheClosingCardShowsTheCreditOfTheRecordingInsideItsMargins became a theory with a doubled credit, which was red on the Mac first (Brightest(0, 40) = 120). All 21 EditCommandTests pass on the Mac.
+
+**2026-11-12T22:55:21Z**
+
+Card confirmation on a7924ebd7 (2026-11-12): the fixed Rendering methods 10 of 10, the fixed classes 80 of 80 and the Host edit classes 40 of 40 pass on the RTX 2000 Ada. The Mac's Checked and Release suites pass.

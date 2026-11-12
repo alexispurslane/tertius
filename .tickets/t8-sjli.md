@@ -1,6 +1,6 @@
 ---
 id: t8-sjli
-status: open
+status: closed
 deps: []
 links: [t8-pkag]
 created: 2026-11-12T21:48:40Z
@@ -20,3 +20,7 @@ TubeLightRenderTests.ATubeLightLightsAMatteSquareAsTheCSharpTubeDoes(standing-on
 **2026-11-12T22:13:32Z**
 
 Kind (a). The card and the Mac show the same display level, 225, at the square's center (diag3 printed a ladder of glow squares from 0.94 to 1.06 times the C# answer on both). On the Mac's linear HDR target, the center is 1.0196 times the C# tube, so the band of 2 % left 0.04 % for the rounding of the displayed levels: the square of 1.02 shows 225 on the Mac and 224 on the card. Fix: this case alone gets a band of 3 %. On the axis the side gives no light and the far end little, so a tube without its near half sphere still fails by far more than 3 %. The other four cases keep 2 %.
+
+**2026-11-12T22:55:21Z**
+
+Card confirmation on a7924ebd7 (2026-11-12): the fixed Rendering methods 10 of 10, the fixed classes 80 of 80 and the Host edit classes 40 of 40 pass on the RTX 2000 Ada. The Mac's Checked and Release suites pass.
