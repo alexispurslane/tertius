@@ -38,7 +38,9 @@ WeighedRay weighedRayOf(TracingPixel p, RayRecord record)
 }
 
 // The weight of a ray's light in the pixel's diffuse sample: the pixel's density cos θ / π along the ray over the ray's
-// density, at most MostRayWeight. For the pixel's own ray it is 1, and for a block ray max(0, n_p·ω) / max(2^-14, n_c·ω).
+// density, at most MostRayWeight. Without the guided rays it is 1 for the pixel's own ray, and for a block ray
+// max(0, n_p·ω) / max(2^-14, n_c·ω). The guided rays' mixture density lowers it where the guided density is above 0, and
+// raises it to 1 / (1 - g) times that on a miss (ARCHITECTURE.md, "Guided diffuse rays").
 float diffuseWeightOf(TracingPixel p, WeighedRay ray)
 {
     return min(max(dot(p.normal, ray.direction), 0.0) / max(PI * ray.density, LeastRayCosine), MostRayWeight);
@@ -59,6 +61,9 @@ void main()
     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
     if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
         return;
+#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+    imageStore(lightChangeMask, pixel, vec4(lightChangeMaskAt(pixel), 0.0, 0.0, 0.0));
+#endif
     if (!tracedSurface(pixel))
     {
         // The sky and the impostors: no signal, and the composite reads none there.

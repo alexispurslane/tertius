@@ -30,7 +30,7 @@ namespace Tertius.Rendering;
 /// <item>G-buffer: far, middle and near depth ranges, each one vkCmdDrawIndexedIndirect, plus one instanced draw of
 /// the impostor billboards in that range.</item>
 /// <item>The depth pyramid (<see cref="DepthPyramidPass"/>), under <see cref="ScreenTrace"/>: the min-max inverse depth
-/// of the distance target, level by level, its small mips in one dispatch (<see cref="DepthPyramidTail"/>), and the
+/// of the distance target, level by level, its small mips in one dispatch (<see cref="PyramidTail"/>), and the
 /// finest level, each pixel's center w.</item>
 /// <item>The surface test (<see cref="SurfaceTestPass"/>): the pass bits of each pixel's last place, this frame's surface
 /// history and FSR's device depth.</item>
@@ -205,20 +205,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
             (impostorAtlas, Impostors, localShadows) = AddPassesThroughGeometry(shaders, options);
             // Before the composite, which reads the tracer's signals.
             screenTrace = AddScreenTracePasses(shaders, options.ScreenTrace);
-            if (upscaling is Fsr3Upscaling fsr)
-            {
-                upscalePass = new(
-                    device: device,
-                    allocator: Allocator,
-                    shaders: shaders,
-                    targets: targets,
-                    surfaces: surfaceHistory,
-                    screenTrace: screenTrace,
-                    framesInFlight: options.FramesInFlight,
-                    sharpness: fsr.Sharpness
-                );
-                Graph.Add(FrameGraph.Stage.Upscale, upscalePass);
-            }
+            // After the tracer, whose light-change mask FSR reads.
+            upscalePass = AddUpscalePass(shaders, options.FramesInFlight);
             compositePass = AddPassesAfterGeometry(shaders, options);
             AddScatterPasses(shaders);
             Own(Graph);
@@ -439,9 +427,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         ?? options.Subsurface.Problem
         ?? options.ScreenTrace.Problem
         ?? options.Upscaling.Problem
-        ?? (
-            options.ScreenTrace is ScreenTrace ? DepthPyramidImages.ScreenProblem(options.Width, options.Height) : null
-        );
+        ?? (options.ScreenTrace is ScreenTrace ? PyramidImages.ScreenProblem(options.Width, options.Height) : null);
 
     /// <summary>The checks of <paramref name="options"/> that need the device's limits, after <see cref="CheckOptions"/>.</summary>
     private static void CheckOptionsOnDevice(RendererOptions options, VulkanDevice device)
@@ -1008,7 +994,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <paramref name="extent"/>. The device must be idle. Internal for the tests of a size that no output takes.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// The screen tracer is on, and a side is above <see cref="DepthPyramidImages.MaxSide"/>.
+    /// The screen tracer is on, and a side is above <see cref="PyramidImages.MaxSide"/>.
     /// </exception>
     internal void ResizeTargets(Extent2D extent)
     {
@@ -1349,10 +1335,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <exception cref="InvalidOperationException">The screen tracer is off.</exception>
     internal (float[] Bounds, int Width, int Height) ReadDepthPyramidLevel(int level)
     {
-        DepthPyramidImages pyramids = PyramidOrThrow();
+        PyramidImages pyramids = PyramidOrThrow();
         ArgumentOutOfRangeException.ThrowIfLessThan(level, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(level, pyramids.TopLevel);
-        return ReadLevel(image: pyramids.DepthImage, layer: 0, mip: level - 1);
+        return ReadLevel(image: pyramids.Image, layer: 0, mip: level - 1);
     }
 
     /// <summary>
@@ -1360,9 +1346,26 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// top. A test hook, like <see cref="ReadDepthPyramidLevel"/>.
     /// </summary>
     /// <exception cref="InvalidOperationException">The screen tracer is off.</exception>
-    internal float[] ReadDepthFinest() => ReadLevel(image: PyramidOrThrow().DepthFinest, layer: 0, mip: 0).Values;
+    internal float[] ReadDepthFinest() => ReadLevel(image: PyramidOrThrow().Finest, layer: 0, mip: 0).Values;
 
-    private DepthPyramidImages PyramidOrThrow() =>
+    /// <summary>
+    /// Level 0 to L of the last frame's light pyramid: the guide light of each pixel at level 0, and the sum of each texel of
+    /// a level's mip above, padding included, row by row from the top. A test hook, like <see cref="ReadDepthPyramidLevel"/>.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The screen tracer is off.</exception>
+    internal (float[] Lights, int Width, int Height) ReadLightPyramidLevel(int level)
+    {
+        PyramidImages pyramid = (
+            screenTrace ?? throw new InvalidOperationException("The screen tracer is off.")
+        ).LightPyramidImages;
+        ArgumentOutOfRangeException.ThrowIfNegative(level);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(level, pyramid.TopLevel);
+        return level == 0
+            ? ReadLevel(image: pyramid.Finest, layer: 0, mip: 0)
+            : ReadLevel(image: pyramid.Image, layer: 0, mip: level - 1);
+    }
+
+    private PyramidImages PyramidOrThrow() =>
         targets.Pyramid ?? throw new InvalidOperationException("The screen tracer is off.");
 
     /// <summary>The words of <paramref name="buffer"/>. A test hook: it waits for the device to be idle and submits its own copy.</summary>
@@ -2133,6 +2136,28 @@ public sealed unsafe class VulkanRenderer : IRenderer
         };
 
     /// <summary>
+    /// FSR 3.1's pass in <see cref="FrameGraph.Stage.Upscale"/> under <see cref="Fsr3Upscaling"/>, which reads the screen
+    /// tracer's light-change mask, so the tracer's images come first. Null under any other upscaling.
+    /// </summary>
+    private UpscalePass? AddUpscalePass(ShaderLibrary shaders, int framesInFlight)
+    {
+        if (upscaling is not Fsr3Upscaling fsr)
+            return null;
+        UpscalePass pass = new(
+            device: device,
+            allocator: Allocator,
+            shaders: shaders,
+            targets: targets,
+            surfaces: surfaceHistory,
+            screenTrace: screenTrace,
+            framesInFlight: framesInFlight,
+            sharpness: fsr.Sharpness
+        );
+        Graph.Add(FrameGraph.Stage.Upscale, pass);
+        return pass;
+    }
+
+    /// <summary>
     /// The screen tracer's images under <see cref="ScreenTrace"/>, with its two signals; the depth pyramid's pass after the
     /// G-buffer; and the tracer's four passes and the two accumulations in <see cref="FrameGraph.Stage.ScreenTrace"/>. Null
     /// under <see cref="NoScreenTrace"/>. The renderer owns them.
@@ -2141,7 +2166,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     {
         if (setting is not ScreenTrace trace)
             return null;
-        DepthPyramidImages pyramid = targets.Pyramid ?? throw new UnreachableException("The targets make the pyramid.");
+        PyramidImages pyramid = targets.Pyramid ?? throw new UnreachableException("The targets make the pyramid.");
         Graph.Add(
             FrameGraph.Stage.DepthPyramid,
             new DepthPyramidPass(device: device, shaders: shaders, layouts: layouts, pyramid: pyramid)
@@ -2172,9 +2197,20 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 pyramid: pyramid,
                 diffuse: diffuse,
                 specular: specular,
-                filter: filter
+                filter: filter,
+                guided: LightPyramidPass.SwitchedOn()
             )
         );
+        if (images.Guided)
+            Graph.Add(
+                FrameGraph.Stage.ScreenTrace,
+                new LightPyramidPass(
+                    device: device,
+                    shaders: shaders,
+                    layouts: layouts,
+                    pyramid: images.LightPyramidImages
+                )
+            );
         AddRayPasses(shaders: shaders, trace: trace, images: images);
         Graph.Add(FrameGraph.Stage.ScreenTrace, new AccumulatePass(diffuse));
         if (filter is not null)

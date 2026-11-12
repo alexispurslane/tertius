@@ -61,7 +61,7 @@ internal sealed unsafe class ScreenTraceKernel : IDisposable
             layout: layouts.ScreenTraceLayout,
             passSet: images.Sets[context.History.Parity]
         );
-        var push = ScreenTracePushConstants.Of(setting, context.History.DrawIndex);
+        var push = ScreenTracePushConstants.Of(setting, context.History.DrawIndex, images.Guided);
         context.Vk.CmdPushConstants(
             commandBuffer: context.CommandBuffer,
             layout: layouts.ScreenTraceLayout,
@@ -130,9 +130,6 @@ internal sealed class ScreenTracePlanPass(ScreenTraceKernel kernel, ScreenTraceI
             context.Barriers.Image(lastLightAge, ImageUse.StorageCompute);
             context.Barriers.Image(lightAge, ImageUse.StorageCompute, discard: true);
         }
-        // FSR's light-change mask, which the plan writes at every pixel from this frame's record.
-        if (images.LightChangeMask is { } mask)
-            context.Barriers.Image(mask, ImageUse.StorageCompute, discard: true);
         foreach (GpuBuffer list in images.OwnRays)
             context.Barriers.Buffer(list, BufferUse.ComputeWrite);
         kernel.Record(context, side: 1);
@@ -164,9 +161,15 @@ internal sealed class ScreenTraceRaysPass(
     {
         BarrierBatch barriers = context.Barriers;
         RenderTargets targets = context.Targets;
-        DepthPyramidImages pyramid = targets.Pyramid ?? throw new UnreachableException("The tracer reads the pyramid.");
-        barriers.Image(pyramid.DepthImage, ImageUse.SampledComputeGeneral);
-        barriers.Image(pyramid.DepthFinest, ImageUse.SampledComputeGeneral);
+        PyramidImages pyramid = targets.Pyramid ?? throw new UnreachableException("The tracer reads the pyramid.");
+        barriers.Image(pyramid.Image, ImageUse.SampledComputeGeneral);
+        barriers.Image(pyramid.Finest, ImageUse.SampledComputeGeneral);
+
+        // Without the guiding, no pass writes the light pyramid, and the rays never read it: the barrier only gives it
+        // the layout of the set's descriptors.
+        barriers.Image(images.LightPyramidImages.Image, ImageUse.SampledComputeGeneral);
+        barriers.Image(images.LightPyramidImages.Finest, ImageUse.SampledComputeGeneral);
+
         barriers.Image(targets.DirectDiffuse, ImageUse.StorageCompute);
         barriers.Image(targets.DirectSpecular, ImageUse.StorageCompute);
         kernel.DeclareHistories(barriers, context.History.Parity, slow: false);
@@ -207,6 +210,11 @@ internal sealed class ScreenTraceResolvePass(ScreenTraceKernel kernel, ScreenTra
             context.Barriers.Image(age, ImageUse.StorageCompute, discard: true);
         if (images.Specular.UncoveredDiagnostic(0) is { } diagnostic)
             context.Barriers.Image(diagnostic, ImageUse.StorageCompute, discard: true);
+        // FSR's mask reads the records that the plan wrote around each pixel.
+        if (images.LightAge(context.History.Parity) is { } lightAge)
+            context.Barriers.Image(lightAge, ImageUse.StorageCompute);
+        if (images.LightChangeMask is { } mask)
+            context.Barriers.Image(mask, ImageUse.StorageCompute, discard: true);
         kernel.Record(context, side: 1);
     }
 

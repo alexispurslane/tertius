@@ -28,6 +28,7 @@ public sealed class ScriptCommandCaptureTests : IDisposable
         "surface test",
         "depth pyramid",
         "direct light",
+        "light pyramid",
         "ray plan",
         "reflection rays",
         "diffuse rays",

@@ -38,11 +38,11 @@ namespace Tertius.Rendering;
 /// <item><term>environment levels</term><description>four level views of the radiance map or the specular map as storage
 /// images. One per dispatch of the map's mips and of its specular levels with the map on, which the pool holds for the
 /// largest map, rewritten when the map's images grow.</description></item>
-/// <item><term>pyramid level</term><description>set 3 of <see cref="PyramidLayout"/>: the level that one dispatch of the
-/// depth pyramid's build reads and the level that it writes. One per level, and one for the finest level, rewritten on
-/// resize.</description></item>
-/// <item><term>depth tail</term><description>set 3 of <see cref="DepthTailLayout"/> for the tail of the depth pyramid's
-/// build: the mip before the tail and the tail's mips. One, rewritten on resize.</description></item>
+/// <item><term>pyramid level</term><description>set 3 of <see cref="PyramidLayout"/>: the level that one dispatch of a
+/// pyramid's build reads and the level that it writes. One per level of each pyramid, the depth and the light pyramid, and
+/// one for each finest level, rewritten on resize.</description></item>
+/// <item><term>pyramid tail</term><description>set 3 of <see cref="PyramidTailLayout"/> for the tail of a pyramid's build: the
+/// mip before the tail and the tail's mips. One per pyramid, rewritten on resize.</description></item>
 /// <item><term>scatter</term><description>set 3 of <see cref="ScatterLayout"/>: the diffuse image, the row image and the
 /// HDR image as storage images, and the kernel as a uniform buffer, for the skin scatter's passes. One, allocated under
 /// <see cref="SeparableSubsurface"/> and rewritten on resize.</description></item>
@@ -61,8 +61,9 @@ namespace Tertius.Rendering;
 /// the last device depth as sampled images (<see cref="TemporalSignal"/>). One per part and parity, rewritten on
 /// resize.</description></item>
 /// <item><term>screen trace</term><description>set 3 of <see cref="ScreenTraceLayout"/>: the depth pyramid's finest
-/// level and its bounds as sampled images, the tracer's inputs and outputs as storage images, and the own-ray list of each
-/// kind (<see cref="ScreenTraceImages"/>). One per parity of the drawn frames, rewritten on resize.</description></item>
+/// level and its bounds as sampled images, the tracer's inputs and outputs as storage images, the own-ray list of each
+/// kind, and the light pyramid's finest level and sums as sampled images (<see cref="ScreenTraceImages"/>). One per parity
+/// of the drawn frames, rewritten on resize.</description></item>
 /// <item><term>filter</term><description>set 3 of <see cref="DiffuseFilterLayout"/>: the input and the output of one
 /// dispatch of the diffuse filter, the diffuse slow history and this frame's diffuse fast history, as storage images for
 /// the compute stage (<see cref="DiffuseFilter"/>). One per dispatch and parity, rewritten on resize.</description></item>
@@ -96,6 +97,15 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>The storage buffers of a screen tracer set: the own-ray list of each kind.</summary>
     private const uint ScreenTraceStorageBuffers = 2;
+
+    /// <summary>
+    /// The sampled images of the light pyramid in a screen tracer set, at <see cref="ScreenTraceLightBinding"/> and the
+    /// binding after it: its finest level and its sums (screen_trace.glsl).
+    /// </summary>
+    private const uint ScreenTraceLightImages = 2;
+
+    /// <summary>The first binding of the light pyramid in a screen tracer set, after the light age's bindings 19 to 23.</summary>
+    public const uint ScreenTraceLightBinding = 24;
 
     /// <summary>
     /// The storage images that the light-change age of a precise specular history adds to a screen tracer set after its
@@ -165,11 +175,14 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>The binding of this frame's kept positions in the deform set.</summary>
     public const uint DeformKeptPositionsBinding = 5;
 
+    /// <summary>The pyramids of the screen tracer: the depth pyramid and the light pyramid (<see cref="PyramidImages"/>).</summary>
+    public const uint Pyramids = 2;
+
     /// <summary>
-    /// The pyramid level sets of the largest depth pyramid: levels 1 to 14, for a 16,384 px side
-    /// (<see cref="DepthPyramid.MaxLevels"/>), and the finest level.
+    /// The pyramid level sets of the largest pyramids: levels 1 to 14, for a 16,384 px side
+    /// (<see cref="DepthPyramid.MaxLevels"/>), and the finest level, of each pyramid.
     /// </summary>
-    public const uint PyramidLevelSets = DepthPyramid.MaxLevels + 1;
+    public const uint PyramidLevelSets = Pyramids * (DepthPyramid.MaxLevels + 1);
 
     /// <summary>
     /// The levels sets of the largest map: one per dispatch of the downsample of its radiance map and of its distance cube,
@@ -236,7 +249,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
         (MeterSet, ExposureSet) = CreateExposureSetLayouts();
         (EnvironmentPrefilterSet, EnvironmentLevelsSet) = CreateEnvironmentSetLayouts(EnvironmentSampler);
-        (PyramidLevelSet, DepthTailSet) = CreatePyramidSetLayouts();
+        (PyramidLevelSet, PyramidTailSet) = CreatePyramidSetLayouts();
         DeformSet = CreateDeformSetLayout();
         ScatterSet = CreateScatterSetLayout();
         ShadowBoundsSet = CreateShadowBoundsSetLayout();
@@ -253,7 +266,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             ExposureLayout,
             EnvironmentPrefilterLayout,
             PyramidLayout,
-            DepthTailLayout,
+            PyramidTailLayout,
             DeformLayout,
             ScatterLayout,
             ShadowBoundsLayout
@@ -386,22 +399,22 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public DescriptorSetLayout PyramidLevelSet { get; }
 
     /// <summary>
-    /// The mip before the depth pyramid's tail, a sampled image (binding 0), and the tail's mips, an array of
-    /// <see cref="DepthPyramidTail.Mips"/> storage images (binding 1), for the compute stage.
+    /// The mip before a pyramid's tail, a sampled image (binding 0), and the tail's mips, an array of
+    /// <see cref="PyramidTail.Mips"/> storage images (binding 1), for the compute stage.
     /// </summary>
-    public DescriptorSetLayout DepthTailSet { get; }
+    public DescriptorSetLayout PyramidTailSet { get; }
 
     /// <summary>
-    /// Sets 0 to 2 of <see cref="SceneLayout"/>, a pyramid level set and <see cref="DepthTailPushConstants"/>, for the
+    /// Sets 0 to 2 of <see cref="SceneLayout"/>, a pyramid level set and <see cref="PyramidTailPushConstants"/>, for the
     /// pyramid builds' dispatches of one level, which read no push constants.
     /// </summary>
     public PipelineLayout PyramidLayout { get; }
 
     /// <summary>
-    /// <see cref="PyramidLayout"/> with the depth tail set in place of the level set, for the tail. Its push constants
+    /// <see cref="PyramidLayout"/> with the pyramid tail set in place of the level set, for a tail. Its push constants
     /// are the same, so the scene sets that the builds bind stay bound across the two layouts.
     /// </summary>
-    public PipelineLayout DepthTailLayout { get; }
+    public PipelineLayout PyramidTailLayout { get; }
 
     /// <summary>
     /// Set 3 of <see cref="ScatterLayout"/>: the diffuse image, the row image and the HDR image as storage images (bindings 0
@@ -500,7 +513,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     public DescriptorSet AllocatePyramidLevelSet() => Allocate(pool, PyramidLevelSet, null);
 
-    public DescriptorSet AllocateDepthTailSet() => Allocate(pool, DepthTailSet, null);
+    public DescriptorSet AllocatePyramidTailSet() => Allocate(pool, PyramidTailSet, null);
 
     public DescriptorSet AllocateDeformSet() => Allocate(pool, DeformSet, null);
 
@@ -822,7 +835,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         PipelineLayout Exposure,
         PipelineLayout EnvironmentPrefilter,
         PipelineLayout Pyramid,
-        PipelineLayout DepthTail,
+        PipelineLayout PyramidTail,
         PipelineLayout Deform,
         PipelineLayout Scatter,
         PipelineLayout ShadowBounds
@@ -836,13 +849,13 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             sets: [EnvironmentPrefilterSet, EnvironmentLevelsSet],
             name: "environment prefilter layout"
         );
-        PipelineLayout pyramid = ComputeLayout<DepthTailPushConstants>(
+        PipelineLayout pyramid = ComputeLayout<PyramidTailPushConstants>(
             sets: [FrameSet, TextureSet, GBufferSet, PyramidLevelSet],
             name: "pyramid layout"
         );
-        PipelineLayout depthTail = ComputeLayout<DepthTailPushConstants>(
-            sets: [FrameSet, TextureSet, GBufferSet, DepthTailSet],
-            name: "depth tail layout"
+        PipelineLayout pyramidTail = ComputeLayout<PyramidTailPushConstants>(
+            sets: [FrameSet, TextureSet, GBufferSet, PyramidTailSet],
+            name: "pyramid tail layout"
         );
         // The deform set alone, so its compute stage sees six storage buffers, within the ten that the scene layout
         // already needs of every device.
@@ -856,7 +869,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             sets: [ShadowBoundsSet],
             name: "shadow bounds layout"
         );
-        return (exposure, environmentPrefilter, pyramid, depthTail, deform, scatter, shadowBounds);
+        return (exposure, environmentPrefilter, pyramid, pyramidTail, deform, scatter, shadowBounds);
     }
 
     /// <summary>A layout of <paramref name="sets"/> whose one push constant range is a <typeparamref name="TPush"/> for the compute stage.</summary>
@@ -886,8 +899,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             new(DescriptorType.Sampler, 3 * frames + 4 + glowSourceSets),
             // 20 for the G-buffer, post and atlas sets, five per frame set for the tables, the specular map, the irradiance
             // cube and the distance cube, one per glow source set, two for the meter set, one per pyramid level set, one for
-            // the depth tail set, one for the prefilter set, one for the shadow bounds set, two for each surface test set,
-            // two for each signal set and two for each screen tracer set.
+            // each pyramid's tail set, one for the prefilter set, one for the shadow bounds set, two for each surface test
+            // set, two for each signal set and four for each screen tracer set.
             new(
                 DescriptorType.SampledImage,
                 20
@@ -895,20 +908,20 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                     + glowSourceSets
                     + 2
                     + PyramidLevelSets
-                    + 1
+                    + Pyramids
                     + 1
                     + 1
                     + 2 * SurfaceTestSets
                     + SignalSetSampledImages * SignalSets
-                    + ScreenTraceSampledImages * ScreenTraceSets
+                    + (ScreenTraceSampledImages + ScreenTraceLightImages) * ScreenTraceSets
             ),
-            // One per pyramid level set, the depth tail set's mips, four per environment levels set, three for the scatter
-            // set, one for the shadow bounds set, four per surface test set, SignalSetImages per signal set, six for the
-            // light set, fifteen per screen tracer set, plus ScreenTraceAgeImages, and four per filter set.
+            // One per pyramid level set, each tail set's mips, four per environment levels set, three for the scatter set,
+            // one for the shadow bounds set, four per surface test set, SignalSetImages per signal set, six for the light
+            // set, fifteen per screen tracer set, plus ScreenTraceAgeImages, and four per filter set.
             new(
                 DescriptorType.StorageImage,
                 PyramidLevelSets
-                    + DepthPyramidTail.Mips
+                    + Pyramids * PyramidTail.Mips
                     + 4 * EnvironmentLevelsSets
                     + 3
                     + 1
@@ -925,13 +938,14 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     {
         uint frames = framesInFlight;
         // The frame sets, the deform sets, the G-buffer, post, atlas, meter, exposure, prefilter, scatter, shadow
-        // bounds and light sets, the glow source sets, the pyramid level sets, the depth tail set, the environment levels
-        // sets, the surface test sets, the signal sets, the screen tracer sets and the filter sets. The tracer's sets exist
-        // even with the tracer off: they cost nothing per frame.
+        // bounds and light sets, the glow source sets, the pyramid level sets, each pyramid's tail set, the environment
+        // levels sets, the surface test sets, the signal sets, the screen tracer sets and the filter sets. The tracer's sets
+        // exist even with the tracer off: they cost nothing per frame.
         SetPool shared = CreatePool(
             sizes: SharedPoolSizes(frames, glowSourceSets),
             maxSets: 2 * frames
-                + 11
+                + 10
+                + Pyramids
                 + glowSourceSets
                 + PyramidLevelSets
                 + EnvironmentLevelsSets
@@ -1007,8 +1021,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         );
     }
 
-    /// <summary>The layouts of the pyramid level set and the depth tail set, whose bindings the compute stage reads.</summary>
-    private (DescriptorSetLayout Level, DescriptorSetLayout DepthTail) CreatePyramidSetLayouts()
+    /// <summary>The layouts of the pyramid level set and the pyramid tail set, whose bindings the compute stage reads.</summary>
+    private (DescriptorSetLayout Level, DescriptorSetLayout PyramidTail) CreatePyramidSetLayouts()
     {
         Span<DescriptorSetLayoutBinding> level =
         [
@@ -1020,12 +1034,12 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             Image(binding: 0, stages: ShaderStageFlags.ComputeBit),
             StorageImage(binding: 1) with
             {
-                DescriptorCount = DepthPyramidTail.Mips,
+                DescriptorCount = PyramidTail.Mips,
             },
         ];
         return (
             CreateLayout(bindings: level, name: "pyramid level set"),
-            CreateLayout(bindings: tail, name: "depth tail set")
+            CreateLayout(bindings: tail, name: "pyramid tail set")
         );
     }
 
@@ -1097,8 +1111,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     private DescriptorSetLayout CreateScreenTraceSetLayout()
     {
         const uint lists = ScreenTraceSampledImages + ScreenTraceStorageImages;
+        // The bindings before the light pyramid's two images, which start at ScreenTraceLightBinding.
+        int beforeLight = (int)(lists + ScreenTraceStorageBuffers + ScreenTraceAgeImages);
         Span<DescriptorSetLayoutBinding> bindings =
-            stackalloc DescriptorSetLayoutBinding[(int)(lists + ScreenTraceStorageBuffers + ScreenTraceAgeImages)];
+            stackalloc DescriptorSetLayoutBinding[beforeLight + (int)ScreenTraceLightImages];
         for (uint binding = 0; binding < ScreenTraceSampledImages; binding++)
             bindings[(int)binding] = Image(binding: binding, stages: ShaderStageFlags.ComputeBit);
         for (uint binding = ScreenTraceSampledImages; binding < lists; binding++)
@@ -1110,8 +1126,13 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 descriptorCount: 1,
                 stageFlags: ShaderStageFlags.ComputeBit
             );
-        for (uint binding = lists + ScreenTraceStorageBuffers; binding < bindings.Length; binding++)
+        for (uint binding = lists + ScreenTraceStorageBuffers; binding < beforeLight; binding++)
             bindings[(int)binding] = StorageImage(binding);
+        for (uint image = 0; image < ScreenTraceLightImages; image++)
+            bindings[beforeLight + (int)image] = Image(
+                binding: ScreenTraceLightBinding + image,
+                stages: ShaderStageFlags.ComputeBit
+            );
         return CreateLayout(bindings: bindings, name: "screen trace set");
     }
 

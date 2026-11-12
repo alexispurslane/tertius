@@ -52,9 +52,10 @@ public sealed class MovingLightUpscaleTests(ITestOutputHelper output)
                 Draw(renderer, scene, 64);
                 Capture still = Gpu.RenderAndCapture(renderer: renderer, snapshot: Ticked(scene), name: "still lamp");
 
-                // Measured on 2026-11-10: 0.073 without the light-change mask, 0.044 with it. The mask marks a pixel only
-                // where its light leaves the range of its neighbors' last light, so a change slower than that keeps some
-                // of FSR's history (ARCHITECTURE.md, "Upscaling: FSR 3.1 in the frame").
+                // Measured on 2026-11-11: 0.073 without the light-change mask, 0.049 with it, and 0.044 with its marks
+                // before the opening. The mask marks a pixel only where its light leaves the range of its neighbors' last
+                // light, so a change slower than that keeps some of FSR's history (ARCHITECTURE.md, "Upscaling: FSR 3.1 in
+                // the frame").
                 float error = TrailError(film, still);
                 output.WriteLine($"Moving lamp: 90th percentile of the relative error of the lit floor {error:F4}.");
                 error
@@ -93,13 +94,51 @@ public sealed class MovingLightUpscaleTests(ITestOutputHelper output)
                 }
 
                 output.WriteLine($"Still lit scene: {marked} marked pixels over 32 frames of {seen / 32} pixels.");
-                // Measured on 2026-11-10: 30 of 3.3 million. A pending change marks a pixel, and at a still edge the jitter
-                // holds a few pixels' light outside their range for a draw; a still floor keeps FSR's history elsewhere.
+                // Measured on 2026-11-11: none of 3.3 million, and 30 before the opening: at a still edge the jitter holds
+                // a few pixels' light outside their range for a draw, in a line that the opening removes.
                 marked
                     .Should()
                     .BeLessThan(
                         seen / 10_000,
                         "the jitter at a still edge rarely moves a pixel's light out of its range"
+                    );
+            }
+        );
+
+    [Fact]
+    public void AStillGlowingBarThinnerThanAPixelMarksAlmostNoPixelForFsrUnderJitter() =>
+        WithLampOverFloor(
+            power: LampPower,
+            (renderer, scene) =>
+            {
+                // A bar 5 mm tall and 2 m wide, 5 m ahead: about a fifth of a render pixel tall, so the jitter moves each
+                // pixel on and off it, as the edge-on floor of rect-lamps' niches (ticket t1-4hij).
+                RenderInstance bar = ReflectionTesting.Block(
+                    box: renderer.CreateMesh(Primitives.Box(new(0.5f))),
+                    material: ReflectionTesting.Glow(renderer, new Vector3(40)),
+                    center: new(0, ReflectionTesting.FloorHeight + 1.2f, -5),
+                    size: new(2, 0.005f, 0.005f)
+                );
+                bar.EntityIndex = 3;
+                scene.Instances.Add(bar);
+                Draw(renderer, scene, 16);
+                long marked = 0;
+                long seen = 0;
+                for (int frame = 0; frame < 32; frame++)
+                {
+                    Draw(renderer, scene, 1);
+                    float[] mask = renderer.ReadLightChangeMask();
+                    marked += mask.Count(value => value > 0);
+                    seen += mask.Length;
+                }
+
+                output.WriteLine($"Thin glowing bar: {marked} marked pixels over 32 frames of {seen / 32} pixels.");
+                // Measured on 2026-11-11: 1,565 of 3.3 million before the opening, none with it.
+                marked
+                    .Should()
+                    .BeLessThan(
+                        seen / 10_000,
+                        "the jitter's sampling of a still feature thinner than a pixel is no change of its light"
                     );
             }
         );
