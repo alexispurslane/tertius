@@ -28,6 +28,8 @@ REAL_LOCK = "/tmp/tertius-gpu-measure.lock"
 REAL_QUEUE = "/tmp/tertius-gpu-measure.queue"
 # The helper before this ticket, whose lock is an empty directory.
 OLD_HELPER_COMMIT = "93e46dd7f"
+# The helper before the shared mode (te-vnjc), which has the record and the queue's records but no mode.
+MODELESS_HELPER_COMMIT = "8fe7ac7cf"
 SCRATCH = "/private/tmp" if os.path.isdir("/private/tmp") else None
 # The time that a test gives a run to take a lock that it must not take.
 SETTLE = 1.0
@@ -61,7 +63,7 @@ def start_time(pid: int) -> str:
 class Run:
     """One run of a helper whose command holds the GPU until the test lets it go."""
 
-    def __init__(self, bench: "Bench", name: str, helper: Path, code: int, env: dict[str, str]):
+    def __init__(self, bench: "Bench", name: str, helper: Path, code: int, env: dict[str, str], shared: bool = False):
         self.log = bench.folder / f"{name}.log"
         self.started = bench.folder / f"{name}.started"
         self.release = bench.folder / f"{name}.release"
@@ -69,7 +71,8 @@ class Run:
         # behind.
         command = ["bash", "-c", 'touch "$1"; while [ ! -e "$2" ] && [ -e "$1" ]; do sleep 0.02; done; exit "$3"',
                    "held", str(self.started), str(self.release), str(code)]
-        self.process = subprocess.Popen(["bash", str(helper), str(self.log), *command], env={**bench.env, **env},
+        mode = ["--shared"] if shared else []
+        self.process = subprocess.Popen(["bash", str(helper), *mode, str(self.log), *command], env={**bench.env, **env},
                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def holds(self) -> bool:
@@ -106,9 +109,11 @@ class Bench:
         self.processes: list[subprocess.Popen] = []
         test.addCleanup(self.stop)
 
-    def start(self, name: str, helper: Path = HELPER, code: int = 0, env: dict[str, str] | None = None) -> Run:
-        """Starts a run whose environment is the bench's, with `env` over it."""
-        run = Run(self, name, helper, code, env or {})
+    def start(self, name: str, helper: Path = HELPER, code: int = 0, env: dict[str, str] | None = None,
+              shared: bool = False) -> Run:
+        """Starts a run whose environment is the bench's, with `env` over it. A `shared` run asks for the shared
+        mode."""
+        run = Run(self, name, helper, code, env or {}, shared)
         self.runs.append(run)
         self.track(run.process)
         return run
@@ -122,6 +127,14 @@ class Bench:
         assert REAL_LOCK not in text and REAL_QUEUE not in text
         path = self.folder / "old-gpu-lock.sh"
         path.write_text(text)
+        return path
+
+    def modeless_helper(self) -> Path:
+        """The helper of 8fe7ac7cf, before the shared mode. It takes its paths from the bench's environment."""
+        path = self.folder / "modeless-gpu-lock.sh"
+        source = f"{MODELESS_HELPER_COMMIT}:tools/gpu-lock.sh"
+        path.write_text(subprocess.run(["git", "show", source], cwd=HELPER.parent, capture_output=True, text=True,
+                                       check=True).stdout)
         return path
 
     def shim(self, name: str, body: str) -> dict[str, str]:
@@ -166,6 +179,20 @@ class Bench:
         process = subprocess.Popen(["true"])
         process.wait()
         return process.pid
+
+    def shared_records(self) -> dict[str, dict[str, str]]:
+        """The records of the shared holders, by file name."""
+        folder = self.lock / "shared"
+        if not folder.is_dir():
+            return {}
+        return {p.name: dict(line.split("=", 1) for line in p.read_text().splitlines() if "=" in line)
+                for p in folder.iterdir()}
+
+    def write_shared_record(self, pid: int | str, start: str, name: str = "0000000000000000-1",
+                            token: str = "someone-else"):
+        """Makes the lock as a shared holder with this record would, or joins the shared holders in it."""
+        (self.lock / "shared").mkdir(parents=True, exist_ok=True)
+        (self.lock / "shared" / name).write_text(f"pid={pid}\nstart={start}\ntoken={token}\nlabel=a shared holder\n")
 
     def leftovers(self) -> list[str]:
         """The lock and every renamed copy of it that is still in the folder."""
@@ -609,6 +636,331 @@ class TheQueue(unittest.TestCase):
         self.assertLessEqual(bench.ps_calls_about(older.pid), 3)
 
 
+class TheSharedMode(unittest.TestCase):
+    """Runs that ask for the shared mode hold the GPU side by side, up to a cap, and never beside an exclusive run."""
+
+    def test_three_shared_runs_hold_the_gpu_at_once(self):
+        bench = Bench(self)
+        runs = [bench.start(f"shared-{i}", shared=True) for i in range(3)]
+        for run in runs:
+            run.wait_until_it_holds()
+        self.assertEqual(sorted(r["pid"] for r in bench.shared_records().values()),
+                         sorted(str(run.process.pid) for run in runs))
+        for run in runs:
+            self.assertEqual(run.finish(), 0)
+        self.assertEqual(bench.leftovers(), [])
+        self.assertEqual(list(bench.queue.iterdir()), [])
+
+    def test_a_fourth_shared_run_waits_until_one_of_three_ends(self):
+        bench = Bench(self)
+        runs = [bench.start(f"shared-{i}", shared=True) for i in range(3)]
+        for run in runs:
+            run.wait_until_it_holds()
+        fourth = bench.start("fourth", shared=True)
+        time.sleep(SETTLE)
+        self.assertFalse(fourth.holds())
+        self.assertEqual(runs[1].finish(), 0)
+        fourth.wait_until_it_holds()
+        self.assertEqual(len(bench.shared_records()), 3)
+
+    def test_the_cap_comes_from_the_environment(self):
+        bench = Bench(self)
+        cap = {"TERTIUS_GPU_SHARED_CAP": "2"}
+        runs = [bench.start(f"shared-{i}", shared=True, env=cap) for i in range(2)]
+        for run in runs:
+            run.wait_until_it_holds()
+        third = bench.start("third", shared=True, env=cap)
+        time.sleep(SETTLE)
+        self.assertFalse(third.holds())
+        self.assertEqual(runs[0].finish(), 0)
+        third.wait_until_it_holds()
+
+    def test_a_cap_that_is_not_a_positive_number_ends_the_run_before_it_waits(self):
+        for cap in ["0", "two", "-1", ""]:
+            with self.subTest(cap=cap):
+                bench = Bench(self)
+                env = {**bench.env, "TERTIUS_GPU_SHARED_CAP": cap}
+                result = subprocess.run(["bash", str(HELPER), "--shared", str(bench.folder / "run.log"), "touch",
+                                         str(bench.folder / "ran")], env=env, capture_output=True, text=True,
+                                        timeout=10, check=False)
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("TERTIUS_GPU_SHARED_CAP", result.stderr)
+                self.assertFalse((bench.folder / "ran").exists())
+                self.assertEqual(list(bench.queue.iterdir()), [])
+                self.assertEqual(bench.leftovers(), [])
+
+    def test_a_shared_run_waits_while_an_exclusive_run_holds_the_gpu(self):
+        bench = Bench(self)
+        exclusive = bench.start("exclusive")
+        exclusive.wait_until_it_holds()
+        shared = bench.start("shared", shared=True)
+        time.sleep(SETTLE)
+        self.assertFalse(shared.holds())
+        self.assertEqual(exclusive.finish(), 0)
+        shared.wait_until_it_holds()
+        self.assertEqual(shared.finish(), 0)
+        self.assertEqual(bench.leftovers(), [])
+
+    def test_an_exclusive_run_waits_until_every_shared_run_ends(self):
+        bench = Bench(self)
+        shared = [bench.start(f"shared-{i}", shared=True) for i in range(2)]
+        for run in shared:
+            run.wait_until_it_holds()
+        exclusive = bench.start("exclusive")
+        time.sleep(SETTLE)
+        self.assertFalse(exclusive.holds())
+        self.assertEqual(shared[0].finish(), 0)
+        time.sleep(SETTLE)
+        self.assertFalse(exclusive.holds())
+        self.assertEqual(shared[1].finish(), 0)
+        exclusive.wait_until_it_holds()
+        self.assertEqual(bench.record().get("pid"), str(exclusive.process.pid))
+        self.assertEqual(exclusive.finish(), 0)
+        self.assertEqual(bench.leftovers(), [])
+
+    def test_shared_and_exclusive_runs_never_overlap_and_the_shared_ones_overlap_each_other(self):
+        bench = Bench(self)
+        times = bench.folder / "times"
+        command = ["bash", "-c",
+                   'echo "start $2 $EPOCHREALTIME" >> "$1"; sleep 0.4; echo "end $2 $EPOCHREALTIME" >> "$1"',
+                   "timed", str(times)]
+        modes = ["shared", "shared", "exclusive", "shared", "shared", "exclusive", "shared"]
+        processes = []
+        for i, mode in enumerate(modes):
+            flag = ["--shared"] if mode == "shared" else []
+            processes.append(bench.track(subprocess.Popen(["bash", str(HELPER), *flag, str(bench.folder / f"{i}.log"),
+                                                           *command, f"{mode}-{i}"], env=bench.env)))
+            time.sleep(0.05)
+        for process in processes:
+            self.assertEqual(process.wait(timeout=30), 0)
+        holding: set[str] = set()
+        most_shared = 0
+        for line in times.read_text().splitlines():
+            kind, name, _ = line.split()
+            if kind == "start":
+                self.assertFalse(name.startswith("exclusive") and holding, f"{name} started beside {holding}")
+                self.assertFalse(any(h.startswith("exclusive") for h in holding), f"{name} started beside {holding}")
+                holding.add(name)
+                most_shared = max(most_shared, len(holding))
+            else:
+                holding.remove(name)
+        self.assertEqual(most_shared, 2)
+        self.assertEqual(bench.leftovers(), [])
+
+
+class TheOrderAcrossModes(unittest.TestCase):
+    """The queue stays first in, first out across both modes, so that shared runs cannot starve an exclusive run."""
+
+    def test_a_shared_run_that_comes_after_a_waiting_exclusive_run_waits_behind_it(self):
+        bench = Bench(self)
+        first = bench.start("first", shared=True)
+        first.wait_until_it_holds()
+        exclusive = bench.start("exclusive")
+        self.assertTrue(wait_for(lambda: len(list(bench.queue.iterdir())) == 1))
+        later = bench.start("later", shared=True)
+        time.sleep(SETTLE)
+        self.assertFalse(later.holds(), "a shared run went past a waiting exclusive run")
+        self.assertEqual(first.finish(), 0)
+        exclusive.wait_until_it_holds()
+        time.sleep(SETTLE)
+        self.assertFalse(later.holds())
+        self.assertEqual(exclusive.finish(), 0)
+        later.wait_until_it_holds()
+        self.assertEqual(later.finish(), 0)
+
+    def test_shared_runs_at_the_head_of_the_queue_start_together_up_to_the_cap(self):
+        bench = Bench(self)
+        exclusive = bench.start("exclusive")
+        exclusive.wait_until_it_holds()
+        waiters = []
+        for i in range(4):
+            waiters.append(bench.start(f"shared-{i}", shared=True))
+            self.assertTrue(wait_for(lambda: len(list(bench.queue.iterdir())) == i + 1))
+        self.assertEqual(exclusive.finish(), 0)
+        for run in waiters[:3]:
+            run.wait_until_it_holds()
+        time.sleep(SETTLE)
+        self.assertFalse(waiters[3].holds())
+        self.assertEqual(waiters[0].finish(), 0)
+        waiters[3].wait_until_it_holds()
+
+    def test_a_ticket_without_a_mode_counts_as_an_exclusive_waiter(self):
+        # The ticket of an older helper names no mode. A shared run that comes after it must not go past it, though
+        # a shared run holds the GPU and the cap leaves room.
+        bench = Bench(self)
+        first = bench.start("first", shared=True)
+        first.wait_until_it_holds()
+        older = bench.sleeper()
+        bench.write_ticket(older.pid, start_time(older.pid))
+        later = bench.start("later", shared=True)
+        time.sleep(SETTLE)
+        self.assertFalse(later.holds())
+        older.kill()
+        older.wait()
+        later.wait_until_it_holds()
+        self.assertEqual(first.finish(), 0)
+        self.assertEqual(later.finish(), 0)
+
+
+class TheSharedRelease(unittest.TestCase):
+    """A shared holder removes only its own record, and the last one removes the lock."""
+
+    def test_a_shared_holders_record_is_the_record_of_a_machine_lock_in_a_file_of_its_own(self):
+        bench = Bench(self)
+        run = bench.start("run", shared=True)
+        run.wait_until_it_holds()
+        self.assertEqual(bench.record(), {}, "a shared holder writes no exclusive record")
+        records = list(bench.shared_records().values())
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0].get("pid"), str(run.process.pid))
+        self.assertEqual(records[0].get("start"), start_time(run.process.pid))
+        self.assertRegex(records[0].get("token", ""), r"\S{8,}")
+        self.assertIn(str(run.log), records[0].get("label", ""))
+        self.assertEqual(run.finish(), 0)
+
+    def test_the_shared_release_removes_its_own_record_after_every_end(self):
+        for how, sent, code, expected in [("normal end", None, 0, 0), ("failing command", None, 3, 3),
+                                          ("INT", signal.SIGINT, 0, 130), ("TERM", signal.SIGTERM, 0, 143),
+                                          ("HUP", signal.SIGHUP, 0, 129)]:
+            with self.subTest(how):
+                bench = Bench(self)
+                other = bench.start("other", shared=True)
+                other.wait_until_it_holds()
+                run = bench.start("run", shared=True, code=code)
+                run.wait_until_it_holds()
+                self.assertEqual(run.finish(sent), expected)
+                self.assertEqual([r["pid"] for r in bench.shared_records().values()], [str(other.process.pid)])
+                self.assertNotIn(NOT_ITS_OWN, run.log_text())
+                self.assertEqual(other.finish(), 0)
+                self.assertEqual(bench.leftovers(), [])
+                self.assertEqual(list(bench.queue.iterdir()), [])
+
+    def test_shared_runs_that_end_together_leave_no_lock(self):
+        for _ in range(5):
+            bench = Bench(self)
+            runs = [bench.start(f"shared-{i}", shared=True) for i in range(3)]
+            for run in runs:
+                run.wait_until_it_holds()
+            for run in runs:
+                run.release.touch()
+            for run in runs:
+                self.assertEqual(run.process.wait(timeout=10), 0)
+            self.assertEqual(bench.leftovers(), [])
+
+    def test_a_shared_run_whose_record_vanished_writes_so_into_its_log(self):
+        bench = Bench(self)
+        other = bench.start("other", shared=True)
+        other.wait_until_it_holds()
+        run = bench.start("run", shared=True)
+        run.wait_until_it_holds()
+        for name, record in bench.shared_records().items():
+            if record["pid"] == str(run.process.pid):
+                (bench.lock / "shared" / name).unlink()
+        self.assertEqual(run.finish(), 0)
+        line = [line for line in run.log_text().splitlines() if NOT_ITS_OWN in line]
+        self.assertEqual(len(line), 1, run.log_text())
+        self.assertEqual([r["pid"] for r in bench.shared_records().values()], [str(other.process.pid)])
+        self.assertEqual(other.finish(), 0)
+
+    def test_a_shared_run_whose_lock_another_run_took_leaves_that_lock(self):
+        bench = Bench(self)
+        live = bench.sleeper()
+        run = bench.start("run", shared=True)
+        run.wait_until_it_holds()
+        shutil.rmtree(bench.lock)
+        bench.write_record(live.pid, start_time(live.pid), label="the other run")
+        self.assertEqual(run.finish(), 0)
+        self.assertEqual(bench.record().get("token"), "someone-else")
+        self.assertIn(DISCARD, run.log_text())
+
+    def test_a_shared_run_says_so_in_its_log(self):
+        bench = Bench(self)
+        run = bench.start("run", shared=True)
+        run.wait_until_it_holds()
+        self.assertIn("mode: shared", run.log_text())
+        self.assertEqual(run.finish(), 0)
+        exclusive = bench.start("exclusive")
+        exclusive.wait_until_it_holds()
+        self.assertNotIn("mode: shared", exclusive.log_text())
+        self.assertEqual(exclusive.finish(), 0)
+
+
+class TheStaleSharedHolder(unittest.TestCase):
+    """A shared holder that is gone does not block the GPU: the oldest waiter removes its record."""
+
+    def test_an_exclusive_waiter_takes_the_gpu_after_a_shared_holder_died(self):
+        bench = Bench(self)
+        dead = bench.start("dead", shared=True)
+        dead.wait_until_it_holds()
+        dead.process.kill()
+        dead.process.wait()
+        dead.release.touch()
+        waiter = bench.start("waiter")
+        waiter.wait_until_it_holds()
+        self.assertEqual(bench.record().get("pid"), str(waiter.process.pid))
+        self.assertEqual(waiter.finish(), 0)
+        self.assertEqual(bench.leftovers(), [])
+
+    def test_an_exclusive_waiter_removes_a_dead_shared_holder_and_waits_for_a_live_one(self):
+        bench = Bench(self)
+        live = bench.sleeper()
+        bench.write_shared_record(bench.dead_pid(), NEVER_STARTED, name="0000000000000000-1")
+        bench.write_shared_record(live.pid, start_time(live.pid), name="0000000000000001-2")
+        waiter = bench.start("waiter")
+        self.assertTrue(wait_for(lambda: len(bench.shared_records()) == 1))
+        time.sleep(SETTLE)
+        self.assertFalse(waiter.holds())
+        self.assertEqual([r["pid"] for r in bench.shared_records().values()], [str(live.pid)])
+        live.kill()
+        live.wait()
+        waiter.wait_until_it_holds()
+        self.assertEqual(waiter.finish(), 0)
+        self.assertEqual(bench.leftovers(), [])
+
+    def test_a_shared_waiter_at_the_cap_takes_the_place_of_a_dead_holder(self):
+        bench = Bench(self)
+        cap = {"TERTIUS_GPU_SHARED_CAP": "1"}
+        bench.write_shared_record(bench.sleeper().pid, NEVER_STARTED)
+        waiter = bench.start("waiter", shared=True, env=cap)
+        waiter.wait_until_it_holds()
+        self.assertEqual([r["pid"] for r in bench.shared_records().values()], [str(waiter.process.pid)])
+        self.assertEqual(waiter.finish(), 0)
+        self.assertEqual(bench.leftovers(), [])
+
+    def test_a_shared_record_that_lacks_a_field_is_never_removed(self):
+        for lacks in ["pid", "start", "token"]:
+            with self.subTest(lacks):
+                bench = Bench(self)
+                record = {"pid": bench.dead_pid(), "start": NEVER_STARTED, "token": "someone-else"}
+                record[lacks] = ""
+                bench.write_shared_record(**record)
+                waiter = bench.start("waiter")
+                time.sleep(SETTLE)
+                self.assertFalse(waiter.holds())
+                self.assertEqual(len(bench.shared_records()), 1)
+
+    def test_a_waiter_asks_ps_about_each_live_shared_holder_at_most_once_a_second(self):
+        bench = Bench(self)
+        holders = [bench.sleeper() for _ in range(2)]
+        for i, holder in enumerate(holders):
+            bench.write_shared_record(holder.pid, start_time(holder.pid), name=f"000000000000000{i}-{holder.pid}")
+        waiter = bench.start("waiter", env=bench.counting_ps())
+        time.sleep(2.0)
+        self.assertFalse(waiter.holds())
+        for holder in holders:
+            self.assertLessEqual(bench.ps_calls_about(holder.pid), 3)
+
+    def test_each_shared_holder_with_a_reused_process_id_is_found_gone(self):
+        # Both holders' pids live, with other start times: only ps finds them gone, and ps runs once a second.
+        bench = Bench(self)
+        for i in range(2):
+            bench.write_shared_record(bench.sleeper().pid, NEVER_STARTED, name=f"000000000000000{i}-{i}")
+        waiter = bench.start("waiter")
+        waiter.wait_until_it_holds()
+        self.assertEqual(waiter.finish(), 0)
+        self.assertEqual(bench.leftovers(), [])
+
+
 # A Stryker lock in a process of its own: it takes the lock at argv[2] and releases it. With argv[3] and argv[4], it
 # makes the file argv[3] once it holds the lock, and it holds the lock until the file argv[4] exists or argv[3]
 # vanishes. A run that stops on a stale lock prints its message and exits with 1.
@@ -779,6 +1131,54 @@ class TheSharedRecord(unittest.TestCase):
 
 class TheOldHelper(unittest.TestCase):
     """The helper of 93e46dd7f, which some worktrees still run, and this helper exclude each other."""
+
+    def test_older_helpers_wait_while_shared_runs_hold_the_gpu(self):
+        for which in ["93e46dd7f", "8fe7ac7cf"]:
+            with self.subTest(which):
+                bench = Bench(self)
+                helper = bench.old_helper() if which == OLD_HELPER_COMMIT else bench.modeless_helper()
+                shared = [bench.start(f"shared-{i}", shared=True) for i in range(2)]
+                for run in shared:
+                    run.wait_until_it_holds()
+                old = bench.start("old", helper=helper)
+                time.sleep(SETTLE)
+                self.assertFalse(old.holds())
+                self.assertEqual(shared[0].finish(), 0)
+                self.assertEqual(shared[1].finish(), 0)
+                old.wait_until_it_holds()
+                self.assertEqual(old.finish(), 0)
+                self.assertEqual(bench.leftovers(), [])
+
+    def test_a_shared_run_waits_while_an_older_helper_holds_the_gpu(self):
+        for which in ["93e46dd7f", "8fe7ac7cf"]:
+            with self.subTest(which):
+                bench = Bench(self)
+                helper = bench.old_helper() if which == OLD_HELPER_COMMIT else bench.modeless_helper()
+                old = bench.start("old", helper=helper)
+                old.wait_until_it_holds()
+                shared = bench.start("shared", shared=True)
+                time.sleep(SETTLE)
+                self.assertFalse(shared.holds())
+                self.assertEqual(old.finish(), 0)
+                shared.wait_until_it_holds()
+                self.assertEqual(shared.finish(), 0)
+                self.assertEqual(bench.leftovers(), [])
+
+    def test_a_shared_run_does_not_go_past_an_older_helpers_waiting_ticket(self):
+        bench = Bench(self)
+        first = bench.start("first", shared=True)
+        first.wait_until_it_holds()
+        old = bench.start("old", helper=bench.modeless_helper())
+        self.assertTrue(wait_for(lambda: len(list(bench.queue.iterdir())) == 1))
+        later = bench.start("later", shared=True)
+        time.sleep(SETTLE)
+        self.assertFalse(later.holds())
+        self.assertEqual(first.finish(), 0)
+        old.wait_until_it_holds()
+        self.assertFalse(later.holds())
+        self.assertEqual(old.finish(), 0)
+        later.wait_until_it_holds()
+        self.assertEqual(later.finish(), 0)
 
     def test_the_helper_waits_for_a_lock_that_the_old_helper_holds(self):
         bench = Bench(self)

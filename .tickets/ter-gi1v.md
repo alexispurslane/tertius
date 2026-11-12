@@ -2,7 +2,7 @@
 id: ter-gi1v
 status: open
 deps: [ter-sfsb]
-links: []
+links: [ter-hek6]
 created: 2026-11-10T13:25:05Z
 type: task
 priority: 3

@@ -604,6 +604,13 @@ def free_gb() -> float:
 # Set in a chunk of cases that runs under one take of the GPU lock, so that its renders do not take it again.
 HOLDS_LOCK = "TERTIUS_SURVEY_HOLDS_LOCK"
 
+
+def gpu_lock(log: Path, timed: bool) -> list[str]:
+    """The command of tools/gpu-lock.sh before the locked command. A timed run holds the GPU alone. Every other run
+    renders images for the measures, which do not depend on the time, so it shares the GPU (tools/README.md, "The GPU
+    lock")."""
+    return ["bash", str(ROOT / "tools" / "gpu-lock.sh"), *([] if timed else ["--shared"]), str(log)]
+
 GPU_SAMPLER = (
     'sleep 1.5; for i in 1 2 3; do ioreg -r -d 1 -c IOAccelerator | grep -o \'"Device Utilization %"=[0-9]*\' | head -1; '
     'sleep 0.5; done; exec "$@"'
@@ -634,8 +641,7 @@ def render(out: Path, script: dict, *, binary: Path, env: dict | None = None, ex
         with open(log, "w") as stream:
             code = subprocess.run(sampled, env=run_env, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT).returncode
     else:
-        code = subprocess.run(["bash", str(ROOT / "tools" / "gpu-lock.sh"), str(log), *sampled], env=run_env,
-                              cwd=ROOT).returncode
+        code = subprocess.run([*gpu_lock(log, timed), *sampled], env=run_env, cwd=ROOT).returncode
     text = log.read_text(errors="replace")
     if code != 0:
         raise RuntimeError(f"The run of {path} failed with exit code {code}. The end of {log}:\n" + text[-2000:])
@@ -936,15 +942,17 @@ def run_chunks(args) -> int:
                        "--chunk", "0", "--exposure", args.exposure, "--only", *chunk]
             if args.clock_bin:
                 command += ["--clock-bin", str(args.clock_bin)]
-            result = subprocess.run(["bash", str(ROOT / "tools" / "gpu-lock.sh"), str(log), "env", f"{HOLDS_LOCK}=1",
-                                     *command], cwd=ROOT).returncode
+            result = subprocess.run([*gpu_lock(log, part == "timing"), "env", f"{HOLDS_LOCK}=1", *command],
+                                    cwd=ROOT).returncode
             print(log.read_text(errors="replace"), flush=True)
             code = code or result
     return code
 
 
 def run(args):
-    if args.chunk > 0:
+    # A caller that holds the GPU lock already renders in this process. A chunk would queue behind the caller and stall
+    # the queue (t1-1zic).
+    if args.chunk > 0 and os.environ.get(HOLDS_LOCK) != "1":
         return run_chunks(args)
     out = Path(args.out).resolve()
     cases = load_cases()

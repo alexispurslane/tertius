@@ -131,7 +131,11 @@ internal sealed class WindowHost : IInputTarget
             try
             {
                 // Free play may use impostors. A script draws every object as geometry, as a headless run does.
-                renderer = VulkanRenderer.CreateForWindow(window, new() { Impostors = script is null });
+                renderer = VulkanRenderer.CreateForWindow(
+                    window,
+                    // A window is not a measured run: it pays only for the stamps that its render scale needs.
+                    new() { Impostors = script is null, PassTimestamps = false }
+                );
             }
             catch (Exception ex)
             {

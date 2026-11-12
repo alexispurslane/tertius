@@ -2,10 +2,13 @@
 # Tool code (tools/README.md, "The GPU lock"): runs one command under the GPU lock, /tmp/tertius-gpu-measure.lock, which
 # every timed run on the development Mac takes. It is the one helper of the lock for every timing tool. Take the lock
 # only through it.
-#   bash tools/gpu-lock.sh <log> <command> [arguments]
-# The log gets the uptime at the start, the seconds that the run waited for the lock, the command's output and the
-# uptime at the end. The exit code is the command's. TERTIUS_GPU_LOCK and TERTIUS_GPU_QUEUE give other paths for the
-# lock and the queue, for the tests (tools/test_gpu_lock.py).
+#   bash tools/gpu-lock.sh [--shared] <log> <command> [arguments]
+# A run without --shared holds the GPU alone, and every timed run takes it so. A run with --shared holds it beside up to
+# TERTIUS_GPU_SHARED_CAP - 1 other shared runs (3 runs by default) and never beside a run that holds it alone. Only
+# untimed work, such as stills and films for image metrics, takes the shared mode. The log gets the uptime at the start,
+# the seconds that the run waited for the lock, the command's output and the uptime at the end. The exit code is the
+# command's. TERTIUS_GPU_LOCK and TERTIUS_GPU_QUEUE give other paths for the lock and the queue, for the tests
+# (tools/test_gpu_lock.py).
 #
 # The lock is a directory, and mkdir takes it. Right after its mkdir, the holder writes its record into the file holder
 # in the lock: its process id, that process's start time as ps gives it in UTC, a random token and a label (the log and
@@ -30,12 +33,32 @@
 # oldest ticket of a live waiter. Without the order, a loop of runs that tried every 0.1 s won nearly every release
 # against a waiter that tried every 5 s, for more than 20 minutes on 2026-11-03. The order also makes the clear safe:
 # only the oldest waiter clears, and only the oldest waiter takes a lock that the clear freed.
+#
+# The shared mode keeps the same lock directory. Shared holders put no holder file into it, but the folder shared, with
+# one record file per holder, named by the holder's ticket. The first shared run makes the lock and the folder, and a
+# later one adds its record while the folder holds fewer records than the cap. The release removes the run's own record
+# and then the folder with rmdir, which fails while the folder holds a record. Only the run whose rmdir removed the
+# folder removes the lock, also with rmdir. So of several runs that end at once, exactly one removes the lock. A shared
+# run also waits for its ticket to be the oldest, whatever the mode of the older tickets. So a stream of shared runs
+# cannot pass a waiting exclusive run, and the shared runs at the head of the queue start one after the other, 0.1 s
+# apart. Every helper since 93e46dd7f fails its mkdir while shared runs hold the lock, so it waits for them.
 set -uo pipefail
+shopt -s nullglob
 
-log=${1:?usage: gpu-lock.sh <log> <command> [arguments]}
+shared=0
+if [ "${1-}" = --shared ]; then
+    shared=1
+    shift
+fi
+log=${1:?usage: gpu-lock.sh [--shared] <log> <command> [arguments]}
 shift
 lock=${TERTIUS_GPU_LOCK:-/tmp/tertius-gpu-measure.lock}
 queue=${TERTIUS_GPU_QUEUE:-/tmp/tertius-gpu-measure.queue}
+cap=${TERTIUS_GPU_SHARED_CAP-3}
+if [ "$shared" = 1 ] && [[ ! $cap =~ ^[0-9]+$ || $cap -lt 1 ]]; then
+    echo "gpu-lock: TERTIUS_GPU_SHARED_CAP must be a whole number of at least 1, not '$cap'" >&2
+    exit 2
+fi
 ticket=${EPOCHREALTIME/./}-$$
 token=$ticket-$SRANDOM$SRANDOM
 label="$log: $*"
@@ -88,17 +111,18 @@ read_record() {
 
 # Succeeds when the process $1, which started at $2, is gone: kill -0 finds no such process, or ps gives a start time
 # that is not empty and differs from $2. A permission error of kill -0 or an empty answer of ps counts as alive. With an
-# empty $2, kill -0 alone judges. ps forks, so a waiter runs it at most once a second, and in the other seconds a
-# process that kill -0 finds counts as alive.
-checked=
+# empty $2, kill -0 alone judges. ps forks, so a waiter runs it at most once a second for each process, and in the other
+# seconds a process that kill -0 finds counts as alive. The second is per process, so that the check of one live shared
+# holder cannot keep ps from another one.
+declare -A checked=()
 gone() {
     local now
     if ! kill -0 "$1" 2> /dev/null; then
         # Only the message tells no such process from a permission error. Its fork runs only when kill -0 fails.
         [[ $(LC_ALL=C; kill -0 "$1" 2>&1) == *"No such process"* ]] && return 0
     fi
-    [ -n "$2" ] && [ "$checked" != "$EPOCHSECONDS" ] || return 1
-    checked=$EPOCHSECONDS
+    [ -n "$2" ] && [ "${checked[$1]-}" != "$EPOCHSECONDS" ] || return 1
+    checked[$1]=$EPOCHSECONDS
     now=$(start_of "$1")
     [ -n "$now" ] && [ "$now" != "$2" ]
 }
@@ -130,15 +154,62 @@ take() {
             || ! mv "$lock/holder.new" "$lock/holder"; then
         rm -f "$lock/holder.new"
         rmdir "$lock"
-        echo "gpu-lock: cannot write the holder's record into $lock" >&2
-        exit 1
+        cannot_write
     fi
     held=1
 }
 
+cannot_write() {
+    echo "gpu-lock: cannot write the holder's record into $lock" >&2
+    exit 1
+}
+
+# Takes the lock in the shared mode: it makes the lock and its folder shared, or joins the shared holders while they are
+# fewer than the cap. It fails while an exclusive run holds the lock, while the cap is reached, and while the lock has
+# neither a holder file nor the folder: a run takes it at this moment, or a helper of 93e46dd7f holds it. If the last
+# shared holder removes the folder before this run's record is in it, the write fails, and the run tries again. If no
+# complete record can be written into a folder that stays, the run removes what it made and ends.
+take_shared() {
+    local into=$lock/shared made=0
+    if mkdir "$lock" 2> /dev/null; then
+        made=1
+        mkdir "$into" || { rmdir "$lock"; cannot_write; }
+    else
+        local holders=("$into"/*)
+        [ -d "$into" ] && [ "${#holders[@]}" -lt "$cap" ] || return 1
+    fi
+    if [ -z "$own_start" ] || ! printf %s "$own_record" > "$into/$ticket.new" 2> /dev/null \
+            || ! mv "$into/$ticket.new" "$into/$ticket"; then
+        rm -f "$into/$ticket.new"
+        if [ "$made" = 1 ]; then
+            rmdir "$into" && rmdir "$lock"
+        elif [ ! -d "$into" ]; then
+            return 1
+        fi
+        cannot_write
+    fi
+    held=1
+}
+
+# Removes the folder shared and then the lock, if the folder holds no record. Only the run whose rmdir removed the
+# folder removes the lock. Nobody writes into a lock without a holder file or the folder, so that lock is empty.
+remove_empty_shared() {
+    rmdir "$lock/shared" 2> /dev/null && rmdir "$lock"
+}
+
 # Clears the lock if its record names a process that is gone. The renamed lock holds the token that the check read,
-# unless a run took the lock since the read. Then it goes back.
+# unless a run took the lock since the read. Then it goes back. In a shared lock, it removes the record of each shared
+# holder that is gone, and the lock when no record stays. A record file holds one holder, so its removal needs no
+# rename.
 clear_if_stale() {
+    if [ -d "$lock/shared" ]; then
+        local entry
+        for entry in "$lock/shared"/*; do
+            read_record "$entry" && gone "$record_pid" "$record_start" && rm -f "$entry"
+        done
+        remove_empty_shared
+        return
+    fi
     read_record "$lock/holder" && gone "$record_pid" "$record_start" || return
     local stale=$record_token cleared=$lock.stale.$ticket
     mv "$lock" "$cleared" 2> /dev/null || return
@@ -149,20 +220,30 @@ clear_if_stale() {
     fi
 }
 
-# Removes the lock if its record holds this run's token. Otherwise it writes into the log what holds the path now.
-# The run holds no lock afterwards, and no signal stops the release halfway.
+# Removes the lock if its record holds this run's token. A shared run removes its own record, and the lock if no other
+# record stays. Otherwise it writes into the log what holds the path now. The run holds no lock afterwards, and no
+# signal stops the release halfway.
 release() {
     defer_signals
     held=0
-    local released=$lock.released.$ticket
-    read_record "$lock/holder"
+    local released=$lock.released.$ticket own=$lock/holder
+    [ "$shared" = 1 ] && own=$lock/shared/$ticket
+    read_record "$own"
     if [ "$record_token" = "$token" ]; then
-        mv "$lock" "$released" && rm -rf "$released"
+        if [ "$shared" = 1 ]; then
+            rm -f "$own"
+            remove_empty_shared
+        else
+            mv "$lock" "$released" && rm -rf "$released"
+        fi
         return
     fi
     local now="it vanished"
+    read_record "$lock/holder"
     if [ -n "$record_token" ]; then
         now="it holds the record of $record_label"
+    elif [ -d "$lock/shared" ]; then
+        now="it holds no record of this run"
     elif [ -d "$lock" ]; then
         now="it holds no record"
     fi
@@ -179,7 +260,11 @@ while :; do
     [ -n "$signal" ] && exit "$signal"
     oldest_ticket
     if [ "$oldest" = "$ticket" ]; then
-        take && break
+        if [ "$shared" = 1 ]; then
+            take_shared && break
+        else
+            take && break
+        fi
         clear_if_stale
     fi
     sleep 0.1
@@ -190,6 +275,7 @@ end_on_signals
 {
     echo "uptime-start: $(uptime)"
     echo "waited: $((EPOCHSECONDS - started))s"
+    [ "$shared" = 1 ] && echo "mode: shared, with up to $cap shared runs at once"
 } > "$log"
 "$@" >> "$log" 2>&1
 code=$?

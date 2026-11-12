@@ -7,6 +7,15 @@ namespace Tertius.Rendering;
 internal readonly record struct RectView
 {
     /// <summary>
+    /// The ratio of the distance to the face's center to its half diagonal at and beyond which the face shades as a point:
+    /// there a point's diffuse light misses the face's by at most 1 % of its head-on irradiance.
+    /// </summary>
+    internal const double PointDistanceRatio = 8;
+
+    /// <summary>The roughness at and above which a far face's shine is a sphere light's, not the LTC's share.</summary>
+    internal const double PointRoughness = 0.5;
+
+    /// <summary>
     /// The face centered <paramref name="toCenter"/> from the shaded point, in m, with the half sides
     /// <paramref name="halfWidth"/> and <paramref name="halfHeight"/>, perpendicular, whose cross product points to its
     /// front.
@@ -51,6 +60,38 @@ internal readonly record struct RectView
 
     /// <summary>Ω, the solid angle that the face fills seen from the point, in sr, or 0 behind it.</summary>
     public double SolidAngle { get; }
+
+    /// <summary>
+    /// The face's area times its cosine toward the point over the squared distance, in sr: its solid angle as a point, the
+    /// same as <see cref="SolidAngle"/> far away. 0 behind the face.
+    /// </summary>
+    public double PointSolidAngle
+    {
+        get
+        {
+            double distanceSquared = ToCenter.LengthSquared;
+            // A quarter of the area times the cosine at the face times the distance.
+            double height = -Double3.Dot(ToCenter, Double3.Cross(HalfWidth, HalfHeight));
+            return InFront ? 4 * height / (distanceSquared * Math.Sqrt(distanceSquared)) : 0;
+        }
+    }
+
+    /// <summary>
+    /// Whether the face shades a surface of normal <paramref name="normal"/> as a point light (ARCHITECTURE.md, "Rectangle
+    /// lights"): in front of it, at least <see cref="PointDistanceRatio"/> half diagonals away, with every corner above the
+    /// surface's horizon.
+    /// </summary>
+    public bool ShadesAsPointOn(Double3 normal)
+    {
+        double halfDiagonalSquared = HalfWidth.LengthSquared + HalfHeight.LengthSquared;
+        bool far = ToCenter.LengthSquared >= PointDistanceRatio * PointDistanceRatio * halfDiagonalSquared;
+        bool aboveHorizon =
+            Double3.Dot(normal, ToCenter)
+                - Math.Abs(Double3.Dot(normal, HalfWidth))
+                - Math.Abs(Double3.Dot(normal, HalfHeight))
+            > 0;
+        return InFront && far && aboveHorizon;
+    }
 
     /// <summary>
     /// ∫ max(n · ω, 0) dω over the face, in sr: its irradiance on a surface of normal <paramref name="normal"/>, over its

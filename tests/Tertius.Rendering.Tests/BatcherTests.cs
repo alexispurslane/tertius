@@ -2239,13 +2239,16 @@ public sealed class BatcherTests
         Unsafe.SizeOf<DrawPushConstants>().Should().Be(84);
         ((int)Marshal.OffsetOf<DrawPushConstants>(nameof(DrawPushConstants.Map))).Should().Be(80);
         Unsafe.SizeOf<EnvironmentPrefilterLevel>().Should().Be(16);
-        Unsafe.SizeOf<EnvironmentPrefilterPushConstants>().Should().Be(80);
+        Unsafe.SizeOf<EnvironmentPrefilterPushConstants>().Should().Be(88);
         ((int)Marshal.OffsetOf<EnvironmentPrefilterPushConstants>(nameof(EnvironmentPrefilterPushConstants.Samples)))
             .Should()
             .Be(64);
         ((int)Marshal.OffsetOf<EnvironmentPrefilterPushConstants>(nameof(EnvironmentPrefilterPushConstants.Map)))
             .Should()
             .Be(76, "the irradiance's two shaders declare it at offset 76");
+        ((int)Marshal.OffsetOf<EnvironmentPrefilterPushConstants>(nameof(EnvironmentPrefilterPushConstants.FirstFace)))
+            .Should()
+            .Be(80, "the convolution reads the run of faces right after the map");
         Unsafe.SizeOf<EnvironmentDownsamplePushConstants>().Should().Be(12);
         ((int)Marshal.OffsetOf<EnvironmentDownsamplePushConstants>(nameof(EnvironmentDownsamplePushConstants.Map)))
             .Should()

@@ -39,6 +39,8 @@ namespace Tertius.Host;
 /// <item><c>--in-flight 1|2</c> sets the headless renderer's frame count. One waits for each capture, and two keep both
 /// frames in flight, as a window does, so that a timed film keeps the GPU at its top clock
 /// (<see cref="RendererOptions.CapturesInFlight"/>).</item>
+/// <item><c>--pass-timestamps on|off</c> keeps a GPU timestamp after every pass, the headless default, or stamps only the
+/// render scale's cost groups, as the window does, so that a timed run measures the window's frame span.</item>
 /// <item><c>--scene &lt;name&gt; [--speed &lt;factor&gt;] [--record &lt;file&gt;]</c> runs a scene live in a window until you close it.
 /// With <c>--record</c>, the command writes your session to the file as a script that replays it.</item>
 /// </list>
@@ -96,7 +98,7 @@ public static partial class ScriptCommand
     public const string ExposureFile = "exposure.json";
 
     private const string Usage =
-        "Usage: --script <file> --headless --out <folder> [--video none|<file.mkv> [--fps <rate>]] [--size <width>x<height>] [--gpu-run FIRST..LAST]... [--tone-curve aces|hable] [--screen-trace on|off] [--bloom on|off] [--upscaling off|fsr3] [--render-scale <scale>] [--local-shadows off|on] [--local-shadow-tiles <count>] [--cascaded-lights <count>] [--environment-map on|off] [--subsurface on|off] [--in-flight 1|2]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
+        "Usage: --script <file> --headless --out <folder> [--video none|<file.mkv> [--fps <rate>]] [--size <width>x<height>] [--gpu-run FIRST..LAST]... [--tone-curve aces|hable] [--screen-trace on|off] [--bloom on|off] [--upscaling off|fsr3] [--render-scale <scale>] [--local-shadows off|on] [--local-shadow-tiles <count>] [--cascaded-lights <count>] [--environment-map on|off] [--subsurface on|off] [--in-flight 1|2] [--pass-timestamps on|off]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
 
     // The value of --video that draws the captures and drops them (Discard), for a run that only times its frames.
     private const string NoVideo = "none";
@@ -129,6 +131,7 @@ public static partial class ScriptCommand
         ("--environment-map", (_, value) => OnOffProblem("--environment-map", value)),
         ("--subsurface", (_, value) => OnOffProblem("--subsurface", value)),
         ("--in-flight", (_, count) => InFlightProblem(count)),
+        ("--pass-timestamps", (_, value) => OnOffProblem("--pass-timestamps", value)),
     ];
 
     // The options that choose the run, each with the problem when a run that does not take it is given it. A command line
@@ -934,6 +937,7 @@ public static partial class ScriptCommand
             CascadedLights = CascadedLightsOf(given.Value("--cascaded-lights")),
             EnvironmentMapOff = given.Value("--environment-map") == "off",
             SubsurfaceOff = given.Value("--subsurface") == "off",
+            PassTimestampsOff = given.Value("--pass-timestamps") == "off",
             FramesInFlight = given.Value("--in-flight") is { } count
                 ? int.Parse(count, CultureInfo.InvariantCulture)
                 : null,

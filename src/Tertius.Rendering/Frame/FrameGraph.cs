@@ -401,14 +401,18 @@ internal sealed class FrameGraph : IDisposable
             pass.Prepare(context);
     }
 
-    /// <summary>Records every pass in order, with a GPU timestamp before the first pass and after each pass.</summary>
+    /// <summary>
+    /// Records every pass in order, with a GPU timestamp before the first pass and after each pass, or without pass
+    /// timestamps after the last pass of each cost group of the render scale.
+    /// </summary>
     public void Record(FrameContext context)
     {
         int slot = context.Frame.Index;
         context.Timer.Begin(context.CommandBuffer, slot);
         bool output = false;
-        foreach ((Stage stage, _, RenderPass pass) in passes)
+        for (int index = 0; index < passes.Count; index++)
         {
+            (Stage stage, _, RenderPass pass) = passes[index];
             if (!output && stage >= Stage.ToneMap)
             {
                 BeginOutput(context);
@@ -419,12 +423,29 @@ internal sealed class FrameGraph : IDisposable
             context.Device.BeginLabel(context.CommandBuffer, pass.Name);
             pass.Record(context);
             context.Device.EndLabel(context.CommandBuffer);
-            context.Timer.After(
-                commandBuffer: context.CommandBuffer,
-                slot: slot,
-                pass: new(pass.Name, 0) { Stage = stage }
-            );
+            RenderScaleController.CostGroup group = RenderScaleController.CostGroupOf(stage);
+            if (context.Timer.EachPass)
+                context.Timer.After(
+                    commandBuffer: context.CommandBuffer,
+                    slot: slot,
+                    pass: new(pass.Name, 0) { Stage = stage }
+                );
+            else if (NextRecordedGroup(index) != group)
+                context.Timer.After(
+                    commandBuffer: context.CommandBuffer,
+                    slot: slot,
+                    pass: new(RenderScaleController.NameOf(group), 0) { Stage = stage }
+                );
         }
+    }
+
+    /// <summary>The cost group of the first pass after <paramref name="index"/> that records, or null after the last.</summary>
+    private RenderScaleController.CostGroup? NextRecordedGroup(int index)
+    {
+        for (int next = index + 1; next < passes.Count; next++)
+            if (!Skipped.Contains(passes[next].Pass.Name))
+                return RenderScaleController.CostGroupOf(passes[next].Stage);
+        return null;
     }
 
     private static unsafe void BeginOutput(FrameContext context)

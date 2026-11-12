@@ -5,7 +5,8 @@
 // Level 0 of one map's irradiance cube (EnvironmentPrefilterPass.cs, docs/plans/environment-map.md, "The irradiance"):
 // D(n) at the center of each texel, the mean of the radiance map's level of SourceFaceSize texels over the hemisphere of n,
 // each source texel weighted by its solid angle times max(n·ω, 0), in all four channels. IrradianceCube.Convolve is the C#
-// copy. The dispatch convolves map m: it reads cube m of the radiance map and writes layers 6m to 6m + 5 of the cube.
+// copy. The dispatch convolves the run of faces from firstFace of map m: it reads cube m of the radiance map and writes
+// layers 6m + firstFace on of the cube, one face per WorkgroupsPerFace workgroups.
 //
 // Lanes invocations share a texel of the cube, so a workgroup holds 64 / Lanes texels that follow each other in layer, row
 // and column order. The workgroup walks the source in rounds of 64 texels: each invocation puts one source texel into
@@ -28,7 +29,8 @@ layout(set = 1, binding = 0, rgba16f) uniform writeonly image2DArray irradianceL
 // EnvironmentPrefilterPushConstants in GpuTypes.cs, of which this shader reads only the map.
 layout(push_constant, std430) uniform PrefilterPush
 {
-    layout(offset = 76) uint map;  // m: the dispatch reads cube m and writes layers 6m to 6m + 5
+    layout(offset = 76) uint map;  // m: the dispatch reads cube m and writes layers of map m
+    uint firstFace;                // the first of the faces that the dispatch writes, whose workgroups cover them exactly
 } prefilter;
 
 // One round of the source: xyz the unit direction ω of a texel's center, w its solid angle, and its light.
@@ -44,8 +46,10 @@ void main()
     uint lane = index % Lanes;
     uint size = uint(imageSize(irradianceLevel0).x);
     uint texel = gl_WorkGroupID.x * (Invocations / Lanes) + index / Lanes;
-    uint layer = texel / (size * size);
-    uint inLayer = texel - layer * size * size;
+    // The texels run face by face, from the dispatch's first face.
+    uint faceIndex = texel / (size * size);
+    uint inLayer = texel - faceIndex * size * size;
+    uint layer = prefilter.firstFace + faceIndex;
     uvec2 xy = uvec2(inLayer % size, inLayer / size);
     vec3 n = normalize(faceRay(layer, (vec2(xy) + 0.5) / float(size)));
 

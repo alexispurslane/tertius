@@ -83,6 +83,9 @@ public static partial class ScriptCommand
         /// <summary>True to turn the renderer's skin scatter off, false to keep its default.</summary>
         public bool SubsurfaceOff { get; init; }
 
+        /// <summary>True to stamp only the render scale's cost groups, as the window does, false to keep a stamp per pass.</summary>
+        public bool PassTimestampsOff { get; init; }
+
         /// <summary>The frame count, 1 or 2, or null to keep the renderer's count and capture policy.</summary>
         public int? FramesInFlight { get; init; }
 
@@ -107,6 +110,8 @@ public static partial class ScriptCommand
                 options.EnvironmentMap = new NoEnvironmentMap();
             if (SubsurfaceOff)
                 options.Subsurface = new NoSubsurface();
+            if (PassTimestampsOff)
+                options.PassTimestamps = false;
             if (FramesInFlight is { } count)
             {
                 options.FramesInFlight = count;

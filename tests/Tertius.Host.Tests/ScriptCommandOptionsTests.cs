@@ -50,6 +50,7 @@ public sealed class ScriptCommandOptionsTests
         ["--environment-map", "off"],
         ["--subsurface", "off"],
         ["--in-flight", "2"],
+        ["--pass-timestamps", "off"],
     ];
 
     public static TheoryData<string[]> AcceptedCommandLines =>
