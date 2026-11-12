@@ -9,6 +9,8 @@ python3 -I leaves the script's folder out of the import path and the file name h
 
 import argparse
 import importlib.util
+import io
+import json
 import os
 import subprocess
 import tempfile
@@ -189,6 +191,248 @@ class Walks(unittest.TestCase):
         after = [[1.5, 2.0], [1.2, 2.0]] + control[2:]
         self.assertEqual(survey.walk_settle(after, control), [2, 0], "the step at frame 3 shows in both")
 
+
+STAND = {"name": "cabin-stand", "scene": "s", "camera": "person", "ticks": 60, "signal": "bounce", "film": 600, "end": 10,
+         "settleTick": 306, "region": "r11"}
+CLIMB = {"name": "cabin-climb", "scene": "s", "camera": "person", "states": [300, 306], "stills": 12, "signal": "bounce",
+         "exposure": "3.15", "region": "r11"}
+# The index of region r11, the centre cell of the 3 x 3 grid, in a row of region_means.
+BAND = 5
+
+
+def captures_of(built):
+    return [s["name"] for s in built["steps"] if s["do"] == "capture"]
+
+
+def ticks_before_capture(built, name):
+    ticks = 0
+    for step in built["steps"]:
+        if step["do"] == "capture" and step["name"] == name:
+            return ticks
+        if step["do"] == "run":
+            ticks += step["ticks"]
+        if step["do"] == "film":
+            ticks += step["frames"] * step["every"]
+    raise AssertionError(f"no capture {name}")
+
+
+def rows_with_band(band, rest=1.0):
+    """Rows of region means whose band region follows `band` and whose other regions hold `rest`."""
+    return [[rest] * BAND + [b] + [rest] * (9 - BAND) for b in band]
+
+
+class Stands(unittest.TestCase):
+    """The stand film of ter-g3tk: the cabin walk's view without the walk, one light signal, against its end level."""
+
+    def test_the_stand_draws_a_still_and_then_one_film_frame_a_tick_from_the_tick_after_its_head(self):
+        built = survey.stand_script(STAND)
+        self.assertEqual({s["name"]: s["frames"] for s in built["steps"] if s["do"] == "film"}, {"f": 600})
+        self.assertEqual(captures_of(built)[0], "still")
+        self.assertEqual(ticks_at_frame(built, "f", 0), 61)
+
+    def test_the_end_stills_follow_the_film_without_a_tick_so_they_continue_its_history(self):
+        built = survey.stand_script(STAND)
+        film = next(i for i, s in enumerate(built["steps"]) if s["do"] == "film")
+        self.assertEqual(built["steps"][film + 1:], survey.captures("end", 10))
+
+    def test_the_settle_after_a_tick_counts_from_the_film_frame_that_shows_that_tick(self):
+        frame = survey.stand_frame(STAND, 306)
+        self.assertEqual(ticks_at_frame(survey.stand_script(STAND), "f", frame), 306)
+
+    def test_the_excess_of_each_window_of_40_draws_is_its_mean_light_over_the_end_level(self):
+        end = [[2.0] * 10] * 5 + [[1.0] * 10] * 5
+        film = [[1.5] * 10] * 40 + [[1.25] * 10] * 40 + [[1.0] * 10] * 520
+        result = survey.stand_result(STAND, film, end)
+        self.assertEqual(result["end"], [1.0] * 10, "the end level is the mean of the last half of the end stills")
+        self.assertEqual(len(result["excess"]), 15)
+        self.assertEqual([row[BAND] for row in result["excess"][:3]], [0.5, 0.25, 0.0])
+
+    def test_each_region_settles_when_it_stays_within_5_percent_of_its_end_level(self):
+        end = [[1.0] * 10] * 10
+        film = rows_with_band([1.5] * 300 + [1.0] * 300)
+        result = survey.stand_result(STAND, film, end)
+        self.assertEqual(result["settleDraws"][BAND], 300)
+        self.assertEqual(result["settleDraws"][0], 0)
+        self.assertEqual(result["settleDrawsAfterTick"][BAND], 300 - 245, "frame 245 shows tick 306")
+        self.assertEqual(result["bandSettleDraws"], 55)
+        self.assertEqual(result["failed"], [])
+
+    def test_the_band_that_settles_later_than_60_draws_after_the_settle_tick_fails(self):
+        end = [[1.0] * 10] * 10
+        film = rows_with_band([1.5] * (245 + 61) + [1.0] * (600 - 245 - 61))
+        self.assertEqual(survey.stand_result(STAND, film, end)["failed"], ["settle"])
+
+    def test_a_region_other_than_the_band_that_wanders_to_the_films_end_does_not_fail_the_stand(self):
+        end = [[1.0] * 10] * 10
+        film = [[1.0] * 10 for _ in range(600)]
+        for k in range(500, 600):
+            film[k][4] = 1.1
+        result = survey.stand_result(STAND, film, end)
+        self.assertIsNone(result["settleDraws"][4], "r10 is still outside at the film's end")
+        self.assertEqual(result["failed"], [])
+
+
+class Climbs(unittest.TestCase):
+    """The climb test of ter-g3tk: continued stills of fixed states, with the diffuse filter and without it."""
+
+    def test_each_state_gets_its_continued_stills_at_its_world_tick(self):
+        built = survey.climb_script(CLIMB)
+        self.assertEqual(captures_of(built), captures_of({"steps": survey.captures("t300", 12) + survey.captures("t306", 12)}))
+        for state in (300, 306):
+            for k in (0, 11):
+                self.assertEqual(ticks_before_capture(built, f"t{state}-s{k:02d}"), state)
+
+    def test_the_climb_renders_the_bounce_light_alone_with_the_filter_and_without_it(self):
+        runs = survey.climb_runs(CLIMB, "3.15")
+        self.assertEqual(set(runs), {"filtered", "unfiltered"})
+        for env in runs.values():
+            self.assertEqual(env["TERTIUS_PROBE_SIGNAL"], survey.SIGNALS["bounce"])
+            self.assertEqual(env["TERTIUS_PROBE_STILL_CONTINUES"], "1")
+            self.assertEqual(env["TERTIUS_PROBE_EXPOSURE"], "3.15")
+        self.assertEqual(runs["unfiltered"]["TERTIUS_DIFFUSE_FILTER"], "off")
+        self.assertNotIn("TERTIUS_DIFFUSE_FILTER", runs["filtered"], "the filtered run keeps the renderer's kernel")
+
+    def climb(self, filtered, unfiltered, later=None):
+        later = later or filtered
+        return survey.climb_result(CLIMB, {"filtered": {"t300": rows_with_band(filtered), "t306": rows_with_band(later)},
+                                           "unfiltered": {"t300": rows_with_band(unfiltered),
+                                                          "t306": rows_with_band(unfiltered)}})
+
+    def test_the_bands_peak_counts_against_its_light_without_the_filter_from_still_5_on(self):
+        unfiltered = [0.15, 0.25, 0.28, 0.29, 0.3] + [0.3] * 7
+        result = self.climb([0.15, 0.2, 0.25, 0.3, 0.33, 0.36, 0.3, 0.3, 0.3, 0.3, 0.3, 0.291], unfiltered)
+        self.assertEqual(result["draws"], [33 * (k + 1) for k in range(12)])
+        self.assertAlmostEqual(result["plateau"]["t300"][BAND], 0.3)
+        self.assertAlmostEqual(result["peakShare"]["t300"][BAND], 1.2)
+        self.assertAlmostEqual(result["lastShare"]["t300"][BAND], 0.97)
+        self.assertAlmostEqual(result["bandPeakShare"], 1.2)
+        self.assertEqual(result["failed"], ["climb"])
+
+    def test_a_band_that_stays_within_10_percent_of_its_light_without_the_filter_passes(self):
+        result = self.climb([0.15, 0.25, 0.3, 0.32] + [0.31] * 8, [0.3] * 12)
+        self.assertAlmostEqual(result["bandPeakShare"], 0.32 / 0.3)
+        self.assertEqual(result["failed"], [])
+
+    def test_the_later_state_decides_when_its_band_climbs_higher(self):
+        result = self.climb([0.3] * 12, [0.3] * 12, later=[0.3] * 6 + [0.39] + [0.3] * 5)
+        self.assertAlmostEqual(result["bandPeakShare"], 1.3)
+        self.assertEqual(result["failed"], ["climb"])
+
+    def test_a_band_without_light_when_the_filter_is_off_measured_nothing(self):
+        result = self.climb([0.3] * 12, [0.0] * 12)
+        self.assertIsNone(result["bandPeakShare"])
+        self.assertEqual(result["failed"], [survey.NOT_MEASURED])
+
+
+def probe_png(path, value):
+    """A small capture of the probe whose every pixel has the scene luminance `value` (probe_luminance's encoding)."""
+    from PIL import Image
+    q = int(round((np.log2(value) + 24.0) / 40.0 * 16777215.0))
+    pixel = np.array([(q >> 16) & 255, (q >> 8) & 255, q & 255], np.uint8)
+    Image.fromarray(np.tile(pixel, (6, 6, 1))).save(path)
+
+
+class ProbeRuns(unittest.TestCase):
+    """run_stand and run_climb with a fake render that writes small probe captures of a chosen light."""
+
+    def run_case(self, runner, case, light):
+        calls = []
+
+        def render(out, built, *, binary, env=None, extra=(), **kwargs):
+            calls.append({"env": env, "extra": extra})
+            out.mkdir(parents=True)
+            for step in built["steps"]:
+                if step["do"] == "capture":
+                    names = [step["name"]]
+                elif step["do"] == "film":
+                    names = [f"{step['name']}-{k:06d}" for k in range(step["frames"])]
+                else:
+                    continue
+                for name in names:
+                    probe_png(out / f"{name}.png", light(name, env))
+            return out.parent / f"{out.name}.log"
+
+        with tempfile.TemporaryDirectory() as folder, mock.patch.object(survey, "render", render), \
+                mock.patch.object(survey, "probe_binary", lambda out: Path("probe")):
+            result = runner(Path(folder), case, argparse.Namespace(exposure="4.08"))
+            part = "stand" if runner is survey.run_stand else "climb"
+            saved = json.loads((Path(folder) / "results" / part / f"{case['name']}.json").read_text())
+            self.assertEqual(list((Path(folder) / "work").rglob("*.png")), [], "the captures are deleted")
+        self.assertEqual(saved, json.loads(json.dumps(result)))
+        return calls, result
+
+    def test_the_stand_measures_its_film_against_its_end_stills_in_the_bounce_light_alone(self):
+        calls, result = self.run_case(survey.run_stand, STAND,
+                                      lambda name, env: 1.5 if name.startswith("f-") and int(name[2:]) < 100 else 1.0)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0]["env"], {"TERTIUS_PROBE_EXPOSURE": "4.08", "TERTIUS_PROBE_SIGNAL": survey.SIGNALS["bounce"],
+                                           **survey.STILL_CONTINUES})
+        self.assertEqual(calls[0]["extra"], survey.PROBE_OPTIONS)
+        self.assertEqual(len(result["film"]), 600)
+        self.assertEqual(result["settleDraws"][BAND], 100)
+        self.assertEqual(result["bandSettleDraws"], 0)
+
+    def test_the_climb_takes_its_cases_exposure_and_measures_the_filtered_band_against_the_unfiltered(self):
+        def light(name, env):
+            peak = name == "t306-s05" and "TERTIUS_DIFFUSE_FILTER" not in env
+            return 1.25 if peak else 1.0
+
+        calls, result = self.run_case(survey.run_climb, CLIMB, light)
+        self.assertEqual([c["env"]["TERTIUS_PROBE_EXPOSURE"] for c in calls], ["3.15", "3.15"])
+        self.assertEqual(len(result["filtered"]["t300"]), 12)
+        self.assertAlmostEqual(result["bandPeakShare"], 1.25, places=4)
+        self.assertEqual(result["failed"], ["climb"])
+
+
+
+class StandAndClimbCases(unittest.TestCase):
+    """The cases of cases.json reproduce the takes of ter-g3tk, so that their numbers compare with its notes."""
+
+    def cases(self):
+        lists = survey.load_cases()
+        return lists["stands"][0], lists["climbs"][0]
+
+    def test_the_stand_is_the_cabin_walks_view_filmed_600_frames_from_tick_60(self):
+        stand, _ = self.cases()
+        self.assertEqual(survey.stand_script(stand)["steps"],
+                         [CAMERA("person"), RUN(60), CAPTURE("still"), FILM("f", 600, 1), *survey.captures("end", 10)])
+        self.assertEqual((stand["scene"], stand["signal"], stand["region"], stand["settleTick"]),
+                         ("orbit", "bounce", "r11", 306))
+
+    def test_the_climb_is_the_seed_test_of_12_continued_stills_at_ticks_300_and_306(self):
+        _, climb = self.cases()
+        self.assertEqual(survey.climb_script(climb)["steps"],
+                         [CAMERA("person"), RUN(300), *survey.captures("t300", 12), RUN(6), *survey.captures("t306", 12)])
+        self.assertEqual((climb["scene"], climb["signal"], climb["region"], climb["exposure"]),
+                         ("orbit", "bounce", "r11", "3.15"))
+
+    def test_the_stand_and_climb_parts_run_their_cases(self):
+        with tempfile.TemporaryDirectory() as folder, mock.patch.object(survey, "run_stand", return_value={}) as stand, \
+                mock.patch.object(survey, "run_climb", return_value={}) as climb, \
+                mock.patch.dict(os.environ, {survey.HOLDS_LOCK: "1"}), mock.patch("sys.stdout", new_callable=io.StringIO):
+            survey.run(argparse.Namespace(out=folder, no_build=True, parts="stand,climb", only=None, chunk=8,
+                                          exposure="4.08", clock_bin=None))
+        self.assertEqual([c.args[1]["name"] for c in stand.call_args_list], ["cabin-stand"])
+        self.assertEqual([c.args[1]["name"] for c in climb.call_args_list], ["cabin-climb"])
+
+    def test_the_report_gives_the_stands_band_settle_and_each_states_band_peak_share(self):
+        with tempfile.TemporaryDirectory() as folder:
+            out = Path(folder)
+            survey.save(out, "stand", "cabin-stand", {"region": "r11", "settleTick": 306, "settleWindow": 355,
+                                                      "bandSettleDraws": 55, "settleDrawsAfterTick": [12] + [0] * 9,
+                                                      "failed": []})
+            survey.save(out, "climb", "cabin-climb", {"region": "r11", "states": [300, 306],
+                                                      "peakShare": {"t300": [1.0] * 5 + [1.2] + [1.0] * 4,
+                                                                    "t306": [1.0] * 5 + [1.05] + [1.0] * 4},
+                                                      "lastShare": {"t300": [1.0] * 5 + [0.97] + [1.0] * 4,
+                                                                    "t306": [1.0] * 5 + [0.99] + [1.0] * 4},
+                                                      "bandPeakShare": 1.2, "failed": ["climb"]})
+            with mock.patch("sys.stdout", new_callable=io.StringIO) as printed:
+                survey.report(argparse.Namespace(out=folder))
+        lines = printed.getvalue().splitlines()
+        self.assertIn("| cabin-stand r11 after tick 306 | stand | 55 | 12 | pass |", lines)
+        self.assertIn("| cabin-climb | r11 | t300 | 1.200 | 0.970 | fail: climb |", lines)
+        self.assertIn("| cabin-climb | r11 | t306 | 1.050 | 0.990 | fail: climb |", lines)
 
 class Settle(unittest.TestCase):
     def test_a_region_whose_control_is_dark_settles_when_it_is_dark_too(self):

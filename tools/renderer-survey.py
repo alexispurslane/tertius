@@ -4,7 +4,7 @@ ter-8hyd: frame time, specks and blotches in stills, flicker in motion, and the 
 
 Usage, inside the dev shell from the repository root:
     python3 -I tools/renderer-survey.py probe-build <out>
-    python3 -I tools/renderer-survey.py run <out> [--parts timing,still,motion,switch,lag,walk] [--only NAME ...]
+    python3 -I tools/renderer-survey.py run <out> [--parts timing,still,motion,switch,lag,walk,stand,climb] [--only NAME ...]
     python3 -I tools/renderer-survey.py trace <out> [--slowest 5]
     python3 -I tools/renderer-survey.py report <out>
     python3 -I tools/renderer-survey.py sheet <out>
@@ -14,8 +14,8 @@ tools/renderer-survey/cases.json lists the cases. "run" builds the Release demo,
 the few that it keeps, and writes one result file per case into <out>/results/<part>/<name>.json. A case whose result
 file exists does not run again, so a stopped run goes on where it stopped; delete the file to run the case again.
 "report" prints the tables and the verdicts. "sheet" writes <out>/contact-sheet.png. "trace" records a GPU trace of the
-slowest views (tools/gpu-trace.sh). "probe-build" builds the lamp switch probe, which the parts switch, lag and walk
-need: a copy of HEAD with tools/renderer-survey/probe.patch, in <out>/probe-bin. The probe never enters src.
+slowest views (tools/gpu-trace.sh). "probe-build" builds the probe, which every part but timing needs: a copy of HEAD
+with tools/renderer-survey/probe.patch, in <out>/probe-bin. The probe never enters src.
 
 Every render runs at the budget's configuration: --size 1920x1080, so FSR 3.1 renders at 1280 x 720 (the headless
 render scale of 2/3), from the Release build.
@@ -102,7 +102,8 @@ FLICKER_LIMIT = 0.006
 GRAIN_FLICKER_LIMIT = 0.05
 
 # Each part of the survey and the list of tools/renderer-survey/cases.json whose cases it runs.
-PARTS = {"timing": "stills", "still": "stills", "motion": "motion", "switch": "switches", "lag": "lags", "walk": "walks"}
+PARTS = {"timing": "stills", "still": "stills", "motion": "motion", "switch": "switches", "lag": "lags", "walk": "walks",
+         "stand": "stands", "climb": "climbs"}
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -356,6 +357,50 @@ def walk_settle(after: list, control: list) -> list:
             for r in range(len(after[0]))]
 
 
+# The stand film of ticket ter-g3tk (/private/tmp/g3tk/run_dgate.sh): the walk's view without the walk, one light signal
+# alone, a still and then one film frame every tick, against the film's own end level. In the orbit cabin, the sun turns
+# against the ship at world ticks 300 to 306, and the bounce light that its sunlit sill strips give falls by 35 to 40 %
+# (docs/plans/bounce-light-confidence.md, section 10). The case's settle counts from its settleTick.
+
+
+def stand_script(case: dict) -> dict:
+    """The still, the film of case["film"] frames, and case["end"] continued stills right after the film's last frame."""
+    return scene_script(case["scene"], case["camera"], case["ticks"], [
+        {"do": "capture", "name": "still"},
+        {"do": "film", "name": "f", "frames": case["film"], "every": 1},
+        *captures("end", case["end"]),
+    ])
+
+
+def stand_frame(case: dict, tick: int) -> int:
+    """The stand film's frame that shows world tick `tick`: frame k shows tick case["ticks"] + k + 1."""
+    return tick - case["ticks"] - 1
+
+
+# The climb test of ticket ter-g3tk (/private/tmp/g3tk/look/seeds.json): continued stills of fixed states of the world,
+# one light signal alone, with the diffuse filter and without it. At a fixed state, the bounce light of the cabin's
+# far-ceiling band climbed to about 1.6 times its light without the filter over about 200 draws (section 10 of the
+# design). Each state's first still comes STILL_TICKS or more after the last drawn frame, so it starts a new history.
+
+
+def climb_script(case: dict) -> dict:
+    """For each world tick of case["states"], case["stills"] continued stills t<tick>-s00 ..."""
+    steps = []
+    done = 0
+    for tick in case["states"]:
+        steps += run_step(tick - done)
+        steps += captures(f"t{tick}", case["stills"])
+        done = tick
+    return scene_script(case["scene"], case["camera"], 0, steps)
+
+
+def climb_runs(case: dict, exposure: str) -> dict:
+    """The two probe runs of a climb case and their environments. The filtered run keeps the renderer's kernel, which
+    TERTIUS_DIFFUSE_FILTER selects (tools/README.md, "The diffuse filter's switch"); the other turns the filter off."""
+    common = {"TERTIUS_PROBE_EXPOSURE": exposure, "TERTIUS_PROBE_SIGNAL": SIGNALS[case["signal"]], **STILL_CONTINUES}
+    return {"filtered": common, "unfiltered": {**common, "TERTIUS_DIFFUSE_FILTER": "off"}}
+
+
 # ---------------------------------------------------------------------------------------------------------------------
 # Measures. NumPy and SciPy load on first use, so that the script functions above need neither.
 
@@ -521,6 +566,82 @@ def lag(film, still, slope) -> float | None:
     return (still - film) / slope
 
 
+# The names of the entries of a row of region_means: the whole image, then the cells r<row><column> of the grid. r11 is
+# the centre cell, which holds the orbit cabin's far-ceiling band in the walk's view (ticket ter-g3tk).
+REGION_NAMES = ["whole"] + [f"r{r}{c}" for r in range(GRID) for c in range(GRID)]
+
+
+def region_index(name: str) -> int:
+    return REGION_NAMES.index(name)
+
+
+def mean_rows(rows: list) -> list:
+    """The mean of rows of region means, region by region."""
+    return [sum(row[r] for row in rows) / len(rows) for r in range(len(rows[0]))]
+
+
+# The stand film's excess is the mean of each window of this many film draws (ticket ter-g3tk's tables of the stand).
+STAND_WINDOW = 40
+
+
+def stand_result(case: dict, film: list, end: list) -> dict:
+    """The stand film's measures, from the region means of its film frames and of its end stills. A region's end level is
+    the mean of the last half of the end stills, as /private/tmp/g3tk/walk_split.py took it. A window's excess is its
+    mean light over the end level, less 1. A settle counts the draws until a region stays within SETTLE_TOLERANCE of its
+    end level, from the film's first frame and from the frame that shows case["settleTick"]. The verdict reads the
+    settle of case["region"] after that tick: acceptance 7 of docs/plans/bounce-light-confidence.md names r11, because
+    r10 and r12 wander by about 5 % with the sampling fault of ticket ter-g3tk."""
+    level = mean_rows(end[len(end) // 2:])
+    excess = []
+    for first in range(0, len(film), STAND_WINDOW):
+        window = mean_rows(film[first:first + STAND_WINDOW])
+        excess.append([window[r] / level[r] - 1 if level[r] > 0 else None for r in range(len(level))])
+
+    def settles(first):
+        return [settle_draws([row[r] for row in film], [level[r]] * len(film), first, len(film))
+                for r in range(len(level))]
+
+    start = stand_frame(case, case["settleTick"])
+    after = settles(start)
+    result = {"scene": case["scene"], "signal": case["signal"], "region": case["region"], "firstTick": case["ticks"] + 1,
+              "settleTick": case["settleTick"], "settleFrame": start, "settleWindow": len(film) - start,
+              "window": STAND_WINDOW, "end": level, "excess": excess, "settleDraws": settles(0),
+              "settleDrawsAfterTick": after, "bandSettleDraws": after[region_index(case["region"])],
+              "film": film, "endStills": end}
+    result["failed"] = settle_verdict(result["bandSettleDraws"])
+    return result
+
+
+# The climb's yardstick is the band's light with the filter off, the mean of the unfiltered stills from this one on: from
+# draw 198, after the filter-off light reaches its plateau by about draw 132 (t0-f7zv, take T2a).
+CLIMB_PLATEAU_FIRST = 5
+# The target of acceptance 11 of docs/plans/bounce-light-confidence.md: the band's peak lies within this share of its
+# light with the filter off.
+CLIMB_LIMIT = 0.10
+
+
+def climb_result(case: dict, runs: dict) -> dict:
+    """The climb's measures, from the region means of the stills of each state, runs[label][f"t{tick}"], for the labels of
+    climb_runs. Each region's peak share is its largest light over a state's filtered stills, divided by its plateau: the
+    mean of the state's unfiltered stills from CLIMB_PLATEAU_FIRST on. The last share takes the last filtered still. The
+    verdict reads the band region's largest peak share over the states. Main's clamp loses part of the band's light, so
+    the share, and not the band's light, compares a build with another (section 10 of the design)."""
+    band = region_index(case["region"])
+    plateau, peak, last = {}, {}, {}
+    for tick in case["states"]:
+        state = f"t{tick}"
+        filtered = runs["filtered"][state]
+        plateau[state] = mean_rows(runs["unfiltered"][state][CLIMB_PLATEAU_FIRST:])
+        peak[state] = [max(row[r] for row in filtered) / p if p > 0 else None for r, p in enumerate(plateau[state])]
+        last[state] = [filtered[-1][r] / p if p > 0 else None for r, p in enumerate(plateau[state])]
+    shares = [peak[state][band] for state in peak]
+    result = {"scene": case["scene"], "signal": case["signal"], "region": case["region"], "states": case["states"],
+              "draws": [still_draws(True, k) for k in range(case["stills"])], "plateau": plateau, "peakShare": peak,
+              "lastShare": last, "bandPeakShare": None if None in shares else max(shares), **runs}
+    result["failed"] = climb_verdict(result["bandPeakShare"])
+    return result
+
+
 # ---------------------------------------------------------------------------------------------------------------------
 # Verdicts
 
@@ -570,6 +691,14 @@ def motion_verdict(result: dict) -> list:
 def settle_verdict(draws: int | None) -> list:
     """A settle fails over the goal, and when it did not settle within its window (settle_draws gives None)."""
     return ["settle"] if draws is None or draws > SETTLE_GOAL else []
+
+
+def climb_verdict(share: float | None) -> list:
+    """A climb fails when the band's peak exceeds its light with the filter off by more than CLIMB_LIMIT. A band without
+    light when the filter is off gives no share, so the case measured nothing."""
+    if share is None:
+        return [NOT_MEASURED]
+    return ["climb"] if share > 1 + CLIMB_LIMIT else []
 
 
 # A lag case fails when the median magnitude of the film's error against the still of the same state, over the regions
@@ -954,6 +1083,38 @@ def run_walk(out: Path, case: dict, args):
     return result
 
 
+
+def probe_exposure(case: dict, args) -> str:
+    """The probe's fixed exposure in stops: the case's own, or the run's --exposure."""
+    return case.get("exposure", args.exposure)
+
+
+def run_stand(out: Path, case: dict, args):
+    work = out / "work" / "stand" / case["name"]
+    env = {"TERTIUS_PROBE_EXPOSURE": probe_exposure(case, args), "TERTIUS_PROBE_SIGNAL": SIGNALS[case["signal"]],
+           **STILL_CONTINUES}
+    render(work, stand_script(case), binary=probe_binary(out), env=env, extra=PROBE_OPTIONS)
+    film = probe_series(work, "f-*.png")
+    end = probe_series(work, "end-s*.png")
+    shutil.rmtree(work)
+    result = stand_result(case, film, end)
+    save(out, "stand", case["name"], result)
+    return result
+
+
+def run_climb(out: Path, case: dict, args):
+    """The climb's two probe runs, one after the other: four 1920 x 1080 renders at once ran out of memory on the
+    workbench's 16 GB card (t0-f7zv)."""
+    runs = {}
+    for label, env in climb_runs(case, probe_exposure(case, args)).items():
+        work = out / "work" / "climb" / f"{case['name']}-{label}"
+        render(work, climb_script(case), binary=probe_binary(out), env=env, extra=PROBE_OPTIONS)
+        runs[label] = {f"t{tick}": probe_series(work, f"t{tick}-s*.png") for tick in case["states"]}
+        shutil.rmtree(work)
+    result = climb_result(case, runs)
+    save(out, "climb", case["name"], result)
+    return result
+
 def run_chunks(args) -> int:
     """Runs the pending cases in chunks of args.chunk, each under one take of the GPU lock, so that a chunk waits once
     for the other users of the lock and not once per render."""
@@ -993,7 +1154,7 @@ def run(args):
         subprocess.run(["dotnet", "build", "src/Tertius.Demo", "-c", "Release", "-v", "quiet", "-nologo"], cwd=ROOT,
                        check=True, stdout=subprocess.DEVNULL)
     runners = {"timing": run_timing, "still": run_still, "motion": run_motion, "switch": run_switch, "lag": run_lag,
-               "walk": run_walk}
+               "walk": run_walk, "stand": run_stand, "climb": run_climb}
     failures = 0
     for part in parts:
         runner = runners[part]
@@ -1342,6 +1503,19 @@ def report(args):
         window = r.get("window", len(r["after"]))
         lines.append(f"| {name} | walk stop | {settle_text(r['settleDraws'], window)} "
                      f"| {settle_text(r['settleDrawsWhole'], window)} | {'fail' if settle_verdict(r['settleDraws']) else 'pass'} |")
+    for name, r in results(out, "stand").items():
+        window = r["settleWindow"]
+        lines.append(f"| {name} {r['region']} after tick {r['settleTick']} | stand "
+                     f"| {settle_text(r['bandSettleDraws'], window)} | {settle_text(r['settleDrawsAfterTick'][0], window)} "
+                     f"| {'fail' if r['failed'] else 'pass'} |")
+    lines += ["", "| Climb | Band | State | Peak share | Last share | Verdict |", "|---|---|---|---:|---:|---|"]
+    for name, r in results(out, "climb").items():
+        band = region_index(r["region"])
+        verdict = "fail: " + ", ".join(r["failed"]) if r["failed"] else "pass"
+        for tick in r["states"]:
+            state = f"t{tick}"
+            lines.append(f"| {name} | {r['region']} | {state} | {cell(r['peakShare'][state][band], 3)} "
+                         f"| {cell(r['lastShare'][state][band], 3)} | {verdict} |")
     print("\n".join(lines))
     return 0
 

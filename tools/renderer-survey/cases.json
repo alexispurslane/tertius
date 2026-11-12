@@ -128,5 +128,11 @@
   ],
   "walks": [
     {"name": "cabin-walk", "scene": "orbit", "camera": "person", "ticks": 60, "key": 87, "stand": 180, "walk": 120, "after": 200}
+  ],
+  "stands": [
+    {"name": "cabin-stand", "scene": "orbit", "camera": "person", "ticks": 60, "signal": "bounce", "film": 600, "end": 10, "settleTick": 306, "region": "r11"}
+  ],
+  "climbs": [
+    {"name": "cabin-climb", "scene": "orbit", "camera": "person", "states": [300, 306], "stills": 12, "signal": "bounce", "exposure": "3.15", "region": "r11"}
   ]
 }
