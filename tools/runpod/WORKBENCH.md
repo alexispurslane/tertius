@@ -1,6 +1,8 @@
 # The GPU workbench
 
-The GPU workbench is a queue of cloud GPU jobs. An agent uses it to measure any change to the renderer: what the change saves in GPU time, and what it does to the image. Each job runs on an RTX 2000 Ada in a Runpod serverless worker and costs a few cents. Up to six jobs run at once. The workbench is the default place to measure. The Mac's GPU lock is only for the three cases in "What still needs the Mac".
+The GPU workbench is a queue of cloud GPU jobs. An agent uses it to measure any change to the renderer: what the change saves in GPU time, and what it does to the image. Each job runs on an RTX 2000 Ada in a Runpod serverless worker and costs a few cents. Up to five jobs run at once. The workbench is the default place to measure. The Mac's GPU lock is only for the three cases in "What still needs the Mac".
+
+The same queue runs CPU jobs on cheaper workers without a GPU: the official Stryker run of a hardening ("Tests in the cloud"). The $30 of credit must last until about 2026-12-07, and most of it goes to measurements of the engine. So the test suites run on the Mac by default, and the cloud runs them only on demand.
 
 The one command is `tools/runpod/gpu_job.py submit`. [README.md](README.md) describes how the queue, the caps, the images and the endpoints work.
 
@@ -93,7 +95,7 @@ For everything else, measure on the workbench, and give the Mac's lock to the ag
 
 ## Several jobs at once
 
-The endpoint runs up to six workers, so an agent can measure several variants at once. Each call of the script is one job and waits for it. Start each call in the background, and wait for all of them:
+The GPU endpoint runs up to five workers, so an agent can measure several variants at once. Each call of the script is one job and waits for it. Start each call in the background, and wait for all of them:
 
 ```bash
 for variant in cut-a cut-b cut-c; do
@@ -106,13 +108,13 @@ done
 wait
 ```
 
-An agent's own tool can also start each call as one background command. Compare each variant with the `main` of its own job, not with another job's main. If more than six jobs wait, the rest queue for up to two hours. Two A/A jobs at once each finished in about 150 s on 2026-11-12.
+An agent's own tool can also start each call as one background command. Compare each variant with the `main` of its own job, not with another job's main. If more than five jobs wait, the rest queue for up to two hours. The RTX 2000 Ada is scarce at times: on 2026-11-12 a job waited 19 minutes for a card. Two A/A jobs at once each finished in about 150 s on 2026-11-12.
 
 ## Costs and caps
 
-- A worker costs $0.00016 per second, $0.58 per hour, while it runs: its start, the job and 10 s of idle time. A worker that waits, or pulls the image, costs nothing.
+- A GPU worker costs $0.00016 per second, $0.58 per hour, while it runs: its start, the job and 10 s of idle time. A CPU worker costs $0.00002 per second, $0.07 per hour. A worker that waits, or pulls the image, costs nothing.
 - The script counts each job as its execution time plus 70 s, times the price. Examples: a five-run A/B $0.04, two stills $0.03, a short job of a few seconds $0.012.
-- The caps are $10 per UTC day and $30 in total, for all agents together. Before it sends a job, the script adds the job's worst case to the day's and the total spending and to the jobs in flight. If the sum passes a cap, it refuses the job and sends nothing.
+- The caps are $3 per UTC day from 2026-11-13 and $30 in total, for all agents and both kinds together. The $30 must last until about 2026-12-07. Before it sends a job, the script adds the job's worst case to the day's and the total spending and to the jobs in flight. If the sum passes a cap, it refuses the job and sends nothing.
 - Keep `--timeout` close to the real need. The worst case, and the cost of a cancelled job, follow it. A cancel does not stop a command that already runs.
 - The audit log is `~/.local/state/tertius/gpu-jobs/jobs.jsonl`, one line per job.
 - The script reads the key's file from the path in `~/.config/tertius/runpod-key-file`. An agent never reads, prints or copies the key, and never puts a credential in a job. The repository and the image are public, so a commit holds no secret.
