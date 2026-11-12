@@ -49,8 +49,10 @@ def display(y):
 
 def render(tree, case_name, signal, captures, env):
     case = next(c for c in sv.load_cases()["stills"] if c["name"] == case_name)
-    sv.STILL_CAPTURES = captures
-    script, first_is_still = sv.still_script(*sv.source_of(case))
+    # sv.still_script with its own count of captures: the threads must not share the survey's global count.
+    source, frame = sv.source_of(case)
+    script, still = sv.views_script(source, {frame: sv.captures("v", captures)})
+    first_is_still = still[frame]
     out = WORK / "render" / f"{tree}-{signal}-{env.get('TERTIUS_STBN', 'off')}-{env.get('TERTIUS_STBN_SHIFT', 'off')}"
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
