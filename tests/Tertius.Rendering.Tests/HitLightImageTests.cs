@@ -58,14 +58,11 @@ public sealed class HitLightImageTests
             var probe = ScreenTraceProbe.On(renderer, "hit_light_probe.comp");
             Draw(renderer, scene, frames);
 
-            float[][] leaving =
-            [
-                probe.Read(),
-                renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.Sample(0)),
-            ];
+            float[][] leaving = [probe.Read(), renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.Sample(0))];
             float[][] stored =
             [
-                .. Enumerable.Range(0, ScreenTraceImages.Kinds)
+                .. Enumerable
+                    .Range(0, ScreenTraceImages.Kinds)
                     .Select(kind => renderer.ReadImageLayer(renderer.ScreenTraceImages.HitLight, kind)),
             ];
             int hittable = 0,
@@ -79,7 +76,8 @@ public sealed class HitLightImageTests
                 for (int channel = 0; channel < 3; channel++)
                 {
                     float expected = leaving[kind][at + channel];
-                    stored[kind][at + channel]
+                    stored[kind]
+                        [at + channel]
                         .Should()
                         .BeApproximately(expected, 1e-3f * expected + 1e-6f, "pixel {0}, kind {1}", at / 4, kind);
                 }
@@ -109,18 +107,24 @@ public sealed class HitLightImageTests
 
             float[] reflection = rays.Read();
             float[] diffuse = renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.Sample(0));
-            foreach ((float[] traced, float marker) in (ValueTuple<float[], float>[])
-                         [(reflection, ReflectionMarker), (diffuse, DiffuseMarker)])
+            foreach (
+                (float[] traced, float marker) in (ValueTuple<float[], float>[])
+                    [(reflection, ReflectionMarker), (diffuse, DiffuseMarker)]
+            )
             {
                 float[] hitLights =
                 [
-                    .. Enumerable.Range(0, Width * Height)
+                    .. Enumerable
+                        .Range(0, Width * Height)
                         .Where(pixel => traced[4 * pixel + 1] > 0)
                         .Select(pixel => traced[4 * pixel]),
                 ];
                 hitLights.Length.Should().BeGreaterThan(100, "rays from the floor hit the wall and the floor");
                 // A hit's light is the marker faded into the miss's light, which is far below either marker.
-                hitLights.Max().Should().BeInRange(0.9f * marker, 1.001f * marker, "the hits read the marker of their kind");
+                hitLights
+                    .Max()
+                    .Should()
+                    .BeInRange(0.9f * marker, 1.001f * marker, "the hits read the marker of their kind");
             }
         }
         finally
@@ -164,7 +168,12 @@ public sealed class HitLightImageTests
             Draw(renderer, scene, frames: 12);
             // A roughness change of more than 0.1, from 0.3 to 0.45, fails the specular test of the floor's pixels and keeps the diffuse test.
             RenderInstance floor = scene.Instances[0];
-            floor.Material = renderer.CreateMaterial(Mirror(roughness: 0.45f) with { NormalMap = FlatNormalMap(renderer) });
+            floor.Material = renderer.CreateMaterial(
+                Mirror(roughness: 0.45f) with
+                {
+                    NormalMap = FlatNormalMap(renderer),
+                }
+            );
             scene.Instances[0] = floor;
             Draw(renderer, scene, frames: 1);
 
@@ -183,12 +192,20 @@ public sealed class HitLightImageTests
                 for (int channel = 0; channel < 3; channel++)
                     part[at + channel]
                         .Should()
-                        .BeApproximately(expected[at + channel], 2e-3f * expected[at + channel] + 1e-4f, "pixel {0}", at / 4);
+                        .BeApproximately(
+                            expected[at + channel],
+                            2e-3f * expected[at + channel] + 1e-4f,
+                            "pixel {0}",
+                            at / 4
+                        );
             }
             tested.Should().BeGreaterThan(Width * Height / 10, "the floor fills the lower part of the view");
             ownReflections
                 .Should()
-                .BeGreaterThan(tested / 2, "a pixel without a specular history traces its own reflection ray, but its block's chosen pixel");
+                .BeGreaterThan(
+                    tested / 2,
+                    "a pixel without a specular history traces its own reflection ray, but its block's chosen pixel"
+                );
         }
         finally
         {
@@ -205,13 +222,19 @@ public sealed class HitLightImageTests
         Environment.SetEnvironmentVariable(FilterSwitch, "off");
         const int width = 640,
             height = 360;
-        (VulkanRenderer renderer, RenderSnapshot scene) = GlossyFloorBeforeAWall(width: width, height: height, impostors: true);
+        (VulkanRenderer renderer, RenderSnapshot scene) = GlossyFloorBeforeAWall(
+            width: width,
+            height: height,
+            impostors: true
+        );
         try
         {
             scene.Instances.Add(
                 Gpu.Instance(
                     mesh: renderer.CreateMesh(Primitives.Sphere(1f, 48, 24)),
-                    material: renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.8f, y: 0.2f, z: 0.2f, w: 1f), roughness: 0.5f)),
+                    material: renderer.CreateMaterial(
+                        MaterialDesc.Color(new(x: 0.8f, y: 0.2f, z: 0.2f, w: 1f), roughness: 0.5f)
+                    ),
                     position: new(-1, FloorHeight + 0.3f, -5),
                     scale: new(0.3f),
                     entity: 9,
@@ -224,7 +247,8 @@ public sealed class HitLightImageTests
             float[] leaving = probe.Read();
             float[][] stored =
             [
-                .. Enumerable.Range(0, ScreenTraceImages.Kinds)
+                .. Enumerable
+                    .Range(0, ScreenTraceImages.Kinds)
                     .Select(kind => renderer.ReadImageLayer(renderer.ScreenTraceImages.HitLight, kind)),
             ];
             int impostor = 0;
@@ -235,9 +259,15 @@ public sealed class HitLightImageTests
                 impostor++;
                 for (int kind = 0; kind < ScreenTraceImages.Kinds; kind++)
                 for (int channel = 0; channel < 3; channel++)
-                    stored[kind][at + channel]
+                    stored[kind]
+                        [at + channel]
                         .Should()
-                        .BeApproximately(leaving[at + channel], 1e-3f * leaving[at + channel] + 1e-6f, "pixel {0}", at / 4);
+                        .BeApproximately(
+                            leaving[at + channel],
+                            1e-3f * leaving[at + channel] + 1e-6f,
+                            "pixel {0}",
+                            at / 4
+                        );
             }
             renderer.LastFrameStats.Impostors.Should().BePositive("the small sphere and the panel are impostors");
             impostor.Should().BePositive("the impostor's pixels hold no base color");
@@ -284,7 +314,12 @@ public sealed class HitLightImageTests
             )
         );
         scene.Instances.Add(
-            Block(box: box, material: Glow(renderer, new(glow)), center: new(0.8f, FloorHeight + 0.6f, -6.99f), size: new(0.6f, 0.4f, 0.02f))
+            Block(
+                box: box,
+                material: Glow(renderer, new(glow)),
+                center: new(0.8f, FloorHeight + 0.6f, -6.99f),
+                size: new(0.6f, 0.4f, 0.02f)
+            )
         );
         return (renderer, scene);
     }

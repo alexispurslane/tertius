@@ -1120,7 +1120,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         // The bindings before the light pyramid's two images, which start at ScreenTraceLightBinding.
         int beforeLight = (int)(lists + ScreenTraceStorageBuffers + ScreenTraceAgeImages);
         Span<DescriptorSetLayoutBinding> bindings =
-            stackalloc DescriptorSetLayoutBinding[beforeLight + (int)(ScreenTraceLightImages + ScreenTraceHitLightImages)];
+            stackalloc DescriptorSetLayoutBinding[
+                beforeLight + (int)(ScreenTraceLightImages + ScreenTraceHitLightImages)
+            ];
         for (uint binding = 0; binding < ScreenTraceSampledImages; binding++)
             bindings[(int)binding] = Image(binding: binding, stages: ShaderStageFlags.ComputeBit);
         for (uint binding = ScreenTraceSampledImages; binding < lists; binding++)
