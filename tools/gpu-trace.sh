@@ -89,8 +89,8 @@ python3 -I tools/gpu-trace.py trim "$script" "$start" "$frames" "$traced"
 # xctrace starts the demo from a clean environment, and macOS strips DYLD_* from a process that /usr/bin starts, so
 # each variable that the demo needs from the dev shell goes through --env.
 env_args=()
-for name in DOTNET_ROOT VK_ICD_FILENAMES DYLD_FALLBACK_LIBRARY_PATH; do
-  env_args+=(--env "$name=${!name}")
+for name in DOTNET_ROOT VK_ICD_FILENAMES DYLD_FALLBACK_LIBRARY_PATH TERTIUS_DIFFUSE_FILTER; do
+  env_args+=(--env "$name=${!name-}")
 done
 instruments=()
 if [[ "$counters" -eq 1 ]]; then

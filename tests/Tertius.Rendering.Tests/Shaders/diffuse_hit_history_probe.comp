@@ -1,6 +1,6 @@
 #version 460
 // The history part of a diffuse ray's hit at each pixel q of a white surface without glow: the light of a hit
-// (hitLightOf) less q's direct diffuse light, whose material factor is 1.
+// (leavingLightAt) less q's direct diffuse light, whose material factor is 1.
 #extension GL_GOOGLE_include_directive : require
 #include "screen_trace.glsl"
 
@@ -11,6 +11,6 @@ void main()
     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
     if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
         return;
-    vec3 history = hitLightOf(pixel, KindDiffuse) - imageLoad(directDiffuseLight, pixel).rgb;
+    vec3 history = leavingLightAt(pixel).diffuse - imageLoad(directDiffuseLight, pixel).rgb;
     imageStore(specularSample, pixel, vec4(history, 1.0));
 }

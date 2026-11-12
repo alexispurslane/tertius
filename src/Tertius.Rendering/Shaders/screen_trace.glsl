@@ -44,9 +44,12 @@ layout(set = 3, binding = 16, rgba16f) uniform writeonly image2D specularSample;
 OWN_RAY_LIST(3, 17, reflectionOwnRays);
 OWN_RAY_LIST(3, 18, diffuseOwnRays);
 // The light pyramid (ARCHITECTURE.md, "Guided diffuse rays", light_pyramid.glsl): each pixel's guide light, and the sums
-// of levels 1 to L, mip m level m + 1, whose padding holds no light. Bindings 19 to 22 are the light age's.
-layout(set = 3, binding = 23) uniform texture2D lightFinest;    // R32F
-layout(set = 3, binding = 24) uniform texture2D lightLevels;    // R32F
+// of levels 1 to L, mip m level m + 1, whose padding holds no light. Bindings 19 to 23 are the light age's.
+layout(set = 3, binding = 24) uniform texture2D lightFinest;    // R32F
+layout(set = 3, binding = 25) uniform texture2D lightLevels;    // R32F
+// The hit light (ticket ter-67y3, ScreenTraceImages.HitLight), layer KindReflection and KindDiffuse: rgb the light that
+// leaves each pixel that a walk can hit toward a ray of the kind (leavingLightOf). The plan writes it, and a hit reads it.
+layout(set = 3, binding = 26, rgba16f) uniform image2DArray hitLight;
 
 #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
 // The light-change age of a precise specular history (tickets tiunr-py6q and tiunr-7haj, ScreenTraceImages.LightAge): r
@@ -57,6 +60,10 @@ layout(set = 3, binding = 19, rg32f) uniform readonly image2D lastLightAge;
 layout(set = 3, binding = 20, rg32f) uniform image2D lightAge;
 // The specular sample's light age (TemporalSignal.SampleAge), which the resolve writes: an age code (ageCodeOf).
 layout(set = 3, binding = 21, r16ui) uniform writeonly uimage2D specularSampleAge;
+// FSR 3.1's transparency and composition mask (ScreenTraceImages.LightChangeMask), which the resolve writes from this
+// frame's records (lightChangeMaskAt): where the direct light changed, FSR's history keeps to this frame's light (ticket
+// t1-4hij).
+layout(set = 3, binding = 22, r8) uniform writeonly image2D lightChangeMask;
 
 // The age of a pixel whose light the record never saw change, in the frame that first shows it: no evidence. Each later
 // frame that shows it unchanged lowers it by one, down to −(MostLightAge + 1).
@@ -96,11 +103,52 @@ float pendingDrawsOfRecord(float g)
     return round(abs(g - trunc(g)) * LightChangeDraws);
 }
 
+// The frames after a change of the pixel's light in which FSR's history keeps to this frame's light.
+const float LightChangeMaskFrames = 8.0;
+
+// Whether a record's g shows its pixel's light changing (ticket t1-4hij): while a change is pending and for
+// LightChangeMaskFrames frames after it counts.
+bool changingLight(float g)
+{
+    bool recent = g >= 0.0 && ageOfRecord(g) < LightChangeMaskFrames;
+    return recent || pendingDrawsOfRecord(g) > 0.0;
+}
+
+// FSR 3.1's transparency and composition mask at the pixel (ticket t1-4hij), from this frame's light-age records: 1 where
+// the opening of the changing pixels by a 3 × 3 block holds the pixel, that is where some 3 × 3 block around it changes
+// whole, else 0. Under the mask FSR clamps its history to the pixel's neighbors in this frame, so a still surface under a
+// moving light does not keep the light of the light's earlier places. A moving light or caster changes the light of a
+// band many pixels wide, which the opening keeps. The jitter that moves a pixel on and off a still feature thinner than a
+// pixel changes its record too, in a line one or two pixels wide, which the opening removes: under the mask FSR's clamp
+// would follow that aliasing. The resolve writes it, after the plan wrote every record.
+float lightChangeMaskAt(ivec2 pixel)
+{
+    // An opening holds only pixels that change: one read decides the still pixels.
+    if (!changingLight(imageLoad(lightAge, pixel).g))
+        return 0.0;
+    ivec2 last = ivec2(frame.viewport.xy) - 1;
+    bool changing[5][5];
+    for (int y = 0; y < 5; y++)
+        for (int x = 0; x < 5; x++)
+            changing[y][x] = changingLight(imageLoad(lightAge, clamp(pixel + ivec2(x - 2, y - 2), ivec2(0), last)).g);
+    for (int y = 0; y < 3; y++)
+        for (int x = 0; x < 3; x++)
+        {
+            bool whole = true;
+            for (int dy = 0; dy < 3; dy++)
+                for (int dx = 0; dx < 3; dx++)
+                    whole = whole && changing[y + dy][x + dx];
+            if (whole)
+                return 1.0;
+        }
+    return 0.0;
+}
+
 #ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
 // The diagnostic of uncovered surfaces (TemporalSignal.UncoveredDiagnostic), which only the capture tool and the tests
 // read: the resolve writes r, the fewest frames seen among the never-changed surfaces that the specular sample's rays
 // hit, or −1 for none. The temporal dispatch writes the other channels.
-layout(set = 3, binding = 22, rgba32f) uniform writeonly image2D uncoveredDiagnostic;
+layout(set = 3, binding = 23, rgba32f) uniform writeonly image2D uncoveredDiagnostic;
 
 // The age of a ray that hit nothing: below every record's age, so that a miss differs from a surface first shown.
 const float MissLightAge = -65536.0;
@@ -370,35 +418,72 @@ vec2 lastPlaceAt(ivec2 pixel)
     return readPlace(vec2(pixel) + 0.5, imageLoad(motionTarget, pixel));
 }
 
-// The light of a hit at the pixel q, pre-exposed (section 6, "Where a hit's light comes from"): this frame's direct
-// light and the last frame's light of both signals at q's place, times q's material factors, and the glow that q sends. A diffuse
-// ray leaves out q's specular part. Where q fails the surface test, and so in a reset frame, a history is the
-// environment's closed form at q. An impostor's light is its emission, which holds its ambient light.
+// The light that leaves a pixel toward a ray of each kind, pre-exposed and at most MaxRadiance.
+struct LeavingLight
+{
+    vec3 reflection;   // toward a reflection ray
+    vec3 diffuse;      // toward a diffuse ray, which leaves out the pixel's specular part
+};
+
+// The reprojection of a pixel into the last frame for each signal, by the surface test's pass bits at the pixel.
+struct SignalReprojections
+{
+    Reprojection diffuse;
+    Reprojection specular;
+};
+
+SignalReprojections reprojectionsAt(ivec2 pixel)
+{
+    uint bits = imageLoad(surfaceTest, pixel).r;
+    vec2 place = lastPlaceAt(pixel);
+    return SignalReprojections(reprojectionOf(place, bits & 0xFu), reprojectionOf(place, (bits >> 4) & 0xFu));
+}
+
+// The glow that the pixel sends: its emission, or 0 where its entity holds a light.
+vec3 glowAt(ivec2 pixel)
+{
+    return glowSent(texelFetch(gbufferEmissive, pixel, 0).rgb, lightMarkOfWord(texelFetch(gbufferShading, pixel, 0).b));
+}
+
+// The light that leaves the pixel q of a traced surface toward a ray of each kind (section 6, "Where a hit's light comes
+// from"), from q's material s, its view direction V and its reprojections r: this frame's direct light and the last
+// frame's light of both signals at q's place, times q's material factors, and the glow that q sends. A diffuse ray leaves
+// out q's specular part. Where q fails the surface test, and so in a reset frame, a history is the environment's closed
+// form at q. The plan writes it into the hit light image (ticket ter-67y3), and a hit reads it there (hitLightOf).
+LeavingLight leavingLightOf(ivec2 q, ShadingInput s, vec3 V, SignalReprojections r)
+{
+    MaterialFactors factors = materialFactors(s, lobesOf(s, V));
+    IndirectLight closedLight = IndirectLight(vec3(0.0), vec3(0.0));
+    if (!holdsHistory(r.diffuse) || !holdsHistory(r.specular))
+        closedLight = closedForm(withAmbientFootprint(s, q), V);
+    vec3 diffuseHistory = holdsHistory(r.diffuse) ? lastLightOf(r.diffuse, KindDiffuse) : closedLight.diffuse;
+    vec3 light = factors.diffuse * (imageLoad(directDiffuseLight, q).rgb + diffuseHistory) + glowAt(q);
+    vec3 specularHistory = holdsHistory(r.specular) ? lastLightOf(r.specular, KindReflection) : closedLight.specular;
+    vec3 reflection = light + factors.specular * (imageLoad(directSpecularLight, q).rgb + specularHistory);
+    return LeavingLight(min(reflection, vec3(MaxRadiance)), min(light, vec3(MaxRadiance)));
+}
+
+// The light that leaves the pixel q toward a ray of each kind (leavingLightOf). An impostor's light is its emission,
+// which holds its ambient light.
+LeavingLight leavingLightAt(ivec2 q)
+{
+    if (texelFetch(gbufferBaseColor, q, 0).a == 0.0)
+        return LeavingLight(glowAt(q), glowAt(q));
+    return leavingLightOf(q, materialAt(q), -normalize(viewRayThrough(vec2(q) + 0.5)), reprojectionsAt(q));
+}
+
+// Whether a walk can hit the pixel, inside the viewport: its finest depth lies in front of the eye (walkScreen). The sky's
+// is 0.
+bool hittable(ivec2 pixel)
+{
+    return texelFetch(depthFinest, pixel, 0).r > 0.0;
+}
+
+// The light of a hit at the pixel q toward a ray of the kind, pre-exposed: the plan's hit light (leavingLightAt). The
+// pixel must be hittable.
 vec3 hitLightOf(ivec2 q, uint kind)
 {
-    vec3 emissive = texelFetch(gbufferEmissive, q, 0).rgb;
-    vec3 glow = glowSent(emissive, lightMarkOfWord(texelFetch(gbufferShading, q, 0).b));
-    if (texelFetch(gbufferBaseColor, q, 0).a == 0.0)
-        return glow;
-    ShadingInput s = materialAt(q);
-    vec3 V = -normalize(viewRayThrough(vec2(q) + 0.5));
-    MaterialFactors factors = materialFactors(s, lobesOf(s, V));
-    uint bits = imageLoad(surfaceTest, q).r;
-    vec2 place = lastPlaceAt(q);
-    Reprojection diffuse = reprojectionOf(place, bits & 0xFu);
-    Reprojection specular = reprojectionOf(place, (bits >> 4) & 0xFu);
-    bool closed = !holdsHistory(diffuse) || kind == KindReflection && !holdsHistory(specular);
-    IndirectLight closedLight = IndirectLight(vec3(0.0), vec3(0.0));
-    if (closed)
-        closedLight = closedForm(withAmbientFootprint(s, q), V);
-    vec3 diffuseHistory = holdsHistory(diffuse) ? lastLightOf(diffuse, KindDiffuse) : closedLight.diffuse;
-    vec3 light = factors.diffuse * (imageLoad(directDiffuseLight, q).rgb + diffuseHistory) + glow;
-    if (kind == KindReflection)
-    {
-        vec3 specularHistory = holdsHistory(specular) ? lastLightOf(specular, KindReflection) : closedLight.specular;
-        light += factors.specular * (imageLoad(directSpecularLight, q).rgb + specularHistory);
-    }
-    return min(light, vec3(MaxRadiance));
+    return imageLoad(hitLight, ivec3(q, kind)).rgb;
 }
 
 // The guide light of a cell of the light pyramid's level, 0 beyond the level's image, whose fetch is undefined.

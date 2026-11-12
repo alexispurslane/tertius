@@ -8,10 +8,10 @@ namespace Tertius.Rendering;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The variance dispatch pairs the signal's slow history with the standard deviation of its samples' luminance. Then
-/// <see cref="Dispatches"/> wavelet dispatches each take a 5 × 5 B-spline kernel at taps 2^i pixels apart, stopped by the
-/// pixels' planes, normals and luminance. Unlike the paper's normalized mean, a dispatch moves light between two pixels
-/// by a share that is the same in both directions, so it neither makes nor loses light (diffuse_filter_wavelet.comp).
+/// The variance dispatch pairs the signal's slow history with the standard deviation of its samples' luminance. Then the
+/// kernel's wavelet dispatches each take its B-spline kernel at taps 2^i pixels apart, stopped by the pixels' planes,
+/// normals and luminance (<see cref="DiffuseFilterKernel"/>). A dispatch moves light between two pixels by a share that is
+/// the same in both directions, so it neither makes nor loses light (diffuse_filter_wavelet.glsl).
 /// </para>
 /// <para>
 /// The light of dispatch <see cref="FeedbackDispatch"/> replaces the slow history's light, as the paper feeds back its
@@ -30,17 +30,14 @@ namespace Tertius.Rendering;
 /// </remarks>
 internal sealed unsafe class DiffuseFilter : IDisposable
 {
-    /// <summary>The wavelet dispatches: the paper's five, whose last takes taps 16 pixels apart.</summary>
-    public const int Dispatches = 5;
-
     /// <summary>The dispatch whose light the slow history takes: the paper's first.</summary>
     public const int FeedbackDispatch = 0;
 
     /// <summary>
     /// The filter sets of one filter: a variance set per parity, whose fast history differs, and a wavelet set per
-    /// dispatch, which reads no fast history.
+    /// dispatch of the kernel with the most, which reads no fast history.
     /// </summary>
-    public const uint Sets = 2 + Dispatches;
+    public const uint Sets = 2 + DiffuseFilterKernel.MostDispatches;
 
     /// <summary>The width and the height of a workgroup: the shaders' local size.</summary>
     private const uint GroupSize = 8;
@@ -57,17 +54,19 @@ internal sealed unsafe class DiffuseFilter : IDisposable
     private readonly DescriptorSet[] varianceSets = new DescriptorSet[2];
 
     /// <summary>The set of each wavelet dispatch.</summary>
-    private readonly DescriptorSet[] waveletSets = new DescriptorSet[Dispatches];
+    private readonly DescriptorSet[] waveletSets;
     private GpuImage[] passes;
 
     /// <param name="signal">The diffuse signal, whose part 0 the filter reads and whose slow history it writes.</param>
+    /// <param name="kernel">The wavelet kernel (<see cref="DiffuseFilterKernel"/>).</param>
     public DiffuseFilter(
         VulkanDevice device,
         DeviceAllocator allocator,
         DescriptorLayouts layouts,
         ShaderLibrary shaders,
         RenderTargets targets,
-        TemporalSignal signal
+        TemporalSignal signal,
+        DiffuseFilterKernel kernel
     )
     {
         this.device = device;
@@ -75,14 +74,19 @@ internal sealed unsafe class DiffuseFilter : IDisposable
         this.layouts = layouts;
         this.targets = targets;
         this.signal = signal;
+        Kernel = kernel;
+        waveletSets = new DescriptorSet[kernel.Dispatches];
         foreach (DescriptorSet[] sets in (DescriptorSet[][])[varianceSets, waveletSets])
             for (int index = 0; index < sets.Length; index++)
                 sets[index] = layouts.AllocateFilterSet();
-        variance = CreatePipeline(shaders, "variance");
-        wavelet = CreatePipeline(shaders, "wavelet");
+        variance = CreatePipeline(shaders: shaders, name: "variance", shader: "diffuse_filter_variance.comp");
+        wavelet = CreatePipeline(shaders: shaders, name: "wavelet", shader: kernel.WaveletShader);
         (passes, Filtered) = CreateImages();
         WriteSets();
     }
+
+    /// <summary>The filter's wavelet kernel.</summary>
+    public DiffuseFilterKernel Kernel { get; }
 
     /// <summary>
     /// The filtered light after the last frame's filter: rgb the demodulated, pre-exposed light, a the deviation of its
@@ -91,16 +95,20 @@ internal sealed unsafe class DiffuseFilter : IDisposable
     public GpuImage Filtered { get; private set; }
 
     /// <summary>
-    /// Whether the debug switch TERTIUS_DIFFUSE_FILTER turns the filter on: unset, empty and "on" turn it on, "off" turns it
-    /// off, so that the composite shows the slow history and the rays read the fast history, as before the filter.
+    /// The kernel that the debug switch TERTIUS_DIFFUSE_FILTER selects, or null for no filter: unset, empty, "on" and
+    /// "thin" select the thin kernel, "wide" the paper's kernel, and "off" no filter, so that the composite shows the slow
+    /// history and the rays read the fast history, as before the filter.
     /// </summary>
     /// <exception cref="ArgumentException">The variable holds another value.</exception>
-    public static bool SwitchedOn() =>
+    public static DiffuseFilterKernel? Selected() =>
         Environment.GetEnvironmentVariable("TERTIUS_DIFFUSE_FILTER") switch
         {
-            null or "" or "on" => true,
-            "off" => false,
-            var value => throw new ArgumentException($"Unknown TERTIUS_DIFFUSE_FILTER value '{value}': use on or off."),
+            null or "" or "on" or "thin" => DiffuseFilterKernel.Thin,
+            "wide" => DiffuseFilterKernel.Wide,
+            "off" => null,
+            var value => throw new ArgumentException(
+                $"Unknown TERTIUS_DIFFUSE_FILTER value '{value}': use on, thin, wide or off."
+            ),
         };
 
     /// <summary>
@@ -122,7 +130,7 @@ internal sealed unsafe class DiffuseFilter : IDisposable
         barriers.Image(passes[0], ImageUse.StorageCompute, discard: true);
         Dispatch(context: context, pipeline: variance, set: varianceSets[parity], push: default);
 
-        for (int dispatch = 0; dispatch < Dispatches; dispatch++)
+        for (int dispatch = 0; dispatch < waveletSets.Length; dispatch++)
         {
             var push = new DiffuseFilterPushConstants
             {
@@ -159,7 +167,8 @@ internal sealed unsafe class DiffuseFilter : IDisposable
     private GpuImage InputOf(int dispatch) => passes[dispatch % 2];
 
     /// <summary>The image that wavelet dispatch <paramref name="dispatch"/> writes: <see cref="Filtered"/> for the last.</summary>
-    private GpuImage OutputOf(int dispatch) => dispatch == Dispatches - 1 ? Filtered : passes[(dispatch + 1) % 2];
+    private GpuImage OutputOf(int dispatch) =>
+        dispatch == waveletSets.Length - 1 ? Filtered : passes[(dispatch + 1) % 2];
 
     private bool FitsTargets() =>
         SameExtent(Filtered.Extent) && SameExtent(passes[0].Extent) && SameExtent(passes[1].Extent);
@@ -167,11 +176,11 @@ internal sealed unsafe class DiffuseFilter : IDisposable
     private bool SameExtent(Extent2D extent) =>
         extent.Width == targets.Extent.Width && extent.Height == targets.Extent.Height;
 
-    private Pipeline CreatePipeline(ShaderLibrary shaders, string kind) =>
+    private Pipeline CreatePipeline(ShaderLibrary shaders, string name, string shader) =>
         new ComputePipelineDesc
         {
-            Name = $"diffuse filter {kind}",
-            Shader = $"diffuse_filter_{kind}.comp",
+            Name = $"diffuse filter {name}",
+            Shader = shader,
             Layout = layouts.DiffuseFilterLayout,
         }.Create(device, shaders);
 
@@ -208,7 +217,7 @@ internal sealed unsafe class DiffuseFilter : IDisposable
             WriteSet(set: varianceSets[parity], input: passes[1], output: passes[0], parity: parity);
 
         // The wavelet dispatches read no fast history: binding 3 holds parity 0's for the layout.
-        for (int dispatch = 0; dispatch < Dispatches; dispatch++)
+        for (int dispatch = 0; dispatch < waveletSets.Length; dispatch++)
             WriteSet(set: waveletSets[dispatch], input: InputOf(dispatch), output: OutputOf(dispatch), parity: 0);
     }
 
@@ -250,6 +259,42 @@ internal sealed unsafe class DiffuseFilter : IDisposable
         device.Vk.DestroyPipeline(device.Device, variance, null);
         device.Vk.DestroyPipeline(device.Device, wavelet, null);
     }
+}
+
+/// <summary>
+/// A wavelet kernel of the diffuse filter (diffuse_filter_wavelet.glsl): <see cref="Thin"/> or <see cref="Wide"/>. The
+/// thin kernel reaches 63 pixels along each axis and the wide kernel 62, and each kernel's steps together cover every
+/// pixel inside its reach.
+/// </summary>
+internal sealed class DiffuseFilterKernel
+{
+    /// <summary>The most dispatches of a kernel: the thin kernel's. The descriptor pool holds a set for each.</summary>
+    public const int MostDispatches = 6;
+
+    /// <summary>
+    /// The default: six dispatches of a 3 × 3 kernel, (1, 2, 1) / 4 along each axis, at taps 1 to 32 pixels apart. That is
+    /// 48 taps per pixel (ticket ter-hxhl).
+    /// </summary>
+    public static readonly DiffuseFilterKernel Thin = new(MostDispatches, "diffuse_filter_wavelet.comp");
+
+    /// <summary>
+    /// The paper's five dispatches of a 5 × 5 kernel, (1, 4, 6, 4, 1) / 16 along each axis, at taps 1 to 16 pixels apart.
+    /// That is 120 taps per pixel.
+    /// </summary>
+    public static readonly DiffuseFilterKernel Wide = new(5, "diffuse_filter_wavelet_wide.comp");
+
+    private DiffuseFilterKernel(int dispatches, string waveletShader)
+    {
+        Contract.Requires(dispatches <= MostDispatches);
+        Dispatches = dispatches;
+        WaveletShader = waveletShader;
+    }
+
+    /// <summary>The wavelet dispatches, whose taps lie 2^i pixels apart in dispatch i.</summary>
+    public int Dispatches { get; }
+
+    /// <summary>The wavelet dispatch's shader.</summary>
+    public string WaveletShader { get; }
 }
 
 /// <summary>The diffuse filter as a pass of the frame graph: after the diffuse signal's accumulation.</summary>

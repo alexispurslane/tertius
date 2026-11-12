@@ -104,16 +104,22 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// </summary>
     private const uint ScreenTraceLightImages = 2;
 
-    /// <summary>The first binding of the light pyramid in a screen tracer set, after the light age's bindings 19 to 22.</summary>
-    public const uint ScreenTraceLightBinding = 23;
+    /// <summary>The first binding of the light pyramid in a screen tracer set, after the light age's bindings 19 to 23.</summary>
+    public const uint ScreenTraceLightBinding = 24;
+
+    /// <summary>The storage images of the hit light in a screen tracer set: one (<see cref="ScreenTraceImages.HitLight"/>).</summary>
+    private const uint ScreenTraceHitLightImages = 1;
+
+    /// <summary>The binding of the hit light in a screen tracer set, a storage image after the light pyramid's two.</summary>
+    public const uint ScreenTraceHitLightBinding = ScreenTraceLightBinding + ScreenTraceLightImages;
 
     /// <summary>
     /// The storage images that the light-change age of a precise specular history adds to a screen tracer set after its
-    /// lists, at bindings 19 to 21: the last and this frame's light-age records and the specular sample's age, and at
-    /// binding 22 the uncovered-surface diagnostic (<see cref="HistoryInstrumentation.LightAgeDiagnostic"/>).
+    /// lists, at bindings 19 to 22: the last and this frame's light-age records, the specular sample's age and FSR's
+    /// light-change mask, and at binding 23 the uncovered-surface diagnostic (<see cref="HistoryInstrumentation.LightAgeDiagnostic"/>).
     /// </summary>
     private uint ScreenTraceAgeImages =>
-        (HistoryMode.KeepsLightAge ? 3u : 0u)
+        (HistoryMode.KeepsLightAge ? 4u : 0u)
         + (Instrumentation == HistoryInstrumentation.LightAgeDiagnostic ? 1u : 0u);
 
     /// <summary>
@@ -917,7 +923,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             ),
             // One per pyramid level set, each tail set's mips, four per environment levels set, three for the scatter set,
             // one for the shadow bounds set, four per surface test set, SignalSetImages per signal set, six for the light
-            // set, fifteen per screen tracer set, plus ScreenTraceAgeImages, and four per filter set.
+            // set, sixteen per screen tracer set with the hit light, plus ScreenTraceAgeImages, and four per filter set.
             new(
                 DescriptorType.StorageImage,
                 PyramidLevelSets
@@ -928,7 +934,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                     + 4 * SurfaceTestSets
                     + SignalSetImages * SignalSets
                     + LightSetImages
-                    + (ScreenTraceStorageImages + ScreenTraceAgeImages) * ScreenTraceSets
+                    + (ScreenTraceStorageImages + ScreenTraceAgeImages + ScreenTraceHitLightImages) * ScreenTraceSets
                     + FilterSetImages * FilterSets
             ),
         ];
@@ -1114,7 +1120,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         // The bindings before the light pyramid's two images, which start at ScreenTraceLightBinding.
         int beforeLight = (int)(lists + ScreenTraceStorageBuffers + ScreenTraceAgeImages);
         Span<DescriptorSetLayoutBinding> bindings =
-            stackalloc DescriptorSetLayoutBinding[beforeLight + (int)ScreenTraceLightImages];
+            stackalloc DescriptorSetLayoutBinding[
+                beforeLight + (int)(ScreenTraceLightImages + ScreenTraceHitLightImages)
+            ];
         for (uint binding = 0; binding < ScreenTraceSampledImages; binding++)
             bindings[(int)binding] = Image(binding: binding, stages: ShaderStageFlags.ComputeBit);
         for (uint binding = ScreenTraceSampledImages; binding < lists; binding++)
@@ -1133,6 +1141,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 binding: ScreenTraceLightBinding + image,
                 stages: ShaderStageFlags.ComputeBit
             );
+        bindings[^1] = StorageImage(ScreenTraceHitLightBinding);
         return CreateLayout(bindings: bindings, name: "screen trace set");
     }
 
