@@ -31,7 +31,7 @@ The one command is `tools/runpod/gpu_job.py submit`. `tools/README.md`, "GPU job
    python3 -I tools/runpod/ab_report.py /tmp/<your name>/ab --base main
    ```
 
-`ab_run.sh` builds the Release demo of each tree, then runs each tree's demo headless at 1920 × 1080 with `--video none`. It reverses the order of the trees in each round: main and cut, then cut and main. Thus a drift of the card's clock or heat falls on both sides alike. It logs the card's clocks to `out/clocks.csv`. The script path is inside each tree, so a variant can also change its script. To pass renderer options, set `DEMO_ARGS` before the command, and include the default options: `DEMO_ARGS='--size 1920x1080 --video none --upscaling off' bash main/tools/runpod/ab_run.sh ...`. Name more trees to compare several variants with main in one job.
+`ab_run.sh` builds the Release demo of each tree, then runs each tree's demo headless at 1920 × 1080 with `--video none`. One untimed run of the first tree warms the card first, because the first run on a fresh worker was about 0.5 ms slower in three jobs. It reverses the order of the trees in each round: main and cut, then cut and main. Thus a drift of the card's clock or heat falls on both sides alike. It logs the card's clocks to `out/clocks.csv`. The script path is inside each tree, so a variant can also change its script. To pass renderer options, set `DEMO_ARGS` before the command, and include the default options: `DEMO_ARGS='--size 1920x1080 --video none --upscaling off' bash main/tools/runpod/ab_run.sh ...`. Name more trees to compare several variants with main in one job.
 
 The report prints, for each tree, the GPU frame span of each run without the `capture` pass, and their median. The `capture` pass is the headless readback over PCIe, which a window does not do (ticket ter-fw73). Then it prints, for each variant:
 
@@ -53,7 +53,7 @@ Two A/A jobs on 2026-11-12 ran the same commit as both trees, five runs per side
 | Largest change of a pass median | 0.002 ms | 0.002 ms |
 | SM clock, mean (lowest to highest) | 2379 MHz (2130 to 2475) | 2390 MHz (2130 to 2490) |
 
-Five runs per side is the default. A median of five ignores one slow run, such as the first run of a fresh worker. Read a result in this order:
+Those jobs had no warm-up run yet. Five runs per side is the default. A median of five also ignores one slow run. Read a result in this order:
 
 1. If the report says "every run differs", the change of the frame span is real. With five runs per side, that takes about 0.15 ms or more on the card, about 0.35 ms on the Mac.
 2. If the runs overlap, look at the passes that you changed. A pass median repeats within 0.002 ms between two runs of the same commit. So a pass that moved by 0.01 ms or more moved because of the change.
