@@ -7,31 +7,32 @@ The tables name two drivers:
 - The patched driver is the shell's default driver: `/nix/store/jxv1cgaay6396aqwbcvkikamsv66vvkh-MoltenVK-1.4.2`.
 - The stock driver is the nixpkgs build without the two patches: `/nix/store/i15qwcipchfkg00vf1bjd89dyj42qc5r-MoltenVK-1.4.2`. The shell's variable `TERTIUS_STOCK_MOLTENVK_ICD` names its ICD manifest.
 
-The runs used three states of the code:
+The runs used four states of the code:
 
 - "Before the merge" is commit `527cd445a`. Its engine code is the code of main at `58ce67f66`.
 - "After the first merge" is commit `32f741740`. Its engine code is the code of main at `7eed8d130`.
 - "After the second merge" is commit `f831de851`. Its engine code is the code of main at `75ecde376`. That code zeroes FSR's images in one compute dispatch, not in 12 clears (ticket ter-nstr).
+- "After the third merge" is commit `05eed98ac`. Its engine code is the code of main at `5330c7411`. That code writes the light at a ray's hit into one image (ticket ter-67y3).
 
 The branch changes no engine code. Each merge of main brought main's later engine changes under the patched driver, so the main checks ran again.
 
 ## The result
 
-| Check | Before the merge | After the first merge | After the second merge |
-|---|---|---|---|
-| Frames of the deck, patched against stock | 29 frames, 0 differ | 29 frames, 0 differ | 29 frames, 0 differ |
-| Frames of 24 capture scripts and the low view, patched against stock | Not run | 139 frames, 0 differ | 139 frames, 0 differ |
-| Frames under Metal's API validation, patched against patched | 62 frames, 0 differ | 113 frames, 0 differ | 80 frames, 0 differ |
-| GPU frame span of the deck, stock to patched | 24.10 to 23.22 ms | 22.02 to 21.09 ms | 21.82 to 20.81 ms |
-| Metal encoders of one deck frame, stock to patched | 116 to 79 | 117 to 79 | 105 to 66 |
-| Idle time inside one deck frame, stock to patched | 2.23 to 1.40 ms | 2.25 to 1.40 ms | 2.06 to 1.22 ms |
-| Every test suite in Checked | 10,757 passed, 0 failed, 26 skipped | 10,761 passed, 0 failed, 26 skipped | 10,770 passed, 0 failed, 26 skipped |
-| Tests under Metal's API validation | Rendering and Host tests: 5,119 passed, 0 failed, 18 skipped | Not run | FSR's test classes: 67 passed, 0 failed, 5 skipped |
-| Every test suite in Release | 10,744 passed, 0 failed, 26 skipped | Not run | 10,757 passed, 0 failed, 26 skipped |
+| Check | Before the merge | After the first merge | After the second merge | After the third merge |
+|---|---|---|---|---|
+| Frames of the deck, patched against stock | 29 frames, 0 differ | 29 frames, 0 differ | 29 frames, 0 differ | 29 frames, 0 differ |
+| Frames of 24 capture scripts and the low view, patched against stock | Not run | 139 frames, 0 differ | 139 frames, 0 differ | 139 frames, 0 differ |
+| Frames under Metal's API validation, patched against patched | 62 frames, 0 differ | 113 frames, 0 differ | 80 frames, 0 differ | 80 frames, 0 differ |
+| GPU frame span of the deck, stock to patched | 24.10 to 23.22 ms | 22.02 to 21.09 ms | 21.82 to 20.81 ms | 21.56 to 20.71 ms |
+| Metal encoders of one deck frame, stock to patched | 116 to 79 | 117 to 79 | 105 to 66 | 105 to 66 |
+| Idle time inside one deck frame, stock to patched | 2.23 to 1.40 ms | 2.25 to 1.40 ms | 2.06 to 1.22 ms | 2.08 to 1.26 ms |
+| Every test suite in Checked | 10,757 passed, 0 failed, 26 skipped | 10,761 passed, 0 failed, 26 skipped | 10,770 passed, 0 failed, 26 skipped | The touched test classes only: 276 passed, 0 failed |
+| Tests under Metal's API validation | Rendering and Host tests: 5,119 passed, 0 failed, 18 skipped | Not run | FSR's test classes: 67 passed, 0 failed, 5 skipped | The touched test classes: 276 passed, 0 failed |
+| Every test suite in Release | 10,744 passed, 0 failed, 26 skipped | Not run | 10,757 passed, 0 failed, 26 skipped | Not run |
 
-The patch saves 0.89 ms of the deck's frame before the merge, 0.93 ms after the first merge and 1.01 ms after the second. Section A5 of [the addendum](../addendum.md) measured 0.93 ms, 116 to 79 encoders, and 2.24 to 1.40 ms of idle time.
+The patch saves 0.89 ms of the deck's frame before the merge. It saves 0.93 ms after the first merge, 1.01 ms after the second and 0.85 ms after the third. Section A5 of [the addendum](../addendum.md) measured 0.93 ms, 116 to 79 encoders, and 2.24 to 1.40 ms of idle time.
 
-The Linux dev shells did not change. The derivations of `devShells.x86_64-linux.default` and `devShells.aarch64-linux.default` equal main's at `7eed8d130` and at `75ecde376`:
+The Linux dev shells did not change. The derivations of `devShells.x86_64-linux.default` and `devShells.aarch64-linux.default` equal main's at `7eed8d130`, at `75ecde376` and at `5330c7411`:
 
 - `x86_64-linux`: `/nix/store/jv1plr8m4jpq497q6jxlf60s7zfcd1qv-nix-shell.drv`
 - `aarch64-linux`: `/nix/store/w1zb0sxhy1kasih6y0i8r69myjvjg711-nix-shell.drv`
@@ -88,7 +89,11 @@ After the second merge, the wide check ran again (`stills-wide-3a.jobs`, `stills
 
 The 139 frames of the wide check after the second merge also equal those after the first merge. So main's change of FSR's clear step changed no frame of these scripts.
 
-Three frames of the patched driver after the first merge are in `pics/`. Each equals the stock driver's frame byte for byte:
+After the third merge, the same wide check ran once more (`stills-wide-4a.jobs`, `stills-wide-4b.jobs`). All 168 PNG files and all 98 other files equal those of the stock driver. The 80 frames of the five scripts under `MTL_DEBUG_LAYER=1` equal the frames without validation, and no log holds an assertion.
+
+Main's hit light image changed 153 of the 168 frames against the second merge. So the check sees a change of the frame, and both drivers give the same new frames.
+
+Three frames of the patched driver after the third merge are in `pics/`. Each equals the stock driver's frame byte for byte:
 
 - `pics/deck-patched.png`: the station deck, the view that the traces time.
 - `pics/low-patched.png`: the low view of the scene `reflections`, with a red box, a tube light and a blue ball above a glossy floor.
@@ -140,11 +145,23 @@ After the second merge. The binary is that code's Release build with the deck's 
 | 6e | `deck-acc-n-stock-b` | Stock | 21.74 | 21.85 | 2.07 | 105 (48) |
 | 6e | `deck-acc-n-keep-b` | Patched | 20.71 | 20.81 | 1.21 | 66 (9) |
 
+After the third merge. The binary is that code's Release build with the deck's fixed exposure:
+
+| Take | Trace | Driver | Timer | Span | Idle | Encoders |
+|---|---|---|---:|---:|---:|---:|
+| 6f | `deck-acc-o-stock` | Stock | 21.46 | 21.58 | 2.10 | 105 (48) |
+| 6f | `deck-acc-o-keep` | Patched | 20.63 | 20.72 | 1.25 | 66 (9) |
+| 6f | `deck-acc-o-switch` | Patched with `TERTIUS_MOLTENVK_STOCK_BARRIERS=1` | 21.51 | 21.61 | 2.11 | 105 (48) |
+| 6f | `deck-acc-o-stock-b` | Stock | 21.43 | 21.54 | 2.07 | 105 (48) |
+| 6f | `deck-acc-o-keep-b` | Patched | 20.60 | 20.69 | 1.27 | 66 (9) |
+
 The table of "The result" gives the mean of the "Span" column for each driver. It leaves out the rows of the stock-behavior switch and the two rows of the branch build.
 
 Main's engine changes between `58ce67f66` and `7eed8d130` made the deck's frame 2.1 ms shorter and added one compute encoder under the stock driver. The patch's gain stayed the same.
 
 Main's change of FSR's clear step removed 12 render encoders of a frame. The patch then leaves 9 compute encoders, not 10. The gain of 1.01 ms is 0.08 ms more than after the first merge. That difference is near the spread between two runs of one driver.
+
+After the third merge the gain is 0.85 ms with the same encoder counts. Over the four states of the code, the gain is between 0.85 and 1.01 ms.
 
 Four traces are not in the tables:
 
@@ -171,8 +188,12 @@ Each run held one shared take of the GPU lock, with the patched driver as the sh
 | Every suite in Checked | After the second merge | `tests/acc-checked3.cmd.sh` | 10,770 | 0 | 26 | `checked3.lock.log` |
 | FSR's Rendering test classes under `MTL_DEBUG_LAYER=1` | After the second merge | `tests/acc-vfsr3.cmd.sh` | 67 | 0 | 5 | `vfsr3.lock.log` |
 | Every suite in Release | After the second merge | `tests/acc-release3.cmd.sh` | 10,757 | 0 | 26 | `release3.lock.log` |
+| The touched Rendering test classes in Checked | After the third merge | `tests/acc-t4.cmd.sh` | 276 | 0 | 0 | `t4.lock.log` |
+| The same classes under `MTL_DEBUG_LAYER=1` | After the third merge | `tests/acc-vt4.cmd.sh` | 276 | 0 | 0 | `vt4.lock.log` |
 
 The five skipped tests of FSR's classes measure FSR's GPU time, and they run only with `TERTIUS_FSR_TIMING=1`.
+
+The touched test classes of the third merge are the classes whose names start with `HitLight`, `ScreenTrace`, `DescriptorLayouts` or `Reflection`. The third merge changed the screen trace and added the tests of the hit light image.
 
 The three parts of the Rendering tests under validation sum to 3,082 tests. That is the count of the Rendering tests in the full Checked run before the merge. The parts exist because a shared take holds the lock for about 20 minutes at most.
 
@@ -181,4 +202,5 @@ The three parts of the Rendering tests under validation sum to 3,082 tests. That
 - No test asserts on the effect of the patch, because the engine does not depend on it. The encoder count of a trace shows the effect.
 - A wrong fence makes two encoders run in the wrong order only sometimes. Equal frames in every run lower that risk. They do not remove it.
 - The Rendering and Host tests ran under Metal's API validation in full before the merge only. After the second merge, only FSR's test classes ran under it, because that merge changed FSR's code.
+- The full test suites last ran after the second merge. After the third merge, only the touched test classes ran. Main changes several times a night, so the merge into main runs the full suites once more.
 - Every run was on one machine, the M1 Max. The patch changes only MoltenVK, so a Linux driver is not a part of this acceptance.

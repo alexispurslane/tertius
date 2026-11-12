@@ -53,3 +53,21 @@ What the acceptance does not show:
 One part of the ticket has no work today. The ticket says that the Mac build ships the driver, and the repository has no packaging step for a Mac build. The dev shell is the only place that names a driver. Ticket t2-q0uk holds that part, and it waits for a packaging step.
 
 Two things wait for the user: the merge of this branch, and a comment on upstream's issue 2893 with our numbers and our patch.
+
+**2026-11-12T12:11:29Z**
+
+Later on 2026-11-12, main gained two renderer changes, and the branch took both by a merge of main. The checks ran again on each state of the code.
+
+| Check | After the second merge (f831de851, main 75ecde376, FSR's clear step in one dispatch) | After the third merge (05eed98ac, main 5330c7411, the hit light image) |
+|---|---|---|
+| Frames of 26 scripts, patched against stock | 168 frames, 0 differ | 168 frames, 0 differ |
+| Frames under `MTL_DEBUG_LAYER=1`, patched against patched | 80 frames, 0 differ | 80 frames, 0 differ |
+| GPU frame span of the deck, stock to patched | 21.82 to 20.81 ms | 21.56 to 20.71 ms |
+| Metal encoders of one deck frame, stock to patched | 105 to 66 | 105 to 66 |
+| Every test suite in Checked | 10,770 passed, 0 failed, 26 skipped | The touched test classes only: 276 passed, 0 failed |
+| Every test suite in Release | 10,757 passed, 0 failed, 26 skipped | Not run |
+| Tests under `MTL_DEBUG_LAYER=1` | FSR's test classes: 67 passed, 0 failed, 5 skipped | The touched test classes: 276 passed, 0 failed |
+
+Over the four states of the code, the patch saves between 0.85 and 1.01 ms of the deck's frame. The hit light image changed 153 of the 168 frames, and both drivers give the same new frames.
+
+The branch head holds main at 5330c7411. Main changes several times a night. At the merge into main, first merge main into the branch. Then run the suites in Checked and in Release, and one frame comparison against the stock driver (`tools/README.md`, "The patched MoltenVK").

@@ -102,7 +102,7 @@ Before you merge a change of a patch, do three things:
 
 1. Run the test suites in Checked and in Release.
 2. Run the Rendering tests and the Host tests once with `MTL_DEBUG_LAYER=1`, which turns on Metal's API validation. A wrong use of a fence stops the process there.
-3. Compare the frames of one headless run with those of the stock build, byte for byte.
+3. Compare the frames of one headless run with those of the stock build, byte for byte. `diff -rq <folder a> <folder b>` lists the files that differ. Between two correct runs, only `gpu-timings.json` differs.
 
 A wrong fence does not fail a test reliably. It shows as a rare flicker, because two encoders then run in the wrong order only sometimes.
 
