@@ -2,7 +2,7 @@
 
 The GPU workbench is a queue of cloud GPU jobs. An agent uses it to measure any change to the renderer: what the change saves in GPU time, and what it does to the image. Each job runs on an RTX 2000 Ada in a Runpod serverless worker and costs a few cents. Up to six jobs run at once. The workbench is the default place to measure. The Mac's GPU lock is only for the three cases in "What still needs the Mac".
 
-The one command is `tools/runpod/gpu_job.py submit`. `tools/README.md`, "GPU jobs on Runpod", describes how the queue, the caps and the image work.
+The one command is `tools/runpod/gpu_job.py submit`. [README.md](README.md) describes how the queue, the caps, the images and the endpoints work.
 
 ## The rules in short
 
@@ -14,7 +14,7 @@ The one command is `tools/runpod/gpu_job.py submit`. `tools/README.md`, "GPU job
 
 ## Time a change: an A/B against main
 
-1. Commit the change on a branch. The commit need not be pushed, because the script sends the diff from the image's commit. To test a patch file, apply it on a branch and commit it there.
+1. Commit the change on a branch. The commit need not be pushed. The script publishes each tree's commit under a hidden ref on GitHub, and the worker fetches it. To test a patch file, apply it on a branch and commit it there.
 2. From the repository, run one job with two trees, `main` and your variant, five runs per side:
 
    ```bash
@@ -87,6 +87,8 @@ The Mac's GPU lock (`tools/README.md`, "The GPU lock") is only for these:
 2. Changes that depend on Apple's shader compiler: unrolling, register pressure and occupancy. NVIDIA's compiler makes different choices.
 3. One confirmation take of the final candidate before its merge, for the 12 ms goal.
 
+The factor of 2.4 holds only for a change of the amount of work. A change of the form of the work can move the two GPUs in opposite directions. On 2026-11-12 (t2-gfq5), sixteen bilinear corner reads in place of nine gathers saved about 0.5 ms of the deck's frame span on the Mac. On the RTX 2000 Ada, the same change cost 0.80 ms (+8.9 %). So a change of texture access kind (gather against sample), register use or code size needs a run on both machines before its merge.
+
 For everything else, measure on the workbench, and give the Mac's lock to the agents that need it.
 
 ## Several jobs at once
@@ -120,5 +122,7 @@ An agent's own tool can also start each call as one background command. Compare 
 - A command's text is in its shell's command line. So `pkill -f` or `pgrep -f` with a pattern from the command finds the command itself. Match a process by its name, with `pgrep -x`.
 - When a command ends, every process that it started in the background stops too. Start and use such a process in the same command.
 - If a command fails, Runpod marks the job FAILED. `result.json` keeps the handler's own result in `status` and Runpod's in `runpodStatus`.
-- A tree holds the image's copy of `docs/` and `.tickets/`, because a patch leaves them out. No build or run reads them, and research files there grow by megabytes an hour. A job that needs a newer file from `docs/` must copy it elsewhere in its commit.
-- A job's input is at most 10 MB. If the diff from the image's commit grows past that, a newer image must replace it. The workflow `gpu-image` builds it, and the orchestrator runs `gpu_job.py use-image <commit>` while no job is in flight.
+- A tree has no `docs/` and no `.tickets/`, because the worker does not fetch them. No build or run reads them. A job that needs a file from `docs/` must copy it elsewhere in its commit.
+- Each tree's commit becomes public. Before the push, the script scans the new commits for secrets, and a finding refuses the job. Never commit a secret, also not on a branch.
+- If a job's commits change `flake.nix`, `flake.lock` or `native/`, the job needs an image of that dev shell. Without one, the script refuses the job and names the missing image. Build it with a tag, then send the job again: `git push --no-verify git@github.com:alexispurslane/tertius.git <commit>:refs/tags/gpu-image-<name>`. The build takes about 14 minutes. The script then creates a new endpoint for that image by itself ([README.md](README.md), "A new dev shell").
+- A refusal that names "0 workers" means that the watchdog or the orchestrator stopped the endpoints. Wait for the orchestrator.
