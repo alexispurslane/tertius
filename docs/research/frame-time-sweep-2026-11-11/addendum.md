@@ -597,3 +597,110 @@ A second observation: the continued draws show the closed cabin in blue light. A
 - The first step: in the first draw of a still, find the first image of the frame that holds a value that is not finite.
 - The Linux pod: run the script there too. A NaN shows differently on a Linux driver.
 - The gain: no frame time. It repairs a capture of a shipped script.
+
+## A12. The frame on 2026-11-12, and the ranked table again
+
+Main moved since the report: six cuts of this sweep merged, and two changes of other agents. Take 8 recorded the deck again on main at `c87eac88f`, with the patched driver that the flake builds. The machine was quiet, and the GPU clock stayed at 1,291 to 1,292 MHz.
+
+| Quantity | The report and section A6 | Now |
+|---|---:|---:|
+| Frame span with the pass time stamps, mean (ms) | 24.35 | 20.29 |
+| Frame span as a window, without the pass time stamps (ms) | 24.00 | 19.91 |
+| Idle time inside a frame, with the pass time stamps (ms) | 2.32 | 1.57 |
+| Idle time inside a frame, as a window (ms) | 2.25 | 1.27 |
+| Metal encoders in a frame, as a window | 116 | 68 |
+
+The frame span is the GPU time from the start of a frame's first encoder to the end of its last. The idle time is the part of it in which the GPU runs no encoder.
+
+![What each pass pays, main of 2026-11-12](pics/frame-pays-m13.png)
+
+| Group | The report (ms) | Now (ms) | Passes |
+|---|---:|---:|---|
+| Indirect light | 12.40 | 9.10 | depth pyramid, light pyramid, ray plan, reflection rays, diffuse rays, resolve, both accumulations, diffuse filter |
+| Lights | 6.84 | 6.49 | local shadows, direct light, transparent |
+| Output | 2.83 | 2.53 | exposure meter and adapt step, FSR 3.1, bloom, tone map, capture |
+| Geometry and shadow maps | 1.96 | 1.89 | shadow maps, environment faces and prefilter, G-buffer, surface test, composite, scatter |
+| Measurement | 0.32 | 0.28 | the time stamps after each pass |
+| Sum | 24.35 | 20.29 | |
+
+`trace/deck-m13-a` holds the adding count, and `trace/deck-m13-c` holds the pass table with the limiters.
+
+### What is done
+
+| Change | Ticket | Its pass, before and after (ms) | Gain on the frame (ms) |
+|---|---|---|---:|
+| The diffuse filter with 48 taps in place of 120 | `ter-hxhl` | filter 4.40 to 2.03 | 2.0 to 2.8 |
+| MoltenVK keeps the compute encoder at a barrier | `ter-2zga` | idle time 2.32 to 1.57, with row 2's share | 0.85 to 1.01 |
+| A reflection walk of at most 128 steps | `ter-w1o3` | reflection rays 2.13 to 1.68 | 0.33 with the stamps, 0.49 to 0.69 as a window |
+| The shadow tile's reads by driver | `t2-gfq5` | direct light 4.09 to 3.79 | 0.38 |
+| Row 3: one image holds the light at a ray's hit | `ter-67y3` | rays 4.04 to 3.40, ray plan 0.89 to 1.29 | 0.17 to 0.26 |
+| Row 2: FSR's clears in one dispatch | `ter-nstr` | FSR 2.19 to 1.75, with the driver's share | part of 0.43 |
+| The pixel's own weight in the resolve | `ter-xo83` | resolve 0.23 to 0.31 | costs 0.04 |
+
+Three rows of the ranked table closed without a build. Alexis dropped row 10, the resolve with the rays of four blocks (`ter-2x8a`). Row 4, the pyramids in fewer dispatches, gains nothing with the patched driver (`te-r7nt`). Row 6, the environment face in every second frame, stays declined.
+
+### What is new in the trace
+
+- The lights are now the second group at 6.49 ms, and the direct light is the largest pass at 3.78 ms. The key-and-fill design of the tile agent owns it.
+- The ray plan pays 1.35 ms, 0.41 ms more than in the report. This is the write of the hit light image, and the rays gave back more.
+- The exposure meter and its adapt step are new. They pay 0.11 ms, and 0.08 ms of it is idle time.
+- MoltenVK ends each command buffer with one blit encoder per barrier stage, 4 after the first command buffer and 3 after the second. `MVKCommandEncodingContext::syncFences` makes them. The first command buffer ends after the bloom, so these encoders and one stamp lie before the tone map, about 0.1 ms.
+- In a window frame, 14 blit encoders pay 0.18 to 0.20 ms of idle time before them. 11 compute encoders pay 0.25 to 0.28 ms, and 38 render encoders pay 0.84 ms.
+
+### The bloom as compute dispatches gains nothing
+
+Proposal 4 of section A6 estimated 0.13 to 0.20 ms for the bloom as one chain of compute dispatches (`ter-lm61`). I built it and measured it in take 9. The bloom's 11 encoder breaks went away, and the frame span as a window moved from 19.938 to 19.930 ms. [bloom-compute-ter-lm61/](bloom-compute-ter-lm61/README.md) holds the record and the patch.
+
+Two facts explain it, and they change the price of the other encoder proposals.
+
+- The break before a render encoder of the bloom costs about 12 µs of idle time. The mean over the 38 render encoders of the frame is 22 µs, and a break before a compute encoder costs 22 to 24 µs. So the bloom's breaks were the cheap ones.
+- A small compute dispatch costs 10 to 18 µs at any size, also inside a kept encoder. A small render pass costs about the same.
+
+So a small render pass that turns into a dispatch gains almost nothing. The price of a break differs by pass, so each encoder proposal needs a timed proxy build before its real build.
+
+### The buffer updates at the frame's start gain little
+
+Proposal 5 of section A6 estimated 0.10 to 0.20 ms for the buffer updates out of the middle of the frame (`ter-n8bk`). Its largest part is the ray plan. The plan resets the headers of its two ray lists with two `vkCmdUpdateBuffer` calls. Each call is a blit encoder between the light pyramid and the plan.
+
+The proxy build `edits/hoist.py` records both resets at the frame's start, in the blit encoder of the exposure's readback copy. Take 11 timed it against main, as a window, three traces per build in turns.
+
+| Build | Encoders in a frame | Idle time (ms) | Frame span, median (ms) |
+|---|---:|---:|---:|
+| Main, three traces | 68 | 1.270, 1.280, 1.294 | 19.881, 19.917, 19.941 |
+| Proxy, the one clean trace | 65 | 1.222 | 19.882 |
+
+Three encoders went away, and the idle time fell by 0.06 ms. The frame span fell by 0.00 to 0.06 ms, which is inside the spread of main's three traces. One trace of the proxy was disturbed at 20.401 ms, and `xctrace` did not export another.
+
+So a removed blit encoder gains about 0.01 to 0.02 ms here, not the 0.04 ms that its idle time suggests. The rest of proposal 5, FSR's constants and the environment prefilter's copy, is smaller than the ray plan's part. I did not build it.
+
+### The ranked table of 2026-11-12
+
+The order is by gain for the risk. All gains are for the deck as a window, at 19.9 ms.
+
+| # | Change | Gain (ms) | From | Effect on the image | State |
+|---:|---|---:|---|---|---|
+| 1 | Row 1: one byte per pixel holds the same-surface answers of the 3 × 3 neighbors | 0.45 | Bound 0.69, less 0.2 estimated for the write | None | `ter-yaqk` waits for Design A of the mottle agent |
+| 2 | Lower step caps of the two walks, found by a binary search | section A13 | Measured | Not visible, by the three conditions of Alexis's permission | Section A13 |
+| 3 | Buffer updates out of the middle of the frame | 0.00 to 0.06 | Measured with a proxy build in take 11 | None | `ter-n8bk`: not worth a build |
+| 4 | The local shadow tiles of a frame in one render pass | up to 0.25 | 13 render encoder breaks of 21 µs, not measured | None | `ter-jr0f`, in the tile agent's files |
+| 5 | Fewer time stamps in a window | at most 0.05 | 5 stamp encoders, at the measured price of a removed encoder | None | `ter-wp7u` |
+| 6 | Compute passes next to each other in the frame's order | at most 0.05 | 2 compute encoders after a render pass, at the measured price | None | `ter-jj53` |
+| 7 | Row 5: the reflected place only below a roughness of 0.2 to 0.25 | up to 0.7 | Bound 0.78 | Possible smear of rough reflections under camera motion | Alexis decides |
+| 8 | Row 7: bounce light accumulated and filtered once per 2 × 2 block | about 1.0 to 1.3 | The report's estimate, scaled to the thinner filter | Loses normal-map detail in bounce light, new risk of blotches at edges | Design ticket `ter-ewua` waits for Design A |
+| 9 | Row 8: render scale 0.59 in place of 0.667 | about 3.5 | The report's split, a fixed part of 3.6 ms, not measured again | Softer image, and every grain grows in output pixels | Declined for now |
+
+The exact cuts that remain in my reach are rows 3, 5 and 6. They come to about 0.1 ms together, and no one of them shows above the noise of a trace. The bloom and the pyramids are off the list.
+
+### The budget again
+
+The budget is a 95th percentile of 16.7 ms, so the mean must reach about 16.1 ms. The deck as a window stands at a mean of 19.9 ms. About 3.8 ms are still to find.
+
+| Source | Gain (ms) | Who decides or builds |
+|---|---:|---|
+| The exact cuts of rows 1 and 3 to 6 | 0.5 to 0.8 | Row 1 after Design A, and row 4 in the tile agent's files |
+| The step caps | section A13 | This sweep, by the permission of 2026-11-12 |
+| The key-and-fill design for the direct light and the transparent pass, 5.9 ms today | the tile agent's estimate | The tile agent |
+| Rows 7 to 9 | up to 0.7, 1.0 to 1.3 and about 3.5 | Alexis |
+| The reserve for the mottle fixes | costs up to 1.5 | The mottle agent |
+
+No sum of exact cuts reaches the budget. The lights hold the largest part that no row of this table counts.

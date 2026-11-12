@@ -13,6 +13,8 @@ Read the two texts in this order:
 - The Mac is 2.3 times slower than an RTX 2000 Ada on this frame. The encoder breaks explain 7 % of that distance (section A4).
 - A reflection walk of at most 128 steps saves 0.55 ms, and the image holds in 59 captures (section A10).
 - A headless still inside the station's cabin is black with the environment map on (section A11).
+- On 2026-11-12 the deck takes 19.9 ms as a window, after 24.0 ms. Section A12 holds the fresh trace and the ranked table again.
+- The bloom as compute dispatches gains nothing, because its encoder breaks were cheap ones (section A12).
 
 ## What the folder holds
 
@@ -29,6 +31,7 @@ Read the two texts in this order:
 | `refl/` | The demo scripts of the image tests, the scripts of the untimed takes, and the image scores |
 | `acceptance-ter-w1o3/` | The acceptance record of the reflection step cap of 128: timings, image comparisons and test runs |
 | `acceptance-ter-2zga/` | The acceptance record of the patched MoltenVK that the flake builds: frames, traces and test runs |
+| `bloom-compute-ter-lm61/` | The record of the bloom as compute dispatches, which did not merge: the patch, the timed take and the still comparison |
 
 The flake's driver patch is `native/moltenvk-keep-dispatch-encoder.patch`. It is the measured patch in the form `keep`, without the measurement switches. [tools/README.md](../../../tools/README.md) describes it in "The patched MoltenVK".
 

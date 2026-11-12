@@ -5,7 +5,7 @@ GROUPS = {
  'lights': ['local shadows', 'direct light', 'transparent'],
  'indirect light': ['depth pyramid', 'light pyramid', 'ray plan', 'reflection rays', 'diffuse rays', 'screen trace resolve',
                     'accumulate indirect diffuse', 'filter indirect diffuse', 'accumulate indirect specular'],
- 'output': ['FSR 3.1', 'bloom', 'tone map', 'capture'],
+ 'output': ['exposure', 'FSR 3.1', 'exposure adapt', 'bloom', 'tone map', 'capture'],
  'geometry and shadow maps': ['shadow maps', 'environment faces', 'environment prefilter', 'G-buffer', 'surface test', 'composite',
                               'scatter rows', 'scatter columns', 'haze', 'outlines', 'deformation'],
  'measurement': ['(stamp)', '(before the first pass)', '(after the last pass)'],

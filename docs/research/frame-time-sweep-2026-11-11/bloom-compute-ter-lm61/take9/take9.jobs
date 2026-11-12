@@ -1,0 +1,9 @@
+# Take 9: the bloom as compute steps (ter-lm61) against main on the deck. m13 is main at c87eac88f, and bloomc is the
+# same commit with the bloom's three steps as compute dispatches. Unedited Release builds. The order alternates.
+NS="--pass-timestamps off"
+trace deck-t9-main-ns m13 $D $NS
+trace deck-t9-bloom-ns bloomc $D $NS
+trace deck-t9-bloom-a bloomc $D
+trace deck-t9-main-a m13 $D
+trace deck-t9-bloom-ns-b bloomc $D $NS
+trace deck-t9-main-ns-b m13 $D $NS
