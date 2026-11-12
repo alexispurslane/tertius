@@ -869,7 +869,14 @@ internal struct ScreenTracePushConstants
             var other => throw new ArgumentException(
                 $"TERTIUS_STBN must be off, diffuse, reflection or both, not {other}."
             ),
-        } | (Environment.GetEnvironmentVariable("TERTIUS_STBN_SHIFT") == "on" ? 4u : 0u);
+        }
+        | (Environment.GetEnvironmentVariable("TERTIUS_STBN_SHIFT") == "on" ? 4u : 0u)
+        | (Environment.GetEnvironmentVariable("TERTIUS_STBN_CONTROL") switch
+        {
+            "periodic" => 8u,
+            "white" => 16u,
+            _ => 0u,
+        });
 
     /// <summary>
     /// The push constants of a draw of index <paramref name="drawIndex"/> under <paramref name="trace"/>, with the

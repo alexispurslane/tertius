@@ -283,6 +283,11 @@ vec2 blueNoiseOf(ivec2 cell, uint kind, uvec3 draw)
         shift += pcg3d(uvec3((trace.drawIndex + (offset >> 1)) >> 6, kind, 0x5348u)).xy;
     uvec2 inTile = (uvec2(cell) + shift) & 127u;
     uvec2 values = texelFetch(blueNoiseMask, ivec2(uvec2(t & 7u, t >> 3) * 128u + inTile), 0).rg;
+    // Controls: bit 3 takes white bytes for the same cell and period, and bit 4 white bytes that never repeat.
+    if ((trace.blueNoise & 8u) != 0u)
+        values = pcg3d(uvec3(inTile.x | (inTile.y << 8), t, 0x5743u + kind)).xy >> 24;
+    if ((trace.blueNoise & 16u) != 0u)
+        values = pcg3d(uvec3(uint(cell.x) | (uint(cell.y) << 16), trace.drawIndex, 0x5744u + kind)).xy >> 24;
     return (vec2(values) + vec2(unitOf(draw.x), unitOf(draw.y))) * (1.0 / 256.0);
 }
 

@@ -53,7 +53,7 @@ def render(tree, case_name, signal, captures, env):
     source, frame = sv.source_of(case)
     script, still = sv.views_script(source, {frame: sv.captures("v", captures)})
     first_is_still = still[frame]
-    out = WORK / "render" / f"{tree}-{signal}-{env.get('TERTIUS_STBN', 'off')}-{env.get('TERTIUS_STBN_SHIFT', 'off')}"
+    out = WORK / "render" / f"{tree}-{signal}-{env.get('TERTIUS_STBN', 'off')}-{env.get('TERTIUS_STBN_SHIFT', 'off')}-{env.get('TERTIUS_STBN_CONTROL', 'off')}"
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
     (out / "script.json").write_text(json.dumps(script))
@@ -135,6 +135,11 @@ def main():
         "main-refl": ("main", 3, 60, {}), "B": ("cut", 3, 30, {"TERTIUS_STBN": "reflection"}),
         "B-shift": ("cut", 3, 30, {"TERTIUS_STBN": "reflection", "TERTIUS_STBN_SHIFT": "on"}),
     }
+    if os.environ.get("STBN_PLAN") == "controls":
+        plan = {name: plan[name] for name in ("main-all", "rough", "aa", "main-bounce", "A", "main-refl", "B")}
+        for kind, signal, label in (("diffuse", 2, "A"), ("reflection", 3, "B")):
+            plan[f"{label}-W1"] = ("cut", signal, 30, {"TERTIUS_STBN": kind, "TERTIUS_STBN_CONTROL": "periodic"})
+            plan[f"{label}-W2"] = ("cut", signal, 30, {"TERTIUS_STBN": kind, "TERTIUS_STBN_CONTROL": "white"})
     with ThreadPoolExecutor(3) as pool:
         futures = {name: pool.submit(Run, tree, case, signal, captures, env)
                    for name, (tree, signal, captures, env) in plan.items()}
@@ -174,7 +179,7 @@ def main():
     result["all"] = {"main": score_run(main_all, None, whole)}
     keep("main-all", main_all, None)
     keep("main-all-settled", main_all, None, "settled")
-    for label, env in (("C", {"TERTIUS_STBN": "both"}), ("C-shift", {"TERTIUS_STBN": "both", "TERTIUS_STBN_SHIFT": "on"})):
+    for label in [name for name in ("C", "C-shift") if name in runs]:
         run = runs[label]
         result["all"][label] = score_run(run, None, whole)
         keep(f"{label}-all", run, None)
@@ -184,7 +189,7 @@ def main():
 
     main_bounce = runs["main-bounce"]
     result["bounce"] = {"main": score_run(main_bounce, main_bounce.truth, whole)}
-    for label in ("A", "A-shift"):
+    for label in [name for name in runs if name.startswith("A")]:
         result["bounce"][label] = score_run(runs[label], main_bounce.truth, whole)
     keep("main-bounce", main_bounce, main_bounce.truth)
     keep("A-bounce", runs["A"], main_bounce.truth)
@@ -193,7 +198,7 @@ def main():
     main_refl = runs["main-refl"]
     regions = {"all": np.ones_like(smooth), **reflective}
     result["reflections"] = {"main": score_run(main_refl, main_refl.truth, regions)}
-    for label in ("B", "B-shift"):
+    for label in [name for name in runs if name.startswith("B")]:
         run = runs[label]
         result["reflections"][label] = score_run(run, main_refl.truth, regions)
         if label == "B":
