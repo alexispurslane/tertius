@@ -155,12 +155,7 @@ It installs a pinned single-user Nix (2.34.8), builds or downloads the dev shell
 
 An agent runs a GPU job, such as a build and a timing run of the demo, on a Runpod serverless endpoint. The agent calls one script, `tools/runpod/gpu_job.py`, and the script keeps the spending within the caps. Ticket ter-94uo made the parts.
 
-The cloud card is a workbench for relative gains. The user's rules of 2026-11-11 decide what a result means:
-
-- Compare a variant with main inside one job, with two trees. Cards, workers and the capture time differ between jobs.
-- A gain from less GPU work carries over to the Mac at about 2.4 times its Linux size, on the deck.
-- Time changes that cut fixed costs, such as dispatches, barriers and MoltenVK's encoder breaks, on the Mac. Linux does not pay those costs.
-- The frame-time goal, 12 ms on the Mac, holds only after one timed Mac run of main confirms it at the merge.
+The queue is the GPU workbench: the default place where an agent measures a change to the renderer, its GPU time and its images. [tools/runpod/WORKBENCH.md](runpod/WORKBENCH.md) is the guide for agents: the A/B against main, the quality A/B, what still needs the Mac, several jobs at once, and the costs. This section describes how the queue works.
 
 | Part | What it does |
 |---|---|
@@ -170,10 +165,11 @@ The cloud card is a workbench for relative gains. The user's rules of 2026-11-11
 | `tools/runpod/Dockerfile` | The image: the dev shell, the source of one commit with its Release demo built, and the worker. |
 | `.github/workflows/gpu-image.yml` | It builds the image on GitHub and pushes it to `ghcr.io/alexispurslane/tertius-gpu:<commit>`. |
 | `tools/runpod/endpoint.json` | The configuration of the script: the endpoint, the image repository, the price and the caps. |
+| `tools/runpod/ab_run.sh`, `tools/runpod/ab_report.py` | The A/B of the workbench: the runs of each tree on the worker, and their report on the Mac. |
 
 ### Run a job
 
-Set `TERTIUS_RUNPOD_KEY_FILE` to the file that holds the Runpod API key. The script reads the key for each request and never prints it. Then run the job from the repository:
+The script reads the key's file from the path in `~/.config/tertius/runpod-key-file`, or from `TERTIUS_RUNPOD_KEY_FILE` if it is set. It reads the key for each request and never prints it. Run the job from the repository:
 
 ```bash
 python3 -I tools/runpod/gpu_job.py submit --agent <your name> \
@@ -182,7 +178,7 @@ python3 -I tools/runpod/gpu_job.py submit --agent <your name> \
     --output 'branch/out/*.json' --out <folder>
 ```
 
-- Each `--tree NAME=REF` becomes the folder `NAME` in the job's work folder. It holds the baked commit's files plus the diff from the baked commit to `REF`. Commit your change first, because the diff comes from commits. The commit need not be pushed.
+- Each `--tree NAME=REF` becomes the folder `NAME` in the job's work folder. It holds the baked commit's files plus the diff from the baked commit to `REF`, without `docs/` and `.tickets/`. Commit your change first, because the diff comes from commits. The commit need not be pushed.
 - Each `--run` command runs in the work folder, in the dev shell, offline. The first command that fails ends the job.
 - `--timeout` gives the seconds of all commands together, a positive number. It is at most `job_seconds` of the configuration, 840 s. The handler stops the commands at that limit and still sends back the log and the files.
 - Run the script in the background, because a job can wait minutes for a worker. If the script gets Ctrl-C, SIGTERM or SIGHUP, it cancels the job and waits for its final status. A cancel does not stop a command that already runs: on 2026-11-12 a job of `sleep 200`, cancelled after about 30 s, reported 181 s of execution time. The job's own `--timeout` is what bounds it, so the log counts a cancelled job at its worst case. Keep that limit close to the real need.
@@ -228,11 +224,12 @@ python3 -I tools/runpod/gpu_job.py use-image <commit>
 
 The script first makes sure that the registry serves the image without a login, as Runpod pulls it, and that no job of this Mac is in flight. Then it sets the image, sets the endpoint's maximum of workers to 0 until no worker is left, and sets it back. Runpod replaces a worker of the old image only over time, and until then that worker takes jobs and refuses each one, because its baked commit differs. On 2026-11-12, two such workers refused two jobs in a row. `create-endpoint <commit>` made the endpoint once. It asks for the 16 GB pool `AMPERE_16` without its other three cards, so every job runs on an RTX 2000 Ada. It also asks for at most six workers, no idle worker, a 900 s timeout per job and FlashBoot. `endpoint-request <commit>` prints that request and sends nothing.
 
-The two test files run on the Mac without Runpod and without a GPU:
+The test files run on the Mac without Runpod and without a GPU:
 
 ```bash
 python3 -I tools/runpod/test_handler.py
 python3 -I tools/runpod/test_gpu_job.py
+python3 -I tools/runpod/test_ab_report.py
 ```
 
 ### What the first jobs measured
@@ -261,22 +258,31 @@ The deck of the Mac trace (`/private/tmp/tertius-sweep-20261111/trace/deck-maind
 - If a command fails, the Runpod SDK marks the whole job FAILED. The audit log and `result.json` keep the handler's own result (`failed`, `timed out` or `refused`), and `result.json` keeps Runpod's status as `runpodStatus`.
 - The worker's image has no `bc`. Use `date +%s%N` and shell arithmetic for a time.
 
-## The GitHub mirror
+## The remotes: GitHub and the knot mirror
 
-`https://github.com/alexispurslane/tertius` is a public copy of the repository. It exists so that GitHub Actions can build the GPU image. Its origin stays the knot. The remote `origin` has two push URLs, so every `git push origin <ref>` sends the ref to the knot and to GitHub. Fetches come from the knot only. The repository's git configuration holds the two URLs, so every worktree uses them:
+`https://github.com/alexispurslane/tertius` is the primary home of the repository, and it is public. GitHub Actions builds the GPU image there. The knot, `git@knot.xenolandscapes.com:did:plc:6mfsw4jthsacfcdbfmfetvin`, is a push mirror: it gets every push, but nothing reads from it. Alexis moved the primary from the knot to GitHub on 2026-11-12.
+
+The remote `origin` fetches from GitHub. It has two push URLs, GitHub first and the knot second, so every `git push origin <ref>` sends the ref to both. The repository's git configuration holds the URLs, so every worktree uses them. To set them up in a new clone, run these commands:
 
 ```bash
-git remote set-url --add --push origin git@knot.xenolandscapes.com:did:plc:6mfsw4jthsacfcdbfmfetvin
+git remote set-url origin git@github.com:alexispurslane/tertius.git
 git remote set-url --add --push origin git@github.com:alexispurslane/tertius.git
+git remote set-url --add --push origin git@knot.xenolandscapes.com:did:plc:6mfsw4jthsacfcdbfmfetvin
 ```
 
-A push runs the pre-push hook once for each URL. If one URL refuses the push, git reports it, and the other URL still has the ref. To stop the mirror, remove the GitHub URL. Then pushes go to the knot only:
+Git pushes to the URLs in order, and it runs the pre-push hook once for each URL. If one URL refuses the push, git reports an error and still pushes to the other URL. Then push again: the URL that has the ref already reports it as up to date. A push that fails only on the knot leaves GitHub correct.
+
+If the pre-push hook makes a cleanup commit, the first push stops for GitHub. The knot still gets the commits without the cleanup commit, because git chose them before the hook ran. Its hook run says that the branch is not checked out and skips the cleanup. The second push sends the cleanup commit to both URLs, and both then have the same commit. A test with two local bare repositories and git 2.54.0 showed this order on 2026-11-12.
+
+To stop the mirror, remove the knot's push URL. Then pushes go to GitHub only:
 
 ```bash
-git remote set-url --delete --push origin git@github.com:alexispurslane/tertius.git
+git remote set-url --delete --push origin git@knot.xenolandscapes.com:did:plc:6mfsw4jthsacfcdbfmfetvin
 ```
 
-Before the first push on 2026-11-12, gitleaks 8.30.1 scanned every commit of every ref. It found three matches, and all three were the words "key generation" in `docs/research/temporal-renderer/walk-hill-climb.md`. A search for each stored secret and for key prefixes found nothing.
+The knot has no Git LFS. As long as the mirror stays, decision 21 of `docs/plans/asset-pipeline.md` keeps binary build output out of git.
+
+Before the first push to GitHub on 2026-11-12, gitleaks 8.30.1 scanned every commit of every ref. It found three matches, and all three were the words "key generation" in `docs/research/temporal-renderer/walk-hill-climb.md`. A search for each stored secret and for key prefixes found nothing.
 
 ## Coverage on changed lines
 

@@ -10,7 +10,8 @@ script refuses a job before it sends it when the job's worst case would pass the
 the jobs of the audit log, the jobs in flight and Runpod's billed total. It writes one line per job, refusals too, to
 the audit log, and the job's output files and result under --out.
 
-The API key stays in its file (TERTIUS_RUNPOD_KEY_FILE). The script reads it for each request and never prints it.
+The API key stays in its file, which ~/.config/tertius/runpod-key-file names. The script reads it for each request
+and never prints it.
 The standard library only.
 """
 
@@ -33,6 +34,8 @@ from pathlib import Path
 
 CONFIG_FILE = Path(__file__).with_name("endpoint.json")
 STATE = Path.home() / ".local/state/tertius/gpu-jobs"
+# A file outside the repository that holds the path of the key's file, so that no agent needs to know or set it.
+KEY_POINTER = Path.home() / ".config/tertius/runpod-key-file"
 JOB_API = "https://api.runpod.ai/v2"
 ACCOUNT_API = "https://api.runpod.io/v2"
 
@@ -48,6 +51,9 @@ HANDLER_MARGIN_SECONDS = 60
 # A job that waits longer than this in the queue expires unrun.
 QUEUE_SECONDS = 2 * 3600
 FINAL = {"COMPLETED", "FAILED", "CANCELLED", "TIMED_OUT"}
+# A patch leaves out the docs and the tickets: no build or run reads them, and research files made the diff of one
+# hour of main 16.7 MB, past the job's input limit of 10 MB. A tree keeps the image's copy of them.
+PATCH_PATHS = [".", ":(exclude)docs", ":(exclude).tickets"]
 COMMIT = re.compile(r"^[0-9a-f]{40}$")
 # The endpoint runs on the RTX 2000 Ada only, so that the timings of different jobs come from one kind of card. The
 # 16 GB pool also holds these three, and a card that Runpod adds to the pool later becomes eligible.
@@ -320,7 +326,7 @@ def patches(request: Request, base: str, repo: Path) -> dict:
     for name, ref in request.trees.items():
         sha = git(repo, "rev-parse", "--verify", f"{ref}^{{commit}}").decode().strip()
         request.shas[name] = sha
-        trees[name] = base64.b64encode(git(repo, "diff", "--binary", base, sha)).decode()
+        trees[name] = base64.b64encode(git(repo, "diff", "--binary", base, sha, "--", *PATCH_PATHS)).decode()
     return trees
 
 
@@ -425,6 +431,14 @@ def endpoint_request(config: Config, commit: str, name: str = "tertius-gpu") -> 
             "gpu": {"pools": [POOL], "excludedTypes": OTHER_CARDS}}
 
 
+def key_file() -> Path | None:
+    """The file that holds the API key: TERTIUS_RUNPOD_KEY_FILE, else the path that KEY_POINTER holds. An agent runs
+    the script and never reads the key itself."""
+    if os.environ.get("TERTIUS_RUNPOD_KEY_FILE"):
+        return Path(os.environ["TERTIUS_RUNPOD_KEY_FILE"])
+    return Path(KEY_POINTER.read_text().strip()) if KEY_POINTER.exists() else None
+
+
 def positive(text: str) -> int:
     value = int(text)
     if value <= 0:
@@ -456,10 +470,11 @@ def main(argv: list) -> int:
     if args.command == "endpoint-request":
         print(json.dumps(endpoint_request(config, args.commit), indent=2))
         return 0
-    if "TERTIUS_RUNPOD_KEY_FILE" not in os.environ:
-        print("set TERTIUS_RUNPOD_KEY_FILE to the file that holds the Runpod API key", file=sys.stderr)
+    key = key_file()
+    if key is None:
+        print(f"no key: write the path of the file that holds the Runpod API key into {KEY_POINTER}", file=sys.stderr)
         return 2
-    api = RunpodApi(Path(os.environ["TERTIUS_RUNPOD_KEY_FILE"]))
+    api = RunpodApi(key)
     if args.command == "create-endpoint":
         if config.endpoint:
             print(f"{CONFIG_FILE} already names the endpoint {config.endpoint}", file=sys.stderr)
