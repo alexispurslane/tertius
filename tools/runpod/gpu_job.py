@@ -7,7 +7,8 @@ endpoint, within the spending caps.
 
 Each tree is the commit of its ref. The script scans the commits that GitHub does not hold yet for secrets, pushes
 each one to a hidden ref of the public repository, and sends the job to the endpoint whose image has the commits' dev
-shell, which it creates when none has. A worker fetches each commit by its id. The script refuses a job before it
+shell, which it creates when none has. A worker fetches each commit by its hidden ref and makes sure that the ref
+names the commit. The script refuses a job before it
 sends it when the job's worst case would pass the daily cap or the total cap. It counts the jobs of the audit log, the
 jobs in flight and Runpod's billed total. It writes one line per job, refusals too, to the audit log, and the job's
 output files and result under --out.
@@ -19,6 +20,7 @@ The standard library only.
 
 import argparse
 import base64
+import contextlib
 import datetime
 import fcntl
 import json
@@ -30,9 +32,16 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import importlib.util
+import tempfile
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
+
+# The handler's definition of a dev shell is the one definition: python3 -I puts no folder of the script on the path.
+_spec = importlib.util.spec_from_file_location("handler", Path(__file__).with_name("handler.py"))
+handler = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(handler)
 
 CONFIG_FILE = Path(__file__).with_name("endpoint.json")
 STATE = Path.home() / ".local/state/tertius/gpu-jobs"
@@ -47,7 +56,7 @@ ACCOUNT_API = "https://api.runpod.io/v2"
 # bill the image pull or a scaled-down worker (docs.runpod.io/serverless/pricing); the cold start measured 10 s.
 START_ALLOWANCE_SECONDS = 60
 IDLE_SECONDS = 10
-# The handler's copy of the trees before the commands and its collection of the outputs after them run inside the
+# The handler's fetch of the trees before the commands and its collection of the outputs after them run inside the
 # execution timeout too, so the commands get this much less.
 HANDLER_MARGIN_SECONDS = 60
 # A job that waits longer than this in the queue expires unrun.
@@ -58,9 +67,12 @@ FINAL = {"COMPLETED", "FAILED", "CANCELLED", "TIMED_OUT"}
 PROTOCOL = 2
 HANDLER = "tools/runpod/handler.py"
 # The paths whose files the image bakes into its dev shell. A commit that changes one of them needs another image.
-SHELL_PATHS = ["flake.nix", "flake.lock", "native"]
-# The script's endpoints are the ones whose names start with this, one per image.
+# The workflow gpu-image lists them too, to build an image when they change on main.
+SHELL_PATHS = handler.SHELL_PATHS
+# The script's endpoints: tertius-gpu-<12 characters of the image's commit>, one per image, and the first endpoint,
+# which has the bare name. The script deletes no other endpoint.
 ENDPOINT_PREFIX = "tertius-gpu"
+OURS = re.compile(rf"^{ENDPOINT_PREFIX}(-[0-9a-f]{{12}})?$")
 # The hidden refs that publish the jobs' commits: refs/gpu-jobs/<UTC day>/<agent>/<commit>. Not a branch or a tag, so
 # no clone fetches them. A ref goes after REF_DAYS days, long after its job's queue time and timeout.
 JOB_REFS = "refs/gpu-jobs"
@@ -70,7 +82,7 @@ COMMIT = re.compile(r"^[0-9a-f]{40}$")
 # 16 GB pool also holds these three, and a card that Runpod adds to the pool later becomes eligible.
 POOL = "AMPERE_16"
 OTHER_CARDS = ["NVIDIA RTX A4000", "NVIDIA RTX A4500", "NVIDIA RTX 4000 Ada Generation"]
-# Container disk in GB: the image's files, plus a copy of the baked source with its build outputs per tree.
+# Container disk in GB: the image's files, plus each tree's checkout with its build outputs.
 DISK_GB = 60
 
 
@@ -108,7 +120,6 @@ class Request:
     outputs: list
     seconds: int
     out: Path
-    shas: dict = field(default_factory=dict)
 
 
 class RunpodApi:
@@ -189,6 +200,16 @@ class GitHub:
     def push(self, sha: str, ref: str):
         git(self.repo, "push", "-q", "--no-verify", self.push_url, f"{sha}:{ref}")
 
+    def new_commits(self, shas: list) -> list:
+        """The commits of `shas` and their history that no branch or tag of GitHub holds, asked of GitHub itself:
+        origin's tracking refs move also when a push reaches only the knot."""
+        listing = git(self.repo, "ls-remote", "--heads", "--tags", self.url).decode()
+        ids = "".join(line.split("\t")[0] + "\n" for line in listing.splitlines() if "\t" in line)
+        known = subprocess.run(["git", "cat-file", "--batch-check=%(objectname) %(objecttype)"], cwd=self.repo,
+                               input=ids, capture_output=True, text=True, check=True).stdout
+        held = sorted({line.split()[0] for line in known.splitlines() if line.endswith(" commit")})
+        return git(self.repo, "rev-list", *shas, "--not", *held).decode().split()
+
     def refs(self) -> list:
         listing = git(self.repo, "ls-remote", self.url, f"{JOB_REFS}/*").decode()
         return [line.split("\t")[1] for line in listing.splitlines() if "\t" in line]
@@ -198,22 +219,28 @@ class GitHub:
             git(self.repo, "push", "-q", "--no-verify", self.push_url, *[f":{ref}" for ref in refs])
 
 
-def scan(repo: Path, shas: list) -> list:
-    """The secrets in the commits of `shas` that GitHub does not hold yet: gitleaks' findings, redacted, and the Runpod
-    key's own text. Each finding names its rule, file and commit, never the secret."""
-    new = git(repo, "rev-list", *shas, "--not", "--remotes=origin").decode().split()
+def scan(repo: Path, new: list) -> list:
+    """The secrets in the commits of `new`, the commits that GitHub does not hold yet: gitleaks' findings, redacted,
+    and the Runpod key's own text. Each finding names its rule, file and commit, never the secret. gitleaks comes from
+    the repository's pinned nixpkgs, with its default rules: a commit's own .gitleaks.toml, .gitleaksignore or
+    gitleaks:allow comment cannot silence it."""
     if not new:
         return []
-    log_opts = " ".join([*shas, "--not", "--remotes=origin"])
-    report = subprocess.run(["nix", "shell", "nixpkgs#gitleaks", "--command", "gitleaks", "git", str(repo),
-                             "--log-opts", log_opts, "--redact", "--no-banner", "--report-format", "json",
-                             "--report-path", "-", "--exit-code", "0", "--log-level", "error"],
-                            check=True, capture_output=True, text=True).stdout
+    with tempfile.TemporaryDirectory() as folder:
+        rules = Path(folder) / "gitleaks.toml"
+        rules.write_text("[extend]\nuseDefault = true\n")
+        (Path(folder) / ".gitleaksignore").write_text("")
+        report = subprocess.run(["nix", "shell", "--inputs-from", str(repo), "nixpkgs#gitleaks", "--command",
+                                 "gitleaks", "git", str(repo), "--log-opts", " ".join(["-m", "--no-walk", *new]),
+                                 "--config", str(rules), "--gitleaks-ignore-path", folder, "--ignore-gitleaks-allow",
+                                 "--redact", "--no-banner", "--report-format", "json", "--report-path", "-",
+                                 "--exit-code", "0", "--log-level", "error"],
+                                check=True, capture_output=True, text=True).stdout
     findings = [f"{leak['RuleID']} in {leak['File']} of {leak['Commit'][:12]}" for leak in json.loads(report or "[]")]
     key = key_file()
     if key is not None and key.exists():
         text = key.read_text().strip().encode()
-        patch = git(repo, "log", "-p", "--format=commit %H", *shas, "--not", "--remotes=origin")
+        patch = git(repo, "log", "-p", "-m", "--no-walk", "--format=commit %H", *new)
         if text and text in patch:
             findings.append("the Runpod API key's text in one of the new commits")
     return findings
@@ -221,7 +248,8 @@ def scan(repo: Path, shas: list) -> list:
 
 def shell_of(repo: Path, sha: str) -> tuple:
     """The dev shell of a commit: the object ids of the paths that the image bakes into it. Two commits with the same
-    ids have the same shell."""
+    ids have the same shell. The ids also hold the files' modes, so this rule is stricter than the handler's byte
+    comparison, and a commit that passes here passes on the worker too."""
     return tuple(git_maybe(repo, "rev-parse", "--verify", "-q", f"{sha}:{path}") for path in SHELL_PATHS)
 
 
@@ -240,39 +268,63 @@ def have(repo: Path, config: Config, sha: str) -> bool:
     return git_maybe(repo, "cat-file", "-t", sha) == "commit"
 
 
-def image_for(config: Config, registry, repo: Path, shell: tuple, sha: str) -> str:
-    """The commit of the newest image that has the shell and speaks this script's protocol. The newest by commit time,
-    and of two at the same second the one with more history, so that a handler fix replaces its parent's image."""
-    fitting = [image for image in registry.images() if have(repo, config, image)
+def image_for(config: Config, registry, repo: Path, shell: tuple, shas: list) -> str:
+    """The commit of the newest image that has the shell and speaks this script's protocol. An image that the job's
+    commits descend from comes first, so that an image built from a side branch's tag runs only that branch's jobs.
+    The newest by commit time, and of two at the same second the one with more history, so that a handler fix
+    replaces its parent's image."""
+    images = registry.images()
+    missing = [image for image in images if not have(repo, config, image)]
+    fitting = [image for image in images if image not in missing
                and protocol_of(repo, image) == PROTOCOL and shell_of(repo, image) == shell]
     if not fitting:
-        raise Refused(f"no image has the dev shell of {sha} and the handler protocol {PROTOCOL}: build "
-                      f"{config.image_repository}:{sha} with the workflow "
-                      f"gpu-image first (tools/runpod/README.md, \"A new dev shell\")")
-    return max(fitting, key=lambda image: (int(git(repo, "show", "-s", "--format=%ct", image)),
-                                           int(git(repo, "rev-list", "--count", image))))
+        unread = f" The commits of {len(missing)} images could not be fetched: {', '.join(missing)}." if missing else ""
+        raise Refused(f"no image has the dev shell of {shas[0]} and the handler protocol {PROTOCOL}: build "
+                      f"{config.image_repository}:{shas[0]} with the workflow gpu-image first (tools/runpod/README.md, "
+                      f"\"A new dev shell\").{unread}")
+    ancestors = [image for image in fitting if any(
+        subprocess.run(["git", "merge-base", "--is-ancestor", image, sha], cwd=repo).returncode == 0 for sha in shas)]
+    return max(ancestors or fitting, key=lambda image: (int(git(repo, "show", "-s", "--format=%ct", image)),
+                                                        int(git(repo, "rev-list", "--count", image))))
 
 
 def ours(api) -> list:
-    return [endpoint for endpoint in api.endpoints() if endpoint.get("name", "").startswith(ENDPOINT_PREFIX)]
+    return [endpoint for endpoint in api.endpoints() if OURS.match(endpoint.get("name", ""))]
+
+
+def stopped(endpoints: list):
+    """Refuse while the watchdog or the orchestrator holds an endpoint at 0 workers."""
+    ids = [endpoint["id"] for endpoint in endpoints if endpoint["workers"]["max"] == 0]
+    if ids:
+        raise Refused(f"the endpoint {', '.join(ids)} is stopped at 0 workers; the orchestrator restarts it")
 
 
 def route(config: Config, api, state: Path, image: str) -> str:
     """Under the lock, after the jobs in flight are settled: the id of the endpoint that runs `image`, created if no
     endpoint runs it. Every other endpoint of the script's that no job in flight names and no worker runs on goes. An
-    endpoint at 0 workers was stopped by the watchdog or by hand, so then no job runs and nothing changes."""
+    endpoint at 0 workers was stopped by the watchdog or by hand, so then no job runs and nothing is deleted. The
+    watchdog does not take the lock, so the script reads the list again after a creation and before each deletion,
+    and it removes its new endpoint again when a stop came in between."""
     endpoints = ours(api)
-    stopped = [endpoint["id"] for endpoint in endpoints if endpoint["workers"]["max"] == 0]
-    if stopped:
-        raise Refused(f"the endpoint {', '.join(stopped)} is stopped at 0 workers; the orchestrator restarts it")
+    stopped(endpoints)
     wanted = f"{config.image_repository}:{image}"
     live = next((endpoint["id"] for endpoint in endpoints if endpoint["image"] == wanted), None)
+    created = None
     if live is None:
-        live = api.create_endpoint(endpoint_request(config, image))["id"]
+        live = created = api.create_endpoint(endpoint_request(config, image))["id"]
+    try:
+        stopped(ours(api))
+    except Refused:
+        if created is not None:
+            api.delete_endpoint(created)
+        raise
     busy = {pending["endpoint"] for pending in in_flight(state)}
     for endpoint in endpoints:
-        if endpoint["id"] != live and endpoint["id"] not in busy and not any(
+        if endpoint["id"] == live or endpoint["id"] in busy or any(
                 worker.get("status") == "RUNNING" for worker in api.workers(endpoint["id"])):
+            continue
+        now = next((fresh for fresh in ours(api) if fresh["id"] == endpoint["id"]), None)
+        if now is not None and now["workers"]["max"] != 0:
             api.delete_endpoint(endpoint["id"])
     return live
 
@@ -311,6 +363,30 @@ class locked:
         self.file.close()
 
 
+@contextlib.contextmanager
+def owning(state: Path, name: str):
+    """The lock of the run that waits for the job `name`, held from before its entry exists until it settles. The
+    system releases it when that run dies, so a held lock means that the run still fetches the job's result."""
+    folder = state / "pending"
+    folder.mkdir(parents=True, exist_ok=True)
+    with (folder / f"{name}.owner").open("w") as file:
+        fcntl.flock(file, fcntl.LOCK_EX)
+        yield
+
+
+def owned(state: Path, name: str) -> bool:
+    """Whether a live run holds the job's owner lock."""
+    path = state / "pending" / f"{name}.owner"
+    if not path.exists():
+        return False
+    with path.open("a") as file:
+        try:
+            fcntl.flock(file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return True
+        return False
+
+
 def log_lines(state: Path) -> list:
     path = state / "jobs.jsonl"
     return [json.loads(line) for line in path.read_text().splitlines() if line.strip()] if path.exists() else []
@@ -343,6 +419,7 @@ def settle(state: Path, pending: dict, ending: dict) -> bool:
     line = {key: value for key, value in pending.items() if key not in ("name", "expires")}
     append_log(state, {**line, **ending})
     path.unlink()
+    (path.parent / f"{pending['name']}.owner").unlink(missing_ok=True)
     return True
 
 
@@ -363,9 +440,12 @@ def ending(config: Config, worst: float, status: dict) -> dict:
 
 
 def settle_lost(config: Config, state: Path, api, now: datetime.datetime):
-    """Under the lock: settle each job in flight that ended while no run waited for it. A job past its expiry whose
+    """Under the lock: settle each job in flight that ended while no run waited for it. A job whose run still holds
+    its owner lock stays, so that its run gets its result and its endpoint stays. A job past its expiry whose
     end Runpod does not report may have run, so it costs its worst case. So does a job that Runpod no longer knows."""
     for pending in in_flight(state):
+        if owned(state, pending["name"]):
+            continue  # Its own run waits for it, and settles it with its result.
         expired = datetime.datetime.fromisoformat(pending["expires"]) <= now
         if pending.get("jobId") is None:
             if expired:
@@ -404,10 +484,9 @@ def refusal(config: Config, state: Path, api, worst: float, now: datetime.dateti
 
 
 def commits(request: Request, repo: Path) -> dict:
-    """Each tree's commit, also kept in request.shas."""
-    for name, ref in request.trees.items():
-        request.shas[name] = git(repo, "rev-parse", "--verify", f"{ref}^{{commit}}").decode().strip()
-    return dict(request.shas)
+    """tree name -> the commit of its ref."""
+    return {name: git(repo, "rev-parse", "--verify", f"{ref}^{{commit}}").decode().strip()
+            for name, ref in request.trees.items()}
 
 
 def job_ref(agent: str, sha: str, now: datetime.datetime) -> str:
@@ -438,36 +517,51 @@ def submit(request: Request, *, config: Config, api, registry, github, scan=scan
     Runpod's status when the job did not complete. If the script stops before the job's final status, the job stays
     in pending/, with its id once Runpod accepted it, and the next run settles it."""
     now = now or (lambda: datetime.datetime.now(datetime.timezone.utc))
-    shas = commits(request, repo)
+    name = uuid.uuid4().hex
+    with owning(state, name):
+        return run_job(request, name, config=config, api=api, registry=registry, github=github, scan=scan,
+                       state=state, repo=repo, now=now, poll_seconds=poll_seconds, out=out)
+
+
+def run_job(request: Request, name: str, *, config, api, registry, github, scan, state, repo, now, poll_seconds,
+            out) -> str:
+    """submit's steps, while this run holds the job's owner lock. The order is the safety rule: nothing is published
+    before the scan, the image's choice and the caps, and nothing is sent before the commits are published."""
     seconds = min(request.seconds, config.job_seconds)
     execution = execution_seconds(config, seconds)
     worst = worst_case_usd(config, seconds)
-    trees = {name: {"sha": sha, "ref": job_ref(request.agent, sha, now())} for name, sha in shas.items()}
     pending = {"time": now().isoformat(), "agent": request.agent, "endpoint": None, "image": None,
-               "trees": {name: {"ref": request.trees[name], **tree} for name, tree in trees.items()},
+               "trees": {tree: {"ref": ref} for tree, ref in request.trees.items()},
                "commands": request.commands, "outputs": request.outputs, "worstCaseUsd": worst, "jobId": None,
-               "expires": (now() + datetime.timedelta(seconds=QUEUE_SECONDS + execution)).isoformat(),
-               "name": uuid.uuid4().hex}
+               "expires": (now() + datetime.timedelta(seconds=QUEUE_SECONDS + execution)).isoformat(), "name": name}
     try:
+        shas = commits(request, repo)
+        trees = {tree: {"sha": sha, "ref": job_ref(request.agent, sha, now())} for tree, sha in shas.items()}
+        pending["trees"] = {tree: {"ref": request.trees[tree], **trees[tree]} for tree in trees}
         shells = {shell_of(repo, sha) for sha in shas.values()}
         if len(shells) > 1:
             raise Refused(f"the trees have {len(shells)} dev shells, and a job runs in one; give the trees the same "
                           f"{', '.join(SHELL_PATHS)}")
-        findings = scan(repo, sorted(set(shas.values())))
+        findings = scan(repo, github.new_commits(sorted(set(shas.values()))))
         if findings:
             raise Refused(f"the secrets scan found {'; '.join(findings)}; nothing was published")
-        pending["image"] = image_for(config, registry, repo, shells.pop(), next(iter(shas.values())))
+        pending["image"] = image_for(config, registry, repo, shells.pop(), list(shas.values()))
         with locked(state):
             settle_lost(config, state, api, now())
             reason = refusal(config, state, api, worst, now())
             if reason is not None:
                 raise Refused(reason)
             pending["endpoint"] = route(config, api, state, pending["image"])
-            write_pending(state, pending["name"], pending)
-    except Refused as reason:
+            write_pending(state, name, pending)
+    except (Refused, subprocess.CalledProcessError, urllib.error.URLError, KeyError) as error:
+        # Before the record of the job in flight, nothing was published or sent. A failed git command, registry or
+        # Runpod call refuses the job too, and the log says why.
+        reason = str(error)
+        if isinstance(error, subprocess.CalledProcessError):
+            reason = f"{' '.join(map(str, error.cmd))} failed: {(error.stderr or b'').decode(errors='replace').strip()}"
         line = {key: value for key, value in pending.items() if key not in ("name", "expires")}
         with locked(state):
-            append_log(state, {**line, "gpuSeconds": 0.0, "costUsd": 0.0, "result": "refused", "error": str(reason)})
+            append_log(state, {**line, "gpuSeconds": 0.0, "costUsd": 0.0, "result": "refused", "error": reason})
         out(f"refused: {reason}")
         return "refused"
     body = {"input": {"protocol": PROTOCOL, "repository": config.repository, "trees": trees,
@@ -486,7 +580,7 @@ def submit(request: Request, *, config: Config, api, registry, github, scan=scan
             settle(state, pending, {"gpuSeconds": 0.0, "costUsd": 0.0, "result": "rejected", "error": reason})
         raise
     with locked(state):
-        write_pending(state, pending["name"], pending)
+        write_pending(state, name, pending)
     out(f"job {pending['jobId']} sent to endpoint {pending['endpoint']}; worst case ${worst:.2f}")
     try:
         prune(github, now())

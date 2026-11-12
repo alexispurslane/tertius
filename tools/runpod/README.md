@@ -37,11 +37,14 @@ A job names its trees' commits, not their files. Before the job, the script does
 
 1. It finds the commit of each tree's ref.
 2. If the trees have different dev shells (next section), it refuses the job.
-3. It scans for secrets the commits that GitHub does not hold yet: `git rev-list <commits> --not --remotes=origin`. The scan is gitleaks 8.30.1 with `--redact`, through `nix shell nixpkgs#gitleaks`, and a search for the text of the Runpod key. A finding refuses the job, and the script publishes nothing. The log names the rule, the file and the commit, never the secret.
-4. It picks the image and the endpoint, checks the caps, and records the job as in flight.
+3. It asks GitHub for its branches and tags with `git ls-remote`. Then it scans for secrets each commit of the job's history that none of them holds. The script asks GitHub itself, because origin's tracking refs also move when a push reaches only the knot.
+   - The scan is gitleaks with its default rules and `--redact`, from the repository's pinned nixpkgs (8.30.1 on 2026-11-12). It also reads the changes of merge commits. A commit's own `.gitleaks.toml`, `.gitleaksignore` or `gitleaks:allow` comment cannot silence it.
+   - A second search looks for the text of the Runpod key.
+   - A finding refuses the job, and the script publishes nothing. The log names the rule, the file and the commit, never the secret.
+4. It picks the image, checks the caps, picks or creates the endpoint, and records the job as in flight.
 5. It pushes each commit to a hidden ref of the public repository, `refs/gpu-jobs/<UTC day>/<agent>/<commit>`, over SSH with the Mac's own key. A hidden ref is not a branch or a tag, so no clone fetches it. The push skips the repository's pre-push hook.
 6. It sends the job. Its input holds the protocol, the repository's URL, and each tree's commit and hidden ref.
-7. It deletes the hidden refs of the days before the last three.
+7. It deletes the hidden refs that are older than the three days before today. So the refs of four UTC days stay: today's and those of the three days before.
 
 The worker makes each tree as a sparse, shallow, partial clone. Such a clone fetches the objects of one commit only, without `docs/` and `.tickets/`. It fetches the hidden ref and makes sure that the ref names the job's commit. If the ref names another commit, the job fails before any command runs. A tree's fetch took about 2 s on 2026-11-12.
 
@@ -54,8 +57,9 @@ A commit's dev shell is the content of `flake.nix`, `flake.lock` and `native/`. 
 Before each job, the script lists the images of the registry. It takes the newest image whose commit has the job's dev shell and whose handler speaks the protocol. Then it looks for the endpoint that runs that image. Runpod's list of endpoints is the one store of the live endpoint: the script finds it by its image, and no file holds its id.
 
 - If no endpoint runs the image, the script creates one: `tertius-gpu-<12 characters of the commit>`, with 0 to 6 workers, a 900 s timeout per job, FlashBoot and the 16 GB pool `AMPERE_16` without its other three cards. So every job runs on an RTX 2000 Ada. `gpu_job.py endpoint-request <commit>` prints that request and sends nothing.
-- Then the script looks at each other endpoint whose name starts with `tertius-gpu`. When no job in flight names it and no worker on it runs, the script deletes it. An old endpoint thus goes after its last job, and no job of it is cut.
-- If any endpoint of the script has a maximum of 0 workers, the script refuses every job and changes nothing. When the spending nears its limit, the orchestrator's watchdog stops all endpoints that way.
+- Then the script looks at each other endpoint of its own: `tertius-gpu-<12 hex characters>`, or the first endpoint with the bare name `tertius-gpu`. When no job in flight names it and no worker on it runs, the script deletes it. An old endpoint thus goes after its last job, and no job of it is cut. The script deletes no other endpoint.
+- If any endpoint of the script has a maximum of 0 workers, the script refuses every job and deletes nothing. When the spending nears its limit, the orchestrator's watchdog stops all endpoints that way. The watchdog does not take the script's lock. So the script reads the list of endpoints again after it creates one and before each deletion. If a stop came in between, it deletes its new endpoint again and refuses the job.
+- An image that the job's commits descend from comes before other images of the same dev shell. So an image built from a side branch's tag runs only the jobs of that branch.
 
 So a new image replaces the old endpoint without a drain: new jobs go to the new endpoint, and the jobs of the old one finish there. The caps and the audit log count the jobs of every endpoint, because each job records its own endpoint.
 
@@ -89,7 +93,7 @@ The state folder `~/.local/state/tertius/gpu-jobs/` holds two stores:
 - `pending/` holds one file per job in flight, with its endpoint, its image, its worst case and, after Runpod accepts the job, its id.
 - `jobs.jsonl` holds one JSON line per settled job, a refusal too. The line holds the time, the agent, the endpoint, the image and the commands. It also holds the trees with their refs, commits and hidden refs, the job's id, the GPU seconds, the cost, the result and the exit codes.
 
-When a job ends, the script moves it from `pending/` to the log in one step under the lock. If the script stops first, for example from a lost network or a kill, the job stays in `pending/` and counts at its worst case. The next run of the script asks Runpod for that job's final status and settles it. A job that Runpod no longer knows costs its worst case. A job counts until its queue time and its timeout pass. If Runpod reports no end by then, the log records it as `lost` at its worst case. A failed push of the commits makes no job, and neither does an HTTP error of `/run`. The log records such a job as `rejected` at no cost.
+When a job ends, the script moves it from `pending/` to the log in one step under the lock. If the script stops first, for example from a lost network or a kill, the job stays in `pending/` and counts at its worst case. The next run of the script asks Runpod for that job's final status and settles it. While a run waits for its job, it holds the job's owner lock, `pending/<name>.owner`. Another run does not settle such a job, so the job's endpoint stays and its own run gets its result. The system releases the lock when the run dies. A job that Runpod no longer knows costs its worst case. A job counts until its queue time and its timeout pass. If Runpod reports no end by then, the log records it as `lost` at its worst case. A failed push of the commits makes no job, and neither does an HTTP error of `/run`. The log records such a job as `rejected` at no cost. A failed git command, registry call or Runpod call before the job is recorded refuses the job, and the log says why.
 
 ## Rules for a job's commands
 

@@ -41,6 +41,8 @@ class FakeRunpod:
                                           "log": "done\n", "files": {}, "skipped": {}}}
         self.live = list(endpoints or [])
         self.running = {}  # endpoint id -> its running workers
+        self.listings = 0
+        self.stop_at_listing = None  # (n, endpoint id): the watchdog stops that endpoint before the n-th listing
         self.submitted = []
         self.cancelled = []
         self.created = []
@@ -53,7 +55,12 @@ class FakeRunpod:
         return self.today
 
     def endpoints(self):
-        return [dict(endpoint) for endpoint in self.live]
+        self.listings += 1
+        if self.stop_at_listing and self.stop_at_listing[0] == self.listings:
+            for endpoint in self.live:
+                if endpoint["id"] == self.stop_at_listing[1]:
+                    endpoint["workers"] = {**endpoint["workers"], "max": 0}
+        return [dict(endpoint, workers=dict(endpoint["workers"])) for endpoint in self.live]
 
     def create_endpoint(self, body):
         endpoint = {"id": f"ep-new-{len(self.created) + 1}", "name": body["name"], "image": body["image"],
@@ -100,10 +107,14 @@ class FakeRegistry:
 class FakeGitHub:
     """The public repository: the hidden refs that the script pushes, lists and deletes."""
 
-    def __init__(self, refs=()):
+    def __init__(self, refs=(), known=()):
         self.pushed = []
         self.live = list(refs)
         self.deleted = []
+        self.known = set(known)  # the commits that GitHub's branches and tags already hold
+
+    def new_commits(self, shas):
+        return [sha for sha in shas if sha not in self.known]
 
     def push(self, sha, ref):
         self.pushed.append((sha, ref))
@@ -239,16 +250,22 @@ class Secrets(Queue):
         self.assertEqual((self.github.pushed, api.submitted), ([], []))
         self.assertIn("generic-api-key", self.log_lines()[-1]["error"])
 
-    def test_the_scan_sees_every_commit_of_the_job(self):
+    def test_the_scan_sees_every_commit_of_the_job_that_github_does_not_hold(self):
         branch = self.commit({**SHELL_FILES, **HANDLER, "a.txt": "branch\n"})
-        self.submit(self.api(), trees={"main": self.base, "branch": branch})
-        self.assertEqual(sorted(self.scanned[0]), sorted([self.base, branch]))
+        self.submit(self.api(), trees={"main": self.base, "branch": branch}, github=FakeGitHub(known=[self.base]))
+        self.assertEqual(self.scanned[0], [branch])
 
-    def test_hidden_refs_older_than_three_days_are_deleted(self):
+    def test_a_tree_whose_ref_names_no_commit_is_refused_in_the_audit_log(self):
+        api = self.api()
+        self.assertEqual(self.submit(api, trees={"main": "no-such-branch"}), "refused")
+        self.assertEqual((api.submitted, self.github.pushed), ([], []))
+        self.assertIn("no-such-branch", self.log_lines()[-1]["error"])
+
+    def test_hidden_refs_older_than_the_three_days_before_today_are_deleted(self):
         old = f"refs/gpu-jobs/2026-11-08/a/{self.base}"
-        young = f"refs/gpu-jobs/2026-11-10/a/{self.base}"
-        self.submit(self.api(), github=FakeGitHub(refs=[old, young]))
-        self.assertEqual(self.github.deleted, [old])
+        last = f"refs/gpu-jobs/2026-11-09/a/{self.base}"
+        self.submit(self.api(), github=FakeGitHub(refs=[old, last]))
+        self.assertEqual(self.github.deleted, [old], "the refs of today and of the three days before it stay")
 
 
 class DevShells(Queue):
@@ -310,6 +327,40 @@ class DevShells(Queue):
         self.submit(api, images=[old, self.base])
         self.assertEqual(api.created[0]["image"], f"{REPOSITORY}:{self.base}")
         self.assertEqual(api.deleted, ["ep1"])
+
+    def test_an_image_of_a_side_branch_does_not_replace_the_image_that_the_jobs_commits_descend_from(self):
+        side = self.commit({**SHELL_FILES, "tools/runpod/handler.py": "PROTOCOL = 2\n# an experiment\n"})
+        self.git("checkout", "-q", "--detach", self.base)
+        main = self.commit({**SHELL_FILES, **HANDLER, "a.txt": "main moves on\n"})
+        api = self.api()
+        self.submit(api, trees={"main": main}, images=[self.base, side])
+        self.assertEqual((api.submitted[0][0], api.created, api.deleted), ("ep1", [], []))
+
+    def test_an_endpoint_that_the_script_did_not_name_is_never_deleted(self):
+        shell = self.commit({**SHELL_FILES, **HANDLER, "flake.lock": "{ newer }\n"})
+        mine = {**self.endpoint(self.base, id="ep-hand"), "name": "tertius-gpu-by-hand"}
+        api = self.api(endpoints=[self.endpoint(self.base), mine])
+        self.submit(api, trees={"main": shell}, images=[self.base, shell])
+        self.assertEqual(api.deleted, ["ep1"])
+
+    def test_a_job_whose_own_run_still_waits_for_it_keeps_its_endpoint_and_its_entry(self):
+        shell = self.commit({**SHELL_FILES, **HANDLER, "flake.lock": "{ newer }\n"})
+        self.pending("waiting", job="job-done", endpoint="ep1")
+        api = self.api(statuses={"job-done": {"status": "COMPLETED", "executionTime": 1_000}})
+        with gpu_job.owning(self.state, "waiting"):
+            self.submit(api, trees={"main": shell}, images=[self.base, shell])
+        self.assertEqual(api.deleted, [], "its run still fetches the result from ep1")
+        self.assertEqual([held["jobId"] for held in gpu_job.in_flight(self.state)], ["job-done"])
+
+    def test_an_endpoint_that_the_watchdog_stops_during_the_routing_is_kept_and_the_job_refused(self):
+        shell = self.commit({**SHELL_FILES, **HANDLER, "flake.lock": "{ newer }\n"})
+        api = self.api()
+        api.stop_at_listing = (2, "ep1")
+        self.assertEqual(self.submit(api, trees={"main": shell}, images=[self.base, shell]), "refused")
+        self.assertEqual(api.submitted, [])
+        self.assertEqual([endpoint["id"] for endpoint in api.live], ["ep1"], "the stop stays, and no endpoint "
+                         "of 6 workers is left beside it")
+        self.assertIn("0 workers", self.log_lines()[-1]["error"])
 
     def test_an_endpoint_stopped_at_zero_workers_refuses_every_job_and_creates_no_endpoint(self):
         api = self.api(endpoints=[self.endpoint(self.base, most=0)])

@@ -113,7 +113,7 @@ class Trees(Job):
     def test_a_job_of_another_protocol_is_refused_and_names_both(self):
         result = self.run_job(protocol=1)
         self.assertEqual(result["status"], "refused")
-        self.assertIn(f"protocol 1", result["error"])
+        self.assertIn("protocol 1", result["error"])
         self.assertIn(f"protocol {handler.PROTOCOL}", result["error"])
 
     def test_a_tree_name_that_is_not_a_plain_name_is_refused(self):
