@@ -1,0 +1,131 @@
+#!/usr/bin/env python3
+"""Tool code. The official Stryker run of tools/stryker/changed.py on the cloud's CPU workers: one job per module with
+changed lines, all at once, each on its own worker with the official settings. It prints the same table, evidence and
+validity as changed.py over all modules. Run it from the repository on the Mac, without the dev shell:
+
+    python3 -I tools/stryker/cloud.py <base> <out-dir> --agent <name> [--head <commit>] [--exclude <file>...]
+
+The script finds the modules with changed lines here, as changed.py does, and prints the changed code outside the
+official run for the agent's tools/mutate.py list. Then it sends one job per module through tools/runpod/gpu_job.py
+with --kind cpu, which publishes the head commit and keeps the caps and the audit log. Each job fetches the history of
+its tree, runs `changed.py <merge base> --modules <module>` in the dev shell, and sends back the module's results.json,
+its Stryker configuration, report and logs, and run.py's process samples. They land in <out-dir>/<module>/.
+
+A worker runs one module at concurrency 1, so the rule of tools/README.md, "Stryker.NET pitfalls", holds on each
+machine: one test host. Workers are separate machines, so the Mac's lock /tmp/tertius-stryker.lock does not bind them.
+The exit code is 1 if a module's run is not valid or its job did not end with a result, as with changed.py.
+"""
+
+import argparse
+import json
+import shlex
+import subprocess
+import sys
+import threading
+import time
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parent))
+sys.path.insert(0, str(HERE))
+import changed  # noqa: E402
+import changed_lines  # noqa: E402
+
+GPU_JOB = HERE.parent / "runpod/gpu_job.py"
+# The files of a module's folder that come back from its worker. A job sends back at most 8 MB in base64.
+OUTPUTS = ["results.json", "stryker-config.json", "run.out", "processes.log", "out/logs/*.txt",
+           "out/reports/mutation-report.json"]
+
+
+def job_command(base: str, module: str, exclude: list) -> str:
+    """The job's command: the tree's whole history, without blobs until a diff reads them, the Stryker tool of the
+    tool manifest, then changed.py on one module. The job's tree is a shallow clone of one commit, and changed.py diffs from the merge base."""
+    excluded = f" --exclude {' '.join(shlex.quote(name) for name in exclude)}" if exclude else ""
+    return (f"cd t && git fetch -q --filter=blob:none --unshallow origin && dotnet tool restore > /dev/null && "
+            f"python3 -I tools/stryker/changed.py {base} ../out/{module} --modules {module}{excluded}")
+
+
+def merged(results: dict, failures: dict) -> dict:
+    """The run over all modules from each module's results.json (module -> its parsed file) and the modules whose job
+    gave none (module -> why). The rows keep the order of changed.MODULES."""
+    order = [module for module in changed.MODULES if module in results or module in failures]
+    rows, unmutated, notes, problems, load, settings, official = [], [], [], [], [], None, True
+    for module in order:
+        if module in failures:
+            problems.append(f"{module}: the cloud job gave no results.json: {failures[module]}")
+            continue
+        result = results[module]
+        rows += result["rows"]
+        unmutated += [tuple(item) for item in result["unmutated"]]
+        notes += result["evidence"]
+        problems += result["problems"]
+        load += result["load"]
+        settings = settings or result["settings"]
+        official = official and result["official"]
+    return {"rows": rows, "unmutated": unmutated, "notes": notes, "problems": problems, "load": load,
+            "settings": settings or "", "official": official}
+
+
+def run_job(module: str, args, head: str, base: str, out: Path, ended: dict):
+    folder = out / module
+    command = [sys.executable, "-I", str(GPU_JOB), "submit", "--agent", args.agent, "--kind", "cpu",
+               "--tree", f"t={head}", "--run", job_command(base, module, args.exclude), "--out", str(out / "jobs" / module)]
+    for name in OUTPUTS:
+        command += ["--output", f"out/{module}/{name}"]
+    with (out / f"{module}.job.log").open("w") as log:
+        ended[module] = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT).returncode
+    landed = out / "jobs" / module / "out" / module
+    if landed.exists():
+        folder.mkdir(parents=True, exist_ok=True)
+        for path in landed.rglob("*"):
+            if path.is_file():
+                target = folder / path.relative_to(landed)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                path.replace(target)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("base", help="the branch or commit that the changes start from, for example main")
+    parser.add_argument("out", type=Path, help="the folder for each module's results and the merged results.json")
+    parser.add_argument("--agent", required=True, help="who sends the jobs, for the audit log")
+    parser.add_argument("--head", default="HEAD", help="the last commit of the changes (default HEAD)")
+    parser.add_argument("--exclude", nargs="*", default=[], help="file names to leave out, for example Program.cs")
+    args = parser.parse_args()
+    root = changed_lines.repo_root()
+    git = lambda *words: subprocess.check_output(["git", "-C", root, *words], text=True).strip()  # noqa: E731
+    head = git("rev-parse", "--verify", f"{args.head}^{{commit}}")
+    base = git("merge-base", args.base, head)
+    lines, removed = changed_lines.changed_and_removed(root, base, ["src", "analyzers"], head, changed.CODE_SUFFIXES)
+    changed.print_hand_files(lines, removed)
+    plans = changed.planned(root, base, head, args.exclude, removed)
+    modules = [module for module, patterns in plans.items() if patterns]
+    if not modules:
+        print(f"No changed C# lines in {', '.join(changed.MODULES)}.")
+        return 0
+    out = args.out.resolve()
+    out.mkdir(parents=True, exist_ok=True)
+    print(f"Stryker on {', '.join(modules)}, one CPU worker each; the jobs' logs are {out}/<module>.job.log",
+          file=sys.stderr, flush=True)
+    started = time.monotonic()
+    ended = {}
+    threads = [threading.Thread(target=run_job, args=(module, args, head, base, out, ended)) for module in modules]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    results, failures = {}, {}
+    for module in modules:
+        path = out / module / "results.json"
+        if path.is_file():
+            results[module] = json.loads(path.read_text())
+        else:
+            failures[module] = f"exit code {ended.get(module)}, see {out}/{module}.job.log"
+    run = merged(results, failures)
+    run["rows"] += changed.removed_rows(removed, set(plans) - set(modules), args.exclude)
+    return changed.report(run["rows"], run["unmutated"], run["notes"], run["problems"], run["settings"],
+                          run["official"], run["load"], time.monotonic() - started, out)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
