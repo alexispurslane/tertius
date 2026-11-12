@@ -53,9 +53,9 @@ Two A/A jobs on 2026-11-12 ran the same commit as both trees, five runs per side
 | Largest change of a pass median | 0.002 ms | 0.002 ms |
 | SM clock, mean (lowest to highest) | 2379 MHz (2130 to 2475) | 2390 MHz (2130 to 2490) |
 
-Those jobs had no warm-up run yet. Five runs per side is the default. A median of five also ignores one slow run. Read a result in this order:
+Those jobs had no warm-up run yet. A third A/A job with the warm-up, three runs per side, gave spreads of 0.009 and 0.011 ms and a change of -0.004 ms. Five runs per side is the default. A median of five also ignores one slow run. Read a result in this order:
 
-1. If the report says "every run differs", the change of the frame span is real. With five runs per side, that takes about 0.15 ms or more on the card, about 0.35 ms on the Mac.
+1. If the report says "every run differs", the change of the frame span is real. With the warm-up, the runs of one side lay within about 0.01 ms, so a change of about 0.02 ms or more can separate them. Without it, a change took about 0.15 ms. One A/A job measured the smaller spread, so trust it after more jobs confirm it.
 2. If the runs overlap, look at the passes that you changed. A pass median repeats within 0.002 ms between two runs of the same commit. So a pass that moved by 0.01 ms or more moved because of the change.
 3. If a smaller gain matters, run 9 runs per side in one job. Do not add a second job, because its worker differs.
 
