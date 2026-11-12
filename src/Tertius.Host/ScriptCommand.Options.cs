@@ -127,6 +127,8 @@ public static partial class ScriptCommand
                 options.Exposure = new FixedExposure(stops);
             if (KeyLights is { } keyLights)
                 options.LightPairs = keyLights == 0 ? new EveryLightPair() : new KeyAndFill(keyLights);
+            else
+                options.LightPairs = new KeyAndFill(3);
         }
     }
 }
