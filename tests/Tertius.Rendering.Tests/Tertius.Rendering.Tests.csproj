@@ -32,7 +32,7 @@
     <EngineShaders>$(MSBuildProjectDirectory)/../../src/Tertius.Rendering/Shaders</EngineShaders>
   </PropertyGroup>
   <ItemGroup>
-    <TestShader Include="$(EngineShaders)/lighting.vert;$(EngineShaders)/composite.frag;$(EngineShaders)/composite_scatter.frag;Shaders/direct_light_probe.frag;Shaders/direct_diffuse_probe.frag;Shaders/reflection_sharing_pulse.frag"
+    <TestShader Include="$(EngineShaders)/lighting.vert;$(EngineShaders)/composite.frag;$(EngineShaders)/composite_scatter.frag;Shaders/direct_light_probe.frag;Shaders/direct_diffuse_probe.frag;Shaders/specular_parts_probe.frag;Shaders/reflection_sharing_pulse.frag"
                 Flags="-DTERTIUS_EVERY_AMBIENT_TERM -I &quot;$(EngineShaders)&quot;" />
     <TestShader Include="Shaders/*.comp;Shaders/upscale_view_ray_probe.frag" Flags="-I &quot;$(EngineShaders)&quot;" />
     <TestShader Include="$(EngineShaders)/screen_trace_resolve.comp" Flags="-I &quot;$(EngineShaders)&quot;" />

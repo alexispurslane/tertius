@@ -88,6 +88,11 @@ void main()
         : closedForm(withAmbientFootprint(s, pixel), V);
     vec3 indirectDiffuse = factors.diffuse * indirect.diffuse;
     vec3 indirectSpecular = factors.specular * indirect.specular;
+#ifdef TERTIUS_SPECULAR_PARTS_PROBE
+    // THROWAWAY DIAGNOSTIC (ter-8esk)
+    outColor = vec4(imageLoad(directSpecularLight, pixel).r, factors.specular.r, indirectSpecular.r, directDiffuse.r);
+    return;
+#endif
     if (screenTraceOn)
         indirectSpecular = reflectionSharedAt(pixel, indirectSpecular);
     // Each part is finite and at most a few times MaxRadiance, so the sum is finite, and the cap keeps the surfaces' share

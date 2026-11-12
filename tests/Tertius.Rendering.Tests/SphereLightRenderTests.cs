@@ -561,7 +561,25 @@ public sealed class SphereLightRenderTests
             RenderSnapshot snapshot = PointLights();
             AddSpheresOnAFloor(renderer, snapshot);
 
-            ReferenceImages.Verify(renderer: renderer, snapshot: snapshot, name: "sphere-light-radius-zero");
+            var probe = DirectLightProbe.SpecularPartsOn(renderer);
+            try
+            {
+                ReferenceImages.Verify(renderer: renderer, snapshot: snapshot, name: "sphere-light-radius-zero");
+            }
+            finally
+            {
+                // THROWAWAY DIAGNOSTIC (ter-8esk)
+                float[] parts = probe.Read();
+                float[] hdr = renderer.ReadHdr();
+                var lines = new System.Text.StringBuilder();
+                for (int y = 152; y <= 157; y++)
+                for (int x = 264; x <= 274; x++)
+                {
+                    int at = 4 * (y * Width + x);
+                    lines.Append($"px {x} {y} hdr={hdr[at]:R} directSpec={parts[at]:R} factor={parts[at + 1]:R} indirectSpec={parts[at + 2]:R} directDiff={parts[at + 3]:R}\n");
+                }
+                File.AppendAllText("/tmp/ter-8esk.txt", lines.ToString());
+            }
         }
         finally
         {
