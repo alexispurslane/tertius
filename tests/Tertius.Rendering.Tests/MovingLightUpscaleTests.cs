@@ -160,7 +160,10 @@ public sealed class MovingLightUpscaleTests(ITestOutputHelper output)
                 int width = (int)renderer.ScreenTraceImages.LightChangeMask!.Extent.Width;
                 int height = mask.Length / width;
                 int[] edges = [0, width - 1];
-                int[] markedEdgePixels = [.. edges.Select(x => Enumerable.Range(0, height).Count(y => mask[y * width + x] > 0))];
+                int[] markedEdgePixels =
+                [
+                    .. edges.Select(x => Enumerable.Range(0, height).Count(y => mask[y * width + x] > 0)),
+                ];
                 int markedInside = Enumerable
                     .Range(0, height)
                     .Sum(y => Enumerable.Range(1, width - 2).Count(x => mask[y * width + x] > 0));
