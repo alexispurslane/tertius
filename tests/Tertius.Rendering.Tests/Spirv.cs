@@ -45,9 +45,7 @@ internal static class Spirv
     public static IReadOnlyList<uint> BindingNumbers(byte[] spirv) =>
         [
             .. Instructions(spirv)
-                .Where(instruction =>
-                    instruction.Opcode == OpDecorate && instruction.Operands[1] == DecorationBinding
-                )
+                .Where(instruction => instruction.Opcode == OpDecorate && instruction.Operands[1] == DecorationBinding)
                 .Select(instruction => instruction.Operands[2]),
         ];
 

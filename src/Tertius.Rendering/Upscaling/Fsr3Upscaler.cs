@@ -273,7 +273,7 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
 
     /// <summary>The images that the clear step zeroes in every frame, which AMD clears with zeros in every frame.</summary>
     public static IReadOnlyList<Fsr3Image> ZeroedEachFrame { get; } =
-        [Fsr3Image.ReconstructedPrevNearestDepth, Fsr3Image.SpdAtomicCounter, Fsr3Image.SpdMips];
+    [Fsr3Image.ReconstructedPrevNearestDepth, Fsr3Image.SpdAtomicCounter, Fsr3Image.SpdMips];
 
     /// <summary>The embedded SPIR-V of the clear step, one compute dispatch that zeroes <see cref="ZeroedEachFrame"/>.</summary>
     internal const string ClearStepShader = "fsr_clear.comp";

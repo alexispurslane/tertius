@@ -309,11 +309,9 @@ public sealed class Fsr3HostTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void AFrameAfterTheFirstWithoutAResetClearsNoImageWithATransfer(bool odd)
-    {
+    public void AFrameAfterTheFirstWithoutAResetClearsNoImageWithATransfer(bool odd) =>
         // Each transfer clear is a render pass of its own under MoltenVK, so a steady frame clears in the clear step only.
         Fsr3Upscaler.Clears(firstExecution: false, reset: false, odd: odd).Should().BeEmpty();
-    }
 
     [Fact]
     public void TheClearStepBindsAStorageImageAtEachBindingThatItsCompiledModuleDeclares()
@@ -326,7 +324,10 @@ public sealed class Fsr3HostTests
             .AllSatisfy(binding => binding.Type.Should().Be(DescriptorType.StorageImage))
             .And.Subject.Select(binding => binding.Binding)
             .Should()
-            .BeEquivalentTo(Spirv.BindingNumbers(spirv), "the bindings that glslc kept in the module of the clear step");
+            .BeEquivalentTo(
+                Spirv.BindingNumbers(spirv),
+                "the bindings that glslc kept in the module of the clear step"
+            );
     }
 
     [Fact]
