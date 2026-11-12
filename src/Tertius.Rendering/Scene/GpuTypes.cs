@@ -859,14 +859,17 @@ internal struct ScreenTracePushConstants
     public uint BlueNoise;
 
     /// <summary>PROTOTYPE (ter-s97m): TERTIUS_STBN = off, diffuse, reflection or both.</summary>
-    private static readonly uint BlueNoiseKinds = Environment.GetEnvironmentVariable("TERTIUS_STBN") switch
-    {
-        null or "" or "off" => 0u,
-        "reflection" => 1u,
-        "diffuse" => 2u,
-        "both" => 3u,
-        var other => throw new ArgumentException($"TERTIUS_STBN must be off, diffuse, reflection or both, not {other}."),
-    } | (Environment.GetEnvironmentVariable("TERTIUS_STBN_SHIFT") == "on" ? 4u : 0u);
+    private static readonly uint BlueNoiseKinds =
+        Environment.GetEnvironmentVariable("TERTIUS_STBN") switch
+        {
+            null or "" or "off" => 0u,
+            "reflection" => 1u,
+            "diffuse" => 2u,
+            "both" => 3u,
+            var other => throw new ArgumentException(
+                $"TERTIUS_STBN must be off, diffuse, reflection or both, not {other}."
+            ),
+        } | (Environment.GetEnvironmentVariable("TERTIUS_STBN_SHIFT") == "on" ? 4u : 0u);
 
     /// <summary>
     /// The push constants of a draw of index <paramref name="drawIndex"/> under <paramref name="trace"/>, with the

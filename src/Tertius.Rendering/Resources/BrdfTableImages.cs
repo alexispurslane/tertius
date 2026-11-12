@@ -67,7 +67,7 @@ internal sealed class BrdfTableImages : IDisposable
         using Stream stream =
             typeof(BrdfTableImages).Assembly.GetManifestResourceStream("Tertius.Rendering.BlueNoiseMask.bin")
             ?? throw new InvalidOperationException("The assembly holds no BlueNoiseMask.bin.");
-        var texels = new byte[BlueNoiseSide * BlueNoiseSide * 2];
+        byte[] texels = new byte[BlueNoiseSide * BlueNoiseSide * 2];
         stream.ReadExactly(texels);
         return texels;
     }
