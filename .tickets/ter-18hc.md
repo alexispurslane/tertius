@@ -93,3 +93,7 @@ Hardening, 2026-11-12. tools/mutate.py, 16 listed mutants (/private/tmp/t7-3e22/
 | C03 | ScreenTracePass.cs:209 | no barrier for the diffuse age | killed | ScreenTraceRenderTests (validation) |
 
 Review (reviewer agent): no serious bug. Fixed: B1 (the 10-frame dimming test now steps to 0.02, so the clamp, not the cut, follows it), F1 (three wiring tests: the real resolve's diffuse cut, motion, a neighbor's age), F2 (ARCHITECTURE's storage-image count 19, 20 under the diagnostic), Q1 (diagnostic doc), Q2 (one macro: every precise build defines TERTIUS_LIGHT_AGE on its compile line), B3 (half-float note on LeastMotion). Open for the user: B2, a moving occluder gives no evidence (the same class as the no-evidence bounce change). Not done: Q3 to Q5 (naming and structure of the variant selection), judged out of scope. Suites: Checked and Release, all modules, 0 failures (2026-11-12 02:16, before the G03 case).
+
+**2026-11-12T12:17:41Z**
+
+User decision 2026-11-12: do not merge this branch on its own. It folds into Design A (ticket t7-3e22, branch t7-3e22-retained-deviation, based on this branch) and merges once with it, so main never gets the slower walk recovery (153 against 108 draws). The always-on wide clamp of Design A replaces this branch's gate; the light-age cut of ter-wkvw stays.
