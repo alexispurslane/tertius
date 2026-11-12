@@ -580,6 +580,31 @@ class BilledHours(Queue):
         self.logged(29.95, when=when, ended=when + datetime.timedelta(minutes=10))
         self.assertEqual(self.submit(self.api(billed=5.0)), "ok")
 
+    def test_each_open_hour_counts_the_larger_of_its_own_bill_and_its_own_jobs(self):
+        self.logged(8.9, when=NOW - datetime.timedelta(minutes=20), ended=NOW - datetime.timedelta(minutes=10))
+        api = self.api(billed_today=1.0, billed=1.0, hours={self.hour(gpu_job.BILL_FINAL_HOURS): 1.0})
+        self.assertEqual(self.submit(api), "refused",
+                         "a pod's $1 in the first open hour does not hide $8.90 of jobs in the last one")
+
+    def test_a_job_that_ended_exactly_at_the_cutoff_counts_in_the_open_hours(self):
+        cutoff = self.hour(gpu_job.BILL_FINAL_HOURS)
+        self.logged(9.95, when=cutoff - datetime.timedelta(minutes=30), ended=cutoff)
+        self.assertEqual(self.submit(self.api(billed_today=1.0, billed=1.0)), "refused")
+
+    def test_an_open_hour_before_midnight_does_not_count_against_the_new_days_cap(self):
+        lines = [{"time": "2026-11-11T23:10:00+00:00", "ended": "2026-11-11T23:30:00+00:00", "costUsd": 5.0}]
+        hours = {datetime.datetime(2026, 11, 11, 23, tzinfo=datetime.timezone.utc): 0.1,
+                 datetime.datetime(2026, 11, 12, 0, tzinfo=datetime.timezone.utc): 0.2}
+        cutoff = datetime.datetime(2026, 11, 11, 22, tzinfo=datetime.timezone.utc)
+        midnight = datetime.datetime(2026, 11, 12, tzinfo=datetime.timezone.utc)
+        self.assertAlmostEqual(gpu_job.counted(0.2, hours, lines, cutoff, since=midnight), 0.2)
+        self.assertAlmostEqual(gpu_job.counted(0.3, hours, lines, cutoff), 5.2)
+
+    def test_a_cancelled_job_ends_at_its_expiry_because_its_handler_bills_until_its_limit(self):
+        self.submit(self.api(final={"status": "CANCELLED"}))
+        line, = self.log_lines()
+        self.assertGreater(datetime.datetime.fromisoformat(line["ended"]), NOW + datetime.timedelta(seconds=840))
+
     def test_each_settled_line_records_when_the_job_ended(self):
         self.submit(self.api())
         line, = self.log_lines()
@@ -625,6 +650,26 @@ class Statistics(unittest.TestCase):
         self.assertEqual((compared["start"], compared["end"], compared["jobs"]), (hour(12), hour(15), 2))
         self.assertAlmostEqual(compared["billed"], 0.20, msg="a pod's hour before the first job does not count")
         self.assertAlmostEqual(compared["settled"], 0.30, msg="the job that ended after the cutoff does not count")
+
+    def test_the_report_names_the_bill_beside_the_estimate_and_survives_a_zero_estimate(self):
+        hour = datetime.datetime(2026, 11, 12, 12, tzinfo=datetime.timezone.utc)
+        compared = {"start": hour, "end": hour + datetime.timedelta(hours=3), "billed": 0.12, "jobs": 2,
+                    "settled": 0.0}
+        text = gpu_job.stats_text(self.lines(), config(), compared)
+        self.assertIn("$0.1200 for the 2 jobs", text)
+        self.assertIn("kind cpu", text)
+        self.assertIn("not read (the audit log is empty)", gpu_job.stats_text([], config(), "the audit log is empty"))
+
+    def test_the_bill_window_starts_no_earlier_than_the_oldest_hour_that_runpod_returned(self):
+        first = datetime.datetime(2026, 11, 12, 1, 10, tzinfo=datetime.timezone.utc)
+        lines = [{"time": first.isoformat(), "ended": first.isoformat(), "result": "ok", "costUsd": 0.5},
+                 {"time": first.isoformat(), "ended": (first + datetime.timedelta(hours=11)).isoformat(),
+                  "result": "ok", "costUsd": 0.2}]
+        hours = {datetime.datetime(2026, 11, 12, 12, tzinfo=datetime.timezone.utc): 0.1}
+        compared = gpu_job.bill_against_estimate(lines, hours, cutoff=datetime.datetime(2026, 11, 12, 15,
+                                                                                         tzinfo=datetime.timezone.utc))
+        self.assertEqual((compared["jobs"], compared["settled"]), (1, 0.2),
+                         "a job in an hour that the bill did not return does not count against it")
 
     def lines(self):
         return [{"agent": "a", "kind": "gpu", "result": "ok", "costUsd": 0.02, "gpuSeconds": 50.0},

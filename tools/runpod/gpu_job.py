@@ -180,17 +180,10 @@ class RunpodApi:
         reply = self.call("GET", f"{ACCOUNT_API}/billing?bucketSize=day&lastN=1")
         return float(reply["metadata"]["totals"]["totalAmount"])
 
-    def billed_hours(self, count: int) -> dict:
-        """The start of each of the last `count` UTC hours, the current one too -> the account's bill of that hour."""
+    def billed_hours(self, count: int, parts=("totalAmount",)) -> dict:
+        """The start of each of the last `count` UTC hours that Runpod billed -> the sum of the record's `parts` in that
+        hour: by default the whole bill, pods and storage too. The current hour has no record until it ends."""
         reply = self.call("GET", f"{ACCOUNT_API}/billing?bucketSize=hour&lastN={count}")
-        return {datetime.datetime.fromisoformat(record["startTime"].replace("Z", "+00:00")):
-                float(record.get("totalAmount") or 0.0) for record in reply.get("records", [])}
-
-    def serverless_hours(self, count: int) -> dict:
-        """The start of each of the last `count` UTC hours -> the account's bill of serverless work in it: GPU, CPU,
-        disk and fees, without pods and storage."""
-        reply = self.call("GET", f"{ACCOUNT_API}/billing?bucketSize=hour&lastN={count}")
-        parts = ("serverlessGpuAmount", "serverlessCpuAmount", "serverlessDiskAmount", "serverlessFeeAmount")
         return {datetime.datetime.fromisoformat(record["startTime"].replace("Z", "+00:00")):
                 sum(float(record.get(part) or 0.0) for part in parts) for record in reply.get("records", [])}
 
@@ -532,16 +525,24 @@ def in_flight(state: Path) -> list:
     return [json.loads(path.read_text()) for path in sorted(folder.glob("*.json"))] if folder.exists() else []
 
 
-def settle(state: Path, pending: dict, ending: dict, ended: datetime.datetime) -> bool:
-    """Move a job from pending/ to the log, under the lock, with the time at which the script saw it end. False if
+def settle(state: Path, pending: dict, ending: dict, end: datetime.datetime) -> bool:
+    """Move a job from pending/ to the log, under the lock, with the time at which the job's billing ended. False if
     another run settled it first."""
     path = state / "pending" / f"{pending['name']}.json"
     if not path.exists():
         return False
     line = {key: value for key, value in pending.items() if key not in ("name", "expires")}
-    append_log(state, {**line, **ending, "ended": ended.isoformat()})
+    append_log(state, {**line, **ending, "ended": end.isoformat()})
     path.unlink()
     return True
+
+
+def billing_end(pending: dict, status: dict, now: datetime.datetime) -> datetime.datetime:
+    """When the job's billing ended: now, when the script sees the final status, or for a cancelled job its expiry,
+    because Runpod's cancel does not stop a running handler, which bills until the job's own limit."""
+    if status.get("status") == "CANCELLED" and pending.get("expires"):
+        return max(now, datetime.datetime.fromisoformat(pending["expires"]))
+    return now
 
 
 def ending(kind: Kind, worst: float, status: dict) -> dict:
@@ -580,7 +581,7 @@ def settle_lost(config: Config, state: Path, api, now: datetime.datetime):
             status = {"id": pending["jobId"], "status": "UNKNOWN"}
         if status["status"] in FINAL | {"UNKNOWN"}:
             kind = config.kinds[pending.get("kind", "gpu")]
-            settle(state, pending, ending(kind, pending["worstCaseUsd"], status), now)
+            settle(state, pending, ending(kind, pending["worstCaseUsd"], status), billing_end(pending, status, now))
         elif expired:
             # Past its queue time and its timeout, Runpod ran it or dropped it; its status no longer tells which.
             settle(state, pending, {"gpuSeconds": None, "costUsd": pending["worstCaseUsd"], "result": "lost"}, now)
@@ -595,17 +596,37 @@ def ended(line: dict) -> datetime.datetime:
         seconds=(line.get("delaySeconds") or 0) + (line.get("gpuSeconds") or 0))
 
 
+def hour_of(time: datetime.datetime) -> datetime.datetime:
+    return time.astimezone(datetime.timezone.utc).replace(minute=0, second=0, microsecond=0)
+
+
+def first_open_hour(now: datetime.datetime) -> datetime.datetime:
+    """The first UTC hour whose bill can still grow: the hours before it are final (BILL_FINAL_HOURS)."""
+    return hour_of(now) - datetime.timedelta(hours=BILL_FINAL_HOURS)
+
+
+def ran(line: dict) -> bool:
+    """A refused job was never sent, and a rejected one made no job, so neither ran or billed."""
+    return line.get("result") not in ("refused", "rejected")
+
+
 def counted(billed: float, hours: dict, lines: list, cutoff: datetime.datetime, since=None) -> float:
     """The spending that a cap counts in a window that starts at `since` (None: the account's whole life). `billed` is
     Runpod's bill of the window and `hours` maps the start of each recent UTC hour to its bill. The bill of an hour
-    before `cutoff` is final, so it counts as it is. The hours from `cutoff` on count the larger of their bill and the
-    log's costs of the jobs that ended in them. A job that ran across the cutoff counts whole there, beside the part of
-    it that a final hour billed, so the count errs high. It is never less than the bill."""
+    before `cutoff` is final, so it counts as it is. Each hour from `cutoff` on counts the larger of its own bill and
+    the log's costs of the jobs that ended in it. So the count is never less than the bill, and a pod's bill in one
+    hour does not hide the unbilled jobs of another. A job that ran across an hour's end counts whole in the hour of
+    its end, beside the part of it that an earlier hour billed, so the count errs high. One hour that holds both
+    spending that the log lacks and jobs whose bill is not in yet counts only the larger of the two."""
     def inside(time):
         return time >= cutoff and (since is None or time >= since)
-    open_billed = sum(amount for start, amount in hours.items() if inside(start))
-    open_logged = sum(line.get("costUsd", 0.0) for line in lines if inside(ended(line)))
-    return billed - open_billed + max(open_billed, open_logged)
+    logged = {}
+    for line in lines:
+        if inside(end := ended(line)):
+            logged[hour_of(end)] = logged.get(hour_of(end), 0.0) + line.get("costUsd", 0.0)
+    open_hours = {start: amount for start, amount in hours.items() if inside(start)}
+    return billed - sum(open_hours.values()) + sum(
+        max(open_hours.get(hour, 0.0), logged.get(hour, 0.0)) for hour in set(open_hours) | set(logged))
 
 
 def refusal(config: Config, state: Path, api, worst: float, now: datetime.datetime) -> str | None:
@@ -615,7 +636,7 @@ def refusal(config: Config, state: Path, api, worst: float, now: datetime.dateti
     lines = log_lines(state)
     now = now.astimezone(datetime.timezone.utc)
     today = now.date()
-    cutoff = now.replace(minute=0, second=0, microsecond=0) - datetime.timedelta(hours=BILL_FINAL_HOURS)
+    cutoff = first_open_hour(now)
     hours = api.billed_hours(BILL_FINAL_HOURS + 1)
     midnight = datetime.datetime.combine(today, datetime.time(), datetime.timezone.utc)
     spent_today = counted(api.billed_today(), hours, lines, cutoff, since=midnight)
@@ -741,7 +762,7 @@ def submit(request: Request, *, config: Config, api, registry, github, scan=scan
         status = wait(api, pending["endpoint"], pending["jobId"], poll_seconds)
         settled = ending(kind, worst, status)
         with locked(state):
-            settle(state, pending, settled, now())
+            settle(state, pending, settled, billing_end(pending, status, now()))
         write_outputs(request.out, status, settled["result"])
         out(f"job {pending['jobId']}: {settled['result']}, {settled['gpuSeconds']:.0f} seconds of execution, counted as "
             f"${settled['costUsd']:.4f}; result in {request.out}")
@@ -842,7 +863,7 @@ def cost_groups(lines: list, config: Config) -> dict:
     only its settled cost. A line from before the kinds is a GPU job."""
     groups = {}
     for line in lines:
-        if line.get("result") in ("refused", "rejected"):
+        if not ran(line):
             continue
         kind = line.get("kind", "gpu")
         for name in ("all", f"kind {kind}", f"agent {line.get('agent')}"):
@@ -850,7 +871,7 @@ def cost_groups(lines: list, config: Config) -> dict:
             group["settled"].append(line.get("costUsd", 0.0))
             if line.get("gpuSeconds") is not None:
                 group["execution"].append(line["gpuSeconds"] * config.kinds[kind].rate_per_second)
-    order = ["all"] + sorted(name for name in groups if name.startswith("kind ")) + sorted(
+    order = ["all"] * ("all" in groups) + sorted(name for name in groups if name.startswith("kind ")) + sorted(
         name for name in groups if name.startswith("agent "))
     return {name: groups[name] for name in order}
 
@@ -859,32 +880,33 @@ def bill_against_estimate(lines: list, hours: dict, cutoff: datetime.datetime) -
     """Runpod's bill of the final hours, from the hour of the first job that ran up to `cutoff`, beside the settled
     estimate of the jobs that ended in those hours. Runpod bills by the hour, not by the job, so only the sums
     compare. A job that ran across an hour's end can put part of its bill in the hour after its end."""
-    ran = [line for line in lines if line.get("result") not in ("refused", "rejected")]
-    if not ran:
+    jobs = [line for line in lines if ran(line)]
+    if not jobs:
         return {"start": None, "end": cutoff, "billed": 0.0, "jobs": 0, "settled": 0.0}
-    start = min(datetime.datetime.fromisoformat(line["time"]) for line in ran).astimezone(datetime.timezone.utc)
-    start = start.replace(minute=0, second=0, microsecond=0)
-    inside = [line for line in ran if start <= ended(line) < cutoff]
+    start = hour_of(min(datetime.datetime.fromisoformat(line["time"]) for line in jobs))
+    if hours:
+        start = max(start, min(hours))  # The bill may not reach back to the first job.
+    inside = [line for line in jobs if start <= ended(line) < cutoff]
     return {"start": start, "end": cutoff, "jobs": len(inside),
             "billed": sum(amount for hour, amount in hours.items() if start <= hour < cutoff),
             "settled": sum(line.get("costUsd", 0.0) for line in inside)}
 
 
-def read_bill(key, lines: list):
-    """bill_against_estimate over the hours of the log, or why Runpod's bill could not be read."""
-    if key is None:
-        return f"no key: {KEY_POINTER} names no key file"
-    now = datetime.datetime.now(datetime.timezone.utc)
+SERVERLESS = ("serverlessGpuAmount", "serverlessCpuAmount", "serverlessDiskAmount", "serverlessFeeAmount")
+
+
+def read_bill(api, lines: list, now: datetime.datetime):
+    """bill_against_estimate over the hours of the log, with the bill of serverless work alone, or why Runpod's bill
+    could not be read."""
     times = [datetime.datetime.fromisoformat(line["time"]) for line in lines]
     if not times:
         return "the audit log is empty"
     count = int((now - min(times)).total_seconds() // 3600) + 2
     try:
-        hours = RunpodApi(key).serverless_hours(count)
+        hours = api.billed_hours(count, SERVERLESS)
     except (OSError, urllib.error.URLError, KeyError, ValueError) as error:
         return f"the billing request failed: {error}"
-    cutoff = now.replace(minute=0, second=0, microsecond=0) - datetime.timedelta(hours=BILL_FINAL_HOURS)
-    return bill_against_estimate(lines, hours, cutoff)
+    return bill_against_estimate(lines, hours, first_open_hour(now))
 
 
 def stats_text(lines: list, config: Config, compared) -> str:
@@ -910,11 +932,12 @@ def stats_text(lines: list, config: Config, compared) -> str:
     elif compared["jobs"] == 0:
         out.append("Runpod's bill: no job ended in a final hour yet.")
     else:
+        ratio = (f", so the bill is {compared['billed'] / compared['settled']:.2f} times the estimate"
+                 if compared["settled"] > 0 else "")
         out.append(f"Runpod's bill of serverless work in the final hours from {compared['start']:%Y-%m-%d %H:00} to "
                    f"{compared['end']:%Y-%m-%d %H:00} UTC: ${compared['billed']:.4f} for the {compared['jobs']} jobs "
                    f"that ended in them, ${compared['billed'] / compared['jobs']:.4f} per job. Their settled estimate: "
-                   f"${compared['settled']:.4f}, so the bill is {compared['billed'] / compared['settled']:.2f} times "
-                   f"the estimate.")
+                   f"${compared['settled']:.4f}{ratio}.")
     return "\n".join(out)
 
 
@@ -949,7 +972,10 @@ def main(argv: list) -> int:
         return 0
     key = key_file()
     if args.command == "stats":
-        print(stats_text(log_lines(STATE), config, read_bill(key, log_lines(STATE))))
+        lines = log_lines(STATE)
+        compared = (read_bill(RunpodApi(key), lines, datetime.datetime.now(datetime.timezone.utc)) if key is not None
+                    else f"no key: {KEY_POINTER} names no key file")
+        print(stats_text(lines, config, compared))
         return 0
     if key is None:
         print(f"no key: write the path of the file that holds the Runpod API key into {KEY_POINTER}", file=sys.stderr)

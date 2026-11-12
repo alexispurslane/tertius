@@ -98,7 +98,13 @@ When the build passed, the next job of that dev shell creates the new endpoint i
 
 The caps are $30 in total and a cap per UTC day, for all agents and both kinds together. `daily_caps_usd` in `endpoint.json` maps the first day of each daily cap to its amount: $10 through 2026-11-12, and $3 from 2026-11-13. The $30 must last until about 2026-12-07. Before the script sends a job, it adds the job's worst case to two amounts:
 
-1. The spending, from Runpod's bill and the audit log. The bill (`GET /v2/billing`) holds the account's other spending too, such as pods. But Runpod bills by the hour, and an hour's bill can still grow for `BILL_FINAL_HOURS` hours after it ends. The script counts the bill of each final hour as it is. For the hours after the last final hour, it counts the larger of their bill and the logged costs of the jobs that ended in them. So the log's flat 70 s per job stops counting once the bill is in, and the count is never less than the bill. A job that ran across the cutoff counts whole in the open hours, beside the part of it that a final hour billed. That errs high, which is safe for a cap. The daily cap uses today's sums, and the total cap uses the sums of the last 12 months, the account's whole life.
+1. The spending, from Runpod's bill and the audit log. The bill (`GET /v2/billing`) holds the account's other spending too, such as pods. But Runpod bills by the hour, and an hour's bill can still grow for `BILL_FINAL_HOURS` hours after it ends. The script counts the bill of each final hour as it is. Each hour after the last final hour counts the larger of its own bill and the logged costs of the jobs that ended in it. So the log's flat 70 s per job stops counting once the hour's bill is final, and the count is never less than the bill. A pod's bill in one hour does not hide the unbilled jobs of another hour. Three cases err high, which is safe for a cap:
+
+- A job that ran across an hour's end counts whole in the hour of its end, beside the part of it that an earlier hour billed.
+- A job that a later run settled (see "Jobs in flight and the audit log") ends when that run saw it, so it counts again in the open hours.
+- A cancelled job ends at its expiry, because its handler bills until the job's own limit.
+
+One case errs low: an open hour that holds both spending that the log lacks, such as a pod, and jobs whose bill is not in yet counts only the larger of the two. The day's total, the month's total and the hourly records come from the same records, and they agreed to the cent on 2026-11-12. The daily cap uses today's sums, and the total cap uses the sums of the last 12 months, the account's whole life.
 2. The worst cases of the jobs in flight, on every endpoint.
 
 If either sum passes its cap, the script refuses the job, sends nothing and logs the refusal. A file lock spans the check and the record of the new job in flight. So two agents cannot both take the last of a cap.
