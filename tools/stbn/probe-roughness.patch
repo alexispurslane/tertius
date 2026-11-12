@@ -1,0 +1,18 @@
+diff --git a/src/Tertius.Rendering/Shaders/composite_pass.glsl b/src/Tertius.Rendering/Shaders/composite_pass.glsl
+index 72511023e..bf23be618 100644
+--- a/src/Tertius.Rendering/Shaders/composite_pass.glsl
++++ b/src/Tertius.Rendering/Shaders/composite_pass.glsl
+@@ -71,6 +71,13 @@ void main()
+     }
+ 
+     ShadingInput s = materialAt(pixel);
++    // PROBE (ter-s97m): signal 4 shows the material's roughness as luminance.
++    if (probeSignal == 4)
++    {
++        outColor = vec4(vec3(max(s.roughness, 1.0 / 4096.0)), 1.0);
++        writeDiffuse(vec4(0.0));
++        return;
++    }
+     vec3 V = -direction;
+     SurfaceLobes lobes = lobesOf(s, V);
+     MaterialFactors factors = materialFactors(s, lobes);
