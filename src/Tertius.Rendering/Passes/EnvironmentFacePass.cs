@@ -35,7 +35,8 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
         VulkanDevice device,
         ShaderLibrary shaders,
         DescriptorLayouts layouts,
-        EnvironmentMap map
+        EnvironmentMap map,
+        ShaderConstants constants
     )
     {
         this.device = device;
@@ -63,6 +64,7 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
             ColorFormats = colorFormats,
             DepthFormat = EnvironmentMap.FaceDepthFormat,
             VertexInput = VertexInput.Mesh,
+            Constants = constants,
             DepthTest = true,
             DepthWrite = true,
             DepthCompare = CompareOp.Greater,
@@ -80,14 +82,13 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
 
         try
         {
-            // A face reads no ambient light, so its pipelines keep every other constant at its default, as the solid one does.
             cutoutSurfaces = SidedPipeline.Create(
                 device: device,
                 shaders: shaders,
                 desc: desc with
                 {
                     Name = "environment faces cutout",
-                    Constants = new ShaderConstants(EnvironmentMap: false) { CutoutAlpha = true },
+                    Constants = constants with { CutoutAlpha = true },
                 }
             );
         }

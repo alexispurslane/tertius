@@ -192,6 +192,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
             environmentMap = CreateEnvironmentMap(options);
             ShadingConstants = new(EnvironmentMap: environmentMap is not null)
             {
+                TileCornerMeans =
+                    options.LocalShadows is LocalShadowAtlas atlas
+                    && TileReadsFor(atlas.Reads, device.Driver) == LocalShadowReads.SixteenCornerMeans,
                 ScreenTraceOn = options.ScreenTrace is ScreenTrace,
                 ReflectionSharingPrototype =
                     options.ScreenTrace is ScreenTrace
@@ -243,6 +246,30 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// of the next pass's work: MoltenVK (ARCHITECTURE.md, "GPU timings").
     /// </summary>
     public bool StampsLatchLate => device.Driver == DriverId.Moltenvk;
+
+    /// <summary>
+    /// True on a driver that makes a shader pay for the values that it holds at once, so that nine gathers of four
+    /// comparisons each cost the shading passes more than sixteen reads of one mean each: MoltenVK. Measured on an Apple
+    /// M1 Max, the corner means took 0.37 ms less in the deck's direct and transparent passes. On every other driver a
+    /// gather is the cheaper way to four comparisons: on an RTX 2000 Ada under NVIDIA's driver the corner means took
+    /// 0.8 ms more in the deck's frame (ARCHITECTURE.md, "The scenes and the cost of the shadows").
+    /// </summary>
+    internal static bool HeldValuesCost(DriverId driver) => driver == DriverId.Moltenvk;
+
+    /// <summary>
+    /// How the filter of a local shadow tile reads its texels on <paramref name="driver"/>, for an atlas that asks for
+    /// <paramref name="asked"/>: the asked reads, or for <see cref="LocalShadowReads.ForDriver"/> the faster ones of that
+    /// driver (<see cref="HeldValuesCost"/>).
+    /// </summary>
+    internal static LocalShadowReads TileReadsFor(LocalShadowReads asked, DriverId driver) =>
+        asked switch
+        {
+            LocalShadowReads.ForDriver => HeldValuesCost(driver)
+                ? LocalShadowReads.SixteenCornerMeans
+                : LocalShadowReads.NineGathers,
+            LocalShadowReads.NineGathers => LocalShadowReads.NineGathers,
+            LocalShadowReads.SixteenCornerMeans => LocalShadowReads.SixteenCornerMeans,
+        };
 
     internal ShadowMap ShadowMap { get; }
     internal RenderScaleController? ScaleController { get; }
@@ -1980,7 +2007,13 @@ public sealed unsafe class VulkanRenderer : IRenderer
         {
             Graph.Add(
                 FrameGraph.Stage.EnvironmentFaces,
-                new EnvironmentFacePass(device: device, shaders: shaders, layouts: layouts, map: map)
+                new EnvironmentFacePass(
+                    device: device,
+                    shaders: shaders,
+                    layouts: layouts,
+                    map: map,
+                    constants: FaceConstants
+                )
             );
             Graph.Add(
                 FrameGraph.Stage.EnvironmentPrefilter,
@@ -2040,6 +2073,13 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
     /// <summary>The constants of the shading pipelines: the map is the ambient light exactly when the renderer has one.</summary>
     internal ShaderConstants ShadingConstants { get; }
+
+    /// <summary>
+    /// The constants of the environment faces' pipelines. A face reads no ambient light and no signal of the screen, so it
+    /// keeps those constants at their defaults. It reads a shadow tile as the shading pipelines do.
+    /// </summary>
+    internal ShaderConstants FaceConstants =>
+        new(EnvironmentMap: false) { TileCornerMeans = ShadingConstants.TileCornerMeans };
 
     /// <summary>
     /// The cascades' shadow map and, under <see cref="LocalShadowAtlas"/>, the local shadow atlas with its bounds, which the

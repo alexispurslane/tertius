@@ -40,3 +40,48 @@ The Mac pays for the values that the shader holds at once: the offline compile g
 The corner reads on the Mac: stills of the deck, the hall and the cabin and a film of the hall's moving lamps equal main's to within 2 pixels of one step of 255. All 34 local shadow tests pass, and they kill all 12 listed mutants (S01 to S12 of /private/tmp/t2-mlvy/c9/mutants.json: three rows or columns, swapped weights, corners paired 0,1 and 2,3, a read at a texel center, the reads one texel down or transposed, no weight along y, a mean counted as one texel).
 
 The open choice: main as it is; the corner reads under MoltenVK and the gathers elsewhere; or the row loop in the direct pass on every device.
+
+**2026-11-12T16:17:42Z**
+
+The user chose on 2026-11-12: two exact filters, picked once per device by driver. The sixteen corner means run on MoltenVK and the nine gathers on every other driver. `LocalShadowAtlas.Reads` names a way, so the tests run both filters on every device.
+
+What the branch holds:
+
+- `LocalShadowReads` (`ForDriver`, `NineGathers`, `SixteenCornerMeans`) and `LocalShadowAtlas.Reads`.
+- The rule by driver in `VulkanRenderer.HeldValuesCost` and `TileReadsFor`, beside `StampsLatchLate`, with its measured reason.
+- The specialization constant `tileCornerMeans` (constant_id 11, `ShaderConstants.TileCornerMeans`), which every pipeline that samples a tile gets: the shading pipelines from `ShadingConstants`, the environment faces from `FaceConstants`.
+- Both filters in `tileShadow` (`shadows.glsl`). The gathers are main's code, unchanged.
+
+The mutants of the new lines, from `tools/mutate.py` in three takes alone on the GPU. The test classes are `LocalShadowRenderTests`, `LocalShadowSettingTests` and, in the third take, `ShaderConstantsTests`.
+
+| id | place | change | result |
+|---|---|---|---|
+| S01 | shadows.glsl:312 | three rows of corners | killed |
+| S02 | shadows.glsl:314 | the rows' weights swapped | killed |
+| S03 | shadows.glsl:314 | the rows paired 0,1 and 2,3 | killed |
+| S04 | shadows.glsl:315 | three columns of corners | killed |
+| S05 | shadows.glsl:317 | the columns' weights swapped | killed |
+| S06 | shadows.glsl:317 | the columns paired 0,1 and 2,3 | killed |
+| S07 | shadows.glsl:318 | the read at a texel center along x | killed |
+| S08 | shadows.glsl:318 | the reads one texel down | killed |
+| S09 | shadows.glsl:318 | the reads transposed against the weights | killed |
+| S10 | shadows.glsl:319 | no weight along y | killed |
+| S11 | shadows.glsl:324 | a mean counted as one texel | killed |
+| S12 | shadows.glsl:318 | the read at a texel center along y | killed |
+| S13 | shadows.glsl:304 | the two filters swapped | survived |
+| C01 | VulkanRenderer.cs:257 | the rule by driver reversed | killed |
+| C02 | VulkanRenderer.cs:270 | asked gathers become means | killed |
+| C03 | VulkanRenderer.cs:271 | asked means become gathers | killed |
+| C04 | VulkanRenderer.cs:197 | the constant reversed | killed |
+| C05 | VulkanRenderer.cs:196 | the constant always set | killed |
+| C06 | ShaderConstants.cs:126 | the constant's value never sent | killed by the new test `TheWayToReadAShadowTileReachesItsConstant`, after it survived the second take |
+| C07 | VulkanRenderer.cs:2082 | the faces' constants without the reads | killed |
+| C08 | EnvironmentFacePass.cs:67 | the solid faces' pipeline without the constants | survived |
+| C09 | EnvironmentFacePass.cs:91 | the cutout faces' pipeline without the reads | survived |
+
+The three survivors, each a judgment call:
+
+- S13: both filters give the same shadow by design (`BothWaysToReadATileGiveTheSameShadow`), so no image tells which one a shader runs. The swap changes only speed. The timed Mac take and the Linux A/B measure it.
+- C08 and C09: the same reason for the environment faces. A face pipeline with the other filter draws the same face, a little slower on one of the two GPUs.
+
+The mutant run also found two gaps, both fixed on the branch. `ShaderConstantsTests` did not list the new constant for the three shaders that declare it, and it now lists `puff.vert` too. The environment face pass made its pipelines with default constants, so its faces ran the gathers on every driver.

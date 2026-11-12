@@ -18,6 +18,16 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
     public const uint NeighborLimitPrototypeId = 9;
     public const uint ReflectionSharingPrototypeId = 10;
 
+    /// <summary>The constant_id of tileCornerMeans in shadows.glsl.</summary>
+    public const uint TileCornerMeansId = 11;
+
+    /// <summary>
+    /// True when the filter of a local shadow tile reads sixteen corner means, false when it reads nine gathers
+    /// (<see cref="LocalShadowReads"/>). The renderer sets it for every shading pipeline from its atlas's reads on its
+    /// driver. A pipeline with constants of its own keeps the gathers, which give the same shadow.
+    /// </summary>
+    public bool TileCornerMeans { get; init; }
+
     /// <summary>The constant_id of environmentMapOn in environment.glsl.</summary>
     public const uint EnvironmentMapId = 0;
 
@@ -113,6 +123,7 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
             (MainViewId, VkBool(values.MainView)),
             (NeighborLimitPrototypeId, VkBool(values.NeighborLimitPrototype)),
             (ReflectionSharingPrototypeId, VkBool(values.ReflectionSharingPrototype)),
+            (TileCornerMeansId, VkBool(values.TileCornerMeans)),
         ];
         for (int i = 0; i < rows.Length; i++)
         {
@@ -144,7 +155,7 @@ internal struct SpecializationStorage
     /// The number of constants: one per field of <see cref="ShaderConstants"/>, the subsurface setting's being its taps per
     /// side. <see cref="ShaderConstants.Specialization"/> writes one row per constant, and a row past this count throws.
     /// </summary>
-    public const int Count = 10;
+    public const int Count = 11;
 
     public SpecializationValues Data;
     public SpecializationEntries Entries;
