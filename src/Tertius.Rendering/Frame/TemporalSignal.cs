@@ -134,34 +134,35 @@ internal sealed unsafe class TemporalSignal : IDisposable
             parameters.Light == SignalLight.Specular
             && Environment.GetEnvironmentVariable("TERTIUS_REFLECTION_SHARING") == "1";
         temporal = CreatePipeline(
-            shaders: shaders,
-            kind: singleDiffuseHistory ? "diffuse_single_temporal" : "temporal",
-            limitIncoming: prototype.LimitIncoming,
-            feedsFilter: false
+            shaders,
+            singleDiffuseHistory ? "diffuse_single_temporal" : "temporal",
+            prototype.LimitIncoming
         );
         spatial = CreatePipeline(
-            shaders: shaders,
-            kind: singleDiffuseHistory ? "diffuse_single_spatial" : "spatial",
-            limitIncoming: false,
-            feedsFilter: FeedsFilter
+            shaders,
+            (singleDiffuseHistory, FeedsFilter) switch
+            {
+                (true, _) => "diffuse_single_spatial",
+                (false, true) => "spatial_filtered",
+                (false, false) => "spatial",
+            }
         );
         Create();
     }
 
-    /// <summary>The pipeline of the dispatch of <paramref name="kind"/>, "temporal" or "spatial": accumulate_kind.comp.</summary>
-    private Pipeline CreatePipeline(ShaderLibrary shaders, string kind, bool limitIncoming, bool feedsFilter) =>
+    /// <summary>The pipeline of the dispatch of <paramref name="kind"/>, such as "temporal", "spatial" or "spatial_filtered": accumulate_kind.comp.</summary>
+    private Pipeline CreatePipeline(ShaderLibrary shaders, string kind, bool limitIncoming = false) =>
         new ComputePipelineDesc
         {
             Name = $"accumulate {Name} {kind}",
             Shader = HistoryShader($"accumulate_{kind}.comp"),
             Layout = layouts.AccumulateLayout,
             Constants =
-                limitIncoming || reflectionDistanceHistory || feedsFilter
+                limitIncoming || reflectionDistanceHistory
                     ? new ShaderConstants(EnvironmentMap: false)
                     {
                         NeighborLimitPrototype = limitIncoming,
                         ReflectionSharingPrototype = reflectionDistanceHistory,
-                        FeedsDiffuseFilter = feedsFilter,
                     }
                     : null,
         }.Create(device, shaders);
@@ -177,7 +178,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
 
     /// <summary>
     /// Whether the signal feeds the diffuse filter: it was made filtered and keeps fast histories, whose deviation the
-    /// filter's input takes. Its spatial dispatch then writes <see cref="FilterInput"/>.
+    /// filter's input takes. Its spatial dispatch then writes <see cref="FilterInput"/> (accumulate_spatial_filtered.comp).
     /// </summary>
     public bool FeedsFilter { get; }
 
@@ -525,8 +526,8 @@ internal sealed unsafe class TemporalSignal : IDisposable
             binding: 10,
             image: reflectionDistanceHistory ? images.ReflectionGuideScratch : scratch.Part(part)
         );
-        // The filter's input, which only the spatial dispatch of a signal that feeds the filter writes: another signal binds
-        // the scratch image, as bindings 9 and 10 do.
+        // The filter's input, which only the spatial stage of a signal that feeds the filter uses: another signal's stages do
+        // not use the binding, and it binds the scratch image, as bindings 9 and 10 do.
         layouts.WriteStorageImage(
             set: set,
             binding: 13,

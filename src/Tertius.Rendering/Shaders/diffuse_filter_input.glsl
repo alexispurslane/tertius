@@ -7,11 +7,7 @@
 #ifndef TERTIUS_DIFFUSE_FILTER_INPUT_GLSL
 #define TERTIUS_DIFFUSE_FILTER_INPUT_GLSL
 
-// True in the spatial dispatch of a signal that feeds the diffuse filter (TemporalSignal.FeedsFilter).
-layout(constant_id = 11) const bool feedsDiffuseFilter = false;
-
-// The filter's input: rgb the light, a the deviation. A signal that feeds no filter binds a scratch image, which it never
-// writes.
+// The filter's input: rgb the light, a the deviation.
 layout(set = 3, binding = 13, rgba16f) uniform writeonly image2D filterInput;
 
 // The length below which a history estimates its deviation from its neighbors: the paper's four frames.
@@ -49,20 +45,11 @@ float youngDeviation(ivec2 pixel, SurfaceKey key, float historyLength)
 // filter never reads: its wavelet dispatches pass the pixel's light on unfiltered.
 void storeFilterInput(ivec2 pixel, SurfaceKey key, vec3 slow, float historyLength)
 {
-    if (!feedsDiffuseFilter)
-        return;
     float deviation = 0.0;
     if (texelFetch(gbufferBaseColor, pixel, 0).a > 0.0)
         deviation = historyLength >= YoungFrames ? imageLoad(fastHistory, pixel).a
                                                  : youngDeviation(pixel, key, historyLength);
     imageStore(filterInput, pixel, vec4(slow, deviation));
-}
-
-// Writes the filter's input of a sky pixel, whose slow history the dispatch clears.
-void storeSkyFilterInput(ivec2 pixel)
-{
-    if (feedsDiffuseFilter)
-        imageStore(filterInput, pixel, vec4(0.0));
 }
 
 #endif
