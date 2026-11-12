@@ -1013,18 +1013,25 @@ public sealed class ScreenTraceRenderTests
         }
     }
 
-    [Fact]
-    public void TwoRenderersThatDrawTheSameFramesGiveTheSameBits()
+    [Theory]
+    [InlineData(6)]
+    [InlineData(70)]
+    public void TwoRenderersThatDrawTheSameFramesGiveTheSameBits(int frames)
     {
-        float[] first = SignalsAfterFrames();
+        float[] first = SignalsAfterFrames(frames);
 
-        float[] second = SignalsAfterFrames();
+        float[] second = SignalsAfterFrames(frames);
 
-        second.Should().Equal(first, "every random number comes from the pixel, the draw index and a constant");
+        second
+            .Should()
+            .Equal(
+                first,
+                "every random number comes from the pixel or block, the draw index, a constant and the mask, also past the mask's period of 64 draws"
+            );
     }
 
-    /// <summary>Both signals' slow histories after 6 frames of a floor with a block on it, one after the other.</summary>
-    private static float[] SignalsAfterFrames()
+    /// <summary>Both signals' slow histories after <paramref name="frames"/> frames of a floor with a block on it.</summary>
+    private static float[] SignalsAfterFrames(int frames)
     {
         VulkanRenderer renderer = Tracing();
         try
@@ -1040,7 +1047,7 @@ public sealed class ScreenTraceRenderTests
                     size: new(2, 1, 1)
                 )
             );
-            Draw(renderer, scene, frames: 6);
+            Draw(renderer, scene, frames: frames);
             (TemporalSignal diffuse, TemporalSignal specular) = renderer.ScreenTraceSignals;
             return [.. renderer.ReadImage(diffuse.Slow(0)), .. renderer.ReadImage(specular.Slow(0))];
         }

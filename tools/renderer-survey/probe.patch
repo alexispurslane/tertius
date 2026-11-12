@@ -212,7 +212,7 @@ index 63f8aebf2..532854ce3 100644
  #ifdef ACCUMULATE_BLOCK_SUMS
  layout(set = 3, binding = 13, rgba32f) uniform writeonly image2D blockSums;
 @@ -68,7 +74,8 @@ float differenceShare(float wf, float ws)
- // update.
+ // the update.
  vec4 blockShareOf(float fastLuminance, float ownMean, float deviation, float historyLength, float fastLength)
  {
 -    float kappa = differenceShare(1.0 / fastLength, 1.0 / historyLength) * BlockNoiseScale;

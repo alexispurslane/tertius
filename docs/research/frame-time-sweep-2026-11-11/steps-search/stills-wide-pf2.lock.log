@@ -1,0 +1,41 @@
+uptime-start:  15:47:32  up 48 days  3:21,  2 users,  load average: 4.04, 5.32, 7.65
+waited: 904s
+mode: shared, with up to 3 shared runs at once
+pf-airlock-ctl: 18 files, exit 0
+pf-airlock-r96: 18 files, exit 0
+pf-bounce-red-wall-ctl: 4 files, exit 0
+pf-bounce-red-wall-r96: 4 files, exit 0
+pf-deep-yard-ctl: 12 files, exit 0
+pf-deep-yard-r96: 12 files, exit 0
+pf-demo-meshes-ctl: 9 files, exit 0
+pf-demo-meshes-r96: 9 files, exit 0
+pf-mars-air-ctl: 9 files, exit 0
+pf-mars-air-r96: 9 files, exit 0
+pf-pbr-spheres-ctl: 5 files, exit 0
+pf-pbr-spheres-r96: 5 files, exit 0
+pf-spacewalk-ctl: 11 files, exit 0
+pf-spacewalk-r96: 11 files, exit 0
+pf-spin-station-ctl: 19 files, exit 0
+pf-spin-station-r96: 19 files, exit 0
+pf-station-crate-ctl: 15 files, exit 0
+pf-station-crate-r96: 15 files, exit 0
+pf-station-nocrate-ctl: 15 files, exit 0
+pf-station-nocrate-r96: 15 files, exit 0
+pf-surface-yard-ctl: 13 files, exit 0
+pf-surface-yard-r96: 13 files, exit 0
+pf-ter-7tnv-floor-ctl: 6 files, exit 0
+pf-ter-7tnv-floor-r96: 6 files, exit 0
+pf-ter-7tnv-terminal-ctl: 6 files, exit 0
+pf-ter-7tnv-terminal-r96: 6 files, exit 0
+pf-throw-ctl: 12 files, exit 0
+pf-throw-r96: 12 files, exit 0
+pf-walk-ctl: 11 files, exit 0
+pf-walk-r96: 11 files, exit 0
+pf-windows-ctl: 10 files, exit 0
+pf-windows-r96: 10 files, exit 0
+pff-exit-floor-ctl: 183 files, exit 0
+pff-exit-floor-r96: 183 files, exit 0
+pff-exit-floor-r80: 183 files, exit 0
+pff-exit-floor-ctl2: 183 files, exit 0
+stills ended: stills-wide-pf2.jobs
+uptime-end:  15:52:10  up 48 days  3:26,  2 users,  load average: 16.61, 17.33, 12.90

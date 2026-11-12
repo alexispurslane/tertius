@@ -1,0 +1,27 @@
+# The step caps at a fixed exposure (parameter search, 2026-11-12). The automatic exposure of several scenes steps by
+# 0.037 stops when a few pixels change, so a still with it mixes the cap's effect with that step. Here each scene runs
+# at one fixed exposure, the automatic one of its control. Reflection caps of 96, 80 and 64 and a diffuse cap of 56
+# against main's 128 and 62.
+one() { # one <script path> <name> <stops>
+  SWEEP_EXPOSURE=$3 run par $1 pf-$2-ctl
+  SWEEP_EXPOSURE=$3 SWEEP_RSTEPS=96 run par $1 pf-$2-r96
+  SWEEP_EXPOSURE=$3 SWEEP_RSTEPS=80 run par $1 pf-$2-r80
+  SWEEP_EXPOSURE=$3 SWEEP_RSTEPS=64 run par $1 pf-$2-r64
+  SWEEP_EXPOSURE=$3 SWEEP_DSTEPS=56 run par $1 pf-$2-d56
+}
+one capscripts/rigs.json rigs -9.3555
+one capscripts/doorway.json doorway -9.695
+one capscripts/mirror-balls.json mirror-balls -6.4
+one capscripts/demo-surface.json demo-surface -8.95
+one capscripts/cabin-light.json cabin-light -8.36
+one capscripts/reflections-stills.json reflections-stills -6.77
+one capscripts/demo-shuttle.json demo-shuttle -9.346
+one capscripts/station.json station -8.85
+one hairscripts/hair-rugs.json hair-rugs -12.79
+one hairscripts/hair-bent-cards.json hair-bent-cards -8.98
+one bigscripts/deck-1080.json deck-1080 0.7041458
+one bigscripts/mirror-balls-1440.json mirror-balls-1440 -6.4
+one bigscripts/hair-rugs-1440.json hair-rugs-1440 -12.79
+one bigscripts/doorway-1440.json doorway-1440 -9.695
+one bigscripts/rigs-1080.json rigs-1080 -9.3555
+one views2.json low -7.2

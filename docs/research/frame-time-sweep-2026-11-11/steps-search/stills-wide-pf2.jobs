@@ -1,0 +1,15 @@
+# The reflection step cap of 96 at a fixed exposure, part 2 (parameter search, 2026-11-12): the 16 capture scripts that
+# part 1 left out, each at the median exposure of main's run of it (out3/bl-<script>-main, automatic), and the film with
+# the follow camera of demo-exit at caps of 128 (twice), 96 and 80, with its automatic exposure.
+stops() { python3 -I -c "
+import json,statistics,sys
+print(statistics.median(x['stops'] for x in json.load(open('$R/out3/bl-$1-main/exposure.json'))))"; }
+for s in airlock bounce-red-wall deep-yard demo-meshes mars-air pbr-spheres spacewalk spin-station station-crate station-nocrate surface-yard ter-7tnv-floor ter-7tnv-terminal throw walk windows; do
+  e=$(stops $s)
+  SWEEP_EXPOSURE=$e run par capscripts/$s.json pf-$s-ctl
+  SWEEP_EXPOSURE=$e SWEEP_RSTEPS=96 run par capscripts/$s.json pf-$s-r96
+done
+run par exit-floor.json pff-exit-floor-ctl
+SWEEP_RSTEPS=96 run par exit-floor.json pff-exit-floor-r96
+SWEEP_RSTEPS=80 run par exit-floor.json pff-exit-floor-r80
+run par exit-floor.json pff-exit-floor-ctl2

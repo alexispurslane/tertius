@@ -14,7 +14,7 @@ vec4 rayOf(ivec2 pixel, uint kind)
     TracingPixel p = tracingPixelAt(pixel);
     if (!startsKind(p, kind))
         return vec4(0.0, -1.0, 0.0, 1.0);
-    TracedRay ray = traceFrom(pixel, p, kind);
+    TracedRay ray = traceFrom(pixel, pixel, p, kind);
     return vec4(ray.light.r, ray.distance, 0.0, 1.0);
 }
 

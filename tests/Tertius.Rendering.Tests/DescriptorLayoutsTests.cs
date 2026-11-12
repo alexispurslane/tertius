@@ -133,9 +133,34 @@ public sealed class DescriptorLayoutsTests
             .DescriptorsOf(layouts.ScreenTraceLayout)
             .SampledImages.Most.Should()
             .Be(
-                16,
-                "the compute stage sees the frame set's and the G-buffer set's images, the depth pyramid's two and the "
-                    + "light pyramid's two: the spec's least, so one more needs a device check"
+                17,
+                "the compute stage sees the frame set's images with the blue-noise mask, the G-buffer set's, the depth "
+                    + "pyramid's two and the light pyramid's two: one above the spec's least, as the impostor layout's fragment stage"
+            );
+    }
+
+    /// <summary>
+    /// Each frame in flight adds a frame set and a deform set to the shared pool, so the pool's size of each descriptor
+    /// type grows by what those two layouts take. A driver that counts each type, such as RADV, refuses a set past the
+    /// pool's size of a type, while MoltenVK gives it (ARCHITECTURE.md, "Descriptor pools").
+    /// </summary>
+    [Theory]
+    [InlineData(DescriptorType.UniformBuffer)]
+    [InlineData(DescriptorType.StorageBuffer)]
+    [InlineData(DescriptorType.Sampler)]
+    [InlineData(DescriptorType.SampledImage)]
+    [InlineData(DescriptorType.StorageImage)]
+    public void EachFrameInFlightGrowsTheSharedPoolByWhatItsFrameSetAndDeformSetTake(DescriptorType type)
+    {
+        using var device = VulkanDevice.Create(validation: true, surfaceExtensions: [], createSurface: null);
+        using var two = new DescriptorLayouts(device: device, framesInFlight: 2, glowLevels: 0);
+        using var three = new DescriptorLayouts(device: device, framesInFlight: 3, glowLevels: 0);
+
+        (three.SharedPoolSizeOf(type) - two.SharedPoolSizeOf(type))
+            .Should()
+            .Be(
+                two.SizeOf(two.FrameSet, type) + two.SizeOf(two.DeformSet, type),
+                $"the third frame's frame set and deform set take that many descriptors of {type} from the shared pool"
             );
     }
 

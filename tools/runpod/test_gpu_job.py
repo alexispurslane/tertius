@@ -44,9 +44,10 @@ def config(repository="https://github.com/x/tertius.git"):
 class FakeRunpod:
     """Runpod's API as the queue script sees it: the bill, the endpoints, and jobs that end with the given status."""
 
-    def __init__(self, billed=0.0, final=None, billed_today=0.0, statuses=None, endpoints=None):
+    def __init__(self, billed=0.0, final=None, billed_today=0.0, statuses=None, endpoints=None, hours=None):
         self.billed = billed
         self.today = billed_today
+        self.hours = hours or {}  # the start of a UTC hour -> its bill, for the last hours
         self.statuses = statuses or {}  # job id -> its status, or an exception that the status call raises
         self.final = final or {"status": "COMPLETED", "executionTime": 50_000, "delayTime": 3_000,
                                "output": {"status": "ok", "steps": [{"command": "x", "exitCode": 0, "seconds": 1.0}],
@@ -66,6 +67,9 @@ class FakeRunpod:
 
     def billed_today(self):
         return self.today
+
+    def billed_hours(self, count):
+        return dict(self.hours)
 
     def endpoints(self):
         self.listings += 1
@@ -230,10 +234,13 @@ class Queue(unittest.TestCase):
                                                  "endpoint": endpoint, "worstCaseUsd": self.worst(840),
                                                  "expires": (when + datetime.timedelta(seconds=expires)).isoformat()})
 
-    def logged(self, cost, when=NOW):
+    def logged(self, cost, when=NOW, ended=None):
         self.state.mkdir(parents=True, exist_ok=True)
+        line = {"time": when.isoformat(), "agent": "other", "costUsd": cost}
+        if ended is not None:
+            line["ended"] = ended.isoformat()
         with (self.state / "jobs.jsonl").open("a") as log:
-            log.write(json.dumps({"time": when.isoformat(), "agent": "other", "costUsd": cost}) + "\n")
+            log.write(json.dumps(line) + "\n")
 
 
 class Requests(Queue):
@@ -525,6 +532,167 @@ class Caps(Queue):
         api = self.api(billed_today=10.0 - self.worst(840) + 0.01)
         self.assertEqual(self.submit(api), "refused")
         self.assertEqual(api.submitted, [])
+
+
+class BilledHours(Queue):
+    """A cap counts Runpod's bill for each hour whose bill is final, and the larger of the bill and the log's estimates
+    for the hours after it. So the log's flat start and idle allowance stops counting once the bill is in, and a cap
+    never counts less than the bill."""
+
+    LAG = datetime.timedelta(hours=gpu_job.BILL_FINAL_HOURS)
+
+    def hour(self, back):
+        """The start of the UTC hour `back` hours before NOW's hour."""
+        return NOW.replace(minute=0, second=0, microsecond=0) - datetime.timedelta(hours=back)
+
+    def test_a_job_that_ended_in_a_final_hour_counts_at_the_bill_and_not_at_the_logs_estimate(self):
+        when = NOW - self.LAG - datetime.timedelta(hours=2)
+        self.logged(9.95, when=when, ended=when + datetime.timedelta(minutes=10))
+        api = self.api(billed_today=2.0, billed=2.0)
+        self.assertEqual(self.submit(api), "ok", "the bill of $2 is final, so the log's $9.95 no longer counts")
+
+    def test_a_job_that_ended_after_the_last_final_hour_counts_at_the_larger_of_the_log_and_the_bill(self):
+        self.logged(9.95, when=NOW - datetime.timedelta(minutes=20), ended=NOW - datetime.timedelta(minutes=10))
+        api = self.api(billed_today=0.5, billed=0.5, hours={self.hour(0): 0.5})
+        self.assertEqual(self.submit(api), "refused")
+
+    def test_an_open_hour_whose_bill_passes_the_log_counts_at_its_bill(self):
+        self.logged(0.1, when=NOW - datetime.timedelta(minutes=20), ended=NOW - datetime.timedelta(minutes=10))
+        api = self.api(billed_today=9.95, billed=9.95, hours={self.hour(0): 9.95})
+        self.assertEqual(self.submit(api), "refused", "a cap never counts less than the bill")
+
+    def test_a_job_that_started_before_the_cutoff_and_ended_after_it_counts_whole_in_the_open_part(self):
+        self.logged(9.95, when=NOW - self.LAG - datetime.timedelta(hours=2), ended=NOW - datetime.timedelta(minutes=5))
+        api = self.api(billed_today=1.0, billed=1.0)
+        self.assertEqual(self.submit(api), "refused")
+
+    def test_an_older_line_without_an_end_ends_after_its_wait_and_its_execution(self):
+        when = NOW - self.LAG - datetime.timedelta(hours=1)
+        self.state.mkdir(parents=True, exist_ok=True)
+        with (self.state / "jobs.jsonl").open("a") as log:
+            log.write(json.dumps({"time": when.isoformat(), "agent": "other", "costUsd": 9.95, "delaySeconds": 60,
+                                  "gpuSeconds": 3600 + 1800}) + "\n")
+        self.assertEqual(self.submit(self.api(billed_today=1.0, billed=1.0)), "refused",
+                         "it ended 30 minutes before NOW, after the last final hour")
+
+    def test_the_total_cap_counts_the_bill_of_final_hours_on_earlier_days_too(self):
+        when = NOW - datetime.timedelta(days=1)
+        self.logged(29.95, when=when, ended=when + datetime.timedelta(minutes=10))
+        self.assertEqual(self.submit(self.api(billed=5.0)), "ok")
+
+    def test_each_open_hour_counts_the_larger_of_its_own_bill_and_its_own_jobs(self):
+        self.logged(8.9, when=NOW - datetime.timedelta(minutes=20), ended=NOW - datetime.timedelta(minutes=10))
+        api = self.api(billed_today=1.0, billed=1.0, hours={self.hour(gpu_job.BILL_FINAL_HOURS): 1.0})
+        self.assertEqual(self.submit(api), "refused",
+                         "a pod's $1 in the first open hour does not hide $8.90 of jobs in the last one")
+
+    def test_a_job_that_ended_exactly_at_the_cutoff_counts_in_the_open_hours(self):
+        cutoff = self.hour(gpu_job.BILL_FINAL_HOURS)
+        self.logged(9.95, when=cutoff - datetime.timedelta(minutes=30), ended=cutoff)
+        self.assertEqual(self.submit(self.api(billed_today=1.0, billed=1.0)), "refused")
+
+    def test_an_open_hour_before_midnight_does_not_count_against_the_new_days_cap(self):
+        lines = [{"time": "2026-11-11T23:10:00+00:00", "ended": "2026-11-11T23:30:00+00:00", "costUsd": 5.0}]
+        hours = {datetime.datetime(2026, 11, 11, 23, tzinfo=datetime.timezone.utc): 0.1,
+                 datetime.datetime(2026, 11, 12, 0, tzinfo=datetime.timezone.utc): 0.2}
+        cutoff = datetime.datetime(2026, 11, 11, 22, tzinfo=datetime.timezone.utc)
+        midnight = datetime.datetime(2026, 11, 12, tzinfo=datetime.timezone.utc)
+        self.assertAlmostEqual(gpu_job.counted(0.2, hours, lines, cutoff, since=midnight), 0.2)
+        self.assertAlmostEqual(gpu_job.counted(0.3, hours, lines, cutoff), 5.2)
+
+    def test_a_cancelled_job_ends_at_its_expiry_because_its_handler_bills_until_its_limit(self):
+        self.submit(self.api(final={"status": "CANCELLED"}))
+        line, = self.log_lines()
+        self.assertGreater(datetime.datetime.fromisoformat(line["ended"]), NOW + datetime.timedelta(seconds=840))
+
+    def test_each_settled_line_records_when_the_job_ended(self):
+        self.submit(self.api())
+        line, = self.log_lines()
+        self.assertEqual(datetime.datetime.fromisoformat(line["ended"]), NOW)
+
+
+class Statistics(unittest.TestCase):
+    """`gpu_job.py stats` reads the audit log only and prints the cost per job that ran, with its spread."""
+
+    def test_a_summary_gives_the_mean_the_spread_and_the_95_percent_interval_of_the_mean(self):
+        summary = gpu_job.summary([1.0, 2.0, 3.0, 4.0])
+        self.assertEqual((summary["count"], summary["mean"], summary["median"], summary["min"], summary["max"]),
+                         (4, 2.5, 2.5, 1.0, 4.0))
+        self.assertAlmostEqual(summary["sd"], 1.2909944, places=6)
+        # Student's t of 3 degrees of freedom at 97.5 % is 3.182446, times the standard error 1.2909944 / 2.
+        self.assertAlmostEqual(summary["ci95"], 3.182446 * 1.2909944 / 2, places=4)
+
+    def test_the_interval_uses_students_t_and_comes_close_to_the_normal_for_many_jobs(self):
+        self.assertAlmostEqual(gpu_job.t_975(1), 12.7062, places=3)
+        self.assertAlmostEqual(gpu_job.t_975(10), 2.2281, places=3)
+        self.assertAlmostEqual(gpu_job.t_975(58), 2.0017, places=3)
+        self.assertAlmostEqual(gpu_job.t_975(1000), 1.9623, places=3)
+
+    def test_one_job_has_a_mean_and_no_spread(self):
+        summary = gpu_job.summary([0.5])
+        self.assertEqual((summary["count"], summary["mean"], summary["sd"], summary["ci95"]), (1, 0.5, None, None))
+
+    def test_the_median_of_an_odd_count_is_its_middle_value(self):
+        self.assertEqual(gpu_job.summary([5.0, 1.0, 3.0])["median"], 3.0)
+
+    def test_the_bill_counts_the_final_hours_from_the_first_jobs_hour_against_the_jobs_that_ended_in_them(self):
+        first = datetime.datetime(2026, 11, 12, 12, 10, tzinfo=datetime.timezone.utc)
+        lines = [{"time": first.isoformat(), "ended": (first + datetime.timedelta(minutes=5)).isoformat(),
+                  "result": "ok", "costUsd": 0.10},
+                 {"time": first.isoformat(), "ended": (first + datetime.timedelta(hours=1)).isoformat(),
+                  "result": "ok", "costUsd": 0.20},
+                 {"time": first.isoformat(), "ended": (first + datetime.timedelta(hours=3)).isoformat(),
+                  "result": "ok", "costUsd": 0.40},
+                 {"time": first.isoformat(), "result": "refused", "costUsd": 0.0}]
+        hour = lambda h: datetime.datetime(2026, 11, 12, h, tzinfo=datetime.timezone.utc)  # noqa: E731
+        hours = {hour(2): 0.28, hour(12): 0.05, hour(13): 0.15, hour(14): 0.0, hour(15): 0.30}
+        compared = gpu_job.bill_against_estimate(lines, hours, cutoff=hour(15))
+        self.assertEqual((compared["start"], compared["end"], compared["jobs"]), (hour(12), hour(15), 2))
+        self.assertAlmostEqual(compared["billed"], 0.20, msg="a pod's hour before the first job does not count")
+        self.assertAlmostEqual(compared["settled"], 0.30, msg="the job that ended after the cutoff does not count")
+
+    def test_the_report_names_the_bill_beside_the_estimate_and_survives_a_zero_estimate(self):
+        hour = datetime.datetime(2026, 11, 12, 12, tzinfo=datetime.timezone.utc)
+        compared = {"start": hour, "end": hour + datetime.timedelta(hours=3), "billed": 0.12, "jobs": 2,
+                    "settled": 0.0}
+        text = gpu_job.stats_text(self.lines(), config(), compared)
+        self.assertIn("$0.1200 for the 2 jobs", text)
+        self.assertIn("kind cpu", text)
+        self.assertIn("not read (the audit log is empty)", gpu_job.stats_text([], config(), "the audit log is empty"))
+
+    def test_the_bill_window_starts_no_earlier_than_the_oldest_hour_that_runpod_returned(self):
+        first = datetime.datetime(2026, 11, 12, 1, 10, tzinfo=datetime.timezone.utc)
+        lines = [{"time": first.isoformat(), "ended": first.isoformat(), "result": "ok", "costUsd": 0.5},
+                 {"time": first.isoformat(), "ended": (first + datetime.timedelta(hours=11)).isoformat(),
+                  "result": "ok", "costUsd": 0.2}]
+        hours = {datetime.datetime(2026, 11, 12, 12, tzinfo=datetime.timezone.utc): 0.1}
+        compared = gpu_job.bill_against_estimate(lines, hours, cutoff=datetime.datetime(2026, 11, 12, 15,
+                                                                                         tzinfo=datetime.timezone.utc))
+        self.assertEqual((compared["jobs"], compared["settled"]), (1, 0.2),
+                         "a job in an hour that the bill did not return does not count against it")
+
+    def lines(self):
+        return [{"agent": "a", "kind": "gpu", "result": "ok", "costUsd": 0.02, "gpuSeconds": 50.0},
+                {"agent": "a", "kind": "gpu", "result": "failed", "costUsd": 0.04, "gpuSeconds": 180.0},
+                {"agent": "b", "kind": "cpu", "result": "ok", "costUsd": 0.01, "gpuSeconds": 430.0},
+                {"agent": "b", "result": "lost", "costUsd": 0.15, "gpuSeconds": None},
+                {"agent": "b", "kind": "gpu", "result": "refused", "costUsd": 0.0},
+                {"agent": "b", "kind": "gpu", "result": "rejected", "costUsd": 0.0, "gpuSeconds": 0.0}]
+
+    def test_the_jobs_that_ran_count_and_refusals_and_rejections_do_not(self):
+        groups = gpu_job.cost_groups(self.lines(), config())
+        self.assertEqual(groups["all"]["settled"], [0.02, 0.04, 0.01, 0.15])
+
+    def test_the_execution_figure_is_the_execution_time_at_the_price_of_the_jobs_kind(self):
+        groups = gpu_job.cost_groups(self.lines(), config())
+        self.assertEqual(groups["all"]["execution"], [50.0 * RATE, 180.0 * RATE, 430.0 * CPU_RATE],
+                         "a lost job has no execution time, and a line without a kind is a GPU job")
+
+    def test_the_jobs_group_by_kind_and_by_agent(self):
+        groups = gpu_job.cost_groups(self.lines(), config())
+        self.assertEqual(groups["kind gpu"]["settled"], [0.02, 0.04, 0.15])
+        self.assertEqual(groups["kind cpu"]["settled"], [0.01])
+        self.assertEqual(groups["agent b"]["settled"], [0.01, 0.15])
 
 
 class AuditLog(Queue):

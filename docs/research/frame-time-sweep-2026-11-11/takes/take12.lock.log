@@ -1,0 +1,15 @@
+uptime-start:  15:40:30  up 48 days  3:14,  2 users,  load average: 5.80, 7.95, 9.62
+waited: 504s
+trace deck-t12-ctl-a: GPU frame span: mean 20.820 ms, median 20.852 ms, p95 21.970 ms over 119 frames | GPU clock over the timed span: 1295.8 MHz (p10 1294.9, p90 1296.0 MHz,
+trace deck-t12-r96-a: GPU frame span: mean 19.749 ms, median 19.499 ms, p95 21.869 ms over 119 frames | GPU clock over the timed span: 1293.6 MHz (p10 1290.0, p90 1296.0 MHz,
+trace deck-t12-r80-a: GPU frame span: mean 19.436 ms, median 19.351 ms, p95 20.110 ms over 119 frames | GPU clock over the timed span: 1293.0 MHz (p10 1289.8, p90 1296.0 MHz,
+trace deck-t12-ctl-b: GPU frame span: mean 19.766 ms, median 19.718 ms, p95 20.604 ms over 119 frames | GPU clock over the timed span: 1293.8 MHz (p10 1290.3, p90 1296.0 MHz,
+trace deck-t12-r96-b: GPU frame span: mean 20.089 ms, median 19.596 ms, p95 22.436 ms over 119 frames | GPU clock over the timed span: 1294.0 MHz (p10 1289.8, p90 1296.0 MHz,
+trace deck-t12-r80-b: GPU frame span: mean 19.388 ms, median 19.318 ms, p95 20.027 ms over 119 frames | GPU clock over the timed span: 1292.5 MHz (p10 1290.2, p90 1294.9 MHz,
+trace deck-t12-ctl-c: GPU frame span: mean 19.787 ms, median 19.771 ms, p95 20.404 ms over 119 frames | GPU clock over the timed span: 1293.1 MHz (p10 1290.2, p90 1296.0 MHz,
+trace deck-t12-r96-c: GPU frame span: mean 19.535 ms, median 19.450 ms, p95 20.218 ms over 119 frames | GPU clock over the timed span: 1292.7 MHz (p10 1290.1, p90 1296.0 MHz,
+trace deck-t12-r80-c: GPU frame span: mean 19.379 ms, median 19.328 ms, p95 20.128 ms over 119 frames | GPU clock over the timed span: 1292.2 MHz (p10 1289.9, p90 1296.0 MHz,
+trace deck-t12-main-st: GPU frame span: mean 20.813 ms, median 20.323 ms, p95 25.064 ms over 119 frames | GPU clock over the timed span: 1291.4 MHz (p10 1290.0, p90 1294.8 MHz,
+trace deck-t12-envnl-st: GPU frame span: mean 20.859 ms, median 20.829 ms, p95 21.370 ms over 119 frames | 
+take take12.jobs ended after 422 s
+uptime-end:  15:47:32  up 48 days  3:21,  2 users,  load average: 4.04, 5.32, 7.65

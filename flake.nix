@@ -19,6 +19,8 @@
         {
           joltc-double = pkgs.callPackage ./native/joltc.nix { };
           jscpd = pkgs.callPackage ./native/jscpd.nix { };
+          # The reflection rays' blue-noise mask, which Tertius.Rendering embeds (native/stbn-mask.nix).
+          stbn-mask = pkgs.callPackage ./native/stbn-mask.nix { };
           # AMD's FSR 3.1 host sources at the pin, for tools/fsr3-golden/ (native/fidelityfx-sdk.nix).
           fidelityfx-sdk = pkgs.callPackage ./native/fidelityfx-sdk.nix { };
           # The official Blender Lab MCP server of the assets shell. Its add-on is passthru.addon.
@@ -38,6 +40,7 @@
           dotnet = pkgs.dotnet-sdk_11;
           joltc = pkgs.callPackage ./native/joltc.nix { };
           jscpd = pkgs.callPackage ./native/jscpd.nix { };
+          stbnMask = pkgs.callPackage ./native/stbn-mask.nix { };
           fidelityfxSdk = pkgs.callPackage ./native/fidelityfx-sdk.nix { };
           blenderMcp = pkgs.callPackage ./native/blender-mcp.nix { };
           mpfb = pkgs.callPackage ./native/mpfb.nix { };
@@ -128,6 +131,9 @@
 
             # The Nix-built double-precision Jolt library, which Directory.Build.targets copies next to each output.
             TERTIUS_JOLTC_DIR = "${joltc}/lib";
+
+            # The reflection rays' blue-noise mask (native/stbn-mask.nix), which Tertius.Rendering embeds.
+            TERTIUS_STBN_MASK = "${stbnMask}/stbn-mask.bin";
 
             # AMD's FSR 3.1 host sources at the pin, which tools/fsr3-golden/ builds from.
             TERTIUS_FFX_SDK = "${fidelityfxSdk}";

@@ -1,0 +1,31 @@
+#version 460
+// Each pixel's reflection ray, traced as the tracer traces it (traceFrom), against the direction that its draw gives
+// through the blue-noise mask and through pcg3d alone: r 1 where the ray takes the mask's direction, g 1 where it takes
+// pcg3d's, and b 1 where the pixel starts a reflection ray. A pixel that starts none holds 0 in b.
+#extension GL_GOOGLE_include_directive : require
+#include "screen_trace.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
+        return;
+    vec4 result = vec4(0.0, 0.0, 0.0, 1.0);
+    if (tracedSurface(pixel))
+    {
+        TracingPixel p = tracingPixelAt(pixel);
+        if (startsKind(p, KindReflection))
+        {
+            vec3 ray = traceFrom(pixel, pixel, p, KindReflection).direction;
+            uvec3 draw = drawOf(pixel, trace.drawIndex, DirectionDraw[KindReflection]);
+            vec2 fromMask = reflectionNumbersOf(pixel, trace.drawIndex, draw);
+            vec2 fromHash = vec2(unitOf(draw.x), unitOf(draw.y));
+            vec3 maskRay = directionOfCode(directionCodeOf(reflectionDirection(p, fromMask)));
+            vec3 hashRay = directionOfCode(directionCodeOf(reflectionDirection(p, fromHash)));
+            result = vec4(float(all(equal(ray, maskRay))), float(all(equal(ray, hashRay))), 1.0, 1.0);
+        }
+    }
+    imageStore(specularSample, pixel, result);
+}
