@@ -305,9 +305,27 @@ Every variant keeps the total excess at 12.5 × (31/32)^k. So the filter moves l
 
 For each contributing pixel p, the temporal dispatch forms three values after this draw's blend:
 
-- `d_p` = luminance(F_p) − luminance(S_p).
+- `d_p` = luminance(F_p) − R_p.
 - `v_p` = κ(1/`FastCap`, 1/L_p)² × σr,p² × `BlockNoiseScale`².
-- `s_p` = luminance(S_p).
+- `s_p` = R_p.
+
+R_p is the own-sample mean: the luminance mean of the pixel's own samples with the slow weight 1/L_p. Only the temporal dispatch blends it, so neither the filter's write-back nor the clamp moves it. The spatial dispatch writes it only on evidence, where it restarts R at luminance(F) together with the cut of L.
+
+Why R and not S (take T3's filter test, 2026-11-12, workbench job `filter-ab`, `rect-lamps` to draw 924 with the action off):
+
+| Bounce light | Filter on, D = F − S | Filter off, S is the own-sample mean |
+|---|---:|---:|
+| False windows per block-draw, any window | 2.1 × 10^−2 | 1.9 × 10^−4 |
+| Measured over predicted deviation of D̄, windows 1, 3, 7 | 1.41, 1.40, 1.50 | 1.00, 1.05, 1.13 |
+| Median of the stationary F̄ − S̄ over S̄, 1 × 1 window | 0.029 | 0.014 |
+| Repeat share of fires, longest run | 0.52, 39 draws | 0.31, 7 draws |
+
+- The filter's write-back puts moved light into S, not into F. So F and S estimate different things wherever the filter moves light, and D is not 0 in a still. The kept false fires were all rises (F above S) of about a fifth of the light, at the bright side of the ceiling band.
+- The write-back also adds the neighbors' noise to S, so the noise of D exceeds κσr by about 40 %. κ assumes two exponential means of the same samples.
+- With the filter off, the prediction holds (ratio 1.00 to 1.13), as in the CPU model. So the statistic needs the mean of the pixel's own samples, which the write-back and the clamp never touch. That is R.
+- The rest of the false evidence with the filter off came from the tail of rare bright hits (kept fires at a tail ratio of about 1,080, near `TailStreams`). Its offline sweep passes 10^−4 at `TailStreams` 2,000 with a floor of 1/16. Take T3 calibrates again with R.
+
+The reflections' D did not change with the diffuse filter: ratios 1.58, 2.18 and 3.76 with it on and 1.54, 2.12 and 3.63 with it off. Their kept fires are drops of about 6.6 % of the light at z of about −4.6. The ratio grows with the window, so their errors are correlated across ray blocks, or their narrow clamp moves S. R removes the clamp's part. Take T3 measures what remains. A remaining ratio becomes the reflections' variance scale per window: the design effect of a cluster sample (Kish 1965), the measured variance of a window's mean over the variance of independent streams.
 
 A contributing pixel shows a lit surface and has L above `FastCap` after the blend. That is the clamp's own condition, because a shorter history averages no more draws than its fast history.
 
@@ -522,6 +540,7 @@ The union grows by steps. Step 2a brings `WidenedBox(RetainedSigmas)` and `Narro
 | σr of bounce light | Alpha of the diffuse fast history, RGBA16F, two by parity (existing images) | `TemporalSignal` | Signal set: 2 (last draw) and 3 (this draw). Filter set: 3 | Temporal dispatch. Filter feedback step | Next draw's temporal dispatch. Block sums. Spatial box. Filter variance dispatch |
 | σr of reflections | R16F, render size, two by parity, precise modes only | `TemporalSignal`, part images | Signal set: 14 (last draw) and 15 (this draw) | Temporal dispatch | Next draw's temporal dispatch. Block sums |
 | Block sums | RGBA32F, ⌈W/8⌉ × ⌈H/8⌉, one per part | `TemporalSignal`, part images | Signal set: 13 | Temporal dispatch | Spatial dispatch. The survey's probe capture |
+| Own-sample mean R | One channel at the slow history's precision (R16F beside a half history, R32F beside a precise one), render size, two by parity, every signal with a block test | `TemporalSignal`, part images | Signal set: 16 (last draw) and 17 (this draw) | Temporal dispatch. Spatial dispatch on evidence | Next draw's temporal dispatch. Block sums |
 
 - Every Vulkan device supports RGBA32F and RGBA16F storage. R16F storage needs `shaderStorageImageExtendedFormats`, which the renderer already requires.
 - Today the signal set layout numbers its bindings 0 to N − 1 from a count (`SignalSetImages`). Bindings 11 and 12 are optional, so binding 13 cannot follow them in a count.
@@ -558,7 +577,8 @@ At the deck's render size of 1280 × 720 (921,600 pixels). The bounce accumulati
 | Block sums in both temporal dispatches | 2 × 230 KB | about 0.03 to 0.06 ms |
 | Windows in both spatial dispatches, 49 loads per block | 0 | about 0.01 ms |
 | Bounce clamp in every draw | 0 | 0 against main |
-| Total | about 4.2 MB | about 0.1 to 0.15 ms |
+| Own-sample mean R: R16F × 2 for bounce light, R32F × 2 for reflections | 11.1 MB | about 0.03 ms |
+| Total | about 15.3 MB | about 0.13 to 0.18 ms |
 
 Take T8 measures it. The limit is +0.3 ms, inside the 1.5 ms reserve for the mottle.
 
@@ -609,6 +629,7 @@ Still possible, by name:
 | σr, bounce light | Temporal dispatch update (2a). Feedback step carry (2b) | Temporal reprojection (2a). Spatial box (2a). Variance dispatch, no code change (2b). Block sums (4) |
 | σr, reflections | Temporal dispatch (5) | Temporal reprojection (5). Block sums (5) |
 | Block sums | Temporal dispatch (4) | Spatial windows (4). Probe capture (6) |
+| Own-sample mean R | Temporal dispatch blend (7). Spatial dispatch restart on evidence (7) | Temporal reprojection (7). Block sums (7) |
 | Evidence, derived and never stored | Spatial dispatch (4) | Box and cut in the same workgroup (4) |
 | L after a cut to `FastCap` | Spatial dispatch (4) | Next draw's temporal dispatch. The ray plan, which traces own rays below `FullRateFrames` (8). The young limit of the variance dispatch. No code change |
 | `HistoryConfidence` | `SignalParameters` (2a, 4, 5). `TemporalSignal` (2a) | Push constants (2a). Part images and set writer (5) |
@@ -633,6 +654,7 @@ The design settles these points by its own rules (the user's rule: settle small 
 - Evidence narrows the box and cuts L to `FastCap`, with a hard threshold (section 8).
 - The reflections' test is one-sided, derived from their zero widening (section 9).
 - The sums run inside the temporal dispatch, and the windows run once per workgroup (section 8, cost).
+- The block test compares F with the own-sample mean R, not with S, after take T3's filter test (section 8). R has the slow history's precision and restarts at F on evidence.
 - The confidence rules are one union (section 12).
 - The signal set layout lists its binding numbers (section 12).
 

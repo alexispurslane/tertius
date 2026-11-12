@@ -1,7 +1,7 @@
 ---
 id: t0-4fth
 status: open
-deps: [t0-ylwm, t0-f7zv, t0-jpwf, t0-9a9e]
+deps: [t0-ylwm, t0-f7zv, t0-jpwf, t0-9a9e, t0-y4qv]
 links: []
 created: 2026-11-12T13:56:24Z
 type: task
@@ -27,3 +27,7 @@ Budget, orchestrator 2026-11-12: Design A's remaining measurement series (from s
 **2026-11-12T15:57:12Z**
 
 Rule from Alexis via the orchestrator, 2026-11-12: judge mottle and specks with numbers and pictures. Number-only survey cases (stand, climb) are for sweeps and the light's fall over time. Every keep-or-drop decision of a variant, and the final report, also needs full-resolution crops beside the true reference (a long run with the history clamps off), not only beside main: look at the crops first, write what you see, then read the scores, and name the score at which the mottle stops being visible (the daub limit of about 0.010 from the blind test). Put still captures in the same job as the numbers when that costs little. Crops for Alexis: rect-lamps' ceiling band, the far lamps' specks, and the cabin, deck and plate before and after.
+
+**2026-11-12T19:00:12Z**
+
+Take T3 started early (job filter-ab, $0.0437, rect-lamps to draw 924, action off, filter on and off). Result: the filter's write-back into S causes the false block evidence of bounce light (2.1e-2 against 1.9e-4 per block-draw; D's deviation ratio 1.4 against 1.0). Design change in section 8: compare F with the own-sample mean R. New step ticket t0-y4qv blocks this one. Spent so far under the $3 budget: $0.0342 (step 6 smoke) + $0.0437 (filter-ab) = $0.078.
