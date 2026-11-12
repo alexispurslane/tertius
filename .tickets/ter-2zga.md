@@ -71,3 +71,13 @@ Later on 2026-11-12, main gained two renderer changes, and the branch took both 
 Over the four states of the code, the patch saves between 0.85 and 1.01 ms of the deck's frame. The hit light image changed 153 of the 168 frames, and both drivers give the same new frames.
 
 The branch head holds main at 5330c7411. Main changes several times a night. At the merge into main, first merge main into the branch. Then run the suites in Checked and in Release, and one frame comparison against the stock driver (`tools/README.md`, "The patched MoltenVK").
+
+**2026-11-12T13:43:18Z**
+
+The merge, 2026-11-12. Alexis decided it. The branch took main twice more, and the checks of `tools/README.md`, "The patched MoltenVK", ran on the last state, commit bc53e6d70 with main ad095e599 inside:
+
+- Every suite in Checked: 10,778 passed, 0 failed, 26 skipped.
+- Every suite in Release: 10,765 passed, 0 failed, 26 skipped.
+- 80 frames of 5 scripts (the deck, the low view, `doorway`, `demo-surface`, `station`) equal the stock driver's, byte for byte.
+
+Main then held two more commits, which change one ticket file and no code. The acceptance record has the section "The merge into main".

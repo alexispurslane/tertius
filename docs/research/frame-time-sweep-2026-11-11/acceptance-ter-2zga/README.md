@@ -197,10 +197,25 @@ The touched test classes of the third merge are the classes whose names start wi
 
 The three parts of the Rendering tests under validation sum to 3,082 tests. That is the count of the Rendering tests in the full Checked run before the merge. The parts exist because a shared take holds the lock for about 20 minutes at most.
 
+## The merge into main
+
+Alexis decided the merge on 2026-11-12. Before it, the branch took main twice more, and the checks of `tools/README.md`, "The patched MoltenVK", ran on the last state.
+
+| Commit | Main inside it | Main's change | Checks with the patched driver |
+|---|---|---|---|
+| `a9be99864` | `5330c7411` | None since the third merge | Every suite in Checked: 10,778 passed, 0 failed, 26 skipped (`tests/checked5.lock.log`). 80 frames of 5 scripts equal the stock driver's |
+| `bc53e6d70` | `ad095e599` | The light-age cut of the reflection history | Every suite in Checked: 10,778 passed, 0 failed, 26 skipped (`tests/checked6.lock.log`). Every suite in Release: 10,765 passed, 0 failed, 26 skipped (`tests/release6.lock.log`). 80 frames of 5 scripts equal the stock driver's (`stills-wide-6.jobs`) |
+
+The five scripts of the frame comparison are the deck, the low view, `doorway`, `demo-surface` and `station`.
+
+Main gained two more commits before the merge. They change one ticket file and no code.
+
+One take of that morning ran a wrong job list. Two queued takes shared one list file, `refl/stills3.jobs`, so the take of `stills-wide-6.jobs` first rendered the images of another ticket. `acc-wide.sh` now passes each take its own list through `../refl/stills4.sh`, and the frame comparison ran again. The log `stills-wide-6.lock.log` is the log of the second run.
+
 ## What the acceptance does not show
 
 - No test asserts on the effect of the patch, because the engine does not depend on it. The encoder count of a trace shows the effect.
 - A wrong fence makes two encoders run in the wrong order only sometimes. Equal frames in every run lower that risk. They do not remove it.
 - The Rendering and Host tests ran under Metal's API validation in full before the merge only. After the second merge, only FSR's test classes ran under it, because that merge changed FSR's code.
-- The full test suites last ran after the second merge. After the third merge, only the touched test classes ran. Main changes several times a night, so the merge into main runs the full suites once more.
+- After the third merge, only the touched test classes ran. The full suites ran again on the last state before the merge into main ("The merge into main").
 - Every run was on one machine, the M1 Max. The patch changes only MoltenVK, so a Linux driver is not a part of this acceptance.
