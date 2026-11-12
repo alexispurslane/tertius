@@ -43,24 +43,24 @@ public sealed class ReflectionBlueNoiseTests
     /// </summary>
     private static double BlurredVarianceShare(Func<int, double> valueOf, int side)
     {
-        double At(int x, int y) => valueOf(((y + side) % side) * side + (x + side) % side);
+        double At(int x, int y) => valueOf((y + side) % side * side + (x + side) % side);
         double mean = 0,
             variance = 0,
             blurred = 0;
         for (int y = 0; y < side; y++)
-            for (int x = 0; x < side; x++)
-                mean += At(x, y);
+        for (int x = 0; x < side; x++)
+            mean += At(x, y);
         mean /= side * side;
         for (int y = 0; y < side; y++)
-            for (int x = 0; x < side; x++)
-            {
-                variance += Math.Pow(At(x, y) - mean, 2);
-                double sum = 0;
-                for (int dy = -2; dy <= 2; dy++)
-                    for (int dx = -2; dx <= 2; dx++)
-                        sum += At(x + dx, y + dy);
-                blurred += Math.Pow(sum / 25 - mean, 2);
-            }
+        for (int x = 0; x < side; x++)
+        {
+            variance += Math.Pow(At(x, y) - mean, 2);
+            double sum = 0;
+            for (int dy = -2; dy <= 2; dy++)
+            for (int dx = -2; dx <= 2; dx++)
+                sum += At(x + dx, y + dy);
+            blurred += Math.Pow(sum / 25 - mean, 2);
+        }
         // White noise keeps 1/25 of its variance through a box of 25 cells.
         return blurred / (variance / 25);
     }
@@ -82,7 +82,9 @@ public sealed class ReflectionBlueNoiseTests
                 int texel = 4 * (block * draws + draw);
                 strata.Add((int)values[texel] * 8 + (int)values[texel + 1]);
             }
-            strata.Should().HaveCount(BlueNoiseMask.Frames, $"block {block} takes each stratum once in period {period}");
+            strata
+                .Should()
+                .HaveCount(BlueNoiseMask.Frames, $"block {block} takes each stratum once in period {period}");
         }
     }
 
@@ -131,7 +133,9 @@ public sealed class ReflectionBlueNoiseTests
         new[] { angleCos, angleSin, radial }
             .Should()
             .AllSatisfy(share =>
-                share.Should().BeLessThan(1 / 3.0, "a draw's numbers over the blocks are blue noise, and white noise keeps 1")
+                share
+                    .Should()
+                    .BeLessThan(1 / 3.0, "a draw's numbers over the blocks are blue noise, and white noise keeps 1")
             );
     }
 
@@ -164,10 +168,15 @@ public sealed class ReflectionBlueNoiseTests
         float[] values = FloorProbe("reflection_draw_probe.comp");
 
         int[] starting = [.. Enumerable.Range(0, FloorWidth * FloorHeight).Where(pixel => values[4 * pixel + 2] == 1)];
-        starting.Length.Should().BeGreaterThan(FloorWidth * FloorHeight / 4, "the glossy floor fills the lower half of the view");
+        starting
+            .Length.Should()
+            .BeGreaterThan(FloorWidth * FloorHeight / 4, "the glossy floor fills the lower half of the view");
         starting
             .Should()
-            .OnlyContain(pixel => values[4 * pixel] == 1, "each reflection ray takes the direction of the mask's numbers");
+            .OnlyContain(
+                pixel => values[4 * pixel] == 1,
+                "each reflection ray takes the direction of the mask's numbers"
+            );
         starting
             .Count(pixel => values[4 * pixel + 1] == 1)
             .Should()
@@ -180,10 +189,15 @@ public sealed class ReflectionBlueNoiseTests
         float[] values = FloorProbe("reflection_block_draw_probe.comp");
 
         int[] choosing = [.. Enumerable.Range(0, FloorWidth * FloorHeight).Where(at => values[4 * at + 2] == 1)];
-        choosing.Length.Should().BeGreaterThan(FloorWidth * FloorHeight / 16, "the glossy floor fills the lower half of the blocks");
+        choosing
+            .Length.Should()
+            .BeGreaterThan(FloorWidth * FloorHeight / 16, "the glossy floor fills the lower half of the blocks");
         choosing
             .Should()
-            .OnlyContain(at => values[4 * at] == 1, "each block's ray reads the mask at its block, so neighboring blocks take neighboring cells");
+            .OnlyContain(
+                at => values[4 * at] == 1,
+                "each block's ray reads the mask at its block, so neighboring blocks take neighboring cells"
+            );
         choosing
             .Count(at => values[4 * at + 1] == 1)
             .Should()

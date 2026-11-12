@@ -1389,7 +1389,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             setDescriptors[layout.Handle] = counts;
             Dictionary<DescriptorType, uint> sizes = [];
             foreach (DescriptorSetLayoutBinding binding in bindings)
-                sizes[binding.DescriptorType] = sizes.GetValueOrDefault(binding.DescriptorType) + binding.DescriptorCount;
+                sizes[binding.DescriptorType] =
+                    sizes.GetValueOrDefault(binding.DescriptorType) + binding.DescriptorCount;
             setSizes[layout.Handle] = sizes;
             return layout;
         }

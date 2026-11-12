@@ -23,7 +23,10 @@ internal sealed class BlueNoiseMask
 
     private static readonly Lazy<BlueNoiseMask> shared = new(Load);
 
-    private BlueNoiseMask(byte[] texels) => Texels = texels;
+    private BlueNoiseMask(byte[] texels)
+    {
+        Texels = texels;
+    }
 
     public static BlueNoiseMask Shared => shared.Value;
 
