@@ -210,7 +210,9 @@ def main():
         result["reflections"][label] = score_run(run, main_refl.truth, regions)
         if label == "B":
             keep("B-reflections", run, main_refl.truth)
+            keep("B-reflections-mean", run, main_refl.truth, "window")
     keep("main-reflections", main_refl, main_refl.truth)
+    keep("main-reflections-mean", main_refl, main_refl.truth, "window")
     print("reflections done", flush=True)
     (out / f"{case}.json").write_text(json.dumps(result, indent=1))
 
