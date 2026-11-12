@@ -425,32 +425,51 @@ struct LeavingLight
     vec3 diffuse;      // toward a diffuse ray, which leaves out the pixel's specular part
 };
 
-// The light that leaves the pixel q toward a ray of each kind (section 6, "Where a hit's light comes from"): this frame's
-// direct light and the last frame's light of both signals at q's place, times q's material factors, and the glow that q
-// sends. A diffuse ray leaves out q's specular part. Where q fails the surface test, and so in a reset frame, a history is
-// the environment's closed form at q. An impostor's light is its emission, which holds its ambient light. The plan writes
-// it into the hit light image (ticket ter-67y3), and a hit reads it there (hitLightOf).
-LeavingLight leavingLightAt(ivec2 q)
+// The reprojection of a pixel into the last frame for each signal, by the surface test's pass bits at the pixel.
+struct SignalReprojections
 {
-    vec3 emissive = texelFetch(gbufferEmissive, q, 0).rgb;
-    vec3 glow = glowSent(emissive, lightMarkOfWord(texelFetch(gbufferShading, q, 0).b));
-    if (texelFetch(gbufferBaseColor, q, 0).a == 0.0)
-        return LeavingLight(glow, glow);
-    ShadingInput s = materialAt(q);
-    vec3 V = -normalize(viewRayThrough(vec2(q) + 0.5));
+    Reprojection diffuse;
+    Reprojection specular;
+};
+
+SignalReprojections reprojectionsAt(ivec2 pixel)
+{
+    uint bits = imageLoad(surfaceTest, pixel).r;
+    vec2 place = lastPlaceAt(pixel);
+    return SignalReprojections(reprojectionOf(place, bits & 0xFu), reprojectionOf(place, (bits >> 4) & 0xFu));
+}
+
+// The glow that the pixel sends: its emission, or 0 where its entity holds a light.
+vec3 glowAt(ivec2 pixel)
+{
+    return glowSent(texelFetch(gbufferEmissive, pixel, 0).rgb, lightMarkOfWord(texelFetch(gbufferShading, pixel, 0).b));
+}
+
+// The light that leaves the pixel q of a traced surface toward a ray of each kind (section 6, "Where a hit's light comes
+// from"), from q's material s, its view direction V and its reprojections r: this frame's direct light and the last
+// frame's light of both signals at q's place, times q's material factors, and the glow that q sends. A diffuse ray leaves
+// out q's specular part. Where q fails the surface test, and so in a reset frame, a history is the environment's closed
+// form at q. The plan writes it into the hit light image (ticket ter-67y3), and a hit reads it there (hitLightOf).
+LeavingLight leavingLightOf(ivec2 q, ShadingInput s, vec3 V, SignalReprojections r)
+{
     MaterialFactors factors = materialFactors(s, lobesOf(s, V));
-    uint bits = imageLoad(surfaceTest, q).r;
-    vec2 place = lastPlaceAt(q);
-    Reprojection diffuse = reprojectionOf(place, bits & 0xFu);
-    Reprojection specular = reprojectionOf(place, (bits >> 4) & 0xFu);
     IndirectLight closedLight = IndirectLight(vec3(0.0), vec3(0.0));
-    if (!holdsHistory(diffuse) || !holdsHistory(specular))
+    if (!holdsHistory(r.diffuse) || !holdsHistory(r.specular))
         closedLight = closedForm(withAmbientFootprint(s, q), V);
-    vec3 diffuseHistory = holdsHistory(diffuse) ? lastLightOf(diffuse, KindDiffuse) : closedLight.diffuse;
-    vec3 light = factors.diffuse * (imageLoad(directDiffuseLight, q).rgb + diffuseHistory) + glow;
-    vec3 specularHistory = holdsHistory(specular) ? lastLightOf(specular, KindReflection) : closedLight.specular;
+    vec3 diffuseHistory = holdsHistory(r.diffuse) ? lastLightOf(r.diffuse, KindDiffuse) : closedLight.diffuse;
+    vec3 light = factors.diffuse * (imageLoad(directDiffuseLight, q).rgb + diffuseHistory) + glowAt(q);
+    vec3 specularHistory = holdsHistory(r.specular) ? lastLightOf(r.specular, KindReflection) : closedLight.specular;
     vec3 reflection = light + factors.specular * (imageLoad(directSpecularLight, q).rgb + specularHistory);
     return LeavingLight(min(reflection, vec3(MaxRadiance)), min(light, vec3(MaxRadiance)));
+}
+
+// The light that leaves the pixel q toward a ray of each kind (leavingLightOf). An impostor's light is its emission,
+// which holds its ambient light.
+LeavingLight leavingLightAt(ivec2 q)
+{
+    if (texelFetch(gbufferBaseColor, q, 0).a == 0.0)
+        return LeavingLight(glowAt(q), glowAt(q));
+    return leavingLightOf(q, materialAt(q), -normalize(viewRayThrough(vec2(q) + 0.5)), reprojectionsAt(q));
 }
 
 // Whether a walk can hit the pixel, inside the viewport: its finest depth lies in front of the eye (walkScreen). The sky's
