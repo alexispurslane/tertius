@@ -511,7 +511,9 @@ public sealed class LocalShadowRenderTests
         try
         {
             renderer.ShadingConstants.TileCornerMeans.Should().Be(cornerMeans);
-            renderer.FaceConstants.TileCornerMeans.Should().Be(cornerMeans, "an environment face reads a tile the same way");
+            renderer
+                .FaceConstants.TileCornerMeans.Should()
+                .Be(cornerMeans, "an environment face reads a tile the same way");
         }
         finally
         {
@@ -539,7 +541,7 @@ public sealed class LocalShadowRenderTests
         // The nine gathers and the sixteen corner means weigh the same 5 × 5 texels by the same weights, so a device shows
         // the same image whichever of them its driver takes. Only the order of the additions differs, which a half float
         // of the HDR image holds to one or two of its steps, about 0.1 % each.
-        float[] Image(LocalShadowReads reads)
+        static float[] Image(LocalShadowReads reads)
         {
             VulkanRenderer renderer = Renderer(new LocalShadowAtlas(Tiles: 8, TileSize: 64) { Reads = reads });
             try

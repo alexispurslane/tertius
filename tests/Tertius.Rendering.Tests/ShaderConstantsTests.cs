@@ -96,7 +96,9 @@ public sealed class ShaderConstantsTests
     public void TheWayToReadAShadowTileReachesItsConstant(bool cornerMeans, uint value)
     {
         // Both ways to read a tile give the same image, so no render test sees a constant that never arrives.
-        Dictionary<uint, uint> given = Given(new ShaderConstants(EnvironmentMap: false) { TileCornerMeans = cornerMeans });
+        Dictionary<uint, uint> given = Given(
+            new ShaderConstants(EnvironmentMap: false) { TileCornerMeans = cornerMeans }
+        );
 
         given[ShaderConstants.TileCornerMeansId].Should().Be(value);
     }
