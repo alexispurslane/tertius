@@ -1,6 +1,6 @@
 // The diffuse filter (ticket ter-9371, DiffuseFilter.cs): a variance-guided à-trous wavelet filter of the indirect diffuse
-// light after its accumulation, after Schied et al. 2017, "Spatiotemporal Variance-Guided Filtering". The accumulation
-// pairs the slow history's light with the standard deviation of the samples' luminance (diffuse_filter_input.glsl).
+// light after its accumulation, after Schied et al. 2017, "Spatiotemporal Variance-Guided Filtering". The variance dispatch
+// (diffuse_filter_variance.comp) pairs the slow history's light with the standard deviation of the samples' luminance.
 // Each step of the filter, a wavelet dispatch (diffuse_filter_wavelet.glsl), takes a B-spline kernel at taps 2^i pixels
 // apart, stopped by the planes, the normals and the luminance, and moves light between the taps. Set 3 is the
 // filter set (DescriptorLayouts.FilterSet): every image holds the render size, RGBA16F, and stays in the General layout.

@@ -1,6 +1,0 @@
-#version 460
-// The spatial dispatch of a signal that feeds the diffuse filter (accumulate_spatial.glsl), which also writes the filter's
-// input (diffuse_filter_input.glsl).
-#extension GL_GOOGLE_include_directive : require
-#define TERTIUS_FEEDS_DIFFUSE_FILTER
-#include "accumulate_spatial.glsl"

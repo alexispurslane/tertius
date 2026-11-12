@@ -14,14 +14,13 @@ namespace Tertius.Rendering;
 /// <para>
 /// The screen tracer's two signals, under <see cref="ScreenTrace"/>, are the renderer's only signals: the direct light keeps
 /// one frame (docs/plans/temporal-renderer.md, decision 29). The accumulator's tests make signals of their own
-/// (<see cref="VulkanRenderer.CreateSignal(SignalParameters, string, int, bool)"/>).
+/// (<see cref="VulkanRenderer.CreateSignal(SignalParameters, string, int)"/>).
 /// </para>
 /// <para>
 /// Each part owns a sample, a slow history and two fast histories, which alternate by the parity of the drawn frames
 /// (<see cref="FrameHistory.PendingFrame.Parity"/>), RGBA16F at the targets' size except the experiment's RGBA32F slow history. The slow history holds the length
 /// in alpha, the specular signal's sample and fast history the hit distance, 0 for a miss, and the diffuse signal's fast
-/// history the deviation of its samples' luminance. A signal that feeds the diffuse filter also owns the filter's input,
-/// which its spatial dispatch writes (<see cref="FilterInput"/>). The sample is a color
+/// history the deviation of its samples' luminance, which the diffuse filter reads. The sample is a color
 /// attachment of its producer, and every other image stays in the General layout. The signals share the scratch images
 /// (<see cref="SignalScratch"/>). With a precise history, the specular part also owns its sample's light age, which the
 /// resolve writes and the temporal dispatch reads at binding 11 (the light-change age, ticket tiunr-7haj).
@@ -76,7 +75,6 @@ internal sealed unsafe class TemporalSignal : IDisposable
     /// <param name="scratch">The scratch images, which every signal shares.</param>
     /// <param name="name">The signal's name in the images' names and the passes' names, such as "indirect diffuse".</param>
     /// <param name="parts">The signal's parts, such as 2 for a diffuse and a specular part.</param>
-    /// <param name="filtered">Whether a diffuse filter filters the signal (<see cref="FeedsFilter"/>).</param>
     /// <exception cref="NotSupportedException">The format is not a color attachment and a storage image on the device.</exception>
     public TemporalSignal(
         VulkanDevice device,
@@ -88,8 +86,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
         SignalScratch scratch,
         SignalParameters parameters,
         string name,
-        int parts,
-        bool filtered
+        int parts
     )
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(parts, 1);
@@ -129,7 +126,6 @@ internal sealed unsafe class TemporalSignal : IDisposable
             light: parameters.Light
         );
         singleDiffuseHistory = prototype.SingleDiffuseHistory;
-        FeedsFilter = filtered && !singleDiffuseHistory;
         reflectionDistanceHistory =
             parameters.Light == SignalLight.Specular
             && Environment.GetEnvironmentVariable("TERTIUS_REFLECTION_SHARING") == "1";
@@ -138,19 +134,11 @@ internal sealed unsafe class TemporalSignal : IDisposable
             singleDiffuseHistory ? "diffuse_single_temporal" : "temporal",
             prototype.LimitIncoming
         );
-        spatial = CreatePipeline(
-            shaders,
-            (singleDiffuseHistory, FeedsFilter) switch
-            {
-                (true, _) => "diffuse_single_spatial",
-                (false, true) => "spatial_filtered",
-                (false, false) => "spatial",
-            }
-        );
+        spatial = CreatePipeline(shaders, singleDiffuseHistory ? "diffuse_single_spatial" : "spatial");
         Create();
     }
 
-    /// <summary>The pipeline of the dispatch of <paramref name="kind"/>, such as "temporal", "spatial" or "spatial_filtered": accumulate_kind.comp.</summary>
+    /// <summary>The pipeline of the dispatch of <paramref name="kind"/>, "temporal" or "spatial": accumulate_kind.comp.</summary>
     private Pipeline CreatePipeline(ShaderLibrary shaders, string kind, bool limitIncoming = false) =>
         new ComputePipelineDesc
         {
@@ -175,12 +163,6 @@ internal sealed unsafe class TemporalSignal : IDisposable
     /// whose fast history is its slow history, so that the diffuse filter finds no deviation there.
     /// </summary>
     public bool KeepsFastHistory => !singleDiffuseHistory;
-
-    /// <summary>
-    /// Whether the signal feeds the diffuse filter: it was made filtered and keeps fast histories, whose deviation the
-    /// filter's input takes. Its spatial dispatch then writes <see cref="FilterInput"/> (accumulate_spatial_filtered.comp).
-    /// </summary>
-    public bool FeedsFilter { get; }
 
     /// <summary>The signal's parts.</summary>
     public int Parts => parts.Length;
@@ -239,17 +221,6 @@ internal sealed unsafe class TemporalSignal : IDisposable
     public GpuImage Fast(int part, int parity) => parts[part].Fast(parity);
 
     public GpuImage ReflectionGuide(int part) => parts[part].ReflectionGuide;
-
-    /// <summary>
-    /// The diffuse filter's input of <paramref name="part"/> after the last accumulation, which the spatial dispatch of a
-    /// signal that <see cref="FeedsFilter"/> writes: rgb the slow history's light, a the deviation of its samples'
-    /// luminance, 0 off a lit surface.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">The signal feeds no filter.</exception>
-    public GpuImage FilterInput(int part) =>
-        parts[part].FilterInputs is [var input]
-            ? input
-            : throw new InvalidOperationException($"The signal {Name} feeds no diffuse filter.");
 
     /// <summary>
     /// The light age of the sample of <paramref name="part"/>, which the resolve writes with a precise specular history
@@ -371,9 +342,6 @@ internal sealed unsafe class TemporalSignal : IDisposable
                 barriers.Image(images.ReflectionGuideScratch, ImageUse.StorageCompute);
                 barriers.Image(images.ReflectionGuide, ImageUse.StorageCompute, discard: true);
             }
-            // Discarded: the dispatch writes every pixel, after the last frame's filter read it.
-            foreach (GpuImage input in images.FilterInputs)
-                barriers.Image(input, ImageUse.StorageCompute, discard: true);
             Dispatch(context: context, pipeline: spatial, set: sets[part, parity]);
         }
     }
@@ -483,7 +451,6 @@ internal sealed unsafe class TemporalSignal : IDisposable
                         ),
                     ],
                 },
-                FilterInputs: FeedsFilter ? [CreateImage(extent, $"{Name} filter input {part}", 0)] : [],
                 Traces: Instrumentation == HistoryInstrumentation.ControlTrace
                     ?
                     [
@@ -525,13 +492,6 @@ internal sealed unsafe class TemporalSignal : IDisposable
             set: set,
             binding: 10,
             image: reflectionDistanceHistory ? images.ReflectionGuideScratch : scratch.Part(part)
-        );
-        // The filter's input, which only the spatial stage of a signal that feeds the filter uses: another signal's stages do
-        // not use the binding, and it binds the scratch image, as bindings 9 and 10 do.
-        layouts.WriteStorageImage(
-            set: set,
-            binding: 13,
-            image: images.FilterInputs is [var input] ? input : scratch.Part(part)
         );
         // The sample age, which only the specular signal's temporal dispatch reads: another signal binds its sample.
         if (scratch.HistoryMode.KeepsLightAge)
@@ -604,7 +564,6 @@ internal sealed unsafe class TemporalSignal : IDisposable
         GpuImage[] Fasts,
         GpuImage[] Guides,
         GpuImage[] Ages,
-        GpuImage[] FilterInputs,
         GpuImage[] Traces
     )
     {
@@ -618,7 +577,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
 
         public GpuImage ReflectionGuideScratch => Guides[1];
 
-        public IEnumerable<GpuImage> All => [Sample, Slow, .. Fasts, .. Guides, .. Ages, .. FilterInputs, .. Traces];
+        public IEnumerable<GpuImage> All => [Sample, Slow, .. Fasts, .. Guides, .. Ages, .. Traces];
 
         /// <summary>Whether every image has <paramref name="extent"/>.</summary>
         public bool Fit(Extent2D extent) =>
@@ -627,7 +586,6 @@ internal sealed unsafe class TemporalSignal : IDisposable
             && (Fasts.Length == 0 || SameExtent(Fasts[0].Extent, extent) && SameExtent(Fasts[1].Extent, extent))
             && (Guides.Length == 0 || SameExtent(Guides[0].Extent, extent) && SameExtent(Guides[1].Extent, extent))
             && Ages.All(age => SameExtent(age.Extent, extent))
-            && FilterInputs.All(input => SameExtent(input.Extent, extent))
             && Traces.All(trace => SameExtent(trace.Extent, extent));
     }
 }

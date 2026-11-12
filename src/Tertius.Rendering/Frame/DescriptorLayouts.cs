@@ -65,8 +65,8 @@ namespace Tertius.Rendering;
 /// kind, and the light pyramid's finest level and sums as sampled images (<see cref="ScreenTraceImages"/>). One per parity
 /// of the drawn frames, rewritten on resize.</description></item>
 /// <item><term>filter</term><description>set 3 of <see cref="DiffuseFilterLayout"/>: the input and the output of one
-/// dispatch of the diffuse filter and the diffuse slow history, as storage images for the compute stage
-/// (<see cref="DiffuseFilter"/>). One per dispatch, rewritten on resize.</description></item>
+/// dispatch of the diffuse filter, the diffuse slow history and this frame's diffuse fast history, as storage images for
+/// the compute stage (<see cref="DiffuseFilter"/>). One per dispatch and parity, rewritten on resize.</description></item>
 /// <item><term>light</term><description>set 3 of <see cref="CompositeLayout"/>: the direct light's two images and the two
 /// indirect signals' slow histories, plus the existing specular sample for the opt-in reflection footprint, as storage images for the fragment stage (<see cref="CompositePass"/>). One,
 /// rewritten on resize.</description></item>
@@ -123,19 +123,12 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     private const uint SignalSets = 8;
 
     /// <summary>
-    /// The storage images of a signal set before the filter's input: nine, with the light-change age of a precise
-    /// specular history the sample age at binding 11, and at binding 12 the instrumentation's image, the
-    /// uncovered-surface diagnostic or the accumulation trace. The original history refuses the instrumentation (the
-    /// constructor).
+    /// The storage images of a signal set: nine, with the light-change age of a precise specular history the sample age at
+    /// binding 11, and at binding 12 the instrumentation's image, the uncovered-surface diagnostic or the accumulation
+    /// trace. The original history refuses the instrumentation (the constructor).
     /// </summary>
     private uint SignalSetImages =>
         9u + (HistoryMode.KeepsLightAge ? 1u : 0u) + (Instrumentation == HistoryInstrumentation.None ? 0u : 1u);
-
-    /// <summary>
-    /// The binding of the diffuse filter's input in a signal set (<see cref="TemporalSignal.FilterInput"/>), past every
-    /// other binding of the set, which fill the bindings below it or some of them.
-    /// </summary>
-    private const uint FilterInputBinding = 13;
 
     /// <summary>The sampled images of a signal set: the last surface history and the last device depth.</summary>
     private const uint SignalSetSampledImages = 2;
@@ -145,8 +138,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// </summary>
     private const uint FilterSets = DiffuseFilter.Sets;
 
-    /// <summary>The storage images of a filter set: a dispatch's input and output, and the diffuse slow history.</summary>
-    private const uint FilterSetImages = 3;
+    /// <summary>
+    /// The storage images of a filter set: a dispatch's input and output, the diffuse slow history and this frame's diffuse
+    /// fast history.
+    /// </summary>
+    private const uint FilterSetImages = 4;
 
     /// <summary>
     /// The storage images of the light set: the direct light's two images, the two indirect signals' histories, and the
@@ -920,8 +916,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                     + (ScreenTraceSampledImages + ScreenTraceLightImages) * ScreenTraceSets
             ),
             // One per pyramid level set, each tail set's mips, four per environment levels set, three for the scatter set,
-            // one for the shadow bounds set, four per surface test set, SignalSetImages and the filter's input per signal
-            // set, six for the light set, fifteen per screen tracer set, plus ScreenTraceAgeImages, and three per filter set.
+            // one for the shadow bounds set, four per surface test set, SignalSetImages per signal set, six for the light
+            // set, fifteen per screen tracer set, plus ScreenTraceAgeImages, and four per filter set.
             new(
                 DescriptorType.StorageImage,
                 PyramidLevelSets
@@ -930,7 +926,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                     + 3
                     + 1
                     + 4 * SurfaceTestSets
-                    + (SignalSetImages + 1) * SignalSets
+                    + SignalSetImages * SignalSets
                     + LightSetImages
                     + (ScreenTraceStorageImages + ScreenTraceAgeImages) * ScreenTraceSets
                     + FilterSetImages * FilterSets
@@ -1144,12 +1140,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     private (DescriptorSetLayout Signal, DescriptorSetLayout Light) CreateTemporalSetLayouts()
     {
         Span<DescriptorSetLayoutBinding> signal =
-            stackalloc DescriptorSetLayoutBinding[(int)(SignalSetImages + SignalSetSampledImages + 1)];
+            stackalloc DescriptorSetLayoutBinding[(int)(SignalSetImages + SignalSetSampledImages)];
         for (uint binding = 0; binding < SignalSetImages + SignalSetSampledImages; binding++)
             signal[(int)binding] = binding is 7 or 8
                 ? Image(binding: binding, stages: ShaderStageFlags.ComputeBit)
                 : StorageImage(binding);
-        signal[^1] = StorageImage(FilterInputBinding);
         Span<DescriptorSetLayoutBinding> light = stackalloc DescriptorSetLayoutBinding[(int)LightSetImages];
         for (uint binding = 0; binding < LightSetImages; binding++)
             light[(int)binding] = StorageImage(binding: binding, stages: ShaderStageFlags.FragmentBit);

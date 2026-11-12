@@ -1158,26 +1158,17 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <summary>
     /// A signal of <paramref name="parts"/> parts with <paramref name="parameters"/> at the size of the render targets, whose
     /// sets bind the targets and the surface history, and which the renderer owns. A test hook: the renderer resizes only
-    /// the screen tracer's signals. A signal that is <paramref name="filtered"/> feeds a diffuse filter
-    /// (<see cref="TemporalSignal.FeedsFilter"/>).
+    /// the screen tracer's signals.
     /// </summary>
-    internal TemporalSignal CreateSignal(SignalParameters parameters, string name, int parts, bool filtered)
+    internal TemporalSignal CreateSignal(SignalParameters parameters, string name, int parts)
     {
         // The pipelines keep no reference to the shader modules, so the library goes with this call.
         using var shaders = new ShaderLibrary(device, ShaderLibrary.EngineShaders);
-        return CreateSignal(shaders: shaders, parameters: parameters, name: name, parts: parts, filtered: filtered);
+        return CreateSignal(shaders: shaders, parameters: parameters, name: name, parts: parts);
     }
 
-    /// <summary>
-    /// A signal as <see cref="CreateSignal(SignalParameters, string, int, bool)"/> makes it, from <paramref name="shaders"/>.
-    /// </summary>
-    private TemporalSignal CreateSignal(
-        ShaderLibrary shaders,
-        SignalParameters parameters,
-        string name,
-        int parts,
-        bool filtered
-    ) =>
+    /// <summary>A signal as <see cref="CreateSignal(SignalParameters, string, int)"/> makes it, from <paramref name="shaders"/>.</summary>
+    private TemporalSignal CreateSignal(ShaderLibrary shaders, SignalParameters parameters, string name, int parts) =>
         Own(
             new TemporalSignal(
                 device: device,
@@ -1189,8 +1180,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 scratch: signalScratch,
                 parameters: parameters,
                 name: name,
-                parts: parts,
-                filtered: filtered
+                parts: parts
             )
         );
 
@@ -2159,13 +2149,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
             FrameGraph.Stage.DepthPyramid,
             new DepthPyramidPass(device: device, shaders: shaders, layouts: layouts, pyramid: pyramid)
         );
-        DiffuseFilterKernel? kernel = DiffuseFilter.Selected();
         TemporalSignal diffuse = CreateSignal(
             shaders: shaders,
             parameters: SignalParameters.Diffuse,
             name: "indirect diffuse",
-            parts: 1,
-            filtered: kernel is not null
+            parts: 1
         );
         TemporalSignal specular = CreateSignal(
             shaders: shaders,
@@ -2173,11 +2161,12 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 DebugReflectedPlace.Selected() == DebugReflectedPlace.Off ? 0 : trace.HandOverStart
             ),
             name: "indirect specular",
-            parts: 1,
-            filtered: false
+            parts: 1
         );
-        // The single-history prototype keeps no fast history, so its signal feeds no filter.
-        DiffuseFilter? filter = kernel is not null && diffuse.FeedsFilter ? CreateDiffuseFilter(shaders, diffuse, kernel) : null;
+        DiffuseFilter? filter =
+            DiffuseFilter.Selected() is { } kernel && diffuse.KeepsFastHistory
+                ? CreateDiffuseFilter(shaders, diffuse, kernel)
+                : null;
         ScreenTraceImages images = Own(
             new ScreenTraceImages(
                 device: device,

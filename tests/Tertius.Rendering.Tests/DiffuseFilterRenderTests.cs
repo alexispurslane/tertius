@@ -8,7 +8,7 @@ namespace Tertius.Rendering.Tests;
 /// The diffuse filter (ticket ter-9371, <see cref="DiffuseFilter"/>): it spreads a bright sample over its neighbors on the
 /// same surface and keeps its light, it lets no light cross a depth edge or a crease, it leaves a smooth image without
 /// noise as it is, and a ray's hit reads its output. A test signal and its producer stand for the diffuse signal, and the
-/// filter runs after their accumulation, which writes its input. The tests run the default thin kernel unless they name
+/// filter runs after their accumulation. The tests run the default thin kernel unless they name
 /// one. The camera stands still, and each frame steps one tick.
 /// </summary>
 [Collection(GpuCollection.Name)]
@@ -58,7 +58,7 @@ public sealed class DiffuseFilterRenderTests
                     entity: entity++
                 )
             );
-        TemporalSignal signal = renderer.CreateSignal(parameters: Parameters, name: "test", parts: 1, filtered: true);
+        TemporalSignal signal = renderer.CreateSignal(parameters: Parameters, name: "test", parts: 1);
         var sample = new SamplePass(signal, renderer.Allocator);
         DiffuseFilter filter = renderer.CreateDiffuseFilter(signal, kernel);
         renderer.Graph.Add(FrameGraph.Stage.DirectLight, sample);
@@ -641,57 +641,6 @@ public sealed class DiffuseFilterRenderTests
 
             Extent2D extent = renderer.ScreenTraceImages.Filter!.Filtered.Extent;
             (extent.Width, extent.Height).Should().Be(((uint)Width / 2, (uint)Height / 2));
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(renderer);
-        }
-    }
-
-    [Fact]
-    public void TheAccumulationPairsTheSlowHistorysLightWithTheDeviationOfItsSamples()
-    {
-        // Samples of 0 and 2 in turn: after 40 frames every history is older than the young estimate's four frames, so the
-        // filter's input takes the fast history's deviation. The filter does not run, so its feedback leaves the slow
-        // history as the accumulation wrote it.
-        int frame = 0;
-        (VulkanRenderer renderer, SamplePass sample, _, RenderSnapshot scene) = Filtering(
-            filtered: false,
-            DiffuseFilterKernel.Thin,
-            Wall
-        );
-        try
-        {
-            sample.Samples = Blink(() => frame);
-
-            for (frame = 0; frame < 40; frame++)
-                Continue(renderer, scene, frames: 1);
-
-            TemporalSignal signal = sample.Signal;
-            float[] input = renderer.ReadImage(signal.FilterInput(0));
-            float[] slow = renderer.ReadImage(signal.Slow(0));
-            float[] fast = renderer.ReadImage(signal.Fast(part: 0, parity: (int)(renderer.DrawnFrames & 1) ^ 1));
-            int center = 4 * (Height / 2 * Width + Width / 2);
-            input[center].Should().Be(slow[center], "the input's light is the slow history's");
-            input[center + 3].Should().Be(fast[center + 3], "an old history's deviation is its fast history's").And.BePositive();
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(renderer);
-        }
-    }
-
-    [Fact]
-    public void ASignalThatFeedsNoFilterTakesNoFilter()
-    {
-        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
-        try
-        {
-            TemporalSignal signal = renderer.CreateSignal(parameters: Parameters, name: "test", parts: 1, filtered: false);
-
-            Action create = () => renderer.CreateDiffuseFilter(signal, DiffuseFilterKernel.Thin);
-
-            create.Should().Throw<ArgumentException>().WithMessage("*feeds no diffuse filter*");
         }
         finally
         {
