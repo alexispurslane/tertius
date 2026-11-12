@@ -124,6 +124,7 @@ vec2 lightAgeOf(ivec2 pixel)
         return vec2(light, 0.0);
     return vec2(lastLight, recordAgeOf(older, pendingDraws));
 }
+
 #endif
 
 // The length of the pixel's history of the kind at its place in the last frame, in frames: the slow history's alpha,
@@ -172,7 +173,8 @@ void main()
     if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
         return;
 #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
-    imageStore(lightAge, pixel, vec4(lightAgeOf(pixel), 0.0, 0.0));
+    vec2 record = lightAgeOf(pixel);
+    imageStore(lightAge, pixel, vec4(record, 0.0, 0.0));
 #endif
     uint plan = 0u;
     if (tracedSurface(pixel))

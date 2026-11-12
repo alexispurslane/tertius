@@ -61,6 +61,9 @@ void main()
     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
     if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
         return;
+#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+    imageStore(lightChangeMask, pixel, vec4(lightChangeMaskAt(pixel), 0.0, 0.0, 0.0));
+#endif
     if (!tracedSurface(pixel))
     {
         // The sky and the impostors: no signal, and the composite reads none there.
