@@ -15,6 +15,7 @@
 #           so main's value is the floor of the measure.
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor
 import shutil
 import subprocess
 import sys
@@ -36,13 +37,14 @@ TRUTH = range(30, 60)           # main's truth
 CLASSES = {"smooth": (0.0, 0.15), "glossy": (0.15, 0.35), "rough": (0.35, 0.5)}
 
 
-def hable_f(x):
-    a, b, c, d, e, f = 0.15, 0.50, 0.10, 0.20, 0.02, 0.30
-    return (x * (a * x + c * b) + d * e) / (x * (a * x + b) + d * f) - e / f
+# The scale of the scene's light before the display curve: the truth's log-average maps to 0.18, as an auto exposure
+# would place it. measure() sets it from main's truth.
+SCALE = [1.0]
 
 
 def display(y):
-    return np.clip(hable_f(2.0 * np.maximum(y, 0.0)) / hable_f(11.2), 0.0, 1.0)
+    """The survey's display(): the ACES fit of tonemap.glsl on the luminance, after SCALE."""
+    return sv.display(np.maximum(y, 0.0) * SCALE[0])
 
 
 def render(tree, case_name, signal, captures, env):
@@ -121,12 +123,30 @@ def main():
     x0, y0 = (int(sys.argv[3]), int(sys.argv[4])) if len(sys.argv) > 4 else (480, 270)
     out.mkdir(parents=True, exist_ok=True)
     result = {"case": case}
-    main_all = Run("main", case, 0, 60, {})
+    # Every render at once, six at a time: a capture costs about 3 s of CPU for its PNG, and the worker has 48 cores.
+    plan = {
+        "main-all": ("main", 0, 60, {}), "rough": ("main", 4, 2, {}), "aa": ("cut", 0, 2, {"TERTIUS_STBN": "off"}),
+        "C": ("cut", 0, 30, {"TERTIUS_STBN": "both"}),
+        "C-shift": ("cut", 0, 30, {"TERTIUS_STBN": "both", "TERTIUS_STBN_SHIFT": "on"}),
+        "main-bounce": ("main", 2, 60, {}), "A": ("cut", 2, 30, {"TERTIUS_STBN": "diffuse"}),
+        "A-shift": ("cut", 2, 30, {"TERTIUS_STBN": "diffuse", "TERTIUS_STBN_SHIFT": "on"}),
+        "main-refl": ("main", 3, 60, {}), "B": ("cut", 3, 30, {"TERTIUS_STBN": "reflection"}),
+        "B-shift": ("cut", 3, 30, {"TERTIUS_STBN": "reflection", "TERTIUS_STBN_SHIFT": "on"}),
+    }
+    with ThreadPoolExecutor(6) as pool:
+        futures = {name: pool.submit(Run, tree, case, signal, captures, env)
+                   for name, (tree, signal, captures, env) in plan.items()}
+        runs = {name: f.result() for name, f in futures.items()}
+    print("renders done", flush=True)
+    main_all = runs["main-all"]
     result["draws"] = {"shown": main_all.draws[SHOWN], "settled": main_all.draws[SETTLED],
                        "window": [main_all.draws[WINDOW.start], main_all.draws[WINDOW.stop - 1]],
                        "truth": [main_all.draws[TRUTH.start], main_all.draws[TRUTH.stop - 1]]}
     truth_all = main_all.truth
-    rough = Run("main", case, 4, 2, {}).first[1]
+    lit = truth_all[truth_all > 0]
+    SCALE[0] = 0.18 / float(np.exp(np.mean(np.log(lit))))
+    result["scale"] = SCALE[0]
+    rough = runs["rough"].first[1]
     dt = display(truth_all)
     smooth = smooth_mask(dt)
     visible = gaussian_filter(dt, 3) > 0.002
@@ -135,7 +155,7 @@ def main():
     result["roughnessShare"] = {name: float(m[visible].mean()) for name, m in reflective.items()}
 
     # The A/A check: the cut tree with the mask off draws main's bits.
-    aa = Run("cut", case, 0, 2, {"TERTIUS_STBN": "off"})
+    aa = runs["aa"]
     result["sameBitsWithMaskOff"] = bool(all(np.array_equal(a, b) for a, b in zip(aa.first, main_all.first)))
 
     def score_run(run, truth_signal, regions):
@@ -153,27 +173,26 @@ def main():
     keep("main-all", main_all, None)
     keep("main-all-settled", main_all, None, "settled")
     for label, env in (("C", {"TERTIUS_STBN": "both"}), ("C-shift", {"TERTIUS_STBN": "both", "TERTIUS_STBN_SHIFT": "on"})):
-        run = Run("cut", case, 0, 30, env)
+        run = runs[label]
         result["all"][label] = score_run(run, None, whole)
         keep(f"{label}-all", run, None)
         if label == "C":
             keep("C-all-settled", run, None, "settled")
         print(label, "done", flush=True)
 
-    main_bounce = Run("main", case, 2, 60, {})
+    main_bounce = runs["main-bounce"]
     result["bounce"] = {"main": score_run(main_bounce, main_bounce.truth, whole)}
-    run = Run("cut", case, 2, 30, {"TERTIUS_STBN": "diffuse"})
-    result["bounce"]["A"] = score_run(run, main_bounce.truth, whole)
+    for label in ("A", "A-shift"):
+        result["bounce"][label] = score_run(runs[label], main_bounce.truth, whole)
     keep("main-bounce", main_bounce, main_bounce.truth)
-    keep("A-bounce", run, main_bounce.truth)
+    keep("A-bounce", runs["A"], main_bounce.truth)
     print("bounce done", flush=True)
 
-    main_refl = Run("main", case, 3, 60, {})
+    main_refl = runs["main-refl"]
     regions = {"all": np.ones_like(smooth), **reflective}
     result["reflections"] = {"main": score_run(main_refl, main_refl.truth, regions)}
-    for label, env in (("B", {"TERTIUS_STBN": "reflection"}),
-                       ("B-shift", {"TERTIUS_STBN": "reflection", "TERTIUS_STBN_SHIFT": "on"})):
-        run = Run("cut", case, 3, 30, env)
+    for label in ("B", "B-shift"):
+        run = runs[label]
         result["reflections"][label] = score_run(run, main_refl.truth, regions)
         if label == "B":
             keep("B-reflections", run, main_refl.truth)
