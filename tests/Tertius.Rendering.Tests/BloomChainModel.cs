@@ -12,12 +12,42 @@ internal static class BloomChainModel
     /// <summary>The weights of the 6 × 6 texels under the 13 taps of the first downsample, times 128, row by row.</summary>
     private static readonly float[] TexelWeights =
     [
-        1, 1, 2, 2, 1, 1,
-        1, 5, 6, 6, 5, 1,
-        2, 6, 8, 8, 6, 2,
-        2, 6, 8, 8, 6, 2,
-        1, 5, 6, 6, 5, 1,
-        1, 1, 2, 2, 1, 1,
+        1,
+        1,
+        2,
+        2,
+        1,
+        1,
+        1,
+        5,
+        6,
+        6,
+        5,
+        1,
+        2,
+        6,
+        8,
+        8,
+        6,
+        2,
+        2,
+        6,
+        8,
+        8,
+        6,
+        2,
+        1,
+        5,
+        6,
+        6,
+        5,
+        1,
+        1,
+        1,
+        2,
+        2,
+        1,
+        1,
     ];
 
     /// <summary>One image: RGB per pixel, row by row from the top. A read outside it gives the nearest pixel.</summary>
@@ -139,8 +169,8 @@ internal static class BloomChainModel
             ty = y - 0.5f - top;
         int x0 = (int)left,
             y0 = (int)top;
-        Vector3 upper = Vector3.Lerp(level.At(x0, y0), level.At(x0 + 1, y0), tx);
-        Vector3 lower = Vector3.Lerp(level.At(x0, y0 + 1), level.At(x0 + 1, y0 + 1), tx);
+        var upper = Vector3.Lerp(level.At(x0, y0), level.At(x0 + 1, y0), tx);
+        var lower = Vector3.Lerp(level.At(x0, y0 + 1), level.At(x0 + 1, y0 + 1), tx);
         return Vector3.Lerp(upper, lower, ty);
     }
 
@@ -153,5 +183,6 @@ internal static class BloomChainModel
     }
 
     /// <summary><paramref name="value"/> as an image of half floats holds it.</summary>
-    private static Vector3 Stored(Vector3 value) => new((float)(Half)value.X, (float)(Half)value.Y, (float)(Half)value.Z);
+    private static Vector3 Stored(Vector3 value) =>
+        new((float)(Half)value.X, (float)(Half)value.Y, (float)(Half)value.Z);
 }
