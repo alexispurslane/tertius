@@ -134,6 +134,8 @@ def ticks_at_frame(built, film, frame):
             ticks += step["ticks"]
         if step["do"] == "film":
             if step["name"] == film:
+                if frame >= step["frames"]:
+                    raise AssertionError(f"film {film} has {step['frames']} frames, none numbered {frame}")
                 return ticks + (frame + 1) * step["every"]
             ticks += step["frames"] * step["every"]
     raise AssertionError(f"no film {film}")
@@ -141,6 +143,19 @@ def ticks_at_frame(built, film, frame):
 
 def posts(built, kind):
     return [i for i, s in enumerate(built["steps"]) if s["do"] == "post" and s["payload"]["kind"] == kind]
+
+
+def tick_of_post(built, kind):
+    """The tick on which the world routes the named post: the ticks that run before it, plus 1."""
+    ticks = 0
+    for step in built["steps"]:
+        if step["do"] == "post" and step["payload"]["kind"] == kind:
+            return ticks + 1
+        if step["do"] == "run":
+            ticks += step["ticks"]
+        if step["do"] == "film":
+            ticks += step["frames"] * step["every"]
+    raise AssertionError(f"no post {kind}")
 
 
 class Walks(unittest.TestCase):
@@ -158,8 +173,16 @@ class Walks(unittest.TestCase):
         for k in (0, 63, 199):
             self.assertEqual(ticks_at_frame(built, "c", survey.walk_control_frame(WALK, k)), ticks_at_frame(walk, "h", k))
 
+    def test_both_runs_hold_the_key_for_the_walks_ticks_and_the_walk_lets_go_later_by_its_stand(self):
+        for built in (survey.walk_script(WALK), survey.walk_control_script(WALK)):
+            self.assertEqual(tick_of_post(built, "keyUp") - tick_of_post(built, "keyDown"), 120)
+        self.assertEqual(tick_of_post(survey.walk_script(WALK), "keyUp") - tick_of_post(survey.walk_control_script(WALK), "keyUp"),
+                         180, "the walk lets go later by its stand, which the control's frames make up")
+
     def test_the_control_draws_the_walks_stand_before_the_window_so_its_own_start_settles_first(self):
-        self.assertEqual(survey.walk_control_frame(WALK, 0), 180)
+        control = survey.walk_control_script(WALK)
+        before = ticks_at_frame(survey.walk_script(WALK), "h", 0) - ticks_at_frame(control, "c", 0)
+        self.assertEqual(before, 180, "the control draws 180 frames before the window's first frame")
 
     def test_a_change_of_light_that_the_control_shows_too_is_no_part_of_the_walks_settle(self):
         control = [[1.0, 2.0]] * 3 + [[0.6, 1.2]] * 7

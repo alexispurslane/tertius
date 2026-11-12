@@ -85,7 +85,7 @@ RELATIVE_FLOOR = 0.01
 # most its share of the image.
 FLICKER_CAP = 0.5
 
-# A settle: the light stays within this share of its final value.
+# A settle: the light stays within this share of its control.
 SETTLE_TOLERANCE = 0.05
 # The goal of epic ter-8hyd: updates settle within about 60 draws.
 SETTLE_GOAL = 60
@@ -314,8 +314,9 @@ def lag_scripts(case: dict) -> tuple[dict, dict]:
 # A walk case's settle compares the film after the stop with a control that stands where the walk ends, frame by frame
 # at the same world ticks, as a switch compares with its lamps-off control. So a change of the world's light in the
 # window, such as the orbit cabin's sunlit sill strips at tick 303 (ticket ter-g3tk), shows in both and does not count
-# as the walk's settle. The control walks right after the load without drawing, which puts the person at the same place
-# to 1e-14 m, and then draws the walk's stand and window: the stand gives its own start after the load time to settle.
+# as the walk's settle. The control walks right after the head ticks without drawing, which puts the person at the same
+# place to 1e-14 m, and then draws the walk's stand and window: the stand gives its own start after the load time to
+# settle.
 
 
 def walk_key(case: dict, kind: str) -> dict:
@@ -934,12 +935,13 @@ def run_lag(out: Path, case: dict, args):
 
 def run_walk(out: Path, case: dict, args):
     binary = probe_binary(out)
-    work = out / "work" / "walk" / case["name"]
+    work = out / "work" / "walk" / f"{case['name']}-walk"
     env = {"TERTIUS_PROBE_EXPOSURE": args.exposure}
     render(work, walk_script(case), binary=binary, env=env, extra=PROBE_OPTIONS)
     after = probe_series(work, "h-*.png")
     during = probe_series(work, "g-*.png")
     shutil.rmtree(work)
+    work = out / "work" / "walk" / f"{case['name']}-control"
     render(work, walk_control_script(case), binary=binary, env=env, extra=PROBE_OPTIONS)
     film = probe_series(work, "c-*.png")
     control = [film[walk_control_frame(case, k)] for k in range(len(after))]
