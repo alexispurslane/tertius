@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Tertius.Host.Scripting;
 using Tertius.Rendering;
@@ -51,6 +52,8 @@ public sealed class ScriptCommandOptionsTests
         ["--subsurface", "off"],
         ["--in-flight", "2"],
         ["--pass-timestamps", "off"],
+        ["--exposure", "-1.5"],
+        ["--key-lights", "3"],
     ];
 
     public static TheoryData<string[]> AcceptedCommandLines =>
@@ -552,6 +555,47 @@ public sealed class ScriptCommandOptionsTests
                 )
             );
     }
+
+    /// <summary>The renderer options that a headless run with <paramref name="args"/> after its own options hands to the renderer.</summary>
+    private static RendererOptions HeadlessRendererOptions(params string[] args)
+    {
+        ScriptCommand.RunOptions? options = ScriptCommand.ReadOptions(
+            ["--script", "s.json", "--headless", "--out", "o", .. args],
+            out string? problem
+        );
+        problem.Should().BeNull();
+        options.Should().NotBeNull();
+        var chosen = new RendererOptions();
+        if (options?.Value is ScriptCommand.ScriptRun run && run.Display.Value is ScriptCommand.Headless headless)
+            headless.Renderer.ApplyTo(chosen);
+        return chosen;
+    }
+
+    [Theory]
+    [InlineData("1")]
+    [InlineData("3")]
+    [InlineData("4")]
+    public void TheKeyLightsOptionChoosesKeyAndFillWithThatManyKeyLights(string count) =>
+        HeadlessRendererOptions("--key-lights", count)
+            .LightPairs.Should()
+            .Be(new LightPairSetting(new KeyAndFill(int.Parse(count, CultureInfo.InvariantCulture))));
+
+    [Fact]
+    public void KeyLightsOffAndNoKeyLightsOptionBothShadeEveryLightPair()
+    {
+        HeadlessRendererOptions("--key-lights", "off").LightPairs.Should().Be(new LightPairSetting(new EveryLightPair()));
+        HeadlessRendererOptions().LightPairs.Should().Be(new LightPairSetting(new EveryLightPair()));
+    }
+
+    [Fact]
+    public void TheExposureOptionFixesTheExposureAtItsStops() =>
+        HeadlessRendererOptions("--exposure", "0.7041458")
+            .Exposure.Should()
+            .Be(new ExposureSetting(new FixedExposure(0.7041458f)));
+
+    [Fact]
+    public void WithoutTheExposureOptionTheRendererKeepsItsOwnExposure() =>
+        HeadlessRendererOptions().Exposure.Should().Be(new RendererOptions().Exposure);
 
     [Fact]
     public void AHeadlessRunWithoutVideoWritesPngFilesIntoTheOutputFolderOfItsScriptRun()

@@ -89,6 +89,12 @@ public static partial class ScriptCommand
         /// <summary>The frame count, 1 or 2, or null to keep the renderer's count and capture policy.</summary>
         public int? FramesInFlight { get; init; }
 
+        /// <summary>The fixed exposure in stops that replaces the renderer's exposure, or null to keep it.</summary>
+        public float? ExposureStops { get; init; }
+
+        /// <summary>The key lights of key and fill, 0 for every light pair in full, or null to keep the renderer's default.</summary>
+        public int? KeyLights { get; init; }
+
         /// <summary>Replaces the defaults of <paramref name="options"/> with these overrides.</summary>
         public void ApplyTo(RendererOptions options)
         {
@@ -117,6 +123,12 @@ public static partial class ScriptCommand
                 options.FramesInFlight = count;
                 options.CapturesInFlight = count > 1;
             }
+            if (ExposureStops is { } stops)
+                options.Exposure = new FixedExposure(stops);
+            if (KeyLights is { } keyLights)
+                options.LightPairs = keyLights == 0 ? new EveryLightPair() : new KeyAndFill(keyLights);
+            else
+                options.LightPairs = new KeyAndFill(3);
         }
     }
 }
