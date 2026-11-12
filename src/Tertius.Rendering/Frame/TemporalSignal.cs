@@ -133,7 +133,6 @@ internal sealed unsafe class TemporalSignal : IDisposable
         this.scratch = scratch;
 
         Name = name;
-        Parameters = parameters;
         HistoryMode = parameters.Light == SignalLight.Specular ? scratch.HistoryMode : SpecularHistoryMode.Original;
         Instrumentation =
             parameters.Light == SignalLight.Specular ? scratch.Instrumentation : HistoryInstrumentation.None;
@@ -158,13 +157,10 @@ internal sealed unsafe class TemporalSignal : IDisposable
             light: parameters.Light
         );
         singleDiffuseHistory = prototype.SingleDiffuseHistory;
-        // The single history keeps no fast history, so it has no retained deviation to widen its box by, and the original
-        // history's shaders keep no image of the reflections' deviation to pool.
-        if (
-            singleDiffuseHistory
-            || parameters.Confidence is DropEvidence && !scratch.HistoryMode.KeepsRetainedDeviation
-        )
-            Parameters = parameters with { Confidence = new NarrowBox() };
+        Parameters = parameters with
+        {
+            Confidence = ConfidenceOf(parameters.Confidence, singleDiffuseHistory, scratch.HistoryMode),
+        };
         reflectionDistanceHistory =
             parameters.Light == SignalLight.Specular
             && Environment.GetEnvironmentVariable("TERTIUS_REFLECTION_SHARING") == "1";
@@ -189,6 +185,17 @@ internal sealed unsafe class TemporalSignal : IDisposable
             NarrowBox => true,
             null => throw new ArgumentException("A signal's parameters need confidence rules.", nameof(parameters)),
         };
+
+    /// <summary>
+    /// The rules that a signal of <paramref name="confidence"/> follows: the narrow box where its storage keeps no deviation
+    /// for them. The single history keeps no fast history to widen a box by, and the original history no image of the
+    /// reflections' deviation to pool.
+    /// </summary>
+    private static HistoryConfidence ConfidenceOf(
+        HistoryConfidence confidence,
+        bool singleHistory,
+        SpecularHistoryMode mode
+    ) => singleHistory || confidence is DropEvidence && !mode.KeepsRetainedDeviation ? new NarrowBox() : confidence;
 
     /// <summary>The pipeline of the dispatch of <paramref name="kind"/>, "temporal" or "spatial": accumulate_kind.comp.</summary>
     private Pipeline CreatePipeline(ShaderLibrary shaders, string kind, bool limitIncoming = false) =>
@@ -557,21 +564,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
                     : [],
                 Ages: CreateAges(extent, part),
                 Deviations: KeepsDeviationImage
-                    ?
-                    [
-                        CreateImage(
-                            extent: extent,
-                            imageName: $"{Name} retained deviation {part}.0",
-                            extraUsage: 0,
-                            format: DeviationFormat
-                        ),
-                        CreateImage(
-                            extent: extent,
-                            imageName: $"{Name} retained deviation {part}.1",
-                            extraUsage: 0,
-                            format: DeviationFormat
-                        ),
-                    ]
+                    ? [CreateDeviation(extent, part, 0), CreateDeviation(extent, part, 1)]
                     : [],
                 BlockSums: CreateImage(
                     extent: BlocksOf(extent),
@@ -662,6 +655,15 @@ internal sealed unsafe class TemporalSignal : IDisposable
                 ),
             ],
         };
+
+    /// <summary>The reflections' retained deviation of <paramref name="part"/> that the frame of <paramref name="parity"/> writes.</summary>
+    private GpuImage CreateDeviation(Extent2D extent, int part, int parity) =>
+        CreateImage(
+            extent: extent,
+            imageName: $"{Name} retained deviation {part}.{parity}",
+            extraUsage: 0,
+            format: DeviationFormat
+        );
 
     /// <summary>The sample age of <paramref name="part"/>, which its producer writes as it writes the sample.</summary>
     private GpuImage CreateSampleAge(Extent2D extent, int part) =>
