@@ -1,0 +1,8 @@
+# Take 6d: one more round of take 6c, because a drop of the GPU clock made 6c's second round invalid. The patched driver
+# against stock MoltenVK on the branch after the merge of main, without the pass time stamps. The binary br2 is the
+# merged branch's Release build with the deck's fixed exposure.
+NS="--pass-timestamps off"
+VK_ICD_FILENAMES=$TERTIUS_STOCK_MOLTENVK_ICD trace deck-acc-m-stock-c br2 $D $NS
+trace deck-acc-m-keep-c br2 $D $NS
+TRACE_EXTRA_ENV="TERTIUS_MOLTENVK_STOCK_BARRIERS=1" trace deck-acc-m-switch br2 $D $NS
+trace deck-acc-m-keep-d br2 $D $NS

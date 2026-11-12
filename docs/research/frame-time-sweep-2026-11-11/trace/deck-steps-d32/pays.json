@@ -1,0 +1,156 @@
+{
+ "span_median": 23.784354,
+ "span_mean": 23.856884091549297,
+ "passes": {
+  "(before the first pass)": {
+   "work": 0.007098007042253521,
+   "idle": 0.0,
+   "encoders": 1.0
+  },
+  "deformation": {
+   "work": 0.0,
+   "idle": 0.0,
+   "encoders": 0.0
+  },
+  "shadow maps": {
+   "work": 0.1736626338028169,
+   "idle": 0.07856447887323943,
+   "encoders": 4.0
+  },
+  "local shadows": {
+   "work": 0.3332879014084507,
+   "idle": 0.3580885985915493,
+   "encoders": 14.0
+  },
+  "environment faces": {
+   "work": 0.44734588028169014,
+   "idle": 0.02091318309859155,
+   "encoders": 3.0
+  },
+  "environment prefilter": {
+   "work": 0.3233459014084507,
+   "idle": 0.09759950704225352,
+   "encoders": 6.0
+  },
+  "G-buffer": {
+   "work": 0.19508361267605634,
+   "idle": 0.02705406338028169,
+   "encoders": 3.0
+  },
+  "surface test": {
+   "work": 0.22447891549295773,
+   "idle": 0.01850112676056338,
+   "encoders": 1.0
+  },
+  "depth pyramid": {
+   "work": 0.26673954929577465,
+   "idle": 0.08886731690140845,
+   "encoders": 7.0
+  },
+  "direct light": {
+   "work": 4.0415341126760564,
+   "idle": 0.0158728661971831,
+   "encoders": 1.0
+  },
+  "light pyramid": {
+   "work": 0.11081200704225352,
+   "idle": 0.1289464647887324,
+   "encoders": 7.0
+  },
+  "ray plan": {
+   "work": 0.8922235211267605,
+   "idle": 0.038833443661971834,
+   "encoders": 3.0
+  },
+  "reflection rays": {
+   "work": 2.655468323943662,
+   "idle": 0.04119862676056338,
+   "encoders": 2.0
+  },
+  "diffuse rays": {
+   "work": 0.9545642676056338,
+   "idle": 0.035953880281690144,
+   "encoders": 1.0
+  },
+  "screen trace resolve": {
+   "work": 0.21666990845070422,
+   "idle": 0.012170514084507042,
+   "encoders": 1.0
+  },
+  "accumulate indirect diffuse": {
+   "work": 0.521719852112676,
+   "idle": 0.07217273943661971,
+   "encoders": 2.0
+  },
+  "filter indirect diffuse": {
+   "work": 4.182660633802817,
+   "idle": 0.2017345985915493,
+   "encoders": 6.0
+  },
+  "accumulate indirect specular": {
+   "work": 1.3995094225352112,
+   "idle": 0.07261910563380282,
+   "encoders": 2.0
+  },
+  "composite": {
+   "work": 0.1679630281690141,
+   "idle": 0.0880313661971831,
+   "encoders": 1.0
+  },
+  "scatter rows": {
+   "work": 0.03311710563380282,
+   "idle": 0.03941578873239437,
+   "encoders": 1.0
+  },
+  "scatter columns": {
+   "work": 0.01718842253521127,
+   "idle": 0.009928098591549295,
+   "encoders": 1.0
+  },
+  "haze": {
+   "work": 0.0,
+   "idle": 0.0,
+   "encoders": 0.0
+  },
+  "transparent": {
+   "work": 2.0662300845070423,
+   "idle": 0.05508009154929577,
+   "encoders": 2.0
+  },
+  "FSR 3.1": {
+   "work": 1.7577449014084507,
+   "idle": 0.41902121126760566,
+   "encoders": 22.0
+  },
+  "bloom": {
+   "work": 0.29291140845070424,
+   "idle": 0.12781740845070422,
+   "encoders": 11.0
+  },
+  "tone map": {
+   "work": 0.12376933802816902,
+   "idle": 0.06743805633802817,
+   "encoders": 5.0
+  },
+  "outlines": {
+   "work": 0.0,
+   "idle": 0.0,
+   "encoders": 0.0
+  },
+  "capture": {
+   "work": 0.026542570422535213,
+   "idle": 0.0011334718309859155,
+   "encoders": 1.0
+  },
+  "(after the last pass)": {
+   "work": 0.001843323943661972,
+   "idle": 0.023741823943661974,
+   "encoders": 3.0
+  },
+  "(stamp)": {
+   "work": 0.045971190140845074,
+   "idle": 0.23670043661971832,
+   "encoders": 28.0
+  }
+ }
+}

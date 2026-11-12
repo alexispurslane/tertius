@@ -1,0 +1,25 @@
+uptime-start:  23:25:09  up 47 days 10:59,  2 users,  load average: 4.30, 6.15, 7.71
+waited: 4104s
+mode: shared, with up to 3 shared runs at once
+mvk-stock: 32 files, exit 0
+mvk-keep: 32 files, exit 0
+mvk-keep-validate: 32 files, exit 0
+mvk-end: 32 files, exit 0
+mvk-conc: 32 files, exit 0
+mvk-conc-validate: 32 files, exit 0
+mvk-any: 32 files, exit 0
+mvk-any-conc-validate: 32 files, exit 0
+mvk-keep-ns: 32 files, exit 0
+mvk-any-ns: 32 files, exit 0
+mvk-dump: 32 files, exit 0
+reference: 243 files, exit 0
+ref: mean of 120 frames
+ownw1: 36 files, exit 0
+ownw4: 36 files, exit 0
+ownw4half: 36 files, exit 0
+ssr4half: 36 files, exit 0
+deck-ownw1: 32 files, exit 0
+deck-ownw4: 32 files, exit 0
+deck-ownw4half: 32 files, exit 0
+/private/tmp/tertius-sweep-20261111/refl/stills3.sh: line 31: $1: unbound variable
+uptime-end:  23:31:21  up 47 days 11:05,  2 users,  load average: 7.32, 6.53, 7.30

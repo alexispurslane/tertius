@@ -42,6 +42,8 @@ max-jobs = auto
 CONF
     curl -fsSL -o /tmp/nix-install "https://releases.nixos.org/nix/nix-$nix_version/install"
     echo "$nix_install_sha256  /tmp/nix-install" | sha256sum -c --quiet -
+    # The installer creates /nix with sudo, which a plain image such as ubuntu:24.04 lacks. As root, make it here.
+    mkdir -m 0755 -p /nix
     sh /tmp/nix-install --no-daemon --no-channel-add --no-modify-profile < /dev/null
     rm /tmp/nix-install
 fi

@@ -1,0 +1,31 @@
+X="SWEEP_EXPOSURE=0.7041458"
+# The reflection stills first (about 3 minutes, untimed work inside the take): the images that the reflection question needs.
+in_time && ( unset TERTIUS_GPU_LOCK TERTIUS_GPU_QUEUE; bash $S/refl/stills.sh ) 2>&1 | tail -12
+trace deck-maind-1 maind $D
+[ -x $S/bin-hitcache/Tertius.Demo ] && trace deck-hitcache-1 hitcache $D
+[ -x $S/bin-lazymiss/Tertius.Demo ] && trace deck-lazymiss-1 lazymiss $D
+TRACE_EXTRA_ENV="MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=0" trace deck-maind-noargbuf maind $D
+[ -x $S/bin-planblock/Tertius.Demo ] && trace deck-planblock-1 planblock $D
+[ -x $S/bin-keyfree/Tertius.Demo ] && trace deck-keyfree-1 keyfree $D
+[ -x $S/bin-snorefl/Tertius.Demo ] && trace deck-snorefl-1 snorefl $D
+trace deck-maind-rs50 maind $D --render-scale 0.5
+[ -x $S/bin-ssr4h/Tertius.Demo ] && TRACE_EXTRA_ENV="$X" trace deck-ssr4h-1 ssr4h $D
+[ -x $S/bin-steps/Tertius.Demo ] && TRACE_EXTRA_ENV="$X SWEEP_RSTEPS=64" trace deck-steps-r64 steps $D
+[ -x $S/bin-steps/Tertius.Demo ] && TRACE_EXTRA_ENV="$X SWEEP_DSTEPS=24" trace deck-steps-d24 steps $D
+[ -x $S/bin-transfloor/Tertius.Demo ] && trace deck-transfloor-1 transfloor $D
+trace deck-maind-2 maind $D
+TRACE_COUNTERS=1 trace deck-main-c main $D
+trace deck-maind-rs100 maind $D --render-scale 1
+[ -x $S/bin-ssr9h/Tertius.Demo ] && TRACE_EXTRA_ENV="$X" trace deck-ssr9h-1 ssr9h $D
+[ -x $S/bin-ownall/Tertius.Demo ] && TRACE_EXTRA_ENV="$X" trace deck-ownall-1 ownall $D
+[ -x $S/bin-steps/Tertius.Demo ] && TRACE_EXTRA_ENV="$X SWEEP_RSTEPS=24" trace deck-steps-r24 steps $D
+[ -x $S/bin-steps/Tertius.Demo ] && TRACE_EXTRA_ENV="$X SWEEP_GUIDED=0.5" trace deck-steps-g50 steps $D
+trace deck-maind-nobloom maind $D --bloom off
+TRACE_EXTRA_ENV="TERTIUS_GUIDED_RAYS=off" trace deck-maind-noguide maind $D
+trace deck-flightonly-1 flightonly $D
+trace deck-fnomath-1 fnomath $D
+trace deck-maind-nostamps maind $D --pass-timestamps off
+trace deck-sphclip-1 sphclip $D
+trace deck-fpow7-1 fpow7 $D
+[ -x $S/bin-base/Tertius.Demo ] && TRACE_EXTRA_ENV="$X" trace deck-base-1 base $D
+trace deck-maind-3 maind $D

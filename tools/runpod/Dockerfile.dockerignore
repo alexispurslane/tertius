@@ -1,6 +1,0 @@
-# The build context of tools/runpod/Dockerfile: the source without build outputs, captures and git.
-.git
-**/bin
-**/obj
-captures
-nohup.out
