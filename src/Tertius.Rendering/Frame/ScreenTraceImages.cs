@@ -211,11 +211,13 @@ internal sealed class ScreenTraceImages : IDisposable
         Extent2D extent = targets.Extent;
         var blocks = new Extent2D((extent.Width + 1) / 2, (extent.Height + 1) / 2);
         Plan = CreateImage(extent: extent, format: PlanFormat, layers: 1, name: "screen trace plan");
+
         BlockLight = CreateImage(extent: blocks, format: LightFormat, layers: Kinds, name: "screen trace block light");
         BlockRay = CreateImage(extent: blocks, format: RayFormat, layers: Kinds, name: "screen trace block rays");
         OwnLight = CreateImage(extent: extent, format: LightFormat, layers: Kinds, name: "screen trace own light");
         OwnRay = CreateImage(extent: extent, format: RayFormat, layers: Kinds, name: "screen trace own rays");
         HitLight = CreateImage(extent: extent, format: HitLightFormat, layers: Kinds, name: "screen trace hit light");
+
         OwnRays = [CreateOwnRayList(extent, "reflection"), CreateOwnRayList(extent, "diffuse")];
         lightAges = Specular.HistoryMode.KeepsLightAge
             ?

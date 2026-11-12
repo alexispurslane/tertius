@@ -130,18 +130,9 @@ internal sealed class ScreenTracePlanPass(ScreenTraceKernel kernel, ScreenTraceI
         ScreenTraceKernel.DeclareSurfaces(context);
         kernel.DeclareHistories(context.Barriers, context.History.Parity, slow: true);
         context.Barriers.Image(images.Plan, ImageUse.StorageCompute, discard: true);
-        // The plan writes the hit light at every pixel that a walk can hit, by the pyramid's finest level. It reads this
-        // frame's direct light, the last frame's light of both signals and the environment's closed form.
-        context.Barriers.Image(
-            context.Targets.Pyramid?.Finest ?? throw new UnreachableException("The tracer reads the pyramid."),
-            ImageUse.SampledComputeGeneral
-        );
-        kernel.DeclareHistories(context.Barriers, context.History.Parity, slow: false);
-        context.Barriers.Image(context.Targets.DirectDiffuse, ImageUse.StorageCompute);
-        context.Barriers.Image(context.Targets.DirectSpecular, ImageUse.StorageCompute);
-        context.Barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeRead);
-        ScreenTraceKernel.DeclareEnvironment(context);
-        context.Barriers.Image(images.HitLight, ImageUse.StorageCompute, discard: true);
+
+        DeclareHitLight(context);
+
         // The light-change age: the plan reads the last record, and writes every pixel of this one.
         int parity = context.History.Parity;
         if (images.LightAge(parity) is { } lightAge && images.LastLightAge(parity) is { } lastLightAge)
@@ -152,6 +143,25 @@ internal sealed class ScreenTracePlanPass(ScreenTraceKernel kernel, ScreenTraceI
         foreach (GpuBuffer list in images.OwnRays)
             context.Barriers.Buffer(list, BufferUse.ComputeWrite);
         kernel.Record(context, side: 1);
+    }
+
+    /// <summary>
+    /// The hit light's resources: the plan writes it at every pixel that a walk can hit, by the pyramid's finest level,
+    /// from this frame's direct light, the last frame's light of both signals and the environment's closed form.
+    /// </summary>
+    private void DeclareHitLight(FrameContext context)
+    {
+        BarrierBatch barriers = context.Barriers;
+        barriers.Image(
+            context.Targets.Pyramid?.Finest ?? throw new UnreachableException("The tracer reads the pyramid."),
+            ImageUse.SampledComputeGeneral
+        );
+        kernel.DeclareHistories(barriers, context.History.Parity, slow: false);
+        barriers.Image(context.Targets.DirectDiffuse, ImageUse.StorageCompute);
+        barriers.Image(context.Targets.DirectSpecular, ImageUse.StorageCompute);
+        barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeRead);
+        ScreenTraceKernel.DeclareEnvironment(context);
+        barriers.Image(images.HitLight, ImageUse.StorageCompute, discard: true);
     }
 
     public override void Dispose() => kernel.Dispose();
