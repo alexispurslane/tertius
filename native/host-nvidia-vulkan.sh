@@ -44,6 +44,12 @@ tertius_host_nvidia_vulkan() {
     done
     export VK_ICD_FILENAMES="$icd"
     export LD_LIBRARY_PATH="$links${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    # libnvidia-tls uses static TLS. The loader loads the driver at each vkCreateInstance and unloads it after the last
+    # instance, and glibc does not take back the driver's static TLS after an unload. With glibc's default reserve, the
+    # 38th instance of one process failed with "cannot allocate memory in static TLS block", as vkCreateInstance's
+    # ErrorIncompatibleDriver (ter-libf, 2026-11-12). A test process makes hundreds. The reserve sits on every thread's
+    # stack: 1 MB made the .NET CLI fail to start a thread, and 64 KB passed the 61 capture tests in one process.
+    export GLIBC_TUNABLES="${GLIBC_TUNABLES:+$GLIBC_TUNABLES:}glibc.rtld.optional_static_tls=65536"
 }
 
 tertius_host_nvidia_vulkan

@@ -10,6 +10,7 @@ FROM ubuntu:24.04
 ENV NVIDIA_DRIVER_CAPABILITIES=all \
     NVIDIA_VISIBLE_DEVICES=all \
     USER=root \
+    LANG=C.UTF-8 \
     PATH=/root/.nix-profile/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # The dev shell. This layer changes only when the flake or native/ changes.

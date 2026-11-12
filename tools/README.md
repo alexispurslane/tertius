@@ -62,7 +62,54 @@ nix develop --command bash -c 'VK_ICD_FILENAMES=$TERTIUS_KOSMICKRISP_ICD dotnet 
 nix develop --command bash -c 'VK_ICD_FILENAMES=$TERTIUS_KOSMICKRISP_ICD dotnet run --project src/Tertius.Demo -c Release -- --script scripts/lamp-hall-16.json --headless --out <folder>'
 ```
 
-`vulkaninfo --summary` names the driver of a shell. On Linux the variable is empty, and the loader finds the system's drivers. [docs/research/kosmickrisp.md](../docs/research/kosmickrisp.md) compares the two drivers, and lists the tests that fail on KosmicKrisp and why.
+`vulkaninfo --summary` names the driver of a shell. On Linux the shell sets no `VK_ICD_FILENAMES`, so a value from outside the shell stays. If the variable is empty and the host has NVIDIA's driver, the shell's hook sets it to NVIDIA's manifest (see "Linux NVIDIA machines"). [docs/research/kosmickrisp.md](../docs/research/kosmickrisp.md) compares the two drivers, and lists the tests that fail on KosmicKrisp and why.
+
+## Linux NVIDIA machines
+
+The dev shell runs on `x86_64-linux` with NVIDIA's driver, in a container or on a desktop. Ticket ter-libf brought it up on two Runpod pods on 2026-11-12: an RTX 2000 Ada and an L4, both with driver 595.91.07, in Ubuntu 22.04 containers.
+
+### What the shell does on Linux
+
+The Nix-built Vulkan loader does not search `/usr/share/vulkan/icd.d`, and Nix's glibc does not search the system library folders. So the shellHook sources `native/host-nvidia-vulkan.sh`, which does three things:
+
+1. It sets `VK_ICD_FILENAMES` to NVIDIA's manifest, `/etc/vulkan/icd.d/nvidia_icd.json` or `/usr/share/vulkan/icd.d/nvidia_icd.json`.
+2. It links only NVIDIA's libraries into `$XDG_RUNTIME_DIR/tertius-nvidia-<uid>` (or `/tmp`) and puts that folder first on `LD_LIBRARY_PATH`. The system library folder itself must stay off the path, because its libstdc++ and other libraries would replace the Nix builds.
+3. It sets `GLIBC_TUNABLES=glibc.rtld.optional_static_tls=65536`. The Vulkan loader loads the driver at each `vkCreateInstance` and unloads it after the last instance. glibc does not take back the static TLS of `libnvidia-tls` after an unload, so with the default reserve the 38th instance of one process fails with `ErrorIncompatibleDriver`. A test process makes hundreds of instances. A reserve of 1 MB broke thread creation in the .NET CLI, because glibc puts the reserve on every thread's stack.
+
+A `VK_ICD_FILENAMES` from outside the shell wins. A host without NVIDIA's manifest gets none of the three. The shell also adds `libglvnd`, `libx11` and `libxext` to the library path, because NVIDIA's `libGLX_nvidia.so.0` needs them and a container lacks them. If `vulkaninfo --summary` names `llvmpipe` or finds no driver, the container lacks the graphics part of the driver: set `NVIDIA_DRIVER_CAPABILITIES=all`, or use another host.
+
+### A container
+
+`tools/runpod/provision.sh` makes an Ubuntu container ready, as root. A pod runs it, and `tools/runpod/Dockerfile` runs it for the serverless image:
+
+```bash
+bash tools/runpod/provision.sh <flake folder> [<source folder>]
+```
+
+It installs a pinned single-user Nix (2.34.8), builds or downloads the dev shell and keeps it as the profile `/nix/var/nix/profiles/tertius-dev`. It pins the registry's `nixpkgs` to the flake's lock, so `nix develop /nix/var/nix/profiles/tertius-dev --offline --command <command>` downloads nothing. With a source folder, it also restores the NuGet packages. Two container limits shape it:
+
+- A container allows no user namespaces, so Nix builds without a sandbox. Then a build's HOME is the real folder `/homeless-shelter`, which the cargo step of jscpd creates, and Nix refuses the next build. The script removes the folder and runs the step again, at most three times.
+- On the pods, the step took 197 to 216 s, mostly downloads, and joltc and jscpd built from source. The demo's Release build then took 42 to 57 s.
+
+Build the image from the repository root with BuildKit:
+
+```bash
+docker build --platform linux/amd64 -f tools/runpod/Dockerfile -t <image> .
+```
+
+### A pod for a bring-up
+
+1. Create the pod with API v2 (`POST https://api.runpod.io/v2/pods`), with `NVIDIA_DRIVER_CAPABILITIES=all` and `PUBLIC_KEY` in its environment, and `22/tcp` in its ports.
+2. Copy the tracked source: `git ls-files -co --exclude-standard | rsync -az --files-from=- ./ root@<host>:/root/tertius/`.
+3. On the pod, run `bash tools/runpod/provision.sh /root/tertius`.
+4. Make sure that `vulkaninfo --summary` in the shell names the NVIDIA GPU.
+5. Delete the pod with `DELETE /v2/pods/<id>` when it has no work. A stopped pod still bills its disk.
+
+### Timing on a cloud GPU
+
+- `nvidia-smi -lgc` fails in a container: "The current user does not have permission to change clocks" (exit code 4). Read the clock with `nvidia-smi --query-gpu=timestamp,clocks.sm,clocks.mem,temperature.gpu,power.draw --format=csv -lms 500`. `tools/gpu-clock.sh` does not read it yet (ter-az8f).
+- The `capture` pass of a headless run copies each frame over PCIe. It took 2.6 ms per 1920 × 1080 frame on the RTX 2000 Ada, and 0.9 to 4.5 ms on the L4, against 0.03 ms on the Mac. The frame span counts it (ter-fw73). Compare passes, or the span without it.
+- Compare a change with main only inside one job: cards, hosts and the capture time differ between pods.
 
 ## Coverage on changed lines
 

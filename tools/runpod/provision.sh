@@ -50,8 +50,26 @@ ln -sfn /root/.nix-profile/bin/nix /usr/local/bin/nix
 # shellcheck source=/dev/null
 . /root/.nix-profile/etc/profile.d/nix.sh
 
+# Without a sandbox, a build's HOME is the real folder /homeless-shelter, and Nix refuses to start a build while it
+# exists. The cargo vendoring of jscpd (native/jscpd.nix) writes $HOME/.cargo, so the build after it fails. A container
+# allows no user namespaces for a sandbox. So the step removes the folder and runs again: each run keeps what it built.
 start=$(date +%s)
-nix develop "path:$flake" --profile "$profile" --command true
+for attempt in 1 2 3; do
+    rm -rf /homeless-shelter
+    if nix develop "path:$flake" --profile "$profile" --command true; then
+        break
+    fi
+    if [[ "$attempt" -eq 3 ]]; then
+        exit 1
+    fi
+done
+rm -rf /homeless-shelter
+# `nix develop <profile>` takes its interactive bash from the registry's nixpkgs, which is the floating channel
+# nixpkgs-unstable by default, so its first start downloads the channel. Pin the registry to the flake's locked nixpkgs,
+# and start the profile once, so a job downloads nothing.
+rev=$(nix eval --raw --impure --expr "(builtins.fromJSON (builtins.readFile $flake/flake.lock)).nodes.nixpkgs.locked.rev")
+nix registry add nixpkgs "github:NixOS/nixpkgs/$rev"
+nix develop "$profile" --command true
 echo "provision: the dev shell took $(($(date +%s) - start)) s."
 
 if [[ -n "$source_folder" ]]; then
