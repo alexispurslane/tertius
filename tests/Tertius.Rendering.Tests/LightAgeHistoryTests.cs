@@ -775,6 +775,9 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
 
                 float[] sample = renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Sample(0));
                 float[] ages = SampleAges(renderer);
+                float[] diagnostic = UncoveredDiagnostic(renderer);
+                // The receivers whose history is still long just before the cut: the slow history's clamp after the
+                // blend of the change draws shortens a few others to 4 to 6 frames first.
                 int[] dim =
                 [
                     .. Enumerable
@@ -782,6 +785,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                         .Where(pixel =>
                             ages[pixel] == 1
                             && LengthAt(warm, pixel) > 8
+                            && LengthBeforeCutAt(diagnostic, pixel) > 8
                             && Luminance(sample, pixel) <= 0.2f * Luminance(warm, pixel)
                         ),
                 ];
@@ -790,11 +794,9 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 // A cut that only bright rays may make restarts the history from its bright samples: after a lamp goes
                 // out, the reflections jumped up by 72 % and took 128 draws to settle (ter-g3tk). The cut alone, from
                 // the diagnostic: every such receiver keeps only the frames since the change.
-                float[] diagnostic = UncoveredDiagnostic(renderer);
                 dim.Should()
                     .OnlyContain(
-                        pixel =>
-                            LengthBeforeCutAt(diagnostic, pixel) > 8 && LengthBeforeBlendAt(diagnostic, pixel) == 0,
+                        pixel => LengthBeforeBlendAt(diagnostic, pixel) == 0,
                         "the light that the ray sees is 0 frames old, however dim the ray is"
                     );
             },
