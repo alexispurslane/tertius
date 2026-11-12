@@ -1,0 +1,32 @@
+{
+  "scene": "station",
+  "window": { "width": 1280, "height": 720 },
+  "steps": [
+    { "do": "camera", "entity": "watch" },
+    { "do": "run", "ticks": 180 },
+    { "do": "dump", "name": "pods-out" },
+    { "do": "capture", "name": "pods-out" },
+    { "do": "run", "ticks": 720 },
+    { "do": "dump", "name": "pods-drifting" },
+    { "do": "capture", "name": "pods-drifting" },
+    { "do": "camera", "entity": "cabin" },
+    { "do": "post", "to": { "kind": "entity", "id": "crate" }, "event": "Launch", "payload": { "velocity": [0, 0, -1200] } },
+    { "do": "run", "ticks": 3 },
+    { "do": "dump", "name": "crate-flying" },
+    { "do": "capture", "name": "crate-flying" },
+    { "do": "run", "ticks": 57 },
+    { "do": "dump", "name": "crate-at-wall" },
+    { "do": "capture", "name": "crate-at-wall" },
+    { "do": "camera", "entity": "radiator-view" },
+    { "do": "run", "ticks": 270 },
+    { "do": "dump", "name": "first-bump" },
+    { "do": "capture", "name": "first-bump" },
+    { "do": "run", "ticks": 270 },
+    { "do": "dump", "name": "pods-at-radiator" },
+    { "do": "capture", "name": "pods-at-radiator" },
+    { "do": "camera", "entity": "watch" },
+    { "do": "run", "ticks": 60 },
+    { "do": "dump", "name": "end" },
+    { "do": "capture", "name": "end" }
+  ]
+}

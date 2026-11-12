@@ -1,0 +1,16 @@
+uptime-start:  00:06:15  up 47 days 11:40,  2 users,  load average: 5.76, 6.03, 7.70
+waited: 2030s
+mode: shared, with up to 3 shared runs at once
+place-off: 41005132 bytes, exit 0
+steps-ctl: 36 files, exit 0
+steps-r128: 36 files, exit 0
+steps-r64: 36 files, exit 0
+steps-d32: 36 files, exit 0
+steps-d24: 36 files, exit 0
+deck-steps-ctl: 32 files, exit 0
+deck-steps-r128: 32 files, exit 0
+deck-steps-r64: 32 files, exit 0
+deck-steps-d32: 32 files, exit 0
+deck-steps-d24: 32 files, exit 0
+stills 3 ended
+uptime-end:  00:08:50  up 47 days 11:43,  2 users,  load average: 13.33, 10.02, 9.15

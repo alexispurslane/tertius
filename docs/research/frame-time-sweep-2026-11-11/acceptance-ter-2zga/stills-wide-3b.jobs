@@ -1,0 +1,7 @@
+# The wide frame check of the patched MoltenVK on the branch after the second merge of main (ter-2zga), part b. See part a.
+echo "default driver: $VK_ICD_FILENAMES"
+for s in rigs spacewalk spin-station station-crate station-nocrate station surface-yard ter-7tnv-floor ter-7tnv-terminal throw walk windows; do
+  run merged3 capscripts/$s.json drv3-$s-keep
+  VK_ICD_FILENAMES=$TERTIUS_STOCK_MOLTENVK_ICD run merged3 capscripts/$s.json drv3-$s-stock
+done
+MTL_DEBUG_LAYER=1 run merged3 capscripts/station.json drv3-station-validate

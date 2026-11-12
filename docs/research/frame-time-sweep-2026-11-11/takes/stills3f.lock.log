@@ -1,0 +1,9 @@
+uptime-start:  02:00:27  up 47 days 13:34,  2 users,  load average: 62.50, 35.61, 20.98
+waited: 0s
+mode: shared, with up to 3 shared runs at once
+black-exp-8.8: 15 files, exit 0
+black-exp-7.7: 15 files, exit 0
+black-exp0.5: 15 files, exit 0
+black-exp0.5-noenv: 15 files, exit 0
+stills 3 ended
+uptime-end:  02:01:20  up 47 days 13:35,  2 users,  load average: 41.26, 34.51, 21.51
