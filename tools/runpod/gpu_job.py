@@ -85,6 +85,11 @@ COMMIT = re.compile(r"^[0-9a-f]{40}$")
 # 16 GB pool also holds these three, and a card that Runpod adds to the pool later becomes eligible.
 POOL = "AMPERE_16"
 OTHER_CARDS = ["NVIDIA RTX A4000", "NVIDIA RTX A4500", "NVIDIA RTX 4000 Ada Generation"]
+# Each endpoint of an image runs at most this many workers at once.
+WORKERS = 6
+# Runpod's quota of the account: the maximums of all its endpoints together may not pass this (its error of
+# 2026-11-12). So a new endpoint beside an old one gets what the quota leaves, and its six once the old one goes.
+WORKER_QUOTA = 10
 # Container disk in GB: the image's files, plus each tree's checkout with its build outputs.
 DISK_GB = 60
 
@@ -163,6 +168,9 @@ class RunpodApi:
 
     def create_endpoint(self, body: dict) -> dict:
         return self.call("POST", f"{ACCOUNT_API}/serverless", body)
+
+    def update_endpoint(self, endpoint: str, body: dict):
+        self.call("PATCH", f"{ACCOUNT_API}/serverless/{endpoint}", body)
 
     def delete_endpoint(self, endpoint: str):
         self.call("DELETE", f"{ACCOUNT_API}/serverless/{endpoint}")
@@ -309,6 +317,17 @@ def refuse_if_stopped(endpoints: list):
         raise Refused(f"the endpoint {', '.join(ids)} is stopped at 0 workers; the orchestrator restarts it")
 
 
+def grow(api, live: str):
+    """Give the live endpoint its WORKERS once the quota leaves room: an endpoint made beside an old one got less."""
+    endpoints = api.endpoints()
+    refuse_if_stopped([endpoint for endpoint in endpoints if OURS.match(endpoint.get("name", ""))])
+    mine = next(endpoint for endpoint in endpoints if endpoint["id"] == live)
+    others = sum(endpoint["workers"]["max"] for endpoint in endpoints if endpoint["id"] != live)
+    most = min(WORKERS, WORKER_QUOTA - others)
+    if most > mine["workers"]["max"]:
+        api.update_endpoint(live, {"workers": {"max": most}})
+
+
 def route(config: Config, api, state: Path, image: str) -> str:
     """Under the lock, after the jobs in flight are settled: the id of the endpoint that runs `image`, created if no
     endpoint runs it. Every other endpoint of the script's that no job in flight names and no worker runs on goes. An
@@ -321,7 +340,13 @@ def route(config: Config, api, state: Path, image: str) -> str:
     live = next((endpoint["id"] for endpoint in endpoints if endpoint["image"] == wanted), None)
     created = None
     if live is None:
-        live = created = api.create_endpoint(endpoint_request(config, image))["id"]
+        room = WORKER_QUOTA - sum(endpoint["workers"]["max"] for endpoint in api.endpoints())
+        if room < 1:
+            raise Refused(f"the other endpoints hold the account's whole worker quota of {WORKER_QUOTA}, so no "
+                          f"endpoint of {image} fits until their jobs end")
+        request = endpoint_request(config, image)
+        request["workers"]["max"] = min(WORKERS, room)
+        live = created = api.create_endpoint(request)["id"]
     try:
         refuse_if_stopped(ours(api))
         busy = {pending["endpoint"] for pending in in_flight(state)}
@@ -331,6 +356,7 @@ def route(config: Config, api, state: Path, image: str) -> str:
                 continue
             refuse_if_stopped(ours(api))
             api.delete_endpoint(endpoint["id"])
+        grow(api, live)
     except Refused:
         if created is not None:
             api.delete_endpoint(created)
@@ -651,7 +677,7 @@ def endpoint_request(config: Config, commit: str) -> dict:
     six at once, and stops each job at the execution timeout."""
     return {"name": f"{ENDPOINT_PREFIX}-{commit[:12]}", "type": "QUEUE", "image": f"{config.image_repository}:{commit}", "disk": DISK_GB,
             "flashboot": "FLASHBOOT", "scaling": {"type": "QUEUE_DELAY", "queueDelay": 4},
-            "workers": {"min": 0, "max": 6, "idleTimeout": IDLE_SECONDS},
+            "workers": {"min": 0, "max": WORKERS, "idleTimeout": IDLE_SECONDS},
             "timeout": config.endpoint_timeout_seconds * 1000,
             "gpu": {"pools": [POOL], "excludedTypes": OTHER_CARDS}}
 
