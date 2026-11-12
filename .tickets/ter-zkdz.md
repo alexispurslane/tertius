@@ -1,6 +1,6 @@
 ---
 id: ter-zkdz
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-12T02:50:00Z
