@@ -119,15 +119,22 @@ class Kind:
 @dataclass(frozen=True)
 class Config:
     """image_repository: the images, each tagged with the commit that it baked. repository: the public repository that
-    the workers fetch the trees' commits from. daily_cap_usd and total_cap_usd: the caps, per UTC day and in total, for
-    all kinds together. kinds: gpu and cpu, each a Kind. The live endpoints are not here: Runpod's list of endpoints is
+    the workers fetch the trees' commits from. daily_caps_usd: the cap of each UTC day, for all kinds together, as a map
+    from the first day of a cap ("2026-11-13") to its amount; a day has the cap of the latest date on or before it.
+    total_cap_usd: the cap of all spending. kinds: gpu and cpu, each a Kind. The live endpoints are not here: Runpod's list of endpoints is
     their one store, and the script finds each by its name and image."""
 
     image_repository: str
     repository: str
-    daily_cap_usd: float
+    daily_caps_usd: dict
     total_cap_usd: float
     kinds: dict
+
+    def daily_cap(self, day: datetime.date) -> float:
+        dates = [start for start in self.daily_caps_usd if datetime.date.fromisoformat(start) <= day]
+        if not dates:
+            raise Refused(f"endpoint.json gives no daily cap for {day}")
+        return self.daily_caps_usd[max(dates)]
 
     @staticmethod
     def load(path: Path = CONFIG_FILE) -> "Config":
@@ -567,9 +574,10 @@ def refusal(config: Config, state: Path, api, worst: float, now: datetime.dateti
     spent_today = max(logged_today, api.billed_today())
     spent = max(sum(line.get("costUsd", 0.0) for line in lines), api.billed_total())
     held = sum(pending["worstCaseUsd"] for pending in in_flight(state))
-    if spent_today + held + worst > config.daily_cap_usd:
+    cap = config.daily_cap(today)
+    if spent_today + held + worst > cap:
         return (f"today's ${spent_today:.2f} plus ${held:.2f} in flight plus this job's worst case ${worst:.2f} "
-                f"passes the daily cap of ${config.daily_cap_usd:.2f}")
+                f"passes the daily cap of ${cap:.2f}")
     if spent + held + worst > config.total_cap_usd:
         return (f"the ${spent:.2f} spent plus ${held:.2f} in flight plus this job's worst case ${worst:.2f} "
                 f"passes the total cap of ${config.total_cap_usd:.2f}")

@@ -32,7 +32,8 @@ HANDLER = {"tools/runpod/handler.py": "PROTOCOL = 2\n"}
 
 
 def config(repository="https://github.com/x/tertius.git"):
-    return gpu_job.Config(image_repository=REPOSITORY, repository=repository, daily_cap_usd=10.0, total_cap_usd=30.0,
+    return gpu_job.Config(image_repository=REPOSITORY, repository=repository, daily_caps_usd={"2026-01-01": 10.0},
+                          total_cap_usd=30.0,
                           kinds={"gpu": gpu_job.Kind(rate_per_second=RATE, workers=6, job_seconds=840,
                                                      endpoint_timeout_seconds=900),
                                  "cpu": gpu_job.Kind(rate_per_second=CPU_RATE, workers=4, job_seconds=7140,
@@ -495,6 +496,13 @@ class Caps(Queue):
         self.assertEqual(result, "refused")
         self.assertEqual(api.submitted, [])
         self.assertEqual(self.log_lines()[-1]["result"], "refused", "a refusal is in the audit log too")
+
+    def test_each_utc_day_has_the_cap_of_the_latest_date_on_or_before_it(self):
+        self.config = gpu_job.Config(**{**vars(self.config), "daily_caps_usd": {"2026-11-11": 10.0, "2026-11-13": 3.0}})
+        self.logged(2.99)
+        self.assertEqual(self.submit(self.api()), "ok", "on 2026-11-12 the cap is still $10, though $3 would refuse")
+        tomorrow = gpu_job.Config.daily_cap(self.config, datetime.date(2026, 11, 13))
+        self.assertEqual(tomorrow, 3.0)
 
     def test_spending_of_an_earlier_day_does_not_count_against_todays_cap(self):
         self.logged(9.99, when=NOW - datetime.timedelta(days=1))
