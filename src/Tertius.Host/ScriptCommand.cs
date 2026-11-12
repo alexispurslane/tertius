@@ -41,6 +41,11 @@ namespace Tertius.Host;
 /// (<see cref="RendererOptions.CapturesInFlight"/>).</item>
 /// <item><c>--pass-timestamps on|off</c> keeps a GPU timestamp after every pass, the headless default, or stamps only the
 /// render scale's cost groups, as the window does, so that a timed run measures the window's frame span.</item>
+/// <item><c>--exposure STOPS</c> gives the headless renderer a <see cref="FixedExposure"/> of that many stops, from −64 to
+/// 64, so that two timed runs whose images differ light their pixels alike (ticket t2-bne2). Without it the exposure
+/// follows the view.</item>
+/// <item><c>--key-lights off|N</c> keeps <see cref="EveryLightPair"/>, the default, or chooses <see cref="KeyAndFill"/>
+/// with N key lights, 1 to 4 (<see cref="RendererOptions.LightPairs"/>).</item>
 /// <item><c>--scene &lt;name&gt; [--speed &lt;factor&gt;] [--record &lt;file&gt;]</c> runs a scene live in a window until you close it.
 /// With <c>--record</c>, the command writes your session to the file as a script that replays it.</item>
 /// </list>
@@ -98,7 +103,7 @@ public static partial class ScriptCommand
     public const string ExposureFile = "exposure.json";
 
     private const string Usage =
-        "Usage: --script <file> --headless --out <folder> [--video none|<file.mkv> [--fps <rate>]] [--size <width>x<height>] [--gpu-run FIRST..LAST]... [--tone-curve aces|hable] [--screen-trace on|off] [--bloom on|off] [--upscaling off|fsr3] [--render-scale <scale>] [--local-shadows off|on] [--local-shadow-tiles <count>] [--cascaded-lights <count>] [--environment-map on|off] [--subsurface on|off] [--in-flight 1|2] [--pass-timestamps on|off]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
+        "Usage: --script <file> --headless --out <folder> [--video none|<file.mkv> [--fps <rate>]] [--size <width>x<height>] [--gpu-run FIRST..LAST]... [--tone-curve aces|hable] [--screen-trace on|off] [--bloom on|off] [--upscaling off|fsr3] [--render-scale <scale>] [--local-shadows off|on] [--local-shadow-tiles <count>] [--cascaded-lights <count>] [--environment-map on|off] [--subsurface on|off] [--in-flight 1|2] [--pass-timestamps on|off] [--exposure <stops>] [--key-lights off|<count>]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
 
     // The value of --video that draws the captures and drops them (Discard), for a run that only times its frames.
     private const string NoVideo = "none";
@@ -132,6 +137,8 @@ public static partial class ScriptCommand
         ("--subsurface", (_, value) => OnOffProblem("--subsurface", value)),
         ("--in-flight", (_, count) => InFlightProblem(count)),
         ("--pass-timestamps", (_, value) => OnOffProblem("--pass-timestamps", value)),
+        ("--exposure", (_, stops) => ExposureProblem(stops)),
+        ("--key-lights", (_, count) => KeyLightsProblem(count)),
     ];
 
     // The options that choose the run, each with the problem when a run that does not take it is given it. A command line
@@ -941,6 +948,8 @@ public static partial class ScriptCommand
             FramesInFlight = given.Value("--in-flight") is { } count
                 ? int.Parse(count, CultureInfo.InvariantCulture)
                 : null,
+            ExposureStops = ExposureOf(given.Value("--exposure")),
+            KeyLights = KeyLightsOf(given.Value("--key-lights")),
         };
 
     private static string? SpeedProblem(string speed) =>
@@ -996,6 +1005,32 @@ public static partial class ScriptCommand
         CascadedLightsOf(count) is null
             ? $"--cascaded-lights needs a whole number from 0 to {RendererOptions.MaxCascadedLights}, not '{count}'."
             : null;
+
+    private static string? ExposureProblem(string stops) =>
+        ExposureOf(stops) is null
+            ? $"--exposure needs a number of stops from -{ExposureSetting.StopsLimit} to {ExposureSetting.StopsLimit}, not '{stops}'."
+            : null;
+
+    private static string? KeyLightsProblem(string count) =>
+        KeyLightsOf(count) is null
+            ? $"--key-lights needs off or a whole number from 1 to {KeyAndFill.MaxKeyLights}, not '{count}'."
+            : null;
+
+    /// <summary>The fixed exposure in stops that the text gives, or null for no text or one outside −64 to 64.</summary>
+    private static float? ExposureOf(string? text)
+    {
+        bool read = float.TryParse(
+            s: text,
+            style: NumberStyles.Float,
+            provider: CultureInfo.InvariantCulture,
+            result: out float stops
+        );
+        return read && MathF.Abs(stops) <= ExposureSetting.StopsLimit ? stops : null;
+    }
+
+    /// <summary>The key lights that the text gives, 0 for <c>off</c>, or null for no text or one that is neither off nor 1 to 4.</summary>
+    private static int? KeyLightsOf(string? text) =>
+        text == "off" ? 0 : WholeNumberOf(text: text, least: 1, most: KeyAndFill.MaxKeyLights);
 
     /// <summary>The wall-clock speed that the text gives, or null for no text or one that is not a positive finite number.</summary>
     private static double? SpeedOf(string? text)

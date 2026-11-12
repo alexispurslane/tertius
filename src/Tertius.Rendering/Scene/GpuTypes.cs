@@ -779,6 +779,20 @@ internal struct ShadowBoundsPushConstants
     public fixed uint Layers[MaxLayers];
 }
 
+/// <summary>The push constants of the tile pass of key and fill, key_fill_tiles.comp (<see cref="KeyFillPass"/>).</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct KeyFillTilesPushConstants
+{
+    /// <summary>The tiles of the frame's render size along x.</summary>
+    public uint TilesWide;
+
+    /// <summary>The tiles of the frame's render size along y.</summary>
+    public uint TilesHigh;
+
+    /// <summary>The most key lights of a corner (<see cref="KeyAndFill.KeyLights"/>).</summary>
+    public uint KeyLights;
+}
+
 /// <summary>The push constants of the surface test, surface_test.comp (<see cref="SurfaceTestPass"/>).</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct SurfaceTestPushConstants

@@ -34,6 +34,11 @@ layout(set = 2, binding = 11) uniform texture2DArray shadowBounds;    // RG32F: 
                                                                        // each window (shadow_bounds.comp); partially
                                                                        // bound
 
+// The tile records of key and fill (key_fill.glsl), which only the direct pass under key and fill reads; partially
+// bound, empty without it.
+#include "key_fill.glsl"
+layout(set = 2, binding = 7, std430) readonly buffer LightTileBlock { LightTile lightTiles[]; };
+
 // The map that a lit pixel's map code names (docs/plans/environment-maps-per-frame.md, decision 20): code c of the 8-bit
 // alpha, from 1 to 255, names map (256 − c) / 2, rounded down. MapCode.MapOf is the C# twin. Code 0 marks an unlit pixel,
 // which no caller passes here.
