@@ -140,26 +140,33 @@ python3 -I tools/runpod/gpu_job.py submit --agent <your name> \
 
 - Each `--tree NAME=REF` becomes the folder `NAME` in the job's work folder. It holds the baked commit's files plus the diff from the baked commit to `REF`. Commit your change first, because the diff comes from commits. The commit need not be pushed.
 - Each `--run` command runs in the work folder, in the dev shell, offline. The first command that fails ends the job.
-- `--timeout` gives the seconds of all commands together. It is at most `job_seconds` of the configuration.
+- `--timeout` gives the seconds of all commands together, a positive number. It is at most `job_seconds` of the configuration, 840 s. The handler stops the commands at that limit and still sends back the log and the files.
+- Run the script in the background, because a job can wait minutes for a worker. If the script gets Ctrl-C, SIGTERM or SIGHUP, it cancels the job and waits for its final status.
 - `<folder>` gets the files of the `--output` globs and `result.json`. That file holds each command's exit code and time, the end of the log, and the files that passed the size limit of 8 MB.
 
 The script exits with 0 if every command succeeded. A job runs on the commit that the endpoint's image baked. The image's tag is that commit, and the script reads it from the endpoint before each job. If main moves far from it, point the endpoint at a newer image ("Make the image and the endpoint"), because each job then sends a large diff and compiles more.
 
 ### The caps
 
-The caps are $10 per UTC day and $30 in total. Before the script sends a job, it adds the job's worst case to three amounts:
+The caps are $10 per UTC day and $30 in total. Before the script sends a job, it adds the job's worst case to two amounts:
 
-1. The cost of today's jobs in the audit log, for the daily cap.
-2. The larger of the audit log's total and Runpod's billed total, for the total cap. Runpod's billed total (`GET /v2/billing`, `metadata.totals.totalAmount`) is the authority, but it lags the jobs by minutes.
-3. The worst cases of the jobs in flight. Each running script holds a reservation file in the state folder until its job ends.
+1. The spending: the larger of the audit log's sum and Runpod's bill. The bill (`GET /v2/billing`, `metadata.totals.totalAmount`) holds the account's other spending, such as pods, but it lags the jobs by minutes or more. The daily cap uses today's sums, and the total cap uses the sums since 2026-01-01.
+2. The worst cases of the jobs in flight.
 
-If either sum passes its cap, the script refuses the job, sends nothing and logs the refusal. A file lock spans the check and the reservation, so two agents cannot both take the last of a cap. A job's worst case is its execution timeout plus 120 s, times the price per second. The execution timeout is the commands' time plus 60 s for the handler, and at most the endpoint's timeout.
+If either sum passes its cap, the script refuses the job, sends nothing and logs the refusal. A file lock spans the check and the record of the new job in flight, so two agents cannot both take the last of a cap.
 
-The endpoint bounds the spending by itself too. It runs no worker without a job, at most six workers at once, and it stops each job at its execution timeout. A worker bills at the GPU price from its start until it stops: its boot, the CPU work of a job, and 10 s of idle time after its last job. So the image holds the dev shell and a built demo, and a job sends only its diff.
+One cost model serves the worst case and the logged cost: the seconds, plus 60 s for a worker's start, plus 10 s of idle time after the job, times the price per second. For the worst case, the seconds are the execution timeout: the commands' time plus 60 s for the handler, and at most the endpoint's timeout. For the logged cost, they are Runpod's execution time. A job on a warm worker bills no start, so the log overcounts rather than undercounts.
 
-### The audit log
+The endpoint bounds the spending by itself too. It keeps no minimum of workers, runs at most six at once, and stops each job at its execution timeout. A worker bills at the GPU price while it runs: its boot, the CPU work of a job, and 10 s of idle time after its last job. So the image holds the dev shell, and a job sends only its diff.
 
-Each job, a refusal too, adds one JSON line to `~/.local/state/tertius/gpu-jobs/jobs.jsonl`. The line holds the time, the agent, the trees with their refs and commits, the commands, the job's id, the GPU seconds, the cost, the result and the exit codes. The cost is the job's execution time times the price. Runpod also bills the worker's boot and idle time, which the line does not hold, so the billed total is the authority.
+### Jobs in flight and the audit log
+
+The state folder `~/.local/state/tertius/gpu-jobs/` holds two stores:
+
+- `pending/` holds one file per job in flight, with its worst case and, after Runpod accepts the job, its id.
+- `jobs.jsonl` holds one JSON line per settled job, a refusal too. The line holds the time, the agent, the trees with their refs and commits, the commands, the job's id, the GPU seconds, the cost, the result and the exit codes.
+
+When a job ends, the script moves it from `pending/` to the log in one step under the lock. If the script stops first, for example from a lost network or a kill, the job stays in `pending/` and counts at its worst case. The next run of the script asks Runpod for that job's final status and settles it. A job that Runpod no longer knows costs its worst case. A job without an id counts until its queue time and its timeout pass, and then the log records it as `lost` at its worst case.
 
 ### Make the image and the endpoint
 
@@ -190,7 +197,7 @@ The first jobs ran on 2026-11-12 on the image of `8bded50b7`, 3.0 GB compressed.
 
 | Quantity | Value |
 |---|---|
-| Wait of the first job, while the first worker pulled the image | 376 s |
+| Wait of the first job, while the first worker pulled the image (not billed) | 376 s |
 | Wait of the next job, on a worker that had the image | 0.9 s |
 | Copy of the baked source into a tree (165 MB) | about 1.5 s |
 | `dotnet build src/Tertius.Demo -c Release` in a tree | 15 to 21 s |
@@ -198,13 +205,15 @@ The first jobs ran on 2026-11-12 on the image of `8bded50b7`, 3.0 GB compressed.
 
 A build in a tree compiles every project again, also without a patch. MSBuild's restore files hold the absolute project paths under `/opt/tertius`, and a tree lives elsewhere. A build costs about $0.003, so a fix is not worth the machinery now.
 
-Runpod starts workers ahead of jobs: after the first job the endpoint listed 5 idle workers and 4 that waited for a GPU, with no job in the queue.
+Runpod starts workers ahead of jobs: after the first job the endpoint listed 5 idle workers and 4 that waited for a GPU, with no job in the queue. Runpod bills none of them: a worker that is initializing, idle or throttled is scaled down, and Runpod bills neither the image pull nor such a worker ([pricing](https://docs.runpod.io/serverless/pricing)). A worker bills from its cold start, 10 s on this endpoint with FlashBoot, through its jobs and the 10 s idle timeout.
 
 The deck of the Mac trace (`/private/tmp/tertius-sweep-20261111/trace/deck-maind-1/script.json`, 1920 × 1080) had a median GPU frame span of 11.20 ms over three runs, and 8.90 ms without the `capture` pass. The bring-up pod measured 12.89 ms and 10.33 ms on main of 2026-11-11. The difference is main's newer code, such as the thin diffuse filter: the indirect diffuse stage went from 2.71 ms to 1.42 ms.
 
 ### Rules for a job's commands
 
-- A command runs as `bash -c '<command>'` inside the dev shell. Its text is in that shell's command line. So `pkill -f <pattern>` with a pattern from the command stops the command itself. Stop a background process with `kill $!` instead.
+- A command runs as `bash -c '<command>'` inside the dev shell. Its text is in that shell's command line. So `pkill -f <pattern>` with a pattern from the command stops the command itself.
+- A process that a command starts in the background, such as a clock log, stops when the command ends. Start and use it in the same command.
+- The commands see none of the worker's `RUNPOD_*` variables.
 - If a command fails, the Runpod SDK marks the whole job FAILED. The audit log and `result.json` keep the handler's own result (`failed`, `timed out` or `refused`), and `result.json` keeps Runpod's status as `runpodStatus`.
 - The worker's image has no `bc`. Use `date +%s%N` and shell arithmetic for a time.
 

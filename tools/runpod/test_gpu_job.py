@@ -14,6 +14,7 @@ import json
 import subprocess
 import tempfile
 import unittest
+import urllib.error
 from pathlib import Path
 
 spec = importlib.util.spec_from_file_location("gpu_job", Path(__file__).with_name("gpu_job.py"))
@@ -28,8 +29,10 @@ REPOSITORY = "ghcr.io/x/tertius-gpu"
 class FakeRunpod:
     """Runpod's API as the queue script sees it: the billed total, and jobs that end with the given status."""
 
-    def __init__(self, billed=0.0, final=None, image=None):
+    def __init__(self, billed=0.0, final=None, image=None, billed_today=0.0, statuses=None):
         self.billed = billed
+        self.today = billed_today
+        self.statuses = statuses or {}  # job id -> its status, or an exception that the status call raises
         self.image = image
         self.final = final or {"status": "COMPLETED", "executionTime": 50_000, "delayTime": 3_000,
                                "output": {"status": "ok", "steps": [{"command": "x", "exitCode": 0, "seconds": 1.0}],
@@ -47,12 +50,18 @@ class FakeRunpod:
     def billed_total(self):
         return self.billed
 
+    def billed_today(self):
+        return self.today
+
     def submit(self, endpoint, body):
         self.submitted.append((endpoint, body))
         return f"job-{len(self.submitted)}"
 
     def status(self, endpoint, job):
-        return {"id": job, **self.final}
+        status = self.statuses.get(job, self.final)
+        if isinstance(status, Exception):
+            raise status
+        return {"id": job, **status}
 
     def cancel(self, endpoint, job):
         self.cancelled.append(job)
@@ -93,7 +102,13 @@ class Queue(unittest.TestCase):
         return [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
 
     def worst(self, seconds):
-        return (seconds + gpu_job.START_ALLOWANCE_SECONDS) * RATE
+        return (seconds + gpu_job.START_ALLOWANCE_SECONDS + gpu_job.IDLE_SECONDS) * RATE
+
+    def pending(self, name, *, job=None, when=NOW, expires=3600):
+        """A job in flight that another run of the script sent."""
+        gpu_job.write_pending(self.state, name, {"time": when.isoformat(), "agent": "other", "jobId": job,
+                                                 "endpoint": "ep1", "worstCaseUsd": self.worst(840),
+                                                 "expires": (when + datetime.timedelta(seconds=expires)).isoformat()})
 
     def logged(self, cost, when=NOW):
         self.state.mkdir(parents=True, exist_ok=True)
@@ -160,9 +175,14 @@ class Caps(Queue):
 
     def test_jobs_in_flight_count_against_the_caps_with_their_worst_case(self):
         self.logged(10.0 - 2 * self.worst(840) + 0.01)
-        gpu_job.reserve(self.state, "job-in-flight", self.worst(840), when=NOW)
-        api = FakeRunpod()
+        self.pending("in-flight", job="job-running")
+        api = FakeRunpod(statuses={"job-running": {"status": "IN_PROGRESS"}})
         self.assertEqual(self.submit(api), "refused")
+
+    def test_todays_bill_counts_against_the_daily_cap_even_when_the_log_holds_less(self):
+        api = FakeRunpod(billed_today=10.0 - self.worst(840) + 0.01)
+        self.assertEqual(self.submit(api), "refused")
+        self.assertEqual(api.submitted, [])
 
 
 class AuditLog(Queue):
@@ -174,19 +194,52 @@ class AuditLog(Queue):
         self.assertEqual(line["agent"], "agent-7")
         self.assertEqual(line["commands"], ["dotnet build", "echo done"])
         self.assertEqual(line["gpuSeconds"], 50.0)
-        self.assertAlmostEqual(line["costUsd"], 50.0 * RATE)
+        self.assertAlmostEqual(line["costUsd"], (50.0 + gpu_job.START_ALLOWANCE_SECONDS + gpu_job.IDLE_SECONDS) * RATE,
+                               msg="the cost counts a worker's start and its idle time, as the worst case does")
         self.assertEqual(line["result"], "ok")
 
-    def test_a_finished_job_frees_its_reservation(self):
+    def test_a_finished_job_leaves_nothing_in_flight(self):
         self.submit(FakeRunpod())
-        self.assertEqual(gpu_job.reserved(self.state), 0.0)
+        self.assertEqual(gpu_job.in_flight(self.state), [])
+
+    def test_a_job_whose_wait_fails_stays_in_flight_with_its_id(self):
+        api = FakeRunpod(statuses={"job-1": urllib.error.URLError("network down")})
+        with self.assertRaises(urllib.error.URLError):
+            self.submit(api)
+        held, = gpu_job.in_flight(self.state)
+        self.assertEqual(held["jobId"], "job-1")
+        self.assertEqual(self.log_lines(), [], "the job's line waits for its cost")
+
+    def test_the_next_run_settles_a_finished_job_that_another_run_lost(self):
+        self.pending("lost", job="job-lost")
+        api = FakeRunpod(statuses={"job-lost": {"status": "COMPLETED", "executionTime": 30_000,
+                                                "output": {"status": "ok", "steps": []}}})
+        self.submit(api)
+        lost = [line for line in self.log_lines() if line.get("jobId") == "job-lost"]
+        self.assertEqual(len(lost), 1)
+        self.assertAlmostEqual(lost[0]["costUsd"], (30.0 + gpu_job.START_ALLOWANCE_SECONDS + gpu_job.IDLE_SECONDS) * RATE)
+        self.assertEqual(gpu_job.in_flight(self.state), [])
+
+    def test_a_job_in_flight_without_an_id_is_settled_at_its_worst_case_when_it_expires(self):
+        self.pending("unsent", when=NOW - datetime.timedelta(hours=4), expires=3600)
+        self.submit(FakeRunpod())
+        unsent = [line for line in self.log_lines() if line["agent"] == "other"]
+        self.assertEqual(len(unsent), 1)
+        self.assertAlmostEqual(unsent[0]["costUsd"], self.worst(840))
+
+    def test_a_cancelled_job_without_an_execution_time_costs_its_worst_case(self):
+        api = FakeRunpod(final={"status": "CANCELLED"})
+        self.assertEqual(self.submit(api), "CANCELLED")
+        line, = self.log_lines()
+        self.assertGreater(line["costUsd"], 0.0)
+        self.assertAlmostEqual(line["costUsd"], line["worstCaseUsd"])
 
     def test_a_job_that_runpod_timed_out_still_logs_its_gpu_seconds_and_cost(self):
         api = FakeRunpod(final={"status": "TIMED_OUT", "executionTime": 900_000, "delayTime": 1_000})
         self.assertEqual(self.submit(api), "TIMED_OUT")
         line, = self.log_lines()
         self.assertEqual(line["result"], "TIMED_OUT")
-        self.assertAlmostEqual(line["costUsd"], 900.0 * RATE)
+        self.assertAlmostEqual(line["costUsd"], (900.0 + gpu_job.START_ALLOWANCE_SECONDS + gpu_job.IDLE_SECONDS) * RATE)
 
     def test_a_job_that_runpod_marks_failed_for_the_handlers_error_keeps_the_handlers_result(self):
         output = {**FakeRunpod().final["output"], "status": "failed", "error": "command 1 failed with exit code 2",

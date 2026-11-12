@@ -8,6 +8,7 @@ The standard library and git only. The tests run the commands in plain bash, whe
 
 import base64
 import importlib.util
+import os
 import subprocess
 import tempfile
 import unittest
@@ -56,8 +57,9 @@ class Job(unittest.TestCase):
         job.setdefault("base", BASE)
         job.setdefault("trees", {"main": ""})
         job.setdefault("commands", [])
+        job.setdefault("seconds", 30)
         return handler.handle(job, baked=self.baked, work=self.work, shell=SHELL,
-                              limits=handler.Limits(seconds=job.pop("seconds", 30), output_bytes=64, log_bytes=200))
+                              limits=handler.Limits(seconds=job.pop("ceiling", 60), output_bytes=64, log_bytes=200))
 
 
 class Trees(Job):
@@ -112,6 +114,28 @@ class Commands(Job):
         self.assertEqual(result["status"], "timed out")
         self.assertLess(result["steps"][0]["seconds"], 10)
 
+    def test_the_job_limit_is_the_jobs_own_seconds(self):
+        result = self.run_job(commands=["sleep 30"], seconds=1)
+        self.assertEqual(result["status"], "timed out")
+        self.assertIn("1 s", result["error"])
+
+    def test_a_job_that_asks_for_more_than_the_handlers_ceiling_gets_the_ceiling(self):
+        result = self.run_job(commands=["sleep 30"], seconds=3600, ceiling=1)
+        self.assertEqual(result["status"], "timed out")
+        self.assertIn("1 s", result["error"])
+
+    def test_a_background_process_stops_when_its_command_ends(self):
+        result = self.run_job(commands=["(sleep 47 &)", "sleep 0.5; ! pgrep -f 'sleep 47'"])
+        self.assertEqual(result["status"], "ok", result["log"])
+
+    def test_the_commands_do_not_see_runpods_variables(self):
+        os.environ["RUNPOD_AI_API_KEY"] = "worker-key"
+        try:
+            result = self.run_job(commands=['test -z "${RUNPOD_AI_API_KEY:-}"'])
+        finally:
+            del os.environ["RUNPOD_AI_API_KEY"]
+        self.assertEqual(result["status"], "ok", "a command such as env would copy the worker's key into the log")
+
     def test_the_log_keeps_the_end_of_the_output(self):
         result = self.run_job(commands=["for i in $(seq 1 100); do echo line-$i; done"])
         self.assertIn("line-100", result["log"])
@@ -126,6 +150,10 @@ class Outputs(Job):
         result = self.run_job(commands=["printf small > a.out", "head -c 100 /dev/zero > b.out"], outputs=["*.out"])
         self.assertEqual(set(result["files"]), {"a.out"})
         self.assertEqual(result["skipped"], {"b.out": 100})
+
+    def test_the_output_limit_counts_the_base64_size_that_the_result_carries(self):
+        result = self.run_job(commands=["head -c 60 /dev/zero > c.out"], outputs=["*.out"])
+        self.assertEqual(result["skipped"], {"c.out": 60}, "60 bytes take 80 in base64, past the limit of 64")
 
     def test_a_glob_outside_the_work_folder_is_refused(self):
         result = self.run_job(outputs=["../baked/a.txt"])
