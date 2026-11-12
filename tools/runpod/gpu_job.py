@@ -76,6 +76,9 @@ OURS = re.compile(rf"^{ENDPOINT_PREFIX}(-[0-9a-f]{{12}})?$")
 # The hidden refs that publish the jobs' commits: refs/gpu-jobs/<UTC day>/<agent>/<commit>. Not a branch or a tag, so
 # no clone fetches them. A ref goes after REF_DAYS days, long after its job's queue time and timeout.
 JOB_REFS = "refs/gpu-jobs"
+# Main as this repository last saw it on GitHub. The workflow gpu-image builds an image of each change of the image's
+# files on main, and every job not of a branch with its own image runs on main's newest image.
+MAIN = "refs/remotes/origin/main"
 REF_DAYS = 3
 COMMIT = re.compile(r"^[0-9a-f]{40}$")
 # The endpoint runs on the RTX 2000 Ada only, so that the timings of different jobs come from one kind of card. The
@@ -223,15 +226,17 @@ def scan(repo: Path, new: list) -> list:
     """The secrets in the commits of `new`, the commits that GitHub does not hold yet: gitleaks' findings, redacted,
     and the Runpod key's own text. Each finding names its rule, file and commit, never the secret. gitleaks comes from
     the repository's pinned nixpkgs, with its default rules: a commit's own .gitleaks.toml, .gitleaksignore or
-    gitleaks:allow comment cannot silence it."""
+    gitleaks:allow comment cannot silence it. Its source is the repository's git folder, not a working tree, because
+    gitleaks also reads a .gitleaksignore from its source folder."""
     if not new:
         return []
+    source = (repo / git(repo, "rev-parse", "--git-common-dir").decode().strip()).resolve()
     with tempfile.TemporaryDirectory() as folder:
         rules = Path(folder) / "gitleaks.toml"
         rules.write_text("[extend]\nuseDefault = true\n")
         (Path(folder) / ".gitleaksignore").write_text("")
         report = subprocess.run(["nix", "shell", "--inputs-from", str(repo), "nixpkgs#gitleaks", "--command",
-                                 "gitleaks", "git", str(repo), "--log-opts", " ".join(["-m", "--no-walk", *new]),
+                                 "gitleaks", "git", str(source), "--log-opts", " ".join(["-m", "--no-walk", *new]),
                                  "--config", str(rules), "--gitleaks-ignore-path", folder, "--ignore-gitleaks-allow",
                                  "--redact", "--no-banner", "--report-format", "json", "--report-path", "-",
                                  "--exit-code", "0", "--log-level", "error"],
@@ -268,31 +273,36 @@ def have(repo: Path, config: Config, sha: str) -> bool:
     return git_maybe(repo, "cat-file", "-t", sha) == "commit"
 
 
-def image_for(config: Config, registry, repo: Path, shell: tuple, shas: list) -> str:
-    """The commit of the newest image that has the shell and speaks this script's protocol. An image that the job's
-    commits descend from comes first, so that an image built from a side branch's tag runs only that branch's jobs.
-    The newest by commit time, and of two at the same second the one with more history, so that a handler fix
-    replaces its parent's image."""
+def image_for(config: Config, registry, repo: Path, shell: tuple, shas: list, main: str) -> str:
+    """The commit of the image that runs the job, among the images that have the shell and speak this script's
+    protocol. A branch's own image comes first: one that the job's commits descend from and that main does not hold,
+    built from the branch's tag. Otherwise the newest image of main, so that all jobs of main's images share one
+    endpoint. An image of another branch never runs the job. The newest by commit time, and of two at the same second
+    the one with more history."""
     images = registry.images()
     missing = [image for image in images if not have(repo, config, image)]
     fitting = [image for image in images if image not in missing
                and protocol_of(repo, image) == PROTOCOL and shell_of(repo, image) == shell]
-    if not fitting:
+    on_main = [image for image in fitting if ancestor(repo, image, main)]
+    own = [image for image in fitting if image not in on_main and any(ancestor(repo, image, sha) for sha in shas)]
+    if not (own or on_main):
         unread = f" The commits of {len(missing)} images could not be fetched: {', '.join(missing)}." if missing else ""
         raise Refused(f"no image has the dev shell of {shas[0]} and the handler protocol {PROTOCOL}: build "
                       f"{config.image_repository}:{shas[0]} with the workflow gpu-image first (tools/runpod/README.md, "
                       f"\"A new dev shell\").{unread}")
-    ancestors = [image for image in fitting if any(
-        subprocess.run(["git", "merge-base", "--is-ancestor", image, sha], cwd=repo).returncode == 0 for sha in shas)]
-    return max(ancestors or fitting, key=lambda image: (int(git(repo, "show", "-s", "--format=%ct", image)),
-                                                        int(git(repo, "rev-list", "--count", image))))
+    return max(own or on_main, key=lambda image: (int(git(repo, "show", "-s", "--format=%ct", image)),
+                                                  int(git(repo, "rev-list", "--count", image))))
+
+
+def ancestor(repo: Path, older: str, newer: str) -> bool:
+    return subprocess.run(["git", "merge-base", "--is-ancestor", older, newer], cwd=repo).returncode == 0
 
 
 def ours(api) -> list:
     return [endpoint for endpoint in api.endpoints() if OURS.match(endpoint.get("name", ""))]
 
 
-def stopped(endpoints: list):
+def refuse_if_stopped(endpoints: list):
     """Refuse while the watchdog or the orchestrator holds an endpoint at 0 workers."""
     ids = [endpoint["id"] for endpoint in endpoints if endpoint["workers"]["max"] == 0]
     if ids:
@@ -303,29 +313,28 @@ def route(config: Config, api, state: Path, image: str) -> str:
     """Under the lock, after the jobs in flight are settled: the id of the endpoint that runs `image`, created if no
     endpoint runs it. Every other endpoint of the script's that no job in flight names and no worker runs on goes. An
     endpoint at 0 workers was stopped by the watchdog or by hand, so then no job runs and nothing is deleted. The
-    watchdog does not take the lock, so the script reads the list again after a creation and before each deletion,
-    and it removes its new endpoint again when a stop came in between."""
+    watchdog does not take the lock, so every read of the list applies that rule: the first, one after a creation and
+    one before each deletion. A stop that one of them sees removes this run's new endpoint again."""
     endpoints = ours(api)
-    stopped(endpoints)
+    refuse_if_stopped(endpoints)
     wanted = f"{config.image_repository}:{image}"
     live = next((endpoint["id"] for endpoint in endpoints if endpoint["image"] == wanted), None)
     created = None
     if live is None:
         live = created = api.create_endpoint(endpoint_request(config, image))["id"]
     try:
-        stopped(ours(api))
+        refuse_if_stopped(ours(api))
+        busy = {pending["endpoint"] for pending in in_flight(state)}
+        for endpoint in endpoints:
+            if endpoint["id"] == live or endpoint["id"] in busy or any(
+                    worker.get("status") == "RUNNING" for worker in api.workers(endpoint["id"])):
+                continue
+            refuse_if_stopped(ours(api))
+            api.delete_endpoint(endpoint["id"])
     except Refused:
         if created is not None:
             api.delete_endpoint(created)
         raise
-    busy = {pending["endpoint"] for pending in in_flight(state)}
-    for endpoint in endpoints:
-        if endpoint["id"] == live or endpoint["id"] in busy or any(
-                worker.get("status") == "RUNNING" for worker in api.workers(endpoint["id"])):
-            continue
-        now = next((fresh for fresh in ours(api) if fresh["id"] == endpoint["id"]), None)
-        if now is not None and now["workers"]["max"] != 0:
-            api.delete_endpoint(endpoint["id"])
     return live
 
 
@@ -369,9 +378,13 @@ def owning(state: Path, name: str):
     system releases it when that run dies, so a held lock means that the run still fetches the job's result."""
     folder = state / "pending"
     folder.mkdir(parents=True, exist_ok=True)
-    with (folder / f"{name}.owner").open("w") as file:
+    path = folder / f"{name}.owner"
+    with path.open("w") as file:
         fcntl.flock(file, fcntl.LOCK_EX)
-        yield
+        try:
+            yield
+        finally:
+            path.unlink(missing_ok=True)
 
 
 def owned(state: Path, name: str) -> bool:
@@ -419,7 +432,6 @@ def settle(state: Path, pending: dict, ending: dict) -> bool:
     line = {key: value for key, value in pending.items() if key not in ("name", "expires")}
     append_log(state, {**line, **ending})
     path.unlink()
-    (path.parent / f"{pending['name']}.owner").unlink(missing_ok=True)
     return True
 
 
@@ -505,6 +517,11 @@ def git(repo: Path, *args) -> bytes:
     return subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True).stdout
 
 
+def text(output) -> str:
+    """A command's captured output as text, whether it was captured as bytes or as text."""
+    return (output.decode(errors="replace") if isinstance(output, bytes) else output or "").strip()
+
+
 def git_maybe(repo: Path, *args) -> str:
     """git's output, or "" when git fails, such as for a path that the commit does not have."""
     done = subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True)
@@ -515,85 +532,80 @@ def submit(request: Request, *, config: Config, api, registry, github, scan=scan
            poll_seconds: float = 5.0, out=print) -> str:
     """Run one job and return its result: ok, failed, timed out or refused from the handler, refused by the script, or
     Runpod's status when the job did not complete. If the script stops before the job's final status, the job stays
-    in pending/, with its id once Runpod accepted it, and the next run settles it."""
+    in pending/, with its id once Runpod accepted it, and the next run settles it. The run holds the job's owner lock
+    throughout. The order of the steps is the safety rule: nothing is published before the scan, the image's choice
+    and the caps, and nothing is sent before the commits are published."""
     now = now or (lambda: datetime.datetime.now(datetime.timezone.utc))
     name = uuid.uuid4().hex
     with owning(state, name):
-        return run_job(request, name, config=config, api=api, registry=registry, github=github, scan=scan,
-                       state=state, repo=repo, now=now, poll_seconds=poll_seconds, out=out)
-
-
-def run_job(request: Request, name: str, *, config, api, registry, github, scan, state, repo, now, poll_seconds,
-            out) -> str:
-    """submit's steps, while this run holds the job's owner lock. The order is the safety rule: nothing is published
-    before the scan, the image's choice and the caps, and nothing is sent before the commits are published."""
-    seconds = min(request.seconds, config.job_seconds)
-    execution = execution_seconds(config, seconds)
-    worst = worst_case_usd(config, seconds)
-    pending = {"time": now().isoformat(), "agent": request.agent, "endpoint": None, "image": None,
-               "trees": {tree: {"ref": ref} for tree, ref in request.trees.items()},
-               "commands": request.commands, "outputs": request.outputs, "worstCaseUsd": worst, "jobId": None,
-               "expires": (now() + datetime.timedelta(seconds=QUEUE_SECONDS + execution)).isoformat(), "name": name}
-    try:
-        shas = commits(request, repo)
-        trees = {tree: {"sha": sha, "ref": job_ref(request.agent, sha, now())} for tree, sha in shas.items()}
-        pending["trees"] = {tree: {"ref": request.trees[tree], **trees[tree]} for tree in trees}
-        shells = {shell_of(repo, sha) for sha in shas.values()}
-        if len(shells) > 1:
-            raise Refused(f"the trees have {len(shells)} dev shells, and a job runs in one; give the trees the same "
-                          f"{', '.join(SHELL_PATHS)}")
-        findings = scan(repo, github.new_commits(sorted(set(shas.values()))))
-        if findings:
-            raise Refused(f"the secrets scan found {'; '.join(findings)}; nothing was published")
-        pending["image"] = image_for(config, registry, repo, shells.pop(), list(shas.values()))
+        seconds = min(request.seconds, config.job_seconds)
+        execution = execution_seconds(config, seconds)
+        worst = worst_case_usd(config, seconds)
+        pending = {"time": now().isoformat(), "agent": request.agent, "endpoint": None, "image": None,
+                   "trees": {tree: {"ref": ref} for tree, ref in request.trees.items()},
+                   "commands": request.commands, "outputs": request.outputs, "worstCaseUsd": worst, "jobId": None,
+                   "expires": (now() + datetime.timedelta(seconds=QUEUE_SECONDS + execution)).isoformat(), "name": name}
+        try:
+            shas = commits(request, repo)
+            trees = {tree: {"sha": sha, "ref": job_ref(request.agent, sha, now())} for tree, sha in shas.items()}
+            pending["trees"] = {tree: {"ref": request.trees[tree], **trees[tree]} for tree in trees}
+            shells = {shell_of(repo, sha) for sha in shas.values()}
+            if len(shells) > 1:
+                raise Refused(f"the trees have {len(shells)} dev shells, and a job runs in one; give the trees the same "
+                              f"{', '.join(SHELL_PATHS)}")
+            findings = scan(repo, github.new_commits(sorted(set(shas.values()))))
+            if findings:
+                raise Refused(f"the secrets scan found {'; '.join(findings)}; nothing was published")
+            pending["image"] = image_for(config, registry, repo, shells.pop(), list(shas.values()),
+                                         git(repo, "rev-parse", "--verify", MAIN).decode().strip())
+            with locked(state):
+                settle_lost(config, state, api, now())
+                reason = refusal(config, state, api, worst, now())
+                if reason is not None:
+                    raise Refused(reason)
+                pending["endpoint"] = route(config, api, state, pending["image"])
+                write_pending(state, name, pending)
+        except (Refused, subprocess.CalledProcessError, OSError, ValueError) as error:
+            # Before the record of the job in flight, nothing was published or sent. A failed git command, registry or
+            # Runpod call refuses the job too, and the log says why.
+            reason = str(error)
+            if isinstance(error, subprocess.CalledProcessError):
+                reason = f"{' '.join(map(str, error.cmd))} failed: {text(error.stderr)}"
+            line = {key: value for key, value in pending.items() if key not in ("name", "expires")}
+            with locked(state):
+                append_log(state, {**line, "gpuSeconds": 0.0, "costUsd": 0.0, "result": "refused", "error": reason})
+            out(f"refused: {reason}")
+            return "refused"
+        body = {"input": {"protocol": PROTOCOL, "repository": config.repository, "trees": trees,
+                          "commands": request.commands, "outputs": request.outputs, "seconds": seconds},
+                "policy": {"executionTimeout": execution * 1000, "ttl": QUEUE_SECONDS * 1000}}
+        try:
+            for tree in trees.values():
+                github.push(tree["sha"], tree["ref"])
+            pending["jobId"] = api.submit(pending["endpoint"], body)
+        except (urllib.error.HTTPError, subprocess.CalledProcessError) as error:
+            # A failed push sends nothing, and Runpod answered /run without a job, so neither bills. A timeout or a lost
+            # connection of /run stays ambiguous, and the job stays in flight until it expires.
+            reason = (f"/run answered {error.code} {error.reason}" if isinstance(error, urllib.error.HTTPError)
+                      else f"the push of the trees' commits failed: {text(error.stderr)}")
+            with locked(state):
+                settle(state, pending, {"gpuSeconds": 0.0, "costUsd": 0.0, "result": "rejected", "error": reason})
+            raise
         with locked(state):
-            settle_lost(config, state, api, now())
-            reason = refusal(config, state, api, worst, now())
-            if reason is not None:
-                raise Refused(reason)
-            pending["endpoint"] = route(config, api, state, pending["image"])
             write_pending(state, name, pending)
-    except (Refused, subprocess.CalledProcessError, urllib.error.URLError, KeyError) as error:
-        # Before the record of the job in flight, nothing was published or sent. A failed git command, registry or
-        # Runpod call refuses the job too, and the log says why.
-        reason = str(error)
-        if isinstance(error, subprocess.CalledProcessError):
-            reason = f"{' '.join(map(str, error.cmd))} failed: {(error.stderr or b'').decode(errors='replace').strip()}"
-        line = {key: value for key, value in pending.items() if key not in ("name", "expires")}
+        out(f"job {pending['jobId']} sent to endpoint {pending['endpoint']}; worst case ${worst:.2f}")
+        try:
+            prune(github, now())
+        except subprocess.CalledProcessError as error:
+            out(f"the old hidden refs stay for now: {text(error.stderr)}")
+        status = wait(api, pending["endpoint"], pending["jobId"], poll_seconds)
+        settled = ending(config, worst, status)
         with locked(state):
-            append_log(state, {**line, "gpuSeconds": 0.0, "costUsd": 0.0, "result": "refused", "error": reason})
-        out(f"refused: {reason}")
-        return "refused"
-    body = {"input": {"protocol": PROTOCOL, "repository": config.repository, "trees": trees,
-                      "commands": request.commands, "outputs": request.outputs, "seconds": seconds},
-            "policy": {"executionTimeout": execution * 1000, "ttl": QUEUE_SECONDS * 1000}}
-    try:
-        for tree in trees.values():
-            github.push(tree["sha"], tree["ref"])
-        pending["jobId"] = api.submit(pending["endpoint"], body)
-    except (urllib.error.HTTPError, subprocess.CalledProcessError) as error:
-        # A failed push sends nothing, and Runpod answered /run without a job, so neither bills. A timeout or a lost
-        # connection of /run stays ambiguous, and the job stays in flight until it expires.
-        reason = (f"/run answered {error.code} {error.reason}" if isinstance(error, urllib.error.HTTPError)
-                  else f"the push of the trees' commits failed: {error.stderr.decode(errors='replace').strip()}")
-        with locked(state):
-            settle(state, pending, {"gpuSeconds": 0.0, "costUsd": 0.0, "result": "rejected", "error": reason})
-        raise
-    with locked(state):
-        write_pending(state, name, pending)
-    out(f"job {pending['jobId']} sent to endpoint {pending['endpoint']}; worst case ${worst:.2f}")
-    try:
-        prune(github, now())
-    except subprocess.CalledProcessError as error:
-        out(f"the old hidden refs stay for now: {error.stderr.decode(errors='replace').strip()}")
-    status = wait(api, pending["endpoint"], pending["jobId"], poll_seconds)
-    settled = ending(config, worst, status)
-    with locked(state):
-        settle(state, pending, settled)
-    write_outputs(request.out, status, settled["result"])
-    out(f"job {pending['jobId']}: {settled['result']}, {settled['gpuSeconds']:.0f} GPU seconds, counted as "
-        f"${settled['costUsd']:.4f}; result in {request.out}")
-    return settled["result"]
+            settle(state, pending, settled)
+        write_outputs(request.out, status, settled["result"])
+        out(f"job {pending['jobId']}: {settled['result']}, {settled['gpuSeconds']:.0f} GPU seconds, counted as "
+            f"${settled['costUsd']:.4f}; result in {request.out}")
+        return settled["result"]
 
 
 def wait(api, endpoint: str, job: str, poll_seconds: float) -> dict:

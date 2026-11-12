@@ -136,6 +136,7 @@ class Queue(unittest.TestCase):
         self.repo.mkdir()
         self.git("init", "-q")
         self.base = self.commit({**SHELL_FILES, **HANDLER, "a.txt": "base\n"})
+        self.on_main(self.base)
         self.state = root / "state"
         self.config = gpu_job.Config(image_repository=REPOSITORY, repository="https://github.com/x/tertius.git",
                                      rate_per_second=RATE, daily_cap_usd=10.0, total_cap_usd=30.0, job_seconds=840,
@@ -165,6 +166,10 @@ class Queue(unittest.TestCase):
                        cwd=self.repo, check=True, env={"GIT_COMMITTER_DATE": date, "GIT_AUTHOR_DATE": date,
                                                        "PATH": "/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin"})
         return self.git("rev-parse", "HEAD").strip()
+
+    def on_main(self, sha):
+        """Main as the repository last saw it on GitHub."""
+        self.git("update-ref", gpu_job.MAIN, sha)
 
     def endpoint(self, commit, id="ep1", most=6):
         return {"id": id, "name": "tertius-gpu", "image": f"{REPOSITORY}:{commit}", "workers": {"min": 0, "max": most}}
@@ -255,6 +260,16 @@ class Secrets(Queue):
         self.submit(self.api(), trees={"main": self.base, "branch": branch}, github=FakeGitHub(known=[self.base]))
         self.assertEqual(self.scanned[0], [branch])
 
+    def test_a_scan_that_cannot_run_refuses_the_job_in_the_audit_log(self):
+        def broken(repo, shas):
+            raise subprocess.CalledProcessError(1, ["nix", "shell"], stderr="cannot fetch gitleaks")
+        self.scan = broken
+        api = self.api()
+        self.assertEqual(self.submit(api), "refused")
+        self.assertEqual((api.submitted, self.github.pushed), ([], []))
+        self.assertIn("cannot fetch gitleaks", self.log_lines()[-1]["error"])
+        self.assertEqual(list((self.state / "pending").glob("*")), [], "a refused job leaves no file in flight")
+
     def test_a_tree_whose_ref_names_no_commit_is_refused_in_the_audit_log(self):
         api = self.api()
         self.assertEqual(self.submit(api, trees={"main": "no-such-branch"}), "refused")
@@ -332,9 +347,24 @@ class DevShells(Queue):
         side = self.commit({**SHELL_FILES, "tools/runpod/handler.py": "PROTOCOL = 2\n# an experiment\n"})
         self.git("checkout", "-q", "--detach", self.base)
         main = self.commit({**SHELL_FILES, **HANDLER, "a.txt": "main moves on\n"})
+        self.on_main(main)
         api = self.api()
         self.submit(api, trees={"main": main}, images=[self.base, side])
         self.assertEqual((api.submitted[0][0], api.created, api.deleted), ("ep1", [], []))
+
+    def test_a_job_from_an_older_commit_of_main_runs_on_mains_newest_image_with_the_other_jobs(self):
+        newer = self.commit({**SHELL_FILES, "tools/runpod/handler.py": "PROTOCOL = 2\n# a fix on main\n"})
+        self.on_main(newer)
+        api = self.api(endpoints=[self.endpoint(newer)])
+        self.submit(api, trees={"main": self.base}, images=[self.base, newer])
+        self.assertEqual((api.submitted[0][0], api.created, api.deleted), ("ep1", [], []))
+
+    def test_a_stop_seen_just_before_a_deletion_refuses_the_job_and_removes_the_new_endpoint(self):
+        shell = self.commit({**SHELL_FILES, **HANDLER, "flake.lock": "{ newer }\n"})
+        api = self.api()
+        api.stop_at_listing = (3, "ep1")
+        self.assertEqual(self.submit(api, trees={"main": shell}, images=[self.base, shell]), "refused")
+        self.assertEqual(([endpoint["id"] for endpoint in api.live], api.submitted), (["ep1"], []))
 
     def test_an_endpoint_that_the_script_did_not_name_is_never_deleted(self):
         shell = self.commit({**SHELL_FILES, **HANDLER, "flake.lock": "{ newer }\n"})

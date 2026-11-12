@@ -38,7 +38,7 @@ A job names its trees' commits, not their files. Before the job, the script does
 1. It finds the commit of each tree's ref.
 2. If the trees have different dev shells (next section), it refuses the job.
 3. It asks GitHub for its branches and tags with `git ls-remote`. Then it scans for secrets each commit of the job's history that none of them holds. The script asks GitHub itself, because origin's tracking refs also move when a push reaches only the knot.
-   - The scan is gitleaks with its default rules and `--redact`, from the repository's pinned nixpkgs (8.30.1 on 2026-11-12). It also reads the changes of merge commits. A commit's own `.gitleaks.toml`, `.gitleaksignore` or `gitleaks:allow` comment cannot silence it.
+   - The scan is gitleaks with its default rules and `--redact`, from the repository's pinned nixpkgs (8.30.1 on 2026-11-12). It also reads the changes of merge commits. A commit's own `.gitleaks.toml` or `gitleaks:allow` comment cannot silence it. The scan reads the repository's git folder, not a working tree, so a `.gitleaksignore` in the working tree cannot silence it either.
    - A second search looks for the text of the Runpod key.
    - A finding refuses the job, and the script publishes nothing. The log names the rule, the file and the commit, never the secret.
 4. It picks the image, checks the caps, picks or creates the endpoint, and records the job as in flight.
@@ -54,12 +54,16 @@ The job's input no longer holds the trees' files. So its size limit of 10 MB no 
 
 A commit's dev shell is the content of `flake.nix`, `flake.lock` and `native/`. The image bakes one dev shell, so a job runs only in an image of its commits' dev shell. A job also needs an image whose handler speaks the script's protocol: the number `PROTOCOL` in `handler.py` and `gpu_job.py`. The script reads both from each image's commit.
 
-Before each job, the script lists the images of the registry. It takes the newest image whose commit has the job's dev shell and whose handler speaks the protocol. Then it looks for the endpoint that runs that image. Runpod's list of endpoints is the one store of the live endpoint: the script finds it by its image, and no file holds its id.
+Before each job, the script lists the images of the registry. Of the images whose commit has the job's dev shell and whose handler speaks the protocol, it takes one in this order:
+
+1. The branch's own image: the newest one that the job's commits descend from and that main does not hold. A tag `gpu-image-*` on the branch builds it.
+2. Otherwise, the newest image of main. So the jobs of all branches without their own image share one endpoint.
+
+An image of another branch never runs the job. "Main" is `refs/remotes/origin/main`, main as the repository last fetched it from GitHub. Then it looks for the endpoint that runs that image. Runpod's list of endpoints is the one store of the live endpoint: the script finds it by its image, and no file holds its id.
 
 - If no endpoint runs the image, the script creates one: `tertius-gpu-<12 characters of the commit>`, with 0 to 6 workers, a 900 s timeout per job, FlashBoot and the 16 GB pool `AMPERE_16` without its other three cards. So every job runs on an RTX 2000 Ada. `gpu_job.py endpoint-request <commit>` prints that request and sends nothing.
 - Then the script looks at each other endpoint of its own: `tertius-gpu-<12 hex characters>`, or the first endpoint with the bare name `tertius-gpu`. When no job in flight names it and no worker on it runs, the script deletes it. An old endpoint thus goes after its last job, and no job of it is cut. The script deletes no other endpoint.
-- If any endpoint of the script has a maximum of 0 workers, the script refuses every job and deletes nothing. When the spending nears its limit, the orchestrator's watchdog stops all endpoints that way. The watchdog does not take the script's lock. So the script reads the list of endpoints again after it creates one and before each deletion. If a stop came in between, it deletes its new endpoint again and refuses the job.
-- An image that the job's commits descend from comes before other images of the same dev shell. So an image built from a side branch's tag runs only the jobs of that branch.
+- If any endpoint of the script has a maximum of 0 workers, the script refuses every job and deletes nothing. When the spending nears its limit, the orchestrator's watchdog stops all endpoints that way. The watchdog does not take the script's lock. So the script reads the list of endpoints again after it creates one and before each deletion. If one of those reads shows a stop, the script deletes its new endpoint again and refuses the job. This narrows the race but does not close it: a watchdog that listed the endpoints before the script created one does not stop the new one in that round. Its next round, 5 minutes later, does, and the caps stay a separate guard.
 
 So a new image replaces the old endpoint without a drain: new jobs go to the new endpoint, and the jobs of the old one finish there. The caps and the audit log count the jobs of every endpoint, because each job records its own endpoint.
 
