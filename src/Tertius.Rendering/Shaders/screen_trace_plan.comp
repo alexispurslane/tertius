@@ -1,6 +1,6 @@
 #version 460
 // The ray plan of the screen tracer (docs/plans/temporal-renderer.md, section 6, "The ray budget"): one invocation per
-// pixel decides, for each kind that the pixel starts, whether it traces a ray of its own, writes the plan's bits and
+// pixel writes the light that leaves the pixel toward a ray of each kind into the hit light image, and decides, for each kind that the pixel starts, whether it traces a ray of its own, writes the plan's bits and
 // lists the pixel in the kind's own-ray list. A block's chosen pixel traces the block's ray instead. Another pixel traces
 // its own ray while its history of the kind is shorter than FullRateFrames, or where the block's ray does not fit it. With
 // the precise specular history, a block's reflection ray fits a pixel only inside the pixel's reflection lobe
@@ -176,6 +176,13 @@ void main()
     vec2 record = lightAgeOf(pixel);
     imageStore(lightAge, pixel, vec4(record, 0.0, 0.0));
 #endif
+    // The hit light of each kind: the sky's stays as it is, because no walk hits it.
+    if (hittable(pixel))
+    {
+        LeavingLight leaving = leavingLightAt(pixel);
+        imageStore(hitLight, ivec3(pixel, KindReflection), vec4(leaving.reflection, 0.0));
+        imageStore(hitLight, ivec3(pixel, KindDiffuse), vec4(leaving.diffuse, 0.0));
+    }
     uint plan = 0u;
     if (tracedSurface(pixel))
     {
