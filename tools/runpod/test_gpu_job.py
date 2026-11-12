@@ -24,6 +24,7 @@ spec.loader.exec_module(gpu_job)
 
 NOW = datetime.datetime(2026, 11, 12, 12, 0, tzinfo=datetime.timezone.utc)
 RATE = 0.00016
+QUOTA = 10  # the account's workers, summed over the maximums of all its endpoints
 REPOSITORY = "ghcr.io/x/tertius-gpu"
 SHELL_FILES = {"flake.nix": "{ outputs = _: { }; }\n", "flake.lock": "{}\n", "native/joltc.nix": "joltc\n"}
 HANDLER = {"tools/runpod/handler.py": "PROTOCOL = 2\n"}
@@ -63,11 +64,23 @@ class FakeRunpod:
         return [dict(endpoint, workers=dict(endpoint["workers"])) for endpoint in self.live]
 
     def create_endpoint(self, body):
+        held = sum(live["workers"]["max"] for live in self.live)
+        if held + body["workers"]["max"] > QUOTA:
+            raise urllib.error.HTTPError("url", 400, "Max workers across all endpoints must not exceed your workers "
+                                         "quota", {}, None)
         endpoint = {"id": f"ep-new-{len(self.created) + 1}", "name": body["name"], "image": body["image"],
                     "workers": body["workers"]}
         self.created.append(body)
         self.live.append(endpoint)
         return endpoint
+
+    def update_endpoint(self, endpoint, body):
+        for live in self.live:
+            if live["id"] == endpoint:
+                if sum(other["workers"]["max"] for other in self.live if other is not live) + \
+                        body["workers"]["max"] > QUOTA:
+                    raise urllib.error.HTTPError("url", 400, "quota", {}, None)
+                live["workers"] = {**live["workers"], **body["workers"]}
 
     def delete_endpoint(self, endpoint):
         self.deleted.append(endpoint)
@@ -298,9 +311,33 @@ class DevShells(Queue):
         self.submit(api, trees={"main": shell}, images=[self.base, shell])
         created, = api.created
         self.assertEqual(created["image"], f"{REPOSITORY}:{shell}")
-        self.assertEqual((created["workers"]["min"], created["workers"]["max"]), (0, 6))
         self.assertEqual(api.submitted[0][0], "ep-new-1")
         self.assertEqual(api.deleted, ["ep1"])
+        live, = api.live
+        self.assertEqual((live["workers"]["min"], live["workers"]["max"]), (0, 6), "the old endpoint's workers came back")
+
+    def test_a_new_endpoint_beside_a_busy_one_gets_the_workers_that_the_quota_leaves(self):
+        shell = self.commit({**SHELL_FILES, **HANDLER, "flake.lock": "{ newer }\n"})
+        self.pending("running", job="job-running", endpoint="ep1")
+        api = self.api(statuses={"job-running": {"status": "IN_PROGRESS"}})
+        self.assertEqual(self.submit(api, trees={"main": shell}, images=[self.base, shell]), "ok")
+        self.assertEqual({live["id"]: live["workers"]["max"] for live in api.live}, {"ep1": 6, "ep-new-1": QUOTA - 6})
+
+    def test_the_next_job_after_the_old_endpoint_goes_gives_the_new_one_its_six_workers(self):
+        shell = self.commit({**SHELL_FILES, **HANDLER, "flake.lock": "{ newer }\n"})
+        api = self.api(endpoints=[self.endpoint(self.base), self.endpoint(shell, id="ep2", most=4)])
+        self.submit(api, trees={"main": shell}, images=[self.base, shell])
+        self.assertEqual({live["id"]: live["workers"]["max"] for live in api.live}, {"ep2": 6})
+
+    def test_a_job_is_refused_when_other_endpoints_hold_the_whole_worker_quota(self):
+        shell = self.commit({**SHELL_FILES, **HANDLER, "flake.lock": "{ newer }\n"})
+        self.pending("running", job="job-running", endpoint="ep1")
+        other = {"id": "cpu", "name": "someone-else", "image": "x", "workers": {"min": 0, "max": 4}}
+        api = self.api(endpoints=[self.endpoint(self.base), other],
+                       statuses={"job-running": {"status": "IN_PROGRESS"}})
+        self.assertEqual(self.submit(api, trees={"main": shell}, images=[self.base, shell]), "refused")
+        self.assertEqual((api.created, api.submitted), ([], []))
+        self.assertIn("worker quota", self.log_lines()[-1]["error"])
 
     def test_an_endpoint_with_a_job_in_flight_stays(self):
         shell = self.commit({**SHELL_FILES, **HANDLER, "flake.lock": "{ newer }\n"})
@@ -368,7 +405,7 @@ class DevShells(Queue):
 
     def test_an_endpoint_that_the_script_did_not_name_is_never_deleted(self):
         shell = self.commit({**SHELL_FILES, **HANDLER, "flake.lock": "{ newer }\n"})
-        mine = {**self.endpoint(self.base, id="ep-hand"), "name": "tertius-gpu-by-hand"}
+        mine = {**self.endpoint(self.base, id="ep-hand", most=2), "name": "tertius-gpu-by-hand"}
         api = self.api(endpoints=[self.endpoint(self.base), mine])
         self.submit(api, trees={"main": shell}, images=[self.base, shell])
         self.assertEqual(api.deleted, ["ep1"])

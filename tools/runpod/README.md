@@ -65,6 +65,8 @@ An image of another branch never runs the job. "Main" is `refs/remotes/origin/ma
 - Then the script looks at each other endpoint of its own: `tertius-gpu-<12 hex characters>`, or the first endpoint with the bare name `tertius-gpu`. When no job in flight names it and no worker on it runs, the script deletes it. An old endpoint thus goes after its last job, and no job of it is cut. The script deletes no other endpoint.
 - If any endpoint of the script has a maximum of 0 workers, the script refuses every job and deletes nothing. When the spending nears its limit, the orchestrator's watchdog stops all endpoints that way. The watchdog does not take the script's lock. So the script reads the list of endpoints again after it creates one and before each deletion. If one of those reads shows a stop, the script deletes its new endpoint again and refuses the job. This narrows the race but does not close it: a watchdog that listed the endpoints before the script created one does not stop the new one in that round. Its next round, 5 minutes later, does, and the caps stay a separate guard.
 
+Runpod limits the account to 10 workers, summed over the maximums of all its endpoints. So a new endpoint beside a busy old one gets the workers that the quota leaves, 4 beside an old endpoint of 6. A later job, after the old endpoint goes, raises it to 6. If other endpoints hold the whole quota, the script refuses the job.
+
 So a new image replaces the old endpoint without a drain: new jobs go to the new endpoint, and the jobs of the old one finish there. The caps and the audit log count the jobs of every endpoint, because each job records its own endpoint.
 
 ## A new dev shell
