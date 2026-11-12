@@ -127,6 +127,6 @@
     {"name": "lamp-hall-64-spot-moving", "scene": "lamp-hall-64-spot-moving", "camera": null, "ticks": 10, "frames": 240, "samples": [60, 120, 180, 230]}
   ],
   "walks": [
-    {"name": "cabin-walk", "scene": "orbit", "camera": "person", "ticks": 60, "key": 87, "walk": 120, "after": 200}
+    {"name": "cabin-walk", "scene": "orbit", "camera": "person", "ticks": 60, "key": 87, "stand": 180, "walk": 120, "after": 200}
   ]
 }
