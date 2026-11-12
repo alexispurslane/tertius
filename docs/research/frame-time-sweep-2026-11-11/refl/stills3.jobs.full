@@ -1,0 +1,25 @@
+# The patched MoltenVK against the stock one on the deck: the same build and script, so the images must match. The third
+# run turns on Metal's API validation, which stops the run at an illegal use of a fence. MVK_SWEEP_LOG prints each label,
+# barrier, dispatch and new Metal encoder into the run's log.
+P=$(readlink $S/mvk-patched 2>/dev/null)/share/vulkan/icd.d/MoltenVK_icd.json
+export SWEEP_EXPOSURE=0.7041458
+run base deck.json mvk-stock; keep mvk-stock deckfilm 000026
+[ -f $P ] && { VK_ICD_FILENAMES=$P MVK_SWEEP_LOG=1 run base deck.json mvk-keep; keep mvk-keep deckfilm 000026; }
+[ -f $P ] && { VK_ICD_FILENAMES=$P MTL_DEBUG_LAYER=1 run base deck.json mvk-keep-validate; keep mvk-keep-validate deckfilm 000026; }
+[ -f $P ] && { VK_ICD_FILENAMES=$P MVK_SWEEP_LOG=1 MVK_SWEEP_END_ENCODER_AT_BARRIER=1 run base deck.json mvk-end; keep mvk-end deckfilm 000026; }
+[ -f $P ] && { VK_ICD_FILENAMES=$P MVK_SWEEP_LOG=1 MVK_SWEEP_CONCURRENT_DISPATCH=1 run base deck.json mvk-conc; keep mvk-conc deckfilm 000026; }
+[ -f $P ] && { VK_ICD_FILENAMES=$P MVK_SWEEP_CONCURRENT_DISPATCH=1 MTL_DEBUG_LAYER=1 run base deck.json mvk-conc-validate; keep mvk-conc-validate deckfilm 000026; }
+[ -f $P ] && { VK_ICD_FILENAMES=$P MVK_SWEEP_LOG=1 MVK_SWEEP_KEEP_ANY_DEST=1 run base deck.json mvk-any; keep mvk-any deckfilm 000026; }
+[ -f $P ] && { VK_ICD_FILENAMES=$P MVK_SWEEP_KEEP_ANY_DEST=1 MVK_SWEEP_CONCURRENT_DISPATCH=1 MTL_DEBUG_LAYER=1 run base deck.json mvk-any-conc-validate; keep mvk-any-conc-validate deckfilm 000026; }
+[ -f $P ] && { VK_ICD_FILENAMES=$P MVK_SWEEP_LOG=1 run base deck.json mvk-keep-ns --pass-timestamps off; }
+[ -f $P ] && { VK_ICD_FILENAMES=$P MVK_SWEEP_LOG=1 MVK_SWEEP_KEEP_ANY_DEST=1 run base deck.json mvk-any-ns --pass-timestamps off; }
+# The Metal shader source that stock MoltenVK makes from each SPIR-V shader, for a read of the translation.
+MVK_CONFIG_SHADER_DUMP_DIR=$S/msl-dump run base deck.json mvk-dump; keep mvk-dump deckfilm 000026
+export SWEEP_EXPOSURE=-7.2156887
+run ownall reference3.json reference; [ -f $R/out3/reference/done ] && mean reference ref 120
+for v in ownw1 ownw4 ownw4half ssr4half; do run $v views2.json $v; keep $v lowfilm 000026; done
+export SWEEP_EXPOSURE=0.7041458
+for v in ownw1 ownw4 ownw4half; do run $v deck.json deck-$v; keep deck-$v deckfilm 000026; done
+unset SWEEP_EXPOSURE
+film place-on base exit-floor.json
+film place-off base exit-floor.json TERTIUS_DEBUG_REFLECTED_PLACE=off

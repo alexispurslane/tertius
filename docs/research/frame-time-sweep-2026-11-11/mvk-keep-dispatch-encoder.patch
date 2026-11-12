@@ -1,0 +1,254 @@
+diff -u -r a/MoltenVK/MoltenVK/Commands/MVKCmdDebug.mm b/MoltenVK/MoltenVK/Commands/MVKCmdDebug.mm
+--- a/MoltenVK/MoltenVK/Commands/MVKCmdDebug.mm	2026-11-11 22:10:50
++++ b/MoltenVK/MoltenVK/Commands/MVKCmdDebug.mm	2026-11-11 22:10:51
+@@ -42,6 +42,7 @@
+ // Vulkan debug groups are more general than Metal's.
+ // If a renderpass is active, push on the render command encoder, otherwise push on the command buffer.
+ void MVKCmdDebugMarkerBegin::encode(MVKCommandEncoder* cmdEncoder) {
++	if (mvkSweepLogs()) { fprintf(stderr, "[sweep] label %s\n", [_markerName UTF8String]); }
+ 	id<MTLRenderCommandEncoder> mtlCmdEnc = cmdEncoder->_mtlRenderEncoder;
+ 	if (mtlCmdEnc) {
+ 		[mtlCmdEnc pushDebugGroup: _markerName];
+diff -u -r a/MoltenVK/MoltenVK/Commands/MVKCmdDispatch.mm b/MoltenVK/MoltenVK/Commands/MVKCmdDispatch.mm
+--- a/MoltenVK/MoltenVK/Commands/MVKCmdDispatch.mm	2026-11-11 22:11:05
++++ b/MoltenVK/MoltenVK/Commands/MVKCmdDispatch.mm	2026-11-11 22:11:27
+@@ -46,6 +46,7 @@
+ 	MTLRegion mtlThreadgroupCount = MTLRegionMake3D(_baseGroupX, _baseGroupY, _baseGroupZ, _groupCountX, _groupCountY, _groupCountZ);
+ 	cmdEncoder->finalizeDispatchState();	// Ensure all updated state has been submitted to Metal
+ 	id<MTLComputeCommandEncoder> mtlEncoder = cmdEncoder->getMTLComputeEncoder(kMVKCommandUseDispatch);
++	if (mvkSweepLogs()) { fprintf(stderr, "[sweep] dispatch\n"); }
+ 	auto* pipeline = cmdEncoder->getComputePipeline();
+ 	if (pipeline->allowsDispatchBase()) {
+ 		// We'll use the stage-input region to pass the base along to the shader.
+diff -u -r a/MoltenVK/MoltenVK/Commands/MVKCmdPipeline.mm b/MoltenVK/MoltenVK/Commands/MVKCmdPipeline.mm
+--- a/MoltenVK/MoltenVK/Commands/MVKCmdPipeline.mm	2026-11-11 21:59:45
++++ b/MoltenVK/MoltenVK/Commands/MVKCmdPipeline.mm	2026-11-11 22:26:35
+@@ -24,6 +24,7 @@
+ #include "MVKPipeline.h"
+ #include "MVKFoundation.h"
+ #include "mvk_datatypes.hpp"
++#include <cstdlib>
+ 
+ 
+ #pragma mark -
+@@ -158,11 +159,28 @@
+ #endif
+ 
+ 	if (!cmdEncoder->_mtlRenderEncoder && cmdEncoder->isUsingMetalArgumentBuffers() && cmdEncoder->getDevice()->hasResidencySet()) {
+-		cmdEncoder->endCurrentMetalEncoding();
++		// A barrier whose destinations are all the compute stage keeps an open compute encoder of dispatches.
++		// MVK_SWEEP_KEEP_ANY_DEST in the environment keeps it for every destination stage.
++		// MVK_SWEEP_END_ENCODER_AT_BARRIER in the environment gives the stock behavior: every barrier ends the encoder.
++		static const bool endsAlways = getenv("MVK_SWEEP_END_ENCODER_AT_BARRIER") != nullptr;
++		static const bool keepsAnyDest = getenv("MVK_SWEEP_KEEP_ANY_DEST") != nullptr;
++		uint64_t allDestStages = 0;
++		for (auto& b : _barriers) { allDestStages |= mvkBarrierStagesFromPipelineStageFlags(b.dstStageMask); }
++		bool keepsEncoder = !endsAlways && (keepsAnyDest || allDestStages == (1ull << kMVKBarrierStageCompute)) && cmdEncoder->hasOpenDispatchEncoder();
++		if (mvkSweepLogs()) {
++			uint64_t allSourceStages = 0;
++			for (auto& b : _barriers) { allSourceStages |= mvkBarrierStagesFromPipelineStageFlags(b.srcStageMask); }
++			fprintf(stderr, "[sweep] barrier entries=%zu src=%llx dst=%llx open=%s stamps=%zu kept=%d\n", (size_t)_barriers.size(), (unsigned long long)allSourceStages, (unsigned long long)allDestStages, cmdEncoder->openEncoderKind(), cmdEncoder->pendingTimestampCount(), (int)keepsEncoder);
++		}
++		if (!keepsEncoder) { cmdEncoder->endCurrentMetalEncoding(); }
+ 
+ 		for (auto& b : _barriers) {
+ 			uint64_t sourceStageMask = mvkBarrierStagesFromPipelineStageFlags(b.srcStageMask), destStageMask = mvkBarrierStagesFromPipelineStageFlags(b.dstStageMask);
+-			cmdEncoder->setBarrier(sourceStageMask, destStageMask);
++			if (keepsEncoder) {
++				cmdEncoder->setBarrierInDispatchEncoder(sourceStageMask, destStageMask);
++			} else {
++				cmdEncoder->setBarrier(sourceStageMask, destStageMask);
++			}
+ 		}
+ 	}
+ 
+diff -u -r a/MoltenVK/MoltenVK/Commands/MVKCmdTransfer.mm b/MoltenVK/MoltenVK/Commands/MVKCmdTransfer.mm
+--- a/MoltenVK/MoltenVK/Commands/MVKCmdTransfer.mm	2026-11-11 22:11:05
++++ b/MoltenVK/MoltenVK/Commands/MVKCmdTransfer.mm	2026-11-11 22:11:27
+@@ -649,6 +649,7 @@
+                     mtlDepthAttDesc.slice = mvkIBR.region.dstSubresource.baseArrayLayer + layIdx;
+                     mtlStencilAttDesc.slice = mvkIBR.region.dstSubresource.baseArrayLayer + layIdx;
+                 }
++                if (mvkSweepLogs()) { fprintf(stderr, "[sweep] encoder render transfer-or-clear\n"); }
+                 id<MTLRenderCommandEncoder> mtlRendEnc = [cmdEncoder->_mtlCmdBuffer renderCommandEncoderWithDescriptor: mtlRPD];
+ 				cmdEncoder->_cmdBuffer->setMetalObjectLabel(mtlRendEnc, mvkMTLRenderCommandEncoderLabel(commandUse));
+ 
+@@ -946,6 +947,7 @@
+ 				_dstImage->getLayerCount() - rslvSlice.dstSubresource.baseArrayLayer :
+ 				rslvSlice.dstSubresource.layerCount;
+ 		}
++		if (mvkSweepLogs()) { fprintf(stderr, "[sweep] encoder render transfer-or-clear\n"); }
+ 		id<MTLRenderCommandEncoder> mtlRendEnc = [cmdEncoder->_mtlCmdBuffer renderCommandEncoderWithDescriptor: mtlRPD];
+ 		cmdEncoder->_cmdBuffer->setMetalObjectLabel(mtlRendEnc, mvkMTLRenderCommandEncoderLabel(kMVKCommandUseResolveImage));
+ 
+@@ -1537,6 +1539,7 @@
+ 								? mvkMTLRenderCommandEncoderLabel(kMVKCommandUseClearDepthStencilImage)
+ 								: mvkMTLRenderCommandEncoderLabel(kMVKCommandUseClearColorImage));
+ 
++	if (mvkSweepLogs()) { fprintf(stderr, "[sweep] clear-image ranges=%zu open=%s\n", (size_t)_subresourceRanges.size(), cmdEncoder->openEncoderKind()); }
+ 	cmdEncoder->endCurrentMetalEncoding();
+ 
+ 	auto& mtlFeats = cmdEncoder->getMetalFeatures();
+@@ -1646,6 +1649,7 @@
+                                                      ? (_image->getLayerCount() - layerStart)
+                                                      : layerCnt);
+ 
++                if (mvkSweepLogs()) { fprintf(stderr, "[sweep] encoder render transfer-or-clear\n"); }
+                 id<MTLRenderCommandEncoder> mtlRendEnc = [cmdEncoder->_mtlCmdBuffer renderCommandEncoderWithDescriptor: mtlRPDesc];
+ 				cmdEncoder->_cmdBuffer->setMetalObjectLabel(mtlRendEnc, mtlRendEncName);
+ 
+@@ -1665,6 +1669,7 @@
+                         mtlRPSADesc.slice = layer;
+                     }
+ 
++                    if (mvkSweepLogs()) { fprintf(stderr, "[sweep] encoder render transfer-or-clear\n"); }
+                     id<MTLRenderCommandEncoder> mtlRendEnc = [cmdEncoder->_mtlCmdBuffer renderCommandEncoderWithDescriptor: mtlRPDesc];
+ 					cmdEncoder->_cmdBuffer->setMetalObjectLabel(mtlRendEnc, mtlRendEncName);
+ 
+diff -u -r a/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.h b/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.h
+--- a/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.h	2026-11-11 21:59:45
++++ b/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.h	2026-11-11 22:26:35
+@@ -43,6 +43,9 @@
+ typedef uint64_t MVKMTLCommandBufferID;
+ 
+ 
++/** Returns whether MVK_SWEEP_LOG is in the environment: then each label, barrier and new Metal encoder prints a line. */
++bool mvkSweepLogs();
++
+ #pragma mark -
+ #pragma mark MVKCommandEncodingContext
+ 
+@@ -454,6 +457,21 @@
+ 
+ 	/** Insert a new execution barrier */
+ 	void setBarrier(uint64_t sourceStageMask, uint64_t destStageMask);
++
++	/** Returns the kind of the open Metal encoder, for the log of MVK_SWEEP_LOG. */
++	const char* openEncoderKind();
++
++	/**
++	 * Returns whether a compute encoder of dispatches is open and can stay open across a barrier. A time stamp that
++	 * waits for the end of the encoder needs that end now, so that it reads the time of the work before the barrier.
++	 */
++	bool hasOpenDispatchEncoder();
++
++	/** Returns the number of time stamps that wait for the end of the open encoder. */
++	size_t pendingTimestampCount() { return _timestampStageCounterQueries.size(); }
++
++	/** Insert a barrier into the open compute encoder of dispatches, which stays open. */
++	void setBarrierInDispatchEncoder(uint64_t sourceStageMask, uint64_t destStageMask);
+ 
+ 	/** Encode waits for a specific stage in given encoder. */
+ 	void barrierWait(MVKBarrierStage stage, id<MTLRenderCommandEncoder> mtlEncoder, MTLRenderStages beforeStages);
+diff -u -r a/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.mm b/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.mm
+--- a/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.mm	2026-11-11 21:59:45
++++ b/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.mm	2026-11-11 22:26:35
+@@ -16,6 +16,7 @@
+  * limitations under the License.
+  */
+ 
++#include <cstdlib>
+ #include "MVKCommandBuffer.h"
+ #include "MVKFramebuffer.h"
+ #include "MVKCommandPool.h"
+@@ -722,6 +723,59 @@
+ }
+ 
+ 
++// MVK_SWEEP_CONCURRENT_DISPATCH in the environment makes the compute encoder of dispatches concurrent: dispatches with
++// no barrier between them can overlap, as Vulkan allows, and a barrier that keeps the encoder becomes a memory barrier.
++static bool sweepConcurrentDispatch() {
++	static const bool concurrent = getenv("MVK_SWEEP_CONCURRENT_DISPATCH") != nullptr;
++	return concurrent;
++}
++
++bool mvkSweepLogs() {
++	static const bool logs = getenv("MVK_SWEEP_LOG") != nullptr;
++	return logs;
++}
++
++const char* MVKCommandEncoder::openEncoderKind() {
++	if (_mtlRenderEncoder) return "render";
++	if (_mtlComputeEncoder) return _mtlComputeEncoderUse == kMVKCommandUseDispatch ? "dispatch" : "compute-other";
++	if (_mtlBlitEncoder) return "blit";
++	return "none";
++}
++
++bool MVKCommandEncoder::hasOpenDispatchEncoder() {
++	return _mtlComputeEncoder && _mtlComputeEncoderUse == kMVKCommandUseDispatch && _timestampStageCounterQueries.empty();
++}
++
++// A serial compute encoder runs its dispatches in their order, so a barrier between two of its dispatches needs no new
++// encoder. Three rules keep the order that the barrier asks for:
++// - The open encoder waits for the latest fence of each source stage. Metal can apply such a wait at the start of the
++//   encoder, which orders the dispatches before the barrier too, and that is harmless.
++// - The open encoder holds compute work from before the barrier, and it updates its compute fence only when it ends.
++//   So each destination stage waits for that fence: a later encoder then runs after the whole open encoder.
++// - For every other source stage, the destination stages wait for the stage's latest fence, as setBarrier does.
++void MVKCommandEncoder::setBarrierInDispatchEncoder(uint64_t sourceStageMask, uint64_t destStageMask) {
++	auto &fenceSlots = _pEncodingContext->fenceSlots;
++	for (int i = 0; i < kMVKBarrierStageCount; ++i) {
++		if (!mvkIsAnyFlagEnabled(sourceStageMask, 1ull << i)) continue;
++
++		[_mtlComputeEncoder waitForFence: _device->getFence((MVKBarrierStage)i, fenceSlots.update[i])];
++		if (i == kMVKBarrierStageCompute) {
++			// Settles the fence that the open encoder updates when it ends: fenceSlots.update holds it from here on.
++			getBarrierStageFence(kMVKBarrierStageCompute);
++		}
++		for (int j = 0; j < kMVKBarrierStageCount; ++j) {
++			if (!mvkIsAnyFlagEnabled(destStageMask, 1ull << j)) continue;
++
++			fenceSlots.wait[j][i] = fenceSlots.update[i];
++		}
++		fenceSlots.wait[i][i] = fenceSlots.update[i];
++		if (i != kMVKBarrierStageCompute) { mvkEnableFlags(fenceSlots.updateDirtyBits, 1 << i); }
++	}
++	if (sweepConcurrentDispatch()) {
++		[_mtlComputeEncoder memoryBarrierWithScope: (MTLBarrierScopeBuffers | MTLBarrierScopeTextures)];
++	}
++}
++
+ void MVKCommandEncoder::encodeBarrierWaits(MVKCommandUse use) {
+ 	if (_mtlRenderEncoder) {
+ 		[_mtlRenderEncoder insertDebugSignpost:@"Encoding waits"];
+@@ -836,6 +890,7 @@
+ 	}
+ 
+     _mtlRenderEncoder = [_mtlCmdBuffer renderCommandEncoderWithDescriptor: mtlRPDesc];
++    if (mvkSweepLogs()) { fprintf(stderr, "[sweep] encoder render pass\n"); }
+ 	retainIfImmediatelyEncoding(_mtlRenderEncoder);
+ 	_cmdBuffer->setMetalObjectLabel(_mtlRenderEncoder, getMTLRenderCommandEncoderName(cmdUse));
+ 	getState().beginGraphicsEncoding(getSampleCount());
+@@ -1075,6 +1130,8 @@
+ 	switch (use) {
+ 		case kMVKCommandUseAccumOcclusionQuery:
+ 			return MTLDispatchTypeConcurrent;
++		case kMVKCommandUseDispatch:
++			return sweepConcurrentDispatch() ? MTLDispatchTypeConcurrent : MTLDispatchTypeSerial;
+ 		default:
+ 			return MTLDispatchTypeSerial;
+ 	}
+@@ -1103,6 +1160,7 @@
+ 		needWaits = true;
+ 		endCurrentMetalEncoding();
+ 		_mtlComputeEncoder = [_mtlCmdBuffer computeCommandEncoderWithDispatchType:getDispatchType(cmdUse)];
++		if (mvkSweepLogs()) { fprintf(stderr, "[sweep] encoder compute %s\n", [mvkMTLComputeCommandEncoderLabel(cmdUse) UTF8String]); }
+ 		retainIfImmediatelyEncoding(_mtlComputeEncoder);
+ 		beginMetalComputeEncoding(cmdUse);
+ 	}
+@@ -1123,6 +1181,7 @@
+ 		needWaits = true;
+ 		endCurrentMetalEncoding();
+ 		_mtlBlitEncoder = [_mtlCmdBuffer blitCommandEncoder];
++		if (mvkSweepLogs()) { fprintf(stderr, "[sweep] encoder blit %s\n", [mvkMTLBlitCommandEncoderLabel(cmdUse) UTF8String]); }
+ 		retainIfImmediatelyEncoding(_mtlBlitEncoder);
+ 	}
+     if (_mtlBlitEncoderUse != cmdUse) {
+@@ -1289,6 +1348,7 @@
+ 		}
+ 
+ 		auto* mtlEnc = [_mtlCmdBuffer blitCommandEncoderWithDescriptor: bpDesc];
++		if (mvkSweepLogs()) { fprintf(stderr, "[sweep] encoder stamp\n"); }
+ 		_cmdBuffer->setMetalObjectLabel(mtlEnc, mvkMTLBlitCommandEncoderLabel(kMVKCommandUseRecordGPUCounterSample));
+ 		[bpDesc release];		// Release temp object
+ 		[mtlEnc waitForFence: getStageCountersMTLFence()];

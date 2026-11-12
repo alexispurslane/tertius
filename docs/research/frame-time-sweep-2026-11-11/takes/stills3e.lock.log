@@ -1,0 +1,10 @@
+uptime-start:  01:57:46  up 47 days 13:32,  2 users,  load average: 33.16, 17.53, 12.97
+waited: 0s
+mode: shared, with up to 3 shared runs at once
+black-notrace: 15 files, exit 0
+black-nobloom: 15 files, exit 0
+black-noupscale: 15 files, exit 0
+black-noenv: 15 files, exit 0
+black-nofastmath: 15 files, exit 0
+stills 3 ended
+uptime-end:  01:58:43  up 47 days 13:33,  2 users,  load average: 31.28, 19.17, 13.83

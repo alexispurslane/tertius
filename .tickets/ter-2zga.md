@@ -1,6 +1,6 @@
 ---
 id: ter-2zga
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-11-12T07:03:49Z
