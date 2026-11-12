@@ -457,7 +457,7 @@ At a fixed state, the single-bounce light of the far-ceiling band climbs to abou
 - Design A acts on it twice. The stored σr no longer shrinks at the write-back, which removes the concentration in the impulse model.
 - In single bounce, a climbing S also leaves the fast mean of its own samples behind. F̄ − S̄ then grows negative until a window fires and cuts the band back to its fast window.
 
-Design A must not make the climb worse: the band's peak in the climb test must not exceed main's. The target is a band within 10 % of its single-bounce light with the filter off. If the target fails, the climb stays in `ter-g3tk`. Its next step is a take with the write-back off and the filter on, which separates the write-back from the hits' feedback.
+Design A must not make the climb worse: the band's peak in the climb test, as a share of the same build's band with the filter off, must not exceed main's share. Main's absolute peak is no yardstick, because main's clamp loses part of the band's light (step 3, take T2a: Design A ends at 97 % of its own filter-off light, main peaks at 110 % of its own). The target is a band within 10 % of its single-bounce light with the filter off. If the target fails, the climb stays in `ter-g3tk`. Its next step is a take with the write-back off and the filter on, which separates the write-back from the hits' feedback.
 
 ## 11. Borrowed techniques and their source situations
 
@@ -726,7 +726,7 @@ Design A merges, with `ter-18hc` and `ter-wkvw`, after all of these hold:
 8. A settle case that fails only in the reflections goes to the user as point 2 of section 18.
 9. Lag films: no film's median lag or lag error rises against the control.
 10. The impulse, edge, quiet-pixel, panel, pool-edge and measured-variance tests are green in Checked and Release.
-11. Climb: the band's peak is at most main's (required). The band lies within 10 % of its single-bounce light with the filter off (target).
+11. Climb: the band's peak, as a share of the same build's band with the filter off, is at most main's share (required; changed after take T2a, 2026-11-12). The band lies within 10 % of its single-bounce light with the filter off (target).
 12. Evidence: at most 10^−4 false windows per block-draw in the four stills of T3, for each signal. The measured over predicted deviation of D lies at 0.8 to 1.25 after `BlockNoiseScale`.
 13. Frame time: at most +0.3 ms of GPU frame span on the deck.
 14. Portability: no validation message in any GPU test, no new device feature, and every shader compiles with `-Werror`.
