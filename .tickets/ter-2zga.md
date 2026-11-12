@@ -74,7 +74,7 @@ The branch head holds main at 5330c7411. Main changes several times a night. At 
 
 **2026-11-12T13:43:18Z**
 
-The merge, 2026-11-12. Alexis decided it. The branch took main twice more, and the checks of `tools/README.md`, "The patched MoltenVK", ran on the last state, commit bc53e6d70 with main ad095e599 inside:
+The merge, 2026-11-12. Alexis decided it. The branch took main twice more. The checks of `tools/README.md`, "The patched MoltenVK", ran on the last state, commit bc53e6d70 with main ad095e599 inside:
 
 - Every suite in Checked: 10,778 passed, 0 failed, 26 skipped.
 - Every suite in Release: 10,765 passed, 0 failed, 26 skipped.
