@@ -69,9 +69,11 @@ HANDLER = "tools/runpod/handler.py"
 # The paths whose files the image bakes into its dev shell. A commit that changes one of them needs another image.
 # The workflow gpu-image lists them too, to build an image when they change on main.
 SHELL_PATHS = handler.SHELL_PATHS
-# The script's endpoints: tertius-<kind>-<12 characters of the image's commit>, one per kind and image, and the first
-# endpoint, which has the bare name tertius-gpu. The script deletes no other endpoint.
-OURS = re.compile(r"^tertius-(gpu|cpu)(-[0-9a-f]{12})?$")
+# The script's endpoints: tertius-<kind>-<12 characters of the image's commit>-<4 random hex digits>, one per kind and
+# image, and the first endpoints, without the random part or with the bare name tertius-gpu. The script deletes no
+# other endpoint. Runpod keeps the template name of a deleted or failed endpoint for up to 90 minutes and refuses a new
+# endpoint of the same name ("endpoint template names must be unique", 2026-11-12), so each creation draws a new name.
+OURS = re.compile(r"^tertius-(gpu|cpu)(-[0-9a-f]{12}(-[0-9a-f]{4})?)?$")
 # The hidden refs that publish the jobs' commits: refs/gpu-jobs/<UTC day>/<agent>/<commit>. Not a branch or a tag, so
 # no clone fetches them. A ref goes after REF_DAYS days, long after its job's queue time and timeout.
 JOB_REFS = "refs/gpu-jobs"
@@ -86,15 +88,15 @@ COMMIT = re.compile(r"^[0-9a-f]{40}$")
 # (Alexis's decision of 2026-11-12, ticket t8-yd4j).
 POOL = "AMPERE_16"
 OTHER_CARDS = ["NVIDIA RTX A4000", "NVIDIA RTX A4500", "NVIDIA RTX 4000 Ada Generation"]
-HARDWARE = {"gpu": {"gpu": {"pools": [POOL], "excludedTypes": OTHER_CARDS}},
-            "cpu": {"cpu": {"id": "cpu3c", "vcpuCount": 2}}}
+# The container disk in GB: the image's files, plus each tree's checkout with its build outputs. Runpod allows a CPU
+# worker of 2 vCPUs at most 20 GB (its error of 2026-11-12).
+HARDWARE = {"gpu": {"gpu": {"pools": [POOL], "excludedTypes": OTHER_CARDS}, "disk": 60},
+            "cpu": {"cpu": [{"id": "cpu3c", "vcpuCount": 2}], "disk": 20}}
 # Runpod's quota of the account: the maximums of all its endpoints together may not pass this (its error of
 # 2026-11-12). The kinds' workers in endpoint.json leave headroom under it, so that a new endpoint of an image switch
 # fits beside a busy old one. A new endpoint gets what the quota leaves, at most its kind's workers, and the script
 # never lowers another endpoint to make room.
 WORKER_QUOTA = 10
-# Container disk in GB: the image's files, plus each tree's checkout with its build outputs.
-DISK_GB = 60
 
 
 class Refused(Exception):
@@ -729,8 +731,8 @@ def write_outputs(folder: Path, status: dict, result: str):
 def endpoint_request(config: Config, kind: str, commit: str) -> dict:
     """The endpoint of one kind and image. It bounds the spending by itself too: it keeps no minimum of workers, runs at
     most the kind's share at once, and stops each job at the kind's execution timeout."""
-    return {"name": f"tertius-{kind}-{commit[:12]}", "type": "QUEUE", "image": f"{config.image_repository}:{commit}",
-            "disk": DISK_GB, "flashboot": "FLASHBOOT", "scaling": {"type": "QUEUE_DELAY", "queueDelay": 4},
+    return {"name": f"tertius-{kind}-{commit[:12]}-{uuid.uuid4().hex[:4]}", "type": "QUEUE", "image": f"{config.image_repository}:{commit}",
+            "flashboot": "FLASHBOOT", "scaling": {"type": "QUEUE_DELAY", "queueDelay": 4},
             "workers": {"min": 0, "max": config.kinds[kind].workers, "idleTimeout": IDLE_SECONDS},
             "timeout": config.kinds[kind].endpoint_timeout_seconds * 1000, **HARDWARE[kind]}
 

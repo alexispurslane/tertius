@@ -687,15 +687,19 @@ class EndpointRequest(unittest.TestCase):
         self.assertNotIn("NVIDIA RTX 2000 Ada Generation", body["gpu"]["excludedTypes"])
         self.assertEqual(len(body["gpu"]["excludedTypes"]), 3, "the pool's other three cards are excluded")
         self.assertEqual(body["image"], f"{REPOSITORY}:{'a' * 40}")
-        self.assertEqual(body["name"], f"tertius-gpu-{'a' * 12}")
+        self.assertRegex(body["name"], f"^tertius-gpu-{'a' * 12}-[0-9a-f]{{4}}$")
 
     def test_the_cpu_endpoint_runs_at_most_four_compute_optimized_workers_of_two_vcpus(self):
         body = gpu_job.endpoint_request(config(), "cpu", "a" * 40)
         self.assertEqual((body["workers"]["min"], body["workers"]["max"]), (0, 4))
         self.assertEqual(body["timeout"], 7_200_000)
-        self.assertEqual(body["cpu"], {"id": "cpu3c", "vcpuCount": 2})
+        self.assertEqual(body["cpu"], [{"id": "cpu3c", "vcpuCount": 2}])
         self.assertNotIn("gpu", body)
-        self.assertEqual(body["name"], f"tertius-cpu-{'a' * 12}")
+        self.assertRegex(body["name"], f"^tertius-cpu-{'a' * 12}-[0-9a-f]{{4}}$")
+
+    def test_two_requests_for_one_image_get_two_names_because_runpod_keeps_a_deleted_endpoints_name(self):
+        self.assertNotEqual(gpu_job.endpoint_request(config(), "cpu", "a" * 40)["name"],
+                            gpu_job.endpoint_request(config(), "cpu", "a" * 40)["name"])
 
 
 if __name__ == "__main__":
