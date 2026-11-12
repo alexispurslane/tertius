@@ -1,0 +1,18 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "screen_trace.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+// Light-age records for FSR's mask at the image's edges (ticket t1-4hij): the light changes in this frame in the first
+// and the last column of the viewport alone, and stays still for 1000 frames everywhere else.
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
+        return;
+#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+    bool edge = pixel.x == 0 || pixel.x == int(frame.viewport.x) - 1;
+    imageStore(lightAge, pixel, vec4(1.0, edge ? 0.0 : 1000.0, 0.0, 0.0));
+#endif
+}

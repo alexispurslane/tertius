@@ -205,19 +205,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
             (impostorAtlas, Impostors, localShadows) = AddPassesThroughGeometry(shaders, options);
             // Before the composite, which reads the tracer's signals.
             screenTrace = AddScreenTracePasses(shaders, options.ScreenTrace);
-            if (upscaling is Fsr3Upscaling fsr)
-            {
-                upscalePass = new(
-                    device: device,
-                    allocator: Allocator,
-                    shaders: shaders,
-                    targets: targets,
-                    surfaces: surfaceHistory,
-                    framesInFlight: options.FramesInFlight,
-                    sharpness: fsr.Sharpness
-                );
-                Graph.Add(FrameGraph.Stage.Upscale, upscalePass);
-            }
+            // After the tracer, whose light-change mask FSR reads.
+            upscalePass = AddUpscalePass(shaders, options.FramesInFlight);
             compositePass = AddPassesAfterGeometry(shaders, options);
             AddScatterPasses(shaders);
             Own(Graph);
@@ -1232,6 +1221,18 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 ?? throw new InvalidOperationException("The original specular history keeps no light age.")
         );
 
+    /// <summary>
+    /// The light-change mask that the last drawn frame wrote for FSR 3.1 (<see cref="ScreenTraceImages.LightChangeMask"/>),
+    /// one value per pixel as a byte from 0 to 255, 0 where FSR keeps its history. A test hook: it waits for the device to
+    /// be idle.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The original specular history keeps no light age.</exception>
+    internal float[] ReadLightChangeMask() =>
+        ReadImage(
+            ScreenTraceImages.LightChangeMask
+                ?? throw new InvalidOperationException("The original specular history keeps no light age.")
+        );
+
     internal DescriptorSet CompositeLightSet => compositePass.LightSet;
 
     /// <summary>
@@ -2134,6 +2135,28 @@ public sealed unsafe class VulkanRenderer : IRenderer
             ),
             NoEnvironmentMap => null,
         };
+
+    /// <summary>
+    /// FSR 3.1's pass in <see cref="FrameGraph.Stage.Upscale"/> under <see cref="Fsr3Upscaling"/>, which reads the screen
+    /// tracer's light-change mask, so the tracer's images come first. Null under any other upscaling.
+    /// </summary>
+    private UpscalePass? AddUpscalePass(ShaderLibrary shaders, int framesInFlight)
+    {
+        if (upscaling is not Fsr3Upscaling fsr)
+            return null;
+        UpscalePass pass = new(
+            device: device,
+            allocator: Allocator,
+            shaders: shaders,
+            targets: targets,
+            surfaces: surfaceHistory,
+            screenTrace: screenTrace,
+            framesInFlight: framesInFlight,
+            sharpness: fsr.Sharpness
+        );
+        Graph.Add(FrameGraph.Stage.Upscale, pass);
+        return pass;
+    }
 
     /// <summary>
     /// The screen tracer's images under <see cref="ScreenTrace"/>, with its two signals; the depth pyramid's pass after the
