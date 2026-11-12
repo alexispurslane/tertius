@@ -1,9 +1,23 @@
 {
   "image_repository": "ghcr.io/alexispurslane/tertius-gpu",
   "repository": "https://github.com/alexispurslane/tertius.git",
-  "rate_per_second": 0.00016,
-  "daily_cap_usd": 10.0,
+  "daily_caps_usd": {
+    "2026-11-11": 10.0,
+    "2026-11-13": 3.0
+  },
   "total_cap_usd": 30.0,
-  "job_seconds": 840,
-  "endpoint_timeout_seconds": 900
+  "kinds": {
+    "gpu": {
+      "rate_per_second": 0.00016,
+      "workers": 5,
+      "job_seconds": 840,
+      "endpoint_timeout_seconds": 900
+    },
+    "cpu": {
+      "rate_per_second": 2e-05,
+      "workers": 3,
+      "job_seconds": 7140,
+      "endpoint_timeout_seconds": 7200
+    }
+  }
 }

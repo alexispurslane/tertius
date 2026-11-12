@@ -1,6 +1,8 @@
 # The GPU workbench
 
-The GPU workbench is a queue of cloud GPU jobs. An agent uses it to measure any change to the renderer: what the change saves in GPU time, and what it does to the image. Each job runs on an RTX 2000 Ada in a Runpod serverless worker and costs a few cents. Up to six jobs run at once. The workbench is the default place to measure. The Mac's GPU lock is only for the three cases in "What still needs the Mac".
+The GPU workbench is a queue of cloud GPU jobs. An agent uses it to measure any change to the renderer: what the change saves in GPU time, and what it does to the image. Each job runs on an RTX 2000 Ada in a Runpod serverless worker and costs a few cents. Up to five jobs run at once. The workbench is the default place to measure. The Mac's GPU lock is only for the three cases in "What still needs the Mac".
+
+The same queue runs CPU jobs on cheaper workers without a GPU: the official Stryker run of a hardening ("Tests in the cloud"). The $30 of credit must last until about 2026-12-07, and most of it goes to measurements of the engine. So the test suites run on the Mac by default, and the cloud runs them only on demand.
 
 The one command is `tools/runpod/gpu_job.py submit`. [README.md](README.md) describes how the queue, the caps, the images and the endpoints work.
 
@@ -93,7 +95,7 @@ For everything else, measure on the workbench, and give the Mac's lock to the ag
 
 ## Several jobs at once
 
-The endpoint runs up to six workers, so an agent can measure several variants at once. Each call of the script is one job and waits for it. Start each call in the background, and wait for all of them:
+The GPU endpoint runs up to five workers, so an agent can measure several variants at once. Each call of the script is one job and waits for it. Start each call in the background, and wait for all of them:
 
 ```bash
 for variant in cut-a cut-b cut-c; do
@@ -106,15 +108,49 @@ done
 wait
 ```
 
-An agent's own tool can also start each call as one background command. Compare each variant with the `main` of its own job, not with another job's main. If more than six jobs wait, the rest queue for up to two hours. Two A/A jobs at once each finished in about 150 s on 2026-11-12.
+An agent's own tool can also start each call as one background command. Compare each variant with the `main` of its own job, not with another job's main. If more than five jobs wait, the rest queue for up to two hours. The RTX 2000 Ada is scarce at times: on 2026-11-12 a job waited 19 minutes for a card. Two A/A jobs at once each finished in about 150 s on 2026-11-12.
+
+## Tests in the cloud
+
+Where each kind of test run goes:
+
+| Run | Where by default | Command | Measured cost and wall time |
+|---|---|---|---|
+| The official Stryker run of a hardening | Cloud CPU workers, one module per worker, all at once | `tools/stryker/cloud.py` | Core 2,731 s for $0.056, Simulation 1,866 s for $0.039, Physics 641 s for $0.0145 |
+| The listed mutants of `tools/mutate.py` | The Mac | `tools/mutate.py` | On a GPU worker, about 63 s per Rendering mutant against 40 s on the Mac, plus 175 s of build |
+| The pre-commit hook, and the `Checked` and `Release` suites before a merge | The Mac | `tools/test-all.sh` | Free on the Mac |
+| The CPU-only test projects, to keep them off the Mac | Cloud CPU workers, when an agent wants it | `gpu_job.py submit --kind cpu` with `dotnet test --project <project> -c Checked` | Not measured on a CPU worker. On one GPU worker, all of them took about 4 min and $0.05. |
+| One pass of the GPU tests before a merge | The Mac | `tools/test-all.sh` | Free on the Mac |
+| The Rendering tests in GPU shards | Cloud GPU workers, only on demand, when an agent is blocked on the Mac | One `gpu_job.py submit` per shard | 6 shards: about 7.3 min and $0.43 |
+
+Run the official Stryker run of a hardening in the cloud, from the branch's checkout on the Mac, without the dev shell:
+
+```bash
+python3 -I tools/stryker/cloud.py main /tmp/<ticket>-stryker --agent <your name>
+```
+
+The script pushes the branch's head commit to a hidden ref, as every job does. It sends one CPU job per module with changed lines, and each job runs `tools/stryker/changed.py` on its module with the official settings. The script waits for all jobs. Then it prints the same table, evidence and validity as `changed.py`, and writes the merged `results.json`. Each module's results, Stryker configuration and console output land in `/tmp/<ticket>-stryker/<module>/`. Give a new or empty folder: the script refuses a folder that holds files. The modules run at once, so the wall time is that of the slowest module plus the wait for a worker. On the Mac, the same modules run one after another under the machine's Stryker lock.
+
+A cloud run needs no Mac lock and builds nothing in your worktree. So you can build, test and commit in the worktree while it runs. The rules for a valid run are those of `tools/README.md`, "The official Stryker run". A run that prints NOT VALID proves nothing there either.
+
+Only the official Stryker run goes to the cloud by default. Run the other tests on the Mac. They are free there, and the $30 must last. If the Mac blocks you for a long time, you can send GPU shards of the Rendering tests. They do not replace the Mac pass of the GPU tests before a merge. A shard builds the test project, then runs the test assembly directly with a list of classes:
+
+```bash
+python3 -I tools/runpod/gpu_job.py submit --agent <your name> --tree main=HEAD \
+    --run "cd main && dotnet build tests/Tertius.Rendering.Tests -c Checked -nologo -v:q" \
+    --run "mkdir -p out; cd main && dotnet tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll -maxThreads 2 -longRunning 60 -noColor -result-ctrf ../out/shard.json -class Tertius.Rendering.Tests.<Class> ..." \
+    --output out/shard.json --timeout 800 --out /tmp/<your name>/shard0
+```
+
+Use `-maxThreads 2`. At the default parallelism, the GPU tests run out of the card's 16 GB (ticket ter-net6). `dotnet test` does not work on a worker: its test host fails the handshake. Split the classes into shards of similar time, at most five at once. On 2026-11-12, six shards ran 2,877 tests, and 9 failed on Linux (see "Linux failures" in [README.md](README.md)).
 
 ## Costs and caps
 
-- A worker costs $0.00016 per second, $0.58 per hour, while it runs: its start, the job and 10 s of idle time. A worker that waits, or pulls the image, costs nothing.
+- A GPU worker costs $0.00016 per second, $0.58 per hour, while it runs: its start, the job and 10 s of idle time. A CPU worker costs $0.00002 per second, $0.07 per hour. A worker that waits, or pulls the image, costs nothing.
 - The script counts each job as its execution time plus 70 s, times the price. Examples: a five-run A/B $0.04, two stills $0.03, a short job of a few seconds $0.012.
-- The caps are $10 per UTC day and $30 in total, for all agents together. Before it sends a job, the script adds the job's worst case to the day's and the total spending and to the jobs in flight. If the sum passes a cap, it refuses the job and sends nothing.
+- The caps are $3 per UTC day from 2026-11-13 and $30 in total, for all agents and both kinds together. The $30 must last until about 2026-12-07. Before it sends a job, the script adds the job's worst case to the day's and the total spending and to the jobs in flight. The spending is Runpod's bill for the hours whose bill is final. For each of the last few hours, it is the larger of that hour's bill and the log's estimate of the jobs that ended in it. If the sum passes a cap, it refuses the job and sends nothing.
 - Keep `--timeout` close to the real need. The worst case, and the cost of a cancelled job, follow it. A cancel does not stop a command that already runs.
-- The audit log is `~/.local/state/tertius/gpu-jobs/jobs.jsonl`, one line per job.
+- The audit log is `~/.local/state/tertius/gpu-jobs/jobs.jsonl`, one line per job. `python3 -I tools/runpod/gpu_job.py stats` prints the mean cost per job by kind and by agent, with its spread, and the bill beside it.
 - The script reads the key's file from the path in `~/.config/tertius/runpod-key-file`. An agent never reads, prints or copies the key, and never puts a credential in a job. The repository and the image are public, so a commit holds no secret.
 
 ## Pitfalls
