@@ -18,10 +18,13 @@ const float YoungFrames = 4.0;
 const int YoungRadius = 3;
 
 // The deviation of the luminance of the fast histories on the pixel's surface over the window, raised by YoungFrames over
-// the history's length.
+// the history's length. The sums run over each luminance minus the pixel's own, which leaves the variance unchanged. On a
+// surface of one luminance every difference is exactly 0, so the variance is exactly 0 on any driver. The plain sums
+// cancel to 0 only where the driver's division and rounding happen to make the mean square equal the squared mean.
 float youngDeviation(ivec2 pixel, float historyLength)
 {
     SurfaceKey key = surfaceKeyAt(pixel);
+    float own = luminance(imageLoad(fastHistory, pixel).rgb);
     float sum = 0.0;
     float squares = 0.0;
     float count = 0.0;
@@ -31,9 +34,9 @@ float youngDeviation(ivec2 pixel, float historyLength)
             ivec2 neighbor = pixel + ivec2(x, y);
             if (!insideFilter(neighbor) || !sameSurface(key, surfaceKeyAt(neighbor)))
                 continue;
-            float l = luminance(imageLoad(fastHistory, neighbor).rgb);
-            sum += l;
-            squares += l * l;
+            float d = luminance(imageLoad(fastHistory, neighbor).rgb) - own;
+            sum += d;
+            squares += d * d;
             count += 1.0;
         }
     // The pixel's own key passes its own test, so the count is at least 1.

@@ -152,9 +152,14 @@ public sealed class TubeLightRenderTests
                 fov: Gpu.Fov,
                 name: $"tube-light-matte-{name}"
             );
+            // On the bar's axis, where its end's half sphere touches the square, the shader's float sum lies 1.96 % above
+            // the C# tube on the Mac's HDR target, and the card shows the same display level. A band of 2 % left 0.04 %
+            // for the rounding of the displayed levels, which NVIDIA's driver crossed (ticket t8-sjli). 3 % still fails a
+            // tube without the near half sphere, which there gives almost all the light.
+            double band = name == "standing-on-the-middle" ? 0.03 : 0.02;
             Vector3[] shown = Displayed(
                 renderer,
-                [(expected * 0.98).ToVector3(), (expected * 1.02).ToVector3()],
+                [(expected * (1 - band)).ToVector3(), (expected * (1 + band)).ToVector3()],
                 $"tube-light-matte-{name}-glow"
             );
 
@@ -165,8 +170,9 @@ public sealed class TubeLightRenderTests
                 .BeInRange(
                     shown[0].X,
                     shown[1].X,
-                    "the square's center takes the C# tube's light {0} within 2 %",
-                    expected.X
+                    "the square's center takes the C# tube's light {0} within {1} %",
+                    expected.X,
+                    band * 100
                 );
         }
         finally
