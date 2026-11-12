@@ -85,3 +85,7 @@ The three survivors, each a judgment call:
 - C08 and C09: the same reason for the environment faces. A face pipeline with the other filter draws the same face, a little slower on one of the two GPUs.
 
 The mutant run also found two gaps, both fixed on the branch. `ShaderConstantsTests` did not list the new constant for the three shaders that declare it, and it now lists `puff.vert` too. The environment face pass made its pipelines with default constants, so its faces ran the gathers on every driver.
+
+**2026-11-12T16:49:27Z**
+
+The commit hook reported the renderer's constructor as too long (85 lines), so the making of the shading constants moved into VulkanRenderer.ShadingConstantsFor. The constructor is now 76 lines, still over the limit of 60: the rest of it is the creation order of the renderer's parts, which this ticket does not touch. The mutants C04 and C05 ran again on the moved lines (VulkanRenderer.cs:2077 and 2076), and both are killed again.

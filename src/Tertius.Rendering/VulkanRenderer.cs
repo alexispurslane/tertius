@@ -190,16 +190,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             ScatterImages = CreateScatterImages(options.Subsurface);
             Exposure = CreateExposure(options);
             environmentMap = CreateEnvironmentMap(options);
-            ShadingConstants = new(EnvironmentMap: environmentMap is not null)
-            {
-                TileCornerMeans =
-                    options.LocalShadows is LocalShadowAtlas atlas
-                    && TileReadsFor(atlas.Reads, device.Driver) == LocalShadowReads.SixteenCornerMeans,
-                ScreenTraceOn = options.ScreenTrace is ScreenTrace,
-                ReflectionSharingPrototype =
-                    options.ScreenTrace is ScreenTrace
-                    && Environment.GetEnvironmentVariable("TERTIUS_REFLECTION_SHARING") == "1",
-            };
+            ShadingConstants = ShadingConstantsFor(options, device.Driver, environmentMap: environmentMap is not null);
             (ShadowMap, shadowAtlas) = CreateShadowImages(options);
             // After the shadow map, whose size and depth format shape the cascade boxes that the batcher fits.
             Batcher = CreateBatcher(options);
@@ -2073,6 +2064,22 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
     /// <summary>The constants of the shading pipelines: the map is the ambient light exactly when the renderer has one.</summary>
     internal ShaderConstants ShadingConstants { get; }
+
+    /// <summary>
+    /// The shading pipelines' constants of a renderer with <paramref name="options"/> on <paramref name="driver"/>, with or
+    /// without an environment map.
+    /// </summary>
+    private static ShaderConstants ShadingConstantsFor(RendererOptions options, DriverId driver, bool environmentMap) =>
+        new(EnvironmentMap: environmentMap)
+        {
+            TileCornerMeans =
+                options.LocalShadows is LocalShadowAtlas atlas
+                && TileReadsFor(atlas.Reads, driver) == LocalShadowReads.SixteenCornerMeans,
+            ScreenTraceOn = options.ScreenTrace is ScreenTrace,
+            ReflectionSharingPrototype =
+                options.ScreenTrace is ScreenTrace
+                && Environment.GetEnvironmentVariable("TERTIUS_REFLECTION_SHARING") == "1",
+        };
 
     /// <summary>
     /// The constants of the environment faces' pipelines. A face reads no ambient light and no signal of the screen, so it
