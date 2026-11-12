@@ -136,6 +136,21 @@ class Requests(Queue):
         self.assertEqual(trees["main"], "", "the baked commit itself needs no patch")
         self.assertIn("+branch", base64.b64decode(trees["branch"]).decode())
 
+    def test_a_patch_leaves_out_the_docs_and_the_tickets_which_no_build_reads(self):
+        (self.repo / "docs").mkdir()
+        (self.repo / "docs" / "report.md").write_text("16 MB of research\n")
+        (self.repo / ".tickets").mkdir()
+        (self.repo / ".tickets" / "t.md").write_text("a note\n")
+        (self.repo / "a.txt").write_text("branch\n")
+        self.git("add", "-A")
+        self.git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "branch")
+        api = FakeRunpod()
+        self.submit(api, trees={"branch": "HEAD"})
+        patch = base64.b64decode(api.submitted[0][1]["input"]["trees"]["branch"]).decode()
+        self.assertIn("+branch", patch)
+        self.assertNotIn("research", patch)
+        self.assertNotIn("a note", patch)
+
     def test_the_job_names_the_baked_commit_and_carries_its_time_limit_below_the_endpoints_timeout(self):
         api = FakeRunpod()
         self.submit(api, seconds=5000)

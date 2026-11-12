@@ -51,6 +51,9 @@ HANDLER_MARGIN_SECONDS = 60
 # A job that waits longer than this in the queue expires unrun.
 QUEUE_SECONDS = 2 * 3600
 FINAL = {"COMPLETED", "FAILED", "CANCELLED", "TIMED_OUT"}
+# A patch leaves out the docs and the tickets: no build or run reads them, and research files made the diff of one
+# hour of main 16.7 MB, past the job's input limit of 10 MB. A tree keeps the image's copy of them.
+PATCH_PATHS = [".", ":(exclude)docs", ":(exclude).tickets"]
 COMMIT = re.compile(r"^[0-9a-f]{40}$")
 # The endpoint runs on the RTX 2000 Ada only, so that the timings of different jobs come from one kind of card. The
 # 16 GB pool also holds these three, and a card that Runpod adds to the pool later becomes eligible.
@@ -323,7 +326,7 @@ def patches(request: Request, base: str, repo: Path) -> dict:
     for name, ref in request.trees.items():
         sha = git(repo, "rev-parse", "--verify", f"{ref}^{{commit}}").decode().strip()
         request.shas[name] = sha
-        trees[name] = base64.b64encode(git(repo, "diff", "--binary", base, sha)).decode()
+        trees[name] = base64.b64encode(git(repo, "diff", "--binary", base, sha, "--", *PATCH_PATHS)).decode()
     return trees
 
 

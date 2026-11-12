@@ -178,7 +178,7 @@ python3 -I tools/runpod/gpu_job.py submit --agent <your name> \
     --output 'branch/out/*.json' --out <folder>
 ```
 
-- Each `--tree NAME=REF` becomes the folder `NAME` in the job's work folder. It holds the baked commit's files plus the diff from the baked commit to `REF`. Commit your change first, because the diff comes from commits. The commit need not be pushed.
+- Each `--tree NAME=REF` becomes the folder `NAME` in the job's work folder. It holds the baked commit's files plus the diff from the baked commit to `REF`, without `docs/` and `.tickets/`. Commit your change first, because the diff comes from commits. The commit need not be pushed.
 - Each `--run` command runs in the work folder, in the dev shell, offline. The first command that fails ends the job.
 - `--timeout` gives the seconds of all commands together, a positive number. It is at most `job_seconds` of the configuration, 840 s. The handler stops the commands at that limit and still sends back the log and the files.
 - Run the script in the background, because a job can wait minutes for a worker. If the script gets Ctrl-C, SIGTERM or SIGHUP, it cancels the job and waits for its final status. A cancel does not stop a command that already runs: on 2026-11-12 a job of `sleep 200`, cancelled after about 30 s, reported 181 s of execution time. The job's own `--timeout` is what bounds it, so the log counts a cancelled job at its worst case. Keep that limit close to the real need.

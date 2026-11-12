@@ -120,4 +120,5 @@ An agent's own tool can also start each call as one background command. Compare 
 - A command's text is in its shell's command line. So `pkill -f` or `pgrep -f` with a pattern from the command finds the command itself. Match a process by its name, with `pgrep -x`.
 - When a command ends, every process that it started in the background stops too. Start and use such a process in the same command.
 - If a command fails, Runpod marks the job FAILED. `result.json` keeps the handler's own result in `status` and Runpod's in `runpodStatus`.
+- A tree holds the image's copy of `docs/` and `.tickets/`, because a patch leaves them out. No build or run reads them, and research files there grow by megabytes an hour. A job that needs a newer file from `docs/` must copy it elsewhere in its commit.
 - A job's input is at most 10 MB. If the diff from the image's commit grows past that, a newer image must replace it. The workflow `gpu-image` builds it, and the orchestrator runs `gpu_job.py use-image <commit>` while no job is in flight.
