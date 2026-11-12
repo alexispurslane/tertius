@@ -6,7 +6,8 @@
 // and the last cascade fades out to fully lit at 2 km, so there are no shadow-map shadows beyond it.
 //
 // Filtering: 4 × 4 hardware-PCF taps one texel apart. Each tap is a bilinear 2 × 2 comparison, so together they
-// cover 5 × 5 texels with a smooth tent-like weight. The tiles compute the same filter from 9 gathers (tileShadow).
+// cover 5 × 5 texels with a smooth tent-like weight. The tiles compute the same filter from 16 reads at texel corners
+// (tileShadow).
 //
 // Bias, the same model for the cascades and the tiles (docs/plans/local-light-shadows.md, decision 33), in parts that
 // each scale with the texel size:
@@ -250,7 +251,8 @@ TileLookup tileLookupOf(GpuLight light, vec3 position, vec3 L, float d, vec3 geo
 
     // The filter of the cascades' 4 × 4 bilinear taps at −1.5 to 1.5 texels, computed exactly: it weighs the 5 × 5 texels
     // from texel `first` by (1 − f, 1, 1, 1, f) along each axis, f the lookup's place within its texel. The hardware's
-    // filter rounds f to the device's sub-texel precision, which Vulkan lets be as coarse as 4 bits.
+    // filter at the lookup's own place rounds f to the device's sub-texel precision, which Vulkan lets be as coarse as
+    // 4 bits, so tileShadow applies f itself.
     vec2 corner = uv * size - 2.0;
     t.first = floor(corner);
     t.f = corner - t.first;
@@ -259,7 +261,7 @@ TileLookup tileLookupOf(GpuLight light, vec3 position, vec3 L, float d, vec3 geo
     // which hold the 5 × 5 (shadow_bounds.comp). Below the least, every one of them lies nearer the light than the
     // lookup, every comparison fails and the filter gives 0; at the greatest or above, none does, every one passes and it
     // gives 1. So the bounds decide those pixels with the filter's own result. The clamp comes before the conversion to
-    // int, which is undefined for a float out of range; the gathers' texels clamp to the tile's edge as the bounds' do.
+    // int, which is undefined for a float out of range; the filter's texels clamp to the tile's edge as the bounds' do.
     vec2 lastWindow = vec2(textureSize(shadowBounds, 0).xy - 1);
     ivec2 window = ivec2(clamp(floor(corner * 0.5), vec2(0.0), lastWindow));
     t.bounds = texelFetch(shadowBounds, ivec3(window, int(tile.layer)), 0).rg;
@@ -274,10 +276,10 @@ bool fullyShadowed(TileLookup t)
 
 // The share of a near light that its atlas tiles let through at a world position (docs/plans/local-light-shadows.md,
 // "Sampling"): the one tile of a spot light, or the tile of the cube face of a point light that holds the direction from
-// the light to the position. The filter of the cascades' 4 × 4 PCF taps, computed from gathers, with the normal offset at
-// the receiver's distance and the casters' slope-scaled bias, as the cascades take them. Texels past the tile clamp to
-// its edge. The tile's bounds skip the gathers where every comparison agrees. L is the unit direction toward the light
-// and d its distance; geometricNormal and sinTheta are as in cascadeShadow.
+// the light to the position. The filter of the cascades' 4 × 4 PCF taps, computed from reads at texel corners, with the
+// normal offset at the receiver's distance and the casters' slope-scaled bias, as the cascades take them. Texels past
+// the tile clamp to its edge. The tile's bounds skip the reads where every comparison agrees. L is the unit direction
+// toward the light and d its distance; geometricNormal and sinTheta are as in cascadeShadow.
 float tileShadow(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float sinTheta)
 {
     TileLookup t = tileLookupOf(light, position, L, d, geometricNormal, sinTheta);
@@ -291,25 +293,27 @@ float tileShadow(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricN
     if (ndc.z >= t.bounds.y)
         return 1.0;
 
-    // Nine gathers of 2 × 2 comparisons read the 5 × 5 texels and one unweighted column and row beyond them.
-    float wx[6] = float[6](1.0 - f.x, 1.0, 1.0, 1.0, f.x, 0.0);
-    float wy[6] = float[6](1.0 - f.y, 1.0, 1.0, 1.0, f.y, 0.0);
+    // The weights (1 − f, 1, 1, 1, f) of an axis are 1 − f times the four texels from texel 0, plus f times the four
+    // texels from texel 1. So the filter is the blend of four sums of 4 × 4 texels by f, and each sum is four means of
+    // 2 × 2 texels. A bilinear comparison at the shared corner of four texels is their mean at any sub-texel precision,
+    // because each of its weights is a half. The corner x of an axis lies between the texels x and x + 1: the even
+    // corners make the sum from texel 0, and the odd corners the sum from texel 1. Each read returns one value, where a
+    // gather returns four: the nine gathers of the same 5 × 5 texels held 36 values at once, and cost the direct pass
+    // about 0.3 ms more on the deck (t2-gfq5).
     float lit = 0.0;
-    for (int j = 0; j < 3; j++)
+    for (int y = 0; y < 4; y++)
     {
-        float upper = 0.0, lower = 0.0;
-        for (int i = 0; i < 3; i++)
+        float wy = (y & 1) == 0 ? 1.0 - f.y : f.y;
+        for (int x = 0; x < 4; x++)
         {
-            // A gather at the shared corner of four texels compares exactly those four: w the upper left, z the upper
-            // right, x the lower left and y the lower right, with the upper row the one of the smaller index.
-            vec2 at = (first + vec2(float(2 * i) + 1.0, float(2 * j) + 1.0)) / size;
-            vec4 g = textureGather(sampler2DArrayShadow(shadowAtlas, shadowSampler), vec3(at, layer), ndc.z);
-            upper += wx[2 * i] * g.w + wx[2 * i + 1] * g.z;
-            lower += wx[2 * i] * g.x + wx[2 * i + 1] * g.y;
+            float wx = (x & 1) == 0 ? 1.0 - f.x : f.x;
+            vec2 at = (first + vec2(float(x) + 1.0, float(y) + 1.0)) / size;
+            lit += wx * wy * textureGrad(sampler2DArrayShadow(shadowAtlas, shadowSampler), vec4(at, layer, ndc.z),
+                vec2(0.0), vec2(0.0));
         }
-        lit += wy[2 * j] * upper + wy[2 * j + 1] * lower;
     }
-    return lit * (1.0 / 16.0);
+    // Each mean stands for four texels, and the weights of the 5 × 5 texels add up to 16.
+    return lit * (4.0 / 16.0);
 }
 
 #endif

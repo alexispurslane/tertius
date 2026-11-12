@@ -432,7 +432,7 @@ public sealed class LocalShadowRenderTests
     {
         // The lit share of a pixel across a straight edge is (lit texels + f) / 4 from fully shadowed to fully lit, one
         // straight line of the pixel's place. Each of the 5 texels of the filter along an axis has its own weight, so a
-        // gather whose texels took each other's weights bends the line where the edge crosses those texels. The scene
+        // read whose texels took each other's weights bends the line where the edge crosses those texels. The scene
         // turns by 0° and 90° about the vertical, so that the edge crosses each axis of the tile.
         VulkanRenderer renderer = Renderer(new LocalShadowAtlas(Tiles: 8, TileSize: 64));
         try
