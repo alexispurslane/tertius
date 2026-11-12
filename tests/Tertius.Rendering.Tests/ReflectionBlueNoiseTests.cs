@@ -130,4 +130,39 @@ public sealed class ReflectionBlueNoiseTests
                 share.Should().BeLessThan(1 / 3.0, "a draw's numbers over the blocks are blue noise, and white noise keeps 1")
             );
     }
+
+    [Fact]
+    public void AReflectionRayTakesItsDirectionFromTheMaskAndNotFromPcg3d()
+    {
+        const int width = 96,
+            height = 64;
+        VulkanRenderer renderer = Gpu.Headless(
+            width: width,
+            height: height,
+            screenTrace: ScreenTrace.Default,
+            warmUpFrames: 0
+        );
+        try
+        {
+            RenderSnapshot scene = Gpu.Snapshot(new(0.3f, 1f, 0.4f), starIrradiance: 3);
+            scene.Instances.Add(ReflectionTesting.Floor(renderer, ReflectionTesting.Mirror(roughness: 0.3f)));
+            var probe = ScreenTraceProbe.On(renderer, "reflection_draw_probe.comp");
+            renderer.Render(scene, 1f);
+            float[] values = probe.Read();
+
+            int[] starting = [.. Enumerable.Range(0, width * height).Where(pixel => values[4 * pixel + 2] == 1)];
+            starting.Length.Should().BeGreaterThan(width * height / 4, "the glossy floor fills the lower half of the view");
+            starting
+                .Should()
+                .OnlyContain(pixel => values[4 * pixel] == 1, "each reflection ray takes the direction of the mask's numbers");
+            starting
+                .Count(pixel => values[4 * pixel + 1] == 1)
+                .Should()
+                .BeLessThan(starting.Length / 10, "pcg3d's numbers alone give another direction at almost every pixel");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
 }
