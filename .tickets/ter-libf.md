@@ -1,6 +1,6 @@
 ---
 id: ter-libf
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-11-12T01:50:17Z
