@@ -109,7 +109,7 @@ It installs a pinned single-user Nix (2.34.8), builds or downloads the dev shell
 
 ## GPU jobs on Runpod
 
-An agent runs a GPU job, such as a build and a timing run of the demo, on a Runpod serverless endpoint. The agent calls one script, `tools/runpod/gpu_job.py`, and the script keeps the spending within the caps. Ticket ter-94uo made the parts. The image and the endpoint wait for the user's choice of a registry.
+An agent runs a GPU job, such as a build and a timing run of the demo, on a Runpod serverless endpoint. The agent calls one script, `tools/runpod/gpu_job.py`, and the script keeps the spending within the caps. Ticket ter-94uo made the parts.
 
 | Part | What it does |
 |---|---|
@@ -117,7 +117,8 @@ An agent runs a GPU job, such as a build and a timing run of the demo, on a Runp
 | `tools/runpod/handler.py` | It runs on the worker. It makes the trees, runs the commands in the dev shell and collects the output files. |
 | `tools/runpod/worker.py` | The image's entry. The Runpod SDK gives it each job, and it calls the handler in a fresh work folder. |
 | `tools/runpod/Dockerfile` | The image: the dev shell, the source of one commit with its Release demo built, and the worker. |
-| `tools/runpod/endpoint.json` | The configuration of the script: the endpoint, the baked commit, the price and the caps. |
+| `.github/workflows/gpu-image.yml` | It builds the image on GitHub and pushes it to `ghcr.io/alexispurslane/tertius-gpu:<commit>`. |
+| `tools/runpod/endpoint.json` | The configuration of the script: the endpoint, the image repository, the price and the caps. |
 
 ### Run a job
 
@@ -135,7 +136,7 @@ python3 -I tools/runpod/gpu_job.py submit --agent <your name> \
 - `--timeout` gives the seconds of all commands together. It is at most `job_seconds` of the configuration.
 - `<folder>` gets the files of the `--output` globs and `result.json`. That file holds each command's exit code and time, the end of the log, and the files that passed the size limit of 8 MB.
 
-The script exits with 0 if every command succeeded. A job runs on the commit that the image baked. If main moves far from it, build a new image, because each job then sends a large diff and compiles more.
+The script exits with 0 if every command succeeded. A job runs on the commit that the endpoint's image baked. The image's tag is that commit, and the script reads it from the endpoint before each job. If main moves far from it, point the endpoint at a newer image ("Make the image and the endpoint"), because each job then sends a large diff and compiles more.
 
 ### The caps
 
@@ -155,17 +156,19 @@ Each job, a refusal too, adds one JSON line to `~/.local/state/tertius/gpu-jobs/
 
 ### Make the image and the endpoint
 
-1. Build the image from the commit's own files, because a job's patch must apply to exactly those files:
+The workflow `gpu-image` on GitHub builds the image from the files of one commit, with `git archive`, because a job's patch must apply to exactly those files. It pushes `ghcr.io/alexispurslane/tertius-gpu:<commit>`, which is public. Three events start it:
 
-   ```bash
-   sha=$(git rev-parse HEAD)
-   git archive --format=tar "$sha" | docker build --platform linux/amd64 -f tools/runpod/Dockerfile \
-       --build-arg BAKED_COMMIT="$sha" -t <image>:"$sha" -
-   ```
+- A push to main that changes `flake.nix`, `flake.lock`, `native/`, `tools/runpod/` or the workflow.
+- A push of a tag `gpu-image-<anything>` to GitHub, for any commit: `git push git@github.com:alexispurslane/tertius.git <commit>:refs/tags/gpu-image-<name>`.
+- A manual run: `gh workflow run gpu-image.yml --repo alexispurslane/tertius`.
 
-2. Push the image to the registry, and write its name, the commit and the price into `tools/runpod/endpoint.json`.
-3. Read the request with `python3 -I tools/runpod/gpu_job.py endpoint-request`. It asks for the pool `AMPERE_16` (16 GB cards such as the RTX 2000 Ada and the RTX A4000), at most six workers, no idle worker and FlashBoot.
-4. Create the endpoint with `python3 -I tools/runpod/gpu_job.py create-endpoint`, and write its id into `endpoint.json`.
+A new image does not change the endpoint. When its build passed, point the endpoint at it:
+
+```bash
+python3 -I tools/runpod/gpu_job.py use-image <commit>
+```
+
+The script first makes sure that the registry serves the image without a login, as Runpod pulls it. The endpoint's workers pull the new image at their next start. `create-endpoint <commit>` made the endpoint once. It asks for the 16 GB pool `AMPERE_16` without its other three cards, so every job runs on an RTX 2000 Ada. It also asks for at most six workers, no idle worker, a 900 s timeout per job and FlashBoot. `endpoint-request <commit>` prints that request and sends nothing.
 
 The two test files run on the Mac without Runpod and without a GPU:
 
@@ -175,6 +178,23 @@ python3 -I tools/runpod/test_gpu_job.py
 ```
 
 A tree's folder differs from the folder where the image built the demo, and MSBuild's restore files hold the absolute path of each project. The first job on a new image must measure whether a build after the patch still compiles only the changed projects.
+
+## The GitHub mirror
+
+`https://github.com/alexispurslane/tertius` is a public copy of the repository. It exists so that GitHub Actions can build the GPU image. Its origin stays the knot. The remote `origin` has two push URLs, so every `git push origin <ref>` sends the ref to the knot and to GitHub. Fetches come from the knot only. The repository's git configuration holds the two URLs, so every worktree uses them:
+
+```bash
+git remote set-url --add --push origin git@knot.xenolandscapes.com:did:plc:6mfsw4jthsacfcdbfmfetvin
+git remote set-url --add --push origin git@github.com:alexispurslane/tertius.git
+```
+
+A push runs the pre-push hook once for each URL. If one URL refuses the push, git reports it, and the other URL still has the ref. To stop the mirror, remove the GitHub URL. Then pushes go to the knot only:
+
+```bash
+git remote set-url --delete --push origin git@github.com:alexispurslane/tertius.git
+```
+
+Before the first push on 2026-11-12, gitleaks 8.30.1 scanned every commit of every ref. It found three matches, and all three were the words "key generation" in `docs/research/temporal-renderer/walk-hill-climb.md`. A search for each stored secret and for key prefixes found nothing.
 
 ## Coverage on changed lines
 

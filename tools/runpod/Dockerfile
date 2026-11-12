@@ -1,11 +1,9 @@
 # syntax=docker/dockerfile:1.7
 # The image of the Runpod serverless GPU worker (tools/README.md, "GPU jobs on Runpod"). It holds the dev shell's
 # closure, the source of one commit with its Release demo built, and the worker. A job then downloads nothing, and it
-# sends only its diff from that commit. Build it from the commit's own files, which `git archive` gives exactly:
-#   sha=$(git rev-parse HEAD)
-#   git archive --format=tar "$sha" | docker build --platform linux/amd64 -f tools/runpod/Dockerfile \
-#       --build-arg BAKED_COMMIT="$sha" -t <image>:"$sha" -
-# A job's patch must apply to the baked files, so the context holds every file of the commit and nothing else.
+# sends only its diff from that commit. The workflow .github/workflows/gpu-image.yml builds it from the commit's own
+# files, which `git archive` gives exactly, with the build argument BAKED_COMMIT set to that commit. A job's patch must
+# apply to the baked files, so the context holds every file of the commit and nothing else.
 FROM ubuntu:24.04
 
 # The NVIDIA container toolkit then mounts the graphics part of the driver, with its Vulkan driver, and not only CUDA.

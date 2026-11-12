@@ -20,9 +20,11 @@ import datetime
 import fcntl
 import json
 import os
+import re
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.request
 import uuid
 from dataclasses import dataclass, field
@@ -43,16 +45,27 @@ HANDLER_MARGIN_SECONDS = 60
 # A job that waits longer than this in the queue expires unrun. Its reservation lasts this long plus its timeout.
 QUEUE_SECONDS = 2 * 3600
 FINAL = {"COMPLETED", "FAILED", "CANCELLED", "TIMED_OUT"}
+COMMIT = re.compile(r"^[0-9a-f]{40}$")
+# The endpoint runs on the RTX 2000 Ada only, so that the timings of different jobs come from one kind of card. The
+# 16 GB pool also holds these three, and a card that Runpod adds to the pool later becomes eligible.
+POOL = "AMPERE_16"
+OTHER_CARDS = ["NVIDIA RTX A4000", "NVIDIA RTX A4500", "NVIDIA RTX 4000 Ada Generation"]
+# Container disk in GB: the image's files, plus a copy of the baked source with its build outputs per tree.
+DISK_GB = 60
+
+
+class NoBase(Exception):
+    """The endpoint's image names no baked commit, or the named image is not public."""
 
 
 @dataclass(frozen=True)
 class Config:
-    """endpoint: the Runpod endpoint id. base: the commit that the image baked. job_seconds: the most time that the
-    commands of one job get. endpoint_timeout_seconds: the endpoint's execution timeout, the hard bound per job."""
+    """endpoint: the Runpod endpoint id. image_repository: the images, each tagged with the commit that it baked.
+    job_seconds: the most time that the commands of one job get. endpoint_timeout_seconds: the endpoint's execution
+    timeout, the hard bound per job. The baked commit is not here: the endpoint's image tag is its one store."""
 
     endpoint: str
-    base: str
-    image: str
+    image_repository: str
     rate_per_second: float
     daily_cap_usd: float
     total_cap_usd: float
@@ -100,8 +113,49 @@ class RunpodApi:
     def cancel(self, endpoint: str, job: str):
         self.call("POST", f"{JOB_API}/{endpoint}/cancel/{job}")
 
+    def endpoint(self, endpoint: str) -> dict:
+        return self.call("GET", f"{ACCOUNT_API}/serverless/{endpoint}")
+
     def create_endpoint(self, body: dict) -> dict:
         return self.call("POST", f"{ACCOUNT_API}/serverless", body)
+
+    def update_endpoint(self, endpoint: str, body: dict) -> dict:
+        return self.call("PATCH", f"{ACCOUNT_API}/serverless/{endpoint}", body)
+
+
+def baked_commit(config: Config, api) -> str:
+    """The commit that the endpoint's image baked, from the image's tag."""
+    image = api.endpoint(config.endpoint).get("image") or ""
+    repository, _, tag = image.rpartition(":")
+    if repository != config.image_repository or not COMMIT.match(tag):
+        raise NoBase(f"the endpoint runs {image!r}, not {config.image_repository}:<commit>; "
+                     f"run gpu_job.py use-image <commit>")
+    return tag
+
+
+def public_image(image: str) -> bool:
+    """Whether the registry serves the image's manifest without a login, as Runpod pulls it."""
+    host, _, rest = image.partition("/")
+    name, _, tag = rest.rpartition(":")
+    try:
+        with urllib.request.urlopen(f"https://{host}/token?scope=repository:{name}:pull", timeout=30) as reply:
+            token = json.loads(reply.read())["token"]
+        request = urllib.request.Request(f"https://{host}/v2/{name}/manifests/{tag}", method="HEAD", headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, "
+                      "application/vnd.docker.distribution.manifest.v2+json"})
+        with urllib.request.urlopen(request, timeout=30):
+            return True
+    except urllib.error.HTTPError:
+        return False
+
+
+def use_image(config: Config, api, commit: str, pullable=public_image):
+    """Point the endpoint at the image of `commit`. Its workers pull it at their next start."""
+    image = f"{config.image_repository}:{commit}"
+    if not COMMIT.match(commit) or not pullable(image):
+        raise NoBase(f"{image} is not a public image; the workflow gpu-image builds it (tools/README.md)")
+    api.update_endpoint(config.endpoint, {"image": image})
 
 
 def execution_seconds(config: Config, seconds: int) -> int:
@@ -163,13 +217,13 @@ def refusal(config: Config, state: Path, api, worst: float, now: datetime.dateti
     return None
 
 
-def patches(request: Request, config: Config, repo: Path) -> dict:
+def patches(request: Request, base: str, repo: Path) -> dict:
     """Each tree's binary diff from the baked commit to its ref, base64-encoded, and its ref's commit in request.shas."""
     trees = {}
     for name, ref in request.trees.items():
         sha = git(repo, "rev-parse", "--verify", f"{ref}^{{commit}}").decode().strip()
         request.shas[name] = sha
-        trees[name] = base64.b64encode(git(repo, "diff", "--binary", config.base, sha)).decode()
+        trees[name] = base64.b64encode(git(repo, "diff", "--binary", base, sha)).decode()
     return trees
 
 
@@ -182,11 +236,12 @@ def submit(request: Request, *, config: Config, api, state: Path, repo: Path, no
     """Run one job and return its result: ok, failed, timed out or refused from the handler, refused by the caps, or
     Runpod's status when the job did not complete."""
     now = now or (lambda: datetime.datetime.now(datetime.timezone.utc))
-    trees = patches(request, config, repo)
+    base = baked_commit(config, api)
+    trees = patches(request, base, repo)
     seconds = min(request.seconds, config.job_seconds)
     execution = execution_seconds(config, seconds)
     worst = worst_case_usd(config, seconds)
-    line = {"time": now().isoformat(), "agent": request.agent, "endpoint": config.endpoint, "base": config.base,
+    line = {"time": now().isoformat(), "agent": request.agent, "endpoint": config.endpoint, "base": base,
             "trees": {name: {"ref": ref, "sha": request.shas[name]} for name, ref in request.trees.items()},
             "commands": request.commands, "outputs": request.outputs, "worstCaseUsd": worst}
     hold = uuid.uuid4().hex
@@ -203,7 +258,7 @@ def submit(request: Request, *, config: Config, api, state: Path, repo: Path, no
         out(f"refused: {reason}")
         return "refused"
     try:
-        body = {"input": {"base": config.base, "trees": trees, "commands": request.commands,
+        body = {"input": {"base": base, "trees": trees, "commands": request.commands,
                           "outputs": request.outputs, "seconds": seconds},
                 "policy": {"executionTimeout": execution * 1000, "ttl": QUEUE_SECONDS * 1000}}
         job = api.submit(config.endpoint, body)
@@ -258,12 +313,14 @@ def write_outputs(folder: Path, status: dict, output: dict):
         indent=2) + "\n")
 
 
-def endpoint_request(config: Config, name: str = "tertius-gpu") -> dict:
+def endpoint_request(config: Config, commit: str, name: str = "tertius-gpu") -> dict:
     """The endpoint bounds the spending by itself too: no worker runs without a job, at most six run at once, and
     each job stops at the execution timeout."""
-    return {"name": name, "type": "QUEUE", "image": config.image, "flashboot": True,
+    return {"name": name, "type": "QUEUE", "image": f"{config.image_repository}:{commit}", "disk": DISK_GB,
+            "flashboot": "FLASHBOOT", "scaling": {"type": "QUEUE_DELAY", "queueDelay": 4},
             "workers": {"min": 0, "max": 6, "idleTimeout": IDLE_SECONDS},
-            "timeout": config.endpoint_timeout_seconds * 1000, "gpu": {"pools": ["AMPERE_16"]}}
+            "timeout": config.endpoint_timeout_seconds * 1000,
+            "gpu": {"pools": [POOL], "excludedTypes": OTHER_CARDS}}
 
 
 def main(argv: list) -> int:
@@ -277,28 +334,36 @@ def main(argv: list) -> int:
     job.add_argument("--output", action="append", default=[], metavar="GLOB", help="files to send back")
     job.add_argument("--timeout", type=int, default=None, help="seconds for all commands; at most the config's")
     job.add_argument("--out", type=Path, required=True, help="folder for the output files and result.json")
-    commands.add_parser("endpoint-request", help="print the request that creates the endpoint, and send nothing")
-    commands.add_parser("create-endpoint", help="create the endpoint; write its id into endpoint.json after")
+    for name, text in [("endpoint-request", "print the request that creates the endpoint, and send nothing"),
+                       ("create-endpoint", "create the endpoint; write its id into endpoint.json after"),
+                       ("use-image", "point the endpoint at the image of another commit")]:
+        commands.add_parser(name, help=text).add_argument("commit", help="the full commit that the image baked")
     args = parser.parse_args(argv)
     config = Config.load()
     if args.command == "endpoint-request":
-        print(json.dumps(endpoint_request(config), indent=2))
+        print(json.dumps(endpoint_request(config, args.commit), indent=2))
         return 0
     if "TERTIUS_RUNPOD_KEY_FILE" not in os.environ:
         print("set TERTIUS_RUNPOD_KEY_FILE to the file that holds the Runpod API key", file=sys.stderr)
         return 2
     api = RunpodApi(Path(os.environ["TERTIUS_RUNPOD_KEY_FILE"]))
     if args.command == "create-endpoint":
-        if not config.image:
-            print(f"{CONFIG_FILE} names no image yet", file=sys.stderr)
+        if config.endpoint:
+            print(f"{CONFIG_FILE} already names the endpoint {config.endpoint}", file=sys.stderr)
             return 2
-        reply = api.create_endpoint(endpoint_request(config))
+        if not public_image(endpoint_request(config, args.commit)["image"]):
+            print(f"{config.image_repository}:{args.commit} is not a public image", file=sys.stderr)
+            return 2
+        reply = api.create_endpoint(endpoint_request(config, args.commit))
         print(json.dumps({"id": reply.get("id"), "name": reply.get("name")}))
         return 0
-    if not (config.endpoint and config.base):
-        print(f"{CONFIG_FILE} names no endpoint or no baked commit yet (tools/README.md, \"GPU jobs on Runpod\")",
-              file=sys.stderr)
+    if not config.endpoint:
+        print(f"{CONFIG_FILE} names no endpoint yet (tools/README.md, \"GPU jobs on Runpod\")", file=sys.stderr)
         return 2
+    if args.command == "use-image":
+        use_image(config, api, args.commit)
+        print(f"the endpoint {config.endpoint} now runs {config.image_repository}:{args.commit}")
+        return 0
     trees = dict(tree.split("=", 1) for tree in args.tree)
     request = Request(agent=args.agent, trees=trees, commands=args.run, outputs=args.output,
                       seconds=args.timeout or config.job_seconds, out=args.out)

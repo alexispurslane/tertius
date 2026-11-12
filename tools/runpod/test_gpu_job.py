@@ -22,18 +22,27 @@ spec.loader.exec_module(gpu_job)
 
 NOW = datetime.datetime(2026, 11, 12, 12, 0, tzinfo=datetime.timezone.utc)
 RATE = 0.00016
+REPOSITORY = "ghcr.io/x/tertius-gpu"
 
 
 class FakeRunpod:
     """Runpod's API as the queue script sees it: the billed total, and jobs that end with the given status."""
 
-    def __init__(self, billed=0.0, final=None):
+    def __init__(self, billed=0.0, final=None, image=None):
         self.billed = billed
+        self.image = image
         self.final = final or {"status": "COMPLETED", "executionTime": 50_000, "delayTime": 3_000,
                                "output": {"status": "ok", "steps": [{"command": "x", "exitCode": 0, "seconds": 1.0}],
                                           "log": "done\n", "files": {}, "skipped": {}}}
         self.submitted = []
         self.cancelled = []
+        self.updated = []
+
+    def endpoint(self, endpoint):
+        return {"id": endpoint, "image": self.image}
+
+    def update_endpoint(self, endpoint, body):
+        self.updated.append((endpoint, body))
 
     def billed_total(self):
         return self.billed
@@ -61,8 +70,8 @@ class Queue(unittest.TestCase):
         self.git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "base")
         self.base = self.git("rev-parse", "HEAD").strip()
         self.state = root / "state"
-        self.config = gpu_job.Config(endpoint="ep1", base=self.base, image="ghcr.io/x/tertius-gpu:" + self.base,
-                                     rate_per_second=RATE, daily_cap_usd=10.0, total_cap_usd=30.0, job_seconds=840,
+        self.config = gpu_job.Config(endpoint="ep1", image_repository=REPOSITORY, rate_per_second=RATE,
+                                     daily_cap_usd=10.0, total_cap_usd=30.0, job_seconds=840,
                                      endpoint_timeout_seconds=900)
         self.out = root / "out"
 
@@ -73,6 +82,7 @@ class Queue(unittest.TestCase):
         return subprocess.run(["git", *args], cwd=self.repo, check=True, capture_output=True, text=True).stdout
 
     def submit(self, api, *, trees=None, commands=("echo hi",), seconds=None, outputs=()):
+        api.image = api.image or f"{REPOSITORY}:{self.base}"
         request = gpu_job.Request(agent="agent-7", trees=trees or {"main": self.base}, commands=list(commands),
                                   outputs=list(outputs), seconds=seconds or self.config.job_seconds, out=self.out)
         return gpu_job.submit(request, config=self.config, api=api, state=self.state, repo=self.repo,
@@ -111,6 +121,12 @@ class Requests(Queue):
         self.assertEqual(body["input"]["base"], self.base)
         self.assertLessEqual(body["input"]["seconds"], self.config.job_seconds)
         self.assertLessEqual(body["policy"]["executionTimeout"], self.config.endpoint_timeout_seconds * 1000)
+
+    def test_a_job_is_not_sent_when_the_endpoints_image_tag_names_no_commit(self):
+        api = FakeRunpod(image=f"{REPOSITORY}:latest")
+        with self.assertRaises(gpu_job.NoBase):
+            self.submit(api)
+        self.assertEqual(api.submitted, [])
 
     def test_the_output_files_of_a_job_are_written_under_its_out_folder(self):
         output = FakeRunpod().final["output"]
@@ -181,17 +197,31 @@ class AuditLog(Queue):
 
 
 class Endpoint(unittest.TestCase):
-    """The endpoint that the script creates bounds the spending by itself too."""
+    """The endpoint that the script creates bounds the spending by itself too, and runs the image of one commit."""
 
-    def test_the_endpoint_runs_at_most_six_workers_with_the_execution_timeout_on_the_16_gb_pool(self):
-        config = gpu_job.Config(endpoint="", base="b", image="img", rate_per_second=RATE, daily_cap_usd=10.0,
-                                total_cap_usd=30.0, job_seconds=840, endpoint_timeout_seconds=900)
-        body = gpu_job.endpoint_request(config)
+    config = gpu_job.Config(endpoint="ep1", image_repository=REPOSITORY, rate_per_second=RATE, daily_cap_usd=10.0,
+                            total_cap_usd=30.0, job_seconds=840, endpoint_timeout_seconds=900)
+
+    def test_the_endpoint_runs_at_most_six_workers_with_the_execution_timeout_on_the_rtx_2000_ada_only(self):
+        body = gpu_job.endpoint_request(self.config, "a" * 40)
         self.assertEqual(body["workers"]["max"], 6)
         self.assertEqual(body["workers"]["min"], 0, "no worker runs, and bills, without a job")
         self.assertEqual(body["timeout"], 900_000)
         self.assertEqual(body["gpu"]["pools"], ["AMPERE_16"])
-        self.assertEqual(body["image"], "img")
+        self.assertNotIn("NVIDIA RTX 2000 Ada Generation", body["gpu"]["excludedTypes"])
+        self.assertEqual(len(body["gpu"]["excludedTypes"]), 3, "the pool's other three cards are excluded")
+        self.assertEqual(body["image"], f"{REPOSITORY}:{'a' * 40}")
+
+    def test_an_image_change_sends_only_the_image_of_the_named_commit(self):
+        api = FakeRunpod()
+        gpu_job.use_image(self.config, api, "b" * 40, pullable=lambda image: True)
+        self.assertEqual(api.updated, [("ep1", {"image": f"{REPOSITORY}:{'b' * 40}"})])
+
+    def test_an_image_that_the_registry_does_not_serve_without_a_login_is_not_used(self):
+        api = FakeRunpod()
+        with self.assertRaises(gpu_job.NoBase):
+            gpu_job.use_image(self.config, api, "b" * 40, pullable=lambda image: False)
+        self.assertEqual(api.updated, [])
 
 
 if __name__ == "__main__":
