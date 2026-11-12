@@ -1,0 +1,130 @@
+script                 capture                   mean %    any %   >1 lv %  >4 lv %  max
+airlock                hatch-open                -0.003     0.80    0.014    0.002   10
+airlock                hatch-shut                -0.000     0.00    0.000    0.000    1
+airlock                hull                      -0.000     0.00    0.000    0.000    1
+airlock                inner-door                -0.005     3.57    0.026    0.006   21
+bounce-red-wall        red-wall                  identical
+cabin-light            cabin                     -0.008    13.76    0.569    0.027   26
+cabin-light            canopy                    -0.000     0.99    0.008    0.000    3
+cabin-light            port-window               -0.000     0.00    0.000    0.000    1
+deck-1080              deck                      -0.044    17.26    0.162    0.004   32
+deep-yard              touching                  identical
+deep-yard              yard                      identical
+demo-meshes            cylinder                  -0.001     0.19    0.000    0.000    2
+demo-meshes            overview                  -0.001     0.98    0.030    0.003    9
+demo-meshes            ring                      -0.003     0.21    0.004    0.000    4
+demo-meshes            start                     -0.001     1.05    0.044    0.007   16
+demo-meshes            torus                     -0.001     0.14    0.000    0.000    2
+demo-shuttle           nose                      -0.011     1.50    0.008    0.000    5
+demo-shuttle           side                      -0.005     2.08    0.072    0.005   35
+demo-shuttle           tail                      -0.006     0.50    0.002    0.000    3
+demo-surface           apron                     -0.018    14.25    0.663    0.014   23
+demo-surface           at-the-seat               -0.006    12.72    0.502    0.029   23
+demo-surface           boarding                  -0.016    13.47    0.587    0.015   19
+demo-surface           end-overview              -0.003     3.99    0.086    0.003   11
+demo-surface           in-cabin                  -0.008    12.42    0.520    0.031   24
+demo-surface           start                     -0.004     3.90    0.084    0.002    9
+demo-surface           terminal                  -0.007     1.37    0.005    0.000    4
+doorway-1440           inside-view               identical
+doorway-1440           inside                    -0.000     0.22    0.001    0.000   11
+doorway-1440           outside                   -0.001     0.57    0.001    0.000   11
+doorway-1440           standing                  -0.001     0.57    0.001    0.000   11
+doorway                inside-view               identical
+doorway                inside                    -0.000     0.06    0.000    0.000    4
+doorway                outside                   -0.001     0.37    0.001    0.000    3
+doorway                standing                  -0.001     0.37    0.001    0.000    3
+hair-bent-cards        bent                      +0.000     0.29    0.003    0.001   22
+hair-bent-cards        front                     -0.001     1.09    0.013    0.000    5
+hair-rugs-1440         low                       -0.019    16.96    7.770    1.178   67
+hair-rugs-1440         rugs                      -0.008    10.69    3.316    0.300   96
+hair-rugs              low                       -0.007    13.40    6.118    0.951   63
+hair-rugs              rugs                      -0.004     8.27    2.441    0.218   64
+low                    edge                      -0.002     0.34    0.001    0.000    5
+low                    front                     -0.000     0.29    0.008    0.001   11
+low                    low                       -0.002     0.82    0.069    0.012   18
+mars-air               above                     identical
+mars-air               day                       -0.000     0.06    0.001    0.000    5
+mars-air               dusk                      +0.000     0.05    0.002    0.000    4
+mars-air               edge-inside               identical
+mars-air               edge-outside              identical
+mars-air               terminator                identical
+mirror-balls-1440      balls                     -0.042     4.32    0.529    0.110  107
+mirror-balls-1440      belly                     -0.000     0.32    0.029    0.002   20
+mirror-balls-1440      plate                     identical
+mirror-balls           balls                     -0.024     3.50    0.396    0.071   47
+mirror-balls           belly                     -0.001     0.36    0.037    0.003   10
+mirror-balls           plate                     identical
+pbr-spheres            front                     +0.000     0.74    0.052    0.005   19
+pbr-spheres            low                       -0.000     0.46    0.019    0.001   10
+reflections-stills     edge                      -0.001     0.16    0.001    0.000    8
+reflections-stills     front                     -0.000     0.16    0.008    0.001    9
+reflections-stills     low                       -0.001     0.56    0.066    0.014   23
+rigs-1080              bent-left                 -0.001     0.22    0.003    0.000    7
+rigs-1080              bent-right                -0.001     0.24    0.002    0.000    4
+rigs-1080              box-other-way             -0.007     0.51    0.008    0.000    5
+rigs-1080              box                       -0.003     0.28    0.000    0.000    2
+rigs-1080              twist                     -0.004     0.30    0.001    0.000    3
+rigs                   bent-left                 -0.000     0.18    0.001    0.000   10
+rigs                   bent-right                -0.000     0.15    0.001    0.000    4
+rigs                   box-other-way             -0.005     0.34    0.012    0.001    8
+rigs                   box                       -0.002     0.17    0.001    0.000    3
+rigs                   twist                     -0.002     0.20    0.001    0.000    2
+spacewalk              ship-from-earth           -0.000     0.02    0.000    0.000    2
+spin-station           drop                      -0.025    10.90    0.125    0.019   17
+spin-station           jump                      -0.007     4.82    0.087    0.017   15
+spin-station           landed                    -0.006     4.67    0.087    0.018   16
+spin-station           ring                      -0.002     1.90    0.049    0.008   15
+spin-station           standing                  -0.019     9.55    0.121    0.021   18
+spin-station           takeoff                   -0.006     4.71    0.086    0.015   16
+spin-station           throw                     -0.006     4.93    0.089    0.019   22
+spin-station           thrown-landed             -0.006     4.65    0.084    0.019   17
+spin-station           walk-antispinward         -0.007     4.79    0.088    0.018   21
+spin-station           walk-spinward             -0.006     4.75    0.089    0.021   24
+station-crate          after-003                 -0.026     2.33    0.008    0.000    5
+station-crate          after-006                 -0.014     2.09    0.002    0.000    4
+station-crate          after-010                 -0.011     1.95    0.001    0.000    3
+station-crate          after-015                 -0.003     1.83    0.007    0.000    6
+station-crate          after-020                 -0.006     1.78    0.006    0.001    6
+station-crate          after-030                 identical
+station-crate          after-045                 identical
+station-crate          after-060                 identical
+station-crate          after-090                 identical
+station-crate          after-150                 identical
+station-crate          pods-drifting             -0.001     0.46    0.003    0.001   10
+station-crate          pods-out                  -0.000     0.48    0.004    0.001   19
+station                crate-at-wall             identical
+station                crate-flying              -0.025     2.11    0.006    0.000    4
+station                end                       -0.001     0.49    0.003    0.001   22
+station                first-bump                -0.000     0.01    0.000    0.000    3
+station                pods-at-radiator          -0.000     0.03    0.000    0.000    1
+station                pods-drifting             -0.001     0.48    0.004    0.001   17
+station                pods-out                  -0.000     0.48    0.005    0.001   10
+station-nocrate        after-003                 -0.028     1.77    0.009    0.000    5
+station-nocrate        after-006                 -0.017     1.76    0.002    0.000    4
+station-nocrate        after-010                 -0.011     1.65    0.001    0.000    3
+station-nocrate        after-015                 -0.006     1.62    0.007    0.000    5
+station-nocrate        after-020                 -0.008     1.58    0.007    0.001    7
+station-nocrate        after-030                 identical
+station-nocrate        after-045                 identical
+station-nocrate        after-060                 identical
+station-nocrate        after-090                 identical
+station-nocrate        after-150                 identical
+station-nocrate        pods-drifting             -0.001     0.46    0.003    0.000   17
+station-nocrate        pods-out                  -0.000     0.47    0.004    0.001   14
+surface-yard           end-yard                  -0.001     0.31    0.002    0.000    6
+surface-yard           end                       -0.001     0.46    0.004    0.000   12
+surface-yard           falling                   -0.000     0.42    0.014    0.002   16
+surface-yard           stack-ahead               identical
+surface-yard           start                     -0.001     0.34    0.002    0.000    4
+ter-7tnv-floor         floor-next                -0.014    10.02    0.079    0.014   46
+ter-7tnv-floor         floor                     -0.015    10.94    0.118    0.021   53
+ter-7tnv-terminal      terminal-next             -0.059    25.50    0.871    0.069   16
+ter-7tnv-terminal      terminal                  -0.060    25.33    0.874    0.069   19
+throw                  aim                       -0.004     0.59    0.036    0.005   52
+throw                  throw                     -0.000     0.12    0.009    0.002   21
+walk                   cabin                     -0.023    28.86    0.411    0.016   32
+walk                   turned                    -0.003     0.81    0.001    0.000    4
+windows                cabin-through-pane        -0.000     0.22    0.007    0.000    7
+windows                earth-through-hole        -0.000     0.01    0.001    0.000    5
+windows                earth-through-pane        -0.000     0.01    0.003    0.000   10
+captures 128, identical 23, largest change of the mean -0.060 % (ter-7tnv-terminal terminal), largest share over 4 levels 1.178 %, largest share over 1 level 7.770 %

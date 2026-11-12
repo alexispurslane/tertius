@@ -1,0 +1,689 @@
+diff --git a/src/Tertius.Rendering/Frame/DescriptorLayouts.cs b/src/Tertius.Rendering/Frame/DescriptorLayouts.cs
+index 2d70f78da..3bb61a5e2 100644
+--- a/src/Tertius.Rendering/Frame/DescriptorLayouts.cs
++++ b/src/Tertius.Rendering/Frame/DescriptorLayouts.cs
+@@ -249,7 +249,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+         ShadowSampler = CreateShadowSampler();
+         GBufferSet = CreateGBufferSetLayout(ShadowSampler);
+         PostSet = CreateImagesLayout(images: 2, sampler: LinearClampSampler, name: "post set");
+-        GlowSourceSet = CreateImagesLayout(images: 1, sampler: LinearClampSampler, name: "glow source set");
++        GlowStepSet = CreateGlowStepSetLayout(LinearClampSampler);
+         AtlasSampler = CreateTrilinearClampSampler("impostor atlas sampler");
+         AtlasSet = CreateImagesLayout(images: 2, sampler: AtlasSampler, name: "impostor atlas set");
+ 
+@@ -266,8 +266,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+         FilterSet = CreateFilterSetLayout();
+         ScreenTraceSet = CreateScreenTraceSetLayout();
+ 
+-        (SceneLayout, ImpostorLayout, CompositeLayout, OverlayLayout, PostLayout, BloomLayout) =
+-            CreateGraphicsLayouts();
++        (SceneLayout, ImpostorLayout, CompositeLayout, OverlayLayout, PostLayout) = CreateGraphicsLayouts();
+         (
+             ExposureLayout,
+             EnvironmentPrefilterLayout,
+@@ -275,12 +274,16 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+             PyramidTailLayout,
+             DeformLayout,
+             ScatterLayout,
+-            ShadowBoundsLayout
++            ShadowBoundsLayout,
++            BloomLayout
+         ) = CreateComputeLayouts();
+ 
+         (SurfaceTestLayout, AccumulateLayout, DiffuseFilterLayout, ScreenTraceLayout) = CreateTemporalLayouts();
+ 
+-        (pool, texturePool) = CreatePools(framesInFlight: (uint)framesInFlight, glowSourceSets: (uint)glowLevels + 1);
++        (pool, texturePool) = CreatePools(
++            framesInFlight: (uint)framesInFlight,
++            glowStepSets: (uint)BloomPass.Steps(glowLevels)
++        );
+     }
+ 
+     /// <summary>
+@@ -316,8 +319,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+     public DescriptorSetLayout GBufferSet { get; }
+     public DescriptorSetLayout PostSet { get; }
+ 
+-    /// <summary>The one image that a draw of the bloom pass reads, with the linear clamp sampler.</summary>
+-    public DescriptorSetLayout GlowSourceSet { get; }
++    /// <summary>
++    /// The set of one step of the bloom pass, for the compute stage: the image that the step reads, the linear clamp
++    /// sampler, and the level that the step writes.
++    /// </summary>
++    public DescriptorSetLayout GlowStepSet { get; }
+ 
+     /// <summary>Set 0 of <see cref="ExposureLayout"/>: the HDR image and the G-buffer distance, for the compute stage.</summary>
+     public DescriptorSetLayout MeterSet { get; }
+@@ -385,7 +391,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+     /// <summary>The post set plus <see cref="ToneMapPushConstants"/>.</summary>
+     public PipelineLayout PostLayout { get; }
+ 
+-    /// <summary>The glow source set plus <see cref="BloomPushConstants"/>.</summary>
++    /// <summary>The glow step set plus <see cref="BloomPushConstants"/>, for the compute stage.</summary>
+     public PipelineLayout BloomLayout { get; }
+ 
+     /// <summary>The meter set and the exposure set plus <see cref="ExposureAdaptPushConstants"/>, for both compute pipelines.</summary>
+@@ -505,7 +511,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+ 
+     public DescriptorSet AllocatePostSet() => Allocate(pool, PostSet, null);
+ 
+-    public DescriptorSet AllocateGlowSourceSet() => Allocate(pool, GlowSourceSet, null);
++    public DescriptorSet AllocateGlowStepSet() => Allocate(pool, GlowStepSet, null);
+ 
+     public DescriptorSet AllocateAtlasSet() => Allocate(pool, AtlasSet, null);
+ 
+@@ -801,8 +807,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+         PipelineLayout Impostor,
+         PipelineLayout Composite,
+         PipelineLayout Overlay,
+-        PipelineLayout Post,
+-        PipelineLayout Bloom
++        PipelineLayout Post
+     ) CreateGraphicsLayouts()
+     {
+         const ShaderStageFlags graphics = ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit;
+@@ -825,17 +830,12 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+             push: new(ShaderStageFlags.FragmentBit, 0, (uint)Unsafe.SizeOf<ToneMapPushConstants>()),
+             name: "post layout"
+         );
+-        PipelineLayout bloomLayout = CreatePipelineLayout(
+-            sets: [GlowSourceSet],
+-            push: new(ShaderStageFlags.FragmentBit, 0, (uint)Unsafe.SizeOf<BloomPushConstants>()),
+-            name: "bloom layout"
+-        );
+-        return (sceneLayout, impostorLayout, compositeLayout, overlayLayout, postLayout, bloomLayout);
++        return (sceneLayout, impostorLayout, compositeLayout, overlayLayout, postLayout);
+     }
+ 
+     /// <summary>
+     /// The pipeline layouts of the compute passes: the exposure, the environment map's prefilter, the depth pyramid, the
+-    /// deformation, the skin scatter and the shadow bounds.
++    /// deformation, the skin scatter, the shadow bounds and the bloom.
+     /// </summary>
+     private (
+         PipelineLayout Exposure,
+@@ -844,7 +844,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+         PipelineLayout PyramidTail,
+         PipelineLayout Deform,
+         PipelineLayout Scatter,
+-        PipelineLayout ShadowBounds
++        PipelineLayout ShadowBounds,
++        PipelineLayout Bloom
+     ) CreateComputeLayouts()
+     {
+         PipelineLayout exposure = ComputeLayout<ExposureAdaptPushConstants>(
+@@ -875,7 +876,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+             sets: [ShadowBoundsSet],
+             name: "shadow bounds layout"
+         );
+-        return (exposure, environmentPrefilter, pyramid, pyramidTail, deform, scatter, shadowBounds);
++        PipelineLayout bloom = ComputeLayout<BloomPushConstants>(sets: [GlowStepSet], name: "bloom layout");
++        return (exposure, environmentPrefilter, pyramid, pyramidTail, deform, scatter, shadowBounds, bloom);
+     }
+ 
+     /// <summary>A layout of <paramref name="sets"/> whose one push constant range is a <typeparamref name="TPush"/> for the compute stage.</summary>
+@@ -887,8 +889,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+             name: name
+         );
+ 
+-    /// <summary>The sizes of the shared pool, which holds <paramref name="glowSourceSets"/> glow source sets.</summary>
+-    private DescriptorPoolSize[] SharedPoolSizes(uint frames, uint glowSourceSets) =>
++    /// <summary>The sizes of the shared pool, which holds <paramref name="glowStepSets"/> glow step sets.</summary>
++    private DescriptorPoolSize[] SharedPoolSizes(uint frames, uint glowStepSets) =>
+         [
+             // One per frame set, and the scatter set's kernel.
+             new(DescriptorType.UniformBuffer, frames + 1),
+@@ -901,17 +903,17 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+                     + ScreenTraceStorageBuffers * ScreenTraceSets
+             ),
+             // Three per frame set (the material sampler and the immutable linear clamp and environment samplers), the
+-            // immutable samplers of the G-buffer, atlas, post and prefilter sets, and one per glow source set.
+-            new(DescriptorType.Sampler, 3 * frames + 4 + glowSourceSets),
++            // immutable samplers of the G-buffer, atlas, post and prefilter sets, and one per glow step set.
++            new(DescriptorType.Sampler, 3 * frames + 4 + glowStepSets),
+             // 20 for the G-buffer, post and atlas sets, five per frame set for the tables, the specular map, the irradiance
+-            // cube and the distance cube, one per glow source set, two for the meter set, one per pyramid level set, one for
++            // cube and the distance cube, one per glow step set, two for the meter set, one per pyramid level set, one for
+             // each pyramid's tail set, one for the prefilter set, one for the shadow bounds set, two for each surface test
+             // set, two for each signal set and four for each screen tracer set.
+             new(
+                 DescriptorType.SampledImage,
+                 20
+                     + 5 * frames
+-                    + glowSourceSets
++                    + glowStepSets
+                     + 2
+                     + PyramidLevelSets
+                     + Pyramids
+@@ -923,7 +925,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+             ),
+             // One per pyramid level set, each tail set's mips, four per environment levels set, three for the scatter set,
+             // one for the shadow bounds set, four per surface test set, SignalSetImages per signal set, six for the light
+-            // set, sixteen per screen tracer set with the hit light, plus ScreenTraceAgeImages, and four per filter set.
++            // set, sixteen per screen tracer set with the hit light, plus ScreenTraceAgeImages, four per filter set, and
++            // one per glow step set.
+             new(
+                 DescriptorType.StorageImage,
+                 PyramidLevelSets
+@@ -936,23 +939,24 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+                     + LightSetImages
+                     + (ScreenTraceStorageImages + ScreenTraceAgeImages + ScreenTraceHitLightImages) * ScreenTraceSets
+                     + FilterSetImages * FilterSets
++                    + glowStepSets
+             ),
+         ];
+ 
+-    /// <summary>The shared pool, which holds <paramref name="glowSourceSets"/> glow source sets, and the pool of the texture sets.</summary>
+-    private (SetPool Shared, SetPool Textures) CreatePools(uint framesInFlight, uint glowSourceSets)
++    /// <summary>The shared pool, which holds <paramref name="glowStepSets"/> glow step sets, and the pool of the texture sets.</summary>
++    private (SetPool Shared, SetPool Textures) CreatePools(uint framesInFlight, uint glowStepSets)
+     {
+         uint frames = framesInFlight;
+         // The frame sets, the deform sets, the G-buffer, post, atlas, meter, exposure, prefilter, scatter, shadow
+-        // bounds and light sets, the glow source sets, the pyramid level sets, each pyramid's tail set, the environment
++        // bounds and light sets, the glow step sets, the pyramid level sets, each pyramid's tail set, the environment
+         // levels sets, the surface test sets, the signal sets, the screen tracer sets and the filter sets. The tracer's sets
+         // exist even with the tracer off: they cost nothing per frame.
+         SetPool shared = CreatePool(
+-            sizes: SharedPoolSizes(frames, glowSourceSets),
++            sizes: SharedPoolSizes(frames, glowStepSets),
+             maxSets: 2 * frames
+                 + 10
+                 + Pyramids
+-                + glowSourceSets
++                + glowStepSets
+                 + PyramidLevelSets
+                 + EnvironmentLevelsSets
+                 + SurfaceTestSets
+@@ -1063,6 +1067,21 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+         return CreateLayout(bindings: bindings, name: "deform set");
+     }
+ 
++    /// <summary>
++    /// The layout of the glow step set: a sampled image, <paramref name="sampler"/> as its immutable sampler, and a
++    /// storage image, for the compute stage.
++    /// </summary>
++    private DescriptorSetLayout CreateGlowStepSetLayout(Sampler sampler)
++    {
++        Span<DescriptorSetLayoutBinding> step =
++        [
++            Image(binding: 0, stages: ShaderStageFlags.ComputeBit),
++            ImmutableSampler(binding: 1, stages: ShaderStageFlags.ComputeBit, sampler: &sampler),
++            StorageImage(binding: 2),
++        ];
++        return CreateLayout(bindings: step, name: "glow step set");
++    }
++
+     /// <summary>
+     /// The layout of the scatter set: three storage images and the kernel's uniform buffer, for the compute stage. The
+     /// diffuse image, binding 0, is also for the fragment stage, where the ambient pass adds to it.
+diff --git a/src/Tertius.Rendering/Frame/RenderTargets.cs b/src/Tertius.Rendering/Frame/RenderTargets.cs
+index c12a0bb87..f3b5e8f27 100644
+--- a/src/Tertius.Rendering/Frame/RenderTargets.cs
++++ b/src/Tertius.Rendering/Frame/RenderTargets.cs
+@@ -130,9 +130,12 @@ internal sealed class RenderTargets : IDisposable
+         MeterSet = layouts.AllocateMeterSet();
+ 
+         Glow = new GpuImage[glowLevels];
+-        GlowSources = glowLevels == 0 ? [] : new DescriptorSet[glowLevels + 1];
+-        for (int i = 0; i < GlowSources.Length; i++)
+-            GlowSources[i] = layouts.AllocateGlowSourceSet();
++        GlowDown = new DescriptorSet[glowLevels];
++        GlowUp = new DescriptorSet[BloomPass.Steps(glowLevels) - glowLevels];
++        for (int i = 0; i < GlowDown.Length; i++)
++            GlowDown[i] = layouts.AllocateGlowStepSet();
++        for (int i = 0; i < GlowUp.Length; i++)
++            GlowUp[i] = layouts.AllocateGlowStepSet();
+         Create(extent);
+         if (depthPyramid)
+             Pyramid = new(
+@@ -198,10 +201,16 @@ internal sealed class RenderTargets : IDisposable
+     public GpuImage[] Glow { get; }
+ 
+     /// <summary>
+-    /// The sets that the draws of the bloom pass read: the HDR image first, then each level of <see cref="Glow"/>. Empty
+-    /// without bloom.
++    /// The sets of the bloom's steps down: set i reads the level before level i of <see cref="Glow"/>, which is the HDR
++    /// image for level 0, and writes level i. Empty without bloom.
+     /// </summary>
+-    public DescriptorSet[] GlowSources { get; }
++    public DescriptorSet[] GlowDown { get; }
++
++    /// <summary>
++    /// The sets of the bloom's steps up: set i reads level i + 1 of <see cref="Glow"/> and writes level i. One fewer than
++    /// the levels.
++    /// </summary>
++    public DescriptorSet[] GlowUp { get; }
+ 
+     /// <summary>Recreates every target at a new size. The device must be idle.</summary>
+     /// <exception cref="ArgumentOutOfRangeException">
+@@ -337,18 +346,36 @@ internal sealed class RenderTargets : IDisposable
+     {
+         if (Glow.Length == 0)
+             return;
+-        layouts.WriteImage(set: GlowSources[0], binding: 0, arrayElement: 0, image: PostHdr);
+         Extent2D level = extent;
+         for (int i = 0; i < Glow.Length; i++)
+         {
+             level = new((level.Width + 1) / 2, (level.Height + 1) / 2);
+-            Glow[i] = ColorTarget(extent: level, format: HdrFormat, name: $"bloom level {i}", readable: true);
+-            layouts.WriteImage(set: GlowSources[i + 1], binding: 0, arrayElement: 0, image: Glow[i]);
++            // The steps write a level as a storage image, the next step and the tone map sample it, and a test reads it.
++            Glow[i] = GpuImage.Create(
++                device: device,
++                allocator: allocator,
++                extent: level,
++                format: HdrFormat,
++                usage: ImageUsageFlags.StorageBit | ImageUsageFlags.SampledBit | ImageUsageFlags.TransferSrcBit,
++                mipLevels: 1,
++                name: $"bloom level {i}"
++            );
+         }
+ 
++        for (int i = 0; i < GlowDown.Length; i++)
++            WriteGlowStep(set: GlowDown[i], source: i == 0 ? PostHdr : Glow[i - 1], target: Glow[i]);
++        for (int i = 0; i < GlowUp.Length; i++)
++            WriteGlowStep(set: GlowUp[i], source: Glow[i + 1], target: Glow[i]);
+         layouts.WriteImage(set: PostSet, binding: 1, arrayElement: 0, image: Glow[0]);
+     }
+ 
++    /// <summary>Points the glow step <paramref name="set"/> at the image that its step reads and the level that it writes.</summary>
++    private void WriteGlowStep(DescriptorSet set, GpuImage source, GpuImage target)
++    {
++        layouts.WriteImage(set: set, binding: 0, arrayElement: 0, image: source);
++        layouts.WriteStorageImage(set: set, binding: 2, image: target);
++    }
++
+     /// <summary>
+     /// An image of one level that passes draw into and later passes sample. A <paramref name="readable"/> image can also
+     /// be copied out, for the renderer's read hooks. The image has <paramref name="extraUsage"/> beside.
+diff --git a/src/Tertius.Rendering/Passes/BloomPass.cs b/src/Tertius.Rendering/Passes/BloomPass.cs
+index c44115135..06100c68c 100644
+--- a/src/Tertius.Rendering/Passes/BloomPass.cs
++++ b/src/Tertius.Rendering/Passes/BloomPass.cs
+@@ -4,10 +4,14 @@ namespace Tertius.Rendering;
+ 
+ /// <summary>
+ /// Builds the glow of the HDR image's bright light in the levels of <see cref="RenderTargets.Glow"/>, so that level 0
+-/// ends holding every level summed, for the tone map to add. ARCHITECTURE.md, "Bloom", gives the steps.
++/// ends holding every level summed, for the tone map to add. ARCHITECTURE.md, "Bloom", gives the steps. Each step is
++/// one compute dispatch over its level, in 8 × 8 workgroups.
+ /// </summary>
+ internal sealed unsafe class BloomPass : RenderPass
+ {
++    /// <summary>The width and the height of a workgroup, the shaders' local size.</summary>
++    private const uint GroupSize = 8;
++
+     private readonly VulkanDevice device;
+     private readonly DescriptorLayouts layouts;
+     private readonly Bloom bloom;
+@@ -20,13 +24,19 @@ internal sealed unsafe class BloomPass : RenderPass
+         this.device = device;
+         this.layouts = layouts;
+         this.bloom = bloom;
+-        prefilter = Fullscreen(shaders, "bloom_prefilter.frag", BlendMode.None);
+-        down = Fullscreen(shaders, "bloom_down.frag", BlendMode.None);
+-        up = Fullscreen(shaders, "bloom_up.frag", BlendMode.Additive);
++        prefilter = Step(shaders, "bloom_prefilter.comp");
++        down = Step(shaders, "bloom_down.comp");
++        up = Step(shaders, "bloom_up.comp");
+     }
+ 
+     public override string Name => "bloom";
+ 
++    /// <summary>
++    /// How many steps a bloom of <paramref name="levels"/> levels runs: one into each level on the way down, and one into
++    /// each level but the smallest on the way up. None without bloom.
++    /// </summary>
++    public static int Steps(int levels) => levels == 0 ? 0 : 2 * levels - 1;
++
+     public override void Record(FrameContext context)
+     {
+         RenderTargets targets = context.Targets;
+@@ -41,115 +51,78 @@ internal sealed unsafe class BloomPass : RenderPass
+         context.Vk.CmdPushConstants(
+             commandBuffer: context.CommandBuffer,
+             layout: layouts.BloomLayout,
+-            stageFlags: ShaderStageFlags.FragmentBit,
++            stageFlags: ShaderStageFlags.ComputeBit,
+             offset: 0,
+             size: (uint)sizeof(BloomPushConstants),
+             pValues: &push
+         );
+ 
+-        Draw(
+-            context: context,
+-            pipeline: prefilter,
+-            source: targets.PostHdr,
+-            sourceSet: targets.GlowSources[0],
+-            target: levels[0],
+-            add: false
+-        );
+-        for (int i = 1; i < levels.Length; i++)
+-            Draw(
++        for (int i = 0; i < levels.Length; i++)
++            Run(
+                 context: context,
+-                pipeline: down,
+-                source: levels[i - 1],
+-                sourceSet: targets.GlowSources[i],
++                pipeline: i == 0 ? prefilter : down,
++                source: i == 0 ? targets.PostHdr : levels[i - 1],
++                set: targets.GlowDown[i],
+                 target: levels[i],
+                 add: false
+             );
+         // From the smallest level up, so that each level adds a level that already holds every smaller one.
+         for (int i = levels.Length - 2; i >= 0; i--)
+-            Draw(
++            Run(
+                 context: context,
+                 pipeline: up,
+                 source: levels[i + 1],
+-                sourceSet: targets.GlowSources[i + 2],
++                set: targets.GlowUp[i],
+                 target: levels[i],
+                 add: true
+             );
+     }
+ 
+     /// <summary>
+-    /// One fullscreen draw into <paramref name="target"/> that reads <paramref name="source"/> through
+-    /// <paramref name="sourceSet"/>. With <paramref name="add"/>, the draw blends into what the target holds; otherwise it
+-    /// replaces every pixel.
++    /// One dispatch over <paramref name="target"/> that reads <paramref name="source"/> through <paramref name="set"/>.
++    /// With <paramref name="add"/>, the step adds to what the target holds; otherwise it replaces every pixel.
+     /// </summary>
+-    private void Draw(
++    private void Run(
+         FrameContext context,
+         Pipeline pipeline,
+         GpuImage source,
+-        DescriptorSet sourceSet,
++        DescriptorSet set,
+         GpuImage target,
+         bool add
+     )
+     {
+         Vk vk = context.Vk;
+         CommandBuffer commandBuffer = context.CommandBuffer;
+-        context.Barriers.Image(source, ImageUse.SampledFragment);
+-        context.Barriers.Image(target, ImageUse.ColorAttachment, discard: !add);
++        context.Barriers.Image(source, ImageUse.SampledCompute);
++        context.Barriers.Image(target, ImageUse.StorageCompute, discard: !add);
+         context.Barriers.Flush(vk, commandBuffer);
+ 
+-        var color = new RenderingAttachmentInfo
+-        {
+-            SType = StructureType.RenderingAttachmentInfo,
+-            ImageView = target.View,
+-            ImageLayout = ImageLayout.ColorAttachmentOptimal,
+-            LoadOp = add ? AttachmentLoadOp.Load : AttachmentLoadOp.DontCare,
+-            StoreOp = AttachmentStoreOp.Store,
+-        };
+-        var rendering = new RenderingInfo
+-        {
+-            SType = StructureType.RenderingInfo,
+-            RenderArea = new(new Offset2D(0, 0), target.Extent),
+-            LayerCount = 1,
+-            ColorAttachmentCount = 1,
+-            PColorAttachments = &color,
+-        };
+-        vk.CmdBeginRendering(commandBuffer, &rendering);
+-        vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, pipeline);
++        vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, pipeline);
+         vk.CmdBindDescriptorSets(
+             commandBuffer: commandBuffer,
+-            pipelineBindPoint: PipelineBindPoint.Graphics,
++            pipelineBindPoint: PipelineBindPoint.Compute,
+             layout: layouts.BloomLayout,
+             firstSet: 0,
+             descriptorSetCount: 1,
+-            pDescriptorSets: &sourceSet,
++            pDescriptorSets: &set,
+             dynamicOffsetCount: 0,
+             pDynamicOffsets: null
+         );
+-        var viewport = new Viewport(
+-            x: 0,
+-            y: 0,
+-            width: target.Extent.Width,
+-            height: target.Extent.Height,
+-            minDepth: 0,
+-            maxDepth: 1
++        vk.CmdDispatch(
++            commandBuffer: commandBuffer,
++            groupCountX: (target.Extent.Width + GroupSize - 1) / GroupSize,
++            groupCountY: (target.Extent.Height + GroupSize - 1) / GroupSize,
++            groupCountZ: 1
+         );
+-        var scissor = new Rect2D(new Offset2D(0, 0), target.Extent);
+-        vk.CmdSetViewport(commandBuffer: commandBuffer, firstViewport: 0, viewportCount: 1, pViewports: &viewport);
+-        vk.CmdSetScissor(commandBuffer: commandBuffer, firstScissor: 0, scissorCount: 1, pScissors: &scissor);
+-        vk.CmdDraw(commandBuffer: commandBuffer, vertexCount: 3, instanceCount: 1, firstVertex: 0, firstInstance: 0);
+-        vk.CmdEndRendering(commandBuffer);
+     }
+ 
+-    /// <summary>A pipeline of one fullscreen triangle into an HDR image, named after its fragment shader.</summary>
+-    private Pipeline Fullscreen(ShaderLibrary shaders, string fragmentShader, BlendMode blend) =>
+-        new GraphicsPipelineDesc
++    /// <summary>The compute pipeline of one kind of step, named after its shader.</summary>
++    private Pipeline Step(ShaderLibrary shaders, string shader) =>
++        new ComputePipelineDesc
+         {
+-            Name = fragmentShader,
+-            VertexShader = "fullscreen.vert",
+-            FragmentShader = fragmentShader,
++            Name = shader,
++            Shader = shader,
+             Layout = layouts.BloomLayout,
+-            ColorFormats = [RenderTargets.HdrFormat],
+-            Blend = blend,
+-            CullMode = CullModeFlags.None,
+         }.Create(device, shaders);
+ 
+     public override void Dispose()
+diff --git a/src/Tertius.Rendering/Scene/GpuTypes.cs b/src/Tertius.Rendering/Scene/GpuTypes.cs
+index 90619dd99..3637755ab 100644
+--- a/src/Tertius.Rendering/Scene/GpuTypes.cs
++++ b/src/Tertius.Rendering/Scene/GpuTypes.cs
+@@ -726,7 +726,7 @@ internal struct ToneMapPushConstants
+     public float GlowStrength;
+ }
+ 
+-/// <summary>The push constants of the bloom pass (Shaders/bloom_*.frag). Only its first draw reads them.</summary>
++/// <summary>The push constants of the bloom pass (Shaders/bloom_*.comp). Only its first step reads them.</summary>
+ [StructLayout(LayoutKind.Sequential)]
+ internal struct BloomPushConstants
+ {
+diff --git a/src/Tertius.Rendering/Shaders/bloom.glsl b/src/Tertius.Rendering/Shaders/bloom.glsl
+index 287b8ca90..9f0764949 100644
+--- a/src/Tertius.Rendering/Shaders/bloom.glsl
++++ b/src/Tertius.Rendering/Shaders/bloom.glsl
+@@ -1,10 +1,17 @@
+-// The bloom pass (ARCHITECTURE.md, "Bloom"): every draw reads one image, the HDR image or a bloom level, through the
+-// linear clamp sampler (linear, clamped to the edge), and writes the next level.
++// The bloom pass (ARCHITECTURE.md, "Bloom"): every step reads one image, the HDR image or a bloom level, through the
++// linear clamp sampler (linear, clamped to the edge), and writes one level. A step is a compute dispatch with one
++// invocation per pixel of its level, in 8 x 8 workgroups. The steps are not draws, because a draw opens a render pass,
++// and MoltenVK ends a Metal encoder at each render pass (tools/README.md, "The patched MoltenVK").
++// The shader that includes this file defines BLOOM_TARGET as the access of its level: writeonly, or nothing for a step
++// that also reads the level.
+ 
+ #include "downsample.glsl"
+ 
++layout(local_size_x = 8, local_size_y = 8) in;
++
+ layout(set = 0, binding = 0) uniform texture2D source;
+ layout(set = 0, binding = 1) uniform sampler linearClamp;
++layout(set = 0, binding = 2, rgba16f) uniform BLOOM_TARGET image2D target;
+ 
+ layout(push_constant, std430) uniform BloomPush
+ {
+@@ -13,4 +20,15 @@ layout(push_constant, std430) uniform BloomPush
+     uint levels;       // how many levels the up chain sums into level 0
+ } bloom;
+ 
+-layout(location = 0) out vec4 outColor;
++// The invocation's pixel of the level. False for an invocation of the last workgroups that lies outside the level.
++bool targetPixel(out ivec2 pixel)
++{
++    pixel = ivec2(gl_GlobalInvocationID.xy);
++    return all(lessThan(pixel, imageSize(target)));
++}
++
++// The center of a pixel of the level, in pixels: what gl_FragCoord.xy holds in a draw over the level.
++vec2 centerOf(ivec2 pixel)
++{
++    return vec2(pixel) + 0.5;
++}
+diff --git a/src/Tertius.Rendering/Shaders/bloom_down.frag b/src/Tertius.Rendering/Shaders/bloom_down.comp
+similarity index 75%
+rename from src/Tertius.Rendering/Shaders/bloom_down.frag
+rename to src/Tertius.Rendering/Shaders/bloom_down.comp
+index 28ba3499c..e43bf39b0 100644
+--- a/src/Tertius.Rendering/Shaders/bloom_down.frag
++++ b/src/Tertius.Rendering/Shaders/bloom_down.comp
+@@ -1,5 +1,6 @@
+ #version 460
+ #extension GL_GOOGLE_include_directive : require
++#define BLOOM_TARGET writeonly
+ #include "bloom.glsl"
+ 
+ // A downsample from one bloom level into the next with Jimenez's 13 bilinear taps.
+@@ -11,13 +12,16 @@ vec4 tap(vec2 center, vec2 texel, vec2 offset)
+ 
+ void main()
+ {
++    ivec2 pixel;
++    if (!targetPixel(pixel))
++        return;
+     vec2 texel = 1.0 / vec2(textureSize(sampler2D(source, linearClamp), 0));
+-    // The output pixel p has its center on the source texel corner 2p + 1, which is 2 gl_FragCoord.
+-    vec2 center = 2.0 * gl_FragCoord.xy * texel;
+-    outColor = vec4(jimenez13(
++    // The output pixel p has its center on the source texel corner 2p + 1, which is twice the pixel's center.
++    vec2 center = 2.0 * centerOf(pixel) * texel;
++    imageStore(target, pixel, vec4(jimenez13(
+         tap(center, texel, vec2(-2, -2)), tap(center, texel, vec2(0, -2)), tap(center, texel, vec2(2, -2)),
+         tap(center, texel, vec2(-1, -1)), tap(center, texel, vec2(1, -1)),
+         tap(center, texel, vec2(-2, 0)), tap(center, texel, vec2(0, 0)), tap(center, texel, vec2(2, 0)),
+         tap(center, texel, vec2(-1, 1)), tap(center, texel, vec2(1, 1)),
+-        tap(center, texel, vec2(-2, 2)), tap(center, texel, vec2(0, 2)), tap(center, texel, vec2(2, 2))).rgb, 1.0);
++        tap(center, texel, vec2(-2, 2)), tap(center, texel, vec2(0, 2)), tap(center, texel, vec2(2, 2))).rgb, 1.0));
+ }
+diff --git a/src/Tertius.Rendering/Shaders/bloom_prefilter.frag b/src/Tertius.Rendering/Shaders/bloom_prefilter.comp
+similarity index 88%
+rename from src/Tertius.Rendering/Shaders/bloom_prefilter.frag
+rename to src/Tertius.Rendering/Shaders/bloom_prefilter.comp
+index a2401554d..072ca7fe1 100644
+--- a/src/Tertius.Rendering/Shaders/bloom_prefilter.frag
++++ b/src/Tertius.Rendering/Shaders/bloom_prefilter.comp
+@@ -1,13 +1,14 @@
+ #version 460
+ #extension GL_EXT_samplerless_texture_functions : require
+ #extension GL_GOOGLE_include_directive : require
++#define BLOOM_TARGET writeonly
+ #include "bloom.glsl"
+ 
+ // The first downsample, from the HDR image into level 0, of the thresholded light. The threshold applies to each HDR
+ // texel before any averaging, so a source of one pixel glows by its own brightness. Each bilinear tap of Jimenez's
+ // filter lies on a texel corner and averages the four texels around it, so the filter of a thresholded image is a fixed
+ // weight for each of the 6x6 texels under its 13 taps: the sum of a quarter of the weight of each tap that holds the
+-// texel. The draw sums the 36 weighted texels itself, so no draw has to write the thresholded image.
++// texel. The step sums the 36 weighted texels itself, so no step has to write the thresholded image.
+ 
+ // Unity's quadratic soft threshold (PostProcessing v2, QuadraticThreshold in Colors.hlsl): the brightness is the
+ // largest channel of the HDR image, which the shading passes pre-exposed. Below threshold - knee width nothing glows, above threshold + knee width the light
+@@ -34,9 +35,12 @@ const float texelWeights[36] = float[36](
+ 
+ void main()
+ {
++    ivec2 pixel;
++    if (!targetPixel(pixel))
++        return;
+     ivec2 last = textureSize(source, 0) - 1;
+     // The output pixel's center lies between source texels 2p and 2p + 1, so its taps cover texels 2p - 2 to 2p + 3.
+-    ivec2 first = ivec2(gl_FragCoord.xy) * 2 - 2;
++    ivec2 first = pixel * 2 - 2;
+     vec3 sum = vec3(0.0);
+     for (int y = 0; y < 6; y++)
+         for (int x = 0; x < 6; x++)
+@@ -46,5 +50,5 @@ void main()
+         }
+     // Each level holds at most 64,512 over the levels, so their sum in level 0 stays at most 64,512, with the rounding
+     // of each level's half floats inside the room that it leaves below 65,504.
+-    outColor = vec4(sum / (128.0 * float(bloom.levels)), 1.0);
++    imageStore(target, pixel, vec4(sum / (128.0 * float(bloom.levels)), 1.0));
+ }
+diff --git a/src/Tertius.Rendering/Shaders/bloom_up.comp b/src/Tertius.Rendering/Shaders/bloom_up.comp
+new file mode 100644
+index 000000000..f717d3c62
+--- /dev/null
++++ b/src/Tertius.Rendering/Shaders/bloom_up.comp
+@@ -0,0 +1,16 @@
++#version 460
++#extension GL_GOOGLE_include_directive : require
++#define BLOOM_TARGET
++#include "bloom.glsl"
++#include "tent.glsl"
++
++// An upsample from one bloom level into the larger one before it, which the step adds to. Level i then holds itself
++// plus every smaller level. The level's alpha stays as it was.
++void main()
++{
++    ivec2 pixel;
++    if (!targetPixel(pixel))
++        return;
++    vec4 held = imageLoad(target, pixel);
++    imageStore(target, pixel, vec4(held.rgb + tent(source, linearClamp, centerOf(pixel)), held.a));
++}
+diff --git a/src/Tertius.Rendering/Shaders/bloom_up.frag b/src/Tertius.Rendering/Shaders/bloom_up.frag
+deleted file mode 100644
+index 83215e74d..000000000
+--- a/src/Tertius.Rendering/Shaders/bloom_up.frag
++++ /dev/null
+@@ -1,11 +0,0 @@
+-#version 460
+-#extension GL_GOOGLE_include_directive : require
+-#include "bloom.glsl"
+-#include "tent.glsl"
+-
+-// An upsample from one bloom level into the larger one before it, which the pipeline's additive blend adds to. Level i
+-// then holds itself plus every smaller level.
+-void main()
+-{
+-    outColor = vec4(tent(source, linearClamp), 1.0);
+-}
+diff --git a/src/Tertius.Rendering/Shaders/tent.glsl b/src/Tertius.Rendering/Shaders/tent.glsl
+index 9dbf1319c..fb33e73f9 100644
+--- a/src/Tertius.Rendering/Shaders/tent.glsl
++++ b/src/Tertius.Rendering/Shaders/tent.glsl
+@@ -1,10 +1,10 @@
+ // The 3x3 tent filter of the bloom's upsample (Jimenez, SIGGRAPH 2014): nine bilinear taps one texel of the smaller
+-// image apart, weighted 1 2 1, 2 4 2, 1 2 1 over 16. The output pixel's center at gl_FragCoord lies at half that in the
+-// smaller image's texels.
+-vec3 tent(texture2D image, sampler linear)
++// image apart, weighted 1 2 1, 2 4 2, 1 2 1 over 16. The output pixel's center, pixelCenter in pixels (gl_FragCoord.xy
++// in a draw), lies at half that in the smaller image's texels.
++vec3 tent(texture2D image, sampler linear, vec2 pixelCenter)
+ {
+     vec2 texel = 1.0 / vec2(textureSize(sampler2D(image, linear), 0));
+-    vec2 center = 0.5 * gl_FragCoord.xy * texel;
++    vec2 center = 0.5 * pixelCenter * texel;
+     vec3 sum = vec3(0.0);
+     for (int y = -1; y <= 1; y++)
+         for (int x = -1; x <= 1; x++)
+diff --git a/src/Tertius.Rendering/Shaders/tonemap.glsl b/src/Tertius.Rendering/Shaders/tonemap.glsl
+index b013dc9f9..f43c6cf98 100644
+--- a/src/Tertius.Rendering/Shaders/tonemap.glsl
++++ b/src/Tertius.Rendering/Shaders/tonemap.glsl
+@@ -63,7 +63,7 @@ void main()
+     vec3 light = texelFetch(hdrImage, ivec2(gl_FragCoord.xy), 0).rgb;
+ #ifdef BLOOM
+     // The glow joins the light before the tone curve, so the curve shapes both alike.
+-    light += tonemap.glowStrength * tent(glowImage, linearClamp);
++    light += tonemap.glowStrength * tent(glowImage, linearClamp, gl_FragCoord.xy);
+ #endif
+     // The passes that wrote the HDR image pre-exposed it, so the curve takes it as it is.
+     vec3 hdr = max(light, vec3(0.0));

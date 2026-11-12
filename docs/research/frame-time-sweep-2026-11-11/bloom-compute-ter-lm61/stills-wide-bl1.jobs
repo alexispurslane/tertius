@@ -1,0 +1,8 @@
+# The image test of the bloom as compute steps (ter-lm61): the 24 capture scripts and the deck's low view with main's
+# build (m13) and with the compute bloom (bloomc), at each scene's own exposure.
+for s in airlock bounce-red-wall cabin-light deep-yard demo-meshes demo-shuttle demo-surface doorway mars-air mirror-balls pbr-spheres reflections-stills rigs spacewalk spin-station station-crate station-nocrate station surface-yard ter-7tnv-floor ter-7tnv-terminal throw walk windows; do
+  run m13 capscripts/$s.json bl-$s-main
+  run bloomc capscripts/$s.json bl-$s-bloom
+done
+run m13 views2.json bl-low-main
+run bloomc views2.json bl-low-bloom

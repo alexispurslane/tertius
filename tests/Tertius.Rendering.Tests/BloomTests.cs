@@ -571,6 +571,67 @@ public sealed class BloomTests
         }
     }
 
+    [Theory]
+    [InlineData(640, 360)]
+    [InlineData(637, 355)]
+    public void EveryBloomLevelHoldsTheDesignsChainOverTheHdrImage(int width, int height)
+    {
+        // One square touches the top edge, so its taps read past the edge, and the two squares differ in color. At
+        // 637 x 355 the first three levels have an odd width, and five have an odd height.
+        Bloom bloom = Shaped();
+        VulkanRenderer renderer = Headless(bloom, width: width, height: height);
+        try
+        {
+            Render(
+                renderer,
+                "bloom-chain",
+                new Square(X: 9, Y: 7, Side: 14, Radiance: new(x: 30, y: 4, z: 1)),
+                new Square(X: width / 2 + 40, Y: height / 2, Side: 24, Radiance: new(x: 2, y: 6, z: 12))
+            );
+            BloomChainModel.Level hdr = Rgb(renderer.ReadPostHdr(), width: width, height: height);
+
+            BloomChainModel.Level[] expected = BloomChainModel.Levels(hdr, bloom);
+
+            for (int i = 0; i < expected.Length; i++)
+            {
+                BloomChainModel.Level actual = Rgb(
+                    renderer.ReadGlowLevel(i),
+                    width: expected[i].Width,
+                    height: expected[i].Height
+                );
+                float largest = expected[i].Pixels.Max(pixel => MathF.Max(pixel.X, MathF.Max(pixel.Y, pixel.Z)));
+                float worst = expected[i]
+                    .Pixels.Zip(actual.Pixels, (model, gpu) => Vector3.Abs(model - gpu))
+                    .Max(error => MathF.Max(error.X, MathF.Max(error.Y, error.Z)));
+
+                largest.Should().BeGreaterThan(0.01f, "level {0} must hold light to compare", i);
+                worst
+                    .Should()
+                    .BeLessThan(ChainTolerance * largest, "level {0} holds the chain's light at every pixel", i);
+            }
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// The largest difference between a level of the GPU and of <see cref="BloomChainModel"/>, as a share of the level's
+    /// brightest channel. The two differ by the order of their sums and by the rounding of each level's half floats.
+    /// </summary>
+    private const float ChainTolerance = 0.01f;
+
+    /// <summary>The RGB of <paramref name="rgba"/>, an image of <paramref name="width"/> × <paramref name="height"/> pixels with four channels.</summary>
+    private static BloomChainModel.Level Rgb(float[] rgba, int width, int height)
+    {
+        rgba.Should().HaveCount(4 * width * height);
+        var pixels = new Vector3[width * height];
+        for (int i = 0; i < pixels.Length; i++)
+            pixels[i] = new(x: rgba[4 * i], y: rgba[4 * i + 1], z: rgba[4 * i + 2]);
+        return new(Width: width, Height: height, Pixels: pixels);
+    }
+
     /// <summary>
     /// A square that emits <see cref="Radiance"/> and reflects nothing, <see cref="Side"/> px across, centered on the point
     /// (<see cref="X"/>, <see cref="Y"/>) of the image, in pixels. An <see cref="Opacity"/> below 1 makes it a transparent

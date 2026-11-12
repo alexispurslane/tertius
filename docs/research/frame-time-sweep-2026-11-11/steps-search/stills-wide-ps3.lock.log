@@ -1,0 +1,22 @@
+uptime-start:  15:20:18  up 48 days  2:54,  2 users,  load average: 7.78, 11.47, 11.69
+waited: 529s
+mode: shared, with up to 3 shared runs at once
+ps-rigs-1080-ctl: 8 files, exit 0
+ps-rigs-1080-r256: 8 files, exit 0
+ps-rigs-1080-r192: 8 files, exit 0
+ps-rigs-1080-r160: 8 files, exit 0
+ps-rigs-1080-r144: 8 files, exit 0
+ps-rigs-1080-r112: 8 files, exit 0
+ps-rigs-1080-r104: 8 files, exit 0
+ps-rigs-1440-ctl: 8 files, exit 0
+ps-rigs-1440-r256: 8 files, exit 0
+ps-rigs-1440-r192: 8 files, exit 0
+ps-rigs-1440-r160: 8 files, exit 0
+ps-rigs-1440-r144: 8 files, exit 0
+ps-rigs-1440-r112: 8 files, exit 0
+ps-rigs-1440-r104: 8 files, exit 0
+ps-rigs-r192: 8 files, exit 0
+ps-rigs-r160: 8 files, exit 0
+ps-rigs-r144: 8 files, exit 0
+stills ended: stills-wide-ps3.jobs
+uptime-end:  15:21:45  up 48 days  2:56,  2 users,  load average: 6.33, 10.15, 11.16
