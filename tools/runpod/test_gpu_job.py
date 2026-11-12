@@ -220,6 +220,18 @@ class AuditLog(Queue):
         self.assertAlmostEqual(lost[0]["costUsd"], (30.0 + gpu_job.START_ALLOWANCE_SECONDS + gpu_job.IDLE_SECONDS) * RATE)
         self.assertEqual(gpu_job.in_flight(self.state), [])
 
+    def test_a_job_that_another_run_still_waits_for_stays_in_flight(self):
+        self.pending("running", job="job-running")
+        self.submit(FakeRunpod(statuses={"job-running": {"status": "IN_PROGRESS"}}))
+        self.assertEqual([held["jobId"] for held in gpu_job.in_flight(self.state)], ["job-running"])
+
+    def test_a_lost_job_that_runpod_no_longer_knows_is_settled_at_its_worst_case(self):
+        self.pending("forgotten", job="job-forgotten")
+        gone = urllib.error.HTTPError("url", 404, "Not Found", {}, None)
+        self.submit(FakeRunpod(statuses={"job-forgotten": gone}))
+        forgotten, = [line for line in self.log_lines() if line.get("jobId") == "job-forgotten"]
+        self.assertAlmostEqual(forgotten["costUsd"], self.worst(840))
+
     def test_a_job_in_flight_without_an_id_is_settled_at_its_worst_case_when_it_expires(self):
         self.pending("unsent", when=NOW - datetime.timedelta(hours=4), expires=3600)
         self.submit(FakeRunpod())
