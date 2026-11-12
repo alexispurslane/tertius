@@ -82,6 +82,7 @@ public static class GpuTesting
     /// tests see the ambient light in full and a still draws once, and no environment map. The exposure is fixed at 0
     /// stops unless asked for, so that a pixel does not depend on the frames before it. The skin scatter is off, as in the
     /// renderer tests' fixtures. Local shadows are off, as the impostors are. A still draws once under the fixed exposure.
+    /// The direct pass shades every light pair in full, so that a pixel holds the exact light.
     /// </summary>
     public static VulkanRenderer Headless(int width, int height, ExposureSetting exposure = default) =>
         VulkanRenderer.CreateHeadless(
@@ -98,6 +99,7 @@ public static class GpuTesting
                 LocalShadows = new NoLocalShadows(),
                 EnvironmentMap = new NoEnvironmentMap(),
                 Subsurface = new NoSubsurface(),
+                LightPairs = new EveryLightPair(),
             }
         );
 
