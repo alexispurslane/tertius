@@ -111,12 +111,7 @@ It installs a pinned single-user Nix (2.34.8), builds or downloads the dev shell
 
 An agent runs a GPU job, such as a build and a timing run of the demo, on a Runpod serverless endpoint. The agent calls one script, `tools/runpod/gpu_job.py`, and the script keeps the spending within the caps. Ticket ter-94uo made the parts.
 
-The cloud card is a workbench for relative gains. The user's rules of 2026-11-11 decide what a result means:
-
-- Compare a variant with main inside one job, with two trees. Cards, workers and the capture time differ between jobs.
-- A gain from less GPU work carries over to the Mac at about 2.4 times its Linux size, on the deck.
-- Time changes that cut fixed costs, such as dispatches, barriers and MoltenVK's encoder breaks, on the Mac. Linux does not pay those costs.
-- The frame-time goal, 12 ms on the Mac, holds only after one timed Mac run of main confirms it at the merge.
+The queue is the GPU workbench: the default place where an agent measures a change to the renderer, its GPU time and its images. [tools/runpod/WORKBENCH.md](runpod/WORKBENCH.md) is the guide for agents: the A/B against main, the quality A/B, what still needs the Mac, several jobs at once, and the costs. This section describes how the queue works.
 
 | Part | What it does |
 |---|---|
@@ -126,10 +121,11 @@ The cloud card is a workbench for relative gains. The user's rules of 2026-11-11
 | `tools/runpod/Dockerfile` | The image: the dev shell, the source of one commit with its Release demo built, and the worker. |
 | `.github/workflows/gpu-image.yml` | It builds the image on GitHub and pushes it to `ghcr.io/alexispurslane/tertius-gpu:<commit>`. |
 | `tools/runpod/endpoint.json` | The configuration of the script: the endpoint, the image repository, the price and the caps. |
+| `tools/runpod/ab_run.sh`, `tools/runpod/ab_report.py` | The A/B of the workbench: the runs of each tree on the worker, and their report on the Mac. |
 
 ### Run a job
 
-Set `TERTIUS_RUNPOD_KEY_FILE` to the file that holds the Runpod API key. The script reads the key for each request and never prints it. Then run the job from the repository:
+The script reads the key's file from the path in `~/.config/tertius/runpod-key-file`, or from `TERTIUS_RUNPOD_KEY_FILE` if it is set. It reads the key for each request and never prints it. Run the job from the repository:
 
 ```bash
 python3 -I tools/runpod/gpu_job.py submit --agent <your name> \
@@ -184,11 +180,12 @@ python3 -I tools/runpod/gpu_job.py use-image <commit>
 
 The script first makes sure that the registry serves the image without a login, as Runpod pulls it, and that no job of this Mac is in flight. Then it sets the image, sets the endpoint's maximum of workers to 0 until no worker is left, and sets it back. Runpod replaces a worker of the old image only over time, and until then that worker takes jobs and refuses each one, because its baked commit differs. On 2026-11-12, two such workers refused two jobs in a row. `create-endpoint <commit>` made the endpoint once. It asks for the 16 GB pool `AMPERE_16` without its other three cards, so every job runs on an RTX 2000 Ada. It also asks for at most six workers, no idle worker, a 900 s timeout per job and FlashBoot. `endpoint-request <commit>` prints that request and sends nothing.
 
-The two test files run on the Mac without Runpod and without a GPU:
+The test files run on the Mac without Runpod and without a GPU:
 
 ```bash
 python3 -I tools/runpod/test_handler.py
 python3 -I tools/runpod/test_gpu_job.py
+python3 -I tools/runpod/test_ab_report.py
 ```
 
 ### What the first jobs measured
