@@ -48,6 +48,14 @@ public sealed class RendererOptions
     public LocalShadowSetting LocalShadows { get; set; } = LocalShadowAtlas.Default;
 
     /// <summary>
+    /// Which pairs of a pixel and a light the direct pass shades in full: every pair, or under <see cref="KeyAndFill"/>
+    /// only each pixel's key lights, with the other lights' diffuse light from their fill response. The default is
+    /// <see cref="EveryLightPair"/>. Under <see cref="KeyAndFill"/>, the corner images and the tile records take about 3
+    /// bytes per pixel, about 6 MB at 1920 × 1080 (docs/plans/light-pairs.md, "Key and fill").
+    /// </summary>
+    public LightPairSetting LightPairs { get; set; }
+
+    /// <summary>
     /// Draws small objects as impostors: below a projected height of 200 px an object is replaced by a captured
     /// billboard, and above 300 px it returns to geometry. See <see cref="ImpostorTiles"/> for the memory it takes.
     /// </summary>

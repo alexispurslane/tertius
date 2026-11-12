@@ -120,6 +120,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private readonly SlotCapture?[] slotCaptures;
     private ICaptureSink? pendingCapture;
     private long pendingResize = -1;
+
+    // The images and tile records of key and fill, or null under EveryLightPair.
+    private readonly KeyFillImages? keyFillImages;
     private FrameClock clock;
 
     /// <summary>The record of the last drawn frame, whose count of drawn frames numbers every frame of the renderer.</summary>
@@ -188,6 +191,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
             // Before every pass, whose shading constants say whether the scatter is on.
             ScatterImages = CreateScatterImages(options.Subsurface);
+            keyFillImages = CreateKeyFillImages(options.LightPairs);
             Exposure = CreateExposure(options);
             environmentMap = CreateEnvironmentMap(options);
             ShadingConstants = ShadingConstantsFor(options, device.Driver, environmentMap: environmentMap is not null);
@@ -443,6 +447,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         ?? options.Bloom.Problem
         ?? options.EnvironmentMap.Problem
         ?? options.Subsurface.Problem
+        ?? options.LightPairs.Problem
         ?? options.ScreenTrace.Problem
         ?? options.Upscaling.Problem
         ?? (options.ScreenTrace is ScreenTrace ? PyramidImages.ScreenProblem(options.Width, options.Height) : null);
@@ -1030,6 +1035,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         }
 
         ScatterImages?.Resize(targets);
+        keyFillImages?.Resize(targets);
         compositePass.Resize(targets);
         upscalePass?.Resize();
     }
@@ -1908,6 +1914,25 @@ public sealed unsafe class VulkanRenderer : IRenderer
         );
     }
 
+    /// <summary>
+    /// The images and tile records of key and fill that <paramref name="setting"/> asks for, which the renderer owns, or
+    /// null for none.
+    /// </summary>
+    private KeyFillImages? CreateKeyFillImages(LightPairSetting setting) =>
+        setting switch
+        {
+            KeyAndFill keyAndFill => Own(
+                new KeyFillImages(
+                    device: device,
+                    allocator: Allocator,
+                    layouts: layouts,
+                    targets: targets,
+                    setting: keyAndFill
+                )
+            ),
+            EveryLightPair => null,
+        };
+
     /// <summary>The scatter images that <paramref name="setting"/> asks for, which the renderer owns, or null for none.</summary>
     private ScatterImages? CreateScatterImages(SubsurfaceSetting setting) =>
         setting switch
@@ -2333,9 +2358,27 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// </summary>
     private CompositePass AddLightingPasses(ShaderLibrary shaders)
     {
+        // Before the direct pass, in its stage: it reads the tile records of this frame.
+        if (keyFillImages is { } keyFill)
+            Graph.Add(
+                FrameGraph.Stage.DirectLight,
+                new KeyFillPass(
+                    device: device,
+                    shaders: shaders,
+                    layouts: layouts,
+                    constants: ShadingConstants,
+                    images: keyFill
+                )
+            );
         Graph.Add(
             FrameGraph.Stage.DirectLight,
-            new DirectLightPass(device: device, shaders: shaders, layouts: layouts, constants: ShadingConstants)
+            new DirectLightPass(
+                device: device,
+                shaders: shaders,
+                layouts: layouts,
+                constants: ShadingConstants,
+                keyFill: keyFillImages
+            )
         );
         var composite = new CompositePass(
             device: device,
