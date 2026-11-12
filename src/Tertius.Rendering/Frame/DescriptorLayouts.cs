@@ -58,8 +58,9 @@ namespace Tertius.Rendering;
 /// rewritten on resize.</description></item>
 /// <item><term>signal</term><description>set 3 of <see cref="AccumulateLayout"/>: one part of a signal's images, the
 /// surface test image and the motion target, as storage images for the compute stage, and the last surface history and
-/// the last device depth as sampled images (<see cref="TemporalSignal"/>). One per part and parity, rewritten on
-/// resize.</description></item>
+/// the last device depth as sampled images (<see cref="TemporalSignal"/>). Its bindings are numbered, with gaps: 0 to 10,
+/// 11 with the light age, 12 with an instrumentation, and <see cref="BlockSumsBinding"/>, the part's block sums, always.
+/// One per part and parity, rewritten on resize.</description></item>
 /// <item><term>screen trace</term><description>set 3 of <see cref="ScreenTraceLayout"/>: the depth pyramid's finest
 /// level and its bounds as sampled images, the tracer's inputs and outputs as storage images, the own-ray list of each
 /// kind, and the light pyramid's finest level and sums as sampled images (<see cref="ScreenTraceImages"/>). One per parity
@@ -129,10 +130,17 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>
     /// The storage images of a signal set: nine, with the light-change age of a precise specular history the signal's
     /// sample age at binding 11, and at binding 12 the instrumentation's image, the uncovered-surface diagnostic or the accumulation
-    /// trace. The original history refuses the instrumentation (the constructor).
+    /// trace, and the block sums at <see cref="BlockSumsBinding"/>. The original history refuses the instrumentation (the
+    /// constructor).
     /// </summary>
     private uint SignalSetImages =>
-        9u + (HistoryMode.KeepsLightAge ? 1u : 0u) + (Instrumentation == HistoryInstrumentation.None ? 0u : 1u);
+        10u + (HistoryMode.KeepsLightAge ? 1u : 0u) + (Instrumentation == HistoryInstrumentation.None ? 0u : 1u);
+
+    /// <summary>
+    /// The binding of a signal set that holds the part's block sums (<see cref="TemporalSignal.BlockSums"/>), after the
+    /// optional bindings 11 and 12, so that it keeps its number in every history mode (accumulate_blocks.glsl).
+    /// </summary>
+    public const uint BlockSumsBinding = 13;
 
     /// <summary>The sampled images of a signal set: the last surface history and the last device depth.</summary>
     private const uint SignalSetSampledImages = 2;
@@ -1143,12 +1151,20 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>The layouts of the signal set (<see cref="SignalSet"/>) and the light set (<see cref="LightSet"/>).</summary>
     private (DescriptorSetLayout Signal, DescriptorSetLayout Light) CreateTemporalSetLayouts()
     {
+        // The bindings by number: 0 to 10, 11 with the light age, 12 with an instrumentation, then the block sums.
         Span<DescriptorSetLayoutBinding> signal =
             stackalloc DescriptorSetLayoutBinding[(int)(SignalSetImages + SignalSetSampledImages)];
-        for (uint binding = 0; binding < SignalSetImages + SignalSetSampledImages; binding++)
-            signal[(int)binding] = binding is 7 or 8
-                ? Image(binding: binding, stages: ShaderStageFlags.ComputeBit)
-                : StorageImage(binding);
+        int count = 0;
+        for (uint binding = 0; binding < BlockSumsBinding; binding++)
+            if (
+                binding <= 10
+                || binding == 11 && HistoryMode.KeepsLightAge
+                || binding == 12 && Instrumentation != HistoryInstrumentation.None
+            )
+                signal[count++] = binding is 7 or 8
+                    ? Image(binding: binding, stages: ShaderStageFlags.ComputeBit)
+                    : StorageImage(binding);
+        signal[count] = StorageImage(BlockSumsBinding);
         Span<DescriptorSetLayoutBinding> light = stackalloc DescriptorSetLayoutBinding[(int)LightSetImages];
         for (uint binding = 0; binding < LightSetImages; binding++)
             light[(int)binding] = StorageImage(binding: binding, stages: ShaderStageFlags.FragmentBit);

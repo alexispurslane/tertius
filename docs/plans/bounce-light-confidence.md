@@ -399,6 +399,20 @@ What evidence does. Three actions were weighed:
 
 The chosen action restarts S from the fast window, which already holds the change. A bias of the narrow box then drains at the pace of a short history, not at 1/32. That slow drain was the lamp-on fault of `ter-18hc`. In the CPU windows model, every step came within 2.3 % of the light in 60 draws.
 
+Measured in step 4 (`t0-5b5b`, the accumulator fixture, 64 × 36, cap 32). A region of 32 × 32 pixels dims from 1 to 0.5:
+
+| Noise of the ray blocks | First evidence | 90 % of the step | Error after 40 draws |
+|---|---|---|---|
+| none | draw 2 | draw 21 | 4.7 % of the new light |
+| CV 0.3 | draws 1 to 2 | draw 18 | 3.3 % of the new light |
+
+- Without the block test, the slow blend leaves 15 % after 60 draws. So the action works, but it does not follow a step "within ten draws".
+- The cause: at the first evidence F holds only about half of the step. S restarts there with L = `FastCap`, and then blends with 1/5, 1/6 and on. The window fires again only while D stays above the floor, an eighth of the light. Below it, the rest of the step drains at 1/(4 + k).
+- A deep step, such as the moving wall's drop from 1 to 0.02, keeps D above the floor for longer, so it fires again every second draw and follows within ten draws.
+- Section 19's test of the region therefore states the 60-draw claim. Whether evidence should follow a half step faster is open point 4 of section 18.
+
+The tail rule makes the noise rule almost redundant for bounce light. A window that passes the tail rule has a noise of D̄ of at most S̄ / √`TailStreams` per predicted deviation, so `BlockSigmas` predicted deviations are at most 4 / √1000 = 0.126 of the light. That is the floor of an eighth. So with these constants `BlockSigmas` binds only for the reflections' floor of 1/20, or after step 7 lowers `TailStreams` or the floor. The hand mutant `BlockSigmas` = 0 survived every bounce-light test for this reason.
+
 The action covers every contributing pixel of the block. That includes pixels of an unchanged surface inside a changed window, which get a few noisier draws. A per-pixel rule leaves a speckle of cut and uncut pixels. That shows more than a block of slightly noisier light that the filter smooths.
 
 The threshold is hard, not graded. False evidence is rare in a still, with a target of at most 10^−4 per block-draw. So a borderline window switches rarely. Take T3 looks for blocks that flicker at the threshold. A graded widening between two thresholds is the fallback for them.
@@ -626,6 +640,8 @@ Points for the user:
 1. Decision 2, refined. The 8 × 8 block stays the unit of the statistic. Evidence also comes from windows of 3 × 3 and 7 × 7 blocks, under a tail rule. In the CPU model, the 8 × 8 block alone missed a 38 % step. It also gave false evidence at the noise of rare bright hits. The cost is locality: a change smaller than 24 pixels counts only where the light is quiet.
 2. Case (a) can stay above 60 draws where reflections are very noisy (section 9). The next lever is less reflection noise (+0.4 to 0.6 ms) or a shorter reflection history after a change (more specks during it).
 3. Steps 2 to 6 of the filter keep the paper's variance rule, not the prototype's linear rule. The user's text names the first step only, but this differs from the prototype that the user saw.
+4. Evidence follows a half step of bounce light in about 18 to 21 draws to 90 %, not in ten (section 8, "Measured in step 4"). The action restarts S where F stands at the first evidence, about halfway, and the floor stops further evidence once D falls below an eighth of the light. Step 7's takes T4 to T6 show whether the settle cases still meet the 60 draws of acceptance 5. If not, the levers are a lower floor right after a cut, or a cut that repeats while D keeps its sign.
+5. In a still with real rays, a block that found false evidence often finds it again in the next draw. After the cut its length is 5, where κ is 0.063, so the window's predicted noise is small while S still differs from F by the clamp's remainder. Take T3 counts such repeats.
 
 ## 19. Tests
 
@@ -640,11 +656,13 @@ The tests come first and fail first, in the language of the domain. Each test na
 - `ARejectedHistoryStartsItsRetainedDeviationAtZero` (2a).
 - `AConstantSampleKeepsARetainedDeviationOfExactlyZero` replaces the step test of the fast deviation (2a).
 - `AWallThatDimsWhileItMovesIsFollowedWithinTenDraws`: the old motion-gate scene, now followed by the block test (4).
-- `ARegionThatDimsByHalfWithoutALightAgeIsFollowedWithinTenDraws`: 32 × 32 pixels, noise of CV 0.3 per ray block (4).
+- `ARegionThatDimsByHalfWithoutALightAgeSettlesWithinFivePercentInSixtyDraws`: 32 × 32 pixels, noise of CV 0.3 per ray block (4). The design first named it "IsFollowedWithinTenDraws". The measured 18 draws to 90 % are a finding (section 8, "Measured in step 4", and point 4 of section 18).
 - `ADimmingOfATenthGivesNoEvidenceAndSettlesAtTheSlowBlend` (4).
 - `ARareBrightSampleInEveryBlockIsNoEvidenceOfAChange`: one ray block in 32 per draw at 16 times the light, for 400 draws. No length falls to `FastCap` after draw 64 (4).
 - `EvidenceShortensEveryContributingHistoryOfItsBlockToTheFastCap` (4).
-- `TooFewRayBlocksOnALitSurfaceGiveNoEvidence` (4). The fixture needs sky pixels for it. Without them, the hardening table records the reason.
+- `TooFewRayBlocksOnALitSurfaceGiveNoEvidence` (4). The wall shrinks to a patch of about 3 × 3 pixels in the sky.
+- `BlocksWithSkyOrOffImagePixelsStillCutTheHistoriesOfTheirLitPixels` (4): the workgroups that hold sky pixels or pixels past the image's edge still reach their barriers and act.
+- `ALightChangeAsOldAsTheHistoryOrOlderLeavesTheHistoryAsItIs` steps the light by an eighth instead of doubling it (4). A doubling is now evidence of a change.
 - `AReflectionWhoseLightDrainsWithoutALightAgeIsCutByItsDrop` and `ARisingReflectedLightIsNoBlockEvidence` (5).
 - The reflected-place tests stay green (5).
 
@@ -656,7 +674,7 @@ The tests come first and fail first, in the language of the domain. Each test na
 - `ASingleBrightRayBlockSampleNeverGrowsMoreConspicuousOverThe32DrawsAfterIt`, the impulse test. The peak of the filtered excess never exceeds 1.05 times its value at the sample's draw. It falls below half of that by draw 32 (2c).
 - In the CPU model, those values are 1.017 and 0.35. Today's filter gives 42 times.
 - `TheExcessOfASingleBrightRayBlockSampleFadesAtTheSlowBlendsPace`: the total excess is 12.5 × (31/32)^k within 2 %, with the clamp on (2c).
-- `AQuietPixelKeepsTheLightThatTheFilterMovedIntoIt`: the `td-hjn6` case with the clamp on. The region's mean stays within 1 % of its samples' mean over 100 draws (2c).
+- `AQuietPixelKeepsTheLightThatTheFilterMovedIntoIt`: the `td-hjn6` case with the clamp on. The region's mean stays within 1 % of its samples' mean over 100 draws (2c). From step 4 the rare samples start with the histories, 96 draws before the test. A step from steady light to rare samples raises the expected light from 1 to 2, which the block test rightly finds, and so do blocks while the histories first fill.
 - `AStableEdgeOfLightUnderNoiseKeepsItsWidth`: halves of light 1 and 2, noise of CV 0.5 per ray block, 200 draws. The 10 to 90 % rise spans at most 16 render pixels (2c).
 - In the CPU model, that rise is 12 pixels for this design and 32 for the prototype's rule.
 - `TheFastHistoryKeepsTheDeviationOfItsSamples` becomes a statement about σr (2c).
@@ -669,7 +687,7 @@ The tests come first and fail first, in the language of the domain. Each test na
 - `TheRetainedDeviationPredictsTheSpreadOfTheSlowHistory`, the measured-variance check of decision 6. It runs 16 times from different frame indices, so that the rays differ, with the filter off (2c).
 - In that test, take the deviation of S at the floor pixels over the 16 runs. It lies between half and twice σr × √(w / (2 − w)). A result outside is a finding for the design, not a bound to loosen.
 - `TheBounceLightOfALitPoolKeepsItsEdgeWithRealRays`, the real-light-edge check of decision 6. A spot lamp lights a pool on a floor. Take the 10 to 90 % rise of the bounce light at the pool's edge. With the filter on, it is at most 4 pixels wider than with the filter off (2c).
-- `AStillPanelSceneGivesNoBlockEvidenceOverFourHundredDraws` (4).
+- `AStillPanelSceneGivesAtMostOneBlockEvidenceInTenThousandBlockDraws` (4). The design first named it "GivesNoBlockEvidence". The Mac measured 6 cuts in 624,288 block-draws, about 10^−5, inside the target of acceptance 12. Each came from a window of 3 × 3 blocks whose fast light lay about 15 % above its slow light, at 5 predicted deviations and just past the tail rule.
 
 ### Lock-in after the feature works
 

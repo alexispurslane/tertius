@@ -1,20 +1,22 @@
 #version 460
 // The spatial dispatch of an accumulation (docs/plans/temporal-renderer.md, section 8, steps 3 to 5): one invocation per
 // pixel fixes a short history from its neighbors in the scratch image, clamps the slow history into the box of this
-// frame's fast history around the pixel, shortens the length by the clamp's move, and writes the slow history.
+// frame's fast history around the pixel, shortens the length by the clamp's move, and writes the slow history. Where a
+// window of the pixel's block finds evidence of a change (accumulate_blocks.glsl), the box drops its widening for this
+// draw and the length falls to the fast cap (docs/plans/bounce-light-confidence.md, section 8).
 #extension GL_GOOGLE_include_directive : require
 #include "accumulate.glsl"
+#define ACCUMULATE_BLOCK_WINDOWS
+#include "accumulate_blocks.glsl"
 #include "accumulate_reflection_guide.glsl"
 #include "meter.glsl"
 
 // The least luminance by which the clamp divides: the lag's share and the chroma of the widening.
 const float LeastLuminance = 1e-4;
 
-void main()
+// Steps 3 to 5 at a pixel inside the images, where `evidence` says whether a window of its block fired.
+void accumulateAt(ivec2 pixel, bool evidence)
 {
-    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
-    if (!insideImages(pixel))
-        return;
     vec4 scratched = imageLoad(scratch, pixel);
     vec2 guide = vec2(0.0);
     if (reflectionSharingPrototype && parameters.light == SpecularLight)
@@ -88,9 +90,9 @@ void main()
         vec3 sigma = sqrt(max(squares / count - mean * mean, vec3(0.0)));
         // The box holds every excursion that the history's own samples explain: at least retainedSigmas retained
         // deviations, in the chroma of the history, which holds the excess (docs/plans/bounce-light-confidence.md,
-        // section 7). The reflections' narrow box takes none.
+        // section 7). The reflections' narrow box takes none, and evidence of a change drops the widening for this draw.
         vec3 spread = parameters.clampSigmas * sigma;
-        if (parameters.retainedSigmas > 0.0)
+        if (parameters.retainedSigmas > 0.0 && !evidence)
         {
             float deviation = imageLoad(fastHistory, pixel).a;
             spread = max(spread, parameters.retainedSigmas * deviation * slow / max(luminance(slow), LeastLuminance));
@@ -102,7 +104,10 @@ void main()
         storeTrace(pixel, 6, vec4(mean, lag));
         storeTrace(pixel, 7, vec4(sigma, 0.0));
 #endif
-        historyLength = max(fastCap, historyLength * (1.0 - min(1.0, lag / parameters.antiLagShare)));
+        // Evidence of a change restarts the history from the fast window, which already holds the change.
+        historyLength = evidence
+            ? fastCap
+            : max(fastCap, historyLength * (1.0 - min(1.0, lag / parameters.antiLagShare)));
         slow = clamped;
     }
 
@@ -120,4 +125,15 @@ void main()
     imageStore(slowHistory, pixel, vec4(slow, historyLength));
     if (reflectionSharingPrototype && parameters.light == SpecularLight)
         imageStore(reflectionGuide, pixel, vec4(guide, 0.0, 0.0));
+}
+
+// Every invocation reaches the block test's barriers, also outside the images.
+void main()
+{
+    bool evidence = false;
+    if (parameters.blockTest != 0u)
+        evidence = blockEvidence(parameters.changeShare, parameters.retainedSigmas);
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (insideImages(pixel))
+        accumulateAt(pixel, evidence);
 }

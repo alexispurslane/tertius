@@ -29,7 +29,8 @@ internal enum SignalLight
 /// <param name="Light">The signal's light, which chooses its closed form.</param>
 /// <param name="ReflectedPlaceBelow">Below this roughness, the reflected place competes and tests hit distances.
 /// The surface place never does. 0 disables it.</param>
-/// <param name="Confidence">The history's confidence rules: whether a retained deviation widens the clamp's box.</param>
+/// <param name="Confidence">The history's confidence rules: whether a retained deviation widens the clamp's box, and
+/// whether its blocks are tested for evidence of a change.</param>
 internal readonly record struct SignalParameters(
     int Cap,
     int SmoothCap,
@@ -49,8 +50,10 @@ internal readonly record struct SignalParameters(
     public const float RoughRoughness = 0.7f;
 
     /// <summary>
-    /// The diffuse signal's set: a cap of 32 frames at every roughness, and a box widened by two retained deviations
-    /// (docs/plans/bounce-light-confidence.md, section 7).
+    /// The diffuse signal's set: a cap of 32 frames at every roughness, a box widened by two retained deviations
+    /// (docs/plans/bounce-light-confidence.md, section 7), and a block test whose floor is an eighth of the light, above
+    /// the stationary difference that the filter's write-back makes, and below which the slow blend settles a change
+    /// within 5 % in 60 draws (section 8).
     /// </summary>
     public static SignalParameters Diffuse =>
         new(
@@ -62,7 +65,7 @@ internal readonly record struct SignalParameters(
             AntiLagShare: 0.5f,
             Light: SignalLight.Diffuse,
             ReflectedPlaceBelow: 0,
-            Confidence: new WidenedBox(RetainedSigmas: 2)
+            Confidence: new WidenedBox(RetainedSigmas: 2, ChangeShare: 1f / 8)
         );
 
     /// <summary>The specular signal's set: a cap of 4 frames for a mirror and of 32 for a rough lobe, which reuses the

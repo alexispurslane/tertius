@@ -641,19 +641,24 @@ public sealed class DiffuseFilterRenderTests(ITestOutputHelper output)
         // the clamp never moves a history (ticket td-hjn6), and every history keeps its cap of 32: the image's history
         // follows its samples' blend. The slow history's three half-float stores a draw may each round toward zero, as
         // the spec allows, and lose half a half-float step on average, 2^−11 of the light: 3 · 32 · 2^−11 ≈ 4.7 % at the
-        // blend's weight. This GPU loses 1.8 %, and 0.9 % without the filter's store.
+        // blend's weight. This GPU loses 1.8 %, and 0.9 % without the filter's store. The rare samples start with the
+        // histories: a step from steady light to them raises the expected light, which the block test rightly finds. While
+        // the histories first fill, their slow light is no mean of 32 draws yet, and blocks may find that difference: so
+        // the test begins 96 draws after them, past the 28 draws in which a cut history grows back to its cap.
         (VulkanRenderer renderer, SamplePass sample, _, RenderSnapshot scene) = FilteringBounceLight();
         try
         {
-            sample.Value = new(x: 1, y: 1, z: 1, w: 1);
+            int drawn = -96;
+            sample.Samples = (column, row) => new Vector4(new Vector3(RareAt(column, row, drawn) ? 33 : 1), 1);
             renderer.Render(scene, 1f);
-            Continue(renderer, scene, frames: 40);
-            double expected = 1;
+            for (drawn = -95; drawn < 0; drawn++)
+                Continue(renderer, scene, frames: 1);
+            float[] warm = renderer.ReadImage(sample.Signal.Slow(0));
+            double expected = Enumerable.Range(0, Width * Height).Average(pixel => (double)warm[4 * pixel]);
             double shown = 0;
             for (int frame = 0; frame < 164; frame++)
             {
-                int drawn = frame;
-                sample.Samples = (column, row) => new Vector4(new Vector3(RareAt(column, row, drawn) ? 33 : 1), 1);
+                drawn = frame;
                 int rare = Enumerable
                     .Range(0, Width * Height)
                     .Count(pixel => RareAt(pixel % Width, pixel / Width, drawn));

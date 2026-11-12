@@ -6,9 +6,12 @@
 // the spatial dispatch reads the neighbors' results while it writes the slow history, and this frame's fast history. The
 // diffuse signal's fast history keeps in alpha the retained deviation: the standard deviation of the luminance of the
 // samples that the slow history averages, weighted as it weighs them (docs/plans/bounce-light-confidence.md, section 6).
-// The clamp's box and the diffuse filter read it.
+// The clamp's box and the diffuse filter read it. With the block test, each workgroup also sums its block's differences
+// of the fast and the slow history into its texel of the block sums, which the spatial dispatch tests (section 8).
 #extension GL_GOOGLE_include_directive : require
 #include "accumulate.glsl"
+#define ACCUMULATE_BLOCK_SUMS
+#include "accumulate_blocks.glsl"
 #include "accumulate_reflection_guide.glsl"
 #include "gbuffer_surface.glsl"
 #include "meter.glsl"
@@ -234,11 +237,10 @@ vec4 tracedPlaceWeights(ivec2 pixel)
 }
 #endif
 
-void main()
+// Steps 1 and 2 at a pixel inside the images: the pixel's share of its block's sums (accumulate_blocks.glsl), 0 where it
+// does not contribute.
+vec4 accumulateAt(ivec2 pixel)
 {
-    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
-    if (!insideImages(pixel))
-        return;
     if (texelFetch(gbufferDistance, pixel, 0).r <= 0.0)
     {
         // The sky: no signal, and no reader reads it.
@@ -251,7 +253,7 @@ void main()
             storeTrace(pixel, layer, vec4(0.0));
         storeTrace(pixel, 8, vec4(0.0));
 #endif
-        return;
+        return vec4(0.0);
     }
 
     vec4 sample4 = imageLoad(sampleImage, pixel);
@@ -371,4 +373,21 @@ void main()
     imageStore(fastHistory, pixel, vec4(fast, parameters.light == SpecularLight ? hitDistance : deviation));
     if (reflectionSharingPrototype && parameters.light == SpecularLight)
         imageStore(reflectionGuideScratch, pixel, vec4(guide, 0.0, 0.0));
+    // A pixel contributes to the block test where the clamp acts: past the fast cap, a history averages more draws than
+    // its fast history.
+    float fastLength = fastCapOf(cap);
+    if (historyLength <= fastLength)
+        return vec4(0.0);
+    return blockShareOf(luminance(fast), luminance(slow.rgb), deviation, historyLength, fastLength);
+}
+
+// Every invocation reaches the block test's barriers: a pixel outside the images or of the sky contributes nothing.
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    vec4 share = vec4(0.0);
+    if (insideImages(pixel))
+        share = accumulateAt(pixel);
+    if (parameters.blockTest != 0u)
+        blockSumsStore(share);
 }

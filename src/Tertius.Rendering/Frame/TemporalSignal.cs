@@ -28,9 +28,15 @@ namespace Tertius.Rendering;
 /// diffuse signal keeps its half-precision history and takes the light-age variant of its temporal dispatch
 /// (<see cref="ShaderVariant.LightAge"/>).
 /// </para>
+/// <para>
+/// Each part also owns its block sums (<see cref="BlockSums"/>), one texel per block of 8 × 8 pixels, which the temporal
+/// dispatch writes and the spatial dispatch reads within one accumulation: the block test's evidence of a change
+/// (docs/plans/bounce-light-confidence.md, section 8), where the signal's <see cref="HistoryConfidence"/> runs it.
+/// </para>
 /// <para>Invariants, checked by <see cref="AssertInvariants"/>:</para>
 /// <list type="bullet">
-/// <item>Every image of every part has the size of the targets that the signal binds.</item>
+/// <item>Every image of every part has the size of the targets that the signal binds, and its block sums one texel per
+/// block of those targets.</item>
 /// <item>The signal sets hold one set per part and parity.</item>
 /// <item>The parameter set has a cap and a fast cap of at least 1.</item>
 /// </list>
@@ -55,7 +61,17 @@ internal sealed unsafe class TemporalSignal : IDisposable
     /// </summary>
     public const Format UncoveredDiagnosticFormat = Format.R32G32B32A32Sfloat;
 
-    /// <summary>The width and the height of a workgroup of both dispatches: the shaders' local size.</summary>
+    /// <summary>
+    /// The format of the block sums: per block of 8 × 8 pixels the sums over its streams of the difference of the fast and
+    /// the slow history's luminance, of its predicted variance, the count of streams, and the sum of the slow history's
+    /// luminance (accumulate_blocks.glsl). Single floats, because a window adds up to 49 texels of up to 16 streams each.
+    /// </summary>
+    public const Format BlockSumsFormat = Format.R32G32B32A32Sfloat;
+
+    /// <summary>
+    /// The width and the height of a workgroup of both dispatches, the shaders' local size, and of a block of the block
+    /// test.
+    /// </summary>
     private const uint GroupSize = 8;
 
     private readonly VulkanDevice device;
@@ -258,6 +274,12 @@ internal sealed unsafe class TemporalSignal : IDisposable
     public GpuImage? SampleAge(int part) => parts[part].SampleAge;
 
     /// <summary>
+    /// The block sums of <paramref name="part"/> after the last accumulation (<see cref="BlockSumsFormat"/>), one texel per
+    /// block of 8 × 8 pixels, which only a signal with a block test writes. The tests and the survey's probe read it.
+    /// </summary>
+    public GpuImage BlockSums(int part) => parts[part].BlockSums;
+
+    /// <summary>
     /// The diagnostic of uncovered surfaces of <paramref name="part"/> under <see cref="HistoryInstrumentation.LightAgeDiagnostic"/>
     /// (<see cref="UncoveredDiagnosticFormat"/>), or null without it. Only the capture tool and the tests read it.
     /// </summary>
@@ -333,45 +355,62 @@ internal sealed unsafe class TemporalSignal : IDisposable
         barriers.Buffer(context.Exposure.Buffer, BufferUse.ShaderRead);
         for (int part = 0; part < parts.Length; part++)
         {
-            PartImages images = parts[part];
-            GpuImage scratched = scratch.Part(part, HistoryMode);
-            if (!reflectionDistanceHistory && HistoryMode != SpecularHistoryMode.Original)
-                barriers.Image(scratch.Part(part), ImageUse.StorageCompute);
-            barriers.Image(images.Sample, ImageUse.StorageCompute);
-            foreach (GpuImage age in images.Ages)
-                barriers.Image(age, ImageUse.StorageCompute);
-            foreach (GpuImage trace in images.Traces)
-                barriers.Image(trace, ImageUse.StorageCompute);
-            barriers.Image(images.Slow, ImageUse.StorageCompute);
-            if (!singleDiffuseHistory)
-                barriers.Image(images.LastFast(parity), ImageUse.StorageCompute);
-            // Discarded: the temporal dispatch writes every pixel of each.
-            if (!singleDiffuseHistory)
-                barriers.Image(images.Fast(parity), ImageUse.StorageCompute, discard: true);
-            if (reflectionDistanceHistory)
-            {
-                barriers.Image(images.ReflectionGuide, ImageUse.StorageCompute);
-                barriers.Image(images.ReflectionGuideScratch, ImageUse.StorageCompute, discard: true);
-            }
-            // After the last signal's spatial dispatch, which read it.
-            barriers.Image(scratched, ImageUse.StorageCompute, discard: true);
+            BeforeTemporal(barriers: barriers, part: part, parity: parity);
             Dispatch(context: context, pipeline: temporal, set: sets[part, parity]);
-
-            // The spatial dispatch reads the neighbors' results of the temporal one.
-            barriers.Image(scratched, ImageUse.StorageCompute);
-            if (!reflectionDistanceHistory && HistoryMode != SpecularHistoryMode.Original)
-                barriers.Image(scratch.Part(part), ImageUse.StorageCompute);
-            if (!singleDiffuseHistory)
-                barriers.Image(images.Fast(parity), ImageUse.StorageCompute);
-            barriers.Image(images.Slow, ImageUse.StorageCompute);
-            foreach (GpuImage trace in images.Traces)
-                barriers.Image(trace, ImageUse.StorageCompute);
-            if (reflectionDistanceHistory)
-            {
-                barriers.Image(images.ReflectionGuideScratch, ImageUse.StorageCompute);
-                barriers.Image(images.ReflectionGuide, ImageUse.StorageCompute, discard: true);
-            }
+            BeforeSpatial(barriers: barriers, part: part, parity: parity);
             Dispatch(context: context, pipeline: spatial, set: sets[part, parity]);
+        }
+    }
+
+    /// <summary>The barriers of <paramref name="part"/>'s images before its temporal dispatch.</summary>
+    private void BeforeTemporal(BarrierBatch barriers, int part, int parity)
+    {
+        PartImages images = parts[part];
+        if (!reflectionDistanceHistory && HistoryMode != SpecularHistoryMode.Original)
+            barriers.Image(scratch.Part(part), ImageUse.StorageCompute);
+        barriers.Image(images.Sample, ImageUse.StorageCompute);
+        foreach (GpuImage age in images.Ages)
+            barriers.Image(age, ImageUse.StorageCompute);
+        foreach (GpuImage trace in images.Traces)
+            barriers.Image(trace, ImageUse.StorageCompute);
+        barriers.Image(images.Slow, ImageUse.StorageCompute);
+        if (!singleDiffuseHistory)
+        {
+            barriers.Image(images.LastFast(parity), ImageUse.StorageCompute);
+            // Discarded: the temporal dispatch writes every pixel of it.
+            barriers.Image(images.Fast(parity), ImageUse.StorageCompute, discard: true);
+        }
+        if (reflectionDistanceHistory)
+        {
+            barriers.Image(images.ReflectionGuide, ImageUse.StorageCompute);
+            barriers.Image(images.ReflectionGuideScratch, ImageUse.StorageCompute, discard: true);
+        }
+        // After the last signal's spatial dispatch, which read it.
+        barriers.Image(scratch.Part(part, HistoryMode), ImageUse.StorageCompute, discard: true);
+        // Discarded: with the block test, the temporal dispatch writes every texel, and without it no dispatch reads one.
+        barriers.Image(images.BlockSums, ImageUse.StorageCompute, discard: true);
+    }
+
+    /// <summary>
+    /// The barriers of <paramref name="part"/>'s images before its spatial dispatch, which reads the neighbors' results of
+    /// the temporal one and the block sums of its windows.
+    /// </summary>
+    private void BeforeSpatial(BarrierBatch barriers, int part, int parity)
+    {
+        PartImages images = parts[part];
+        barriers.Image(scratch.Part(part, HistoryMode), ImageUse.StorageCompute);
+        barriers.Image(images.BlockSums, ImageUse.StorageCompute);
+        if (!reflectionDistanceHistory && HistoryMode != SpecularHistoryMode.Original)
+            barriers.Image(scratch.Part(part), ImageUse.StorageCompute);
+        if (!singleDiffuseHistory)
+            barriers.Image(images.Fast(parity), ImageUse.StorageCompute);
+        barriers.Image(images.Slow, ImageUse.StorageCompute);
+        foreach (GpuImage trace in images.Traces)
+            barriers.Image(trace, ImageUse.StorageCompute);
+        if (reflectionDistanceHistory)
+        {
+            barriers.Image(images.ReflectionGuideScratch, ImageUse.StorageCompute);
+            barriers.Image(images.ReflectionGuide, ImageUse.StorageCompute, discard: true);
         }
     }
 
@@ -408,6 +447,10 @@ internal sealed unsafe class TemporalSignal : IDisposable
 
     private static bool SameExtent(Extent2D a, Extent2D b) => a.Width == b.Width && a.Height == b.Height;
 
+    /// <summary>The blocks of 8 × 8 pixels that cover <paramref name="extent"/>: one per workgroup of each dispatch.</summary>
+    private static Extent2D BlocksOf(Extent2D extent) =>
+        new((extent.Width + GroupSize - 1) / GroupSize, (extent.Height + GroupSize - 1) / GroupSize);
+
     private void Dispatch(FrameContext context, Pipeline pipeline, DescriptorSet set)
     {
         context.BeginComputePass(pipeline: pipeline, layout: layouts.AccumulateLayout, passSet: set);
@@ -425,11 +468,11 @@ internal sealed unsafe class TemporalSignal : IDisposable
             size: (uint)sizeof(AccumulatePushConstants),
             pValues: &push
         );
-        Extent2D extent = context.Extent;
+        Extent2D groups = BlocksOf(context.Extent);
         context.Vk.CmdDispatch(
             commandBuffer: context.CommandBuffer,
-            groupCountX: (extent.Width + GroupSize - 1) / GroupSize,
-            groupCountY: (extent.Height + GroupSize - 1) / GroupSize,
+            groupCountX: groups.Width,
+            groupCountY: groups.Height,
             groupCountZ: 1
         );
     }
@@ -466,6 +509,12 @@ internal sealed unsafe class TemporalSignal : IDisposable
                     ]
                     : [],
                 Ages: CreateAges(extent, part),
+                BlockSums: CreateImage(
+                    extent: BlocksOf(extent),
+                    imageName: $"{Name} block sums {part}",
+                    extraUsage: 0,
+                    format: BlockSumsFormat
+                ),
                 Traces: Instrumentation == HistoryInstrumentation.ControlTrace ? [CreateTrace(extent, part)] : []
             );
             for (int parity = 0; parity < 2; parity++)
@@ -504,6 +553,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
                 binding: 12,
                 image: images.Ages is [_, var diagnostic] ? diagnostic : images.Sample
             );
+        layouts.WriteStorageImage(set: set, binding: DescriptorLayouts.BlockSumsBinding, image: images.BlockSums);
         // The accumulation trace, which only the specular signal's dispatches write: another signal binds its sample.
         if (scratch.Instrumentation == HistoryInstrumentation.ControlTrace)
             layouts.WriteStorageImage(
@@ -605,6 +655,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
         GpuImage[] Fasts,
         GpuImage[] Guides,
         GpuImage[] Ages,
+        GpuImage BlockSums,
         GpuImage[] Traces
     )
     {
@@ -620,16 +671,26 @@ internal sealed unsafe class TemporalSignal : IDisposable
 
         public GpuImage? SampleAge => Ages is [var age, ..] ? age : null;
 
-        public IEnumerable<GpuImage> All => [Sample, Slow, .. Fasts, .. Guides, .. Ages, .. Traces];
+        public IEnumerable<GpuImage> All => [Sample, Slow, .. Fasts, .. Guides, .. Ages, BlockSums, .. Traces];
 
         /// <summary>Whether every image has <paramref name="extent"/>.</summary>
         public bool Fit(Extent2D extent) =>
             SameExtent(Sample.Extent, extent)
             && SameExtent(Slow.Extent, extent)
-            && (Fasts.Length == 0 || SameExtent(Fasts[0].Extent, extent) && SameExtent(Fasts[1].Extent, extent))
-            && (Guides.Length == 0 || SameExtent(Guides[0].Extent, extent) && SameExtent(Guides[1].Extent, extent))
-            && Ages.All(age => SameExtent(age.Extent, extent))
-            && Traces.All(trace => SameExtent(trace.Extent, extent));
+            && AllFit(Fasts, extent)
+            && AllFit(Guides, extent)
+            && AllFit(Ages, extent)
+            && AllFit(Traces, extent)
+            && SameExtent(BlockSums.Extent, BlocksOf(extent));
+
+        /// <summary>Whether every image of <paramref name="images"/> has <paramref name="extent"/>.</summary>
+        private static bool AllFit(GpuImage[] images, Extent2D extent)
+        {
+            foreach (GpuImage image in images)
+                if (!SameExtent(image.Extent, extent))
+                    return false;
+            return true;
+        }
     }
 }
 

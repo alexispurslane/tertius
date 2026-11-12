@@ -57,6 +57,8 @@ layout(push_constant, std430) uniform AccumulatePush
     float reflectedPlaceBelow;   // the roughness below which the reflected place competes, with its distance test, 0 for none
     uint reset;          // 1 in a frame that resets every history
     float retainedSigmas;  // the clamp box's least half width in retained deviations, 0 for the narrow box
+    float changeShare;   // the block test's floor, as a share of the light (accumulate_blocks.glsl)
+    uint blockTest;      // 1 where the signal tests its blocks for evidence of a change, else 0
 } parameters;
 
 // SignalLight.
