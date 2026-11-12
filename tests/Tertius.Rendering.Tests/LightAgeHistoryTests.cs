@@ -767,7 +767,9 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 SetGlow(renderer, scene, new(0.4f));
                 Draw(renderer, scene, 64);
                 float[] warm = Slow(renderer);
-                SetGlow(renderer, scene, new(0.32f));
+                // Half the glow: a shared ray weighs about as the receiver's own ray does (ter-xo83), so only a large step
+                // gives more than 20 rays below a fifth of a history that the sky lights.
+                SetGlow(renderer, scene, new(0.2f));
 
                 Draw(renderer, scene, LightChangeDraws);
 
