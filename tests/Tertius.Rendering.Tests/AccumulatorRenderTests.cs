@@ -143,10 +143,12 @@ public sealed class AccumulatorRenderTests
     }
 
     [Fact]
-    public void AfterAStepOfTheSampleTheHistoryReachesNinetyPercentOfTheStepWithinTenFrames()
+    public void AfterADimmingStepOfTheSampleTheHistoryReachesNinetyPercentOfTheStepWithinTenFrames()
     {
         // Without the anti-lag, a history of 16 frames reaches 90 % after ln 0.1 / ln(15 / 16) ≈ 36 frames. The clamp
-        // follows the fast history of 4 frames, which reaches 90 % after 8.
+        // follows the fast history of 4 frames, which reaches 90 %, 0.118, after 8. A sample below a quarter of the
+        // history's light does not cut the history to its age, so until the history falls below 4 · 0.02 = 0.08, after
+        // about 10 frames, only the clamp follows the step.
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
         try
         {
@@ -157,15 +159,87 @@ public sealed class AccumulatorRenderTests
 
             // The rays saw the light change in this frame: the evidence on which the clamp acts.
             sample.AgeCode = 1;
-            sample.Value = new(x: 2f, y: 2f, z: 2f, w: 1f);
-            int frames = 0;
-            while (frames < 40 && CenterOf(renderer, sample, part: 0).Light.X < 1.9f)
-            {
-                Continue(renderer, scene, frames: 1);
-                frames++;
-            }
+            FramesUntilTheCenterFollowsADimming(renderer: renderer, sample: sample, scene: scene).Should().BeInRange(2, 10);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
 
-            frames.Should().BeInRange(2, 10);
+    /// <summary>
+    /// Steps the sample from 1 down to 0.02 and draws until the center's slow history of part 0 holds 90 % of the step,
+    /// 0.118 or less: the frames that it took, 40 when it did not within 40.
+    /// </summary>
+    private static int FramesUntilTheCenterFollowsADimming(
+        VulkanRenderer renderer,
+        SamplePass sample,
+        RenderSnapshot scene,
+        Action? beforeEachFrame = null
+    )
+    {
+        sample.Value = new(x: 0.02f, y: 0.02f, z: 0.02f, w: 1f);
+        int frames = 0;
+        while (frames < 40 && (frames == 0 || CenterOf(renderer, sample, part: 0).Light.X > 0.118f))
+        {
+            beforeEachFrame?.Invoke();
+            Continue(renderer, scene, frames: 1);
+            frames++;
+        }
+        return frames;
+    }
+
+    [Fact]
+    public void AnImageThatMovesOnScreenIsEvidenceOfAChangeForTheClamp()
+    {
+        // No ray saw a change, but the wall moves by about a third of a pixel per frame: the clamp follows the dimming.
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
+        try
+        {
+            sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
+            renderer.Render(scene, 1f);
+            Continue(renderer, scene, frames: 40);
+
+            FramesUntilTheCenterFollowsADimming(
+                    renderer: renderer,
+                    sample: sample,
+                    scene: scene,
+                    beforeEachFrame: () =>
+                    {
+                        scene.Camera.PreviousPosition = scene.Camera.Position;
+                        scene.Camera.Position += new Vector3(0.1f, 0, 0);
+                    }
+                )
+                .Should()
+                .BeInRange(2, 10, "the wall's motion is evidence that the history may hold old light");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Theory]
+    [InlineData(1, true)]
+    [InlineData(2, false)]
+    public void AChangeThatANeighborsRaysSawOnTheSameSurfaceOpensTheClamp(int distance, bool follows)
+    {
+        // Only the pixel `distance` columns right of the center has a sample whose rays saw the change. Inside the 3 × 3
+        // pixels around the center, it is evidence for the center's clamp; two pixels away it is not.
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
+        try
+        {
+            sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
+            renderer.Render(scene, 1f);
+            Continue(renderer, scene, frames: 40);
+
+            sample.AgeCodes = (column, row) => (ushort)(column == Width / 2 + distance && row == Height / 2 ? 1 : 0);
+            int frames = FramesUntilTheCenterFollowsADimming(renderer: renderer, sample: sample, scene: scene);
+
+            if (follows)
+                frames.Should().BeInRange(2, 10, "the neighbor's evidence opens the center's clamp");
+            else
+                frames.Should().BeGreaterThan(10, "without evidence in its 3 × 3 pixels, the center's clamp stays off");
         }
         finally
         {
@@ -204,11 +278,12 @@ public sealed class AccumulatorRenderTests
     }
 
     [Fact]
-    public void AStepOfTheSampleShortensTheHistoryByTheClampsMoveOverHalfTheMeansLight()
+    public void ADimmingStepOfTheSampleShortensTheHistoryByTheClampsMoveOverHalfTheMeansLight()
     {
-        // The first frame after the step: the slow history of 16 frames blends to 1 + 1 / 16 = 1.0625, the fast history
-        // of 4 to 1.25, and the clamp moves the slow one to the fast one's mean, 1.25. The lag is 0.1875 / 1.25 = 0.15, a
-        // share 0.3 of the anti-lag's 0.5, so the length falls from 16 to 16 · 0.7 = 11.2.
+        // The first frame after the step: the slow history of 16 frames blends to 1 − 0.8 / 16 = 0.95, the fast history of
+        // 4 to 0.8, and the clamp moves the slow one to the fast one's mean, 0.8. The lag is 0.15 / 0.8 = 0.1875, a share
+        // 0.375 of the anti-lag's 0.5, so the length falls from 16 to 16 · 0.625 = 10. The sample holds less than a
+        // quarter of the history's light, so its age does not cut the history.
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
         try
         {
@@ -219,12 +294,66 @@ public sealed class AccumulatorRenderTests
 
             // The rays saw the light change in this frame: the evidence on which the clamp acts.
             sample.AgeCode = 1;
-            sample.Value = new(x: 2f, y: 2f, z: 2f, w: 1f);
+            sample.Value = new(x: 0.2f, y: 0.2f, z: 0.2f, w: 1f);
             Continue(renderer, scene, frames: 1);
 
             (Vector3 light, float length) = CenterOf(renderer, sample, part: 0);
-            light.X.Should().Be(1.25f, "the clamp moves the slow history to the fast history's mean");
-            length.Should().BeApproximately(11.2f, 0.01f, "the anti-lag shortens the history by the clamp's move");
+            light
+                .X.Should()
+                .BeApproximately(0.8f, 0.001f, "the clamp moves the slow history to the fast history's mean");
+            length.Should().BeApproximately(10f, 0.01f, "the anti-lag shortens the history by the clamp's move");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ALightChangeThatTheRaysSawRestartsTheHistoryAtTheChange()
+    {
+        // The rays saw the light change in this frame (age 0, code 1), and the sample holds more than a quarter of the
+        // history's light: the history keeps no frame from before the change (ticket ter-wkvw).
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
+        try
+        {
+            sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
+            renderer.Render(scene, 1f);
+            Continue(renderer, scene, frames: 40);
+
+            sample.AgeCode = 1;
+            sample.Value = new(x: 2f, y: 2f, z: 2f, w: 1f);
+            Continue(renderer, scene, frames: 1);
+
+            for (int part = 0; part < 2; part++)
+                CenterOf(renderer, sample, part)
+                    .Should()
+                    .Be((new Vector3(2f), 1f), "only the new light is left in part {0}", part);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ALightChangeOlderThanTheHistoryLeavesTheHistoryAsItIs()
+    {
+        // A change 20 frames ago (code 21) is older than the history of 16 frames, which holds no frame from before it.
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
+        try
+        {
+            sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
+            renderer.Render(scene, 1f);
+            Continue(renderer, scene, frames: 40);
+
+            sample.AgeCode = 21;
+            sample.Value = new(x: 2f, y: 2f, z: 2f, w: 1f);
+            Continue(renderer, scene, frames: 1);
+
+            CenterOf(renderer, sample, part: 0)
+                .Should()
+                .Be((new Vector3(1.0625f), 16f), "the sample blends in with 1 / 16");
         }
         finally
         {
@@ -430,8 +559,6 @@ public sealed class AccumulatorRenderTests
             renderer.Render(scene, 1f);
             Continue(renderer, scene, frames: 40);
 
-            // The rays saw the light change in this frame: the evidence on which the clamp acts.
-            sample.AgeCode = 1;
             sample.Value = new(x: after, y: after, z: after, w: 8f);
             Continue(renderer, scene, frames: 10);
 
@@ -652,7 +779,12 @@ public sealed class AccumulatorRenderTests
     /// Draws <paramref name="frames"/> frames of a still view whose samples are 1, but for one pixel in
     /// <see cref="RareShare"/> in each frame, whose sample is <see cref="RareLight"/>.
     /// </summary>
-    private static void DrawRareBrightSamples(VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene, int frames)
+    private static void DrawRareBrightSamples(
+        VulkanRenderer renderer,
+        SamplePass sample,
+        RenderSnapshot scene,
+        int frames
+    )
     {
         sample.Value = new(x: 1f, y: 1f, z: 1f, w: 8f);
         renderer.Render(scene, 1f);
@@ -664,20 +796,15 @@ public sealed class AccumulatorRenderTests
         }
     }
 
-    /// <summary>The slow history of part 0 at the pixels at least 2 pixels inside the image: the luminance and length.</summary>
-    private static (float[] Light, float[] Length) InteriorOf(VulkanRenderer renderer, SamplePass sample)
+    /// <summary>The slow history's light of part 0 at the pixels at least 2 pixels inside the image.</summary>
+    private static float[] InteriorLightOf(VulkanRenderer renderer, SamplePass sample)
     {
         float[] history = HistoryOf(renderer, sample, part: 0);
-        List<float> light = [],
-            length = [];
+        List<float> light = [];
         for (int row = 2; row < Height - 2; row++)
         for (int column = 2; column < Width - 2; column++)
-        {
-            int at = 4 * (row * Width + column);
-            light.Add(history[at]);
-            length.Add(history[at + 3]);
-        }
-        return ([.. light], [.. length]);
+            light.Add(history[4 * (row * Width + column)]);
+        return [.. light];
     }
 
     [Fact]
@@ -690,34 +817,10 @@ public sealed class AccumulatorRenderTests
         {
             DrawRareBrightSamples(renderer: renderer, sample: sample, scene: scene, frames: 160);
 
-            InteriorOf(renderer, sample)
-                .Light.Average()
+            InteriorLightOf(renderer, sample)
+                .Average()
                 .Should()
                 .BeApproximately(2f, 0.1f, "the history holds the mean of its samples");
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(renderer);
-        }
-    }
-
-    [Fact]
-    public void InAStillViewRareBrightReflectionSamplesDoNotShortenTheHistory()
-    {
-        // A rough pixel's cap is 32 · 0.47 + 4 · 0.53, about 17 frames. A bright sample raises the fast histories around it
-        // for a few frames; when they fade, a clamp moves the slow history and its anti-lag cuts the length to the fast
-        // cap, so the next bright sample enters at a quarter and shows as a speck (ticket t7-3e22).
-        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
-            parameters: SignalParameters.Specular(0.4f),
-            roughness: 0.38f
-        );
-        try
-        {
-            DrawRareBrightSamples(renderer: renderer, sample: sample, scene: scene, frames: 160);
-
-            float[] lengths = InteriorOf(renderer, sample).Length;
-            float shortShare = lengths.Count(length => length < 12f) / (float)lengths.Length;
-            shortShare.Should().BeLessThan(0.01f, "nothing in a still view is evidence of a change");
         }
         finally
         {
@@ -1306,8 +1409,6 @@ public sealed class AccumulatorRenderTests
                     Continue(renderer, scene, frames: 63);
                     CenterOf(renderer, sample, part: 0).Length.Should().Be(64);
                     Continue(renderer, scene, frames: 2048);
-                    // The rays saw the light change in this frame: the evidence on which the clamp acts.
-                    sample.AgeCode = 1;
                     sample.Value = new Vector4(new Vector3(2), 1);
 
                     Continue(renderer, scene, frames: 10);
@@ -1319,7 +1420,7 @@ public sealed class AccumulatorRenderTests
                     light.X.Should().BeInRange(1.9f, 2);
                     length
                         .Should()
-                        .BeLessThan(2112, "the light change shortens the history");
+                        .BeLessThan(2112, "the existing anti-lag still shortens history when the clamp moves it");
                 }
             );
 

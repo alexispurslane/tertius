@@ -22,9 +22,9 @@ const float RoundingShare = 1.0 / 192.0;
 // The share of the larger of two hit distances by which they may differ for a tap to pass.
 const float HitDistanceShare = 0.5;
 
-#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
-// The specular sample's light age (ticket tiunr-py6q, TemporalSignal.SampleAge): 0 for no evidence, else the age in frames
-// of the youngest light that its rays hit, plus 1.
+#ifdef TERTIUS_LIGHT_AGE
+// The sample's light age (tickets tiunr-py6q and ter-wkvw, TemporalSignal.SampleAge): 0 for no evidence, else the age in
+// frames of the youngest light that its rays hit, plus 1.
 layout(set = 3, binding = 11, r16ui) uniform readonly uimage2D sampleAge;
 
 // The least share of the slow history's luminance that a sample must hold for its age to cut the history: a dim ray does
@@ -305,7 +305,7 @@ void main()
         deviation = min(deviation * ratio, MaxRadiance);
     }
 
-#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+#ifdef TERTIUS_LIGHT_AGE
     // The light-change age: the history keeps no more frames than the age of the light that the sample's rays see, so
     // after the blend it holds only frames from after the change.
 #ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC

@@ -23,10 +23,10 @@ namespace Tertius.Rendering;
 /// history the deviation of its samples' luminance, which the diffuse filter reads. The sample is a color
 /// attachment of its producer, and every other image stays in the General layout. The signals share the scratch images
 /// (<see cref="SignalScratch"/>). Beside a precise specular history, each part also owns its sample's light age, which the
-/// resolve writes and the dispatches read at binding 11 (the light-change age, ticket tiunr-7haj): the specular temporal
-/// dispatch cuts its history by it, and the spatial dispatch of both signals clamps only on evidence of a change (ticket
-/// t7-3e22). The diffuse signal keeps its half-precision history and takes the light-age variant of its spatial dispatch
-/// (<see cref="ShaderVariant.LightAge"/>).
+/// resolve writes and the dispatches read at binding 11 (the light-change age, ticket tiunr-7haj): the temporal dispatch of
+/// both signals cuts its history by it (ticket ter-wkvw for the diffuse signal), and the spatial dispatch of the diffuse
+/// signal clamps only on evidence of a change (ticket ter-18hc). The diffuse signal keeps its half-precision history and
+/// takes the light-age variant of both dispatches (<see cref="ShaderVariant.LightAge"/>).
 /// </para>
 /// <para>Invariants, checked by <see cref="AssertInvariants"/>:</para>
 /// <list type="bullet">
@@ -47,11 +47,11 @@ internal sealed unsafe class TemporalSignal : IDisposable
     public const Format SampleAgeFormat = Format.R16Uint;
 
     /// <summary>
-    /// The format of the diagnostic of uncovered surfaces under <see cref="HistoryInstrumentation.LightAgeDiagnostic"/>:
-    /// r the fewest frames seen among the never-changed surfaces that the specular sample's rays hit, or −1 for none,
-    /// which the resolve writes; g the length whose weight the sample takes in its blend, which for the specular signal
-    /// that alone takes this diagnostic is the slow history's length after the light-age cut, or −1 without a sample; b 1 where the sample holds at least the cut share of the slow
-    /// history's luminance, else 0; a the length before the light-age cut. The temporal dispatch writes g, b and a.
+    /// The format of the diagnostic of uncovered surfaces under <see cref="HistoryInstrumentation.LightAgeDiagnostic"/>: r the
+    /// fewest frames seen among the never-changed surfaces that the specular sample's rays hit, or −1 for none, which the
+    /// resolve writes; g the slow history's length just before its blend, after the light-age cut, or −1 without a
+    /// sample; b 1 where the sample holds at least the cut share of the slow history's luminance, else 0; a the length
+    /// before the light-age cut. The temporal dispatch writes g, b and a.
     /// </summary>
     public const Format UncoveredDiagnosticFormat = Format.R32G32B32A32Sfloat;
 
@@ -201,10 +201,12 @@ internal sealed unsafe class TemporalSignal : IDisposable
 
     /// <summary>
     /// The variant of <paramref name="shader"/> for a half-precision history whose samples have a light age: the
-    /// light-age variant for the shaders that it holds, the spatial dispatch, and the shader itself otherwise.
+    /// light-age variant for the shaders that it holds, the two dispatches, and the shader itself otherwise.
     /// </summary>
     internal static string LightAgeShader(string shader) =>
-        ShaderVariant.LightAge.Shaders.Contains(shader) ? ShaderVariant.Of(shader, ShaderVariant.LightAge.Suffix) : shader;
+        ShaderVariant.LightAge.Shaders.Contains(shader)
+            ? ShaderVariant.Of(shader, ShaderVariant.LightAge.Suffix)
+            : shader;
 
     /// <summary>
     /// The variant of <paramref name="shader"/> for a history of <paramref name="mode"/>. The precise variants keep the
@@ -489,7 +491,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
             binding: 10,
             image: reflectionDistanceHistory ? images.ReflectionGuideScratch : scratch.Part(part)
         );
-        // The sample age, which the specular temporal dispatch and both spatial dispatches read.
+        // The sample age, which both dispatches of both signals read.
         if (images.SampleAge is { } age)
             layouts.WriteStorageImage(set: set, binding: 11, image: age);
         // The diagnostic of uncovered surfaces, which only the specular signal's temporal dispatch writes.

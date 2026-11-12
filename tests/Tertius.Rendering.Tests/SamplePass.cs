@@ -20,6 +20,11 @@ internal sealed unsafe class SamplePass(TemporalSignal signal, DeviceAllocator a
     /// </summary>
     public uint AgeCode { get; set; }
 
+    /// <summary>
+    /// The age code of each pixel's sample, by column and row, in place of <see cref="AgeCode"/> where it is set.
+    /// </summary>
+    public Func<int, int, ushort>? AgeCodes { get; set; }
+
     /// <summary>The signal whose samples the pass writes.</summary>
     public TemporalSignal Signal => signal;
 
@@ -34,7 +39,10 @@ internal sealed unsafe class SamplePass(TemporalSignal signal, DeviceAllocator a
                 context.Barriers.Image(age, ImageUse.TransferDestination, discard: true);
         }
         context.Barriers.Flush(context.Vk, context.CommandBuffer);
-        ClearAges(context);
+        if (AgeCodes is { } codes)
+            UploadAges(context, codes);
+        else
+            ClearAges(context);
         if (Samples is { } samples)
         {
             Upload(context, samples);
@@ -82,6 +90,61 @@ internal sealed unsafe class SamplePass(TemporalSignal signal, DeviceAllocator a
                 );
     }
 
+    /// <summary>Uploads <paramref name="codes"/> into each part's sample age.</summary>
+    private void UploadAges(FrameContext context, Func<int, int, ushort> codes)
+    {
+        Extent2D extent = signal.Sample(0).Extent;
+        int width = (int)extent.Width,
+            height = (int)extent.Height;
+        ushort[] texels = new ushort[width * height];
+        for (int row = 0; row < height; row++)
+        for (int column = 0; column < width; column++)
+            texels[row * width + column] = codes(column, row);
+        Copy(
+            context: context,
+            texels: texels,
+            extent: extent,
+            target: part => signal.SampleAge(part)?.Handle,
+            name: "accumulator test sample ages"
+        );
+    }
+
+    /// <summary>Copies <paramref name="texels"/> into the image of each part that <paramref name="target"/> names.</summary>
+    private void Copy<T>(FrameContext context, T[] texels, Extent2D extent, Func<int, Image?> target, string name)
+        where T : unmanaged
+    {
+        var staging = GpuBuffer.Create(
+            device: context.Device,
+            allocator: allocator,
+            size: (ulong)(texels.Length * sizeof(T)),
+            usage: BufferUsageFlags.TransferSrcBit,
+            memoryUsage: MemoryUsage.Upload,
+            name: name
+        );
+        uploads.Add(staging);
+        staging.Write(texels);
+        var region = new BufferImageCopy
+        {
+            ImageSubresource = new(
+                aspectMask: ImageAspectFlags.ColorBit,
+                mipLevel: 0,
+                baseArrayLayer: 0,
+                layerCount: 1
+            ),
+            ImageExtent = new(extent.Width, extent.Height, 1),
+        };
+        for (int part = 0; part < signal.Parts; part++)
+            if (target(part) is { } image)
+                context.Vk.CmdCopyBufferToImage(
+                    commandBuffer: context.CommandBuffer,
+                    srcBuffer: staging.Handle,
+                    dstImage: image,
+                    dstImageLayout: ImageLayout.TransferDstOptimal,
+                    regionCount: 1,
+                    pRegions: &region
+                );
+    }
+
     private void Upload(FrameContext context, Func<int, int, Vector4> samples)
     {
         Extent2D extent = signal.Sample(0).Extent;
@@ -98,35 +161,13 @@ internal sealed unsafe class SamplePass(TemporalSignal signal, DeviceAllocator a
             texels[at + 2] = (Half)value.Z;
             texels[at + 3] = (Half)value.W;
         }
-        var staging = GpuBuffer.Create(
-            device: context.Device,
-            allocator: allocator,
-            size: (ulong)(texels.Length * sizeof(Half)),
-            usage: BufferUsageFlags.TransferSrcBit,
-            memoryUsage: MemoryUsage.Upload,
+        Copy(
+            context: context,
+            texels: texels,
+            extent: extent,
+            target: part => signal.Sample(part).Handle,
             name: "accumulator test samples"
         );
-        uploads.Add(staging);
-        staging.Write(texels);
-        var region = new BufferImageCopy
-        {
-            ImageSubresource = new(
-                aspectMask: ImageAspectFlags.ColorBit,
-                mipLevel: 0,
-                baseArrayLayer: 0,
-                layerCount: 1
-            ),
-            ImageExtent = new(extent.Width, extent.Height, 1),
-        };
-        for (int part = 0; part < signal.Parts; part++)
-            context.Vk.CmdCopyBufferToImage(
-                commandBuffer: context.CommandBuffer,
-                srcBuffer: staging.Handle,
-                dstImage: signal.Sample(part).Handle,
-                dstImageLayout: ImageLayout.TransferDstOptimal,
-                regionCount: 1,
-                pRegions: &region
-            );
     }
 
     public override void Dispose()

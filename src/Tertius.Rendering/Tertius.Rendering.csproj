@@ -41,10 +41,11 @@
     <AccumulationTraceShader Include="Shaders/accumulate_temporal.comp;Shaders/accumulate_spatial.comp" />
     <!-- HistoryInstrumentationSelection lists the shaders of the two items above, and ShaderVariantTests checks the
          list against the embedded shaders. -->
-    <!-- The light-age variant (ticket t7-3e22): the diffuse signal's spatial dispatch beside a precise specular history,
-         which keeps its half-precision history and clamps it only on evidence of a change. ShaderVariant.LightAge lists
-         it. -->
-    <LightAgeShader Include="Shaders/accumulate_spatial.comp" />
+    <!-- The light-age variant (tickets ter-18hc and ter-wkvw): the diffuse signal's dispatches beside a precise specular
+         history, which keep its half-precision history, cut it to the age of a light change and clamp it only on
+         evidence of a change. ShaderVariant.LightAge lists them. TERTIUS_LIGHT_AGE marks every build whose dispatches read
+         the light age: this variant and every variant of a precise history. -->
+    <LightAgeShader Include="Shaders/accumulate_temporal.comp;Shaders/accumulate_spatial.comp" />
     <GlslInclude Include="Shaders/*.glsl" />
     <None Include="@(GlslShader);@(GlslInclude)" />
   </ItemGroup>
@@ -93,7 +94,7 @@
           Inputs="@(PreciseHistoryShader);@(GlslInclude);$(MSBuildProjectFullPath)"
           Outputs="@(PreciseHistoryShader->'$(IntermediateOutputPath)shaders/%(Filename)_precise%(Extension).spv')">
     <MakeDir Directories="$(IntermediateOutputPath)shaders" />
-    <Exec Command="&quot;$(Glslc)&quot; --target-env=vulkan1.3 -O -Werror -DTERTIUS_PRECISE_SPECULAR_HISTORY -I &quot;$(MSBuildProjectDirectory)/Shaders&quot; -o &quot;$(IntermediateOutputPath)shaders/%(PreciseHistoryShader.Filename)_precise%(PreciseHistoryShader.Extension).spv&quot; &quot;%(PreciseHistoryShader.FullPath)&quot;" />
+    <Exec Command="&quot;$(Glslc)&quot; --target-env=vulkan1.3 -O -Werror -DTERTIUS_PRECISE_SPECULAR_HISTORY -DTERTIUS_LIGHT_AGE -I &quot;$(MSBuildProjectDirectory)/Shaders&quot; -o &quot;$(IntermediateOutputPath)shaders/%(PreciseHistoryShader.Filename)_precise%(PreciseHistoryShader.Extension).spv&quot; &quot;%(PreciseHistoryShader.FullPath)&quot;" />
   </Target>
 
   <Target Name="EmbedPreciseHistoryShaders" DependsOnTargets="CompilePreciseHistoryShaders" BeforeTargets="BeforeBuild">
@@ -109,7 +110,7 @@
           Inputs="@(LightAgeDiagnosticShader);@(GlslInclude);$(MSBuildProjectFullPath)"
           Outputs="@(LightAgeDiagnosticShader->'$(IntermediateOutputPath)shaders/%(Filename)_lightagediag_precise%(Extension).spv')">
     <MakeDir Directories="$(IntermediateOutputPath)shaders" />
-    <Exec Command="&quot;$(Glslc)&quot; --target-env=vulkan1.3 -O -Werror -DTERTIUS_PRECISE_SPECULAR_HISTORY -DTERTIUS_LIGHT_AGE_DIAGNOSTIC -I &quot;$(MSBuildProjectDirectory)/Shaders&quot; -o &quot;$(IntermediateOutputPath)shaders/%(LightAgeDiagnosticShader.Filename)_lightagediag_precise%(LightAgeDiagnosticShader.Extension).spv&quot; &quot;%(LightAgeDiagnosticShader.FullPath)&quot;" />
+    <Exec Command="&quot;$(Glslc)&quot; --target-env=vulkan1.3 -O -Werror -DTERTIUS_PRECISE_SPECULAR_HISTORY -DTERTIUS_LIGHT_AGE -DTERTIUS_LIGHT_AGE_DIAGNOSTIC -I &quot;$(MSBuildProjectDirectory)/Shaders&quot; -o &quot;$(IntermediateOutputPath)shaders/%(LightAgeDiagnosticShader.Filename)_lightagediag_precise%(LightAgeDiagnosticShader.Extension).spv&quot; &quot;%(LightAgeDiagnosticShader.FullPath)&quot;" />
   </Target>
 
   <Target Name="EmbedLightAgeDiagnosticShaders" DependsOnTargets="CompileLightAgeDiagnosticShaders" BeforeTargets="BeforeBuild">
@@ -125,7 +126,7 @@
           Inputs="@(AccumulationTraceShader);@(GlslInclude);$(MSBuildProjectFullPath)"
           Outputs="@(AccumulationTraceShader->'$(IntermediateOutputPath)shaders/%(Filename)_trace_precise%(Extension).spv')">
     <MakeDir Directories="$(IntermediateOutputPath)shaders" />
-    <Exec Command="&quot;$(Glslc)&quot; --target-env=vulkan1.3 -O -Werror -DTERTIUS_PRECISE_SPECULAR_HISTORY -DTERTIUS_ACCUMULATION_TRACE -I &quot;$(MSBuildProjectDirectory)/Shaders&quot; -o &quot;$(IntermediateOutputPath)shaders/%(AccumulationTraceShader.Filename)_trace_precise%(AccumulationTraceShader.Extension).spv&quot; &quot;%(AccumulationTraceShader.FullPath)&quot;" />
+    <Exec Command="&quot;$(Glslc)&quot; --target-env=vulkan1.3 -O -Werror -DTERTIUS_PRECISE_SPECULAR_HISTORY -DTERTIUS_LIGHT_AGE -DTERTIUS_ACCUMULATION_TRACE -I &quot;$(MSBuildProjectDirectory)/Shaders&quot; -o &quot;$(IntermediateOutputPath)shaders/%(AccumulationTraceShader.Filename)_trace_precise%(AccumulationTraceShader.Extension).spv&quot; &quot;%(AccumulationTraceShader.FullPath)&quot;" />
   </Target>
 
   <Target Name="EmbedAccumulationTraceShaders" DependsOnTargets="CompileAccumulationTraceShaders" BeforeTargets="BeforeBuild">

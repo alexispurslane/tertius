@@ -102,10 +102,15 @@ public sealed partial class ShaderVariantTests
     [Fact]
     public void EveryEmbeddedLightAgeVariantIsInItsTable() =>
         Embedded
-            .Where(file => Path.GetFileNameWithoutExtension(file).EndsWith(ShaderVariant.LightAge.Suffix, StringComparison.Ordinal))
+            .Where(file =>
+                Path.GetFileNameWithoutExtension(file).EndsWith(ShaderVariant.LightAge.Suffix, StringComparison.Ordinal)
+            )
             .Select(file => file.Replace(ShaderVariant.LightAge.Suffix, "", StringComparison.Ordinal))
             .Should()
-            .BeEquivalentTo(ShaderVariant.LightAge.Shaders, "a shader that the build compiles in the variant reads the age");
+            .BeEquivalentTo(
+                ShaderVariant.LightAge.Shaders,
+                "a shader that the build compiles in the variant reads the age"
+            );
 
     [Fact]
     public void AVariantsFileNameAddsItsSuffixBeforeTheStage() =>
@@ -165,9 +170,9 @@ public sealed class HistoryShaderTests
 
     [Theory]
     [InlineData("accumulate_temporal.comp", "accumulate_temporal_lightage.comp")]
-    [InlineData("accumulate_spatial.comp", "accumulate_spatial.comp")]
+    [InlineData("accumulate_spatial.comp", "accumulate_spatial_lightage.comp")]
     [InlineData("accumulate_diffuse_single_temporal.comp", "accumulate_diffuse_single_temporal.comp")]
-    public void AHalfPrecisionHistoryBesideTheLightAgeTakesTheLightAgeVariantOfItsTemporalDispatchAlone(
+    public void AHalfPrecisionHistoryBesideTheLightAgeTakesTheLightAgeVariantOfBothItsDispatches(
         string shader,
         string expected
     ) => TemporalSignal.LightAgeShader(shader).Should().Be(expected);

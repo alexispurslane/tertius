@@ -104,8 +104,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// </summary>
     private const uint ScreenTraceLightImages = 2;
 
-    /// <summary>The first binding of the light pyramid in a screen tracer set, after the light age's bindings 19 to 22.</summary>
-    public const uint ScreenTraceLightBinding = 23;
+    /// <summary>
+    /// The first binding of the light pyramid in a screen tracer set, after the light age's bindings 19 to 22 and its
+    /// diagnostic's binding 23.
+    /// </summary>
+    public const uint ScreenTraceLightBinding = 24;
 
     /// <summary>
     /// The storage images that the light-change age of a precise specular history adds to a screen tracer set after its

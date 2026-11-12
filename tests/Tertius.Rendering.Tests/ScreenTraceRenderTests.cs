@@ -422,17 +422,19 @@ public sealed class ScreenTraceRenderTests
         return [.. renderer.ReadImage(diffuse.Sample(0)), .. renderer.ReadImage(specular.Sample(0))];
     }
 
-    [Fact]
-    public void AGlowingPanelBesideAFloorPixelTakesItsShareOfThePixelsDiffuseLight()
+    [Theory]
+    [InlineData(0.95f)]
+    [InlineData(4.95f)]
+    public void AGlowingPanelBesideAFloorPixelTakesItsShareOfThePixelsDiffuseLight(float distance)
     {
-        // A row of floor pixels 0.95 m in front of a black panel that glows: their diffuse light is f · glow + (1 − f) · sky,
-        // with f the panel's form factor, the cosine-weighted share of the hemisphere that the panel covers. The panel
-        // covers a third of it there. Where it covers a few percent, the slow history reads low: its clamp into the box
-        // of the fast history cuts the rare bright samples (ter-18hc).
+        // A row of floor pixels in front of a black panel that glows: their diffuse light is f · glow + (1 − f) · sky,
+        // with f the panel's form factor, the cosine-weighted share of the hemisphere that the panel covers. At 0.95 m the
+        // panel covers a third of it, at 4.95 m about 4 %. There the panel's rays are rare and bright, and a clamp of the
+        // slow history into the box of the fast history in a still view read about half of the panel's share (ter-18hc).
         const float sky = 0.2f;
         const float glow = 2f;
         var receiver = new Vector3(0, FloorHeight, -7);
-        const float panelFront = -7.95f;
+        float panelFront = receiver.Z - distance;
         VulkanRenderer renderer = Tracing();
         try
         {
@@ -447,7 +449,7 @@ public sealed class ScreenTraceRenderTests
                 )
             );
 
-            Draw(renderer, scene, frames: 40);
+            Draw(renderer, scene, frames: 160);
 
             float share = FormFactor(point: receiver, front: panelFront, halfWidth: 3, bottom: FloorHeight, top: 1.5f);
             (int X, int Y) pixel = PixelOf(receiver);

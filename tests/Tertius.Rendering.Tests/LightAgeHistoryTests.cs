@@ -472,6 +472,44 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
         );
 
     [Fact]
+    public void AfterALastingDimmingTheDiffuseHistoryKeepsOnlyTheNewLight() =>
+        WithRenderer(
+            null,
+            (renderer, scene) =>
+            {
+                Draw(renderer, scene, 64);
+                TemporalSignal diffuse = renderer.ScreenTraceSignals.Diffuse;
+                float[] warm = renderer.ReadImage(diffuse.Slow(0));
+                SetGlow(renderer, scene, new(3.2f));
+
+                Draw(renderer, scene, LightChangeDraws);
+
+                float[] sample = renderer.ReadImage(diffuse.Sample(0));
+                float[] ages = renderer.ReadImage(
+                    diffuse.SampleAge(0)
+                        ?? throw new InvalidOperationException("The precise history keeps the light age.")
+                );
+                float[] slow = renderer.ReadImage(diffuse.Slow(0));
+                int[] cut =
+                [
+                    .. Enumerable
+                        .Range(0, Width * Height)
+                        .Where(pixel =>
+                            ages[pixel] == 1
+                            && LengthAt(warm, pixel) > 8
+                            && Luminance(sample, pixel) >= 0.3f * Luminance(warm, pixel)
+                        ),
+                ];
+                cut.Length.Should().BeGreaterThan(0, "the diffuse rays of some pixels hit the dimmed emitter");
+                cut.Should()
+                    .OnlyContain(
+                        pixel => LengthAt(slow, pixel) == 1,
+                        "the commit cuts the history to the change, so it holds this frame's sample alone"
+                    );
+            }
+        );
+
+    [Fact]
     public void AMoveBelowTheCutoffRadianceChangesNoLightAge() =>
         WithRenderer(
             null,

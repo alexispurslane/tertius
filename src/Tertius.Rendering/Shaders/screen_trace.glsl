@@ -44,9 +44,9 @@ layout(set = 3, binding = 16, rgba16f) uniform writeonly image2D specularSample;
 OWN_RAY_LIST(3, 17, reflectionOwnRays);
 OWN_RAY_LIST(3, 18, diffuseOwnRays);
 // The light pyramid (ARCHITECTURE.md, "Guided diffuse rays", light_pyramid.glsl): each pixel's guide light, and the sums
-// of levels 1 to L, mip m level m + 1, whose padding holds no light. Bindings 19 to 22 are the light age's.
-layout(set = 3, binding = 23) uniform texture2D lightFinest;    // R32F
-layout(set = 3, binding = 24) uniform texture2D lightLevels;    // R32F
+// of levels 1 to L, mip m level m + 1, whose padding holds no light. Bindings 19 to 23 are the light age's.
+layout(set = 3, binding = 24) uniform texture2D lightFinest;    // R32F
+layout(set = 3, binding = 25) uniform texture2D lightLevels;    // R32F
 
 #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
 // The light-change age of a precise specular history (tickets tiunr-py6q and tiunr-7haj, ScreenTraceImages.LightAge): r
