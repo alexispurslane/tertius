@@ -8,8 +8,8 @@ namespace Tertius.Rendering.Tests;
 /// The diffuse filter (ticket ter-9371, <see cref="DiffuseFilter"/>): it spreads a bright sample over its neighbors on the
 /// same surface and keeps its light, it lets no light cross a depth edge or a crease, it leaves a smooth image without
 /// noise as it is, and a ray's hit reads its output. A test signal and its producer stand for the diffuse signal, and the
-/// filter runs after their accumulation. The tests run the default thin kernel unless they name
-/// one. The camera stands still, and each frame steps one tick.
+/// filter runs after their accumulation. The tests run the default thin kernel unless they name one. The camera stands
+/// still, and each frame steps one tick.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class DiffuseFilterRenderTests
@@ -356,7 +356,7 @@ public sealed class DiffuseFilterRenderTests
             float[] history = renderer.ReadImage(sample.Signal.Slow(0));
             int center = Height / 2 * Width + Width / 2;
             // Unfiltered, the history of 16 frames holds bright / 16 = 1 at the bright pixel and 0 around it. The first
-            // step's kernel gives the pixel at most its own weight, (3 / 8)², and its neighbor some of the light.
+            // step's kernel gives the pixel at most its own weight, (1 / 2)², and its neighbor some of the light.
             history[4 * center]
                 .Should()
                 .BeLessThan(0.5f, "the history holds the first step's light, not the sample's");
@@ -432,13 +432,20 @@ public sealed class DiffuseFilterRenderTests
         };
 
     private static DiffuseFilterKernel KernelNamed(string name) =>
-        name == nameof(DiffuseFilterKernel.Thin) ? DiffuseFilterKernel.Thin : DiffuseFilterKernel.Wide;
+        name switch
+        {
+            nameof(DiffuseFilterKernel.Thin) => DiffuseFilterKernel.Thin,
+            nameof(DiffuseFilterKernel.Wide) => DiffuseFilterKernel.Wide,
+            _ => throw new ArgumentException($"No kernel is named {name}.", nameof(name)),
+        };
 
     [Theory]
     [MemberData(nameof(Reaches))]
     public void ASpecksLightReachesAsFarAsTheKernelsStepsTogetherAndNoFarther(string kernel, int reach)
     {
-        // The speck sits at the row's left half, so that its reach and one pixel more lie inside the image.
+        // The speck is a column in the image's left half, so that its reach and one pixel more lie inside the image. A
+        // column, so that the light that reaches the farthest pixel adds up over its rows to a normal half float: the
+        // wide kernel's outer taps alone weigh 0.0625^5 ≈ 1e-6, below which a driver may flush a half float to 0.
         const int speck = Width / 2 - 1;
         (VulkanRenderer renderer, SamplePass sample, DiffuseFilter filter, RenderSnapshot scene) = Filtering(
             filtered: true,
@@ -451,7 +458,7 @@ public sealed class DiffuseFilterRenderTests
             renderer.Render(scene, 1f);
             Continue(renderer, scene, frames: 30);
             sample.Samples = (column, row) =>
-                new Vector4(new Vector3(column == speck && row == Height / 2 ? 1000 : 0), 1);
+                new Vector4(new Vector3(column == speck ? 4000 : 0), 1);
 
             Continue(renderer, scene, frames: 1);
 
@@ -544,12 +551,12 @@ public sealed class DiffuseFilterRenderTests
 
             float[] history = renderer.ReadImage(sample.Signal.Slow(0));
             float light = Enumerable.Range(0, Width * Height).Sum(pixel => history[4 * pixel]);
-            // All of this light moves, and each of the four later steps stores it in half floats, which may round toward
-            // zero by up to 2^−10 of a value.
+            // All of this light moves, and each of the five later steps stores it in half floats, which may round toward
+            // zero by up to 2^−10 of a value: 5 × 2^−10 ≈ 0.0049 in all.
             FilteredRed(renderer, filter)
                 .Sum()
                 .Should()
-                .BeApproximately(light, 0.005f * light, "the later steps only move light");
+                .BeApproximately(light, 0.006f * light, "the later steps only move light");
         }
         finally
         {

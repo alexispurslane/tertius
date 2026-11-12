@@ -10,8 +10,8 @@ namespace Tertius.Rendering;
 /// <para>
 /// The variance dispatch pairs the signal's slow history with the standard deviation of its samples' luminance. Then the
 /// kernel's wavelet dispatches each take its B-spline kernel at taps 2^i pixels apart, stopped by the pixels' planes,
-/// normals and luminance (<see cref="DiffuseFilterKernel"/>). A dispatch moves light between two pixels by a share that is the same in both
-/// directions, so it neither makes nor loses light (diffuse_filter_wavelet.glsl).
+/// normals and luminance (<see cref="DiffuseFilterKernel"/>). A dispatch moves light between two pixels by a share that is
+/// the same in both directions, so it neither makes nor loses light (diffuse_filter_wavelet.glsl).
 /// </para>
 /// <para>
 /// The light of dispatch <see cref="FeedbackDispatch"/> replaces the slow history's light, as the paper feeds back its
@@ -58,7 +58,7 @@ internal sealed unsafe class DiffuseFilter : IDisposable
     private GpuImage[] passes;
 
     /// <param name="signal">The diffuse signal, whose part 0 the filter reads and whose slow history it writes.</param>
-    /// <param name="kernel">The wavelet kernel: <see cref="DiffuseFilterKernel.Thin"/> or <see cref="DiffuseFilterKernel.Wide"/>.</param>
+    /// <param name="kernel">The wavelet kernel (<see cref="DiffuseFilterKernel"/>).</param>
     public DiffuseFilter(
         VulkanDevice device,
         DeviceAllocator allocator,
@@ -95,19 +95,19 @@ internal sealed unsafe class DiffuseFilter : IDisposable
     public GpuImage Filtered { get; private set; }
 
     /// <summary>
-    /// The kernel that the debug switch TERTIUS_DIFFUSE_FILTER selects, or null for no filter: unset, empty and "on" select
-    /// the thin kernel, "wide" the paper's kernel, and "off" no filter, so that the composite shows the slow history and the
-    /// rays read the fast history, as before the filter.
+    /// The kernel that the debug switch TERTIUS_DIFFUSE_FILTER selects, or null for no filter: unset, empty, "on" and
+    /// "thin" select the thin kernel, "wide" the paper's kernel, and "off" no filter, so that the composite shows the slow
+    /// history and the rays read the fast history, as before the filter.
     /// </summary>
     /// <exception cref="ArgumentException">The variable holds another value.</exception>
     public static DiffuseFilterKernel? Selected() =>
         Environment.GetEnvironmentVariable("TERTIUS_DIFFUSE_FILTER") switch
         {
-            null or "" or "on" => DiffuseFilterKernel.Thin,
+            null or "" or "on" or "thin" => DiffuseFilterKernel.Thin,
             "wide" => DiffuseFilterKernel.Wide,
             "off" => null,
             var value => throw new ArgumentException(
-                $"Unknown TERTIUS_DIFFUSE_FILTER value '{value}': use on, wide or off."
+                $"Unknown TERTIUS_DIFFUSE_FILTER value '{value}': use on, thin, wide or off."
             ),
         };
 
@@ -262,12 +262,13 @@ internal sealed unsafe class DiffuseFilter : IDisposable
 }
 
 /// <summary>
-/// A wavelet kernel of the diffuse filter (diffuse_filter_wavelet.glsl). Each reaches 63 pixels from a pixel along each
-/// axis, and its steps together cover every pixel inside that reach.
+/// A wavelet kernel of the diffuse filter (diffuse_filter_wavelet.glsl): <see cref="Thin"/> or <see cref="Wide"/>. The
+/// thin kernel reaches 63 pixels along each axis and the wide kernel 62, and each kernel's steps together cover every
+/// pixel inside its reach.
 /// </summary>
-internal sealed record DiffuseFilterKernel
+internal sealed class DiffuseFilterKernel
 {
-    /// <summary>The most dispatches of a kernel: the thin kernel's.</summary>
+    /// <summary>The most dispatches of a kernel: the thin kernel's. The descriptor pool holds a set for each.</summary>
     public const int MostDispatches = 6;
 
     /// <summary>
@@ -284,6 +285,7 @@ internal sealed record DiffuseFilterKernel
 
     private DiffuseFilterKernel(int dispatches, string waveletShader)
     {
+        Contract.Requires(dispatches <= MostDispatches);
         Dispatches = dispatches;
         WaveletShader = waveletShader;
     }

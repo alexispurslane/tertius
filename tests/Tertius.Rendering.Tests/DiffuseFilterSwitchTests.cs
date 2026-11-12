@@ -44,6 +44,10 @@ public sealed class DiffuseFilterSwitchTests
         WithTracer(null, images => images.Filter!.Kernel.Should().BeSameAs(DiffuseFilterKernel.Thin));
 
     [Fact]
+    public void TheThinSettingFiltersWithTheThinKernel() =>
+        WithTracer("thin", images => images.Filter!.Kernel.Should().BeSameAs(DiffuseFilterKernel.Thin));
+
+    [Fact]
     public void TheWideSettingFiltersWithThePapersKernel() =>
         WithTracer(
             "wide",
