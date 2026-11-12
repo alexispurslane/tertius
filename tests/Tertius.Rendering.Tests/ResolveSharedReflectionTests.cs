@@ -1,4 +1,3 @@
-using Tertius.Testing;
 using static Tertius.Rendering.Tests.ReflectionTesting;
 
 namespace Tertius.Rendering.Tests;
