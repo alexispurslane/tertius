@@ -246,7 +246,8 @@ def image_for(config: Config, registry, repo: Path, shell: tuple, sha: str) -> s
     fitting = [image for image in registry.images() if have(repo, config, image)
                and protocol_of(repo, image) == PROTOCOL and shell_of(repo, image) == shell]
     if not fitting:
-        raise Refused(f"no image has the dev shell of {sha}: build {config.image_repository}:{sha} with the workflow "
+        raise Refused(f"no image has the dev shell of {sha} and the handler protocol {PROTOCOL}: build "
+                      f"{config.image_repository}:{sha} with the workflow "
                       f"gpu-image first (tools/runpod/README.md, \"A new dev shell\")")
     return max(fitting, key=lambda image: (int(git(repo, "show", "-s", "--format=%ct", image)),
                                            int(git(repo, "rev-list", "--count", image))))
