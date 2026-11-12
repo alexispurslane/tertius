@@ -761,7 +761,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
     [Fact]
     public void ARayDimmerThanAQuarterOfTheReceiversHistoryDoesNotCutIt() =>
         WithRenderer(
-            null,
+            "light-age-diagnostic",
             (renderer, scene) =>
             {
                 SetGlow(renderer, scene, new(0.4f));
@@ -773,7 +773,6 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
 
                 float[] sample = renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Sample(0));
                 float[] ages = SampleAges(renderer);
-                float[] after = Slow(renderer);
                 int[] dim =
                 [
                     .. Enumerable
@@ -786,7 +785,10 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 ];
                 output.WriteLine($"Receivers with a dim ray of age 0: {dim.Length}.");
                 dim.Length.Should().BeGreaterThan(20, "the bright sky outweighs the dim emitter in these histories");
-                dim.Count(pixel => LengthAt(after, pixel) >= LengthAt(warm, pixel))
+                // The cut alone, from the diagnostic: the slow history's clamp after the blend shortens a few of these
+                // histories too, and more of them since the plate's pixels share their block's reflection ray (ter-4oow).
+                float[] diagnostic = UncoveredDiagnostic(renderer);
+                dim.Count(pixel => LengthBeforeBlendAt(diagnostic, pixel) == LengthBeforeCutAt(diagnostic, pixel))
                     .Should()
                     .BeGreaterThanOrEqualTo(dim.Length * 95 / 100, "a ray below a quarter of the history does not cut");
             },
@@ -1131,10 +1133,13 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                         pixel => LengthAt(slow, pixel) <= LengthBeforeBlendAt(diagnostic, pixel) + 1,
                         "the blend adds one frame, and the spatial dispatch can only shorten"
                     );
+                // The slow history's clamp shortens the rest. The plate's pixels share their block's reflection ray
+                // (ter-4oow), whose weighted samples move the clamp in about 6 % of the receivers; own rays moved it in
+                // under 5 %.
                 receivers
                     .Count(pixel => LengthAt(slow, pixel) == LengthBeforeBlendAt(diagnostic, pixel) + 1)
                     .Should()
-                    .BeGreaterThanOrEqualTo(receivers.Length * 95 / 100);
+                    .BeGreaterThanOrEqualTo(receivers.Length * 90 / 100);
             }
         );
 
@@ -1345,6 +1350,9 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
 
     /// <summary>The receiver's slow-history length just before its blend, after the light-age cut.</summary>
     private static float LengthBeforeBlendAt(float[] diagnostic, int pixel) => diagnostic[4 * pixel + 1];
+
+    /// <summary>The receiver's length before the light-age cut, which equals its length before the blend where no cut acted.</summary>
+    private static float LengthBeforeCutAt(float[] diagnostic, int pixel) => diagnostic[4 * pixel + 3];
 
     private static void Draw(VulkanRenderer renderer, RenderSnapshot scene, int frames)
     {

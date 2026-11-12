@@ -197,7 +197,7 @@ public sealed class ScreenTraceHardeningTests
         [InlineData(null)]
         [InlineData("precise-capped")]
         [InlineData("precise-uncapped")]
-        public void ReflectionRaysStayFullRateWhileDiffuseRaysStillBecomeShared(string? mode) =>
+        public void AConvergedFlatRoughWallSharesItsBlocksRaysOfBothKindsUnderEitherPreciseHistory(string? mode) =>
             WithHistoryMode(
                 mode,
                 (renderer, scene) =>
@@ -214,10 +214,7 @@ public sealed class ScreenTraceHardeningTests
                     renderer
                         .ReadOwnRayCounts()
                         .Reflection.Should()
-                        .Be(
-                            reflection,
-                            "both experiment modes trace one reflection ray per eligible pixel regardless of history age"
-                        );
+                        .BeLessThan(reflection / 10, "the wall's lobe at roughness 0.3 holds its neighbors' rays");
                     renderer
                         .ReadOwnRayCounts()
                         .Diffuse.Should()

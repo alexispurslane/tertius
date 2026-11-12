@@ -503,8 +503,10 @@ The fast history, rejection and clamping remain unchanged.
 | `capped` | `precise-capped` | 32-bit/channel | Historical roughness-dependent limit |
 | `uncapped` | `precise-uncapped` | 32-bit/channel | No configured limit |
 
-Both precise controls use full-rate reflection rays at eligible pixels. Other
-history images keep their existing storage and ray policy. Compare these two
+Both precise controls share a block's reflection ray only inside a pixel's
+reflection lobe (ticket ter-4oow). Before 2026-11-10 they traced full-rate
+reflection rays at eligible pixels. Other history images keep their existing
+storage and ray policy. Compare these two
 controls to isolate the age-limit change; comparison with `original` also
 includes storage and reflection-allocation differences. The `original` command
 sets its value explicitly because an unset value now selects uncapped history.

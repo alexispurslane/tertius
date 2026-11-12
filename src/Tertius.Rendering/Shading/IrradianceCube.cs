@@ -34,8 +34,8 @@ internal static class IrradianceCube
     /// </summary>
     public const int Lanes = 8;
 
-    /// <summary>The workgroups of 64 invocations that convolve one map's level 0, <see cref="Lanes"/> per texel: 192.</summary>
-    public const int Workgroups = CubeFaces.Count * FaceSize * FaceSize * Lanes / 64;
+    /// <summary>The workgroups of 64 invocations that convolve one face of one map's level 0, <see cref="Lanes"/> per texel: 32.</summary>
+    public const int WorkgroupsPerFace = FaceSize * FaceSize * Lanes / 64;
 
     /// <summary>The level of a radiance map of <paramref name="mapFaceSize"/> texels, a power of two, that the cube convolves.</summary>
     public static int SourceLevel(int mapFaceSize) =>

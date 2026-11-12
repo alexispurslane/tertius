@@ -210,7 +210,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             compositePass = AddPassesAfterGeometry(shaders, options);
             AddScatterPasses(shaders);
             Own(Graph);
-            timer = Own(new GpuTimer(device, options.FramesInFlight));
+            timer = Own(new GpuTimer(device, options.FramesInFlight, eachPass: options.PassTimestamps));
             context = CreateContext();
         }
         catch

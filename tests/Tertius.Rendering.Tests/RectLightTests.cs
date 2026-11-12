@@ -252,6 +252,263 @@ public sealed class RectLightTests
         terms.Should().Be(default(DirectTerms), "the whole panel lies below the floor's horizon");
     }
 
+    /// <summary>The cabin lamp's panel, 1.2 m square and facing down, centered <paramref name="center"/> from the point.</summary>
+    private static TestRect CabinLampAt(Double3 center) =>
+        Rect(center: center, rotation: FaceDown, width: 1.2, height: 1.2);
+
+    /// <summary>The cabin lamp's half diagonal, in m.</summary>
+    private static double CabinLampHalfDiagonal => 0.6 * Math.Sqrt(2);
+
+    [Fact]
+    public void ARoughSurfaceTakesAFarRectanglesLightAsAPointLightOfTheFacesProjectedSolidAngle()
+    {
+        // The cabin lamp 7 m above and 1 m aside, more than eight half diagonals (6.8 m) away.
+        TestRect rect = CabinLampAt(new(1, 7, 0.5));
+        var rough = new MaterialSample(BaseColor: new(0.8, 0.6, 0.4), Metallic: 0, Roughness: 0.75, Reflectance: 0.5);
+        var toView = new Double3(Math.Sin(0.5), Math.Cos(0.5), 0);
+        double projected = 4 * 0.36 * (7 / rect.Center.Length) / rect.Center.LengthSquared;
+
+        DirectTerms terms = rough.RectTerms(
+            normal: Double3.UnitY,
+            toView: toView,
+            rect: rect.View,
+            tables: BrdfTables.Shared,
+            ltc: LtcTable.Shared
+        );
+
+        DirectTerms point = rough.ReflectedTerms(
+            normal: Double3.UnitY,
+            toView: toView,
+            toLight: rect.Center.Normalized(),
+            tables: BrdfTables.Shared,
+            lightSine: 0
+        );
+        // The half sides come from single-float turns, so the projected solid angle holds to about 10⁻⁷ of itself.
+        terms
+            .Diffuse.X.Should()
+            .BeApproximately(
+                point.Diffuse.X * projected,
+                1e-6 * point.Diffuse.X * projected,
+                "the far face lights the point as a point light would"
+            );
+        terms
+            .Specular.X.Should()
+            .BeApproximately(
+                point.Specular.X * projected,
+                1e-6 * point.Specular.X * projected,
+                "a rough lobe is wide beside the far face"
+            );
+    }
+
+    [Fact]
+    public void ASmoothSurfaceTakesAFarRectanglesDiffuseLightAsAPointsAndItsShineFromTheLtc()
+    {
+        TestRect rect = CabinLampAt(new(1, 7, 0.5));
+        var smooth = new MaterialSample(BaseColor: new(0.8, 0.6, 0.4), Metallic: 0, Roughness: 0.3, Reflectance: 0.5);
+        var toView = new Double3(Math.Sin(0.5), Math.Cos(0.5), 0);
+        double projected = 4 * 0.36 * (7 / rect.Center.Length) / rect.Center.LengthSquared;
+
+        DirectTerms terms = smooth.RectTerms(
+            normal: Double3.UnitY,
+            toView: toView,
+            rect: rect.View,
+            tables: BrdfTables.Shared,
+            ltc: LtcTable.Shared
+        );
+
+        double diffuse = smooth.DiffuseColor.X / Math.PI * rect.Center.Normalized().Y * projected;
+        double shine =
+            smooth.CompensatedSpecularAlbedo(normal: Double3.UnitY, toView: toView, tables: BrdfTables.Shared).X
+            * rect.View.LtcShare(
+                normal: Double3.UnitY,
+                toView: toView,
+                inverse: LtcTable.Shared.Sample(roughness: 0.3, nDotV: toView.Y)
+            );
+        // The half sides come from single-float turns, so the projected solid angle holds to about 10⁻⁷ of itself.
+        terms
+            .Diffuse.X.Should()
+            .BeApproximately(diffuse, 1e-6 * diffuse, "the far face lights the point as a point light would");
+        terms
+            .Specular.X.Should()
+            .BeApproximately(shine, 1e-12, "a smooth lobe keeps the face's shape, so a mirror still shows a rectangle");
+    }
+
+    [Fact]
+    public void ARectangleJustInsideEightHalfDiagonalsKeepsTheIntegralOverItsFace()
+    {
+        // The cabin lamp straight above, 1 % closer than eight half diagonals.
+        TestRect rect = CabinLampAt(new(0, 0.99 * 8 * CabinLampHalfDiagonal, 0));
+        var matte = new MaterialSample(BaseColor: new(0.8, 0.8, 0.8), Metallic: 0, Roughness: 1, Reflectance: 0.5);
+
+        DirectTerms terms = matte.RectTerms(
+            normal: Double3.UnitY,
+            toView: Double3.UnitY,
+            rect: rect.View,
+            tables: BrdfTables.Shared,
+            ltc: LtcTable.Shared
+        );
+
+        double exact = matte.DiffuseColor.X / Math.PI * rect.View.ClippedCosine(Double3.UnitY);
+        terms.Diffuse.X.Should().BeApproximately(exact, 1e-15, "the face is not yet far enough to shade as a point");
+    }
+
+    [Fact]
+    public void AFarRectangleThatCrossesTheHorizonKeepsTheIntegralOverItsFace()
+    {
+        // A wall panel 1.0 m by 0.8 m, 10 m ahead, whose lower half lies below the floor's horizon.
+        TestRect rect = Rect(center: new(0, 0.1, 10), rotation: FaceBack, width: 1.0, height: 0.8);
+        var matte = new MaterialSample(BaseColor: new(0.8, 0.8, 0.8), Metallic: 0, Roughness: 1, Reflectance: 0.5);
+
+        DirectTerms terms = matte.RectTerms(
+            normal: Double3.UnitY,
+            toView: Double3.UnitY,
+            rect: rect.View,
+            tables: BrdfTables.Shared,
+            ltc: LtcTable.Shared
+        );
+
+        double exact = matte.DiffuseColor.X / Math.PI * rect.View.ClippedCosine(Double3.UnitY);
+        exact.Should().BePositive("the panel's upper part lights the floor");
+        terms
+            .Diffuse.X.Should()
+            .BeApproximately(exact, 1e-15, "the horizon cuts the face, which a point light cannot show");
+    }
+
+    [Fact]
+    public void AFarRectanglesDiffuseLightMissesTheIntegralByAboutOnePercentOfItsHeadOnIrradianceAtMost()
+    {
+        // Faces of every turn and of aspects from 5:1 to square, eight half diagonals away in every direction above the
+        // floor, with the whole face above its horizon: the head-on irradiance A / d² bounds the point's error. The worst
+        // case measured 1.02 % on 2026-11-10, a disc's 2 / (π 8²) = 0.99 %, and seven half diagonals give 1.24 %.
+        var random = new Random(7);
+        var matte = new MaterialSample(BaseColor: new(1, 1, 1), Metallic: 0, Roughness: 1, Reflectance: 0.5);
+        double worst = 0;
+        int shadedAsPoints = 0;
+        for (int trial = 0; trial < 4000; trial++)
+        {
+            double width = 1,
+                height = 0.2 + 0.8 * random.NextDouble();
+            Double3 direction = RandomUnit(random);
+            if (direction.Y <= 0)
+                direction = new(direction.X, -direction.Y, direction.Z);
+            // Just past eight half diagonals, so that the rounding of the turned half sides keeps every face far.
+            double distance = 8.0001 * Math.Sqrt(width * width + height * height) / 2;
+            // A turn drawn from four normal components is even over all turns. The faces that turn away from the point
+            // take no light and are skipped.
+            var rotation = Quaternion.Normalize(
+                new Quaternion(
+                    x: (float)Normal(random),
+                    y: (float)Normal(random),
+                    z: (float)Normal(random),
+                    w: (float)Normal(random)
+                )
+            );
+            TestRect rect = Rect(center: distance * direction, rotation: rotation, width: width, height: height);
+            if (!rect.View.InFront || !rect.View.ShadesAsPointOn(Double3.UnitY))
+                continue;
+
+            double shaded = matte
+                .RectTerms(
+                    normal: Double3.UnitY,
+                    toView: Double3.UnitY,
+                    rect: rect.View,
+                    tables: BrdfTables.Shared,
+                    ltc: LtcTable.Shared
+                )
+                .Diffuse.X;
+
+            double exact = matte.DiffuseColor.X / Math.PI * rect.View.ClippedCosine(Double3.UnitY);
+            double headOn = matte.DiffuseColor.X / Math.PI * width * height / (distance * distance);
+            worst = Math.Max(worst, Math.Abs(shaded - exact) / headOn);
+            shadedAsPoints++;
+        }
+
+        shadedAsPoints.Should().BeGreaterThan(1000, "most faces above the horizon shade as points");
+        worst.Should().BeLessThanOrEqualTo(0.011, "eight half diagonals keep a point's error near 1 % of A / d²");
+    }
+
+    /// <summary>A draw of the standard normal distribution from <paramref name="random"/>, by Box and Muller.</summary>
+    private static double Normal(Random random) =>
+        Math.Sqrt(-2 * Math.Log(1 - random.NextDouble())) * Math.Cos(2 * Math.PI * random.NextDouble());
+
+    /// <summary>A unit direction drawn evenly over the sphere from <paramref name="random"/>.</summary>
+    private static Double3 RandomUnit(Random random)
+    {
+        double z = 2 * random.NextDouble() - 1,
+            angle = 2 * Math.PI * random.NextDouble(),
+            ring = Math.Sqrt(1 - z * z);
+        return new(ring * Math.Cos(angle), ring * Math.Sin(angle), z);
+    }
+
+    /// <summary>The shine of rough surfaces from far rectangles against the integral of the lobe (tests/STYLE.md, "Long tests").</summary>
+    public sealed class FarShineAgainstTheIntegral
+    {
+        [Theory]
+        [InlineData(0.5, 0.0)]
+        [InlineData(0.5, 0.6)]
+        [InlineData(0.75, 0.0)]
+        [InlineData(0.75, 0.6)]
+        [InlineData(1.0, 0.0)]
+        [InlineData(1.0, 0.6)]
+        public void ARoughSurfacesPointShineOfAFarRectangleMatchesTheIntegralOfItsLobe(
+            double roughness,
+            double viewAngle
+        )
+        {
+            // The cabin lamp 6.8 m along the mirror ray, just past eight half diagonals, and 0.1 rad beside it, facing the point: the highlight's peak and
+            // its side. Measured on 2026-11-10, the point missed by at most 5.6 % at roughness 0.5.
+            var metal = new MaterialSample(
+                BaseColor: new(1, 1, 1),
+                Metallic: 1,
+                Roughness: roughness,
+                Reflectance: 0.5
+            );
+            var toView = new Double3(Math.Sin(viewAngle), Math.Cos(viewAngle), 0);
+            foreach (double aside in new[] { 0.0, 0.1 })
+            {
+                Double3 aim = (Mirror(Double3.UnitY, toView) + new Double3(0, 0, aside)).Normalized();
+                TestRect rect = Facing(aim, 6.8);
+
+                double shine = metal
+                    .RectTerms(
+                        normal: Double3.UnitY,
+                        toView: toView,
+                        rect: rect.View,
+                        tables: BrdfTables.Shared,
+                        ltc: LtcTable.Shared
+                    )
+                    .Specular.X;
+
+                double reference = rect.ShineIntegral(metal, toView);
+                rect.View.ShadesAsPointOn(Double3.UnitY).Should().BeTrue("the panel lies eight half diagonals away");
+                shine
+                    .Should()
+                    .BeApproximately(
+                        reference,
+                        0.07 * reference,
+                        "the point shine at roughness {0}, {1} rad off the normal and {2} rad aside matches the integral {3}",
+                        roughness,
+                        viewAngle,
+                        aside,
+                        reference
+                    );
+            }
+        }
+
+        /// <summary>The cabin lamp's panel <paramref name="distance"/> m from the point along <paramref name="aim"/>, facing it.</summary>
+        private static TestRect Facing(Double3 aim, double distance)
+        {
+            Vector3 back = -aim.ToVector3();
+            var axis = Vector3.Cross(Vector3.UnitZ, back);
+            float angle = MathF.Acos(Math.Clamp(back.Z, -1, 1));
+            Quaternion rotation =
+                axis.LengthSquared() > 1e-12f
+                    ? Quaternion.CreateFromAxisAngle(Vector3.Normalize(axis), angle)
+                    : FaceDown;
+            return Rect(center: distance * aim, rotation: rotation, width: 1.2, height: 1.2);
+        }
+    }
+
     /// <summary>The 108 checks of the LTC shine against the integral of the GGX lobe over the face (tests/STYLE.md, "Long tests").</summary>
     public sealed class LtcShineAgainstTheIntegral
     {

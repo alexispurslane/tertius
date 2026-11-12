@@ -17,6 +17,18 @@ internal sealed class RenderScaleController
     private (double Fixed, double PerArea)? model;
     private long measured = -1;
 
+    /// <summary>
+    /// The parts of a frame that the controller weighs: the fixed work before and after the render size, the work at the
+    /// render size, and the output, which it leaves out because it holds the wait for the window's image.
+    /// </summary>
+    internal enum CostGroup
+    {
+        BeforeRenderSize,
+        AtRenderSize,
+        AfterRenderSize,
+        Output,
+    }
+
     public RenderScaleController(FrameTimeTarget target)
     {
         if (RenderScaleSetting.ProblemOf(target) is { } problem)
@@ -61,6 +73,31 @@ internal sealed class RenderScaleController
         Contract.Ensures(scale >= target.MinScale && scale <= target.MaxScale);
     }
 
+    /// <summary>
+    /// The cost group of a pass of <paramref name="stage"/>: the passes from the G-buffer to the exposure draw at the
+    /// render size, and the tone map starts the output.
+    /// </summary>
+    internal static CostGroup CostGroupOf(FrameGraph.Stage stage)
+    {
+        if (stage < FrameGraph.Stage.GBuffer)
+            return CostGroup.BeforeRenderSize;
+        if (stage <= FrameGraph.Stage.Exposure)
+            return CostGroup.AtRenderSize;
+        if (stage < FrameGraph.Stage.ToneMap)
+            return CostGroup.AfterRenderSize;
+        return CostGroup.Output;
+    }
+
+    /// <summary>The name of the timing of <paramref name="group"/> in a frame without pass timestamps.</summary>
+    internal static string NameOf(CostGroup group) =>
+        group switch
+        {
+            CostGroup.BeforeRenderSize => "before the render size",
+            CostGroup.AtRenderSize => "at the render size",
+            CostGroup.AfterRenderSize => "after the render size",
+            CostGroup.Output => "output",
+        };
+
     private static (double Fixed, double Scaling)? Costs(ReadOnlySpan<PassTiming> passes)
     {
         double span = 0,
@@ -68,7 +105,8 @@ internal sealed class RenderScaleController
         bool reachedOutput = false;
         foreach (PassTiming pass in passes)
         {
-            if (pass.Stage >= FrameGraph.Stage.ToneMap)
+            CostGroup group = CostGroupOf(pass.Stage);
+            if (group == CostGroup.Output)
             {
                 reachedOutput = true;
                 break;
@@ -76,7 +114,7 @@ internal sealed class RenderScaleController
             if (!double.IsFinite(pass.Milliseconds) || pass.Milliseconds < 0)
                 return null;
             span += pass.Milliseconds;
-            if (pass.Stage is >= FrameGraph.Stage.GBuffer and <= FrameGraph.Stage.Exposure)
+            if (group == CostGroup.AtRenderSize)
                 scaling += pass.Milliseconds;
         }
         if (!reachedOutput || scaling <= 0)
