@@ -1,0 +1,817 @@
+diff --git a/src/Tertius.Host/ScriptCommand.Options.cs b/src/Tertius.Host/ScriptCommand.Options.cs
+index 2fdc522bc..2ee1d6b7a 100644
+--- a/src/Tertius.Host/ScriptCommand.Options.cs
++++ b/src/Tertius.Host/ScriptCommand.Options.cs
+@@ -83,6 +83,9 @@ public static partial class ScriptCommand
+         /// <summary>True to turn the renderer's skin scatter off, false to keep its default.</summary>
+         public bool SubsurfaceOff { get; init; }
+ 
++        /// <summary>The light pairs that replace the renderer's default, or null to keep it.</summary>
++        public LightPairSetting? LightPairs { get; init; }
++
+         /// <summary>The frame count, 1 or 2, or null to keep the renderer's count and capture policy.</summary>
+         public int? FramesInFlight { get; init; }
+ 
+@@ -107,6 +110,8 @@ public static partial class ScriptCommand
+                 options.EnvironmentMap = new NoEnvironmentMap();
+             if (SubsurfaceOff)
+                 options.Subsurface = new NoSubsurface();
++            if (LightPairs is { } lightPairs)
++                options.LightPairs = lightPairs;
+             if (FramesInFlight is { } count)
+             {
+                 options.FramesInFlight = count;
+diff --git a/src/Tertius.Host/ScriptCommand.cs b/src/Tertius.Host/ScriptCommand.cs
+index 0a7bb6869..47cac1cb7 100644
+--- a/src/Tertius.Host/ScriptCommand.cs
++++ b/src/Tertius.Host/ScriptCommand.cs
+@@ -36,6 +36,8 @@ namespace Tertius.Host;
+ /// it off.</item>
+ /// <item><c>--subsurface on|off</c> keeps the headless renderer's default <see cref="SeparableSubsurface"/>, or turns the
+ /// skin scatter off.</item>
++/// <item><c>--light-floor off|STOPS</c> keeps the headless renderer's default <see cref="EveryLightPair"/>, or shades only
++/// the light pairs that show above a floor of 2^−STOPS (<see cref="VisibleLightPairs"/>), with STOPS from 4 to 13.</item>
+ /// <item><c>--in-flight 1|2</c> sets the headless renderer's frame count. One waits for each capture, and two keep both
+ /// frames in flight, as a window does, so that a timed film keeps the GPU at its top clock
+ /// (<see cref="RendererOptions.CapturesInFlight"/>).</item>
+@@ -96,7 +98,7 @@ public static partial class ScriptCommand
+     public const string ExposureFile = "exposure.json";
+ 
+     private const string Usage =
+-        "Usage: --script <file> --headless --out <folder> [--video none|<file.mkv> [--fps <rate>]] [--size <width>x<height>] [--gpu-run FIRST..LAST]... [--tone-curve aces|hable] [--screen-trace on|off] [--bloom on|off] [--upscaling off|fsr3] [--render-scale <scale>] [--local-shadows off|on] [--local-shadow-tiles <count>] [--cascaded-lights <count>] [--environment-map on|off] [--subsurface on|off] [--in-flight 1|2]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
++        "Usage: --script <file> --headless --out <folder> [--video none|<file.mkv> [--fps <rate>]] [--size <width>x<height>] [--gpu-run FIRST..LAST]... [--tone-curve aces|hable] [--screen-trace on|off] [--bloom on|off] [--upscaling off|fsr3] [--render-scale <scale>] [--local-shadows off|on] [--local-shadow-tiles <count>] [--cascaded-lights <count>] [--environment-map on|off] [--subsurface on|off] [--light-floor off|<stops>] [--in-flight 1|2]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
+ 
+     // The value of --video that draws the captures and drops them (Discard), for a run that only times its frames.
+     private const string NoVideo = "none";
+@@ -128,6 +130,7 @@ public static partial class ScriptCommand
+         ("--cascaded-lights", (_, count) => CascadedLightsProblem(count)),
+         ("--environment-map", (_, value) => OnOffProblem("--environment-map", value)),
+         ("--subsurface", (_, value) => OnOffProblem("--subsurface", value)),
++        ("--light-floor", (_, floor) => LightFloorProblem(floor)),
+         ("--in-flight", (_, count) => InFlightProblem(count)),
+     ];
+ 
+@@ -934,6 +937,7 @@ public static partial class ScriptCommand
+             CascadedLights = CascadedLightsOf(given.Value("--cascaded-lights")),
+             EnvironmentMapOff = given.Value("--environment-map") == "off",
+             SubsurfaceOff = given.Value("--subsurface") == "off",
++            LightPairs = LightPairsOf(given.Value("--light-floor")),
+             FramesInFlight = given.Value("--in-flight") is { } count
+                 ? int.Parse(count, CultureInfo.InvariantCulture)
+                 : null,
+@@ -1062,6 +1066,23 @@ public static partial class ScriptCommand
+     private static int? CascadedLightsOf(string? text) =>
+         WholeNumberOf(text: text, least: 0, most: RendererOptions.MaxCascadedLights);
+ 
++    /// <summary>The problem with the value of <c>--light-floor</c>, which takes off or a count of stops, or null.</summary>
++    private static string? LightFloorProblem(string floor) =>
++        floor == "off" || LightPairsOf(floor) is not null
++            ? null
++            : $"--light-floor needs off or a number of stops from {VisibleLightPairs.LeastStops} to {VisibleLightPairs.MostStops}, not '{floor}'.";
++
++    /// <summary>The light pairs of the text's stops, or null for no text, for off and for a text outside the floor's stops.</summary>
++    private static LightPairSetting? LightPairsOf(string? text) =>
++        float.TryParse(
++            s: text,
++            style: NumberStyles.Float,
++            provider: CultureInfo.InvariantCulture,
++            result: out float stops
++        ) && stops is >= VisibleLightPairs.LeastStops and <= VisibleLightPairs.MostStops
++            ? new LightPairSetting(new VisibleLightPairs(FloorStops: stops))
++            : null;
++
+     /// <summary>The fixed render scale, or null for no text or a value outside the finite range 0.5 to 1.</summary>
+     private static float? RenderScaleOf(string? text) =>
+         float.TryParse(
+diff --git a/src/Tertius.Rendering/LightPairSetting.cs b/src/Tertius.Rendering/LightPairSetting.cs
+new file mode 100644
+index 000000000..338fcea15
+--- /dev/null
++++ b/src/Tertius.Rendering/LightPairSetting.cs
+@@ -0,0 +1,63 @@
++namespace Tertius.Rendering;
++
++/// <summary>
++/// Every pair of a shaded point and a light in whose reach it lies is shaded in full, as before the visible floor
++/// (ticket t2-mlvy).
++/// </summary>
++public readonly record struct EveryLightPair;
++
++/// <summary>
++/// A pair of a shaded point and a light is shaded only as far as its light can show (ticket t2-mlvy). The shown light of a
++/// pair is the most pre-exposed radiance that the light adds to the point before its shadow. A pair whose shown light is at
++/// most the floor adds nothing and takes no shadow lookup. A pair between one and two floors adds its light times its
++/// share (<see cref="Share"/>). A pair of two floors or more is shaded in full. The shown light is continuous in the
++/// light's place, the point's place and the exposure, so no light switches on or off at once.
++/// </summary>
++/// <param name="FloorStops">
++/// The floor as stops below a pre-exposed radiance of 1: the floor is 2^−FloorStops. From <see cref="LeastStops"/> to
++/// <see cref="MostStops"/>.
++/// </param>
++public readonly record struct VisibleLightPairs(float FloorStops)
++{
++    /// <summary>The highest floor: 2^−4, a third of the mid-grey of 0.18.</summary>
++    public const float LeastStops = 4;
++
++    /// <summary>The lowest floor: 2^−13, the cutoff radiance of the reach (<see cref="LightUnits.CutoffRadiance"/>).</summary>
++    public const float MostStops = 13;
++
++    /// <summary>The floor, a pre-exposed radiance: 2^−<see cref="FloorStops"/>.</summary>
++    public float Floor => MathF.Pow(2, -FloorStops);
++
++    /// <summary>
++    /// The share of its light that a pair of <paramref name="shown"/> shown light adds: 0 at one floor or less, 1 at two
++    /// floors or more, and even in between. pairShare in lighting.glsl is the copy.
++    /// </summary>
++    public double Share(double shown) => Math.Clamp(shown / Floor - 1, 0, 1);
++}
++
++/// <summary>
++/// Which pairs of a shaded point and a light the renderer shades: <see cref="EveryLightPair"/> or
++/// <see cref="VisibleLightPairs"/>. The default value is EveryLightPair. It is a generated union (see
++/// <see cref="GeneratedUnionAttribute"/>).
++/// </summary>
++[GeneratedUnion(typeof(EveryLightPair), typeof(VisibleLightPairs), ZeroCase = typeof(EveryLightPair))]
++public readonly partial struct LightPairSetting
++{
++    /// <summary>Why the renderer cannot use the setting, or null when it can.</summary>
++    internal string? Problem =>
++        this switch
++        {
++            EveryLightPair => null,
++            VisibleLightPairs { FloorStops: >= VisibleLightPairs.LeastStops and <= VisibleLightPairs.MostStops } => null,
++            VisibleLightPairs visible =>
++                $"VisibleLightPairs.FloorStops must be {VisibleLightPairs.LeastStops} to {VisibleLightPairs.MostStops}, not {visible.FloorStops}.",
++        };
++
++    /// <summary>The floor that the shaders take, a pre-exposed radiance, or 0 for every pair.</summary>
++    internal float Floor =>
++        this switch
++        {
++            EveryLightPair => 0,
++            VisibleLightPairs visible => visible.Floor,
++        };
++}
+diff --git a/src/Tertius.Rendering/Passes/EnvironmentFacePass.cs b/src/Tertius.Rendering/Passes/EnvironmentFacePass.cs
+index 4583ddde2..7a00362ca 100644
+--- a/src/Tertius.Rendering/Passes/EnvironmentFacePass.cs
++++ b/src/Tertius.Rendering/Passes/EnvironmentFacePass.cs
+@@ -113,6 +113,8 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
+         barriers.Buffer(context.Geometry.VertexBuffer, BufferUse.VertexInput);
+         barriers.Buffer(context.Geometry.IndexBuffer, BufferUse.VertexInput);
+         barriers.Buffer(context.Materials.Buffer, BufferUse.ShaderRead);
++        // The visible floor of the light pairs reads the exposure (pairShare in Shaders/lighting.glsl).
++        barriers.Buffer(context.Exposure.Buffer, BufferUse.ShaderRead);
+         barriers.Image(context.Shadows.Image, ImageUse.SampledFragment);
+         context.ShadowAtlas?.DeclareSampled(barriers, ImageUse.SampledFragment);
+         barriers.Flush(context.Vk, context.CommandBuffer);
+diff --git a/src/Tertius.Rendering/Passes/ImpostorPass.cs b/src/Tertius.Rendering/Passes/ImpostorPass.cs
+index e57092f2c..0b2ce1f39 100644
+--- a/src/Tertius.Rendering/Passes/ImpostorPass.cs
++++ b/src/Tertius.Rendering/Passes/ImpostorPass.cs
+@@ -268,6 +268,8 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
+             barriers.Buffer(context.Geometry.VertexBuffer, BufferUse.VertexInput);
+             barriers.Buffer(context.Geometry.IndexBuffer, BufferUse.VertexInput);
+             barriers.Buffer(context.Materials.Buffer, BufferUse.ShaderRead);
++            // The visible floor of the light pairs reads the exposure (pairShare in Shaders/lighting.glsl).
++            barriers.Buffer(context.Exposure.Buffer, BufferUse.ShaderRead);
+         }
+ 
+         barriers.Flush(vk, commandBuffer);
+diff --git a/src/Tertius.Rendering/RendererOptions.cs b/src/Tertius.Rendering/RendererOptions.cs
+index 119a13fae..a2940520d 100644
+--- a/src/Tertius.Rendering/RendererOptions.cs
++++ b/src/Tertius.Rendering/RendererOptions.cs
+@@ -47,6 +47,13 @@ public sealed class RendererOptions
+     /// <summary>Whether near lights cast shadows from a shared atlas. The default is <see cref="LocalShadowAtlas.Default"/>.</summary>
+     public LocalShadowSetting LocalShadows { get; set; } = LocalShadowAtlas.Default;
+ 
++    /// <summary>
++    /// Which pairs of a shaded point and a light the renderer shades. The default is <see cref="EveryLightPair"/>. Under
++    /// <see cref="VisibleLightPairs"/>, a pair whose light cannot show above the floor adds nothing and costs no shadow
++    /// lookup (ticket t2-mlvy).
++    /// </summary>
++    public LightPairSetting LightPairs { get; set; }
++
+     /// <summary>
+     /// Draws small objects as impostors: below a projected height of 200 px an object is replaced by a captured
+     /// billboard, and above 300 px it returns to geometry. See <see cref="ImpostorTiles"/> for the memory it takes.
+diff --git a/src/Tertius.Rendering/Scene/GpuTypes.cs b/src/Tertius.Rendering/Scene/GpuTypes.cs
+index 0c089b072..21a346deb 100644
+--- a/src/Tertius.Rendering/Scene/GpuTypes.cs
++++ b/src/Tertius.Rendering/Scene/GpuTypes.cs
+@@ -524,7 +524,10 @@ internal struct GpuFrameConstants
+     public Vector4 AmbientGround;
+     public Vector4 Viewport;
+ 
+-    /// <summary>X the main view's mip bias, Y and Z the jitter in render pixels, W unused.</summary>
++    /// <summary>
++    /// X the main view's mip bias, Y and Z the jitter in render pixels, W the visible floor of the light pairs, a
++    /// pre-exposed radiance, or 0 for every pair (<see cref="LightPairSetting.Floor"/>).
++    /// </summary>
+     public Vector4 RenderParams;
+     public Vector4 OutputViewport;
+     public Vector4 PreviousJitter;
+diff --git a/src/Tertius.Rendering/Shaders/frame.glsl b/src/Tertius.Rendering/Shaders/frame.glsl
+index 5638725a9..089619366 100644
+--- a/src/Tertius.Rendering/Shaders/frame.glsl
++++ b/src/Tertius.Rendering/Shaders/frame.glsl
+@@ -194,7 +194,7 @@ layout(set = 0, binding = 0, std140) uniform FrameBlock
+     vec4 ambientSky;          // rgb sky color × intensity
+     vec4 ambientGround;       // rgb ground color × intensity
+     vec4 viewport;            // width, height, 1 / width, 1 / height
+-    vec4 renderParams;        // x main-view mip bias, yz jitter in render pixels, w unused
++    vec4 renderParams;        // x main-view mip bias, yz jitter in render pixels, w the visible floor of the light pairs, or 0
+     vec4 outputViewport;
+     vec4 previousJitter;
+     vec4 params;              // x the most pre-exposed light that one puff adds to a pixel, y time in seconds, z angular size of one pixel
+diff --git a/src/Tertius.Rendering/Shaders/lighting.glsl b/src/Tertius.Rendering/Shaders/lighting.glsl
+index 4c14d28cd..c6036ae08 100644
+--- a/src/Tertius.Rendering/Shaders/lighting.glsl
++++ b/src/Tertius.Rendering/Shaders/lighting.glsl
+@@ -370,9 +370,11 @@ struct LightPath
+     // A tube's half segment and its radius, in m, at least NearestDistance. Only a tube with some irradiance sets them.
+     vec3 halfSegment;
+     float tubeRadius;
+-    // A rectangle's half width and half height, in m. Only a rectangle with some irradiance sets them.
++    // A rectangle's half width and half height, in m, and the square of the distance to its face's nearest point, in m².
++    // Only a rectangle with some irradiance sets them.
+     vec3 halfWidth;
+     vec3 halfHeight;
++    float nearestSq;
+     vec3 shadowNormal;
+     float sinTheta;
+ };
+@@ -431,6 +433,7 @@ void lightIrradiance(uint index, bool tinted, uint shape, vec3 position, out Lig
+         float window = clamp(1.0 - ratio * ratio, 0.0, 1.0);
+         p.halfWidth = halfWidth;
+         p.halfHeight = halfHeight;
++        p.nearestSq = nearestSq;
+         // The peak intensity over the face's area is its face radiance.
+         falloff = window * window / (4.0 * length(front));
+     }
+@@ -734,6 +737,83 @@ DirectTerms pathLight(uint index, bool fiber, uint shape, ShadingInput s, Surfac
+     return terms;
+ }
+ 
++// VisibleLightPairs.Share: the share of its light that a pair of a shaded point and a light adds under the visible floor
++// frame.renderParams.w (ticket t2-mlvy). `shown` is the pair's light toward the eye before its shadow, in plain radiance.
++// 0 where its largest channel, pre-exposed, is at most one floor, 1 from two floors, and even in between. The cap at two
++// floors comes before the exposure multiplies, as every writer's light takes it (exposure.glsl), so no product passes
++// the float range.
++float pairShare(vec3 shown)
++{
++    float floorRadiance = frame.renderParams.w;
++    vec3 capped = exposed(shown, exposureScale(), 2.0 * floorRadiance);
++    return clamp(max(capped.r, max(capped.g, capped.b)) / floorRadiance - 1.0, 0.0, 1.0);
++}
++
++// How many times its estimate a rectangle's shine counts in rectShownBound: the estimate spreads the face's light over
++// the disc that holds the face, 1.6 times the area of a square face, so it can show a narrow lobe's peak that much low.
++const float RectShineMargin = 2.0;
++
++// What pairShare takes for a surface's pair with the rectangle of path p: a bound of its light toward the eye before its
++// shadow, which costs no edge sum. The diffuse part is RectView.CosineBound: the most solid angle that the face can fill,
++// A h / d³, times the largest cosine that a point of the face can have with the normal, with A the face's area, h the
++// point's height over the face's plane and d the distance to the face's nearest point. The shine is an estimate, not a
++// bound: the response of a sphere light that holds the face, times RectShineMargin.
++vec3 rectShownBound(ShadingInput s, SurfaceLobes lobes, vec3 V, LightPath p)
++{
++    vec3 quarterFront = cross(p.halfWidth, p.halfHeight);
++    float quarterArea = length(quarterFront);
++    // lightIrradiance gives no light behind the face or in its plane, so the height is above 0, and so is the distance
++    // to the nearest point, which is at least the height.
++    float height = -dot(p.toCenter, quarterFront) / quarterArea;
++    float nearest = sqrt(p.nearestSq);
++    float solidAngle = min(4.0 * quarterArea * height / (p.nearestSq * nearest), 2.0 * PI);
++    vec3 N = s.normal;
++    float above = dot(N, p.toCenter) + abs(dot(N, p.halfWidth)) + abs(dot(N, p.halfHeight));
++    float cosine = clamp(above / nearest, 0.0, 1.0);
++    float holdingSine =
++        min(sqrt(dot(p.halfWidth, p.halfWidth) + dot(p.halfHeight, p.halfHeight)) / max(p.d, 1e-6), 1.0);
++    vec3 shine = RectShineMargin * specularResponse(lobes, N, V, p.L, holdingSine);
++    return p.irradiance * (solidAngle * (lobes.diffuseColor * (cosine / PI) + shine));
++}
++
++// shapeLight's loop under a visible floor (VisibleLightPairs): each pair adds its light times pairShare of its shown
++// light, and a pair with no share takes no shadow lookup. A surface's pair with a rectangle takes its share from
++// rectShownBound, before its shadow and its edge sums. Every other pair takes it from its own response, which is its
++// shown light exactly, so its response comes before its shadow here.
++void flooredShapeLight(bool fiber, bool tinted, uint shape, ShadingInput s, SurfaceLobes lobes, vec3 V,
++    uint shadowMaps, uint view, inout DirectTerms sum)
++{
++    for (uint i = 0u; i < frame.counts.x; i++)
++    {
++        if (!viewKeeps(view, lights[i]) || shapeOf(lights[i]) != shape)
++            continue;
++        LightPath p;
++        if (!lightPath(i, fiber, tinted, shape, s, p))
++            continue;
++        bool bounded = shape == RectShape && !fiber;
++        DirectTerms terms;
++        float share;
++        if (bounded)
++        {
++            share = pairShare(rectShownBound(s, lobes, V, p));
++        }
++        else
++        {
++            terms = pathLight(i, fiber, shape, s, lobes, V, p);
++            share = pairShare(terms.diffuse + terms.specular);
++        }
++        if (share <= 0.0)
++            continue;
++        float visibility = pathVisibility(i, p, s.position, shadowMaps);
++        if (visibility <= 0.0)
++            continue;
++        if (bounded)
++            terms = pathLight(i, fiber, shape, s, lobes, V, p);
++        sum.diffuse += terms.diffuse * (visibility * share);
++        sum.specular += terms.specular * (visibility * share);
++    }
++}
++
+ // modelLight's loop over the lights of the list of one shape, `shape`, added to `sum`. `fiber` as in respond, `tinted`
+ // and `shape` as in lightIrradiance. modelLight is the one caller, and it passes constants. A light's response is
+ // evaluated only where its shadows let some of it through.
+@@ -743,6 +823,12 @@ void shapeLight(bool fiber, bool tinted, uint shape, ShadingInput s, SurfaceLobe
+     // frame.counts.w holds the shapes of the list: without a light of this shape, its loop would only skip every light.
+     if ((frame.counts.w & shape) == 0u)
+         return;
++    // The floor is the same for every pixel of a frame, so the choice costs the loop without a floor none of its code.
++    if (frame.renderParams.w > 0.0)
++    {
++        flooredShapeLight(fiber, tinted, shape, s, lobes, V, shadowMaps, view, sum);
++        return;
++    }
+     for (uint i = 0u; i < frame.counts.x; i++)
+     {
+         if (!viewKeeps(view, lights[i]) || shapeOf(lights[i]) != shape)
+diff --git a/src/Tertius.Rendering/Shading/RectView.cs b/src/Tertius.Rendering/Shading/RectView.cs
+index edd121fef..27f74ed9d 100644
+--- a/src/Tertius.Rendering/Shading/RectView.cs
++++ b/src/Tertius.Rendering/Shading/RectView.cs
+@@ -66,6 +66,32 @@ internal readonly record struct RectView
+         );
+     }
+ 
++    /// <summary>
++    /// An upper bound of <see cref="ClippedCosine"/>, in sr, that takes no edge sum: the most solid angle that the face
++    /// can fill, A h / d³, times the largest cosine that a point of the face can have with <paramref name="normal"/>. A is
++    /// the face's area, h the point's height over the face's plane and d the distance to the face's nearest point. The
++    /// visible floor weighs a rectangle's pair by it (<see cref="VisibleLightPairs"/>), so a pair that it drops had less
++    /// light than the bound. rectShownBound in lighting.glsl is the copy. 0 behind the face.
++    /// </summary>
++    public double CosineBound(Double3 normal)
++    {
++        if (!InFront)
++            return 0;
++        var quarterArea = Double3.Cross(HalfWidth, HalfHeight);
++        double height = -Double3.Dot(ToCenter, quarterArea) / quarterArea.Length;
++        double across = Math.Clamp(Double3.Dot(ToCenter, HalfWidth) / HalfWidth.LengthSquared, -1, 1),
++            up = Math.Clamp(Double3.Dot(ToCenter, HalfHeight) / HalfHeight.LengthSquared, -1, 1);
++        // The point lies in front, so the face's nearest point is at least `height` away, which is above 0.
++        double nearest = (ToCenter - across * HalfWidth - up * HalfHeight).Length;
++        double solidAngle = Math.Min(4 * quarterArea.Length * height / (nearest * nearest * nearest), 2 * Math.PI);
++        // The highest that a point of the face lies over the normal's plane, over the least distance to the face.
++        double above =
++            Double3.Dot(normal, ToCenter)
++            + Math.Abs(Double3.Dot(normal, HalfWidth))
++            + Math.Abs(Double3.Dot(normal, HalfHeight));
++        return solidAngle * Math.Clamp(above / nearest, 0, 1);
++    }
++
+     /// <summary>
+     /// ∫ D dω over the face of the linearly transformed cosine D of <paramref name="inverse"/> (Heitz et al. 2016), for a
+     /// surface of normal <paramref name="normal"/> seen from <paramref name="toView"/>: the share of the lobe's light that
+diff --git a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
+index 1c3fcc44f..31595acee 100644
+--- a/src/Tertius.Rendering/VulkanRenderer.cs
++++ b/src/Tertius.Rendering/VulkanRenderer.cs
+@@ -126,6 +126,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
+     private readonly FrameHistory history;
+     private readonly UpscalingSetting upscaling;
+ 
++    /// <summary>The visible floor of the light pairs that the shaders take, or 0 for every pair (<see cref="LightPairSetting.Floor"/>).</summary>
++    private readonly float lightPairFloor;
++
+     /// <summary>Which draws jitter, selected once: the debug switch of ticket tiunr-4b2g, by default FSR's draws.</summary>
+     private readonly DebugJitter debugJitter = DebugJitter.Selected();
+     private readonly UpscalePass? upscalePass;
+@@ -141,6 +144,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
+         this.device = device;
+         this.headless = headless;
+         upscaling = headless ? options.Upscaling.ForHeadless() : options.Upscaling;
++        lightPairFloor = options.LightPairs.Floor;
+         if (upscaling is Fsr3Upscaling { RenderScale: FrameTimeTarget target })
+             ScaleController = new(target);
+         capturesInFlight = options.CapturesInFlight;
+@@ -436,6 +440,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
+         ?? options.Bloom.Problem
+         ?? options.EnvironmentMap.Problem
+         ?? options.Subsurface.Problem
++        ?? options.LightPairs.Problem
+         ?? options.ScreenTrace.Problem
+         ?? options.Upscaling.Problem
+         ?? (options.ScreenTrace is ScreenTrace ? PyramidImages.ScreenProblem(options.Width, options.Height) : null);
+@@ -858,7 +863,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
+             upscaling is Fsr3Upscaling
+                 ? MathF.Log2(pending.RenderSize.Width / (float)targets.OutputExtent.Width) - 1
+                 : 0;
+-        LastScene.Constants.RenderParams = new(x: bias, y: jitter.X, z: jitter.Y, w: 0);
++        LastScene.Constants.RenderParams = new(x: bias, y: jitter.X, z: jitter.Y, w: lightPairFloor);
+         Vector2 previousJitter = Vector2.Zero;
+         if (jitters && !pending.Reset)
+         {
+diff --git a/tests/Tertius.Host.Tests/ScriptCommandOptionsTests.cs b/tests/Tertius.Host.Tests/ScriptCommandOptionsTests.cs
+index 1e9c62761..a230b2062 100644
+--- a/tests/Tertius.Host.Tests/ScriptCommandOptionsTests.cs
++++ b/tests/Tertius.Host.Tests/ScriptCommandOptionsTests.cs
+@@ -49,6 +49,7 @@ public sealed class ScriptCommandOptionsTests
+         ["--cascaded-lights", "2"],
+         ["--environment-map", "off"],
+         ["--subsurface", "off"],
++        ["--light-floor", "9"],
+         ["--in-flight", "2"],
+     ];
+ 
+diff --git a/tests/Tertius.Rendering.Tests/TestSupport.cs b/tests/Tertius.Rendering.Tests/TestSupport.cs
+index 7a712e883..2609f9940 100644
+--- a/tests/Tertius.Rendering.Tests/TestSupport.cs
++++ b/tests/Tertius.Rendering.Tests/TestSupport.cs
+@@ -48,7 +48,8 @@ internal static class Gpu
+     /// is off unless asked for, so the hemisphere lights the tests. Local shadows are off unless asked for, as the
+     /// impostors are (docs/plans/local-light-shadows.md, "Decisions"). One far light has a cascade set unless asked for,
+     /// the renderer's default. The deformation is on unless asked for, the renderer's default. The skin scatter is off
+-    /// unless asked for, because the zero case of the setting is off (docs/plans/skin-and-hair.md, decision 29).
++    /// unless asked for, because the zero case of the setting is off (docs/plans/skin-and-hair.md, decision 29). Every
++    /// light pair is shaded unless asked for, the renderer's default.
+     /// </summary>
+     public static VulkanRenderer Headless(
+         int width = 640,
+@@ -65,7 +66,8 @@ internal static class Gpu
+         SubsurfaceSetting subsurface = default,
+         bool capturesInFlight = false,
+         ScreenTraceSetting screenTrace = default,
+-        int warmUpFrames = RendererOptions.DefaultWarmUpFrames
++        int warmUpFrames = RendererOptions.DefaultWarmUpFrames,
++        LightPairSetting lightPairs = default
+     ) =>
+         VulkanRenderer.CreateHeadless(
+             new()
+@@ -87,6 +89,7 @@ internal static class Gpu
+                 CapturesInFlight = capturesInFlight,
+                 ScreenTrace = screenTrace,
+                 WarmUpFrames = warmUpFrames,
++                LightPairs = lightPairs,
+             }
+         );
+ 
+diff --git a/tests/Tertius.Rendering.Tests/VisibleLightPairRenderTests.cs b/tests/Tertius.Rendering.Tests/VisibleLightPairRenderTests.cs
+new file mode 100644
+index 000000000..d62c59e65
+--- /dev/null
++++ b/tests/Tertius.Rendering.Tests/VisibleLightPairRenderTests.cs
+@@ -0,0 +1,154 @@
++using System.Numerics;
++using Tertius.Testing;
++
++namespace Tertius.Rendering.Tests;
++
++/// <summary>
++/// The visible floor of the light pairs on the GPU (ticket t2-mlvy): under <see cref="VisibleLightPairs"/>, a lamp whose
++/// light shows below the floor adds nothing, a lamp far above the floor lights as without the floor, and a lamp in
++/// between adds its share. The exposure is fixed at 0 stops, so the HDR image holds plain radiance. A matte white square
++/// stands 3 m ahead of the camera and faces it, with no ambient light.
++/// </summary>
++[Collection(GpuCollection.Name)]
++public sealed class VisibleLightPairRenderTests
++{
++    private const int Width = 320,
++        Height = 180;
++
++    /// <summary>The highest floor, 2^−4 = 0.0625, so that lamps of a few watts lie on both of its sides.</summary>
++    private static readonly VisibleLightPairs Floor = new(FloorStops: VisibleLightPairs.LeastStops);
++
++    private static readonly Vector3 Center = new(0, 0, -3);
++
++    private static VulkanRenderer Renderer(LightPairSetting lightPairs) =>
++        Gpu.Headless(width: Width, height: Height, lightPairs: lightPairs);
++
++    /// <summary>A dark snapshot with the square and <paramref name="light"/>.</summary>
++    private static RenderSnapshot Scene(VulkanRenderer renderer, RenderLight light)
++    {
++        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
++        snapshot.Ambient.Intensity = 0;
++        snapshot.Instances.Add(
++            Gpu.Instance(
++                mesh: renderer.CreateMesh(Primitives.Plane(0.5f)),
++                material: renderer.CreateMaterial(new(BaseColor: Vector4.One, Roughness: 1, Reflectance: 0.5f)),
++                position: Center,
++                scale: Vector3.One,
++                rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2),
++                radius: 0.75f,
++                chainDepth: TestChains.CamerasFrame
++            )
++        );
++        snapshot.Lights.Add(light);
++        return snapshot;
++    }
++
++    /// <summary>A bulb of <paramref name="power"/> W, 1 m in front of the square's center, with no shadow.</summary>
++    private static RenderLight Bulb(float power) =>
++        Gpu.Lamp(position: new(0, 0, -2), color: Vector3.One, intensity: 0, chainDepth: TestChains.CamerasFrame) with
++        {
++            Power = power,
++        };
++
++    /// <summary>A panel 0.4 m square of <paramref name="power"/> W, 1 m in front of the square's center and facing it, with no shadow.</summary>
++    private static RenderLight Panel(float power) =>
++        new RectRenderLight(
++            EntityIndex: Gpu.LampEntity,
++            EntityGeneration: 0,
++            Position: new(0, 0, -2),
++            PreviousPosition: new(0, 0, -2),
++            Rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI),
++            PreviousRotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI),
++            Color: Vector3.One,
++            Power: power,
++            Width: 0.4f,
++            Height: 0.4f,
++            CastsShadow: false,
++            ChainDepth: TestChains.CamerasFrame
++        );
++
++    /// <summary>The radiance of the HDR image's pixel that sees the square's center, under <paramref name="light"/>.</summary>
++    private static float RadianceAtTheCenter(LightPairSetting lightPairs, RenderLight light)
++    {
++        VulkanRenderer renderer = Renderer(lightPairs);
++        try
++        {
++            renderer.Render(Scene(renderer, light), 1f);
++            float[] image = renderer.ReadHdr();
++            Vector2 pixel = Gpu.Project(point: Center, width: Width, height: Height);
++            return image[((int)pixel.Y * Width + (int)pixel.X) * 4];
++        }
++        finally
++        {
++            Gpu.DisposeAndAssertClean(renderer);
++        }
++    }
++
++    /// <summary>The radiance that a bulb of 1 W gives the square's center without a floor: a bulb's light grows with its power.</summary>
++    private static float BulbRadiancePerWatt() => RadianceAtTheCenter(default, Bulb(8)) / 8;
++
++    [Fact]
++    public void ABulbWhoseLightShowsBelowTheFloorAddsNothing()
++    {
++        float perWatt = BulbRadiancePerWatt();
++        float power = 0.8f * Floor.Floor / perWatt;
++
++        RadianceAtTheCenter(default, Bulb(power)).Should().BeApproximately(0.8f * Floor.Floor, 0.02f * Floor.Floor);
++        RadianceAtTheCenter(new(Floor), Bulb(power)).Should().Be(0, "the bulb shows 0.8 floors at the square's center");
++    }
++
++    [Fact]
++    public void ABulbFarAboveTheFloorLightsTheSquareAsWithoutTheFloor()
++    {
++        float power = 4 * Floor.Floor / BulbRadiancePerWatt();
++
++        RadianceAtTheCenter(new(Floor), Bulb(power))
++            .Should()
++            .Be(RadianceAtTheCenter(default, Bulb(power)), "a pair of four floors is shaded in full");
++    }
++
++    [Fact]
++    public void ABulbBetweenOneAndTwoFloorsAddsItsShare()
++    {
++        float power = 1.5f * Floor.Floor / BulbRadiancePerWatt();
++
++        float whole = RadianceAtTheCenter(default, Bulb(power));
++        RadianceAtTheCenter(new(Floor), Bulb(power))
++            .Should()
++            .BeApproximately(0.5f * whole, 0.03f * whole, "a pair of 1.5 floors adds half its light");
++    }
++
++    [Fact]
++    public void APanelWhoseLightShowsFarBelowTheFloorAddsNothing()
++    {
++        // The panel's bound holds more than its light, so only a panel well below the floor is sure to add nothing.
++        float perWatt = RadianceAtTheCenter(default, Panel(8)) / 8;
++        float power = 0.3f * Floor.Floor / perWatt;
++
++        RadianceAtTheCenter(default, Panel(power)).Should().BeGreaterThan(0.25f * Floor.Floor);
++        RadianceAtTheCenter(new(Floor), Panel(power)).Should().Be(0, "the panel shows 0.3 floors at the square's center");
++    }
++
++    [Fact]
++    public void APanelFarAboveTheFloorLightsTheSquareAsWithoutTheFloor()
++    {
++        float perWatt = RadianceAtTheCenter(default, Panel(8)) / 8;
++        float power = 4 * Floor.Floor / perWatt;
++
++        RadianceAtTheCenter(new(Floor), Panel(power))
++            .Should()
++            .Be(RadianceAtTheCenter(default, Panel(power)), "a pair of four floors is shaded in full");
++    }
++
++    [Fact]
++    public void APanelBetweenOneAndTwoFloorsAddsAtLeastTheShareOfItsLight()
++    {
++        // The panel's share comes from its bound, which is at least its light: the share is at least that of the light
++        // itself, a half at 1.5 floors, and at most the whole.
++        float perWatt = RadianceAtTheCenter(default, Panel(8)) / 8;
++        float power = 1.5f * Floor.Floor / perWatt;
++
++        float whole = RadianceAtTheCenter(default, Panel(power));
++        RadianceAtTheCenter(new(Floor), Panel(power)).Should().BeInRange(0.47f * whole, whole);
++    }
++}
+diff --git a/tests/Tertius.Rendering.Tests/VisibleLightPairTests.cs b/tests/Tertius.Rendering.Tests/VisibleLightPairTests.cs
+new file mode 100644
+index 000000000..fdf168590
+--- /dev/null
++++ b/tests/Tertius.Rendering.Tests/VisibleLightPairTests.cs
+@@ -0,0 +1,182 @@
++using System.Numerics;
++
++namespace Tertius.Rendering.Tests;
++
++/// <summary>
++/// The visible floor of the light pairs in C# (ticket t2-mlvy): the share of its light that a pair adds by its shown
++/// light, and the rectangle's bound that weighs its pair, which never falls below the light that the face really gives.
++/// </summary>
++public sealed class VisibleLightPairTests
++{
++    /// <summary>A floor of 2^−9, about 1 % of the mid-grey of 0.18.</summary>
++    private static readonly VisibleLightPairs Floor9 = new(FloorStops: 9);
++
++    [Theory]
++    [InlineData(0)]
++    [InlineData(0.5)]
++    [InlineData(1)]
++    public void APairThatShowsAtMostOneFloorAddsNothing(double floors)
++    {
++        Floor9.Share(floors * Floor9.Floor).Should().Be(0);
++    }
++
++    [Theory]
++    [InlineData(2)]
++    [InlineData(3)]
++    [InlineData(1000)]
++    public void APairThatShowsTwoFloorsOrMoreAddsAllItsLight(double floors)
++    {
++        Floor9.Share(floors * Floor9.Floor).Should().Be(1);
++    }
++
++    [Fact]
++    public void APairBetweenOneAndTwoFloorsAddsAnEvenShare()
++    {
++        Floor9.Share(1.25 * Floor9.Floor).Should().BeApproximately(0.25, 1e-12);
++        Floor9.Share(1.5 * Floor9.Floor).Should().BeApproximately(0.5, 1e-12);
++    }
++
++    [Fact]
++    public void TheLightThatAPairAddsNeverJumpsAsItsShownLightGrows()
++    {
++        // The added light is the share times the shown light. Over steps of a thousandth of a floor, it never falls, and
++        // it never rises by more than the step times the steepest slope of x (x − 1) on [1, 2], which is 3.
++        double floor = Floor9.Floor;
++        double step = floor / 1000;
++        double last = 0;
++        for (double shown = 0; shown <= 3 * floor; shown += step)
++        {
++            double added = Floor9.Share(shown) * shown;
++            (added - last).Should().BeInRange(0, 3.001 * step, "the light at {0} floors follows the light before it", shown / floor);
++            last = added;
++        }
++    }
++
++    [Fact]
++    public void ALowerFloorKeepsAPairThatAHigherFloorDrops()
++    {
++        double shown = 1.5 / 512;
++
++        new VisibleLightPairs(FloorStops: 8).Share(shown).Should().Be(0, "1.5 / 512 is under the floor of 1 / 256");
++        new VisibleLightPairs(FloorStops: 10).Share(shown).Should().Be(1, "1.5 / 512 is three floors of 1 / 1024");
++    }
++
++    [Theory]
++    [InlineData(3.9f)]
++    [InlineData(13.1f)]
++    [InlineData(float.NaN)]
++    public void AFloorOutsideItsRangeIsRefused(float stops)
++    {
++        new LightPairSetting(new VisibleLightPairs(FloorStops: stops)).Problem.Should().Contain("FloorStops");
++    }
++
++    [Fact]
++    public void EveryLightPairGivesTheShadersNoFloor()
++    {
++        default(LightPairSetting).Floor.Should().Be(0);
++        default(LightPairSetting).Problem.Should().BeNull();
++        new LightPairSetting(new VisibleLightPairs(FloorStops: 9)).Floor.Should().Be(1f / 512);
++    }
++
++    /// <summary>
++    /// Rectangles seen from a point at the origin, by name: near and far, facing and edge-on, above and across the horizon
++    /// of the normals of <see cref="Normals"/>.
++    /// </summary>
++    public static TheoryData<string> Rectangles =>
++        ["overhead", "far-overhead", "far-aside", "edge-on", "wall", "touching", "tilted"];
++
++    private static RectView RectNamed(string name) =>
++        name switch
++        {
++            // The deck's panel, 1.2 m square, facing down from 3 m above the point.
++            "overhead" => FacingDown(center: new(0, 3, 0), side: 1.2),
++            "far-overhead" => FacingDown(center: new(0, 30, 0), side: 1.2),
++            // 20 m along the floor from under the panel: the panel shows at a slant of about 81°.
++            "far-aside" => FacingDown(center: new(20, 3, 4), side: 1.2),
++            // 1 cm below the panel's plane and 2 m aside: the panel shows almost edge-on.
++            "edge-on" => FacingDown(center: new(2, 0.01, 0), side: 1.2),
++            // A panel on a wall 2 m ahead that faces the point.
++            "wall" => new(toCenter: new(0, 1, 2), halfWidth: new(-0.6, 0, 0), halfHeight: new(0, 0.6, 0)),
++            // 5 cm under the middle of the panel, which fills most of the sky.
++            "touching" => FacingDown(center: new(0.1, 0.05, 0.1), side: 1.2),
++            "tilted" => Turned(center: new(0.8, 1.2, -0.4), width: 0.9, height: 0.4),
++            _ => throw new ArgumentOutOfRangeException(nameof(name), name, "No such rectangle."),
++        };
++
++    /// <summary>A square panel of <paramref name="side"/> m centered <paramref name="center"/> from the point, whose front is −Y.</summary>
++    private static RectView FacingDown(Double3 center, double side) =>
++        new(toCenter: center, halfWidth: new(side / 2, 0, 0), halfHeight: new(0, 0, side / 2));
++
++    /// <summary>A panel turned about two axes, so that no side lies along a world axis.</summary>
++    private static RectView Turned(Double3 center, double width, double height)
++    {
++        Quaternion turn = Quaternion.Normalize(
++            Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.7f) * Quaternion.CreateFromAxisAngle(Vector3.UnitX, 2.1f)
++        );
++        return new(
++            toCenter: center,
++            halfWidth: Vector3.Transform(Vector3.UnitX, turn) * (float)(width / 2),
++            halfHeight: Vector3.Transform(Vector3.UnitY, turn) * (float)(height / 2)
++        );
++    }
++
++    /// <summary>Unit normals on a grid of the whole sphere, 15° apart.</summary>
++    private static IEnumerable<Double3> Normals()
++    {
++        for (int polar = 0; polar <= 12; polar++)
++        for (int around = 0; around < 24; around++)
++        {
++            double theta = polar * Math.PI / 12,
++                phi = around * Math.PI / 12;
++            yield return new(Math.Sin(theta) * Math.Cos(phi), Math.Cos(theta), Math.Sin(theta) * Math.Sin(phi));
++        }
++    }
++
++    [Theory]
++    [MemberData(nameof(Rectangles))]
++    public void ARectanglesBoundIsNeverBelowTheLightThatItsFaceGives(string name)
++    {
++        RectView rect = RectNamed(name);
++        rect.InFront.Should().BeTrue("each rectangle of the list faces the point");
++
++        foreach (Double3 normal in Normals())
++            rect.CosineBound(normal)
++                .Should()
++                .BeGreaterThanOrEqualTo(
++                    rect.ClippedCosine(normal) * (1 - 1e-9),
++                    "the bound holds the face's cosine integral for the normal {0}",
++                    normal
++                );
++    }
++
++    [Fact]
++    public void ARectanglesBoundIsPositiveWhereAnyOfItsFaceLiesAboveTheHorizon()
++    {
++        // The wall panel's center lies 1 m up and 2 m ahead. For a normal that leans back, its center is below the
++        // horizon and its upper edge is above it, so the face still gives light.
++        RectView wall = RectNamed("wall");
++        Double3 leaningBack = new Double3(0, 2, -1.2).Normalized();
++        Double3.Dot(leaningBack, wall.ToCenter).Should().BeNegative("the center lies below this horizon");
++
++        wall.ClippedCosine(leaningBack).Should().BePositive();
++        wall.CosineBound(leaningBack).Should().BePositive();
++    }
++
++    [Fact]
++    public void AFarRectanglesBoundComesCloseToItsLight()
++    {
++        // 25 panel half diagonals away the face is nearly a point, so the bound holds little more than the light.
++        RectView far = RectNamed("far-overhead");
++
++        far.CosineBound(Double3.UnitY).Should().BeLessThan(far.ClippedCosine(Double3.UnitY) * 1.2);
++    }
++
++    [Fact]
++    public void ARectangleBehindThePointHasNoBound()
++    {
++        // The panel faces down and the point lies 1 m above it.
++        RectView above = FacingDown(center: new(0, -1, 0), side: 1.2);
++
++        above.CosineBound(-Double3.UnitY).Should().Be(0);
++    }
++}
