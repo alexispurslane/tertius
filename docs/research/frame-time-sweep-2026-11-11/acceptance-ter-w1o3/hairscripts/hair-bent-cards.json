@@ -1,0 +1,33 @@
+{
+ "scene": "hair-bent-cards",
+ "window": {
+  "width": 1280,
+  "height": 720
+ },
+ "steps": [
+  {
+   "do": "camera",
+   "entity": "front-camera"
+  },
+  {
+   "do": "run",
+   "ticks": 10
+  },
+  {
+   "do": "capture",
+   "name": "front"
+  },
+  {
+   "do": "camera",
+   "entity": "bent-camera"
+  },
+  {
+   "do": "run",
+   "ticks": 10
+  },
+  {
+   "do": "capture",
+   "name": "bent"
+  }
+ ]
+}

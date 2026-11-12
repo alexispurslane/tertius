@@ -1,0 +1,13 @@
+# The image test of the reflection step cap of 128 (ter-w1o3), part a: the hair scenes and the larger render sizes.
+# The binary steps2 is main's Release build (ad095e599) whose reflection cap comes from SWEEP_RSTEPS. Without the
+# variable the cap is the default, 256. Each scene keeps its own automatic exposure.
+for s in hair-rugs hair-bent-cards skin-and-hair lamp-hall-16-hair; do
+  run steps2 hairscripts/$s.json w3-$s-ctl
+  SWEEP_RSTEPS=128 run steps2 hairscripts/$s.json w3-$s-r128
+done
+for s in deck reflections-stills mirror-balls doorway hair-rugs demo-surface; do
+  for h in 1080 1440; do
+    run steps2 bigscripts/$s-$h.json w3-$s-$h-ctl
+    SWEEP_RSTEPS=128 run steps2 bigscripts/$s-$h.json w3-$s-$h-r128
+  done
+done

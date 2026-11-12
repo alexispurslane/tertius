@@ -1,0 +1,15 @@
+uptime-start:  10:11:31  up 47 days 21:45,  2 users,  load average: 9.39, 16.12, 17.69
+waited: 392s
+mode: shared, with up to 3 shared runs at once
+baseline 1/1: tests/Tertius.Rendering.Tests ScreenTraceSettingTests
+1/3 C01: killed ScreenTraceSettingTests.TheRendererOptionsDefaultToTheDesignsTracerAndThirtyTwoWarmUpDraws
+2/3 C02: killed ScreenTraceSettingTests.TheRendererOptionsDefaultToTheDesignsTracerAndThirtyTwoWarmUpDraws
+3/3 C03: killed ScreenTraceSettingTests.TheRendererOptionsDefaultToTheDesignsTracerAndThirtyTwoWarmUpDraws
+| id | place | change | result | killed by | s |
+|---|---|---|---|---|---:|
+| C01 | src/Tertius.Rendering/ScreenTraceSetting.cs:32 | the old cap of 256 steps | killed | ScreenTraceSettingTests.TheRendererOptionsDefaultToTheDesignsTracerAndThirtyTwoWarmUpDraws | 7.1 |
+| C02 | src/Tertius.Rendering/ScreenTraceSetting.cs:32 | one step fewer | killed | ScreenTraceSettingTests.TheRendererOptionsDefaultToTheDesignsTracerAndThirtyTwoWarmUpDraws | 6.5 |
+| C03 | src/Tertius.Rendering/ScreenTraceSetting.cs:32 | the cap of 64 steps, which breaks the doorway floor | killed | ScreenTraceSettingTests.TheRendererOptionsDefaultToTheDesignsTracerAndThirtyTwoWarmUpDraws | 5.2 |
+3 rows: killed 3, timeout 0, survived 0, no-coverage 0, build-failed 0, no-tests 0, no-mutant 0, removed 0
+wall time 46 s; logs and results.json in /private/tmp/tertius-sweep-20261111/w1o3/mutate
+uptime-end:  10:12:17  up 47 days 21:46,  2 users,  load average: 14.77, 16.89, 17.90
