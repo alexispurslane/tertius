@@ -48,7 +48,7 @@ public sealed class ScreenTraceSettingTests
 
         options
             .ScreenTrace.Should()
-            .Be(new ScreenTraceSetting(new ScreenTrace(MaxRoughness: 0.5f, ReflectionSteps: 256, DiffuseSteps: 62)));
+            .Be(new ScreenTraceSetting(new ScreenTrace(MaxRoughness: 0.5f, ReflectionSteps: 128, DiffuseSteps: 62)));
         options.WarmUpFrames.Should().Be(32);
     }
 

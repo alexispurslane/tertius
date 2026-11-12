@@ -1,6 +1,6 @@
 ---
 id: ter-w1o3
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-11-12T06:45:29Z
