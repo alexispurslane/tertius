@@ -1,0 +1,73 @@
+#version 460
+
+// FSR's clear step (ARCHITECTURE.md, "Upscaling: FSR 3.1 in the frame"): the zeros that AMD's host writes in every frame
+// with a vkCmdClearColorImage per image, here in one dispatch. MoltenVK draws each level of such a clear as a render pass
+// of its own, and each render pass ends a Metal encoder. Zero is the farthest reversed depth, which the reconstruction's
+// atomic maximum starts from, and the count of finished workgroups, which AMD's single-pass downsampler needs at its
+// start. One invocation per texel of the reconstructed depth, the largest image, in 8 × 8 workgroups.
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+// The names follow AMD's (ffx_fsr3upscaler_callbacks_glsl.h). AMD binds levels 0 to 5 only, and 6 to 12 follow the pattern.
+layout(set = 0, binding = 0, r32ui) uniform writeonly uimage2D rw_reconstructed_previous_nearest_depth;
+layout(set = 0, binding = 1, r32ui) uniform writeonly uimage2D rw_spd_global_atomic;
+layout(set = 0, binding = 2, rg16f) uniform writeonly image2D rw_spd_mip0;
+layout(set = 0, binding = 3, rg16f) uniform writeonly image2D rw_spd_mip1;
+layout(set = 0, binding = 4, rg16f) uniform writeonly image2D rw_spd_mip2;
+layout(set = 0, binding = 5, rg16f) uniform writeonly image2D rw_spd_mip3;
+layout(set = 0, binding = 6, rg16f) uniform writeonly image2D rw_spd_mip4;
+layout(set = 0, binding = 7, rg16f) uniform writeonly image2D rw_spd_mip5;
+layout(set = 0, binding = 8, rg16f) uniform writeonly image2D rw_spd_mip6;
+layout(set = 0, binding = 9, rg16f) uniform writeonly image2D rw_spd_mip7;
+layout(set = 0, binding = 10, rg16f) uniform writeonly image2D rw_spd_mip8;
+layout(set = 0, binding = 11, rg16f) uniform writeonly image2D rw_spd_mip9;
+layout(set = 0, binding = 12, rg16f) uniform writeonly image2D rw_spd_mip10;
+layout(set = 0, binding = 13, rg16f) uniform writeonly image2D rw_spd_mip11;
+layout(set = 0, binding = 14, rg16f) uniform writeonly image2D rw_spd_mip12;
+
+// The count of the luminance pyramid's levels, 6 to 13. A binding past the last level holds that level again, and no
+// invocation writes it.
+layout(push_constant, std430) uniform ClearPush { uint spdLevels; };
+
+// Zeroes the texel of one level, or nothing when the texel lies outside the level. Returns whether it lay inside. The
+// switch indexes by constants only, so no device needs the dynamic indexing of storage images.
+#define ZERO_TEXEL(level)                               \
+    if (any(greaterThanEqual(texel, imageSize(level)))) \
+        return false;                                   \
+    imageStore(level, texel, vec4(0.0));                \
+    break
+
+bool zeroSpdTexel(uint level, ivec2 texel)
+{
+    switch (level)
+    {
+    case 0u: ZERO_TEXEL(rw_spd_mip0);
+    case 1u: ZERO_TEXEL(rw_spd_mip1);
+    case 2u: ZERO_TEXEL(rw_spd_mip2);
+    case 3u: ZERO_TEXEL(rw_spd_mip3);
+    case 4u: ZERO_TEXEL(rw_spd_mip4);
+    case 5u: ZERO_TEXEL(rw_spd_mip5);
+    case 6u: ZERO_TEXEL(rw_spd_mip6);
+    case 7u: ZERO_TEXEL(rw_spd_mip7);
+    case 8u: ZERO_TEXEL(rw_spd_mip8);
+    case 9u: ZERO_TEXEL(rw_spd_mip9);
+    case 10u: ZERO_TEXEL(rw_spd_mip10);
+    case 11u: ZERO_TEXEL(rw_spd_mip11);
+    default: ZERO_TEXEL(rw_spd_mip12);
+    }
+    return true;
+}
+
+void main()
+{
+    ivec2 texel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(texel, imageSize(rw_reconstructed_previous_nearest_depth))))
+        return;
+    imageStore(rw_reconstructed_previous_nearest_depth, texel, uvec4(0u));
+    if (all(equal(texel, ivec2(0))))
+        imageStore(rw_spd_global_atomic, texel, uvec4(0u));
+    // Each level is no larger than the one below, so a texel outside one level lies outside every level above it.
+    for (uint level = 0u; level < spdLevels; level++)
+        if (!zeroSpdTexel(level, texel))
+            break;
+}
