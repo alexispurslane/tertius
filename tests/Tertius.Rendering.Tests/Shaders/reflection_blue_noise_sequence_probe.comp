@@ -1,0 +1,18 @@
+#version 460
+// Each row is one block's reflection draws 0 to 127, two periods of the mask: the strata of its two numbers in x and y,
+// and the mask's two bytes in z and w.
+#extension GL_GOOGLE_include_directive : require
+#include "screen_trace.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
+        return;
+    ivec2 block = ivec2(pixel.y * 5, pixel.y * 3) & 127;
+    uint drawIndex = uint(pixel.x);
+    vec2 u = reflectionNumbersOf(block, drawIndex, drawOf(block, drawIndex, DirectionDraw[KindReflection]));
+    imageStore(specularSample, pixel, vec4(floor(u * 8.0), vec2(blueNoiseBytesOf(block, drawIndex))));
+}

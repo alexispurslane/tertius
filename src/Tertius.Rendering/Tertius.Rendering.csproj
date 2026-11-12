@@ -31,6 +31,15 @@
   <ItemGroup>
     <EmbeddedResource Include="Shading/LtcTable.bin" LogicalName="Tertius.Rendering.LtcTable.bin" WithCulture="false" />
   </ItemGroup>
+  <!-- The reflection rays' blue-noise mask, a build output of tools/stbn/stbn.c that the dev shell names
+       (native/stbn-mask.nix). -->
+  <ItemGroup>
+    <EmbeddedResource Include="$(TERTIUS_STBN_MASK)" LogicalName="Tertius.Rendering.BlueNoiseMask.bin" WithCulture="false" />
+  </ItemGroup>
+  <Target Name="RequireBlueNoiseMask" BeforeTargets="BeforeBuild">
+    <Error Condition="'$(TERTIUS_STBN_MASK)' == '' Or !Exists('$(TERTIUS_STBN_MASK)')"
+           Text="TERTIUS_STBN_MASK names no file. Build in the dev shell, which builds the mask (native/stbn-mask.nix)." />
+  </Target>
 
   <!-- GLSL 4.60 shaders. Each stage file becomes one SPIR-V module, embedded as Tertius.Rendering.Shaders.<file>.spv.
        Files ending in .glsl are includes. A change to any include recompiles every stage. -->

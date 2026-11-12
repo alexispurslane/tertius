@@ -178,6 +178,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>The binding of the frame set that holds the LTC table of the rectangle lights (brdf.glsl, ltcTable).</summary>
     public const uint LtcTableBinding = 19;
 
+    /// <summary>The binding of the frame set that holds the reflection rays' blue-noise mask (screen_trace.glsl, blueNoiseMask).</summary>
+    public const uint BlueNoiseBinding = 20;
+
     /// <summary>The binding of this frame's kept positions in the deform set.</summary>
     public const uint DeformKeptPositionsBinding = 5;
 
@@ -903,14 +906,14 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             // Three per frame set (the material sampler and the immutable linear clamp and environment samplers), the
             // immutable samplers of the G-buffer, atlas, post and prefilter sets, and one per glow source set.
             new(DescriptorType.Sampler, 3 * frames + 4 + glowSourceSets),
-            // 20 for the G-buffer, post and atlas sets, five per frame set for the tables, the specular map, the irradiance
-            // cube and the distance cube, one per glow source set, two for the meter set, one per pyramid level set, one for
+            // 20 for the G-buffer, post and atlas sets, six per frame set for the tables, the blue-noise mask, the specular
+            // map, the irradiance cube and the distance cube, one per glow source set, two for the meter set, one per pyramid level set, one for
             // each pyramid's tail set, one for the prefilter set, one for the shadow bounds set, two for each surface test
             // set, two for each signal set and four for each screen tracer set.
             new(
                 DescriptorType.SampledImage,
                 20
-                    + 5 * frames
+                    + 6 * frames
                     + glowSourceSets
                     + 2
                     + PyramidLevelSets
@@ -1261,6 +1264,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             StorageBuffer(binding: KeptPositionsBinding, stages: ShaderStageFlags.VertexBit),
             // The LTC table of the rectangle lights, which every pass that shades lights reads beside the other tables.
             Image(binding: LtcTableBinding, stages: shading),
+            // The reflection rays' blue-noise mask, which only the screen tracer reads, so the fragment stages do not count
+            // it against maxPerStageDescriptorSampledImages.
+            Image(binding: BlueNoiseBinding, stages: ShaderStageFlags.ComputeBit),
         ];
         Span<DescriptorBindingFlags> flags = stackalloc DescriptorBindingFlags[frame.Length];
         foreach (uint binding in (ReadOnlySpan<uint>)[12, 14, ShadowAtlas.TileViewsBinding, 16, KeptPositionsBinding])

@@ -133,9 +133,9 @@ public sealed class DescriptorLayoutsTests
             .DescriptorsOf(layouts.ScreenTraceLayout)
             .SampledImages.Most.Should()
             .Be(
-                16,
-                "the compute stage sees the frame set's and the G-buffer set's images, the depth pyramid's two and the "
-                    + "light pyramid's two: the spec's least, so one more needs a device check"
+                17,
+                "the compute stage sees the frame set's images with the blue-noise mask, the G-buffer set's, the depth "
+                    + "pyramid's two and the light pyramid's two: one above the spec's least, as the impostor layout's fragment stage"
             );
     }
 
