@@ -111,6 +111,13 @@ It installs a pinned single-user Nix (2.34.8), builds or downloads the dev shell
 
 An agent runs a GPU job, such as a build and a timing run of the demo, on a Runpod serverless endpoint. The agent calls one script, `tools/runpod/gpu_job.py`, and the script keeps the spending within the caps. Ticket ter-94uo made the parts.
 
+The cloud card is a workbench for relative gains. The user's rules of 2026-11-11 decide what a result means:
+
+- Compare a variant with main inside one job, with two trees. Cards, workers and the capture time differ between jobs.
+- A gain from less GPU work carries over to the Mac at about 2.4 times its Linux size, on the deck.
+- Time changes that cut fixed costs, such as dispatches, barriers and MoltenVK's encoder breaks, on the Mac. Linux does not pay those costs.
+- The frame-time goal, 12 ms on the Mac, holds only after one timed Mac run of main confirms it at the merge.
+
 | Part | What it does |
 |---|---|
 | `tools/runpod/gpu_job.py` | It runs on the Mac. It makes each tree's patch, checks the caps, sends the job, waits for it and writes the audit log. |
@@ -131,7 +138,7 @@ python3 -I tools/runpod/gpu_job.py submit --agent <your name> \
     --output 'branch/out/*.json' --out <folder>
 ```
 
-- Each `--tree NAME=REF` becomes the folder `NAME` in the job's work folder. It holds the baked commit's files, with their built `bin` and `obj` folders, plus the diff from the baked commit to `REF`. Commit your change first, because the diff comes from commits.
+- Each `--tree NAME=REF` becomes the folder `NAME` in the job's work folder. It holds the baked commit's files plus the diff from the baked commit to `REF`. Commit your change first, because the diff comes from commits. The commit need not be pushed.
 - Each `--run` command runs in the work folder, in the dev shell, offline. The first command that fails ends the job.
 - `--timeout` gives the seconds of all commands together. It is at most `job_seconds` of the configuration.
 - `<folder>` gets the files of the `--output` globs and `result.json`. That file holds each command's exit code and time, the end of the log, and the files that passed the size limit of 8 MB.
@@ -177,7 +184,29 @@ python3 -I tools/runpod/test_handler.py
 python3 -I tools/runpod/test_gpu_job.py
 ```
 
-A tree's folder differs from the folder where the image built the demo, and MSBuild's restore files hold the absolute path of each project. The first job on a new image must measure whether a build after the patch still compiles only the changed projects.
+### What the first jobs measured
+
+The first jobs ran on 2026-11-12 on the image of `8bded50b7`, 3.0 GB compressed. A worker had an RTX 2000 Ada, 48 cores and 251 GB of memory.
+
+| Quantity | Value |
+|---|---|
+| Wait of the first job, while the first worker pulled the image | 376 s |
+| Wait of the next job, on a worker that had the image | 0.9 s |
+| Copy of the baked source into a tree (165 MB) | about 1.5 s |
+| `dotnet build src/Tertius.Demo -c Release` in a tree | 15 to 21 s |
+| Three headless deck runs of 119 frames each, after the build | 62 s |
+
+A build in a tree compiles every project again, also without a patch. MSBuild's restore files hold the absolute project paths under `/opt/tertius`, and a tree lives elsewhere. A build costs about $0.003, so a fix is not worth the machinery now.
+
+Runpod starts workers ahead of jobs: after the first job the endpoint listed 5 idle workers and 4 that waited for a GPU, with no job in the queue.
+
+The deck of the Mac trace (`/private/tmp/tertius-sweep-20261111/trace/deck-maind-1/script.json`, 1920 × 1080) had a median GPU frame span of 11.20 ms over three runs, and 8.90 ms without the `capture` pass. The bring-up pod measured 12.89 ms and 10.33 ms on main of 2026-11-11. The difference is main's newer code, such as the thin diffuse filter: the indirect diffuse stage went from 2.71 ms to 1.42 ms.
+
+### Rules for a job's commands
+
+- A command runs as `bash -c '<command>'` inside the dev shell. Its text is in that shell's command line. So `pkill -f <pattern>` with a pattern from the command stops the command itself. Stop a background process with `kill $!` instead.
+- If a command fails, the Runpod SDK marks the whole job FAILED. The audit log and `result.json` keep the handler's own result (`failed`, `timed out` or `refused`), and `result.json` keeps Runpod's status as `runpodStatus`.
+- The worker's image has no `bc`. Use `date +%s%N` and shell arithmetic for a time.
 
 ## The GitHub mirror
 

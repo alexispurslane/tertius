@@ -188,6 +188,15 @@ class AuditLog(Queue):
         self.assertEqual(line["result"], "TIMED_OUT")
         self.assertAlmostEqual(line["costUsd"], 900.0 * RATE)
 
+    def test_a_job_that_runpod_marks_failed_for_the_handlers_error_keeps_the_handlers_result(self):
+        output = {**FakeRunpod().final["output"], "status": "failed", "error": "command 1 failed with exit code 2",
+                  "steps": [{"command": "x", "exitCode": 2, "seconds": 1.0}]}
+        api = FakeRunpod(final={**FakeRunpod().final, "status": "FAILED", "output": output})
+        self.assertEqual(self.submit(api), "failed")
+        result = json.loads((self.out / "result.json").read_text())
+        self.assertEqual(result["runpodStatus"], "FAILED", "the result file keeps Runpod's status beside the handler's")
+        self.assertEqual(result["status"], "failed")
+
     def test_a_failed_command_is_the_jobs_result(self):
         output = {**FakeRunpod().final["output"], "status": "failed",
                   "steps": [{"command": "x", "exitCode": 2, "seconds": 1.0}]}

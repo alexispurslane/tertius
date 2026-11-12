@@ -26,8 +26,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 python3
     && python3 -m venv /opt/tertius-worker \
     && /opt/tertius-worker/bin/pip install --no-cache-dir runpod==2.2.1
 
-# The source of the commit, with its Release demo built. The handler copies it, bin and obj folders included, into
-# each tree of a job, so a build after the job's patch compiles only what the patch changed.
+# The source of the commit, with its Release demo built. The build restores the NuGet packages, so a job builds
+# offline, and it makes sure that the commit compiles on Linux. The handler copies the source into each tree of a job.
+# A build there compiles every project again, because the restore files hold the paths under /opt/tertius.
 ARG BAKED_COMMIT
 COPY . /opt/tertius
 RUN test -n "$BAKED_COMMIT" \

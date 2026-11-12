@@ -266,7 +266,9 @@ def submit(request: Request, *, config: Config, api, state: Path, repo: Path, no
         status = wait(api, config.endpoint, job, poll_seconds)
         gpu_seconds = status.get("executionTime", 0) / 1000
         output = status.get("output") if isinstance(status.get("output"), dict) else {}
-        result = output.get("status", "failed") if status["status"] == "COMPLETED" else status["status"]
+        # The SDK marks a job FAILED when the handler's result names an error, such as a failed command, so the
+        # handler's own status wins whenever the job returned one.
+        result = output.get("status") or ("failed" if status["status"] == "COMPLETED" else status["status"])
         write_outputs(request.out, status, output)
         append_log(state, {**line, "jobId": job, "gpuSeconds": gpu_seconds,
                            "delaySeconds": status.get("delayTime", 0) / 1000,
@@ -308,8 +310,9 @@ def write_outputs(folder: Path, status: dict, output: dict):
         path.write_bytes(base64.b64decode(data))
     kept = {key: value for key, value in output.items() if key != "files"}
     (folder / "result.json").write_text(json.dumps(
-        {"id": status.get("id"), "status": status["status"], "executionTime": status.get("executionTime"),
-         "delayTime": status.get("delayTime"), "error": status.get("error"), "files": sorted(files), **kept},
+        {"id": status.get("id"), "runpodStatus": status["status"], "status": status["status"],
+         "executionTime": status.get("executionTime"), "delayTime": status.get("delayTime"),
+         "error": status.get("error"), "files": sorted(files), **kept},
         indent=2) + "\n")
 
 

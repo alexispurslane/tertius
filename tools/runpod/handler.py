@@ -6,8 +6,9 @@ A job names the commit that the image baked (`base`), its trees, its commands an
     {"base": "<sha>", "trees": {"main": "", "branch": "<base64 of git diff --binary>"},
      "commands": ["cd branch && dotnet build src/Tertius.Demo -c Release"], "outputs": ["branch/out/*.json"]}
 
-Each tree is a copy of the baked source, with its built bin and obj folders, plus its own patch, so a build after the
-patch compiles only what the patch changed. The commands run one after another in the work folder, each in the dev
+Each tree is a copy of the baked source plus its own patch. A build in the tree compiles every project again, because
+MSBuild's restore files hold the image's absolute project paths: 15 to 21 s on a worker (ter-94uo, 2026-11-12). The
+commands run one after another in the work folder, each in the dev
 shell, and the first failure ends the job. The result holds each command's exit code and time, the end of the log, and
 the output files up to a size limit, base64-encoded.
 """
