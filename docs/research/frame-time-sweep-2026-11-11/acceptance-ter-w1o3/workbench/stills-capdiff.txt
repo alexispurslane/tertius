@@ -1,0 +1,4 @@
+script                 capture                   mean %    any %   >1 lv %  >4 lv %  max
+doorway                inside                    -0.000     0.68    0.000    0.000    3
+hair-bent-cards        front                     +0.018     8.61    0.044    0.001    6
+captures 2, identical 0, largest change of the mean +0.018 % (hair-bent-cards front), largest share over 4 levels 0.001 %, largest share over 1 level 0.044 %

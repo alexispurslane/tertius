@@ -1,0 +1,10 @@
+# The identity of the branch's build with the measured variant (ter-w1o3): the worktree's Release build, whose default
+# reflection cap is 128, against steps2 with SWEEP_RSTEPS=128. The frames must be equal byte for byte.
+for s in doorway demo-surface mirror-balls; do
+  run w128 capscripts/$s.json w3id-$s-branch
+  SWEEP_RSTEPS=128 run steps2 capscripts/$s.json w3id-$s-r128
+done
+run w128 hairscripts/hair-rugs.json w3id-hair-rugs-branch
+SWEEP_RSTEPS=128 run steps2 hairscripts/hair-rugs.json w3id-hair-rugs-r128
+run w128 views2.json w3id-low-branch
+SWEEP_RSTEPS=128 run steps2 views2.json w3id-low-r128

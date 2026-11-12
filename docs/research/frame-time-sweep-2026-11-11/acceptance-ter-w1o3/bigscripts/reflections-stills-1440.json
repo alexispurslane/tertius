@@ -1,0 +1,45 @@
+{
+ "scene": "reflections",
+ "window": {
+  "width": 2560,
+  "height": 1440
+ },
+ "steps": [
+  {
+   "do": "run",
+   "ticks": 10
+  },
+  {
+   "do": "capture",
+   "name": "front"
+  },
+  {
+   "do": "camera",
+   "entity": "low-camera"
+  },
+  {
+   "do": "run",
+   "ticks": 10
+  },
+  {
+   "do": "capture",
+   "name": "low"
+  },
+  {
+   "do": "camera",
+   "entity": "edge-camera"
+  },
+  {
+   "do": "run",
+   "ticks": 10
+  },
+  {
+   "do": "capture",
+   "name": "edge"
+  },
+  {
+   "do": "camera",
+   "entity": "front-camera"
+  }
+ ]
+}
