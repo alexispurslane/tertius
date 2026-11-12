@@ -64,7 +64,7 @@ QUEUE_SECONDS = 2 * 3600
 FINAL = {"COMPLETED", "FAILED", "CANCELLED", "TIMED_OUT"}
 # The handler protocol that this script speaks: the shape of a job's input. An image whose handler speaks another one
 # is never used (tools/runpod/handler.py keeps the same number).
-PROTOCOL = 2
+PROTOCOL = 3
 HANDLER = "tools/runpod/handler.py"
 # The paths whose files the image bakes into its dev shell. A commit that changes one of them needs another image.
 # The workflow gpu-image lists them too, to build an image when they change on main.

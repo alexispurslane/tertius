@@ -31,7 +31,7 @@ from pathlib import Path
 
 # The version of the job's input. gpu_job.py reads it from this file of an image's commit, so that it sends a job
 # only to an endpoint whose handler understands it.
-PROTOCOL = 2
+PROTOCOL = 3
 # A tree's name becomes a folder name in the work folder, so it is a plain name.
 TREE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$")
 COMMIT = re.compile(r"^[0-9a-f]{40}$")
@@ -44,11 +44,13 @@ SPARSE = ["/*", "!/docs/", "!/.tickets/"]
 
 @dataclass(frozen=True)
 class Limits:
-    """seconds: the ceiling of a job's own `seconds`, the time of all its commands together. output_bytes: the base64
+    """seconds: the ceiling of a job's own `seconds`, the time of all its commands together: the longest job_seconds of
+    a kind in endpoint.json, the CPU kind's, so that an official Stryker run of one module fits. The endpoint's own
+    execution timeout bounds each kind's jobs anyway. output_bytes: the base64
     size of the files sent back; Runpod keeps a job's result in its queue, so it stays small. log_bytes: the end of
     the log sent back."""
 
-    seconds: float = 840.0
+    seconds: float = 7140.0
     output_bytes: int = 8_000_000
     log_bytes: int = 200_000
 

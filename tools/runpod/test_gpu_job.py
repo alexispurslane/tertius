@@ -28,7 +28,7 @@ CPU_RATE = 0.00002
 QUOTA = 10  # the account's workers, summed over the maximums of all its endpoints
 REPOSITORY = "ghcr.io/x/tertius-gpu"
 SHELL_FILES = {"flake.nix": "{ outputs = _: { }; }\n", "flake.lock": "{}\n", "native/joltc.nix": "joltc\n"}
-HANDLER = {"tools/runpod/handler.py": "PROTOCOL = 2\n"}
+HANDLER = {"tools/runpod/handler.py": "PROTOCOL = 3\n"}
 
 
 def config(repository="https://github.com/x/tertius.git"):
@@ -343,8 +343,8 @@ class DevShells(Queue):
         self.assertEqual({live["id"]: live["workers"]["max"] for live in api.live}, {"ep2": 6})
 
     def test_a_job_runs_on_an_older_fitting_endpoint_while_the_quota_has_no_room_for_the_newest_image(self):
-        middle = self.commit({**SHELL_FILES, "tools/runpod/handler.py": "PROTOCOL = 2\n# fix 1\n"})
-        newest = self.commit({**SHELL_FILES, "tools/runpod/handler.py": "PROTOCOL = 2\n# fix 2\n"})
+        middle = self.commit({**SHELL_FILES, "tools/runpod/handler.py": "PROTOCOL = 3\n# fix 1\n"})
+        newest = self.commit({**SHELL_FILES, "tools/runpod/handler.py": "PROTOCOL = 3\n# fix 2\n"})
         self.on_main(newest)
         self.pending("running", job="job-running", endpoint="ep1")
         self.pending("also-running", job="job-also-running", endpoint="ep2")
@@ -355,7 +355,7 @@ class DevShells(Queue):
         self.assertEqual(self.log_lines()[-1]["image"], middle)
 
     def test_idle_endpoints_of_an_old_dev_shell_that_hold_the_quota_go_before_the_new_one_is_made(self):
-        middle = self.commit({**SHELL_FILES, "tools/runpod/handler.py": "PROTOCOL = 2\n# fix 1\n"})
+        middle = self.commit({**SHELL_FILES, "tools/runpod/handler.py": "PROTOCOL = 3\n# fix 1\n"})
         shell = self.commit({**SHELL_FILES, **HANDLER, "flake.lock": "{ newer }\n"})
         api = self.api(endpoints=[self.endpoint(self.base), self.endpoint(middle, id="ep2", most=4)])
         self.assertEqual(self.submit(api, trees={"main": shell}, images=[self.base, middle, shell]), "ok")
@@ -418,7 +418,7 @@ class DevShells(Queue):
         self.assertIn("dev shell", self.log_lines()[-1]["error"])
 
     def test_the_newest_image_of_the_dev_shell_replaces_an_older_one(self):
-        fixed = self.commit({**SHELL_FILES, "tools/runpod/handler.py": "PROTOCOL = 2\n# a fix\n"})
+        fixed = self.commit({**SHELL_FILES, "tools/runpod/handler.py": "PROTOCOL = 3\n# a fix\n"})
         api = self.api()
         self.submit(api, trees={"main": fixed}, images=[self.base, fixed])
         self.assertEqual(api.created[0]["image"], f"{REPOSITORY}:{fixed}")
@@ -431,7 +431,7 @@ class DevShells(Queue):
         self.assertEqual(api.deleted, ["ep1"])
 
     def test_an_image_of_a_side_branch_does_not_replace_the_image_that_the_jobs_commits_descend_from(self):
-        side = self.commit({**SHELL_FILES, "tools/runpod/handler.py": "PROTOCOL = 2\n# an experiment\n"})
+        side = self.commit({**SHELL_FILES, "tools/runpod/handler.py": "PROTOCOL = 3\n# an experiment\n"})
         self.git("checkout", "-q", "--detach", self.base)
         main = self.commit({**SHELL_FILES, **HANDLER, "a.txt": "main moves on\n"})
         self.on_main(main)
@@ -440,7 +440,7 @@ class DevShells(Queue):
         self.assertEqual((api.submitted[0][0], api.created, api.deleted), ("ep1", [], []))
 
     def test_a_job_from_an_older_commit_of_main_runs_on_mains_newest_image_with_the_other_jobs(self):
-        newer = self.commit({**SHELL_FILES, "tools/runpod/handler.py": "PROTOCOL = 2\n# a fix on main\n"})
+        newer = self.commit({**SHELL_FILES, "tools/runpod/handler.py": "PROTOCOL = 3\n# a fix on main\n"})
         self.on_main(newer)
         api = self.api(endpoints=[self.endpoint(newer)])
         self.submit(api, trees={"main": self.base}, images=[self.base, newer])
@@ -661,7 +661,7 @@ class Kinds(Queue):
         self.assertEqual(body["policy"]["executionTimeout"], (5000 + gpu_job.HANDLER_MARGIN_SECONDS) * 1000)
 
     def test_a_gpu_image_switch_keeps_the_cpu_endpoints_four_and_runs_on_the_busy_old_gpu_endpoint(self):
-        newer = self.commit({**SHELL_FILES, "tools/runpod/handler.py": "PROTOCOL = 2\n# a fix on main\n"})
+        newer = self.commit({**SHELL_FILES, "tools/runpod/handler.py": "PROTOCOL = 3\n# a fix on main\n"})
         self.on_main(newer)
         self.pending("running", job="job-running", endpoint="ep1")
         api = self.api(endpoints=[self.endpoint(self.base), self.endpoint(self.base, id="ep-cpu", most=4, kind="cpu")],
@@ -670,7 +670,7 @@ class Kinds(Queue):
         self.assertEqual((api.submitted[0][0], api.created, api.updated, api.deleted), ("ep1", [], [], []))
 
     def test_a_route_of_one_kind_leaves_the_endpoints_of_the_other_kind_alone(self):
-        newer = self.commit({**SHELL_FILES, "tools/runpod/handler.py": "PROTOCOL = 2\n# a fix on main\n"})
+        newer = self.commit({**SHELL_FILES, "tools/runpod/handler.py": "PROTOCOL = 3\n# a fix on main\n"})
         self.on_main(newer)
         api = self.api(endpoints=[self.endpoint(self.base)])
         self.submit(api, trees={"main": newer}, images=[self.base, newer], kind="cpu")
@@ -681,6 +681,20 @@ class Kinds(Queue):
         api = self.api(endpoints=[self.endpoint(self.base), self.endpoint(self.base, id="ep-cpu", most=0, kind="cpu")])
         self.assertEqual(self.submit(api), "refused")
         self.assertIn("0 workers", self.log_lines()[-1]["error"])
+
+
+class Configuration(unittest.TestCase):
+    """endpoint.json and the image's handler agree."""
+
+    def test_the_handlers_ceiling_lets_every_kind_use_its_whole_time_limit(self):
+        configured = gpu_job.Config.load()
+        self.assertGreaterEqual(gpu_job.handler.Limits().seconds,
+                                max(kind.job_seconds for kind in configured.kinds.values()),
+                                "a CPU job of the official Stryker run needs its 7,140 s on the worker too")
+
+    def test_the_kinds_leave_headroom_under_the_quota_for_an_image_switch(self):
+        configured = gpu_job.Config.load()
+        self.assertLess(sum(kind.workers for kind in configured.kinds.values()), gpu_job.WORKER_QUOTA)
 
 
 class EndpointRequest(unittest.TestCase):
