@@ -92,10 +92,12 @@ internal struct Fsr3Constants
         next.RenderSizeX = (int)frame.RenderSize.Width;
         next.RenderSizeY = (int)frame.RenderSize.Height;
 
-        // AMD derives the horizontal field of view from the vertical one, in single floats.
+        // AMD derives the horizontal field of view from the vertical one, in single floats. Each tangent and arctangent
+        // runs in double and rounds to float, which gives the correctly rounded float on every machine: the float
+        // functions of the C libraries round differently, and x86-64's tanHalfFOV was 2 ulps from the Mac's (ter-qjyo).
         float aspect = frame.RenderSize.Width / (float)frame.RenderSize.Height;
-        float horizontalFov = MathF.Atan(MathF.Tan(frame.VerticalFov / 2) * aspect) * 2;
-        next.TanHalfFov = MathF.Tan(horizontalFov * 0.5f);
+        float horizontalFov = (float)Math.Atan((float)Math.Tan(frame.VerticalFov / 2) * aspect) * 2;
+        next.TanHalfFov = (float)Math.Tan(horizontalFov * 0.5f);
         next.ViewSpaceToMetersFactor = 1f;
         next.SetDeviceToViewDepth(frame);
 
@@ -135,7 +137,7 @@ internal struct Fsr3Constants
         DeviceToViewDepth0 = -(0f + FltEpsilon);
         DeviceToViewDepth1 = frame.NearMeters;
         float aspect = frame.RenderSize.Width / (float)frame.RenderSize.Height;
-        float cotHalfFovY = MathF.Cos(0.5f * frame.VerticalFov) / MathF.Sin(0.5f * frame.VerticalFov);
+        float cotHalfFovY = (float)Math.Cos(0.5f * frame.VerticalFov) / (float)Math.Sin(0.5f * frame.VerticalFov);
         DeviceToViewDepth2 = 1f / (cotHalfFovY / aspect);
         DeviceToViewDepth3 = 1f / cotHalfFovY;
     }

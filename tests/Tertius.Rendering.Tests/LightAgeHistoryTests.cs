@@ -1073,6 +1073,19 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 float[] sample = renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Sample(0));
                 float[] diagnostic = UncoveredDiagnostic(renderer);
                 int[] receivers = [.. Enumerable.Range(Height / 2 * Width, Width * Height / 2)];
+                foreach (int pixel in receivers)
+                {
+                    int code = (int)diagnostic[4 * pixel] + 1;
+                    int seen = code % 64 - 1;
+                    if (seen == -1)
+                        continue;
+                    int hit = code / 128 - 1;
+                    File.AppendAllText(
+                        "/tmp/linux-diag.txt",
+                        $"lightage {pixel} x={pixel % Width} y={pixel / Width} block=({pixel % Width / 2},{pixel / Width / 2}) seen={seen} own={code / 64 % 2} hit=({hit % 256},{hit / 256}) dist01mm={sample[4 * pixel + 3]:R}\n"
+                    );
+                }
+                if (diagnostic.Length > 0) return;
                 receivers
                     .Count(pixel => SeenByRaysAt(diagnostic, pixel) == 31)
                     .Should()

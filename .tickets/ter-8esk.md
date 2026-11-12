@@ -2,7 +2,7 @@
 id: ter-8esk
 status: open
 deps: []
-links: [ter-cgif]
+links: [ter-cgif, t8-pkag]
 created: 2026-11-12T03:15:00Z
 type: task
 priority: 2

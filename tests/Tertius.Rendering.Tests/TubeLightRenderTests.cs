@@ -158,6 +158,14 @@ public sealed class TubeLightRenderTests
                 $"tube-light-matte-{name}-glow"
             );
 
+            double[] factors = [0.94, 0.96, 0.98, 0.99, 1.0, 1.01, 1.02, 1.03, 1.04, 1.06];
+            Vector3[] ladder = Displayed(renderer, [.. factors.Select(f => (expected * f).ToVector3())], $"tube-ladder-{name}");
+            File.AppendAllText(
+                "/tmp/linux-diag.txt",
+                $"tube {name} center={image.Color(Width / 2, Height / 2).X * 255:F1} "
+                    + string.Join(" ", factors.Select((f, i) => $"{f}:{ladder[i].X * 255:F1}"))
+                    + "\n"
+            );
             expected.X.Should().BePositive("the tube lights the square's center");
             image
                 .Color(Width / 2, Height / 2)

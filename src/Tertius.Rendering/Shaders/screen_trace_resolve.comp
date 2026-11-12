@@ -120,6 +120,8 @@ void main()
 #endif
     }
     float hitDistance = diffuse.light.a;
+    vec3 diagHit = diffuse.light.rgb;
+    float diagOwn = (plan & PlanOwnDiffuse) != 0u ? 1.0 : 0.0;
     if (startsKind(p, KindReflection))
     {
         RayRecord reflection = recordAt(pixel, KindReflection, plan);
@@ -139,12 +141,18 @@ void main()
 #endif
         }
         hitDistance = reflection.light.a;
+#ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
+        // THROWAWAY DIAGNOSTIC (t8-pkag): the record's hit pixel, its distance in 0.1 mm, and whether it is the pixel's own.
+        diagHit = reflection.light.rgb;
+        diagOwn = (plan & PlanOwnReflection) != 0u ? 1.0 : 0.0;
+#endif
     }
     imageStore(specularSample, pixel, vec4(min(specularLight, vec3(MaxRadiance)), hitDistance));
 #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
     imageStore(specularSampleAge, pixel, uvec4(ageCode));
 #endif
 #ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
-    imageStore(uncoveredDiagnostic, pixel, vec4(float(seenCode) - 1.0, 0.0, 0.0, 0.0));
+    imageStore(uncoveredDiagnostic, pixel, vec4(float(seenCode) + 64.0 * diagOwn + 128.0 * (1.0 + diagHit.x + 256.0 * diagHit.y) - 1.0, 0.0, 0.0, 0.0));
+    imageStore(specularSample, pixel, vec4(min(specularLight, vec3(MaxRadiance)), seenCode != 0u ? diagHit.z : 0.0));
 #endif
 }

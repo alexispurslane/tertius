@@ -2,7 +2,7 @@
 id: ter-qjyo
 status: open
 deps: []
-links: []
+links: [t8-pkag]
 created: 2026-11-12T02:50:00Z
 type: task
 priority: 2

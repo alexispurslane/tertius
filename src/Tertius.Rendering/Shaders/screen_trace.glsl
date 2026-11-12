@@ -765,6 +765,10 @@ TracedRay traceFrom(ivec2 pixel, ivec2 cell, TracingPixel p, uint kind)
     result.distance = length(hitPoint - p.origin);
     float fade = edgeFade(hit) * (1.0 - entryShare);
     result.light = mix(missLight, hitLightOf(hitPixel, kind), fade);
+#ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
+    // THROWAWAY DIAGNOSTIC (t8-pkag): the hit pixel and the hit distance in 0.1 mm.
+    result.light = vec3(vec2(hitPixel), min(result.distance * 10000.0, 60000.0));
+#endif
 #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
     if (fade > 0.0)
         result.age = imageLoad(lightAge, hitPixel).g;
