@@ -55,7 +55,7 @@ void main()
     // The view ray's component along forward is 1, so the view depth is the distance over its length.
     float depth = eyeDistance / length(ray);
     vec3 normal = octDecode(texelFetch(gbufferNormal, pixel, 0).ba);
-    float roughness = texelFetch(gbufferSpecular, pixel, 0).g;
+    float roughness = specularAt(pixel).g;
     vec4 motion = imageLoad(motionTarget, pixel);
     vec2 place = historyPlace(center, motion.xy);
     uint bits = 0u;
