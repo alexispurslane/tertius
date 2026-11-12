@@ -1,10 +1,10 @@
 # syntax=docker/dockerfile:1.7
-# The image of the Runpod serverless GPU worker (tools/README.md, "GPU jobs on Runpod"). It holds the dev shell's
-# closure, the source of one commit with its Release demo built, and the worker. A job then downloads nothing, and it
-# sends only its diff from that commit. The workflow .github/workflows/gpu-image.yml builds it from the commit's own
-# files, which `git archive` gives exactly, with the build argument BAKED_COMMIT set to that commit. A job's patch must
-# apply to the baked files, so the context holds every file of the commit and nothing else. Never build it from a
-# checkout, which holds .git, build outputs and untracked files.
+# The image of the Runpod serverless GPU worker (tools/runpod/README.md). It holds the dev shell's closure, the source
+# of one commit with its Release demo built, and the worker. A job fetches its trees' commits from GitHub and builds
+# them in this dev shell, so the image changes only when the dev shell or the worker changes. The handler compares the
+# dev shell's files of each fetched commit with the baked ones. The workflow .github/workflows/gpu-image.yml builds it
+# from the commit's own files, which `git archive` gives exactly, with the build argument BAKED_COMMIT set to that
+# commit. Never build it from a checkout, which holds .git, build outputs and untracked files.
 FROM ubuntu:24.04
 
 # The NVIDIA container toolkit then mounts the graphics part of the driver, with its Vulkan driver, and not only CUDA.
@@ -27,9 +27,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 python3
     && python3 -m venv /opt/tertius-worker \
     && /opt/tertius-worker/bin/pip install --no-cache-dir runpod==2.2.1
 
-# The source of the commit, with its Release demo built. The build restores the NuGet packages, so a job builds
-# offline, and it makes sure that the commit compiles on Linux. The handler copies the source into each tree of a job.
-# A build there compiles every project again, because the restore files hold the paths under /opt/tertius.
+# The source of the commit, with its Release demo built. The build restores the NuGet packages into the image, so a
+# job's build finds them there, and it makes sure that the commit compiles on Linux.
 ARG BAKED_COMMIT
 COPY . /opt/tertius
 RUN test -n "$BAKED_COMMIT" \
