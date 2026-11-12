@@ -48,6 +48,7 @@ class FakeRunpod:
         self.cancelled = []
         self.created = []
         self.deleted = []
+        self.updated = []
 
     def billed_total(self):
         return self.billed
@@ -75,6 +76,7 @@ class FakeRunpod:
         return endpoint
 
     def update_endpoint(self, endpoint, body):
+        self.updated.append((endpoint, body))
         for live in self.live:
             if live["id"] == endpoint:
                 if sum(other["workers"]["max"] for other in self.live if other is not live) + \
@@ -334,11 +336,37 @@ class DevShells(Queue):
         newest = self.commit({**SHELL_FILES, "tools/runpod/handler.py": "PROTOCOL = 2\n# fix 2\n"})
         self.on_main(newest)
         self.pending("running", job="job-running", endpoint="ep1")
+        self.pending("also-running", job="job-also-running", endpoint="ep2")
         api = self.api(endpoints=[self.endpoint(self.base), self.endpoint(middle, id="ep2", most=4)],
-                       statuses={"job-running": {"status": "IN_PROGRESS"}})
+                       statuses={"job-running": {"status": "IN_PROGRESS"}, "job-also-running": {"status": "IN_QUEUE"}})
         self.assertEqual(self.submit(api, trees={"main": newest}, images=[self.base, middle, newest]), "ok")
         self.assertEqual((api.submitted[0][0], api.created), ("ep2", []))
         self.assertEqual(self.log_lines()[-1]["image"], middle)
+
+    def test_idle_endpoints_of_an_old_dev_shell_that_hold_the_quota_go_before_the_new_one_is_made(self):
+        middle = self.commit({**SHELL_FILES, "tools/runpod/handler.py": "PROTOCOL = 2\n# fix 1\n"})
+        shell = self.commit({**SHELL_FILES, **HANDLER, "flake.lock": "{ newer }\n"})
+        api = self.api(endpoints=[self.endpoint(self.base), self.endpoint(middle, id="ep2", most=4)])
+        self.assertEqual(self.submit(api, trees={"main": shell}, images=[self.base, middle, shell]), "ok")
+        self.assertEqual(sorted(api.deleted), ["ep1", "ep2"])
+        self.assertEqual([(live["id"], live["workers"]["max"]) for live in api.live], [("ep-new-1", 6)])
+
+    def test_an_endpoint_that_the_watchdog_stops_before_it_grows_is_not_grown(self):
+        api = self.api(endpoints=[self.endpoint(self.base, most=4)])
+        api.stop_at_listing = (3, "ep1")
+        self.assertEqual(self.submit(api), "refused")
+        self.assertEqual((api.updated, api.submitted), ([], []))
+
+    def test_the_live_endpoint_grows_only_into_the_room_that_other_endpoints_leave(self):
+        other = {"id": "cpu", "name": "someone-else", "image": "x", "workers": {"min": 0, "max": 2}}
+        api = self.api(endpoints=[self.endpoint(self.base, most=4), other])
+        self.submit(api)
+        self.assertEqual({live["id"]: live["workers"]["max"] for live in api.live}, {"ep1": 6, "cpu": 2})
+
+    def test_a_job_that_the_caps_refuse_still_logs_the_image_that_it_would_have_used(self):
+        self.logged(10.0)
+        self.assertEqual(self.submit(self.api()), "refused")
+        self.assertEqual(self.log_lines()[-1]["image"], self.base)
 
     def test_a_job_is_refused_when_other_endpoints_hold_the_whole_worker_quota(self):
         shell = self.commit({**SHELL_FILES, **HANDLER, "flake.lock": "{ newer }\n"})
@@ -407,12 +435,12 @@ class DevShells(Queue):
         self.submit(api, trees={"main": self.base}, images=[self.base, newer])
         self.assertEqual((api.submitted[0][0], api.created, api.deleted), ("ep1", [], []))
 
-    def test_a_stop_seen_just_before_a_deletion_refuses_the_job_and_removes_the_new_endpoint(self):
+    def test_a_stop_of_the_new_endpoint_seen_after_its_creation_refuses_the_job_and_removes_it(self):
         shell = self.commit({**SHELL_FILES, **HANDLER, "flake.lock": "{ newer }\n"})
         api = self.api()
-        api.stop_at_listing = (3, "ep1")
+        api.stop_at_listing = (5, "ep-new-1")
         self.assertEqual(self.submit(api, trees={"main": shell}, images=[self.base, shell]), "refused")
-        self.assertEqual(([endpoint["id"] for endpoint in api.live], api.submitted), (["ep1"], []))
+        self.assertEqual((api.created[0]["image"], api.live, api.submitted), (f"{REPOSITORY}:{shell}", [], []))
 
     def test_an_endpoint_that_the_script_did_not_name_is_never_deleted(self):
         shell = self.commit({**SHELL_FILES, **HANDLER, "flake.lock": "{ newer }\n"})
