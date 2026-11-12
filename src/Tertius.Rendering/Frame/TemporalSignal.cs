@@ -58,8 +58,8 @@ internal sealed unsafe class TemporalSignal : IDisposable
     /// The format of the diagnostic of uncovered surfaces under <see cref="HistoryInstrumentation.LightAgeDiagnostic"/>: r the
     /// fewest frames seen among the never-changed surfaces that the specular sample's rays hit, or −1 for none, which the
     /// resolve writes; g the slow history's length just before its blend, after the light-age cut, or −1 without a
-    /// sample; b 1 where the sample holds at least the cut share of the slow history's luminance, else 0; a the length
-    /// before the light-age cut. The temporal dispatch writes g, b and a.
+    /// sample; b 1 where the sample holds at least a quarter of the slow history's luminance, else 0, an observation that no
+    /// rule uses since ter-g3tk; a the length before the light-age cut. The temporal dispatch writes g, b and a.
     /// </summary>
     public const Format UncoveredDiagnosticFormat = Format.R32G32B32A32Sfloat;
 

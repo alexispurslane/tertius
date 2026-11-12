@@ -154,9 +154,8 @@ public sealed class AccumulatorRenderTests
     public void UnderTheNarrowBoxTheHistoryReachesNinetyPercentOfADimmingStepWithinTenFrames()
     {
         // Without the anti-lag, a history of 16 frames reaches 90 % after ln 0.1 / ln(15 / 16) ≈ 36 frames. The clamp
-        // follows the fast history of 4 frames, which reaches 90 %, 0.118, after 8. A sample below a quarter of the
-        // history's light does not cut the history to its age, so until the history falls below 4 · 0.02 = 0.08, after
-        // about 10 frames, only the clamp follows the step. The bounce light's widened box holds the step's own spread.
+        // follows the fast history of 4 frames, which reaches 90 %, 0.118, after 8. No ray saw a change, so only the clamp
+        // follows the step. The bounce light's widened box holds the step's own spread.
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(parameters: NarrowParameters);
         try
         {
@@ -259,8 +258,8 @@ public sealed class AccumulatorRenderTests
     [Fact]
     public void ALightChangeThatTheRaysSawRestartsTheHistoryAtTheChange()
     {
-        // The rays saw the light change in this frame (age 0, code 1), and the sample holds more than a quarter of the
-        // history's light: the history keeps no frame from before the change (ticket ter-wkvw).
+        // The rays saw the light change in this frame (age 0, code 1): the history keeps no frame from before the change
+        // (ticket ter-wkvw).
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
         try
         {

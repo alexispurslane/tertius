@@ -1,0 +1,42 @@
+uptime-start:  05:01:25  up 47 days 16:35,  2 users,  load average: 39.95, 39.84, 29.67
+waited: 99s
+mode: shared, with up to 3 shared runs at once
+driver: /nix/store/jxv1cgaay6396aqwbcvkikamsv66vvkh-MoltenVK-1.4.2/share/vulkan/icd.d/MoltenVK_icd.json
+Running tests from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+2026-11-12 05:01:27.915 Tertius.Rendering.Tests[17310:1139289161] Metal API Validation Enabled
+skipped Tertius.Rendering.Tests.GpuTimingTests.OnADriverWhoseStampsLatchWhenTheWorkBeforeThemEndsAPassThatRecordsNothingReportsNearlyNoTimeOfItsOwn
+  Apple M1 Max's stamps latch late, so a pass's own time can hold the next pass's work, and only the sum of neighbouring passes holds (ARCHITECTURE.md, "GPU timings").
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+skipped Tertius.Rendering.Tests.Fsr3UpscalerTests.AnUpscaleFrom1280x720To1920x1080ReportsItsGpuTimePerFrameWhenEightFramesShareASubmission
+  Set TERTIUS_FSR_TIMING=1 to measure FSR's GPU time.
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+skipped Tertius.Rendering.Tests.Fsr3UpscalerTests.TheMaximumWindowAllocationReportsItsGpuTimeAtEachActiveSize(activeWidth: 960, activeHeight: 536)
+  Set TERTIUS_FSR_TIMING=1 to measure FSR's GPU time.
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+skipped Tertius.Rendering.Tests.Fsr3UpscalerTests.TheMaximumWindowAllocationReportsItsGpuTimeAtEachActiveSize(activeWidth: 1280, activeHeight: 720)
+  Set TERTIUS_FSR_TIMING=1 to measure FSR's GPU time.
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+skipped Tertius.Rendering.Tests.Fsr3UpscalerTests.TheMaximumWindowAllocationReportsItsGpuTimeAtEachActiveSize(activeWidth: 1920, activeHeight: 1080)
+  Set TERTIUS_FSR_TIMING=1 to measure FSR's GPU time.
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+skipped Tertius.Rendering.Tests.Fsr3UpscalerTests.AnUpscaleFrom1280x720To1920x1080ReportsItsGpuTime
+  Set TERTIUS_FSR_TIMING=1 to measure FSR's GPU time.
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+skipped Tertius.Rendering.Tests.GpuCalibrationTests.TheFmaProbeReportsItsTimeAfterSecondsOfFullLoad
+  Set TERTIUS_GPU_CALIBRATION=1 to measure the probes.
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+skipped Tertius.Rendering.Tests.GpuCalibrationTests.TheFmaProbeReportsEachDispatchFromTheFirstAfterIdle
+  Set TERTIUS_GPU_CALIBRATION=1 to measure the probes.
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+skipped Tertius.Rendering.Tests.GpuCalibrationTests.EachProbeReportsItsGpuTimeAndItsShareOfThePeak
+  Set TERTIUS_GPU_CALIBRATION=1 to measure the probes.
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+/Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64) passed [+919/x0/?9] (6m 12s 265ms)
+
+Test run summary: Passed!
+  total: 928
+  failed: 0
+  succeeded: 919
+  skipped: 9
+  duration: 6m 12s 631ms
+uptime-end:  05:07:39  up 47 days 16:41,  2 users,  load average: 15.09, 26.07, 27.33

@@ -1,0 +1,11 @@
+# The image test of the reflection step cap of 128 (ter-w1o3), part b: the 24 capture scripts at 1280 x 720, the low
+# view, and the film with the follow camera of demo-exit. See part a for the binary.
+for s in airlock bounce-red-wall cabin-light deep-yard demo-meshes demo-shuttle demo-surface doorway mars-air mirror-balls pbr-spheres reflections-stills rigs spacewalk spin-station station-crate station-nocrate station surface-yard ter-7tnv-floor ter-7tnv-terminal throw walk windows; do
+  run steps2 capscripts/$s.json w3-$s-ctl
+  SWEEP_RSTEPS=128 run steps2 capscripts/$s.json w3-$s-r128
+done
+run steps2 views2.json w3-low-ctl
+SWEEP_RSTEPS=128 run steps2 views2.json w3-low-r128
+run steps2 exit-floor.json w3f-exit-floor-ctl
+SWEEP_RSTEPS=128 run steps2 exit-floor.json w3f-exit-floor-r128
+run steps2 exit-floor.json w3f-exit-floor-ctl2

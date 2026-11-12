@@ -1,0 +1,13 @@
+uptime-start:  02:17:06  up 47 days 13:51,  2 users,  load average: 12.50, 13.00, 14.69
+waited: 197s
+default driver: /nix/store/jxv1cgaay6396aqwbcvkikamsv66vvkh-MoltenVK-1.4.2/share/vulkan/icd.d/MoltenVK_icd.json
+stock driver:   /nix/store/i15qwcipchfkg00vf1bjd89dyj42qc5r-MoltenVK-1.4.2/share/vulkan/icd.d/MoltenVK_icd.json
+trace deck-acc-stock: GPU frame span: mean 24.008 ms, median 23.951 ms, p95 24.832 ms over 119 frames | GPU clock over the timed span: 1291.2 MHz (p10 1290.6, p90 1292.4 MHz,
+trace deck-acc-keep: GPU frame span: mean 23.192 ms, median 23.123 ms, p95 23.764 ms over 119 frames | GPU clock over the timed span: 1289.1 MHz (p10 1290.0, p90 1293.7 MHz,
+trace deck-acc-switch: GPU frame span: mean 24.570 ms, median 24.282 ms, p95 27.609 ms over 119 frames | GPU clock over the timed span: 1269.1 MHz (p10 1226.7, p90 1292.3 MHz,
+trace deck-acc-stock-b: GPU frame span: mean 25.165 ms, median 24.247 ms, p95 31.028 ms over 119 frames | GPU clock over the timed span: 1232.9 MHz (p10 1064.0, p90 1292.3 MHz,
+trace deck-acc-keep-b: GPU frame span: mean 23.101 ms, median 23.091 ms, p95 23.701 ms over 119 frames | GPU clock over the timed span: 1291.6 MHz (p10 1290.7, p90 1293.7 MHz,
+trace deck-acc-br-stock: GPU frame span: mean 24.109 ms, median 24.098 ms, p95 24.634 ms over 119 frames | GPU clock over the timed span: 1291.3 MHz (p10 1290.8, p90 1291.5 MHz,
+trace deck-acc-br-keep: GPU frame span: mean 23.168 ms, median 23.172 ms, p95 23.693 ms over 119 frames | GPU clock over the timed span: 1291.7 MHz (p10 1290.3, p90 1293.7 MHz,
+take 6 ended after 200 s
+uptime-end:  02:20:26  up 47 days 13:54,  2 users,  load average: 21.23, 20.24, 17.60

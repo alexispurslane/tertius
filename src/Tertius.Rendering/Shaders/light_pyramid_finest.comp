@@ -1,6 +1,6 @@
 #version 460
 // The finest level of the light pyramid (light_pyramid.glsl): each pixel's guide light, the luminance of the light that
-// leaves it without its history, as a hit reads it (hitLightOf in screen_trace.glsl): this frame's direct diffuse light
+// leaves it without its history, as a hit reads it (leavingLightAt in screen_trace.glsl): this frame's direct diffuse light
 // times the diffuse color, and the glow that the pixel sends. The sky holds none, and an impostor only its glow. One
 // invocation per pixel.
 #extension GL_GOOGLE_include_directive : require

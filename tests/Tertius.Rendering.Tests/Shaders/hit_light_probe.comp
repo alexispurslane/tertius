@@ -1,0 +1,20 @@
+#version 460
+// The light that leaves each pixel toward a ray of each kind, computed again after the tracer's stage (leavingLightAt):
+// the reflection kind's into the specular sample and the diffuse kind's into the diffuse sample, a 1 where a walk can hit
+// the pixel, 2 at an impostor's pixel and 0 at the sky. With the diffuse filter off, the stage changes none of the images
+// that it reads.
+#extension GL_GOOGLE_include_directive : require
+#include "screen_trace.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
+        return;
+    LeavingLight leaving = leavingLightAt(pixel);
+    float walkHits = !hittable(pixel) ? 0.0 : texelFetch(gbufferBaseColor, pixel, 0).a == 0.0 ? 2.0 : 1.0;
+    imageStore(specularSample, pixel, vec4(leaving.reflection, walkHits));
+    imageStore(diffuseSample, pixel, vec4(leaving.diffuse, walkHits));
+}

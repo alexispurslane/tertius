@@ -1,0 +1,15 @@
+{
+  "scene": "demo-shuttle",
+  "window": { "width": 1280, "height": 720 },
+  "steps": [
+    { "do": "run", "ticks": 120 },
+    { "do": "dump", "name": "rested" },
+    { "do": "capture", "name": "side" },
+    { "do": "camera", "entity": "tail-camera" },
+    { "do": "run", "ticks": 1 },
+    { "do": "capture", "name": "tail" },
+    { "do": "camera", "entity": "nose-camera" },
+    { "do": "run", "ticks": 1 },
+    { "do": "capture", "name": "nose" }
+  ]
+}

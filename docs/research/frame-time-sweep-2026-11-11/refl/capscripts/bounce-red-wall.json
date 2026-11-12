@@ -1,0 +1,8 @@
+{
+  "scene": "bounce-red-wall",
+  "window": { "width": 1920, "height": 1080 },
+  "steps": [
+    { "do": "run", "ticks": 10 },
+    { "do": "capture", "name": "red-wall" }
+  ]
+}

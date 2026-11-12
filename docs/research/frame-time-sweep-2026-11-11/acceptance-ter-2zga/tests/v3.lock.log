@@ -1,0 +1,20 @@
+uptime-start:  05:07:55  up 47 days 16:42,  2 users,  load average: 13.03, 24.88, 26.88
+waited: 16s
+mode: shared, with up to 3 shared runs at once
+driver: /nix/store/jxv1cgaay6396aqwbcvkikamsv66vvkh-MoltenVK-1.4.2/share/vulkan/icd.d/MoltenVK_icd.json
+Running tests from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+2026-11-12 05:07:57.800 Tertius.Rendering.Tests[44381:1139354866] Metal API Validation Enabled
+skipped Tertius.Rendering.Tests.ScreenRayTests.EveryFloorPixelWhoseVanishingPointAPlanetCoversHitsThePlanetThroughTheFrontOfItsSlab
+  The walk misjudges a far slab near a vanishing point; skipped until ter-186q fixes it.
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+roughness=0.045: finest area radiance=626.3260669158196, evaluations=159290, converged=True
+roughness=0.20000000298023224: finest area radiance=519.6646780823439, evaluations=37842, converged=True
+/Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64) passed [+1098/x0/?1] (3m 36s 288ms)
+
+Test run summary: Passed!
+  total: 1099
+  failed: 0
+  succeeded: 1098
+  skipped: 1
+  duration: 3m 36s 604ms
+uptime-end:  05:11:32  up 47 days 16:45,  2 users,  load average: 15.62, 19.85, 24.27

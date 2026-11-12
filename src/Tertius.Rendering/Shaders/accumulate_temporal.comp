@@ -36,16 +36,17 @@ const float HitDistanceShare = 0.5;
 // The sample's light age (tickets tiunr-py6q and ter-wkvw, TemporalSignal.SampleAge): 0 for no evidence, else the age in
 // frames of the youngest light that its rays hit, plus 1.
 layout(set = 3, binding = 11, r16ui) uniform readonly uimage2D sampleAge;
-
-// The least share of the slow history's luminance that a sample must hold for its age to cut the history: a dim ray does
-// not speak for the light that the history holds.
-const float AgeCutShare = 0.25;
 #endif
 
 #ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
 // The diagnostic of uncovered surfaces (TemporalSignal.UncoveredDiagnostic): the resolve wrote r, and this dispatch keeps
 // it and writes the length just before the blend, whether the sample holds the cut share, and the length before the cut.
 layout(set = 3, binding = 12, rgba32f) uniform image2D uncoveredDiagnostic;
+
+// The share of the slow history's luminance that the diagnostic reports a sample to hold. Until ter-g3tk, only a sample
+// that held it could cut the history. That restarted the history from its bright samples after a lamp went out, so every
+// sample with an age now cuts, and the share is only an observation for tools/Tertius.ReflectionReference.
+const float AgeCutShare = 0.25;
 #endif
 
 #ifdef TERTIUS_ACCUMULATION_TRACE
@@ -353,7 +354,7 @@ vec4 accumulateAt(ivec2 pixel)
     float uncutLength = historyLength;
 #endif
     uint ageCode = imageLoad(sampleAge, pixel).r;
-    if (hasSample && ageCode != 0u && luminance(sampled) >= AgeCutShare * luminance(slow.rgb))
+    if (hasSample && ageCode != 0u)
         historyLength = min(historyLength, float(ageCode - 1u));
 #ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
     bool holdsCutShare = hasSample && luminance(sampled) >= AgeCutShare * luminance(slow.rgb);

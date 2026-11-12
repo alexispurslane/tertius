@@ -1,0 +1,64 @@
+uptime-start:  01:34:08  up 47 days 13:08,  2 users,  load average: 6.26, 5.41, 5.74
+waited: 3606s
+mode: shared, with up to 3 shared runs at once
+cap-mirror-balls-ctl: 6 files, exit 0
+cap-mirror-balls-r128: 6 files, exit 0
+cap-mirror-balls-r64: 6 files, exit 0
+cap-mirror-balls-r96: 6 files, exit 0
+cap-pbr-spheres-ctl: 5 files, exit 0
+cap-pbr-spheres-r128: 5 files, exit 0
+cap-pbr-spheres-r64: 5 files, exit 0
+cap-pbr-spheres-r96: 5 files, exit 0
+cap-reflections-stills-ctl: 6 files, exit 0
+cap-reflections-stills-r128: 6 files, exit 0
+cap-reflections-stills-r64: 6 files, exit 0
+cap-reflections-stills-r96: 6 files, exit 0
+cap-demo-meshes-ctl: 9 files, exit 0
+cap-demo-meshes-r128: 9 files, exit 0
+cap-demo-meshes-r64: 9 files, exit 0
+cap-demo-meshes-r96: 9 files, exit 0
+cap-demo-shuttle-ctl: 7 files, exit 0
+cap-demo-shuttle-r128: 7 files, exit 0
+cap-demo-shuttle-r64: 7 files, exit 0
+cap-demo-shuttle-r96: 7 files, exit 0
+cap-doorway-ctl: 10 files, exit 0
+cap-doorway-r128: 10 files, exit 0
+cap-doorway-r64: 10 files, exit 0
+cap-doorway-r96: 10 files, exit 0
+cap-spin-station-ctl: 19 files, exit 0
+cap-spin-station-r128: 19 files, exit 0
+cap-spin-station-r64: 19 files, exit 0
+cap-spin-station-r96: 19 files, exit 0
+cap-station-ctl: 17 files, exit 0
+cap-station-r128: 17 files, exit 0
+cap-station-r64: 17 files, exit 0
+cap-station-r96: 17 files, exit 0
+cap-airlock-ctl: 18 files, exit 0
+cap-airlock-r128: 18 files, exit 0
+cap-airlock-r64: 18 files, exit 0
+cap-airlock-r96: 18 files, exit 0
+cap-windows-ctl: 10 files, exit 0
+cap-windows-r128: 10 files, exit 0
+cap-windows-r64: 10 files, exit 0
+cap-windows-r96: 10 files, exit 0
+cap-cabin-light-ctl: 6 files, exit 0
+cap-cabin-light-r128: 6 files, exit 0
+cap-cabin-light-r64: 6 files, exit 0
+cap-cabin-light-r96: 6 files, exit 0
+cap-demo-surface-ctl: 15 files, exit 0
+cap-demo-surface-r128: 15 files, exit 0
+cap-demo-surface-r64: 15 files, exit 0
+cap-demo-surface-r96: 15 files, exit 0
+cap-ter-7tnv-floor-ctl: 6 files, exit 0
+cap-ter-7tnv-floor-r128: 6 files, exit 0
+cap-ter-7tnv-floor-r64: 6 files, exit 0
+cap-ter-7tnv-floor-r96: 6 files, exit 0
+cap-walk-ctl: 11 files, exit 0
+cap-walk-r128: 11 files, exit 0
+cap-walk-r64: 11 files, exit 0
+cap-walk-r96: 11 files, exit 0
+steps-r96: 36 files, exit 0
+deck-steps-r96: 32 files, exit 0
+deck-steps-d40: 32 files, exit 0
+stills 3 ended
+uptime-end:  01:39:34  up 47 days 13:13,  2 users,  load average: 20.75, 19.44, 12.19

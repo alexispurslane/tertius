@@ -1,0 +1,13 @@
+# The frame comparison before the merge of ter-2zga into main, after the last merge of main: the deck, the low view and three capture scripts under
+# the patched driver (the shell's default) and the stock driver. The binary final2 is the Release build of the branch
+# head without an edit, so the deck runs with its own exposure here.
+echo "default driver: $VK_ICD_FILENAMES"
+echo "stock driver:   $TERTIUS_STOCK_MOLTENVK_ICD"
+for s in deck views2; do
+  run final2 $s.json drv6-$s-keep
+  VK_ICD_FILENAMES=$TERTIUS_STOCK_MOLTENVK_ICD run final2 $s.json drv6-$s-stock
+done
+for s in doorway demo-surface station; do
+  run final2 capscripts/$s.json drv6-$s-keep
+  VK_ICD_FILENAMES=$TERTIUS_STOCK_MOLTENVK_ICD run final2 capscripts/$s.json drv6-$s-stock
+done

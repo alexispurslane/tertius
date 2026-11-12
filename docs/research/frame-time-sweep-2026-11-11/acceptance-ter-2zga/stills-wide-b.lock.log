@@ -1,0 +1,31 @@
+uptime-start:  06:01:15  up 47 days 17:35,  2 users,  load average: 6.23, 8.91, 11.23
+waited: 93s
+mode: shared, with up to 3 shared runs at once
+default driver: /nix/store/jxv1cgaay6396aqwbcvkikamsv66vvkh-MoltenVK-1.4.2/share/vulkan/icd.d/MoltenVK_icd.json
+drv-rigs-keep: 8 files, exit 0
+drv-rigs-stock: 8 files, exit 0
+drv-spacewalk-keep: 11 files, exit 0
+drv-spacewalk-stock: 11 files, exit 0
+drv-spin-station-keep: 19 files, exit 0
+drv-spin-station-stock: 19 files, exit 0
+drv-station-crate-keep: 15 files, exit 0
+drv-station-crate-stock: 15 files, exit 0
+drv-station-nocrate-keep: 15 files, exit 0
+drv-station-nocrate-stock: 15 files, exit 0
+drv-station-keep: 17 files, exit 0
+drv-station-stock: 17 files, exit 0
+drv-surface-yard-keep: 13 files, exit 0
+drv-surface-yard-stock: 13 files, exit 0
+drv-ter-7tnv-floor-keep: 6 files, exit 0
+drv-ter-7tnv-floor-stock: 6 files, exit 0
+drv-ter-7tnv-terminal-keep: 6 files, exit 0
+drv-ter-7tnv-terminal-stock: 6 files, exit 0
+drv-throw-keep: 12 files, exit 0
+drv-throw-stock: 12 files, exit 0
+drv-walk-keep: 11 files, exit 0
+drv-walk-stock: 11 files, exit 0
+drv-windows-keep: 10 files, exit 0
+drv-windows-stock: 10 files, exit 0
+drv-station-validate: 17 files, exit 0
+stills 3 ended
+uptime-end:  06:02:44  up 47 days 17:37,  2 users,  load average: 5.92, 8.08, 10.67

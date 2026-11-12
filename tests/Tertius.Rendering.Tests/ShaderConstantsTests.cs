@@ -13,8 +13,8 @@ public sealed class ShaderConstantsTests
     private static readonly Declared False = new(Type: "bool", Default: 0);
 
     /// <summary>
-    /// The specialization constants that each shader declares, by constant_id. The table covers every constant, and each
-    /// constant in a shader that declares no other, so a swap of two ids on either side shows.
+    /// The specialization constants that each shader declares, by constant_id. The table covers every constant, and for
+    /// each two constants a shader that declares only one of them, so a swap of two ids on either side shows.
     /// </summary>
     private static readonly Dictionary<string, Dictionary<uint, Declared>> DeclaredByShader = new()
     {
@@ -34,9 +34,19 @@ public sealed class ShaderConstantsTests
             [ShaderConstants.CutoutAlphaId] = False,
             [ShaderConstants.DropsFibersId] = False,
             [ShaderConstants.MainViewId] = False,
+            [ShaderConstants.TileCornerMeansId] = False,
         },
         ["skin_scatter_rows.comp"] = new() { [ShaderConstants.ScatterTapsPerSideId] = new(Type: "int", Default: 1) },
-        ["direct.frag"] = new() { [ShaderConstants.DropsFibersId] = False },
+        ["direct.frag"] = new()
+        {
+            [ShaderConstants.DropsFibersId] = False,
+            [ShaderConstants.TileCornerMeansId] = False,
+        },
+        ["puff.vert"] = new()
+        {
+            [ShaderConstants.EnvironmentMapId] = False,
+            [ShaderConstants.TileCornerMeansId] = False,
+        },
         ["gbuffer.frag"] = new()
         {
             [ShaderConstants.EnvironmentMapId] = False,
@@ -50,6 +60,7 @@ public sealed class ShaderConstantsTests
             [ShaderConstants.CutoutAlphaId] = False,
             [ShaderConstants.DropsFibersId] = False,
             [ShaderConstants.MainViewId] = False,
+            [ShaderConstants.TileCornerMeansId] = False,
         },
     };
 
@@ -68,13 +79,35 @@ public sealed class ShaderConstantsTests
 
     [Theory]
     [MemberData(nameof(Shaders))]
-    public unsafe void TheDefaultConstantsSpecializeAShaderToItsOwnDefaults(string file)
+    public void TheDefaultConstantsSpecializeAShaderToItsOwnDefaults(string file)
     {
         IReadOnlyDictionary<uint, Declared> declared = SpecializationConstants(
             ShaderLibrary.LoadSpirv(ShaderLibrary.EngineShaders, file)
         );
+        Dictionary<uint, uint> given = Given(new ShaderConstants(EnvironmentMap: false));
+
+        foreach ((uint id, Declared constant) in declared)
+            given[id].Should().Be(constant.Default, $"a pipeline without constants takes constant_id {id}'s default");
+    }
+
+    [Theory]
+    [InlineData(true, 1u)]
+    [InlineData(false, 0u)]
+    public void TheWayToReadAShadowTileReachesItsConstant(bool cornerMeans, uint value)
+    {
+        // Both ways to read a tile give the same image, so no render test sees a constant that never arrives.
+        Dictionary<uint, uint> given = Given(
+            new ShaderConstants(EnvironmentMap: false) { TileCornerMeans = cornerMeans }
+        );
+
+        given[ShaderConstants.TileCornerMeansId].Should().Be(value);
+    }
+
+    /// <summary>The value that a pipeline with <paramref name="constants"/> gives each constant_id.</summary>
+    private static unsafe Dictionary<uint, uint> Given(ShaderConstants constants)
+    {
         SpecializationStorage storage = default;
-        SpecializationInfo* info = ShaderConstants.Specialization(new ShaderConstants(EnvironmentMap: false), &storage);
+        SpecializationInfo* info = ShaderConstants.Specialization(constants, &storage);
 
         Dictionary<uint, uint> given = [];
         for (int i = 0; i < info->MapEntryCount; i++)
@@ -83,8 +116,7 @@ public sealed class ShaderConstantsTests
             given[entry.ConstantID] = *(uint*)((byte*)info->PData + entry.Offset);
         }
 
-        foreach ((uint id, Declared constant) in declared)
-            given[id].Should().Be(constant.Default, $"a pipeline without constants takes constant_id {id}'s default");
+        return given;
     }
 
     /// <summary>A specialization constant that SPIR-V declares: its type and its default value as one word.</summary>

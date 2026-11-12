@@ -1,0 +1,18 @@
+uptime-start:  07:08:50  up 47 days 18:43,  2 users,  load average: 5.25, 5.96, 7.10
+waited: 0s
+mode: shared, with up to 3 shared runs at once
+driver: /nix/store/jxv1cgaay6396aqwbcvkikamsv66vvkh-MoltenVK-1.4.2/share/vulkan/icd.d/MoltenVK_icd.json
+commit: 05eed98ac
+Running tests from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+2026-11-12 07:08:52.174 Tertius.Rendering.Tests[88432:1140057536] Metal API Validation Enabled
+roughness=0.045: finest area radiance=626.3260669158196, evaluations=159290, converged=True
+roughness=0.20000000298023224: finest area radiance=519.6646780823439, evaluations=37842, converged=True
+/Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64) passed [+276/x0/?0] (1m 28s 774ms)
+
+Test run summary: Passed!
+  total: 276
+  failed: 0
+  succeeded: 276
+  skipped: 0
+  duration: 1m 29s 042ms
+uptime-end:  07:10:20  up 47 days 18:44,  2 users,  load average: 15.79, 8.07, 7.73

@@ -1,0 +1,7 @@
+uptime-start:  01:56:10  up 47 days 13:30,  2 users,  load average: 13.90, 8.87, 9.65
+waited: 804s
+mode: shared, with up to 3 shared runs at once
+black-crate: 15 files, exit 0
+black-nocrate: 15 files, exit 0
+stills 3 ended
+uptime-end:  01:56:37  up 47 days 13:30,  2 users,  load average: 23.91, 11.73, 10.67

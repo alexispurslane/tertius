@@ -1,0 +1,30 @@
+frames 142, span median 23.060 ms, mean 23.016 ms
+pass                                work      idle      pays  encoders
+(before the first pass)            0.007     0.000     0.007         1
+shadow maps                        0.175     0.077     0.251         4
+local shadows                      0.336     0.309     0.645        14
+environment faces                  0.448     0.026     0.474         3
+environment prefilter              0.324     0.095     0.419         6
+G-buffer                           0.195     0.027     0.221         3
+surface test                       0.226     0.019     0.245         1
+depth pyramid                      0.267     0.092     0.359         7
+direct light                       4.046     0.016     4.062         1
+light pyramid                      0.108     0.129     0.237         7
+ray plan                           0.896     0.039     0.936         3
+reflection rays                    1.448     0.042     1.489         2
+diffuse rays                       1.400     0.035     1.436         1
+screen trace resolve               0.215     0.012     0.227         1
+accumulate indirect diffuse        0.516     0.069     0.586         2
+filter indirect diffuse            4.148     0.197     4.345         6
+accumulate indirect specular       1.395     0.073     1.467         2
+composite                          0.163     0.086     0.249         1
+scatter rows                       0.033     0.039     0.072         1
+scatter columns                    0.017     0.010     0.027         1
+transparent                        2.076     0.057     2.132         2
+FSR 3.1                            1.754     0.423     2.177        22
+bloom                              0.292     0.131     0.423        11
+tone map                           0.123     0.070     0.193         5
+capture                            0.026     0.001     0.027         1
+(after the last pass)              0.002     0.025     0.027         3
+(stamp)                            0.047     0.235     0.282        28
+sum                               20.682     2.333    23.016   (means over the settled frames)

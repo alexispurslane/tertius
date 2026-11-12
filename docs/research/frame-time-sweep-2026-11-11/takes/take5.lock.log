@@ -1,0 +1,11 @@
+uptime-start:  00:08:51  up 47 days 11:43,  2 users,  load average: 13.33, 10.02, 9.15
+waited: 1348s
+trace deck-maind-t5: GPU frame span: mean 24.280 ms, median 24.259 ms, p95 24.805 ms over 119 frames | GPU clock over the timed span: 1291.3 MHz (p10 1290.6, p90 1292.4 MHz,
+trace deck-steps-r128: GPU frame span: mean 23.726 ms, median 23.674 ms, p95 24.294 ms over 119 frames | GPU clock over the timed span: 1288.3 MHz (p10 1289.9, p90 1291.7 MHz,
+trace deck-steps-r96: GPU frame span: mean 23.419 ms, median 23.400 ms, p95 23.949 ms over 119 frames | GPU clock over the timed span: 1291.1 MHz (p10 1290.8, p90 1291.5 MHz,
+trace deck-steps-d40: GPU frame span: mean 23.915 ms, median 23.863 ms, p95 24.449 ms over 119 frames | GPU clock over the timed span: 1291.2 MHz (p10 1290.5, p90 1292.2 MHz,
+trace deck-steps-d32: GPU frame span: mean 23.926 ms, median 23.788 ms, p95 24.556 ms over 119 frames | GPU clock over the timed span: 1290.6 MHz (p10 1289.7, p90 1292.3 MHz,
+trace deck-steps-ctl: GPU frame span: mean 24.237 ms, median 24.186 ms, p95 24.779 ms over 119 frames | GPU clock over the timed span: 1291.4 MHz (p10 1290.7, p90 1292.3 MHz,
+trace deck-maind-t5b: GPU frame span: mean 24.271 ms, median 24.232 ms, p95 24.817 ms over 119 frames | GPU clock over the timed span: 1291.3 MHz (p10 1290.5, p90 1292.3 MHz,
+take 5 ended after 154 s
+uptime-end:  00:11:25  up 47 days 11:45,  2 users,  load average: 12.24, 13.66, 11.04

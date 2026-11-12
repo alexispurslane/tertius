@@ -74,6 +74,15 @@ internal enum Fsr3Slot
     SpdMip3,
     SpdMip4,
     SpdMip5,
+
+    /// <summary>Level 6 of the luminance pyramid, which only the engine's clear step binds, as it binds levels 7 to 12.</summary>
+    SpdMip6,
+    SpdMip7,
+    SpdMip8,
+    SpdMip9,
+    SpdMip10,
+    SpdMip11,
+    SpdMip12,
     SpdAtomic,
     RcasInput,
     FrameInfo,
@@ -107,6 +116,9 @@ internal static class Fsr3Bindings
         Uniform(3, Fsr3Slot.Constants),
         Uniform(4, Fsr3Slot.RcasConstants),
     ];
+
+    /// <summary>The most levels of the luminance pyramid that the clear step binds: SpdMip0 to SpdMip12.</summary>
+    public const int ClearedSpdLevels = 13;
 
     // AMD's Vulkan backend shifts sampler bindings by 1000 (ffx_vk.cpp, SAMPLER_BINDING_SHIFT): s_LinearClamp is 1001.
     private const uint LinearClampBinding = 1001;
@@ -216,6 +228,17 @@ internal static class Fsr3Bindings
         Sampler(),
     ];
 
+    /// <summary>
+    /// The bindings of the engine's clear step, <c>fsr_clear.comp</c>: the images that AMD clears in every frame, the
+    /// luminance pyramid level by level, up to <see cref="ClearedSpdLevels"/> levels.
+    /// </summary>
+    public static readonly Fsr3Binding[] ClearStep =
+    [
+        Storage(0, Fsr3Slot.ReconstructedPreviousNearestDepth),
+        Storage(1, Fsr3Slot.SpdAtomic),
+        .. Enumerable.Range(0, ClearedSpdLevels).Select(level => Storage(2 + (uint)level, Fsr3Slot.SpdMip0 + level)),
+    ];
+
     /// <summary>The bindings of <paramref name="pass"/>.</summary>
     public static Fsr3Binding[] Of(Fsr3Pass pass) =>
         pass switch
@@ -242,7 +265,7 @@ internal static class Fsr3Bindings
 
     /// <summary>The level of the luminance pyramid that a storage slot writes, or null for any other slot.</summary>
     public static uint? SpdLevel(Fsr3Slot slot) =>
-        slot is >= Fsr3Slot.SpdMip0 and <= Fsr3Slot.SpdMip5 ? (uint)(slot - Fsr3Slot.SpdMip0) : null;
+        slot is >= Fsr3Slot.SpdMip0 and <= Fsr3Slot.SpdMip12 ? (uint)(slot - Fsr3Slot.SpdMip0) : null;
 
     private static Fsr3Binding Sampled(uint binding, Fsr3Slot slot) => new(binding, slot, DescriptorType.SampledImage);
 

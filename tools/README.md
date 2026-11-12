@@ -55,7 +55,7 @@ The build copies the Jolt library and the Vulkan loader next to each output, fro
 
 ## Vulkan drivers
 
-On the Mac, the dev shell offers two Vulkan drivers. MoltenVK is the default: the shell sets `VK_ICD_FILENAMES` to its ICD manifest. KosmicKrisp is LunarG's Mesa driver for Apple GPUs, from the pinned nixpkgs' `mesa`. The shell sets `TERTIUS_KOSMICKRISP_ICD` to its ICD manifest. To run a command on KosmicKrisp, set `VK_ICD_FILENAMES` from that variable for the command alone:
+On the Mac, the dev shell offers two Vulkan drivers. MoltenVK is the default: the shell sets `VK_ICD_FILENAMES` to its ICD manifest. The shell's MoltenVK is the nixpkgs build with two patches (see "The patched MoltenVK"). KosmicKrisp is LunarG's Mesa driver for Apple GPUs, from the pinned nixpkgs' `mesa`. The shell sets `TERTIUS_KOSMICKRISP_ICD` to its ICD manifest. To run a command on KosmicKrisp, set `VK_ICD_FILENAMES` from that variable for the command alone:
 
 ```bash
 nix develop --command bash -c 'VK_ICD_FILENAMES=$TERTIUS_KOSMICKRISP_ICD dotnet test --solution Tertius.slnx -c Checked'
@@ -63,6 +63,50 @@ nix develop --command bash -c 'VK_ICD_FILENAMES=$TERTIUS_KOSMICKRISP_ICD dotnet 
 ```
 
 `vulkaninfo --summary` names the driver of a shell. On Linux the shell sets no `VK_ICD_FILENAMES`, so a value from outside the shell stays. If the variable is empty and the host has NVIDIA's driver, the shell's hook sets it to NVIDIA's manifest (see "Linux NVIDIA machines"). [docs/research/kosmickrisp.md](../docs/research/kosmickrisp.md) compares the two drivers, and lists the tests that fail on KosmicKrisp and why.
+
+### The patched MoltenVK
+
+The Mac's dev shell builds MoltenVK 1.4.2 with two patches, from `native/moltenvk.nix`. A Linux shell does not build it. `nix build .#moltenvk` builds the driver alone.
+
+Why the patch exists. A Metal encoder is one group of GPU commands of one kind: a render pass, compute dispatches, or copies. MoltenVK 1.4.2 ends the open encoder at every pipeline barrier outside a render pass. So each compute dispatch behind a barrier was an encoder of its own. The GPU is idle for about 20 µs at each encoder boundary. On the station deck that was 1.10 ms of a 24.0 ms frame. The patch lowered the frame span from 24.00 to 23.07 ms, and the encoders of a frame from 116 to 79. Every image stayed the same, byte for byte. The measurements are in [the frame-time sweep](../docs/research/frame-time-sweep-2026-11-11/addendum.md), sections A5 and A6. [The acceptance record](../docs/research/frame-time-sweep-2026-11-11/acceptance-ter-2zga/README.md) holds the frames, the traces and the test runs of the flake's build.
+
+The two patches:
+
+- `native/moltenvk-execution-dependencies.patch` is upstream's fix of MoltenVK issue 2805, from pull request 2819. Release 1.4.2 does not hold it. A compute encoder that several kinds of command share then updates the fence of every barrier stage that it used.
+- `native/moltenvk-keep-dispatch-encoder.patch` is ours. Under three conditions, a barrier then keeps the open encoder.
+
+The three conditions of a kept barrier:
+
+1. Every destination stage of the barrier is the compute stage.
+2. The open encoder is a compute encoder that holds only dispatches.
+3. No time stamp waits for the end of the encoder. MoltenVK reads a stamp at the end of the encoder, so the encoder must end there.
+
+A Metal fence is an object that one encoder updates at its end, and that another encoder waits for. MoltenVK keeps fences for four barrier stages: vertex, fragment, compute and copy. Inside one compute encoder, Metal runs the dispatches in their order. Three ordering rules give a kept barrier the order that Vulkan asks for:
+
+1. The open encoder waits for the latest fence of each source stage of the barrier. So its later dispatches run after the work of those stages.
+2. The open encoder updates its compute fence only at its end. So each destination stage waits for that fence, and a later encoder runs after the whole open encoder.
+3. For every other source stage, the destination stages wait for the latest fence of that stage, as stock MoltenVK does.
+
+The engine does not depend on the patch. The renderer records every barrier that the Vulkan spec asks for, and stock MoltenVK and a Linux driver render the same frame.
+
+To compare with the stock behavior, use one of two switches for one command:
+
+```bash
+# The patched build, with the stock behavior at barriers: every barrier ends the encoder.
+nix develop --command bash -c 'TERTIUS_MOLTENVK_STOCK_BARRIERS=1 dotnet run --project src/Tertius.Demo -c Release -- --script <script> --headless --out <folder>'
+# The nixpkgs build without the two patches.
+nix develop --command bash -c 'VK_ICD_FILENAMES=$TERTIUS_STOCK_MOLTENVK_ICD dotnet run --project src/Tertius.Demo -c Release -- --script <script> --headless --out <folder>'
+```
+
+Before you merge a change of a patch, do three things:
+
+1. Run the test suites in Checked and in Release.
+2. Run the Rendering tests and the Host tests once with `MTL_DEBUG_LAYER=1`, which turns on Metal's API validation. A wrong use of a fence stops the process there.
+3. Compare the frames of one headless run with those of the stock build, byte for byte. `diff -rq <folder a> <folder b>` lists the files that differ. Between two correct runs, only `gpu-timings.json` differs.
+
+A wrong fence does not fail a test reliably. It shows as a rare flicker, because two encoders then run in the wrong order only sometimes.
+
+A later MoltenVK release holds the fix of issue 2805. After nixpkgs moves to such a release, the first patch fails to apply, and the shell does not build. Remove that patch from `native/moltenvk.nix` then. Upstream's issue 2893 proposes the change of the second patch for MoltenVK itself.
 
 ## Linux NVIDIA machines
 
@@ -91,11 +135,7 @@ It installs a pinned single-user Nix (2.34.8), builds or downloads the dev shell
 - A container allows no user namespaces, so Nix builds without a sandbox. Then a build's HOME is the real folder `/homeless-shelter`, which the cargo step of jscpd creates, and Nix refuses the next build. The script removes the folder and runs the step again, at most three times.
 - On the pods, the step took 197 to 216 s, mostly downloads, and joltc and jscpd built from source. The demo's Release build then took 42 to 57 s.
 
-Build the image from the repository root with BuildKit:
-
-```bash
-docker build --platform linux/amd64 -f tools/runpod/Dockerfile -t <image> .
-```
+tools/runpod/README.md says how to build the serverless image.
 
 ### A pod for a bring-up
 
@@ -110,6 +150,36 @@ docker build --platform linux/amd64 -f tools/runpod/Dockerfile -t <image> .
 - `nvidia-smi -lgc` fails in a container: "The current user does not have permission to change clocks" (exit code 4). Read the clock with `nvidia-smi --query-gpu=timestamp,clocks.sm,clocks.mem,temperature.gpu,power.draw --format=csv -lms 500`. `tools/gpu-clock.sh` does not read it yet (ter-az8f).
 - The `capture` pass of a headless run copies each frame over PCIe. It took 2.6 ms per 1920 × 1080 frame on the RTX 2000 Ada, and 0.9 to 4.5 ms on the L4, against 0.03 ms on the Mac. The frame span counts it (ter-fw73). Compare passes, or the span without it.
 - Compare a change with main only inside one job: cards, hosts and the capture time differ between pods.
+
+## GPU jobs on Runpod
+
+An agent runs a cloud job, on a GPU worker or on a CPU worker, through one script, `tools/runpod/gpu_job.py`, which keeps the spending within the caps. [tools/runpod/WORKBENCH.md](runpod/WORKBENCH.md) is the guide for agents: the A/B against main, the quality A/B, what still needs the Mac, the tests in the cloud, and the costs. [tools/runpod/README.md](runpod/README.md) describes how the queue works: the jobs, the images and endpoints of each kind, the caps, the audit log and the measurements. It also says how to build the serverless image.
+
+## The remotes: GitHub and the knot mirror
+
+`https://github.com/alexispurslane/tertius` is the primary home of the repository, and it is public. GitHub Actions builds the GPU image there. The knot, `git@knot.xenolandscapes.com:did:plc:6mfsw4jthsacfcdbfmfetvin`, is a push mirror: it gets every push, but nothing reads from it. Alexis moved the primary from the knot to GitHub on 2026-11-12.
+
+The remote `origin` fetches from GitHub. It has two push URLs, GitHub first and the knot second, so every `git push origin <ref>` sends the ref to both. The repository's git configuration holds the URLs, so every worktree uses them. To set them up in a new clone, run these commands:
+
+```bash
+git remote set-url origin git@github.com:alexispurslane/tertius.git
+git remote set-url --add --push origin git@github.com:alexispurslane/tertius.git
+git remote set-url --add --push origin git@knot.xenolandscapes.com:did:plc:6mfsw4jthsacfcdbfmfetvin
+```
+
+Git pushes to the URLs in order, and it runs the pre-push hook once for each URL. If one URL refuses the push, git reports an error and still pushes to the other URL. Then push again: the URL that has the ref already reports it as up to date. A push that fails only on the knot leaves GitHub correct.
+
+If the pre-push hook makes a cleanup commit, the first push stops for GitHub. The knot still gets the commits without the cleanup commit, because git chose them before the hook ran. Its hook run says that the branch is not checked out and skips the cleanup. The second push sends the cleanup commit to both URLs, and both then have the same commit. A test with two local bare repositories and git 2.54.0 showed this order on 2026-11-12.
+
+To stop the mirror, remove the knot's push URL. Then pushes go to GitHub only:
+
+```bash
+git remote set-url --delete --push origin git@knot.xenolandscapes.com:did:plc:6mfsw4jthsacfcdbfmfetvin
+```
+
+The knot has no Git LFS. As long as the mirror stays, decision 21 of `docs/plans/asset-pipeline.md` keeps binary build output out of git.
+
+Before the first push to GitHub on 2026-11-12, gitleaks 8.30.1 scanned every commit of every ref. It found three matches, and all three were the words "key generation" in `docs/research/temporal-renderer/walk-hill-climb.md`. A search for each stored secret and for key prefixes found nothing.
 
 ## Coverage on changed lines
 
@@ -217,7 +287,13 @@ A mutant of the Rendering GPU tests takes about 40 s: about 10 s of build and 30
 
 ### The official Stryker run: tools/stryker/changed.py
 
-Run it in the dev shell on the branch, with the base branch and a folder for the output:
+By default, run this one official run in the cloud. Run the command from the branch's checkout on the Mac, with the base branch, a folder for the output and your name:
+
+```bash
+python3 -I tools/stryker/cloud.py main /tmp/<ticket>-stryker --agent <your name>
+```
+
+`cloud.py` runs `changed.py` on each module on its own CPU worker, all at once, and prints the merged table ("A run on another machine" below). Only the official Stryker run goes to the cloud by default. The `tools/mutate.py` list, the pre-commit hook, the Checked and Release suites and the Mac pass of the GPU tests before a merge stay on the Mac. To run the official run on the Mac, run it in the dev shell on the branch:
 
 ```bash
 nix develop --command python3 -I tools/stryker/changed.py main /tmp/<ticket>-stryker
@@ -305,7 +381,11 @@ These changes can shorten the capture or the mutants:
 
 ### A run on another machine
 
-Ticket ter-fz34 looks at rented Linux machines for these runs. The official run needs these things there:
+`tools/stryker/cloud.py` runs the official run on Runpod's CPU workers, one module per worker, through the cloud queue (tools/runpod/WORKBENCH.md, "Tests in the cloud"). Each worker has 2 vCPUs and 4 GB, and runs one module at concurrency 1. The modules run at once, so a full hardening takes the time of its slowest module, not the sum. On 2026-11-12, Core took 2,731 s for $0.056, Simulation 1,866 s for $0.039, and Physics 641 s for $0.0145. tools/runpod/README.md, "Cloud tests", gives the measurements.
+
+On a worker, the 1-minute load and `os.cpu_count()` both read the shared host, with 192 processors. So the load rule above allows a load of 3,360 there, and in effect never applies. The timeout share rule still applies. A timeout on a worker counts as a kill, because its limit is 2 times the test's initial time on the same worker plus 300 s.
+
+The official run needs these things on any other machine, and `cloud.py` gives them to each worker:
 
 - A checkout of the commit to measure. The script reads only committed changes: it diffs from the merge base to `--head`, and it refuses a changed file that differs in the working tree.
 - The dev shell. `changed.py` and `run.py` refuse to start without `TERTIUS_VULKAN_DIR`, although the CPU test projects use no GPU.
@@ -313,7 +393,7 @@ Ticket ter-fz34 looks at rented Linux machines for these runs. The official run 
 - Nothing more for the priority and the thread bound. On Linux, `nice -n 20` gives 19, the lowest priority there, and `DOTNET_PROCESSOR_COUNT` works the same way. The process samples use `ps -A -o pid=,pgid=,ni=,pcpu=,command=`, which Linux and macOS both read.
 - No other build of the test projects in that checkout while the run goes on.
 
-Copy the output folder back. It holds `results.json`, each module's reports and its logs.
+Copy the output folder back. It holds `results.json`, each module's reports and its logs. `cloud.py` brings back each module's `results.json`, configuration, console output and process samples, because Stryker's log and report pass the 8 MB that a job's result carries.
 
 ### Stryker on one module by hand
 

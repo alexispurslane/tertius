@@ -1,0 +1,121 @@
+{
+ "scene": "doorway",
+ "window": {
+  "width": 2560,
+  "height": 1440
+ },
+ "steps": [
+  {
+   "do": "run",
+   "ticks": 30
+  },
+  {
+   "do": "dump",
+   "name": "standing"
+  },
+  {
+   "do": "capture",
+   "name": "standing"
+  },
+  {
+   "do": "camera",
+   "entity": "person"
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "keyDown",
+    "code": 87
+   }
+  },
+  {
+   "do": "run",
+   "ticks": 70
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "keyUp",
+    "code": 87
+   }
+  },
+  {
+   "do": "run",
+   "ticks": 90
+  },
+  {
+   "do": "dump",
+   "name": "inside"
+  },
+  {
+   "do": "capture",
+   "name": "inside-view"
+  },
+  {
+   "do": "camera",
+   "entity": "camera"
+  },
+  {
+   "do": "capture",
+   "name": "inside"
+  },
+  {
+   "do": "camera",
+   "entity": "person"
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "keyDown",
+    "code": 83
+   }
+  },
+  {
+   "do": "run",
+   "ticks": 70
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "keyUp",
+    "code": 83
+   }
+  },
+  {
+   "do": "run",
+   "ticks": 90
+  },
+  {
+   "do": "dump",
+   "name": "outside"
+  },
+  {
+   "do": "camera",
+   "entity": "camera"
+  },
+  {
+   "do": "capture",
+   "name": "outside"
+  }
+ ]
+}

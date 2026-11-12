@@ -1,0 +1,27 @@
+{
+ "scene": "reflections",
+ "window": {
+  "width": 1920,
+  "height": 1080
+ },
+ "steps": [
+  {
+   "do": "run",
+   "ticks": 7
+  },
+  {
+   "do": "camera",
+   "entity": "low-camera"
+  },
+  {
+   "do": "run",
+   "ticks": 120
+  },
+  {
+   "do": "film",
+   "name": "ref",
+   "frames": 240,
+   "every": 2
+  }
+ ]
+}

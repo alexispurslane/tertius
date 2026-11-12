@@ -37,6 +37,65 @@ changed = _load("changed", "stryker/changed.py")
 config = _load("config", "stryker/config.py")
 compare = _load("compare", "stryker/compare.py")
 run = _load("run", "stryker/run.py")
+cloud = _load("cloud", "stryker/cloud.py")
+
+
+class TheCloudRun(unittest.TestCase):
+    """tools/stryker/cloud.py runs one module per CPU worker and prints the table of changed.py over all of them."""
+
+    def result(self, module, problems=(), official=True):
+        return {"rows": [{"id": f"{module}-1", "result": "killed"}], "unmutated": [[f"src/{module}.cs", 3]],
+                "evidence": [f"{module}: evidence"], "problems": list(problems), "settings": "concurrency 1",
+                "official": official, "load": [1.0]}
+
+    def test_the_merged_run_keeps_every_modules_rows_in_the_order_of_the_official_run(self):
+        run = cloud.merged({"Physics": self.result("Physics"), "Core": self.result("Core")}, {})
+        self.assertEqual([row["id"] for row in run["rows"]], ["Core-1", "Physics-1"])
+        self.assertEqual(run["unmutated"], [("src/Core.cs", 3), ("src/Physics.cs", 3)])
+        self.assertEqual(run["problems"], [])
+
+    def test_a_module_whose_job_gave_no_results_makes_the_run_not_valid(self):
+        run = cloud.merged({"Core": self.result("Core")}, {"Simulation": "exit code 1"})
+        self.assertEqual(len(run["problems"]), 1)
+        self.assertIn("Simulation", run["problems"][0])
+
+    def test_one_modules_calibration_settings_make_the_whole_run_unofficial(self):
+        run = cloud.merged({"Core": self.result("Core"), "Physics": self.result("Physics", official=False)}, {})
+        self.assertFalse(run["official"])
+
+    def test_an_output_folder_that_holds_files_is_refused_so_an_old_result_cannot_count_for_this_run(self):
+        with tempfile.TemporaryDirectory() as folder:
+            (Path(folder) / "Core").mkdir()
+            (Path(folder) / "Core" / "results.json").write_text("{}")
+            self.assertIn("not empty", cloud.unusable(Path(folder)))
+            self.assertIsNone(cloud.unusable(Path(folder) / "new"))
+            (Path(folder) / "empty").mkdir()
+            self.assertIsNone(cloud.unusable(Path(folder) / "empty"))
+
+    def test_the_job_asks_only_for_files_that_fit_the_8_mb_a_result_carries(self):
+        # On 2026-11-12, Stryker's log was 8 to 21 MB and the mutation report 6 to 85 MB per module.
+        self.assertFalse([name for name in cloud.OUTPUTS if "mutation-report" in name or "logs" in name])
+        self.assertIn("results.json", cloud.OUTPUTS)
+
+    def test_a_signal_to_the_cloud_run_reaches_every_job_that_it_started_and_only_once(self):
+        jobs = cloud.Jobs()
+        with open(os.devnull, "w") as log:
+            child = jobs.start([sys.executable, "-c", "import time; time.sleep(30)"], log)
+            self.assertNotEqual(os.getpgid(child.pid), os.getpgid(0),
+                                "a Ctrl-C to the run's group must not reach the job a second time")
+            jobs.stop(15)
+            self.assertEqual(child.wait(timeout=10), -15)
+
+    def test_a_job_that_would_start_after_a_signal_does_not_start(self):
+        jobs = cloud.Jobs()
+        jobs.stop(15)
+        with open(os.devnull, "w") as log:
+            self.assertIsNone(jobs.start([sys.executable, "-c", "pass"], log))
+
+    def test_the_job_deepens_its_shallow_tree_and_runs_one_module_from_the_merge_base(self):
+        command = cloud.job_command("a" * 40, "Simulation", ["Program.cs"])
+        self.assertIn("--unshallow", command)
+        self.assertTrue(command.endswith(f"changed.py {'a' * 40} ../out --modules Simulation --exclude Program.cs"))
 
 
 class ReadingADiff(unittest.TestCase):

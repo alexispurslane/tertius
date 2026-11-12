@@ -1,0 +1,13 @@
+{
+  "scene": "demo-surface",
+  "window": { "width": 1280, "height": 720 },
+  "steps": [
+    { "do": "run", "ticks": 30 },
+    { "do": "camera", "entity": "terminal-camera" },
+    { "do": "run", "ticks": 284 },
+    { "do": "capture", "name": "terminal" },
+    { "do": "dump", "name": "terminal" },
+    { "do": "run", "ticks": 1 },
+    { "do": "capture", "name": "terminal-next" }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "scene": "reflections",
+  "window": { "width": 1920, "height": 1080 },
+  "steps": [
+    { "do": "run", "ticks": 60 },
+    { "do": "capture", "name": "front" },
+    { "do": "camera", "entity": "edge-camera" },
+    { "do": "run", "ticks": 60 },
+    { "do": "capture", "name": "edge" },
+    { "do": "camera", "entity": "low-camera" },
+    { "do": "run", "ticks": 60 },
+    { "do": "capture", "name": "low" },
+    { "do": "film", "name": "lowfilm", "frames": 12, "every": 8 }
+  ]
+}

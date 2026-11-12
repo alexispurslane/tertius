@@ -20,7 +20,7 @@ RayRecord recordAt(ivec2 pixel, uint kind, uint plan)
     return record;
 }
 
-// A ray of the record that the pixel weighs: its direction and its density.
+// A ray of the record that the pixel weighs: its direction and the density by which the pixel weighs it.
 struct WeighedRay
 {
     vec3 direction;
@@ -28,11 +28,21 @@ struct WeighedRay
     bool brings;    // whether the ray traced and lies above the pixel's geometric plane: only then does it bring light
 };
 
-WeighedRay weighedRayOf(TracingPixel p, RayRecord record)
+// The ray of the record of the kind at the pixel. A reflection ray counts with the pixel's own density along its
+// direction: the record's density for the pixel's own ray, and for its block's ray the density of the pixel's own lobe,
+// not the density of the pixel that traced it (ticket ter-xo83). Where the two densities differ, as near a contact, their
+// quotient made the weight noisy. The own density keeps the record's floor: below LeastDensity it is 0, so that no
+// divisor is a denormal. A diffuse ray counts with the record's density.
+WeighedRay weighedRayOf(TracingPixel p, RayRecord record, uint kind, uint plan)
 {
     WeighedRay ray;
     ray.direction = directionOfCode(record.ray.xy);
     ray.density = densityOfCode(record.ray.z);
+    if (kind == KindReflection && (plan & PlanOwnReflection) == 0u)
+    {
+        float own = reflectionDensity(p, ray.direction);
+        ray.density = own >= LeastDensity ? own : 0.0;
+    }
     ray.brings = (record.ray.w & RayTraced) != 0u && dot(ray.direction, p.s.geometricNormal) > 0.0 && ray.density > 0.0;
     return ray;
 }
@@ -84,7 +94,7 @@ void main()
     MaterialFactors factors = materialFactors(p.s, lobes);
 
     RayRecord diffuse = recordAt(pixel, KindDiffuse, plan);
-    WeighedRay diffuseRay = weighedRayOf(p, diffuse);
+    WeighedRay diffuseRay = weighedRayOf(p, diffuse, KindDiffuse, plan);
     vec3 diffuseLight = diffuseRay.brings ? diffuse.light.rgb * diffuseWeightOf(p, diffuseRay) : vec3(0.0);
     // Capped as the specular sample is: a light at MaxRadiance times a weight of up to 4 passes the largest half float.
     imageStore(diffuseSample, pixel, vec4(min(diffuseLight, vec3(MaxRadiance)), 1.0));
@@ -119,7 +129,7 @@ void main()
     if (startsKind(p, KindReflection))
     {
         RayRecord reflection = recordAt(pixel, KindReflection, plan);
-        WeighedRay reflectionRay = weighedRayOf(p, reflection);
+        WeighedRay reflectionRay = weighedRayOf(p, reflection, KindReflection, plan);
         if (reflectionRay.brings)
         {
             specularLight += (1.0 - handOver) * reflection.light.rgb * specularWeightOf(p, lobes, factors, reflectionRay);

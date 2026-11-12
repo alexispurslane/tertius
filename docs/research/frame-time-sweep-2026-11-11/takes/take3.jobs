@@ -1,0 +1,14 @@
+# Take 3: the encoder breaks. Stock MoltenVK against the patched one (mvk-keep-dispatch-encoder.patch), all without the
+# pass time stamps, as a window runs. Two rounds, so that a drift of the machine shows. The patched driver's jobs run
+# only when its build exists.
+P=$(readlink $S/mvk-patched 2>/dev/null)/share/vulkan/icd.d/MoltenVK_icd.json
+NS="--pass-timestamps off"
+trace deck-ns-stock maind $D $NS
+[ -f $P ] && VK_ICD_FILENAMES=$P trace deck-ns-keep maind $D $NS
+[ -f $P ] && VK_ICD_FILENAMES=$P TRACE_EXTRA_ENV="MVK_SWEEP_KEEP_ANY_DEST=1" trace deck-ns-any maind $D $NS
+[ -f $P ] && VK_ICD_FILENAMES=$P TRACE_EXTRA_ENV="MVK_SWEEP_KEEP_ANY_DEST=1 MVK_SWEEP_CONCURRENT_DISPATCH=1" trace deck-ns-conc maind $D $NS
+trace deck-ns-stock-b maind $D $NS
+[ -f $P ] && VK_ICD_FILENAMES=$P trace deck-ns-keep-b maind $D $NS
+[ -f $P ] && VK_ICD_FILENAMES=$P TRACE_EXTRA_ENV="MVK_SWEEP_KEEP_ANY_DEST=1" trace deck-ns-any-b maind $D $NS
+[ -f $P ] && VK_ICD_FILENAMES=$P TRACE_EXTRA_ENV="MVK_SWEEP_KEEP_ANY_DEST=1 MVK_SWEEP_CONCURRENT_DISPATCH=1" trace deck-ns-conc-b maind $D $NS
+[ -f $P ] && VK_ICD_FILENAMES=$P TRACE_EXTRA_ENV="MVK_SWEEP_END_ENCODER_AT_BARRIER=1" trace deck-ns-end maind $D $NS

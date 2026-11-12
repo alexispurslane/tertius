@@ -1,0 +1,14 @@
+uptime-start:  21:30:07  up 47 days  9:04,  4 users,  load average: 7.93, 12.12, 19.07
+waited: 5831s
+mode: shared, with up to 3 shared runs at once
+base: 36 files, exit 0
+ssr1: 19 files, exit 2
+ssr4h: 36 files, exit 0
+ssr9h: 36 files, exit 0
+ownall: 36 files, exit 0
+halfup: 36 files, exit 0
+deck-base: 32 files, exit 0
+deck-ssr4h: 32 files, exit 0
+deck-ssr1: 32 files, exit 0
+reference: 73 files, exit 2
+uptime-end:  21:33:30  up 47 days  9:07,  3 users,  load average: 11.92, 12.93, 18.08

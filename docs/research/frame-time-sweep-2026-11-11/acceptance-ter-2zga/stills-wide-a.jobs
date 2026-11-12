@@ -1,0 +1,14 @@
+# The wide frame check of the patched MoltenVK on the branch after the merge of main (ter-2zga), part a. Each capture
+# script runs under the patched driver (the shell's default) and under the stock driver. The binary merged is the
+# merged branch's Release build without an edit. The low view and three scripts also run under Metal's API validation.
+echo "default driver: $VK_ICD_FILENAMES"
+echo "stock driver:   $TERTIUS_STOCK_MOLTENVK_ICD"
+run merged views2.json drv-low-keep
+VK_ICD_FILENAMES=$TERTIUS_STOCK_MOLTENVK_ICD run merged views2.json drv-low-stock
+MTL_DEBUG_LAYER=1 run merged views2.json drv-low-validate
+for s in airlock bounce-red-wall cabin-light deep-yard demo-meshes demo-shuttle demo-surface doorway mars-air mirror-balls pbr-spheres reflections-stills; do
+  run merged capscripts/$s.json drv-$s-keep
+  VK_ICD_FILENAMES=$TERTIUS_STOCK_MOLTENVK_ICD run merged capscripts/$s.json drv-$s-stock
+done
+MTL_DEBUG_LAYER=1 run merged capscripts/doorway.json drv-doorway-validate
+MTL_DEBUG_LAYER=1 run merged capscripts/demo-surface.json drv-demo-surface-validate

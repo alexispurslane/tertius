@@ -1,0 +1,58 @@
+uptime-start:  08:04:39  up 47 days 19:38,  2 users,  load average: 18.81, 18.79, 17.72
+waited: 2s
+mode: shared, with up to 3 shared runs at once
+w3-airlock-ctl: 18 files, exit 0
+w3-airlock-r128: 18 files, exit 0
+w3-bounce-red-wall-ctl: 4 files, exit 0
+w3-bounce-red-wall-r128: 4 files, exit 0
+w3-cabin-light-ctl: 6 files, exit 0
+w3-cabin-light-r128: 6 files, exit 0
+w3-deep-yard-ctl: 12 files, exit 0
+w3-deep-yard-r128: 12 files, exit 0
+w3-demo-meshes-ctl: 9 files, exit 0
+w3-demo-meshes-r128: 9 files, exit 0
+w3-demo-shuttle-ctl: 7 files, exit 0
+w3-demo-shuttle-r128: 7 files, exit 0
+w3-demo-surface-ctl: 15 files, exit 0
+w3-demo-surface-r128: 15 files, exit 0
+w3-doorway-ctl: 10 files, exit 0
+w3-doorway-r128: 10 files, exit 0
+w3-mars-air-ctl: 9 files, exit 0
+w3-mars-air-r128: 9 files, exit 0
+w3-mirror-balls-ctl: 6 files, exit 0
+w3-mirror-balls-r128: 6 files, exit 0
+w3-pbr-spheres-ctl: 5 files, exit 0
+w3-pbr-spheres-r128: 5 files, exit 0
+w3-reflections-stills-ctl: 6 files, exit 0
+w3-reflections-stills-r128: 6 files, exit 0
+w3-rigs-ctl: 8 files, exit 0
+w3-rigs-r128: 8 files, exit 0
+w3-spacewalk-ctl: 11 files, exit 0
+w3-spacewalk-r128: 11 files, exit 0
+w3-spin-station-ctl: 19 files, exit 0
+w3-spin-station-r128: 19 files, exit 0
+w3-station-crate-ctl: 15 files, exit 0
+w3-station-crate-r128: 15 files, exit 0
+w3-station-nocrate-ctl: 15 files, exit 0
+w3-station-nocrate-r128: 15 files, exit 0
+w3-station-ctl: 17 files, exit 0
+w3-station-r128: 17 files, exit 0
+w3-surface-yard-ctl: 13 files, exit 0
+w3-surface-yard-r128: 13 files, exit 0
+w3-ter-7tnv-floor-ctl: 6 files, exit 0
+w3-ter-7tnv-floor-r128: 6 files, exit 0
+w3-ter-7tnv-terminal-ctl: 6 files, exit 0
+w3-ter-7tnv-terminal-r128: 6 files, exit 0
+w3-throw-ctl: 12 files, exit 0
+w3-throw-r128: 12 files, exit 0
+w3-walk-ctl: 11 files, exit 0
+w3-walk-r128: 11 files, exit 0
+w3-windows-ctl: 10 files, exit 0
+w3-windows-r128: 10 files, exit 0
+w3-low-ctl: 36 files, exit 0
+w3-low-r128: 36 files, exit 0
+w3f-exit-floor-ctl: 183 files, exit 0
+w3f-exit-floor-r128: 183 files, exit 0
+w3f-exit-floor-ctl2: 183 files, exit 0
+stills 3 ended
+uptime-end:  08:11:55  up 47 days 19:46,  2 users,  load average: 13.73, 29.86, 26.34

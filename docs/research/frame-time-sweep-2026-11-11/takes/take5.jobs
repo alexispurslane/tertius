@@ -1,0 +1,9 @@
+# Take 5: the time of the two walks at more step caps, between the take's own baselines.
+X="SWEEP_EXPOSURE=0.7041458"
+trace deck-maind-t5 maind $D
+TRACE_EXTRA_ENV="$X SWEEP_RSTEPS=128" trace deck-steps-r128 steps $D
+TRACE_EXTRA_ENV="$X SWEEP_RSTEPS=96" trace deck-steps-r96 steps $D
+TRACE_EXTRA_ENV="$X SWEEP_DSTEPS=40" trace deck-steps-d40 steps $D
+TRACE_EXTRA_ENV="$X SWEEP_DSTEPS=32" trace deck-steps-d32 steps $D
+TRACE_EXTRA_ENV="$X" trace deck-steps-ctl steps $D
+trace deck-maind-t5b maind $D

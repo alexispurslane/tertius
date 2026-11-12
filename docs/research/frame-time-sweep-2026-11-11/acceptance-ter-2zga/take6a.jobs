@@ -1,0 +1,13 @@
+# Take 6: the flake's patched MoltenVK against the stock build, without the pass time stamps, as a window runs. The
+# shell's default driver is the patched one, and TERTIUS_STOCK_MOLTENVK_ICD names the stock one. The binary maind is the
+# one of take 3, so the rows compare with section A5. The binary br is the ticket branch's own Release build.
+NS="--pass-timestamps off"
+echo "default driver: $VK_ICD_FILENAMES"
+echo "stock driver:   $TERTIUS_STOCK_MOLTENVK_ICD"
+VK_ICD_FILENAMES=$TERTIUS_STOCK_MOLTENVK_ICD trace deck-acc-stock maind $D $NS
+trace deck-acc-keep maind $D $NS
+TRACE_EXTRA_ENV="TERTIUS_MOLTENVK_STOCK_BARRIERS=1" trace deck-acc-switch maind $D $NS
+VK_ICD_FILENAMES=$TERTIUS_STOCK_MOLTENVK_ICD trace deck-acc-stock-b maind $D $NS
+trace deck-acc-keep-b maind $D $NS
+VK_ICD_FILENAMES=$TERTIUS_STOCK_MOLTENVK_ICD trace deck-acc-br-stock br $D $NS
+trace deck-acc-br-keep br $D $NS

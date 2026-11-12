@@ -11,7 +11,7 @@ namespace Tertius.Physics.Tests;
 /// </summary>
 public sealed class PuffSnapshotTests
 {
-    /// <summary>The hash of the snapshot puffs of <see cref="PuffTesting.BusySceneWithCamera"/> after 300 ticks.</summary>
+    /// <summary>The hash of the snapshot puffs of <see cref="PuffTesting.BusySceneWithCamera"/> after 300 ticks, on arm64 (<see cref="RecordedReference"/>).</summary>
     private const ulong PinnedHash = 2111527910242662902;
 
     /// <summary>
@@ -127,8 +127,9 @@ public sealed class PuffSnapshotTests
         RenderSnapshot firstSnapshot = PuffTesting.Latest(first);
         firstSnapshot.Puffs.Should().HaveCount(500, "the cap binds in this scene");
         WorldHash.OfPuffs(PuffTesting.Latest(second)).Should().Be(WorldHash.OfPuffs(firstSnapshot));
+        first.Errors.Should().BeEmpty();
+        Assert.SkipUnless(RecordedReference.Applies, RecordedReference.SkipReason);
         // tools/test-all.sh runs this test in Debug and in Release, so both builds must give this hash.
         WorldHash.OfPuffs(firstSnapshot).Should().Be(PinnedHash);
-        first.Errors.Should().BeEmpty();
     }
 }

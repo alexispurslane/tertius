@@ -1,0 +1,81 @@
+{
+ "scene": "skin-and-hair",
+ "window": {
+  "width": 1280,
+  "height": 720
+ },
+ "steps": [
+  {
+   "do": "camera",
+   "entity": "head-camera"
+  },
+  {
+   "do": "run",
+   "ticks": 10
+  },
+  {
+   "do": "capture",
+   "name": "head"
+  },
+  {
+   "do": "camera",
+   "entity": "ear-camera"
+  },
+  {
+   "do": "run",
+   "ticks": 10
+  },
+  {
+   "do": "capture",
+   "name": "ear"
+  },
+  {
+   "do": "camera",
+   "entity": "hair-fringed-camera"
+  },
+  {
+   "do": "run",
+   "ticks": 10
+  },
+  {
+   "do": "capture",
+   "name": "hair-fringed"
+  },
+  {
+   "do": "camera",
+   "entity": "hair-cutout-camera"
+  },
+  {
+   "do": "run",
+   "ticks": 10
+  },
+  {
+   "do": "capture",
+   "name": "hair-cutout"
+  },
+  {
+   "do": "camera",
+   "entity": "hair-glass-camera"
+  },
+  {
+   "do": "run",
+   "ticks": 10
+  },
+  {
+   "do": "capture",
+   "name": "hair-glass"
+  },
+  {
+   "do": "camera",
+   "entity": "hair-camera"
+  },
+  {
+   "do": "run",
+   "ticks": 10
+  },
+  {
+   "do": "capture",
+   "name": "hair"
+  }
+ ]
+}

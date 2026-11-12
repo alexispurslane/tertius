@@ -1,0 +1,238 @@
+{
+ "rows": {
+  "(before the first pass)": {
+   "stamp": 2,
+   "encoders": 2
+  },
+  "deformation": {},
+  "shadow maps": {
+   "barriers": 1,
+   "kept": 0,
+   "render": 4,
+   "encoders": 5,
+   "stamp": 1
+  },
+  "local shadows": {
+   "barriers": 2,
+   "kept": 0,
+   "render": 13,
+   "encoders": 15,
+   "compute, first": 1,
+   "dispatches": 1,
+   "stamp": 1
+  },
+  "environment faces": {
+   "barriers": 5,
+   "kept": 0,
+   "ended a compute encoder, other dst": 1,
+   "render": 3,
+   "encoders": 4,
+   "stamp": 1
+  },
+  "environment prefilter": {
+   "barriers": 7,
+   "kept": 3,
+   "compute, first": 1,
+   "encoders": 4,
+   "dispatches": 10,
+   "ended a compute encoder, other dst": 2,
+   "compute after a barrier": 1,
+   "blit": 1,
+   "stamp": 1
+  },
+  "G-buffer": {
+   "barriers": 3,
+   "kept": 0,
+   "render": 3,
+   "encoders": 4,
+   "stamp": 1
+  },
+  "surface test": {
+   "barriers": 1,
+   "kept": 0,
+   "compute, first": 1,
+   "encoders": 2,
+   "dispatches": 1,
+   "stamp": 1
+  },
+  "depth pyramid": {
+   "barriers": 7,
+   "kept": 6,
+   "ended a compute encoder, dst compute only": 1,
+   "compute after a barrier": 1,
+   "encoders": 2,
+   "dispatches": 7,
+   "stamp": 1
+  },
+  "direct light": {
+   "barriers": 1,
+   "kept": 0,
+   "ended a compute encoder, other dst": 1,
+   "render": 1,
+   "encoders": 2,
+   "stamp": 1
+  },
+  "light pyramid": {
+   "barriers": 7,
+   "kept": 6,
+   "compute, first": 1,
+   "encoders": 2,
+   "dispatches": 7,
+   "stamp": 1
+  },
+  "ray plan": {
+   "barriers": 3,
+   "kept": 0,
+   "ended a compute encoder, other dst": 1,
+   "blit": 2,
+   "encoders": 4,
+   "compute, first": 1,
+   "dispatches": 1,
+   "stamp": 1
+  },
+  "reflection rays": {
+   "barriers": 2,
+   "kept": 0,
+   "ended a compute encoder, dst compute only": 1,
+   "compute after a barrier": 2,
+   "encoders": 3,
+   "dispatches": 1,
+   "ended a compute encoder, other dst": 1,
+   "stamp": 1
+  },
+  "diffuse rays": {
+   "barriers": 1,
+   "kept": 0,
+   "ended a compute encoder, dst compute only": 1,
+   "compute after a barrier": 1,
+   "encoders": 2,
+   "dispatches": 1,
+   "stamp": 1
+  },
+  "screen trace resolve": {
+   "barriers": 1,
+   "kept": 0,
+   "ended a compute encoder, dst compute only": 1,
+   "compute after a barrier": 1,
+   "encoders": 2,
+   "dispatches": 1,
+   "stamp": 1
+  },
+  "accumulate indirect diffuse": {
+   "barriers": 2,
+   "kept": 1,
+   "ended a compute encoder, dst compute only": 1,
+   "compute after a barrier": 1,
+   "encoders": 2,
+   "dispatches": 2,
+   "stamp": 1
+  },
+  "filter indirect diffuse": {
+   "barriers": 6,
+   "kept": 5,
+   "ended a compute encoder, dst compute only": 1,
+   "compute after a barrier": 1,
+   "encoders": 2,
+   "dispatches": 6,
+   "stamp": 1
+  },
+  "accumulate indirect specular": {
+   "barriers": 2,
+   "kept": 1,
+   "ended a compute encoder, dst compute only": 1,
+   "compute after a barrier": 1,
+   "encoders": 2,
+   "dispatches": 2,
+   "stamp": 1
+  },
+  "composite": {
+   "barriers": 1,
+   "kept": 0,
+   "ended a compute encoder, other dst": 1,
+   "render": 1,
+   "encoders": 2,
+   "stamp": 1
+  },
+  "scatter rows": {
+   "barriers": 1,
+   "kept": 0,
+   "compute, first": 1,
+   "encoders": 2,
+   "dispatches": 1,
+   "stamp": 1
+  },
+  "scatter columns": {
+   "barriers": 1,
+   "kept": 0,
+   "ended a compute encoder, dst compute only": 1,
+   "compute after a barrier": 1,
+   "encoders": 3,
+   "dispatches": 1,
+   "stamp": 2
+  },
+  "haze": {},
+  "transparent": {
+   "barriers": 2,
+   "kept": 0,
+   "ended a compute encoder, other dst": 1,
+   "blit": 1,
+   "encoders": 3,
+   "render": 1,
+   "stamp": 1
+  },
+  "FSR 3.1": {
+   "barriers": 13,
+   "kept": 7,
+   "blit": 1,
+   "encoders": 16,
+   "compute, first": 2,
+   "dispatches": 9,
+   "ended a compute encoder, other dst": 1,
+   "clear": 12,
+   "stamp": 1
+  },
+  "bloom": {
+   "barriers": 11,
+   "kept": 0,
+   "ended a compute encoder, other dst": 1,
+   "render": 11,
+   "encoders": 12,
+   "stamp": 1
+  },
+  "tone map": {
+   "barriers": 1,
+   "kept": 0,
+   "render": 1,
+   "encoders": 3,
+   "stamp": 2
+  },
+  "outlines": {},
+  "capture": {
+   "barriers": 1,
+   "kept": 0,
+   "blit": 1,
+   "encoders": 2,
+   "stamp": 1
+  },
+  "(after the last pass)": {
+   "barriers": 2,
+   "kept": 0,
+   "blit": 1,
+   "encoders": 1
+  }
+ },
+ "total": {
+  "stamp": 28,
+  "encoders": 103,
+  "barriers": 84,
+  "kept": 29,
+  "render": 38,
+  "compute, first": 8,
+  "dispatches": 51,
+  "ended a compute encoder, other dst": 10,
+  "compute after a barrier": 10,
+  "blit": 7,
+  "ended a compute encoder, dst compute only": 8,
+  "clear": 12
+ }
+}

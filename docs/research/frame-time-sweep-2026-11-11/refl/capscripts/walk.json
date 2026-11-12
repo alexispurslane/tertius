@@ -1,0 +1,33 @@
+{
+  "scene": "orbit",
+  "window": { "width": 1280, "height": 720 },
+  "steps": [
+    { "do": "camera", "entity": "person" },
+    { "do": "run", "ticks": 30 },
+    { "do": "dump", "name": "standing" },
+    { "do": "capture", "name": "cabin" },
+    { "do": "post", "to": { "kind": "topic", "name": "input" }, "event": "InputEvent", "payload": { "kind": "keyDown", "code": 87 } },
+    { "do": "run", "ticks": 120 },
+    { "do": "post", "to": { "kind": "topic", "name": "input" }, "event": "InputEvent", "payload": { "kind": "keyUp", "code": 87 } },
+    { "do": "run", "ticks": 30 },
+    { "do": "dump", "name": "walked" },
+    { "do": "post", "to": { "kind": "topic", "name": "input" }, "event": "InputEvent", "payload": { "kind": "mouseMove", "delta": [-628.3185, 0] } },
+    { "do": "post", "to": { "kind": "topic", "name": "input" }, "event": "InputEvent", "payload": { "kind": "keyDown", "code": 87 } },
+    { "do": "run", "ticks": 120 },
+    { "do": "post", "to": { "kind": "topic", "name": "input" }, "event": "InputEvent", "payload": { "kind": "keyUp", "code": 87 } },
+    { "do": "run", "ticks": 30 },
+    { "do": "dump", "name": "turned" },
+    { "do": "capture", "name": "turned" },
+    { "do": "post", "to": { "kind": "topic", "name": "input" }, "event": "InputEvent", "payload": { "kind": "keyDown", "code": 32 } },
+    { "do": "post", "to": { "kind": "topic", "name": "input" }, "event": "InputEvent", "payload": { "kind": "keyUp", "code": 32 } },
+    { "do": "run", "ticks": 27 },
+    { "do": "dump", "name": "jumping" },
+    { "do": "run", "ticks": 60 },
+    { "do": "dump", "name": "landed" },
+    { "do": "post", "to": { "kind": "topic", "name": "input" }, "event": "InputEvent", "payload": { "kind": "keyDown", "code": 87 } },
+    { "do": "run", "ticks": 120 },
+    { "do": "post", "to": { "kind": "topic", "name": "input" }, "event": "InputEvent", "payload": { "kind": "keyUp", "code": 87 } },
+    { "do": "run", "ticks": 30 },
+    { "do": "dump", "name": "at-wall" }
+  ]
+}

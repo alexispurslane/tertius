@@ -105,7 +105,7 @@ flowchart LR
 - The samples feed three stocks of each signal: S with L, F, and σr. The temporal dispatch writes all three in each draw.
 - For bounce light, the filter's feedback step writes S's light and σr a second time. It already writes S's light today.
 - Three detectors produce evidence. Each one writes its result into one store, the length L.
-  - The light-age record sees changes of direct light. The rays carry the age to the sample. The temporal dispatch cuts L to the age. It does so only for a sample with at least 25 % of the history's light (`AgeCutShare`, from `ter-wkvw`).
+  - The light-age record sees changes of direct light. The rays carry the age to the sample. The temporal dispatch cuts L to the age, for every sample that brings one (`ter-wkvw`; the 25 % condition went with `cr-pkzd` on main, 2026-11-12).
   - The clamp sees S outside its box. It moves S into the box, and the anti-lag shortens L by the move. This is today's rule.
   - The block test sees a window's fast mean differ from its slow mean beyond the noise and a floor. It narrows the box for this draw and cuts L to `FastCap`. This is new.
 - σr is the stored confidence of S. The clamp widens the box by it. The block test pools the noise with it. The filter's luminance stop reads it.
@@ -447,7 +447,7 @@ The cabin's lamps-off case can still miss 60 draws after Design A. Then two leve
 - Less reflection noise: the sweep's resolve over four ray blocks cut grain by 24 to 59 %, at an estimated 0.4 to 0.6 ms.
 - A shorter reflection history after a change, at the cost of more specks during it.
 
-The share rule of the cut, 25 %, stays as `ter-wkvw` set it. The cut rule without that condition (`cr-pkzd`, branch `ter-g3tk-cut-rule`) lowers the jump after lamps off from +72 % to +42 %. It is independent of this design. Whichever of the two merges second is measured on top of the other.
+The cut rule without its 25 % condition (`cr-pkzd`) merged into main first and lowers the jump after lamps off from +72 % to +42 %. Design A takes it for both signals, so one cut rule holds for the bounce light and the reflections; step 7 measures on top of it.
 
 ## 10. Case (b) of `ter-g3tk` and the write-back climb
 

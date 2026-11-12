@@ -1,0 +1,32 @@
+uptime-start:  04:31:18  up 47 days 16:05,  2 users,  load average: 7.95, 5.32, 4.61
+waited: 5519s
+mode: shared, with up to 3 shared runs at once
+driver: /nix/store/jxv1cgaay6396aqwbcvkikamsv66vvkh-MoltenVK-1.4.2/share/vulkan/icd.d/MoltenVK_icd.json
+Running tests from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+2026-11-12 04:31:20.243 Tertius.Rendering.Tests[85627:1138619114] Metal API Validation Enabled
+Long-history step after 10 frames: radiance=1.9423828, accepted age=62.90557
+Long-history step after 10 frames: radiance=1.9423828, accepted age=62.90557
+Small updates after long history: before=0.9998998, after=1.0003718, age=2120
+Small updates after long history: before=0.9998998, after=1.0003718, age=2120
+Small updates after long history: before=0.9998998, after=1.0003718, age=2120
+Uncapped accepted history: roughness=0.8, part=0, age=2112, radiance=1
+Uncapped accepted history: roughness=0.8, part=1, age=2112, radiance=1
+Uncapped accepted history: roughness=0.045, part=0, age=2112, radiance=1
+Uncapped accepted history: roughness=0.045, part=1, age=2112, radiance=1
+Uncapped accepted history: roughness=0.8, part=0, age=2112, radiance=1
+Uncapped accepted history: roughness=0.8, part=1, age=2112, radiance=1
+Uncapped accepted history: roughness=0.045, part=0, age=2112, radiance=1
+Uncapped accepted history: roughness=0.045, part=1, age=2112, radiance=1
+Uncapped accepted history: roughness=0.8, part=0, age=2112, radiance=1
+Uncapped accepted history: roughness=0.8, part=1, age=2112, radiance=1
+Uncapped accepted history: roughness=0.045, part=0, age=2112, radiance=1
+Uncapped accepted history: roughness=0.045, part=1, age=2112, radiance=1
+/Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64) passed [+1055/x0/?0] (7m 04s 118ms)
+
+Test run summary: Passed!
+  total: 1055
+  failed: 0
+  succeeded: 1055
+  skipped: 0
+  duration: 7m 04s 454ms
+uptime-end:  04:38:23  up 47 days 16:12,  2 users,  load average: 5.57, 6.38, 5.66

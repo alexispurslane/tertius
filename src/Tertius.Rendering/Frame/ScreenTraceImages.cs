@@ -23,6 +23,12 @@ internal sealed class ScreenTraceImages : IDisposable
     /// <summary>The format of a record's light: rgb the ray's light, a its hit distance.</summary>
     public const Format LightFormat = Format.R16G16B16A16Sfloat;
 
+    /// <summary>
+    /// The format of the hit light: rgb the light that leaves a pixel toward a ray of the layer's kind, pre-exposed and at
+    /// most MaxRadiance, so below the largest half float.
+    /// </summary>
+    public const Format HitLightFormat = Format.R16G16B16A16Sfloat;
+
     /// <summary>The format of a record's ray: the direction's octahedral code, the half bits of log2 of its density, and RayTraced.</summary>
     public const Format RayFormat = Format.R16G16B16A16Uint;
 
@@ -108,6 +114,12 @@ internal sealed class ScreenTraceImages : IDisposable
     /// <summary>The direction, density and RayTraced of each pixel's own ray, one layer per kind.</summary>
     public GpuImage OwnRay { get; private set; }
 
+    /// <summary>
+    /// The hit light, one layer per kind (ticket ter-67y3): at each pixel that a walk can hit, the light that leaves it
+    /// toward a ray of the kind, which the plan writes and a ray's hit reads.
+    /// </summary>
+    public GpuImage HitLight { get; private set; }
+
     /// <summary>The light-age records, one per parity, with a precise specular history: none with the original.</summary>
     private GpuImage[] lightAges = [];
 
@@ -186,16 +198,26 @@ internal sealed class ScreenTraceImages : IDisposable
         Create();
     }
 
-    [MemberNotNull(nameof(Plan), nameof(BlockLight), nameof(BlockRay), nameof(OwnLight), nameof(OwnRay))]
+    [MemberNotNull(
+        nameof(Plan),
+        nameof(BlockLight),
+        nameof(BlockRay),
+        nameof(OwnLight),
+        nameof(OwnRay),
+        nameof(HitLight)
+    )]
     private void Create()
     {
         Extent2D extent = targets.Extent;
         var blocks = new Extent2D((extent.Width + 1) / 2, (extent.Height + 1) / 2);
         Plan = CreateImage(extent: extent, format: PlanFormat, layers: 1, name: "screen trace plan");
+
         BlockLight = CreateImage(extent: blocks, format: LightFormat, layers: Kinds, name: "screen trace block light");
         BlockRay = CreateImage(extent: blocks, format: RayFormat, layers: Kinds, name: "screen trace block rays");
         OwnLight = CreateImage(extent: extent, format: LightFormat, layers: Kinds, name: "screen trace own light");
         OwnRay = CreateImage(extent: extent, format: RayFormat, layers: Kinds, name: "screen trace own rays");
+        HitLight = CreateImage(extent: extent, format: HitLightFormat, layers: Kinds, name: "screen trace hit light");
+
         OwnRays = [CreateOwnRayList(extent, "reflection"), CreateOwnRayList(extent, "diffuse")];
         lightAges = Specular.KeepsLightAge
             ?
@@ -286,6 +308,7 @@ internal sealed class ScreenTraceImages : IDisposable
         // The diagnostic of uncovered surfaces, whose first channel the resolve writes.
         if (Specular.UncoveredDiagnostic(0) is { } diagnostic)
             layouts.WriteStorageImage(set: set, binding: 24, image: diagnostic);
+        layouts.WriteStorageImage(set: set, binding: DescriptorLayouts.ScreenTraceHitLightBinding, image: HitLight);
     }
 
     /// <summary>Writes the sampled images of <paramref name="set"/>: the depth pyramid at bindings 0 and 1, and the light
@@ -344,7 +367,7 @@ internal sealed class ScreenTraceImages : IDisposable
     /// <summary>Destroys the images and the lists, which <see cref="Resize"/> makes again. The device must be idle.</summary>
     public void Dispose()
     {
-        foreach (GpuImage image in (GpuImage[])[.. Records, .. lightAges])
+        foreach (GpuImage image in (GpuImage[])[.. Records, HitLight, .. lightAges])
             image.Dispose();
         lightAges = [];
         LightPyramidImages.Dispose();

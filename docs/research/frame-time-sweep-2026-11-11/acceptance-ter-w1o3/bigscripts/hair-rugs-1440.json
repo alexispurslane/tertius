@@ -1,0 +1,29 @@
+{
+ "scene": "hair-rugs",
+ "window": {
+  "width": 2560,
+  "height": 1440
+ },
+ "steps": [
+  {
+   "do": "run",
+   "ticks": 10
+  },
+  {
+   "do": "capture",
+   "name": "rugs"
+  },
+  {
+   "do": "camera",
+   "entity": "low-camera"
+  },
+  {
+   "do": "run",
+   "ticks": 10
+  },
+  {
+   "do": "capture",
+   "name": "low"
+  }
+ ]
+}

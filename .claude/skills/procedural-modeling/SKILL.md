@@ -12,7 +12,7 @@ This skill teaches the way of work for the models of Tertius. The design is in `
 - A scripted model is a folder whose name ends in `.model`, inside the `assets/` folder of a content package. Example: `content/tertius.demo/assets/ships/nostromo.model/`.
 - The folder holds `model.json`, the model scripts that `model.json` names and, if you want, `README.md`. A file that `model.json` does not name stops the build.
 - The `.blend` file, the `.glb` file, the baked textures and the views are build outputs. Nobody edits a `.blend` file by hand.
-- No build output goes into git: no `.blend`, no `.glb`, no baked PNG. The remote, a tangled knot, has no Git LFS.
+- No build output goes into git: no `.blend`, no `.glb`, no baked PNG. The knot, the push mirror of the repository, has no Git LFS.
 - To change a model, change a script. Then build again from an empty scene.
 
 ## 2. One-time setup

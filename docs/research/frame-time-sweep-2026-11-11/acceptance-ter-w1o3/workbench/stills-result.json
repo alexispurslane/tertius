@@ -1,0 +1,23 @@
+{
+  "id": "3776fc26-48ef-49f3-9b91-7426cce43a42-u2",
+  "status": "timed out",
+  "runpodStatus": "FAILED",
+  "executionTime": 603585,
+  "delayTime": 11822,
+  "error": "the commands passed the job's limit of 600 s",
+  "files": [
+    "cmp/x-doorway-cut/inside.png",
+    "cmp/x-doorway-main/inside.png",
+    "cmp/x-hair-bent-cards-cut/front.png",
+    "cmp/x-hair-bent-cards-main/front.png"
+  ],
+  "log": "$ set -e; for s in doorway mirror-balls hair-bent-cards hair-rugs lamp-hall-16-hair; do DEMO_ARGS='--size 1280x720' bash main/tools/runpod/ab_run.sh scripts/$s.json 1 main cut; mkdir -p cmp; mv out/main/run-1 cmp/x-$s-main; mv out/cut/run-1 cmp/x-$s-cut; rm -rf out; done; python3 cut/capdiff2.py cmp x- main cut\nbuilding main\n    0 Error(s)\n\nTime Elapsed 00:00:26.47\nbuilding cut\n    0 Error(s)\n\nTime Elapsed 00:00:14.38\nwarming up with main\nmain run 1: GPU frame span: mean 3.633 ms, median 3.636 ms, p95 3.887 ms over 4 frames\ncut run 1: GPU frame span: mean 3.684 ms, median 3.727 ms, p95 3.831 ms over 4 frames\nbuilding main\n    0 Error(s)\n\nTime Elapsed 00:00:01.25\nbuilding cut\n    0 Error(s)\n\nTime Elapsed 00:00:01.38\nwarming up with main\nmain run 1: GPU frame span: mean 3.351 ms, median 3.371 ms, p95 3.977 ms over 3 frames\ncut run 1: GPU frame span: mean 3.369 ms, median 3.451 ms, p95 3.870 ms over 3 frames\nbuilding main\n    0 Error(s)\n\nTime Elapsed 00:00:01.16\nbuilding cut\n    0 Error(s)\n\nTime Elapsed 00:00:01.34\nwarming up with main\nmain run 1: GPU frame span: mean 27.570 ms, median 29.513 ms, p95 29.704 ms over 242 frames\ncut run 1: GPU frame span: mean 27.202 ms, median 28.921 ms, p95 29.075 ms over 242 frames\nbuilding main\n    0 Error(s)\n\nTime Elapsed 00:00:01.03\nbuilding cut\n    0 Error(s)\n\nTime Elapsed 00:00:01.18\nwarming up with main\nmain run 1: GPU frame span: mean 4.486 ms, median 4.486 ms, p95 4.736 ms over 2 frames\ncut run 1: GPU frame span: mean 4.339 ms, median 4.339 ms, p95 4.499 ms over 2 frames\nbuilding main\n    0 Error(s)\n\nTime Elapsed 00:00:01.09\nbuilding cut\n    0 Error(s)\n\nTime Elapsed 00:00:01.18\nwarming up with main\nmain run 1: GPU frame span: mean 44.674 ms, median 45.796 ms, p95 46.188 ms over 301 frames\n",
+  "skipped": {},
+  "steps": [
+    {
+      "command": "set -e; for s in doorway mirror-balls hair-bent-cards hair-rugs lamp-hall-16-hair; do DEMO_ARGS='--size 1280x720' bash main/tools/runpod/ab_run.sh scripts/$s.json 1 main cut; mkdir -p cmp; mv out/main/run-1 cmp/x-$s-main; mv out/cut/run-1 cmp/x-$s-cut; rm -rf out; done; python3 cut/capdiff2.py cmp x- main cut",
+      "exitCode": null,
+      "seconds": 600.0048306970857
+    }
+  ]
+}

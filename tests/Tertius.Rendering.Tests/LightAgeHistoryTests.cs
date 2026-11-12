@@ -797,7 +797,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
         );
 
     [Fact]
-    public void ARayDimmerThanAQuarterOfTheReceiversHistoryDoesNotCutIt() =>
+    public void ARayOfAChangedLightCutsTheReceiversHistoryHoweverDimTheRayIs() =>
         WithRenderer(
             "light-age-diagnostic",
             (renderer, scene) =>
@@ -805,12 +805,17 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 SetGlow(renderer, scene, new(0.4f));
                 Draw(renderer, scene, 64);
                 float[] warm = Slow(renderer);
-                SetGlow(renderer, scene, new(0.32f));
+                // Half the glow: a shared ray weighs about as the receiver's own ray does (ter-xo83), so only a large step
+                // gives more than 20 rays below a fifth of a history that the sky lights.
+                SetGlow(renderer, scene, new(0.2f));
 
                 Draw(renderer, scene, LightChangeDraws);
 
                 float[] sample = renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Sample(0));
                 float[] ages = SampleAges(renderer);
+                float[] diagnostic = UncoveredDiagnostic(renderer);
+                // The receivers whose history is still long just before the cut: the slow history's clamp after the
+                // blend of the change draws shortens a few others to 4 to 6 frames first.
                 int[] dim =
                 [
                     .. Enumerable
@@ -818,17 +823,20 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                         .Where(pixel =>
                             ages[pixel] == 1
                             && LengthAt(warm, pixel) > 8
+                            && LengthBeforeCutAt(diagnostic, pixel) > 8
                             && Luminance(sample, pixel) <= 0.2f * Luminance(warm, pixel)
                         ),
                 ];
                 output.WriteLine($"Receivers with a dim ray of age 0: {dim.Length}.");
                 dim.Length.Should().BeGreaterThan(20, "the bright sky outweighs the dim emitter in these histories");
-                // The cut alone, from the diagnostic: the slow history's clamp after the blend shortens a few of these
-                // histories too, and more of them since the plate's pixels share their block's reflection ray (ter-4oow).
-                float[] diagnostic = UncoveredDiagnostic(renderer);
-                dim.Count(pixel => LengthBeforeBlendAt(diagnostic, pixel) == LengthBeforeCutAt(diagnostic, pixel))
-                    .Should()
-                    .BeGreaterThanOrEqualTo(dim.Length * 95 / 100, "a ray below a quarter of the history does not cut");
+                // A cut that only bright rays may make restarts the history from its bright samples: after a lamp goes
+                // out, the reflections jumped up by 72 % and took 128 draws to settle (ter-g3tk). The cut alone, from
+                // the diagnostic: every such receiver keeps only the frames since the change.
+                dim.Should()
+                    .OnlyContain(
+                        pixel => LengthBeforeBlendAt(diagnostic, pixel) == 0,
+                        "the light that the ray sees is 0 frames old, however dim the ray is"
+                    );
             },
             new(Gray: 4)
         );
@@ -1189,8 +1197,8 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
     ];
 
     /// <summary>
-    /// The receivers whose ray hits the emitter in the draw that counts its change bring back age 0 and, when their sample
-    /// holds at least a quarter of their history's luminance, keep a history of one frame.
+    /// The receivers whose ray hits the emitter in the draw that counts its change bring back age 0 and keep a history of
+    /// one frame.
     /// </summary>
     private void AReceiverWhoseRayHitsTheChangedEmitterKeepsOnlyTheFramesSinceTheChange(Vector3 glow) =>
         WithRenderer(

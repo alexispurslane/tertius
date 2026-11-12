@@ -38,6 +38,17 @@ internal static class Spirv
         return [.. bindings.Select(binding => (binding.Binding, Name: names[binding.Id]))];
     }
 
+    /// <summary>
+    /// The binding number of each variable that <paramref name="spirv"/> decorates with a binding, in the order of the
+    /// module, for a module that glslc's optimizer stripped of its names.
+    /// </summary>
+    public static IReadOnlyList<uint> BindingNumbers(byte[] spirv) =>
+        [
+            .. Instructions(spirv)
+                .Where(instruction => instruction.Opcode == OpDecorate && instruction.Operands[1] == DecorationBinding)
+                .Select(instruction => instruction.Operands[2]),
+        ];
+
     // A literal string is UTF-8, packed four bytes to a word and ended by a zero byte.
     private static string LiteralString(ReadOnlySpan<uint> words)
     {

@@ -1,0 +1,30 @@
+#version 460
+// At each traced pixel whose diffuse history holds and whose specular history fails the surface test: the specular part
+// of the light that leaves it toward a reflection ray (leavingLightAt), in the specular sample, and that part computed
+// with the environment's closed form as the specular history, in the diffuse sample, a 1. Every other pixel holds a 0.
+#extension GL_GOOGLE_include_directive : require
+#include "screen_trace.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
+        return;
+    vec4 part = vec4(0.0);
+    vec4 expected = vec4(0.0);
+    SignalReprojections r = reprojectionsAt(pixel);
+    if (tracedSurface(pixel) && holdsHistory(r.diffuse) && !holdsHistory(r.specular))
+    {
+        LeavingLight leaving = leavingLightAt(pixel);
+        ShadingInput s = materialAt(pixel);
+        vec3 V = -normalize(viewRayThrough(vec2(pixel) + 0.5));
+        MaterialFactors factors = materialFactors(s, lobesOf(s, V));
+        IndirectLight closedLight = closedForm(withAmbientFootprint(s, pixel), V);
+        part = vec4(leaving.reflection - leaving.diffuse, 1.0);
+        expected = vec4(factors.specular * (imageLoad(directSpecularLight, pixel).rgb + closedLight.specular), 1.0);
+    }
+    imageStore(specularSample, pixel, part);
+    imageStore(diffuseSample, pixel, expected);
+}

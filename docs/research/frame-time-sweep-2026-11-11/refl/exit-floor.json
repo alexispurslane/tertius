@@ -1,0 +1,72 @@
+{
+  "scene": "demo-exit",
+  "window": {
+    "width": 1280,
+    "height": 720
+  },
+  "steps": [
+    {
+      "do": "camera",
+      "entity": "cabin-camera"
+    },
+    {
+      "do": "post",
+      "to": {
+        "kind": "entity",
+        "id": "person"
+      },
+      "event": "LeaveShip",
+      "payload": null
+    },
+    {
+      "do": "run",
+      "ticks": 399
+    },
+    {
+      "do": "camera",
+      "entity": "deck-camera"
+    },
+    {
+      "do": "run",
+      "ticks": 740
+    },
+    {
+      "do": "camera",
+      "entity": "spoke-camera"
+    },
+    {
+      "do": "run",
+      "ticks": 561
+    },
+    {
+      "do": "camera",
+      "entity": "slide-camera"
+    },
+    {
+      "do": "run",
+      "ticks": 1008
+    },
+    {
+      "do": "camera",
+      "entity": "wheel-camera"
+    },
+    {
+      "do": "run",
+      "ticks": 208
+    },
+    {
+      "do": "camera",
+      "entity": "follow-camera"
+    },
+    {
+      "do": "run",
+      "ticks": 58
+    },
+    {
+      "do": "film",
+      "name": "floor",
+      "frames": 180,
+      "every": 1
+    }
+  ]
+}

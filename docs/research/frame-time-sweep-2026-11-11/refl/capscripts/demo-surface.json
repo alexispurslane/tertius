@@ -1,0 +1,29 @@
+{
+  "scene": "demo-surface",
+  "window": { "width": 1280, "height": 720 },
+  "steps": [
+    { "do": "run", "ticks": 30 },
+    { "do": "capture", "name": "start" },
+    { "do": "camera", "entity": "terminal-camera" },
+    { "do": "run", "ticks": 284 },
+    { "do": "capture", "name": "terminal" },
+    { "do": "dump", "name": "terminal" },
+    { "do": "camera", "entity": "apron-camera" },
+    { "do": "run", "ticks": 216 },
+    { "do": "capture", "name": "apron" },
+    { "do": "dump", "name": "apron" },
+    { "do": "run", "ticks": 229 },
+    { "do": "capture", "name": "boarding" },
+    { "do": "dump", "name": "boarding" },
+    { "do": "camera", "entity": "cabin-camera" },
+    { "do": "run", "ticks": 51 },
+    { "do": "capture", "name": "in-cabin" },
+    { "do": "run", "ticks": 190 },
+    { "do": "capture", "name": "at-the-seat" },
+    { "do": "dump", "name": "at-the-seat" },
+    { "do": "run", "ticks": 120 },
+    { "do": "camera", "entity": "overview" },
+    { "do": "capture", "name": "end-overview" },
+    { "do": "dump", "name": "end" }
+  ]
+}

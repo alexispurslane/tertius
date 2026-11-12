@@ -1,0 +1,127 @@
+Tertius: keep an open compute encoder across a pipeline barrier to the compute stage.
+
+MoltenVK 1.4.2 ends the open Metal encoder at every pipeline barrier outside a render pass, when Metal argument
+buffers and residency sets are in use. Each compute dispatch behind a barrier is then a Metal encoder of its own,
+and the GPU is idle for about 20 microseconds at each encoder boundary. On the station deck of Tertius that was
+1.10 ms of a 24.0 ms frame (docs/research/frame-time-sweep-2026-11-11/addendum.md, sections A5 and A6).
+
+With this patch, a barrier whose destination stages are the compute stage alone keeps the open encoder, when the
+encoder holds only dispatches and no time stamp waits for its end. Metal fences keep the order that the barrier
+asks for. The comment at MVKCommandEncoder::setBarrierInDispatchEncoder gives the three rules.
+
+TERTIUS_MOLTENVK_STOCK_BARRIERS=1 in the environment gives the stock behavior, for comparisons.
+
+The patch applies after moltenvk-execution-dependencies.patch, which adds _mtlComputeEncoderStages.
+Upstream's issue 2893 proposes a similar change.
+
+diff -ru a/MoltenVK/MoltenVK/Commands/MVKCmdPipeline.mm b/MoltenVK/MoltenVK/Commands/MVKCmdPipeline.mm
+--- a/MoltenVK/MoltenVK/Commands/MVKCmdPipeline.mm
++++ b/MoltenVK/MoltenVK/Commands/MVKCmdPipeline.mm
+@@ -161,11 +161,20 @@
+ #endif
+ 
+ 	if (!cmdEncoder->_mtlRenderEncoder && cmdEncoder->isUsingMetalArgumentBuffers() && cmdEncoder->getDevice()->hasResidencySet()) {
+-		cmdEncoder->endCurrentMetalEncoding();
++		// Tertius: a barrier whose destination is the compute stage alone keeps an open compute encoder of dispatches.
++		// Every other barrier ends the encoder, as stock MoltenVK does at every barrier.
++		uint64_t allDestStages = 0;
++		for (auto& b : _barriers) { allDestStages |= mvkBarrierStagesFromPipelineStageFlags(b.dstStageMask); }
++		bool keepsEncoder = allDestStages == (1ull << kMVKBarrierStageCompute) && cmdEncoder->canKeepDispatchEncoderAtBarrier();
++		if (!keepsEncoder) { cmdEncoder->endCurrentMetalEncoding(); }
+ 
+ 		for (auto& b : _barriers) {
+ 			uint64_t sourceStageMask = mvkBarrierStagesFromPipelineStageFlags(b.srcStageMask), destStageMask = mvkBarrierStagesFromPipelineStageFlags(b.dstStageMask);
+-			cmdEncoder->setBarrier(sourceStageMask, destStageMask);
++			if (keepsEncoder) {
++				cmdEncoder->setBarrierInDispatchEncoder(sourceStageMask, destStageMask);
++			} else {
++				cmdEncoder->setBarrier(sourceStageMask, destStageMask);
++			}
+ 		}
+ 	}
+ 
+diff -ru a/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.h b/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.h
+--- a/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.h
++++ b/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.h
+@@ -455,6 +455,17 @@
+ 	/** Insert a new execution barrier */
+ 	void setBarrier(uint64_t sourceStageMask, uint64_t destStageMask);
+ 
++	/**
++	 * Tertius: returns whether the open Metal encoder can stay open across a pipeline barrier. It can when it is a
++	 * compute encoder that holds only dispatches and no time stamp waits for its end. A time stamp reads the time at
++	 * the end of the encoder, so the encoder must end there to give the time of the work before the barrier.
++	 * TERTIUS_MOLTENVK_STOCK_BARRIERS=1 in the environment makes this false always, which is the stock behavior.
++	 */
++	bool canKeepDispatchEncoderAtBarrier();
++
++	/** Tertius: insert a new execution barrier into the open compute encoder of dispatches, which stays open. */
++	void setBarrierInDispatchEncoder(uint64_t sourceStageMask, uint64_t destStageMask);
++
+ 	/** Encode waits for a specific stage in given encoder. */
+ 	void barrierWait(MVKBarrierStage stage, id<MTLRenderCommandEncoder> mtlEncoder, MTLRenderStages beforeStages);
+ 	void barrierWait(MVKBarrierStage stage, id<MTLBlitCommandEncoder> mtlEncoder);
+diff -ru a/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.mm b/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.mm
+--- a/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.mm
++++ b/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.mm
+@@ -16,6 +16,8 @@
+  * limitations under the License.
+  */
+ 
++#include <cstdlib>
++#include <cstring>
+ #include "MVKCommandBuffer.h"
+ #include "MVKFramebuffer.h"
+ #include "MVKCommandPool.h"
+@@ -718,6 +720,51 @@
+ 
+ 		fenceSlots.wait[i][i] = fenceSlots.update[i];
+ 		mvkEnableFlags(fenceSlots.updateDirtyBits, 1 << i);
++	}
++}
++
++// Tertius: whether the environment asks for the stock behavior, in which every pipeline barrier ends the encoder.
++static bool tertiusStockBarriers() {
++	static const bool stock = [] {
++		const char* value = getenv("TERTIUS_MOLTENVK_STOCK_BARRIERS");
++		return value && value[0] && strcmp(value, "0") != 0;
++	}();
++	return stock;
++}
++
++bool MVKCommandEncoder::canKeepDispatchEncoderAtBarrier() {
++	return !tertiusStockBarriers()
++		&& _mtlComputeEncoder
++		&& _mtlComputeEncoderUse == kMVKCommandUseDispatch
++		&& _mtlComputeEncoderStages == (1u << kMVKBarrierStageCompute)
++		&& _timestampStageCounterQueries.empty();
++}
++
++// Tertius: a serial compute encoder runs its dispatches in their order, so a barrier between two of its dispatches
++// needs no new encoder. The open encoder holds compute work alone (canKeepDispatchEncoderAtBarrier). Three rules keep
++// the order that the barrier asks for:
++// 1. The open encoder waits for the latest fence of each source stage. Metal can apply such a wait at the start of the
++//    encoder, which orders the dispatches before the barrier too, and that is harmless.
++// 2. The open encoder holds compute work from before the barrier, and it updates its compute fence only when it ends.
++//    So each destination stage waits for that fence: a later encoder then runs after the whole open encoder.
++// 3. For every other source stage, the destination stages wait for the stage's latest fence, as setBarrier does.
++void MVKCommandEncoder::setBarrierInDispatchEncoder(uint64_t sourceStageMask, uint64_t destStageMask) {
++	auto &fenceSlots = _pEncodingContext->fenceSlots;
++	for (int i = 0; i < kMVKBarrierStageCount; ++i) {
++		if (!mvkIsAnyFlagEnabled(sourceStageMask, 1ull << i)) continue;
++
++		[_mtlComputeEncoder waitForFence: _device->getFence((MVKBarrierStage)i, fenceSlots.update[i])];
++		if (i == kMVKBarrierStageCompute) {
++			// Settles the fence that the open encoder updates when it ends: fenceSlots.update holds it from here on.
++			getBarrierStageFence(kMVKBarrierStageCompute);
++		}
++		for (int j = 0; j < kMVKBarrierStageCount; ++j) {
++			if (!mvkIsAnyFlagEnabled(destStageMask, 1ull << j)) continue;
++
++			fenceSlots.wait[j][i] = fenceSlots.update[i];
++		}
++		fenceSlots.wait[i][i] = fenceSlots.update[i];
++		if (i != kMVKBarrierStageCompute) { mvkEnableFlags(fenceSlots.updateDirtyBits, 1 << i); }
+ 	}
+ }
+ 

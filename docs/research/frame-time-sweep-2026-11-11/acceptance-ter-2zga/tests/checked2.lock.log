@@ -1,0 +1,135 @@
+uptime-start:  06:02:44  up 47 days 17:37,  2 users,  load average: 5.92, 8.08, 10.67
+waited: 0s
+mode: shared, with up to 3 shared runs at once
+driver: /nix/store/jxv1cgaay6396aqwbcvkikamsv66vvkh-MoltenVK-1.4.2/share/vulkan/icd.d/MoltenVK_icd.json
+commit: 32f741740
+Running tests from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Unions.Tests/bin/Checked/net11.0/Tertius.Unions.Tests.dll (net11.0|arm64)
+Running tests from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Style.Tests/bin/Checked/net11.0/Tertius.Style.Tests.dll (net11.0|arm64)
+Running tests from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Simulation.Tests/bin/Checked/net11.0/Tertius.Simulation.Tests.dll (net11.0|arm64)
+Running tests from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Core.Tests/bin/Checked/net11.0/Tertius.Core.Tests.dll (net11.0|arm64)
+Running tests from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Slop.Tests/bin/Checked/net11.0/Tertius.Slop.Tests.dll (net11.0|arm64)
+Running tests from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Host.Tests/bin/Checked/net11.0/Tertius.Host.Tests.dll (net11.0|arm64)
+Running tests from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Physics.Tests/bin/Checked/net11.0/Tertius.Physics.Tests.dll (net11.0|arm64)
+Running tests from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+skipped Tertius.Physics.Tests.Precision.PushedContactMeasurement.MeasurePushedContactErrorsAgainstCommonSpeed
+  Not run (due to explicit test filtering)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Physics.Tests/bin/Checked/net11.0/Tertius.Physics.Tests.dll (net11.0|arm64)
+skipped Tertius.Physics.Tests.Precision.CastFalseHitsMeasurement.CastFalseHits
+  Not run (due to explicit test filtering)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Physics.Tests/bin/Checked/net11.0/Tertius.Physics.Tests.dll (net11.0|arm64)
+skipped Tertius.Physics.Tests.Precision.BallisticDriftMeasurement.RecordsHowFarAFallingBodyDriftsFromItsExactParabolaAtEachCommonSpeed
+  Not run (due to explicit test filtering)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Physics.Tests/bin/Checked/net11.0/Tertius.Physics.Tests.dll (net11.0|arm64)
+skipped Tertius.Rendering.Tests.ScreenRayTests.EveryFloorPixelWhoseVanishingPointAPlanetCoversHitsThePlanetThroughTheFrontOfItsSlab
+  The walk misjudges a far slab near a vanishing point; skipped until ter-186q fixes it.
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+skipped Tertius.Physics.Tests.Precision.SweepFalseHitsMeasurement.SweepFalseHits
+  Not run (due to explicit test filtering)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Physics.Tests/bin/Checked/net11.0/Tertius.Physics.Tests.dll (net11.0|arm64)
+/Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Style.Tests/bin/Checked/net11.0/Tertius.Style.Tests.dll (net11.0|arm64) passed [+276/x0/?0] (8s 336ms)
+skipped Tertius.Physics.Tests.Precision.ThrustDriftMeasurement.RecordsHowFarAThrustingCharacterDriftsFromItsExactPathAtEachCommonSpeed
+  Not run (due to explicit test filtering)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Physics.Tests/bin/Checked/net11.0/Tertius.Physics.Tests.dll (net11.0|arm64)
+/Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Unions.Tests/bin/Checked/net11.0/Tertius.Unions.Tests.dll (net11.0|arm64) passed [+59/x0/?0] (10s 555ms)
+skipped Tertius.Physics.Tests.Precision.RelativeDriftMeasurement.RecordsHowFarTheRelativeMotionOfTwoFreeBodiesDriftsAtEachCommonSpeed
+  Not run (due to explicit test filtering)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Physics.Tests/bin/Checked/net11.0/Tertius.Physics.Tests.dll (net11.0|arm64)
+skipped Tertius.Physics.Tests.Precision.StackCreepMeasurement.StackCreep
+  Not run (due to explicit test filtering)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Physics.Tests/bin/Checked/net11.0/Tertius.Physics.Tests.dll (net11.0|arm64)
+/Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Simulation.Tests/bin/Checked/net11.0/Tertius.Simulation.Tests.dll (net11.0|arm64) passed [+2007/x0/?0] (11s 913ms)
+/Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Core.Tests/bin/Checked/net11.0/Tertius.Core.Tests.dll (net11.0|arm64) passed [+1207/x0/?0] (14s 355ms)
+skipped Tertius.Physics.Tests.Precision.SlowCollisionMeasurement.SlowCollision
+  Not run (due to explicit test filtering)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Physics.Tests/bin/Checked/net11.0/Tertius.Physics.Tests.dll (net11.0|arm64)
+/Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Slop.Tests/bin/Checked/net11.0/Tertius.Slop.Tests.dll (net11.0|arm64) passed [+597/x0/?0] (21s 416ms)
+roughness=0.045: finest area radiance=626.3260669158196, evaluations=159290, converged=True
+/Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Physics.Tests/bin/Checked/net11.0/Tertius.Physics.Tests.dll (net11.0|arm64) passed [+1492/x0/?8] (32s 723ms)
+roughness=0.20000000298023224: finest area radiance=519.6646780823439, evaluations=37842, converged=True
+skipped Tertius.Host.Tests.PuffScriptCostMeasurement.WritesItsReportWhereTheVariableNamesAFile
+  Not run (due to explicit test filtering)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Host.Tests/bin/Checked/net11.0/Tertius.Host.Tests.dll (net11.0|arm64)
+skipped Tertius.Host.Tests.DemoFrameCostMeasurement.WritesItsReportWhereTheVariableNamesAFile
+  Not run (due to explicit test filtering)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Host.Tests/bin/Checked/net11.0/Tertius.Host.Tests.dll (net11.0|arm64)
+skipped Tertius.Host.Tests.EnvironmentBoxScriptEvidence.TwoBoxSceneCapturesAdvanceTheirSnapshotWithoutResettingFsr(scriptName: "ter-7tnv-terminal")
+  Not run (due to explicit test filtering)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Host.Tests/bin/Checked/net11.0/Tertius.Host.Tests.dll (net11.0|arm64)
+skipped Tertius.Host.Tests.EnvironmentBoxScriptEvidence.TwoBoxSceneCapturesAdvanceTheirSnapshotWithoutResettingFsr(scriptName: "ter-7tnv-box-cabin")
+  Not run (due to explicit test filtering)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Host.Tests/bin/Checked/net11.0/Tertius.Host.Tests.dll (net11.0|arm64)
+skipped Tertius.Host.Tests.BlueDanubePlumeCostMeasurement.WritesItsReportWhereTheVariableNamesAFile
+  Not run (due to explicit test filtering)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Host.Tests/bin/Checked/net11.0/Tertius.Host.Tests.dll (net11.0|arm64)
+skipped Tertius.Host.Tests.LocalShadowCountsMeasurement.WritesItsReportWhereTheVariableNamesAFile
+  Not run (due to explicit test filtering)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Host.Tests/bin/Checked/net11.0/Tertius.Host.Tests.dll (net11.0|arm64)
+skipped Tertius.Host.Tests.FsrScriptEvidence.TheNativeAndFsrCapturesAdvanceDrawHistoryThroughCameraCutsAndMovingFrames
+  Not run (due to explicit test filtering)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Host.Tests/bin/Checked/net11.0/Tertius.Host.Tests.dll (net11.0|arm64)
+skipped Tertius.Host.Tests.VideoCostMeasurement.WritesItsReportWhereTheVariableNamesAFile
+  Not run (due to explicit test filtering)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Host.Tests/bin/Checked/net11.0/Tertius.Host.Tests.dll (net11.0|arm64)
+/Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Host.Tests/bin/Checked/net11.0/Tertius.Host.Tests.dll (net11.0|arm64) passed [+2047/x0/?8] (1m 20s 863ms)
+Long-history step after 10 frames: radiance=1.9423828, accepted age=62.90557
+Long-history step after 10 frames: radiance=1.9423828, accepted age=62.90557
+Small updates after long history: before=0.9998998, after=1.0003718, age=2120
+Small updates after long history: before=0.9998998, after=1.0003718, age=2120
+Small updates after long history: before=0.9998998, after=1.0003718, age=2120
+Uncapped accepted history: roughness=0.8, part=0, age=2112, radiance=1
+Uncapped accepted history: roughness=0.8, part=1, age=2112, radiance=1
+Uncapped accepted history: roughness=0.045, part=0, age=2112, radiance=1
+Uncapped accepted history: roughness=0.045, part=1, age=2112, radiance=1
+Uncapped accepted history: roughness=0.8, part=0, age=2112, radiance=1
+Uncapped accepted history: roughness=0.8, part=1, age=2112, radiance=1
+Uncapped accepted history: roughness=0.045, part=0, age=2112, radiance=1
+Uncapped accepted history: roughness=0.045, part=1, age=2112, radiance=1
+Uncapped accepted history: roughness=0.8, part=0, age=2112, radiance=1
+Uncapped accepted history: roughness=0.8, part=1, age=2112, radiance=1
+Uncapped accepted history: roughness=0.045, part=0, age=2112, radiance=1
+Uncapped accepted history: roughness=0.045, part=1, age=2112, radiance=1
+skipped Tertius.Rendering.Tests.GpuTimingTests.OnADriverWhoseStampsLatchWhenTheWorkBeforeThemEndsAPassThatRecordsNothingReportsNearlyNoTimeOfItsOwn
+  Apple M1 Max's stamps latch late, so a pass's own time can hold the next pass's work, and only the sum of neighbouring passes holds (ARCHITECTURE.md, "GPU timings").
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+skipped Tertius.Rendering.Tests.Fsr3UpscalerTests.AnUpscaleFrom1280x720To1920x1080ReportsItsGpuTimePerFrameWhenEightFramesShareASubmission
+  Set TERTIUS_FSR_TIMING=1 to measure FSR's GPU time.
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+skipped Tertius.Rendering.Tests.Fsr3UpscalerTests.TheMaximumWindowAllocationReportsItsGpuTimeAtEachActiveSize(activeWidth: 960, activeHeight: 536)
+  Set TERTIUS_FSR_TIMING=1 to measure FSR's GPU time.
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+skipped Tertius.Rendering.Tests.Fsr3UpscalerTests.TheMaximumWindowAllocationReportsItsGpuTimeAtEachActiveSize(activeWidth: 1280, activeHeight: 720)
+  Set TERTIUS_FSR_TIMING=1 to measure FSR's GPU time.
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+skipped Tertius.Rendering.Tests.Fsr3UpscalerTests.TheMaximumWindowAllocationReportsItsGpuTimeAtEachActiveSize(activeWidth: 1920, activeHeight: 1080)
+  Set TERTIUS_FSR_TIMING=1 to measure FSR's GPU time.
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+skipped Tertius.Rendering.Tests.Fsr3UpscalerTests.AnUpscaleFrom1280x720To1920x1080ReportsItsGpuTime
+  Set TERTIUS_FSR_TIMING=1 to measure FSR's GPU time.
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+skipped Tertius.Rendering.Tests.GpuCalibrationTests.TheFmaProbeReportsItsTimeAfterSecondsOfFullLoad
+  Set TERTIUS_GPU_CALIBRATION=1 to measure the probes.
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+skipped Tertius.Rendering.Tests.GpuCalibrationTests.TheFmaProbeReportsEachDispatchFromTheFirstAfterIdle
+  Set TERTIUS_GPU_CALIBRATION=1 to measure the probes.
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+skipped Tertius.Rendering.Tests.GpuCalibrationTests.EachProbeReportsItsGpuTimeAndItsShareOfThePeak
+  Set TERTIUS_GPU_CALIBRATION=1 to measure the probes.
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+/Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64) passed [+3076/x0/?10] (15m 34s 916ms)
+
+Test run summary: Passed!
+  /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Unions.Tests/bin/Checked/net11.0/Tertius.Unions.Tests.dll (net11.0|arm64) passed [+59/x0/?0] (10s 555ms)
+  /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Style.Tests/bin/Checked/net11.0/Tertius.Style.Tests.dll (net11.0|arm64) passed [+276/x0/?0] (8s 336ms)
+  /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Simulation.Tests/bin/Checked/net11.0/Tertius.Simulation.Tests.dll (net11.0|arm64) passed [+2007/x0/?0] (11s 913ms)
+  /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Core.Tests/bin/Checked/net11.0/Tertius.Core.Tests.dll (net11.0|arm64) passed [+1207/x0/?0] (14s 355ms)
+  /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Slop.Tests/bin/Checked/net11.0/Tertius.Slop.Tests.dll (net11.0|arm64) passed [+597/x0/?0] (21s 416ms)
+  /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Host.Tests/bin/Checked/net11.0/Tertius.Host.Tests.dll (net11.0|arm64) passed [+2047/x0/?8] (1m 20s 863ms)
+  /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Physics.Tests/bin/Checked/net11.0/Tertius.Physics.Tests.dll (net11.0|arm64) passed [+1492/x0/?8] (32s 723ms)
+  /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64) passed [+3076/x0/?10] (15m 34s 916ms)
+
+  total: 10787
+  failed: 0
+  succeeded: 10761
+  skipped: 26
+  duration: 15m 35s 506ms
+uptime-end:  06:18:20  up 47 days 17:52,  2 users,  load average: 5.04, 6.56, 9.22

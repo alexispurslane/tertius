@@ -1,0 +1,19 @@
+{
+  "scene": "demo-meshes",
+  "window": { "width": 1280, "height": 720 },
+  "steps": [
+    { "do": "capture", "name": "start" },
+    { "do": "run", "ticks": 180 },
+    { "do": "dump", "name": "rested" },
+    { "do": "capture", "name": "overview" },
+    { "do": "camera", "entity": "cylinder-view" },
+    { "do": "run", "ticks": 1 },
+    { "do": "capture", "name": "cylinder" },
+    { "do": "camera", "entity": "torus-view" },
+    { "do": "run", "ticks": 1 },
+    { "do": "capture", "name": "torus" },
+    { "do": "camera", "entity": "ring-view" },
+    { "do": "run", "ticks": 1 },
+    { "do": "capture", "name": "ring" }
+  ]
+}

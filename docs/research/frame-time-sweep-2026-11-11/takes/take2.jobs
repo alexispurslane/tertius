@@ -1,0 +1,17 @@
+X="SWEEP_EXPOSURE=0.7041458"
+[ -x $S/bin-ssr4h/Tertius.Demo ] && TRACE_EXTRA_ENV="$X" trace deck-ssr4h-1 ssr4h $D
+[ -x $S/bin-transfloor/Tertius.Demo ] && trace deck-transfloor-1 transfloor $D
+[ -x $S/bin-steps/Tertius.Demo ] && TRACE_EXTRA_ENV="$X SWEEP_RSTEPS=64" trace deck-steps-r64 steps $D
+[ -x $S/bin-steps/Tertius.Demo ] && TRACE_EXTRA_ENV="$X SWEEP_DSTEPS=24" trace deck-steps-d24 steps $D
+[ -x $S/bin-ssr9h/Tertius.Demo ] && TRACE_EXTRA_ENV="$X" trace deck-ssr9h-1 ssr9h $D
+[ -x $S/bin-ownall/Tertius.Demo ] && TRACE_EXTRA_ENV="$X" trace deck-ownall-1 ownall $D
+trace deck-maind-2 maind $D
+[ -x $S/bin-steps/Tertius.Demo ] && TRACE_EXTRA_ENV="$X SWEEP_RSTEPS=24" trace deck-steps-r24 steps $D
+trace deck-maind-nobloom maind $D --bloom off
+TRACE_EXTRA_ENV="TERTIUS_GUIDED_RAYS=off" trace deck-maind-noguide maind $D
+trace deck-flightonly-1 flightonly $D
+trace deck-fnomath-1 fnomath $D
+trace deck-fpow7-1 fpow7 $D
+trace deck-sphclip-1 sphclip $D
+trace deck-maind-nostamps maind $D --pass-timestamps off
+trace deck-maind-3 maind $D

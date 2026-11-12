@@ -1,0 +1,18 @@
+# Take 4: what did not fit into take 3, the patched driver with the pass time stamps, fast math, and the resolve's cost.
+X="SWEEP_EXPOSURE=0.7041458"
+P=$(readlink $S/mvk-patched 2>/dev/null)/share/vulkan/icd.d/MoltenVK_icd.json
+NS="--pass-timestamps off"
+. $S/take3.jobs.rest
+trace deck-maind-t4 maind $D
+[ -f $P ] && VK_ICD_FILENAMES=$P trace deck-keep maind $D
+[ -f $P ] && VK_ICD_FILENAMES=$P TRACE_EXTRA_ENV="MVK_SWEEP_KEEP_ANY_DEST=1" trace deck-any maind $D
+TRACE_EXTRA_ENV="MVK_CONFIG_FAST_MATH_ENABLED=0" trace deck-fastmath-never maind $D
+TRACE_EXTRA_ENV="MVK_CONFIG_FAST_MATH_ENABLED=1" trace deck-fastmath-always maind $D
+TRACE_EXTRA_ENV="$X" trace deck-ssr4h-2 ssr4h $D
+TRACE_EXTRA_ENV="$X" trace deck-ownw4-1 ownw4 $D
+trace deck-maind-t4b maind $D
+TRACE_EXTRA_ENV="$X" trace deck-ownw1-1 ownw1 $D
+TRACE_COUNTERS=1 trace deck-maind-counters maind $D
+TRACE_EXTRA_ENV="$X" trace deck-ownall-1 ownall $D
+TRACE_EXTRA_ENV="$X SWEEP_RSTEPS=64" trace deck-steps-r64b steps $D
+TRACE_EXTRA_ENV="$X SWEEP_DSTEPS=24" trace deck-steps-d24 steps $D

@@ -1,0 +1,113 @@
+{
+ "scene": "station",
+ "window": {
+  "width": 1280,
+  "height": 720
+ },
+ "steps": [
+  {
+   "do": "camera",
+   "entity": "watch"
+  },
+  {
+   "do": "run",
+   "ticks": 180
+  },
+  {
+   "do": "capture",
+   "name": "pods-out"
+  },
+  {
+   "do": "run",
+   "ticks": 720
+  },
+  {
+   "do": "capture",
+   "name": "pods-drifting"
+  },
+  {
+   "do": "camera",
+   "entity": "cabin"
+  },
+  {
+   "do": "run",
+   "ticks": 3
+  },
+  {
+   "do": "capture",
+   "name": "after-003"
+  },
+  {
+   "do": "run",
+   "ticks": 3
+  },
+  {
+   "do": "capture",
+   "name": "after-006"
+  },
+  {
+   "do": "run",
+   "ticks": 4
+  },
+  {
+   "do": "capture",
+   "name": "after-010"
+  },
+  {
+   "do": "run",
+   "ticks": 5
+  },
+  {
+   "do": "capture",
+   "name": "after-015"
+  },
+  {
+   "do": "run",
+   "ticks": 5
+  },
+  {
+   "do": "capture",
+   "name": "after-020"
+  },
+  {
+   "do": "run",
+   "ticks": 10
+  },
+  {
+   "do": "capture",
+   "name": "after-030"
+  },
+  {
+   "do": "run",
+   "ticks": 15
+  },
+  {
+   "do": "capture",
+   "name": "after-045"
+  },
+  {
+   "do": "run",
+   "ticks": 15
+  },
+  {
+   "do": "capture",
+   "name": "after-060"
+  },
+  {
+   "do": "run",
+   "ticks": 30
+  },
+  {
+   "do": "capture",
+   "name": "after-090"
+  },
+  {
+   "do": "run",
+   "ticks": 60
+  },
+  {
+   "do": "capture",
+   "name": "after-150"
+  }
+ ]
+}
