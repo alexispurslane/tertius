@@ -1,6 +1,6 @@
 ---
 id: ter-s97m
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-12T13:01:35Z
