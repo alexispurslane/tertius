@@ -31,7 +31,7 @@
   <ItemGroup>
     <EmbeddedResource Include="Shading/LtcTable.bin" LogicalName="Tertius.Rendering.LtcTable.bin" WithCulture="false" />
   </ItemGroup>
-  <!-- The reflection rays' blue-noise mask, a build output of tools/stbn/stbn.c that the dev shell names
+  <!-- The reflection rays' blue-noise mask, a build output of native/stbn.c that the dev shell names
        (native/stbn-mask.nix). -->
   <ItemGroup>
     <EmbeddedResource Include="$(TERTIUS_STBN_MASK)" LogicalName="Tertius.Rendering.BlueNoiseMask.bin" WithCulture="false" />

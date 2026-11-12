@@ -1,7 +1,7 @@
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The reflection rays' spatiotemporal blue-noise mask, which tools/stbn/stbn.c writes (ARCHITECTURE.md, "Randomness
+/// The reflection rays' spatiotemporal blue-noise mask, which native/stbn.c writes (ARCHITECTURE.md, "Randomness
 /// and determinism"): <see cref="Frames"/> frames of <see cref="Side"/> × <see cref="Side"/> cells, two bytes per
 /// texel, a radial number and an angle.
 /// </summary>

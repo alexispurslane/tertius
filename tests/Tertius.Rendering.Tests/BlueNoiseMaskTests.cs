@@ -1,7 +1,7 @@
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The reflection rays' blue-noise mask as tools/stbn/stbn.c writes it: each cell fills the unit square evenly over a
+/// The reflection rays' blue-noise mask as native/stbn.c writes it: each cell fills the unit square evenly over a
 /// period, each frame is blue over space, and nearby frames of a cell spread apart (ARCHITECTURE.md, "Randomness and
 /// determinism").
 /// </summary>

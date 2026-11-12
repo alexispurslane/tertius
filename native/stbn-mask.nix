@@ -1,4 +1,4 @@
-# The reflection rays' spatiotemporal blue-noise mask: the output of tools/stbn/stbn.c, which writes the same 2 MiB on
+# The reflection rays' spatiotemporal blue-noise mask: the output of native/stbn.c, which writes the same 2 MiB on
 # every machine. A build output stays out of git (docs/plans/asset-pipeline.md, decision 21), and the store keeps it
 # once per machine and per image of the GPU workbench. The dev shell names it in TERTIUS_STBN_MASK, and
 # Tertius.Rendering embeds it.
@@ -9,8 +9,8 @@ stdenv.mkDerivation {
   version = "1";
 
   src = lib.fileset.toSource {
-    root = ../tools/stbn;
-    fileset = ../tools/stbn/stbn.c;
+    root = ./.;
+    fileset = ./stbn.c;
   };
 
   buildPhase = ''
