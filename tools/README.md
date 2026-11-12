@@ -55,7 +55,7 @@ The build copies the Jolt library and the Vulkan loader next to each output, fro
 
 ## Vulkan drivers
 
-On the Mac, the dev shell offers two Vulkan drivers. MoltenVK is the default: the shell sets `VK_ICD_FILENAMES` to its ICD manifest. KosmicKrisp is LunarG's Mesa driver for Apple GPUs, from the pinned nixpkgs' `mesa`. The shell sets `TERTIUS_KOSMICKRISP_ICD` to its ICD manifest. To run a command on KosmicKrisp, set `VK_ICD_FILENAMES` from that variable for the command alone:
+On the Mac, the dev shell offers two Vulkan drivers. MoltenVK is the default: the shell sets `VK_ICD_FILENAMES` to its ICD manifest. The shell's MoltenVK is the nixpkgs build with two patches (see "The patched MoltenVK"). KosmicKrisp is LunarG's Mesa driver for Apple GPUs, from the pinned nixpkgs' `mesa`. The shell sets `TERTIUS_KOSMICKRISP_ICD` to its ICD manifest. To run a command on KosmicKrisp, set `VK_ICD_FILENAMES` from that variable for the command alone:
 
 ```bash
 nix develop --command bash -c 'VK_ICD_FILENAMES=$TERTIUS_KOSMICKRISP_ICD dotnet test --solution Tertius.slnx -c Checked'
@@ -63,6 +63,50 @@ nix develop --command bash -c 'VK_ICD_FILENAMES=$TERTIUS_KOSMICKRISP_ICD dotnet 
 ```
 
 `vulkaninfo --summary` names the driver of a shell. On Linux the shell sets no `VK_ICD_FILENAMES`, so a value from outside the shell stays. If the variable is empty and the host has NVIDIA's driver, the shell's hook sets it to NVIDIA's manifest (see "Linux NVIDIA machines"). [docs/research/kosmickrisp.md](../docs/research/kosmickrisp.md) compares the two drivers, and lists the tests that fail on KosmicKrisp and why.
+
+### The patched MoltenVK
+
+The Mac's dev shell builds MoltenVK 1.4.2 with two patches, from `native/moltenvk.nix`. A Linux shell does not build it. `nix build .#moltenvk` builds the driver alone.
+
+Why the patch exists. A Metal encoder is one group of GPU commands of one kind: a render pass, compute dispatches, or copies. MoltenVK 1.4.2 ends the open encoder at every pipeline barrier outside a render pass. So each compute dispatch behind a barrier was an encoder of its own. The GPU is idle for about 20 µs at each encoder boundary. On the station deck that was 1.10 ms of a 24.0 ms frame. The patch lowered the frame span from 24.00 to 23.07 ms, and the encoders of a frame from 116 to 79. Every image stayed the same, byte for byte. The measurements are in [the frame-time sweep](../docs/research/frame-time-sweep-2026-11-11/addendum.md), sections A5 and A6.
+
+The two patches:
+
+- `native/moltenvk-execution-dependencies.patch` is upstream's fix of MoltenVK issue 2805, from pull request 2819. Release 1.4.2 does not hold it. A compute encoder that several kinds of command share then updates the fence of every barrier stage that it used.
+- `native/moltenvk-keep-dispatch-encoder.patch` is ours. Under three conditions, a barrier then keeps the open encoder.
+
+The three conditions of a kept barrier:
+
+1. Every destination stage of the barrier is the compute stage.
+2. The open encoder is a compute encoder that holds only dispatches.
+3. No time stamp waits for the end of the encoder. MoltenVK reads a stamp at the end of the encoder, so the encoder must end there.
+
+A Metal fence is an object that one encoder updates at its end, and that another encoder waits for. MoltenVK keeps fences for four barrier stages: vertex, fragment, compute and copy. Inside one compute encoder, Metal runs the dispatches in their order. Three ordering rules give a kept barrier the order that Vulkan asks for:
+
+1. The open encoder waits for the latest fence of each source stage of the barrier. So its later dispatches run after the work of those stages.
+2. The open encoder updates its compute fence only at its end. So each destination stage waits for that fence, and a later encoder runs after the whole open encoder.
+3. For every other source stage, the destination stages wait for the latest fence of that stage, as stock MoltenVK does.
+
+The engine does not depend on the patch. The renderer records every barrier that the Vulkan spec asks for, and stock MoltenVK and a Linux driver render the same frame.
+
+To compare with the stock behavior, use one of two switches for one command:
+
+```bash
+# The patched build, with the stock behavior at barriers: every barrier ends the encoder.
+nix develop --command bash -c 'TERTIUS_MOLTENVK_STOCK_BARRIERS=1 dotnet run --project src/Tertius.Demo -c Release -- --script <script> --headless --out <folder>'
+# The nixpkgs build without the two patches.
+nix develop --command bash -c 'VK_ICD_FILENAMES=$TERTIUS_STOCK_MOLTENVK_ICD dotnet run --project src/Tertius.Demo -c Release -- --script <script> --headless --out <folder>'
+```
+
+Before you merge a change of a patch, do three things:
+
+1. Run the test suites in Checked and in Release.
+2. Run the Rendering tests and the Host tests once with `MTL_DEBUG_LAYER=1`, which turns on Metal's API validation. A wrong use of a fence stops the process there.
+3. Compare the frames of one headless run with those of the stock build, byte for byte.
+
+A wrong fence does not fail a test reliably. It shows as a rare flicker, because two encoders then run in the wrong order only sometimes.
+
+A later MoltenVK release holds the fix of issue 2805. After nixpkgs moves to such a release, the first patch fails to apply, and the shell does not build. Remove that patch from `native/moltenvk.nix` then. Upstream's issue 2893 proposes the change of the second patch for MoltenVK itself.
 
 ## Linux NVIDIA machines
 

@@ -25,3 +25,18 @@ nix develop --command native/build-joltc.sh
 ```
 
 The script writes the library to `native/osx-arm64` or `native/linux-x64`. The .NET build copies the library from there. The script uses the same source versions and the same CMake options as `joltc.nix`. It does not check hashes, so the Nix build is the reproducible one.
+
+## MoltenVK on the Mac
+
+The file `moltenvk.nix` builds the Mac's Vulkan driver. It is MoltenVK from nixpkgs with the two patches of this folder:
+
+- `moltenvk-execution-dependencies.patch` is upstream's fix of MoltenVK issue 2805.
+- `moltenvk-keep-dispatch-encoder.patch` keeps a compute encoder open across a pipeline barrier to the compute stage.
+
+The Mac's dev shell makes this build the default driver. Build it alone with this command:
+
+```sh
+nix build .#moltenvk
+```
+
+[tools/README.md](../tools/README.md), "The patched MoltenVK", gives the reason, the ordering rules and the switches back to the stock behavior.
