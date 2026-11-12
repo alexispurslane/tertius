@@ -98,6 +98,15 @@ internal sealed unsafe class ScreenTraceKernel : IDisposable
             context.Barriers.Image(image, ImageUse.SampledCompute);
     }
 
+    /// <summary>The environment map's two images, which a miss and the closed form read, under <see cref="SceneEnvironmentMap"/>.</summary>
+    public static void DeclareEnvironment(FrameContext context)
+    {
+        if (context.Environment is not { } map)
+            return;
+        context.Barriers.Image(map.Specular, ImageUse.SampledCompute);
+        context.Barriers.Image(map.Irradiance, ImageUse.SampledCompute);
+    }
+
     public void DeclareHistories(BarrierBatch barriers, int parity, bool slow)
     {
         barriers.Image(images.SurfaceTest, ImageUse.StorageCompute);
@@ -121,18 +130,38 @@ internal sealed class ScreenTracePlanPass(ScreenTraceKernel kernel, ScreenTraceI
         ScreenTraceKernel.DeclareSurfaces(context);
         kernel.DeclareHistories(context.Barriers, context.History.Parity, slow: true);
         context.Barriers.Image(images.Plan, ImageUse.StorageCompute, discard: true);
-        // The light-change age: the plan reads the direct light and the last record, and writes every pixel of this one.
+
+        DeclareHitLight(context);
+
+        // The light-change age: the plan reads the last record, and writes every pixel of this one.
         int parity = context.History.Parity;
         if (images.LightAge(parity) is { } lightAge && images.LastLightAge(parity) is { } lastLightAge)
         {
-            context.Barriers.Image(context.Targets.DirectDiffuse, ImageUse.StorageCompute);
-            context.Barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeRead);
             context.Barriers.Image(lastLightAge, ImageUse.StorageCompute);
             context.Barriers.Image(lightAge, ImageUse.StorageCompute, discard: true);
         }
         foreach (GpuBuffer list in images.OwnRays)
             context.Barriers.Buffer(list, BufferUse.ComputeWrite);
         kernel.Record(context, side: 1);
+    }
+
+    /// <summary>
+    /// The hit light's resources: the plan writes it at every pixel that a walk can hit, by the pyramid's finest level,
+    /// from this frame's direct light, the last frame's light of both signals and the environment's closed form.
+    /// </summary>
+    private void DeclareHitLight(FrameContext context)
+    {
+        BarrierBatch barriers = context.Barriers;
+        barriers.Image(
+            context.Targets.Pyramid?.Finest ?? throw new UnreachableException("The tracer reads the pyramid."),
+            ImageUse.SampledComputeGeneral
+        );
+        kernel.DeclareHistories(barriers, context.History.Parity, slow: false);
+        barriers.Image(context.Targets.DirectDiffuse, ImageUse.StorageCompute);
+        barriers.Image(context.Targets.DirectSpecular, ImageUse.StorageCompute);
+        barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeRead);
+        ScreenTraceKernel.DeclareEnvironment(context);
+        barriers.Image(images.HitLight, ImageUse.StorageCompute, discard: true);
     }
 
     public override void Dispose() => kernel.Dispose();
@@ -170,19 +199,15 @@ internal sealed class ScreenTraceRaysPass(
         barriers.Image(images.LightPyramidImages.Image, ImageUse.SampledComputeGeneral);
         barriers.Image(images.LightPyramidImages.Finest, ImageUse.SampledComputeGeneral);
 
-        barriers.Image(targets.DirectDiffuse, ImageUse.StorageCompute);
-        barriers.Image(targets.DirectSpecular, ImageUse.StorageCompute);
-        kernel.DeclareHistories(barriers, context.History.Parity, slow: false);
+        // A miss reads the exposure and the environment map.
         barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeRead);
-        if (context.Environment is { } map)
-        {
-            barriers.Image(map.Specular, ImageUse.SampledCompute);
-            barriers.Image(map.Irradiance, ImageUse.SampledCompute);
-        }
+        ScreenTraceKernel.DeclareEnvironment(context);
 
         // Each kind writes its own layers, but the validation layers' hazard tracking sees one image.
         foreach (GpuImage image in (GpuImage[])[images.BlockLight, images.BlockRay, images.OwnLight, images.OwnRay])
             barriers.Image(image, ImageUse.StorageCompute);
+        // A hit reads the light that the plan wrote at its pixel.
+        barriers.Image(images.HitLight, ImageUse.StorageCompute);
         // A hit reads the age that the plan wrote at its pixel.
         if (images.LightAge(context.History.Parity) is { } lightAge)
             barriers.Image(lightAge, ImageUse.StorageCompute);

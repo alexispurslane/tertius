@@ -1,6 +1,6 @@
 #version 460
 // The ray plan of the screen tracer (docs/plans/temporal-renderer.md, section 6, "The ray budget"): one invocation per
-// pixel decides, for each kind that the pixel starts, whether it traces a ray of its own, writes the plan's bits and
+// pixel writes the light that leaves the pixel toward a ray of each kind into the hit light image, and decides, for each kind that the pixel starts, whether it traces a ray of its own, writes the plan's bits and
 // lists the pixel in the kind's own-ray list. A block's chosen pixel traces the block's ray instead. Another pixel traces
 // its own ray while its history of the kind is shorter than FullRateFrames, or where the block's ray does not fit it. With
 // the precise specular history, a block's reflection ray fits a pixel only inside the pixel's reflection lobe
@@ -128,13 +128,18 @@ vec2 lightAgeOf(ivec2 pixel)
 #endif
 
 // The length of the pixel's history of the kind at its place in the last frame, in frames: the slow history's alpha,
-// through the taps, the pass bits and the weights of the accumulator's reprojection of the surface place. The specular
-// signal's plan reads the surface place alone, because the reflected place needs this frame's hit distance.
-float historyLengthOf(ivec2 pixel, uint kind)
+// through the reprojection of the surface place, its taps, pass bits and weights, as the accumulator reads it. The
+// specular signal's plan reads the surface place alone, because the reflected place needs this frame's hit distance.
+float historyLengthOf(SignalReprojections r, uint kind)
 {
-    uint bits = imageLoad(surfaceTest, pixel).r;
-    Reprojection r = reprojectionOf(lastPlaceAt(pixel), kind == KindDiffuse ? bits & 0xFu : (bits >> 4) & 0xFu);
-    return kind == KindDiffuse ? slowDiffuseAt(r).a : slowSpecularAt(r).a;
+    return kind == KindDiffuse ? slowDiffuseAt(r.diffuse).a : slowSpecularAt(r.specular).a;
+}
+
+// Writes the hit light of both kinds at the pixel.
+void storeHitLight(ivec2 pixel, LeavingLight leaving)
+{
+    imageStore(hitLight, ivec3(pixel, KindReflection), vec4(leaving.reflection, 0.0));
+    imageStore(hitLight, ivec3(pixel, KindDiffuse), vec4(leaving.diffuse, 0.0));
 }
 
 #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
@@ -179,7 +184,10 @@ void main()
     uint plan = 0u;
     if (tracedSurface(pixel))
     {
+        // The hit light shares the pixel's material and reprojections with the plan's decisions (leavingLightAt).
         TracingPixel p = tracingPixelAt(pixel);
+        SignalReprojections r = reprojectionsAt(pixel);
+        storeHitLight(pixel, leavingLightOf(pixel, p.s, p.V, r));
         for (uint kind = KindReflection; kind <= KindDiffuse; kind++)
         {
             ivec2 chosen;
@@ -187,7 +195,7 @@ void main()
             // A pixel that starts the kind gives its block a chosen pixel.
             if (!startsKind(p, kind) || !chosenPixelOf(pixel / 2, kind, chosen, c) || all(equal(chosen, pixel)))
                 continue;
-            if (historyLengthOf(pixel, kind) >= FullRateFrames && fits(p, c, kind))
+            if (historyLengthOf(r, kind) >= FullRateFrames && fits(p, c, kind))
                 continue;
             if (kind == KindReflection)
             {
@@ -201,5 +209,8 @@ void main()
             }
         }
     }
+    // An impostor sends its glow alone. The sky's hit light stays as it is, because no walk hits it.
+    else if (hittable(pixel))
+        storeHitLight(pixel, LeavingLight(glowAt(pixel), glowAt(pixel)));
     imageStore(rayPlan, pixel, uvec4(plan));
 }

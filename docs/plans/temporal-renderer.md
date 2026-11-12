@@ -710,6 +710,8 @@ Two designs:
 
 B wins. A keeps a second store of light beside the histories. The two stores can disagree, for example after a reset of one of them. B reads more per hit, but a frame has at most about 0.5 million hits at 1280 × 720.
 
+Changed on 2026-11-12 (`ter-67y3`): the ray plan computes B's light of every pixel once per frame into an image, and a hit reads one texel of it. The image is no second store: the plan writes it from this frame's images before any ray reads it, so it cannot disagree with the histories.
+
 ```glsl
 Light history = indirectHistoryAt(q);
 vec3 hitLight = factors.diffuse * (directDiffuseAt(q) + history.diffuse)

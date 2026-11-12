@@ -22,3 +22,7 @@ After a gpu-trace.sh run, with or without a failure, no instruments*.ktrace file
 **2026-11-03T12:35:27Z**
 
 On 2026-11-03 its epic ter-pq5y closed as superseded by the temporal renderer. This tool fix stays valid for every gpu-trace run, so it stays open with no parent.
+
+**2026-11-12T09:31:14Z**
+
+2026-11-12 orchestrator: on 2026-11-11 at about 21:30, 152 of these leftovers (82 GB) filled the disk and broke every agent's work for about 10 minutes. Details and the stopgap janitor in ter-kba1, now closed as a duplicate of this ticket. Priority raised to 1.

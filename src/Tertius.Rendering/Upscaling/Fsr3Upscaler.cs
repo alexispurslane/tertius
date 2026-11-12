@@ -142,9 +142,9 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
         new(Binding: 1, Slot: Fsr3Slot.Constants, Type: DescriptorType.StorageBuffer),
     ];
 
-    // The bindings of each set layout: one per pass of AMD's, then the exposure step's.
+    // The bindings of each set layout: one per pass of AMD's, then the exposure step's and the clear step's.
     private static IEnumerable<Fsr3Binding[]> LayoutBindings =>
-        Enum.GetValues<Fsr3Pass>().Select(Fsr3Bindings.Of).Append(ExposureBindings);
+        Enum.GetValues<Fsr3Pass>().Select(Fsr3Bindings.Of).Append(ExposureBindings).Append(Fsr3Bindings.ClearStep);
 
     /// <summary>The passes of the upscale in the order of AMD's <c>fsr3upscalerDispatch</c>, after the generator.</summary>
     public static ReadOnlySpan<Fsr3Pass> UpscalePasses =>
@@ -172,6 +172,7 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
     private readonly DescriptorPool pool;
     private readonly FsrPipeline[] pipelines;
     private readonly FsrPipeline exposurePipeline;
+    private readonly FsrPipeline clearPipeline;
 
     // The images that the pass being recorded already prepared, so that each gets one barrier.
     private readonly List<GpuImage> prepared = [];
@@ -216,7 +217,9 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
         GpuImage spdMips = images[(int)Fsr3Image.SpdMips];
         spdLevelViews =
         [
-            .. Enumerable.Range(0, 6).Select(level => spdMips.CreateLayerView(layer: 0, mipLevel: (uint)level)),
+            .. Enumerable
+                .Range(0, (int)spdMips.MipLevels)
+                .Select(level => spdMips.CreateLayerView(layer: 0, mipLevel: (uint)level)),
         ];
 
         (Constants, spdConstants, reactiveConstants) = CreateConstantBuffers();
@@ -246,23 +249,71 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
             bindings: ExposureBindings,
             pushConstantBytes: sizeof(uint)
         );
+        // The clear step's push constant is the count of the luminance pyramid's levels.
+        clearPipeline = CreatePipeline(
+            shaders: shaders,
+            shader: ClearStepShader,
+            bindings: Fsr3Bindings.ClearStep,
+            pushConstantBytes: sizeof(uint)
+        );
+        WriteClearSets();
     }
 
     /// <summary>FSR's constant buffer, <c>cbFSR3Upscaler</c>, which Record writes. A test reads it back.</summary>
     public GpuBuffer Constants { get; }
 
     /// <summary>
-    /// The clears of AMD's <c>fsr3upscalerDispatch</c> in a frame: on the first execution the accumulations and the lumas,
-    /// on a reset or the first execution the accumulation that the frame reads, the luminance pyramid and the frame info,
-    /// and in every frame the reconstructed depth, the pyramid's atomic counter and the pyramid. A frame is odd by the
-    /// count of frames before it.
+    /// The transfer clears of a frame: AMD's clears of <c>fsr3upscalerDispatch</c> but those of
+    /// <see cref="ZeroedEachFrame"/>, in AMD's order. On the first execution the accumulations and the lumas, and on a
+    /// reset or the first execution the accumulation that the frame reads and the frame info. A frame is odd by the count
+    /// of frames before it.
     /// </summary>
     public static IReadOnlyList<Fsr3Clear> Clears(bool firstExecution, bool reset, bool odd) =>
         ClearLists[(firstExecution ? 4 : 0) + (reset ? 2 : 0) + (odd ? 1 : 0)];
 
+    /// <summary>The images that the clear step zeroes in every frame, which AMD clears with zeros in every frame.</summary>
+    public static IReadOnlyList<Fsr3Image> ZeroedEachFrame { get; } =
+    [Fsr3Image.ReconstructedPrevNearestDepth, Fsr3Image.SpdAtomicCounter, Fsr3Image.SpdMips];
+
+    /// <summary>The embedded SPIR-V of the clear step, one compute dispatch that zeroes <see cref="ZeroedEachFrame"/>.</summary>
+    internal const string ClearStepShader = "fsr_clear.comp";
+
     /// <summary>
-    /// Records this frame's upscale: the pre-exposure ratio into the constants, AMD's reactive mask generator, AMD's clears
-    /// and the seven passes. It writes the sets of the frame <c>framesInFlight</c> frames ago, which must have finished.
+    /// Declares the clear step's images as storage images whose contents it discards. The next flush of
+    /// <paramref name="barriers"/> must come before <see cref="DispatchClearStep"/>.
+    /// </summary>
+    internal void DeclareClearStep(BarrierBatch barriers)
+    {
+        foreach (Fsr3Image image in ZeroedEachFrame)
+            barriers.Image(Image(image), ImageUse.StorageCompute, discard: true);
+    }
+
+    /// <summary>
+    /// Records the clear step: one dispatch that writes zeros into every texel of every level of
+    /// <see cref="ZeroedEachFrame"/>, after the barriers of <see cref="DeclareClearStep"/>.
+    /// </summary>
+    internal void DispatchClearStep(CommandBuffer commandBuffer)
+    {
+        Vk vk = device.Vk;
+        // The sets of the clear step hold FSR's own images only, which never change, so every frame binds the first.
+        clearPipeline.Bind(vk, commandBuffer, set: 0);
+        uint levels = Image(Fsr3Image.SpdMips).MipLevels;
+        vk.CmdPushConstants(
+            commandBuffer: commandBuffer,
+            layout: clearPipeline.Layout,
+            stageFlags: ShaderStageFlags.ComputeBit,
+            offset: 0,
+            size: sizeof(uint),
+            pValues: &levels
+        );
+        // The reconstructed depth, at the largest render size, covers every level of the pyramid at half of it.
+        (uint x, uint y) = Covering(Image(Fsr3Image.ReconstructedPrevNearestDepth).Extent);
+        vk.CmdDispatch(commandBuffer: commandBuffer, groupCountX: x, groupCountY: y, groupCountZ: 1);
+    }
+
+    /// <summary>
+    /// Records this frame's upscale: the pre-exposure ratio into the constants, the clear step, AMD's reactive mask
+    /// generator, AMD's other clears and the seven passes. It writes the sets of the frame <c>framesInFlight</c> frames ago, which must have finished.
     /// Every touched image stays in its last use's state, which <paramref name="barriers"/> carries.
     /// </summary>
     /// <exception cref="ArgumentException">The render size is not within the largest render size, the output is not of
@@ -288,7 +339,12 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
             ClearDefaults(frame);
         WriteConstants(frame, Fsr3SpdConstants.For(inputs.Frame.RenderSize));
         WriteSets(frame);
+        // The clear step shares the exposure step's barrier and its Metal encoder under MoltenVK: neither touches an
+        // image or a buffer of the other. AMD clears its images after the reactive mask generator, which does not touch
+        // them either, so the earlier place gives the same images.
+        DeclareClearStep(frame.Barriers);
         RecordExposureStep(frame);
+        DispatchClearStep(frame.CommandBuffer);
         RecordPass(frame, Fsr3Pass.GenerateReactive);
         IReadOnlyList<Fsr3Clear> clears = Clears(firstExecution: first, reset: inputs.Frame.Reset, odd: frame.Odd);
         for (int index = 0; index < clears.Count; index++)
@@ -303,6 +359,7 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
     public void Dispose()
     {
         exposurePipeline.Dispose(device);
+        clearPipeline.Dispose(device);
         foreach (FsrPipeline pipeline in pipelines)
             pipeline.Dispose(device);
         device.Vk.DestroyDescriptorPool(device.Device, pool, null);
@@ -463,17 +520,10 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
         if (reset || firstExecution)
         {
             clears.Add(new(Fsr3Bindings.Read(Fsr3Image.Accumulation1, Fsr3Image.Accumulation2, odd), Vector4.Zero));
-            clears.Add(new(Fsr3Image.SpdMips, Vector4.Zero));
             // AMD's frame info after a reset: no exposure yet, and a previous luminance of 1.
             clears.Add(new(Fsr3Image.FrameInfo, new Vector4(x: -1f, y: 1f, z: 0f, w: 0f)));
         }
 
-        // Reversed depth: 0 is the farthest, which the reconstruction's atomic maximum starts from.
-        clears.Add(new(Fsr3Image.ReconstructedPrevNearestDepth, Vector4.Zero));
-        clears.Add(new(Fsr3Image.SpdAtomicCounter, Vector4.Zero));
-        // AMD labels this clear "Clear Spd Atomic Count", but it clears the pyramid, whose texels the passes may read
-        // before any write.
-        clears.Add(new(Fsr3Image.SpdMips, Vector4.Zero));
         return [.. clears];
     }
 
@@ -562,6 +612,12 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
         // AMD's images at half the largest render size need a pixel on each side.
         ArgumentOutOfRangeException.ThrowIfLessThan(Math.Min(maxRenderSize.Width, maxRenderSize.Height), 2u);
         ArgumentOutOfRangeException.ThrowIfZero(Math.Min(outputSize.Width, outputSize.Height));
+        uint spdLevels = Describe(Fsr3Image.SpdMips, maxRenderSize, outputSize).MipLevels;
+        if (spdLevels > Fsr3Bindings.ClearedSpdLevels)
+            throw new ArgumentOutOfRangeException(
+                nameof(maxRenderSize),
+                $"The largest render size gives FSR's luminance pyramid {spdLevels} levels, and the clear step binds {Fsr3Bindings.ClearedSpdLevels}."
+            );
         ArgumentOutOfRangeException.ThrowIfLessThan(framesInFlight, 1);
         // Before any layout exists: a pipeline layout above a per-stage limit breaks the valid usage of
         // vkCreatePipelineLayout.
@@ -595,14 +651,18 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
             );
     }
 
-    // Every image of FSR is a storage image, a sampled image and a clear's destination.
+    // Every image of FSR is a storage image, a sampled image, a clear's destination and a copy's source, which a test
+    // reads back.
     private GpuImage CreateImage(Fsr3ImageDescription description) =>
         GpuImage.Create(
             device: device,
             allocator: allocator,
             extent: description.Extent,
             format: description.Format,
-            usage: ImageUsageFlags.StorageBit | ImageUsageFlags.SampledBit | ImageUsageFlags.TransferDstBit,
+            usage: ImageUsageFlags.StorageBit
+                | ImageUsageFlags.SampledBit
+                | ImageUsageFlags.TransferDstBit
+                | ImageUsageFlags.TransferSrcBit,
             mipLevels: description.MipLevels,
             name: description.Name
         );
@@ -658,7 +718,8 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
             name: name
         );
 
-    private GpuImage Image(Fsr3Image image) => images[(int)image];
+    /// <summary>FSR's own <paramref name="image"/>. A test fills and reads it.</summary>
+    internal GpuImage Image(Fsr3Image image) => images[(int)image];
 
     /// <summary>The image that <paramref name="slot"/> holds in this frame.</summary>
     private GpuImage ImageOf(Fsr3Slot slot, in Fsr3Inputs inputs, bool odd) =>
@@ -706,13 +767,8 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
             Fsr3Slot.ShadingChange => Image(Fsr3Image.ShadingChange),
             Fsr3Slot.NewLocks => Image(Fsr3Image.NewLocks),
             Fsr3Slot.DilatedReactiveMasks => Image(Fsr3Image.DilatedReactiveMasks),
-            Fsr3Slot.SpdMips
-            or Fsr3Slot.SpdMip0
-            or Fsr3Slot.SpdMip1
-            or Fsr3Slot.SpdMip2
-            or Fsr3Slot.SpdMip3
-            or Fsr3Slot.SpdMip4
-            or Fsr3Slot.SpdMip5 => Image(Fsr3Image.SpdMips),
+            // The whole luminance pyramid, then each of its levels, which follow it in Fsr3Slot.
+            >= Fsr3Slot.SpdMips and <= Fsr3Slot.SpdMip12 => Image(Fsr3Image.SpdMips),
             Fsr3Slot.SpdAtomic => Image(Fsr3Image.SpdAtomicCounter),
             Fsr3Slot.FrameInfo => Image(Fsr3Image.FrameInfo),
             Fsr3Slot.ExposureBuffer
@@ -878,6 +934,57 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
             descriptorCopyCount: 0,
             pDescriptorCopies: null
         );
+    }
+
+    /// <summary>
+    /// Writes every set of the clear step: the reconstructed depth, the atomic counter and each level of the luminance
+    /// pyramid. A binding past the pyramid's last level holds that level again, a valid view that the step never writes.
+    /// </summary>
+    private void WriteClearSets()
+    {
+        Fsr3Binding[] bindings = Fsr3Bindings.ClearStep;
+        DescriptorImageInfo* infos = stackalloc DescriptorImageInfo[bindings.Length];
+        WriteDescriptorSet* writes = stackalloc WriteDescriptorSet[bindings.Length];
+        foreach (DescriptorSet set in clearPipeline.Sets)
+        {
+            for (int index = 0; index < bindings.Length; index++)
+            {
+                infos[index] = new DescriptorImageInfo
+                {
+                    ImageView = Fsr3Bindings.SpdLevel(bindings[index].Slot) is { } level
+                        ? spdLevelViews[Math.Min(level, spdLevelViews.Length - 1)]
+                        : Image(ZeroedImageOf(bindings[index].Slot)).View,
+                    ImageLayout = ImageLayout.General,
+                };
+                writes[index] = new WriteDescriptorSet
+                {
+                    SType = StructureType.WriteDescriptorSet,
+                    DstSet = set,
+                    DstBinding = bindings[index].Binding,
+                    DescriptorCount = 1,
+                    DescriptorType = DescriptorType.StorageImage,
+                    PImageInfo = &infos[index],
+                };
+            }
+
+            device.Vk.UpdateDescriptorSets(
+                device: device.Device,
+                descriptorWriteCount: (uint)bindings.Length,
+                pDescriptorWrites: writes,
+                descriptorCopyCount: 0,
+                pDescriptorCopies: null
+            );
+        }
+    }
+
+    /// <summary>The image of a slot of the clear step other than a level of the luminance pyramid.</summary>
+    private static Fsr3Image ZeroedImageOf(Fsr3Slot slot)
+    {
+        if (slot == Fsr3Slot.ReconstructedPreviousNearestDepth)
+            return Fsr3Image.ReconstructedPrevNearestDepth;
+        if (slot == Fsr3Slot.SpdAtomic)
+            return Fsr3Image.SpdAtomicCounter;
+        throw new UnreachableException($"The clear step binds no {slot}.");
     }
 
     /// <summary>The exposure step: one invocation that writes the pre-exposure ratio into FSR's constants.</summary>
