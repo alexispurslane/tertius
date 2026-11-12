@@ -66,8 +66,7 @@ class TheCloudRun(unittest.TestCase):
     def test_the_job_deepens_its_shallow_tree_and_runs_one_module_from_the_merge_base(self):
         command = cloud.job_command("a" * 40, "Simulation", ["Program.cs"])
         self.assertIn("--unshallow", command)
-        self.assertTrue(command.endswith(f"changed.py {'a' * 40} ../out/Simulation --modules Simulation "
-                                         "--exclude Program.cs"))
+        self.assertTrue(command.endswith(f"changed.py {'a' * 40} ../out --modules Simulation --exclude Program.cs"))
 
 
 class ReadingADiff(unittest.TestCase):

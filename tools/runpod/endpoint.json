@@ -9,13 +9,13 @@
   "kinds": {
     "gpu": {
       "rate_per_second": 0.00016,
-      "workers": 6,
+      "workers": 5,
       "job_seconds": 840,
       "endpoint_timeout_seconds": 900
     },
     "cpu": {
       "rate_per_second": 2e-05,
-      "workers": 4,
+      "workers": 3,
       "job_seconds": 7140,
       "endpoint_timeout_seconds": 7200
     }

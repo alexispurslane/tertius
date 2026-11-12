@@ -253,7 +253,7 @@ def settings_text(concurrency, additional_timeout):
                       f'1-minute load of {MAX_TIMEOUT_LOAD_PER_CORE} per core')
 
 
-def report(rows, unmutated, notes, problems, settings, official, load, wall_seconds, out):
+def print_report(rows, unmutated, notes, problems, settings, official, load, wall_seconds, out):
     """Print the table, the lines without a mutant, the evidence and the validity of a run, and write
     <out>/results.json. The exit code: 1 if the run is not valid."""
     mutation_table.print_table(rows)
@@ -335,7 +335,7 @@ def main():
             all_problems += [f'{module}: {p}' for p in problems(module_rows, found, max(result['load'], default=None))]
             rows += module_rows
     rows += removed_rows(removed, set(plans), args.exclude)
-    if report(rows, unmutated, notes, all_problems, settings, official, load, time.monotonic() - started, out):
+    if print_report(rows, unmutated, notes, all_problems, settings, official, load, time.monotonic() - started, out):
         sys.exit(1)
 
 

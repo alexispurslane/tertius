@@ -32,9 +32,10 @@ import changed  # noqa: E402
 import changed_lines  # noqa: E402
 
 GPU_JOB = HERE.parent / "runpod/gpu_job.py"
-# The files of a module's folder that come back from its worker. A job sends back at most 8 MB in base64.
-OUTPUTS = ["results.json", "stryker-config.json", "run.out", "processes.log", "out/logs/*.txt",
-           "out/reports/mutation-report.json"]
+# The files that come back from a module's worker, under the job's out/: changed.py's results.json, and the module's
+# folder with its Stryker configuration, report and logs and run.py's samples. A job sends back at most 8 MB in base64.
+OUTPUTS = ["results.json", "{module}/stryker-config.json", "{module}/run.out", "{module}/processes.log",
+           "{module}/out/logs/*.txt", "{module}/out/reports/mutation-report.json"]
 
 
 def job_command(base: str, module: str, exclude: list) -> str:
@@ -42,7 +43,7 @@ def job_command(base: str, module: str, exclude: list) -> str:
     tool manifest, then changed.py on one module. The job's tree is a shallow clone of one commit, and changed.py diffs from the merge base."""
     excluded = f" --exclude {' '.join(shlex.quote(name) for name in exclude)}" if exclude else ""
     return (f"cd t && git fetch -q --filter=blob:none --unshallow origin && dotnet tool restore > /dev/null && "
-            f"python3 -I tools/stryker/changed.py {base} ../out/{module} --modules {module}{excluded}")
+            f"python3 -I tools/stryker/changed.py {base} ../out --modules {module}{excluded}")
 
 
 def merged(results: dict, failures: dict) -> dict:
@@ -71,17 +72,19 @@ def run_job(module: str, args, head: str, base: str, out: Path, ended: dict):
     command = [sys.executable, "-I", str(GPU_JOB), "submit", "--agent", args.agent, "--kind", "cpu",
                "--tree", f"t={head}", "--run", job_command(base, module, args.exclude), "--out", str(out / "jobs" / module)]
     for name in OUTPUTS:
-        command += ["--output", f"out/{module}/{name}"]
+        command += ["--output", "out/" + name.format(module=module)]
     with (out / f"{module}.job.log").open("w") as log:
         ended[module] = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT).returncode
-    landed = out / "jobs" / module / "out" / module
-    if landed.exists():
-        folder.mkdir(parents=True, exist_ok=True)
-        for path in landed.rglob("*"):
+    landed = out / "jobs" / module / "out"
+    folder.mkdir(parents=True, exist_ok=True)
+    if (landed / module).exists():
+        for path in (landed / module).rglob("*"):
             if path.is_file():
-                target = folder / path.relative_to(landed)
+                target = folder / path.relative_to(landed / module)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 path.replace(target)
+    if (landed / "results.json").is_file():
+        (landed / "results.json").replace(folder / "results.json")
 
 
 def main() -> int:
@@ -123,7 +126,7 @@ def main() -> int:
             failures[module] = f"exit code {ended.get(module)}, see {out}/{module}.job.log"
     run = merged(results, failures)
     run["rows"] += changed.removed_rows(removed, set(plans) - set(modules), args.exclude)
-    return changed.report(run["rows"], run["unmutated"], run["notes"], run["problems"], run["settings"],
+    return changed.print_report(run["rows"], run["unmutated"], run["notes"], run["problems"], run["settings"],
                           run["official"], run["load"], time.monotonic() - started, out)
 
 

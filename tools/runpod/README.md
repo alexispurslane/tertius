@@ -1,6 +1,6 @@
-# GPU jobs on Runpod: how the queue works
+# Cloud jobs on Runpod: how the queue works
 
-An agent runs a GPU job, such as a build and a timing run of the demo, on a Runpod serverless endpoint. The agent calls one script, `tools/runpod/gpu_job.py`, and the script keeps the spending within the caps. [WORKBENCH.md](WORKBENCH.md) is the guide for agents: the A/B against main, the quality A/B, what still needs the Mac, and the costs. This file describes how the queue works. Tickets ter-94uo, ter-a5ev and ter-k7fd made the parts.
+An agent runs a cloud job on a Runpod serverless endpoint: a GPU job, such as a build and a timing run of the demo, or a CPU job, such as the official Stryker run of one module. The agent calls one script, `tools/runpod/gpu_job.py`, and the script keeps the spending within the caps. [WORKBENCH.md](WORKBENCH.md) is the guide for agents: the A/B against main, the quality A/B, what still needs the Mac, the cloud tests, and the costs. This file describes how the queue works. Tickets ter-94uo, ter-a5ev, ter-k7fd and t8-yd4j made the parts.
 
 | Part | What it does |
 |---|---|
@@ -9,7 +9,8 @@ An agent runs a GPU job, such as a build and a timing run of the demo, on a Runp
 | `worker.py` | The image's entry. The Runpod SDK gives it each job, and it calls the handler in a fresh work folder. |
 | `Dockerfile`, `provision.sh` | The image: the dev shell, the source of one commit with its Release demo built, and the worker. |
 | `.github/workflows/gpu-image.yml` | It builds the image on GitHub and pushes it to `ghcr.io/alexispurslane/tertius-gpu:<commit>`. |
-| `endpoint.json` | The configuration of the script: the image repository, the public repository, the price, the caps and the time limits. |
+| `endpoint.json` | The configuration of the script: the image repository, the public repository, the caps, and each kind's price, workers and time limits. |
+| `tools/stryker/cloud.py` | The official Stryker run with one CPU job per module ("Cloud tests" below). |
 | `ab_run.sh`, `ab_report.py` | The A/B of the workbench: the runs of each tree on the worker, and their report on the Mac. |
 
 ## Run a job
@@ -25,7 +26,8 @@ python3 -I tools/runpod/gpu_job.py submit --agent <your name> \
 
 - Each `--tree NAME=REF` becomes the folder `NAME` in the job's work folder. It holds the files of the commit of `REF`, without `docs/` and `.tickets/`. Commit your change first. The commit need not be on GitHub, because the script publishes it.
 - Each `--run` command runs in the work folder, in the image's dev shell. The first command that fails ends the job.
-- `--timeout` gives the seconds of all commands together, a positive number. It is at most `job_seconds` of the configuration, 840 s. The handler stops the commands at that limit and still sends back the log and the files.
+- `--kind gpu`, the default, runs the job on an RTX 2000 Ada. `--kind cpu` runs it on a CPU worker of 2 vCPUs and 4 GB of memory, with no GPU, at an eighth of the price.
+- `--timeout` gives the seconds of all commands together, a positive number. It is at most the kind's `job_seconds` in `endpoint.json`: 840 s for a GPU job and 7,140 s for a CPU job. The handler stops the commands at that limit and still sends back the log and the files.
 - Run the script in the background, because a job can wait minutes for a worker. If the script gets Ctrl-C, SIGTERM or SIGHUP, it cancels the job and waits for its final status. A cancel does not stop a command that already runs, so the log counts a cancelled job at its worst case.
 - `<folder>` gets the files of the `--output` globs and `result.json`. That file holds each command's exit code and time, the end of the log, and the files past the size limit of 8 MB.
 
@@ -59,19 +61,26 @@ Before each job, the script lists the images of the registry. Of the images whos
 1. The branch's own image: the newest one that the job's commits descend from and that main does not hold. A tag `gpu-image-*` on the branch builds it.
 2. Otherwise, the newest image of main. So the jobs of all branches without their own image share one endpoint.
 
-An image of another branch never runs the job. "Main" is `refs/remotes/origin/main`, main as the repository last fetched it from GitHub. Runpod's list of endpoints is the one store of the live endpoint: the script finds an endpoint by its image, and no file holds its id. The script's own endpoints are those named `tertius-gpu-<12 hex characters>`, and the first endpoint, with the bare name `tertius-gpu`. It deletes no other endpoint.
+An image of another branch never runs the job. "Main" is `refs/remotes/origin/main`, main as the repository last fetched it from GitHub. The one image serves both kinds: on a CPU worker, the dev shell starts without a GPU.
 
-Runpod limits the account to 10 workers, summed over the maximums of all its endpoints. Under the lock, the script routes each job in three steps:
+Each kind has its own endpoints, one per image. Runpod's list of endpoints is the one store of the live endpoints: the script finds an endpoint by its kind and its image, and no file holds an id. The script's own endpoints are named `tertius-<kind>-<12 characters of the commit>-<4 random hex digits>`. The first endpoints have no random part, or the bare name `tertius-gpu`. The script deletes no other endpoint. Each creation draws a new random part, because Runpod keeps the name of a deleted or failed endpoint for up to 90 minutes and refuses a new endpoint of that name.
 
-1. It deletes each endpoint of its own that does not run the chosen image, that no job in flight names, and on which no worker runs. An old endpoint thus goes after its last job, and no job of it is cut. Its workers return to the quota.
-2. If no endpoint runs the chosen image, the script creates one with the workers that the quota leaves, at most 6. Example: 4 beside a busy old endpoint of 6. If the quota leaves none, the job runs on the endpoint of the best fitting image that has one. Only if no such endpoint exists, the script refuses the job.
-3. If the quota leaves room, the script raises the live endpoint to 6 workers.
+| Kind | Machine | Workers | Price | Time limit per job | Disk |
+|---|---|---:|---:|---:|---:|
+| `gpu` | RTX 2000 Ada, from the 16 GB pool `AMPERE_16` without its other three cards | 5 | $0.00016/s, $0.58/h | 840 s of commands, 900 s in all | 60 GB |
+| `cpu` | `cpu3c`, compute-optimized, 2 vCPUs, 4 GB of memory | 3 | $0.00002/s, $0.07/h | 7,140 s of commands, 7,200 s in all | 20 GB, the most for 2 vCPUs |
 
-The script creates an endpoint as `tertius-gpu-<12 characters of the commit>`, with a 900 s timeout per job, FlashBoot and the 16 GB pool `AMPERE_16` without its other three cards. So every job runs on an RTX 2000 Ada. `gpu_job.py endpoint-request <commit>` prints that request and sends nothing.
+Runpod limits the account to 10 workers, summed over the maximums of all its endpoints. The kinds hold 8 of them. The other 2 are the headroom of an image switch: the new endpoint of either kind starts beside the busy old one with the 2 free workers, and it grows to its kind's workers when the old one goes. The script never lowers an endpoint to make room. Under the lock, the script routes each job in three steps, and each step looks only at the endpoints of the job's kind, apart from the quota:
 
-If any endpoint of the script has a maximum of 0 workers, the script refuses every job and deletes nothing. When the spending nears its limit, the orchestrator's watchdog stops all endpoints that way. The watchdog does not take the script's lock. So the script reads the list of endpoints again before each deletion, after a creation and before it raises an endpoint. If one of those reads shows a stop, the script deletes its new endpoint again and refuses the job.
+1. It deletes each endpoint of the kind that does not run the chosen image, that no job in flight names, and on which no worker runs. An old endpoint thus goes after its last job, and no job of it is cut. Its workers return to the quota.
+2. If no endpoint of the kind runs the chosen image, the script creates one with the workers that the quota leaves, at most the kind's workers. If the quota leaves none, the job runs on the kind's endpoint of the best fitting image that has one. Only if no such endpoint exists, the script refuses the job.
+3. If the quota leaves room, the script raises the live endpoint to its kind's workers.
 
-This narrows the race with the watchdog but does not close it. A watchdog that listed the endpoints before the script created one does not stop the new one in that round. A stop that lands between the script's last read and its raise of an endpoint is undone until the watchdog's next round. That round comes 5 minutes later, and the caps stay a separate guard. If the orchestrator restarts the endpoints after a stop, the sum of their maximums must stay within 10.
+`gpu_job.py endpoint-request [--kind cpu] <commit>` prints the request that creates an endpoint, and sends nothing.
+
+If any endpoint of the script, of either kind, has a maximum of 0 workers, the script refuses every job and deletes nothing. When the spending nears its limit, the orchestrator's watchdog stops all endpoints that way. The watchdog does not take the script's lock. So the script reads the list of endpoints again before each deletion, after a creation and before it raises an endpoint. If one of those reads shows a stop, the script deletes its new endpoint again and refuses the job.
+
+This narrows the race with the watchdog but does not close it. A watchdog that listed the endpoints before the script created one does not stop the new one in that round. A stop that lands between the script's last read and its raise of an endpoint is undone until the watchdog's next round. That round comes 5 minutes later, and the caps stay a separate guard. If the orchestrator restarts the endpoints after a stop, the sum of their maximums must stay within 10: 5 for the GPU endpoint and 3 for the CPU endpoint.
 
 So a new image replaces the old endpoint without a drain: new jobs go to the new endpoint, and the jobs of the old one finish there. The caps and the audit log count the jobs of every endpoint, because each job records its own endpoint.
 
@@ -87,14 +96,14 @@ When the build passed, the next job of that dev shell creates the new endpoint i
 
 ## The caps
 
-The caps are $10 per UTC day and $30 in total, for all agents together. Before the script sends a job, it adds the job's worst case to two amounts:
+The caps are $30 in total and a cap per UTC day, for all agents and both kinds together. `daily_caps_usd` in `endpoint.json` maps the first day of each daily cap to its amount: $10 through 2026-11-12, and $3 from 2026-11-13. The $30 must last until about 2026-12-07. Before the script sends a job, it adds the job's worst case to two amounts:
 
 1. The spending: the larger of the audit log's sum and Runpod's bill. The bill (`GET /v2/billing`) holds the account's other spending, such as pods, but it lags the jobs by minutes or more. The daily cap uses today's sums, and the total cap uses the sums of the last 12 months, the account's whole life.
 2. The worst cases of the jobs in flight, on every endpoint.
 
 If either sum passes its cap, the script refuses the job, sends nothing and logs the refusal. A file lock spans the check and the record of the new job in flight. So two agents cannot both take the last of a cap.
 
-One cost model serves the worst case and the logged cost: the seconds, plus 60 s for a worker's start, plus 10 s of idle time after the job, times the price per second. For the worst case, the seconds are the execution timeout: the commands' time plus 60 s for the handler, and at most the endpoint's timeout. For the logged cost, they are Runpod's execution time. A job on a warm worker bills no start, so the log overcounts rather than undercounts.
+One cost model serves the worst case and the logged cost: the seconds, plus 60 s for a worker's start, plus 10 s of idle time after the job, times the price per second of the job's kind. For the worst case, the seconds are the execution timeout: the commands' time plus 60 s for the handler, and at most the endpoint's timeout. For the logged cost, they are Runpod's execution time. A job on a warm worker bills no start, so the log overcounts rather than undercounts.
 
 Runpod bills a worker only while it runs: its cold start, 10 s here with FlashBoot, its jobs and its 10 s of idle time. It does not bill the image pull, or a worker that is initializing, idle or throttled ([pricing](https://docs.runpod.io/serverless/pricing)).
 
