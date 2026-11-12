@@ -168,6 +168,53 @@ public sealed class Fsr3UpscalerTests
     }
 
     [Fact]
+    public void TheClearStepZeroesEveryTexelOfTheReconstructedDepthTheCounterAndEachLevelOfTheLuminancePyramid()
+    {
+        // 8,200 × 64 gives the luminance pyramid at half of it 13 levels, the most that the clear step binds.
+        using var bench = new Fsr3Bench(largestRenderSize: new(8200, 64), outputSize: new(8200, 64));
+        Fsr3Upscaler upscaler = bench.Upscaler;
+        upscaler.Image(Fsr3Image.SpdMips).MipLevels.Should().Be(13);
+        foreach (Fsr3Image image in Fsr3Upscaler.ZeroedEachFrame)
+            bench.FillEveryLevel(upscaler.Image(image), new Vector4(1f));
+
+        bench.Submit(commandBuffer =>
+        {
+            upscaler.DeclareClearStep(bench.Barriers);
+            bench.Barriers.Flush(bench.Device.Vk, commandBuffer);
+            upscaler.DispatchClearStep(commandBuffer);
+        });
+
+        foreach (Fsr3Image image in Fsr3Upscaler.ZeroedEachFrame)
+        {
+            GpuImage cleared = upscaler.Image(image);
+            for (uint level = 0; level < cleared.MipLevels; level++)
+                bench
+                    .ReadWords(cleared, level)
+                    .Should()
+                    .AllSatisfy(word => word.Should().Be(0u), $"the clear step zeroes level {level} of {image}");
+        }
+    }
+
+    [Fact]
+    public void AnUpscaleZeroesTheLevelsOfTheLuminancePyramidThatNoPassOfAmdsWrites()
+    {
+        // AMD's passes write levels 0 to 5, so in a pyramid of 9 levels only the clear step writes levels 6 to 8.
+        using var bench = new Fsr3Bench(largestRenderSize: new(520, 300), outputSize: new(780, 450));
+        GpuImage pyramid = bench.Upscaler.Image(Fsr3Image.SpdMips);
+        bench.FillPattern();
+        bench.Upscale(index: 0, reset: true);
+        bench.FillEveryLevel(pyramid, new Vector4(1f));
+
+        bench.Upscale(index: 1, reset: false);
+
+        for (uint level = 6; level < pyramid.MipLevels; level++)
+            bench
+                .ReadWords(pyramid, level)
+                .Should()
+                .AllSatisfy(word => word.Should().Be(0u), $"every frame zeroes level {level} of the pyramid");
+    }
+
+    [Fact]
     public void TwoUpscalersOfTheSameFramesGiveTheSameBits()
     {
         static Vector4[] Run()
@@ -1095,18 +1142,31 @@ public sealed class Fsr3UpscalerTests
             return [.. ReadBack(reactive).AsSpan<byte>(pixels).ToArray().Select(texel => texel / 255f)];
         }
 
-        /// <summary>Copies level 0 of <paramref name="image"/> to the readback buffer and waits for it.</summary>
-        private GpuBuffer ReadBack(GpuImage image)
+        /// <summary>The words of <paramref name="level"/> of <paramref name="image"/>, row by row, one per texel of 4 bytes.</summary>
+        public uint[] ReadWords(GpuImage image, uint level)
+        {
+            Extent2D extent = LevelExtent(image, level);
+            int bytes = (int)(extent.Width * extent.Height * FormatBytes(image.Format));
+            return ReadBack(image, level).AsSpan<uint>(bytes / sizeof(uint)).ToArray();
+        }
+
+        /// <summary>Fills every level of <paramref name="image"/> with <paramref name="value"/>.</summary>
+        public void FillEveryLevel(GpuImage image, Vector4 value) =>
+            Submit(commandBuffer => Clear(commandBuffer, image, value));
+
+        /// <summary>Copies <paramref name="level"/> of <paramref name="image"/> to the readback buffer and waits for it.</summary>
+        private GpuBuffer ReadBack(GpuImage image, uint level = 0)
         {
             Submit(commandBuffer =>
             {
                 Barriers.Image(image, ImageUse.TransferSource);
                 Barriers.Buffer(readback, BufferUse.TransferDestination);
                 Barriers.Flush(Device.Vk, commandBuffer);
+                Extent2D extent = LevelExtent(image, level);
                 var region = new BufferImageCopy
                 {
-                    ImageSubresource = Level0,
-                    ImageExtent = new(image.Extent.Width, image.Extent.Height, 1),
+                    ImageSubresource = Level0 with { MipLevel = level },
+                    ImageExtent = new(extent.Width, extent.Height, 1),
                 };
                 Device.Vk.CmdCopyImageToBuffer(
                     commandBuffer: commandBuffer,
@@ -1286,6 +1346,18 @@ public sealed class Fsr3UpscalerTests
                 name: name
             );
 
+        private static Extent2D LevelExtent(GpuImage image, uint level) =>
+            new(Math.Max(image.Extent.Width >> (int)level, 1), Math.Max(image.Extent.Height >> (int)level, 1));
+
+        // The bytes of a texel of the formats that the tests read as words.
+        private static uint FormatBytes(Format format) =>
+            format switch
+            {
+                Format.R32Uint or Format.R16G16Sfloat => 4,
+                _ => throw new ArgumentException($"The tests read no {format} image as words.", nameof(format)),
+            };
+
+        // Clears every level of the image.
         private void Clear(CommandBuffer commandBuffer, GpuImage image, Vector4 value)
         {
             Barriers.Image(image, ImageUse.TransferDestination, discard: true);
@@ -1300,7 +1372,7 @@ public sealed class Fsr3UpscalerTests
             var range = new ImageSubresourceRange
             {
                 AspectMask = ImageAspectFlags.ColorBit,
-                LevelCount = 1,
+                LevelCount = image.MipLevels,
                 LayerCount = 1,
             };
             Device.Vk.CmdClearColorImage(
