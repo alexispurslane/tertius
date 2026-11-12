@@ -12,7 +12,7 @@ namespace Tertius.Physics.Tests;
 /// </summary>
 public sealed class PuffLifeTests
 {
-    /// <summary>The hash of the puffs of <see cref="BusyScene"/> after 300 ticks.</summary>
+    /// <summary>The hash of the puffs of <see cref="BusyScene"/> after 300 ticks, on arm64 (<see cref="RecordedReference"/>).</summary>
     private const ulong PinnedHash = 13950460896152137838;
 
     private static int Count(World world) => world.Puffs.Count;
@@ -676,9 +676,10 @@ public sealed class PuffLifeTests
 
         first.Puffs.Count.Should().Be(500, "the cap binds in this scene");
         PuffTesting.TableHash(second).Should().Be(PuffTesting.TableHash(first));
+        first.Errors.Should().BeEmpty();
+        Assert.SkipUnless(RecordedReference.Applies, RecordedReference.SkipReason);
         // tools/test-all.sh runs this test in Debug and in Release, so both builds must give this hash.
         PuffTesting.TableHash(first).Should().Be(PinnedHash);
-        first.Errors.Should().BeEmpty();
     }
 
     // ---- A state that only a bug makes ----------------------------------------------------------------------------
