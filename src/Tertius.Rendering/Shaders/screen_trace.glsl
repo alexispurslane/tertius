@@ -237,6 +237,15 @@ const uint TargetDraw = 0x4754u;
 // (LightPyramid.TargetDepthShare).
 const float TargetDepthShare = 0.5 * ThicknessShare;
 
+// The reflection rays' blue-noise mask (BlueNoiseMask): BlueNoiseFrames frames of BlueNoiseSide² cells, frame t in tile
+// (t % 8, t / 8), each texel a radial number and an angle in bytes.
+layout(set = 0, binding = 20) uniform utexture2D blueNoiseMask;
+const uint BlueNoiseSide = 128u;
+const uint BlueNoiseFrames = 64u;
+const uint BlueNoiseTilesAcross = 8u;
+// The constant of pcg3d's third value for the mask's shift in each period, "SH".
+const uint ShiftDraw = 0x5348u;
+
 // Jarzynski and Olano 2020, "Hash Functions for GPU Rendering": three 32-bit words from three.
 uvec3 pcg3d(uvec3 v)
 {
@@ -261,6 +270,27 @@ uvec3 drawOf(ivec2 position, uint drawIndex, uint constant)
 float unitOf(uint word)
 {
     return float(word >> 8) * (1.0 / 16777216.0);
+}
+
+// The mask's two bytes, a radial number and an angle, for a cell at a draw: the draw's frame of the period, at the cell
+// moved by the period's own toroidal shift, so that a still pixel's long mean averages new values in each period.
+uvec2 blueNoiseBytesOf(ivec2 cell, uint drawIndex)
+{
+    uint maskFrame = drawIndex & (BlueNoiseFrames - 1u);
+    uvec2 shift = pcg3d(uvec3(drawIndex / BlueNoiseFrames, 0u, ShiftDraw)).xy;
+    uvec2 inFrame = (uvec2(cell) + shift) & (BlueNoiseSide - 1u);
+    uvec2 tile = uvec2(maskFrame % BlueNoiseTilesAcross, maskFrame / BlueNoiseTilesAcross);
+    return texelFetch(blueNoiseMask, ivec2(tile * BlueNoiseSide + inFrame), 0).rg;
+}
+
+// The two numbers of a reflection ray's GGX draw, (angle, radial), from the mask: each byte picks a step of 1/256, and
+// 16 bits of the draw place the number inside it. The sum is an integer below 2^24, which a float holds exactly, so a
+// number stays below 1.
+vec2 reflectionNumbersOf(ivec2 cell, uint drawIndex, uvec3 draw)
+{
+    uvec2 bytes = blueNoiseBytesOf(cell, drawIndex);
+    uvec2 numbers = (bytes.yx << 16) | (draw.xy >> 16);
+    return vec2(numbers) * (1.0 / 16777216.0);
 }
 
 // A pixel that starts a ray, and what its rays need.
@@ -663,12 +693,16 @@ struct TracedRay
 };
 
 // Traces the ray of the kind from the pixel that starts it: its draw, its walk to the kind's cap, and its light. A
-// direction below the geometric plane brings no light and traces nothing (section 6, "The ray kinds").
-TracedRay traceFrom(ivec2 pixel, TracingPixel p, uint kind)
+// direction below the geometric plane brings no light and traces nothing (section 6, "The ray kinds"). `cell` is the
+// ray's cell of the blue-noise mask: its block for a block's ray, its pixel for a pixel's own ray.
+TracedRay traceFrom(ivec2 pixel, ivec2 cell, TracingPixel p, uint kind)
 {
     TracedRay result;
     uvec3 draw = drawOf(pixel, trace.drawIndex, DirectionDraw[kind]);
-    vec2 u = vec2(unitOf(draw.x), unitOf(draw.y));
+    // A reflection ray draws from the blue-noise mask, a diffuse ray from pcg3d (ARCHITECTURE.md, "Randomness and
+    // determinism").
+    vec2 u = kind == KindReflection ? reflectionNumbersOf(cell, trace.drawIndex, draw)
+                                    : vec2(unitOf(draw.x), unitOf(draw.y));
     // A diffuse ray takes the guided draw by the draw's third word, while a lit pixel is in view (ARCHITECTURE.md,
     // "Guided diffuse rays").
     bool guiding = kind == KindDiffuse && trace.guidedShare > 0.0 && guideTotal() > 0.0;

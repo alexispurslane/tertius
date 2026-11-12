@@ -65,3 +65,53 @@ The Mac. Plain stills (33 draws) of reflections.json and cabin-light.json under 
 Pitfalls of the study. Twice, main moved between the jobs (ter-xo83 and ter-w1o3). A job with --tree main=main then compared the branch with a newer main, and its A/A check failed. Pin main to the branch's merge base in such a study. Six renderers at once ran out of the card's 16 GB, and three fit. Total spending: $2.03.
 
 What a builder needs. B-shift only: the mask, its binding and the reflection kind's two numbers. It is about 40 lines and a 2 MB asset. Measure again on top of Design A (t7-3e22) before the merge, because Design A changes the bounce history's clamp. Design A does not touch the reflections, so B-shift's result is expected to hold. The mask's spectrum check, the A/A identity with the mask off, and a determinism test belong in its tests.
+
+**2026-11-12T19:09:31Z**
+
+Build result (agent s97m, 2026-11-12). Branch ter-s97m-reflection-blue-noise: B-shift only. A reflection ray's two GGX numbers come from the STBN mask (a block's ray at its block, a pixel's own ray at its pixel, each period of 64 draws at its own toroidal shift from pcg3d); 16 bits of pcg3d place each number inside its byte's step. The bounce rays, the guided draw and TurnDraw are unchanged. Design A (t7-3e22) had not merged, so the A/B ran on main at the merge base 65cec7161.
+
+Why a Nix derivation for the mask. Decision 21 keeps the 2 MiB mask out of git. native/stbn-mask.nix compiles native/stbn.c and runs it once (about 44 s); the dev shell names the file in TERTIUS_STBN_MASK, and Tertius.Rendering embeds it (a build without it fails with a message). An MSBuild step with a cache would run the generator again in every fresh worktree and in both trees of every workbench job, about 45 s each. The Nix store keeps one copy per machine and per workbench image, keyed by the source's hash. The generator uses integer arithmetic over rounded tables and a fixed seed, so every machine writes the same bytes. The workbench image takes only flake.nix, flake.lock and native/, so the generator lives in native/, not tools/ (the first image build failed on that).
+
+A/B against main on the GPU workbench (same probe and measures as the study; main in the new dev shell, commit 745ac30c4/e10bd9137, not for merge). Change of the branch against main, at 66 draws (daub, grain) and the error of the long mean (draws 363 to 990):
+
+| Scene and surface | Daub | Grain | Error of the long mean |
+|---|---|---|---|
+| mirror-plate, smooth | -44 % | -19 % | -14 % |
+| exit-deck, rough | -42 % | -40 % | -15 % |
+| cabin-light-cabin, rough | -17 % | -20 % | -9 % |
+| reflections-low, smooth | -30 % | -9 % | -1 % |
+| reflections-low, glossy | -22 % | -28 % | +16 % |
+| reflections-low, rough | -4 % | -10 % | -2 % |
+| whole image: reflections-low / exit-deck / mirror-plate / cabin | -21 / -20 / -44 / -4 % | -25 / -29 / -3 / -13 % | +18 / -3 / -1 / -1 % |
+
+The glossy floor's long mean, checked for the orchestrator: daub 0.0044 (main) and 0.0037 (branch), both below the about 0.010 at which clouds show. The crops of the long mean (enlarged 2x) show a faint mottle under the box's reflection in main and a smooth floor in the branch, close to the truth. A second job on the same commits gave the same scores to the last digit.
+
+Cost: frame span 8.681 against 8.698 ms on the workbench (-0.017 ms, 5 runs each, within the noise), 20.141 against 20.139 ms on the Mac under the exclusive GPU lock (+0.003 ms, within the noise). Cloud spending of the build: $0.31 (6 jobs).
+
+Tests. CPU: BlueNoiseMaskTests (strata per cell, 5x5 blurred variance per frame, 8-frame mean). GPU probes: ReflectionBlueNoiseTests (a block's numbers fill the 64 strata in periods 0 and 1, the next period reads other bytes, one draw is blue over the blocks for the radial number and the angle on the circle, a reflection ray takes the mask's direction and not pcg3d's, a block's ray reads the mask at the block and not at its chosen pixel). ScreenTraceRenderTests: two renderers give the same bits after 6 and after 70 frames. DescriptorLayoutsTests: the screen tracer's compute stage sees 17 sampled images, and the shared pool grows per frame in flight by what a frame set and a deform set take.
+
+The pool. That last test found that the frame set takes 7 sampled images and the pool held 6 per frame (on main: 6 against 5). The constant 20 of the G-buffer, post and atlas sets hid it. Fixed to 7; the rest is ter-byim (note added there).
+
+Coverage of the changed C# lines (Rendering, Debug): 56/56 lines, 7/8 branches. The partial branch is BlueNoiseMask.Load's throw for an assembly without the mask, which the build's RequireBlueNoiseMask target already prevents.
+
+Mutants (tools/mutate.py; no Stryker module changed):
+
+| id | place | change | result |
+|---|---|---|---|
+| M01 | screen_trace.glsl:279 | maskFrame -> 0 | killed |
+| M02 | screen_trace.glsl:280 | shift -> 0 | killed |
+| M03 | screen_trace.glsl:281 | cell dropped from the index | killed |
+| M04 | screen_trace.glsl:282 | tile column % -> / | killed |
+| M05 | screen_trace.glsl:292 | bytes.yx -> bytes.xy | killed |
+| M06 | screen_trace.glsl:292 | draw >> 16 -> >> 8 | killed |
+| M07 | screen_trace.glsl:293 | 1/2^24 -> 1/(2^24-1) | survived: judgment call. Each number moves up by under 2^-24 of itself and reaches 1 at one value in 2^24, which no test can draw. |
+| M08 | screen_trace.glsl:704 | reflection kind takes pcg3d | killed (wiring test) |
+| M09 | screen_trace_block_rays.comp:22 | cell = chosen pixel | survived, then killed by ABlocksReflectionRayReadsTheMaskAtTheBlockAndNotAtItsChosenPixel |
+| M10 | DescriptorLayouts.cs | mask binding also in the fragment stage | killed |
+| M11 | DescriptorLayouts.cs | pool sampled images per frame -1 | survived on MoltenVK, then killed by EachFrameInFlightGrowsTheSharedPoolByWhatItsFrameSetAndDeformSetTake |
+| M12 | BrdfTableImages.cs:53 | R8G8Uint -> R8G8Unorm | killed |
+| M13 | BrdfTableImages.cs:95 | mask upload removed | killed |
+| M14 | FrameResources.cs:346 | mask descriptor write removed | killed |
+| M15 | BlueNoiseMask.cs:39 | read of the resource removed | killed |
+
+native/stbn.c has no mutants: its output is the mask, which BlueNoiseMaskTests check, and a mutant of it would need a new Nix build per mutant.
