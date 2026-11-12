@@ -1,6 +1,6 @@
 ---
 id: ter-xfcq
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-12T15:03:53Z
