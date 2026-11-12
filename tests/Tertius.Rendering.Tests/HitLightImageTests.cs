@@ -133,8 +133,9 @@ public sealed class HitLightImageTests
     public void AGlowAboveTheLargestRadianceStoresAtMostMaxRadianceInBothLayers()
     {
         // A half float holds at most 65,504, and a driver that is not Metal stores infinity above it. The plan caps the
-        // light at MaxRadiance, as every light of the tracer.
-        (VulkanRenderer renderer, RenderSnapshot scene) = GlossyFloorBeforeAWall(glow: 100_000);
+        // light at MaxRadiance, as every light of the tracer. The G-buffer already caps the glow, so the sun is bright too:
+        // a wall's reflection light adds its specular part to its capped diffuse part.
+        (VulkanRenderer renderer, RenderSnapshot scene) = GlossyFloorBeforeAWall(glow: 100_000, starIrradiance: 1e6f);
         try
         {
             Draw(renderer, scene, frames: 2);
@@ -143,7 +144,7 @@ public sealed class HitLightImageTests
             {
                 float[] stored = renderer.ReadImageLayer(renderer.ScreenTraceImages.HitLight, kind);
                 float most = Enumerable.Range(0, Width * Height).Max(pixel => stored[4 * pixel]);
-                most.Should().Be(MaxRadiance, "the panel's pixels send more than the cap, kind {0}", kind);
+                most.Should().Be(MaxRadiance, "the panel and the sunlit wall send more than the cap, kind {0}", kind);
             }
         }
         finally
@@ -251,14 +252,16 @@ public sealed class HitLightImageTests
     /// <summary>
     /// A glossy white metal floor of roughness 0.3 in the sun, which sends no diffuse light, a rough white wall 7.5 m ahead
     /// and a panel on the wall that glows <paramref name="glow"/> in each channel, at <paramref name="width"/> by
-    /// <paramref name="height"/>, with impostors and an environment map when asked.
+    /// <paramref name="height"/>, under a sun of <paramref name="starIrradiance"/>, with impostors and an environment map
+    /// when asked.
     /// </summary>
     private static (VulkanRenderer Renderer, RenderSnapshot Scene) GlossyFloorBeforeAWall(
         float glow = 10,
         int width = Width,
         int height = Height,
         bool impostors = false,
-        bool environmentMap = false
+        bool environmentMap = false,
+        float starIrradiance = 3
     )
     {
         VulkanRenderer renderer = Gpu.Headless(
@@ -269,7 +272,7 @@ public sealed class HitLightImageTests
             screenTrace: ScreenTrace.Default,
             warmUpFrames: 0
         );
-        RenderSnapshot scene = Gpu.Snapshot(new(0.3f, 1f, 0.4f));
+        RenderSnapshot scene = Gpu.Snapshot(new(0.3f, 1f, 0.4f), starIrradiance);
         MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
         scene.Instances.Add(Floor(renderer, Mirror(roughness: 0.3f)));
         scene.Instances.Add(
