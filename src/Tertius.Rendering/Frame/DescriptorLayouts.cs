@@ -178,6 +178,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>The binding of the frame set that holds the LTC table of the rectangle lights (brdf.glsl, ltcTable).</summary>
     public const uint LtcTableBinding = 19;
 
+    /// <summary>PROTOTYPE (ter-s97m): the binding of the frame set that holds the STBN mask (screen_trace.glsl).</summary>
+    public const uint BlueNoiseBinding = 20;
+
     /// <summary>The binding of this frame's kept positions in the deform set.</summary>
     public const uint DeformKeptPositionsBinding = 5;
 
@@ -910,7 +913,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             new(
                 DescriptorType.SampledImage,
                 20
-                    + 5 * frames
+                    + 6 * frames
                     + glowSourceSets
                     + 2
                     + PyramidLevelSets
@@ -1261,6 +1264,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             StorageBuffer(binding: KeptPositionsBinding, stages: ShaderStageFlags.VertexBit),
             // The LTC table of the rectangle lights, which every pass that shades lights reads beside the other tables.
             Image(binding: LtcTableBinding, stages: shading),
+            // PROTOTYPE (ter-s97m): the STBN mask of the screen tracer's draws.
+            Image(binding: BlueNoiseBinding, stages: shading),
         ];
         Span<DescriptorBindingFlags> flags = stackalloc DescriptorBindingFlags[frame.Length];
         foreach (uint binding in (ReadOnlySpan<uint>)[12, 14, ShadowAtlas.TileViewsBinding, 16, KeptPositionsBinding])

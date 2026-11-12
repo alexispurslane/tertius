@@ -45,6 +45,31 @@ internal sealed class BrdfTableImages : IDisposable
             mipLevels: 1,
             name: "ltc table"
         );
+        // PROTOTYPE (ter-s97m): the STBN mask, 64 frames of 128 x 128 in an 8 x 8 grid of tiles, two bytes per texel.
+        BlueNoise = GpuImage.Create(
+            device: device,
+            allocator: allocator,
+            extent: new(BlueNoiseSide, BlueNoiseSide),
+            format: Format.R8G8Uint,
+            usage: usage,
+            mipLevels: 1,
+            name: "blue-noise mask"
+        );
+    }
+
+    private const uint BlueNoiseSide = 1024;
+
+    /// <summary>PROTOTYPE (ter-s97m): R8G8_UINT, the STBN mask (tools/stbn/stbn.c).</summary>
+    public GpuImage BlueNoise { get; }
+
+    private static byte[] BlueNoiseTexels()
+    {
+        using Stream stream =
+            typeof(BrdfTableImages).Assembly.GetManifestResourceStream("Tertius.Rendering.BlueNoiseMask.bin")
+            ?? throw new InvalidOperationException("The assembly holds no BlueNoiseMask.bin.");
+        var texels = new byte[BlueNoiseSide * BlueNoiseSide * 2];
+        stream.ReadExactly(texels);
+        return texels;
     }
 
     /// <summary>R16G16_SFLOAT, (S, E₁) over μ across and r down.</summary>
@@ -65,6 +90,7 @@ internal sealed class BrdfTableImages : IDisposable
         barriers.Image(Dfg, ImageUse.TransferDestination, discard: true);
         barriers.Image(LobeSky, ImageUse.TransferDestination, discard: true);
         barriers.Image(Ltc, ImageUse.TransferDestination, discard: true);
+        barriers.Image(BlueNoise, ImageUse.TransferDestination, discard: true);
         barriers.Flush(device.Vk, commandBuffer);
 
         staging.CopyToImage(commandBuffer: commandBuffer, image: Dfg, texels: MemoryMarshal.AsBytes(tables.Dfg));
@@ -78,18 +104,21 @@ internal sealed class BrdfTableImages : IDisposable
             image: Ltc,
             texels: MemoryMarshal.AsBytes(LtcTable.Shared.Texels)
         );
+        staging.CopyToImage(commandBuffer: commandBuffer, image: BlueNoise, texels: BlueNoiseTexels());
 
         // The shading passes of this frame read the tables, the lighting in fragment shaders and the reflections' trace
         // in a compute shader, so the barrier makes the copies visible to both stages. No pass declares the tables later.
         barriers.Image(Dfg, ImageUse.SampledFragmentCompute);
         barriers.Image(LobeSky, ImageUse.SampledFragmentCompute);
         barriers.Image(Ltc, ImageUse.SampledFragmentCompute);
+        barriers.Image(BlueNoise, ImageUse.SampledFragmentCompute);
         barriers.Flush(device.Vk, commandBuffer);
         uploaded = true;
     }
 
     public void Dispose()
     {
+        BlueNoise.Dispose();
         Ltc.Dispose();
         LobeSky.Dispose();
         Dfg.Dispose();

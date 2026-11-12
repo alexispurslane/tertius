@@ -30,6 +30,8 @@
        table"). -->
   <ItemGroup>
     <EmbeddedResource Include="Shading/LtcTable.bin" LogicalName="Tertius.Rendering.LtcTable.bin" WithCulture="false" />
+    <!-- PROTOTYPE (ter-s97m): the spatiotemporal blue-noise mask of tools/stbn/stbn.c. -->
+    <EmbeddedResource Include="Shading/BlueNoiseMask.bin" LogicalName="Tertius.Rendering.BlueNoiseMask.bin" WithCulture="false" />
   </ItemGroup>
 
   <!-- GLSL 4.60 shaders. Each stage file becomes one SPIR-V module, embedded as Tertius.Rendering.Shaders.<file>.spv.

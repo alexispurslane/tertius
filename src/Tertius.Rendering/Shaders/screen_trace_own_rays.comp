@@ -19,7 +19,7 @@ void main()
     {
         ivec2 pixel = unpackedPixel(rayKind == KindReflection ? reflectionOwnRays.pixels[entry] : diffuseOwnRays.pixels[entry]);
         // The plan listed only a pixel that starts the kind, from the same G-buffer.
-        RayRecord record = recordOf(traceFrom(pixel, tracingPixelAt(pixel), rayKind));
+        RayRecord record = recordOf(traceFrom(pixel, pixel, tracingPixelAt(pixel), rayKind));
         imageStore(ownLight, ivec3(pixel, rayKind), record.light);
         imageStore(ownRay, ivec3(pixel, rayKind), record.ray);
     }

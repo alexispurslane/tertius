@@ -855,6 +855,19 @@ internal struct ScreenTracePushConstants
     /// <summary>The share of the diffuse rays that the guided draw gives: <see cref="LightPyramid.GuidedShare"/>, or 0 with the guiding off.</summary>
     public float GuidedShare;
 
+    /// <summary>PROTOTYPE (ter-s97m): bit k set draws ray kind k's two numbers from the STBN mask (0 reflection, 1 diffuse).</summary>
+    public uint BlueNoise;
+
+    /// <summary>PROTOTYPE (ter-s97m): TERTIUS_STBN = off, diffuse, reflection or both.</summary>
+    private static readonly uint BlueNoiseKinds = Environment.GetEnvironmentVariable("TERTIUS_STBN") switch
+    {
+        null or "" or "off" => 0u,
+        "reflection" => 1u,
+        "diffuse" => 2u,
+        "both" => 3u,
+        var other => throw new ArgumentException($"TERTIUS_STBN must be off, diffuse, reflection or both, not {other}."),
+    } | (Environment.GetEnvironmentVariable("TERTIUS_STBN_SHIFT") == "on" ? 4u : 0u);
+
     /// <summary>
     /// The push constants of a draw of index <paramref name="drawIndex"/> under <paramref name="trace"/>, with the
     /// guided diffuse rays when <paramref name="guided"/>. The index wraps at 2^32 draws, more than two years at 60
@@ -869,6 +882,7 @@ internal struct ScreenTracePushConstants
             ReflectionSteps = (uint)trace.ReflectionSteps,
             DiffuseSteps = (uint)trace.DiffuseSteps,
             GuidedShare = guided ? LightPyramid.GuidedShare : 0,
+            BlueNoise = BlueNoiseKinds,
         };
 }
 

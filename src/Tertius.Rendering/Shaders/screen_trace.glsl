@@ -202,7 +202,12 @@ layout(push_constant, std430) uniform ScreenTracePush
     uint reflectionSteps;    // the caps of decision 41
     uint diffuseSteps;
     float guidedShare;       // LightPyramid.GuidedShare, or 0 with the guiding off (TERTIUS_GUIDED_RAYS)
+    uint blueNoise;          // PROTOTYPE (ter-s97m): bit k draws kind k's two numbers from the STBN mask
 } trace;
+
+// PROTOTYPE (ter-s97m): the STBN mask of tools/stbn/stbn.c, 64 frames of 128 x 128 in an 8 x 8 grid of tiles. Each texel
+// holds a radial number and an angle in bytes.
+layout(set = 0, binding = 20) uniform utexture2D blueNoiseMask;
 
 // The two ray kinds, which index the record layers and the constants of the draws.
 const uint KindReflection = 0u;
@@ -261,6 +266,24 @@ uvec3 drawOf(ivec2 position, uint drawIndex, uint constant)
 float unitOf(uint word)
 {
     return float(word >> 8) * (1.0 / 16777216.0);
+}
+
+// PROTOTYPE (ter-s97m): the two numbers of a direction draw from the STBN mask at `cell`: a block for a block's ray, a
+// pixel for a pixel's own ray. The draw's x and y place each number inside its byte's step of 1/256. The reflection rays
+// read the mask half a tile and half a period away from the diffuse rays, so that the two kinds do not correlate.
+// Returns (radial, angle).
+vec2 blueNoiseOf(ivec2 cell, uint kind, uvec3 draw)
+{
+    uint offset = kind == KindReflection ? 64u : 0u;
+    uint t = (trace.drawIndex + (offset >> 1)) & 63u;
+    uvec2 shift = uvec2(offset);
+    // With bit 2, each period of 64 draws reads the mask at its own toroidal shift, so that a still pixel's long mean
+    // averages new stratified sets instead of repeating one.
+    if ((trace.blueNoise & 4u) != 0u)
+        shift += pcg3d(uvec3((trace.drawIndex + (offset >> 1)) >> 6, kind, 0x5348u)).xy;
+    uvec2 inTile = (uvec2(cell) + shift) & 127u;
+    uvec2 values = texelFetch(blueNoiseMask, ivec2(uvec2(t & 7u, t >> 3) * 128u + inTile), 0).rg;
+    return (vec2(values) + vec2(unitOf(draw.x), unitOf(draw.y))) * (1.0 / 256.0);
 }
 
 // A pixel that starts a ray, and what its rays need.
@@ -664,11 +687,17 @@ struct TracedRay
 
 // Traces the ray of the kind from the pixel that starts it: its draw, its walk to the kind's cap, and its light. A
 // direction below the geometric plane brings no light and traces nothing (section 6, "The ray kinds").
-TracedRay traceFrom(ivec2 pixel, TracingPixel p, uint kind)
+TracedRay traceFrom(ivec2 pixel, ivec2 maskCell, TracingPixel p, uint kind)
 {
     TracedRay result;
     uvec3 draw = drawOf(pixel, trace.drawIndex, DirectionDraw[kind]);
     vec2 u = vec2(unitOf(draw.x), unitOf(draw.y));
+    // PROTOTYPE (ter-s97m): the cosine draw takes (radial, angle) as u, and the GGX caps take (angle, radial).
+    if ((trace.blueNoise & (1u << kind)) != 0u)
+    {
+        vec2 mask = blueNoiseOf(maskCell, kind, draw);
+        u = kind == KindReflection ? mask.yx : mask;
+    }
     // A diffuse ray takes the guided draw by the draw's third word, while a lit pixel is in view (ARCHITECTURE.md,
     // "Guided diffuse rays").
     bool guiding = kind == KindDiffuse && trace.guidedShare > 0.0 && guideTotal() > 0.0;

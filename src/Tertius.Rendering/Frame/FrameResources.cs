@@ -343,6 +343,7 @@ internal sealed unsafe class FrameResources : IDisposable
             arrayElement: 0,
             image: tables.Ltc
         );
+        layouts.WriteImage(set: FrameSet, binding: DescriptorLayouts.BlueNoiseBinding, arrayElement: 0, image: tables.BlueNoise);
         // The renderer has one exposure buffer for its life, which every frame passes on to the next.
         layouts.WriteBuffer(set: FrameSet, binding: 11, type: DescriptorType.StorageBuffer, buffer: exposure);
         if (ShadowTiles is { } tiles)

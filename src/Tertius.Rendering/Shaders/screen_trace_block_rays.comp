@@ -19,7 +19,7 @@ void main()
         return;
     ivec2 chosen;
     TracingPixel p;
-    RayRecord record = chosenPixelOf(block, rayKind, chosen, p) ? recordOf(traceFrom(chosen, p, rayKind)) : noRay();
+    RayRecord record = chosenPixelOf(block, rayKind, chosen, p) ? recordOf(traceFrom(chosen, block, p, rayKind)) : noRay();
     imageStore(blockLight, ivec3(block, rayKind), record.light);
     imageStore(blockRay, ivec3(block, rayKind), record.ray);
 }
