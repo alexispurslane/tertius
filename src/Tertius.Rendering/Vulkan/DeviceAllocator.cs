@@ -119,25 +119,44 @@ internal sealed unsafe class DeviceAllocator(IDeviceMemory memory) : IDisposable
         }
     }
 
+    /// <summary>
+    /// An allocation for <paramref name="usage"/>, in the best memory type that has room. A driver refuses a new block
+    /// when the type's heap is full, though another type's heap has room: on a discrete NVIDIA GPU without resizable BAR,
+    /// the host-visible VRAM that an upload prefers lies in a heap of 256 MiB, which a few renderers in one process fill
+    /// while the card's VRAM stays nearly empty (ticket ter-net6). So a type that the driver refuses as out of device
+    /// memory passes the allocation to the next type, and only the last type's refusal reaches the caller.
+    /// </summary>
     public MemoryAllocation Allocate(in MemoryRequirements requirements, MemoryUsage usage, bool linear, string name)
     {
-        int type = MemoryTypeOf(requirements: requirements, usage: usage, name: name);
+        int[] types = MemoryTypesOf(requirements: requirements, usage: usage, name: name);
         lock (gate)
         {
             ObjectDisposedException.ThrowIf(disposed, this);
             CountTowardFailure(name);
-            MemoryAllocation granted =
-                requirements.Size > BlockSize / 2
-                    ? AllocateDedicated(size: requirements.Size, type: type, name: name)
-                    : AllocateInBlock(requirements: requirements, type: type, linear: linear);
-            // A GpuOnly allocation in mapped memory hides the address, so that a CPU access fails on every driver.
-            return usage == MemoryUsage.GpuOnly ? granted.WithoutAddress() : granted;
+            for (int candidate = 0; ; candidate++)
+            {
+                int type = types[candidate];
+                try
+                {
+                    MemoryAllocation granted =
+                        requirements.Size > BlockSize / 2
+                            ? AllocateDedicated(size: requirements.Size, type: type, name: name)
+                            : AllocateInBlock(requirements: requirements, type: type, linear: linear);
+                    // A GpuOnly allocation in mapped memory hides the address, so that a CPU access fails on every driver.
+                    return usage == MemoryUsage.GpuOnly ? granted.WithoutAddress() : granted;
+                }
+                catch (VulkanException refused)
+                    when (refused.Result == Result.ErrorOutOfDeviceMemory && candidate < types.Length - 1) { }
+            }
         }
     }
 
-    /// <summary>The memory type for <paramref name="usage"/> among the types that <paramref name="requirements"/> allows.</summary>
+    /// <summary>
+    /// The memory types for <paramref name="usage"/> among the types that <paramref name="requirements"/> allows, best
+    /// first: those with all the required flags, by the count of preferred flags, then in the table's order.
+    /// </summary>
     /// <exception cref="NotSupportedException">No memory type fits.</exception>
-    private int MemoryTypeOf(in MemoryRequirements requirements, MemoryUsage usage, string name)
+    private int[] MemoryTypesOf(in MemoryRequirements requirements, MemoryUsage usage, string name)
     {
         (MemoryPropertyFlags required, MemoryPropertyFlags preferred) = usage switch
         {
@@ -151,39 +170,28 @@ internal sealed unsafe class DeviceAllocator(IDeviceMemory memory) : IDisposable
                 MemoryPropertyFlags.HostCachedBit
             ),
         };
-        int type = FindMemoryType(requirements.MemoryTypeBits, required, preferred);
-        if (type < 0 && usage == MemoryUsage.GpuOnly)
-            type = FindMemoryType(requirements.MemoryTypeBits, MemoryPropertyFlags.None, MemoryPropertyFlags.None);
-        if (type < 0)
+        int[] types = MemoryTypesWith(requirements.MemoryTypeBits, required, preferred);
+        if (types.Length == 0 && usage == MemoryUsage.GpuOnly)
+            types = MemoryTypesWith(requirements.MemoryTypeBits, MemoryPropertyFlags.None, MemoryPropertyFlags.None);
+        if (types.Length == 0)
             throw new NotSupportedException($"No memory type for {name} ({usage}).");
-        return type;
+        return types;
     }
 
     /// <summary>
-    /// The memory type allowed by <paramref name="typeBits"/> with all <paramref name="required"/> flags and the most
-    /// <paramref name="preferred"/> flags, the first of them on a tie, or -1 where none has the required flags.
+    /// The memory types allowed by <paramref name="typeBits"/> with all <paramref name="required"/> flags, those with the
+    /// most <paramref name="preferred"/> flags first, and in the table's order among equals.
     /// </summary>
-    private int FindMemoryType(uint typeBits, MemoryPropertyFlags required, MemoryPropertyFlags preferred)
+    private int[] MemoryTypesWith(uint typeBits, MemoryPropertyFlags required, MemoryPropertyFlags preferred)
     {
-        int best = -1;
-        int bestScore = -1;
         PhysicalDeviceMemoryProperties types = memory.Types;
-        for (int i = 0; i < types.MemoryTypeCount; i++)
-        {
-            if ((typeBits & (1u << i)) == 0)
-                continue;
-            MemoryPropertyFlags flags = types.MemoryTypes[i].PropertyFlags;
-            if ((flags & required) != required)
-                continue;
-            int score = BitOperations.PopCount((uint)(flags & preferred));
-            if (score > bestScore)
-            {
-                best = i;
-                bestScore = score;
-            }
-        }
-
-        return best;
+        return
+        [
+            .. Enumerable
+                .Range(0, (int)types.MemoryTypeCount)
+                .Where(i => (typeBits & (1u << i)) != 0 && (types.MemoryTypes[i].PropertyFlags & required) == required)
+                .OrderByDescending(i => BitOperations.PopCount((uint)(types.MemoryTypes[i].PropertyFlags & preferred))),
+        ];
     }
 
     /// <summary>

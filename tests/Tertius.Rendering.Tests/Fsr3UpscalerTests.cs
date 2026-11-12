@@ -370,7 +370,7 @@ public sealed class Fsr3UpscalerTests
         // From the left: the tenth frame of the still pattern, then the first three frames of the inverted pattern.
         ReferenceImages.Verify(
             actual: Panels(frames, OutputSize),
-            referencePath: Path.Combine(ReferenceImages.Folder, "fsr3-pattern.png")
+            referencePath: ReferenceImages.ReferencePath("fsr3-pattern", bench.Device.Driver)
         );
     }
 

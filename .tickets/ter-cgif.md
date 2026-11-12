@@ -2,7 +2,7 @@
 id: ter-cgif
 status: open
 deps: [ter-s7c6, ter-kzj3]
-links: []
+links: [t8-xp96]
 created: 2026-11-03T14:53:48Z
 type: task
 priority: 2

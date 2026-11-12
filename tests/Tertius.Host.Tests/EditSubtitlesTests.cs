@@ -183,7 +183,7 @@ public sealed class EditSubtitlesTests
         lines.Should().ContainSingle();
         lines[0].Start.Should().Be("0:00:00.00");
         lines[0].End.Should().Be("0:00:02.00");
-        lines[0].Text.Should().StartWith("{\\fs96\\c&HF2F2F2&}Tertius\\N");
+        lines[0].Text.Should().StartWith("{\\q0}{\\fs96\\c&HF2F2F2&}Tertius\\N", "a card wraps a line that is wider than its margins");
     }
 
     [Fact]

@@ -114,15 +114,21 @@ public static class EditSubtitles
         return text.ToString();
     }
 
-    /// <summary>The subtitles of a title card: its lines, centered, from 0 s for its seconds.</summary>
+    /// <summary>
+    /// The subtitles of a title card: its lines, centered, from 0 s for its seconds. The script turns wrapping off for
+    /// the readouts, but a card line wraps (<c>\q0</c>, smart wrapping) so that it stays inside the card's margins in
+    /// any font: the fonts come from macOS, and on Linux libass draws a fallback font whose line can be wider.
+    /// </summary>
     public static string Card(TitleCard card)
     {
         ArgumentNullException.ThrowIfNull(card);
         var text = new StringBuilder(Header());
-        string lines = string.Join(
-            "\\N",
-            card.Lines.Select(line => $"{{\\fs{line.Size}\\c{(line.Gray ? Gray : White)}}}{Plain(line.Text)}")
-        );
+        string lines =
+            "{\\q0}"
+            + string.Join(
+                "\\N",
+                card.Lines.Select(line => $"{{\\fs{line.Size}\\c{(line.Gray ? Gray : White)}}}{Plain(line.Text)}")
+            );
         Event(text: text, from: 0, to: card.Frames, style: "Card", body: lines);
         return text.ToString();
     }

@@ -221,6 +221,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <summary>The physical device in use.</summary>
     public string DeviceName => device.DeviceName;
 
+    /// <summary>The driver of the physical device, by its Vulkan 1.2 driver id.</summary>
+    internal DriverId Driver => device.Driver;
+
     /// <summary>Statistics of the last <see cref="Render"/> call.</summary>
     public RenderStats LastFrameStats { get; private set; }
 

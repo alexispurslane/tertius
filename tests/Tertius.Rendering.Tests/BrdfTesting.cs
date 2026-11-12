@@ -68,13 +68,16 @@ internal static class BrdfTesting
 
     /// <summary>
     /// A black material of reflectance 0 that emits <paramref name="radiance"/>, so it shows that and no light. It draws
-    /// as <paramref name="alpha"/> says, opaque by default.
+    /// as <paramref name="alpha"/> says, opaque by default. Its roughness is the unorm code 128 / 255, just above the
+    /// screen tracer's MaxRoughness of 0.5, so that it traces no reflection ray. A roughness of 0.5 lies halfway between the
+    /// codes 127 and 128 of the G-buffer's RGBA8 roughness, where Vulkan lets a driver store either: NVIDIA's stores 127,
+    /// which puts the emitter inside the hand-over band (ticket t8-ol7x).
     /// </summary>
     public static MaterialId Glow(VulkanRenderer renderer, Vector3 radiance, AlphaMode alpha = default) =>
         renderer.CreateMaterial(
             new(
                 BaseColor: new(x: 0, y: 0, z: 0, w: 1),
-                Roughness: 0.5f,
+                Roughness: 128 / 255f,
                 Reflectance: 0,
                 Emissive: radiance,
                 Alpha: alpha
