@@ -55,7 +55,7 @@ internal sealed class ScreenTraceImages : IDisposable
     /// <param name="pyramid">The depth pyramid and its finest level.</param>
     /// <param name="diffuse">The diffuse signal, of one part, whose sample the resolve writes.</param>
     /// <param name="specular">The specular signal, of one part.</param>
-    /// <param name="filter">The diffuse signal's filter, or null with the filter off (<see cref="DiffuseFilter.SwitchedOn"/>).</param>
+    /// <param name="filter">The diffuse signal's filter, or null with the filter off (<see cref="DiffuseFilter.Selected"/>).</param>
     /// <param name="guided">Whether a share of the diffuse rays aims at bright pixels (<see cref="LightPyramidPass.SwitchedOn"/>).</param>
     public ScreenTraceImages(
         VulkanDevice device,

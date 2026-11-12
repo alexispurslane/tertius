@@ -1147,9 +1147,11 @@ nix develop --command python3 -I tools/test_renderer_survey.py
 
 ## The diffuse filter's switch
 
-The environment variable `TERTIUS_DIFFUSE_FILTER` turns the diffuse filter on or off (ARCHITECTURE.md, "The diffuse filter"). The renderer reads it once, when it is made. Unset, empty and `on` keep the filter. With `off`, the renderer makes no filter: the composite shows the diffuse slow history, and the rays read the diffuse fast history at their hits, as before ticket `ter-9371`. Any other value stops the renderer with an `ArgumentException`.
+The environment variable `TERTIUS_DIFFUSE_FILTER` selects the diffuse filter's kernel, or no filter (ARCHITECTURE.md, "The diffuse filter"). The renderer reads it once, when it is made. Unset, empty, `on` and `thin` select the thin kernel, the default: six steps of 3 × 3 taps (ticket `ter-hxhl`). With `wide`, the filter takes the paper's kernel of five steps of 5 × 5 taps, the default before `ter-hxhl`. With `off`, the renderer makes no filter: the composite shows the diffuse slow history, and the rays read the diffuse fast history at their hits, as before ticket `ter-9371`. Any other value stops the renderer with an `ArgumentException`.
 
-To compare the two, render the same script twice into two folders:
+xctrace starts the demo from a clean environment, so `tools/gpu-trace.sh` passes `TERTIUS_DIFFUSE_FILTER` on through `--env`. Unset, it passes an empty value, which selects the thin kernel.
+
+To compare two settings, render the same script twice into two folders:
 
 ```bash
 nix develop --command bash -c 'dotnet run --project src/Tertius.Demo -c Release -- --script scripts/orbit.json --headless --out captures/filter-on'
