@@ -20,13 +20,13 @@ namespace Tertius.Rendering;
 /// Each part owns a sample, a slow history and two fast histories, which alternate by the parity of the drawn frames
 /// (<see cref="FrameHistory.PendingFrame.Parity"/>), RGBA16F at the targets' size except the experiment's RGBA32F slow history. The slow history holds the length
 /// in alpha, the specular signal's sample and fast history the hit distance, 0 for a miss, and the diffuse signal's fast
-/// history the deviation of its samples' luminance, which the diffuse filter reads. The sample is a color
-/// attachment of its producer, and every other image stays in the General layout. The signals share the scratch images
-/// (<see cref="SignalScratch"/>). Beside a precise specular history, each part also owns its sample's light age, which the
-/// resolve writes and the dispatches read at binding 11 (the light-change age, ticket tiunr-7haj): the temporal dispatch of
-/// both signals cuts its history by it (ticket ter-wkvw for the diffuse signal), and the spatial dispatch of the diffuse
-/// signal clamps only on evidence of a change (ticket ter-18hc). The diffuse signal keeps its half-precision history and
-/// takes the light-age variant of both dispatches (<see cref="ShaderVariant.LightAge"/>).
+/// history its retained deviation, which the clamp's box and the diffuse filter read (<see cref="HistoryConfidence"/>).
+/// The sample is a color attachment of its producer, and every other image stays in the General layout. The signals share
+/// the scratch images (<see cref="SignalScratch"/>). Beside a precise specular history, each part also owns its sample's
+/// light age, which the resolve writes and the temporal dispatch reads at binding 11 (the light-change age, ticket
+/// tiunr-7haj): the temporal dispatch of both signals cuts its history by it (ticket ter-wkvw for the diffuse signal). The
+/// diffuse signal keeps its half-precision history and takes the light-age variant of its temporal dispatch
+/// (<see cref="ShaderVariant.LightAge"/>).
 /// </para>
 /// <para>Invariants, checked by <see cref="AssertInvariants"/>:</para>
 /// <list type="bullet">
@@ -129,6 +129,9 @@ internal sealed unsafe class TemporalSignal : IDisposable
             light: parameters.Light
         );
         singleDiffuseHistory = prototype.SingleDiffuseHistory;
+        // The single history keeps no fast history, so it has no retained deviation to widen its box by.
+        if (singleDiffuseHistory)
+            Parameters = parameters with { Confidence = new NarrowBox() };
         reflectionDistanceHistory =
             parameters.Light == SignalLight.Specular
             && Environment.GetEnvironmentVariable("TERTIUS_REFLECTION_SHARING") == "1";
@@ -183,9 +186,9 @@ internal sealed unsafe class TemporalSignal : IDisposable
     public HistoryInstrumentation Instrumentation { get; }
 
     /// <summary>
-    /// Whether the signal's samples have a light age (<see cref="SampleAge(int)"/>), the evidence of a light change on which
-    /// its clamp acts: every signal beside a precise specular history, whose screen tracer records the light-change age of
-    /// each pixel.
+    /// Whether the signal's samples have a light age (<see cref="SampleAge(int)"/>), the evidence of a light change by which
+    /// its history is cut: every signal beside a precise specular history, whose screen tracer records the light-change age
+    /// of each pixel.
     /// </summary>
     public bool KeepsLightAge => scratch.HistoryMode.KeepsLightAge;
 
@@ -201,7 +204,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
 
     /// <summary>
     /// The variant of <paramref name="shader"/> for a half-precision history whose samples have a light age: the
-    /// light-age variant for the shaders that it holds, the two dispatches, and the shader itself otherwise.
+    /// light-age variant for the shaders that it holds, the temporal dispatch, and the shader itself otherwise.
     /// </summary>
     internal static string LightAgeShader(string shader) =>
         ShaderVariant.LightAge.Shaders.Contains(shader)
@@ -491,7 +494,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
             binding: 10,
             image: reflectionDistanceHistory ? images.ReflectionGuideScratch : scratch.Part(part)
         );
-        // The sample age, which both dispatches of both signals read.
+        // The sample age, which the temporal dispatch of both signals reads.
         if (images.SampleAge is { } age)
             layouts.WriteStorageImage(set: set, binding: 11, image: age);
         // The diagnostic of uncovered surfaces, which only the specular signal's temporal dispatch writes.

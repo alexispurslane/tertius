@@ -24,6 +24,12 @@ public sealed class AccumulatorRenderTests
     /// </summary>
     private static readonly SignalParameters Parameters = SignalParameters.Diffuse with { Cap = 16, SmoothCap = 16 };
 
+    /// <summary>
+    /// The test signal's parameter set with the narrow box of the reflections (<see cref="NarrowBox"/>): the clamp's box
+    /// holds only the spread of the fast histories around the pixel.
+    /// </summary>
+    private static readonly SignalParameters NarrowParameters = Parameters with { Confidence = new NarrowBox() };
+
     /// <summary>The ambient light of the scenes, the same from the sky and from the ground, so that the environment's
     /// closed form is this light in every direction.</summary>
     private static readonly Vector3 Ambient = new(0.2f, 0.3f, 0.4f);
@@ -143,13 +149,13 @@ public sealed class AccumulatorRenderTests
     }
 
     [Fact]
-    public void AfterADimmingStepOfTheSampleTheHistoryReachesNinetyPercentOfTheStepWithinTenFrames()
+    public void UnderTheNarrowBoxTheHistoryReachesNinetyPercentOfADimmingStepWithinTenFrames()
     {
         // Without the anti-lag, a history of 16 frames reaches 90 % after ln 0.1 / ln(15 / 16) ≈ 36 frames. The clamp
         // follows the fast history of 4 frames, which reaches 90 %, 0.118, after 8. A sample below a quarter of the
         // history's light does not cut the history to its age, so until the history falls below 4 · 0.02 = 0.08, after
-        // about 10 frames, only the clamp follows the step.
-        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
+        // about 10 frames, only the clamp follows the step. The bounce light's widened box holds the step's own spread.
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(parameters: NarrowParameters);
         try
         {
             sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
@@ -157,8 +163,6 @@ public sealed class AccumulatorRenderTests
             Continue(renderer, scene, frames: 40);
             CenterOf(renderer, sample, part: 0).Length.Should().Be(16, "the history holds its cap before the step");
 
-            // The rays saw the light change in this frame: the evidence on which the clamp acts.
-            sample.AgeCode = 1;
             FramesUntilTheCenterFollowsADimming(renderer: renderer, sample: sample, scene: scene)
                 .Should()
                 .BeInRange(2, 10);
@@ -192,64 +196,6 @@ public sealed class AccumulatorRenderTests
     }
 
     [Fact]
-    public void AnImageThatMovesOnScreenIsEvidenceOfAChangeForTheClamp()
-    {
-        // No ray saw a change, but the wall moves by about a third of a pixel per frame: the clamp follows the dimming.
-        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
-        try
-        {
-            sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
-            renderer.Render(scene, 1f);
-            Continue(renderer, scene, frames: 40);
-
-            FramesUntilTheCenterFollowsADimming(
-                    renderer: renderer,
-                    sample: sample,
-                    scene: scene,
-                    beforeEachFrame: () =>
-                    {
-                        scene.Camera.PreviousPosition = scene.Camera.Position;
-                        scene.Camera.Position += new Vector3(0.1f, 0, 0);
-                    }
-                )
-                .Should()
-                .BeInRange(2, 10, "the wall's motion is evidence that the history may hold old light");
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(renderer);
-        }
-    }
-
-    [Theory]
-    [InlineData(1, true)]
-    [InlineData(2, false)]
-    public void AChangeThatANeighborsRaysSawOnTheSameSurfaceOpensTheClamp(int distance, bool follows)
-    {
-        // Only the pixel `distance` columns right of the center has a sample whose rays saw the change. Inside the 3 × 3
-        // pixels around the center, it is evidence for the center's clamp; two pixels away it is not.
-        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
-        try
-        {
-            sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
-            renderer.Render(scene, 1f);
-            Continue(renderer, scene, frames: 40);
-
-            sample.AgeCodes = (column, row) => (ushort)(column == Width / 2 + distance && row == Height / 2 ? 1 : 0);
-            int frames = FramesUntilTheCenterFollowsADimming(renderer: renderer, sample: sample, scene: scene);
-
-            if (follows)
-                frames.Should().BeInRange(2, 10, "the neighbor's evidence opens the center's clamp");
-            else
-                frames.Should().BeGreaterThan(10, "without evidence in its 3 × 3 pixels, the center's clamp stays off");
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(renderer);
-        }
-    }
-
-    [Fact]
     public void UntilItsCapTheSlowHistoryIsTheMeanOfItsSamples()
     {
         // The blend weights the sample by 1 / length, so a history of n frames holds the mean of n samples.
@@ -280,13 +226,12 @@ public sealed class AccumulatorRenderTests
     }
 
     [Fact]
-    public void ADimmingStepOfTheSampleShortensTheHistoryByTheClampsMoveOverHalfTheMeansLight()
+    public void UnderTheNarrowBoxADimmingStepShortensTheHistoryByTheClampsMoveOverHalfTheMeansLight()
     {
         // The first frame after the step: the slow history of 16 frames blends to 1 − 0.8 / 16 = 0.95, the fast history of
         // 4 to 0.8, and the clamp moves the slow one to the fast one's mean, 0.8. The lag is 0.15 / 0.8 = 0.1875, a share
-        // 0.375 of the anti-lag's 0.5, so the length falls from 16 to 16 · 0.625 = 10. The sample holds less than a
-        // quarter of the history's light, so its age does not cut the history.
-        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
+        // 0.375 of the anti-lag's 0.5, so the length falls from 16 to 16 · 0.625 = 10.
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(parameters: NarrowParameters);
         try
         {
             sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
@@ -294,8 +239,6 @@ public sealed class AccumulatorRenderTests
             Continue(renderer, scene, frames: 40);
             CenterOf(renderer, sample, part: 0).Length.Should().Be(16, "the history holds its cap before the step");
 
-            // The rays saw the light change in this frame: the evidence on which the clamp acts.
-            sample.AgeCode = 1;
             sample.Value = new(x: 0.2f, y: 0.2f, z: 0.2f, w: 1f);
             Continue(renderer, scene, frames: 1);
 
@@ -344,7 +287,7 @@ public sealed class AccumulatorRenderTests
     public void ALightChangeAsOldAsTheHistoryOrOlderLeavesTheHistoryAsItIs(uint code)
     {
         // A change 16 frames ago (code 17) or more is as old as the history of 16 frames or older: the history holds no
-        // frame from before it, so it is no evidence for the clamp and nothing to cut.
+        // frame from before it, so the age cuts nothing, and the step's own spread widens the box around the history.
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
         try
         {
@@ -815,8 +758,9 @@ public sealed class AccumulatorRenderTests
     [Fact]
     public void InAStillViewRareBrightDiffuseSamplesKeepTheirShareOfTheSlowHistorysLight()
     {
-        // The samples' mean is 1 + 32 / 32 = 2. A clamp into the box of the fast histories cuts the rare bright samples
-        // and reads low (ticket ter-18hc); nothing in a still view is evidence of a change.
+        // The samples' mean is 1 + 32 / 32 = 2. A clamp into the box of the fast histories alone cuts the rare bright
+        // samples and reads low (ticket ter-18hc). The retained deviation widens the box to hold them
+        // (docs/plans/bounce-light-confidence.md, section 7).
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
         try
         {
@@ -826,6 +770,198 @@ public sealed class AccumulatorRenderTests
                 .Average()
                 .Should()
                 .BeApproximately(2f, 0.1f, "the history holds the mean of its samples");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>The retained deviation of part 0 after the last frame: the alpha of its fast history, per pixel.</summary>
+    private static float[] RetainedDeviationOf(VulkanRenderer renderer, SamplePass sample)
+    {
+        float[] fast = renderer.ReadImage(sample.Signal.Fast(part: 0, parity: (int)(renderer.DrawnFrames & 1) ^ 1));
+        float[] deviation = new float[Width * Height];
+        for (int pixel = 0; pixel < deviation.Length; pixel++)
+            deviation[pixel] = fast[4 * pixel + 3];
+        return deviation;
+    }
+
+    /// <summary>The center pixel's index, row by row from the top.</summary>
+    private const int Center = Height / 2 * Width + Width / 2;
+
+    /// <summary>
+    /// Whether the pixel at <paramref name="column"/> and <paramref name="row"/> lies in the ray block at the center: the
+    /// 2 × 2 pixels at even coordinates that share one ray.
+    /// </summary>
+    private static bool InCenterRayBlock(int column, int row) => column / 2 == Width / 4 && row / 2 == Height / 4;
+
+    [Fact]
+    public void ASingleBrightRayBlockSampleFadesFromTheSlowHistoryAtTheSlowBlendsPace()
+    {
+        // The bounce light's cap of 32 takes the sample of 100 with the weight 1 / 32, so its four pixels hold an excess
+        // of 4 · 100 / 32 = 12.5 at its draw, and each later draw keeps 31 / 32 of it, as long as no clamp cuts it. A dark
+        // wall, so that a store into a half float, which may round toward zero, loses at most 2^−10 of the excess, not of
+        // a bright wall's light: the temporal and the spatial dispatch each store the history once a draw.
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+            parameters: SignalParameters.Diffuse
+        );
+        try
+        {
+            sample.Value = new(x: 0, y: 0, z: 0, w: 1);
+            renderer.Render(scene, 1f);
+            Continue(renderer, scene, frames: 40);
+            sample.Samples = (column, row) => new Vector4(new Vector3(InCenterRayBlock(column, row) ? 100 : 0), 1);
+            Continue(renderer, scene, frames: 1);
+            sample.Samples = null;
+
+            for (int draw = 0; draw <= 32; draw++)
+            {
+                if (draw > 0)
+                    Continue(renderer, scene, frames: 1);
+                float[] history = HistoryOf(renderer, sample, part: 0);
+                float excess = Enumerable
+                    .Range(0, Width * Height)
+                    .Where(pixel => InCenterRayBlock(pixel % Width, pixel / Width))
+                    .Sum(pixel => history[4 * pixel]);
+                float expected = 12.5f * MathF.Pow(31f / 32, draw);
+                float rounding = 2 * (draw + 1) * MathF.Pow(2, -10);
+                excess
+                    .Should()
+                    .BeInRange(
+                        (1 - 0.02f - rounding) * expected,
+                        1.02f * expected,
+                        "{0} draws after the sample, the slow blend alone shortens the excess",
+                        draw
+                    );
+            }
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>Light 0 or 2 at every pixel, the same in a frame and the other in the next: a deviation of 1.</summary>
+    private static Func<int, int, Vector4> Blink(int frame) => (_, _) => new Vector4(new Vector3((frame & 1) * 2), 1);
+
+    [Fact]
+    public void TheRetainedDeviationFadesWithTheSlowBlendNotTheFastOne()
+    {
+        // After the samples 0 and 2 in turn, 16 samples of their mean 1 add almost no spread. The retained deviation's
+        // variance keeps 31 / 32 a draw, as the slow history of 32 draws weighs its samples: (31 / 32)^8 ≈ 0.78 of the
+        // deviation. A deviation over the fast history's 4 draws would keep (3 / 4)^8 ≈ 0.1 of it.
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+            parameters: SignalParameters.Diffuse
+        );
+        try
+        {
+            for (int frame = 0; frame < 40; frame++)
+            {
+                sample.Samples = Blink(frame);
+                Continue(renderer, scene, frames: 1);
+            }
+            float before = RetainedDeviationOf(renderer, sample)[Center];
+            before.Should().BeGreaterThan(0.5f, "the samples deviate by 1");
+            sample.Samples = null;
+            sample.Value = new(x: 1, y: 1, z: 1, w: 1);
+
+            Continue(renderer, scene, frames: 16);
+
+            RetainedDeviationOf(renderer, sample)[Center]
+                .Should()
+                .BeGreaterThanOrEqualTo(0.7f * before, "the deviation keeps the slow history's window");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void TheRetainedDeviationTakesTheExposureRatio()
+    {
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(AutoExposure.Default);
+        try
+        {
+            // Samples of 0.025 and 0.075 in turn, pre-exposed at the exposure that the next frame uses.
+            void ExposeAndContinue(float light)
+            {
+                float scale = MathF.Pow(2, renderer.ReadExposureStops().Stops);
+                sample.Value = new(x: light * scale, y: light * scale, z: light * scale, w: 1f);
+                Continue(renderer, scene, frames: 1);
+            }
+
+            sample.Value = new(x: 0.05f, y: 0.05f, z: 0.05f, w: 1f);
+            renderer.Render(scene, 1f);
+            for (int frame = 0; frame < 20; frame++)
+                ExposeAndContinue((frame & 1) == 0 ? 0.025f : 0.075f);
+            // A bright frame lowers the exposure of the next frame, as in
+            // WhenTheExposureMovesBetweenTwoFramesTheHistoryTakesTheNewExposureInThatFrame.
+            float before = renderer.ReadExposureStops().Stops;
+            Gpu.Star(snapshot: scene, irradiance: 64 * Gpu.StarIrradiance(scene));
+            ExposeAndContinue(3.2f);
+            float ratio = MathF.Pow(2, renderer.ReadExposureStops().Stops - before);
+            ratio.Should().BeLessThan(0.98f, "the bright frame moved the exposure");
+            float deviation = RetainedDeviationOf(renderer, sample)[Center];
+            deviation.Should().BePositive("the samples spread");
+
+            // No sample, so the deviation holds only its rescaled self.
+            sample.Value = new(x: float.NaN, y: float.NaN, z: float.NaN, w: 1f);
+            Continue(renderer, scene, frames: 1);
+
+            RetainedDeviationOf(renderer, sample)[Center]
+                .Should()
+                .BeApproximately(deviation * ratio, 2e-3f * deviation, "the deviation has the history's units");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ARejectedHistoryStartsItsRetainedDeviationAtZero()
+    {
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
+        try
+        {
+            for (int frame = 0; frame < 20; frame++)
+            {
+                sample.Samples = Blink(frame);
+                Continue(renderer, scene, frames: 1);
+            }
+            RetainedDeviationOf(renderer, sample)[Center].Should().BePositive("the samples spread");
+
+            // A camera cut rejects every history, so each pixel's first sample is all that it holds.
+            scene.CameraCuts++;
+            sample.Samples = Blink(20);
+            Continue(renderer, scene, frames: 1);
+
+            RetainedDeviationOf(renderer, sample).Should().OnlyContain(deviation => deviation == 0);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AConstantSampleKeepsARetainedDeviationOfExactlyZero()
+    {
+        // 0.3 is no half float: the history stops a half-float step or so from it, and the step left counts as the store's
+        // rounding, not as noise.
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+            parameters: SignalParameters.Diffuse
+        );
+        try
+        {
+            sample.Value = new(x: 0.3f, y: 0.3f, z: 0.3f, w: 1);
+            renderer.Render(scene, 1f);
+
+            Continue(renderer, scene, frames: 60);
+
+            RetainedDeviationOf(renderer, sample).Should().OnlyContain(deviation => deviation == 0);
         }
         finally
         {

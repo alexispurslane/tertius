@@ -1,18 +1,16 @@
 #version 460
 // The variance dispatch of the diffuse filter (diffuse_filter.glsl): one invocation per pixel writes the slow history's
 // light and the standard deviation of the luminance of the pixel's samples, the input of the first wavelet dispatch. A
-// history of at least YoungFrames frames takes the deviation that the temporal dispatch keeps in the fast history's alpha.
-// A younger one estimates it from the fast histories of the same surface around it, raised by YoungFrames over its length,
-// as the paper does, because a few samples give no temporal estimate.
+// history of at least YoungFrames frames takes the retained deviation that the temporal dispatch keeps in the fast
+// history's alpha. A younger one estimates it from the fast histories of the same surface around it, raised by
+// YoungFrames over its length, as the paper does, because a few samples give no temporal estimate. A negative sign marks
+// the young estimate, which the feedback step reads by magnitude and never stores (diffuse_filter_wavelet.glsl).
 #extension GL_GOOGLE_include_directive : require
 #include "diffuse_filter.glsl"
 
 layout(set = 3, binding = 1, rgba16f) uniform writeonly image2D filterOutput;  // rgb the light, a the deviation
 layout(set = 3, binding = 2, rgba16f) uniform readonly image2D slowHistory;    // rgb the light, a the length
 layout(set = 3, binding = 3, rgba16f) uniform readonly image2D fastHistory;    // this frame's: a the deviation
-
-// The length below which a history estimates its deviation from its neighbors: the paper's four frames.
-const float YoungFrames = 4.0;
 
 // The half width of the window of the young estimate: the paper's 7 × 7 pixels.
 const int YoungRadius = 3;
@@ -53,6 +51,6 @@ void main()
         imageStore(filterOutput, pixel, vec4(slow.rgb, 0.0));
         return;
     }
-    float deviation = slow.a >= YoungFrames ? imageLoad(fastHistory, pixel).a : youngDeviation(pixel, slow.a);
+    float deviation = slow.a >= YoungFrames ? imageLoad(fastHistory, pixel).a : -youngDeviation(pixel, slow.a);
     imageStore(filterOutput, pixel, vec4(slow.rgb, deviation));
 }

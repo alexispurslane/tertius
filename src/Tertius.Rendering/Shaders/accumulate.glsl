@@ -56,6 +56,7 @@ layout(push_constant, std430) uniform AccumulatePush
     uint light;          // SignalLight: DiffuseLight or SpecularLight
     float reflectedPlaceBelow;   // the roughness below which the reflected place competes, with its distance test, 0 for none
     uint reset;          // 1 in a frame that resets every history
+    float retainedSigmas;  // the clamp box's least half width in retained deviations, 0 for the narrow box
 } parameters;
 
 // SignalLight.

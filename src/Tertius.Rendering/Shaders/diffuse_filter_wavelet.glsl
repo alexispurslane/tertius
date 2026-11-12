@@ -6,8 +6,10 @@
 // pixel p takes the share w(p, q) of the difference from each tap q, where w is the tap's weight, the same in both
 // directions, so what p takes, q gives. The kernel's weights sum to 1 and each stop is at most 1, so the shares of a pixel
 // sum to less than 1 and its light stays a weighted mean: the weight that the stops remove stays with the pixel. Where
-// no stop acts, as on an even surface, it is the paper's mean. The variance of the luminance follows the same shares. In
-// the feedback step it also writes the light into the slow history, and keeps the history's length.
+// no stop acts, as on an even surface, it is the paper's mean. The variance of the luminance follows the same shares, as
+// the paper's mean of independent taps. The feedback step instead carries the deviation with the light by the shares
+// themselves, a bound for taps of any correlation, and writes the light into the slow history, which keeps its length,
+// and the deviation into the fast history as its retained deviation (docs/plans/bounce-light-confidence.md, section 7).
 #ifndef TERTIUS_DIFFUSE_FILTER_WAVELET_GLSL
 #define TERTIUS_DIFFUSE_FILTER_WAVELET_GLSL
 
@@ -27,6 +29,7 @@ const float KernelWeights[3] = float[3](0.375, 0.25, 0.0625);
 layout(set = 3, binding = 0, rgba16f) uniform readonly image2D filterInput;    // rgb the light, a the deviation
 layout(set = 3, binding = 1, rgba16f) uniform writeonly image2D filterOutput;
 layout(set = 3, binding = 2, rgba16f) uniform image2D slowHistory;             // rgb the light, a the length
+layout(set = 3, binding = 3, rgba16f) uniform image2D fastHistory;             // this draw's: a the retained deviation
 
 void main()
 {
@@ -44,6 +47,9 @@ void main()
     vec3 moved = vec3(0.0);
     float kept = 1.0;
     float varianceSum = 0.0;
+    // The feedback step's sums of the shares of the taps' deviations: all of them, and only those of mature taps.
+    float deviationSum = 0.0;
+    float carriedSum = 0.0;
     for (int y = -KernelRadius; y <= KernelRadius; y++)
         for (int x = -KernelRadius; x <= KernelRadius; x++)
         {
@@ -55,12 +61,29 @@ void main()
             moved += share * (light.rgb - centerLight.rgb);
             kept -= share;
             varianceSum += share * share * light.a * light.a;
+            deviationSum += share * abs(light.a);
+            carriedSum += share * max(light.a, 0.0);
         }
     vec3 filtered = centerLight.rgb + moved;
-    float deviation = min(sqrt(kept * kept * center.variance + varianceSum), MaxRadiance);
+    if (parameters.feedback == 0u)
+    {
+        float deviation = min(sqrt(kept * kept * center.variance + varianceSum), MaxRadiance);
+        imageStore(filterOutput, pixel, vec4(filtered, deviation));
+        return;
+    }
+
+    // A pixel's excess after the step is the shares' sum of its taps' excesses, so the shares' sum of their deviations
+    // bounds it for any correlation. A young tap's estimate holds the light's own edges, so it reaches the next step but
+    // never the store.
+    float deviation = min(kept * abs(centerLight.a) + deviationSum, MaxRadiance);
     imageStore(filterOutput, pixel, vec4(filtered, deviation));
-    if (parameters.feedback != 0u)
-        imageStore(slowHistory, pixel, vec4(filtered, imageLoad(slowHistory, pixel).a));
+    vec4 slow = imageLoad(slowHistory, pixel);
+    imageStore(slowHistory, pixel, vec4(filtered, slow.a));
+    if (slow.a >= YoungFrames)
+    {
+        float carried = min(kept * max(centerLight.a, 0.0) + carriedSum, MaxRadiance);
+        imageStore(fastHistory, pixel, vec4(imageLoad(fastHistory, pixel).rgb, carried));
+    }
 }
 
 #endif

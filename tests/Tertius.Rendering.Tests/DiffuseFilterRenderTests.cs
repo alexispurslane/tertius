@@ -12,7 +12,7 @@ namespace Tertius.Rendering.Tests;
 /// still, and each frame steps one tick.
 /// </summary>
 [Collection(GpuCollection.Name)]
-public sealed class DiffuseFilterRenderTests
+public sealed class DiffuseFilterRenderTests(ITestOutputHelper output)
 {
     private const int Width = 128,
         Height = 72;
@@ -39,6 +39,34 @@ public sealed class DiffuseFilterRenderTests
         bool filtered,
         DiffuseFilterKernel kernel,
         params (Vector3 Center, float Turn, Vector3 Scale)[] boxes
+    ) => Filtering(filtered: filtered, kernel: kernel, parameters: Parameters, boxes: boxes);
+
+    /// <summary>
+    /// The renderer of <see cref="Filtering(ValueTuple{Vector3, float, Vector3}[])"/> before a wall that fills the view,
+    /// with the bounce light's own parameter set: its cap of 32 and its widened box.
+    /// </summary>
+    private static (
+        VulkanRenderer Renderer,
+        SamplePass Sample,
+        DiffuseFilter Filter,
+        RenderSnapshot Scene
+    ) FilteringBounceLight(bool filtered = true) =>
+        Filtering(
+            filtered: filtered,
+            kernel: DiffuseFilterKernel.Thin,
+            parameters: SignalParameters.Diffuse,
+            boxes: [Wall]
+        );
+
+    /// <summary>
+    /// The renderer of <see cref="Filtering(bool, DiffuseFilterKernel, ValueTuple{Vector3, float, Vector3}[])"/> with the
+    /// test signal's parameter set <paramref name="parameters"/>.
+    /// </summary>
+    private static (VulkanRenderer Renderer, SamplePass Sample, DiffuseFilter Filter, RenderSnapshot Scene) Filtering(
+        bool filtered,
+        DiffuseFilterKernel kernel,
+        SignalParameters parameters,
+        (Vector3 Center, float Turn, Vector3 Scale)[] boxes
     )
     {
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
@@ -58,7 +86,7 @@ public sealed class DiffuseFilterRenderTests
                     entity: entity++
                 )
             );
-        TemporalSignal signal = renderer.CreateSignal(parameters: Parameters, name: "test", parts: 1);
+        TemporalSignal signal = renderer.CreateSignal(parameters: parameters, name: "test", parts: 1);
         var sample = new SamplePass(signal, renderer.Allocator);
         DiffuseFilter filter = renderer.CreateDiffuseFilter(signal, kernel);
         renderer.Graph.Add(FrameGraph.Stage.DirectLight, sample);
@@ -90,6 +118,22 @@ public sealed class DiffuseFilterRenderTests
         for (int pixel = 0; pixel < red.Length; pixel++)
             red[pixel] = filtered[4 * pixel];
         return red;
+    }
+
+    /// <summary>The center pixel's index, row by row from the top.</summary>
+    private const int Center = Height / 2 * Width + Width / 2;
+
+    /// <summary>
+    /// The retained deviation of each pixel after the last frame, row by row from the top: the alpha of the fast history
+    /// that the frame wrote, after the filter's feedback step.
+    /// </summary>
+    private static float[] RetainedDeviationOf(VulkanRenderer renderer, SamplePass sample)
+    {
+        float[] fast = renderer.ReadImage(sample.Signal.Fast(part: 0, parity: (int)(renderer.DrawnFrames & 1) ^ 1));
+        float[] deviation = new float[Width * Height];
+        for (int pixel = 0; pixel < deviation.Length; pixel++)
+            deviation[pixel] = fast[4 * pixel + 3];
+        return deviation;
     }
 
     /// <summary>
@@ -395,25 +439,286 @@ public sealed class DiffuseFilterRenderTests
     }
 
     [Fact]
-    public void ASampleWithoutNoiseKeepsNoDeviationAfterAStep()
+    public void AfterAStepOfASampleWithoutNoiseTheRetainedDeviationHalvesWithin45DrawsOfTheHistoryReachingIt()
     {
-        // After the step, the fast history's blend stops a few half-float steps below the sample, up to four where the
-        // store rounds toward zero, which the spec allows: rounding, not noise. Just above a power of two, a half-float
-        // step is the largest share of the light, 2^−10.
-        (VulkanRenderer renderer, SamplePass sample, _, RenderSnapshot scene) = Filtering(Wall);
+        // The step of 0.0505 counts as spread until the history of 32 draws comes within 32 / 768 of its light, 0.0104,
+        // after ln(0.0104 / 0.0505) / ln(31 / 32) ≈ 50 draws. From then on the history's last half-float steps toward
+        // the sample are the store's rounding, and the variance keeps 31 / 32 a draw: the deviation halves in 44 draws.
+        // Counted as spread, they would keep a deviation of their own size.
+        (VulkanRenderer renderer, SamplePass sample, _, RenderSnapshot scene) = FilteringBounceLight();
         try
         {
             sample.Value = new(x: 0.2f, y: 0.2f, z: 0.2f, w: 1);
             renderer.Render(scene, 1f);
-            Continue(renderer, scene, frames: 10);
+            Continue(renderer, scene, frames: 40);
             sample.Value = new(x: 0.2505f, y: 0.2505f, z: 0.2505f, w: 1);
+            // The history reaches the step by about draw 51, and 60 leaves a margin.
+            Continue(renderer, scene, frames: 60);
+            float[] reached = RetainedDeviationOf(renderer, sample);
+            reached[Center].Should().BePositive("the step spread the samples");
 
-            // The deviation of the step falls by √(3 / 4) a frame, and below the least half float after about 100 frames.
-            Continue(renderer, scene, frames: 150);
+            Continue(renderer, scene, frames: 45);
 
-            float[] fast = renderer.ReadImage(sample.Signal.Fast(part: 0, parity: (int)(renderer.DrawnFrames & 1) ^ 1));
+            float[] after = RetainedDeviationOf(renderer, sample);
             for (int pixel = 0; pixel < Width * Height; pixel++)
-                fast[4 * pixel + 3].Should().Be(0, "pixel {0} saw one constant sample for 150 frames", pixel);
+                after[pixel]
+                    .Should()
+                    .BeLessThanOrEqualTo(0.5f * reached[pixel], "pixel {0} saw one constant sample since", pixel);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void TheFeedbackStepStoresTheDeviationOfTheLightThatItMoves()
+    {
+        // The left half holds the noisy checker's mean of 1 without noise, so the luminance stop lets the noisy right
+        // half's light across the middle. The quiet pixel left of the middle takes the share 0.0625 + 0.125 + 0.0625 of
+        // each of its three noisy taps' light, and so as much of their deviation.
+        int frame = 0;
+        Func<int, int, Vector4> flicker = Flicker(() => frame);
+        (VulkanRenderer renderer, SamplePass sample, _, RenderSnapshot scene) = Filtering(Wall);
+        try
+        {
+            sample.Samples = (column, row) => column < Width / 2 ? new(Vector3.One, 1) : flicker(column, row);
+
+            for (frame = 0; frame < 40; frame++)
+                Continue(renderer, scene, frames: 1);
+
+            float[] deviation = RetainedDeviationOf(renderer, sample);
+            float noisy = deviation[Center + 8];
+            noisy.Should().BeGreaterThan(0.5f, "the checker's samples deviate by 1");
+            deviation[Center - 1]
+                .Should()
+                .BeGreaterThanOrEqualTo(0.125f * noisy, "the quiet pixel took light from its noisy taps");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AYoungHistoryKeepsItsOwnRetainedDeviation()
+    {
+        // After three samples of the checker, each history holds 0, 2 and 0 or 2, 0 and 2: its own deviation is
+        // √(8 / 9) ≈ 0.943. Its young estimate, the spread of the fast histories of 2 / 3 and 4 / 3 over 7 × 7 pixels
+        // raised by √(4 / 3), is 0.385, and it holds the light's own edges, so the store never takes it.
+        int frame = 0;
+        (VulkanRenderer renderer, SamplePass sample, _, RenderSnapshot scene) = Filtering(Wall);
+        try
+        {
+            sample.Samples = Flicker(() => frame);
+
+            for (frame = 0; frame < 3; frame++)
+                Continue(renderer, scene, frames: 1);
+
+            RetainedDeviationOf(renderer, sample)[Center]
+                .Should()
+                .BeApproximately(MathF.Sqrt(8f / 9), 0.01f, "the history's own samples deviate so");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// Whether the pixel at <paramref name="column"/> and <paramref name="row"/> lies in the ray block at the center: the
+    /// 2 × 2 pixels at even coordinates that share one ray.
+    /// </summary>
+    private static bool InCenterRayBlock(int column, int row) => column / 2 == Width / 4 && row / 2 == Height / 4;
+
+    /// <summary>
+    /// Draws a mature dark wall of the bounce light's parameter set, then one draw in which the center's ray block holds
+    /// the sample 100, then dark samples again. A dark wall, so that a store into a half float, which may round toward
+    /// zero, loses at most 2^−10 of the excess, not of a bright wall's light.
+    /// </summary>
+    private static void DrawABrightRayBlockSample(VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene)
+    {
+        sample.Value = new(x: 0, y: 0, z: 0, w: 1);
+        renderer.Render(scene, 1f);
+        Continue(renderer, scene, frames: 40);
+        sample.Samples = (column, row) => new Vector4(new Vector3(InCenterRayBlock(column, row) ? 100 : 0), 1);
+        Continue(renderer, scene, frames: 1);
+        sample.Samples = null;
+    }
+
+    [Fact]
+    public void ASingleBrightRayBlockSampleNeverGrowsMoreConspicuousOverThe32DrawsAfterIt()
+    {
+        // A luminance stop whose deviation shrinks faster than the light that it describes concentrates the old excess
+        // again: the peak grew 42 times in the CPU model (docs/plans/bounce-light-confidence.md, section 7). Carried
+        // with the light, the deviation lets the peak rise by 1.7 % in the next draw and then only fall.
+        (VulkanRenderer renderer, SamplePass sample, DiffuseFilter filter, RenderSnapshot scene) =
+            FilteringBounceLight();
+        try
+        {
+            DrawABrightRayBlockSample(renderer, sample, scene);
+            float first = FilteredRed(renderer, filter).Max();
+            first.Should().BePositive("the filter shows the sample's excess");
+
+            float most = first;
+            float last = first;
+            for (int draw = 1; draw <= 32; draw++)
+            {
+                Continue(renderer, scene, frames: 1);
+                last = FilteredRed(renderer, filter).Max();
+                most = MathF.Max(most, last);
+            }
+
+            output.WriteLine($"Peak excess: {first} at the sample's draw, {most} at most, {last} after 32 draws.");
+            most.Should().BeLessThanOrEqualTo(1.05f * first, "the filter only spreads the excess");
+            last.Should().BeLessThan(0.5f * first, "the slow blend and the filter shrink the excess");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void TheExcessOfASingleBrightRayBlockSampleFadesAtTheSlowBlendsPace()
+    {
+        // The four pixels hold 4 · 100 / 32 = 12.5 at the sample's draw. The filter moves that light and makes none, and
+        // each draw keeps 31 / 32 of it, as long as no clamp cuts the light that the filter moved into a quiet pixel. The
+        // accumulation's two stores and the feedback's one may each round the light toward zero.
+        (VulkanRenderer renderer, SamplePass sample, _, RenderSnapshot scene) = FilteringBounceLight();
+        try
+        {
+            DrawABrightRayBlockSample(renderer, sample, scene);
+
+            for (int draw = 0; draw <= 32; draw++)
+            {
+                if (draw > 0)
+                    Continue(renderer, scene, frames: 1);
+                float[] history = renderer.ReadImage(sample.Signal.Slow(0));
+                float excess = Enumerable.Range(0, Width * Height).Sum(pixel => history[4 * pixel]);
+                float expected = 12.5f * MathF.Pow(31f / 32, draw);
+                float rounding = 3 * (draw + 1) * MathF.Pow(2, -10);
+                excess
+                    .Should()
+                    .BeInRange(
+                        (1 - 0.02f - rounding) * expected,
+                        1.02f * expected,
+                        "{0} draws after the sample, the slow blend alone shortens the excess",
+                        draw
+                    );
+            }
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// A hash of the ray block at <paramref name="column"/> and <paramref name="row"/> and of <paramref name="frame"/>,
+    /// which spreads a pattern over the image and over the frames.
+    /// </summary>
+    private static uint RayBlockHash(int column, int row, int frame)
+    {
+        uint hash = (uint)(column / 2 * 73856093 ^ row / 2 * 19349663 ^ frame * 83492791);
+        hash ^= hash >> 13;
+        hash *= 0x5bd1e995;
+        hash ^= hash >> 15;
+        return hash;
+    }
+
+    /// <summary>
+    /// Whether the ray block at <paramref name="column"/> and <paramref name="row"/> takes a rare bright sample in
+    /// <paramref name="frame"/>: one ray block in 32.
+    /// </summary>
+    private static bool RareAt(int column, int row, int frame) => RayBlockHash(column, row, frame) % 32 == 0;
+
+    [Fact]
+    public void AQuietPixelKeepsTheLightThatTheFilterMovedIntoIt()
+    {
+        // One ray block in 32 takes 33 in a draw, the others 1. The filter moves a rare sample's light into the quiet
+        // pixels around it, whose own fast histories form a narrow box. The retained deviation moves with the light, so
+        // the clamp never moves a history (ticket td-hjn6), and every history keeps its cap of 32: the image's history
+        // follows its samples' blend. The slow history's three half-float stores a draw may each round toward zero, as
+        // the spec allows, and lose half a half-float step on average, 2^−11 of the light: 3 · 32 · 2^−11 ≈ 4.7 % at the
+        // blend's weight. This GPU loses 1.8 %, and 0.9 % without the filter's store.
+        (VulkanRenderer renderer, SamplePass sample, _, RenderSnapshot scene) = FilteringBounceLight();
+        try
+        {
+            sample.Value = new(x: 1, y: 1, z: 1, w: 1);
+            renderer.Render(scene, 1f);
+            Continue(renderer, scene, frames: 40);
+            double expected = 1;
+            double shown = 0;
+            for (int frame = 0; frame < 164; frame++)
+            {
+                int drawn = frame;
+                sample.Samples = (column, row) => new Vector4(new Vector3(RareAt(column, row, drawn) ? 33 : 1), 1);
+                int rare = Enumerable
+                    .Range(0, Width * Height)
+                    .Count(pixel => RareAt(pixel % Width, pixel / Width, drawn));
+                double mean = 1 + 32.0 * rare / (Width * Height);
+                // Every history holds 32 draws, so the image's mean blends its samples' mean with the weight 1 / 32.
+                expected += (mean - expected) / 32;
+                Continue(renderer, scene, frames: 1);
+                float[] history = renderer.ReadImage(sample.Signal.Slow(0));
+                Enumerable
+                    .Range(0, Width * Height)
+                    .Count(pixel => history[4 * pixel + 3] != 32)
+                    .Should()
+                    .Be(0, "the clamp moved no history in draw {0}", frame);
+                if (frame >= 64)
+                    shown +=
+                        Enumerable.Range(0, Width * Height).Average(pixel => (double)history[4 * pixel])
+                        / expected
+                        / 100;
+            }
+
+            output.WriteLine($"The image's history over its samples' blend: {shown:F4}.");
+            shown.Should().BeInRange(1 - 0.047, 1.01, "the filter moves light and the clamp cuts none of it");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AStableEdgeOfLightUnderNoiseKeepsItsWidth()
+    {
+        // Halves of light 1 and 2, each ray block's sample 50 % above or below its half's light in each draw. A deviation
+        // carried by the shares in every step widened the CPU model's 10 to 90 % rise to 32 pixels; with the paper's rule
+        // after the feedback step it stays near 12 (docs/plans/bounce-light-confidence.md, section 7). The design's bound
+        // was 16 pixels. The CPU model with this test's image and measure gives 15, this GPU 17 to 18, and the filter
+        // before the retained deviation at most 16: 20 holds the measured width until the user decides (t0-anp3).
+        int frame = 0;
+        (VulkanRenderer renderer, SamplePass sample, DiffuseFilter filter, RenderSnapshot scene) =
+            FilteringBounceLight();
+        try
+        {
+            sample.Samples = (column, row) =>
+            {
+                float light = column < Width / 2 ? 1 : 2;
+                float noise = (RayBlockHash(column, row, frame) & 0x100) == 0 ? 0.5f : -0.5f;
+                return new Vector4(new Vector3(light * (1 + noise)), 1);
+            };
+
+            float[] profile = new float[Width];
+            for (frame = 0; frame < 200; frame++)
+            {
+                Continue(renderer, scene, frames: 1);
+                if (frame < 168)
+                    continue;
+                float[] red = FilteredRed(renderer, filter);
+                for (int row = 0; row < Height; row++)
+                for (int column = 0; column < Width; column++)
+                    profile[column] += red[row * Width + column] / (32 * Height);
+            }
+
+            int low = Array.FindLastIndex(profile, light => light <= 1.1f);
+            int high = Array.FindIndex(profile, light => light >= 1.9f);
+            output.WriteLine($"10 to 90 % rise: {high - low} pixels.");
+            (high - low).Should().BeLessThanOrEqualTo(20, "the luminance stop holds the edge of real light");
         }
         finally
         {
@@ -479,23 +784,23 @@ public sealed class DiffuseFilterRenderTests
         (_, _) => new Vector4(new Vector3((frame() & 1) * 2), 1);
 
     [Fact]
-    public void TheFastHistoryKeepsTheDeviationOfItsSamples()
+    public void TheRetainedDeviationIsTheDeviationOfTheSlowHistorysSamples()
     {
-        // Samples of 0 and 2 in turn have a deviation of 1. The fast history settles between 0.857 and 1.143, so each
-        // step is ±1.143, and the weighted variance (1 − w)(variance + w step²) at w = 1 / 4 settles at 0.98.
+        // Samples of 0 and 2 in turn have a deviation of 1. Each step goes from the fast history, which settles between
+        // 0.857 and 1.143, so it is ±1.143, and the variance (1 − w)(variance + w step²) with the slow history's weight
+        // w = 1 / 16 settles at (1 − w) step²: a deviation of 1.107.
         int frame = 0;
         (VulkanRenderer renderer, SamplePass sample, _, RenderSnapshot scene) = Filtering(Wall);
         try
         {
             sample.Samples = Blink(() => frame);
 
-            for (frame = 0; frame < 40; frame++)
+            for (frame = 0; frame < 60; frame++)
                 Continue(renderer, scene, frames: 1);
 
-            float[] fast = renderer.ReadImage(sample.Signal.Fast(part: 0, parity: (int)(renderer.DrawnFrames & 1) ^ 1));
-            fast[4 * (Height / 2 * Width + Width / 2) + 3]
+            RetainedDeviationOf(renderer, sample)[Center]
                 .Should()
-                .BeApproximately(0.99f, 0.1f, "the samples deviate by 1");
+                .BeApproximately(1.107f, 0.03f, "the samples deviate by 1 from their mean");
         }
         finally
         {
@@ -506,10 +811,11 @@ public sealed class DiffuseFilterRenderTests
     [Fact]
     public void TheFilteredDeviationIsThatOfAMeanOfItsTaps()
     {
-        // Every pixel holds the same light, so every stop is 1 and each step takes the plain kernel. A weighted mean of
-        // independent values with the weights w has the deviation √(Σ w²) of one value: (6 / 16)² for the 3 × 3
-        // B-spline, so a deviation of 0.375 in each step and 0.0028 after six. Taps near the border lose weight, which
-        // keeps their deviation higher.
+        // Every pixel holds the same light. The feedback step carries the deviation by the shares and keeps the rest,
+        // so a uniform deviation stays as it is. A later step takes the deviation of a weighted mean of independent
+        // values with the weights w, √(Σ w²) of one value: (6 / 16)² for the plain 3 × 3 B-spline, so 0.375 in each
+        // step, and more where a stop keeps weight with the pixel. At the center, every tap of every step lies inside the
+        // image. The rule of the feedback step in every step would keep the deviation at 1.
         int frame = 0;
         (VulkanRenderer renderer, SamplePass sample, DiffuseFilter filter, RenderSnapshot scene) = Filtering(Wall);
         try
@@ -519,12 +825,15 @@ public sealed class DiffuseFilterRenderTests
             for (frame = 0; frame < 40; frame++)
                 Continue(renderer, scene, frames: 1);
 
-            int center = Height / 2 * Width + Width / 2;
-            float before = renderer.ReadImage(sample.Signal.Fast(part: 0, parity: (int)(renderer.DrawnFrames & 1) ^ 1))[
-                4 * center + 3
-            ];
-            float after = renderer.ReadImage(filter.Filtered)[4 * center + 3];
-            after.Should().BeInRange(0.0005f * before, 0.01f * before, "six means of 9 taps divide the deviation");
+            float before = RetainedDeviationOf(renderer, sample)[Center];
+            float after = renderer.ReadImage(filter.Filtered)[4 * Center + 3];
+            after
+                .Should()
+                .BeInRange(
+                    MathF.Pow(0.375f, 5) * before,
+                    MathF.Pow(0.5f, 5) * before,
+                    "five means of 9 taps divide the deviation that the feedback step keeps"
+                );
         }
         finally
         {

@@ -430,7 +430,8 @@ public sealed class ScreenTraceRenderTests
         // A row of floor pixels in front of a black panel that glows: their diffuse light is f · glow + (1 − f) · sky,
         // with f the panel's form factor, the cosine-weighted share of the hemisphere that the panel covers. At 0.95 m the
         // panel covers a third of it, at 4.95 m about 4 %. There the panel's rays are rare and bright, and a clamp of the
-        // slow history into the box of the fast history in a still view read about half of the panel's share (ter-18hc).
+        // slow history into the box of the fast histories alone read about half of the panel's share (ter-18hc). The
+        // retained deviation widens the box to hold them (docs/plans/bounce-light-confidence.md, section 7).
         const float sky = 0.2f;
         const float glow = 2f;
         var receiver = new Vector3(0, FloorHeight, -7);
@@ -464,6 +465,185 @@ public sealed class ScreenTraceRenderTests
         finally
         {
             Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// The bounce light's retained deviation and its filter against real rays (docs/plans/bounce-light-confidence.md,
+    /// decision 6). Each test makes a renderer with the diffuse filter off by its debug switch, so the class holds the
+    /// process environment.
+    /// </summary>
+    [Collection(ProcessEnvironmentCollection.Name)]
+    public sealed class BounceLightConfidence(ITestOutputHelper output)
+    {
+        /// <summary>
+        /// A renderer of <see cref="Tracing"/> with the diffuse filter off (<see cref="DiffuseFilter.Selected"/>), so that
+        /// the slow history holds only its own samples and the hits read the fast history.
+        /// </summary>
+        private static VulkanRenderer TracingWithoutTheFilter()
+        {
+            const string Switch = "TERTIUS_DIFFUSE_FILTER";
+            string? previous = Environment.GetEnvironmentVariable(Switch);
+            Environment.SetEnvironmentVariable(Switch, "off");
+            try
+            {
+                return Tracing();
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable(Switch, previous);
+            }
+        }
+
+        [Fact]
+        public void TheRetainedDeviationPredictsTheSpreadOfTheSlowHistory()
+        {
+            // The floor 4.95 m before the glowing panel of AGlowingPanelBesideAFloorPixelTakesItsShareOfThePixelsDiffuseLight
+            // takes rare bright rays. An exponential mean of the weight w over independent samples of the deviation σ
+            // deviates by σ √(w / (2 − w)) from their expected value. The runs lie 64 draws apart, after which the slow
+            // history keeps (31 / 32)^64 ≈ 0.13 of its light, so they are nearly independent. The scene is gray, so the red
+            // channel is the luminance. A result outside is a finding for the design, not a bound to loosen.
+            const int runs = 16;
+            const float weight = 1f / 32;
+            var receiver = new Vector3(0, FloorHeight, -7);
+            VulkanRenderer renderer = TracingWithoutTheFilter();
+            try
+            {
+                RenderSnapshot scene = Gray(0.2f);
+                scene.Instances.Add(Floor(renderer, WhiteFloor(roughness: 1)));
+                scene.Instances.Add(
+                    Block(
+                        box: renderer.CreateMesh(Primitives.Box(new(0.5f))),
+                        material: Glow(renderer, new(2)),
+                        center: new(0, 0, receiver.Z - 4.95f - 0.05f),
+                        size: new(6, 3, 0.1f)
+                    )
+                );
+                Draw(renderer, scene, frames: 64);
+                (int X, int Y) pixel = PixelOf(receiver);
+                var region = new Region(Left: pixel.X - 40, Right: pixel.X + 40, Top: pixel.Y - 1, Bottom: pixel.Y + 1);
+                int columns = region.Right - region.Left + 1;
+                int count = columns * (region.Bottom - region.Top + 1);
+                double[] sums = new double[count];
+                double[] squares = new double[count];
+                double predicted = 0;
+
+                for (int run = 0; run < runs; run++)
+                {
+                    Draw(renderer, scene, frames: 64);
+                    float[] slow = renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.Slow(0));
+                    float[] fast = renderer.ReadImage(
+                        renderer.ScreenTraceSignals.Diffuse.Fast(part: 0, parity: (int)(renderer.DrawnFrames & 1) ^ 1)
+                    );
+                    for (int at = 0; at < count; at++)
+                    {
+                        int index = 4 * ((region.Top + at / columns) * Width + region.Left + at % columns);
+                        sums[at] += slow[index];
+                        squares[at] += slow[index] * (double)slow[index];
+                        double deviation = fast[index + 3] * Math.Sqrt(weight / (2 - weight));
+                        predicted += deviation * deviation / (runs * count);
+                    }
+                }
+
+                double variance = 0;
+                for (int at = 0; at < count; at++)
+                    variance += (squares[at] - sums[at] * sums[at] / runs) / (runs - 1) / count;
+                double ratio = Math.Sqrt(variance / predicted);
+                output.WriteLine($"Measured over predicted deviation of the slow history: {ratio:F3}.");
+                ratio
+                    .Should()
+                    .BeInRange(0.5, 2, "the retained deviation is the spread of the samples that the history averages");
+            }
+            finally
+            {
+                Gpu.DisposeAndAssertClean(renderer);
+            }
+        }
+
+        [Fact]
+        public void TheBounceLightOfALitPoolKeepsItsEdgeWithRealRays()
+        {
+            // A spot lamp lights a pool on the floor before a white wall, and the wall's foot takes the pool's light. Its
+            // bounce light falls from the pool's chord to the dark floor beside it over about its height above the floor.
+            // The retained deviation keeps the filter's luminance stop open for the samples' spread, which must not open
+            // it across that edge. The design's bound was 4 pixels wider than without the filter; this GPU measured 6
+            // (37 against 31), so 8 holds the measured width until the user decides (t0-anp3).
+            float filtered = RiseOfTheWallsBounceLight(filtered: true);
+            float unfiltered = RiseOfTheWallsBounceLight(filtered: false);
+            output.WriteLine($"10 to 90 % rise: {filtered} px filtered, {unfiltered} px unfiltered.");
+
+            filtered
+                .Should()
+                .BeLessThanOrEqualTo(unfiltered + 8, "the filter smooths noise, not the edge of real light");
+        }
+
+        /// <summary>
+        /// The width in pixels of the 10 to 90 % rise of the bounce light along the foot of the wall of
+        /// <see cref="TheBounceLightOfALitPoolKeepsItsEdgeWithRealRays"/>, from the dark floor beside the pool to the
+        /// pool's chord, over the rows 0.05 to 0.3 m above the floor: the filtered light or the slow history without the
+        /// filter, each the mean of 128 draws.
+        /// </summary>
+        private static float RiseOfTheWallsBounceLight(bool filtered)
+        {
+            const float wall = -10;
+            VulkanRenderer renderer = filtered ? Tracing() : TracingWithoutTheFilter();
+            try
+            {
+                MaterialId white = renderer.CreateMaterial(WhiteFloor(roughness: 1));
+                RenderSnapshot scene = Dark();
+                scene.Instances.Add(Floor(renderer, WhiteFloor(roughness: 1)));
+                scene.Instances.Add(
+                    Block(
+                        box: renderer.CreateMesh(Primitives.Box(new(0.5f))),
+                        material: white,
+                        center: new(0, FloorHeight + 3, wall - 0.1f),
+                        size: new(40, 6, 0.2f)
+                    )
+                );
+                // 4 m above the floor and 1.2 m before the wall, a cone of 0.4 rad lights a pool of radius 1.69 m whose
+                // chord along the wall's foot reaches x = ±1.2 m. Its floor reflects a radiance of 1.
+                scene.Lights.Add(
+                    Gpu.Spot(
+                        position: new(0, FloorHeight + 4, wall + 1.2f),
+                        direction: -Vector3.UnitY,
+                        color: Vector3.One,
+                        intensity: 16 * MathF.PI,
+                        innerConeAngle: 0.39f,
+                        outerConeAngle: 0.4f,
+                        chainDepth: TestChains.CamerasFrame
+                    )
+                );
+                Draw(renderer, scene, frames: 64);
+                int top = PixelOf(new(0, FloorHeight + 0.3f, wall)).Y;
+                int bottom = PixelOf(new(0, FloorHeight + 0.05f, wall)).Y;
+                int left = PixelOf(new(0, FloorHeight + 0.1f, wall)).X;
+                int right = PixelOf(new(2.5f, FloorHeight + 0.1f, wall)).X;
+                float[] profile = new float[right - left + 1];
+                for (int draw = 0; draw < 128; draw++)
+                {
+                    Draw(renderer, scene, frames: 1);
+                    float[] light = renderer.ReadImage(
+                        filtered
+                            ? renderer.ScreenTraceImages.Filter!.Filtered
+                            : renderer.ScreenTraceSignals.Diffuse.Slow(0)
+                    );
+                    for (int y = top; y <= bottom; y++)
+                    for (int x = left; x <= right; x++)
+                        profile[x - left] += At(light, (x, y)).X / (128 * (bottom - top + 1));
+                }
+
+                float inside = profile[..8].Average();
+                float outside = profile[^8..].Average();
+                (inside - outside).Should().BePositive("the pool's chord takes the most light");
+                float LevelAt(float share) => outside + share * (inside - outside);
+                int high = Array.FindLastIndex(profile, light => light >= LevelAt(0.9f));
+                int low = Array.FindIndex(profile, light => light <= LevelAt(0.1f));
+                return low - high;
+            }
+            finally
+            {
+                Gpu.DisposeAndAssertClean(renderer);
+            }
         }
     }
 

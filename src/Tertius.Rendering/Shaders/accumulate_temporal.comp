@@ -4,8 +4,9 @@
 // exposure ratio and blends the sample in. The specular signal also tests the reflected point's place and that place's
 // hit distances (section 8, "The specular signal's own tests"). It writes the slow history into the scratch image, so that
 // the spatial dispatch reads the neighbors' results while it writes the slow history, and this frame's fast history. The
-// diffuse signal's fast history keeps in alpha the standard deviation of its samples' luminance over the fast history's
-// frames, which the diffuse filter reads (DiffuseFilter.cs).
+// diffuse signal's fast history keeps in alpha the retained deviation: the standard deviation of the luminance of the
+// samples that the slow history averages, weighted as it weighs them (docs/plans/bounce-light-confidence.md, section 6).
+// The clamp's box and the diffuse filter read it.
 #extension GL_GOOGLE_include_directive : require
 #include "accumulate.glsl"
 #include "accumulate_reflection_guide.glsl"
@@ -14,10 +15,14 @@
 #include "motion.glsl"
 #include "neighbor_limit_prototype.glsl"
 
-// The share of the fast history's luminance within which a sample's step is rounding, not noise. The fast history's
-// blend with the weight 1 / 4 stops less than four half-float steps below a constant sample where the store rounds toward
-// zero, as the spec allows, and a step is at most 2^−10 of a value: under 2^−8, and 1 / 192 leaves a margin.
-const float RoundingShare = 1.0 / 192.0;
+// The draws of the retained deviation's window: the bounce cap. A half-float store cannot follow a weight below about
+// 2^−11, so an uncapped history takes this window too.
+const float DeviationFrames = 32.0;
+
+// The share of the fast history's luminance within which a sample's weighted step is the store's rounding, not noise. A
+// half-float blend of the weight w stops within about 1 / w half-float steps of a constant sample where the store rounds
+// toward zero, as the spec allows, and a step is at most 2^−10 of a value: a weighted step of at most (4 / 3) 2^−10.
+const float BlendRounding = 1.0 / 768.0;
 
 // The share of the larger of two hit distances by which they may differ for a tap to pass.
 const float HitDistanceShare = 0.5;
@@ -263,7 +268,7 @@ void main()
     vec4 slow = lastSlowAt(r);
     vec4 lastFast4 = lastFastAt(r);
     vec3 fast = lastFast4.rgb;
-    // The diffuse signal's deviation of its samples' luminance; the specular signal's alpha holds its hit distance.
+    // The diffuse signal's retained deviation; the specular signal's alpha holds its hit distance.
     float deviation = parameters.light == DiffuseLight ? lastFast4.a : 0.0;
     vec2 guide = vec2(0.0);
     if (reflectionSharingPrototype && parameters.light == SpecularLight)
@@ -341,6 +346,16 @@ void main()
     if (hasSample)
     {
         historyLength = min(historyLength + 1.0, cap);
+        // The retained deviation: the exponential update of the variance with the sample's weight w is
+        // (1 − w) (variance + w step²), 0 for the first sample (Finch 2009). Updated from the step, not from the mean of
+        // the squares, so that samples without noise keep exactly 0. The step goes from the fast history, the mean of the
+        // pixel's own samples, because the diffuse filter writes the light that it moves into the slow history: a step
+        // from that light would count a stable edge's moved light as spread and hold the luminance stop open across it.
+        float before = luminance(fast);
+        float weight = 1.0 / min(historyLength, DeviationFrames);
+        float step = luminance(sampled) - before;
+        step = abs(step) * weight <= BlendRounding * before ? 0.0 : step;
+        deviation = min(sqrt((1.0 - weight) * (deviation * deviation + weight * step * step)), MaxRadiance);
         // The weight 1 / length, written as a step toward the sample, so that a sample equal to the history leaves it
         // exact. A length of 1 takes the sample itself.
         slow.rgb = historyLength <= 1.0 ? sampled : slow.rgb + (sampled - slow.rgb) / historyLength;
@@ -350,13 +365,6 @@ void main()
             guide = historyLength <= 1.0 ? sampledGuide : guide + (sampledGuide - guide) / historyLength;
         }
         float fastLength = min(historyLength, fastCapOf(cap));
-        // The variance of the luminance, weighted as the fast history weighs its samples: the exponential update of the
-        // variance with the sample's weight w is (1 − w) (variance + w step²), 0 for the first sample. Updated from the
-        // step, not from the mean of the squares, so that samples without noise keep exactly 0.
-        float weight = fastLength <= 1.0 ? 1.0 : 1.0 / fastLength;
-        float step = luminance(sampled) - luminance(fast);
-        step = abs(step) <= RoundingShare * luminance(fast) ? 0.0 : step;
-        deviation = min(sqrt((1.0 - weight) * (deviation * deviation + weight * step * step)), MaxRadiance);
         fast = fastLength <= 1.0 ? sampled : fast + (sampled - fast) / fastLength;
     }
     imageStore(scratch, pixel, vec4(slow.rgb, historyLength));

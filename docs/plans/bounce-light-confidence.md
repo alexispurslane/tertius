@@ -144,8 +144,8 @@ The rule is the standard incremental form of a weighted variance (Finch 2009). F
 This replaces today's update of the fast deviation in `accumulate_temporal.comp`, inside `if (hasSample)`:
 
 ```glsl
-float before = luminance(slow.rgb);
 historyLength = min(historyLength + 1.0, cap);
+float before = luminance(fast);
 float w = 1.0 / min(historyLength, DeviationFrames);
 float step = luminance(sampled) - before;
 step = abs(step) * w <= BlendRounding * before ? 0.0 : step;
@@ -156,7 +156,8 @@ slow.rgb = historyLength <= 1.0 ? sampled : slow.rgb + (sampled - slow.rgb) / hi
 where
 
 - `slow.rgb` = S after reprojection, the exposure ratio and the light-age cut, before this draw's blend.
-- `before` = the luminance of that S.
+- `fast` = F after reprojection and the exposure ratio, before this draw's blend.
+- `before` = the luminance of that F.
 - `historyLength` = L after the light-age cut. The second line adds this draw.
 - `cap` = the pixel's cap: 32 for bounce light, and from 4 to unbounded by roughness for reflections.
 - `DeviationFrames` = 32, the bounce cap. A half-float store cannot follow a weight below about 2^−11. So uncapped reflections use a window of 32 draws.
@@ -166,6 +167,8 @@ where
 - `BlendRounding` = 1/768, the share of a step that the store's rounding explains (below).
 - `deviation` = σr after reprojection, and after its line the updated σr.
 - `MaxRadiance` = 32,256, the largest light that the signal stores.
+
+The step goes from F, not from S (changed in step 2a, 2026-11-12). The filter's feedback step writes the light that it moves into S, so S is not the mean of the pixel's own samples. A step from S counted that moved light as spread. At a stable edge of light, the light that the first draws' young estimate moved across the edge then raised σr on the dark side, which held the luminance stop open, which moved more light: the dark pixel beside the edge of `AnEdgeOfLightKeepsItsShapeBesideNoise` held 1.5 instead of 0 after 200 draws. F is the mean of the pixel's own samples, and the filter never writes it. For independent samples a step from F raises σr by √(1 + wf / (2 − wf)), 7 % at wf = 1/4. The CPU model's edge and impulse results do not change.
 
 A half-float blend of weight w stalls within about 1/w half-float steps of a constant sample. One half-float step is at most 2^−10 of the value. So a step with |step| · w ≤ (4/3) · 2^−10 · S is store rounding, not noise. Today's `RoundingShare`, 1/192, is this rule at the fast weight 1/4.
 

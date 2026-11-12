@@ -7,43 +7,8 @@
 #include "accumulate_reflection_guide.glsl"
 #include "meter.glsl"
 
-#ifdef TERTIUS_LIGHT_AGE
-// The light age of this frame's samples (TemporalSignal.SampleAge), which the resolve writes: 0 for no evidence, else the
-// age in frames of the youngest light that the sample's rays hit, plus 1.
-layout(set = 3, binding = 11, r16ui) uniform readonly uimage2D sampleAge;
-#endif
-
-// The least motion on screen, in pixels per frame, that counts as evidence of a change. The motion target stores half
-// floats, whose denormals a driver may flush: then the least motion that counts is the smallest normal half float, 2^−14
-// of the view, about 0.08 pixels across 1280.
-const float LeastMotion = 1.0 / 32.0;
-
-// Whether the pixel's diffuse slow history may hold light from before a change (ticket ter-18hc), the evidence on which
-// its clamp acts: its surface moves on screen, or a sample on the same surface over the 3 × 3 pixels saw light younger
-// than the history. In a still view without such evidence, the clamp would only cut the rare bright samples of unchanged
-// light, which darkened the bounce light by 8 to 23 % in the stills rect-lamps, bay-sunbeam and docking-bay. Without the
-// light age every history counts as changed.
-bool showsChange(ivec2 pixel, SurfaceKey key, float historyLength)
-{
-    vec2 motion = imageLoad(motionTarget, pixel).xy * frame.viewport.xy;
-    if (dot(motion, motion) >= LeastMotion * LeastMotion)
-        return true;
-#ifdef TERTIUS_LIGHT_AGE
-    for (int y = -1; y <= 1; y++)
-        for (int x = -1; x <= 1; x++)
-        {
-            ivec2 neighbor = pixel + ivec2(x, y);
-            if (!insideImages(neighbor) || !sameSurface(key, surfaceKeyAt(neighbor)))
-                continue;
-            uint code = imageLoad(sampleAge, neighbor).r;
-            if (code != 0u && float(code - 1u) < historyLength)
-                return true;
-        }
-    return false;
-#else
-    return true;
-#endif
-}
+// The least luminance by which the clamp divides: the lag's share and the chroma of the widening.
+const float LeastLuminance = 1e-4;
 
 void main()
 {
@@ -102,9 +67,8 @@ void main()
     }
 
     // Step 4, the clamp and the anti-lag, only past the fast cap: until then the slow history holds no more frames than the
-    // fast history, so it has no lag to remove. The diffuse history's clamp acts only on evidence of a change (showsChange);
-    // the reflections' clamp acts always, because their rare bright samples without it showed as twice as many specks.
-    if (historyLength > fastCap && (parameters.light != DiffuseLight || showsChange(pixel, key, historyLength)))
+    // fast history, so it has no lag to remove.
+    if (historyLength > fastCap)
     {
         vec3 moments = vec3(0.0);
         vec3 squares = vec3(0.0);
@@ -122,10 +86,17 @@ void main()
             }
         vec3 mean = moments / count;
         vec3 sigma = sqrt(max(squares / count - mean * mean, vec3(0.0)));
-        vec3 low = mean - parameters.clampSigmas * sigma;
-        vec3 high = mean + parameters.clampSigmas * sigma;
-        vec3 clamped = clamp(slow, low, high);
-        float lag = luminance(abs(slow - clamped)) / max(luminance(mean), 1e-4);
+        // The box holds every excursion that the history's own samples explain: at least retainedSigmas retained
+        // deviations, in the chroma of the history, which holds the excess (docs/plans/bounce-light-confidence.md,
+        // section 7). The reflections' narrow box takes none.
+        vec3 spread = parameters.clampSigmas * sigma;
+        if (parameters.retainedSigmas > 0.0)
+        {
+            float deviation = imageLoad(fastHistory, pixel).a;
+            spread = max(spread, parameters.retainedSigmas * deviation * slow / max(luminance(slow), LeastLuminance));
+        }
+        vec3 clamped = clamp(slow, mean - spread, mean + spread);
+        float lag = luminance(abs(slow - clamped)) / max(luminance(mean), LeastLuminance);
 #ifdef TERTIUS_ACCUMULATION_TRACE
         storeTrace(pixel, 5, vec4(slow, 1.0));
         storeTrace(pixel, 6, vec4(mean, lag));

@@ -809,6 +809,12 @@ internal struct AccumulatePushConstants
     /// <summary>1 in a frame that resets every history, where no reprojection holds one; 0 otherwise.</summary>
     public uint Reset;
 
+    /// <summary>
+    /// The clamp box's least half width in retained deviations (<see cref="WidenedBox.RetainedSigmas"/>), 0 for the
+    /// narrow box.
+    /// </summary>
+    public float RetainedSigmas;
+
     public static AccumulatePushConstants Of(SignalParameters parameters, bool reset) =>
         new()
         {
@@ -821,6 +827,12 @@ internal struct AccumulatePushConstants
             Light = (uint)parameters.Light,
             ReflectedPlaceBelow = parameters.ReflectedPlaceBelow,
             Reset = reset ? 1u : 0u,
+            RetainedSigmas = parameters.Confidence switch
+            {
+                WidenedBox { RetainedSigmas: var sigmas } => sigmas,
+                NarrowBox => 0,
+                null => throw new ArgumentException("A signal's parameters need confidence rules.", nameof(parameters)),
+            },
         };
 }
 

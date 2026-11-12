@@ -32,6 +32,10 @@ const float LuminanceDeviations = 4.0;
 // weigh 0.
 const float LeastDeviation = 1e-10;
 
+// The length below which a history estimates its deviation from its neighbors: the paper's four frames. The variance
+// dispatch marks such a young estimate with a negative sign.
+const float YoungFrames = 4.0;
+
 // Whether a pixel lies inside the images.
 bool insideFilter(ivec2 pixel)
 {
@@ -56,7 +60,8 @@ struct FilterTap
     float variance;
 };
 
-// The tap of a pixel whose input is `light`: rgb the light, a the deviation of its luminance.
+// The tap of a pixel whose input is `light`: rgb the light, a the deviation of its luminance, negative for a young
+// estimate.
 FilterTap filterTapAt(ivec2 pixel, vec4 light)
 {
     FilterTap tap;

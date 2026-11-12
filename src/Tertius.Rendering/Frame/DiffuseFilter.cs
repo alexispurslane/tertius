@@ -15,8 +15,10 @@ namespace Tertius.Rendering;
 /// </para>
 /// <para>
 /// The light of dispatch <see cref="FeedbackDispatch"/> replaces the slow history's light, as the paper feeds back its
-/// first step: the filter is the slow history's second writer, after the accumulation. The last dispatch writes
-/// <see cref="Filtered"/>, which the composite shows and the next frame's rays read at their hits.
+/// first step: the filter is the slow history's second writer, after the accumulation. That dispatch also writes the
+/// deviation that moves with the light into the fast history as its retained deviation
+/// (docs/plans/bounce-light-confidence.md, section 7). The last dispatch writes <see cref="Filtered"/>, which the
+/// composite shows and the next frame's rays read at their hits.
 /// </para>
 /// <para>
 /// The filter owns two images that the wavelet dispatches alternate and <see cref="Filtered"/>, each RGBA16F at the
@@ -34,10 +36,10 @@ internal sealed unsafe class DiffuseFilter : IDisposable
     public const int FeedbackDispatch = 0;
 
     /// <summary>
-    /// The filter sets of one filter: a variance set per parity, whose fast history differs, and a wavelet set per
-    /// dispatch of the kernel with the most, which reads no fast history.
+    /// The filter sets of one filter: a variance set and a wavelet set per dispatch of the kernel with the most, each per
+    /// parity, whose fast history differs.
     /// </summary>
-    public const uint Sets = 2 + DiffuseFilterKernel.MostDispatches;
+    public const uint Sets = 2 * (1 + DiffuseFilterKernel.MostDispatches);
 
     /// <summary>The width and the height of a workgroup: the shaders' local size.</summary>
     private const uint GroupSize = 8;
@@ -53,8 +55,8 @@ internal sealed unsafe class DiffuseFilter : IDisposable
     /// <summary>The variance dispatch's set of each parity.</summary>
     private readonly DescriptorSet[] varianceSets = new DescriptorSet[2];
 
-    /// <summary>The set of each wavelet dispatch.</summary>
-    private readonly DescriptorSet[] waveletSets;
+    /// <summary>The set of each wavelet dispatch, [parity, dispatch].</summary>
+    private readonly DescriptorSet[,] waveletSets;
     private GpuImage[] passes;
 
     /// <param name="signal">The diffuse signal, whose part 0 the filter reads and whose slow history it writes.</param>
@@ -75,10 +77,13 @@ internal sealed unsafe class DiffuseFilter : IDisposable
         this.targets = targets;
         this.signal = signal;
         Kernel = kernel;
-        waveletSets = new DescriptorSet[kernel.Dispatches];
-        foreach (DescriptorSet[] sets in (DescriptorSet[][])[varianceSets, waveletSets])
-            for (int index = 0; index < sets.Length; index++)
-                sets[index] = layouts.AllocateFilterSet();
+        waveletSets = new DescriptorSet[2, kernel.Dispatches];
+        for (int parity = 0; parity < 2; parity++)
+        {
+            varianceSets[parity] = layouts.AllocateFilterSet();
+            for (int dispatch = 0; dispatch < kernel.Dispatches; dispatch++)
+                waveletSets[parity, dispatch] = layouts.AllocateFilterSet();
+        }
         variance = CreatePipeline(shaders: shaders, name: "variance", shader: "diffuse_filter_variance.comp");
         wavelet = CreatePipeline(shaders: shaders, name: "wavelet", shader: kernel.WaveletShader);
         (passes, Filtered) = CreateImages();
@@ -113,7 +118,7 @@ internal sealed unsafe class DiffuseFilter : IDisposable
 
     /// <summary>
     /// Records the variance dispatch and the wavelet dispatches, after the signal's accumulation, whose slow history and
-    /// fast history they read.
+    /// fast history they read and the feedback dispatch writes.
     /// </summary>
     public void Filter(FrameContext context)
     {
@@ -130,7 +135,7 @@ internal sealed unsafe class DiffuseFilter : IDisposable
         barriers.Image(passes[0], ImageUse.StorageCompute, discard: true);
         Dispatch(context: context, pipeline: variance, set: varianceSets[parity], push: default);
 
-        for (int dispatch = 0; dispatch < waveletSets.Length; dispatch++)
+        for (int dispatch = 0; dispatch < Kernel.Dispatches; dispatch++)
         {
             var push = new DiffuseFilterPushConstants
             {
@@ -139,8 +144,11 @@ internal sealed unsafe class DiffuseFilter : IDisposable
             };
             barriers.Image(InputOf(dispatch), ImageUse.StorageCompute);
             barriers.Image(OutputOf(dispatch), ImageUse.StorageCompute, discard: true);
+            // Every wavelet dispatch binds the histories that the feedback dispatch writes, so the validation layers
+            // count each as a writer of both.
             barriers.Image(signal.Slow(0), ImageUse.StorageCompute);
-            Dispatch(context: context, pipeline: wavelet, set: waveletSets[dispatch], push: push);
+            barriers.Image(signal.Fast(0, parity), ImageUse.StorageCompute);
+            Dispatch(context: context, pipeline: wavelet, set: waveletSets[parity, dispatch], push: push);
         }
     }
 
@@ -168,7 +176,7 @@ internal sealed unsafe class DiffuseFilter : IDisposable
 
     /// <summary>The image that wavelet dispatch <paramref name="dispatch"/> writes: <see cref="Filtered"/> for the last.</summary>
     private GpuImage OutputOf(int dispatch) =>
-        dispatch == waveletSets.Length - 1 ? Filtered : passes[(dispatch + 1) % 2];
+        dispatch == Kernel.Dispatches - 1 ? Filtered : passes[(dispatch + 1) % 2];
 
     private bool FitsTargets() =>
         SameExtent(Filtered.Extent) && SameExtent(passes[0].Extent) && SameExtent(passes[1].Extent);
@@ -212,19 +220,24 @@ internal sealed unsafe class DiffuseFilter : IDisposable
 
     private void WriteSets()
     {
-        // The variance dispatch reads no input: binding 0 holds an image of the right format for the layout.
         for (int parity = 0; parity < varianceSets.Length; parity++)
+        {
+            // The variance dispatch reads no input: binding 0 holds an image of the right format for the layout.
             WriteSet(set: varianceSets[parity], input: passes[1], output: passes[0], parity: parity);
-
-        // The wavelet dispatches read no fast history: binding 3 holds parity 0's for the layout.
-        for (int dispatch = 0; dispatch < waveletSets.Length; dispatch++)
-            WriteSet(set: waveletSets[dispatch], input: InputOf(dispatch), output: OutputOf(dispatch), parity: 0);
+            for (int dispatch = 0; dispatch < Kernel.Dispatches; dispatch++)
+                WriteSet(
+                    set: waveletSets[parity, dispatch],
+                    input: InputOf(dispatch),
+                    output: OutputOf(dispatch),
+                    parity: parity
+                );
+        }
     }
 
     /// <summary>
     /// Writes a filter set: the dispatch's input and output, the slow history, and the fast history that a frame of
-    /// <paramref name="parity"/> writes, whose deviation the variance dispatch reads. Every binding holds an image,
-    /// because the set layout declares four.
+    /// <paramref name="parity"/> writes, whose deviation the variance dispatch reads and the feedback dispatch writes.
+    /// Every binding holds an image, because the set layout declares four.
     /// </summary>
     private void WriteSet(DescriptorSet set, GpuImage input, GpuImage output, int parity)
     {
