@@ -144,6 +144,38 @@ public sealed class MovingLightUpscaleTests(ITestOutputHelper output)
         );
 
     [Fact]
+    public void ALightChangeAlongTheImagesEdgeColumnsMarksThemForFsrAsIfTheEdgeRepeatedBeyondTheImage() =>
+        WithLampOverFloor(
+            power: LampPower,
+            (renderer, scene) =>
+            {
+                // After the tracer's own resolve, the probes rewrite this frame's records and the mask from them.
+                ScreenTraceProbe.On(renderer, "light_change_mask_edge_setup.comp");
+                ScreenTraceProbe.On(renderer, "screen_trace_resolve.comp");
+
+                Draw(renderer, scene, 1);
+
+                float[] mask = renderer.ReadLightChangeMask();
+                // Under a fixed render scale, the viewport fills the image.
+                int width = (int)renderer.ScreenTraceImages.LightChangeMask!.Extent.Width;
+                int height = mask.Length / width;
+                int[] edges = [0, width - 1];
+                int[] markedEdgePixels = [.. edges.Select(x => Enumerable.Range(0, height).Count(y => mask[y * width + x] > 0))];
+                int markedInside = Enumerable
+                    .Range(0, height)
+                    .Sum(y => Enumerable.Range(1, width - 2).Count(x => mask[y * width + x] > 0));
+
+                // The opening reads a 5 × 5 window, which reaches two pixels beyond the image at its edges. The clamp
+                // repeats the edge there, so a 3 × 3 block that reaches beyond the image changes whole. Without it, the
+                // spec leaves those reads undefined.
+                markedEdgePixels
+                    .Should()
+                    .Equal([height, height], "the clamp repeats each changing edge column beyond the image");
+                markedInside.Should().Be(0, "a still pixel is never marked");
+            }
+        );
+
+    [Fact]
     public void ALampThatSwitchesOffMarksItsFloorForFsrFromItsFirstDrawForAFewFramesAfterTheChangeCounts() =>
         WithLampOverFloor(
             power: LampPower,

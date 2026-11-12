@@ -94,3 +94,42 @@ Correction to the note of 16:45: the survey's run has --chunk 0 for a caller tha
 **2026-11-11T23:44:36Z**
 
 Frame span of lamp-hall-64-moving after the opening, 2026-11-11 (Metal System Trace, 120 frames from 1, no counters, load 8 to 13): main 587195441 19.81 ms mean, 20.26 ms median; branch (merge of 587195441 with the opening) 19.73 ms mean, 20.14 ms median. The whole span differs by less than the run noise. The passes give the cost: screen trace resolve 0.171 to 0.237 ms (+0.066 ms, the opening's reads), ray plan 0.261 to 0.257 ms. So the mask costs about 0.06 ms, below the limit of 0.2 ms. The first acceptance, before the opening, measured +0.11 ms mean on the whole span (19.36 to 19.47 ms).
+
+**2026-11-12T06:36:50Z**
+
+Hardening on 36791ba1e (the merge of main 9634a4ef8 with the opening), 2026-11-11 and 2026-11-12. The disk of the Mac was full from 21:30 to 21:40, and the first Checked suite on this commit failed to build in that window, so it ran again.
+
+Suites, each a shared take of the GPU lock:
+- Checked, 22:12 to 22:31: 10,782 tests, 10,755 succeeded, 1 failed, 26 skipped. The failure is GpuTimingTests.APassThatRecordsNothingAddsNearlyNoTimeToTheFramesGpuSpan: High 0.142 ms against 0.05 ms, at a one-minute load of 28.6 with other shared takes beside it. The branch changes no GPU timing code. Ticket t1-g4vd records it.
+- Release, 23:45 to 00:01: 10,769 tests, 10,743 succeeded, 0 failed, 26 skipped.
+
+Main moved to 7eadf8a08 after this commit. Its changes are tickets, tools, flake.nix and two lines of ARCHITECTURE.md, with no C# or shader code, so these results hold for the merge.
+
+Coverage and Stryker: the branch changes no line of Core, Simulation or Physics, so no Stryker run applies. The changed C# lines of Rendering are the mask's image, its bindings, its barriers, FSR's slot and a test hook (ReadLightChangeMask). Every film of MovingLightUpscaleTests runs them, and C02 to C09 put a mutant on each step of that wiring. The changed lines of Rendering went to tools/mutate.py (/private/tmp/t1-4hij/mutants2.json, wall time 530 s):
+
+| id | place | change | result | killed by | s |
+|---|---|---|---|---|---:|
+| S01 | src/Tertius.Rendering/Shaders/screen_trace.glsl:110 | never-changed pixels count as changing | killed | MovingLightUpscaleTests.AStillLitSceneUnderJitterMarksAlmostNoPixelForFsr, MovingLightUpscaleTests.AStillGlowingBarThinnerThanAPixelMarksAlmostNoPixelForFsrUnderJitter | 67.7 |
+| S02 | src/Tertius.Rendering/Shaders/screen_trace.glsl:110 | mask never ends | killed | MovingLightUpscaleTests.ALampThatSwitchesOffMarksItsFloorForFsrFromItsFirstDrawForAFewFramesAfterTheChangeCounts | 46.1 |
+| S03 | src/Tertius.Rendering/Shaders/screen_trace.glsl:111 | first pending draw unmarked | killed | MovingLightUpscaleTests.AFilmOfAStillFloorUnderAMovingLampShowsTheLampsLightWhereTheLampIs, MovingLightUpscaleTests.ALampThatSwitchesOffMarksItsFloorForFsrFromItsFirstDrawForAFewFramesAfterTheChangeCounts | 35.6 |
+| S04 | src/Tertius.Rendering/Shaders/screen_trace.glsl:104 | no frames after the change | killed | MovingLightUpscaleTests.ALampThatSwitchesOffMarksItsFloorForFsrFromItsFirstDrawForAFewFramesAfterTheChangeCounts | 35.7 |
+| S06 | src/Tertius.Rendering/Shaders/screen_trace.glsl:111 | or to and | killed | MovingLightUpscaleTests.AFilmOfAStillFloorUnderAMovingLampShowsTheLampsLightWhereTheLampIs, MovingLightUpscaleTests.ALampThatSwitchesOffMarksItsFloorForFsrFromItsFirstDrawForAFewFramesAfterTheChangeCounts | 35.3 |
+| O01 | src/Tertius.Rendering/Shaders/screen_trace.glsl:137 | erosion becomes a dilation | killed | MovingLightUpscaleTests.AStillGlowingBarThinnerThanAPixelMarksAlmostNoPixelForFsrUnderJitter | 35.0 |
+| O02 | src/Tertius.Rendering/Shaders/screen_trace.glsl:131 | erosion alone, no dilation | killed | MovingLightUpscaleTests.AFilmOfAStillFloorUnderAMovingLampShowsTheLampsLightWhereTheLampIs | 33.9 |
+| O03 | src/Tertius.Rendering/Shaders/screen_trace.glsl:124 | no opening: the raw marks | killed | MovingLightUpscaleTests.AStillGlowingBarThinnerThanAPixelMarksAlmostNoPixelForFsrUnderJitter | 35.8 |
+| O04 | src/Tertius.Rendering/Shaders/screen_trace.glsl:130 | no clamp at the image border | survived |  | 34.1 |
+| O05 | src/Tertius.Rendering/Shaders/screen_trace_resolve.comp:65 | mask always 0 | killed | MovingLightUpscaleTests.AFilmOfAStillFloorUnderAMovingLampShowsTheLampsLightWhereTheLampIs, MovingLightUpscaleTests.ALampThatSwitchesOffMarksItsFloorForFsrFromItsFirstDrawForAFewFramesAfterTheChangeCounts | 33.3 |
+| C09 | src/Tertius.Rendering/Passes/ScreenTracePass.cs:215 | resolve lacks the barrier on the records | survived |  | 12.8 |
+| C07 | src/Tertius.Rendering/Passes/ScreenTracePass.cs:217 | no barrier before the resolve writes the mask | killed | MovingLightUpscaleTests.AFilmOfAStillFloorUnderAMovingLampShowsTheLampsLightWhereTheLampIs, MovingLightUpscaleTests.AStillLitSceneUnderJitterMarksAlmostNoPixelForFsr, MovingLightUpscaleTests.AStillGlowingBarThinnerThanAPixelMarksAlmostNoPixelForFsrUnderJitter | 9.6 |
+| C02 | src/Tertius.Rendering/Upscaling/Fsr3Upscaler.cs:674 | slot binds the default | killed | MovingLightUpscaleTests.AFilmOfAStillFloorUnderAMovingLampShowsTheLampsLightWhereTheLampIs | 12.4 |
+| C04 | src/Tertius.Rendering/Frame/DescriptorLayouts.cs:116 | layout lacks the mask | killed | DescriptorLayoutsTests.TheLayoutsNeedOfAStageTenStorageBuffersNineteenStorageImagesAndSeventeenSampledImages | 4.3 |
+| C05 | src/Tertius.Rendering/Frame/ScreenTraceImages.cs:276 | mask written to the sample age's binding | killed | MovingLightUpscaleTests.AFilmOfAStillFloorUnderAMovingLampShowsTheLampsLightWhereTheLampIs, MovingLightUpscaleTests.AStillLitSceneUnderJitterMarksAlmostNoPixelForFsr, MovingLightUpscaleTests.AStillGlowingBarThinnerThanAPixelMarksAlmostNoPixelForFsrUnderJitter | 9.6 |
+| C06 | src/Tertius.Rendering/Frame/ScreenTraceImages.cs:345 | mask leaks | killed | MovingLightUpscaleTests.AFilmOfAStillFloorUnderAMovingLampShowsTheLampsLightWhereTheLampIs, MovingLightUpscaleTests.AStillLitSceneUnderJitterMarksAlmostNoPixelForFsr, MovingLightUpscaleTests.AStillGlowingBarThinnerThanAPixelMarksAlmostNoPixelForFsrUnderJitter | 9.6 |
+| C08 | src/Tertius.Rendering/Frame/ScreenTraceImages.cs:213 | mask made without sampled usage | killed | MovingLightUpscaleTests.AFilmOfAStillFloorUnderAMovingLampShowsTheLampsLightWhereTheLampIs, MovingLightUpscaleTests.AStillLitSceneUnderJitterMarksAlmostNoPixelForFsr, MovingLightUpscaleTests.AStillGlowingBarThinnerThanAPixelMarksAlmostNoPixelForFsrUnderJitter | 9.5 |
+17 rows: killed 15, timeout 0, survived 2, no-coverage 0, build-failed 0, no-tests 0, no-mutant 0, removed 0
+
+The answers:
+- C09: equivalent in the present frame graph. Each rays pass (ScreenTraceRaysPass.DeclareRays) runs between the plan and the resolve and puts a barrier on the light-age record for compute storage access, which already makes the plan's writes visible to the resolve. The resolve's own barrier keeps the resolve correct in a frame that runs no rays pass.
+- O04: judgment call, with a guard test. Without the clamp, the opening at the two-pixel ring of the viewport's border reads outside the image, which the Vulkan spec leaves undefined because the renderer does not enable robustImageAccess. The new test ALightChangeAlongTheImagesEdgeColumnsMarksThemForFsrAsIfTheEdgeRepeatedBeyondTheImage (probe light_change_mask_edge_setup.comp) asserts the clamped result: when only the first and last columns change, both columns are marked whole and no other pixel is. It passes on the code and also on O04 (rerun 2026-11-12 01:35, /private/tmp/t1-4hij/mutate-o04: survived, 5 of 5 tests passed). The reason: a record of 0 decodes as "changed in this frame", and an out-of-image read on this Mac gives a value that also counts as changing, most likely 0, so a 3 × 3 block that reaches beyond the image is whole exactly when its in-image part is, as with the clamp. The test stays because it holds on every driver and guards the clamp where an out-of-image read gives another value.
+
+The empty-pass timing test alone, 2026-11-12 01:34 in a shared take at a one-minute load of 5.7 to 6.3: 5 of 5 runs passed. So the failure in the Checked suite follows the load (t1-g4vd).
