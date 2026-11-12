@@ -1,5 +1,5 @@
 diff --git a/src/Tertius.Host/ScriptCommand.Options.cs b/src/Tertius.Host/ScriptCommand.Options.cs
-index 9a9d673..8c5e5c4 100644
+index 9a9d67308..8c5e5c4c7 100644
 --- a/src/Tertius.Host/ScriptCommand.Options.cs
 +++ b/src/Tertius.Host/ScriptCommand.Options.cs
 @@ -112,6 +112,9 @@ public static partial class ScriptCommand
@@ -13,7 +13,7 @@ index 9a9d673..8c5e5c4 100644
              {
                  options.FramesInFlight = count;
 diff --git a/src/Tertius.Rendering/Frame/FrameHistory.cs b/src/Tertius.Rendering/Frame/FrameHistory.cs
-index b4ceb4b..61c6b36 100644
+index b4ceb4b4c..61c6b3662 100644
 --- a/src/Tertius.Rendering/Frame/FrameHistory.cs
 +++ b/src/Tertius.Rendering/Frame/FrameHistory.cs
 @@ -185,7 +185,12 @@ internal sealed class FrameHistory
@@ -31,7 +31,7 @@ index b4ceb4b..61c6b36 100644
              Reset: reset,
              DrawIndex: reset ? 0 : lastDrawIndex + 1,
 diff --git a/src/Tertius.Rendering/Frame/FrameResources.cs b/src/Tertius.Rendering/Frame/FrameResources.cs
-index f847f8e..3ad94e0 100644
+index f847f8e8b..3ad94e036 100644
 --- a/src/Tertius.Rendering/Frame/FrameResources.cs
 +++ b/src/Tertius.Rendering/Frame/FrameResources.cs
 @@ -248,9 +248,56 @@ internal sealed unsafe class FrameResources : IDisposable
@@ -92,10 +92,10 @@ index f847f8e..3ad94e0 100644
      private HostArray<T> StorageArray<T>(DeviceAllocator allocator, string contents, int capacity)
          where T : unmanaged =>
 diff --git a/src/Tertius.Rendering/Scene/GpuTypes.cs b/src/Tertius.Rendering/Scene/GpuTypes.cs
-index b3fb1b7..164c0db 100644
+index 47df6eca0..b872f6044 100644
 --- a/src/Tertius.Rendering/Scene/GpuTypes.cs
 +++ b/src/Tertius.Rendering/Scene/GpuTypes.cs
-@@ -821,7 +821,58 @@ internal struct AccumulatePushConstants
+@@ -824,7 +824,58 @@ internal struct AccumulatePushConstants
      /// <summary>1 where the signal tests its blocks for evidence of a change, 0 otherwise.</summary>
      public uint BlockTest;
  
@@ -156,29 +156,29 @@ index b3fb1b7..164c0db 100644
          (float retainedSigmas, float changeShare, uint blockTest) = parameters.Confidence switch
          {
 diff --git a/src/Tertius.Rendering/ShaderConstants.cs b/src/Tertius.Rendering/ShaderConstants.cs
-index deae64b..1975791 100644
+index 99ad27d6f..5b64ccc31 100644
 --- a/src/Tertius.Rendering/ShaderConstants.cs
 +++ b/src/Tertius.Rendering/ShaderConstants.cs
-@@ -113,6 +113,8 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
-             (MainViewId, VkBool(values.MainView)),
+@@ -124,6 +124,8 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
              (NeighborLimitPrototypeId, VkBool(values.NeighborLimitPrototype)),
              (ReflectionSharingPrototypeId, VkBool(values.ReflectionSharingPrototype)),
+             (TileCornerMeansId, VkBool(values.TileCornerMeans)),
 +            // PROBE (tools/renderer-survey): probeSignal of composite_pass.glsl.
-+            (11u, uint.TryParse(Environment.GetEnvironmentVariable("TERTIUS_PROBE_SIGNAL"), out uint probeSignal) ? probeSignal : 0u),
++            (12u, uint.TryParse(Environment.GetEnvironmentVariable("TERTIUS_PROBE_SIGNAL"), out uint probeSignal) ? probeSignal : 0u),
          ];
          for (int i = 0; i < rows.Length; i++)
          {
-@@ -144,7 +146,7 @@ internal struct SpecializationStorage
+@@ -155,7 +157,7 @@ internal struct SpecializationStorage
      /// The number of constants: one per field of <see cref="ShaderConstants"/>, the subsurface setting's being its taps per
      /// side. <see cref="ShaderConstants.Specialization"/> writes one row per constant, and a row past this count throws.
      /// </summary>
--    public const int Count = 10;
-+    public const int Count = 11;
+-    public const int Count = 11;
++    public const int Count = 12;
  
      public SpecializationValues Data;
      public SpecializationEntries Entries;
 diff --git a/src/Tertius.Rendering/Shaders/accumulate.glsl b/src/Tertius.Rendering/Shaders/accumulate.glsl
-index 5ce6e0f..6759132 100644
+index 5ce6e0f12..6759132f3 100644
 --- a/src/Tertius.Rendering/Shaders/accumulate.glsl
 +++ b/src/Tertius.Rendering/Shaders/accumulate.glsl
 @@ -59,6 +59,12 @@ layout(push_constant, std430) uniform AccumulatePush
@@ -195,7 +195,7 @@ index 5ce6e0f..6759132 100644
  
  // SignalLight.
 diff --git a/src/Tertius.Rendering/Shaders/accumulate_blocks.glsl b/src/Tertius.Rendering/Shaders/accumulate_blocks.glsl
-index 63f8aeb..532854c 100644
+index 63f8aebf2..532854ce3 100644
 --- a/src/Tertius.Rendering/Shaders/accumulate_blocks.glsl
 +++ b/src/Tertius.Rendering/Shaders/accumulate_blocks.glsl
 @@ -33,6 +33,12 @@ const float BlockSigmas = 4.0;
@@ -236,7 +236,7 @@ index 63f8aeb..532854c 100644
          && abs(sumD) >= n * CutoffRadiance
          && (retainedSigmas > 0.0 || sumD < 0.0);
 diff --git a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
-index 18a38b9..d15748a 100644
+index 18a38b94a..d15748a9f 100644
 --- a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
 +++ b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
 @@ -97,7 +97,8 @@ void accumulateAt(ivec2 pixel, bool evidence)
@@ -260,7 +260,7 @@ index 18a38b9..d15748a 100644
      ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
      if (insideImages(pixel))
 diff --git a/src/Tertius.Rendering/Shaders/composite_pass.glsl b/src/Tertius.Rendering/Shaders/composite_pass.glsl
-index 7251102..56c2a9e 100644
+index 72511023e..4a4419414 100644
 --- a/src/Tertius.Rendering/Shaders/composite_pass.glsl
 +++ b/src/Tertius.Rendering/Shaders/composite_pass.glsl
 @@ -27,6 +27,11 @@ layout(set = 3, binding = 3, SPECULAR_HISTORY_FORMAT) uniform readonly image2D i
@@ -271,7 +271,7 @@ index 7251102..56c2a9e 100644
 +// PROBE (tools/renderer-survey): TERTIUS_PROBE_SIGNAL shows one light signal alone. 0 all, 1 the direct light with the
 +// emission, the sky and an impostor's baked light, 2 the bounce light (indirect diffuse), 3 the reflections (indirect
 +// specular).
-+layout(constant_id = 11) const int probeSignal = 0;
++layout(constant_id = 12) const int probeSignal = 0;
  #ifdef SCATTER_OUTPUT
  // The diffuse image: the pass writes every one of its pixels.
  layout(location = 1) out vec4 outDiffuse;
@@ -312,7 +312,7 @@ index 7251102..56c2a9e 100644
          min(directDiffuse + directSpecular + indirectDiffuse + indirectSpecular + emissive, vec3(MaxRadiance)), 1.0);
      // D, at most MaxRadiance, and the mask, which marks the skin pixels that alone the scatter passes spread.
 diff --git a/src/Tertius.Rendering/Shaders/tonemap.glsl b/src/Tertius.Rendering/Shaders/tonemap.glsl
-index b013dc9..d40cc1d 100644
+index b013dc9f9..d40cc1df3 100644
 --- a/src/Tertius.Rendering/Shaders/tonemap.glsl
 +++ b/src/Tertius.Rendering/Shaders/tonemap.glsl
 @@ -67,6 +67,18 @@ void main()
@@ -335,10 +335,10 @@ index b013dc9..d40cc1d 100644
      if (tonemap.encodeSrgb != 0u)
          ldr = linearToSrgb(ldr);
 diff --git a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
-index afc93ff..6af7b86 100644
+index a801281c6..13927d49e 100644
 --- a/src/Tertius.Rendering/VulkanRenderer.cs
 +++ b/src/Tertius.Rendering/VulkanRenderer.cs
-@@ -593,6 +593,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
+@@ -611,6 +611,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
          device.Vk.ResetFences(device.Device, 1, &fence).Check("vkResetFences");
          output.SubmitAndPresent(frame);
          CommitDrawnFrame(frame: frame, snapshot: snapshot, pending: pending);
@@ -346,7 +346,7 @@ index afc93ff..6af7b86 100644
  
          if (sink != null && capture != null)
          {
-@@ -613,6 +614,74 @@ public sealed unsafe class VulkanRenderer : IRenderer
+@@ -631,6 +632,74 @@ public sealed unsafe class VulkanRenderer : IRenderer
          return true;
      }
  
