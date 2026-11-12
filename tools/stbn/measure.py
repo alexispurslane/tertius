@@ -123,7 +123,7 @@ def main():
     x0, y0 = (int(sys.argv[3]), int(sys.argv[4])) if len(sys.argv) > 4 else (480, 270)
     out.mkdir(parents=True, exist_ok=True)
     result = {"case": case}
-    # Every render at once, six at a time: a capture costs about 3 s of CPU for its PNG, and the worker has 48 cores.
+    # Every render at once, three at a time: a capture costs about 3 s of CPU for its PNG, the worker has 48 cores, and six renderers ran out of the 16 GB card.
     plan = {
         "main-all": ("main", 0, 60, {}), "rough": ("main", 4, 2, {}), "aa": ("cut", 0, 2, {"TERTIUS_STBN": "off"}),
         "C": ("cut", 0, 30, {"TERTIUS_STBN": "both"}),
@@ -133,7 +133,7 @@ def main():
         "main-refl": ("main", 3, 60, {}), "B": ("cut", 3, 30, {"TERTIUS_STBN": "reflection"}),
         "B-shift": ("cut", 3, 30, {"TERTIUS_STBN": "reflection", "TERTIUS_STBN_SHIFT": "on"}),
     }
-    with ThreadPoolExecutor(6) as pool:
+    with ThreadPoolExecutor(3) as pool:
         futures = {name: pool.submit(Run, tree, case, signal, captures, env)
                    for name, (tree, signal, captures, env) in plan.items()}
         runs = {name: f.result() for name, f in futures.items()}
