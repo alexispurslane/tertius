@@ -1,6 +1,6 @@
 ---
 id: cr-pkzd
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-12T10:22:45Z
