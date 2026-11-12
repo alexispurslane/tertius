@@ -13,3 +13,9 @@ parent: ter-8hyd
 
 Sweep rows 2 and 4 (/private/tmp/tertius-sweep-20261111/report.md, section 7), approved by the user on 2026-11-11. Exact image. Expected gain on the deck: 0.15 to 0.30 ms for the clears and 0.10 to 0.15 ms for the pyramids. Each dispatch behind a barrier is its own Metal encoder under MoltenVK 1.4.2, and each encoder boundary idles the GPU about 17 us (2.32 ms over 139 boundaries on the deck), so fewer dispatches also cut that idle time on the Mac. Images must stay bit-identical; measure the deck before and after.
 
+
+## Notes
+
+**2026-11-12T07:03:50Z**
+
+2026-11-12 orchestrator: the pyramid half waits. With the patched MoltenVK (ter-2zga) it saves about 0 ms (the patch keeps all 13 pyramid barriers in one encoder); build it only if the user rejects ter-2zga. The FSR clears half goes ahead and merges on its own.
