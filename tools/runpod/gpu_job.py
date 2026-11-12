@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tool code (tools/runpod/README.md): the one script through which an agent runs a GPU job on a Runpod serverless
+"""Tool code (tools/runpod/README.md): the one script through which an agent runs a GPU or CPU job on a Runpod serverless
 endpoint, within the spending caps.
 
     python3 -I tools/runpod/gpu_job.py submit --agent NAME --tree main=main --tree branch=HEAD \\
@@ -73,7 +73,7 @@ SHELL_PATHS = handler.SHELL_PATHS
 # image, and the first endpoints, without the random part or with the bare name tertius-gpu. The script deletes no
 # other endpoint. Runpod keeps the template name of a deleted or failed endpoint for up to 90 minutes and refuses a new
 # endpoint of the same name ("endpoint template names must be unique", 2026-11-12), so each creation draws a new name.
-OURS = re.compile(r"^tertius-(gpu|cpu)(-[0-9a-f]{12}(-[0-9a-f]{4})?)?$")
+OURS = re.compile(r"^tertius-(?:(gpu)|(gpu|cpu)-[0-9a-f]{12}(?:-[0-9a-f]{4})?)$")
 # The hidden refs that publish the jobs' commits: refs/gpu-jobs/<UTC day>/<agent>/<commit>. Not a branch or a tag, so
 # no clone fetches them. A ref goes after REF_DAYS days, long after its job's queue time and timeout.
 JOB_REFS = "refs/gpu-jobs"
@@ -342,7 +342,8 @@ def ours(api) -> list:
 
 
 def kind_of(endpoint: dict) -> str:
-    return OURS.match(endpoint["name"]).group(1)
+    match = OURS.match(endpoint["name"])
+    return match.group(1) or match.group(2)
 
 
 def refuse_if_stopped(endpoints: list):
@@ -374,7 +375,9 @@ def grow(api, live: str, most: int):
 
 def route(config: Config, api, state: Path, images: list, kind: str) -> tuple:
     """Under the lock, after the jobs in flight are settled: the endpoint of `kind` that runs the job and its image, in
-    three steps. Each step looks only at the endpoints of `kind`, apart from the account's quota.
+    three steps. Each step looks only at the endpoints of `kind`, apart from the account's quota. So an image switch of
+    one kind never deletes the other kind's endpoint and takes its workers (user, 2026-11-12: a GPU switch never
+    shrinks the CPU endpoint). A kind's idle old endpoint waits for a job of its own kind.
 
     1. Every endpoint of the kind goes that does not run the best of `images`, no job in flight names, and no worker
        runs on. So idle old endpoints give their workers back to the quota first.
@@ -695,7 +698,7 @@ def submit(request: Request, *, config: Config, api, registry, github, scan=scan
         with locked(state):
             settle(state, pending, settled)
         write_outputs(request.out, status, settled["result"])
-        out(f"job {pending['jobId']}: {settled['result']}, {settled['gpuSeconds']:.0f} GPU seconds, counted as "
+        out(f"job {pending['jobId']}: {settled['result']}, {settled['gpuSeconds']:.0f} seconds of execution, counted as "
             f"${settled['costUsd']:.4f}; result in {request.out}")
         return settled["result"]
 

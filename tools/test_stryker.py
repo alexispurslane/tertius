@@ -63,6 +63,32 @@ class TheCloudRun(unittest.TestCase):
         run = cloud.merged({"Core": self.result("Core"), "Physics": self.result("Physics", official=False)}, {})
         self.assertFalse(run["official"])
 
+    def test_an_output_folder_that_holds_files_is_refused_so_an_old_result_cannot_count_for_this_run(self):
+        with tempfile.TemporaryDirectory() as folder:
+            (Path(folder) / "Core").mkdir()
+            (Path(folder) / "Core" / "results.json").write_text("{}")
+            self.assertIn("not empty", cloud.unusable(Path(folder)))
+            self.assertIsNone(cloud.unusable(Path(folder) / "new"))
+            (Path(folder) / "empty").mkdir()
+            self.assertIsNone(cloud.unusable(Path(folder) / "empty"))
+
+    def test_the_job_asks_only_for_files_that_fit_the_8_mb_a_result_carries(self):
+        # On 2026-11-12, Stryker's log was 8 to 21 MB and the mutation report 6 to 85 MB per module.
+        self.assertFalse([name for name in cloud.OUTPUTS if "mutation-report" in name or "logs" in name])
+        self.assertIn("results.json", cloud.OUTPUTS)
+
+    def test_a_signal_to_the_cloud_run_reaches_every_job_that_it_started(self):
+        class Child:
+            def __init__(self):
+                self.signals = []
+
+            def send_signal(self, signum):
+                self.signals.append(signum)
+
+        children = [Child(), Child()]
+        cloud.forward(children, 15)
+        self.assertEqual([child.signals for child in children], [[15], [15]])
+
     def test_the_job_deepens_its_shallow_tree_and_runs_one_module_from_the_merge_base(self):
         command = cloud.job_command("a" * 40, "Simulation", ["Program.cs"])
         self.assertIn("--unshallow", command)

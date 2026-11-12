@@ -135,7 +135,7 @@ It installs a pinned single-user Nix (2.34.8), builds or downloads the dev shell
 - A container allows no user namespaces, so Nix builds without a sandbox. Then a build's HOME is the real folder `/homeless-shelter`, which the cargo step of jscpd creates, and Nix refuses the next build. The script removes the folder and runs the step again, at most three times.
 - On the pods, the step took 197 to 216 s, mostly downloads, and joltc and jscpd built from source. The demo's Release build then took 42 to 57 s.
 
-"GPU jobs on Runpod" says how to build the serverless image.
+tools/runpod/README.md says how to build the serverless image.
 
 ### A pod for a bring-up
 
@@ -153,110 +153,7 @@ It installs a pinned single-user Nix (2.34.8), builds or downloads the dev shell
 
 ## GPU jobs on Runpod
 
-An agent runs a GPU job, such as a build and a timing run of the demo, on a Runpod serverless endpoint. The agent calls one script, `tools/runpod/gpu_job.py`, and the script keeps the spending within the caps. Ticket ter-94uo made the parts.
-
-The queue is the GPU workbench: the default place where an agent measures a change to the renderer, its GPU time and its images. [tools/runpod/WORKBENCH.md](runpod/WORKBENCH.md) is the guide for agents: the A/B against main, the quality A/B, what still needs the Mac, several jobs at once, and the costs. This section describes how the queue works.
-
-| Part | What it does |
-|---|---|
-| `tools/runpod/gpu_job.py` | It runs on the Mac. It makes each tree's patch, checks the caps, sends the job, waits for it and writes the audit log. |
-| `tools/runpod/handler.py` | It runs on the worker. It makes the trees, runs the commands in the dev shell and collects the output files. |
-| `tools/runpod/worker.py` | The image's entry. The Runpod SDK gives it each job, and it calls the handler in a fresh work folder. |
-| `tools/runpod/Dockerfile` | The image: the dev shell, the source of one commit with its Release demo built, and the worker. |
-| `.github/workflows/gpu-image.yml` | It builds the image on GitHub and pushes it to `ghcr.io/alexispurslane/tertius-gpu:<commit>`. |
-| `tools/runpod/endpoint.json` | The configuration of the script: the endpoint, the image repository, the price and the caps. |
-| `tools/runpod/ab_run.sh`, `tools/runpod/ab_report.py` | The A/B of the workbench: the runs of each tree on the worker, and their report on the Mac. |
-
-### Run a job
-
-The script reads the key's file from the path in `~/.config/tertius/runpod-key-file`, or from `TERTIUS_RUNPOD_KEY_FILE` if it is set. It reads the key for each request and never prints it. Run the job from the repository:
-
-```bash
-python3 -I tools/runpod/gpu_job.py submit --agent <your name> \
-    --tree main=main --tree branch=HEAD \
-    --run 'cd branch && dotnet run --project src/Tertius.Demo -c Release -- --script scripts/demo-exit-deck-cuts.json --headless --out out' \
-    --output 'branch/out/*.json' --out <folder>
-```
-
-- Each `--tree NAME=REF` becomes the folder `NAME` in the job's work folder. It holds the baked commit's files plus the diff from the baked commit to `REF`, without `docs/` and `.tickets/`. Commit your change first, because the diff comes from commits. The commit need not be pushed.
-- Each `--run` command runs in the work folder, in the dev shell, offline. The first command that fails ends the job.
-- `--timeout` gives the seconds of all commands together, a positive number. It is at most `job_seconds` of the configuration, 840 s. The handler stops the commands at that limit and still sends back the log and the files.
-- Run the script in the background, because a job can wait minutes for a worker. If the script gets Ctrl-C, SIGTERM or SIGHUP, it cancels the job and waits for its final status. A cancel does not stop a command that already runs: on 2026-11-12 a job of `sleep 200`, cancelled after about 30 s, reported 181 s of execution time. The job's own `--timeout` is what bounds it, so the log counts a cancelled job at its worst case. Keep that limit close to the real need.
-- `<folder>` gets the files of the `--output` globs and `result.json`. That file holds each command's exit code and time, the end of the log, and the files that passed the size limit of 8 MB.
-
-The script exits with 0 if every command succeeded. A job runs on the commit that the endpoint's image baked. The image's tag is that commit, and the script reads it from the endpoint before each job. If main moves far from it, point the endpoint at a newer image ("Make the image and the endpoint"), because each job then sends a large diff and compiles more.
-
-### The caps
-
-The caps are $10 per UTC day and $30 in total. Before the script sends a job, it adds the job's worst case to two amounts:
-
-1. The spending: the larger of the audit log's sum and Runpod's bill. The bill (`GET /v2/billing`, `metadata.totals.totalAmount`) holds the account's other spending, such as pods, but it lags the jobs by minutes or more. The daily cap uses today's sums, and the total cap uses the sums of the last 12 months, the account's whole life.
-2. The worst cases of the jobs in flight.
-
-If either sum passes its cap, the script refuses the job, sends nothing and logs the refusal. A file lock spans the check and the record of the new job in flight, so two agents cannot both take the last of a cap.
-
-One cost model serves the worst case and the logged cost: the seconds, plus 60 s for a worker's start, plus 10 s of idle time after the job, times the price per second. For the worst case, the seconds are the execution timeout: the commands' time plus 60 s for the handler, and at most the endpoint's timeout. For the logged cost, they are Runpod's execution time. A job on a warm worker bills no start, so the log overcounts rather than undercounts.
-
-The endpoint bounds the spending by itself too. It keeps no minimum of workers, runs at most six at once, and stops each job at its execution timeout. A worker bills at the GPU price while it runs: its boot, the CPU work of a job, and 10 s of idle time after its last job. So the image holds the dev shell, and a job sends only its diff.
-
-### Jobs in flight and the audit log
-
-The state folder `~/.local/state/tertius/gpu-jobs/` holds two stores:
-
-- `pending/` holds one file per job in flight, with its worst case and, after Runpod accepts the job, its id.
-- `jobs.jsonl` holds one JSON line per settled job, a refusal too. The line holds the time, the agent, the trees with their refs and commits, the commands, the job's id, the GPU seconds, the cost, the result and the exit codes.
-
-When a job ends, the script moves it from `pending/` to the log in one step under the lock. If the script stops first, for example from a lost network or a kill, the job stays in `pending/` and counts at its worst case. The next run of the script asks Runpod for that job's final status and settles it. A job that Runpod no longer knows costs its worst case. A job counts until its queue time and its timeout pass. If Runpod reports no end by then, the log records it as `lost` at its worst case. If `/run` answers with an HTTP error, Runpod made no job, and the log records it as `rejected` at no cost.
-
-### Make the image and the endpoint
-
-The workflow `gpu-image` on GitHub builds the image from the files of one commit, with `git archive`, because a job's patch must apply to exactly those files. It pushes `ghcr.io/alexispurslane/tertius-gpu:<commit>`, which is public. Three events start it:
-
-- A push to main that changes `flake.nix`, `flake.lock`, `native/`, `tools/runpod/` or the workflow.
-- A push of a tag `gpu-image-<anything>` to GitHub, for any commit: `git push git@github.com:alexispurslane/tertius.git <commit>:refs/tags/gpu-image-<name>`.
-- A manual run: `gh workflow run gpu-image.yml --repo alexispurslane/tertius`.
-
-A new image does not change the endpoint. When its build passed, point the endpoint at it:
-
-```bash
-python3 -I tools/runpod/gpu_job.py use-image <commit>
-```
-
-The script first makes sure that the registry serves the image without a login, as Runpod pulls it, and that no job of this Mac is in flight. Then it sets the image, sets the endpoint's maximum of workers to 0 until no worker is left, and sets it back. Runpod replaces a worker of the old image only over time, and until then that worker takes jobs and refuses each one, because its baked commit differs. On 2026-11-12, two such workers refused two jobs in a row. `create-endpoint <commit>` made the endpoint once. It asks for the 16 GB pool `AMPERE_16` without its other three cards, so every job runs on an RTX 2000 Ada. It also asks for at most six workers, no idle worker, a 900 s timeout per job and FlashBoot. `endpoint-request <commit>` prints that request and sends nothing.
-
-The test files run on the Mac without Runpod and without a GPU:
-
-```bash
-python3 -I tools/runpod/test_handler.py
-python3 -I tools/runpod/test_gpu_job.py
-python3 -I tools/runpod/test_ab_report.py
-```
-
-### What the first jobs measured
-
-The first jobs ran on 2026-11-12 on the image of `8bded50b7`, 3.0 GB compressed. A worker had an RTX 2000 Ada, 48 cores and 251 GB of memory.
-
-| Quantity | Value |
-|---|---|
-| Wait of the first job, while the first worker pulled the image (not billed) | 376 s |
-| Wait of the next job, on a worker that had the image | 0.9 s |
-| Copy of the baked source into a tree (165 MB) | about 1.5 s |
-| `dotnet build src/Tertius.Demo -c Release` in a tree | 15 to 21 s |
-| Three headless deck runs of 119 frames each, after the build | 62 s |
-
-A build in a tree compiles every project again, also without a patch. MSBuild's restore files hold the absolute project paths under `/opt/tertius`, and a tree lives elsewhere. A build costs about $0.003, so a fix is not worth the machinery now.
-
-Runpod starts workers ahead of jobs: after the first job the endpoint listed 5 idle workers and 4 that waited for a GPU, with no job in the queue. Runpod bills none of them: a worker that is initializing, idle or throttled is scaled down, and Runpod bills neither the image pull nor such a worker ([pricing](https://docs.runpod.io/serverless/pricing)). A worker bills from its cold start, 10 s on this endpoint with FlashBoot, through its jobs and the 10 s idle timeout.
-
-The deck of the Mac trace (`/private/tmp/tertius-sweep-20261111/trace/deck-maind-1/script.json`, 1920 × 1080) had a median GPU frame span of 11.20 ms over three runs, and 8.90 ms without the `capture` pass. The bring-up pod measured 12.89 ms and 10.33 ms on main of 2026-11-11. The difference is main's newer code, such as the thin diffuse filter: the indirect diffuse stage went from 2.71 ms to 1.42 ms.
-
-### Rules for a job's commands
-
-- A command runs as `bash -c '<command>'` inside the dev shell. Its text is in that shell's command line. So `pkill -f <pattern>` with a pattern from the command stops the command itself.
-- A process that a command starts in the background, such as a clock log, stops when the command ends. Start and use it in the same command. This also stops dotnet's build servers, so join two builds into one command with `&&` to keep the compiler warm.
-- The commands see none of the worker's `RUNPOD_*` variables.
-- If a command fails, the Runpod SDK marks the whole job FAILED. The audit log and `result.json` keep the handler's own result (`failed`, `timed out` or `refused`), and `result.json` keeps Runpod's status as `runpodStatus`.
-- The worker's image has no `bc`. Use `date +%s%N` and shell arithmetic for a time.
+An agent runs a cloud job, on a GPU worker or on a CPU worker, through one script, `tools/runpod/gpu_job.py`, which keeps the spending within the caps. [tools/runpod/WORKBENCH.md](runpod/WORKBENCH.md) is the guide for agents: the A/B against main, the quality A/B, what still needs the Mac, the tests in the cloud, and the costs. [tools/runpod/README.md](runpod/README.md) describes how the queue works: the jobs, the images and endpoints of each kind, the caps, the audit log and the measurements. It also says how to build the serverless image.
 
 ## The remotes: GitHub and the knot mirror
 
@@ -484,9 +381,9 @@ These changes can shorten the capture or the mutants:
 
 ### A run on another machine
 
-`tools/stryker/cloud.py` runs the official run on Runpod's CPU workers, one module per worker, through the cloud queue (tools/runpod/WORKBENCH.md, "Tests in the cloud"). Each worker has 2 vCPUs and 4 GB, and runs one module at concurrency 1. The modules run at once, so a full hardening takes the time of its slowest module, not the sum. On 2026-11-12, Core took 2,731 s for $0.056, and Simulation took 1,866 s for $0.039. tools/runpod/README.md, "Cloud tests", gives the measurements.
+`tools/stryker/cloud.py` runs the official run on Runpod's CPU workers, one module per worker, through the cloud queue (tools/runpod/WORKBENCH.md, "Tests in the cloud"). Each worker has 2 vCPUs and 4 GB, and runs one module at concurrency 1. The modules run at once, so a full hardening takes the time of its slowest module, not the sum. On 2026-11-12, Core took 2,731 s for $0.056, Simulation 1,866 s for $0.039, and Physics 641 s for $0.0145. tools/runpod/README.md, "Cloud tests", gives the measurements.
 
-On a worker, the 1-minute load reads the shared host, not the worker. So the load rule above does not measure the run's own contention there.
+On a worker, the 1-minute load and `os.cpu_count()` both read the shared host, with 192 processors. So the load rule above allows a load of 3,360 there, and in effect never applies. The timeout share rule still applies. A timeout on a worker counts as a kill, because its limit is 2 times the test's initial time on the same worker plus 300 s.
 
 The official run needs these things on any other machine, and `cloud.py` gives them to each worker:
 
@@ -496,7 +393,7 @@ The official run needs these things on any other machine, and `cloud.py` gives t
 - Nothing more for the priority and the thread bound. On Linux, `nice -n 20` gives 19, the lowest priority there, and `DOTNET_PROCESSOR_COUNT` works the same way. The process samples use `ps -A -o pid=,pgid=,ni=,pcpu=,command=`, which Linux and macOS both read.
 - No other build of the test projects in that checkout while the run goes on.
 
-Copy the output folder back. It holds `results.json`, each module's reports and its logs.
+Copy the output folder back. It holds `results.json`, each module's reports and its logs. `cloud.py` brings back each module's `results.json`, configuration, console output and process samples, because Stryker's log and report pass the 8 MB that a job's result carries.
 
 ### Stryker on one module by hand
 

@@ -4,7 +4,7 @@ tools/runpod/worker.py hands each job's input to `handle`, and tools/runpod/gpu_
 A job names its trees' commits, each under a ref of the public repository that gpu_job.py pushed it to, its commands
 and the globs of its outputs:
 
-    {"protocol": 2, "repository": "https://github.com/alexispurslane/tertius.git",
+    {"protocol": 3, "repository": "https://github.com/alexispurslane/tertius.git",
      "trees": {"main": {"sha": "<commit>", "ref": "refs/gpu-jobs/<date>/<agent>/<commit>"}},
      "commands": ["cd main && dotnet build src/Tertius.Demo -c Release"], "outputs": ["main/out/*.json"],
      "seconds": 600}

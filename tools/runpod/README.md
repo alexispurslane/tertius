@@ -70,7 +70,7 @@ Each kind has its own endpoints, one per image. Runpod's list of endpoints is th
 | `gpu` | RTX 2000 Ada, from the 16 GB pool `AMPERE_16` without its other three cards | 5 | $0.00016/s, $0.58/h | 840 s of commands, 900 s in all | 60 GB |
 | `cpu` | `cpu3c`, compute-optimized, 2 vCPUs, 4 GB of memory | 3 | $0.00002/s, $0.07/h | 7,140 s of commands, 7,200 s in all | 20 GB, the most for 2 vCPUs |
 
-Runpod limits the account to 10 workers, summed over the maximums of all its endpoints. The kinds hold 8 of them. The other 2 are the headroom of an image switch. The new endpoint of either kind starts with the 2 free workers, beside the busy old one. When the old one goes, the new one grows to its kind's workers. The script never lowers an endpoint to make room. Under the lock, the script routes each job in three steps. Apart from the quota, each step looks only at the endpoints of the job's kind:
+Runpod limits the account to 10 workers, summed over the maximums of all its endpoints. The kinds hold 8 of them. The other 2 are the headroom of an image switch. The new endpoint of either kind starts with the 2 free workers, beside the busy old one. When the old one goes, the new one grows to its kind's workers. The script never lowers an endpoint to make room. Under the lock, the script routes each job in three steps. Apart from the quota, each step looks only at the endpoints of the job's kind. So a GPU image switch never deletes the CPU endpoint and takes its workers. An idle old endpoint of a kind waits for the next job of its own kind:
 
 1. It deletes each endpoint of the kind that meets three conditions: it does not run the chosen image, no job in flight names it, and no worker runs on it. An old endpoint thus goes after its last job, and no job of it is cut. Its workers return to the quota.
 2. If no endpoint of the kind runs the chosen image, the script creates one. It gets the workers that the quota leaves, at most the kind's workers. If the quota leaves none, the job runs on the kind's endpoint of the best fitting image. If the kind has no such endpoint, the script refuses the job.
@@ -126,7 +126,7 @@ When a job ends, the script moves it from `pending/` to the log in one step unde
 
 ## Cloud tests
 
-`tools/stryker/cloud.py` runs the official Stryker run of `tools/stryker/changed.py` with one CPU job per module. Each job's tree is a shallow clone of the head commit. Its command fetches the tree's history without file contents (`git fetch --filter=blob:none --unshallow`), so that `changed.py` finds the merge base and reads the changed files on demand. Then it restores the Stryker tool and runs `changed.py <base> ../out --modules <module>`. The job sends back the module's `results.json`, its Stryker configuration, report and logs, and the process samples. `cloud.py` merges the modules' results and prints them with `changed.py`'s own table and validity rules. WORKBENCH.md, "Tests in the cloud", gives the command.
+`tools/stryker/cloud.py` runs the official Stryker run of `tools/stryker/changed.py` with one CPU job per module. Each job's tree is a shallow clone of the head commit. Its command fetches the tree's history without file contents (`git fetch --filter=blob:none --unshallow`), so that `changed.py` finds the merge base and reads the changed files on demand. Then it restores the Stryker tool and runs `changed.py <base> ../out --modules <module>`. The job sends back the module's `results.json`, its Stryker configuration, Stryker's console output and the process samples. Stryker's log (8 to 21 MB) and its mutation report (6 to 85 MB) do not fit the 8 MB that a result carries, so they stay on the worker. `results.json` holds the rows, the evidence and the validity. `cloud.py` refuses an output folder that holds files, so that no earlier result counts for a module whose job gave none. `cloud.py` merges the modules' results and prints them with `changed.py`'s own table and validity rules. WORKBENCH.md, "Tests in the cloud", gives the command.
 
 The CPU kind uses the cheapest machine that ran Stryker within its limits. Measured on 2026-11-12 on `cpu3c` with 2 vCPUs and 4 GB:
 
@@ -137,10 +137,11 @@ The CPU kind uses the cheapest machine that ran Stryker within its limits. Measu
 | Stryker's initial test run of Core's 4,625 tests | 41 to 94 s, against about 27 s on the Mac |
 | Core, 0 mutants in its 3 spans | 2,731 s, $0.056, valid |
 | Simulation, 6 mutants in its 4 spans, all killed | 1,866 s, $0.039, valid |
+| Physics, 6 mutants in its 4 spans, all killed, from the base of ter-773q | 641 s, $0.0145, valid |
 
-The 1-minute load in a job reads the shared host, which has many more processors than the worker: a mean of 16 to 24, at most 33.5. It does not measure the worker's own contention. Both runs ended with no timeout, so the load rule of `changed.py` did not apply.
+The 1-minute load in a job reads the shared host: a mean of 16 to 112, at most 204. It does not measure the worker's own contention. `os.cpu_count()` also reads the host and gives 192, against 2 processors that the job may use. So the load rule of `changed.py` allows a load of 3,360 on a worker, and in effect never makes a run not valid there. The timeout share rule still applies. The three runs ended with no timeout.
 
-On the Mac, the same modules run one after another, under one Stryker lock: Core 2,674 s and Simulation 3,813 s on tiunr-e8xk. The cloud runs them at once on separate workers, so a full hardening takes the time of its slowest module. A larger worker does not pay: the per-test coverage capture takes most of a run, and it uses about one core and a half.
+On the Mac, the same modules run one after another, under one Stryker lock: Core 2,674 s and Simulation 3,813 s on tiunr-e8xk. The cloud runs them at once on separate workers, so a full hardening takes the time of its slowest module. For the three runs above, that was 2,731 s and $0.11 in total, against more than 6,487 s for Core and Simulation alone on the Mac. A larger worker does not pay: the per-test coverage capture takes most of a run, and it uses about one core and a half.
 
 ### Linux failures
 

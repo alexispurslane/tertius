@@ -116,7 +116,7 @@ Where each kind of test run goes:
 
 | Run | Where by default | Command | Measured cost and wall time |
 |---|---|---|---|
-| The official Stryker run of a hardening | Cloud CPU workers, one module per worker, all at once | `tools/stryker/cloud.py` | Core 2,731 s for $0.056, Simulation 1,866 s for $0.039, Physics below |
+| The official Stryker run of a hardening | Cloud CPU workers, one module per worker, all at once | `tools/stryker/cloud.py` | Core 2,731 s for $0.056, Simulation 1,866 s for $0.039, Physics 641 s for $0.0145 |
 | The listed mutants of `tools/mutate.py` | The Mac | `tools/mutate.py` | On a GPU worker, about 63 s per Rendering mutant against 40 s on the Mac, plus 175 s of build |
 | The pre-commit hook, and the `Checked` and `Release` suites before a merge | The Mac | `tools/test-all.sh` | Free on the Mac |
 | The CPU-only test projects, to keep them off the Mac | Cloud CPU workers, when an agent wants it | `gpu_job.py submit --kind cpu` with `dotnet test --project <project> -c Checked` | Not measured on a CPU worker. On one GPU worker, all of them took about 4 min and $0.05. |
@@ -129,7 +129,7 @@ Run the official Stryker run of a hardening in the cloud, from the branch's chec
 python3 -I tools/stryker/cloud.py main /tmp/<ticket>-stryker --agent <your name>
 ```
 
-The script pushes the branch's head commit to a hidden ref, as every job does. It sends one CPU job per module with changed lines, and each job runs `tools/stryker/changed.py` on its module with the official settings. The script waits for all jobs. Then it prints the same table, evidence and validity as `changed.py`, and writes the merged `results.json`. Each module's report and logs land in `/tmp/<ticket>-stryker/<module>/`. The modules run at once, so the wall time is that of the slowest module plus the wait for a worker. On the Mac, the same modules run one after another under the machine's Stryker lock.
+The script pushes the branch's head commit to a hidden ref, as every job does. It sends one CPU job per module with changed lines, and each job runs `tools/stryker/changed.py` on its module with the official settings. The script waits for all jobs. Then it prints the same table, evidence and validity as `changed.py`, and writes the merged `results.json`. Each module's results, Stryker configuration and console output land in `/tmp/<ticket>-stryker/<module>/`. Give a new or empty folder: the script refuses a folder that holds files. The modules run at once, so the wall time is that of the slowest module plus the wait for a worker. On the Mac, the same modules run one after another under the machine's Stryker lock.
 
 A cloud run needs no Mac lock and builds nothing in your worktree. So you can build, test and commit in the worktree while it runs. The rules for a valid run are those of `tools/README.md`, "The official Stryker run". A run that prints NOT VALID proves nothing there either.
 

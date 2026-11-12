@@ -674,8 +674,17 @@ class Kinds(Queue):
         self.on_main(newer)
         api = self.api(endpoints=[self.endpoint(self.base)])
         self.submit(api, trees={"main": newer}, images=[self.base, newer], kind="cpu")
-        self.assertEqual(api.deleted, [], "the idle GPU endpoint of the older image waits for a GPU job")
+        self.assertEqual(api.deleted, [], "a switch of one kind never takes the other kind's workers")
         self.assertEqual(api.submitted[0][0], "ep-new-1")
+
+    def test_a_route_of_one_kind_keeps_the_other_kinds_endpoint_of_the_same_image(self):
+        api = self.api(endpoints=[self.endpoint(self.base), self.endpoint(self.base, id="ep-cpu", most=3, kind="cpu")])
+        self.assertEqual(self.submit(api), "ok")
+        self.assertEqual(api.deleted, [])
+
+    def test_a_bare_cpu_name_is_not_one_of_the_scripts_endpoints(self):
+        names = ["tertius-gpu", "tertius-cpu", f"tertius-cpu-{'a' * 12}", f"tertius-gpu-{'a' * 12}-0f0f", "tertius-gpux"]
+        self.assertEqual([bool(gpu_job.OURS.match(name)) for name in names], [True, False, True, True, False])
 
     def test_a_stopped_cpu_endpoint_refuses_gpu_jobs_too(self):
         api = self.api(endpoints=[self.endpoint(self.base), self.endpoint(self.base, id="ep-cpu", most=0, kind="cpu")])

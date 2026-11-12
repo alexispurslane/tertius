@@ -9,7 +9,9 @@ The script finds the modules with changed lines here, as changed.py does, and pr
 official run for the agent's tools/mutate.py list. Then it sends one job per module through tools/runpod/gpu_job.py
 with --kind cpu, which publishes the head commit and keeps the caps and the audit log. Each job fetches the history of
 its tree, runs `changed.py <merge base> --modules <module>` in the dev shell, and sends back the module's results.json,
-its Stryker configuration, report and logs, and run.py's process samples. They land in <out-dir>/<module>/.
+its Stryker configuration, Stryker's console output and run.py's process samples. They land in <out-dir>/<module>/,
+which must be new or empty, so that a result of an earlier run cannot count for this one. A SIGTERM, SIGHUP or SIGINT
+reaches every job's gpu_job.py, which cancels its job.
 
 A worker runs one module at concurrency 1, so the rule of tools/README.md, "Stryker.NET pitfalls", holds on each
 machine: one test host. Workers are separate machines, so the Mac's lock /tmp/tertius-stryker.lock does not bind them.
@@ -19,6 +21,7 @@ The exit code is 1 if a module's run is not valid or its job did not end with a 
 import argparse
 import json
 import shlex
+import signal
 import subprocess
 import sys
 import threading
@@ -32,10 +35,11 @@ import changed  # noqa: E402
 import changed_lines  # noqa: E402
 
 GPU_JOB = HERE.parent / "runpod/gpu_job.py"
-# The files that come back from a module's worker, under the job's out/: changed.py's results.json, and the module's
-# folder with its Stryker configuration, report and logs and run.py's samples. A job sends back at most 8 MB in base64.
-OUTPUTS = ["results.json", "{module}/stryker-config.json", "{module}/run.out", "{module}/processes.log",
-           "{module}/out/logs/*.txt", "{module}/out/reports/mutation-report.json"]
+# The files that come back from a module's worker, under the job's out/: changed.py's results.json, which holds the
+# rows, the evidence and the validity, and the module's Stryker configuration, console output and run.py's samples. A
+# job sends back at most 8 MB in base64. Stryker's log (8 to 21 MB) and its mutation report (6 to 85 MB) passed that on
+# 2026-11-12, so they stay on the worker.
+OUTPUTS = ["results.json", "{module}/stryker-config.json", "{module}/run.out", "{module}/processes.log"]
 
 
 def job_command(base: str, module: str, exclude: list) -> str:
@@ -67,14 +71,30 @@ def merged(results: dict, failures: dict) -> dict:
             "settings": settings or "", "official": official}
 
 
-def run_job(module: str, args, head: str, base: str, out: Path, ended: dict):
+def unusable(out: Path):
+    """Why the output folder cannot take this run, or None. A folder with files could hold a module's results.json
+    from an earlier run, which would count as this run's result if this run's job gave none."""
+    if out.exists() and (not out.is_dir() or any(out.iterdir())):
+        return f"the output folder {out} is not empty: give a new folder, so that no earlier result counts for this run"
+    return None
+
+
+def forward(children: list, signum: int):
+    """Sends the signal to each job's gpu_job.py, which cancels its job at Runpod and exits."""
+    for child in children:
+        child.send_signal(signum)
+
+
+def run_job(module: str, args, head: str, base: str, out: Path, ended: dict, children: list):
     folder = out / module
     command = [sys.executable, "-I", str(GPU_JOB), "submit", "--agent", args.agent, "--kind", "cpu",
                "--tree", f"t={head}", "--run", job_command(base, module, args.exclude), "--out", str(out / "jobs" / module)]
     for name in OUTPUTS:
         command += ["--output", "out/" + name.format(module=module)]
     with (out / f"{module}.job.log").open("w") as log:
-        ended[module] = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT).returncode
+        child = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT)
+        children.append(child)
+        ended[module] = child.wait()
     landed = out / "jobs" / module / "out"
     folder.mkdir(parents=True, exist_ok=True)
     if (landed / module).exists():
@@ -107,12 +127,18 @@ def main() -> int:
         print(f"No changed C# lines in {', '.join(changed.MODULES)}.")
         return 0
     out = args.out.resolve()
+    if problem := unusable(out):
+        print(problem, file=sys.stderr)
+        return 2
     out.mkdir(parents=True, exist_ok=True)
     print(f"Stryker on {', '.join(modules)}, one CPU worker each; the jobs' logs are {out}/<module>.job.log",
           file=sys.stderr, flush=True)
     started = time.monotonic()
-    ended = {}
-    threads = [threading.Thread(target=run_job, args=(module, args, head, base, out, ended)) for module in modules]
+    ended, children = {}, []
+    for signum in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
+        signal.signal(signum, lambda number, _frame: forward(children, number))
+    threads = [threading.Thread(target=run_job, args=(module, args, head, base, out, ended, children))
+               for module in modules]
     for thread in threads:
         thread.start()
     for thread in threads:
