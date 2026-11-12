@@ -1,0 +1,9 @@
+trace               frames settled  span median  span mean  idle median  encoders
+deck-w3-ctl            151     111       20.963     21.064        1.527        97
+deck-w3-r128           151     111       20.631     20.763        1.562        97
+deck-w3-ctl-ns         151     111       20.784     21.033        1.264        66
+deck-w3-r128-ns        151     111       20.096     20.266        1.197        66
+deck-w3-ctl-ns-b       151     111       20.588     20.651        1.208        66
+deck-w3-r128-ns-b      151     111       21.097     22.532        1.216        66
+deck-w3-ctl-b          151     111       21.421     22.022        1.521        97
+deck-w3-r128-b         151     111       22.101     22.769        1.590        97

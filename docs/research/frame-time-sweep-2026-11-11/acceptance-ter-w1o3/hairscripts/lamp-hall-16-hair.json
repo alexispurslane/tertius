@@ -1,0 +1,21 @@
+{
+ "scene": "lamp-hall-16-hair",
+ "window": {
+  "width": 1280,
+  "height": 720
+ },
+ "steps": [
+  {
+   "do": "camera",
+   "entity": "hair-camera"
+  },
+  {
+   "do": "run",
+   "ticks": 10
+  },
+  {
+   "do": "capture",
+   "name": "hair"
+  }
+ ]
+}

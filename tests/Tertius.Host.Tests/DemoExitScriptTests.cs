@@ -14,23 +14,22 @@ public sealed class DemoExitScriptTests
     private static string CheckedIn => Path.Combine(RepositoryRoot(), "scripts", "demo-exit.json");
 
     /// <summary>
-    /// The demo's command line writes the script with <c>--generate &lt;file&gt; demo-exit</c>, exits with 0, prints the
-    /// file's path first, and the file equals the checked-in script.
+    /// The demo's command line writes the script with <c>--generate &lt;file&gt; demo-exit</c>, exits with 0 and prints the
+    /// file's path first. Two runs on this machine write the same file, and on arm64, which recorded it, the file equals the
+    /// checked-in script (<see cref="RecordedReference"/>).
     /// </summary>
     [Fact]
     public void TheCheckedInScriptIsWhatTheDemosCommandLineGeneratesForTheExitsScene()
     {
-        string folder = NewFolder();
+        string first = NewFolder();
+        string second = NewFolder();
         try
         {
-            string written = Path.Combine(folder, "demo-exit.json");
-            var output = new StringWriter();
-            var error = new StringWriter();
-
-            int exit = Program.Generate(["--generate", written, BlueDanube.ExitSceneName], output, error);
-
-            exit.Should().Be(ScriptCommand.Ok, error.ToString());
-            output.ToString().Split('\n')[0].Trim().Should().Be(written);
+            string written = Generate(first);
+            File.ReadAllText(Generate(second))
+                .Should()
+                .Be(File.ReadAllText(written), "two runs on one machine write the same script");
+            Assert.SkipUnless(RecordedReference.Applies, RecordedReference.SkipReason);
             File.ReadAllText(written)
                 .Should()
                 .Be(
@@ -40,8 +39,23 @@ public sealed class DemoExitScriptTests
         }
         finally
         {
-            Directory.Delete(folder, recursive: true);
+            Directory.Delete(first, recursive: true);
+            Directory.Delete(second, recursive: true);
         }
+    }
+
+    /// <summary>Runs the demo's command line that writes the exit's script into <paramref name="folder"/>; the file's path.</summary>
+    private static string Generate(string folder)
+    {
+        string written = Path.Combine(folder, "demo-exit.json");
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        int exit = Program.Generate(["--generate", written, BlueDanube.ExitSceneName], output, error);
+
+        exit.Should().Be(ScriptCommand.Ok, error.ToString());
+        output.ToString().Split('\n')[0].Trim().Should().Be(written);
+        return written;
     }
 
     /// <summary>The script names the scene <c>demo-exit</c> and films the exit's sections and then the coda's, in their order.</summary>
