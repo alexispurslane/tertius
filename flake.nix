@@ -43,7 +43,13 @@
           vulkanLibs = [
             pkgs.vulkan-loader
           ]
-          ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [ pkgs.moltenvk ];
+          ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [ pkgs.moltenvk ]
+          # The host's NVIDIA Vulkan driver (native/host-nvidia-vulkan.sh) needs these, and a container has none of them.
+          ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [
+            pkgs.libglvnd
+            pkgs.libx11
+            pkgs.libxext
+          ];
           # The attributes of both shells.
           common = {
             packages = [
@@ -95,16 +101,19 @@
             DYLD_FALLBACK_LIBRARY_PATH = pkgs.lib.makeLibraryPath vulkanLibs;
             LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath vulkanLibs;
             VK_LAYER_PATH = "${pkgs.vulkan-validation-layers}/share/vulkan/explicit_layer.d";
-            VK_ICD_FILENAMES = pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isDarwin "${pkgs.moltenvk}/share/vulkan/icd.d/MoltenVK_icd.json";
             # The ICD manifest of KosmicKrisp, LunarG's Mesa driver for Apple GPUs. MoltenVK stays the default, and a run
             # picks KosmicKrisp with VK_ICD_FILENAMES=$TERTIUS_KOSMICKRISP_ICD (tools/README.md, "Vulkan drivers").
             TERTIUS_KOSMICKRISP_ICD = pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isDarwin "${pkgs.mesa}/share/vulkan/icd.d/kosmickrisp_mesa_icd.aarch64.json";
 
             # The repository's git hooks (.githooks/): cleanup, duplicates and build on commit, docs on push.
+            # On Linux, the hook also finds the host's NVIDIA Vulkan driver (tools/README.md, "Vulkan drivers").
             shellHook = ''
               if git rev-parse --git-dir > /dev/null 2>&1; then
                 git config core.hooksPath .githooks
               fi
+            ''
+            + pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
+              source ${./native/host-nvidia-vulkan.sh}
             '';
 
             # The Nix-built double-precision Jolt library, which Directory.Build.targets copies next to each output.
@@ -117,6 +126,11 @@
             # without DYLD_FALLBACK_LIBRARY_PATH. macOS removes DYLD_* variables in /usr/bin/env and in apps with the
             # hardened runtime, such as Rider, so a test that Rider starts never sees them.
             TERTIUS_VULKAN_DIR = "${pkgs.vulkan-loader}/lib";
+          }
+          # MoltenVK is the Mac's default driver. On Linux the shell sets no VK_ICD_FILENAMES, so a value from outside
+          # the shell stays, and the shellHook can set NVIDIA's.
+          // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
+            VK_ICD_FILENAMES = "${pkgs.moltenvk}/share/vulkan/icd.d/MoltenVK_icd.json";
           };
         in
         {

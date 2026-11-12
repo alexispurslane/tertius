@@ -710,7 +710,11 @@ public sealed class ScriptCommandCaptureTests : IDisposable
         );
 
         code.Should().Be(ScriptCommand.Ok, error.ToString());
-        settings.Should().ContainSingle().Which.Should().Be(kept, "a headless run is a measured run unless told otherwise");
+        settings
+            .Should()
+            .ContainSingle()
+            .Which.Should()
+            .Be(kept, "a headless run is a measured run unless told otherwise");
     }
 
     [Theory]

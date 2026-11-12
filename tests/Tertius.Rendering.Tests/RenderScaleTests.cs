@@ -287,16 +287,19 @@ public sealed class RenderScaleTests
             grouped.Next(frame).Should().Be(scale, "a window without pass timestamps keeps the measured scale");
             GpuTimings timings = Timings(frame: frame, scale: scale, renderCost: 24 + frame % 7, outputWait: 1);
             eachPass.Measure(timings);
-            PassTiming[] groups = timings
-                .Passes.ToArray()
-                .GroupBy(pass => RenderScaleController.CostGroupOf(pass.Stage))
-                .Select(group =>
-                    new PassTiming(RenderScaleController.NameOf(group.Key), group.Sum(pass => pass.Milliseconds))
+            PassTiming[] groups =
+            [
+                .. timings
+                    .Passes.ToArray()
+                    .GroupBy(pass => RenderScaleController.CostGroupOf(pass.Stage))
+                    .Select(group => new PassTiming(
+                        RenderScaleController.NameOf(group.Key),
+                        group.Sum(pass => pass.Milliseconds)
+                    )
                     {
                         Stage = group.Last().Stage,
-                    }
-                )
-                .ToArray();
+                    }),
+            ];
             grouped.Measure(timings with { Passes = groups });
         }
     }

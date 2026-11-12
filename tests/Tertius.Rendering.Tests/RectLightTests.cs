@@ -284,13 +284,15 @@ public sealed class RectLightTests
             lightSine: 0
         );
         // The half sides come from single-float turns, so the projected solid angle holds to about 10⁻⁷ of itself.
-        terms.Diffuse.X.Should()
+        terms
+            .Diffuse.X.Should()
             .BeApproximately(
                 point.Diffuse.X * projected,
                 1e-6 * point.Diffuse.X * projected,
                 "the far face lights the point as a point light would"
             );
-        terms.Specular.X.Should()
+        terms
+            .Specular.X.Should()
             .BeApproximately(
                 point.Specular.X * projected,
                 1e-6 * point.Specular.X * projected,
@@ -323,9 +325,11 @@ public sealed class RectLightTests
                 inverse: LtcTable.Shared.Sample(roughness: 0.3, nDotV: toView.Y)
             );
         // The half sides come from single-float turns, so the projected solid angle holds to about 10⁻⁷ of itself.
-        terms.Diffuse.X.Should()
+        terms
+            .Diffuse.X.Should()
             .BeApproximately(diffuse, 1e-6 * diffuse, "the far face lights the point as a point light would");
-        terms.Specular.X.Should()
+        terms
+            .Specular.X.Should()
             .BeApproximately(shine, 1e-12, "a smooth lobe keeps the face's shape, so a mirror still shows a rectangle");
     }
 
@@ -365,7 +369,8 @@ public sealed class RectLightTests
 
         double exact = matte.DiffuseColor.X / Math.PI * rect.View.ClippedCosine(Double3.UnitY);
         exact.Should().BePositive("the panel's upper part lights the floor");
-        terms.Diffuse.X.Should()
+        terms
+            .Diffuse.X.Should()
             .BeApproximately(exact, 1e-15, "the horizon cuts the face, which a point light cannot show");
     }
 
@@ -445,7 +450,10 @@ public sealed class RectLightTests
         [InlineData(0.75, 0.6)]
         [InlineData(1.0, 0.0)]
         [InlineData(1.0, 0.6)]
-        public void ARoughSurfacesPointShineOfAFarRectangleMatchesTheIntegralOfItsLobe(double roughness, double viewAngle)
+        public void ARoughSurfacesPointShineOfAFarRectangleMatchesTheIntegralOfItsLobe(
+            double roughness,
+            double viewAngle
+        )
         {
             // The cabin lamp 6.8 m along the mirror ray, just past eight half diagonals, and 0.1 rad beside it, facing the point: the highlight's peak and
             // its side. Measured on 2026-11-10, the point missed by at most 5.6 % at roughness 0.5.
@@ -473,7 +481,8 @@ public sealed class RectLightTests
 
                 double reference = rect.ShineIntegral(metal, toView);
                 rect.View.ShadesAsPointOn(Double3.UnitY).Should().BeTrue("the panel lies eight half diagonals away");
-                shine.Should()
+                shine
+                    .Should()
                     .BeApproximately(
                         reference,
                         0.07 * reference,
@@ -493,7 +502,9 @@ public sealed class RectLightTests
             var axis = Vector3.Cross(Vector3.UnitZ, back);
             float angle = MathF.Acos(Math.Clamp(back.Z, -1, 1));
             Quaternion rotation =
-                axis.LengthSquared() > 1e-12f ? Quaternion.CreateFromAxisAngle(Vector3.Normalize(axis), angle) : FaceDown;
+                axis.LengthSquared() > 1e-12f
+                    ? Quaternion.CreateFromAxisAngle(Vector3.Normalize(axis), angle)
+                    : FaceDown;
             return Rect(center: distance * aim, rotation: rotation, width: 1.2, height: 1.2);
         }
     }
