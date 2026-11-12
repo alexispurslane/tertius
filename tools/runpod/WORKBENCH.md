@@ -148,9 +148,9 @@ Use `-maxThreads 2`. At the default parallelism, the GPU tests run out of the ca
 
 - A GPU worker costs $0.00016 per second, $0.58 per hour, while it runs: its start, the job and 10 s of idle time. A CPU worker costs $0.00002 per second, $0.07 per hour. A worker that waits, or pulls the image, costs nothing.
 - The script counts each job as its execution time plus 70 s, times the price. Examples: a five-run A/B $0.04, two stills $0.03, a short job of a few seconds $0.012.
-- The caps are $3 per UTC day from 2026-11-13 and $30 in total, for all agents and both kinds together. The $30 must last until about 2026-12-07. Before it sends a job, the script adds the job's worst case to the day's and the total spending and to the jobs in flight. If the sum passes a cap, it refuses the job and sends nothing.
+- The caps are $3 per UTC day from 2026-11-13 and $30 in total, for all agents and both kinds together. The $30 must last until about 2026-12-07. Before it sends a job, the script adds the job's worst case to the day's and the total spending and to the jobs in flight. The spending is Runpod's bill for the hours whose bill is final. For each of the last few hours, it is the larger of that hour's bill and the log's estimate of the jobs that ended in it. If the sum passes a cap, it refuses the job and sends nothing.
 - Keep `--timeout` close to the real need. The worst case, and the cost of a cancelled job, follow it. A cancel does not stop a command that already runs.
-- The audit log is `~/.local/state/tertius/gpu-jobs/jobs.jsonl`, one line per job.
+- The audit log is `~/.local/state/tertius/gpu-jobs/jobs.jsonl`, one line per job. `python3 -I tools/runpod/gpu_job.py stats` prints the mean cost per job by kind and by agent, with its spread, and the bill beside it.
 - The script reads the key's file from the path in `~/.config/tertius/runpod-key-file`. An agent never reads, prints or copies the key, and never puts a credential in a job. The repository and the image are public, so a commit holds no secret.
 
 ## Pitfalls
