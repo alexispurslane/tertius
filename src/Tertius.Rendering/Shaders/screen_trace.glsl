@@ -44,9 +44,9 @@ layout(set = 3, binding = 16, rgba16f) uniform writeonly image2D specularSample;
 OWN_RAY_LIST(3, 17, reflectionOwnRays);
 OWN_RAY_LIST(3, 18, diffuseOwnRays);
 // The light pyramid (ARCHITECTURE.md, "Guided diffuse rays", light_pyramid.glsl): each pixel's guide light, and the sums
-// of levels 1 to L, mip m level m + 1, whose padding holds no light. Bindings 19 to 23 are the light age's.
-layout(set = 3, binding = 24) uniform texture2D lightFinest;    // R32F
-layout(set = 3, binding = 25) uniform texture2D lightLevels;    // R32F
+// of levels 1 to L, mip m level m + 1, whose padding holds no light. Bindings 19 to 24 are the light age's.
+layout(set = 3, binding = 25) uniform texture2D lightFinest;    // R32F
+layout(set = 3, binding = 26) uniform texture2D lightLevels;    // R32F
 
 #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
 // The light-change age of a precise specular history (tickets tiunr-py6q and tiunr-7haj, ScreenTraceImages.LightAge): r
@@ -57,7 +57,12 @@ layout(set = 3, binding = 19, rg32f) uniform readonly image2D lastLightAge;
 layout(set = 3, binding = 20, rg32f) uniform image2D lightAge;
 // The two samples' light ages (TemporalSignal.SampleAge), which the resolve writes: an age code (ageCodeOf).
 layout(set = 3, binding = 21, r16ui) uniform writeonly uimage2D specularSampleAge;
-layout(set = 3, binding = 22, r16ui) uniform writeonly uimage2D diffuseSampleAge;
+// FSR 3.1's transparency and composition mask (ScreenTraceImages.LightChangeMask), which the resolve writes from this
+// frame's records (lightChangeMaskAt): where the direct light changed, FSR's history keeps to this frame's light (ticket
+// t1-4hij).
+layout(set = 3, binding = 22, r8) uniform writeonly image2D lightChangeMask;
+// The diffuse sample's light age (TemporalSignal.SampleAge), which the resolve writes: an age code (ageCodeOf).
+layout(set = 3, binding = 23, r16ui) uniform writeonly uimage2D diffuseSampleAge;
 
 // The age of a pixel whose light the record never saw change, in the frame that first shows it: no evidence. Each later
 // frame that shows it unchanged lowers it by one, down to −(MostLightAge + 1).
@@ -97,11 +102,52 @@ float pendingDrawsOfRecord(float g)
     return round(abs(g - trunc(g)) * LightChangeDraws);
 }
 
+// The frames after a change of the pixel's light in which FSR's history keeps to this frame's light.
+const float LightChangeMaskFrames = 8.0;
+
+// Whether a record's g shows its pixel's light changing (ticket t1-4hij): while a change is pending and for
+// LightChangeMaskFrames frames after it counts.
+bool changingLight(float g)
+{
+    bool recent = g >= 0.0 && ageOfRecord(g) < LightChangeMaskFrames;
+    return recent || pendingDrawsOfRecord(g) > 0.0;
+}
+
+// FSR 3.1's transparency and composition mask at the pixel (ticket t1-4hij), from this frame's light-age records: 1 where
+// the opening of the changing pixels by a 3 × 3 block holds the pixel, that is where some 3 × 3 block around it changes
+// whole, else 0. Under the mask FSR clamps its history to the pixel's neighbors in this frame, so a still surface under a
+// moving light does not keep the light of the light's earlier places. A moving light or caster changes the light of a
+// band many pixels wide, which the opening keeps. The jitter that moves a pixel on and off a still feature thinner than a
+// pixel changes its record too, in a line one or two pixels wide, which the opening removes: under the mask FSR's clamp
+// would follow that aliasing. The resolve writes it, after the plan wrote every record.
+float lightChangeMaskAt(ivec2 pixel)
+{
+    // An opening holds only pixels that change: one read decides the still pixels.
+    if (!changingLight(imageLoad(lightAge, pixel).g))
+        return 0.0;
+    ivec2 last = ivec2(frame.viewport.xy) - 1;
+    bool changing[5][5];
+    for (int y = 0; y < 5; y++)
+        for (int x = 0; x < 5; x++)
+            changing[y][x] = changingLight(imageLoad(lightAge, clamp(pixel + ivec2(x - 2, y - 2), ivec2(0), last)).g);
+    for (int y = 0; y < 3; y++)
+        for (int x = 0; x < 3; x++)
+        {
+            bool whole = true;
+            for (int dy = 0; dy < 3; dy++)
+                for (int dx = 0; dx < 3; dx++)
+                    whole = whole && changing[y + dy][x + dx];
+            if (whole)
+                return 1.0;
+        }
+    return 0.0;
+}
+
 #ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
 // The diagnostic of uncovered surfaces (TemporalSignal.UncoveredDiagnostic), which only the capture tool and the tests
 // read: the resolve writes r, the fewest frames seen among the never-changed surfaces that the specular sample's rays
 // hit, or −1 for none. The temporal dispatch writes the other channels.
-layout(set = 3, binding = 23, rgba32f) uniform writeonly image2D uncoveredDiagnostic;
+layout(set = 3, binding = 24, rgba32f) uniform writeonly image2D uncoveredDiagnostic;
 
 // The age of a ray that hit nothing: below every record's age, so that a miss differs from a surface first shown.
 const float MissLightAge = -65536.0;

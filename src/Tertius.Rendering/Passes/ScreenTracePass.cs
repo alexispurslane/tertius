@@ -211,6 +211,11 @@ internal sealed class ScreenTraceResolvePass(ScreenTraceKernel kernel, ScreenTra
                 context.Barriers.Image(age, ImageUse.StorageCompute, discard: true);
         if (images.Specular.UncoveredDiagnostic(0) is { } diagnostic)
             context.Barriers.Image(diagnostic, ImageUse.StorageCompute, discard: true);
+        // FSR's mask reads the records that the plan wrote around each pixel.
+        if (images.LightAge(context.History.Parity) is { } lightAge)
+            context.Barriers.Image(lightAge, ImageUse.StorageCompute);
+        if (images.LightChangeMask is { } mask)
+            context.Barriers.Image(mask, ImageUse.StorageCompute, discard: true);
         kernel.Record(context, side: 1);
     }
 

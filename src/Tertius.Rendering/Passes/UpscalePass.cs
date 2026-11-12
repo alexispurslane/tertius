@@ -1,6 +1,9 @@
 namespace Tertius.Rendering;
 
-/// <summary>Feeds the frame's jittered color, motion, depth, exposure and opaque color to the pinned FSR host.</summary>
+/// <summary>
+/// Feeds the frame's jittered color, motion, depth, exposure, opaque color and the screen tracer's light-change mask to
+/// the pinned FSR host.
+/// </summary>
 internal sealed class UpscalePass : RenderPass
 {
     private readonly VulkanDevice device;
@@ -8,6 +11,10 @@ internal sealed class UpscalePass : RenderPass
     private readonly ShaderLibrary shaders;
     private readonly RenderTargets targets;
     private readonly SurfaceHistory surfaces;
+
+    /// <summary>The screen tracer's images, whose light-change mask FSR reads, or null without the tracer.</summary>
+    private readonly ScreenTraceImages? screenTrace;
+
     private readonly int framesInFlight;
     private readonly float sharpness;
     private Fsr3Upscaler upscaler;
@@ -18,6 +25,7 @@ internal sealed class UpscalePass : RenderPass
         ShaderLibrary shaders,
         RenderTargets targets,
         SurfaceHistory surfaces,
+        ScreenTraceImages? screenTrace,
         int framesInFlight,
         float sharpness
     )
@@ -27,6 +35,7 @@ internal sealed class UpscalePass : RenderPass
         this.shaders = shaders;
         this.targets = targets;
         this.surfaces = surfaces;
+        this.screenTrace = screenTrace;
         this.framesInFlight = framesInFlight;
         this.sharpness = sharpness;
         upscaler = Create();
@@ -65,6 +74,8 @@ internal sealed class UpscalePass : RenderPass
                 Color = targets.Hdr,
                 OpaqueOnly = images.OpaqueOnly,
                 Reactive = images.Reactive,
+                // The tracer remakes its images on a resize, so the pass reads the mask in each frame.
+                TransparencyAndComposition = screenTrace?.LightChangeMask,
                 Depth = surfaces.WrittenDepth(context.History.Parity),
                 Motion = targets.Motion,
                 Output = images.Output,

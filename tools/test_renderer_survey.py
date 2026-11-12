@@ -123,6 +123,73 @@ class Switches(unittest.TestCase):
         self.assertEqual(film["frames"] - survey.SWITCH_ON, 100)
 
 
+WALK = {"scene": "s", "camera": "person", "ticks": 60, "key": 87, "stand": 180, "walk": 120, "after": 200}
+
+
+def ticks_at_frame(built, film, frame):
+    """The world ticks that the frame of the named film shows: the runs and the frames of every film before it."""
+    ticks = 0
+    for step in built["steps"]:
+        if step["do"] == "run":
+            ticks += step["ticks"]
+        if step["do"] == "film":
+            if step["name"] == film:
+                if frame >= step["frames"]:
+                    raise AssertionError(f"film {film} has {step['frames']} frames, none numbered {frame}")
+                return ticks + (frame + 1) * step["every"]
+            ticks += step["frames"] * step["every"]
+    raise AssertionError(f"no film {film}")
+
+
+def posts(built, kind):
+    return [i for i, s in enumerate(built["steps"]) if s["do"] == "post" and s["payload"]["kind"] == kind]
+
+
+def tick_of_post(built, kind):
+    """The tick on which the world routes the named post: the ticks that run before it, plus 1."""
+    ticks = 0
+    for step in built["steps"]:
+        if step["do"] == "post" and step["payload"]["kind"] == kind:
+            return ticks + 1
+        if step["do"] == "run":
+            ticks += step["ticks"]
+        if step["do"] == "film":
+            ticks += step["frames"] * step["every"]
+    raise AssertionError(f"no post {kind}")
+
+
+class Walks(unittest.TestCase):
+    def test_the_walk_stands_and_draws_before_it_walks_and_films_its_settle_window_after_the_stop(self):
+        built = survey.walk_script(WALK)
+        films = {s["name"]: s["frames"] for s in built["steps"] if s["do"] == "film"}
+        self.assertEqual(films, {"f": 180, "g": 120, "h": 200})
+        self.assertEqual(ticks_at_frame(built, "h", 0), 60 + 180 + 120 + 1, "the first frame after the stop")
+
+    def test_the_control_walks_undrawn_and_then_stands_where_the_walk_ends_through_the_walks_settle_window(self):
+        built = survey.walk_control_script(WALK)
+        first_draw = next(i for i, s in enumerate(built["steps"]) if s["do"] in ("capture", "film"))
+        self.assertTrue(posts(built, "keyDown")[0] < posts(built, "keyUp")[0] < first_draw, "it walks before it draws")
+        walk = survey.walk_script(WALK)
+        for k in (0, 63, 199):
+            self.assertEqual(ticks_at_frame(built, "c", survey.walk_control_frame(WALK, k)), ticks_at_frame(walk, "h", k))
+
+    def test_both_runs_hold_the_key_for_the_walks_ticks_and_the_walk_lets_go_later_by_its_stand(self):
+        for built in (survey.walk_script(WALK), survey.walk_control_script(WALK)):
+            self.assertEqual(tick_of_post(built, "keyUp") - tick_of_post(built, "keyDown"), 120)
+        self.assertEqual(tick_of_post(survey.walk_script(WALK), "keyUp") - tick_of_post(survey.walk_control_script(WALK), "keyUp"),
+                         180, "the walk lets go later by its stand, which the control's frames make up")
+
+    def test_the_control_draws_the_walks_stand_before_the_window_so_its_own_start_settles_first(self):
+        control = survey.walk_control_script(WALK)
+        before = ticks_at_frame(survey.walk_script(WALK), "h", 0) - ticks_at_frame(control, "c", 0)
+        self.assertEqual(before, 180, "the control draws 180 frames before the window's first frame")
+
+    def test_a_change_of_light_that_the_control_shows_too_is_no_part_of_the_walks_settle(self):
+        control = [[1.0, 2.0]] * 3 + [[0.6, 1.2]] * 7
+        after = [[1.5, 2.0], [1.2, 2.0]] + control[2:]
+        self.assertEqual(survey.walk_settle(after, control), [2, 0], "the step at frame 3 shows in both")
+
+
 class Settle(unittest.TestCase):
     def test_a_region_whose_control_is_dark_settles_when_it_is_dark_too(self):
         self.assertEqual(survey.settle_draws([0.5, 0.0, 0.0], [0.0] * 3, 0, 3), 1)

@@ -159,7 +159,9 @@ public sealed class AccumulatorRenderTests
 
             // The rays saw the light change in this frame: the evidence on which the clamp acts.
             sample.AgeCode = 1;
-            FramesUntilTheCenterFollowsADimming(renderer: renderer, sample: sample, scene: scene).Should().BeInRange(2, 10);
+            FramesUntilTheCenterFollowsADimming(renderer: renderer, sample: sample, scene: scene)
+                .Should()
+                .BeInRange(2, 10);
         }
         finally
         {

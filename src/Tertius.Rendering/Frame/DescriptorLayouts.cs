@@ -105,18 +105,19 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     private const uint ScreenTraceLightImages = 2;
 
     /// <summary>
-    /// The first binding of the light pyramid in a screen tracer set, after the light age's bindings 19 to 22 and its
-    /// diagnostic's binding 23.
+    /// The first binding of the light pyramid in a screen tracer set, after the light age's bindings 19 to 23 and its
+    /// diagnostic's binding 24.
     /// </summary>
-    public const uint ScreenTraceLightBinding = 24;
+    public const uint ScreenTraceLightBinding = 25;
 
     /// <summary>
     /// The storage images that the light-change age of a precise specular history adds to a screen tracer set after its
-    /// lists, at bindings 19 to 22: the last and this frame's light-age records and the specular and the diffuse sample's
-    /// ages, and at binding 23 the uncovered-surface diagnostic (<see cref="HistoryInstrumentation.LightAgeDiagnostic"/>).
+    /// lists, at bindings 19 to 23: the last and this frame's light-age records, the specular sample's age, FSR's
+    /// light-change mask and the diffuse sample's age, and at binding 24 the uncovered-surface diagnostic
+    /// (<see cref="HistoryInstrumentation.LightAgeDiagnostic"/>).
     /// </summary>
     private uint ScreenTraceAgeImages =>
-        (HistoryMode.KeepsLightAge ? 4u : 0u)
+        (HistoryMode.KeepsLightAge ? 5u : 0u)
         + (Instrumentation == HistoryInstrumentation.LightAgeDiagnostic ? 1u : 0u);
 
     /// <summary>

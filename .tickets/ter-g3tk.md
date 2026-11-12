@@ -15,5 +15,5 @@ Survey walk part, cabin-walk (scene orbit, camera person), main with the light-c
 
 ## Acceptance Criteria
 
-The signal that carries the excess is named, with a split by light signal. After the fix, every region of cabin-walk stays within 5 % of the end still in at most 60 draws after the stop, and no other survey view gets worse.
+The signal that carries the excess is named, with a split by light signal. After the fix, every region of cabin-walk stays within 5 % of the walk's control at the same tick (tools/README.md, the walk case) in at most 60 draws after the stop, and no other survey view gets worse.
 

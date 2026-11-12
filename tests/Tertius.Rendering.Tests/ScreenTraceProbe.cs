@@ -48,6 +48,11 @@ internal sealed class ScreenTraceProbe(VulkanRenderer renderer, string shader) :
             context.Barriers.Image(image, ImageUse.StorageCompute);
         context.Barriers.Image(renderer.ScreenTraceSignals.Diffuse.Sample(0), ImageUse.StorageCompute);
         context.Barriers.Image(renderer.ScreenTraceSignals.Specular.Sample(0), ImageUse.StorageCompute);
+        // A probe of the resolve writes FSR's mask from the records around each pixel, as the resolve does.
+        if (renderer.ScreenTraceImages.LightAge(context.History.Parity) is { } lightAge)
+            context.Barriers.Image(lightAge, ImageUse.StorageCompute);
+        if (renderer.ScreenTraceImages.LightChangeMask is { } mask)
+            context.Barriers.Image(mask, ImageUse.StorageCompute);
         kernel!.DeclareHistories(context.Barriers, context.History.Parity, slow: true);
         kernel!.DeclareHistories(context.Barriers, context.History.Parity, slow: false);
         kernel!.Record(context, side: 1);
