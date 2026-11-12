@@ -1,0 +1,10 @@
+{
+  "endpoint": "",
+  "base": "",
+  "image": "",
+  "rate_per_second": 0.00016,
+  "daily_cap_usd": 10.0,
+  "total_cap_usd": 30.0,
+  "job_seconds": 840,
+  "endpoint_timeout_seconds": 900
+}

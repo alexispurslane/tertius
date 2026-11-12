@@ -91,11 +91,7 @@ It installs a pinned single-user Nix (2.34.8), builds or downloads the dev shell
 - A container allows no user namespaces, so Nix builds without a sandbox. Then a build's HOME is the real folder `/homeless-shelter`, which the cargo step of jscpd creates, and Nix refuses the next build. The script removes the folder and runs the step again, at most three times.
 - On the pods, the step took 197 to 216 s, mostly downloads, and joltc and jscpd built from source. The demo's Release build then took 42 to 57 s.
 
-Build the image from the repository root with BuildKit:
-
-```bash
-docker build --platform linux/amd64 -f tools/runpod/Dockerfile -t <image> .
-```
+"GPU jobs on Runpod" says how to build the serverless image.
 
 ### A pod for a bring-up
 
@@ -110,6 +106,75 @@ docker build --platform linux/amd64 -f tools/runpod/Dockerfile -t <image> .
 - `nvidia-smi -lgc` fails in a container: "The current user does not have permission to change clocks" (exit code 4). Read the clock with `nvidia-smi --query-gpu=timestamp,clocks.sm,clocks.mem,temperature.gpu,power.draw --format=csv -lms 500`. `tools/gpu-clock.sh` does not read it yet (ter-az8f).
 - The `capture` pass of a headless run copies each frame over PCIe. It took 2.6 ms per 1920 × 1080 frame on the RTX 2000 Ada, and 0.9 to 4.5 ms on the L4, against 0.03 ms on the Mac. The frame span counts it (ter-fw73). Compare passes, or the span without it.
 - Compare a change with main only inside one job: cards, hosts and the capture time differ between pods.
+
+## GPU jobs on Runpod
+
+An agent runs a GPU job, such as a build and a timing run of the demo, on a Runpod serverless endpoint. The agent calls one script, `tools/runpod/gpu_job.py`, and the script keeps the spending within the caps. Ticket ter-94uo made the parts. The image and the endpoint wait for the user's choice of a registry.
+
+| Part | What it does |
+|---|---|
+| `tools/runpod/gpu_job.py` | It runs on the Mac. It makes each tree's patch, checks the caps, sends the job, waits for it and writes the audit log. |
+| `tools/runpod/handler.py` | It runs on the worker. It makes the trees, runs the commands in the dev shell and collects the output files. |
+| `tools/runpod/worker.py` | The image's entry. The Runpod SDK gives it each job, and it calls the handler in a fresh work folder. |
+| `tools/runpod/Dockerfile` | The image: the dev shell, the source of one commit with its Release demo built, and the worker. |
+| `tools/runpod/endpoint.json` | The configuration of the script: the endpoint, the baked commit, the price and the caps. |
+
+### Run a job
+
+Set `TERTIUS_RUNPOD_KEY_FILE` to the file that holds the Runpod API key. The script reads the key for each request and never prints it. Then run the job from the repository:
+
+```bash
+python3 -I tools/runpod/gpu_job.py submit --agent <your name> \
+    --tree main=main --tree branch=HEAD \
+    --run 'cd branch && dotnet run --project src/Tertius.Demo -c Release -- --script scripts/demo-exit-deck-cuts.json --headless --out out' \
+    --output 'branch/out/*.json' --out <folder>
+```
+
+- Each `--tree NAME=REF` becomes the folder `NAME` in the job's work folder. It holds the baked commit's files, with their built `bin` and `obj` folders, plus the diff from the baked commit to `REF`. Commit your change first, because the diff comes from commits.
+- Each `--run` command runs in the work folder, in the dev shell, offline. The first command that fails ends the job.
+- `--timeout` gives the seconds of all commands together. It is at most `job_seconds` of the configuration.
+- `<folder>` gets the files of the `--output` globs and `result.json`. That file holds each command's exit code and time, the end of the log, and the files that passed the size limit of 8 MB.
+
+The script exits with 0 if every command succeeded. A job runs on the commit that the image baked. If main moves far from it, build a new image, because each job then sends a large diff and compiles more.
+
+### The caps
+
+The caps are $10 per UTC day and $30 in total. Before the script sends a job, it adds the job's worst case to three amounts:
+
+1. The cost of today's jobs in the audit log, for the daily cap.
+2. The larger of the audit log's total and Runpod's billed total, for the total cap. Runpod's billed total (`GET /v2/billing`, `metadata.totals.totalAmount`) is the authority, but it lags the jobs by minutes.
+3. The worst cases of the jobs in flight. Each running script holds a reservation file in the state folder until its job ends.
+
+If either sum passes its cap, the script refuses the job, sends nothing and logs the refusal. A file lock spans the check and the reservation, so two agents cannot both take the last of a cap. A job's worst case is its execution timeout plus 120 s, times the price per second. The execution timeout is the commands' time plus 60 s for the handler, and at most the endpoint's timeout.
+
+The endpoint bounds the spending by itself too. It runs no worker without a job, at most six workers at once, and it stops each job at its execution timeout. A worker bills at the GPU price from its start until it stops: its boot, the CPU work of a job, and 10 s of idle time after its last job. So the image holds the dev shell and a built demo, and a job sends only its diff.
+
+### The audit log
+
+Each job, a refusal too, adds one JSON line to `~/.local/state/tertius/gpu-jobs/jobs.jsonl`. The line holds the time, the agent, the trees with their refs and commits, the commands, the job's id, the GPU seconds, the cost, the result and the exit codes. The cost is the job's execution time times the price. Runpod also bills the worker's boot and idle time, which the line does not hold, so the billed total is the authority.
+
+### Make the image and the endpoint
+
+1. Build the image from the commit's own files, because a job's patch must apply to exactly those files:
+
+   ```bash
+   sha=$(git rev-parse HEAD)
+   git archive --format=tar "$sha" | docker build --platform linux/amd64 -f tools/runpod/Dockerfile \
+       --build-arg BAKED_COMMIT="$sha" -t <image>:"$sha" -
+   ```
+
+2. Push the image to the registry, and write its name, the commit and the price into `tools/runpod/endpoint.json`.
+3. Read the request with `python3 -I tools/runpod/gpu_job.py endpoint-request`. It asks for the pool `AMPERE_16` (16 GB cards such as the RTX 2000 Ada and the RTX A4000), at most six workers, no idle worker and FlashBoot.
+4. Create the endpoint with `python3 -I tools/runpod/gpu_job.py create-endpoint`, and write its id into `endpoint.json`.
+
+The two test files run on the Mac without Runpod and without a GPU:
+
+```bash
+python3 -I tools/runpod/test_handler.py
+python3 -I tools/runpod/test_gpu_job.py
+```
+
+A tree's folder differs from the folder where the image built the demo, and MSBuild's restore files hold the absolute path of each project. The first job on a new image must measure whether a build after the patch still compiles only the changed projects.
 
 ## Coverage on changed lines
 

@@ -1,6 +1,6 @@
 ---
 id: ter-94uo
-status: open
+status: in_progress
 deps: [ter-libf]
 links: []
 created: 2026-11-12T01:50:17Z
@@ -26,3 +26,11 @@ User decisions of 2026-11-11 for how the cloud workers are used:
 5. Serverless starts once the user has seen a Linux still (shown 2026-11-11: /private/tmp/ter-libf/pod-deck.png), with max workers 6: at $0.00016/s that caps the spend at about $3.46 an hour, inside the $10 a day and $30 total limits.
 6. Determinism is required per computer only. A checked-in hash or film is a reference for the architecture that recorded it.
 Open point for the builder: origin is a tangled knot, not GitHub, so the image needs a container registry (for example Docker Hub or GHCR) and a push credential that never lands on a worker. Ask the user which registry.
+
+**2026-11-12T06:30:00Z**
+
+Done on branch ter-94uo-serverless-queue, without Runpod and without a GPU: the job handler (handler.py, 11 tests), the queue script with its caps, reservations and audit log (gpu_job.py, 12 tests), the worker entry (worker.py), the Dockerfile with the baked commit, the Release demo and runpod==2.2.1, the configuration file (endpoint.json, empty endpoint, base and image) and tools/README.md, "GPU jobs on Runpod". Six quick mutants of the cap logic each failed a test. No image is built, no endpoint exists, and nothing is on GitHub.
+
+Waiting for the user (asked 2026-11-12, deferred to the morning): where the image is built (a GitHub Actions mirror, Runpod's GitHub build, or a push from the Mac with gh, whose token lacks write:packages) and whether the image on ghcr.io is public or private.
+
+Left after that choice: build and push the image, fill endpoint.json, create the endpoint, and run one real job. That job must measure two things: whether a tree's build after the patch compiles only the changed projects (the restore files hold the image's absolute project paths), and the copy time of the baked tree with its bin and obj folders.
