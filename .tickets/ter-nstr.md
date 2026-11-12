@@ -19,3 +19,38 @@ Sweep rows 2 and 4 (/private/tmp/tertius-sweep-20261111/report.md, section 7), a
 **2026-11-12T07:34:16Z**
 
 Scope change from the orchestrator on 2026-11-12: ter-nstr builds only the FSR clears (one compute dispatch, sweep addendum A6 proposal 2). The pyramid half waits for the user's decision on the patched MoltenVK, because the patch already keeps the pyramids' 13 barriers in one encoder, so the pyramid half saves about 0 ms with the patch and 0.10 to 0.15 ms only on stock MoltenVK. It is worth building only if the user rejects the patch. Ticket te-r7nt holds it, with the design notes.
+
+**2026-11-12T09:49:28Z**
+
+Mutation testing (tools/mutate.py, 21 listed mutants of commit a0d717094; Rendering only, so no Stryker run):
+
+| id | place | change | result | killed by | s |
+|---|---|---|---|---|---:|
+| C01 | src/Tertius.Rendering/Upscaling/Fsr3Upscaler.cs:345 | Record declares no barrier for the clear step | killed | Fsr3UpscalerTests.TwoTimedBatchesInFlightOfHalfTheUpscalersFramesInFlightReportNothingToValidation, Fsr3UpscalerTests.TheLargestWindowAllocationHandlesTheControllersActiveSizesUnderValidation, Fsr3UpscalerTests.AConstantColorUpscalesToTheSameColorBelowTheLargestRenderSizeAndAfterTheRenderSizeChanges | 11.1 |
+| C02 | src/Tertius.Rendering/Upscaling/Fsr3Upscaler.cs:347 | Record dispatches no clear step | killed | Fsr3UpscalerTests.AnUpscaleZeroesTheLevelsOfTheLuminancePyramidThatNoPassOfAmdsWrites, Fsr3UpscalerTests.TheSettledPatternAndTheFramesAfterAChangeOfTheSceneMatchTheirReferenceImage | 10.1 |
+| C03 | src/Tertius.Rendering/Upscaling/Fsr3Upscaler.cs:616 | level guard > to >= | killed | Fsr3HostTests.ALargestRenderSizeIsRefusedWhenItsLuminancePyramidHasMoreLevelsThanTheClearStepBinds(width: 16383, accepted: True) | 4.6 |
+| C04 | src/Tertius.Rendering/Upscaling/Fsr3Upscaler.cs:616 | level guard admits 14 levels | killed | Fsr3HostTests.ALargestRenderSizeIsRefusedWhenItsLuminancePyramidHasMoreLevelsThanTheClearStepBinds(width: 16384, accepted: False) | 4.6 |
+| C05 | src/Tertius.Rendering/Upscaling/Fsr3Upscaler.cs:300 | push constant one level short | killed | Fsr3UpscalerTests.TheClearStepZeroesEveryTexelOfTheReconstructedDepthTheCounterAndEachLevelOfTheLuminancePyramid, Fsr3UpscalerTests.AnUpscaleZeroesTheLevelsOfTheLuminancePyramidThatNoPassOfAmdsWrites | 8.3 |
+| C06 | src/Tertius.Rendering/Upscaling/Fsr3Upscaler.cs:310 | dispatch covers only the pyramid's level 0 | killed | Fsr3UpscalerTests.TheClearStepZeroesEveryTexelOfTheReconstructedDepthTheCounterAndEachLevelOfTheLuminancePyramid, Fsr3UpscalerTests.TheSettledPatternAndTheFramesAfterAChangeOfTheSceneMatchTheirReferenceImage | 86.7 |
+| C07 | src/Tertius.Rendering/Upscaling/Fsr3Upscaler.cs:967 | last level's binding holds the level below | killed | Fsr3UpscalerTests.TheClearStepZeroesEveryTexelOfTheReconstructedDepthTheCounterAndEachLevelOfTheLuminancePyramid, Fsr3UpscalerTests.AnUpscaleZeroesTheLevelsOfTheLuminancePyramidThatNoPassOfAmdsWrites | 7.5 |
+| C08 | src/Tertius.Rendering/Upscaling/Fsr3Upscaler.cs:276 | the counter leaves the zeroed images | killed | Fsr3HostTests.EveryClearOfAmdsOnAnImageThatTheClearStepDoesNotZeroIsATransferClearWithAmdsValueInAmdsOrder, Fsr3UpscalerTests.TwoTimedBatchesInFlightOfHalfTheUpscalersFramesInFlightReportNothingToValidation, Fsr3UpscalerTests.TheLargestWindowAllocationHandlesTheControllersActiveSizesUnderValidation | 10.3 |
+| C09 | src/Tertius.Rendering/Upscaling/Fsr3Upscaler.cs:288 | barrier keeps the contents | survived |  | 10.3 |
+| C10 | src/Tertius.Rendering/Upscaling/Fsr3Upscaler.cs:147 | limit check and pool skip the clear step | killed | Fsr3HostTests.ADeviceWhoseComputeStageSeesFewerStorageImagesThanTheClearStepBindsIsRefused | 4.0 |
+| C11 | src/Tertius.Rendering/Upscaling/Fsr3Upscaler.cs:665 | images without the copy-source usage | survived |  | 10.0 |
+| C12 | src/Tertius.Rendering/Upscaling/Fsr3Bindings.cs:268 | SpdLevel stops at level 11 | killed | Fsr3HostTests.EachStorageSlotOfTheLuminancePyramidWritesItsOwnLevelAndTheSampledSlotAllOfThem, Fsr3UpscalerTests.AnOutputOfAnotherSizeThanTheOutputSizeIsRefused(width: 97, height: 72), Fsr3UpscalerTests.AnOutputOfAnotherSizeThanTheOutputSizeIsRefused(width: 96, height: 73) | 10.0 |
+| C13 | src/Tertius.Rendering/Upscaling/Fsr3Bindings.cs:239 | level bindings shifted by one | killed | Fsr3HostTests.TheClearStepBindsAStorageImageAtEachBindingThatItsCompiledModuleDeclares | 6.3 |
+| C14 | src/Tertius.Rendering/Upscaling/Fsr3Upscaler.cs:998 | counter binding holds the reconstructed depth | killed | Fsr3UpscalerTests.TheClearStepZeroesEveryTexelOfTheReconstructedDepthTheCounterAndEachLevelOfTheLuminancePyramid | 9.4 |
+| S01 | src/Tertius.Rendering/Shaders/fsr_clear.comp:67 | counter written at texel (1, 1) | killed | Fsr3UpscalerTests.TheClearStepZeroesEveryTexelOfTheReconstructedDepthTheCounterAndEachLevelOfTheLuminancePyramid | 8.9 |
+| S02 | src/Tertius.Rendering/Shaders/fsr_clear.comp:70 | loop skips the last level | killed | Fsr3UpscalerTests.TheClearStepZeroesEveryTexelOfTheReconstructedDepthTheCounterAndEachLevelOfTheLuminancePyramid, Fsr3UpscalerTests.AnUpscaleZeroesTheLevelsOfTheLuminancePyramidThatNoPassOfAmdsWrites | 8.1 |
+| S03 | src/Tertius.Rendering/Shaders/fsr_clear.comp:72 | no early end of the level loop | survived |  | 8.3 |
+| S04 | src/Tertius.Rendering/Shaders/fsr_clear.comp:66 | no store into the reconstructed depth | killed | Fsr3UpscalerTests.TheClearStepZeroesEveryTexelOfTheReconstructedDepthTheCounterAndEachLevelOfTheLuminancePyramid, Fsr3UpscalerTests.TwoTimedBatchesInFlightOfHalfTheUpscalersFramesInFlightReportNothingToValidation, Fsr3UpscalerTests.TheLargestWindowAllocationHandlesTheControllersActiveSizesUnderValidation | 113.9 |
+| S05 | src/Tertius.Rendering/Shaders/fsr_clear.comp:37 | pyramid levels get ones | killed | Fsr3UpscalerTests.TheClearStepZeroesEveryTexelOfTheReconstructedDepthTheCounterAndEachLevelOfTheLuminancePyramid, Fsr3UpscalerTests.AnUpscaleZeroesTheLevelsOfTheLuminancePyramidThatNoPassOfAmdsWrites | 34.2 |
+| S06 | src/Tertius.Rendering/Shaders/fsr_clear.comp:53 | level 9 stores into level 8 | killed | Fsr3UpscalerTests.TheClearStepZeroesEveryTexelOfTheReconstructedDepthTheCounterAndEachLevelOfTheLuminancePyramid | 8.0 |
+| S07 | src/Tertius.Rendering/Shaders/fsr_clear.comp:64 | bounds test >= to > | survived |  | 8.1 |
+21 rows: killed 17, timeout 0, survived 4, no-coverage 0, build-failed 0, no-tests 0, no-mutant 0, removed 0
+
+Answers to the survivors:
+- C09, equivalent: the clear step writes every texel of every level of its three images, so a barrier that keeps their old contents changes no texel that any reader sees.
+- S03, equivalent: each level of the pyramid is no larger than the one below, so after the first level that a texel lies outside, the loop stores nothing more.
+- C11, judgment call: the copy-source usage serves only the tests' readback of FSR's images. Without it the read still works on MoltenVK and shows only as a validation message, which these tests do not assert.
+- S07, judgment call: the mutant stores one texel past the reconstructed depth's edge. The Vulkan spec leaves that store undefined without the robustness features, Metal drops it, and no test on this driver can see it.
