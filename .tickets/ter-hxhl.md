@@ -1,6 +1,6 @@
 ---
 id: ter-hxhl
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-11T18:45:51Z
