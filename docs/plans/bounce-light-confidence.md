@@ -198,6 +198,7 @@ A real change of light inflates σr for a while, because the step counts as spre
 - Bounce light: the alpha of the diffuse fast history, RGBA16F, two images by draw parity. It replaces today's fast deviation, which no reader needs after this change. The user chose this store.
 - Reflections: their fast alpha holds the hit distance that the reflected-place test reads (`sameHitBits`). The `original` history must keep that rule. So their σr lives in a new R16F image pair by parity, in the precise history modes only.
 - The existing analogue of the pair is the sample-age image. It also exists only beside a precise history.
+- Every reflection signal beside a precise history keeps the pair and updates σr, whatever its confidence rules (changed in step 5, 2026-11-12). The precise shaders declare the pair, and only the reflections take them. A reflection signal without the pair had to bind its RGBA16F sample at the pair's R16F bindings, and the validation layers report that format mismatch (`Undefined-Value-StorageImage-FormatMismatch-ImageView`) for a binding that the shader uses statically. Only the tests' controls give the reflections `NarrowBox` beside a precise history, so production keeps the pair exactly where `DropEvidence` pools it. This matches the diffuse light, whose σr lives in its fast alpha under every rule.
 - One shader function, `retainedDeviationAt`, reads σr from either home. The rest of the shader does not see the difference.
 
 ## 7. The clamp's box and the write-back
@@ -509,8 +510,8 @@ where
 The readers switch over the union with no discard arm:
 
 - `AccumulatePushConstants.Of` derives `retainedSigmas`, `changeShare` and `blockTest`.
-- `TemporalSignal` creates the deviation pair of a part only for `DropEvidence`.
-- The signal set writer binds the pair only for `DropEvidence`.
+- `TemporalSignal` refuses `WidenedBox` for the reflections and `DropEvidence` for the diffuse light, because each keeps σr where only its light's shaders look for it. It takes `NarrowBox` for `DropEvidence` beside the `original` history, which has no pair.
+- `TemporalSignal` creates the deviation pair of a part for every reflection signal beside a precise history, and the signal set writer binds it there (section 6, "Where σr is stored", changed in step 5). So `DropEvidence` always finds the pair.
 
 The union grows by steps. Step 2a brings `WidenedBox(RetainedSigmas)` and `NarrowBox`. Step 4 adds `ChangeShare`. Step 5 adds `DropEvidence`. Until step 5, the reflections use `NarrowBox`.
 
@@ -663,7 +664,9 @@ The tests come first and fail first, in the language of the domain. Each test na
 - `TooFewRayBlocksOnALitSurfaceGiveNoEvidence` (4). The wall shrinks to a patch of about 3 × 3 pixels in the sky.
 - `BlocksWithSkyOrOffImagePixelsStillCutTheHistoriesOfTheirLitPixels` (4): the workgroups that hold sky pixels or pixels past the image's edge still reach their barriers and act.
 - `ALightChangeAsOldAsTheHistoryOrOlderLeavesTheHistoryAsItIs` steps the light by an eighth instead of doubling it (4). A doubling is now evidence of a change.
-- `AReflectionWhoseLightDrainsWithoutALightAgeIsCutByItsDrop` and `ARisingReflectedLightIsNoBlockEvidence` (5).
+- `AReflectionWhoseLightDrainsWithoutALightAgeIsCutByItsDrop` and `ARisingReflectedLightIsNoBlockEvidence` (5). The drain runs in the uncapped and the capped precise history and under both instrumentations. Its light has a detail of ±50 % at 3 pixels and a CV of 0.1, and it drains to 0.3 with a time constant of 15 draws after 100 still draws. After 60 draws of the drain the history lies 4.2 % above its light, 21 % without the test (the CPU model: 4.5 % and 20.6 %).
+- `TheReflectionsKeepTheirRetainedDeviationInAnImageOfTheirOwn` and `TheOriginalSpecularHistoryKeepsTheNarrowBoxWithoutARetainedDeviation` (5).
+- `RareBrightReflectionSamplesInAStillAreNoEvidenceOfADrop` and `AStillMirrorUnderRareBrightSamplesKeepsItsSpeckCount`: one ray block in 32 at 16 times the light, for 400 draws (5). A test of both signs cut 2,956 whole blocks and raised the mirror's specks from 3,477 to 41,679.
 - The reflected-place tests stay green (5).
 
 ### Filter (`DiffuseFilterRenderTests`, 128 × 72)
@@ -687,7 +690,7 @@ The tests come first and fail first, in the language of the domain. Each test na
 - `TheRetainedDeviationPredictsTheSpreadOfTheSlowHistory`, the measured-variance check of decision 6. It runs 16 times from different frame indices, so that the rays differ, with the filter off (2c).
 - In that test, take the deviation of S at the floor pixels over the 16 runs. It lies between half and twice σr × √(w / (2 − w)). A result outside is a finding for the design, not a bound to loosen.
 - `TheBounceLightOfALitPoolKeepsItsEdgeWithRealRays`, the real-light-edge check of decision 6. A spot lamp lights a pool on a floor. Take the 10 to 90 % rise of the bounce light at the pool's edge. With the filter on, it is at most 4 pixels wider than with the filter off (2c).
-- `AStillPanelSceneGivesAtMostOneBlockEvidenceInTenThousandBlockDraws` (4). The design first named it "GivesNoBlockEvidence". The Mac measured 6 cuts in 624,288 block-draws, about 10^−5, inside the target of acceptance 12. Each came from a window of 3 × 3 blocks whose fast light lay about 15 % above its slow light, at 5 predicted deviations and just past the tail rule.
+- `AStillPanelSceneGivesAtMostOneBlockEvidenceInTenThousandBlockDrawsOfEitherSignal` (4, 5). The design first named it "GivesNoBlockEvidence". The Mac measured 6 cuts in 624,288 block-draws, about 10^−5, inside the target of acceptance 12. Each came from a window of 3 × 3 blocks whose fast light lay about 15 % above its slow light, at 5 predicted deviations and just past the tail rule. Step 5 counts the reflections too: 0 cuts, and 54,785 with a test of both signs.
 
 ### Lock-in after the feature works
 

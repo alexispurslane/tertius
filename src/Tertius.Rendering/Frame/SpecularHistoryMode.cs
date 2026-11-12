@@ -19,6 +19,12 @@ internal static class SpecularHistorySelection
         /// shaders, which have none.
         /// </summary>
         public bool KeepsLightAge => mode != SpecularHistoryMode.Original;
+
+        /// <summary>
+        /// Whether the reflections keep their retained deviation in an image pair of their own (<see cref="DropEvidence"/>):
+        /// every precise history does. The original history's shaders have neither the pair nor its block test.
+        /// </summary>
+        public bool KeepsRetainedDeviation => mode != SpecularHistoryMode.Original;
     }
 
     extension(SpecularHistoryMode)

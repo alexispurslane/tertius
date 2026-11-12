@@ -31,7 +31,9 @@ namespace Tertius.Rendering;
 /// <para>
 /// Each part also owns its block sums (<see cref="BlockSums"/>), one texel per block of 8 × 8 pixels, which the temporal
 /// dispatch writes and the spatial dispatch reads within one accumulation: the block test's evidence of a change
-/// (docs/plans/bounce-light-confidence.md, section 8), where the signal's <see cref="HistoryConfidence"/> runs it.
+/// (docs/plans/bounce-light-confidence.md, section 8), where the signal's <see cref="HistoryConfidence"/> runs it. Beside a
+/// precise history, a reflection part also owns its retained deviation, two R16F images by parity
+/// (<see cref="DeviationImage"/>), which its block test of drops pools (section 6).
 /// </para>
 /// <para>Invariants, checked by <see cref="AssertInvariants"/>:</para>
 /// <list type="bullet">
@@ -67,6 +69,12 @@ internal sealed unsafe class TemporalSignal : IDisposable
     /// luminance (accumulate_blocks.glsl). Single floats, because a window adds up to 49 texels of up to 16 streams each.
     /// </summary>
     public const Format BlockSumsFormat = Format.R32G32B32A32Sfloat;
+
+    /// <summary>
+    /// The format of the reflections' retained deviation beside a precise history, in pre-exposed luminance: their fast
+    /// history's alpha holds the hit distance.
+    /// </summary>
+    public const Format DeviationFormat = Format.R16Sfloat;
 
     /// <summary>
     /// The width and the height of a workgroup of both dispatches, the shaders' local size, and of a block of the block
@@ -110,6 +118,11 @@ internal sealed unsafe class TemporalSignal : IDisposable
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(parts, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(parts, MostParts);
+        if (!ConfidenceFitsLight(parameters))
+            throw new ArgumentException(
+                "The widened box keeps the deviation of the diffuse light, and the drop evidence that of the reflections.",
+                nameof(parameters)
+            );
         CheckDevice(device);
 
         this.device = device;
@@ -145,8 +158,12 @@ internal sealed unsafe class TemporalSignal : IDisposable
             light: parameters.Light
         );
         singleDiffuseHistory = prototype.SingleDiffuseHistory;
-        // The single history keeps no fast history, so it has no retained deviation to widen its box by.
-        if (singleDiffuseHistory)
+        // The single history keeps no fast history, so it has no retained deviation to widen its box by, and the original
+        // history's shaders keep no image of the reflections' deviation to pool.
+        if (
+            singleDiffuseHistory
+            || parameters.Confidence is DropEvidence && !scratch.HistoryMode.KeepsRetainedDeviation
+        )
             Parameters = parameters with { Confidence = new NarrowBox() };
         reflectionDistanceHistory =
             parameters.Light == SignalLight.Specular
@@ -159,6 +176,19 @@ internal sealed unsafe class TemporalSignal : IDisposable
         spatial = CreatePipeline(shaders, singleDiffuseHistory ? "diffuse_single_spatial" : "spatial");
         Create();
     }
+
+    /// <summary>
+    /// Whether the confidence rules of <paramref name="parameters"/> keep their deviation where its signal's shaders look
+    /// for it: the diffuse light's in its fast history's alpha, the reflections' in an image of their own.
+    /// </summary>
+    private static bool ConfidenceFitsLight(SignalParameters parameters) =>
+        parameters.Confidence switch
+        {
+            WidenedBox => parameters.Light == SignalLight.Diffuse,
+            DropEvidence => parameters.Light == SignalLight.Specular,
+            NarrowBox => true,
+            null => throw new ArgumentException("A signal's parameters need confidence rules.", nameof(parameters)),
+        };
 
     /// <summary>The pipeline of the dispatch of <paramref name="kind"/>, "temporal" or "spatial": accumulate_kind.comp.</summary>
     private Pipeline CreatePipeline(ShaderLibrary shaders, string kind, bool limitIncoming = false) =>
@@ -191,6 +221,12 @@ internal sealed unsafe class TemporalSignal : IDisposable
 
     /// <summary>The signal's parameter set.</summary>
     public SignalParameters Parameters { get; }
+
+    /// <summary>
+    /// Whether the signal keeps its retained deviation in an image pair of its own: the reflections beside a precise
+    /// history, whose shaders declare it and whose fast history's alpha holds the hit distance.
+    /// </summary>
+    private bool KeepsDeviationImage => Parameters.Light == SignalLight.Specular && HistoryMode.KeepsRetainedDeviation;
 
     /// <summary>
     /// The slow history's storage: the specular history's mode, or original storage for other signals. Whether the signal's
@@ -278,6 +314,12 @@ internal sealed unsafe class TemporalSignal : IDisposable
     /// block of 8 × 8 pixels, which only a signal with a block test writes. The tests and the survey's probe read it.
     /// </summary>
     public GpuImage BlockSums(int part) => parts[part].BlockSums;
+
+    /// <summary>
+    /// The reflections' retained deviation of <paramref name="part"/> that the frame of <paramref name="parity"/> writes
+    /// beside a precise history (<see cref="DeviationFormat"/>), which <see cref="DropEvidence"/> pools, or null without it.
+    /// </summary>
+    public GpuImage? DeviationImage(int part, int parity) => parts[part].Deviation(parity);
 
     /// <summary>
     /// The diagnostic of uncovered surfaces of <paramref name="part"/> under <see cref="HistoryInstrumentation.LightAgeDiagnostic"/>
@@ -389,6 +431,11 @@ internal sealed unsafe class TemporalSignal : IDisposable
         barriers.Image(scratch.Part(part, HistoryMode), ImageUse.StorageCompute, discard: true);
         // Discarded: with the block test, the temporal dispatch writes every texel, and without it no dispatch reads one.
         barriers.Image(images.BlockSums, ImageUse.StorageCompute, discard: true);
+        if (images.Deviation(1 - parity) is { } lastDeviation)
+            barriers.Image(lastDeviation, ImageUse.StorageCompute);
+        // Discarded: the temporal dispatch writes every pixel of it.
+        if (images.Deviation(parity) is { } deviation)
+            barriers.Image(deviation, ImageUse.StorageCompute, discard: true);
     }
 
     /// <summary>
@@ -509,6 +556,23 @@ internal sealed unsafe class TemporalSignal : IDisposable
                     ]
                     : [],
                 Ages: CreateAges(extent, part),
+                Deviations: KeepsDeviationImage
+                    ?
+                    [
+                        CreateImage(
+                            extent: extent,
+                            imageName: $"{Name} retained deviation {part}.0",
+                            extraUsage: 0,
+                            format: DeviationFormat
+                        ),
+                        CreateImage(
+                            extent: extent,
+                            imageName: $"{Name} retained deviation {part}.1",
+                            extraUsage: 0,
+                            format: DeviationFormat
+                        ),
+                    ]
+                    : [],
                 BlockSums: CreateImage(
                     extent: BlocksOf(extent),
                     imageName: $"{Name} block sums {part}",
@@ -554,6 +618,21 @@ internal sealed unsafe class TemporalSignal : IDisposable
                 image: images.Ages is [_, var diagnostic] ? diagnostic : images.Sample
             );
         layouts.WriteStorageImage(set: set, binding: DescriptorLayouts.BlockSumsBinding, image: images.BlockSums);
+        // The reflections' retained deviation, which only their precise temporal dispatch reads and writes: another signal
+        // binds its sample.
+        if (layouts.HistoryMode.KeepsRetainedDeviation)
+        {
+            layouts.WriteStorageImage(
+                set: set,
+                binding: DescriptorLayouts.LastDeviationBinding,
+                image: images.Deviation(1 - parity) ?? images.Sample
+            );
+            layouts.WriteStorageImage(
+                set: set,
+                binding: DescriptorLayouts.DeviationBinding,
+                image: images.Deviation(parity) ?? images.Sample
+            );
+        }
         // The accumulation trace, which only the specular signal's dispatches write: another signal binds its sample.
         if (scratch.Instrumentation == HistoryInstrumentation.ControlTrace)
             layouts.WriteStorageImage(
@@ -655,6 +734,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
         GpuImage[] Fasts,
         GpuImage[] Guides,
         GpuImage[] Ages,
+        GpuImage[] Deviations,
         GpuImage BlockSums,
         GpuImage[] Traces
     )
@@ -671,7 +751,11 @@ internal sealed unsafe class TemporalSignal : IDisposable
 
         public GpuImage? SampleAge => Ages is [var age, ..] ? age : null;
 
-        public IEnumerable<GpuImage> All => [Sample, Slow, .. Fasts, .. Guides, .. Ages, BlockSums, .. Traces];
+        /// <summary>The reflections' retained deviation that the frame of <paramref name="parity"/> writes, if any.</summary>
+        public GpuImage? Deviation(int parity) => Deviations.Length == 0 ? null : Deviations[parity];
+
+        public IEnumerable<GpuImage> All =>
+            [Sample, Slow, .. Fasts, .. Guides, .. Ages, .. Deviations, BlockSums, .. Traces];
 
         /// <summary>Whether every image has <paramref name="extent"/>.</summary>
         public bool Fit(Extent2D extent) =>
@@ -680,6 +764,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
             && AllFit(Fasts, extent)
             && AllFit(Guides, extent)
             && AllFit(Ages, extent)
+            && AllFit(Deviations, extent)
             && AllFit(Traces, extent)
             && SameExtent(BlockSums.Extent, BlocksOf(extent));
 

@@ -6,8 +6,10 @@
 // the spatial dispatch reads the neighbors' results while it writes the slow history, and this frame's fast history. The
 // diffuse signal's fast history keeps in alpha the retained deviation: the standard deviation of the luminance of the
 // samples that the slow history averages, weighted as it weighs them (docs/plans/bounce-light-confidence.md, section 6).
-// The clamp's box and the diffuse filter read it. With the block test, each workgroup also sums its block's differences
-// of the fast and the slow history into its texel of the block sums, which the spatial dispatch tests (section 8).
+// The clamp's box and the diffuse filter read it. The reflections keep theirs in an image of their own beside a precise
+// history, because their fast history's alpha holds the hit distance. With the block test, each workgroup also sums its
+// block's differences of the fast and the slow history into its texel of the block sums, which the spatial dispatch tests
+// (section 8).
 #extension GL_GOOGLE_include_directive : require
 #include "accumulate.glsl"
 #define ACCUMULATE_BLOCK_SUMS
@@ -96,6 +98,38 @@ Reprojection reflectedReprojectionOf(vec2 place, uint bits, float hitDistance)
 HISTORY_READER(lastFastAt, lastFast)
 HISTORY_READER(lastSlowAt, slowHistory)
 HISTORY_READER(lastReflectionGuideAt, reflectionGuide)
+
+#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+// The reflections' retained deviation beside a precise history (TemporalSignal.DeviationImage): the last draw's and this
+// draw's. Only the reflections take the precise shaders, and their block test of drops pools it.
+layout(set = 3, binding = 14, r16f) uniform readonly image2D lastDeviation;
+layout(set = 3, binding = 15, r16f) uniform writeonly image2D deviationHistory;
+
+HISTORY_READER(lastDeviationAt, lastDeviation)
+#endif
+
+// The last draw's retained deviation, reprojected as `r` reprojects the fast history `lastFast4`: the diffuse light's in
+// that history's alpha, the reflections' in their own image beside a precise history, and 0 without one.
+float retainedDeviationAt(Reprojection r, vec4 lastFast4)
+{
+    if (parameters.light == DiffuseLight)
+        return lastFast4.a;
+#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+    return lastDeviationAt(r).r;
+#else
+    return 0.0;
+#endif
+}
+
+// Stores this draw's retained deviation of the reflections beside a precise history, whose fast history's alpha holds the
+// hit distance.
+void storeRetainedDeviation(ivec2 pixel, float deviation)
+{
+#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+    if (parameters.light == SpecularLight)
+        imageStore(deviationHistory, pixel, vec4(deviation));
+#endif
+}
 
 // The mean luminance of this frame's finite samples on the same surface over the 3 × 3 pixels around the pixel.
 float meanSampleLuminance(ivec2 pixel)
@@ -246,6 +280,7 @@ vec4 accumulateAt(ivec2 pixel)
         // The sky: no signal, and no reader reads it.
         imageStore(scratch, pixel, vec4(0.0));
         imageStore(fastHistory, pixel, vec4(0.0));
+        storeRetainedDeviation(pixel, 0.0);
         if (reflectionSharingPrototype && parameters.light == SpecularLight)
             imageStore(reflectionGuideScratch, pixel, vec4(0.0));
 #ifdef TERTIUS_ACCUMULATION_TRACE
@@ -270,8 +305,7 @@ vec4 accumulateAt(ivec2 pixel)
     vec4 slow = lastSlowAt(r);
     vec4 lastFast4 = lastFastAt(r);
     vec3 fast = lastFast4.rgb;
-    // The diffuse signal's retained deviation; the specular signal's alpha holds its hit distance.
-    float deviation = parameters.light == DiffuseLight ? lastFast4.a : 0.0;
+    float deviation = retainedDeviationAt(r, lastFast4);
     vec2 guide = vec2(0.0);
     if (reflectionSharingPrototype && parameters.light == SpecularLight)
         guide = lastReflectionGuideAt(r).rg;
@@ -371,6 +405,7 @@ vec4 accumulateAt(ivec2 pixel)
     }
     imageStore(scratch, pixel, vec4(slow.rgb, historyLength));
     imageStore(fastHistory, pixel, vec4(fast, parameters.light == SpecularLight ? hitDistance : deviation));
+    storeRetainedDeviation(pixel, deviation);
     if (reflectionSharingPrototype && parameters.light == SpecularLight)
         imageStore(reflectionGuideScratch, pixel, vec4(guide, 0.0, 0.0));
     // A pixel contributes to the block test where the clamp acts: past the fast cap, a history averages more draws than

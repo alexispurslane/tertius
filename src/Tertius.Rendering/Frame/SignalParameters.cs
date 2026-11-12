@@ -69,8 +69,9 @@ internal readonly record struct SignalParameters(
         );
 
     /// <summary>The specular signal's set: a cap of 4 frames for a mirror and of 32 for a rough lobe, which reuses the
-    /// diffuse rays, the reflected point's place below <paramref name="reflectedPlaceBelow"/>, and the narrow box, whose rare
-    /// bright samples would show as specks without a spatial filter.</summary>
+    /// diffuse rays, the reflected point's place below <paramref name="reflectedPlaceBelow"/>, the narrow box, whose rare
+    /// bright samples would show as specks without a spatial filter, and a block test of drops whose floor is the settle
+    /// tolerance, a twentieth of the light (docs/plans/bounce-light-confidence.md, section 9).</summary>
     /// <param name="reflectedPlaceBelow">The start of the hand-over band, from which a sample's hit distance belongs to a
     /// diffuse ray.</param>
     public static SignalParameters Specular(float reflectedPlaceBelow) =>
@@ -83,6 +84,6 @@ internal readonly record struct SignalParameters(
             AntiLagShare: 0.25f,
             Light: SignalLight.Specular,
             ReflectedPlaceBelow: reflectedPlaceBelow,
-            Confidence: new NarrowBox()
+            Confidence: new DropEvidence(ChangeShare: 1f / 20)
         );
 }

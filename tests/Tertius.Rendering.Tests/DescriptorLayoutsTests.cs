@@ -183,11 +183,12 @@ public sealed class DescriptorLayoutsTests
 
     /// <summary>
     /// The light-change age of a precise specular history adds five storage images to the screen tracer's compute stage,
-    /// the two light-age records, the two samples' ages and FSR's light-change mask, and one to the accumulator's, the
-    /// sample age of its signal. The original history keeps H13's shaders, which have no light age.
+    /// the two light-age records, the two samples' ages and FSR's light-change mask. It adds three to the accumulator's: the
+    /// sample age of its signal and the pair of the reflections' retained deviation. The original history keeps H13's
+    /// shaders, which have neither.
     /// </summary>
     [Fact]
-    public void APreciseHistoryAddsTheLightAgesFiveStorageImagesToTheScreenTracerAndOneToTheAccumulator()
+    public void APreciseHistoryAddsFiveStorageImagesToTheScreenTracerAndThreeToTheAccumulator()
     {
         using var device = VulkanDevice.Create(validation: true, surfaceExtensions: [], createSurface: null);
         using var original = new DescriptorLayouts(
@@ -205,7 +206,7 @@ public sealed class DescriptorLayoutsTests
         layouts
             .DescriptorsOf(layouts.AccumulateLayout)
             .StorageImages.Compute.Should()
-            .Be(original.DescriptorsOf(original.AccumulateLayout).StorageImages.Compute + 1);
+            .Be(original.DescriptorsOf(original.AccumulateLayout).StorageImages.Compute + 3);
     }
 
     [Fact]

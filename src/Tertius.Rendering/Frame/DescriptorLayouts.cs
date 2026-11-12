@@ -59,8 +59,9 @@ namespace Tertius.Rendering;
 /// <item><term>signal</term><description>set 3 of <see cref="AccumulateLayout"/>: one part of a signal's images, the
 /// surface test image and the motion target, as storage images for the compute stage, and the last surface history and
 /// the last device depth as sampled images (<see cref="TemporalSignal"/>). Its bindings are numbered, with gaps: 0 to 10,
-/// 11 with the light age, 12 with an instrumentation, and <see cref="BlockSumsBinding"/>, the part's block sums, always.
-/// One per part and parity, rewritten on resize.</description></item>
+/// 11 with the light age, 12 with an instrumentation, <see cref="BlockSumsBinding"/>, the part's block sums, always, and
+/// the reflections' retained deviation at <see cref="LastDeviationBinding"/> and <see cref="DeviationBinding"/> with a
+/// precise history. One per part and parity, rewritten on resize.</description></item>
 /// <item><term>screen trace</term><description>set 3 of <see cref="ScreenTraceLayout"/>: the depth pyramid's finest
 /// level and its bounds as sampled images, the tracer's inputs and outputs as storage images, the own-ray list of each
 /// kind, and the light pyramid's finest level and sums as sampled images (<see cref="ScreenTraceImages"/>). One per parity
@@ -130,17 +131,29 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>
     /// The storage images of a signal set: nine, with the light-change age of a precise specular history the signal's
     /// sample age at binding 11, and at binding 12 the instrumentation's image, the uncovered-surface diagnostic or the accumulation
-    /// trace, and the block sums at <see cref="BlockSumsBinding"/>. The original history refuses the instrumentation (the
-    /// constructor).
+    /// trace, the block sums at <see cref="BlockSumsBinding"/>, and with a precise history the reflections' retained
+    /// deviation pair. The original history refuses the instrumentation (the constructor).
     /// </summary>
     private uint SignalSetImages =>
-        10u + (HistoryMode.KeepsLightAge ? 1u : 0u) + (Instrumentation == HistoryInstrumentation.None ? 0u : 1u);
+        10u
+        + (HistoryMode.KeepsLightAge ? 1u : 0u)
+        + (Instrumentation == HistoryInstrumentation.None ? 0u : 1u)
+        + (HistoryMode.KeepsRetainedDeviation ? 2u : 0u);
 
     /// <summary>
     /// The binding of a signal set that holds the part's block sums (<see cref="TemporalSignal.BlockSums"/>), after the
     /// optional bindings 11 and 12, so that it keeps its number in every history mode (accumulate_blocks.glsl).
     /// </summary>
     public const uint BlockSumsBinding = 13;
+
+    /// <summary>
+    /// The binding of a signal set that holds the reflections' retained deviation of the last draw, with a precise history
+    /// (<see cref="TemporalSignal.DeviationImage"/>): the precise shaders declare it after the block sums.
+    /// </summary>
+    public const uint LastDeviationBinding = 14;
+
+    /// <summary>The binding of a signal set that holds this draw's retained deviation of the reflections.</summary>
+    public const uint DeviationBinding = 15;
 
     /// <summary>The sampled images of a signal set: the last surface history and the last device depth.</summary>
     private const uint SignalSetSampledImages = 2;
@@ -1151,7 +1164,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>The layouts of the signal set (<see cref="SignalSet"/>) and the light set (<see cref="LightSet"/>).</summary>
     private (DescriptorSetLayout Signal, DescriptorSetLayout Light) CreateTemporalSetLayouts()
     {
-        // The bindings by number: 0 to 10, 11 with the light age, 12 with an instrumentation, then the block sums.
+        // The bindings by number: 0 to 10, 11 with the light age, 12 with an instrumentation, then the block sums, and the
+        // reflections' retained deviation pair with a precise history.
         Span<DescriptorSetLayoutBinding> signal =
             stackalloc DescriptorSetLayoutBinding[(int)(SignalSetImages + SignalSetSampledImages)];
         int count = 0;
@@ -1165,6 +1179,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                     ? Image(binding: binding, stages: ShaderStageFlags.ComputeBit)
                     : StorageImage(binding);
         signal[count] = StorageImage(BlockSumsBinding);
+        if (HistoryMode.KeepsRetainedDeviation)
+        {
+            signal[count + 1] = StorageImage(LastDeviationBinding);
+            signal[count + 2] = StorageImage(DeviationBinding);
+        }
         Span<DescriptorSetLayoutBinding> light = stackalloc DescriptorSetLayoutBinding[(int)LightSetImages];
         for (uint binding = 0; binding < LightSetImages; binding++)
             light[(int)binding] = StorageImage(binding: binding, stages: ShaderStageFlags.FragmentBit);

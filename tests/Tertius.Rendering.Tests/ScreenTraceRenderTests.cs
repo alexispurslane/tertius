@@ -652,7 +652,7 @@ public sealed class ScreenTraceRenderTests
     public sealed class StillPanelForFourHundredDraws(ITestOutputHelper output)
     {
         [Fact]
-        public void AStillPanelSceneGivesAtMostOneBlockEvidenceInTenThousandBlockDraws()
+        public void AStillPanelSceneGivesAtMostOneBlockEvidenceInTenThousandBlockDrawsOfEitherSignal()
         {
             // The floor 4.95 m before the glowing panel of
             // AGlowingPanelBesideAFloorPixelTakesItsShareOfThePixelsDiffuseLight takes rare bright rays: the heavy tail of
@@ -660,7 +660,9 @@ public sealed class ScreenTraceRenderTests
             // block that finds evidence of a change after its histories filled finds it falsely. The design's target is
             // at most one such block in 10,000 block-draws (docs/plans/bounce-light-confidence.md, section 21, point 12).
             // Evidence cuts every history of its block to the fast cap at once. This GPU measured 6 cuts in 624,288 block-draws,
-            // each from a window of 3 × 3 blocks whose fast light lay about 15 % above its slow light.
+            // each from a window of 3 × 3 blocks whose fast light lay about 15 % above its slow light. The reflections'
+            // test counts only drops, because their narrow box cuts the rare samples and leaves their slow light low
+            // (section 9).
             var receiver = new Vector3(0, FloorHeight, -7);
             VulkanRenderer renderer = Tracing();
             try
@@ -678,6 +680,7 @@ public sealed class ScreenTraceRenderTests
                 Draw(renderer, scene, frames: 64);
 
                 int cutBlocks = 0;
+                int cutReflectionBlocks = 0;
                 int blockDraws = 0;
                 for (int draw = 64; draw < 400; draw++)
                 {
@@ -685,12 +688,20 @@ public sealed class ScreenTraceRenderTests
                     (int cut, int surface) = CutBlocks(renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.Slow(0)));
                     cutBlocks += cut;
                     blockDraws += surface;
+                    cutReflectionBlocks += CutBlocks(
+                        renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Slow(0))
+                    ).Cut;
                 }
 
-                output.WriteLine($"Blocks cut by evidence: {cutBlocks} in {blockDraws} block-draws.");
+                output.WriteLine(
+                    $"Blocks cut by evidence: {cutBlocks} of the bounce light and {cutReflectionBlocks} of the reflections in {blockDraws} block-draws."
+                );
                 ((double)cutBlocks / blockDraws)
                     .Should()
-                    .BeLessThanOrEqualTo(1e-4, "a still gives evidence of a change only by chance");
+                    .BeLessThanOrEqualTo(1e-4, "a still gives evidence of a change of bounce light only by chance");
+                ((double)cutReflectionBlocks / blockDraws)
+                    .Should()
+                    .BeLessThanOrEqualTo(1e-4, "a still gives evidence of a drop of reflected light only by chance");
             }
             finally
             {
@@ -700,7 +711,7 @@ public sealed class ScreenTraceRenderTests
 
         /// <summary>
         /// The blocks of 8 × 8 pixels of a slow history that hold a surface pixel, and among them those whose every surface
-        /// pixel has a length of at most the bounce light's fast cap, 4: the blocks whose histories evidence cut. A sky
+        /// pixel has a length of at most the fast cap of both signals, 4: the blocks whose histories evidence cut. A sky
         /// pixel holds the length 0.
         /// </summary>
         private static (int Cut, int Surface) CutBlocks(float[] slow)

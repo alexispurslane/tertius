@@ -815,7 +815,10 @@ internal struct AccumulatePushConstants
     /// </summary>
     public float RetainedSigmas;
 
-    /// <summary>The block test's floor (<see cref="WidenedBox.ChangeShare"/>), 0 without the test.</summary>
+    /// <summary>
+    /// The block test's floor (<see cref="WidenedBox.ChangeShare"/>, <see cref="DropEvidence.ChangeShare"/>), 0 without the
+    /// test.
+    /// </summary>
     public float ChangeShare;
 
     /// <summary>1 where the signal tests its blocks for evidence of a change, 0 otherwise.</summary>
@@ -826,6 +829,7 @@ internal struct AccumulatePushConstants
         (float retainedSigmas, float changeShare, uint blockTest) = parameters.Confidence switch
         {
             WidenedBox { RetainedSigmas: var sigmas, ChangeShare: var share } => (sigmas, share, 1u),
+            DropEvidence { ChangeShare: var share } => (0f, share, 1u),
             NarrowBox => (0f, 0f, 0u),
             null => throw new ArgumentException("A signal's parameters need confidence rules.", nameof(parameters)),
         };
