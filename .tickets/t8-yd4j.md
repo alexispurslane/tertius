@@ -1,6 +1,6 @@
 ---
 id: t8-yd4j
-status: in_progress
+status: closed
 deps: [ter-k7fd]
 links: []
 created: 2026-11-12T15:35:53Z
