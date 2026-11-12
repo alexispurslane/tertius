@@ -19,7 +19,9 @@ namespace Tertius.Rendering;
 /// <description>R16G16B16A16_SNORM: two octahedral-encoded world-space normals: the shading normal
 /// (after normal mapping) in rg, the interpolated vertex normal in ba. The shadow lookup biases along the second.</description>
 /// </item>
-/// <item><term>specular</term><description>R8G8B8A8_UNORM: metallic, roughness r₀, reflectance, the lobe's sky share.</description></item>
+/// <item><term>specular</term><description>R8G8B8A8_UINT: the 8-bit codes of metallic, roughness r₀, reflectance and the lobe's
+/// sky share. The G-buffer pass rounds them itself: a UNORM store may take either of the two nearest codes, and a code
+/// apart moved a sharp highlight's tail by 14 % on NVIDIA (ticket ter-8esk).</description></item>
 /// <item><term>emissive</term><description>R16G16B16A16_SFLOAT: emitted radiance.</description></item>
 /// <item><term>distance</term><description>R32_SFLOAT: Euclidean distance to the eye; 0 means sky.</description></item>
 /// <item><term>shading</term>
@@ -49,7 +51,7 @@ internal sealed class RenderTargets : IDisposable
 {
     public const Format BaseColorFormat = Format.R8G8B8A8Srgb;
     public const Format NormalFormat = Format.R16G16B16A16SNorm;
-    public const Format SpecularFormat = Format.R8G8B8A8Unorm;
+    public const Format SpecularFormat = Format.R8G8B8A8Uint;
     public const Format EmissiveFormat = Format.R16G16B16A16Sfloat;
     public const Format DistanceFormat = Format.R32Sfloat;
     public const Format ShadingFormat = Format.R8G8B8A8Uint;
@@ -251,7 +253,7 @@ internal sealed class RenderTargets : IDisposable
         Upscale?.Resize(extent, OutputExtent);
         BaseColor = ColorTarget(extent: extent, format: BaseColorFormat, name: "g-buffer base color");
         Normal = ColorTarget(extent: extent, format: NormalFormat, name: "g-buffer normal", readable: true);
-        Specular = ColorTarget(extent: extent, format: SpecularFormat, name: "g-buffer specular");
+        Specular = ColorTarget(extent: extent, format: SpecularFormat, name: "g-buffer specular", readable: true);
         Emissive = ColorTarget(extent: extent, format: EmissiveFormat, name: "g-buffer emissive");
         Distance = ColorTarget(extent: extent, format: DistanceFormat, name: "g-buffer distance", readable: true);
         Shading = ColorTarget(extent: extent, format: ShadingFormat, name: "g-buffer shading", readable: true);
