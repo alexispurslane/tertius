@@ -791,7 +791,8 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 float[] diagnostic = UncoveredDiagnostic(renderer);
                 dim.Should()
                     .OnlyContain(
-                        pixel => LengthBeforeCutAt(diagnostic, pixel) > 8 && LengthBeforeBlendAt(diagnostic, pixel) == 0,
+                        pixel =>
+                            LengthBeforeCutAt(diagnostic, pixel) > 8 && LengthBeforeBlendAt(diagnostic, pixel) == 0,
                         "the light that the ray sees is 0 frames old, however dim the ray is"
                     );
             },
