@@ -258,22 +258,31 @@ The deck of the Mac trace (`/private/tmp/tertius-sweep-20261111/trace/deck-maind
 - If a command fails, the Runpod SDK marks the whole job FAILED. The audit log and `result.json` keep the handler's own result (`failed`, `timed out` or `refused`), and `result.json` keeps Runpod's status as `runpodStatus`.
 - The worker's image has no `bc`. Use `date +%s%N` and shell arithmetic for a time.
 
-## The GitHub mirror
+## The remotes: GitHub and the knot mirror
 
-`https://github.com/alexispurslane/tertius` is a public copy of the repository. It exists so that GitHub Actions can build the GPU image. Its origin stays the knot. The remote `origin` has two push URLs, so every `git push origin <ref>` sends the ref to the knot and to GitHub. Fetches come from the knot only. The repository's git configuration holds the two URLs, so every worktree uses them:
+`https://github.com/alexispurslane/tertius` is the primary home of the repository, and it is public. GitHub Actions builds the GPU image there. The knot, `git@knot.xenolandscapes.com:did:plc:6mfsw4jthsacfcdbfmfetvin`, is a push mirror: it gets every push, but nothing reads from it. Alexis moved the primary from the knot to GitHub on 2026-11-12.
+
+The remote `origin` fetches from GitHub. It has two push URLs, GitHub first and the knot second, so every `git push origin <ref>` sends the ref to both. The repository's git configuration holds the URLs, so every worktree uses them. To set them up in a new clone, run these commands:
 
 ```bash
-git remote set-url --add --push origin git@knot.xenolandscapes.com:did:plc:6mfsw4jthsacfcdbfmfetvin
+git remote set-url origin git@github.com:alexispurslane/tertius.git
 git remote set-url --add --push origin git@github.com:alexispurslane/tertius.git
+git remote set-url --add --push origin git@knot.xenolandscapes.com:did:plc:6mfsw4jthsacfcdbfmfetvin
 ```
 
-A push runs the pre-push hook once for each URL. If one URL refuses the push, git reports it, and the other URL still has the ref. To stop the mirror, remove the GitHub URL. Then pushes go to the knot only:
+Git pushes to the URLs in order, and it runs the pre-push hook once for each URL. If one URL refuses the push, git reports an error and still pushes to the other URL. Then push again: the URL that has the ref already reports it as up to date. A push that fails only on the knot leaves GitHub correct.
+
+If the pre-push hook makes a cleanup commit, the first push stops for GitHub. The knot still gets the commits without the cleanup commit, because git chose them before the hook ran. Its hook run says that the branch is not checked out and skips the cleanup. The second push sends the cleanup commit to both URLs, and both then have the same commit. A test with two local bare repositories and git 2.54.0 showed this order on 2026-11-12.
+
+To stop the mirror, remove the knot's push URL. Then pushes go to GitHub only:
 
 ```bash
-git remote set-url --delete --push origin git@github.com:alexispurslane/tertius.git
+git remote set-url --delete --push origin git@knot.xenolandscapes.com:did:plc:6mfsw4jthsacfcdbfmfetvin
 ```
 
-Before the first push on 2026-11-12, gitleaks 8.30.1 scanned every commit of every ref. It found three matches, and all three were the words "key generation" in `docs/research/temporal-renderer/walk-hill-climb.md`. A search for each stored secret and for key prefixes found nothing.
+The knot has no Git LFS. As long as the mirror stays, decision 21 of `docs/plans/asset-pipeline.md` keeps binary build output out of git.
+
+Before the first push to GitHub on 2026-11-12, gitleaks 8.30.1 scanned every commit of every ref. It found three matches, and all three were the words "key generation" in `docs/research/temporal-renderer/walk-hill-climb.md`. A search for each stored secret and for key prefixes found nothing.
 
 ## Coverage on changed lines
 
