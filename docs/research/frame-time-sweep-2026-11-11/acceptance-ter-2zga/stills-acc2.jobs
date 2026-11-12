@@ -1,0 +1,10 @@
+# The cheap checks of the patched MoltenVK on the branch after the merge of main (ter-2zga): the frames of the deck and
+# of the low view under the patched driver (the shell's default), the stock driver and Metal's API validation. The
+# binary br2 is the merged branch's Release build with the deck's fixed exposure.
+echo "default driver: $VK_ICD_FILENAMES"
+run br2 deck.json acc2-keep
+VK_ICD_FILENAMES=$TERTIUS_STOCK_MOLTENVK_ICD run br2 deck.json acc2-stock
+MTL_DEBUG_LAYER=1 run br2 deck.json acc2-keep-validate
+run br2 views2.json acc2-low-keep
+VK_ICD_FILENAMES=$TERTIUS_STOCK_MOLTENVK_ICD run br2 views2.json acc2-low-stock
+MTL_DEBUG_LAYER=1 run br2 views2.json acc2-low-keep-validate

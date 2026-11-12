@@ -68,7 +68,7 @@ nix develop --command bash -c 'VK_ICD_FILENAMES=$TERTIUS_KOSMICKRISP_ICD dotnet 
 
 The Mac's dev shell builds MoltenVK 1.4.2 with two patches, from `native/moltenvk.nix`. A Linux shell does not build it. `nix build .#moltenvk` builds the driver alone.
 
-Why the patch exists. A Metal encoder is one group of GPU commands of one kind: a render pass, compute dispatches, or copies. MoltenVK 1.4.2 ends the open encoder at every pipeline barrier outside a render pass. So each compute dispatch behind a barrier was an encoder of its own. The GPU is idle for about 20 µs at each encoder boundary. On the station deck that was 1.10 ms of a 24.0 ms frame. The patch lowered the frame span from 24.00 to 23.07 ms, and the encoders of a frame from 116 to 79. Every image stayed the same, byte for byte. The measurements are in [the frame-time sweep](../docs/research/frame-time-sweep-2026-11-11/addendum.md), sections A5 and A6.
+Why the patch exists. A Metal encoder is one group of GPU commands of one kind: a render pass, compute dispatches, or copies. MoltenVK 1.4.2 ends the open encoder at every pipeline barrier outside a render pass. So each compute dispatch behind a barrier was an encoder of its own. The GPU is idle for about 20 µs at each encoder boundary. On the station deck that was 1.10 ms of a 24.0 ms frame. The patch lowered the frame span from 24.00 to 23.07 ms, and the encoders of a frame from 116 to 79. Every image stayed the same, byte for byte. The measurements are in [the frame-time sweep](../docs/research/frame-time-sweep-2026-11-11/addendum.md), sections A5 and A6. [The acceptance record](../docs/research/frame-time-sweep-2026-11-11/acceptance-ter-2zga/README.md) holds the frames, the traces and the test runs of the flake's build.
 
 The two patches:
 

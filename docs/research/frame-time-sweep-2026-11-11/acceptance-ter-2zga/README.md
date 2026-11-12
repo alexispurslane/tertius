@@ -1,0 +1,162 @@
+# The acceptance of the patched MoltenVK (ticket ter-2zga)
+
+This folder records the acceptance of the MoltenVK that the flake builds from `native/moltenvk.nix`. [tools/README.md](../../../../tools/README.md) describes the driver in "The patched MoltenVK". Every run was on the M1 Max on 2026-11-12, in the dev shell of branch `ter-2zga-patched-moltenvk`.
+
+The tables name two drivers:
+
+- The patched driver is the shell's default driver: `/nix/store/jxv1cgaay6396aqwbcvkikamsv66vvkh-MoltenVK-1.4.2`.
+- The stock driver is the nixpkgs build without the two patches: `/nix/store/i15qwcipchfkg00vf1bjd89dyj42qc5r-MoltenVK-1.4.2`. The shell's variable `TERTIUS_STOCK_MOLTENVK_ICD` names its ICD manifest.
+
+The runs used two states of the code:
+
+- "Before the merge" is commit `527cd445a`. Its engine code is the code of main at `58ce67f66`.
+- "After the merge" is commit `32f741740`. Its engine code is the code of main at `7eed8d130`.
+
+The branch changes no engine code. The merge of main brought main's later engine changes under the patched driver, so the main checks ran again.
+
+## The result
+
+| Check | Before the merge | After the merge |
+|---|---|---|
+| Frames of the deck, patched against stock | 29 frames, 0 differ | 29 frames, 0 differ |
+| Frames of 24 capture scripts and the low view, patched against stock | Not run | 139 frames, 0 differ |
+| Frames under Metal's API validation, patched against patched | 62 frames, 0 differ | 113 frames, 0 differ |
+| GPU frame span of the deck, stock to patched | 24.10 to 23.22 ms | 22.02 to 21.09 ms |
+| Metal encoders of one deck frame, stock to patched | 116 to 79 | 117 to 79 |
+| Idle time inside one deck frame, stock to patched | 2.23 to 1.40 ms | 2.25 to 1.40 ms |
+| Every test suite in Checked | 10,757 passed, 0 failed, 26 skipped | 10,761 passed, 0 failed, 26 skipped |
+| Rendering and Host tests under Metal's API validation | 5,119 passed, 0 failed, 18 skipped | Not run |
+| Every test suite in Release | 10,744 passed, 0 failed, 26 skipped | Not run |
+
+The patch saves 0.89 ms of the deck's frame before the merge and 0.93 ms after it. Section A5 of [the addendum](../addendum.md) measured 0.93 ms, 116 to 79 encoders, and 2.24 to 1.40 ms of idle time.
+
+The Linux dev shells did not change. The derivations of `devShells.x86_64-linux.default` and `devShells.aarch64-linux.default` equal main's at `7eed8d130`:
+
+- `x86_64-linux`: `/nix/store/jv1plr8m4jpq497q6jxlf60s7zfcd1qv-nix-shell.drv`
+- `aarch64-linux`: `/nix/store/w1zb0sxhy1kasih6y0i8r69myjvjg711-nix-shell.drv`
+
+## The frames
+
+A frame check runs one demo script twice, headless, and compares the written files byte for byte. The two runs differ only in the driver or in one variable. `stills-acc.jobs`, `stills-acc2.jobs`, `stills-wide-a.jobs` and `stills-wide-b.jobs` hold the runs, and `../refl/stills3.sh` runs a job list. `../tools/framecmp.py` made the table below.
+
+Before the merge, the binary was the build of take 3, which fixes the deck's exposure:
+
+| Script | Frames | Differ under stock | Differ under the stock-behavior switch | Differ under validation |
+|---|---:|---:|---:|---:|
+| `../refl/deck.json` (the deck) | 29 | 0 | 0 | 0 |
+| `../refl/views2.json` (the low view of the scene `reflections`) | 33 | 0 | Not run | 0 |
+
+The low view is a weak check in that table. The deck's fixed exposure is too bright for the scene `reflections`, so most of each frame is white.
+
+After the merge, the same two scripts ran again with the merged code and the fixed exposure. The deck's 29 frames and the low view's 33 frames did not differ under stock or under validation.
+
+The wide check then used the merged code without an edit, so each scene has its own exposure. It ran the low view and the 24 scripts of `../refl/capscripts/`. "Other files" are the entity dumps and the exposure record of a run. The check leaves out the GPU timings, because they differ from run to run.
+
+| Script | PNG files | PNG files that differ | Other files | Other files that differ |
+|---|---:|---:|---:|---:|
+| `airlock` | 4 | 0 | 12 | 0 |
+| `bounce-red-wall` | 1 | 0 | 1 | 0 |
+| `cabin-light` | 3 | 0 | 1 | 0 |
+| `deep-yard` | 2 | 0 | 8 | 0 |
+| `demo-meshes` | 5 | 0 | 2 | 0 |
+| `demo-shuttle` | 3 | 0 | 2 | 0 |
+| `demo-surface` | 7 | 0 | 6 | 0 |
+| `doorway` | 4 | 0 | 4 | 0 |
+| `low` (`views2.json`) | 33 | 0 | 1 | 0 |
+| `mars-air` | 6 | 0 | 1 | 0 |
+| `mirror-balls` | 3 | 0 | 1 | 0 |
+| `pbr-spheres` | 2 | 0 | 1 | 0 |
+| `reflections-stills` | 3 | 0 | 1 | 0 |
+| `rigs` | 5 | 0 | 1 | 0 |
+| `spacewalk` | 1 | 0 | 8 | 0 |
+| `spin-station` | 10 | 0 | 7 | 0 |
+| `station-crate` | 12 | 0 | 1 | 0 |
+| `station` | 7 | 0 | 8 | 0 |
+| `station-nocrate` | 12 | 0 | 1 | 0 |
+| `surface-yard` | 5 | 0 | 6 | 0 |
+| `ter-7tnv-floor` | 2 | 0 | 2 | 0 |
+| `ter-7tnv-terminal` | 2 | 0 | 2 | 0 |
+| `throw` | 2 | 0 | 8 | 0 |
+| `walk` | 2 | 0 | 7 | 0 |
+| `windows` | 3 | 0 | 5 | 0 |
+| Sum | 139 | 0 | 97 | 0 |
+
+Four scripts of the wide check also ran under `MTL_DEBUG_LAYER=1`, which turns on Metal's API validation: `low`, `doorway`, `demo-surface` and `station`. Their 51 frames equal the frames without validation. Each log holds the line "Metal API Validation Enabled" and no assertion.
+
+Three frames of the patched driver after the merge are in `pics/`. Each equals the stock driver's frame byte for byte:
+
+- `pics/deck-patched.png`: the station deck, the view that the traces time.
+- `pics/low-patched.png`: the low view of the scene `reflections`, with a red box, a tube light and a blue ball above a glossy floor.
+- `pics/terminal-patched.png`: the terminal of the script `demo-surface`, a room that a bright doorway lights.
+
+## The traces
+
+Each trace records 120 frames of `scripts/temporal-upscale-timing.json`, the station deck at 1280 × 720, upscaled to 1920 × 1080. The pass time stamps are off, as in a window. `take6.sh` ran each job list in one exclusive take of the GPU lock.
+
+The columns:
+
+- "Timer" is the median GPU frame span that the renderer's own timer reports, in milliseconds.
+- "Span" is the median time from a frame's first GPU interval to its last, in milliseconds. `../tools/idle.py` reads it from the trace.
+- "Idle" is the median part of the span in which no GPU interval of the demo is open, in milliseconds.
+- "Encoders" is the count of Metal encoders of one frame, with the compute encoders in brackets.
+
+Before the merge. The binary is take 3's build, or the branch's own build in the two rows that say so:
+
+| Take | Trace | Driver | Timer | Span | Idle | Encoders |
+|---|---|---|---:|---:|---:|---:|
+| 6a | `deck-acc-stock` | Stock | 23.95 | 24.06 | 2.23 | 116 (47) |
+| 6a | `deck-acc-keep` | Patched | 23.12 | 23.23 | 1.39 | 79 (10) |
+| 6a | `deck-acc-keep-b` | Patched | 23.09 | 23.19 | 1.39 | 79 (10) |
+| 6a | `deck-acc-br-stock` | Stock, branch build | 24.10 | 24.21 | 2.23 | 116 (47) |
+| 6a | `deck-acc-br-keep` | Patched, branch build | 23.17 | 23.29 | 1.39 | 79 (10) |
+| 6b | `deck-acc-switch-2` | Patched with `TERTIUS_MOLTENVK_STOCK_BARRIERS=1` | 24.07 | 24.18 | 2.24 | 116 (47) |
+| 6b | `deck-acc-stock-c` | Stock | 24.04 | 24.15 | 2.24 | 116 (47) |
+| 6b | `deck-acc-keep-c` | Patched | 23.10 | 23.22 | 1.42 | 79 (10) |
+| 6b | `deck-acc-switch-3` | Patched with `TERTIUS_MOLTENVK_STOCK_BARRIERS=1` | 24.05 | 24.15 | 2.23 | 116 (47) |
+
+After the merge. The binary is the merged branch's Release build with the deck's fixed exposure:
+
+| Take | Trace | Driver | Timer | Span | Idle | Encoders |
+|---|---|---|---:|---:|---:|---:|
+| 6c | `deck-acc-m-stock` | Stock | 21.92 | 22.03 | 2.25 | 117 (48) |
+| 6c | `deck-acc-m-keep` | Patched | 21.01 | 21.09 | 1.39 | 79 (10) |
+| 6d | `deck-acc-m-stock-c` | Stock | 21.89 | 22.01 | 2.25 | 117 (48) |
+| 6d | `deck-acc-m-keep-c` | Patched | 21.15 | 21.13 | 1.43 | 79 (10) |
+| 6d | `deck-acc-m-switch` | Patched with `TERTIUS_MOLTENVK_STOCK_BARRIERS=1` | 22.04 | 22.15 | 2.26 | 117 (48) |
+| 6d | `deck-acc-m-keep-d` | Patched | 20.92 | 21.04 | 1.39 | 79 (10) |
+
+The table of "The result" gives the mean of the "Span" column for each driver. It leaves out the rows of the stock-behavior switch and the two rows of the branch build.
+
+Main's engine changes between `58ce67f66` and `7eed8d130` made the deck's frame 2.1 ms shorter and added one compute encoder under the stock driver. The patch's gain stayed the same.
+
+Four traces are not in the tables:
+
+- `deck-acc-switch` and `deck-acc-stock-b` of take 6a, and `deck-acc-m-stock-b` of take 6c. The GPU clock dropped during each one: its 10th percentile was 1,227, 1,064 and 980 MHz against 1,290 MHz. Take 6b and take 6d repeated them.
+- `deck-acc-m-keep-b` of take 6c. The recorder `xctrace` did not end, and the trace is not readable.
+
+Some frames of `deck-acc-m-keep-c` and `deck-acc-m-switch` were slow at a full GPU clock, so their mean spans are 21.67 and 23.59 ms. The medians hold.
+
+`../trace/<trace>/idle.json` holds the numbers of each trace.
+
+## The tests
+
+Each run held one shared take of the GPU lock, with the patched driver as the shell's default. `tests/acc-tests.sh` starts a run, and `tests/<name>.lock.log` holds its output.
+
+| Run | Code | Command | Passed | Failed | Skipped | Log |
+|---|---|---|---:|---:|---:|---|
+| Every suite in Checked | Before the merge | `dotnet test --solution Tertius.slnx -c Checked` | 10,757 | 0 | 26 | `checked.lock.log` |
+| Rendering tests under `MTL_DEBUG_LAYER=1`, classes A to E | Before the merge | `tests/acc-v1.cmd.sh` | 1,055 | 0 | 0 | `v1.lock.log` |
+| Rendering tests under `MTL_DEBUG_LAYER=1`, classes F to P | Before the merge | `tests/acc-v2.cmd.sh` | 919 | 0 | 9 | `v2.lock.log` |
+| Rendering tests under `MTL_DEBUG_LAYER=1`, every other class | Before the merge | `tests/acc-v3.cmd.sh` | 1,098 | 0 | 1 | `v3.lock.log` |
+| Host tests under `MTL_DEBUG_LAYER=1` | Before the merge | `tests/acc-vhost.cmd.sh` | 2,047 | 0 | 8 | `vhost.lock.log` |
+| Every suite in Release | Before the merge | `tests/acc-release.cmd.sh` | 10,744 | 0 | 26 | `release.lock.log` |
+| Every suite in Checked | After the merge | `tests/acc-checked2.cmd.sh` | 10,761 | 0 | 26 | `checked2.lock.log` |
+
+The three parts of the Rendering tests under validation sum to 3,082 tests. That is the count of the Rendering tests in the full Checked run before the merge. The parts exist because a shared take holds the lock for about 20 minutes at most.
+
+## What the acceptance does not show
+
+- No test asserts on the effect of the patch, because the engine does not depend on it. The encoder count of a trace shows the effect.
+- A wrong fence makes two encoders run in the wrong order only sometimes. Equal frames in every run lower that risk. They do not remove it.
+- The tests under Metal's API validation and the Release suites ran before the merge only.
+- Every run was on one machine, the M1 Max. The patch changes only MoltenVK, so a Linux driver is not a part of this acceptance.

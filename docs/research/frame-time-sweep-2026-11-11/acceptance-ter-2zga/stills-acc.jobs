@@ -1,0 +1,11 @@
+# Acceptance of the flake's patched MoltenVK (ter-2zga): the frames of the deck and of the low view under the patched
+# driver (the shell's default), the stock driver, the patched driver with the stock-behavior switch, and the patched
+# driver under Metal's API validation. The binary is maind, the one of take 3.
+echo "default driver: $VK_ICD_FILENAMES"
+run maind deck.json acc-keep
+VK_ICD_FILENAMES=$TERTIUS_STOCK_MOLTENVK_ICD run maind deck.json acc-stock
+TERTIUS_MOLTENVK_STOCK_BARRIERS=1 run maind deck.json acc-switch
+MTL_DEBUG_LAYER=1 run maind deck.json acc-keep-validate
+run maind views2.json acc-low-keep
+VK_ICD_FILENAMES=$TERTIUS_STOCK_MOLTENVK_ICD run maind views2.json acc-low-stock
+MTL_DEBUG_LAYER=1 run maind views2.json acc-low-keep-validate

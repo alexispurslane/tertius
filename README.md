@@ -47,7 +47,7 @@ To make sure that these claims are real, read [GUIDE.md](GUIDE.md). It names the
 
 ## Build and run
 
-Every command runs in the Nix dev shell from [flake.nix](flake.nix), in the repository root. You need Nix with flakes turned on. The first run needs network access, because the dev shell builds the double-precision Jolt library. The renderer and the Rendering and Host tests need a Vulkan device. On macOS, the dev shell supplies MoltenVK.
+Every command runs in the Nix dev shell from [flake.nix](flake.nix), in the repository root. You need Nix with flakes turned on. The first run needs network access, because the dev shell builds the double-precision Jolt library. The renderer and the Rendering and Host tests need a Vulkan device. On macOS, the dev shell supplies MoltenVK. It builds MoltenVK with two patches on the first run ([tools/README.md](tools/README.md), "The patched MoltenVK").
 
 ```sh
 # Build the solution.
