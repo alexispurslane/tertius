@@ -1,0 +1,12 @@
+uptime-start:  05:32:58  up 47 days 17:07,  2 users,  load average: 10.06, 10.34, 15.45
+waited: 0s
+mode: shared, with up to 3 shared runs at once
+default driver: /nix/store/jxv1cgaay6396aqwbcvkikamsv66vvkh-MoltenVK-1.4.2/share/vulkan/icd.d/MoltenVK_icd.json
+acc2-keep: 32 files, exit 0
+acc2-stock: 32 files, exit 0
+acc2-keep-validate: 32 files, exit 0
+acc2-low-keep: 36 files, exit 0
+acc2-low-stock: 36 files, exit 0
+acc2-low-keep-validate: 36 files, exit 0
+stills 3 ended
+uptime-end:  05:34:25  up 47 days 17:08,  2 users,  load average: 20.57, 14.35, 16.54

@@ -1,0 +1,181 @@
+{
+ "rows": {
+  "(before the first pass)": {
+   "stamp": 1,
+   "encoders": 1
+  },
+  "deformation": {},
+  "shadow maps": {
+   "barriers": 1,
+   "kept": 0,
+   "render": 4,
+   "encoders": 4
+  },
+  "local shadows": {
+   "barriers": 2,
+   "kept": 0,
+   "render": 13,
+   "encoders": 14,
+   "compute, first": 1,
+   "dispatches": 1
+  },
+  "environment faces": {
+   "barriers": 5,
+   "kept": 2,
+   "render": 3,
+   "encoders": 3
+  },
+  "environment prefilter": {
+   "barriers": 7,
+   "kept": 5,
+   "compute, first": 1,
+   "encoders": 3,
+   "dispatches": 10,
+   "blit": 1,
+   "stamp": 1
+  },
+  "G-buffer": {
+   "barriers": 3,
+   "kept": 0,
+   "render": 3,
+   "encoders": 3
+  },
+  "surface test": {
+   "barriers": 1,
+   "kept": 0,
+   "compute, first": 1,
+   "encoders": 1,
+   "dispatches": 1
+  },
+  "depth pyramid": {
+   "barriers": 7,
+   "kept": 7,
+   "dispatches": 7
+  },
+  "direct light": {
+   "barriers": 1,
+   "kept": 1,
+   "render": 1,
+   "encoders": 1
+  },
+  "light pyramid": {
+   "barriers": 7,
+   "kept": 6,
+   "compute, first": 1,
+   "encoders": 1,
+   "dispatches": 7
+  },
+  "ray plan": {
+   "barriers": 3,
+   "kept": 1,
+   "blit": 2,
+   "encoders": 3,
+   "compute, first": 1,
+   "dispatches": 1
+  },
+  "reflection rays": {
+   "barriers": 2,
+   "kept": 2,
+   "dispatches": 1
+  },
+  "diffuse rays": {
+   "barriers": 1,
+   "kept": 1,
+   "dispatches": 1
+  },
+  "screen trace resolve": {
+   "barriers": 1,
+   "kept": 1,
+   "dispatches": 1
+  },
+  "accumulate indirect diffuse": {
+   "barriers": 2,
+   "kept": 2,
+   "dispatches": 2
+  },
+  "filter indirect diffuse": {
+   "barriers": 6,
+   "kept": 6,
+   "dispatches": 6
+  },
+  "accumulate indirect specular": {
+   "barriers": 2,
+   "kept": 2,
+   "dispatches": 2
+  },
+  "composite": {
+   "barriers": 1,
+   "kept": 1,
+   "render": 1,
+   "encoders": 1
+  },
+  "scatter rows": {
+   "barriers": 1,
+   "kept": 0,
+   "compute, first": 1,
+   "encoders": 1,
+   "dispatches": 1
+  },
+  "scatter columns": {
+   "barriers": 1,
+   "kept": 1,
+   "dispatches": 1
+  },
+  "haze": {},
+  "transparent": {
+   "barriers": 2,
+   "kept": 1,
+   "blit": 1,
+   "encoders": 3,
+   "render": 1,
+   "stamp": 1
+  },
+  "FSR 3.1": {
+   "barriers": 13,
+   "kept": 8,
+   "blit": 1,
+   "encoders": 15,
+   "compute, first": 2,
+   "dispatches": 9,
+   "clear": 12
+  },
+  "bloom": {
+   "barriers": 11,
+   "kept": 1,
+   "render": 11,
+   "encoders": 12,
+   "stamp": 1
+  },
+  "tone map": {
+   "barriers": 1,
+   "kept": 0,
+   "render": 1,
+   "encoders": 1
+  },
+  "outlines": {},
+  "capture": {
+   "barriers": 1,
+   "kept": 0,
+   "blit": 1,
+   "encoders": 2,
+   "stamp": 1
+  },
+  "(after the last pass)": {
+   "barriers": 2,
+   "kept": 0,
+   "blit": 1,
+   "encoders": 1
+  }
+ },
+ "total": {
+  "stamp": 5,
+  "encoders": 70,
+  "barriers": 84,
+  "kept": 48,
+  "render": 38,
+  "compute, first": 8,
+  "dispatches": 51,
+  "blit": 7,
+  "clear": 12
+ }
+}

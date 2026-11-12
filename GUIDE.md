@@ -461,7 +461,7 @@ The repository holds none of this code. NuGet and Nix fetch it at build time. Th
 | Silk.NET.Vulkan, Vulkan.Extensions.KHR, Vulkan.Extensions.EXT, Windowing, Input | 2.23.0 | MIT | Vulkan, window and input |
 | StbImageSharp | 2.30.16 | Unlicense or MIT | Image reading |
 | StbImageWriteSharp | 1.16.7 | None stated in its package | Image writing |
-| Vulkan loader, MoltenVK | from nixpkgs | Their own licenses | Vulkan on the host |
+| Vulkan loader, MoltenVK | from nixpkgs. On the Mac, MoltenVK has two patches (`native/moltenvk.nix`) | Their own licenses | Vulkan on the host |
 | xunit.v3 | 4.0.2 | Apache-2.0 | Tests |
 | AwesomeAssertions | 9.6.0 | Apache-2.0 | Tests |
 | Microsoft.Testing.Extensions.CodeCoverage | 18.12.0 | Microsoft .NET Library license | Test coverage |

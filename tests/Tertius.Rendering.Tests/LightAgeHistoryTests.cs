@@ -759,7 +759,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
         );
 
     [Fact]
-    public void ARayDimmerThanAQuarterOfTheReceiversHistoryDoesNotCutIt() =>
+    public void ARayOfAChangedLightCutsTheReceiversHistoryHoweverDimTheRayIs() =>
         WithRenderer(
             "light-age-diagnostic",
             (renderer, scene) =>
@@ -785,12 +785,16 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 ];
                 output.WriteLine($"Receivers with a dim ray of age 0: {dim.Length}.");
                 dim.Length.Should().BeGreaterThan(20, "the bright sky outweighs the dim emitter in these histories");
-                // The cut alone, from the diagnostic: the slow history's clamp after the blend shortens a few of these
-                // histories too, and more of them since the plate's pixels share their block's reflection ray (ter-4oow).
+                // A cut that only bright rays may make restarts the history from its bright samples: after a lamp goes
+                // out, the reflections jumped up by 72 % and took 128 draws to settle (ter-g3tk). The cut alone, from
+                // the diagnostic: every such receiver keeps only the frames since the change.
                 float[] diagnostic = UncoveredDiagnostic(renderer);
-                dim.Count(pixel => LengthBeforeBlendAt(diagnostic, pixel) == LengthBeforeCutAt(diagnostic, pixel))
-                    .Should()
-                    .BeGreaterThanOrEqualTo(dim.Length * 95 / 100, "a ray below a quarter of the history does not cut");
+                dim.Should()
+                    .OnlyContain(
+                        pixel =>
+                            LengthBeforeCutAt(diagnostic, pixel) > 8 && LengthBeforeBlendAt(diagnostic, pixel) == 0,
+                        "the light that the ray sees is 0 frames old, however dim the ray is"
+                    );
             },
             new(Gray: 4)
         );
@@ -1150,8 +1154,8 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
     ];
 
     /// <summary>
-    /// The receivers whose ray hits the emitter in the draw that counts its change bring back age 0 and, when their sample
-    /// holds at least a quarter of their history's luminance, keep a history of one frame.
+    /// The receivers whose ray hits the emitter in the draw that counts its change bring back age 0 and keep a history of
+    /// one frame.
     /// </summary>
     private void AReceiverWhoseRayHitsTheChangedEmitterKeepsOnlyTheFramesSinceTheChange(Vector3 glow) =>
         WithRenderer(

@@ -1,0 +1,26 @@
+{
+  "scene": "deep-yard",
+  "window": { "width": 1280, "height": 720 },
+  "steps": [
+    { "do": "camera", "entity": "person" },
+    { "do": "run", "ticks": 30 },
+    { "do": "dump", "name": "start" },
+    { "do": "capture", "name": "yard" },
+    { "do": "run", "ticks": 570 },
+    { "do": "dump", "name": "before-thrust" },
+    { "do": "post", "to": { "kind": "topic", "name": "input" }, "event": "InputEvent", "payload": { "kind": "keyDown", "code": 87 } },
+    { "do": "run", "ticks": 60 },
+    { "do": "post", "to": { "kind": "topic", "name": "input" }, "event": "InputEvent", "payload": { "kind": "keyUp", "code": 87 } },
+    { "do": "run", "ticks": 60 },
+    { "do": "dump", "name": "coasting" },
+    { "do": "run", "ticks": 480 },
+    { "do": "dump", "name": "touch" },
+    { "do": "run", "ticks": 60 },
+    { "do": "dump", "name": "touching" },
+    { "do": "capture", "name": "touching" },
+    { "do": "run", "ticks": 60 },
+    { "do": "dump", "name": "approach" },
+    { "do": "run", "ticks": 180 },
+    { "do": "dump", "name": "end" }
+  ]
+}

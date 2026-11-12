@@ -1,0 +1,39 @@
+uptime-start:  05:12:46  up 47 days 16:47,  2 users,  load average: 15.13, 18.71, 23.46
+waited: 59s
+mode: shared, with up to 3 shared runs at once
+driver: /nix/store/jxv1cgaay6396aqwbcvkikamsv66vvkh-MoltenVK-1.4.2/share/vulkan/icd.d/MoltenVK_icd.json
+Running tests from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Host.Tests/bin/Checked/net11.0/Tertius.Host.Tests.dll (net11.0|arm64)
+2026-11-12 05:12:49.066 Tertius.Host.Tests[63720:1139397930] Metal API Validation Enabled
+skipped Tertius.Host.Tests.PuffScriptCostMeasurement.WritesItsReportWhereTheVariableNamesAFile
+  Not run (due to explicit test filtering)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Host.Tests/bin/Checked/net11.0/Tertius.Host.Tests.dll (net11.0|arm64)
+skipped Tertius.Host.Tests.DemoFrameCostMeasurement.WritesItsReportWhereTheVariableNamesAFile
+  Not run (due to explicit test filtering)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Host.Tests/bin/Checked/net11.0/Tertius.Host.Tests.dll (net11.0|arm64)
+skipped Tertius.Host.Tests.EnvironmentBoxScriptEvidence.TwoBoxSceneCapturesAdvanceTheirSnapshotWithoutResettingFsr(scriptName: "ter-7tnv-terminal")
+  Not run (due to explicit test filtering)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Host.Tests/bin/Checked/net11.0/Tertius.Host.Tests.dll (net11.0|arm64)
+skipped Tertius.Host.Tests.EnvironmentBoxScriptEvidence.TwoBoxSceneCapturesAdvanceTheirSnapshotWithoutResettingFsr(scriptName: "ter-7tnv-box-cabin")
+  Not run (due to explicit test filtering)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Host.Tests/bin/Checked/net11.0/Tertius.Host.Tests.dll (net11.0|arm64)
+skipped Tertius.Host.Tests.BlueDanubePlumeCostMeasurement.WritesItsReportWhereTheVariableNamesAFile
+  Not run (due to explicit test filtering)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Host.Tests/bin/Checked/net11.0/Tertius.Host.Tests.dll (net11.0|arm64)
+skipped Tertius.Host.Tests.LocalShadowCountsMeasurement.WritesItsReportWhereTheVariableNamesAFile
+  Not run (due to explicit test filtering)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Host.Tests/bin/Checked/net11.0/Tertius.Host.Tests.dll (net11.0|arm64)
+skipped Tertius.Host.Tests.FsrScriptEvidence.TheNativeAndFsrCapturesAdvanceDrawHistoryThroughCameraCutsAndMovingFrames
+  Not run (due to explicit test filtering)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Host.Tests/bin/Checked/net11.0/Tertius.Host.Tests.dll (net11.0|arm64)
+skipped Tertius.Host.Tests.VideoCostMeasurement.WritesItsReportWhereTheVariableNamesAFile
+  Not run (due to explicit test filtering)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Host.Tests/bin/Checked/net11.0/Tertius.Host.Tests.dll (net11.0|arm64)
+/Users/alexispurslane/.t3/worktrees/tertius/t3-26b378a0/tests/Tertius.Host.Tests/bin/Checked/net11.0/Tertius.Host.Tests.dll (net11.0|arm64) passed [+2047/x0/?8] (1m 42s 655ms)
+
+Test run summary: Passed!
+  total: 2055
+  failed: 0
+  succeeded: 2047
+  skipped: 8
+  duration: 1m 42s 999ms
+uptime-end:  05:14:29  up 47 days 16:48,  2 users,  load average: 22.21, 21.32, 24.02

@@ -1,0 +1,7 @@
+# Take 6b: the two rows of take 6 that a drop of the GPU clock made invalid (the stock-behavior switch and the second
+# stock round), with one more round of the patched driver beside them.
+NS="--pass-timestamps off"
+TRACE_EXTRA_ENV="TERTIUS_MOLTENVK_STOCK_BARRIERS=1" trace deck-acc-switch-2 maind $D $NS
+VK_ICD_FILENAMES=$TERTIUS_STOCK_MOLTENVK_ICD trace deck-acc-stock-c maind $D $NS
+trace deck-acc-keep-c maind $D $NS
+TRACE_EXTRA_ENV="TERTIUS_MOLTENVK_STOCK_BARRIERS=1" trace deck-acc-switch-3 maind $D $NS

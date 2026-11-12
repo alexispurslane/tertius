@@ -1,0 +1,39 @@
+uptime-start:  07:01:47  up 47 days 18:36,  2 users,  load average: 9.51, 8.43, 8.47
+waited: 0s
+mode: shared, with up to 3 shared runs at once
+default driver: /nix/store/jxv1cgaay6396aqwbcvkikamsv66vvkh-MoltenVK-1.4.2/share/vulkan/icd.d/MoltenVK_icd.json
+stock driver:   /nix/store/i15qwcipchfkg00vf1bjd89dyj42qc5r-MoltenVK-1.4.2/share/vulkan/icd.d/MoltenVK_icd.json
+drv4-low-keep: 36 files, exit 0
+drv4-low-stock: 36 files, exit 0
+drv4-low-validate: 36 files, exit 0
+drv4-airlock-keep: 18 files, exit 0
+drv4-airlock-stock: 18 files, exit 0
+drv4-bounce-red-wall-keep: 4 files, exit 0
+drv4-bounce-red-wall-stock: 4 files, exit 0
+drv4-cabin-light-keep: 6 files, exit 0
+drv4-cabin-light-stock: 6 files, exit 0
+drv4-deep-yard-keep: 12 files, exit 0
+drv4-deep-yard-stock: 12 files, exit 0
+drv4-demo-meshes-keep: 9 files, exit 0
+drv4-demo-meshes-stock: 9 files, exit 0
+drv4-demo-shuttle-keep: 7 files, exit 0
+drv4-demo-shuttle-stock: 7 files, exit 0
+drv4-demo-surface-keep: 15 files, exit 0
+drv4-demo-surface-stock: 15 files, exit 0
+drv4-doorway-keep: 10 files, exit 0
+drv4-doorway-stock: 10 files, exit 0
+drv4-mars-air-keep: 9 files, exit 0
+drv4-mars-air-stock: 9 files, exit 0
+drv4-mirror-balls-keep: 6 files, exit 0
+drv4-mirror-balls-stock: 6 files, exit 0
+drv4-pbr-spheres-keep: 5 files, exit 0
+drv4-pbr-spheres-stock: 5 files, exit 0
+drv4-reflections-stills-keep: 6 files, exit 0
+drv4-reflections-stills-stock: 6 files, exit 0
+drv4-doorway-validate: 10 files, exit 0
+drv4-demo-surface-validate: 15 files, exit 0
+drv4-deck-keep: 32 files, exit 0
+drv4-deck-stock: 32 files, exit 0
+drv4-deck-validate: 32 files, exit 0
+stills 3 ended
+uptime-end:  07:04:19  up 47 days 18:38,  2 users,  load average: 4.02, 6.71, 7.77

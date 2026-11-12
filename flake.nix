@@ -14,16 +14,23 @@
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
     in
     {
-      packages = forAllSystems (pkgs: {
-        joltc-double = pkgs.callPackage ./native/joltc.nix { };
-        jscpd = pkgs.callPackage ./native/jscpd.nix { };
-        # AMD's FSR 3.1 host sources at the pin, for tools/fsr3-golden/ (native/fidelityfx-sdk.nix).
-        fidelityfx-sdk = pkgs.callPackage ./native/fidelityfx-sdk.nix { };
-        # The official Blender Lab MCP server of the assets shell. Its add-on is passthru.addon.
-        blender-mcp = pkgs.callPackage ./native/blender-mcp.nix { };
-        # The dev shell's SDK, so that tools/rider.sh can keep a stable link to it (.nix/dotnet-sdk) for Rider.
-        dotnet-sdk = pkgs.dotnet-sdk_11;
-      });
+      packages = forAllSystems (
+        pkgs:
+        {
+          joltc-double = pkgs.callPackage ./native/joltc.nix { };
+          jscpd = pkgs.callPackage ./native/jscpd.nix { };
+          # AMD's FSR 3.1 host sources at the pin, for tools/fsr3-golden/ (native/fidelityfx-sdk.nix).
+          fidelityfx-sdk = pkgs.callPackage ./native/fidelityfx-sdk.nix { };
+          # The official Blender Lab MCP server of the assets shell. Its add-on is passthru.addon.
+          blender-mcp = pkgs.callPackage ./native/blender-mcp.nix { };
+          # The dev shell's SDK, so that tools/rider.sh can keep a stable link to it (.nix/dotnet-sdk) for Rider.
+          dotnet-sdk = pkgs.dotnet-sdk_11;
+        }
+        # The Mac's patched MoltenVK (native/moltenvk.nix), which the Mac's dev shell makes the default driver.
+        // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
+          moltenvk = pkgs.callPackage ./native/moltenvk.nix { };
+        }
+      );
 
       devShells = forAllSystems (
         pkgs:
@@ -40,10 +47,13 @@
             mcpAddon = blenderMcp.addon;
           };
           blender = pkgs.lib.getExe pkgs.blender;
+          # The Mac's patched MoltenVK (native/moltenvk.nix). Only the Mac's parts below read it, so a Linux shell
+          # never builds it.
+          moltenvk = pkgs.callPackage ./native/moltenvk.nix { };
           vulkanLibs = [
             pkgs.vulkan-loader
           ]
-          ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [ pkgs.moltenvk ]
+          ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [ moltenvk ]
           # The host's NVIDIA Vulkan driver (native/host-nvidia-vulkan.sh) needs these, and a container has none of them.
           ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [
             pkgs.libglvnd
@@ -83,7 +93,7 @@
               pkgs.ffmpeg-headless
             ]
             ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
-              pkgs.moltenvk
+              moltenvk
               # Mesa's KosmicKrisp, the second Vulkan driver of the Mac, which TERTIUS_KOSMICKRISP_ICD names.
               pkgs.mesa
             ];
@@ -127,10 +137,13 @@
             # hardened runtime, such as Rider, so a test that Rider starts never sees them.
             TERTIUS_VULKAN_DIR = "${pkgs.vulkan-loader}/lib";
           }
-          # MoltenVK is the Mac's default driver. On Linux the shell sets no VK_ICD_FILENAMES, so a value from outside
-          # the shell stays, and the shellHook can set NVIDIA's.
+          # The patched MoltenVK is the Mac's default driver, and TERTIUS_STOCK_MOLTENVK_ICD names the ICD manifest of
+          # the nixpkgs build without the patches, for comparisons (tools/README.md, "The patched MoltenVK"). On Linux
+          # the shell sets no VK_ICD_FILENAMES, so a value from outside the shell stays, and the shellHook can set
+          # NVIDIA's.
           // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
-            VK_ICD_FILENAMES = "${pkgs.moltenvk}/share/vulkan/icd.d/MoltenVK_icd.json";
+            VK_ICD_FILENAMES = "${moltenvk}/share/vulkan/icd.d/MoltenVK_icd.json";
+            TERTIUS_STOCK_MOLTENVK_ICD = "${pkgs.moltenvk}/share/vulkan/icd.d/MoltenVK_icd.json";
           };
         in
         {

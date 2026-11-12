@@ -1,0 +1,44 @@
+uptime-start:  21:17:39  up 47 days  8:51,  4 users,  load average: 16.44, 20.41, 29.47
+waited: 5085s
+trace deck-maind-t2: GPU frame span: mean 28.203 ms, median 28.100 ms, p95 30.081 ms over 119 frames | 
+trace deck-ssr4h-1: GPU frame span: mean 28.982 ms, median 28.916 ms, p95 30.701 ms over 119 frames | GPU clock over the timed span: 1294.8 MHz (p10 1293.5, p90 1296.0 MHz,
+trace deck-transfloor-1: GPU frame span: mean 25.889 ms, median 25.888 ms, p95 26.979 ms over 119 frames | GPU clock over the timed span: 1295.1 MHz (p10 1294.7, p90 1296.0 MHz,
+trace deck-steps-r64: GPU frame span: mean 26.987 ms, median 26.938 ms, p95 28.456 ms over 119 frames | 
+trace deck-steps-d24:  | 
+/private/tmp/tertius-sweep-20261111/measure-lib.sh: line 25: /private/tmp/tertius-sweep-20261111/trace/deck-ssr9h-1.log: No space left on device
+grep: /private/tmp/tertius-sweep-20261111/trace/deck-ssr9h-1/run.log: No such file or directory
+grep: /private/tmp/tertius-sweep-20261111/trace/deck-ssr9h-1/run.log: No such file or directory
+trace deck-ssr9h-1:  | 
+/private/tmp/tertius-sweep-20261111/measure-lib.sh: line 25: /private/tmp/tertius-sweep-20261111/trace/deck-ownall-1.log: No space left on device
+grep: /private/tmp/tertius-sweep-20261111/trace/deck-ownall-1/run.log: No such file or directory
+grep: /private/tmp/tertius-sweep-20261111/trace/deck-ownall-1/run.log: No such file or directory
+trace deck-ownall-1:  | 
+/private/tmp/tertius-sweep-20261111/measure-lib.sh: line 25: /private/tmp/tertius-sweep-20261111/trace/deck-maind-2.log: No space left on device
+grep: /private/tmp/tertius-sweep-20261111/trace/deck-maind-2/run.log: No such file or directory
+grep: /private/tmp/tertius-sweep-20261111/trace/deck-maind-2/run.log: No such file or directory
+trace deck-maind-2:  | 
+/private/tmp/tertius-sweep-20261111/measure-lib.sh: line 25: /private/tmp/tertius-sweep-20261111/trace/deck-steps-r24.log: No space left on device
+grep: /private/tmp/tertius-sweep-20261111/trace/deck-steps-r24/run.log: No such file or directory
+grep: /private/tmp/tertius-sweep-20261111/trace/deck-steps-r24/run.log: No such file or directory
+trace deck-steps-r24:  | 
+/private/tmp/tertius-sweep-20261111/measure-lib.sh: line 25: /private/tmp/tertius-sweep-20261111/trace/deck-maind-nobloom.log: No space left on device
+grep: /private/tmp/tertius-sweep-20261111/trace/deck-maind-nobloom/run.log: No such file or directory
+grep: /private/tmp/tertius-sweep-20261111/trace/deck-maind-nobloom/run.log: No such file or directory
+trace deck-maind-nobloom:  | 
+/private/tmp/tertius-sweep-20261111/measure-lib.sh: line 25: /private/tmp/tertius-sweep-20261111/trace/deck-maind-noguide.log: No space left on device
+grep: /private/tmp/tertius-sweep-20261111/trace/deck-maind-noguide/run.log: No such file or directory
+grep: /private/tmp/tertius-sweep-20261111/trace/deck-maind-noguide/run.log: No such file or directory
+trace deck-maind-noguide:  | 
+/private/tmp/tertius-sweep-20261111/measure-lib.sh: line 25: /private/tmp/tertius-sweep-20261111/trace/deck-flightonly-1.log: No space left on device
+grep: /private/tmp/tertius-sweep-20261111/trace/deck-flightonly-1/run.log: No such file or directory
+grep: /private/tmp/tertius-sweep-20261111/trace/deck-flightonly-1/run.log: No such file or directory
+trace deck-flightonly-1:  | 
+/private/tmp/tertius-sweep-20261111/measure-lib.sh: line 25: /private/tmp/tertius-sweep-20261111/trace/deck-fnomath-1.log: No space left on device
+grep: /private/tmp/tertius-sweep-20261111/trace/deck-fnomath-1/run.log: No such file or directory
+grep: /private/tmp/tertius-sweep-20261111/trace/deck-fnomath-1/run.log: No such file or directory
+trace deck-fnomath-1:  | 
+/private/tmp/tertius-sweep-20261111/measure-lib.sh: line 25: /private/tmp/tertius-sweep-20261111/trace/deck-fpow7-1.log: No space left on device
+grep: /private/tmp/tertius-sweep-20261111/trace/deck-fpow7-1/run.log: No such file or directory
+grep: /private/tmp/tertius-sweep-20261111/trace/deck-fpow7-1/run.log: No such file or directory
+trace deck-fpow7-1:  | 
+grep: /private/tmp/tertius-sweep-20261111/trace/deck-sphclip-1/run.log

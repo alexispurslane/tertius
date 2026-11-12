@@ -1,0 +1,7 @@
+# Take 6c: the patched driver against stock MoltenVK on the branch after the merge of main, without the pass time
+# stamps. The binary br2 is the merged branch's Release build with the deck's fixed exposure.
+NS="--pass-timestamps off"
+VK_ICD_FILENAMES=$TERTIUS_STOCK_MOLTENVK_ICD trace deck-acc-m-stock br2 $D $NS
+trace deck-acc-m-keep br2 $D $NS
+VK_ICD_FILENAMES=$TERTIUS_STOCK_MOLTENVK_ICD trace deck-acc-m-stock-b br2 $D $NS
+trace deck-acc-m-keep-b br2 $D $NS
