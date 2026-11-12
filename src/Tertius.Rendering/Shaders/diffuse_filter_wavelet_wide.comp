@@ -1,0 +1,5 @@
+#version 460
+// The wide kernel's wavelet dispatch (diffuse_filter_wavelet.glsl): the paper's 5 × 5 taps.
+#extension GL_GOOGLE_include_directive : require
+#define KernelRadius 2
+#include "diffuse_filter_wavelet.glsl"

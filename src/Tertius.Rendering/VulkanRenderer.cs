@@ -1178,13 +1178,17 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// accumulation. A test hook: the filter goes with the renderer. The descriptor pool holds the sets of one filter, so
     /// the renderer must run under <see cref="NoScreenTrace"/>, whose tracer makes no filter.
     /// </summary>
-    internal DiffuseFilter CreateDiffuseFilter(TemporalSignal signal)
+    internal DiffuseFilter CreateDiffuseFilter(TemporalSignal signal, DiffuseFilterKernel kernel)
     {
         using var shaders = new ShaderLibrary(device, ShaderLibrary.EngineShaders);
-        return CreateDiffuseFilter(shaders, signal);
+        return CreateDiffuseFilter(shaders, signal, kernel);
     }
 
-    private DiffuseFilter CreateDiffuseFilter(ShaderLibrary shaders, TemporalSignal signal) =>
+    private DiffuseFilter CreateDiffuseFilter(
+        ShaderLibrary shaders,
+        TemporalSignal signal,
+        DiffuseFilterKernel kernel
+    ) =>
         Own(
             new DiffuseFilter(
                 device: device,
@@ -1192,7 +1196,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 layouts: layouts,
                 shaders: shaders,
                 targets: targets,
-                signal: signal
+                signal: signal,
+                kernel: kernel
             )
         );
 
@@ -2186,7 +2191,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
             parts: 1
         );
         DiffuseFilter? filter =
-            DiffuseFilter.SwitchedOn() && diffuse.KeepsFastHistory ? CreateDiffuseFilter(shaders, diffuse) : null;
+            DiffuseFilter.Selected() is { } kernel && diffuse.KeepsFastHistory
+                ? CreateDiffuseFilter(shaders, diffuse, kernel)
+                : null;
         ScreenTraceImages images = Own(
             new ScreenTraceImages(
                 device: device,
