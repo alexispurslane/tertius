@@ -1,6 +1,6 @@
 # Cloud jobs on Runpod: how the queue works
 
-An agent runs a cloud job on a Runpod serverless endpoint: a GPU job, such as a build and a timing run of the demo, or a CPU job, such as the official Stryker run of one module. The agent calls one script, `tools/runpod/gpu_job.py`, and the script keeps the spending within the caps. [WORKBENCH.md](WORKBENCH.md) is the guide for agents: the A/B against main, the quality A/B, what still needs the Mac, the cloud tests, and the costs. This file describes how the queue works. Tickets ter-94uo, ter-a5ev, ter-k7fd and t8-yd4j made the parts.
+An agent runs a cloud job on a Runpod serverless endpoint. A GPU job is, for example, a build and a timing run of the demo. A CPU job is, for example, the official Stryker run of one module. The agent calls one script, `tools/runpod/gpu_job.py`, and the script keeps the spending within the caps. [WORKBENCH.md](WORKBENCH.md) is the guide for agents: the A/B against main, the quality A/B, what still needs the Mac, the cloud tests, and the costs. This file describes how the queue works. Tickets ter-94uo, ter-a5ev, ter-k7fd and t8-yd4j made the parts.
 
 | Part | What it does |
 |---|---|
@@ -63,17 +63,17 @@ Before each job, the script lists the images of the registry. Of the images whos
 
 An image of another branch never runs the job. "Main" is `refs/remotes/origin/main`, main as the repository last fetched it from GitHub. The one image serves both kinds: on a CPU worker, the dev shell starts without a GPU.
 
-Each kind has its own endpoints, one per image. Runpod's list of endpoints is the one store of the live endpoints: the script finds an endpoint by its kind and its image, and no file holds an id. The script's own endpoints are named `tertius-<kind>-<12 characters of the commit>-<4 random hex digits>`. The first endpoints have no random part, or the bare name `tertius-gpu`. The script deletes no other endpoint. Each creation draws a new random part, because Runpod keeps the name of a deleted or failed endpoint for up to 90 minutes and refuses a new endpoint of that name.
+Each kind has its own endpoints, one per image. Runpod's list of endpoints is the one store of the live endpoints: the script finds an endpoint by its kind and its image, and no file holds an id. The script's own endpoints are named `tertius-<kind>-<12 characters of the commit>-<4 random hex digits>`. The first endpoints have no random part, or the bare name `tertius-gpu`. The script deletes no other endpoint. Runpod keeps the name of a deleted or failed endpoint for up to 90 minutes, and it refuses a new endpoint of that name. So each creation draws a new random part.
 
 | Kind | Machine | Workers | Price | Time limit per job | Disk |
 |---|---|---:|---:|---:|---:|
 | `gpu` | RTX 2000 Ada, from the 16 GB pool `AMPERE_16` without its other three cards | 5 | $0.00016/s, $0.58/h | 840 s of commands, 900 s in all | 60 GB |
 | `cpu` | `cpu3c`, compute-optimized, 2 vCPUs, 4 GB of memory | 3 | $0.00002/s, $0.07/h | 7,140 s of commands, 7,200 s in all | 20 GB, the most for 2 vCPUs |
 
-Runpod limits the account to 10 workers, summed over the maximums of all its endpoints. The kinds hold 8 of them. The other 2 are the headroom of an image switch: the new endpoint of either kind starts beside the busy old one with the 2 free workers, and it grows to its kind's workers when the old one goes. The script never lowers an endpoint to make room. Under the lock, the script routes each job in three steps, and each step looks only at the endpoints of the job's kind, apart from the quota:
+Runpod limits the account to 10 workers, summed over the maximums of all its endpoints. The kinds hold 8 of them. The other 2 are the headroom of an image switch. The new endpoint of either kind starts with the 2 free workers, beside the busy old one. When the old one goes, the new one grows to its kind's workers. The script never lowers an endpoint to make room. Under the lock, the script routes each job in three steps. Apart from the quota, each step looks only at the endpoints of the job's kind:
 
-1. It deletes each endpoint of the kind that does not run the chosen image, that no job in flight names, and on which no worker runs. An old endpoint thus goes after its last job, and no job of it is cut. Its workers return to the quota.
-2. If no endpoint of the kind runs the chosen image, the script creates one with the workers that the quota leaves, at most the kind's workers. If the quota leaves none, the job runs on the kind's endpoint of the best fitting image that has one. Only if no such endpoint exists, the script refuses the job.
+1. It deletes each endpoint of the kind that meets three conditions: it does not run the chosen image, no job in flight names it, and no worker runs on it. An old endpoint thus goes after its last job, and no job of it is cut. Its workers return to the quota.
+2. If no endpoint of the kind runs the chosen image, the script creates one. It gets the workers that the quota leaves, at most the kind's workers. If the quota leaves none, the job runs on the kind's endpoint of the best fitting image. If the kind has no such endpoint, the script refuses the job.
 3. If the quota leaves room, the script raises the live endpoint to its kind's workers.
 
 `gpu_job.py endpoint-request [--kind cpu] <commit>` prints the request that creates an endpoint, and sends nothing.
@@ -123,6 +123,36 @@ When a job ends, the script moves it from `pending/` to the log in one step unde
 - The commands see none of the worker's `RUNPOD_*` variables.
 - If a command fails, the Runpod SDK marks the whole job FAILED. The audit log and `result.json` keep the handler's own result (`failed`, `timed out` or `refused`), and `result.json` keeps Runpod's status as `runpodStatus`.
 - The worker's image has no `bc`. Use `date +%s%N` and shell arithmetic for a time.
+
+## Cloud tests
+
+`tools/stryker/cloud.py` runs the official Stryker run of `tools/stryker/changed.py` with one CPU job per module. Each job's tree is a shallow clone of the head commit. Its command fetches the tree's history without file contents (`git fetch --filter=blob:none --unshallow`), so that `changed.py` finds the merge base and reads the changed files on demand. Then it restores the Stryker tool and runs `changed.py <base> ../out --modules <module>`. The job sends back the module's `results.json`, its Stryker configuration, report and logs, and the process samples. `cloud.py` merges the modules' results and prints them with `changed.py`'s own table and validity rules. WORKBENCH.md, "Tests in the cloud", gives the command.
+
+The CPU kind uses the cheapest machine that ran Stryker within its limits. Measured on 2026-11-12 on `cpu3c` with 2 vCPUs and 4 GB:
+
+| Measurement | Value |
+|---|---|
+| The peak of the job's anonymous memory, during Stryker's builds and its initial test run | 2,295 MB of 4,096 MB, with no out-of-memory kill and no swap |
+| A `Checked` build of the solution | 157 s |
+| Stryker's initial test run of Core's 4,625 tests | 41 to 94 s, against about 27 s on the Mac |
+| Core, 0 mutants in its 3 spans | 2,731 s, $0.056, valid |
+| Simulation, 6 mutants in its 4 spans, all killed | 1,866 s, $0.039, valid |
+
+The 1-minute load in a job reads the shared host, which has many more processors than the worker: a mean of 16 to 24, at most 33.5. It does not measure the worker's own contention. Both runs ended with no timeout, so the load rule of `changed.py` did not apply.
+
+On the Mac, the same modules run one after another, under one Stryker lock: Core 2,674 s and Simulation 3,813 s on tiunr-e8xk. The cloud runs them at once on separate workers, so a full hardening takes the time of its slowest module. A larger worker does not pay: the per-test coverage capture takes most of a run, and it uses about one core and a half.
+
+### Linux failures
+
+These tests fail on the Linux workers and pass on the Mac. A cloud run of their project is not clean until they are fixed:
+
+- Host: 215 of 2,055 tests run out of the card's memory at the default parallelism (ter-net6).
+- Host: the edit command's closing card draws text into its left margin (ter-j4h9).
+- Rendering: an FSR 3.1 host constant differs by 1 ulp on x86-64 (ter-qjyo).
+- Rendering: 8 more tests fail on the RTX 2000 Ada: sphere, tube and accumulator light tests, the prefilter of a uniform map (16 and 32), the light-age diagnostic, the young history of the diffuse filter, and FSR 3.1's reference image.
+- Slop: `CommitReportTests.TheCommitReportShowsTouchedFindingsBeforeTheProjectAddendum`.
+
+The Core, Simulation and Physics tests pass on the workers since ter-zkdz. That ticket made four tests compare two runs on one machine, and the recorded results only on arm64.
 
 ## The tests
 

@@ -390,7 +390,13 @@ A mutant of the Rendering GPU tests takes about 40 s: about 10 s of build and 30
 
 ### The official Stryker run: tools/stryker/changed.py
 
-Run it in the dev shell on the branch, with the base branch and a folder for the output:
+By default, run this one official run in the cloud. Run the command from the branch's checkout on the Mac, with the base branch, a folder for the output and your name:
+
+```bash
+python3 -I tools/stryker/cloud.py main /tmp/<ticket>-stryker --agent <your name>
+```
+
+`cloud.py` runs `changed.py` on each module on its own CPU worker, all at once, and prints the merged table ("A run on another machine" below). Only the official Stryker run goes to the cloud by default. The `tools/mutate.py` list, the pre-commit hook, the Checked and Release suites and the Mac pass of the GPU tests before a merge stay on the Mac. To run the official run on the Mac, run it in the dev shell on the branch:
 
 ```bash
 nix develop --command python3 -I tools/stryker/changed.py main /tmp/<ticket>-stryker
@@ -478,7 +484,11 @@ These changes can shorten the capture or the mutants:
 
 ### A run on another machine
 
-Ticket ter-fz34 looks at rented Linux machines for these runs. The official run needs these things there:
+`tools/stryker/cloud.py` runs the official run on Runpod's CPU workers, one module per worker, through the cloud queue (tools/runpod/WORKBENCH.md, "Tests in the cloud"). Each worker has 2 vCPUs and 4 GB, and runs one module at concurrency 1. The modules run at once, so a full hardening takes the time of its slowest module, not the sum. On 2026-11-12, Core took 2,731 s for $0.056, and Simulation took 1,866 s for $0.039. tools/runpod/README.md, "Cloud tests", gives the measurements.
+
+On a worker, the 1-minute load reads the shared host, not the worker. So the load rule above does not measure the run's own contention there.
+
+The official run needs these things on any other machine, and `cloud.py` gives them to each worker:
 
 - A checkout of the commit to measure. The script reads only committed changes: it diffs from the merge base to `--head`, and it refuses a changed file that differs in the working tree.
 - The dev shell. `changed.py` and `run.py` refuse to start without `TERTIUS_VULKAN_DIR`, although the CPU test projects use no GPU.
