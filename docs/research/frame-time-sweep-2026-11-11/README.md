@@ -15,6 +15,8 @@ Read the two texts in this order:
 - A headless still inside the station's cabin is black with the environment map on (section A11).
 - On 2026-11-12 the deck takes 19.9 ms as a window, after 24.0 ms. Section A12 holds the fresh trace and the ranked table again.
 - The bloom as compute dispatches gains nothing, because its encoder breaks were cheap ones (section A12).
+- The automatic exposure has several stable values in a scene with a large even surface. A still with it mixes a tested change with a step of the meter (section A13).
+- A reflection walk of at most 96 steps saves 0.21 ms and changes the stills less than the accepted cap of 128 did. The bounce-light cap stays at 62 (section A13).
 
 ## What the folder holds
 
@@ -23,7 +25,7 @@ Read the two texts in this order:
 | `pics/` | The pictures and the one film that the texts show |
 | `mvk-keep-dispatch-encoder.patch` | The measured MoltenVK patch, with its measurement switches |
 | `mvk-patched.nix` | The Nix expression that built the measured driver |
-| `tools/` | The scripts that made the tables: the adding count of a frame, the idle time, the encoder list, the image scores |
+| `tools/` | The scripts that made the tables: the adding count of a frame, the idle time, the encoder list, the image scores. `tools/flipcmp/` runs the project's FLIP on pairs of stills. Its project file is stored as `flipcmp.csproj.txt`, so that no build of the repository reads it |
 | `edits/` | One script per scratch build. Each script edits a copy of the source tree |
 | `build-variant.sh`, `measure-lib.sh`, `gpu-trace-bin.sh`, `finish.sh` | The helpers that built a scratch variant and recorded a trace of it |
 | `takes/` | The script, the job list and the lock log of each timed take, and the lock logs of the untimed takes |
@@ -32,6 +34,7 @@ Read the two texts in this order:
 | `acceptance-ter-w1o3/` | The acceptance record of the reflection step cap of 128: timings, image comparisons and test runs |
 | `acceptance-ter-2zga/` | The acceptance record of the patched MoltenVK that the flake builds: frames, traces and test runs |
 | `bloom-compute-ter-lm61/` | The record of the bloom as compute dispatches, which did not merge: the patch, the timed take and the still comparison |
+| `steps-search/` | The step cap search of section A13: the job lists and lock logs of its takes, the pixel and FLIP tables of every cap, and the mottle scores |
 
 The flake's driver patch is `native/moltenvk-keep-dispatch-encoder.patch`. It is the measured patch in the form `keep`, without the measurement switches. [tools/README.md](../../../tools/README.md) describes it in "The patched MoltenVK".
 

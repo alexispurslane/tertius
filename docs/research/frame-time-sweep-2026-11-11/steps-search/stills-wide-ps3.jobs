@@ -1,0 +1,8 @@
+# The third screen (2026-11-12): the scene rigs at 1920 x 1080 and 2560 x 1440, at reflection caps from 256 down to 104.
+# At 1280 x 720 its exposure moves between a cap of 112 and 104. A larger image needs more steps for the same path, so
+# this take looks for the same step at the larger sizes, also above the merged cap of 128.
+for n in 1080 1440; do
+  run par bigscripts/rigs-$n.json ps-rigs-$n-ctl
+  for c in 256 192 160 144 112 104; do SWEEP_RSTEPS=$c run par bigscripts/rigs-$n.json ps-rigs-$n-r$c; done
+done
+for c in 192 160 144; do SWEEP_RSTEPS=$c run par capscripts/rigs.json ps-rigs-r$c; done

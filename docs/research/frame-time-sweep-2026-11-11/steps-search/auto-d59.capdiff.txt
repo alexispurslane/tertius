@@ -1,0 +1,55 @@
+script                 capture                   mean %    any %   >1 lv %  >4 lv %  max
+cabin-light            cabin                     +0.135    40.35    2.128    0.098   49
+cabin-light            canopy                    +0.004    13.12    0.150    0.002    8
+cabin-light            port-window               -0.000     7.55    0.049    0.003   10
+deck-1080              deck                      +0.022    25.43    0.239    0.005   12
+demo-shuttle           nose                      no twin
+demo-shuttle           side                      no twin
+demo-shuttle           tail                      no twin
+demo-surface           apron                     +0.074    30.62    2.193    0.066   47
+demo-surface           at-the-seat               +0.058    35.78    1.898    0.084   30
+demo-surface           boarding                  +0.017    28.19    1.284    0.045   30
+demo-surface           end-overview              +0.031    22.73    0.605    0.025   18
+demo-surface           in-cabin                  -0.007    31.60    1.510    0.079   26
+demo-surface           start                     +0.022    23.19    0.513    0.020   14
+demo-surface           terminal                  +0.083    54.27    4.141    0.058   33
+doorway-1440           inside-view               no twin
+doorway-1440           inside                    no twin
+doorway-1440           outside                   no twin
+doorway-1440           standing                  no twin
+doorway                inside-view               -0.834    41.09    0.068    0.001   11
+doorway                inside                    +7.639    64.59   64.317    0.023   24
+doorway                outside                   +0.180    11.69    0.030    0.003    9
+doorway                standing                  -1.496    50.26    0.071    0.004   19
+hair-bent-cards        bent                      +0.884    39.03    0.091    0.002    8
+hair-bent-cards        front                     +0.962    42.55    0.121    0.001   10
+hair-rugs-1440         low                       -0.013    34.18   11.870    1.459   58
+hair-rugs-1440         rugs                      -0.022    29.34    4.333    0.245  100
+hair-rugs              low                       -0.007    33.30   11.745    1.475   70
+hair-rugs              rugs                      -0.015    26.86    4.134    0.221   76
+lamp-hall-16-hair      hair                      no twin
+low                    edge                      no twin
+low                    front                     no twin
+low                    low                       no twin
+mirror-balls-1440      balls                     +0.046    19.72    1.381    0.218   91
+mirror-balls-1440      belly                     +0.149    12.84    0.087    0.013   71
+mirror-balls-1440      plate                     +0.160     0.02    0.000    0.000    5
+mirror-balls           balls                     +0.023    16.30    1.103    0.100  151
+mirror-balls           belly                     +0.077     8.42    0.125    0.024   57
+mirror-balls           plate                     +0.081     0.01    0.000    0.000    3
+reflections-stills     edge                      no twin
+reflections-stills     front                     no twin
+reflections-stills     low                       no twin
+rigs                   bent-left                 +1.817    55.16    0.152    0.005   21
+rigs                   bent-right                +0.124     8.88    0.086    0.004   27
+rigs                   box-other-way             +0.055     5.31    0.026    0.002   11
+rigs                   box                       +1.539    58.09    0.016    0.001    7
+rigs                   twist                     +1.239    38.74    0.002    0.000    2
+station                crate-at-wall             no twin
+station                crate-flying              no twin
+station                end                       no twin
+station                first-bump                no twin
+station                pods-at-radiator          no twin
+station                pods-drifting             no twin
+station                pods-out                  no twin
+captures 32, identical 0, largest change of the mean +7.639 % (doorway inside), largest share over 4 levels 1.475 %, largest share over 1 level 64.317 %

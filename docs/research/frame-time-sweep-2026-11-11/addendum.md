@@ -531,7 +531,7 @@ What the captures show:
 1. A cap of 128 holds in every capture. The mean changes by at most 0.03 %. The median capture has 0.007 % of its pixels over 4 levels.
 2. The mirrors are the hardest case. In `mirror-balls`, a cap of 128 changes 0.19 % of the pixels by more than 4 levels. Single pixels change by up to 106 levels. These pixels sit on the rims of two mirror balls. `pics/steps-balls-crop.png` shows the balls at each cap. The reflected shapes do not change.
 3. A cap of 96 holds too. One capture changes its mean by more than 0.1 %: the first frame of `demo-meshes`, at −0.24 %.
-4. A cap of 64 fails. In `doorway` the whole floor brightens by 3.3 to 7.7 %, and the automatic exposure moves by 0.07 stops. At 96 steps the same captures change by 0.00 %. So a whole class of rays needs between 64 and 96 steps there. `pics/steps-doorway-maps.png` shows it.
+4. A cap of 64 fails. In `doorway` the whole floor brightens by 3.3 to 7.7 %, and the automatic exposure moves by 0.07 stops. Section A13 corrects this point: the change was two steps of the exposure meter, not an effect of the cap. At 96 steps the same captures change by 0.00 %. So a whole class of rays needs between 64 and 96 steps there. `pics/steps-doorway-maps.png` shows it.
 
 ### Ticket proposal: a reflection cap of 128 steps
 
@@ -680,7 +680,7 @@ The order is by gain for the risk. All gains are for the deck as a window, at 19
 | # | Change | Gain (ms) | From | Effect on the image | State |
 |---:|---|---:|---|---|---|
 | 1 | Row 1: one byte per pixel holds the same-surface answers of the 3 × 3 neighbors | 0.45 | Bound 0.69, less 0.2 estimated for the write | None | `ter-yaqk` waits for Design A of the mottle agent |
-| 2 | Lower step caps of the two walks, found by a binary search | section A13 | Measured | Not visible, by the three conditions of Alexis's permission | Section A13 |
+| 2 | A reflection walk of at most 96 steps, found by the search of section A13 | 0.21 | Measured, takes 10 and 12 | Not visible at a still's own size. FLIP flags up to 0.08 % of a still, at the rims of mirror balls. | A question for Alexis. The bounce-light cap stays. |
 | 3 | Buffer updates out of the middle of the frame | 0.00 to 0.06 | Measured with a proxy build in take 11 | None | `ter-n8bk`: not worth a build |
 | 4 | The local shadow tiles of a frame in one render pass | up to 0.25 | 13 render encoder breaks of 21 µs, not measured | None | `ter-jr0f`, in the tile agent's files |
 | 5 | Fewer time stamps in a window | at most 0.05 | 5 stamp encoders, at the measured price of a removed encoder | None | `ter-wp7u` |
@@ -698,9 +698,86 @@ The budget is a 95th percentile of 16.7 ms, so the mean must reach about 16.1 ms
 | Source | Gain (ms) | Who decides or builds |
 |---|---:|---|
 | The exact cuts of rows 1 and 3 to 6 | 0.5 to 0.8 | Row 1 after Design A, and row 4 in the tile agent's files |
-| The step caps | section A13 | This sweep, by the permission of 2026-11-12 |
+| A reflection cap of 96 | 0.21 | Alexis, because the strict FLIP condition fails (section A13) |
 | The key-and-fill design for the direct light and the transparent pass, 5.9 ms today | the tile agent's estimate | The tile agent |
 | Rows 7 to 9 | up to 0.7, 1.0 to 1.3 and about 3.5 | Alexis |
 | The reserve for the mottle fixes | costs up to 1.5 | The mottle agent |
 
 No sum of exact cuts reaches the budget. The lights hold the largest part that no row of this table counts.
+
+## A13. The step caps again: a search under the permission of 2026-11-12
+
+Alexis allowed parameter changes on 2026-11-12, under three conditions. A binary search finds the value. The ticket records the search, the gain and the cost. The image does not change visibly: not to the eye on full-resolution crops beside the reference, not by FLIP, and the mottle score does not rise.
+
+FLIP gives each pixel a value from 0 to 1. A viewer flips between two images, and the value says how much the pixel seems to change. The project's snapshot tests call a value above 0.1 visible. `tools/flipcmp/` runs the project's own FLIP (`tests/Tertius.Rendering.Tests/Flip.cs`) on pairs of stills. To build it, copy the folder out of the repository, rename `flipcmp.csproj.txt` to `flipcmp.csproj`, and correct the two paths to the test files.
+
+The result: neither cap changed. The bounce-light cap fails the conditions at every value below 62. A reflection cap of 96 saves 0.21 ms and fails only the strict FLIP condition, so it is a question for Alexis.
+
+### A trap first: the automatic exposure has several stable values
+
+The first screen used each scene's automatic exposure. It showed a reflection cap of 96 as a failure: the stills of `rigs` changed by 3.8 % in the mean. That reading was wrong.
+
+The exposure of `rigs` settles at −9.3555 stops or at −9.3184 stops. A reflection cap of 104 flips it at 1280 × 720. At 1920 × 1080 the still takes the second value at every cap from 104 to 256. So the step is a property of the meter, not of the cap. `pics/steps2-rigs-exposure-step.png` shows the two values.
+
+The meter counts luminance in bins of 0.125 stops and takes the trimmed mean of the bin centers. In `rigs` the floor is one even surface, and one band of 8 levels holds 43.5 % of the still. When that surface crosses a bin's edge, the mean steps. Ticket `t2-supl` holds the finding.
+
+This corrects section A10. Its point 4 said that a reflection cap of 64 brightens the floor of `doorway` by 3.3 to 7.7 %. At a fixed exposure, `doorway` changes by at most 0.004 % at that cap. The 7.7 % were two steps of the meter.
+
+From here on, every still runs at one fixed exposure per scene, the automatic one of its control.
+
+### The times
+
+Takes 10 and 12 timed the caps on the deck as a window, on main at `c87eac88f`. The GPU clock stayed at 1,292 to 1,296 MHz. One control trace of take 12 was disturbed at 20.85 ms and does not count.
+
+| Cap | Traces | Median frame span (ms) | Gain against main (ms) |
+|---|---:|---|---:|
+| Main: reflection 128, bounce light 62 | 4 | 19.718, 19.734, 19.771, 19.783 | |
+| Reflection 112 | 1 | 19.614 | 0.14 |
+| Reflection 96 | 4 | 19.450, 19.499, 19.596, 19.602 | 0.21 |
+| Reflection 80 | 4 | 19.318, 19.328, 19.351, 19.499 | 0.38 |
+| Bounce light 54 | 1 | 19.642 | 0.11 |
+| Bounce light 48 | 1 | 19.596 | 0.16 |
+| Bounce light 40 | 1 | 19.380 | 0.37 |
+
+### The bounce-light cap stays at 62
+
+At a fixed exposure, a cap of 56 darkens 57 stills of 16 scenes by up to 0.72 % in the mean. The deck loses 0.45 %. FLIP gives 22,389 pixels above 0.1, in 30 of the 57 stills. A cap of 48 raises the mottle score of the mottle agent's three scenes by 0.012 to 0.016. A step of 0.010 is visible there.
+
+So the first value below 62 that I tested with a gain above the noise already changes the light. A capped bounce-light walk ends as a miss, and a miss reads the environment in place of the surface on its path. Decision 41 stays.
+
+### The reflection cap: 96 holds by the standard of the cap of 128
+
+The reference for each number is the step that ticket `ter-w1o3` accepted, from 256 to 128 steps. The stills are 128 captures of 32 scripts for the cap of 96, and 57 captures of 16 scenes for the others.
+
+| Step | Largest change of a still's mean | Largest share of pixels over 4 levels | Pixels with FLIP above 0.1, on the same 32 stills | A moving film of 180 frames: largest change of a frame's mean |
+|---|---:|---:|---:|---:|
+| 256 to 128, accepted | 0.067 %, and 0.231 % in the hair scenes | 1.10 % | 12,225 | 0.017 % |
+| 128 to 96 | 0.060 % | 1.18 % | 7,749 | 0.047 % |
+| 128 to 80 | 0.100 % | 1.65 % | 16,866 | 0.044 % |
+| 128 to 64 | 0.181 % | 2.29 % | 37,261 | not filmed |
+
+A level is one of the 255 steps of an 8-bit still. The largest shares over 4 levels are all in `hair-rugs`. There the grain of the hair takes another pattern, and the crops look alike. The hair scene `lamp-hall-16-hair` ran only with the automatic exposure: at a cap of 96 its still changes by 0.084 % in the mean.
+
+The mottle score does not move at a cap of 96: 0.0362 to 0.0363, 0.0333 to 0.0341 and 0.0432 to 0.0430 in the three scenes.
+
+The one place with a visible trend is the rim of a mirror ball in `mirror-balls` at 2560 × 1440. A thin bright line at the rim gets fainter with each lower cap. `pics/steps2-balls-rim-zoom.png` shows it at four times the size, from 256 down to 64 steps. At the still's own size, the caps of 128, 96 and 80 look alike to me (`pics/steps2-balls-1x.png`, `pics/steps2-balls-pair.png`).
+
+One highlight in the same still is not a trend. With the automatic exposure, a lamp's reflection in a ball has a wide glow at caps of 128 and 120. It has a small glow at 256, 112, 104 and 96. So it flips with any small change of the rays (`pics/steps2-highlight-six-caps.png`).
+
+### The verdict
+
+| Condition | Reflection cap of 96 |
+|---|---|
+| Found by a binary search | 128 holds, 64 and 80 exceed the accepted step, 96 lies below it. The next step is 88. |
+| Recorded | This section and `steps-search/` |
+| Not visible to the eye at full resolution | Holds: the crops at the still's own size look alike |
+| Not visible by FLIP | Fails by the strict reading: 26 of 128 stills have a pixel above 0.1, and the worst still has 3,093 such pixels, 0.08 % of it |
+| The mottle score does not rise | Holds |
+
+The accepted step from 256 to 128 fails the same strict reading, with more pixels. I did not change the cap, because one condition fails as written. The question for Alexis: a reflection cap of 96 for 0.21 ms, with the mirror rims a little fainter again.
+
+### A side finding: the light loop of an environment face
+
+Take 12 also timed a proxy build whose environment faces shade no light (`edits/envnolight.py`). The faces take 0.135 ms in place of 0.389 ms, by the medians of the engine's pass timers. The sum with the prefilter falls from 0.737 to 0.493 ms.
+
+A face has 128 × 128 texels, and each fragment shades every lamp. So the light loop costs about 0.25 ms per frame for 16,384 texels. A list of the lamps that reach a face is a possible exact cut. I did not size it: the proxy's map is dark, so its rays do other work, and its frame span does not compare.
