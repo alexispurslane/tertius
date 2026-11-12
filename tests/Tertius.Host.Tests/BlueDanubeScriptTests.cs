@@ -15,45 +15,64 @@ public sealed class BlueDanubeScriptTests
 
     /// <summary>
     /// The demo's command line writes the script with <c>--generate &lt;file&gt;</c>, exits with 0 and prints the file's
-    /// path first, and the file equals the checked-in script, so the two cannot drift: a change of the scene or of the
-    /// sections fails this test until the checked-in script is written again. The same holds for each cut that it writes
-    /// beside the script, such as scripts/demo-docking.json.
+    /// path first, and it writes each cut beside the script, such as scripts/demo-docking.json. Two runs on this machine
+    /// write the same files. On arm64, which recorded them, the files equal the checked-in scripts
+    /// (<see cref="RecordedReference"/>), so the two cannot drift: a change of the scene or of the sections fails this
+    /// test until the checked-in scripts are written again.
     /// </summary>
     [Fact]
     public void TheCheckedInScriptIsWhatTheDemosCommandLineGenerates()
     {
-        string folder = NewFolder();
+        string first = NewFolder();
+        string second = NewFolder();
         try
         {
-            string written = Path.Combine(folder, "blue-danube.json");
-            var output = new StringWriter();
-            var error = new StringWriter();
-
-            int exit = Program.Generate(["--generate", written], output, error);
-
-            exit.Should().Be(ScriptCommand.Ok, error.ToString());
-            output.ToString().Split('\n')[0].Trim().Should().Be(written);
-            File.ReadAllText(written)
-                .Should()
-                .Be(
-                    File.ReadAllText(CheckedIn),
-                    "scripts/blue-danube.json must be what the generator writes: run `dotnet run --project src/Tertius.Demo -- --generate scripts/blue-danube.json`"
-                );
+            Generate(first);
+            Generate(second);
             BlueDanube.Cuts.Should().NotBeEmpty();
-            foreach ((string file, _, _) in BlueDanube.Cuts)
+            string[] files = [LongScript, .. BlueDanube.Cuts.Select(cut => cut.File)];
+            foreach (string file in files)
             {
-                output.ToString().Should().Contain(Path.Combine(folder, file));
-                File.ReadAllText(Path.Combine(folder, file))
+                File.ReadAllText(Path.Combine(second, file))
+                    .Should()
+                    .Be(File.ReadAllText(Path.Combine(first, file)), $"two runs on one machine write the same {file}");
+            }
+
+            Assert.SkipUnless(RecordedReference.Applies, RecordedReference.SkipReason);
+            foreach (string file in files)
+            {
+                File.ReadAllText(Path.Combine(first, file))
                     .Should()
                     .Be(
                         File.ReadAllText(Path.Combine(RepositoryRoot(), "scripts", file)),
-                        $"scripts/{file} must be what the generator writes beside the long script"
+                        $"scripts/{file} must be what the generator writes: run `dotnet run --project src/Tertius.Demo -- --generate scripts/blue-danube.json`"
                     );
             }
         }
         finally
         {
-            Directory.Delete(folder, recursive: true);
+            Directory.Delete(first, recursive: true);
+            Directory.Delete(second, recursive: true);
+        }
+    }
+
+    /// <summary>The file name of the long script, which the generator writes with its cuts beside it.</summary>
+    private const string LongScript = "blue-danube.json";
+
+    /// <summary>Runs the demo's command line that writes the long script and its cuts into <paramref name="folder"/>.</summary>
+    private static void Generate(string folder)
+    {
+        string written = Path.Combine(folder, LongScript);
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        int exit = Program.Generate(["--generate", written], output, error);
+
+        exit.Should().Be(ScriptCommand.Ok, error.ToString());
+        output.ToString().Split('\n')[0].Trim().Should().Be(written);
+        foreach ((string file, _, _) in BlueDanube.Cuts)
+        {
+            output.ToString().Should().Contain(Path.Combine(folder, file));
         }
     }
 

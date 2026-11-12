@@ -1,0 +1,53 @@
+{
+ "stopped": null,
+ "rows": [
+  {
+   "id": "C01",
+   "file": "src/Tertius.Rendering/ScreenTraceSetting.cs",
+   "line": 32,
+   "change": "the old cap of 256 steps",
+   "result": "killed",
+   "killed_by": [
+    "ScreenTraceSettingTests.TheRendererOptionsDefaultToTheDesignsTracerAndThirtyTwoWarmUpDraws"
+   ],
+   "seconds": 7.139948916155845,
+   "original": "ReflectionSteps: 128",
+   "replacement": "ReflectionSteps: 256",
+   "classes": [
+    "ScreenTraceSettingTests"
+   ]
+  },
+  {
+   "id": "C02",
+   "file": "src/Tertius.Rendering/ScreenTraceSetting.cs",
+   "line": 32,
+   "change": "one step fewer",
+   "result": "killed",
+   "killed_by": [
+    "ScreenTraceSettingTests.TheRendererOptionsDefaultToTheDesignsTracerAndThirtyTwoWarmUpDraws"
+   ],
+   "seconds": 6.4536028751172125,
+   "original": "ReflectionSteps: 128",
+   "replacement": "ReflectionSteps: 127",
+   "classes": [
+    "ScreenTraceSettingTests"
+   ]
+  },
+  {
+   "id": "C03",
+   "file": "src/Tertius.Rendering/ScreenTraceSetting.cs",
+   "line": 32,
+   "change": "the cap of 64 steps, which breaks the doorway floor",
+   "result": "killed",
+   "killed_by": [
+    "ScreenTraceSettingTests.TheRendererOptionsDefaultToTheDesignsTracerAndThirtyTwoWarmUpDraws"
+   ],
+   "seconds": 5.207558125257492,
+   "original": "ReflectionSteps: 128",
+   "replacement": "ReflectionSteps: 64",
+   "classes": [
+    "ScreenTraceSettingTests"
+   ]
+  }
+ ]
+}

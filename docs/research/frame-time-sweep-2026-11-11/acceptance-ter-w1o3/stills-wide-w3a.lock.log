@@ -1,0 +1,18 @@
+uptime-start:  08:25:27  up 47 days 19:59,  2 users,  load average: 9.84, 9.35, 14.96
+waited: 1168s
+mode: shared, with up to 3 shared runs at once
+w3-mirror-balls-1440-r128: 6 files, exit 0
+w3-doorway-1080-ctl: 10 files, exit 0
+w3-doorway-1080-r128: 10 files, exit 0
+w3-doorway-1440-ctl: 10 files, exit 0
+w3-doorway-1440-r128: 10 files, exit 0
+w3-hair-rugs-1080-ctl: 5 files, exit 0
+w3-hair-rugs-1080-r128: 5 files, exit 0
+w3-hair-rugs-1440-ctl: 5 files, exit 0
+w3-hair-rugs-1440-r128: 5 files, exit 0
+w3-demo-surface-1080-ctl: 15 files, exit 0
+w3-demo-surface-1080-r128: 15 files, exit 0
+w3-demo-surface-1440-ctl: 15 files, exit 0
+w3-demo-surface-1440-r128: 15 files, exit 0
+stills ended: stills-wide-w3a.jobs
+uptime-end:  08:28:27  up 47 days 20:02,  2 users,  load average: 52.12, 34.33, 24.60

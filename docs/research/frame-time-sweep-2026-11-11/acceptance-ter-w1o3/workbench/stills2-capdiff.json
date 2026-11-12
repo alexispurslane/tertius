@@ -1,0 +1,92 @@
+[
+ {
+  "script": "doorway",
+  "capture": "inside-view",
+  "same": true,
+  "mean": 0.0,
+  "changed": 0.0,
+  "over1": 0.0,
+  "over4": 0.0,
+  "max": 0
+ },
+ {
+  "script": "doorway",
+  "capture": "inside",
+  "same": false,
+  "mean": -3.4067655918512685e-08,
+  "changed": 0.0016254340277777777,
+  "over1": 1.0850694444444444e-06,
+  "over4": 0.0,
+  "max": 2
+ },
+ {
+  "script": "doorway",
+  "capture": "outside",
+  "same": false,
+  "mean": 3.9675393592730757e-07,
+  "changed": 0.004201388888888889,
+  "over1": 5.4253472222222224e-06,
+  "over4": 0.0,
+  "max": 4
+ },
+ {
+  "script": "doorway",
+  "capture": "standing",
+  "same": false,
+  "mean": -3.6445949228580687e-06,
+  "changed": 0.0020713975694444443,
+  "over1": 9.765625e-06,
+  "over4": 2.170138888888889e-06,
+  "max": 7
+ },
+ {
+  "script": "hair-rugs",
+  "capture": "low",
+  "same": false,
+  "mean": -8.273989992013675e-05,
+  "changed": 0.14359266493055556,
+  "over1": 0.06498372395833334,
+  "over4": 0.009928385416666666,
+  "max": 51
+ },
+ {
+  "script": "hair-rugs",
+  "capture": "rugs",
+  "same": false,
+  "mean": -3.655339347352626e-05,
+  "changed": 0.08326714409722222,
+  "over1": 0.016770833333333332,
+  "over4": 0.0012608506944444444,
+  "max": 77
+ },
+ {
+  "script": "mirror-balls",
+  "capture": "balls",
+  "same": false,
+  "mean": -6.961599634869309e-06,
+  "changed": 0.11143012152777777,
+  "over1": 0.006183810763888889,
+  "over4": 0.0011002604166666667,
+  "max": 152
+ },
+ {
+  "script": "mirror-balls",
+  "capture": "belly",
+  "same": false,
+  "mean": 0.00011201325253251682,
+  "changed": 0.04353190104166667,
+  "over1": 0.000927734375,
+  "over4": 0.00011610243055555556,
+  "max": 24
+ },
+ {
+  "script": "mirror-balls",
+  "capture": "plate",
+  "same": false,
+  "mean": 0.0011551219233469912,
+  "changed": 7.378472222222222e-05,
+  "over1": 1.953125e-05,
+  "over4": 5.4253472222222224e-06,
+  "max": 14
+ }
+]

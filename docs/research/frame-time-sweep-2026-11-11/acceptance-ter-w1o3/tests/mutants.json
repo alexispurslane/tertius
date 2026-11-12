@@ -1,0 +1,14 @@
+[
+ {"id": "C01", "file": "src/Tertius.Rendering/ScreenTraceSetting.cs", "line": 32,
+  "original": "ReflectionSteps: 128", "replacement": "ReflectionSteps: 256",
+  "project": "tests/Tertius.Rendering.Tests", "class": ["ScreenTraceSettingTests"],
+  "note": "the old cap of 256 steps"},
+ {"id": "C02", "file": "src/Tertius.Rendering/ScreenTraceSetting.cs", "line": 32,
+  "original": "ReflectionSteps: 128", "replacement": "ReflectionSteps: 127",
+  "project": "tests/Tertius.Rendering.Tests", "class": ["ScreenTraceSettingTests"],
+  "note": "one step fewer"},
+ {"id": "C03", "file": "src/Tertius.Rendering/ScreenTraceSetting.cs", "line": 32,
+  "original": "ReflectionSteps: 128", "replacement": "ReflectionSteps: 64",
+  "project": "tests/Tertius.Rendering.Tests", "class": ["ScreenTraceSettingTests"],
+  "note": "the cap of 64 steps, which breaks the doorway floor"}
+]

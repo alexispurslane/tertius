@@ -27,6 +27,7 @@ Read the two texts in this order:
 | `takes/` | The script, the job list and the lock log of each timed take, and the lock logs of the untimed takes |
 | `trace/` | The tables of each recorded trace: the passes, the adding count and the idle time |
 | `refl/` | The demo scripts of the image tests, the scripts of the untimed takes, and the image scores |
+| `acceptance-ter-w1o3/` | The acceptance record of the reflection step cap of 128: timings, image comparisons and test runs |
 | `acceptance-ter-2zga/` | The acceptance record of the patched MoltenVK that the flake builds: frames, traces and test runs |
 
 The flake's driver patch is `native/moltenvk-keep-dispatch-encoder.patch`. It is the measured patch in the form `keep`, without the measurement switches. [tools/README.md](../../../tools/README.md) describes it in "The patched MoltenVK".

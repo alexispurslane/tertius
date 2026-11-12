@@ -1,0 +1,11 @@
+script                 capture                   mean %    any %   >1 lv %  >4 lv %  max
+doorway                inside-view               identical
+doorway                inside                    -0.000     0.16    0.000    0.000    2
+doorway                outside                   +0.000     0.42    0.001    0.000    4
+doorway                standing                  -0.000     0.21    0.001    0.000    7
+hair-rugs              low                       -0.008    14.36    6.498    0.993   51
+hair-rugs              rugs                      -0.004     8.33    1.677    0.126   77
+mirror-balls           balls                     -0.001    11.14    0.618    0.110  152
+mirror-balls           belly                     +0.011     4.35    0.093    0.012   24
+mirror-balls           plate                     +0.116     0.01    0.002    0.001   14
+captures 9, identical 1, largest change of the mean +0.116 % (mirror-balls plate), largest share over 4 levels 0.993 %, largest share over 1 level 6.498 %

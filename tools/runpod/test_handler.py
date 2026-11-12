@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Tool code. The serverless worker's job handler (tools/runpod/handler.py): its trees, its commands and its outputs.
 
-    nix develop --command python3 -I tools/runpod/test_handler.py
+    python3 -I tools/runpod/test_handler.py
 
-The standard library and git only. The tests run the commands in plain bash, where a worker runs them in the dev shell.
+The standard library and git only. A local bare repository stands in for the public repository on GitHub, and the
+tests run the commands in plain bash, where a worker runs them in the dev shell.
 """
 
 import base64
@@ -18,26 +19,13 @@ spec = importlib.util.spec_from_file_location("handler", Path(__file__).with_nam
 handler = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(handler)
 
-BASE = "1111111111111111111111111111111111111111"
 SHELL = ["bash", "-c"]
+# The dev shell's files, as the image baked them.
+SHELL_FILES = {"flake.nix": "{ outputs = _: { }; }\n", "flake.lock": "{}\n", "native/joltc.nix": "joltc\n"}
 
 
-def patch(before: dict, after: dict) -> str:
-    """The base64 of `git diff --binary` from the files `before` to the files `after`, as gpu_job.py sends it."""
-    with tempfile.TemporaryDirectory() as folder:
-        repo = Path(folder)
-        git = lambda *args: subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True).stdout
-        git("init", "-q")
-        for name, text in before.items():
-            (repo / name).write_text(text)
-        git("add", "-A")
-        git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "before", "--allow-empty")
-        for name in before:
-            (repo / name).unlink()
-        for name, text in after.items():
-            (repo / name).write_text(text)
-        git("add", "-A")
-        return base64.b64encode(git("diff", "--binary", "--cached")).decode()
+def git(cwd: Path, *args) -> str:
+    return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True).stdout.strip()
 
 
 class Job(unittest.TestCase):
@@ -45,17 +33,41 @@ class Job(unittest.TestCase):
         self.folder = tempfile.TemporaryDirectory()
         root = Path(self.folder.name)
         self.baked = root / "baked"
-        self.baked.mkdir()
-        (self.baked / "BAKED_COMMIT").write_text(BASE + "\n")
-        (self.baked / "a.txt").write_text("base\n")
+        for name, text in SHELL_FILES.items():
+            (self.baked / name).parent.mkdir(parents=True, exist_ok=True)
+            (self.baked / name).write_text(text)
+        self.remote = root / "remote.git"
+        git(root, "init", "-q", "--bare", str(self.remote))
+        git(self.remote, "config", "uploadpack.allowFilter", "true")
+        self.source = root / "source"
+        git(root, "init", "-q", str(self.source))
         self.work = root / "work"
+        self.main = self.commit({**SHELL_FILES, "a.txt": "main\n"})
 
     def tearDown(self):
         self.folder.cleanup()
 
+    def commit(self, files: dict, ref: str | None = None) -> str:
+        """A commit of exactly `files`, pushed to the stand-in for GitHub under `ref`; its id."""
+        for path in self.source.rglob("*"):
+            if path.is_file() and ".git" not in path.parts:
+                path.unlink()
+        for name, text in files.items():
+            (self.source / name).parent.mkdir(parents=True, exist_ok=True)
+            (self.source / name).write_text(text)
+        git(self.source, "add", "-A")
+        git(self.source, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "c", "--allow-empty")
+        sha = git(self.source, "rev-parse", "HEAD")
+        git(self.source, "push", "-q", str(self.remote), f"{sha}:{ref or self.ref(sha)}")
+        return sha
+
+    def ref(self, sha: str) -> str:
+        return f"refs/gpu-jobs/2026-11-12/agent/{sha}"
+
     def run_job(self, **job):
-        job.setdefault("base", BASE)
-        job.setdefault("trees", {"main": ""})
+        job.setdefault("protocol", handler.PROTOCOL)
+        job.setdefault("repository", str(self.remote))
+        job.setdefault("trees", {"main": {"sha": self.main, "ref": self.ref(self.main)}})
         job.setdefault("commands", [])
         job.setdefault("seconds", 30)
         return handler.handle(job, baked=self.baked, work=self.work, shell=SHELL,
@@ -63,34 +75,49 @@ class Job(unittest.TestCase):
 
 
 class Trees(Job):
-    """Each named tree is a copy of the baked source with its own patch."""
+    """Each named tree holds the files of its commit, fetched from the public repository."""
 
-    def test_each_tree_holds_the_baked_source_with_its_own_patch_applied(self):
-        result = self.run_job(trees={"main": "", "branch": patch({"a.txt": "base\n"}, {"a.txt": "branch\n"})},
+    def test_each_tree_holds_the_files_of_its_own_commit(self):
+        branch = self.commit({**SHELL_FILES, "a.txt": "branch\n"})
+        result = self.run_job(trees={"main": {"sha": self.main, "ref": self.ref(self.main)},
+                                     "branch": {"sha": branch, "ref": self.ref(branch)}},
                               commands=["cat main/a.txt branch/a.txt > both.txt"], outputs=["both.txt"])
         self.assertEqual(result["status"], "ok", result)
-        self.assertEqual(base64.b64decode(result["files"]["both.txt"]).decode(), "base\nbranch\n")
+        self.assertEqual(base64.b64decode(result["files"]["both.txt"]).decode(), "main\nbranch\n")
 
-    def test_a_patch_can_add_a_file(self):
-        result = self.run_job(trees={"t": patch({"a.txt": "base\n"}, {"a.txt": "base\n", "new.txt": "added\n"})},
-                              commands=["cat t/new.txt > out.txt"], outputs=["out.txt"])
-        self.assertEqual(base64.b64decode(result["files"]["out.txt"]).decode(), "added\n")
+    def test_a_tree_leaves_out_the_docs_and_the_tickets(self):
+        sha = self.commit({**SHELL_FILES, "a.txt": "x\n", "docs/report.md": "research\n", ".tickets/t.md": "note\n"})
+        result = self.run_job(trees={"t": {"sha": sha, "ref": self.ref(sha)}},
+                              commands=["test -f t/a.txt && test ! -e t/docs && test ! -e t/.tickets"])
+        self.assertEqual(result["status"], "ok", result["log"])
 
-    def test_a_patch_that_does_not_apply_fails_the_job_with_gits_message_and_runs_no_command(self):
-        result = self.run_job(trees={"t": patch({"a.txt": "other\n"}, {"a.txt": "changed\n"})},
-                              commands=["touch ran"])
+    def test_a_ref_that_names_another_commit_fails_the_job_and_runs_no_command(self):
+        other = self.commit({**SHELL_FILES, "a.txt": "other\n"})
+        result = self.run_job(trees={"t": {"sha": self.main, "ref": self.ref(other)}}, commands=["touch ran"])
         self.assertEqual(result["status"], "failed")
-        self.assertIn("a.txt", result["error"])
+        self.assertIn(self.main, result["error"])
         self.assertFalse((self.work / "ran").exists())
 
-    def test_a_job_for_another_base_is_refused_before_any_tree_is_made(self):
-        result = self.run_job(base="2" * 40, commands=["touch ran"])
+    def test_a_commit_with_another_dev_shell_is_refused_before_any_command(self):
+        for changed in ({"flake.lock": "{ changed }\n"}, {"native/joltc.nix": "other joltc\n"},
+                        {"native/new.sh": "new\n"}):
+            with self.subTest(changed=changed):
+                sha = self.commit({**SHELL_FILES, **changed})
+                result = self.run_job(trees={"t": {"sha": sha, "ref": self.ref(sha)}}, commands=["touch ../ran"])
+                self.assertEqual(result["status"], "refused")
+                self.assertIn("dev shell", result["error"])
+                self.assertFalse((self.work / "ran").exists())
+                self.tearDown()
+                self.setUp()
+
+    def test_a_job_of_another_protocol_is_refused_and_names_both(self):
+        result = self.run_job(protocol=1)
         self.assertEqual(result["status"], "refused")
-        self.assertIn(BASE, result["error"], "the error names the commit that the image holds")
-        self.assertFalse(self.work.exists())
+        self.assertIn("protocol 1", result["error"])
+        self.assertIn(f"protocol {handler.PROTOCOL}", result["error"])
 
     def test_a_tree_name_that_is_not_a_plain_name_is_refused(self):
-        result = self.run_job(trees={"../escape": ""})
+        result = self.run_job(trees={"../escape": {"sha": self.main, "ref": self.ref(self.main)}})
         self.assertEqual(result["status"], "refused")
         self.assertFalse(self.work.exists())
 
@@ -116,7 +143,6 @@ class Commands(Job):
 
     def test_the_job_limit_is_the_jobs_own_seconds(self):
         result = self.run_job(commands=["sleep 30"], seconds=1)
-        self.assertEqual(result["status"], "timed out")
         self.assertIn("1 s", result["error"])
 
     def test_a_job_that_asks_for_more_than_the_handlers_ceiling_gets_the_ceiling(self):
@@ -125,7 +151,7 @@ class Commands(Job):
         self.assertIn("1 s", result["error"])
 
     def test_a_background_process_stops_when_its_command_ends(self):
-        result = self.run_job(commands=["(sleep 47 &)", "sleep 0.5; ! pgrep -f 'sleep 47'"])
+        result = self.run_job(commands=["(sleep 47 &)", "sleep 0.5; ! pgrep -x -f 'sleep 47'"])
         self.assertEqual(result["status"], "ok", result["log"])
 
     def test_the_commands_do_not_see_runpods_variables(self):

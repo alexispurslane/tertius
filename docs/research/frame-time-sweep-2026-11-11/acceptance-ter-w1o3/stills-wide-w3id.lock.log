@@ -1,0 +1,15 @@
+uptime-start:  09:43:28  up 47 days 21:17,  2 users,  load average: 15.40, 13.32, 16.64
+waited: 0s
+mode: shared, with up to 3 shared runs at once
+w3id-doorway-branch: 10 files, exit 0
+w3id-doorway-r128: 10 files, exit 0
+w3id-demo-surface-branch: 15 files, exit 0
+w3id-demo-surface-r128: 15 files, exit 0
+w3id-mirror-balls-branch: 6 files, exit 0
+w3id-mirror-balls-r128: 6 files, exit 0
+w3id-hair-rugs-branch: 5 files, exit 0
+w3id-hair-rugs-r128: 5 files, exit 0
+w3id-low-branch: 36 files, exit 0
+w3id-low-r128: 36 files, exit 0
+stills ended: stills-wide-w3id.jobs
+uptime-end:  09:45:35  up 47 days 21:19,  2 users,  load average: 55.88, 31.25, 23.39

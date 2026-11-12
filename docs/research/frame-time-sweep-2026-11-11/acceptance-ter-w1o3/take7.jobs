@@ -1,0 +1,14 @@
+# Take 7: the reflection step cap of 128 against 256 on the deck (ter-w1o3), with the patched MoltenVK of main. The
+# binary steps2 is main's Release build (engine of ad095e599) whose reflection cap comes from SWEEP_RSTEPS, and whose
+# exposure is the deck's fixed value. Without SWEEP_RSTEPS the cap is 256. Two rounds with the pass time stamps, for
+# the pass table, and two rounds without them, as a window runs.
+X="SWEEP_EXPOSURE=0.7041458"
+NS="--pass-timestamps off"
+TRACE_EXTRA_ENV="$X" trace deck-w3-ctl steps2 $D
+TRACE_EXTRA_ENV="$X SWEEP_RSTEPS=128" trace deck-w3-r128 steps2 $D
+TRACE_EXTRA_ENV="$X" trace deck-w3-ctl-ns steps2 $D $NS
+TRACE_EXTRA_ENV="$X SWEEP_RSTEPS=128" trace deck-w3-r128-ns steps2 $D $NS
+TRACE_EXTRA_ENV="$X" trace deck-w3-ctl-ns-b steps2 $D $NS
+TRACE_EXTRA_ENV="$X SWEEP_RSTEPS=128" trace deck-w3-r128-ns-b steps2 $D $NS
+TRACE_EXTRA_ENV="$X" trace deck-w3-ctl-b steps2 $D
+TRACE_EXTRA_ENV="$X SWEEP_RSTEPS=128" trace deck-w3-r128-b steps2 $D

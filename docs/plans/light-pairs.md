@@ -374,17 +374,36 @@ The best case needs three things that no build has yet:
 2. A cheap replacement for the ring walk.
 3. The check of tiles of 16 pixels under motion.
 
-## The nine-read shadow filter
+## The shadow filter with one value per read
 
-The pair research (`docs/research/light-pairs/pair/notes.md`) found one more gain, apart from key and fill. The local shadow filter reads its 5 × 5 texels with nine bilinear comparison reads in place of nine gathers of four comparisons each. The weights are the same in exact arithmetic. The direct pass of the deck fell from 4.093 ms to 3.696 ms. The transparent pass did not change. The frame span's median fell by 0.18 ms, and its 95th percentile did not fall. The deck still differs from main by at most 8 steps of 255, and 99 % of the pixels by at most 1 step. The patch is `docs/research/light-pairs/pair/c9-shadows.patch`. It still needs a check under motion and on a Linux driver, where the hardware can round the weights more coarsely.
+The pair research (`docs/research/light-pairs/pair/notes.md`) found one more gain, apart from key and fill. The local shadow filter on main read its 5 × 5 texels with nine gathers of four comparisons each. The pair's patch (`docs/research/light-pairs/pair/c9-shadows.patch`) reads them with nine bilinear comparisons, and it lowered the deck's direct pass from 4.093 ms to 3.696 ms.
+
+The patch did not merge. It lets the hardware weigh the first two texels of each axis, and the hardware rounds that weight to its sub-texel precision. The test `TheShadowsEdgeRampsInProportionToTheReceiversPlaceWithNoSubTexelSteps` locks in the exact ramp of a shadow's edge, and it failed with the patch: 6.7e-4 off the line against a limit of 1.5e-4. A device with 4 bits of precision, which Vulkan allows, shows bands of about 3 %.
+
+An exact filter with one value per read exists: sixteen bilinear comparisons at texel corners. The weights of an axis, (1 − f, 1, 1, 1, f), are 1 − f times the four texels from texel 0, plus f times the four texels from texel 1. So the filter is a blend of four sums of 4 × 4 texels, and each sum is four means of 2 × 2 texels. At a corner, each of the hardware's weights is a half at any precision, and the shader applies f itself. Every read returns one value, as in the pair's patch.
+
+| Scene | Reads | Direct pass | Transparent pass | Frame span, median |
+|---|---|---:|---:|---:|
+| Deck | Nine gathers | 4.099 ms | 2.099 ms | 22.175 ms |
+| Deck | Nine bilinear comparisons | 3.683 ms | 2.129 ms | 21.765 ms |
+| Deck | Sixteen corner means | 3.796 ms | 2.036 ms | 21.641 ms |
+| Hall | Nine gathers | 4.155 ms | 0.028 ms | 18.290 ms |
+| Hall | Nine bilinear comparisons | 3.808 ms | 0.031 ms | 18.006 ms |
+| Hall | Sixteen corner means | 3.813 ms | 0.032 ms | 17.909 ms |
+
+The deck's rows are the mean of three traces of each build in turns, on main at `5c83ef6c`, on the Apple M1 Max. Every trace of the corner means lies below every trace of the gathers in the frame span. The stills of the deck, the hall and the cabin and a film of the hall's moving lamps equal main's to within 2 pixels of one step of 255.
+
+The Linux card of the GPU workbench, an RTX 2000 Ada under NVIDIA's driver, gave the opposite answer. The corner means cost its frame 0.80 ms more on the deck and 0.79 ms more in the hall. The nine bilinear comparisons cost it 0.33 and 0.40 ms more. That GPU pays for each filtered comparison read, and a gather is its cheapest way to four comparisons. One more exact form, the gathers in a row loop, costs the Linux card nothing on the deck and 0.05 ms in the hall. On the Mac it gains less than the corner means, and its transparent pass takes 0.12 ms more.
+
+So no one filter wins on both GPUs. The user chose on 2026-11-12 to keep both exact filters and to pick one by driver, once per device. `LocalShadowAtlas.Reads` names the way, and its default leaves the choice to `VulkanRenderer.TileReadsFor`: the sixteen corner means on MoltenVK and the nine gathers on every other driver. The tests name a way, so both filters run on every device. ARCHITECTURE.md, "The scenes and the cost of the shadows", holds every measured form.
 
 ## The forks for the user
 
 1. Which cost comes first: the deck's edge sums (design A), the hall's pair count (design B), or neither, because other passes hold more of the frame.
 2. Whether the idea of a budget ends here. The recommendation is yes.
 3. Whether the measurement tools get an option for a fixed exposure. The recommendation is yes, before any more cost experiments.
-4. Whether the nine-read shadow filter goes in first. The recommendation is yes. It does not depend on key and fill, and it keeps every design that keeps the filter.
-5. Whether key and fill goes on. Version 1 saves about 2 ms and blurs the shadows. Version 2 keeps the image and can save about 0.5 ms of a direct pass of 4.1 ms, after the three steps above. The recommendation is to stop here, unless the budget needs that half millisecond.
+4. Whether the shadow filter with one value per read goes in first. The user chose yes on 2026-11-12. It merged as two exact filters, picked by driver: the sixteen corner means on MoltenVK and the nine gathers elsewhere (`t2-gfq5`).
+5. Whether key and fill goes on. Version 1 saves about 2 ms and blurs the shadows. Version 2 keeps the image and can save about 0.5 ms of a direct pass of 4.1 ms, after the three steps above. The recommendation is to stop here, unless the budget needs that half millisecond. The user chose on 2026-11-12 to build on (`t2-vsqh`).
 
 ## The records
 

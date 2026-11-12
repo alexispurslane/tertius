@@ -1,4 +1,4 @@
-"""Tool code (tools/README.md, "GPU jobs on Runpod"): the entry of the serverless worker in the image. The Runpod SDK
+"""Tool code (tools/runpod/README.md): the entry of the serverless worker in the image. The Runpod SDK
 takes each job from the endpoint's queue and calls `run`, which hands the job's input to handler.handle in a fresh work
 folder and removes the folder after the job, so a warm worker's disk does not fill.
 
@@ -14,7 +14,7 @@ import runpod
 import handler
 
 BAKED = Path("/opt/tertius")
-# Each command runs in the dev shell that the image baked, offline: a job downloads nothing.
+# Each command runs in the dev shell that the image baked. Nix stays offline; git fetches the trees' commits.
 SHELL = ["nix", "develop", "/nix/var/nix/profiles/tertius-dev", "--offline", "--command", "bash", "-c"]
 
 
