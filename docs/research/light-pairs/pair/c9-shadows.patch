@@ -1,0 +1,38 @@
+--- a/src/Tertius.Rendering/Shaders/shadows.glsl
++++ b/src/Tertius.Rendering/Shaders/shadows.glsl
+@@ -291,23 +291,21 @@
+     if (ndc.z >= t.bounds.y)
+         return 1.0;
+ 
+-    // Nine gathers of 2 × 2 comparisons read the 5 × 5 texels and one unweighted column and row beyond them.
+-    float wx[6] = float[6](1.0 - f.x, 1.0, 1.0, 1.0, f.x, 0.0);
+-    float wy[6] = float[6](1.0 - f.y, 1.0, 1.0, 1.0, f.y, 0.0);
++    // Prototype: pair the exact five texel weights into three bilinear samples per axis.
++    vec3 wx = vec3(2.0 - f.x, 2.0, f.x);
++    vec3 wy = vec3(2.0 - f.y, 2.0, f.y);
++    vec3 sx = (vec3(first.x) + vec3(0.5 + 1.0 / wx.x, 3.0, 4.5)) / size;
++    vec3 sy = (vec3(first.y) + vec3(0.5 + 1.0 / wy.x, 3.0, 4.5)) / size;
+     float lit = 0.0;
+-    for (int j = 0; j < 3; j++)
+-    {
+-        float upper = 0.0, lower = 0.0;
+-        for (int i = 0; i < 3; i++)
++    for (int y = 0; y < 3; y++)
++    {
++        for (int x = 0; x < 3; x++)
+         {
+-            // A gather at the shared corner of four texels compares exactly those four: w the upper left, z the upper
+-            // right, x the lower left and y the lower right, with the upper row the one of the smaller index.
+-            vec2 at = (first + vec2(float(2 * i) + 1.0, float(2 * j) + 1.0)) / size;
+-            vec4 g = textureGather(sampler2DArrayShadow(shadowAtlas, shadowSampler), vec3(at, layer), ndc.z);
+-            upper += wx[2 * i] * g.w + wx[2 * i + 1] * g.z;
+-            lower += wx[2 * i] * g.x + wx[2 * i + 1] * g.y;
++            vec4 coordinate = vec4(sx[x], sy[y], layer, ndc.z);
++            float sampleValue = textureGrad(sampler2DArrayShadow(shadowAtlas, shadowSampler), coordinate,
++                vec2(0.0), vec2(0.0));
++            lit += wx[x] * wy[y] * sampleValue;
+         }
+-        lit += wy[2 * j] * upper + wy[2 * j + 1] * lower;
+     }
+     return lit * (1.0 / 16.0);
+ }
