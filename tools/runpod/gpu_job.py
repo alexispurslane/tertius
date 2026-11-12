@@ -389,15 +389,17 @@ def owning(state: Path, name: str):
 
 def owned(state: Path, name: str) -> bool:
     """Whether a live run holds the job's owner lock."""
-    path = state / "pending" / f"{name}.owner"
-    if not path.exists():
+    try:
+        descriptor = os.open(state / "pending" / f"{name}.owner", os.O_RDONLY)
+    except FileNotFoundError:
         return False
-    with path.open("a") as file:
-        try:
-            fcntl.flock(file, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            return True
-        return False
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        return True
+    finally:
+        os.close(descriptor)
+    return False
 
 
 def log_lines(state: Path) -> list:
@@ -565,7 +567,7 @@ def submit(request: Request, *, config: Config, api, registry, github, scan=scan
                     raise Refused(reason)
                 pending["endpoint"] = route(config, api, state, pending["image"])
                 write_pending(state, name, pending)
-        except (Refused, subprocess.CalledProcessError, OSError, ValueError) as error:
+        except (Refused, subprocess.CalledProcessError, OSError, ValueError, KeyError) as error:
             # Before the record of the job in flight, nothing was published or sent. A failed git command, registry or
             # Runpod call refuses the job too, and the log says why.
             reason = str(error)
