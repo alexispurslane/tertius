@@ -26,7 +26,9 @@ public sealed class DemoExitScriptTests
         try
         {
             string written = Generate(first);
-            File.ReadAllText(Generate(second)).Should().Be(File.ReadAllText(written), "two runs on one machine write the same script");
+            File.ReadAllText(Generate(second))
+                .Should()
+                .Be(File.ReadAllText(written), "two runs on one machine write the same script");
             Assert.SkipUnless(RecordedReference.Applies, RecordedReference.SkipReason);
             File.ReadAllText(written)
                 .Should()
