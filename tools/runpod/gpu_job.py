@@ -107,8 +107,9 @@ class RunpodApi:
             return json.loads(reply.read() or b"{}")
 
     def billed_total(self) -> float:
-        """The account's whole bill. Without a start time the API sums only the last 30 days."""
-        reply = self.call("GET", f"{ACCOUNT_API}/billing?startTime=2026-01-01T00:00:00Z")
+        """The account's bill of the last 12 months, which holds its whole life. Without a window the API sums only the
+        last 30 days, and a start time needs an end time too."""
+        reply = self.call("GET", f"{ACCOUNT_API}/billing?bucketSize=month&lastN=12")
         return float(reply["metadata"]["totals"]["totalAmount"])
 
     def billed_today(self) -> float:
@@ -133,6 +134,9 @@ class RunpodApi:
 
     def update_endpoint(self, endpoint: str, body: dict) -> dict:
         return self.call("PATCH", f"{ACCOUNT_API}/serverless/{endpoint}", body)
+
+    def workers(self, endpoint: str) -> list:
+        return self.call("GET", f"{ACCOUNT_API}/serverless/{endpoint}/workers")["workers"]
 
 
 def baked_commit(config: Config, api) -> str:
@@ -162,12 +166,21 @@ def public_image(image: str) -> bool:
         return False
 
 
-def use_image(config: Config, api, commit: str, pullable=public_image):
-    """Point the endpoint at the image of `commit`. Its workers pull it at their next start."""
+def use_image(config: Config, api, commit: str, *, state: Path, pullable=public_image, poll_seconds: float = 10.0):
+    """Point the endpoint at the image of `commit`, then stop all its workers and allow them again. Runpod replaces a
+    worker of the old image only over time, and until then that worker takes jobs and refuses each one, because its
+    baked commit differs. The stop would end a running job too, so the change waits for an empty pending/."""
     image = f"{config.image_repository}:{commit}"
     if not COMMIT.match(commit) or not pullable(image):
         raise NoBase(f"{image} is not a public image; the workflow gpu-image builds it (tools/README.md)")
+    if in_flight(state):
+        raise NoBase("jobs are in flight; change the image when they have ended")
+    most = api.endpoint(config.endpoint)["workers"]["max"]
     api.update_endpoint(config.endpoint, {"image": image})
+    api.update_endpoint(config.endpoint, {"workers": {"max": 0}})
+    while api.workers(config.endpoint):
+        time.sleep(poll_seconds)
+    api.update_endpoint(config.endpoint, {"workers": {"max": most}})
 
 
 def execution_seconds(config: Config, seconds: int) -> int:
@@ -440,7 +453,7 @@ def main(argv: list) -> int:
         print(f"{CONFIG_FILE} names no endpoint yet (tools/README.md, \"GPU jobs on Runpod\")", file=sys.stderr)
         return 2
     if args.command == "use-image":
-        use_image(config, api, args.commit)
+        use_image(config, api, args.commit, state=STATE)
         print(f"the endpoint {config.endpoint} now runs {config.image_repository}:{args.commit}")
         return 0
     trees = dict(tree.split("=", 1) for tree in args.tree)

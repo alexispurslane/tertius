@@ -48,3 +48,15 @@ The user chose (2026-11-12, morning): build the image with GitHub Actions, and a
 - Deck timing through the queue (Mac trace script, three runs): median frame span 11.20 ms, 8.90 ms without capture, SM clock 2323 MHz mean. The bring-up pod measured 12.89 and 10.33 ms on older main; the thin diffuse filter took indirect diffuse from 2.71 to 1.42 ms.
 - The second job counted as failed, because its own `pkill -f "lms 500"` stopped its shell; and the SDK marks a job FAILED when the handler names an error, so the script now keeps the handler's result. tools/README.md lists both as rules for a job's commands.
 - Spend: the audit log holds $0.0186 for both jobs; Runpod's billing showed no serverless amount yet at 12:45 UTC.
+
+**2026-11-12T13:25:00Z**
+
+Review (reviewer agent): changes required, all fixed and tested. A job in flight is now a file in pending/ with its id, moved into the log in one step under the lock; a stopped script leaves it counted and the next run settles it from Runpod's final status, or at its worst case. Both caps take the larger of the log and Runpod's bill (today's, and the last 12 months; the API sums only 30 days without a window, and a start time needs an end time). One cost model: seconds plus 60 s start plus 10 s idle. SIGTERM and SIGHUP cancel like Ctrl-C. The handler enforces the job's own seconds, stops a command's background processes (output goes to a file, so a background process cannot hold a pipe), hides RUNPOD_* variables and counts the output limit in base64. Queue tests 25, handler tests 16; 14 quick mutants all killed.
+
+Runpod's pricing page: a worker that is initializing, idle or throttled is scaled down and not billed, nor is the image pull. A running worker bills from its cold start (10 s here) through its jobs and the 10 s idle timeout.
+
+Checks on the new image 87c7ec4b3: the commands see 0 RUNPOD_* variables, a background sleep is gone after its command, a 30 s job limit stopped `sleep 300` with the log returned. A cancel after about 30 s of `sleep 200` billed 181 s: Runpod's cancel does not stop a running handler, so the job's own limit bounds it.
+
+After `use-image`, two stale workers of the old image took two jobs in a row and refused them (base mismatch), because the new workers waited for a GPU. `use-image` now sets the image, sets workers.max to 0 until no worker is left, and restores it; it refuses while a job is in flight. A submit during that change got 409 from /run; its pending entry has no id and counts $0.03 until it expires.
+
+Spend in the audit log: $0.13 for nine jobs. Runpod's bill showed no serverless amount yet at 13:24 UTC.

@@ -141,7 +141,7 @@ python3 -I tools/runpod/gpu_job.py submit --agent <your name> \
 - Each `--tree NAME=REF` becomes the folder `NAME` in the job's work folder. It holds the baked commit's files plus the diff from the baked commit to `REF`. Commit your change first, because the diff comes from commits. The commit need not be pushed.
 - Each `--run` command runs in the work folder, in the dev shell, offline. The first command that fails ends the job.
 - `--timeout` gives the seconds of all commands together, a positive number. It is at most `job_seconds` of the configuration, 840 s. The handler stops the commands at that limit and still sends back the log and the files.
-- Run the script in the background, because a job can wait minutes for a worker. If the script gets Ctrl-C, SIGTERM or SIGHUP, it cancels the job and waits for its final status.
+- Run the script in the background, because a job can wait minutes for a worker. If the script gets Ctrl-C, SIGTERM or SIGHUP, it cancels the job and waits for its final status. A cancel does not stop a command that already runs: on 2026-11-12 a job of `sleep 200`, cancelled after about 30 s, billed 181 s. The job's own `--timeout` is what bounds it, so keep that limit close to the real need.
 - `<folder>` gets the files of the `--output` globs and `result.json`. That file holds each command's exit code and time, the end of the log, and the files that passed the size limit of 8 MB.
 
 The script exits with 0 if every command succeeded. A job runs on the commit that the endpoint's image baked. The image's tag is that commit, and the script reads it from the endpoint before each job. If main moves far from it, point the endpoint at a newer image ("Make the image and the endpoint"), because each job then sends a large diff and compiles more.
@@ -150,7 +150,7 @@ The script exits with 0 if every command succeeded. A job runs on the commit tha
 
 The caps are $10 per UTC day and $30 in total. Before the script sends a job, it adds the job's worst case to two amounts:
 
-1. The spending: the larger of the audit log's sum and Runpod's bill. The bill (`GET /v2/billing`, `metadata.totals.totalAmount`) holds the account's other spending, such as pods, but it lags the jobs by minutes or more. The daily cap uses today's sums, and the total cap uses the sums since 2026-01-01.
+1. The spending: the larger of the audit log's sum and Runpod's bill. The bill (`GET /v2/billing`, `metadata.totals.totalAmount`) holds the account's other spending, such as pods, but it lags the jobs by minutes or more. The daily cap uses today's sums, and the total cap uses the sums of the last 12 months, the account's whole life.
 2. The worst cases of the jobs in flight.
 
 If either sum passes its cap, the script refuses the job, sends nothing and logs the refusal. A file lock spans the check and the record of the new job in flight, so two agents cannot both take the last of a cap.
@@ -182,7 +182,7 @@ A new image does not change the endpoint. When its build passed, point the endpo
 python3 -I tools/runpod/gpu_job.py use-image <commit>
 ```
 
-The script first makes sure that the registry serves the image without a login, as Runpod pulls it. The endpoint's workers pull the new image at their next start. `create-endpoint <commit>` made the endpoint once. It asks for the 16 GB pool `AMPERE_16` without its other three cards, so every job runs on an RTX 2000 Ada. It also asks for at most six workers, no idle worker, a 900 s timeout per job and FlashBoot. `endpoint-request <commit>` prints that request and sends nothing.
+The script first makes sure that the registry serves the image without a login, as Runpod pulls it, and that no job of this Mac is in flight. Then it sets the image, sets the endpoint's maximum of workers to 0 until no worker is left, and sets it back. Runpod replaces a worker of the old image only over time, and until then that worker takes jobs and refuses each one, because its baked commit differs. On 2026-11-12, two such workers refused two jobs in a row. `create-endpoint <commit>` made the endpoint once. It asks for the 16 GB pool `AMPERE_16` without its other three cards, so every job runs on an RTX 2000 Ada. It also asks for at most six workers, no idle worker, a 900 s timeout per job and FlashBoot. `endpoint-request <commit>` prints that request and sends nothing.
 
 The two test files run on the Mac without Runpod and without a GPU:
 

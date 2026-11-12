@@ -42,7 +42,11 @@ class FakeRunpod:
         self.updated = []
 
     def endpoint(self, endpoint):
-        return {"id": endpoint, "image": self.image}
+        return {"id": endpoint, "image": self.image, "workers": {"min": 0, "max": 6, "idleTimeout": 10}}
+
+    def workers(self, endpoint):
+        """No worker after the flush: the fake's workers stop at once."""
+        return []
 
     def update_endpoint(self, endpoint, body):
         self.updated.append((endpoint, body))
@@ -286,15 +290,29 @@ class Endpoint(unittest.TestCase):
         self.assertEqual(len(body["gpu"]["excludedTypes"]), 3, "the pool's other three cards are excluded")
         self.assertEqual(body["image"], f"{REPOSITORY}:{'a' * 40}")
 
-    def test_an_image_change_sends_only_the_image_of_the_named_commit(self):
+    def test_an_image_change_points_the_endpoint_at_the_image_and_restarts_its_workers(self):
         api = FakeRunpod()
-        gpu_job.use_image(self.config, api, "b" * 40, pullable=lambda image: True)
-        self.assertEqual(api.updated, [("ep1", {"image": f"{REPOSITORY}:{'b' * 40}"})])
+        with tempfile.TemporaryDirectory() as state:
+            gpu_job.use_image(self.config, api, "b" * 40, state=Path(state), pullable=lambda image: True,
+                              poll_seconds=0)
+        self.assertEqual(api.updated, [("ep1", {"image": f"{REPOSITORY}:{'b' * 40}"}),
+                                       ("ep1", {"workers": {"max": 0}}), ("ep1", {"workers": {"max": 6}})],
+                         "a worker of the old image would refuse every job, so all workers stop and start again")
+
+    def test_an_image_change_waits_until_no_job_is_in_flight(self):
+        api = FakeRunpod()
+        with tempfile.TemporaryDirectory() as state:
+            gpu_job.write_pending(Path(state), "running", {"jobId": "job-1", "worstCaseUsd": 0.1})
+            with self.assertRaises(gpu_job.NoBase):
+                gpu_job.use_image(self.config, api, "b" * 40, state=Path(state), pullable=lambda image: True,
+                                  poll_seconds=0)
+        self.assertEqual(api.updated, [])
 
     def test_an_image_that_the_registry_does_not_serve_without_a_login_is_not_used(self):
         api = FakeRunpod()
         with self.assertRaises(gpu_job.NoBase):
-            gpu_job.use_image(self.config, api, "b" * 40, pullable=lambda image: False)
+            gpu_job.use_image(self.config, api, "b" * 40, state=Path(tempfile.gettempdir()) / "no-state",
+                              pullable=lambda image: False)
         self.assertEqual(api.updated, [])
 
 
