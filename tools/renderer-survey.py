@@ -759,10 +759,13 @@ FIRES_KEPT = 100
 EVIDENCE_LIMIT = 1e-4
 DEVIATION_RANGE = (0.8, 1.25)
 # The offline sweep: every combination of these values. Each list holds the design's value, so one row repeats the
-# capture's own rule where the capture keeps the design's constants.
-EVIDENCE_SWEEP = {"blockSigmas": [3.0, 3.5, 4.0, 5.0], "tailStreams": [250.0, 500.0, 1000.0, 2000.0],
+# capture's own rule where the capture keeps the design's constants. The floors and tails reach past the design's,
+# because the smoke run of rect-lamps (2026-11-12, t0-9a9e) still gave 2.4e-3 false windows per block-draw at a floor
+# of 1/6 and 2000 tail streams.
+EVIDENCE_SWEEP = {"blockSigmas": [3.0, 3.5, 4.0, 5.0], "tailStreams": [250.0, 500.0, 1000.0, 2000.0, 4000.0],
                   "noiseScale": [1.0, 1.25, 1.5, 2.0],
-                  "changeShare": {"diffuse": [1 / 16, 1 / 12, 1 / 8, 1 / 6], "specular": [1 / 40, 1 / 30, 1 / 20, 1 / 12]}}
+                  "changeShare": {"diffuse": [1 / 16, 1 / 12, 1 / 8, 1 / 6, 1 / 4, 1 / 3],
+                                  "specular": [1 / 40, 1 / 30, 1 / 20, 1 / 12, 1 / 8]}}
 
 
 def block_constants() -> dict:

@@ -1208,7 +1208,7 @@ python3 -I tools/runpod/gpu_job.py submit --agent <your name> --tree t=HEAD \
 nix develop --command python3 -I tools/renderer-survey.py report /tmp/<your name>/t3/out
 ```
 
-The run time of one case on the workbench is not measured yet.
+On 2026-11-12 a smoke job built the probe in 45 s and ran the part for `rect-lamps` in 94 s, the evaluation included. Its bounce light's capture took 213 MB on the worker, and the job counted $0.034. So the four stills take about 8 minutes in one job. Set `--timeout 1000`, which leaves room for the reflections' capture after they get the block test.
 
 On the Mac, the part runs as the other probe parts do, under the shared GPU lock: `probe-build`, then `run <out> --parts evidence --only ... --no-build`.
 
