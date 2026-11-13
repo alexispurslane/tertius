@@ -15,7 +15,8 @@ The value comes from the step cap search of section A13 of [the addendum](../add
 | FLIP on the same 170 captures | 135 captures have no flagged pixel. The largest flagged share is 0.11 % of a capture |
 | A film with a moving camera, on the M1 Max | 180 frames: the mean of a frame changes by at most 0.008 % |
 | The mottle score of three scenes | 0.0362 to 0.0362, 0.0307 to 0.0316 and 0.0393 to 0.0392 |
-| The tests after the merge of main | Checked: 10,832 passed. Release: 10,819 passed. No test failed |
+| The tests after the first merge of main | Checked: 10,832 passed. Release: 10,819 passed. No test failed |
+| The tests after the second merge of main | Checked: 10,836 passed. Release: 5,626 passed on the Mac and 61 on the workbench. No test failed |
 
 A level is one step of the 255 steps of an 8-bit color channel. The mean of a capture is the mean of its luminance in linear light. FLIP gives each pixel a value from 0 to 1 for how much it seems to change between two images. The project's snapshot tests call a value above 0.1 visible, and this record calls such a pixel flagged.
 
@@ -161,6 +162,20 @@ cut against main: -0.096 ms (-1.1%), every run differs. Estimate on the Mac: -0.
 | Every suite in Release, on commit `2ea92a883` | 10,819 | 0 | 26 |
 
 The stills and the Mac takes did not run again, because the merged changes leave the reflection rays as they were. The two workbench jobs counted $0.08 together.
+
+## After the second merge of main
+
+Main then gained the integer specular G-buffer (ticket `ter-8esk`), at `657642432`. It stores the roughness code of the specular target as an integer. It changes the G-buffer's shaders, the accumulator's reads and two test classes, and no line of the screen tracer's walk. The branch took it by a second merge, commit `43fda4fa5`.
+
+| Run | Where | Passed | Failed | Skipped |
+|---|---|---:|---:|---:|
+| Every suite in Checked, on the staged merge | M1 Max | 10,836 | 0 | 27 |
+| The six test projects without a GPU, in Release, on commit `43fda4fa5` | M1 Max | 5,626 | 0 | 8 |
+| Three Rendering test classes in Release, on commit `43fda4fa5` | Workbench, RTX 2000 Ada on Linux | 61 | 0 | 0 |
+
+The three classes are `ScreenTraceSettingTests`, `SpecularTargetTests` and `ScreenTraceRenderTests`: the cap's own test, the merged ticket's new test and the screen tracer's render tests. The whole Release suite did not run a third time on the Mac. A rule of 2026-11-12 sends the Release run of the Rendering tests to the workbench, because the Mac's GPU lock is the bottleneck. The whole Release suite passed on the two states before: on the branch (10,806) and after the first merge (10,819).
+
+The workbench job counted $0.04. `tests/checked11.lock.log` holds the Checked run, `tests/release11-cpu.txt` the Release totals of the six projects, and `workbench/release-shard/` the job's result.
 
 ## The files
 
