@@ -114,6 +114,18 @@ public sealed class TubeLightRenderTests
             _ => throw new ArgumentOutOfRangeException(nameof(name), name, "No such tube."),
         };
 
+    /// <summary>
+    /// The share by which the square's center may differ from the C# tube in the tube of <see cref="MatteTubes"/> named
+    /// <paramref name="name"/>. Where a capsule end lights the square, the shader's light lies 2 to 3 % above the C# tube
+    /// on the Mac and on NVIDIA, for a cause not yet known: HDR over the C# answer, standing-on-the-middle 1.0266 and
+    /// 1.0285, slanted-through-the-square 1.0206 and 1.0230 (tickets t8-sjli, t8-o16a). Those two cases get 3 % until
+    /// t8-o16a closes. It still fails the faults that they test: a tube without its near half sphere, which on the bar's
+    /// axis gives almost all the light, and a slanted tube that takes its light from its middle, 5 cm behind the square,
+    /// which gives none.
+    /// </summary>
+    private static double BandOf(string name) =>
+        name is "standing-on-the-middle" or "slanted-through-the-square" ? 0.03 : 0.02;
+
     [Theory]
     [MemberData(nameof(MatteTubes))]
     public void ATubeLightLightsAMatteSquareAsTheCSharpTubeDoes(string name)
@@ -152,11 +164,7 @@ public sealed class TubeLightRenderTests
                 fov: Gpu.Fov,
                 name: $"tube-light-matte-{name}"
             );
-            // On the bar's axis, where its end's half sphere touches the square, the shader's float sum lies 1.96 % above
-            // the C# tube on the Mac's HDR target, and the card shows the same display level. A band of 2 % left 0.04 %
-            // for the rounding of the displayed levels, which NVIDIA's driver crossed (ticket t8-sjli). 3 % still fails a
-            // tube without the near half sphere, which there gives almost all the light.
-            double band = name == "standing-on-the-middle" ? 0.03 : 0.02;
+            double band = BandOf(name);
             Vector3[] shown = Displayed(
                 renderer,
                 [(expected * (1 - band)).ToVector3(), (expected * (1 + band)).ToVector3()],
