@@ -25,7 +25,7 @@ internal sealed class ScreenTraceImages : IDisposable
 
     /// <summary>
     /// The format of the hit light: rgb the light that leaves a pixel toward a ray of the layer's kind, pre-exposed and at
-    /// most MaxRadiance, so below the largest half float.
+    /// most MaxRadiance, so below the largest half float, and a the pixel's moved mark, 1 or 0.
     /// </summary>
     public const Format HitLightFormat = Format.R16G16B16A16Sfloat;
 
@@ -116,7 +116,9 @@ internal sealed class ScreenTraceImages : IDisposable
 
     /// <summary>
     /// The hit light, one layer per kind (ticket ter-67y3): at each pixel that a walk can hit, the light that leaves it
-    /// toward a ray of the kind, which the plan writes and a ray's hit reads.
+    /// toward a ray of the kind, which the plan writes and a ray's hit reads. With a precise specular history, alpha holds
+    /// the pixel's moved mark, 1 where its surface moved since the last draw, which a hit carries into its ray's record
+    /// (docs/plans/bounce-light-confidence.md, section 8.4). Otherwise alpha is 0.
     /// </summary>
     public GpuImage HitLight { get; private set; }
 

@@ -1,6 +1,6 @@
 ---
 id: t0-aiim
-status: open
+status: in_progress
 deps: [t0-jdaq]
 links: []
 created: 2026-11-13T01:01:07Z
@@ -13,3 +13,9 @@ parent: t7-3e22
 
 Design: docs/plans/bounce-light-confidence.md (Design A with Design X's evidence), section 23. Branch t7-3e22-retained-deviation. Step 13, sections 8.4 and 8.5, tests in section 20 (the tracer's bits). The ray plan marks each pixel whose surface moved in the camera's frame (its last place from the motion target against a still point's last place, LeastMotion or 2^-10 of the motion) in the hit light's alpha. A ray takes the mark from its hit's light load into bit 15 of its record's w; the light code narrows to bits 1 to 14 (the diagnostic's field to 14 bits, SeenField 0x2000). The resolve writes the youngest light code and the motion bit (a ray's mark, or the pixel's own motion of at least LeastMotion) into each sample age. Also tools/Tertius.ReflectionReference's decoding.
 
+
+## Notes
+
+**2026-11-13T02:53:48Z**
+
+Built: the plan writes a moved mark into the hit light's alpha (movedSurfaceAt: the motion target against stillMotionAt, the target's own rule rounded to half floats, with a relative depth bound). A hit carries it into bit 15 of the record's w; the light code narrows to 14 bits (MostCodedAge 16,382; diagnostic stops at 8,190). The resolve writes each signal's motion bit (a ray's mark, or the pixel's own motion of at least LeastMotion). Tests: ARayThatHitsAMovingObjectCarriesItsMovedMark, ARayThatHitsAStillSurfaceWhileTheCameraMovesCarriesNoMovedMark, TheMovedMarkFallsOnAMovingBlockAndNotOnAStillEmitterWhoseLightChanges (replaces the shadow test), ThePixelsOwnMotionSetsTheMotionBitOfItsSamples, TheMovedMarkLeavesTheLightCodeOfTheRecordAsItWas (both modes), UnderAStillCameraAStillSurfaceLiesExactlyWhereAStillPointWould, UnderASidewaysCameraAStillSurfaceLiesFarInsideTheLeastMotionOfAStillPoint, ALightAgeAboveTheRecordsCodesCodesAsTheLargestAndLeavesTheMovedMarkAlone, AStillSceneGivesNoEvidenceToEitherSignal (0 of 138M samples).

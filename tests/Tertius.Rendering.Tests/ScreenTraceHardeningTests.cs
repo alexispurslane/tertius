@@ -55,6 +55,34 @@ public sealed class ScreenTraceHardeningTests
     }
 
     [Fact]
+    public void ALightAgeAboveTheRecordsCodesCodesAsTheLargestAndLeavesTheMovedMarkAlone()
+    {
+        // The light code fills the 14 bits between RayTraced and the moved mark, so an age above 16,382 codes as
+        // 16,382, code 16,383, and never reaches bit 15 (docs/plans/bounce-light-confidence.md, section 8.5). The probe
+        // writes the codes minus 16,000.
+        (VulkanRenderer renderer, RenderSnapshot scene) = Wall();
+        try
+        {
+            renderer.ScreenTraceSignals.Specular.SampleAge(0).Should().NotBeNull("the default history is precise");
+            var probe = ScreenTraceProbe.On(renderer, "record_code_limit_probe.comp");
+
+            renderer.Render(scene, 1f);
+
+            float[] values = probe.Read();
+            float[] codes = [382, 383, 383, 383];
+            for (int column = 0; column < 8; column++)
+            {
+                values[4 * column].Should().Be(codes[column & 3], "column {0}", column);
+                values[4 * column + 1].Should().Be(column >= 4 ? 1 : 0, "column {0} carries its own mark", column);
+            }
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void TheDiffuseResolveCapsAWeightedRayBeforeHalfFloatStorage()
     {
         (VulkanRenderer renderer, RenderSnapshot scene) = Wall();

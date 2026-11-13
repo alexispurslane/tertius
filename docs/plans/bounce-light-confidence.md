@@ -385,27 +385,46 @@ Five passes each add what only they know. No pass stores a new image.
 1. The ray plan, one invocation per pixel q, already writes q's light-age record and its hit light. It now also decides whether q's surface moved in the camera's frame. It writes 1 into the alpha of both layers of the hit light where it did, else 0. The alpha was 0 and had no reader.
 
    ```glsl
-   // Sketch, screen_trace_plan.comp.
-   bool movedSurfaceAt(ivec2 pixel, vec4 motion)
+   // As built, screen_trace.glsl.
+   vec4 stillMotionAt(ivec2 pixel)
    {
-       vec2 lastPlace = lastPlaceAt(pixel);
-       vec2 stillPlace = stillLastPlaceAt(pixel);
-       float apart = length((lastPlace - stillPlace) * frame.viewport.xy);
-       float rounding = MotionRounding * length(motion.xy * frame.viewport.xy);
-       return apart >= max(LeastMotion, rounding) || abs(motion.z - stillDepthRatioAt(pixel)) > MotionRounding;
+       vec3 point = normalize(viewRayThrough(vec2(pixel) + 0.5)) * texelFetch(gbufferDistance, pixel, 0).r;
+       vec4 motion = motionOf(clipOf(point), lastClipOf(point - frame.previousEye.xyz));
+       return vec4(unpackHalf2x16(packHalf2x16(motion.xy)), unpackHalf2x16(packHalf2x16(motion.zw)));
+   }
+
+   vec4 motionApartAt(ivec2 pixel)
+   {
+       vec4 target = imageLoad(motionTarget, pixel);
+       vec4 still = stillMotionAt(pixel);
+       float apart = length((target.xy - still.xy) * frame.viewport.xy);
+       float rounding = MotionRounding * length(still.xy * frame.viewport.xy);
+       return vec4(apart, rounding, abs(target.z - still.z), MotionRounding * max(still.z, 1.0));
+   }
+
+   bool movedSurfaceAt(ivec2 pixel)
+   {
+       vec4 apart = motionApartAt(pixel);
+       return apart.x >= max(LeastMotion, apart.y) || apart.z > apart.w;
    }
    ```
 
    where
 
-   - `motion` = q's motion target: xy the last place minus this place in units of the image, z the last view depth over this view depth.
-   - `lastPlaceAt` = q's place in the last frame from its motion target, the function that the record already uses.
-   - `stillLastPlaceAt` = the last place of a point that stays still in the camera's frame at q's position: `lastPlaceOf(lastClipOf(point − frame.previousEye.xyz))`, as `reflectedPlaceOf` in `accumulate_temporal.comp` computes it. It must follow the same jitter rule as `lastPlaceAt`, so that a still surface gives 0 up to rounding. The builder takes both from one place rule.
-   - `stillDepthRatioAt` = the last view depth over this view depth of that still point.
+   - `point` = the surface point that q's sample sees, relative to this frame's eye, as `materialAt` builds it.
+   - `motionOf`, `clipOf`, `lastClipOf` = the motion target's own rule (`motion.glsl`), which the G-buffer and the surface test use.
+   - `stillMotionAt` = the motion target that q would have if its surface stood still: xy the last place minus this place in units of the image, z the last view depth over this view depth. It is rounded to half floats, as the motion target stores them.
+   - `target` = q's motion target.
    - `frame.viewport.xy` = the render size in pixels.
    - `LeastMotion` = 1/32 pixel per draw, the gate's threshold of `ter-18hc`, now in `sample_age.glsl`.
    - `MotionRounding` = 2^−10, twice the relative rounding of a half float. The motion target stores half floats, so a fast camera move leaves a rounding of up to 2^−11 of the motion in each value.
    - A new instance has no last place. Its motion is (2, 2), two images away, so it counts as moved.
+
+   The build differs from the first sketch in three points, each for a reason that a test showed:
+
+   - It compares the two motions, not two last places through `lastPlaceAt`. `lastPlaceAt` goes through `readPlace`, which adds the pixel history rule's choice of the pixel place or the sample place. The motions take one rule with no choice, so a still surface gives the same numbers. `UnderAStillCameraAStillSurfaceLiesExactlyWhereAStillPointWould` shows a distance of exactly 0 at every hittable pixel.
+   - The still motion is rounded to half floats. Without the rounding, the float computation differs from the stored target in its last bits, by about 10^−6 pixels under a still camera, and the test of exactly 0 fails.
+   - The depth test is relative, `MotionRounding * max(still.z, 1)`. The depth ratio lies near 1, where a half float steps by 2^−11, and the Vulkan spec lets an image store round toward 0 or to the nearest half. So the two ratios of a still surface can differ by one step, which this bound admits.
 
 2. A ray (`traceFrom`) already loads its hit's light from the hit light image and its light age from the record. It takes the hit's moved mark from the same load, where the hit's light counts (`fade > 0`, as for the age). The record keeps it in bit 15 of `w` (section 8.5).
 
@@ -436,8 +455,7 @@ Five passes each add what only they know. No pass stores a new image.
 
    uint evidenceOfSample(uint sampleAge)
    {
-       uint code = lightCodeOf(sampleAge);
-       if (code != 0u && float(code - 1u) < RecentLightAge)
+       if (recentLightCode(lightCodeOf(sampleAge)))
            return LightEvidence;
        return sawMotion(sampleAge) ? MotionEvidence : NoEvidence;
    }
@@ -458,6 +476,7 @@ Five passes each add what only they know. No pass stores a new image.
 
    - `sampleAge` = the signal's sample-age image, signal binding 11, which the spatial dispatch now also reads in its light-age variants.
    - `lightCodeOf`, `sawMotion` = the two fields of a sample age (section 8.5).
+   - `recentLightCode` = whether a light code is 1 to `RecentLightAge` (7), in `sample_age.glsl`. The build keeps `RecentLightAge` a `uint`, so the comparison needs no conversion.
    - `blockEvidence` = the block's level, shared by the 64 invocations of the workgroup.
    - `insideImages` = whether the pixel lies inside the render size. Sky pixels have a sample age of 0, so they add nothing.
 
@@ -490,7 +509,7 @@ The block is the spatial dispatch's workgroup, as decision X1 asks. The action c
 | Hit light alpha (RGBA16F array, both layers) | 0 or 1: whether the pixel's surface moved | The ray plan | A ray's hit |
 
 - The light code of a record had 15 bits. Now it has 14, so a light age above 16,382 codes as 16,382. That changes no cut while a history holds fewer than 16,382 draws, the rule that the diagnostic's codes already follow. Under the diagnostic the codes stop at 8,190, by the same rule.
-- `sample_age.glsl` holds `SampleMotionBit`, `LightCodeMask`, `RecentLightAge`, `LeastMotion`, `sampleAgeOf`, `lightCodeOf` and `sawMotion`. The tracer and both accumulation dispatches include it. `screen_trace.glsl` keeps the record's own layout, as now.
+- `sample_age.glsl` holds `SampleMotionBit`, `LightCodeMask`, `RecentLightAge`, `LeastMotion`, `sampleAgeOf`, `lightCodeOf`, `sawMotion` and `recentLightCode`. The tracer and both accumulation dispatches include it. `TemporalSignal.SampleMotionBit` and `TemporalSignal.LightCodeMask` are their C# twins, for the tests and `tools/Tertius.ReflectionReference`, whose sample-age file keeps the light code alone. `screen_trace.glsl` keeps the record's own layout, as now.
 - The record keeps 8 bytes per pixel, and the sample age 2. The hit light keeps its format.
 
 ### 8.6 Vulkan portability and determinism
@@ -789,14 +808,15 @@ New in step 12. The fixture writes each pixel's light code and motion bit into t
 - `AMovingWallNarrowsTheBoxOfItsBlocksWhileItMoves`: the fixture's moving wall, with the motion bit from its own motion. It replaces `AWallThatDimsWhileItMovesIsFollowedWithinTenDraws`.
 - `EvidenceStaysInsideItsBlock`: the neighboring blocks keep the wide box and L.
 - `BlocksWithSkyOrOffImagePixelsStillActOnTheirEvidence`: the workgroups that hold sky pixels or pixels past the image's edge reach their barriers and act.
-- `AHalfDimmingWhoseRaysSeeItsLightAgeSettlesWithinFivePercentInSixtyDraws`: 32 × 32 pixels dim from 1 to 0.5 with noise of CV 0.3 per ray block. The fixture gives the codes that the tracer gives: none for 4 draws, then ages 0, 1 and on. The slow blend alone leaves 15 % of the step after 60 draws.
+- `AHalfDimmingWhoseRaysSeeItsLightAgeSettlesWithinFivePercentInSixtyDraws`: 32 × 32 pixels dim from 1 to 0.5 with noise of CV 0.3 per ray block. The fixture gives the codes that the tracer gives: none for 4 draws, then ages 0, 1 and on. The slow blend alone leaves 15 % of the step after 60 draws. As built, only one ray block of 2 × 2 pixels in each 8 × 8 block brings the codes, so the test also shows that one ray's code acts for its whole block.
 - `ALightChangeAsOldAsTheHistoryOrOlderLeavesTheHistoryAsItIs` returns to its doubling of the light. A doubling without a recent code is no evidence.
 - `TheMotionBitLeavesThePixelsOwnLightAgeCut`: a code with the motion bit set cuts L to its age, as without it.
 - `AfterTheMotionStopsTheNarrowBoxsLossReturnsWithinFivePercentInSixtyDraws`: rare bright samples on a wall that moves for 40 draws and then stops.
 - `AReflectionWithARecentLightCodeIsCutToTheFastCap`, in the uncapped and the capped precise history.
+- `TheReflectionsRefuseAWidenedBox`: the reflections' fast alpha holds the hit distance, so `CreateSignal` refuses a `WidenedBox` for them.
 - `WithoutALightAgeTheBounceLightKeepsTheNarrowBox` and `TheOriginalSpecularHistoryKeepsTheNarrowBoxWithoutEvidence`.
 
-Removed in step 12, with their mechanism: `ARegionThatDimsByHalfWithoutALightAgeSettlesWithinFivePercentInSixtyDraws`, `ADimmingOfATenthGivesNoEvidenceAndSettlesAtTheSlowBlend`, `ARareBrightSampleInEveryBlockIsNoEvidenceOfAChange`, `EvidenceShortensEveryContributingHistoryOfItsBlockToTheFastCap`, `TooFewRayBlocksOnALitSurfaceGiveNoEvidence`, `BlocksWithSkyOrOffImagePixelsStillCutTheHistoriesOfTheirLitPixels`, `AfterEvidenceTheOwnSampleMeanRestartsAtTheFastHistory`, `AStillBandOfLightThatTheFilterBlursIsNoEvidenceOfAChange`, `PixelsThatTheNarrowClampRaisesInAStillAreNoEvidenceOfADrop`, `AReflectionWhoseLightDrainsWithoutALightAgeIsCutByItsDrop`, `ARisingReflectedLightIsNoBlockEvidence`, `TheReflectionsKeepTheirRetainedDeviationInAnImageOfTheirOwn`, `RareBrightReflectionSamplesInAStillAreNoEvidenceOfADrop`. `AStillMirrorUnderRareBrightSamplesKeepsItsSpeckCount` stays, without the test of both signs.
+Removed in step 12, with their mechanism: `ARegionThatDimsByHalfWithoutALightAgeSettlesWithinFivePercentInSixtyDraws`, `ADimmingOfATenthGivesNoEvidenceAndSettlesAtTheSlowBlend`, `ARareBrightSampleInEveryBlockIsNoEvidenceOfAChange`, `EvidenceShortensEveryContributingHistoryOfItsBlockToTheFastCap`, `TooFewRayBlocksOnALitSurfaceGiveNoEvidence`, `BlocksWithSkyOrOffImagePixelsStillCutTheHistoriesOfTheirLitPixels`, `AfterEvidenceTheOwnSampleMeanRestartsAtTheFastHistory`, `AStillBandOfLightThatTheFilterBlursIsNoEvidenceOfAChange`, `PixelsThatTheNarrowClampRaisesInAStillAreNoEvidenceOfADrop`, `AReflectionWhoseLightDrainsWithoutALightAgeIsCutByItsDrop`, `ARisingReflectedLightIsNoBlockEvidence`, `TheReflectionsKeepTheirRetainedDeviationInAnImageOfTheirOwn`, `RareBrightReflectionSamplesInAStillAreNoEvidenceOfADrop`. `AStillMirrorUnderRareBrightSamplesKeepsItsSpeckCount` also went, unlike the first plan: it compared the narrow box with the reflections' widened box, and with Design X both arms are the narrow box, so it tested nothing.
 
 ### Filter (`DiffuseFilterRenderTests`, 128 × 72)
 
@@ -808,16 +828,21 @@ New in step 13:
 
 - `ARayThatHitsAMovingObjectCarriesItsMovedMark`.
 - `ARayThatHitsAStillSurfaceWhileTheCameraMovesCarriesNoMovedMark`: the still prediction and the motion target agree.
-- `AShadowThatMovesOntoAStillWallGivesTheRaysThatHitTheWallItsLightAgeAndNoMovedMark`.
+- `TheMovedMarkFallsOnAMovingBlockAndNotOnAStillEmitterWhoseLightChanges`, in place of `AShadowThatMovesOntoAStillWallGivesTheRaysThatHitTheWallItsLightAgeAndNoMovedMark`. The test scene's sun and occluder gave no floor shadow that the record counted as a change: several slides, sizes and sun directions all left 0 changed pixels. The new test keeps the point of the old one with a light change that the record does count: the emitter dims in place while a block slides, and every pixel whose light changed carries no moved mark, while the block's own pixels carry it.
+- `UnderAStillCameraAStillSurfaceLiesExactlyWhereAStillPointWould` and `UnderASidewaysCameraAStillSurfaceLiesFarInsideTheLeastMotionOfAStillPoint`, through the probe `moved_surface_probe.comp`: the one place rule gives a still surface a distance of exactly 0 under a still camera, and below 1/128 pixel under a camera that moves every pixel by 0.05 pixels or more. The largest distance measured there was 2^−11 pixels. A hand mutant that drops `previousEye` and one that drops the half rounding each turn one of them red.
 - `ThePixelsOwnMotionSetsTheMotionBitOfItsSamples`.
 - `TheMovedMarkLeavesTheLightCodeOfTheRecordAsItWas`, also under the light-age diagnostic.
-- `AStillLitSceneBringsNoAgeThatCouldCutAHistory` and `AStillJitteredSceneWithShadowEdgesResetsNoLightAge` stay green and now also find no motion bit.
+- `AStillLitSceneBringsNoAgeThatCouldCutAHistory` and `AStillJitteredSceneWithShadowEdgesResetsNoLightAge` stay green and now also find no motion bit or moved mark. The first now counts from the second draw: the first draw shows every instance as new, with no last place, which is motion evidence.
+- `AnUncoveredSurfaceBringsItsReceiversNoAge` now counts the light codes alone: the occluder's move is motion evidence.
+- `AStillSceneGivesNoEvidenceToEitherSignal` (`ScreenTraceRenderTests.StillPanelForFourHundredDraws`) landed here, not in step 14, because it needs the motion bit. It found 0 samples with either level in 300 draws.
+
+Landed in step 12, not in step 14, in `LightAgeHistoryTests`, whose fixture holds the lamp: `ALampThatGoesOutCutsTheBounceHistoriesOfTheBlocksThatSeeItsLight` and `AfterALampGoesOutTheBounceLightSettlesWithinFivePercentInSixtyDraws`.
 
 ### Real rays end to end (`ScreenTraceRenderTests`)
 
 Kept from step 2c: the panel at 4.95 m, `TheRetainedDeviationPredictsTheSpreadOfTheSlowHistory` and `TheBounceLightOfALitPoolKeepsItsEdgeWithRealRays`.
 
-New in step 14:
+New in step 14 (the first two landed earlier, in `LightAgeHistoryTests` and `StillPanelForFourHundredDraws`, as section 20's tracer list records):
 
 - `ALampThatGoesOutCutsTheBounceHistoriesOfTheBlocksThatSeeItsLight`: L falls to `FastCap` in those blocks within 4 to 11 draws after the switch, and rises again afterward.
 - `AStillSceneGivesNoEvidenceToEitherSignal`: the panel scene for 300 draws after the histories fill. No block has either level. It replaces `AStillPanelSceneGivesAtMostOneBlockEvidenceInTenThousandBlockDrawsOfEitherSignal`, which step 12 removes.
@@ -938,6 +963,13 @@ The tickets of the new steps:
 | Ticket | `t0-3kyb` | `t0-jdaq` | `t0-0fhn` | `t0-aiim` | `t0-d3vd` | `t0-e8rh` | `t0-f8oc` | `t0-5tyj` | `t0-iido` |
 
 Step 8 is `t0-qwx8`, under `ter-8hyd`. Step 18 was step 9 of the first form.
+
+Where steps 11 to 13 differ from the plan above:
+
+- Steps 12 and 13 built in one branch, in order, and not in parallel.
+- `tools/renderer-survey.py` reads the removed `accumulate_blocks.glsl` from commit `1190adce1` (`BLOCK_TEST_COMMIT`), so that the survey's block capture and its tests keep working until step 15 removes them. `probe.patch` lost only the hunks whose targets step 12 removed, and gained the knob `TERTIUS_A_MOTION_CUTS`.
+- The moved test compares motions, rounded to half floats, with a relative depth bound (section 8.4).
+- The tests moved between steps as section 20 records.
 
 After the merge, `ter-ewua` starts from section 15. If the climb's target fails, `ter-g3tk` keeps the climb with its next take.
 

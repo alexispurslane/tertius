@@ -647,6 +647,64 @@ public sealed class ScreenTraceRenderTests
         }
     }
 
+    /// <summary>The 364 draws of the still panel scene (tests/STYLE.md, "Long tests").</summary>
+    [Collection(GpuCollection.Name)]
+    public sealed class StillPanelForFourHundredDraws(ITestOutputHelper output)
+    {
+        [Fact]
+        public void AStillSceneGivesNoEvidenceToEitherSignal()
+        {
+            // The floor 4.95 m before the glowing panel of
+            // AGlowingPanelBesideAFloorPixelTakesItsShareOfThePixelsDiffuseLight takes rare bright rays: the heavy tail of
+            // real bounce light, whose hits also read the last draw's filtered light. Nothing in the still changes, so no
+            // sample of either signal may bring a recent light code or a motion bit after the histories fill. Evidence
+            // reads what the rays saw, not the samples' statistics, so noise cannot count as a change
+            // (docs/plans/bounce-light-confidence.md, section 16, point 4).
+            var receiver = new Vector3(0, FloorHeight, -7);
+            VulkanRenderer renderer = Tracing();
+            try
+            {
+                RenderSnapshot scene = Gray(0.2f);
+                scene.Instances.Add(Floor(renderer, WhiteFloor(roughness: 1)));
+                scene.Instances.Add(
+                    Block(
+                        box: renderer.CreateMesh(Primitives.Box(new(0.5f))),
+                        material: Glow(renderer, new(2)),
+                        center: new(0, 0, receiver.Z - 4.95f - 0.05f),
+                        size: new(6, 3, 0.1f)
+                    )
+                );
+                Draw(renderer, scene, frames: 64);
+
+                long evidence = 0;
+                long samples = 0;
+                for (int draw = 64; draw < 364; draw++)
+                {
+                    Draw(renderer, scene, frames: 1);
+                    foreach (
+                        TemporalSignal signal in (TemporalSignal[])
+                            [renderer.ScreenTraceSignals.Diffuse, renderer.ScreenTraceSignals.Specular]
+                    )
+                    {
+                        float[] ages = renderer.ReadImage(signal.SampleAge(0)!);
+                        samples += ages.Length;
+                        evidence += ages.Count(age =>
+                            ((int)age & TemporalSignal.SampleMotionBit) != 0
+                            || ((int)age & TemporalSignal.LightCodeMask) is >= 1 and <= 7
+                        );
+                    }
+                }
+
+                output.WriteLine($"Samples with evidence: {evidence} of {samples}.");
+                evidence.Should().Be(0, "nothing in a still changes what the rays see");
+            }
+            finally
+            {
+                Gpu.DisposeAndAssertClean(renderer);
+            }
+        }
+    }
+
     /// <summary>
     /// The form factor from a floor point, whose normal is +Y, to the rectangle at z = <paramref name="front"/> from
     /// x = −<paramref name="halfWidth"/> to <paramref name="halfWidth"/> and y = <paramref name="bottom"/> to

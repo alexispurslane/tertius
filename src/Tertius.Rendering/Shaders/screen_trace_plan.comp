@@ -138,8 +138,12 @@ float historyLengthOf(SignalReprojections r, uint kind)
 // Writes the hit light of both kinds at the pixel.
 void storeHitLight(ivec2 pixel, LeavingLight leaving)
 {
-    imageStore(hitLight, ivec3(pixel, KindReflection), vec4(leaving.reflection, 0.0));
-    imageStore(hitLight, ivec3(pixel, KindDiffuse), vec4(leaving.diffuse, 0.0));
+    float moved = 0.0;
+#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+    moved = movedSurfaceAt(pixel) ? 1.0 : 0.0;
+#endif
+    imageStore(hitLight, ivec3(pixel, KindReflection), vec4(leaving.reflection, moved));
+    imageStore(hitLight, ivec3(pixel, KindDiffuse), vec4(leaving.diffuse, moved));
 }
 
 #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY

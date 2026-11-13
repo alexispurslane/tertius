@@ -1,0 +1,23 @@
+#version 460
+// The plan's moved test at each pixel that a walk can hit (movedSurfaceAt), in the specular sample: r how far the pixel's
+// motion target lies from its still motion in pixels, g how far their depth ratios differ, b 1 where the test finds the
+// surface moved, else 0, and a the length of the still motion in pixels. A pixel that no walk can hit holds −1 in r.
+#extension GL_GOOGLE_include_directive : require
+#include "screen_trace.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
+        return;
+    if (!hittable(pixel))
+    {
+        imageStore(specularSample, pixel, vec4(-1.0, 0.0, 0.0, 0.0));
+        return;
+    }
+    vec4 apart = motionApartAt(pixel);
+    float still = length(stillMotionAt(pixel).xy * frame.viewport.xy);
+    imageStore(specularSample, pixel, vec4(apart.x, apart.z, movedSurfaceAt(pixel) ? 1.0 : 0.0, still));
+}

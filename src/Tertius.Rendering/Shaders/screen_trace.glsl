@@ -15,6 +15,8 @@
 #include "signals.glsl"
 #include "screen_walk.glsl"
 #include "own_rays.glsl"
+#include "motion.glsl"
+#include "sample_age.glsl"
 
 layout(set = 3, binding = 0) uniform texture2D depthFinest;                    // R32F: each pixel's center w, 0 for sky
 layout(set = 3, binding = 1) uniform texture2D depthPyramid;                   // RG32F, mip m = level m + 1
@@ -32,7 +34,8 @@ layout(set = 3, binding = 9, SPECULAR_HISTORY_FORMAT) uniform readonly image2D s
 layout(set = 3, binding = 10, r8ui) uniform uimage2D rayPlan;                  // the plan's bits (PlanOwnRay)
 // The records of the rays, layer KindReflection and KindDiffuse: rgb the ray's light, pre-exposed, a its hit distance in
 // m, 0 for a miss; and x, y the direction's octahedral code in 16-bit units, z the half bits of log2 of its density per
-// steradian, w RayTraced. A block's record at the block, an own ray's at its pixel.
+// steradian, w RayTraced, with a precise specular history also the hit's light code and moved mark (recordOf). A block's
+// record at the block, an own ray's at its pixel.
 layout(set = 3, binding = 11, rgba16f) uniform image2DArray blockLight;
 layout(set = 3, binding = 12, rgba16ui) uniform uimage2DArray blockRay;
 layout(set = 3, binding = 13, rgba16f) uniform image2DArray ownLight;
@@ -48,8 +51,16 @@ OWN_RAY_LIST(3, 18, diffuseOwnRays);
 layout(set = 3, binding = 25) uniform texture2D lightFinest;    // R32F
 layout(set = 3, binding = 26) uniform texture2D lightLevels;    // R32F
 // The hit light (ticket ter-67y3, ScreenTraceImages.HitLight), layer KindReflection and KindDiffuse: rgb the light that
-// leaves each pixel that a walk can hit toward a ray of the kind (leavingLightOf). The plan writes it, and a hit reads it.
+// leaves each pixel that a walk can hit toward a ray of the kind (leavingLightOf), and a the pixel's moved mark, 1 where
+// its surface moved since the last draw (movedSurfaceAt), else 0. The plan writes it, and a hit reads both.
 layout(set = 3, binding = 27, rgba16f) uniform image2DArray hitLight;
+
+// A record's w: bit 0 whether its ray traced. A ray below its pixel's geometric plane, and a block that no pixel starts,
+// trace nothing. With a precise specular history, bits 1 to 14 hold the hit's light code (RecordCodeBits) and bit 15 its
+// moved mark (RecordMovedMark), so the rays take no new storage (docs/plans/bounce-light-confidence.md, section 8.5).
+const uint RayTraced = 1u;
+const uint RecordCodeBits = 0x3FFFu;
+const uint RecordMovedMark = 0x8000u;
 
 #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
 // The light-change age of a precise specular history (tickets tiunr-py6q and tiunr-7haj, ScreenTraceImages.LightAge): r
@@ -58,21 +69,27 @@ layout(set = 3, binding = 27, rgba16f) uniform image2DArray hitLight;
 // writes this frame's record from the last frame's, and a hit reads this frame's record at its pixel.
 layout(set = 3, binding = 19, rg32f) uniform readonly image2D lastLightAge;
 layout(set = 3, binding = 20, rg32f) uniform image2D lightAge;
-// The two samples' light ages (TemporalSignal.SampleAge), which the resolve writes: an age code (ageCodeOf).
+// The two samples' ages (TemporalSignal.SampleAge), which the resolve writes: the youngest light code of their rays
+// (ageCodeOf) and their motion bit (sample_age.glsl).
 layout(set = 3, binding = 21, r16ui) uniform writeonly uimage2D specularSampleAge;
 // FSR 3.1's transparency and composition mask (ScreenTraceImages.LightChangeMask), which the resolve writes from this
 // frame's records (lightChangeMaskAt): where the direct light changed, FSR's history keeps to this frame's light (ticket
 // t1-4hij).
 layout(set = 3, binding = 22, r8) uniform writeonly image2D lightChangeMask;
-// The diffuse sample's light age (TemporalSignal.SampleAge), which the resolve writes: an age code (ageCodeOf).
+// The diffuse sample's age (TemporalSignal.SampleAge), which the resolve writes as the specular sample's.
 layout(set = 3, binding = 23, r16ui) uniform writeonly uimage2D diffuseSampleAge;
 
 // The age of a pixel whose light the record never saw change, in the frame that first shows it: no evidence. Each later
 // frame that shows it unchanged lowers it by one, down to −(MostLightAge + 1).
 const float NoLightAge = -1.0;
 
-// The largest age that a record holds: its code, the age plus 1, fills the 15 bits of a ray record's w above RayTraced.
+// The largest age that a record holds: a single float keeps it and its pending draws exactly (recordAgeOf).
 const float MostLightAge = 32766.0;
+
+// The largest age that a light code holds: the code, the age plus 1, fills the 14 bits of a ray record's w between
+// RayTraced and the moved mark (recordOf). An older light codes as this age, which changes no cut while a history holds
+// fewer frames (docs/plans/bounce-light-confidence.md, section 8.5).
+const float MostCodedAge = 16382.0;
 
 // The draws in a row that a light must stay outside the range of the last exact light to count as a change
 // (ARCHITECTURE.md, the light-change age, and t2-hvez).
@@ -81,7 +98,7 @@ const float LightChangeDraws = 4.0;
 // The code of an age in a ray record and in the sample age: 0 for no evidence, else the age plus 1.
 uint ageCodeOf(float age)
 {
-    return age < 0.0 ? 0u : uint(min(age, MostLightAge)) + 1u;
+    return age < 0.0 ? 0u : uint(min(age, MostCodedAge)) + 1u;
 }
 
 // A record's g: the age, whose integer part it keeps, plus, away from 0, the draws that a pending change has stayed
@@ -155,11 +172,11 @@ layout(set = 3, binding = 24, rgba32f) uniform writeonly image2D uncoveredDiagno
 // The age of a ray that hit nothing: below every record's age, so that a miss differs from a surface first shown.
 const float MissLightAge = -65536.0;
 
-// The diagnostic's field of a ray record, the 15 bits above RayTraced: an age code below SeenField, or SeenField plus a
-// never-changed hit's frames seen. Its age codes stop at MostFieldCode, age 16,382, which changes no cut while the
-// history holds fewer frames.
-const uint SeenField = 0x4000u;
-const uint MostFieldCode = 0x3FFFu;
+// The diagnostic's field of a ray record, the 14 bits of the light code (RecordCodeBits): an age code below SeenField, or
+// SeenField plus a never-changed hit's frames seen. Its age codes stop at MostFieldCode, age 8,190, which changes no cut
+// while the history holds fewer frames.
+const uint SeenField = 0x2000u;
+const uint MostFieldCode = 0x1FFFu;
 
 uint rayFieldOf(float age)
 {
@@ -173,20 +190,26 @@ uint rayFieldOf(float age)
 // The seen code of a ray record: 0 for none, else the frames seen of its never-changed hit plus 1.
 uint seenCodeOfRecord(uvec4 ray)
 {
-    uint field = ray.w >> 1;
+    uint field = (ray.w >> 1) & RecordCodeBits;
     return (field & SeenField) != 0u ? (field & MostFieldCode) + 1u : 0u;
 }
 #endif
 
-// The age code of a ray record's hit (ageCodeOf).
+// The age code of a ray record's hit (ageCodeOf), without the moved mark.
 uint ageCodeOfRecord(uvec4 ray)
 {
+    uint field = (ray.w >> 1) & RecordCodeBits;
 #ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
-    uint field = ray.w >> 1;
     return (field & SeenField) != 0u ? 0u : field;
 #else
-    return ray.w >> 1;
+    return field;
 #endif
+}
+
+// Whether a ray record's hit carries the moved mark.
+bool movedHitOfRecord(uvec4 ray)
+{
+    return (ray.w & RecordMovedMark) != 0u;
 }
 #endif
 
@@ -215,9 +238,6 @@ const uint KindDiffuse = 1u;
 const uint PlanOwnReflection = 1u;
 const uint PlanOwnDiffuse = 2u;
 
-// A record's w: whether its ray traced. A ray below its pixel's geometric plane, and a block that no pixel starts, trace
-// nothing.
-const uint RayTraced = 1u;
 
 // A pixel traces its own ray of a kind while its history of that kind is shorter than this (section 6, "The ray budget").
 const float FullRateFrames = 8.0;
@@ -450,6 +470,42 @@ vec2 lastPlaceAt(ivec2 pixel)
     return readPlace(vec2(pixel) + 0.5, imageLoad(motionTarget, pixel));
 }
 
+// The relative rounding of the motion target's half floats, which keep 10 bits below their leading bit: twice their
+// largest rounding, so that a still surface's target and its still motion (stillMotionAt) stay inside it.
+const float MotionRounding = 1.0 / 1024.0;
+
+// The motion that the pixel's surface point would have if it stood still while the camera moved: the motion target's own
+// rule (motion.glsl, motionOf) at the point that the pixel's sample sees, rounded to half floats as the target stores it.
+// A still surface's motion target and this differ only by rounding. Under a still camera both are exactly 0: this float
+// computation and the target's can differ in their last bits, by about 10^-6 pixels, far below the least half float of
+// an image unit.
+vec4 stillMotionAt(ivec2 pixel)
+{
+    vec3 point = normalize(viewRayThrough(vec2(pixel) + 0.5)) * texelFetch(gbufferDistance, pixel, 0).r;
+    vec4 motion = motionOf(clipOf(point), lastClipOf(point - frame.previousEye.xyz));
+    return vec4(unpackHalf2x16(packHalf2x16(motion.xy)), unpackHalf2x16(packHalf2x16(motion.zw)));
+}
+
+// How far the pixel's motion target lies from its still motion (stillMotionAt): x the distance of their places in
+// pixels, y the rounding of that distance in pixels, z how far their depth ratios differ, and w the rounding of that.
+vec4 motionApartAt(ivec2 pixel)
+{
+    vec4 target = imageLoad(motionTarget, pixel);
+    vec4 still = stillMotionAt(pixel);
+    float apart = length((target.xy - still.xy) * frame.viewport.xy);
+    float rounding = MotionRounding * length(still.xy * frame.viewport.xy);
+    return vec4(apart, rounding, abs(target.z - still.z), MotionRounding * max(still.z, 1.0));
+}
+
+// Whether the pixel's surface moved since the last draw (docs/plans/bounce-light-confidence.md, section 8.4): its place
+// leaves a still point's by at least LeastMotion pixels and by more than the rounding, or its depth ratio by more than
+// the rounding. The pixel must be hittable.
+bool movedSurfaceAt(ivec2 pixel)
+{
+    vec4 apart = motionApartAt(pixel);
+    return apart.x >= max(LeastMotion, apart.y) || apart.z > apart.w;
+}
+
 // The light that leaves a pixel toward a ray of each kind, pre-exposed and at most MaxRadiance.
 struct LeavingLight
 {
@@ -481,7 +537,7 @@ vec3 glowAt(ivec2 pixel)
 // from"), from q's material s, its view direction V and its reprojections r: this frame's direct light and the last
 // frame's light of both signals at q's place, times q's material factors, and the glow that q sends. A diffuse ray leaves
 // out q's specular part. Where q fails the surface test, and so in a reset frame, a history is the environment's closed
-// form at q. The plan writes it into the hit light image (ticket ter-67y3), and a hit reads it there (hitLightOf).
+// form at q. The plan writes it into the hit light image (ticket ter-67y3), and a hit reads it there (traceFrom).
 LeavingLight leavingLightOf(ivec2 q, ShadingInput s, vec3 V, SignalReprojections r)
 {
     MaterialFactors factors = materialFactors(s, lobesOf(s, V));
@@ -509,13 +565,6 @@ LeavingLight leavingLightAt(ivec2 q)
 bool hittable(ivec2 pixel)
 {
     return texelFetch(depthFinest, pixel, 0).r > 0.0;
-}
-
-// The light of a hit at the pixel q toward a ray of the kind, pre-exposed: the plan's hit light (leavingLightAt). The
-// pixel must be hittable.
-vec3 hitLightOf(ivec2 q, uint kind)
-{
-    return imageLoad(hitLight, ivec3(q, kind)).rgb;
 }
 
 // The guide light of a cell of the light pyramid's level, 0 beyond the level's image, whose fetch is undefined.
@@ -691,6 +740,7 @@ struct TracedRay
     bool traced;      // false for a direction below the pixel's geometric plane, which brings no light
 #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
     float age;        // the light age of the hit's pixel, NoLightAge for a miss (MissLightAge under the diagnostic)
+    bool moved;       // whether the hit's pixel carries the plan's moved mark (movedSurfaceAt); false for a miss
 #endif
 };
 
@@ -733,6 +783,9 @@ TracedRay traceFrom(ivec2 pixel, ivec2 cell, TracingPixel p, uint kind)
 #elif defined(TERTIUS_PRECISE_SPECULAR_HISTORY)
     result.age = NoLightAge;
 #endif
+#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+    result.moved = false;
+#endif
     if (!result.traced)
         return result;
     ScreenWalk walk = screenWalkOf(screenRayOf(p.origin, result.direction, p.viewDepth), result.direction, p.ownCard);
@@ -766,10 +819,14 @@ TracedRay traceFrom(ivec2 pixel, ivec2 cell, TracingPixel p, uint kind)
     vec3 hitPoint = normalize(viewRayThrough(hit)) * texelFetch(gbufferDistance, hitPixel, 0).r;
     result.distance = length(hitPoint - p.origin);
     float fade = edgeFade(hit) * (1.0 - entryShare);
-    result.light = mix(missLight, hitLightOf(hitPixel, kind), fade);
+    vec4 leaving = imageLoad(hitLight, ivec3(hitPixel, kind));
+    result.light = mix(missLight, leaving.rgb, fade);
 #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
     if (fade > 0.0)
+    {
         result.age = imageLoad(lightAge, hitPixel).g;
+        result.moved = leaving.a != 0.0;
+    }
 #endif
     return result;
 }
@@ -810,12 +867,13 @@ RayRecord recordOf(TracedRay traced)
     record.light = vec4(traced.light, min(traced.distance, MostHitDistance));
     record.ray = uvec4(directionCodeOf(traced.direction), densityCodeOf(traced.density), traced.traced ? RayTraced : 0u);
 #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
-    // The hit's age code in the 15 bits above RayTraced.
+    // The hit's age code in the 14 bits above RayTraced, and its moved mark above them.
 #ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
     record.ray.w |= rayFieldOf(traced.age) << 1;
 #else
     record.ray.w |= ageCodeOf(traced.age) << 1;
 #endif
+    record.ray.w |= traced.moved ? RecordMovedMark : 0u;
 #endif
     return record;
 }

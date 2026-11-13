@@ -38,11 +38,13 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 Draw(renderer, scene, 16);
                 int surface = renderer.ReadDistance().Count(distance => distance > 0);
                 long resets = 0;
+                long marks = 0;
                 for (int frame = 0; frame < 64; frame++)
                 {
                     Draw(renderer, scene, 1);
                     float[] record = renderer.ReadLightAge();
                     resets += Enumerable.Range(0, Width * Height).Count(pixel => AgeAt(record, pixel) == 0);
+                    marks += MovedMarks(renderer).Count(mark => mark != 0);
                 }
 
                 output.WriteLine(
@@ -54,6 +56,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                         0,
                         "the jitter and the temporal shadow filter move an edge pixel's light for fewer than four draws"
                     );
+                marks.Should().Be(0, "the jitter moves no surface");
             },
             new(Upscaling: new Fsr3Upscaling(new FixedRenderScale(1), 0), CascadedLights: 1)
         );
@@ -283,16 +286,23 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
             null,
             (renderer, scene) =>
             {
+                // The first draw shows every instance as new, with no last place, which is motion evidence. So the count
+                // starts at the second draw.
                 AddSunAndOccluder(renderer, scene);
+                Draw(renderer, scene, 1);
                 long aged = 0;
 
-                for (int frame = 0; frame < 32; frame++)
+                for (int frame = 1; frame < 32; frame++)
                 {
                     Draw(renderer, scene, 1);
                     aged += SampleAges(renderer).Count(age => age != 0);
+                    aged += renderer
+                        .ReadImage(renderer.ScreenTraceSignals.Diffuse.SampleAge(0)!)
+                        .Count(age => age != 0);
                 }
 
-                aged.Should().Be(0, "no light changes, so every ray brings no evidence and no history is cut");
+                aged.Should()
+                    .Be(0, "no light changes and nothing moves, so no ray brings evidence and no history is cut");
             },
             new(CascadedLights: 1)
         );
@@ -915,6 +925,191 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
         );
 
     [Fact]
+    public void ARayThatHitsAMovingObjectCarriesItsMovedMark() =>
+        WithRenderer(
+            null,
+            (renderer, scene) =>
+            {
+                // The emitter slides sideways by 2 cm per draw, about half a pixel at 5 m, and the camera stands still. So
+                // the floor's pixels do not move, and a floor sample's motion bit comes only from a ray that hit the
+                // emitter, whose pixels the plan marked as moved (docs/plans/bounce-light-confidence.md, section 8.4).
+                Draw(renderer, scene, 32);
+
+                for (int draw = 0; draw < 4; draw++)
+                {
+                    Slide(scene, instance: 1, new Vector3(0.02f, 0, 0));
+                    Draw(renderer, scene, 1);
+                }
+
+                float[] ages = SampleAges(renderer);
+                int moved = Enumerable
+                    .Range(Height / 2 * Width, Width * Height / 2)
+                    .Count(pixel => SawMotion(ages[pixel]));
+                output.WriteLine($"Floor samples whose rays hit the moving emitter: {moved}.");
+                moved.Should().BeGreaterThan(30, "the plate reflects the moving emitter");
+            }
+        );
+
+    [Fact]
+    public void ARayThatHitsAStillSurfaceWhileTheCameraMovesCarriesNoMovedMark() =>
+        WithRenderer(
+            null,
+            (renderer, scene) =>
+            {
+                // The camera walks toward the emitter and the scene stands still. The plan compares each pixel's motion
+                // target with the motion of a still point at its surface point, by the motion target's own rule, so the two
+                // agree up to the rounding of the target's half floats, and no surface carries a moved mark.
+                Draw(renderer, scene, 16);
+                long marked = 0;
+
+                for (int draw = 0; draw < 16; draw++)
+                {
+                    Step(scene);
+                    Draw(renderer, scene, 1);
+                    marked += MovedMarks(renderer).Count(mark => mark != 0);
+                }
+
+                marked.Should().Be(0, "a still surface moves only with the camera");
+            }
+        );
+
+    [Fact]
+    public void UnderAStillCameraAStillSurfaceLiesExactlyWhereAStillPointWould() =>
+        WithRenderer(
+            null,
+            (renderer, scene) =>
+            {
+                // Both frames' matrices agree, so the motion target and the still motion take one rule to the same
+                // places, and the moved test sees no distance between them (docs/plans/bounce-light-confidence.md,
+                // section 8.4).
+                Draw(renderer, scene, 16);
+                ScreenTraceProbe probe = ScreenTraceProbe.On(renderer, "moved_surface_probe.comp");
+                Draw(renderer, scene, 1);
+
+                float[] apart = probe.Read();
+                int[] hittable = HittablePixels(apart);
+                hittable.Length.Should().BeGreaterThan(Width * Height / 2, "the floor and the emitter fill the view");
+                hittable.Should().OnlyContain(pixel => apart[4 * pixel] == 0, "both places are the same point's");
+                // The depth ratios lie near 1, where a half float steps by 2^-11. The Vulkan spec lets the target's store
+                // round toward 0 or to the nearest half, so the two can differ by one step, half the moved test's bound.
+                hittable
+                    .Should()
+                    .OnlyContain(pixel => apart[4 * pixel + 1] <= 1f / 2048 && apart[4 * pixel + 2] == 0);
+            }
+        );
+
+    [Fact]
+    public void UnderASidewaysCameraAStillSurfaceLiesFarInsideTheLeastMotionOfAStillPoint() =>
+        WithRenderer(
+            null,
+            (renderer, scene) =>
+            {
+                // The camera moves sideways by 4 cm per draw, so every surface moves on screen by about 0.1 pixel or
+                // more. A still surface's motion target and its still motion differ by the rounding alone: far below
+                // LeastMotion, 1/32 pixel, at every pixel.
+                Draw(renderer, scene, 16);
+                ScreenTraceProbe probe = ScreenTraceProbe.On(renderer, "moved_surface_probe.comp");
+                scene.Camera.PreviousPosition = scene.Camera.Position;
+                scene.Camera.Position += new Vector3(0.04f, 0, 0);
+                Draw(renderer, scene, 1);
+
+                float[] apart = probe.Read();
+                int[] hittable = HittablePixels(apart);
+                hittable.Length.Should().BeGreaterThan(Width * Height / 2, "the floor and the emitter fill the view");
+                float most = hittable.Max(pixel => apart[4 * pixel]);
+                output.WriteLine($"The largest distance from a still point's place: {most} pixels.");
+                hittable.Should().OnlyContain(pixel => apart[4 * pixel + 3] > 0.05f, "the camera moved every pixel");
+                hittable.Should().OnlyContain(pixel => apart[4 * pixel] < 1f / 128 && apart[4 * pixel + 2] == 0);
+            }
+        );
+
+    [Fact]
+    public void TheMovedMarkFallsOnAMovingBlockAndNotOnAStillEmitterWhoseLightChanges() =>
+        WithRenderer(
+            null,
+            (renderer, scene) =>
+            {
+                // The emitter dims in place while a white block slides along the floor. The emitter's exact light changes,
+                // so its record counts a change 4 draws later, while its surface stays where it was: a changed light is
+                // light evidence, not motion (docs/plans/bounce-light-confidence.md, section 9, causes 1 and 3). Only the
+                // block's own pixels carry the moved mark.
+                scene.Instances.Add(Occluder(renderer));
+                Draw(renderer, scene, 32);
+                SetGlow(renderer, scene, new(3.2f));
+
+                for (int draw = 0; draw < LightChangeDraws; draw++)
+                {
+                    Slide(scene, instance: scene.Instances.Count - 1, new Vector3(0.1f, 0, 0));
+                    Draw(renderer, scene, 1);
+                }
+
+                float[] record = renderer.ReadLightAge();
+                float[] marks = MovedMarks(renderer);
+                int[] changed = [.. Enumerable.Range(0, Width * Height).Where(pixel => AgeAt(record, pixel) == 0)];
+                output.WriteLine(
+                    $"Pixels whose light changed: {changed.Length}; marked pixels: {marks.Count(mark => mark != 0)}."
+                );
+                changed.Length.Should().BeGreaterThan(30, "the emitter's light changed");
+                changed.Should().OnlyContain(pixel => marks[pixel] == 0, "the emitter stands still");
+                marks.Count(mark => mark != 0).Should().BeGreaterThan(10, "the block's own pixels moved");
+            }
+        );
+
+    [Fact]
+    public void ThePixelsOwnMotionSetsTheMotionBitOfItsSamples() =>
+        WithRenderer(
+            null,
+            (renderer, scene) =>
+            {
+                // The camera moves sideways by 4 cm per draw, so every surface pixel moves on screen by more than LeastMotion,
+                // 1/32 pixel per draw: the farthest floor, about 50 m away, moves by about 0.1 pixel. The camera's moves
+                // change what the rays see, so every sample of both signals saw motion.
+                Draw(renderer, scene, 16);
+
+                for (int draw = 0; draw < 4; draw++)
+                {
+                    scene.Camera.PreviousPosition = scene.Camera.Position;
+                    scene.Camera.Position += new Vector3(0.04f, 0, 0);
+                    Draw(renderer, scene, 1);
+                }
+
+                float[] distance = renderer.ReadDistance();
+                int[] surface = [.. Enumerable.Range(0, Width * Height).Where(pixel => distance[pixel] > 0)];
+                surface.Length.Should().BeGreaterThan(Width * Height / 2);
+                float[] specular = SampleAges(renderer);
+                float[] diffuse = renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.SampleAge(0)!);
+                surface.Should().OnlyContain(pixel => SawMotion(specular[pixel]) && SawMotion(diffuse[pixel]));
+            }
+        );
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("light-age-diagnostic")]
+    public void TheMovedMarkLeavesTheLightCodeOfTheRecordAsItWas(string? value) =>
+        WithRenderer(
+            value,
+            (renderer, scene) =>
+            {
+                // The emitter dims while it slides, so a ray that hits it brings both its light code, 1 four draws after
+                // the dimming, and its moved mark. The mark sits in bit 15 of the record above the light code, which
+                // narrowed to 14 bits, and under the diagnostic above its narrowed field (section 8.5).
+                Draw(renderer, scene, 32);
+                SetGlow(renderer, scene, new(3.2f));
+
+                for (int draw = 0; draw < LightChangeDraws; draw++)
+                {
+                    Slide(scene, instance: 1, new Vector3(0.02f, 0, 0));
+                    Draw(renderer, scene, 1);
+                }
+
+                SampleAges(renderer)
+                    .Count(age => age == (TemporalSignal.SampleMotionBit | 1))
+                    .Should()
+                    .BeGreaterThan(30, "rays that hit the dimmed, moving emitter bring its age 0 and its mark");
+            }
+        );
+
+    [Fact]
     public void AnExposureChangeAloneResetsNoLightAge() =>
         WithRenderer(
             null,
@@ -1135,14 +1330,15 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 scene.Instances[^1] = occluder;
                 long aged = 0;
 
+                // The occluder's move is motion evidence, the samples' motion bit, so the count reads the light codes alone.
                 Draw(renderer, scene, 1);
-                aged += SampleAges(renderer).Count(age => age != 0);
+                aged += SampleAges(renderer).Count(age => LightCodeOf(age) != 0);
                 occluder.PreviousPosition = occluder.Position;
                 scene.Instances[^1] = occluder;
                 for (int frame = 0; frame < 8; frame++)
                 {
                     Draw(renderer, scene, 1);
-                    aged += SampleAges(renderer).Count(age => age != 0);
+                    aged += SampleAges(renderer).Count(age => LightCodeOf(age) != 0);
                 }
 
                 aged.Should().Be(0, "a surface whose light was never seen to change gives a receiver no evidence");
@@ -1393,6 +1589,10 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
     }
 
     /// <summary>One draw's step of the walks: the camera moves 4 cm toward the emitter.</summary>
+    /// <summary>The pixels that a walk can hit in the output of moved_surface_probe.comp.</summary>
+    private static int[] HittablePixels(float[] probe) =>
+        [.. Enumerable.Range(0, Width * Height).Where(pixel => probe[4 * pixel] >= 0)];
+
     private static void Step(RenderSnapshot scene)
     {
         scene.Camera.PreviousPosition = scene.Camera.Position;
@@ -1459,6 +1659,31 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 )
                 .Select(age => (float)((int)age & TemporalSignal.LightCodeMask)),
         ];
+
+    /// <summary>The light code of a sample age, read as a float, without its motion bit (sample_age.glsl).</summary>
+    private static int LightCodeOf(float age) => (int)age & TemporalSignal.LightCodeMask;
+
+    /// <summary>Whether a sample age, read as a float, holds the motion bit (sample_age.glsl).</summary>
+    private static bool SawMotion(float age) => ((int)age & TemporalSignal.SampleMotionBit) != 0;
+
+    /// <summary>
+    /// The moved mark of each pixel, the alpha of the hit light's first layer: 1 where the plan found that the pixel's
+    /// surface moved since the last draw, else 0.
+    /// </summary>
+    private static float[] MovedMarks(VulkanRenderer renderer)
+    {
+        float[] light = renderer.ReadImageLayer(image: renderer.ScreenTraceImages.HitLight, layer: 0);
+        return [.. Enumerable.Range(0, Width * Height).Select(pixel => light[4 * pixel + 3])];
+    }
+
+    /// <summary>Moves the scene's instance <paramref name="instance"/> by <paramref name="step"/> in this draw.</summary>
+    private static void Slide(RenderSnapshot scene, int instance, Vector3 step)
+    {
+        RenderInstance moved = scene.Instances[instance];
+        moved.PreviousPosition = moved.Position;
+        moved.Position += step;
+        scene.Instances[instance] = moved;
+    }
 
     /// <summary>The block of 8 × 8 pixels, one workgroup of the accumulation, that holds the pixel.</summary>
     private static int BlockOf(int pixel) => pixel / Width / 8 * (Width / 8) + pixel % Width / 8;

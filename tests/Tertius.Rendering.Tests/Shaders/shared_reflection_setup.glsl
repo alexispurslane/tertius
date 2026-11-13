@@ -9,7 +9,7 @@ layout(local_size_x = 8, local_size_y = 8) in;
 RayRecord sharedReflection(vec3 direction, float density)
 {
 #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
-    return recordOf(TracedRay(direction, density, vec3(1.0), 1.0, true, NoLightAge));
+    return recordOf(TracedRay(direction, density, vec3(1.0), 1.0, true, NoLightAge, false));
 #else
     return recordOf(TracedRay(direction, density, vec3(1.0), 1.0, true));
 #endif

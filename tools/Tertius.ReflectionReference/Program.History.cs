@@ -386,8 +386,9 @@ internal static partial class Program
         object? lightAgeCounts = null;
         if (renderer.ScreenTraceSignals.Specular.SampleAge(0) is { } sampleAge)
         {
+            // The file keeps the light code alone: the motion bit is the accumulator's evidence, not an age.
             foreach (float code in CropAttachment(renderer.ReadImage(sampleAge), 1))
-                lightAge.Samples.Write((ushort)code);
+                lightAge.Samples.Write((ushort)((ushort)code & TemporalSignal.LightCodeMask));
             float[] record = renderer.ReadLightAge();
             foreach (float value in CropAttachment(record, 2))
                 lightAge.Records.Write(value);
