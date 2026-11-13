@@ -6,4 +6,4 @@
 
 // The whole run of this project holds the GPU lock in its shared mode, so that no timed run, which holds the lock alone,
 // runs beside these tests (GpuTestLock, ticket ter-zoof).
-[assembly: AssemblyFixture(typeof(Tertius.Testing.GpuTestLock))]
+[assembly: AssemblyFixture(typeof(GpuTestLock))]

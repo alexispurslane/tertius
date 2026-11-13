@@ -64,7 +64,10 @@ public sealed class GpuTestLock : IDisposable
             return;
         flags = Directory.CreateTempSubdirectory("tertius-gpu-test-lock-").FullName;
         Directory.CreateDirectory(LogFolder);
-        string log = Path.Combine(LogFolder, $"{DateTime.UtcNow:yyyyMMdd-HHmmss}-{owner}-{Path.GetFileName(flags)}.log");
+        string log = Path.Combine(
+            LogFolder,
+            $"{DateTime.UtcNow:yyyyMMdd-HHmmss}-{owner}-{Path.GetFileName(flags)}.log"
+        );
         string taken = Path.Combine(flags, "taken");
         var start = new ProcessStartInfo("bash")
         {
@@ -117,7 +120,11 @@ public sealed class GpuTestLock : IDisposable
             directory = directory.Parent;
         string root = directory?.FullName ?? throw new InvalidOperationException("Cannot find the repository root.");
         string git = Path.Combine(root, ".git");
-        if (File.Exists(git) && File.ReadAllText(git).Trim() is var line && line.StartsWith("gitdir: ", StringComparison.Ordinal))
+        if (
+            File.Exists(git)
+            && File.ReadAllText(git).Trim() is var line
+            && line.StartsWith("gitdir: ", StringComparison.Ordinal)
+        )
         {
             // gitdir: <main checkout>/.git/worktrees/<name>
             string? main = Directory.GetParent(line["gitdir: ".Length..])?.Parent?.Parent?.FullName;
