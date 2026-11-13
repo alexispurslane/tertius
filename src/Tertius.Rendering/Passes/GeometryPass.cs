@@ -196,22 +196,15 @@ internal sealed unsafe class GeometryPass : RenderPass
     /// <summary>
     /// Sets the mesh-pass push constants. The main view has its eye at the origin; a shadow cascade or an impostor
     /// capture passes its own matrix. <paramref name="layout"/> defaults to <see cref="DescriptorLayouts.SceneLayout"/>.
-    /// An environment face passes its <paramref name="map"/>, whose lights it keeps; no other pass reads it.
     /// </summary>
     public static void PushDraw(
         FrameContext context,
         Matrix4x4 viewProjection,
         Vector3 eye = default,
-        PipelineLayout layout = default,
-        int map = 0
+        PipelineLayout layout = default
     )
     {
-        var push = new DrawPushConstants
-        {
-            ViewProj = viewProjection,
-            Eye = new(eye, 1f),
-            Map = (uint)map,
-        };
+        var push = new DrawPushConstants { ViewProj = viewProjection, Eye = new(eye, 1f) };
         context.Vk.CmdPushConstants(
             commandBuffer: context.CommandBuffer,
             layout: layout.Handle != 0 ? layout : context.Layouts.SceneLayout,
