@@ -19,3 +19,7 @@ Design: docs/plans/bounce-light-confidence.md (Design A with Design X's evidence
 **2026-11-13T02:53:48Z**
 
 Built: the plan writes a moved mark into the hit light's alpha (movedSurfaceAt: the motion target against stillMotionAt, the target's own rule rounded to half floats, with a relative depth bound). A hit carries it into bit 15 of the record's w; the light code narrows to 14 bits (MostCodedAge 16,382; diagnostic stops at 8,190). The resolve writes each signal's motion bit (a ray's mark, or the pixel's own motion of at least LeastMotion). Tests: ARayThatHitsAMovingObjectCarriesItsMovedMark, ARayThatHitsAStillSurfaceWhileTheCameraMovesCarriesNoMovedMark, TheMovedMarkFallsOnAMovingBlockAndNotOnAStillEmitterWhoseLightChanges (replaces the shadow test), ThePixelsOwnMotionSetsTheMotionBitOfItsSamples, TheMovedMarkLeavesTheLightCodeOfTheRecordAsItWas (both modes), UnderAStillCameraAStillSurfaceLiesExactlyWhereAStillPointWould, UnderASidewaysCameraAStillSurfaceLiesFarInsideTheLeastMotionOfAStillPoint, ALightAgeAboveTheRecordsCodesCodesAsTheLargestAndLeavesTheMovedMarkAlone, AStillSceneGivesNoEvidenceToEitherSignal (0 of 138M samples).
+
+**2026-11-13T03:42:23Z**
+
+Fix after the Linux Release shards: the half rounding of the still motion gave exactly 0 on the Mac but not on the RTX 2000 Ada (the rounded still motion kept lengths near 1e-6 px). The rounding went; UnderAStillCameraAStillSurfaceLiesAtAStillPointsPlaceUpToTheFloatsRounding bounds the distance at 1e-5 px with no moved mark (measured 1e-6 on the Mac, 2.1e-6 on Linux).

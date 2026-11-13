@@ -389,8 +389,7 @@ Five passes each add what only they know. No pass stores a new image.
    vec4 stillMotionAt(ivec2 pixel)
    {
        vec3 point = normalize(viewRayThrough(vec2(pixel) + 0.5)) * texelFetch(gbufferDistance, pixel, 0).r;
-       vec4 motion = motionOf(clipOf(point), lastClipOf(point - frame.previousEye.xyz));
-       return vec4(unpackHalf2x16(packHalf2x16(motion.xy)), unpackHalf2x16(packHalf2x16(motion.zw)));
+       return motionOf(clipOf(point), lastClipOf(point - frame.previousEye.xyz));
    }
 
    vec4 motionApartAt(ivec2 pixel)
@@ -413,7 +412,7 @@ Five passes each add what only they know. No pass stores a new image.
 
    - `point` = the surface point that q's sample sees, relative to this frame's eye, as `materialAt` builds it.
    - `motionOf`, `clipOf`, `lastClipOf` = the motion target's own rule (`motion.glsl`), which the G-buffer and the surface test use.
-   - `stillMotionAt` = the motion target that q would have if its surface stood still: xy the last place minus this place in units of the image, z the last view depth over this view depth. It is rounded to half floats, as the motion target stores them.
+   - `stillMotionAt` = the motion target that q would have if its surface stood still: xy the last place minus this place in units of the image, z the last view depth over this view depth.
    - `target` = q's motion target.
    - `frame.viewport.xy` = the render size in pixels.
    - `LeastMotion` = 1/32 pixel per draw, the gate's threshold of `ter-18hc`, now in `sample_age.glsl`.
@@ -422,8 +421,8 @@ Five passes each add what only they know. No pass stores a new image.
 
    The build differs from the first sketch in three points, each for a reason that a test showed:
 
-   - It compares the two motions, not two last places through `lastPlaceAt`. `lastPlaceAt` goes through `readPlace`, which adds the pixel history rule's choice of the pixel place or the sample place. The motions take one rule with no choice, so a still surface gives the same numbers. `UnderAStillCameraAStillSurfaceLiesExactlyWhereAStillPointWould` shows a distance of exactly 0 at every hittable pixel.
-   - The still motion is rounded to half floats. Without the rounding, the float computation differs from the stored target in its last bits, by about 10^−6 pixels under a still camera, and the test of exactly 0 fails.
+   - It compares the two motions, not two last places through `lastPlaceAt`. `lastPlaceAt` goes through `readPlace`, which adds the pixel history rule's choice of the pixel place or the sample place. The motions take one rule with no choice, so a still surface gives the same numbers up to the floats' last bits.
+   - A still surface under a still camera gives a distance of 0 up to that rounding, not exactly 0. The float computation differs from the stored target by about 10^−6 pixels: at most 10^−6 on the Mac and 2.1 × 10^−6 on the RTX 2000 Ada of the GPU workbench. A first build rounded the still motion to half floats with `packHalf2x16` and `unpackHalf2x16`, which gave exactly 0 on the Mac. On the RTX 2000 Ada, the rounded still motion kept lengths of about 10^−6 pixels, which no half float of an image unit holds, so that driver did not keep the round trip. The build dropped the rounding, and `UnderAStillCameraAStillSurfaceLiesAtAStillPointsPlaceUpToTheFloatsRounding` bounds the distance at 10^−5 pixels, four orders below `LeastMotion`, with no moved mark.
    - The depth test is relative, `MotionRounding * max(still.z, 1)`. The depth ratio lies near 1, where a half float steps by 2^−11, and the Vulkan spec lets an image store round toward 0 or to the nearest half. So the two ratios of a still surface can differ by one step, which this bound admits.
 
 2. A ray (`traceFrom`) already loads its hit's light from the hit light image and its light age from the record. It takes the hit's moved mark from the same load, where the hit's light counts (`fade > 0`, as for the age). The record keeps it in bit 15 of `w` (section 8.5).
@@ -829,7 +828,7 @@ New in step 13:
 - `ARayThatHitsAMovingObjectCarriesItsMovedMark`.
 - `ARayThatHitsAStillSurfaceWhileTheCameraMovesCarriesNoMovedMark`: the still prediction and the motion target agree.
 - `TheMovedMarkFallsOnAMovingBlockAndNotOnAStillEmitterWhoseLightChanges`, in place of `AShadowThatMovesOntoAStillWallGivesTheRaysThatHitTheWallItsLightAgeAndNoMovedMark`. The test scene's sun and occluder gave no floor shadow that the record counted as a change: several slides, sizes and sun directions all left 0 changed pixels. The new test keeps the point of the old one with a light change that the record does count: the emitter dims in place while a block slides, and every pixel whose light changed carries no moved mark, while the block's own pixels carry it.
-- `UnderAStillCameraAStillSurfaceLiesExactlyWhereAStillPointWould` and `UnderASidewaysCameraAStillSurfaceLiesFarInsideTheLeastMotionOfAStillPoint`, through the probe `moved_surface_probe.comp`: the one place rule gives a still surface a distance of exactly 0 under a still camera, and below 1/128 pixel under a camera that moves every pixel by 0.05 pixels or more. The largest distance measured there was 2^−11 pixels. A hand mutant that drops `previousEye` and one that drops the half rounding each turn one of them red.
+- `UnderAStillCameraAStillSurfaceLiesAtAStillPointsPlaceUpToTheFloatsRounding` and `UnderASidewaysCameraAStillSurfaceLiesFarInsideTheLeastMotionOfAStillPoint`, through the probe `moved_surface_probe.comp`: the one place rule gives a still surface a distance of at most 10^−5 pixels under a still camera, and below 1/128 pixel under a camera that moves every pixel by 0.05 pixels or more. The largest distance measured there was 2^−11 pixels. A hand mutant that drops `previousEye` turns the second one red.
 - `ThePixelsOwnMotionSetsTheMotionBitOfItsSamples`.
 - `TheMovedMarkLeavesTheLightCodeOfTheRecordAsItWas`, also under the light-age diagnostic.
 - `AStillLitSceneBringsNoAgeThatCouldCutAHistory` and `AStillJitteredSceneWithShadowEdgesResetsNoLightAge` stay green and now also find no motion bit or moved mark. The first now counts from the second draw: the first draw shows every instance as new, with no last place, which is motion evidence.
@@ -968,7 +967,7 @@ Where steps 11 to 13 differ from the plan above:
 
 - Steps 12 and 13 built in one branch, in order, and not in parallel.
 - `tools/renderer-survey.py` reads the removed `accumulate_blocks.glsl` from commit `1190adce1` (`BLOCK_TEST_COMMIT`), so that the survey's block capture and its tests keep working until step 15 removes them. `probe.patch` lost only the hunks whose targets step 12 removed, and gained the knob `TERTIUS_A_MOTION_CUTS`.
-- The moved test compares motions, rounded to half floats, with a relative depth bound (section 8.4).
+- The moved test compares motions with a relative depth bound, and a still surface gives 0 up to the floats' rounding, not exactly 0 (section 8.4).
 - The tests moved between steps as section 20 records.
 
 After the merge, `ter-ewua` starts from section 15. If the climb's target fails, `ter-g3tk` keeps the climb with its next take.

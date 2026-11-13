@@ -475,15 +475,13 @@ vec2 lastPlaceAt(ivec2 pixel)
 const float MotionRounding = 1.0 / 1024.0;
 
 // The motion that the pixel's surface point would have if it stood still while the camera moved: the motion target's own
-// rule (motion.glsl, motionOf) at the point that the pixel's sample sees, rounded to half floats as the target stores it.
-// A still surface's motion target and this differ only by rounding. Under a still camera both are exactly 0: this float
-// computation and the target's can differ in their last bits, by about 10^-6 pixels, far below the least half float of
-// an image unit.
+// rule (motion.glsl, motionOf) at the point that the pixel's sample sees. A still surface's motion target and this differ
+// only by rounding: under a still camera by the float computation's last bits, a few 10^-6 pixels, and under a moving
+// camera also by the target's half floats.
 vec4 stillMotionAt(ivec2 pixel)
 {
     vec3 point = normalize(viewRayThrough(vec2(pixel) + 0.5)) * texelFetch(gbufferDistance, pixel, 0).r;
-    vec4 motion = motionOf(clipOf(point), lastClipOf(point - frame.previousEye.xyz));
-    return vec4(unpackHalf2x16(packHalf2x16(motion.xy)), unpackHalf2x16(packHalf2x16(motion.zw)));
+    return motionOf(clipOf(point), lastClipOf(point - frame.previousEye.xyz));
 }
 
 // How far the pixel's motion target lies from its still motion (stillMotionAt): x the distance of their places in

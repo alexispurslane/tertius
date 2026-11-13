@@ -974,14 +974,14 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
         );
 
     [Fact]
-    public void UnderAStillCameraAStillSurfaceLiesExactlyWhereAStillPointWould() =>
+    public void UnderAStillCameraAStillSurfaceLiesAtAStillPointsPlaceUpToTheFloatsRounding() =>
         WithRenderer(
             null,
             (renderer, scene) =>
             {
                 // Both frames' matrices agree, so the motion target and the still motion take one rule to the same
-                // places, and the moved test sees no distance between them (docs/plans/bounce-light-confidence.md,
-                // section 8.4).
+                // places, up to the last bits of the floats: at most 2.1 * 10^-6 pixels on the RTX 2000 Ada and 10^-6 on
+                // the Mac, four orders below LeastMotion (docs/plans/bounce-light-confidence.md, section 8.4).
                 Draw(renderer, scene, 16);
                 ScreenTraceProbe probe = ScreenTraceProbe.On(renderer, "moved_surface_probe.comp");
                 Draw(renderer, scene, 1);
@@ -989,7 +989,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 float[] apart = probe.Read();
                 int[] hittable = HittablePixels(apart);
                 hittable.Length.Should().BeGreaterThan(Width * Height / 2, "the floor and the emitter fill the view");
-                hittable.Should().OnlyContain(pixel => apart[4 * pixel] == 0, "both places are the same point's");
+                hittable.Should().OnlyContain(pixel => apart[4 * pixel] <= 1e-5f, "both places are the same point's");
                 // The depth ratios lie near 1, where a half float steps by 2^-11. The Vulkan spec lets the target's store
                 // round toward 0 or to the nearest half, so the two can differ by one step, half the moved test's bound.
                 hittable
