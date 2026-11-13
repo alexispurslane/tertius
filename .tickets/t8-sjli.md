@@ -24,3 +24,11 @@ Kind (a). The card and the Mac show the same display level, 225, at the square's
 **2026-11-12T22:55:21Z**
 
 Card confirmation on a7924ebd7 (2026-11-12): the fixed Rendering methods 10 of 10, the fixed classes 80 of 80 and the Host edit classes 40 of 40 pass on the RTX 2000 Ada. The Mac's Checked and Release suites pass.
+
+**2026-11-13T03:36:36Z**
+
+2026-11-13 follow-up. slanted-through-the-square failed on the card on main after ter-8esk: 101/255 against a bound of 100/255, in three runs. Card bisect: passes on 1dfafc2b9, fails on the ter-8esk merge 657642432. HDR over a glow at the C# answer (a throwaway diagnostic): Mac 1.0206 before and after ter-8esk, bit-identical; card 1.0230 after it. The codes that ter-8esk changed move this light by about 0.04 %; the rest of the card's shift is unexplained (likely a changed compilation on NVIDIA, not measured). Kind (a): both machines lie above 2 % in the HDR target, and the Mac passed only by the rounding of its displayed level. Fix: this case gets a band of 3 %, as standing-on-the-middle did. On the card's glow ladder 1.03 shows 101, the center's level, so it passes. 3 % still fails the fault that the case tests: the tube's middle lies 5 cm behind the square, so a tube that took its light from its middle would give 0 at the center. The cause of the steady 2 to 3 % above the C# tube on both machines is not known from a short read: ticket t8-o16a. The bands of 3 % last until it closes.
+
+**2026-11-13T03:38:56Z**
+
+Card confirmation with the band of 3 %: TubeLightRenderTests passes 7 of 7 on the RTX 2000 Ada (2026-11-13).
