@@ -1,5 +1,5 @@
 diff --git a/src/Tertius.Host/ScriptCommand.Options.cs b/src/Tertius.Host/ScriptCommand.Options.cs
-index 2fdc522..07e51c5 100644
+index 9a9d673..8c5e5c4 100644
 --- a/src/Tertius.Host/ScriptCommand.Options.cs
 +++ b/src/Tertius.Host/ScriptCommand.Options.cs
 @@ -112,6 +112,9 @@ public static partial class ScriptCommand
@@ -31,7 +31,7 @@ index b4ceb4b..61c6b36 100644
              Reset: reset,
              DrawIndex: reset ? 0 : lastDrawIndex + 1,
 diff --git a/src/Tertius.Rendering/Frame/FrameResources.cs b/src/Tertius.Rendering/Frame/FrameResources.cs
-index f847f8e..3ad94e0 100644
+index e8fc337..ce6d9de 100644
 --- a/src/Tertius.Rendering/Frame/FrameResources.cs
 +++ b/src/Tertius.Rendering/Frame/FrameResources.cs
 @@ -248,9 +248,56 @@ internal sealed unsafe class FrameResources : IDisposable
@@ -91,8 +91,87 @@ index f847f8e..3ad94e0 100644
      /// <summary>A storage buffer of this frame that the CPU rewrites each frame, named after the frame and <paramref name="contents"/>.</summary>
      private HostArray<T> StorageArray<T>(DeviceAllocator allocator, string contents, int capacity)
          where T : unmanaged =>
+diff --git a/src/Tertius.Rendering/PngCaptureSink.cs b/src/Tertius.Rendering/PngCaptureSink.cs
+index 9e4fc4c..8797aea 100644
+--- a/src/Tertius.Rendering/PngCaptureSink.cs
++++ b/src/Tertius.Rendering/PngCaptureSink.cs
+@@ -19,8 +19,74 @@ public sealed class PngCaptureSink : ICaptureSink
+         this.path = path;
+     }
+ 
++    // PROBE (tools/renderer-survey, never commit to src): with TERTIUS_PROBE_SERIES=<file>, each capture appends one line
++    // to the file: its name, then the mean scene luminance of the whole image and of each cell of a 3 x 3 grid, by rows.
++    // It decodes the probe's 24-bit log2 luminance as probe_luminance and region_means of tools/renderer-survey.py do.
++    // It writes the PNG only for the names in TERTIUS_PROBE_KEEP, a comma-separated list, so that a film of every draw
++    // pays no PNG encoding (ticket ter-d7qy).
++    private static readonly string? ProbeSeries =
++        Environment.GetEnvironmentVariable("TERTIUS_PROBE_SERIES") is { Length: > 0 } series ? series : null;
++    private static readonly HashSet<string> ProbeKeep =
++        [.. (Environment.GetEnvironmentVariable("TERTIUS_PROBE_KEEP") ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries)];
++
++    // exp2(q / 16777215 * 40 - 24) of a 24-bit code q is the product of a table entry for its high 12 bits and one for
++    // its low 12 bits. It differs from the direct exp2 by at most 4e-16 of its value, and it makes the means of a
++    // 1920 x 1080 capture about 12 times faster than one exp2 per pixel.
++    private static readonly double[] ProbeHigh = [.. Enumerable.Range(0, 4096).Select(k => double.Exp2(k * 4096 / 16777215.0 * 40.0 - 24.0))];
++    private static readonly double[] ProbeLow = [.. Enumerable.Range(0, 4096).Select(k => double.Exp2(k / 16777215.0 * 40.0))];
++
++    private static unsafe double[] ProbeMeans(in CapturedImage image)
++    {
++        const int grid = 3;
++        int width = image.Width;
++        int height = image.Height;
++        var sums = new double[grid * grid];
++        fixed (byte* start = image.Rgba)
++        {
++            nint pixels = (nint)start;
++            Parallel.For(0, grid * grid, cell =>
++            {
++                int row = cell / grid;
++                int column = cell % grid;
++                double sum = 0.0;
++                for (int y = row * height / grid; y < (row + 1) * height / grid; y++)
++                    for (int x = column * width / grid; x < (column + 1) * width / grid; x++)
++                    {
++                        byte* pixel = (byte*)pixels + ((long)y * width + x) * 4;
++                        int q = (pixel[0] << 16) | (pixel[1] << 8) | pixel[2];
++                        if (q != 0)
++                            sum += ProbeHigh[q >> 12] * ProbeLow[q & 4095];
++                    }
++                sums[cell] = sum;
++            });
++        }
++        var means = new double[1 + grid * grid];
++        double total = 0.0;
++        for (int cell = 0; cell < grid * grid; cell++)
++        {
++            int row = cell / grid;
++            int column = cell % grid;
++            long pixels = (long)((row + 1) * height / grid - row * height / grid)
++                * ((column + 1) * width / grid - column * width / grid);
++            means[1 + cell] = sums[cell] / pixels;
++            total += sums[cell];
++        }
++        means[0] = total / ((double)width * height);
++        return means;
++    }
++
+     public void Take(in CapturedImage image)
+     {
++        if (ProbeSeries is not null)
++        {
++            string name = Path.GetFileNameWithoutExtension(path);
++            var line = new System.Text.StringBuilder(name);
++            foreach (double mean in ProbeMeans(image))
++                line.Append(' ').Append(mean.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
++            File.AppendAllText(ProbeSeries, line.Append('\n').ToString());
++            if (!ProbeKeep.Contains(name))
++                return;
++        }
+         // A copy: the pixels belong to the renderer's readback buffer, and the alpha byte of each pixel has no defined value.
+         byte[] rgba = image.Rgba.ToArray();
+         for (int i = 3; i < rgba.Length; i += 4)
 diff --git a/src/Tertius.Rendering/ShaderConstants.cs b/src/Tertius.Rendering/ShaderConstants.cs
-index 99ad27d6f..5b64ccc31 100644
+index 99ad27d..5b64ccc 100644
 --- a/src/Tertius.Rendering/ShaderConstants.cs
 +++ b/src/Tertius.Rendering/ShaderConstants.cs
 @@ -124,6 +124,8 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
@@ -114,7 +193,7 @@ index 99ad27d6f..5b64ccc31 100644
      public SpecializationValues Data;
      public SpecializationEntries Entries;
 diff --git a/src/Tertius.Rendering/Shaders/composite_pass.glsl b/src/Tertius.Rendering/Shaders/composite_pass.glsl
-index 7251102..56c2a9e 100644
+index 7251102..4a44194 100644
 --- a/src/Tertius.Rendering/Shaders/composite_pass.glsl
 +++ b/src/Tertius.Rendering/Shaders/composite_pass.glsl
 @@ -27,6 +27,11 @@ layout(set = 3, binding = 3, SPECULAR_HISTORY_FORMAT) uniform readonly image2D i
