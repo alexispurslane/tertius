@@ -1,6 +1,6 @@
 ---
 id: ter-zoof
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-12T21:34:47Z
