@@ -115,6 +115,55 @@ public sealed class TubeLightRenderTests
         };
 
     [Theory]
+    [InlineData("slanted-through-the-square")]
+    [InlineData("standing-on-the-middle")]
+    [InlineData("across-the-middle")]
+    public void DiagTube(string name)
+    {
+        (Double3 toCenter, Double3 halfSegment, float radius, float power, bool castsShadow) = MatteTubeNamed(name);
+        double halfLength = halfSegment.Length;
+        TubeRenderLight tube = Tube(position: new Vector3(0, 0, -SquareDistance) + toCenter.ToVector3(), power: power,
+            radius: radius, length: (float)(2 * halfLength)) with
+        {
+            Axis = (halfSegment / halfLength).ToVector3(), PreviousAxis = (halfSegment / halfLength).ToVector3(),
+            CastsShadow = castsShadow,
+        };
+        var matte = new MaterialDesc(BaseColor: new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), Roughness: 1, Reflectance: 0.5f);
+        DirectTerms terms = TestMaterials.SampleOf(matte).TubeTerms(normal: Double3.UnitZ, toView: Double3.UnitZ,
+            tube: new TubeView(toCenter: toCenter, halfSegment: halfSegment, radius: radius), tables: BrdfTables.Shared);
+        double light = FaceRadianceInReach(tube, toCenter, halfSegment);
+        Double3 expected = (terms.Diffuse + terms.Specular) * light;
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        var lines = new List<string>();
+        try
+        {
+            Capture image = RenderSquare(renderer: renderer, lights: [tube], desc: matte, fov: Gpu.Fov, name: $"diag-{name}");
+            float[] hdr = renderer.ReadHdr();
+            byte[] spec = renderer.ReadSpecularTarget();
+            (int ow, int oh) = renderer.OutputSize;
+            int n = hdr.Length / 4;
+            int rw = (int)Math.Round(Math.Sqrt(n * (double)ow / oh));
+            int rh = n / rw;
+            int ci = (rh / 2) * rw + rw / 2;
+            double[] factors = [0.97, 0.98, 0.985, 0.99, 0.995, 1.0, 1.005, 1.01, 1.015, 1.02, 1.025, 1.03];
+            Vector3[] shown = BrdfTesting.Displayed(renderer, [.. factors.Select(f => (expected * f).ToVector3())], $"diag-glow-{name}");
+            float[] glow = renderer.ReadHdr();
+            Vector3 c5 = new((5 - (factors.Length - 1) / 2f) * 0.5f, 0, -3);
+            Vector2 p5 = Gpu.Project(point: c5, width: ow, height: oh);
+            int gi = (int)(p5.Y * rh / oh) * rw + (int)(p5.X * rw / ow);
+            lines.Add($"{name}: expected {expected.X:R} diffuse {terms.Diffuse.X:R} specular {terms.Specular.X:R} light {light:R}");
+            lines.Add($"  render {rw}x{rh} output {ow}x{oh}; center shown {image.Color(Width / 2, Height / 2).X * 255:F2}; center hdr {hdr[ci * 4]:R}; glow(1.0) hdr {glow[gi * 4]:R}; ratio {hdr[ci * 4] / glow[gi * 4]:R}");
+            lines.Add($"  specular codes at center {spec[ci * 4]} {spec[ci * 4 + 1]} {spec[ci * 4 + 2]} {spec[ci * 4 + 3]}");
+            lines.Add("  ladder " + string.Join(" ", factors.Select((f, i) => $"{f}:{shown[i].X * 255:F1}")));
+        }
+        finally
+        {
+            File.AppendAllLines(Environment.GetEnvironmentVariable("DIAG_OUT") ?? "/tmp/tube-diag.txt", lines);
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Theory]
     [MemberData(nameof(MatteTubes))]
     public void ATubeLightLightsAMatteSquareAsTheCSharpTubeDoes(string name)
     {
