@@ -349,8 +349,18 @@ def ancestor(repo: Path, older: str, newer: str) -> bool:
     return subprocess.run(["git", "merge-base", "--is-ancestor", older, newer], cwd=repo).returncode == 0
 
 
+# The file in the state folder that the orchestrator's watchdog writes before it sets every endpoint to 0 workers. The
+# orchestrator removes it when it restarts them. An endpoint at 0 workers without it is on its way out: on 2026-11-13 a
+# delete in Runpod's console held the CPU endpoint at 0 workers for 5 s before it was gone, and the script took that for
+# the watchdog's stop (ticket t8-j5oc).
+STOP_MARKER = "stopped-by-watchdog"
+
+
 def ours(api) -> list:
-    return [endpoint for endpoint in api.endpoints() if OURS.match(endpoint.get("name", ""))]
+    """The script's endpoints that can take jobs: not one at 0 workers, which a delete holds there on its way out. A
+    watchdog stop is the marker's (refuse_if_stopped)."""
+    return [endpoint for endpoint in api.endpoints()
+            if OURS.match(endpoint.get("name", "")) and endpoint["workers"]["max"] > 0]
 
 
 def kind_of(endpoint: dict) -> str:
@@ -358,11 +368,11 @@ def kind_of(endpoint: dict) -> str:
     return match.group(1) or match.group(2)
 
 
-def refuse_if_stopped(endpoints: list):
-    """Refuse while the watchdog or the orchestrator holds an endpoint of the script's at 0 workers, of either kind."""
-    ids = [endpoint["id"] for endpoint in endpoints if endpoint["workers"]["max"] == 0]
-    if ids:
-        raise Refused(f"the endpoint {', '.join(ids)} is stopped at 0 workers; the orchestrator restarts it")
+def refuse_if_stopped(state: Path):
+    """Refuse while the watchdog's marker says that it stopped the endpoints, of either kind."""
+    if (state / STOP_MARKER).exists():
+        raise Refused(f"the watchdog stopped the endpoints at 0 workers ({state / STOP_MARKER}); the orchestrator "
+                      "restarts them")
 
 
 def free_workers(endpoints: list, most: int, beside: str | None = None) -> int:
@@ -372,12 +382,12 @@ def free_workers(endpoints: list, most: int, beside: str | None = None) -> int:
                                         if endpoint["id"] != beside))
 
 
-def grow(api, live: str, most: int):
+def grow(api, state: Path, live: str, most: int):
     """Give the live endpoint its kind's workers once the quota leaves room: an endpoint made beside an old one got
-    less. One read of all endpoints gives both the stop and the room."""
+    less."""
     endpoints = api.endpoints()
-    refuse_if_stopped([endpoint for endpoint in endpoints if OURS.match(endpoint.get("name", ""))])
-    mine = next((endpoint for endpoint in endpoints if endpoint["id"] == live), None)
+    refuse_if_stopped(state)
+    mine = next((endpoint for endpoint in endpoints if endpoint["id"] == live and endpoint["workers"]["max"] > 0), None)
     if mine is None:
         raise Refused(f"the endpoint {live} went away during the routing")
     most = free_workers(endpoints, most, beside=live)
@@ -398,27 +408,32 @@ def route(config: Config, api, state: Path, images: list, kind: str) -> tuple:
        one, or is refused.
     3. The live endpoint grows to the kind's workers once the quota leaves room.
 
-    An endpoint of either kind at 0 workers was stopped by the watchdog or by hand, so then no job runs and nothing is
-    deleted. The watchdog does not take the lock, so every read of the list applies that rule: the first, one before
-    each deletion, one after a creation and one before the growth. A stop that one of them sees removes this run's new
-    endpoint again. The rule narrows the race with the watchdog but cannot close it (README.md, "The dev shell, the
-    image and the endpoint")."""
+    While the watchdog's marker exists, it stopped the endpoints, so no job runs and nothing is deleted. The watchdog
+    does not take the lock and writes its marker before it stops the endpoints, so the script reads the marker at every
+    read of the list: the first, one before each deletion, one after a creation and one before the growth. A stop that
+    one of them sees removes this run's new endpoint again. An endpoint at 0 workers without the marker is on its way
+    out, and the routing leaves it alone (ours). The rule narrows the race with the watchdog but cannot close it
+    (README.md, "The dev shell, the image and the endpoint")."""
     most = config.kinds[kind].workers
     endpoints = ours(api)
-    refuse_if_stopped(endpoints)
+    refuse_if_stopped(state)
     best = f"{config.image_repository}:{images[0]}"
     busy = {pending["endpoint"] for pending in in_flight(state)}
     for endpoint in endpoints:
         if kind_of(endpoint) != kind or endpoint["image"] == best or endpoint["id"] in busy or any(
                 worker.get("status") == "RUNNING" for worker in api.workers(endpoint["id"])):
             continue
-        refuse_if_stopped(ours(api))
-        api.delete_endpoint(endpoint["id"])
+        # A read of the list just before the deletion: the watchdog may have stopped the endpoints since the first
+        # read, and a delete by hand may have taken this one on its way out.
+        still = any(other["id"] == endpoint["id"] for other in ours(api))
+        refuse_if_stopped(state)
+        if still:
+            api.delete_endpoint(endpoint["id"])
     endpoints = ours(api)
-    refuse_if_stopped(endpoints)
+    refuse_if_stopped(state)
     running = {endpoint["image"]: endpoint["id"] for endpoint in endpoints if kind_of(endpoint) == kind}
     if best in running:
-        grow(api, running[best], most)
+        grow(api, state, running[best], most)
         return running[best], images[0]
     room = free_workers(api.endpoints(), most)
     if room < 1:
@@ -431,8 +446,8 @@ def route(config: Config, api, state: Path, images: list, kind: str) -> tuple:
     request["workers"]["max"] = room
     created = api.create_endpoint(request)["id"]
     try:
-        refuse_if_stopped(ours(api))
-        grow(api, created, most)
+        refuse_if_stopped(state)
+        grow(api, state, created, most)
     except (Refused, OSError):
         api.delete_endpoint(created)
         raise
