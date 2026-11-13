@@ -51,10 +51,17 @@ internal sealed unsafe class TemporalSignal : IDisposable
     public const Format SignalFormat = Format.R16G16B16A16Sfloat;
 
     /// <summary>
-    /// The format of a sample's light age beside a precise specular history: 0 for no evidence, else the age in frames plus
-    /// 1.
+    /// The format of a sample's age beside a precise specular history (sample_age.glsl): in <see cref="LightCodeMask"/> the
+    /// youngest light code of the sample's rays, 0 for no light age, else the light age in frames plus 1, and the
+    /// <see cref="SampleMotionBit"/>.
     /// </summary>
     public const Format SampleAgeFormat = Format.R16Uint;
+
+    /// <summary>The bit of a sample age that says that the sample saw motion (sample_age.glsl, SampleMotionBit).</summary>
+    public const ushort SampleMotionBit = 0x8000;
+
+    /// <summary>The bits of a sample age that hold the youngest light code (sample_age.glsl, LightCodeMask).</summary>
+    public const ushort LightCodeMask = 0x7FFF;
 
     /// <summary>
     /// The format of the diagnostic of uncovered surfaces under <see cref="HistoryInstrumentation.LightAgeDiagnostic"/>: r the
