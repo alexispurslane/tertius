@@ -989,6 +989,10 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 float[] apart = probe.Read();
                 int[] hittable = HittablePixels(apart);
                 hittable.Length.Should().BeGreaterThan(Width * Height / 2, "the floor and the emitter fill the view");
+                int[] off = [.. hittable.Where(pixel => apart[4 * pixel] != 0)];
+                output.WriteLine($"DEBUG nonzero {off.Length} of {hittable.Length}; largest {hittable.Max(pixel => apart[4 * pixel])}; moved {hittable.Count(pixel => apart[4 * pixel + 2] != 0)}");
+                foreach (int pixel in off.Take(16))
+                    output.WriteLine($"DEBUG {pixel % Width},{pixel / Width}: {apart[4 * pixel]} {apart[4 * pixel + 1]} {apart[4 * pixel + 2]} {apart[4 * pixel + 3]}");
                 hittable.Should().OnlyContain(pixel => apart[4 * pixel] == 0, "both places are the same point's");
                 // The depth ratios lie near 1, where a half float steps by 2^-11. The Vulkan spec lets the target's store
                 // round toward 0 or to the nearest half, so the two can differ by one step, half the moved test's bound.
