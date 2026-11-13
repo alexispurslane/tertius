@@ -21,7 +21,7 @@ layout(location = 7) in vec3 inMotionLast;
 
 layout(location = 0) out vec4 outBaseColor;
 layout(location = 1) out vec4 outNormal;
-layout(location = 2) out vec4 outSpecular;
+layout(location = 2) out uvec4 outSpecular;  // the 8-bit codes of RenderTargets.SpecularFormat
 layout(location = 3) out vec4 outEmissive;
 layout(location = 4) out float outDistance;
 layout(location = 5) out uvec4 outShading;
@@ -33,6 +33,15 @@ layout(location = 6) out vec4 outMotion;
 float mapCode(uint map)
 {
     return min((255.5 - 2.0 * float(map)) / 255.0, 1.0);
+}
+
+// The 8-bit codes of values from 0 to 1, each the code nearest to the value, the upper one halfway. The multiply and the
+// add are correctly rounded in Vulkan and floor is exact, so every driver gives one code. A UNORM store may take either
+// of the two codes nearest to the value, and NVIDIA's store and Apple's took different codes for a roughness of 0.1
+// (ticket ter-8esk).
+uvec4 unorm8Codes(vec4 values)
+{
+    return uvec4(floor(clamp(values, 0.0, 1.0) * 255.0 + 0.5));
 }
 
 void main()
@@ -48,7 +57,7 @@ void main()
     // instance's up, which only this pass knows. Only the hemisphere reads them, so with the map on they hold 0.
     float lobeSky = environmentMapOn ? 0.0 : lobeSkyFraction(inHemisphere, inPosition, s.normal, V, s.roughness);
     float normalSky = environmentMapOn ? 0.0 : skyFraction(inHemisphere, inPosition, s.normal);
-    outSpecular = vec4(s.metallic, s.roughness, s.reflectance, lobeSky);
+    outSpecular = unorm8Codes(vec4(s.metallic, s.roughness, s.reflectance, lobeSky));
     outEmissive = vec4(preExposed(s.emissive), normalSky);
     // Euclidean distance, not depth: the direct and ambient passes rebuild the position as ray × distance, which does not
     // depend on which depth range drew the pixel.

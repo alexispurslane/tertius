@@ -1245,7 +1245,10 @@ public sealed class AccumulatorRenderTests
 
                     Continue(renderer, scene, frames: 63);
 
-                    CenterOf(renderer, sample, part: 0).Length.Should().Be(cap);
+                    // Within 0.001 frames: the shader reads the roughness as its 8-bit code over 255, a division that
+                    // Vulkan lets be 2.5 ulps off (ticket ter-8esk). The cap rises about 39 frames per unit of roughness,
+                    // so an ulp moves it by about 1e-6 frames, and a wrong cap by whole frames.
+                    CenterOf(renderer, sample, part: 0).Length.Should().BeApproximately(cap, 0.001f);
                     sample
                         .Signal.Slow(0)
                         .Format.Should()
