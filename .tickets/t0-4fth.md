@@ -1,6 +1,6 @@
 ---
 id: t0-4fth
-status: open
+status: closed
 deps: [t0-ylwm, t0-f7zv, t0-jpwf, t0-9a9e, t0-y4qv]
 links: []
 created: 2026-11-12T13:56:24Z
@@ -39,3 +39,7 @@ Take T3 with R (job t3-own, $0.0704): bay-sunbeam, docking-bay and station-cabin
 **2026-11-13T00:21:15Z**
 
 Takes T4-T6, 2026-11-12. Workbench (build 732297072, calibrated constants: BlockSigmas 5, NoiseScale 1.5, TailStreams 2000, floors 1/4 and 1/20): cabin switch off 119 / on not settled in 100 (main on the Mac: 74 / 55); bay-sun-off 51 / 11 (main 47 / 35); lamp-hall-16 36 / 25 (main 36 / 24). Step-4 constants, cabin: 95 / not settled. Mac, cabin by signal: Design A bounce 119 / not settled, reflections 142 / not settled; main bounce 60 / 65; Design A bounce with RetainedSigmas 0 (narrow box) 75 / 95, whole image stays about 4 % low after the lamps come on. Lag films, Mac, three start ticks: lamp-hall-16-moving equal to main within noise; lamp-hall-64-spot-moving median lag error 0.0143-0.0159 against main 0.0087-0.0107 in all three runs; narrow box 0.0108-0.0128; floor 1/8 identical to 1/4 (the test never fired). Cause found: the tail rule needs n >= TailStreams x NoiseScale^2 x kappa^2 x CV^2 streams; with the measured bounce CV of about 2.5 (cabin about 57) and at most 784 streams in a 7x7 window, the calibrated test can fire only where CV <= 1.3 and never in the cabin. The calibration reached zero false evidence by silencing the test. Without evidence, the wide box follows a change only at 1/32 per draw. Design fork goes to the user. Spending: $2.14 of $4.50.
+
+**2026-11-13T01:01:22Z**
+
+2026-11-12: closed. Takes T3 to T6 are done and recorded above; they led to Design X. Takes T7 to T10 are replaced by T12 to T19 of the rewritten design (steps 16 t0-f8oc and 17 t0-5tyj).
