@@ -162,6 +162,9 @@ internal sealed class ScreenTracePlanPass(ScreenTraceKernel kernel, ScreenTraceI
         barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeRead);
         ScreenTraceKernel.DeclareEnvironment(context);
         barriers.Image(images.HitLight, ImageUse.StorageCompute, discard: true);
+        // PROBE: the last draw's diffuse own-sample mean (TERTIUS_PROBE_HIT_LIGHT=own).
+        if (images.Diffuse.OwnMean(0, 1 - context.History.Parity) is { } ownMean)
+            barriers.Image(ownMean, ImageUse.StorageCompute);
     }
 
     public override void Dispose() => kernel.Dispose();

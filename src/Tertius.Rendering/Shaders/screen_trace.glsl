@@ -50,6 +50,8 @@ layout(set = 3, binding = 26) uniform texture2D lightLevels;    // R32F
 // The hit light (ticket ter-67y3, ScreenTraceImages.HitLight), layer KindReflection and KindDiffuse: rgb the light that
 // leaves each pixel that a walk can hit toward a ray of the kind (leavingLightOf). The plan writes it, and a hit reads it.
 layout(set = 3, binding = 27, rgba16f) uniform image2DArray hitLight;
+// PROBE: the last draw's diffuse own-sample mean R (TemporalSignal.OwnMean, R16F beside the diffuse signal's half history).
+layout(set = 3, binding = 28, r16f) uniform readonly image2D lastOwnDiffuseMean;
 
 #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
 // The light-change age of a precise specular history (tickets tiunr-py6q and tiunr-7haj, ScreenTraceImages.LightAge): r
@@ -194,6 +196,7 @@ HISTORY_READER(lastDiffuseLightAt, lastDiffuseLight)
 HISTORY_READER(lastFastSpecularAt, lastFastSpecular)
 HISTORY_READER(slowDiffuseAt, slowDiffuse)
 HISTORY_READER(slowSpecularAt, slowSpecular)
+HISTORY_READER(lastOwnDiffuseMeanAt, lastOwnDiffuseMean)
 
 // ScreenTracePushConstants.
 layout(push_constant, std430) uniform ScreenTracePush
@@ -204,6 +207,7 @@ layout(push_constant, std430) uniform ScreenTracePush
     uint reflectionSteps;    // the caps of decision 41
     uint diffuseSteps;
     float guidedShare;       // LightPyramid.GuidedShare, or 0 with the guiding off (TERTIUS_GUIDED_RAYS)
+    uint probeHitLight;      // PROBE: 0 filtered, 1 slow history, 2 own-sample mean (TERTIUS_PROBE_HIT_LIGHT)
 } trace;
 
 // The two ray kinds, which index the record layers and the constants of the draws.
@@ -440,6 +444,20 @@ vec3 missLightOf(TracingPixel p, ivec2 pixel, uint kind, vec3 direction)
 vec3 lastLightOf(Reprojection r, uint kind)
 {
     vec3 light = kind == KindDiffuse ? lastDiffuseLightAt(r).rgb : lastFastSpecularAt(r).rgb;
+    // PROBE (TERTIUS_PROBE_HIT_LIGHT): the diffuse light of a hit from the slow history S, or from the own-sample mean R
+    // times S's chroma (R is luminance only; S of luminance 0 gives R grey).
+    if (kind == KindDiffuse && trace.probeHitLight != 0u)
+    {
+        vec3 slow = slowDiffuseAt(r).rgb;
+        if (trace.probeHitLight == 1u)
+            light = slow;
+        else
+        {
+            float own = max(lastOwnDiffuseMeanAt(r).r, 0.0);
+            float slowLuminance = dot(slow, vec3(0.2126, 0.7152, 0.0722));
+            light = slowLuminance > 0.0 ? slow * (own / slowLuminance) : vec3(own);
+        }
+    }
     // As the accumulator rescales its histories (accumulate_temporal.comp): within 2^±64 and at most MaxRadiance.
     return exposed(light, historyRatio(exposureStops, previousStops));
 }

@@ -309,6 +309,12 @@ internal sealed class ScreenTraceImages : IDisposable
         if (Specular.UncoveredDiagnostic(0) is { } diagnostic)
             layouts.WriteStorageImage(set: set, binding: 24, image: diagnostic);
         layouts.WriteStorageImage(set: set, binding: DescriptorLayouts.ScreenTraceHitLightBinding, image: HitLight);
+        // PROBE: the last draw's diffuse own-sample mean, or the sample where the signal keeps none (never read then).
+        layouts.WriteStorageImage(
+            set: set,
+            binding: DescriptorLayouts.ScreenTraceHitLightBinding + 1,
+            image: Diffuse.OwnMean(0, 1 - parity) ?? diffuseSample
+        );
     }
 
     /// <summary>Writes the sampled images of <paramref name="set"/>: the depth pyramid at bindings 0 and 1, and the light

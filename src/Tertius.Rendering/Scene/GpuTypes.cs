@@ -882,6 +882,19 @@ internal struct ScreenTracePushConstants
     /// <summary>The share of the diffuse rays that the guided draw gives: <see cref="LightPyramid.GuidedShare"/>, or 0 with the guiding off.</summary>
     public float GuidedShare;
 
+    // PROBE (scratch, never merges): TERTIUS_PROBE_HIT_LIGHT selects the last draw's diffuse light that a hit reads:
+    // unset or "filtered" the filter's output (0), "slow" the slow diffuse history (1), "own" the own-sample mean R times
+    // the slow history's chroma (2).
+    public uint ProbeHitLight;
+
+    private static readonly uint ProbeHitLightKnob = Environment.GetEnvironmentVariable("TERTIUS_PROBE_HIT_LIGHT") switch
+    {
+        null or "" or "filtered" => 0u,
+        "slow" => 1u,
+        "own" => 2u,
+        var value => throw new ArgumentException($"Unknown TERTIUS_PROBE_HIT_LIGHT value '{value}'."),
+    };
+
     /// <summary>
     /// The push constants of a draw of index <paramref name="drawIndex"/> under <paramref name="trace"/>, with the
     /// guided diffuse rays when <paramref name="guided"/>. The index wraps at 2^32 draws, more than two years at 60
@@ -896,6 +909,7 @@ internal struct ScreenTracePushConstants
             ReflectionSteps = (uint)trace.ReflectionSteps,
             DiffuseSteps = (uint)trace.DiffuseSteps,
             GuidedShare = guided ? LightPyramid.GuidedShare : 0,
+            ProbeHitLight = ProbeHitLightKnob,
         };
 }
 

@@ -1170,7 +1170,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         int beforeLight = (int)(lists + ScreenTraceStorageBuffers + ScreenTraceAgeImages);
         Span<DescriptorSetLayoutBinding> bindings =
             stackalloc DescriptorSetLayoutBinding[
-                beforeLight + (int)(ScreenTraceLightImages + ScreenTraceHitLightImages)
+                beforeLight + (int)(ScreenTraceLightImages + ScreenTraceHitLightImages) + 1
             ];
         for (uint binding = 0; binding < ScreenTraceSampledImages; binding++)
             bindings[(int)binding] = Image(binding: binding, stages: ShaderStageFlags.ComputeBit);
@@ -1190,7 +1190,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 binding: ScreenTraceLightBinding + image,
                 stages: ShaderStageFlags.ComputeBit
             );
-        bindings[^1] = StorageImage(ScreenTraceHitLightBinding);
+        bindings[^2] = StorageImage(ScreenTraceHitLightBinding);
+        // PROBE: the last draw's diffuse own-sample mean (screen_trace.glsl, TERTIUS_PROBE_HIT_LIGHT).
+        bindings[^1] = StorageImage(ScreenTraceHitLightBinding + 1);
         return CreateLayout(bindings: bindings, name: "screen trace set");
     }
 
