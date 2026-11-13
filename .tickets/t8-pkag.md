@@ -1,6 +1,6 @@
 ---
 id: t8-pkag
-status: open
+status: closed
 deps: [ter-net6, ter-j4h9, ter-qjyo, ter-8esk, t8-kpoe, t8-en95, t8-6qne, t8-sjli, t8-ol7x, t8-xp96, t8-1gk3]
 links: [ter-net6, ter-j4h9, ter-qjyo, ter-8esk, t8-kpoe, t8-en95, t8-6qne, t8-sjli, t8-ol7x, t8-xp96, t8-1gk3]
 created: 2026-11-12T21:17:43Z
@@ -18,3 +18,7 @@ Make the Checked suites pass on the cloud's RTX 2000 Ada worker (x86-64, NVIDIA 
 **2026-11-12T22:55:21Z**
 
 2026-11-12: all members are closed but ter-8esk, the radius-zero sphere highlight that is 13 % darker on NVIDIA, a suspected kind (b). The epic stays open for it.
+
+**2026-11-12T23:58:46Z**
+
+2026-11-12: ter-8esk closed on branch ter-8esk-highlight, the last member. The Host and Rendering suites pass on the RTX 2000 Ada.
