@@ -3,3 +3,7 @@
 // RTX 2000 Ada's 16 GB ran out at the default (ticket ter-net6). 10 is the default of the 10-core Mac, so its runs keep
 // their speed.
 [assembly: Xunit.v3.Parallelization(MaxThreads = 10)]
+
+// The whole run of this project holds the GPU lock in its shared mode, so that no timed run, which holds the lock alone,
+// runs beside these tests (GpuTestLock, ticket ter-zoof).
+[assembly: AssemblyFixture(typeof(Tertius.Testing.GpuTestLock))]

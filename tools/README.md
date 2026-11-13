@@ -762,6 +762,22 @@ The helpers before the shared mode, such as the one in `93e46dd7f` or `8fe7ac7cf
 
 To close the gap and to get the shared mode, call the main checkout's helper by its absolute path, `/Users/alexispurslane/Development/tertius/tools/gpu-lock.sh`, and never a copy in a worktree.
 
+### GPU test runs
+
+Every run of a GPU test project, `Tertius.Rendering.Tests` or `Tertius.Host.Tests`, holds the GPU lock in its shared mode from its first test to its last (ticket ter-zoof). So no timed run, which holds the lock alone, runs beside the GPU tests, wherever they start: the pre-commit hook, `tools/test-all.sh`, `tools/mutate.py` or a plain `dotnet test` in a worktree. Before, on 2026-11-12, other agents' suites loaded the Mac to 44 to 53 beside a timed run, and three of its eight traces were lost.
+
+`GpuTestLock` in `tests/Tertius.Testing` does it. Each GPU test project names it as an xunit assembly fixture. It runs the main checkout's helper with `--shared`, and the helper's command marks the take with a file. The command holds the lock until the fixture's `Dispose` or until the test process is gone, so a killed test run frees the lock within 0.2 s. The log of each take goes to `/tmp/tertius-gpu-test-lock/` and keeps its `waited:` line. The fixture prints `Waiting for the GPU lock` once the take waits for more than 2 s.
+
+These rules apply:
+
+- The helper runs its command with `TERTIUS_GPU_LOCK_HELD` set to `exclusive` or `shared`. A test run that sees it takes nothing, because it would wait for its own parent's lock forever. So the FSR timing test still runs under an exclusive take, and a list of mutants under a shared take runs as before.
+- A test run joins beside up to 15 other shared holders (`GpuTestLock.TestRunCap`, 16), because before ter-zoof test runs had no cap, and one Checked suite runs two GPU projects at once. A still keeps its own cap of 3: it joins only beside fewer than 3 holders, because each run checks its own cap.
+- The helper needs bash 5, so run the tests in the dev shell, as every build and test command here does. The Mac's own `/bin/bash` 3.2 lacks `SRANDOM`, and the fixture then fails every test with the helper's error.
+- `tools/mutate.py` takes no lock of its own, and needs none: each mutant's test run takes the shared lock. Do not wrap it in an exclusive take. It measures no time, so an exclusive take only makes the timed runs wait for it: on 2026-11-12 an agent waited 28 minutes for an exclusive take that only ran tests. A shared wrapper does no harm, because the test runs inside it see `TERTIUS_GPU_LOCK_HELD` and take nothing.
+- A helper process that started before ter-zoof does not set `TERTIUS_GPU_LOCK_HELD`. A test run of a branch with ter-zoof under such a helper's exclusive take waits for that take forever. End the take, and run it again with the current helper.
+
+The cost, measured on 2026-11-12: a take and a release of a free lock cost 0.08 s per test project. Over the 94 hours before, timed runs held the lock alone 36 % of the time, with holds of 1 minute at the median, 15 minutes at the 90th percentile and 91 minutes at most. So a suite that starts at a random moment waits about 5.6 minutes on average: 0.36 times the mean remaining hold of 15.5 minutes. A timed run in turn waits for the GPU test runs ahead of it in the queue, up to the 18 minutes of the Rendering project.
+
 ### Variables and tests
 
 Three environment variables give other values, for the tests. Their defaults are the real values:
