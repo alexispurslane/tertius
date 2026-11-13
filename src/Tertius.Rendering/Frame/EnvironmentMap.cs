@@ -93,7 +93,10 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     private MapImages images;
     private DrawnCube[] drawnCubes = [];
 
-    /// <exception cref="NotSupportedException">The device cannot draw, filter or store <see cref="DistanceFormat"/>.</exception>
+    /// <exception cref="NotSupportedException">
+    /// The device cannot draw, filter or store <see cref="DistanceFormat"/>, or cannot draw or sample
+    /// <see cref="FaceSurface.ImageFormat"/>.
+    /// </exception>
     public EnvironmentMap(
         VulkanDevice device,
         DeviceAllocator allocator,
@@ -119,6 +122,12 @@ internal sealed unsafe class EnvironmentMap : IDisposable
         try
         {
             FaceDepth = CreateFaceDepth(device: device, allocator: allocator, setting: setting);
+            FaceSurface = new FaceSurface(
+                device: device,
+                allocator: allocator,
+                layouts: layouts,
+                faceSize: setting.FaceSize
+            );
             CreateReadbacks(device: device, allocator: allocator, readbacks: readbacks);
             images = new MapImages(device: device, allocator: allocator, setting: setting, levels: Levels, maps: 1);
             // The pool frees the sets when the descriptor layouts are disposed.
@@ -182,6 +191,9 @@ internal sealed unsafe class EnvironmentMap : IDisposable
 
     /// <summary>The depth target of a face: D32, reversed, cleared for each depth range. The faces draw one after another.</summary>
     public GpuImage FaceDepth { get; }
+
+    /// <summary>The surface record of a face, which its light pass lights each texel from. The faces draw one after another.</summary>
+    public FaceSurface FaceSurface { get; }
 
     /// <summary>Set 0 of <see cref="DescriptorLayouts.EnvironmentPrefilterLayout"/>, written again at each growth.</summary>
     public DescriptorSet PrefilterSet { get; }
@@ -485,6 +497,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
         foreach (GpuBuffer? readback in readbacks)
             readback?.Dispose();
         FaceDepth?.Dispose();
+        FaceSurface?.Dispose();
     }
 
     /// <summary>
