@@ -1,0 +1,14 @@
+job aaadd30a-6849-4b3c-8bb5-3025a16e9aff-u2 sent to endpoint ozf0ryg5dmsblx; worst case $0.12
+job aaadd30a-6849-4b3c-8bb5-3025a16e9aff-u2: ok, 191 seconds of execution, counted as $0.0417; result in /tmp/sweep-pw52/ab2
+GPU frame span without the capture pass, ms, per run:
+  cut: median 8.583, runs 8.579, 8.582, 8.583, 8.587, 8.594, spread 0.015
+  main: median 8.679, runs 8.681, 8.679, 8.678, 8.678, 8.686, spread 0.008
+cut against main: -0.096 ms (-1.1%), every run differs. Estimate on the Mac: -0.23 ms.
+  reflection rays: 0.680 -> 0.584 ms (-0.096)
+  filter indirect diffuse: 1.105 -> 1.107 ms (+0.001)
+  environment faces: 0.085 -> 0.084 ms (-0.001)
+  FSR 3.1: 0.945 -> 0.946 ms (+0.001)
+  transparent: 0.565 -> 0.565 ms (-0.000)
+  direct light: 1.765 -> 1.765 ms (-0.000)
+  screen trace resolve: 0.125 -> 0.125 ms (-0.000)
+  accumulate indirect specular: 0.566 -> 0.567 ms (+0.000)

@@ -15,7 +15,7 @@ The value comes from the step cap search of section A13 of [the addendum](../add
 | FLIP on the same 170 captures | 135 captures have no flagged pixel. The largest flagged share is 0.11 % of a capture |
 | A film with a moving camera, on the M1 Max | 180 frames: the mean of a frame changes by at most 0.008 % |
 | The mottle score of three scenes | 0.0362 to 0.0362, 0.0307 to 0.0316 and 0.0393 to 0.0392 |
-| The tests | Checked: 10,819 passed. Release: 10,806 passed. No test failed |
+| The tests after the merge of main | Checked: 10,832 passed. Release: 10,819 passed. No test failed |
 
 A level is one step of the 255 steps of an 8-bit color channel. The mean of a capture is the mean of its luminance in linear light. FLIP gives each pixel a value from 0 to 1 for how much it seems to change between two images. The project's snapshot tests call a value above 0.1 visible, and this record calls such a pixel flagged.
 
@@ -141,11 +141,32 @@ The one changed code line is in Rendering, so the official Stryker run had no li
 | C02 | One step fewer, 95 | killed |
 | C03 | The cap of 80 steps, which the search refused | killed |
 
+## After the merge of main
+
+During the build, main gained the fixes of the Linux test suites (ticket `t8-pkag`). They change the variance sum of the diffuse filter, the host constants of FSR, the device allocator and several tests. None of them touches the reflection rays. The branch took main at `1dfafc2b9` by a merge, commit `2ea92a883`. Three measurements ran again on that code: a second workbench job with five runs per tree, and both test suites.
+
+```text
+GPU frame span without the capture pass, ms, per run:
+  cut: median 8.583, runs 8.579, 8.582, 8.583, 8.587, 8.594, spread 0.015
+  main: median 8.679, runs 8.681, 8.679, 8.678, 8.678, 8.686, spread 0.008
+
+cut against main: -0.096 ms (-1.1%), every run differs. Estimate on the Mac: -0.23 ms.
+  reflection rays: 0.680 -> 0.584 ms (-0.096)
+  filter indirect diffuse: 1.105 -> 1.107 ms (+0.001)
+```
+
+| Run | Passed | Failed | Skipped |
+|---|---:|---:|---:|
+| Every suite in Checked, on the staged merge | 10,832 | 0 | 26 |
+| Every suite in Release, on commit `2ea92a883` | 10,819 | 0 | 26 |
+
+The stills and the Mac takes did not run again, because the merged changes leave the reflection rays as they were. The two workbench jobs counted $0.08 together.
+
 ## The files
 
 | Path | Content |
 |---|---|
-| `workbench/` | The workbench job's report, its result and the timings of its ten runs |
+| `workbench/` | The reports of the two workbench jobs, their results and the timings of their runs |
 | `takes/` | The job lists and lock logs of takes 13 and 14 |
 | `stills/` | The job list and lock log of the stills, the pixel and FLIP tables, the film's tables, the mottle scores and the byte comparisons |
 | `tests/` | The mutant list and its results, and the lock logs of the test runs |
