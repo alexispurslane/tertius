@@ -50,11 +50,11 @@
     <AccumulationTraceShader Include="Shaders/accumulate_temporal.comp;Shaders/accumulate_spatial.comp" />
     <!-- HistoryInstrumentationSelection lists the shaders of the two items above, and ShaderVariantTests checks the
          list against the embedded shaders. -->
-    <!-- The light-age variant (ticket ter-wkvw): the diffuse signal's temporal dispatch beside a precise specular
-         history, which keeps its half-precision history and cuts it to the age of a light change.
+    <!-- The light-age variant (ticket ter-wkvw): the diffuse signal's two dispatches beside a precise specular history,
+         which keep its half-precision history, cut it to the age of a light change and act on its blocks' evidence.
          ShaderVariant.LightAge lists it. TERTIUS_LIGHT_AGE marks every build whose dispatches read the light age: this
          variant and every variant of a precise history. -->
-    <LightAgeShader Include="Shaders/accumulate_temporal.comp" />
+    <LightAgeShader Include="Shaders/accumulate_temporal.comp;Shaders/accumulate_spatial.comp" />
     <GlslInclude Include="Shaders/*.glsl" />
     <None Include="@(GlslShader);@(GlslInclude)" />
   </ItemGroup>

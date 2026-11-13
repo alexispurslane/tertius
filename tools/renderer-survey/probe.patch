@@ -31,7 +31,7 @@ index b4ceb4b4c..61c6b3662 100644
              Reset: reset,
              DrawIndex: reset ? 0 : lastDrawIndex + 1,
 diff --git a/src/Tertius.Rendering/Frame/FrameResources.cs b/src/Tertius.Rendering/Frame/FrameResources.cs
-index f847f8e8b..3ad94e036 100644
+index e8fc33710..ce6d9de26 100644
 --- a/src/Tertius.Rendering/Frame/FrameResources.cs
 +++ b/src/Tertius.Rendering/Frame/FrameResources.cs
 @@ -248,9 +248,56 @@ internal sealed unsafe class FrameResources : IDisposable
@@ -92,21 +92,20 @@ index f847f8e8b..3ad94e036 100644
      private HostArray<T> StorageArray<T>(DeviceAllocator allocator, string contents, int capacity)
          where T : unmanaged =>
 diff --git a/src/Tertius.Rendering/Scene/GpuTypes.cs b/src/Tertius.Rendering/Scene/GpuTypes.cs
-index 47df6eca0..b872f6044 100644
+index 0ff0e0a90..23fde3c32 100644
 --- a/src/Tertius.Rendering/Scene/GpuTypes.cs
 +++ b/src/Tertius.Rendering/Scene/GpuTypes.cs
-@@ -824,7 +824,58 @@ internal struct AccumulatePushConstants
-     /// <summary>1 where the signal tests its blocks for evidence of a change, 0 otherwise.</summary>
-     public uint BlockTest;
+@@ -815,7 +815,42 @@ internal struct AccumulatePushConstants
+     /// </summary>
+     public float RetainedSigmas;
  
--    public static AccumulatePushConstants Of(SignalParameters parameters, bool reset)
-+    // PROBE (tools/renderer-survey, never commit to src): the knobs of takes T1 and T3 and of step 7 of
-+    // docs/plans/bounce-light-confidence.md (section 20), read once from the environment. A knob that is not set keeps the
-+    // build's value. The three constants of accumulate_blocks.glsl reach the shader as these push constants, where -1 keeps
-+    // the shader's own constant. BlockTest 2 writes the block sums and neither tests the windows nor acts on them.
-+    public float ProbeBlockSigmas;
-+    public float ProbeTailStreams;
-+    public float ProbeNoiseScale;
++    // PROBE (tools/renderer-survey, never commit to src): the knobs of docs/plans/bounce-light-confidence.md (section 21),
++    // read once from the environment. A knob that is not set keeps the build's value. TERTIUS_A_RETAINED_SIGMAS sets the
++    // widening of a widened box. TERTIUS_A_NO_CLAMP=1, for the truth, turns both signals' clamps off (a negative
++    // ClampSigmas, which accumulate_spatial.comp reads as "no clamp", so the anti-lag sees no move either) and the
++    // evidence's action with them. TERTIUS_A_MOTION_CUTS=1 takes open point 1's alternative: motion evidence cuts the
++    // history to the fast cap, as light evidence does (ProbeMotionCuts, evidenceOfSample).
++    public uint ProbeMotionCuts;
 +
 +    private static float? ProbeKnob(string name) =>
 +        float.TryParse(
@@ -119,42 +118,26 @@ index 47df6eca0..b872f6044 100644
 +            : null;
 +
 +    private static readonly float? ProbeRetainedSigmas = ProbeKnob("TERTIUS_A_RETAINED_SIGMAS");
-+    private static readonly float? ProbeDiffuseChangeShare = ProbeKnob("TERTIUS_A_DIFFUSE_CHANGE_SHARE");
-+    private static readonly float? ProbeSpecularChangeShare = ProbeKnob("TERTIUS_A_SPECULAR_CHANGE_SHARE");
-+    private static readonly float ProbeBlockSigmasKnob = ProbeKnob("TERTIUS_A_BLOCK_SIGMAS") ?? -1;
-+    private static readonly float ProbeTailStreamsKnob = ProbeKnob("TERTIUS_A_TAIL_STREAMS") ?? -1;
-+    private static readonly float ProbeNoiseScaleKnob = ProbeKnob("TERTIUS_A_NOISE_SCALE") ?? -1;
-+    private static readonly bool ProbeNoAction = Environment.GetEnvironmentVariable("TERTIUS_A_BLOCK_ACTION") == "0";
 +    private static readonly bool ProbeNoClamp = Environment.GetEnvironmentVariable("TERTIUS_A_NO_CLAMP") == "1";
++    private static readonly bool ProbeMotionCutsKnob = Environment.GetEnvironmentVariable("TERTIUS_A_MOTION_CUTS") == "1";
 +
-+    public static AccumulatePushConstants Of(SignalParameters parameters, bool reset) =>
+     public static AccumulatePushConstants Of(SignalParameters parameters, bool reset) =>
 +        Probe(OfParameters(parameters, reset));
 +
-+    // TERTIUS_A_RETAINED_SIGMAS sets the widening of a widened box. The change shares set the floor of a signal with the
-+    // block test, by its light. TERTIUS_A_BLOCK_ACTION=0 keeps the sums and removes their action. TERTIUS_A_NO_CLAMP=1, for
-+    // the truth, turns both signals' clamps off (a negative ClampSigmas, which accumulate_spatial.comp reads as "no clamp",
-+    // so the anti-lag sees no move either) and the block test's action with them.
 +    private static AccumulatePushConstants Probe(AccumulatePushConstants c)
 +    {
 +        if (c.RetainedSigmas > 0 && ProbeRetainedSigmas is { } sigmas)
 +            c.RetainedSigmas = sigmas;
-+        float? share = (SignalLight)c.Light == SignalLight.Diffuse ? ProbeDiffuseChangeShare : ProbeSpecularChangeShare;
-+        if (c.BlockTest != 0 && share is { } floor)
-+            c.ChangeShare = floor;
-+        if (c.BlockTest != 0 && (ProbeNoAction || ProbeNoClamp))
-+            c.BlockTest = 2;
 +        if (ProbeNoClamp)
 +            c.ClampSigmas = -1;
-+        c.ProbeBlockSigmas = ProbeBlockSigmasKnob;
-+        c.ProbeTailStreams = ProbeTailStreamsKnob;
-+        c.ProbeNoiseScale = ProbeNoiseScaleKnob;
++        c.ProbeMotionCuts = ProbeMotionCutsKnob ? 1u : 0u;
 +        return c;
 +    }
 +
-+    private static AccumulatePushConstants OfParameters(SignalParameters parameters, bool reset)
-     {
-         (float retainedSigmas, float changeShare, uint blockTest) = parameters.Confidence switch
++    private static AccumulatePushConstants OfParameters(SignalParameters parameters, bool reset) =>
+         new()
          {
+             Cap = parameters.Cap,
 diff --git a/src/Tertius.Rendering/ShaderConstants.cs b/src/Tertius.Rendering/ShaderConstants.cs
 index 99ad27d6f..5b64ccc31 100644
 --- a/src/Tertius.Rendering/ShaderConstants.cs
@@ -178,68 +161,35 @@ index 99ad27d6f..5b64ccc31 100644
      public SpecializationValues Data;
      public SpecializationEntries Entries;
 diff --git a/src/Tertius.Rendering/Shaders/accumulate.glsl b/src/Tertius.Rendering/Shaders/accumulate.glsl
-index 5ce6e0f12..6759132f3 100644
+index f87bb01a6..9e5bd40e8 100644
 --- a/src/Tertius.Rendering/Shaders/accumulate.glsl
 +++ b/src/Tertius.Rendering/Shaders/accumulate.glsl
-@@ -59,6 +59,12 @@ layout(push_constant, std430) uniform AccumulatePush
+@@ -65,6 +65,8 @@ layout(push_constant, std430) uniform AccumulatePush
+     float reflectedPlaceBelow;   // the roughness below which the reflected place competes, with its distance test, 0 for none
+     uint reset;          // 1 in a frame that resets every history
      float retainedSigmas;  // the clamp box's least half width in retained deviations, 0 for the narrow box
-     float changeShare;   // the block test's floor, as a share of the light (accumulate_blocks.glsl)
-     uint blockTest;      // 1 where the signal tests its blocks for evidence of a change, else 0
-+    // PROBE (tools/renderer-survey): BlockSigmas, TailStreams and BlockNoiseScale of accumulate_blocks.glsl from
-+    // TERTIUS_A_BLOCK_SIGMAS, TERTIUS_A_TAIL_STREAMS and TERTIUS_A_NOISE_SCALE, -1 for the shader's own constant; and
-+    // blockTest 2 writes the sums without their action (AccumulatePushConstants.Probe).
-+    float probeBlockSigmas;
-+    float probeTailStreams;
-+    float probeNoiseScale;
++    // PROBE (tools/renderer-survey): 1 where motion evidence cuts as light evidence does (TERTIUS_A_MOTION_CUTS).
++    uint probeMotionCuts;
  } parameters;
  
  // SignalLight.
-diff --git a/src/Tertius.Rendering/Shaders/accumulate_blocks.glsl b/src/Tertius.Rendering/Shaders/accumulate_blocks.glsl
-index 63f8aebf2..532854ce3 100644
---- a/src/Tertius.Rendering/Shaders/accumulate_blocks.glsl
-+++ b/src/Tertius.Rendering/Shaders/accumulate_blocks.glsl
-@@ -39,6 +39,12 @@ const float BlockSigmas = 4.0;
- // The measured over the predicted deviation of a stream's difference, which the hits' reuse of filtered light can raise.
- const float BlockNoiseScale = 1.0;
- 
-+// PROBE (tools/renderer-survey): the probe's push constant where it is at least 0 (TERTIUS_A_*), else the constant.
-+float probeConstant(float pushed, float constant)
-+{
-+    return pushed >= 0.0 ? pushed : constant;
-+}
-+
- // Set 3, binding 13: the block sums, RGBA32F, one texel per block (TemporalSignal.BlockSums).
- #ifdef ACCUMULATE_BLOCK_SUMS
- layout(set = 3, binding = 13, rgba32f) uniform writeonly image2D blockSums;
-@@ -68,7 +74,8 @@ float differenceShare(float wf, float ws)
- // the update.
- vec4 blockShareOf(float fastLuminance, float ownMean, float deviation, float historyLength, float fastLength)
- {
--    float kappa = differenceShare(1.0 / fastLength, 1.0 / historyLength) * BlockNoiseScale;
-+    float kappa = differenceShare(1.0 / fastLength, 1.0 / historyLength)
-+        * probeConstant(parameters.probeNoiseScale, BlockNoiseScale);
-     return vec4(fastLuminance - ownMean, kappa * kappa * deviation * deviation, 1.0, ownMean);
- }
- 
-@@ -120,9 +127,11 @@ bool windowFires(vec4 window, float changeShare, float retainedSigmas)
-     float sumV = window.y;
-     float n = window.z;
-     float sumS = window.w;
-+    float tailStreams = probeConstant(parameters.probeTailStreams, TailStreams);
-+    float blockSigmas = probeConstant(parameters.probeBlockSigmas, BlockSigmas);
-     return n >= LeastStreams
--        && sumS * sumS >= TailStreams * sumV
--        && sumD * sumD >= BlockSigmas * BlockSigmas * sumV
-+        && sumS * sumS >= tailStreams * sumV
-+        && sumD * sumD >= blockSigmas * blockSigmas * sumV
-         && abs(sumD) >= changeShare * max(sumS, sumS + sumD)
-         && abs(sumD) >= n * CutoffRadiance
-         && (retainedSigmas > 0.0 || sumD < 0.0);
 diff --git a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
-index 18a38b94a..d15748a9f 100644
+index b129db792..e43a67431 100644
 --- a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
 +++ b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
-@@ -97,7 +97,8 @@ void accumulateAt(ivec2 pixel, bool evidence)
+@@ -31,7 +31,10 @@ uint evidenceOfSample(uint sampleAge)
+ {
+     if (recentLightCode(lightCodeOf(sampleAge)))
+         return LightEvidence;
+-    return sawMotion(sampleAge) ? MotionEvidence : NoEvidence;
++    // PROBE (tools/renderer-survey): TERTIUS_A_MOTION_CUTS=1 gives motion the action of a light change.
++    if (sawMotion(sampleAge))
++        return parameters.probeMotionCuts != 0u ? LightEvidence : MotionEvidence;
++    return NoEvidence;
+ }
+ 
+ // The evidence level of the workgroup's block: the strongest level of its pixels' samples. Every invocation of the
+@@ -134,7 +137,8 @@ void accumulateAt(ivec2 pixel, uint evidence)
              float deviation = imageLoad(fastHistory, pixel).a;
              spread = max(spread, parameters.retainedSigmas * deviation * slow / max(luminance(slow), LeastLuminance));
          }
@@ -249,16 +199,16 @@ index 18a38b94a..d15748a9f 100644
          float lag = luminance(abs(slow - clamped)) / max(luminance(mean), LeastLuminance);
  #ifdef TERTIUS_ACCUMULATION_TRACE
          storeTrace(pixel, 5, vec4(slow, 1.0));
-@@ -131,7 +132,8 @@ void accumulateAt(ivec2 pixel, bool evidence)
- void main()
- {
-     bool evidence = false;
--    if (parameters.blockTest != 0u)
-+    // PROBE (tools/renderer-survey): blockTest 2 keeps the sums and drops their action (TERTIUS_A_BLOCK_ACTION=0).
-+    if (parameters.blockTest == 1u)
-         evidence = blockEvidence(parameters.changeShare, parameters.retainedSigmas);
-     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
-     if (insideImages(pixel))
+@@ -171,6 +175,9 @@ void main()
+     // A signal without a light age has no evidence.
+ #ifdef TERTIUS_LIGHT_AGE
+     uint evidence = evidenceOfBlock(pixel);
++    // PROBE (tools/renderer-survey): TERTIUS_A_NO_CLAMP, the truth, also drops the evidence's action.
++    if (parameters.clampSigmas < 0.0)
++        evidence = NoEvidence;
+ #else
+     uint evidence = NoEvidence;
+ #endif
 diff --git a/src/Tertius.Rendering/Shaders/composite_pass.glsl b/src/Tertius.Rendering/Shaders/composite_pass.glsl
 index 72511023e..4a4419414 100644
 --- a/src/Tertius.Rendering/Shaders/composite_pass.glsl
@@ -334,90 +284,3 @@ index b013dc9f9..d40cc1df3 100644
      vec3 ldr = tonemap.toneCurve == toneCurveAcesFitted ? acesFitted(hdr) : hable(hdr);
      if (tonemap.encodeSrgb != 0u)
          ldr = linearToSrgb(ldr);
-diff --git a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
-index a801281c6..13927d49e 100644
---- a/src/Tertius.Rendering/VulkanRenderer.cs
-+++ b/src/Tertius.Rendering/VulkanRenderer.cs
-@@ -611,6 +611,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
-         device.Vk.ResetFences(device.Device, 1, &fence).Check("vkResetFences");
-         output.SubmitAndPresent(frame);
-         CommitDrawnFrame(frame: frame, snapshot: snapshot, pending: pending);
-+        ProbeBlockSums();
- 
-         if (sink != null && capture != null)
-         {
-@@ -631,6 +632,74 @@ public sealed unsafe class VulkanRenderer : IRenderer
-         return true;
-     }
- 
-+    // PROBE (tools/renderer-survey, never commit to src): with TERTIUS_A_BLOCK_CAPTURE=<folder>, every k-th draw
-+    // (TERTIUS_A_BLOCK_EVERY=k, 1 if not set), counted from 0 over the run, appends the block sums of each part of each
-+    // screen-trace signal that writes them (its push constant blockTest is not 0) to <folder>/<signal>-<part>.f32: float32,
-+    // the blocks row by row from the top, (sum d, sum v, n, sum s) per block (accumulate_blocks.glsl). It appends the line
-+    // "<draw> <draw index since the last reset> <1 if the draw reset, else 0>" to <folder>/draws.txt, and writes
-+    // <folder>/header.json at the first record: per signal its push constants, and whether its dispatch lifts the cap
-+    // (TemporalSignal.Dispatch under SpecularHistoryMode.PreciseUncapped). Each readback waits for the device. tools/renderer-survey.py evidence reads
-+    // the folder.
-+    private static readonly string? ProbeBlockFolder =
-+        Environment.GetEnvironmentVariable("TERTIUS_A_BLOCK_CAPTURE") is { Length: > 0 } folder ? folder : null;
-+    private static readonly int ProbeBlockEvery =
-+        int.TryParse(Environment.GetEnvironmentVariable("TERTIUS_A_BLOCK_EVERY"), out int every) && every > 0 ? every : 1;
-+    private long probeBlockDraw;
-+
-+    private void ProbeBlockSums()
-+    {
-+        if (ProbeBlockFolder is not { } folder || screenTrace is not { } tracer)
-+            return;
-+        long draw = probeBlockDraw++;
-+        if (draw % ProbeBlockEvery != 0)
-+            return;
-+        var inv = System.Globalization.CultureInfo.InvariantCulture;
-+        var records = new List<(string File, GpuImage Image, string Json)>();
-+        foreach ((string light, TemporalSignal signal) in new[] { ("diffuse", tracer.Diffuse), ("specular", tracer.Specular) })
-+        {
-+            AccumulatePushConstants push = AccumulatePushConstants.Of(signal.Parameters, reset: false);
-+            if (push.BlockTest == 0)
-+                continue;
-+            for (int part = 0; part < signal.Parts; part++)
-+            {
-+                string file = $"{light}-{part}.f32";
-+                string json = string.Create(
-+                    inv,
-+                    $"{{\"file\": \"{file}\", \"light\": \"{light}\", \"part\": {part}, \"cap\": {push.Cap}, \"uncapped\": {(signal.HistoryMode == SpecularHistoryMode.PreciseUncapped ? "true" : "false")}, \"fastCap\": {push.FastCap}, \"changeShare\": {push.ChangeShare:R}, \"retainedSigmas\": {push.RetainedSigmas:R}, \"blockTest\": {push.BlockTest}, \"clampSigmas\": {push.ClampSigmas:R}, \"probeBlockSigmas\": {push.ProbeBlockSigmas:R}, \"probeTailStreams\": {push.ProbeTailStreams:R}, \"probeNoiseScale\": {push.ProbeNoiseScale:R}}}"
-+                );
-+                records.Add((file, signal.BlockSums(part), json));
-+            }
-+        }
-+        System.IO.Directory.CreateDirectory(folder);
-+        string header = System.IO.Path.Combine(folder, "header.json");
-+        if (!System.IO.File.Exists(header) && records.Count > 0)
-+        {
-+            Extent2D blocks = records[0].Image.Extent;
-+            System.IO.File.WriteAllText(
-+                header,
-+                string.Create(
-+                    inv,
-+                    $"{{\"blocksWide\": {blocks.Width}, \"blocksHigh\": {blocks.Height}, \"every\": {ProbeBlockEvery}, \"signals\": [{string.Join(", ", records.Select(r => r.Json))}]}}\n"
-+                )
-+            );
-+        }
-+        foreach ((string file, GpuImage image, _) in records)
-+        {
-+            float[] values = ReadImage(image);
-+            using var stream = new System.IO.FileStream(
-+                System.IO.Path.Combine(folder, file),
-+                System.IO.FileMode.Append,
-+                System.IO.FileAccess.Write
-+            );
-+            stream.Write(System.Runtime.InteropServices.MemoryMarshal.AsBytes(values.AsSpan()));
-+        }
-+        (long drawIndex, bool reset) = LastDraw;
-+        System.IO.File.AppendAllText(
-+            System.IO.Path.Combine(folder, "draws.txt"),
-+            string.Create(inv, $"{draw} {drawIndex} {(reset ? 1 : 0)}\n")
-+        );
-+    }
-+
-     /// <summary>Resizes the targets to the output's <paramref name="image"/> when the swapchain changed size on its own (out of date).</summary>
-     private void MatchTargetsTo(GpuImage image)
-     {

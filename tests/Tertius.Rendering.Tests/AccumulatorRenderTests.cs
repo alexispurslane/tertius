@@ -289,7 +289,7 @@ public sealed class AccumulatorRenderTests
     {
         // A change 16 frames ago (code 17) or more is as old as the history of 16 frames or older: the history holds no
         // frame from before it, so the age cuts nothing, and the step's own spread widens the box around the history. A
-        // step of an eighth stays below the block test's floor, so no block finds evidence of it either.
+        // light age of 16 or more is no recent change either, so the doubling is no evidence for its block.
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
         try
         {
@@ -298,12 +298,12 @@ public sealed class AccumulatorRenderTests
             Continue(renderer, scene, frames: 40);
 
             sample.AgeCode = code;
-            sample.Value = new(x: 1.125f, y: 1.125f, z: 1.125f, w: 1f);
+            sample.Value = new(x: 2f, y: 2f, z: 2f, w: 1f);
             Continue(renderer, scene, frames: 1);
 
             CenterOf(renderer, sample, part: 0)
                 .Should()
-                .Be((new Vector3(1.0078125f), 16f), "the sample blends in with 1 / 16");
+                .Be((new Vector3(1.0625f), 16f), "the sample blends in with 1 / 16");
         }
         finally
         {
@@ -997,44 +997,298 @@ public sealed class AccumulatorRenderTests
         return new Vector4(new Vector3(light * (1 + MathF.Sqrt(3) * variation * uniform)), 1);
     }
 
-    /// <summary>The fast cap of the bounce light: the length to which evidence of a change cuts a history.</summary>
+    /// <summary>The fast cap of the bounce light: the length to which light evidence cuts a history.</summary>
     private const float FastCap = 4;
 
     /// <summary>
-    /// The draws after a step until the first pixel for which <paramref name="cut"/> holds has a length of at most
-    /// <see cref="FastCap"/>, up to <paramref name="draws"/>, after which it gives null.
+    /// The block of 8 × 8 pixels, one workgroup of the spatial dispatch, that holds the center pixel: columns 32 to 39 and
+    /// rows 16 to 23.
     /// </summary>
-    private static int? DrawsUntilACut(
+    private static bool InCenterBlock(int pixel) =>
+        pixel % Width / 8 == Width / 2 / 8 && pixel / Width / 8 == Height / 2 / 8;
+
+    /// <summary>A pixel of the center block other than the center itself, whose sample brings the block its evidence.</summary>
+    private static bool IsWitness(int column, int row) => column == Width / 2 + 6 && row == Height / 2 + 4;
+
+    /// <summary>The fast history of part 0 that the last frame wrote, RGBA per pixel.</summary>
+    private static float[] FastOf(VulkanRenderer renderer, SamplePass sample) =>
+        renderer.ReadImage(sample.Signal.Fast(part: 0, parity: (int)(renderer.DrawnFrames & 1) ^ 1));
+
+    /// <summary>
+    /// Whether the clamp moved the slow history of <paramref name="pixel"/> to its fast history in the last frame: the box
+    /// of samples that blink together has no spatial spread, so the narrow box is the fast history itself, while the
+    /// widened box holds the slow history about 0.1 away from it.
+    /// </summary>
+    private static bool BoxNarrowedAt(VulkanRenderer renderer, SamplePass sample, int pixel) =>
+        MathF.Abs(HistoryOf(renderer, sample, part: 0)[4 * pixel] - FastOf(renderer, sample)[4 * pixel]) <= 1e-3f;
+
+    /// <summary>
+    /// Draws 40 frames whose samples blink between 0 and 2 (<see cref="Blink"/>), so that every history holds a retained
+    /// deviation of about 1 and its cap of 16, and then one more frame in which the samples' ages are
+    /// <paramref name="codes"/>.
+    /// </summary>
+    private static void BlinkThenDrawWithAges(
         VulkanRenderer renderer,
         SamplePass sample,
         RenderSnapshot scene,
-        int draws,
-        Func<int, bool> cut
+        Func<int, int, ushort> codes
     )
     {
-        for (int draw = 1; draw <= draws; draw++)
+        for (int frame = 0; frame < 40; frame++)
         {
+            sample.Samples = Blink(frame);
             Continue(renderer, scene, frames: 1);
-            float[] lengths = LengthsOf(renderer, sample);
-            if (Enumerable.Range(0, lengths.Length).Any(pixel => cut(pixel) && lengths[pixel] is > 0 and <= FastCap))
-                return draw;
         }
-        return null;
+        CenterOf(renderer, sample, part: 0).Length.Should().Be(16, "the history holds its cap before the evidence");
+        BoxNarrowedAt(renderer, sample, Center).Should().BeFalse("the widened box holds the blinking samples");
+        sample.Samples = Blink(40);
+        sample.AgeCodes = codes;
+        Continue(renderer, scene, frames: 1);
     }
 
     [Fact]
-    public void AWallThatDimsWhileItMovesIsFollowedWithinTenDraws()
+    public void ARecentLightCodeInABlockNarrowsTheBoxAndCutsEveryContributingHistoryOfItsBlockToTheFastCap()
     {
-        // No ray saw a change, and the wall moves by about a third of a pixel per frame. The step's own spread widens the
-        // box, so the clamp alone holds the old light (UnderTheNarrowBox...). Every block of the wall sees its fast
-        // histories fall below its slow histories, which is evidence of a change (docs/plans/bounce-light-confidence.md,
-        // section 8).
+        // One pixel of the center block brings the light code 5, a light that changed 4 draws ago: light evidence for
+        // the whole block (docs/plans/bounce-light-confidence.md, section 8.2).
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
+        try
+        {
+            BlinkThenDrawWithAges(
+                renderer: renderer,
+                sample: sample,
+                scene: scene,
+                codes: (column, row) => (ushort)(IsWitness(column, row) ? 5 : 0)
+            );
+
+            float[] lengths = LengthsOf(renderer, sample);
+            Enumerable
+                .Range(0, lengths.Length)
+                .Where(InCenterBlock)
+                .Select(pixel => lengths[pixel])
+                .Should()
+                .OnlyContain(length => length == FastCap, "light evidence cuts every history of its block");
+            BoxNarrowedAt(renderer, sample, Center).Should().BeTrue("light evidence drops the widening of the box");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Theory]
+    [InlineData(8)]
+    [InlineData(100)]
+    public void ALightAgeOfSevenOrOlderGivesTheBlockNoEvidence(int code)
+    {
+        // A light age of 7 or more, the codes from 8, began at least 11 draws ago, and the fast history already holds it
+        // (section 8.3). The witness's own history is cut to the age, its neighbors' are not.
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
+        try
+        {
+            BlinkThenDrawWithAges(
+                renderer: renderer,
+                sample: sample,
+                scene: scene,
+                codes: (column, row) => (ushort)(IsWitness(column, row) ? code : 0)
+            );
+
+            float[] lengths = LengthsOf(renderer, sample);
+            Enumerable
+                .Range(0, lengths.Length)
+                .Where(pixel => InCenterBlock(pixel) && !IsWitness(pixel % Width, pixel / Width))
+                .Select(pixel => lengths[pixel])
+                .Should()
+                .OnlyContain(length => length == 16, "an old light change is no evidence");
+            BoxNarrowedAt(renderer, sample, Center).Should().BeFalse("without evidence the box stays wide");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ASampleThatSawMotionNarrowsTheBoxOfItsBlockAndKeepsItsLength()
+    {
+        // Motion has no known size, so its evidence narrows the box and leaves the cut to the anti-lag: the clamp moves the
+        // slow history about 0.1 to the fast history, a lag of about a tenth, which shortens the history of 16 by about a
+        // fifth (section 8.2).
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
+        try
+        {
+            BlinkThenDrawWithAges(
+                renderer: renderer,
+                sample: sample,
+                scene: scene,
+                codes: (column, row) => IsWitness(column, row) ? TemporalSignal.SampleMotionBit : (ushort)0
+            );
+
+            BoxNarrowedAt(renderer, sample, Center).Should().BeTrue("motion evidence drops the widening of the box");
+            CenterOf(renderer, sample, part: 0)
+                .Length.Should()
+                .BeGreaterThan(FastCap, "motion evidence does not cut")
+                .And.BeLessThan(16, "the anti-lag shortens the history by the clamp's move");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void EvidenceStaysInsideItsBlock()
+    {
+        // The block left of the center block holds no sample with evidence, so it keeps the widened box and its lengths.
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
+        try
+        {
+            BlinkThenDrawWithAges(
+                renderer: renderer,
+                sample: sample,
+                scene: scene,
+                codes: (column, row) => (ushort)(IsWitness(column, row) ? 5 : 0)
+            );
+
+            float[] lengths = LengthsOf(renderer, sample);
+            int[] left = [.. Enumerable.Range(0, lengths.Length).Where(pixel => InCenterBlock(pixel + 8))];
+            left.Select(pixel => lengths[pixel]).Should().OnlyContain(length => length == 16);
+            left.Should().OnlyContain(pixel => !BoxNarrowedAt(renderer, sample, pixel), "its box stays wide");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void BlocksWithSkyOrOffImagePixelsStillActOnTheirEvidence()
+    {
+        // The wall's right edge lies inside a block column, so the blocks there hold sky pixels, and the image's 36 rows
+        // end halfway through the last block row, so those blocks hold pixels outside the image. Each invocation still
+        // reaches the workgroup's barriers. The top left pixel of each block lies on the wall and brings the light code 3.
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+            wall: (new Vector3(-22, 0, -20), new Vector3(60, 40, 1))
+        );
+        try
+        {
+            sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
+            renderer.Render(scene, 1f);
+            Continue(renderer, scene, frames: 40);
+            float[] before = LengthsOf(renderer, sample);
+            int[] lit = [.. Enumerable.Range(0, before.Length).Where(pixel => before[pixel] > 0)];
+            lit.Should()
+                .Contain(pixel => pixel % Width % 8 != 7 && before[pixel + 1] == 0, "a block holds the wall's edge");
+            lit.Should().Contain(pixel => pixel / Width == Height - 1, "the last block row holds lit pixels");
+            sample.AgeCodes = (column, row) => (ushort)(column % 8 == 0 && row % 8 == 0 ? 3 : 0);
+
+            Continue(renderer, scene, frames: 1);
+
+            float[] lengths = LengthsOf(renderer, sample);
+            lit.Where(pixel => pixel % Width % 8 != 0 || pixel / Width % 8 != 0)
+                .Select(pixel => lengths[pixel])
+                .Should()
+                .OnlyContain(length => length == FastCap, "every block acts on its evidence");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AHalfDimmingWhoseRaysSeeItsLightAgeSettlesWithinFivePercentInSixtyDraws()
+    {
+        // A region of 32 × 32 pixels, four by four blocks, whose ray blocks' samples spread with a coefficient of variation
+        // of 0.3, dims from 1 to 0.5. In each block one ray block's rays see the light's age as the tracer gives it: no
+        // code for the 4 draws that the record waits, then the ages 0, 1 and on. The widened box alone lets the slow blend
+        // drain the step: (31 / 32)^60 ≈ 0.15 of it is left after 60 draws. The block's evidence cuts every history of the
+        // block for 7 draws, after which the step drains at the pace of a short history (section 8.3).
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+            parameters: SignalParameters.Diffuse
+        );
+        try
+        {
+            static bool InRegion(int column, int row) => column is >= 16 and < 48 && row < 32;
+            float dimmed = 1;
+            int frame = 0;
+            int sinceDimming = -1;
+            sample.Samples = (column, row) =>
+                NoisySample(
+                    light: InRegion(column, row) ? dimmed : 1,
+                    variation: 0.3f,
+                    column: column,
+                    row: row,
+                    frame: frame
+                );
+            sample.AgeCodes = (column, row) =>
+                (ushort)(
+                    InRegion(column, row) && column % 8 / 2 == 1 && row % 8 / 2 == 1 && sinceDimming >= 4
+                        ? sinceDimming - 3
+                        : 0
+                );
+            renderer.Render(scene, 1f);
+            for (; frame < 64; frame++)
+                Continue(renderer, scene, frames: 1);
+            dimmed = 0.5f;
+
+            for (sinceDimming = 0; sinceDimming < 60; sinceDimming++, frame++)
+                Continue(renderer, scene, frames: 1);
+
+            float[] history = HistoryOf(renderer, sample, part: 0);
+            Enumerable
+                .Range(0, Width * Height)
+                .Where(pixel => InRegion(pixel % Width, pixel / Width))
+                .Average(pixel => history[4 * pixel])
+                .Should()
+                .BeLessThanOrEqualTo(
+                    0.5f * 1.05f,
+                    "the blocks' evidence restarts their histories from the fast window"
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void TheMotionBitLeavesThePixelsOwnLightAgeCut()
+    {
+        // The light code 3 with the motion bit: the temporal dispatch cuts the history to the age 2, as without the bit, and
+        // the blend adds this draw. A history of 3 lies at or below the fast cap, where the spatial dispatch cuts nothing.
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
         try
         {
             sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
             renderer.Render(scene, 1f);
             Continue(renderer, scene, frames: 40);
+
+            sample.AgeCode = TemporalSignal.SampleMotionBit | 3u;
+            Continue(renderer, scene, frames: 1);
+
+            CenterOf(renderer, sample, part: 0).Length.Should().Be(3, "the history keeps the frames since the change");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AMovingWallNarrowsTheBoxOfItsBlocksWhileItMoves()
+    {
+        // The camera moves by about a third of a pixel per frame, so the resolve sets every sample's motion bit, and the
+        // wall dims while it moves. No ray saw a change of light. The step's own spread widens the box, which alone would
+        // hold the old light for about 36 frames. Motion evidence narrows it, so the clamp follows the fast history, as
+        // UnderTheNarrowBoxTheHistoryReachesNinetyPercentOfADimmingStepWithinTenFrames does (section 8.2).
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
+        try
+        {
+            sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
+            renderer.Render(scene, 1f);
+            Continue(renderer, scene, frames: 40);
+            sample.AgeCode = TemporalSignal.SampleMotionBit;
 
             FramesUntilTheCenterFollowsADimming(
                     renderer: renderer,
@@ -1047,7 +1301,7 @@ public sealed class AccumulatorRenderTests
                     }
                 )
                 .Should()
-                .BeInRange(2, 10, "the blocks' evidence restarts the history from the fast window");
+                .BeInRange(2, 10, "the narrow box follows the fast history while the wall moves");
         }
         finally
         {
@@ -1056,255 +1310,44 @@ public sealed class AccumulatorRenderTests
     }
 
     [Fact]
-    public void ARegionThatDimsByHalfWithoutALightAgeSettlesWithinFivePercentInSixtyDraws()
+    public void AfterTheMotionStopsTheNarrowBoxsLossReturnsWithinFivePercentInSixtyDraws()
     {
-        // A region of 32 × 32 pixels, whose ray blocks' samples spread with a coefficient of variation of 0.3, dims from
-        // 1 to 0.5, and no ray sees a light change. Each pixel's widened box holds two retained deviations, so its clamp
-        // lets the slow blend drain the step: (31 / 32)^60 ≈ 0.15 of it is left after 60 draws, 15 % of the new light. The
-        // region's blocks pool their streams, find the step and restart the histories from the fast window, after which
-        // the step drains at the pace of a short history (docs/plans/bounce-light-confidence.md, section 8). This GPU
-        // measured the region 3.3 % above the new light after 40 draws, and 90 % of the step after 18 draws.
+        // Rare bright samples on a wall, whose mean is 2. While the wall moves for 40 draws, motion evidence narrows the box,
+        // which cuts the rare samples and loses light. After the wall stops, the widened box holds them again, and the loss
+        // drains at the slow blend: a loss of 23 % lies within 5 % after 47 draws (section 16).
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
             parameters: SignalParameters.Diffuse
         );
         try
         {
-            static bool InRegion(int pixel) => pixel % Width is >= 16 and < 48 && pixel / Width is >= 2 and < 34;
-            float dimmed = 1;
-            int frame = 0;
-            sample.Samples = (column, row) =>
-                NoisySample(
-                    light: InRegion(row * Width + column) ? dimmed : 1,
-                    variation: 0.3f,
-                    column: column,
-                    row: row,
-                    frame: frame
-                );
-            renderer.Render(scene, 1f);
-            for (; frame < 64; frame++)
+            DrawRareBrightSamples(renderer: renderer, sample: sample, scene: scene, frames: 160);
+            int frame = 160;
+            sample.Samples = (column, row) => new Vector4(new Vector3(RareAt(column, row, frame) ? RareLight : 1f), 8f);
+            sample.AgeCode = TemporalSignal.SampleMotionBit;
+            for (int moved = 0; moved < 40; moved++, frame++)
+            {
+                scene.Camera.PreviousPosition = scene.Camera.Position;
+                scene.Camera.Position += new Vector3(0.1f, 0, 0);
                 Continue(renderer, scene, frames: 1);
-            dimmed = 0.5f;
+            }
+            InteriorLightOf(renderer, sample)
+                .Average()
+                .Should()
+                .BeLessThan(1.9f, "the narrow box cut rare samples while the wall moved");
+            sample.AgeCode = 0;
+            scene.Camera.PreviousPosition = scene.Camera.Position;
 
-            for (; frame < 124; frame++)
+            for (int still = 0; still < 60; still++, frame++)
                 Continue(renderer, scene, frames: 1);
 
-            float[] history = HistoryOf(renderer, sample, part: 0);
-            Enumerable
-                .Range(0, Width * Height)
-                .Where(InRegion)
-                .Average(pixel => history[4 * pixel])
+            InteriorLightOf(renderer, sample)
+                .Average()
                 .Should()
-                .BeLessThanOrEqualTo(0.5f * 1.05f, "the region's evidence restarts its histories from the fast window");
+                .BeGreaterThanOrEqualTo(2f * 0.95f, "the widened box keeps the rare samples again");
         }
         finally
         {
             Gpu.DisposeAndAssertClean(renderer);
-        }
-    }
-
-    [Fact]
-    public void ADimmingOfATenthGivesNoEvidenceAndSettlesAtTheSlowBlend()
-    {
-        // Without noise, the fast and the slow histories of a step of a tenth part by at most about 0.68 / 10 of the light,
-        // below the bounce light's floor of an eighth. The slow blend then settles the step within (31 / 32)^60 ≈ 0.15 of
-        // it in 60 draws, which leaves 1.5 % of the light.
-        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
-            parameters: SignalParameters.Diffuse
-        );
-        try
-        {
-            sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
-            renderer.Render(scene, 1f);
-            Continue(renderer, scene, frames: 40);
-            sample.Value = new(x: 0.9f, y: 0.9f, z: 0.9f, w: 1f);
-
-            DrawsUntilACut(renderer: renderer, sample: sample, scene: scene, draws: 60, cut: _ => true)
-                .Should()
-                .BeNull("a change below the floor is no evidence");
-            CenterOf(renderer, sample, part: 0)
-                .Light.X.Should()
-                .BeInRange(0.9f, 0.9f + 0.1f * MathF.Pow(31f / 32, 60) + 2e-3f, "the slow blend settles the step");
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(renderer);
-        }
-    }
-
-    [Fact]
-    public void EvidenceShortensEveryContributingHistoryOfItsBlockToTheFastCap()
-    {
-        // The left half of the block of columns 24 to 31 and rows 16 to 23 goes dark. Its 8 ray blocks carry the block's
-        // difference past the floor, and the cut takes the block's unchanged right half too: a cut of only the changed
-        // pixels would leave a speckle of cut and uncut ones.
-        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
-            parameters: SignalParameters.Diffuse
-        );
-        try
-        {
-            static bool InBlock(int pixel) => pixel % Width is >= 24 and < 32 && pixel / Width is >= 16 and < 24;
-            sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
-            renderer.Render(scene, 1f);
-            Continue(renderer, scene, frames: 40);
-            sample.Samples = (column, row) =>
-                new Vector4(new Vector3(column is >= 24 and < 28 && row is >= 16 and < 24 ? 0 : 1), 1);
-
-            DrawsUntilACut(renderer: renderer, sample: sample, scene: scene, draws: 10, cut: InBlock)
-                .Should()
-                .NotBeNull("the block's fast histories fell far below its slow histories");
-
-            float[] lengths = LengthsOf(renderer, sample);
-            Enumerable
-                .Range(0, lengths.Length)
-                .Where(InBlock)
-                .Select(pixel => lengths[pixel])
-                .Should()
-                .OnlyContain(length => length == FastCap, "evidence cuts every history of its block, changed or not");
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(renderer);
-        }
-    }
-
-    [Fact]
-    public void AfterEvidenceTheOwnSampleMeanRestartsAtTheFastHistory()
-    {
-        // The wall's light steps from 1 to 0.5 without noise. The fast history falls by a quarter of the rest in each
-        // draw, and the windows fire once it lies an eighth below the mean of the pixel's own samples. Evidence
-        // restarts that mean at the fast history, so the two then fall together and stay within the floor. A mean that
-        // only blended on from the old light, with the cut length's weights 1/5, 1/6 and on, would stay an eighth above
-        // the fast history for about six draws, and each draw would fire again (docs/plans/bounce-light-confidence.md,
-        // section 8).
-        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
-            parameters: SignalParameters.Diffuse
-        );
-        try
-        {
-            sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
-            renderer.Render(scene, 1f);
-            Continue(renderer, scene, frames: 40);
-            sample.Value = new(x: 0.5f, y: 0.5f, z: 0.5f, w: 1f);
-
-            int fired = 0;
-            for (int draw = 0; draw < 30; draw++)
-            {
-                Continue(renderer, scene, frames: 1);
-                fired += BlocksCutWhole(LengthsOf(renderer, sample)) > 0 ? 1 : 0;
-            }
-
-            fired.Should().BeInRange(1, 2, "the step is evidence, and the restarted mean follows the fast history");
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(renderer);
-        }
-    }
-
-    [Fact]
-    public void BlocksWithSkyOrOffImagePixelsStillCutTheHistoriesOfTheirLitPixels()
-    {
-        // The wall's right edge lies inside a block column, so the blocks there hold sky pixels, and the image's 36 rows
-        // end halfway through the last block row, so those blocks hold pixels outside the image. Such pixels take no part
-        // in the sums, but each invocation still reaches the workgroup's barriers. The whole wall dims by half at once,
-        // so every block finds the same evidence in the same draw.
-        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
-            parameters: SignalParameters.Diffuse,
-            wall: (new Vector3(-22, 0, -20), new Vector3(60, 40, 1))
-        );
-        try
-        {
-            sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
-            renderer.Render(scene, 1f);
-            Continue(renderer, scene, frames: 40);
-            float[] before = LengthsOf(renderer, sample);
-            int[] lit = [.. Enumerable.Range(0, before.Length).Where(pixel => before[pixel] > 0)];
-            lit.Should()
-                .Contain(pixel => pixel % Width % 8 != 7 && before[pixel + 1] == 0, "a block holds the wall's edge");
-            sample.Value = new(x: 0.5f, y: 0.5f, z: 0.5f, w: 1f);
-
-            DrawsUntilACut(renderer: renderer, sample: sample, scene: scene, draws: 10, cut: _ => true)
-                .Should()
-                .NotBeNull("the wall's blocks see their fast histories fall below their slow histories");
-
-            float[] lengths = LengthsOf(renderer, sample);
-            lit.Select(pixel => lengths[pixel]).Should().OnlyContain(length => length == FastCap, "every block fired");
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(renderer);
-        }
-    }
-
-    [Fact]
-    public void TooFewRayBlocksOnALitSurfaceGiveNoEvidence()
-    {
-        // A patch of about 3 × 3 pixels in the sky holds at most 4 ray blocks, fewer than the 8 streams that a window
-        // needs: so few streams cannot speak for a region. It dims by half without noise, which a window of enough
-        // streams finds within two draws.
-        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
-            parameters: SignalParameters.Diffuse,
-            wall: (new Vector3(0, 0, -20), new Vector3(1.9f, 1.9f, 1))
-        );
-        try
-        {
-            sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
-            renderer.Render(scene, 1f);
-            Continue(renderer, scene, frames: 40);
-            float[] before = LengthsOf(renderer, sample);
-            Enumerable
-                .Range(0, before.Length)
-                .Where(pixel => before[pixel] > 0)
-                .Select(pixel => (pixel % Width / 2, pixel / Width / 2))
-                .Distinct()
-                .Count()
-                .Should()
-                .BeInRange(1, 7, "the patch holds fewer ray blocks than a window needs");
-            sample.Value = new(x: 0.5f, y: 0.5f, z: 0.5f, w: 1f);
-
-            DrawsUntilACut(renderer: renderer, sample: sample, scene: scene, draws: 20, cut: _ => true)
-                .Should()
-                .BeNull("no window holds enough streams");
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(renderer);
-        }
-    }
-
-    /// <summary>The 400 draws of rare bright ray blocks (tests/STYLE.md, "Long tests").</summary>
-    [Collection(GpuCollection.Name)]
-    public sealed class RareBrightRayBlocksForFourHundredDraws
-    {
-        [Fact]
-        public void ARareBrightSampleInEveryBlockIsNoEvidenceOfAChange()
-        {
-            // One ray block in 32 takes 16 times the light in each draw, so each block of 16 ray blocks sees one about
-            // every second draw. Its fast mean then jumps above its slow mean, by more than the floor of an eighth, but
-            // the tail rule leaves such a window silent: too few streams for so heavy a tail.
-            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
-                parameters: SignalParameters.Diffuse
-            );
-            try
-            {
-                int frame = 0;
-                sample.Samples = (column, row) =>
-                    new Vector4(new Vector3(Hashed(column / 2, row / 2, frame) % 32 == 0 ? 16 : 1), 1);
-                renderer.Render(scene, 1f);
-                int cuts = 0;
-                for (frame = 1; frame <= 400; frame++)
-                {
-                    Continue(renderer, scene, frames: 1);
-                    if (frame > 64)
-                        cuts += LengthsOf(renderer, sample).Count(length => length <= FastCap);
-                }
-
-                cuts.Should().Be(0, "no length falls to the fast cap after draw 64");
-            }
-            finally
-            {
-                Gpu.DisposeAndAssertClean(renderer);
-            }
         }
     }
 
@@ -1970,25 +2013,18 @@ public sealed class AccumulatorRenderTests
         }
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void ASignalRefusesConfidenceRulesThatKeepItsDeviationWhereItsLightKeepsNone(bool reflections)
+    [Fact]
+    public void TheReflectionsRefuseAWidenedBox()
     {
-        // The reflections' fast alpha holds the hit distance, so a widened box would widen by it, and only the reflections'
-        // shaders keep a deviation image for the drop evidence to pool (docs/plans/bounce-light-confidence.md, section 12).
+        // The reflections' fast alpha holds the hit distance, so a widened box would widen by it
+        // (docs/plans/bounce-light-confidence.md, section 13).
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
         {
-            SignalParameters parameters = reflections
-                ? SignalParameters.Specular(0) with
-                {
-                    Confidence = new WidenedBox(RetainedSigmas: 2, ChangeShare: 1f / 8),
-                }
-                : SignalParameters.Diffuse with
-                {
-                    Confidence = new DropEvidence(ChangeShare: 1f / 20),
-                };
+            SignalParameters parameters = SignalParameters.Specular(0) with
+            {
+                Confidence = new WidenedBox(RetainedSigmas: 2),
+            };
 
             Action create = () => renderer.CreateSignal(parameters: parameters, name: "test", parts: 1);
 
@@ -2001,227 +2037,103 @@ public sealed class AccumulatorRenderTests
     }
 
     /// <summary>
-    /// The reflections' retained deviation and their block test of drops (docs/plans/bounce-light-confidence.md, section 9):
-    /// a drain of the reflected light that no ray sees is evidence, a rise is not.
+    /// The evidence under each specular history (docs/plans/bounce-light-confidence.md, sections 8 and 10): the reflections
+    /// beside a precise history act on the light codes of their rays, and a history without a light age keeps the narrow
+    /// box, which no evidence could narrow again.
     /// </summary>
     [Collection(ProcessEnvironmentCollection.Name)]
-    public sealed class ReflectionDropEvidence(ITestOutputHelper output)
+    public sealed class EvidenceUnderEachHistory
     {
         /// <summary>The roughness of a rough reflection, whose precise history has no cap.</summary>
         private const float Rough = 0.8f;
 
         [Fact]
-        public void TheReflectionsKeepTheirRetainedDeviationInAnImageOfTheirOwn()
+        public void TheOriginalSpecularHistoryKeepsTheNarrowBoxWithoutEvidence()
         {
-            // The fast history's alpha holds the hit distance, which the reflected place's test reads, so the deviation
-            // of the samples 0 and 2 in turn lives beside it (docs/plans/bounce-light-confidence.md, section 6).
-            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+            // The original history keeps H13's shaders and storage, which hold no deviation and no light age.
+            WithHistory(
+                mode: "original",
                 parameters: SignalParameters.Specular(0),
-                roughness: Rough
-            );
-            try
-            {
-                for (int frame = 0; frame < 40; frame++)
+                (_, sample, _) =>
                 {
-                    sample.Samples = Blink(frame);
-                    Continue(renderer, scene, frames: 1);
+                    (sample.Signal.Parameters.Confidence is NarrowBox)
+                        .Should()
+                        .BeTrue("the original history has no deviation");
+                    sample.Signal.SampleAge(0).Should().BeNull("the original history has no light age");
                 }
-
-                int parity = (int)(renderer.DrawnFrames & 1) ^ 1;
-                GpuImage? deviation = sample.Signal.DeviationImage(part: 0, parity: parity);
-                deviation.Should().NotBeNull("the reflections keep a retained deviation beside a precise history");
-                renderer
-                    .ReadImage(deviation!)[Center]
-                    .Should()
-                    .BeGreaterThan(0.5f, "the samples deviate by 1 from their mean");
-                renderer
-                    .ReadImage(sample.Signal.Fast(part: 0, parity: parity))[4 * Center + 3]
-                    .Should()
-                    .Be(1, "the fast history keeps the sample's hit distance");
-            }
-            finally
-            {
-                Gpu.DisposeAndAssertClean(renderer);
-            }
+            );
         }
 
         [Fact]
-        public void TheOriginalSpecularHistoryKeepsTheNarrowBoxWithoutARetainedDeviation()
+        public void WithoutALightAgeTheBounceLightKeepsTheNarrowBox()
         {
-            // The original history keeps H13's shaders and storage, which hold no deviation and no block sums to read.
+            // Beside the original specular history, the samples have no light age, so no evidence could narrow a widened
+            // box again. The samples blink between 0 and 2 at every pixel, so the narrow box is the fast history itself,
+            // and the clamp moves the slow history there.
+            WithHistory(
+                mode: "original",
+                parameters: Parameters,
+                (renderer, sample, scene) =>
+                {
+                    for (int frame = 0; frame < 40; frame++)
+                    {
+                        sample.Samples = Blink(frame);
+                        Continue(renderer, scene, frames: 1);
+                    }
+
+                    BoxNarrowedAt(renderer, sample, Center).Should().BeTrue("the box holds no retained deviation");
+                }
+            );
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("precise-capped")]
+        public void AReflectionWithARecentLightCodeIsCutToTheFastCap(string? mode) =>
+            WithHistory(
+                mode,
+                parameters: SignalParameters.Specular(0),
+                (renderer, sample, scene) =>
+                {
+                    // The reflected light doubles, and the top left pixel of each block brings the light code 3. The rise
+                    // and a drop are alike: the rays saw the change, so every history of the block restarts from the fast
+                    // window (section 10). The narrow box and the anti-lag alone would keep a fifth of a long history.
+                    sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
+                    renderer.Render(scene, 1f);
+                    Continue(renderer, scene, frames: 100);
+                    static bool Witness(int pixel) => pixel % Width % 8 == 0 && pixel / Width % 8 == 0;
+                    sample.Value = new(x: 2f, y: 2f, z: 2f, w: 1f);
+                    sample.AgeCodes = (column, row) => (ushort)(Witness(row * Width + column) ? 3 : 0);
+
+                    Continue(renderer, scene, frames: 1);
+
+                    float[] lengths = LengthsOf(renderer, sample);
+                    Enumerable
+                        .Range(0, lengths.Length)
+                        .Where(pixel => !Witness(pixel))
+                        .Select(pixel => lengths[pixel])
+                        .Should()
+                        .OnlyContain(length => length == FastCap, "light evidence cuts every reflection of its block");
+                }
+            );
+
+        /// <summary>
+        /// Runs <paramref name="action"/> on a rough surface's signal of <paramref name="parameters"/> beside the specular
+        /// history <paramref name="mode"/>, null for the default.
+        /// </summary>
+        private static void WithHistory(
+            string? mode,
+            SignalParameters parameters,
+            Action<VulkanRenderer, SamplePass, RenderSnapshot> action
+        )
+        {
             string? previous = Environment.GetEnvironmentVariable("TERTIUS_SPECULAR_HISTORY");
             VulkanRenderer? renderer = null;
             try
             {
-                Environment.SetEnvironmentVariable("TERTIUS_SPECULAR_HISTORY", "original");
-                (VulkanRenderer created, SamplePass sample, _) = Accumulating(parameters: SignalParameters.Specular(0));
-                renderer = created;
-
-                (sample.Signal.Parameters.Confidence is NarrowBox)
-                    .Should()
-                    .BeTrue("the original history has no deviation");
-                sample.Signal.DeviationImage(part: 0, parity: 0).Should().BeNull();
-            }
-            finally
-            {
-                Environment.SetEnvironmentVariable("TERTIUS_SPECULAR_HISTORY", previous);
-                if (renderer is not null)
-                    Gpu.DisposeAndAssertClean(renderer);
-            }
-        }
-
-        [Theory]
-        [InlineData(null, null)]
-        [InlineData("precise-capped", null)]
-        [InlineData(null, "light-age-diagnostic")]
-        [InlineData(null, "control-trace")]
-        public void AReflectionWhoseLightDrainsWithoutALightAgeIsCutByItsDrop(string? mode, string? instrumentation) =>
-            WithHistory(
-                mode,
-                instrumentation,
-                (renderer, sample, scene) =>
-                {
-                    // The reflected light has a detail of ±50 % at 3 pixels, which widens the narrow box, and quiet
-                    // samples. After 100 still draws it drains to 0.3 of itself with a time constant of 15 draws, and
-                    // no ray sees the change. The uncapped history alone lies 21 % above its light after 60 draws in
-                    // the CPU model, the drop test 4.5 % (docs/plans/bounce-light-confidence.md, section 9). This GPU
-                    // measures 5.4 %, and 4.2 % when the test compared the fast history with the slow history: the
-                    // clamp raises the slow history of the detail's dark pixels, which that comparison took for more
-                    // drops, and after each fire the compared slow history restarted at the box's edge above the fast
-                    // history, so the test fired again sooner. The own-sample mean restarts at the fast history
-                    // (t0-y4qv). Take T3 calibrates the floor again with it.
-                    float scale = 1;
-                    int frame = 0;
-                    sample.Samples = (column, row) =>
-                        DetailedSample(scale: scale, column: column, row: row, frame: frame);
-                    renderer.Render(scene, 1f);
-                    for (frame = 1; frame < 100; frame++)
-                        Continue(renderer, scene, frames: 1);
-                    for (int draw = 0; draw <= 60; draw++, frame++)
-                    {
-                        scale = 0.3f + 0.7f * MathF.Exp(-draw / 15f);
-                        Continue(renderer, scene, frames: 1);
-                    }
-
-                    float light = LightOverItsDetail(HistoryOf(renderer, sample, part: 0), scale);
-                    output.WriteLine($"The history over its light 60 draws into the drain: {light:F4}.");
-                    light.Should().BeLessThanOrEqualTo(1.06f, "the drop restarts the history from its fast window");
-                }
-            );
-
-        [Fact]
-        public void ARisingReflectedLightIsNoBlockEvidence() =>
-            WithHistory(
-                mode: null,
-                instrumentation: null,
-                (renderer, sample, scene) =>
-                {
-                    // Only a drop counts: the narrow box's lower edge and the anti-lag follow a rise of the reflected
-                    // light (docs/plans/bounce-light-confidence.md, section 9). The rise to twice the light leaves the
-                    // own-sample mean far below the fast history, which a test of both signs would take for a change.
-                    float scale = 1;
-                    int frame = 0;
-                    sample.Samples = (column, row) =>
-                        DetailedSample(scale: scale, column: column, row: row, frame: frame);
-                    renderer.Render(scene, 1f);
-                    for (frame = 1; frame < 100; frame++)
-                        Continue(renderer, scene, frames: 1);
-                    int cut = 0;
-                    for (int draw = 0; draw <= 60; draw++, frame++)
-                    {
-                        scale = 2 - MathF.Exp(-draw / 15f);
-                        Continue(renderer, scene, frames: 1);
-                        cut += BlocksCutWhole(LengthsOf(renderer, sample));
-                    }
-
-                    cut.Should().Be(0, "a rise of the reflected light is no evidence");
-                }
-            );
-
-        [Fact]
-        public void PixelsThatTheNarrowClampRaisesInAStillAreNoEvidenceOfADrop() =>
-            WithHistory(
-                mode: null,
-                instrumentation: null,
-                (renderer, sample, scene) =>
-                {
-                    // One pixel of each ray block, at even coordinates, reflects light 0.5 and the others 1, each ray
-                    // block's sample spread with a coefficient of variation of 0.1. A dark pixel's 3 × 3 fast histories
-                    // hold eight bright ones, so the narrow box lies above its own light, and the clamp raises its slow
-                    // history in every draw. The block test compares the fast history with the mean of the pixel's own
-                    // samples, which the clamp never moves (docs/plans/bounce-light-confidence.md, section 8). Compared
-                    // with the slow history, every block found a drop in every draw.
-                    int frame = 0;
-                    sample.Samples = (column, row) =>
-                    {
-                        float uniform = Hashed(column / 2, row / 2, frame) / (float)uint.MaxValue * 2 - 1;
-                        float light = column % 2 == 0 && row % 2 == 0 ? 0.5f : 1;
-                        return new Vector4(new Vector3(light * (1 + MathF.Sqrt(3) * 0.1f * uniform)), 1);
-                    };
-                    renderer.Render(scene, 1f);
-                    int cut = 0;
-                    for (frame = 1; frame < 300; frame++)
-                    {
-                        Continue(renderer, scene, frames: 1);
-                        if (frame >= 100)
-                            cut += BlocksCutWhole(LengthsOf(renderer, sample));
-                    }
-
-                    cut.Should().Be(0, "the clamp's move in a still is no drop of the reflected light");
-                }
-            );
-
-        /// <summary>
-        /// A reflected sample of <paramref name="scale"/> times a detail of 0.5 to 1.5 in squares of 3 × 3 pixels, and a
-        /// noise of 0.9 or 1.1 per ray block and frame: a coefficient of variation of 0.1. The hit lies 1 m away.
-        /// </summary>
-        private static Vector4 DetailedSample(float scale, int column, int row, int frame)
-        {
-            float noise = Hashed(column / 2, row / 2, frame) % 2 == 0 ? 0.9f : 1.1f;
-            return new Vector4(new Vector3(scale * Detail(column, row) * noise), 1);
-        }
-
-        /// <summary>The reflected light's detail at a pixel: 0.5 to 1.5, the same over squares of 3 × 3 pixels.</summary>
-        private static float Detail(int column, int row) =>
-            0.5f + Hashed(column / 3, row / 3, -1) / (float)uint.MaxValue;
-
-        /// <summary>
-        /// The mean light of a slow history over the mean expected light of its samples, <paramref name="scale"/> times the
-        /// detail: 1 for a history that holds its light.
-        /// </summary>
-        private static float LightOverItsDetail(float[] history, float scale)
-        {
-            double light = 0;
-            double expected = 0;
-            for (int pixel = 0; pixel < Width * Height; pixel++)
-            {
-                light += history[4 * pixel];
-                expected += scale * Detail(pixel % Width, pixel / Width);
-            }
-            return (float)(light / expected);
-        }
-
-        /// <summary>
-        /// Runs <paramref name="action"/> on a rough reflection of the precise history <paramref name="mode"/> and the
-        /// instrumentation <paramref name="instrumentation"/>, null for the defaults.
-        /// </summary>
-        private static void WithHistory(
-            string? mode,
-            string? instrumentation,
-            Action<VulkanRenderer, SamplePass, RenderSnapshot> action
-        )
-        {
-            string? previousMode = Environment.GetEnvironmentVariable("TERTIUS_SPECULAR_HISTORY");
-            string? previousInstrumentation = Environment.GetEnvironmentVariable(
-                "TERTIUS_REFLECTION_HISTORY_AGREEMENT"
-            );
-            VulkanRenderer? renderer = null;
-            try
-            {
                 Environment.SetEnvironmentVariable("TERTIUS_SPECULAR_HISTORY", mode);
-                Environment.SetEnvironmentVariable("TERTIUS_REFLECTION_HISTORY_AGREEMENT", instrumentation);
                 (VulkanRenderer created, SamplePass sample, RenderSnapshot scene) = Accumulating(
-                    parameters: SignalParameters.Specular(0),
+                    parameters: parameters,
                     roughness: Rough
                 );
                 renderer = created;
@@ -2229,127 +2141,10 @@ public sealed class AccumulatorRenderTests
             }
             finally
             {
-                Environment.SetEnvironmentVariable("TERTIUS_SPECULAR_HISTORY", previousMode);
-                Environment.SetEnvironmentVariable("TERTIUS_REFLECTION_HISTORY_AGREEMENT", previousInstrumentation);
+                Environment.SetEnvironmentVariable("TERTIUS_SPECULAR_HISTORY", previous);
                 if (renderer is not null)
                     Gpu.DisposeAndAssertClean(renderer);
             }
-        }
-    }
-
-    /// <summary>
-    /// The blocks of 8 × 8 pixels inside the image whose every pixel has a length of at most <see cref="FastCap"/>: the
-    /// blocks whose histories evidence cut at once. The anti-lag cuts single pixels.
-    /// </summary>
-    private static int BlocksCutWhole(float[] lengths)
-    {
-        int cut = 0;
-        for (int top = 0; top + 8 <= Height; top += 8)
-        for (int left = 0; left + 8 <= Width; left += 8)
-        {
-            bool allCut = true;
-            for (int y = top; y < top + 8; y++)
-            for (int x = left; x < left + 8; x++)
-                allCut &= lengths[y * Width + x] is > 0 and <= FastCap;
-            cut += allCut ? 1 : 0;
-        }
-        return cut;
-    }
-
-    /// <summary>The 400 draws of rare bright reflections (tests/STYLE.md, "Long tests").</summary>
-    [Collection(GpuCollection.Name)]
-    public sealed class RareBrightReflectionsForFourHundredDraws
-    {
-        [Fact]
-        public void RareBrightReflectionSamplesInAStillAreNoEvidenceOfADrop()
-        {
-            // One ray block in 32 takes 16 times the light. The narrow box cuts such samples, so the slow history lies
-            // below its fast history, which is no drop: a test of both signs fired in 16 % of the block-draws of the CPU
-            // model at such a tail (docs/plans/bounce-light-confidence.md, section 9).
-            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
-                parameters: SignalParameters.Specular(0),
-                roughness: 0.8f
-            );
-            try
-            {
-                int cut = DrawRareBrightReflections(
-                    renderer: renderer,
-                    sample: sample,
-                    scene: scene,
-                    count: BlocksCutWhole
-                );
-
-                cut.Should().Be(0, "no block finds a drop in a still after draw 64");
-            }
-            finally
-            {
-                Gpu.DisposeAndAssertClean(renderer);
-            }
-        }
-
-        [Fact]
-        public void AStillMirrorUnderRareBrightSamplesKeepsItsSpeckCount()
-        {
-            // A speck is a pixel whose slow history holds more than twice the samples' mean, 1 + 15 / 32. The narrow box
-            // keeps them rare, and false evidence would cut histories to the fast window, which shows each rare sample.
-            int specks = MirrorSpecks(SignalParameters.Specular(0));
-            int narrowSpecks = MirrorSpecks(SignalParameters.Specular(0) with { Confidence = new NarrowBox() });
-
-            specks
-                .Should()
-                .BeLessThanOrEqualTo(
-                    (int)(1.1f * narrowSpecks),
-                    "the drop test adds no specks to a still mirror: it found {0} without the test",
-                    narrowSpecks
-                );
-        }
-
-        /// <summary>The specks of a still mirror over draws 65 to 400 under <paramref name="parameters"/>.</summary>
-        private static int MirrorSpecks(SignalParameters parameters)
-        {
-            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
-                parameters: parameters,
-                roughness: 0.045f
-            );
-            try
-            {
-                return DrawRareBrightReflections(
-                    renderer: renderer,
-                    sample: sample,
-                    scene: scene,
-                    count: _ =>
-                        HistoryOf(renderer, sample, part: 0).Chunk(4).Count(texel => texel[0] > 2 * (1 + 15f / 32))
-                );
-            }
-            finally
-            {
-                Gpu.DisposeAndAssertClean(renderer);
-            }
-        }
-
-        /// <summary>
-        /// Draws 400 frames in which one ray block in 32 takes the light 16 and the rest 1, and sums
-        /// <paramref name="count"/> of the lengths of part 0 over the draws after the 64th.
-        /// </summary>
-        private static int DrawRareBrightReflections(
-            VulkanRenderer renderer,
-            SamplePass sample,
-            RenderSnapshot scene,
-            Func<float[], int> count
-        )
-        {
-            int frame = 0;
-            sample.Samples = (column, row) =>
-                new Vector4(new Vector3(Hashed(column / 2, row / 2, frame) % 32 == 0 ? 16 : 1), 1);
-            renderer.Render(scene, 1f);
-            int sum = 0;
-            for (frame = 1; frame <= 400; frame++)
-            {
-                Continue(renderer, scene, frames: 1);
-                if (frame > 64)
-                    sum += count(LengthsOf(renderer, sample));
-            }
-            return sum;
         }
     }
 }

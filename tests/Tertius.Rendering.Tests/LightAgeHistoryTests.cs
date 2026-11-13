@@ -705,6 +705,79 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
             }
         );
 
+    /// <summary>The fast cap of the bounce light: the length to which light evidence cuts its histories.</summary>
+    private const float DiffuseFastCap = 4;
+
+    [Fact]
+    public void ALampThatGoesOutCutsTheBounceHistoriesOfTheBlocksThatSeeItsLight() =>
+        WithRenderer(
+            null,
+            (renderer, scene) =>
+            {
+                // The emitter goes out, and 4 draws later the record counts the change. A block of 8 × 8 pixels whose
+                // diffuse rays bring its light code has light evidence, which cuts every history of the block to the fast
+                // cap, also the histories of the pixels whose own rays missed the emitter in this draw
+                // (docs/plans/bounce-light-confidence.md, section 8.2).
+                Draw(renderer, scene, 64);
+                SetGlow(renderer, scene, Vector3.Zero);
+
+                Draw(renderer, scene, LightChangeDraws);
+
+                float[] codes = DiffuseLightCodes(renderer);
+                float[] slow = renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.Slow(0));
+                int[] seeing =
+                [
+                    .. Enumerable
+                        .Range(0, Width * Height)
+                        .Where(pixel => codes[pixel] is >= 1 and <= 7)
+                        .Select(BlockOf)
+                        .Distinct(),
+                ];
+                output.WriteLine($"Blocks whose diffuse rays saw the lamp go out: {seeing.Length}.");
+                seeing.Length.Should().BeGreaterThan(10, "the floor's rays see the emitter");
+                Enumerable
+                    .Range(0, Width * Height)
+                    .Where(pixel => seeing.Contains(BlockOf(pixel)))
+                    .Select(pixel => LengthAt(slow, pixel))
+                    .Should()
+                    .OnlyContain(length => length <= DiffuseFastCap, "light evidence cuts every history of its block");
+            }
+        );
+
+    [Fact]
+    public void AfterALampGoesOutTheBounceLightSettlesWithinFivePercentInSixtyDraws() =>
+        WithRenderer(
+            null,
+            (renderer, scene) =>
+            {
+                // The settle tolerance of the epic: 60 draws after the emitter goes out, the floor's bounce light keeps at
+                // most 5 % of the step to where it settles, the mean of draws 200 to 231 (docs/plans/bounce-light-confidence.md,
+                // section 22, point 5). The floor's bounce light comes almost all from the emitter. The widened box alone
+                // would drain the old light at 1 / 32 per draw.
+                Draw(renderer, scene, 64);
+                float before = FloorBounceLight(renderer);
+                SetGlow(renderer, scene, Vector3.Zero);
+
+                Draw(renderer, scene, 60);
+                float early = FloorBounceLight(renderer);
+                Draw(renderer, scene, 140);
+                float settled = 0;
+                for (int draw = 0; draw < 32; draw++)
+                {
+                    Draw(renderer, scene, 1);
+                    settled += FloorBounceLight(renderer) / 32;
+                }
+
+                output.WriteLine(
+                    $"Floor bounce light: {before:F4} lit, {early:F4} after 60 draws, {settled:F4} settled."
+                );
+                (before - settled).Should().BePositive("the emitter lit the floor");
+                (early - settled)
+                    .Should()
+                    .BeLessThanOrEqualTo(0.05f * (before - settled), "the bounce light settles within 60 draws");
+            }
+        );
+
     [Fact]
     public void ADisoccludedSurfaceHasNoLightAgeEvidence() =>
         WithRenderer(
@@ -1375,6 +1448,27 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
             renderer.ScreenTraceSignals.Specular.SampleAge(0)
                 ?? throw new InvalidOperationException("The original specular history keeps no light age.")
         );
+
+    /// <summary>The light code of the diffuse sample's age per pixel: 0 for no light age, else the age plus 1.</summary>
+    private static float[] DiffuseLightCodes(VulkanRenderer renderer) =>
+        [
+            .. renderer
+                .ReadImage(
+                    renderer.ScreenTraceSignals.Diffuse.SampleAge(0)
+                        ?? throw new InvalidOperationException("The original specular history keeps no light age.")
+                )
+                .Select(age => (float)((int)age & TemporalSignal.LightCodeMask)),
+        ];
+
+    /// <summary>The block of 8 × 8 pixels, one workgroup of the accumulation, that holds the pixel.</summary>
+    private static int BlockOf(int pixel) => pixel / Width / 8 * (Width / 8) + pixel % Width / 8;
+
+    /// <summary>The mean luminance of the diffuse slow history over the floor, the image's lower half.</summary>
+    private static float FloorBounceLight(VulkanRenderer renderer)
+    {
+        float[] slow = renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.Slow(0));
+        return (float)Enumerable.Range(Height / 2 * Width, Width * Height / 2).Average(pixel => Luminance(slow, pixel));
+    }
 
     /// <summary>
     /// The frames on screen of a pixel whose light the record never saw change, from its first frame at 0: the record

@@ -4,7 +4,8 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>The producer of <paramref name="signal"/>: it clears each part to <see cref="Value"/> or uploads
-/// <see cref="Samples"/> per pixel, and clears each part's sample age to <see cref="AgeCode"/>. Uploads stay alive until the
+/// <see cref="Samples"/> per pixel, and clears each part's sample age to <see cref="AgeCode"/> or uploads
+/// <see cref="AgeCodes"/>. Uploads stay alive until the
 /// pass is disposed.</summary>
 internal sealed unsafe class SamplePass(TemporalSignal signal, DeviceAllocator allocator) : RenderPass
 {
@@ -15,13 +16,15 @@ internal sealed unsafe class SamplePass(TemporalSignal signal, DeviceAllocator a
     public Func<int, int, Vector4>? Samples { get; set; }
 
     /// <summary>
-    /// The age code of every sample (TemporalSignal.SampleAge): 0, the default, for no evidence of a light change, as the
-    /// resolve writes it where no ray brings one, else the age in frames of the light that the rays saw, plus 1.
+    /// The sample age of every sample (TemporalSignal.SampleAge, sample_age.glsl): 0, the default, for no evidence, as the
+    /// resolve writes it where no ray brings a light age and nothing moves. Its light code, in
+    /// <see cref="TemporalSignal.LightCodeMask"/>, is the age in frames of the light that the rays saw, plus 1, and
+    /// <see cref="TemporalSignal.SampleMotionBit"/> says that the sample saw motion.
     /// </summary>
     public uint AgeCode { get; set; }
 
     /// <summary>
-    /// The age code of each pixel's sample, by column and row, in place of <see cref="AgeCode"/> where it is set.
+    /// The sample age of each pixel's sample, by column and row, in place of <see cref="AgeCode"/> where it is set.
     /// </summary>
     public Func<int, int, ushort>? AgeCodes { get; set; }
 

@@ -641,10 +641,8 @@ public sealed class DiffuseFilterRenderTests(ITestOutputHelper output)
         // the clamp never moves a history (ticket td-hjn6), and every history keeps its cap of 32: the image's history
         // follows its samples' blend. The slow history's three half-float stores a draw may each round toward zero, as
         // the spec allows, and lose half a half-float step on average, 2^−11 of the light: 3 · 32 · 2^−11 ≈ 4.7 % at the
-        // blend's weight. This GPU loses 1.8 %, and 0.9 % without the filter's store. The rare samples start with the
-        // histories: a step from steady light to them raises the expected light, which the block test rightly finds. While
-        // the histories first fill, their slow light is no mean of 32 draws yet, and blocks may find that difference: so
-        // the test begins 96 draws after them, past the 28 draws in which a cut history grows back to its cap.
+        // blend's weight. This GPU loses 1.8 %, and 0.9 % without the filter's store. The test begins 96 draws after the
+        // rare samples start, when every history has held its cap of 32 for many draws.
         (VulkanRenderer renderer, SamplePass sample, _, RenderSnapshot scene) = FilteringBounceLight();
         try
         {
@@ -729,62 +727,6 @@ public sealed class DiffuseFilterRenderTests(ITestOutputHelper output)
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
-    }
-
-    [Fact]
-    public void AStillBandOfLightThatTheFilterBlursIsNoEvidenceOfAChange()
-    {
-        // A band of light 4, one block wide, on a wall of light 1, each ray block's sample spread with a coefficient of
-        // variation of 0.3. The filter's feedback step blurs the band into its neighbors and writes that light into the
-        // slow history, so the band's slow history lies well below the mean of its own samples, and its fast history
-        // above it. The block test compares the fast history with that own-sample mean, which the filter never writes
-        // (docs/plans/bounce-light-confidence.md, section 8). Compared with the slow history, the band's block fired in
-        // every draw. The count starts after the histories have filled to their cap of 32.
-        int frame = 0;
-        (VulkanRenderer renderer, SamplePass sample, _, RenderSnapshot scene) = FilteringBounceLight();
-        try
-        {
-            sample.Samples = (column, row) =>
-            {
-                float uniform = RayBlockHash(column, row, frame) / (float)uint.MaxValue * 2 - 1;
-                float light = column is >= Width / 2 and < Width / 2 + 8 ? 4 : 1;
-                return new Vector4(new Vector3(light * (1 + MathF.Sqrt(3) * 0.3f * uniform)), 1);
-            };
-
-            int cut = 0;
-            for (frame = 0; frame < 300; frame++)
-            {
-                Continue(renderer, scene, frames: 1);
-                if (frame >= 100)
-                    cut += BlocksCutWhole(renderer.ReadImage(sample.Signal.Slow(0)));
-            }
-
-            cut.Should().Be(0, "the filter's blur of a still band of light is no change of its light");
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(renderer);
-        }
-    }
-
-    /// <summary>
-    /// The blocks of 8 × 8 pixels inside the image whose every pixel has a history length of at most the fast cap of 4
-    /// in <paramref name="slow"/>, a slow history read row by row from the top: the blocks whose histories the block
-    /// test's evidence cut at once. The anti-lag cuts single pixels.
-    /// </summary>
-    private static int BlocksCutWhole(float[] slow)
-    {
-        int cut = 0;
-        for (int top = 0; top + 8 <= Height; top += 8)
-        for (int left = 0; left + 8 <= Width; left += 8)
-        {
-            bool allCut = true;
-            for (int y = top; y < top + 8; y++)
-            for (int x = left; x < left + 8; x++)
-                allCut &= slow[4 * (y * Width + x) + 3] is > 0 and <= 4;
-            cut += allCut ? 1 : 0;
-        }
-        return cut;
     }
 
     /// <summary>The kernels by name, and how far each one's steps together reach along an axis, in pixels.</summary>

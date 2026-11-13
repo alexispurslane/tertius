@@ -1,22 +1,57 @@
 #version 460
 // The spatial dispatch of an accumulation (docs/plans/temporal-renderer.md, section 8, steps 3 to 5): one invocation
 // per pixel fixes a short history from its neighbors in the scratch image, clamps the slow history into the box of this
-// frame's fast history around the pixel, shortens the length by the clamp's move, and writes the slow history. Where a
-// window of the pixel's block finds evidence of a change (accumulate_blocks.glsl), the box drops its widening for this
-// draw, the length falls to the fast cap and the own-sample mean restarts at the fast history
-// (docs/plans/bounce-light-confidence.md, section 8).
+// frame's fast history around the pixel, shortens the length by the clamp's move, and writes the slow history. The
+// workgroup is a block of 8 × 8 pixels, and the block's evidence level, the strongest of its pixels' samples, acts on
+// every pixel of it in this draw: motion evidence drops the box's widening, and light evidence also cuts the length to
+// the fast cap (docs/plans/bounce-light-confidence.md, section 8).
 #extension GL_GOOGLE_include_directive : require
 #include "accumulate.glsl"
-#define ACCUMULATE_BLOCK_WINDOWS
-#include "accumulate_blocks.glsl"
 #include "accumulate_reflection_guide.glsl"
 #include "meter.glsl"
 
 // The least luminance by which the clamp divides: the lag's share and the chroma of the widening.
 const float LeastLuminance = 1e-4;
 
-// Steps 3 to 5 at a pixel inside the images, where `evidence` says whether a window of its block fired.
-void accumulateAt(ivec2 pixel, bool evidence)
+// The evidence levels of a block, ordered by strength (section 8.2). Motion evidence narrows the box for this draw, and
+// light evidence also cuts the length to the fast cap.
+const uint NoEvidence = 0u;
+const uint MotionEvidence = 1u;
+const uint LightEvidence = 2u;
+
+#ifdef TERTIUS_LIGHT_AGE
+// The block's evidence level in this draw, which its 64 invocations share.
+shared uint blockEvidence;
+
+// The evidence level of one sample, from its age (sample_age.glsl): light evidence where one of its rays saw a recent
+// light change, motion evidence where it saw motion. This is the one place that chooses the action of motion: a moved
+// object narrows the box and does not cut, because a cut makes the pixels trace their own rays for as long as the motion
+// lasts (docs/plans/bounce-light-confidence.md, section 8.2, open point 1).
+uint evidenceOfSample(uint sampleAge)
+{
+    if (recentLightCode(lightCodeOf(sampleAge)))
+        return LightEvidence;
+    return sawMotion(sampleAge) ? MotionEvidence : NoEvidence;
+}
+
+// The evidence level of the workgroup's block: the strongest level of its pixels' samples. Every invocation of the
+// workgroup calls it from main before any branch, so both barriers run in uniform control flow. A maximum does not depend
+// on the order of the invocations, so one machine gives the same level in every run. A sky pixel's age is 0, and a pixel
+// outside the images adds nothing.
+uint evidenceOfBlock(ivec2 pixel)
+{
+    if (gl_LocalInvocationIndex == 0u)
+        blockEvidence = NoEvidence;
+    barrier();
+    if (insideImages(pixel))
+        atomicMax(blockEvidence, evidenceOfSample(imageLoad(sampleAge, pixel).r));
+    barrier();
+    return blockEvidence;
+}
+#endif
+
+// Steps 3 to 5 at a pixel inside the images, where `evidence` is its block's evidence level in this draw.
+void accumulateAt(ivec2 pixel, uint evidence)
 {
     vec4 scratched = imageLoad(scratch, pixel);
     vec2 guide = vec2(0.0);
@@ -91,9 +126,10 @@ void accumulateAt(ivec2 pixel, bool evidence)
         vec3 sigma = sqrt(max(squares / count - mean * mean, vec3(0.0)));
         // The box holds every excursion that the history's own samples explain: at least retainedSigmas retained
         // deviations, in the chroma of the history, which holds the excess (docs/plans/bounce-light-confidence.md,
-        // section 7). The reflections' narrow box takes none, and evidence of a change drops the widening for this draw.
+        // section 7). The reflections' narrow box takes none, and either level of evidence drops the widening for this
+        // draw.
         vec3 spread = parameters.clampSigmas * sigma;
-        if (parameters.retainedSigmas > 0.0 && !evidence)
+        if (parameters.retainedSigmas > 0.0 && evidence == NoEvidence)
         {
             float deviation = imageLoad(fastHistory, pixel).a;
             spread = max(spread, parameters.retainedSigmas * deviation * slow / max(luminance(slow), LeastLuminance));
@@ -105,13 +141,11 @@ void accumulateAt(ivec2 pixel, bool evidence)
         storeTrace(pixel, 6, vec4(mean, lag));
         storeTrace(pixel, 7, vec4(sigma, 0.0));
 #endif
-        // Evidence of a change restarts the history and the own-sample mean from the fast window, which already holds
-        // the change. A mean that blended on from the old light would stay apart from the fast history and fire again.
-        historyLength = evidence
+        // Light evidence restarts the history from the fast window, which already holds the change. Motion has no known
+        // size, so the narrow box measures it, and the anti-lag shortens the history by the clamp's move.
+        historyLength = evidence == LightEvidence
             ? fastCap
             : max(fastCap, historyLength * (1.0 - min(1.0, lag / parameters.antiLagShare)));
-        if (evidence)
-            imageStore(ownMeanHistory, pixel, vec4(luminance(imageLoad(fastHistory, pixel).rgb)));
         slow = clamped;
     }
 
@@ -131,13 +165,15 @@ void accumulateAt(ivec2 pixel, bool evidence)
         imageStore(reflectionGuide, pixel, vec4(guide, 0.0, 0.0));
 }
 
-// Every invocation reaches the block test's barriers, also outside the images.
 void main()
 {
-    bool evidence = false;
-    if (parameters.blockTest != 0u)
-        evidence = blockEvidence(parameters.changeShare, parameters.retainedSigmas);
     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    // A signal without a light age has no evidence.
+#ifdef TERTIUS_LIGHT_AGE
+    uint evidence = evidenceOfBlock(pixel);
+#else
+    uint evidence = NoEvidence;
+#endif
     if (insideImages(pixel))
         accumulateAt(pixel, evidence);
 }

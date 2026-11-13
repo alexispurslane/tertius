@@ -23,24 +23,15 @@ namespace Tertius.Rendering;
 /// history its retained deviation, which the clamp's box and the diffuse filter read (<see cref="HistoryConfidence"/>).
 /// The sample is a color attachment of its producer, and every other image stays in the General layout. The signals share
 /// the scratch images (<see cref="SignalScratch"/>). Beside a precise specular history, each part also owns its sample's
-/// light age, which the resolve writes and the temporal dispatch reads at binding 11 (the light-change age, ticket
-/// tiunr-7haj): the temporal dispatch of both signals cuts its history by it (ticket ter-wkvw for the diffuse signal). The
-/// diffuse signal keeps its half-precision history and takes the light-age variant of its temporal dispatch
-/// (<see cref="ShaderVariant.LightAge"/>).
-/// </para>
-/// <para>
-/// Each part also owns its block sums (<see cref="BlockSums"/>), one texel per block of 8 × 8 pixels, which the temporal
-/// dispatch writes and the spatial dispatch reads within one accumulation: the block test's evidence of a change
-/// (docs/plans/bounce-light-confidence.md, section 8), where the signal's <see cref="HistoryConfidence"/> runs it. Beside a
-/// precise history, a reflection part also owns its retained deviation, two R16F images by parity
-/// (<see cref="DeviationImage"/>), which its block test of drops pools (section 6). Every part with a fast history also
-/// owns its own-sample mean, two images by parity at the slow history's precision (<see cref="OwnMean"/>), which the
-/// block test compares with the fast history (section 8).
+/// age (<see cref="SampleAge"/>, sample_age.glsl), which the resolve writes and both dispatches read at binding 11 (the
+/// light-change age, ticket tiunr-7haj): the temporal dispatch of both signals cuts its history by the light code (ticket
+/// ter-wkvw for the diffuse signal), and the spatial dispatch acts on the evidence of each block of 8 × 8 pixels
+/// (docs/plans/bounce-light-confidence.md, section 8). The diffuse signal keeps its half-precision history and takes the
+/// light-age variant of both dispatches (<see cref="ShaderVariant.LightAge"/>).
 /// </para>
 /// <para>Invariants, checked by <see cref="AssertInvariants"/>:</para>
 /// <list type="bullet">
-/// <item>Every image of every part has the size of the targets that the signal binds, and its block sums one texel per
-/// block of those targets.</item>
+/// <item>Every image of every part has the size of the targets that the signal binds.</item>
 /// <item>The signal sets hold one set per part and parity.</item>
 /// <item>The parameter set has a cap and a fast cap of at least 1.</item>
 /// </list>
@@ -73,22 +64,8 @@ internal sealed unsafe class TemporalSignal : IDisposable
     public const Format UncoveredDiagnosticFormat = Format.R32G32B32A32Sfloat;
 
     /// <summary>
-    /// The format of the block sums: per block of 8 × 8 pixels the sums over its streams of the difference of the fast
-    /// history's luminance and the own-sample mean (<see cref="OwnMean"/>), of its predicted variance, the count of
-    /// streams, and the sum of the own-sample mean (accumulate_blocks.glsl). Single floats, because a window adds up to
-    /// 49 texels of up to 16 streams each.
-    /// </summary>
-    public const Format BlockSumsFormat = Format.R32G32B32A32Sfloat;
-
-    /// <summary>
-    /// The format of the reflections' retained deviation beside a precise history, in pre-exposed luminance: their fast
-    /// history's alpha holds the hit distance.
-    /// </summary>
-    public const Format DeviationFormat = Format.R16Sfloat;
-
-    /// <summary>
-    /// The width and the height of a workgroup of both dispatches, the shaders' local size, and of a block of the block
-    /// test.
+    /// The width and the height of a workgroup of both dispatches, the shaders' local size, and so of a block, whose
+    /// evidence the spatial dispatch shares among its pixels.
     /// </summary>
     private const uint GroupSize = 8;
 
@@ -130,7 +107,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
         ArgumentOutOfRangeException.ThrowIfGreaterThan(parts, MostParts);
         if (!ConfidenceFitsLight(parameters))
             throw new ArgumentException(
-                "The widened box keeps the deviation of the diffuse light, and the drop evidence that of the reflections.",
+                "The widened box keeps the deviation of the diffuse light in its fast alpha, where the reflections keep the hit distance.",
                 nameof(parameters)
             );
         CheckDevice(device);
@@ -169,7 +146,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
         singleDiffuseHistory = prototype.SingleDiffuseHistory;
         Parameters = parameters with
         {
-            Confidence = ConfidenceOf(parameters.Confidence, singleDiffuseHistory, scratch.HistoryMode),
+            Confidence = ConfidenceOf(parameters.Confidence, singleDiffuseHistory, scratch.HistoryMode.KeepsLightAge),
         };
         reflectionDistanceHistory =
             parameters.Light == SignalLight.Specular
@@ -185,27 +162,24 @@ internal sealed unsafe class TemporalSignal : IDisposable
 
     /// <summary>
     /// Whether the confidence rules of <paramref name="parameters"/> keep their deviation where its signal's shaders look
-    /// for it: the diffuse light's in its fast history's alpha, the reflections' in an image of their own.
+    /// for it: only the diffuse light's fast history keeps a deviation in its alpha.
     /// </summary>
     private static bool ConfidenceFitsLight(SignalParameters parameters) =>
         parameters.Confidence switch
         {
             WidenedBox => parameters.Light == SignalLight.Diffuse,
-            DropEvidence => parameters.Light == SignalLight.Specular,
             NarrowBox => true,
             null => throw new ArgumentException("A signal's parameters need confidence rules.", nameof(parameters)),
         };
 
     /// <summary>
     /// The rules that a signal of <paramref name="confidence"/> follows: the narrow box where its storage keeps no deviation
-    /// for them. The single history keeps no fast history to widen a box by, and the original history no image of the
-    /// reflections' deviation to pool.
+    /// to widen a box by, or its samples no light age, whose evidence would narrow the box again. The single history keeps
+    /// no fast history, and beside the original specular history no sample has a light age
+    /// (docs/plans/bounce-light-confidence.md, section 13).
     /// </summary>
-    private static HistoryConfidence ConfidenceOf(
-        HistoryConfidence confidence,
-        bool singleHistory,
-        SpecularHistoryMode mode
-    ) => singleHistory || confidence is DropEvidence && !mode.KeepsRetainedDeviation ? new NarrowBox() : confidence;
+    private static HistoryConfidence ConfidenceOf(HistoryConfidence confidence, bool singleHistory, bool lightAge) =>
+        singleHistory || !lightAge ? new NarrowBox() : confidence;
 
     /// <summary>The pipeline of the dispatch of <paramref name="kind"/>, "temporal" or "spatial": accumulate_kind.comp.</summary>
     private Pipeline CreatePipeline(ShaderLibrary shaders, string kind, bool limitIncoming = false) =>
@@ -240,12 +214,6 @@ internal sealed unsafe class TemporalSignal : IDisposable
     public SignalParameters Parameters { get; }
 
     /// <summary>
-    /// Whether the signal keeps its retained deviation in an image pair of its own: the reflections beside a precise
-    /// history, whose shaders declare it and whose fast history's alpha holds the hit distance.
-    /// </summary>
-    private bool KeepsDeviationImage => Parameters.Light == SignalLight.Specular && HistoryMode.KeepsRetainedDeviation;
-
-    /// <summary>
     /// The slow history's storage: the specular history's mode, or original storage for other signals. Whether the signal's
     /// samples have a light age is <see cref="KeepsLightAge"/>.
     /// </summary>
@@ -273,7 +241,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
 
     /// <summary>
     /// The variant of <paramref name="shader"/> for a half-precision history whose samples have a light age: the
-    /// light-age variant for the shaders that it holds, the temporal dispatch, and the shader itself otherwise.
+    /// light-age variant for the shaders that it holds, both dispatches, and the shader itself otherwise.
     /// </summary>
     internal static string LightAgeShader(string shader) =>
         ShaderVariant.LightAge.Shaders.Contains(shader)
@@ -325,28 +293,6 @@ internal sealed unsafe class TemporalSignal : IDisposable
     /// (<see cref="SampleAgeFormat"/>, <see cref="KeepsLightAge"/>), or null without it.
     /// </summary>
     public GpuImage? SampleAge(int part) => parts[part].SampleAge;
-
-    /// <summary>
-    /// The block sums of <paramref name="part"/> after the last accumulation (<see cref="BlockSumsFormat"/>), one texel per
-    /// block of 8 × 8 pixels, which only a signal with a block test writes. The tests and the survey's probe read it.
-    /// </summary>
-    public GpuImage BlockSums(int part) => parts[part].BlockSums;
-
-    /// <summary>
-    /// The reflections' retained deviation of <paramref name="part"/> that the frame of <paramref name="parity"/> writes
-    /// beside a precise history (<see cref="DeviationFormat"/>), which <see cref="DropEvidence"/> pools, or null without it.
-    /// </summary>
-    public GpuImage? DeviationImage(int part, int parity) => parts[part].Deviation(parity);
-
-    /// <summary>
-    /// The own-sample mean of <paramref name="part"/> that the frame of <paramref name="parity"/> writes, in
-    /// pre-exposed luminance at the slow history's precision, or null under the single-history prototype, whose shaders
-    /// keep none. It is the
-    /// luminance mean of the pixel's own samples with the slow history's weight, which neither the clamp nor the
-    /// diffuse filter moves; the block test compares the fast history with it, and its evidence restarts it at the fast
-    /// history (docs/plans/bounce-light-confidence.md, section 8).
-    /// </summary>
-    public GpuImage? OwnMean(int part, int parity) => parts[part].OwnMean(parity);
 
     /// <summary>
     /// The diagnostic of uncovered surfaces of <paramref name="part"/> under <see cref="HistoryInstrumentation.LightAgeDiagnostic"/>
@@ -456,37 +402,16 @@ internal sealed unsafe class TemporalSignal : IDisposable
         }
         // After the last signal's spatial dispatch, which read it.
         barriers.Image(scratch.Part(part, HistoryMode), ImageUse.StorageCompute, discard: true);
-        // Discarded: with the block test, the temporal dispatch writes every texel, and without it no dispatch reads one.
-        barriers.Image(images.BlockSums, ImageUse.StorageCompute, discard: true);
-        BeforeTemporal(barriers: barriers, last: images.Deviation(1 - parity), current: images.Deviation(parity));
-        BeforeTemporal(barriers: barriers, last: images.OwnMean(1 - parity), current: images.OwnMean(parity));
-    }
-
-    /// <summary>
-    /// The barriers of an image pair by parity before the temporal dispatch, which reads <paramref name="last"/>, the
-    /// last draw's, and writes every pixel of <paramref name="current"/>, so its content is discarded. A part without the
-    /// pair has neither.
-    /// </summary>
-    private static void BeforeTemporal(BarrierBatch barriers, GpuImage? last, GpuImage? current)
-    {
-        if (last is not null)
-            barriers.Image(last, ImageUse.StorageCompute);
-        if (current is not null)
-            barriers.Image(current, ImageUse.StorageCompute, discard: true);
     }
 
     /// <summary>
     /// The barriers of <paramref name="part"/>'s images before its spatial dispatch, which reads the neighbors' results of
-    /// the temporal one and the block sums of its windows.
+    /// the temporal one. The sample age needs none: both dispatches only read it.
     /// </summary>
     private void BeforeSpatial(BarrierBatch barriers, int part, int parity)
     {
         PartImages images = parts[part];
         barriers.Image(scratch.Part(part, HistoryMode), ImageUse.StorageCompute);
-        barriers.Image(images.BlockSums, ImageUse.StorageCompute);
-        // The spatial dispatch restarts the temporal dispatch's mean where it finds evidence.
-        if (images.OwnMean(parity) is { } ownMean)
-            barriers.Image(ownMean, ImageUse.StorageCompute);
         if (!reflectionDistanceHistory && HistoryMode != SpecularHistoryMode.Original)
             barriers.Image(scratch.Part(part), ImageUse.StorageCompute);
         if (!singleDiffuseHistory)
@@ -534,7 +459,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
 
     private static bool SameExtent(Extent2D a, Extent2D b) => a.Width == b.Width && a.Height == b.Height;
 
-    /// <summary>The blocks of 8 × 8 pixels that cover <paramref name="extent"/>: one per workgroup of each dispatch.</summary>
+    /// <summary>The blocks of 8 × 8 pixels that cover <paramref name="extent"/>: one workgroup of each dispatch per block.</summary>
     private static Extent2D BlocksOf(Extent2D extent) =>
         new((extent.Width + GroupSize - 1) / GroupSize, (extent.Height + GroupSize - 1) / GroupSize);
 
@@ -596,16 +521,6 @@ internal sealed unsafe class TemporalSignal : IDisposable
                     ]
                     : [],
                 Ages: CreateAges(extent, part),
-                Deviations: KeepsDeviationImage
-                    ? [CreateDeviation(extent, part, 0), CreateDeviation(extent, part, 1)]
-                    : [],
-                OwnMeans: singleDiffuseHistory ? [] : [CreateOwnMean(extent, part, 0), CreateOwnMean(extent, part, 1)],
-                BlockSums: CreateImage(
-                    extent: BlocksOf(extent),
-                    imageName: $"{Name} block sums {part}",
-                    extraUsage: 0,
-                    format: BlockSumsFormat
-                ),
                 Traces: Instrumentation == HistoryInstrumentation.ControlTrace ? [CreateTrace(extent, part)] : []
             );
             for (int parity = 0; parity < 2; parity++)
@@ -644,26 +559,6 @@ internal sealed unsafe class TemporalSignal : IDisposable
                 binding: 12,
                 image: images.Ages is [_, var diagnostic] ? diagnostic : images.Sample
             );
-        layouts.WriteStorageImage(set: set, binding: DescriptorLayouts.BlockSumsBinding, image: images.BlockSums);
-        // The reflections' retained deviation, which only their precise temporal dispatch reads and writes: another signal
-        // binds its sample.
-        if (layouts.HistoryMode.KeepsRetainedDeviation)
-            WritePair(
-                set: set,
-                bindings: (Last: DescriptorLayouts.LastDeviationBinding, Current: DescriptorLayouts.DeviationBinding),
-                pair: images.Deviations,
-                parity: parity,
-                placeholder: images.Sample
-            );
-        // The own-sample mean, which the shaders of every signal with a fast history declare: the single-history
-        // prototype's shaders declare none, so it binds its sample.
-        WritePair(
-            set: set,
-            bindings: (Last: DescriptorLayouts.LastOwnMeanBinding, Current: DescriptorLayouts.OwnMeanBinding),
-            pair: images.OwnMeans,
-            parity: parity,
-            placeholder: images.Sample
-        );
         // The accumulation trace, which only the specular signal's dispatches write: another signal binds its sample.
         if (scratch.Instrumentation == HistoryInstrumentation.ControlTrace)
             layouts.WriteStorageImage(
@@ -671,22 +566,6 @@ internal sealed unsafe class TemporalSignal : IDisposable
                 binding: 12,
                 image: images.Traces is [var trace] ? trace : images.Sample
             );
-    }
-
-    /// <summary>
-    /// Writes an image pair by parity, <paramref name="pair"/>: the last draw's at <c>bindings.Last</c> and this draw's at
-    /// <c>bindings.Current</c>, or <paramref name="placeholder"/> at both where the part has no such pair.
-    /// </summary>
-    private void WritePair(
-        DescriptorSet set,
-        (uint Last, uint Current) bindings,
-        GpuImage[] pair,
-        int parity,
-        GpuImage placeholder
-    )
-    {
-        layouts.WriteStorageImage(set: set, binding: bindings.Last, image: pair is [] ? placeholder : pair[1 - parity]);
-        layouts.WriteStorageImage(set: set, binding: bindings.Current, image: pair is [] ? placeholder : pair[parity]);
     }
 
     /// <summary>
@@ -709,26 +588,6 @@ internal sealed unsafe class TemporalSignal : IDisposable
                 ),
             ],
         };
-
-    /// <summary>The reflections' retained deviation of <paramref name="part"/> that the frame of <paramref name="parity"/> writes.</summary>
-    private GpuImage CreateDeviation(Extent2D extent, int part, int parity) =>
-        CreateImage(
-            extent: extent,
-            imageName: $"{Name} retained deviation {part}.{parity}",
-            extraUsage: 0,
-            format: DeviationFormat
-        );
-
-    /// <summary>The own-sample mean of <paramref name="part"/> that the frame of <paramref name="parity"/>
-    /// writes.</summary>
-    private GpuImage CreateOwnMean(Extent2D extent, int part, int parity) =>
-        CreateImage(
-            extent: extent,
-            imageName: $"{Name} own-sample mean {part}.{parity}",
-            extraUsage: 0,
-            // The slow history's precision, so that the mean of a long history keeps the small steps that it keeps.
-            format: HistoryMode == SpecularHistoryMode.Original ? Format.R16Sfloat : Format.R32Sfloat
-        );
 
     /// <summary>The sample age of <paramref name="part"/>, which its producer writes as it writes the sample.</summary>
     private GpuImage CreateSampleAge(Extent2D extent, int part) =>
@@ -801,9 +660,6 @@ internal sealed unsafe class TemporalSignal : IDisposable
         GpuImage[] Fasts,
         GpuImage[] Guides,
         GpuImage[] Ages,
-        GpuImage[] Deviations,
-        GpuImage[] OwnMeans,
-        GpuImage BlockSums,
         GpuImage[] Traces
     )
     {
@@ -819,14 +675,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
 
         public GpuImage? SampleAge => Ages is [var age, ..] ? age : null;
 
-        /// <summary>The reflections' retained deviation that the frame of <paramref name="parity"/> writes, if any.</summary>
-        public GpuImage? Deviation(int parity) => Deviations.Length == 0 ? null : Deviations[parity];
-
-        /// <summary>The own-sample mean that the frame of <paramref name="parity"/> writes, if any.</summary>
-        public GpuImage? OwnMean(int parity) => OwnMeans.Length == 0 ? null : OwnMeans[parity];
-
-        public IEnumerable<GpuImage> All =>
-            [Sample, Slow, .. Fasts, .. Guides, .. Ages, .. Deviations, .. OwnMeans, BlockSums, .. Traces];
+        public IEnumerable<GpuImage> All => [Sample, Slow, .. Fasts, .. Guides, .. Ages, .. Traces];
 
         /// <summary>Whether every image has <paramref name="extent"/>.</summary>
         public bool Fit(Extent2D extent) =>
@@ -835,10 +684,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
             && AllFit(Fasts, extent)
             && AllFit(Guides, extent)
             && AllFit(Ages, extent)
-            && AllFit(Deviations, extent)
-            && AllFit(OwnMeans, extent)
-            && AllFit(Traces, extent)
-            && SameExtent(BlockSums.Extent, BlocksOf(extent));
+            && AllFit(Traces, extent);
 
         /// <summary>Whether every image of <paramref name="images"/> has <paramref name="extent"/>.</summary>
         private static bool AllFit(GpuImage[] images, Extent2D extent)

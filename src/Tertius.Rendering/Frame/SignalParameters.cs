@@ -29,8 +29,7 @@ internal enum SignalLight
 /// <param name="Light">The signal's light, which chooses its closed form.</param>
 /// <param name="ReflectedPlaceBelow">Below this roughness, the reflected place competes and tests hit distances.
 /// The surface place never does. 0 disables it.</param>
-/// <param name="Confidence">The history's confidence rules: whether a retained deviation widens the clamp's box, and
-/// whether its blocks are tested for evidence of a change.</param>
+/// <param name="Confidence">The history's confidence rules: whether a retained deviation widens the clamp's box.</param>
 internal readonly record struct SignalParameters(
     int Cap,
     int SmoothCap,
@@ -50,10 +49,8 @@ internal readonly record struct SignalParameters(
     public const float RoughRoughness = 0.7f;
 
     /// <summary>
-    /// The diffuse signal's set: a cap of 32 frames at every roughness, a box widened by two retained deviations
-    /// (docs/plans/bounce-light-confidence.md, section 7), and a block test whose floor is an eighth of the light, above
-    /// the stationary difference that the filter's write-back makes, and below which the slow blend settles a change
-    /// within 5 % in 60 draws (section 8).
+    /// The diffuse signal's set: a cap of 32 frames at every roughness, and a box widened by two retained deviations
+    /// where its block has no evidence of a change (docs/plans/bounce-light-confidence.md, section 7).
     /// </summary>
     public static SignalParameters Diffuse =>
         new(
@@ -65,13 +62,13 @@ internal readonly record struct SignalParameters(
             AntiLagShare: 0.5f,
             Light: SignalLight.Diffuse,
             ReflectedPlaceBelow: 0,
-            Confidence: new WidenedBox(RetainedSigmas: 2, ChangeShare: 1f / 8)
+            Confidence: new WidenedBox(RetainedSigmas: 2)
         );
 
     /// <summary>The specular signal's set: a cap of 4 frames for a mirror and of 32 for a rough lobe, which reuses the
-    /// diffuse rays, the reflected point's place below <paramref name="reflectedPlaceBelow"/>, the narrow box, whose rare
-    /// bright samples would show as specks without a spatial filter, and a block test of drops whose floor is the settle
-    /// tolerance, a twentieth of the light (docs/plans/bounce-light-confidence.md, section 9).</summary>
+    /// diffuse rays, the reflected point's place below <paramref name="reflectedPlaceBelow"/>, and the narrow box, whose
+    /// rare bright samples would show as specks without a spatial filter (docs/plans/bounce-light-confidence.md, section
+    /// 10).</summary>
     /// <param name="reflectedPlaceBelow">The start of the hand-over band, from which a sample's hit distance belongs to a
     /// diffuse ray.</param>
     public static SignalParameters Specular(float reflectedPlaceBelow) =>
@@ -84,6 +81,6 @@ internal readonly record struct SignalParameters(
             AntiLagShare: 0.25f,
             Light: SignalLight.Specular,
             ReflectedPlaceBelow: reflectedPlaceBelow,
-            Confidence: new DropEvidence(ChangeShare: 1f / 20)
+            Confidence: new NarrowBox()
         );
 }

@@ -794,8 +794,7 @@ class BlockConstants(unittest.TestCase):
 
     def test_the_probe_patch_reads_every_knob_of_the_takes(self):
         patch = survey.PROBE_PATCH.read_text()
-        for knob in ("BLOCK_ACTION", "BLOCK_SIGMAS", "TAIL_STREAMS", "NOISE_SCALE", "DIFFUSE_CHANGE_SHARE",
-                     "SPECULAR_CHANGE_SHARE", "RETAINED_SIGMAS", "NO_CLAMP", "BLOCK_CAPTURE", "BLOCK_EVERY"):
+        for knob in ("RETAINED_SIGMAS", "NO_CLAMP", "MOTION_CUTS"):
             self.assertIn(f'"TERTIUS_A_{knob}"', patch)
 
 

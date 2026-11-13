@@ -741,6 +741,9 @@ def lag_verdict(result: dict) -> list:
 # the difference of the fast and the slow light, and how both change with the test's constants.
 
 SHADERS = ROOT / "src" / "Tertius.Rendering" / "Shaders"
+# The last commit whose build held the block test. Design X removed accumulate_blocks.glsl (t0-0fhn), so the offline
+# evaluation of old captures reads the test's constants from that commit, until step 15 (t0-e8rh) removes the evaluation.
+BLOCK_TEST_COMMIT = "1190adce1"
 # The constants of the test, in their single home, and the cutoff light of exposure.glsl, which the test also reads.
 BLOCK_CONSTANTS = {SHADERS / "accumulate_blocks.glsl": ("LeastStreams", "TailStreams", "BlockSigmas", "BlockNoiseScale"),
                    SHADERS / "exposure.glsl": ("CutoffRadiance",)}
@@ -772,7 +775,10 @@ def block_constants() -> dict:
     """The block test's constants as the shaders hold them."""
     found = {}
     for path, names in BLOCK_CONSTANTS.items():
-        values = {m[1]: float(m[2]) / (float(m[3]) if m[3] else 1.0) for m in GLSL_CONSTANT.finditer(path.read_text())}
+        text = path.read_text() if path.exists() else subprocess.run(
+            ["git", "show", f"{BLOCK_TEST_COMMIT}:{path.relative_to(ROOT).as_posix()}"], cwd=ROOT, check=True,
+            capture_output=True, text=True).stdout
+        values = {m[1]: float(m[2]) / (float(m[3]) if m[3] else 1.0) for m in GLSL_CONSTANT.finditer(text)}
         for name in names:
             if name not in values:
                 raise ValueError(f"{path} holds no constant {name}.")
