@@ -991,6 +991,70 @@ public sealed class HairRenderTests
             .Be(Vector3.Zero, "a standard card takes none, so the test can fail");
     }
 
+    /// <summary>
+    /// A face lights a hair card from its surface record, which holds the strand beside the fiber's normal
+    /// (Shaders/face_surface.glsl). The sun stands 45° above the line from the card to the eye. Strands along Z lie across
+    /// both directions, so the eye is near the highlights' cone. Strands along Y lean toward the sun, and their cone
+    /// points far below the eye.
+    /// </summary>
+    [Theory]
+    [InlineData(0, 0, 1)]
+    [InlineData(0, 1, 0)]
+    public void AnEnvironmentFaceLightsAHairCardByItsStrandsAsTheFiberModelDoes(float x, float y, float z)
+    {
+        var strand = new Vector3(x, y, z);
+        var toSun = Vector3.Normalize(new(x: -1, y: 1, z: 0));
+        const float distance = 5;
+        VulkanRenderer renderer = EnvironmentScenes.Renderer();
+        try
+        {
+            MeshId plane = renderer.CreateMesh(Primitives.Plane(1));
+            Double3 color = DarkSmoothHair.BaseColor;
+            MaterialId material = renderer.CreateMaterial(
+                new(
+                    BaseColor: new(x: (float)color.X, y: (float)color.Y, z: (float)color.Z, w: 1),
+                    Roughness: (float)DarkSmoothHair.Roughness,
+                    Reflectance: (float)DarkSmoothHair.Reflectance,
+                    Model: new HairShading(StrandDirection.PlusV)
+                )
+            );
+            RenderSnapshot snapshot = SunOnly(toSun);
+            snapshot.Instances.Add(
+                Card(
+                    plane: plane,
+                    material: material,
+                    rotation: CardWith(normal: -Vector3.UnitX, strand: strand),
+                    center: new(distance, 0, 0),
+                    scale: new(3, 1, 3)
+                )
+            );
+            renderer.Render(snapshot, 1f);
+            Vector3 shown = EnvironmentScenes.Center(EnvironmentScenes.Face(renderer, CubeFace.PositiveX));
+
+            // The middle texel's center lies half a texel off the face's axis, along its right and against its up.
+            FaceBasis basis = CubeFaces.Basis(CubeFace.PositiveX);
+            float offset = 1f / EnvironmentScenes.FaceSize;
+            Vector3 direction = basis.Forward + offset * basis.Right - offset * basis.Up;
+            var toView = -((Double3)direction).Normalized();
+            DirectTerms terms = DarkSmoothHair.Reflected(
+                strand: (Double3)strand,
+                fiberNormal: HairFiber.FiberNormal((Double3)strand, toView, -Double3.UnitX),
+                toView: toView,
+                toLight: (Double3)toSun
+            );
+            ShouldBeNear(
+                actual: shown,
+                expected: ((terms.Diffuse + terms.Specular) * (Double3)Gpu.StarIrradianceRgb(snapshot)).ToVector3(),
+                relative: 0.03f,
+                because: "the face's light pass reads the card's strand from the record"
+            );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     [Theory]
     [InlineData(ForwardView.EnvironmentFace, CardAlpha.Opaque)]
     [InlineData(ForwardView.EnvironmentFace, CardAlpha.Cutout)]
