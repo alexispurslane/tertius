@@ -1,0 +1,53 @@
+{
+ "stopped": null,
+ "rows": [
+  {
+   "id": "C01",
+   "file": "src/Tertius.Rendering/ScreenTraceSetting.cs",
+   "line": 32,
+   "change": "the old cap of 128 steps",
+   "result": "killed",
+   "killed_by": [
+    "ScreenTraceSettingTests.TheRendererOptionsDefaultToTheDesignsTracerAndThirtyTwoWarmUpDraws"
+   ],
+   "seconds": 4.418241542298347,
+   "original": "ReflectionSteps: 96",
+   "replacement": "ReflectionSteps: 128",
+   "classes": [
+    "ScreenTraceSettingTests"
+   ]
+  },
+  {
+   "id": "C02",
+   "file": "src/Tertius.Rendering/ScreenTraceSetting.cs",
+   "line": 32,
+   "change": "one step fewer",
+   "result": "killed",
+   "killed_by": [
+    "ScreenTraceSettingTests.TheRendererOptionsDefaultToTheDesignsTracerAndThirtyTwoWarmUpDraws"
+   ],
+   "seconds": 4.294979624915868,
+   "original": "ReflectionSteps: 96",
+   "replacement": "ReflectionSteps: 95",
+   "classes": [
+    "ScreenTraceSettingTests"
+   ]
+  },
+  {
+   "id": "C03",
+   "file": "src/Tertius.Rendering/ScreenTraceSetting.cs",
+   "line": 32,
+   "change": "the cap of 80 steps, which the search refused",
+   "result": "killed",
+   "killed_by": [
+    "ScreenTraceSettingTests.TheRendererOptionsDefaultToTheDesignsTracerAndThirtyTwoWarmUpDraws"
+   ],
+   "seconds": 4.166492125019431,
+   "original": "ReflectionSteps: 96",
+   "replacement": "ReflectionSteps: 80",
+   "classes": [
+    "ScreenTraceSettingTests"
+   ]
+  }
+ ]
+}

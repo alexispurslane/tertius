@@ -1,0 +1,16 @@
+job 27a16dd7-2678-48d9-b482-0f54cec66a46-u1 sent to endpoint kb0df7jxtrfl0p; worst case $0.12
+job 27a16dd7-2678-48d9-b482-0f54cec66a46-u1: ok, 192 seconds of execution, counted as $0.0419; result in /tmp/sweep-pw52/ab
+GPU frame span without the capture pass, ms, per run:
+  cut: median 8.812, runs 8.805, 8.810, 8.821, 8.821, 8.812, spread 0.016
+  main: median 8.906, runs 8.892, 8.924, 8.906, 8.906, 8.890, spread 0.034
+
+cut against main: -0.094 ms (-1.1%), every run differs. Estimate on the Mac: -0.23 ms.
+  reflection rays: 0.703 -> 0.604 ms (-0.099)
+  filter indirect diffuse: 1.135 -> 1.136 ms (+0.002)
+  FSR 3.1: 0.971 -> 0.971 ms (+0.000)
+  transparent: 0.586 -> 0.586 ms (+0.000)
+  environment faces: 0.087 -> 0.088 ms (+0.000)
+  accumulate indirect specular: 0.577 -> 0.577 ms (+0.000)
+  G-buffer: 0.266 -> 0.266 ms (+0.000)
+  local shadows: 0.189 -> 0.189 ms (+0.000)
+

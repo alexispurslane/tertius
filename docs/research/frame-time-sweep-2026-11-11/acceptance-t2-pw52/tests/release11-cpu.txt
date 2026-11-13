@@ -1,0 +1,9 @@
+Build succeeded.
+Time Elapsed 00:00:30.64
+  total: 1175   failed: 0   succeeded: 1175   skipped: 0  <- Core
+  total: 2026   failed: 0   succeeded: 2026   skipped: 0  <- Simulation
+  total: 1501   failed: 0   succeeded: 1493   skipped: 8  <- Physics
+  total: 59   failed: 0   succeeded: 59   skipped: 0  <- Unions
+  total: 276   failed: 0   succeeded: 276   skipped: 0  <- Style
+  total: 597   failed: 0   succeeded: 597   skipped: 0  <- Slop
+
