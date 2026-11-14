@@ -1,0 +1,13 @@
+GPU frame span without the capture pass, ms, per run:
+  cut: median 8.556, runs 9.100, 8.546, 8.552, 8.556, 8.563, spread 0.554
+  main: median 8.560, runs 8.551, 8.559, 8.581, 8.565, 8.560, spread 0.030
+
+cut against main: -0.004 ms (-0.0%), the runs overlap: within the noise. Estimate on the Mac: -0.01 ms.
+  environment faces: 0.085 -> 0.080 ms (-0.005)
+  filter indirect diffuse: 1.106 -> 1.108 ms (+0.002)
+  accumulate indirect diffuse: 0.315 -> 0.314 ms (-0.001)
+  ray plan: 0.451 -> 0.450 ms (-0.001)
+  direct light: 1.645 -> 1.646 ms (+0.001)
+  FSR 3.1: 0.947 -> 0.947 ms (+0.001)
+  accumulate indirect specular: 0.567 -> 0.567 ms (+0.001)
+  screen trace resolve: 0.126 -> 0.127 ms (+0.000)

@@ -1,0 +1,19 @@
+uptime-start:  11:41:06  up 49 days 23:15,  2 users,  load average: 33.93, 27.96, 21.02
+waited: 133s
+mode: shared, with up to 3 shared runs at once
+zm-station-main7: 17 files, exit 0
+zm-station-face7: no build face7
+zm-demo-surface-main7: 15 files, exit 0
+zm-demo-surface-face7: no build face7
+zm-mirror-balls-main7: 6 files, exit 0
+zm-mirror-balls-face7: no build face7
+zm-doorway-main7: 10 files, exit 0
+zm-doorway-face7: no build face7
+zm-cabin-light-main7: 6 files, exit 0
+zm-cabin-light-face7: no build face7
+zm-rigs-main7: 8 files, exit 0
+zm-rigs-face7: no build face7
+zm-demo-shuttle-main7: 7 files, exit 0
+zm-demo-shuttle-face7: no build face7
+stills ended: stills-merge.jobs
+uptime-end:  11:41:39  up 49 days 23:15,  2 users,  load average: 24.99, 26.35, 20.71

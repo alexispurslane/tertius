@@ -1,0 +1,16 @@
+| Script | PNG files | PNG files that differ | Other files | Other files that differ |
+|---|---:|---:|---:|---:|
+| `cabin-light` | 3 | 0 | 1 | 0 |
+| `demo-shuttle` | 3 | 0 | 2 | 0 |
+| `demo-surface` | 7 | 1 | 6 | 0 |
+| `doorway` | 4 | 0 | 4 | 0 |
+| `hair-bent-cards` | 2 | 0 | 1 | 0 |
+| `hair-rugs` | 2 | 0 | 1 | 0 |
+| `lamp-hall-16-hair` | 1 | 0 | 1 | 0 |
+| `low` | 33 | 0 | 1 | 0 |
+| `mirror-balls` | 3 | 1 | 1 | 0 |
+| `reflections-stills` | 3 | 0 | 1 | 0 |
+| `rigs` | 5 | 0 | 1 | 0 |
+| `skin-and-hair` | 6 | 0 | 1 | 0 |
+| `station` | 7 | 6 | 8 | 0 |
+| Sum | 79 | 8 | 29 | 0 |

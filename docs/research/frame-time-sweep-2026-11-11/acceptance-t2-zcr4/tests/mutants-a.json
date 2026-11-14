@@ -1,0 +1,86 @@
+[
+ {
+  "id": "S01",
+  "file": "src/Tertius.Rendering/Shaders/face_surface.glsl",
+  "line": 35,
+  "original": "float(s.model + 1u)",
+  "replacement": "float(s.model)",
+  "class": [
+   "EnvironmentFaceTests"
+  ],
+  "note": "a standard surface stores the mark of no surface",
+  "project": "tests/Tertius.Rendering.Tests"
+ },
+ {
+  "id": "S02",
+  "file": "src/Tertius.Rendering/Shaders/face_surface.glsl",
+  "line": 80,
+  "original": "uint(positionModel.w) - 1u",
+  "replacement": "uint(positionModel.w)",
+  "class": [
+   "HairRenderTests"
+  ],
+  "note": "the model code one too high",
+  "project": "tests/Tertius.Rendering.Tests"
+ },
+ {
+  "id": "S03",
+  "file": "src/Tertius.Rendering/Shaders/face_surface.glsl",
+  "line": 73,
+  "original": "s.metallic = normalMetallic.w;",
+  "replacement": "s.metallic = geometricNormalRoughness.w;",
+  "class": [
+   "EnvironmentFaceTests"
+  ],
+  "note": "the roughness read as the metallic share",
+  "project": "tests/Tertius.Rendering.Tests"
+ },
+ {
+  "id": "S04",
+  "file": "src/Tertius.Rendering/Shaders/face_surface.glsl",
+  "line": 74,
+  "original": "s.roughness = geometricNormalRoughness.w;",
+  "replacement": "s.roughness = normalMetallic.w;",
+  "class": [
+   "HairRenderTests"
+  ],
+  "note": "the metallic share read as the roughness",
+  "project": "tests/Tertius.Rendering.Tests"
+ },
+ {
+  "id": "S05",
+  "file": "src/Tertius.Rendering/Shaders/face_surface.glsl",
+  "line": 70,
+  "original": "s.baseColor = baseColorReflectance.rgb;",
+  "replacement": "s.baseColor = baseColorReflectance.bgr;",
+  "class": [
+   "EnvironmentFaceTests"
+  ],
+  "note": "the base color with red and blue swapped",
+  "project": "tests/Tertius.Rendering.Tests"
+ },
+ {
+  "id": "S06",
+  "file": "src/Tertius.Rendering/Shaders/face_surface.glsl",
+  "line": 81,
+  "original": "s.strand = texelFetch(faceSurface, ivec3(texel, FaceStrand), 0).xyz;",
+  "replacement": "s.strand = vec3(0.0);",
+  "class": [
+   "HairRenderTests"
+  ],
+  "note": "the strand dropped",
+  "project": "tests/Tertius.Rendering.Tests"
+ },
+ {
+  "id": "S07",
+  "file": "src/Tertius.Rendering/Shaders/face_surface.glsl",
+  "line": 82,
+  "original": "0).rgb;",
+  "replacement": "0).bgr;",
+  "class": [
+   "EnvironmentFaceTests"
+  ],
+  "note": "the glow with red and blue swapped",
+  "project": "tests/Tertius.Rendering.Tests"
+ }
+]

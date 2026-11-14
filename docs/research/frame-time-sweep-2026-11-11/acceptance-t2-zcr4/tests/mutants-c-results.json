@@ -1,0 +1,21 @@
+{
+ "stopped": null,
+ "rows": [
+  {
+   "id": "S08",
+   "file": "src/Tertius.Rendering/Shaders/face_surface.glsl",
+   "line": 72,
+   "change": "the shading normal read as the geometric normal",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentFaceTests.AWallInAFaceTakesNoSunFromBehindThoughItsNormalMapFacesTheSun"
+   ],
+   "seconds": 63.00408362504095,
+   "original": "s.geometricNormal = geometricNormalRoughness.xyz;",
+   "replacement": "s.geometricNormal = normalMetallic.xyz;",
+   "classes": [
+    "EnvironmentFaceTests"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,13 @@
+The first Release run of the Rendering tests on the RTX 2000 Ada, 2026-11-13 02:09 UTC, on commit adcd60cf4.
+Its hand-written shard lists left out the 14 nested classes (ticket ter-eugk).
+shard1 {'tests': 404, 'passed': 403, 'failed': 1, 'skipped': 0}
+    failed Tertius.Rendering.Tests.TubeLightRenderTests.ATubeLightLightsAMatteSquareAsTheCSharpTubeDoes(name: "slanted-through-the-square") | Expected image.Color(Width / 2, Height / 2).X to be between 0.38431373F and 0.39215687F because the square's center takes the C# tube's light 0.2019684096947954 within 2 %, but found 0.39607844F.
+shard2 {'tests': 534, 'passed': 534, 'failed': 0, 'skipped': 0}
+shard3 {'tests': 629, 'passed': 620, 'failed': 0, 'skipped': 9}
+shard4 {'tests': 354, 'passed': 354, 'failed': 0, 'skipped': 0}
+shard6 {'tests': 528, 'passed': 528, 'failed': 0, 'skipped': 0}
+shard5: the test process ended with exit 139 after 10 s, with no result file
+shard5, one test process per class: {'tests': 519, 'passed': 519, 'failed': 0, 'skipped': 0}
+shard5, the combined run again with the verbose reporter: {'tests': 519, 'passed': 519, 'failed': 0, 'skipped': 0} ; the job's limit of 700 s cut a second run after 212 s
+sum with the per-class run of shard5: {'tests': 2968, 'passed': 2958, 'failed': 1, 'skipped': 9}
+Host tests in Release on the card: {'tests': 2056, 'passed': 2046, 'failed': 0, 'skipped': 2, 'pending': 8}
