@@ -527,6 +527,36 @@ public sealed class ScriptCommandTests : IDisposable
             .And.Contain($"'{value}'");
     }
 
+    [Theory]
+    [InlineData("0")]
+    [InlineData("5")]
+    [InlineData("on")]
+    [InlineData("2.5")]
+    public void AKeyLightsOptionThatIsNeitherOffNorAWholeNumberFromOneToFourIsAProblem(string value)
+    {
+        int code = Run("--script", "script.json", "--headless", "--out", "out", "--key-lights", value);
+
+        code.Should().Be(ScriptCommand.CommandLineError);
+        error
+            .ToString()
+            .Should()
+            .Contain("--key-lights needs off or a whole number from 1 to 4")
+            .And.Contain($"'{value}'");
+    }
+
+    [Theory]
+    [InlineData("65")]
+    [InlineData("-64.5")]
+    [InlineData("NaN")]
+    [InlineData("bright")]
+    public void AnExposureOptionThatIsNotANumberOfStopsFromMinusSixtyFourToSixtyFourIsAProblem(string value)
+    {
+        int code = Run("--script", "script.json", "--headless", "--out", "out", "--exposure", value);
+
+        code.Should().Be(ScriptCommand.CommandLineError);
+        error.ToString().Should().Contain("--exposure needs a number of stops from -64 to 64").And.Contain($"'{value}'");
+    }
+
     // The refused rows above name a scene that no table has, or a script file that does not exist. If a rule breaks, the
     // run then ends in ScriptError or FileError before any window code runs, instead of opening a window on a test thread.
 

@@ -188,12 +188,12 @@ internal sealed class FrameContext
     }
 
     /// <summary>
-    /// Begins rendering into <paramref name="targets"/>, one to three color attachments of one size, their whole extent,
+    /// Begins rendering into <paramref name="targets"/>, one to four color attachments of one size, their whole extent,
     /// each stored at the end.
     /// </summary>
     public unsafe void BeginRenderingInto(ReadOnlySpan<(GpuImage Image, AttachmentLoadOp LoadOp)> targets)
     {
-        const int mostTargets = 3;
+        const int mostTargets = 4;
         RenderingAttachmentInfo* colors = stackalloc RenderingAttachmentInfo[mostTargets];
         ArgumentOutOfRangeException.ThrowIfGreaterThan(targets.Length, mostTargets);
         for (int i = 0; i < targets.Length; i++)
