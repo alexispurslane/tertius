@@ -17,6 +17,7 @@ columns re-rendered beside it in one job.
       4. R/bias.json: for each estimator, the regional means against the plain mean of the same captures, and a
          firefly rate per region; R/pack: lossless WebP crops.
   robust.py specks <R> <ref>: the specks of every column against s/<ref>'s reference, into R/specks-<ref>.json.
+  robust.py script <R> <count> <path>: the still view's script with <count> continued captures.
   robust.py glow <R> <ref>: the mean display-linear luminance of every column and reference over GLOW_REGIONS, as a
       share of s/<ref>'s reference, into R/glow-<ref>.json.
 """
@@ -250,6 +251,9 @@ if __name__ == "__main__":
     if what == "render":
         t0 = float(Path(sys.argv[3]).read_text())
         render(R, t0, float(sys.argv[4]), sys.argv[5:])
+    elif what == "script":
+        # The still view's script with <count> continued captures, for a direct run of the demo.
+        Path(sys.argv[4]).write_text(json.dumps(view(int(sys.argv[3]))[0], indent=1))
     elif what == "glow":
         glow(R, sys.argv[3])
     else:
