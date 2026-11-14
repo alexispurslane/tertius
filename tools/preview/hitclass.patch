@@ -28,10 +28,10 @@ index 009082257..2a1c55a65 100644
      return LeavingLight(min(reflection, vec3(MaxRadiance)), min(light, vec3(MaxRadiance)));
  }
 diff --git a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
-index 4c850c2bf..7527bbdb8 100644
+index 4c850c2bf..7bebac578 100644
 --- a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
 +++ b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
-@@ -67,6 +67,37 @@ vec3 specularWeightOf(TracingPixel p, SurfaceLobes lobes, MaterialFactors factor
+@@ -67,6 +67,40 @@ vec3 specularWeightOf(TracingPixel p, SurfaceLobes lobes, MaterialFactors factor
  }
  
  #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
@@ -40,7 +40,7 @@ index 4c850c2bf..7527bbdb8 100644
 +// surface's facing against the pixel's own geometric normal: 0 the same way (cosine above 0.7, as the ceiling or a
 +// lamp's lower face seen from the ceiling), 1 across (a wall, a lamp's side), 2 opposite (cosine below -0.7, as the
 +// floor); bit 4 the ray meets the hit surface from behind; bit 5 the hit pixel's material glows (its raw emission above
-+// 0); bit 6 the hit pixel's entity holds a light. The hit point is the pixel's own ray start plus the record's direction
++// 0); bit 6 the hit pixel's entity holds a light; bits 8 to 15 the hit pixel's cell (below). The hit point is the pixel's own ray start plus the record's direction
 +// times its hit distance, so for a block's ray, which starts at the block's chosen pixel, it lies up to a pixel off.
 +uint probeHitClassOf(TracingPixel p, RayRecord record, WeighedRay ray)
 +{
@@ -57,6 +57,9 @@ index 4c850c2bf..7527bbdb8 100644
 +    vec3 n = materialAt(q).geometricNormal;
 +    float facing = dot(n, p.s.geometricNormal);
 +    uint code = 2u | ((facing > 0.7 ? 0u : facing < -0.7 ? 2u : 1u) << 2);
++    // Bits 8 to 15: the hit pixel's cell of a 16 x 16 grid of the image, x in bits 8 to 11 and y in bits 12 to 15.
++    uvec2 cell = min(uvec2(vec2(q) * 16.0 / frame.viewport.xy), uvec2(15u));
++    code |= (cell.x << 8) | (cell.y << 12);
 +    if (dot(ray.direction, n) > 0.0)
 +        code |= 16u;
 +    if (any(greaterThan(texelFetch(gbufferEmissive, q, 0).rgb, vec3(0.0))))
@@ -69,7 +72,7 @@ index 4c850c2bf..7527bbdb8 100644
  // Whether the pixel's own surface point moves on screen since the last draw by at least LeastMotion pixels: by its motion
  // target, so the camera's moves count as well as the surface's (docs/plans/bounce-light-confidence.md, section 8.4).
  bool movesOnScreen(ivec2 pixel)
-@@ -114,6 +145,9 @@ void main()
+@@ -114,6 +148,9 @@ void main()
      bool diffuseMoved = diffuseRay.brings && movedHitOfRecord(diffuse.ray);
      // PROBE (tools/renderer-survey): the pixel's own motion in its own bit, apart from the moved mark.
      imageStore(diffuseSampleAge, pixel, uvec4(sampleAgeOf(diffuseCode, diffuseMoved) | (moves ? ProbeMovingBit : 0u)));
@@ -79,7 +82,7 @@ index 4c850c2bf..7527bbdb8 100644
  #endif
  
      // The share of the diffuse ray's estimate in the specular sample: 0 below the hand-over band, 1 above it.
-@@ -166,6 +200,19 @@ void main()
+@@ -166,6 +203,19 @@ void main()
  #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
      // PROBE (tools/renderer-survey): the pixel's own motion in its own bit, apart from the moved mark.
      imageStore(specularSampleAge, pixel, uvec4(sampleAgeOf(ageCode, moved) | (moves ? ProbeMovingBit : 0u)));
@@ -100,7 +103,7 @@ index 4c850c2bf..7527bbdb8 100644
  #ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
      imageStore(uncoveredDiagnostic, pixel, vec4(float(seenCode) - 1.0, 0.0, 0.0, 0.0));
 diff --git a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
-index a7bae5fcb..b5d8f10e2 100644
+index a7bae5fcb..8d8f53526 100644
 --- a/src/Tertius.Rendering/VulkanRenderer.cs
 +++ b/src/Tertius.Rendering/VulkanRenderer.cs
 @@ -615,6 +615,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
@@ -111,7 +114,7 @@ index a7bae5fcb..b5d8f10e2 100644
  
          if (sink != null && capture != null)
          {
-@@ -653,6 +654,83 @@ public sealed unsafe class VulkanRenderer : IRenderer
+@@ -653,6 +654,96 @@ public sealed unsafe class VulkanRenderer : IRenderer
          int.TryParse(Environment.GetEnvironmentVariable("TERTIUS_X_CENSUS_EVERY"), out int every) && every > 0 ? every : 0;
      private long probeCensusDraw;
  
@@ -137,6 +140,7 @@ index a7bae5fcb..b5d8f10e2 100644
 +    private long probeHitsCounted;
 +    private long[,,]? probeHitCounts;
 +    private double[,,]? probeHitSums;
++    private double[,,]? probeHitCells;   // per signal and box, per hit cell of the 16 x 16 grid: samples, light
 +
 +    private void ProbeHits()
 +    {
@@ -147,6 +151,7 @@ index a7bae5fcb..b5d8f10e2 100644
 +            return;
 +        probeHitCounts ??= new long[2 * ProbeHitBoxes.Length, 256, ProbeHitBins];
 +        probeHitSums ??= new double[2 * ProbeHitBoxes.Length, 256, ProbeHitBins];
++        probeHitCells ??= new double[2 * ProbeHitBoxes.Length, 256, 2];
 +        int width = (int)ageImage.Extent.Width;
 +        foreach ((int signalIndex, TemporalSignal signal) in new[] { (0, tracer.Diffuse), (1, tracer.Specular) })
 +        {
@@ -175,6 +180,12 @@ index a7bae5fcb..b5d8f10e2 100644
 +                        int bin = luminance <= 0 ? 0 : Math.Clamp((int)Math.Floor(Math.Log2(luminance)) + 17, 1, ProbeHitBins - 1);
 +                        probeHitCounts[row, code, bin]++;
 +                        probeHitSums[row, code, bin] += luminance;
++                        if ((code & 3) == 2)
++                        {
++                            int cell = ((int)classes[i] >> 8) & 255;
++                            probeHitCells[row, cell, 0]++;
++                            probeHitCells[row, cell, 1] += luminance;
++                        }
 +                    }
 +            }
 +        }
@@ -189,6 +200,11 @@ index a7bae5fcb..b5d8f10e2 100644
 +                    if (probeHitCounts[row, code, bin] > 0)
 +                        lines.Append(string.Create(inv,
 +                            $"{(row < ProbeHitBoxes.Length ? "diffuse" : "specular")}-{ProbeHitBoxes[row % ProbeHitBoxes.Length].Name} {code} {bin} {probeHitCounts[row, code, bin]} {probeHitSums[row, code, bin]:R}\n"));
++        for (int row = 0; row < 2 * ProbeHitBoxes.Length; row++)
++            for (int cell = 0; cell < 256; cell++)
++                if (probeHitCells[row, cell, 0] > 0)
++                    lines.Append(string.Create(inv,
++                        $"cell-{(row < ProbeHitBoxes.Length ? "diffuse" : "specular")}-{ProbeHitBoxes[row % ProbeHitBoxes.Length].Name} {cell} 0 {probeHitCells[row, cell, 0]:R} {probeHitCells[row, cell, 1]:R}\n"));
 +        System.IO.File.WriteAllText(file, lines.ToString());
 +    }
 +
