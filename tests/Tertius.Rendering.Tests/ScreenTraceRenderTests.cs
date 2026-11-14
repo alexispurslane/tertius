@@ -705,6 +705,183 @@ public sealed class ScreenTraceRenderTests
         }
     }
 
+    /// <summary>The 152 draws of the box that slides past a wall (tests/STYLE.md, "Long tests").</summary>
+    [Collection(GpuCollection.Name)]
+    public sealed class BoxSlidingPastAWall(ITestOutputHelper output)
+    {
+        [Fact]
+        public void ABoxThatSlidesPastAWallNarrowsTheWallsBoxWhileItMovesAndNotAfter()
+        {
+            // A white wall stands left of the view, along it, and faces the view's middle. A glowing box stands on the
+            // floor 0.4 m beside the wall and farther from the eye than the wall's pixels below, and slides 2.5 cm per
+            // draw away from the eye, under a still camera. The screen shows the box's front face, so the wall's diffuse
+            // rays that run away from the eye hit it. The wall's pixels do not move, so a wall sample's motion bit comes
+            // only from such a ray, which hit a surface that the ray plan marks as moved. A block of 8 × 8 pixels with
+            // such a sample, or with a recent light code, has evidence, and either level drops the widening of the
+            // block's box in that draw (docs/plans/bounce-light-confidence.md, section 8.2), the action that
+            // AccumulatorRenderTests.AMovingWallNarrowsTheBoxOfItsBlocksWhileItMoves pins. After the box stops, the light
+            // codes of its last moves stay recent for at most 11 draws (section 8.3), so from 16 draws after the stop no
+            // block of the wall has evidence, and the widened box returns.
+            const float wall = -2;
+            VulkanRenderer renderer = Tracing();
+            try
+            {
+                MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+                RenderSnapshot scene = Dark();
+                scene.Instances.Add(Floor(renderer, WhiteFloor(roughness: 1)));
+                scene.Instances.Add(
+                    Block(
+                        box: box,
+                        material: renderer.CreateMaterial(WhiteFloor(roughness: 1)),
+                        center: new(wall - 0.1f, FloorHeight + 3, -10),
+                        size: new(0.2f, 6, 12)
+                    )
+                );
+                scene.Instances.Add(
+                    Block(
+                        box: box,
+                        material: Glow(renderer, new(4)),
+                        center: new(-1, FloorHeight + 0.75f, -9),
+                        size: new(1.2f, 1.5f, 1)
+                    )
+                );
+                int sliding = scene.Instances.Count - 1;
+                Draw(renderer, scene, frames: 64);
+                // The wall's pixels between 5 m and 8 m from the eye and 0.2 to 2 m above the floor, which the box never
+                // covers: on screen the box lies right of the wall's pixels at 8 m.
+                int left = PixelOf(new(wall, FloorHeight + 2, -5)).X;
+                int top = PixelOf(new(wall, FloorHeight + 2, -8)).Y;
+                (int right, int bottom) = PixelOf(new(wall, FloorHeight + 0.2f, -8));
+                int[] wallBlocks =
+                [
+                    .. Enumerable
+                        .Range(0, Width / 8 * (Height / 8))
+                        .Where(block =>
+                            block % (Width / 8) * 8 >= left
+                            && block % (Width / 8) * 8 + 7 <= right
+                            && block / (Width / 8) * 8 >= top
+                            && block / (Width / 8) * 8 + 7 <= bottom
+                        ),
+                ];
+
+                var moving = new List<int>();
+                for (int draw = 0; draw < 40; draw++)
+                {
+                    RenderInstance moved = scene.Instances[sliding];
+                    moved.PreviousPosition = moved.Position;
+                    moved.Position += new Vector3(0, 0, -0.025f);
+                    scene.Instances[sliding] = moved;
+                    Draw(renderer, scene, frames: 1);
+                    moving.Add(BlocksWith(renderer, wallBlocks, MotionBit));
+                }
+
+                Draw(renderer, scene, frames: 16);
+                int after = 0;
+                for (int draw = 0; draw < 32; draw++)
+                {
+                    Draw(renderer, scene, frames: 1);
+                    after += BlocksWith(renderer, wallBlocks, Evidence);
+                }
+
+                output.WriteLine(
+                    $"Wall blocks with a motion bit of {wallBlocks.Length}: {string.Join(' ', moving)} while the box "
+                        + $"moves. Block-draws with evidence in the 32 draws from 16 after the stop: {after}."
+                );
+                wallBlocks.Length.Should().BeGreaterThan(20, "the wall fills the left of the view");
+                moving
+                    .Skip(1)
+                    .Should()
+                    .OnlyContain(count => count >= wallBlocks.Length / 2, "the wall's rays see the box move");
+                after.Should().Be(0, "a still wall beside a still box gives no evidence");
+            }
+            finally
+            {
+                Gpu.DisposeAndAssertClean(renderer);
+            }
+        }
+
+        [Theory]
+        [InlineData(0f, 0f, -0.025f)]
+        [InlineData(0.025f, 0f, 0f)]
+        public void DiagnoseTheSlide(float dx, float dy, float dz)
+        {
+            const float wall = -2;
+            VulkanRenderer renderer = Tracing();
+            try
+            {
+                MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+                RenderSnapshot scene = Dark();
+                scene.Instances.Add(Floor(renderer, WhiteFloor(roughness: 1)));
+                scene.Instances.Add(Block(box: box, material: renderer.CreateMaterial(WhiteFloor(roughness: 1)), center: new(wall - 0.1f, FloorHeight + 3, -10), size: new(0.2f, 6, 12)));
+                scene.Instances.Add(Block(box: box, material: Glow(renderer, new(4)), center: new(-1, FloorHeight + 0.75f, -9), size: new(1.2f, 1.5f, 1)));
+                int sliding = scene.Instances.Count - 1;
+                Draw(renderer, scene, frames: 64);
+                int left = PixelOf(new(wall, FloorHeight + 2, -5)).X;
+                int top = PixelOf(new(wall, FloorHeight + 2, -8)).Y;
+                (int right, int bottom) = PixelOf(new(wall, FloorHeight + 0.2f, -8));
+                (int bx, int by) = PixelOf(new(-1, FloorHeight + 0.75f, -8.5f));
+                for (int draw = 0; draw < 6; draw++)
+                {
+                    RenderInstance moved = scene.Instances[sliding];
+                    moved.PreviousPosition = moved.Position;
+                    moved.Position += new Vector3(dx, dy, dz);
+                    scene.Instances[sliding] = moved;
+                    Draw(renderer, scene, frames: 1);
+                    float[] dage = renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.SampleAge(0)!);
+                    float[] sage = renderer.ReadImage(renderer.ScreenTraceSignals.Specular.SampleAge(0)!);
+                    float[] dsample = renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.Sample(0));
+                    float[] hit = renderer.ReadImageLayer(renderer.ScreenTraceImages.HitLight, 1);
+                    float[] motion = renderer.ReadMotion();
+                    int lit = 0, dmot = 0, smot = 0, codes = 0, n = 0;
+                    for (int y = top; y <= bottom; y++)
+                    for (int x = left; x <= right; x++)
+                    {
+                        int p = y * Width + x;
+                        n++;
+                        if (dsample[4 * p] > 0) lit++;
+                        if (((int)dage[p] & 0x8000) != 0) dmot++;
+                        if (((int)sage[p] & 0x8000) != 0) smot++;
+                        if (((int)dage[p] & 0x7FFF) != 0) codes++;
+                    }
+                    int marked = 0, boxPixels = 0;
+                    for (int y = by - 10; y <= by + 10; y++)
+                    for (int x = bx - 10; x <= bx + 10; x++)
+                    {
+                        boxPixels++;
+                        if (hit[4 * (y * Width + x) + 3] != 0) marked++;
+                    }
+                    int bp = by * Width + bx;
+                    output.WriteLine($"move ({dx},{dy},{dz}) draw {draw}: wall {left}-{right} x {top}-{bottom} n {n} lit {lit} diffuse motion {dmot} specular motion {smot} codes {codes}; box {bx},{by} marked {marked}/{boxPixels} motion {motion[4*bp]} {motion[4*bp+1]} {motion[4*bp+2]} {motion[4*bp+3]}");
+                }
+            }
+            finally
+            {
+                Gpu.DisposeAndAssertClean(renderer);
+            }
+        }
+
+        /// <summary>Whether a diffuse sample's age holds the motion bit (sample_age.glsl).</summary>
+        private static bool MotionBit(int age) => (age & TemporalSignal.SampleMotionBit) != 0;
+
+        /// <summary>
+        /// Whether a diffuse sample's age gives its block evidence: a motion bit or a recent light code, 1 to 7
+        /// (sample_age.glsl, evidenceOfSample of accumulate_spatial.comp).
+        /// </summary>
+        private static bool Evidence(int age) =>
+            MotionBit(age) || (age & TemporalSignal.LightCodeMask) is >= 1 and <= 7;
+
+        /// <summary>How many of <paramref name="blocks"/> hold a diffuse sample of the last draw that <paramref name="holds"/>.</summary>
+        private static int BlocksWith(VulkanRenderer renderer, int[] blocks, Func<int, bool> holds)
+        {
+            float[] ages = renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.SampleAge(0)!);
+            var holding = new HashSet<int>();
+            for (int pixel = 0; pixel < ages.Length; pixel++)
+                if (holds((int)ages[pixel]))
+                    holding.Add(pixel / Width / 8 * (Width / 8) + pixel % Width / 8);
+            return blocks.Count(holding.Contains);
+        }
+    }
+
     /// <summary>
     /// The form factor from a floor point, whose normal is +Y, to the rectangle at z = <paramref name="front"/> from
     /// x = −<paramref name="halfWidth"/> to <paramref name="halfWidth"/> and y = <paramref name="bottom"/> to
