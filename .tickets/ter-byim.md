@@ -25,3 +25,7 @@ Scope: derive maxSets and the size of each descriptor type of each pool from one
 **2026-11-12T18:18:23Z**
 
 2026-11-12, from ter-s97m's hardening: the mutant M11 of ter-s97m (the shared pool's sampled images per frame set 6 -> 5) survived on MoltenVK. The frame set takes 7 sampled images (three tables, the specular map, the irradiance cube, the distance cube and the blue-noise mask), and the pool held 6 per frame; on main before ter-s97m it took 6 and the pool held 5. The constant 20 of the G-buffer, post and atlas sets appears to hold enough spare images to hide that, also on a driver that counts each type. ter-s97m added DescriptorLayoutsTests.EachFrameInFlightGrowsTheSharedPoolByWhatItsFrameSetAndDeformSetTake, which pins only the per-frame part of each size (pool at 3 frames minus pool at 2 = frame set + deform set). This ticket's ledger still has to cover the other terms, the 20 among them.
+
+**2026-11-14T16:42:09Z**
+
+2026-11-14, evidence from the face pass's merge of main (sweep-pw52): the face pass and key and fill each raised the shared pool's hand-kept maxSets from 10 to 11 for one new set each; git saw two equal edits and kept 11, although the sum is 12. The sampled-image count needed the same hand sum (now 20 + 1 + 4). A count derived from the set layouts cannot drift in a merge this way.
