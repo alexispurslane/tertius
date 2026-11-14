@@ -112,7 +112,7 @@ void main()
     bool moves = movesOnScreen(pixel);
     uint diffuseCode = diffuseRay.brings ? ageCodeOfRecord(diffuse.ray) : 0u;
     bool diffuseMoved = diffuseRay.brings && movedHitOfRecord(diffuse.ray);
-    imageStore(diffuseSampleAge, pixel, uvec4(sampleAgeOf(diffuseCode, moves || diffuseMoved)));
+    imageStore(diffuseSampleAge, pixel, uvec4(sampleAgeOf(diffuseCode, moves)));
 #endif
 
     // The share of the diffuse ray's estimate in the specular sample: 0 below the hand-over band, 1 above it.
