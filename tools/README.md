@@ -1180,7 +1180,7 @@ nix develop --command python3 -I tools/renderer-survey.py sheet /private/tmp/ter
 The commands do these things:
 
 1. `probe-build` builds the probe demo into `<out>/probe-bin`. It extracts `git archive HEAD` into a temporary folder, applies `tools/renderer-survey/probe.patch`, and builds without the analyzers. The probe never enters `src`. If the patch no longer applies to a later `HEAD`, update the patch.
-2. `run` builds the Release demo, renders each case, measures its images and deletes them. It keeps the shown still, the reference, and the first, middle and last frames of each film in `<out>/images`. It writes one result file per case into `<out>/results/<part>/<name>.json`. `--parts` selects the parts (default `timing,still,motion,switch,lag,walk,stand,climb`), and `--only` selects cases by name. The part `evidence` runs only when `--parts` names it ("The block test's evidence").
+2. `run` builds the Release demo, renders each case, measures its images and deletes them. It keeps the shown still, the reference, and the first, middle and last frames of each film in `<out>/images`. It writes one result file per case into `<out>/results/<part>/<name>.json`. `--parts` selects the parts (default `timing,still,motion,switch,lag,walk,stand,climb`), and `--only` selects cases by name. The census parts run only when `--parts` names them ("The evidence census").
 3. `trace` records a GPU trace without counters (`tools/gpu-trace.sh --no-counters`) of the timing film of each of the slowest views.
 4. `report` prints the tables with the verdicts, in Markdown.
 5. `sheet` writes `<out>/contact-sheet.png`, one labeled still of every view.
@@ -1249,67 +1249,59 @@ nix develop --command python3 -I tools/renderer-survey.py report /private/tmp/te
 
 The stand and the climb write a series file and no PNG, so their runs take little disk.
 
-### The block test's evidence
+### The evidence census
 
-The part `evidence` and the command `evidence` measure the block test of `docs/plans/bounce-light-confidence.md` (section 8) in long stills. They are take T3 of its section 20. The block test sums each block of 8 × 8 pixels into one texel, (Σd, Σv, n, Σs), and fires a window of 1 × 1, 3 × 3 or 7 × 7 blocks on evidence of a change. In a still, nothing changes, so every window that fires is false evidence.
+The census parts and the command `census` measure the evidence of Design X in `docs/plans/bounce-light-confidence.md` (section 8). They are take T12 of its section 21. The spatial dispatch takes the evidence level of each block of 8 × 8 pixels from the sample ages that the screen tracer's resolve writes: light evidence where a sample brings a recent light code, motion evidence where it brings a motion bit, else none. The census counts the levels in every draw, and the causes behind them. In a still, nothing changes, so every block-draw with evidence is false evidence. A light code in a still comes only from a false light change of the record. An example is the record of a sun strip that the jitter keeps young (ticket t0-qwx8).
 
 The probe patch adds these settings. Each one is read once from the environment. A setting that is not set keeps the build's value.
 
 | Setting | What it does |
 |---|---|
-| `TERTIUS_A_BLOCK_CAPTURE=<folder>` | Appends the block sums of each signal that runs the block test to `<folder>`, every draw |
-| `TERTIUS_A_BLOCK_EVERY=<k>` | Captures every k-th draw only, counted from 0 over the run |
-| `TERTIUS_A_BLOCK_ACTION=0` | Keeps the sums and removes their action: no window test, no narrower box, no cut of the length |
-| `TERTIUS_A_BLOCK_SIGMAS`, `TERTIUS_A_TAIL_STREAMS`, `TERTIUS_A_NOISE_SCALE` | Set `BlockSigmas`, `TailStreams` and `BlockNoiseScale` of `accumulate_blocks.glsl` |
-| `TERTIUS_A_DIFFUSE_CHANGE_SHARE`, `TERTIUS_A_SPECULAR_CHANGE_SHARE` | Set the floor `ChangeShare` of the bounce light and of the reflections |
+| `TERTIUS_X_CENSUS=<folder>` | Appends the census of each draw: for each part of each signal with a light age, the blocks at each level, and the blocks and pixels of each cause |
+| `TERTIUS_X_CENSUS_EVERY=<k>` | Also appends the map of the blocks every k-th draw. Unset: no maps |
+| `TERTIUS_X_EVIDENCE_ACTION=0` | Counts the levels and removes their action |
+| `TERTIUS_X_CAUSES=<list>` | The causes that give evidence, any of `light`, `moved` and `moving`, comma-separated. Unset: all three |
+| `TERTIUS_X_MOVED_ACTION=cut` | Open point 1's alternative for the moved mark: it gives light evidence |
+| `TERTIUS_A_MOTION_CUTS=1` | Open point 1's alternative for both causes of motion: they give light evidence |
+| `TERTIUS_X_RECENT_LIGHT_AGE` | Sets `RecentLightAge` of `sample_age.glsl`, 7 there |
+| `TERTIUS_X_LEAST_MOTION` | Sets `LeastMotion` of `sample_age.glsl` in pixels per draw, 1/32 there |
 | `TERTIUS_A_RETAINED_SIGMAS` | Sets `RetainedSigmas` of a widened box |
-| `TERTIUS_A_NO_CLAMP=1` | Turns both signals' clamps off, and so the anti-lag, and removes the block test's action. It renders the truth |
+| `TERTIUS_A_NO_CLAMP=1` | Turns both signals' clamps off, and so the anti-lag, and removes the evidence's action. It renders the truth |
 
-The constants stay in their one place in `accumulate_blocks.glsl`. The patch sends a set value to the shader in three new push constants of the accumulation, where −1 keeps the shader's constant. A push constant `blockTest` of 2 writes the sums without their action. The `evidence` command reads the constants from the shaders.
+The three causes are these:
 
-A capture folder holds these files:
+- `light`: one of the sample's rays brings a recent light code, 1 to `RecentLightAge`.
+- `moved`: one of the sample's rays hit a surface that the ray plan marks as moved.
+- `moving`: the pixel's own surface moves on screen by at least `LeastMotion`, as under a moving camera.
 
-- `header.json`: the grid of blocks, `every`, and for each captured signal its file, its light, its push constants (cap, fast cap, floor, `RetainedSigmas`, the probe's three constants) and whether its history is uncapped. The reflections' precise history is uncapped by default.
-- `<light>-<part>.f32`, such as `diffuse-0.f32`: for each captured draw, the blocks row by row from the top, four little-endian 32-bit floats per block. At 1280 × 720 that is 160 × 90 blocks, about 230 KB per draw and signal.
-- `draws.txt`: one line per captured draw, `<draw> <draw index since the last reset> <1 if the draw reset, else 0>`.
+The engine keeps both causes of motion in one motion bit. The probe's resolve writes the moved mark in bit 15 of the sample age and the pixel's own motion in bit 14. No light code reaches bit 14. So the census and `TERTIUS_X_CAUSES` tell the two causes apart. The census counts each cause whatever `TERTIUS_X_CAUSES` says. Its levels are those that act, by the rule of `evidenceOfSample` under the knobs, which `AccumulatePushConstants.ProbeX` repeats on the CPU. The knobs of the accumulation reach the shader in push constants, and `LeastMotion` reaches the tracer's shaders as specialization constant 13.
 
-The probe captures each signal whose push constant `blockTest` is not 0. Each readback waits for the device, so a captured render runs slower than a plain one.
+A census folder holds these files:
 
-`run --parts evidence` renders the still part's long still of a case, 28 captures of 33 draws to draw 924, with the history continued through them. It captures the sums every draw, with `TERTIUS_A_BLOCK_ACTION=0` unless the caller sets that setting. Then it measures the capture, deletes it, and writes `<out>/results/evidence/<name>.json`. The part takes the still views and the switches' views with their lamps on, such as `cabin`, the orbit cabin. `--keep-capture` moves the capture to `<out>/captures/<name>` instead. `--skip` (default 64) leaves out the draws after a reset while the slow history fills. The result names the `TERTIUS_A_*` settings of its run in `knobs`.
+- `header.json`: the image's size, the grid of blocks, `every`, and the knobs as the probe read them.
+- `census.txt`: one line per draw and per part of each signal. The line starts with `<draw> <draw index since the last reset> <1 if the draw reset, else 0> <light> <part>`. Then come the blocks at no evidence, at motion evidence and at light evidence. Then come the blocks with a sample of each cause, light, moved and moving, and then the pixels with each cause. Draws count from 0 over the run.
+- `<light>-<part>.u8` and `maps.txt`, with `TERTIUS_X_CENSUS_EVERY`: for each mapped draw, one byte per block, row by row from the top. Bits 0 and 1 hold the level, bit 2 a light cause, bit 3 a moved cause and bit 4 a moving cause. `maps.txt` lists the mapped draws.
 
-The `evidence` command measures a kept capture, so the windows and the constants can change offline. `--sweep` names a JSON file in the form of `EVIDENCE_SWEEP`, and `--write` names the output file:
+Each draw reads the sample ages back and waits for the device, so a census run draws slower than a plain one.
 
-```bash
-nix develop --command python3 -I tools/renderer-survey.py evidence /private/tmp/t3/captures/rect-lamps --write /private/tmp/t3/rect-lamps.json
-```
+Name a census part in `--parts` to run it. Each census part renders one run of a case with the probe and the census, and writes the probe's series in place of PNGs:
 
-The measures, for each captured signal. A block-draw is a block with a contributing stream in a measured draw. A window fires only at such a block, because evidence acts only on the block's contributing pixels:
+| Part | Cases | Run |
+|---|---|---|
+| `census-still` | `stills` | The still view, continued stills of 33 draws to draw 300 |
+| `census-film` | `motion` | The film, without its stills, at the auto exposure |
+| `census-switch` | `switches` | The run whose lamps go off and come on again |
+| `census-lag` | `lags` | The film of the moving lights |
+| `census-walk` | `walks` | The walk, without its control |
 
-- `fires` and `falsePerBlockDraw`: the windows that fire at the capture's own rule, per window size and for any window, and their count per block-draw.
-- `repeats`, `repeatShare` and `longestRun`: the fires of a block that also fired in the draw before, their share of all fires, and the longest run of draws in a row. With the action on (`TERTIUS_A_BLOCK_ACTION=1`), these count the repeated cuts of point 5 of the design's section 18.
-- `deviationRatio`: the measured over the predicted deviation of the window's mean difference Σd / n, per window size. The measured deviation is the spread over the draws around the position's own mean. The predicted one is √(Σv) / n. `pooled` pools every window position with at least 64 draws. `noiseScaleForRatio1` is the `BlockNoiseScale` that makes `pooled` 1.
-- `cv`: the CV of a block's samples, √(Σv · n) / Σs / (κ · `BlockNoiseScale`), with κ at the signal's cap (0.319 for the bounce light, 0.378 for an uncapped history).
-- `stationaryDifference`: F̄ − R̄ over R̄ in the still, with R the own-sample mean that the sums hold since `t0-y4qv` (before it, the slow history S), per window position from its sums over the draws: the quantiles of its size up to the 99.99th percentile, and its mean. The floor `ChangeShare` must lie above it.
-- `firesKept`: the first 100 fires, each with its draw, block, window, n, Σd / Σs, Σd / √Σv and Σs² / Σv (the tail).
-- `sweep`: the fires of every combination of `BlockSigmas`, `TailStreams`, `BlockNoiseScale` and the signal's `ChangeShare` in `EVIDENCE_SWEEP`. Another noise scale multiplies Σv by the square of its ratio to the capture's.
-
-The verdict is acceptance 12 of the design: at most 10^−4 false windows per block-draw for each signal, and a pooled ratio of the 1 × 1 window from 0.8 to 1.25. `report` prints one row per case and signal.
-
-`TailStreams`, `BlockSigmas`, `BlockNoiseScale` and `ChangeShare` change only the windows' test, so the sweep covers them on one capture. `RetainedSigmas`, the clamps and the action change the histories themselves, so each of their variants needs its own render. Run it into its own output folder with its settings in the environment.
-
-T3 on the GPU workbench, as one job for the four stills of the design, `rect-lamps`, `bay-sunbeam`, `docking-bay` and the orbit cabin `cabin`. The job sends back only the result files, about 80 KB per case:
+The result pools the parts of each signal. For each signal it gives the share of its block-draws at each level and with each cause, the share of its pixel-draws with each cause, and each draw with evidence. The reset draw counts in no share (`--skip`, 1 by default): it shows every instance as new, with no last place, so every block of it has motion evidence. A still's verdict is acceptance 12 of the design: no block-draw with motion evidence, and light evidence in at most 1e-4 of the block-draws of each signal. A film, a switch, a lag and a walk give their shares without a verdict. The result keeps the knobs that the environment set, so give each setting of the knobs its own output folder. The census stays in `<out>/census/<part>/<case>`, and the command `census <folder> [--skip 1] [--write <json>]` reduces it again, also a census of a run by hand.
 
 ```bash
-python3 -I tools/runpod/gpu_job.py submit --agent <your name> --tree t=HEAD \
-    --run 'set -o pipefail; cd t && patch -p1 --forward -i tools/renderer-survey/probe.patch && dotnet build src/Tertius.Demo -c Release -nologo -v:q -p:RunAnalyzers=false -p:TreatWarningsAsErrors=false -o ../out/probe-bin | tail -3' \
-    --run 'cd t && TERTIUS_SURVEY_HOLDS_LOCK=1 python3 -I tools/renderer-survey.py run ../out --parts evidence --only rect-lamps bay-sunbeam docking-bay cabin --no-build' \
-    --output 'out/results/*/*.json' --timeout <seconds> --out /tmp/<your name>/t3
-nix develop --command python3 -I tools/renderer-survey.py report /tmp/<your name>/t3/out
+nix develop --command python3 -I tools/renderer-survey.py run /private/tmp/t12 --parts census-still --only rect-lamps bay-sunbeam docking-bay station-cabin --no-build
+TERTIUS_X_MOVED_ACTION=cut nix develop --command python3 -I tools/renderer-survey.py run /private/tmp/t12-moved-cut --parts census-film --only rigs-crowd docking-landing --no-build
 ```
 
-On 2026-11-12 a smoke job built the probe in 45 s and ran the part for `rect-lamps` in 94 s, the evaluation included. Its bounce light's capture took 213 MB on the worker, and the job counted $0.034. So the four stills take about 8 minutes in one job. Set `--timeout 1000`, which leaves room for the reflections' capture after they get the block test.
-
-On the Mac, the part runs as the other probe parts do, under the shared GPU lock: `probe-build`, then `run <out> --parts evidence --only ... --no-build`.
+The motion part also renders its film with the probe, so a knob in its environment changes the film whose flicker and blotch it measures.
 
 ### The split by light signal
 

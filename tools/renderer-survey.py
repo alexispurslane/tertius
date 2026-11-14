@@ -6,8 +6,8 @@ Usage, inside the dev shell from the repository root:
     python3 -I tools/renderer-survey.py probe-build <out>
     python3 -I tools/renderer-survey.py run <out> [--parts timing,still,motion,switch,lag,walk,stand,climb] [--only NAME ...]
     python3 -I tools/renderer-survey.py trace <out> [--slowest 5]
-    python3 -I tools/renderer-survey.py run <out> --parts evidence --only rect-lamps [--skip 64] [--keep-capture]
-    python3 -I tools/renderer-survey.py evidence <capture folder> [--skip 64] [--sweep <json>] [--write <json>]
+    python3 -I tools/renderer-survey.py run <out> --parts census-still,census-film --only rect-lamps rigs-crowd [--skip 1]
+    python3 -I tools/renderer-survey.py census <census folder> [--skip 1] [--write <json>]
     python3 -I tools/renderer-survey.py report <out>
     python3 -I tools/renderer-survey.py sheet <out>
 
@@ -15,8 +15,8 @@ tools/renderer-survey/cases.json lists the cases. "run" builds the Release demo,
 <out>/scripts, renders it headless under the GPU lock (tools/gpu-lock.sh), measures the images, deletes them but for
 the few that it keeps, and writes one result file per case into <out>/results/<part>/<name>.json. A case whose result
 file exists does not run again, so a stopped run goes on where it stopped; delete the file to run the case again.
-The part "evidence" runs only when --parts names it: it captures the block test's sums in a long still, and the
-command "evidence" measures a kept capture (tools/README.md, "The block test's evidence"). "report" prints the tables and
+The census parts run only when --parts names them: each renders a case with the probe's evidence census, and the command
+"census" reduces a kept census folder (tools/README.md, "The evidence census"). "report" prints the tables and
 the verdicts. "sheet" writes <out>/contact-sheet.png. "trace" records a GPU trace of the
 slowest views (tools/gpu-trace.sh). "probe-build" builds the probe, which every part but timing needs: a copy of HEAD
 with tools/renderer-survey/probe.patch, in <out>/probe-bin. The probe never enters src.
@@ -108,9 +108,10 @@ GRAIN_FLICKER_LIMIT = 0.05
 # Each part of the survey and the list of tools/renderer-survey/cases.json whose cases it runs.
 PARTS = {"timing": "stills", "still": "stills", "motion": "motion", "switch": "switches", "lag": "lags", "walk": "walks",
          "stand": "stands", "climb": "climbs"}
-# The parts that run only when --parts names them, and the lists of cases.json whose views they take: the evidence of the
-# block test (take T3) runs on the still views and on the switches' views with their lamps on, such as the orbit cabin.
-NAMED_PARTS = {"evidence": ("stills", "switches")}
+# The parts that run only when --parts names them, and the lists of cases.json whose cases they take: the evidence census
+# of Design X (take T12) of a still view to draw 300, a motion film, a lamp switch, a lag film and a walk.
+NAMED_PARTS = {"census-still": ("stills",), "census-film": ("motion",), "census-switch": ("switches",),
+               "census-lag": ("lags",), "census-walk": ("walks",)}
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -735,283 +736,75 @@ def lag_verdict(result: dict) -> list:
 
 
 # ---------------------------------------------------------------------------------------------------------------------
-# The block test's evidence (docs/plans/bounce-light-confidence.md, section 8, take T3 of section 20). The probe's
-# TERTIUS_A_BLOCK_CAPTURE keeps the block sums of every signal with a block test, every draw of a long still, and these
-# functions form the test's windows offline: how often a still gives evidence, how well the sums predict the noise of
-# the difference of the fast and the slow light, and how both change with the test's constants.
+# The evidence census (docs/plans/bounce-light-confidence.md, section 21, take T12). The probe's TERTIUS_X_CENSUS appends,
+# for every draw and each part of each signal with a light age, the blocks of 8 x 8 pixels at each evidence level as the
+# spatial dispatch acts on them, and the blocks and the pixels with a sample of each cause, whatever TERTIUS_X_CAUSES
+# lets act. These functions reduce it to shares of block-draws for each signal, its parts pooled.
 
-SHADERS = ROOT / "src" / "Tertius.Rendering" / "Shaders"
-# The last commit whose build held the block test. Design X removed accumulate_blocks.glsl (t0-0fhn), so the offline
-# evaluation of old captures reads the test's constants from that commit, until step 15 (t0-e8rh) removes the evaluation.
-BLOCK_TEST_COMMIT = "1190adce1"
-# The constants of the test, in their single home, and the cutoff light of exposure.glsl, which the test also reads.
-BLOCK_CONSTANTS = {SHADERS / "accumulate_blocks.glsl": ("LeastStreams", "TailStreams", "BlockSigmas", "BlockNoiseScale"),
-                   SHADERS / "exposure.glsl": ("CutoffRadiance",)}
-GLSL_CONSTANT = re.compile(r"^const float (\w+) = ([0-9.eE+-]+)(?:\s*/\s*([0-9.eE+-]+))?;", re.M)
-# The window sizes in blocks: 1 x 1, 3 x 3 and 7 x 7.
-BLOCK_WINDOWS = (1, 3, 7)
-# The draws after a reset that the measures leave out, while the slow history fills. The test of step 4 measured from
-# draw 64 on (ScreenTraceRenderTests, StillPanelForFourHundredDraws).
-EVIDENCE_SKIP = 64
-# The fewest measured draws of a window position whose deviation over the draws counts.
-DEVIATION_DRAWS = 64
-# The firing windows that the result lists, at the capture's own rule.
-FIRES_KEPT = 100
-# Acceptance 12 of the design: at most 1e-4 false windows per block-draw, and a measured over predicted deviation of the
-# difference from 0.8 to 1.25.
-EVIDENCE_LIMIT = 1e-4
-DEVIATION_RANGE = (0.8, 1.25)
-# The offline sweep: every combination of these values. Each list holds the design's value, so one row repeats the
-# capture's own rule where the capture keeps the design's constants. The floors and tails reach past the design's,
-# because the smoke run of rect-lamps (2026-11-12, t0-9a9e) still gave 2.4e-3 false windows per block-draw at a floor
-# of 1/6 and 2000 tail streams.
-EVIDENCE_SWEEP = {"blockSigmas": [3.0, 3.5, 4.0, 5.0], "tailStreams": [250.0, 500.0, 1000.0, 2000.0, 4000.0],
-                  "noiseScale": [1.0, 1.25, 1.5, 2.0],
-                  "changeShare": {"diffuse": [1 / 16, 1 / 12, 1 / 8, 1 / 6, 1 / 4, 1 / 3],
-                                  "specular": [1 / 40, 1 / 30, 1 / 20, 1 / 12, 1 / 8]}}
+# The draws after a reset that the shares leave out: the reset draw shows every instance as new, with no last place, so
+# every block of it has motion evidence (ARCHITECTURE.md, the light age).
+CENSUS_SKIP = 1
+# Acceptance 12 of the design: in a still, no block-draw has motion evidence, and at most 1e-4 of the block-draws of each
+# signal have light evidence. Light evidence in a still comes only from a false light change of the record, such as the
+# young records of the sun strips that the jitter keeps (ticket t0-qwx8).
+CENSUS_LIGHT_LIMIT = 1e-4
+# The draw that a census still reaches: the T12 stills run to draw 300.
+CENSUS_STILL_DRAWS = 300
+CENSUS_LEVELS = ("none", "motion", "light")
+# The causes of the census: a recent light code, a ray's hit on a moved surface, and the pixel's own motion on screen.
+CENSUS_CAUSES = ("light", "moved", "moving")
 
 
-def block_constants() -> dict:
-    """The block test's constants as the shaders hold them."""
-    found = {}
-    for path, names in BLOCK_CONSTANTS.items():
-        text = path.read_text() if path.exists() else subprocess.run(
-            ["git", "show", f"{BLOCK_TEST_COMMIT}:{path.relative_to(ROOT).as_posix()}"], cwd=ROOT, check=True,
-            capture_output=True, text=True).stdout
-        values = {m[1]: float(m[2]) / (float(m[3]) if m[3] else 1.0) for m in GLSL_CONSTANT.finditer(text)}
-        for name in names:
-            if name not in values:
-                raise ValueError(f"{path} holds no constant {name}.")
-            found[name] = values[name]
-    return found
-
-
-def difference_share(wf: float, ws: float) -> float:
-    """κ of accumulate_blocks.glsl: the deviation of F − S for one stream as a share of the samples' deviation."""
-    return math.sqrt(max(wf / (2 - wf) + ws / (2 - ws) - 2 * wf * ws / (wf + ws - wf * ws), 0.0))
-
-
-def window_sums(texels, size: int):
-    """The sums of the size x size blocks around each block of texels (H, W, 4), 0 outside the image, as the spatial
-    dispatch forms them."""
-    r = size // 2
-    high, wide = texels.shape[:2]
-    padded = np().pad(texels, ((r, r), (r, r), (0, 0)))
-    rows = sum(padded[k:k + high] for k in range(size))
-    return sum(rows[:, k:k + wide] for k in range(size))
-
-
-def window_fires(window, rule: dict):
-    """windowFires of accumulate_blocks.glsl for windows (..., 4) of (sum d, sum v, n, sum s). The rule's numbers can be
-    arrays that broadcast against the windows. Its varianceScale multiplies sum v: the square of another BlockNoiseScale
-    over the capture's."""
-    n_ = np()
-    d, v, n, s = (window[..., k] for k in range(4))
-    v = v * rule["varianceScale"]
-    fires = ((n >= rule["leastStreams"]) & (s * s >= rule["tailStreams"] * v)
-             & (d * d >= rule["blockSigmas"] * rule["blockSigmas"] * v)
-             & (n_.abs(d) >= rule["changeShare"] * n_.maximum(s, s + d)) & (n_.abs(d) >= n * rule["cutoff"]))
-    return fires & (d < 0) if rule["oneSided"] else fires
-
-
-def read_capture(folder: Path) -> tuple[dict, list, list]:
-    """The probe's capture: its header, the (draw, draw index since the last reset, reset) of each record, and for each
-    signal its header entry and its records (draws, H, W, 4). A record that a stopped run left half written is left out."""
-    n = np()
+def census(folder: Path, skip: int = CENSUS_SKIP) -> dict:
+    """The shares of the census in folder for each signal: of its block-draws, those at each level and those with a
+    sample of each cause, and of its pixel-draws, those with each cause. A block-draw is a block of the image in one
+    draw of one part. A draw whose index since the last reset is below skip counts in none. evidenceDraws lists each
+    counted draw with evidence: [draw, blocks at motion, blocks at light]."""
     header = json.loads((folder / "header.json").read_text())
-    draws = [tuple(int(v) for v in line.split()) for line in (folder / "draws.txt").read_text().splitlines() if line]
-    shape = (header["blocksHigh"], header["blocksWide"], 4)
-    per = shape[0] * shape[1] * 4
-    signals = []
-    for entry in header["signals"]:
-        path = folder / entry["file"]
-        count = path.stat().st_size // (4 * per)
-        data = n.memmap(path, dtype="<f4", mode="r", shape=(count, *shape)) if count else n.zeros((0, *shape), "<f4")
-        signals.append((entry, data))
-    records = min([len(draws)] + [len(data) for _, data in signals])
-    return header, draws[:records], [(entry, data[:records]) for entry, data in signals]
-
-
-def capture_rule(entry: dict, constants: dict) -> dict:
-    """The rule that the capture's build ran for one signal: the probe's push constants where it set them (-1 keeps the
-    shader's constant), the signal's floor, and a one-sided test without a widened box (section 9)."""
-    def chosen(pushed, constant):
-        return pushed if pushed >= 0 else constant
-    return {"leastStreams": constants["LeastStreams"],
-            "tailStreams": chosen(entry["probeTailStreams"], constants["TailStreams"]),
-            "blockSigmas": chosen(entry["probeBlockSigmas"], constants["BlockSigmas"]),
-            "noiseScale": chosen(entry["probeNoiseScale"], constants["BlockNoiseScale"]),
-            "changeShare": entry["changeShare"], "cutoff": constants["CutoffRadiance"],
-            "oneSided": entry["retainedSigmas"] <= 0, "varianceScale": 1.0}
-
-
-def sweep_rules(rule: dict, light: str, sweep: dict) -> tuple[list, dict]:
-    """The sweep's rows and their rule, with each number a column (rows, 1) that broadcasts against the windows."""
-    n = np()
-    rows = [{"blockSigmas": b, "tailStreams": t, "noiseScale": s, "changeShare": c}
-            for b in sweep["blockSigmas"] for t in sweep["tailStreams"] for s in sweep["noiseScale"]
-            for c in sweep["changeShare"][light]]
-    if rule["noiseScale"] <= 0 and any(r["noiseScale"] != rule["noiseScale"] for r in rows):
-        raise ValueError("A capture with a noise scale of 0 holds no predicted variance to scale.")
-    column = lambda values: n.array(values, float)[:, None]
-    swept = {**rule, "blockSigmas": column([r["blockSigmas"] for r in rows]),
-             "tailStreams": column([r["tailStreams"] for r in rows]),
-             "changeShare": column([r["changeShare"] for r in rows]),
-             "varianceScale": column([(r["noiseScale"] / rule["noiseScale"]) ** 2 if rule["noiseScale"] > 0 else 1.0
-                                      for r in rows])}
-    loosest = {**rule, **{k: swept[k].min() for k in ("blockSigmas", "tailStreams", "changeShare", "varianceScale")}}
-    return rows, swept, loosest
-
-
-def quantiles(values, points) -> dict:
-    n = np()
-    values = n.asarray(values, float)
-    if not values.size:
-        return {name: None for name, _ in points}
-    return {name: float(n.quantile(values, q)) for name, q in points}
-
-
-def sizes_dict(make) -> dict:
-    return {str(size): make(size) for size in BLOCK_WINDOWS}
-
-
-def signal_evidence(entry: dict, records, draws: list, every: int, constants: dict, skip: int, sweep: dict) -> dict:
-    """The measures of one signal's captured block sums. A block-draw is a block with a contributing stream in a measured
-    draw, and a fire counts at such a block only, because evidence acts on the block's contributing pixels alone."""
-    n = np()
-    rule = capture_rule(entry, constants)
-    rows, swept, loosest = sweep_rules(rule, entry["light"], sweep)
-    high, wide = records.shape[1:3]
-    fires = {key: 0 for key in [*map(str, BLOCK_WINDOWS), "any"]}
-    swept_fires = n.zeros((len(rows), len(BLOCK_WINDOWS) + 1), n.int64)
-    kept = []
-    block_draws = repeats = longest = measured = 0
-    run = n.zeros((high, wide), n.int64)
-    last = None  # the draw index of the last measured record
-    zeros = lambda: n.zeros((high, wide))
-    deviation = {size: [zeros(), zeros(), zeros(), zeros()] for size in BLOCK_WINDOWS}  # draws, sum m, sum m², sum pred
-    stationary = {size: [zeros(), zeros(), zeros()] for size in BLOCK_WINDOWS}  # draws, sum D, sum S
-    spread = [zeros(), zeros(), zeros()]  # sum v, sum n, sum s of the 1 x 1 window
-    for k, (draw, index, _) in enumerate(draws):
-        if index < skip:
+    blocks = header["blocksWide"] * header["blocksHigh"]
+    pixels = header["width"] * header["height"]
+    signals = {}
+    for line in (folder / "census.txt").read_text().splitlines():
+        draw, index, _, light, part, *counts = line.split()
+        if int(index) < skip:
             continue
-        texels = n.asarray(records[k], float)
-        contributing = texels[..., 2] > 0
-        block_draws += int(contributing.sum())
-        fired = n.zeros((high, wide), bool)
-        candidates = []
-        for column, size in enumerate(BLOCK_WINDOWS):
-            window = window_sums(texels, size)
-            d, v, count, s = (window[..., c] for c in range(4))
-            hit = window_fires(window, rule) & contributing
-            fires[str(size)] += int(hit.sum())
-            fired |= hit
-            for y, x in zip(*n.nonzero(hit)):
-                if len(kept) < FIRES_KEPT:
-                    kept.append({"record": k, "draw": draw, "drawIndex": index, "x": int(x), "y": int(y), "window": size,
-                                 "n": float(count[y, x]), "dOverS": float(d[y, x] / s[y, x]) if s[y, x] else None,
-                                 "z": float(d[y, x] / math.sqrt(v[y, x])) if v[y, x] > 0 else None,
-                                 "tail": float(s[y, x] ** 2 / v[y, x]) if v[y, x] > 0 else None})
-            full = count >= rule["leastStreams"]
-            mean = n.where(full, d / n.maximum(count, 1), 0.0)
-            draws_, sum_m, sum_m2, sum_pred = deviation[size]
-            draws_ += full
-            sum_m += mean
-            sum_m2 += mean * mean
-            sum_pred += n.where(full, v / n.maximum(count, 1) ** 2, 0.0)
-            stationary[size][0] += full
-            stationary[size][1] += n.where(full, d, 0.0)
-            stationary[size][2] += n.where(full, s, 0.0)
-            if size == 1:
-                spread[0] += v
-                spread[1] += count
-                spread[2] += s
-            loose = window_fires(window, loosest) & contributing
-            ys, xs = n.nonzero(loose)
-            candidates.append((ys * wide + xs, n.full(len(ys), column), window[ys, xs]))
-        fires["any"] += int(fired.sum())
-        follows = last is not None and index == last + every
-        if follows:
-            repeats += int((fired & (run > 0)).sum())
-        run = n.where(fired, (run if follows else 0) + 1, 0)
-        longest = max(longest, int(run.max()))
-        last = index
-        measured += 1
-        blocks = n.concatenate([c[0] for c in candidates])
-        if blocks.size:
-            columns = n.concatenate([c[1] for c in candidates])
-            windows = n.concatenate([c[2] for c in candidates])
-            passes = window_fires(windows[None], swept)
-            for column in range(len(BLOCK_WINDOWS)):
-                swept_fires[:, column] += passes[:, columns == column].sum(axis=1)
-            order = n.argsort(blocks, kind="stable")
-            _, starts = n.unique(blocks[order], return_index=True)
-            swept_fires[:, -1] += n.logical_or.reduceat(passes[:, order], starts, axis=1).sum(axis=1)
-
-    rate = lambda count: count / block_draws if block_draws else None
-
-    def deviation_of(size):
-        draws_, sum_m, sum_m2, sum_pred = deviation[size]
-        use = (draws_ >= DEVIATION_DRAWS) & (sum_pred > 0)
-        if not use.any():
-            return {"pooled": None, "p10": None, "p50": None, "p90": None, "positions": 0}
-        variance = n.maximum(sum_m2[use] - sum_m[use] ** 2 / draws_[use], 0.0)
-        ratios = n.sqrt(variance / sum_pred[use])
-        return {"pooled": float(math.sqrt(variance.sum() / sum_pred[use].sum())),
-                **quantiles(ratios, (("p10", 0.1), ("p50", 0.5), ("p90", 0.9))), "positions": int(use.sum())}
-
-    def stationary_of(size):
-        draws_, sum_d, sum_s = stationary[size]
-        use = (draws_ > 0) & (sum_s > 0)
-        ratio = sum_d[use] / sum_s[use]
-        result = quantiles(n.abs(ratio), (("p50", 0.5), ("p90", 0.9), ("p99", 0.99), ("p99.9", 0.999),
-                                          ("p99.99", 0.9999), ("max", 1.0)))
-        return {**result, "mean": float(ratio.mean()) if ratio.size else None, "positions": int(use.sum())}
-
-    deviations = sizes_dict(deviation_of)
-    # The reflections' precise history is uncapped by default: κ of a history without end, 0.378.
-    kappa = difference_share(1 / entry["fastCap"], 0.0 if entry.get("uncapped") else 1 / entry["cap"])
-    use = (spread[1] > 0) & (spread[2] > 0)
-    cv = n.sqrt(spread[0][use] * spread[1][use]) / spread[2][use] / (kappa * rule["noiseScale"]) \
-        if rule["noiseScale"] > 0 else n.zeros(0)
-    names = [*map(str, BLOCK_WINDOWS), "any"]
-    return {
-        "light": entry["light"], "part": entry["part"], "rule": rule, "kappaAtCap": kappa,
-        "records": len(draws), "measuredRecords": measured, "blockDraws": block_draws,
-        "fires": fires, "falsePerBlockDraw": {key: rate(count) for key, count in fires.items()},
-        "repeats": repeats, "repeatShare": repeats / fires["any"] if fires["any"] else None, "longestRun": longest,
-        "deviationRatio": deviations,
-        "noiseScaleForRatio1": {size: d["pooled"] * rule["noiseScale"] if d["pooled"] is not None else None
-                                for size, d in deviations.items()},
-        "cv": {**quantiles(cv, (("p10", 0.1), ("p50", 0.5), ("p90", 0.9), ("p99", 0.99))), "blocks": int(use.sum())},
-        "stationaryDifference": sizes_dict(stationary_of),
-        "firesKept": kept,
-        "sweep": [{**row, "fires": {name: int(swept_fires[i, j]) for j, name in enumerate(names)},
-                   "falsePerBlockDraw": {name: rate(int(swept_fires[i, j])) for j, name in enumerate(names)}}
-                  for i, row in enumerate(rows)],
-    }
+        levels, causes, cause_pixels = [int(c) for c in counts[0:3]], counts[3:6], counts[6:9]
+        s = signals.setdefault(light, {"light": light, "parts": set(), "draws": set(), "levels": [0, 0, 0],
+                                       "causes": [0, 0, 0], "pixels": [0, 0, 0], "evidence": {}})
+        s["parts"].add(part)
+        s["draws"].add(draw)
+        for k in range(3):
+            s["levels"][k] += levels[k]
+            s["causes"][k] += int(causes[k])
+            s["pixels"][k] += int(cause_pixels[k])
+        if levels[1] or levels[2]:
+            motion, light_blocks = s["evidence"].get(int(draw), (0, 0))
+            s["evidence"][int(draw)] = (motion + levels[1], light_blocks + levels[2])
+    result = []
+    for s in signals.values():
+        block_draws = blocks * len(s["parts"]) * len(s["draws"])
+        pixel_draws = pixels * len(s["parts"]) * len(s["draws"])
+        share = lambda count, total: count / total if total else None
+        result.append({
+            "light": s["light"], "parts": len(s["parts"]), "draws": len(s["draws"]), "blockDraws": block_draws,
+            "levels": dict(zip(CENSUS_LEVELS, s["levels"])),
+            "levelShares": {name: share(count, block_draws) for name, count in zip(CENSUS_LEVELS, s["levels"])},
+            "causes": {name: {"blockDraws": s["causes"][k], "share": share(s["causes"][k], block_draws),
+                              "pixelDraws": s["pixels"][k], "pixelShare": share(s["pixels"][k], pixel_draws)}
+                       for k, name in enumerate(CENSUS_CAUSES)},
+            "evidenceDraws": [[draw, *counts] for draw, counts in sorted(s["evidence"].items())]})
+    return {"skip": skip, "probe": {k: v for k, v in header.items() if k not in ("width", "height")}, "signals": result}
 
 
-def evidence(folder: Path, skip: int = EVIDENCE_SKIP, sweep: dict | None = None) -> dict:
-    """The measures of take T3 for a capture folder of the probe, for each signal that it holds."""
-    constants = block_constants()
-    header, draws, signals = read_capture(folder)
-    return {"capture": {k: v for k, v in header.items() if k != "signals"}, "constants": constants, "skip": skip,
-            "signals": [signal_evidence(entry, records, draws, header["every"], constants, skip, sweep or EVIDENCE_SWEEP)
-                        for entry, records in signals]}
-
-
-def evidence_verdict(result: dict) -> list:
-    """Acceptance 12 for each signal: its false evidence, and its measured over predicted deviation of the difference in
-    the 1 x 1 window."""
+def census_verdict(result: dict) -> list:
+    """Acceptance 12 for each signal of a still: no motion evidence, and light evidence in at most CENSUS_LIGHT_LIMIT of
+    its block-draws."""
     failed = []
     for signal in result["signals"]:
-        rate = signal["falsePerBlockDraw"]["any"]
-        if rate is not None and rate > EVIDENCE_LIMIT:
-            failed.append(f"{signal['light']} evidence")
-        ratio = signal["deviationRatio"]["1"]["pooled"]
-        if ratio is not None and not DEVIATION_RANGE[0] <= ratio <= DEVIATION_RANGE[1]:
-            failed.append(f"{signal['light']} noise")
+        if signal["levels"]["motion"] > 0:
+            failed.append(f"{signal['light']} motion")
+        if signal["levelShares"]["light"] is not None and signal["levelShares"]["light"] > CENSUS_LIGHT_LIMIT:
+            failed.append(f"{signal['light']} light")
     return failed
 
 
@@ -1466,37 +1259,76 @@ def run_climb(out: Path, case: dict, args):
     return result
 
 
-def evidence_env(capture: Path) -> dict:
-    """The probe's settings of an evidence run: the capture folder, and the sums without their action unless the caller
-    sets TERTIUS_A_BLOCK_ACTION itself. The history goes on through the still's captures, as in the still part."""
-    return {"TERTIUS_A_BLOCK_CAPTURE": str(capture), "TERTIUS_A_BLOCK_ACTION": os.environ.get("TERTIUS_A_BLOCK_ACTION", "0"),
-            **STILL_CONTINUES}
+def census_still_script(case: dict) -> tuple[dict, bool]:
+    """The still view of a case with continued stills v-s00 ... to CENSUS_STILL_DRAWS, as the still part's long still
+    starts. Returns the script and whether its first capture is a still."""
+    script, frame = source_of(case)
+    _, first_is_still = views_script(script, {frame: []})
+    count = 1
+    while still_draws(first_is_still, count - 1) < CENSUS_STILL_DRAWS:
+        count += 1
+    built, still = views_script(script, {frame: captures("v", count)})
+    return built, still[frame]
 
 
-def run_evidence(out: Path, case: dict, args):
-    """The long still of the still part, 28 captures of 33 draws to draw 924, with the block sums captured every draw.
-    The capture of one signal takes about 230 KB per draw at 1280 x 720, so the run reduces it to numbers and deletes it,
-    unless --keep-capture moves it to <out>/captures/<name>."""
-    work = out / "work" / "evidence" / case["name"]
-    capture = work / "blocks"
-    env = evidence_env(capture)
-    script, _ = still_script(*source_of(case))
-    log = render(work, script, binary=probe_binary(out), env=env, extra=NO_BLOOM)
+def run_census(out: Path, part: str, case: dict, script: dict, env: dict, extra, verdict, skip: int) -> dict:
+    """Renders script with the probe's evidence census and the probe's series in place of PNGs, and saves the census's
+    shares. The census stays in <out>/census/<part>/<name> for the census command. The result keeps the probe's knobs
+    that the environment sets (TERTIUS_X_ and TERTIUS_A_), so that a run per knob setting goes to an output folder of its
+    own."""
+    work = out / "work" / part / case["name"]
+    folder = work / "census"
+    log = render(work, script, binary=probe_binary(out), env={**env, **series_env(work), "TERTIUS_X_CENSUS": str(folder)},
+                 extra=extra)
     knobs = {k: v for k, v in sorted({**os.environ, **env}.items())
-             if k.startswith("TERTIUS_A_") and k != "TERTIUS_A_BLOCK_CAPTURE"}
-    result = {"script": label_of(case), "scene": scene_name(case), "frame": case.get("frame", 0), "knobs": knobs,
-              **evidence(capture, skip=args.skip)}
-    result["failed"] = evidence_verdict(result)
-    if args.keep_capture:
-        kept = out / "captures" / case["name"]
-        if kept.exists():
-            shutil.rmtree(kept)
-        kept.parent.mkdir(parents=True, exist_ok=True)
-        shutil.move(str(capture), str(kept))
+             if k.startswith(("TERTIUS_X_", "TERTIUS_A_")) and k != "TERTIUS_X_CENSUS"}
+    result = {"script": label_of(case), "scene": scene_name(case), "knobs": knobs, **census(folder, skip=skip)}
+    result["failed"] = verdict(result)
+    kept = out / "census" / part / case["name"]
+    if kept.exists():
+        shutil.rmtree(kept)
+    kept.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(folder), str(kept))
     shutil.rmtree(work)
     log.unlink(missing_ok=True)
-    save(out, "evidence", case["name"], result)
+    save(out, part, case["name"], result)
     return result
+
+
+def run_census_still(out: Path, case: dict, args):
+    """A still view to draw 300 whose history goes on through its captures, as in the still part, with the verdict of
+    acceptance 12."""
+    script, _ = census_still_script(case)
+    return run_census(out, "census-still", case, script, STILL_CONTINUES, NO_BLOOM, census_verdict, args.skip)
+
+
+def no_verdict(result: dict) -> list:
+    """A film's census is a measure without a verdict: motion gives evidence by design."""
+    return []
+
+
+def run_census_film(out: Path, case: dict, args):
+    """The film of a motion case, without its stills, at the auto exposure."""
+    return run_census(out, "census-film", case, motion_case(case).film, {}, NO_BLOOM, no_verdict, args.skip)
+
+
+def run_census_switch(out: Path, case: dict, args):
+    """The run of a switch case whose lamps go off and on again."""
+    env = {"TERTIUS_PROBE_EXPOSURE": args.exposure, **switch_runs(case)["switch"]}
+    return run_census(out, "census-switch", case, switch_script(case), env, PROBE_OPTIONS, no_verdict, args.skip)
+
+
+def run_census_lag(out: Path, case: dict, args):
+    """The film of a lag case's moving lights."""
+    film, _ = lag_scripts(case)
+    env = {"TERTIUS_PROBE_EXPOSURE": args.exposure}
+    return run_census(out, "census-lag", case, film, env, PROBE_OPTIONS, no_verdict, args.skip)
+
+
+def run_census_walk(out: Path, case: dict, args):
+    """The walk of a walk case, without its control."""
+    env = {"TERTIUS_PROBE_EXPOSURE": args.exposure}
+    return run_census(out, "census-walk", case, walk_script(case), env, PROBE_OPTIONS, no_verdict, args.skip)
 
 
 def cases_of(cases: dict, part: str) -> list:
@@ -1528,10 +1360,8 @@ def run_chunks(args) -> int:
             log = out / "logs" / f"{part}-{chunk[0]}.lock.log"
             log.parent.mkdir(parents=True, exist_ok=True)
             command = [sys.executable, "-I", str(Path(__file__).resolve()), "run", str(out), "--parts", part, "--no-build",
-                       "--chunk", "0", "--exposure", args.exposure, "--skip", str(getattr(args, "skip", EVIDENCE_SKIP)),
+                       "--chunk", "0", "--exposure", args.exposure, "--skip", str(getattr(args, "skip", CENSUS_SKIP)),
                        "--only", *chunk]
-            if getattr(args, "keep_capture", False):
-                command += ["--keep-capture"]
             if args.clock_bin:
                 command += ["--clock-bin", str(args.clock_bin)]
             result = subprocess.run([*gpu_lock(log, part == "timing"), "env", f"{HOLDS_LOCK}=1", *command],
@@ -1553,7 +1383,9 @@ def run(args):
         subprocess.run(["dotnet", "build", "src/Tertius.Demo", "-c", "Release", "-v", "quiet", "-nologo"], cwd=ROOT,
                        check=True, stdout=subprocess.DEVNULL)
     runners = {"timing": run_timing, "still": run_still, "motion": run_motion, "switch": run_switch, "lag": run_lag,
-               "walk": run_walk, "stand": run_stand, "climb": run_climb, "evidence": run_evidence}
+               "walk": run_walk, "stand": run_stand, "climb": run_climb, "census-still": run_census_still,
+               "census-film": run_census_film, "census-switch": run_census_switch, "census-lag": run_census_lag,
+               "census-walk": run_census_walk}
     failures = 0
     for part in parts:
         runner = runners[part]
@@ -1918,27 +1750,25 @@ def report(args):
             state = f"t{tick}"
             lines.append(f"| {name} | {r['region']} | {state} | {cell(r['peakShare'][state][band], 3)} "
                          f"| {cell(r['lastShare'][state][band], 3)} | {verdict} |")
-    evidence_results = results(out, "evidence")
-    if evidence_results:
-        lines += ["", "| Evidence | Signal | Block-draws | False 1 × 1 | False 3 × 3 | False 7 × 7 | False any | Repeat share "
-                  "| Ratio 1 × 1 | Ratio 3 × 3 | Ratio 7 × 7 | CV p50 | F − S p99.99 | Verdict |",
-                  "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|"]
-    for name, r in evidence_results.items():
+    census_rows = [(name, part.removeprefix("census-"), r) for part in NAMED_PARTS for name, r in results(out, part).items()]
+    if census_rows:
+        lines += ["", "| Census | Kind | Signal | Block-draws | Light level | Motion level | Light cause | Moved cause "
+                  "| Moving cause | Light pixels | Verdict |", "|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|"]
+    for name, kind, r in census_rows:
         verdict = "fail: " + ", ".join(r["failed"]) if r["failed"] else "pass"
         for s in r["signals"]:
-            rate = lambda key: f"{s['falsePerBlockDraw'][key]:.1e}" if s["falsePerBlockDraw"][key] is not None else "n/a"
-            ratio = lambda size: cell(s["deviationRatio"][size]["pooled"])
-            tails = [d["p99.99"] for d in s["stationaryDifference"].values() if d.get("p99.99") is not None]
-            lines.append(f"| {name} | {s['light']} | {s['blockDraws']} | {rate('1')} | {rate('3')} | {rate('7')} "
-                         f"| {rate('any')} | {cell(s['repeatShare'])} | {ratio('1')} | {ratio('3')} | {ratio('7')} "
-                         f"| {cell(s['cv']['p50'])} | {cell(max(tails) if tails else None, 3)} | {verdict} |")
+            rate = lambda value: f"{value:.1e}" if value is not None else "n/a"
+            causes = s["causes"]
+            lines.append(f"| {name} | {kind} | {s['light']} | {s['blockDraws']} | {rate(s['levelShares']['light'])} "
+                         f"| {rate(s['levelShares']['motion'])} | {rate(causes['light']['share'])} "
+                         f"| {rate(causes['moved']['share'])} | {rate(causes['moving']['share'])} "
+                         f"| {rate(causes['light']['pixelShare'])} | {verdict} |")
     print("\n".join(lines))
     return 0
 
 
-def evidence_command(args):
-    sweep = json.loads(Path(args.sweep).read_text()) if args.sweep else None
-    result = evidence(Path(args.capture), skip=args.skip, sweep=sweep)
+def census_command(args):
+    result = census(Path(args.folder), skip=args.skip)
     text = json.dumps(result, indent=1)
     if args.write:
         Path(args.write).write_text(text)
@@ -1990,14 +1820,11 @@ def main(argv=None) -> int:
                    help="cases per take of the GPU lock; 0 runs in this process, each render taking the lock itself")
     p.add_argument("--exposure", default="4.08", help="the probe's fixed exposure in stops")
     p.add_argument("--clock-bin", default=os.environ.get("GPU_CALIBRATION_BIN"))
-    p.add_argument("--skip", type=int, default=EVIDENCE_SKIP,
-                   help="evidence: the draws after a reset that the measures leave out")
-    p.add_argument("--keep-capture", action="store_true",
-                   help="evidence: keep the block sums in <out>/captures/<name> for the evidence command")
-    p = sub.add_parser("evidence", help="the measures of take T3 for a capture folder of the probe")
-    p.add_argument("capture")
-    p.add_argument("--skip", type=int, default=EVIDENCE_SKIP, help="the draws after a reset that the measures leave out")
-    p.add_argument("--sweep", help="a JSON file of the sweep's values, in the form of EVIDENCE_SWEEP")
+    p.add_argument("--skip", type=int, default=CENSUS_SKIP,
+                   help="census: the draws after a reset that the shares leave out")
+    p = sub.add_parser("census", help="the shares of take T12 for a census folder of the probe")
+    p.add_argument("folder")
+    p.add_argument("--skip", type=int, default=CENSUS_SKIP, help="the draws after a reset that the shares leave out")
     p.add_argument("--write", help="the JSON file to write; without it the numbers go to the standard output")
     p = sub.add_parser("trace")
     p.add_argument("out")
@@ -2014,7 +1841,7 @@ def main(argv=None) -> int:
         sub.add_parser(name).add_argument("out")
     args = parser.parse_args(argv)
     return {"probe-build": probe_build, "run": run, "trace": trace, "report": report, "sheet": sheet, "split": split,
-            "split-report": split_report, "evidence": evidence_command}[args.command](args)
+            "split-report": split_report, "census": census_command}[args.command](args)
 
 
 if __name__ == "__main__":

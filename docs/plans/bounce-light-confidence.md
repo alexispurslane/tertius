@@ -878,6 +878,7 @@ The probe knobs that step 15 adds. Each is read once from the environment:
 | `TERTIUS_X_CAUSES=<list>` | Which causes give evidence, any of `light`, `moved`, `moving` (the pixel's own motion). Unset: all |
 | `TERTIUS_X_MOVED_ACTION=cut` | Open point 1's alternative: a moved mark gives light evidence |
 | `TERTIUS_X_RECENT_LIGHT_AGE`, `TERTIUS_X_LEAST_MOTION` | Set `RecentLightAge` and `LeastMotion` |
+| `TERTIUS_A_MOTION_CUTS=1` | Open point 1's alternative for both causes of motion: they give light evidence (kept from step 12) |
 | `TERTIUS_A_RETAINED_SIGMAS` | Sets `RetainedSigmas` of a widened box (kept) |
 | `TERTIUS_A_NO_CLAMP=1` | Turns both clamps off, and so the anti-lag and the evidence's action. It renders the truth (kept) |
 
@@ -973,6 +974,13 @@ Where steps 11 to 13 differ from the plan above:
 - `tools/renderer-survey.py` reads the removed `accumulate_blocks.glsl` from commit `1190adce1` (`BLOCK_TEST_COMMIT`), so that the survey's block capture and its tests keep working until step 15 removes them. `probe.patch` lost only the hunks whose targets step 12 removed, and gained the knob `TERTIUS_A_MOTION_CUTS`.
 - The moved test compares motions with a relative depth bound, and a still surface gives 0 up to the floats' rounding, not exactly 0 (section 8.4).
 - The tests moved between steps as section 20 records.
+
+Where step 15 differs from the plan above:
+
+- The census runs on the CPU: each draw reads back the sample ages, and `AccumulatePushConstants.ProbeX` repeats the rule of `evidenceOfSample` under the knobs. The engine keeps both causes of motion in one bit, so the probe's resolve writes the pixel's own motion in bit 14 of the sample age, which no light code reaches, and the moved mark stays in bit 15. The light code's mask in the probe is bits 0 to 13.
+- The census counts each cause whatever `TERTIUS_X_CAUSES` lets act, so one run gives the shares of all three causes. "One run per cause" in take T12 is needed only for the action's effect on the image.
+- The survey runs the census in five parts that run only when named: `census-still` (a still view to draw 300, with acceptance 12 as its verdict), `census-film`, `census-switch`, `census-lag` and `census-walk`. The command `census` reduces a census folder. tools/README.md, "The evidence census", describes them.
+- The first census still, `rect-lamps` on the workbench (2026-11-14), gave light evidence in 1.9 % of the bounce light's block-draws and 0.51 % of the reflections', against the 10^−4 of acceptance 12, and no motion evidence. The light cause covered 7.2 × 10^−4 of the bounce light's pixel-draws. This is the false block evidence of young light codes in a still that ticket `t0-qwx8` predicts; take T12 measures it on the four stills.
 
 After the merge, `ter-ewua` starts from section 15. If the climb's target fails, `ter-g3tk` keeps the climb with its next take.
 
