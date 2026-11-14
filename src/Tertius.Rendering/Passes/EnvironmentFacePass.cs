@@ -82,7 +82,11 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
     }
 
     /// <summary>The desc of the light pipeline: one color output per drawn cube, in the order of the light shader's outputs.</summary>
-    private static GraphicsPipelineDesc LightDesc(DescriptorLayouts layouts, EnvironmentMap map, ShaderConstants constants)
+    private static GraphicsPipelineDesc LightDesc(
+        DescriptorLayouts layouts,
+        EnvironmentMap map,
+        ShaderConstants constants
+    )
     {
         var colorFormats = new Format[map.DrawnCubes.Length];
         for (int output = 0; output < colorFormats.Length; output++)

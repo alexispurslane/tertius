@@ -1035,7 +1035,7 @@ public sealed class HairRenderTests
             FaceBasis basis = CubeFaces.Basis(CubeFace.PositiveX);
             float offset = 1f / EnvironmentScenes.FaceSize;
             Vector3 direction = basis.Forward + offset * basis.Right - offset * basis.Up;
-            var toView = -((Double3)direction).Normalized();
+            Double3 toView = -((Double3)direction).Normalized();
             DirectTerms terms = DarkSmoothHair.Reflected(
                 strand: (Double3)strand,
                 fiberNormal: HairFiber.FiberNormal((Double3)strand, toView, -Double3.UnitX),
