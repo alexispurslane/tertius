@@ -29,10 +29,10 @@ index 009082257..2a1c55a65 100644
      return LeavingLight(min(reflection, vec3(MaxRadiance)), min(light, vec3(MaxRadiance)));
  }
 diff --git a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
-index 4c850c2bf..c4d027676 100644
+index 4c850c2bf..29e504dd9 100644
 --- a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
 +++ b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
-@@ -67,6 +67,66 @@ vec3 specularWeightOf(TracingPixel p, SurfaceLobes lobes, MaterialFactors factor
+@@ -67,6 +67,102 @@ vec3 specularWeightOf(TracingPixel p, SurfaceLobes lobes, MaterialFactors factor
  }
  
  #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
@@ -56,6 +56,41 @@ index 4c850c2bf..c4d027676 100644
 +// PROBE (t0-adau): the place mode (TERTIUS_PROBE_HIT_PLACES=1, bit 2 of the knob): the specular sample's age holds its
 +// class's bits 0 to 4 and 6 and 7, bit 5 whether the hit pixel's demodulated direct diffuse light passes 50, and bits 8 to
 +// 12 the hit pixel's y >> 5; the diffuse sample's age holds the hit pixel's x in bits 0 to 10 and y & 31 in bits 11 to 15.
++// PROBE (t0-adau): the part of leavingLightOf's reflection light at q that is largest: 1 the direct diffuse light, 2 the
++// diffuse history, 3 the glow, 4 the direct specular light, 5 the specular history, 6 q is no traced surface (an
++// impostor, whose light is its glow), 7 a closed form in place of a history; 0 when all are 0.
++uint probeDominantOf(ivec2 q)
++{
++    if (!tracedSurface(q))
++        return 6u;
++    ShadingInput s = materialAt(q);
++    vec3 V = -normalize(viewRayThrough(vec2(q) + 0.5));
++    MaterialFactors f = materialFactors(s, lobesOf(s, V));
++    SignalReprojections r = reprojectionsAt(q);
++    const vec3 Y = vec3(0.2126, 0.7152, 0.0722);
++    float parts[5];
++    parts[0] = dot(f.diffuse * imageLoad(directDiffuseLight, q).rgb, Y);
++    parts[1] = holdsHistory(r.diffuse) ? dot(f.diffuse * lastLightOf(r.diffuse, KindDiffuse), Y) : 0.0;
++    parts[2] = dot(glowAt(q), Y);
++    parts[3] = dot(f.specular * imageLoad(directSpecularLight, q).rgb, Y);
++    parts[4] = holdsHistory(r.specular) ? dot(f.specular * lastLightOf(r.specular, KindReflection), Y) : 0.0;
++    uint best = 0u;
++    float most = 0.0;
++    for (uint i = 0u; i < 5u; i++)
++        if (parts[i] > most)
++        {
++            most = parts[i];
++            best = i + 1u;
++        }
++    if (!holdsHistory(r.diffuse) || !holdsHistory(r.specular))
++    {
++        IndirectLight closed = closedForm(withAmbientFootprint(s, q), V);
++        if (dot(f.diffuse * closed.diffuse + f.specular * closed.specular, Y) > most)
++            best = 7u;
++    }
++    return best;
++}
++
 +void probeStorePlace(ivec2 pixel, uint code, ivec2 q)
 +{
 +    if (q.x < 0)
@@ -65,7 +100,8 @@ index 4c850c2bf..c4d027676 100644
 +        return;
 +    }
 +    bool lit = dot(imageLoad(directDiffuseLight, q).rgb, vec3(0.2126, 0.7152, 0.0722)) > 50.0;
-+    imageStore(specularSampleAge, pixel, uvec4((code & 0xDFu) | (lit ? 32u : 0u) | (uint(q.y >> 5) << 8)));
++    imageStore(specularSampleAge, pixel,
++        uvec4((code & 0xDFu) | (lit ? 32u : 0u) | (uint(q.y >> 5) << 8) | (probeDominantOf(q) << 13)));
 +    imageStore(diffuseSampleAge, pixel, uvec4(uint(q.x) | (uint(q.y & 31) << 11)));
 +}
 +
@@ -99,7 +135,7 @@ index 4c850c2bf..c4d027676 100644
  // Whether the pixel's own surface point moves on screen since the last draw by at least LeastMotion pixels: by its motion
  // target, so the camera's moves count as well as the surface's (docs/plans/bounce-light-confidence.md, section 8.4).
  bool movesOnScreen(ivec2 pixel)
-@@ -114,6 +174,9 @@ void main()
+@@ -114,6 +210,9 @@ void main()
      bool diffuseMoved = diffuseRay.brings && movedHitOfRecord(diffuse.ray);
      // PROBE (tools/renderer-survey): the pixel's own motion in its own bit, apart from the moved mark.
      imageStore(diffuseSampleAge, pixel, uvec4(sampleAgeOf(diffuseCode, diffuseMoved) | (moves ? ProbeMovingBit : 0u)));
@@ -109,7 +145,7 @@ index 4c850c2bf..c4d027676 100644
  #endif
  
      // The share of the diffuse ray's estimate in the specular sample: 0 below the hand-over band, 1 above it.
-@@ -166,6 +229,27 @@ void main()
+@@ -166,6 +265,27 @@ void main()
  #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
      // PROBE (tools/renderer-survey): the pixel's own motion in its own bit, apart from the moved mark.
      imageStore(specularSampleAge, pixel, uvec4(sampleAgeOf(ageCode, moved) | (moves ? ProbeMovingBit : 0u)));
@@ -138,7 +174,7 @@ index 4c850c2bf..c4d027676 100644
  #ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
      imageStore(uncoveredDiagnostic, pixel, vec4(float(seenCode) - 1.0, 0.0, 0.0, 0.0));
 diff --git a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
-index a7bae5fcb..c43637c60 100644
+index a7bae5fcb..face4feb8 100644
 --- a/src/Tertius.Rendering/VulkanRenderer.cs
 +++ b/src/Tertius.Rendering/VulkanRenderer.cs
 @@ -615,6 +615,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
@@ -149,7 +185,7 @@ index a7bae5fcb..c43637c60 100644
  
          if (sink != null && capture != null)
          {
-@@ -653,6 +654,125 @@ public sealed unsafe class VulkanRenderer : IRenderer
+@@ -653,6 +654,132 @@ public sealed unsafe class VulkanRenderer : IRenderer
          int.TryParse(Environment.GetEnvironmentVariable("TERTIUS_X_CENSUS_EVERY"), out int every) && every > 0 ? every : 0;
      private long probeCensusDraw;
  
@@ -179,7 +215,9 @@ index a7bae5fcb..c43637c60 100644
 +    // PROBE (t0-adau): in the place mode (TERTIUS_PROBE_HIT_PLACES=1), the specular samples of luminance 50 or more in each
 +    // box by their hit pixel and the lit bit (probeStorePlace): samples and light.
 +    private static readonly bool ProbeHitPlaces = Environment.GetEnvironmentVariable("TERTIUS_PROBE_HIT_PLACES") == "1";
-+    private readonly Dictionary<(int Box, int X, int Y, int Lit), (long Count, double Light)> probeHitPlaces = new();   // per signal and box, per hit cell of the 16 x 16 grid: samples, light
++    private readonly Dictionary<(int Box, int X, int Y, int Lit), (long Count, double Light)> probeHitPlaces = new();
++    // Per box and dominant part of the hit's light (probeDominantOf): the bright samples and their light.
++    private readonly double[,,] probeHitDominant = new double[4, 8, 2];   // per signal and box, per hit cell of the 16 x 16 grid: samples, light
 +
 +    private void ProbeHits()
 +    {
@@ -217,6 +255,8 @@ index a7bae5fcb..c43637c60 100644
 +                            var key = (box, lowBits & 2047, ((code >> 8) & 31) << 5 | (lowBits >> 11), (code >> 5) & 1);
 +                            probeHitPlaces.TryGetValue(key, out var e);
 +                            probeHitPlaces[key] = (e.Count + 1, e.Light + l);
++                            probeHitDominant[box, (code >> 13) & 7, 0]++;
++                            probeHitDominant[box, (code >> 13) & 7, 1] += l;
 +                        }
 +                }
 +                continue;
@@ -267,6 +307,9 @@ index a7bae5fcb..c43637c60 100644
 +                if (probeHitCells[row, cell, 0] > 0)
 +                    lines.Append(string.Create(inv,
 +                        $"cell-{(row < ProbeHitBoxes.Length ? "diffuse" : "specular")}-{ProbeHitBoxes[row % ProbeHitBoxes.Length].Name} {cell} 0 {probeHitCells[row, cell, 0]:R} {probeHitCells[row, cell, 1]:R}\n"));
++        for (int box = 0; box < ProbeHitBoxes.Length; box++)
++            for (int part = 0; part < 8; part++)
++                lines.Append(string.Create(inv, $"dominant-{ProbeHitBoxes[box].Name} {part} {probeHitDominant[box, part, 0]:R} {probeHitDominant[box, part, 1]:R}\n"));
 +        foreach (var (key, e) in probeHitPlaces)
 +            lines.Append(string.Create(inv, $"place-{ProbeHitBoxes[key.Box].Name} {key.X} {key.Y} {key.Lit} {e.Count} {e.Light:R}\n"));
 +        System.IO.File.WriteAllText(file, lines.ToString());
