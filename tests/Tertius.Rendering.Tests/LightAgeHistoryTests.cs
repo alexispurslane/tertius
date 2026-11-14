@@ -764,6 +764,52 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
         );
 
     [Fact]
+    public void OnceTheCodeOfALampThatWentOutIsNoLongerRecentTheCutBounceHistoriesGrowAgain() =>
+        WithRenderer(
+            null,
+            (renderer, scene) =>
+            {
+                // The light code of the change stays recent for the ages 0 to 6 (sample_age.glsl, RecentLightAge), so the
+                // blocks that see the emitter go out are cut to the fast cap for 7 draws. From then on their rays bring an
+                // old code, which is no evidence, and their histories grow by one frame per draw again: 24 draws after the
+                // change, at least 17 draws of growth above the fast cap (docs/plans/bounce-light-confidence.md, section
+                // 8.3).
+                Draw(renderer, scene, 64);
+                SetGlow(renderer, scene, Vector3.Zero);
+                Draw(renderer, scene, LightChangeDraws);
+                float[] codes = DiffuseLightCodes(renderer);
+                int[] seeing =
+                [
+                    .. Enumerable
+                        .Range(0, Width * Height)
+                        .Where(pixel => codes[pixel] is >= 1 and <= 7)
+                        .Select(BlockOf)
+                        .Distinct(),
+                ];
+
+                Draw(renderer, scene, 24);
+
+                float[] slow = renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.Slow(0));
+                float[] lengths =
+                [
+                    .. Enumerable
+                        .Range(0, Width * Height)
+                        .Where(pixel => seeing.Contains(BlockOf(pixel)) && LengthAt(slow, pixel) > 0)
+                        .Select(pixel => LengthAt(slow, pixel))
+                        .Order(),
+                ];
+                output.WriteLine(
+                    $"Blocks that saw the lamp go out: {seeing.Length}; their lengths 24 draws later: "
+                        + $"{lengths[0]} least, {lengths[lengths.Length / 2]} median."
+                );
+                seeing.Length.Should().BeGreaterThan(10, "the floor's rays see the emitter");
+                lengths[lengths.Length / 2]
+                    .Should()
+                    .BeGreaterThanOrEqualTo(2 * DiffuseFastCap, "an old light code cuts nothing");
+            }
+        );
+
+    [Fact]
     public void AfterALampGoesOutTheBounceLightSettlesWithinFivePercentInSixtyDraws() =>
         WithRenderer(
             null,
