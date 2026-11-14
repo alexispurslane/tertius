@@ -851,6 +851,12 @@ New in step 14 (the first two landed earlier, in `LightAgeHistoryTests` and `Sti
 - `AStillSceneGivesNoEvidenceToEitherSignal`: the panel scene for 300 draws after the histories fill. No block has either level. It replaces `AStillPanelSceneGivesAtMostOneBlockEvidenceInTenThousandBlockDrawsOfEitherSignal`, which step 12 removes.
 - `ABoxThatSlidesPastAWallNarrowsTheWallsBoxWhileItMovesAndNotAfter`.
 
+As built in step 14:
+
+- The rise after the cut has a test of its own beside the lamp's, in `LightAgeHistoryTests`: `OnceTheCodeOfALampThatWentOutIsNoLongerRecentTheCutBounceHistoriesGrowAgain`. 24 draws after the change, the median length in the blocks that saw the lamp go out is 22 frames on the workbench, against at least 8. A hand mutant with `RecentLightAge` 64 keeps them at 4 and turns it red.
+- The box test is `ScreenTraceRenderTests.BoxSlidingPastAWall`. A screen-space ray can hit only a surface that the screen shows, so the wall stands along the view, at its left, and the glowing box stands on the floor 0.4 m beside it and farther from the eye, and slides away from the eye. The test reads the levels from the diffuse sample ages, as `AStillSceneGivesNoEvidenceToEitherSignal` does. The narrowing that a level causes is pinned by `AMovingWallNarrowsTheBoxOfItsBlocksWhileItMoves`. On the workbench, 24 to 39 of the wall's 40 blocks carried a motion bit in each draw of the slide, and no block had evidence from 16 draws after the stop. Hand mutants that drop the diffuse ray's moved mark (0 blocks) or set `LeastMotion` to 0 (evidence after the stop) turn it red.
+- The box needs an entity of its own. An instance whose entity and part do not rise above those before it in the snapshot has no identity, so the renderer finds no last place for it, and it shows no motion.
+
 ### Lock-in after the feature works
 
 Step 18 runs coverage of the changed lines, then mutants with `tools/mutate.py`. Only Rendering and the tools change, with no line of Core, Simulation or Physics, so no Stryker run is needed. Each surviving mutant gets a killing test, an equivalence reason or a judgment call, in the ticket's table.
