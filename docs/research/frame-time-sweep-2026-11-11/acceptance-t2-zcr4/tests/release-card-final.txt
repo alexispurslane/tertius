@@ -1,0 +1,10 @@
+The Release run of the Rendering tests on the RTX 2000 Ada, 2026-11-14 15:11 UTC, on commit 3dae7207b.
+Six shards from tools/runpod/shards.py, each one test process with two threads.
+shard 0: {'tests': 647, 'passed': 642, 'failed': 0, 'skipped': 5}
+shard 1: {'tests': 573, 'passed': 573, 'failed': 0, 'skipped': 0}
+shard 2: {'tests': 586, 'passed': 584, 'failed': 1, 'skipped': 1}
+    failed Tertius.Rendering.Tests.AccumulatorRenderTests+NeighborLimiterPrototype.AUniformBrightRegionIsUnchangedByLimiting(reflected: False) | Expected FrameWithPrototype(true, light, samples) to be equal to {     Item1 = <2000, 1000, 500>,     Item2 = 1F }, but found {     Item1 = <1999, 999.5, 499.75>,     Item2 = 1F }.
+shard 3: {'tests': 538, 'passed': 538, 'failed': 0, 'skipped': 0}
+shard 4: {'tests': 389, 'passed': 389, 'failed': 0, 'skipped': 0}
+shard 5: {'tests': 442, 'passed': 439, 'failed': 0, 'skipped': 3}
+sum {'tests': 3175, 'passed': 3165, 'failed': 1, 'skipped': 9} | classes 205 | nested classes 14

@@ -1,0 +1,51 @@
+script                 capture                   mean %    any %   >1 lv %  >4 lv %  max
+cabin-light            cabin                     identical
+cabin-light            canopy                    identical
+cabin-light            port-window               identical
+demo-shuttle           nose                      identical
+demo-shuttle           side                      identical
+demo-shuttle           tail                      identical
+demo-surface           apron                     identical
+demo-surface           at-the-seat               identical
+demo-surface           boarding                  identical
+demo-surface           end-overview              identical
+demo-surface           in-cabin                  +0.000     0.02    0.000    0.000    1
+demo-surface           start                     identical
+demo-surface           terminal                  identical
+doorway                inside-view               identical
+doorway                inside                    identical
+doorway                outside                   identical
+doorway                standing                  identical
+hair-bent-cards        bent                      identical
+hair-bent-cards        front                     identical
+hair-rugs              low                       identical
+hair-rugs              rugs                      identical
+lamp-hall-16-hair      hair                      identical
+low                    edge                      identical
+low                    front                     identical
+low                    low                       identical
+mirror-balls           balls                     -0.000     0.08    0.000    0.000    2
+mirror-balls           belly                     identical
+mirror-balls           plate                     identical
+reflections-stills     edge                      identical
+reflections-stills     front                     identical
+reflections-stills     low                       identical
+rigs                   bent-left                 identical
+rigs                   bent-right                identical
+rigs                   box-other-way             identical
+rigs                   box                       identical
+rigs                   twist                     identical
+skin-and-hair          ear                       identical
+skin-and-hair          hair-cutout               identical
+skin-and-hair          hair-fringed              identical
+skin-and-hair          hair-glass                identical
+skin-and-hair          hair                      identical
+skin-and-hair          head                      identical
+station                crate-at-wall             identical
+station                crate-flying              -0.000     0.05    0.000    0.000    1
+station                end                       +0.000     0.76    0.018    0.005   13
+station                first-bump                +0.000     0.39    0.005    0.000    7
+station                pods-at-radiator          -0.000     0.81    0.012    0.000    5
+station                pods-drifting             +0.000     0.41    0.008    0.001   13
+station                pods-out                  -0.000     0.49    0.006    0.001    7
+captures 49, identical 41, largest change of the mean -0.000 % (station crate-flying), largest share over 4 levels 0.005 %, largest share over 1 level 0.018 %

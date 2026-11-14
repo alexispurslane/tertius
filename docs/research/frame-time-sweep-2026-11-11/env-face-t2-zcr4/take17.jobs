@@ -1,0 +1,10 @@
+# Take 17, the face that lights each texel once (t2-zcr4): main at 657642432 (m14) against the ticket's tree (face1),
+# at the deck's fixed exposure, with the pass time stamps. The order is main, face, face, main, main, face, so that a
+# drift of the machine does not favor one build.
+X="SWEEP_EXPOSURE=0.7041458"
+TRACE_EXTRA_ENV="$X" trace deck-t17-main-a m14 $D
+TRACE_EXTRA_ENV="$X" trace deck-t17-face-a face1 $D
+TRACE_EXTRA_ENV="$X" trace deck-t17-face-b face1 $D
+TRACE_EXTRA_ENV="$X" trace deck-t17-main-b m14 $D
+TRACE_EXTRA_ENV="$X" trace deck-t17-main-c m14 $D
+TRACE_EXTRA_ENV="$X" trace deck-t17-face-c face1 $D

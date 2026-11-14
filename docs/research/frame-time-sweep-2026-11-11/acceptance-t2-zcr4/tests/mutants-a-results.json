@@ -1,0 +1,125 @@
+{
+ "stopped": null,
+ "rows": [
+  {
+   "id": "S01",
+   "file": "src/Tertius.Rendering/Shaders/face_surface.glsl",
+   "line": 35,
+   "change": "a standard surface stores the mark of no surface",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentFaceTests.AChangeOfTheCamerasFrameRefreshesEveryFace",
+    "EnvironmentFaceTests.TwoFacesPerFrameUpdateTwoFacesInTurn",
+    "EnvironmentFaceTests.AMatteWallInAFaceSendsItsBaseColorTimesTheSunsIrradiance"
+   ],
+   "seconds": 65.25193825596943,
+   "original": "float(s.model + 1u)",
+   "replacement": "float(s.model)",
+   "classes": [
+    "EnvironmentFaceTests"
+   ]
+  },
+  {
+   "id": "S02",
+   "file": "src/Tertius.Rendering/Shaders/face_surface.glsl",
+   "line": 80,
+   "change": "the model code one too high",
+   "result": "killed",
+   "killed_by": [
+    "HairRenderTests.AnEnvironmentFaceAndACaptureShadeHairAsFibers(view: EnvironmentFace)",
+    "HairRenderTests.AnEnvironmentFaceAndACaptureShadeAHairCardSeenFromBehindAsSeenFromTheFront(view: EnvironmentFace, alpha: Cutout)",
+    "HairRenderTests.AnEnvironmentFaceAndACaptureShadeAHairCardSeenFromBehindAsSeenFromTheFront(view: EnvironmentFace, alpha: Opaque)"
+   ],
+   "seconds": 87.75495341327041,
+   "original": "uint(positionModel.w) - 1u",
+   "replacement": "uint(positionModel.w)",
+   "classes": [
+    "HairRenderTests"
+   ]
+  },
+  {
+   "id": "S03",
+   "file": "src/Tertius.Rendering/Shaders/face_surface.glsl",
+   "line": 73,
+   "change": "the roughness read as the metallic share",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentFaceTests.AMatteWallInAFaceSendsItsBaseColorTimesTheSunsIrradiance",
+    "EnvironmentFaceTests.APolishedMetalInAFaceSendsNoDiffuseLight"
+   ],
+   "seconds": 67.87812837120146,
+   "original": "s.metallic = normalMetallic.w;",
+   "replacement": "s.metallic = geometricNormalRoughness.w;",
+   "classes": [
+    "EnvironmentFaceTests"
+   ]
+  },
+  {
+   "id": "S04",
+   "file": "src/Tertius.Rendering/Shaders/face_surface.glsl",
+   "line": 74,
+   "change": "the metallic share read as the roughness",
+   "result": "killed",
+   "killed_by": [
+    "HairRenderTests.AnEnvironmentFaceLightsAHairCardByItsStrandsAsTheFiberModelDoes(x: 0, y: 0, z: 1)"
+   ],
+   "seconds": 92.53160833381116,
+   "original": "s.roughness = geometricNormalRoughness.w;",
+   "replacement": "s.roughness = normalMetallic.w;",
+   "classes": [
+    "HairRenderTests"
+   ]
+  },
+  {
+   "id": "S05",
+   "file": "src/Tertius.Rendering/Shaders/face_surface.glsl",
+   "line": 70,
+   "change": "the base color with red and blue swapped",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentFaceTests.AMatteWallInAFaceSendsItsBaseColorTimesTheSunsIrradiance"
+   ],
+   "seconds": 68.84882001485676,
+   "original": "s.baseColor = baseColorReflectance.rgb;",
+   "replacement": "s.baseColor = baseColorReflectance.bgr;",
+   "classes": [
+    "EnvironmentFaceTests"
+   ]
+  },
+  {
+   "id": "S06",
+   "file": "src/Tertius.Rendering/Shaders/face_surface.glsl",
+   "line": 81,
+   "change": "the strand dropped",
+   "result": "killed",
+   "killed_by": [
+    "HairRenderTests.AnEnvironmentFaceLightsAHairCardByItsStrandsAsTheFiberModelDoes(x: 0, y: 0, z: 1)",
+    "HairRenderTests.AnEnvironmentFaceLightsAHairCardByItsStrandsAsTheFiberModelDoes(x: 0, y: 1, z: 0)"
+   ],
+   "seconds": 90.42687000706792,
+   "original": "s.strand = texelFetch(faceSurface, ivec3(texel, FaceStrand), 0).xyz;",
+   "replacement": "s.strand = vec3(0.0);",
+   "classes": [
+    "HairRenderTests"
+   ]
+  },
+  {
+   "id": "S07",
+   "file": "src/Tertius.Rendering/Shaders/face_surface.glsl",
+   "line": 82,
+   "change": "the glow with red and blue swapped",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentFaceTests.AChangeOfTheCamerasFrameRefreshesEveryFace",
+    "EnvironmentFaceTests.TwoFacesPerFrameUpdateTwoFacesInTurn",
+    "EnvironmentFaceTests.OneFaceUpdatesPerFrameInLayerOrder"
+   ],
+   "seconds": 66.94662886485457,
+   "original": "0).rgb;",
+   "replacement": "0).bgr;",
+   "classes": [
+    "EnvironmentFaceTests"
+   ]
+  }
+ ]
+}

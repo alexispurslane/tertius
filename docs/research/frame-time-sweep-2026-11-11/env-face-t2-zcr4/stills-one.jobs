@@ -1,0 +1,14 @@
+# The image test of the one-rendering experiments (t2-zcr4, after take 17). face3 is the ticket's tree, face4 draws the
+# three depth ranges of a face in one rendering, and geo1 draws the main view's opaque ranges in one rendering. Every
+# build takes the exposure from SWEEP_EXPOSURE. Two runs of one build on this Mac give the same bytes, so a still that
+# differs shows a changed image.
+trio() { # trio <script path> <name> <stops>
+  SWEEP_EXPOSURE=$3 run face3 $1 zo-$2-face3
+  SWEEP_EXPOSURE=$3 run face4 $1 zo-$2-face4
+  SWEEP_EXPOSURE=$3 run geo1 $1 zo-$2-geo1
+}
+trio capscripts/station.json station -8.85
+trio capscripts/demo-surface.json demo-surface -8.95
+trio capscripts/mirror-balls.json mirror-balls -6.4
+trio capscripts/doorway.json doorway -9.695
+trio capscripts/cabin-light.json cabin-light -8.36
