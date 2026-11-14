@@ -83,10 +83,10 @@ index 2a1c55a65..e85614b8e 100644
      if (fade > 0.0)
      {
 diff --git a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
-index 5a6393a9e..590d968a0 100644
+index 5a6393a9e..a7dec5a16 100644
 --- a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
 +++ b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
-@@ -264,6 +264,48 @@ void main()
+@@ -264,6 +264,49 @@ void main()
          hitDistance = reflection.light.a;
      }
      imageStore(specularSample, pixel, vec4(min(specularLight, vec3(MaxRadiance)), hitDistance));
@@ -120,9 +120,10 @@ index 5a6393a9e..590d968a0 100644
 +                    uint fade = uint(clamp(again.probeFade * 32.0, 0.0, 31.0));
 +                    uint entry = uint(clamp(again.probeEntry * 4.0, 0.0, 3.0));
 +                    bool missWins = (1.0 - again.probeFade) * again.probeMiss > again.probeFade * again.probeLeaving;
++                    // Bits 12 to 14: the largest part of the hit pixel's leaving light (probeDominantOf); bit 15 miss wins.
 +                    out2 = uvec2(uint(again.probeHitPixel.x) | (fade << 11),
-+                        uint(again.probeHitPixel.y) | (again.probeCrossing << 10) | (match ? 4096u : 0u)
-+                            | (missWins ? 8192u : 0u) | (entry << 14));
++                        uint(again.probeHitPixel.y) | (again.probeCrossing << 10)
++                            | (probeDominantOf(again.probeHitPixel) << 12) | (missWins ? 32768u : 0u));
 +                }
 +                else
 +                    out2 = uvec2(0xFFFEu, match ? 0xFFFEu : 0xFFFDu);   // the walk again misses
@@ -136,7 +137,7 @@ index 5a6393a9e..590d968a0 100644
      // PROBE (tools/renderer-survey): the pixel's own motion in its own bit, apart from the moved mark.
      imageStore(specularSampleAge, pixel, uvec4(sampleAgeOf(ageCode, moved) | (moves ? ProbeMovingBit : 0u)));
 diff --git a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
-index ac0b480b4..d0f5f49c8 100644
+index ac0b480b4..da6ba5d05 100644
 --- a/src/Tertius.Rendering/VulkanRenderer.cs
 +++ b/src/Tertius.Rendering/VulkanRenderer.cs
 @@ -683,7 +683,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
@@ -184,7 +185,7 @@ index ac0b480b4..d0f5f49c8 100644
 +                                keys.Add($"true-{boxName} kind walk-misses match {(b == 0xFFFE ? 1 : 0)}");
 +                            else
 +                            {
-+                                keys.Add(string.Create(inv0, $"true-{boxName} crossing {(b >> 10) & 3} match {(b >> 12) & 1} misswins {(b >> 13) & 1} entry {(b >> 14) & 3}"));
++                                keys.Add(string.Create(inv0, $"true-{boxName} crossing {(b >> 10) & 3} dominant {(b >> 12) & 7} misswins {(b >> 15) & 1}"));
 +                                keys.Add(string.Create(inv0, $"truepixel-{boxName} {a & 2047} {b & 1023}"));
 +                                keys.Add(string.Create(inv0, $"truefade-{boxName} {(a >> 11) & 31}"));
 +                            }
