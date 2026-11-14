@@ -19,3 +19,7 @@ Found 2026-11-14 by the t0-adau probe (/tmp/t7-3e22/robust, patches hitclass-fin
 **2026-11-14T18:53:10Z**
 
 2026-11-14, Alexis: design the back-face depth layer first (epic ter-kh4g), not the edge-on test. Design A (test every surface) is out because it leaks behind thick boxes; design B (test only surfaces seen within about 6 degrees of edge-on) is a tuned exception that the back-face layer replaces. Brief: docs/handoffs/2026-11-14-renderer-lab.md, part 1.
+
+**2026-11-14T22:51:57Z**
+
+2026-11-14, stage 1 of ter-kh4g (docs/research/back-face-depth-layer/README.md). A dump of the front and back distances of rect-lamps shows the sill's real thickness: front 39.52 to 39.62 m, first back face behind it 40.02 to 40.12 m, so 0.50 m, where the 10 % rule gives 3.95 m. By the fade histogram of hits9/hits-true.txt, 66.3 % of the bright light enters the slab behind the real back face, and a back layer rejects it. About 8.2 % stays as hits that the probe counts as false: rays inside the real 0.50 m of depth and within one pixel of the sill. This is an estimate from the saved data, not a new probe run. Two Mac stills (the 10 % rule against the slab trimmed at the back face) show the ceiling's bright clouds and most of its specks gone, and the floor's sparkling patches smaller. The side faces of every window opening are sunlit strips in the same wall of 0.5 m and act as the sill does, so the false light is not the end window's alone.

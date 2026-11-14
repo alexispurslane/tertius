@@ -55,3 +55,20 @@ Two limits to check in a design:
 - Moving objects and skinned meshes. The back pass must draw the same placements as the front pass.
 - Linux portability. A depth-only pass needs no new device feature.
 - The effect on contact shadows.
+
+**2026-11-14T22:51:57Z**
+
+Stage 1 of 2026-11-14 is done: sources, cost and two designs. The record is docs/research/back-face-depth-layer/README.md on the branch ter-kh4g-back-face-depth-layer, with sources.md (22 sources with quotes), the patch of the whole probe and two stills. The probe's pass is the commit bacd0680d, marked THROWAWAY. Stage 2 removes it.
+
+Main numbers:
+- Sources: no large engine (Lumen, HDRP, Godot, EEVEE, AMD SSSR) gives its screen walk a back layer. Two small sources draw back faces for a reflection walk (kode80 2015, an optional mode of Babylon.js), without a time.
+- A pass that keeps the nearest back face fails: in orbit's cabin the camera stands inside the person's body mesh, 0.3 m from every pixel. The pass must keep the first back face behind the front surface.
+- With that rule, 99.99 to 100 % of the surface pixels of rect-lamps, the cabin and the deck have a back face behind them. The real thickness is above the 10 % rule on 33 to 46 % of the pixels.
+- Cost of the pass alone: +0.037 to +0.047 ms on the RTX 2000 Ada (main 7.1 to 9.4 ms, five runs per side, every run differs), and +0.03 to +0.05 ms on the M1 Max (main 14.8 to 20.5 ms, two rounds, about the size of the run-to-run spread).
+- Cost of a second texel read at every step of the finest level: about 0.21 to 0.24 ms on the RTX card and 0.35 to 0.43 ms on the Mac (one round). The rays that walk on after a rejected hit cost 0.02 to 0.05 ms on the RTX card.
+- Memory at 1280 x 720: 1.76 MiB (R16F side image) to 5.27 MiB (RG32F finest level plus a side target).
+- Cloud spend: $0.26 by the job log, of which $0.09 for a stills job that timed out.
+
+The two designs: (1) the back layer is the slab, stored in the depth pyramid, with no thickness constant in the walk. (2) the back layer only trims the 10 % slab, from a side image read at a candidate hit. Three questions for Alexis are in the record. Not done, by the brief: the design document, the build tickets and the real mechanism.
+
+Not checked: a new probe run of the false sill hits, contact darkening in stills, Design 1's rule in a running walk, hair and other two-sided surfaces, dense geometry, and RADV, ANV and lavapipe.
