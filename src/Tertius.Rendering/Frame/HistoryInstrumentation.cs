@@ -32,15 +32,12 @@ internal readonly record struct ShaderVariant(string Suffix, string[] Shaders)
     public const string PreciseSuffix = "_precise";
 
     /// <summary>
-    /// The LightAgeShader items of Tertius.Rendering.csproj (ticket ter-wkvw): both dispatches of a half-precision history
-    /// whose samples have a light age, the diffuse signal's beside a precise specular history. The temporal dispatch cuts
-    /// the history to the age of a light change, and the spatial dispatch acts on its block's evidence, as the precise
-    /// variants do (docs/plans/bounce-light-confidence.md, section 8.4).
+    /// The LightAgeShader items of Tertius.Rendering.csproj (ticket ter-wkvw): the spatial dispatch of a half-precision
+    /// history whose samples have a light age, the diffuse signal's beside a precise specular history. It acts on its
+    /// block's evidence, as the precise variants do (docs/plans/bounce-light-confidence.md, section 8.4). The temporal
+    /// dispatch reads no light age: no cut runs before the blend (section 4).
     /// </summary>
-    public static readonly ShaderVariant LightAge = new(
-        Suffix: "_lightage",
-        Shaders: ["accumulate_temporal.comp", "accumulate_spatial.comp"]
-    );
+    public static readonly ShaderVariant LightAge = new(Suffix: "_lightage", Shaders: ["accumulate_spatial.comp"]);
 
     /// <summary>The file name of <paramref name="shader"/>'s variant, such as composite_precise.frag.</summary>
     public static string Of(string shader, string suffix) =>

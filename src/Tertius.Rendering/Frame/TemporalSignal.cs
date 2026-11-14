@@ -23,11 +23,11 @@ namespace Tertius.Rendering;
 /// history its retained deviation, which the clamp's box and the diffuse filter read (<see cref="HistoryConfidence"/>).
 /// The sample is a color attachment of its producer, and every other image stays in the General layout. The signals share
 /// the scratch images (<see cref="SignalScratch"/>). Beside a precise specular history, each part also owns its sample's
-/// age (<see cref="SampleAge"/>, sample_age.glsl), which the resolve writes and both dispatches read at binding 11 (the
-/// light-change age, ticket tiunr-7haj): the temporal dispatch of both signals cuts its history by the light code (ticket
-/// ter-wkvw for the diffuse signal), and the spatial dispatch acts on the evidence of each block of 8 × 8 pixels
-/// (docs/plans/bounce-light-confidence.md, section 8). The diffuse signal keeps its half-precision history and takes the
-/// light-age variant of both dispatches (<see cref="ShaderVariant.LightAge"/>).
+/// age (<see cref="SampleAge"/>, sample_age.glsl), which the resolve writes and the spatial dispatch reads at binding 11
+/// (the light-change age, ticket tiunr-7haj): it acts on the evidence of each block of 8 × 8 pixels after the blend
+/// (docs/plans/bounce-light-confidence.md, sections 4 and 8). The temporal dispatch reads no light age. The diffuse signal
+/// keeps its half-precision history and takes the light-age variant of the spatial dispatch
+/// (<see cref="ShaderVariant.LightAge"/>).
 /// </para>
 /// <para>Invariants, checked by <see cref="AssertInvariants"/>:</para>
 /// <list type="bullet">
@@ -57,9 +57,10 @@ internal sealed unsafe class TemporalSignal : IDisposable
     /// <summary>
     /// The format of the diagnostic of uncovered surfaces under <see cref="HistoryInstrumentation.LightAgeDiagnostic"/>: r the
     /// fewest frames seen among the never-changed surfaces that the specular sample's rays hit, or −1 for none, which the
-    /// resolve writes; g the slow history's length just before its blend, after the light-age cut, or −1 without a
-    /// sample; b 1 where the sample holds at least a quarter of the slow history's luminance, else 0, an observation that no
-    /// rule uses since ter-g3tk; a the length before the light-age cut. The temporal dispatch writes g, b and a.
+    /// resolve writes; g the slow history's length just before its blend, or −1 without a sample; b 1 where the sample
+    /// holds at least a quarter of the slow history's luminance, else 0, an observation that no rule uses since ter-g3tk;
+    /// a the length just before the blend again, where it held the length before the light-age cut until that cut went
+    /// (docs/plans/bounce-light-confidence.md, section 4). The temporal dispatch writes g, b and a.
     /// </summary>
     public const Format UncoveredDiagnosticFormat = Format.R32G32B32A32Sfloat;
 
@@ -241,7 +242,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
 
     /// <summary>
     /// The variant of <paramref name="shader"/> for a half-precision history whose samples have a light age: the
-    /// light-age variant for the shaders that it holds, both dispatches, and the shader itself otherwise.
+    /// light-age variant for the shaders that it holds, the spatial dispatch alone, and the shader itself otherwise.
     /// </summary>
     internal static string LightAgeShader(string shader) =>
         ShaderVariant.LightAge.Shaders.Contains(shader)
@@ -406,7 +407,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
 
     /// <summary>
     /// The barriers of <paramref name="part"/>'s images before its spatial dispatch, which reads the neighbors' results of
-    /// the temporal one. The sample age needs none: both dispatches only read it.
+    /// the temporal one. The sample age needs none: only the spatial dispatch reads it, and nothing writes it here.
     /// </summary>
     private void BeforeSpatial(BarrierBatch barriers, int part, int parity)
     {

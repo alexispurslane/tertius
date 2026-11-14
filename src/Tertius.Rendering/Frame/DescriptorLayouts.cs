@@ -135,7 +135,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>
     /// The storage images of a signal set: nine, with the light-change age of a precise specular history the signal's
-    /// sample age at binding 11, which both dispatches read, and at binding 12 the instrumentation's image, the
+    /// sample age at binding 11, which the spatial dispatch reads, and at binding 12 the instrumentation's image, the
     /// uncovered-surface diagnostic or the accumulation trace. The original history refuses the instrumentation (the
     /// constructor).
     /// </summary>

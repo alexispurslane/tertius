@@ -256,10 +256,11 @@ public sealed class AccumulatorRenderTests
     }
 
     [Fact]
-    public void ALightChangeThatTheRaysSawRestartsTheHistoryAtTheChange()
+    public void ALightChangeThatTheRaysSawMovesTheHistoryToTheFastWindow()
     {
-        // The rays saw the light change in this frame (age 0, code 1): the history keeps no frame from before the change
-        // (ticket ter-wkvw).
+        // The rays saw the light change in this frame (age 0, code 1). The blend gives the doubled sample its normal
+        // weight, then the light evidence cuts the length to the fast cap, and the narrow box moves the slow history to
+        // the fast one, 1.25 after one doubled sample of four (docs/plans/bounce-light-confidence.md, sections 4 and 8).
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
         try
         {
@@ -272,9 +273,13 @@ public sealed class AccumulatorRenderTests
             Continue(renderer, scene, frames: 1);
 
             for (int part = 0; part < 2; part++)
-                CenterOf(renderer, sample, part)
-                    .Should()
-                    .Be((new Vector3(2f), 1f), "only the new light is left in part {0}", part);
+            {
+                (Vector3 light, float length) = CenterOf(renderer, sample, part);
+                light
+                    .X.Should()
+                    .BeApproximately(1.25f, 1e-3f, "the slow history follows the fast one in part {0}", part);
+                length.Should().Be(FastCap, "the light evidence cuts part {0}", part);
+            }
         }
         finally
         {
@@ -1253,10 +1258,10 @@ public sealed class AccumulatorRenderTests
     }
 
     [Fact]
-    public void TheMotionBitLeavesThePixelsOwnLightAgeCut()
+    public void ALightCodeWithTheMotionBitStillGivesItsBlockLightEvidence()
     {
-        // The light code 3 with the motion bit: the temporal dispatch cuts the history to the age 2, as without the bit, and
-        // the blend adds this draw. A history of 3 lies at or below the fast cap, where the spatial dispatch cuts nothing.
+        // The light code 3 with the motion bit: the stronger level wins, so the block's history is cut to the fast cap
+        // after the blend, as without the bit (docs/plans/bounce-light-confidence.md, section 8.4).
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
         try
         {
@@ -1267,7 +1272,45 @@ public sealed class AccumulatorRenderTests
             sample.AgeCode = TemporalSignal.SampleMotionBit | 3u;
             Continue(renderer, scene, frames: 1);
 
-            CenterOf(renderer, sample, part: 0).Length.Should().Be(3, "the history keeps the frames since the change");
+            CenterOf(renderer, sample, part: 0).Length.Should().Be(FastCap, "light evidence cuts after the blend");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ABrightSampleWithAYoungLightCodeTakesTheNormalWeightInItsDraw()
+    {
+        // A still pixel's sample is 25 times its history's light and brings the light code 1, as a ray that hits a sun
+        // strip whose record the jitter keeps young. The blend gives the sample its normal weight, 1 / 16 at the cap of
+        // 16, and only after the blend does the block's light evidence cut the length to the fast cap. A cut before the
+        // blend would give exactly this bright sample the weight 1, so the weight would depend on the sample's own value
+        // and bias the history up (docs/plans/bounce-light-confidence.md, section 4). The box is wide enough that the
+        // clamp moves nothing.
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+            parameters: Parameters with
+            {
+                ClampSigmas = 1000,
+            }
+        );
+        try
+        {
+            sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
+            renderer.Render(scene, 1f);
+            Continue(renderer, scene, frames: 40);
+            (Vector3 before, float length) = CenterOf(renderer, sample, part: 0);
+            length.Should().Be(16, "the history fills to its cap");
+            sample.Samples = (column, row) =>
+                column == Width / 2 && row == Height / 2 ? new(x: 25f, y: 25f, z: 25f, w: 1f) : sample.Value;
+            sample.AgeCodes = (column, row) => (ushort)(column == Width / 2 && row == Height / 2 ? 1 : 0);
+
+            Continue(renderer, scene, frames: 1);
+
+            (Vector3 after, float cut) = CenterOf(renderer, sample, part: 0);
+            after.X.Should().BeApproximately(before.X * (1 + 24f / 16), 1e-3f * after.X, "the sample weighs 1 / 16");
+            cut.Should().Be(FastCap, "the block's light evidence cuts the length after the blend");
         }
         finally
         {

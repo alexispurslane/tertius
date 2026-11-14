@@ -7,8 +7,8 @@
 // fast history. The diffuse signal's fast history keeps in alpha the retained deviation: the standard deviation of the
 // luminance of the samples that the slow history averages, weighted as it weighs them
 // (docs/plans/bounce-light-confidence.md, section 6). The clamp's box and the diffuse filter read it. The reflections
-// keep none, because their fast history's alpha holds the hit distance. Where the samples have a light age, the dispatch
-// cuts the history to the age of the light that the sample's rays saw (section 8.4).
+// keep none, because their fast history's alpha holds the hit distance. It reads no light age: the spatial dispatch acts on
+// the samples' evidence after the blend (sections 4 and 8.4).
 #extension GL_GOOGLE_include_directive : require
 #include "accumulate.glsl"
 #include "accumulate_reflection_guide.glsl"
@@ -31,12 +31,13 @@ const float HitDistanceShare = 0.5;
 
 #ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
 // The diagnostic of uncovered surfaces (TemporalSignal.UncoveredDiagnostic): the resolve wrote r, and this dispatch keeps
-// it and writes the length just before the blend, whether the sample holds the cut share, and the length before the cut.
+// it and writes the length just before the blend, whether the sample holds the cut share, and the length just before the
+// blend again, where it once kept the length before the light-age cut, which no longer runs.
 layout(set = 3, binding = 12, rgba32f) uniform image2D uncoveredDiagnostic;
 
 // The share of the slow history's luminance that the diagnostic reports a sample to hold. Until ter-g3tk, only a sample
-// that held it could cut the history. That restarted the history from its bright samples after a lamp went out, so every
-// sample with an age now cuts, and the share is only an observation for tools/Tertius.ReflectionReference.
+// that held it could cut the history before the blend. No sample cuts there now (section 4 of
+// docs/plans/bounce-light-confidence.md), and the share is only an observation for tools/Tertius.ReflectionReference.
 const float AgeCutShare = 0.25;
 #endif
 
@@ -307,21 +308,16 @@ void main()
         deviation = min(deviation * ratio, MaxRadiance);
     }
 
-#ifdef TERTIUS_LIGHT_AGE
-    // The light-change age: the history keeps no more frames than the age of the light that the sample's rays see, so
-    // after the blend it holds only frames from after the change.
+    // The sample's light code cuts no length before the blend: the block's light evidence acts after it, in the spatial
+    // dispatch, so that every sample takes its normal weight. A cut before the blend gave exactly the sample that brought
+    // a young code the weight 1 / (age + 1), and such a sample is often far brighter than the mean, as a ray that hits a
+    // sun strip whose record the jitter keeps young. The weight then depended on the sample's own value, which biased the
+    // bounce history up by 6 to 11 % in a still cabin (docs/plans/bounce-light-confidence.md, section 4).
 #ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
-    float uncutLength = historyLength;
-#endif
-    // The sample's motion bit is the spatial dispatch's evidence alone (sample_age.glsl).
-    uint ageCode = lightCodeOf(imageLoad(sampleAge, pixel).r);
-    if (hasSample && ageCode != 0u)
-        historyLength = min(historyLength, float(ageCode - 1u));
-#ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
+    // The length before the blend, twice, where the diagnostic once kept it before and after the cut.
     bool holdsCutShare = hasSample && luminance(sampled) >= AgeCutShare * luminance(slow.rgb);
     imageStore(uncoveredDiagnostic, pixel, vec4(imageLoad(uncoveredDiagnostic, pixel).r,
-        hasSample ? historyLength : -1.0, holdsCutShare ? 1.0 : 0.0, uncutLength));
-#endif
+        hasSample ? historyLength : -1.0, holdsCutShare ? 1.0 : 0.0, historyLength));
 #endif
 
 #ifdef TERTIUS_ACCUMULATION_TRACE

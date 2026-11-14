@@ -29,7 +29,7 @@ Ticket `t7-3e22`, under the epic `ter-8hyd` ([renderer-finish.md](renderer-finis
    - σr lives in the alpha of the diffuse fast history.
    - The temporal dispatch reprojects it with the history's taps, scales it by the exposure ratio and updates it with the slow blend.
    - The filter's first pass carries it.
-   - The gate (`showsChange`) goes. The light-age cut stays.
+   - The gate (`showsChange`) goes. The light-age cut stays, but after the blend: on 2026-11-13 the per-pixel cut before the blend went, and the block's light evidence acts in its place (section 4, "No cut before the blend").
 2. A test of 8 × 8 pixel blocks counts as evidence of a change. Decision X1 below replaces its mechanism.
 3. `ter-18hc` and `ter-wkvw` fold into Design A and merge once with it. So no separate quick fix merges first.
 4. Design A covers two cases of `ter-g3tk`. Case (a) is the slow fall after the cabin lamps go out, mostly in the reflections. Case (b) is the sunlit-sill step at world ticks 300 to 306. Decision X3 below moves case (b) to `t0-qwx8`.
@@ -91,7 +91,7 @@ flowchart LR
   MOT[("motion target")]
   AGE[("sample age:<br/>light code, motion bit")]
   subgraph Acc["accumulation of one signal"]
-    TD["temporal dispatch:<br/>reproject, exposure ratio, light-age cut,<br/>blend S, F and σr"]
+    TD["temporal dispatch:<br/>reproject, exposure ratio,<br/>blend S, F and σr"]
     SD["spatial dispatch:<br/>block evidence → box, cut,<br/>repair, anti-lag"]
   end
   SLOW[("slow history: S, L")]
@@ -130,7 +130,7 @@ flowchart LR
 - Two stocks hold the evidence of a change, and neither is new. The light-age record holds the age of each pixel's exact light. The motion target holds each pixel's motion.
 - The rays carry what they saw to the sample. The ray plan marks each pixel whose surface moved. A ray takes the light code of its hit and the hit's moved mark. The resolve writes the youngest light code of the sample's rays and the sample's motion into the sample age.
 - Two readers act on the sample age, and each writes its result into the length L or the box.
-  - The temporal dispatch cuts L to the light age of the pixel's own sample (`ter-wkvw`). This is the light-age cut, unchanged.
+  - The temporal dispatch reads no light code. The per-pixel cut before the blend (`ter-wkvw`) went on 2026-11-13 ("No cut before the blend" below).
   - The spatial dispatch forms the evidence level of its block. Light evidence narrows the box for this draw and cuts L to `FastCap`. Motion evidence narrows the box for this draw. The anti-lag then shortens L by the clamp's move, as on main.
 - σr is the stored confidence of S. The clamp widens the box by it, and the filter's luminance stop reads it.
 - The design keeps the cause of a change apart from the store of its result. The record and the motion target hold the cause. The sample age carries it for one draw. The block's level lives only in the spatial dispatch's workgroup. The result is a shorter L or a narrower box.
@@ -142,9 +142,13 @@ The slow history estimates the expected light of its pixel. It must average only
 - The light-age record already holds that age for the exact light of every pixel. A ray brings back the age of its hit.
 - Motion has no age: it changes what a ray sees in every draw while it lasts. So motion is evidence for exactly the draws in which it happens.
 - The clamp is the per-pixel consistency test. Its box must hold every excursion that S's own samples explain. σr gives that width (section 7). Evidence removes the widening, so that the box tests S against the fast histories.
-- Evidence bounds the length. A light change has a known age. The pixel's own sample cuts L to that age. Its block cuts L to `FastCap`, because the fast history already holds the change.
+- Evidence bounds the length. A light change has a known age. The block cuts L to `FastCap` after the blend while the age is recent, because the fast history already holds the change. The pixel's own sample cuts nothing before the blend, so that every sample takes its normal weight.
 - Motion has no known size. So motion narrows the box, and the box measures the size by the clamp's move.
 
+
+### No cut before the blend (2026-11-13)
+
+Until 2026-11-13, the temporal dispatch also cut L to the light age of the pixel's own sample before the blend (`ter-wkvw`). Step 10 (`t0-3kyb`) measured why that cut goes. In a still cabin, the jitter sampling fault of `t0-qwx8` keeps the light-age records of sun strips young at about 0.13 % of the pixels. A sample whose ray hits one is about 25 times brighter than the mean. The cut gave exactly that sample the weight 1 / (age + 1) instead of 1 / 32. So the weight depended on the sample's own value: it biased the bounce history up by 6 to 11 % without clamps, and the result depended on the history, as the cabin's plateau of about 4 % after the lamp cycle showed. The block's light evidence acts after this draw's blend, so the sample that brings the code takes its normal weight, and the evidence still cuts L to `FastCap`. Both signals lost the cut. The sample age and its codes stay, because they are Design X's store of evidence. `ABrightSampleWithAYoungLightCodeTakesTheNormalWeightInItsDraw` locks this in.
 ## 5. One model for the old and the new
 
 This section compares the design with the software-design skill, section 4, "One model for the old and the new".
@@ -186,10 +190,10 @@ slow.rgb = historyLength <= 1.0 ? sampled : slow.rgb + (sampled - slow.rgb) / hi
 
 where
 
-- `slow.rgb` = S after reprojection, the exposure ratio and the light-age cut, before this draw's blend.
+- `slow.rgb` = S after reprojection and the exposure ratio, before this draw's blend.
 - `fast` = F after reprojection and the exposure ratio, before this draw's blend.
 - `before` = the luminance of that F.
-- `historyLength` = L after the light-age cut. The first line adds this draw.
+- `historyLength` = L after reprojection, before this draw's blend. The first line adds this draw.
 - `cap` = the pixel's cap: 32 for bounce light, and from 4 to unbounded by roughness for reflections.
 - `DeviationFrames` = 32, the bounce cap. A half-float store cannot follow a weight below about 2^−11.
 - `weight` = the weight of this draw's sample in σr. It is 1 for the first sample, which gives σr = 0.
@@ -444,7 +448,7 @@ Five passes each add what only they know. No pass stores a new image.
    - `movedHitOfRecord` = bit 15 of the record's `w`.
    - `sampleAgeOf` = the sample age's layout (section 8.5).
 
-4. The temporal dispatch reads the light code of its pixel's sample age and cuts L to the light age, as now (`ter-wkvw`). It masks out the motion bit with `lightCodeOf`.
+4. The temporal dispatch reads no sample age. Its per-pixel cut of L to the light age before the blend (`ter-wkvw`) went on 2026-11-13 (section 4, "No cut before the blend"). The diffuse signal's light-age variant therefore covers the spatial dispatch alone.
 
 5. The spatial dispatch, one workgroup per block, forms the block's level and acts on it in the same workgroup:
 
@@ -473,7 +477,7 @@ Five passes each add what only they know. No pass stores a new image.
 
    where
 
-   - `sampleAge` = the signal's sample-age image, signal binding 11, which the spatial dispatch now also reads in its light-age variants.
+   - `sampleAge` = the signal's sample-age image, signal binding 11, which only the spatial dispatch reads, in its light-age variants.
    - `lightCodeOf`, `sawMotion` = the two fields of a sample age (section 8.5).
    - `recentLightCode` = whether a light code is 1 to `RecentLightAge` (7), in `sample_age.glsl`. The build keeps `RecentLightAge` a `uint`, so the comparison needs no conversion.
    - `blockEvidence` = the block's level, shared by the 64 invocations of the workgroup.
@@ -504,7 +508,7 @@ The block is the spatial dispatch's workgroup, as decision X1 asks. The action c
 |---|---|---|---|
 | Ray record `w` (RGBA16UI `w` of `blockRay` and `ownRay`) | 0: `RayTraced`. 1 to 14: the hit's light code, at most 16,383 (light age ≤ 16,382). 15: the hit's moved mark | `recordOf`, in the rays' passes | The resolve |
 | Ray record `w` under the light-age diagnostic | 0: `RayTraced`. 1 to 14: the diagnostic's field, an age code below `SeenField` = 0x2000 or `SeenField` plus a never-changed hit's frames seen, at most 0x1FFF (age ≤ 8,190). 15: the moved mark | `recordOf` | The resolve |
-| Sample age (R16UI, one per signal) | 0 to 14: the youngest light code of the sample's rays. 15: the sample's motion bit | The resolve | Temporal dispatch (code), spatial dispatch (code and bit), the test fixture `SamplePass`, `tools/Tertius.ReflectionReference` |
+| Sample age (R16UI, one per signal) | 0 to 14: the youngest light code of the sample's rays. 15: the sample's motion bit | The resolve | Spatial dispatch (code and bit), the test fixture `SamplePass`, `tools/Tertius.ReflectionReference` |
 | Hit light alpha (RGBA16F array, both layers) | 0 or 1: whether the pixel's surface moved | The ray plan | A ray's hit |
 
 - The light code of a record had 15 bits. Now it has 14, so a light age above 16,382 codes as 16,382. That changes no cut while a history holds fewer than 16,382 draws, the rule that the diagnostic's codes already follow. Under the diagnostic the codes stop at 8,190, by the same rule.
@@ -570,7 +574,7 @@ Case (a): the cabin lamps go out. Four draws later the light-age cut restarts th
 Design X gives the reflections three things:
 
 1. Light evidence for their blocks. A reflection ray that hits a surface whose light changed carries the light code. For 7 light ages, the block cuts L to `FastCap`. Their box is already narrow.
-2. The light-age cut of the pixel's own history stays, as on main.
+2. The pixel's own light-age cut before the blend went on 2026-11-13 (section 4, "No cut before the blend"). The block's light evidence cuts after the blend.
 3. A faster drain of the bounce light. The reflection rays read the hit pixel's bounce light, and the bounce blocks restart from their fast window on the same change.
 
 The reflections had a one-sided test of drops, because their narrow box lowers S below F. Design X reads no statistic, so the side does not matter. A rise and a drop of the reflected light both give light evidence where a ray saw the change.
@@ -716,7 +720,7 @@ Impossible by construction:
 3. A deviation over a shorter window than its light makes the filter concentrate old error (the impulse). σr has the light's window, and the write-back does not shrink it.
 4. Noise or rare bright samples count as a change. Evidence reads no statistic of the samples. In a still view with still lights, the only evidence is a false light change of the record. Such a change already cuts the histories on main, and the census counts it (acceptance 12).
 5. The filter's write-back, the clamp or the hits' blotches count as a change. Evidence never reads S, F or R.
-6. The block's evidence and the pixel's own light-age cut disagree about a light change. Both read the same light code of the same sample age, through one include.
+6. The block's evidence and the pixel's own light-age cut disagree about a light change. Only the block's evidence reads the light code, so no second reader can disagree with it.
 7. A box widens without evidence to narrow it, or without σr. `WidenedBox` exists only beside a light age and only for the diffuse light.
 8. A light change narrows the box but leaves the old light in a long history. That was `ter-18hc`'s lamp-on fault, which stayed 7 % low after 99 draws. Light evidence always cuts to `FastCap`.
 9. Evidence outlives its cause. Nothing stores evidence across draws: each draw derives it from the record's age and this draw's motion.
@@ -750,7 +754,7 @@ The step numbers are those of section 23.
 | `sample_age.glsl` constants | Step 11 | Resolve (13). Temporal and spatial dispatches (12) |
 | Moved mark, hit light alpha | Ray plan (13) | A ray's hit (13) |
 | Moved bit and 14-bit light code of a ray record | `recordOf` (13) | Resolve (13). Diagnostic field, narrowed (13) |
-| Sample age: light code and motion bit | Resolve (13). Test fixture `SamplePass` (12) | Temporal light-age cut, masked (12). Spatial block level (12). `tools/Tertius.ReflectionReference` (13) |
+| Sample age: light code and motion bit | Resolve (13). Test fixture `SamplePass` (12) | Spatial block level (12). `tools/Tertius.ReflectionReference` (13) |
 | Block evidence level, derived and never stored | Spatial dispatch (12) | Box and cut in the same workgroup (12) |
 | L after a cut to `FastCap` | Spatial dispatch (12) | Next draw's temporal dispatch. The ray plan, which traces own rays below `FullRateFrames`. The young limit of the variance dispatch. No code change |
 | `HistoryConfidence`, two cases | `SignalParameters` (12). `TemporalSignal.ConfidenceOf` (12) | Push constants (12) |

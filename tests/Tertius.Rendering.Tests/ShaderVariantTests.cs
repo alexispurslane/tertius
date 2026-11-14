@@ -169,10 +169,10 @@ public sealed class HistoryShaderTests
             .Be(expected);
 
     [Theory]
-    [InlineData("accumulate_temporal.comp", "accumulate_temporal_lightage.comp")]
+    [InlineData("accumulate_temporal.comp", "accumulate_temporal.comp")]
     [InlineData("accumulate_spatial.comp", "accumulate_spatial_lightage.comp")]
     [InlineData("accumulate_diffuse_single_temporal.comp", "accumulate_diffuse_single_temporal.comp")]
-    public void AHalfPrecisionHistoryBesideTheLightAgeTakesTheLightAgeVariantOfBothDispatches(
+    public void AHalfPrecisionHistoryBesideTheLightAgeTakesTheLightAgeVariantOfTheSpatialDispatchAlone(
         string shader,
         string expected
     ) => TemporalSignal.LightAgeShader(shader).Should().Be(expected);
