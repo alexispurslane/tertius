@@ -18,7 +18,7 @@ const uint LightCodeMask = 0x7FFFu;
 // The light ages below which a light change is recent: 0 to 6, the light codes 1 to 7. The record counts a change after
 // it lasts 4 draws, so a recent change began less than 11 draws ago, and the fast history, which keeps (3 / 4)^k of a
 // step after k draws, holds it within 5 % by the end (section 8.3).
-const uint RecentLightAge = 7u;
+const uint RecentLightAge = 64u;
 
 // The least motion on screen that counts, in pixels per draw: the gate's threshold of ter-18hc.
 const float LeastMotion = 1.0 / 32.0;
