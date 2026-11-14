@@ -155,11 +155,11 @@ On the Mac, the same modules run one after another, under one Stryker lock: Core
 
 ### Linux failures
 
-The epic t8-pkag fixed each failure of the Host, Rendering and Slop tests that full runs on the RTX 2000 Ada (x86-64, NVIDIA) found on 2026-11-12. It confirmed each fix on the card by its class, last on a7924ebd7. No full card run happened after ter-8esk and t2-pw52 merged. So this list holds only what later card runs of single classes show:
+A full card run of the Host and Rendering suites on main 774353dcf, on 2026-11-14, found one failure on the RTX 2000 Ada (x86-64, NVIDIA). The Rendering tests ran in six shards from `tools/runpod/shards.py`, which covers every class of the built assembly, nested ones included (ticket ter-eugk):
 
-- Rendering: `TubeLightRenderTests.ATubeLightLightsAMatteSquareAsTheCSharpTubeDoes("slanted-through-the-square")` failed on main after ter-8esk (101/255 against a bound of 100/255). Its band is 3 % since t8-sjli, and the class passes on the card with it (7 of 7, 2026-11-13). On the card it lies 2.30 % above the C# tube, and the shader's tube light lies 2 to 3 % above it on the Mac too, for a cause that ticket t8-o16a tracks.
+- Rendering: `AccumulatorRenderTests+NeighborLimiterPrototype.AUniformBrightRegionIsUnchangedByLimiting(reflected: False)` reads 1999 against 2000 (ticket t8-v31a). The hand-written shard lists of earlier runs never ran this nested class on the card.
 
-A full card run of the Host and Rendering suites on 2026-11-14 will correct this list.
+The run's counts: Rendering 3,161 tests, 1 failed, 9 skipped; Host 2,061 tests, 0 failed, 2 skipped, 8 not run. A run of this list on a later main can find new failures.
 
 The Core, Simulation and Physics tests pass on the workers since ter-zkdz. That ticket made four tests compare two runs on one machine, and the recorded results only on arm64.
 
