@@ -123,12 +123,10 @@ void keyShapeLight(bool fiber, bool tinted, uint shape, ShadingInput s, SurfaceL
         // weight is held across pathLight.
         if (!fiber)
             sum.diffuse += fillResponse(shape, s, lobes, p) * p.irradiance * ((1.0 - key) * visibility);
-        if (key > 0.0)
         {
-            float weight = key * visibility;
             DirectTerms terms = pathLight(i, fiber, shape, s, lobes, V, p);
-            sum.diffuse += terms.diffuse * weight;
-            sum.specular += terms.specular * weight;
+            sum.diffuse += terms.diffuse * (key * visibility);
+            sum.specular += terms.specular * visibility;
         }
     }
 }
