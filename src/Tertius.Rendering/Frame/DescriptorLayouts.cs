@@ -277,7 +277,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         FilterSet = CreateFilterSetLayout();
         ScreenTraceSet = CreateScreenTraceSetLayout();
 
-        (SceneLayout, ImpostorLayout, CompositeLayout, OverlayLayout, PostLayout, BloomLayout) = CreateGraphicsLayouts();
+        (SceneLayout, ImpostorLayout, CompositeLayout, OverlayLayout, PostLayout, BloomLayout) =
+            CreateGraphicsLayouts();
         FaceLightLayout = CreateFaceLightLayout();
         (
             ExposureLayout,
@@ -875,14 +876,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             push: new(ShaderStageFlags.FragmentBit, 0, (uint)Unsafe.SizeOf<BloomPushConstants>()),
             name: "bloom layout"
         );
-        return (
-            sceneLayout,
-            impostorLayout,
-            compositeLayout,
-            overlayLayout,
-            postLayout,
-            bloomLayout
-        );
+        return (sceneLayout, impostorLayout, compositeLayout, overlayLayout, postLayout, bloomLayout);
     }
 
     /// <summary>

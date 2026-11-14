@@ -210,9 +210,11 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
         map.FaceSurface.ReadBy(context.Barriers);
         DiscardFace(barriers: context.Barriers, layer: layer);
         context.Barriers.Flush(vk, commandBuffer);
+
         BeginLight(context, layer);
         DrawLight(context, draw);
         vk.CmdEndRendering(commandBuffer);
+
         ToPrefilter(context.Barriers, layer);
         context.Barriers.Flush(vk, commandBuffer);
     }
