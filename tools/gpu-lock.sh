@@ -6,8 +6,8 @@
 # A run without --shared holds the GPU alone, and every timed run takes it so. A run with --shared holds it beside up to
 # TERTIUS_GPU_SHARED_CAP - 1 other shared runs (3 runs by default) and never beside a run that holds it alone. Only
 # untimed work, such as stills and films for image metrics, takes the shared mode. The log gets the uptime at the start,
-# the seconds that the run waited for the lock, the command's output and the uptime at the end. The exit code is the
-# command's. TERTIUS_GPU_LOCK and TERTIUS_GPU_QUEUE give other paths for the lock and the queue, for the tests
+# the seconds that the run waited for the lock, the command's output and the uptime at the end. The command runs with
+# TERTIUS_GPU_LOCK_HELD set to exclusive or shared. The exit code is the command's. TERTIUS_GPU_LOCK and TERTIUS_GPU_QUEUE give other paths for the lock and the queue, for the tests
 # (tools/test_gpu_lock.py).
 #
 # The lock is a directory, and mkdir takes it. Right after its mkdir, the holder writes its record into the file holder
@@ -277,7 +277,11 @@ end_on_signals
     echo "waited: $((EPOCHSECONDS - started))s"
     [ "$shared" = 1 ] && echo "mode: shared, with up to $cap shared runs at once"
 } > "$log"
-"$@" >> "$log" 2>&1
+# The command learns the mode that it holds, so that a GPU test run inside it does not wait for this run's own lock
+# (ticket ter-zoof, tests/Tertius.Testing/GpuTestLock.cs).
+mode=exclusive
+[ "$shared" = 1 ] && mode=shared
+TERTIUS_GPU_LOCK_HELD=$mode "$@" >> "$log" 2>&1
 code=$?
 echo "uptime-end: $(uptime)" >> "$log"
 release

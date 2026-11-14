@@ -4,9 +4,10 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The BRDF tables of <see cref="BrdfTables.Shared"/> and the LTC table of <see cref="LtcTable.Shared"/> on the GPU,
-/// uploaded in the first frame and never changed (docs/plans/pbr-brdf.md, "The tables", and ARCHITECTURE.md, "Rectangle
-/// lights"). Vulkan requires linear filtering of all three formats on every device.
+/// The BRDF tables of <see cref="BrdfTables.Shared"/>, the LTC table of <see cref="LtcTable.Shared"/> and the blue-noise
+/// mask of <see cref="BlueNoiseMask.Shared"/> on the GPU, uploaded in the first frame and never changed
+/// (docs/plans/pbr-brdf.md, "The tables", and ARCHITECTURE.md, "Rectangle lights" and "Randomness and determinism").
+/// Vulkan requires linear filtering of the tables' three formats, and sampling of the mask's, on every device.
 /// </summary>
 internal sealed class BrdfTableImages : IDisposable
 {
@@ -45,6 +46,15 @@ internal sealed class BrdfTableImages : IDisposable
             mipLevels: 1,
             name: "ltc table"
         );
+        BlueNoise = GpuImage.Create(
+            device: device,
+            allocator: allocator,
+            extent: new(BlueNoiseMask.ImageSide, BlueNoiseMask.ImageSide),
+            format: Format.R8G8Uint,
+            usage: usage,
+            mipLevels: 1,
+            name: "blue-noise mask"
+        );
     }
 
     /// <summary>R16G16_SFLOAT, (S, E₁) over μ across and r down.</summary>
@@ -56,7 +66,10 @@ internal sealed class BrdfTableImages : IDisposable
     /// <summary>R16G16B16A16_SFLOAT, the LTC's inverse matrix over √(1 − μ) across and r down.</summary>
     public GpuImage Ltc { get; }
 
-    /// <summary>Records the copies of both tables on the first call, and nothing after it.</summary>
+    /// <summary>R8G8_UINT, the reflection rays' blue-noise mask: the radial number and the angle of each texel.</summary>
+    public GpuImage BlueNoise { get; }
+
+    /// <summary>Records the copies of the tables and the mask on the first call, and nothing after it.</summary>
     public void Upload(CommandBuffer commandBuffer, StagingArena staging, BarrierBatch barriers)
     {
         if (uploaded)
@@ -65,6 +78,7 @@ internal sealed class BrdfTableImages : IDisposable
         barriers.Image(Dfg, ImageUse.TransferDestination, discard: true);
         barriers.Image(LobeSky, ImageUse.TransferDestination, discard: true);
         barriers.Image(Ltc, ImageUse.TransferDestination, discard: true);
+        barriers.Image(BlueNoise, ImageUse.TransferDestination, discard: true);
         barriers.Flush(device.Vk, commandBuffer);
 
         staging.CopyToImage(commandBuffer: commandBuffer, image: Dfg, texels: MemoryMarshal.AsBytes(tables.Dfg));
@@ -78,18 +92,21 @@ internal sealed class BrdfTableImages : IDisposable
             image: Ltc,
             texels: MemoryMarshal.AsBytes(LtcTable.Shared.Texels)
         );
+        staging.CopyToImage(commandBuffer: commandBuffer, image: BlueNoise, texels: BlueNoiseMask.Shared.Texels);
 
         // The shading passes of this frame read the tables, the lighting in fragment shaders and the reflections' trace
         // in a compute shader, so the barrier makes the copies visible to both stages. No pass declares the tables later.
         barriers.Image(Dfg, ImageUse.SampledFragmentCompute);
         barriers.Image(LobeSky, ImageUse.SampledFragmentCompute);
         barriers.Image(Ltc, ImageUse.SampledFragmentCompute);
+        barriers.Image(BlueNoise, ImageUse.SampledFragmentCompute);
         barriers.Flush(device.Vk, commandBuffer);
         uploaded = true;
     }
 
     public void Dispose()
     {
+        BlueNoise.Dispose();
         Ltc.Dispose();
         LobeSky.Dispose();
         Dfg.Dispose();

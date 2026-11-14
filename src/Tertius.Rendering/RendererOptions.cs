@@ -53,7 +53,7 @@ public sealed class RendererOptions
     /// <see cref="KeyAndFill.Default"/>. Under <see cref="KeyAndFill"/>, the corner images and the tile records take
     /// about 5 bytes per render pixel, about 10 MB at 1920 × 1080 (ARCHITECTURE.md, "Key and fill").
     /// </summary>
-    public LightPairSetting LightPairs { get; set; } = KeyAndFill.Default;
+    public LightPairSetting LightPairs { get; set; } = new EveryLightPair();
 
     /// <summary>
     /// Draws small objects as impostors: below a projected height of 200 px an object is replaced by a captured

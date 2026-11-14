@@ -91,7 +91,7 @@ float keyShareOf(uint shares, uint entry)
 //
 // The loop reads the next entry's light from the records at every light, and holds no copy of it. A held copy is one
 // more value across the shadow lookup, and with it the shader no longer fits Apple's GPU at its full count of threads
-// (ARCHITECTURE.md, "Key and fill").
+// (ARCHITECTURE.md, "Key and fill"). For the same reason the loop holds no sum of the light's own across pathLight.
 // `fiber`, `tinted` and `shape` as in shapeLight; keyModelLight is the one caller, and it passes constants. A fiber
 // takes every light's full response: the fill response is a surface's.
 void keyShapeLight(bool fiber, bool tinted, uint shape, ShadingInput s, SurfaceLobes lobes, vec3 V, uint shares,
@@ -119,14 +119,17 @@ void keyShapeLight(bool fiber, bool tinted, uint shape, ShadingInput s, SurfaceL
         float key = fiber ? 1.0 : (shares >> 24) == 0u ? 0.0 : unpackUnorm4x8(shares).w;
         if (!fiber && tileWords[at - 2u] == i)
             key = keyShareOf(shares, tileWords[at - 1u]);
-        vec3 diffuse = fiber ? vec3(0.0) : fillResponse(shape, s, lobes, p) * p.irradiance * (1.0 - key);
+        // The fill goes into the sum before the full response, and the full response has one weight, so that only that
+        // weight is held across pathLight.
+        if (!fiber)
+            sum.diffuse += fillResponse(shape, s, lobes, p) * p.irradiance * ((1.0 - key) * visibility);
         if (key > 0.0)
         {
+            float weight = key * visibility;
             DirectTerms terms = pathLight(i, fiber, shape, s, lobes, V, p);
-            diffuse += terms.diffuse * key;
-            sum.specular += terms.specular * (key * visibility);
+            sum.diffuse += terms.diffuse * weight;
+            sum.specular += terms.specular * weight;
         }
-        sum.diffuse += diffuse * visibility;
     }
 }
 

@@ -1,0 +1,14 @@
+[
+ {"id": "C01", "file": "src/Tertius.Rendering/ScreenTraceSetting.cs", "line": 32,
+  "original": "ReflectionSteps: 96", "replacement": "ReflectionSteps: 128",
+  "project": "tests/Tertius.Rendering.Tests", "class": ["ScreenTraceSettingTests"],
+  "note": "the old cap of 128 steps"},
+ {"id": "C02", "file": "src/Tertius.Rendering/ScreenTraceSetting.cs", "line": 32,
+  "original": "ReflectionSteps: 96", "replacement": "ReflectionSteps: 95",
+  "project": "tests/Tertius.Rendering.Tests", "class": ["ScreenTraceSettingTests"],
+  "note": "one step fewer"},
+ {"id": "C03", "file": "src/Tertius.Rendering/ScreenTraceSetting.cs", "line": 32,
+  "original": "ReflectionSteps: 96", "replacement": "ReflectionSteps: 80",
+  "project": "tests/Tertius.Rendering.Tests", "class": ["ScreenTraceSettingTests"],
+  "note": "the cap of 80 steps, which the search refused"}
+]

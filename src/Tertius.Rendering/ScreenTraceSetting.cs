@@ -28,8 +28,8 @@ public readonly record struct ScreenTrace(float MaxRoughness, int ReflectionStep
     /// <summary>The most steps of a walk, far past the caps of the design: it bounds the worst frame.</summary>
     public const int MaxStepsLimit = 4096;
 
-    /// <summary>The design's setting: a MaxRoughness of 0.5, and the caps of decision 41, 128 and 62 steps.</summary>
-    public static ScreenTrace Default => new(MaxRoughness: 0.5f, ReflectionSteps: 128, DiffuseSteps: 62);
+    /// <summary>The design's setting: a MaxRoughness of 0.5, and the caps of decision 41, 96 and 62 steps.</summary>
+    public static ScreenTrace Default => new(MaxRoughness: 0.5f, ReflectionSteps: 96, DiffuseSteps: 62);
 
     /// <summary>The roughness below which the specular sample is the reflection ray's alone: the start of the hand-over band.</summary>
     internal float HandOverStart => MaxRoughness - HandOverWidth;

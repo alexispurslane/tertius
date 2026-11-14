@@ -1,0 +1,15 @@
+# The second screen of the step caps (parameter search, 2026-11-12), on the ten scenes that changed most in the first
+# screen: reflection caps of 104, 112 and 120 between 96 (fails in rigs) and 128, diffuse caps of 56 and 59 between 48
+# (fails) and 62, and a reflection cap of 256 as the size of the change that ter-w1o3 accepted. The controls are the
+# ctl runs of the first screen.
+one() { # one <script path> <name>
+  SWEEP_RSTEPS=112 run par $1 ps-$2-r112
+  SWEEP_RSTEPS=104 run par $1 ps-$2-r104
+  SWEEP_RSTEPS=120 run par $1 ps-$2-r120
+  SWEEP_DSTEPS=56 run par $1 ps-$2-d56
+  SWEEP_DSTEPS=59 run par $1 ps-$2-d59
+  SWEEP_RSTEPS=256 run par $1 ps-$2-r256
+}
+for s in rigs doorway mirror-balls demo-surface cabin-light; do one capscripts/$s.json $s; done
+for s in hair-rugs hair-bent-cards; do one hairscripts/$s.json $s; done
+for s in deck-1080 mirror-balls-1440 hair-rugs-1440; do one bigscripts/$s.json $s; done

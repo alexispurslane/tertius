@@ -1,0 +1,16 @@
+#version 460
+// Each pixel is one block's reflection numbers in draw 7 (x, y) and in draw 71 of the next period (z, w).
+#extension GL_GOOGLE_include_directive : require
+#include "screen_trace.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main()
+{
+    ivec2 block = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(vec2(block), frame.viewport.xy)))
+        return;
+    vec2 first = reflectionNumbersOf(block, 7u, drawOf(block, 7u, DirectionDraw[KindReflection]));
+    vec2 next = reflectionNumbersOf(block, 71u, drawOf(block, 71u, DirectionDraw[KindReflection]));
+    imageStore(specularSample, block, vec4(first, next));
+}

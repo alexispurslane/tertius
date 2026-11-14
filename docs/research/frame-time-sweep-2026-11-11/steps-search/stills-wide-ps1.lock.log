@@ -1,0 +1,53 @@
+uptime-start:  14:57:42  up 48 days  2:32,  2 users,  load average: 7.52, 7.39, 8.10
+waited: 1153s
+mode: shared, with up to 3 shared runs at once
+ps-doorway-ctl: 10 files, exit 0
+ps-doorway-r96: 10 files, exit 0
+ps-doorway-d48: 10 files, exit 0
+ps-mirror-balls-ctl: 6 files, exit 0
+ps-mirror-balls-r96: 6 files, exit 0
+ps-mirror-balls-d48: 6 files, exit 0
+ps-rigs-ctl: 8 files, exit 0
+ps-rigs-r96: 8 files, exit 0
+ps-rigs-d48: 8 files, exit 0
+ps-demo-shuttle-ctl: 7 files, exit 0
+ps-demo-shuttle-r96: 7 files, exit 0
+ps-demo-shuttle-d48: 7 files, exit 0
+ps-demo-surface-ctl: 15 files, exit 0
+ps-demo-surface-r96: 15 files, exit 0
+ps-demo-surface-d48: 15 files, exit 0
+ps-reflections-stills-ctl: 6 files, exit 0
+ps-reflections-stills-r96: 6 files, exit 0
+ps-reflections-stills-d48: 6 files, exit 0
+ps-station-ctl: 17 files, exit 0
+ps-station-r96: 17 files, exit 0
+ps-station-d48: 17 files, exit 0
+ps-cabin-light-ctl: 6 files, exit 0
+ps-cabin-light-r96: 6 files, exit 0
+ps-cabin-light-d48: 6 files, exit 0
+ps-hair-bent-cards-ctl: 5 files, exit 0
+ps-hair-bent-cards-r96: 5 files, exit 0
+ps-hair-bent-cards-d48: 5 files, exit 0
+ps-hair-rugs-ctl: 5 files, exit 0
+ps-hair-rugs-r96: 5 files, exit 0
+ps-hair-rugs-d48: 5 files, exit 0
+ps-lamp-hall-16-hair-ctl: 4 files, exit 0
+ps-lamp-hall-16-hair-r96: 4 files, exit 0
+ps-lamp-hall-16-hair-d48: 4 files, exit 0
+ps-deck-1080-ctl: 4 files, exit 0
+ps-deck-1080-r96: 4 files, exit 0
+ps-deck-1080-d48: 4 files, exit 0
+ps-doorway-1440-ctl: 10 files, exit 0
+ps-doorway-1440-r96: 10 files, exit 0
+ps-doorway-1440-d48: 10 files, exit 0
+ps-mirror-balls-1440-ctl: 6 files, exit 0
+ps-mirror-balls-1440-r96: 6 files, exit 0
+ps-mirror-balls-1440-d48: 6 files, exit 0
+ps-hair-rugs-1440-ctl: 5 files, exit 0
+ps-hair-rugs-1440-r96: 5 files, exit 0
+ps-hair-rugs-1440-d48: 5 files, exit 0
+ps-low-ctl: 36 files, exit 0
+ps-low-r96: 36 files, exit 0
+ps-low-d48: 36 files, exit 0
+stills ended: stills-wide-ps1.jobs
+uptime-end:  15:02:03  up 48 days  2:36,  2 users,  load average: 17.40, 20.32, 14.40

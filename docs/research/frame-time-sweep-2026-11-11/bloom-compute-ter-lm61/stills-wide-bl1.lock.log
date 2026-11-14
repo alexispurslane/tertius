@@ -1,0 +1,55 @@
+uptime-start:  14:05:53  up 48 days  1:40,  2 users,  load average: 5.42, 6.62, 8.29
+waited: 0s
+mode: shared, with up to 3 shared runs at once
+bl-airlock-main: 18 files, exit 0
+bl-airlock-bloom: 18 files, exit 0
+bl-bounce-red-wall-main: 4 files, exit 0
+bl-bounce-red-wall-bloom: 4 files, exit 0
+bl-cabin-light-main: 6 files, exit 0
+bl-cabin-light-bloom: 6 files, exit 0
+bl-deep-yard-main: 12 files, exit 0
+bl-deep-yard-bloom: 12 files, exit 0
+bl-demo-meshes-main: 9 files, exit 0
+bl-demo-meshes-bloom: 9 files, exit 0
+bl-demo-shuttle-main: 7 files, exit 0
+bl-demo-shuttle-bloom: 7 files, exit 0
+bl-demo-surface-main: 15 files, exit 0
+bl-demo-surface-bloom: 15 files, exit 0
+bl-doorway-main: 10 files, exit 0
+bl-doorway-bloom: 10 files, exit 0
+bl-mars-air-main: 9 files, exit 0
+bl-mars-air-bloom: 9 files, exit 0
+bl-mirror-balls-main: 6 files, exit 0
+bl-mirror-balls-bloom: 6 files, exit 0
+bl-pbr-spheres-main: 5 files, exit 0
+bl-pbr-spheres-bloom: 5 files, exit 0
+bl-reflections-stills-main: 6 files, exit 0
+bl-reflections-stills-bloom: 6 files, exit 0
+bl-rigs-main: 8 files, exit 0
+bl-rigs-bloom: 8 files, exit 0
+bl-spacewalk-main: 11 files, exit 0
+bl-spacewalk-bloom: 11 files, exit 0
+bl-spin-station-main: 19 files, exit 0
+bl-spin-station-bloom: 19 files, exit 0
+bl-station-crate-main: 15 files, exit 0
+bl-station-crate-bloom: 15 files, exit 0
+bl-station-nocrate-main: 15 files, exit 0
+bl-station-nocrate-bloom: 15 files, exit 0
+bl-station-main: 17 files, exit 0
+bl-station-bloom: 17 files, exit 0
+bl-surface-yard-main: 13 files, exit 0
+bl-surface-yard-bloom: 13 files, exit 0
+bl-ter-7tnv-floor-main: 6 files, exit 0
+bl-ter-7tnv-floor-bloom: 6 files, exit 0
+bl-ter-7tnv-terminal-main: 6 files, exit 0
+bl-ter-7tnv-terminal-bloom: 6 files, exit 0
+bl-throw-main: 12 files, exit 0
+bl-throw-bloom: 12 files, exit 0
+bl-walk-main: 11 files, exit 0
+bl-walk-bloom: 11 files, exit 0
+bl-windows-main: 10 files, exit 0
+bl-windows-bloom: 10 files, exit 0
+bl-low-main: 36 files, exit 0
+bl-low-bloom: 36 files, exit 0
+stills ended: stills-wide-bl1.jobs
+uptime-end:  14:12:07  up 48 days  1:46,  2 users,  load average: 4.96, 7.83, 8.60
