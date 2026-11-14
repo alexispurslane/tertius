@@ -114,13 +114,34 @@ bool changingLight(float g)
     return recent || pendingDrawsOfRecord(g) > 0.0;
 }
 
+// Whether a change of the light covers an area at a pixel (docs/plans/sub-pixel-strips.md, section 5.2): whether the
+// opening of the changing records by a 3 × 3 block holds the pixel, that is whether some 3 × 3 block around it changes
+// whole. `changing` holds changingLight of the 5 × 5 records around the pixel, row by row, the pixel in the middle, and the
+// pixel must be changing. A moving light or caster, or a lamp that switches, changes the light of a band many pixels wide,
+// which the opening keeps. The jitter that moves a pixel on and off a still feature thinner than a pixel changes its
+// record too, in a line one or two pixels wide, which the opening removes. The cost: a real change on such a line counts
+// as none. FSR's light-change mask (lightChangeMaskAt) reads this frame's records, and the light-age record (lightAgeOf)
+// the last frame's.
+bool insideChangedArea(bool changing[5][5])
+{
+    for (int y = 0; y < 3; y++)
+        for (int x = 0; x < 3; x++)
+        {
+            bool whole = true;
+            for (int dy = 0; dy < 3; dy++)
+                for (int dx = 0; dx < 3; dx++)
+                    whole = whole && changing[y + dy][x + dx];
+            if (whole)
+                return true;
+        }
+    return false;
+}
+
 // FSR 3.1's transparency and composition mask at the pixel (ticket t1-4hij), from this frame's light-age records: 1 where
-// the opening of the changing pixels by a 3 × 3 block holds the pixel, that is where some 3 × 3 block around it changes
-// whole, else 0. Under the mask FSR clamps its history to the pixel's neighbors in this frame, so a still surface under a
-// moving light does not keep the light of the light's earlier places. A moving light or caster changes the light of a
-// band many pixels wide, which the opening keeps. The jitter that moves a pixel on and off a still feature thinner than a
-// pixel changes its record too, in a line one or two pixels wide, which the opening removes: under the mask FSR's clamp
-// would follow that aliasing. The resolve writes it, after the plan wrote every record.
+// the change of the pixel's light covers an area (insideChangedArea), else 0. Under the mask FSR clamps its history to the
+// pixel's neighbors in this frame, so a still surface under a moving light does not keep the light of the light's earlier
+// places. Under the mask FSR's clamp would follow the jitter's aliasing on a line, which the area rule leaves out. The
+// resolve writes it, after the plan wrote every record.
 float lightChangeMaskAt(ivec2 pixel)
 {
     // An opening holds only pixels that change: one read decides the still pixels.
@@ -131,17 +152,7 @@ float lightChangeMaskAt(ivec2 pixel)
     for (int y = 0; y < 5; y++)
         for (int x = 0; x < 5; x++)
             changing[y][x] = changingLight(imageLoad(lightAge, clamp(pixel + ivec2(x - 2, y - 2), ivec2(0), last)).g);
-    for (int y = 0; y < 3; y++)
-        for (int x = 0; x < 3; x++)
-        {
-            bool whole = true;
-            for (int dy = 0; dy < 3; dy++)
-                for (int dx = 0; dx < 3; dx++)
-                    whole = whole && changing[y + dy][x + dx];
-            if (whole)
-                return 1.0;
-        }
-    return 0.0;
+    return insideChangedArea(changing) ? 1.0 : 0.0;
 }
 
 #ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC

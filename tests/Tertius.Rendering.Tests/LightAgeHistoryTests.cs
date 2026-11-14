@@ -28,6 +28,9 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
 
     private static readonly Vector3 SunDirection = new(0.4f, 1, 0.3f);
 
+    /// <summary>The glow of the thin strips at the panels' lower edges, ten times the panels' own.</summary>
+    private const float StripGlow = 40;
+
     [Fact]
     public void AStillJitteredSceneWithShadowEdgesResetsNoLightAge() =>
         WithRenderer(
@@ -217,6 +220,124 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                     .Be(0, "the jitter's sample sequence keeps no pixel on the strip for four draws in a row");
             },
             new(Upscaling: new Fsr3Upscaling(new FixedRenderScale(1), 0))
+        );
+
+    [Fact]
+    public void AStillSubPixelStripBetweenAPanelAndTheSkyKeepsNoRecentLightAgeUnderTheJitter() =>
+        WithRenderer(
+            null,
+            (renderer, scene) =>
+            {
+                AddPanelsWithBrightStripsAtTheirLowerEdges(renderer, scene);
+                Draw(renderer, scene, 32);
+                int[] young = new int[Width * Height];
+                int[] lit = new int[Width * Height];
+
+                for (int frame = 32; frame < 300; frame++)
+                {
+                    Draw(renderer, scene, 1);
+                    float[] record = renderer.ReadLightAge();
+                    for (int pixel = 0; pixel < Width * Height; pixel++)
+                    {
+                        young[pixel] += AgeAt(record, pixel) is >= 0 and <= 6 ? 1 : 0;
+                        lit[pixel] += ExactLightAt(record, pixel) >= StripGlow / 2 ? 1 : 0;
+                    }
+                }
+
+                output.WriteLine(
+                    $"Strips under 18 jitter phases: {young.Count(count => count > 0)} pixels with a recent age, "
+                        + $"{young.Sum()} pixel-draws; {lit.Count(count => count > 0)} pixels recorded a strip's light."
+                );
+                lit.Count(count => count > 0)
+                    .Should()
+                    .BeGreaterThan(20, "the jitter must put the samples of the strips' rows on the strips");
+                young
+                    .Sum()
+                    .Should()
+                    .Be(
+                        0,
+                        "nothing changed: the jitter moves a sample between the panel, a strip and the sky, a change "
+                            + "on a line that covers no 3 × 3 block"
+                    );
+            },
+            new(Upscaling: new Fsr3Upscaling(new FixedRenderScale(2f / 3), 0), OutputScale: 1.5f)
+        );
+
+    [Fact]
+    public void ALastingDimmingOverAnAreaCountsOnItsFourthDrawUnderTheJitter() =>
+        WithRenderer(
+            null,
+            (renderer, scene) =>
+            {
+                Draw(renderer, scene, 32);
+                int[] interior = InteriorPixels(renderer.ReadLightAge(), least: 3);
+                interior.Length.Should().BeGreaterThan(20, "the emitter must cover pixels whose neighbors are all lit");
+                SetGlow(renderer, scene, new(3.2f));
+
+                Draw(renderer, scene, LightChangeDraws - 1);
+                float[] pending = renderer.ReadLightAge();
+                Draw(renderer, scene, 1);
+
+                float[] record = renderer.ReadLightAge();
+                interior
+                    .Should()
+                    .NotContain(pixel => AgeAt(pending, pixel) == 0, "the change has not lasted four draws yet");
+                interior
+                    .Count(pixel => AgeAt(record, pixel) == 0)
+                    .Should()
+                    .BeGreaterThanOrEqualTo(
+                        interior.Length * 95 / 100,
+                        "the whole emitter dimmed by 20% for four draws, an area that the jitter does not change"
+                    );
+            },
+            new(Upscaling: new Fsr3Upscaling(new FixedRenderScale(2f / 3), 0), OutputScale: 1.5f)
+        );
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void ALastingBrighteningOfALineOneOrTwoPixelsTallCountsNoLightAge(int rows) =>
+        WithRenderer(
+            null,
+            (renderer, scene) =>
+            {
+                // A glowing line just in front of the emitter, from the top of row 36, the horizon, down `rows` rows: no
+                // 3 × 3 block of pixels fits in it. Without the jitter, each of its pixels shows the line in every draw.
+                const float depth = 4.4f;
+                float top = HeightOfRow(row: 36, depth: depth);
+                float bottom = HeightOfRow(row: 36 + rows, depth: depth);
+                RenderInstance line = ReflectionTesting.Block(
+                    box: renderer.CreateMesh(Primitives.Box(new(0.5f))),
+                    material: ReflectionTesting.Glow(renderer, new(8)),
+                    center: new(0, (top + bottom) / 2, -depth - 0.0005f),
+                    size: new(3, top - bottom, 0.001f)
+                );
+                line.EntityIndex = 3;
+                scene.Instances.Add(line);
+                Draw(renderer, scene, 32);
+                int[] pixels = [.. Enumerable.Range(36, rows).SelectMany(row => Enumerable.Range(row * Width + 52, 24))];
+                float[] before = renderer.ReadLightAge();
+                pixels.Should().OnlyContain(pixel => ExactLightAt(before, pixel) == 8, "the line covers these pixels");
+                line.Material = ReflectionTesting.Glow(renderer, new(16));
+                scene.Instances[^1] = line;
+
+                Draw(renderer, scene, 2 * LightChangeDraws);
+
+                float[] record = renderer.ReadLightAge();
+                pixels
+                    .Should()
+                    .OnlyContain(
+                        pixel => ExactLightAt(record, pixel) == 16,
+                        "a move that lasts four draws becomes the record's light"
+                    );
+                pixels
+                    .Should()
+                    .OnlyContain(
+                        pixel => AgeAt(record, pixel) < 0,
+                        "a change on a line one or two pixels tall gives no evidence, as FSR's light-change mask "
+                            + "ignores it (docs/plans/sub-pixel-strips.md, section 5.2)"
+                    );
+            }
         );
 
     [Theory]
@@ -1272,6 +1393,51 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
         return occluder;
     }
 
+    /// <summary>
+    /// Ten glowing panels in the sky 6 m ahead, above the emitter, each with a strip of <see cref="StripGlow"/> 0.7 render
+    /// pixels tall along its lower edge, as a sunlit sill under a window: the sky lies below the strip and the panel's glow
+    /// of 4 above it. Panel k's lower edge lies k / 10 of a pixel below the top of row 20, so the ten panels hold the strip
+    /// at ten sub-pixel places of their rows.
+    /// </summary>
+    private static void AddPanelsWithBrightStripsAtTheirLowerEdges(VulkanRenderer renderer, RenderSnapshot scene)
+    {
+        const float depth = 6;
+        MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+        MaterialId panelGlow = ReflectionTesting.Glow(renderer, new(4));
+        MaterialId stripGlow = ReflectionTesting.Glow(renderer, new(StripGlow));
+        float panelTop = HeightOfRow(row: 10, depth: depth);
+        for (int k = 0; k < 10; k++)
+        {
+            float edge = 20 + k / 10f;
+            float stripBottom = HeightOfRow(row: edge, depth: depth);
+            float stripTop = HeightOfRow(row: edge - 0.7f, depth: depth);
+            float x = -4.32f + 0.96f * k;
+            scene.Instances.Add(
+                ReflectionTesting.Block(
+                    box: box,
+                    material: stripGlow,
+                    center: new(x, (stripTop + stripBottom) / 2, -depth - 0.0005f),
+                    size: new(0.8f, stripTop - stripBottom, 0.001f)
+                )
+            );
+            scene.Instances.Add(
+                ReflectionTesting.Block(
+                    box: box,
+                    material: panelGlow,
+                    center: new(x, (panelTop + stripTop) / 2, -depth - 0.0005f),
+                    size: new(0.8f, panelTop - stripTop, 0.001f)
+                )
+            );
+        }
+    }
+
+    /// <summary>
+    /// The height in m, relative to the eye, of the point at <paramref name="depth"/> m ahead that the camera of
+    /// <see cref="Gpu.Snapshot"/> shows at <paramref name="row"/>, counted in render pixels from the image's top.
+    /// </summary>
+    private static float HeightOfRow(float row, float depth) =>
+        (1 - 2 * row / Height) * MathF.Tan(Gpu.Fov / 2) * depth;
+
     /// <summary>Gives the emitter, the scene's second instance, a glow of <paramref name="radiance"/>.</summary>
     private static void SetGlow(VulkanRenderer renderer, RenderSnapshot scene, Vector3 radiance)
     {
@@ -1373,15 +1539,18 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The renderer's settings of a test, the gray of the ambient light, and the plate's roughness: null for the plate's
-    /// own, because <c>new()</c> of this struct gives null, not the defaults.
+    /// The renderer's settings of a test, the gray of the ambient light, the plate's roughness, and the output size over the
+    /// render size of <see cref="Width"/> × <see cref="Height"/>, 1.5 under FSR's render scale of 2/3, whose jitter takes 18
+    /// phases. The last two are null for the plate's own roughness and for an output of the render size, because
+    /// <c>new()</c> of this struct gives null, not the defaults.
     /// </summary>
     private readonly record struct Settings(
         ExposureSetting Exposure = default,
         UpscalingSetting Upscaling = default,
         int CascadedLights = 0,
         float Gray = 0.5f,
-        float? Roughness = null
+        float? Roughness = null,
+        float? OutputScale = null
     );
 
     /// <summary>
@@ -1400,8 +1569,8 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
         try
         {
             VulkanRenderer renderer = Gpu.Headless(
-                width: Width,
-                height: Height,
+                width: (int)(Width * (settings.OutputScale ?? 1)),
+                height: (int)(Height * (settings.OutputScale ?? 1)),
                 framesInFlight: 1,
                 cascadedLights: settings.CascadedLights,
                 screenTrace: ScreenTrace.Default,
