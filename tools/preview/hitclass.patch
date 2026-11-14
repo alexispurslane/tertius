@@ -1,8 +1,8 @@
 diff --git a/src/Tertius.Rendering/Scene/GpuTypes.cs b/src/Tertius.Rendering/Scene/GpuTypes.cs
-index bf45cd1a4..62e976749 100644
+index bf45cd1a4..fb211525f 100644
 --- a/src/Tertius.Rendering/Scene/GpuTypes.cs
 +++ b/src/Tertius.Rendering/Scene/GpuTypes.cs
-@@ -981,8 +981,10 @@ internal struct ScreenTracePushConstants
+@@ -981,8 +981,11 @@ internal struct ScreenTracePushConstants
      /// reflection ray leaves out the hit's specular part, as the diffuse layer always does.</summary>
      public uint ProbeHitNoSpecular;
  
@@ -10,7 +10,8 @@ index bf45cd1a4..62e976749 100644
      private static readonly uint ProbeHitNoSpecularValue =
 -        Environment.GetEnvironmentVariable("TERTIUS_PROBE_HIT_NO_SPECULAR") == "1" ? 1u : 0u;
 +        (Environment.GetEnvironmentVariable("TERTIUS_PROBE_HIT_NO_SPECULAR") == "1" ? 1u : 0u)
-+        | (Environment.GetEnvironmentVariable("TERTIUS_PROBE_HIT_CLASS") == "1" ? 2u : 0u);
++        | (Environment.GetEnvironmentVariable("TERTIUS_PROBE_HIT_CLASS") == "1" ? 2u : 0u)
++        | (Environment.GetEnvironmentVariable("TERTIUS_PROBE_HIT_PLACES") == "1" ? 4u : 0u);
  
      /// <summary>
      /// The push constants of a draw of index <paramref name="drawIndex"/> under <paramref name="trace"/>, with the
@@ -28,10 +29,10 @@ index 009082257..2a1c55a65 100644
      return LeavingLight(min(reflection, vec3(MaxRadiance)), min(light, vec3(MaxRadiance)));
  }
 diff --git a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
-index 4c850c2bf..7bebac578 100644
+index 4c850c2bf..c4d027676 100644
 --- a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
 +++ b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
-@@ -67,6 +67,40 @@ vec3 specularWeightOf(TracingPixel p, SurfaceLobes lobes, MaterialFactors factor
+@@ -67,6 +67,66 @@ vec3 specularWeightOf(TracingPixel p, SurfaceLobes lobes, MaterialFactors factor
  }
  
  #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
@@ -42,6 +43,32 @@ index 4c850c2bf..7bebac578 100644
 +// floor); bit 4 the ray meets the hit surface from behind; bit 5 the hit pixel's material glows (its raw emission above
 +// 0); bit 6 the hit pixel's entity holds a light; bits 8 to 15 the hit pixel's cell (below). The hit point is the pixel's own ray start plus the record's direction
 +// times its hit distance, so for a block's ray, which starts at the block's chosen pixel, it lies up to a pixel off.
++ivec2 probeHitPixelOf(TracingPixel p, RayRecord record, WeighedRay ray)
++{
++    if (!ray.brings || record.light.a <= 0.0)
++        return ivec2(-1);
++    vec3 clip = clipOf(p.origin + ray.direction * record.light.a);
++    if (clip.z <= 0.0)
++        return ivec2(-1);
++    return clamp(ivec2(floor((0.5 * clip.xy / clip.z + 0.5) * frame.viewport.xy)), ivec2(0), ivec2(frame.viewport.xy) - 1);
++}
++
++// PROBE (t0-adau): the place mode (TERTIUS_PROBE_HIT_PLACES=1, bit 2 of the knob): the specular sample's age holds its
++// class's bits 0 to 4 and 6 and 7, bit 5 whether the hit pixel's demodulated direct diffuse light passes 50, and bits 8 to
++// 12 the hit pixel's y >> 5; the diffuse sample's age holds the hit pixel's x in bits 0 to 10 and y & 31 in bits 11 to 15.
++void probeStorePlace(ivec2 pixel, uint code, ivec2 q)
++{
++    if (q.x < 0)
++    {
++        imageStore(specularSampleAge, pixel, uvec4(code & ~32u));
++        imageStore(diffuseSampleAge, pixel, uvec4(0u));
++        return;
++    }
++    bool lit = dot(imageLoad(directDiffuseLight, q).rgb, vec3(0.2126, 0.7152, 0.0722)) > 50.0;
++    imageStore(specularSampleAge, pixel, uvec4((code & 0xDFu) | (lit ? 32u : 0u) | (uint(q.y >> 5) << 8)));
++    imageStore(diffuseSampleAge, pixel, uvec4(uint(q.x) | (uint(q.y & 31) << 11)));
++}
++
 +uint probeHitClassOf(TracingPixel p, RayRecord record, WeighedRay ray)
 +{
 +    if (!ray.brings)
@@ -72,7 +99,7 @@ index 4c850c2bf..7bebac578 100644
  // Whether the pixel's own surface point moves on screen since the last draw by at least LeastMotion pixels: by its motion
  // target, so the camera's moves count as well as the surface's (docs/plans/bounce-light-confidence.md, section 8.4).
  bool movesOnScreen(ivec2 pixel)
-@@ -114,6 +148,9 @@ void main()
+@@ -114,6 +174,9 @@ void main()
      bool diffuseMoved = diffuseRay.brings && movedHitOfRecord(diffuse.ray);
      // PROBE (tools/renderer-survey): the pixel's own motion in its own bit, apart from the moved mark.
      imageStore(diffuseSampleAge, pixel, uvec4(sampleAgeOf(diffuseCode, diffuseMoved) | (moves ? ProbeMovingBit : 0u)));
@@ -82,7 +109,7 @@ index 4c850c2bf..7bebac578 100644
  #endif
  
      // The share of the diffuse ray's estimate in the specular sample: 0 below the hand-over band, 1 above it.
-@@ -166,6 +203,19 @@ void main()
+@@ -166,6 +229,27 @@ void main()
  #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
      // PROBE (tools/renderer-survey): the pixel's own motion in its own bit, apart from the moved mark.
      imageStore(specularSampleAge, pixel, uvec4(sampleAgeOf(ageCode, moved) | (moves ? ProbeMovingBit : 0u)));
@@ -93,17 +120,25 @@ index 4c850c2bf..7bebac578 100644
 +        if (startsKind(p, KindReflection) && handOver < 0.5)
 +        {
 +            RayRecord reflection = recordAt(pixel, KindReflection, plan);
-+            imageStore(specularSampleAge, pixel,
-+                uvec4(probeHitClassOf(p, reflection, weighedRayOf(p, reflection, KindReflection, plan))));
++            WeighedRay reflected = weighedRayOf(p, reflection, KindReflection, plan);
++            uint code = probeHitClassOf(p, reflection, reflected);
++            imageStore(specularSampleAge, pixel, uvec4(code));
++            if ((trace.probeHitNoSpecular & 4u) != 0u)
++                probeStorePlace(pixel, code & 255u, probeHitPixelOf(p, reflection, reflected));
 +        }
 +        else
-+            imageStore(specularSampleAge, pixel, uvec4(128u | probeHitClassOf(p, diffuse, diffuseRay)));
++        {
++            uint code = 128u | probeHitClassOf(p, diffuse, diffuseRay);
++            imageStore(specularSampleAge, pixel, uvec4(code));
++            if ((trace.probeHitNoSpecular & 4u) != 0u)
++                probeStorePlace(pixel, code & 255u, probeHitPixelOf(p, diffuse, diffuseRay));
++        }
 +    }
  #endif
  #ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
      imageStore(uncoveredDiagnostic, pixel, vec4(float(seenCode) - 1.0, 0.0, 0.0, 0.0));
 diff --git a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
-index a7bae5fcb..8d8f53526 100644
+index a7bae5fcb..c43637c60 100644
 --- a/src/Tertius.Rendering/VulkanRenderer.cs
 +++ b/src/Tertius.Rendering/VulkanRenderer.cs
 @@ -615,6 +615,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
@@ -114,7 +149,7 @@ index a7bae5fcb..8d8f53526 100644
  
          if (sink != null && capture != null)
          {
-@@ -653,6 +654,96 @@ public sealed unsafe class VulkanRenderer : IRenderer
+@@ -653,6 +654,125 @@ public sealed unsafe class VulkanRenderer : IRenderer
          int.TryParse(Environment.GetEnvironmentVariable("TERTIUS_X_CENSUS_EVERY"), out int every) && every > 0 ? every : 0;
      private long probeCensusDraw;
  
@@ -140,7 +175,11 @@ index a7bae5fcb..8d8f53526 100644
 +    private long probeHitsCounted;
 +    private long[,,]? probeHitCounts;
 +    private double[,,]? probeHitSums;
-+    private double[,,]? probeHitCells;   // per signal and box, per hit cell of the 16 x 16 grid: samples, light
++    private double[,,]? probeHitCells;
++    // PROBE (t0-adau): in the place mode (TERTIUS_PROBE_HIT_PLACES=1), the specular samples of luminance 50 or more in each
++    // box by their hit pixel and the lit bit (probeStorePlace): samples and light.
++    private static readonly bool ProbeHitPlaces = Environment.GetEnvironmentVariable("TERTIUS_PROBE_HIT_PLACES") == "1";
++    private readonly Dictionary<(int Box, int X, int Y, int Lit), (long Count, double Light)> probeHitPlaces = new();   // per signal and box, per hit cell of the 16 x 16 grid: samples, light
 +
 +    private void ProbeHits()
 +    {
@@ -159,6 +198,29 @@ index a7bae5fcb..8d8f53526 100644
 +                continue;
 +            float[] sample = ReadImage(signal.Sample(0));
 +            float[] classes = ReadImage(signalAges);
++            if (ProbeHitPlaces && signalIndex == 1)
++            {
++                // The diffuse sample's age holds the hit pixel's x and low y in the place mode.
++                float[] low = ReadImage(tracer.Diffuse.SampleAge(0)!);
++                for (int box = 0; box < ProbeHitBoxes.Length; box++)
++                {
++                    var (_, bx0, by0, bx1, by1) = ProbeHitBoxes[box];
++                    for (int y = by0; y < by1; y++)
++                        for (int x = bx0; x < bx1; x++)
++                        {
++                            int i = y * width + x;
++                            double l = 0.2126 * sample[4 * i] + 0.7152 * sample[4 * i + 1] + 0.0722 * sample[4 * i + 2];
++                            int code = (int)classes[i];
++                            if (l < 50 || (code & 3) != 2)
++                                continue;
++                            int lowBits = (int)low[i];
++                            var key = (box, lowBits & 2047, ((code >> 8) & 31) << 5 | (lowBits >> 11), (code >> 5) & 1);
++                            probeHitPlaces.TryGetValue(key, out var e);
++                            probeHitPlaces[key] = (e.Count + 1, e.Light + l);
++                        }
++                }
++                continue;
++            }
 +            if (draw == ProbeHitsFrom)
 +            {
 +                // The class of every pixel at the first counted draw, one byte each, row by row, for a look.
@@ -205,6 +267,8 @@ index a7bae5fcb..8d8f53526 100644
 +                if (probeHitCells[row, cell, 0] > 0)
 +                    lines.Append(string.Create(inv,
 +                        $"cell-{(row < ProbeHitBoxes.Length ? "diffuse" : "specular")}-{ProbeHitBoxes[row % ProbeHitBoxes.Length].Name} {cell} 0 {probeHitCells[row, cell, 0]:R} {probeHitCells[row, cell, 1]:R}\n"));
++        foreach (var (key, e) in probeHitPlaces)
++            lines.Append(string.Create(inv, $"place-{ProbeHitBoxes[key.Box].Name} {key.X} {key.Y} {key.Lit} {e.Count} {e.Light:R}\n"));
 +        System.IO.File.WriteAllText(file, lines.ToString());
 +    }
 +
