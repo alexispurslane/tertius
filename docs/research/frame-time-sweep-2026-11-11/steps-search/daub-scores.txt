@@ -1,0 +1,9 @@
+ctl        rect-lamps   daub 0.0362  broad 0.0310  smooth share 0.86  ceiling 0.0436  walls 0.0239
+r96        rect-lamps   daub 0.0363  broad 0.0314  smooth share 0.86  ceiling 0.0438  walls 0.0241
+d48        rect-lamps   daub 0.0488  broad 0.2335  smooth share 0.86  ceiling 0.0559  walls 0.0400
+ctl        bay-sunbeam  daub 0.0333  broad 0.0217  smooth share 0.89  walls 0.0315  floor 0.0391
+r96        bay-sunbeam  daub 0.0341  broad 0.0236  smooth share 0.89  walls 0.0316  floor 0.0430
+d48        bay-sunbeam  daub 0.0495  broad 0.4389  smooth share 0.89  walls 0.0442  floor 0.0586
+ctl        docking-bay  daub 0.0432  broad 0.0178  smooth share 0.73  walls 0.0442  floor 0.0385
+r96        docking-bay  daub 0.0430  broad 0.0183  smooth share 0.73  walls 0.0439  floor 0.0387
+d48        docking-bay  daub 0.0548  broad 0.3578  smooth share 0.73  walls 0.0562  floor 0.0490

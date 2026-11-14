@@ -1,0 +1,11 @@
+# The first screen of lower step caps (parameter search, 2026-11-12): 16 sensitive scenes with the binary par at main's
+# caps (ctl), at a reflection cap of 96 (r96) and at a diffuse cap of 48 (d48). Each scene keeps its own exposure.
+one() { # one <script path> <name>
+  run par $1 ps-$2-ctl
+  SWEEP_RSTEPS=96 run par $1 ps-$2-r96
+  SWEEP_DSTEPS=48 run par $1 ps-$2-d48
+}
+for s in doorway mirror-balls rigs demo-shuttle demo-surface reflections-stills station cabin-light; do one capscripts/$s.json $s; done
+for s in hair-bent-cards hair-rugs lamp-hall-16-hair; do one hairscripts/$s.json $s; done
+for s in deck-1080 doorway-1440 mirror-balls-1440 hair-rugs-1440; do one bigscripts/$s.json $s; done
+one views2.json low

@@ -1,0 +1,15 @@
+uptime-start:  17:04:49  up 48 days  4:39,  2 users,  load average: 19.15, 11.04, 10.69
+waited: 1356s
+trace deck-t14-n128-a: GPU frame span: mean 19.836 ms, median 19.767 ms, p95 20.505 ms over 119 frames | GPU clock over the timed span: 1291.6 MHz (p10 1289.9, p90 1293.7 MHz,
+trace deck-t14-n96-a: GPU frame span: mean 21.315 ms, median 21.325 ms, p95 22.382 ms over 119 frames | GPU clock over the timed span: 1295.7 MHz (p10 1294.8, p90 1296.0 MHz,
+trace deck-t14-n128-b: GPU frame span: mean 20.076 ms, median 19.938 ms, p95 21.013 ms over 119 frames | GPU clock over the timed span: 1293.8 MHz (p10 1291.1, p90 1296.0 MHz,
+trace deck-t14-n96-b: GPU frame span: mean 19.906 ms, median 19.731 ms, p95 21.229 ms over 119 frames | GPU clock over the timed span: 1293.5 MHz (p10 1290.2, p90 1296.0 MHz,
+trace deck-t14-n128-c: GPU frame span: mean 19.855 ms, median 19.799 ms, p95 20.563 ms over 119 frames | 
+trace deck-t14-n96-c: GPU frame span: mean 19.694 ms, median 19.630 ms, p95 20.379 ms over 119 frames | GPU clock over the timed span: 1292.7 MHz (p10 1290.2, p90 1296.0 MHz,
+trace deck-t14-env-ctl: GPU frame span: mean 21.152 ms, median 20.347 ms, p95 25.964 ms over 119 frames | 
+trace deck-t14-env-draws1: GPU frame span: mean 20.332 ms, median 20.272 ms, p95 21.023 ms over 119 frames | GPU clock over the timed span: 1290.9 MHz (p10 1289.6, p90 1292.4 MHz,
+trace deck-t14-env-draws2: GPU frame span: mean 20.488 ms, median 20.383 ms, p95 21.377 ms over 119 frames | GPU clock over the timed span: 1290.9 MHz (p10 1290.1, p90 1292.6 MHz,
+trace deck-t14-env-nolight: GPU frame span: mean 20.902 ms, median 20.861 ms, p95 21.520 ms over 119 frames | GPU clock over the timed span: 1291.1 MHz (p10 1290.2, p90 1292.5 MHz,
+trace deck-t14-env-noshadow: GPU frame span: mean 16.468 ms, median 16.258 ms, p95 18.073 ms over 119 frames | GPU clock over the timed span: 1263.7 MHz (p10 1207.1, p90 1290.2 MHz,
+take take14.jobs ended after 719 s
+uptime-end:  17:16:48  up 48 days  4:51,  2 users,  load average: 7.14, 6.15, 7.70

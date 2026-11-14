@@ -334,7 +334,7 @@ internal sealed unsafe class FrameResources : IDisposable
         layouts.WriteBuffer(set: FrameSet, binding: 7, type: DescriptorType.StorageBuffer, buffer: Puffs.Buffer);
         WriteMotions(Motions);
 
-        // The tables never change, so their bindings are written once.
+        // The tables and the mask never change, so their bindings are written once.
         layouts.WriteImage(set: FrameSet, binding: 8, arrayElement: 0, image: tables.Dfg);
         layouts.WriteImage(set: FrameSet, binding: 9, arrayElement: 0, image: tables.LobeSky);
         layouts.WriteImage(
@@ -342,6 +342,12 @@ internal sealed unsafe class FrameResources : IDisposable
             binding: DescriptorLayouts.LtcTableBinding,
             arrayElement: 0,
             image: tables.Ltc
+        );
+        layouts.WriteImage(
+            set: FrameSet,
+            binding: DescriptorLayouts.BlueNoiseBinding,
+            arrayElement: 0,
+            image: tables.BlueNoise
         );
         // The renderer has one exposure buffer for its life, which every frame passes on to the next.
         layouts.WriteBuffer(set: FrameSet, binding: 11, type: DescriptorType.StorageBuffer, buffer: exposure);

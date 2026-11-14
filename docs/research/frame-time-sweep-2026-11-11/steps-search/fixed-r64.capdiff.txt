@@ -1,0 +1,59 @@
+script                 capture                   mean %    any %   >1 lv %  >4 lv %  max
+cabin-light            cabin                     -0.049    22.78    1.780    0.095   27
+cabin-light            canopy                    -0.000     1.27    0.013    0.000    3
+cabin-light            port-window               -0.000     0.02    0.000    0.000    1
+deck-1080              deck                      -0.181    28.00    0.257    0.005   30
+demo-shuttle           nose                      -0.032     3.66    0.069    0.000    5
+demo-shuttle           side                      -0.021     4.22    0.141    0.008   40
+demo-shuttle           tail                      -0.029     2.08    0.055    0.000    5
+demo-surface           apron                     -0.118    25.69    2.546    0.041   23
+demo-surface           at-the-seat               -0.047    21.46    1.449    0.069   27
+demo-surface           boarding                  -0.109    24.90    2.313    0.039   20
+demo-surface           end-overview              -0.028    11.97    0.364    0.006   10
+demo-surface           in-cabin                  -0.058    21.70    1.612    0.070   24
+demo-surface           start                     -0.029    11.86    0.343    0.007   13
+demo-surface           terminal                  -0.052     2.69    0.024    0.001    8
+doorway-1440           inside-view               -0.000     0.00    0.000    0.000    1
+doorway-1440           inside                    -0.002     0.75    0.002    0.000   11
+doorway-1440           outside                   -0.004     1.30    0.003    0.000   12
+doorway-1440           standing                  -0.004     1.30    0.003    0.000   12
+doorway                inside-view               identical
+doorway                inside                    -0.001     0.43    0.002    0.000    5
+doorway                outside                   -0.002     0.95    0.004    0.000   10
+doorway                standing                  -0.002     0.95    0.004    0.000   10
+hair-bent-cards        bent                      -0.000     1.32    0.016    0.002   22
+hair-bent-cards        front                     -0.006     3.12    0.036    0.002    7
+hair-rugs-1440         low                       -0.084    27.02   12.830    2.290   86
+hair-rugs-1440         rugs                      -0.036    19.56    6.478    0.777   96
+hair-rugs              low                       -0.035    23.97   11.217    1.815   92
+hair-rugs              rugs                      -0.018    16.49    5.102    0.504   81
+low                    edge                      -0.022     1.45    0.154    0.000    7
+low                    front                     -0.002     1.24    0.062    0.006   14
+low                    low                       -0.000     2.78    0.267    0.037   19
+mirror-balls-1440      balls                     -0.162     7.66    1.627    0.373  164
+mirror-balls-1440      belly                     -0.002     0.53    0.051    0.005   38
+mirror-balls-1440      plate                     identical
+mirror-balls           balls                     -0.127     6.97    1.292    0.346  107
+mirror-balls           belly                     -0.002     0.55    0.067    0.006   18
+mirror-balls           plate                     identical
+reflections-stills     edge                      -0.010     1.11    0.007    0.001    8
+reflections-stills     front                     -0.003     0.72    0.049    0.006   16
+reflections-stills     low                       -0.001     2.03    0.200    0.031   24
+rigs-1080              bent-left                 -0.003     0.90    0.008    0.000    8
+rigs-1080              bent-right                -0.003     0.92    0.007    0.000    9
+rigs-1080              box-other-way             -0.040     2.70    0.099    0.000    6
+rigs-1080              box                       -0.021     2.04    0.014    0.000    5
+rigs-1080              twist                     -0.034     1.87    0.094    0.000    5
+rigs                   bent-left                 -0.002     0.70    0.009    0.000    6
+rigs                   bent-right                -0.003     0.70    0.007    0.000    7
+rigs                   box-other-way             -0.029     1.94    0.065    0.002   10
+rigs                   box                       -0.014     1.38    0.013    0.000    3
+rigs                   twist                     -0.035     1.86    0.154    0.000    6
+station                crate-at-wall             identical
+station                crate-flying              -0.129     9.67    0.125    0.001    6
+station                end                       -0.005     1.28    0.012    0.002   22
+station                first-bump                -0.000     0.09    0.001    0.000   12
+station                pods-at-radiator          -0.000     0.09    0.001    0.000    3
+station                pods-drifting             -0.008     1.70    0.024    0.007   16
+station                pods-out                  -0.005     1.42    0.011    0.002   11
+captures 57, identical 4, largest change of the mean -0.181 % (deck-1080 deck), largest share over 4 levels 2.290 %, largest share over 1 level 12.830 %

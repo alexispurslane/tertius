@@ -226,8 +226,19 @@ public sealed class EditCommandTests : IDisposable
             .Contain("Music: A sine, public domain");
     }
 
-    [Fact]
-    public void TheClosingCardShowsTheCreditOfTheRecordingInsideItsMargins()
+    /// <summary>The credit of the demo's recording, the longest line of any card.</summary>
+    private const string RecordingCredit =
+        "The Blue Danube (Johann Strauss II). United States Marine Band, Albert F. Schoepper, conductor. Public domain.";
+
+    /// <summary>
+    /// The card keeps its margins with the credit of the demo's recording, and with a credit twice as long, which is
+    /// wider than the card in any font. The card's fonts come from macOS, so on Linux libass draws another font, whose
+    /// line can be wider than the Mac's (ticket ter-j4h9). A line wider than the card wraps inside its margins.
+    /// </summary>
+    [Theory]
+    [InlineData(RecordingCredit)]
+    [InlineData(RecordingCredit + " " + RecordingCredit)]
+    public void TheClosingCardShowsTheCreditOfTheRecordingInsideItsMargins(string credit)
     {
         string music = Path.Combine(folder, "music.wav");
         Tool(
@@ -242,9 +253,6 @@ public sealed class EditCommandTests : IDisposable
             "-y",
             music
         );
-        // The credit of the demo's recording, the longest line of any card.
-        const string credit =
-            "The Blue Danube (Johann Strauss II). United States Marine Band, Albert F. Schoepper, conductor. Public domain.";
         Edit("--music", music, "--music-credit", credit).Should().Be(ScriptCommand.Ok);
         string parts = VideoPath + ".parts",
             picture = Path.Combine(folder, "closing.rgb");

@@ -179,6 +179,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>The binding of the frame set that holds the LTC table of the rectangle lights (brdf.glsl, ltcTable).</summary>
     public const uint LtcTableBinding = 19;
 
+    /// <summary>The binding of the frame set that holds the reflection rays' blue-noise mask (screen_trace.glsl, blueNoiseMask).</summary>
+    public const uint BlueNoiseBinding = 20;
+
     /// <summary>The binding of this frame's kept positions in the deform set.</summary>
     public const uint DeformKeptPositionsBinding = 5;
 
@@ -204,14 +207,17 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     private readonly VulkanDevice device;
 
     // No handle until the constructor makes the pools, so a Dispose after a refused device destroys none.
-    private readonly SetPool pool = new(default, 0);
-    private readonly SetPool texturePool = new(default, 0);
+    private readonly SetPool pool = new(default, 0, []);
+    private readonly SetPool texturePool = new(default, 0, []);
 
     /// <summary>The descriptors that device limits bound in each set layout that this object made, by handle.</summary>
     private readonly Dictionary<ulong, LimitedDescriptors> setDescriptors = [];
 
     /// <summary>The descriptors that device limits bound in each pipeline layout that this object made, by handle.</summary>
     private readonly Dictionary<ulong, LimitedDescriptors> layoutDescriptors = [];
+
+    /// <summary>The descriptors of each type in each set layout that this object made, as a pool counts them, by handle.</summary>
+    private readonly Dictionary<ulong, Dictionary<DescriptorType, uint>> setSizes = [];
 
     /// <param name="glowLevels">The bloom levels, 0 without bloom: the pool holds one glow source set more than that.</param>
     /// <param name="historyMode">
@@ -277,9 +283,12 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             PyramidTailLayout,
             DeformLayout,
             ScatterLayout,
-            ShadowBoundsLayout,
-            KeyFillTilesLayout
+            ShadowBoundsLayout
         ) = CreateComputeLayouts();
+        KeyFillTilesLayout = ComputeLayout<KeyFillTilesPushConstants>(
+            sets: [KeyFillTilesSet],
+            name: "key fill tiles layout"
+        );
 
         (SurfaceTestLayout, AccumulateLayout, DiffuseFilterLayout, ScreenTraceLayout) = CreateTemporalLayouts();
 
@@ -510,6 +519,12 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// outside the sets that are updated after bind: the counts that the device's per-stage limits bound.
     /// </summary>
     public LimitedDescriptors DescriptorsOf(PipelineLayout layout) => layoutDescriptors[layout.Handle];
+
+    /// <summary>The descriptors of <paramref name="type"/> that a set of <paramref name="set"/> takes from its pool.</summary>
+    internal uint SizeOf(DescriptorSetLayout set, DescriptorType type) => setSizes[set.Handle].GetValueOrDefault(type);
+
+    /// <summary>The descriptors of <paramref name="type"/> that the shared pool holds.</summary>
+    internal uint SharedPoolSizeOf(DescriptorType type) => pool.SizeOf(type);
 
     public DescriptorSet AllocateFrameSet() => Allocate(pool, FrameSet, null);
 
@@ -866,8 +881,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         PipelineLayout PyramidTail,
         PipelineLayout Deform,
         PipelineLayout Scatter,
-        PipelineLayout ShadowBounds,
-        PipelineLayout KeyFillTiles
+        PipelineLayout ShadowBounds
     ) CreateComputeLayouts()
     {
         PipelineLayout exposure = ComputeLayout<ExposureAdaptPushConstants>(
@@ -898,11 +912,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             sets: [ShadowBoundsSet],
             name: "shadow bounds layout"
         );
-        PipelineLayout keyFillTiles = ComputeLayout<KeyFillTilesPushConstants>(
-            sets: [KeyFillTilesSet],
-            name: "key fill tiles layout"
-        );
-        return (exposure, environmentPrefilter, pyramid, pyramidTail, deform, scatter, shadowBounds, keyFillTiles);
+        return (exposure, environmentPrefilter, pyramid, pyramidTail, deform, scatter, shadowBounds);
     }
 
     /// <summary>A layout of <paramref name="sets"/> whose one push constant range is a <typeparamref name="TPush"/> for the compute stage.</summary>
@@ -931,15 +941,16 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             // Three per frame set (the material sampler and the immutable linear clamp and environment samplers), the
             // immutable samplers of the G-buffer, atlas, post and prefilter sets, and one per glow source set.
             new(DescriptorType.Sampler, 3 * frames + 4 + glowSourceSets),
-            // 20 for the G-buffer, post and atlas sets, five per frame set for the tables, the specular map, the irradiance
-            // cube and the distance cube, one per glow source set, two for the meter set, one per pyramid level set, one for
-            // each pyramid's tail set, one for the prefilter set, one for the shadow bounds set, two for each surface test
-            // set, two for each signal set, four for each screen tracer set and four for the key fill tiles set.
+            // 20 for the G-buffer, post and atlas sets, seven per frame set for the three tables, the blue-noise mask, the
+            // specular map, the irradiance cube and the distance cube, one per glow source set, two for the meter set, one
+            // per pyramid level set, one for each pyramid's tail set, one for the prefilter set, one for the shadow bounds
+            // set, two for each surface test set, two for each signal set, four for each screen tracer set and four for the
+            // key fill tiles set.
             new(
                 DescriptorType.SampledImage,
                 20
                     + 4
-                    + 5 * frames
+                    + 7 * frames
                     + glowSourceSets
                     + 2
                     + PyramidLevelSets
@@ -1307,6 +1318,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             StorageBuffer(binding: KeptPositionsBinding, stages: ShaderStageFlags.VertexBit),
             // The LTC table of the rectangle lights, which every pass that shades lights reads beside the other tables.
             Image(binding: LtcTableBinding, stages: shading),
+            // The reflection rays' blue-noise mask, which only the screen tracer reads, so the fragment stages do not count
+            // it against maxPerStageDescriptorSampledImages.
+            Image(binding: BlueNoiseBinding, stages: ShaderStageFlags.ComputeBit),
         ];
         Span<DescriptorBindingFlags> flags = stackalloc DescriptorBindingFlags[frame.Length];
         foreach (uint binding in (ReadOnlySpan<uint>)[12, 14, ShadowAtlas.TileViewsBinding, 16, KeptPositionsBinding])
@@ -1418,6 +1432,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             foreach (DescriptorSetLayoutBinding binding in bindings)
                 counts = counts.With(binding: binding, updatedAfterBind: updatedAfterBind);
             setDescriptors[layout.Handle] = counts;
+            Dictionary<DescriptorType, uint> sizes = [];
+            foreach (DescriptorSetLayoutBinding binding in bindings)
+                sizes[binding.DescriptorType] =
+                    sizes.GetValueOrDefault(binding.DescriptorType) + binding.DescriptorCount;
+            setSizes[layout.Handle] = sizes;
             return layout;
         }
     }
@@ -1490,7 +1509,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 )
                 .Check("vkCreateDescriptorPool");
             device.SetName(ObjectType.DescriptorPool, created.Handle, name);
-            return new SetPool(created, maxSets);
+            return new SetPool(created, maxSets, sizes.ToArray());
         }
     }
 
@@ -1516,12 +1535,25 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         return set;
     }
 
-    /// <summary>A descriptor pool, the most sets that it holds, and the sets that it gave. No set returns to it.</summary>
-    private sealed class SetPool(DescriptorPool handle, uint maxSets)
+    /// <summary>
+    /// A descriptor pool, the most sets that it holds, its size of each descriptor type, and the sets that it gave. No set
+    /// returns to it.
+    /// </summary>
+    private sealed class SetPool(DescriptorPool handle, uint maxSets, DescriptorPoolSize[] sizes)
     {
         public DescriptorPool Handle { get; } = handle;
 
         public uint MaxSets { get; } = maxSets;
+
+        /// <summary>The descriptors of <paramref name="type"/> that the pool holds.</summary>
+        public uint SizeOf(DescriptorType type)
+        {
+            uint size = 0;
+            foreach (DescriptorPoolSize poolSize in sizes)
+                if (poolSize.Type == type)
+                    size += poolSize.DescriptorCount;
+            return size;
+        }
 
         public uint Given { get; set; }
     }

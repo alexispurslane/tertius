@@ -46,6 +46,21 @@ public sealed unsafe class DeviceAllocatorTests
     private const uint RadvBufferTypes = 0b0101101;
 
     /// <summary>
+    /// The four types that NVIDIA's driver gives a buffer on a discrete GPU without resizable BAR: VRAM, system memory
+    /// coherent and cached, and the host-visible VRAM of the BAR window, whose heap holds only 256 MiB (ticket ter-net6).
+    /// </summary>
+    private static readonly MemoryPropertyFlags[] NvidiaDiscreteTypes =
+    [
+        MemoryPropertyFlags.DeviceLocalBit,
+        MemoryPropertyFlags.HostVisibleBit | MemoryPropertyFlags.HostCoherentBit,
+        MemoryPropertyFlags.HostVisibleBit | MemoryPropertyFlags.HostCoherentBit | MemoryPropertyFlags.HostCachedBit,
+        MemoryPropertyFlags.DeviceLocalBit | MemoryPropertyFlags.HostVisibleBit | MemoryPropertyFlags.HostCoherentBit,
+    ];
+
+    /// <summary>The types that NVIDIA's driver allows a buffer: all four.</summary>
+    private const uint NvidiaBufferTypes = 0b1111;
+
+    /// <summary>
     /// ANV's two types on an Intel GPU without a shared last-level cache under i915 (Mesa 26.2.4, i915/anv_device.c).
     /// Both are device-local and host-visible. Type 0 is coherent, and type 1 is cached but not coherent.
     /// </summary>
@@ -307,6 +322,77 @@ public sealed unsafe class DeviceAllocatorTests
     }
 
     [Fact]
+    public void AnUploadOnNvidiaTakesTheHostVisibleVramWhileItsHeapHasRoom()
+    {
+        using var memory = new TableMemory(NvidiaDiscreteTypes);
+        using var allocator = new DeviceAllocator(memory);
+
+        allocator.Allocate(
+            requirements: Requirements(Kilobytes64, typeBits: NvidiaBufferTypes),
+            usage: MemoryUsage.Upload,
+            linear: true,
+            name: "staging"
+        );
+
+        memory.Live.Should().ContainSingle().Which.Should().Be(new LiveMemory(Type: 3, Mapped: true));
+    }
+
+    [Theory]
+    [InlineData(Kilobytes64)]
+    [InlineData(DeviceAllocator.BlockSize)]
+    public void AnUploadWhoseHostVisibleVramIsFullTakesTheNextHostVisibleType(ulong size)
+    {
+        // Several renderers in one process fill the BAR window's 256 MiB while the card's VRAM stays nearly empty. The
+        // driver refuses the allocation, and the allocator takes the next type that the usage allows.
+        using var memory = new TableMemory(NvidiaDiscreteTypes) { FullTypes = [3] };
+        using var allocator = new DeviceAllocator(memory);
+
+        MemoryAllocation staging = allocator.Allocate(
+            requirements: Requirements(size, typeBits: NvidiaBufferTypes),
+            usage: MemoryUsage.Upload,
+            linear: true,
+            name: "staging"
+        );
+
+        ((nint)staging.Mapped).Should().NotBe(0, "an upload writes through its pointer");
+        memory.Live.Should().ContainSingle().Which.Should().Be(new LiveMemory(Type: 1, Mapped: true));
+    }
+
+    [Fact]
+    public void AnUploadThatEveryAllowedTypeRefusesFailsAsTheDeviceOutOfMemory()
+    {
+        using var memory = new TableMemory(NvidiaDiscreteTypes) { FullTypes = [1, 2, 3] };
+        using var allocator = new DeviceAllocator(memory);
+
+        Action allocate = () =>
+            allocator.Allocate(
+                requirements: Requirements(Kilobytes64, typeBits: NvidiaBufferTypes),
+                usage: MemoryUsage.Upload,
+                linear: true,
+                name: "staging"
+            );
+
+        allocate.Should().Throw<VulkanException>().Which.Result.Should().Be(Result.ErrorOutOfDeviceMemory);
+        memory.Live.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AGpuOnlyAllocationWhoseVramIsFullTakesTheOtherDeviceLocalTypeAndNoSystemMemory()
+    {
+        using var memory = new TableMemory(NvidiaDiscreteTypes) { FullTypes = [0] };
+        using var allocator = new DeviceAllocator(memory);
+
+        allocator.Allocate(
+            requirements: Requirements(Kilobytes64, typeBits: NvidiaBufferTypes),
+            usage: MemoryUsage.GpuOnly,
+            linear: false,
+            name: "target"
+        );
+
+        memory.Live.Should().ContainSingle().Which.Type.Should().Be(3, "the only other device-local type");
+    }
+
+    [Fact]
     public void AnAllocationWhoseMappingFailsFreesItsMemoryBeforeItThrows()
     {
         using var memory = new TableMemory([UnifiedType]) { RefusesMaps = true };
@@ -450,6 +536,9 @@ public sealed unsafe class DeviceAllocatorTests
         /// <summary>Whether <see cref="Map"/> fails as a driver out of host memory does.</summary>
         public bool RefusesMaps { get; init; }
 
+        /// <summary>The types whose heap is full: <see cref="Allocate"/> of them fails as a driver out of device memory does.</summary>
+        public uint[] FullTypes { get; init; } = [];
+
         /// <summary>Each live memory's type and whether it is mapped, in the order of allocation.</summary>
         public IReadOnlyList<LiveMemory> Live =>
             [
@@ -461,6 +550,8 @@ public sealed unsafe class DeviceAllocatorTests
         {
             if (type >= Types.MemoryTypeCount)
                 throw new InvalidOperationException($"No memory type {type}.");
+            if (FullTypes.Contains(type))
+                throw new VulkanException("vkAllocateMemory", Result.ErrorOutOfDeviceMemory);
             ulong handle = nextHandle++;
             live.Add(handle, (type, size, 0));
             return new(handle);
