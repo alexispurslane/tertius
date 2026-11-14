@@ -96,7 +96,7 @@ void main()
         if (visibility <= 0.0)
             continue;
         DirectTerms full = pathLight(i, false, shape, s, lobes, V, p);
-        vec3 fill = fillResponse(shape, s, lobes, p) * p.irradiance;
+        vec3 fill = fillResponse(shape, s, lobes, lobes.diffuseColor, p) * p.irradiance;
         whole += visibility * dot(full.diffuse + full.specular, KeyLuminanceWeights);
         float loss = visibility * dot(full.specular + abs(full.diffuse - fill), KeyLuminanceWeights);
         uint key = i | (shape << 24);

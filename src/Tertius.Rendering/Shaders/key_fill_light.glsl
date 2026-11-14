@@ -14,7 +14,7 @@
 // cosine vector. A rectangle's is that of a point light of the face's projected solid angle (RectView.PointSolidAngle),
 // which misses the integral over the face by under 1 % from 8 half diagonals away and by more nearer. `shape` as in
 // lightIrradiance.
-vec3 fillResponse(uint shape, ShadingInput s, SurfaceLobes lobes, LightPath p)
+vec3 fillResponse(uint shape, ShadingInput s, SurfaceLobes lobes, vec3 color, LightPath p)
 {
     float cosine = max(dot(s.normal, shape == TubeShape ? p.cosine : p.L), 0.0);
     if (shape == RectShape)
@@ -22,7 +22,7 @@ vec3 fillResponse(uint shape, ShadingInput s, SurfaceLobes lobes, LightPath p)
         float scale = 1.0 / max(p.d, 1e-6);
         cosine *= max(-4.0 * dot(p.toCenter * scale, cross(p.halfWidth * scale, p.halfHeight * scale)), 0.0);
     }
-    return lobes.diffuseColor * (cosine / PI);
+    return color * (cosine / PI);
 }
 
 // The cosine of the angle between a corner's normal and the pixel's at which the corner stops to count as on the
@@ -122,7 +122,11 @@ void keyShapeLight(bool fiber, bool tinted, uint shape, ShadingInput s, SurfaceL
         // The fill goes into the sum before the full response, and the full response has one weight, so that only that
         // weight is held across pathLight.
         if (!fiber)
-            sum.diffuse += fillResponse(shape, s, lobes, p) * p.irradiance * ((1.0 - key) * visibility);
+        {
+            vec3 fill = fillResponse(shape, s, lobes, vec3(1.0), p) * p.irradiance * ((1.0 - key) * visibility);
+            sum.diffuse += lobes.diffuseColor * fill;
+            sum.specular += specularWeight(lobes) * fill;
+        }
         if (key > 0.0)
         {
             float weight = key * visibility;
