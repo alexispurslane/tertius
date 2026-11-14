@@ -268,6 +268,8 @@ The mean of the distance itself cannot hold the sky, whose distance is infinite.
 
 ### How the capture writes it
 
+Changed by `t2-zcr4` (2026-11-12): `environment_face_light.frag` writes both outputs of a texel in one draw. A surface's inverse distance comes from the position in the face's surface record, and the sky's is 0. No range loads the cube's face.
+
 `environment_face.frag` gains a second output, the inverse distance at location 1:
 
 ```glsl

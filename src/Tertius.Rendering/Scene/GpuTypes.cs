@@ -699,18 +699,12 @@ internal struct ScatterTapArray
     private Vector4 element;
 }
 
-/// <summary>The push constants of every mesh pass (Shaders/draw.glsl). 84 bytes.</summary>
+/// <summary>The push constants of every mesh pass (Shaders/draw.glsl). 80 bytes.</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct DrawPushConstants
 {
     public Matrix4x4 ViewProj;
     public Vector4 Eye;
-
-    /// <summary>
-    /// For an environment face, the map whose face the draw draws, which keeps the lights of its map and the maps outside it.
-    /// 0 in every other pass, which reads it not.
-    /// </summary>
-    public uint Map;
 }
 
 /// <summary>The push constants of the tone mapping pass.</summary>
@@ -881,11 +875,12 @@ internal struct PyramidTailPushConstants
 }
 
 /// <summary>
-/// The push constants of the environment sky pass (Shaders/environment_sky.frag): the basis of the face it draws, each
-/// axis a <see cref="Vector4"/>. 48 bytes, inside the scene layout's 84-byte range.
+/// The push constants of the light pass of an environment face (Shaders/environment_face_light.frag): the basis of the
+/// face that it lights, each axis a <see cref="Vector4"/>, and the face's map. 52 bytes, inside the 80-byte range that
+/// the face light layout shares with the scene layout.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-internal struct SkyFacePushConstants
+internal struct FaceLightPushConstants
 {
     /// <summary>xyz the face's forward axis, w 1 / W, which turns a pixel coordinate into the face's st.</summary>
     public Vector4 Forward;
@@ -895,6 +890,9 @@ internal struct SkyFacePushConstants
 
     /// <summary>xyz the face's up, w 0.</summary>
     public Vector4 Up;
+
+    /// <summary>The map whose face the pass lights. The face keeps the lights of this map and of the maps outside it.</summary>
+    public uint Map;
 }
 
 /// <summary>

@@ -1,6 +1,6 @@
 ---
 id: t2-zcr4
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-11-12T20:56:34Z

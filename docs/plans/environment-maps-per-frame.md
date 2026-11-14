@@ -443,6 +443,8 @@ The push constants that change:
 
 The scene layout's push range grows from 80 to 84 bytes.
 
+Changed by `t2-zcr4` (2026-11-12): the light pass of a face takes the map in `FaceLightPushConstants.Map`, 52 bytes. `DrawPushConstants` holds no map, and the scene layout's push range is 80 bytes again.
+
 ## Portable Vulkan
 
 The maps follow the Vulkan specification, so they run on NVIDIA, RADV, ANV and lavapipe as on MoltenVK:
