@@ -1885,7 +1885,25 @@ public sealed unsafe class VulkanRenderer : IRenderer
             for (int i = 0; i < pixels.Length; i += 4)
                 (pixels[i], pixels[i + 2]) = (pixels[i + 2], pixels[i]);
         sink.Take(new(pixels, width, height));
+        // THROWAWAY (ter-kh4g, stage 1): under TERTIUS_BACK_FACE_DUMP=<folder>, writes the captured frame's front
+        // distances and back shares as raw 32-bit floats, row by row from the top, with the render size in the file names.
+        if (Environment.GetEnvironmentVariable("TERTIUS_BACK_FACE_DUMP") is { Length: > 0 } folder && BackFacePass.SwitchedOn())
+        {
+            Directory.CreateDirectory(folder);
+            string size = $"{targets.Extent.Width}x{targets.Extent.Height}";
+            File.WriteAllBytes(
+                Path.Combine(folder, $"front-{backFaceDumps}-{size}.f32"),
+                System.Runtime.InteropServices.MemoryMarshal.AsBytes<float>(ReadImage(targets.Distance)).ToArray()
+            );
+            File.WriteAllBytes(
+                Path.Combine(folder, $"back-{backFaceDumps}-{size}.f32"),
+                System.Runtime.InteropServices.MemoryMarshal.AsBytes<float>(ReadImage(targets.BackDistance)).ToArray()
+            );
+            backFaceDumps++;
+        }
     }
+
+    private int backFaceDumps;
 
     /// <summary>The one context of the renderer's life, which holds what every frame shares (see <see cref="SetContext"/>).</summary>
     private FrameContext CreateContext() =>
@@ -2055,6 +2073,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
             kept: keptPositions
         );
         Graph.Add(FrameGraph.Stage.GBuffer, geometryPass);
+        // THROWAWAY (ter-kh4g, stage 1): the back-face cost probe.
+        if (BackFacePass.SwitchedOn())
+            Graph.Add(FrameGraph.Stage.GBuffer, new BackFacePass(device: device, shaders: shaders, layouts: layouts));
         Graph.Add(
             FrameGraph.Stage.SurfaceTest,
             new SurfaceTestPass(device: device, shaders: shaders, layouts: layouts, images: surfaceHistory)

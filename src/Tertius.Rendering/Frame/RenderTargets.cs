@@ -157,6 +157,10 @@ internal sealed class RenderTargets : IDisposable
     public GpuImage Emissive { get; private set; }
     public GpuImage Distance { get; private set; }
 
+    /// <summary>THROWAWAY (ter-kh4g, stage 1): the back-face cost probe's target: the front surface's distance to the
+    /// eye over the distance of the nearest back face behind it, 0 without one.</summary>
+    public GpuImage BackDistance { get; private set; }
+
     /// <summary>The shading model of each pixel and a hair pixel's strand, the sixth G-buffer target.</summary>
     public GpuImage Shading { get; private set; }
 
@@ -238,6 +242,7 @@ internal sealed class RenderTargets : IDisposable
         nameof(Specular),
         nameof(Emissive),
         nameof(Distance),
+        nameof(BackDistance),
         nameof(Shading),
         nameof(Motion),
         nameof(Depth),
@@ -256,6 +261,12 @@ internal sealed class RenderTargets : IDisposable
         Specular = ColorTarget(extent: extent, format: SpecularFormat, name: "g-buffer specular", readable: true);
         Emissive = ColorTarget(extent: extent, format: EmissiveFormat, name: "g-buffer emissive");
         Distance = ColorTarget(extent: extent, format: DistanceFormat, name: "g-buffer distance", readable: true);
+        BackDistance = ColorTarget(
+            extent: extent,
+            format: DistanceFormat,
+            name: "back share (throwaway)",
+            readable: true
+        );
         Shading = ColorTarget(extent: extent, format: ShadingFormat, name: "g-buffer shading", readable: true);
         // A storage image too, for the surface test, which writes the sky's motion.
         Motion = ColorTarget(
@@ -471,6 +482,7 @@ internal sealed class RenderTargets : IDisposable
         foreach (GpuImage image in GBuffer)
             image.Dispose();
         Depth?.Dispose();
+        BackDistance?.Dispose();
         Hdr?.Dispose();
         DirectDiffuse?.Dispose();
         DirectSpecular?.Dispose();

@@ -1,6 +1,6 @@
 ---
 id: ter-kh4g
-status: open
+status: in_progress
 deps: []
 links: [ter-ukw6]
 created: 2026-11-14T18:53:04Z
