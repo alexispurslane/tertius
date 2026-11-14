@@ -83,13 +83,13 @@ index 2a1c55a65..e85614b8e 100644
      if (fade > 0.0)
      {
 diff --git a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
-index 5a6393a9e..a7dec5a16 100644
+index 5a6393a9e..e04ee9599 100644
 --- a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
 +++ b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
-@@ -264,6 +264,49 @@ void main()
-         hitDistance = reflection.light.a;
-     }
-     imageStore(specularSample, pixel, vec4(min(specularLight, vec3(MaxRadiance)), hitDistance));
+@@ -293,4 +293,47 @@ void main()
+ #ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
+     imageStore(uncoveredDiagnostic, pixel, vec4(float(seenCode) - 1.0, 0.0, 0.0, 0.0));
+ #endif
 +#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
 +    // PROBE (t0-adau, never merges): the true mode (TERTIUS_PROBE_HIT_TRUE=1, bit 3 of the knob). For a specular sample of
 +    // luminance 50 or more from the pixel's reflection ray, the resolve walks that ray again, with the inputs of its
@@ -133,9 +133,7 @@ index 5a6393a9e..a7dec5a16 100644
 +        imageStore(diffuseSampleAge, pixel, uvec4(out2.y));
 +    }
 +#endif
- #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
-     // PROBE (tools/renderer-survey): the pixel's own motion in its own bit, apart from the moved mark.
-     imageStore(specularSampleAge, pixel, uvec4(sampleAgeOf(ageCode, moved) | (moves ? ProbeMovingBit : 0u)));
+ }
 diff --git a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
 index ac0b480b4..da6ba5d05 100644
 --- a/src/Tertius.Rendering/VulkanRenderer.cs
