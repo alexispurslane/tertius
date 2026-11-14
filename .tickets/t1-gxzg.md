@@ -76,3 +76,13 @@ Use at least one hair view with cards near the camera. `scripts/skin-and-hair.js
 
 Any change of the probe's rules beyond what the parts name, the cost, the design document and the real mechanism.
 
+
+## Notes
+
+**2026-11-14T23:56:25Z**
+
+Launched 2026-11-14 from 24a320541 as a ticket lead on Claude Opus 5.5 at high effort, in its own worktree. clientRequestId: ter-kh4g-1b-t1-gxzg-lead-1. taskId: node:delegated-task:command%3Amcp%3A3579fc31-496e-48d6-a7df-6042784d08cb%3Adelegate-task%3Ater-kh4g-1b-t1-gxzg-lead-1. childThreadId: thread:delegated-task:command%3Amcp%3A3579fc31-496e-48d6-a7df-6042784d08cb%3Adelegate-task%3Ater-kh4g-1b-t1-gxzg-lead-1.
+
+**2026-11-14T23:56:25Z**
+
+Answer of the line orchestrator in the lead's brief: the hair view of scripts/lamp-hall-16-hair.json holds 80,465 sheets among 270,728 surface pixels, more than the hair cards alone. Part 3 finds out which surfaces they are and treats large sheets at a grazing angle as its main subject beside the hair cards.

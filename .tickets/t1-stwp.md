@@ -72,3 +72,13 @@ Say plainly where a difference is inside the run-to-run spread. Do not round a d
 
 Any tuning of the probe for speed, the side image, the design document and the real mechanism.
 
+
+## Notes
+
+**2026-11-14T23:56:25Z**
+
+Launched 2026-11-14 from 24a320541 as a ticket lead on Claude Opus 5.5 at high effort, in its own worktree. clientRequestId: ter-kh4g-1b-t1-stwp-lead-1. taskId: node:delegated-task:command%3Amcp%3A3579fc31-496e-48d6-a7df-6042784d08cb%3Adelegate-task%3Ater-kh4g-1b-t1-stwp-lead-1. childThreadId: thread:delegated-task:command%3Amcp%3A3579fc31-496e-48d6-a7df-6042784d08cb%3Adelegate-task%3Ater-kh4g-1b-t1-stwp-lead-1.
+
+**2026-11-14T23:56:25Z**
+
+Answer of the line orchestrator in the lead's brief: the probe has a mode off (the new store without the pass), so the measurement takes four sides where time allows: main, layer, ten and off. The side off is the first to drop.
