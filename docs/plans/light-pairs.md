@@ -374,6 +374,64 @@ The best case needs three things that no build has yet:
 2. A cheap replacement for the ring walk.
 3. The check of tiles of 16 pixels under motion.
 
+### Version 3: the built corner pass
+
+Ticket `t2-vsqh` built the three steps, on the branch `t2-vsqh-key-fill-corner-pass`. ARCHITECTURE.md, "Key and fill", describes the code. This section holds what the build found.
+
+The corner pass draws one fragment per corner and group of lamps. Its target holds 4 × 4 copies of the corner grid, and the fragment of copy g ranks the lamps g, g + 16, g + 32 and so on. Each fragment writes its five lamps of the greatest loss. The tile pass merges the candidates of a corner's 16 groups. Of two lamps of one loss, the one earlier in the light list comes first, so the merge gives the keys of version 2's single loop. The tiles have 16 pixels.
+
+The ring walk has no replacement. A corner whose own pixel holds no lit surface stays empty, and a pixel counts only the corners on its own surface. The first build of this rule tested only the distance of a corner's surface point from the pixel's plane. Its stills showed a fault that the image measures of version 2 had not shown at tiles of 8 pixels: thin bright edges lost their highlight. The window sills of the deck's cabin and the far pillars of the hall differed from the reference by up to 80 and 169 steps of 255. A sill is thinner than a tile, so the corners around it lie on the wall, and the wall's key lamps are not the sill's.
+
+The repair has two parts:
+
+1. A corner's weight also falls with the angle between its surface's normal and the pixel's, to 0 at a cosine of 0.9. The corner pass writes the corner's normal for that.
+2. A pixel whose corners weigh less than 1/16 together takes an open share of every lamp's full response. The open share rises evenly to 1 where no corner counts.
+
+| View, 3 key lights | Measure | Without the repair | With it |
+|---|---|---:|---:|
+| Deck | Blotch | 0.41 % | 0.34 % |
+| Deck | Pixels changed by more than 2 steps of 255 | 0.62 % | 0.14 % |
+| Deck | Greatest change, steps of 255 | 80 | 12 |
+| Hall | Blotch | 2.16 % | 2.27 % |
+| Hall | Pixels changed by more than 2 steps of 255 | 6.55 % | 5.52 % |
+| Hall | Greatest change, steps of 255 | 169 | 52 |
+| Cabin | Blotch | 0.32 % | 0.33 % |
+| Hall's film | Change of the ratio between frames, 99th percentile | 2.56 % | 2.44 % |
+
+What stays in the hall is the model's own loss: its floor is 2.5 % darker as a whole, because the far lamps' soft shine on it is fill.
+
+The direct pass has a second limit, which the build found. Apple's GPU keeps fewer threads resident when a shader's highest register passes 115: 448 threads up to there, 384 above. The plain direct shader reaches register 112. The first key and fill loop reached 123, and saved only 0.34 ms of the deck's direct pass. A loop that reads a lamp's key share only after its shadow lookup, and holds no copy of the list's next entry, stays at 115 and saved 0.73 ms. The repair then costs 0.19 ms of that, because the pixels that it opens shade every lamp in full.
+
+| Scene | Machine | Direct pass, every light pair | Corner and tile pass | Direct pass | Both against every light pair |
+|---|---|---:|---:|---:|---:|
+| Deck | Apple M1 Max | 3.79 ms | 0.24 ms | 3.24 ms | −0.30 ms |
+| Hall | Apple M1 Max | 3.83 ms | 0.26 ms | 3.22 ms | −0.35 ms |
+| Deck | RTX 2000 Ada, Linux | 1.74 ms | 0.09 ms | 1.53 ms | −0.12 ms |
+| Hall | RTX 2000 Ada, Linux | 1.76 ms | 0.10 ms | 1.28 ms | −0.38 ms |
+
+All rows have 3 key lights. The ticket asked for 0.4 ms on the Mac. The build reaches 0.30 ms on the deck with a clean image, and 0.50 ms without the repair. The deck's median frame span fell from 20.11 ms to 19.92 ms.
+
+Four key lights change little. The hall's level is −2.47 % with 4 key lights against −2.53 % with 3, and the deck and the cabin are the same. So the hall's loss is not a matter of the count: about 60 far lamps each lose too little shine at a corner to be a key light, and their sum shows.
+
+### Version 3 after the merge of main on 2026-11-14
+
+The numbers above are from 2026-11-12. Before the merge, main stored the specular target of the G-buffer as 8-bit counts (ticket `ter-8esk`). That change alone moved the key and fill direct shader from register 115 to 116, and the Mac lost the whole gain: the deck's two passes took 3.85 ms against 3.82 ms for every light pair. No test and no tool showed it. A timed take did.
+
+A new form of the loop returned the shader to register 115. It adds a lamp's fill to the sum before the lamp's full response, and holds one weight across the full response in place of the lamp's own sum, its key share and its visibility. Ticket `t2-x53j` holds the missing guard: the shader has no room under the step.
+
+| Scene | Machine | Direct pass, every light pair | Corner and tile pass | Direct pass | Both against every light pair |
+|---|---|---:|---:|---:|---:|
+| Deck | Apple M1 Max | 3.82 ms | 0.25 ms | 3.22 ms | −0.35 ms |
+| Hall | Apple M1 Max | 3.83 ms | 0.27 ms | 3.21 ms | −0.35 ms |
+| Deck | RTX 2000 Ada, Linux | 1.62 ms | 0.10 ms | 1.55 ms | +0.02 ms |
+| Hall | RTX 2000 Ada, Linux | 1.75 ms | 0.11 ms | 1.30 ms | −0.34 ms |
+
+All rows have 4 key lights, which is the default now. A fourth key light costs nothing that either machine shows: the hall's two passes took 3.48 ms on the Mac with 3 key lights and with 4, and on the card the frame spans lie within 0.01 ms of each other. The rule for the count was the cost alone, because the stills of both counts look the same.
+
+The card's deck is neutral now, where the job of 2026-11-12 gave it a gain of 0.12 ms. Between the two jobs, the deck's direct pass with every light pair fell from 1.74 ms to 1.62 ms on the card, and the pass under key and fill did not fall with it. The hall's direct pass with every light pair did not move, so the two jobs compare. The cause on the card is not known.
+
+The hall's loss of level has one cause, which a still on the card shows: the fill is diffuse light only, so the specular light of the fill lamps is missing. A variant with every lamp's specular light in full, and key and fill for the diffuse light alone, equals every light pair within 1 step of 255. A first cheap specular fill, the fill's cosine times the surface's specular albedo, costs nothing on the card but makes the hall 8.5 % brighter than every light pair. Ticket `t2-kibe` holds the designs to weigh. It is not built.
+
 ## The shadow filter with one value per read
 
 The pair research (`docs/research/light-pairs/pair/notes.md`) found one more gain, apart from key and fill. The local shadow filter on main read its 5 × 5 texels with nine gathers of four comparisons each. The pair's patch (`docs/research/light-pairs/pair/c9-shadows.patch`) reads them with nine bilinear comparisons, and it lowered the deck's direct pass from 4.093 ms to 3.696 ms.
@@ -403,7 +461,7 @@ So no one filter wins on both GPUs. The user chose on 2026-11-12 to keep both ex
 2. Whether the idea of a budget ends here. The recommendation is yes.
 3. Whether the measurement tools get an option for a fixed exposure. The recommendation is yes, before any more cost experiments.
 4. Whether the shadow filter with one value per read goes in first. The user chose yes on 2026-11-12. It merged as two exact filters, picked by driver: the sixteen corner means on MoltenVK and the nine gathers elsewhere (`t2-gfq5`).
-5. Whether key and fill goes on. Version 1 saves about 2 ms and blurs the shadows. Version 2 keeps the image and can save about 0.5 ms of a direct pass of 4.1 ms, after the three steps above. The recommendation is to stop here, unless the budget needs that half millisecond. The user chose on 2026-11-12 to build on (`t2-vsqh`).
+5. Whether key and fill goes on. Version 1 saves about 2 ms and blurs the shadows. Version 2 keeps the image and can save about 0.5 ms of a direct pass of 4.1 ms, after the three steps above. The recommendation is to stop here, unless the budget needs that half millisecond. The user chose on 2026-11-12 to build on (`t2-vsqh`). The build gains 0.35 ms on the deck and in the hall on the Mac. On Linux the hall gains 0.33 ms and the deck is neutral (see "Version 3 after the merge of main on 2026-11-14").
 
 ## The records
 
@@ -411,4 +469,5 @@ So no one filter wins on both GPUs. The user chose on 2026-11-12 to keep both ex
 - `docs/research/light-pairs/variants/`: the edit of each variant and the scripts that build and trace them.
 - `docs/research/light-pairs/measurements.md`: every trace's busy medians.
 - `docs/research/light-pairs/key-fill-v1.patch`: version 1 of key and fill.
+- `docs/research/light-pairs/native/`: the scripts that compile a shader offline for the M1's GPU and print its highest register (`registers.sh`, `variant.sh`).
 - `docs/research/light-pairs/pair/`: the pair research. It holds the notes, the offline inspection of the compiled shaders, the timing comparison and the patch of the nine-read shadow filter.
