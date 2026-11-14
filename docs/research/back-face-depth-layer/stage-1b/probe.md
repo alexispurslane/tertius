@@ -84,7 +84,9 @@ The scratch refs live in the shared repository's refs. A cloud job must push its
 
 ## The controls
 
-Every run used the frozen binaries on the Mac (MoltenVK, M1 Max). The outputs are under `/private/tmp/ter-kh4g/1b/`.
+Every output below came from the frozen binaries on the Mac (MoltenVK, M1 Max). The outputs are under `/private/tmp/ter-kh4g/1b/`.
+
+The first runs of controls 2 to 5 used an earlier build of the probe. Its source differed from the patch in two shader comments only. The review found that, so I ran control 2, every dump and the three stills of control 5 again on the frozen `probe/`. Each new output equals the first output byte for byte. The first outputs are in `first-build/`, and `stills-frozen/` holds the new stills.
 
 ### Control 1: main twice
 
@@ -134,7 +136,7 @@ So the slab of each cell holds the slab of every pixel under it. Outputs: `dump/
 
 ### Control 5: a still of each slab rule
 
-One still of `scripts/rect-lamps.json` per slab rule, at 1920 × 1080 through FSR 3.1, after the script's 240 draws. I opened each still. Outputs: `stills/ten/cabin.png`, `stills/trim/cabin.png`, `stills/layer/cabin.png`, and `stills/layer-fade/cabin.png` for the fade switch.
+One still of `scripts/rect-lamps.json` per slab rule, after the script's 240 draws. The demo argument `--size 1920x1080` sets the output size, and FSR 3.1 renders at 1280 × 720. I opened each still. Outputs: `stills/ten/cabin.png`, `stills/trim/cabin.png`, `stills/layer/cabin.png`, and `stills/layer-fade/cabin.png` for the fade switch.
 
 - The 10 % still shows main's look: bright clouds and many specks on the ceiling, sparkling patches on the floor, and glow around the side windows.
 - The trimmed still and the layer still lose the ceiling's clouds and most of its specks. The floor's patches and the windows' glow become weaker.
@@ -145,7 +147,7 @@ The automatic exposure differs: 3.05 stops for `ten`, 3.72 for `trim` and 3.74 f
 
 ### The fade switch
 
-The mode `layer+fade` gave a still that differs from the `layer` still, so the switch reaches the walk. The difference is small in this view. Only 0.01 % of the pixels differ by more than 8 of 255, and the mean difference is 0.56 of 255. The changed pixels lie on the walls and the floor, 123 brighter and 144 darker. The exposure is 3.75 stops against 3.74. Output: `stills/layer-fade/cabin.png`.
+The mode `layer+fade` gave a still that differs from the `layer` still, so the switch reaches the walk. The difference is small in this view. The measure is the largest difference of a pixel's three channels. It is above 8 of 255 on only 0.01 % of the pixels, and its mean is 0.56 of 255. The changed pixels lie on the walls and the floor. By the sum of the three channels, 123 pixels are brighter by more than 24 and 144 are darker. The exposure is 3.75 stops against 3.74. Output: `stills/layer-fade/cabin.png`.
 
 ### The draw commands that the pass draws
 
@@ -174,6 +176,9 @@ So only the hair view holds a run that the pass leaves out. In the deck 8 of 866
 - The level-1 rule multiplies a pixel's far bound by the share of the pixel's center ray. The real back face along the far corner's ray can lie elsewhere. The invariant holds anyway, because the far bound is at most the center w and both get the same share.
 - The rule `layer/plane` deepens a sheet only at the finest level. Its level-1 bound is the same as under `layer`.
 - The finest texel grows from 4 to 8 bytes. The cost ticket measures what that costs.
+- Two owners write binding 0 of the depth pyramid's level-1 set. `PyramidImages` writes the finest level there, and `RenderTargets.WriteBackShareSets` then writes the back share over it. Each `Pyramid.Create` must be followed by that second write. The real mechanism gives the pyramid's owner the image that its build reads, so that one writer remains.
+- Four comments in `PyramidImages.cs` are stale under the patch. They name an R32F finest level, binding 0 of the finest set as unwritten, and binding 0 of level 1 as unread.
+- The mode parser writes the numbers of the rules in C# beside the constants of `thickness.glsl`, and it reads the variable on each call. A probe accepts that. The real mechanism has one rule and no switch.
 - Every run used MoltenVK on the M1 Max. The probe did not run on NVIDIA, RADV, ANV or lavapipe.
 - The stills come from one frame of one view per rule, with automatic exposure.
 - The hair view holds 30 % sheets. They come from surfaces with no back face behind them, not only from the hair cards. The pictures ticket can look at what they are.
