@@ -24,10 +24,11 @@ public readonly record struct KeyAndFill(int KeyLights)
     public const int MaxKeyLights = 4;
 
     /// <summary>
-    /// The renderer's default: three key lights per corner. With three, the stills of the deck and of the cabin show no
-    /// change beside every light pair, and the frame gains on both GPUs (ARCHITECTURE.md, "Key and fill").
+    /// The renderer's default: four key lights per corner. The stills of the deck and of the cabin show no change
+    /// beside every light pair, and on Apple's GPU the fourth key light costs nothing that a trace shows
+    /// (ARCHITECTURE.md, "Key and fill").
     /// </summary>
-    public static KeyAndFill Default => new(KeyLights: 3);
+    public static KeyAndFill Default => new(KeyLights: 4);
 
     /// <summary>
     /// The copies of the corner grid along each axis of the corner pass's target. Each copy is one group of lights, so a

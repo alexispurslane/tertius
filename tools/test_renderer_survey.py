@@ -158,6 +158,54 @@ def tick_of_post(built, kind):
     raise AssertionError(f"no post {kind}")
 
 
+class ProbeSeries(unittest.TestCase):
+    """The probe writes each capture's region means as one line of a series file, and a PNG only for the kept names
+    (ticket ter-d7qy)."""
+
+    def write_series(self, folder, lines):
+        (Path(folder) / survey.SERIES_FILE).write_text("".join(line + "\n" for line in lines))
+
+    def test_a_films_series_holds_its_frames_in_frame_order_and_no_other_capture(self):
+        with tempfile.TemporaryDirectory() as folder:
+            self.write_series(folder, ["still 9 9", "f-000001 2 0.25", "g-000000 7 7", "f-000000 1 0.5"])
+            self.assertEqual(survey.probe_series(Path(folder), "f"), [[1.0, 0.5], [2.0, 0.25]])
+
+    def test_a_still_is_read_by_its_capture_name(self):
+        with tempfile.TemporaryDirectory() as folder:
+            self.write_series(folder, ["k0004-s02 1 1", "k0004-s03 3 0.125"])
+            self.assertEqual(survey.probe_rows(Path(folder))["k0004-s03"], [3.0, 0.125])
+
+    def test_a_switch_measures_its_series_and_keeps_the_pngs_of_the_four_report_frames_only(self):
+        rendered = {}
+
+        def render(work, script, *, binary, env, extra):
+            # Each film frame's whole-image mean is its frame number, so that the kept PNGs name their frames.
+            work.mkdir(parents=True)
+            film = script["steps"][-1]
+            kept = env["TERTIUS_PROBE_KEEP"].split(",")
+            rows = [f"{survey.film_frame('f', k)} {k + 1} " + " ".join(["1"] * 9) for k in range(film["frames"])]
+            self.write_series(work, ["still 1 " + " ".join(["1"] * 9)] + rows)
+            for name in kept:
+                (work / f"{name}.png").write_text(name)
+            rendered[work.name] = env["TERTIUS_PROBE_SERIES"]
+
+        case = {"name": "c", "scene": "s", "camera": None, "ticks": 10, "select": "all", "sun": "on"}
+        with tempfile.TemporaryDirectory() as folder, \
+                mock.patch.object(survey, "render", render), \
+                mock.patch.object(survey, "probe_binary", lambda out: Path("probe")), \
+                mock.patch.object(survey, "save", lambda *a: None):
+            out = Path(folder)
+            result = survey.run_switch(out, case, argparse.Namespace(exposure="4"))
+            kept = sorted(p.name for p in (out / "images" / "switch").iterdir())
+            frames = [survey.SWITCH_OFF - 1, survey.SWITCH_OFF + 8, survey.SWITCH_ON - 1, survey.SWITCH_ON + 8]
+            self.assertEqual(kept, sorted(f"c-{k:03d}.png" for k in frames))
+            self.assertEqual((out / "images" / "switch" / f"c-{frames[1]:03d}.png").read_text(),
+                             survey.film_frame("f", frames[1]))
+        self.assertEqual(len(result["series"]["switch"]), survey.SWITCH_FRAMES)
+        self.assertEqual(result["series"]["on"][7][0], 8.0)
+        self.assertTrue(all(path.endswith(survey.SERIES_FILE) for path in rendered.values()))
+
+
 class Walks(unittest.TestCase):
     def test_the_walk_stands_and_draws_before_it_walks_and_films_its_settle_window_after_the_stop(self):
         built = survey.walk_script(WALK)

@@ -1,0 +1,10 @@
+# Take 11: the own-ray lists' header resets at the frame's start (the proxy build hoist, ter-n8bk) against main on the
+# deck. m13 is main at c87eac88f. Unedited Release build against the proxy. Runs without the pass time stamps, as a
+# window. The order alternates.
+NS="--pass-timestamps off"
+trace deck-t11-main-ns m13 $D $NS
+trace deck-t11-hoist-ns hoist $D $NS
+trace deck-t11-hoist-ns-b hoist $D $NS
+trace deck-t11-main-ns-b m13 $D $NS
+trace deck-t11-hoist-ns-c hoist $D $NS
+trace deck-t11-main-ns-c m13 $D $NS

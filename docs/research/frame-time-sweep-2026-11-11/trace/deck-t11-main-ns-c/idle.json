@@ -1,0 +1,29 @@
+{
+ "frames": 151,
+ "settled": 111,
+ "buffersPerFrame": 2,
+ "spanMedian": 19.8805,
+ "spanMean": 19.916292144144144,
+ "idleMedian": 1.270456,
+ "idleMean": 1.272848990990991,
+ "encodersMedian": 68,
+ "intervalsMedian": 106,
+ "encodersByKind": {
+  "blit": 14.0,
+  "compute": 11.0,
+  "render": 38.0,
+  "stamp": 5.0
+ },
+ "idleBeforeKind": {
+  "blit": 0.177,
+  "compute": 0.235,
+  "render": 0.831,
+  "stamp": 0.03
+ },
+ "gapsBeforeKind": {
+  "blit": 9.9,
+  "compute": 8.9,
+  "render": 42.4,
+  "stamp": 2.1
+ }
+}

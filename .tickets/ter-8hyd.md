@@ -19,3 +19,7 @@ User goal 2026-11-09: keep working until the whole rendering system is reasonabl
 **2026-11-12T00:23:04Z**
 
 Alexis, 2026-11-11: removing the mottle (the cloudy blotches of the bounce light, ticket t7-3e22) matters more than performance, because the image must first be fit to show people. Reserve about 1.5 ms of the deck's frame for the mottle fixes, and plan the frame-time savings so that the budget holds with those 1.5 ms added. The mottle's acceptance bar is a daub score of about 0.008 to 0.010 against a true reference (blind-tested by the t7-3e22 agent), not the survey's old blotch limit of 0.04.
+
+**2026-11-12T20:49:42Z**
+
+2026-11-12: main's survey probe patch put its probe signal at specialization constant 11, which the shadow code's TileCornerMeans now uses, so the patch failed on main; it moves to 12, with the same text as on t7-3e22-retained-deviation.

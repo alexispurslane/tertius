@@ -225,6 +225,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <summary>The physical device in use.</summary>
     public string DeviceName => device.DeviceName;
 
+    /// <summary>The driver of the physical device, by its Vulkan 1.2 driver id.</summary>
+    internal DriverId Driver => device.Driver;
+
     /// <summary>Statistics of the last <see cref="Render"/> call.</summary>
     public RenderStats LastFrameStats { get; private set; }
 
@@ -1134,6 +1137,13 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// code in RG, 0 in B, the shading model's code in A (<see cref="ShadingCode"/>, <see cref="StrandCode"/>). A test
     /// hook, like <see cref="ReadDistance"/>.
     /// </summary>
+    /// <summary>
+    /// The G-buffer's specular target after the last frame, RGBA per pixel, row by row from the top: metallic, roughness,
+    /// reflectance and the lobe's sky share, each as its 8-bit code. A test hook: it waits for the device to be idle.
+    /// </summary>
+    internal byte[] ReadSpecularTarget() =>
+        [.. ReadLevel(image: targets.Specular, layer: 0, mip: 0).Values.Select(value => (byte)value)];
+
     internal byte[] ReadShading() =>
         [.. ReadLevel(image: targets.Shading, layer: 0, mip: 0).Values.Select(value => (byte)value)];
 
@@ -1638,7 +1648,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             // Each word comes back as the bits of a float, which its hook takes apart.
             Format.R32G32Uint => (2, StoredChannel.Float),
             Format.R16G16B16A16SNorm => (4, StoredChannel.Snorm16),
-            Format.R8G8B8A8Uint => (4, StoredChannel.Uint8),
+            Format.R8G8B8A8Uint or Format.R8G8B8A8Unorm => (4, StoredChannel.Uint8),
             Format.R8Uint or Format.R8Unorm => (1, StoredChannel.Uint8),
             Format.R16G16B16A16Uint => (4, StoredChannel.Uint16),
             Format.R16Uint => (1, StoredChannel.Uint16),

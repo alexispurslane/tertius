@@ -1,0 +1,30 @@
+{
+  "id": "aaadd30a-6849-4b3c-8bb5-3025a16e9aff-u2",
+  "status": "ok",
+  "runpodStatus": "COMPLETED",
+  "executionTime": 190547,
+  "delayTime": 5823,
+  "error": null,
+  "files": [
+    "out/clocks.csv",
+    "out/cut/run-1/gpu-timings.json",
+    "out/cut/run-2/gpu-timings.json",
+    "out/cut/run-3/gpu-timings.json",
+    "out/cut/run-4/gpu-timings.json",
+    "out/cut/run-5/gpu-timings.json",
+    "out/main/run-1/gpu-timings.json",
+    "out/main/run-2/gpu-timings.json",
+    "out/main/run-3/gpu-timings.json",
+    "out/main/run-4/gpu-timings.json",
+    "out/main/run-5/gpu-timings.json"
+  ],
+  "log": "$ bash main/tools/runpod/ab_run.sh scripts/temporal-upscale-timing.json 5 main cut\nbuilding main\n    0 Error(s)\n\nTime Elapsed 00:00:47.43\nbuilding cut\n    0 Error(s)\n\nTime Elapsed 00:00:36.15\nwarming up with main\nmain run 1: GPU frame span: mean 10.975 ms, median 10.966 ms, p95 11.068 ms over 120 frames\ncut run 1: GPU frame span: mean 10.899 ms, median 10.885 ms, p95 10.986 ms over 120 frames\ncut run 2: GPU frame span: mean 10.886 ms, median 10.871 ms, p95 10.979 ms over 120 frames\nmain run 2: GPU frame span: mean 11.001 ms, median 10.982 ms, p95 11.110 ms over 120 frames\nmain run 3: GPU frame span: mean 10.985 ms, median 10.967 ms, p95 11.083 ms over 120 frames\ncut run 3: GPU frame span: mean 10.902 ms, median 10.889 ms, p95 10.997 ms over 120 frames\ncut run 4: GPU frame span: mean 10.888 ms, median 10.874 ms, p95 10.977 ms over 120 frames\nmain run 4: GPU frame span: mean 11.001 ms, median 10.977 ms, p95 11.089 ms over 120 frames\nmain run 5: GPU frame span: mean 11.004 ms, median 10.989 ms, p95 11.111 ms over 120 frames\ncut run 5: GPU frame span: mean 10.904 ms, median 10.888 ms, p95 11.002 ms over 120 frames\n",
+  "skipped": {},
+  "steps": [
+    {
+      "command": "bash main/tools/runpod/ab_run.sh scripts/temporal-upscale-timing.json 5 main cut",
+      "exitCode": 0,
+      "seconds": 184.24044970003888
+    }
+  ]
+}

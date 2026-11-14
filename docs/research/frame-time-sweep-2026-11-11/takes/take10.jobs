@@ -1,0 +1,15 @@
+# Take 10: what lower step caps of the two walks save on the deck, on current main (c87eac88f). The binary par is main's
+# Release build with edits/steps.py: SWEEP_RSTEPS and SWEEP_DSTEPS set the reflection and the diffuse step cap, and
+# SWEEP_EXPOSURE fixes the exposure at the deck's value. Without a variable the caps are main's, 128 and 62. Runs
+# without the pass time stamps, as a window.
+X="SWEEP_EXPOSURE=0.7041458"
+NS="--pass-timestamps off"
+TRACE_EXTRA_ENV="$X" trace deck-t10-ctl par $D $NS
+TRACE_EXTRA_ENV="$X SWEEP_RSTEPS=96" trace deck-t10-r96 par $D $NS
+TRACE_EXTRA_ENV="$X SWEEP_DSTEPS=48" trace deck-t10-d48 par $D $NS
+TRACE_EXTRA_ENV="$X SWEEP_RSTEPS=112" trace deck-t10-r112 par $D $NS
+TRACE_EXTRA_ENV="$X SWEEP_DSTEPS=40" trace deck-t10-d40 par $D $NS
+TRACE_EXTRA_ENV="$X" trace deck-t10-ctl-b par $D $NS
+TRACE_EXTRA_ENV="$X SWEEP_RSTEPS=80" trace deck-t10-r80 par $D $NS
+TRACE_EXTRA_ENV="$X SWEEP_DSTEPS=54" trace deck-t10-d54 par $D $NS
+TRACE_EXTRA_ENV="$X SWEEP_RSTEPS=96 SWEEP_DSTEPS=48" trace deck-t10-r96d48 par $D $NS

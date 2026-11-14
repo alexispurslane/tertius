@@ -1,0 +1,9 @@
+# Take 8: one fresh look at the deck on current main (c87eac88f), binary m13, an unedited Release build. Two rounds
+# with the pass time stamps, for the pass table, two rounds without them, as a window runs, and one round with the
+# GPU counters, for the limiters of each pass.
+NS="--pass-timestamps off"
+trace deck-m13-a m13 $D
+trace deck-m13-ns-a m13 $D $NS
+trace deck-m13-b m13 $D
+trace deck-m13-ns-b m13 $D $NS
+TRACE_COUNTERS=1 trace deck-m13-c m13 $D

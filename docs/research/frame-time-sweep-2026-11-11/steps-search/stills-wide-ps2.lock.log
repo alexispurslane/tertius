@@ -1,0 +1,65 @@
+uptime-start:  15:03:37  up 48 days  2:37,  2 users,  load average: 9.23, 16.73, 13.63
+waited: 0s
+mode: shared, with up to 3 shared runs at once
+ps-rigs-r112: 8 files, exit 0
+ps-rigs-r104: 8 files, exit 0
+ps-rigs-r120: 8 files, exit 0
+ps-rigs-d56: 8 files, exit 0
+ps-rigs-d59: 8 files, exit 0
+ps-rigs-r256: 8 files, exit 0
+ps-doorway-r112: 10 files, exit 0
+ps-doorway-r104: 10 files, exit 0
+ps-doorway-r120: 10 files, exit 0
+ps-doorway-d56: 10 files, exit 0
+ps-doorway-d59: 10 files, exit 0
+ps-doorway-r256: 10 files, exit 0
+ps-mirror-balls-r112: 6 files, exit 0
+ps-mirror-balls-r104: 6 files, exit 0
+ps-mirror-balls-r120: 6 files, exit 0
+ps-mirror-balls-d56: 6 files, exit 0
+ps-mirror-balls-d59: 6 files, exit 0
+ps-mirror-balls-r256: 6 files, exit 0
+ps-demo-surface-r112: 15 files, exit 0
+ps-demo-surface-r104: 15 files, exit 0
+ps-demo-surface-r120: 15 files, exit 0
+ps-demo-surface-d56: 15 files, exit 0
+ps-demo-surface-d59: 15 files, exit 0
+ps-demo-surface-r256: 15 files, exit 0
+ps-cabin-light-r112: 6 files, exit 0
+ps-cabin-light-r104: 6 files, exit 0
+ps-cabin-light-r120: 6 files, exit 0
+ps-cabin-light-d56: 6 files, exit 0
+ps-cabin-light-d59: 6 files, exit 0
+ps-cabin-light-r256: 6 files, exit 0
+ps-hair-rugs-r112: 5 files, exit 0
+ps-hair-rugs-r104: 5 files, exit 0
+ps-hair-rugs-r120: 5 files, exit 0
+ps-hair-rugs-d56: 5 files, exit 0
+ps-hair-rugs-d59: 5 files, exit 0
+ps-hair-rugs-r256: 5 files, exit 0
+ps-hair-bent-cards-r112: 5 files, exit 0
+ps-hair-bent-cards-r104: 5 files, exit 0
+ps-hair-bent-cards-r120: 5 files, exit 0
+ps-hair-bent-cards-d56: 5 files, exit 0
+ps-hair-bent-cards-d59: 5 files, exit 0
+ps-hair-bent-cards-r256: 5 files, exit 0
+ps-deck-1080-r112: 4 files, exit 0
+ps-deck-1080-r104: 4 files, exit 0
+ps-deck-1080-r120: 4 files, exit 0
+ps-deck-1080-d56: 4 files, exit 0
+ps-deck-1080-d59: 4 files, exit 0
+ps-deck-1080-r256: 4 files, exit 0
+ps-mirror-balls-1440-r112: 6 files, exit 0
+ps-mirror-balls-1440-r104: 6 files, exit 0
+ps-mirror-balls-1440-r120: 6 files, exit 0
+ps-mirror-balls-1440-d56: 6 files, exit 0
+ps-mirror-balls-1440-d59: 6 files, exit 0
+ps-mirror-balls-1440-r256: 6 files, exit 0
+ps-hair-rugs-1440-r112: 5 files, exit 0
+ps-hair-rugs-1440-r104: 5 files, exit 0
+ps-hair-rugs-1440-r120: 5 files, exit 0
+ps-hair-rugs-1440-d56: 5 files, exit 0
+ps-hair-rugs-1440-d59: 5 files, exit 0
+ps-hair-rugs-1440-r256: 5 files, exit 0
+stills ended: stills-wide-ps2.jobs
+uptime-end:  15:07:06  up 48 days  2:41,  2 users,  load average: 7.62, 12.86, 12.67

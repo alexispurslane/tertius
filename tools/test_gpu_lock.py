@@ -217,6 +217,26 @@ class Bench:
                 process.wait()
 
 
+class TheCommandKnowsThatItHoldsTheLock(unittest.TestCase):
+    """The command runs with TERTIUS_GPU_LOCK_HELD set to the mode that it holds, so that a GPU test run inside it does
+    not wait for the lock that its own parent holds (ticket ter-zoof)."""
+
+    def held_as(self, shared: bool) -> str:
+        bench = Bench(self)
+        seen = bench.folder / "seen"
+        mode = ["--shared"] if shared else []
+        command = ["bash", "-c", 'printf %s "${TERTIUS_GPU_LOCK_HELD-unset}" > "$1"', "seen", str(seen)]
+        subprocess.run(["bash", str(HELPER), *mode, str(bench.folder / "run.log"), *command], env=bench.env,
+                       check=True, timeout=30)
+        return seen.read_text()
+
+    def test_an_exclusive_run_tells_its_command_exclusive(self):
+        self.assertEqual(self.held_as(shared=False), "exclusive")
+
+    def test_a_shared_run_tells_its_command_shared(self):
+        self.assertEqual(self.held_as(shared=True), "shared")
+
+
 NOT_ITS_OWN = "not this run's"
 DISCARD = "Discard this run's timing"
 

@@ -1,10 +1,12 @@
 using System.Diagnostics.CodeAnalysis;
+using Silk.NET.Vulkan;
 
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// Snapshot tests: a test renders a scene headlessly and compares the image with its approved reference image through
-/// FLIP. A reference image of a test lives at ReferenceImages/&lt;name&gt;.png in this project.
+/// FLIP. A reference image of a test lives at ReferenceImages/&lt;name&gt;.png in this project. A driver other than
+/// <see cref="RecordedOn"/> can have its own, ReferenceImages/&lt;name&gt;.&lt;driver&gt;.png (<see cref="ReferencePath(string, DriverId)"/>).
 /// <list type="bullet">
 /// <item>The check fails when any pixel's FLIP value is above the tolerance. Each test can name its own tolerance. The
 /// default, 0.1, is the FLIP value of a CIELAB lightness step of about 2.2 in a flat area, about one just noticeable
@@ -33,6 +35,28 @@ internal static class ReferenceImages
             path4: "ReferenceImages"
         );
 
+    /// <summary>The driver that recorded the shared reference images: MoltenVK on the Mac.</summary>
+    public const DriverId RecordedOn = DriverId.Moltenvk;
+
+    /// <summary>
+    /// The reference image of <paramref name="name"/> in <paramref name="folder"/> on <paramref name="driver"/>. On
+    /// <see cref="RecordedOn"/> it is the shared &lt;name&gt;.png. Another driver uses its own &lt;name&gt;.&lt;driver&gt;.png
+    /// where one exists, and an approval there writes that file, so that it never replaces the shared reference. Without
+    /// its own file, another driver compares with the shared reference.
+    /// </summary>
+    public static string ReferencePath(string folder, string name, DriverId driver, bool approving)
+    {
+        string shared = Path.Combine(folder, name + ".png");
+        if (driver == RecordedOn)
+            return shared;
+        string own = Path.Combine(folder, $"{name}.{driver.ToString().ToLowerInvariant()}.png");
+        return approving || File.Exists(own) ? own : shared;
+    }
+
+    /// <summary>The reference image of <paramref name="name"/> in <see cref="Folder"/> on <paramref name="driver"/>.</summary>
+    public static string ReferencePath(string name, DriverId driver) =>
+        ReferencePath(folder: Folder, name: name, driver: driver, approving: Approving);
+
     /// <summary>Whether this run approves the images that its snapshot tests render.</summary>
     private static bool Approving => Environment.GetEnvironmentVariable(ApproveVariable) == "1";
 
@@ -49,7 +73,7 @@ internal static class ReferenceImages
     ) =>
         Verify(
             Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: name),
-            Path.Combine(Folder, name + ".png"),
+            ReferencePath(name, renderer.Driver),
             tolerance
         );
 
