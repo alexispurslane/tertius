@@ -867,6 +867,13 @@ internal struct ScreenTracePushConstants
     /// <summary>The share of the diffuse rays that the guided draw gives: <see cref="LightPyramid.GuidedShare"/>, or 0 with the guiding off.</summary>
     public float GuidedShare;
 
+    /// <summary>PROBE (t0-adau, never merges): 1 when TERTIUS_PROBE_HIT_NO_SPECULAR=1, so the hit light toward a
+    /// reflection ray leaves out the hit's specular part, as the diffuse layer always does.</summary>
+    public uint ProbeHitNoSpecular;
+
+    private static readonly uint ProbeHitNoSpecularValue =
+        Environment.GetEnvironmentVariable("TERTIUS_PROBE_HIT_NO_SPECULAR") == "1" ? 1u : 0u;
+
     /// <summary>
     /// The push constants of a draw of index <paramref name="drawIndex"/> under <paramref name="trace"/>, with the
     /// guided diffuse rays when <paramref name="guided"/>. The index wraps at 2^32 draws, more than two years at 60
@@ -881,6 +888,7 @@ internal struct ScreenTracePushConstants
             ReflectionSteps = (uint)trace.ReflectionSteps,
             DiffuseSteps = (uint)trace.DiffuseSteps,
             GuidedShare = guided ? LightPyramid.GuidedShare : 0,
+            ProbeHitNoSpecular = ProbeHitNoSpecularValue,
         };
 }
 

@@ -227,6 +227,7 @@ layout(push_constant, std430) uniform ScreenTracePush
     uint reflectionSteps;    // the caps of decision 41
     uint diffuseSteps;
     float guidedShare;       // LightPyramid.GuidedShare, or 0 with the guiding off (TERTIUS_GUIDED_RAYS)
+    uint probeHitNoSpecular; // PROBE (t0-adau): 1 drops the hit's specular part from the reflection layer too
 } trace;
 
 // The two ray kinds, which index the record layers and the constants of the draws.
@@ -545,7 +546,8 @@ LeavingLight leavingLightOf(ivec2 q, ShadingInput s, vec3 V, SignalReprojections
     vec3 diffuseHistory = holdsHistory(r.diffuse) ? lastLightOf(r.diffuse, KindDiffuse) : closedLight.diffuse;
     vec3 light = factors.diffuse * (imageLoad(directDiffuseLight, q).rgb + diffuseHistory) + glowAt(q);
     vec3 specularHistory = holdsHistory(r.specular) ? lastLightOf(r.specular, KindReflection) : closedLight.specular;
-    vec3 reflection = light + factors.specular * (imageLoad(directSpecularLight, q).rgb + specularHistory);
+    vec3 reflection = light + (trace.probeHitNoSpecular != 0u ? vec3(0.0)
+        : factors.specular * (imageLoad(directSpecularLight, q).rgb + specularHistory));
     return LeavingLight(min(reflection, vec3(MaxRadiance)), min(light, vec3(MaxRadiance)));
 }
 

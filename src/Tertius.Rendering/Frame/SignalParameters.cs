@@ -52,10 +52,14 @@ internal readonly record struct SignalParameters(
     /// The diffuse signal's set: a cap of 32 frames at every roughness, and a box widened by two retained deviations
     /// where its block has no evidence of a change (docs/plans/bounce-light-confidence.md, section 7).
     /// </summary>
+    // PROBE (never merges): TERTIUS_PROBE_DIFFUSE_CAP sets the diffuse history's cap and smooth cap, 32 by default.
+    private static readonly int ProbeDiffuseCap =
+        int.TryParse(System.Environment.GetEnvironmentVariable("TERTIUS_PROBE_DIFFUSE_CAP"), out int cap) && cap > 0 ? cap : 32;
+
     public static SignalParameters Diffuse =>
         new(
-            Cap: 32,
-            SmoothCap: 32,
+            Cap: ProbeDiffuseCap,
+            SmoothCap: ProbeDiffuseCap,
             FastCap: 4,
             HistoryFixFrames: 4,
             ClampSigmas: 2,
