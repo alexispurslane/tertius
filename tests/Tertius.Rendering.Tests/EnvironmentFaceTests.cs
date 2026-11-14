@@ -691,6 +691,231 @@ public sealed class EnvironmentFaceTests
         }
     }
 
+    /// <summary>
+    /// The faces share one surface record (<see cref="FaceSurface"/>), and each face starts it anew. So a texel that the
+    /// face before covered with a surface shows the sky in a face that sees none there.
+    /// </summary>
+    [Fact]
+    public void AFaceShowsTheSkyWhereTheFaceDrawnBeforeItSawASurface()
+    {
+        VulkanRenderer renderer = EnvironmentScenes.Renderer(facesPerFrame: CubeFaces.Count);
+        try
+        {
+            MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
+            RenderSnapshot snapshot = EnvironmentScenes.Dark();
+            snapshot.Instances.Add(
+                EnvironmentScenes.Square(
+                    plane: plane,
+                    material: EnvironmentScenes.Emissive(renderer, new(1, 0.5f, 0.25f)),
+                    center: new(10, 0, 0),
+                    halfSize: 4,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+
+            // Two frames of six faces each: every face but +X follows a face in some frame, whatever the order.
+            EnvironmentScenes.Still(renderer: renderer, snapshot: snapshot, time: 0);
+            EnvironmentScenes.Still(renderer: renderer, snapshot: snapshot, time: 1);
+
+            Middle(CubeFace.PositiveX).W.Should().Be(0f, "face +X sees the square, so the test can fail");
+            for (int layer = 1; layer < CubeFaces.Count; layer++)
+                Middle((CubeFace)layer)
+                    .Should()
+                    .Be(new Vector4(x: 0, y: 0, z: 0, w: 1), "face {0} sees only the dark sky", (CubeFace)layer);
+
+            Vector4 Middle(CubeFace face) =>
+                EnvironmentScenes.Texel(
+                    face: EnvironmentScenes.Face(renderer, face),
+                    size: Size,
+                    x: Size / 2,
+                    y: Size / 2
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// The middle texel of face +X, which sees a wall of <paramref name="material"/> 5 m away that faces the eye, under a
+    /// sun of <paramref name="irradiance"/> 45° off the wall's normal, on the eye's side of the wall.
+    /// </summary>
+    private static Vector3 WallUnderASlantedSun(Func<VulkanRenderer, MaterialId> material, out Vector3 irradiance) =>
+        WallUnderASun(towardSun: new(x: -1, y: 1, z: 0), material: material, irradiance: out irradiance);
+
+    /// <summary>
+    /// The middle texel of face +X, which sees a wall of <paramref name="material"/> 5 m away that faces the eye, under a
+    /// sun of <paramref name="irradiance"/> in the direction <paramref name="towardSun"/> from the wall, of any length.
+    /// </summary>
+    private static Vector3 WallUnderASun(
+        Vector3 towardSun,
+        Func<VulkanRenderer, MaterialId> material,
+        out Vector3 irradiance
+    )
+    {
+        VulkanRenderer renderer = EnvironmentScenes.Renderer();
+        try
+        {
+            MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
+            RenderSnapshot snapshot = Gpu.Snapshot(starDirection: Vector3.Normalize(towardSun), starIrradiance: 2f);
+            snapshot.Ambient.Intensity = 0;
+            irradiance = Gpu.StarIrradianceRgb(snapshot);
+            snapshot.Instances.Add(
+                EnvironmentScenes.Facing(
+                    plane: plane,
+                    material: material(renderer),
+                    center: new(5, 0, 0),
+                    normal: -Vector3.UnitX,
+                    halfSize: 3,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+            renderer.Render(snapshot, 1f);
+            return EnvironmentScenes.Center(EnvironmentScenes.Face(renderer, CubeFace.PositiveX));
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>A material of base color (0.8, 0.6, 0.4) with <paramref name="roughness"/> and <paramref name="reflectance"/>, of metallic share <paramref name="metallic"/>.</summary>
+    private static MaterialId Brownish(VulkanRenderer renderer, float roughness, float reflectance, float metallic) =>
+        renderer.CreateMaterial(
+            new(
+                BaseColor: new(x: 0.8f, y: 0.6f, z: 0.4f, w: 1),
+                Roughness: roughness,
+                Reflectance: reflectance,
+                Model: new StandardShading(metallic)
+            )
+        );
+
+    [Fact]
+    public void AMatteWallInAFaceSendsItsBaseColorTimesTheSunsIrradiance()
+    {
+        Vector3 shown = WallUnderASlantedSun(
+            renderer => Brownish(renderer: renderer, roughness: 1, reflectance: 0, metallic: 0),
+            out Vector3 irradiance
+        );
+
+        // Lambert: b E cos 45° / π.
+        Vector3 expected = new Vector3(x: 0.8f, y: 0.6f, z: 0.4f) * irradiance * (MathF.Sqrt(0.5f) / MathF.PI);
+        Vector3
+            .Distance(shown, expected)
+            .Should()
+            .BeLessThan(0.03f * expected.Length(), "the wall shows {0}, and Lambert gives {1}", shown, expected);
+    }
+
+    [Fact]
+    public void APolishedMetalInAFaceSendsNoDiffuseLight()
+    {
+        Vector3 matte = WallUnderASlantedSun(
+            renderer => Brownish(renderer: renderer, roughness: 1, reflectance: 0, metallic: 0),
+            out _
+        );
+        // The eye stands 45° off the sun's mirror direction, far outside the lobe of roughness 0.2.
+        Vector3 metal = WallUnderASlantedSun(
+            renderer => Brownish(renderer: renderer, roughness: 0.2f, reflectance: 0.5f, metallic: 1),
+            out _
+        );
+
+        matte.X.Should().BeGreaterThan(0.1f, "the matte wall is lit, so the test can fail");
+        metal.X.Should().BeLessThan(0.1f * matte.X, "a metal has no diffuse part, and its highlight points elsewhere");
+    }
+
+    [Fact]
+    public void AWallInAFaceTakesNoSunFromBehindThoughItsNormalMapFacesTheSun()
+    {
+        // The normal map's texel (128, 128, 0) turns the shading normal around, as in LightUnitsRenderTests'
+        // ALampBehindTheGeometricNormalAddsNothing. The wall itself, its geometric normal, faces the eye.
+        static MaterialId Turned(VulkanRenderer renderer) =>
+            renderer.CreateMaterial(
+                new(
+                    BaseColor: Vector4.One,
+                    Roughness: 1,
+                    Reflectance: 0,
+                    NormalMap: renderer.CreateTexture(new(Width: 1, Height: 1, Rgba: [128, 128, 0, 255], Srgb: false))
+                )
+            );
+
+        // The sun behind the wall: the shading normal faces it, and the wall faces away, so the wall is in its own shadow.
+        Vector3 fromBehind = WallUnderASun(towardSun: new(x: 1, y: 1, z: 0), material: Turned, irradiance: out _);
+        Vector3 matte = WallUnderASlantedSun(
+            renderer => Brownish(renderer: renderer, roughness: 1, reflectance: 0, metallic: 0),
+            out _
+        );
+
+        matte.X.Should().BeGreaterThan(0.1f, "a matte wall under a sun in front of it is lit, so the test can fail");
+        fromBehind.X.Should().BeLessThan(0.01f * matte.X, "a sun behind the wall's own surface adds nothing");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AFaceIsLitByATubeAndByARectangleLight(bool rectangle)
+    {
+        VulkanRenderer renderer = EnvironmentScenes.Renderer(exposure: new FixedExposure(-10));
+        try
+        {
+            MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
+            RenderSnapshot snapshot = EnvironmentScenes.Dark();
+            snapshot.Instances.Add(
+                EnvironmentScenes.Square(
+                    plane: plane,
+                    material: EnvironmentScenes.Matte(renderer),
+                    center: new(0, 0, 22),
+                    halfSize: 5,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+            // Behind the camera, 2 m before the wall. The rectangle's front, its local +Z, faces the wall.
+            var position = new Vector3(x: 0, y: 0, z: 20);
+            snapshot.Lights.Add(
+                rectangle
+                    ? new RectRenderLight(
+                        EntityIndex: Gpu.LampEntity,
+                        EntityGeneration: 0,
+                        Position: position,
+                        PreviousPosition: position,
+                        Rotation: Quaternion.Identity,
+                        PreviousRotation: Quaternion.Identity,
+                        Color: Vector3.One,
+                        Power: 600,
+                        Width: 1,
+                        Height: 1,
+                        CastsShadow: false,
+                        ChainDepth: TestChains.CamerasFrame
+                    )
+                    : new TubeRenderLight(
+                        EntityIndex: Gpu.LampEntity,
+                        EntityGeneration: 0,
+                        Position: position,
+                        PreviousPosition: position,
+                        Axis: Vector3.UnitX,
+                        PreviousAxis: Vector3.UnitX,
+                        Color: Vector3.One,
+                        Power: 600,
+                        Radius: 0.05f,
+                        Length: 1,
+                        CastsShadow: false,
+                        ChainDepth: TestChains.CamerasFrame
+                    )
+            );
+
+            renderer.Render(snapshot, 1f);
+
+            EnvironmentScenes
+                .Center(EnvironmentScenes.Face(renderer, CubeFace.PositiveZ))
+                .X.Should()
+                .BeGreaterThan(0.5f, "the light lights the wall behind the camera");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     [Fact]
     public void AFaceHoldsNoStars()
     {

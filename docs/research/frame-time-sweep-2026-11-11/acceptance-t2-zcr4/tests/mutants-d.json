@@ -1,0 +1,12 @@
+[
+ {
+  "id": "C04",
+  "file": "src/Tertius.Rendering/Frame/DescriptorLayouts.cs",
+  "line": 1028,
+  "original": "+ 12",
+  "replacement": "+ 11",
+  "class": ["EnvironmentFaceTests"],
+  "note": "the shared pool holds one set too few, the sum that git kept in the merge of key and fill",
+  "project": "tests/Tertius.Rendering.Tests"
+ }
+]

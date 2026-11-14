@@ -71,10 +71,13 @@ namespace Tertius.Rendering;
 /// <item><term>light</term><description>set 3 of <see cref="CompositeLayout"/>: the direct light's two images and the two
 /// indirect signals' slow histories, plus the existing specular sample for the opt-in reflection footprint, as storage images for the fragment stage (<see cref="CompositePass"/>). One,
 /// rewritten on resize.</description></item>
+/// <item><term>face surface</term><description>set 3 of <see cref="FaceLightLayout"/>: the surface record of an
+/// environment face, one array image, as a sampled image for the fragment stage (<see cref="FaceSurface"/>). One, written
+/// once.</description></item>
 /// </list>
 /// Every pass that draws meshes or reads the G-buffer uses <see cref="SceneLayout"/>, so sets 0 and 1 stay bound
-/// across pipeline changes. <see cref="ImpostorLayout"/> and <see cref="CompositeLayout"/> add set 3 and are
-/// compatible with it for sets 0 to 2. The
+/// across pipeline changes. <see cref="ImpostorLayout"/>, <see cref="CompositeLayout"/> and
+/// <see cref="FaceLightLayout"/> add set 3 and are compatible with it for sets 0 to 2. The
 /// compute layouts of the depth pyramid, <see cref="PyramidLayout"/>, of the screen tracer, <see cref="ScreenTraceLayout"/>,
 /// of the accumulator and of the skin scatter, <see cref="ScatterLayout"/>, take sets 0 to 2 too, whose bindings that their
 /// shaders read include the compute stage (docs/plans/screen-space-reflections.md, "Descriptor sets").
@@ -259,6 +262,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         GlowSourceSet = CreateImagesLayout(images: 1, sampler: LinearClampSampler, name: "glow source set");
         AtlasSampler = CreateTrilinearClampSampler("impostor atlas sampler");
         AtlasSet = CreateImagesLayout(images: 2, sampler: AtlasSampler, name: "impostor atlas set");
+        Span<DescriptorSetLayoutBinding> faceSurface = [Image(binding: 0, stages: ShaderStageFlags.FragmentBit)];
+        FaceSurfaceSet = CreateLayout(bindings: faceSurface, name: "face surface set");
 
         (MeterSet, ExposureSet) = CreateExposureSetLayouts();
         (EnvironmentPrefilterSet, EnvironmentLevelsSet) = CreateEnvironmentSetLayouts(EnvironmentSampler);
@@ -276,6 +281,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
         (SceneLayout, ImpostorLayout, CompositeLayout, OverlayLayout, PostLayout, BloomLayout) =
             CreateGraphicsLayouts();
+        FaceLightLayout = CreateFaceLightLayout();
         (
             ExposureLayout,
             EnvironmentPrefilterLayout,
@@ -375,6 +381,12 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>Trilinear filtering, clamped to the edge, for the impostor atlas and the trace's reads of the pyramids.</summary>
     public Sampler AtlasSampler { get; }
 
+    /// <summary>
+    /// The surface record of an environment face: one sampled array image for the fragment stage, which the face's light
+    /// pass fetches without a sampler (Shaders/face_surface.glsl).
+    /// </summary>
+    public DescriptorSetLayout FaceSurfaceSet { get; }
+
     /// <summary>Sets 0 to 2 plus <see cref="DrawPushConstants"/> for the vertex and fragment stages.</summary>
     public PipelineLayout SceneLayout { get; }
 
@@ -386,6 +398,12 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// constants and sets 0 to 2, so binding set 3 with this layout keeps the scene sets bound.
     /// </summary>
     public PipelineLayout ImpostorLayout { get; }
+
+    /// <summary>
+    /// <see cref="SceneLayout"/> plus the face surface set as set 3, for the light pass of an environment face. It has
+    /// the scene layout's push constant range and sets 0 to 2, so the scene sets stay bound under it.
+    /// </summary>
+    public PipelineLayout FaceLightLayout { get; }
 
     /// <summary>
     /// Sets 0 to 2, as in <see cref="SceneLayout"/>, plus <see cref="OutlinePushConstants"/> for the fragment stage, for
@@ -535,6 +553,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public DescriptorSet AllocateGlowSourceSet() => Allocate(pool, GlowSourceSet, null);
 
     public DescriptorSet AllocateAtlasSet() => Allocate(pool, AtlasSet, null);
+
+    public DescriptorSet AllocateFaceSurfaceSet() => Allocate(pool, FaceSurfaceSet, null);
 
     public DescriptorSet AllocateMeterSet() => Allocate(pool, MeterSet, null);
 
@@ -832,6 +852,21 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         return CreateLayout(bindings: gbuffer, name: "g-buffer set", bindingFlags: flags);
     }
 
+    /// <summary>The push range of the scene layout: <see cref="DrawPushConstants"/> in the vertex and fragment stages.</summary>
+    private static PushConstantRange DrawPush =>
+        new(ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit, 0, (uint)Unsafe.SizeOf<DrawPushConstants>());
+
+    /// <summary>
+    /// The layout of an environment face's light pass: sets 0 to 2 of the scene layout, the face's surface record as set
+    /// 3, and the scene layout's push range. The equal sets and push range keep the scene's sets bound under it.
+    /// </summary>
+    private PipelineLayout CreateFaceLightLayout() =>
+        CreatePipelineLayout(
+            sets: [FrameSet, TextureSet, GBufferSet, FaceSurfaceSet],
+            push: DrawPush,
+            name: "face light layout"
+        );
+
     /// <summary>The pipeline layouts of the graphics passes, after the set layouts that they hold.</summary>
     private (
         PipelineLayout Scene,
@@ -842,8 +877,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         PipelineLayout Bloom
     ) CreateGraphicsLayouts()
     {
-        const ShaderStageFlags graphics = ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit;
-        var drawPush = new PushConstantRange(graphics, 0, (uint)Unsafe.SizeOf<DrawPushConstants>());
+        PushConstantRange drawPush = DrawPush;
         ReadOnlySpan<DescriptorSetLayout> sceneSets = [FrameSet, TextureSet, GBufferSet, AtlasSet];
         PipelineLayout sceneLayout = CreatePipelineLayout(sets: sceneSets[..3], push: drawPush, name: "scene layout");
         PipelineLayout impostorLayout = CreatePipelineLayout(sets: sceneSets, push: drawPush, name: "impostor layout");
@@ -944,11 +978,12 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             // 20 for the G-buffer, post and atlas sets, seven per frame set for the three tables, the blue-noise mask, the
             // specular map, the irradiance cube and the distance cube, one per glow source set, two for the meter set, one
             // per pyramid level set, one for each pyramid's tail set, one for the prefilter set, one for the shadow bounds
-            // set, two for each surface test set, two for each signal set, four for each screen tracer set and four for the
-            // key fill tiles set.
+            // set, two for each surface test set, two for each signal set, four for each screen tracer set, one for the
+            // face surface set and four for the key fill tiles set.
             new(
                 DescriptorType.SampledImage,
                 20
+                    + 1
                     + 4
                     + 7 * frames
                     + glowSourceSets
@@ -983,14 +1018,14 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     private (SetPool Shared, SetPool Textures) CreatePools(uint framesInFlight, uint glowSourceSets)
     {
         uint frames = framesInFlight;
-        // The frame sets, the deform sets, the G-buffer, post, atlas, meter, exposure, prefilter, scatter, shadow
-        // bounds, key fill tiles and light sets, the glow source sets, the pyramid level sets, each pyramid's tail set, the environment
-        // levels sets, the surface test sets, the signal sets, the screen tracer sets and the filter sets. The tracer's sets
-        // exist even with the tracer off: they cost nothing per frame.
+        // The frame sets, the deform sets, the G-buffer, post, atlas, face surface, meter, exposure, prefilter, scatter,
+        // shadow bounds, key fill tiles and light sets, the glow source sets, the pyramid level sets, each pyramid's tail
+        // set, the environment levels sets, the surface test sets, the signal sets, the screen tracer sets and the filter
+        // sets. The tracer's sets exist even with the tracer off: they cost nothing per frame.
         SetPool shared = CreatePool(
             sizes: SharedPoolSizes(frames, glowSourceSets),
             maxSets: 2 * frames
-                + 11
+                + 12
                 + Pyramids
                 + glowSourceSets
                 + PyramidLevelSets

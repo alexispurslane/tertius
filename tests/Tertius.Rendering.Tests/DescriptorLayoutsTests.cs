@@ -140,6 +140,20 @@ public sealed class DescriptorLayoutsTests
     }
 
     /// <summary>
+    /// The surface record of an environment face is one array image, so the light pass of a face adds one sampled image
+    /// to the scene layout's fifteen. Six separate images had taken the count to 21 and raised the limit that the renderer
+    /// needs of a device (ticket t2-zcr4).
+    /// </summary>
+    [Fact]
+    public void TheFaceLightLayoutsFragmentStageSeesTheSixteenSampledImagesThatTheSpecPromises()
+    {
+        using var device = VulkanDevice.Create(validation: true, surfaceExtensions: [], createSurface: null);
+        using var layouts = new DescriptorLayouts(device: device, framesInFlight: 2, glowLevels: 0);
+
+        layouts.DescriptorsOf(layouts.FaceLightLayout).SampledImages.Fragment.Should().Be(16);
+    }
+
+    /// <summary>
     /// Each frame in flight adds a frame set and a deform set to the shared pool, so the pool's size of each descriptor
     /// type grows by what those two layouts take. A driver that counts each type, such as RADV, refuses a set past the
     /// pool's size of a type, while MoltenVK gives it (ARCHITECTURE.md, "Descriptor pools").

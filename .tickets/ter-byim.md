@@ -29,3 +29,11 @@ Scope: derive maxSets and the size of each descriptor type of each pool from one
 **2026-11-14T16:42:09Z**
 
 2026-11-14, evidence from the face pass's merge of main (sweep-pw52): the face pass and key and fill each raised the shared pool's hand-kept maxSets from 10 to 11 for one new set each; git saw two equal edits and kept 11, although the sum is 12. The sampled-image count needed the same hand sum (now 20 + 1 + 4). A count derived from the set layouts cannot drift in a merge this way.
+
+**2026-11-14, the count after that merge**
+
+The face branch set the count of sets to 12 by hand, in its merge commit a82ed9aa2. The listed mutant C04 of ticket t2-zcr4 sets it back to 11, and `EnvironmentFaceTests` passes on it.
+
+The reason is a spare set. Eleven sets exist once per renderer, and each has one call that allocates it: the G-buffer, post, atlas, face surface, meter, exposure, prefilter, scatter, shadow bounds, key fill tiles and light sets. So the constant of 12 holds one set more than a renderer takes. Main had the same spare before both merges: a constant of 10 for nine such sets.
+
+So the 11 that git kept was enough by this count, and the 12 keeps the spare of the base. A count that comes from the set layouts settles whether that spare has a reason.

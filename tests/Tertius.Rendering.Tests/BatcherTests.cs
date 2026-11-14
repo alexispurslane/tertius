@@ -2236,8 +2236,9 @@ public sealed class BatcherTests
         Unsafe.SizeOf<GpuShadowTile>().Should().Be(80, "std430 rounds a struct with a mat4 up to 16 bytes");
         ((int)Marshal.OffsetOf<GpuShadowTile>(nameof(GpuShadowTile.Layer))).Should().Be(64);
         ((int)Marshal.OffsetOf<GpuShadowTile>(nameof(GpuShadowTile.Near))).Should().Be(72);
-        Unsafe.SizeOf<DrawPushConstants>().Should().Be(84);
-        ((int)Marshal.OffsetOf<DrawPushConstants>(nameof(DrawPushConstants.Map))).Should().Be(80);
+        Unsafe.SizeOf<DrawPushConstants>().Should().Be(80);
+        Unsafe.SizeOf<FaceLightPushConstants>().Should().Be(52);
+        ((int)Marshal.OffsetOf<FaceLightPushConstants>(nameof(FaceLightPushConstants.Map))).Should().Be(48);
         Unsafe.SizeOf<EnvironmentPrefilterLevel>().Should().Be(16);
         Unsafe.SizeOf<EnvironmentPrefilterPushConstants>().Should().Be(88);
         ((int)Marshal.OffsetOf<EnvironmentPrefilterPushConstants>(nameof(EnvironmentPrefilterPushConstants.Samples)))
