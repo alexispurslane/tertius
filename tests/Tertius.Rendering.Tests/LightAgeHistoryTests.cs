@@ -293,6 +293,43 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
             new(Upscaling: new Fsr3Upscaling(new FixedRenderScale(2f / 3), 0), OutputScale: 1.5f)
         );
 
+    [Fact]
+    public void ALastingDimmingCountsOnItsFourthDrawAlsoAtTheEdgesOfItsAreaBesideTheSky() =>
+        WithRenderer(
+            null,
+            (renderer, scene) =>
+            {
+                Draw(renderer, scene, 32);
+                float[] before = renderer.ReadLightAge();
+                // The emitter's pixels beside the sky: its top row and the upper parts of its sides. A 3 × 3 block of the
+                // emitter holds each of them only on the side away from the sky.
+                int[] edge =
+                [
+                    .. Enumerable
+                        .Range(0, Width * Height)
+                        .Where(pixel =>
+                            pixel % Width is > 0 and < Width - 1
+                            && pixel / Width is > 0 and < Height - 1
+                            && ExactLightAt(before, pixel) >= 3
+                            && NeighborsOf(pixel).Any(neighbor => ExactLightAt(before, neighbor) < 0)
+                            && NeighborsOf(pixel)
+                                .All(neighbor => ExactLightAt(before, neighbor) is < 0 or >= 3)
+                        ),
+                ];
+                edge.Length.Should().BeGreaterThan(40, "the emitter's top row and upper sides border the sky");
+                SetGlow(renderer, scene, new(3.2f));
+
+                Draw(renderer, scene, LightChangeDraws);
+
+                float[] record = renderer.ReadLightAge();
+                edge.Should()
+                    .OnlyContain(
+                        pixel => AgeAt(record, pixel) == 0,
+                        "the whole emitter dimmed by 20% for four draws, and a 3 × 3 block of it holds each edge pixel"
+                    );
+            }
+        );
+
     [Theory]
     [InlineData(1)]
     [InlineData(2)]
@@ -333,9 +370,10 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 pixels
                     .Should()
                     .OnlyContain(
-                        pixel => AgeAt(record, pixel) < 0,
+                        pixel => SeenFramesAt(record, pixel) == 31 + 2 * LightChangeDraws,
                         "a change on a line one or two pixels tall gives no evidence, as FSR's light-change mask "
-                            + "ignores it (docs/plans/sub-pixel-strips.md, section 5.2)"
+                            + "ignores it, and the record goes on counting the frames that showed the line "
+                            + "(docs/plans/sub-pixel-strips.md, section 5.2)"
                     );
             }
         );
@@ -1478,6 +1516,13 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                         )
                 ),
         ];
+
+    /// <summary>The eight neighbors of a pixel that does not lie on the image's border.</summary>
+    private static IEnumerable<int> NeighborsOf(int pixel) =>
+        Enumerable
+            .Range(-1, 3)
+            .SelectMany(y => Enumerable.Range(-1, 3).Select(x => pixel + y * Width + x))
+            .Where(neighbor => neighbor != pixel);
 
     private static float ExactLightAt(float[] record, int pixel) => record[2 * pixel];
 
