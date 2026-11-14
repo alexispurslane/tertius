@@ -297,6 +297,13 @@ So the footprint restarts instead: on a reset, while the pixel moves on screen, 
 
 ## 7. Questions for the user
 
+Decision (Alexis, 2026-11-14): Design R on both points.
+
+1. A bounce hit reads this draw's sample, as now. No footprint mean of 64 draws.
+2. The bounce history grows to 128 draws in a block without change evidence, and to 32 under motion evidence. This takes in `t0-70v1` and its check of the half-float history.
+
+The questions as asked follow.
+
 The two points are independent, so any mix of the answers is a design.
 
 1. What does a hit read at a pixel that a thin strip crosses?
@@ -427,6 +434,16 @@ Short takes on the Mac under the shared GPU lock, about 3 minutes each, with the
 - Two to four screenshots of the cabin at tick 300 and 306 for the user.
 
 ## 17. Order of the work
+
+The order after the decision (orchestrator, 2026-11-14). One builder works at a time, so no two steps run in parallel. Design H's steps 3H-a and 3H-b are not built.
+
+1. Step 1, the record counts only area changes, is the next build after the Design X builder's current step. It merges into main before Design X, because it removes the false light evidence in a still.
+2. Step 2, the camera jitter, follows after Design X merges.
+3. Step 3R, the caps of 128 and 32 draws, follows step 2. It is ticket `t0-70v1`, with its check of the half-float history.
+4. Step 4 takes the measurements, and step 5 merges steps 2 and 3R together.
+
+The table below is the order as the design first wrote it.
+
 
 | Step | Work | Files | Builder | After |
 |---|---|---|---|---|
