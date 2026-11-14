@@ -133,16 +133,18 @@ The script pushes the branch's head commit to a hidden ref, as every job does. I
 
 A cloud run needs no Mac lock and builds nothing in your worktree. So you can build, test and commit in the worktree while it runs. The rules for a valid run are those of `tools/README.md`, "The official Stryker run". A run that prints NOT VALID proves nothing there either.
 
-Only the official Stryker run goes to the cloud by default. Run the other tests on the Mac. They are free there, and the $30 must last. If the Mac blocks you for a long time, you can send GPU shards of the Rendering tests. They do not replace the Mac pass of the GPU tests before a merge. A shard builds the test project, then runs the test assembly directly with a list of classes:
+Only the official Stryker run goes to the cloud by default. Run the other tests on the Mac. They are free there, and the $30 must last. If the Mac blocks you for a long time, you can send GPU shards of the Rendering tests. They do not replace the Mac pass of the GPU tests before a merge. A shard builds the test project, asks `tools/runpod/shards.py` for the class filters of its shard, and runs the test assembly directly with them. This example is shard 0 of 6:
 
 ```bash
 python3 -I tools/runpod/gpu_job.py submit --agent <your name> --tree main=HEAD \
     --run "cd main && dotnet build tests/Tertius.Rendering.Tests -c Checked -nologo -v:q" \
-    --run "mkdir -p out; cd main && dotnet tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll -maxThreads 2 -longRunning 60 -noColor -result-ctrf ../out/shard.json -class Tertius.Rendering.Tests.<Class> ..." \
+    --run "mkdir -p out; cd main && dll=tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll && dotnet \$dll -maxThreads 2 -longRunning 60 -noColor -result-ctrf ../out/shard.json \$(python3 -I tools/runpod/shards.py \$dll 6 0)" \
     --output out/shard.json --timeout 800 --out /tmp/<your name>/shard0
 ```
 
-Use `-maxThreads 2`. At the default parallelism, the GPU tests run out of the card's 16 GB (ticket ter-net6). `dotnet test` does not work on a worker: its test host fails the handshake. Split the classes into shards of similar time, at most five at once. On 2026-11-12, six shards ran 2,877 tests, and 9 failed on Linux (see "Linux failures" in [README.md](README.md)).
+Do not write a list of classes by hand. `shards.py` takes the classes from the built assembly, nested ones included as `Outer+Inner`, and the shards of one count hold each class exactly once. A filter on an outer class does not run its nested classes. Hand-written lists of 2026-11-12 (cloud-tests-split, on d1fc1fff3) and of 2026-11-13 (sweep-pw52, on adcd60cf4) left out 15 and 19 classes that existed then, most of them nested (ticket ter-eugk).
+
+Use `-maxThreads 2`. At the default parallelism, the GPU tests run out of the card's 16 GB (ticket ter-net6). `dotnet test` does not work on a worker: its test host fails the handshake. Send at most five shards at once, one per worker of the endpoint. On 2026-11-12, six shards ran 2,877 tests, and 9 failed on Linux (see "Linux failures" in [README.md](README.md)).
 
 ## Costs and caps
 
@@ -161,4 +163,4 @@ Use `-maxThreads 2`. At the default parallelism, the GPU tests run out of the ca
 - A tree has no `docs/` and no `.tickets/`, because the worker does not fetch them. No build or run reads them. A job that needs a file from `docs/` must copy it elsewhere in its commit.
 - Each tree's commit becomes public. Before the push, the script scans the new commits for secrets, and a finding refuses the job. Never commit a secret, also not on a branch.
 - If a job's commits change `flake.nix`, `flake.lock` or `native/`, the job needs an image of that dev shell. Without one, the script refuses the job and names the missing image. Build it with a tag, then send the job again: `git push --no-verify git@github.com:alexispurslane/tertius.git <commit>:refs/tags/gpu-image-<name>`. The build takes about 14 minutes. The script then creates a new endpoint for that image by itself ([README.md](README.md), "A new dev shell").
-- A refusal that names "0 workers" means that the watchdog or the orchestrator stopped the endpoints. Wait for the orchestrator.
+- A refusal that names the watchdog means that the watchdog or the orchestrator stopped the endpoints (the file `stopped-by-watchdog`). Wait for the orchestrator.

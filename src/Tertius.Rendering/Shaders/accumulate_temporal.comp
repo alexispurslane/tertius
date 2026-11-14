@@ -213,7 +213,7 @@ vec4 tracedPlaceWeights(ivec2 pixel)
     vec3 ray = viewRayThrough(center);
     float depth = texelFetch(gbufferDistance, pixel, 0).r / length(ray);
     vec3 normal = octDecode(texelFetch(gbufferNormal, pixel, 0).ba);
-    float roughness = texelFetch(gbufferSpecular, pixel, 0).g;
+    float roughness = specularAt(pixel).g;
     vec4 motion = imageLoad(motionTarget, pixel);
     vec2 samplePlace = historyPlace(center, motion.xy);
     vec2 ownPlace = pixelPlace(center, motion.xy);

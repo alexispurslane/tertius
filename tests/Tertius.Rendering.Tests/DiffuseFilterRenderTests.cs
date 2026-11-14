@@ -902,6 +902,32 @@ public sealed class DiffuseFilterRenderTests(ITestOutputHelper output)
         }
     }
 
+    [Theory]
+    [InlineData(0.3f)]
+    [InlineData(7.77f)]
+    [InlineData(123.456f)]
+    public void AYoungHistoryOfOneLuminanceFindsNoNoiseWhateverItsValue(float value)
+    {
+        // A wall that holds one value without noise has a variance of exactly 0. The estimate must find 0 in float
+        // arithmetic as well: a mean square minus a squared mean cancels exactly only where the driver's rounding happens
+        // to make the two equal. Apple's does for 0.5 and 1 but not for 7.77, and NVIDIA's not for 1 (ticket t8-kpoe).
+        (VulkanRenderer renderer, SamplePass sample, DiffuseFilter filter, RenderSnapshot scene) = Filtering(Wall);
+        try
+        {
+            sample.Samples = (_, _) => new Vector4(new Vector3(value), 1);
+
+            renderer.Render(scene, 1f);
+
+            float[] filtered = renderer.ReadImage(filter.Filtered);
+            for (int pixel = 0; pixel < Width * Height; pixel++)
+                filtered[4 * pixel + 3].Should().Be(0, "pixel {0} saw no noise on a wall of one value", pixel);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     [Fact]
     public void AnEdgeOfLightKeepsItsShapeBesideNoise()
     {

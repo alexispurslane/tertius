@@ -1,0 +1,2 @@
+job fdfd3f35-e2c9-4d27-876d-7a4c199c9aa6-u1 sent to endpoint ozf0ryg5dmsblx; worst case $0.13
+job fdfd3f35-e2c9-4d27-876d-7a4c199c9aa6-u1: ok, 198 seconds of execution, counted as $0.0428; result in /private/tmp/tertius-sweep-20261111/pw52/workbench/release-shard

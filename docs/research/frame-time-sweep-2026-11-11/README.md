@@ -16,7 +16,7 @@ Read the two texts in this order:
 - On 2026-11-12 the deck takes 19.9 ms as a window, after 24.0 ms. Section A12 holds the fresh trace and the ranked table again.
 - The bloom as compute dispatches gains nothing, because its encoder breaks were cheap ones (section A12).
 - The automatic exposure has several stable values in a scene with a large even surface. A still with it mixes a tested change with a step of the meter (section A13).
-- A reflection walk of at most 96 steps saves 0.21 ms and changes the stills less than the accepted cap of 128 did. The bounce-light cap stays at 62 (section A13).
+- A reflection walk of at most 96 steps saves 0.21 ms and changes the stills less than the accepted cap of 128 did. The bounce-light cap stays at 62 (section A13). Alexis chose the cap of 96, and ticket `t2-pw52` built it. On the code that merged, it saves 0.15 ms.
 
 ## What the folder holds
 
@@ -32,6 +32,7 @@ Read the two texts in this order:
 | `trace/` | The tables of each recorded trace: the passes, the adding count and the idle time |
 | `refl/` | The demo scripts of the image tests, the scripts of the untimed takes, and the image scores |
 | `acceptance-ter-w1o3/` | The acceptance record of the reflection step cap of 128: timings, image comparisons and test runs |
+| `acceptance-t2-pw52/` | The acceptance record of the reflection step cap of 96: timings, image comparisons and test runs |
 | `acceptance-ter-2zga/` | The acceptance record of the patched MoltenVK that the flake builds: frames, traces and test runs |
 | `bloom-compute-ter-lm61/` | The record of the bloom as compute dispatches, which did not merge: the patch, the timed take and the still comparison |
 | `steps-search/` | The step cap search of section A13: the job lists and lock logs of its takes, the pixel and FLIP tables of every cap, and the mottle scores |

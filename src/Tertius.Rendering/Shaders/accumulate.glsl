@@ -79,7 +79,7 @@ const float RoughRoughness = 0.7;
 // A pixel's floored roughness, by which its caps and the reflected place's eligibility go.
 float roughnessAt(ivec2 pixel)
 {
-    return flooredRoughness(texelFetch(gbufferSpecular, pixel, 0).g);
+    return flooredRoughness(specularAt(pixel).g);
 }
 
 // The cap of a pixel of `roughness`: the smooth cap up to SmoothRoughness, linear to the rough cap at RoughRoughness.

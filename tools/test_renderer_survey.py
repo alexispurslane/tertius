@@ -137,8 +137,7 @@ class SwitchRunsInParts(unittest.TestCase):
             calls.append(env)
             out.mkdir(parents=True)
             frames = built["steps"][-1]["frames"]
-            for k in range(frames):
-                probe_png(out / f"f-{k:06d}.png", 1.0)
+            write_series(out, {survey.film_frame("f", k): 1.0 for k in range(frames)})
             return out.parent / f"{out.name}.log"
         return render
 
@@ -210,6 +209,54 @@ def tick_of_post(built, kind):
         if step["do"] == "film":
             ticks += step["frames"] * step["every"]
     raise AssertionError(f"no post {kind}")
+
+
+class ProbeSeries(unittest.TestCase):
+    """The probe writes each capture's region means as one line of a series file, and a PNG only for the kept names
+    (ticket ter-d7qy)."""
+
+    def write_series(self, folder, lines):
+        (Path(folder) / survey.SERIES_FILE).write_text("".join(line + "\n" for line in lines))
+
+    def test_a_films_series_holds_its_frames_in_frame_order_and_no_other_capture(self):
+        with tempfile.TemporaryDirectory() as folder:
+            self.write_series(folder, ["still 9 9", "f-000001 2 0.25", "g-000000 7 7", "f-000000 1 0.5"])
+            self.assertEqual(survey.probe_series(Path(folder), "f"), [[1.0, 0.5], [2.0, 0.25]])
+
+    def test_a_still_is_read_by_its_capture_name(self):
+        with tempfile.TemporaryDirectory() as folder:
+            self.write_series(folder, ["k0004-s02 1 1", "k0004-s03 3 0.125"])
+            self.assertEqual(survey.probe_rows(Path(folder))["k0004-s03"], [3.0, 0.125])
+
+    def test_a_switch_measures_its_series_and_keeps_the_pngs_of_the_four_report_frames_only(self):
+        rendered = {}
+
+        def render(work, script, *, binary, env, extra):
+            # Each film frame's whole-image mean is its frame number, so that the kept PNGs name their frames.
+            work.mkdir(parents=True)
+            film = script["steps"][-1]
+            kept = env["TERTIUS_PROBE_KEEP"].split(",")
+            rows = [f"{survey.film_frame('f', k)} {k + 1} " + " ".join(["1"] * 9) for k in range(film["frames"])]
+            self.write_series(work, ["still 1 " + " ".join(["1"] * 9)] + rows)
+            for name in kept:
+                (work / f"{name}.png").write_text(name)
+            rendered[work.name] = env["TERTIUS_PROBE_SERIES"]
+
+        case = {"name": "c", "scene": "s", "camera": None, "ticks": 10, "select": "all", "sun": "on"}
+        with tempfile.TemporaryDirectory() as folder, \
+                mock.patch.object(survey, "render", render), \
+                mock.patch.object(survey, "probe_binary", lambda out: Path("probe")), \
+                mock.patch.object(survey, "save", lambda *a: None):
+            out = Path(folder)
+            result = survey.run_switch(out, case, argparse.Namespace(exposure="4"))
+            kept = sorted(p.name for p in (out / "images" / "switch").iterdir())
+            frames = [survey.SWITCH_OFF - 1, survey.SWITCH_OFF + 8, survey.SWITCH_ON - 1, survey.SWITCH_ON + 8]
+            self.assertEqual(kept, sorted(f"c-{k:03d}.png" for k in frames))
+            self.assertEqual((out / "images" / "switch" / f"c-{frames[1]:03d}.png").read_text(),
+                             survey.film_frame("f", frames[1]))
+        self.assertEqual(len(result["series"]["switch"]), survey.SWITCH_FRAMES)
+        self.assertEqual(result["series"]["on"][7][0], 8.0)
+        self.assertTrue(all(path.endswith(survey.SERIES_FILE) for path in rendered.values()))
 
 
 class Walks(unittest.TestCase):
@@ -376,16 +423,14 @@ class Climbs(unittest.TestCase):
         self.assertEqual(result["failed"], [survey.NOT_MEASURED])
 
 
-def probe_png(path, value):
-    """A small capture of the probe whose every pixel has the scene luminance `value` (probe_luminance's encoding)."""
-    from PIL import Image
-    q = int(round((np.log2(value) + 24.0) / 40.0 * 16777215.0))
-    pixel = np.array([(q >> 16) & 255, (q >> 8) & 255, q & 255], np.uint8)
-    Image.fromarray(np.tile(pixel, (6, 6, 1))).save(path)
+def write_series(work, lights):
+    """The probe's series file of a run into work whose every region of capture `name` has the light lights[name]."""
+    (work / survey.SERIES_FILE).write_text(
+        "".join(f"{name} " + " ".join([repr(light)] * (1 + survey.GRID ** 2)) + "\n" for name, light in lights.items()))
 
 
 class ProbeRuns(unittest.TestCase):
-    """run_stand and run_climb with a fake render that writes small probe captures of a chosen light."""
+    """run_stand and run_climb with a fake render that writes the probe's series file of a chosen light (ticket ter-d7qy)."""
 
     def run_case(self, runner, case, light):
         calls = []
@@ -393,6 +438,7 @@ class ProbeRuns(unittest.TestCase):
         def render(out, built, *, binary, env=None, extra=(), **kwargs):
             calls.append({"env": env, "extra": extra})
             out.mkdir(parents=True)
+            rows = {}
             for step in built["steps"]:
                 if step["do"] == "capture":
                     names = [step["name"]]
@@ -400,8 +446,8 @@ class ProbeRuns(unittest.TestCase):
                     names = [f"{step['name']}-{k:06d}" for k in range(step["frames"])]
                 else:
                     continue
-                for name in names:
-                    probe_png(out / f"{name}.png", light(name, env))
+                rows.update({name: light(name, env) for name in names})
+            write_series(out, rows)
             return out.parent / f"{out.name}.log"
 
         with tempfile.TemporaryDirectory() as folder, mock.patch.object(survey, "render", render), \
@@ -417,8 +463,11 @@ class ProbeRuns(unittest.TestCase):
         calls, result = self.run_case(survey.run_stand, STAND,
                                       lambda name, env: 1.5 if name.startswith("f-") and int(name[2:]) < 100 else 1.0)
         self.assertEqual(len(calls), 1)
-        self.assertEqual(calls[0]["env"], {"TERTIUS_PROBE_EXPOSURE": "4.08", "TERTIUS_PROBE_SIGNAL": survey.SIGNALS["bounce"],
-                                           **survey.STILL_CONTINUES})
+        env = calls[0]["env"]
+        self.assertEqual({k: v for k, v in env.items() if k not in ("TERTIUS_PROBE_SERIES", "TERTIUS_PROBE_KEEP")},
+                         {"TERTIUS_PROBE_EXPOSURE": "4.08", "TERTIUS_PROBE_SIGNAL": survey.SIGNALS["bounce"],
+                          **survey.STILL_CONTINUES})
+        self.assertEqual(env["TERTIUS_PROBE_KEEP"], "", "the stand keeps no PNG")
         self.assertEqual(calls[0]["extra"], survey.PROBE_OPTIONS)
         self.assertEqual(len(result["film"]), 600)
         self.assertEqual(result["settleDraws"][BAND], 100)

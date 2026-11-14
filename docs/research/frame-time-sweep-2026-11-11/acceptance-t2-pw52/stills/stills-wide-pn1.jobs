@@ -1,0 +1,46 @@
+# The image test of the reflection step cap of 96 (t2-pw52) on main at b93ab3570, which holds the blue-noise draws of
+# ter-s97m. par2 is that main with the cap from SWEEP_RSTEPS and the exposure from SWEEP_EXPOSURE. Every scene runs at
+# one fixed exposure at both caps, because the automatic exposure steps when a few pixels change (t2-supl). The value
+# of a scene is the one of the search on the older main (out3/pf-<name>-ctl). Then the film with the follow camera of
+# demo-exit, and the proof that par2 draws the pictures of the unedited builds: n128 is main, and n96 is the ticket's
+# scratch commit 19f915c7c.
+old() { python3 -I -c "
+import json,statistics
+print(statistics.median(x['stops'] for x in json.load(open('$R/out3/pf-$1-ctl/exposure.json'))))"; }
+pair() { # pair <script path> <name> <stops>
+  SWEEP_EXPOSURE=$3 run par2 $1 pn-$2-ctl
+  SWEEP_EXPOSURE=$3 SWEEP_RSTEPS=96 run par2 $1 pn-$2-r96
+}
+pair capscripts/rigs.json rigs -9.3555
+pair capscripts/doorway.json doorway -9.695
+pair capscripts/mirror-balls.json mirror-balls -6.4
+pair capscripts/demo-surface.json demo-surface -8.95
+pair capscripts/cabin-light.json cabin-light -8.36
+pair capscripts/reflections-stills.json reflections-stills -6.77
+pair capscripts/demo-shuttle.json demo-shuttle -9.346
+pair capscripts/station.json station -8.85
+pair views2.json low -7.2
+pair hairscripts/hair-rugs.json hair-rugs -12.79
+pair hairscripts/hair-bent-cards.json hair-bent-cards -8.98
+for s in skin-and-hair lamp-hall-16-hair; do pair hairscripts/$s.json $s $(old $s); done
+for s in airlock bounce-red-wall deep-yard demo-meshes mars-air pbr-spheres spacewalk spin-station station-crate station-nocrate surface-yard ter-7tnv-floor ter-7tnv-terminal throw walk windows; do
+  pair capscripts/$s.json $s $(old $s)
+done
+for n in 1080 1440; do
+  pair bigscripts/deck-$n.json deck-$n 0.7041458
+  pair bigscripts/mirror-balls-$n.json mirror-balls-$n -6.4
+  pair bigscripts/doorway-$n.json doorway-$n -9.695
+  pair bigscripts/hair-rugs-$n.json hair-rugs-$n -12.79
+  pair bigscripts/demo-surface-$n.json demo-surface-$n -8.95
+  pair bigscripts/reflections-stills-$n.json reflections-stills-$n -6.77
+  pair bigscripts/rigs-$n.json rigs-$n -9.3555
+done
+run par2 exit-floor.json pnf-exit-floor-ctl
+SWEEP_RSTEPS=96 run par2 exit-floor.json pnf-exit-floor-r96
+run par2 exit-floor.json pnf-exit-floor-ctl2
+for s in doorway mirror-balls; do
+  run n128 capscripts/$s.json pni-$s-n128
+  run par2 capscripts/$s.json pni-$s-par
+  run n96 capscripts/$s.json pni96-$s-n96
+  SWEEP_RSTEPS=96 run par2 capscripts/$s.json pni96-$s-par
+done

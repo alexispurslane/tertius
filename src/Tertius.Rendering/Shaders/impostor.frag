@@ -20,7 +20,7 @@ layout(location = 1) flat in uint inInstance;
 
 layout(location = 0) out vec4 outBaseColor;
 layout(location = 1) out vec4 outNormal;
-layout(location = 2) out vec4 outSpecular;
+layout(location = 2) out uvec4 outSpecular;
 layout(location = 3) out vec4 outEmissive;
 layout(location = 4) out float outDistance;
 layout(location = 5) out uvec4 outShading;
@@ -58,7 +58,7 @@ void main()
     vec3 toward = normalize(vec3(instance.modelRow0.z, instance.modelRow1.z, instance.modelRow2.z));
     outBaseColor = vec4(0.0);
     outNormal = vec4(octEncode(toward), octEncode(toward));
-    outSpecular = vec4(0.0);
+    outSpecular = uvec4(0u);
     // The atlas holds radiance, which the billboard pre-exposes with this frame's exposure.
     outEmissive = vec4(preExposed(color.rgb / coverage), 1.0);
     outDistance = length(world - draw.eye.xyz);

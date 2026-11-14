@@ -1275,12 +1275,50 @@ STILL_CONTINUES = {"TERTIUS_PROBE_STILL_CONTINUES": "1"}
 NO_BLOOM = ("--bloom", "off")
 
 
-def probe_series(work: Path, pattern: str) -> list:
-    """The region means of each probe capture that matches pattern, in name order, and deletes the captures."""
-    rows = []
-    for f in sorted(work.glob(pattern)):
-        rows.append(region_means(probe_luminance(f)))
+# The probe's series file in a run's folder: one line per capture, its name and then its region_means, which the probe
+# computes from its readback as probe_luminance and region_means do. A film of every draw then writes no PNG: a 460-frame
+# switch run spent about 1.2 s per frame on PNGs on the cloud's GPU worker, which draws a frame in about 9 ms (ticket
+# ter-d7qy). The probe writes a PNG only for the names in TERTIUS_PROBE_KEEP.
+SERIES_FILE = "series.txt"
+
+
+def series_env(work: Path, keep=()) -> dict:
+    """The probe's environment for a run into work that measures every capture and writes the PNGs of keep alone."""
+    return {"TERTIUS_PROBE_SERIES": str(work / SERIES_FILE), "TERTIUS_PROBE_KEEP": ",".join(keep)}
+
+
+def film_frame(film: str, k: int) -> str:
+    """The capture name of frame k of a film, as FilmStep.FrameName gives it."""
+    return f"{film}-{k:06d}"
+
+
+def probe_rows(work: Path) -> dict:
+    """The region means of each capture of a run into work, by capture name."""
+    rows = {}
+    for line in (work / SERIES_FILE).read_text().splitlines():
+        name, *values = line.split()
+        rows[name] = [float(v) for v in values]
     return rows
+
+
+def probe_series(work: Path, film: str) -> list:
+    """The region means of each frame of the named film, in frame order."""
+    rows = probe_rows(work)
+    names = sorted(name for name in rows if name.startswith(film + "-") and name[len(film) + 1:].isdigit())
+    return [rows[name] for name in names]
+
+
+# The film frames of a switch whose images the report shows: the last frames before the lamps go off and come back on,
+# and the eighth after each.
+SWITCH_KEPT = (SWITCH_OFF - 1, SWITCH_OFF + 8, SWITCH_ON - 1, SWITCH_ON + 8)
+
+
+def probe_stills(work: Path, prefix: str) -> list:
+    """The region means of the stills <prefix>-s00, <prefix>-s01 and on of a run into work, in still order."""
+    rows = probe_rows(work)
+    stem = prefix + "-s"
+    names = sorted(name for name in rows if name.startswith(stem) and name[len(stem):].isdigit())
+    return [rows[name] for name in names]
 
 
 # The environment variable that limits a call of run_switch to some of a case's runs, by label, comma-separated, such
@@ -1301,19 +1339,26 @@ def run_switch(out: Path, case: dict, args):
         if wanted and label not in wanted.split(","):
             continue
         work = out / "work" / "switch" / f"{case['name']}-{label}"
+        shown = SWITCH_KEPT if label == "switch" else ()
         render(work, switch_script(case), binary=probe_binary(out),
-               env={"TERTIUS_PROBE_EXPOSURE": args.exposure, **env}, extra=PROBE_OPTIONS)
-        series[label] = probe_series(work, "f-*.png")
+               env={"TERTIUS_PROBE_EXPOSURE": args.exposure, **env,
+                    **series_env(work, [film_frame("f", k) for k in shown])},
+               extra=PROBE_OPTIONS)
+        series[label] = probe_series(work, "f")
         kept.parent.mkdir(parents=True, exist_ok=True)
         kept.write_text(json.dumps(series[label]))
-        if label == "switch":
-            frames = sorted(work.glob("f-*.png"))
-            images = out / "images" / "switch"
-            for k in (SWITCH_OFF - 1, SWITCH_OFF + 8, SWITCH_ON - 1, SWITCH_ON + 8):
-                keep_png(frames[k], images / f"{case['name']}-{k:03d}.png")
+        for k in shown:
+            keep_png(work / f"{film_frame('f', k)}.png", out / "images" / "switch" / f"{case['name']}-{k:03d}.png")
         shutil.rmtree(work)
     if len(series) < len(switch_runs(case)):
         return None
+    result = switch_result(case, series)
+    save(out, "switch", case["name"], result)
+    return result
+
+
+def switch_result(case: dict, series: dict) -> dict:
+    """The settle counts of a switch case from the region means of its three runs, by run label."""
     off_draws, on_draws = [], []
     regions = changed_regions(series["off"][SWITCH_ON - 1], series["on"][SWITCH_ON - 1])
     for r in regions:
@@ -1331,7 +1376,6 @@ def run_switch(out: Path, case: dict, args):
     # A switch that changes no region by more than REGION_CHANGE measured nothing.
     result["failed"] = [NOT_MEASURED] if not regions else sorted(
         set(settle_verdict(result["offDraws"]) + settle_verdict(result["onDraws"])))
-    save(out, "switch", case["name"], result)
     return result
 
 
@@ -1340,12 +1384,13 @@ def run_lag(out: Path, case: dict, args):
     film_script, stills_script = lag_scripts(case)
     env = {"TERTIUS_PROBE_EXPOSURE": args.exposure}
     work = out / "work" / "lag" / f"{case['name']}-film"
-    render(work, film_script, binary=binary, env=env, extra=PROBE_OPTIONS)
-    film = probe_series(work, "f-*.png")
+    render(work, film_script, binary=binary, env={**env, **series_env(work)}, extra=PROBE_OPTIONS)
+    film = probe_series(work, "f")
     shutil.rmtree(work)
     work = out / "work" / "lag" / f"{case['name']}-stills"
-    render(work, stills_script, binary=binary, env={**env, **STILL_CONTINUES}, extra=PROBE_OPTIONS)
-    stills = {k: region_means(probe_luminance(work / f"k{k:04d}-s03.png")) for k in case["samples"]}
+    render(work, stills_script, binary=binary, env={**env, **STILL_CONTINUES, **series_env(work)}, extra=PROBE_OPTIONS)
+    measured = probe_rows(work)
+    stills = {k: measured[f"k{k:04d}-s03"] for k in case["samples"]}
     shutil.rmtree(work)
     rows = []
     for k in case["samples"]:
@@ -1371,13 +1416,13 @@ def run_walk(out: Path, case: dict, args):
     binary = probe_binary(out)
     work = out / "work" / "walk" / f"{case['name']}-walk"
     env = {"TERTIUS_PROBE_EXPOSURE": args.exposure}
-    render(work, walk_script(case), binary=binary, env=env, extra=PROBE_OPTIONS)
-    after = probe_series(work, "h-*.png")
-    during = probe_series(work, "g-*.png")
+    render(work, walk_script(case), binary=binary, env={**env, **series_env(work)}, extra=PROBE_OPTIONS)
+    after = probe_series(work, "h")
+    during = probe_series(work, "g")
     shutil.rmtree(work)
     work = out / "work" / "walk" / f"{case['name']}-control"
-    render(work, walk_control_script(case), binary=binary, env=env, extra=PROBE_OPTIONS)
-    film = probe_series(work, "c-*.png")
+    render(work, walk_control_script(case), binary=binary, env={**env, **series_env(work)}, extra=PROBE_OPTIONS)
+    film = probe_series(work, "c")
     control = [film[walk_control_frame(case, k)] for k in range(len(after))]
     shutil.rmtree(work)
     draws = walk_settle(after, control)
@@ -1398,9 +1443,9 @@ def run_stand(out: Path, case: dict, args):
     work = out / "work" / "stand" / case["name"]
     env = {"TERTIUS_PROBE_EXPOSURE": probe_exposure(case, args), "TERTIUS_PROBE_SIGNAL": SIGNALS[case["signal"]],
            **STILL_CONTINUES}
-    render(work, stand_script(case), binary=probe_binary(out), env=env, extra=PROBE_OPTIONS)
-    film = probe_series(work, "f-*.png")
-    end = probe_series(work, "end-s*.png")
+    render(work, stand_script(case), binary=probe_binary(out), env={**env, **series_env(work)}, extra=PROBE_OPTIONS)
+    film = probe_series(work, "f")
+    end = probe_stills(work, "end")
     shutil.rmtree(work)
     result = stand_result(case, film, end)
     save(out, "stand", case["name"], result)
@@ -1413,8 +1458,8 @@ def run_climb(out: Path, case: dict, args):
     runs = {}
     for label, env in climb_runs(case, probe_exposure(case, args)).items():
         work = out / "work" / "climb" / f"{case['name']}-{label}"
-        render(work, climb_script(case), binary=probe_binary(out), env=env, extra=PROBE_OPTIONS)
-        runs[label] = {f"t{tick}": probe_series(work, f"t{tick}-s*.png") for tick in case["states"]}
+        render(work, climb_script(case), binary=probe_binary(out), env={**env, **series_env(work)}, extra=PROBE_OPTIONS)
+        runs[label] = {f"t{tick}": probe_stills(work, f"t{tick}") for tick in case["states"]}
         shutil.rmtree(work)
     result = climb_result(case, runs)
     save(out, "climb", case["name"], result)

@@ -14,8 +14,9 @@ layout(set = 2, binding = 0) uniform texture2D gbufferBaseColor;       // RGBA8 
                                                                        // only)
 layout(set = 2, binding = 1) uniform texture2D gbufferNormal;          // RGBA16 SNORM: octahedral world normals,
                                                                        // rg shading (normal-mapped), ba geometric
-layout(set = 2, binding = 2) uniform texture2D gbufferSpecular;        // RGBA8: metallic, roughness r₀, reflectance,
-                                                                       // the lobe's sky share
+layout(set = 2, binding = 2) uniform utexture2D gbufferSpecular;       // RGBA8 UINT: the codes of metallic, roughness
+                                                                       // r₀, reflectance, the lobe's sky share
+                                                                       // (specularAt)
 layout(set = 2, binding = 3) uniform texture2D gbufferEmissive;        // RGBA16F: emitted radiance, the normal's sky
                                                                        // share
 layout(set = 2, binding = 4) uniform texture2D gbufferDistance;        // R32F: distance to the eye, 0 for sky
@@ -33,6 +34,12 @@ layout(set = 2, binding = 11) uniform texture2DArray shadowBounds;    // RG32F: 
                                                                        // the least and the greatest reversed depth of
                                                                        // each window (shadow_bounds.comp); partially
                                                                        // bound
+
+// The specular target at the pixel: metallic, roughness r₀, reflectance and the lobe's sky share, each its code over 255.
+vec4 specularAt(ivec2 pixel)
+{
+    return vec4(texelFetch(gbufferSpecular, pixel, 0)) / 255.0;
+}
 
 // The map that a lit pixel's map code names (docs/plans/environment-maps-per-frame.md, decision 20): code c of the 8-bit
 // alpha, from 1 to 255, names map (256 − c) / 2, rounded down. MapCode.MapOf is the C# twin. Code 0 marks an unlit pixel,

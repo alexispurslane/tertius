@@ -19,7 +19,7 @@ vec3 dominantDirectionAt(ivec2 pixel)
     if (texelFetch(gbufferDistance, pixel, 0).r <= 0.0)
         return view;
     vec3 normal = octDecode(texelFetch(gbufferNormal, pixel, 0).rg);
-    return ambientSpecularDirection(normal, texelFetch(gbufferSpecular, pixel, 0).g, -view);
+    return ambientSpecularDirection(normal, specularAt(pixel).g, -view);
 }
 
 // f, in rad: how far d moves to a neighboring pixel along x and along y, at least p, the main view's pixel angle. Along
@@ -53,7 +53,7 @@ ShadingInput materialAt(ivec2 pixel)
     vec4 normals = texelFetch(gbufferNormal, pixel, 0);
     s.normal = octDecode(normals.rg);
     s.geometricNormal = octDecode(normals.ba);
-    vec4 specular = texelFetch(gbufferSpecular, pixel, 0);
+    vec4 specular = specularAt(pixel);
     s.metallic = specular.r;
     s.roughness = specular.g;
     s.reflectance = specular.b;

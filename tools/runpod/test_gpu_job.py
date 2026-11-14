@@ -41,6 +41,11 @@ def config(repository="https://github.com/x/tertius.git"):
                                                      endpoint_timeout_seconds=7200)})
 
 
+# The file in the state folder that the orchestrator's watchdog writes before it sets every endpoint to 0 workers, and
+# that the orchestrator removes when it restarts them (ticket t8-j5oc).
+WATCHDOG_MARKER = "stopped-by-watchdog"
+
+
 class FakeRunpod:
     """Runpod's API as the queue script sees it: the bill, the endpoints, and jobs that end with the given status."""
 
@@ -56,6 +61,8 @@ class FakeRunpod:
         self.running = {}  # endpoint id -> its running workers
         self.listings = 0
         self.stop_at_listing = None  # (n, endpoint id): the watchdog stops that endpoint before the n-th listing
+        self.marker = None  # the file that the watchdog writes before it stops the endpoints
+        self.leave_at_listing = None  # (n, endpoint id): a delete by hand holds it at 0 workers from the n-th listing
         self.submitted = []
         self.cancelled = []
         self.created = []
@@ -74,8 +81,15 @@ class FakeRunpod:
     def endpoints(self):
         self.listings += 1
         if self.stop_at_listing and self.stop_at_listing[0] == self.listings:
+            if self.marker:
+                self.marker.parent.mkdir(parents=True, exist_ok=True)
+                self.marker.write_text("stopped\n")
             for endpoint in self.live:
                 if endpoint["id"] == self.stop_at_listing[1]:
+                    endpoint["workers"] = {**endpoint["workers"], "max": 0}
+        if self.leave_at_listing and self.leave_at_listing[0] == self.listings:
+            for endpoint in self.live:
+                if endpoint["id"] == self.leave_at_listing[1]:
                     endpoint["workers"] = {**endpoint["workers"], "max": 0}
         return [dict(endpoint, workers=dict(endpoint["workers"])) for endpoint in self.live]
 
@@ -205,7 +219,17 @@ class Queue(unittest.TestCase):
 
     def api(self, **options):
         options.setdefault("endpoints", [self.endpoint(self.base)])
-        return FakeRunpod(**options)
+        api = FakeRunpod(**options)
+        api.marker = self.state / WATCHDOG_MARKER
+        return api
+
+    def watchdog_stops(self, api, *ids):
+        """The watchdog's stop: its marker first, then 0 workers on the endpoints."""
+        self.state.mkdir(parents=True, exist_ok=True)
+        (self.state / WATCHDOG_MARKER).write_text("stopped\n")
+        for endpoint in api.live:
+            if endpoint["id"] in ids:
+                endpoint["workers"] = {**endpoint["workers"], "max": 0}
 
     def scan(self, repo, shas):
         self.scanned.append(list(shas))
@@ -457,7 +481,7 @@ class DevShells(Queue):
     def test_a_stop_of_the_new_endpoint_seen_after_its_creation_refuses_the_job_and_removes_it(self):
         shell = self.commit({**SHELL_FILES, **HANDLER, "flake.lock": "{ newer }\n"})
         api = self.api()
-        api.stop_at_listing = (5, "ep-new-1")
+        api.stop_at_listing = (4, "ep-new-1")  # the first listing after the creation, the growth's
         self.assertEqual(self.submit(api, trees={"main": shell}, images=[self.base, shell]), "refused")
         self.assertEqual((api.created[0]["image"], api.live, api.submitted), (f"{REPOSITORY}:{shell}", [], []))
 
@@ -485,13 +509,46 @@ class DevShells(Queue):
         self.assertEqual(api.submitted, [])
         self.assertEqual([endpoint["id"] for endpoint in api.live], ["ep1"], "the stop stays, and no endpoint "
                          "of 6 workers is left beside it")
-        self.assertIn("0 workers", self.log_lines()[-1]["error"])
+        self.assertIn("watchdog", self.log_lines()[-1]["error"])
 
-    def test_an_endpoint_stopped_at_zero_workers_refuses_every_job_and_creates_no_endpoint(self):
-        api = self.api(endpoints=[self.endpoint(self.base, most=0)])
+    def test_a_watchdog_stop_refuses_every_job_and_creates_no_endpoint(self):
+        api = self.api()
+        self.watchdog_stops(api, "ep1")
         self.assertEqual(self.submit(api), "refused")
         self.assertEqual((api.submitted, api.created), ([], []))
-        self.assertIn("0 workers", self.log_lines()[-1]["error"])
+        self.assertIn("watchdog", self.log_lines()[-1]["error"])
+
+    def test_an_endpoint_that_a_delete_by_hand_holds_at_zero_workers_on_its_way_out_does_not_stop_the_jobs(self):
+        # 2026-11-13: a delete in Runpod's console set the CPU endpoint of an older image to 0 workers 5 s before it
+        # was gone, and the script took that for the watchdog's stop and refused a CPU job.
+        newer = self.commit({**SHELL_FILES, "tools/runpod/handler.py": "PROTOCOL = 3\n# a fix on main\n"})
+        self.on_main(newer)
+        leaving = self.endpoint(self.base, id="ep-cpu", most=0, kind="cpu")
+        api = self.api(endpoints=[self.endpoint(newer), leaving])
+        self.assertEqual(self.submit(api, trees={"main": newer}, images=[self.base, newer], kind="cpu"), "ok")
+        self.assertEqual(api.submitted[0][0], "ep-new-1")
+        self.assertEqual((api.deleted, [update[0] for update in api.updated]), ([], []),
+                         "the endpoint on its way out is the deleter's to remove")
+
+    def test_an_old_endpoint_that_a_delete_by_hand_takes_during_the_routing_is_left_to_that_delete(self):
+        shell = self.commit({**SHELL_FILES, **HANDLER, "flake.lock": "{ newer }\n"})
+        api = self.api()
+        api.leave_at_listing = (2, "ep1")
+        self.assertEqual(self.submit(api, trees={"main": shell}, images=[self.base, shell]), "ok")
+        self.assertEqual((api.deleted, api.submitted[0][0]), ([], "ep-new-1"))
+
+    def test_a_live_endpoint_that_a_delete_by_hand_takes_before_its_growth_is_not_grown_and_the_job_refused(self):
+        api = self.api(endpoints=[self.endpoint(self.base, most=4)])
+        api.leave_at_listing = (3, "ep1")
+        self.assertEqual(self.submit(api), "refused")
+        self.assertEqual((api.updated, api.submitted), ([], []))
+        self.assertIn("went away", self.log_lines()[-1]["error"])
+
+    def test_an_endpoint_on_its_way_out_is_never_grown_or_used_even_when_it_runs_the_best_image(self):
+        api = self.api(endpoints=[self.endpoint(self.base, most=0)])
+        self.assertEqual(self.submit(api), "ok")
+        self.assertEqual(api.submitted[0][0], "ep-new-1")
+        self.assertNotIn("ep1", [update[0] for update in api.updated])
 
 
 class Caps(Queue):
@@ -880,10 +937,11 @@ class Kinds(Queue):
         names = ["tertius-gpu", "tertius-cpu", f"tertius-cpu-{'a' * 12}", f"tertius-gpu-{'a' * 12}-0f0f", "tertius-gpux"]
         self.assertEqual([bool(gpu_job.OURS.match(name)) for name in names], [True, False, True, True, False])
 
-    def test_a_stopped_cpu_endpoint_refuses_gpu_jobs_too(self):
-        api = self.api(endpoints=[self.endpoint(self.base), self.endpoint(self.base, id="ep-cpu", most=0, kind="cpu")])
+    def test_a_watchdog_stop_seen_on_the_cpu_endpoint_refuses_gpu_jobs_too(self):
+        api = self.api(endpoints=[self.endpoint(self.base), self.endpoint(self.base, id="ep-cpu", most=4, kind="cpu")])
+        self.watchdog_stops(api, "ep-cpu")
         self.assertEqual(self.submit(api), "refused")
-        self.assertIn("0 workers", self.log_lines()[-1]["error"])
+        self.assertIn("watchdog", self.log_lines()[-1]["error"])
 
 
 class Configuration(unittest.TestCase):

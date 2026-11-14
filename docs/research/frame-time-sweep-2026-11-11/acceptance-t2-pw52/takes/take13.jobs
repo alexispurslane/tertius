@@ -1,0 +1,16 @@
+# Take 13: the reflection step cap of 96 (t2-pw52) against 128 on the deck, on main at b93ab3570, which holds the blue
+# noise draws of ter-s97m. par2 is that main with the cap from SWEEP_RSTEPS and the exposure fixed at the deck's value:
+# three rounds in turns, as a window. Then one pair of unedited Release builds with the pass time stamps: n128 is main,
+# and n96 is the ticket's scratch commit 19f915c7c.
+X="SWEEP_EXPOSURE=0.7041458"
+NS="--pass-timestamps off"
+TRACE_EXTRA_ENV="$X" trace deck-t13-ctl-a par2 $D $NS
+TRACE_EXTRA_ENV="$X SWEEP_RSTEPS=96" trace deck-t13-r96-a par2 $D $NS
+TRACE_EXTRA_ENV="$X" trace deck-t13-ctl-b par2 $D $NS
+TRACE_EXTRA_ENV="$X SWEEP_RSTEPS=96" trace deck-t13-r96-b par2 $D $NS
+TRACE_EXTRA_ENV="$X" trace deck-t13-ctl-c par2 $D $NS
+TRACE_EXTRA_ENV="$X SWEEP_RSTEPS=96" trace deck-t13-r96-c par2 $D $NS
+trace deck-t13-n128-ns n128 $D $NS
+trace deck-t13-n96-ns n96 $D $NS
+trace deck-t13-n128-st n128 $D
+trace deck-t13-n96-st n96 $D
