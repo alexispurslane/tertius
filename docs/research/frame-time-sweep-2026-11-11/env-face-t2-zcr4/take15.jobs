@@ -1,0 +1,16 @@
+# Take 15, on main at b93ab3570, at the deck's fixed exposure: timing proxies of the environment faces (t2-zcr4).
+# envpre draws a depth-only first pass of each range's solid runs when SWEEP_ENVPRE=1. envhelp ends a helper fragment
+# before the light loop. envnl3 shades no light in a face. First with the pass time stamps, for the engine's pass
+# timers, then the first pass as a window.
+X="SWEEP_EXPOSURE=0.7041458"
+NS="--pass-timestamps off"
+TRACE_EXTRA_ENV="$X SWEEP_ENVPRE=0" trace deck-t15-pre0-a envpre $D
+TRACE_EXTRA_ENV="$X SWEEP_ENVPRE=1" trace deck-t15-pre1-a envpre $D
+TRACE_EXTRA_ENV="$X" trace deck-t15-helper envhelp $D
+TRACE_EXTRA_ENV="$X" trace deck-t15-nolight envnl3 $D
+TRACE_EXTRA_ENV="$X SWEEP_ENVPRE=0" trace deck-t15-pre0-b envpre $D
+TRACE_EXTRA_ENV="$X SWEEP_ENVPRE=1" trace deck-t15-pre1-b envpre $D
+TRACE_EXTRA_ENV="$X SWEEP_ENVPRE=0" trace deck-t15-pre0-ns envpre $D $NS
+TRACE_EXTRA_ENV="$X SWEEP_ENVPRE=1" trace deck-t15-pre1-ns envpre $D $NS
+TRACE_EXTRA_ENV="$X SWEEP_ENVPRE=0" trace deck-t15-pre0-ns-b envpre $D $NS
+TRACE_EXTRA_ENV="$X SWEEP_ENVPRE=1" trace deck-t15-pre1-ns-b envpre $D $NS

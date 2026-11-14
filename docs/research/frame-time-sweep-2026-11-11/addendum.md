@@ -783,3 +783,85 @@ The answer, 2026-11-12: Alexis chose the cap of 96, and ticket `t2-pw52` built i
 Take 12 also timed a proxy build whose environment faces shade no light (`edits/envnolight.py`). The faces take 0.135 ms in place of 0.389 ms, by the medians of the engine's pass timers. The sum with the prefilter falls from 0.737 to 0.493 ms.
 
 A face has 128 × 128 texels, and each fragment shades every lamp. So the light loop costs about 0.25 ms per frame for 16,384 texels. A list of the lamps that reach a face is a possible exact cut. I did not size it: the proxy's map is dark, so its rays do other work, and its frame span does not compare.
+
+## A14. The environment face: where the light loop's time goes
+
+Section A13 found that the light loop of an environment face costs about 0.25 ms per frame on the deck (ticket `t2-zcr4`). This section looks for a cut that keeps the map's light, and records the cut that the ticket built. Takes 14 to 16 timed six proxy builds of main at `b93ab3570`, on 2026-11-12. Takes 17 to 19 timed the built pass, on 2026-11-12 to 2026-11-14.
+
+The result: three cheap cuts gain nothing. The ticket built a larger change, a face that lights each texel once in a pass of its own. It gains 0.11 ms of the mean frame on the deck. The proxy promised 0.25 ms, and the section "Why the gain is smaller" gives the reason.
+
+### What a face draws on the deck
+
+The deck has two environment maps. A frame draws one face of 128 × 128 texels. The 100th to 105th face of a run printed their counts.
+
+| Map | Lights in the frame's list | Lights that the face keeps | Draw commands in the near range |
+|---|---:|---:|---:|
+| Map 0, the root | 22 | 1 | 1 |
+| Map 1, the deck | 22 | 22, and all 22 cast shadows | 11 to 17 |
+
+A forward face shades each fragment of a surface with the loop over every kept light (`environment_face.frag`, `directRadiance`).
+
+### The times of the proxies
+
+All times are the engine's timer of the pass `environment faces`, in ms, over 119 frames. The pass draws a different face in each frame, so the mean and the median differ. The adding count of section A12 gives the same mean for main, 0.468 ms. Each row is a trace with a GPU clock of 1290.5 to 1291.2 MHz. Six more traces ran at a lower clock or lost their clock record, and the table leaves them out. `env-face-t2-zcr4/traces.md` lists every trace.
+
+| Build | What it changes | Mean | Median |
+|---|---|---:|---:|
+| Main, three traces | Nothing | 0.468 to 0.470 | 0.387 to 0.399 |
+| No light, two traces | A fragment writes its glow alone | 0.120 | 0.123 and 0.124 |
+| Depth first, two traces | Each range first draws its solid surfaces with depth alone | 0.468 | 0.389 and 0.390 |
+| Helper exit | A helper fragment returns before the loop | 0.462 | 0.389 |
+| Runs drawn twice | The depth test passes at an equal depth, and every range draws twice | 0.622 | 0.613 |
+| Once per texel | No light in the surfaces. The sky's fullscreen triangle runs one loop per texel | 0.177 | 0.187 |
+
+So the light loop costs the forward face 0.349 ms of the mean frame: 0.469 less 0.120.
+
+The once-per-texel build shades a made-up surface: 3 m from the eye, with its normal toward the eye and one fixed material. Its loop costs 0.057 ms: 0.177 less 0.120. That number is too low for a real face, as the built pass shows.
+
+### What the three cheap cuts show
+
+- A depth-only first pass gains nothing. So hidden surfaces are not the cost. The Apple GPU sorts out the hidden fragments of opaque surfaces before it shades. The proxy's stills equal main's byte for byte, in 20 captures of 6 scripts.
+- A helper fragment that returns early gains nothing. The GPU shades fragments in blocks of 2 × 2, so that a block can take a texture's slope. A helper fragment fills such a block beside a real fragment. The likely reason for the null result: the GPU runs fragments in lanes that keep step, as it runs rays (section A10). A lane that returns early waits for the others.
+- A list of the lamps that reach a face was the first idea of the ticket. It was not built. It stays a candidate, because the loop of a real face costs more than the proxy said.
+
+### The built pass
+
+A face lights each texel once. The surfaces write what the light loop reads into the face's surface record: one RGBA32F image of six layers that holds position, normals, color and the other material values as full floats. One fullscreen triangle then runs the loop once per texel and writes the face. ARCHITECTURE.md, "The environment map", describes it.
+
+The times of the built pass, from traces with a clean GPU clock:
+
+| Take | Build | Traces | Mean | Median |
+|---|---|---:|---:|---:|
+| 17 | Main at `657642432` | 2 | 0.457 and 0.461 | 0.371 and 0.382 |
+| 17 | The built pass on that main | 1 | 0.338 | 0.316 |
+| 18 | The built pass on main `7093f45f6` | 3 | 0.346 to 0.367 | 0.330 to 0.352 |
+| 19 | The built pass on main `7093f45f6` | 3 | 0.350 to 0.356 | 0.340 to 0.347 |
+
+The mean falls from 0.459 ms to 0.350 ms, a gain of 0.11 ms. The median falls by about 0.04 ms. The frame span shows no change outside its noise of about 0.2 ms. On the RTX 2000 Ada, the whole pass costs 0.085 ms before and 0.080 ms after.
+
+The image keeps its light. On the Mac, 71 of 79 stills of 13 scripts equal main's byte for byte. The other 8 differ by rounding: 0.005 % of their pixels change by more than 4 levels. On the RTX card, 791 of 791 files equal main's.
+
+### Why the gain is smaller
+
+The proxy shaded one made-up point for every texel. Every texel then read the same shadow texels, and the same lamps reached it. The texels of a real face lie all over the room.
+
+One broken build of take 18 gives a second estimate. It lost the surfaces of every depth range but the last (see the next section), so few of its texels ran the loop. Its pass has a median of 0.115 to 0.118 ms in three traces. The built pass has a median of 0.330 to 0.352 ms. So the loop over a real record costs about 0.2 ms, more than three times the proxy's 0.057 ms.
+
+So the forward face paid less than twice the price of one loop per texel, not 6 times: 0.349 ms against about 0.2 ms.
+
+### Two more ideas of takes 18 and 19
+
+A rendering has a fixed cost on this Mac. A face runs three surface renderings, one per depth range, and one light rendering. Two ideas tried to run fewer.
+
+| Idea | Edit script | Image | Mean of the pass | Decision |
+|---|---|---|---:|---|
+| One rendering for the three ranges. A range after the first clears the depth with `vkCmdClearAttachments` | `edits/faceone.py` | Wrong on the Mac: 19 of 24 stills differ | void | Not usable. See the ticket named below |
+| A face renders only the ranges that hold surfaces | `edits/faceskip.py` | Equal byte for byte, 32 of 32 stills | 0.326 to 0.333 against 0.350 to 0.356 | Not built: 0.02 ms does not pay for one more rule |
+
+The first idea found a fault: on the M1 Max under MoltenVK 1.4.2, a depth clear in the middle of a rendering loses the color that the draws before it wrote. The call is valid Vulkan. Ticket `tz-na6d` records it with stills.
+
+Two spikes did the same in the main view's G-buffer pass (`edits/geoone.py`, `edits/geoskip.py`). The one-rendering spike lost every opaque surface. The skip of empty ranges changed no still and no time: a frame span of 19.96 to 20.20 ms against 19.93 to 19.94 ms.
+
+### The files
+
+`env-face-t2-zcr4/` holds the job lists and lock logs of takes 14 to 19 and the job lists of the stills. It also holds the three stills of the broken builds and the table of every trace. `edits/` holds the edit scripts. `tools/passmed.py` prints the pass timers of several runs side by side, and `tools/passrow.py` prints one pass of several runs with each run's GPU clock.

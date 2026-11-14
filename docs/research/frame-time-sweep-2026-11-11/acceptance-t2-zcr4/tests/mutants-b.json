@@ -1,0 +1,86 @@
+[
+ {
+  "id": "S08",
+  "file": "src/Tertius.Rendering/Shaders/face_surface.glsl",
+  "line": 72,
+  "original": "s.geometricNormal = geometricNormalRoughness.xyz;",
+  "replacement": "s.geometricNormal = normalMetallic.xyz;",
+  "class": [
+   "EnvironmentFaceTests"
+  ],
+  "note": "the shading normal read as the geometric normal",
+  "project": "tests/Tertius.Rendering.Tests"
+ },
+ {
+  "id": "S09",
+  "file": "src/Tertius.Rendering/Shaders/environment_face_light.frag",
+  "line": 43,
+  "original": "vec4(skyRadiance(direction), 1.0)",
+  "replacement": "vec4(skyRadiance(direction), 0.0)",
+  "class": [
+   "EnvironmentFaceTests"
+  ],
+  "note": "the sky without its open-sky share",
+  "project": "tests/Tertius.Rendering.Tests"
+ },
+ {
+  "id": "S10",
+  "file": "src/Tertius.Rendering/Shaders/environment_face_light.frag",
+  "line": 59,
+  "original": "max(length(s.position), NearPlane)",
+  "replacement": "max(abs(s.position.x), NearPlane)",
+  "class": [
+   "EnvironmentFaceTests"
+  ],
+  "note": "the distance along one axis, not the radial distance",
+  "project": "tests/Tertius.Rendering.Tests"
+ },
+ {
+  "id": "S11",
+  "file": "src/Tertius.Rendering/Shaders/environment_face.frag",
+  "line": 30,
+  "original": "glowSent(s.emissive, inInstanceWords.z)",
+  "replacement": "s.emissive",
+  "class": [
+   "EnvironmentFaceTests"
+  ],
+  "note": "the glow of an entity that holds a light stays",
+  "project": "tests/Tertius.Rendering.Tests"
+ },
+ {
+  "id": "C01",
+  "file": "src/Tertius.Rendering/Frame/FaceSurface.cs",
+  "line": 120,
+  "original": "layer == 0 ? AttachmentLoadOp.Clear",
+  "replacement": "layer == 0 ? AttachmentLoadOp.Load",
+  "class": [
+   "EnvironmentFaceTests"
+  ],
+  "note": "a face keeps the record of the face before",
+  "project": "tests/Tertius.Rendering.Tests"
+ },
+ {
+  "id": "C02",
+  "file": "src/Tertius.Rendering/Frame/FaceSurface.cs",
+  "line": 119,
+  "original": "return AttachmentLoadOp.Load;",
+  "replacement": "return AttachmentLoadOp.Clear;",
+  "class": [
+   "EnvironmentFaceTests"
+  ],
+  "note": "each range clears the record of the ranges behind it",
+  "project": "tests/Tertius.Rendering.Tests"
+ },
+ {
+  "id": "C03",
+  "file": "src/Tertius.Rendering/Passes/EnvironmentFacePass.cs",
+  "line": 236,
+  "original": "Map = (uint)draw.Map,",
+  "replacement": "Map = 0,",
+  "class": [
+   "EnvironmentMapsPerFrameTests"
+  ],
+  "note": "every face keeps only the root map's lights",
+  "project": "tests/Tertius.Rendering.Tests"
+ }
+]

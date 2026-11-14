@@ -1,0 +1,16 @@
+# Take 18, the face that lights each texel once (t2-zcr4), after take 17 showed half of the promised gain. Three builds
+# of the ticket's tree on main 7093f45f6, at the deck's fixed exposure, with the pass time stamps:
+#   face3  the ticket's tree as it is
+#   face4  the three depth ranges of a face in one rendering (edits/faceone.py)
+#   geo1   the three depth ranges of the main view's opaque surfaces in one rendering (edits/geoone.py), a spike
+# The order mixes the builds, so that a drift of the machine does not favor one.
+X="SWEEP_EXPOSURE=0.7041458"
+TRACE_EXTRA_ENV="$X" trace deck-t18-face3-a face3 $D
+TRACE_EXTRA_ENV="$X" trace deck-t18-face4-a face4 $D
+TRACE_EXTRA_ENV="$X" trace deck-t18-geo1-a geo1 $D
+TRACE_EXTRA_ENV="$X" trace deck-t18-geo1-b geo1 $D
+TRACE_EXTRA_ENV="$X" trace deck-t18-face4-b face4 $D
+TRACE_EXTRA_ENV="$X" trace deck-t18-face3-b face3 $D
+TRACE_EXTRA_ENV="$X" trace deck-t18-face3-c face3 $D
+TRACE_EXTRA_ENV="$X" trace deck-t18-geo1-c geo1 $D
+TRACE_EXTRA_ENV="$X" trace deck-t18-face4-c face4 $D

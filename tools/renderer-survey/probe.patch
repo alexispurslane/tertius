@@ -7,8 +7,8 @@ index 9a9d673..8c5e5c4 100644
              if (PassTimestampsOff)
                  options.PassTimestamps = false;
 +            // PROBE (tools/renderer-survey): a fixed exposure in stops from TERTIUS_PROBE_EXPOSURE.
-+            if (Environment.GetEnvironmentVariable("TERTIUS_PROBE_EXPOSURE") is { Length: > 0 } stops)
-+                options.Exposure = new FixedExposure(float.Parse(stops, System.Globalization.CultureInfo.InvariantCulture));
++            if (Environment.GetEnvironmentVariable("TERTIUS_PROBE_EXPOSURE") is { Length: > 0 } probeStops)
++                options.Exposure = new FixedExposure(float.Parse(probeStops, System.Globalization.CultureInfo.InvariantCulture));
              if (FramesInFlight is { } count)
              {
                  options.FramesInFlight = count;

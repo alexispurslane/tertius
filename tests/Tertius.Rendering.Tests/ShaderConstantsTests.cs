@@ -29,11 +29,16 @@ public sealed class ShaderConstantsTests
             [ShaderConstants.EnvironmentMapId] = False,
             [ShaderConstants.RayKindId] = new(Type: "uint", Default: 0),
         },
+        // A face's surfaces only sample their material: the light pass of the face holds the lights' constants.
         ["environment_face.frag"] = new()
         {
             [ShaderConstants.CutoutAlphaId] = False,
             [ShaderConstants.DropsFibersId] = False,
             [ShaderConstants.MainViewId] = False,
+        },
+        ["environment_face_light.frag"] = new()
+        {
+            [ShaderConstants.DropsFibersId] = False,
             [ShaderConstants.TileCornerMeansId] = False,
         },
         ["skin_scatter_rows.comp"] = new() { [ShaderConstants.ScatterTapsPerSideId] = new(Type: "int", Default: 1) },

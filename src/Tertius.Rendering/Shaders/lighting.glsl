@@ -911,8 +911,9 @@ vec3 scatteredLight(vec3 albedo, vec3 position, uint map)
 #include "reflection_footprint.glsl"
 
 // The ShadingInput of a surface that a forward pass shades from its material's sample `s` at `position`: the glass and
-// the fringe of the transparent pass, the environment faces and the impostor captures (docs/plans/skin-and-hair.md, "The
-// fringe"). The reflection's footprint comes from the screen derivatives, so the caller calls this before any discard.
+// the fringe of the transparent pass and the impostor captures (docs/plans/skin-and-hair.md, "The fringe"). An
+// environment face fills its own from its surface record (face_surface.glsl). The reflection's footprint comes from the
+// screen derivatives, so the caller calls this before any discard.
 // The sky shares serve the hemisphere alone, and are 0 while the environment map is on. A forward surface is not in the
 // G-buffer that the screen tracer reads, so it takes the ambient light with every direction open.
 ShadingInput forwardShading(SurfaceSample s, vec3 position, vec4 hemisphere, uint map, vec3 V)

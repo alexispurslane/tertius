@@ -1,0 +1,162 @@
+#version 460
+// The tile pass of key and fill (docs/plans/light-pairs.md, "Key and fill"): one invocation per tile merges the
+// candidates of each of its four corners into the corner's keys, and gathers the four corners into the tile's record,
+// which is all that the direct pass reads of a pixel's tile.
+//
+// A corner's keys are its at most `keyLights` lights of the greatest loss, each with its key share. The corner pass
+// leaves the candidates of each group of lights (key_fill_corners.frag), and the lights of the greatest loss of the
+// whole list are among them: a group holds one more candidate than the most key lights. Lights of one loss keep the
+// order of the light list, so the merge gives the keys that one loop over every light gives.
+//
+// The record's list holds each key light of the four corners once, with its key share at each corner (key_fill.glsl,
+// "One tile's record"). The list is in the order of the shapes, so that the direct pass keeps a loop per shape
+// (lighting.glsl, modelLight), and inside a shape in the order of the light list, so that the direct pass reads it in
+// step with its loop over the lights (key_fill_light.glsl, keyShapeLight).
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_samplerless_texture_functions : require
+#include "key_fill.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+// The corner pass's images, RGBA32UI (key_fill_corners.frag).
+layout(set = 0, binding = 0) uniform utexture2D candidateLosses;
+layout(set = 0, binding = 1) uniform utexture2D candidateKeys;
+layout(set = 0, binding = 2) uniform utexture2D candidateRest;
+layout(set = 0, binding = 3) uniform utexture2D cornerSurface;
+layout(set = 0, binding = 4, std430) writeonly buffer LightTileBlock { uint tileWords[]; };
+
+// KeyFillTilesPushConstants.
+layout(push_constant, std430) uniform KeyFillTilesPush
+{
+    uvec2 tiles;     // the tiles of the frame's render size along each axis
+    uint keyLights;  // KeyAndFill.KeyLights: the most key lights of a corner, at most KeySlots
+} pass;
+
+// sift (key_fill_corners.frag) for candidates that do not come in the order of the light list: of two lights of one loss, the
+// one that comes first in the light list is the greater.
+void siftInListOrder(inout float slotLoss, inout uint slotKey, inout float loss, inout uint key)
+{
+    bool greater = loss > slotLoss || (loss == slotLoss && (key & 0xFFFFu) < (slotKey & 0xFFFFu));
+    float lesserLoss = greater ? slotLoss : loss;
+    uint lesserKey = greater ? slotKey : key;
+    slotLoss = greater ? loss : slotLoss;
+    slotKey = greater ? key : slotKey;
+    loss = lesserLoss;
+    key = lesserKey;
+}
+
+// The key of a slot with its share in the key's 8 bits, as the direct pass reads it. NoKey for a slot past the key
+// lights, or one whose loss earns no share.
+uint sharedKey(uint key, float loss, float threshold, bool isKey)
+{
+    uint share = uint(keyShare(loss, threshold) * 255.0 + 0.5);
+    return isKey && share > 0u ? key | (share << 16) : NoKey;
+}
+
+// The keys of the corner at `corner` of a grid of `corners` corners.
+//
+// The corner's threshold is the greater of two values: the loss of the light that follows the key lights in the order
+// of loss, and NegligibleLoss of the corner's whole direct light. So a corner has at most its key lights, and a light
+// whose loss cannot show has no key share and takes no full response.
+uvec4 cornerKeys(ivec2 corner, ivec2 corners)
+{
+    // The five greatest losses of the corner, greatest first, each with its light's key without a share.
+    float loss0 = 0.0, loss1 = 0.0, loss2 = 0.0, loss3 = 0.0, loss4 = 0.0;
+    uint key0 = NoKey, key1 = NoKey, key2 = NoKey, key3 = NoKey, key4 = NoKey;
+    float whole = 0.0;
+    for (int group = 0; group < int(Groups); group++)
+    {
+        ivec2 at = ivec2(group % GroupSide, group / GroupSide) * corners + corner;
+        vec4 losses = uintBitsToFloat(texelFetch(candidateLosses, at, 0));
+        uvec4 keys = texelFetch(candidateKeys, at, 0);
+        uvec4 rest = texelFetch(candidateRest, at, 0);
+        whole += uintBitsToFloat(rest.z);
+        for (int c = 0; c < int(CandidateSlots); c++)
+        {
+            float loss = c < 4 ? losses[c] : uintBitsToFloat(rest.x);
+            uint key = c < 4 ? keys[c] : rest.y;
+            // A group's candidates come greatest first, so no light follows an empty slot.
+            if (key == NoKey)
+                break;
+            siftInListOrder(loss0, key0, loss, key);
+            siftInListOrder(loss1, key1, loss, key);
+            siftInListOrder(loss2, key2, loss, key);
+            siftInListOrder(loss3, key3, loss, key);
+            siftInListOrder(loss4, key4, loss, key);
+        }
+    }
+    uint keyLights = min(pass.keyLights, KeySlots);
+    // The loss of the light that follows the key lights.
+    float next = keyLights == 0u ? loss0 : keyLights == 1u ? loss1 : keyLights == 2u ? loss2 : keyLights == 3u ? loss3 : loss4;
+    float threshold = max(next, NegligibleLoss * whole);
+    // The shares fall with the losses, so the slots with a share come first and the keys need no closing up.
+    return uvec4(
+        sharedKey(key0, loss0, threshold, keyLights > 0u),
+        sharedKey(key1, loss1, threshold, keyLights > 1u),
+        sharedKey(key2, loss2, threshold, keyLights > 2u),
+        sharedKey(key3, loss3, threshold, keyLights > 3u)
+    );
+}
+
+void main()
+{
+    uvec2 tile = gl_GlobalInvocationID.xy;
+    if (any(greaterThanEqual(tile, pass.tiles)))
+        return;
+    uint record = (tile.y * pass.tiles.x + tile.x) * TileWords;
+    ivec2 corners = ivec2(pass.tiles) + 1;
+    uint indices[16];
+    uint shares[16];
+    uint shapes[16];
+    uint count = 0u;
+    for (uint c = 0u; c < 4u; c++)
+    {
+        ivec2 corner = ivec2(tile) + ivec2(c & 1u, c >> 1);
+        // Every group's fragment of a corner writes the same surface: the first group's serves.
+        uvec2 surface = texelFetch(cornerSurface, corner, 0).xy;
+        tileWords[record + c] = surface.x;
+        tileWords[record + 4u + c] = surface.y;
+        uvec4 keys = cornerKeys(corner, corners);
+        for (uint k = 0u; k < KeySlots; k++)
+        {
+            uint key = keys[k];
+            if (key == NoKey)
+                continue;
+            uint index = key & 0xFFFFu;
+            uint e = 0u;
+            while (e < count && indices[e] != index)
+                e++;
+            if (e == count)
+            {
+                indices[e] = index;
+                shares[e] = 0u;
+                shapes[e] = key >> 24;
+                count++;
+            }
+            shares[e] |= ((key >> 16) & 0xFFu) << (8u * c);
+        }
+    }
+    tileWords[record + TileEntriesAt - 2u] = ListEnd;
+    tileWords[record + TileEntriesAt - 1u] = 0u;
+    // Written in the order of the shapes, and inside a shape in the order of the light list: each turn writes the entry
+    // of the shape with the least place that is above the last written one.
+    uint at = record + TileEntriesAt;
+    for (uint shape = 0u; shape < 3u; shape++)
+    {
+        int last = -1;
+        for (uint turn = 0u; turn < count; turn++)
+        {
+            uint best = count;
+            for (uint e = 0u; e < count; e++)
+                if (shapes[e] == (1u << shape) && int(indices[e]) > last && (best == count || indices[e] < indices[best]))
+                    best = e;
+            if (best == count)
+                break;
+            tileWords[at] = indices[best];
+            tileWords[at + 1u] = shares[best];
+            at += 2u;
+            last = int(indices[best]);
+        }
+    }
+    tileWords[at] = ListEnd;
+}

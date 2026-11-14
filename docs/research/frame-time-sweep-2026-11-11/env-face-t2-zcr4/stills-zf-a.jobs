@@ -1,0 +1,22 @@
+# The image test of the face that lights each texel once (t2-zcr4). m14 is main at 657642432, and face1 is the
+# ticket's tree. Both take the exposure from SWEEP_EXPOSURE, so that every scene runs at one fixed exposure in both
+# builds (t2-supl). The values are those of the search of the reflection step cap (out3/pf-<name>-ctl).
+old() { python3 -I -c "
+import json,statistics
+print(statistics.median(x['stops'] for x in json.load(open('$R/out3/pf-$1-ctl/exposure.json'))))"; }
+pair() { # pair <script path> <name> <stops>
+  SWEEP_EXPOSURE=$3 run m14 $1 zf-$2-main
+  SWEEP_EXPOSURE=$3 run face1 $1 zf-$2-face
+}
+pair capscripts/rigs.json rigs -9.3555
+pair capscripts/doorway.json doorway -9.695
+pair capscripts/mirror-balls.json mirror-balls -6.4
+pair capscripts/demo-surface.json demo-surface -8.95
+pair capscripts/cabin-light.json cabin-light -8.36
+pair capscripts/reflections-stills.json reflections-stills -6.77
+pair capscripts/demo-shuttle.json demo-shuttle -9.346
+pair capscripts/station.json station -8.85
+pair views2.json low -7.2
+pair hairscripts/hair-rugs.json hair-rugs -12.79
+pair hairscripts/hair-bent-cards.json hair-bent-cards -8.98
+for s in skin-and-hair lamp-hall-16-hair; do pair hairscripts/$s.json $s $(old $s); done

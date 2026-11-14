@@ -1,6 +1,6 @@
 ---
 id: t2-mlvy
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-11T18:51:20Z
@@ -57,3 +57,17 @@ The pair research (docs/research/light-pairs/pair/) found one gain apart from ke
 One event: the disk was full from about 21:30 to 21:40 EST on 2026-11-11, and a server restart at about 22:10 cancelled two waiting takes. Every broken trace and the film ran again.
 
 Not done: no coverage, no mutation testing and no ARCHITECTURE.md text for key and fill, because the prototype does not merge. Follow-ups: t2-gfq5 (the nine-read shadow filter), t2-vsqh (the corner pass in shorter fragments, which waits for the user's decision).
+
+**2026-11-14T16:21:37Z**
+
+Closing note (2026-11-14). The three stages of this ticket are done.
+
+1. The research: docs/plans/light-pairs.md holds the study of the first attempt, the two designs and the prototypes, and docs/research/light-pairs/ holds the records.
+2. The local shadow filter by driver (t2-gfq5), merged as 6e587063d.
+3. Key and fill with the corner pass (t2-vsqh), merged as 72fa83533. It is the renderer's default, with 4 key lights. On the Apple M1 Max, the corner, tile and direct passes take 3.47 ms against 3.82 ms on the deck, and 3.48 ms against 3.83 ms in the hall of 64 lamps. On the RTX 2000 Ada, the hall's frame gains 0.33 ms and the deck is neutral. The key and fill tests pass on both machines: 50 of 50 on the card on main at 416e05ebd.
+
+What stays open:
+
+- The known bias (ARCHITECTURE.md, 'Key and fill', 'The known bias'): the fill is diffuse light only, so the specular light of the fill lamps is missing. The hall is 2.47 % darker, the deck 0.31 % and the cabin 0.08 %. Ticket t2-kibe holds a cheap specular fill, which is not built.
+- The register step of Apple's GPU: the key and fill direct shader sits at register 115 with no room, and a merge of main moved it to 116 once and took the whole gain on the Mac. Ticket t2-x53j holds the guard and the room.
+- Ticket t2-lcmo holds the 0.19 ms that the surface test costs on the deck on the Mac.

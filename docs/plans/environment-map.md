@@ -138,6 +138,8 @@ A face draws the far, middle and near ranges in that order into one RGBA16F colo
 
 ### How a face is lit
 
+Changed by `t2-zcr4` (2026-11-12): a face lights each texel once. The surfaces write a surface record, `FaceSurface`. One fullscreen triangle, `environment_face_light.frag`, then lights every texel from the record and writes the sky elsewhere. The light and its inputs stay as this section gives them. ARCHITECTURE.md, "The environment map", describes the pass as built.
+
 `environment_face.frag` is `impostor_capture.frag` without the ambient light:
 
 ```glsl

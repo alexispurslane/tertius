@@ -1,0 +1,120 @@
+{
+ "stopped": null,
+ "rows": [
+  {
+   "id": "S08",
+   "file": "src/Tertius.Rendering/Shaders/face_surface.glsl",
+   "line": 72,
+   "change": "the shading normal read as the geometric normal",
+   "result": "survived",
+   "killed_by": [],
+   "seconds": 97.91482037538663,
+   "original": "s.geometricNormal = geometricNormalRoughness.xyz;",
+   "replacement": "s.geometricNormal = normalMetallic.xyz;",
+   "classes": [
+    "EnvironmentFaceTests"
+   ]
+  },
+  {
+   "id": "S09",
+   "file": "src/Tertius.Rendering/Shaders/environment_face_light.frag",
+   "line": 43,
+   "change": "the sky without its open-sky share",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentFaceTests.TheSkyMarksOpenSkyAndASurfaceMarksNone",
+    "EnvironmentFaceTests.AFaceShowsTheSkyWhereTheFaceDrawnBeforeItSawASurface"
+   ],
+   "seconds": 96.67917757062241,
+   "original": "vec4(skyRadiance(direction), 1.0)",
+   "replacement": "vec4(skyRadiance(direction), 0.0)",
+   "classes": [
+    "EnvironmentFaceTests"
+   ]
+  },
+  {
+   "id": "S10",
+   "file": "src/Tertius.Rendering/Shaders/environment_face_light.frag",
+   "line": 59,
+   "change": "the distance along one axis, not the radial distance",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentFaceTests.AFaceStoresTheInverseDistanceOfTheSurfaceInEachTexel",
+    "EnvironmentFaceTests.ASurfaceTenCentimetersFromTheEyeStoresItsTrueInverseDistance"
+   ],
+   "seconds": 53.16222302010283,
+   "original": "max(length(s.position), NearPlane)",
+   "replacement": "max(abs(s.position.x), NearPlane)",
+   "classes": [
+    "EnvironmentFaceTests"
+   ]
+  },
+  {
+   "id": "S11",
+   "file": "src/Tertius.Rendering/Shaders/environment_face.frag",
+   "line": 30,
+   "change": "the glow of an entity that holds a light stays",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentFaceTests.AGlowOfAnEntityThatHoldsALightAddsNothingToTheMap"
+   ],
+   "seconds": 45.723696873057634,
+   "original": "glowSent(s.emissive, inInstanceWords.z)",
+   "replacement": "s.emissive",
+   "classes": [
+    "EnvironmentFaceTests"
+   ]
+  },
+  {
+   "id": "C01",
+   "file": "src/Tertius.Rendering/Frame/FaceSurface.cs",
+   "line": 120,
+   "change": "a face keeps the record of the face before",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentFaceTests.AFaceStoresTheInverseDistanceOfTheSurfaceInEachTexel",
+    "EnvironmentFaceTests.TheSkyMarksOpenSkyAndASurfaceMarksNone",
+    "EnvironmentFaceTests.AFaceShowsTheSkyWhereTheFaceDrawnBeforeItSawASurface"
+   ],
+   "seconds": 42.40498839318752,
+   "original": "layer == 0 ? AttachmentLoadOp.Clear",
+   "replacement": "layer == 0 ? AttachmentLoadOp.Load",
+   "classes": [
+    "EnvironmentFaceTests"
+   ]
+  },
+  {
+   "id": "C02",
+   "file": "src/Tertius.Rendering/Frame/FaceSurface.cs",
+   "line": 119,
+   "change": "each range clears the record of the ranges behind it",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentFaceTests.AFaceDrawsTheFarMiddleAndNearRanges",
+    "EnvironmentFaceTests.AFaceStoresTheInverseDistanceOfTheSurfaceInEachTexel"
+   ],
+   "seconds": 44.89833986479789,
+   "original": "return AttachmentLoadOp.Load;",
+   "replacement": "return AttachmentLoadOp.Clear;",
+   "classes": [
+    "EnvironmentFaceTests"
+   ]
+  },
+  {
+   "id": "C03",
+   "file": "src/Tertius.Rendering/Passes/EnvironmentFacePass.cs",
+   "line": 236,
+   "change": "every face keeps only the root map's lights",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentMapsPerFrameTests.TheMapOfAnAncestorLeavesOutTheLampsOfTheSubtree"
+   ],
+   "seconds": 50.41065352084115,
+   "original": "Map = (uint)draw.Map,",
+   "replacement": "Map = 0,",
+   "classes": [
+    "EnvironmentMapsPerFrameTests"
+   ]
+  }
+ ]
+}

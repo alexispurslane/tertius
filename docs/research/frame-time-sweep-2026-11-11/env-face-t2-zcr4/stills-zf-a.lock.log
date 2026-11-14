@@ -1,0 +1,31 @@
+uptime-start:  20:41:12  up 48 days  8:15,  2 users,  load average: 39.83, 43.38, 34.48
+waited: 447s
+mode: shared, with up to 3 shared runs at once
+zf-rigs-main: 8 files, exit 0
+zf-rigs-face: 8 files, exit 0
+zf-doorway-main: 10 files, exit 0
+zf-doorway-face: 10 files, exit 0
+zf-mirror-balls-main: 6 files, exit 0
+zf-mirror-balls-face: 6 files, exit 0
+zf-demo-surface-main: 15 files, exit 0
+zf-demo-surface-face: 15 files, exit 0
+zf-cabin-light-main: 6 files, exit 0
+zf-cabin-light-face: 6 files, exit 0
+zf-reflections-stills-main: 6 files, exit 0
+zf-reflections-stills-face: 6 files, exit 0
+zf-demo-shuttle-main: 7 files, exit 0
+zf-demo-shuttle-face: 7 files, exit 0
+zf-station-main: 17 files, exit 0
+zf-station-face: 17 files, exit 0
+zf-low-main: 36 files, exit 0
+zf-low-face: 36 files, exit 0
+zf-hair-rugs-main: 5 files, exit 0
+zf-hair-rugs-face: 5 files, exit 0
+zf-hair-bent-cards-main: 5 files, exit 0
+zf-hair-bent-cards-face: 5 files, exit 0
+zf-skin-and-hair-main: 9 files, exit 0
+zf-skin-and-hair-face: 9 files, exit 0
+zf-lamp-hall-16-hair-main: 4 files, exit 0
+zf-lamp-hall-16-hair-face: 4 files, exit 0
+stills ended: stills-zf-a.jobs
+uptime-end:  20:43:12  up 48 days  8:17,  2 users,  load average: 32.40, 38.16, 33.49

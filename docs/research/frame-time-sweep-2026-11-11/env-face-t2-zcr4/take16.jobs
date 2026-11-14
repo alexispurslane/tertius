@@ -1,0 +1,12 @@
+# Take 16, on main at b93ab3570, at the deck's fixed exposure, with the pass time stamps: the environment faces
+# (t2-zcr4) again, because a load of 40 to 59 disturbed take 15. par2 is main. envsyn shades no light in a face's
+# surfaces and runs one made-up light loop per texel in the sky's fullscreen triangle. envnl3 shades no light at all.
+# envpre draws a depth-only first pass when SWEEP_ENVPRE=1.
+X="SWEEP_EXPOSURE=0.7041458"
+TRACE_EXTRA_ENV="$X" trace deck-t16-ctl-a par2 $D
+TRACE_EXTRA_ENV="$X" trace deck-t16-syn-a envsyn $D
+TRACE_EXTRA_ENV="$X" trace deck-t16-nolight envnl3 $D
+TRACE_EXTRA_ENV="$X SWEEP_ENVPRE=0" trace deck-t16-pre0 envpre $D
+TRACE_EXTRA_ENV="$X SWEEP_ENVPRE=1" trace deck-t16-pre1 envpre $D
+TRACE_EXTRA_ENV="$X" trace deck-t16-ctl-b par2 $D
+TRACE_EXTRA_ENV="$X" trace deck-t16-syn-b envsyn $D

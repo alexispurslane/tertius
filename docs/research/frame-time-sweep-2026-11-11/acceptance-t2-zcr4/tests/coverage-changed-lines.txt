@@ -1,0 +1,6 @@
+changed lines covered: 187/189 = 98.9%; changed branches covered: 22/24 = 91.7%
+src/Tertius.Rendering/Frame/FaceSurface.cs: lines 57/58 (98%), branches 16/18; uncovered 34; partial branches 33,112
+src/Tertius.Rendering/Passes/EnvironmentFacePass.cs: lines 107/108 (99%), branches 4/4; uncovered 79; partial branches 
+src/Tertius.Rendering/Frame/DescriptorLayouts.cs: lines 15/15 (100%), branches 0/0; uncovered ; partial branches 
+src/Tertius.Rendering/Frame/EnvironmentMap.cs: lines 7/7 (100%), branches 2/2; uncovered ; partial branches 
+src/Tertius.Rendering/Passes/GeometryPass.cs: lines 1/1 (100%), branches 0/0; uncovered ; partial branches 

@@ -1475,8 +1475,21 @@ public sealed class AccumulatorRenderTests
             SignalLight light = reflected ? SignalLight.Specular : SignalLight.Diffuse;
             static Vector4 samples(int _1, int _2) => new(new Vector3(2000, 1000, 500), 7);
 
-            FrameWithPrototype(true, light, samples).Should().Be(FrameWithPrototype(false, light, samples));
+            (Vector3 Light, float Length) limited = FrameWithPrototype(true, light, samples);
+            (Vector3 Light, float Length) control = FrameWithPrototype(false, light, samples);
+
+            // The diffuse prototype's spatial pass stores the weighted mean of equal neighbors, which 32-bit float can
+            // leave one step below them, into the half-float history. Vulkan lets the driver round that conversion
+            // toward zero, as NVIDIA's does, so a channel may lie one half-float step low (ticket t8-v31a). A limit of
+            // the region would scale it by far more.
+            limited.Length.Should().Be(control.Length);
+            limited.Light.X.Should().BeApproximately(control.Light.X, HalfStep(control.Light.X));
+            limited.Light.Y.Should().BeApproximately(control.Light.Y, HalfStep(control.Light.Y));
+            limited.Light.Z.Should().BeApproximately(control.Light.Z, HalfStep(control.Light.Z));
         }
+
+        /// <summary>The spacing of the half floats at <paramref name="value"/>, a normal half float above 0.</summary>
+        private static float HalfStep(float value) => MathF.Pow(2, MathF.Floor(MathF.Log2(value)) - 10);
 
         [Theory]
         [InlineData(false)]

@@ -1,0 +1,19 @@
+{
+ "stopped": null,
+ "rows": [
+  {
+   "id": "C04",
+   "file": "src/Tertius.Rendering/Frame/DescriptorLayouts.cs",
+   "line": 1028,
+   "change": "the shared pool holds one set too few, the sum that git kept in the merge of key and fill",
+   "result": "survived",
+   "killed_by": [],
+   "seconds": 26.28984266705811,
+   "original": "+ 12",
+   "replacement": "+ 11",
+   "classes": [
+    "EnvironmentFaceTests"
+   ]
+  }
+ ]
+}

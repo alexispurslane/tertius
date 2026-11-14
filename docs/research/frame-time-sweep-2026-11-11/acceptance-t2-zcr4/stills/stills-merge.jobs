@@ -1,0 +1,14 @@
+# The image test of the face branch after its merge of main with key and fill (t2-zcr4): main7 is main at 0639b702b,
+# and face7 is the branch's merge of that main. Both have the exposure switch of edits/base.py. The stills of face7 must
+# equal those of main7, or differ by rounding as before the merge.
+one() { # one <script path> <name> <stops>
+  SWEEP_EXPOSURE=$3 run main7 $1 zm-$2-main7
+  SWEEP_EXPOSURE=$3 run face7 $1 zm-$2-face7
+}
+one capscripts/station.json station -8.85
+one capscripts/demo-surface.json demo-surface -8.95
+one capscripts/mirror-balls.json mirror-balls -6.4
+one capscripts/doorway.json doorway -9.695
+one capscripts/cabin-light.json cabin-light -8.36
+one capscripts/rigs.json rigs -9.3555
+one capscripts/demo-shuttle.json demo-shuttle -9.346

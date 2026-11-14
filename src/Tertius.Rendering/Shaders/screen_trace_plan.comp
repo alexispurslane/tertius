@@ -44,11 +44,25 @@ bool leaves(float light, float least, float most, float cutoff)
     return light > most + max(most * LightChangeShare, cutoff) || light < least - max(least * LightChangeShare, cutoff);
 }
 
+// Whether the change of the light at the last frame's texel `center` covers an area of the last frame's records
+// (insideChangedArea). The caller's pending change reaches its last draw, so the center's last record is changing.
+bool insideChangedLastArea(ivec2 center)
+{
+    ivec2 last = ivec2(frame.previousViewport.xy) - 1;
+    bool changing[5][5];
+    for (int y = 0; y < 5; y++)
+        for (int x = 0; x < 5; x++)
+            changing[y][x] =
+                changingLight(imageLoad(lastLightAge, clamp(center + ivec2(x - 2, y - 2), ivec2(0), last)).g);
+    return insideChangedArea(changing);
+}
+
 // This frame's light-age record of the pixel: its exact light, and its age. The last record's age, pending draws and
 // 3 × 3 range reproject through the surface test from the tap of the largest weight, the pixel's own place in a still
 // frame, so that no age spreads to a neighbor. Its last light is the taps' weighted mean. A pixel without a history, as in a reset frame or where a surface is uncovered, is shown for the first time:
 // NoLightAge. A light moves when it leaves the range of the last exact light over the 3 × 3 pixels around that tap. A move
-// counts as a change only when it lasts LightChangeDraws draws in a row (ticket tiunr-okzm, ARCHITECTURE.md).
+// counts as a change only when it lasts LightChangeDraws draws in a row (ticket tiunr-okzm, ARCHITECTURE.md) and covers an
+// area of the last records (insideChangedLastArea).
 // Until then the record keeps its last light at the pixel's surface point, the taps' weighted mean, and counts the draws,
 // and a light back inside the range drops the count. The record takes a light inside the range only near the last lights
 // of its footprint, the nearest tap and the taps of weight LeastFootprintWeight or more: a light that only a neighbor's
@@ -118,11 +132,13 @@ vec2 lightAgeOf(ivec2 pixel)
     if (!leaves(light, least, most, cutoff))
         return vec2(leaves(light, footprintLeast, footprintMost, cutoff) ? lastLight : light, older);
     float pendingDraws = pendingDrawsOfRecord(lastRecord.g) + 1.0;
-    // The change takes age 0, not the pending draws: those draws blended the new light into the receivers' histories,
-    // and a cut to their count would keep the old light that the histories still hold.
-    if (pendingDraws >= LightChangeDraws)
-        return vec2(light, 0.0);
-    return vec2(lastLight, recordAgeOf(older, pendingDraws));
+    if (pendingDraws < LightChangeDraws)
+        return vec2(lastLight, recordAgeOf(older, pendingDraws));
+    // A move that lasts counts as a change only over an area (insideChangedArea): one on a line one or two pixels wide, as
+    // the jitter makes at a still feature thinner than a pixel, becomes the record's light, and the age goes on. The
+    // change takes age 0, not the pending draws: those draws blended the new light into the receivers' histories, and a
+    // cut to their count would keep the old light that the histories still hold.
+    return vec2(light, insideChangedLastArea(center) ? 0.0 : older);
 }
 
 #endif

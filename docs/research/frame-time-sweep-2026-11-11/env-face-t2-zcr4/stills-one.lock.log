@@ -1,0 +1,20 @@
+uptime-start:  21:59:02  up 48 days  9:33,  2 users,  load average: 16.77, 18.40, 19.08
+waited: 1915s
+mode: shared, with up to 3 shared runs at once
+zo-station-face3: 17 files, exit 0
+zo-station-face4: 17 files, exit 0
+zo-station-geo1: 17 files, exit 0
+zo-demo-surface-face3: 15 files, exit 0
+zo-demo-surface-face4: 15 files, exit 0
+zo-demo-surface-geo1: 15 files, exit 0
+zo-mirror-balls-face3: 6 files, exit 0
+zo-mirror-balls-face4: 6 files, exit 0
+zo-mirror-balls-geo1: 6 files, exit 0
+zo-doorway-face3: 10 files, exit 0
+zo-doorway-face4: 10 files, exit 0
+zo-doorway-geo1: 10 files, exit 0
+zo-cabin-light-face3: 6 files, exit 0
+zo-cabin-light-face4: 6 files, exit 0
+zo-cabin-light-geo1: 6 files, exit 0
+stills ended: stills-one.jobs
+uptime-end:  22:00:19  up 48 days  9:34,  2 users,  load average: 39.92, 24.86, 21.46

@@ -1,0 +1,17 @@
+# The image test of the skip-empty-range builds (t2-zcr4, after take 18). face3 is the ticket's tree, face5 renders only
+# the depth ranges of a face that hold surfaces, and geo2 does the same in the main view's G-buffer pass. Every build
+# takes the exposure from SWEEP_EXPOSURE. Two runs of one build on this Mac give the same bytes, so a still that differs
+# shows a changed image. The face3 stills are those of stills-one.jobs (zo-<name>-face3).
+pair() { # pair <script path> <name> <stops>
+  SWEEP_EXPOSURE=$3 run face5 $1 zo-$2-face5
+  SWEEP_EXPOSURE=$3 run geo2 $1 zo-$2-geo2
+}
+pair capscripts/station.json station -8.85
+pair capscripts/demo-surface.json demo-surface -8.95
+pair capscripts/mirror-balls.json mirror-balls -6.4
+pair capscripts/doorway.json doorway -9.695
+pair capscripts/cabin-light.json cabin-light -8.36
+pair capscripts/rigs.json rigs -9.3555
+pair capscripts/demo-shuttle.json demo-shuttle -9.346
+SWEEP_EXPOSURE=-9.3555 run face3 capscripts/rigs.json zo-rigs-face3
+SWEEP_EXPOSURE=-9.346 run face3 capscripts/demo-shuttle.json zo-demo-shuttle-face3

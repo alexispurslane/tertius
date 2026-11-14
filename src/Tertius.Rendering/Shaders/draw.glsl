@@ -7,7 +7,6 @@ layout(push_constant, std430) uniform DrawPush
 {
     mat4 viewProj;   // clip space from world space
     vec4 eye;        // xyz eye position in world space (zero for the main view)
-    uint map;        // an environment face's map, whose lights and those of the maps outside it the face keeps; else 0
 } draw;
 
 #include "vectors.glsl"

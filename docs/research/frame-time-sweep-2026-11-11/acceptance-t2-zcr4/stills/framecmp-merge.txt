@@ -1,0 +1,10 @@
+| Script | PNG files | PNG files that differ | Other files | Other files that differ |
+|---|---:|---:|---:|---:|
+| `cabin-light` | 3 | 0 | 1 | 0 |
+| `demo-shuttle` | 3 | 0 | 2 | 0 |
+| `demo-surface` | 7 | 1 | 6 | 0 |
+| `doorway` | 4 | 0 | 4 | 0 |
+| `mirror-balls` | 3 | 1 | 1 | 0 |
+| `rigs` | 5 | 0 | 1 | 0 |
+| `station` | 7 | 6 | 8 | 0 |
+| Sum | 32 | 8 | 23 | 0 |

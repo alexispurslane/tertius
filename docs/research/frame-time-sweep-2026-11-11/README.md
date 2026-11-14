@@ -17,6 +17,8 @@ Read the two texts in this order:
 - The bloom as compute dispatches gains nothing, because its encoder breaks were cheap ones (section A12).
 - The automatic exposure has several stable values in a scene with a large even surface. A still with it mixes a tested change with a step of the meter (section A13).
 - A reflection walk of at most 96 steps saves 0.21 ms and changes the stills less than the accepted cap of 128 did. The bounce-light cap stays at 62 (section A13). Alexis chose the cap of 96, and ticket `t2-pw52` built it. On the code that merged, it saves 0.15 ms.
+- An environment face that lights each texel once saves 0.11 ms of the mean frame on the deck. A proxy build promised 0.25 ms, because it shaded one made-up point (section A14). Ticket `t2-zcr4` built it.
+- On the M1 Max, a depth clear in the middle of a rendering loses the surfaces drawn before it. The call is valid Vulkan (section A14, ticket `tz-na6d`).
 
 ## What the folder holds
 
@@ -35,6 +37,8 @@ Read the two texts in this order:
 | `acceptance-t2-pw52/` | The acceptance record of the reflection step cap of 96: timings, image comparisons and test runs |
 | `acceptance-ter-2zga/` | The acceptance record of the patched MoltenVK that the flake builds: frames, traces and test runs |
 | `bloom-compute-ter-lm61/` | The record of the bloom as compute dispatches, which did not merge: the patch, the timed take and the still comparison |
+| `env-face-t2-zcr4/` | The record of the environment face of section A14: the job lists and lock logs of takes 14 to 19 and of the stills, and the table of every trace. Three stills show the builds with a depth clear inside a rendering |
+| `acceptance-t2-zcr4/` | The acceptance record of the environment face that lights each texel once: timings, image comparisons, mutants and test runs |
 | `steps-search/` | The step cap search of section A13: the job lists and lock logs of its takes, the pixel and FLIP tables of every cap, and the mottle scores |
 
 The flake's driver patch is `native/moltenvk-keep-dispatch-encoder.patch`. It is the measured patch in the form `keep`, without the measurement switches. [tools/README.md](../../../tools/README.md) describes it in "The patched MoltenVK".

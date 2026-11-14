@@ -20,7 +20,7 @@ layout(location = 3) out vec2 outTexCoord;
 // x: the material. y: the instance's environment map. z: whether its entity holds a light, which gbuffer.frag and
 // environment_face.frag read. w: the card code, which gbuffer.frag writes for a hair pixel. They share a location so that
 // a fragment shader that reads only some of them, such as environment_face.frag, still consumes the whole location: a
-// face has no ambient light, and draw.map filters its lights.
+// face has no ambient light, and its light pass takes the face's map from its own push constants.
 layout(location = 4) flat out uvec4 outInstanceWords;
 layout(location = 5) flat out vec4 outHemisphere;
 // The vertex's place in this frame's and in the last frame's motion clip space, x, y and w (motion.glsl). Only the

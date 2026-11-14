@@ -18,3 +18,9 @@ Found in t2-mlvy (docs/plans/light-pairs.md, 'How the cost was measured'). A sha
 
 A headless run takes a fixed exposure in stops. gpu-trace.sh passes it on. passes.md states the run's exposure. A comparison tool warns when two runs' exposures differ by more than 0.05 stops.
 
+
+## Notes
+
+**2026-11-14T15:33:46Z**
+
+t2-vsqh added the host option --exposure STOPS (ARCHITECTURE.md, the headless script options): it sets RendererOptions.Exposure to a fixed exposure in a script run. Its takes used it with the stops that exposure.json of a first run reports, for example --exposure 0.7041458 for the deck. The trace and timing tools do not pass it yet, which is the rest of this ticket.

@@ -1,0 +1,34 @@
+script                 capture                   mean %    any %   >1 lv %  >4 lv %  max
+cabin-light            cabin                     identical
+cabin-light            canopy                    identical
+cabin-light            port-window               identical
+demo-shuttle           nose                      identical
+demo-shuttle           side                      identical
+demo-shuttle           tail                      identical
+demo-surface           apron                     identical
+demo-surface           at-the-seat               identical
+demo-surface           boarding                  identical
+demo-surface           end-overview              identical
+demo-surface           in-cabin                  +0.000     0.02    0.000    0.000    1
+demo-surface           start                     identical
+demo-surface           terminal                  identical
+doorway                inside-view               identical
+doorway                inside                    identical
+doorway                outside                   identical
+doorway                standing                  identical
+mirror-balls           balls                     -0.000     0.08    0.000    0.000    2
+mirror-balls           belly                     identical
+mirror-balls           plate                     identical
+rigs                   bent-left                 identical
+rigs                   bent-right                identical
+rigs                   box-other-way             identical
+rigs                   box                       identical
+rigs                   twist                     identical
+station                crate-at-wall             identical
+station                crate-flying              -0.001     0.05    0.000    0.000    1
+station                end                       +0.000     0.74    0.017    0.004   28
+station                first-bump                +0.000     0.41    0.005    0.000    6
+station                pods-at-radiator          -0.000     0.77    0.012    0.000    5
+station                pods-drifting             -0.000     0.37    0.006    0.001   11
+station                pods-out                  +0.000     0.47    0.008    0.001    6
+captures 32, identical 24, largest change of the mean -0.001 % (station crate-flying), largest share over 4 levels 0.004 %, largest share over 1 level 0.017 %

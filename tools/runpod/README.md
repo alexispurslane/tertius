@@ -155,9 +155,9 @@ On the Mac, the same modules run one after another, under one Stryker lock: Core
 
 ### Linux failures
 
-A full card run of the Host and Rendering suites on main 774353dcf, on 2026-11-14, found one failure on the RTX 2000 Ada (x86-64, NVIDIA). The Rendering tests ran in six shards from `tools/runpod/shards.py`, which covers every class of the built assembly, nested ones included (ticket ter-eugk):
+A full card run of the Host and Rendering suites on main 774353dcf, on 2026-11-14, found one failure on the RTX 2000 Ada, since fixed (x86-64, NVIDIA). The Rendering tests ran in six shards from `tools/runpod/shards.py`, which covers every class of the built assembly, nested ones included (ticket ter-eugk):
 
-- Rendering: `AccumulatorRenderTests+NeighborLimiterPrototype.AUniformBrightRegionIsUnchangedByLimiting(reflected: False)` reads 1999 against 2000 (ticket t8-v31a). The hand-written shard lists of earlier runs never ran this nested class on the card.
+- Rendering: `AccumulatorRenderTests+NeighborLimiterPrototype.AUniformBrightRegionIsUnchangedByLimiting(reflected: False)` read 1999 against 2000, one half-float step, because NVIDIA rounds a half-float store toward zero. The test allows that step since t8-v31a, and the class passes on the card. The hand-written shard lists of earlier runs never ran this nested class on the card.
 
 The run's counts: Rendering 3,161 tests, 1 failed, 9 skipped; Host 2,061 tests, 0 failed, 2 skipped, 8 not run. A run of this list on a later main can find new failures.
 

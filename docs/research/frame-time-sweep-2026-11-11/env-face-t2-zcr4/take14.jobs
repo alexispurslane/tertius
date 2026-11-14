@@ -1,0 +1,15 @@
+# Take 14, on main at b93ab3570. Part 1: the reflection step cap of 96 (t2-pw52) as unedited Release builds, as a window,
+# three rounds in turns: n128 is main, and n96 is the ticket's scratch commit 19f915c7c. Take 13 lost this pair to a
+# load of 45. Part 2: timing proxies of the environment faces (t2-zcr4), with the pass time stamps, for the engine's
+# pass timers. envdraws compares the faces' depth with GreaterOrEqual and draws each range's runs SWEEP_ENVDRAWS times.
+# envnl2 shades no light in a face, and envns reads no shadow map there.
+NS="--pass-timestamps off"
+for r in a b c; do
+  trace deck-t14-n128-$r n128 $D $NS
+  trace deck-t14-n96-$r n96 $D $NS
+done
+trace deck-t14-env-ctl n128 $D
+TRACE_EXTRA_ENV="SWEEP_ENVDRAWS=1" trace deck-t14-env-draws1 envdraws $D
+TRACE_EXTRA_ENV="SWEEP_ENVDRAWS=2" trace deck-t14-env-draws2 envdraws $D
+trace deck-t14-env-nolight envnl2 $D
+trace deck-t14-env-noshadow envns $D
