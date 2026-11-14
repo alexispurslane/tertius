@@ -788,351 +788,206 @@ class TheGpuLock(unittest.TestCase):
                     self.assertEqual(chunks.called, chunked)
 
 
-# The block test's evidence (docs/plans/bounce-light-confidence.md, section 8, take T3). A synthetic capture is a grid of
-# 12 x 12 blocks, each of 16 streams whose slow history holds the luminance 1 per stream. QUIET_V is the predicted variance
-# of one stream's difference: small enough that a block passes the tail rule (16² ≥ 1000 · 16 · 0.01).
-EVIDENCE_GRID = (12, 12)
-STREAMS = 16
-QUIET_V = 0.01
+# The evidence census (docs/plans/bounce-light-confidence.md, section 21, take T12). A synthetic census is a grid of
+# 10 x 6 blocks of 8 x 8 pixels, 80 x 48 pixels, for each signal of the line's light.
+CENSUS_HEADER = {"width": 80, "height": 48, "block": 8, "blocksWide": 10, "blocksHigh": 6, "every": 0, "causes": 7,
+                 "movedCuts": False, "motionCuts": False, "acts": True, "recentLightAge": 7, "leastMotion": 0.03125}
 
 
-def quiet_texels(records, d=0.0, v=QUIET_V):
-    """records draws of the quiet grid: every block holds (16 d, 16 v, 16, 16), d and v per stream."""
-    high, wide = EVIDENCE_GRID
-    texels = np.zeros((records, high, wide, 4))
-    texels[...] = (STREAMS * d, STREAMS * v, STREAMS, STREAMS * 1.0)
-    return texels
+def census_line(draw, index, light="diffuse", part=0, levels=(60, 0, 0), blocks=(0, 0, 0), pixels=(0, 0, 0)):
+    """One line of census.txt: a draw of one signal's part, its blocks at each level, and its blocks and pixels of each
+    cause."""
+    return " ".join(str(v) for v in (draw, index, 1 if index == 0 else 0, light, part, *levels, *blocks, *pixels))
 
 
-def capture_signal(light="diffuse", retained=2.0, share=0.125, noise=-1.0):
-    return {"file": f"{light}-0.f32", "light": light, "part": 0, "cap": 32.0, "fastCap": 4.0, "changeShare": share,
-            "retainedSigmas": retained, "blockTest": 2, "clampSigmas": 2.0, "probeBlockSigmas": -1.0,
-            "probeTailStreams": -1.0, "probeNoiseScale": noise}
-
-
-def write_capture(folder: Path, signals, *, first_index=100, every=1):
-    """A capture folder as the probe writes it: signals is a list of (header entry, texels of shape (draws, H, W, 4)).
-    The draws continue a history from draw index first_index on."""
+def write_census(folder, lines, header=CENSUS_HEADER):
     folder.mkdir(parents=True, exist_ok=True)
-    records = len(signals[0][1])
-    high, wide = EVIDENCE_GRID
-    header = {"blocksWide": wide, "blocksHigh": high, "every": every, "signals": [s for s, _ in signals]}
     (folder / "header.json").write_text(json.dumps(header))
-    for entry, texels in signals:
-        np.asarray(texels, "<f4").tofile(folder / entry["file"])
-    (folder / "draws.txt").write_text("".join(f"{k * every} {first_index + k * every} 0\n" for k in range(records)))
+    (folder / "census.txt").write_text("".join(line + "\n" for line in lines))
 
 
-def evidence_of(signals, **kwargs):
+def census_of(lines, **kwargs):
     with tempfile.TemporaryDirectory() as folder:
-        write_capture(Path(folder) / "blocks", signals, **{k: v for k, v in kwargs.items() if k in ("first_index", "every")})
-        return survey.evidence(Path(folder) / "blocks", **{k: v for k, v in kwargs.items() if k in ("skip", "sweep")})
+        write_census(Path(folder), lines)
+        return survey.census(Path(folder), **kwargs)
 
 
-def plant(texels, record, x, y, d_share):
-    """A block whose fast light differs from its slow light by d_share of it in one draw."""
-    texels[record, y, x, 0] = d_share * texels[record, y, x, 3]
+def signal_of(result, light):
+    (signal,) = [s for s in result["signals"] if s["light"] == light]
+    return signal
 
 
-class BlockConstants(unittest.TestCase):
-    def test_the_test_s_constants_come_from_their_single_home_in_the_shaders(self):
-        constants = survey.block_constants()
-        self.assertEqual(constants["LeastStreams"], 8.0)
-        self.assertEqual(set(constants), {"LeastStreams", "TailStreams", "BlockSigmas", "BlockNoiseScale", "CutoffRadiance"})
-        self.assertEqual(constants["CutoffRadiance"], 1.0 / 8192.0)
+class Census(unittest.TestCase):
+    """census: the shares of block-draws at each evidence level and of each cause, for each signal."""
 
-    def test_the_probe_patch_reads_every_knob_of_the_takes(self):
-        patch = survey.PROBE_PATCH.read_text()
-        for knob in ("RETAINED_SIGMAS", "NO_CLAMP", "MOTION_CUTS"):
-            self.assertIn(f'"TERTIUS_A_{knob}"', patch)
+    def test_a_still_without_evidence_has_every_block_draw_at_no_evidence(self):
+        result = census_of([census_line(k, k) for k in range(1, 11)])
+        signal = signal_of(result, "diffuse")
+        self.assertEqual(signal["blockDraws"], 600)
+        self.assertEqual(signal["levels"], {"none": 600, "motion": 0, "light": 0})
+        self.assertEqual(signal["levelShares"]["light"], 0.0)
 
+    def test_the_reset_draw_counts_in_no_share_because_it_shows_every_instance_as_new(self):
+        lines = [census_line(0, 0, levels=(0, 60, 0), blocks=(0, 0, 60), pixels=(0, 0, 3840))]
+        lines += [census_line(k, k) for k in range(1, 5)]
+        signal = signal_of(census_of(lines), "diffuse")
+        self.assertEqual(signal["blockDraws"], 240)
+        self.assertEqual(signal["levels"]["motion"], 0)
 
-class BlockWindows(unittest.TestCase):
-    """window_sums and window_fires: the windows of accumulate_blocks.glsl, offline."""
+    def test_young_light_codes_in_a_still_count_as_light_evidence_and_as_their_cause(self):
+        lines = [census_line(k, k) for k in range(1, 100)]
+        lines.append(census_line(100, 100, levels=(58, 0, 2), blocks=(2, 0, 0), pixels=(5, 0, 0)))
+        signal = signal_of(census_of(lines), "diffuse")
+        self.assertEqual(signal["levels"]["light"], 2)
+        self.assertAlmostEqual(signal["levelShares"]["light"], 2 / 6000)
+        self.assertEqual(signal["causes"]["light"], {"blockDraws": 2, "share": 2 / 6000, "pixelDraws": 5,
+                                                     "pixelShare": 5 / (100 * 80 * 48)})
+        self.assertEqual(signal["evidenceDraws"], [[100, 0, 2]])
 
-    RULE = {"leastStreams": 8.0, "tailStreams": 1000.0, "blockSigmas": 4.0, "changeShare": 0.125,
-            "cutoff": 1.0 / 8192.0, "oneSided": False, "varianceScale": 1.0}
+    def test_a_cause_that_the_knobs_leave_out_still_counts_as_a_cause_without_a_level(self):
+        # TERTIUS_X_CAUSES=light: a moving surface gives no level, but the census still counts its blocks.
+        lines = [census_line(1, 1, levels=(60, 0, 0), blocks=(0, 0, 12), pixels=(0, 0, 700))]
+        signal = signal_of(census_of(lines), "diffuse")
+        self.assertEqual(signal["levels"]["motion"], 0)
+        self.assertEqual(signal["causes"]["moving"]["blockDraws"], 12)
+        self.assertEqual(signal["evidenceDraws"], [])
 
-    def fires(self, d, v=0.16, n=16.0, s=16.0, **rule):
-        return bool(survey.window_fires(np.array([[[d, v, n, s]]]), {**self.RULE, **rule})[0, 0])
+    def test_the_parts_of_a_signal_pool_and_the_signals_stay_apart(self):
+        lines = [census_line(1, 1, part=0, levels=(59, 1, 0)), census_line(1, 1, part=1, levels=(60, 0, 0)),
+                 census_line(1, 1, light="specular", levels=(57, 0, 3))]
+        result = census_of(lines)
+        diffuse, specular = signal_of(result, "diffuse"), signal_of(result, "specular")
+        self.assertEqual((diffuse["parts"], diffuse["blockDraws"], diffuse["levels"]["motion"]), (2, 120, 1))
+        self.assertEqual((specular["parts"], specular["blockDraws"], specular["levels"]["light"]), (1, 60, 3))
 
-    def test_a_window_sums_the_texels_of_its_blocks_and_nothing_outside_the_image(self):
-        texels = np.arange(5 * 6 * 4, dtype=float).reshape(5, 6, 4)
-        for size in (1, 3, 7):
-            sums = survey.window_sums(texels, size)
-            r = size // 2
-            for y, x in ((0, 0), (2, 3), (4, 5)):
-                expected = texels[max(y - r, 0):y + r + 1, max(x - r, 0):x + r + 1].sum(axis=(0, 1))
-                np.testing.assert_allclose(sums[y, x], expected)
-
-    def test_a_drop_past_every_rule_fires(self):
-        self.assertTrue(self.fires(-3.2))
-        self.assertTrue(self.fires(3.2))
-
-    def test_each_rule_alone_silences_a_window(self):
-        self.assertFalse(self.fires(-3.2, n=7.9, s=16.0), "fewer streams than LeastStreams")
-        self.assertFalse(self.fires(-3.2, v=0.257), "a tail too heavy for the streams: 16² < 1000 · 0.257")
-        self.assertFalse(self.fires(-2.5, v=0.4, tailStreams=100.0),
-                         "less than BlockSigmas predicted deviations: 2.5² < 16 · 0.4")
-        self.assertFalse(self.fires(-1.9, v=0.01), "below the floor: 1.9 < 16 / 8")
-        self.assertFalse(self.fires(2.1, v=0.01), "a rise is measured against the fast light: 2.1 < 18.1 / 8")
-        self.assertFalse(self.fires(-1e-4, v=0.0, s=1e-4), "below the cutoff light of 16 streams")
-
-    def test_a_narrow_box_counts_only_a_drop(self):
-        self.assertFalse(self.fires(3.2, oneSided=True))
-        self.assertTrue(self.fires(-3.2, oneSided=True))
-
-    def test_the_variance_scale_stands_for_another_block_noise_scale(self):
-        self.assertTrue(self.fires(-1.7, v=0.16, changeShare=0.1))
-        self.assertFalse(self.fires(-1.7, v=0.16, changeShare=0.1, varianceScale=1.2), "1.7² < 16 · 0.16 · 1.2")
+    def test_the_result_keeps_the_probes_knobs_and_the_draws_that_it_leaves_out(self):
+        result = census_of([census_line(k, k) for k in range(0, 5)], skip=2)
+        self.assertEqual(result["skip"], 2)
+        self.assertEqual(result["probe"]["recentLightAge"], 7)
+        self.assertEqual(signal_of(result, "diffuse")["draws"], 3)
 
 
-class BlockEvidence(unittest.TestCase):
-    """evidence: the measures of take T3 on a captured still."""
+class CensusVerdict(unittest.TestCase):
+    """Acceptance 12 of the design: in a still, no block-draw has motion evidence, and at most 1e-4 of the block-draws
+    of each signal have light evidence."""
 
-    def test_a_quiet_still_gives_no_evidence(self):
-        result = evidence_of([(capture_signal(), quiet_texels(200))])
-        (signal,) = result["signals"]
-        self.assertEqual(signal["blockDraws"], 200 * 144)
-        self.assertEqual(signal["fires"], {"1": 0, "3": 0, "7": 0, "any": 0})
-        self.assertEqual(signal["falsePerBlockDraw"]["any"], 0.0)
+    def result(self, motion, light, block_draws=1_000_000):
+        return {"signals": [{"light": "diffuse", "blockDraws": block_draws,
+                             "levels": {"none": block_draws - motion - light, "motion": motion, "light": light},
+                             "levelShares": {"motion": motion / block_draws, "light": light / block_draws}}]}
 
-    def test_one_block_that_drops_by_a_fifth_fires_in_its_own_window_alone(self):
-        texels = quiet_texels(200)
-        plant(texels, 50, 5, 5, -0.2)
-        (signal,) = evidence_of([(capture_signal(), texels)])["signals"]
-        # The 3 x 3 window holds 9 blocks of light, so the same difference is 2 % of it, below the floor of an eighth.
-        self.assertEqual(signal["fires"], {"1": 1, "3": 0, "7": 0, "any": 1})
-        self.assertAlmostEqual(signal["falsePerBlockDraw"]["1"], 1 / (200 * 144))
-        (kept,) = signal["firesKept"]
-        self.assertEqual((kept["record"], kept["x"], kept["y"], kept["window"]), (50, 5, 5, 1))
-        self.assertAlmostEqual(kept["dOverS"], -0.2, places=6)
-        self.assertAlmostEqual(kept["z"], -3.2 / 0.4, places=5)
-        self.assertAlmostEqual(kept["tail"], 256 / 0.16, places=3)
+    def test_a_still_with_light_evidence_at_the_limit_passes(self):
+        self.assertEqual(survey.census_verdict(self.result(0, 100)), [])
 
-    def test_a_wide_drop_fires_the_wide_windows_of_every_block_that_sees_it(self):
-        texels = quiet_texels(10)
-        texels[4, :, :, 0] = -0.3 * STREAMS
-        (signal,) = evidence_of([(capture_signal(), texels)])["signals"]
-        self.assertEqual(signal["fires"], {"1": 144, "3": 144, "7": 144, "any": 144})
+    def test_a_still_with_more_light_evidence_fails_for_its_signal(self):
+        self.assertEqual(survey.census_verdict(self.result(0, 101)), ["diffuse light"])
 
-    def test_a_window_around_a_block_without_streams_is_no_evidence_there(self):
-        texels = quiet_texels(10)
-        texels[4, :, :, 0] = -0.3 * STREAMS
-        texels[:, 0, 0] = 0.0
-        (signal,) = evidence_of([(capture_signal(), texels)])["signals"]
-        self.assertEqual(signal["blockDraws"], 10 * 143)
-        self.assertEqual(signal["fires"], {"1": 143, "3": 143, "7": 143, "any": 143})
-
-    def test_the_sweep_counts_a_block_once_whichever_of_its_windows_fire(self):
-        texels = quiet_texels(10)
-        texels[4, :, :, 0] = -0.3 * STREAMS
-        sweep = {"blockSigmas": [4.0], "tailStreams": [1000.0], "noiseScale": [1.0], "changeShare": {"diffuse": [0.125]}}
-        (signal,) = evidence_of([(capture_signal(), texels)], sweep=sweep)["signals"]
-        (row,) = signal["sweep"]
-        self.assertEqual(row["fires"], {"1": 144, "3": 144, "7": 144, "any": 144})
-
-    def test_a_fire_right_after_a_reset_is_no_repeat(self):
-        texels = quiet_texels(4)
-        plant(texels, 1, 5, 5, -0.2)
-        plant(texels, 2, 5, 5, -0.2)
-        with tempfile.TemporaryDirectory() as folder:
-            blocks = Path(folder) / "blocks"
-            write_capture(blocks, [(capture_signal(), texels)])
-            (blocks / "draws.txt").write_text("0 70 0\n1 71 0\n2 0 1\n3 1 0\n")
-            (signal,) = survey.evidence(blocks, skip=0)["signals"]
-        self.assertEqual((signal["fires"]["any"], signal["repeats"], signal["longestRun"]), (2, 0, 1))
-
-    def test_a_block_that_fires_again_in_the_next_draw_is_a_repeat(self):
-        texels = quiet_texels(200)
-        for record in (50, 51, 52, 120):
-            plant(texels, record, 5, 5, -0.2)
-        (signal,) = evidence_of([(capture_signal(), texels)])["signals"]
-        self.assertEqual(signal["fires"]["any"], 4)
-        self.assertEqual(signal["repeats"], 2)
-        self.assertAlmostEqual(signal["repeatShare"], 0.5)
-        self.assertEqual(signal["longestRun"], 3)
-
-    def test_draws_while_the_histories_fill_do_not_count(self):
-        texels = quiet_texels(100)
-        plant(texels, 10, 5, 5, -0.2)
-        (signal,) = evidence_of([(capture_signal(), texels)], first_index=0, skip=64)["signals"]
-        self.assertEqual(signal["records"], 100)
-        self.assertEqual(signal["measuredRecords"], 36)
-        self.assertEqual(signal["fires"]["any"], 0)
-
-    def test_the_reflections_without_a_widened_box_count_only_a_drop(self):
-        texels = quiet_texels(200)
-        plant(texels, 50, 5, 5, -0.2)
-        plant(texels, 60, 5, 5, +0.3)
-        (signal,) = evidence_of([(capture_signal("specular", retained=0.0, share=0.05), texels)])["signals"]
-        self.assertEqual(signal["light"], "specular")
-        self.assertEqual(signal["fires"]["any"], 1)
-
-    def test_each_signal_of_the_capture_is_measured_on_its_own(self):
-        bounce = quiet_texels(200)
-        plant(bounce, 50, 5, 5, -0.2)
-        result = evidence_of([(capture_signal(), bounce), (capture_signal("specular", 0.0, 0.05), quiet_texels(200))])
-        self.assertEqual([(s["light"], s["fires"]["any"]) for s in result["signals"]], [("diffuse", 1), ("specular", 0)])
-
-    def test_the_measured_deviation_of_the_difference_over_its_prediction_is_the_noise_scale_it_needs(self):
-        rng = np.random.default_rng(7)
-        texels = quiet_texels(400)
-        texels[..., 0] = rng.normal(0.0, 1.5 * np.sqrt(STREAMS * QUIET_V), texels.shape[:3])
-        (signal,) = evidence_of([(capture_signal(noise=1.0), texels)])["signals"]
-        # The 7 x 7 windows of a grid of 12 x 12 blocks overlap so much that few of them are independent.
-        for size, delta in (("1", 0.03), ("3", 0.03), ("7", 0.08)):
-            self.assertAlmostEqual(signal["deviationRatio"][size]["pooled"], 1.5, delta=delta)
-            self.assertAlmostEqual(signal["noiseScaleForRatio1"][size], 1.5, delta=delta)
-        self.assertAlmostEqual(signal["deviationRatio"]["1"]["p50"], 1.5, delta=0.1)
-
-    def test_a_steady_difference_of_the_write_back_is_no_noise(self):
-        rng = np.random.default_rng(9)
-        texels = quiet_texels(400, d=0.1)
-        texels[..., 0] += rng.normal(0.0, np.sqrt(STREAMS * QUIET_V), texels.shape[:3])
-        (signal,) = evidence_of([(capture_signal(noise=1.0), texels)])["signals"]
-        self.assertAlmostEqual(signal["deviationRatio"]["1"]["pooled"], 1.0, delta=0.03)
-
-    def test_a_capture_with_a_larger_noise_scale_predicts_more_and_needs_less(self):
-        rng = np.random.default_rng(8)
-        texels = quiet_texels(400, v=4 * QUIET_V)
-        texels[..., 0] = rng.normal(0.0, np.sqrt(STREAMS * 4 * QUIET_V), texels.shape[:3])
-        (signal,) = evidence_of([(capture_signal(noise=2.0), texels)])["signals"]
-        self.assertAlmostEqual(signal["deviationRatio"]["1"]["pooled"], 1.0, delta=0.03)
-        self.assertAlmostEqual(signal["noiseScaleForRatio1"]["1"], 2.0, delta=0.06)
-
-    def test_the_stationary_difference_is_the_mean_fast_over_slow_light_less_one(self):
-        (signal,) = evidence_of([(capture_signal(), quiet_texels(100, d=0.05))])["signals"]
-        for size in ("1", "3", "7"):
-            difference = signal["stationaryDifference"][size]
-            self.assertAlmostEqual(difference["p50"], 0.05, places=6)
-            self.assertAlmostEqual(difference["max"], 0.05, places=6)
-            self.assertAlmostEqual(difference["mean"], 0.05, places=6)
-
-    def test_the_cv_of_a_block_s_samples_comes_from_its_retained_deviation(self):
-        kappa = survey.difference_share(1 / 4, 1 / 32)
-        self.assertAlmostEqual(kappa, 0.319, places=3)
-        (signal,) = evidence_of([(capture_signal(noise=1.0), quiet_texels(50, v=(kappa * 0.8) ** 2))])["signals"]
-        self.assertAlmostEqual(signal["cv"]["p50"], 0.8, places=4)
-        self.assertEqual(signal["cv"]["blocks"], 144)
-
-    def test_an_uncapped_history_takes_the_difference_share_of_an_endless_history(self):
-        kappa = survey.difference_share(1 / 4, 0.0)
-        self.assertAlmostEqual(kappa, 0.378, places=3)
-        entry = {**capture_signal("specular", retained=0.0, share=0.05, noise=1.0), "uncapped": True}
-        (signal,) = evidence_of([(entry, quiet_texels(50, v=(kappa * 0.8) ** 2))])["signals"]
-        self.assertAlmostEqual(signal["kappaAtCap"], kappa)
-        self.assertAlmostEqual(signal["cv"]["p50"], 0.8, places=4)
-
-    def test_the_sweep_counts_the_same_evidence_at_the_build_s_rule_and_more_at_a_lower_floor(self):
-        texels = quiet_texels(200, v=0.005)
-        plant(texels, 50, 5, 5, -0.1)
-        sweep = {"blockSigmas": [4.0], "tailStreams": [1000.0], "noiseScale": [1.0, 2.0],
-                 "changeShare": {"diffuse": [1 / 12, 1 / 8]}}
-        (signal,) = evidence_of([(capture_signal(), texels)], sweep=sweep)["signals"]
-        rows = {(r["noiseScale"], round(r["changeShare"], 4)): r["fires"]["any"] for r in signal["sweep"]}
-        self.assertEqual(signal["fires"]["any"], 0, "a tenth is below the build's floor of an eighth")
-        self.assertEqual(rows, {(1.0, 0.0833): 1, (1.0, 0.125): 0, (2.0, 0.0833): 0, (2.0, 0.125): 0},
-                         "at twice the noise scale the drop lies 2.8, not 5.7, predicted deviations out")
-
-    def test_the_default_sweep_holds_the_build_s_own_rule(self):
-        constants = survey.block_constants()
-        for light, share in (("diffuse", 1 / 8), ("specular", 1 / 20)):
-            self.assertIn(share, survey.EVIDENCE_SWEEP["changeShare"][light])
-        self.assertIn(constants["BlockSigmas"], survey.EVIDENCE_SWEEP["blockSigmas"])
-        self.assertIn(constants["TailStreams"], survey.EVIDENCE_SWEEP["tailStreams"])
-        self.assertIn(constants["BlockNoiseScale"], survey.EVIDENCE_SWEEP["noiseScale"])
-
-    def test_a_record_that_a_stopped_run_left_half_written_is_left_out(self):
-        with tempfile.TemporaryDirectory() as folder:
-            blocks = Path(folder) / "blocks"
-            write_capture(blocks, [(capture_signal(), quiet_texels(20))])
-            with open(blocks / "diffuse-0.f32", "ab") as stream:
-                stream.write(b"\0" * 100)
-            (signal,) = survey.evidence(blocks)["signals"]
-        self.assertEqual(signal["records"], 20)
-
-    def test_a_still_with_too_much_false_evidence_or_a_wrong_noise_prediction_fails(self):
-        def result(rate, ratio):
-            return {"signals": [{"light": "diffuse", "falsePerBlockDraw": {"any": rate},
-                                 "deviationRatio": {"1": {"pooled": ratio}}}]}
-        self.assertEqual(survey.evidence_verdict(result(1e-4, 1.0)), [])
-        self.assertEqual(survey.evidence_verdict(result(2e-4, 1.0)), ["diffuse evidence"])
-        self.assertEqual(survey.evidence_verdict(result(0.0, 1.3)), ["diffuse noise"])
-        self.assertEqual(survey.evidence_verdict(result(0.0, 0.79)), ["diffuse noise"])
+    def test_a_still_with_one_block_draw_of_motion_evidence_fails(self):
+        self.assertEqual(survey.census_verdict(self.result(1, 0)), ["diffuse motion"])
 
 
-class EvidenceRuns(unittest.TestCase):
-    """The evidence part and command, with a fake render that writes a capture where the probe would."""
+class CensusRuns(unittest.TestCase):
+    """The census parts and command, with a fake render that writes a census where the probe would."""
 
-    CASE = {"name": "rect-lamps", "scene": "rect", "camera": "a", "ticks": 10}
+    STILL = {"name": "rect-lamps", "scene": "rect", "camera": "a", "ticks": 10}
 
-    def test_the_part_renders_the_long_still_with_the_sums_kept_and_their_action_off_and_deletes_the_capture(self):
-        calls = []
-
+    def render(self, calls, lines):
         def render(out, built, *, binary, env=None, extra=(), **kwargs):
-            calls.append({"steps": built["steps"], "env": env, "extra": extra})
+            calls.append({"steps": built["steps"], "env": env, "extra": extra, "binary": binary})
             out.mkdir(parents=True)
-            write_capture(Path(env["TERTIUS_A_BLOCK_CAPTURE"]), [(capture_signal(), quiet_texels(30))], first_index=0)
+            write_census(Path(env["TERTIUS_X_CENSUS"]), lines)
+            (out / survey.SERIES_FILE).write_text("")
             return out.parent / f"{out.name}.log"
+        return render
 
-        with tempfile.TemporaryDirectory() as folder, mock.patch.object(survey, "render", render), \
+    def run_part(self, runner, case, lines, environ=None):
+        calls = []
+        with tempfile.TemporaryDirectory() as folder, mock.patch.object(survey, "render", self.render(calls, lines)), \
                 mock.patch.object(survey, "probe_binary", lambda out: Path("probe")), \
-                mock.patch.dict(os.environ, {"TERTIUS_A_TAIL_STREAMS": "500"}):
-            os.environ.pop("TERTIUS_A_BLOCK_ACTION", None)
-            result = survey.run_evidence(Path(folder), self.CASE, argparse.Namespace(skip=8, keep_capture=False))
-            saved = json.loads((Path(folder) / "results" / "evidence" / "rect-lamps.json").read_text())
-            self.assertEqual([p for p in (Path(folder) / "work").rglob("*") if p.is_file()], [],
-                             "the render and its capture are deleted")
+                mock.patch.dict(os.environ, environ or {}):
+            result = runner(Path(folder), case, argparse.Namespace(skip=1, exposure="4.08"))
+            part = runner.__name__.removeprefix("run_").replace("_", "-")
+            saved = json.loads((Path(folder) / "results" / part / f"{case['name']}.json").read_text())
+            kept = sorted(p.name for p in (Path(folder) / "census" / part / case["name"]).iterdir())
+            self.assertEqual([p for p in (Path(folder) / "work").rglob("*") if p.is_file()], [], "the render is deleted")
         self.assertEqual(saved, json.loads(json.dumps(result)))
+        self.assertEqual(kept, ["census.txt", "header.json"], "the census stays for the census command")
+        return calls, result
+
+    def test_a_census_still_continues_its_history_to_draw_300_with_its_action_on_and_takes_the_verdict(self):
+        lines = [census_line(k, k) for k in range(1, 300)]
+        calls, result = self.run_part(survey.run_census_still, self.STILL, lines,
+                                      {"TERTIUS_X_CAUSES": "light,moved", "TERTIUS_X_CENSUS_EVERY": "33"})
         (call,) = calls
-        self.assertEqual(captures_of({"steps": call["steps"]}), [f"v-s{k:02d}" for k in range(survey.STILL_CAPTURES)])
-        self.assertEqual(call["env"]["TERTIUS_A_BLOCK_ACTION"], "0")
+        captures = captures_of({"steps": call["steps"]})
+        _, first_is_still = survey.census_still_script(self.STILL)
+        self.assertGreaterEqual(survey.still_draws(first_is_still, len(captures) - 1), 300, "it reaches draw 300")
+        self.assertLess(survey.still_draws(first_is_still, len(captures) - 2), 300, "and stops there")
         self.assertEqual(call["env"]["TERTIUS_PROBE_STILL_CONTINUES"], "1")
+        self.assertNotIn("TERTIUS_X_EVIDENCE_ACTION", call["env"], "the census counts with the action on")
         self.assertEqual(call["extra"], survey.NO_BLOOM)
-        self.assertEqual(result["knobs"], {"TERTIUS_A_BLOCK_ACTION": "0", "TERTIUS_A_TAIL_STREAMS": "500"})
-        self.assertEqual(result["signals"][0]["measuredRecords"], 22)
+        self.assertEqual(result["knobs"], {"TERTIUS_X_CAUSES": "light,moved", "TERTIUS_X_CENSUS_EVERY": "33"})
         self.assertEqual(result["failed"], [])
 
-    def test_an_action_that_the_caller_turns_on_stays_on(self):
-        with mock.patch.dict(os.environ, {"TERTIUS_A_BLOCK_ACTION": "1"}):
-            self.assertEqual(survey.evidence_env(Path("c"))["TERTIUS_A_BLOCK_ACTION"], "1")
+    def test_a_census_film_gives_its_shares_and_no_verdict(self):
+        film = {"name": "rigs-crowd", "scene": "rigs", "camera": "a", "ticks": 10, "frames": 20, "view": "a"}
+        lines = [census_line(k, k, levels=(50, 10, 0), blocks=(0, 10, 0)) for k in range(1, 20)]
+        calls, result = self.run_part(survey.run_census_film, film, lines, {"TERTIUS_X_MOVED_ACTION": "cut"})
+        (call,) = calls
+        self.assertEqual(call["steps"][-1], {"do": "film", "name": "m0000", "frames": 20, "every": 1})
+        self.assertEqual(call["env"]["TERTIUS_PROBE_KEEP"], "", "the film writes no PNG")
+        self.assertEqual(signal_of(result, "diffuse")["levels"]["motion"], 190)
+        self.assertEqual(result["knobs"], {"TERTIUS_X_MOVED_ACTION": "cut"})
+        self.assertEqual(result["failed"], [])
 
-    def test_the_part_takes_the_still_views_and_the_switches_views_and_runs_only_when_named(self):
-        cases = {"stills": [{"name": "rect-lamps"}, {"name": "lamp-hall-16"}],
-                 "switches": [{"name": "cabin"}, {"name": "lamp-hall-16", "scene": "hall"}]}
-        self.assertEqual(survey.cases_of(cases, "evidence"),
-                         [{"name": "rect-lamps"}, {"name": "lamp-hall-16"}, {"name": "cabin"}])
+    def test_a_census_switch_films_the_lamps_going_off_and_on_at_the_fixed_exposure(self):
+        calls, _ = self.run_part(survey.run_census_switch, SWITCH, [census_line(1, 1)])
+        (call,) = calls
+        self.assertEqual(call["env"]["TERTIUS_PROBE_LAMP_OFF"], survey.switch_runs(SWITCH)["switch"]["TERTIUS_PROBE_LAMP_OFF"])
+        self.assertEqual(call["env"]["TERTIUS_PROBE_EXPOSURE"], "4.08")
+        self.assertEqual(call["extra"], survey.PROBE_OPTIONS)
+
+    def test_a_census_walk_and_a_census_lag_film_their_cases(self):
+        walk_calls, _ = self.run_part(survey.run_census_walk, {**WALK, "name": "cabin-walk"}, [census_line(1, 1)])
+        self.assertEqual(walk_calls[0]["steps"], survey.walk_script(WALK)["steps"])
+        lag = survey.load_cases()["lags"][0]
+        lag_calls, _ = self.run_part(survey.run_census_lag, lag, [census_line(1, 1)])
+        self.assertEqual(lag_calls[0]["steps"], survey.lag_scripts(lag)[0]["steps"])
+
+    def test_the_census_parts_take_their_lists_and_run_only_when_named(self):
+        cases = {"stills": [{"name": "rect-lamps"}], "motion": [{"name": "rigs-crowd"}], "switches": [{"name": "cabin"}],
+                 "lags": [{"name": "bay-sun"}], "walks": [{"name": "cabin-walk"}]}
+        self.assertEqual({part: [c["name"] for c in survey.cases_of(cases, part)] for part in survey.NAMED_PARTS},
+                         {"census-still": ["rect-lamps"], "census-film": ["rigs-crowd"], "census-switch": ["cabin"],
+                          "census-lag": ["bay-sun"], "census-walk": ["cabin-walk"]})
         with mock.patch.object(survey, "run", return_value=0) as run:
             survey.main(["run", "/tmp/x"])
-        self.assertNotIn("evidence", run.call_args.args[0].parts.split(","))
+        self.assertFalse([p for p in run.call_args.args[0].parts.split(",") if p.startswith("census")])
 
-    def test_the_command_evaluates_a_kept_capture_and_writes_its_numbers(self):
+    def test_the_command_reduces_a_census_folder_and_writes_its_numbers(self):
         with tempfile.TemporaryDirectory() as folder:
-            texels = quiet_texels(100)
-            plant(texels, 70, 2, 3, -0.2)
-            write_capture(Path(folder) / "blocks", [(capture_signal(), texels)], first_index=0)
-            target = Path(folder) / "evidence.json"
-            self.assertEqual(survey.main(["evidence", str(Path(folder) / "blocks"), "--skip", "64", "--write",
-                                          str(target)]), 0)
+            write_census(Path(folder) / "c", [census_line(k, k, levels=(59, 0, 1)) for k in range(0, 4)])
+            target = Path(folder) / "census.json"
+            self.assertEqual(survey.main(["census", str(Path(folder) / "c"), "--skip", "1", "--write", str(target)]), 0)
             written = json.loads(target.read_text())
-        self.assertEqual(written["signals"][0]["fires"]["any"], 1)
-        self.assertEqual(written["skip"], 64)
+        self.assertEqual(signal_of(written, "diffuse")["levels"]["light"], 3)
+        self.assertEqual(written["skip"], 1)
 
-    def test_the_report_gives_each_signal_s_false_evidence_and_noise_ratio(self):
+    def test_the_report_gives_each_signal_s_shares_by_level_and_cause(self):
         with tempfile.TemporaryDirectory() as folder:
             out = Path(folder)
-            survey.save(out, "evidence", "rect-lamps", {
-                "failed": ["diffuse evidence"],
-                "signals": [{"light": "diffuse", "blockDraws": 1000000, "fires": {"1": 50, "3": 100, "7": 20, "any": 150},
-                             "falsePerBlockDraw": {"1": 5e-5, "3": 1e-4, "7": 2e-5, "any": 1.5e-4},
-                             "repeatShare": 0.25, "deviationRatio": {"1": {"pooled": 1.1}, "3": {"pooled": 1.4},
-                                                                      "7": {"pooled": 1.9}},
-                             "cv": {"p50": 1.3}, "stationaryDifference": {"3": {"p99.99": 0.09}}}]})
+            survey.save(out, "census-still", "rect-lamps", {
+                "failed": ["diffuse light"],
+                "signals": [{"light": "diffuse", "blockDraws": 1000000,
+                             "levelShares": {"none": 0.9997, "motion": 0.0, "light": 3e-4},
+                             "causes": {"light": {"share": 3e-4, "pixelShare": 2e-5},
+                                        "moved": {"share": 0.0, "pixelShare": 0.0},
+                                        "moving": {"share": 0.0, "pixelShare": 0.0}}}]})
             with mock.patch("sys.stdout", new_callable=io.StringIO) as printed:
                 survey.report(argparse.Namespace(out=folder))
-        self.assertIn("| rect-lamps | diffuse | 1000000 | 5.0e-05 | 1.0e-04 | 2.0e-05 | 1.5e-04 | 0.25 | 1.10 | 1.40 "
-                      "| 1.90 | 1.30 | 0.090 | fail: diffuse evidence |", printed.getvalue().splitlines())
+        self.assertIn("| rect-lamps | still | diffuse | 1000000 | 3.0e-04 | 0.0e+00 | 3.0e-04 | 0.0e+00 | 0.0e+00 "
+                      "| 2.0e-05 | fail: diffuse light |", printed.getvalue().splitlines())
+
 
 if __name__ == "__main__":
     unittest.main()
