@@ -762,6 +762,22 @@ The helpers before the shared mode, such as the one in `93e46dd7f` or `8fe7ac7cf
 
 To close the gap and to get the shared mode, call the main checkout's helper by its absolute path, `/Users/alexispurslane/Development/tertius/tools/gpu-lock.sh`, and never a copy in a worktree.
 
+### GPU test runs
+
+Every run of a GPU test project, `Tertius.Rendering.Tests` or `Tertius.Host.Tests`, holds the GPU lock in its shared mode from its first test to its last (ticket ter-zoof). So no timed run, which holds the lock alone, runs beside the GPU tests, wherever they start: the pre-commit hook, `tools/test-all.sh`, `tools/mutate.py` or a plain `dotnet test` in a worktree. Before, on 2026-11-12, other agents' suites loaded the Mac to 44 to 53 beside a timed run, and three of its eight traces were lost.
+
+`GpuTestLock` in `tests/Tertius.Testing` does it. Each GPU test project names it as an xunit assembly fixture. It runs the main checkout's helper with `--shared`, and the helper's command marks the take with a file. The command holds the lock until the fixture's `Dispose` or until the test process is gone, so a killed test run frees the lock within 0.2 s. The log of each take goes to `/tmp/tertius-gpu-test-lock/` and keeps its `waited:` line. The fixture prints `Waiting for the GPU lock` once the take waits for more than 2 s.
+
+These rules apply:
+
+- The helper runs its command with `TERTIUS_GPU_LOCK_HELD` set to `exclusive` or `shared`. A test run that sees it takes nothing, because it would wait for its own parent's lock forever. So the FSR timing test still runs under an exclusive take, and a list of mutants under a shared take runs as before.
+- A test run joins beside up to 15 other shared holders (`GpuTestLock.TestRunCap`, 16), because before ter-zoof test runs had no cap, and one Checked suite runs two GPU projects at once. A still keeps its own cap of 3: it joins only beside fewer than 3 holders, because each run checks its own cap.
+- The helper needs bash 5, so run the tests in the dev shell, as every build and test command here does. The Mac's own `/bin/bash` 3.2 lacks `SRANDOM`, and the fixture then fails every test with the helper's error.
+- `tools/mutate.py` takes no lock of its own, and needs none: each mutant's test run takes the shared lock. Do not wrap it in an exclusive take. It measures no time, so an exclusive take only makes the timed runs wait for it: on 2026-11-12 an agent waited 28 minutes for an exclusive take that only ran tests. A shared wrapper does no harm, because the test runs inside it see `TERTIUS_GPU_LOCK_HELD` and take nothing.
+- A helper process that started before ter-zoof does not set `TERTIUS_GPU_LOCK_HELD`. A test run of a branch with ter-zoof under such a helper's exclusive take waits for that take forever. End the take, and run it again with the current helper.
+
+The cost, measured on 2026-11-12: a take and a release of a free lock cost 0.08 s per test project. Over the 94 hours before, timed runs held the lock alone 36 % of the time, with holds of 1 minute at the median, 15 minutes at the 90th percentile and 91 minutes at most. So a suite that starts at a random moment waits about 5.6 minutes on average: 0.36 times the mean remaining hold of 15.5 minutes. A timed run in turn waits for the GPU test runs ahead of it in the queue, up to the 18 minutes of the Rendering project.
+
 ### Variables and tests
 
 Three environment variables give other values, for the tests. Their defaults are the real values:
@@ -1171,7 +1187,7 @@ A case whose result file exists does not run again. So a stopped run goes on whe
 
 `run` takes the GPU lock once for each chunk of cases, 8 by default (`--chunk`), so that a chunk waits once for the other users of the lock. `--chunk 0` runs in one process and takes the lock for each render. A caller that already holds the lock sets `TERTIUS_SURVEY_HOLDS_LOCK=1`. Then `run` and `split` render in their own process and do not take the lock again, whatever `--chunk` says. A chunk of the timing part, and each timed render, holds the GPU alone. Every other chunk and render, also of `split`, takes the shared mode, because its images do not depend on the time (see "The shared mode"). `trace` records through `tools/gpu-trace.sh`, which holds the GPU alone. Before each render, the tool samples the GPU's busy share three times with `ioreg` and records it as `gpuBusyBefore`. Another process, such as an Android emulator, can use the GPU while the survey holds the lock. Before a timing run, make sure that no other process uses the GPU heavily. An Android emulator puts the GPU in a slow mode. So if an emulator runs before or during a view's timing, the tool writes no result for that view. When no emulator runs, run the timing part again.
 
-The run stops before a render when less than 5 GB are free on `/`. A film of 180 frames at 1920 × 1080 takes about 700 MB until the tool measures it, and a switch run of 460 probe frames about 2.6 GB.
+The run stops before a render when less than 5 GB are free on `/`. A film of 180 frames at 1920 × 1080 takes about 700 MB until the tool measures it. The switch, lag and walk runs write a series file and few PNGs.
 
 ### The measures
 
@@ -1191,7 +1207,8 @@ The motion part first renders stills of 132 draws of the states of a film's midd
 
 A case that measures nothing fails with the verdict "not measured". Three examples follow. In a still, every visible pixel lies near an emitter. A switch changes no region by more than 10 %. A lag case's light changes too little for a lag.
 
-The probe parts use the probe demo with a fixed exposure (`--exposure`, 4.08 stops by default), no bloom, and the Hable tone curve, which the probe replaces with 24-bit log luminance. So they read scene luminance without the auto exposure. Each frame becomes the mean luminance of the whole image and of a 3 × 3 grid of regions:
+The probe parts use the probe demo with a fixed exposure (`--exposure`, 4.08 stops by default), no bloom, and the Hable tone curve, which the probe replaces with 24-bit log luminance. So they read scene luminance without the auto exposure. Each frame becomes the mean luminance of the whole image and of a 3 × 3 grid of regions. The probe computes these 10 means itself from each capture's readback, with the decode of `probe_luminance` and the grid of `region_means`. It appends one line per capture to `series.txt` in the run's folder (`TERTIUS_PROBE_SERIES`). It writes a PNG only for the capture names in `TERTIUS_PROBE_KEEP`, which are the four frames of a switch that the report keeps. Before ticket ter-d7qy, every frame went through a PNG. A 460-frame switch run then took 545 s on the cloud's GPU worker, about 1.2 s per frame. With the series, a frame took 14.6 ms there, against a GPU frame span of 10.0 ms. The probe's means differ from those of the PNG path by about 2 parts in 10^13, because the two sum the pixels in a different order. The settle tolerance is 5 %.
+
 
 - A switch case turns the selected lamps off at film frame 160 and on at frame 360. It films 100 more frames (`TERTIUS_PROBE_LAMP_OFF`, `TERTIUS_PROBE_LAMP_SEL` and `TERTIUS_PROBE_SUN` in the patch). So the lamps-off window is 200 draws and the lamps-on window is 100 draws. Two control runs hold the lamps off or on from the start. The settle is the draws after the change until the light of every region that the switch changes by more than 10 % stays within 5 % of its control. This is the method of `settle2.py` of 2026-11-08.
 - A lag case renders a film of moving lights, and stills of 132 draws of the same states at its sample frames. The lag is the film's difference from the still divided by the film's change per draw, so it is in draws. It counts only regions whose light changes by more than 10 % in 60 draws.

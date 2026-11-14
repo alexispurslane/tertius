@@ -1,0 +1,65 @@
+{
+  "scene": "rigs",
+  "window": {
+    "width": 2560,
+    "height": 1440
+  },
+  "steps": [
+    {
+      "do": "run",
+      "ticks": 59
+    },
+    {
+      "do": "capture",
+      "name": "bent-left"
+    },
+    {
+      "do": "camera",
+      "entity": "box-camera"
+    },
+    {
+      "do": "run",
+      "ticks": 1
+    },
+    {
+      "do": "capture",
+      "name": "box"
+    },
+    {
+      "do": "camera",
+      "entity": "twist-camera"
+    },
+    {
+      "do": "run",
+      "ticks": 1
+    },
+    {
+      "do": "capture",
+      "name": "twist"
+    },
+    {
+      "do": "camera",
+      "entity": "camera"
+    },
+    {
+      "do": "run",
+      "ticks": 119
+    },
+    {
+      "do": "capture",
+      "name": "bent-right"
+    },
+    {
+      "do": "camera",
+      "entity": "box-camera"
+    },
+    {
+      "do": "run",
+      "ticks": 1
+    },
+    {
+      "do": "capture",
+      "name": "box-other-way"
+    }
+  ]
+}

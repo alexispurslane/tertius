@@ -1,0 +1,111 @@
+frames 151 settled 111
+span median 19.937  idle-inside-span median 1.271 ms  encoders/frame median 68  intervals/frame median 108
+frame 80
+   0.000 +  0.008  Compute   (before the first pass)      vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdCopyBuffer   
+   0.049 +  0.031  Vertex    before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  gap 0.041
+   0.054 +  0.042  Vertex    before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   0.086 +  0.004  Compute   -                            vkQueueSubmit MTLCommandBuffer on Queue 0-0:Record GPU Count  
+   0.109 +  0.030  Fragment  before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   0.139 +  0.029  Fragment  before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   0.180 +  0.013  Vertex    before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   0.184 +  0.020  Vertex    before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   0.209 +  0.026  Fragment  before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   0.256 +  0.024  Fragment  before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  gap 0.021
+   0.336 +  0.020  Vertex    before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  gap 0.056
+   0.339 +  0.034  Vertex    before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   0.367 +  0.010  Fragment  before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   0.384 +  0.010  Fragment  before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   0.419 +  0.013  Vertex    before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  gap 0.025
+   0.446 +  0.011  Fragment  before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   0.450 +  0.014  Vertex    before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   0.476 +  0.008  Fragment  before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   0.521 +  0.013  Vertex    before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  gap 0.037
+   0.524 +  0.023  Vertex    before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   0.545 +  0.010  Fragment  before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   0.557 +  0.009  Fragment  before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   0.601 +  0.015  Vertex    before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  gap 0.035
+   0.619 +  0.015  Vertex    before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   0.630 +  0.010  Fragment  before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   0.644 +  0.008  Fragment  before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   0.695 +  0.014  Vertex    before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  gap 0.042
+   0.698 +  0.024  Vertex    before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   0.724 +  0.008  Fragment  before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   0.734 +  0.009  Fragment  before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   0.781 +  0.013  Vertex    before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  gap 0.038
+   0.804 +  0.007  Fragment  before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   0.808 +  0.014  Vertex    before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   0.817 +  0.018  Vertex    before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   0.837 +  0.009  Fragment  before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   0.848 +  0.008  Fragment  before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   0.886 +  0.013  Vertex    before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  gap 0.031
+   0.899 +  0.032  Vertex    before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   0.917 +  0.008  Fragment  before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   0.921 +  0.029  Vertex    before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   0.944 +  0.130  Compute   before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdDispatch Co  
+   1.085 +  0.005  Fragment  before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   1.091 +  0.324  Fragment  before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   1.123 +  0.268  Vertex    before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   1.415 +  0.512  Fragment  before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   1.958 +  0.071  Compute   before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdDispatch Co  gap 0.030
+   2.058 +  0.238  Compute   before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdDispatch Co  gap 0.030
+   2.323 +  0.004  Compute   before the render size       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdCopyImageTo  gap 0.027
+   2.346 +  0.027  Vertex    at the render size           vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   2.351 +  0.053  Vertex    at the render size           vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   2.355 +  0.003  Compute   -                            vkQueueSubmit MTLCommandBuffer on Queue 0-0:Record GPU Count  
+   2.390 +  0.056  Fragment  at the render size           vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   2.394 +  0.084  Vertex    at the render size           vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   2.421 +  0.063  Vertex    at the render size           vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   2.446 +  0.009  Fragment  at the render size           vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   2.495 +  0.062  Fragment  at the render size           vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+   2.590 +  0.473  Compute   at the render size           vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdDispatch Co  gap 0.032
+   3.095 +  3.728  Fragment  at the render size           vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  gap 0.032
+   6.866 +  0.091  Compute   at the render size           vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdDispatch Co  gap 0.044
+   6.996 +  0.005  Compute   at the render size           vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdUpdateBuffe  gap 0.038
+   7.023 +  0.005  Compute   at the render size           vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdUpdateBuffe  gap 0.022
+   7.040 +  2.648  Compute   at the render size           vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdDispatch Co  
+   9.731 +  0.007  Vertex    at the render size           vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  gap 0.044
+   9.740 +  5.667  Compute   at the render size           vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdDispatch Co  
+  15.459 +  0.153  Fragment  at the render size           vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  gap 0.052
+  15.659 +  0.049  Compute   at the render size           vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdDispatch Co  gap 0.047
+  15.748 +  0.010  Vertex    at the render size           vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  gap 0.039
+  15.754 +  0.009  Vertex    after the render size        vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+  15.762 +  0.026  Compute   at the render size           vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdCopyImage B  
+  15.785 +  0.004  Vertex    after the render size        vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+  15.791 +  0.004  Vertex    after the render size        vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+  15.814 +  1.795  Fragment  at the render size           vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+  15.820 +  0.132  Vertex    after the render size        vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+  15.824 +  0.134  Compute   at the render size           vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdFillBuffer   
+  15.840 +  0.221  Vertex    after the render size        vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+  16.003 +  0.137  Vertex    after the render size        vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+  16.076 +  0.160  Vertex    after the render size        vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+  16.174 +  0.165  Vertex    after the render size        vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+  16.270 +  0.182  Vertex    after the render size        vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+  16.374 +  0.200  Vertex    after the render size        vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+  16.486 +  0.204  Vertex    after the render size        vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+  17.653 +  0.022  Compute   at the render size           vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdDispatch Co  gap 0.044
+  17.689 +  0.005  Compute   after the render size        vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdUpdateBuffe  
+  17.694 +  0.004  Compute   -                            vkQueueSubmit MTLCommandBuffer on Queue 0-0:Record GPU Count  
+  17.708 +  0.001  Compute   output                       vkQueueSubmit MTLCommandBuffer on Queue 0-0:Blit Command 59   
+  17.727 +  1.727  Compute   after the render size        vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdDispatch Co  
+  17.731 +  0.001  Compute   output                       vkQueueSubmit MTLCommandBuffer on Queue 0-0:Blit Command 62   
+  19.500 +  0.165  Fragment  after the render size        vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  gap 0.046
+  19.664 +  0.026  Fragment  after the render size        vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+  19.705 +  0.011  Fragment  after the render size        vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+  19.724 +  0.011  Fragment  after the render size        vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+  19.741 +  0.011  Fragment  after the render size        vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+  19.758 +  0.007  Fragment  after the render size        vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+  19.776 +  0.007  Fragment  after the render size        vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+  19.792 +  0.007  Fragment  after the render size        vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+  19.809 +  0.007  Fragment  after the render size        vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+  19.826 +  0.013  Fragment  after the render size        vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+  19.843 +  0.028  Fragment  after the render size        vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+  19.894 +  0.001  Compute   output                       vkQueueSubmit MTLCommandBuffer on Queue 0-0:Blit Command 60   gap 0.023
+  19.914 +  0.004  Compute   -                            vkQueueSubmit MTLCommandBuffer on Queue 0-0:Record GPU Count  
+  19.930 +  0.001  Compute   output                       vkQueueSubmit MTLCommandBuffer on Queue 0-0:Blit Command 61   
+  19.948 +  0.007  Vertex    output                       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+  19.974 +  0.114  Fragment  output                       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdBeginRender  
+  20.109 +  0.031  Compute   output                       vkQueueSubmit MTLCommandBuffer on Queue 0-0:vkCmdCopyImageTo  gap 0.022
+  20.116 +  0.002  Compute   (after the last pass)        vkQueueSubmit MTLCommandBuffer on Queue 0-0:Blit Command 4    
+  20.153 +  0.004  Compute   -                            vkQueueSubmit MTLCommandBuffer on Queue 0-0:Record GPU Count  
+  20.157 +  0.001  Compute   (after the last pass)        vkQueueSubmit MTLCommandBuffer on Queue 0-0:Blit Command 3    
+  20.176 +  0.001  Compute   (after the last pass)        vkQueueSubmit MTLCommandBuffer on Queue 0-0:Blit Command 5    

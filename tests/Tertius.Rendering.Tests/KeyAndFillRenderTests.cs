@@ -511,7 +511,40 @@ public sealed class KeyAndFillRenderTests
         (float X, float Y, float Power)[] bulbs
     )
     {
-        VulkanRenderer renderer = VulkanRenderer.CreateOffscreen(
+        VulkanRenderer renderer = WindowRenderer(lightPairs);
+        try
+        {
+            RenderSnapshot scene = Scene(
+                renderer: renderer,
+                desc: desc,
+                bulbs: bulbs,
+                shadows: false,
+                squares: [Square.Wall]
+            );
+            RenderUntilTheRenderScaleIsAHalf(renderer, scene);
+
+            CameraView camera = renderer.LastScene.Camera;
+            (camera.Width, camera.Height).Should().Be((Width / 2, WindowHeight / 2), "the render size fell to half");
+            float[] image = renderer.ReadHdr();
+            return
+            [
+                .. Enumerable
+                    .Range(0, WindowHeight / 2)
+                    .SelectMany(y => Enumerable.Range(0, Width / 2).Select(x => image[(y * Width + x) * 4])),
+            ];
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// A window's renderer of <see cref="Width"/> by <see cref="WindowHeight"/> pixels with FSR 3.1, so that its render
+    /// size can fall below the window's.
+    /// </summary>
+    private static VulkanRenderer WindowRenderer(LightPairSetting lightPairs) =>
+        VulkanRenderer.CreateOffscreen(
             options: new()
             {
                 Width = Width,
@@ -533,50 +566,32 @@ public sealed class KeyAndFillRenderTests
                 new HeadlessTarget(device: device, allocator: allocator, extent: extent, bgra: false),
             headless: false
         );
-        try
-        {
-            RenderSnapshot scene = Scene(
-                renderer: renderer,
-                desc: desc,
-                bulbs: bulbs,
-                shadows: false,
-                squares: [Square.Wall]
-            );
-            renderer.Render(scene, 1f);
-            // A G-buffer far over the frame's budget sends the render scale to its least value, a half.
-            for (int frame = 0; frame < 12; frame++)
-            {
-                renderer.ScaleController!.Measure(
-                    new(
-                        renderer.DrawnFrames - 1,
-                        new PassTiming[]
-                        {
-                            new("G-buffer", 100) { Stage = FrameGraph.Stage.GBuffer },
-                            new("exposure", 0) { Stage = FrameGraph.Stage.Exposure },
-                            new("FSR 3.1", 1) { Stage = FrameGraph.Stage.Upscale },
-                            new("bloom", 1) { Stage = FrameGraph.Stage.Bloom },
-                            new("tone map", 100) { Stage = FrameGraph.Stage.ToneMap },
-                        },
-                        202
-                    )
-                );
-                scene.Time += 1.0 / 60;
-                renderer.Render(scene, 1f);
-            }
 
-            CameraView camera = renderer.LastScene.Camera;
-            (camera.Width, camera.Height).Should().Be((Width / 2, WindowHeight / 2), "the render size fell to half");
-            float[] image = renderer.ReadHdr();
-            return
-            [
-                .. Enumerable
-                    .Range(0, WindowHeight / 2)
-                    .SelectMany(y => Enumerable.Range(0, Width / 2).Select(x => image[(y * Width + x) * 4])),
-            ];
-        }
-        finally
+    /// <summary>
+    /// Renders <paramref name="scene"/> until the render scale is at its least value, a half: each frame reports a
+    /// G-buffer far over the frame's budget.
+    /// </summary>
+    private static void RenderUntilTheRenderScaleIsAHalf(VulkanRenderer renderer, RenderSnapshot scene)
+    {
+        renderer.Render(scene, 1f);
+        for (int frame = 0; frame < 12; frame++)
         {
-            Gpu.DisposeAndAssertClean(renderer);
+            renderer.ScaleController!.Measure(
+                new(
+                    renderer.DrawnFrames - 1,
+                    new PassTiming[]
+                    {
+                        new("G-buffer", 100) { Stage = FrameGraph.Stage.GBuffer },
+                        new("exposure", 0) { Stage = FrameGraph.Stage.Exposure },
+                        new("FSR 3.1", 1) { Stage = FrameGraph.Stage.Upscale },
+                        new("bloom", 1) { Stage = FrameGraph.Stage.Bloom },
+                        new("tone map", 100) { Stage = FrameGraph.Stage.ToneMap },
+                    },
+                    202
+                )
+            );
+            scene.Time += 1.0 / 60;
+            renderer.Render(scene, 1f);
         }
     }
 

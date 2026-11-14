@@ -1,0 +1,16 @@
+# Take 12: the reflection step caps of 96 and 80 against main's 128 on the deck, three rounds in turns, as a window. The
+# binary par is main (c87eac88f) with the cap from SWEEP_RSTEPS and the exposure fixed at the deck's value. Then one
+# pair with the pass time stamps: main against the proxy envnl, whose environment faces shade no light.
+X="SWEEP_EXPOSURE=0.7041458"
+NS="--pass-timestamps off"
+TRACE_EXTRA_ENV="$X" trace deck-t12-ctl-a par $D $NS
+TRACE_EXTRA_ENV="$X SWEEP_RSTEPS=96" trace deck-t12-r96-a par $D $NS
+TRACE_EXTRA_ENV="$X SWEEP_RSTEPS=80" trace deck-t12-r80-a par $D $NS
+TRACE_EXTRA_ENV="$X" trace deck-t12-ctl-b par $D $NS
+TRACE_EXTRA_ENV="$X SWEEP_RSTEPS=96" trace deck-t12-r96-b par $D $NS
+TRACE_EXTRA_ENV="$X SWEEP_RSTEPS=80" trace deck-t12-r80-b par $D $NS
+TRACE_EXTRA_ENV="$X" trace deck-t12-ctl-c par $D $NS
+TRACE_EXTRA_ENV="$X SWEEP_RSTEPS=96" trace deck-t12-r96-c par $D $NS
+TRACE_EXTRA_ENV="$X SWEEP_RSTEPS=80" trace deck-t12-r80-c par $D $NS
+trace deck-t12-main-st m13 $D
+trace deck-t12-envnl-st envnl $D

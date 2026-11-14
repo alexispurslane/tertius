@@ -21,3 +21,7 @@ Scope: derive maxSets and the size of each descriptor type of each pool from one
 **2026-11-04T13:37:55Z**
 
 2026-11-04: from ter-cikj's hardening. The mutants C04 and C07 of ter-cikj (a pool that gives one set past its maxSets) survive on both Mac drivers, because EnvironmentMapPlumbingTests fills the pool until any refusal. When this ticket's ledger makes every driver refuse at one point, a test can pin the exact count of sets that fit, and that test kills them.
+
+**2026-11-12T18:18:23Z**
+
+2026-11-12, from ter-s97m's hardening: the mutant M11 of ter-s97m (the shared pool's sampled images per frame set 6 -> 5) survived on MoltenVK. The frame set takes 7 sampled images (three tables, the specular map, the irradiance cube, the distance cube and the blue-noise mask), and the pool held 6 per frame; on main before ter-s97m it took 6 and the pool held 5. The constant 20 of the G-buffer, post and atlas sets appears to hold enough spare images to hide that, also on a driver that counts each type. ter-s97m added DescriptorLayoutsTests.EachFrameInFlightGrowsTheSharedPoolByWhatItsFrameSetAndDeformSetTake, which pins only the per-frame part of each size (pool at 3 frames minus pool at 2 = frame set + deform set). This ticket's ledger still has to cover the other terms, the 20 among them.

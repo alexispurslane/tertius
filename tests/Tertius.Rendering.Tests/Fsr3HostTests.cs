@@ -114,7 +114,11 @@ public sealed class Fsr3HostTests
         MaxPerStageDescriptorStorageImages = 15,
     };
 
-    // The constants that AMD's host computes with its math library's tangent, cosine and sine.
+    // The constants that AMD's host computes with its math library's tangent, cosine and sine. They match within 3 ulps,
+    // one for each float call of AMD's chain (tan, atan, tan). The golden values carry the rounding of the Mac's float
+    // functions, which are not always correctly rounded: frame 8 of the budget case has tanHalfFOV 0.7461058, where the
+    // correctly rounded value, ours on every machine, is 0.7461057, 2 ulps away (ter-qjyo). A fault of the formula, such
+    // as another aspect or a full angle, moves these values by thousands of ulps.
     private static readonly HashSet<string> Transcendental = ["tanHalfFOV", "deviceToViewDepth2", "deviceToViewDepth3"];
 
     [Fact]
@@ -187,7 +191,7 @@ public sealed class Fsr3HostTests
                         continue;
                     string because = $"AMD's {name} of frame {index} of {sequence.Name}";
                     if (Transcendental.Contains(name))
-                        actual[name].Should().BeApproximately(expected, OneUlp(expected), because);
+                        actual[name].Should().BeApproximately(expected, 3 * OneUlp(expected), because);
                     else
                         actual[name].Should().Be(expected, because);
                 }

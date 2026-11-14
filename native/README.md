@@ -40,3 +40,11 @@ nix build .#moltenvk
 ```
 
 [tools/README.md](../tools/README.md), "The patched MoltenVK", gives the reason, the ordering rules and the switches back to the stock behavior.
+
+## The blue-noise mask
+
+The file `stbn-mask.nix` builds the reflection rays' blue-noise mask. It compiles `stbn.c` and runs it once, which takes about a minute. The program writes the same 2 MiB on every machine. The mask is a build output, so git does not keep it (docs/plans/asset-pipeline.md, decision 21). The dev shell names it in `TERTIUS_STBN_MASK`, and `Tertius.Rendering` embeds it. ARCHITECTURE.md, "Randomness and determinism", describes the mask. Build it alone with this command:
+
+```sh
+nix build .#stbn-mask
+```

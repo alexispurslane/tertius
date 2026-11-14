@@ -78,7 +78,9 @@ Runpod limits the account to 10 workers, summed over the maximums of all its end
 
 `gpu_job.py endpoint-request [--kind cpu] <commit>` prints the request that creates an endpoint, and sends nothing.
 
-If any endpoint of the script, of either kind, has a maximum of 0 workers, the script refuses every job and deletes nothing. When the spending nears its limit, the orchestrator's watchdog stops all endpoints that way. The watchdog does not take the script's lock. So the script reads the list of endpoints again before each deletion, after a creation and before it raises an endpoint. If one of those reads shows a stop, the script deletes its new endpoint again and refuses the job.
+When the spending nears its limit, the orchestrator's watchdog stops all endpoints. It first writes the file `~/.local/state/tertius/gpu-jobs/stopped-by-watchdog`, and then it sets every endpoint to a maximum of 0 workers. While that file exists, the script refuses every job and deletes nothing. The orchestrator removes the file when it restarts the endpoints. To stop the endpoints by hand, write the same file first. The watchdog does not take the script's lock. So the script reads the list of endpoints and the file again before each deletion, after a creation and before it raises an endpoint. If one of those reads shows a stop, the script deletes its new endpoint again and refuses the job.
+
+An endpoint at 0 workers without the file is on its way out. A delete in Runpod's console holds an endpoint at 0 workers for a few seconds before it is gone. On 2026-11-13, the script took such a delete for the watchdog's stop and refused a CPU job (ticket t8-j5oc). The script now never routes a job to such an endpoint, never raises it and never deletes it.
 
 This narrows the race with the watchdog but does not close it. A watchdog that listed the endpoints before the script created one does not stop the new one in that round. A stop that lands between the script's last read and its raise of an endpoint is undone until the watchdog's next round. That round comes 5 minutes later, and the caps stay a separate guard. If the orchestrator restarts the endpoints after a stop, the sum of their maximums must stay within 10: 5 for the GPU endpoint and 3 for the CPU endpoint.
 
@@ -153,13 +155,11 @@ On the Mac, the same modules run one after another, under one Stryker lock: Core
 
 ### Linux failures
 
-These tests fail on the Linux workers and pass on the Mac. A cloud run of their project is not clean until they are fixed:
+The epic t8-pkag fixed each failure of the Host, Rendering and Slop tests that full runs on the RTX 2000 Ada (x86-64, NVIDIA) found on 2026-11-12. It confirmed each fix on the card by its class, last on a7924ebd7. No full card run happened after ter-8esk and t2-pw52 merged. So this list holds only what later card runs of single classes show:
 
-- Host: 215 of 2,055 tests run out of the card's memory at the default parallelism (ter-net6).
-- Host: the edit command's closing card draws text into its left margin (ter-j4h9).
-- Rendering: an FSR 3.1 host constant differs by 1 ulp on x86-64 (ter-qjyo).
-- Rendering: 8 more tests fail on the RTX 2000 Ada: sphere, tube and accumulator light tests, the prefilter of a uniform map (16 and 32), the light-age diagnostic, the young history of the diffuse filter, and FSR 3.1's reference image.
-- Slop: `CommitReportTests.TheCommitReportShowsTouchedFindingsBeforeTheProjectAddendum`.
+- Rendering: `TubeLightRenderTests.ATubeLightLightsAMatteSquareAsTheCSharpTubeDoes("slanted-through-the-square")` failed on main after ter-8esk (101/255 against a bound of 100/255). Its band is 3 % since t8-sjli, and the class passes on the card with it (7 of 7, 2026-11-13). On the card it lies 2.30 % above the C# tube, and the shader's tube light lies 2 to 3 % above it on the Mac too, for a cause that ticket t8-o16a tracks.
+
+A full card run of the Host and Rendering suites on 2026-11-14 will correct this list.
 
 The Core, Simulation and Physics tests pass on the workers since ter-zkdz. That ticket made four tests compare two runs on one machine, and the recorded results only on arm64.
 
