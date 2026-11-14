@@ -312,8 +312,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                             && pixel / Width is > 0 and < Height - 1
                             && ExactLightAt(before, pixel) >= 3
                             && NeighborsOf(pixel).Any(neighbor => ExactLightAt(before, neighbor) < 0)
-                            && NeighborsOf(pixel)
-                                .All(neighbor => ExactLightAt(before, neighbor) is < 0 or >= 3)
+                            && NeighborsOf(pixel).All(neighbor => ExactLightAt(before, neighbor) is < 0 or >= 3)
                         ),
                 ];
                 edge.Length.Should().BeGreaterThan(40, "the emitter's top row and upper sides border the sky");
@@ -352,7 +351,10 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 line.EntityIndex = 3;
                 scene.Instances.Add(line);
                 Draw(renderer, scene, 32);
-                int[] pixels = [.. Enumerable.Range(36, rows).SelectMany(row => Enumerable.Range(row * Width + 52, 24))];
+                int[] pixels =
+                [
+                    .. Enumerable.Range(36, rows).SelectMany(row => Enumerable.Range(row * Width + 52, 24)),
+                ];
                 float[] before = renderer.ReadLightAge();
                 pixels.Should().OnlyContain(pixel => ExactLightAt(before, pixel) == 8, "the line covers these pixels");
                 line.Material = ReflectionTesting.Glow(renderer, new(16));
@@ -1473,8 +1475,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
     /// The height in m, relative to the eye, of the point at <paramref name="depth"/> m ahead that the camera of
     /// <see cref="Gpu.Snapshot"/> shows at <paramref name="row"/>, counted in render pixels from the image's top.
     /// </summary>
-    private static float HeightOfRow(float row, float depth) =>
-        (1 - 2 * row / Height) * MathF.Tan(Gpu.Fov / 2) * depth;
+    private static float HeightOfRow(float row, float depth) => (1 - 2 * row / Height) * MathF.Tan(Gpu.Fov / 2) * depth;
 
     /// <summary>Gives the emitter, the scene's second instance, a glow of <paramref name="radiance"/>.</summary>
     private static void SetGlow(VulkanRenderer renderer, RenderSnapshot scene, Vector3 radiance)
