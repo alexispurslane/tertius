@@ -1,0 +1,211 @@
+diff --git a/src/Tertius.Rendering/Scene/GpuTypes.cs b/src/Tertius.Rendering/Scene/GpuTypes.cs
+index fb211525f..1dfcedb26 100644
+--- a/src/Tertius.Rendering/Scene/GpuTypes.cs
++++ b/src/Tertius.Rendering/Scene/GpuTypes.cs
+@@ -985,7 +985,8 @@ internal struct ScreenTracePushConstants
+     private static readonly uint ProbeHitNoSpecularValue =
+         (Environment.GetEnvironmentVariable("TERTIUS_PROBE_HIT_NO_SPECULAR") == "1" ? 1u : 0u)
+         | (Environment.GetEnvironmentVariable("TERTIUS_PROBE_HIT_CLASS") == "1" ? 2u : 0u)
+-        | (Environment.GetEnvironmentVariable("TERTIUS_PROBE_HIT_PLACES") == "1" ? 4u : 0u);
++        | (Environment.GetEnvironmentVariable("TERTIUS_PROBE_HIT_PLACES") == "1" ? 4u : 0u)
++        | (Environment.GetEnvironmentVariable("TERTIUS_PROBE_HIT_TRUE") == "1" ? 8u : 0u);
+ 
+     /// <summary>
+     /// The push constants of a draw of index <paramref name="drawIndex"/> under <paramref name="trace"/>, with the
+diff --git a/src/Tertius.Rendering/Shaders/screen_trace.glsl b/src/Tertius.Rendering/Shaders/screen_trace.glsl
+index 2a1c55a65..e85614b8e 100644
+--- a/src/Tertius.Rendering/Shaders/screen_trace.glsl
++++ b/src/Tertius.Rendering/Shaders/screen_trace.glsl
+@@ -742,6 +742,15 @@ struct TracedRay
+     float age;        // the light age of the hit's pixel, NoLightAge for a miss (MissLightAge under the diagnostic)
+     bool moved;       // whether the hit's pixel carries the plan's moved mark (movedSurfaceAt); false for a miss
+ #endif
++    // PROBE (t0-adau, never merges): the walk's own result for the hit census's true mode (probeTrueOf in the resolve).
++    ivec2 probeHitPixel;    // the walk's hit pixel, -1 for a miss
++    float probeEntry;       // the walk's entry share e
++    float probeFade;        // edgeFade(hit) * (1 - e)
++    float probeMiss;        // the luminance of the miss light
++    float probeLeaving;     // the luminance of the hit pixel's leaving light
++    uint probeCrossing;     // where the ray crosses the hit surface's plane: 0 an opening (the eye sees the sky or a
++                            // farther surface there), 1 the hit surface itself (a solid wall: the ray passed through
++                            // it), 2 a nearer surface hides the crossing, 3 undetermined (off screen or parallel)
+ };
+ 
+ // Traces the ray of the kind from the pixel that starts it: its draw, its walk to the kind's cap, and its light. A
+@@ -778,6 +787,12 @@ TracedRay traceFrom(ivec2 pixel, ivec2 cell, TracingPixel p, uint kind)
+     result.light = vec3(0.0);
+     result.distance = 0.0;
+     result.traced = dot(result.direction, p.s.geometricNormal) > 0.0;
++    result.probeHitPixel = ivec2(-1);
++    result.probeEntry = 0.0;
++    result.probeFade = 0.0;
++    result.probeMiss = 0.0;
++    result.probeLeaving = 0.0;
++    result.probeCrossing = 3u;
+ #ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
+     result.age = MissLightAge;
+ #elif defined(TERTIUS_PRECISE_SPECULAR_HISTORY)
+@@ -821,6 +836,36 @@ TracedRay traceFrom(ivec2 pixel, ivec2 cell, TracingPixel p, uint kind)
+     float fade = edgeFade(hit) * (1.0 - entryShare);
+     vec4 leaving = imageLoad(hitLight, ivec3(hitPixel, kind));
+     result.light = mix(missLight, leaving.rgb, fade);
++    if ((trace.probeHitNoSpecular & 8u) != 0u)
++    {
++        const vec3 Y = vec3(0.2126, 0.7152, 0.0722);
++        result.probeHitPixel = hitPixel;
++        result.probeEntry = entryShare;
++        result.probeFade = fade;
++        result.probeMiss = dot(missLight, Y);
++        result.probeLeaving = dot(leaving.rgb, Y);
++        // The ray's crossing of the hit surface's plane, and what the eye sees at its place on screen.
++        vec3 n = octDecodeUnnormalized(texelFetch(gbufferNormal, hitPixel, 0).ba);
++        float along = dot(result.direction, n);
++        if (abs(along) > 1e-4)
++        {
++            vec3 crossing = p.origin + result.direction * (dot(hitPoint - p.origin, n) / along);
++            vec3 clip = clipOf(crossing);
++            vec2 place = (0.5 * clip.xy / max(clip.z, 1e-6) + 0.5) * frame.viewport.xy;
++            if (clip.z > 0.0 && all(greaterThanEqual(place, vec2(0.0))) && all(lessThan(place, frame.viewport.xy)))
++            {
++                ivec2 s = ivec2(place);
++                float seen = texelFetch(gbufferDistance, s, 0).r;
++                float there = length(crossing);
++                if (!hittable(s) || seen > there * 1.02)
++                    result.probeCrossing = 0u;
++                else if (seen < there * 0.98)
++                    result.probeCrossing = 2u;
++                else
++                    result.probeCrossing = 1u;
++            }
++        }
++    }
+ #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+     if (fade > 0.0)
+     {
+diff --git a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
+index 5a6393a9e..590d968a0 100644
+--- a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
++++ b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
+@@ -264,6 +264,48 @@ void main()
+         hitDistance = reflection.light.a;
+     }
+     imageStore(specularSample, pixel, vec4(min(specularLight, vec3(MaxRadiance)), hitDistance));
++#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
++    // PROBE (t0-adau, never merges): the true mode (TERTIUS_PROBE_HIT_TRUE=1, bit 3 of the knob). For a specular sample of
++    // luminance 50 or more from the pixel's reflection ray, the resolve walks that ray again, with the inputs of its
++    // record's walk (its block's chosen pixel and the block as its cell, or the pixel itself), and writes the walk's own
++    // hit: the specular sample's age holds the hit pixel's x in bits 0 to 10 and the fade in 32nds in bits 11 to 15; the
++    // diffuse sample's age the hit pixel's y in bits 0 to 9, the crossing (TracedRay.probeCrossing) in bits 10 and 11,
++    // in bit 12 whether the walk again gives the record's light within 2 %, in bit 13 whether the miss light's part
++    // (1 - fade) * miss passes the hit's part fade * leaving, and the entry share in quarters in bits 14 and 15. A
++    // sample without that ray writes 0xFFFF into both.
++    if ((trace.probeHitNoSpecular & 8u) != 0u && dot(min(specularLight, vec3(MaxRadiance)), vec3(0.2126, 0.7152, 0.0722)) >= 50.0)
++    {
++        uvec2 out2 = uvec2(0xFFFFu);
++        if (startsKind(p, KindReflection) && handOver < 0.5)
++        {
++            bool own = (plan & PlanOwnReflection) != 0u;
++            ivec2 chosen = pixel;
++            TracingPixel c = p;
++            bool found = own || chosenPixelOf(pixel / 2, KindReflection, chosen, c);
++            if (found)
++            {
++                TracedRay again = traceFrom(chosen, own ? pixel : pixel / 2, c, KindReflection);
++                RayRecord record = recordAt(pixel, KindReflection, plan);
++                const vec3 Y = vec3(0.2126, 0.7152, 0.0722);
++                float was = dot(record.light.rgb, Y);
++                bool match = abs(dot(again.light, Y) - was) <= 0.02 * max(was, 1e-3);
++                if (again.probeHitPixel.x >= 0)
++                {
++                    uint fade = uint(clamp(again.probeFade * 32.0, 0.0, 31.0));
++                    uint entry = uint(clamp(again.probeEntry * 4.0, 0.0, 3.0));
++                    bool missWins = (1.0 - again.probeFade) * again.probeMiss > again.probeFade * again.probeLeaving;
++                    out2 = uvec2(uint(again.probeHitPixel.x) | (fade << 11),
++                        uint(again.probeHitPixel.y) | (again.probeCrossing << 10) | (match ? 4096u : 0u)
++                            | (missWins ? 8192u : 0u) | (entry << 14));
++                }
++                else
++                    out2 = uvec2(0xFFFEu, match ? 0xFFFEu : 0xFFFDu);   // the walk again misses
++            }
++        }
++        imageStore(specularSampleAge, pixel, uvec4(out2.x));
++        imageStore(diffuseSampleAge, pixel, uvec4(out2.y));
++    }
++#endif
+ #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+     // PROBE (tools/renderer-survey): the pixel's own motion in its own bit, apart from the moved mark.
+     imageStore(specularSampleAge, pixel, uvec4(sampleAgeOf(ageCode, moved) | (moves ? ProbeMovingBit : 0u)));
+diff --git a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
+index ac0b480b4..d0f5f49c8 100644
+--- a/src/Tertius.Rendering/VulkanRenderer.cs
++++ b/src/Tertius.Rendering/VulkanRenderer.cs
+@@ -683,7 +683,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
+     private readonly Dictionary<(int Box, int X, int Y, int Lit), (long Count, double Light)> probeHitPlaces = new();
+     // Per box and dominant part of the hit's light (probeDominantOf): the bright samples and their light.
+     private readonly double[,,] probeHitDominant = new double[4, 8, 2];
+-    private readonly double[,] probeHitOwn = new double[4, 2];   // per signal and box, per hit cell of the 16 x 16 grid: samples, light
++    private readonly double[,] probeHitOwn = new double[4, 2];
++    // PROBE (t0-adau): the true mode (TERTIUS_PROBE_HIT_TRUE=1, probeTrue in the resolve): the bright specular samples by
++    // their walk's crossing, match, miss-wins bit and entry quarter; by their walk's hit pixel; and by their fade.
++    private static readonly bool ProbeHitTrue = Environment.GetEnvironmentVariable("TERTIUS_PROBE_HIT_TRUE") == "1";
++    private readonly Dictionary<string, (long Count, double Light)> probeHitTrue = new();   // per signal and box, per hit cell of the 16 x 16 grid: samples, light
+ 
+     private void ProbeHits()
+     {
+@@ -696,12 +700,47 @@ public sealed unsafe class VulkanRenderer : IRenderer
+         probeHitSums ??= new double[2 * ProbeHitBoxes.Length, 256, ProbeHitBins];
+         probeHitCells ??= new double[2 * ProbeHitBoxes.Length, 256, 2];
+         int width = (int)ageImage.Extent.Width;
++        var inv0 = System.Globalization.CultureInfo.InvariantCulture;
+         foreach ((int signalIndex, TemporalSignal signal) in new[] { (0, tracer.Diffuse), (1, tracer.Specular) })
+         {
+             if (signal.SampleAge(0) is not { } signalAges)
+                 continue;
+             float[] sample = ReadImage(signal.Sample(0));
+             float[] classes = ReadImage(signalAges);
++            if (ProbeHitTrue && signalIndex == 1)
++            {
++                float[] low = ReadImage(tracer.Diffuse.SampleAge(0)!);
++                for (int box = 0; box < ProbeHitBoxes.Length; box++)
++                {
++                    var (boxName, bx0, by0, bx1, by1) = ProbeHitBoxes[box];
++                    for (int y = by0; y < by1; y++)
++                        for (int x = bx0; x < bx1; x++)
++                        {
++                            int i = y * width + x;
++                            double l = 0.2126 * sample[4 * i] + 0.7152 * sample[4 * i + 1] + 0.0722 * sample[4 * i + 2];
++                            if (l < 50)
++                                continue;
++                            int a = (int)classes[i], b = (int)low[i];
++                            var keys = new List<string>();
++                            if (a == 0xFFFF)
++                                keys.Add($"true-{boxName} kind no-reflection-ray");
++                            else if (a == 0xFFFE)
++                                keys.Add($"true-{boxName} kind walk-misses match {(b == 0xFFFE ? 1 : 0)}");
++                            else
++                            {
++                                keys.Add(string.Create(inv0, $"true-{boxName} crossing {(b >> 10) & 3} match {(b >> 12) & 1} misswins {(b >> 13) & 1} entry {(b >> 14) & 3}"));
++                                keys.Add(string.Create(inv0, $"truepixel-{boxName} {a & 2047} {b & 1023}"));
++                                keys.Add(string.Create(inv0, $"truefade-{boxName} {(a >> 11) & 31}"));
++                            }
++                            foreach (string key in keys)
++                            {
++                                probeHitTrue.TryGetValue(key, out var e);
++                                probeHitTrue[key] = (e.Count + 1, e.Light + l);
++                            }
++                        }
++                }
++                continue;
++            }
+             if (ProbeHitPlaces && signalIndex == 1)
+             {
+                 // The diffuse sample's age holds the hit pixel's x and low y in the place mode.
+@@ -779,6 +818,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
+         for (int box = 0; box < ProbeHitBoxes.Length; box++)
+             for (int part = 0; part < 8; part++)
+                 lines.Append(string.Create(inv, $"dominant-{ProbeHitBoxes[box].Name} {part} {probeHitDominant[box, part, 0]:R} {probeHitDominant[box, part, 1]:R}\n"));
++        foreach (var (key, e) in probeHitTrue)
++            lines.Append(string.Create(inv, $"{key} {e.Count} {e.Light:R}\n"));
+         foreach (var (key, e) in probeHitPlaces)
+             lines.Append(string.Create(inv, $"place-{ProbeHitBoxes[key.Box].Name} {key.X} {key.Y} {key.Lit} {e.Count} {e.Light:R}\n"));
+         System.IO.File.WriteAllText(file, lines.ToString());
