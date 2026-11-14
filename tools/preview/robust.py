@@ -12,9 +12,13 @@ columns re-rendered beside it in one job.
            truth     = the mean of captures 9 ... 28, the old long reference, rebuilt on this worker
            plainlong = the plain mean of every complete block
            mom<B>    = the per-pixel median of batch means of B captures (B = 10, 20, 40)
+           last20    = the mean of the last 20 captures used (the last two blocks): the captures of the run hold a
+                       running mean of its draws (the first job's finding), so its last captures are its best estimate
       4. R/bias.json: for each estimator, the regional means against the plain mean of the same captures, and a
          firefly rate per region; R/pack: lossless WebP crops.
   robust.py specks <R> <ref>: the specks of every column against s/<ref>'s reference, into R/specks-<ref>.json.
+  robust.py glow <R> <ref>: the mean display-linear luminance of every column and reference over GLOW_REGIONS, as a
+      share of s/<ref>'s reference, into R/glow-<ref>.json.
 """
 import importlib.util, json, os, shutil, signal, subprocess, sys, threading, time
 from pathlib import Path
@@ -31,10 +35,14 @@ KEEP = (3, 7)
 COLUMN_CAPTURES = 8
 SKIP = 9            # the old reference's first capture: draw 330 of a first still of 33 draws
 BLOCK = 10
-BATCHES = (10, 20, 40)
+BATCHES = (20,)
 MAX_CAPTURES = 1200
 CEILING = (480, 0, 1440, 440)
 CLOUD = (760, 120, 1160, 420)
+# Boxes in output pixels (x0, y0, x1, y1), each without the reference's lamp pixels and 12 px around them: the glow column above the upper ceiling lamp, the bright band around it, and a quiet patch
+# of the ceiling beside the band as a control.
+GLOW_REGIONS = {"glow column": (880, 160, 1040, 300), "bright band": (800, 120, 1120, 400),
+                "quiet ceiling": (760, 140, 820, 240)}
 
 case = next(c for c in sv.load_cases()["stills"] if c["name"] == CASE)
 source, frame = sv.source_of(case)
@@ -141,7 +149,7 @@ def render(R, t0, stop, columns):
     shutil.rmtree(work, ignore_errors=True)
 
     stack = n.stack(blocks)                                  # (blocks, H, W), each the mean of BLOCK captures
-    refs = {"truth": stack[0:2].mean(0), "plainlong": stack.mean(0)}
+    refs = {"truth": stack[0:2].mean(0), "plainlong": stack.mean(0), "last20": stack[-2:].mean(0)}
     same_plain = {}
     for B in BATCHES:
         per = B // BLOCK
@@ -151,7 +159,7 @@ def render(R, t0, stop, columns):
         same_plain[f"mom{B}"] = (batches.mean(0), K)
         if B == 20:
             # The cloud crop of every batch mean, to see how often a pixel holds a firefly.
-            for i in range(K):
+            for i in (0, K - 1):
                 save_crop(batches[i], R / "pack" / f"batch20-{i:02d}-cloud.webp", CLOUD)
     for name, y in refs.items():
         save_srgb(y, R / "s" / name / "images" / "still" / f"{CASE}-reference.png")
@@ -180,15 +188,18 @@ def render(R, t0, stop, columns):
         y = refs[name]
         bias["estimators"][name] = {"K": K, "B": int(name[3:]), "biasPercent": {
             region: float(100 * (y[m].mean() / mean_same[m].mean() - 1)) for region, m in regions.items()}}
-    bias["estimators"]["truth (old)"] = {"vsPlainlongPercent": {
-        region: float(100 * (refs["truth"][m].mean() / plain[m].mean() - 1)) for region, m in regions.items()}}
+    for name in ("truth", "last20"):
+        bias["estimators"][name] = {"vsPlainlongPercent": {
+            region: float(100 * (refs[name][m].mean() / plain[m].mean() - 1)) for region, m in regions.items()}}
+    bias["last20Draws"] = [sv.still_draws(first, SKIP + (len(blocks) - 2) * BLOCK),
+                           sv.still_draws(first, SKIP + len(blocks) * BLOCK - 1)]
     (R / "bias.json").write_text(json.dumps(bias, indent=1))
 
     pack = R / "pack"
     for name in refs:
         im = Image.open(R / "s" / name / "images" / "still" / f"{CASE}-reference.png").convert("L")
         im.crop(CEILING).save(pack / f"{name}-ceiling.webp", lossless=True, method=6)
-    for name in ("mom20", "plainlong"):
+    for name in ("last20", "mom20"):
         Image.open(R / "s" / name / "images" / "still" / f"{CASE}-reference.png").convert("L").save(
             pack / f"{name}-full.webp", lossless=True, method=6)
     for d in sorted((R / "s").iterdir()):
@@ -214,10 +225,32 @@ def specks(R, ref):
     (R / f"specks-{ref}.json").write_text(json.dumps(out, indent=1))
 
 
+def glow(R, ref):
+    path = lambda d, kind: R / "s" / d / "images" / "still" / f"{CASE}{kind}.png"
+    reference = sv.luminance(path(ref, "-reference"))
+    # The lamps' own pixels (reference above 0.9) and 12 px around them; the survey's rule (40 px around 0.5) would
+    # take the whole glow column, which reaches 0.65 near the lamp.
+    lamps = sv.ndimage().binary_dilation(reference > 0.9, iterations=12)
+    masks = {}
+    for name, (x0, y0, x1, y1) in GLOW_REGIONS.items():
+        m = n.zeros_like(lamps)
+        m[y0:y1, x0:x1] = True
+        masks[name] = m & ~lamps
+    out = {"pixels": {name: int(m.sum()) for name, m in masks.items()}, "share": {}}
+    for d in sorted((R / "s").iterdir()):
+        for kind in ("", "-reference"):
+            if path(d.name, kind).exists():
+                y = sv.luminance(path(d.name, kind))
+                out["share"][d.name + kind] = {name: float(y[m].mean() / reference[m].mean()) for name, m in masks.items()}
+    (R / f"glow-{ref}.json").write_text(json.dumps(out, indent=1))
+
+
 if __name__ == "__main__":
     what, R = sys.argv[1], Path(sys.argv[2]).resolve()
     if what == "render":
         t0 = float(Path(sys.argv[3]).read_text())
         render(R, t0, float(sys.argv[4]), sys.argv[5:])
+    elif what == "glow":
+        glow(R, sys.argv[3])
     else:
         specks(R, sys.argv[3])
