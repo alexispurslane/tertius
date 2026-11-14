@@ -72,3 +72,7 @@ Main numbers:
 The two designs: (1) the back layer is the slab, stored in the depth pyramid, with no thickness constant in the walk. (2) the back layer only trims the 10 % slab, from a side image read at a candidate hit. Three questions for Alexis are in the record. Not done, by the brief: the design document, the build tickets and the real mechanism.
 
 Not checked: a new probe run of the false sill hits, contact darkening in stills, Design 1's rule in a running walk, hair and other two-sided surfaces, dense geometry, and RADV, ANV and lavapipe.
+
+**2026-11-14T23:05:06Z**
+
+2026-11-14, the answers of Alexis to the three questions of stage 1. (1) The layer is the slab (Design 1): the real back face replaces the 10 % rule. Alexis chose it knowing that slabs grow on a third to a half of the pixels and that contact darkening can change in both directions. (2) A surface with no back face behind it is a sheet with no thickness. (3) Settled by the parent agent from answer 1: the layer lives in the depth pyramid, with the front depth and the back depth at every level. Stage 1b is narrower for it: the false sill hits under the 10 % rule and under the layer as the slab, stills of both rules at one fixed exposure to find a misbehavior with a name, the sheet beside the 10 % rule in a hair view with a check that a ray can hit a slab of zero thickness, and the cost of the pyramid store only. The side image is out. The design doc, the build tickets and the build wait for a later stage.

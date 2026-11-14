@@ -423,6 +423,16 @@ I mark no option. No measured view holds hair, and only 0.01 % of the measured p
 
 The reason for the mark is the measurement: the first option removes the measured cost by its construction.
 
+## The answers of Alexis
+
+Alexis answered the three questions on 2026-11-14.
+
+1. The layer is the slab, as in Design 1. The real back face replaces the 10 % rule. Alexis chose it with two known costs. Slabs grow on a third to a half of the pixels, and contact darkening can change in both directions.
+2. A surface with no back face behind it is a sheet with no thickness.
+3. The layer lives in the depth pyramid, with the front depth and the back depth at every level. The parent agent settled this from answer 1: the coarse levels need the back depth.
+
+Stage 1b then looks for a misbehavior of this model that has a name: a new leak, a new hole, or contact darkening that looks wrong. It also measures the false sill hits and the cost of the pyramid store. The side image of Design 2 is out.
+
 ## What I did not check
 
 - No new probe run measured the false sill hits. The 66 % and 8 % above are estimates from saved data.
