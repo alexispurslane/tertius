@@ -35,6 +35,11 @@ layout(set = 2, binding = 11) uniform texture2DArray shadowBounds;    // RG32F: 
                                                                        // each window (shadow_bounds.comp); partially
                                                                        // bound
 
+// The tile records of key and fill (key_fill.glsl), which only the direct pass under key and fill reads; partially
+// bound, empty without it.
+#include "key_fill.glsl"
+layout(set = 2, binding = 7, std430) readonly buffer LightTileBlock { uint tileWords[]; };
+
 // The specular target at the pixel: metallic, roughness r₀, reflectance and the lobe's sky share, each its code over 255.
 vec4 specularAt(ivec2 pixel)
 {
