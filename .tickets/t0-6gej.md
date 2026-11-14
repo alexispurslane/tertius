@@ -1,6 +1,6 @@
 ---
 id: t0-6gej
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-14T15:07:19Z
@@ -48,3 +48,7 @@ Mutants (tools/mutate.py, Mac, /tmp/t0-6gej/mutate and mutate2): 11 rows, 10 kil
 | S10 | record's window one row too high | survived, then killed by the new edge test |
 | S12 | opening around the pixel, not the reprojected center | survived. Judgment call: in a still the center is the pixel; under motion the windows differ by one draw's motion, and an area wider than that motion plus 3 pixels holds both; only a patch narrower than the motion of one draw tells them apart, which no scene of ours shows. |
 Dropped before the run: reading this draw's records in the plan, a race within the dispatch, so no deterministic result. Coverage: every changed GLSL line runs in the tests (each has a killed mutant); the C# changes are tests only.
+
+**2026-11-14T18:32:07Z**
+
+Checked (10,931 passed) and Release (10,918 passed, 26 skipped) on the merge with main 557d825b1, both on the Mac. Cloud: one job, $0.047 on 2026-11-14 (UTC). The Release Rendering tests and the mutant list ran on the Mac to stay within the day's cloud share.
