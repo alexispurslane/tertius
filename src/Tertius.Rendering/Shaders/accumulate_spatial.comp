@@ -3,8 +3,8 @@
 // per pixel fixes a short history from its neighbors in the scratch image, clamps the slow history into the box of this
 // frame's fast history around the pixel, shortens the length by the clamp's move, and writes the slow history. The
 // workgroup is a block of 8 × 8 pixels, and the block's evidence level, the strongest of its pixels' samples, acts on
-// every pixel of it in this draw: motion evidence drops the box's widening, and light evidence also cuts the length to
-// the fast cap (docs/plans/bounce-light-confidence.md, section 8).
+// every pixel of it in this draw: motion evidence drops the box's widening, and light evidence cuts the length to the
+// fast cap and leaves the box (docs/plans/bounce-light-confidence.md, section 8).
 #extension GL_GOOGLE_include_directive : require
 #include "accumulate.glsl"
 #include "accumulate_reflection_guide.glsl"
@@ -14,7 +14,7 @@
 const float LeastLuminance = 1e-4;
 
 // The evidence levels of a block, ordered by strength (section 8.2). Motion evidence narrows the box for this draw, and
-// light evidence also cuts the length to the fast cap.
+// light evidence cuts the length to the fast cap.
 const uint NoEvidence = 0u;
 const uint MotionEvidence = 1u;
 const uint LightEvidence = 2u;
@@ -126,10 +126,11 @@ void accumulateAt(ivec2 pixel, uint evidence)
         vec3 sigma = sqrt(max(squares / count - mean * mean, vec3(0.0)));
         // The box holds every excursion that the history's own samples explain: at least retainedSigmas retained
         // deviations, in the chroma of the history, which holds the excess (docs/plans/bounce-light-confidence.md,
-        // section 7). The reflections' narrow box takes none, and either level of evidence drops the widening for this
-        // draw.
+        // section 7). The reflections' narrow box takes none. Motion evidence drops the widening for this draw, so that
+        // the box measures a change of unknown size. Light evidence keeps it: the cut below already bounds the length,
+        // and a box without its widening would cut the rare bright light that the history holds (section 8.2).
         vec3 spread = parameters.clampSigmas * sigma;
-        if (parameters.retainedSigmas > 0.0 && evidence == NoEvidence)
+        if (parameters.retainedSigmas > 0.0 && evidence != MotionEvidence)
         {
             float deviation = imageLoad(fastHistory, pixel).a;
             spread = max(spread, parameters.retainedSigmas * deviation * slow / max(luminance(slow), LeastLuminance));
@@ -141,8 +142,9 @@ void accumulateAt(ivec2 pixel, uint evidence)
         storeTrace(pixel, 6, vec4(mean, lag));
         storeTrace(pixel, 7, vec4(sigma, 0.0));
 #endif
-        // Light evidence restarts the history from the fast window, which already holds the change. Motion has no known
-        // size, so the narrow box measures it, and the anti-lag shortens the history by the clamp's move.
+        // Light evidence has a known age, so it bounds the length: the history restarts at the fast window's length.
+        // Motion has no known size, so the narrow box measures it, and the anti-lag shortens the history by the clamp's
+        // move.
         historyLength = evidence == LightEvidence
             ? fastCap
             : max(fastCap, historyLength * (1.0 - min(1.0, lag / parameters.antiLagShare)));

@@ -50,7 +50,7 @@ internal readonly record struct SignalParameters(
 
     /// <summary>
     /// The diffuse signal's set: a cap of 32 frames at every roughness, and a box widened by two retained deviations
-    /// where its block has no evidence of a change (docs/plans/bounce-light-confidence.md, section 7).
+    /// where its block has no motion evidence (docs/plans/bounce-light-confidence.md, section 7).
     /// </summary>
     public static SignalParameters Diffuse =>
         new(

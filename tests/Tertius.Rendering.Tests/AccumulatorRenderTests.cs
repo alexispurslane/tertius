@@ -256,11 +256,13 @@ public sealed class AccumulatorRenderTests
     }
 
     [Fact]
-    public void ALightChangeThatTheRaysSawMovesTheHistoryToTheFastWindow()
+    public void ALightChangeThatTheRaysSawRestartsTheHistoryAtTheFastWindowsLength()
     {
         // The rays saw the light change in this frame (age 0, code 1). The blend gives the doubled sample its normal
-        // weight, then the light evidence cuts the length to the fast cap, and the narrow box moves the slow history to
-        // the fast one, 1.25 after one doubled sample of four (docs/plans/bounce-light-confidence.md, sections 4 and 8).
+        // weight of 1/16, and the box stays wide and holds the step. Then the light evidence cuts the length to the
+        // fast cap, so each later draw of the evidence blends its sample with the weight 1/5. After the seven draws of
+        // the evidence, the history keeps 15/16 × (4/5)^6 = 0.246 of the old light
+        // (docs/plans/bounce-light-confidence.md, sections 4 and 8.3).
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
         try
         {
@@ -275,10 +277,22 @@ public sealed class AccumulatorRenderTests
             for (int part = 0; part < 2; part++)
             {
                 (Vector3 light, float length) = CenterOf(renderer, sample, part);
-                light
-                    .X.Should()
-                    .BeApproximately(1.25f, 1e-3f, "the slow history follows the fast one in part {0}", part);
+                light.X.Should().BeApproximately(1.0625f, 1e-3f, "the box holds the step in part {0}", part);
                 length.Should().Be(FastCap, "the light evidence cuts part {0}", part);
+            }
+
+            // The codes 1 to 7 are of a recent light change (sample_age.glsl, RecentLightAge).
+            for (uint code = 2; code <= 7; code++)
+            {
+                sample.AgeCode = code;
+                Continue(renderer, scene, frames: 1);
+            }
+
+            for (int part = 0; part < 2; part++)
+            {
+                (Vector3 light, float length) = CenterOf(renderer, sample, part);
+                light.X.Should().BeApproximately(1.7542f, 2e-3f, "part {0} follows at the fast window's pace", part);
+                length.Should().Be(FastCap, "the light evidence still cuts part {0}", part);
             }
         }
         finally
@@ -1052,7 +1066,7 @@ public sealed class AccumulatorRenderTests
     }
 
     [Fact]
-    public void ARecentLightCodeInABlockNarrowsTheBoxAndCutsEveryContributingHistoryOfItsBlockToTheFastCap()
+    public void ARecentLightCodeInABlockCutsEveryContributingHistoryOfItsBlockToTheFastCap()
     {
         // One pixel of the center block brings the light code 5, a light that changed 4 draws ago: light evidence for
         // the whole block (docs/plans/bounce-light-confidence.md, section 8.2).
@@ -1073,7 +1087,71 @@ public sealed class AccumulatorRenderTests
                 .Select(pixel => lengths[pixel])
                 .Should()
                 .OnlyContain(length => length == FastCap, "light evidence cuts every history of its block");
-            BoxNarrowedAt(renderer, sample, Center).Should().BeTrue("light evidence drops the widening of the box");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ARecentLightCodeLeavesTheBoxOfItsBlockWide()
+    {
+        // Light evidence bounds the length and nothing else: a history that it cuts to the fast cap holds no more draws
+        // than the fast history, so the box has no lag to find in it, and a box without its widening only cuts the
+        // history's own rare bright samples (section 8.2).
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
+        try
+        {
+            BlinkThenDrawWithAges(
+                renderer: renderer,
+                sample: sample,
+                scene: scene,
+                codes: (column, row) => (ushort)(IsWitness(column, row) ? 5 : 0)
+            );
+
+            BoxNarrowedAt(renderer, sample, Center).Should().BeFalse("light evidence keeps the widening of the box");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ALightChangeThatLeavesTheSamplesAsTheyWereTakesNoLightFromTheHistoriesThatItCuts()
+    {
+        // One sample in 256 is 257 and the others are 1, so the histories hold a mean of 2 at their cap of 16, and most
+        // pixels have no bright sample near them in the fast histories' few draws. Then one draw brings every sample the
+        // light code 3 while the samples go on as before, as the sunlit share of a room's bounce light does when a lamp
+        // switches. A box without its widening would cut about half of the histories' rare bright light in that draw: in
+        // the orbit cabin the bounce light fell by 4 % in the 4 draws after the lamps came on (ticket t0-f8oc,
+        // 2026-11-14).
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
+        try
+        {
+            static Vector4 Sampled(int column, int row, int frame) =>
+                new(new Vector3(Hashed(column, row, frame) % 256 == 0 ? 257f : 1f), 8f);
+            sample.Value = new(x: 1f, y: 1f, z: 1f, w: 8f);
+            renderer.Render(scene, 1f);
+            for (int frame = 0; frame < 160; frame++)
+            {
+                int drawn = frame;
+                sample.Samples = (column, row) => Sampled(column, row, drawn);
+                Continue(renderer, scene, frames: 1);
+            }
+            float before = InteriorLightOf(renderer, sample).Average();
+            before.Should().BeGreaterThan(1.5f, "the widened box holds the rare bright samples in a still");
+            sample.Samples = (column, row) => Sampled(column, row, 160);
+            sample.AgeCode = 3;
+
+            Continue(renderer, scene, frames: 1);
+
+            LengthsOf(renderer, sample).Should().OnlyContain(length => length == FastCap, "every block has evidence");
+            InteriorLightOf(renderer, sample)
+                .Average()
+                .Should()
+                .BeApproximately(before, 0.1f, "light evidence bounds the length and takes no light");
         }
         finally
         {

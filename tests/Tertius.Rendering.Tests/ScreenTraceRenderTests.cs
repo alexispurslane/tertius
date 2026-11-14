@@ -717,8 +717,8 @@ public sealed class ScreenTraceRenderTests
             // draw away from the eye, under a still camera. The screen shows the box's front face, so the wall's diffuse
             // rays that run away from the eye hit it. The wall's pixels do not move, so a wall sample's motion bit comes
             // only from such a ray, which hit a surface that the ray plan marks as moved. A block of 8 × 8 pixels with
-            // such a sample, or with a recent light code, has evidence, and either level drops the widening of the
-            // block's box in that draw (docs/plans/bounce-light-confidence.md, section 8.2), the action that
+            // such a sample and no recent light code has motion evidence, which drops the widening of the block's box
+            // in that draw (docs/plans/bounce-light-confidence.md, section 8.2), the action that
             // AccumulatorRenderTests.AMovingWallNarrowsTheBoxOfItsBlocksWhileItMoves pins. After the box stops, the light
             // codes of its last moves stay recent for at most 11 draws (section 8.3), so from 16 draws after the stop no
             // block of the wall has evidence, and the widened box returns.
