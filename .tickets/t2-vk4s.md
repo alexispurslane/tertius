@@ -1,6 +1,6 @@
 ---
 id: t2-vk4s
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-12T22:18:30Z
@@ -32,3 +32,7 @@ The default is 4 key lights since 2026-11-14 (t2-vsqh). The orchestrator's rule 
 **2026-11-14T15:44:35Z**
 
 The cause is measured, and the ticket t2-kibe holds the repair (a cheap specular fill). With every lamp's specular light in full and the diffuse light by key and fill, the hall's still equals every light pair within 1 step of 255. So the floor's loss is the missing specular light of the fill lamps, and nothing else.
+
+**2026-11-14T16:10:02Z**
+
+Closed with t2-vsqh: the measures of 3 and of 4 key lights are recorded, the default is 4 by the orchestrator's rule, and the cause is known. The repair is t2-kibe.
