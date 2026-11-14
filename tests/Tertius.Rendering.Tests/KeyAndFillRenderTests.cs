@@ -280,7 +280,10 @@ public sealed class KeyAndFillRenderTests
         float[] every = Radiance(lightPairs: default, desc: Glossy, bulbs: bulbs, squares: [Square.Wide]);
         float[] matte = Radiance(
             lightPairs: default,
-            desc: Glossy with { Reflectance = 0 },
+            desc: Glossy with
+            {
+                Reflectance = 0,
+            },
             bulbs: bulbs,
             squares: [Square.Wide]
         );
@@ -321,7 +324,10 @@ public sealed class KeyAndFillRenderTests
         float[] every = Radiance(lightPairs: default, desc: Glossy, bulbs: bulbs, squares: [small]);
         float[] matte = Radiance(
             lightPairs: default,
-            desc: Glossy with { Reflectance = 0 },
+            desc: Glossy with
+            {
+                Reflectance = 0,
+            },
             bulbs: bulbs,
             squares: [small]
         );
@@ -349,7 +355,12 @@ public sealed class KeyAndFillRenderTests
         foreach (int pixel in lit)
             split[pixel]
                 .Should()
-                .BeApproximately(every[pixel], 1e-4f * every[pixel], "pixel {0} has no corner to take keys from", pixel);
+                .BeApproximately(
+                    every[pixel],
+                    1e-4f * every[pixel],
+                    "pixel {0} has no corner to take keys from",
+                    pixel
+                );
     }
 
     // A square 10 pixels wide inside one screen tile, in front of a wide wall that faces the camera. Every corner around
@@ -435,7 +446,10 @@ public sealed class KeyAndFillRenderTests
     {
         // Rough enough that a corner's lobe, which is at least as wide as a tile, is the wall's own lobe. So the loss
         // of a bulb at a corner is its shine at the corner's pixel: a point light's fill is its diffuse light.
-        MaterialDesc rough = Glossy with { Roughness = 0.6f };
+        MaterialDesc rough = Glossy with
+        {
+            Roughness = 0.6f,
+        };
         float[][] full = [.. Bulbs.Select(bulb => render(default, rough, [bulb]))];
         float[][] diffuse = [.. Bulbs.Select(bulb => render(default, rough with { Reflectance = 0 }, [bulb]))];
 
@@ -485,13 +499,7 @@ public sealed class KeyAndFillRenderTests
     public void AtACornerOfTheTileGridEachLampShinesByTheKeyShareOfItsLoss() =>
         EachCornerShouldShadeEachBulbByItsKeyShare(
             render: (lightPairs, desc, bulbs) =>
-                Radiance(
-                    lightPairs: lightPairs,
-                    desc: desc,
-                    bulbs: bulbs,
-                    squares: [Square.Wall],
-                    width: UnevenWidth
-                ),
+                Radiance(lightPairs: lightPairs, desc: desc, bulbs: bulbs, squares: [Square.Wall], width: UnevenWidth),
             width: UnevenWidth,
             height: Height,
             keyLightCounts: [1, 2, 3]
@@ -663,17 +671,14 @@ public sealed class KeyAndFillRenderTests
         float[] open = Radiance(lightPairs: default, desc: Glossy, bulbs: bulb, squares: [Square.Wide]);
         float[] matte = Radiance(
             lightPairs: default,
-            desc: Glossy with { Reflectance = 0 },
+            desc: Glossy with
+            {
+                Reflectance = 0,
+            },
             bulbs: bulb,
             squares: [Square.Wide]
         );
-        float[] every = Radiance(
-            lightPairs: default,
-            desc: Glossy,
-            bulbs: bulb,
-            squares: [Square.Wide],
-            shadows: true
-        );
+        float[] every = Radiance(lightPairs: default, desc: Glossy, bulbs: bulb, squares: [Square.Wide], shadows: true);
 
         float[] split = Radiance(
             lightPairs: new(new KeyAndFill(KeyLights: 1)),
@@ -693,7 +698,10 @@ public sealed class KeyAndFillRenderTests
         foreach (int pixel in hidden)
             split[pixel].Should().BeLessThan(0.02f * open[pixel], "pixel {0} lies in the bulb's shadow", pixel);
         // Along the shadow's edge the bulb is hidden in part, and so is its shine: key and fill adds no light there.
-        int[] edge = [.. Enumerable.Range(0, every.Length).Where(pixel => IsBetween(every[pixel] / open[pixel], 0.1f, 0.9f))];
+        int[] edge =
+        [
+            .. Enumerable.Range(0, every.Length).Where(pixel => IsBetween(every[pixel] / open[pixel], 0.1f, 0.9f)),
+        ];
         edge.Length.Should().BeGreaterThan(20, "the shadow has an edge");
         float brightest = every.Max();
         foreach (int pixel in edge)
@@ -715,7 +723,7 @@ public sealed class KeyAndFillRenderTests
         // key light, the weak bulb is the key light where the strong one is in shadow.
         (float X, float Y, float Power) strong = (0, 0, 20),
             weak = (0.4f, 0.4f, 1);
-        float[] Shadowed(MaterialDesc desc, params (float X, float Y, float Power)[] bulbs) =>
+        static float[] Shadowed(MaterialDesc desc, params (float X, float Y, float Power)[] bulbs) =>
             Radiance(lightPairs: default, desc: desc, bulbs: bulbs, squares: [Square.Wide], shadows: true);
         float[] strongOpen = Radiance(lightPairs: default, desc: Glossy, bulbs: [strong], squares: [Square.Wide]);
         float[] strongAlone = Shadowed(Glossy, strong);
@@ -744,7 +752,12 @@ public sealed class KeyAndFillRenderTests
         foreach (int pixel in corners)
             split[pixel]
                 .Should()
-                .BeApproximately(every[pixel], 0.005f * every[pixel], "the weak bulb is the key light at pixel {0}", pixel);
+                .BeApproximately(
+                    every[pixel],
+                    0.005f * every[pixel],
+                    "the weak bulb is the key light at pixel {0}",
+                    pixel
+                );
     }
 
     /// <summary>A tube 1 m long along x, 1 m in front of the wide square at (x, y) of its plane, of <paramref name="power"/> W.</summary>
@@ -859,7 +872,11 @@ public sealed class KeyAndFillRenderTests
             // The two other lights lose under the negligible loss there.
             split[highlight]
                 .Should()
-                .BeApproximately(every[highlight], 0.01f * every[highlight], "each light is a key light at its highlight");
+                .BeApproximately(
+                    every[highlight],
+                    0.01f * every[highlight],
+                    "each light is a key light at its highlight"
+                );
         }
     }
 
@@ -896,16 +913,17 @@ public sealed class KeyAndFillRenderTests
     public void AHairSurfaceTakesEveryLampInFull()
     {
         // The fill response is a surface's diffuse light, which a fiber does not have.
-        MaterialDesc hair = Glossy with { Model = new HairShading(StrandDirection.PlusV) };
+        MaterialDesc hair = Glossy with
+        {
+            Model = new HairShading(StrandDirection.PlusV),
+        };
         float[] every = Radiance(lightPairs: default, desc: hair, bulbs: Bulbs.Length);
 
         float[] split = Radiance(lightPairs: new(new KeyAndFill(KeyLights: 1)), desc: hair, bulbs: Bulbs.Length);
 
         every.Max().Should().BeGreaterThan(0.01f, "the bulbs light the hair");
         for (int pixel = 0; pixel < every.Length; pixel++)
-            split[pixel]
-                .Should()
-                .BeApproximately(every[pixel], 1e-4f * every[pixel], "pixel {0} is a fiber", pixel);
+            split[pixel].Should().BeApproximately(every[pixel], 1e-4f * every[pixel], "pixel {0} is a fiber", pixel);
     }
 
     [Fact]

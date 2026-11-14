@@ -582,7 +582,9 @@ public sealed class ScriptCommandOptionsTests
 
     [Fact]
     public void KeyLightsOffShadesEveryLightPair() =>
-        HeadlessRendererOptions("--key-lights", "off").LightPairs.Should().Be(new LightPairSetting(new EveryLightPair()));
+        HeadlessRendererOptions("--key-lights", "off")
+            .LightPairs.Should()
+            .Be(new LightPairSetting(new EveryLightPair()));
 
     [Fact]
     public void WithoutTheKeyLightsOptionTheRendererKeepsItsOwnLightPairs() =>

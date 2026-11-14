@@ -554,7 +554,11 @@ public sealed class ScriptCommandTests : IDisposable
         int code = Run("--script", "script.json", "--headless", "--out", "out", "--exposure", value);
 
         code.Should().Be(ScriptCommand.CommandLineError);
-        error.ToString().Should().Contain("--exposure needs a number of stops from -64 to 64").And.Contain($"'{value}'");
+        error
+            .ToString()
+            .Should()
+            .Contain("--exposure needs a number of stops from -64 to 64")
+            .And.Contain($"'{value}'");
     }
 
     // The refused rows above name a scene that no table has, or a script file that does not exist. If a rule breaks, the

@@ -11,7 +11,7 @@ namespace Tertius.Rendering;
 /// smaller render size uses the first texels and tiles of each: its copies of the corner grid and its tiles count from
 /// the frame's own size (Shaders/key_fill.glsl).
 /// </summary>
-internal sealed unsafe class KeyFillImages : IDisposable
+internal sealed class KeyFillImages : IDisposable
 {
     /// <summary>The binding of the tile records in the G-buffer set.</summary>
     public const uint TilesBinding = 7;
@@ -121,12 +121,7 @@ internal sealed unsafe class KeyFillImages : IDisposable
             memoryUsage: MemoryUsage.GpuOnly,
             name: "key fill tiles"
         );
-        layouts.WriteBuffer(
-            set: Set,
-            binding: CandidateImages,
-            type: DescriptorType.StorageBuffer,
-            buffer: Tiles
-        );
+        layouts.WriteBuffer(set: Set, binding: CandidateImages, type: DescriptorType.StorageBuffer, buffer: Tiles);
         layouts.WriteBuffer(
             set: targets.GBufferSet,
             binding: TilesBinding,

@@ -95,7 +95,6 @@ public readonly partial struct LightPairSetting
         {
             EveryLightPair => null,
             KeyAndFill { KeyLights: >= 1 and <= KeyAndFill.MaxKeyLights } => null,
-            KeyAndFill split =>
-                $"KeyAndFill.KeyLights must be 1 to {KeyAndFill.MaxKeyLights}, not {split.KeyLights}.",
+            KeyAndFill split => $"KeyAndFill.KeyLights must be 1 to {KeyAndFill.MaxKeyLights}, not {split.KeyLights}.",
         };
 }
