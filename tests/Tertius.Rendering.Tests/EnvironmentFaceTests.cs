@@ -739,18 +739,26 @@ public sealed class EnvironmentFaceTests
 
     /// <summary>
     /// The middle texel of face +X, which sees a wall of <paramref name="material"/> 5 m away that faces the eye, under a
-    /// sun of <paramref name="irradiance"/> 45° off the wall's normal.
+    /// sun of <paramref name="irradiance"/> 45° off the wall's normal, on the eye's side of the wall.
     /// </summary>
-    private static Vector3 WallUnderASlantedSun(Func<VulkanRenderer, MaterialId> material, out Vector3 irradiance)
+    private static Vector3 WallUnderASlantedSun(Func<VulkanRenderer, MaterialId> material, out Vector3 irradiance) =>
+        WallUnderASun(towardSun: new(x: -1, y: 1, z: 0), material: material, irradiance: out irradiance);
+
+    /// <summary>
+    /// The middle texel of face +X, which sees a wall of <paramref name="material"/> 5 m away that faces the eye, under a
+    /// sun of <paramref name="irradiance"/> in the direction <paramref name="towardSun"/> from the wall, of any length.
+    /// </summary>
+    private static Vector3 WallUnderASun(
+        Vector3 towardSun,
+        Func<VulkanRenderer, MaterialId> material,
+        out Vector3 irradiance
+    )
     {
         VulkanRenderer renderer = EnvironmentScenes.Renderer();
         try
         {
             MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
-            RenderSnapshot snapshot = Gpu.Snapshot(
-                starDirection: Vector3.Normalize(new(x: -1, y: 1, z: 0)),
-                starIrradiance: 2f
-            );
+            RenderSnapshot snapshot = Gpu.Snapshot(starDirection: Vector3.Normalize(towardSun), starIrradiance: 2f);
             snapshot.Ambient.Intensity = 0;
             irradiance = Gpu.StarIrradianceRgb(snapshot);
             snapshot.Instances.Add(
@@ -814,6 +822,32 @@ public sealed class EnvironmentFaceTests
 
         matte.X.Should().BeGreaterThan(0.1f, "the matte wall is lit, so the test can fail");
         metal.X.Should().BeLessThan(0.1f * matte.X, "a metal has no diffuse part, and its highlight points elsewhere");
+    }
+
+    [Fact]
+    public void AWallInAFaceTakesNoSunFromBehindThoughItsNormalMapFacesTheSun()
+    {
+        // The normal map's texel (128, 128, 0) turns the shading normal around, as in LightUnitsRenderTests'
+        // ALampBehindTheGeometricNormalAddsNothing. The wall itself, its geometric normal, faces the eye.
+        static MaterialId Turned(VulkanRenderer renderer) =>
+            renderer.CreateMaterial(
+                new(
+                    BaseColor: Vector4.One,
+                    Roughness: 1,
+                    Reflectance: 0,
+                    NormalMap: renderer.CreateTexture(new(Width: 1, Height: 1, Rgba: [128, 128, 0, 255], Srgb: false))
+                )
+            );
+
+        // The sun behind the wall: the shading normal faces it, and the wall faces away, so the wall is in its own shadow.
+        Vector3 fromBehind = WallUnderASun(towardSun: new(x: 1, y: 1, z: 0), material: Turned, irradiance: out _);
+        Vector3 matte = WallUnderASlantedSun(
+            renderer => Brownish(renderer: renderer, roughness: 1, reflectance: 0, metallic: 0),
+            out _
+        );
+
+        matte.X.Should().BeGreaterThan(0.1f, "a matte wall under a sun in front of it is lit, so the test can fail");
+        fromBehind.X.Should().BeLessThan(0.01f * matte.X, "a sun behind the wall's own surface adds nothing");
     }
 
     [Theory]

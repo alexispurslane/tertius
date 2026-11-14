@@ -1,8 +1,8 @@
 // The surface record of an environment face (EnvironmentFacePass.cs, FaceSurface.cs): what the nearest opaque surface
 // of each texel is, as the values that the light loop reads. The face's surfaces write it (environment_face.frag), and
 // the face's light pass lights each texel once from it (environment_face_light.frag). A forward pass would run the
-// light loop for every fragment of every small triangle, which cost a face of the deck several times the price of
-// its texels (ticket t2-zcr4).
+// light loop for every fragment of every small triangle, which cost the deck 0.11 ms more of its mean frame
+// (ticket t2-zcr4).
 //
 // The six layers of one RGBA32F image hold the record. Every value is the full float that the forward pass computed, so
 // the light pass reads the same numbers:

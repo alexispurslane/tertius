@@ -1,0 +1,17 @@
+# Take 19, the face that lights each texel once (t2-zcr4), after take 18 showed that a depth clear in the middle of a
+# rendering loses the earlier surfaces on this Mac. Three builds of the ticket's tree on main 7093f45f6, at the deck's
+# fixed exposure, with the pass time stamps:
+#   face3  the ticket's tree as it is
+#   face5  a face renders only the depth ranges that hold surfaces (edits/faceskip.py)
+#   geo2   the main view's G-buffer pass renders only the depth ranges that hold something (edits/geoskip.py), a spike
+# The order mixes the builds, so that a drift of the machine does not favor one.
+X="SWEEP_EXPOSURE=0.7041458"
+TRACE_EXTRA_ENV="$X" trace deck-t19-face3-a face3 $D
+TRACE_EXTRA_ENV="$X" trace deck-t19-face5-a face5 $D
+TRACE_EXTRA_ENV="$X" trace deck-t19-geo2-a geo2 $D
+TRACE_EXTRA_ENV="$X" trace deck-t19-geo2-b geo2 $D
+TRACE_EXTRA_ENV="$X" trace deck-t19-face5-b face5 $D
+TRACE_EXTRA_ENV="$X" trace deck-t19-face3-b face3 $D
+TRACE_EXTRA_ENV="$X" trace deck-t19-face3-c face3 $D
+TRACE_EXTRA_ENV="$X" trace deck-t19-geo2-c geo2 $D
+TRACE_EXTRA_ENV="$X" trace deck-t19-face5-c face5 $D

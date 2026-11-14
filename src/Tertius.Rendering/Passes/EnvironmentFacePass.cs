@@ -14,7 +14,7 @@ namespace Tertius.Rendering;
 /// range and a freshly cleared depth. So the record of a texel is the nearest surface of the nearest range that covers
 /// it. One fullscreen triangle then lights every texel from the record, with every light and no ambient light, and
 /// writes the sky where the record holds no surface. A forward face ran the light loop for every fragment of every
-/// small triangle, which cost a face of the deck several times the price of its texels (ticket t2-zcr4).</para>
+/// small triangle, which cost the deck 0.11 ms more of its mean frame (ticket t2-zcr4).</para>
 /// <para>A surface adds its emission only when its entity holds no light: the glow of a lamp is its light's face, and the
 /// lamp's power reaches the room once, through its light (docs/plans/environment-map.md, "How a face is lit").</para>
 /// <para>The light pass writes a texel's radiance and its inverse distance from the eye together, as two color
@@ -59,9 +59,9 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
             DepthCompare = CompareOp.Greater,
             FrontFace = FrontFace.Clockwise,
         };
-        surfaces = SidedPipeline.Create(device: device, shaders: shaders, desc: desc);
         try
         {
+            surfaces = SidedPipeline.Create(device: device, shaders: shaders, desc: desc);
             cutoutSurfaces = SidedPipeline.Create(
                 device: device,
                 shaders: shaders,
@@ -71,36 +71,32 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
                     Constants = constants with { CutoutAlpha = true },
                 }
             );
+            light = LightDesc(layouts: layouts, map: map, constants: constants).Create(device, shaders);
         }
         catch
         {
-            surfaces.Destroy(device);
+            // A pipeline that the constructor did not reach is a null handle, which vkDestroyPipeline ignores.
+            Dispose();
             throw;
         }
+    }
 
-        try
+    /// <summary>The desc of the light pipeline: one color output per drawn cube, in the order of the light shader's outputs.</summary>
+    private static GraphicsPipelineDesc LightDesc(DescriptorLayouts layouts, EnvironmentMap map, ShaderConstants constants)
+    {
+        var colorFormats = new Format[map.DrawnCubes.Length];
+        for (int output = 0; output < colorFormats.Length; output++)
+            colorFormats[output] = map.DrawnCubes[output].Image.Format;
+        return new()
         {
-            // One color output per drawn cube, in the order of the light shader's outputs.
-            var colorFormats = new Format[map.DrawnCubes.Length];
-            for (int output = 0; output < colorFormats.Length; output++)
-                colorFormats[output] = map.DrawnCubes[output].Image.Format;
-            light = new GraphicsPipelineDesc
-            {
-                Name = "environment face light",
-                VertexShader = "fullscreen.vert",
-                FragmentShader = "environment_face_light.frag",
-                Layout = layouts.FaceLightLayout,
-                ColorFormats = colorFormats,
-                Constants = constants,
-                CullMode = CullModeFlags.None,
-            }.Create(device, shaders);
-        }
-        catch
-        {
-            surfaces.Destroy(device);
-            cutoutSurfaces.Destroy(device);
-            throw;
-        }
+            Name = "environment face light",
+            VertexShader = "fullscreen.vert",
+            FragmentShader = "environment_face_light.frag",
+            Layout = layouts.FaceLightLayout,
+            ColorFormats = colorFormats,
+            Constants = constants,
+            CullMode = CullModeFlags.None,
+        };
     }
 
     public override string Name => "environment faces";
@@ -215,6 +211,20 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
         DiscardFace(barriers: context.Barriers, layer: layer);
         context.Barriers.Flush(vk, commandBuffer);
         BeginLight(context, layer);
+        DrawLight(context, draw);
+        vk.CmdEndRendering(commandBuffer);
+        ToPrefilter(context.Barriers, layer);
+        context.Barriers.Flush(vk, commandBuffer);
+    }
+
+    /// <summary>
+    /// Draws the fullscreen triangle of one face's light pass, inside its rendering: the light pipeline, the face's
+    /// surface record as set 3, and the face's basis and map as push constants.
+    /// </summary>
+    private void DrawLight(FrameContext context, in EnvironmentFaceDraw draw)
+    {
+        Vk vk = context.Vk;
+        CommandBuffer commandBuffer = context.CommandBuffer;
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, light);
         // Compatible with the scene layout for sets 0 to 2, so those stay bound.
         DescriptorSet record = map.FaceSurface.Set;
@@ -244,9 +254,6 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
             pValues: &push
         );
         vk.CmdDraw(commandBuffer: commandBuffer, vertexCount: 3, instanceCount: 1, firstVertex: 0, firstInstance: 0);
-        vk.CmdEndRendering(commandBuffer);
-        ToPrefilter(context.Barriers, layer);
-        context.Barriers.Flush(vk, commandBuffer);
     }
 
     /// <summary>

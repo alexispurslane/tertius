@@ -277,8 +277,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         FilterSet = CreateFilterSetLayout();
         ScreenTraceSet = CreateScreenTraceSetLayout();
 
-        (SceneLayout, ImpostorLayout, CompositeLayout, FaceLightLayout, OverlayLayout, PostLayout, BloomLayout) =
-            CreateGraphicsLayouts();
+        (SceneLayout, ImpostorLayout, CompositeLayout, OverlayLayout, PostLayout, BloomLayout) = CreateGraphicsLayouts();
+        FaceLightLayout = CreateFaceLightLayout();
         (
             ExposureLayout,
             EnvironmentPrefilterLayout,
@@ -826,19 +826,32 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         return CreateLayout(bindings: gbuffer, name: "g-buffer set", bindingFlags: flags);
     }
 
+    /// <summary>The push range of the scene layout: <see cref="DrawPushConstants"/> in the vertex and fragment stages.</summary>
+    private static PushConstantRange DrawPush =>
+        new(ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit, 0, (uint)Unsafe.SizeOf<DrawPushConstants>());
+
+    /// <summary>
+    /// The layout of an environment face's light pass: sets 0 to 2 of the scene layout, the face's surface record as set
+    /// 3, and the scene layout's push range. The equal sets and push range keep the scene's sets bound under it.
+    /// </summary>
+    private PipelineLayout CreateFaceLightLayout() =>
+        CreatePipelineLayout(
+            sets: [FrameSet, TextureSet, GBufferSet, FaceSurfaceSet],
+            push: DrawPush,
+            name: "face light layout"
+        );
+
     /// <summary>The pipeline layouts of the graphics passes, after the set layouts that they hold.</summary>
     private (
         PipelineLayout Scene,
         PipelineLayout Impostor,
         PipelineLayout Composite,
-        PipelineLayout FaceLight,
         PipelineLayout Overlay,
         PipelineLayout Post,
         PipelineLayout Bloom
     ) CreateGraphicsLayouts()
     {
-        const ShaderStageFlags graphics = ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit;
-        var drawPush = new PushConstantRange(graphics, 0, (uint)Unsafe.SizeOf<DrawPushConstants>());
+        PushConstantRange drawPush = DrawPush;
         ReadOnlySpan<DescriptorSetLayout> sceneSets = [FrameSet, TextureSet, GBufferSet, AtlasSet];
         PipelineLayout sceneLayout = CreatePipelineLayout(sets: sceneSets[..3], push: drawPush, name: "scene layout");
         PipelineLayout impostorLayout = CreatePipelineLayout(sets: sceneSets, push: drawPush, name: "impostor layout");
@@ -846,11 +859,6 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             sets: [FrameSet, TextureSet, GBufferSet, LightSet],
             push: drawPush,
             name: "composite layout"
-        );
-        PipelineLayout faceLightLayout = CreatePipelineLayout(
-            sets: [FrameSet, TextureSet, GBufferSet, FaceSurfaceSet],
-            push: drawPush,
-            name: "face light layout"
         );
         PipelineLayout overlayLayout = CreatePipelineLayout(
             sets: sceneSets[..3],
@@ -871,7 +879,6 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             sceneLayout,
             impostorLayout,
             compositeLayout,
-            faceLightLayout,
             overlayLayout,
             postLayout,
             bloomLayout
