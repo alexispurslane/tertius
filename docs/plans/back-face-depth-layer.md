@@ -332,9 +332,8 @@ The merge into main waits for Alexis, because the frame budget and the changed l
 
 ## Open questions
 
-One question is with the parent agent, with its crops beside the path trace. It is the light of a blocked ray: the fade over the real slab (this design), or no fade by the entry share. The build goes on with this design's rule.
-
-Settled by the parent agent on 2026-11-15:
+No question is open. The parent agent settled three on 2026-11-15:
 
 1. The sheet's slab reaches to its plane's far w (decision 3). The full rule for the front of a slab is ticket `t1-0ti7`.
 2. Every skinned figure keeps its real back face (decision 8). Alexis sees the cost at the final acceptance.
+3. The light of a blocked ray keeps the fade over the real slab (decision 6). Ticket `t1-r9vj` tests the rule with no fade in a view with a lit front and a dark back. A rule that is nearer everywhere goes up with its crops.

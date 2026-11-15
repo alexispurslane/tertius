@@ -2,7 +2,7 @@
 id: ter-ukw6
 status: open
 deps: []
-links: [ter-kh4g]
+links: [ter-kh4g, t1-tbz9, t1-3j2j]
 created: 2026-11-14T17:52:37Z
 type: bug
 priority: 2
