@@ -253,6 +253,18 @@ def mesh_for(mesh_id):
     return meshes[mesh_id]
 
 
+# REF_BLACK=<instance indices> (t1-3j2j): those instances reflect nothing, a black diffuse surface, and still block light.
+black_instances = {int(x) for x in os.environ.get("REF_BLACK", "").split(",") if x}
+
+
+def black_material():
+    def build(nt):
+        black = nt.nodes.new("ShaderNodeBsdfDiffuse")
+        black.inputs["Color"].default_value = (0, 0, 0, 1)
+        return black.outputs[0]
+    return node_material("black", build)
+
+
 log = []
 for n, inst in enumerate(scene_json["instances"]):
     position = Vector(inst["position"])
@@ -265,7 +277,11 @@ for n, inst in enumerate(scene_json["instances"]):
     x, y, z, w = inst["rotation"]
     obj.matrix_world = (Matrix.Translation(position) @ Quaternion((w, x, y, z)).to_matrix().to_4x4()
                         @ Matrix.Diagonal((*inst["scale"], 1)))
-    obj.data.materials.append(material_for(inst["material"], inst["holdsLight"]))
+    if n in black_instances:
+        obj.data.materials.append(black_material())
+        log.append(f"instance {n} (mesh {inst['mesh']}) drawn black by REF_BLACK")
+    else:
+        obj.data.materials.append(material_for(inst["material"], inst["holdsLight"]))
     flags = inst["flags"]
     if not flags & 1:
         obj.visible_camera = False
@@ -328,6 +344,20 @@ for n, light in enumerate(scene_json["lights"]):
     data.color = color
     data.use_shadow = light["castsShadow"]
     sc.collection.objects.link(obj)
+
+# REF_SUN_CAP=<x0,x1,y,z0,z1> (t1-3j2j): a horizontal rectangle at height y, camera-relative in m, that only shadow rays
+# see. Above the hull's roof it keeps the sun from every surface of the hull, outside and in, and from nothing else.
+# Several rectangles go apart by semicolons.
+for rect in filter(None, os.environ.get("REF_SUN_CAP", "").split(";")):
+    x0c, x1c, yc, z0c, z1c = map(float, rect.split(","))
+    cap = bpy.data.meshes.new("cap")
+    cap.from_pydata([(x0c, yc, z0c), (x1c, yc, z0c), (x1c, yc, z1c), (x0c, yc, z1c)], [], [(0, 1, 2, 3)])
+    cap_obj = bpy.data.objects.new("cap", cap)
+    sc.collection.objects.link(cap_obj)
+    cap_obj.visible_camera = cap_obj.visible_diffuse = cap_obj.visible_glossy = False
+    cap_obj.visible_transmission = cap_obj.visible_volume_scatter = False
+    cap_obj.visible_shadow = True
+    log.append(f"sun cap at y {yc} over x {x0c}..{x1c}, z {z0c}..{z1c}")
 
 # REF_OVERRIDE=normal or position: every surface emits its geometric normal or its position in m, to camera rays, with
 # one sample and a pixel filter of a hundredth of a pixel. The images name each pixel's face for the regions.

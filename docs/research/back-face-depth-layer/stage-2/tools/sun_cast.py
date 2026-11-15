@@ -16,6 +16,7 @@ evenly over the sun's disc, through every shadow caster: each triangle of an ins
 celestial body as its exact sphere. Glass casts no shadow, as in the engine. Each line starts 0.1 mm off the surface
 along its normal. The share of the lines that reach the sun is the point's sunlit share in the truth. A face that
 turns from the sun by more than 0.01 in its cosine, more than the disc's angular radius of 0.0047, gets 0 with no cast.
+CAST_TARGET=<instance index> aims at that instance's sphere in place of the sun: its `share` is the seen part of its disc.
 
 The npz holds, per point: `position` (m), `normal` (the face's geometric normal toward the camera), `instance` (the index
 in scene.json, -1 for none, -2 - k for celestial body k), `ndotl` (with the sun's center), `center` (1 when the line to
@@ -69,6 +70,11 @@ sun = None
 for n, light in enumerate(scene["lights"]):
     if light["kind"] == "point" and light["distance"] > FAR:
         sun = (n, np.array(light["position"], dtype=np.float64), light["radius"], light["distance"])
+# CAST_TARGET=<instance index> aims the lines at that instance's sphere, such as the Moon, in place of the sun's disc.
+target = int(os.environ.get("CAST_TARGET", "-1"))
+if target >= 0:
+    body = scene["instances"][target]
+    sun = (target, np.array(body["position"], dtype=np.float64), body["radius"], float(np.linalg.norm(body["position"])))
 for n, inst in enumerate(scene["instances"]):
     flags = inst["flags"]
     glass = "Glass" in inst["alpha"]
