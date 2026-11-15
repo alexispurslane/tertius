@@ -6,7 +6,7 @@
 # (TERTIUS_SHADOW_DUMP) into <out>/t060, <out>/t300 and <out>/t306, under the shared GPU lock.
 set -uo pipefail
 bin=$1; tree=$2; out=$3
-lock=/Users/alexispurslane/Development/tertius/tools/gpu-lock.sh
+lock=${GPU_LOCK:-$tree/tools/gpu-lock.sh}
 for pair in 0:t060 1:t300 2:t306; do
   at=${pair%%:*}; name=${pair#*:}
   mkdir -p "$out/$name"

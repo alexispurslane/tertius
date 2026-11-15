@@ -265,6 +265,27 @@ def black_material():
     return node_material("black", build)
 
 
+# REF_BLACK_FACES=<instance>:<outer|reveal>:<wall thickness> (t1-3j2j): of a hollow box such as rect-lamps' hull, draw
+# one class of faces black. A face is outer when its center lies on the mesh's bounding box and its normal points out,
+# inner when its center lies on the box shrunk by the wall's thickness and its normal points in, and a reveal otherwise:
+# the faces of the openings through the wall, such as the jambs and the sills.
+black_faces = os.environ.get("REF_BLACK_FACES", "-1:none:0").split(":")
+black_faces = (int(black_faces[0]), black_faces[1], float(black_faces[2]))
+
+
+def face_class(poly, verts):
+    lo = [min(v[k] for v in verts) for k in range(3)]
+    hi = [max(v[k] for v in verts) for k in range(3)]
+    c, nrm, wall = poly.center, poly.normal, black_faces[2]
+    for k in range(3):
+        for bound, sign in ((lo[k], -1), (hi[k], 1)):
+            if abs(c[k] - bound) < 1e-3 and nrm[k] * sign > 0.99:
+                return "outer"
+            if abs(c[k] - (bound - sign * wall)) < 1e-3 and nrm[k] * sign < -0.99:
+                return "inner"
+    return "reveal"
+
+
 log = []
 for n, inst in enumerate(scene_json["instances"]):
     position = Vector(inst["position"])
@@ -280,6 +301,17 @@ for n, inst in enumerate(scene_json["instances"]):
     if n in black_instances:
         obj.data.materials.append(black_material())
         log.append(f"instance {n} (mesh {inst['mesh']}) drawn black by REF_BLACK")
+    elif n == black_faces[0]:
+        # The instance's own copy of its mesh, with a second slot, black, for the faces of the chosen class.
+        obj.data = obj.data.copy()
+        obj.data.materials.append(material_for(inst["material"], inst["holdsLight"]))
+        obj.data.materials.append(black_material())
+        count = 0
+        for poly in obj.data.polygons:
+            if face_class(poly, verts) == black_faces[1]:
+                poly.material_index = 1
+                count += 1
+        log.append(f"instance {n}: {count} {black_faces[1]} faces drawn black by REF_BLACK_FACES")
     else:
         obj.data.materials.append(material_for(inst["material"], inst["holdsLight"]))
     flags = inst["flags"]

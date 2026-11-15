@@ -4,12 +4,13 @@
 # (nix develop .#assets) from the worktree, under the shared GPU lock:
 #   bash sun-sources.sh <export folder> <out folder> <samples>
 # Variants: base (seeds 1 and 2), moon (the Moon, instance 2, drawn black), cap (a shadow-only cap 0.65 m above the hull's
-# roof, seeds 1 and 2), cap+moon, rims (caps over the hull's outer edges alone). Each writes <out>/<variant>-s<seed>.npy.
+# roof, seeds 1 and 2), cap+moon, rims (caps over the hull's outer edges alone),
+# outer and reveal (the hull's outer faces, or the faces of its openings, drawn black). Each writes <out>/<variant>-s<seed>.npy.
 # ONLY=<variant> runs that variant alone.
 set -uo pipefail
 export=$1; out=$2; samples=$3
 T=docs/research/back-face-depth-layer/stage-2/tools
-lock=/Users/alexispurslane/Development/tertius/tools/gpu-lock.sh
+lock=${GPU_LOCK:-tools/gpu-lock.sh}
 mkdir -p "$out"
 CAP=-11,11,6.5,-41,21
 run() { # <name> <seed> [env assignments]
@@ -30,3 +31,6 @@ run capmoon 1 REF_SUN_CAP=$CAP REF_BLACK=2
 # rims: caps 0.2 m wide over the hull's outer edges alone, which keep the sun from the lit lips of the openings and leave the
 # roof and the outer faces lit.
 run rims 1 "REF_SUN_CAP=9.9,10.1,6.5,-41,21;-10.1,-9.9,6.5,-41,21;-11,11,6.5,-40.1,-39.9"
+# outer and reveal: the hull, instance 3, with its outer faces or the reveals of its openings drawn black.
+run outer 1 REF_BLACK_FACES=3:outer:0.5
+run reveal 1 REF_BLACK_FACES=3:reveal:0.5

@@ -93,7 +93,9 @@ def engine(position, normal):
         blockers = window[window > reference]
         if blockers.size == 0:
             return cascade, 1.0, u, v, reference, float(m[ci, cj]), np.nan
-        reach = float(np.clip((blockers.mean() - reference) * 16.0 * texel * size * 0.00467 / texel / 2.5, 0.0, 1.0))
+        # The gap in m from the dump's depth range, and the sun's angular radius as the probe's shader takes it, 0.00467.
+        gap = (blockers.mean() - reference) * 2 * info["depthHalfRange"]
+        reach = float(np.clip(gap * 0.00467 / texel / 2.5, 0.0, 1.0))
     if fit["filter"] == 1:
         lit = compare(m, reference, u, v)
     else:
