@@ -20,6 +20,9 @@ public sealed class DiffuseFilterRenderTests
     /// <summary>The step of each frame after the first: one tick, which continues the last frame.</summary>
     private const double Tick = 1.0 / 60.0;
 
+    /// <summary>The least subnormal half float, 2^−24: the spacing of the half floats below 2^−14.</summary>
+    private const float LeastSubnormalHalf = 5.9604645e-08f;
+
     /// <summary>The test signal's parameter set: the diffuse signal's, with a history of 16 frames.</summary>
     private static readonly SignalParameters Parameters = SignalParameters.Diffuse with { Cap = 16, SmoothCap = 16 };
 
@@ -39,6 +42,17 @@ public sealed class DiffuseFilterRenderTests
         bool filtered,
         DiffuseFilterKernel kernel,
         params (Vector3 Center, float Turn, Vector3 Scale)[] boxes
+    ) => Filtering(filtered: filtered, kernel: kernel, parameters: Parameters, boxes: boxes);
+
+    /// <summary>
+    /// The renderer of <see cref="Filtering(bool, DiffuseFilterKernel, ValueTuple{Vector3, float, Vector3}[])"/> with the
+    /// test signal's parameter set <paramref name="parameters"/>.
+    /// </summary>
+    private static (VulkanRenderer Renderer, SamplePass Sample, DiffuseFilter Filter, RenderSnapshot Scene) Filtering(
+        bool filtered,
+        DiffuseFilterKernel kernel,
+        SignalParameters parameters,
+        (Vector3 Center, float Turn, Vector3 Scale)[] boxes
     )
     {
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
@@ -58,7 +72,7 @@ public sealed class DiffuseFilterRenderTests
                     entity: entity++
                 )
             );
-        TemporalSignal signal = renderer.CreateSignal(parameters: Parameters, name: "test", parts: 1);
+        TemporalSignal signal = renderer.CreateSignal(parameters: parameters, name: "test", parts: 1);
         var sample = new SamplePass(signal, renderer.Allocator);
         DiffuseFilter filter = renderer.CreateDiffuseFilter(signal, kernel);
         renderer.Graph.Add(FrameGraph.Stage.DirectLight, sample);
@@ -129,13 +143,62 @@ public sealed class DiffuseFilterRenderTests
         }
     }
 
+    /// <summary>
+    /// The light of the sample in <see cref="ALongHistoryHoldsTheMeanOfItsSamplesThroughTheFeedbackStep"/>: each pixel
+    /// takes, in each draw, another value of one fixed set that spreads evenly from 0.2 to 0.6. Pixel p in draw d takes
+    /// value (p + 355 d) mod n of the n = <see cref="Width"/> · <see cref="Height"/> values, so each draw holds the whole
+    /// set once (AccumulatorRenderTests.WalkedLight says why a walk).
+    /// </summary>
+    private static float WalkedLight(int pixel, int frame) => WalkedValue((pixel + 355 * frame) % (Width * Height));
+
+    /// <summary>Value <paramref name="index"/> of the set of <see cref="WalkedLight"/>.</summary>
+    private static float WalkedValue(int index) => 0.2f + 0.4f * index / (Width * Height - 1);
+
+    [Fact]
+    public void ALongHistoryHoldsTheMeanOfItsSamplesThroughTheFeedbackStep()
+    {
+        // The temporal blend and the feedback step each store the slow history once a draw. A store that rounds both the
+        // same way would lose the length, 16, times both roundings: about 1 % under a rounding toward zero. The clamp's box
+        // holds only the fast histories' spread, which the walk's wide samples leave, so a box of 1000 deviations keeps the
+        // clamp and its anti-lag out of the mean.
+        (VulkanRenderer renderer, SamplePass sample, _, RenderSnapshot scene) = Filtering(
+            filtered: true,
+            kernel: DiffuseFilterKernel.Thin,
+            parameters: Parameters with { ClampSigmas = 1000 },
+            boxes: [Wall]
+        );
+        try
+        {
+            for (int frame = 0; frame < 320; frame++)
+            {
+                int drawn = frame;
+                sample.Samples = (column, row) => new Vector4(new Vector3(WalkedLight(row * Width + column, drawn)), 1);
+                Continue(renderer, scene, frames: 1);
+            }
+
+            float[] history = renderer.ReadImage(sample.Signal.Slow(0));
+            double mean = Enumerable.Range(0, Width * Height).Average(pixel => (double)history[4 * pixel]);
+            double samples = Enumerable
+                .Range(0, Width * Height)
+                .Average(index => (double)(float)(Half)WalkedValue(index));
+            (mean / samples)
+                .Should()
+                .BeApproximately(1, 0.002, "a long history holds the mean of its samples, {0} of the set's", mean);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     [Fact]
     public void LightThatMovesIntoAQuietRegionComesFromItsNoisyNeighbors()
     {
         // The left half holds a gradient without noise, so that no two of its pixels weigh each other, and the right half
         // a noisy light. A filter that divided each pixel by its own weights would give a left pixel next to the noise
         // nearly the noise's light, and take it from no one. The slow history holds the first step's light, and every
-        // later step must keep its total.
+        // later step must keep its total. The five later steps store their light in half floats, whose store the spec
+        // lets round toward zero: about 2^−11 of the light each on average, 5 · 2^−11 ≈ 0.25 % in all.
         int frame = 0;
         Func<int, int, Vector4> flicker = Flicker(() => frame);
         (VulkanRenderer renderer, SamplePass sample, DiffuseFilter filter, RenderSnapshot scene) = Filtering(Wall);
@@ -152,7 +215,7 @@ public sealed class DiffuseFilterRenderTests
             FilteredRed(renderer, filter)
                 .Sum()
                 .Should()
-                .BeApproximately(light, 0.001f * light, "the later steps only move light");
+                .BeApproximately(light, 0.0025f * light, "the later steps only move light");
         }
         finally
         {
@@ -408,12 +471,17 @@ public sealed class DiffuseFilterRenderTests
             Continue(renderer, scene, frames: 10);
             sample.Value = new(x: 0.2505f, y: 0.2505f, z: 0.2505f, w: 1);
 
-            // The deviation of the step falls by √(3 / 4) a frame, and below the least half float after about 100 frames.
+            // The deviation of the step falls by √(3 / 4) a frame, into the subnormal half floats after about 40 frames.
+            // There the half floats lie 2^−24 apart, and the store takes the nearest one (half_store.glsl), so the fall
+            // stops at 3 · 2^−24: 3 · √(3 / 4) ≈ 2.6 rounds back to 3. A deviation that the rounding of the blend kept
+            // feeding would stay near 10^−4.
             Continue(renderer, scene, frames: 150);
 
             float[] fast = renderer.ReadImage(sample.Signal.Fast(part: 0, parity: (int)(renderer.DrawnFrames & 1) ^ 1));
             for (int pixel = 0; pixel < Width * Height; pixel++)
-                fast[4 * pixel + 3].Should().Be(0, "pixel {0} saw one constant sample for 150 frames", pixel);
+                fast[4 * pixel + 3]
+                    .Should()
+                    .BeLessThanOrEqualTo(3 * LeastSubnormalHalf, "pixel {0} saw one constant sample for 150 frames", pixel);
         }
         finally
         {

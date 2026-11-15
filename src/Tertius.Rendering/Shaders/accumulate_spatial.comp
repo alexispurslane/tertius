@@ -5,6 +5,7 @@
 #extension GL_GOOGLE_include_directive : require
 #include "accumulate.glsl"
 #include "accumulate_reflection_guide.glsl"
+#include "half_store.glsl"
 #include "meter.glsl"
 
 void main()
@@ -106,8 +107,9 @@ void main()
     storeTrace(pixel, 4, vec4(tracedBefore, historyLength, 0.0, 0.0));
 #endif
 
-    // Step 5.
-    imageStore(slowHistory, pixel, vec4(slow, historyLength));
+    // Step 5. The fix, the clamp and the anti-lag give values that are not half floats, so the store takes the nearest
+    // ones (half_store.glsl).
+    imageStore(slowHistory, pixel, slowHistoryValue(vec4(slow, historyLength)));
     if (reflectionSharingPrototype && parameters.light == SpecularLight)
-        imageStore(reflectionGuide, pixel, vec4(guide, 0.0, 0.0));
+        imageStore(reflectionGuide, pixel, vec4(nearestHalf(guide), 0.0, 0.0));
 }
