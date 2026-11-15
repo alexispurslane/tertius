@@ -1,0 +1,37 @@
+{
+ "scene": "orbit",
+ "window": {
+  "width": 1920,
+  "height": 1080
+ },
+ "steps": [
+  {
+   "do": "camera",
+   "entity": "person"
+  },
+  {
+   "do": "run",
+   "ticks": 60
+  },
+  {
+   "do": "capture",
+   "name": "t060"
+  },
+  {
+   "do": "run",
+   "ticks": 240
+  },
+  {
+   "do": "capture",
+   "name": "t300"
+  },
+  {
+   "do": "run",
+   "ticks": 6
+  },
+  {
+   "do": "capture",
+   "name": "t306"
+  }
+ ]
+}
