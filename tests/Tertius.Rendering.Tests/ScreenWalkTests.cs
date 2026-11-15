@@ -44,6 +44,36 @@ public sealed class ScreenWalkTests
     }
 
     [Fact]
+    public void ARayAlongAFloorRowJustInFrontOfItsPixelsCentersPassesThoughThePixelsPlanesComeNearer()
+    {
+        // At the finest level the walk reads each pixel's own slab, from its center w, not the bounds of its plane over
+        // its square, which level 1 merges. Along a row, each floor pixel's plane is nearer than its center toward its
+        // lower edge.
+        CameraView camera = ScreenTesting.Camera(width: Width, height: Height, pitchDown: 0.3f);
+        SceneRectangle[] floor = [new(new(0, -1.5f, 0), new(1_000, 0, 0), new(0, 0, 1_000))];
+        DepthPyramid pyramid = ScreenTesting.Pyramid(camera, floor);
+        const int row = Height * 3 / 4;
+        float centerW = pyramid.Finest(Width / 2, row);
+        var ray = new ScreenRay(
+            Start: new(10.5f, row + 0.5f),
+            Step: Vector2.UnitX,
+            StartInverseDepth: centerW * 1.0001f,
+            StepInverseDepth: 0,
+            End: Width - 20,
+            EndsAt: SegmentEnd.ScreenEdge
+        );
+        var direction = Vector3.Normalize(new Vector3(1, -0.1f, 0));
+
+        RayTrace walked = ray.Walk(pyramid: pyramid, direction: direction, maxSteps: Cap);
+
+        pyramid
+            .Bounds(0, Width / 2, row)
+            .Near.Should()
+            .BeGreaterThan(centerW * 1.0001f, "the premise: the pixel's plane comes nearer than the ray");
+        walked.TryGetValue(out RayLeftTheSegment _).Should().BeTrue($"the ray passes the floor, not {walked}");
+    }
+
+    [Fact]
     public void ARayThatRisesTowardTheEyeThroughTheSlabBehindAWallIsNoHitBecauseTheWallFacesAwayFromIt()
     {
         // The wall's normal points to the eye. A ray from 10.5 m, inside the wall's slab of 10 to 11 m, toward the eye
