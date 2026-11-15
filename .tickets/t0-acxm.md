@@ -63,3 +63,7 @@ Decision of the parent orchestrator, 2026-11-15 07:20: the bar for the film rect
 **2026-11-15T13:23:00Z**
 
 Hold (line orchestrator, 2026-11-15 08:30, on the parent orchestrator's word). The back-face line found a shadow leak of the sun in rect-lamps (t8-rjno), and the thin sunlit strips that cause the jitter's 18-draw cycle in this line's records can be the same leak. So the remedy's design holds every part whose only reason is the strips until that line's diagnosis is in: the 18-draw window in place of the fast history as the test's recent mean, the differences at equal jitter phase (rule Q2 of t0-ion0), and a tolerance sized for the 18-draw teeth. If the strips go with the shadow's fix, the first candidate is the simplest one again: the fast history of 4 draws as the recent mean, which gave the bay film +0.89 / +0.43 against main's +1.18 / +0.53 and failed only by its loss of the still's light under the jitter. The mottle ticket t7-3e22 holds the full record, and t0-ion0 takes a check of how much of the cycle the sun's strips cause.
+
+**2026-11-15T16:31:30Z**
+
+The bar of 2026-11-15 (Alexis's words are on t7-3e22): the remedy passes by the engine's stills and films, which must show no blotches, daubs, fireflies, trail or flicker and must look good. The reference explains a fault and is not the bar. A little lost light is acceptable, so decision Y5 (the stills keep their gain against the reference) now reads: the stills must not look worse than main. The bay film's bar stays: no worse than main.
