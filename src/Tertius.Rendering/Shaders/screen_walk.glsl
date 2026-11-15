@@ -66,9 +66,9 @@ bool hitsPixel(ScreenWalk walk, ivec2 pixel)
 }
 
 // Walks the ray through the pyramid to its first hit, its end or `cap` steps, one texel read per step: the finest level,
-// R32F, the center w of each pixel, and the bounds, RG32F, whose mip m holds level m + 1. A cell is a slab: from its far
-// bound times 1 / (1 + κ) to its near bound, or at the finest level from w / (1 + κ) to w. A ray that passes in front of
-// the slab or behind it crosses the cell and goes up a level, one that meets the slab of a level above 0 goes down to
+// RG32F, the slab of each pixel, and the bounds, RG32F, whose mip m holds level m + 1. A cell is a slab from its back w
+// to its front w, both of which the pyramid's build stores (slabBack in depth_pyramid.glsl). A ray that passes in front
+// of the slab or behind it crosses the cell and goes up a level, one that meets the slab of a level above 0 goes down to
 // where it enters it, and one that meets a pixel's slab hits where hitsPixel holds. A walk that reaches its cap is a miss.
 // On a hit, gives the hit's position in pixels, its pixel and the entry share e, 0 at the slab's front and 1 at its back.
 uint walkScreen(texture2D finest, texture2D bounds, ScreenWalk walk, uint cap, out vec2 hit, out ivec2 hitPixel,
@@ -83,7 +83,6 @@ uint walkScreen(texture2D finest, texture2D bounds, ScreenWalk walk, uint cap, o
     vec2 cell = floor(walk.ray.start) + walk.travel * crossed;
     int level = 0;
     int top = min(textureQueryLevels(bounds), WalkTopLevel);
-    const float backShare = 1.0 / (1.0 + ThicknessShare);
     // Whether a descent solved s as a slab's entry, rather than a crossing reaching it on a cell's edge.
     bool solved = false;
     for (uint steps = 0u; all(bvec2(steps < cap, !(s >= walk.ray.end))); steps++)
@@ -93,10 +92,10 @@ uint walkScreen(texture2D finest, texture2D bounds, ScreenWalk walk, uint cap, o
         // A cell beyond the screen holds no surface. Its fetch would leave the active part.
         vec2 cellBounds = vec2(0.0, EmptyFar);
         if (!beyondTheScreen(cell, side))
-            cellBounds = level == 0 ? vec2(texelFetch(finest, ivec2(cell), 0).r)
+            cellBounds = level == 0 ? texelFetch(finest, ivec2(cell), 0).rg
                 : texelFetch(bounds, ivec2(cell), level - 1).rg;
         float near = cellBounds.x;
-        float back = cellBounds.y * backShare;
+        float back = cellBounds.y;
         float inW = walk.ray.startW + walk.ray.stepW * s;
         float outW = walk.ray.startW + walk.ray.stepW * exit;
         bool inFront = near <= 0.0 || min(inW, outW) > near;

@@ -611,7 +611,11 @@ public sealed class GuidedRaysRenderTests
         jitter.Should().NotBe(Vector2.Zero, "the debug switch jitters every draw");
         (float[] lights, _, _) = renderer.ReadLightPyramidLevel(0);
         var light = LightPyramid.Of(lights, Width, Height);
-        var depth = DepthPyramid.FromInverseDepths(renderer.ReadDepthFinest(), Width, Height);
+        var depth = DepthPyramid.FromInverseDepths(
+            [.. renderer.ReadDepthFinest().Select(slab => slab.Near)],
+            Width,
+            Height
+        );
         float[] plan = renderer.ReadImage(renderer.ScreenTraceImages.Plan);
         float[] records = renderer.ReadImageLayer(renderer.ScreenTraceImages.BlockRay, 1);
         float[] hits = renderer.ReadImageLayer(renderer.ScreenTraceImages.BlockLight, 1);

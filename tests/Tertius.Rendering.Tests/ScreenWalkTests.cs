@@ -181,9 +181,9 @@ public sealed class ScreenWalkTests
                 float exit = MathF.Max(Exit(cell, level), parameter);
                 CellBounds bounds =
                     level == 0
-                        ? CellBounds.OfSurface(pyramid.Finest((int)cell.X, (int)cell.Y))
+                        ? pyramid.PixelSlab((int)cell.X, (int)cell.Y)
                         : pyramid.Bounds(level, (int)cell.X, (int)cell.Y);
-                float back = bounds.Far * (1 / (1 + CellBounds.ThicknessShare));
+                float back = bounds.Back;
                 float inW = ray.StartInverseDepth + ray.StepInverseDepth * parameter;
                 float outW = ray.StartInverseDepth + ray.StepInverseDepth * exit;
                 bool meets = bounds.Near > 0 && MathF.Min(inW, outW) <= bounds.Near && MathF.Max(inW, outW) >= back;

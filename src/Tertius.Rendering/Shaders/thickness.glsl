@@ -1,6 +1,6 @@
-// The thickness of what is solid behind a stored surface. The screen tracer's walk and the
-// environment map's near entry read it, so that both see one thickness (docs/plans/environment-map-distances.md,
-// decision 20). CellBounds.ThicknessShare is the C# copy. Change both together.
+// The thickness of what is solid behind a stored surface. The depth pyramid's slab rule (slabBack), whose slabs the
+// screen tracer's walk reads, and the environment map's near entry read it, so that both see one thickness
+// (docs/plans/environment-map-distances.md, decision 20). CellBounds.ThicknessShare is the C# copy. Change both together.
 #ifndef TERTIUS_THICKNESS_GLSL
 #define TERTIUS_THICKNESS_GLSL
 

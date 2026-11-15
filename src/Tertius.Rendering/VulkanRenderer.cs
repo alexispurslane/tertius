@@ -1368,7 +1368,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         ).Values;
 
     /// <summary>
-    /// Level 1 to L of the last frame's depth pyramid: the near and the far bound of each texel of its mip, padding
+    /// Level 1 to L of the last frame's depth pyramid: the front w and the back w of each texel of its mip, padding
     /// included, row by row from the top. A test hook: it waits for the device to be idle and submits its own copy.
     /// </summary>
     /// <exception cref="InvalidOperationException">The screen tracer is off.</exception>
@@ -1381,11 +1381,15 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
-    /// The last frame's finest level of the depth pyramid: each pixel's center w in 1/m, 0 for sky, row by row from the
-    /// top. A test hook, like <see cref="ReadDepthPyramidLevel"/>.
+    /// The last frame's finest level of the depth pyramid: each pixel's slab, its center w and its back w in 1/m, (0, 0)
+    /// for sky, row by row from the top. A test hook, like <see cref="ReadDepthPyramidLevel"/>.
     /// </summary>
     /// <exception cref="InvalidOperationException">The screen tracer is off.</exception>
-    internal float[] ReadDepthFinest() => ReadLevel(image: PyramidOrThrow().Finest, layer: 0, mip: 0).Values;
+    internal CellBounds[] ReadDepthFinest()
+    {
+        float[] values = ReadLevel(image: PyramidOrThrow().Finest, layer: 0, mip: 0).Values;
+        return [.. values.Chunk(2).Select(texel => new CellBounds(Near: texel[0], Back: texel[1]))];
+    }
 
     /// <summary>
     /// Level 0 to L of the last frame's light pyramid: the guide light of each pixel at level 0, and the sum of each texel of

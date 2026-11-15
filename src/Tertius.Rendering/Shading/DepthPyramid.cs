@@ -2,17 +2,17 @@ using System.Numerics;
 
 namespace Tertius.Rendering;
 
-/// <summary>The bounds of a cell of the depth pyramid, in inverse view depth (docs/plans/screen-space-reflections.md).
-/// </summary>
-/// <param name="Near">The largest inverse depth of the cell's surface pixels, in 1/m: its nearest surface. 0 without a
-/// surface.</param>
-/// <param name="Far">The smallest, its farthest surface. <see cref="EmptyFar"/> without a surface.</param>
-internal readonly record struct CellBounds(float Near, float Far)
+/// <summary>The slab of a cell of the depth pyramid, in inverse view depth: the interval of w that the walk treats as
+/// solid there (docs/plans/back-face-depth-layer.md, "The terms").</summary>
+/// <param name="Near">The front w of the slab, in 1/m: the largest w of the cell's surface pixels. 0 without a surface.
+/// </param>
+/// <param name="Back">The back w of the slab, in 1/m: the smallest back w of its pixels. <see cref="EmptyFar"/> without
+/// a surface.</param>
+internal readonly record struct CellBounds(float Near, float Back)
 {
     /// <summary>
-    /// κ: a surface at view depth z fills the depths from z to z (1 + κ) behind it, along its view ray. The reflections'
-    /// trace and the bounce light's near steps read it, so both see one thickness of what is solid, as both see one
-    /// surface of a depth sample (<see cref="PixelSurface"/>).
+    /// κ: a surface at view depth z fills the depths from z to z (1 + κ) behind it, along its view ray: the 10 % rule
+    /// of the depth pyramid's slabs (<see cref="SlabBack"/>). The guided rays' target box reads it too.
     /// </summary>
     public const float ThicknessShare = 0.1f;
 
@@ -33,13 +33,15 @@ internal readonly record struct CellBounds(float Near, float Far)
     /// <summary>The bounds of a cell with no surface. Merged with any bounds, it gives those bounds.</summary>
     public static CellBounds Empty => new(0, EmptyFar);
 
-    public static CellBounds OfSurface(float inverseDepth) => new(inverseDepth, inverseDepth);
+    public CellBounds Merge(CellBounds other) => new(MathF.Max(Near, other.Near), MathF.Min(Back, other.Back));
 
-    public CellBounds Merge(CellBounds other) => new(MathF.Max(Near, other.Near), MathF.Min(Far, other.Far));
+    /// <summary>The back w of the slab behind a surface at <paramref name="inverseDepth"/>: the 10 % rule,
+    /// w / (1 + κ), as a product by <see cref="BackShare"/>, as slabBack in depth_pyramid.glsl takes it.</summary>
+    public static float SlabBack(float inverseDepth) => inverseDepth * BackShare;
 
-    /// <summary>The inverse depths that the cell's surfaces fill with their thickness: [Far / (1 + share), Near].
-    /// </summary>
-    public (float Low, float High) Slab(float thicknessShare) => (Far / (1 + thicknessShare), Near);
+    /// <summary>1 / (1 + κ), rounded once from double precision, as glslc folds the shader's constant. A quotient by
+    /// 1 + κ in float rounds otherwise on most pixels (stage-1b/probe.md, "The settled details").</summary>
+    private const float BackShare = (float)(1.0 / (1.0 + ThicknessShare));
 }
 
 /// <summary>
@@ -178,16 +180,27 @@ internal readonly record struct PixelSurface(
 {
     /// <summary>The bounds of the surface over the pixel's square: its nearest and its farthest inverse depth. The
     /// surface is affine over its part and constant past it, so the part's corners hold both.</summary>
-    public CellBounds Bounds
+    public (float Near, float Far) Bounds
     {
         get
         {
             Vector2 toLow = Gradient * (Low - Center);
             Vector2 toHigh = Gradient * (High - Center);
-            return new(
+            return (
                 Near: CenterInverseDepth + MathF.Max(toLow.X, toHigh.X) + MathF.Max(toLow.Y, toHigh.Y),
                 Far: CenterInverseDepth + MathF.Min(toLow.X, toHigh.X) + MathF.Min(toLow.Y, toHigh.Y)
             );
+        }
+    }
+
+    /// <summary>The slab that level 1 merges for the pixel: from its plane's near w to the back w of its plane's far w.
+    /// pixelSlabBounds in depth_pyramid.glsl is the GLSL copy.</summary>
+    public CellBounds SlabBounds
+    {
+        get
+        {
+            (float near, float far) = Bounds;
+            return new(Near: near, Back: CellBounds.SlabBack(far));
         }
     }
 
@@ -284,8 +297,14 @@ internal readonly record struct PixelSurface(
 /// <summary>
 /// The depth pyramid on the CPU: the C# copy of depth_pyramid.glsl and the pyramid shaders. Cell (x, y) of level k
 /// covers the pixels whose coordinates shifted right by k give (x, y) (docs/plans/screen-space-reflections.md, "The
-/// depth pyramid").
+/// depth pyramid"). Every level holds slabs: a front w and a back w (docs/plans/back-face-depth-layer.md).
 /// </summary>
+/// <remarks>
+/// <list type="bullet">
+/// <item>The slab of every cell of every level holds the <see cref="PixelSlab"/> of every surface pixel under it: a
+/// front w no smaller and a back w no larger.</item>
+/// </list>
+/// </remarks>
 internal sealed class DepthPyramid
 {
     /// <summary>The most levels of a pyramid: a 16,384 px side halves to 1 px in 14 levels.</summary>
@@ -295,7 +314,7 @@ internal sealed class DepthPyramid
     private readonly PixelSurface?[] surfaces;
 
     /// <summary>The cells of each level from 0 to <see cref="TopLevel"/>, row by row from the top. Level 0 holds the
-    /// bounds of <see cref="surfaces"/>.</summary>
+    /// <see cref="PixelSurface.SlabBounds"/> of <see cref="surfaces"/>, which level 1 merges.</summary>
     private readonly CellBounds[][] levels;
 
     /// <summary>The unit geometric normal of each pixel, camera-relative, row by row from the top.</summary>
@@ -307,7 +326,7 @@ internal sealed class DepthPyramid
         this.geometricNormals = geometricNormals;
         int topLevel = LevelCount(width, height);
         levels = new CellBounds[topLevel + 1][];
-        levels[0] = [.. surfaces.Select(surface => surface?.Bounds ?? CellBounds.Empty)];
+        levels[0] = [.. surfaces.Select(surface => surface?.SlabBounds ?? CellBounds.Empty)];
         for (int level = 1; level <= topLevel; level++)
             levels[level] = MergedLevel(
                 levels[level - 1],
@@ -415,10 +434,31 @@ internal sealed class DepthPyramid
     public PixelSurface? Surface(int x, int y) =>
         x < 0 || y < 0 || x >= Width || y >= Height ? null : surfaces[y * Width + x];
 
-    /// <summary>The finest level of the two-depth walk at a pixel: the inverse view depth w of its center, in 1/m, or
-    /// 0 for a pixel that sees the sky or lies outside the screen (docs/plans/temporal-renderer.md, decision 40).
-    /// </summary>
+    /// <summary>The center w of a pixel, R of the finest level: the inverse view depth of its center, in 1/m, or 0 for
+    /// a pixel that sees the sky or lies outside the screen (docs/plans/temporal-renderer.md, decision 40).</summary>
     public float Finest(int x, int y) => Surface(x, y)?.CenterInverseDepth ?? 0;
+
+    /// <summary>The slab of a pixel, the finest level's texel: its center w and the back w of that, or (0, 0) for a
+    /// pixel that sees the sky or lies outside the screen. pixelSlab in depth_pyramid.glsl is the GLSL copy.</summary>
+    public CellBounds PixelSlab(int x, int y)
+    {
+        float centerInverseDepth = Finest(x, y);
+        return new(Near: centerInverseDepth, Back: CellBounds.SlabBack(centerInverseDepth));
+    }
+
+    /// <summary>Checks the invariants in the class remarks. O(levels × pixels).</summary>
+    internal void AssertInvariants()
+    {
+        for (int level = 0; level <= TopLevel; level++)
+        for (int y = 0; y < Height; y++)
+        for (int x = 0; x < Width; x++)
+        {
+            CellBounds pixel = PixelSlab(x, y);
+            CellBounds cell = Bounds(level, x >> level, y >> level);
+            if (pixel.Near > 0)
+                Contract.Invariant(cell.Near >= pixel.Near && cell.Back <= pixel.Back);
+        }
+    }
 
     /// <summary>The unit geometric normal of a pixel, camera-relative, which the walk's facing test reads, or the zero
     /// vector outside the screen.</summary>
