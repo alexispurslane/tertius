@@ -238,9 +238,18 @@ The signature of `walkScreen` does not change. `ScreenRay.Walk` in C# takes the 
 1. The store, with behavior unchanged. The finest level becomes RG32F, and the build stores the back w by the 10 % rule. The walk reads the back w at every level. Stage 1b showed that this gives main's image byte for byte, so every snapshot test stays as it is.
 2. Mesh closure and the pass's runs: the flag, the test, the batcher's split. No frame changes.
 3. The back-face pass: its target, its pipelines, its shaders, its place in the frame graph. Nothing reads its image yet, so the image tests of the frame stay as they are.
-4. The layer as the slab: the build reads the back share, the slab rule of decision 3 replaces the 10 % rule, and `ThicknessShare` leaves. This step changes the image. Its ticket holds the snapshot approvals, ARCHITECTURE.md, and the acceptance takes.
+4. The layer as the slab: the build reads the back share, the slab rule of decision 3 replaces the 10 % rule, and `ThicknessShare` leaves. This step changes the image. Its ticket holds the snapshot approvals and ARCHITECTURE.md.
+5. The acceptance takes: the stills beside the reference, the frame cost on both machines, and the Linux run. This step is an experiment and adds no engine code.
 
-Steps 1 and 2 touch separate files and run side by side. Step 3 needs step 2. Step 4 needs steps 1 and 3.
+Steps 1 and 2 touch separate files and run side by side. Step 3 needs step 2. Step 4 needs steps 1 and 3. Step 5 needs step 4.
+
+| Step | Ticket |
+|---|---|
+| 1 | `t1-0s0a` |
+| 2 | `t1-6ucc` |
+| 3 | `t1-j03y` |
+| 4 | `t1-7b4x` |
+| 5 | `t1-8b4w` |
 
 ## The acceptance
 
