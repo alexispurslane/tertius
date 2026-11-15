@@ -1,7 +1,7 @@
 #version 460
 // The probe of half_store.glsl's nearestHalf (HalfStoreTests): invocation i reads the bits of value i of the source and
-// writes the bits of nearestHalf of it. The scalar, vec3 and vec4 forms take turns by the value's place in its group of
-// four, so that each form rounds every kind of value.
+// writes the bits of nearestHalf of it. The scalar, vec2, vec3 and vec4 forms take turns by the value's place in its
+// group of four, and each vector form gives one component, in turn by the group.
 #extension GL_GOOGLE_include_directive : require
 #include "half_store.glsl"
 
@@ -29,6 +29,8 @@ void main()
     if (id >= constants.count)
         return;
     float x = uintBitsToFloat(source[id]);
+    // The component that carries x in the vector forms: each form takes every component in turn.
+    uint component = id >> 2;
     float rounded;
     switch (id & 3u)
     {
@@ -36,13 +38,13 @@ void main()
         rounded = nearestHalf(x);
         break;
     case 1u:
-        rounded = nearestHalf(vec3(0.0, x, 0.0)).y;
+        rounded = nearestHalf(vec2(x))[component & 1u];
         break;
     case 2u:
-        rounded = nearestHalf(vec4(0.0, 0.0, 0.0, x)).w;
+        rounded = nearestHalf(vec3(x))[component % 3u];
         break;
     default:
-        rounded = nearestHalf(vec4(x, 0.5, -2.0, 3.0)).x;
+        rounded = nearestHalf(vec4(x))[component & 3u];
         break;
     }
     results[id] = floatBitsToUint(rounded);

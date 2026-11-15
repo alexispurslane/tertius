@@ -858,6 +858,32 @@ public sealed class AccumulatorRenderTests
     }
 
     [Fact]
+    public void TheFastHistoryHoldsTheMeanOfItsSamples()
+    {
+        // The fast history is a mean of the weight 1 / 4 that feeds back too: the rays read it at their hits with the
+        // filter off. Every pixel's fast history has the same length, so the mean over the pixels is the set's mean. A
+        // store that rounds every blend toward zero would lose 4 times that rounding: 0.08 % on a CPU model of this walk,
+        // against 0.015 % under the nearest half float.
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+            parameters: SignalParameters.Diffuse
+        );
+        try
+        {
+            DrawWalkedSamples(renderer: renderer, sample: sample, scene: scene, frames: 320);
+
+            float[] fast = FastOf(renderer, sample);
+            double mean = Enumerable.Range(0, Width * Height).Average(pixel => (double)fast[4 * pixel]);
+            (mean / WalkedMean())
+                .Should()
+                .BeApproximately(1, 0.0004, "the fast history holds the mean of its samples, {0} of the set's", mean);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void ALongHistoryRetainsTheDeviationOfItsSamples()
     {
         // The retained deviation is a mean that feeds back too. The reference is its update in double precision over the
@@ -1091,6 +1117,34 @@ public sealed class AccumulatorRenderTests
             Continue(renderer, scene, frames: 60);
 
             RetainedDeviationOf(renderer, sample).Should().OnlyContain(deviation => deviation == 0);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ASettledLightThatMovesByThreePercentCountsAsSpread()
+    {
+        // 0.25 is a half float, so the fast history settles on it exactly, with no deviation. A move to 0.2575 gives a step
+        // of about 0.0074, and at the variance's weight 1 / 32 a weighted step of 0.093 % of the light: above
+        // BlendRounding, 1/1536 or 0.065 %, which bounds the rounding of a store to the nearest half float. The older rule
+        // for a store that rounds toward zero, 1/768 or 0.13 %, took it for the store's rounding.
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+            parameters: SignalParameters.Diffuse
+        );
+        try
+        {
+            sample.Value = new(x: 0.25f, y: 0.25f, z: 0.25f, w: 1);
+            renderer.Render(scene, 1f);
+            Continue(renderer, scene, frames: 60);
+            RetainedDeviationOf(renderer, sample)[Center].Should().Be(0, "the light was constant");
+
+            sample.Value = new(x: 0.2575f, y: 0.2575f, z: 0.2575f, w: 1);
+            Continue(renderer, scene, frames: 1);
+
+            RetainedDeviationOf(renderer, sample)[Center].Should().BePositive("a move of 3 % is a change of light");
         }
         finally
         {
