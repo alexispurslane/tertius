@@ -124,3 +124,7 @@ Launched 2026-11-15 from 94138a196: the ticket lead of mesh closure and the batc
 **2026-11-15T13:27:13Z**
 
 2026-11-15, the parent agent's answer on capacity: the diagnosis lead starts now as a third agent. The line's limit is now two agents that build and test for hours, plus this one lead that builds once and then renders. The fade's test view (t1-r9vj) waits for a regular slot. The parent corrects the Earth-light factors with my caveat, and wants the result of part 4 on its own in two lines. Launched from 036a9919e: the ticket lead of the shadow leak's diagnosis (t1-3j2j) on Claude Opus 5.5 at high effort, in its own worktree. clientRequestId ter-kh4g-3-t1-3j2j-lead-1, taskId node:delegated-task:command%3Amcp%3A165bdbf9-3637-4289-82dc-aa6b406985af%3Adelegate-task%3Ater-kh4g-3-t1-3j2j-lead-1. The lead sends two early results to my thread: part 1's verdicts and part 4's check of Earth.
+
+**2026-11-15T14:13:05Z**
+
+2026-11-15: part 1 of the shadow leak's diagnosis (t1-3j2j) is merged as bba92b948 and sent to the parent agent. Every bright strip of direct sunlight in rect-lamps is a leak: the far jamb, the end window's sill that the ceiling reflects, and the side windows' sills. The truth lights 103 of the 7,143 pixels that the engine's sun lights, with 0.8 % of the summed light. The cabin's frame 239 holds no strip of direct sunlight. Consequence for this epic: the acceptance stills of the layer wait for the shadow fix on main, because main's side of the rect-lamps comparison gets darker too.
