@@ -111,3 +111,51 @@ If no derived rule keeps the films' gain, or each silences the test in the cabin
 - Statistics at ray-block resolution. The remedy's design decides that. This ticket keeps the probe's taps, so that its numbers compare with the cycle measurement.
 - Why a still's bounce light depends on the history's length (`t8-69v7`, its own diagnosis). Give each variant's mean bounce length beside its light, so that a reader can tell this effect from the test's own.
 - A build of the long Halton jitter (`t0-f238`) and the 128-draw history (`t0-70v1`).
+
+## Notes
+
+**2026-11-15T09:36:31Z**
+
+Step 1, the count without action (ticket lead, 2026-11-15).
+
+Build: the corrected patch of t0-y46f on 73f4a6548, plus this ticket's switches (docs/research/t0-xlcu-regional-tolerance, README follows with step 2). TERTIUS_X_REGION_RULE=0|1|2|3 chooses T0, T1, T2 or T3. The derived rules act on the bounce light only. The reflections keep T0, because their fast history's alpha holds the hit distance, not a retained deviation. TERTIUS_X_REGION_ACT=0 computes the test and does not shorten. TERTIUS_X_REGION_COUNT=<folder> writes the lag, T1, T2 and T3 of every second render pixel of every second row in each counted draw.
+
+Control: rule T0 with action, lamp hall still at 4.08 stops, light.py: 96.4 / 101.4 under today's jitter, 97.8 / 101.9 without jitter. Mean bounce length 27.09 / 21.97 and 28.63 / 22.81 draws. All equal the t0-y46f record. The second build (with T3) repeats both stills byte for byte. With ACT=0 the stills equal the fix's: specks 6.01 and 3.25, as in t0-mzhr. Rule 0 through the new path (rule 0 with the count on) gives 96.4 / 101.5. Its images differ in the last bits, mean 0.35 codes in the shown still, because the code moved.
+
+T3 is my own rule: T1 with the spread of the successive differences of F (von Neumann), sqrt(sum (F(t) - F(t-1))^2 / (2 (N - 1))). Reason: T1's share fell after the cabin's lamps went off, and a step in F raises the standard deviation of the window but adds only one term to the successive differences. Result: T3's median stays within 0.02 of T1's in every window of every take. In r11 after the lamps go off, 22.6 % exceed T3 against 6.3 % for T1, but that is still below T3's own 25.9 % before the switch. So T3 shows no more power than T1, and it gets no step 2 takes.
+
+Bounce light, whole image, surface pixel draws. Tolerance percentiles 50 / 90 / 99, and the share of the pixel draws whose lag exceeds each tolerance. Stills: run draws 100 to 300, every 7th (29 draws), the fix's action, automatic exposure.
+
+| Take | Jitter | lag p50/p90/p99 | T1 p50/p90 | T2 p50/p90 | over T0 | over T1 | over T2 | over T3 |
+|---|---|---|---|---|---:|---:|---:|---:|
+| rect-lamps | today's | 0.046/0.180/0.545 | 0.135/0.599 | 0.097/0.443 | 20.7 % | 6.4 % | 16.2 % | 7.1 % |
+| rect-lamps | none | 0.041/0.169/0.630 | 0.119/0.482 | 0.098/0.489 | 19.1 % | 8.4 % | 14.4 % | 9.0 % |
+| bay-sunbeam | today's | 0.029/0.066/0.108 | 0.079/0.121 | 0.080/0.112 | 1.5 % | 5.6 % | 5.3 % | 6.3 % |
+| bay-sunbeam | none | 0.029/0.066/0.108 | 0.079/0.121 | 0.080/0.112 | 1.6 % | 5.6 % | 5.4 % | 6.4 % |
+| exit-cabin | today's | 0.027/0.065/0.107 | 0.076/0.116 | 0.076/0.112 | 1.5 % | 5.6 % | 5.6 % | 6.5 % |
+| exit-cabin | none | 0.027/0.064/0.103 | 0.075/0.116 | 0.076/0.112 | 1.2 % | 5.3 % | 5.2 % | 6.2 % |
+| rect-lamps, filter off (diagnostic) | today's | 0.044/0.149/0.421 | 0.189/0.577 | 0.221/0.577 | 19.8 % | 3.1 % | 0.2 % | 3.5 % |
+
+Cabin switch, today's jitter, only the switch run, every draw of film frames 140 to 419. d = film frame minus the switch's frame (160 lamps off, 360 lamps on). Shares over T0 / T1 / T2 / T3:
+
+| Window | Whole image | r11 |
+|---|---|---|
+| before, frames 140 to 159 | 20.6 / 5.9 / 15.7 / 6.7 % | 25.9 / 21.6 / 32.6 / 25.9 % |
+| off, d 0 to 5 | 20.3 / 4.7 / 11.0 / 5.5 % | 25.7 / 20.0 / 27.4 / 22.4 % |
+| off, d 6 to 17 | 32.9 / 1.9 / 27.0 / 4.6 % | 46.4 / 6.3 / 56.0 / 22.6 % |
+| off, d 18 to 35 | 24.0 / 5.8 / 12.7 / 7.0 % | 29.3 / 4.5 / 22.9 / 11.2 % |
+| on, d 0 to 5 | 23.7 / 7.2 / 6.6 / 8.1 % | 29.2 / 24.3 / 12.6 / 25.6 % |
+| on, d 6 to 17 | 26.0 / 4.1 / 8.7 / 5.9 % | 31.7 / 8.1 / 24.6 / 12.3 % |
+
+The T1 median rises from 0.136 before the switch to 0.198 at off d 6 to 17 and to 0.190 at on d 6 to 17. The lag median rises from 0.045 to 0.070 and 0.051.
+
+Film rect-bay, today's jitter, its 180 frames: lag 0.213 / 0.428 / 0.526, T1 median 0.084, T2 median 0.100. Over T0 / T1 / T2 / T3: 70.9 / 71.5 / 72.3 / 73.4 %. r11: 75.1 / 75.2 / 76.2 / 76.6 %.
+
+Reflections (they keep T0): the share over T0 in the stills is 9.4 to 71.0 % of the whole image. The rect-lamps still gives 71.0 % under today's jitter and 47.8 % without.
+
+My reading:
+- In the halls of the bay and the exit cabin, T0 at 10 % is wider than every derived rule: their medians are 0.075 to 0.080, and they let 5 to 6 % of a still's pixel draws through, where T0 lets 1.2 to 1.6 % through. In the lamp hall and the cabin, the derived rules are wider than 10 %: T1's median is 0.12 to 0.14 with a p90 of 0.48 to 0.62. There they cut the still's false share from about 20 % to 6 to 8 % (T1) or 14 to 16 % (T2).
+- About 5 to 8 % of a still's pixel draws exceed T1 in every scene. Two standard deviations of a normal spread give 4.6 %, so the tails are a little heavier than normal.
+- With the diffuse filter off, the still's lag stays (19.8 % over T0), so the filter's write-back does not cause it. T2 then falls to 0.2 %. So the filter narrows the retained deviation that T2 reads, and T2's false share in the lamp hall comes from that.
+- Power after a real change: T1 has none in the cabin. Its share falls below its still level after both switches, because T1 rises more than the lag. T3 rises the same way, so the spread of F from draw to draw rises after a switch, not only the step of the change. I did not measure why. T2 rises after the lamps go off (r11 56.0 % against 32.6 %) but falls after they come on (12.6 %). T0 rises after both, but only from 20.6 to 32.9 % over the whole image. In the bay film, all rules see the change at the same share, 71 to 73 %, because the trail's lag (median 0.21) is about twice every tolerance.
+- No rule fails by its count alone in the sense of the brief: every rule sees the bay film. So step 2 takes T0, T1 and T2 in full. T3 gets none, as said above.
