@@ -2,7 +2,7 @@
 
 This is the design of epic `ter-kh4g`. The screen walk learns where each surface's solid really ends, from a second depth layer of back faces. The research behind every decision is in [docs/research/back-face-depth-layer](../research/back-face-depth-layer/README.md). This document says what to build. The tickets say in which order.
 
-Status on 2026-11-15: a draft. Decision 6 waits for the reviewed result of ticket `t1-g4p1`.
+Status on 2026-11-15: settled for the build. The research of stage 2 is merged, and the tickets of "The order of the work" build this design.
 
 ## The terms
 
@@ -145,9 +145,29 @@ where
 - `missLight` = the light of a ray that nothing on screen blocks.
 - `hitLightOf(hitPixel, kind)` = the light of the hit pixel's visible face for this ray kind.
 
-Evidence (stage-2/reference.md): a path-traced reference of the cabin shows that the faces between its thick pillars are lit about as the faces beside them. The fade over the real slab is nearer to that reference than the fade over at most 10 %. This holds on all four pillar regions and in both light sets. A rule that gives a deep entry the miss light or black moves away from the reference. So the parent agent's hypothesis, that a hidden face's light is unknown and dark, does not hold here.
+Evidence (stage-2/reference.md): a path-traced reference of the cabin, rendered by Cycles from the engine's own exported frame. The cabin's left wall has thick pillars. A ray from a pillar's face meets the hidden back face of the nearer pillar, so these faces are the case of this decision. Each number is the mean light of a pillar region over the mean light of a floor patch in the same image.
 
-One more candidate goes up as a question: no fade by the entry share at all. It is nearest to the reference in six of eight pillar cells, and it overshoots one cell by 67 %.
+| Rule | Without the sun: face at z −5.7 | Face at z −7.7 | Under full lights: face at z −5.7 | Face at z −7.7 |
+|---|---:|---:|---:|---:|
+| The reference | 0.782 | 0.796 | 1.205 | 1.142 |
+| The fade over the real slab (this design) | 0.313 | 0.336 | 1.362 | 0.812 |
+| The fade over at most 10 % | 0.284 | 0.294 | 0.787 | 0.297 |
+| The miss light for a deep entry, half a pixel of plane span | 0.245 | 0.269 | 0.591 | 0.264 |
+| Black for a deep entry, half a pixel of plane span | 0.190 | 0.220 | 0.509 | 0.216 |
+| No fade by the entry share | 0.360 | 0.399 | 2.015 | 1.433 |
+
+- In the reference, the hidden faces between the pillars are lit about as the faces beside them.
+- The fade over the real slab is nearer to the reference than the fade over at most 10 %. This holds on all four pillar regions and in both light sets.
+- A rule that gives a deep entry the miss light or black moves both pillar faces away from the reference. So the parent agent's hypothesis, that a hidden face's light is unknown and dark, does not hold here.
+- In `rect-lamps`, the two fades differ by at most 0.047 in every region.
+
+One candidate is nearer still in six of eight pillar cells: no fade by the entry share at all. This design does not take it, for three reasons:
+
+- It overshoots the face at z −5.7 under full lights by 67 %, where the fade over the real slab overshoots by 13 %.
+- Without the sun, the engine's floor patch is 2.5 times darker than the reference's. So every rule is dark at the pillars for a reason that is not the slab: the engine carries less light of several bounces. A rule that adds light comes nearer for that reason too, and the numbers cannot tell the two effects apart.
+- The fade has a meaning: the deeper a ray enters, the less the visible face's light says about the face that the ray meets. Both views are closed rooms of light-gray surfaces, where a hidden face is lit as a visible one. A view with a sunlit front and a shadowed back does not have that property.
+
+The fade is one line of `traceFrom`, and the entry share stays in the walk's result. So a later change of this decision is a small change.
 
 ### 7. The other readers of `ThicknessShare`
 
@@ -306,12 +326,13 @@ The merge into main waits for Alexis, because the frame budget and the changed l
 
 - Where two closed objects pass through each other, the first back face behind the front surface can belong to the inner object. The slab then ends early there.
 - Two coincident faces of opposite winding pass as closed, and the pass then drops the back one as the front. Such a sheet takes the back face behind it.
-- The reference shows that every rule gives the cabin's pillar faces 24 % to 50 % of the true ratio. The engine carries less light of several bounces than a path tracer. The layer does not change that.
-- Under the full lights of the two reference views, Earth's light through windows dominates the truth, and the engine's rooms do not get it. That is no part of this epic.
+- The reference shows that every rule gives the cabin's pillar faces 24 % to 50 % of the true ratio. The engine carries less light of several bounces than a path tracer (bug ticket `t1-mybi`). The layer does not change that.
+- Under the full lights of the two reference views, Earth's light through windows dominates the truth. The engine's rooms do not get that light (bug ticket `t1-tbz9`). That light is no part of this epic.
+- The jamb of `rect-lamps` keeps a bright strip at its outer edge. It is direct sunlight that the sun's shadow lets through (bug ticket `t8-rjno`). Under the 10 % rule, false light hid it.
 
 ## Open questions
 
-One question is open, and it goes to the parent agent with its pictures after the review of the reference. It is the light of a blocked ray: the fade over the real slab (this design), or a rule that is nearer to the reference still.
+One question is with the parent agent, with its crops beside the path trace. It is the light of a blocked ray: the fade over the real slab (this design), or no fade by the entry share. The build goes on with this design's rule.
 
 Settled by the parent agent on 2026-11-15:
 

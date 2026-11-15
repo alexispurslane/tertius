@@ -631,6 +631,21 @@ Record: [stage-2/crowd-cost.md](stage-2/crowd-cost.md).
 - No remedy with a reason makes the crowd cheaper. One pipeline with both faces costs more. No instance can be left out by a rule from geometry. The engine holds no coarser copy of a mesh. The pass already leaves out impostors.
 - The crowd keeps its cost: 0.47 ms of the card's frame and 0.80 ms of the Mac's. The trade for many skinned figures is a question for Alexis, with three options.
 
+### A reference for the fade
+
+Record: [stage-2/reference.md](stage-2/reference.md).
+
+The reference is a Cycles path trace of a scene that the probe exports from the engine's own frame 239. It shares the engine's geometry, materials, lights, camera, light units and tone curve, and it does not depend on what the screen shows. A calibration render gave 0.31830 for a light of 1 W/sr on a white plate, where the exact value is 0.31831.
+
+- Under full lights, Earth's sunlit day side dominates the truth. The reference's neutral floor regions are 16 times (the cabin) and 58 times (`rect-lamps`) as bright as the engine's. A control without the sun brings the factors to 2.5 and 2.0, and the fade question is answered there.
+- The cabin's pillar faces are the case of a slab deeper than 10 %. In the reference, their ratio to the floor is 0.78 to 0.80 without the sun. Every rule of the walk gives them 0.19 to 0.40.
+- The fade over the real slab is nearer to the reference than the fade over at most 10 %. This holds on all four pillar regions and in both light sets.
+- The parent agent's hypothesis does not hold here. A rule that gives a deep entry the miss light or black moves both pillar faces away from the reference.
+- No fade by the entry share is nearer still in six of eight pillar cells. It overshoots one face under full lights by 67 %.
+- The uneven bands on the jamb of `rect-lamps` have three causes, and none is the layer. The bright strip is direct sunlight that the sun's shadow lets through (bug ticket `t8-rjno`). The dip is the glass pane's edge, and the reference has it too. The patches are sample noise that the false light of the 10 % rule hid.
+
+[stage-2/cabin-nosun.png](stage-2/cabin-nosun.png) shows the cabin's pillars without the sun, in nine panels. The first four are the 10 % rule, the two fades, and no fade. Four forms of the known-light rule follow. The reference is the last panel.
+
 ### Not checked in stage 2
 
 - The cause of the losses with the crossing behind the pixel's depth in the view with the bright box (reason 3 of the census).
@@ -640,8 +655,12 @@ Record: [stage-2/crowd-cost.md](stage-2/crowd-cost.md).
 
 ### Tickets and dollars of stage 2
 
-- Closed: the crowd cost (`t1-kiaw`).
-- The cloud jobs counted $0.39 for the cards and $0.15 for the crowd cost, by the job log's estimates.
+- Closed: the cards and the open meshes (`t1-yy2f`), and the lost hits of sheets (`t1-i54g`).
+- Closed: the crowd cost (`t1-kiaw`) and the reference (`t1-g4p1`).
+- New bugs outside the epic: Earth's light in rooms (`t1-tbz9`), and the light of several bounces (`t1-mybi`).
+- New bugs outside the epic: the sun shadow's leak (`t8-rjno`), and a render pass that draws nothing on the Mac (`t1-s961`).
+- New later work: the full rule for the front of a slab (`t1-0ti7`), and two unexamined kinds of sheet hits (`t1-kq9b`).
+- The cloud jobs counted $0.39 for the cards, $0.15 for the crowd cost and $0.51 for the reference, by the job log's estimates. That is $1.05 of a budget of $4. The reference's four jobs timed out with no output (`t1-lw1f`).
 
 ## What I did not check
 
