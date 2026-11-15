@@ -26,6 +26,20 @@ internal sealed class SurfaceHistory : IDisposable
     /// </summary>
     public const Format TestFormat = Format.R16Uint;
 
+    /// <summary>The pass bits of a surface test word, bits 0 to 7: the surface test's and the specular test's taps.</summary>
+    public const ushort PassBits = 0xFF;
+
+    /// <summary>
+    /// The bit of a surface test word set where the pixel's surface moved since the last draw: signals.glsl's SurfaceMoved.
+    /// </summary>
+    public const ushort MovedBit = 0x100;
+
+    /// <summary>
+    /// The bit of a surface test word set where the pixel's point moves on screen by LeastMotion or more: signals.glsl's
+    /// SurfaceMovesOnScreen.
+    /// </summary>
+    public const ushort MovesOnScreenBit = 0x200;
+
     /// <summary>FSR's device depth: reversed and infinite, <see cref="SurfaceTestPass.DeviceDepthNear"/> over the view depth, 0 for sky.</summary>
     public const Format DeviceDepthFormat = Format.R32Sfloat;
 

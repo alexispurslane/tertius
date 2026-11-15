@@ -512,7 +512,8 @@ SignalReprojections reprojectionsAt(ivec2 pixel)
 {
     uint bits = imageLoad(surfaceTest, pixel).r;
     vec2 place = lastPlaceAt(pixel);
-    return SignalReprojections(reprojectionOf(place, bits & 0xFu), reprojectionOf(place, (bits >> 4) & 0xFu));
+    return SignalReprojections(
+        reprojectionOf(place, surfacePassBits(bits)), reprojectionOf(place, specularPassBits(bits)));
 }
 
 // The glow that the pixel sends: its emission, or 0 where its entity holds a light.

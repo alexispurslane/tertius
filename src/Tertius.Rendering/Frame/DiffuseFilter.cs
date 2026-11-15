@@ -144,17 +144,18 @@ internal sealed unsafe class DiffuseFilter : IDisposable
 
         for (int dispatch = 0; dispatch < Kernel.Dispatches; dispatch++)
         {
+            bool feedbackStep = dispatch == FeedbackDispatch;
             barriers.Image(InputOf(dispatch), ImageUse.StorageCompute);
             barriers.Image(OutputOf(dispatch), ImageUse.StorageCompute, discard: true);
             // Only the feedback pipeline accesses the histories, so the plain dispatches need no barrier on them.
-            if (dispatch == FeedbackDispatch)
+            if (feedbackStep)
             {
                 barriers.Image(signal.Slow(0), ImageUse.StorageCompute);
                 barriers.Image(signal.Fast(0, parity), ImageUse.StorageCompute);
             }
             Dispatch(
                 context: context,
-                pipeline: dispatch == FeedbackDispatch ? feedback : wavelet,
+                pipeline: feedbackStep ? feedback : wavelet,
                 set: waveletSets[parity, dispatch],
                 push: new DiffuseFilterPushConstants { Step = 1 << dispatch }
             );

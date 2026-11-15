@@ -1339,7 +1339,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// where tap i passed the surface test, bit 4 + i where it passed the specular test (<see cref="SurfaceHistory.Test"/>).
     /// A test hook.
     /// </summary>
-    internal byte[] ReadSurfaceTest() => [.. ReadSurfaceTestWords().Select(word => (byte)(word & 0xFF))];
+    internal byte[] ReadSurfaceTest() =>
+        [.. ReadSurfaceTestWords().Select(word => (byte)(word & SurfaceHistory.PassBits))];
 
     /// <summary>
     /// The surface test image of the last frame, one word per pixel, row by row from the top: the pass bits of

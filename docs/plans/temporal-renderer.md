@@ -953,7 +953,7 @@ The surface test pass runs one invocation per pixel of the active part. For a pi
 3. Take the 2 × 2 texels of the last surface history around the previous place, in the last frame's render size. Rebuild each texel's point x_t.
 4. Apply the surface test to each tap. The plane test: |(x_t − x′) · n_p| is at most 0.01 times x′'s view depth. The normal test: n_t · n_p is at least cos 25°. If both tests hold, the tap passes.
 5. Apply the specular test to each tap. If a tap passes the surface test and its roughness differs from p's by at most 0.1, it passes.
-6. Write the surface test image, R8_UINT: one bit per tap for each of the two tests.
+6. Write the surface test image, R8_UINT: one bit per tap for each of the two tests. (Since `t0-89zi` the image is R16_UINT, and bits 8 and 9 hold the pixel's two motion facts. ARCHITECTURE.md, "The frame history", has the layout.)
 7. Write this frame's surface history: p's normal and roughness. The device depth holds p's view depth.
 
 n_p is p's geometric normal. Its current direction stands in for its last direction. For an object that turns, the plane test's error is then the tap's distance from x′ times the sine of the turn, which is small.
@@ -1053,7 +1053,7 @@ The direct light has no noise, because the direct pass takes every light exactly
 |---|---|---|---|
 | Surface history | RGBA16F | 2 | x unused, normal, roughness |
 | Device depth | R32F | 2 | The near plane over the view depth, 0 for sky. FSR reads this frame's, the surface test the last frame's |
-| Surface test image | R8_UINT | 1 | The pass bits |
+| Surface test image | R16_UINT (R8_UINT before `t0-89zi`) | 2 | The pass bits, and since `t0-89zi` the two motion facts |
 | Slow history, per part | RGBA16F | 1 | rgb the light, a the length |
 | Fast history, per part | RGBA16F | 2 | rgb the light, a the hit distance for the specular signal and, since `ter-9371`, the deviation of the samples' luminance for the diffuse signal |
 | Sample, per part | RGBA16F | 1 | The producer's sample |
@@ -1321,7 +1321,7 @@ Memory, at an output of 1920 × 1080 with the largest render scale of 1. An RGBA
 | Store | Images | MB |
 |---|---|---:|
 | The three signals: 4 parts of 4 images, and 2 shared scratch images | 18 × RGBA16F | 299. Changed on 2026-11-04 (`ter-9nrc`): the direct signal's 8 images, 133 MB, are gone, and the direct light's 2 × RGBA16F take 33 MB |
-| Surface history, the last device depth and the surface test image | 2 × RGBA16F, 1 × R32F, 1 × R8_UINT | 44 |
+| Surface history, the last device depth and the surface test image | 2 × RGBA16F, 1 × R32F, 1 × R8_UINT (R16_UINT since `t0-89zi`, one byte more per pixel) | 44 |
 | Reservoirs | 2 × RG32UI | 33. Removed on 2026-11-04 (`ter-9nrc`), so 0 |
 | Motion target, device depth, opaque-only image, reactive mask | RGBA16F, R32F, RGBA16F, R8_UNORM | 44 |
 | Block rays and the own-ray lists | Quarter size, and a buffer per kind | 33. Changed on 2026-11-04 (`ter-jxjx`): a list per kind, 8.3 MB each |
@@ -1698,7 +1698,7 @@ The design keeps to the Vulkan spec and to what the desktop Linux drivers (NVIDI
 |---|---|---|
 | A seventh color attachment | The G-buffer's motion target | `maxColorAttachments` is 8 on the four drivers and on MoltenVK. Ticket 2 makes the renderer throw `NotSupportedException` at start on a device with fewer, as `OcclusionImages` does for its formats. |
 | Storage images of RGBA16F, RG32UI and R32F | The histories, the device depth, and the reservoirs until their removal on 2026-11-04 (`ter-9nrc`) | The spec requires storage support for these formats. |
-| Storage images of R8_UINT | The surface test image | `shaderStorageImageExtendedFormats`, which the four drivers offer. Each owner tests the format at the creation of its images, as `OcclusionImages` does. |
+| Storage images of R8_UINT, R16_UINT since `t0-89zi` | The surface test image | `shaderStorageImageExtendedFormats`, which the four drivers offer. Each owner tests the format at the creation of its images, as `OcclusionImages` does. |
 | No subgroup operations and no 16-bit math in FSR | Section 5 | `FFX_SPD_NO_WAVE_OPERATIONS=1` and `FFX_HALF=0`. |
 | NaN | The accumulators | `isnan` and `isinf` test each sample. No pass relies on a clamp of NaN. Without `SignedZeroInfNanPreserve`, a driver may fold both tests to false (`ter-dbzx`). |
 | The half float range | Every history and sample | Each holds demodulated light capped at `MaxRadiance`, 32,256. The HDR image stays at or below 64,512, as today (section 1). Both lie below the half float maximum of 65,504. No pass blends history in fixed function. Added on 2026-11-04 (`ter-gayt`): the resolve caps each sample after its ray weights, which reach 4, and a record holds a hit distance of at most 65,504 m. |

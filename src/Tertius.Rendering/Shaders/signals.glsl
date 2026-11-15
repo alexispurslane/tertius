@@ -22,6 +22,18 @@ const float RoughnessStep = 0.1;
 const uint SurfaceMoved = 0x100u;          // the pixel's surface moved since the last draw (motion.glsl, movedSurface)
 const uint SurfaceMovesOnScreen = 0x200u;  // its point moves on screen by LeastMotion or more (movesOnScreen)
 
+// The taps that pass the surface test, bits 0 to 3 of a surface test word: bit i for tap i.
+uint surfacePassBits(uint word)
+{
+    return word & 0xFu;
+}
+
+// The taps that also pass the specular test, bits 4 to 7 of a surface test word: bit i for tap i.
+uint specularPassBits(uint word)
+{
+    return (word >> 4) & 0xFu;
+}
+
 // SurfaceTestPass.DeviceDepthNear: the near plane of FSR's reversed and infinite depth, in m (DepthRanges.NearPlane). The
 // device depth is this over the view depth, 0 for sky.
 const float DeviceDepthNear = 0.05;
@@ -132,7 +144,7 @@ HistoryTaps historyTaps(texture2D lastSurfaceHistory, texture2D lastDeviceDepth,
     vec3 lastPoint, vec3 normal, float roughness)
 {
     uint bits = surfaceTapsInside(lastSurfaceHistory, lastDeviceDepth, pixelPlace, lastPoint, normal, roughness);
-    if (holdsHistory(reprojectionOf(pixelPlace, bits & 0xFu)))
+    if (holdsHistory(reprojectionOf(pixelPlace, surfacePassBits(bits))))
         return HistoryTaps(pixelPlace, bits, true);
     return HistoryTaps(samplePlace,
         surfaceTapsInside(lastSurfaceHistory, lastDeviceDepth, samplePlace, lastPoint, normal, roughness), false);
