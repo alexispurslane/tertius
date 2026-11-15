@@ -1,6 +1,6 @@
 ---
 id: t1-6ucc
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-11-15T13:06:42Z
