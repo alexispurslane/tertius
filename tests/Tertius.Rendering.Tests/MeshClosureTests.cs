@@ -16,10 +16,17 @@ public sealed class MeshClosureTests
     /// A box from the origin to (2, 2, 2), whose three vertices at the origin, one per face that meets there, move by
     /// <paramref name="moves"/> in turn.
     /// </summary>
-    private static (uint[] Indices, Vector3[] Positions) CornerBox(params Vector3[] moves)
+    private static (uint[] Indices, Vector3[] Positions) CornerBox(params Vector3[] moves) =>
+        SizedCornerBox(new(2), moves);
+
+    /// <summary>
+    /// A box from the origin to <paramref name="size"/>, whose three vertices at the origin, one per face that meets there,
+    /// move by <paramref name="moves"/> in turn.
+    /// </summary>
+    private static (uint[] Indices, Vector3[] Positions) SizedCornerBox(Vector3 size, params Vector3[] moves)
     {
         MeshData box = Primitives.Box(Vector3.One);
-        Vector3[] positions = [.. Positions(box).Select(position => position + Vector3.One)];
+        Vector3[] positions = [.. Positions(box).Select(position => (position + Vector3.One) * size / 2)];
         int moved = 0;
         for (int i = 0; i < positions.Length; i++)
             if (positions[i] == Vector3.Zero)
@@ -127,11 +134,64 @@ public sealed class MeshClosureTests
     }
 
     [Fact]
+    public void AMeshOnTheNegativeSideOfItsOriginWeldsTheFloatNoiseOfItsLargestCoordinate()
+    {
+        float noise = 8 * MathF.Pow(2, -22);
+        (uint[] indices, Vector3[] positions) = SizedCornerBox(
+            new(-2),
+            new(-noise),
+            new(noise),
+            new(noise, -noise, noise)
+        );
+
+        MeshClosure.IsClosed(indices, positions).Should().BeTrue("the tolerance follows the size of a coordinate");
+    }
+
+    [Fact]
+    public void AMeshLongAlongZWeldsTheFloatNoiseOfItsLongestAxis()
+    {
+        float noise = 8 * MathF.Pow(2, -22);
+        (uint[] indices, Vector3[] positions) = SizedCornerBox(
+            new(0.002f, 0.002f, 2),
+            new(-noise),
+            new(noise),
+            new(noise, -noise, noise)
+        );
+
+        MeshClosure
+            .IsClosed(indices, positions)
+            .Should()
+            .BeTrue("the tolerance follows the largest coordinate of any axis");
+    }
+
+    [Fact]
     public void ACornerSplitByATenThousandthOfTheMeshsSizeDoesNotWeld()
     {
         (uint[] indices, Vector3[] positions) = CornerBox(new(-0.0002f), new(0), new(0.0002f));
 
         MeshClosure.IsClosed(indices, positions).Should().BeFalse("a gap of 0.2 mm in a box of 2 m is a real hole");
+    }
+
+    [Fact]
+    public void APositionWeldsToAnEarlierPositionBehindAnotherOneOfTheSameGridCell()
+    {
+        // The corner's three vertices sit at one point near the origin. A vertex of no triangle comes between the first
+        // and the other two, two tolerances away, in the same grid cell. The other two must still find the first.
+        float tolerance = MeshClosure.WeldTolerance([Vector3.Zero, new(2)]);
+        var corner = new Vector3(0.5f * tolerance);
+        (uint[] indices, Vector3[] positions) = CornerBox(corner, corner, corner);
+        int[] copies = [.. Enumerable.Range(0, positions.Length).Where(i => positions[i] == corner)];
+        Vector3[] reordered = [.. positions, corner + new Vector3(2 * tolerance, 0, 0), corner, corner];
+        uint[] remapped = [.. indices];
+        for (int i = 0; i < remapped.Length; i++)
+        {
+            if (remapped[i] == copies[1])
+                remapped[i] = (uint)positions.Length + 1;
+            else if (remapped[i] == copies[2])
+                remapped[i] = (uint)positions.Length + 2;
+        }
+
+        MeshClosure.IsClosed(remapped, reordered).Should().BeTrue();
     }
 
     [Fact]
