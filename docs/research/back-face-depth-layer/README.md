@@ -433,6 +433,53 @@ Alexis answered the three questions on 2026-11-14.
 
 Stage 1b then looks for a misbehavior of this model that has a name: a new leak, a new hole, or contact darkening that looks wrong. It also measures the false sill hits and the cost of the pyramid store. The side image of Design 2 is out.
 
+## Stage 1b: the evidence for the chosen model
+
+Stage 1b ran from 2026-11-14 to 2026-11-15. Three tickets hold its work, and each has its own record beside this file:
+
+- [stage-1b/probe.md](stage-1b/probe.md): the throwaway probe of the chosen model (`t1-n8x9`).
+- [stage-1b/cost.md](stage-1b/cost.md): the frame cost on both machines (`t1-stwp`).
+- [stage-1b/pictures.md](stage-1b/pictures.md): the false sill hits, the stills and the sheets (`t1-gxzg`).
+
+A sheet is a surface pixel with no back face behind it. The chosen model gives it no thickness.
+
+### The probe
+
+The probe stores a front w and a back w at every level of the depth pyramid. Only the pyramid's build applies the slab rule, and the walk multiplies by no constant. One binary holds every rule. The probe is a patch, [stage-1b/probe-slab-in-pyramid.patch](stage-1b/probe-slab-in-pyramid.patch), and not code on the branch.
+
+Measured facts, all on the M1 Max:
+
+- Main rendered twice gives the same capture and the same 240 film frames, byte for byte.
+- The 10 % rule through the new store gives main's capture and film, byte for byte. So the store alone changes no pixel.
+- Under the layer as the slab, the sill of `rect-lamps` has a slab of 0.50 m. Under the 10 % rule it has 3.96 m.
+- The slab of every cell of level 1 holds the slab of every pixel under it. Four views show no exception.
+- `rect-lamps` holds 23 sheets among 399,704 surface pixels. The deck holds 8, and the cabin none.
+- The hair view of `lamp-hall-16-hair` holds 80,465 sheets among 270,728 surface pixels.
+
+### The cost of the pyramid store
+
+The measurement compares four sides: main, the layer as the slab, the 10 % rule through the new store with the back-face pass, and the new store without the pass. A cell gives the layer as the slab minus main, in ms per frame at a render size of 1280 × 720. The run range is main's slowest run minus its fastest.
+
+| Scene | RTX 2000 Ada: main | Its run range | The chosen model minus main | M1 Max: main | Its run range | The chosen model minus main |
+|---|---:|---:|---:|---:|---:|---:|
+| Deck | 8.447 | 0.018 | +0.031 | 18.615 | 0.107 | +0.060, inside the noise |
+| Cabin | 9.318 | 0.037 | +0.055 | 20.291 | 0.105 | +0.140 |
+| `rect-lamps` | 7.120 | 0.011 | −0.109 | 14.812 | 0.062 | −0.141 |
+| Crowd: 100 skinned figures, 2.0 million vertices | 9.176 | 0.015 | +0.446 | 15.369 | 0.174 | +1.014 |
+
+The card's numbers come from four rounds after a slow first round, and the Mac's from 9 to 12 kept rounds of 12.
+
+More measured facts:
+
+- The new store without the pass is not slower than main. On the card it is 0.028 to 0.036 ms faster in every scene, and on the Mac the difference is inside the noise.
+- The pass alone costs 0.032 to 0.062 ms in the three rooms on the card, and it is inside the noise there on the Mac.
+- In the crowd the pass alone costs 0.453 ms on the card and 0.801 ms on the Mac. Its own time on the card is 0.485 ms, against 1.294 ms for the G-buffer pass.
+- The layer rule alone, without the pass and the store, costs 0.013 to 0.029 ms in the deck and the cabin on the card. On the Mac it costs 0.058 to 0.122 ms there. In `rect-lamps` it saves 0.112 ms on the card and 0.172 ms on the Mac.
+- Memory at 1280 × 720: the finest level grows from 3.52 MiB to 7.03 MiB. The back share takes 3.52 MiB as R32F, or 1.76 MiB as R16F.
+- The cloud jobs of the cost ticket counted $0.20.
+
+My reading: the store is free, and the walk's rule costs little. The pass is the cost, and it grows with the vertex count, because it draws every one-sided solid mesh a second time. A view of rooms pays about 0.05 ms for it. A view with many skinned figures pays for it in proportion.
+
 ## What I did not check
 
 - No new probe run measured the false sill hits. The 66 % and 8 % above are estimates from saved data.

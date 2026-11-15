@@ -1,6 +1,6 @@
 ---
 id: t1-stwp
-status: in_progress
+status: closed
 deps: [t1-n8x9]
 links: []
 created: 2026-11-14T23:06:20Z
@@ -86,3 +86,7 @@ Answer of the line orchestrator in the lead's brief: the probe has a mode off (t
 **2026-11-15T00:41:59Z**
 
 Measured on both machines: docs/research/back-face-depth-layer/stage-1b/cost.md. Card, rounds 2 to 5: layer minus main is +0.031 ms on the deck, +0.055 ms in the cabin, -0.109 ms in rect-lamps and +0.446 ms in the crowd. Mac: +0.060 ms (inside the spread), +0.140, -0.141 and +1.014 ms. In the crowd of 2.0 million skinned vertices the pass alone costs 0.45 ms on the card and 0.80 ms on the Mac. Cloud cost $0.2047.
+
+**2026-11-15T00:52:49Z**
+
+Merged 2026-11-15 as 1400d432f (the lead's head c09348dfe). Review: correctness pass; the findings of fulfillment and design each have a recorded fix. Last check by the line orchestrator: cost.md keeps the measured facts apart from the reading, names each difference inside the noise, and states each dropped round. Changes from the ticket that I accept: four sides, a Williams square for the Mac's order, a clock gap of at most 1 MHz, and the scene rigs-crowd as the dense view.
