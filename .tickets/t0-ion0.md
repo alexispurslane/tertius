@@ -98,3 +98,49 @@ If a rule passes all three under today's jitter, say what the long Halton sequen
 - The remedy's build. Its ticket follows this result.
 - Statistics at ray-block resolution. This ticket keeps the probe's taps.
 - A graded cut. The reader cuts to the fast cap or does nothing. If the count shows that a graded cut is needed, say so in the notes.
+
+## Notes
+
+**2026-11-15T11:27:07Z**
+
+Step 1: the count of the drift test without action (ticket lead).
+
+The build. The scratch probe is `docs/research/t0-ion0-region-drift/scratch-probe-on-73f4a6548.patch`. It holds the t0-xlcu probe and the nearest-half store of t8-69v7 (`TERTIUS_X_HALF_NEAREST=1`, constant 22). It also holds the drift test with the constants 23 to 28 (`TERTIUS_X_DRIFT`, `_RULE`, `_ACT`, `_COUNT`, `_TOL`, `_SIGMAS`). The drift ring holds 36 draws of `F` after the window ring's layers. Until 36 draws exist, the test gives no evidence. The spread `dold` takes the divisor 17. The reflections use the same rule with their own samples.
+
+The control. Every new switch at its default with the old store repeats the T0 lamp hall still: 96.4 / 101.4 (ceiling / walls, % of the reference). The ported store repeats t8-69v7 in scene light: the reference with the store gives 102.7 / 105.8 % of the reference without it, and the cap of 4 draws with the store gives 100.0 / 100.1 % of the reference with it. The second build (below) repeats the first build's T0 still and its count still byte for byte.
+
+A change of the design: one test per block, at its center pixel. The first build gave a block evidence when any of its 64 pixels fired. In the lamp hall, Q1 then fired at 9.9 % of the pixel draws but flagged 75.6 % of the block draws. The tests of a block's pixels are almost independent, so "any of 64" multiplies the false evidence. The second build tests only the center pixel, local pixel (4, 4), and its block takes that result. All shares below are of this rule. `tables-step1.txt` also holds each pixel's own share and the first build's block shares.
+
+The count, the bounce light, % of counted pixel draws with block evidence, whole image. Stills count run draws 100 to 300, every 7th. A still has no change, so all its evidence is false.
+
+| Take | Drift p50 / p90 | Q1 tolerance p50 / p90 | Q0 | Q1 | Q2 |
+|---|---|---|---:|---:|---:|
+| Lamp hall, today's jitter | 0.058 / 0.266 | 0.167 / 0.740 | 30.5 | 9.2 | 3.8 |
+| Lamp hall, no jitter | 0.056 / 0.251 | 0.147 / 0.592 | 30.5 | 12.6 | 5.6 |
+| Lamp hall, long Halton sequence | 0.067 / 0.318 | 0.157 / 0.708 | 34.1 | 14.3 | 7.7 |
+| Bay still, each jitter | 0.034 / 0.089 | 0.098 / 0.150 | 7.3 to 7.6 | 7.0 to 7.3 | 1.1 |
+| Exit cabin, each jitter | 0.032 / 0.086 | 0.094 / 0.144 | 6.2 to 6.3 | 6.0 to 6.1 | 0.9 |
+| Cabin before the switch, frames 140 to 159 | 0.057 / 0.266 | 0.168 / 0.735 | 30.4 | 9.8 | 3.5 |
+| Cabin, lamps off, d 0 to 5 | 0.056 / 0.265 | 0.168 / 0.738 | 31.9 | 12.7 | 6.8 |
+| Cabin, lamps off, d 6 to 17 | 0.095 / 0.283 | 0.166 / 0.768 | 46.8 | 18.7 | 9.2 |
+| Cabin, lamps off, d 18 to 35 | 0.150 / 0.304 | 0.175 / 0.742 | 69.6 | 34.2 | 15.1 |
+| Cabin, lamps off, d 36 to 59 | 0.071 / 0.282 | 0.193 / 0.769 | 37.6 | 8.8 | 2.7 |
+| Cabin, lamps on, d 6 to 17 | 0.085 / 0.305 | 0.178 / 0.644 | 42.5 | 16.2 | 7.3 |
+| Cabin, lamps on, d 18 to 35 | 0.119 / 0.349 | 0.175 / 0.638 | 54.8 | 29.1 | 14.4 |
+| Film rect-bay, 180 frames | 0.205 / 0.299 | 0.104 / 0.173 | 86.7 | 84.1 | 71.0 |
+
+`d` = the film frame minus the switch frame. The reflections give 34 to 53 % (Q0), 13 to 23 % (Q1) and 8 to 17 % (Q2) in the lamp hall, 1 to 13 %, 4 to 7 % and 0.5 to 2.6 % in the two other stills, and 82 / 83 / 71 % in the film.
+
+A rule of my own, Q2: Q1 at 3 standard deviations, `TERTIUS_X_DRIFT_SIGMAS=3`. The reason: under a normal distribution, a two-sided test at 2 standard deviations fires at 4.6 % of the draws. In the lamp hall Q1 fires at 9 to 14 %, so the drift's tails are heavier. At 3 standard deviations, a normal distribution gives 0.3 %. The measured share is 3.8 to 7.7 % in the lamp hall and about 1 % in the two other stills. The film keeps 71 %.
+
+Facts that bear on step 2:
+
+- The test sees a switch late. Under Q1 the cabin's share rises from 9.8 % before the switch to 12.7 % at d 0 to 5 and peaks at d 18 to 35 (34.2 %). The new window must fill with changed draws before `Rnew` moves, and `Rold` holds the old light until d 18.
+- The lamp hall and the cabin's still state have the same tolerance and drift, because the cabin's view is the lamp hall's.
+- In the film, the drift's median 0.205 is about 2 times its Q1 tolerance. In the stills, the median drift is about a third of the tolerance.
+
+My reading. Q0 fails the still at 30 % in the lamp hall, so it stays only as the control of the method. Q1 and Q2 separate the film (84 and 71 %) from the stills (1 to 14 %), but no rule reaches zero false evidence in the lamp hall. Step 2 must show whether 4 to 9 % false evidence costs the still its light, specks or length. The long Halton sequence raises the lamp hall's false evidence under each rule (Q1 9.2 to 14.3 %, Q2 3.8 to 7.7 %).
+
+Step 2 takes Q0, Q1 and Q2 acting, with the reference, the fix and the cap of 4 draws, all with the nearest-half store.
+
+Files: `tables-step1.txt` (made by `tools/measure-1.sh`), `tools/queue-c.sh`, `tools/queue-1.sh`, `tools/queue-1c.sh`, `tools/driftcount.py`.
