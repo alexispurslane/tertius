@@ -2,7 +2,7 @@
 id: ter-kh4g
 status: in_progress
 deps: []
-links: [ter-ukw6]
+links: [ter-ukw6, t1-i54g, t1-0ti7]
 created: 2026-11-14T18:53:04Z
 type: epic
 priority: 1
@@ -104,3 +104,7 @@ Launched 2026-11-15 from a8bbc2144, two ticket leads on Claude Opus 5.5 at high 
 **2026-11-15T13:13:31Z**
 
 Launched 2026-11-15 from 94138a196: the ticket lead of mesh closure and the batcher's split (t1-6ucc) on Claude Opus 5.5 at high effort, in its own worktree. clientRequestId ter-kh4g-3-t1-6ucc-lead-1, taskId node:delegated-task:command%3Amcp%3A165bdbf9-3637-4289-82dc-aa6b406985af%3Adelegate-task%3Ater-kh4g-3-t1-6ucc-lead-1, child thread thread:delegated-task:command%3Amcp%3A165bdbf9-3637-4289-82dc-aa6b406985af%3Adelegate-task%3Ater-kh4g-3-t1-6ucc-lead-1. The lead of the store (t1-0s0a) starts when the reference lead (t1-g4p1) ends, because two agents of the line build at once at most.
+
+**2026-11-15T13:17:10Z**
+
+2026-11-15, the parent agent's answers to the interim note of stage 2. (1) The slab of a sheet: build the rule of decision 3 in step 4 (the slab reaches to its plane's far w) and approve its snapshots. It is no exception to Alexis's answer: it states the far end of the sheet's real extent inside its pixel, and it gives the sheet no thickness. The full rule, which also starts a slab at its plane's near w, is ticket t1-0ti7 and follows the one-image depth pyramid (ter-y3k4). The design doc says that the full rule is the general rule for the front of every slab, and why. (2) Many skinned figures: every figure keeps its real back face. Alexis sees the numbers at the final acceptance, per figure and for the crowd, beside what the figures already cost. The parent asked how much of the pass's vertex work on a figure is skinning: none. deform.comp writes one deformed copy per figure and frame, and the shadow maps, the G-buffer pass and the back-face pass all draw it. The deformation takes 1.275 ms once in the crowd on the RTX 2000 Ada. So no ticket for a shared skinned copy is needed. (3) The fade by the entry share: bring the reviewed reference with crops beside the path trace. If the fade over the real slab is nearest, it stays, and the question is only whether anything is nearer still.

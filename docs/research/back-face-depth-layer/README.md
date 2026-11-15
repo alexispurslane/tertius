@@ -589,6 +589,60 @@ The cause of the loss is not known (`t1-i54g`). The stair case of the probe's ti
 - An open chore: a stale comment in `thickness.glsl` (`t1-pim3`).
 - The cloud jobs counted $1.24 by the job log's estimates: $0.20 for the cost and $1.03 for the pictures, of a budget of $3.
 
+## Stage 2: the open research
+
+Stage 2 started on 2026-11-15. The parent agent answered the two questions of stage 1b with "research first". So three experiments ran before the design: the cards and the sheets, the pass's cost by vertex count, and a reference for the fade. Each has its own record in [stage-2](stage-2). The design that follows from them is [docs/plans/back-face-depth-layer.md](../../plans/back-face-depth-layer.md).
+
+### Cards and open meshes
+
+Record: [stage-2/cards.md](stage-2/cards.md), parts 1 and 2.
+
+The pass of stage 1b drew only the back faces of one-sided solid meshes. That was my decision for the probe, and it caused part of "the borrowed back face": a hair pixel took the back face of the wall behind it. Stage 2 ran the rule of Design 1. The pass draws both faces of a two-sided or open mesh, and a fragment at the front's own distance gives a back share of 1.
+
+- Under that rule, all 139,646 hair pixels of the lamp hall hold their own fragment. Before, 59,188 of them borrowed a back face at a median of 4.10 m.
+- The hits on a surface that the ray moves away from fall from 817,466 to 1,525.
+- The cutout test of the pass must sample as the G-buffer pass does, with the main view's mip bias. Without the bias, 4,207 pixels fell through to the surface behind them.
+- No scripted scene holds an open one-sided opaque mesh. Five meshes are closed only by the pairing rule: the station's spokes, chute, chute brake and body, and the ship.
+
+### The lost hits of sheets
+
+Record: [stage-2/cards.md](stage-2/cards.md), part 3.
+
+The cause has a name. The finest level stores one flat depth per pixel. A ray that crosses a tilted sheet inside a pixel can miss that single depth. The table takes the real hits of the 10 % rule whose crossing shows the hit pixel's own card. Each cell gives the share of them that a sheet rule keeps.
+
+| View and ray kind | Real hits | No thickness | To the plane's far w in the pixel | The plane's near w to its far w in the pixel | The plane's change over 1.5 pixels, behind only |
+|---|---:|---:|---:|---:|---:|
+| Lamp hall, reflection | 2,859 | 31.7 % | 58.8 % | 75.8 % | 89.0 % |
+| Lamp hall, diffuse | 11,040 | 28.3 % | 56.7 % | 71.4 % | 85.9 % |
+| Cards in front of a bright box, reflection | 17,889 | 86.4 % | 90.1 % | 91.5 % | 93.0 % |
+| Cards in front of a bright box, diffuse | 37,970 | 71.9 % | 83.1 % | 87.8 % | 92.9 % |
+
+- Of the 10 % rule's 4,399 false hits in the lamp hall's reflection, the four rules keep 373, 484, 565 and 1,396.
+- In the lamp hall, 42 to 44 % of the lost hits cross another surface than the hit pixel's card. Those losses are correct.
+- The design takes the second column: a slab reaches at least to its plane's far w. It is an exception to Alexis's answer 2, and it goes to Alexis as a question.
+
+### The cost by vertex count
+
+Record: [stage-2/crowd-cost.md](stage-2/crowd-cost.md).
+
+- The pass's cost is a straight line in the vertices that it draws. On the RTX 2000 Ada its own time is 0.011 ms plus 0.238 ms per million vertices. On the M1 Max the frame cost rises by 0.356 ms per million.
+- In the crowd, the vertex work is 0.450 ms of the card's 0.489 ms. The fragments cost 0.026 ms.
+- The demo's real views draw 100,000 to 125,000 vertices in the pass and pay 0.04 to 0.065 ms on the card. One figure of 20,202 vertices pays 0.005 ms on the card and 0.007 ms on the Mac.
+- No remedy with a reason makes the crowd cheaper. One pipeline with both faces costs more. No instance can be left out by a rule from geometry. The engine holds no coarser copy of a mesh. The pass already leaves out impostors.
+- The crowd keeps its cost: 0.47 ms of the card's frame and 0.80 ms of the Mac's. The trade for many skinned figures is a question for Alexis, with three options.
+
+### Not checked in stage 2
+
+- The cause of the losses with the crossing behind the pixel's depth in the view with the bright box (reason 3 of the census).
+- Eight diffuse hits on sheets whose crossing lies behind the ray's start.
+- A skinned person: no scene holds one, so cylinders of 20,202 vertices stand in.
+- The cause of a fixed cost of about 0.075 ms on the Mac for a pass that draws nothing.
+
+### Tickets and dollars of stage 2
+
+- Closed: the crowd cost (`t1-kiaw`).
+- The cloud jobs counted $0.39 for the cards and $0.15 for the crowd cost, by the job log's estimates.
+
 ## What I did not check
 
 This list is stage 1's. Stage 1b measured the first four points and the dense view: see the section above.

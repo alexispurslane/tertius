@@ -2,7 +2,7 @@
 
 This is the design of epic `ter-kh4g`. The screen walk learns where each surface's solid really ends, from a second depth layer of back faces. The research behind every decision is in [docs/research/back-face-depth-layer](../research/back-face-depth-layer/README.md). This document says what to build. The tickets say in which order.
 
-Status on 2026-11-15: a draft. Decision 6 waits for the reviewed result of ticket `t1-g4p1`. Three questions are open for Alexis, in "Open questions".
+Status on 2026-11-15: a draft. Decision 6 waits for the reviewed result of ticket `t1-g4p1`.
 
 ## The terms
 
@@ -82,11 +82,25 @@ So a pixel with a real back face gets its real slab. A sheet gets the depth of i
 
 At level 1, each pixel's term is `(planeNearW, slabBack(planeFarW, share))`, and the cells merge as today: the largest first part and the smallest second part. The slab of every cell then holds the slab of every pixel under it. The reason: `planeFarW` is at most `centerW`, and a share is at most 1.
 
-This is an exception to Alexis's answer "a sheet has no thickness", and it goes to Alexis with its numbers. The misbehavior of the pure answer has a name. The finest level stores one flat depth per pixel. So a ray that crosses a tilted sheet inside a pixel can miss the pixel's single w.
+This rule keeps Alexis's answer, "a sheet has no thickness". The parent agent settled that reading on 2026-11-15. A sheet has no thickness of its own. But a tilted sheet covers a range of depths inside one pixel, and one flat depth per pixel is an approximation of that range. The plane's far w states the far end of the sheet's real extent inside its pixel. It gives the sheet no thickness along its normal, and it brings no constant back.
+
+The pure reading, a slab from the center w to the center w, misbehaves in a way that has a name. A ray that crosses a tilted sheet inside a pixel can miss the pixel's single w.
 
 Evidence (stage-2/cards.md, part 3): take the real hits of the 10 % rule whose crossing shows the hit pixel's own card. A sheet with no thickness keeps 28 % to 86 % of them. The plane's far w keeps 57 % to 90 %. In the lamp hall it keeps 484 of the 10 % rule's 4,399 false hits, where no thickness keeps 373.
 
-Not built now: a sheet whose slab also reaches to its plane's near w keeps 71 % to 92 %. It moves the front w of a pixel, which three other readers of the finest level share. Ticket `t1-i54g` keeps that as later work, with the one-image pyramid of `ter-y3k4`.
+#### The front of a slab: the full rule, planned and not built here
+
+The rule above is half of the real extent: it moves the back of a slab and leaves its front at the center w. The full rule also starts the slab at its plane's near w inside the pixel. On sheets it keeps 71 % to 92 % of the real hits. Ticket `t1-0ti7` plans it, after the one-image depth pyramid of `ter-y3k4`.
+
+The full rule is the general rule for the front of every slab, not a rule for sheets only:
+
+- The flat depth is an approximation for every surface. A deep slab has a tilted front too.
+- The levels above the finest already start each pixel's slab at its plane's near w. Only the finest level starts it at the center. The full rule removes that difference: every level is then the merge of the level below.
+- A rule for sheets only needs a branch on the back share in the front of a slab. A pixel's front then has two meanings.
+
+The gain shows on thin slabs only. A ray that passes in front of a flat depth and behind the real surface is inside the solid. Under a deep slab it meets the slab of the next cell, so its hit moves by one pixel at most. Under a sheet it is behind the next cell's slab too, and the hit is lost.
+
+The full rule is not built here for two reasons. It moves the first part of the finest level, which three other readers take as the pixel's center w: `hittable`, `guidedPointOf` and `pixelDensityOf` in `screen_trace.glsl`. And it has one named risk that no census measured on every pixel. The pair of a plane's near w and far w is a box, and the plane fills only its diagonal. So a grazing ray can hit a neighbor's box in front of the real surface. On sheets, the full rule keeps 565 of the lamp hall's 4,399 false hits, against 484.
 
 ### 4. What the back-face pass draws
 
@@ -146,7 +160,9 @@ The C# copies change with the shaders: `CellBounds`, `DepthPyramid` and `ScreenR
 
 ### 8. The cost and the vertex work
 
-The pass draws every vertex of its runs a second time, with positions only. It does not skin again, because the deformation runs once per frame and every pass draws the deformed copies.
+The pass draws every vertex of its runs a second time, with positions only.
+
+None of that vertex work is skinning. One compute dispatch per frame, `deform.comp`, writes one deformed copy of each posed figure into the global vertex buffer. The shadow maps, the G-buffer pass and the back-face pass all draw that copy. None of their vertex shaders holds a joint or a weight (ARCHITECTURE.md, "Skinning and morph targets"). In the crowd on the RTX 2000 Ada, the deformation takes 1.275 ms once. The pass's 0.450 ms of vertex work is the index reads, the transform, the primitive assembly and the clipping. So the engine already has one skinned copy per figure and frame, and that needs no ticket.
 
 The cost model (stage-2/crowd-cost.md, part 1): the pass's cost is a straight line in the vertices that it draws.
 
@@ -165,7 +181,7 @@ The pass draws every instance of the opaque runs, also every skinned figure. The
 - The pass already leaves out an instance that an impostor replaces, because such an instance is not in the opaque runs.
 - Packed positions save 0.019 ms of the crowd's 0.489 ms on the card, and nothing on the Mac. That is not worth a second vertex path.
 
-A trade remains for a view with many skinned figures, and it goes to Alexis as a question. This design builds the first option: every figure keeps its real back face. The two other options are later work, and neither needs a change of this design's parts. One leaves the figures out and marks their pixels as sheets. The other draws the figures' back faces from a coarser LOD.
+A trade remains for a view with many skinned figures. The parent agent settled it for the build on 2026-11-15: every figure keeps its real back face. Alexis sees the numbers at the final acceptance, per figure and for the crowd, beside what the figures already cost. Two other options are later work, and neither needs a change of this design's parts. One leaves the figures out and marks their pixels as sheets. The other draws the figures' back faces from a coarser LOD.
 
 ### 9. Formats, memory and Linux
 
@@ -295,8 +311,9 @@ The merge into main waits for Alexis, because the frame budget and the changed l
 
 ## Open questions
 
-They are in the epic's notes and go to the parent agent with their pictures:
+One question is open, and it goes to the parent agent with its pictures after the review of the reference. It is the light of a blocked ray: the fade over the real slab (this design), or a rule that is nearer to the reference still.
 
-1. The sheet's slab: the plane's far w (this design), no thickness (Alexis's answer of 2026-11-14), or more.
-2. The light of a blocked ray: the fade over the real slab (this design), or no fade by the entry share.
-3. What a view with many skinned figures pays: the real back faces at 0.24 to 0.36 ms per million vertices (this design), figures as sheets, or back faces from a coarser LOD.
+Settled by the parent agent on 2026-11-15:
+
+1. The sheet's slab reaches to its plane's far w (decision 3). The full rule for the front of a slab is ticket `t1-0ti7`.
+2. Every skinned figure keeps its real back face (decision 8). Alexis sees the cost at the final acceptance.

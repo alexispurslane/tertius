@@ -1,6 +1,6 @@
 ---
 id: t1-yy2f
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-15T01:24:22Z
@@ -97,3 +97,7 @@ The design document of the back-face depth layer states the rule for a surface t
 **2026-11-15T12:10:27Z**
 
 Merged 2026-11-15 as ab7bdcd34 (the lead's head 42b656643). The lead reported the status done and not ready_for_integration, because the two acceptance criteria name the design document, which is the line orchestrator's work. The experiment itself is complete: clean checkout, no fork, every review finding resolved with evidence. Record: docs/research/back-face-depth-layer/stage-2/cards.md. Main numbers: under the pass of Design 1 all 139,646 hair pixels of the lamp hall hold their own fragment, the hits with the crossing behind the start fall from 817,466 to 1,525, and no scripted demo scene holds an open one-sided opaque mesh. The ticket stays open until the design document states the rule for a surface that is not closed.
+
+**2026-11-15T13:17:10Z**
+
+2026-11-15: the design doc states the rules of this ticket: decision 4 (what the pass draws), decision 5 (one owner of the closed flag) and decision 3 (the sheet's slab, settled by the parent agent). Closed.
