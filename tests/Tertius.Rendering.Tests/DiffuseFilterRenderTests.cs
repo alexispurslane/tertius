@@ -826,6 +826,57 @@ public sealed class DiffuseFilterRenderTests(ITestOutputHelper output)
         }
     }
 
+    [Fact]
+    public void ALongHistoryRetainsTheDeviationOfItsSamplesThroughTheFeedbackStep()
+    {
+        // The feedback step stores each pixel's retained deviation as the shares' mix of its taps' deviations. The shares
+        // are the same in both directions, so the mix keeps the mean over the pixels, and that mean follows the update
+        // in double precision over the same samples. A store that rounded the mix toward zero would lose about 1 % more.
+        (VulkanRenderer renderer, SamplePass sample, _, RenderSnapshot scene) = FilteringBounceLight();
+        try
+        {
+            const int Frames = 320;
+            for (int frame = 0; frame < Frames; frame++)
+            {
+                int drawn = frame;
+                sample.Samples = (column, row) => new Vector4(new Vector3(WalkedLight(row * Width + column, drawn)), 1);
+                Continue(renderer, scene, frames: 1);
+            }
+
+            double exact = Enumerable.Range(0, Width * Height).Average(pixel => ExactDeviation(pixel, Frames));
+            double retained = RetainedDeviationOf(renderer, sample).Average(deviation => (double)deviation);
+            (retained / exact)
+                .Should()
+                .BeApproximately(1, 0.005, "the deviation of {0} follows the samples' {1}", retained, exact);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// The retained deviation of <paramref name="pixel"/> after <paramref name="frames"/> draws of
+    /// <see cref="WalkedLight"/>, by the update of accumulate_temporal.comp in double precision, with no store's rounding:
+    /// the step from the fast history of the weight 1 / min(L, 4), and the variance's weight 1 / min(L, 32).
+    /// </summary>
+    private static double ExactDeviation(int pixel, int frames)
+    {
+        double fast = 0;
+        double deviation = 0;
+        for (int frame = 0; frame < frames; frame++)
+        {
+            double light = (float)(Half)WalkedLight(pixel, frame);
+            int length = Math.Min(frame + 1, 32);
+            double weight = 1.0 / length;
+            double step = light - fast;
+            deviation = Math.Sqrt((1 - weight) * (deviation * deviation + weight * step * step));
+            fast += (light - fast) / Math.Min(length, 4);
+        }
+
+        return deviation;
+    }
+
     /// <summary>Light 0 or 2 at every pixel, the same in a frame and the other in the next: noise without detail.</summary>
     private static Func<int, int, Vector4> Blink(Func<int> frame) =>
         (_, _) => new Vector4(new Vector3((frame() & 1) * 2), 1);

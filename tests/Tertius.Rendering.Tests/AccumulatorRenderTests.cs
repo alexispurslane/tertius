@@ -2069,6 +2069,37 @@ public sealed class AccumulatorRenderTests
             return result;
         }
 
+        [Fact]
+        public void ALongGuideHoldsTheMeanOfItsHitDistances() =>
+            WithHistory(
+                (renderer, sample, scene) =>
+                {
+                    // Each pixel's hit distance walks a set from 3.6 to 4.4 m, as WalkedLight does, close enough that the
+                    // reflected place's test keeps every history. Every guide has the length 4, so the mean of the
+                    // guides' distances over the pixels is the set's mean. A store that rounds every blend toward zero
+                    // would lose 4 times that rounding, about 0.13 % at 4 m.
+                    for (int frame = 0; frame < 64; frame++)
+                    {
+                        int drawn = frame;
+                        sample.Samples = (column, row) =>
+                            new Vector4(x: 1, y: 1, z: 1, w: WalkedDistance(WalkedLight(row * Width + column, drawn)));
+                        Continue(renderer, scene, frames: 1);
+                    }
+
+                    float[] guide = renderer.ReadImage(sample.Signal.ReflectionGuide(0));
+                    double mean = Enumerable.Range(0, Width * Height).Average(pixel => (double)guide[4 * pixel]);
+                    double distances = Enumerable
+                        .Range(0, Width * Height)
+                        .Average(index => (double)(float)(Half)WalkedDistance(WalkedValue(index)));
+                    (mean / distances)
+                        .Should()
+                        .BeApproximately(1, 0.0005, "the guide holds the mean of its distances, {0} m", mean);
+                }
+            );
+
+        /// <summary>The hit distance in m of the walk's value <paramref name="light"/>: 3.6 to 4.4 m.</summary>
+        private static float WalkedDistance(float light) => 4 + 2 * (light - 0.4f);
+
         private static (float Distance, float Support) GuideAt(VulkanRenderer renderer, SamplePass sample)
         {
             float[] guide = renderer.ReadImage(sample.Signal.ReflectionGuide(0));
