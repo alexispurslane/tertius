@@ -11,17 +11,22 @@
 // half float keeps 10 bits of mantissa down to the least normal half, 2^−14, and below it a fixed spacing of 2^−24. So the
 // rounding clears the last `dropped` bits of the 32-bit float, 13 for a normal half and more below 2^−14, and adds one
 // unit of the kept bits where the cleared bits pass half a unit, or equal it with an odd kept bit. A carry out of the
-// mantissa raises the exponent, which gives the next power of two, as it must.
+// mantissa raises the exponent, which gives the next power of two, as it must. The sign bit takes no part.
 uint nearestHalfBits(uint bits)
 {
-    uint sign = bits & 0x80000000u;
     uint magnitude = bits & 0x7FFFFFFFu;
+    // The common case, at or above 2^−14: adding 0x0FFF, and 1 more for an odd kept bit, carries into the kept bits
+    // exactly where the 13 cleared bits pass half a unit or equal it with an odd kept bit. Five operations, because the
+    // stores of the histories run it about 25 million times a draw at 1280 × 720.
+    if (magnitude >= 0x38800000u)
+        return (bits + 0x0FFFu + ((bits >> 13) & 1u)) & ~0x1FFFu;
+    uint sign = bits & 0x80000000u;
     // The biased exponent of the 32-bit float: 113 is 2^−14, and 103 is 2^−24.
     uint exponent = magnitude >> 23;
     if (exponent < 103u)
         // Below 2^−24: the nearest half float is 2^−24 above the tie at 2^−25, and 0 at or below it.
         return sign | (magnitude > 0x33000000u ? 0x33800000u : 0u);
-    uint dropped = exponent < 113u ? 126u - exponent : 13u;
+    uint dropped = 126u - exponent;
     uint unit = 1u << dropped;
     uint rest = magnitude & (unit - 1u);
     uint kept = magnitude - rest;
