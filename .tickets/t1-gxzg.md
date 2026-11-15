@@ -86,3 +86,7 @@ Launched 2026-11-14 from 24a320541 as a ticket lead on Claude Opus 5.5 at high e
 **2026-11-14T23:56:25Z**
 
 Answer of the line orchestrator in the lead's brief: the hair view of scripts/lamp-hall-16-hair.json holds 80,465 sheets among 270,728 surface pixels, more than the hair cards alone. Part 3 finds out which surfaces they are and treats large sheets at a grazing angle as its main subject beside the hair cards.
+
+**2026-11-15T00:57:14Z**
+
+Built 2026-11-14 by the ticket lead: docs/research/back-face-depth-layer/stage-1b/pictures.md. The layer as the slab removes the false sill hits: bright false light 0.016 % of the 10 % rule's. Named misbehavior: the borrowed back face. A card that the back-face pass leaves out takes the floor's back face, so in the lamp hall 24 % of reflection rays hit against 2 %. Sheets keep 20 % to 37 % of the real hits on them, and NoBackSheetPlane 41 % to 66 %. Cloud cost $0.93 for 13 jobs.
