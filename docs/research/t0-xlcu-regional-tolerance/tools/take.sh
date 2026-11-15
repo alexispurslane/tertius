@@ -6,6 +6,8 @@
 set -uo pipefail
 name=$1; parts=$2; cases=$3; shift 3
 out=/private/tmp/t0-xlcu/runs/$name
+# A run whose survey already wrote a result is kept, so that a stopped queue resumes.
+if compgen -G "$out/results/*/*.json" > /dev/null; then echo "$(date +%T) kept $name"; exit 0; fi
 mkdir -p "$out"; [ -e "$out/probe-bin" ] || ln -sfn /private/tmp/t0-xlcu/out-x/probe-bin "$out/probe-bin"
 args=()
 for a in "$@"; do

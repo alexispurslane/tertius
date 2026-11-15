@@ -1,0 +1,132 @@
+# Control: lamp hall still at 4.08 stops, T0 through the old path (t-T0-e, n-T0-e), through the new path (t-T0path-e)
+$ light.py t-A-e t-A-e t-T0-e t-T0path-e
+rect-lamps   t-A-e      ceiling shown   89.1% settled  100.0%   walls shown   84.3% settled  100.0%
+rect-lamps   t-T0-e     ceiling shown   94.2% settled   96.4%   walls shown   99.2% settled  101.4%
+rect-lamps   t-T0path-e ceiling shown   94.2% settled   96.4%   walls shown   99.2% settled  101.5%
+
+# Lamp hall still at 4.08 stops, today's jitter: light against t-A-e, and the history lengths
+$ light.py t-A-e t-A-e t-fix-e t-T0-e t-T1-e t-T2-e
+rect-lamps   t-A-e      ceiling shown   89.1% settled  100.0%   walls shown   84.3% settled  100.0%
+rect-lamps   t-fix-e    ceiling shown   87.1% settled   96.0%   walls shown   84.9% settled   99.5%
+rect-lamps   t-T0-e     ceiling shown   94.2% settled   96.4%   walls shown   99.2% settled  101.4%
+rect-lamps   t-T1-e     ceiling shown   89.3% settled   96.6%   walls shown   89.3% settled  100.7%
+rect-lamps   t-T2-e     ceiling shown   95.7% settled   99.4%   walls shown   99.7% settled  105.1%
+
+$ lengths.py t-A-e t-fix-e t-T0-e t-T1-e t-T2-e
+rect-lamps t-fix-e      diffuse  draws 297-920 (90) ceiling below   0.0% mean 32.00   walls below   2.3% mean 31.26
+rect-lamps t-fix-e      specular draws 297-920 (90) ceiling below   0.9% mean 92.83   walls below   3.0% mean 81.65
+rect-lamps t-T0-e       diffuse  draws 297-920 (90) ceiling below   6.5% mean 27.09   walls below  25.1% mean 21.97
+rect-lamps t-T0-e       specular draws 297-920 (90) ceiling below  64.2% mean 17.22   walls below  35.9% mean 24.90
+rect-lamps t-T1-e       diffuse  draws 297-920 (90) ceiling below   0.0% mean 31.90   walls below   5.3% mean 29.26
+rect-lamps t-T1-e       specular draws 297-920 (90) ceiling below  64.2% mean 17.40   walls below  35.1% mean 27.66
+rect-lamps t-T2-e       diffuse  draws 297-920 (90) ceiling below   2.3% mean 29.38   walls below   4.5% mean 29.27
+rect-lamps t-T2-e       specular draws 297-920 (90) ceiling below  63.4% mean 17.58   walls below  34.4% mean 28.08
+
+# The same without jitter
+$ light.py n-A-e n-A-e n-fix-e n-T0-e n-T1-e n-T2-e
+rect-lamps   n-A-e      ceiling shown   95.9% settled  100.0%   walls shown   94.0% settled  100.0%
+rect-lamps   n-fix-e    ceiling shown   93.8% settled   96.9%   walls shown   94.0% settled   99.9%
+rect-lamps   n-T0-e     ceiling shown   95.8% settled   97.8%   walls shown   98.3% settled  101.9%
+rect-lamps   n-T1-e     ceiling shown   94.9% settled   97.4%   walls shown   96.7% settled  101.0%
+rect-lamps   n-T2-e     ceiling shown   94.7% settled   97.3%   walls shown   95.9% settled  100.3%
+
+$ lengths.py n-A-e n-fix-e n-T0-e n-T1-e n-T2-e
+rect-lamps n-fix-e      diffuse  draws 297-920 (90) ceiling below   0.0% mean 32.00   walls below   2.0% mean 31.36
+rect-lamps n-fix-e      specular draws 297-920 (90) ceiling below   0.7% mean 104.31   walls below   2.3% mean 84.02
+rect-lamps n-T0-e       diffuse  draws 297-920 (90) ceiling below   3.7% mean 28.63   walls below  25.7% mean 22.81
+rect-lamps n-T0-e       specular draws 297-920 (90) ceiling below  37.2% mean 44.28   walls below  26.4% mean 51.81
+rect-lamps n-T1-e       diffuse  draws 297-920 (90) ceiling below   0.1% mean 31.54   walls below   6.8% mean 28.71
+rect-lamps n-T1-e       specular draws 297-920 (90) ceiling below  37.2% mean 44.27   walls below  26.4% mean 52.19
+rect-lamps n-T2-e       diffuse  draws 297-920 (90) ceiling below   2.3% mean 29.67   walls below   2.6% mean 30.43
+rect-lamps n-T2-e       specular draws 297-920 (90) ceiling below  37.2% mean 44.27   walls below  26.4% mean 52.30
+
+# The same under the long Halton sequence
+$ light.py l-A-e l-A-e l-fix-e l-T0-e l-T1-e
+rect-lamps   l-A-e      ceiling shown   93.8% settled  100.0%   walls shown   91.3% settled  100.0%
+rect-lamps   l-fix-e    ceiling shown   92.2% settled   96.9%   walls shown   91.4% settled   99.4%
+rect-lamps   l-T0-e     ceiling shown   95.4% settled   96.7%   walls shown   96.5% settled   99.1%
+rect-lamps   l-T1-e     ceiling shown   98.5% settled  101.2%   walls shown  104.7% settled  108.1%
+
+$ lengths.py l-A-e l-fix-e l-T0-e l-T1-e
+rect-lamps l-fix-e      diffuse  draws 297-920 (90) ceiling below   0.0% mean 32.00   walls below   2.2% mean 31.30
+rect-lamps l-fix-e      specular draws 297-920 (90) ceiling below   0.7% mean 95.18   walls below   2.7% mean 77.91
+rect-lamps l-T0-e       diffuse  draws 297-920 (90) ceiling below   3.7% mean 28.23   walls below  25.4% mean 22.22
+rect-lamps l-T0-e       specular draws 297-920 (90) ceiling below  57.7% mean 19.07   walls below  33.9% mean 26.75
+rect-lamps l-T1-e       diffuse  draws 297-920 (90) ceiling below   0.4% mean 31.13   walls below   7.4% mean 27.56
+rect-lamps l-T1-e       specular draws 297-920 (90) ceiling below  56.2% mean 19.55   walls below  31.9% mean 28.44
+
+# Lamp hall still at the automatic exposure: specks and blotch, and the daub against the same jitter's reference
+$ stills.py rect-lamps t-A-s t-fix-s t-T0-s t-T1-s t-T2-s n-A-s n-fix-s n-T0-s n-T1-s n-T2-s
+t-A-s          rect-lamps   specks  12.16  blotch 0.1064
+t-fix-s        rect-lamps   specks   6.01  blotch 0.0933
+t-T0-s         rect-lamps   specks   9.36  blotch 0.0557
+t-T1-s         rect-lamps   specks   7.34  blotch 0.0739
+t-T2-s         rect-lamps   specks   7.43  blotch 0.0543
+n-A-s          rect-lamps   specks   6.95  blotch 0.0536
+n-fix-s        rect-lamps   specks   3.25  blotch 0.0553
+n-T0-s         rect-lamps   specks   8.26  blotch 0.0530
+n-T1-s         rect-lamps   specks   7.73  blotch 0.0517
+n-T2-s         rect-lamps   specks   6.86  blotch 0.0437
+
+$ REF=t-A-s daub.py ...
+t-A-s      rect-lamps   daub 0.0416  broad 0.0956  smooth share 0.78  ceiling 0.0462  walls 0.0265
+t-fix-s    rect-lamps   daub 0.0403  broad 0.0913  smooth share 0.78  ceiling 0.0455  walls 0.0268
+t-T0-s     rect-lamps   daub 0.0391  broad 0.0922  smooth share 0.78  ceiling 0.0433  walls 0.0286
+t-T1-s     rect-lamps   daub 0.0386  broad 0.0693  smooth share 0.78  ceiling 0.0433  walls 0.0270
+t-T2-s     rect-lamps   daub 0.0389  broad 0.1053  smooth share 0.78  ceiling 0.0421  walls 0.0271
+
+$ REF=n-A-s daub.py ...
+n-A-s      rect-lamps   daub 0.0322  broad 0.0441  smooth share 0.79  ceiling 0.0307  walls 0.0155
+n-fix-s    rect-lamps   daub 0.0322  broad 0.0943  smooth share 0.79  ceiling 0.0305  walls 0.0162
+n-T0-s     rect-lamps   daub 0.0322  broad 0.1054  smooth share 0.79  ceiling 0.0341  walls 0.0180
+n-T1-s     rect-lamps   daub 0.0306  broad 0.1019  smooth share 0.79  ceiling 0.0300  walls 0.0171
+n-T2-s     rect-lamps   daub 0.0309  broad 0.0993  smooth share 0.79  ceiling 0.0310  walls 0.0156
+
+# Cabin switch, today's jitter
+$ switch.py s/t-A-sw/results/switch/cabin.json s/t-A-sw/results/switch/cabin.json s/t-fix-sw/results/switch/cabin.json s/t-T0-sw/results/switch/cabin.json s/t-T1-sw/results/switch/cabin.json s/t-T2-sw/results/switch/cabin.json s/t-cap4-sw/results/switch/cabin.json
+variant                            slowest off/on whole off/on  r11 off/on  lvl60 off w/r11  lvl60 on w/r11  cyc off w/r11  cyc on w/r11  dip off r11   dip on r11 own15 on r11  still lo/hi r11
+t-A-sw                               none/97         74/39       63/37       105.7/105.0      96.1/95.8     105.7/105.1    96.1/95.8     105.0@60     94.3@10          -5.7    100.0/100.0  
+t-fix-sw                               66/none       12/27       56/none      96.0/95.2       90.4/84.5      95.9/94.7     90.4/84.4      82.9@19     77.6@17         -16.3     98.7/100.0  
+t-T0-sw                                54/56         14/23       23/56       100.8/110.8      90.8/85.7      99.8/105.1    90.7/85.4      91.1@19     75.4@17         -13.9    100.7/117.8  
+t-T1-sw                                63/94         12/36       63/94        96.5/96.1       90.1/83.3      96.5/95.9     90.1/83.4      84.7@19     76.6@17         -15.1    101.7/102.4  
+t-T2-sw                                50/73         12/32       38/73       101.0/111.0      91.1/87.4     100.7/109.4    91.0/87.2      86.7@19     77.3@17         -16.2    110.5/113.6  
+t-cap4-sw                              46/23         20/15       20/18       104.7/119.7      93.7/91.4     101.7/108.2    93.2/89.5      88.1@55     76.0@17          -6.6     94.0/128.1  
+levels and dips in % of the reference's control at the same frame; own15 in % against the run's own control
+
+# Cabin switch, no jitter
+$ switch.py s/n-A-sw/results/switch/cabin.json s/n-A-sw/results/switch/cabin.json s/n-fix-sw/results/switch/cabin.json s/n-T0-sw/results/switch/cabin.json s/n-T1-sw/results/switch/cabin.json s/n-T2-sw/results/switch/cabin.json
+variant                            slowest off/on whole off/on  r11 off/on  lvl60 off w/r11  lvl60 on w/r11  cyc off w/r11  cyc on w/r11  dip off r11   dip on r11 own15 on r11  still lo/hi r11
+n-A-sw                               none/none       78/34      186/91       106.0/112.7      96.4/93.5     105.9/112.7    96.4/93.5     112.7@60     90.3@1           -9.3    100.0/100.0  
+n-fix-sw                              122/27         44/9       122/27       100.0/110.7      95.6/97.1     100.0/110.6    95.6/97.1     110.7@60     89.2@1           -7.2    100.6/100.6  
+n-T0-sw                               105/31         32/10      105/30       100.7/111.2      96.8/97.8     100.9/111.2    96.8/97.9     111.2@60     89.7@1           -7.6    102.1/102.2  
+n-T1-sw                               112/37         40/10      112/30       100.8/111.2      95.9/97.5     100.8/111.2    95.9/97.5     111.2@60     89.5@1           -7.5    101.8/101.9  
+n-T2-sw                               110/38         42/9       110/28       100.4/110.9      95.9/97.5     100.3/110.9    95.9/97.5     110.9@60     89.5@1           -7.3    101.6/101.7  
+levels and dips in % of the reference's control at the same frame; own15 in % against the run's own control
+
+# Cabin switch, long Halton sequence
+$ switch.py s/l-A-sw/results/switch/cabin.json s/l-A-sw/results/switch/cabin.json s/l-fix-sw/results/switch/cabin.json s/l-T0-sw/results/switch/cabin.json s/l-T1-sw/results/switch/cabin.json
+variant                            slowest off/on whole off/on  r11 off/on  lvl60 off w/r11  lvl60 on w/r11  cyc off w/r11  cyc on w/r11  dip off r11   dip on r11 own15 on r11  still lo/hi r11
+l-A-sw                               none/none       86/48      104/81       106.5/107.0      95.7/93.9     106.5/106.9    95.7/94.0     107.0@60     92.0@3           -7.8    100.0/100.0  
+l-fix-sw                              171/92         92/16      171/92       102.0/112.8      92.4/87.0     102.2/113.0    92.4/87.0      99.8@10     83.9@15         -11.3     97.8/99.1   
+l-T0-sw                                84/72         48/21       57/72        99.9/100.9      92.2/85.7     100.7/104.1    92.1/85.6      95.6@10     78.2@1          -11.1     95.0/102.2  
+l-T1-sw                                94/81         46/24       52/81       103.4/114.7      92.2/85.8     104.4/119.9    92.2/85.9     110.4@10     80.4@11         -11.8    105.4/116.8  
+levels and dips in % of the reference's control at the same frame; own15 in % against the run's own control
+
+# Film rect-bay, today's jitter
+$ films.py s/t-fix-rb/results/motion/rect-bay.json s/t-T0-rb/results/motion/rect-bay.json s/t-T1-rb/results/motion/rect-bay.json s/t-T2-rb/results/motion/rect-bay.json s/t-cap4-rb/results/motion/rect-bay.json
+variant                          level mid/last  blotch mid/last
+t-fix-rb                         +1.86 / +1.75   0.370 / 0.488
+t-T0-rb                          +1.36 / +0.64   0.321 / 0.321
+t-T1-rb                          +1.41 / +0.60   0.303 / 0.325
+t-T2-rb                          +1.43 / +0.62   0.306 / 0.327
+t-cap4-rb                        +0.43 / +0.18   0.102 / 0.101
+
+# Lag film bay-sun, today's jitter
+$ lags.py s/t-fix-lag s/t-T0-lag s/t-T1-lag s/t-T2-lag s/t-cap4-lag
+variant                                     bay-sun        lamp-hall-16-moving   lamp-hall-64-spot-moving
+t-fix-lag                            26.93 / 0.2679                  not taken                  not taken
+t-T0-lag                             21.40 / 0.2230                  not taken                  not taken
+t-T1-lag                             23.45 / 0.2303                  not taken                  not taken
+t-T2-lag                             21.72 / 0.2173                  not taken                  not taken
+t-cap4-lag                            8.31 / 0.0892                  not taken                  not taken
+
