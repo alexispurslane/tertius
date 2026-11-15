@@ -45,6 +45,21 @@ Ticket `t7-3e22`, under the epic `ter-8hyd` ([renderer-finish.md](renderer-finis
 
 Record of 2026-11-14: the action on light evidence in X1 lost its narrow box. Light evidence cuts L to `FastCap` and leaves the box wide. Section 8.2, "Why light evidence leaves the box wide", holds the measurement. The source of the evidence, the block and the cut are as X1 says.
 
+### 2.3 The region's lag as evidence (Alexis, 2026-11-14, after take T16)
+
+Take T16 showed a gap in X1. In the film `rect-bay`, the bay's bounce light trails a sunbeam that narrows and goes out, far more than on main (`t0-acxm`). Few rays hit the thin edge of the sun patch, so few blocks get light evidence. Sometimes no ray of a block sees a change of its light. The question to Alexis was what tells the block of the change then. The two options were a lag test over a region, and ray evidence that reaches to the blocks nearby. Alexis chose the lag test over a region.
+
+1. Y1. A block learns of a change from its own rays, or from its region. The region's recent mean of samples drifts from the long mean that its histories hold, and the histories there shorten.
+2. Y2. Ray evidence that reaches to the blocks nearby is rejected. The probe of it left patches where blocks with and without evidence meet (`t0-acxm`, "spread 4").
+3. Y3. The model. A ray gives exact knowledge of a change, but it sees only the few sources that it samples. A statistic over a region sees every change, but it needs enough samples. The two are one evidence value per block with one reader. They are not two mechanisms side by side.
+4. Y4. The tolerance of the regional test needs a reason. Where that is possible, it comes from a measured quantity, such as the spread that the history already stores. The design says why it has its value. A tuned constant is not wanted.
+5. Y5. The remedy must not cost the stills their gain. Under the fix, the lamp hall still's light is 96.0 % (ceiling) and 99.5 % (walls) of the reference. That light is part of the remedy's acceptance, next to the film `rect-bay` and the cabin switch.
+6. Y6. Design X does not merge into main as it is. Nothing merges before the remedy passes its acceptance.
+
+Y1 brings a statistic back after decision X1 removed one. Section 8.1 holds the lesson that Y4 must respect: a tolerance that follows the noise of single ray streams silenced the block test where the noise is large, as in the cabin. The regional test differs in two ways. It pools 17 × 17 ray blocks over 18 draws, where the block test pooled at most 7 × 7 blocks of one draw. And it measures the lag of the histories against the samples' own mean, not a difference between two noisy means of one draw.
+
+The cycle measurement (`t0-mzhr`, `docs/research/t0-mzhr-regional-test-cycle/README.md`) settled the test's recent window before the design: a box mean over 18 draws, one full cycle of the camera jitter. A window of 4 draws lost the lamp hall still's light under the jitter (89.4 and 90.4 %). The long Halton sequence does not help the test, so the order of `t0-f238` after Design X stays.
+
 ## 3. Terms
 
 | Term | Meaning | Unit and range |
