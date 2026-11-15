@@ -2,7 +2,7 @@
 
 This record holds the experiment of ticket `t1-kiaw`, of 2026-11-15. The ticket's section "Design of the experiment (stage 2, 2026-11-15)" defines its three parts. The method and the terms are those of [../stage-1b/cost.md](../stage-1b/cost.md) and [../stage-1b/probe.md](../stage-1b/probe.md).
 
-Each section gives the measured facts first. A paragraph that starts with "Reading:" holds my interpretation.
+Each section gives the measured facts first. A paragraph that starts with "Reading:" holds my interpretation. A review on 2026-11-15 corrected the record in one fix commit.
 
 ## Terms
 
@@ -30,14 +30,14 @@ The probe is a throwaway build on the cards tree of stage 2, `refs/scratch/ter-k
 | Variable | Value | What the pass does |
 |---|---|---|
 | `TERTIUS_BACK_FACE_SPLIT` | `scissor` | It sets a scissor of one pixel. The vertex work and the triangle setup stay, and almost no fragment runs. |
-| | `clipped` | Its vertex shader moves every vertex right of the clip volume, so clipping rejects every triangle. Only the vertex work stays. |
+| | `clipped` | Its vertex shader moves every vertex right of the clip volume, so clipping rejects every triangle. Only the vertex work stays: the index reads, the vertex stage, the primitive assembly and the clipping. |
 | | `empty` | It begins and ends its three rendering instances, with their clears and barriers, and draws nothing. |
 | `TERTIUS_BACK_FACE_FETCH` | `pulled` | Its vertex shader reads each position from the global vertex buffer as a storage buffer, with no vertex input. |
 | | `packed` | As `pulled`, but a deformed vertex reads this frame's kept positions: 12 bytes per vertex, end to end. |
 | `TERTIUS_BACK_FACE_COUNT` | a file | It appends one line of draw counts per drawn frame: commands, instances, indices, vertices and deformed vertices. |
 | `TERTIUS_CROWD_COUNT` | n | `rigs-crowd` holds the first n figures of its grid of 100. |
 
-The sides of the timing runs are modes of one binary. Every side but `off` uses `TERTIUS_BACK_FACE_PROBE=ten`. Under the 10 % rule the walk reads no back share, so a side changes only the pass's own work.
+The sides of the timing runs are modes of one binary. Every side but `off` uses `TERTIUS_BACK_FACE_PROBE=ten`. Under the 10 % rule the walk reads no back share. So a side changes the pass's own work, and on the card also the surface test after it, as stage 1b found.
 
 | Side | Variables | What its difference to `off` holds |
 |---|---|---|
@@ -70,13 +70,17 @@ A cell gives the mean, then the lowest and the highest value in brackets. The ma
 | Take | Machine | Sides | Rounds kept | The run range of `off`, ms |
 |---|---|---:|---|---:|
 | Crowd | RTX 2000 Ada | 8 | 8 of 8 | 0.082 |
-| Crowd with 1, 10, 25 and 50 figures | RTX 2000 Ada | 2 | 4 of 4 each | |
+| Crowd with 1, 10, 25 and 50 figures | RTX 2000 Ada | 2 | 4 of 4 each, one fewer than the ticket's five | |
 | Cabin | RTX 2000 Ada | 6 | 6 of 6 | 0.176 |
 | Crowd | M1 Max | 8 | 7 of 8: round 3 dropped, `pass` at 1293.47 MHz | 0.080 |
 | Crowd with 10, 25 and 50 figures | M1 Max | 2 | 12 of 12 each | |
 | Cabin | M1 Max | 6 | 12 of 12 | 0.039 |
 
 Every kept Mac run held 1295.67 to 1296.00 MHz. No run failed.
+
+The ticket asks for at least five kept rounds per side. The card's takes of 1, 10, 25 and 50 figures ran four. Their frame differences spread by at most 0.014 ms, and their own times by at most 0.001 ms. So I did not run them again.
+
+On the card, round 1 of the crowd holds the lowest `pass` run, 9.592 ms, and so the lowest `pass` minus `off`, +0.348 ms. It sets the low end of the card's slope range in part 1. I did not find its cause. The card's own time does not show it: `pass` ran 0.488 to 0.489 ms in all eight rounds.
 
 ## Part 1: the cost model
 
@@ -109,14 +113,23 @@ On the Mac, each value is a frame cost against `off`, in ms. The Mac has no vali
 | `clipped` | +0.674 (+0.597 to +0.744) | +0.020 (−0.022 to +0.048) ‡ † |
 | `empty` | +0.074 (+0.037 to +0.108) † | +0.076 (+0.044 to +0.094) |
 
-- In the crowd on the Mac, `clipped` minus `empty` is +0.601 ms (+0.550 to +0.636). That is the vertex work.
+- In the crowd on the Mac, `clipped` costs +0.674 ms against `off`. That is the vertex work plus whatever fixed work the pass has.
 - In the crowd on the Mac, `scissor` minus `clipped` is +0.047 ms † and `pass` minus `scissor` +0.078 ms †. Both lie inside `off`'s run range, but every round of the second is above 0.
-- In the cabin on the Mac, `empty` costs more than `pass`: `pass` minus `empty` is −0.034 ms (−0.059 to −0.019) †. I did not find the cause.
-- So the Mac's `empty` side does not measure the pass's fixed work. On the card the same side costs 0.007 ms in both scenes.
+- On the Mac, `empty` costs +0.074 ms in the crowd and +0.076 ms in the cabin. So in both scenes, a pass that draws nothing costs about 0.075 ms.
+- In the cabin on the Mac, the full pass costs less than that: `pass` minus `empty` is −0.034 ms (−0.059 to −0.019) †. I did not find the cause.
+- So on the Mac I do not split the fixed work from the vertex work. On the card the side `empty` costs 0.007 ms in both scenes.
 
-The crowd's other passes on the card, from the side `pass`: the deformation takes 1.275 ms, the shadow maps 1.847 ms and the G-buffer pass 1.303 ms. No side changed any of them by more than 0.001 ms.
+The crowd's other passes on the card take these times under `pass`. The deformation takes 1.275 ms, the shadow maps 1.847 ms and the G-buffer pass 1.303 ms. The surface test after the pass takes 0.076 ms. No side changed any of these four by more than 0.001 ms.
 
-Reading: in the crowd, the vertex work is the pass's cost on both machines. That is 92 % of the card's own time and about 75 % of the Mac's frame cost. The fragments cost the same 0.026 to 0.027 ms on the card in both scenes. They cover the screen in both.
+In the cabin on the card, the surface test takes 0.135 ms under `off` and 0.148 ms under `pass`. Each side's runs spread by at most 0.001 ms there.
+
+| Surface test in the cabin, card | `off` | `empty` | `clipped` | `scissor` | `pass` | `cards` |
+|---|---:|---:|---:|---:|---:|---:|
+| Median, ms | 0.135 | 0.131 | 0.138 | 0.138 | 0.148 | 0.147 |
+
+So the pass adds 0.013 ms to the surface test in the cabin, beside its own 0.052 ms. Stage 1b saw a rise of 0.007 to 0.013 ms in the rooms. In the crowd the surface test does not change.
+
+Reading: in the crowd, the vertex work is the pass's cost on both machines. That is 92 % of the card's own time and 84 % of the Mac's frame cost, from `clipped`. The fragments cost 0.026 to 0.027 ms on the card in both scenes. The back faces cover every surface pixel: 47 % of the crowd's pixels and all of the cabin's.
 
 ### The cost per million drawn vertices
 
@@ -177,7 +190,11 @@ The card's prediction is the own-time line. The Mac's prediction is the slope al
 - The Mac's full line adds 0.090 ms to every view. It then predicts 0.132 ms for the cabin, three times the measured +0.041 ms.
 - The slope alone gives 0.042 ms for the cabin, near the measured value. In the crowd series it gives 0.072 ms for ten figures against 0.151 ms measured.
 
-Reading: on the card the line holds. The rooms lie a little above it, because their back faces cover the whole screen: 0.027 ms of fragments in the cabin. On the Mac, the crowd series has a fixed part of about 0.09 ms that the rooms do not show. I do not know its cause. So on the Mac, the slope prices each added vertex, and the rooms' own measurement prices a room.
+- The slope alone lies inside the measured spread of each room on the Mac: the deck, the cabin and `rect-lamps`. The full line lies above the highest round of each room.
+
+Reading: on the card the line holds for the own time. A room also pays the surface test's rise. In the cabin that gives 0.052 + 0.013 = 0.065 ms, near stage 1b's frame cost of +0.062 ms.
+
+Reading: on the Mac, the crowd series has a fixed part of about 0.09 ms, close to the 0.074 ms of the crowd's `empty`. The cabin's `empty` shows the same 0.076 ms, but the cabin's full pass costs less than it. I do not know the cause. So the Mac has no single line for both kinds of scene. The slope prices each added figure vertex, and a room's own measurement prices the room.
 
 Reading: a figure of 20,202 vertices costs 0.0048 ms on the card and 0.0072 ms on the Mac. The demo's real views pay 0.04 to 0.05 ms on the card. A view with ten figures pays about 0.05 ms more on the card and 0.07 to 0.15 ms more on the Mac.
 
@@ -201,7 +218,7 @@ The cards pass draws every face, and its fragment shader discards the front face
 
 - On the card it costs 1.6 % more own time in the crowd and 37 % more in the cabin.
 - On the Mac it adds 0.159 ms to the crowd's frame, 20 % of the pass's +0.799 ms. It adds 0.068 ms to the cabin's frame, more than the pass's own +0.041 ms.
-- In both views it stores the same back share as the pass, byte for byte. The crowd's figures and the cabin's meshes are all closed.
+- In both views on the Mac, it stores the same back share as the pass, byte for byte. The crowd's figures and the cabin's meshes are all closed.
 
 Reading: culled draws cost less than one pipeline. The cards ticket needs both faces only for two-sided and open meshes. A pass that culls front faces on the closed one-sided runs and draws both faces on the rest keeps the cheaper cost. That needs a run key for a closed mesh, as [cards.md](cards.md) notes.
 
@@ -231,12 +248,14 @@ A deformed copy never becomes an impostor. `ImpostorManager.MayBecomeImpostor` e
 The reason: the pass reads 12 bytes of each 52-byte vertex, and its interleaved stride pulls in whole memory sectors. The deform pass already writes this frame's positions packed, 12 bytes per vertex, into the kept positions. By my arithmetic, the deformation's 1.275 ms on the card moves about 290 MB, near the card's memory bandwidth of 224 GB/s. So a pass that reads 24 MB instead of an estimated 80 MB of positions looked worth a test.
 
 - On the card, `packed` saves 0.019 ms of own time against `pass`, and 0.004 ms against `pulled`. `pulled` alone saves 0.015 ms.
-- On the Mac, neither differs from `pass` beyond the noise: `pulled` minus `pass` is +0.007 ms ‡ †, and `packed` minus `pulled` is −0.001 ms ‡ †.
-- `packed` and `pulled` store the same back share, byte for byte, in both views. So the kept positions hold the copy's exact positions.
-- Against `pass`, both change the last bits of the back share on 203,453 of 433,306 surface pixels in the crowd. The median relative change of a back distance is 1.2e-7, and the largest is 3.1e-5.
+- On the Mac, neither differs from `pass` beyond the noise. `pulled` minus `pass` is +0.007 ms ‡ †, and `packed` minus `pulled` is −0.001 ms ‡ †.
+- On the Mac, `packed` and `pulled` store the same back share, byte for byte, in both views. So the kept positions hold the copy's exact positions.
+- Against `pass`, both change the low bits of the back share on 203,453 of 433,306 surface pixels in the crowd. The median relative change of a back distance is 1.2e-7, one unit in the last place. The largest is 3.1e-5, about 260 units.
 - In the cabin the same holds on 122,879 of 921,600 pixels, with a largest change of 2.4e-6. In both views no pixel gains or loses a back face.
+- The pyramid's finest level and its level 1 differ too, because they hold the back share. The front distance and the shading do not differ.
+- No control compared the walk's hits or the image under `pulled` or `packed`.
 
-Reading: the memory traffic of the positions is not what the pass waits on. The `clipped` side shows that the vertex stage and the triangles cost 0.450 ms with no raster at all. The last-bit changes come from a different compiled vertex shader, not from different positions.
+Reading: the memory traffic of the positions is not what the pass waits on. The `clipped` side shows that the vertex work costs 0.450 ms with no raster at all. The low-bit changes come from a different compiled vertex shader, not from different positions.
 
 ## Part 3: what remains
 
@@ -245,7 +264,7 @@ After the remedies with a reason, the pass costs what it cost before. The cards 
 | View | Card: own time | Card: frame cost | Mac: frame cost |
 |---|---:|---|---|
 | The crowd: 100 figures | 0.489 | +0.466 | +0.799 |
-| The cabin | 0.052 | +0.022 ‡ †, and +0.062 in stage 1b | +0.041 |
+| The cabin | 0.052, plus 0.013 in the surface test | +0.022 ‡ †, and +0.062 in stage 1b | +0.041 |
 | Ten figures | 0.052 | +0.050 | +0.151 |
 
 A real trade remains for views with many skinned figures. I write it as the question for Alexis:
@@ -269,6 +288,9 @@ My recommendation is A. The demo's real views pay 0.04 to 0.05 ms on the card, a
 - The image of options B and C. No code of either exists.
 - The scenes `demo-docking` and `station` were counted, not timed.
 - Any GPU other than the RTX 2000 Ada and the M1 Max.
+- The card's clock per run. Each take's `clocks.csv` holds the samples of the whole take, 2130 to 2460 MHz, idle states included.
+- The image controls on the card. They ran on the Mac only.
+- Which mesh holds most of a room's vertices. The counts sum each frame's commands and name no mesh.
 
 ## The commands, the jobs and the dollars
 
@@ -291,20 +313,26 @@ The build, in the dev shell, from an export of `refs/scratch/ter-kh4g-2-crowd-pr
 dotnet build src/Tertius.Demo -c Release -nologo -v:q -p:RunAnalyzers=false -p:TreatWarningsAsErrors=false -o /private/tmp/t1-kiaw/bin
 ```
 
-The Mac takes, from the worktree's root:
+The tools read the probe binary at `/private/tmp/t1-kiaw/bin/Tertius.Demo`. `controls.sh` reads its two scripts from `/private/tmp/t1-kiaw/scripts/`, so copy them there first:
 
 ```bash
-nix develop --command bash -c 'bash mac-take.sh /private/tmp/t1-kiaw/mac crowd scripts/ter-kh4g-crowd-timing.json -9.2687040 0 8 "" off pass cards scissor clipped empty pulled packed'
-nix develop --command bash -c 'bash mac-take.sh /private/tmp/t1-kiaw/mac cabin scripts/ter-kh4g-cabin-timing.json -0.4218524 0 12 "" off pass cards scissor clipped empty'
-nix develop --command bash -c 'bash mac-take.sh /private/tmp/t1-kiaw/mac crowd-<n> scripts/ter-kh4g-crowd-timing.json -9.2687040 0 12 TERTIUS_CROWD_COUNT=<n> off pass'
+mkdir -p /private/tmp/t1-kiaw/scripts && cp docs/research/back-face-depth-layer/stage-2/tools/crowd/crowd-one.json docs/research/back-face-depth-layer/stage-2/tools/crowd/cabin-one.json /private/tmp/t1-kiaw/scripts/
 ```
 
-The controls and the counts ran under `tools/gpu-lock.sh --shared`. The reports:
+The Mac takes, from the worktree's root, with `t=docs/research/back-face-depth-layer/stage-2/tools/crowd`:
 
 ```bash
-python3 -I crowd_report.py <mac|cloud> <take folder> off pass:empty clipped:empty scissor:clipped pass:scissor cards:pass pulled:pass packed:pulled packed:pass
-python3 -I fit.py <mac|cloud> <takes folder> /private/tmp/t1-kiaw/counts
-python3 -I counts_report.py /private/tmp/t1-kiaw/counts
+nix develop --command bash -c 'bash $t/mac-take.sh /private/tmp/t1-kiaw/mac crowd scripts/ter-kh4g-crowd-timing.json -9.2687040 0 8 "" off pass cards scissor clipped empty pulled packed'
+nix develop --command bash -c 'bash $t/mac-take.sh /private/tmp/t1-kiaw/mac cabin scripts/ter-kh4g-cabin-timing.json -0.4218524 0 12 "" off pass cards scissor clipped empty'
+nix develop --command bash -c 'bash $t/mac-take.sh /private/tmp/t1-kiaw/mac crowd-<n> scripts/ter-kh4g-crowd-timing.json -9.2687040 0 12 TERTIUS_CROWD_COUNT=<n> off pass'
+```
+
+The controls and the counts ran under `tools/gpu-lock.sh --shared`, with `bash $t/controls.sh` and `bash $t/counts.sh`. The reports, from the worktree's root:
+
+```bash
+python3 -I $t/crowd_report.py <mac|cloud> <take folder> off pass:empty clipped:empty scissor:clipped pass:scissor cards:pass pulled:pass packed:pulled packed:pass
+python3 -I $t/fit.py <mac|cloud> <takes folder> /private/tmp/t1-kiaw/counts
+python3 -I $t/counts_report.py /private/tmp/t1-kiaw/counts
 ```
 
 The cloud jobs, with the agent name `t1-kiaw-crowd` and the tree `t=refs/scratch/ter-kh4g-2-crowd-probe`:
@@ -340,4 +368,7 @@ I deleted the dumps of the controls after I recorded their comparison.
 - On the Mac, `empty` does not measure the fixed work. So the Mac's cost model uses the series of sizes and its slope, not `empty`.
 - The cloud jobs warm every side once before the rounds, so no round is dropped for bug ticket `t1-s5c1`.
 - I sent the two cloud jobs one after the other, for bug ticket `t2-a59b`.
+- On the Mac, `fit.py` needs a clock match of `pass` and `off` to keep a round. `crowd_report.py` needs a clock match of every side. Both give +0.799 ms for the crowd, because the one dropped round's slow run was `pass`.
+- `job-crowd.sh` and `mac-take.sh` each hold a copy of the sides and of the Williams square. The header of `job-crowd.sh` names a part `fetch` that it does not have. I left the file as the jobs ran it.
+- The probe's counter gives −1 vertices for a command whose first index names no static mesh. No command can do that: every command draws a static mesh or a deformed copy of one, and a copy keeps its mesh's first index.
 - The image controls compare the back share under `layer` in the probe's dump, not the capture. The headless runs with `--video none` wrote no image. The log `controls-lock.log` holds a line `*.png DIFFERS` per side: the script compared the unmatched glob itself, not a file.
