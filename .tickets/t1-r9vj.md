@@ -12,6 +12,8 @@ tags: [rendering, research]
 ---
 # A view with a lit front and a dark back, with its own path trace: is any rule for a blocked ray's light nearer than the fade over the real slab
 
+Deferred on 2026-11-15 by the line orchestrator, under the user's bar of that day. The bar is a good look with no visible bug, and a path trace is only a tool to diagnose a bug. This ticket asks for a new path trace to rank rules by accuracy, and no still shows a bug at a thick slab. So no lead starts it now. One event starts it: a still or a film shows a fault of the fade, such as light of a lit front on a surface behind a dark back.
+
 This ticket is an experiment, with no code for the branch. It follows the reference experiment of stage 2. Read first: `docs/research/back-face-depth-layer/stage-2/reference.md`, parts 1 and 2, and `docs/plans/back-face-depth-layer.md`, decision 6.
 
 ## The question

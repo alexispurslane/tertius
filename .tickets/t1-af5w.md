@@ -42,10 +42,18 @@ The technique is percentage-closer soft shadows (Fernando, 2005). It was made fo
 
 So the measurement decides: the search's cost in every frame, against its gain at the gaps that our scenes have.
 
+## The bar (the user, 2026-11-15)
+
+The renderer must look good and show no bug. Path-traced accuracy is not the goal. A bug is light through a shadow, a blotch, a daub or a firefly. Lost light is acceptable, and it is no bug. The user's own words are in the notes of the epic `ter-kh4g`.
+
+So the engine's stills and films decide: no light through a shadow, no specks, no sparkle, no blotches, no flicker, and a good look. A darker room after a fix is acceptable. A path trace is a tool to find and explain a bug. It is not the bar, so order no new path trace for this ticket.
+
+Two things judge this step: how the shadows look, and what the search costs. The lit share's error against a line cast is not the measure.
+
 ## What to bring
 
 - The search's time on the M1 Max and on the RTX 2000 Ada, in the deck, the cabin and `rect-lamps`, against step 1.
-- Stills of the same views with main, step 1 and step 2. One view has a caster 30 m or more from its receiver, where the two steps differ. Each view has its line cast or its path trace beside it.
+- Stills of the same views with main, step 1 and step 2. One view has a caster 30 m or more from its receiver, where the two steps differ. Take no new path trace for them.
 - The gaps of the scenes: for the demo's views, the share of shadowed pixels whose blocker is farther than 12.5 m.
 - A plain recommendation with its reason: keep step 1 alone, or add the search.
 

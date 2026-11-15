@@ -84,10 +84,16 @@ C#, in `ShadowBias`: `MinFilterReachTexels` beside the constants of today, with 
 - Two cascades meet with no step in the lit share at the seam.
 - The existing shadow tests that measure an edge or a reach change with a reason each: `AShadowReachesTheBaseOfAWallOnAFloorThatTheSunGrazes`, `ShadowIsContinuousAcrossCascadeSeamsAndDoesNotCreepOntoTheSunlitSide`, `GroundJustBelowAThinCasterUnderAHighSunIsInItsShadow` and `BoxCastsAShadowOnTheGroundAndTheEclipseTermStillApplies`.
 
+### The bar (the user, 2026-11-15)
+
+The renderer must look good and show no bug. Path-traced accuracy is not the goal. A bug is light through a shadow, a blotch, a daub or a firefly. Lost light is acceptable, and it is no bug. The user's own words are in the notes of the epic `ter-kh4g`.
+
+So the engine's stills and films decide: no light through a shadow, no specks, no sparkle, no blotches, no flicker, and a good look. A darker room after a fix is acceptable. A path trace is a tool to find and explain a bug. It is not the bar, so order no new path trace for this ticket.
+
 ### Acceptance
 
 - The jamb of `rect-lamps`, with the screen tracer off: the engine's direct sunlight on output columns 1800 to 1809 has a mean under 0.03 W/(m² sr). Main has 0.222.
-- The box's shadow of `bounce-raised-box`: the mean error of the lit share against the line cast is under 0.13. Main has 0.207.
+- The box's shadow of `bounce-raised-box`, in a still beside main: its edge has no blur that eats into the shadow, and the lit floor has no acne. The lit share's error against the line cast is a number for the report. It is not a condition.
 - The cost against main on the M1 Max and on the RTX 2000 Ada: the lighting passes' time and the frame, in the deck, the cabin and `rect-lamps`.
 - The leak that stays, in m, on the jamb.
 - The films of the edge in motion, with a plain verdict for each cascade.

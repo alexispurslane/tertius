@@ -308,6 +308,8 @@ Steps 1 and 2 touch separate files and run side by side. Step 3 needs step 2. St
 
 ## The acceptance
 
+The user set the bar on 2026-11-15. The renderer must look good and show no bug. Path-traced accuracy is not the goal. A bug is light through a shadow, a blotch, a daub or a firefly. Lost light is acceptable, and it is no bug. So the engine's stills and films decide, and a path trace is a tool to find and explain a bug.
+
 From the handoff of 2026-11-14, part 1:
 
 | Point | How it is shown |
