@@ -68,3 +68,16 @@ Blotch of the worst sampled frame against a still of the same state (limit 0.04)
 Flicker and grain flicker do not rise in any film (the largest change is rect-bay's flicker, 0.0020 -> 0.0010). The same films fail the survey's limits in both builds. The four films where the branch scores worse are films whose light is on its way in both builds: their level is far from 0. In the films with a level near 0 the branch's blotch is equal or lower. I looked at rect-bay's frames (pics/rect-bay-film.png); I did not look at the frames of the other 17 films.
 
 Cloud cost of the films and the rect-bay diagnosis by the job log: $0.1078 + $0.0758 + $0.0978 + $0.0755. The track's cloud total is $0.50.
+
+**2026-11-15T01:31:24Z**
+
+2026-11-14, the cabin switch read by the second measure (parent orchestrator's correction): the level as a share of the reference. Computed from the kept result files of the takes with the bounce light alone (TERTIUS_PROBE_SIGNAL=2), because no reference run of the full image exists; t0-mzhr takes it for the full image. Level = a region's light in the switch run divided by the reference's control with the lamps in the final state, at the same film frame. The reference is the branch with both clamps off.
+
+| Build | settle, slowest region, off / on | level at 60 draws after off, whole / center | level at 60 draws after on, whole / center | lowest level in the 60 draws after on, center |
+|---|---|---|---|---|
+| main | 60 / 65 | 0.899 / 0.910 | 0.805 / 0.729 | 0.645 |
+| branch before the fix | 101 / none in 100 | 0.987 / 0.926 | 0.934 / 0.865 | 0.736 |
+| branch with the fix | 61 / none in 100 | 1.006 / 0.951 | 0.951 / 0.887 | 0.774 |
+| reference | 122 / none in 100 | 1.064 / 1.051 | 0.942 / 0.940 | 0.911 |
+
+Main's own controls stand at 0.835 (whole) and 0.769 (center) of the reference's with the lamps on, and at 0.875 and 0.892 with the lamps off: main settles fast to a level that is 11 to 23 % too dark. The fixed branch's controls equal the reference's to three digits. So by the first measure the branch is slower than main after the lamps return, and by the second it is nearer to the reference than main at every one of these points. One exception: in the 60 draws after the lamps go off, the center's lowest level is 0.778 on the fixed branch and 0.820 on main, which is the dip after a cut.
