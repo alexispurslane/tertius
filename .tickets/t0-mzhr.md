@@ -1,6 +1,6 @@
 ---
 id: t0-mzhr
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-11-15T01:28:52Z
@@ -89,3 +89,47 @@ Do the jitters in this order, so that an early stop still answers the first two 
 - No change under `src`, `tests` or `tools` in the ticket's branch. A bug that you find gets a bug ticket.
 
 Out of scope: a design of the remedy, the choice between the regional test and wider ray evidence (Alexis decides), a tolerance sweep (one more tolerance is welcome only if time is left), and the frame time (t0-89zi).
+
+## Notes
+
+**2026-11-15T03:09:44Z**
+
+2026-11-14, the takes of this ticket, all on this Mac in one session (20:37 to 22:04), under the shared GPU lock. No cloud job ($0). Scratch probe: docs/research/t0-mzhr-regional-test-cycle/scratch-probe-on-73f4a6548.patch, with three new switches: TERTIUS_X_REGION_WINDOW (an exact box mean of the tap pixel's last N samples, per pixel, in place of the fast history), TERTIUS_X_CUT_LENGTH and TERTIUS_X_LONG_JITTER (period 2^10 x 3^6). The README there holds the code, the terms, the crops and the charts. Control runs with every new switch unset repeat the first session to every number: cabin switch of region 8 (13,818 values), its still (PNGs equal byte for byte), its bay film, the fix's cabin switch, main's cabin switch.
+
+Lamp hall still at 4.08 stops, long mean of ceiling / walls, % of the same jitter's reference:
+
+| Variant | today's | none | long |
+|---|---|---|---|
+| main | 78.4 / 81.2 | - | - |
+| fix | 96.0 / 99.5 | 96.9 / 99.9 | 96.9 / 99.4 |
+| cut 18 | 96.0 / 99.5 | - | - |
+| region, window 4 | 89.4 / 90.4 | 97.7 / 102.1 | 93.0 / 93.1 |
+| region, window 18 | 99.5 / 105.8 | 100.8 / 106.5 | 99.0 / 102.5 |
+
+Lamp hall still, automatic exposure, specks per 10,000 px / daub against the reference: today's: reference 12.16 / 0.0416, main 7.05 / 0.0432, fix 6.01 / 0.0403, cut 18 as the fix, window 4 9.61 / 0.0396, window 18 9.69 / 0.0448. None: reference 6.95 / 0.0322, fix 3.25 / 0.0322, window 4 7.43 / 0.0317, window 18 7.51 / 0.0356. Long: reference 11.06 / 0.0378, fix 5.50 / 0.0380, window 4 7.39 / 0.0372, window 18 8.91 / 0.0414 (blotch 0.1152).
+
+Bay film rect-bay, level and blotch at the middle / last frame: today's: main +1.18 / +0.53, 0.245 / 0.231; fix +1.86 / +1.75, 0.370 / 0.488; cut 18 +2.16 / +2.69, 0.391 / 0.484; window 4 +0.89 / +0.43, 0.218 / 0.211; window 18 +0.43 / +0.18, 0.102 / 0.101. None and long: each build within 0.22 in level and 0.014 in blotch of its numbers under today's jitter (the largest: the fix without jitter, +2.01 / +1.97, 0.372 / 0.502).
+
+Cabin switch (lamps off at frame 160, on at 360), today's jitter. Settle slowest / whole / r11 in draws off-on; level 60 draws after the switch as % of the reference's control, whole / r11; r11's dip in those 60 draws after the lamps return; r11 15 draws after they return against its own control:
+
+| Variant | slowest | whole | r11 | level 60 off | level 60 on | dip on r11 | own 15 |
+|---|---|---|---|---|---|---|---|
+| reference | none / 97 | 74 / 39 | 63 / 37 | 105.7 / 105.0 | 96.1 / 95.8 | 94.3 | -5.7 % |
+| main | 75 / 52 | 36 / 24 | 20 / 49 | 89.2 / 92.2 | 81.6 / 73.4 | 68.0 | -8.3 % |
+| fix | 66 / none | 12 / 27 | 56 / none | 96.0 / 95.2 | 90.4 / 84.5 | 77.6 | -16.3 % |
+| cut 18 | 96 / 85 | 51 / 40 | 27 / 72 | 99.3 / 102.4 | 90.0 / 87.8 | 85.6 | -8.1 % |
+| window 4 | 113 / 51 | 14 / 19 | 113 / 51 | 95.9 / 92.0 | 90.0 / 81.1 | 72.6 | -10.9 % |
+| window 18 | 39 / 25 | 20 / 15 | 20 / 18 | 104.5 / 120.7 | 93.5 / 91.5 | 76.2 | -6.5 % |
+
+Window 18's r11 swings with the 18-draw cycle (chart pics/cabin-r11-today.png): its mean over the cycle around 60 draws is 108.7 % (off) and 89.4 % (on). No jitter, slowest off / on: fix 122 / 27, window 4 94 / 34, window 18 46 / 26. Long: fix 171 / 92, window 4 108 / 68, window 18 39 / 27, and r11 jumps at irregular frames (window 18 from 71 % to above 150 %).
+
+Lag films, median lag in draws / median lag error, today's jitter: bay-sun main 28.55 / 0.2644, fix 26.93 / 0.2679, cut 18 44.01 / 0.3015, window 18 8.41 / 0.0910. lamp-hall-16-moving and lamp-hall-64-spot-moving: every build within 0.002 in error of main.
+
+Extra takes, today's jitter: window 18 with tolerance 20 % moves no number by more than 1.1 specks or 0.3 points of light. Window 18 with both clamps off still swings: r11 122.8 % (one frame) and 111.2 % (cycle) 60 draws after the lamps go off.
+
+Answers (measured facts above, my reading here):
+1. The 18-draw window gives back the still's light (99.5 / 105.8 % against the fix's 96.0 / 99.5 %) but not its specks (9.69 against 6.01). It more than keeps the bay film's gain (+0.43 / +0.18, blotch 0.102 / 0.101) and settles the cabin's lamps-on in 25 draws (window 4: 51). But it does not stop following the cycle: the box removes the cycle from the fast side, and the slow history, an exponential mean of up to 32 draws, keeps it. The clamp is not the cause (clamps-off take). The walls above the reference also appear without jitter, so a second effect is there; I did not measure its cause.
+2. With the jitter off, window 4 keeps the still's light (97.7 / 102.1 %), so the jitter causes its loss. The long sequence helps window 4's still a little (93.0 / 93.1 %) and not window 18's, and it hurts the cabin: regular teeth become irregular jumps, and even the fix settles later (171 / 92). It removes the period but not the fluctuation.
+3. A cut to 18 draws halves the dip after the lamps return (r11 -8.1 % against -16.3 % at 15 draws, main's size). It costs time after a change: bay-sun's lag error +0.034 against the fix (about 7 times acceptance 9's allowance), the bay film +2.69 at its last frame, and the whole image settles 39 draws later after the lamps go off.
+
+Not taken: main, cut 18 and the lag films under no jitter and the long sequence (not required); a control run of the long sequence (no take shows the first 18 draws after a reset; the code shows that they are AMD's offsets).

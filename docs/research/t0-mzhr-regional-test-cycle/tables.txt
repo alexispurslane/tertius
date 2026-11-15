@@ -1,0 +1,95 @@
+== cabin switch, today's jitter
+variant                            slowest off/on whole off/on  r11 off/on  lvl60 off w/r11  lvl60 on w/r11  cyc off w/r11  cyc on w/r11  dip off r11   dip on r11 own15 on r11
+t-ref-sw                             none/97         74/39       63/37       105.7/105.0      96.1/95.8     105.7/105.1    96.1/95.8     105.0@60     94.3@10          -5.7
+t-main-sw                              75/52         36/24       20/49        89.2/92.2       81.6/73.4      88.6/89.9     81.5/73.2      84.8@55     68.0@17          -8.3
+t-fix-sw                               66/none       12/27       56/none      96.0/95.2       90.4/84.5      95.9/94.7     90.4/84.4      82.9@19     77.6@17         -16.3
+t-c18-sw                               96/85         51/40       27/72        99.3/102.4      90.0/87.8      99.2/102.1    89.9/87.7     101.5@55     85.6@17          -8.1
+c-r8-sw                               113/51         14/19      113/51        95.9/92.0       90.0/81.1      94.6/87.6     89.9/80.9      80.1@55     72.6@15         -10.9
+t-r18-sw                               39/25         20/15       20/18       104.5/120.7      93.5/91.5     101.6/108.7    93.0/89.4      88.7@55     76.2@17          -6.5
+t-r18t20-sw                            40/24         20/15       20/18       104.4/120.7      93.6/91.5     101.5/108.6    93.1/89.4      88.5@55     76.2@17          -6.5
+levels and dips in % of the reference's control at the same frame; own15 in % against the run's own control
+== cabin switch, no jitter
+variant                            slowest off/on whole off/on  r11 off/on  lvl60 off w/r11  lvl60 on w/r11  cyc off w/r11  cyc on w/r11  dip off r11   dip on r11 own15 on r11
+n-ref-sw                             none/none       78/34      186/91       106.0/112.7      96.4/93.5     105.9/112.7    96.4/93.5     112.7@60     90.3@1           -9.3
+n-fix-sw                              122/27         44/9       122/27       100.0/110.7      95.6/97.1     100.0/110.6    95.6/97.1     110.7@60     89.2@1           -7.2
+n-r4-sw                                94/34         26/9        94/30       100.8/111.1      96.7/97.8     100.8/111.1    96.7/97.8     111.1@60     89.6@1           -7.6
+n-r18-sw                               46/26         19/10       34/26       100.3/109.0      98.8/103.1    100.4/109.0    98.8/103.1    109.0@60     91.3@1           -8.5
+levels and dips in % of the reference's control at the same frame; own15 in % against the run's own control
+== cabin switch, long sequence
+variant                            slowest off/on whole off/on  r11 off/on  lvl60 off w/r11  lvl60 on w/r11  cyc off w/r11  cyc on w/r11  dip off r11   dip on r11 own15 on r11
+l-ref-sw                             none/none       86/48      104/81       106.5/107.0      95.7/93.9     106.5/106.9    95.7/94.0     107.0@60     92.0@3           -7.8
+l-fix-sw                              171/92         92/16      171/92       102.0/112.8      92.4/87.0     102.2/113.0    92.4/87.0      99.8@10     83.9@15         -11.3
+l-r4-sw                               108/68         63/21      108/68        99.0/98.3       92.0/84.9     100.2/103.8    92.0/84.8      88.9@10     76.0@1          -10.4
+l-r18-sw                               39/27         19/16       25/27        97.2/88.5       94.3/88.7     101.0/105.3    94.2/88.6      88.5@60     72.8@1           -8.9
+levels and dips in % of the reference's control at the same frame; own15 in % against the run's own control
+== bay film
+variant                          level mid/last  blotch mid/last
+t-main-rb                        +1.18 / +0.53   0.245 / 0.231
+t-fix-rb                         +1.86 / +1.75   0.370 / 0.488
+t-c18-rb                         +2.16 / +2.69   0.391 / 0.484
+t-r4-rb                          +0.89 / +0.43   0.218 / 0.211
+t-r18-rb                         +0.43 / +0.18   0.102 / 0.101
+t-r18t20-rb                      +0.43 / +0.18   0.101 / 0.101
+n-fix-rb                         +2.01 / +1.97   0.372 / 0.502
+n-r4-rb                          +0.92 / +0.43   0.223 / 0.212
+n-r18-rb                         +0.43 / +0.18   0.105 / 0.101
+l-fix-rb                         +1.84 / +1.72   0.369 / 0.486
+l-r4-rb                          +0.89 / +0.42   0.218 / 0.212
+l-r18-rb                         +0.43 / +0.17   0.100 / 0.101
+== lag films
+variant                                     bay-sun        lamp-hall-16-moving   lamp-hall-64-spot-moving
+t-main-lag                           28.55 / 0.2644              4.43 / 0.0276             -0.06 / 0.0106
+t-fix-lag                            26.93 / 0.2679              4.45 / 0.0275             -0.28 / 0.0116
+t-c18-lag                            44.01 / 0.3015              4.45 / 0.0269              0.32 / 0.0096
+t-r18-lag                             8.41 / 0.0910              4.46 / 0.0270             -0.34 / 0.0114
+== still light at 4.08 stops
+rect-lamps   t-main-e   ceiling shown   77.0% settled   78.4%   walls shown   78.8% settled   81.2%
+rect-lamps   t-fix-e    ceiling shown   87.1% settled   96.0%   walls shown   84.9% settled   99.5%
+rect-lamps   t-c18-e    ceiling shown   87.1% settled   96.0%   walls shown   84.9% settled   99.5%
+rect-lamps   t-r4-e     ceiling shown   86.4% settled   89.4%   walls shown   85.3% settled   90.4%
+rect-lamps   t-r18-e    ceiling shown  102.8% settled   99.5%   walls shown  111.5% settled  105.8%
+rect-lamps   t-r18t20-e ceiling shown  102.5% settled   99.3%   walls shown  111.2% settled  105.6%
+rect-lamps   n-ref-e    ceiling shown   95.9% settled  100.0%   walls shown   94.0% settled  100.0%
+rect-lamps   n-fix-e    ceiling shown   93.8% settled   96.9%   walls shown   94.0% settled   99.9%
+rect-lamps   n-r4-e     ceiling shown   96.1% settled   97.7%   walls shown   98.7% settled  102.1%
+rect-lamps   n-r18-e    ceiling shown  101.5% settled  100.8%   walls shown  107.2% settled  106.5%
+rect-lamps   l-ref-e    ceiling shown   93.8% settled  100.0%   walls shown   91.3% settled  100.0%
+rect-lamps   l-fix-e    ceiling shown   92.2% settled   96.9%   walls shown   91.4% settled   99.4%
+rect-lamps   l-r4-e     ceiling shown   91.9% settled   93.0%   walls shown   91.0% settled   93.1%
+rect-lamps   l-r18-e    ceiling shown  104.6% settled   99.0%   walls shown  114.2% settled  102.5%
+== still daub
+t-ref-s    rect-lamps   daub 0.0416  broad 0.0956  smooth share 0.78  ceiling 0.0462  walls 0.0265
+t-main-s   rect-lamps   daub 0.0432  broad 0.1071  smooth share 0.78  ceiling 0.0510  walls 0.0276
+t-fix-s    rect-lamps   daub 0.0403  broad 0.0913  smooth share 0.78  ceiling 0.0455  walls 0.0268
+t-c18-s    rect-lamps   daub 0.0403  broad 0.0913  smooth share 0.78  ceiling 0.0455  walls 0.0268
+t-r4-s     rect-lamps   daub 0.0396  broad 0.1052  smooth share 0.78  ceiling 0.0508  walls 0.0264
+t-r18-s    rect-lamps   daub 0.0448  broad 0.1425  smooth share 0.78  ceiling 0.0533  walls 0.0345
+t-r18t20-s rect-lamps   daub 0.0460  broad 0.1427  smooth share 0.78  ceiling 0.0521  walls 0.0341
+n-ref-s    rect-lamps   daub 0.0322  broad 0.0441  smooth share 0.79  ceiling 0.0307  walls 0.0155
+n-fix-s    rect-lamps   daub 0.0322  broad 0.0943  smooth share 0.79  ceiling 0.0305  walls 0.0162
+n-r4-s     rect-lamps   daub 0.0317  broad 0.1068  smooth share 0.79  ceiling 0.0335  walls 0.0181
+n-r18-s    rect-lamps   daub 0.0356  broad 0.1321  smooth share 0.79  ceiling 0.0421  walls 0.0192
+l-ref-s    rect-lamps   daub 0.0378  broad 0.0568  smooth share 0.78  ceiling 0.0436  walls 0.0237
+l-fix-s    rect-lamps   daub 0.0380  broad 0.0766  smooth share 0.78  ceiling 0.0429  walls 0.0236
+l-r4-s     rect-lamps   daub 0.0372  broad 0.1156  smooth share 0.78  ceiling 0.0450  walls 0.0228
+l-r18-s    rect-lamps   daub 0.0414  broad 0.1667  smooth share 0.78  ceiling 0.0507  walls 0.0281
+== still specks and blotch (survey)
+t-ref-s specks 12.16 blotch 0.1064 level +0.0148
+t-main-s specks 7.05 blotch 0.0530 level -0.0016
+t-fix-s specks 6.01 blotch 0.0933 level +0.0123
+t-c18-s specks 6.01 blotch 0.0933 level +0.0123
+t-r4-s specks 9.61 blotch 0.0581 level -0.0029
+t-r18-s specks 9.69 blotch 0.0628 level -0.0188
+t-r18t20-s specks 8.63 blotch 0.0621 level -0.0162
+n-ref-s specks 6.95 blotch 0.0536 level +0.0003
+n-fix-s specks 3.25 blotch 0.0553 level +0.0022
+n-r4-s specks 7.43 blotch 0.0491 level -0.0000
+n-r18-s specks 7.51 blotch 0.0396 level -0.0052
+l-ref-s specks 11.06 blotch 0.0712 level +0.0090
+l-fix-s specks 5.50 blotch 0.0658 level +0.0068
+l-r4-s specks 7.39 blotch 0.0535 level -0.0088
+l-r18-s specks 8.91 blotch 0.1152 level -0.0420
+variant                            slowest off/on whole off/on  r11 off/on  lvl60 off w/r11  lvl60 on w/r11  cyc off w/r11  cyc on w/r11  dip off r11   dip on r11 own15 on r11
+t-r18nc-sw                             66/31         20/16       20/19       107.4/122.8      94.9/91.9     104.6/111.2    94.4/89.9      91.8@55     77.3@17          -6.7
+t-r4nc-sw                              77/72         29/33        0/54        99.0/95.2       90.7/81.4      98.2/91.5     90.5/81.2      85.1@55     76.0@15          -7.6
+levels and dips in % of the reference's control at the same frame; own15 in % against the run's own control
