@@ -5,7 +5,8 @@
 
 <cost folder> holds mac/ (mac-take2.sh) and cloud/jobA, cloud/jobC (cloud-jobs.sh). A cell gives the mean, then the
 lowest and the highest value. A difference pairs two sides inside one round. The kept rounds are those of
-cost_report.py.
+cost_report.py. Two marks: ‡ means that the per-round range holds 0, and † means that the mean difference lies inside
+main's run range: its size is at most main's slowest run minus its fastest, over the same rounds.
 """
 
 import statistics as st
@@ -18,7 +19,7 @@ import cost_report as cr  # noqa: E402
 SCENES = [("deck", "temporal-upscale-timing", "jobA"), ("cabin", "ter-kh4g-cabin-timing", "jobC"),
           ("rect", "ter-kh4g-rect-lamps-timing", "jobC"), ("crowd", "ter-kh4g-crowd-timing", "jobC")]
 LABELS = {"deck": "Deck", "cabin": "Cabin", "rect": "`rect-lamps`", "crowd": "Crowd"}
-DIFFS = [("layer", "main"), ("ten", "main"), ("off", "main"), ("layer", "ten"), ("ten", "off")]
+DIFFS = cr.PAIRS
 
 
 def side_cell(runs, rounds):
@@ -28,7 +29,8 @@ def side_cell(runs, rounds):
 
 def diff_cell(runs, rounds, a, b):
     v = [runs[a][r]["span"] - runs[b][r]["span"] for r in rounds]
-    mark = "" if min(v) > 0 or max(v) < 0 else " ‡"
+    main = [runs["main"][r]["span"] for r in rounds]
+    mark = (" ‡" if cr.holds_zero(v) else "") + (" †" if abs(st.mean(v)) <= max(main) - min(main) else "")
     return f"{st.mean(v):+.3f} ({min(v):+.3f} to {max(v):+.3f}){mark}"
 
 

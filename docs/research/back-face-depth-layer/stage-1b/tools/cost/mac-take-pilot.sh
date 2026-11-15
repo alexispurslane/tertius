@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Throwaway (t1-stwp): one Mac timing take of the cost of stage 1b, for one scene, under one exclusive hold of the GPU
+# Throwaway (t1-stwp): the pilot's Mac timing take of the cost of stage 1b, for one scene, under one exclusive hold of the GPU
 # lock. Run it from the worktree's root, inside the dev shell (gpu-lock.sh fails under the Mac's own bash, t1-fudm):
 #   nix develop --command bash -c 'bash /private/tmp/ter-kh4g/1b/cost/tools/mac-take.sh <out> <scene> <first round> <rounds>'
 # <scene> names scripts/<scene>.json. The take holds the lock once and runs every run of it back to back.
@@ -10,8 +10,9 @@
 # A later take of the same scene reads stops.txt and runs one untimed warm-up of main instead.
 #
 # The sides: main is the frozen binary of ab54c785e. layer, ten and off are modes of the frozen probe binary, chosen by
-# TERTIUS_BACK_FACE_PROBE. One round runs every side once. The order turns by the round and reverses in odd rounds, so
-# each side runs at each position of the round over four rounds.
+# TERTIUS_BACK_FACE_PROBE. One round runs every side once. The order turns by the round and reverses in odd rounds.
+# With four sides this order is not balanced: main runs only at positions 0 and 2. Only the pilot used this script, and
+# mac-take2.sh replaced it with a Williams square.
 set -uo pipefail
 out=$1; scene=$2; first=$3; rounds=$4  # a fifth argument --inner runs the body, under the lock
 tree=$(pwd)

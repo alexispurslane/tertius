@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
-# Throwaway (t1-stwp): the two cloud timing jobs of the cost of stage 1b. Run from the worktree's root, outside the dev
-# shell: bash cloud-jobs.sh <out folder> [A] [B] [C]. Job A times the deck and the cabin, job B rect-lamps and the crowd.
-# Main's tree lacks the scripts of the cabin and rect-lamps, so jobs A and B failed there with exit code 2. Job C times
-# the cabin, rect-lamps and the crowd, with each script read from the tree script, the branch's commit adf373ae0.
-# Send the jobs one after the other: two jobs that push the same scratch commit at once fail one push (2026-11-15).
+# Throwaway (t1-stwp): the cloud timing jobs of the cost of stage 1b. Run from the worktree's root, outside the dev
+# shell: bash cloud-jobs.sh <out folder> [A] [B] [C]. Without a job name it sends A and then C.
+# Job A times the deck and the cabin, job B rect-lamps and the crowd. Main's tree lacks the scripts of the cabin and
+# rect-lamps, so A failed at the cabin and B failed at once, both with exit code 2. Job C times the cabin, rect-lamps
+# and the crowd, with each script read from the tree script, the branch's commit adf373ae0. So the record takes the
+# deck from A and the other scenes from C. A and B ran with an earlier version of this file, without the clause that
+# prints the exposure run's log on a failure.
+# Send the jobs one after the other: two jobs that push the same scratch commit at once fail one push (t2-a59b).
 # Per scene, one command: build main, run main once with the automatic exposure, take the median stops of its
 # exposure.json, then run ab_run.sh with that fixed exposure for every side: main layer ten off, five runs each.
 set -uo pipefail
 out=$1
 shift
-jobs=${*:-A B}
+jobs=${*:-A C}
 mkdir -p "$out"
 demo=src/Tertius.Demo/bin/Release/net11.0/Tertius.Demo
 median='import json, statistics, sys; print(statistics.median(e.get("stops", e.get("Stops")) for e in json.load(open(sys.argv[1]))))'

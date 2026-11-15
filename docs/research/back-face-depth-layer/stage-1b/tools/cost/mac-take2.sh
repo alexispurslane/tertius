@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Throwaway (t1-stwp): one Mac timing take of the cost of stage 1b, for one scene, under one exclusive hold of the GPU
 # lock. Run it from the worktree's root, inside the dev shell (gpu-lock.sh fails under the Mac's own bash, t1-fudm):
-#   nix develop --command bash -c 'bash /private/tmp/ter-kh4g/1b/cost/tools/mac-take.sh <out> <scene> <first round> <rounds>'
+#   nix develop --command bash -c 'bash /private/tmp/ter-kh4g/1b/cost/tools/mac-take2.sh <out> <scene> <first round> <rounds>'
 # <scene> names scripts/<scene>.json. The take holds the lock once and runs every run of it back to back.
 #
 # The fixed exposure: the first take of a scene runs main's binary once with the automatic exposure, into

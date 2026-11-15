@@ -8,7 +8,7 @@ A run's value is the median GPU frame span of its 120 filmed frames, in ms. On t
 pass, the headless readback over PCIe (tools/runpod/ab_report.py does the same). The Mac runs have no pass time
 stamps, so their value is the whole span.
 
-A round is one run of every side. Mac folder: <scene>/<side>/run-<round>/gpu-timings.json, from mac-take.sh. Cloud job
+A round is one run of every side. Mac folder: <scene>/<side>/run-<round>/gpu-timings.json, from mac-take2.sh. Cloud job
 folder: out-<scene>/<side>/run-<round>/gpu-timings.json, from ab_run.sh, whose run N of every tree forms round N.
 A difference pairs two sides inside one round. The report keeps a Mac round only when every side ran and every run of
 it held the same GPU clock: the mean MHz of gpu_clock.py's record agrees within CLOCK_TOLERANCE over the round's
@@ -48,8 +48,13 @@ def stats(values):
     return f"mean {st.mean(values):.3f}, {min(values):.3f} to {max(values):.3f} (spread {max(values) - min(values):.3f}), n {len(values)}"
 
 
+def holds_zero(values):
+    """Whether the per-round differences hold 0 in their range: not every round has the same sign."""
+    return min(values) <= 0 <= max(values)
+
+
 def dstats(values):
-    inside = "the range holds 0" if min(values) <= 0 <= max(values) else "every round has the same sign"
+    inside = "the range holds 0" if holds_zero(values) else "every round has the same sign"
     return f"mean {st.mean(values):+.3f}, {min(values):+.3f} to {max(values):+.3f}, n {len(values)}: {inside}"
 
 
