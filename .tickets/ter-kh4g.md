@@ -152,3 +152,7 @@ Launched 2026-11-15 from 94138a196: the ticket lead of mesh closure and the batc
 **2026-11-15T16:12:41Z**
 
 2026-11-15, the parent agent's answers on the shadow leak's fix. The slot: the fix's lead takes the store's slot when it frees, because both lines together hold four building agents, the user's limit. The form: two steps. Step 1 (t8-rjno) is the quick fix as a complete change: the filter's reach is a parameter, fixed at one tap. Its lead measures the cost on both machines, the leak that stays, and a shadow's edge in motion in every cascade. With no stair steps and no crawl, step 1 merges into main with both suites, the reviewed reference images, the Linux run and ARCHITECTURE.md, and I tell the parent agent at once. With steps or crawl, it does not merge alone. Step 2 (t1-af5w) is the search and the reach that follows the penumbra. It does not merge without the user's choice, which the parent agent brings with stills and costs.
+
+**2026-11-15T16:29:02Z**
+
+2026-11-15: part 5 of the shadow leak's diagnosis is merged as ddd567f08 and sent to the parent agent. In the truth, the sun's light enters rect-lamps only from the lit lips of the openings, 1 to 6 mm wide at the hull's outer face: 0.0086 W/(m² sr) on the side wall, 0.066 on the jamb and 0.0112 on the floor patch. Rims over the hull's outer edges take all of it away, and a black Moon takes none.
