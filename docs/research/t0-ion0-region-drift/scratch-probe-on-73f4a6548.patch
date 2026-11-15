@@ -565,6 +565,21 @@ index bc36b6ff2..506a3cab1 100644
          new()
          {
              Cap = parameters.Cap,
+diff --git a/src/Tertius.Rendering/Scene/SceneBatcher.cs b/src/Tertius.Rendering/Scene/SceneBatcher.cs
+index 9c273273e..e800db30f 100644
+--- a/src/Tertius.Rendering/Scene/SceneBatcher.cs
++++ b/src/Tertius.Rendering/Scene/SceneBatcher.cs
+@@ -1077,6 +1077,10 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float
+             );
+             if (!Reaches(faces: faces, axes: scene.MapAxes, light: prepared))
+                 continue;
++            // SCRATCH (t0-ion0, the strips check): TERTIUS_NO_SUN=1 drops every light beyond 10^9 m, as the probe of
++            // ter-kh4g's stage 2 (t1-g4p1) does.
++            if (prepared.Distance > 1e9 && Environment.GetEnvironmentVariable("TERTIUS_NO_SUN") == "1")
++                continue;
+             if (i == sun)
+                 scene.AirSunLight = scene.LightCount;
+             scene.AddLight() = prepared;
 diff --git a/src/Tertius.Rendering/ShaderConstants.cs b/src/Tertius.Rendering/ShaderConstants.cs
 index 99ad27d6f..d04ad3a14 100644
 --- a/src/Tertius.Rendering/ShaderConstants.cs

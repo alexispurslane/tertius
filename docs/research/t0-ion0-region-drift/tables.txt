@@ -1,0 +1,384 @@
+## Controls
+
+# c-T0-e: every new switch at its default, old store, must repeat the tolerance record's T0 (96.4 / 101.4)
+$ light.py c-A-e c-A-e c-T0-e
+rect-lamps   c-A-e      ceiling shown   89.1% settled  100.0%   walls shown   84.3% settled  100.0%
+rect-lamps   c-T0-e     ceiling shown   94.2% settled   96.4%   walls shown   99.2% settled  101.4%
+
+# The nearest-half store in scene light, no jitter, clamps off: c-sA-hn against c-sA (t8-69v7: 102.7 / 105.8),
+# c-sc4-hn against c-sA-hn (t8-69v7: 100.0 / 100.1)
+$ scenelight.py c-sA c-sA c-sA-hn
+rect-lamps   c-sA             ceiling shown   97.8% settled  100.0%   walls shown   95.5% settled  100.0%   whole image  100.0%
+rect-lamps   c-sA-hn          ceiling shown   99.8% settled  102.7%   walls shown   99.4% settled  105.8%   whole image  102.6%
+
+$ scenelight.py c-sA-hn c-sA-hn c-sc4-hn
+rect-lamps   c-sA-hn          ceiling shown   97.1% settled  100.0%   walls shown   94.0% settled  100.0%   whole image  100.0%
+rect-lamps   c-sc4-hn         ceiling shown   99.7% settled  100.0%   walls shown  100.3% settled  100.1%   whole image   99.7%
+
+## Lamp hall still at 4.08 stops, today's jitter: light against t-A-e, and the bounce history's lengths
+
+$ light.py t-A-e t-A-e t-fix-e t-cap4-e t-Q0-e t-Q1-e t-Q3-e t-Q2-e
+rect-lamps   t-A-e      ceiling shown   87.8% settled  100.0%   walls shown   82.3% settled  100.0%
+rect-lamps   t-fix-e    ceiling shown   85.8% settled   96.0%   walls shown   83.0% settled   99.7%
+rect-lamps   t-cap4-e   ceiling shown   97.2% settled   94.5%   walls shown  104.3% settled   99.2%
+rect-lamps   t-Q0-e     ceiling shown   99.2% settled   96.0%   walls shown  103.8% settled  100.5%
+rect-lamps   t-Q1-e     ceiling shown   91.5% settled   96.7%   walls shown   92.2% settled  100.3%
+rect-lamps   t-Q3-e     ceiling shown   89.9% settled   96.5%   walls shown   89.6% settled  100.2%
+rect-lamps   t-Q2-e     ceiling shown   91.8% settled   94.0%   walls shown   92.5% settled   96.0%
+
+$ lengths.py t-A-e t-fix-e t-cap4-e t-Q0-e t-Q1-e t-Q3-e t-Q2-e
+rect-lamps t-fix-e      diffuse  draws 297-920 (90) ceiling below   0.0% mean 32.00   walls below   2.2% mean 31.28
+rect-lamps t-fix-e      specular draws 297-920 (90) ceiling below   1.0% mean 92.76   walls below   2.9% mean 82.55
+rect-lamps t-cap4-e     diffuse  draws 297-920 (90) ceiling below 100.0% mean  4.00   walls below 100.0% mean  3.91
+rect-lamps t-cap4-e     specular draws 297-920 (90) ceiling below   1.5% mean 56.87   walls below   4.2% mean 47.36
+rect-lamps t-Q0-e       diffuse  draws 297-920 (90) ceiling below  50.5% mean 12.50   walls below  41.9% mean 18.21
+rect-lamps t-Q0-e       specular draws 297-920 (90) ceiling below  79.6% mean 11.72   walls below  54.5% mean 18.04
+rect-lamps t-Q1-e       diffuse  draws 297-920 (90) ceiling below  11.2% mean 26.12   walls below  11.2% mean 26.52
+rect-lamps t-Q1-e       specular draws 297-920 (90) ceiling below  30.8% mean 21.80   walls below  25.3% mean 26.80
+rect-lamps t-Q3-e       diffuse  draws 297-920 (90) ceiling below   4.8% mean 29.39   walls below   6.9% mean 28.72
+rect-lamps t-Q3-e       specular draws 297-920 (90) ceiling below  25.7% mean 26.85   walls below  19.6% mean 35.14
+rect-lamps t-Q2-e       diffuse  draws 297-920 (90) ceiling below  18.3% mean 22.29   walls below  17.8% mean 23.19
+rect-lamps t-Q2-e       specular draws 297-920 (90) ceiling below  39.9% mean 16.23   walls below  34.3% mean 18.51
+
+## Lamp hall still in scene light, no jitter, 4.08 stops: against the reference with the store (c-sA-hn)
+
+$ scenelight.py c-sA-hn c-sA-hn sc-fix sc-cap4 sc-Q0 sc-Q1 sc-Q3 sc-Q2
+rect-lamps   c-sA-hn          ceiling shown   97.1% settled  100.0%   walls shown   94.0% settled  100.0%   whole image  100.0%
+rect-lamps   sc-fix           ceiling shown   96.2% settled   98.7%   walls shown   94.0% settled  100.0%   whole image   96.8%
+rect-lamps   sc-cap4          ceiling shown   98.7% settled   98.4%   walls shown  100.4% settled   99.9%   whole image   96.2%
+rect-lamps   sc-Q0            ceiling shown   98.3% settled   98.5%   walls shown   98.6% settled   99.9%   whole image   96.3%
+rect-lamps   sc-Q1            ceiling shown   97.8% settled   98.7%   walls shown   97.6% settled  100.1%   whole image   96.8%
+rect-lamps   sc-Q3            ceiling shown   97.0% settled   98.7%   walls shown   96.4% settled  100.1%   whole image   96.8%
+rect-lamps   sc-Q2            ceiling shown   98.5% settled   98.6%   walls shown   98.8% settled   99.9%   whole image   96.7%
+
+## Lamp hall still at the automatic exposure, today's jitter: specks, blotch, daub against t-A-s
+
+$ stills.py rect-lamps t-A-s t-fix-s t-cap4-s t-Q0-s t-Q1-s t-Q3-s t-Q2-s
+t-A-s          rect-lamps   specks  12.08  blotch 0.1159
+t-fix-s        rect-lamps   specks   5.96  blotch 0.1027
+t-cap4-s       rect-lamps   specks   6.85  blotch 0.0607
+t-Q0-s         rect-lamps   specks   8.78  blotch 0.0647
+t-Q1-s         rect-lamps   specks   7.99  blotch 0.0722
+t-Q3-s         rect-lamps   specks   6.27  blotch 0.0748
+t-Q2-s         rect-lamps   specks   9.50  blotch 0.0653
+
+$ REF=t-A-s daub.py ...
+t-A-s      rect-lamps   daub 0.0420  broad 0.1049  smooth share 0.78  ceiling 0.0472  walls 0.0263
+t-fix-s    rect-lamps   daub 0.0406  broad 0.0986  smooth share 0.78  ceiling 0.0463  walls 0.0268
+t-cap4-s   rect-lamps   daub 0.0434  broad 0.1224  smooth share 0.78  ceiling 0.0499  walls 0.0309
+t-Q0-s     rect-lamps   daub 0.0437  broad 0.1234  smooth share 0.78  ceiling 0.0509  walls 0.0321
+t-Q1-s     rect-lamps   daub 0.0417  broad 0.0664  smooth share 0.78  ceiling 0.0465  walls 0.0279
+t-Q3-s     rect-lamps   daub 0.0405  broad 0.0724  smooth share 0.78  ceiling 0.0448  walls 0.0284
+t-Q2-s     rect-lamps   daub 0.0424  broad 0.0670  smooth share 0.78  ceiling 0.0471  walls 0.0284
+
+## Cabin switch, today's jitter
+
+$ switch.py s/t-A-sw/results/switch/cabin.json s/t-A-sw/results/switch/cabin.json s/t-fix-sw/results/switch/cabin.json s/t-cap4-sw/results/switch/cabin.json s/t-Q0-sw/results/switch/cabin.json s/t-Q1-sw/results/switch/cabin.json s/t-Q3-sw/results/switch/cabin.json s/t-Q2-sw/results/switch/cabin.json
+variant                            slowest off/on whole off/on  r11 off/on  lvl60 off w/r11  lvl60 on w/r11  cyc off w/r11  cyc on w/r11  dip off r11   dip on r11 own15 on r11  still lo/hi r11
+t-A-sw                               none/99         76/41       66/43       105.8/105.1      96.0/95.5     105.9/105.2    96.0/95.6     105.1@60     94.3@10          -5.7    100.0/100.0  
+t-fix-sw                               74/none       12/56       74/none      95.3/94.3       89.4/82.6      95.2/93.8     89.3/82.6      82.4@19     76.2@17         -18.3     99.1/100.3  
+t-cap4-sw                              46/23         20/15       20/18       102.0/115.1      91.1/87.0      99.1/104.1    90.6/85.2      84.8@55     72.4@17          -6.7     91.2/124.3  
+t-Q0-sw                               134/42         13/19      134/42       100.8/109.7      89.9/84.1      99.4/104.9    89.6/83.3      92.6@19     72.6@17         -11.2    102.1/124.3  
+t-Q1-sw                                77/90         11/36       77/90        96.7/97.3       89.5/82.3      96.5/97.1     89.5/82.1      84.1@19     74.3@17         -16.6    106.0/107.4  
+t-Q3-sw                                76/none       11/43       76/none      96.3/96.8       89.4/82.7      96.2/96.5     89.4/82.5      83.6@19     75.1@17         -16.7    104.3/105.5  
+t-Q2-sw                                37/69         11/22       37/69        95.7/94.4       89.2/81.1      95.4/93.9     89.1/80.9      81.9@19     72.0@17         -13.9    101.4/103.3  
+levels and dips in % of the reference's control at the same frame; own15 in % against the run's own control
+
+$ switchearly.py s/t-A-sw/results/switch/cabin.json s/t-A-sw/results/switch/cabin.json s/t-fix-sw/results/switch/cabin.json s/t-cap4-sw/results/switch/cabin.json s/t-Q0-sw/results/switch/cabin.json s/t-Q1-sw/results/switch/cabin.json s/t-Q3-sw/results/switch/cabin.json s/t-Q2-sw/results/switch/cabin.json
+variant          off d  5 w/r11  off d 10 w/r11  off d 20 w/r11  on d  5 w/r11  on d 10 w/r11  on d 20 w/r11
+t-A-sw              115.1/107.8      113.7/107.7      109.6/107.0       93.7/94.5        93.9/94.3        93.8/94.5  
+t-fix-sw            109.1/105.8      103.1/94.9        98.2/95.2        86.5/84.7        86.8/79.5        87.2/80.2  
+t-cap4-sw           116.4/131.2      110.8/117.8      108.8/128.3       84.1/78.1        85.2/75.5        88.5/85.9  
+t-Q0-sw             116.6/127.5      110.2/114.1      105.6/118.5       83.9/78.1        84.8/75.2        86.5/81.3  
+t-Q1-sw             112.5/112.0      105.6/99.5        99.9/96.0        85.5/81.4        85.9/77.2        86.7/78.8  
+t-Q3-sw             111.5/110.3      104.9/98.3        99.4/95.7        85.9/82.7        86.3/78.1        86.9/79.3  
+t-Q2-sw             111.4/108.0      104.6/96.4        99.2/94.3        84.1/77.6        84.8/74.3        86.1/76.8  
+levels in % of the reference's control at the same frame
+
+## Film rect-bay, today's jitter: the survey's middle and last frame, and frames 10, 20 and 30 (filmearly.py)
+
+$ films.py s/t-fix-rb/results/motion/rect-bay.json s/t-cap4-rb/results/motion/rect-bay.json s/t-Q0-rb/results/motion/rect-bay.json s/t-Q1-rb/results/motion/rect-bay.json s/t-Q3-rb/results/motion/rect-bay.json s/t-Q2-rb/results/motion/rect-bay.json
+variant                          level mid/last  blotch mid/last
+t-fix-rb                         +1.86 / +1.91   0.383 / 0.484
+t-cap4-rb                        +0.43 / +0.18   0.102 / 0.101
+t-Q0-rb                          +0.44 / +0.19   0.105 / 0.101
+t-Q1-rb                          +0.44 / +0.19   0.105 / 0.111
+t-Q3-rb                          +0.47 / +0.23   0.122 / 0.148
+t-Q2-rb                          +0.43 / +0.19   0.102 / 0.108
+
+t-fix-fe rect-bay: f10 +0.02  f20 +0.08  f30 +0.15  middle +1.86  end +1.91
+t-cap4-fe rect-bay: f10 +0.03  f20 +0.06  f30 +0.09  middle +0.43  end +0.18
+t-Q0-fe rect-bay: f10 +0.02  f20 +0.07  f30 +0.10  middle +0.44  end +0.19
+t-Q1-fe rect-bay: f10 +0.02  f20 +0.08  f30 +0.12  middle +0.44  end +0.19
+t-Q3-fe 
+
+## Lag films, today's jitter: median lag in draws / median lag error
+
+$ lags.py s/t-fix-lag s/t-cap4-lag s/t-Q0-lag s/t-Q1-lag s/t-Q3-lag s/t-Q2-lag
+variant                                     bay-sun        lamp-hall-16-moving   lamp-hall-64-spot-moving
+t-fix-lag                            29.72 / 0.2808              4.44 / 0.0277             -0.17 / 0.0107
+t-cap4-lag                            8.34 / 0.0897              4.47 / 0.0271             -0.34 / 0.0115
+t-Q0-lag                              8.56 / 0.1027              4.39 / 0.0276             -0.35 / 0.0118
+t-Q1-lag                              8.66 / 0.1026              4.38 / 0.0275             -0.30 / 0.0116
+t-Q3-lag                              8.22 / 0.1019              4.46 / 0.0275             -0.29 / 0.0114
+t-Q2-lag                              8.78 / 0.1029              4.48 / 0.0274             -0.33 / 0.0121
+
+## Jitter n (n none, l the long Halton sequence)
+
+$ light.py n-A-e n-A-e n-fix-e n-Q1-e n-Q3-e n-Q2-e
+
+$ lengths.py n-A-e n-fix-e n-Q1-e n-Q3-e n-Q2-e
+
+$ stills.py rect-lamps n-A-s n-fix-s n-Q1-s n-Q3-s n-Q2-s
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-xlcu-regional-tolerance/tools/stills.py", line 5, in <module>
+    r = json.load(open(f's/{v}/results/still/{case}.json'))
+                  ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 's/n-A-s/results/still/rect-lamps.json'
+
+$ REF=n-A-s daub.py ...
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-mzhr-regional-test-cycle/tools/daub.py", line 19, in <module>
+    s = lin(f's/{v}/images/still/{case}.png'); r = lin(f's/{__import__("os").environ.get("REF", v)}/images/still/{case}-reference.png')
+  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-mzhr-regional-test-cycle/tools/daub.py", line 15, in lin
+    a = np.asarray(Image.open(p).convert('RGB')).astype(float) / 255
+                   ~~~~~~~~~~^^^
+  File "/nix/store/yfd10hipys5l2ba4xpi2dxhr6vik28ar-python3-3.14.7-env/lib/python3.14/site-packages/PIL/Image.py", line 3639, in open
+    fp = builtins.open(filename, "rb")
+FileNotFoundError: [Errno 2] No such file or directory: 's/n-A-s/images/still/rect-lamps.png'
+
+$ switch.py s/n-A-sw/results/switch/cabin.json s/n-A-sw/results/switch/cabin.json s/n-fix-sw/results/switch/cabin.json s/n-Q1-sw/results/switch/cabin.json s/n-Q3-sw/results/switch/cabin.json s/n-Q2-sw/results/switch/cabin.json
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-xlcu-regional-tolerance/tools/switch.py", line 26, in <module>
+    ref = json.load(open(sys.argv[1]))["series"]
+                    ~~~~^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 's/n-A-sw/results/switch/cabin.json'
+
+$ switchearly.py s/n-A-sw/results/switch/cabin.json s/n-A-sw/results/switch/cabin.json s/n-fix-sw/results/switch/cabin.json s/n-Q1-sw/results/switch/cabin.json s/n-Q3-sw/results/switch/cabin.json s/n-Q2-sw/results/switch/cabin.json
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-ion0-region-drift/tools/switchearly.py", line 7, in <module>
+    ref = json.load(open(sys.argv[1]))["series"]
+                    ~~~~^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 's/n-A-sw/results/switch/cabin.json'
+
+## Jitter l (n none, l the long Halton sequence)
+
+$ light.py l-A-e l-A-e l-fix-e l-Q1-e l-Q3-e l-Q2-e
+
+$ lengths.py l-A-e l-fix-e l-Q1-e l-Q3-e l-Q2-e
+
+$ stills.py rect-lamps l-A-s l-fix-s l-Q1-s l-Q3-s l-Q2-s
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-xlcu-regional-tolerance/tools/stills.py", line 5, in <module>
+    r = json.load(open(f's/{v}/results/still/{case}.json'))
+                  ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 's/l-A-s/results/still/rect-lamps.json'
+
+$ REF=l-A-s daub.py ...
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-mzhr-regional-test-cycle/tools/daub.py", line 19, in <module>
+    s = lin(f's/{v}/images/still/{case}.png'); r = lin(f's/{__import__("os").environ.get("REF", v)}/images/still/{case}-reference.png')
+  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-mzhr-regional-test-cycle/tools/daub.py", line 15, in lin
+    a = np.asarray(Image.open(p).convert('RGB')).astype(float) / 255
+                   ~~~~~~~~~~^^^
+  File "/nix/store/yfd10hipys5l2ba4xpi2dxhr6vik28ar-python3-3.14.7-env/lib/python3.14/site-packages/PIL/Image.py", line 3639, in open
+    fp = builtins.open(filename, "rb")
+FileNotFoundError: [Errno 2] No such file or directory: 's/l-A-s/images/still/rect-lamps.png'
+
+$ switch.py s/l-A-sw/results/switch/cabin.json s/l-A-sw/results/switch/cabin.json s/l-fix-sw/results/switch/cabin.json s/l-Q1-sw/results/switch/cabin.json s/l-Q3-sw/results/switch/cabin.json s/l-Q2-sw/results/switch/cabin.json
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-xlcu-regional-tolerance/tools/switch.py", line 26, in <module>
+    ref = json.load(open(sys.argv[1]))["series"]
+                    ~~~~^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 's/l-A-sw/results/switch/cabin.json'
+
+$ switchearly.py s/l-A-sw/results/switch/cabin.json s/l-A-sw/results/switch/cabin.json s/l-fix-sw/results/switch/cabin.json s/l-Q1-sw/results/switch/cabin.json s/l-Q3-sw/results/switch/cabin.json s/l-Q2-sw/results/switch/cabin.json
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-ion0-region-drift/tools/switchearly.py", line 7, in <module>
+    ref = json.load(open(sys.argv[1]))["series"]
+                    ~~~~^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 's/l-A-sw/results/switch/cabin.json'
+
+## The strips check
+
+# Question 1: the lamps-on control of the cabin switch per jitter phase (strips.py), the reference and the cap of 4 draws
+$ strips.py s/t-A-sw/results/switch/cabin.json s/n-A-sw/results/switch/cabin.json
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-ion0-region-drift/tools/strips.py", line 11, in <module>
+    none = json.load(open(sys.argv[2]))["series"]["on"]
+                     ~~~~^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 's/n-A-sw/results/switch/cabin.json'
+
+$ strips.py s/t-cap4-sw/results/switch/cabin.json s/n-cap4-sw/results/switch/cabin.json
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-ion0-region-drift/tools/strips.py", line 11, in <module>
+    none = json.load(open(sys.argv[2]))["series"]["on"]
+                     ~~~~^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 's/n-cap4-sw/results/switch/cabin.json'
+
+# Question 2: the lamp hall still with and without the sun (TERTIUS_NO_SUN=1), the reference and region, window 4
+$ light.py s-t-A-sun-e s-t-A-sun-e s-t-W4-sun-e
+rect-lamps   s-t-A-sun-e ceiling shown   87.8% settled  100.0%   walls shown   82.3% settled  100.0%
+rect-lamps   s-t-W4-sun-e ceiling shown   84.6% settled   90.7%   walls shown   82.8% settled   92.8%
+
+$ scenelight.py ss-t-A-sun ss-t-A-sun ss-t-W4-sun
+rect-lamps   ss-t-A-sun       ceiling shown   93.0% settled  100.0%   walls shown   85.4% settled  100.0%   whole image  100.0%
+rect-lamps   ss-t-W4-sun      ceiling shown   91.7% settled   95.4%   walls shown   85.8% settled   94.1%   whole image   92.9%
+
+$ light.py s-t-A-nosun-e s-t-A-nosun-e s-t-W4-nosun-e
+rect-lamps   s-t-A-nosun-e ceiling shown   96.7% settled  100.0%   walls shown   96.0% settled  100.0%
+rect-lamps   s-t-W4-nosun-e ceiling shown   97.2% settled  100.3%   walls shown   96.4% settled  100.2%
+
+$ scenelight.py ss-t-A-nosun ss-t-A-nosun ss-t-W4-nosun
+rect-lamps   ss-t-A-nosun     ceiling shown   98.8% settled  100.0%   walls shown   97.4% settled  100.0%   whole image  100.0%
+rect-lamps   ss-t-W4-nosun    ceiling shown   99.0% settled  100.1%   walls shown   97.7% settled  100.1%   whole image  100.1%
+
+$ light.py s-n-A-sun-e s-n-A-sun-e s-n-W4-sun-e
+rect-lamps   s-n-A-sun-e ceiling shown   94.7% settled  100.0%   walls shown   92.0% settled  100.0%
+rect-lamps   s-n-W4-sun-e ceiling shown   94.0% settled   96.1%   walls shown   95.3% settled   99.6%
+
+$ scenelight.py ss-n-A-sun ss-n-A-sun ss-n-W4-sun
+rect-lamps   ss-n-A-sun       ceiling shown   97.1% settled  100.0%   walls shown   94.0% settled  100.0%   whole image  100.0%
+rect-lamps   ss-n-W4-sun      ceiling shown   96.9% settled   98.3%   walls shown   96.4% settled   99.7%   whole image   96.3%
+
+$ light.py s-n-A-nosun-e s-n-A-nosun-e s-n-W4-nosun-e
+rect-lamps   s-n-A-nosun-e ceiling shown   96.6% settled  100.0%   walls shown   95.9% settled  100.0%
+rect-lamps   s-n-W4-nosun-e ceiling shown   97.2% settled  100.3%   walls shown   96.3% settled  100.2%
+
+$ scenelight.py ss-n-A-nosun ss-n-A-nosun ss-n-W4-nosun
+rect-lamps   ss-n-A-nosun     ceiling shown   98.8% settled  100.0%   walls shown   97.4% settled  100.0%   whole image  100.0%
+rect-lamps   ss-n-W4-nosun    ceiling shown   99.0% settled  100.1%   walls shown   97.7% settled  100.1%   whole image  100.1%
+
+# The cabin switch without the sun, today's jitter: the cap of 4 draws against the reference without the sun
+$ switch.py s/s-t-A-nosun-sw/results/switch/cabin.json s/s-t-A-nosun-sw/results/switch/cabin.json s/s-t-cap4-nosun-sw/results/switch/cabin.json
+variant                            slowest off/on whole off/on  r11 off/on  lvl60 off w/r11  lvl60 on w/r11  cyc off w/r11  cyc on w/r11  dip off r11   dip on r11 own15 on r11  still lo/hi r11
+s-t-A-nosun-sw                       none/none     none/96     none/none     116.1/121.2      92.4/90.3     116.0/121.2    92.5/90.4     121.2@60     85.9@2          -13.4    100.0/100.0  
+s-t-cap4-nosun-sw                      50/34         30/23       42/32       102.1/105.2      99.7/99.3     102.1/105.2    99.7/99.3     105.2@60     82.8@1          -12.0    102.0/102.3  
+levels and dips in % of the reference's control at the same frame; own15 in % against the run's own control
+
+$ strips.py s/s-t-cap4-nosun-sw/results/switch/cabin.json s/s-t-cap4-nosun-sw/results/switch/cabin.json
+whole: today's jitter, per phase: 0.3592 0.3594 0.3585 0.3584 0.3598 0.3600 0.3598 0.3598 0.3585 0.3589 0.3593 0.3594 0.3594 0.3599 0.3597 0.3595 0.3599 0.3588
+whole: cycle mean 0.3593, darkest phase 0.3584, median phase 0.3594, brightest phase 0.3600 (+0.2 % over the mean); no jitter 0.3593 (+0.0 % against the cycle mean, -0.0 % against the median phase)
+r11: today's jitter, per phase: 0.3179 0.3172 0.3165 0.3163 0.3175 0.3175 0.3174 0.3168 0.3144 0.3174 0.3176 0.3184 0.3182 0.3175 0.3175 0.3173 0.3168 0.3147
+r11: cycle mean 0.3171, darkest phase 0.3144, median phase 0.3174, brightest phase 0.3184 (+0.4 % over the mean); no jitter 0.3171 (+0.0 % against the cycle mean, -0.1 % against the median phase)
+
+## Jitter n, the lamp hall still at 4.08 stops
+
+$ light.py n-A-e n-A-e n-fix-e n-Q1-e n-Q3-e n-Q2-e
+rect-lamps   n-A-e      ceiling shown   94.7% settled  100.0%   walls shown   92.0% settled  100.0%
+rect-lamps   n-fix-e    ceiling shown   92.6% settled   96.9%   walls shown   92.2% settled  100.0%
+rect-lamps   n-Q1-e     ceiling shown   95.4% settled   96.8%   walls shown   96.9% settled  100.1%
+rect-lamps   n-Q3-e     ceiling shown   94.1% settled   96.8%   walls shown   95.2% settled  100.1%
+rect-lamps   n-Q2-e     ceiling shown   96.8% settled   96.7%   walls shown   98.5% settled   99.9%
+
+$ lengths.py n-A-e n-fix-e n-Q1-e n-Q3-e n-Q2-e
+rect-lamps n-fix-e      diffuse  draws 297-920 (90) ceiling below   0.0% mean 32.00   walls below   2.0% mean 31.36
+rect-lamps n-fix-e      specular draws 297-920 (90) ceiling below   0.8% mean 103.64   walls below   2.3% mean 84.69
+rect-lamps n-Q1-e       diffuse  draws 297-920 (90) ceiling below  19.1% mean 21.47   walls below  21.3% mean 20.85
+rect-lamps n-Q1-e       specular draws 297-920 (90) ceiling below  27.7% mean 24.04   walls below  24.4% mean 25.39
+rect-lamps n-Q3-e       diffuse  draws 297-920 (90) ceiling below   8.7% mean 26.89   walls below  11.9% mean 25.63
+rect-lamps n-Q3-e       specular draws 297-920 (90) ceiling below  20.5% mean 36.46   walls below  15.7% mean 40.68
+rect-lamps n-Q2-e       diffuse  draws 297-920 (90) ceiling below  33.3% mean 15.66   walls below  35.6% mean 15.20
+rect-lamps n-Q2-e       specular draws 297-920 (90) ceiling below  38.1% mean 16.04   walls below  35.8% mean 16.00
+
+## Jitter n, the cabin switch
+
+$ switch.py s/n-A-sw/results/switch/cabin.json s/n-A-sw/results/switch/cabin.json s/n-fix-sw/results/switch/cabin.json s/n-Q1-sw/results/switch/cabin.json s/n-Q3-sw/results/switch/cabin.json s/n-Q2-sw/results/switch/cabin.json
+variant                            slowest off/on whole off/on  r11 off/on  lvl60 off w/r11  lvl60 on w/r11  cyc off w/r11  cyc on w/r11  dip off r11   dip on r11 own15 on r11  still lo/hi r11
+n-A-sw                               none/none       83/36      199/none     106.2/113.3      96.3/93.1     106.2/113.3    96.3/93.1     113.3@60     90.1@1           -9.6    100.0/100.0  
+n-fix-sw                              112/66         32/16      112/66        99.5/109.8      94.8/95.3      99.5/109.7    94.8/95.3     109.8@60     88.8@1           -9.0    100.8/100.8  
+n-Q1-sw                                84/41         25/18       45/41        99.2/107.1      95.6/97.3      99.2/107.1    95.7/97.3     107.1@60     87.8@1           -9.7    103.6/104.2  
+n-Q3-sw                                83/42         25/17       59/42        99.2/108.1      95.5/96.8      99.2/108.1    95.5/96.8     108.1@60     88.2@1           -9.3    102.9/103.4  
+n-Q2-sw                                66/39         25/16       44/39        99.0/106.6      95.7/97.3      99.1/106.5    95.7/97.3     106.6@60     87.7@1           -9.7    103.8/104.5  
+levels and dips in % of the reference's control at the same frame; own15 in % against the run's own control
+
+$ switchearly.py s/n-A-sw/results/switch/cabin.json s/n-A-sw/results/switch/cabin.json s/n-fix-sw/results/switch/cabin.json s/n-Q1-sw/results/switch/cabin.json s/n-Q3-sw/results/switch/cabin.json s/n-Q2-sw/results/switch/cabin.json
+variant          off d  5 w/r11  off d 10 w/r11  off d 20 w/r11  on d  5 w/r11  on d 10 w/r11  on d 20 w/r11
+n-A-sw              111.1/119.6      110.6/119.1      109.6/118.0       93.1/90.2        93.3/90.3        93.9/90.7  
+n-fix-sw            107.3/120.3      104.6/118.1      102.9/115.2       90.2/89.3        91.7/90.9        92.8/92.5  
+n-Q1-sw             108.1/123.5      105.1/120.3      103.0/116.2       90.0/88.5        91.5/90.3        92.9/92.2  
+n-Q3-sw             107.7/122.8      104.8/119.8      103.0/116.1       90.2/88.9        91.7/90.6        92.9/92.4  
+n-Q2-sw             108.6/123.7      105.4/120.4      103.0/116.1       89.9/88.5        91.4/90.3        92.7/92.2  
+levels in % of the reference's control at the same frame
+
+## The strips check, question 1: the lamps-on control per jitter phase, today's jitter against none
+
+$ strips.py s/t-A-sw/results/switch/cabin.json s/n-A-sw/results/switch/cabin.json
+whole: today's jitter, per phase: 0.7909 0.7911 0.7901 0.7893 0.7902 0.7902 0.7892 0.7906 0.7889 0.7892 0.7892 0.7889 0.7886 0.7889 0.7881 0.7888 0.7908 0.7905
+whole: cycle mean 0.7896, darkest phase 0.7881, median phase 0.7893, brightest phase 0.7911 (+0.2 % over the mean); no jitter 0.7913 (+0.2 % against the cycle mean, +0.3 % against the median phase)
+r11: today's jitter, per phase: 0.8116 0.8100 0.8081 0.8066 0.8057 0.8044 0.8028 0.8124 0.8091 0.8093 0.8073 0.8059 0.8041 0.8009 0.7991 0.8072 0.8103 0.8096
+r11: cycle mean 0.8069, darkest phase 0.7991, median phase 0.8073, brightest phase 0.8124 (+0.7 % over the mean); no jitter 0.4389 (-45.6 % against the cycle mean, -45.6 % against the median phase)
+
+$ strips.py s/t-cap4-sw/results/switch/cabin.json s/n-cap4-sw/results/switch/cabin.json
+whole: today's jitter, per phase: 0.7391 0.7383 0.7355 0.7320 0.7317 0.7295 0.7271 0.7308 0.7257 0.7226 0.7216 0.7191 0.7165 0.7148 0.7109 0.7415 0.7450 0.7428
+whole: cycle mean 0.7291, darkest phase 0.7109, median phase 0.7308, brightest phase 0.7450 (+2.2 % over the mean); no jitter 0.7683 (+5.4 % against the cycle mean, +5.1 % against the median phase)
+r11: today's jitter, per phase: 0.7692 0.7571 0.7456 0.7343 0.7263 0.7169 0.7053 0.7119 0.6974 0.6861 0.6733 0.6642 0.6530 0.6411 0.6310 0.7816 0.7781 0.7784
+r11: cycle mean 0.7139, darkest phase 0.6310, median phase 0.7169, brightest phase 0.7816 (+9.5 % over the mean); no jitter 0.4436 (-37.9 % against the cycle mean, -38.1 % against the median phase)
+
+$ switch.py s/n-A-sw/results/switch/cabin.json s/n-cap4-sw/results/switch/cabin.json
+variant                            slowest off/on whole off/on  r11 off/on  lvl60 off w/r11  lvl60 on w/r11  cyc off w/r11  cyc on w/r11  dip off r11   dip on r11 own15 on r11  still lo/hi r11
+n-cap4-sw                              49/26         19/10       34/26        98.2/105.3      96.8/98.9      98.3/105.2    96.7/98.9     105.3@60     87.6@1           -8.6    104.1/104.8  
+levels and dips in % of the reference's control at the same frame; own15 in % against the run's own control
+
+## Jitter n, the lamp hall still at the automatic exposure
+
+$ stills.py rect-lamps n-A-s n-fix-s n-Q1-s n-Q3-s n-Q2-s
+n-A-s          rect-lamps   specks   6.90  blotch 0.0644
+n-fix-s        rect-lamps   specks   3.19  blotch 0.0662
+n-Q1-s         rect-lamps   specks   5.03  blotch 0.0445
+n-Q3-s         rect-lamps   specks   3.87  blotch 0.0457
+n-Q2-s         rect-lamps   specks   7.33  blotch 0.0483
+
+$ REF=n-A-s daub.py ...
+n-A-s      rect-lamps   daub 0.0324  broad 0.0541  smooth share 0.79  ceiling 0.0311  walls 0.0159
+n-fix-s    rect-lamps   daub 0.0325  broad 0.0876  smooth share 0.79  ceiling 0.0307  walls 0.0168
+n-Q1-s     rect-lamps   daub 0.0351  broad 0.1045  smooth share 0.79  ceiling 0.0368  walls 0.0181
+n-Q3-s     rect-lamps   daub 0.0340  broad 0.0982  smooth share 0.79  ceiling 0.0351  walls 0.0174
+n-Q2-s     rect-lamps   daub 0.0365  broad 0.1108  smooth share 0.79  ceiling 0.0400  walls 0.0185
+
+## Jitter l, the lamp hall still at 4.08 stops
+
+$ light.py l-A-e l-A-e l-fix-e l-Q1-e l-Q3-e l-Q2-e
+rect-lamps   l-A-e      ceiling shown   92.5% settled  100.0%   walls shown   89.1% settled  100.0%
+rect-lamps   l-fix-e    ceiling shown   90.9% settled   96.8%   walls shown   89.4% settled   99.6%
+rect-lamps   l-Q1-e     ceiling shown   91.9% settled   94.0%   walls shown   89.6% settled   93.9%
+rect-lamps   l-Q3-e     ceiling shown   91.9% settled   94.9%   walls shown   89.5% settled   95.6%
+rect-lamps   l-Q2-e     ceiling shown   92.3% settled   92.2%   walls shown   89.4% settled   91.4%
+
+$ lengths.py l-A-e l-fix-e l-Q1-e l-Q3-e l-Q2-e
+rect-lamps l-fix-e      diffuse  draws 297-920 (90) ceiling below   0.0% mean 32.00   walls below   2.1% mean 31.32
+rect-lamps l-fix-e      specular draws 297-920 (90) ceiling below   0.8% mean 94.97   walls below   2.7% mean 79.19
+rect-lamps l-Q1-e       diffuse  draws 297-920 (90) ceiling below  19.7% mean 21.48   walls below  26.6% mean 18.72
+rect-lamps l-Q1-e       specular draws 297-920 (90) ceiling below  40.9% mean 14.86   walls below  47.4% mean 12.73
+rect-lamps l-Q3-e       diffuse  draws 297-920 (90) ceiling below  10.5% mean 26.03   walls below  17.3% mean 23.01
+rect-lamps l-Q3-e       specular draws 297-920 (90) ceiling below  33.2% mean 19.34   walls below  33.9% mean 18.25
+rect-lamps l-Q2-e       diffuse  draws 297-920 (90) ceiling below  32.6% mean 16.03   walls below  41.9% mean 13.58
+rect-lamps l-Q2-e       specular draws 297-920 (90) ceiling below  51.2% mean 11.36   walls below  62.8% mean  8.99
+
+## Jitter l, the cabin switch
+
+$ switch.py s/l-A-sw/results/switch/cabin.json s/l-A-sw/results/switch/cabin.json s/l-fix-sw/results/switch/cabin.json s/l-Q1-sw/results/switch/cabin.json s/l-Q3-sw/results/switch/cabin.json s/l-Q2-sw/results/switch/cabin.json
+variant                            slowest off/on whole off/on  r11 off/on  lvl60 off w/r11  lvl60 on w/r11  cyc off w/r11  cyc on w/r11  dip off r11   dip on r11 own15 on r11  still lo/hi r11
+l-A-sw                               none/none       90/49      117/80       106.7/107.3      95.6/94.0     106.6/107.1    95.6/94.0     107.3@60     92.1@3           -7.7    100.0/100.0  
+l-fix-sw                              168/none       81/28      168/none     101.4/111.7      91.5/85.7     101.6/111.9    91.6/85.8      99.5@10     82.6@20         -12.8     98.1/99.3   
+l-Q1-sw                                65/38         33/17       65/38       106.4/132.9      91.2/83.4     107.1/136.3    91.2/83.4      88.1@10     72.9@1           -9.9     87.3/99.4   
+l-Q3-sw                               103/55         44/17      103/55       107.1/138.8      90.9/83.5     107.2/138.3    90.9/83.4      88.9@10     75.2@1           -9.2     89.2/99.6   
+l-Q2-sw                                83/40         29/16       59/40       106.1/131.0      91.7/83.7     106.7/134.4    91.8/83.6      86.3@10     71.5@2          -10.6     84.3/101.5  
+levels and dips in % of the reference's control at the same frame; own15 in % against the run's own control
+
+$ switchearly.py s/l-A-sw/results/switch/cabin.json s/l-A-sw/results/switch/cabin.json s/l-fix-sw/results/switch/cabin.json s/l-Q1-sw/results/switch/cabin.json s/l-Q3-sw/results/switch/cabin.json s/l-Q2-sw/results/switch/cabin.json
+variant          off d  5 w/r11  off d 10 w/r11  off d 20 w/r11  on d  5 w/r11  on d 10 w/r11  on d 20 w/r11
+l-A-sw              117.3/111.3      116.0/111.0      110.8/110.1       93.3/92.1        93.7/92.2        93.2/92.4  
+l-fix-sw            111.0/108.6      106.2/99.5       104.9/115.1       88.5/87.2        89.9/83.9        89.5/82.6  
+l-Q1-sw             108.1/95.2       103.3/88.1       102.3/108.2       85.2/73.6        87.3/74.1        87.4/75.6  
+l-Q3-sw             108.6/96.2       103.8/88.9       102.6/107.7       85.7/75.7        87.7/75.7        87.8/76.8  
+l-Q2-sw             107.7/92.8       102.9/86.3       101.9/106.9       84.6/72.3        86.8/73.1        87.4/75.1  
+levels in % of the reference's control at the same frame
+
+## Film rect-bay, frames 10, 20, 30 (filmearly.py), all six
+t-fix-fe rect-bay: f10 +0.02  f20 +0.08  f30 +0.15  middle +1.86  end +1.91
+t-cap4-fe rect-bay: f10 +0.03  f20 +0.06  f30 +0.09  middle +0.43  end +0.18
+t-Q0-fe rect-bay: f10 +0.02  f20 +0.07  f30 +0.10  middle +0.44  end +0.19
+t-Q1-fe rect-bay: f10 +0.02  f20 +0.08  f30 +0.12  middle +0.44  end +0.19
+t-Q3-fe rect-bay: f10 +0.02  f20 +0.08  f30 +0.14  middle +0.47  end +0.23
+t-Q2-fe rect-bay: f10 +0.02  f20 +0.07  f30 +0.10  middle +0.43  end +0.19

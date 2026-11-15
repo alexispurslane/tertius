@@ -182,3 +182,36 @@ My reading:
 - No rule gives half of the cabin's changed region evidence before d 13. Q1 never gives it to half. In the film, Q1 reaches half only at frame 28, and Q2 at frame 23.
 
 Step 2 adds Q2 acting with all takes of Q0, Q1 and Q3, the film's level at frames 10, 20 and 30 (`tools/filmearly.py`), and the cabin's level 5, 10 and 20 draws after each switch (`tools/switchearly.py`).
+
+**2026-11-15T16:58:34Z**
+
+Resume note: the lab stopped on the line orchestrator's stop order (2026-11-15, about 12:00). Step 2 and the strips check are measured and recorded. Not done: a few takes, the ticket's step 2 note, the review and the fix stage.
+
+Where things are:
+- Worktree `/Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144`, branch `t3/measure-regional-lag-tolerance`. HEAD is the commit that holds this note. The review base is `33c6e2952`.
+- Record folder `docs/research/t0-ion0-region-drift/`: `README.md` (the answers, every table, the strips check), `tables-step1.txt`, `tables.txt` (every measured number of step 2 and the strips check), `pics/` (4 pictures, each opened and described in the README), `scratch-probe-on-73f4a6548.patch` (the fourth build: drift test Q0 to Q3, the nearest-half store, `TERTIUS_NO_SUN`), `tools/`.
+- Scratch folder `/private/tmp/t0-ion0`: only the run folders' small result files (`runs/*/results`, logs, `take.txt`). Every probe build, every frame and the scratch checkout are deleted. No process of this ticket runs. No process of this ticket holds the GPU lock. No cloud job ran.
+
+What is done and proven (numbers in `tables.txt` and the README):
+- Controls: each of the four builds repeats the one before byte for byte (`z-Q1-e`, `y-Q1-e` against `t-Q1-e`; `mt-rect-lamps` against `kt2-rect-lamps`).
+- Step 1 with Q0, Q1, Q3 (my rule, Q1 at 3 standard deviations, first named Q2) and the ticket's Q2, and the wait before the first cut (the `m*` and `k*` takes, `tables-step1.txt`).
+- Step 2 under today's jitter for all six variants (`t-*`, `sc-*`, the lag films `t-*-lag`, the early film levels `t-*-fe`).
+- Step 2 without jitter (`n-*`) for the reference, the fix, Q1, Q3 and Q2, and the cap of 4 draws' switch.
+- Step 2 under the long Halton sequence (`l-*`): the stills at 4.08 stops and the cabin switch.
+- The strips check, questions 1 and 2 (`s-*`, `ss-*`, `s-t-*-nosun-sw`, `strips.py`).
+
+The answers in short (the README's first table): every rule brings rect-bay to the cap of 4 draws' level (+0.43 to +0.47 / +0.18 to +0.23, against main's +1.18 / +0.53 with the old store). No rule settles the cabin like the cap of 4 draws (46 / 23). Q2 comes closest (37 / 69). Q1 and Q3 keep the still's light under today's jitter, but Q2 loses 2 to 4 points. Under the long sequence, every rule loses 2 to 8 points. The strips check: without the sun, window 4 keeps the still's light (100.3 / 100.2 % against 90.7 / 92.8 %), and the cap of 4 draws' cabin center no longer swings (102.0 to 102.3 % against 91.2 to 124.3 %). Without jitter, r11 is 46 % darker than the jitter's cycle mean ("never").
+
+Not done:
+1. The lamp hall stills at the automatic exposure under the long sequence (`l-*-s`): stopped before the first one finished. The README says "not taken". They are optional.
+2. The step 2 note on this ticket with the three answers. Copy it from the README's first section, "The answers in short".
+3. The review: one fresh reviewer (providerInstanceId "claudeAgent", model "claude-opus-5-5", options {"effort": "high"}, role "review", isolation "shared") for the diff from `33c6e2952` to HEAD. Then the fix stage if the review has findings. Then the final JSON report to the line orchestrator.
+
+The exact next step: write the step 2 note (`tk add-note t0-ion0`), commit it, and start the review with `delegate_task` as above. A take needs the probe again. To build it, run these commands:
+
+    git worktree add --detach /private/tmp/t0-ion0/src 73f4a6548
+    cd /private/tmp/t0-ion0/src && git apply /Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-ion0-region-drift/scratch-probe-on-73f4a6548.patch
+    df -g /System/Volumes/Data   # start no build below 40 GiB free
+    nix develop /Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144 --command bash -c 'dotnet build src/Tertius.Demo -c Release -v quiet -nologo -p:RunAnalyzers=false -p:TreatWarningsAsErrors=false -o /private/tmp/t0-ion0/out-z/probe-bin'
+
+Then run the queue, for example `docs/research/t0-ion0-region-drift/tools/queue-3.sh`. It keeps the finished runs and starts at `l-A-s`. After the takes, remove the scratch worktree with `git worktree remove --force /private/tmp/t0-ion0/src`.
