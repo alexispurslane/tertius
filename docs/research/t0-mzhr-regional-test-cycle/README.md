@@ -17,6 +17,14 @@ The ticket's section "Design (line orchestrator, 2026-11-14)" holds the reasons 
 - Region, window 18: region, window 4 with `TERTIUS_X_REGION_WINDOW=18`. The fast estimate is the exact mean of the tap pixel's samples over the last 18 draws.
 - Main: commit `ab54c785e` with the survey's probe patch, its own build.
 - r11: the center region of the survey's 3 x 3 grid of the image.
+- Slow history: a pixel's mean of its past samples of one light signal, with the weight 1 / length. Its length grows by one per draw up to a cap of 32 draws for a rough surface. So it acts as an exponential mean with the weight 1/32.
+- Fast history: the same mean with a length of at most 4 draws, the fast cap.
+- Light evidence: a sign in a ray block's samples that the light that they saw changed in the last 7 draws (the light-change age). It cuts the history's length (`docs/plans/bounce-light-confidence.md`, section 8).
+- Specks: groups of bright pixels, per 10,000 visible pixels. A speck pixel is brighter than twice the median of its 7 x 7 window (tools/README.md, "The measures").
+- Blotch: the survey's 90th percentile of the blurred still's relative error against the build's own long mean.
+- Daub: `daub.py`'s 90th percentile of the error at 2 to 24 render pixels across, against the reference. Broad: the same at about 36 pixels and above.
+- Lag: a lag film's difference from a still of the same state, divided by the film's change per draw, in draws. Lag error: that difference as a share of the light.
+- Acceptance 9: item 9 of `docs/plans/bounce-light-confidence.md`, line 962. A film's median lag error can rise by at most 0.005 against main.
 
 ## The scratch switches
 
@@ -75,6 +83,8 @@ where
 - `fastSum` = the fast sum of the test.
 
 So for N = 18 the fast estimate at each tap is the plain mean of exactly the last 18 samples of that pixel. Under today's jitter these 18 draws hold each of the 18 jitter offsets once.
+
+The ring holds screen pixels and is not reprojected. Every take here has a fixed camera, so this does not change its results. Under a moving camera the window-18 estimate mixes the samples of other surfaces.
 
 The ticket proposed a ring at ray-block resolution, 160 x 90 texels. I kept the ring per pixel. Reason: the test with window 4 reads the fast history at the tap pixel, and a per-pixel ring changes only the fast estimate's time window. The taps, the slow side and the tolerance stay the same. The cost is about 70 MB per signal part, which a scratch build can pay.
 
@@ -140,23 +150,23 @@ Still `rect-lamps` at a fixed exposure of 4.08 stops. The long mean is the mean 
 
 Still `rect-lamps` at the automatic exposure, draw 132. Specks per 10,000 visible pixels and the blotch from the survey. The daub (`tools/daub.py`, `REF` = the same jitter's reference) for the whole smooth area, then the ceiling and the walls.
 
-| Variant | Jitter | Specks | Blotch | Daub | Daub ceiling / walls |
-|---|---|---:|---:|---:|---|
-| reference | today's | 12.16 | 0.1064 | 0.0416 | 0.0462 / 0.0265 |
-| main | today's | 7.05 | 0.0530 | 0.0432 | 0.0510 / 0.0276 |
-| fix | today's | 6.01 | 0.0933 | 0.0403 | 0.0455 / 0.0268 |
-| cut 18 | today's | 6.01 | 0.0933 | 0.0403 | 0.0455 / 0.0268 |
-| region, window 4 | today's | 9.61 | 0.0581 | 0.0396 | 0.0508 / 0.0264 |
-| region, window 18 | today's | 9.69 | 0.0628 | 0.0448 | 0.0533 / 0.0345 |
-| region, window 18, tolerance 20 | today's | 8.63 | 0.0621 | 0.0460 | 0.0521 / 0.0341 |
-| reference | none | 6.95 | 0.0536 | 0.0322 | 0.0307 / 0.0155 |
-| fix | none | 3.25 | 0.0553 | 0.0322 | 0.0305 / 0.0162 |
-| region, window 4 | none | 7.43 | 0.0491 | 0.0317 | 0.0335 / 0.0181 |
-| region, window 18 | none | 7.51 | 0.0396 | 0.0356 | 0.0421 / 0.0192 |
-| reference | long | 11.06 | 0.0712 | 0.0378 | 0.0436 / 0.0237 |
-| fix | long | 5.50 | 0.0658 | 0.0380 | 0.0429 / 0.0236 |
-| region, window 4 | long | 7.39 | 0.0535 | 0.0372 | 0.0450 / 0.0228 |
-| region, window 18 | long | 8.91 | 0.1152 | 0.0414 | 0.0507 / 0.0281 |
+| Variant | Jitter | Specks | Blotch | Daub | Daub ceiling / walls | Broad |
+|---|---|---:|---:|---:|---|---:|
+| reference | today's | 12.16 | 0.1064 | 0.0416 | 0.0462 / 0.0265 | 0.0956 |
+| main | today's | 7.05 | 0.0530 | 0.0432 | 0.0510 / 0.0276 | 0.1071 |
+| fix | today's | 6.01 | 0.0933 | 0.0403 | 0.0455 / 0.0268 | 0.0913 |
+| cut 18 | today's | 6.01 | 0.0933 | 0.0403 | 0.0455 / 0.0268 | 0.0913 |
+| region, window 4 | today's | 9.61 | 0.0581 | 0.0396 | 0.0508 / 0.0264 | 0.1052 |
+| region, window 18 | today's | 9.69 | 0.0628 | 0.0448 | 0.0533 / 0.0345 | 0.1425 |
+| region, window 18, tolerance 20 | today's | 8.63 | 0.0621 | 0.0460 | 0.0521 / 0.0341 | 0.1427 |
+| reference | none | 6.95 | 0.0536 | 0.0322 | 0.0307 / 0.0155 | 0.0441 |
+| fix | none | 3.25 | 0.0553 | 0.0322 | 0.0305 / 0.0162 | 0.0943 |
+| region, window 4 | none | 7.43 | 0.0491 | 0.0317 | 0.0335 / 0.0181 | 0.1068 |
+| region, window 18 | none | 7.51 | 0.0396 | 0.0356 | 0.0421 / 0.0192 | 0.1321 |
+| reference | long | 11.06 | 0.0712 | 0.0378 | 0.0436 / 0.0237 | 0.0568 |
+| fix | long | 5.50 | 0.0658 | 0.0380 | 0.0429 / 0.0236 | 0.0766 |
+| region, window 4 | long | 7.39 | 0.0535 | 0.0372 | 0.0450 / 0.0228 | 0.1156 |
+| region, window 18 | long | 8.91 | 0.1152 | 0.0414 | 0.0507 / 0.0281 | 0.1667 |
 
 ### Crops of the lamp hall still, today's jitter
 
@@ -237,7 +247,7 @@ The charts show r11 of each switch run over frames 140 to 459, as % of the refer
 
 ![r11 under today's jitter](pics/cabin-r11-today.png)
 
-`pics/cabin-r11-today.png`, today's jitter: main, the fix's region test with window 4 and with window 18 all rise by a step every 18 draws and fall between the steps. Region, window 18 has the largest teeth. Before the switch (frames 140 to 160) they go from about 85 to 127 %. Late in the lamps-off window they go from about 70 to 85 %. The fix and cut 18 are smooth curves. Cut 18 lies closest to the reference.
+`pics/cabin-r11-today.png`, today's jitter: main, the fix's region test with window 4 and with window 18 all rise by a step every 18 draws and fall between the steps. Region, window 18 has the largest teeth. Before the switch (frames 140 to 160) they go from about 94 to 127 %. Late in the lamps-off window they go from about 70 to 85 %. The fix and cut 18 are smooth curves. Cut 18 lies closest to the reference.
 
 ![r11 without jitter](pics/cabin-r11-no-jitter.png)
 
@@ -272,8 +282,10 @@ Measured, today's jitter:
 - Lag film bay-sun: window 18 8.41 draws and 0.0910 error, the fix 26.93 and 0.2679, main 28.55 and 0.2644.
 - Tolerance 20 % in place of 10 % changes these numbers by at most 1.1 specks and 0.3 points of light.
 - With both clamps off, window 18 keeps its swing: r11 122.8 % 60 draws after the lamps go off, 111.2 % over the cycle.
+- r11 in the still state before the switch, mean over frames 140 to 159 as % of the reference's on control: window 18 110.0 %, the fix 99.4 %, window 4 89.8 %, main 90.7 %. Without jitter: window 18 107.5 %, the fix 100.6 %, window 4 102.4 %. Long sequence: window 18 112.9 %, the fix 98.7 %, window 4 90.6 %.
+- Broad error of the still (daub.py): window 18 0.1425, the fix 0.0913, window 4 0.1052.
 
-My reading: the window gives back the still's light, and it more than keeps the film's gain: it trails least of all builds in the bay film and in bay-sun. It does not give back the specks. It does not do what the design expected. The chart under today's jitter shows that the test still follows the jitter's cycle: r11 has the largest teeth of all builds, also in the still state before the switch. The 18-draw box removes the cycle from the fast estimate. But the slow history is an exponential mean of up to 32 draws. That is not a whole number of cycles, so the cycle stays in the slow side. When the test cuts the history to 4 draws, the next bright draw of the cycle shows at a weight of 1/4. The clamps-off take shows that the clamp's loss of bright samples does not cause this. The walls at 105.8 % and the window-18 still without jitter at 106.5 % show a second effect, which is not the jitter. I did not measure its cause. One candidate is the ray plan. A history that the test keeps below 8 draws traces its own ray at every pixel (`FullRateFrames` in `screen_trace.glsl`). The reference shares one ray per block, so the two sample the light differently.
+My reading: the window gives back the ceiling's light, and the walls overshoot by 5.8 points. It more than keeps the film's gain: it trails least of all builds in the bay film and in bay-sun. It does not give back the specks. It does not do what the design expected. The chart under today's jitter shows that the test still follows the jitter's cycle: r11 has the largest teeth of all builds, also in the still state before the switch. The 18-draw box removes the cycle from the fast estimate. But the slow history is an exponential mean with the weight 1/32, and an exponential mean never cancels a periodic part. At a period of 18 draws it keeps about 9 % of the cycle's swing. That is the gain a / |1 - (1 - a) e^(-i 2 pi / 18)| with a = 1/32. When the test cuts the history to 4 draws, the same gain with a = 1/4 is about 64 %. So each cut lets the next bright draw of the cycle show strongly, and the larger swing can trigger the test again. The clamps-off take shows that the clamp's loss of bright samples does not cause this. Three numbers show a second effect, which is not the jitter: the walls at 105.8 %, the window-18 still without jitter at 106.5 %, and r11 7.5 to 12.9 % above the reference before the switch under all three jitters. The high broad error agrees. I did not measure its cause. One candidate is the ray plan. A history that the test keeps below 8 draws traces its own ray at every pixel (`FullRateFrames` in `screen_trace.glsl`). The reference shares one ray per block, so the two sample the light differently.
 
 ### Question 2: does the long sequence help the regional test, and does the jitter cause the still's loss?
 
@@ -284,10 +296,10 @@ Measured:
 - Long sequence, still light: window 4 93.0 / 93.1 %, window 18 99.0 / 102.5 %, the fix 96.9 / 99.4 %.
 - Long sequence, specks and blotch: window 4 7.39 and 0.0535, window 18 8.91 and 0.1152, the highest blotch of all region takes.
 - Long sequence, bay film: within 0.03 in level and 0.002 in blotch of today's jitter for all three builds.
-- Long sequence, cabin settle slowest off / on: window 4 108 / 68, window 18 39 / 27, the fix 171 / 92. Under today's jitter: 113 / 51, 39 / 25, 66 / none.
+- Long sequence, cabin settle slowest off / on: window 4 108 / 68, window 18 39 / 27, the fix 171 / 92. Under today's jitter: 113 / 51, 39 / 25, 66 / none (the fix not settled within 100 draws).
 - Long sequence, cabin chart: r11 of window 18 swings from 71 % to above 150 % at irregular frames. Window 4 swings from about 76 % to 130 %.
 
-My reading: the jitter causes window 4's loss of light in the still, because the loss disappears with the jitter off. The long sequence helps window 4's still a little, 3.6 points on the ceiling, and does not help window 18. It hurts the cabin: the cycle's regular teeth become irregular jumps, and the fix itself settles later (171 / 92 against 66 / none). This agrees with the parent orchestrator's doubt: the long sequence removes the period but not the fluctuation, and then no window of fixed length cancels it.
+My reading: the jitter causes window 4's loss of light in the still, because the loss disappears with the jitter off. The long sequence helps window 4's still a little, 3.6 points on the ceiling, and does not help window 18. It hurts the cabin's lamps-off window: the cycle's regular teeth become irregular jumps, and the fix settles later after the lamps go off (171 against 66 draws). After the lamps return, the fix settles in 92 draws, where under today's jitter it did not settle within 100. Window 18 settles the same under both (39 / 27 against 39 / 25). This agrees with the parent orchestrator's doubt: the long sequence removes the period but not the fluctuation, and then no window of fixed length cancels it.
 
 ### Question 3: does a cut to 18 draws remove the cabin center's dip, and what does it cost?
 
@@ -297,11 +309,11 @@ Measured, today's jitter:
 - r11's dip in the 60 draws after the lamps return, against the reference: cut 18 85.6 %, the fix 77.6 %, main 68.0 %, all at d = 17.
 - Level 60 draws after the lamps return, whole / r11: cut 18 90.0 / 87.8 %, the fix 90.4 / 84.5 %.
 - Settle slowest off / on: cut 18 96 / 85, the fix 66 / none. Whole image: 51 / 40 against 12 / 27.
-- Lag film bay-sun: cut 18 44.01 draws and 0.3015 error, the fix 26.93 and 0.2679, +0.0336 in error. The other two lag films change by at most 0.002 in lag error.
+- Lag film bay-sun: cut 18 44.01 draws and 0.3015 error, the fix 26.93 and 0.2679, main 28.55 and 0.2644. The error rises 0.0336 against the fix and 0.0371 against main. The other two lag films change by at most 0.002 in lag error.
 - Bay film: cut 18 +2.16 / +2.69 and blotch 0.391 / 0.484, the fix +1.86 / +1.75 and 0.370 / 0.488.
 - The lamp hall still is the same as the fix's to every printed digit.
 
-My reading: the cut to 18 halves the dip, from 16 % to 8 % below the own control, which is main's size. It costs time after a change. The whole image settles 39 draws later after the lamps go off. The bay-sun lag error rises by 0.034, about 7 times acceptance 9's allowance of 0.005. The bay film trails further, to +2.69 at the last frame.
+My reading: the cut to 18 halves the dip, from 16 % to 8 % below the own control, which is main's size. It costs time after a change. The whole image settles 39 draws later after the lamps go off. The bay-sun lag error rises by 0.037 against main, about 7 times acceptance 9's allowance of 0.005. The bay film trails further, to +2.69 at the last frame.
 
 ## What I did not take
 
@@ -313,8 +325,8 @@ My reading: the cut to 18 halves the dip, from 16 % to 8 % below the own control
 
 ## Notes
 
-- Main's lag film lamp-hall-16-moving differs from the first session's run of the same probe binary in 11 of 245 values. The still means differ by about 1 part in 10^9, and the median lag error by 1 part in 10^4. The other two lag films and the cabin switch of main match exactly. The first session ran the survey tool of another checkout, so I do not know whether the renderer or the tool causes the difference.
-- `tools/gpu-lock.sh` printed `rmdir: failed to remove '/tmp/tertius-gpu-measure.lock': No such file or directory` once, at the end of the region-4 bay film. The take's result equals the first session's.
+- Bug ticket `t1-zj18`. Main's lag film lamp-hall-16-moving differs from the first session's run of the same probe binary in 11 of 245 values. The still means differ by about 1 part in 10^9, and the median lag error by 1 part in 10^4. The other two lag films and the cabin switch of main match exactly. The first session ran the survey tool of another checkout, so I do not know whether the renderer or the tool causes the difference.
+- Bug ticket `t1-ve0p`. `tools/gpu-lock.sh` printed `rmdir: failed to remove '/tmp/tertius-gpu-measure.lock': No such file or directory` once, at the end of the region-4 bay film. The take's result equals the first session's.
 
 ## Files
 
@@ -324,7 +336,8 @@ My reading: the cut to 18 halves the dip, from 16 % to 8 % below the own control
 | `tables.txt` | The printed output of the measuring scripts for every take |
 | `pics/` | The crops of the lamp hall still and the charts of the cabin switch |
 | `tools/take.sh` | One survey run with a named build and environment switches, into `/private/tmp/t0-mzhr/runs/<name>` |
-| `tools/queue*.sh`, `tools/master.sh` | The takes in the order that they ran |
+| `tools/queue*.sh`, `tools/master.sh` | The takes in the order that they ran. `queue-nc.sh` holds the clamps-off diagnostic, which ran last |
+| `tools/pics.sh` | Makes every picture of `pics/` from the result folders. It repeats the saved pictures byte for byte. With an absolute folder as its argument, it copies them there under the names of `pics/` |
 | `tools/same.py` | Compares every number of two result files, for the control runs |
 | `tools/switch.py` | The cabin switch's settle counts, levels against the reference, cycle means, dips and own-control ratios |
 | `tools/films.py`, `tools/lags.py` | The tables of the bay film and of the lag films |
