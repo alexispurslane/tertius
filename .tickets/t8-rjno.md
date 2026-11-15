@@ -102,3 +102,70 @@ So the engine's stills and films decide: no light through a shadow, no specks, n
 - Coverage and the mutants of the changed lines follow CLAUDE.md, "Testing".
 - ARCHITECTURE.md, "Shadows": the filter's reach, and the known limits. They must name the filter's reach past a caster's edge, which none of the four names today.
 - Two to four stills in the report: the jamb before and after, and one outdoor shadow before and after.
+
+## Resume note (2026-11-15), from the ticket lead at the lab's pause
+
+The line orchestrator copied this note from `RESUME-t8-rjno.md` in the lead's worktree, because the lead's branch holds no ticket file. A backup of the uncommitted worktree is the commit `7b8ce3e79` under `refs/scratch/pause-2026-11-15-t8-rjno`. It is not tested and not for a merge. Restore it with `git checkout 7b8ce3e79 -- .` on the branch.
+
+The lab paused on 2026-11-15 at the user's order. The work stopped in the build stage. Nothing is committed.
+
+### Paths
+
+- Worktree: `/Users/alexispurslane/.t3/worktrees/tertius/t3-7e999be0`
+- Branch: `t8-rjno-sun-shadow-one-tap`, made from main with `git switch -c t8-rjno-sun-shadow-one-tap main`. The worktree was clean before the switch.
+- HEAD: `ab54c785eaf39135702cab01d77e1fff8524beb4`, equal to main at the branch point. No commit of this ticket exists yet.
+- Scratch folder: `/private/tmp/t8-rjno`. It holds `red.log`, the output of the red run below.
+- The ticket and the diagnosis are in the line orchestrator's worktree: `/Users/alexispurslane/.t3/worktrees/tertius/t3-1b834d57/.tickets/t8-rjno.md` and `.../docs/research/back-face-depth-layer/stage-2/shadow-leak.md`.
+- Cloud jobs: none sent. Cloud dollars: $0.
+- The GPU lock: no process of this ticket holds it.
+
+### What is done, uncommitted in the worktree
+
+The changed files:
+
+- `src/Tertius.Rendering/Shaders/shadows.glsl`: the new `filteredCascade(vec2 coordinate, float layer, float reference, float reach)` and `cascadeComparison(...)`, and the GLSL constant `MinFilterReachTexels = 1.0`. The 4 × 4 taps lie `(reach - 1) / 1.5` texels apart. At reach 1 the spacing is 0, and the function takes one bilinear comparison. At reach 2.5 the taps lie one texel apart, as on main. So the result changes continuously with the reach, as step 2 (`t1-af5w`) needs. `sampleCascade` passes `frame.shadowParams.w` as the reach. The tiles keep their filter. The header and tile comments name the largest reach.
+- `src/Tertius.Rendering/Scene/ShadowBias.cs`: `MinFilterReachTexels = 1`, `FilterReachTexels = 2.5`, `CascadeFilterReachTexels = MinFilterReachTexels`, each with its reason. `FilterClearanceTexels` is now `FilterReachTexels - 0.5f`, still 2.
+- `src/Tertius.Rendering/Scene/SceneBatcher.cs`: the batcher writes `ShadowBias.CascadeFilterReachTexels` into `ShadowParams.W` in every frame. This replaces a GLSL twin of the reach, so the reach has one store in C#.
+- `src/Tertius.Rendering/Scene/GpuTypes.cs` and `src/Tertius.Rendering/Shaders/frame.glsl`: the doc of `shadowParams.w`.
+- `tests/Tertius.Rendering.Tests/HairRenderTests.cs`: the CPU copy in `AHairCardLitFromBehindKeepsTheShadowOfACasterCloseBehindIt` takes the taps' spread as `CascadeFilterReachTexels - MinFilterReachTexels` in place of 1.5.
+- `tests/Tertius.Rendering.Tests/ShadowTests.cs`: three new tests and the roof scene (`RoofOverGroundScene`, `SunSharesUnderTheRoof`):
+  - `GroundUnderARoofTakesNoSunlightFromOneAndAHalfTexelsInsideTheShadowOfItsEdge`. The ticket asked for 2 texels inside. The test starts at 1.5 texels. One bilinear tap reaches 1 texel, and the map's edge lies within half a texel of the geometric edge.
+  - `TheShadowOfARoofsEdgeLiesAtTheGeometricEdgeAndTurnsFromLitToDarkWithinATexelOfIt`: the mean share along the edge is 0.5 ± 0.1, and the share 1.5 texels outside is above 0.99.
+  - `TheEdgeOfAShadowDoesNotStepWhereTwoCascadesMeet`: the 0.5 crossing moves less than a texel of the coarser cascade plus a pixel across each seam.
+
+### What is proven
+
+The red run, on main's filter with the new tests, in Checked. Log: `/private/tmp/t8-rjno/red.log`.
+
+```bash
+nix develop --command bash /Users/alexispurslane/Development/tertius/tools/gpu-lock.sh --shared /private/tmp/t8-rjno/red.log dotnet test --project tests/Tertius.Rendering.Tests -c Checked --no-build --filter-method "*GroundUnderARoof*" --filter-method "*TheShadowOfARoofsEdge*" --filter-method "*TheEdgeOfAShadowDoesNotStep*" --output detailed
+```
+
+- 1 passed, 2 failed, for the right reasons.
+- The roof test failed: shares of 0.093 to 0.139 at 1.5 texels inside, 0.018 to 0.027 at 2 texels, and 0 at 3 and 5 texels.
+- The edge test failed on the lit side: 0.841 at 1.5 texels outside. Its mean share at the edge passed.
+- The seam test passed on main. It is a lock, so that result is expected.
+
+The C# build of the tests with the new filter succeeded in Checked. No run of the new filter has a result yet. A run with `--filter-class "*ShadowTests" --filter-method "*AHairCard..."` selected 0 tests, because the two filters combine as AND. Use one filter kind per run.
+
+### What is not done
+
+1. The green run of the new tests, the whole `ShadowTests` class and the hair test with the new filter.
+2. The four existing tests that the ticket names: read their values, and change their remarks or limits with a reason each. `WallOnFloorScene`'s remark (ShadowTests.cs, near line 896) still says that the filter reaches 2.5 texels.
+3. The full Checked suite, then the full Release suite, one after the other.
+4. The review of each changed reference image (the `puffs-*.png` images are expected to change at shadow edges): open the reference, the actual image and the FLIP heat map.
+5. The measurements of the brief. They are the jamb of `rect-lamps` and the still of `bounce-raised-box`. They also include the films and stills of a sun shadow's edge in motion in every cascade. The rest are the costs on both GPUs, the cloud run of the shadow tests, coverage and the mutants.
+6. ARCHITECTURE.md, "Shadows": the filter's reach and the known limits.
+7. The commit, the early message to the line orchestrator, and the review stage.
+
+### The exact next step
+
+Build, then run the new tests and the shadow class with the new filter:
+
+```bash
+cd /Users/alexispurslane/.t3/worktrees/tertius/t3-7e999be0 && nix develop --command bash -c 'dotnet build tests/Tertius.Rendering.Tests -c Checked -nologo -v:q 2>&1 | tail -5'
+nix develop --command bash /Users/alexispurslane/Development/tertius/tools/gpu-lock.sh --shared /private/tmp/t8-rjno/green.log dotnet test --project tests/Tertius.Rendering.Tests -c Checked --no-build --filter-class "*ShadowTests" --output detailed
+nix develop --command bash /Users/alexispurslane/Development/tertius/tools/gpu-lock.sh --shared /private/tmp/t8-rjno/hair.log dotnet test --project tests/Tertius.Rendering.Tests -c Checked --no-build --filter-method "*AHairCardLitFromBehindKeepsTheShadowOfACasterCloseBehindIt" --output detailed
+```
+
+Then follow the brief's stages from item 2 of "What is not done".

@@ -164,3 +164,93 @@ Launched 2026-11-15 from 94138a196: the ticket lead of mesh closure and the batc
 **2026-11-15T16:43:24Z**
 
 2026-11-15: the store (t1-0s0a) is merged as 50a9976d0 and closed. Its lead reported 'blocked', because its reviewer gave 'unverified' while the Release suite still ran. The suite passed, correctness and design passed, and I accepted the work after I read the diff. A headless run of rect-lamps gives the capture and all 240 film frames equal to the base's, byte for byte. Seven small review findings are carried into the layer ticket (t1-7b4x), which changes the same files. Not checked yet: a build of the store and of mesh closure together. Each was tested alone, and their files do not overlap. The lead of step 4 builds them together first. Launched from ee71fea49, then switched by its brief to its own branch from main: the ticket lead of the shadow leak's fix, step 1 (t8-rjno), on Claude Opus 5.5 at high effort. Its branch is t8-rjno-sun-shadow-one-tap. clientRequestId ter-kh4g-3-t8-rjno-lead-1, taskId node:delegated-task:command%3Amcp%3A165bdbf9-3637-4289-82dc-aa6b406985af%3Adelegate-task%3Ater-kh4g-3-t8-rjno-lead-1. It sends one early result to my thread: the verdict of the shadow's edge in motion and the leak that stays.
+
+**2026-11-15T16:57:52Z**
+
+RESUME NOTE OF THE LINE (2026-11-15, the lab's pause). The user paused the whole lab to save the weekly Claude limit. A fresh line orchestrator can go on from this note alone. Read it, then the design `docs/plans/back-face-depth-layer.md`, then each ticket that it names.
+
+### Where the line stands
+
+- The line's worktree: `/Users/alexispurslane/.t3/worktrees/tertius/t3-1b834d57`. The line's branch: `ter-kh4g-back-face-depth-layer`. Its head is the commit that holds this note. It is not pushed, and nothing of it is in main.
+- Main is `ab54c785e`. Nothing merges into main during the pause.
+- No agent of the line runs. No cloud job of the line is queued or running. No process of the line holds the GPU lock.
+- The cloud: stage 2 spent $1.05 of its $4. The three leads of the build spent $0.
+
+### The launch map
+
+```mermaid
+flowchart TD
+  s1["t1-0s0a: the store of a front w and a back w. CLOSED, merged 50a9976d0"]
+  s2["t1-6ucc: mesh closure and the back-face runs. CLOSED, merged 11c506ae3"]
+  ref["t1-g4p1: the reference. CLOSED, merged 23413e56b"]
+  diag["t1-3j2j: the shadow leak's diagnosis. CLOSED, merged e1d7b552d"]
+  s3["t1-j03y: the back-face pass. PAUSED in its build, about 80 % done. Branch t3/back-face-share-pass, HEAD 3989d16bc, worktree t3-015bc7e0, uncommitted work"]
+  fix1["t8-rjno: the shadow fix, step 1, one tap. PAUSED in its build. Branch t8-rjno-sun-shadow-one-tap from main, HEAD ab54c785e, worktree t3-7e999be0, uncommitted work"]
+  s4["t1-7b4x: the layer as the slab. OPEN, not started"]
+  s5["t1-8b4w: the acceptance takes. OPEN, not started"]
+  fix2["t1-af5w: the shadow fix, step 2, the blocker search. OPEN. Its merge waits for the user's choice"]
+  fade["t1-r9vj: the fade's test view. DEFERRED under the user's bar"]
+  full["t1-0ti7: the full rule for the front of every slab. OPEN, after ter-y3k4"]
+  user{"The user accepts the layer's merge into main"}
+  s1 --> s4
+  s2 --> s3
+  s3 --> s4
+  ref --> s4
+  diag --> fix1
+  fix1 -->|"merges into main, then main merges into the line"| s5
+  s4 --> s5
+  fix1 --> fix2
+  s4 --> full
+  s5 --> user
+```
+
+| Ticket | State | Branch and HEAD | Worktree | Where its resume note is |
+|---|---|---|---|---|
+| `t1-j03y`, the back-face pass | Paused in its build. Commit `23856759a` holds the three carried-over items. The real pass is complete and uncommitted: the full Checked suite did not yet pass on the final code. | `t3/back-face-share-pass`, `3989d16bc`, review base `1e0e02600` | `.t3/worktrees/tertius/t3-015bc7e0` | `.tickets/t1-j03y.md` on its branch, and `RESUME-t1-j03y.md` in its worktree |
+| `t8-rjno`, the shadow fix, step 1 | Paused in its build. Nothing is committed. The new filter is written. One red run exists, and no run of the new filter has a result. | `t8-rjno-sun-shadow-one-tap`, `ab54c785e`, equal to main | `.t3/worktrees/tertius/t3-7e999be0` | `.tickets/t8-rjno.md` on the line's branch, and `RESUME-t8-rjno.md` in its worktree |
+| `t1-3j2j`, the diagnosis | Closed. Its review found 19 points, and its lead fixed all of them. The line's branch holds all of it. | `t3/sunlit-strip-geometry`, `6f0e2458c` | `.t3/worktrees/tertius/t3-943e54d0` | `.tickets/t1-3j2j.md` |
+
+Each paused worktree holds uncommitted work. A backup of each is a commit under a scratch ref, made with a separate index, so the worktree did not change. The backups are not tested as a whole and are not for a merge:
+
+- `refs/scratch/pause-2026-11-15-t1-j03y` is `96e88445f`, on `3989d16bc`.
+- `refs/scratch/pause-2026-11-15-t8-rjno` is `7b8ce3e79`, on `ab54c785e`.
+
+If a worktree is gone, check out its branch and run `git checkout <backup> -- .` there. The leads deleted their `bin` and `obj` folders, so the next build in each worktree is a full build. The scratch folders `/tmp/j03y`, `/private/tmp/t8-rjno` and `/private/tmp/t1-3j2j` can vanish over days. Each note names what it needs from them.
+
+### The settled decisions
+
+- The user's bar (2026-11-15): a good look with no visible bug. Path-traced accuracy is not the goal. Lost light is acceptable. A path trace is a tool to find and explain a bug. The user's own words are in the note above. Every open ticket of the line holds the bar.
+- The shadow fix has two steps. Step 1 (`t8-rjno`) makes the filter's reach a parameter, fixed at one tap. It merges into main when a shadow's edge in motion shows no stair steps and no crawl in any cascade. Step 2 (`t1-af5w`) adds the blocker search, on top of step 1.
+- Rule B for sheets: at the finest level, `back = min(slabBack(centerW, share), planeFarW)`. At level 1, the term is `(planeNearW, slabBack(planeFarW, share))`. It is in the design's decision 3 and in `t1-7b4x`. The full rule for the front of every slab is `t1-0ti7`, after the one-image pyramid `ter-y3k4`.
+- The light of a blocked ray keeps its fade over the real slab (the design's decision 6). The fade's test view (`t1-r9vj`) is deferred: under the user's bar, the line orders no reference trace that a bug's diagnosis does not need.
+- The pass draws every figure's real back face (the design's decision 8). The user sees its cost at the final acceptance.
+- Earth's light in rooms (`t1-tbz9`) and the later bounces (`t1-mybi`) stay tickets. They are not urgent, and the line does not start them.
+
+### The open decisions that wait for the user
+
+1. The shadow fix's step 2: keep step 1 alone, or add the blocker search. `t1-af5w` brings stills and costs. It does not merge without the user's choice.
+2. The acceptance of the layer's merge into main, after `t1-8b4w`: the stills, the films, and the frame cost on both machines.
+
+### The order of the next launches
+
+Capacity, as the parent agent last set it: two agents of this line that build and test for hours. Both lines together hold four building agents. Below 40 GiB of free disk, start no new build. The free disk at the pause was 66 GiB.
+
+1. Resume the back-face pass (`t1-j03y`) in its worktree, from its resume note. Its first step is the full Checked suite on the final code, then the commit. Then come Release, the cloud runs ($0.60), coverage, the 33 mutants, the review and the fixes.
+2. At the same time, resume the shadow fix's step 1 (`t8-rjno`) in its worktree, from its resume note. After its checks, the line orchestrator merges it into main in the main checkout by exact paths, pushes, and tells the parent agent at once.
+3. After the pass merges into the line's branch, start `t1-7b4x`. Its lead first builds the whole branch. The store (`t1-0s0a`) and the mesh closure (`t1-6ucc`) were each tested alone, and the pass's branch does not hold the store. So no build of the three together exists yet.
+4. Merge main into the line's branch when main holds the shadow fix and the history store's fix (`t8-69v7`). Then start the acceptance takes (`t1-8b4w`, $1.00).
+5. Start `t1-af5w` when a slot is free after step 1 merges. Bring its stills and costs to the parent agent for the user.
+6. `t1-r9vj` stays deferred. `t1-0ti7` waits for `ter-y3k4`.
+
+To resume a lead, send a continuation to its child thread with `t3_thread_send`, so that it keeps its context. If the thread is gone, start a new ticket lead with `isolation: "shared"` in the named worktree. Give it the ticket, the resume note and the brief of `~/.agents/skills/ultracode-orchestration/references/ticket-lead-brief.md`. The target is `{"providerInstanceId": "claudeAgent", "model": "claude-opus-5-5", "options": {"effort": "high"}}`.
+
+- The pass's child thread: `thread:delegated-task:command%3Amcp%3A165bdbf9-3637-4289-82dc-aa6b406985af%3Adelegate-task%3Ater-kh4g-3-t1-j03y-lead-1`.
+- The shadow fix's child thread: the same pattern with `ter-kh4g-3-t8-rjno-lead-1`.
+- Reports go to the parent agent's thread `ad82a149-2983-4c27-bf78-02402dbe7a6d`.
+
+### Facts that the next leads need
+
+- From the diagnosis, for the shadow fix: ARCHITECTURE.md, "Shadows", must name the filter's reach past a caster's edge as a known limit. Step 2 must read the sun's angular radius from the light. The probe hard-codes 0.00467 rad.
+- The shadow fix's lead moved one test from 2 texels inside the roof's edge to 1.5 texels, with its reason in the note. The line orchestrator did not yet judge this change.
+- A new bug ticket outside the epic: `t1-3w9h`, the cabin's thin bright strips with a cycle of 18 draws. Frame 239 of the cabin holds no strip of direct sunlight, so their cause is open.
+- The finished leads' worktrees still exist: `t3-546d5cee` (mesh closure), `t3-36279788` (the store), `t3-847ae359` (the reference), `t3-4cecb050` (the crowd), `t3-38d86edf` (the cards) and `t3-943e54d0` (the diagnosis). Their work is merged, so they can go.
