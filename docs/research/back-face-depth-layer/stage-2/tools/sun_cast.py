@@ -93,15 +93,15 @@ for n, inst in enumerate(scene["instances"]):
     winding /= np.maximum(np.linalg.norm(winding, axis=1, keepdims=True), 1e-30)
     vertex_mean = (nrm[idx[:, 0]] + nrm[idx[:, 1]] + nrm[idx[:, 2]]) @ np.linalg.inv(m)
     winding *= np.where((winding * vertex_mean).sum(1) < 0, -1.0, 1.0)[:, None]
-    for target, take in ((visible, flags & 1), (casters, flags & 2)):
+    for group, take in ((visible, flags & 1), (casters, flags & 2)):
         if not take:
             continue
-        base = sum(len(v) for v in target["verts"])
-        target["verts"].append(world)
-        target["polys"].append(idx.astype(np.int64) + base)
-        target["inst"].append(np.full(len(idx), n))
-        target["normal"].append(winding)
-        target["two"].append(np.full(len(idx), inst["twoSided"]))
+        base = sum(len(v) for v in group["verts"])
+        group["verts"].append(world)
+        group["polys"].append(idx.astype(np.int64) + base)
+        group["inst"].append(np.full(len(idx), n))
+        group["normal"].append(winding)
+        group["two"].append(np.full(len(idx), inst["twoSided"]))
 
 
 def tree(s):
