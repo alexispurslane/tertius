@@ -82,3 +82,7 @@ Launched 2026-11-14 from 24a320541 as a ticket lead on Claude Opus 5.5 at high e
 **2026-11-14T23:56:25Z**
 
 Answer of the line orchestrator in the lead's brief: the probe has a mode off (the new store without the pass), so the measurement takes four sides where time allows: main, layer, ten and off. The side off is the first to drop.
+
+**2026-11-15T00:41:59Z**
+
+Measured on both machines: docs/research/back-face-depth-layer/stage-1b/cost.md. Card, rounds 2 to 5: layer minus main is +0.031 ms on the deck, +0.055 ms in the cabin, -0.109 ms in rect-lamps and +0.446 ms in the crowd. Mac: +0.060 ms (inside the spread), +0.140, -0.141 and +1.014 ms. In the crowd of 2.0 million skinned vertices the pass alone costs 0.45 ms on the card and 0.80 ms on the Mac. Cloud cost $0.2047.
