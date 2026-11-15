@@ -76,3 +76,9 @@ Use at least one hair view with cards near the camera. `scripts/skin-and-hair.js
 
 Any change of the probe's rules beyond what the parts name, the cost, the design document and the real mechanism.
 
+
+## Notes
+
+**2026-11-15T00:57:14Z**
+
+Built 2026-11-14 by the ticket lead: docs/research/back-face-depth-layer/stage-1b/pictures.md. The layer as the slab removes the false sill hits: bright false light 0.016 % of the 10 % rule's. Named misbehavior: the borrowed back face. A card that the back-face pass leaves out takes the floor's back face, so in the lamp hall 24 % of reflection rays hit against 2 %. Sheets keep 20 % to 37 % of the real hits on them, and NoBackSheetPlane 41 % to 66 %. Cloud cost $0.93 for 13 jobs.

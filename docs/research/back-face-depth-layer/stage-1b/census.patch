@@ -1,0 +1,386 @@
+diff --git a/src/Tertius.Rendering/Scene/GpuTypes.cs b/src/Tertius.Rendering/Scene/GpuTypes.cs
+index fb9880b05..a5048f908 100644
+--- a/src/Tertius.Rendering/Scene/GpuTypes.cs
++++ b/src/Tertius.Rendering/Scene/GpuTypes.cs
+@@ -863,6 +863,18 @@ internal struct ScreenTracePushConstants
+     /// <summary>The share of the diffuse rays that the guided draw gives: <see cref="LightPyramid.GuidedShare"/>, or 0 with the guiding off.</summary>
+     public float GuidedShare;
+ 
++    // PROBE (t1-gxzg, never merges): bit 0 TERTIUS_PROBE_SILL_CENSUS=1, bit 1 TERTIUS_PROBE_SHEET_CENSUS=1 (the resolve's
++    // census codes, read by VulkanRenderer.ProbeCensus).
++    public uint ProbeCensus;
++
++    internal static readonly uint ProbeCensusValue =
++        (Environment.GetEnvironmentVariable("TERTIUS_PROBE_SILL_CENSUS") == "1" ? 1u : 0u)
++        | (Environment.GetEnvironmentVariable("TERTIUS_PROBE_SHEET_CENSUS") == "1" ? 2u : 0u)
++        // Bits 8 to 15: TERTIUS_PROBE_CROSSING_TOLERANCE, the crossing's distance tolerance in thousandths (2 % without it).
++        | (uint.TryParse(Environment.GetEnvironmentVariable("TERTIUS_PROBE_CROSSING_TOLERANCE"), out uint tolerance) ? Math.Min(tolerance, 255u) << 8 : 0u)
++        // Bit 16: TERTIUS_PROBE_SILL_ALL=1, the sill census takes every sample, not only those of luminance 50 or more.
++        | (Environment.GetEnvironmentVariable("TERTIUS_PROBE_SILL_ALL") == "1" ? 1u << 16 : 0u);
++
+     /// <summary>
+     /// The push constants of a draw of index <paramref name="drawIndex"/> under <paramref name="trace"/>, with the
+     /// guided diffuse rays when <paramref name="guided"/>. The index wraps at 2^32 draws, more than two years at 60
+@@ -877,6 +889,7 @@ internal struct ScreenTracePushConstants
+             ReflectionSteps = (uint)trace.ReflectionSteps,
+             DiffuseSteps = (uint)trace.DiffuseSteps,
+             GuidedShare = guided ? LightPyramid.GuidedShare : 0,
++            ProbeCensus = ProbeCensusValue,
+         };
+ }
+ 
+diff --git a/src/Tertius.Rendering/Shaders/screen_trace.glsl b/src/Tertius.Rendering/Shaders/screen_trace.glsl
+index a1ea8c0bc..19bbad89c 100644
+--- a/src/Tertius.Rendering/Shaders/screen_trace.glsl
++++ b/src/Tertius.Rendering/Shaders/screen_trace.glsl
+@@ -213,6 +213,7 @@ layout(push_constant, std430) uniform ScreenTracePush
+     uint reflectionSteps;    // the caps of decision 41
+     uint diffuseSteps;
+     float guidedShare;       // LightPyramid.GuidedShare, or 0 with the guiding off (TERTIUS_GUIDED_RAYS)
++    uint probeCensus;        // PROBE (t1-gxzg, never merges): bit 0 the sill census, bit 1 the sheet census
+ } trace;
+ 
+ // The two ray kinds, which index the record layers and the constants of the draws.
+@@ -701,6 +702,15 @@ struct TracedRay
+ #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+     float age;        // the light age of the hit's pixel, NoLightAge for a miss (MissLightAge under the diagnostic)
+ #endif
++    // PROBE (t1-gxzg, never merges): the walk's own result, written only under trace.probeCensus.
++    ivec2 probeHitPixel;    // the walk's hit pixel, -1 for a miss
++    float probeFade;        // edgeFade(hit) * (1 - e)
++    uint probeCrossing;     // where the ray crosses the hit surface's plane: 0 an opening (the eye sees the sky or a
++                            // surface more than the tolerance farther there), 1 the hit surface itself, 2 a surface more than
++                            // the tolerance nearer hides the crossing, 3 undetermined (off screen or parallel)
++    bool probeBehind;       // the ray meets the hit pixel's geometric plane from behind
++    uint probeReason;       // why the crossing is undetermined: 0 it is not, 1 the ray runs parallel to the plane, 2 the
++                            // crossing lies before the ray's start (the start is behind the plane), 3 off screen
+ };
+ 
+ // Traces the ray of the kind from the pixel that starts it: its draw, its walk to the kind's cap, and its light. A
+@@ -737,6 +747,11 @@ TracedRay traceFrom(ivec2 pixel, ivec2 cell, TracingPixel p, uint kind)
+     result.light = vec3(0.0);
+     result.distance = 0.0;
+     result.traced = dot(result.direction, p.s.geometricNormal) > 0.0;
++    result.probeHitPixel = ivec2(-1);
++    result.probeFade = 0.0;
++    result.probeCrossing = 3u;
++    result.probeBehind = false;
++    result.probeReason = 0u;
+ #ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
+     result.age = MissLightAge;
+ #elif defined(TERTIUS_PRECISE_SPECULAR_HISTORY)
+@@ -776,6 +791,39 @@ TracedRay traceFrom(ivec2 pixel, ivec2 cell, TracingPixel p, uint kind)
+     result.distance = length(hitPoint - p.origin);
+     float fade = edgeFade(hit) * (1.0 - entryShare);
+     result.light = mix(missLight, hitLightOf(hitPixel, kind), fade);
++    // PROBE (t1-gxzg, never merges): the classes of the sill probe (t0-adau's hittrue patch, ported to this tree).
++    if (trace.probeCensus != 0u)
++    {
++        result.probeHitPixel = hitPixel;
++        result.probeFade = fade;
++        // The ray's crossing of the hit surface's plane, and what the eye sees at its place on screen.
++        vec3 n = octDecode(texelFetch(gbufferNormal, hitPixel, 0).ba);
++        float along = dot(result.direction, n);
++        result.probeBehind = along > 0.0;
++        float t = abs(along) > 1e-4 ? dot(hitPoint - p.origin, n) / along : 0.0;
++        result.probeReason = abs(along) <= 1e-4 ? 1u : t <= 0.0 ? 2u : 3u;
++        if (abs(along) > 1e-4)
++        {
++            vec3 crossing = p.origin + result.direction * t;
++            vec3 clip = (frame.motionViewProj * vec4(crossing, 1.0)).xyw;   // clipOf, which motion.glsl holds
++            vec2 place = (0.5 * clip.xy / max(clip.z, 1e-6) + 0.5) * frame.viewport.xy;
++            if (clip.z > 0.0 && all(greaterThanEqual(place, vec2(0.0))) && all(lessThan(place, frame.viewport.xy)))
++            {
++                result.probeReason = 0u;
++                ivec2 s = ivec2(place);
++                float seen = texelFetch(gbufferDistance, s, 0).r;
++                float there = length(crossing);
++                // The tolerance: bits 8 to 15 of probeCensus in thousandths, 2 % without them.
++                float tolerance = ((trace.probeCensus >> 8) & 255u) != 0u ? float((trace.probeCensus >> 8) & 255u) * 0.001 : 0.02;
++                if (!hittable(s) || seen > there * (1.0 + tolerance))
++                    result.probeCrossing = 0u;
++                else if (seen < there * (1.0 - tolerance))
++                    result.probeCrossing = 2u;
++                else
++                    result.probeCrossing = 1u;
++            }
++        }
++    }
+ #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+     if (fade > 0.0)
+         result.age = imageLoad(lightAge, hitPixel).g;
+diff --git a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
+index 4dd6f9346..e3a991e17 100644
+--- a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
++++ b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
+@@ -66,6 +66,21 @@ vec3 specularWeightOf(TracingPixel p, SurfaceLobes lobes, MaterialFactors factor
+     return min(response / (ray.density * max(factors.specular, vec3(LeastFactor))), vec3(MostRayWeight));
+ }
+ 
++#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
++// PROBE (t1-gxzg, never merges): the census codes. A census record writes the specular sample's age as 0x8000 | y | ...,
++// and the diffuse sample's alpha, which no reader of the diffuse signal reads, as the normal half of bits 0x0400 + code.
++const uint CensusRecord = 0x8000u;
++const uint CensusNoRay = 0x7FFFu;        // the pixel starts no ray of the census's kind
++const uint CensusWalkMisses = 0x7FFEu;   // the walk again misses
++const uint CensusElsewhere = 0x7FFDu;    // the pixel's block ray is counted at the block's chosen pixel
++const uint CensusUntraced = 0x7FFCu;     // the ray lies below the pixel's geometric plane
++
++float censusHalf(uint code)
++{
++    return unpackHalf2x16(0x0400u + code).x;
++}
++#endif
++
+ void main()
+ {
+     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+@@ -143,6 +158,69 @@ void main()
+     imageStore(specularSample, pixel, vec4(min(specularLight, vec3(MaxRadiance)), hitDistance));
+ #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+     imageStore(specularSampleAge, pixel, uvec4(ageCode));
++    // PROBE (t1-gxzg, never merges): the sill census (bit 0), the true mode of t0-adau's hittrue patch. For a specular
++    // sample of luminance 50 or more from the pixel's reflection ray, the resolve walks that ray again with the inputs of
++    // its record's walk: the pixel itself for its own ray, else its block's chosen pixel with the block as its cell. The
++    // age gets CensusRecord | y | fade in 32nds << 10, and the diffuse alpha the code x | class << 11: the crossing 0 to 2, or 2 + the reason
++    // (TracedRay.probeReason) of an undetermined crossing.
++    if ((trace.probeCensus & 1u) != 0u
++        && ((trace.probeCensus & (1u << 16)) != 0u || dot(min(specularLight, vec3(MaxRadiance)), vec3(0.2126, 0.7152, 0.0722)) >= 50.0))
++    {
++        uint age = CensusNoRay;
++        uint code = 0u;
++        if (startsKind(p, KindReflection) && handOver < 0.5)
++        {
++            bool own = (plan & PlanOwnReflection) != 0u;
++            ivec2 chosen = pixel;
++            TracingPixel c = p;
++            if (own || chosenPixelOf(pixel / 2, KindReflection, chosen, c))
++            {
++                TracedRay again = traceFrom(chosen, own ? pixel : pixel / 2, c, KindReflection);
++                age = CensusWalkMisses;
++                if (again.probeHitPixel.x >= 0)
++                {
++                    age = CensusRecord | uint(again.probeHitPixel.y) | (uint(clamp(again.probeFade * 32.0, 0.0, 31.0)) << 10);
++                    code = uint(again.probeHitPixel.x) | ((again.probeCrossing < 3u ? again.probeCrossing : 2u + again.probeReason) << 11);
++                }
++            }
++        }
++        imageStore(specularSampleAge, pixel, uvec4(age));
++        imageStore(diffuseSample, pixel, vec4(min(diffuseLight, vec3(MaxRadiance)), censusHalf(code)));
++    }
++    // PROBE (t1-gxzg, never merges): the sheet census (bit 1). Even draws count reflection rays, odd draws diffuse rays.
++    // Each traced ray counts once: a pixel's own ray at the pixel, a block's ray at the block's chosen pixel. The walk runs
++    // again with the record's inputs. A hit writes the age CensusRecord | y | own << 10 | crossing << 11 | behind << 13 |
++    // diffuse << 14 and the diffuse alpha the code x | reason << 11 (TracedRay.probeReason). The other codes of a diffuse draw are those of CensusNoRay and the
++    // three below it, less 4.
++    if ((trace.probeCensus & 2u) != 0u)
++    {
++        uint kind = (trace.drawIndex & 1u) == 0u ? KindReflection : KindDiffuse;
++        uint age = CensusNoRay;
++        uint code = 0u;
++        if (startsKind(p, kind))
++        {
++            bool own = (plan & (kind == KindReflection ? PlanOwnReflection : PlanOwnDiffuse)) != 0u;
++            ivec2 chosen = pixel;
++            TracingPixel c = p;
++            bool counted = own || (chosenPixelOf(pixel / 2, kind, chosen, c) && chosen == pixel);
++            age = CensusElsewhere;
++            if (counted)
++            {
++                TracedRay again = traceFrom(pixel, own ? pixel : pixel / 2, c, kind);
++                age = !again.traced ? CensusUntraced : CensusWalkMisses;
++                if (again.probeHitPixel.x >= 0)
++                {
++                    age = CensusRecord | uint(again.probeHitPixel.y) | (own ? 1u << 10 : 0u) | (again.probeCrossing << 11)
++                        | (again.probeBehind ? 1u << 13 : 0u) | (kind == KindDiffuse ? 1u << 14 : 0u);
++                    code = uint(again.probeHitPixel.x) | (again.probeReason << 11);
++                }
++            }
++        }
++        if (age < CensusRecord && kind == KindDiffuse)
++            age -= 4u;
++        imageStore(specularSampleAge, pixel, uvec4(age));
++        imageStore(diffuseSample, pixel, vec4(min(diffuseLight, vec3(MaxRadiance)), censusHalf(code)));
++    }
+ #endif
+ #ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
+     imageStore(uncoveredDiagnostic, pixel, vec4(float(seenCode) - 1.0, 0.0, 0.0, 0.0));
+diff --git a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
+index 148fde084..9f58d9169 100644
+--- a/src/Tertius.Rendering/VulkanRenderer.cs
++++ b/src/Tertius.Rendering/VulkanRenderer.cs
+@@ -619,6 +619,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
+         device.Vk.ResetFences(device.Device, 1, &fence).Check("vkResetFences");
+         output.SubmitAndPresent(frame);
+         CommitDrawnFrame(frame: frame, snapshot: snapshot, pending: pending);
++        ProbeCensus();
+ 
+         if (sink != null && capture != null)
+         {
+@@ -1923,6 +1924,166 @@ public sealed unsafe class VulkanRenderer : IRenderer
+ 
+     private int backFaceDumps;
+ 
++    // PROBE (t1-gxzg, never merges): the census of the resolve's codes (screen_trace_resolve.comp, trace.probeCensus).
++    // With TERTIUS_PROBE_CENSUS_OUT=<folder>, each draw from TERTIUS_PROBE_CENSUS_FROM up to, not including,
++    // TERTIUS_PROBE_CENSUS_TO (counted from 0 over the run) reads back the specular sample, its age, the diffuse sample,
++    // the front distance and the back share, and tallies them. After every counted draw it rewrites <folder>/census.txt,
++    // one line per key: "<key> <samples> <light>", after a first line "draws <n>". The light is the luminance of the
++    // specular sample, pre-exposed. At the last counted draw it also writes the front distance, the back share and the
++    // sheet census's maps as raw 32-bit floats, row by row from the top.
++    private static readonly string? ProbeCensusFolder =
++        Environment.GetEnvironmentVariable("TERTIUS_PROBE_CENSUS_OUT") is { Length: > 0 } censusFolder ? censusFolder : null;
++    private static readonly long ProbeCensusFrom =
++        long.TryParse(Environment.GetEnvironmentVariable("TERTIUS_PROBE_CENSUS_FROM"), out long censusFrom) ? censusFrom : 0;
++    private static readonly long ProbeCensusTo =
++        long.TryParse(Environment.GetEnvironmentVariable("TERTIUS_PROBE_CENSUS_TO"), out long censusTo) ? censusTo : 0;
++    // The boxes of the sill census, "name:x0:y0:x1:y1;...", in render pixels, x1 and y1 excluded.
++    private static readonly (string Name, int X0, int Y0, int X1, int Y1)[] ProbeCensusBoxes =
++        (Environment.GetEnvironmentVariable("TERTIUS_PROBE_CENSUS_BOXES") ?? "")
++            .Split(';', StringSplitOptions.RemoveEmptyEntries)
++            .Select(b => b.Split(':'))
++            .Select(b => (b[0], int.Parse(b[1]), int.Parse(b[2]), int.Parse(b[3]), int.Parse(b[4])))
++            .ToArray();
++    private long probeCensusDraw;
++    private long probeCensusCounted;
++    private readonly SortedDictionary<string, (long Count, double Light)> probeCensusKeys = new(StringComparer.Ordinal);
++    // The sheet census's maps, per kind (0 reflection, 1 diffuse): hits per hit pixel, hits on a sheet per hit pixel, and
++    // hits on a sheet per pixel that started the ray.
++    private float[][]? probeHitsAt;
++    private float[][]? probeSheetHitsAt;
++    private float[][]? probeSheetHitsFrom;
++
++    private void ProbeCensusAdd(string key, double light)
++    {
++        probeCensusKeys.TryGetValue(key, out var e);
++        probeCensusKeys[key] = (e.Count + 1, e.Light + light);
++    }
++
++    private void ProbeCensus()
++    {
++        if (ProbeCensusFolder is not { } folder || screenTrace is not { } tracer || (ScreenTracePushConstants.ProbeCensusValue & 3u) == 0)
++            return;
++        long draw = probeCensusDraw++;
++        if (draw < ProbeCensusFrom || draw >= ProbeCensusTo || tracer.Specular.SampleAge(0) is not { } ageImage)
++            return;
++        probeCensusCounted++;
++        var inv = System.Globalization.CultureInfo.InvariantCulture;
++        int width = (int)ageImage.Extent.Width,
++            height = (int)ageImage.Extent.Height;
++        float[] specular = ReadImage(tracer.Specular.Sample(0));
++        float[] diffuse = ReadImage(tracer.Diffuse.Sample(0));
++        float[] ages = ReadImage(ageImage);
++        float[] front = ReadImage(targets.Distance);
++        float[] back = ReadImage(targets.BackDistance);
++        int Code(int i) => BitConverter.HalfToUInt16Bits((Half)diffuse[4 * i + 3]) - 0x0400;
++        double Luminance(int i) => 0.2126 * specular[4 * i] + 0.7152 * specular[4 * i + 1] + 0.0722 * specular[4 * i + 2];
++        bool Sheet(int x, int y) => front[y * width + x] > 0 && !(back[y * width + x] > 0);
++        if ((ScreenTracePushConstants.ProbeCensusValue & 1u) != 0)
++            for (int box = 0; box < ProbeCensusBoxes.Length; box++)
++            {
++                var (name, x0, y0, x1, y1) = ProbeCensusBoxes[box];
++                for (int y = y0; y < y1; y++)
++                    for (int x = x0; x < x1; x++)
++                    {
++                        int i = y * width + x;
++                        double l = Luminance(i);
++                        if (l < 50 && (ScreenTracePushConstants.ProbeCensusValue & (1u << 16)) == 0)
++                            continue;
++                        int age = (int)ages[i];
++                        if (age < 0x8000)
++                        {
++                            ProbeCensusAdd(age == 0x7FFE ? $"sill-{name} walk-misses" : $"sill-{name} no-reflection-ray", l);
++                            continue;
++                        }
++                        int hx = Code(i) & 2047, hy = age & 1023, fade = (age >> 10) & 31, crossing = Math.Min((Code(i) >> 11) & 7, 3);
++                        int reason = Math.Max(((Code(i) >> 11) & 7) - 2, 0);
++                        int sheet = Sheet(hx, hy) ? 1 : 0;
++                        ProbeCensusAdd(string.Create(inv, $"sill-{name} crossing {crossing} reason {reason}"), l);
++                        ProbeCensusAdd(string.Create(inv, $"sillfade-{name} {crossing} {fade}"), l);
++                        ProbeCensusAdd(string.Create(inv, $"sillpixel-{name} {hx} {hy} {crossing} {sheet}"), l);
++                    }
++            }
++        if ((ScreenTracePushConstants.ProbeCensusValue & 2u) != 0)
++        {
++            probeHitsAt ??= [new float[width * height], new float[width * height]];
++            probeSheetHitsAt ??= [new float[width * height], new float[width * height]];
++            probeSheetHitsFrom ??= [new float[width * height], new float[width * height]];
++            long surface = 0,
++                sheets = 0;
++            for (int y = 0; y < height; y++)
++                for (int x = 0; x < width; x++)
++                {
++                    int i = y * width + x;
++                    if (front[i] > 0)
++                    {
++                        surface++;
++                        if (!(back[i] > 0))
++                            sheets++;
++                    }
++                    int age = (int)ages[i];
++                    if (age == 0)
++                        continue;
++                    if (age < 0x8000)
++                    {
++                        string kindName = age >= 0x7FFC ? "reflection" : "diffuse";
++                        string what = (age | 4) switch
++                        {
++                            0x7FFF => "no-ray",
++                            0x7FFE => "miss",
++                            0x7FFD => "elsewhere",
++                            _ => "untraced",
++                        };
++                        ProbeCensusAdd($"sheet-{kindName} {what}", 0);
++                        continue;
++                    }
++                    int kind = (age >> 14) & 1;
++                    int hx = Code(i) & 2047, hy = age & 1023;
++                    int own = (age >> 10) & 1, crossing = (age >> 11) & 3, behind = (age >> 13) & 1;
++                    int reason = (Code(i) >> 11) & 3;
++                    bool sheet = Sheet(hx, hy);
++                    ProbeCensusAdd(
++                        string.Create(inv, $"sheet-{(kind == 0 ? "reflection" : "diffuse")} hit {(sheet ? "sheet" : "solid")} own {own} crossing {crossing} reason {reason} behind {behind}"),
++                        0
++                    );
++                    int at = hy * width + hx;
++                    probeHitsAt[kind][at]++;
++                    if (sheet)
++                    {
++                        probeSheetHitsAt[kind][at]++;
++                        probeSheetHitsFrom[kind][i]++;
++                    }
++                }
++            probeCensusKeys.TryGetValue("frame surface-pixels", out var s0);
++            probeCensusKeys["frame surface-pixels"] = (s0.Count + 1, s0.Light + surface);
++            probeCensusKeys.TryGetValue("frame sheet-pixels", out var s1);
++            probeCensusKeys["frame sheet-pixels"] = (s1.Count + 1, s1.Light + sheets);
++        }
++        Directory.CreateDirectory(folder);
++        var lines = new System.Text.StringBuilder();
++        lines.Append(string.Create(inv, $"draws {probeCensusCounted} size {width}x{height}\n"));
++        foreach (var (key, e) in probeCensusKeys)
++            lines.Append(string.Create(inv, $"{key} {e.Count} {e.Light:R}\n"));
++        File.WriteAllText(Path.Combine(folder, "census.txt"), lines.ToString());
++        if (draw == ProbeCensusTo - 1)
++        {
++            void Write(string name, float[] values) =>
++                File.WriteAllBytes(
++                    Path.Combine(folder, $"{name}-{width}x{height}.f32"),
++                    System.Runtime.InteropServices.MemoryMarshal.AsBytes<float>(values).ToArray()
++                );
++            Write("front", front);
++            Write("back", back);
++            if (probeHitsAt is not null && probeSheetHitsAt is not null && probeSheetHitsFrom is not null)
++                for (int kind = 0; kind < 2; kind++)
++                {
++                    string kindName = kind == 0 ? "reflection" : "diffuse";
++                    Write($"hits-at-{kindName}", probeHitsAt[kind]);
++                    Write($"sheet-hits-at-{kindName}", probeSheetHitsAt[kind]);
++                    Write($"sheet-hits-from-{kindName}", probeSheetHitsFrom[kind]);
++                }
++        }
++    }
++
+     /// <summary>The one context of the renderer's life, which holds what every frame shares (see <see cref="SetContext"/>).</summary>
+     private FrameContext CreateContext() =>
+         new()
