@@ -55,3 +55,7 @@ Neither probe is a design. They show that the trail is a gap in what tells a blo
 **2026-11-15T08:40:13Z**
 
 Alexis's answer of 2026-11-14 to the design question of this ticket: the lag test over a region. Recorded as decisions Y1 to Y6 in docs/plans/bounce-light-confidence.md, section 2.3. In short: a block learns of a change from its own rays or from its region, where the region's recent mean of samples drifts from the long mean that its histories hold. Ray evidence that reaches to the blocks nearby is rejected. The ray's knowledge and the region's statistic are one evidence value per block with one reader. The tolerance needs a reason and comes from a measured quantity where possible. The lamp hall still's light under the fix (96.0 and 99.5 % of the reference) is part of the remedy's acceptance, next to the film rect-bay and the cabin switch. Nothing merges into main before the remedy passes. The cycle measurement (t0-mzhr) settled the recent window: a box mean over 18 draws. Two measurements come before the remedy's build ticket: why the 18-draw window shows more light than the reference in a still (t0-y46f, running), and which measured quantity gives the tolerance (its own ticket, next).
+
+**2026-11-15T12:20:44Z**
+
+Decision of the parent orchestrator, 2026-11-15 07:20: the bar for the film rect-bay is no worse than main. The stop rule stays. The drift experiment (t0-ion0) decides. If it misses the bar, the line passes that up with film frames beside main and with the next design.

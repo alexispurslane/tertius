@@ -54,9 +54,23 @@ This experiment makes the region a second source of the same evidence instead. T
 | Q0, the control of the method | drift > 0.10 | None. The tuned constant of the earlier probes |
 | Q1, the older window's spread | drift > 2 × (dold / Rold) × sqrt(2 / 18) | `Rnew` and `Rold` are each a mean of 18 draws with the variance dold² / 18, and they share no draw. The tolerance is two standard deviations of their difference. The spread comes from the older window, so a step inside the new window does not raise the tolerance. The tolerance measurement found that a spread over the window that holds the step silenced its rule in the cabin |
 
+| Q2, differences at equal jitter phase, at three lengths | for any m of 3, 6 and 18: the mean over the last m draws of F(t) − F(t − 18), divided by Rold, is larger in size than 2 × (dold / Rold) × sqrt(2 / m) | Each difference pairs two draws with the same jitter offset, 18 draws apart. So the cycle cancels in every single difference, and the window m can be short. A mean of m such differences has the variance 2 dold² / m. With m = 18 this is Q1 exactly. With m = 3 a large change gives evidence within 3 draws, and a small one still gives it through m = 18 |
+
 You can add one rule of your own if the count points at one. Record it and its reason.
 
-For both rules, a block with regional evidence takes the reader's light action: the bounce history's length becomes the fast cap, and the box stays wide. Take the reflections with the same rule from their own samples, as the earlier probes did, and say where you differ.
+### How many draws pass before the first cut (added 2026-11-15, the parent orchestrator's question)
+
+Q0 and Q1 cannot cut at once, and the ticket must say how late they are. With a tolerance T as a share of the light:
+
+- A step of the size s (as a share of the light) enters the new window draw by draw. After k draws the drift is s × k / 18. So the first cut comes after about 18 × T / s draws: 2 draws for a step of 100 % at T = 0.10, 9 draws for a step of 20 %, and never for a step below T.
+- A ramp that changes the light by the share r per draw gives a drift of about r × k² / 36 in its first 18 draws, and 18 × r from then on. So a ramp slower than T / 18 per draw (0.55 % per draw at T = 0.10) never cuts. A ramp of 2 % per draw cuts after about 13 draws, one of 5 % per draw after about 8.
+- In the draws before the first cut, the histories are long, and the film trails as the fix does.
+
+Q2 shortens the wait for a large change to m draws, at the price of a wider tolerance at a small m.
+
+Measure this, do not only derive it. In step 1, give for each switch of the cabin and for the film `rect-bay` the first draw at which half of the changed region's pixel draws have evidence, under Q0, Q1 and Q2. In step 2, give the film's level also at frames 10, 20 and 30 for the fix, the cap of 4 draws and each rule, and the cabin's level 5, 10 and 20 draws after each switch.
+
+For every rule, a block with regional evidence takes the reader's light action: the bounce history's length becomes the fast cap, and the box stays wide. Take the reflections with the same rule from their own samples, as the earlier probes did, and say where you differ.
 
 ### The store
 
