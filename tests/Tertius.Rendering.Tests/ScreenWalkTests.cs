@@ -179,10 +179,7 @@ public sealed class ScreenWalkTests
                 int side = 1 << level;
                 Vector2 cell = new(MathF.Floor(position.X / side), MathF.Floor(position.Y / side));
                 float exit = MathF.Max(Exit(cell, level), parameter);
-                CellBounds bounds =
-                    level == 0
-                        ? pyramid.PixelSlab((int)cell.X, (int)cell.Y)
-                        : pyramid.Bounds(level, (int)cell.X, (int)cell.Y);
+                CellBounds bounds = pyramid.WalkSlab(level, (int)cell.X, (int)cell.Y);
                 float back = bounds.Back;
                 float inW = ray.StartInverseDepth + ray.StepInverseDepth * parameter;
                 float outW = ray.StartInverseDepth + ray.StepInverseDepth * exit;

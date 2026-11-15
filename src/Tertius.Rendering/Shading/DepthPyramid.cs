@@ -446,6 +446,10 @@ internal sealed class DepthPyramid
         return new(Near: centerInverseDepth, Back: CellBounds.SlabBack(centerInverseDepth));
     }
 
+    /// <summary>The slab of a cell that the walk reads, as the GPU stores it: the <see cref="PixelSlab"/> at the finest
+    /// level, and the <see cref="Bounds"/> above it.</summary>
+    public CellBounds WalkSlab(int level, int x, int y) => level == 0 ? PixelSlab(x, y) : Bounds(level, x, y);
+
     /// <summary>Checks the invariants in the class remarks. O(levels × pixels).</summary>
     internal void AssertInvariants()
     {

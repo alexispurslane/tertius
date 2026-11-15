@@ -175,8 +175,7 @@ internal readonly record struct ScreenRay(
             (float cellExit, crossed) = CellExit(level, cell, travel);
             float exit = MathF.Max(cellExit, s);
             (int x, int y) = ((int)cell.X, (int)cell.Y);
-            // The pyramid stores each cell's slab, front w and back w, at every level.
-            CellBounds slab = level == 0 ? pyramid.PixelSlab(x, y) : pyramid.Bounds(level, x, y);
+            CellBounds slab = pyramid.WalkSlab(level: level, x: x, y: y);
             (float near, float back) = (slab.Near, slab.Back);
             float inW = InverseDepthAt(s);
             bool meetsSlab = MeetsWalkSlab(near: near, back: back, inW: inW, outW: InverseDepthAt(exit));
