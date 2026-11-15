@@ -91,3 +91,9 @@ For each reason, say whether such a hit is a hit of the visible face. Give its s
 
 The design document of the back-face depth layer states the rule for a surface that is not closed. A test view with a bright object behind hair cards shows no hit on a card from a ray that starts behind the card's plane.
 
+
+## Notes
+
+**2026-11-15T12:10:27Z**
+
+Merged 2026-11-15 as ab7bdcd34 (the lead's head 42b656643). The lead reported the status done and not ready_for_integration, because the two acceptance criteria name the design document, which is the line orchestrator's work. The experiment itself is complete: clean checkout, no fork, every review finding resolved with evidence. Record: docs/research/back-face-depth-layer/stage-2/cards.md. Main numbers: under the pass of Design 1 all 139,646 hair pixels of the lamp hall hold their own fragment, the hits with the crossing behind the start fall from 817,466 to 1,525, and no scripted demo scene holds an open one-sided opaque mesh. The ticket stays open until the design document states the rule for a surface that is not closed.
