@@ -1,6 +1,6 @@
 # Why a still's diffuse light depends on the diffuse history's length (t8-69v7), 2026-11-15
 
-This folder holds the diagnosis of bug ticket `t8-69v7`. All takes ran on this Mac from 03:49 to 04:30 local time, under the shared GPU lock. No take used the cloud.
+This folder holds the diagnosis of bug ticket `t8-69v7`. All takes ran on this Mac from 03:49 to 04:24 local time, under the shared GPU lock. No take used the cloud.
 The ticket's note "Diagnosis design (line orchestrator, 2026-11-15)" holds the model and the takes. `docs/research/t0-y46f-window-18-excess/README.md` defines the terms that this README does not define.
 
 The short result: the effect has two causes, one for each setting of the diffuse filter.
@@ -64,7 +64,7 @@ where
 - `other` = the half float on the other side of `x` from `h`.
 - The result = whichever of `h` and `other` lies nearer to `x`. A store of it changes nothing, because it is a half float already.
 
-Take an `h` just above a power of two and an `x` below it. The half floats below that power lie half as far apart, so `other` is not exact there. Such a value is rare, and the takes show no sign of it.
+One case gives a wrong `other`: an `h` that is exactly a power of two, with `x` below it. The half floats below that power lie half as far apart. That case needs a conversion that rounds away from zero, so it cannot occur under a rounding toward zero or to the nearest.
 
 The switch applies the function to three stores of the diffuse signal: the temporal dispatch's slow and fast histories, the spatial dispatch's slow history, and the filter's write of its light into the slow history. The spatial store reads:
 
@@ -155,6 +155,7 @@ A pixel whose luminance is not finite adds 0. It writes the means to `stages.f32
 | nearest-half store, filter on | plain, filter on | 102.7 / 105.8, 102.6 % |
 | nearest-half store, filter off | plain, filter off | 100.4 / 101.1, 100.6 % |
 | native, nearest-half store, filter off | native, filter off | 100.3 / 101.1, 100.6 % |
+| native, filter on | plain, filter on | 100.2 / 100.2, 102.9 % |
 
 ### Stage means
 
@@ -190,11 +191,13 @@ Measured:
 - The nearest-half store raises the variant with no cap by 2.7 / 5.8 points and the whole image by 2.6 %.
 - With the loop open, cap 4 lies at 100.7 / 101.1. Its samples lie within 0.6 points of those with no cap, but its slow history lies 2.1 / 2.0 points above.
 
-My reading. The temporal blend moves the history toward the sample by 1 / L of the difference, where L is the length. If every step is exact, its long mean in a still equals the samples' mean. Let b be the mean loss of each draw's stores. Then the long mean settles where the blend's gain toward the samples equals the loss. That gain is the gap between the samples' mean and the history's mean, divided by L. So the history lies L x b below its samples' mean. A loss that is the same in every draw costs 32 times b at no cap and 4 times b under cap 4. The nearest-half store removes b, and with it the effect, at every cap. So this GPU's conversion to a half float does not round to the nearest on these stores. Its loss fits a rounding toward zero, which the Vulkan spec allows. I did not measure the rounding of a single store directly.
+My reading. The temporal blend moves the history toward the sample by 1 / L of the difference, where L is the length. If every step is exact, its long mean in a still equals the samples' mean. Let b be the mean loss of each draw's stores. Then the long mean settles where the blend's gain toward the samples equals the loss. That gain is the gap between the samples' mean and the history's mean, divided by L. So the history lies L x b below its samples' mean. The cap acts after the blend, so under cap N the blend's length is N + 1. A loss that is the same in every draw then costs 32 times b with no cap. Under caps 4, 8 and 16 it costs 5, 9 and 17 times b. The measured ratio of no cap to cap 4, 1.9 / 0.3 and 2.3 / 0.4, fits 32 / 5. The nearest-half store removes b, and with it the effect, at every cap. So this GPU's conversion to a half float does not round to the nearest on these stores. Under a store that rounds to the nearest, the switch changes nothing.
+
+The size of b also fits a rounding toward zero, which the Vulkan spec allows. Such a store loses half a step of the half floats on average, about 0.035 % of the value. With the filter on, two stores of a draw write a value that is not already a half float: the temporal blend and the filter's feedback. The spatial dispatch stores the blend's half float again, which is exact. So b is about 0.07 %, and 32 b is about 2.2 %, where `own.py` measures 1.9 / 2.3 %. With the filter off, only the blend's store remains: 32 b is about 1.1 %, where `own.py` measures 1.0 / 1.2 %. The engine already assumes this rounding. `BlendRounding` in `accumulate_temporal.comp` says that a half-float blend stops short of a constant sample "where the store rounds toward zero, as the spec allows". I did not measure the rounding of a single store directly.
 
 The loop multiplies the loss. The rays read the history at their hits, so a lower history makes lower samples, and the samples feed the history. With the loop open, the samples no longer depend on the length, and only the history's own 2 points remain. With the loop closed, cap 4's samples also stand 2.3 / 3.7 points higher, and the image 2.3 / 5.0 points.
 
-So the light of a long history is the wrong one, and a short history is nearer the truth. The truth here is the samples' own mean with exact stores. On this Mac every still's diffuse light, at its normal cap of 32 draws, is 2.7 / 5.8 % too dark in the lamp hall.
+So the light of a long history is the wrong one, and a short history is nearer the truth. The truth here is the samples' own mean with exact stores. On this Mac the diffuse history's normal cap is 32 draws. With it, the lamp hall's still is 2.7 / 5.8 % too dark in scene light. That share is of all the still's light, the direct light included.
 
 ## The second cause: FSR 3.1, with the filter off
 
@@ -206,9 +209,17 @@ Measured:
 - The loss lies in the bounce signal: 80.7 / 88.0 and 66.7 % of the whole image. The reflections alone lie at 100.0 / 100.1.
 - The diffuse signal's own means do not fall: cap 4's shown diffuse light is 102.2 / 101.2 % of no cap's.
 - With the loop open, the loss stays: 98.5 / 94.6, whole image 83.3 %.
-- With the filter on, FSR changes nothing: native cap 4 lies at 102.2 / 104.9, as with FSR.
+- With the filter on, FSR does not change the cap's effect: native cap 4 lies at 102.2 / 104.9, as with FSR. Native changes the variant with no cap by 0.2 / 0.2 points and the whole image by 2.9 %.
 
-My reading. With the filter off, the composite shows the slow history itself. Under cap 4, that history is a mean of about 4 samples and holds much of the samples' noise. FSR 3.1 takes this image as its input and darkens it by 5 to 15 %, more where the noise is larger. FSR's accumulation is not linear: it is known to accumulate in a tone-mapped space and to clamp its history to the input's neighborhood. I did not take FSR apart, so which of its steps acts is not measured. With the filter on, the filter removes most of the noise before FSR, and FSR changes no mean.
+My reading. With the filter off, the composite shows the slow history itself. Under cap 4, that history is a mean of about 4 samples and holds much of the samples' noise. FSR 3.1 takes this image as its input and darkens it by 5 to 15 %, more where the noise is larger. FSR's accumulation is not linear: it is known to accumulate in a tone-mapped space and to clamp its history to the input's neighborhood. I did not take FSR apart, so which of its steps acts is not measured. With the filter on, the filter removes most of the noise before FSR, and FSR does not change the cap's effect. The 2.9 % over the whole image between native and FSR with no cap is not measured further. It likely lies at the bright lamps, which the smooth regions leave out.
+
+FSR alone does not meet the stop rule on the walls: native cap 4 lies at 100.4 / 100.9. Native with the nearest-half store meets it, at 100.2 / 100.2. So with the filter off the effect has two steps. FSR takes 5 to 15 points. The half-float store of the first cause adds 0.4 / 0.9 points. It is smaller here, because only one store per draw loses light.
+
+## Departures from the design
+
+- Take 2 asked for four stage means: the sample, and the slow history after the temporal blend, after the spatial dispatch and after the filter's feedback. The probe reads three: the sample, the slow history at the end of the draw, and the shown light. The temporal dispatch writes its blend into a scratch image that both signals share. The filter's feedback overwrites the spatial dispatch's slow history in the same draw. So a readback after the draw cannot see the two middle stages. The stage means still separated the samples from the history.
+- Take 3 listed the half-float store last. I took it first. The first queue showed each variant's slow history below its own samples, by a share that grew with the length. This held also with the loop open and with the filter off. Of the candidates, only a loss in every store of every draw grows that way.
+- Take 3 had no candidate after the composite. With the filter off, the stage means rose under cap 4 while the image fell. So I added the take without FSR.
 
 ## The design's other candidates
 
@@ -220,7 +231,7 @@ The design stops at the step that its proof names. So I took none of these.
 
 ## The proposal for the fix
 
-Make the diffuse histories' stores independent of the implementation's rounding. The cheapest way is the nearest-half store of this patch at the three stores, a few instructions per pixel. Another way is to store the diffuse slow history as RGBA32F, as the precise specular history does. It costs 7.4 MB more memory and twice the bandwidth of its reads and writes. Either way makes the Mac render as a driver that rounds to the nearest does today. This fix changes what a still shows on this Mac. Every still's bounce light gets brighter where the diffuse history is long: in the lamp hall by 2.7 % on the ceiling, 5.8 % on the walls and 2.6 % over the whole image. A driver that rounds to the nearest shows no change. Today the same still differs by that much between this Mac and such a driver. The choice between the two ways, and the acceptance of the brighter stills, is a decision for the line orchestrator. FSR's darkening of a noisy input needs no fix today, because the filter is on in every configuration that ships. If a configuration shows a noisy diffuse image through FSR, it inherits a loss of up to 15 %.
+Make the diffuse histories' stores independent of the implementation's rounding. The cheapest way rounds to the nearest half float in the shader at the three stores, a few instructions per pixel. A fix in `src` must round with integer arithmetic on `floatBitsToUint`. The spec's precision lets the scratch function's `log2` be off at an exact power of two. A driver can also optimize away its `isinf` and `isnan` (ticket `ter-dbzx`). Another way is to store the diffuse slow history as RGBA32F, as the precise specular history does. It costs 7.4 MB more memory and twice the bandwidth of its reads and writes. Either way removes the loss that depends on the length. Other RGBA16F images still round toward zero: the sample, and the filter's output and its passes. Their loss does not depend on the length, and it is small. This fix changes what a still shows on this Mac. A still gets brighter where the diffuse history is long: the lamp hall's still in scene light by 2.7 % on the ceiling, 5.8 % on the walls and 2.6 % over the whole image. A driver that rounds to the nearest shows no change. Today the same still differs by that much between this Mac and such a driver. The choice between the two ways, and the acceptance of the brighter stills, is a decision for the line orchestrator. FSR's darkening of a noisy input needs no fix today, because the filter is on in every configuration that ships. If a configuration shows a noisy diffuse image through FSR, it inherits a loss of up to 15 %.
 
 ## What this means for Design X's cut to 4 draws
 
