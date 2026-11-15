@@ -37,3 +37,34 @@ Acceptance 13: median GPU frame span of the deck, three rounds in turn: main 19.
 Acceptance 14, Linux (cloud worker): the cabin switch gives 66/not settled (12/30) for the branch and 75/52 (37/25) for main, within 3 draws of the Mac. The Checked GPU tests with validation on Linux did not run: they are a gate of the merge.
 
 T19: headless screenshots of the bay and of rect-lamps, main beside the branch, in the pictures folder. Cloud cost by the job log: $0.0521 + $0.0924 + $0.1078 = $0.25. The motion films (T16) follow in the next note.
+
+**2026-11-15T01:19:43Z**
+
+2026-11-14, take T16: the 18 films of the survey's motion part, main ab54c785e against the branch with the fix. 14 films on the Mac, one build after the other per film; rect-lamps, bay-sunbeam and exit-deck in the cloud, both builds in one job. A third take is worse than main: the film rect-bay (ticket t0-acxm).
+
+Blotch of the worst sampled frame against a still of the same state (limit 0.04), main -> branch, and the level (the frame's light over the still's, minus 1):
+
+| Film | blotch main | blotch branch | level main | level branch |
+|---|---:|---:|---:|---:|
+| rect-bay | 0.245 | 0.488 | +1.176 | +1.863 |
+| rect-lamps | 0.063 | 0.095 | -0.056 | -0.070 |
+| bay-sunbeam | 0.330 | 0.395 | -0.601 | -0.567 |
+| exit-floor | 0.295 | 0.316 | +0.203 | +0.211 |
+| docking-landing | 0.181 | 0.169 | +0.012 | -0.013 |
+| lamp-hall-4-spot-moving | 0.090 | 0.077 | +0.002 | +0.002 |
+| lamp-hall-64-moving | 0.066 | 0.066 | +0.006 | +0.007 |
+| lamp-hall-16-moving | 0.042 | 0.042 | +0.005 | +0.004 |
+| rigs-crowd | 0.036 | 0.037 | 0.000 | -0.001 |
+| exit-cabin | 0.031 | 0.024 | +0.010 | +0.007 |
+| pillar-room | 0.018 | 0.012 | 0.000 | 0.000 |
+| spot-box | 0.015 | 0.011 | -0.001 | -0.001 |
+| skin-head | 0.011 | 0.008 | 0.000 | 0.000 |
+| exit-deck | 0.009 | 0.008 | +0.001 | +0.001 |
+| hair-bent-cards | 0.007 | 0.006 | 0.000 | 0.000 |
+| rect-lights | 0.005 | 0.005 | 0.000 | 0.000 |
+| reflections | 0.002 | 0.001 | 0.000 | 0.000 |
+| orbit-umbra | not measured | not measured | 0.000 | 0.000 |
+
+Flicker and grain flicker do not rise in any film (the largest change is rect-bay's flicker, 0.0020 -> 0.0010). The same films fail the survey's limits in both builds. The four films where the branch scores worse are films whose light is on its way in both builds: their level is far from 0. In the films with a level near 0 the branch's blotch is equal or lower. I looked at rect-bay's frames (pics/rect-bay-film.png); I did not look at the frames of the other 17 films.
+
+Cloud cost of the films and the rect-bay diagnosis by the job log: $0.1078 + $0.0758 + $0.0978 + $0.0755. The track's cloud total is $0.50.

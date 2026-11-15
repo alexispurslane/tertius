@@ -28,3 +28,26 @@ The same gap shows in the cabin's lamp switch (t0-5tyj): later bounces carry no 
 
 Needs a design: what tells a block that the amount of its light moves, when no ray of it hit a changed surface. Picture: docs/research/design-x-acceptance-2026-11-14/pics/rect-bay-film.png.
 
+
+## Notes
+
+**2026-11-15T01:06:30Z**
+
+2026-11-14, three probes of a remedy, scratch switches on the probe build of the branch (never in src; scratch tree /private/tmp/t7-3e22/x2/x, not kept). All with the fix's action (light evidence cuts the length, the box stays wide). Mac, same session as the table above.
+
+| Take | main | fix | window 28 | spread 4 | region 8 |
+|---|---:|---:|---:|---:|---:|
+| rect-bay film, level at the middle / last frame | +1.18 / +0.53 | +1.86 / +1.75 | +1.57 / +1.36 | +0.79 / +0.83 | +0.89 / +0.43 |
+| rect-bay film, blotch at the middle / last frame | 0.245 / 0.231 | 0.370 / 0.488 | 0.380 / 0.439 | 0.627 / 0.293 | 0.218 / 0.211 |
+| cabin switch, slowest region, draws after off / on | 75 / 52 | 66 / none in 100 | not taken | 78 / 92 | 113 / 51 |
+| cabin switch, whole image, draws after off / on | 36 / 24 | 12 / 27 | not taken | 24 / 22 | 14 / 19 |
+| rect-lamps still, long mean of ceiling / walls, % of the reference | 78.4 / 81.2 | 96.0 / 99.5 | as the fix (a still has no evidence) | as the fix | 89.4 / 90.4 |
+| rect-lamps still, specks per 10,000 px | 7.05 | 6.01 | as the fix | as the fix | 9.61 |
+| bay-sunbeam still, long mean of walls / floor, % | 90.3 / 84.1 | 98.7 / 99.2 | as the fix | as the fix | 98.9 / 99.4 |
+| bay-sunbeam still, daub against the reference | 0.0311 | 0.0209 | as the fix | as the fix | 0.0208 |
+
+- window 28 (TERTIUS_X_RECENT_LIGHT_AGE=28): a light code counts as recent for 28 draws in place of 7. A small gain. An age-bounded cut with the same window gave +1.92 / +1.88, no gain.
+- spread 4 (TERTIUS_X_DILATE=4): a block also takes the light evidence of the blocks within 4 blocks of it. The level reaches main's size, but the frame is patchy where blocks with and without evidence meet (looked at: a darker zone below the opening in the last frame).
+- region 8 (TERTIUS_X_REGION=8, TERTIUS_X_REGION_TOL=10): at each pixel, the mean of the slow history and the mean of the fast history over one tap per ray block within 8 blocks (289 taps, any surface). Where the two means differ by more than 10 %, the anti-lag shortens the history by the excess. It trails less than main in the film and settles the cabin's lamps-on like main. Its price in this first form: rect-lamps loses half of the still's gain in light and gains specks, and the cabin's center settles later after the lamps go off. My reading, not measured: the regional fast mean swings with the jitter's cycle of 18 draws in rect-lamps (t0-qwx8), which the test takes for a lag.
+
+Neither probe is a design. They show that the trail is a gap in what tells a block of a change, and that a test over many ray blocks closes it where per-block ray evidence does not.
