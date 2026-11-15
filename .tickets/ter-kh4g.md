@@ -132,3 +132,7 @@ Launched 2026-11-15 from 94138a196: the ticket lead of mesh closure and the batc
 **2026-11-15T14:15:59Z**
 
 2026-11-15: the Design X line's cabin strip is the scene orbit with the camera person, output row 563 and columns 892 to 1030. That is the end window's sill of rect-lamps, which part 1 of the diagnosis already judged a leak at frame 239. The parent agent asked for one more cast at world tick 300, and at tick 60 if it is cheap. I passed it to the diagnosis lead (t1-3j2j) as an extra cast after part 4, with the other line's kept files to read only. Its verdict goes to the parent agent in a few lines.
+
+**2026-11-15T14:51:01Z**
+
+2026-11-15: two more early results of the diagnosis (t1-3j2j) are merged as e2c9b025d and sent to the parent agent. (1) The check of Earth: both renderers put Earth at the same place and give it the radiance of the formula, so the factors 16 and 58 of t1-tbz9 stand and my caveat is withdrawn. Neither crop's camera sees Earth. (2) The Design X line's strip is the end window's sill of rect-lamps. At world ticks 60, 300 and 306 it is lit only in the engine, and the engine's lit part is under one twentieth of a render row tall. The lit part shrinks from 0.108 m to 0.049 m between ticks 300 and 306, because one shadow texel changes as the ship turns.

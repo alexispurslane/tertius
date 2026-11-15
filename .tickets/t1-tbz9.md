@@ -34,10 +34,10 @@ What supports its radiance:
 - Earth emits its own Lambert reflection of the sun: albedo × irradiance × cos / π. The albedo is the area-weighted mean of the engine's `EarthGrid` texture in linear light, (0.0840, 0.1655, 0.4655). At the point below the sun, that is about 74 W/(m² sr) of luminance.
 - The emitter form agrees with a path-traced Earth: the cabin's floor is 3.29 W/(m² sr) against 3.26.
 
-What is not established:
+The check of 2026-11-15 (docs/research/back-face-depth-layer/stage-2/shadow-leak.md, part 4) settled the doubt that the two crops raised:
 
-- No directly seen Earth pixel was compared between the engine and the path trace. The 8-bit stills clip there.
-- The two crops raise a doubt. In `rect-lamps`, the engine shows black through the window's pane, and the path trace shows blue. In the cabin's top right corner, the engine shows bright blue, and the path trace shows dark blue. So the two renderers do not agree on what the camera sees of Earth.
-- Until that is explained, the factors 16 and 58 are measurements of this path trace, not yet of the truth. The control without the sun does not depend on Earth, so the factors 2.0 and 2.5 of ticket `t1-mybi` stand.
+- Both renderers put Earth at the same place. Earth's center and radius in the export are the engine's own planet constants. A third view of the same scene shows Earth: the `chase` camera of `orbit`. There Earth's limb in the engine's still lies within one row of the limb by geometry, at six columns.
+- A directly seen Earth pixel has the radiance of the formula in both. The engine gives 42.3 W/(m² sr), 1.001 times albedo × irradiance × cos / π with the texture's deep blue. The path trace gives 73.6, 1.000 times the same with the texture's area-weighted mean. The ratio 1.74 is the mean over the deep blue.
+- Neither crop shows Earth. In `rect-lamps`, empty space lies behind the pane. The path trace's blue there is the pane's own color at an alpha of 0.2, lit by its brighter room. The cabin's top right corner shows the cabin's and the hub's walls.
 
-Part 4 of ticket `t1-3j2j` does that comparison: Earth's place in the engine's frame against the export, and the radiance of a directly seen Earth pixel.
+So the factors 16 and 58 stand. Earth's light into a room is the same input in both renderers, and the engine's rooms do not get it.
