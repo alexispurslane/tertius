@@ -144,3 +144,41 @@ My reading. Q0 fails the still at 30 % in the lamp hall, so it stays only as the
 Step 2 takes Q0, Q1 and Q2 acting, with the reference, the fix and the cap of 4 draws, all with the nearest-half store.
 
 Files: `tables-step1.txt` (made by `tools/measure-1.sh`), `tools/queue-c.sh`, `tools/queue-1.sh`, `tools/queue-1c.sh`, `tools/driftcount.py`.
+
+**2026-11-15T13:15:09Z**
+
+Step 1 again, with the ticket's rule Q2 and the wait before the first cut (ticket lead, after the line orchestrator's two additions).
+
+Names. The ticket now gives the name Q2 to the rule of differences at equal jitter phase. My rule of the first step 1 note, Q1 at 3 standard deviations, is now Q3. Its numbers do not change.
+
+The third build. It adds Q2 (`TERTIUS_X_DRIFT_RULE=2`) and three count layers. For m = 3 and 6, the shader takes |the mean of the last m differences F(t − k) − F(t − k − 18)| / Rold, and Q2 fires where any of the three lengths passes its tolerance. Its tolerance for m is Q1's tolerance times sqrt(18 / m). The length m = 18 is Q1's own test. The controls: the third build repeats the second build's Q1 lamp hall still (step 2's `t-Q1-e`) byte for byte, and its count repeats the second build's five count layers byte for byte. The shader's Q2 block flag equals the center rule that `driftcount.py` derives (14.3 % against 14.3 % in the lamp hall).
+
+False evidence in the stills, the bounce light, % of counted pixel draws whose block has evidence (center rule), whole image:
+
+| Still | Q0 | Q1 | Q3 | Q2 | Q2, m = 3 alone | Q2, m = 6 alone |
+|---|---:|---:|---:|---:|---:|---:|
+| Lamp hall, today's jitter | 30.5 | 9.2 | 3.8 | 14.3 | 5.5 | 6.2 |
+| Lamp hall, no jitter | 30.5 | 12.6 | 5.6 | 20.4 | 8.5 | 9.5 |
+| Lamp hall, long Halton sequence | 34.1 | 14.3 | 7.7 | 21.9 | 8.2 | 10.5 |
+| Bay still, each jitter | 7.3 to 7.6 | 7.0 to 7.3 | 1.1 | 14.2 to 14.4 | 5.9 to 6.0 | 6.0 to 6.2 |
+| Exit cabin, each jitter | 6.2 to 6.3 | 6.0 to 6.1 | 0.9 | 12.6 to 12.7 | 5.0 | 5.3 to 5.4 |
+| Cabin before the switch | 30.4 | 9.8 | 3.5 | 15.6 | 5.9 | 7.0 |
+| Film rect-bay, 180 frames | 86.7 | 84.1 | 71.0 | 86.0 | 30.0 | 54.0 |
+
+The wait before the first cut. "Changed region" = the union of the regions that the survey counts as changed in the cabin switch (all but r01), and the whole image in the film. The number is the first draw after the change at which half of the changed region's counted pixel draws have block evidence. In brackets: the share in % at d = 0, 3, 5, 10, 15, 20 and 30.
+
+| Change | Q0 | Q1 | Q3 | Q2 |
+|---|---|---|---|---|
+| Cabin, lamps off | d 13 [29 32 33 34 62 77 69] | never [15 14 13 11 28 45 33] | never [7 8 7 7 14 25 12] | d 21 [19 19 21 27 37 49 35] |
+| Cabin, lamps on | d 17 [34 38 37 37 45 56 59] | never [7 9 10 11 19 31 33] | never [2 3 4 4 9 16 18] | never [14 14 19 20 28 38 38] |
+| Film rect-bay, from frame 0 | frame 3 [n/a 51 24 15 18 37 63] | frame 28 [n/a 17 20 11 9 23 60] | frame 38 [n/a 2 6 2 1 6 29] | frame 23 [n/a 20 27 17 20 36 66] |
+
+Film frame 0 is run draw 32. The test is valid from run draw 35, frame 3. At frame 3 the older window holds the run's first 18 draws, so the first frames carry the start of the run as well as the film's change.
+
+My reading:
+
+- Q2 does not shorten the wait in these changes. The cabin's switch changes the light by about 18 % (the survey's change −0.176). At m = 3, the tolerance is Q1's times 2.45, a median of about 0.41, so a step of 18 % does not pass it. Q2 then fires mostly through m = 6 and 18, from d 6 on.
+- Q2 doubles the false evidence of Q1 in the bay and exit cabin stills (14 % against 7 %), because it adds two more tests per draw.
+- No rule gives half of the cabin's changed region evidence before d 13. Q1 never gives it to half. In the film, Q1 reaches half only at frame 28, and Q2 at frame 23.
+
+Step 2 adds Q2 acting with all takes of Q0, Q1 and Q3, the film's level at frames 10, 20 and 30 (`tools/filmearly.py`), and the cabin's level 5, 10 and 20 draws after each switch (`tools/switchearly.py`).

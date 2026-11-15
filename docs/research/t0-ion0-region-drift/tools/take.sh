@@ -4,11 +4,13 @@
 # TERTIUS_X_LENGTHS=lengths becomes the run's folder lengths/ (the count of history lengths of t0-y46f), and
 # TERTIUS_X_DRIFT_COUNT=drift becomes the run's folder drift/ (the count of the drift test, this ticket). A run whose
 # survey already wrote a result or a switch series is kept, so that a stopped queue resumes.
+# The probe is the third build (out-y, with Q2) unless PROBE names another. Queues c, 1, 1c and 2 ran on the second
+# build (out-x), which differs from the third only by Q2 and the count's three more layers.
 set -uo pipefail
 name=$1; parts=$2; cases=$3; shift 3
 out=/private/tmp/t0-ion0/runs/$name
 if compgen -G "$out/results/*/*.json" > /dev/null || compgen -G "$out/series/*/*.json" > /dev/null; then echo "$(date +%T) kept $name"; exit 0; fi
-mkdir -p "$out"; [ -e "$out/probe-bin" ] || ln -sfn /private/tmp/t0-ion0/out-x/probe-bin "$out/probe-bin"
+mkdir -p "$out"; [ -e "$out/probe-bin" ] || ln -sfn "${PROBE:-/private/tmp/t0-ion0/out-y/probe-bin}" "$out/probe-bin"
 args=()
 for a in "$@"; do
   [ "$a" = TERTIUS_X_LENGTHS=lengths ] && a="TERTIUS_X_LENGTHS=$out/lengths"
