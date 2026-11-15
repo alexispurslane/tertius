@@ -66,6 +66,125 @@ The engine's white strip at the outer edge shows in panels 1, 3 and 5. The path 
 
 Reading: every strip that the engine lights is a leak, but for its outer 1 to 6 mm. The sun stands almost overhead and the hull's roof hides the whole room from it. The engine's lit part is the outer 2 texels of cascade 0 on every jamb and sill (part 2).
 
+## Part 2: the cause of the leak
+
+### The shadow map along the strip
+
+[tools/map_line.py](tools/map_line.py) reads the dumped cascade 0 of `rect-lamps` along the jamb's mid line, y −0.006 m, z −11.0 m. Cascade 0 has texels of 0.05847 m, and one unit of its depth is 1,915.8 m along the sun.
+
+| Receiver x, m | Texel (column, row) | Receiver's depth | Stored depth | Stored caster's gap toward the sun, m |
+|---:|---|---:|---:|---|
+| 9.80 | (1702, 1191) | 0.5000908 | 0.5031472 | 5.856 |
+| 9.85 | (1702, 1192) | 0.5000908 | 0.5031472 | 5.856 |
+| 9.90 | (1702, 1193) | 0.5000908 | 0.5031472 | 5.856 |
+| 9.95 | (1702, 1194) | 0.5000908 | 0.5031472 | 5.856 |
+| 10.00 | (1702, 1195) | 0.5000908 | 0 | No caster |
+| 10.05 | (1702, 1195) | 0.5000908 | 0 | No caster |
+| 10.10 | (1702, 1196) | 0.5000908 | 0 | No caster |
+
+The stored caster lies 5.856 m nearer the sun. A point at y 5.9 m on the same line meets it at a gap of −0.051 m. So it is the roof's top face, at y 5.85 m. Rows 1195 and beyond hold the cleared value 0: no caster.
+
+The three biases at this receiver, in m along the sun:
+
+- The slope-scaled bias: 2.5 times the roof's depth change per texel, 0.00454 × 0.05847 m, which gives 0.0007 m.
+- The constant bias: half a texel of depth, 0.029 m.
+- The normal offset moves the lookup by one texel, 0.058 m, along the jamb's normal +z. That direction lies under the roof, along the edge.
+
+The CPU copy of the filter places the lookup of x 9.881 m at texel row 1193.0. Its tap at +1.5 texels then first reaches the center of row 1195, the first texel with no caster. Its lit share rises linearly from there to 0.51 at x 10.0 m.
+
+### The switches
+
+Each switch is an environment variable of the probe, `ShadowProbe.cs` in [probe-shadow-leak.patch](probe-shadow-leak.patch). Each run is a still of `rect-lamps` with the screen tracer off, at the fixed exposure of part 1. Its direct sunlight is its still minus part 1's still without the sun. The profile is the mean of rows 500 to 579. [tools/switch_table.py](tools/switch_table.py) prints the table. The CPU columns come from each run's own dump.
+
+| Run | Switch | Strip's first column above 0.01 | Columns above 0.01 | Mean of x 1800–1809, W/(m²·sr) | Peak | CPU: first lit x, m | CPU: lit share at x 10.0 |
+|---|---|---:|---:|---:|---:|---:|---:|
+| Default | Slope bias 2.5, constant 0.5 texel, normal offset 1 texel, 4 × 4 taps, map 2048 | 1800 | 11 | 0.222 | 0.368 | 9.881 | 0.510 |
+| `slope0` | `TERTIUS_SHADOW_SLOPE=0` | 1800 | 11 | 0.222 | 0.368 | 9.881 | 0.510 |
+| `slope1` | `TERTIUS_SHADOW_SLOPE=1` | 1800 | 11 | 0.222 | 0.368 | 9.881 | 0.510 |
+| `const0` | `TERTIUS_SHADOW_CONSTANT=0` | 1800 | 11 | 0.222 | 0.368 | 9.881 | 0.510 |
+| `normal0` | `TERTIUS_SHADOW_NORMAL=0` | 1800 | 11 | 0.221 | 0.367 | 9.881 | 0.510 |
+| `nobias` | All three biases at 0 | 1800 | 11 | 0.221 | 0.367 | 9.881 | 0.510 |
+| `filter1` | `TERTIUS_SHADOW_FILTER=1`: one bilinear tap | 1807 | 4 | 0.017 | 0.108 | 9.969 | 0.538 |
+| `map4096` | `TERTIUS_SHADOW_MAP_SIZE=4096`: texels of 0.02918 m | 1806 | 5 | 0.049 | 0.173 | 9.950 | 0.437 |
+
+The CPU copy's lit share on the mid line at x 9.900, 9.925, 9.950, 9.975 and 10.000 m:
+
+| Run | 9.900 | 9.925 | 9.950 | 9.975 | 10.000 |
+|---|---:|---:|---:|---:|---:|
+| Default | 0.082 | 0.189 | 0.296 | 0.403 | 0.510 |
+| One tap | 0 | 0 | 0 | 0.111 | 0.538 |
+| Map 4096 | 0 | 0 | 0.008 | 0.223 | 0.437 |
+
+The strip's lit width in the CPU copy is 0.119 m with texels of 0.05847 m, 2.04 texels. With texels of 0.02918 m it is 0.050 m, 1.71 texels. The record of [reference.md](reference.md), part 3, puts the strip's onset at the same 0.75 to 0.79 of the jamb at three output sizes. The texel size does not change with the output size.
+
+The caster set: the roof is in cascade 0 up to texel row 1194, the row that holds the hull's outer face. Every bias at 0 keeps the strip, so no caster is missing.
+
+### The cause
+
+The 4 × 4 filter of the sun's cascades reaches 2.5 texels from the lookup. Past the roof's edge at the hull's outer face, those texels hold no caster. So a receiver under the roof within 2 texels of that edge, 0.119 m in cascade 0, takes up to half of the sun's light.
+
+The filter's reach carries the whole strip: one tap at the lookup takes 92 % of the strip's mean light away, from 0.222 to 0.017 W/(m²·sr). The biases carry none of it: no bias setting moves the mean by more than 0.001. What stays with one tap is the bilinear tap's own reach of one texel: the outer 0.031 m.
+
+Reading: this is a limit that ARCHITECTURE.md's four known limits of "Shadow bias" do not name. The third limit is about the slope-scaled bias, which moves a steep caster back by millimeters here. The cause is the filter's width against a gap of 5.86 m. There the true penumbra is 2 × 5.86 m × tan(0.00467) = 0.055 m wide in all, centered on the edge. The engine's penumbra is 2 × 2.5 texels = 0.29 m wide, also centered on the edge, so its inner half is the leak. It shows at every edge where the map holds no caster beside a roof: the hull's outer faces under a high sun.
+
+## Part 3: what a fix must do
+
+### The three candidates
+
+| Candidate | What it changes | Known limit of "Shadow bias" that it touches | Built in the probe |
+|---|---|---|---|
+| A: the filter's reach scaled to the sun's penumbra | A blocker search reads the 5 × 5 texels around the lookup and takes the mean depth of those nearer the sun. The taps' reach becomes the penumbra's half-width, gap × tan(the sun's angular radius), over 2.5 texels, at most 1. | Limits 1, 2 and 4 shrink with the reach. None of the four names this leak. | Yes: `TERTIUS_SHADOW_FILTER=2` |
+| B: finer texels in cascade 0 | A map of 4096² in place of 2048², or a nearer split. | Limit 3: coarse texels. | The map size: `TERTIUS_SHADOW_MAP_SIZE=4096` |
+| C: the map dilated by the filter's reach | Each texel takes the depth of the caster nearest the sun within 2 texels, as `shadow_bounds.comp` keeps per window for the tiles. | Limit 2 grows: every shadow widens on its lit side. | No: the CPU copy only, `ENGINE_DILATE=2` |
+
+Candidate A comes from percentage-closer soft shadows (Fernando, 2005). It was made for area lights in real-time games, with one shadow map, where a penumbra spans many texels. Its cost is the blocker search: 25 texel reads per lookup in the probe, not timed. Ours is a sun of angular radius 0.00467 rad with texels of 0.0585 m in cascade 0. Its true half-penumbra stays under one texel for gaps under 12.5 m, and under the filter's 2.5 texels for gaps under 31 m. So in rooms the filter shrinks to one bilinear tap. The search's only gain over one tap is the soft edge of a far caster. The probe takes the sun's angular radius as a constant, 0.00467. A fix reads it from the light.
+
+### The measurements
+
+On the jamb of `rect-lamps`, with the probe as in part 2:
+
+| Run | Strip's first column above 0.01 | Mean of x 1800–1809, W/(m²·sr) | Peak | CPU: lit width, m |
+|---|---:|---:|---:|---:|
+| Default | 1800 | 0.222 | 0.368 | 0.119 |
+| A, `filter2` | 1807 | 0.028 | 0.130 | 0.047 |
+| One tap, `filter1` | 1807 | 0.017 | 0.108 | 0.031 |
+| B, `map4096` | 1806 | 0.049 | 0.173 | 0.050 |
+| C, CPU copy only | | | | 0.003 |
+
+Part 1 picked 7,143 pixels of `rect-lamps`. Over them, the CPU copy's summed lit share is 1,012.8 with the default map and 0.53 with candidate C.
+
+The view that must not change is a lit floor at a grazing angle: `bounce-raised-box`, a box raised over a floor under a sun 30° high, with no ambient light ([tools/stills-raised-box.json](tools/stills-raised-box.json)). Each run is frame 239 at 1920 × 1080 with the screen tracer off, at −6 stops. The floor is rows 560 and below, 998,400 pixels, of which 936,785 are lit: above 0.8 times the floor's median.
+
+| Run | Lit floor pixels darker by more than 2 levels | Floor pixels changed by more than 2 levels | Largest change, levels |
+|---|---:|---:|---:|
+| A, `filter2` | 0 | 42,229 | 179 |
+| One tap, `filter1` | 0 | 42,271 | 179 |
+| B, `map4096` | 0 | 35,479 | 166 |
+
+The changed pixels lie at the edges of the box's shadow. A line cast of the crop x 600 to 959, y 575 to 654, at every second pixel, gives the truth. Each run's lit share is judged against it. The CPU copy matches the default still's floor within 0.012 in lit share on the mean, and the one-tap still within 0.016.
+
+| Run | Mean of the lit share's error against the truth | Points darker than the truth by more than 0.1 | Points brighter by more than 0.1 |
+|---|---:|---:|---:|
+| Default | 0.207 | 3,127 | 1,268 |
+| A | 0.125 | 1,607 | 74 |
+| One tap | 0.125 | 1,607 | 74 |
+| C | 0.442 | 3,950 | 0 |
+
+![The end of the box's shadow under four settings and in the path trace](leak-raised-box-edges.png)
+
+[leak-raised-box-edges.png](leak-raised-box-edges.png): the end of the box's shadow, x 600 to 959, y 575 to 654, at twice its size. From top to bottom: the default, candidate A, one tap, candidate B, and the path trace with the sun alone at 64 samples. The default's shadow ends in a wide blur. A and one tap end in a hard parallelogram with one spike, B in a narrower blur. The path trace's shadow is a hard parallelogram that ends near where A's does. It is lighter inside from the floor's bounce, which the engine's still lacks with the screen tracer off.
+
+Reading: candidate A takes 87 % of the strip's light away, keeps lit ground free of acne, and brings the box's shadow nearer the truth. Candidate B halves the strip and leaves the class. Candidate C removes the leak but moves the whole error onto the lit side of every shadow. So A is the best candidate by these measurements. At the sizes of these rooms it acts as one tap, and its remaining leak is one bilinear tap's reach, 0.03 to 0.05 m. A hard edge shows the texel grid in motion, which I did not measure.
+
+### The scenes that each candidate can change
+
+Each candidate acts on the sun's cascades only. The local lights' tiles share the bias model but keep their filter.
+
+- Every frame with a cascaded sun shadow changes at its shadows' edges: `rect-lamps`, `orbit`, `demo-exit` with its deck and spinward room, `puff-yard`, `surface-yard`, `bounce-raised-box` and the others with a `Star`. A and B sharpen the edges. C widens every shadow by 2 texels.
+- In `rect-lamps`, the sunlit strips on every jamb and sill go away, and so does the light that they send on. That light is the false sill hits of `ter-ukw6` and the specks of the ceiling.
+- The snapshot references `puffs-lit.png`, `puffs-far.png`, `puffs-glass.png`, `puffs-glow.png` and `puffs-soft.png` hold the sun's shadow of `puff-yard`. `puffs-lit.png` holds limit 2's darkened roof face.
+- The shadow tests that measure an edge or a reach: `AShadowReachesTheBaseOfAWallOnAFloorThatTheSunGrazes`, `ShadowIsContinuousAcrossCascadeSeamsAndDoesNotCreepOntoTheSunlitSide`, `GroundJustBelowAThinCasterUnderAHighSunIsInItsShadow`, `LitGroundHasNoAcne` and `BoxCastsAShadowOnTheGroundAndTheEclipseTermStillApplies`.
+
 ## Part 4: Earth in the engine and in the path trace
 
 ### Where Earth is
