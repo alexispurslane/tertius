@@ -39,55 +39,60 @@ Today one fixed reach of 2.5 texels stands for two different things:
 | The penumbra of the sun | The gap times 2 tan(angular radius): 0.055 m at 5.86 m, 0.93 m at 100 m | 0.29 m at every gap |
 | The hiding of the map's texel grid | About one texel: one bilinear comparison | 2.5 texels |
 
-The fix gives each its own width. The reach of the filter's taps is the penumbra's half-width at the receiver's gap. It is never less than the reach that hides the texel grid, and never more than today's 2.5 texels. The biases and the margins are sized for 2.5 texels, so they still hold.
+The whole fix gives each its own width. The reach of the filter's taps is the penumbra's half-width at the receiver's gap. It is never less than the reach that hides the texel grid, and never more than today's 2.5 texels.
 
-What causes what: the light's record gives the angular radius. A search around the lookup gives the mean depth of the casters nearer the light, and so the gap. The gap and the angular radius give the reach. The taps then compare as today. No new state exists: the filter stays in `shadows.glsl`, and its constants stay in `ShadowBias`.
+### Two steps, in this order (the parent agent, 2026-11-15)
+
+The user's rule on design decisions says: if a redesign keeps the quick fix unchanged, build and merge the quick fix first. The whole fix keeps the quick fix, because one tap everywhere is the whole fix with the reach at its least value and no search.
+
+| Step | Ticket | What it builds | Its merge |
+|---|---|---|---|
+| 1 | This ticket | The filter's taps take a reach that is a parameter. The reach is fixed at its least value: one bilinear comparison. | Into main. The condition: a shadow's edge in motion shows no stair steps and no crawl in any cascade. |
+| 2 | `t1-af5w` | The search for the blockers, and the reach that follows the penumbra between the least reach and 2.5 texels | Only after the user's choice, with stills and costs |
+
+This ticket is step 1 of the two. Another line's remedy and the back-face layer's acceptance takes wait for it. So when its checks pass, tell the line orchestrator at once.
+
+### What causes what
+
+The reach is one value that `sampleCascade` in `shadows.glsl` hands to its taps. In this step it is a constant. In step 2 a function of the gap gives it. The biases and the margins are sized for 2.5 texels, so they still hold at a smaller reach. No new state exists: the filter stays in `shadows.glsl`, and its constants stay in `ShadowBias`.
 
 ### Signatures
 
 GLSL, in `shadows.glsl`:
 
 ```glsl
-// The mean depth of the casters nearer the light than `reference`, among the texels within the filter's largest
-// reach of `coordinate` in cascade `layer`, or a negative value where no texel holds one.
-float blockerDepth(vec2 coordinate, float layer, float reference);
-
-// The reach of the cascade filter's taps in texels: the half-width of the light's penumbra over a gap of `gap` m, for a
-// light of angular radius `angularRadius` and texels of `texel` m. At least MinFilterReachTexels, which hides the
-// texel grid, and at most FilterReachTexels, which the biases and the margins cover.
-float filterReach(float gap, float angularRadius, float texel);
+// The lit fraction of the cascade's texels around `coordinate` for a receiver at depth `reference`, with taps
+// that reach `reach` texels from the lookup: one bilinear comparison at a reach of MinFilterReachTexels, and the
+// 4 x 4 comparisons one texel apart at FilterReachTexels.
+float filteredCascade(vec2 coordinate, float layer, float reference, float reach);
 ```
 
-C#, in `ShadowBias`: `MinFilterReachTexels` beside the constants of today, with its reason. The CPU copies of the filter in the tests follow the shader.
-
-The search reads raw depths, so the cascades need a sampler with no comparison beside the comparison sampler. Both are core Vulkan. The implementation is the lead's: the count of the search's texels, and whether a receiver with no blocker skips the taps.
+C#, in `ShadowBias`: `MinFilterReachTexels` beside the constants of today, with its reason, and the reach that the cascades use. The CPU copies of the filter in the tests follow the shader. How the taps spread between the two reaches is the lead's choice. Step 2 needs every reach between them, so do not build a switch of two fixed cases.
 
 ### Settled decisions
 
-- The source is percentage-closer soft shadows (Fernando, 2005). It was made for area lights whose penumbra spans many texels. Our sun has an angular radius of 0.00467 rad, and cascade 0 has texels of 0.058 m. So in rooms, where the gap is under 12.5 m, the reach is the least reach. The search pays off where a caster is far from its receiver: a station's part that shadows a deck from 30 m or more.
 - The fix acts on the sun's cascades only. The local lights' tiles keep their filter.
-- The fix reads the sun's angular radius from the light. The probe's constant 0.00467 is not the code.
-- Measure the cost before the review: the lighting passes' time on the M1 Max and on the RTX 2000 Ada, in the deck, the cabin and `rect-lamps`, against main. Report a second number too: the same with the reach fixed at its least value and no search. That is the simplest form of the fix, and the parent agent decides between the two with the costs.
-- The probe's switch `TERTIUS_SHADOW_FILTER=2` in `stage-2/probe-shadow-leak.patch` is a starting point, not the code.
+- The margins of the cascades and of the faces (`ShadowCascades.MarginTexels`, `FilterClearanceTexels`) stay as they are in this step. They are sized for the largest reach, which step 2 still uses.
+- The probe's switch `TERTIUS_SHADOW_FILTER=1` in `stage-2/probe-shadow-leak.patch` is a starting point, not the code.
+- A shadow's edge in motion decides the merge. Film a sun shadow's edge in every cascade, also the far ones, where a texel is large: once with a moving camera and once with a moving sun or caster. Look at the films yourself, and describe each one. If an edge shows stair steps or crawl, this step does not merge alone: report it with a still and a short film.
 
 ### Tests first
 
 - A receiver under a roof: a point 2 texels inside the roof's edge, with the roof 100 texels above, takes no sunlight. It takes up to half today, so the test is red first.
-- The penumbra's width follows the gap: under a caster at 100 m, the lit share rises from 0 to 1 over the penumbra's width within one texel of tolerance.
-- The shadow's edge lies at the geometric edge: the lit share is one half there, at a small and at a large gap.
+- The shadow's edge lies at the geometric edge: the lit share is one half there.
 - Lit ground at a grazing angle has no acne, as `LitGroundHasNoAcne` asks today.
 - Two cascades meet with no step in the lit share at the seam.
+- The existing shadow tests that measure an edge or a reach change with a reason each: `AShadowReachesTheBaseOfAWallOnAFloorThatTheSunGrazes`, `ShadowIsContinuousAcrossCascadeSeamsAndDoesNotCreepOntoTheSunlitSide`, `GroundJustBelowAThinCasterUnderAHighSunIsInItsShadow` and `BoxCastsAShadowOnTheGroundAndTheEclipseTermStillApplies`.
 
 ### Acceptance
 
 - The jamb of `rect-lamps`, with the screen tracer off: the engine's direct sunlight on output columns 1800 to 1809 has a mean under 0.03 W/(m² sr). Main has 0.222.
-- The box's shadow of `bounce-raised-box`: the mean error of the lit share against the line cast is under 0.13, where main has 0.207.
+- The box's shadow of `bounce-raised-box`: the mean error of the lit share against the line cast is under 0.13. Main has 0.207.
+- The cost against main on the M1 Max and on the RTX 2000 Ada: the lighting passes' time and the frame, in the deck, the cabin and `rect-lamps`.
+- The leak that stays, in m, on the jamb.
+- The films of the edge in motion, with a plain verdict for each cascade.
 - Checked, then Release. Each changed reference image gets a real review: the reference, the actual image and the FLIP heat map. The report describes each one. The images of `puff-yard` are expected to change at the shadows' edges.
+- A run of the shadow tests on a Linux driver in the cloud.
 - Coverage and the mutants of the changed lines follow CLAUDE.md, "Testing".
-- ARCHITECTURE.md, "Shadows": the filter's reach, and the known limits that change.
+- ARCHITECTURE.md, "Shadows": the filter's reach, and the known limits. They must name the filter's reach past a caster's edge, which none of the four names today.
 - Two to four stills in the report: the jamb before and after, and one outdoor shadow before and after.
-
-### Not measured yet
-
-- A shadow's edge in motion. A narrow edge can show the texel grid as the camera or the sun moves. Film one moving shadow before and after, and describe it.
-- The cost of the search on either machine.
