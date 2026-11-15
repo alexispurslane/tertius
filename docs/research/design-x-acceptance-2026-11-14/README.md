@@ -35,3 +35,18 @@ It contains `tools/renderer-survey/probe.patch` and these additions, which never
 
 To build the probe, apply the patch to a scratch checkout of `73f4a6548`.
 Then build `src/Tertius.Demo` in Release into `<out>/probe-bin`, as `tools/renderer-survey.py probe-build` does.
+
+## The measuring scripts
+
+`tools/` holds the scripts of the takes. They are tool code of one research session: `take.sh` and `common.sh` hold that session's paths.
+
+| File | Use |
+|---|---|
+| `take.sh` | One survey run with the probe of a named scratch build and a list of environment switches. |
+| `common.sh` | The cloud jobs of the session: the build line, the survey line and the submit call of `tools/runpod/gpu_job.py`. |
+| `light.py` | The light of a still's regions as a share of the reference's long mean. |
+| `daub.py` | The daub score of a still against a reference. It imports `light.py`. |
+| `ratio.py`, `table.py`, `films.py` | Tables of the switch, lag and motion results of several output folders. |
+| `chart.py`, `cabinpic.py`, `view.py`, `sheet.py` | The chart of a switch run, and sheets of probe captures and stills side by side. |
+
+`light.py`, `daub.py`, `cabinpic.py` and `view.py` need numpy, so run them inside the dev shell.
