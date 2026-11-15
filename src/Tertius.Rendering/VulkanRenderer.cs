@@ -1335,11 +1335,19 @@ public sealed unsafe class VulkanRenderer : IRenderer
         ];
 
     /// <summary>
-    /// The surface test image of the last frame, one byte per pixel, row by row from the top: bit i set where tap i passed
-    /// the surface test, bit 4 + i where it passed the specular test (<see cref="SurfaceHistory.Test"/>). A test hook.
+    /// The pass bits of the surface test image of the last frame, one byte per pixel, row by row from the top: bit i set
+    /// where tap i passed the surface test, bit 4 + i where it passed the specular test (<see cref="SurfaceHistory.Test"/>).
+    /// A test hook.
     /// </summary>
     internal byte[] ReadSurfaceTest() =>
-        [.. ReadLevel(image: surfaceHistory.Test, layer: 0, mip: 0).Values.Select(value => (byte)value)];
+        [.. ReadSurfaceTestWords().Select(word => (byte)(word & SurfaceHistory.PassBits))];
+
+    /// <summary>
+    /// The surface test image of the last frame, one word per pixel, row by row from the top: the pass bits of
+    /// <see cref="ReadSurfaceTest"/>, and above them the pixel's motion facts (signals.glsl). A test hook.
+    /// </summary>
+    internal ushort[] ReadSurfaceTestWords() =>
+        [.. ReadLevel(image: surfaceHistory.Test, layer: 0, mip: 0).Values.Select(value => (ushort)value)];
 
     /// <summary>
     /// FSR's device depth of the last frame, row by row from the top: <see cref="SurfaceTestPass.DeviceDepthNear"/> over

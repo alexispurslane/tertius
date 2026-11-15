@@ -144,7 +144,7 @@ Reprojection historyPlaceOf(ivec2 pixel, float roughness, bool hasSample, float 
     bool specular = parameters.light == SpecularLight;
     bool tryReflected = specular && hasSample && roughness < parameters.reflectedPlaceBelow;
     // The specular signal takes the taps that pass the specular test, bits 4 to 7.
-    uint surfaceBits = specular ? (bits >> 4) & 0xFu : bits & 0xFu;
+    uint surfaceBits = specular ? specularPassBits(bits) : surfacePassBits(bits);
     Reprojection surface = reprojectionOf(surfacePlace, surfaceBits);
 #ifdef TERTIUS_ACCUMULATION_TRACE
     tracedPlace = holdsHistory(surface) ? TracedSurfaceHolds : 0u;
@@ -164,7 +164,7 @@ Reprojection historyPlaceOf(ivec2 pixel, float roughness, bool hasSample, float 
     HistoryTaps taps = historyTaps(lastSurfaceHistory, lastDeviceDepth, reflectedPlaceOf(point, hitDistance),
         pixelReflectedPlaceOf(point, hitDistance), lastPoint, normal, roughness);
     vec2 reflectedPlace = taps.place;
-    uint reflectedBits = (taps.bits >> 4) & 0xFu;
+    uint reflectedBits = specularPassBits(taps.bits);
 #ifdef TERTIUS_ACCUMULATION_TRACE
     tracedPixelPlaces |= taps.pixel ? TracedReflectedPixelPlaceRead : 0u;
 #endif
@@ -227,8 +227,9 @@ vec4 tracedPlaceWeights(ivec2 pixel)
         if (all(greaterThanEqual(ownPlace, vec2(0.0))) && all(lessThanEqual(ownPlace, vec2(1.0))))
             ownBits = surfaceTaps(lastSurfaceHistory, lastDeviceDepth, ownPlace, lastPoint, normal, roughness);
     }
-    return vec4(tracedWeightOf(ownPlace, ownBits & 0xFu), tracedWeightOf(samplePlace, sampleBits & 0xFu),
-        tracedWeightOf(ownPlace, (ownBits >> 4) & 0xFu), tracedWeightOf(samplePlace, (sampleBits >> 4) & 0xFu));
+    return vec4(tracedWeightOf(ownPlace, surfacePassBits(ownBits)),
+        tracedWeightOf(samplePlace, surfacePassBits(sampleBits)), tracedWeightOf(ownPlace, specularPassBits(ownBits)),
+        tracedWeightOf(samplePlace, specularPassBits(sampleBits)));
 }
 #endif
 

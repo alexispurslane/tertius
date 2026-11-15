@@ -74,7 +74,7 @@ vec2 lightAgeOf(ivec2 pixel)
     float light = exactLightAt(pixel);
     if (light < 0.0)
         return vec2(light, NoLightAge);
-    Reprojection r = reprojectionOf(lastPlaceAt(pixel), imageLoad(surfaceTest, pixel).r & 0xFu);
+    Reprojection r = reprojectionOf(lastPlaceAt(pixel), surfacePassBits(imageLoad(surfaceTest, pixel).r));
     if (!holdsHistory(r))
         return vec2(light, NoLightAge);
     uint nearest = 0u;

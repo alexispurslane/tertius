@@ -20,9 +20,6 @@ const uint LightCodeMask = 0x7FFFu;
 // step after k draws, holds it within 5 % by the end (section 8.3).
 const uint RecentLightAge = 7u;
 
-// The least motion on screen that counts, in pixels per draw: the gate's threshold of ter-18hc.
-const float LeastMotion = 1.0 / 32.0;
-
 // The sample age of a sample whose rays bring the light code `lightCode`, with the motion bit where `motion` holds.
 uint sampleAgeOf(uint lightCode, bool motion)
 {

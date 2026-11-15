@@ -499,7 +499,8 @@ internal sealed unsafe class VulkanDevice : IDisposable
             // (docs/plans/skin-and-hair.md, decision 14).
             FragmentStoresAndAtomics = true,
             SamplerAnisotropy = true,
-            // The depth pyramid stores RG32F images, and the surface test and the screen tracer's plan R8UI images.
+            // The depth pyramid stores RG32F images, the surface test an R16UI image and the screen tracer's plan an R8UI
+            // image.
             ShaderStorageImageExtendedFormats = true,
             // AMD's FSR 3.1 accumulate pass writes its output image, declared with no format
             // (docs/plans/temporal-renderer.md, "FSR 3.1").

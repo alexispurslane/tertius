@@ -295,7 +295,7 @@ The filter's feedback step writes its light into S, as SVGF feeds back its first
 vec3 filtered = centerLight.rgb + moved;
 float carried = min(kept * max(centerLight.a, 0.0) + carriedSum, MaxRadiance);
 ...
-if (parameters.feedback != 0u && slowLength >= YoungFrames)
+if (slowLength >= YoungFrames)
     imageStore(fastHistory, pixel, vec4(imageLoad(fastHistory, pixel).rgb, carried));
 ```
 
@@ -310,6 +310,8 @@ where
 - `YoungFrames` = 4, the young limit of the variance dispatch.
 - `fastHistory` = this draw's diffuse fast history, binding 3 of the filter set.
 - `carried` = the deviation that the step stores.
+
+Only the feedback step's shader holds this code (`t0-89zi`). The symbol `TERTIUS_FILTER_FEEDBACK` compiles `diffuse_filter_wavelet.glsl` into the feedback shaders `diffuse_filter_feedback.comp` and `diffuse_filter_feedback_wide.comp`, with the two sums and the two history bindings. `DiffuseFilter` runs that pipeline for dispatch `FeedbackDispatch` and the plain shader for every other dispatch. A plain dispatch reads and writes no history, so it gets no barrier on one. No push constant carries the choice: `DiffuseFilterPushConstants` holds only the step.
 
 The variance dispatch marks a young estimate with a negative sign. The edge stops and the step's output read its magnitude. The output deviation of the feedback step, which step 2 reads, is `kept * |centerLight.a| + Σ share * |light.a|`. Steps 2 to 6 keep main's rule, √(kept² σp² + Σ share² σq²).
 
@@ -408,42 +410,42 @@ Motion counts in the draws in which it happens. After it stops, S has had the na
 
 Five passes each add what only they know. No pass stores a new image.
 
-1. The ray plan, one invocation per pixel q, already writes q's light-age record and its hit light. It now also decides whether q's surface moved in the camera's frame. It writes 1 into the alpha of both layers of the hit light where it did, else 0. The alpha was 0 and had no reader.
+1. The surface test pass, one invocation per pixel q, already holds q's surface point and its motion target. It decides whether q's surface moved in the camera's frame, and whether q moves on screen, and writes both facts above the pass bits of the surface test image (`SurfaceMoved`, bit 8, and `SurfaceMovesOnScreen`, bit 9, in `signals.glsl`). The image became R16UI for them (`t0-89zi`). The ray plan, which already writes q's light-age record and its hit light, copies the moved fact into the alpha of both layers of the hit light: 1 where q's surface moved, else 0. The alpha was 0 and had no reader.
 
    ```glsl
-   // As built, screen_trace.glsl.
-   vec4 stillMotionAt(ivec2 pixel)
+   // As built, motion.glsl.
+   vec4 stillMotionOf(vec3 point)
    {
-       vec3 point = normalize(viewRayThrough(vec2(pixel) + 0.5)) * texelFetch(gbufferDistance, pixel, 0).r;
        return motionOf(clipOf(point), lastClipOf(point - frame.previousEye.xyz));
    }
 
-   vec4 motionApartAt(ivec2 pixel)
+   vec4 motionApart(vec3 point, vec4 target)
    {
-       vec4 target = imageLoad(motionTarget, pixel);
-       vec4 still = stillMotionAt(pixel);
+       vec4 still = stillMotionOf(point);
        float apart = length((target.xy - still.xy) * frame.viewport.xy);
        float rounding = MotionRounding * length(still.xy * frame.viewport.xy);
        return vec4(apart, rounding, abs(target.z - still.z), MotionRounding * max(still.z, 1.0));
    }
 
-   bool movedSurfaceAt(ivec2 pixel)
+   bool movedSurface(vec3 point, vec4 target)
    {
-       vec4 apart = motionApartAt(pixel);
+       vec4 apart = motionApart(point, target);
        return apart.x >= max(LeastMotion, apart.y) || apart.z > apart.w;
    }
    ```
 
    where
 
-   - `point` = the surface point that q's sample sees, relative to this frame's eye, as `materialAt` builds it.
+   - `point` = the surface point that q's sample sees, relative to this frame's eye, in m, as `materialAt` builds it.
    - `motionOf`, `clipOf`, `lastClipOf` = the motion target's own rule (`motion.glsl`), which the G-buffer and the surface test use.
-   - `stillMotionAt` = the motion target that q would have if its surface stood still: xy the last place minus this place in units of the image, z the last view depth over this view depth.
+   - `stillMotionOf` = the motion target that q would have if its surface stood still: xy the last place minus this place in units of the image, z the last view depth over this view depth.
    - `target` = q's motion target.
    - `frame.viewport.xy` = the render size in pixels.
-   - `LeastMotion` = 1/32 pixel per draw, the gate's threshold of `ter-18hc`, now in `sample_age.glsl`.
+   - `LeastMotion` = 1/32 pixel per draw, the gate's threshold of `ter-18hc`, now in `motion.glsl` beside the rule.
    - `MotionRounding` = 2^−10, twice the relative rounding of a half float. The motion target stores half floats, so a fast camera move leaves a rounding of up to 2^−11 of the motion in each value.
    - A new instance has no last place. Its motion is (2, 2), two images away, so it counts as moved.
+
+   The first build ran the rule in the ray plan, at every pixel that a walk can hit. There it cost the plan 0.149 ms on the deck at 1920 × 1080 (ticket `t0-89zi`): a probe trace without the rule gave the plan 1.336 ms, against 1.485 ms with it and 1.338 ms on main. Two projections cannot cost that much. The plan's large shader most likely paid in registers. The surface test pass is small, and it already holds the point and the target, so the rule moved there. The plan reads the fact with the pass bits (`movedSurfaceAt`).
 
    The build differs from the first sketch in three points, each for a reason that a test showed:
 
@@ -457,7 +459,7 @@ Five passes each add what only they know. No pass stores a new image.
 
    ```glsl
    // Sketch, screen_trace_resolve.comp.
-   bool moves = movesOnScreen(pixel);
+   bool moves = movesOnScreenAt(pixel);
    uint diffuseCode = diffuseRay.brings ? ageCodeOfRecord(diffuse.ray) : 0u;
    bool diffuseMoved = diffuseRay.brings && movedHitOfRecord(diffuse.ray);
    imageStore(diffuseSampleAge, pixel, uvec4(sampleAgeOf(diffuseCode, diffuseMoved || moves)));
@@ -465,7 +467,7 @@ Five passes each add what only they know. No pass stores a new image.
 
    where
 
-   - `movesOnScreen` = whether p's motion target, in pixels, is at least `LeastMotion` long. The camera's moves and the object that carries p both count.
+   - `movesOnScreenAt` = whether p's motion target, in pixels, is at least `LeastMotion` long: the surface test's `SurfaceMovesOnScreen` bit, which `movesOnScreen` in `motion.glsl` decides. The camera's moves and the object that carries p both count.
    - `ageCodeOfRecord` = the light code of a record, as now, with the moved bit masked out.
    - `movedHitOfRecord` = bit 15 of the record's `w`.
    - `sampleAgeOf` = the sample age's layout (section 8.5).
@@ -531,10 +533,11 @@ The block is the spatial dispatch's workgroup, as decision X1 asks. The action c
 | Ray record `w` (RGBA16UI `w` of `blockRay` and `ownRay`) | 0: `RayTraced`. 1 to 14: the hit's light code, at most 16,383 (light age ≤ 16,382). 15: the hit's moved mark | `recordOf`, in the rays' passes | The resolve |
 | Ray record `w` under the light-age diagnostic | 0: `RayTraced`. 1 to 14: the diagnostic's field, an age code below `SeenField` = 0x2000 or `SeenField` plus a never-changed hit's frames seen, at most 0x1FFF (age ≤ 8,190). 15: the moved mark | `recordOf` | The resolve |
 | Sample age (R16UI, one per signal) | 0 to 14: the youngest light code of the sample's rays. 15: the sample's motion bit | The resolve | Spatial dispatch (code and bit), the test fixture `SamplePass`, `tools/Tertius.ReflectionReference` |
-| Hit light alpha (RGBA16F array, both layers) | 0 or 1: whether the pixel's surface moved | The ray plan | A ray's hit |
+| Surface test image (R16UI, `t0-89zi`) | 0 to 7: the pass bits, as on main. 8: `SurfaceMoved`. 9: `SurfaceMovesOnScreen` | The surface test pass | Pass bits: the accumulation, the plan's and the tracer's reprojections. Bit 8: the ray plan. Bit 9: the resolve |
+| Hit light alpha (RGBA16F array, both layers) | 0 or 1: whether the pixel's surface moved | The ray plan, from bit 8 of the surface test image | A ray's hit |
 
 - The light code of a record had 15 bits. Now it has 14, so a light age above 16,382 codes as 16,382. That changes no cut while a history holds fewer than 16,382 draws, the rule that the diagnostic's codes already follow. Under the diagnostic the codes stop at 8,190, by the same rule.
-- `sample_age.glsl` holds `SampleMotionBit`, `LightCodeMask`, `RecentLightAge`, `LeastMotion`, `sampleAgeOf`, `lightCodeOf`, `sawMotion` and `recentLightCode`. The tracer and both accumulation dispatches include it. `TemporalSignal.SampleMotionBit` and `TemporalSignal.LightCodeMask` are their C# twins, for the tests and `tools/Tertius.ReflectionReference`, whose sample-age file keeps the light code alone. `screen_trace.glsl` keeps the record's own layout, as now.
+- `sample_age.glsl` holds `SampleMotionBit`, `LightCodeMask`, `RecentLightAge`, `sampleAgeOf`, `lightCodeOf`, `sawMotion` and `recentLightCode`. The tracer and both accumulation dispatches include it. `TemporalSignal.SampleMotionBit` and `TemporalSignal.LightCodeMask` are their C# twins, for the tests and `tools/Tertius.ReflectionReference`, whose sample-age file keeps the light code alone. `screen_trace.glsl` keeps the record's own layout, as now.
 - The record keeps 8 bytes per pixel, and the sample age 2. The hit light keeps its format.
 
 ### 8.6 Vulkan portability and determinism
@@ -730,9 +733,9 @@ At the deck's render size of 1280 × 720 (921,600 pixels). The bounce accumulati
 | σr of bounce light in the fast alpha | 0 | 0 |
 | The feedback step reads and writes the fast history, 16 bytes per pixel | 0 | about 0.05 ms |
 | The diffuse sample age (`ter-wkvw`): the resolve writes 2 bytes per pixel, the temporal dispatch reads them | 1.8 MB | about 0.02 ms |
-| The moved mark in the ray plan: a few operations per pixel, in a store that it already makes | 0 | about 0.01 ms |
+| The moved mark in the ray plan: a few operations per pixel, in a store that it already makes. Measured 0.149 ms there, so it moved into the surface test pass (`t0-89zi`) | 0.9 MB (the surface test image from 1 to 2 bytes per pixel) | about 0.01 ms |
 | The moved bit in the rays: from the hit light load that they already make | 0 | 0 |
-| The motion bit in the resolve: one 8-byte read of the motion target per pixel | 0 | about 0.03 ms |
+| The motion bit in the resolve: one 2-byte read of the surface test image per pixel (`t0-89zi`) | 0 | about 0.01 ms |
 | The block level in both spatial dispatches: one 2-byte read per pixel, two barriers and one shared atomic | 0 | about 0.02 ms |
 | Bounce clamp in every draw | 0 | 0 |
 | Total | 1.8 MB | about 0.10 to 0.13 ms |
@@ -793,7 +796,8 @@ The step numbers are those of section 23.
 |---|---|---|
 | σr, bounce light | Temporal dispatch update (2a). Feedback step carry (2b) | Temporal reprojection (2a). Spatial box (2a). Variance dispatch, no code change (2b) |
 | `sample_age.glsl` constants | Step 11 | Resolve (13). Temporal and spatial dispatches (12) |
-| Moved mark, hit light alpha | Ray plan (13) | A ray's hit (13) |
+| Moved fact and on-screen motion fact, bits 8 and 9 of the surface test image | Surface test pass (`t0-89zi`) | Ray plan, the moved fact. Resolve, the motion fact |
+| Moved mark, hit light alpha | Ray plan (13), from bit 8 of the surface test image | A ray's hit (13) |
 | Moved bit and 14-bit light code of a ray record | `recordOf` (13) | Resolve (13). Diagnostic field, narrowed (13) |
 | Sample age: light code and motion bit | Resolve (13). Test fixture `SamplePass` (12) | Spatial block level (12). `tools/Tertius.ReflectionReference` (13) |
 | Block evidence level, derived and never stored | Spatial dispatch (12) | Box and cut in the same workgroup (12) |
@@ -963,7 +967,7 @@ Design A merges, with `ter-18hc` and `ter-wkvw`, after all of these hold:
 10. The impulse, edge, quiet-pixel, panel, pool-edge and measured-variance tests are green in Checked and Release.
 11. Climb: the band's peak, as a share of the same build's band with the filter off, is at most main's share (required). The band lies within 10 % of its single-bounce light with the filter off (target).
 12. Evidence census (T12): in the four stills, no block-draw has motion evidence, and at most 10^−4 of the block-draws of each signal have light evidence. Light evidence in a still can come only from a false light change of the record. A higher share is a finding for the light age, with a ticket of its own.
-13. Frame time: at most +0.3 ms of GPU frame span on the deck. The frame span after a switch is recorded.
+13. Frame time: at most +0.3 ms of GPU frame span on the deck. The frame span after a switch is recorded. Take T17 measured +0.50 ms. Ticket `t0-89zi` gave the filter's feedback dispatch its own pipeline and moved the moved rule into the surface test pass, and measured +0.241 ms on 2026-11-14 (main 18.841 ms, the branch 19.082 ms, each the mean of three medians at 1296 MHz).
 14. Portability: no validation message in any GPU test, on the Mac and on Linux (T18), no new device feature, and every shader compiles with `-Werror`.
 
 ## 23. Order of the work

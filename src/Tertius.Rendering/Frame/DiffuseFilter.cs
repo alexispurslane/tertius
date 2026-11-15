@@ -14,6 +14,11 @@ namespace Tertius.Rendering;
 /// the same in both directions, so it neither makes nor loses light (diffuse_filter_wavelet.glsl).
 /// </para>
 /// <para>
+/// Dispatch <see cref="FeedbackDispatch"/> runs the kernel's feedback pipeline, and every other wavelet dispatch its
+/// plain pipeline, which reads and writes no history. So the dispatch's place in the kernel is the one store of the
+/// choice, and no push constant carries it.
+/// </para>
+/// <para>
 /// The light of dispatch <see cref="FeedbackDispatch"/> replaces the slow history's light, as the paper feeds back its
 /// first step: the filter is the slow history's second writer, after the accumulation. That dispatch also writes the
 /// deviation that moves with the light into the fast history as its retained deviation
@@ -51,6 +56,7 @@ internal sealed unsafe class DiffuseFilter : IDisposable
     private readonly TemporalSignal signal;
     private readonly Pipeline variance;
     private readonly Pipeline wavelet;
+    private readonly Pipeline feedback;
 
     /// <summary>The variance dispatch's set of each parity.</summary>
     private readonly DescriptorSet[] varianceSets = new DescriptorSet[2];
@@ -86,6 +92,7 @@ internal sealed unsafe class DiffuseFilter : IDisposable
         }
         variance = CreatePipeline(shaders: shaders, name: "variance", shader: "diffuse_filter_variance.comp");
         wavelet = CreatePipeline(shaders: shaders, name: "wavelet", shader: kernel.WaveletShader);
+        feedback = CreatePipeline(shaders: shaders, name: "feedback", shader: kernel.FeedbackShader);
         (passes, Filtered) = CreateImages();
         WriteSets();
     }
@@ -137,18 +144,21 @@ internal sealed unsafe class DiffuseFilter : IDisposable
 
         for (int dispatch = 0; dispatch < Kernel.Dispatches; dispatch++)
         {
-            var push = new DiffuseFilterPushConstants
-            {
-                Step = 1 << dispatch,
-                Feedback = dispatch == FeedbackDispatch ? 1u : 0u,
-            };
+            bool feedbackStep = dispatch == FeedbackDispatch;
             barriers.Image(InputOf(dispatch), ImageUse.StorageCompute);
             barriers.Image(OutputOf(dispatch), ImageUse.StorageCompute, discard: true);
-            // Every wavelet dispatch binds the histories that the feedback dispatch writes, so the validation layers
-            // count each as a writer of both.
-            barriers.Image(signal.Slow(0), ImageUse.StorageCompute);
-            barriers.Image(signal.Fast(0, parity), ImageUse.StorageCompute);
-            Dispatch(context: context, pipeline: wavelet, set: waveletSets[parity, dispatch], push: push);
+            // Only the feedback pipeline accesses the histories, so the plain dispatches need no barrier on them.
+            if (feedbackStep)
+            {
+                barriers.Image(signal.Slow(0), ImageUse.StorageCompute);
+                barriers.Image(signal.Fast(0, parity), ImageUse.StorageCompute);
+            }
+            Dispatch(
+                context: context,
+                pipeline: feedbackStep ? feedback : wavelet,
+                set: waveletSets[parity, dispatch],
+                push: new DiffuseFilterPushConstants { Step = 1 << dispatch }
+            );
         }
     }
 
@@ -271,6 +281,7 @@ internal sealed unsafe class DiffuseFilter : IDisposable
         DestroyImages();
         device.Vk.DestroyPipeline(device.Device, variance, null);
         device.Vk.DestroyPipeline(device.Device, wavelet, null);
+        device.Vk.DestroyPipeline(device.Device, feedback, null);
     }
 }
 
@@ -288,26 +299,44 @@ internal sealed class DiffuseFilterKernel
     /// The default: six dispatches of a 3 × 3 kernel, (1, 2, 1) / 4 along each axis, at taps 1 to 32 pixels apart. That is
     /// 48 taps per pixel (ticket ter-hxhl).
     /// </summary>
-    public static readonly DiffuseFilterKernel Thin = new(MostDispatches, "diffuse_filter_wavelet.comp");
+    public static readonly DiffuseFilterKernel Thin = new(
+        dispatches: MostDispatches,
+        waveletShader: "diffuse_filter_wavelet.comp",
+        feedbackShader: "diffuse_filter_feedback.comp"
+    );
 
     /// <summary>
     /// The paper's five dispatches of a 5 × 5 kernel, (1, 4, 6, 4, 1) / 16 along each axis, at taps 1 to 16 pixels apart.
     /// That is 120 taps per pixel.
     /// </summary>
-    public static readonly DiffuseFilterKernel Wide = new(5, "diffuse_filter_wavelet_wide.comp");
+    public static readonly DiffuseFilterKernel Wide = new(
+        dispatches: 5,
+        waveletShader: "diffuse_filter_wavelet_wide.comp",
+        feedbackShader: "diffuse_filter_feedback_wide.comp"
+    );
 
-    private DiffuseFilterKernel(int dispatches, string waveletShader)
+    private DiffuseFilterKernel(int dispatches, string waveletShader, string feedbackShader)
     {
         Contract.Requires(dispatches <= MostDispatches);
         Dispatches = dispatches;
         WaveletShader = waveletShader;
+        FeedbackShader = feedbackShader;
     }
 
     /// <summary>The wavelet dispatches, whose taps lie 2^i pixels apart in dispatch i.</summary>
     public int Dispatches { get; }
 
-    /// <summary>The wavelet dispatch's shader.</summary>
+    /// <summary>
+    /// The shader of the plain wavelet dispatches: it moves the light and its variance between the filter's own images, and
+    /// reads and writes no history.
+    /// </summary>
     public string WaveletShader { get; }
+
+    /// <summary>
+    /// The shader of dispatch <see cref="DiffuseFilter.FeedbackDispatch"/>: the same step, which also writes the light
+    /// into the slow history and the retained deviation into the fast history.
+    /// </summary>
+    public string FeedbackShader { get; }
 }
 
 /// <summary>The diffuse filter as a pass of the frame graph: after the diffuse signal's accumulation.</summary>
