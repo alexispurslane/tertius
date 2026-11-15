@@ -83,7 +83,7 @@ n-T1-s     rect-lamps   daub 0.0306  broad 0.1019  smooth share 0.79  ceiling 0.
 n-T2-s     rect-lamps   daub 0.0309  broad 0.0993  smooth share 0.79  ceiling 0.0310  walls 0.0156
 
 # Cabin switch, today's jitter
-$ switch.py s/t-A-sw/results/switch/cabin.json s/t-A-sw/results/switch/cabin.json s/t-fix-sw/results/switch/cabin.json s/t-T0-sw/results/switch/cabin.json s/t-T1-sw/results/switch/cabin.json s/t-T2-sw/results/switch/cabin.json s/t-cap4-sw/results/switch/cabin.json
+$ switch.py s/t-A-sw/results/switch/cabin.json s/t-A-sw/results/switch/cabin.json s/t-fix-sw/results/switch/cabin.json s/t-T0-sw/results/switch/cabin.json s/t-T1-sw/results/switch/cabin.json s/t-T2-sw/results/switch/cabin.json s/t-cap4-sw/results/switch/cabin.json s/t-T0cap4-sw/results/switch/cabin.json
 variant                            slowest off/on whole off/on  r11 off/on  lvl60 off w/r11  lvl60 on w/r11  cyc off w/r11  cyc on w/r11  dip off r11   dip on r11 own15 on r11  still lo/hi r11
 t-A-sw                               none/97         74/39       63/37       105.7/105.0      96.1/95.8     105.7/105.1    96.1/95.8     105.0@60     94.3@10          -5.7    100.0/100.0  
 t-fix-sw                               66/none       12/27       56/none      96.0/95.2       90.4/84.5      95.9/94.7     90.4/84.4      82.9@19     77.6@17         -16.3     98.7/100.0  
@@ -91,6 +91,7 @@ t-T0-sw                                54/56         14/23       23/56       100
 t-T1-sw                                63/94         12/36       63/94        96.5/96.1       90.1/83.3      96.5/95.9     90.1/83.4      84.7@19     76.6@17         -15.1    101.7/102.4  
 t-T2-sw                                50/73         12/32       38/73       101.0/111.0      91.1/87.4     100.7/109.4    91.0/87.2      86.7@19     77.3@17         -16.2    110.5/113.6  
 t-cap4-sw                              46/23         20/15       20/18       104.7/119.7      93.7/91.4     101.7/108.2    93.2/89.5      88.1@55     76.0@17          -6.6     94.0/128.1  
+t-T0cap4-sw                            39/25         20/15       20/18       104.5/120.7      93.5/91.5     101.6/108.7    93.0/89.4      88.7@55     76.2@17          -6.5     94.5/127.2  
 levels and dips in % of the reference's control at the same frame; own15 in % against the run's own control
 
 # Cabin switch, no jitter

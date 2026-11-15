@@ -26,7 +26,7 @@ CHANNELS = 5  # lag, T1, T2, T3, flag
 FILM_FRAMES = 180
 
 def load(variant):
-    """The counts of the process that counted the most draws: {light: (numbers, array of draws x h x w x 4)}."""
+    """The counts of the process that counted the most draws: {light: (numbers, array of draws x h x w x CHANNELS)}."""
     best = None
     for folder in Path(f's/{variant}/count').iterdir():
         if any(word in (folder / 'command.txt').read_text() for word in ('references', '/work/exposure/')):
@@ -54,7 +54,7 @@ def regions(h, w):
     return cells
 
 def stats(block):
-    """The numbers of one region over some draws, from its pixel draws (n x 4)."""
+    """The numbers of one region over some draws, from its pixel draws (n x CHANNELS)."""
     surface = block[block[:, 4] >= 1]
     if len(surface) == 0:
         return None

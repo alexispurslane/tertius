@@ -1,6 +1,6 @@
 # Which measured spread gives the regional lag test its tolerance (t0-xlcu), 2026-11-15
 
-This folder holds the takes of ticket `t0-xlcu`. All takes ran on this Mac from 03:57 to 05:31 local time, under the shared GPU lock. No take used the cloud.
+This folder holds the takes of ticket `t0-xlcu`. All takes ran on this Mac from 03:57 to 05:44 local time, under the shared GPU lock. No take used the cloud.
 The ticket's section "Design (line orchestrator, 2026-11-15)" holds the candidate rules and the three questions. `docs/research/t0-mzhr-regional-test-cycle/README.md` and `docs/research/t0-y46f-window-18-excess/README.md` define every term that this README does not define.
 
 The short result: the regional test with the corrected 18-draw window does not close the bay film's trail, at 10 % or with a derived tolerance. It brings the film from the fix's +1.86 / +1.75 to about main's level, +1.36 / +0.64 against main's +1.18 / +0.53. The earlier result of "region, window 18" (+0.43 / +0.18) came from the bounce history held at 4 draws: a plain cap of 4 draws repeats it to every printed digit. Among the derived rules, T1 keeps the lamp hall still's light and stops the cabin center's swing under today's jitter. But it sees no light change in the cabin and loses the still under the long Halton sequence.
@@ -130,9 +130,9 @@ where `regionTolerance` = 0.10 for the reflections and for rule 0, else T1, T2 o
 
 ### The count
 
-After each counted draw, the renderer reads back the five count layers of each signal's ring: `lag`, T1, T2, T3 and a flag (1 or 2 for a surface pixel, 0 for the sky). It appends every second render pixel of every second row, 640 × 360 halves per layer, to `<folder>/<process id>/<light>.f16`. `tools/count.py` reduces them per region: the whole image and the survey's 3 × 3 grid, `r<row><column>` from the top left. Each process of a survey run writes its own folder, and `count.py` takes the film's process, not the exposure run or the film's reference stills.
+After each counted draw, the renderer reads back the five count layers of each signal's ring. These are `lag`, T1, T2, T3 and a flag: 1 or 2 for a surface pixel, 0 for the sky. It appends every second render pixel of every second row to `<folder>/<process id>/<light>.f16`, 640 × 360 halves per layer. `tools/count.py` reduces them per region: the whole image and the survey's 3 × 3 grid, `r<row><column>` from the top left. Each process of a survey run writes its own folder, and `count.py` takes the film's process, not the exposure run or the film's reference stills.
 
-The quantities come from the slow histories before this draw's action, at every surface pixel. So the count also holds pixels whose length is at the fast cap, where the test does not act.
+The quantities come from the slow histories before this draw's action, at every surface pixel. The flag is 1 where the length is above the fast cap, where the test can act, and 2 elsewhere. In the counts of the first build, 99.9 to 100 % of the surface pixel draws have flag 1. This also holds right after a switch. The reason: the temporal dispatch adds this draw to the length before the spatial dispatch runs, so a cut history already stands at 5 draws. So the flag does not change the shares, and `count.py` counts every surface pixel draw.
 
 ## The control runs
 
@@ -231,7 +231,7 @@ Automatic exposure, draw 132. Specks per 10,000 visible pixels and blotch from t
 
 ### Cabin switch
 
-`switch.py` of this folder adds one column to `t0-mzhr`'s copy: still lo / hi, the lowest and highest level of r11 over frames 140 to 159, as % of the reference's lamps-on control. Settle counts in draws, levels in % of the reference's control.
+`switch.py` of this folder adds one column to `t0-mzhr`'s copy, still lo / hi. It is the lowest and highest level of r11 over frames 140 to 159, as % of the reference's lamps-on control. Settle counts are in draws, and levels in % of the reference's control.
 
 Today's jitter:
 
@@ -244,6 +244,7 @@ Today's jitter:
 | T1 | 63 / 94 | 12 / 36 | 63 / 94 | 96.5 / 96.1 | 90.1 / 83.3 | 76.6 at 17 | 101.7 / 102.4 |
 | T2 | 50 / 73 | 12 / 32 | 38 / 73 | 101.0 / 111.0 | 91.1 / 87.4 | 77.3 at 17 | 110.5 / 113.6 |
 | cap 4 | 46 / 23 | 20 / 15 | 20 / 18 | 104.7 / 119.7 | 93.7 / 91.4 | 76.0 at 17 | 94.0 / 128.1 |
+| cap 4 with T0's test (review's fix) | 39 / 25 | 20 / 15 | 20 / 18 | 104.5 / 120.7 | 93.5 / 91.5 | 76.2 at 17 | 94.5 / 127.2 |
 
 No jitter:
 
@@ -269,7 +270,7 @@ Long sequence:
 `pics/cabin-r11-today.png`: r11 of each switch run over frames 140 to 459, as % of the reference's control in the same lamp state, today's jitter. I looked at it first.
 
 - Before the switch, T0 has teeth every 18 draws, from about 100 to 118 %. T2 lies at about 110 to 113 % with no teeth. T1 and the fix lie flat at about 100 to 102 %.
-- After the lamps go off, T0 rises at once to 131 %. Then it falls in teeth every 18 draws until about frame 250, from about 125 to 95 %. T2 follows T0's teeth at a smaller size until about frame 215, then decays smoothly. It stays above the other variants and near the reference until frame 330. T1 and the fix fall to about 85 % by frame 179 and then lie flat at 93 to 96 %. From about frame 260, T0 lies lowest, near 84 to 88 %.
+- After the lamps go off, T0 rises at once to 131 %. Then it falls in teeth every 18 draws until about frame 250, from about 125 to 95 %. T2 follows T0's teeth at a smaller size until about frame 235, then decays smoothly. It stays above the other variants and near the reference until frame 330. T1 and the fix fall to about 85 % by frame 179 and then lie flat at 93 to 96 %. From about frame 260, T0 lies lowest, near 84 to 88 %.
 - After the lamps come on, every variant but the reference falls to about 75 to 80 % at frame 377. Then each rises in steps every 18 draws, to about 87 to 90 % by frame 459. The reference lies at 94 to 97 %.
 
 ### Film rect-bay
@@ -313,7 +314,7 @@ Measured (step 1, bounce light, whole image):
 - Over T2: 16.2 and 14.4 %, 5.3 and 5.4 %, 5.6 and 5.2 %.
 - Lamp hall with the diffuse filter off: over T0 19.8 %, over T1 3.1 %, over T2 0.2 %.
 
-My reading: in the bay and the exit cabin, the two derived tolerances have medians of 0.075 to 0.080, near 10 %. So there they fire more often than T0. In the lamp hall they are wider than 10 %. There T1 cuts the still's false share from about 20 % to 6 to 8 %. T1 lets through 5 to 8 % of the pixel draws in every scene and under both jitters. Two standard deviations of a normal spread let through 4.6 %. So T1's false share does not depend on the scene, which is what a derived tolerance is for. T2 does depend on the scene: in the lamp hall it lets 14 to 16 % through, and with the filter off 0.2 %. So the filter narrows the retained deviation that T2 reads. The still's lag itself does not come from the filter's write-back: with the filter off, 19.8 % still exceed 10 %.
+My reading: in the bay and the exit cabin, the two derived tolerances have medians of 0.075 to 0.080, near 10 %. So there they fire more often than T0. In the lamp hall they are wider than 10 %. There T1 cuts the still's false share from about 20 % to 6 to 8 %. Over the whole image, T1 lets through 5 to 8 % of the pixel draws in every scene and under both jitters. Two standard deviations of a normal spread let through 4.6 %. So over the whole image, T1's false share does not depend on the scene, which is what a derived tolerance is for. Per region it does. Over the 3 × 3 regions of the lamp hall, the share over T1 goes from 0.8 to 23.3 % under today's jitter. Without jitter it goes from 1.9 to 29.4 %. In the bay it goes from 3.1 to 9.6 %, in the exit cabin from 2.9 to 7.2 %. In the lamp hall's r11 without jitter, 29.4 % exceed T1 against 7.6 % for T0, four times as many. In the cabin's r11 before the switch, 21.6 % exceed T1 against 25.9 % for T0. T2 does depend on the scene: in the lamp hall it lets 14 to 16 % through, and with the filter off 0.2 %. So the filter narrows the retained deviation that T2 reads. The still's lag itself does not come from the filter's write-back: with the filter off, 19.8 % still exceed 10 %.
 
 ### Question 2: with a derived tolerance acting, does the still keep the fix's light and specks, and does the cabin's center stop swinging before the switch?
 
@@ -324,7 +325,7 @@ Measured:
 - Specks, today's jitter: T1 7.34, T2 7.43, T0 9.36, the fix 6.01. Blotch: 0.0739, 0.0543, 0.0557, 0.0933. Daub: 0.0386, 0.0389, 0.0391, 0.0403. Broad: 0.0693, 0.1053, 0.0922, 0.0913.
 - r11 over frames 140 to 159, today's jitter: T1 101.7 to 102.4 %, T2 110.5 to 113.6 %, T0 100.7 to 117.8 %, the fix 98.7 to 100.0 %. No jitter: all four within 100.6 to 102.2 %. Long sequence: T1 105.4 to 116.8 %, T0 95.0 to 102.2 %.
 
-My reading: under today's jitter, T1 keeps the still's light within 1.2 points of the fix and stops the cabin center's swing: its range before the switch is 0.7 points, against 17.1 for T0. Its specks lie between the fix's and T0's. T2 also has no teeth before the switch. But it holds the cabin center 10 to 14 % above the reference, and the lamp hall's walls 5.1 points above it. T2's high light comes with long histories (29.3 draws on the walls), so the length effect of `t8-69v7` does not explain it. I did not find its cause. Under the long sequence T1 fails both: the walls stand 8.1 points above the reference and the cabin's center swings from 105.4 to 116.8 %. There T0 keeps the still (96.7 / 99.1) and swings less (95.0 to 102.2 %). So no rule keeps the still under both jitters.
+My reading: under today's jitter, T1 keeps the still's light within 1.2 points of the fix. It also stops the cabin center's swing: its range before the switch is 0.7 points, against 17.1 for T0. Its specks lie between the fix's and T0's. T2 also has no teeth before the switch. But it holds the cabin center 10 to 14 % above the reference, and the lamp hall's walls 5.1 points above it. T2's high light comes with long histories (29.3 draws on the walls), so the length effect of `t8-69v7` does not explain it. I did not find its cause. Under the long sequence T1 fails both: the walls stand 8.1 points above the reference and the cabin's center swings from 105.4 to 116.8 %. There T0 keeps the still (96.7 / 99.1) and swings less (95.0 to 102.2 %). So no rule keeps the still under both jitters.
 
 ### Question 3: does the corrected test close the bay film's trail, at 10 % and with a derived tolerance?
 
@@ -335,11 +336,11 @@ Measured, today's jitter:
 - Cabin settle, slowest off / on: T0 54 / 56, T1 63 / 94, T2 50 / 73. Main 75 / 52, the fix 66 / none. Cap 4 46 / 23, and `t0-mzhr`'s broken window 39 / 25.
 - Cabin level 60 draws after the lamps return, r11: T0 85.7 %, T1 83.3 %, T2 87.4 %, main 73.4 %, the fix 84.5 %, cap 4 91.4 %. After the lamps go off: T0 110.8 %, T1 96.1 %, T2 111.0 %, the fix 95.2 %.
 - bay-sun, median lag / lag error: T0 21.40 / 0.2230, T1 23.45 / 0.2303, T2 21.72 / 0.2173. Main 28.55 / 0.2644, the fix 26.93 / 0.2679, cap 4 8.31 / 0.0892.
-- Step 1: in the bay film all rules see the change at 71 to 73 % of the pixel draws. In the cabin, the share over T1 falls below its still level after both switches. It is 1.9 % at off d 6 to 17 against 5.9 % before. Over T2 it rises after the lamps go off (r11 56.0 % against 32.6 %) and falls after they come on (12.6 %).
+- Step 1: in the bay film all rules see the change at 71 to 73 % of the pixel draws. In the cabin, the share over T1 rises a little in the first 6 draws after the lamps come on: 7.2 % against 5.9 % before the switch, and 24.3 % against 21.6 % in r11. From 6 draws after each switch, it falls below its still level: 1.9 % at off d 6 to 17 and 4.1 % at on d 6 to 17. Over T2 it rises after the lamps go off (r11 56.0 % against 32.6 %) and falls after they come on (12.6 %).
 
-My reading: no. The corrected test does not close the bay film's trail at 10 % or with a derived tolerance. It takes the film from the fix's trail back to main's: the middle frame stays 0.18 to 0.25 above main, the last frame 0.07 to 0.11 above. In bay-sun it lowers the lag error by 0.03 to 0.05 against main. The three rules differ by at most 0.07 in the film's level and 0.013 in the lag error. So the tolerance is not the limit here: in the film, every tolerance lies far below the trail's lag (median 0.21). What limits the test is how far it shortens the history, by the excess over the anti-lag share, and only down to the fast cap.
+My reading: no. The corrected test does not close the bay film's trail at 10 % or with a derived tolerance. It takes the film from the fix's trail back to main's: the middle frame stays 0.18 to 0.25 above main, the last frame 0.07 to 0.11 above. In bay-sun it lowers the lag error by 0.03 to 0.05 against main. The three rules differ by at most 0.07 in the film's level and 0.013 in the lag error. So the tolerance is not the limit here: in the film, every tolerance lies far below the trail's lag (median 0.21). My explanation, which no take tested, is that the limit is how far the test shortens the history. It shortens by the excess over the anti-lag share, and only down to the fast cap. A take with a larger cut per draw, such as a smaller anti-lag share for the test, can test it.
 
-The earlier gain of "region, window 18" came from the history's length alone. Cap 4 without any test repeats its film exactly, and its bay-sun lag error within 0.002. Cap 4's settle counts differ from the broken window's only in the slowest region after the lamps go off (46 against 39). The whole image and r11 match (20 / 15 and 20 / 18). In the broken build the reflections had the regional test, and cap 4 has none. So the films' gain needs a short bounce history, and a short history costs the still. `t0-y46f` measured 2 to 7 % more light in a still with cap 4. Here the cabin center swings from 94.0 to 128.1 % before the switch.
+The earlier gain of "region, window 18" came from the history's length alone. Cap 4 without any test repeats its film exactly, and its bay-sun lag error within 0.002. Cap 4's settle counts differ from the broken window's in the slowest region: 46 / 23 against 39 / 25. The whole image and r11 match (20 / 15 and 20 / 18). In the broken build the reflections had the regional test, and cap 4 has none. The review's fix took cap 4 with T0's test acting (`t-T0cap4-sw`). Cap 4 holds every bounce history at 4 draws, so there the test acts only on the reflections. That take repeats the broken window's cabin to every printed digit: 39 / 25, levels 60 draws after the switches 104.5 / 120.7 and 93.5 / 91.5. So the reflections' test causes the difference. So the films' gain needs a short bounce history, and a short history costs the still. `t0-y46f` measured 2 to 7 % more light in a still with cap 4. Here the cabin center swings from 94.0 to 128.1 % before the switch.
 
 In the cabin, T1 sees no light change and settles the lamps-on window slower than main (94 against 52 draws). T2 sees the lamps go off but not come on. That is the warning of section 8.1 again: a tolerance from the measured spread follows the spread up after a change and silences the test.
 
@@ -360,6 +361,7 @@ This result is the question for Alexis that the ticket names. No derived rule ke
 - The cause of the still's lag in the lamp hall and the cabin. 19 to 21 % of the pixel draws exceed 10 % there, with the test not acting, also with the filter off.
 - The cause of the spread's rise after a switch, which silences T1. T3 shows that the step itself is not the main cause.
 - The cause of T2's light above the reference under today's jitter with long histories.
+- The bounce history's length in the cabin switch. The count of lengths has no last draw, so it cannot count frames 140 to 159 of a switch alone. So a reader cannot tell from the switch takes whether the length effect of `t8-69v7` explains T2's cabin center at 110 to 113 %. The lamp hall still suggests it does not: T2's walls stand 5.1 points high with a mean length of 29.27 draws.
 - T2 under the long sequence.
 
 ## Notes
@@ -376,7 +378,7 @@ This result is the question for Alexis that the ticket names. No derived rule ke
 | `tables.txt` | The printed output of `tools/measure.sh`: the control and every take of step 2 |
 | `pics/` | The chart of r11 over the cabin switch and the crop sheet of the lamp hall's ceiling |
 | `tools/take.sh` | One survey run with the probe and environment switches, into `/private/tmp/t0-xlcu/runs/<name>`. A run with a result is kept, so that a stopped queue resumes |
-| `tools/queue-c.sh`, `queue-1.sh`, `queue-1d.sh`, `queue-2.sh`, `queue-3.sh` | The takes in the order that they ran: the control, step 1, the diagnostic and the control on the second build, step 2, the long sequence |
+| `tools/queue-c.sh`, `queue-1.sh`, `queue-1d.sh`, `queue-2.sh`, `queue-3.sh`, `queue-4.sh` | The takes in the order that they ran: the control, step 1, the diagnostic and the control on the second build, step 2, the long sequence, the review's fix |
 | `tools/count.py` | The count's reduction per region, for stills, the switch and the film |
 | `tools/switch.py` | `t0-mzhr`'s copy with the still state's range of r11 |
 | `tools/stills.py` | The survey's specks and blotch of a still |

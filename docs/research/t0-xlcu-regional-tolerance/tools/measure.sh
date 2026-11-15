@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # measure.sh: prints every table of step 2 and the control from the run folders in /private/tmp/t0-xlcu/runs, through
-# m.sh. Its output is tables.txt. Step 1's count is in tables-step1.txt (count.py, whose raw captures are deleted).
+# m.sh. Its output is tables.txt. Step 1's count is in tables-step1.txt (count.py). Its raw captures are deleted after the record.
 M=$(dirname "$0")/m.sh
 run() { echo "\$ $*"; "$M" "$@" 2>&1 | grep -v -i "warning\|sqlite"; echo; }
 S=results/switch/cabin.json; F=results/motion/rect-bay.json
@@ -19,7 +19,7 @@ echo "# Lamp hall still at the automatic exposure: specks and blotch, and the da
 run stills.py rect-lamps t-A-s t-fix-s t-T0-s t-T1-s t-T2-s n-A-s n-fix-s n-T0-s n-T1-s n-T2-s
 for j in t n; do echo "\$ REF=$j-A-s daub.py ..."; REF=$j-A-s "$M" daub.py $j-A-s:rect-lamps $j-fix-s:rect-lamps $j-T0-s:rect-lamps $j-T1-s:rect-lamps $j-T2-s:rect-lamps 2>&1 | grep -v -i "warning\|sqlite"; echo; done
 echo "# Cabin switch, today's jitter"
-run switch.py s/t-A-sw/$S s/t-A-sw/$S s/t-fix-sw/$S s/t-T0-sw/$S s/t-T1-sw/$S s/t-T2-sw/$S s/t-cap4-sw/$S
+run switch.py s/t-A-sw/$S s/t-A-sw/$S s/t-fix-sw/$S s/t-T0-sw/$S s/t-T1-sw/$S s/t-T2-sw/$S s/t-cap4-sw/$S s/t-T0cap4-sw/$S
 echo "# Cabin switch, no jitter"
 run switch.py s/n-A-sw/$S s/n-A-sw/$S s/n-fix-sw/$S s/n-T0-sw/$S s/n-T1-sw/$S s/n-T2-sw/$S
 echo "# Cabin switch, long Halton sequence"
