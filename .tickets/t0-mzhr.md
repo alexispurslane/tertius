@@ -1,6 +1,6 @@
 ---
 id: t0-mzhr
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-15T01:28:52Z
@@ -172,3 +172,7 @@ Answers. The measured facts are above. My reading follows.
 3. A cut to 18 draws halves the dip after the lamps return (r11 -8.1 % against -16.3 % at 15 draws, main's size). It costs time after a change. bay-sun's lag error rises 0.037 against main, about 7 times acceptance 9's allowance of 0.005. The bay film reaches +2.69 at its last frame, and the whole image settles 39 draws later after the lamps go off.
 
 Not taken: main, cut 18 and the lag films under no jitter and the long sequence (not required), and a control run of the long sequence. No take shows the first 18 draws after a reset, and the code shows that they are AMD's offsets. Bug tickets from this work: t1-zj18 (main's lag film lamp-hall-16-moving does not repeat in 11 of 245 values) and t1-ve0p (an rmdir error of tools/gpu-lock.sh).
+
+**2026-11-15T03:24:28Z**
+
+Integration (line orchestrator, 2026-11-14). Gates held: status ready_for_integration, no fork, clean checkout, branch t3/measure-regional-lag-jitter at 1e3b8b87d, every review finding resolved. Merged into t7-3e22-retained-deviation as b86eaa2d5. Last check, one read of the merged record: the README's tables agree with the lead's report and with tables.txt's script (switch.py computes the level against the reference's control at the same frame, as the ticket defines it). The diff touches only .tickets and docs/research/t0-mzhr-regional-test-cycle. I opened cabin-r11-today.png and rect-lamps-ceiling-today.png: they show what the README says. Open point from the record, now its own experiment ticket: the 18-draw window's light above the reference in a still (walls 106.5 % without jitter).
