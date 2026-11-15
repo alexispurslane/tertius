@@ -1,0 +1,349 @@
+{
+ "cabin": {
+  "geometry": {
+   "normal": "/private/tmp/t1-g4p1/ref/geo-cabin-normal.npy",
+   "position": "/private/tmp/t1-g4p1/ref/geo-cabin-position.npy"
+  },
+  "regions": {
+   "pillar face z -5.7": {
+    "box": [
+     578,
+     400,
+     660,
+     700
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "z": [
+     -5.8,
+     -5.6
+    ]
+   },
+   "pillar face z -7.7": {
+    "box": [
+     578,
+     400,
+     660,
+     700
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "z": [
+     -7.8,
+     -7.6
+    ]
+   },
+   "pillar side -5.7 to -7.7": {
+    "box": [
+     578,
+     400,
+     660,
+     700
+    ],
+    "normal": [
+     1,
+     0,
+     0
+    ],
+    "z": [
+     -7.69,
+     -5.71
+    ]
+   },
+   "pillar side -7.7 to -9.7": {
+    "box": [
+     578,
+     400,
+     660,
+     700
+    ],
+    "normal": [
+     1,
+     0,
+     0
+    ],
+    "z": [
+     -9.69,
+     -7.71
+    ]
+   },
+   "floor right": {
+    "box": [
+     1300,
+     950,
+     1500,
+     1070
+    ],
+    "normal": [
+     0,
+     1,
+     0
+    ]
+   }
+  },
+  "neutral": "floor right",
+  "sets": {
+   "full": {
+    "stops": -0.3901896,
+    "columns": "/private/tmp/t1-g4p1/full/cabin/pack",
+    "order": [
+     "ten",
+     "layer",
+     "layerfade",
+     "dfront",
+     "dmiss05",
+     "dmiss15",
+     "dblack05",
+     "dblack15"
+    ],
+    "reference": [
+     [
+      [
+       "/private/tmp/t1-g4p1/ref/cabin-crop-s1.npy",
+       520,
+       300
+      ],
+      [
+       "/private/tmp/t1-g4p1/ref/neutral-cabin-s1.npy",
+       1300,
+       950
+      ]
+     ],
+     [
+      [
+       "/private/tmp/t1-g4p1/ref/cabin-crop-s2.npy",
+       520,
+       300
+      ],
+      [
+       "/private/tmp/t1-g4p1/ref/neutral-cabin-s2.npy",
+       1300,
+       950
+      ]
+     ]
+    ]
+   },
+   "nosun": {
+    "stops": 0.9178147,
+    "columns": "/private/tmp/t1-g4p1/nosun/cabin/pack",
+    "order": [
+     "ten",
+     "layer",
+     "layerfade",
+     "dfront",
+     "dmiss05",
+     "dmiss15",
+     "dblack05",
+     "dblack15"
+    ],
+    "reference": [
+     [
+      [
+       "/private/tmp/t1-g4p1/ref/ns-cabin-s1.npy",
+       520,
+       300
+      ],
+      [
+       "/private/tmp/t1-g4p1/ref/ns-neutral-cabin-s1.npy",
+       1300,
+       950
+      ]
+     ],
+     [
+      [
+       "/private/tmp/t1-g4p1/ref/ns-cabin-s2.npy",
+       520,
+       300
+      ],
+      [
+       "/private/tmp/t1-g4p1/ref/ns-neutral-cabin-s2.npy",
+       1300,
+       950
+      ]
+     ]
+    ]
+   }
+  }
+ },
+ "rect-lamps": {
+  "geometry": {
+   "normal": "/private/tmp/t1-g4p1/ref/geo-rect-lamps-normal.npy",
+   "position": "/private/tmp/t1-g4p1/ref/geo-rect-lamps-position.npy"
+  },
+  "regions": {
+   "jamb, room half": {
+    "box": [
+     1770,
+     492,
+     1787,
+     588
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ]
+   },
+   "jamb, behind the glass": {
+    "box": [
+     1791,
+     492,
+     1807,
+     588
+    ]
+   },
+   "floor below the window": {
+    "box": [
+     1700,
+     700,
+     1920,
+     880
+    ],
+    "normal": [
+     0,
+     1,
+     0
+    ]
+   },
+   "far ceiling": {
+    "box": [
+     720,
+     120,
+     1200,
+     400
+    ],
+    "normal": [
+     0,
+     -1,
+     0
+    ],
+    "y": [
+     5.33,
+     5.4
+    ]
+   },
+   "floor near": {
+    "box": [
+     800,
+     950,
+     1100,
+     1070
+    ],
+    "normal": [
+     0,
+     1,
+     0
+    ]
+   }
+  },
+  "neutral": "floor near",
+  "sets": {
+   "full": {
+    "stops": 2.7868438,
+    "columns": "/private/tmp/t1-g4p1/full/rect-lamps/pack",
+    "order": [
+     "ten",
+     "layer",
+     "layerfade",
+     "dfront",
+     "dmiss05",
+     "dmiss15",
+     "dblack05",
+     "dblack15"
+    ],
+    "reference": [
+     [
+      [
+       "/private/tmp/t1-g4p1/ref/rect-window-s1.npy",
+       1700,
+       440
+      ],
+      [
+       "/private/tmp/t1-g4p1/ref/rect-ceiling-s1.npy",
+       720,
+       120
+      ],
+      [
+       "/private/tmp/t1-g4p1/ref/neutral-rect-s1.npy",
+       800,
+       950
+      ]
+     ],
+     [
+      [
+       "/private/tmp/t1-g4p1/ref/rect-window-s2.npy",
+       1700,
+       440
+      ],
+      [
+       "/private/tmp/t1-g4p1/ref/rect-ceiling-s2.npy",
+       720,
+       120
+      ],
+      [
+       "/private/tmp/t1-g4p1/ref/neutral-rect-s2.npy",
+       800,
+       950
+      ]
+     ]
+    ]
+   },
+   "nosun": {
+    "stops": 3.849491,
+    "columns": "/private/tmp/t1-g4p1/nosun/rect-lamps/pack",
+    "order": [
+     "ten",
+     "layer",
+     "layerfade",
+     "dfront",
+     "dmiss05",
+     "dmiss15",
+     "dblack05",
+     "dblack15"
+    ],
+    "reference": [
+     [
+      [
+       "/private/tmp/t1-g4p1/ref/ns-rect-window-s1.npy",
+       1700,
+       440
+      ],
+      [
+       "/private/tmp/t1-g4p1/ref/ns-rect-ceiling-s1.npy",
+       720,
+       120
+      ],
+      [
+       "/private/tmp/t1-g4p1/ref/ns-neutral-rect-s1.npy",
+       800,
+       950
+      ]
+     ],
+     [
+      [
+       "/private/tmp/t1-g4p1/ref/ns-rect-window-s2.npy",
+       1700,
+       440
+      ],
+      [
+       "/private/tmp/t1-g4p1/ref/ns-rect-ceiling-s2.npy",
+       720,
+       120
+      ],
+      [
+       "/private/tmp/t1-g4p1/ref/ns-neutral-rect-s2.npy",
+       800,
+       950
+      ]
+     ]
+    ]
+   }
+  }
+ }
+}
