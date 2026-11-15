@@ -109,7 +109,7 @@ internal sealed unsafe class GeometryPass : RenderPass
                 BindGeometry(context);
             }
 
-            SidedRuns runs = scene.Opaque[range];
+            SidedRuns runs = scene.Opaque[range].Sided;
             if (runs.Count > 0)
             {
                 PushDraw(context: context, viewProjection: scene.RangeViewProjection[range]);

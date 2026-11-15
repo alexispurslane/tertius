@@ -7,7 +7,7 @@ public sealed class EnvironmentBoxTests
 {
     private static readonly MeshInfo[] Meshes =
     [
-        new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: 2, Deform: null),
+        new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: 2, Deform: null, Closed: true),
     ];
 
     [Fact]

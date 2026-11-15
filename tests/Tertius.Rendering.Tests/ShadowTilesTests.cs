@@ -1692,6 +1692,6 @@ public sealed class ShadowTilesTests
         }
 
         private static MeshInfo StaticMesh(MeshDeform? deform) =>
-            new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: 1, Deform: deform);
+            new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: 1, Deform: deform, Closed: true);
     }
 }

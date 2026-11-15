@@ -1,5 +1,3 @@
-using Silk.NET.Vulkan;
-
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
@@ -14,7 +12,7 @@ public sealed class GeometryStoreRegionTests
     [Fact]
     public void ANeedThatTheRegionAlreadyHoldsKeepsTheVertexBufferAndTheCapacity()
     {
-        using var plumbing = new Plumbing();
+        using var plumbing = new RecordingPlumbing();
         using var store = new GeometryStore(plumbing.Device, plumbing.Allocator);
         Reserve(store: store, plumbing: plumbing, vertices: 1_000);
         GpuBuffer grown = store.VertexBuffer;
@@ -30,7 +28,7 @@ public sealed class GeometryStoreRegionTests
     [Fact]
     public void ANeedPastTheMostThatTheWindowAllowsKeepsTheVertexBufferAndTheCapacity()
     {
-        using var plumbing = new Plumbing();
+        using var plumbing = new RecordingPlumbing();
         using var store = new GeometryStore(plumbing.Device, plumbing.Allocator);
         int most = GeometryStore.MaxRegion(plumbing.Device.Properties.Limits.MaxStorageBufferRange);
         Reserve(store: store, plumbing: plumbing, vertices: most);
@@ -45,7 +43,7 @@ public sealed class GeometryStoreRegionTests
     [Fact]
     public void TheKeptPositionsHoldTheRegionThatTheReservationGrew()
     {
-        using var plumbing = new Plumbing();
+        using var plumbing = new RecordingPlumbing();
         using var store = new GeometryStore(plumbing.Device, plumbing.Allocator);
         using var kept = new KeptPositions(plumbing.Device, plumbing.Allocator);
 
@@ -59,7 +57,7 @@ public sealed class GeometryStoreRegionTests
     [Fact]
     public void AGrowthThatNoDrawnFrameFollowedIsCopiedAgainByTheNextFrame()
     {
-        using var plumbing = new Plumbing();
+        using var plumbing = new RecordingPlumbing();
         using var store = new GeometryStore(plumbing.Device, plumbing.Allocator);
         using var kept = new KeptPositions(plumbing.Device, plumbing.Allocator);
         Reserve(store: store, plumbing: plumbing, vertices: 1_000, kept: kept);
@@ -78,7 +76,7 @@ public sealed class GeometryStoreRegionTests
     [Fact]
     public void ASecondGrowthBeforeADrawnFrameRetiresTheEmptyBuffersOfTheFirstAndKeepsTheDrawnOnesAsTheSource()
     {
-        using var plumbing = new Plumbing();
+        using var plumbing = new RecordingPlumbing();
         using var store = new GeometryStore(plumbing.Device, plumbing.Allocator);
         using var kept = new KeptPositions(plumbing.Device, plumbing.Allocator);
         Reserve(store: store, plumbing: plumbing, vertices: 1_000, kept: kept);
@@ -108,7 +106,7 @@ public sealed class GeometryStoreRegionTests
     [Fact]
     public void AGrowthThatAFrameDrewIsNotCopiedAgain()
     {
-        using var plumbing = new Plumbing();
+        using var plumbing = new RecordingPlumbing();
         using var store = new GeometryStore(plumbing.Device, plumbing.Allocator);
         using var kept = new KeptPositions(plumbing.Device, plumbing.Allocator);
         Reserve(store: store, plumbing: plumbing, vertices: 1_000, kept: kept);
@@ -124,7 +122,7 @@ public sealed class GeometryStoreRegionTests
     [Fact]
     public void TheBuffersThatAGrowthReplacedRetireWithTheFrameThatDrewTheirCopy()
     {
-        using var plumbing = new Plumbing();
+        using var plumbing = new RecordingPlumbing();
         using var store = new GeometryStore(plumbing.Device, plumbing.Allocator);
         using var kept = new KeptPositions(plumbing.Device, plumbing.Allocator);
         Reserve(store: store, plumbing: plumbing, vertices: 1_000, kept: kept);
@@ -141,7 +139,7 @@ public sealed class GeometryStoreRegionTests
 
     private static void Reserve(
         GeometryStore store,
-        Plumbing plumbing,
+        RecordingPlumbing plumbing,
         int vertices,
         KeptPositions? kept = null,
         long frame = 0
@@ -154,59 +152,4 @@ public sealed class GeometryStoreRegionTests
             releases: plumbing.Releases,
             frame: frame
         );
-
-    /// <summary>A validating headless device with a recording command buffer that is never submitted.</summary>
-    private sealed unsafe class Plumbing : IDisposable
-    {
-        private readonly CommandPool pool;
-
-        public Plumbing()
-        {
-            Device = VulkanDevice.Create(validation: true, surfaceExtensions: [], createSurface: null);
-            Allocator = new DeviceAllocator(Device);
-            var poolInfo = new CommandPoolCreateInfo
-            {
-                SType = StructureType.CommandPoolCreateInfo,
-                Flags = CommandPoolCreateFlags.TransientBit,
-                QueueFamilyIndex = Device.QueueFamily,
-            };
-            Device
-                .Vk.CreateCommandPool(
-                    device: Device.Device,
-                    pCreateInfo: &poolInfo,
-                    pAllocator: null,
-                    pCommandPool: out pool
-                )
-                .Should()
-                .Be(Result.Success);
-            var allocate = new CommandBufferAllocateInfo
-            {
-                SType = StructureType.CommandBufferAllocateInfo,
-                CommandPool = pool,
-                Level = CommandBufferLevel.Primary,
-                CommandBufferCount = 1,
-            };
-            Device
-                .Vk.AllocateCommandBuffers(Device.Device, &allocate, out CommandBuffer commands)
-                .Should()
-                .Be(Result.Success);
-            var begin = new CommandBufferBeginInfo { SType = StructureType.CommandBufferBeginInfo };
-            Device.Vk.BeginCommandBuffer(commands, &begin).Should().Be(Result.Success);
-            Commands = commands;
-        }
-
-        public VulkanDevice Device { get; }
-        public DeviceAllocator Allocator { get; }
-        public CommandBuffer Commands { get; }
-        public BarrierBatch Barriers { get; } = new();
-        public DeferredReleases Releases { get; } = new();
-
-        public void Dispose()
-        {
-            Releases.Dispose();
-            Device.Vk.DestroyCommandPool(Device.Device, pool, null);
-            Allocator.Dispose();
-            Device.Dispose();
-        }
-    }
 }

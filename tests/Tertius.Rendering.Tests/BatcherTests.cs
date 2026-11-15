@@ -11,9 +11,9 @@ public sealed class BatcherTests
 {
     private static readonly MeshInfo[] Meshes =
     [
-        new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: 0.866f, Deform: null),
-        new(FirstIndex: 36, IndexCount: 600, VertexOffset: 24, Radius: 1f, Deform: null),
-        new(FirstIndex: 636, IndexCount: 6, VertexOffset: 300, Radius: 1.414f, Deform: null),
+        new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: 0.866f, Deform: null, Closed: true),
+        new(FirstIndex: 36, IndexCount: 600, VertexOffset: 24, Radius: 1f, Deform: null, Closed: true),
+        new(FirstIndex: 636, IndexCount: 6, VertexOffset: 300, Radius: 1.414f, Deform: null, Closed: false),
     ];
 
     // Puffs. Each puff of the snapshot draws as one GpuPuff, at its interpolated place and render age, or not at all. The
@@ -77,7 +77,7 @@ public sealed class BatcherTests
         scene.CommandCount.Should().Be(2);
         scene
             .Opaque[DepthRanges.Near]
-            .Should()
+            .Sided.Should()
             .Be(new SidedRuns(OneSided: new(Solid: new(0, 2), Cutout: default), TwoSided: default));
         DrawIndexedIndirectCommand first = scene.Commands[0],
             second = scene.Commands[1];
@@ -140,15 +140,15 @@ public sealed class BatcherTests
         scene.Opaque[DepthRanges.Near].Count.Should().Be(2);
         scene
             .Opaque[DepthRanges.Far]
-            .OneSided.Solid.First.Should()
-            .BeLessThan(scene.Opaque[DepthRanges.Middle].OneSided.Solid.First);
+            .Sided.OneSided.Solid.First.Should()
+            .BeLessThan(scene.Opaque[DepthRanges.Middle].Sided.OneSided.Solid.First);
         scene
             .Opaque[DepthRanges.Middle]
-            .OneSided.Solid.First.Should()
-            .BeLessThan(scene.Opaque[DepthRanges.Near].OneSided.Solid.First);
+            .Sided.OneSided.Solid.First.Should()
+            .BeLessThan(scene.Opaque[DepthRanges.Near].Sided.OneSided.Solid.First);
         // The planet's instance is the first one written, in the far range.
         scene
-            .Instances[scene.Commands[scene.Opaque[DepthRanges.Far].OneSided.Solid.First].FirstInstance]
+            .Instances[scene.Commands[scene.Opaque[DepthRanges.Far].Sided.OneSided.Solid.First].FirstInstance]
             .ModelRow2.W.Should()
             .Be(-3e7f);
     }
@@ -221,7 +221,7 @@ public sealed class BatcherTests
 
         scene
             .Opaque[DepthRanges.Near]
-            .Should()
+            .Sided.Should()
             .Be(new SidedRuns(OneSided: new(Solid: new(0, 1), Cutout: default), TwoSided: default));
         scene.Transparent.Should().AllSatisfy(runs => runs.Should().BeEmpty());
     }
@@ -247,7 +247,7 @@ public sealed class BatcherTests
 
         PreparedScene scene = Prepare(snapshot: snapshot);
 
-        SidedRuns near = scene.Opaque[DepthRanges.Near];
+        SidedRuns near = scene.Opaque[DepthRanges.Near].Sided;
         near.Should()
             .Be(
                 new SidedRuns(OneSided: new(Solid: new(0, 2), Cutout: new(2, 2)), TwoSided: default),
@@ -265,7 +265,7 @@ public sealed class BatcherTests
 
         PreparedScene scene = Prepare(snapshot: snapshot);
 
-        SidedRuns near = scene.Opaque[DepthRanges.Near];
+        SidedRuns near = scene.Opaque[DepthRanges.Near].Sided;
         near.Should().Be(new SidedRuns(OneSided: new(Solid: default, Cutout: new(0, 1)), TwoSided: default));
         scene
             .Transparent[DepthRanges.Near]
@@ -286,7 +286,7 @@ public sealed class BatcherTests
 
         PreparedScene scene = Prepare(snapshot: snapshot, materials: 10);
 
-        SidedRuns near = scene.Opaque[DepthRanges.Near];
+        SidedRuns near = scene.Opaque[DepthRanges.Near].Sided;
         near.Should()
             .Be(
                 new SidedRuns(
@@ -1031,7 +1031,7 @@ public sealed class BatcherTests
 
         PreparedScene scene = Prepare(snapshot: snapshot, alpha: 0.3f, environment: MapOf(FaceMask.NegativeZ));
 
-        CommandRange main = scene.Opaque[DepthRanges.Near].OneSided.Solid;
+        CommandRange main = scene.Opaque[DepthRanges.Near].Sided.OneSided.Solid;
         CommandRange face = scene.EnvironmentFaces.Should().ContainSingle().Subject[DepthRanges.Near].OneSided.Solid;
         GpuInstance seen = scene.Instances[scene.Commands[main.First].FirstInstance];
         GpuInstance reflected = scene.Instances[scene.Commands[face.First].FirstInstance];

@@ -18,7 +18,8 @@ public sealed class DeformJobsTests
             IndexCount: 3,
             VertexOffset: 0,
             Radius: 1,
-            Deform: MeshDeform.Pack(StagedMesh.Of(mesh))!.Deform
+            Deform: MeshDeform.Pack(StagedMesh.Of(mesh))!.Deform,
+            Closed: false
         );
     }
 
@@ -39,8 +40,8 @@ public sealed class DeformJobsTests
         MeshDeform deform = MeshDeform.Pack(StagedMesh.Of(cylinder))!.Deform with { Source = 100, Deltas = 7 };
         MeshInfo[] meshes =
         [
-            new(FirstIndex: 0, IndexCount: 3, VertexOffset: 0, Radius: 1, Deform: null),
-            new(FirstIndex: 3, IndexCount: 6, VertexOffset: 3, Radius: 1, Deform: deform),
+            new(FirstIndex: 0, IndexCount: 3, VertexOffset: 0, Radius: 1, Deform: null, Closed: false),
+            new(FirstIndex: 3, IndexCount: 6, VertexOffset: 3, Radius: 1, Deform: deform, Closed: false),
         ];
         var records = new GpuDeformJob[1];
 
