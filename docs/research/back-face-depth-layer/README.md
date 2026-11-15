@@ -480,7 +480,118 @@ More measured facts:
 
 My reading: the store is free, and the walk's rule costs little. The pass is the cost, and it grows with the vertex count, because it draws every one-sided solid mesh a second time. A view of rooms pays about 0.05 ms for it. A view with many skinned figures pays for it in proportion.
 
+### The false sill hits
+
+A census classes each bright reflection sample of the ceiling's glow area by where its ray really crosses the hit pixel's plane. A false hit is a hit whose crossing lies in an opening. The numbers are sums over 400 draws of `rect-lamps` on the RTX 2000 Ada, at one fixed exposure. Light is the sum of the samples' luminance.
+
+| Rule | False hits: samples / light | Real hits: samples / light | False share of the rule's own bright light | False light against the 10 % rule |
+|---|---|---|---:|---:|
+| The 10 % rule | 6,783 / 3,011,681 | 1,260 / 1,036,322 | 74.34 % | 100 % |
+| The layer as the slab | 4 / 483 | 602 / 488,239 | 0.099 % | 0.016 % |
+| The trimmed slab | 4 / 483 | 602 / 488,239 | 0.099 % | 0.016 % |
+
+- Under the 10 % rule, 99.5 % of the false light lands on one render row: the first row below the end window's opening.
+- Stage 1 estimated that about 8 % of the bright light stays false under a back layer. That estimate does not hold. Those rays entered within 0.5 m of the edge row's own sample, which is not the same as inside the wall. Under the layer they no longer hit.
+- The 4 samples that stay land on one pixel at the bottom edge of a side window.
+- A count of every sample, bright or not, keeps the real hits: 2,692,654 under the layer against 2,695,727 under the 10 % rule. Their light falls by 48 %, because the room is darker without the false bounce light.
+- The census cannot see the sill's top face, which is 0.2 render rows tall. It names a hit through that face false. The layer keeps 742,533 dim samples of that kind, with 3.7 % of the 10 % rule's false light. By the ticket lead's reading they are real hits. No measurement shows it.
+
+So the chosen model removes the bright false sill hits, and they need no other mechanism.
+
+### The stills
+
+Each comparison has three columns at one fixed exposure and an output of 1920 × 1080: the 10 % rule, the layer as the slab, and the layer with the fade over at most the first 10 % of depth. The third column keeps the layer's hit decision and changes only the fade. A change counts where a tile of 16 × 16 pixels differs by more than the noise floor: the largest tile difference between two settled frames of the 10 % rule.
+
+| View | What changes under the layer as the slab | Size, in 1/255 of the 8-bit image |
+|---|---|---|
+| `rect-lamps` | The ceiling, the far wall, the upper side walls, the window jambs and the floor's patches become darker. Nothing becomes brighter. | 1,972 of 8,040 tiles, about −64 on the mean |
+| The cabin of `demo-exit` | The left wall's window frames and the jamb between two pillars become brighter. The corridor's far end becomes darker. | +19.8 on the mean and +43.8 at the peak, and −6.9 |
+| The deck of `demo-exit` | The ship's interior behind its glass becomes a little darker. | 46 tiles, about −5.5, against a noise floor of 4.66 |
+| The hair views | A strip of the far floor beside the glowing bar of `hair-rugs` becomes darker. The cards do not change. | 52 tiles, about −7 |
+
+![The far ceiling of rect-lamps under three rules](stage-1b/pictures-rect-lamps-ceiling.png)
+
+The far ceiling of `rect-lamps`. Left, the 10 % rule: a bright ceiling with a cloud of specks. Middle and right, the layer and the layer with the short fade: a dark ceiling with a few dozen specks.
+
+![A side window of rect-lamps under three rules](stage-1b/pictures-rect-lamps-side-window.png)
+
+The nearest right window of `rect-lamps`, in a wall of 0.5 m. Left: a white jamb and a bright sparkling patch on the floor. Middle and right: a gray jamb with uneven vertical bands, and a dimmer patch.
+
+![The left window frames of the cabin under three rules](stage-1b/pictures-cabin-window-frames.png)
+
+The cabin's left wall. Left, the 10 % rule: the recess between two pillars is a black strip. Middle, the layer: the strip is as light as the frames beside it. Right, the layer with the short fade: the strip is dark again, but lighter than on the left.
+
+My reading of the cabin: this is the candidate for contact darkening that looks wrong. A ray that passes behind a thick pillar's outline enters the pillar's slab from the side. The walk then gives it the light of the pillar's front pixel, faded by one minus the entry share. On a slab deeper than 10 %, the same depth is a smaller entry share, so more of the front's light stays. That light belongs to a face that the ray does not reach. No reference image exists, so this reading is not a measurement (`t1-g4p1`).
+
+No view shows a new hole. The record names no leak with certainty.
+
+### Surfaces with no back face
+
+| View | Surface pixels | Sheets | Share |
+|---|---:|---:|---:|
+| `lamp-hall-16-hair`, the hair camera | 605,660 | 174,764 | 28.9 % |
+| `skin-and-hair`, the hair camera | 380,324 | 8,982 | 2.4 % |
+| `hair-rugs`, the low camera | 764,691 | 17 | 0.0 % |
+| `demo-meshes`, the view of dense geometry | 641,644 | 10 | 0.0 % |
+
+The sheets of the lamp hall are the hair cards' pixels with only the sky behind them.
+
+The borrowed back face is a misbehavior of the probe's model with a name. The probe's pass draws the one-sided solid runs only. A hair card in front of the floor then takes the floor's back face, and its slab spans the air between the two. In the lamp hall, 131,399 card pixels get a slab with a median of 4.12 m.
+
+| Rule | Reflection rays | Their hits | Hits whose crossing lies behind the ray's start |
+|---|---:|---:|---:|
+| The 10 % rule | 3,646,708 | 74,176 | 4,448 |
+| The layer as the slab | 3,635,373 | 860,419 | 817,466 |
+
+A crossing behind the start means that the ray moves away from the surface that the hit pixel shows. So 95.0 % of the layer's reflection hits there are hits on a surface that the ray never reaches.
+
+![Where the hits land in the lamp hall under the layer](stage-1b/pictures-lamp-hall-hits-map.png)
+
+The lamp hall under the layer. Gray is the front distance, blue marks the sheets, and red marks the hit pixels. The red lies on the cards below the horizon, in front of the floor.
+
+My reading of the borrowed back face: part of it comes from my own decision that the probe's pass leaves out the two-sided runs. Design 1 above draws them with no face culled, so a card's own fragment ends its slab at the front's distance. An open one-sided mesh still has no back face of its own, and it still borrows one. Stage 2's design must state the rule (`t1-yy2f`).
+
+A ray can hit a slab of zero thickness. But the sheets lose real hits. A real hit is a hit whose ray crosses the hit pixel's plane ahead of its start, where the eye sees that surface.
+
+| View and ray kind | Real hits on sheets under the 10 % rule | A sheet with no thickness keeps | A sheet as deep as its own plane keeps |
+|---|---:|---:|---:|
+| Lamp hall, reflection | 2,588 | 687 (26.5 %) | 1,333 (51.5 %) |
+| Lamp hall, diffuse | 9,975 | 2,484 (24.9 %) | 5,271 (52.8 %) |
+| `skin-and-hair`, reflection | 192 | 76 (39.6 %) | 142 (74.0 %) |
+| `skin-and-hair`, diffuse | 445 | 249 (56.0 %) | 396 (89.0 %) |
+
+The cause of the loss is not known (`t1-i54g`). The stair case of the probe's ticket is a weak candidate, because 99.7 % of those sheets face the camera. The stills of the hair views show no change, because the hit light and the miss light behind the cards are alike there.
+
+### What stage 1b says about the chosen model
+
+1. It removes the false sill hits, which was its reason: 0.016 % of the false light stays.
+2. Its store costs nothing, and its pass costs about 0.05 ms in rooms. The pass costs in proportion to the vertex count in dense views (`t1-kiaw`).
+3. It makes `rect-lamps` much darker at a fixed exposure. By my reading, that is the room without the false bounce light.
+4. It has two open points on thick slabs and open surfaces: the fade on a slab deeper than 10 %, and the borrowed back face.
+5. A sheet with no thickness loses a quarter to three quarters of its real hits, by a cause that nobody found yet.
+
+### What stage 1b did not check
+
+- No reference image: no path tracer ran. So "right" and "wrong" in the stills are readings.
+- No view holds a bright object behind hair cards. So the visible size of the borrowed back face and of the sheets' lost hits is open.
+- The probe did not draw the two-sided runs in its pass, so Design 1's own rule for cards did not run.
+- The pictures ran on the RTX 2000 Ada, and the probe's controls on the M1 Max. Nothing ran on RADV, ANV or lavapipe.
+- The pass's own time on the Mac.
+- The cause of the slow first run of a tree with the pass on a fresh cloud worker.
+- Part 2 has one to four crops per view. The images of the changed regions cover the rest.
+
+### Tickets and dollars of stage 1b
+
+- Closed: the probe (`t1-n8x9`), the cost (`t1-stwp`) and the pictures (`t1-gxzg`).
+- Open, for stage 2's design: the borrowed back face (`t1-yy2f`) and the sheets' lost hits (`t1-i54g`).
+- Open, for stage 2's design too: the fade on a thick slab (`t1-g4p1`) and the pass's vertex cost (`t1-kiaw`).
+- Open bugs: two cloud jobs that send one commit at once (`t2-a59b`), and the warm-up and the order of `ab_run.sh` (`t1-s5c1`).
+- An open chore: a stale comment in `thickness.glsl` (`t1-pim3`).
+- The cloud jobs counted $1.24 by the job log's estimates: $0.20 for the cost and $1.03 for the pictures, of a budget of $3.
+
 ## What I did not check
+
+This list is stage 1's. Stage 1b measured the first four points and the dense view: see the section above.
 
 - No new probe run measured the false sill hits. The 66 % and 8 % above are estimates from saved data.
 - No still compares contact darkening between main and either design.
@@ -496,6 +607,7 @@ My reading: the store is free, and the walk's rule costs little. The pass is the
 - [probe-with-walk-read.patch](probe-with-walk-read.patch) holds the pass and the walk's read.
 - The job log `~/.local/state/tertius/gpu-jobs/jobs.jsonl` holds the three cloud jobs of the agents `ter-kh4g-cost` and `ter-kh4g-stills`, with the commits of their trees. They counted $0.26 by the log's estimates: $0.09 and $0.08 for the two timing jobs, and $0.09 for the stills job that timed out.
 - The raw Mac runs, the dumps and the stills are in `/private/tmp/ter-kh4g/`. That folder does not survive a restart of the Mac.
+- The folder [stage-1b](stage-1b) holds the three records of stage 1b, the probe's patch, the census patch, 13 comparison images and the tools. Its raw runs are in `/private/tmp/ter-kh4g/1b/`.
 - The saved probe data of `ter-ukw6` is in `/tmp/t7-3e22/robust/hits9/hits-true.txt`, with the same limit.
 
 ## Tickets from this stage

@@ -1,6 +1,6 @@
 ---
 id: t1-gxzg
-status: in_progress
+status: closed
 deps: [t1-n8x9]
 links: []
 created: 2026-11-14T23:06:20Z
@@ -90,3 +90,7 @@ Answer of the line orchestrator in the lead's brief: the hair view of scripts/la
 **2026-11-15T00:57:14Z**
 
 Built 2026-11-14 by the ticket lead: docs/research/back-face-depth-layer/stage-1b/pictures.md. The layer as the slab removes the false sill hits: bright false light 0.016 % of the 10 % rule's. Named misbehavior: the borrowed back face. A card that the back-face pass leaves out takes the floor's back face, so in the lamp hall 24 % of reflection rays hit against 2 %. Sheets keep 20 % to 37 % of the real hits on them, and NoBackSheetPlane 41 % to 66 %. Cloud cost $0.93 for 13 jobs.
+
+**2026-11-15T01:24:22Z**
+
+Merged 2026-11-15 as ac1d12d6a (the lead's head a2ec321a8). The review asked for changes on all three assessments, and each of its 11 findings has a recorded fix: the census now classes only a crossing ahead of the ray's start, and regions.py labels brighter and darker tiles apart. Last check by the line orchestrator: I read pictures.md and opened seven of its images, and each shows what its text says. One addition of mine to the lead's reading: the borrowed back face comes partly from my own decision in t1-n8x9 that the probe's pass draws the one-sided solid runs only. Design 1 in the record draws the two-sided runs in the pass, which gives a card its own back face at the front's distance. An open one-sided mesh still borrows.
