@@ -4,6 +4,16 @@ This is the record of ticket `t1-3j2j`, of 2026-11-15. It is the diagnosis of bu
 
 A paragraph that starts with "Reading:" holds my interpretation. Every other sentence states a measurement, a count or what an image shows.
 
+## The result in short
+
+1. Every bright strip of sunlight that the engine draws in `rect-lamps` is a leak. In the truth, the sun lights only the outer 1 to 6 mm of each jamb and sill at the hull's outer face. The engine lights the outer 0.119 m.
+2. The end window's sill, which the ceiling reflects, is the same leak. So is the other line's sill row at ticks 60, 300 and 306. Its lit part is under one twentieth of a render row tall.
+3. Frame 239 of the cabin has no strip of direct sunlight in either renderer.
+4. The cause: the 4 × 4 filter of the sun's cascades reaches 2.5 texels past the roof's edge at the hull's outer face. Those texels hold no caster. No bias carries any of the strip, and one tap takes 92 % of it away.
+5. What a fix must change: the filter's reach where the gap to the caster is large. Candidate A scales the reach to the sun's penumbra. It takes 87 % of the strip away, keeps a lit floor free of acne and brings a box's shadow nearer the truth.
+6. Earth stands at the same place in both renderers. Both give a directly seen Earth pixel the radiance of albedo × E × cos / π. The factors 16 and 58 stand.
+7. In the truth, the sun's light enters `rect-lamps` only from the lit lips at the hull's outer face: 0.0086 W/(m²·sr) on the side wall, 0.066 on the jamb and 0.0112 on the floor patch.
+
 ## Part 1: which strips the sun lights in the truth
 
 ### The three measurements
@@ -250,3 +260,96 @@ The lines are those of part 1, at 1 mm steps, with the CPU copy of the engine's 
 The end sill's lit part is under 0.05 render rows tall at each tick. Between ticks 300 and 306, one texel of the shadow map changes on the sill's line. Column 1205 turns from empty to the roof, 6.849 m nearer the sun. The roof's stored edge thus moves out by one texel. The lit part shrinks from 0.108 m to 0.049 m. The lit share times the lit length falls by 79 %, from 0.0247 to 0.0051 m.
 
 Reading: the other line's sill row is the same leak as part 1. The engine's lit part of the sill is under one twentieth of a render row tall. So only the jitter phases whose sample lands on that sliver see it, and at 8 phases it is possible that none lands there. Their fall of 19 % between the ticks goes in the same direction as the shrinking lit part. Their row also holds other light, so the two numbers measure different things. The side windows' jambs and sills are lit 6.7 to 7.4 render pixels wide. I did not measure their changes between phases.
+
+## Part 5: where the sun's light enters the room in the truth
+
+The parent agent's full-frame path traces of `rect-lamps`, frame 239, show sunlight in the room with a median of 0. [tools/sun-sources.sh](tools/sun-sources.sh) traces the crop x 1300 to 1899, y 300 to 879 with the sun alone and a black Earth, at 512 samples. Each variant removes one candidate source. [tools/sun_sources.py](tools/sun_sources.py) gives each box's mean.
+
+- `moon`: the Moon, instance 2, drawn black. It is the only lit body outside.
+- `cap`: a rectangle 0.65 m above the hull's roof, over x −11 to 11 m and z −41 to 21 m, that only shadow rays see. It keeps the sun from every surface of the hull.
+- `rims`: three such rectangles 0.2 m wide, over the hull's outer edges alone: x 9.9 to 10.1 m, x −10.1 to −9.9 m, and z −40.1 to −39.9 m. They keep the sun from the lit lips of the openings and leave the roof and the outer faces lit.
+
+| Trace | Side wall, x 1300–1499, y 300–439 | Jamb, x 1760–1797, y 500–579 | Floor patch, x 1700–1899, y 700–879 |
+|---|---:|---:|---:|
+| Sun alone, seed 1 | 0.00841 | 0.06963 | 0.01113 |
+| Sun alone, seed 2 | 0.00884 | 0.06240 | 0.01136 |
+| Sun alone, mean of both ± half their difference | 0.00862 ± 0.00022 | 0.0660 ± 0.0036 | 0.01124 ± 0.00012 |
+| The Moon black, seed 1 | 0.00841 | 0.06962 | 0.01112 |
+| The cap over the hull, seeds 1 and 2 | 0.00000 | 0.00001 | 0.00000 |
+| The cap and the Moon black | 0.00000 | 0.00000 | 0.00000 |
+| The rims alone | 0.00000 | 0.00001 | 0.00000 |
+| The parent's `sun.npy`, full frame | 0.00841 | 0.06963 | 0.01113 |
+
+All values are mean linear luminance in W/(m²·sr). The median of every box is 0 in every trace. On the jamb, the two seeds give 20.4 % of the pixels a value above 0. Pixels above 1 W/(m²·sr) carry 1.7 % of the mean. My seed 1 equals the parent's `sun.npy` in each box to five decimals.
+
+The line casts of part 1 find the hull's lit lips: 1 to 6 mm of each jamb and sill at the hull's outer face. A line cast of each box's pixels toward the Moon's disc finds no point that sees it. The hull's outer faces take the sun at a cosine of 0.0000060 on the sides, 0.00454 on the back, and none on the front. No point inside the room sees the outer faces or the roof's top.
+
+The engine's direct sunlight in the three boxes, still minus still without the sun with the screen tracer off: 0.00005, 0.00007 and 0.00007 W/(m²·sr).
+
+Reading: in the truth, the sun's light enters this room only from the lit lips of the openings at the hull's outer face. The Moon gives none, and the hull's outer faces give none. The sills' lips face the sun at a cosine near 1, so they are about 350 W/(m²·sr) bright, but only 1 to 6 mm wide. So a path from the room finds them rarely. That makes the median 0, and the mean settles slowly. Two seeds at 512 samples settle the side wall and the floor patch within 3 %, and the jamb within 6 %.
+
+The room's sun-only light in the truth, for the acceptance of the changed look:
+
+| Box | Sun-only light in the truth, W/(m²·sr) | Source |
+|---|---:|---|
+| Side wall | 0.0086 ± 0.0002 | The lit lips of the openings at the hull's outer face |
+| Jamb | 0.066 ± 0.004 | The same |
+| Floor patch | 0.0112 ± 0.0001 | The same |
+
+## The commands
+
+The probe is `refs/scratch/t1-3j2j-shadow-probe` (`7f4ff471e`), on `refs/scratch/ter-kh4g-2-ref-controls`. [probe-shadow-leak.patch](probe-shadow-leak.patch) is its `src` against that ref. Its build, from a `git archive` export of the ref in `/private/tmp/t1-3j2j/src`:
+
+```bash
+nix develop --command bash -c 'cd /private/tmp/t1-3j2j/src && dotnet build src/Tertius.Demo -c Release -nologo -v:q -p:RunAnalyzers=false -p:TreatWarningsAsErrors=false -o /private/tmp/t1-3j2j/bin'
+```
+
+A still with the dump and the export, in the dev shell, from the worktree. `NOSUN=1` drops the sun, and the `TERTIUS_SHADOW_*` switches pass through:
+
+```bash
+TERTIUS_SHADOW_DUMP=/private/tmp/t1-3j2j/dump/rect-lamps TERTIUS_SCENE_EXPORT=/private/tmp/t1-3j2j/export/rect-lamps TERTIUS_SCENE_EXPORT_AT=239 bash tools/leak-still.sh /private/tmp/t1-3j2j/bin /private/tmp/t1-3j2j/src tools/bf1b/stills-rect-lamps.json 2.7868438 /private/tmp/t1-3j2j/stills/rect-lamps/full
+```
+
+The paths `tools/...` without a folder are in this record's `stage-2/tools`, and `tools/bf1b/...` is in the probe's tree. The line casts, in the assets shell (`nix develop .#assets`):
+
+```bash
+$TERTIUS_BLENDER -b --factory-startup --python tools/sun_cast.py -- /private/tmp/t1-3j2j/export/rect-lamps /private/tmp/t1-3j2j/cast/rl-jamb-line--0.006.npz line 9.5 -0.006 -11.0 10.0 -0.006 -11.0 0 0 1 501
+$TERTIUS_BLENDER -b --factory-startup --python tools/sun_cast.py -- /private/tmp/t1-3j2j/export/rect-lamps /private/tmp/t1-3j2j/cast/rl-pick.npz pixels /private/tmp/t1-3j2j/cast/rl-pick.npy
+```
+
+The analysis, in the dev shell:
+
+```bash
+python3 -I tools/strips.py pick <full.png> <nosun.png> 2.7868438 0.002 /private/tmp/t1-3j2j/cast/rl-pick.npy
+python3 -I tools/strips.py judge <full.png> <nosun.png> 2.7868438 /private/tmp/t1-3j2j/cast/rl-pick.npz
+python3 -I tools/engine_shadow.py /private/tmp/t1-3j2j/dump/rect-lamps /private/tmp/t1-3j2j/export/rect-lamps/scene.json <cast.npz> <out.npz>
+python3 -I tools/map_line.py /private/tmp/t1-3j2j/dump/rect-lamps /private/tmp/t1-3j2j/export/rect-lamps/scene.json 0 9.80 -0.006 -11.0 10.10 -0.006 -11.0 7
+python3 -I tools/switch_table.py /private/tmp/t1-3j2j full slope0 slope1 const0 normal0 nobias filter1 filter2 map4096
+python3 -I tools/leak_sheet.py 1756 470 1816 610 3 2.7868438 <full.png> <nosun.png> <ref.npy> 1756 470 <cast.npz> <engine.npz> leak-rect-lamps-jamb.png
+python3 -I tools/earth_check.py <orbit scene.json> <cast.npz> <still.png> -7 <ref.npy> 1340 900
+python3 -I tools/sun_sources.py /private/tmp/t1-3j2j/part5 /private/tmp/orch-figure/sun.npy
+```
+
+`ENGINE_FILTER=<0|1|2>` makes `engine_shadow.py` evaluate another filter on a dump, and `ENGINE_DILATE=2` dilates the map. The path traces use [tools/cycles_scene.py](tools/cycles_scene.py) with `REF_EARTH_BLACK=1` and `REF_SKIP_LIGHTS`. This record adds `REF_BLACK` and `REF_SUN_CAP` to it. Every input is under `/private/tmp/t1-3j2j`.
+
+## Runs and dollars
+
+All runs were on the Mac (M1 Max, MoltenVK), under the shared GPU lock. No cloud job ran: $0. The engine's runs: 4 base stills, 1 still of `orbit`'s chase camera, 3 runs of the ticks, 8 switch stills and 4 stills of `bounce-raised-box`. The path traces: 3 crops of part 1, 1 Earth crop, 1 box crop and 7 crops of part 5. The other line's casts went ahead of one more switch run, which I stopped before it rendered.
+
+## Changes to the method
+
+- The ticket's path trace has the sun and a black Earth. Mine also drops every lamp, so that it holds the sun's light alone, as the engine's still minus its still without the sun does.
+- A CPU copy of the engine's cascade filter, fed by a dump of the real shadow map, joins the three measurements. It judges strips thinner than a pixel, such as the end sill, where no pixel center lies on the lit part. On the jamb and the box floor it matches the stills within 0.016 in lit share on the mean.
+- Part 2's texel test uses a map of 4096² in place of three output sizes or camera distances. The texel size depends on neither of those.
+- Part 3 measures candidate C on the CPU copy alone, with no build.
+- Part 4 takes a third view, `orbit`'s chase camera, because the camera of neither view sees Earth.
+- Part 5 caps the hull with shadow-only rectangles in place of drawing the lips black. The lips are part of the hull's one mesh.
+
+## What I did not check
+
+- The cost of candidate A's blocker search, and how a hard shadow edge looks in motion.
+- Any GPU but the M1 Max under MoltenVK. Nothing ran on NVIDIA, RADV, ANV or lavapipe.
+- The cabin's thin strips in another frame or view. Frame 239 of `cabin-camera` has none.
+- The other line's changes between jitter phases on the side windows' jambs and sills.
+- A fix in the engine, which is ticket `t8-rjno`.
+- The seed spread of the path traces of parts 1, 3 and 4, which ran with one seed.
