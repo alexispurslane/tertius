@@ -87,6 +87,16 @@ public sealed class MeshClosureTests
     }
 
     [Fact]
+    public void ATriangleWithTwoCornersAtOneWeldedPositionDoesNotCountInAClosedMesh()
+    {
+        // One degenerate triangle of each form: the first, the second and the third corner repeat another.
+        MeshData box = Primitives.Box(Vector3.One);
+        uint[] indices = [.. box.Indices, 0, 0, 1, 1, 0, 0, 0, 1, 0];
+
+        MeshClosure.IsClosed(indices, Positions(box)).Should().BeTrue();
+    }
+
+    [Fact]
     public void AMeshWithNoTrianglesIsOpen() => MeshClosure.IsClosed([], []).Should().BeFalse();
 
     [Fact]
@@ -117,11 +127,11 @@ public sealed class MeshClosureTests
     }
 
     [Fact]
-    public void ACornerSplitByAThousandthOfTheMeshsSizeDoesNotWeld()
+    public void ACornerSplitByATenThousandthOfTheMeshsSizeDoesNotWeld()
     {
-        (uint[] indices, Vector3[] positions) = CornerBox(new(-0.002f), new(0), new(0.002f));
+        (uint[] indices, Vector3[] positions) = CornerBox(new(-0.0002f), new(0), new(0.0002f));
 
-        MeshClosure.IsClosed(indices, positions).Should().BeFalse("a gap of 2 mm in a box of 2 m is a real hole");
+        MeshClosure.IsClosed(indices, positions).Should().BeFalse("a gap of 0.2 mm in a box of 2 m is a real hole");
     }
 
     [Fact]

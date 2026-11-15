@@ -1060,8 +1060,12 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     private static void CloseOpaqueRun(PreparedScene scene, RangeRuns[] ranges, int range, ulong run, int runStart)
     {
         var commands = new CommandRange(runStart, scene.CommandCount - runStart);
-        var faces = (OpaqueFaces)((run & FacesKeyBits) >> FacesKeyShift);
-        ranges[range] = ranges[range].With(cutout: (run & CutoutKeyBit) != 0, faces: faces, commands: commands);
+        ranges[range] = ranges[range]
+            .With(
+                cutout: (run & CutoutKeyBit) != 0,
+                faces: (OpaqueFaces)((run & FacesKeyBits) >> FacesKeyShift),
+                commands: commands
+            );
     }
 
     /// <summary>
@@ -1709,8 +1713,8 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     internal sealed class OpaqueSorter
     {
         /// <summary>
-        /// The values of a range's run bits: solid and cutout, each with four values of <see cref="OpaqueFaces"/>, of which
-        /// three occur.
+        /// The values of a range's three run bits: solid and cutout, each with the four values of the two faces bits, of
+        /// which three name an <see cref="OpaqueFaces"/>.
         /// </summary>
         private const int RunsPerRange = 8;
 
@@ -1720,7 +1724,6 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         /// <summary>Sorts <paramref name="items"/> of meshes 0 to <paramref name="meshCount"/> − 1.</summary>
         public void Sort(Span<DrawItem> items, int meshCount)
         {
-            // The runs of each range.
             int keys = DepthRanges.Count * RunsPerRange * meshCount;
             EnsureCapacity(ref starts, keys + 1);
             EnsureCapacity(ref sorted, items.Length);
