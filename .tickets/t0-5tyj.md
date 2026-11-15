@@ -1,6 +1,6 @@
 ---
 id: t0-5tyj
-status: open
+status: in_progress
 deps: [t0-f8oc]
 links: []
 created: 2026-11-13T01:01:07Z
@@ -13,3 +13,27 @@ parent: t7-3e22
 
 Design: docs/plans/bounce-light-confidence.md (Design A with Design X's evidence), section 23. Branch t7-3e22-retained-deviation. Step 17, takes T15 to T19 (section 21). Stills, climb (T2a and T2b), motion films and screenshots on the Mac under the shared GPU lock; frame time (T17) under the exclusive lock; the Linux check (T18) on the GPU workbench. Crops beside the truth first, then the scores. Acceptance 1 to 4, 10, 11, 13 and 14.
 
+
+## Notes
+
+**2026-11-14T23:46:41Z**
+
+2026-11-14, takes T15 to T19 for the branch with the dark-settle fix (eccad009a; cloud jobs used the scratch commit b4b54ff79 with the same shaders) against main ab54c785e. Mac takes under the GPU lock, each comparison on one machine; scratch files in /private/tmp/t7-3e22/x2 (not kept), pictures in docs/research/design-x-acceptance-2026-11-14/pics. Two takes are worse than main, so the branch does not merge yet: the cabin's center region after the lamps return (acceptance 5) and the deck's frame span (acceptance 13, ticket t0-89zi).
+
+Acceptance 1, long mean per region as a share of the reference (the branch with both clamps off), survey stills at one fixed exposure (4.08 stops for rect-lamps, -4.0 for the bay; light.py inverts the tone curve of the 8-bit stills, which is not the HDR measure of take T1a): rect-lamps ceiling/walls main 78.4/81.2 %, branch 96.0/99.5 %; bay-sunbeam walls/floor main 90.3/84.1, branch 98.7/99.2; docking-bay walls/floor main 89.5/93.0, branch 97.8/99.7. The limit is 97 to 102 %: the branch misses it by 1.0 point in rect-lamps' ceiling, main misses it in every region. The stills of the branch before the fix are equal to the fix's to every printed digit: a still has no evidence.
+
+Acceptance 2 and 4, survey stills at draw 132 (blotch, limit 0.04; specks per 10,000 px; daub against the reference's long mean, bar 0.008 to 0.010; the reference's own shown still in brackets): rect-lamps blotch main 0.0530, branch 0.0933 (0.1064); specks 7.05, 6.01; daub 0.0432, 0.0403 (0.0416). bay-sunbeam blotch 0.0343, 0.0268; specks 0.055, 0.064; daub 0.0311, 0.0209 (0.0149). docking-bay blotch 0.0372, 0.0265; specks 0.160, 0.143; daub 0.0396, 0.0281 (0.0206). exit-cabin blotch 0.0200, 0.0150; specks 0.241, 0.198; daub 0.0268, 0.0150 (0.0126). rect-lamps fails the blotch limit in both builds, as in step 3: the branch shows 87 % of the reference's light at draw 132, as the reference's own still does. Crops beside the reference, looked at first: bay-sunbeam's floor has large soft blotches on main and none on the branch; rect-lamps' ceiling band has soft patches on main and a smoother band on the branch; the fine specks are the same. The daub stays above the epic's bar in every still, so t7-3e22 stays open.
+
+Acceptance 5, slowest region off/on (whole image off/on), draws: cabin main 75/52 (36/24), branch 66/not settled in 100 (12/27); bay-sun-off main 49/36 (27/20), branch 36/13 (15/7); lamp-hall-16 main 32/25 (6/5), branch 36/25 (7/5). The cabin's center region r11 ends 6.0 % low 99 draws after the lamps return, main 2.0 %; the whole image -2.2 % against -0.9 %. Bounce alone: branch 61/none (9/57), main 60/65 (39/48). Reflections alone: branch 66/none (34/92), main 103/78 (74/5). So acceptance 8 does not apply.
+
+Acceptance 6, walk (cloud job, both builds): the branch fails in r11 alone (135 draws; r01 30, r12 33), main fails in r10 (198), r00 (61) and r12 (67). Acceptance 7, stand: r11 does not settle within 355 draws after tick 306 in either build.
+
+Acceptance 9, lag films, median lag in draws and median lag error (share of the light): bay-sun main 28.55/0.2644, branch 26.93/0.2679 (+0.0035); lamp-hall-16-moving 4.43/0.0276, 4.45/0.0275; lamp-hall-64-spot-moving -0.06/0.0106, -0.28/0.0116 (+0.0010). Within the allowance of 0.005.
+
+Acceptance 11, climb (cloud job): the band's peak as a share of the same build's band with the filter off: branch 0.970, main 1.108. Acceptance 12, census of rect-lamps, exit-cabin, docking-bay and station-cabin (cloud job, 329 draws each): no block-draw with motion or light evidence in either signal.
+
+Acceptance 13: median GPU frame span of the deck, three rounds in turn: main 19.007, 19.074, 18.990 ms; branch 19.536, 19.482, 19.549 ms; +0.50 ms against the limit +0.3 ms. Ticket t0-89zi holds the traces: the filter +0.235 ms, the ray plan +0.166 ms, three more passes +0.14 ms; the cost stays with the evidence's action off.
+
+Acceptance 14, Linux (cloud worker): the cabin switch gives 66/not settled (12/30) for the branch and 75/52 (37/25) for main, within 3 draws of the Mac. The Checked GPU tests with validation on Linux did not run: they are a gate of the merge.
+
+T19: headless screenshots of the bay and of rect-lamps, main beside the branch, in the pictures folder. Cloud cost by the job log: $0.0521 + $0.0924 + $0.1078 = $0.25. The motion films (T16) follow in the next note.
