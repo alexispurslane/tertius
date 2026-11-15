@@ -112,3 +112,7 @@ Launched 2026-11-15 from 94138a196: the ticket lead of mesh closure and the batc
 **2026-11-15T13:17:55Z**
 
 2026-11-15: the reference experiment (t1-g4p1) is merged as 23413e56b. Its final report did not arrive as a delivery either. One read of task_status showed it. Launched from 23413e56b: the ticket lead of the store (t1-0s0a) on Claude Opus 5.5 at high effort, in its own worktree. clientRequestId ter-kh4g-3-t1-0s0a-lead-1, taskId node:delegated-task:command%3Amcp%3A165bdbf9-3637-4289-82dc-aa6b406985af%3Adelegate-task%3Ater-kh4g-3-t1-0s0a-lead-1.
+
+**2026-11-15T13:20:28Z**
+
+2026-11-15: the fade result went to the parent agent with the crops beside the path trace (cabin-nosun.png, cabin-full.png). The design keeps the fade over the real slab. One question went up as needing more research: no fade by the entry share is nearer in six of eight pillar cells and overshoots one by 67 %. My recommendation is to keep the fade, and to test a view with a lit front and a dark back before anyone changes it. The build goes on. Running leads: the store (t1-0s0a) and mesh closure (t1-6ucc).
