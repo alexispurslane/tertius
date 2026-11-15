@@ -43,7 +43,9 @@ internal sealed unsafe class BackFacePass : RenderPass
     /// that every test and every other run draws main's frame.</summary>
     /// <exception cref="ArgumentException">The variable holds another value.</exception>
     public static bool SwitchedOn() =>
-        (Environment.GetEnvironmentVariable("TERTIUS_BACK_FACE_PROBE") is { Length: > 0 } mode ? mode : DefaultMode) switch
+        (
+            Environment.GetEnvironmentVariable("TERTIUS_BACK_FACE_PROBE") is { Length: > 0 } mode ? mode : DefaultMode
+        ) switch
         {
             "on" => true,
             "off" => false,
@@ -66,7 +68,7 @@ internal sealed unsafe class BackFacePass : RenderPass
                 context.Vk.CmdBindPipeline(context.CommandBuffer, PipelineBindPoint.Graphics, pipeline);
             }
 
-            OpaqueRuns runs = scene.Opaque[range].OneSided;
+            OpaqueRuns runs = scene.Opaque[range].Sided.OneSided;
             if (runs.Count > 0)
             {
                 GeometryPass.PushDraw(context: context, viewProjection: scene.RangeViewProjection[range]);
