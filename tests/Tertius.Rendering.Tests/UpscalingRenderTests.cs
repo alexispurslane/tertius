@@ -245,11 +245,13 @@ public sealed class UpscalingRenderTests
             CameraView camera = renderer.LastScene.Camera;
             camera.Width.Should().Be(80);
             camera.Height.Should().Be(48);
-            float[] depth = renderer.ReadDepthFinest();
+            CellBounds[] depth = renderer.ReadDepthFinest();
             for (int row = 0; row < 96; row++)
             for (int column = 0; column < 160; column++)
                 if (column >= camera.Width || row >= camera.Height)
-                    depth[row * 160 + column].Should().Be(0, "inactive pixels must not enter the depth pyramid");
+                    depth[row * 160 + column]
+                        .Should()
+                        .Be(new CellBounds(Near: 0, Back: 0), "inactive pixels must not enter the depth pyramid");
             renderer
                 .ReadSurfaceTest()
                 .Should()

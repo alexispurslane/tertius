@@ -471,7 +471,7 @@ internal sealed class RenderTargets : IDisposable
         )
             throw new NotSupportedException($"{storageImages} ({device.DeviceName})");
         const FormatFeatureFlags pyramid = FormatFeatureFlags.SampledImageBit | FormatFeatureFlags.StorageImageBit;
-        foreach (Format format in (Format[])[PyramidImages.DepthFormat, Format.R32Sfloat])
+        foreach (Format format in (Format[])[PyramidImages.DepthFormat, PyramidImages.LightFormat])
             if ((device.FormatProperties(format).OptimalTilingFeatures & pyramid) != pyramid)
                 throw new NotSupportedException($"{format} cannot be sampled and stored on {device.DeviceName}.");
     }

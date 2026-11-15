@@ -4,9 +4,10 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// A pyramid of the screen tracer and its sets: the finest level, one R32F value per pixel, and levels 1 to L, each cell
-/// from the up to four cells under it. The depth pyramid holds min-max bounds (docs/plans/temporal-renderer.md, section 6,
-/// "The traversal"), the light pyramid sums (ARCHITECTURE.md, "Guided diffuse rays"). The images stay in General.
+/// A pyramid of the screen tracer and its sets: the finest level, one value of the pyramid's format per pixel, and levels
+/// 1 to L, each cell from the up to four cells under it. The depth pyramid holds slabs
+/// (docs/plans/back-face-depth-layer.md), the light pyramid sums (ARCHITECTURE.md, "Guided diffuse rays"). The images
+/// stay in General.
 /// </summary>
 /// <remarks>
 /// A Vulkan mip halves its image and rounds down. A level halves the screen and rounds up, so the levels image is padded
@@ -14,10 +15,10 @@ namespace Tertius.Rendering;
 /// </remarks>
 internal sealed unsafe class PyramidImages : IDisposable
 {
-    /// <summary>The depth pyramid's format: R the near bound, G the far bound, in 1/m. depth_pyramid.glsl declares rg32f.</summary>
+    /// <summary>The depth pyramid's format, at every level: R the front w, G the back w, in 1/m. depth_pyramid.glsl declares rg32f.</summary>
     public const Format DepthFormat = Format.R32G32Sfloat;
 
-    /// <summary>The light pyramid's format: the sum of the guide light under a cell. light_pyramid.glsl declares r32f.</summary>
+    /// <summary>The light pyramid's format, at every level: the sum of the guide light under a cell. light_pyramid.glsl declares r32f.</summary>
     public const Format LightFormat = Format.R32Sfloat;
 
     /// <summary>The longest side of a screen with the pyramids, in px: the sets are allocated for <see cref="DepthPyramid.MaxLevels"/> levels.</summary>
@@ -36,7 +37,7 @@ internal sealed unsafe class PyramidImages : IDisposable
     private ImageView[] mipViews = [];
 
     /// <summary>Allocates the sets for the largest pyramid, and makes the images for a screen of <paramref name="extent"/>.</summary>
-    /// <param name="format">The levels' format: <see cref="DepthFormat"/> or <see cref="LightFormat"/>.</param>
+    /// <param name="format">The format of every level, the finest included: <see cref="DepthFormat"/> or <see cref="LightFormat"/>.</param>
     /// <param name="name">The pyramid's name in its images' names, such as "depth pyramid".</param>
     public PyramidImages(
         VulkanDevice device,
@@ -63,8 +64,9 @@ internal sealed unsafe class PyramidImages : IDisposable
     public GpuImage Image { get; private set; }
 
     /// <summary>
-    /// The finest level, R32F at the screen's size: of the depth pyramid the inverse view depth w of each pixel's center,
-    /// 0 for sky (docs/plans/temporal-renderer.md, decision 46), of the light pyramid each pixel's guide light.
+    /// The finest level, in the pyramid's format at the screen's size: of the depth pyramid each pixel's slab, its center
+    /// w and its back w, (0, 0) for sky (docs/plans/temporal-renderer.md, decision 46), of the light pyramid each pixel's
+    /// guide light.
     /// </summary>
     public GpuImage Finest { get; private set; }
 
@@ -125,7 +127,7 @@ internal sealed unsafe class PyramidImages : IDisposable
     {
         TopLevel = DepthPyramid.LevelCount((int)extent.Width, (int)extent.Height);
         Image = CreateImage(extent: ImageExtent(extent), format: format, mipLevels: (uint)TopLevel, name: name);
-        Finest = CreateImage(extent: extent, format: Format.R32Sfloat, mipLevels: 1, name: $"{name} finest");
+        Finest = CreateImage(extent: extent, format: format, mipLevels: 1, name: $"{name} finest");
         mipViews = MipViews(Image);
         WriteLevelSets();
         layouts.WriteStorageImage(set: FinestSet, binding: 1, image: Finest);

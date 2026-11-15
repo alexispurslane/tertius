@@ -150,9 +150,9 @@ internal readonly record struct ScreenRay(
 
     /// <summary>
     /// The two-depth walk, as walkScreen in screen_walk.glsl walks it (docs/plans/temporal-renderer.md, section 6, "The
-    /// traversal"). A step reads one cell: the bounds of a level above 0, or a pixel's center w at the finest level. A
+    /// traversal"). A step reads one cell's slab: the bounds of a level above 0, or a pixel's slab at the finest level. A
     /// ray that passes in front of the cell's slab or behind it crosses the cell and goes up a level, one that meets the
-    /// slab of a level above 0 goes down a level to where it enters it, and one that meets a pixel's flat slab hits,
+    /// slab of a level above 0 goes down a level to where it enters it, and one that meets a pixel's slab hits,
     /// unless the pixel's surface faces away from the ray.
     /// </summary>
     /// <param name="pyramid">The depth pyramid of the frame.</param>
@@ -175,7 +175,8 @@ internal readonly record struct ScreenRay(
             (float cellExit, crossed) = CellExit(level, cell, travel);
             float exit = MathF.Max(cellExit, s);
             (int x, int y) = ((int)cell.X, (int)cell.Y);
-            (float near, float back) = WalkSlab(pyramid: pyramid, level: level, x: x, y: y);
+            CellBounds slab = pyramid.WalkSlab(level: level, x: x, y: y);
+            (float near, float back) = (slab.Near, slab.Back);
             float inW = InverseDepthAt(s);
             bool meetsSlab = MeetsWalkSlab(near: near, back: back, inW: inW, outW: InverseDepthAt(exit));
 
@@ -209,16 +210,6 @@ internal readonly record struct ScreenRay(
             }
         }
         return s >= End ? new RayLeftTheSegment(EndsAt, maxSteps) : new RayOutOfSteps(maxSteps);
-    }
-
-    /// <summary>The slab of a cell of the two-depth walk: from its far bound times 1 / (1 + κ) to its near bound, and at
-    /// the finest level from a pixel's center w over 1 + κ to w.</summary>
-    private static (float Near, float Back) WalkSlab(DepthPyramid pyramid, int level, int x, int y)
-    {
-        // A product by the share, as the shader takes it, not a quotient, which rounds otherwise.
-        const float backShare = 1 / (1 + CellBounds.ThicknessShare);
-        CellBounds bounds = level == 0 ? CellBounds.OfSurface(pyramid.Finest(x, y)) : pyramid.Bounds(level, x, y);
-        return (bounds.Near, bounds.Far * backShare);
     }
 
     /// <summary>Whether the ray's inverse depths over a cell, from inW to outW, meet the cell's slab: neither in front

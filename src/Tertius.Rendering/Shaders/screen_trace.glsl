@@ -16,7 +16,7 @@
 #include "screen_walk.glsl"
 #include "own_rays.glsl"
 
-layout(set = 3, binding = 0) uniform texture2D depthFinest;                    // R32F: each pixel's center w, 0 for sky
+layout(set = 3, binding = 0) uniform texture2D depthFinest;                    // RG32F: each pixel's center w and back w
 layout(set = 3, binding = 1) uniform texture2D depthPyramid;                   // RG32F, mip m = level m + 1
 layout(set = 3, binding = 2, rgba16f) uniform readonly image2D directDiffuseLight;   // demodulated and pre-exposed
 layout(set = 3, binding = 3, rgba16f) uniform readonly image2D directSpecularLight;

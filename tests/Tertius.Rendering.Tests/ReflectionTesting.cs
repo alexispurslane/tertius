@@ -105,6 +105,15 @@ internal static class ReflectionTesting
     public static (int X, int Y) MirrorPixel(Vector3 point, int width = Width, int height = Height) =>
         PixelOf(new(point.X, 2 * FloorHeight - point.Y, point.Z), width, height);
 
+    /// <summary>A C# depth pyramid over the center w of each pixel of the last frame's finest level on the GPU, as
+    /// surfaces that face the eye.</summary>
+    public static DepthPyramid CenterPyramidOf(VulkanRenderer renderer) =>
+        DepthPyramid.FromInverseDepths(
+            [.. renderer.ReadDepthFinest().Select(slab => slab.Near)],
+            renderer.LastScene.Camera.Width,
+            renderer.LastScene.Camera.Height
+        );
+
     /// <summary>The C# depth pyramid of the last frame, from its distance target and the geometric normals of its
     /// normals target.</summary>
     public static DepthPyramid PyramidOf(VulkanRenderer renderer)

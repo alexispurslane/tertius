@@ -44,6 +44,36 @@ public sealed class ScreenWalkTests
     }
 
     [Fact]
+    public void ARayAlongAFloorRowJustInFrontOfItsPixelsCentersPassesThoughThePixelsPlanesComeNearer()
+    {
+        // At the finest level the walk reads each pixel's own slab, from its center w, not the bounds of its plane over
+        // its square, which level 1 merges. Along a row, each floor pixel's plane is nearer than its center toward its
+        // lower edge.
+        CameraView camera = ScreenTesting.Camera(width: Width, height: Height, pitchDown: 0.3f);
+        SceneRectangle[] floor = [new(new(0, -1.5f, 0), new(1_000, 0, 0), new(0, 0, 1_000))];
+        DepthPyramid pyramid = ScreenTesting.Pyramid(camera, floor);
+        const int row = Height * 3 / 4;
+        float centerW = pyramid.Finest(Width / 2, row);
+        var ray = new ScreenRay(
+            Start: new(10.5f, row + 0.5f),
+            Step: Vector2.UnitX,
+            StartInverseDepth: centerW * 1.0001f,
+            StepInverseDepth: 0,
+            End: Width - 20,
+            EndsAt: SegmentEnd.ScreenEdge
+        );
+        var direction = Vector3.Normalize(new Vector3(1, -0.1f, 0));
+
+        RayTrace walked = ray.Walk(pyramid: pyramid, direction: direction, maxSteps: Cap);
+
+        pyramid
+            .Bounds(0, Width / 2, row)
+            .Near.Should()
+            .BeGreaterThan(centerW * 1.0001f, "the premise: the pixel's plane comes nearer than the ray");
+        walked.TryGetValue(out RayLeftTheSegment _).Should().BeTrue($"the ray passes the floor, not {walked}");
+    }
+
+    [Fact]
     public void ARayThatRisesTowardTheEyeThroughTheSlabBehindAWallIsNoHitBecauseTheWallFacesAwayFromIt()
     {
         // The wall's normal points to the eye. A ray from 10.5 m, inside the wall's slab of 10 to 11 m, toward the eye
@@ -179,11 +209,8 @@ public sealed class ScreenWalkTests
                 int side = 1 << level;
                 Vector2 cell = new(MathF.Floor(position.X / side), MathF.Floor(position.Y / side));
                 float exit = MathF.Max(Exit(cell, level), parameter);
-                CellBounds bounds =
-                    level == 0
-                        ? CellBounds.OfSurface(pyramid.Finest((int)cell.X, (int)cell.Y))
-                        : pyramid.Bounds(level, (int)cell.X, (int)cell.Y);
-                float back = bounds.Far * (1 / (1 + CellBounds.ThicknessShare));
+                CellBounds bounds = pyramid.WalkSlab(level, (int)cell.X, (int)cell.Y);
+                float back = bounds.Back;
                 float inW = ray.StartInverseDepth + ray.StepInverseDepth * parameter;
                 float outW = ray.StartInverseDepth + ray.StepInverseDepth * exit;
                 bool meets = bounds.Near > 0 && MathF.Min(inW, outW) <= bounds.Near && MathF.Max(inW, outW) >= back;
