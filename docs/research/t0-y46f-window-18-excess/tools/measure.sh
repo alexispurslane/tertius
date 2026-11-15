@@ -17,6 +17,7 @@ echo "# Lamp hall, no jitter: the diffuse filter off, against A with the filter 
 run light.py n-A-nof n-A-nof n-cap4-nc-nof
 run light.py n-A n-A-nof n-cap4-nc-nof
 run whole.py n-A-nof n-A-nof n-cap4-nc-nof
+run whole.py n-A n-A-nof
 echo "# Lamp hall, no jitter: long stills of 180 captures, long mean of draws 5,313 to 5,940"
 run light.py n-A-long n-A n-A-long n-cap4-nc n-cap4-nc-long n-C n-C-long
 run light.py n-A n-A-long n-cap4-nc-long n-C-long
@@ -30,3 +31,10 @@ run lengths.py c-A c-A c-B c-C c-D c-Cw c-cap4-nc
 run whole.py c-A:exit-cabin c-A c-B c-C c-D c-Cw c-cap4-nc
 echo "# Cabin exposure choice, A at 1, 2 and 3 stops"
 run whole.py c-A-x1:exit-cabin c-A-x1 c-A-x2 c-A-x3
+run codes.py exit-cabin c-A-x1 c-A-x2 c-A-x3
+echo "# Lamp hall, no jitter: the sweep G and E with the corrected window"
+run light.py n-A n-Cw n-Dw n-Dw-t20 n-Dw-t40 n-Dw-t80 n-Ew n-B
+run lengths.py n-A n-Cw n-Dw n-Dw-t20 n-Dw-t40 n-Dw-t80 n-Ew
+echo "# Lamp hall, no jitter, in scene light (scene.py): against s-A, and the filter-off pair against s-A-nof"
+run scenelight.py s-A s-A s-C s-fix s-Cw s-cap4-nc s-A-nof s-cap4-nc-nof
+run scenelight.py s-A-nof s-A-nof s-cap4-nc-nof

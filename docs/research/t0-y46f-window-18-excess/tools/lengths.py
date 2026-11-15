@@ -27,7 +27,7 @@ if __name__ == '__main__':
                 raw = np.fromfile(folder / f'{light}.f32', dtype='<f4')
                 h, w = 720, 1280
                 pairs = raw.reshape(h, w, 2)
-                ys = (np.arange(h) * 1080 // h + 1080 // h // 2)[:, None]; xs = (np.arange(w) * 1920 // w + 1920 // w // 2)[None, :]
+                ys = ((2 * np.arange(h) + 1) * 1080 // (2 * h))[:, None]; xs = ((2 * np.arange(w) + 1) * 1920 // (2 * w))[None, :]
                 cells = []
                 for name, polys in regions.items():
                     m = (mask(polys) & smooth)[ys, xs]
