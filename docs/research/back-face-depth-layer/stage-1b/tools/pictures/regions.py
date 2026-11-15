@@ -7,7 +7,7 @@ The job folder holds out/pack/<column>-000239.webp for each column and ten-00023
 the signed luminance difference of the 8-bit sRGB values, 0.2126 R + 0.7152 G + 0.0722 B, in units of 1/255, column
 minus ten. Its mean over each tile of <tile px> x <tile px> output pixels (16 by default) is the tile's difference. The
 noise floor is the largest |tile difference| between the frames 231 and 239 of ten, two settled frames 8 draws apart of
-one run. A region is a connected set of tiles (8 neighbours) whose |tile difference| passes the noise floor. The script
+one run. A region is a connected set of tiles (8 neighbours) of one sign whose |tile difference| passes the noise floor. The script
 prints the per-pixel shares and the regions, largest first, and writes <job>/regions-<column>.png: the still of ten,
 dimmed, with the region tiles in red (brighter) or blue (darker). Boxes after the tile size, in output pixels, leave
 their tiles out of the noise floor and of the regions: a part of the view that moves between the two frames of ten.
@@ -46,14 +46,16 @@ for x0, y0, x1, y1 in excluded:
     keep[y0 // tile:(y1 + tile - 1) // tile, x0 // tile:(x1 + tile - 1) // tile] = False
 floor = np.abs(tiles(noise))[keep].max()
 above = (np.abs(t) > floor) & keep
-labels, count = ndimage.label(above, structure=np.ones((3, 3)))
 regions = []
-for k in range(1, count + 1):
-    ys, xs = np.nonzero(labels == k)
-    values = t[labels == k]
-    regions.append({"box": [int(xs.min() * tile), int(ys.min() * tile), int((xs.max() + 1) * tile), int((ys.max() + 1) * tile)],
-                    "tiles": int(len(values)), "mean": round(float(values.mean()), 2),
-                    "peak": round(float(values[np.abs(values).argmax()]), 2)})
+# Brighter and darker tiles form separate regions: a region holds tiles of one sign.
+for sign in (1, -1):
+    labels, count = ndimage.label(above & (sign * t > 0), structure=np.ones((3, 3)))
+    for k in range(1, count + 1):
+        ys, xs = np.nonzero(labels == k)
+        values = t[labels == k]
+        regions.append({"box": [int(xs.min() * tile), int(ys.min() * tile), int((xs.max() + 1) * tile), int((ys.max() + 1) * tile)],
+                        "tiles": int(len(values)), "mean": round(float(values.mean()), 2),
+                        "peak": round(float(values[np.abs(values).argmax()]), 2)})
 regions.sort(key=lambda r: -r["tiles"] * abs(r["mean"]))
 channel = np.abs(other - ten).max(axis=2)
 noiseChannel = np.abs(ten231 - ten).max(axis=2)

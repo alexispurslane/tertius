@@ -30,7 +30,7 @@ index fb9880b05..a5048f908 100644
  }
  
 diff --git a/src/Tertius.Rendering/Shaders/screen_trace.glsl b/src/Tertius.Rendering/Shaders/screen_trace.glsl
-index a1ea8c0bc..19bbad89c 100644
+index a1ea8c0bc..ab75b4398 100644
 --- a/src/Tertius.Rendering/Shaders/screen_trace.glsl
 +++ b/src/Tertius.Rendering/Shaders/screen_trace.glsl
 @@ -213,6 +213,7 @@ layout(push_constant, std430) uniform ScreenTracePush
@@ -69,7 +69,7 @@ index a1ea8c0bc..19bbad89c 100644
  #ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
      result.age = MissLightAge;
  #elif defined(TERTIUS_PRECISE_SPECULAR_HISTORY)
-@@ -776,6 +791,39 @@ TracedRay traceFrom(ivec2 pixel, ivec2 cell, TracingPixel p, uint kind)
+@@ -776,6 +791,40 @@ TracedRay traceFrom(ivec2 pixel, ivec2 cell, TracingPixel p, uint kind)
      result.distance = length(hitPoint - p.origin);
      float fade = edgeFade(hit) * (1.0 - entryShare);
      result.light = mix(missLight, hitLightOf(hitPixel, kind), fade);
@@ -84,7 +84,8 @@ index a1ea8c0bc..19bbad89c 100644
 +        result.probeBehind = along > 0.0;
 +        float t = abs(along) > 1e-4 ? dot(hitPoint - p.origin, n) / along : 0.0;
 +        result.probeReason = abs(along) <= 1e-4 ? 1u : t <= 0.0 ? 2u : 3u;
-+        if (abs(along) > 1e-4)
++        // Only a crossing ahead of the ray's start gets a class: a ray never reaches a crossing behind its start.
++        if (abs(along) > 1e-4 && t > 0.0)
 +        {
 +            vec3 crossing = p.origin + result.direction * t;
 +            vec3 clip = (frame.motionViewProj * vec4(crossing, 1.0)).xyw;   // clipOf, which motion.glsl holds
@@ -206,7 +207,7 @@ index 4dd6f9346..e3a991e17 100644
  #ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
      imageStore(uncoveredDiagnostic, pixel, vec4(float(seenCode) - 1.0, 0.0, 0.0, 0.0));
 diff --git a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
-index 148fde084..9f58d9169 100644
+index 148fde084..24e447c07 100644
 --- a/src/Tertius.Rendering/VulkanRenderer.cs
 +++ b/src/Tertius.Rendering/VulkanRenderer.cs
 @@ -619,6 +619,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
@@ -217,7 +218,7 @@ index 148fde084..9f58d9169 100644
  
          if (sink != null && capture != null)
          {
-@@ -1923,6 +1924,166 @@ public sealed unsafe class VulkanRenderer : IRenderer
+@@ -1923,6 +1924,170 @@ public sealed unsafe class VulkanRenderer : IRenderer
  
      private int backFaceDumps;
  
@@ -267,6 +268,9 @@ index 148fde084..9f58d9169 100644
 +        var inv = System.Globalization.CultureInfo.InvariantCulture;
 +        int width = (int)ageImage.Extent.Width,
 +            height = (int)ageImage.Extent.Height;
++        // The codes hold x in 11 bits and y in 10 bits.
++        if (width > 2048 || height > 1024)
++            throw new InvalidOperationException($"The census codes hold at most 2048 x 1024 render pixels, not {width} x {height}.");
 +        float[] specular = ReadImage(tracer.Specular.Sample(0));
 +        float[] diffuse = ReadImage(tracer.Diffuse.Sample(0));
 +        float[] ages = ReadImage(ageImage);
@@ -284,9 +288,10 @@ index 148fde084..9f58d9169 100644
 +                    {
 +                        int i = y * width + x;
 +                        double l = Luminance(i);
-+                        if (l < 50 && (ScreenTracePushConstants.ProbeCensusValue & (1u << 16)) == 0)
-+                            continue;
 +                        int age = (int)ages[i];
++                        // The shader's record decides which samples count: a census code, not a second threshold here.
++                        if (age < 0x7FFC)
++                            continue;
 +                        if (age < 0x8000)
 +                        {
 +                            ProbeCensusAdd(age == 0x7FFE ? $"sill-{name} walk-misses" : $"sill-{name} no-reflection-ray", l);
