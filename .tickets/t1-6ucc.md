@@ -1,8 +1,8 @@
 ---
 id: t1-6ucc
-status: in_progress
+status: closed
 deps: []
-links: []
+links: [t1-o086]
 created: 2026-11-15T13:06:42Z
 type: task
 priority: 1
@@ -73,3 +73,9 @@ How the sort key carries the split is yours. One way is a third key bit for an o
 
 The pass itself, its shaders and its target.
 
+
+## Notes
+
+**2026-11-15T15:51:06Z**
+
+Result (2026-11-15, merged as 11c506ae3, lead's head 205206d61). MeshClosure.IsClosed welds positions within the largest coordinate times 2^-16 and applies the pairing rule as a signed balance per undirected edge. StagedMesh.Of computes the flag once, and MeshInfo.Closed is a required field. The delivered interface differs from the ticket's text: PreparedScene.Opaque is now RangeRuns[], one first command and six counts per depth range. Two derived views read it: Opaque[range].Sided for the passes that shade, and Opaque[range].BackFace, a BackFaceRuns(ClosedOneSided, BothFaces), for the back-face pass. The reason is one store for each piece of state. The sort key holds the class as two bits of the enum OpaqueFaces below the cutout bit. The G-buffer draws the same set of commands. Only the order inside a one-sided run changes, where a range holds open and closed one-sided meshes, and every snapshot test passed with no new approval. Evidence from the lead: Checked 10,960 passed and 0 failed, Release 10,951 passed and 0 failed, coverage of 125 of 126 changed lines, 44 mutants with 41 killed, 2 equivalent and 1 judgment call. The lead reported 'blocked' because its reviewer could not see the runs and gave 'unverified' for fulfillment. I settled that: the runs are in the lead's report, and the reviewer's correctness verdict is a pass. The review's findings: the duplicate weld is ticket t1-o086. The comment on the order of OpaqueFaces, the census test's use of StagedMesh.Of(mesh).Closed, and the reason for RunsPerRange = 8 go to the lead of the back-face pass (t1-j03y) as carried-over items.
