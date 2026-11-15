@@ -72,3 +72,9 @@ Say plainly where a difference is inside the run-to-run spread. Do not round a d
 
 Any tuning of the probe for speed, the side image, the design document and the real mechanism.
 
+
+## Notes
+
+**2026-11-15T00:41:59Z**
+
+Measured on both machines: docs/research/back-face-depth-layer/stage-1b/cost.md. Card, rounds 2 to 5: layer minus main is +0.031 ms on the deck, +0.055 ms in the cabin, -0.109 ms in rect-lamps and +0.446 ms in the crowd. Mac: +0.060 ms (inside the spread), +0.140, -0.141 and +1.014 ms. In the crowd of 2.0 million skinned vertices the pass alone costs 0.45 ms on the card and 0.80 ms on the Mac. Cloud cost $0.2047.
