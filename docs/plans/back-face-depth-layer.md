@@ -2,7 +2,7 @@
 
 This is the design of epic `ter-kh4g`. The screen walk learns where each surface's solid really ends, from a second depth layer of back faces. The research behind every decision is in [docs/research/back-face-depth-layer](../research/back-face-depth-layer/README.md). This document says what to build. The tickets say in which order.
 
-Status on 2026-11-15: a draft. Decision 6 and decision 8 wait for the merge of the tickets `t1-g4p1` and `t1-kiaw`.
+Status on 2026-11-15: a draft. Decision 6 waits for the reviewed result of ticket `t1-g4p1`. Three questions are open for Alexis, in "Open questions".
 
 ## The terms
 
@@ -146,7 +146,26 @@ The C# copies change with the shaders: `CellBounds`, `DepthPyramid` and `ScreenR
 
 ### 8. The cost and the vertex work
 
-The pass draws every vertex of its runs a second time, with positions only. In rooms it costs 0.03 to 0.06 ms on the RTX 2000 Ada. In a crowd of 2.0 million vertices it costs 0.45 ms there and 0.80 ms on the M1 Max. Ticket `t1-kiaw` measures the cost model and the remedies. This section takes its result before the pass's ticket starts.
+The pass draws every vertex of its runs a second time, with positions only. It does not skin again, because the deformation runs once per frame and every pass draws the deformed copies.
+
+The cost model (stage-2/crowd-cost.md, part 1): the pass's cost is a straight line in the vertices that it draws.
+
+| Machine | Cost per million drawn vertices | One figure of 20,000 vertices | The demo's rooms, 100,000 to 125,000 vertices | A crowd of 100 figures |
+|---|---:|---:|---:|---:|
+| RTX 2000 Ada | 0.24 ms | 0.005 ms | 0.04 to 0.065 ms | 0.47 ms |
+| M1 Max | 0.36 ms | 0.007 ms | 0.04 ms, inside the noise | 0.80 ms |
+
+In the crowd, 92 % of the card's time is vertex work, and the fragments cost 0.026 ms. So only fewer drawn vertices make the pass cheaper.
+
+The pass draws every instance of the opaque runs, also every skinned figure. The reasons:
+
+- Front-face culling on the closed one-sided runs is the cheaper form. One pipeline that draws both faces costs 37 % more in the cabin on the card, and 0.07 to 0.16 ms more on the Mac.
+- No rule from geometry leaves an instance out. A left-out instance's pixels do not become sheets: they take the back face of the surface behind them.
+- The engine holds no coarser copy of a mesh today. The asset pipeline plans LODs, and no code builds them yet.
+- The pass already leaves out an instance that an impostor replaces, because such an instance is not in the opaque runs.
+- Packed positions save 0.019 ms of the crowd's 0.489 ms on the card, and nothing on the Mac. That is not worth a second vertex path.
+
+A trade remains for a view with many skinned figures, and it goes to Alexis as a question. This design builds the first option: every figure keeps its real back face. The two other options are later work, and neither needs a change of this design's parts. One leaves the figures out and marks their pixels as sheets. The other draws the figures' back faces from a coarser LOD.
 
 ### 9. Formats, memory and Linux
 
@@ -280,4 +299,4 @@ They are in the epic's notes and go to the parent agent with their pictures:
 
 1. The sheet's slab: the plane's far w (this design), no thickness (Alexis's answer of 2026-11-14), or more.
 2. The light of a blocked ray: the fade over the real slab (this design), or no fade by the entry share.
-3. What a view with many skinned figures pays, after ticket `t1-kiaw`.
+3. What a view with many skinned figures pays: the real back faces at 0.24 to 0.36 ms per million vertices (this design), figures as sheets, or back faces from a coarser LOD.

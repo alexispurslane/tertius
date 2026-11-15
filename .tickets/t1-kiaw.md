@@ -1,6 +1,6 @@
 ---
 id: t1-kiaw
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-15T01:24:22Z
@@ -63,3 +63,9 @@ State the pass's cost in the crowd and in the rooms after the remedies that have
 
 The design document states the pass's cost model by vertex count and its answer for views with many skinned figures.
 
+
+## Notes
+
+**2026-11-15T13:12:31Z**
+
+Result (2026-11-15, merged at f0e9dc1f1, record docs/research/back-face-depth-layer/stage-2/crowd-cost.md). The pass's cost is a straight line in drawn vertices: 0.24 ms per million on the RTX 2000 Ada and 0.36 ms per million on the M1 Max. The demo's rooms draw 100,000 to 125,000 vertices and pay 0.04 to 0.065 ms on the card. One figure of 20,000 vertices pays 0.005 ms on the card and 0.007 ms on the Mac. No remedy with a reason makes the crowd cheaper. The design's decision 8 holds the model. The trade for many skinned figures goes to Alexis as a question with three options. Cloud dollars: 0.15 of 0.80.
