@@ -3288,7 +3288,7 @@ The bound on a pixel of the HDR image:
 - A pane over a value v writes at most 32,256 · (1 − T) + T · v. With v at most 32,256 + p, where p is what the puffs behind the pane added, that is at most 32,256 + T · p. So a pane keeps the surfaces' share and only dims the puffs behind it.
 - So every pixel holds at most 32,256 + 32,256 = 64,512, for any number of puffs and either rounding. That is 992 below 65,504, 31 steps of the half float at that size. The room of 992 takes the rounding of the glass blend and of the bloom's summed levels.
 
-The Vulkan spec does not fix how a blend rounds. The bound holds for a blend that rounds to nearest or toward zero. A blend that rounds toward +∞ is not covered. Metal on this Mac rounds the blend toward zero, so no GPU test here shows the rounding to nearest: `PortableFloatTests` sums half floats on the CPU instead, with .NET's `Half`, which rounds each sum to nearest, ties to even. Under the old budget of 32,256 for the puffs, that sum gave infinity at 106 puffs fully overlapping at their share over a surface at the cap.
+The Vulkan spec does not fix how a blend rounds. The bound holds for a blend that rounds to nearest or toward zero. A blend that rounds toward +∞ is not covered. Metal on this Mac rounds the blend toward zero, and NVIDIA on Linux rounds it to nearest (`StoreRoundingTests`, below). So no GPU test on this Mac shows the rounding to nearest: `PortableFloatTests` sums half floats on the CPU instead, with .NET's `Half`, which rounds each sum to nearest, ties to even. Under the old budget of 32,256 for the puffs, that sum gave infinity at 106 puffs fully overlapping at their share over a surface at the cap.
 
 The stores of a history. The spec also lets a store into a 16-bit float image round toward zero or to the nearest half float, and MoltenVK on this Mac rounds toward zero. A history is a mean that feeds back: each draw reads its stored value, moves it by 1 / L of its distance to the sample and stores it again. A store that rounds one way loses a share b of the value in every draw, so the history settles L · b below its samples' mean. On this Mac that loss was about 1 % at L = 32. The rays read the bounce history at their hits, and that loop made the lamp hall's still 2.7 % too dark on the ceiling and 5.8 % on the walls (ticket t8-69v7). So every store of a history's value takes `nearestHalf` (`half_store.glsl`) first. It gives the half float nearest to the value, with ties to even, from integer operations on the value's bits. The value is then a half float already, and every driver stores it exactly. The rule covers these stores:
 
@@ -3297,6 +3297,17 @@ The stores of a history. The spec also lets a store into a 16-bit float image ro
 - The diffuse filter's feedback step: its light in the slow history, and the retained deviation in the fast history.
 
 The precise specular history stores 32-bit floats, so `slowHistoryValue` gives its values unchanged there. The specular fast history's alpha holds the draw's hit distance, which no blend reads, so it keeps the driver's rounding. So do the images that no draw blends into itself, such as the samples and the filter's outputs. `HalfStoreTests` compares `nearestHalf` with .NET's `Half` on the GPU, and `ALongHistoryHoldsTheMeanOfItsSamples` and its twins hold a long history to within 0.2 % of its samples' mean.
+
+`StoreRoundingTests` reports how each path that stores a 32-bit float into a half float rounds, from 36 values that lie between two half floats, a quarter, a half and three quarters of the way. It asserts nothing about a driver. A tie shows whether a path rounds ties to even.
+
+| Store path | MoltenVK on the M1 Max | NVIDIA on Linux (RTX 2000 Ada) |
+|---|---|---|
+| A compute shader's `imageStore` into a 16-bit float image | Toward zero | Toward zero |
+| A fragment shader's write into a 16-bit float color attachment, without a blend | Toward zero | Toward zero |
+| An additive blend into a 16-bit float color attachment | Toward zero | To nearest, ties to even |
+| `packHalf2x16` | To nearest, ties to even | Toward zero |
+
+Only the two plain stores round the same way on both drivers, toward zero. The blend and `packHalf2x16` differ. `nearestHalf` relies on none of them: it gives a half float before the store, and every path keeps a half float exactly.
 
 | Input from the CPU | What the renderer does with it |
 |---|---|
