@@ -18,7 +18,11 @@ An experiment with the scratch probe, for the remedy of the bay film's trail (t0
 
 ### Where this stands
 
-Read `docs/research/t0-mzhr-regional-test-cycle/README.md` first. It defines the terms, and its scratch patch holds the regional lag test with the box window of 18 draws ("region, window 18"). That probe uses a tolerance of 10 % of the fast sum, a tuned constant. It works in the films and settles the cabin fastest. But in a still state it keeps firing: the cabin's center region swings from 94 to 127 % of the reference before the switch, and the lamp hall's specks rise from 6.01 to 9.69.
+Read two records first. `docs/research/t0-mzhr-regional-test-cycle/README.md` defines the terms and the measuring scripts. `docs/research/t0-y46f-window-18-excess/README.md` corrects it: the scratch patch of `t0-mzhr` never wrote the bounce light's 18-draw window, so its takes of "region, window 18" measured a bounce history held at 4 draws.
+
+Build on the corrected patch, `docs/research/t0-y46f-window-18-excess/scratch-probe-on-73f4a6548.patch`, and set `TERTIUS_X_WINDOW_ALL=1` in every take of the regional test. That patch also holds a count of history lengths (`TERTIUS_X_LENGTHS`) and a cap of the bounce history's length (`TERTIUS_X_DIFFUSE_CAP`). Measure light in scene light with `scene.py` and `scenelight.py` of that folder, and give `light.py`'s shares beside it where an earlier number uses them.
+
+What is known of the corrected test at a tolerance of 10 %, a tuned constant: only stills. The lamp hall gives 96.4 / 101.4 % under today's jitter and 97.8 / 101.9 % without it. But the still state keeps firing: on the lamp hall's walls, 25 % of the bounce pixel draws have a history below 8 draws, and the mean length is 22 to 23 draws in place of 31. No valid take of a film or a switch exists. So the takes of rule T0 below are the first valid takes of the regional test with the 18-draw window. They decide whether the test closes the bay film's trail at all.
 
 Section 8.1 of `docs/plans/bounce-light-confidence.md` holds a warning from an earlier test. A tolerance that followed the noise of single ray streams silenced that test in the cabin, where the noise is large. So this ticket measures before the remedy is built: how large is each candidate tolerance in each scene, how often does a still exceed it, and does the test still act after a real change.
 
@@ -50,10 +54,10 @@ You can add one rule of your own if the count below points at one. Record it and
 
 ### The scratch additions
 
-In the scratch checkout of `73f4a6548` with the patch of the cycle measurement:
+In the scratch checkout of `73f4a6548` with the corrected patch:
 
 - A second ring per pixel for `F(t)`: the spatial dispatch sums this draw's ring layer over the taps, stores the sum in the layer of this draw, and reads the 18 layers for `R` and `d`. This costs 289 + 18 more loads per pixel, which a probe can pay.
-- `TERTIUS_X_REGION_RULE=<0|1|2>` chooses T0, T1 or T2. The default 0 must repeat the cycle measurement.
+- `TERTIUS_X_REGION_RULE=<0|1|2>` chooses T0, T1 or T2. The default 0 must repeat the control below.
 - `TERTIUS_X_REGION_ACT=0` computes the test but does not shorten any history. The count below uses it.
 - A count per draw, read back or written to an image that a script reduces: for the whole image and the survey's 3 × 3 regions, the median and the 90th and 99th percentile of `lag`, of T1 and of T2, and the share of pixels whose `lag` exceeds each of T0, T1 and T2.
 
@@ -80,17 +84,22 @@ Step 2, each rule acting (T0 as the control, then T1 and T2), with the scripts o
 
 The reference and the fix under each jitter are part of the set, because the build is new.
 
+Two more variants belong to step 2:
+
+- The fix with `TERTIUS_X_DIFFUSE_CAP=4` and no regional test: the bay film and the cabin switch under today's jitter. It must repeat the `t0-mzhr` numbers of the broken window (bay film +0.43 / +0.18, cabin settle 39 / 25). That confirms what those numbers measured, and it gives the films' result of a bounce history without a long memory.
+- Rule T0, and the best derived rule, under the long Halton sequence (`TERTIUS_X_LONG_JITTER=1`): the lamp hall still and the cabin switch. The `t0-mzhr` takes of the 18-draw window under the long sequence are not valid, and the order of the long Halton jitter (`t0-f238`) depends on this result.
+
 ### The three questions
 
 1. In a still, how large is each derived tolerance against 10 %, and how often does the lag exceed it? Give the count per scene and jitter.
 2. With a derived tolerance acting, does the still keep the fix's light (96.0 and 99.5 % in the lamp hall, decision Y5) and its specks, and does the cabin's center stop swinging before the switch?
-3. Does a derived tolerance still see a real change? Give the bay film, the cabin's two measures and the bay-sun lag against T0 (bay film +0.43 / +0.18, cabin settle 39 / 25, bay-sun 8.41 draws) and against main.
+3. Does the corrected test close the bay film's trail, at 10 % and with a derived tolerance? Give the bay film, the cabin's two measures and the bay-sun lag for T0, T1 and T2 against the fix and against main (`t0-mzhr`'s table: main's bay film +1.18 / +0.53, the fix's +1.86 / +1.75).
 
 If no derived rule keeps the films' gain, or each silences the test in the cabin, say so plainly with the numbers. That result is a question for Alexis, and the line orchestrator passes it up.
 
 ## Acceptance
 
-- The control: rule T0 with action repeats the cycle measurement's printed numbers (lamp hall still 99.5 / 105.8, bay film +0.43 / +0.18, cabin settle 39 / 25). If it does not, stop and report that first.
+- The control: rule T0 with action and the corrected window repeats the `t0-y46f` record's lamp hall still by `light.py`, 96.4 / 101.4 under today's jitter and 97.8 / 101.9 without jitter, with a mean bounce length near 28.6 / 22.8 draws without jitter. If it does not, stop and report that first.
 - Tables of the count and of every take in a note on this ticket and in `docs/research/t0-xlcu-regional-tolerance/README.md`, with the three answers. Each answer gives the measured numbers apart from your reading.
 - One chart of r11 over the cabin switch under today's jitter with the reference, the fix, T0, T1 and T2, in the style of `levelchart.py`. One crop sheet of the lamp hall's ceiling: the fix, T0, T1 and T2. Open each with the Read tool and describe it.
 - The scratch patch and the scripts in the same folder. Reuse the scripts of `docs/research/t0-mzhr-regional-test-cycle/tools/` and copy only what you change.
@@ -100,4 +109,5 @@ If no derived rule keeps the films' gain, or each silences the test in the cabin
 
 - The remedy's build. Its ticket follows this result.
 - Statistics at ray-block resolution. The remedy's design decides that. This ticket keeps the probe's taps, so that its numbers compare with the cycle measurement.
-- The cause of the 18-draw window's light above the reference (`t0-y46f`), the long Halton jitter (`t0-f238`) and the 128-draw history (`t0-70v1`).
+- Why a still's bounce light depends on the history's length (`t8-69v7`, its own diagnosis). Give each variant's mean bounce length beside its light, so that a reader can tell this effect from the test's own.
+- A build of the long Halton jitter (`t0-f238`) and the 128-draw history (`t0-70v1`).

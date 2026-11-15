@@ -58,7 +58,12 @@ Take T16 showed a gap in X1. In the film `rect-bay`, the bay's bounce light trai
 
 Y1 brings a statistic back after decision X1 removed one. Section 8.1 holds the lesson that Y4 must respect: a tolerance that follows the noise of single ray streams silenced the block test where the noise is large, as in the cabin. The regional test differs in two ways. It pools 17 × 17 ray blocks over 18 draws, where the block test pooled at most 7 × 7 blocks of one draw. And it measures the lag of the histories against the samples' own mean, not a difference between two noisy means of one draw.
 
-The cycle measurement (`t0-mzhr`, `docs/research/t0-mzhr-regional-test-cycle/README.md`) settled the test's recent window before the design: a box mean over 18 draws, one full cycle of the camera jitter. A window of 4 draws lost the lamp hall still's light under the jitter (89.4 and 90.4 %). The long Halton sequence does not help the test, so the order of `t0-f238` after Design X stays.
+Two measurements came before the design.
+
+- The cycle measurement (`t0-mzhr`, `docs/research/t0-mzhr-regional-test-cycle/README.md`). With the fast history of 4 draws as its recent mean, the test lost the lamp hall still's light under the jitter (89.4 and 90.4 %) and kept it without the jitter (97.7 and 102.1 %). So the recent mean must not follow the jitter's cycle. Its takes of the 18-draw window are not valid: its scratch probe never wrote the bounce light's window (`t8-r6dw`).
+- The diagnosis of that probe (`t0-y46f`, `docs/research/t0-y46f-window-18-excess/README.md`). With the window corrected, a box mean over 18 draws and a tolerance of 10 % give 96.4 and 101.4 % in the lamp hall still under the jitter, where the fix gives 96.0 and 99.5 %. In that still the test still shortens a quarter of the walls' pixel draws to below 8 draws. It also found that a still's bounce light depends on the history's length (`t8-69v7`): a history held at 4 draws shows 2 to 5 % more light in scene light.
+
+No valid take of the 18-draw window exists yet for a film, a switch or the long Halton sequence. Ticket `t0-xlcu` takes them, with the candidate rules for the tolerance. Until then the order of `t0-f238` after Design X stays.
 
 ## 3. Terms
 

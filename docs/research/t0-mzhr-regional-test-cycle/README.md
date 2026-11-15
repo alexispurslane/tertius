@@ -1,5 +1,14 @@
 # The regional lag test against the jitter's cycle of 18 draws (t0-mzhr), 2026-11-14
 
+## Correction of 2026-11-15: the takes of "region, window 18" are not valid
+
+The scratch patch of this folder has a bug, which ticket `t0-y46f` found (`docs/research/t0-y46f-window-18-excess/README.md`, "The window bug", and bug ticket `t8-r6dw`). The bounce light's temporal dispatch never wrote the 18-draw window. So the regional test of the bounce light fired at every pixel in every draw, and held every bounce history at 4 draws.
+
+- Every number of "region, window 18" below, also with tolerance 20 and with the clamps off, measures a bounce history held at 4 draws. It does not measure the regional test with an 18-draw window. A plain cap of 4 draws with no test repeats its still to 0.1 point.
+- So these readings below do not stand: that the 18-draw window trails least in the films, that it still follows the jitter's cycle, that the long sequence does not help it, and the answers to question 1 and to the window-18 part of question 2.
+- The numbers of main, the reference, the fix, cut 18 and "region, window 4" are valid. Window 4 reads the fast history, not the ring.
+- The corrected patch is `docs/research/t0-y46f-window-18-excess/scratch-probe-on-73f4a6548.patch`, with `TERTIUS_X_WINDOW_ALL=1`. With it, the lamp hall still of region, window 18 at 10 % gives 96.4 / 101.4 % under today's jitter and 97.8 / 101.9 % without jitter. Ticket `t0-xlcu` takes the films and the switch again.
+
 This folder holds the takes of ticket `t0-mzhr`. They measure the regional lag test with a fast estimate over a box window of 18 draws, under three camera jitters. They also measure a history cut to 18 draws.
 All takes ran on this Mac in one session, from 20:37 to 22:04 local time, under the shared GPU lock. No take used the cloud.
 The ticket's section "Design (line orchestrator, 2026-11-14)" holds the reasons and the questions.

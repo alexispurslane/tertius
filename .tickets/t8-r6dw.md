@@ -1,6 +1,6 @@
 ---
 id: t8-r6dw
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-15T04:51:47Z
@@ -21,3 +21,9 @@ So every t0-mzhr record of region, window 18 measured a diffuse history held at 
 
 The t0-y46f patch also passes the specialization constants to the accumulation pipelines, which the t0-mzhr patch did not. With every switch unset this changes no image. But TERTIUS_X_LEAST_MOTION (constant 13, sample_age.glsl) now also reaches the accumulation. So a retake that sets it measures more than the same take on the t0-mzhr patch.
 
+
+## Notes
+
+**2026-11-15T08:44:14Z**
+
+Line orchestrator, 2026-11-15: the corrected scratch patch is docs/research/t0-y46f-window-18-excess/scratch-probe-on-73f4a6548.patch with TERTIUS_X_WINDOW_ALL=1. The t0-mzhr record carries a correction at its top. The new takes of the films and the switch with the corrected window are part of t0-xlcu. The probe is scratch code, so nothing in src changes, and this ticket closes.
