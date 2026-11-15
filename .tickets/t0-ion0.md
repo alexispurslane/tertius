@@ -1,0 +1,100 @@
+---
+id: t0-ion0
+status: open
+deps: []
+links: [t0-acxm]
+created: 2026-11-15T10:49:32Z
+type: task
+priority: 1
+assignee: Alexis Purslane
+parent: t7-3e22
+---
+# Measure the region's drift as light evidence: a cut to the fast cap while the region's light moves
+
+An experiment with the scratch probe, for the remedy of the bay film's trail (t0-acxm). It changes nothing in src. It follows the tolerance measurement (t0-xlcu), which showed that the regional lag test brings the bay film only back to about main's trail.
+
+
+## Design (line orchestrator, 2026-11-15)
+
+### What the tolerance measurement showed
+
+Read `docs/research/t0-xlcu-regional-tolerance/README.md` first. It holds the terms, the corrected probe with its two rings, and the takes.
+
+| Build | Bay film level, middle / last | bay-sun lag error | Cabin settle, slowest off / on | Lamp hall still, ceiling / walls |
+|---|---|---|---|---|
+| main | +1.18 / +0.53 | 0.2644 | 75 / 52 | 78.4 / 81.2 |
+| the fix | +1.86 / +1.75 | 0.2679 | 66 / none | 96.0 / 99.5 |
+| regional lag test, tolerance 10 % (T0) | +1.36 / +0.64 | 0.2230 | 54 / 56 | 96.4 / 101.4 |
+| regional lag test, derived tolerance (T1) | +1.41 / +0.60 | 0.2303 | 63 / 94 | 96.6 / 100.7 |
+| bounce history held at 4 draws, no test | +0.43 / +0.18 | 0.0892 | 46 / 23 | not a still that passes: the cabin center swings from 94 to 128 % |
+
+In the film, every rule sees the change at 71 to 73 % of the pixel draws. So the test's power to see is not the limit. Its action is. The test compares the histories' sum `S` with the samples' 18-draw mean `R`, and shortens a history only while the two differ. `R` itself lies about 9 draws behind a light that keeps moving. When `S` meets `R`, the action stops, and the histories grow long again inside the change. The histories then follow `R`, not the light.
+
+### The model of this experiment
+
+Alexis's decision Y3 (design doc, section 2.3) asks for one evidence value per block with one reader. Today the reader is the light evidence of a ray: it cuts the history's length to the fast cap of 4 draws and leaves the box wide, for as long as the evidence lasts. The regional lag test is a second reader beside it, with its own action.
+
+This experiment makes the region a second source of the same evidence instead. The region does not ask whether the histories lag. It asks whether the light of the region moves. Where it moves, each block of the region gets light evidence, and the one reader cuts. While the light keeps moving, the evidence lasts, and the histories stay at the fast cap, as under the cap of 4 draws that closed the film. When the light stands still, the evidence ends, and the histories grow long.
+
+- The state that the test reads is the samples alone: the ring of the region's light per draw, `F(t)`, which the probe already stores. The histories are not part of the test. So the clamp's loss, the store's loss (`t8-69v7`) and the filter's write-back cannot hold the test open in a still.
+- What causes evidence: the region's mean light over the last 18 draws differs from its mean over the 18 draws before them. Each of the two windows holds one full cycle of the jitter, so the cycle cancels in each.
+- What the evidence does: the block takes `LightEvidence`, as from a ray. Nothing else changes in the reader.
+
+### The quantities, at one pixel in one draw
+
+- `F(t)` = the sum over the 17 × 17 taps of the samples' luminance in draw `t`, as in the tolerance measurement.
+- `Rnew` = the mean of `F` over the last 18 draws. `Rold` = the mean of `F` over the 18 draws before those. This needs a ring of 36 draws of `F`, or a ring of 18 past values of `Rnew`. The choice is yours.
+- `dold` = the standard deviation of `F` over the older window of 18 draws.
+- `drift` = |Rnew − Rold| / max(Rold, least luminance).
+
+### The candidate rules
+
+| Rule | Evidence where | The reason for its value |
+|---|---|---|
+| Q0, the control of the method | drift > 0.10 | None. The tuned constant of the earlier probes |
+| Q1, the older window's spread | drift > 2 × (dold / Rold) × sqrt(2 / 18) | `Rnew` and `Rold` are each a mean of 18 draws with the variance dold² / 18, and they share no draw. The tolerance is two standard deviations of their difference. The spread comes from the older window, so a step inside the new window does not raise the tolerance. The tolerance measurement found that a spread over the window that holds the step silenced its rule in the cabin |
+
+You can add one rule of your own if the count points at one. Record it and its reason.
+
+For both rules, a block with regional evidence takes the reader's light action: the bounce history's length becomes the fast cap, and the box stays wide. Take the reflections with the same rule from their own samples, as the earlier probes did, and say where you differ.
+
+### The store
+
+Take every variant with the nearest-half store of the diagnosis `t8-69v7` (`TERTIUS_X_HALF_NEAREST=1`, `docs/research/t8-69v7-length-light/scratch-probe-on-73f4a6548.patch`). The line's branch gets that fix now, and with it a history's light no longer depends on its length. So a still's light then judges the test alone. Bring that switch into your patch. The reference, the fix and the cap of 4 draws need new takes with it, because every earlier number of them has the old store.
+
+### The takes
+
+Step 1, the count without action, with the nearest-half store. Stills `rect-lamps`, `bay-sunbeam` and `exit-cabin` under today's jitter, no jitter and the long Halton sequence: the share of pixel draws with evidence under Q0 and Q1, for the whole image and the 3 × 3 regions, and the median and 90th percentile of the drift and of Q1's tolerance. A still has no change, so every such pixel draw is false evidence. Then the cabin switch and the film `rect-bay` under today's jitter: the share with evidence over the frames, per region. Commit the table as a note before step 2.
+
+Step 2, each rule acting, against the reference, the fix and the cap of 4 draws, all with the nearest-half store:
+
+| Take | Jitter | Measures |
+|---|---|---|
+| Lamp hall still at 4.08 stops | today's, none, long | Light of ceiling and walls in scene light and by `light.py`, the bounce history's mean length and share below 8 draws, specks, blotch, daub |
+| Film `rect-bay` | today's | Level and blotch, middle and last frame |
+| Cabin switch | today's, none, long | The level 60 draws after each switch as % of the reference's control (whole image and r11), the draws until the slowest region, the whole image and r11 stay within 5 % of their own control, and r11's lowest and highest level over frames 140 to 159 |
+| Lag films `bay-sun`, `lamp-hall-16-moving`, `lamp-hall-64-spot-moving` | today's | Median lag and lag error |
+
+Main's numbers are those of the earlier records. They carry the old store. Say so beside each comparison with main.
+
+### The three questions
+
+1. In a still, how often does each rule give false evidence, under each of the three jitters? The earlier test gave 20 % in the lamp hall at 10 %.
+2. With a rule acting, does the film reach the cap of 4 draws (+0.43 / +0.18, bay-sun 0.0892), and does the cabin settle like it (46 / 23), without that cap's swing of the cabin center before the switch (94 to 128 %)?
+3. Does the still keep the fix's light, specks and daub, and its history length?
+
+If a rule passes all three under today's jitter, say what the long Halton sequence does to it. That decides the order of `t0-f238`.
+
+## Acceptance
+
+- The control: with every new switch at its default and the old store, the build repeats the tolerance record's T0 lamp hall still (96.4 / 101.4 under today's jitter).
+- Tables of the count and of every take in a note on this ticket and in `docs/research/t0-ion0-region-drift/README.md`, with the three answers. Each answer gives the measured numbers apart from your reading.
+- One chart of r11 over the cabin switch under today's jitter with the reference, the fix, the cap of 4 draws, Q0 and Q1. One sheet of film frames of `rect-bay` at the middle and the last frame: the still of the same state, the fix, Q1 and the cap of 4 draws. One crop sheet of the lamp hall's ceiling: the fix, Q0, Q1. Open each with the Read tool and describe it.
+- The scratch patch and the scripts in the same folder. Reuse the scripts of the earlier folders and copy only what you change.
+- No change under `src`, `tests` or `tools`.
+
+## Out of scope
+
+- The remedy's build. Its ticket follows this result.
+- Statistics at ray-block resolution. This ticket keeps the probe's taps.
+- A graded cut. The reader cuts to the fast cap or does nothing. If the count shows that a graded cut is needed, say so in the notes.

@@ -1,6 +1,6 @@
 ---
 id: t0-xlcu
-status: in_progress
+status: closed
 deps: []
 links: [t0-acxm]
 created: 2026-11-15T08:40:13Z
@@ -196,3 +196,7 @@ Answers:
 1. In the bay and the exit cabin, T1 and T2 have medians of 0.075 to 0.080. In the lamp hall, T1's median is 0.12 to 0.14 and T2's 0.10. Over the whole image, T1 lets 5 to 8 % of a still's pixel draws through in every scene and jitter. Per region, 0.8 to 29.4 % in the lamp hall. T2 lets 5 % through in the bay and the exit cabin and 14 to 16 % in the lamp hall. T0 lets 1 to 2 % through in the bay and the exit cabin and 19 to 21 % in the lamp hall.
 2. Under today's jitter, T1 keeps the still's light within 1.2 points of the fix, and it stops the cabin center's swing before the switch. T2 holds the walls 5.1 points and the cabin center 10 to 14 % above the reference. Under the long sequence T1 loses both: 101.2 / 108.1, and r11 swings 105.4 to 116.8 %.
 3. No. The corrected test does not close the bay film's trail at 10 % or with a derived tolerance. It brings the film from the fix's trail back to about main's, and the rules differ by at most 0.07 in level. The earlier film gain of "region, window 18" came from the bounce history held at 4 draws. In the cabin, T1 sees no light change: it settles the lamps-on window in 94 draws, main in 52. T2 sees the lamps go off but not come on. This is the question for Alexis: no rule of the test keeps the films' gain, and the best rule in the stills silences the test in the cabin.
+
+**2026-11-15T10:49:32Z**
+
+Integration (line orchestrator, 2026-11-15). Gates held: status ready_for_integration, no fork, clean checkout, branch t3/measure-regional-lag-tolerance at 17eb2fcaa, every review finding resolved or rejected with a reason that I accept (F11, scratch code). Merged into t7-3e22-retained-deviation as 1f1bacf54. Last check, one read of the record, and I opened cabin-r11-today.png: it shows what the README says. Result in one line: the regional lag test with the corrected 18-draw window brings the bay film from the fix's trail (+1.86 / +1.75) back to about main's (+1.36 / +0.64 against +1.18 / +0.53) at every tolerance, and a bounce history held at 4 draws closes it (+0.43 / +0.18). My reading of why the tolerance does not matter in the film: the test shortens a history only until the histories' sum meets the 18-draw mean of the samples, and that mean itself lies about 9 draws behind a light that keeps moving. So the test's action stops where the trail begins. The lead's items of new work: (a), the still's lag in the lamp hall, fits the clamp's loss of rare bright samples and the half-float store's loss (t8-69v7), which both hold the histories below the samples' mean; (b) and (d) go into the next experiment (t0-ion0: the spread of the older window, and a cut to the fast cap); (c), T2's high light, is dropped with T2; (e) goes into the remedy's build ticket.
