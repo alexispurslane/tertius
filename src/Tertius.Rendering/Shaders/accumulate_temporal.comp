@@ -22,10 +22,13 @@
 // 2^−11, so an uncapped history takes this window too.
 const float DeviationFrames = 32.0;
 
-// The share of the fast history's luminance within which a sample's weighted step is the store's rounding, not noise.
-// Every store of a history takes the nearest half float (half_store.glsl), so a half-float blend of the weight w stops
-// where its weighted step falls below half a half-float step, and a step is at most 2^−10 of a value: a weighted step of
-// at most 2^−11, and (4 / 3) 2^−11 with a margin for the luminance's own rounding.
+// The share of the fast history's luminance F within which a sample's weighted step is the store's rounding, not noise.
+// The step goes from F, whose blend has the weight wf = 1 / min(L, the fast cap). Every store of a history takes the
+// nearest half float (half_store.glsl), so F's blend stops where its step times wf falls below half a half-float step,
+// and a step is at most 2^−10 of a value: at most 2^−11 of F, and (4 / 3) 2^−11 with a margin for the luminance's own
+// rounding. The test weighs the step with σr's weight w = 1 / min(L, DeviationFrames) instead, which equals wf only up
+// to the fast cap's length, 4. Above it w is smaller, so the test still covers F's stop but also zeroes real steps up to
+// (4 / 3) 2^−11 / w of F: about 2.1 % at L = 32 (ticket lin-4ffc).
 const float BlendRounding = 1.0 / 1536.0;
 
 // The share of the larger of two hit distances by which they may differ for a tap to pass.

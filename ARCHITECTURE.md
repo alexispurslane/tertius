@@ -3295,8 +3295,9 @@ The stores of a history. The spec also lets a store into a 16-bit float image ro
 - The temporal dispatch: the slow history's light and length in the scratch image, the fast history's light, the retained deviation, and the reflection guide.
 - The spatial dispatch: the slow history's light and length, and the reflection guide.
 - The diffuse filter's feedback step: its light in the slow history, and the retained deviation in the fast history.
+- The single-diffuse-history prototype (`TERTIUS_INDIRECT_LIGHT_PROTOTYPE`): its temporal and spatial stores of its history.
 
-The precise specular history stores 32-bit floats, so `slowHistoryValue` gives its values unchanged there. The specular fast history's alpha holds the draw's hit distance, which no blend reads, so it keeps the driver's rounding. So do the images that no draw blends into itself, such as the samples and the filter's outputs. `HalfStoreTests` compares `nearestHalf` with .NET's `Half` on the GPU, and `ALongHistoryHoldsTheMeanOfItsSamples` and its twins hold a long history to within 0.2 % of its samples' mean.
+The precise specular history stores 32-bit floats, so `slowHistoryValue` gives its values unchanged there. It lives in `specular_history.glsl`, beside `SPECULAR_HISTORY_FORMAT`, so one file decides both the format and the store's rule. The specular fast history's alpha holds the draw's hit distance, which no blend reads, so it keeps the driver's rounding. So do the images that no draw blends into itself, such as the samples and the filter's outputs. `HalfStoreTests` compares `nearestHalf` with .NET's `Half` on the GPU, and `ALongHistoryHoldsTheMeanOfItsSamples` holds a long history's light within 0.2 % of its samples' mean, and its twins hold the fast history, the guide and the deviation to theirs, each within its own bound.
 
 `StoreRoundingTests` reports how each path that stores a 32-bit float into a half float rounds, from 36 values that lie between two half floats, a quarter, a half and three quarters of the way. It asserts nothing about a driver. A tie shows whether a path rounds ties to even.
 

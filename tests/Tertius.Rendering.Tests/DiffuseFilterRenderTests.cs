@@ -179,8 +179,9 @@ public sealed class DiffuseFilterRenderTests(ITestOutputHelper output)
         // The left half holds a gradient without noise, so that no two of its pixels weigh each other, and the right half
         // a noisy light. A filter that divided each pixel by its own weights would give a left pixel next to the noise
         // nearly the noise's light, and take it from no one. The slow history holds the first step's light, and every
-        // later step must keep its total. The five later steps store their light in half floats, whose store the spec
-        // lets round toward zero: about 2^−11 of the light each on average, 5 · 2^−11 ≈ 0.25 % in all.
+        // later step must keep its total. The slow history holds the nearest half float of the first step's light, but
+        // each of the six steps stores its output with the driver's rounding, which the spec lets round toward zero: about
+        // 2^−11 of the light each on average, 6 · 2^−11 ≈ 0.3 % in all.
         int frame = 0;
         Func<int, int, Vector4> flicker = Flicker(() => frame);
         (VulkanRenderer renderer, SamplePass sample, DiffuseFilter filter, RenderSnapshot scene) = Filtering(Wall);
@@ -197,7 +198,7 @@ public sealed class DiffuseFilterRenderTests(ITestOutputHelper output)
             FilteredRed(renderer, filter)
                 .Sum()
                 .Should()
-                .BeApproximately(light, 0.0025f * light, "the later steps only move light");
+                .BeApproximately(light, 0.003f * light, "the later steps only move light");
         }
         finally
         {
