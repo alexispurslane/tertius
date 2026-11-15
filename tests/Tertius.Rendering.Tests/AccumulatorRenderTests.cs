@@ -380,9 +380,8 @@ public sealed class AccumulatorRenderTests
             Continue(renderer, scene, frames: 1);
 
             (Vector3 light, float length) = CenterOf(renderer, sample, part: 0);
-            // Within one half-float step of 1.25, 2^-10: a driver can round the float result toward zero when it stores
-            // the half-float history, as NVIDIA's does (ticket t8-en95). Without the clamp the value is 1.0625, 192 steps
-            // away.
+            // Within one half-float step of 1.25, 2^-10: the store of the history takes the nearest half float to the
+            // float result (half_store.glsl, ticket t8-69v7). Without the clamp the value is 1.0625, 192 steps away.
             light
                 .X.Should()
                 .BeApproximately(1.25f, 1f / 1024, "the clamp moves the slow history to the fast history's mean");
@@ -871,9 +870,9 @@ public sealed class AccumulatorRenderTests
             (Vector3 Light, float Length) control = FrameWithPrototype(false, light, samples);
 
             // The diffuse prototype's spatial pass stores the weighted mean of equal neighbors, which 32-bit float can
-            // leave one step below them, into the half-float history. Vulkan lets the driver round that conversion
-            // toward zero, as NVIDIA's does, so a channel may lie one half-float step low (ticket t8-v31a). A limit of
-            // the region would scale it by far more.
+            // leave one step below them, into the half-float history. The store takes the nearest half float
+            // (half_store.glsl), so a channel lies within one half-float step of the control's (ticket t8-v31a). A
+            // limit of the region would scale it by far more.
             limited.Length.Should().Be(control.Length);
             limited.Light.X.Should().BeApproximately(control.Light.X, HalfStep(control.Light.X));
             limited.Light.Y.Should().BeApproximately(control.Light.Y, HalfStep(control.Light.Y));

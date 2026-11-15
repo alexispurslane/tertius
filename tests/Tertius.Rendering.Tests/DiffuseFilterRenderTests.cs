@@ -250,8 +250,8 @@ public sealed class DiffuseFilterRenderTests
 
             float[] red = FilteredRed(renderer, filter);
             float[] history = unfiltered.ReadImage(unfilteredSample.Signal.Slow(0));
-            // Each history's blend stops within 16 half-float steps of the sample, 4e-3, because a store into a half float
-            // may round toward zero, so the two histories can differ by that.
+            // Each history's blend stops within two half-float steps of the sample, because its store takes the nearest
+            // half float, and the filter's output keeps the driver's rounding. 4.5e-3 is about 16 half-float steps here.
             for (int pixel = 0; pixel < Width * Height; pixel++)
                 red[pixel].Should().BeApproximately(history[4 * pixel], 4.5e-3f, "pixel {0} saw no noise", pixel);
         }
@@ -460,9 +460,9 @@ public sealed class DiffuseFilterRenderTests
     [Fact]
     public void ASampleWithoutNoiseKeepsNoDeviationAfterAStep()
     {
-        // After the step, the fast history's blend stops a few half-float steps below the sample, up to four where the
-        // store rounds toward zero, which the spec allows: rounding, not noise. Just above a power of two, a half-float
-        // step is the largest share of the light, 2^−10.
+        // After the step, the fast history's blend stops within two half-float steps of the sample, because its store
+        // takes the nearest half float: rounding, not noise. Just above a power of two, a half-float step is the largest
+        // share of the light, 2^−10.
         (VulkanRenderer renderer, SamplePass sample, _, RenderSnapshot scene) = Filtering(Wall);
         try
         {
