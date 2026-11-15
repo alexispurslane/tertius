@@ -221,13 +221,15 @@ where
 - `weight` = the weight of this draw's sample in σr. It is 1 for the first sample, which gives σr = 0.
 - `sampled` = this draw's finite sample.
 - `step` = the sample's luminance minus the luminance of F.
-- `BlendRounding` = 1/768, the share of a step that the store's rounding explains (below).
+- `BlendRounding` = 1/1536, the share of a step that the store's rounding explains (below).
 - `deviation` = σr after reprojection, and after its line the updated σr.
 - `MaxRadiance` = 32,256, the largest light that the signal stores.
 
 The step goes from F, not from S (changed in step 2a, 2026-11-12). The filter's feedback step writes the light that it moves into S, so S is not the mean of the pixel's own samples. A step from S counted that moved light as spread. Take a stable edge of light. The first draws' young estimate moved light across the edge. That light raised σr on the dark side, which held the luminance stop open, which moved more light: the dark pixel beside the edge of `AnEdgeOfLightKeepsItsShapeBesideNoise` held 1.5 instead of 0 after 200 draws. F is the mean of the pixel's own samples, and the filter never writes it. For independent samples a step from F raises σr by √(1 + wf / (2 − wf)), 7 % at wf = 1/4.
 
-A half-float blend of weight w stalls within about 1/w half-float steps of a constant sample. One half-float step is at most 2^−10 of the value. So a step with |step| · w ≤ (4/3) · 2^−10 · S is store rounding, not noise. Main's `RoundingShare`, 1/192, is this rule at the fast weight 1/4.
+Every store of a history takes the nearest half float (`nearestHalf` in `half_store.glsl`, ticket t8-69v7, 2026-11-15). So a half-float blend of weight w stalls where |step| · w falls below half a half-float step, and one half-float step is at most 2^−10 of the value. So a step with |step| · w ≤ (4/3) · 2^−11 · S is store rounding, not noise, with a margin of 4/3 for the luminance's own rounding. Before t8-69v7 the rule was (4/3) · 2^−10, 1/768, for a store that rounds toward zero, which the spec allows: such a blend stalls within 1/w whole steps. Main's `RoundingShare`, 1/192, is that older rule at the fast weight 1/4.
+
+The store's rounding (t8-69v7). σr, S and F are means that feed back: each draw reads the stored value and stores the update again. A store that rounds toward zero, as MoltenVK on the development Mac does, loses half a half-float step on average in every draw, and a mean of weight 1 / L settles L times that loss low: about 1 % for S and σr at L = 32. The rays' reads of the filtered light at their hits multiplied the loss of S to 2.7 % and 5.8 % of the lamp hall's still. So the temporal dispatch, the spatial dispatch and the filter's feedback step store `nearestHalf` of each history value, which every driver stores exactly. `ALongHistoryRetainsTheDeviationOfItsSamples` holds σr within 0.5 % of its update in double precision.
 
 ### The rules through every operation
 

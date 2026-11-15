@@ -179,7 +179,8 @@ public sealed class DiffuseFilterRenderTests(ITestOutputHelper output)
         // The left half holds a gradient without noise, so that no two of its pixels weigh each other, and the right half
         // a noisy light. A filter that divided each pixel by its own weights would give a left pixel next to the noise
         // nearly the noise's light, and take it from no one. The slow history holds the first step's light, and every
-        // later step must keep its total.
+        // later step must keep its total. The five later steps store their light in half floats, whose store the spec
+        // lets round toward zero: about 2^−11 of the light each on average, 5 · 2^−11 ≈ 0.25 % in all.
         int frame = 0;
         Func<int, int, Vector4> flicker = Flicker(() => frame);
         (VulkanRenderer renderer, SamplePass sample, DiffuseFilter filter, RenderSnapshot scene) = Filtering(Wall);
@@ -196,7 +197,7 @@ public sealed class DiffuseFilterRenderTests(ITestOutputHelper output)
             FilteredRed(renderer, filter)
                 .Sum()
                 .Should()
-                .BeApproximately(light, 0.001f * light, "the later steps only move light");
+                .BeApproximately(light, 0.0025f * light, "the later steps only move light");
         }
         finally
         {
@@ -231,8 +232,9 @@ public sealed class DiffuseFilterRenderTests(ITestOutputHelper output)
 
             float[] red = FilteredRed(renderer, filter);
             float[] history = unfiltered.ReadImage(unfilteredSample.Signal.Slow(0));
-            // Each history's blend stops within 16 half-float steps of the sample, 4e-3, because a store into a half float
-            // may round toward zero, so the two histories can differ by that.
+            // Each history's blend of the weight 1 / 16 stops within 8 half-float steps of the sample, on either side,
+            // because its store takes the nearest half float (half_store.glsl): a smaller step of the blend changes
+            // nothing. So the two histories can differ by 16 steps, 4e-3.
             for (int pixel = 0; pixel < Width * Height; pixel++)
                 red[pixel].Should().BeApproximately(history[4 * pixel], 4.5e-3f, "pixel {0} saw no noise", pixel);
         }
@@ -441,9 +443,10 @@ public sealed class DiffuseFilterRenderTests(ITestOutputHelper output)
     [Fact]
     public void AfterAStepOfASampleWithoutNoiseTheRetainedDeviationHalvesWithin45DrawsOfTheHistoryReachingIt()
     {
-        // The step of 0.0505 counts as spread until the history of 32 draws comes within 32 / 768 of its light, 0.0104,
-        // after ln(0.0104 / 0.0505) / ln(31 / 32) ≈ 50 draws. From then on the history's last half-float steps toward
-        // the sample are the store's rounding, and the variance keeps 31 / 32 a draw: the deviation halves in 44 draws.
+        // The step goes from the fast history, whose weight is 1 / 4. It counts as spread until it comes within
+        // 32 / 1536 of the light, 0.0052 (BlendRounding at the variance's weight 1 / 32), after
+        // ln(0.0052 / 0.0505) / ln(3 / 4) ≈ 8 draws. From then on the fast history's last half-float steps toward the
+        // sample are the store's rounding, and the variance keeps 31 / 32 a draw: the deviation halves in 44 draws.
         // Counted as spread, they would keep a deviation of their own size.
         (VulkanRenderer renderer, SamplePass sample, _, RenderSnapshot scene) = FilteringBounceLight();
         try
@@ -584,7 +587,7 @@ public sealed class DiffuseFilterRenderTests(ITestOutputHelper output)
     {
         // The four pixels hold 4 · 100 / 32 = 12.5 at the sample's draw. The filter moves that light and makes none, and
         // each draw keeps 31 / 32 of it, as long as no clamp cuts the light that the filter moved into a quiet pixel. The
-        // accumulation's two stores and the feedback's one may each round the light toward zero.
+        // accumulation's two stores and the feedback's one each round the light to the nearest half float.
         (VulkanRenderer renderer, SamplePass sample, _, RenderSnapshot scene) = FilteringBounceLight();
         try
         {
@@ -639,10 +642,10 @@ public sealed class DiffuseFilterRenderTests(ITestOutputHelper output)
         // One ray block in 32 takes 33 in a draw, the others 1. The filter moves a rare sample's light into the quiet
         // pixels around it, whose own fast histories form a narrow box. The retained deviation moves with the light, so
         // the clamp never moves a history (ticket td-hjn6), and every history keeps its cap of 32: the image's history
-        // follows its samples' blend. The slow history's three half-float stores a draw may each round toward zero, as
-        // the spec allows, and lose half a half-float step on average, 2^−11 of the light: 3 · 32 · 2^−11 ≈ 4.7 % at the
-        // blend's weight. This GPU loses 1.8 %, and 0.9 % without the filter's store. The test begins 96 draws after the
-        // rare samples start, when every history has held its cap of 32 for many draws.
+        // follows its samples' blend. The slow history's half-float stores take the nearest half float
+        // (half_store.glsl), so they lose no light on average. Before that rule this GPU's stores rounded toward zero and
+        // the history lost 1.8 % (ticket t8-69v7). The rule gives 0.9997 here. The test begins 96 draws after the rare
+        // samples start, when every history has held its cap of 32 for many draws.
         (VulkanRenderer renderer, SamplePass sample, _, RenderSnapshot scene) = FilteringBounceLight();
         try
         {
@@ -678,7 +681,7 @@ public sealed class DiffuseFilterRenderTests(ITestOutputHelper output)
             }
 
             output.WriteLine($"The image's history over its samples' blend: {shown:F4}.");
-            shown.Should().BeInRange(1 - 0.047, 1.01, "the filter moves light and the clamp cuts none of it");
+            shown.Should().BeInRange(0.99, 1.01, "the filter moves light and the clamp cuts none of it");
         }
         finally
         {
@@ -775,6 +778,47 @@ public sealed class DiffuseFilterRenderTests(ITestOutputHelper output)
                 .Should()
                 .BePositive("the outer taps of every step together reach {0} pixels", reach);
             red[row + speck + reach + 1].Should().Be(0, "no chain of taps reaches past {0} pixels", reach);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// The light of the sample in <see cref="ALongHistoryHoldsTheMeanOfItsSamplesThroughTheFeedbackStep"/>: each pixel
+    /// takes, in each draw, another value of one fixed set that spreads evenly from 0.2 to 0.6. Pixel p in draw d takes
+    /// value (p + 355 d) mod n of the n = <see cref="Width"/> · <see cref="Height"/> values, so each draw holds the whole
+    /// set once (AccumulatorRenderTests.WalkedLight says why a walk).
+    /// </summary>
+    private static float WalkedLight(int pixel, int frame) => WalkedValue((pixel + 355 * frame) % (Width * Height));
+
+    /// <summary>Value <paramref name="index"/> of the set of <see cref="WalkedLight"/>.</summary>
+    private static float WalkedValue(int index) => 0.2f + 0.4f * index / (Width * Height - 1);
+
+    [Fact]
+    public void ALongHistoryHoldsTheMeanOfItsSamplesThroughTheFeedbackStep()
+    {
+        // The temporal blend and the feedback step each store the slow history once a draw. A store that rounds both the
+        // same way would lose the length, 32, times both roundings: about 2 % under a rounding toward zero.
+        (VulkanRenderer renderer, SamplePass sample, _, RenderSnapshot scene) = FilteringBounceLight();
+        try
+        {
+            for (int frame = 0; frame < 320; frame++)
+            {
+                int drawn = frame;
+                sample.Samples = (column, row) => new Vector4(new Vector3(WalkedLight(row * Width + column, drawn)), 1);
+                Continue(renderer, scene, frames: 1);
+            }
+
+            float[] history = renderer.ReadImage(sample.Signal.Slow(0));
+            double mean = Enumerable.Range(0, Width * Height).Average(pixel => (double)history[4 * pixel]);
+            double samples = Enumerable
+                .Range(0, Width * Height)
+                .Average(index => (double)(float)(Half)WalkedValue(index));
+            (mean / samples)
+                .Should()
+                .BeApproximately(1, 0.002, "a long history holds the mean of its samples, {0} of the set's", mean);
         }
         finally
         {

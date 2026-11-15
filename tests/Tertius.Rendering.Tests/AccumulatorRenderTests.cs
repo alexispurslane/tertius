@@ -231,7 +231,9 @@ public sealed class AccumulatorRenderTests
     {
         // The first frame after the step: the slow history of 16 frames blends to 1 − 0.8 / 16 = 0.95, the fast history of
         // 4 to 0.8, and the clamp moves the slow one to the fast one's mean, 0.8. The lag is 0.15 / 0.8 = 0.1875, a share
-        // 0.375 of the anti-lag's 0.5, so the length falls from 16 to 16 · 0.625 = 10.
+        // 0.375 of the anti-lag's 0.5, so the length falls from 16 to 16 · 0.625 = 10. The histories store the half floats
+        // nearest 0.95 and 0.8, 0.9502 and 0.7998 (half_store.glsl). So the lag is 0.1880, and the length 9.983, which the
+        // store holds as the nearest half float, 9.984375.
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(parameters: NarrowParameters);
         try
         {
@@ -247,7 +249,7 @@ public sealed class AccumulatorRenderTests
             light
                 .X.Should()
                 .BeApproximately(0.8f, 0.001f, "the clamp moves the slow history to the fast history's mean");
-            length.Should().BeApproximately(10f, 0.01f, "the anti-lag shortens the history by the clamp's move");
+            length.Should().Be(9.984375f, "the anti-lag shortens the history by the clamp's move");
         }
         finally
         {
@@ -801,6 +803,107 @@ public sealed class AccumulatorRenderTests
         }
     }
 
+    /// <summary>
+    /// The light of the sample that a still history takes in <see cref="ALongHistoryHoldsTheMeanOfItsSamples"/>: each pixel
+    /// takes, in each draw, another value of one fixed set. The set spreads evenly from 0.2 to 0.6. Pixel p in draw d takes
+    /// value (p + 355 d) mod n of the n = <see cref="Width"/> · <see cref="Height"/> values, so each draw holds the whole
+    /// set once, and each pixel walks the set in steps of about 0.62 of its width. A walk, and not a repeating pair:
+    /// the blend of a repeating pair settles in a cycle whose store roundings do not change from draw to draw, and the
+    /// first such cycle that a history meets from below lies up to 0.8 % below the pair's mean even under a store that
+    /// rounds to the nearest half float.
+    /// </summary>
+    private static float WalkedLight(int pixel, int frame) => WalkedValue((pixel + 355 * frame) % (Width * Height));
+
+    /// <summary>Value <paramref name="index"/> of the set of <see cref="WalkedLight"/>.</summary>
+    private static float WalkedValue(int index) => 0.2f + 0.4f * index / (Width * Height - 1);
+
+    /// <summary>The mean of the set of <see cref="WalkedLight"/> as the sample image holds it, in half floats.</summary>
+    private static double WalkedMean() =>
+        Enumerable.Range(0, Width * Height).Average(index => (double)(float)(Half)WalkedValue(index));
+
+    /// <summary>Draws <paramref name="frames"/> frames in which each pixel takes its <see cref="WalkedLight"/>.</summary>
+    private static void DrawWalkedSamples(VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene, int frames)
+    {
+        for (int frame = 0; frame < frames; frame++)
+        {
+            int drawn = frame;
+            sample.Samples = (column, row) => new Vector4(new Vector3(WalkedLight(row * Width + column, drawn)), 1);
+            Continue(renderer, scene, frames: 1);
+        }
+    }
+
+    [Fact]
+    public void ALongHistoryHoldsTheMeanOfItsSamples()
+    {
+        // Every pixel's history has the same length, so the mean over the pixels of the histories is the blend of the
+        // draws' means over the pixels, and each draw's mean is the set's mean. A store that rounds every draw's blend the
+        // same way would lose the length, 32, times that rounding: about 1 % under a rounding toward zero.
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+            parameters: SignalParameters.Diffuse
+        );
+        try
+        {
+            DrawWalkedSamples(renderer: renderer, sample: sample, scene: scene, frames: 320);
+
+            float[] history = HistoryOf(renderer, sample, part: 0);
+            double mean = Enumerable.Range(0, Width * Height).Average(pixel => (double)history[4 * pixel]);
+            (mean / WalkedMean())
+                .Should()
+                .BeApproximately(1, 0.002, "a long history holds the mean of its samples, {0} of the set's", mean);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ALongHistoryRetainsTheDeviationOfItsSamples()
+    {
+        // The retained deviation is a mean that feeds back too. The reference is its update in double precision over the
+        // same samples: the step from the fast history, whose weight is 1 / min(L, 4), and the variance's weight
+        // 1 / min(L, 32). A store that rounds every update toward zero would keep it about 1 % low.
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+            parameters: SignalParameters.Diffuse
+        );
+        try
+        {
+            const int Frames = 320;
+            DrawWalkedSamples(renderer: renderer, sample: sample, scene: scene, frames: Frames);
+
+            double exact = Enumerable.Range(0, Width * Height).Average(pixel => ExactDeviation(pixel, Frames));
+            double retained = RetainedDeviationOf(renderer, sample).Average(deviation => (double)deviation);
+            (retained / exact)
+                .Should()
+                .BeApproximately(1, 0.005, "the deviation of {0} follows the samples' {1}", retained, exact);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// The retained deviation of <paramref name="pixel"/> after <paramref name="frames"/> draws of
+    /// <see cref="WalkedLight"/>, by the update of accumulate_temporal.comp in double precision, with no store's rounding.
+    /// </summary>
+    private static double ExactDeviation(int pixel, int frames)
+    {
+        double fast = 0;
+        double deviation = 0;
+        for (int frame = 0; frame < frames; frame++)
+        {
+            double light = (float)(Half)WalkedLight(pixel, frame);
+            int length = Math.Min(frame + 1, 32);
+            double weight = 1.0 / length;
+            double step = light - fast;
+            deviation = Math.Sqrt((1 - weight) * (deviation * deviation + weight * step * step));
+            fast += (light - fast) / Math.Min(length, FastCap);
+        }
+
+        return deviation;
+    }
+
     /// <summary>The retained deviation of part 0 after the last frame: the alpha of its fast history, per pixel.</summary>
     private static float[] RetainedDeviationOf(VulkanRenderer renderer, SamplePass sample)
     {
@@ -825,8 +928,8 @@ public sealed class AccumulatorRenderTests
     {
         // The bounce light's cap of 32 takes the sample of 100 with the weight 1 / 32, so its four pixels hold an excess
         // of 4 · 100 / 32 = 12.5 at its draw, and each later draw keeps 31 / 32 of it, as long as no clamp cuts it. A dark
-        // wall, so that a store into a half float, which may round toward zero, loses at most 2^−10 of the excess, not of
-        // a bright wall's light: the temporal and the spatial dispatch each store the history once a draw.
+        // wall, so that a store into a half float, the nearest one (half_store.glsl), moves at most 2^−11 of the excess,
+        // not of a bright wall's light: the temporal and the spatial dispatch each store the history once a draw.
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
             parameters: SignalParameters.Diffuse
         );

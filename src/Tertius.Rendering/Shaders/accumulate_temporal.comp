@@ -13,6 +13,7 @@
 #include "accumulate.glsl"
 #include "accumulate_reflection_guide.glsl"
 #include "gbuffer_surface.glsl"
+#include "half_store.glsl"
 #include "meter.glsl"
 #include "motion.glsl"
 #include "neighbor_limit_prototype.glsl"
@@ -21,10 +22,11 @@
 // 2^−11, so an uncapped history takes this window too.
 const float DeviationFrames = 32.0;
 
-// The share of the fast history's luminance within which a sample's weighted step is the store's rounding, not noise. A
-// half-float blend of the weight w stops within about 1 / w half-float steps of a constant sample where the store rounds
-// toward zero, as the spec allows, and a step is at most 2^−10 of a value: a weighted step of at most (4 / 3) 2^−10.
-const float BlendRounding = 1.0 / 768.0;
+// The share of the fast history's luminance within which a sample's weighted step is the store's rounding, not noise.
+// Every store of a history takes the nearest half float (half_store.glsl), so a half-float blend of the weight w stops
+// where its weighted step falls below half a half-float step, and a step is at most 2^−10 of a value: a weighted step of
+// at most 2^−11, and (4 / 3) 2^−11 with a margin for the luminance's own rounding.
+const float BlendRounding = 1.0 / 1536.0;
 
 // The share of the larger of two hit distances by which they may differ for a tap to pass.
 const float HitDistanceShare = 0.5;
@@ -362,8 +364,11 @@ void main()
         float fastLength = min(historyLength, fastCapOf(cap));
         fast = fastLength <= 1.0 ? sampled : fast + (sampled - fast) / fastLength;
     }
-    imageStore(scratch, pixel, vec4(slow.rgb, historyLength));
-    imageStore(fastHistory, pixel, vec4(fast, parameters.light == SpecularLight ? hitDistance : deviation));
+    // Each history's light and length, the retained deviation and the guide are read back in the next draw, so each
+    // store takes the nearest half float (half_store.glsl). The hit distance is this draw's sample, which no blend reads.
+    imageStore(scratch, pixel, slowHistoryValue(vec4(slow.rgb, historyLength)));
+    imageStore(fastHistory, pixel,
+        vec4(nearestHalf(fast), parameters.light == SpecularLight ? hitDistance : nearestHalf(deviation)));
     if (reflectionSharingPrototype && parameters.light == SpecularLight)
-        imageStore(reflectionGuideScratch, pixel, vec4(guide, 0.0, 0.0));
+        imageStore(reflectionGuideScratch, pixel, vec4(nearestHalf(guide), 0.0, 0.0));
 }
