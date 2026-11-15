@@ -46,6 +46,12 @@ FAR_LIGHT = 1e9
 EARTH_GRID_MEAN = (0.0840, 0.1655, 0.4655)
 
 scene_json = json.loads((folder / "scene.json").read_text())
+# surface() treats every textured material as Earth's. Refuse a scene where a textured material sits on an instance
+# that is not celestial (RenderFlags.Celestial, 1 << 4), because its texture would become Earth's mean color.
+CELESTIAL = 1 << 4
+for inst in scene_json["instances"]:
+    if scene_json["materials"][inst["material"]]["baseColorMap"] != 0 and not inst["flags"] & CELESTIAL:
+        raise SystemExit(f"instance with mesh {inst['mesh']}: a textured material that is not Earth's")
 for o in list(bpy.data.objects):
     bpy.data.objects.remove(o)
 sc = bpy.context.scene

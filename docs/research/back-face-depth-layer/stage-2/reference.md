@@ -7,13 +7,23 @@ A paragraph that starts with "Reading:" holds my interpretation. Every other sen
 ## The result in short
 
 1. The reference is Blender's Cycles path tracer on a scene that the probe exports from the engine's own frame 239. It shares the engine's geometry, materials, lights, camera, light units and tone curve.
-2. Under the lights of the stage 1b stills, Earth's day side dominates the truth in both views. Its light enters through the station's open hub and the windows. The engine's environment map does not see it from the eye. So the reference's neutral regions are 16 times (cabin) and 58 times (`rect-lamps`) as bright as the engine's.
-3. A control without the sun removes that light in both renderers. The ticket's local question is answered there and checked under full lights.
+2. Under the lights of the stage 1b stills, the reference's neutral regions are 16 times (cabin) and 58 times (`rect-lamps`) as bright as the engine's. The reference's light there is blue.
+3. A control without the sun removes the sun and Earth's reflection of it in both renderers. The neutral regions then differ by 2.5 times and 2.0 times. The ticket's local question is answered there and checked under full lights.
 4. In the cabin, the pillars' faces toward the camera are the faces whose light changes with the rule. In the reference, they are not dark: their ratio to the floor is 0.78 to 0.80 without the sun. Every column gives them 0.19 to 0.40.
-5. Column B fades over the real slab, and column C over at most 10 %. B is nearer to the reference on every pillar region, in both light sets. So on a slab deeper than 10 %, the brightening that stage 1b saw goes toward the truth.
-6. Column B has the same hit decision as column D. Against B, the known-light rule with the miss light or black moves both pillar faces away from the reference, at both footprints. With the front pixel's light, the rule comes nearest at three of four pillar regions in each set. But it overshoots one region under full lights by 67 %. The measurement breaks the hypothesis that the hidden face's light is unknown and dark.
+5. Column B fades over the real slab, and column C over at most 10 %. B is nearer to the reference on every pillar region, in both light sets.
+6. Column B has the same hit decision as column D. Against B, the known-light rule with the miss light or black moves both pillar faces away from the reference, at both footprints. With the front pixel's light, the rule comes nearest at three of four pillar regions in each set. But it overshoots one region under full lights by 67 %.
 7. No rule is nearest in all regions of either view.
-8. The bright band on the outer quarter of the `rect-lamps` jamb is direct sunlight that the engine's sun shadow lets through. It is not the walk, the pyramid's cells, the back share or the fade. The reference has no such band. The layer makes it stand out because the rest of the jamb lost its false light. Bug ticket `t8-rjno`.
+8. The bright band on the outer quarter of the `rect-lamps` jamb stays with the screen tracer off and goes without the sun. A cap on the walk's level, the back share and the fade do not change it. The reference has no such band. Bug ticket `t8-rjno`.
+
+Reading: Earth's sunlit day side lights both views in the truth, through the station's open hub and the windows. The engine's environment map is one capture at the eye, where walls hide Earth. That is the cause of the factors of 16 and 58.
+
+Reading: on a slab deeper than 10 %, the brightening that stage 1b saw goes toward the truth. The hypothesis that a hidden face's light is unknown and dark fails at the cabin's pillars. The band on the jamb is direct sunlight that the engine's sun shadow lets through. The layer makes it stand out, because the rest of the jamb lost its false light.
+
+Recommendation for the fade rule, within the limits of two views on one GPU:
+
+- On a slab deeper than 10 %, take B, the fade over the real slab, and not C. B was nearer than C at all four cabin pillar regions, in both light sets.
+- Do not adopt the known-light rule with the miss light or with black. Against B, it moved both pillar faces away from the reference, in both sets and at both footprints.
+- These numbers do not establish `dfront`, the front pixel's light with no fade. It overshoots the face at z −5.7 under full lights by 67 %. Part of its gain can make up for the light of several bounces that the engine does not carry.
 
 ## Part 1: the reference
 
@@ -36,12 +46,12 @@ The script keeps these parts of the engine by construction:
 
 - Each instance has its mesh, its vertex normals, its transform and its material slot.
 - The material is the BRDF of `lighting.glsl`: Lambert diffuse with c_diff = b (1 − m), plus GGX with Schlick's Fresnel from F0 = (1 − m) 0.16 ρ² + m b. It adds the two lobes without layering, as the engine does. Cycles' Metallic BSDF with a white F82 tint is that Fresnel term, with multiple scattering.
-- A point light of I W/sr gets a power of 4πI, and a rectangle light a power of πI, one-sided as the engine's. The sun, a point light 1.49 × 10¹¹ m away, becomes a sun lamp of I / d²: 1,361 W/m² in both views.
+- A point light of I W/sr gets a power of 4πI, and a rectangle light a power of πI, one-sided as the engine's. The sun, a point light 1.49 × 10¹¹ m away, becomes a sun lamp of I / d²: 1,361 W/m² in the cabin and 1,372 W/m² in `rect-lamps`.
 - A light-holding glow shows to camera rays only, because the engine's glow bounces no light. A glass pane also shows to camera rays only, as its color blended at its alpha of 0.2. The engine's glass casts no shadow and is not in the G-buffer.
 - An instance without `CastsShadow` blocks no shadow ray. A box around the eye, the person's own box in `rect-lamps`, is hidden from the camera, as the engine's back-face culling hides it.
 - The world is black: the camera's air has no painted sky in either view (`atmosphere` in `scene.json`).
 
-A calibration render checked the light units. It lit a white Lambert plate from 1 m with each kind of light, at 1 W/sr or 1 W/m². The plate's radiance was 0.31830 for a point light, a spot light and the sun. It was 0.31803 for a rectangle of 5 cm. The exact value is 1/π = 0.31831.
+A calibration render checked the light units. It lit a white Lambert plate from 1 m with each kind of light, at 1 W/sr or 1 W/m². [tools/calibrate.py](tools/calibrate.py) made it. The plate's radiance was 0.31830 for a point light, a spot light and the sun. It was 0.31803 for a rectangle of 5 cm. The exact value is 1/π = 0.31831.
 
 The camera matches: at 16 samples, the lamps of the full cabin view sit at the same pixels as in the engine's still.
 
@@ -56,9 +66,11 @@ The camera matches: at 16 samples, the lamps of the full cabin view sit at the s
 
 ### The control without the sun
 
-The first renders showed that the truth under full lights differs from the engine everywhere, not only at thick slabs. In the cabin, the crop's mean needs 2.16 stops less exposure in the reference. Its light is blue: Earth's sunlit day side, 394 km below, sends it through the open ends of the station's hub. In `rect-lamps`, the ceiling sees Earth through the side windows, below the horizon's dip of about 20°.
+The first renders showed that the truth under full lights differs from the engine everywhere, not only at thick slabs. In the cabin, the crop's mean needs 2.16 stops less exposure in the reference. Its light is blue. Earth's sunlit day side is 394 km below the station. In `rect-lamps`, the side windows look out below the horizon's dip of about 20°.
 
-The engine gets Earth's light only through its environment map, which is one capture at the eye. The walls hide Earth from that point. So I added a control: `TERTIUS_NO_SUN=1` drops every light beyond 10⁹ m in the probe, and `REF_SKIP_LIGHTS` drops the sun in the reference. Earth then sends no light in either renderer.
+So I added a control: `TERTIUS_NO_SUN=1` drops every light beyond 10⁹ m in the probe, and `REF_SKIP_LIGHTS` drops the sun in the reference. Earth then sends no light in either renderer.
+
+Reading: Earth's light enters the cabin through the open ends of the station's hub, and `rect-lamps` through its side windows. The engine gets Earth's light only through its environment map, one capture at the eye. The walls hide Earth from that point.
 
 | Set | Cabin: neutral region, engine `ten` / reference, W/(m²·sr) | `rect-lamps`: neutral region, engine `ten` / reference, W/(m²·sr) |
 |---|---|---|
@@ -130,7 +142,9 @@ No region is fully neutral, because every rule changes some indirect light every
 | Cabin, floor right | −7.5 % to −2.1 % | −10.6 % to +6.0 % |
 | `rect-lamps`, floor near | −7.7 % to +0.8 % | −25.1 % to −16.9 % |
 
-Under full lights in `rect-lamps`, every column but `ten` lost the false bounce light of the sill. So no floor patch stays near `ten` there.
+Under full lights in `rect-lamps`, every column but `ten` has a near floor 17 % to 25 % darker than `ten`'s. No floor patch of that view stays near `ten`.
+
+Reading: the columns with the layer lost the false bounce light of the sunlit sill, which lit the whole floor in `ten`.
 
 ### The ratios
 
@@ -222,7 +236,7 @@ Nearest means the smallest absolute difference of the ratio from the reference's
 More measured facts:
 
 - No column is nearest in all regions of a view, in either light set.
-- B is nearer than C on all four cabin regions in both sets. In `rect-lamps`, B and C differ by at most 0.024 in every region.
+- B is nearer than C on all four cabin regions in both sets. In `rect-lamps`, B and C differ by at most 0.047 in every region: 9.121 against 9.168 on the jamb behind the glass, under full lights.
 - In the cabin, B is nearer to the reference than every D column with the miss light or black. This holds on both pillar faces, in both sets. On the pillar sides, one is nearer: `dmiss15` has 0.725 against B's 0.720, on the side from −7.7 to −9.7 without the sun.
 - In the cabin without the sun, every column gives the pillar faces 24 % to 50 % of the reference's ratio.
 - In `rect-lamps` without the sun, every column lies within 11 % of the reference on the jamb. Every column gives the floor below the window 66 % to 73 % of the reference's ratio.
@@ -251,7 +265,7 @@ Each image puts the columns side by side, then the reference. The order is `ten`
 
 ![The far ceiling of rect-lamps without the sun](rect-lamps-ceiling-nosun.png)
 
-[rect-lamps-ceiling-nosun.png](rect-lamps-ceiling-nosun.png), x 840–1080, y 120–360, reference at −1.02 stops. No column has specks. `dblack05` is much darker, and `dmiss05` a little darker. The reference is an even gray, a little lighter.
+[rect-lamps-ceiling-nosun.png](rect-lamps-ceiling-nosun.png), x 840–1080, y 120–360, reference at −1.02 stops. No column has specks. `dblack05` is much darker, and `dmiss05` a little darker. The reference is an even gray, a little darker than every column but `dmiss05` and `dblack05`. Its ratio is 0.760, against 0.859 to 0.928 for those columns.
 
 ![The far ceiling of rect-lamps under full lights](rect-lamps-ceiling-full.png)
 
@@ -265,7 +279,7 @@ Reading: the front pixel's light is the best stand-in for the hidden face in thi
 
 Reading: no column reaches the truth at the pillars, and one reason is not about the slab at all. The engine carries less light of several bounces than the reference, so every column is dark there. `dfront` comes nearest partly because it adds light, and it overshoots the face at z −5.7 under full lights. So these numbers rank the rules. They do not show that `dfront` is right.
 
-Reading: in `rect-lamps` without the sun, the rules differ little on the jamb and the floor. The rule matters most on the far ceiling, where black for a hidden face halves the light. The ceiling's truth lies between the miss light at a = 0.5 and the fades.
+Reading: in `rect-lamps` without the sun, the rules differ little on the jamb and the floor. The rule matters most on the far ceiling. There black at a = 0.5 halves the light, and black at a = 1.5 does not. So most of that drop comes from visible faces that the narrow footprint calls hidden. The reference's 0.760 lies between `dmiss05`'s 0.705 and the fades. But `dmiss05` has the same misjudged faces, so it is no bound on a hidden face's light.
 
 ## Part 3: the bands on the jamb
 
@@ -273,7 +287,20 @@ Under full lights, the jamb of the nearest right side window of `rect-lamps` sho
 
 ### The measurements
 
-A profile across the jamb averages the linear luminance over rows 500–580 at each output column. [rect-lamps-jamb-strip.png](rect-lamps-jamb-strip.png) shows the jamb at three times its size, x 1756–1816, y 470–610.
+A profile across the jamb averages the linear luminance over rows 500–579 at each output column. [tools/jamb_profile.py](tools/jamb_profile.py) prints it, and its docstring names the input frames.
+
+![The jamb of rect-lamps in six panels](rect-lamps-jamb-strip.png)
+
+[rect-lamps-jamb-strip.png](rect-lamps-jamb-strip.png) shows the jamb at three times its size, x 1756–1815, y 470–609. [tools/jamb_strip.py](tools/jamb_strip.py) made it. Its panels, from left to right:
+
+1. `layer` under full lights, at 2.7868438 stops.
+2. `layer` with `--screen-trace off`, at 2.7868438 stops.
+3. `layer` with the walk capped at level 2, at 2.7868438 stops.
+4. `layer` without the sun, at 3.849491 stops.
+5. The reference under full lights, at 2.7868438 − 5.869 stops.
+6. The reference with the sun and a black Earth, 2,560 samples, at 2.7868438 stops.
+
+The first four panels have the bright strip at the jamb's outer edge. The two reference panels have none.
 
 | Measurement | Result |
 |---|---|
@@ -281,7 +308,7 @@ A profile across the jamb averages the linear luminance over rows 500–580 at e
 | The profile of `layer` at frame 239 | It rises from 0.047 to 0.074 W/(m²·sr) on the room half, dips to 0.053 at x 1789, and rises to 0.065 at x 1798. From x 1799 to 1808 it climbs to 0.471: 8.0 times its value at x 1795. |
 | The same in the other columns | The strip is in every column: 8.0 times in `layer` and `layerfade`, 4.2 times in the D columns and 1.9 times in `ten`. The dip at x 1788–1789 is in every column too. |
 | The strip's onset at three output sizes | 1920 × 1080: x 1799.5, render x 1199.7, 0.75 of the jamb's width. 1440 × 810: x 1345, render x 896.7, 0.76. 1760 × 990: x 1649.5, render x 1094.7, 0.79. |
-| The walk capped at level 2, then at level 4 (`TERTIUS_WALK_TOP`) | The profile is the same within 1 %, with the onset at x 1799–1800. |
+| The walk capped at level 2, then at level 4 (`TERTIUS_WALK_TOP`) | On the strip, x 1799–1808, the profile is the same within 1 %, with the onset at x 1799–1800. On the room half it differs by up to 3.5 % at level 2 and 7.6 % at level 4. That is inside the frame noise of 39 %. |
 | The screen tracer off (`--screen-trace off`) | The strip stays: 0.008 at x 1799 and 0.374 at x 1808, against 0.007 on the rest of the jamb. |
 | No sun (`TERTIUS_NO_SUN=1`), every column | No strip. The outer half is flat at 0.0058 to 0.0059 from x 1789 to 1808. |
 | The reference under full lights | A gentle rise from 7.43 at x 1795 to 8.34 at x 1808: 1.12 times. A dip at the glass edge, from 8.22 at x 1787 to 7.28 at x 1791. |
@@ -290,11 +317,13 @@ A profile across the jamb averages the linear luminance over rows 500–580 at e
 
 ### The cause of each band
 
-| Band | Cause | In the reference | A fault of the layer |
+| Band | Measured evidence | In the reference | In every column |
 |---|---|---|---|
-| The bright strip on the outer quarter, x 1799–1809 | Direct sunlight that the engine's sun shadow lets through. It stays with the tracer off and goes with the sun. | No | No: every rule shows it. The layer only makes it stand out. |
-| The dip at x 1788–1789 | The glass pane's edge: the outer half is seen through the pane's blend. | Yes | No |
-| The uneven patches on the room half | Noise of few samples: two settled frames differ by 39 %. | No, a smooth gradient | It shows under the layer, because the false light that hid it is gone |
+| The bright strip on the outer quarter, x 1799–1809 | It stays with the tracer off and goes without the sun. | No | Yes |
+| The dip at x 1788–1789 | It sits at the glass pane's edge. | Yes | Yes |
+| The uneven patches on the room half | Two settled frames of `layer` differ there by 39 %. | No, a smooth gradient | Measured in `layer` only |
+
+Reading: the strip is direct sunlight that the engine's sun shadow lets through, so it is not a fault of the layer. The dip is the edge of the pane's blend, because the outer half is seen through the pane. The patches are noise of few samples. They show under the layer because the false light that hid them is gone.
 
 The other candidates do not hold. The back share has no step. The pyramid's cells are not the cause, because a walk that never climbs above level 2 gives the same strip. The fade over a long slab at a grazing angle is not the cause either. The D columns have no fade by the entry share, and they keep the strip.
 
@@ -337,7 +366,13 @@ python3 -I tools/ratios.py tools/views.json cabin nosun
 python3 -I tools/sheet.py tools/views.json cabin nosun 540 340 680 720 cabin-nosun.png
 ```
 
-[tools/views.json](tools/views.json) names every input path, region and exposure. The inputs are under `/private/tmp/t1-g4p1/`.
+[tools/views.json](tools/views.json) names every input path, region and exposure of parts 1 and 2. The inputs are under `/private/tmp/t1-g4p1/`. Part 3's scripts take that folder as their first argument, and their docstrings name the inputs:
+
+```bash
+python3 -I tools/jamb_profile.py /private/tmp/t1-g4p1
+python3 -I tools/jamb_profile.py /private/tmp/t1-g4p1 2.7868438 /private/tmp/t1-g4p1/top/2/s-000239.png
+python3 -I tools/jamb_strip.py /private/tmp/t1-g4p1 rect-lamps-jamb-strip.png
+```
 
 ## Scratch refs and dollars
 
@@ -365,4 +400,8 @@ The cloud jobs failed. Four jobs on `refs/scratch/ter-kh4g-2-ref-columns` ran fo
 - Earth's texture: the reference uses its mean color.
 - The reach window of the lights, which the reference leaves out. No reach is shorter than 80 m here.
 - Any GPU but the M1 Max under MoltenVK. Nothing ran on NVIDIA, RADV, ANV or lavapipe.
-- The noise of the D columns themselves. The frame-noise row is `ten`'s.
+- The noise of the columns B, C and D on the Mac. The frame-noise row is `ten`'s. Part 3's 39 % is stage 1b's `layer`, from the cloud.
+- How many visible faces the footprint of a = 0.5 calls hidden. The drop of `dblack05` on the far ceiling points to such failures.
+- A control with a black Earth in the cabin. Only `rect-lamps` has one.
+- The size of the sun's leak in the engine. The strip reaches 0.37 W/(m²·sr) above the rest of the jamb with the tracer off. The engine's sun-only light on the jamb was not separated from it.
+- A pointer to this record in [the stage README](../README.md). The orchestrator adds it.
