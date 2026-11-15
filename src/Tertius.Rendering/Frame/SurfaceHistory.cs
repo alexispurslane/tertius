@@ -19,8 +19,12 @@ internal sealed class SurfaceHistory : IDisposable
     /// </summary>
     public const Format HistoryFormat = Format.R16G16B16A16Sfloat;
 
-    /// <summary>The surface test image: bit i for tap i of the surface test, bit 4 + i of the specular test.</summary>
-    public const Format TestFormat = Format.R8Uint;
+    /// <summary>
+    /// The surface test image: bit i for tap i of the surface test, bit 4 + i of the specular test, and above them the
+    /// pixel's two motion facts, bit 8 whether its surface moved since the last draw and bit 9 whether its point moves on
+    /// screen (signals.glsl, ticket t0-89zi).
+    /// </summary>
+    public const Format TestFormat = Format.R16Uint;
 
     /// <summary>FSR's device depth: reversed and infinite, <see cref="SurfaceTestPass.DeviceDepthNear"/> over the view depth, 0 for sky.</summary>
     public const Format DeviceDepthFormat = Format.R32Sfloat;

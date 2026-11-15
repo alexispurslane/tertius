@@ -66,15 +66,6 @@ vec3 specularWeightOf(TracingPixel p, SurfaceLobes lobes, MaterialFactors factor
     return min(response / (ray.density * max(factors.specular, vec3(LeastFactor))), vec3(MostRayWeight));
 }
 
-#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
-// Whether the pixel's own surface point moves on screen since the last draw by at least LeastMotion pixels: by its motion
-// target, so the camera's moves count as well as the surface's (docs/plans/bounce-light-confidence.md, section 8.4).
-bool movesOnScreen(ivec2 pixel)
-{
-    return length(imageLoad(motionTarget, pixel).xy * frame.viewport.xy) >= LeastMotion;
-}
-#endif
-
 void main()
 {
     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
@@ -109,7 +100,7 @@ void main()
     imageStore(diffuseSample, pixel, vec4(min(diffuseLight, vec3(MaxRadiance)), 1.0));
 #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
     // The diffuse ray's age code and moved mark, none where it brings no light, and the pixel's own motion.
-    bool moves = movesOnScreen(pixel);
+    bool moves = movesOnScreenAt(pixel);
     uint diffuseCode = diffuseRay.brings ? ageCodeOfRecord(diffuse.ray) : 0u;
     bool diffuseMoved = diffuseRay.brings && movedHitOfRecord(diffuse.ray);
     imageStore(diffuseSampleAge, pixel, uvec4(sampleAgeOf(diffuseCode, moves || diffuseMoved)));

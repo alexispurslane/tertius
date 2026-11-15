@@ -17,8 +17,7 @@ layout(local_size_x = 8, local_size_y = 8) in;
 // DiffuseFilterPushConstants.
 layout(push_constant, std430) uniform FilterPush
 {
-    int step;       // the distance between the kernel's taps, in pixels: 2^i in step i
-    uint feedback;  // 1 in the step whose light the slow history takes, else 0
+    int step;  // the distance between the kernel's taps, in pixels: 2^i in step i
 } parameters;
 
 // The normal stop's power of the cosine between the normals: the paper's 128.

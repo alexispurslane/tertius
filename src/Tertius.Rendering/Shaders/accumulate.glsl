@@ -19,7 +19,7 @@ layout(set = 3, binding = 1, SPECULAR_HISTORY_FORMAT) uniform image2D slowHistor
 layout(set = 3, binding = 2, rgba16f) uniform readonly image2D lastFast;      // the last frame's fast history: rgb the light
 layout(set = 3, binding = 3, rgba16f) uniform image2D fastHistory;            // this frame's
 layout(set = 3, binding = 4, SPECULAR_HISTORY_FORMAT) uniform image2D scratch;
-layout(set = 3, binding = 5, r8ui) uniform readonly uimage2D surfaceTest;     // the pass bits (signals.glsl)
+layout(set = 3, binding = 5, r16ui) uniform readonly uimage2D surfaceTest;     // the pass bits (signals.glsl)
 layout(set = 3, binding = 6, rgba16f) uniform readonly image2D motionTarget;  // the G-buffer's motion target
 layout(set = 3, binding = 7) uniform texture2D lastSurfaceHistory;            // the last frame's (SurfaceHistory)
 layout(set = 3, binding = 8) uniform texture2D lastDeviceDepth;               // the last frame's, 0 for sky

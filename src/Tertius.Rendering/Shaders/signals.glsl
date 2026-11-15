@@ -16,6 +16,12 @@ const float NormalCosine = 0.906307787;
 // The specular test's bound: the most that a tap's roughness differs from the pixel's.
 const float RoughnessStep = 0.1;
 
+// The surface test image's motion facts above its pass bits, which the surface test pass writes beside them because it
+// already holds each pixel's surface point and motion target (ticket t0-89zi). The ray plan's moved mark and the
+// resolve's motion bit read them.
+const uint SurfaceMoved = 0x100u;          // the pixel's surface moved since the last draw (motion.glsl, movedSurface)
+const uint SurfaceMovesOnScreen = 0x200u;  // its point moves on screen by LeastMotion or more (movesOnScreen)
+
 // SurfaceTestPass.DeviceDepthNear: the near plane of FSR's reversed and infinite depth, in m (DepthRanges.NearPlane). The
 // device depth is this over the view depth, 0 for sky.
 const float DeviceDepthNear = 0.05;

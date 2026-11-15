@@ -9,6 +9,7 @@ internal static class Spirv
     public const ushort OpName = 5;
     public const ushort OpDecorate = 71;
     public const uint DecorationBinding = 33;
+    public const uint DecorationDescriptorSet = 34;
 
     /// <summary>One instruction: its opcode and the words after its first.</summary>
     public readonly record struct Instruction(ushort Opcode, uint[] Operands);
@@ -48,6 +49,26 @@ internal static class Spirv
                 .Where(instruction => instruction.Opcode == OpDecorate && instruction.Operands[1] == DecorationBinding)
                 .Select(instruction => instruction.Operands[2]),
         ];
+
+    /// <summary>
+    /// The binding number of each variable that <paramref name="spirv"/> decorates with a binding in descriptor set
+    /// <paramref name="set"/>, in the order of the module.
+    /// </summary>
+    public static IReadOnlyList<uint> BindingNumbersOfSet(byte[] spirv, uint set)
+    {
+        HashSet<uint> inSet = [];
+        List<(uint Id, uint Binding)> bindings = [];
+        foreach (Instruction instruction in Instructions(spirv))
+            if (instruction.Opcode == OpDecorate && instruction.Operands[1] == DecorationDescriptorSet)
+            {
+                if (instruction.Operands[2] == set)
+                    inSet.Add(instruction.Operands[0]);
+            }
+            else if (instruction.Opcode == OpDecorate && instruction.Operands[1] == DecorationBinding)
+                bindings.Add((Id: instruction.Operands[0], Binding: instruction.Operands[2]));
+
+        return [.. bindings.Where(binding => inSet.Contains(binding.Id)).Select(binding => binding.Binding)];
+    }
 
     // A literal string is UTF-8, packed four bytes to a word and ended by a zero byte.
     private static string LiteralString(ReadOnlySpan<uint> words)

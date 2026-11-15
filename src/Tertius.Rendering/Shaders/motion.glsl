@@ -31,4 +31,48 @@ vec3 clipOf(vec3 world)
     return (frame.motionViewProj * vec4(world, 1.0)).xyw;
 }
 
+// The least motion on screen that counts, in pixels per draw: the gate's threshold of ter-18hc.
+const float LeastMotion = 1.0 / 32.0;
+
+// The relative rounding of the motion target's half floats, which keep 10 bits below their leading bit: twice their
+// largest rounding, so that a still surface's target and its still motion (stillMotionOf) stay inside it.
+const float MotionRounding = 1.0 / 1024.0;
+
+// The motion that a surface point would have if it stood still while the camera moved: the motion target's own rule
+// (motionOf) at the point, relative to this frame's eye, in m. A still surface's motion target and this differ only by
+// rounding: under a still camera by the float computation's last bits, a few 10^-6 pixels, and under a moving camera
+// also by the target's half floats.
+vec4 stillMotionOf(vec3 point)
+{
+    return motionOf(clipOf(point), lastClipOf(point - frame.previousEye.xyz));
+}
+
+// How far a pixel's motion target lies from the still motion of its surface point (stillMotionOf): x the distance of
+// their places in pixels, y the rounding of that distance in pixels, z how far their depth ratios differ, and w the
+// rounding of that. `point` is the point relative to this frame's eye, in m, and `target` its pixel's motion target.
+vec4 motionApart(vec3 point, vec4 target)
+{
+    vec4 still = stillMotionOf(point);
+    float apart = length((target.xy - still.xy) * frame.viewport.xy);
+    float rounding = MotionRounding * length(still.xy * frame.viewport.xy);
+    return vec4(apart, rounding, abs(target.z - still.z), MotionRounding * max(still.z, 1.0));
+}
+
+// Whether a surface point moved since the last draw (docs/plans/bounce-light-confidence.md, section 8.4): its place
+// leaves a still point's by at least LeastMotion pixels and by more than the rounding, or its depth ratio by more than
+// the rounding. `point` and `target` are motionApart's.
+bool movedSurface(vec3 point, vec4 target)
+{
+    vec4 apart = motionApart(point, target);
+    return apart.x >= max(LeastMotion, apart.y) || apart.z > apart.w;
+}
+
+// Whether a pixel's surface point moves on screen since the last draw by at least LeastMotion pixels, by its motion
+// target `target`: the camera's moves count as well as the surface's (docs/plans/bounce-light-confidence.md, section
+// 8.4).
+bool movesOnScreen(vec4 target)
+{
+    return length(target.xy * frame.viewport.xy) >= LeastMotion;
+}
+
 #endif

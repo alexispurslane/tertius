@@ -22,6 +22,12 @@ public sealed class SurfaceTestRenderTests
     /// <summary>The bits of the surface test image that hold the four taps of the plane and normal test.</summary>
     private const byte SurfaceBits = 0x0F;
 
+    /// <summary>signals.glsl's SurfaceMoved: the pixel's surface moved since the last draw.</summary>
+    private const ushort MovedBit = 0x100;
+
+    /// <summary>signals.glsl's SurfaceMovesOnScreen: the pixel's point moves on screen by LeastMotion or more.</summary>
+    private const ushort MovesOnScreenBit = 0x200;
+
     /// <summary>
     /// A wall 20 m ahead that fills the view, and a box in front of it at <paramref name="box"/>, at the snapshot time of
     /// <see cref="Gpu.Snapshot"/> plus <paramref name="later"/>, in s.
@@ -590,6 +596,86 @@ public sealed class SurfaceTestRenderTests
                 .Should()
                 .BeApproximately(SurfaceTestPass.DeviceDepthNear / 5.5f, 1e-6f);
             depth[0].Should().Be(0, "the corner shows the sky");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void NoPixelOfAStillSceneUnderAStillCameraMovedOrMovesOnScreen()
+    {
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            MeshId cube = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.5f));
+            RenderSnapshot scene = Scene(cube: cube, wall: white, paint: white, box: new(0, 0, -6));
+            renderer.Render(scene, 1f);
+            scene.Time += Tick;
+
+            renderer.Render(scene, 1f);
+
+            renderer
+                .ReadSurfaceTestWords()
+                .Should()
+                .OnlyContain(word => (word & (MovedBit | MovesOnScreenBit)) == 0, "nothing in the view moved");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void TheSurfaceOfABoxThatMovesIsMarkedAsMovedAndMovingOnScreen()
+    {
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            MeshId cube = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.5f));
+            renderer.Render(Scene(cube: cube, wall: white, paint: white, box: new(0, 0, -6)), 1f);
+
+            renderer.Render(Scene(cube: cube, wall: white, paint: white, box: new(1.5f, 0, -6), later: Tick), 1f);
+
+            ushort[] words = renderer.ReadSurfaceTestWords();
+            Vector2 box = Gpu.Project(point: new(1.5f, 0, -5.5f), width: Width, height: Height);
+            (words[(int)box.Y * Width + (int)box.X] & (MovedBit | MovesOnScreenBit))
+                .Should()
+                .Be(MovedBit | MovesOnScreenBit, "the box moved 1.5 m across the view");
+            Vector2 open = Gpu.Project(point: new(-6, 3, -20), width: Width, height: Height);
+            (words[(int)open.Y * Width + (int)open.X] & (MovedBit | MovesOnScreenBit))
+                .Should()
+                .Be(0, "the wall far from the box stood still under a still camera");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AStillWallUnderACameraTurnMovesOnScreenButIsNotMarkedAsMoved()
+    {
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            MeshId cube = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.5f));
+            RenderSnapshot scene = Scene(cube: cube, wall: white, paint: white, box: new(0, 0, 10));
+            renderer.Render(scene, 1f);
+            var turned = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.01f);
+            scene.Camera.Rotation = turned;
+            scene.Camera.PreviousRotation = turned;
+            scene.Time += Tick;
+
+            renderer.Render(scene, 1f);
+
+            (renderer.ReadSurfaceTestWords()[Height / 2 * Width + Width / 2] & (MovedBit | MovesOnScreenBit))
+                .Should()
+                .Be(MovesOnScreenBit, "a turn of 0.01 rad moves the wall's point by about 2 pixels, and the wall stood still");
         }
         finally
         {

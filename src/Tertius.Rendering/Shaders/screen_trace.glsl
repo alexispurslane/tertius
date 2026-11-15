@@ -22,7 +22,7 @@ layout(set = 3, binding = 0) uniform texture2D depthFinest;                    /
 layout(set = 3, binding = 1) uniform texture2D depthPyramid;                   // RG32F, mip m = level m + 1
 layout(set = 3, binding = 2, rgba16f) uniform readonly image2D directDiffuseLight;   // demodulated and pre-exposed
 layout(set = 3, binding = 3, rgba16f) uniform readonly image2D directSpecularLight;
-layout(set = 3, binding = 4, r8ui) uniform readonly uimage2D surfaceTest;      // the pass bits (signals.glsl)
+layout(set = 3, binding = 4, r16ui) uniform readonly uimage2D surfaceTest;      // the pass bits (signals.glsl)
 layout(set = 3, binding = 5, rgba16f) uniform readonly image2D motionTarget;   // the G-buffer's motion target
 // The last frame's diffuse light that a hit reads: the diffuse filter's output, or with the filter off the fast history
 // (ScreenTraceImages.HitDiffuse); and the last frame's specular fast history.
@@ -481,38 +481,17 @@ vec2 lastPlaceAt(ivec2 pixel)
     return readPlace(vec2(pixel) + 0.5, imageLoad(motionTarget, pixel));
 }
 
-// The relative rounding of the motion target's half floats, which keep 10 bits below their leading bit: twice their
-// largest rounding, so that a still surface's target and its still motion (stillMotionAt) stay inside it.
-const float MotionRounding = 1.0 / 1024.0;
-
-// The motion that the pixel's surface point would have if it stood still while the camera moved: the motion target's own
-// rule (motion.glsl, motionOf) at the point that the pixel's sample sees. A still surface's motion target and this differ
-// only by rounding: under a still camera by the float computation's last bits, a few 10^-6 pixels, and under a moving
-// camera also by the target's half floats.
-vec4 stillMotionAt(ivec2 pixel)
-{
-    vec3 point = normalize(viewRayThrough(vec2(pixel) + 0.5)) * texelFetch(gbufferDistance, pixel, 0).r;
-    return motionOf(clipOf(point), lastClipOf(point - frame.previousEye.xyz));
-}
-
-// How far the pixel's motion target lies from its still motion (stillMotionAt): x the distance of their places in
-// pixels, y the rounding of that distance in pixels, z how far their depth ratios differ, and w the rounding of that.
-vec4 motionApartAt(ivec2 pixel)
-{
-    vec4 target = imageLoad(motionTarget, pixel);
-    vec4 still = stillMotionAt(pixel);
-    float apart = length((target.xy - still.xy) * frame.viewport.xy);
-    float rounding = MotionRounding * length(still.xy * frame.viewport.xy);
-    return vec4(apart, rounding, abs(target.z - still.z), MotionRounding * max(still.z, 1.0));
-}
-
-// Whether the pixel's surface moved since the last draw (docs/plans/bounce-light-confidence.md, section 8.4): its place
-// leaves a still point's by at least LeastMotion pixels and by more than the rounding, or its depth ratio by more than
-// the rounding. The pixel must be hittable.
+// Whether the pixel's surface moved since the last draw, as the surface test pass found it (signals.glsl, SurfaceMoved).
 bool movedSurfaceAt(ivec2 pixel)
 {
-    vec4 apart = motionApartAt(pixel);
-    return apart.x >= max(LeastMotion, apart.y) || apart.z > apart.w;
+    return (imageLoad(surfaceTest, pixel).r & SurfaceMoved) != 0u;
+}
+
+// Whether the pixel's own surface point moves on screen by at least LeastMotion pixels, as the surface test pass found it
+// (signals.glsl, SurfaceMovesOnScreen).
+bool movesOnScreenAt(ivec2 pixel)
+{
+    return (imageLoad(surfaceTest, pixel).r & SurfaceMovesOnScreen) != 0u;
 }
 
 // The light that leaves a pixel toward a ray of each kind, pre-exposed and at most MaxRadiance.
