@@ -74,5 +74,6 @@ void main()
         history.rgb = history.a <= 0.0 ? sampled : history.rgb + (sampled - history.rgb) * sampleWeight;
         history.a = min(history.a + 1.0, 8.0);
     }
-    imageStore(scratch, pixel, history);
+    // The history is a mean that feeds back, so its store takes the nearest half float (half_store.glsl).
+    imageStore(scratch, pixel, slowHistoryValue(history));
 }

@@ -36,10 +36,10 @@ uint nearestHalfBits(uint bits)
 }
 
 // The half float nearest to x, as a 32-bit float, with ties to even. A store of the result in a 16-bit float image is exact
-// on every driver, because the value is a half float already. x is finite and at most the largest half float, 65,504, in
-// size: a larger x gives 65,536, which no half float holds. Integer arithmetic on the bits only: no log2, which the spec
-// lets be inexact at a power of two, no isnan, which a driver can fold away, and no packHalf2x16, whose rounding is the
-// driver's.
+// on every driver, because the value is a half float already. x is finite and below 65,520 in size, the tie between the
+// largest half float, 65,504, and 65,536: a larger x gives 65,536 or more, which no half float holds. Integer arithmetic
+// on the bits only: no log2, which the spec lets be inexact at a power of two, no isnan, which a driver can fold away,
+// and no packHalf2x16, whose rounding is the driver's.
 float nearestHalf(float x)
 {
     return uintBitsToFloat(nearestHalfBits(floatBitsToUint(x)));
@@ -58,20 +58,6 @@ vec3 nearestHalf(vec3 v)
 vec4 nearestHalf(vec4 v)
 {
     return vec4(nearestHalf(v.xyz), nearestHalf(v.w));
-}
-
-// The value that the accumulation stores in a signal's slow history or its scratch image, whose format
-// SPECULAR_HISTORY_FORMAT gives (specular_history.glsl): rgb the light, a the length. It is the nearest half float in the
-// 16-bit floats of every history but the precise specular one, and the value itself in that history's 32-bit floats,
-// which store it exactly. The length is a whole number until the anti-lag shortens it by the clamp's move, which gives
-// it a fraction, so it takes the same rule as the light.
-vec4 slowHistoryValue(vec4 value)
-{
-#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
-    return value;
-#else
-    return nearestHalf(value);
-#endif
 }
 
 #endif

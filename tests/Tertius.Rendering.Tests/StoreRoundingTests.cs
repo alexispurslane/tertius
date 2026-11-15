@@ -7,8 +7,9 @@ namespace Tertius.Rendering.Tests;
 /// "Portable Vulkan"). The Vulkan spec lets a conversion to a half float round toward zero or to the nearest. The probe
 /// stores values that lie between two half floats through four paths: a compute shader's imageStore, a fragment
 /// shader's write into a color attachment without a blend, an additive blend into one, and packHalf2x16. The test reports
-/// the rounding of each path in its output, and in the file that TERTIUS_STORE_ROUNDING_REPORT names if it is set, because
-/// the test runner shows no output of a passing test. It asserts nothing about the driver.
+/// the rounding of each path into the file that TERTIUS_STORE_ROUNDING_REPORT names, because the test runner shows no
+/// output of a passing test. It asserts nothing about the driver, so it is a measurement, not a test of the engine: it
+/// skips unless the variable is set, as the GPU calibration does (ARCHITECTURE.md, "Portable Vulkan", holds its table).
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class StoreRoundingTests
@@ -24,9 +25,14 @@ public sealed class StoreRoundingTests
     private static readonly float[] Spacings = [1f / 1024, 1f / 1024, 1f / 4096, 1f / 16, 1f / 16, 2f];
     private static readonly float[] Shares = [0.25f, 0.5f, 0.75f];
 
+    /// <summary>The variable that names the report's file and turns the measurement on.</summary>
+    private const string ReportVariable = "TERTIUS_STORE_ROUNDING_REPORT";
+
     [Fact]
     public void EachStorePathIntoAHalfFloatReportsItsRounding()
     {
+        string? file = Environment.GetEnvironmentVariable(ReportVariable);
+        Assert.SkipWhen(string.IsNullOrEmpty(file), $"Set {ReportVariable} to a file to measure the store paths.");
         ITestOutputHelper output = TestContext.Current.TestOutputHelper!;
         VulkanRenderer renderer = Gpu.Headless(
             width: Width,
@@ -53,8 +59,7 @@ public sealed class StoreRoundingTests
                 paths.Select(path => $"{path.Path}: {Rounding(path.Image, path.Channel)}")
             );
             output.WriteLine(report);
-            if (Environment.GetEnvironmentVariable("TERTIUS_STORE_ROUNDING_REPORT") is { Length: > 0 } file)
-                File.WriteAllText(file, report + "\n");
+            File.WriteAllText(file!, report + "\n");
             string.Join("\n", renderer.ValidationMessages).Should().BeEmpty();
         }
         finally
