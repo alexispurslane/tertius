@@ -128,3 +128,7 @@ Launched 2026-11-15 from 94138a196: the ticket lead of mesh closure and the batc
 **2026-11-15T14:13:05Z**
 
 2026-11-15: part 1 of the shadow leak's diagnosis (t1-3j2j) is merged as bba92b948 and sent to the parent agent. Every bright strip of direct sunlight in rect-lamps is a leak: the far jamb, the end window's sill that the ceiling reflects, and the side windows' sills. The truth lights 103 of the 7,143 pixels that the engine's sun lights, with 0.8 % of the summed light. The cabin's frame 239 holds no strip of direct sunlight. Consequence for this epic: the acceptance stills of the layer wait for the shadow fix on main, because main's side of the rect-lamps comparison gets darker too.
+
+**2026-11-15T14:15:59Z**
+
+2026-11-15: the Design X line's cabin strip is the scene orbit with the camera person, output row 563 and columns 892 to 1030. That is the end window's sill of rect-lamps, which part 1 of the diagnosis already judged a leak at frame 239. The parent agent asked for one more cast at world tick 300, and at tick 60 if it is cheap. I passed it to the diagnosis lead (t1-3j2j) as an extra cast after part 4, with the other line's kept files to read only. Its verdict goes to the parent agent in a few lines.
