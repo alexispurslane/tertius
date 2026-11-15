@@ -86,6 +86,21 @@ def report(folder):
     depth_mm = (1.0 / np.maximum(np.maximum(r["in_w"], r["out_w"]), 1e-30) - 1.0 / r["w"]) * 1000.0
     print(f"## {folder}")
     print(f"records (hits on sheets under the 10 % rule): {len(reason)}")
+    # Controls: a fresh record's ray kind follows its draw (even draws trace reflection rays), and the records count the
+    # same hits on sheets as the census file of the same run.
+    print(f"check: records whose ray kind does not match the draw's parity: {(r['diffuse'] != (r['draw'] & 1)).sum()}")
+    census = Path(folder) / "census.txt"
+    if census.exists():
+        counts = {}
+        for line in census.read_text().splitlines()[1:]:
+            p = line.split()
+            if p[0].startswith("sheet-") and p[1] == "hit" and p[2] == "sheet":
+                key = (p[0][len("sheet-"):], p[6] == "1")
+                counts[key] = counts.get(key, 0) + int(p[-2])
+        for kind, name in ((0, "reflection"), (1, "diffuse")):
+            k = r["diffuse"] == kind
+            print(f"check: {name} hits on sheets, records {k.sum()} against census {counts.get((name, False), 0) + counts.get((name, True), 0)};"
+                  f" real, records {(k & (r['crossing'] == 1)).sum()} against census {counts.get((name, True), 0)}")
     for kind, name in ((0, "reflection"), (1, "diffuse")):
         k = r["diffuse"] == kind
         real = k & (r["crossing"] == 1)

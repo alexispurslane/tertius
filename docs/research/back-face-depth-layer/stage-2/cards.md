@@ -19,16 +19,16 @@ Each section gives the measured facts first. A paragraph that starts with "Readi
 - Part 1: the pass of Design 1 removes the borrowed back face. In the lamp hall, all 139,646 hair pixels hold their own fragment, a share of 1. Under the pass of stage 1b, 59,188 of them borrowed a back face with a median slab of 4.10 m.
 - Part 1: no demo scene that a script renders holds an open one-sided opaque mesh. Five meshes are closed only because the test pairs edges by count. Without that, the station's spokes, chute, chute brake, body and the ship are open.
 - Part 2: under `layer` with the new pass, no reflection hit on a card has its crossing behind the start in either view. The lamp hall's hits with the crossing behind the start fall from 817,466 to 1,525.
-- Part 3: the sheet rules lose real hits. In the lamp hall, no thickness keeps 32.5 % of the reflection hits that land on the card that the crossing shows. The plane span keeps 59.5 % with a = 0.5 and 89.3 % with a = 1.5.
+- Part 3: the sheet rules lose real hits. In the lamp hall, no thickness keeps 31.7 % of the reflection hits that land on the card that the crossing shows. The plane span keeps 58.8 % with a = 0.5 and 89.0 % with a = 1.5.
 - Part 2: in `cards-glow`, the still under the new pass differs from the 10 % rule in 7 tiles of 16 pixels. The pass of 1b differs in 31. All lie in the floor's reflection of the curtain.
-- Part 3: 41 % to 44 % of the lost hits in the lamp hall cross another surface than the hit pixel's card. Those are no hits of the visible face, and the 10 % rule keeps them falsely.
-- Part 3: a fourth rule, the plane's bounds on both sides of the pixel, keeps 76.3 % of the lamp hall's reflection hits on the visible card. It lies between a = 0.5 and a = 1.5 in kept hits and in false hits.
+- Part 3: 42 % to 44 % of the lost hits in the lamp hall cross another surface than the hit pixel's card. Reading: those are no hits of the visible face, and the 10 % rule keeps them falsely.
+- Part 3: a fourth rule, the plane's bounds on both sides of the pixel, keeps 75.8 % of the lamp hall's reflection hits on the visible card. It lies between a = 0.5 and a = 1.5 in kept hits and in false hits.
 
 ## Part 1: the pass draws what Design 1 says
 
 ### What I built
 
-The probe's back-face pass has a second rule, selected by the environment variable `TERTIUS_BACK_FACE_PASS=cards`. The default `1b` keeps the pass of stage 1b. I built the approach "more pipelines": two pipelines without culling, one for solid runs and one for cutout runs. A flag per instance tells the fragment shader whether the mesh is a closed one-sided solid.
+The probe's back-face pass has a second rule, selected by the environment variable `TERTIUS_BACK_FACE_PASS=cards`. The default `1b` keeps the pass of stage 1b. I built the ticket's second approach: no face culled, and a fragment shader that drops the front faces of closed one-sided instances. It has two pipelines only because solid and cutout runs need different shaders. A flag per instance tells the fragment shader whether the mesh is a closed one-sided solid. So every closed one-sided mesh draws its front faces too, and the shader discards them.
 
 | Run | Pipeline | Flag `ProbeBackFacesOnly` | Fragments that count |
 |---|---|---|---|
@@ -147,20 +147,21 @@ Each run counts the draws 16 to 47 at 1280 by 720. Even draws count the reflecti
 | `cards-glow` | `layer`, pass of 1b | 703,996 | 203,319 | 441,049 | 211,383 | 17.0 % |
 | `cards-glow` | `layer`, pass of part 1 | 248,713 | 1,423 | 165,963 | 1,159 | 21.9 % |
 
-The hits on sheets alone, which are the card pixels under the pass of part 1:
+The hits on sheets alone. Both rows of a view count the same sheets: the pixels that are sheets under the pass of part 1, which include every card pixel. The 10 % rule's rows come from the runs `rules`, which use the pass of part 1 for the sheet mark only.
 
 | View | Rule | Reflection hits on sheets | Of class 1 | Crossing behind the start | Diffuse hits on sheets | Of class 1 | Crossing behind the start |
 |---|---|---:|---:|---:|---:|---:|---:|
-| Lamp hall | 10 % rule | 6,511 | 2,588 | 1,405 | 24,066 | 9,975 | 5,714 |
+| Lamp hall | 10 % rule | 11,280 | 4,393 | 2,451 | 41,318 | 16,698 | 10,095 |
 | Lamp hall | `layer`, pass of part 1 | 1,400 | 1,185 | 0 | 4,936 | 4,146 | 6 |
-| `cards-glow` | 10 % rule | 2,790 | 1,256 | 440 | 56,741 | 26,779 | 2,292 |
+| `cards-glow` | 10 % rule | 87,904 | 18,172 | 613 | 127,116 | 41,146 | 14,014 |
 | `cards-glow` | `layer`, pass of part 1 | 17,365 | 15,682 | 0 | 31,258 | 27,749 | 2 |
 
 - Two lamp hall rows equal those of stage 1b's job `b5311dd8`, hit for hit. They are the 10 % rule and `layer` with the pass of 1b.
 - The 10 % rule's hit counts do not depend on the pass. Its runs under both passes give equal hits.
 - Under the pass of part 1, the sheets also count the card pixels in front of the floor. So the share of sheets rises from 28.9 % to 50.4 % in the lamp hall.
-- I did not look at the 8 diffuse hits on sheets with the crossing behind the start. The census counts them only in sums.
-- Under the pass of part 1, the hits with the crossing behind the start lie on pixels that are not sheets. Every card pixel is a sheet there, so these hits are not on cards.
+- Under `layer` with the pass of part 1, no reflection hit on a sheet has its crossing behind the start. 8 diffuse hits do: 6 in the lamp hall and 2 in `cards-glow`.
+- I did not look at those 8 diffuse hits. The census counts them only in sums. So the ticket's acceptance criterion holds for the reflection rays, and it stays open for 8 of 36,194 diffuse hits on sheets.
+- Every card pixel is a sheet under the pass of part 1. So the other hits with the crossing behind the start in the table above are not on cards.
 
 Reading: the borrowed back face caused the hits with the crossing behind the start in stage 1b. The pass of part 1 removes them on the cards. The rest is the base rate of solid surfaces, as `demo-meshes` showed in stage 1b.
 
@@ -228,11 +229,19 @@ where
 
 Rule 4 is mine. It moves both ends of the slab, not only the back.
 
+All four rules act at the finest level only. The coarser levels keep the 10 % rule's slab of the run, which holds every sheet rule's slab. So the walk descends into cells that a real layer pyramid can skip. Rules 3 and 4 move a sheet's slab past the plane's bounds over the pixel's square, which level 1 stores. A real build of either rule must widen level 1 too, or it breaks the invariant of stage 1b's control 4: each cell's slab holds the slab of every pixel under it. Reading: such a build can keep fewer hits than the probe.
+
+### A fault in the first records
+
+The first census job `0c0f0ac7` and the rules job `af537b80` wrote stale records. The resolve pass cleared a pixel's record only after its early return for the sky. A pixel that turned into sky kept the record of an earlier draw, and the renderer appended that record again in each later draw. The reviewer found it: in the Mac run of the lamp hall, 6,066 of 60,736 records had a ray kind that did not match their draw.
+
+The fix clears the record before the early return. The rules job `a03383d4` ran again on the fixed probe. Its records equal its census files, and every table of part 3 comes from it. The stale records had raised the real hits on sheets by 2 % to 19 %. In the lamp hall and `cards-glow`, the shares that each rule keeps moved by at most 1.3 points. In `skin-and-hair`, with few hits, they moved by up to 3.3 points.
+
 ### The reasons
 
 `sheet_rules.py` gives each lost hit one reason, in this order:
 
-1. Reason 4: the crossing's place shows another card or surface than the hit pixel's card.
+1. Reason 4: the crossing's place shows another card or surface than the hit pixel's card. This is not the ticket's candidate 4, a crossing in a cutout gap. Such a crossing is class 0, an opening, so it is never a lost real hit. I used the number 4 for the nearest case that the records can name.
 2. Reason 5: the crossing's place lies off screen.
 3. Reason 1: the crossing lies inside the hit pixel, by Chebyshev distance 0.
 4. Reason 2: the crossing lies one pixel before the hit pixel.
@@ -240,97 +249,81 @@ Rule 4 is mine. It moves both ends of the slab, not only the back.
 
 ### Measured: what each rule keeps
 
-Real hits on sheets under the 10 % rule, split by whether the crossing shows the hit pixel's own card. Draws 16 to 47, from the cloud job of the census.
+These numbers come from the rules job `a03383d4`, draws 16 to 47. The first census job wrote stale records, which the section "A fault in the first records" describes. In this job, the records count the same hits on sheets as the census file of each run. No record has the wrong ray kind for its draw.
 
-| View | Kind | Real hits, crossing on the hit pixel's card | No thickness | a = 0.5 | a = 1.5 | Real hits, crossing on another surface | Kept by a = 1.5 |
-|---|---|---:|---:|---:|---:|---:|---:|
-| Lamp hall | Reflection | 3,174 | 32.5 % | 59.5 % | 89.3 % | 1,716 | 4.0 % |
-| Lamp hall | Diffuse | 12,617 | 28.3 % | 56.5 % | 85.6 % | 6,305 | 1.8 % |
-| `cards-glow` | Reflection | 18,266 | 85.1 % | 89.5 % | 93.0 % | 403 | 3.0 % |
-| `cards-glow` | Diffuse | 38,725 | 70.9 % | 82.6 % | 92.7 % | 3,262 | 0.6 % |
-| `skin-and-hair` | Reflection | 141 | 36.2 % | 72.3 % | 90.1 % | 87 | 62.1 % |
-| `skin-and-hair` | Diffuse | 281 | 47.7 % | 79.0 % | 93.6 % | 241 | 78.8 % |
+Real hits on sheets under the 10 % rule, split by whether the crossing shows the hit pixel's own card. Each rule's column gives the share of those hits that it keeps.
+
+| View | Kind | Real hits, crossing on the hit pixel's card | No thickness | a = 0.5 | a = 1.5 | Rule 4 | Real hits, crossing on another surface | Kept by a = 1.5 | Kept by rule 4 |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Lamp hall | Reflection | 2,859 | 31.7 % | 58.8 % | 89.0 % | 75.8 % | 1,534 | 3.0 % | 1.0 % |
+| Lamp hall | Diffuse | 11,040 | 28.3 % | 56.7 % | 85.9 % | 71.4 % | 5,658 | 2.0 % | 0.3 % |
+| `cards-glow` | Reflection | 17,889 | 86.4 % | 90.1 % | 93.0 % | 91.5 % | 283 | 3.5 % | 1.8 % |
+| `cards-glow` | Diffuse | 37,970 | 71.9 % | 83.1 % | 92.9 % | 87.8 % | 3,176 | 0.6 % | 0.7 % |
+| `skin-and-hair` | Reflection | 119 | 38.7 % | 75.6 % | 93.3 % | 80.7 % | 73 | 69.9 % | 61.6 % |
+| `skin-and-hair` | Diffuse | 234 | 44.0 % | 76.9 % | 92.7 % | 88.9 % | 211 | 75.8 % | 62.6 % |
 
 The false hits that each rule keeps. Class 0 is an opening: the eye sees no surface within 2 % at the crossing.
 
-| View | Kind | Class 0 hits of the 10 % rule | No thickness | a = 0.5 | a = 1.5 |
-|---|---|---:|---:|---:|---:|
-| Lamp hall | Reflection | 4,959 | 417 | 549 | 1,561 |
-| Lamp hall | Diffuse | 16,214 | 1,433 | 1,786 | 5,879 |
-| `cards-glow` | Reflection | 69,481 | 1,726 | 1,846 | 2,697 |
-| `cards-glow` | Diffuse | 72,785 | 3,905 | 4,634 | 9,604 |
+| View | Kind | Class 0 hits of the 10 % rule | No thickness | a = 0.5 | a = 1.5 | Rule 4 |
+|---|---|---:|---:|---:|---:|---:|
+| Lamp hall | Reflection | 4,399 | 373 | 484 | 1,396 | 565 |
+| Lamp hall | Diffuse | 14,482 | 1,224 | 1,543 | 5,155 | 1,886 |
+| `cards-glow` | Reflection | 69,119 | 1,708 | 1,803 | 2,515 | 1,848 |
+| `cards-glow` | Diffuse | 71,945 | 3,769 | 4,464 | 9,040 | 5,051 |
 
-Rule 4, the plane's bounds on both sides, from the rules job `af537b80`. Its other columns equal those of the census job.
-
-| View | Kind | Real hits on the hit pixel's card kept | Real hits on another surface kept | Class 0 hits kept |
-|---|---|---:|---:|---:|
-| Lamp hall | Reflection | 2,421 (76.3 %) | 16 (0.9 %) | 651 |
-| Lamp hall | Diffuse | 8,988 (71.2 %) | 16 (0.3 %) | 2,192 |
-| `cards-glow` | Reflection | 16,627 (91.0 %) | 6 (1.5 %) | 1,898 |
-| `cards-glow` | Diffuse | 33,789 (87.3 %) | 21 (0.6 %) | 5,260 |
-| `skin-and-hair` | Reflection | 110 (78.0 %) | 48 (55.2 %) | 23 |
-| `skin-and-hair` | Diffuse | 252 (89.7 %) | 154 (63.9 %) | 82 |
-
-The lost hits of no thickness that rule 4 keeps, by reason:
-
-| View | Kind | Reason 1 | Reason 2 | Reason 3 | Reason 4 |
-|---|---|---:|---:|---:|---:|
-| Lamp hall | Reflection | 136 of 174 | 995 of 1,034 | 304 of 936 | 13 of 1,713 |
-| Lamp hall | Diffuse | 103 of 148 | 3,671 of 3,774 | 1,873 of 5,127 | 9 of 6,298 |
-| `cards-glow` | Reflection | 220 of 393 | 782 of 869 | 105 of 1,461 | 3 of 399 |
-| `cards-glow` | Diffuse | 2,107 of 2,967 | 3,887 of 4,527 | 622 of 3,758 | 21 of 3,261 |
-
-Reading: rule 4 keeps almost all hits of reason 2 and few of reason 4. It keeps fewer hits of reasons 1 and 3 than a = 1.5. It keeps about 40 % of the false class 0 hits that a = 1.5 keeps in the lamp hall. So it lies between a = 0.5 and a = 1.5 on both counts.
+Reading: rule 4 lies between a = 0.5 and a = 1.5 in two counts. They are the hits that it keeps on the visible card and the class 0 hits that it keeps. In the lamp hall, it keeps about 40 % of the class 0 hits that a = 1.5 keeps.
 
 ### Measured: the lost hits of no thickness by reason
 
-Lamp hall, reflection, 3,857 lost real hits:
+The columns "Kept by" count the lost hits of no thickness that each other rule keeps.
 
-| Reason | Lost hits | Share | Share of light | Depth into the slab, 25/50/75 % (spans) | Angle to the plane, median | Start on a card | Kept by a = 0.5 | Kept by a = 1.5 |
-|---|---:|---:|---:|---|---:|---:|---:|---:|
-| 1, inside the hit pixel | 174 | 4.5 % | 6.5 % | 0.21 / 0.53 / 1.02 | 22.2° | 99.4 % | 104 | 174 |
-| 2, one pixel before | 1,034 | 26.8 % | 34.0 % | 0.45 / 0.90 / 1.38 | 22.9° | 100 % | 572 | 1,034 |
-| 3, two or more pixels before | 936 | 24.3 % | 21.9 % | 0.87 / 1.82 / 3.82 | 13.5° | 100 % | 182 | 596 |
-| 4, another surface at the crossing | 1,713 | 44.4 % | 37.6 % | 16.1 / 27.8 / 38.2 | 20.8° | 100 % | 6 | 65 |
-| 5, off screen | 0 | | | | | | | |
+Lamp hall, reflection, 3,484 lost real hits:
 
-Lamp hall, diffuse, 15,347 lost real hits:
+| Reason | Lost hits | Share | Share of light | Depth into the slab, 25/50/75 % (spans) | Angle to the plane, median | Start on a card | Kept by a = 0.5 | Kept by a = 1.5 | Kept by rule 4 |
+|---|---:|---:|---:|---|---:|---:|---:|---:|---:|
+| 1, inside the hit pixel | 160 | 4.6 % | 6.4 % | 0.21 / 0.53 / 1.01 | 22.2° | 99.4 % | 96 | 160 | 124 |
+| 2, one pixel before | 943 | 27.1 % | 34.0 % | 0.45 / 0.89 / 1.40 | 22.7° | 100 % | 520 | 943 | 904 |
+| 3, two or more pixels before | 849 | 24.4 % | 21.7 % | 0.93 / 1.88 / 3.82 | 13.5° | 100 % | 158 | 534 | 274 |
+| 4, another surface at the crossing | 1,532 | 44.0 % | 38.0 % | 16.7 / 27.9 / 38.1 | 21.0° | 100 % | 6 | 44 | 13 |
+| 5, off screen | 0 | | | | | | | | |
 
-| Reason | Lost hits | Share | Share of light | Depth, 25/50/75 % (spans) | Angle, median | Start on a card | Kept by a = 0.5 | Kept by a = 1.5 |
-|---|---:|---:|---:|---|---:|---:|---:|---:|
-| 1 | 148 | 1.0 % | 0.4 % | 0.05 / 0.20 / 0.44 | 18.2° | 100 % | 102 | 148 |
-| 2 | 3,774 | 24.6 % | 27.2 % | 0.32 / 0.64 / 1.04 | 20.5° | 100 % | 2,753 | 3,774 |
-| 3 | 5,127 | 33.4 % | 41.5 % | 1.21 / 1.91 / 3.91 | 17.8° | 100 % | 702 | 3,311 |
-| 4 | 6,298 | 41.0 % | 30.9 % | 13.3 / 24.2 / 32.0 | 21.6° | 100 % | 7 | 109 |
+Lamp hall, diffuse, 13,564 lost real hits:
 
-`cards-glow`, reflection, 3,122 lost real hits:
+| Reason | Lost hits | Share | Share of light | Depth, 25/50/75 % (spans) | Angle, median | Start on a card | Kept by a = 0.5 | Kept by a = 1.5 | Kept by rule 4 |
+|---|---:|---:|---:|---|---:|---:|---:|---:|---:|
+| 1 | 132 | 1.0 % | 0.4 % | 0.05 / 0.20 / 0.43 | 18.1° | 100 % | 89 | 132 | 90 |
+| 2 | 3,351 | 24.7 % | 28.0 % | 0.31 / 0.63 / 1.04 | 20.6° | 100 % | 2,437 | 3,351 | 3,252 |
+| 3 | 4,430 | 32.7 % | 41.0 % | 1.20 / 1.91 / 3.84 | 17.3° | 100 % | 611 | 2,874 | 1,621 |
+| 4 | 5,651 | 41.7 % | 30.6 % | 13.2 / 23.9 / 31.9 | 21.3° | 100 % | 7 | 108 | 9 |
 
-| Reason | Lost hits | Share | Share of light | Depth, 25/50/75 % (spans) | Angle, median | Start on a card | Kept by a = 0.5 | Kept by a = 1.5 |
-|---|---:|---:|---:|---|---:|---:|---:|---:|
-| 1 | 393 | 12.6 % | 14.4 % | 0.12 / 0.24 / 1.29 | 56.1° | 30.5 % | 173 | 356 |
-| 2 | 869 | 27.8 % | 30.7 % | 0.15 / 0.56 / 1.10 | 24.8° | 70.5 % | 583 | 816 |
-| 3 | 1,461 | 46.8 % | 42.8 % | 4.27 / 55.4 / 166 | 53.1° | 33.5 % | 42 | 265 |
-| 4 | 399 | 12.8 % | 12.1 % | 19.8 / 29.3 / 39.1 | 20.7° | 100 % | 3 | 8 |
+`cards-glow`, reflection, 2,715 lost real hits:
 
-`cards-glow`, diffuse, 14,513 lost real hits:
+| Reason | Lost hits | Share | Share of light | Depth, 25/50/75 % (spans) | Angle, median | Start on a card | Kept by a = 0.5 | Kept by a = 1.5 | Kept by rule 4 |
+|---|---:|---:|---:|---|---:|---:|---:|---:|---:|
+| 1 | 357 | 13.1 % | 14.8 % | 0.11 / 0.21 / 1.09 | 58.0° | 23.5 % | 165 | 320 | 208 |
+| 2 | 725 | 26.7 % | 30.7 % | 0.15 / 0.52 / 1.08 | 26.4° | 64.7 % | 482 | 672 | 640 |
+| 3 | 1,354 | 49.9 % | 45.3 % | 6.33 / 68.6 / 174 | 53.9° | 28.2 % | 26 | 190 | 86 |
+| 4 | 279 | 10.3 % | 9.2 % | 19.6 / 29.2 / 40.9 | 20.0° | 100 % | 2 | 6 | 2 |
 
-| Reason | Lost hits | Share | Share of light | Depth, 25/50/75 % (spans) | Angle, median | Start on a card | Kept by a = 0.5 | Kept by a = 1.5 |
-|---|---:|---:|---:|---|---:|---:|---:|---:|
-| 1 | 2,967 | 20.4 % | 15.3 % | 0.12 / 0.35 / 0.97 | 33.7° | 3.6 % | 1,682 | 2,912 |
-| 2 | 4,527 | 31.2 % | 36.5 % | 0.20 / 0.75 / 1.32 | 29.0° | 21.1 % | 2,557 | 4,310 |
-| 3 | 3,758 | 25.9 % | 37.2 % | 2.22 / 5.25 / 12.0 | 24.2° | 42.4 % | 282 | 1,218 |
-| 4 | 3,261 | 22.5 % | 11.0 % | 27.3 / 49.6 / 81.5 | 22.0° | 15.4 % | 1 | 19 |
+`cards-glow`, diffuse, 13,852 lost real hits:
 
-- `skin-and-hair` loses 160 reflection and 325 diffuse real hits. The share of reason 4 there is 43.8 % and 54.8 %. Its hits of reason 4 lie at a median depth of 2.0 to 3.0 spans, against 24 to 28 in the lamp hall.
+| Reason | Lost hits | Share | Share of light | Depth, 25/50/75 % (spans) | Angle, median | Start on a card | Kept by a = 0.5 | Kept by a = 1.5 | Kept by rule 4 |
+|---|---:|---:|---:|---|---:|---:|---:|---:|---:|
+| 1 | 2,927 | 21.1 % | 15.9 % | 0.12 / 0.36 / 0.98 | 33.9° | 2.3 % | 1,661 | 2,872 | 2,086 |
+| 2 | 4,334 | 31.3 % | 37.3 % | 0.20 / 0.76 / 1.34 | 30.0° | 17.6 % | 2,399 | 4,117 | 3,697 |
+| 3 | 3,416 | 24.7 % | 35.4 % | 2.53 / 5.92 / 13.0 | 26.5° | 36.6 % | 236 | 994 | 531 |
+| 4 | 3,175 | 22.9 % | 11.4 % | 28.4 / 51.1 / 82.8 | 22.1° | 13.1 % | 1 | 18 | 21 |
+
+- `skin-and-hair` loses 130 reflection and 287 diffuse real hits. The share of reason 4 there is 43.8 % and 54.4 %. Its hits of reason 4 lie at a median depth of 2.1 to 2.2 spans, against 24 to 28 in the lamp hall.
 - The light is the luminance of the hit's light times its fade, summed. Its share is the share of the lost hits' sum.
-- A check of the records: some lost hits have a ray that does not stay behind the center w across the hit cell. Per view and ray kind, they are at most 3.4 %. In the lamp hall and `cards-glow`, at most 1.2 %.
+- A check of the records: some lost hits have a ray that does not stay behind the center w across the hit cell. Per view and ray kind, they are at most 3.8 %.
 
-[lost-hits-lamp-hall.png](lost-hits-lamp-hall.png) shows where the lost real hits of no thickness land in the lamp hall. It crops x 210 to 530, y 160 to 520, at twice the size. Gray is the front distance. Each hit pixel takes the color of most of its lost hits: blue reason 1, green 2, orange 3, magenta 4.
+[lost-hits-lamp-hall.png](lost-hits-lamp-hall.png) shows where the lost real hits of no thickness land in the lamp hall. It comes from a Mac run of the fixed probe, with the same checks. It crops x 210 to 530, y 160 to 520, at twice the size. Gray is the front distance. Each hit pixel takes the color of most of its lost hits: blue reason 1, green 2, orange 3, magenta 4.
 
 ![The lost real hits of no thickness in the lamp hall, by reason](lost-hits-lamp-hall.png)
 
 - The lost hits cluster on a few cards, not on all cards. I did not find out why.
-- The magenta lines run along card edges. There the crossing falls on the next card or the floor.
+- Most of the magenta is one column of pixels along a card edge, at render x 388. There the crossing falls on the next card or the floor.
 
 ### Reading: is each reason a hit of the visible face
 
@@ -338,25 +331,30 @@ Lamp hall, diffuse, 15,347 lost real hits:
 |---|---|---|
 | 1, inside the hit pixel | Yes | The ray crosses the card's plane inside the pixel that shows the card. |
 | 2, one pixel before | Yes | The crossing lies on the same card, one pixel away. |
-| 3, two or more pixels before | Yes, mostly | The crossing shows the same card. The ray runs nearly along the card's plane. |
+| 3, two or more pixels before | Yes | The crossing shows the same card. In the lamp hall, the ray meets the card at a median of 13° to 17°. |
 | 4, another surface at the crossing | No | The eye sees another card or the floor at the crossing. The 10 % slab catches the ray behind the hit pixel's card. |
 | 5, off screen | No case | None of the views had one. |
 
-Reading: the cause of reasons 1 to 3 is the flat center w of the finest level. A sheet's slab is the single w of the pixel's center. A ray whose crossing lies a pixel away passes that w outside the cell, so the walk misses it. This is the stair case of ticket `t1-n8x9`, spread across neighbors.
+Reading: in the lamp hall, the cause of reasons 1 to 3 is the flat center w of the finest level. A sheet's slab is the single w of the pixel's center. A ray whose crossing lies a pixel away passes that w outside the cell, so the walk misses it. This is the stair case of ticket `t1-n8x9`, spread across neighbors. There, reasons 2 and 3 lie at a median depth of 0.9 to 1.9 spans, and a = 1.5 keeps all hits of reason 2.
+
+In `cards-glow`, I do not know the cause of reason 3. It is the largest reason of the reflection rays there: 49.9 % of the lost hits and 45.3 % of their light. Those rays meet the card at a median of 53.9°, and they lie a median of 68.6 spans behind the center w. 71.8 % of them start on another surface than a card. Neither the stair case nor a ray along the card's plane fits these numbers.
 
 Reading: reason 4 losses are correct losses. The 10 % rule finds them only because its thick slab catches a ray that passes behind the card. A sheet rule lets that ray go on to what the eye sees through the gap.
 
-Reading: the ticket states reason 1 as a crossing "in the half where the plane is nearer than the center". The records show the other half. In the lamp hall, 151 of 174 reflection crossings of reason 1 lie where the plane is farther than the center. In `cards-glow`, 241 of 393. A ray that crosses the nearer half enters the slab of center w from its front, and the walk catches it.
+The ticket states reason 1 as a crossing "in the half where the plane is nearer than the center". In the lamp hall, 140 of 160 reflection crossings of reason 1 lie in the other half, where the plane is farther than the center. In `cards-glow`, only 207 of 357 do.
+
+Reading: in the lamp hall, the loss of reason 1 lies mostly in the farther half. A ray that crosses the plane there passes behind the center w inside the cell. I cannot explain the 150 lost crossings of `cards-glow` in the nearer half.
 
 ## Commands and refs
 
-The scratch commits hold the probe on top of `refs/scratch/ter-kh4g-1b-sill-census-ahead`. [probe-cards.patch](probe-cards.patch) is the diff of the last one against that base.
+The scratch commits hold the probe on top of `refs/scratch/ter-kh4g-1b-sill-census-ahead`. [probe-cards.patch](probe-cards.patch) is the diff of `ter-kh4g-2-cards-fix` against that base.
 
 | Ref | Commit | Holds |
 |---|---|---|
 | `refs/scratch/ter-kh4g-2-cards-census` | `a5c72ba5` | The pass, the census and part 3's records with rules 1 to 3 |
 | `refs/scratch/ter-kh4g-2-cards` | `3c57be59` | Also the stills scripts and a control against the census tree of stage 1b |
 | `refs/scratch/ter-kh4g-2-cards-rules` | `86a05188` | Also rule 4, a control of run to run, and stills at fixed stops |
+| `refs/scratch/ter-kh4g-2-cards-fix` | `66dae25e` | Also the record cleared before the sky's early return, and the record controls |
 
 The cloud jobs, all through `tools/runpod/gpu_job.py submit` with `--tree t=<ref>`:
 
@@ -365,8 +363,9 @@ The cloud jobs, all through `tools/runpod/gpu_job.py submit` with `--tree t=<ref
 | `0c0f0ac7` | `ter-kh4g-2-cards-census` | `bash t/tools/bf1b/job-cards.sh census` | $0.0502 |
 | `6e81457d` | `ter-kh4g-2-cards` | `bash t/tools/bf1b/job-cards.sh stills`, ran out of time at 840 s | $0.1468 |
 | `20b546ce` | `ter-kh4g-2-cards-rules` | `bash t/tools/bf1b/job-cards.sh stills` | $0.1145 |
-| `af537b80` | `ter-kh4g-2-cards-rules` | `bash t/tools/bf1b/job-cards.sh rules` | $0.0383 |
-| Total | | | $0.3498 |
+| `af537b80` | `ter-kh4g-2-cards-rules` | `bash t/tools/bf1b/job-cards.sh rules`, stale records | $0.0383 |
+| `a03383d4` | `ter-kh4g-2-cards-fix` | `bash t/tools/bf1b/job-cards.sh rules` | $0.0389 |
+| Total | | | $0.3887 |
 
 The Mac runs used a Release build of the export of each ref, with `tools/gpu-lock.sh --shared`:
 
@@ -399,7 +398,9 @@ The tools of this folder:
 - The sheet census gives equal files with and without `TERTIUS_PROBE_SHEET_RULES`.
 - Job `6e81457d` ran the census tree of stage 1b and this tree in one job, on one worker. It ran the lamp hall under `layer` with the pass of 1b. All eight maps were equal byte for byte: the hits per pixel, the sheets and the distances.
 - In that job, one census sample of 3.6 million reflection rays moved from class 0 to class 1, on a solid pixel. The census job `0c0f0ac7` showed the same against job `b5311dd8`.
-- The rules job `af537b80` ran this tree's census of the same view twice. Both runs gave equal census files and maps. Its census equals that of tree t in job `6e81457d`.
+- The rules jobs `af537b80` and `a03383d4` each ran this tree's census of the same view twice. Both runs gave equal census files and maps. Their census equals that of tree t in job `6e81457d`.
+- In job `a03383d4`, the records of each run count the same hits on sheets and the same real hits as its census file. No record has a ray kind that differs from its draw's parity. `sheet_rules.py` prints both checks.
+- The census files of the rules runs in jobs `0c0f0ac7` and `a03383d4` are equal, except for the count of records.
 
 Reading: the moved sample comes from the build of the probe, not from run-to-run noise. The probe changes the shader code of the census, and the compiler can then round one sum differently. One sample of 3.6 million does not change a count in this record.
 
@@ -415,7 +416,15 @@ Reading: the moved sample comes from the build of the probe, not from run-to-run
 
 ## Notes for the design
 
+This record does not change the design document. Both tickets' acceptance criteria need its text: the rule for a mesh that is not closed, and the chosen sheet rule.
+
 - The real closed-mesh test needs a weld. Without it, every UV sphere is open.
 - The ticket's term "exactly two triangles" calls five demo meshes open. The pairing rule calls them closed. The design must choose one.
 - The cutout test of the pass must use the G-buffer's mip bias.
+- The probe built the ticket's second approach: no face culled, and front faces of closed one-sided meshes dropped in the fragment shader. The batcher's runs have no key for a closed mesh. So the approach "more pipelines" also needs a new run key. Ticket `t1-kiaw` measures the choice.
+- Rules a = 1.5 and 4 widen a sheet's slab past the plane's bounds. A real build of either must widen level 1 of the pyramid too.
+- A two-sided or open surface behind the front of a closed solid can end that solid's slab under the new pass. In the dumps of the three views, the back share of no pixel that is not hair changed between the passes. That is 131,082, 164,065 and 201,685 pixels.
+- The weld rounds positions to a grid. Two near positions can fall on the two sides of a grid line and stay apart. The real test needs a weld with a tolerance.
+- Two coincident faces of opposite winding pass the pairing rule as closed. The pass then discards the back face as the front, so such a sheet borrows the back face behind it again. No demo scene was checked for this.
+- The probe's `MeshInfo(..., bool Closed = false)` makes a forgotten flag mean "open". The real mesh record must make the field required.
 - A fragment at the front's own distance needs its own share value. A share of 1 works as the mark, because `slabBack` already treats it as no back face.

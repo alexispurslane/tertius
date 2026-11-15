@@ -1024,7 +1024,7 @@ index ab75b4398..6217374d5 100644
                  float there = length(crossing);
                  // The tolerance: bits 8 to 15 of probeCensus in thousandths, 2 % without them.
 diff --git a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
-index e3a991e17..9a10005bf 100644
+index e3a991e17..b43fa3e15 100644
 --- a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
 +++ b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
 @@ -79,6 +79,59 @@ float censusHalf(uint code)
@@ -1087,18 +1087,21 @@ index e3a991e17..9a10005bf 100644
  #endif
  
  void main()
-@@ -194,6 +247,10 @@ void main()
-     // three below it, less 4.
-     if ((trace.probeCensus & 2u) != 0u)
+@@ -88,6 +141,13 @@ void main()
+         return;
+ #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+     imageStore(lightChangeMask, pixel, vec4(lightChangeMaskAt(pixel), 0.0, 0.0, 0.0));
++#endif
++#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
++    // PROBE (t1-yy2f): no record until a counted ray hits a sheet. Cleared before the sky's early return, so that a
++    // pixel that turns into sky keeps no record of an earlier draw.
++    uint recordBase = (uint(pixel.y) * uint(frame.viewport.x) + uint(pixel.x)) * ProbeRecordWords;
++    if ((trace.probeCensus & 6u) == 6u && recordBase < uint(probeRecords.length()))
++        probeRecords[recordBase] = 0u;
+ #endif
+     if (!tracedSurface(pixel))
      {
-+        // PROBE (t1-yy2f): no record until a counted ray hits a sheet.
-+        uint recordBase = (uint(pixel.y) * uint(frame.viewport.x) + uint(pixel.x)) * ProbeRecordWords;
-+        if ((trace.probeCensus & 4u) != 0u && recordBase < uint(probeRecords.length()))
-+            probeRecords[recordBase] = 0u;
-         uint kind = (trace.drawIndex & 1u) == 0u ? KindReflection : KindDiffuse;
-         uint age = CensusNoRay;
-         uint code = 0u;
-@@ -208,6 +265,10 @@ void main()
+@@ -208,6 +268,10 @@ void main()
              {
                  TracedRay again = traceFrom(pixel, own ? pixel : pixel / 2, c, kind);
                  age = !again.traced ? CensusUntraced : CensusWalkMisses;
@@ -1494,10 +1497,10 @@ index 000000000..95034797f
 +esac
 diff --git a/tools/bf1b/sheet_rules.py b/tools/bf1b/sheet_rules.py
 new file mode 100644
-index 000000000..aea67322d
+index 000000000..a0de3718c
 --- /dev/null
 +++ b/tools/bf1b/sheet_rules.py
-@@ -0,0 +1,138 @@
+@@ -0,0 +1,153 @@
 +#!/usr/bin/env python3
 +"""Throwaway (t1-yy2f, part 3): the real hits on sheets that a sheet rule loses, by reason.
 +
@@ -1586,6 +1589,21 @@ index 000000000..aea67322d
 +    depth_mm = (1.0 / np.maximum(np.maximum(r["in_w"], r["out_w"]), 1e-30) - 1.0 / r["w"]) * 1000.0
 +    print(f"## {folder}")
 +    print(f"records (hits on sheets under the 10 % rule): {len(reason)}")
++    # Controls: a fresh record's ray kind follows its draw (even draws trace reflection rays), and the records count the
++    # same hits on sheets as the census file of the same run.
++    print(f"check: records whose ray kind does not match the draw's parity: {(r['diffuse'] != (r['draw'] & 1)).sum()}")
++    census = Path(folder) / "census.txt"
++    if census.exists():
++        counts = {}
++        for line in census.read_text().splitlines()[1:]:
++            p = line.split()
++            if p[0].startswith("sheet-") and p[1] == "hit" and p[2] == "sheet":
++                key = (p[0][len("sheet-"):], p[6] == "1")
++                counts[key] = counts.get(key, 0) + int(p[-2])
++        for kind, name in ((0, "reflection"), (1, "diffuse")):
++            k = r["diffuse"] == kind
++            print(f"check: {name} hits on sheets, records {k.sum()} against census {counts.get((name, False), 0) + counts.get((name, True), 0)};"
++                  f" real, records {(k & (r['crossing'] == 1)).sum()} against census {counts.get((name, True), 0)}")
 +    for kind, name in ((0, "reflection"), (1, "diffuse")):
 +        k = r["diffuse"] == kind
 +        real = k & (r["crossing"] == 1)
