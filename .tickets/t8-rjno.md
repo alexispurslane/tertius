@@ -169,3 +169,15 @@ nix develop --command bash /Users/alexispurslane/Development/tertius/tools/gpu-l
 ```
 
 Then follow the brief's stages from item 2 of "What is not done".
+
+**2026-11-21T17:16:39Z**
+
+2026-11-21, the line orchestrator: one tap fails the merge condition, and the design changes.
+
+Measured by the lead on main 13f4714a9, in a throwaway scene with a turning wall and a panning camera, 8 views with two per cascade. At one tap (reach 1 texel) the upper edge at 5 m in cascade 0 is a scalloped staircase of about one shadow texel per step, and it crawls as the wall turns. Main is soft there. The other views are clean, but for a small notch at the blend into cascade 3 and a comb of streaks at 290 m that main also has. The jamb's mean on columns 1800 to 1809 with the screen tracer off: main 0.2221 over 11 columns, reach 2 0.1375 over 8, reach 1.5 0.0583 over 6 with a faint wave at 5 m, reach 1 0.0171 over 4. The crops are in /Users/alexispurslane/.t3/worktrees/tertius/t3-7e999be0-evidence/crops/.
+
+The reading: a symmetric filter puts half of its blur inside the shadow, so its reach trades the leak against the stair steps. The reach that hides the texel grid is above 1.5 texels, and the reach that meets the jamb's target is under 1.5.
+
+The changed design (the line orchestrator's answer, reported to the orchestrator, who can reverse it): the blur that hides the texel grid is not physical, so we choose where its error lies. The user's bar chooses it: light inside a shadow is a bug, and lost light is acceptable. The filter keeps main's reach of 2.5 texels and only takes light away. A filter centered on a straight shadow edge is half lit. So the sun's share is clamp(2 * litFraction - 1, 0, 1): 0 up to a lit fraction of one half, rising to 1. GLSL: float lightOutsideShadow(float litFraction), applied by sampleCascade to the result of filteredCascade. ShadowBias.CascadeFilterReachTexels becomes FilterReachTexels. The costs, as known limits: lit areas shrink by about half the reach at each edge (about 0.07 m in cascade 0), a sunlit slit narrower than about the reach goes dark, a thin caster's shadow is about twice as dark, and a small leak can stay at a concave corner of a shadow. The merge condition does not change: no stair steps and no crawl in any cascade, the jamb's mean under 0.03, and no acne on lit ground. If one fails, the work stops and the fork goes up with crops. The lead's roof test at 1.5 texels inside the edge was accepted for the one-tap form. The new form's roof test starts 0.5 texels inside.
+
+Step 2 (t1-af5w) needs a new design note before it starts: the blocker search must combine a physical, symmetric penumbra with this rule.
