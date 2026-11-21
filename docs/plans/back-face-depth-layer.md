@@ -328,6 +328,7 @@ The merge into main waits for Alexis, because the frame budget and the changed l
 
 - Where two closed objects pass through each other, the first back face behind the front surface can belong to the inner object. The slab then ends early there.
 - Two coincident faces of opposite winding pass as closed, and the pass then drops the back one as the front. Such a sheet takes the back face behind it.
+- A closed plate thinner than 10⁻⁴ of its distance has its back face inside the pass's float tolerance. A closed one-sided run does not count that fragment, so the plate's pixels take the back face of the surface behind them. At 10 m that is a plate under 1 mm. The line orchestrator settled on 2026-11-21 to keep the rule: a closed run that writes 1 inside the tolerance cannot tell such a plate from two coincident faces.
 - The reference shows that every rule gives the cabin's pillar faces 24 % to 50 % of the true ratio. The engine carries less light of several bounces than a path tracer (bug ticket `t1-mybi`). The layer does not change that.
 - Under the full lights of the two reference views, Earth's light through windows dominates the truth. The engine's rooms do not get that light (bug ticket `t1-tbz9`). That light is no part of this epic.
 - The jamb of `rect-lamps` keeps a bright strip at its outer edge. It is direct sunlight that the sun's shadow lets through (bug ticket `t8-rjno`). Under the 10 % rule, false light hid it.
