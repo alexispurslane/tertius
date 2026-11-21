@@ -1,6 +1,6 @@
 ---
 id: lin-4ffc
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-11-15T16:01:38Z
