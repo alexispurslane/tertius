@@ -174,3 +174,21 @@ Tests added to part 1's list
 8. A block with regional evidence and no other keeps a history of at most 8 draws, and the ray plan gives its pixels the shared ray.
 9. A block with regional evidence and motion evidence acts as under motion evidence alone.
 10. A block with regional evidence and a ray's light evidence cuts to the fast cap.
+
+**2026-11-21T23:12:12Z**
+
+Timing spike of the region drift pass (remedy lead, 2026-11-21). Base: the line's head 8ec383c6e. Each side is a Release demo at 1920x1080, --in-flight 2, under the exclusive GPU lock, beside gpu-clock (1296 MHz in every run). Each round runs the deck (scripts/temporal-upscale-timing.json) and the film rect-bay, for each side alone. A difference is the side's medianMs minus base's in the same round. The spread is the largest minus the smallest difference of the four rounds. The budget is +0.10 ms on the deck.
+
+| Side | What it records | Rounds | Deck | Film |
+|---|---|---|---:|---:|
+| plain | the tap store, and a region pass of 17 × 17 imageLoads per block, for both signals | r2 to r5 | +0.271 (spread 0.082) | +0.289 (spread 0.062) |
+| box | the tap store, and a region pass with a box sum in two steps through shared memory, for both signals | b1 to b4 | +0.254 (spread 0.196) | +0.270 (spread 0.113) |
+| box again | the same binary | c1 to c4 | +0.242 (spread 0.127) | +0.202 (spread 0.069) |
+| off | the tap store only, no region pass | b1 to b4 | +0.080 (spread 0.203) | +0.073 (spread 0.100) |
+| one | the tap store, and the box region pass for the diffuse signal only | c1 to c4 | +0.133 (spread 0.181) | +0.209 (spread 0.103) |
+
+The side "one" is the least that one dispatch for both signals can cost: one dispatch and one barrier flush. A single dispatch for both signals also does the work of both, so it costs at least as much. So all three ways of the design miss the budget. The box sum costs about what the plain loop costs, so the pass's arithmetic is not the cost. The cost is mostly fixed: each region dispatch and its barrier flush cost about 0.06 to 0.13 ms on MoltenVK, and the tap store about 0.08 ms.
+
+This is the fork that the brief names. I stopped there. The record: docs/research/t0-acxm-region-evidence/spike/ holds plain.patch, box-and-switches.patch (with the SCRATCH switches off and one) and timing.txt. The tools are in the folder's tools/.
+
+A way out that the brief does not list, not built: fuse the region test into the spatial dispatch. Each spatial workgroup is one block of 8 × 8 pixels. So each workgroup can sum the 17 × 17 taps around it, about 5 loads per invocation, then update and test its own ring, and share the bit through shared memory. The taps go into the barrier that already runs before the spatial dispatch. So the fused test adds no dispatch and no barrier flush. Its expected cost is near the side "off", about +0.08 ms, plus the workgroup's sum. No other workgroup reads a block's ring, so the ring needs no barrier.
