@@ -1,3 +1,28 @@
+# tables.txt: every number of step 2 and of the strips check of t0-ion0. Step 1's count is in tables-step1.txt.
+# How this file was made. The first sections, up to "Lag films", and the section "The strips check" are the output of
+# tools/measure.sh on 2026-11-15, run after today's jitter and the strips takes. The disk order of that day had each
+# take's frames deleted as soon as its numbers stood in the record. So the takes without jitter (n-) and under the long
+# Halton sequence (l-) were measured group by group as they ended, with the same measuring scripts, and their sections
+# were appended below by hand ("## Jitter n, ...", "## Jitter l, ...", "## The strips check, question 1 ..."). The
+# measure.sh sections for those groups cannot run again, because their frames and series are deleted.
+
+## Controls of the later builds, recorded from the session's commands on 2026-11-15
+# Each later build must repeat the one before byte for byte with its new switch at its default. The images are deleted,
+# so the commands and their printed outputs stand here as recorded.
+$ cmp -s c-T0-e/images/still/rect-lamps.png c2-T0-e/images/still/rect-lamps.png   (and the -reference.png images)
+rect-lamps.png equal / rect-lamps-reference.png equal          (second build against the first)
+$ cmp -s kt-rect-lamps/images/still/rect-lamps.png kt2-rect-lamps/images/still/rect-lamps.png   (and the reference)
+count rect-lamps.png equal / count rect-lamps-reference.png equal
+$ cmp -s t-fix-e/images/still/rect-lamps.png kt-rect-lamps/images/still/rect-lamps.png
+fix-hn = count still, equal        (the fix with the store against step 1's count still, which has ACT=0)
+$ cmp -s t-Q1-e/images/still/rect-lamps.png y-Q1-e/images/still/rect-lamps.png   (and the reference)
+Q1 still equal / Q1 reference equal                                (third build against the second)
+$ python3 cmpcount.py   (kt2-rect-lamps against mt-rect-lamps, the first five count layers of both lights)
+diffuse (29, 360, 640, 5) (29, 360, 640, 8) True five layers equal: True
+specular (29, 360, 640, 5) (29, 360, 640, 8) True five layers equal: True
+$ cmp -s t-Q1-e/images/still/rect-lamps.png z-Q1-e/images/still/rect-lamps.png
+z control equal                                                    (fourth build against the second)
+
 ## Controls
 
 # c-T0-e: every new switch at its default, old store, must repeat the tolerance record's T0 (96.4 / 101.4)
@@ -106,11 +131,7 @@ t-Q1-rb                          +0.44 / +0.19   0.105 / 0.111
 t-Q3-rb                          +0.47 / +0.23   0.122 / 0.148
 t-Q2-rb                          +0.43 / +0.19   0.102 / 0.108
 
-t-fix-fe rect-bay: f10 +0.02  f20 +0.08  f30 +0.15  middle +1.86  end +1.91
-t-cap4-fe rect-bay: f10 +0.03  f20 +0.06  f30 +0.09  middle +0.43  end +0.18
-t-Q0-fe rect-bay: f10 +0.02  f20 +0.07  f30 +0.10  middle +0.44  end +0.19
-t-Q1-fe rect-bay: f10 +0.02  f20 +0.08  f30 +0.12  middle +0.44  end +0.19
-t-Q3-fe 
+(The six early-film lines stand in the last section, "Film rect-bay, frames 10, 20, 30".)
 
 ## Lag films, today's jitter: median lag in draws / median lag error
 
@@ -123,98 +144,7 @@ t-Q1-lag                              8.66 / 0.1026              4.38 / 0.0275  
 t-Q3-lag                              8.22 / 0.1019              4.46 / 0.0275             -0.29 / 0.0114
 t-Q2-lag                              8.78 / 0.1029              4.48 / 0.0274             -0.33 / 0.0121
 
-## Jitter n (n none, l the long Halton sequence)
-
-$ light.py n-A-e n-A-e n-fix-e n-Q1-e n-Q3-e n-Q2-e
-
-$ lengths.py n-A-e n-fix-e n-Q1-e n-Q3-e n-Q2-e
-
-$ stills.py rect-lamps n-A-s n-fix-s n-Q1-s n-Q3-s n-Q2-s
-Traceback (most recent call last):
-  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-xlcu-regional-tolerance/tools/stills.py", line 5, in <module>
-    r = json.load(open(f's/{v}/results/still/{case}.json'))
-                  ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-FileNotFoundError: [Errno 2] No such file or directory: 's/n-A-s/results/still/rect-lamps.json'
-
-$ REF=n-A-s daub.py ...
-Traceback (most recent call last):
-  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-mzhr-regional-test-cycle/tools/daub.py", line 19, in <module>
-    s = lin(f's/{v}/images/still/{case}.png'); r = lin(f's/{__import__("os").environ.get("REF", v)}/images/still/{case}-reference.png')
-  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-mzhr-regional-test-cycle/tools/daub.py", line 15, in lin
-    a = np.asarray(Image.open(p).convert('RGB')).astype(float) / 255
-                   ~~~~~~~~~~^^^
-  File "/nix/store/yfd10hipys5l2ba4xpi2dxhr6vik28ar-python3-3.14.7-env/lib/python3.14/site-packages/PIL/Image.py", line 3639, in open
-    fp = builtins.open(filename, "rb")
-FileNotFoundError: [Errno 2] No such file or directory: 's/n-A-s/images/still/rect-lamps.png'
-
-$ switch.py s/n-A-sw/results/switch/cabin.json s/n-A-sw/results/switch/cabin.json s/n-fix-sw/results/switch/cabin.json s/n-Q1-sw/results/switch/cabin.json s/n-Q3-sw/results/switch/cabin.json s/n-Q2-sw/results/switch/cabin.json
-Traceback (most recent call last):
-  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-xlcu-regional-tolerance/tools/switch.py", line 26, in <module>
-    ref = json.load(open(sys.argv[1]))["series"]
-                    ~~~~^^^^^^^^^^^^^
-FileNotFoundError: [Errno 2] No such file or directory: 's/n-A-sw/results/switch/cabin.json'
-
-$ switchearly.py s/n-A-sw/results/switch/cabin.json s/n-A-sw/results/switch/cabin.json s/n-fix-sw/results/switch/cabin.json s/n-Q1-sw/results/switch/cabin.json s/n-Q3-sw/results/switch/cabin.json s/n-Q2-sw/results/switch/cabin.json
-Traceback (most recent call last):
-  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-ion0-region-drift/tools/switchearly.py", line 7, in <module>
-    ref = json.load(open(sys.argv[1]))["series"]
-                    ~~~~^^^^^^^^^^^^^
-FileNotFoundError: [Errno 2] No such file or directory: 's/n-A-sw/results/switch/cabin.json'
-
-## Jitter l (n none, l the long Halton sequence)
-
-$ light.py l-A-e l-A-e l-fix-e l-Q1-e l-Q3-e l-Q2-e
-
-$ lengths.py l-A-e l-fix-e l-Q1-e l-Q3-e l-Q2-e
-
-$ stills.py rect-lamps l-A-s l-fix-s l-Q1-s l-Q3-s l-Q2-s
-Traceback (most recent call last):
-  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-xlcu-regional-tolerance/tools/stills.py", line 5, in <module>
-    r = json.load(open(f's/{v}/results/still/{case}.json'))
-                  ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-FileNotFoundError: [Errno 2] No such file or directory: 's/l-A-s/results/still/rect-lamps.json'
-
-$ REF=l-A-s daub.py ...
-Traceback (most recent call last):
-  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-mzhr-regional-test-cycle/tools/daub.py", line 19, in <module>
-    s = lin(f's/{v}/images/still/{case}.png'); r = lin(f's/{__import__("os").environ.get("REF", v)}/images/still/{case}-reference.png')
-  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-mzhr-regional-test-cycle/tools/daub.py", line 15, in lin
-    a = np.asarray(Image.open(p).convert('RGB')).astype(float) / 255
-                   ~~~~~~~~~~^^^
-  File "/nix/store/yfd10hipys5l2ba4xpi2dxhr6vik28ar-python3-3.14.7-env/lib/python3.14/site-packages/PIL/Image.py", line 3639, in open
-    fp = builtins.open(filename, "rb")
-FileNotFoundError: [Errno 2] No such file or directory: 's/l-A-s/images/still/rect-lamps.png'
-
-$ switch.py s/l-A-sw/results/switch/cabin.json s/l-A-sw/results/switch/cabin.json s/l-fix-sw/results/switch/cabin.json s/l-Q1-sw/results/switch/cabin.json s/l-Q3-sw/results/switch/cabin.json s/l-Q2-sw/results/switch/cabin.json
-Traceback (most recent call last):
-  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-xlcu-regional-tolerance/tools/switch.py", line 26, in <module>
-    ref = json.load(open(sys.argv[1]))["series"]
-                    ~~~~^^^^^^^^^^^^^
-FileNotFoundError: [Errno 2] No such file or directory: 's/l-A-sw/results/switch/cabin.json'
-
-$ switchearly.py s/l-A-sw/results/switch/cabin.json s/l-A-sw/results/switch/cabin.json s/l-fix-sw/results/switch/cabin.json s/l-Q1-sw/results/switch/cabin.json s/l-Q3-sw/results/switch/cabin.json s/l-Q2-sw/results/switch/cabin.json
-Traceback (most recent call last):
-  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-ion0-region-drift/tools/switchearly.py", line 7, in <module>
-    ref = json.load(open(sys.argv[1]))["series"]
-                    ~~~~^^^^^^^^^^^^^
-FileNotFoundError: [Errno 2] No such file or directory: 's/l-A-sw/results/switch/cabin.json'
-
 ## The strips check
-
-# Question 1: the lamps-on control of the cabin switch per jitter phase (strips.py), the reference and the cap of 4 draws
-$ strips.py s/t-A-sw/results/switch/cabin.json s/n-A-sw/results/switch/cabin.json
-Traceback (most recent call last):
-  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-ion0-region-drift/tools/strips.py", line 11, in <module>
-    none = json.load(open(sys.argv[2]))["series"]["on"]
-                     ~~~~^^^^^^^^^^^^^
-FileNotFoundError: [Errno 2] No such file or directory: 's/n-A-sw/results/switch/cabin.json'
-
-$ strips.py s/t-cap4-sw/results/switch/cabin.json s/n-cap4-sw/results/switch/cabin.json
-Traceback (most recent call last):
-  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-ion0-region-drift/tools/strips.py", line 11, in <module>
-    none = json.load(open(sys.argv[2]))["series"]["on"]
-                     ~~~~^^^^^^^^^^^^^
-FileNotFoundError: [Errno 2] No such file or directory: 's/n-cap4-sw/results/switch/cabin.json'
 
 # Question 2: the lamp hall still with and without the sun (TERTIUS_NO_SUN=1), the reference and region, window 4
 $ light.py s-t-A-sun-e s-t-A-sun-e s-t-W4-sun-e
@@ -257,6 +187,8 @@ s-t-cap4-nosun-sw                      50/34         30/23       42/32       102
 levels and dips in % of the reference's control at the same frame; own15 in % against the run's own control
 
 $ strips.py s/s-t-cap4-nosun-sw/results/switch/cabin.json s/s-t-cap4-nosun-sw/results/switch/cabin.json
+# No no-jitter run without the sun exists, so this call passed the same run twice. Its "no jitter" numbers repeat the
+# cycle mean and mean nothing. Only the per-phase numbers under today's jitter are measured.
 whole: today's jitter, per phase: 0.3592 0.3594 0.3585 0.3584 0.3598 0.3600 0.3598 0.3598 0.3585 0.3589 0.3593 0.3594 0.3594 0.3599 0.3597 0.3595 0.3599 0.3588
 whole: cycle mean 0.3593, darkest phase 0.3584, median phase 0.3594, brightest phase 0.3600 (+0.2 % over the mean); no jitter 0.3593 (+0.0 % against the cycle mean, -0.0 % against the median phase)
 r11: today's jitter, per phase: 0.3179 0.3172 0.3165 0.3163 0.3175 0.3175 0.3174 0.3168 0.3144 0.3174 0.3176 0.3184 0.3182 0.3175 0.3175 0.3173 0.3168 0.3147

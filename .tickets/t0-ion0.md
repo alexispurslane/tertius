@@ -239,3 +239,101 @@ My reading:
 The long Halton sequence: a rule that passes under today's jitter loses the still's light under the long sequence. Q3, the closest rule, falls from 96.5 / 100.2 % to 94.9 / 95.6 %, and the cabin center before the switch swings from 89.2 to 99.6 %. So the long sequence comes after a remedy for the sun's strips, not before it.
 
 Not taken, by the line orchestrator's decision of 2026-11-21: the lamp hall stills at the automatic exposure under the long sequence. The room holds the sun's shadow leak, and every acceptance number of that room gets new takes after the shadow fix.
+
+**2026-11-21T16:28:38Z**
+
+Step 2's tables, and the review's corrections (ticket lead, 2026-11-21). The acceptance asks for every take's table in a note, so they follow, copied from the README after the review's fixes. The review changed four readings of the step 2 note above. Q3 settles no faster than the fix, and Q1 is faster only on the lamps-on switch (90 against none). Every rule closes rect-bay's trail to the cap's level, but in bay-sun the rules stay about 14 % above the cap (0.102 to 0.103 against 0.0897), and Q3's last frame keeps more blotch (0.148 against 0.101). Under the long sequence, the cabin center swings 10 to 17 points, and only Q1 settles faster than under today's jitter on both switches. The strips check's "never" reading is now marked unverified: the whole image holds within 0.2 % without jitter, so light moves between regions. A graded cut is not needed: the cabin fails by the wait before the first cut, not by the cut's depth.
+
+The lamp hall still, today's jitter:
+
+| Variant | Light at 4.08 stops, ceiling / walls (%) | Scene light, no jitter, ceiling / walls (%) | Specks | Blotch | Daub | Ceiling's mean length / share below 8 draws |
+|---|---|---|---:|---:|---:|---|
+| Reference | 100.0 / 100.0 | 100.0 / 100.0 | 12.08 | 0.1159 | 0.0420 | not counted |
+| The fix | 96.0 / 99.7 | 98.7 / 100.0 | 5.96 | 0.1027 | 0.0406 | 32.0 / 0.0 % |
+| Cap 4 | 94.5 / 99.2 | 98.4 / 99.9 | 6.85 | 0.0607 | 0.0434 | 4.0 / 100 % |
+| Q0 | 96.0 / 100.5 | 98.5 / 99.9 | 8.78 | 0.0647 | 0.0437 | 12.5 / 50.5 % |
+| Q1 | 96.7 / 100.3 | 98.7 / 100.1 | 7.99 | 0.0722 | 0.0417 | 26.1 / 11.2 % |
+| Q3 | 96.5 / 100.2 | 98.7 / 100.1 | 6.27 | 0.0748 | 0.0405 | 29.4 / 4.8 % |
+| Q2 | 94.0 / 96.0 | 98.6 / 99.9 | 9.50 | 0.0653 | 0.0424 | 22.3 / 18.3 % |
+| Main (old store) | 78.4 / 81.2 | | | | | |
+
+No jitter and the long Halton sequence:
+
+| Variant | No jitter, light | No jitter, length | Long sequence, light | Long sequence, length |
+|---|---|---:|---|---:|
+| The fix | 96.9 / 100.0 % | 32.0 | 96.8 / 99.6 % | 32.0 |
+| Q1 | 96.8 / 100.1 % | 21.5 | 94.0 / 93.9 % | 21.5 |
+| Q3 | 96.8 / 100.1 % | 26.9 | 94.9 / 95.6 % | 26.0 |
+| Q2 | 96.7 / 99.9 % | 15.7 | 92.2 / 91.4 % | 16.0 |
+
+No jitter and the long Halton sequence:
+
+| Variant | Specks | Blotch | Daub | Daub's broad part |
+|---|---:|---:|---:|---:|
+| Reference | 6.90 | 0.0644 | 0.0324 | 0.0541 |
+| The fix | 3.19 | 0.0662 | 0.0325 | 0.0876 |
+| Q1 | 5.03 | 0.0445 | 0.0351 | 0.1045 |
+| Q3 | 3.87 | 0.0457 | 0.0340 | 0.0982 |
+| Q2 | 7.33 | 0.0483 | 0.0365 | 0.1108 |
+
+No jitter and the long Halton sequence:
+
+| Variant | No jitter: settle off / on | No jitter: r11 before, lowest / highest | Long sequence: settle off / on | Long sequence: r11 before, lowest / highest |
+|---|---|---|---|---|
+| Reference | none / none | 100.0 / 100.0 % | none / none | 100.0 / 100.0 % |
+| The fix | 112 / 66 | 100.8 / 100.8 % | 168 / none | 98.1 / 99.3 % |
+| Cap 4 | 49 / 26 | 104.1 / 104.8 % | not taken | not taken |
+| Q1 | 84 / 41 | 103.6 / 104.2 % | 65 / 38 | 87.3 / 99.4 % |
+| Q3 | 83 / 42 | 102.9 / 103.4 % | 103 / 55 | 89.2 / 99.6 % |
+| Q2 | 66 / 39 | 103.8 / 104.5 % | 83 / 40 | 84.3 / 101.5 % |
+
+The film rect-bay and the lag films, today's jitter:
+
+| Variant | rect-bay middle / last | Blotch middle / last | bay-sun lag / lag error | lamp-hall-16-moving | lamp-hall-64-spot-moving |
+|---|---|---|---|---|---|
+| The fix | +1.86 / +1.91 | 0.383 / 0.484 | 29.72 / 0.2808 | 4.44 / 0.0277 | −0.17 / 0.0107 |
+| Cap 4 | +0.43 / +0.18 | 0.102 / 0.101 | 8.34 / 0.0897 | 4.47 / 0.0271 | −0.34 / 0.0115 |
+| Q0 | +0.44 / +0.19 | 0.105 / 0.101 | 8.56 / 0.1027 | 4.39 / 0.0276 | −0.35 / 0.0118 |
+| Q1 | +0.44 / +0.19 | 0.105 / 0.111 | 8.66 / 0.1026 | 4.38 / 0.0275 | −0.30 / 0.0116 |
+| Q3 | +0.47 / +0.23 | 0.122 / 0.148 | 8.22 / 0.1019 | 4.46 / 0.0275 | −0.29 / 0.0114 |
+| Q2 | +0.43 / +0.19 | 0.102 / 0.108 | 8.78 / 0.1029 | 4.48 / 0.0274 | −0.33 / 0.0121 |
+| Main (old store) | +1.18 / +0.53 | | 28.55 / 0.2644 | | |
+
+The cabin switch, today's jitter:
+
+| Variant | Settle, slowest off / on | r11 settle off / on | Level 60 draws after, off / on, whole (%) | Level 60 draws after, off / on, r11 (%) | r11 before the switch, lowest / highest (%) | r11 at d 5 / 10 / 20 after off (%) | r11 at d 5 / 10 / 20 after on (%) |
+|---|---|---|---|---|---|---|---|
+| Reference | none / 99 | 66 / 43 | 105.8 / 96.0 | 105.1 / 95.5 | 100.0 / 100.0 | 107.8 / 107.7 / 107.0 | 94.5 / 94.3 / 94.5 |
+| The fix | 74 / none | 74 / none | 95.3 / 89.4 | 94.3 / 82.6 | 99.1 / 100.3 | 105.8 / 94.9 / 95.2 | 84.7 / 79.5 / 80.2 |
+| Cap 4 | 46 / 23 | 20 / 18 | 102.0 / 91.1 | 115.1 / 87.0 | 91.2 / 124.3 | 131.2 / 117.8 / 128.3 | 78.1 / 75.5 / 85.9 |
+| Q0 | 134 / 42 | 134 / 42 | 100.8 / 89.9 | 109.7 / 84.1 | 102.1 / 124.3 | 127.5 / 114.1 / 118.5 | 78.1 / 75.2 / 81.3 |
+| Q1 | 77 / 90 | 77 / 90 | 96.7 / 89.5 | 97.3 / 82.3 | 106.0 / 107.4 | 112.0 / 99.5 / 96.0 | 81.4 / 77.2 / 78.8 |
+| Q3 | 76 / none | 76 / none | 96.3 / 89.4 | 96.8 / 82.7 | 104.3 / 105.5 | 110.3 / 98.3 / 95.7 | 82.7 / 78.1 / 79.3 |
+| Q2 | 37 / 69 | 37 / 69 | 95.7 / 89.2 | 94.4 / 81.1 | 101.4 / 103.3 | 108.0 / 96.4 / 94.3 | 77.6 / 74.3 / 76.8 |
+| Main (old store) | 75 / 52 | | | | | | |
+
+Question 1: always or never:
+
+| Run | Region | Today's jitter: darkest / median / brightest phase | Cycle mean | No jitter |
+|---|---|---|---:|---:|
+| Reference | whole image | 0.7881 / 0.7893 / 0.7911 | 0.7896 | 0.7913 |
+| Reference | r11 | 0.7991 / 0.8073 / 0.8124 | 0.8069 | 0.4389 |
+| Cap 4 | whole image | 0.7109 / 0.7308 / 0.7450 | 0.7291 | 0.7683 |
+| Cap 4 | r11 | 0.6310 / 0.7169 / 0.7816 | 0.7139 | 0.4436 |
+
+Question 2: how much of the cycle is the sun's:
+
+| Jitter | Measure | With the sun | Without the sun |
+|---|---|---|---|
+| Today's | Light at 4.08 stops | 90.7 / 92.8 % | 100.3 / 100.2 % |
+| Today's | Scene light | 95.4 / 94.1 % (whole image 92.9 %) | 100.1 / 100.1 % (whole image 100.1 %) |
+| None | Light at 4.08 stops | 96.1 / 99.6 % | 100.3 / 100.2 % |
+| None | Scene light | 98.3 / 99.7 % (whole image 96.3 %) | 100.1 / 100.1 % (whole image 100.1 %) |
+
+Question 2: how much of the cycle is the sun's:
+
+| | With the sun | Without the sun |
+|---|---|---|
+| r11, lowest / highest | 91.2 / 124.3 % | 102.0 / 102.3 % |
+| Settle, slowest off / on | 46 / 23 | 50 / 34 |
+| r11 per jitter phase in the lamps-on control, darkest / brightest, against the cycle mean | −11.6 / +9.5 % | −0.9 / +0.4 % |

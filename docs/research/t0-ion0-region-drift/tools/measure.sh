@@ -2,6 +2,8 @@
 # measure.sh: prints every table of step 2, the controls and the strips check from the run folders in
 # /private/tmp/t0-ion0/runs, through m.sh. Its output is tables.txt. Step 1's count is in tables-step1.txt
 # (measure-1.sh). The raw captures are deleted after the record, so a section prints only while its runs exist.
+# tables.txt is this script's output for today's jitter and the strips takes, plus the n- and l- sections, which were
+# measured group by group with the same scripts and appended by hand (tables.txt says how).
 M=$(dirname "$0")/m.sh
 run() { echo "\$ $*"; "$M" "$@" 2>&1 | grep -v -i "warning\|sqlite"; echo; }
 S=results/switch/cabin.json; F=results/motion/rect-bay.json
@@ -49,4 +51,4 @@ for j in t n; do for sun in sun nosun; do
 done; done
 echo "# The cabin switch without the sun, today's jitter: the cap of 4 draws against the reference without the sun"
 run switch.py s/s-t-A-nosun-sw/$S s/s-t-A-nosun-sw/$S s/s-t-cap4-nosun-sw/$S
-run strips.py s/s-t-cap4-nosun-sw/$S s/s-t-cap4-nosun-sw/$S
+run strips.py s/s-t-cap4-nosun-sw/$S
