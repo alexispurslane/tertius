@@ -897,7 +897,43 @@ public sealed class AccumulatorRenderTests
             const int Frames = 320;
             DrawWalkedSamples(renderer: renderer, sample: sample, scene: scene, frames: Frames);
 
-            double exact = Enumerable.Range(0, Width * Height).Average(pixel => ExactDeviation(pixel, Frames));
+            double exact = Enumerable.Range(0, Width * Height).Average(pixel => ExactDeviation(WalkedLight, pixel, Frames));
+            double retained = RetainedDeviationOf(renderer, sample).Average(deviation => (double)deviation);
+            (retained / exact)
+                .Should()
+                .BeApproximately(1, 0.005, "the deviation of {0} follows the samples' {1}", retained, exact);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Theory]
+    [InlineData(0.01f)]
+    [InlineData(0.02f)]
+    public void ALongHistoryRetainsTheDeviationOfSamplesThatSpreadByAFewPercentOfTheirLight(float variation)
+    {
+        // The rounding test of the retained deviation zeroes a step that is only the stall of the fast history's blend.
+        // That blend has the weight 1 / min(L, 4), so the test weighs the step with it. Weighed with the variance's weight
+        // 1 / min(L, 32), at L = 32 it zeroed real steps up to 32 / 1536, about 2.1 % of the light (ticket lin-4ffc): a CPU
+        // model of this test gives 0.28 of the exact deviation at a spread of 1 % and 0.90 at 2 %, against 0.999 and 1.000
+        // for the fast history's weight.
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+            parameters: SignalParameters.Diffuse
+        );
+        try
+        {
+            const int Frames = 320;
+            float SpreadLight(int pixel, int frame) => SpreadSampleLight(variation, pixel, frame);
+            for (int frame = 0; frame < Frames; frame++)
+            {
+                int drawn = frame;
+                sample.Samples = (column, row) => new Vector4(new Vector3(SpreadLight(row * Width + column, drawn)), 1);
+                Continue(renderer, scene, frames: 1);
+            }
+
+            double exact = Enumerable.Range(0, Width * Height).Average(pixel => ExactDeviation(SpreadLight, pixel, Frames));
             double retained = RetainedDeviationOf(renderer, sample).Average(deviation => (double)deviation);
             (retained / exact)
                 .Should()
@@ -910,16 +946,29 @@ public sealed class AccumulatorRenderTests
     }
 
     /// <summary>
-    /// The retained deviation of <paramref name="pixel"/> after <paramref name="frames"/> draws of
-    /// <see cref="WalkedLight"/>, by the update of accumulate_temporal.comp in double precision, with no store's rounding.
+    /// The sample of <paramref name="pixel"/> in <paramref name="frame"/> for
+    /// <see cref="ALongHistoryRetainsTheDeviationOfSamplesThatSpreadByAFewPercentOfTheirLight"/>: a light of 0.5 whose
+    /// coefficient of variation is <paramref name="variation"/>, with uniform noise of √3 · <paramref name="variation"/>
+    /// each side, independent between pixels and frames.
     /// </summary>
-    private static double ExactDeviation(int pixel, int frames)
+    private static float SpreadSampleLight(float variation, int pixel, int frame)
+    {
+        float uniform = Hashed(pixel % Width, pixel / Width, frame) / (float)uint.MaxValue * 2 - 1;
+        return 0.5f * (1 + MathF.Sqrt(3) * variation * uniform);
+    }
+
+    /// <summary>
+    /// The retained deviation of <paramref name="pixel"/> after <paramref name="frames"/> draws of the sample light
+    /// <paramref name="lightAt"/> (of a pixel and a frame), by the update of accumulate_temporal.comp in double precision,
+    /// with no store's rounding and no rounding test.
+    /// </summary>
+    private static double ExactDeviation(Func<int, int, float> lightAt, int pixel, int frames)
     {
         double fast = 0;
         double deviation = 0;
         for (int frame = 0; frame < frames; frame++)
         {
-            double light = (float)(Half)WalkedLight(pixel, frame);
+            double light = (float)(Half)lightAt(pixel, frame);
             int length = Math.Min(frame + 1, 32);
             double weight = 1.0 / length;
             double step = light - fast;
@@ -1125,12 +1174,13 @@ public sealed class AccumulatorRenderTests
     }
 
     [Fact]
-    public void ASettledLightThatMovesByThreePercentCountsAsSpread()
+    public void ASettledLightThatMovesByFourTenthsOfAPercentCountsAsSpread()
     {
-        // 0.25 is a half float, so the fast history settles on it exactly, with no deviation. A move to 0.2575 gives a step
-        // of about 0.0074, and at the variance's weight 1 / 32 a weighted step of 0.093 % of the light: above
-        // BlendRounding, 1/1536 or 0.065 %, which bounds the rounding of a store to the nearest half float. The older rule
-        // for a store that rounds toward zero, 1/768 or 0.13 %, took it for the store's rounding.
+        // 0.25 is a half float, so the fast history settles on it exactly, with no deviation. A move to 0.251, the half
+        // float 0.250977, gives a step of 0.39 % of the light, and at the fast history's weight 1 / 4 a weighted step of
+        // 0.098 %: above BlendRounding, 1/1536 or 0.065 %, which bounds the rounding of a store to the nearest half float.
+        // The older rule for a store that rounds toward zero, 1/768 or 0.13 %, took it for the store's rounding, and so
+        // did the test at the variance's weight 1 / 32 (ticket lin-4ffc).
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
             parameters: SignalParameters.Diffuse
         );
@@ -1141,10 +1191,40 @@ public sealed class AccumulatorRenderTests
             Continue(renderer, scene, frames: 60);
             RetainedDeviationOf(renderer, sample)[Center].Should().Be(0, "the light was constant");
 
-            sample.Value = new(x: 0.2575f, y: 0.2575f, z: 0.2575f, w: 1);
+            sample.Value = new(x: 0.251f, y: 0.251f, z: 0.251f, w: 1);
             Continue(renderer, scene, frames: 1);
 
-            RetainedDeviationOf(renderer, sample)[Center].Should().BePositive("a move of 3 % is a change of light");
+            RetainedDeviationOf(renderer, sample)[Center].Should().BePositive("a move of 0.4 % is a change of light");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ASampleWithoutNoiseLeavesNoDeviationWhenItsFastHistoryStallsShortOfIt()
+    {
+        // From 0.2, the fast history's blend of weight 1 / 4 toward the half float 0.250488 stops at 0.25, two half-float
+        // units short: a quarter of the last step is half a unit, a tie that rounds back to the even 0.25. So every later
+        // draw has a step of 0.000488, 0.2 % of the light. It is the stall of the fast history's blend, which the rounding
+        // test zeroes up to 4 / 1536, 0.26 %, at the fast weight. Counted as spread, it would hold the retained deviation
+        // at its own size. A CPU model of these 560 draws gives 5.0e-6 for the fix, and 4.8e-4 for a test with no weight,
+        // abs(step) <= BlendRounding * before, or with no test at all.
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+            parameters: SignalParameters.Diffuse
+        );
+        try
+        {
+            sample.Value = new(x: 0.2f, y: 0.2f, z: 0.2f, w: 1);
+            renderer.Render(scene, 1f);
+            Continue(renderer, scene, frames: 59);
+            sample.Value = new(x: 0.2505f, y: 0.2505f, z: 0.2505f, w: 1);
+            Continue(renderer, scene, frames: 500);
+
+            RetainedDeviationOf(renderer, sample)[Center]
+                .Should()
+                .BeLessThan(0.0001f * 0.2505f, "the light has not changed for 500 draws");
         }
         finally
         {

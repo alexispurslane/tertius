@@ -432,6 +432,17 @@ index 7251102..4a44194 100644
      outColor = vec4(
          min(directDiffuse + directSpecular + indirectDiffuse + indirectSpecular + emissive, vec3(MaxRadiance)), 1.0);
      // D, at most MaxRadiance, and the mask, which marks the skin pixels that alone the scatter passes spread.
+diff --git a/src/Tertius.Rendering/Shaders/motion.glsl b/src/Tertius.Rendering/Shaders/motion.glsl
+--- a/src/Tertius.Rendering/Shaders/motion.glsl
++++ b/src/Tertius.Rendering/Shaders/motion.glsl
+@@ -33,5 +33,6 @@
+ 
+ // The least motion on screen that counts, in pixels per draw: the gate's threshold of ter-18hc.
+-const float LeastMotion = 1.0 / 32.0;
++// PROBE: specialization constant 13, TERTIUS_X_LEAST_MOTION (ShaderConstants).
++layout(constant_id = 13) const float LeastMotion = 0.03125;
+ 
+ // The relative rounding of the motion target's half floats, which keep 10 bits below their leading bit: twice their
 diff --git a/src/Tertius.Rendering/Shaders/sample_age.glsl b/src/Tertius.Rendering/Shaders/sample_age.glsl
 index cd2d944..587b992 100644
 --- a/src/Tertius.Rendering/Shaders/sample_age.glsl
@@ -451,16 +462,6 @@ index cd2d944..587b992 100644
  
  // The light ages below which a light change is recent: 0 to 6, the light codes 1 to 7. The record counts a change after
  // it lasts 4 draws, so a recent change began less than 11 draws ago, and the fast history, which keeps (3 / 4)^k of a
-@@ -21,7 +25,8 @@ const uint LightCodeMask = 0x7FFFu;
- const uint RecentLightAge = 7u;
- 
- // The least motion on screen that counts, in pixels per draw: the gate's threshold of ter-18hc.
--const float LeastMotion = 1.0 / 32.0;
-+// PROBE: specialization constant 13, TERTIUS_X_LEAST_MOTION (ShaderConstants).
-+layout(constant_id = 13) const float LeastMotion = 0.03125;
- 
- // The sample age of a sample whose rays bring the light code `lightCode`, with the motion bit where `motion` holds.
- uint sampleAgeOf(uint lightCode, bool motion)
 diff --git a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
 index 321c4be..4c850c2 100644
 --- a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
