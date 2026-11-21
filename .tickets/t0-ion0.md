@@ -215,3 +215,27 @@ The exact next step: write the step 2 note (`tk add-note t0-ion0`), commit it, a
     nix develop /Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144 --command bash -c 'dotnet build src/Tertius.Demo -c Release -v quiet -nologo -p:RunAnalyzers=false -p:TreatWarningsAsErrors=false -o /private/tmp/t0-ion0/out-z/probe-bin'
 
 Then run the queue, for example `docs/research/t0-ion0-region-drift/tools/queue-3.sh`. It keeps the finished runs and starts at `l-A-s`. After the takes, remove the scratch worktree with `git worktree remove --force /private/tmp/t0-ion0/src`.
+
+**2026-11-21T16:21:09Z**
+
+Step 2: each rule acting, and the strips check (ticket lead, written 2026-11-21 after the lab resumed). The record is docs/research/t0-ion0-region-drift/README.md, and every number is in tables.txt. All variants have the nearest-half store. Main's numbers come from the earlier records and carry the old store.
+
+| Question | Measured |
+|---|---|
+| 1. False evidence in a still | Lamp hall, today's jitter: Q0 30.5 %, Q1 9.2 %, Q3 3.8 %, Q2 14.3 % of the block draws. Bay and exit cabin: Q1 6 to 7 %, Q3 1 %, Q2 13 to 14 %. No jitter and the long Halton sequence raise the lamp hall's numbers (Q1 12.6 and 14.3 %). |
+| 2a. The film rect-bay, middle / last frame | The fix: +1.86 / +1.91. Cap 4: +0.43 / +0.18. Q0 and Q1: +0.44 / +0.19. Q3: +0.47 / +0.23. Q2: +0.43 / +0.19. Main (old store): +1.18 / +0.53. |
+| 2b. The cabin's settle, slowest region off / on | The fix: 74 / none. Cap 4: 46 / 23. Q0: 134 / 42. Q1: 77 / 90. Q3: 76 / none. Q2: 37 / 69. Main (old store): 75 / 52. |
+| 2c. The cabin center before the switch, lowest / highest | The fix: 99.1 / 100.3 %. Cap 4: 91.2 / 124.3 %. Q0: 102.1 / 124.3 %. Q1: 106.0 / 107.4 %. Q3: 104.3 / 105.5 %. Q2: 101.4 / 103.3 %. |
+| 3. The still: light, specks, length | Light at 4.08 stops, ceiling / walls: the fix 96.0 / 99.7 %, Q1 96.7 / 100.3 %, Q3 96.5 / 100.2 %, Q2 94.0 / 96.0 %. Specks: the fix 5.96, Q1 7.99, Q3 6.27, Q2 9.50. Mean length of the ceiling's bounce history: the fix 32.0, Q1 26.1, Q3 29.4, Q2 22.3. |
+
+My reading:
+
+- Every rule closes the film's trail to the level of the cap of 4 draws, well below main's. The film is no longer the limit.
+- No rule settles the cabin like the cap of 4 draws in both switches. Q2 comes closest (37 / 69). Q1 and Q3 settle no faster than the fix.
+- Q1 and Q3 keep the still's light. Q1 costs 34 % more specks, and Q3 costs 5 % more. Q2 loses 2 to 4 points of the still's light under today's jitter and costs 59 % more specks.
+- So no rule passes all three questions. Q3 comes closest on questions 1 and 3, and fails the cabin's settle of question 2. Under the long Halton sequence, every rule loses the still's light: Q3 94.9 / 95.6 %, Q1 94.0 / 93.9 %, Q2 92.2 / 91.4 %, against the fix's 96.8 / 99.6 %.
+- The strips check shows that the sun causes the jitter's cycle in the cabin center and window 4's loss of the still's light. Without the sun, both are gone.
+
+The long Halton sequence: a rule that passes under today's jitter loses the still's light under the long sequence. Q3, the closest rule, falls from 96.5 / 100.2 % to 94.9 / 95.6 %, and the cabin center before the switch swings from 89.2 to 99.6 %. So the long sequence comes after a remedy for the sun's strips, not before it.
+
+Not taken, by the line orchestrator's decision of 2026-11-21: the lamp hall stills at the automatic exposure under the long sequence. The room holds the sun's shadow leak, and every acceptance number of that room gets new takes after the shadow fix.
