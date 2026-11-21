@@ -1,6 +1,6 @@
 ---
 id: t0-acxm
-status: open
+status: in_progress
 deps: [t0-xlcu, t0-ion0, t0-9fo0, t0-xdck]
 links: [t0-xlcu, t0-ion0]
 created: 2026-11-15T00:42:53Z
@@ -129,3 +129,48 @@ Acceptance
 The second design, and why it is not built: the regional lag test with the fast history of 4 draws as its recent mean (W4). It needs no ring. It is a second reader with its own action beside the evidence's reader, against decision Y3, and its best film (+0.89 / +0.43) trails twice as much as the drift test's. It stays a candidate in t0-9fo0's takes only as a control.
 
 Out of scope: the differences at equal jitter phase (rule Q2), which doubled the false evidence in clean stills. The long Halton sequence (t0-f238), which is Alexis's decision. A drift test at ray-block statistics other than one tap per block.
+
+**2026-11-21T21:16:07Z**
+
+Design of the remedy, part 2 (line orchestrator, 2026-11-21, after the cost record t0-xdck, docs/research/t0-xdck-drift-cut-cost/README.md). The design is now complete for the build.
+
+What the cost record measured, film rect-bay on the Mac at 1920 x 1080
+- The region's evidence with a cut to 4 draws makes 54 % of the render pixels trace their own ray over the film, 68 to 70 % in its middle. That costs +5.63 ms a frame (paired spread 0.03 ms), 35 % of main's 16.04 ms, for as long as the light moves.
+- A cut to 8 draws costs nothing: -0.19 ms (spread 0.04 ms). Its film against main: level +0.86 / +0.31 against +1.17 / +0.54, blotch 0.206 / 0.195 against 0.245 / 0.231, specks in the last frame 0.63 against 1.28, lag error of bay-sun 0.131 against 0.267. Two measures are slightly above main's: specks in the middle frame 0.20 against 0.18, and flicker 0.00256 against 0.00206 with a limit of 0.006. Its still bay-sunbeam equals the still without regional evidence.
+- A cut to 4 draws without own rays fails: 3.61 specks in the last frame against main's 1.28.
+- The scratch test costs 11.7 ms at every pixel and 8.0 ms at block centers inside the accumulation pass, and nothing with its code present but not run. So the cost is how the probe runs the test, not the test.
+
+The decision, which I took: the region's evidence cuts the history to at most FullRateFrames, 8 draws, the shortest length that keeps the block's shared ray. Reasons: the bay film's bar is no worse than main, and this action meets it with no frame time. The cut to 4 draws gives a film nearer to the still in its middle frame (mean gray 141 against 154, main 161, the still 119), but costs 5.6 ms a frame while a light moves, and Design X's whole allowance is 0.30 ms. The line's report lists this answer with the frames, so that Alexis can reverse it.
+
+The levels. The block's evidence stays one value from a closed set, ordered by how certain the knowledge is, and the one reader acts on it:
+
+| Level | Source | Action on every pixel of the block with L above the fast cap |
+|---|---|---|
+| NoEvidence (0) | none | as today: the wide box, the anti-lag |
+| RegionEvidence (1) | the region's light moved (this ticket) | L becomes at most FullRateFrames. The box keeps its widening. No anti-lag, as under LightEvidence: the evidence states the change. This is the measured action |
+| MotionEvidence (2) | as today | as today: the narrow box, the anti-lag |
+| LightEvidence (3) | as today: a ray hit a recent light change | as today: L becomes the fast cap. The box keeps its widening |
+
+- Motion stands above the region. Reason: the narrow box measures the change at the pixel itself, which is exact, and it follows a light change as main does. The region's statistic is the weaker knowledge. Under a camera move the region gives no evidence at all (part 1: no still taps).
+- MotionEvidence and LightEvidence change their numbers. The level lives only in the spatial dispatch's shared value, in no image, so no layout changes.
+- The region evidence image holds 0 or 1 per block. evidenceOfBlock turns 1 into RegionEvidence and takes the maximum with the samples' level.
+- FullRateFrames moves from screen_trace.glsl to a place that the ray plan and the spatial dispatch both include, so that the two cannot drift apart. The bound's reason is the plan's rule, so it is one constant.
+- The reflections take the same level and action from their own ring, as every measured variant did.
+
+The test's own cost comes first in the build
+- Step 1 of the build is a timing spike: the region drift pass alone, with the block light image and the ring, and with its evidence ignored by the reader. Take the deck (scripts/temporal-upscale-timing.json) and the film rect-bay on the Mac, against the line's head, as the cost record took its rounds.
+- The budget: the pass and the tap store together add at most 0.10 ms to the deck's frame span, for both signals. Design X holds +0.200 ms of its +0.30 ms.
+- Why the spike can pass where the probe failed: the probe ran 289 scattered reads of a full-size array image in one thread of a group of 32, 14,400 times. The pass reads a block light image of 160 x 90 texels, which stays in the cache, with every thread of a group doing the same work.
+- If the plain 17 x 17 loop misses the budget, try these in order and record each: a box sum in two steps (17 reads along x, then 17 along y), then one dispatch for both signals in place of two. If the budget still fails, stop and report: that is a fork for the orchestrator.
+
+Order of the work
+1. The timing spike above.
+2. Tests first, then the build: the tap store in the temporal dispatch, the pass, the level and its action in the spatial dispatch, the constant's move.
+3. Takes in the bay only: the film rect-bay and its frames beside main and the still, the lag film bay-sun, the stills bay-sunbeam and exit-cabin, the deck's frame span and the film's frame span. The control: the build's film numbers lie near the probe's cut to 8 draws (+0.86 / +0.31, lag error 0.131). The validity rule of part 1 (still taps) is new against the probe, and in a film with a fixed camera it changes nothing.
+4. Hardening, ARCHITECTURE.md, the design doc, review, fix.
+Not in this ticket: the room of scene orbit with the camera person. Its takes follow the shadow fix (t0-9fo0), on the build of this ticket.
+
+Tests added to part 1's list
+8. A block with regional evidence and no other keeps a history of at most 8 draws, and the ray plan gives its pixels the shared ray.
+9. A block with regional evidence and motion evidence acts as under motion evidence alone.
+10. A block with regional evidence and a ray's light evidence cuts to the fast cap.

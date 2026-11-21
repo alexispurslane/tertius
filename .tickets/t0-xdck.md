@@ -1,6 +1,6 @@
 ---
 id: t0-xdck
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-21T17:20:59Z
@@ -113,3 +113,13 @@ D4c and D8c repeat D4's and D8's images in every number, so the center-only test
 Also measured: D8 skips the anti-lag where the drift test gives evidence (a fact of the code: lightCuts selects the cut and skips the anti-lag branch). D8 traces fewer reflection own rays than X (0.047 against 0.071) and saves 0.19 ms in the ray passes. Every film passes the survey's flicker limits. The own-ray count reads the draw that just ran (the read follows the submit and waits for the device).
 
 The scripts now log real exit codes, the chart draws from the record's spans.csv, and every difference carries its paired spread.
+
+**2026-11-21T21:16:07Z**
+
+Integration (line orchestrator, 2026-11-21). The lead reported status blocked at stage review, by the brief's rule: the reviewer could not make three checks (the film's flicker by eye, whether the own-ray count reads the current draw, the own-ray share of the test without action) and gave one mechanism as its own reading. The lead resolved all four in the fix stage: the survey's flicker numbers for every film, a code read of the count, a new take of the test without action with the count, and the code fact that the cut skips the anti-lag. No second reviewer checked the fixes.
+
+My answer: I accept the record without a second review. The three assessments have pass verdicts with findings, each finding has a recorded resolution with evidence, and the decision that hangs on the record rests on differences far larger than any open doubt: +5.63 ms with a paired spread of 0.03 ms. I read the record, its frame sheet and its span chart myself. Merged into t7-3e22-retained-deviation as 4e867cebe. The diff from 32340844f holds only this ticket and docs/research/t0-xdck-drift-cut-cost/.
+
+What I saw in the frame sheet. Middle frame: main is bright and flat on the left wall and the floor, the cut to 8 draws is close to main, and the cut to 4 draws is darker and nearer to the still. Last frame: main is lighter than the still, and the cuts to 4 and to 8 draws are close to the still. No tile shows a blotch or a daub at that scale.
+
+The decision is on t0-acxm, design part 2: the region's evidence cuts to 8 draws.
