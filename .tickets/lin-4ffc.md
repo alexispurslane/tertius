@@ -1,6 +1,6 @@
 ---
 id: lin-4ffc
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-15T16:01:38Z
@@ -103,3 +103,11 @@ The fix stage changed comments and docs only. The suites ran again at the final 
 **2026-11-21T19:00:59Z**
 
 Suites at the final code head db4f14bb0 (ticket lead, 2026-11-21), after the fix stage. Checked, on the staged tree of that commit: every project green. Core 1,207, Simulation 2,007, Physics 1,492 passed (8 skipped), Rendering 3,299 passed (11 skipped) of 3,310, Host 2,072 passed (8 skipped), Unions 59, Style 276, Slop 597. Release, at db4f14bb0: every project green. Core 1,175, Simulation 2,026, Physics 1,493 passed (8 skipped), Rendering 3,298 passed (11 skipped) of 3,309, Host 2,072 passed (8 skipped), Unions 59, Style 276, Slop 597. No snapshot test failed, and the load flake lin-5bsm did not show. The commit of this note changes only this ticket.
+
+**2026-11-21T19:02:22Z**
+
+Integration (line orchestrator, 2026-11-21). Gates held: status ready_for_integration, no fork, the worktree clean at f69f31095 on branch t3/fix-retained-rounding-weight, one review (correctness pass, design pass, fulfillment changes-required for missing ticket notes), each finding resolved with evidence, both suites green at the code head db4f14bb0, nine mutant rows killed. Merged into t7-3e22-retained-deviation as f61187fde. The merged tree differs from the tested tree, outside the tickets, only by the line breaks of main's cleanup commit in GpuCalibrationBench.cs and StoreRoundingProbe.cs.
+
+Last check, one read of the diff from 2f9461158. The shader change is the design's: one variable fastLength serves the rounding test and the fast blend, so the two cannot drift apart. The new tests state behavior: a long history retains the deviation of samples that spread by 1 % and 2 % of their light (red 0.28 and 0.90 of the exact value, green 0.999 and 1.000), and a stalled fast history leaves no deviation. I opened the wall crops of bay-sunbeam and exit-cabin: the two sides of each pair look the same, with no new blotch, daub or bright speck.
+
+A fact for the line's records: before this fix the retained deviation came out 72 % low at a noise of 1 % of the light. Every earlier take of Design X, and the scratch probe on 73f4a6548 that t0-ion0 and t0-xdck use, has that narrower clamp box at long histories. The two stills changed in at most 668 pixels by at most 6 of 255 levels, so the earlier readings stand, but the room's takes after the shadow fix (t0-9fo0) run on a head with this fix.
