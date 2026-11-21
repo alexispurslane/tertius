@@ -29,6 +29,8 @@ namespace Tertius.Rendering;
 /// during batching, each rendered alone into its tile of the impostor atlas.</item>
 /// <item>G-buffer: far, middle and near depth ranges, each one vkCmdDrawIndexedIndirect, plus one instanced draw of
 /// the impostor billboards in that range.</item>
+/// <item>The back-face pass (<see cref="BackFacePass"/>), under <see cref="ScreenTrace"/>: the back share of each pixel,
+/// from the G-buffer's commands of each depth range, drawn again with positions only.</item>
 /// <item>The depth pyramid (<see cref="DepthPyramidPass"/>), under <see cref="ScreenTrace"/>: the min-max inverse depth
 /// of the distance target, level by level, its small mips in one dispatch (<see cref="PyramidTail"/>), and the
 /// finest level, each pixel's center w.</item>
@@ -1368,6 +1370,18 @@ public sealed unsafe class VulkanRenderer : IRenderer
         ).Values;
 
     /// <summary>
+    /// The last frame's back share of each pixel (<see cref="RenderTargets.BackShare"/>), row by row from the top. A test
+    /// hook: it waits for the device to be idle and submits its own copy.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The screen tracer is off.</exception>
+    internal float[] ReadBackShare() =>
+        ReadLevel(
+            image: targets.BackShare ?? throw new InvalidOperationException("The screen tracer is off."),
+            layer: 0,
+            mip: 0
+        ).Values;
+
+    /// <summary>
     /// Level 1 to L of the last frame's depth pyramid: the near and the far bound of each texel of its mip, padding
     /// included, row by row from the top. A test hook: it waits for the device to be idle and submits its own copy.
     /// </summary>
@@ -1885,25 +1899,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             for (int i = 0; i < pixels.Length; i += 4)
                 (pixels[i], pixels[i + 2]) = (pixels[i + 2], pixels[i]);
         sink.Take(new(pixels, width, height));
-        // THROWAWAY (ter-kh4g, stage 1): under TERTIUS_BACK_FACE_DUMP=<folder>, writes the captured frame's front
-        // distances and back shares as raw 32-bit floats, row by row from the top, with the render size in the file names.
-        if (Environment.GetEnvironmentVariable("TERTIUS_BACK_FACE_DUMP") is { Length: > 0 } folder && BackFacePass.SwitchedOn())
-        {
-            Directory.CreateDirectory(folder);
-            string size = $"{targets.Extent.Width}x{targets.Extent.Height}";
-            File.WriteAllBytes(
-                Path.Combine(folder, $"front-{backFaceDumps}-{size}.f32"),
-                System.Runtime.InteropServices.MemoryMarshal.AsBytes<float>(ReadImage(targets.Distance)).ToArray()
-            );
-            File.WriteAllBytes(
-                Path.Combine(folder, $"back-{backFaceDumps}-{size}.f32"),
-                System.Runtime.InteropServices.MemoryMarshal.AsBytes<float>(ReadImage(targets.BackDistance)).ToArray()
-            );
-            backFaceDumps++;
-        }
     }
-
-    private int backFaceDumps;
 
     /// <summary>The one context of the renderer's life, which holds what every frame shares (see <see cref="SetContext"/>).</summary>
     private FrameContext CreateContext() =>
@@ -2073,9 +2069,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
             kept: keptPositions
         );
         Graph.Add(FrameGraph.Stage.GBuffer, geometryPass);
-        // THROWAWAY (ter-kh4g, stage 1): the back-face cost probe.
-        if (BackFacePass.SwitchedOn())
-            Graph.Add(FrameGraph.Stage.GBuffer, new BackFacePass(device: device, shaders: shaders, layouts: layouts));
         Graph.Add(
             FrameGraph.Stage.SurfaceTest,
             new SurfaceTestPass(device: device, shaders: shaders, layouts: layouts, images: surfaceHistory)
@@ -2275,6 +2268,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         if (setting is not ScreenTrace trace)
             return null;
         PyramidImages pyramid = targets.Pyramid ?? throw new UnreachableException("The targets make the pyramid.");
+        Graph.Add(FrameGraph.Stage.BackFaces, new BackFacePass(device: device, shaders: shaders, layouts: layouts));
         Graph.Add(
             FrameGraph.Stage.DepthPyramid,
             new DepthPyramidPass(device: device, shaders: shaders, layouts: layouts, pyramid: pyramid)

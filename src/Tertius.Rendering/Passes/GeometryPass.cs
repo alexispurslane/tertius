@@ -242,7 +242,7 @@ internal sealed unsafe class GeometryPass : RenderPass
     }
 
     /// <summary>Binds <paramref name="pipeline"/> and draws <paramref name="commands"/>, when they are any.</summary>
-    private static void DrawRun(FrameContext context, CommandRange commands, Pipeline pipeline)
+    public static void DrawRun(FrameContext context, CommandRange commands, Pipeline pipeline)
     {
         if (commands.Count == 0)
             return;

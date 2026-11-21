@@ -322,6 +322,12 @@ internal sealed class FrameGraph : IDisposable
         GBuffer,
 
         /// <summary>
+        /// The back-face pass, under <see cref="ScreenTrace"/>: after the G-buffer pass, whose distance it reads and whose
+        /// depth image it takes over, and before the depth pyramid, whose build will read its back share.
+        /// </summary>
+        BackFaces,
+
+        /// <summary>
         /// The surface test: right after the G-buffer pass, whose distance, normals, roughness and motion target it reads,
         /// and before the temporal passes, which read its pass bits (docs/plans/temporal-renderer.md, "The frame's order").
         /// </summary>
