@@ -126,7 +126,10 @@ public sealed class AccumulatorRenderTests
         // only the fast histories' spread, which the walk's wide samples leave, so a box of 1000 deviations keeps the
         // clamp and its anti-lag out of the mean.
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
-            parameters: SignalParameters.Diffuse with { ClampSigmas = 1000 }
+            parameters: SignalParameters.Diffuse with
+            {
+                ClampSigmas = 1000,
+            }
         );
         try
         {

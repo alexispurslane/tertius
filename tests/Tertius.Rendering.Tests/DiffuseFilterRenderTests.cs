@@ -164,7 +164,10 @@ public sealed class DiffuseFilterRenderTests
         (VulkanRenderer renderer, SamplePass sample, _, RenderSnapshot scene) = Filtering(
             filtered: true,
             kernel: DiffuseFilterKernel.Thin,
-            parameters: Parameters with { ClampSigmas = 1000 },
+            parameters: Parameters with
+            {
+                ClampSigmas = 1000,
+            },
             boxes: [Wall]
         );
         try
@@ -482,7 +485,11 @@ public sealed class DiffuseFilterRenderTests
             for (int pixel = 0; pixel < Width * Height; pixel++)
                 fast[4 * pixel + 3]
                     .Should()
-                    .BeLessThanOrEqualTo(3 * LeastSubnormalHalf, "pixel {0} saw one constant sample for 150 frames", pixel);
+                    .BeLessThanOrEqualTo(
+                        3 * LeastSubnormalHalf,
+                        "pixel {0} saw one constant sample for 150 frames",
+                        pixel
+                    );
         }
         finally
         {
