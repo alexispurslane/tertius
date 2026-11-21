@@ -17,6 +17,7 @@
 
 #extension GL_GOOGLE_include_directive : require
 #include "diffuse_filter.glsl"
+#include "half_store.glsl"
 
 #if KernelRadius == 1
 // The 3 × 3 kernel's weight at a tap 0 or 1 taps from the center along one axis: (1, 2, 1) / 4.
@@ -84,12 +85,14 @@ void main()
     // never the store.
     float deviation = min(kept * abs(centerLight.a) + deviationSum, MaxRadiance);
     imageStore(filterOutput, pixel, vec4(filtered, deviation));
+    // The slow history's light and the retained deviation are means that feed back, so each store takes the nearest half
+    // float (half_store.glsl).
     vec4 slow = imageLoad(slowHistory, pixel);
-    imageStore(slowHistory, pixel, vec4(filtered, slow.a));
+    imageStore(slowHistory, pixel, vec4(nearestHalf(filtered), slow.a));
     if (slow.a >= YoungFrames)
     {
         float carried = min(kept * max(centerLight.a, 0.0) + carriedSum, MaxRadiance);
-        imageStore(fastHistory, pixel, vec4(imageLoad(fastHistory, pixel).rgb, carried));
+        imageStore(fastHistory, pixel, vec4(imageLoad(fastHistory, pixel).rgb, nearestHalf(carried)));
     }
 #endif
 }

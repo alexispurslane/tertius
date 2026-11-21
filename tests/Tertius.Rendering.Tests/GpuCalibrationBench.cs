@@ -184,8 +184,8 @@ internal sealed class CalibrationProbe
 }
 
 /// <summary>
-/// A headless device and the probes of GpuCalibrationTests, which records each dispatch alone and waits for it. It owns
-/// every probe that it makes.
+/// A headless device and the probes of GpuCalibrationTests and HalfStoreTests, which records each dispatch alone and
+/// waits for it. It owns every probe that it makes.
 /// </summary>
 internal sealed unsafe class CalibrationBench : IDisposable
 {
@@ -335,6 +335,44 @@ internal sealed unsafe class CalibrationBench : IDisposable
                     }
 
                     return null;
+                },
+            }
+        );
+    }
+
+    /// <summary>
+    /// The probe of half_store.glsl's nearestHalf over <paramref name="values"/>: result i holds the bits of nearestHalf
+    /// of value i. Its check compares each with the half float that .NET's conversion gives, the nearest one with ties to
+    /// even, and gives every value whose result differs.
+    /// </summary>
+    public CalibrationProbe NearestHalf(float[] values)
+    {
+        GpuBuffer results = CreateResults(values.Length);
+        GpuBuffer source = CreateSource([.. values.Select(BitConverter.SingleToUInt32Bits)]);
+        return Add(
+            new CalibrationProbe
+            {
+                Name = "nearest half",
+                Work = values.Length,
+                Unit = "value",
+                Pipeline = CreatePipeline("nearest_half_probe.comp"),
+                Set = CreateSet(results, source: source, image: null),
+                Push = Words((uint)values.Length),
+                Groups = ((uint)(values.Length + 63) / 64, 1),
+                Results = results,
+                Source = source,
+                Check = () =>
+                {
+                    Span<float> rounded = results.AsSpan<float>(values.Length);
+                    List<string> differences = [];
+                    for (int index = 0; index < values.Length; index++)
+                    {
+                        float expected = (float)(Half)values[index];
+                        if (BitConverter.SingleToUInt32Bits(rounded[index]) != BitConverter.SingleToUInt32Bits(expected))
+                            differences.Add($"{values[index]:R} gave {rounded[index]:R}, the nearest half is {expected:R}");
+                    }
+
+                    return differences.Count == 0 ? null : string.Join("\n", differences);
                 },
             }
         );
@@ -585,9 +623,34 @@ internal sealed unsafe class CalibrationBench : IDisposable
         );
 
     /// <summary>A source in GPU memory of <see cref="CalibrationReference.Element"/>, copied from a staging buffer.</summary>
-    private GpuBuffer CreateSource(int elements)
+    private GpuBuffer CreateSource(int elements) =>
+        CreateSource(
+            (ulong)elements * 16,
+            words =>
+                Parallel.For(
+                    0,
+                    elements,
+                    index =>
+                    {
+                        (uint x, uint y, uint z, uint w) = CalibrationReference.Element((uint)index);
+                        words[index * 4L] = x;
+                        words[index * 4L + 1] = y;
+                        words[index * 4L + 2] = z;
+                        words[index * 4L + 3] = w;
+                    }
+                )
+        );
+
+    /// <summary>A source in GPU memory of <paramref name="words"/>, copied from a staging buffer.</summary>
+    private GpuBuffer CreateSource(uint[] words) =>
+        CreateSource((ulong)words.Length * 4, mapped => words.CopyTo(new Span<uint>(mapped, words.Length)));
+
+    /// <summary>Writes the words of a source into its mapped staging buffer.</summary>
+    private delegate void SourceFill(uint* words);
+
+    /// <summary>A source in GPU memory of <paramref name="bytes"/> that <paramref name="fill"/> writes, copied from a staging buffer.</summary>
+    private GpuBuffer CreateSource(ulong bytes, SourceFill fill)
     {
-        ulong bytes = (ulong)elements * 16;
         using var staging = GpuBuffer.Create(
             device: Device,
             allocator: allocator,
@@ -596,19 +659,7 @@ internal sealed unsafe class CalibrationBench : IDisposable
             memoryUsage: MemoryUsage.Upload,
             name: "calibration source upload"
         );
-        uint* words = (uint*)staging.Mapped;
-        Parallel.For(
-            0,
-            elements,
-            index =>
-            {
-                (uint x, uint y, uint z, uint w) = CalibrationReference.Element((uint)index);
-                words[index * 4L] = x;
-                words[index * 4L + 1] = y;
-                words[index * 4L + 2] = z;
-                words[index * 4L + 3] = w;
-            }
-        );
+        fill((uint*)staging.Mapped);
         var source = GpuBuffer.Create(
             device: Device,
             allocator: allocator,
