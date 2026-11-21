@@ -1,6 +1,6 @@
 ---
 id: t0-ion0
-status: in_progress
+status: closed
 deps: []
 links: [t0-acxm]
 created: 2026-11-15T10:49:32Z
@@ -351,3 +351,15 @@ Question 2: how much of the cycle is the sun's:
 | r11, lowest / highest | 91.2 / 124.3 % | 102.0 / 102.3 % |
 | Settle, slowest off / on | 46 / 23 | 50 / 34 |
 | r11 per jitter phase in the lamps-on control, darkest / brightest, against the cycle mean | −11.6 / +9.5 % | −0.9 / +0.4 % |
+
+**2026-11-21T16:29:50Z**
+
+Integration (line orchestrator, 2026-11-21). Gates held: status ready_for_integration, the checkout clean, branch t3/measure-regional-lag-tolerance at 195d272c3, one review with 16 findings, each resolved with evidence, and no unsettled fork. The diff from 33c6e2952 holds only this ticket and docs/research/t0-ion0-region-drift/. Merged into t7-3e22-retained-deviation as 7f6ca1f10.
+
+Last check, one read of the record and its four pictures. The film sheet: in the middle and the last frame of rect-bay, Q1, Q2 and the cap of 4 draws look like the still of the same state, and the fix is visibly too light on the left wall and the floor. So by the user's bar, the film shows no trail under any rule, and each rule's level is below main's (+1.18 / +0.53). The ceiling crops: every variant shows bright specks around the far lamps, and the picture with and without the sun shows that they go with the sun. So the room's specks wait for the shadow fix, not for a rule.
+
+What the result gives the remedy (t0-acxm), my reading:
+- The region's drift closes the bay film's trail as a second source of the reader's light evidence. That part of the remedy is proven.
+- The cabin switch fails by the wait before the first cut: a statistic over 18 draws gives evidence 13 draws or more after a switch. A deeper cut does not shorten the wait. The rays' own light evidence is the fast source there, and it is what the fix already has.
+- Every number of the room (the still, the switch, the jitter's cycle) holds the shadow leak. The remedy's design waits for the new takes after the shadow fix, as planned.
+- New take for the room's ticket after the shadow fix: the cabin switch's lamps-on control with and without jitter, with all 9 regions, because r11 lost 46 % without jitter while the whole image held within 0.2 %.
