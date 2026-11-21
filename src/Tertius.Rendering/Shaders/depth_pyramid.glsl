@@ -3,16 +3,15 @@
 // 1/m, that the walk treats as solid, as (front w, back w). The finest level holds each pixel's slab (pixelSlab,
 // depth_pyramid_finest.comp). A cell of level 1 merges its pixels' slab bounds (pixelSlabBounds) from their surfaces
 // (pixelSurface). The merge takes the largest front w and the smallest back w. A cell with no surface holds the empty
-// bounds (0, EmptyBack). Mip m of the pyramid image holds level m + 1. The build is the one place of the slab rule
-// (slabBack).
-// DepthPyramid, PixelSurface and CellBounds are the C# copy. Change both together.
+// bounds (0, EmptyBack). Mip m of the pyramid image holds level m + 1. A pixel's slab comes from its front surface and
+// its back share (BackFacePass). The build is the one place of the slab rule (slabBack): only the finest shader and the
+// shader of level 1 call it. DepthPyramid, PixelSurface and CellBounds are the C# copy. Change both together.
 #ifndef TERTIUS_DEPTH_PYRAMID_GLSL
 #define TERTIUS_DEPTH_PYRAMID_GLSL
 
 #include "gbuffer_inputs.glsl"
 #include "octahedral.glsl"
 #include "screen.glsl"
-#include "thickness.glsl"
 
 // How far the center of a depth sample's edge neighbor may stand off the sample's plane where the neighbor continues
 // the plane, as a share of inverse depth (CellBounds.ContinuationShare). The sample's center may stand off the
@@ -169,50 +168,42 @@ vec2 pixelBounds(ivec2 pixel)
         surface.centerW + min(toLow.x, toHigh.x) + min(toLow.y, toHigh.y));
 }
 
-// The w of the back of what is solid behind a surface at inverse depth `w` (CellBounds.SlabBack). It is the 10 % rule,
-// w / (1 + κ), as a product by the share 1 / (1 + κ). glslc folds the share in double precision, and a quotient rounds
-// otherwise.
-float slabBack(float w)
+// The w of the back of what is solid behind a surface at inverse depth `w` whose back share is `share`
+// (docs/plans/back-face-depth-layer.md, decision 3, and CellBounds.SlabBack). It is `w * share` for a share between 0
+// and 1. A sheet, whose share is 0 or 1, gets `w` itself.
+float slabBack(float w, float share)
 {
-    const float backShare = 1.0 / (1.0 + ThicknessShare);
-    return w * backShare;
+    return share > 0.0 && share < 1.0 ? w * share : w;
 }
 
-// The slab of a pixel at the finest level: x the center w, y the back w, or (0, 0) for sky. A pixel beyond the viewport
-// holds sky, so that the inactive pixels of a smaller draw never enter the pyramid (DepthPyramid.PixelSlab).
-vec2 pixelSlab(ivec2 pixel)
+// The slab of a pixel at the finest level whose back share is `share` (DepthPyramid.PixelSlab): x the center w, y the
+// back w, or (0, 0) for sky. The back w is slabBack of the center w, or the plane's far w where that lies farther. So a
+// sheet's slab reaches the far end of its plane over its square. A pixel beyond the viewport holds sky, so that the
+// inactive pixels of a smaller draw never enter the pyramid.
+vec2 pixelSlab(ivec2 pixel, float share)
 {
     float distanceToEye = all(lessThan(pixel, ivec2(frame.viewport.xy))) ? texelFetch(gbufferDistance, pixel, 0).r : 0.0;
-    float w = distanceToEye <= 0.0 ? 0.0 : inverseDepthAlong(vec2(pixel) + 0.5, distanceToEye);
-    return vec2(w, slabBack(w));
+    if (distanceToEye <= 0.0)
+        return vec2(0.0);
+    float w = inverseDepthAlong(vec2(pixel) + 0.5, distanceToEye);
+    return vec2(w, min(slabBack(w, share), pixelBounds(pixel).y));
 }
 
-// The bounds of a pixel for level 1: x its plane's near w, y the back w of its slab from its plane's far w, or the
-// empty bounds for sky (PixelSurface.SlabBounds). The plane's near w is at least the center w and its far w at most. A
-// product by a positive share keeps the order, so these bounds hold the pixel's slab.
-vec2 pixelSlabBounds(ivec2 pixel)
+// The bounds of a pixel inside the viewport for level 1, whose back share is `share` (PixelSurface.SlabBounds): x its
+// plane's near w, y the back w of its slab from its plane's far w, or the empty bounds for sky. The plane's near w is at
+// least the center w and its far w at most. So these bounds hold the pixel's slab, because a share is at most 1.
+vec2 pixelSlabBounds(ivec2 pixel, float share)
 {
     vec2 bounds = pixelBounds(pixel);
     // The sky keeps the empty bounds, which leave every merge unchanged.
     if (bounds.x > 0.0)
-        bounds.y = slabBack(bounds.y);
+        bounds.y = slabBack(bounds.y, share);
     return bounds;
 }
 
 vec2 mergedBounds(vec2 a, vec2 b)
 {
     return vec2(max(a.x, b.x), min(a.y, b.y));
-}
-
-// A cell outside its level holds no surface: no surface lies beyond the screen's edges. The test also keeps every
-// texelFetch inside its image, because the Vulkan spec leaves a fetch out of range undefined without the robustness
-// features. Level 0 gives the pixel's slab bounds, which level 1 merges.
-vec2 cellBounds(texture2D pyramid, uint level, ivec2 cell)
-{
-    ivec2 size = (ivec2(frame.viewport.xy) + (1 << level) - 1) >> level;
-    if (any(lessThan(cell, ivec2(0))) || any(greaterThanEqual(cell, size)))
-        return vec2(0.0, EmptyBack);
-    return level == 0u ? pixelSlabBounds(cell) : texelFetch(pyramid, cell, int(level) - 1).rg;
 }
 
 #endif

@@ -244,9 +244,10 @@ const uint TurnDraw[2] = uint[2](0x5254u, 0x4454u);        // the block's turn
 const uint GuideDraw = 0x4744u;
 const uint TargetDraw = 0x4754u;
 
-// How deep a pixel's target box reaches behind its center, the front of its slab, as a share of its view depth: κ / 2
-// (LightPyramid.TargetDepthShare).
-const float TargetDepthShare = 0.5 * ThicknessShare;
+// The depth of the box that a guided diffuse ray aims at, as a share of the target's depth (LightPyramid.TargetDepthShare).
+// It is no thickness: a guided ray that the walk rejects behind a thin surface counts as a miss
+// (docs/plans/back-face-depth-layer.md, decision 7).
+const float TargetDepthShare = 0.05;
 
 // The reflection rays' blue-noise mask (BlueNoiseMask): BlueNoiseFrames frames of BlueNoiseSide² cells, frame t in tile
 // (t % 8, t / 8), each texel a radial number and an angle in bytes.

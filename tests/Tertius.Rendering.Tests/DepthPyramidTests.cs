@@ -3,12 +3,16 @@ using System.Numerics;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The C# copy of the depth pyramid: its level count and sizes, the surface of each pixel of level 0, and the min-max
-/// bounds of inverse depth of its cells (docs/plans/screen-space-reflections.md, "The depth pyramid" and "The pixel's
-/// surface").
+/// The C# copy of the depth pyramid: its level count and sizes, the surface of each pixel of level 0, the slab of each
+/// pixel from its back share, and the min-max bounds of inverse depth of its cells (docs/plans/screen-space-reflections.md,
+/// "The depth pyramid" and "The pixel's surface", and docs/plans/back-face-depth-layer.md, decision 3).
 /// </summary>
 public sealed class DepthPyramidTests
 {
+    /// <summary>The back share of a solid pixel in these tests: its back face lies a third deeper than its front. A
+    /// binary fraction, so that its products round alike in every test.</summary>
+    private const float SolidShare = 0.75f;
+
     /// <summary>A floor 1.5 m below the eye that reaches 1 km in every direction.</summary>
     private static readonly SceneRectangle[] Floor = [new(new(0, -1.5f, 0), new(1_000, 0, 0), new(0, 0, 1_000))];
 
@@ -49,10 +53,10 @@ public sealed class DepthPyramidTests
     {
         float[] inverseDepths = [0.1f, 0.5f, 0.3f, 0.3f, 0.25f, 0.2f, 0.3f, 0.3f];
 
-        var pyramid = DepthPyramid.FromInverseDepths(inverseDepths, width: 4, height: 2);
+        var pyramid = DepthPyramid.FromInverseDepths(inverseDepths: inverseDepths, backShares: Solid(inverseDepths), width: 4, height: 2);
 
-        pyramid.Bounds(1, 0, 0).Should().Be(new CellBounds(Near: 0.5f, Back: CellBounds.SlabBack(0.1f)));
-        pyramid.Bounds(0, 2, 1).Should().Be(new CellBounds(Near: 0.3f, Back: CellBounds.SlabBack(0.3f)));
+        pyramid.Bounds(1, 0, 0).Should().Be(new CellBounds(Near: 0.5f, Back: CellBounds.SlabBack(0.1f, SolidShare)));
+        pyramid.Bounds(0, 2, 1).Should().Be(new CellBounds(Near: 0.3f, Back: CellBounds.SlabBack(0.3f, SolidShare)));
     }
 
     [Fact]
@@ -60,9 +64,9 @@ public sealed class DepthPyramidTests
     {
         float[] inverseDepths = [0.1f, 0, 0.25f, 0.2f];
 
-        var pyramid = DepthPyramid.FromInverseDepths(inverseDepths, width: 2, height: 2);
+        var pyramid = DepthPyramid.FromInverseDepths(inverseDepths: inverseDepths, backShares: Solid(inverseDepths), width: 2, height: 2);
 
-        pyramid.Bounds(1, 0, 0).Should().Be(new CellBounds(Near: 0.25f, Back: CellBounds.SlabBack(0.1f)));
+        pyramid.Bounds(1, 0, 0).Should().Be(new CellBounds(Near: 0.25f, Back: CellBounds.SlabBack(0.1f, SolidShare)));
     }
 
     [Fact]
@@ -70,7 +74,7 @@ public sealed class DepthPyramidTests
     {
         float[] inverseDepths = [0, 0, 0, 0, 0.2f, 0.2f];
 
-        var pyramid = DepthPyramid.FromInverseDepths(inverseDepths, width: 2, height: 3);
+        var pyramid = DepthPyramid.FromInverseDepths(inverseDepths: inverseDepths, backShares: Solid(inverseDepths), width: 2, height: 3);
         CellBounds sky = pyramid.Bounds(1, 0, 0);
 
         sky.Should().Be(new CellBounds(Near: 0, Back: CellBounds.EmptyBack));
@@ -82,7 +86,7 @@ public sealed class DepthPyramidTests
     {
         float[] inverseDepths = [0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f];
 
-        var pyramid = DepthPyramid.FromInverseDepths(inverseDepths, width: 3, height: 2);
+        var pyramid = DepthPyramid.FromInverseDepths(inverseDepths: inverseDepths, backShares: Solid(inverseDepths), width: 3, height: 2);
 
         pyramid.Bounds(0, -1, 0).Should().Be(CellBounds.Empty);
         pyramid.Bounds(0, 3, 1).Should().Be(CellBounds.Empty);
@@ -100,11 +104,11 @@ public sealed class DepthPyramidTests
         inverseDepths[0 * 5 + 4] = 0.4f;
         inverseDepths[1 * 5 + 4] = 0.5f;
 
-        var pyramid = DepthPyramid.FromInverseDepths(inverseDepths, width: 5, height: 3);
+        var pyramid = DepthPyramid.FromInverseDepths(inverseDepths: inverseDepths, backShares: Solid(inverseDepths), width: 5, height: 3);
 
-        pyramid.Bounds(1, 2, 1).Should().Be(new CellBounds(Near: 0.7f, Back: CellBounds.SlabBack(0.7f)));
-        pyramid.Bounds(1, 2, 0).Should().Be(new CellBounds(Near: 0.5f, Back: CellBounds.SlabBack(0.4f)));
-        pyramid.Bounds(2, 1, 0).Should().Be(new CellBounds(Near: 0.7f, Back: CellBounds.SlabBack(0.4f)));
+        pyramid.Bounds(1, 2, 1).Should().Be(new CellBounds(Near: 0.7f, Back: CellBounds.SlabBack(0.7f, SolidShare)));
+        pyramid.Bounds(1, 2, 0).Should().Be(new CellBounds(Near: 0.5f, Back: CellBounds.SlabBack(0.4f, SolidShare)));
+        pyramid.Bounds(2, 1, 0).Should().Be(new CellBounds(Near: 0.7f, Back: CellBounds.SlabBack(0.4f, SolidShare)));
     }
 
     [Fact]
@@ -117,57 +121,89 @@ public sealed class DepthPyramidTests
         ];
         float[] surfaces = [.. inverseDepths.Where(inverseDepth => inverseDepth > 0)];
 
-        var pyramid = DepthPyramid.FromInverseDepths(inverseDepths, width: 37, height: 23);
+        var pyramid = DepthPyramid.FromInverseDepths(inverseDepths: inverseDepths, backShares: Solid(inverseDepths), width: 37, height: 23);
 
         pyramid.TopLevel.Should().Be(6);
         pyramid
             .Bounds(pyramid.TopLevel, 0, 0)
             .Should()
-            .Be(new CellBounds(Near: surfaces.Max(), Back: CellBounds.SlabBack(surfaces.Min())));
+            .Be(new CellBounds(Near: surfaces.Max(), Back: CellBounds.SlabBack(surfaces.Min(), SolidShare)));
     }
 
     [Fact]
-    public void TheTenPercentRuleFillsATenthOfTheDepthBehindASurface()
+    public void ABackShareBetweenZeroAndOneEndsTheSlabAtTheBackFace()
     {
-        float back = CellBounds.SlabBack(1 / 5f);
+        float back = CellBounds.SlabBack(1 / 5f, 5 / 6f);
 
-        (1 / back).Should().BeApproximately(5.5f, 1e-5f, "a surface 5 m away fills the depths to 5.5 m");
+        (1 / back).Should().BeApproximately(6, 1e-5f, "a surface 5 m away whose back face lies 6 m away fills 5 m to 6 m");
     }
 
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(1f)]
+    public void ASheetsShareOfZeroOrOneEndsTheSlabAtTheSheetsOwnW(float share) =>
+        CellBounds.SlabBack(0.2f, share).Should().Be(0.2f, "a sheet has no thickness of its own");
+
     [Fact]
-    public void TheFinestLevelHoldsEachPixelsSlabFromItsCentersWToItsBackW()
+    public void TheFinestLevelHoldsEachPixelsSlabFromItsCentersWToItsCentersWTimesItsBackShare()
     {
-        var pyramid = DepthPyramid.FromInverseDepths([0.1f, 0.5f], width: 2, height: 1);
+        var pyramid = DepthPyramid.FromInverseDepths(inverseDepths: [0.1f, 0.5f], backShares: [0.5f, SolidShare], width: 2, height: 1);
 
         CellBounds slab = pyramid.PixelSlab(1, 0);
 
-        slab.Should().Be(new CellBounds(Near: 0.5f, Back: CellBounds.SlabBack(0.5f)));
+        slab.Should().Be(new CellBounds(Near: 0.5f, Back: 0.5f * SolidShare));
+    }
+
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(1f)]
+    public void ASheetPixelHoldsItsSlabFromItsCentersWToItsPlanesFarW(float share)
+    {
+        // With no back face (0), or with its own fragment as the nearest (1), the floor pixel is a sheet.
+        DepthPyramid pyramid = FloorPyramid(share);
+
+        (_, float far) = pyramid.Surface(32, 40)!.Value.Bounds;
+        far.Should().BeLessThan(pyramid.Finest(32, 40), "the premise: the floor's plane recedes over the pixel");
+        pyramid.PixelSlab(32, 40).Should().Be(new CellBounds(Near: pyramid.Finest(32, 40), Back: far));
+    }
+
+    [Fact]
+    public void AThinClosedPlateAtAGrazingAngleStillReachesItsPlanesFarW()
+    {
+        // A plate whose back face lies a thousandth deeper than its front, seen at the floor's grazing angle: its plane
+        // recedes over the pixel by more than the plate is thick.
+        const float plateShare = 0.999f;
+        DepthPyramid pyramid = FloorPyramid(plateShare);
+
+        float center = pyramid.Finest(32, 40);
+        (_, float far) = pyramid.Surface(32, 40)!.Value.Bounds;
+        far.Should().BeLessThan(center * plateShare, "the premise: the plane recedes past the plate's back face");
+        pyramid.PixelSlab(32, 40).Back.Should().Be(far);
     }
 
     [Fact]
     public void TheFinestLevelHoldsZeroAndZeroForSkyAndBeyondTheScreen()
     {
-        var pyramid = DepthPyramid.FromInverseDepths([0.1f, 0], width: 2, height: 1);
+        var pyramid = DepthPyramid.FromInverseDepths(inverseDepths: [0.1f, 0], backShares: [SolidShare, 0], width: 2, height: 1);
 
         pyramid.PixelSlab(1, 0).Should().Be(new CellBounds(Near: 0, Back: 0), "the pixel sees the sky");
         pyramid.PixelSlab(2, 0).Should().Be(new CellBounds(Near: 0, Back: 0), "no surface lies beyond the screen");
     }
 
     [Fact]
-    public void LevelOneMergesEachPixelsPlaneFromItsNearWToTheBackOfItsFarW()
+    public void LevelOneMergesEachPixelsPlaneFromItsNearWToItsFarWTimesItsBackShare()
     {
-        CameraView camera = FloorCamera;
-        DepthPyramid pyramid = ScreenTesting.Pyramid(camera, Floor);
+        DepthPyramid pyramid = FloorPyramid(SolidShare);
 
         CellBounds bounds = pyramid.Bounds(0, 32, 40);
 
         (float near, float far) = pyramid.Surface(32, 40)!.Value.Bounds;
         far.Should().BeLessThan(pyramid.Finest(32, 40), "the premise: the floor's plane recedes over the pixel");
-        bounds.Should().Be(new CellBounds(Near: near, Back: CellBounds.SlabBack(far)));
+        bounds.Should().Be(new CellBounds(Near: near, Back: far * SolidShare));
     }
 
     [Fact]
-    public void TheSlabOfEveryCellHoldsTheSlabOfEveryPixelUnderItOnARandomScene()
+    public void TheSlabOfEveryCellHoldsTheSlabOfEveryPixelUnderItOnARandomSceneWithRandomBackShares()
     {
         var random = new Random(11);
         CameraView camera = ScreenTesting.Camera(width: 61, height: 37, pitchDown: 0.2f);
@@ -181,7 +217,20 @@ public sealed class DepthPyramidTests
                     HalfOtherSide: new(Spread(random, 1), Spread(random, 2), Spread(random, 2))
                 )),
         ];
-        DepthPyramid pyramid = ScreenTesting.Pyramid(camera, scene);
+        (float[] distances, Vector3[] normals) = ScreenTesting.Surfaces(camera, scene);
+        // No back face at one pixel in four, a sheet's own fragment at one in eight, and a back face elsewhere.
+        float[] backShares =
+        [
+            .. distances.Select(_ =>
+                random.Next(8) switch
+                {
+                    0 or 1 => 0,
+                    2 => 1,
+                    _ => random.NextSingle(),
+                }
+            ),
+        ];
+        var pyramid = DepthPyramid.Of(camera: camera, distances: distances, geometricNormals: normals, backShares: backShares);
 
         Action check = pyramid.AssertInvariants;
 
@@ -255,7 +304,7 @@ public sealed class DepthPyramidTests
         // The neighbor above stands off the floor's plane by the share offPlane of its inverse depth.
         distances[39 * camera.Width + 32] /= 1 + offPlane;
 
-        (float Near, float Far) bounds = DepthPyramid.Of(camera, distances, normals).Surface(32, 40)!.Value.Bounds;
+        (float Near, float Far) bounds = DepthPyramid.Of(camera: camera, distances: distances, geometricNormals: normals, backShares: ScreenTesting.SheetShares(distances)).Surface(32, 40)!.Value.Bounds;
 
         float reach = FloorInverseDepth(camera, new(32, continues ? 40 : 40.5f));
         bounds
@@ -281,7 +330,7 @@ public sealed class DepthPyramidTests
         distances[30 * camera.Width + 20] = 5;
         normals[30 * camera.Width + 20] = Vector3.Normalize(Vector3.Cross(wallPoint - nearPoint, camera.Right));
 
-        PixelSurface surface = DepthPyramid.Of(camera, distances, normals).Surface(20, 30)!.Value;
+        PixelSurface surface = DepthPyramid.Of(camera: camera, distances: distances, geometricNormals: normals, backShares: ScreenTesting.SheetShares(distances)).Surface(20, 30)!.Value;
 
         surface
             .High.Y.Should()
@@ -353,8 +402,7 @@ public sealed class DepthPyramidTests
         float near = FloorInverseDepth(camera, new(32, 42));
         float far = FloorInverseDepth(camera, new(32, 40));
         cell.Near.Should().BeApproximately(near, 1e-5f * near, "the cell's pixels' planes reach its bottom edge");
-        float back = CellBounds.SlabBack(far);
-        cell.Back.Should().BeApproximately(back, 1e-5f * back, "and the back of the slab of its top edge");
+        cell.Back.Should().BeApproximately(far, 1e-5f * far, "and the floor's far w at its top edge, a sheet's back");
     }
 
     [Fact]
@@ -367,7 +415,7 @@ public sealed class DepthPyramidTests
         (float[] distances, Vector3[] normals) = ScreenTesting.Surfaces(camera, wall);
         normals[24 * camera.Width + 32] = Vector3.UnitY;
 
-        (float Near, float Far) bounds = DepthPyramid.Of(camera, distances, normals).Surface(32, 24)!.Value.Bounds;
+        (float Near, float Far) bounds = DepthPyramid.Of(camera: camera, distances: distances, geometricNormals: normals, backShares: ScreenTesting.SheetShares(distances)).Surface(32, 24)!.Value.Bounds;
 
         bounds.Should().Be((0.1f, 0.1f), "an edge-on plane keeps its center's inverse depth, with no gradient");
     }
@@ -383,7 +431,7 @@ public sealed class DepthPyramidTests
         (float[] distances, Vector3[] normals) = ScreenTesting.Surfaces(camera, wall);
         normals[24 * camera.Width + 32] = Vector3.UnitY;
 
-        (float Near, float Far) bounds = DepthPyramid.Of(camera, distances, normals).Surface(32, 25)!.Value.Bounds;
+        (float Near, float Far) bounds = DepthPyramid.Of(camera: camera, distances: distances, geometricNormals: normals, backShares: ScreenTesting.SheetShares(distances)).Surface(32, 25)!.Value.Bounds;
 
         float centerLine = (float)(1 / ScreenTesting.DepthAlong(camera.ViewRayThrough(new(32.5f, 25.5f)), wall)!.Value);
         bounds
@@ -401,12 +449,25 @@ public sealed class DepthPyramidTests
 
         Action build = () =>
             DepthPyramid.Of(
-                camera,
-                fewerDistances ? distances[1..] : distances,
-                fewerDistances ? normals : normals[1..]
+                camera: camera,
+                distances: fewerDistances ? distances[1..] : distances,
+                geometricNormals: fewerDistances ? normals : normals[1..],
+                backShares: ScreenTesting.SheetShares(distances)
             );
 
         build.Should().Throw<ArgumentException>("the pyramid needs one distance and one normal for each pixel");
+    }
+
+    /// <summary>The back share <see cref="SolidShare"/> for each pixel of <paramref name="inverseDepths"/>.</summary>
+    private static float[] Solid(float[] inverseDepths) => [.. inverseDepths.Select(_ => SolidShare)];
+
+    /// <summary>The pyramid of <see cref="Floor"/> under <see cref="FloorCamera"/>, with one back share at every pixel.
+    /// </summary>
+    private static DepthPyramid FloorPyramid(float share)
+    {
+        CameraView camera = FloorCamera;
+        (float[] distances, Vector3[] normals) = ScreenTesting.Surfaces(camera, Floor);
+        return DepthPyramid.Of(camera: camera, distances: distances, geometricNormals: normals, backShares: [.. distances.Select(_ => share)]);
     }
 
     /// <summary>A random value from −<paramref name="half"/> to <paramref name="half"/>.</summary>

@@ -11,17 +11,10 @@ namespace Tertius.Rendering;
 internal readonly record struct CellBounds(float Near, float Back)
 {
     /// <summary>
-    /// κ: a surface at view depth z fills the depths from z to z (1 + κ) behind it, along its view ray: the 10 % rule
-    /// of the depth pyramid's slabs (<see cref="SlabBack"/>). The guided rays' target box reads it too.
-    /// </summary>
-    public const float ThicknessShare = 0.1f;
-
-    /// <summary>
-    /// The share by which the center of a depth sample's edge neighbor may stand off the sample's plane, in inverse depth,
-    /// and the sample's center off the neighbor's plane, where the neighbor continues the plane
-    /// (<see cref="PixelPlane.Holds"/>).
-    /// Far below <see cref="ThicknessShare"/>: at κ, the plane of a curved mesh's pixel reaches edges where the
-    /// neighbor's surface stands off it by several percent, and rays slip through the step between the two surfaces,
+    /// How far the center of a depth sample's edge neighbor may stand off the sample's plane where the neighbor continues
+    /// the plane, as a share of inverse depth (<see cref="PixelPlane.Holds"/>). The sample's center may stand off the
+    /// neighbor's plane by as much. At a share of 0.1, the plane of a curved mesh's pixel reaches edges where the
+    /// neighbor's surface stands off it by several percent. Rays then slip through the step between the two surfaces,
     /// which shows as dotted lines on the reflections of curved meshes.
     /// </summary>
     public const float ContinuationShare = 0.01f;
@@ -30,18 +23,18 @@ internal readonly record struct CellBounds(float Near, float Back)
     /// shader compiler's fast math may assume that no value is infinite, on any Vulkan driver.</summary>
     public const float EmptyBack = 1e30f;
 
-    /// <summary>1 / (1 + κ), rounded once from double precision, as glslc folds the shader's constant. A quotient by
-    /// 1 + κ in float rounds otherwise on most pixels (stage-1b/probe.md, "The settled details").</summary>
-    private const float BackShare = (float)(1.0 / (1.0 + ThicknessShare));
-
     /// <summary>The bounds of a cell with no surface. Merged with any bounds, it gives those bounds.</summary>
     public static CellBounds Empty => new(0, EmptyBack);
 
     public CellBounds Merge(CellBounds other) => new(MathF.Max(Near, other.Near), MathF.Min(Back, other.Back));
 
-    /// <summary>The back w of the slab behind a surface at <paramref name="inverseDepth"/>: the 10 % rule,
-    /// w / (1 + κ), as a product by <see cref="BackShare"/>, as slabBack in depth_pyramid.glsl takes it.</summary>
-    public static float SlabBack(float inverseDepth) => inverseDepth * BackShare;
+    /// <summary>
+    /// The w of the back of what is solid behind a surface at <paramref name="inverseDepth"/> whose back share is
+    /// <paramref name="share"/> (docs/plans/back-face-depth-layer.md, decision 3): w · share for a share between 0 and 1,
+    /// and w itself for a sheet, whose share is 0 or 1. slabBack in depth_pyramid.glsl is the GLSL copy.
+    /// </summary>
+    public static float SlabBack(float inverseDepth, float share) =>
+        share is > 0 and < 1 ? inverseDepth * share : inverseDepth;
 }
 
 /// <summary>
@@ -193,15 +186,12 @@ internal readonly record struct PixelSurface(
         }
     }
 
-    /// <summary>The slab that level 1 merges for the pixel: from its plane's near w to the back w of its plane's far w.
-    /// pixelSlabBounds in depth_pyramid.glsl is the GLSL copy.</summary>
-    public CellBounds SlabBounds
+    /// <summary>The slab that level 1 merges for the pixel whose back share is <paramref name="share"/>: from its plane's
+    /// near w to the back w of its plane's far w. pixelSlabBounds in depth_pyramid.glsl is the GLSL copy.</summary>
+    public CellBounds SlabBounds(float share)
     {
-        get
-        {
-            (float near, float far) = Bounds;
-            return new(Near: near, Back: CellBounds.SlabBack(far));
-        }
+        (float near, float far) = Bounds;
+        return new(Near: near, Back: CellBounds.SlabBack(far, share));
     }
 
     /// <summary>The surface of a depth sample: its plane over the part of its square that reaches the edge toward each
@@ -320,13 +310,17 @@ internal sealed class DepthPyramid
     /// <summary>The unit geometric normal of each pixel, camera-relative, row by row from the top.</summary>
     private readonly Vector3[] geometricNormals;
 
-    private DepthPyramid(PixelSurface?[] surfaces, Vector3[] geometricNormals, int width, int height)
+    /// <summary>The back share of each pixel, row by row from the top (<see cref="RenderTargets.BackShare"/>).</summary>
+    private readonly float[] backShares;
+
+    private DepthPyramid(PixelSurface?[] surfaces, Vector3[] geometricNormals, float[] backShares, int width, int height)
     {
         this.surfaces = surfaces;
         this.geometricNormals = geometricNormals;
+        this.backShares = backShares;
         int topLevel = LevelCount(width, height);
         levels = new CellBounds[topLevel + 1][];
-        levels[0] = [.. surfaces.Select(surface => surface?.SlabBounds ?? CellBounds.Empty)];
+        levels[0] = [.. surfaces.Select((surface, pixel) => surface?.SlabBounds(backShares[pixel]) ?? CellBounds.Empty)];
         for (int level = 1; level <= topLevel; level++)
             levels[level] = MergedLevel(
                 levels[level - 1],
@@ -374,13 +368,20 @@ internal sealed class DepthPyramid
     /// A pyramid over surfaces that face the eye's forward axis, each at one inverse depth given row by row from the
     /// top, 0 for sky. Their geometric normal is +Z, toward the eye of a camera that looks along −Z.
     /// </summary>
-    /// <exception cref="ArgumentException">The span does not hold width × height values.</exception>
-    public static DepthPyramid FromInverseDepths(ReadOnlySpan<float> inverseDepths, int width, int height)
+    /// <param name="backShares">The back share of each pixel, row by row from the top: 0 for no back face, 1 for a
+    /// sheet's own fragment (<see cref="RenderTargets.BackShare"/>).</param>
+    /// <exception cref="ArgumentException">A span does not hold width × height values.</exception>
+    public static DepthPyramid FromInverseDepths(
+        ReadOnlySpan<float> inverseDepths,
+        ReadOnlySpan<float> backShares,
+        int width,
+        int height
+    )
     {
-        if (inverseDepths.Length != width * height)
+        if (inverseDepths.Length != width * height || backShares.Length != width * height)
             throw new ArgumentException(
-                $"A {width} × {height} pyramid needs {width * height} inverse depths, not {inverseDepths.Length}.",
-                nameof(inverseDepths)
+                $"A {width} × {height} pyramid needs {width * height} inverse depths and back shares, not "
+                    + $"{inverseDepths.Length} and {backShares.Length}."
             );
         var surfaces = new PixelSurface?[inverseDepths.Length];
         for (int index = 0; index < inverseDepths.Length; index++)
@@ -389,6 +390,7 @@ internal sealed class DepthPyramid
         return new(
             surfaces: surfaces,
             geometricNormals: [.. Enumerable.Repeat(Vector3.UnitZ, inverseDepths.Length)],
+            backShares: backShares.ToArray(),
             width: width,
             height: height
         );
@@ -398,18 +400,21 @@ internal sealed class DepthPyramid
     /// <param name="camera">The camera of the frame, whose size is the screen's.</param>
     /// <param name="distances">Each pixel's distance to the eye in m, row by row from the top, 0 or less for sky.</param>
     /// <param name="geometricNormals">Each pixel's unit geometric normal, camera-relative; any value for sky.</param>
+    /// <param name="backShares">The back share of each pixel, row by row from the top: 0 for no back face, 1 for a
+    /// sheet's own fragment (<see cref="RenderTargets.BackShare"/>).</param>
     /// <exception cref="ArgumentException">A span does not hold one value per pixel.</exception>
     public static DepthPyramid Of(
         in CameraView camera,
         ReadOnlySpan<float> distances,
-        ReadOnlySpan<Vector3> geometricNormals
+        ReadOnlySpan<Vector3> geometricNormals,
+        ReadOnlySpan<float> backShares
     )
     {
         int pixels = camera.Width * camera.Height;
-        if (distances.Length != pixels || geometricNormals.Length != pixels)
+        if (distances.Length != pixels || geometricNormals.Length != pixels || backShares.Length != pixels)
             throw new ArgumentException(
-                $"A {camera.Width} × {camera.Height} pyramid needs {pixels} distances and normals, not "
-                    + $"{distances.Length} and {geometricNormals.Length}."
+                $"A {camera.Width} × {camera.Height} pyramid needs {pixels} distances, normals and back shares, not "
+                    + $"{distances.Length}, {geometricNormals.Length} and {backShares.Length}."
             );
         var surfaces = new PixelSurface?[pixels];
         for (int y = 0; y < camera.Height; y++)
@@ -424,6 +429,7 @@ internal sealed class DepthPyramid
         return new(
             surfaces: surfaces,
             geometricNormals: geometricNormals.ToArray(),
+            backShares: backShares.ToArray(),
             width: camera.Width,
             height: camera.Height
         );
@@ -438,12 +444,21 @@ internal sealed class DepthPyramid
     /// a pixel that sees the sky or lies outside the screen (docs/plans/temporal-renderer.md, decision 40).</summary>
     public float Finest(int x, int y) => Surface(x, y)?.CenterInverseDepth ?? 0;
 
-    /// <summary>The slab of a pixel, the finest level's texel: its center w and the back w of that, or (0, 0) for a
-    /// pixel that sees the sky or lies outside the screen. pixelSlab in depth_pyramid.glsl is the GLSL copy.</summary>
+    /// <summary>
+    /// The slab of a pixel, the finest level's texel (docs/plans/back-face-depth-layer.md, decision 3): its center w, and
+    /// the back w of that or its plane's far w, whichever lies farther. A sheet's slab so reaches the far end of its plane
+    /// over its square. (0, 0) for a pixel that sees the sky or lies outside the screen. pixelSlab in depth_pyramid.glsl
+    /// is the GLSL copy.
+    /// </summary>
     public CellBounds PixelSlab(int x, int y)
     {
-        float centerInverseDepth = Finest(x, y);
-        return new(Near: centerInverseDepth, Back: CellBounds.SlabBack(centerInverseDepth));
+        if (Surface(x, y) is not { } surface)
+            return new(Near: 0, Back: 0);
+        float center = surface.CenterInverseDepth;
+        return new(
+            Near: center,
+            Back: MathF.Min(CellBounds.SlabBack(center, backShares[y * Width + x]), surface.Bounds.Far)
+        );
     }
 
     /// <summary>The slab of a cell that the walk reads, as the GPU stores it: the <see cref="PixelSlab"/> at the finest

@@ -65,13 +65,19 @@ public sealed class ScreenTraceRecordTests
                 new(BaseColor: Vector4.One, Roughness: 0.3f, Model: new HairShading(StrandDirection.PlusV))
             );
             RenderSnapshot scene = Dark();
-            foreach (float horizontal in new[] { -1.5f, 1.5f })
+            // Two hair cards, sheets, each turned 0.25 rad about the vertical so that its right side lies nearer: so
+            // each pixel's slab has depth, and no ray meets a card only at a slab of no depth (t53-eyrv). The right
+            // card lies farther, so that the probe's rays cross it at its middle column.
+            Quaternion turned =
+                Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.25f)
+                * Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2);
+            foreach (Vector3 position in new Vector3[] { new(-1.5f, 0, -10), new(1.8f, 0, -12) })
                 scene.Instances.Add(
                     Gpu.Instance(
                         mesh: plane,
                         material: hair,
-                        position: new(horizontal, 0, -10),
-                        rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2),
+                        position: position,
+                        rotation: turned,
                         scale: new(1, 1, 2),
                         radius: 3,
                         chainDepth: TestChains.CamerasFrame
@@ -83,8 +89,9 @@ public sealed class ScreenTraceRecordTests
             byte[] shading = renderer.ReadShading();
             float[] values = probe.Read();
             int compared = 0;
-            for (int y = 30; y < 60; y++)
-            for (int x = 50; x < width / 2 - 5; x++)
+            // The rows where both cards show, and the columns of the left card whose second pixel to the right shows it.
+            for (int y = 34; y < 57; y++)
+            for (int x = 50; x < width / 2 - 8; x++)
             {
                 int at = 4 * (y * width + x);
                 if (CardCode.Read(shading[at + 2], shading[at + 3]) is null)

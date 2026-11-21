@@ -116,7 +116,7 @@ uint walkScreen(texture2D finest, texture2D bounds, ScreenWalk walk, uint cap, o
         {
             hit = clamp(walk.ray.start + walk.ray.step * entry, cell, cell + 1.0);
             hitPixel = ivec2(cell);
-            // A thickness that rounds to none leaves a slab of no depth, whose share would be 0 / 0.
+            // A slab of no depth, such as a sheet's that faces the eye, has no entry share: it would be 0 / 0.
             entryShare = back < near ? entryShareOf(inW, back, near) : 0.0;
             return WalkHit;
         }

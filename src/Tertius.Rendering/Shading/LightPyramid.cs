@@ -16,10 +16,12 @@ internal sealed class LightPyramid
     private const float NoEnd = 1e30f;
 
     /// <summary>
-    /// How deep a pixel's target box reaches behind its center, the front of its slab, as a share of its view depth: κ / 2.
-    /// A ray from a low angle meets the front of the slabs, and one from behind enters a slab near its front.
+    /// How deep a pixel's target box reaches behind its center, the front of its slab, as a share of its view depth. A
+    /// ray from a low angle meets the front of the slabs, and one from behind enters a slab near its front. It is no
+    /// thickness: a guided ray that the walk rejects behind a thin surface counts as a miss, so the estimate stays
+    /// unbiased (docs/plans/back-face-depth-layer.md, decision 7). TargetDepthShare in screen_trace.glsl is the GLSL copy.
     /// </summary>
-    public const float TargetDepthShare = CellBounds.ThicknessShare / 2;
+    public const float TargetDepthShare = 0.05f;
 
     /// <summary>Each level from 0 to <see cref="TopLevel"/>.</summary>
     private readonly Level[] levels;

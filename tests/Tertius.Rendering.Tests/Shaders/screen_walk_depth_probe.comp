@@ -1,0 +1,29 @@
+#version 460
+// Rays behind the front of a box on the GPU (BackFaceSlabWalkTests): from each pixel, three rays run up the screen, each
+// at one inverse depth. Each pixel writes the outcomes of its three rays, at the view depths of RayDepths.
+#extension GL_GOOGLE_include_directive : require
+#include "screen_trace.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+// The view depths of the three rays, in m (BackFaceSlabWalkTests).
+const float RayDepths[3] = float[3](5.05, 5.2, 5.8);
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
+        return;
+    vec4 outcomes = vec4(0.0);
+    for (int i = 0; i < 3; i++)
+    {
+        // Up the screen, to a quarter pixel below the screen's top edge.
+        ScreenRay ray = ScreenRay(vec2(pixel) + 0.5, vec2(0.0, -1.0), 1.0 / RayDepths[i], 0.0, float(pixel.y) + 0.25);
+        vec2 hit;
+        ivec2 hitPixel;
+        float entryShare;
+        outcomes[i] = float(walkScreen(depthFinest, depthPyramid, screenWalkOf(ray, vec3(0.0, 0.0, -1.0), NoCard), 256u,
+            hit, hitPixel, entryShare));
+    }
+    imageStore(specularSample, pixel, outcomes);
+}

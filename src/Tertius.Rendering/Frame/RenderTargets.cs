@@ -149,7 +149,8 @@ internal sealed class RenderTargets : IDisposable
                 layouts: layouts,
                 extent: Extent,
                 format: PyramidImages.DepthFormat,
-                name: "depth pyramid"
+                name: "depth pyramid",
+                levelOneReadsFinest: false
             );
         CreateBackShare();
     }
@@ -237,13 +238,18 @@ internal sealed class RenderTargets : IDisposable
     }
 
     /// <summary>
-    /// Makes the back share at the render size beside the depth pyramid, whose build reads it: under the screen tracer
-    /// only. Runs after <see cref="Create"/> and the pyramid's own creation.
+    /// Makes the back share at the render size beside the depth pyramid, under the screen tracer only, and binds it at
+    /// binding 0 of the pyramid's finest set and of its set of level 1, whose shaders read it. Runs after
+    /// <see cref="Create"/> and the pyramid's own creation.
     /// </summary>
-    private void CreateBackShare() =>
-        BackShare = Pyramid is null
-            ? null
-            : ColorTarget(extent: Extent, format: BackShareFormat, name: "back share", readable: true);
+    private void CreateBackShare()
+    {
+        if (Pyramid is null)
+            return;
+        BackShare = ColorTarget(extent: Extent, format: BackShareFormat, name: "back share", readable: true);
+        layouts.WriteImage(set: Pyramid.FinestSet, binding: 0, arrayElement: 0, image: BackShare);
+        layouts.WriteImage(set: Pyramid.LevelSet(1), binding: 0, arrayElement: 0, image: BackShare);
+    }
 
     /// <summary>The screen tracer's limits on the screen: the depth pyramid's levels, and the own-ray lists' range.</summary>
     private static void CheckTracedScreen(VulkanDevice device, Extent2D extent)

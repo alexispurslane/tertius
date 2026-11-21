@@ -175,12 +175,15 @@ bool insideLobe(TracingPixel p, TracingPixel c)
 }
 #endif
 
+// How far a neighbor's point can lie off a pixel's plane and still fit it, as a share of the neighbor's view depth.
+const float PlaneFitShare = 0.1;
+
 // Whether the block's ray of the kind from its chosen pixel c fits the pixel p: c's plane passes p's surface point within
-// the thickness, and their geometric normals lie within 25°. With the precise specular history, a reflection ray must
+// PlaneFitShare of p's view depth, and their geometric normals lie within 25°. With the precise specular history, a reflection ray must
 // also lie inside p's reflection lobe.
 bool fits(TracingPixel p, TracingPixel c, uint kind)
 {
-    bool fit = abs(dot(p.point - c.point, c.s.geometricNormal)) <= ThicknessShare * p.viewDepth
+    bool fit = abs(dot(p.point - c.point, c.s.geometricNormal)) <= PlaneFitShare * p.viewDepth
         && dot(p.s.geometricNormal, c.s.geometricNormal) >= SameNormalCosine;
 #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
     fit = fit && (kind != KindReflection || insideLobe(p, c));
