@@ -1,22 +1,22 @@
-# spanchart.py <out.png> <round...>: a line chart of the GPU frame span over the film rect-bay's 180 frames, one line per
-# side (M, X, Xt, D4, D8, D4s), each frame's median over the given rounds' runs of that side
-# (/private/tmp/t0-xdck/timing/<round>-<side>/spans.txt, the scratch switch TERTIUS_X_SPAN_DUMP). C4, the control, stays
-# in the tables only, to keep the chart at six lines. Colors: slots 1 to 6 of the dataviz skill's categorical palette,
+# spanchart.py <out.png> <spans.csv>: a line chart of the GPU frame span over the film rect-bay's 180 frames, one line per
+# side (M, X, Xt, D4, D8, D4s, D8c), each frame's median over that side's runs in the record's spans.csv (columns
+# <round>-<side>, written by timing-table.py --csv from the scratch switch TERTIUS_X_SPAN_DUMP). C4, Xtc and D4c stay in
+# the tables only, to keep the chart at seven lines. Colors: slots 1 to 7 of the dataviz skill's categorical palette,
 # checked with its validator on the light surface. Each line carries a direct label at its right end, because three
 # colors sit below 3:1 contrast on the surface. PIL only, because the dev shell has no matplotlib.
+import csv
 import statistics
 import sys
-from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
-TIMING = Path('/private/tmp/t0-xdck/timing')
-SIDES = [('M', '#2a78d6'), ('X', '#eb6834'), ('Xt', '#1baf7a'), ('D4', '#eda100'), ('D8', '#e87ba4'), ('D4s', '#008300')]
+SIDES = [('M', '#2a78d6'), ('X', '#eb6834'), ('Xt', '#1baf7a'), ('D4', '#eda100'), ('D8', '#e87ba4'), ('D4s', '#008300'),
+         ('D8c', '#6250d6')]
 SURFACE, INK, MUTED, GRID = '#fcfcfb', '#1f1f1e', '#6b6a64', '#e4e3df'
 W, H = 1400, 720
 LEFT, RIGHT, TOP, BOTTOM = 90, 120, 80, 70
 Y_MAX = 40.0
 
-out, rounds = sys.argv[1], sys.argv[2:]
+out, table = sys.argv[1], sys.argv[2]
 
 
 def font(size):
@@ -28,12 +28,14 @@ def font(size):
     return ImageFont.load_default()
 
 
+with open(table) as f:
+    rows = list(csv.DictReader(f))
 series = {}
+counts = {}
 for side, _ in SIDES:
-    runs = [[float(l.split()[1]) for l in (TIMING / f'{r}-{side}' / 'spans.txt').read_text().splitlines()]
-            for r in rounds if (TIMING / f'{r}-{side}' / 'spans.txt').exists()]
-    frames = min(len(x) for x in runs)
-    series[side] = [statistics.median(x[i] for x in runs) for i in range(frames)]
+    columns = [c for c in rows[0] if c != 'frame' and c.split('-', 1)[1] == side]
+    counts[side] = len(columns)
+    series[side] = [statistics.median(float(row[c]) for c in columns) for row in rows]
 
 im = Image.new('RGB', (W, H), SURFACE)
 d = ImageDraw.Draw(im)
@@ -56,7 +58,8 @@ for f in range(0, frames, 30):
 d.text((LEFT + plot_w / 2, H - 22), 'film frame', fill=MUTED, font=small, anchor='mm')
 d.text((24, TOP + plot_h / 2), 'ms', fill=MUTED, font=small, anchor='mm')
 d.text((LEFT, 24), 'GPU frame span over the film rect-bay, 1920 x 1080, two frames in flight', fill=INK, font=title)
-d.text((LEFT, 52), f'Each frame: the median over rounds {", ".join(rounds)}. Lines above 40 ms are cut at 40.',
+d.text((LEFT, 52), 'Each frame: the median over the side\'s timing runs (' + ', '.join(f'{s} {counts[s]}' for s, _ in SIDES)
+       + '). Lines above 40 ms are cut at 40.',
        fill=MUTED, font=small)
 ends = []
 for side, color in SIDES:

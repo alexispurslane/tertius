@@ -609,10 +609,10 @@ index 9c273273e..e800db30f 100644
                  scene.AirSunLight = scene.LightCount;
              scene.AddLight() = prepared;
 diff --git a/src/Tertius.Rendering/ShaderConstants.cs b/src/Tertius.Rendering/ShaderConstants.cs
-index 99ad27d6f..2de76ebfc 100644
+index 99ad27d6f..3a6966f05 100644
 --- a/src/Tertius.Rendering/ShaderConstants.cs
 +++ b/src/Tertius.Rendering/ShaderConstants.cs
-@@ -124,6 +124,33 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
+@@ -124,6 +124,35 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
              (NeighborLimitPrototypeId, VkBool(values.NeighborLimitPrototype)),
              (ReflectionSharingPrototypeId, VkBool(values.ReflectionSharingPrototype)),
              (TileCornerMeansId, VkBool(values.TileCornerMeans)),
@@ -643,23 +643,25 @@ index 99ad27d6f..2de76ebfc 100644
 +            (28u, BitConverter.SingleToUInt32Bits(AccumulatePushConstants.ProbeX.DriftSigmas)),
 +            // SCRATCH (t0-xdck): the drift test's own cut length (accumulate_spatial.comp, ProbeDriftCut).
 +            (29u, BitConverter.SingleToUInt32Bits(AccumulatePushConstants.ProbeX.DriftCut)),
++            // SCRATCH (t0-xdck): ProbeDriftCenters of accumulate.glsl (TERTIUS_X_DRIFT_CENTERS, 0, 1 or 2).
++            (30u, uint.TryParse(Environment.GetEnvironmentVariable("TERTIUS_X_DRIFT_CENTERS"), out uint centers) ? centers : 0u),
          ];
          for (int i = 0; i < rows.Length; i++)
          {
-@@ -155,7 +182,7 @@ internal struct SpecializationStorage
+@@ -155,7 +184,7 @@ internal struct SpecializationStorage
      /// The number of constants: one per field of <see cref="ShaderConstants"/>, the subsurface setting's being its taps per
      /// side. <see cref="ShaderConstants.Specialization"/> writes one row per constant, and a row past this count throws.
      /// </summary>
 -    public const int Count = 11;
-+    public const int Count = 28; // SCRATCH (t0-xlcu, t0-ion0, t0-xdck): 17 plus constants 18 to 20 and 22 to 29
++    public const int Count = 29; // SCRATCH (t0-xlcu, t0-ion0, t0-xdck): 17 plus constants 18 to 20 and 22 to 30
  
      public SpecializationValues Data;
      public SpecializationEntries Entries;
 diff --git a/src/Tertius.Rendering/Shaders/accumulate.glsl b/src/Tertius.Rendering/Shaders/accumulate.glsl
-index e3f70de95..7529194c5 100644
+index e3f70de95..cea399d89 100644
 --- a/src/Tertius.Rendering/Shaders/accumulate.glsl
 +++ b/src/Tertius.Rendering/Shaders/accumulate.glsl
-@@ -29,7 +29,17 @@ layout(set = 3, binding = 8) uniform texture2D lastDeviceDepth;               //
+@@ -29,7 +29,27 @@ layout(set = 3, binding = 8) uniform texture2D lastDeviceDepth;               //
  // rays and its motion bit. The temporal dispatch cuts the history to the light code's age, and the spatial dispatch forms
  // its block's evidence from both (docs/plans/bounce-light-confidence.md, section 8.4).
  layout(set = 3, binding = 11, r16ui) uniform readonly uimage2D sampleAge;
@@ -674,10 +676,20 @@ index e3f70de95..7529194c5 100644
 +layout(set = 3, binding = 13, r32f) uniform image2DArray regionWindow;
 +// SCRATCH (t0-y46f): TERTIUS_X_WINDOW_ALL, specialization constant 16.
 +layout(constant_id = 16) const bool probeWindowAll = false;
++// SCRATCH (t0-xdck): TERTIUS_X_DRIFT_CENTERS. 1 runs the drift test and writes the window ring only at the blocks' center
++// pixels, local pixel (4, 4) of each 8 x 8 group. The test's taps lie 8 pixels apart, so a center's taps are centers too,
++// and only the centers' test gives block evidence. 2 runs the test and writes the ring at no pixel, for the cost of the
++// test's code alone: it keeps the code in the shaders but gives no evidence. 0 (unset) runs both at every pixel.
++// Specialization constant 30.
++layout(constant_id = 30) const int ProbeDriftCenters = 0;
++bool probeDriftCenter(ivec2 pixel)
++{
++    return ProbeDriftCenters == 1 && all(equal(pixel & 7, ivec2(4)));
++}
  
  #ifdef TERTIUS_ACCUMULATION_TRACE
  // The accumulation trace (ticket tiunr-4b2g, TemporalSignal.AccumulationTrace), which only the capture tool and the tests
-@@ -65,6 +75,20 @@ layout(push_constant, std430) uniform AccumulatePush
+@@ -65,6 +85,20 @@ layout(push_constant, std430) uniform AccumulatePush
      float reflectedPlaceBelow;   // the roughness below which the reflected place competes, with its distance test, 0 for none
      uint reset;          // 1 in a frame that resets every history
      float retainedSigmas;  // the clamp box's least half width in retained deviations, 0 for the narrow box
@@ -699,7 +711,7 @@ index e3f70de95..7529194c5 100644
  
  // SignalLight.
 diff --git a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
-index b129db792..5f0730b72 100644
+index b129db792..e8e820d56 100644
 --- a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
 +++ b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
 @@ -10,6 +10,9 @@
@@ -1084,7 +1096,7 @@ index b129db792..5f0730b72 100644
      }
  
  #ifdef TERTIUS_ACCUMULATION_TRACE
-@@ -159,18 +449,169 @@ void accumulateAt(ivec2 pixel, uint evidence)
+@@ -159,18 +449,170 @@ void accumulateAt(ivec2 pixel, uint evidence)
      storeTrace(pixel, 4, vec4(tracedBefore, historyLength, 0.0, 0.0));
  #endif
  
@@ -1231,7 +1243,8 @@ index b129db792..5f0730b72 100644
 -    uint evidence = evidenceOfBlock(pixel);
 +    // SCRATCH (t0-ion0): the drift test before the block's evidence, which takes its rules' bits.
 +    DriftTest drift = DriftTest(0.0, 0.0, 0.0, 0.0, false);
-+    if (ProbeDriftRadius > 0 && insideImages(pixel))
++    // SCRATCH (t0-xdck): TERTIUS_X_DRIFT_CENTERS, the test at the block's center pixel alone.
++    if (ProbeDriftRadius > 0 && insideImages(pixel) && (ProbeDriftCenters == 0 || probeDriftCenter(pixel)))
 +        drift = driftAt(pixel);
 +    // One test per block, at its center pixel (local pixel (4, 4)). Each pixel of a block reads another set of 289 tap
 +    // pixels, so the tests of a block's 64 pixels are close to independent, and a block that took evidence from any of
@@ -1256,10 +1269,10 @@ index b129db792..5f0730b72 100644
      uint evidence = NoEvidence;
  #endif
 diff --git a/src/Tertius.Rendering/Shaders/accumulate_temporal.comp b/src/Tertius.Rendering/Shaders/accumulate_temporal.comp
-index 69c906b30..3cfa28241 100644
+index 69c906b30..050665e25 100644
 --- a/src/Tertius.Rendering/Shaders/accumulate_temporal.comp
 +++ b/src/Tertius.Rendering/Shaders/accumulate_temporal.comp
-@@ -232,6 +232,28 @@ vec4 tracedPlaceWeights(ivec2 pixel)
+@@ -232,6 +232,31 @@ vec4 tracedPlaceWeights(ivec2 pixel)
  }
  #endif
  
@@ -1272,6 +1285,9 @@ index 69c906b30..3cfa28241 100644
 +{
 +    uint window = parameters.probeRegionWindow;
 +    if (window == 4u)
++        return;
++    // SCRATCH (t0-xdck): only the drift test's center pixels read the ring.
++    if (ProbeDriftCenters != 0 && !probeDriftCenter(pixel))
 +        return;
 +    float scale = exp2(clamp(exposureStops, -64.0, 64.0));
 +    uint current = parameters.probeDraw % window;
@@ -1288,7 +1304,7 @@ index 69c906b30..3cfa28241 100644
  void main()
  {
      ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
-@@ -248,6 +270,12 @@ void main()
+@@ -248,6 +273,12 @@ void main()
          for (int layer = 0; layer < 4; layer++)
              storeTrace(pixel, layer, vec4(0.0));
          storeTrace(pixel, 8, vec4(0.0));
@@ -1301,7 +1317,7 @@ index 69c906b30..3cfa28241 100644
  #endif
          return;
      }
-@@ -361,6 +389,20 @@ void main()
+@@ -361,6 +392,20 @@ void main()
          float fastLength = min(historyLength, fastCapOf(cap));
          fast = fastLength <= 1.0 ? sampled : fast + (sampled - fast) / fastLength;
      }
@@ -1518,7 +1534,7 @@ index b013dc9f9..d40cc1df3 100644
      if (tonemap.encodeSrgb != 0u)
          ldr = linearToSrgb(ldr);
 diff --git a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
-index 8409e824a..a9abdfe56 100644
+index 8409e824a..b459fbded 100644
 --- a/src/Tertius.Rendering/VulkanRenderer.cs
 +++ b/src/Tertius.Rendering/VulkanRenderer.cs
 @@ -619,6 +619,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
@@ -1531,7 +1547,7 @@ index 8409e824a..a9abdfe56 100644
  
          if (sink != null && capture != null)
          {
-@@ -639,6 +642,231 @@ public sealed unsafe class VulkanRenderer : IRenderer
+@@ -639,6 +642,233 @@ public sealed unsafe class VulkanRenderer : IRenderer
          return true;
      }
  
@@ -1678,6 +1694,10 @@ index 8409e824a..a9abdfe56 100644
 +        }
 +    }
 +
++    // SCRATCH (t0-xdck): TERTIUS_X_OWN_COUNT=<folder>, the own-ray count (ProbeRegionCount).
++    private static readonly string? ProbeOwnCountFolder =
++        Environment.GetEnvironmentVariable("TERTIUS_X_OWN_COUNT") is { Length: > 0 } ownFolder ? ownFolder : null;
++
 +    // SCRATCH (t0-xlcu, never commit to src): the count of the regional test. With TERTIUS_X_REGION_COUNT=<folder>, each
 +    // draw of the run whose number n (counted from 0 over every draw of the run, as TERTIUS_PROBE_LAMP_OFF counts) lies in
 +    // TERTIUS_X_REGION_COUNT_FROM <= n <= TERTIUS_X_REGION_COUNT_TO, and for which (n - from) is a multiple of
@@ -1686,8 +1706,6 @@ index 8409e824a..a9abdfe56 100644
 +    // ones) to <folder>/<process id>/<light>.f16: per pixel the lag, T1, T2, T3 and the flag as five halves. It appends
 +    // "<n> <draw index since reset> <light> <width> <height>" to draws.txt there, and the command line to command.txt.
 +    // t0-ion0: TERTIUS_X_DRIFT_COUNT=<folder> does the same for the drift test's eight count layers, in the same draws.
-+    private static readonly string? ProbeOwnCountFolder =
-+        Environment.GetEnvironmentVariable("TERTIUS_X_OWN_COUNT") is { Length: > 0 } ownFolder ? ownFolder : null;
 +    private static readonly long ProbeCountFrom =
 +        long.TryParse(Environment.GetEnvironmentVariable("TERTIUS_X_REGION_COUNT_FROM"), out long countFrom) ? countFrom : 100;
 +    private static readonly long ProbeCountTo =
@@ -1763,7 +1781,7 @@ index 8409e824a..a9abdfe56 100644
      /// <summary>Resizes the targets to the output's <paramref name="image"/> when the swapchain changed size on its own (out of date).</summary>
      private void MatchTargetsTo(GpuImage image)
      {
-@@ -877,7 +1105,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
+@@ -877,7 +1107,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
          Vector2 previousJitter = Vector2.Zero;
          if (jitters && !pending.Reset)
          {

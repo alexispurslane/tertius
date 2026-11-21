@@ -22,6 +22,7 @@ for side in "$@"; do
   env $vars TERTIUS_PROBE_EXPOSURE=$STOPS TERTIUS_X_SPAN_DUMP="$out/spans.txt" bash $R/tools/gpu-clock.sh "$bin" \
     --script /private/tmp/t0-xdck/rect-bay-film.json --headless --out "$out" --video none --size 1920x1080 --in-flight 2 \
     --gpu-run "ray plan..diffuse rays" --gpu-run "ray plan..accumulate indirect specular" > "$out/run.log" 2>&1
-  echo "$(date +%T) $side exit $?"
+  rc=$?
+  echo "$(date +%T) $side exit $rc"
   [ -f "$out/gpu-timings.json" ] && python3 -I $R/tools/gpu_clock.py record "$out/run.log" "$out/gpu-timings.json"
 done

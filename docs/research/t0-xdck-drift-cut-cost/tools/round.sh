@@ -11,4 +11,5 @@ mkdir -p /private/tmp/t0-xdck/timing
 cd $R
 echo "$(date +%T) start round $round: $*"
 nix develop --command bash tools/gpu-lock.sh /private/tmp/t0-xdck/timing/$round.log bash $D/round-inner.sh "$round" "$@"
-echo "$(date +%T) end round $round exit $?"
+rc=$?
+echo "$(date +%T) end round $round exit $rc"

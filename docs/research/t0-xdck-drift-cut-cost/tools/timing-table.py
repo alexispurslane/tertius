@@ -3,14 +3,16 @@
 # from the per-frame span dump spans.txt (scratch switch TERTIUS_X_SPAN_DUMP) the median, mean and highest frame span,
 # and the median of each requested range's per-frame sums (spans.txt.<first>..<last>). All times in ms. Per side over the
 # rounds: the median of the runs' medians, the spread of the runs' medians (highest minus lowest), and the highest frame
-# span of any run. With --csv <file>, it writes each frame's span per run, for the chart (spanchart.py).
+# span of any run. The differences pair the runs of one round: per round, the side's run median minus the base's, then
+# the median of those paired differences over the rounds that ran both, and their spread (highest minus lowest) in
+# brackets. With --csv <file>, it writes each frame's span per run (the record's spans.csv, which spanchart.py reads).
 import json
 import statistics
 import sys
 from pathlib import Path
 
 TIMING = Path('/private/tmp/t0-xdck/timing')
-SIDES = ['M', 'X', 'Xt', 'D4', 'D8', 'D4s', 'C4']
+SIDES = ['M', 'X', 'Xt', 'D4', 'D8', 'D4s', 'C4', 'Xtc', 'D4c', 'D8c', 'Xtn']
 RANGES = [('plan..rays', 'ray plan..diffuse rays'), ('plan..accum', 'ray plan..accumulate indirect specular')]
 
 args = sys.argv[1:]
@@ -64,14 +66,19 @@ for side in SIDES:
         cells.append(f'{statistics.median(values):7.3f} ({max(values) - min(values):5.3f})')
     print(f'{side:5} {len(mine):4} {cells[0]:>18} {max(x["max"] for x in mine):8.3f} {cells[1]:>18} {cells[2]:>18}')
 print()
-print('## Differences of the medians against M, X and Xt, ms (Xt: the drift test runs but does not act)')
+print('## Paired differences against M, X, Xt and Xtc, ms: median over the rounds (spread), n rounds')
+print('## (Xt: the drift test runs at every pixel but does not act. Xtc: the same at the blocks\' center pixels only)')
 print()
-for base in ('M', 'X', 'Xt'):
+for base in ('M', 'X', 'Xt', 'Xtc'):
     for side in SIDES:
-        if side == base or (side, 'median') not in summary or (base, 'median') not in summary:
+        both = [r for r in rounds if (r, side) in runs and (r, base) in runs]
+        if side == base or not both:
             continue
-        d = [summary[(side, k)] - summary[(base, k)] for k in ('median', 'plan..rays', 'plan..accum')]
-        print(f'{side:4} - {base:2}: frame span {d[0]:+7.3f}, plan..rays {d[1]:+7.3f}, plan..accum {d[2]:+7.3f}')
+        cells = []
+        for key in ('median', 'plan..rays', 'plan..accum'):
+            d = [runs[(r, side)][key] - runs[(r, base)][key] for r in both]
+            cells.append(f'{statistics.median(d):+7.3f} ({max(d) - min(d):5.3f})')
+        print(f'{side:4} - {base:2}: frame span {cells[0]}, plan..rays {cells[1]}, plan..accum {cells[2]}, n {len(both)}')
 if csv:
     keys = sorted(runs, key=lambda k: (SIDES.index(k[1]), k[0]))
     with open(csv, 'w') as out:

@@ -62,3 +62,48 @@ t-D4-s     bay-sunbeam  daub 0.0212  broad 0.0341  smooth share 0.89  walls 0.02
 t-D8-s     bay-sunbeam  daub 0.0213  broad 0.0352  smooth share 0.89  walls 0.0207  floor 0.0230
 t-D4s-s    bay-sunbeam  daub 0.0243  broad 0.0363  smooth share 0.89  walls 0.0239  floor 0.0253
 
+
+## After the review: Xt with the own-ray count, and the drift test at the blocks' center pixels only (D4c, D8c)
+
+$ films.py ...
+variant                          level mid/last  blotch mid/last
+t-X-rb                           +1.86 / +1.91   0.383 / 0.484
+t-Xt-rb                          +1.86 / +1.91   0.383 / 0.484
+t-D4-rb                          +0.47 / +0.23   0.122 / 0.148
+t-D4c-rb                         +0.47 / +0.23   0.122 / 0.148
+t-D8-rb                          +0.86 / +0.31   0.206 / 0.195
+t-D8c-rb                         +0.86 / +0.31   0.206 / 0.195
+
+# filmspecks.py t-D4c-rb t-D8c-rb, measured before their frames were deleted (copied from its output):
+variant      specks middle / last
+t-D4c-rb       0.22 /   0.18
+t-D8c-rb       0.20 /   0.63
+
+$ ownshare.py ...
+variant    kind         0-59 60-119 120-179   film    f89   f179
+t-X-rb     reflection  0.077  0.077   0.057  0.071  0.080  0.101
+t-X-rb     diffuse     0.056  0.049   0.071  0.058  0.050  0.221
+t-Xt-rb    reflection  0.077  0.077   0.057  0.071  0.080  0.101
+t-Xt-rb    diffuse     0.056  0.049   0.071  0.058  0.050  0.221
+t-D4-rb    reflection  0.393  0.675   0.567  0.545  0.678  0.579
+t-D4-rb    diffuse     0.329  0.705   0.583  0.539  0.702  0.600
+t-D4c-rb   reflection  0.393  0.675   0.567  0.545  0.678  0.579
+t-D4c-rb   diffuse     0.329  0.705   0.583  0.539  0.702  0.600
+t-D8-rb    reflection  0.066  0.039   0.034  0.047  0.041  0.066
+t-D8-rb    diffuse     0.057  0.050   0.072  0.060  0.052  0.223
+t-D8c-rb   reflection  0.066  0.039   0.034  0.047  0.041  0.066
+t-D8c-rb   diffuse     0.057  0.050   0.072  0.060  0.052  0.223
+
+## The survey's flicker of every film (limits 0.006 and 0.05)
+
+$ filmflicker.py ...
+variant       flicker    grain
+t-M-rb        0.00206  0.00642
+t-X-rb        0.00102  0.00492
+t-Xt-rb       0.00102  0.00492
+t-D4-rb       0.00236  0.00762
+t-D8-rb       0.00256  0.00736
+t-D4s-rb      0.00348  0.00828
+t-C4-rb       0.00291  0.00722
+t-D4c-rb      0.00236  0.00762
+t-D8c-rb      0.00256  0.00736
