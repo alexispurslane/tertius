@@ -260,6 +260,31 @@ public sealed class BackFacePassTests
     }
 
     [Fact]
+    public void AClosedPlateThinnerThanTheOwnSurfaceToleranceHoldsNoBackFace()
+    {
+        VulkanRenderer renderer = Traced();
+        try
+        {
+            MeshId plate = renderer.CreateMesh(Primitives.Box(new(1, 1, 5e-5f)));
+            RenderSnapshot snapshot = Lit();
+            snapshot.Instances.Add(Placed(mesh: plate, material: Matte(renderer), position: new(0, 0, -4), radius: 1.5f));
+            renderer.Render(snapshot, 1f);
+            float[] share = renderer.ReadBackShare();
+
+            At(share, new(0.2f, 0.3f, -4))
+                .Should()
+                .Be(
+                    0f,
+                    "the plate's back face lies 0.1 mm behind its front, within 10⁻⁴ of the front's 4 m, so it counts as the front's own surface"
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void AnOpenQuadSeenFromBehindDoesNotCountForTheBoxBehindIt()
     {
         VulkanRenderer renderer = Traced();
@@ -539,6 +564,62 @@ public sealed class BackFacePassTests
             At(share, new(1.2e6f, 0, -7e6f))
                 .Should()
                 .BeApproximately(7f / 13, ShareTolerance, "beside the near box, the far box's front lies 7,000 km deep and its back 13,000 km");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void APixelOfAnObjectInTheMiddleRangeHoldsTheShareOfItsOwnBackFace()
+    {
+        VulkanRenderer renderer = Traced();
+        try
+        {
+            MeshId box = renderer.CreateMesh(Primitives.Box(new(2e4f)));
+            RenderSnapshot snapshot = Lit();
+            snapshot.Instances.Add(Placed(mesh: box, material: Matte(renderer), position: new(0, 0, -1e5f), radius: 3.5e4f));
+            renderer.Render(snapshot, 1f);
+            float[] share = renderer.ReadBackShare();
+
+            At(share, new(1e4f, 0, -8e4f))
+                .Should()
+                .BeApproximately(
+                    8f / 12,
+                    ShareTolerance,
+                    "the box lies between 2 km and 2,000 km, with its front 80 km deep and its back 120 km, and its range draws with its own projection and depth"
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ANearerRangeCountsNoFragmentBeyondItsOwnFarBoundary()
+    {
+        VulkanRenderer renderer = Traced();
+        try
+        {
+            // The large box spans the near and the middle range, so both draw it. The small box inside it lies in the
+            // middle range alone, and its back face is the nearest counted fragment behind the large box's front.
+            MeshId large = renderer.CreateMesh(Primitives.Box(new(500, 500, 1000)));
+            MeshId small = renderer.CreateMesh(Primitives.Box(new(100, 100, 50)));
+            RenderSnapshot snapshot = Lit();
+            snapshot.Instances.Add(Placed(mesh: large, material: Matte(renderer), position: new(0, 0, -2000), radius: 1225));
+            snapshot.Instances.Add(Placed(mesh: small, material: Matte(renderer), position: new(0, 0, -2550), radius: 150));
+            renderer.Render(snapshot, 1f);
+            float[] share = renderer.ReadBackShare();
+
+            At(share, new(0, 0, -1000))
+                .Should()
+                .BeApproximately(
+                    1000f / 2600,
+                    ShareTolerance,
+                    "the near range cuts the large box's back face 3 km deep, so the small box's back face 2.6 km deep stays"
+                );
         }
         finally
         {
