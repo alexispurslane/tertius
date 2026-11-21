@@ -19,7 +19,10 @@ internal sealed unsafe class StoreRoundingProbe : RenderPass
     private GpuImage? written;
     private GpuImage? blended;
 
-    private StoreRoundingProbe(VulkanRenderer renderer) => this.renderer = renderer;
+    private StoreRoundingProbe(VulkanRenderer renderer)
+    {
+        this.renderer = renderer;
+    }
 
     public override string Name => "test store rounding probe";
 

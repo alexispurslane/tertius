@@ -368,8 +368,12 @@ internal sealed unsafe class CalibrationBench : IDisposable
                     for (int index = 0; index < values.Length; index++)
                     {
                         float expected = (float)(Half)values[index];
-                        if (BitConverter.SingleToUInt32Bits(rounded[index]) != BitConverter.SingleToUInt32Bits(expected))
-                            differences.Add($"{values[index]:R} gave {rounded[index]:R}, the nearest half is {expected:R}");
+                        if (
+                            BitConverter.SingleToUInt32Bits(rounded[index]) != BitConverter.SingleToUInt32Bits(expected)
+                        )
+                            differences.Add(
+                                $"{values[index]:R} gave {rounded[index]:R}, the nearest half is {expected:R}"
+                            );
                     }
 
                     return differences.Count == 0 ? null : string.Join("\n", differences);
