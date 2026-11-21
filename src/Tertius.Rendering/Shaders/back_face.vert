@@ -3,9 +3,8 @@
 #include "frame.glsl"
 #include "draw.glsl"
 
-// THROWAWAY (ter-kh4g, stage 1): the vertex stage of the back-face cost probe. It draws from the same instance buffer
-// and indirect commands as the G-buffer pass, with a range's matrix in draw.viewProj, and gives the fragment stage the
-// camera-relative position. Only the position attribute is bound.
+// The back-face pass's solid runs (docs/plans/back-face-depth-layer.md, decision 4): the G-buffer's instances and
+// indirect commands, with a range's jittered matrix in draw.viewProj. Only the position attribute is bound.
 layout(location = 0) in vec3 inPosition;
 
 layout(location = 0) out vec3 outPosition;

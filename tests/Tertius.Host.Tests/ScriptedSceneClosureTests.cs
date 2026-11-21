@@ -1,4 +1,3 @@
-using System.Numerics;
 using Tertius.Demo;
 using Tertius.Host.Scripting;
 using Tertius.Rendering;
@@ -38,9 +37,9 @@ public sealed class ScriptedSceneClosureTests
                     && !MaterialStore.DrawsBothSides(material.Model);
             if (!oneSidedOpaque)
                 continue;
-            MeshData mesh = resources.Meshes[render.Mesh];
-            Vector3[] positions = [.. mesh.Vertices.Select(vertex => vertex.Position)];
-            drawn.Add(($"{scene.Name}: {instance.IdOf(entity)}", MeshClosure.IsClosed(mesh.Indices, positions)));
+            // The flag that the batcher reads, so that the census counts what the pass draws.
+            bool closed = StagedMesh.Of(resources.Meshes[render.Mesh]).Closed;
+            drawn.Add(($"{scene.Name}: {instance.IdOf(entity)}", closed));
         }
 
         return drawn;

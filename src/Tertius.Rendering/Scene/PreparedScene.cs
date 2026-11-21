@@ -340,8 +340,9 @@ internal readonly record struct SidedRuns(OpaqueRuns OneSided, OpaqueRuns TwoSid
 internal readonly record struct BackFaceRuns(OpaqueRuns ClosedOneSided, OpaqueRuns BothFaces);
 
 /// <summary>
-/// The class of an opaque instance by its material's side and its mesh's closure (<see cref="MeshInfo.Closed"/>), in the
-/// order of its runs within a solid or a cutout run (<see cref="RangeRuns"/>).
+/// The class of an opaque instance by its material's side and its mesh's closure, in the order of its runs
+/// (<see cref="RangeRuns"/>). <see cref="OpenOneSided"/> stays in the middle, because each reader takes two neighbors as
+/// one range: the passes that shade read both one-sided runs, and the back-face pass open one-sided with two-sided.
 /// </summary>
 internal enum OpaqueFaces
 {

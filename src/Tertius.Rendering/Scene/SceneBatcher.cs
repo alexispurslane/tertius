@@ -1713,8 +1713,9 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     internal sealed class OpaqueSorter
     {
         /// <summary>
-        /// The values of a range's three run bits: solid and cutout, each with the four values of the two faces bits, of
-        /// which three name an <see cref="OpaqueFaces"/>.
+        /// The values of a range's three run bits: the cutout bit and the two faces bits. Only 6 occur, because three of
+        /// the four faces values name an <see cref="OpaqueFaces"/>. The count is 8 because <see cref="KeyIndex"/> reads
+        /// the three bits as one number, with no remap.
         /// </summary>
         private const int RunsPerRange = 8;
 

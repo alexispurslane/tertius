@@ -59,6 +59,12 @@ internal sealed class RenderTargets : IDisposable
     public const Format DepthFormat = Format.D32Sfloat;
     public const Format HdrFormat = Format.R16G16B16A16Sfloat;
     public const Format DiffuseFormat = Format.R16G16B16A16Sfloat;
+
+    /// <summary>
+    /// The back share's format: a color target format that the Vulkan spec requires, exact at 0 and at 1
+    /// (docs/plans/back-face-depth-layer.md, decision 9).
+    /// </summary>
+    public const Format BackShareFormat = Format.R16Sfloat;
     public const Format DirectFormat = Format.R16G16B16A16Sfloat;
 
     /// <summary>
@@ -95,7 +101,7 @@ internal sealed class RenderTargets : IDisposable
     private readonly bool diffuse;
 
     /// <param name="glowLevels">The bloom levels, 0 without bloom.</param>
-    /// <param name="depthPyramid">True under <see cref="ScreenTrace"/>, whose rays walk the depth pyramid.</param>
+    /// <param name="depthPyramid">True under <see cref="ScreenTrace"/>, whose rays walk the depth pyramid, built with the back share.</param>
     /// <param name="subsurface">
     /// True under <see cref="SeparableSubsurface"/>, whose columns pass writes the HDR target and which reads the diffuse
     /// image.
@@ -145,6 +151,7 @@ internal sealed class RenderTargets : IDisposable
                 format: PyramidImages.DepthFormat,
                 name: "depth pyramid"
             );
+        CreateBackShare();
     }
 
     public Extent2D Extent { get; private set; }
@@ -157,9 +164,11 @@ internal sealed class RenderTargets : IDisposable
     public GpuImage Emissive { get; private set; }
     public GpuImage Distance { get; private set; }
 
-    /// <summary>THROWAWAY (ter-kh4g, stage 1): the back-face cost probe's target: the front surface's distance to the
-    /// eye over the distance of the nearest back face behind it, 0 without one.</summary>
-    public GpuImage BackDistance { get; private set; }
+    /// <summary>
+    /// The back share of each pixel after <see cref="BackFacePass"/>, or null under <see cref="NoScreenTrace"/>: its front
+    /// distance over the distance of the nearest counted fragment, 0 for none (docs/plans/back-face-depth-layer.md).
+    /// </summary>
+    public GpuImage? BackShare { get; private set; }
 
     /// <summary>The shading model of each pixel and a hair pixel's strand, the sixth G-buffer target.</summary>
     public GpuImage Shading { get; private set; }
@@ -224,7 +233,17 @@ internal sealed class RenderTargets : IDisposable
         DestroyImages();
         Create(extent);
         Pyramid?.Create(Extent);
+        CreateBackShare();
     }
+
+    /// <summary>
+    /// Makes the back share at the render size beside the depth pyramid, whose build reads it: under the screen tracer
+    /// only. Runs after <see cref="Create"/> and the pyramid's own creation.
+    /// </summary>
+    private void CreateBackShare() =>
+        BackShare = Pyramid is null
+            ? null
+            : ColorTarget(extent: Extent, format: BackShareFormat, name: "back share", readable: true);
 
     /// <summary>The screen tracer's limits on the screen: the depth pyramid's levels, and the own-ray lists' range.</summary>
     private static void CheckTracedScreen(VulkanDevice device, Extent2D extent)
@@ -242,7 +261,6 @@ internal sealed class RenderTargets : IDisposable
         nameof(Specular),
         nameof(Emissive),
         nameof(Distance),
-        nameof(BackDistance),
         nameof(Shading),
         nameof(Motion),
         nameof(Depth),
@@ -256,17 +274,12 @@ internal sealed class RenderTargets : IDisposable
         extent = upscaling.RenderExtent(extent, upscaling.LargestScale);
         Extent = extent;
         Upscale?.Resize(extent, OutputExtent);
+
         BaseColor = ColorTarget(extent: extent, format: BaseColorFormat, name: "g-buffer base color");
         Normal = ColorTarget(extent: extent, format: NormalFormat, name: "g-buffer normal", readable: true);
         Specular = ColorTarget(extent: extent, format: SpecularFormat, name: "g-buffer specular", readable: true);
         Emissive = ColorTarget(extent: extent, format: EmissiveFormat, name: "g-buffer emissive");
         Distance = ColorTarget(extent: extent, format: DistanceFormat, name: "g-buffer distance", readable: true);
-        BackDistance = ColorTarget(
-            extent: extent,
-            format: DistanceFormat,
-            name: "back share (throwaway)",
-            readable: true
-        );
         Shading = ColorTarget(extent: extent, format: ShadingFormat, name: "g-buffer shading", readable: true);
         // A storage image too, for the surface test, which writes the sky's motion.
         Motion = ColorTarget(
@@ -482,7 +495,7 @@ internal sealed class RenderTargets : IDisposable
         foreach (GpuImage image in GBuffer)
             image.Dispose();
         Depth?.Dispose();
-        BackDistance?.Dispose();
+        BackShare?.Dispose();
         Hdr?.Dispose();
         DirectDiffuse?.Dispose();
         DirectSpecular?.Dispose();
