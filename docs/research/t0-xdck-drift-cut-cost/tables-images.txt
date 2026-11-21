@@ -1,0 +1,109 @@
+## Film rect-bay, today's jitter: the survey's middle and last frame
+
+$ films.py s/t-M-rb/results/motion/rect-bay.json s/t-X-rb/results/motion/rect-bay.json s/t-D4-rb/results/motion/rect-bay.json s/t-D8-rb/results/motion/rect-bay.json s/t-D4s-rb/results/motion/rect-bay.json s/t-C4-rb/results/motion/rect-bay.json
+variant                          level mid/last  blotch mid/last
+t-M-rb                           +1.17 / +0.54   0.245 / 0.231
+t-X-rb                           +1.86 / +1.91   0.383 / 0.484
+t-D4-rb                          +0.47 / +0.23   0.122 / 0.148
+t-D8-rb                          +0.86 / +0.31   0.206 / 0.195
+t-D4s-rb                         +0.47 / +0.22   0.122 / 0.140
+t-C4-rb                          +0.43 / +0.18   0.102 / 0.101
+
+$ filmspecks.py t-M-rb t-X-rb t-D4-rb t-D8-rb t-D4s-rb t-C4-rb
+variant      specks middle / last
+t-M-rb         0.18 /   1.28
+t-X-rb         0.16 /   0.10
+t-D4-rb        0.22 /   0.18
+t-D8-rb        0.20 /   0.63
+t-D4s-rb       0.44 /   3.61
+t-C4-rb        0.21 /   0.29
+
+## Own rays per film frame (M has no count: main's build has no probe)
+
+$ ownshare.py t-X-rb t-D4-rb t-D8-rb t-D4s-rb t-C4-rb
+variant    kind         0-59 60-119 120-179   film    f89   f179
+t-X-rb     reflection  0.077  0.077   0.057  0.071  0.080  0.101
+t-X-rb     diffuse     0.056  0.049   0.071  0.058  0.050  0.221
+t-D4-rb    reflection  0.393  0.675   0.567  0.545  0.678  0.579
+t-D4-rb    diffuse     0.329  0.705   0.583  0.539  0.702  0.600
+t-D8-rb    reflection  0.066  0.039   0.034  0.047  0.041  0.066
+t-D8-rb    diffuse     0.057  0.050   0.072  0.060  0.052  0.223
+t-D4s-rb   reflection  0.002  0.002   0.002  0.002  0.002  0.002
+t-D4s-rb   diffuse     0.002  0.002   0.002  0.002  0.002  0.002
+t-C4-rb    reflection  0.088  0.101   0.057  0.082  0.104  0.087
+t-C4-rb    diffuse     0.724  0.724   0.724  0.724  0.724  0.724
+
+## Lag film bay-sun: median lag in draws / median lag error
+
+$ lags.py s/t-M-lag s/t-X-lag s/t-D4-lag s/t-D8-lag s/t-D4s-lag s/t-C4-lag
+variant                                     bay-sun        lamp-hall-16-moving   lamp-hall-64-spot-moving
+t-M-lag                              28.73 / 0.2672                  not taken                  not taken
+t-X-lag                              29.72 / 0.2808                  not taken                  not taken
+t-D4-lag                              8.22 / 0.1019                  not taken                  not taken
+t-D8-lag                             13.34 / 0.1305                  not taken                  not taken
+t-D4s-lag                             7.06 / 0.0908                  not taken                  not taken
+t-C4-lag                              8.34 / 0.0897                  not taken                  not taken
+
+## Still bay-sunbeam at the automatic exposure: specks, blotch, daub against t-A-s
+
+$ stills.py bay-sunbeam t-A-s t-M-s t-X-s t-D4-s t-D8-s t-D4s-s
+t-A-s          bay-sunbeam  specks   0.07  blotch 0.0314
+t-M-s          bay-sunbeam  specks   0.06  blotch 0.0346
+t-X-s          bay-sunbeam  specks   0.06  blotch 0.0299
+t-D4-s         bay-sunbeam  specks   0.06  blotch 0.0276
+t-D8-s         bay-sunbeam  specks   0.06  blotch 0.0289
+t-D4s-s        bay-sunbeam  specks   0.20  blotch 0.0307
+
+$ REF=t-A-s daub.py ...
+t-A-s      bay-sunbeam  daub 0.0148  broad 0.0329  smooth share 0.89  walls 0.0135  floor 0.0199
+t-M-s      bay-sunbeam  daub 0.0312  broad 0.0576  smooth share 0.89  walls 0.0292  floor 0.0373
+t-X-s      bay-sunbeam  daub 0.0208  broad 0.0356  smooth share 0.89  walls 0.0203  floor 0.0224
+t-D4-s     bay-sunbeam  daub 0.0212  broad 0.0341  smooth share 0.89  walls 0.0206  floor 0.0230
+t-D8-s     bay-sunbeam  daub 0.0213  broad 0.0352  smooth share 0.89  walls 0.0207  floor 0.0230
+t-D4s-s    bay-sunbeam  daub 0.0243  broad 0.0363  smooth share 0.89  walls 0.0239  floor 0.0253
+
+
+## After the review: Xt with the own-ray count, and the drift test at the blocks' center pixels only (D4c, D8c)
+
+$ films.py ...
+variant                          level mid/last  blotch mid/last
+t-X-rb                           +1.86 / +1.91   0.383 / 0.484
+t-Xt-rb                          +1.86 / +1.91   0.383 / 0.484
+t-D4-rb                          +0.47 / +0.23   0.122 / 0.148
+t-D4c-rb                         +0.47 / +0.23   0.122 / 0.148
+t-D8-rb                          +0.86 / +0.31   0.206 / 0.195
+t-D8c-rb                         +0.86 / +0.31   0.206 / 0.195
+
+# filmspecks.py t-D4c-rb t-D8c-rb, measured before their frames were deleted (copied from its output):
+variant      specks middle / last
+t-D4c-rb       0.22 /   0.18
+t-D8c-rb       0.20 /   0.63
+
+$ ownshare.py ...
+variant    kind         0-59 60-119 120-179   film    f89   f179
+t-X-rb     reflection  0.077  0.077   0.057  0.071  0.080  0.101
+t-X-rb     diffuse     0.056  0.049   0.071  0.058  0.050  0.221
+t-Xt-rb    reflection  0.077  0.077   0.057  0.071  0.080  0.101
+t-Xt-rb    diffuse     0.056  0.049   0.071  0.058  0.050  0.221
+t-D4-rb    reflection  0.393  0.675   0.567  0.545  0.678  0.579
+t-D4-rb    diffuse     0.329  0.705   0.583  0.539  0.702  0.600
+t-D4c-rb   reflection  0.393  0.675   0.567  0.545  0.678  0.579
+t-D4c-rb   diffuse     0.329  0.705   0.583  0.539  0.702  0.600
+t-D8-rb    reflection  0.066  0.039   0.034  0.047  0.041  0.066
+t-D8-rb    diffuse     0.057  0.050   0.072  0.060  0.052  0.223
+t-D8c-rb   reflection  0.066  0.039   0.034  0.047  0.041  0.066
+t-D8c-rb   diffuse     0.057  0.050   0.072  0.060  0.052  0.223
+
+## The survey's flicker of every film (limits 0.006 and 0.05)
+
+$ filmflicker.py ...
+variant       flicker    grain
+t-M-rb        0.00206  0.00642
+t-X-rb        0.00102  0.00492
+t-Xt-rb       0.00102  0.00492
+t-D4-rb       0.00236  0.00762
+t-D8-rb       0.00256  0.00736
+t-D4s-rb      0.00348  0.00828
+t-C4-rb       0.00291  0.00722
+t-D4c-rb      0.00236  0.00762
+t-D8c-rb      0.00256  0.00736

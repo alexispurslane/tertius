@@ -1,0 +1,25 @@
+diff --git a/src/Tertius.Host/Scripting/GpuTimingSummary.cs b/src/Tertius.Host/Scripting/GpuTimingSummary.cs
+index f5afa03b8..ec98d3ff6 100644
+--- a/src/Tertius.Host/Scripting/GpuTimingSummary.cs
++++ b/src/Tertius.Host/Scripting/GpuTimingSummary.cs
+@@ -74,6 +74,10 @@ internal sealed class GpuTimingSummary
+     {
+         if (spans.Count == 0)
+             return null;
++        // SCRATCH (t0-xdck): TERTIUS_X_SPAN_DUMP=<file> writes each frame's number and GPU span in ms, one line each,
++        // when the run reports, after the timed loop.
++        if (Environment.GetEnvironmentVariable("TERTIUS_X_SPAN_DUMP") is { Length: > 0 } dump)
++            File.WriteAllLines(dump, spans.Select(span => FormattableString.Invariant($"{span.Frame} {span.Milliseconds:F4}")));
+         return Statistics(spans.Select(span => span.Milliseconds));
+     }
+ 
+@@ -150,6 +154,9 @@ internal sealed class GpuTimingSummary
+                 && sample.Order <= lastSamples[sample.FrameIndex].Order
+             )
+                 sums[sample.FrameIndex] += sample.Milliseconds;
++        // SCRATCH (t0-xdck): the run's per-frame sums beside the span dump, in <dump>.<first>..<last>.
++        if (Environment.GetEnvironmentVariable("TERTIUS_X_SPAN_DUMP") is { Length: > 0 } dump)
++            File.WriteAllLines($"{dump}.{first}..{last}", sums.Select(sum => FormattableString.Invariant($"{sum:F4}")));
+         return Statistics(sums);
+     }
+ 

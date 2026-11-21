@@ -65,3 +65,51 @@ D8 and D4s need one new scratch switch each. Light evidence of a ray keeps its c
 - Timing takes on the Mac under the exclusive GPU lock, at most about 20 minutes per take, each side alone, in turn (for example M D4 D8, D8 D4 M). Give the spread of one side's runs beside each difference.
 - No change under src, tests or tools.
 
+
+## Notes
+
+**2026-11-21T19:30:42Z**
+
+Step note (ticket lead, 2026-11-21): the build stage is done. The record is docs/research/t0-xdck-drift-cut-cost/README.md.
+
+The control passes: D4 repeats t0-ion0's Q3 film, +0.47 / +0.23, blotch 0.122 / 0.148.
+
+Measured, film rect-bay at 1920 x 1080, two frames in flight, four timing rounds on the Mac under the exclusive GPU lock, each side alone, every clock 1292 to 1296 MHz. Median frame span in ms, spread of the four run medians in brackets:
+
+| Side | Frame span | plan..rays | Level mid / last | Specks mid / last | bay-sun lag error |
+|---|---|---|---|---|---|
+| M | 16.05 (0.12) | 4.57 | +1.17 / +0.54 | 0.18 / 1.28 | 0.267 |
+| X | 16.55 (0.10) | 4.80 | +1.86 / +1.91 | 0.16 / 0.10 | 0.281 |
+| Xt | 28.25 (0.27) | 4.80 | not taken | not taken | not taken |
+| D4 | 33.87 (0.72) | 10.24 | +0.47 / +0.23 | 0.22 / 0.18 | 0.102 |
+| D8 | 28.10 (0.58) | 4.63 | +0.86 / +0.31 | 0.20 / 0.63 | 0.131 |
+| D4s | 27.66 (0.46) | 4.18 | +0.47 / +0.22 | 0.44 / 3.61 | 0.091 |
+| C4 | 20.37 (0.38) | 8.53 | +0.43 / +0.18 | 0.21 / 0.29 | 0.090 |
+
+Xt is X with the drift test computed but not acting. It shows that the scratch drift test itself costs +11.7 ms over X: the probe computes the region's light at every render pixel. D4's action costs +5.6 ms over Xt, nearly all in the ray passes. Its own rays reach 54 % of the render pixels over the film. D8's action costs -0.15 ms against Xt, and D4s's -0.59 ms. In the quiet rounds 2 to 4, each side's spread is at most 0.12 ms.
+
+D4s uses TERTIUS_X_FULL_RATE=4, as the ticket's design says. It lowers the own-ray threshold for every pixel, so its own-ray share is 0.2 %, below X's 6 to 7 %. Its film and still show about three times main's bright specks.
+
+Reading: D8 is the action for the remedy. It is better than main in every measure and by the eye, and its action costs no measurable frame span. The remedy's design (t0-acxm) must build the test per block and measure its cost, because the scratch test's 11.7 ms is a per-pixel implementation.
+
+**2026-11-21T21:12:45Z**
+
+Fix-stage note (ticket lead, 2026-11-21): the review of 7dd727dbc gave 14 findings and three checks that the reviewer could not make. All are resolved in the record. Two claims of the step note above were wrong, and this note corrects them:
+
+- "The control passes" holds, but the control take also ran the own-ray count. The count only reads, and Xt's film with the count equals X's in every number.
+- "D8 is better than main in every measure and by the eye" is wrong. D8's middle-frame specks (0.20 against 0.18) and flicker (0.00256 against 0.00206, limit 0.006) are slightly above main's. Its middle frame is visibly brighter than D4's and close to main's (tile mean gray 154 against 161, still 119).
+
+New measures after the review, on the probe with the scratch switch TERTIUS_X_DRIFT_CENTERS (constant 30): 1 runs the drift test at block centers only, 2 keeps its code in the shaders but runs it at no pixel. Four more timing rounds (r5 to r8), each side alone under the exclusive lock, 1296.0 MHz:
+
+| Side | Frame span, ms | Paired difference, ms (spread) |
+|---|---|---|
+| Xtc, test at centers | 24.55 | Xtc - X +7.99 (0.11) |
+| Xtn, test code but not run | 16.54 | Xtn - X -0.03 (0.15) |
+| D4c | 30.17 | D4c - Xtc +5.63 (0.03) |
+| D8c | 24.36 | D8c - Xtc -0.19 (0.04) |
+
+D4c and D8c repeat D4's and D8's images in every number, so the center-only test changes no image. The test's cost is its execution, and it stays 8.0 ms even at 1 pixel in 64. My reading, not measured: the center's 289-tap loop holds its whole group of 32 GPU threads, so a test in its own pass with one thread per block can avoid it. The remedy's design (t0-acxm) must measure such a test.
+
+Also measured: D8 skips the anti-lag where the drift test gives evidence (a fact of the code: lightCuts selects the cut and skips the anti-lag branch). D8 traces fewer reflection own rays than X (0.047 against 0.071) and saves 0.19 ms in the ray passes. Every film passes the survey's flicker limits. The own-ray count reads the draw that just ran (the read follows the submit and waits for the device).
+
+The scripts now log real exit codes, the chart draws from the record's spans.csv, and every difference carries its paired spread.
