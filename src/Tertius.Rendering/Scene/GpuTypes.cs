@@ -554,7 +554,7 @@ internal struct GpuFrameConstants
 
     /// <summary>
     /// x: 1 / map size; y: normal offset in texels, written in every frame for the cascades and the tiles; z: constant
-    /// depth bias; w: unused.
+    /// depth bias; w: the reach of the cascades' filter in texels (<see cref="ShadowBias.CascadeFilterReachTexels"/>).
     /// </summary>
     public Vector4 ShadowParams;
 
