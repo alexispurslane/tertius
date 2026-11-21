@@ -329,8 +329,8 @@ public sealed class ScreenWalkTests
 
     /// <summary>
     /// The oracle of the walk: every pixel that the image crosses, in order, from the exit of the origin's pixel. A pixel
-    /// whose stretch of the image meets its flat slab, from its center's inverse depth w to w / (1 + κ), and whose
-    /// surface faces the ray, is the hit. Each step leaves a pixel across the edges through which the image leaves it,
+    /// whose stretch of the image meets its flat slab, its <see cref="DepthPyramid.PixelSlab"/>, and whose surface faces
+    /// the ray, is the hit. Each step leaves a pixel across the edges through which the image leaves it,
     /// so no pixel that the image crosses is skipped, however near its corner.
     /// </summary>
     /// <returns>The hit pixel, or null for a ray that reaches the segment's end.</returns>
@@ -348,8 +348,8 @@ public sealed class ScreenWalkTests
             pixel += travel * crossed;
             (float exit, Vector2 crossedAtExit) = PixelExit(ray, pixel, travel);
             (int x, int y) = ((int)pixel.X, (int)pixel.Y);
-            float w = pyramid.Finest(x, y);
-            float back = w / (1 + CellBounds.ThicknessShare);
+            CellBounds slab = pyramid.PixelSlab(x, y);
+            (float w, float back) = (slab.Near, slab.Back);
             float inW = ray.StartInverseDepth + ray.StepInverseDepth * s;
             float outW = ray.StartInverseDepth + ray.StepInverseDepth * exit;
             bool meets = w > 0 && MathF.Min(inW, outW) <= w && MathF.Max(inW, outW) >= back;

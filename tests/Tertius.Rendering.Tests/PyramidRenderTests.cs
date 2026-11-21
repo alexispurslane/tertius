@@ -260,7 +260,7 @@ public sealed class PyramidRenderTests
             // The top row of level 3 covers the 8 top rows of the screen, which look at the sky over the floor.
             expected.Bounds(level: 3, x: 0, y: 0).Should().Be(CellBounds.Empty, "the scene puts sky at the top");
             bounds[0].Should().Be(0, "a cell with no surface has no near bound");
-            bounds[1].Should().Be(CellBounds.EmptyFar, "and the empty far bound, exactly");
+            bounds[1].Should().Be(CellBounds.EmptyBack, "and the empty far bound, exactly");
         }
         finally
         {
@@ -291,7 +291,7 @@ public sealed class PyramidRenderTests
             padding
                 .Should()
                 .AllBeEquivalentTo(
-                    (0f, CellBounds.EmptyFar),
+                    (0f, CellBounds.EmptyBack),
                     "the trace reads the padding as cells outside the screen"
                 );
         }

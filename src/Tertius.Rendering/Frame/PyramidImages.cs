@@ -64,9 +64,9 @@ internal sealed unsafe class PyramidImages : IDisposable
     public GpuImage Image { get; private set; }
 
     /// <summary>
-    /// The finest level, in the pyramid's format at the screen's size: of the depth pyramid each pixel's slab, its center
-    /// w and its back w, (0, 0) for sky (docs/plans/temporal-renderer.md, decision 46), of the light pyramid each pixel's
-    /// guide light.
+    /// The finest level, in the pyramid's format at the screen's size. The depth pyramid's holds each pixel's slab, its
+    /// center w and its back w, (0, 0) for sky (docs/plans/back-face-depth-layer.md, "The model"). The light pyramid's
+    /// holds each pixel's guide light.
     /// </summary>
     public GpuImage Finest { get; private set; }
 

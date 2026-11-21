@@ -90,7 +90,7 @@ uint walkScreen(texture2D finest, texture2D bounds, ScreenWalk walk, uint cap, o
         float side = exactPowerOfTwo(level);
         float exit = max(cellExit(walk.ray, walk.inverse, cell, side, walk.farSide, crossed), s);
         // A cell beyond the screen holds no surface. Its fetch would leave the active part.
-        vec2 cellBounds = vec2(0.0, EmptyFar);
+        vec2 cellBounds = vec2(0.0, EmptyBack);
         if (!beyondTheScreen(cell, side))
             cellBounds = level == 0 ? texelFetch(finest, ivec2(cell), 0).rg
                 : texelFetch(bounds, ivec2(cell), level - 1).rg;

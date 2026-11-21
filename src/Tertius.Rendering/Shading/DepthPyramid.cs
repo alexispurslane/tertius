@@ -6,7 +6,7 @@ namespace Tertius.Rendering;
 /// solid there (docs/plans/back-face-depth-layer.md, "The terms").</summary>
 /// <param name="Near">The front w of the slab, in 1/m: the largest w of the cell's surface pixels. 0 without a surface.
 /// </param>
-/// <param name="Back">The back w of the slab, in 1/m: the smallest back w of its pixels. <see cref="EmptyFar"/> without
+/// <param name="Back">The back w of the slab, in 1/m: the smallest back w of its pixels. <see cref="EmptyBack"/> without
 /// a surface.</param>
 internal readonly record struct CellBounds(float Near, float Back)
 {
@@ -26,22 +26,22 @@ internal readonly record struct CellBounds(float Near, float Back)
     /// </summary>
     public const float ContinuationShare = 0.01f;
 
-    /// <summary>Far above any surface's inverse depth. Finite, not infinity: a shader compiler's fast math may assume
-    /// that no value is infinite, on any Vulkan driver.</summary>
-    public const float EmptyFar = 1e30f;
+    /// <summary>The back w of a cell with no surface: far above any surface's inverse depth. Finite, not infinity: a
+    /// shader compiler's fast math may assume that no value is infinite, on any Vulkan driver.</summary>
+    public const float EmptyBack = 1e30f;
+
+    /// <summary>1 / (1 + κ), rounded once from double precision, as glslc folds the shader's constant. A quotient by
+    /// 1 + κ in float rounds otherwise on most pixels (stage-1b/probe.md, "The settled details").</summary>
+    private const float BackShare = (float)(1.0 / (1.0 + ThicknessShare));
 
     /// <summary>The bounds of a cell with no surface. Merged with any bounds, it gives those bounds.</summary>
-    public static CellBounds Empty => new(0, EmptyFar);
+    public static CellBounds Empty => new(0, EmptyBack);
 
     public CellBounds Merge(CellBounds other) => new(MathF.Max(Near, other.Near), MathF.Min(Back, other.Back));
 
     /// <summary>The back w of the slab behind a surface at <paramref name="inverseDepth"/>: the 10 % rule,
     /// w / (1 + κ), as a product by <see cref="BackShare"/>, as slabBack in depth_pyramid.glsl takes it.</summary>
     public static float SlabBack(float inverseDepth) => inverseDepth * BackShare;
-
-    /// <summary>1 / (1 + κ), rounded once from double precision, as glslc folds the shader's constant. A quotient by
-    /// 1 + κ in float rounds otherwise on most pixels (stage-1b/probe.md, "The settled details").</summary>
-    private const float BackShare = (float)(1.0 / (1.0 + ThicknessShare));
 }
 
 /// <summary>
@@ -470,7 +470,8 @@ internal sealed class DepthPyramid
         x < 0 || y < 0 || x >= Width || y >= Height ? Vector3.Zero : geometricNormals[y * Width + x];
 
     /// <summary>The bounds of a cell, or <see cref="CellBounds.Empty"/> for a cell outside its level: no surface lies
-    /// beyond the screen's edges.</summary>
+    /// beyond the screen's edges. Level 0 gives each pixel's <see cref="PixelSurface.SlabBounds"/>, the input of level
+    /// 1's merge, not the finest level's texel, which <see cref="PixelSlab"/> gives.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The level is not from 0 to <see cref="TopLevel"/>.</exception>
     public CellBounds Bounds(int level, int x, int y)
     {

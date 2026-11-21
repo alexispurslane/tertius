@@ -666,6 +666,15 @@ public sealed class GuidedRaysRenderTests
         return (compared, guided);
     }
 
+    /// <summary>A C# depth pyramid over the center w of each pixel of the last frame's finest level on the GPU, as
+    /// surfaces that face the eye.</summary>
+    private static DepthPyramid CenterPyramidOf(VulkanRenderer renderer) =>
+        DepthPyramid.FromInverseDepths(
+            [.. renderer.ReadDepthFinest().Select(slab => slab.Near)],
+            renderer.LastScene.Camera.Width,
+            renderer.LastScene.Camera.Height
+        );
+
     /// <summary>The corner of the 2 × 2 block at (<paramref name="x"/>, <paramref name="y"/>) whose plan bits choose it
     /// for the block's ray, 0 to 3 row by row, or −1 for a block with no chosen pixel.</summary>
     private static int ChosenCorner(float[] plan, int x, int y) =>

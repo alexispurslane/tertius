@@ -73,7 +73,7 @@ public sealed class DepthPyramidTests
         var pyramid = DepthPyramid.FromInverseDepths(inverseDepths, width: 2, height: 3);
         CellBounds sky = pyramid.Bounds(1, 0, 0);
 
-        sky.Should().Be(new CellBounds(Near: 0, Back: CellBounds.EmptyFar));
+        sky.Should().Be(new CellBounds(Near: 0, Back: CellBounds.EmptyBack));
         sky.Back.Should().BeGreaterThan(sky.Near, "no inverse depth lies in the slab of a cell without a surface");
     }
 
