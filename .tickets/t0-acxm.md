@@ -67,3 +67,65 @@ Hold (line orchestrator, 2026-11-15 08:30, on the parent orchestrator's word). T
 **2026-11-15T16:31:30Z**
 
 The bar of 2026-11-15 (Alexis's words are on t7-3e22): the remedy passes by the engine's stills and films, which must show no blotches, daubs, fireflies, trail or flicker and must look good. The reference explains a fault and is not the bar. A little lost light is acceptable, so decision Y5 (the stills keep their gain against the reference) now reads: the stills must not look worse than main. The bay film's bar stays: no worse than main.
+
+**2026-11-21T17:22:15Z**
+
+Design of the remedy, part 1 (line orchestrator, 2026-11-21): the region's drift as a second source of the block's light evidence. One point stays open until the experiment t0-xdck reports: the length that regional evidence sets, and whether it brings own rays. The build starts after that point is settled. The room's acceptance waits for the shadow fix and its takes (t0-9fo0).
+
+What the experiments settled
+- The lag test (the region's recent mean of samples against the long mean of its histories, with the anti-lag as its action) does not close the film. Its action stops when the histories meet a recent mean that itself lies 9 draws behind (t0-xlcu: +1.36 / +0.64 at best, against main's +1.18 / +0.53).
+- The drift test closes it (t0-ion0: +0.43 to +0.47 / +0.19 to +0.23, and the film's frames look like the still of the same state). It asks whether the region's light moves, from the samples alone, and gives the block the same light evidence that a ray gives. So it is decision Y3 as written: one evidence value per block, one reader. The histories are not part of the test, so the clamp, the store and the filter's write-back cannot hold it open in a still.
+- This reads decision Y1 ("the region's recent mean of samples drifts from the long mean that its histories hold") as: the region's recent mean drifts from its own older mean. That is my answer, taken from the two measurements. It is listed in the line's report so that Alexis can reverse it.
+
+The model
+- Stock: for each signal with a light age, one ring per ray block (8 x 8 pixels). It holds the region's light of each of the last 2 W draws and the count of valid draws in a row. Owner: the new region drift pass. Nobody else writes it.
+- The region's light of a draw at a block = the mean, over the 17 x 17 ray blocks around it, of one tap pixel's sample luminance divided by the draw's exposure scale. Only taps whose surface does not move on screen count (bit 9 of the surface test image), and taps with a sample.
+- A draw is valid at a block when at least half of the region's taps inside the image count. Reason: the mean must be of mostly the same surfaces from draw to draw. A camera move makes every tap move, so the draw is not valid, and the count restarts. The count also restarts when the signal's histories restart (a start, a resize, a camera cut).
+- The test at a block, valid when the count reaches 2 W: Rnew = the mean of the last W draws, Rold = the mean of the W draws before, dold = the standard deviation of the older W draws. The region's light moved when |Rnew - Rold| > DriftSigmas x dold x sqrt(2 / W). The tolerance is a measured quantity (decision Y4): the spread of the region's own light in the older window, so a step inside the newer window does not raise it.
+- W = 18 draws, the window that the takes measured. Its first reason was the jitter's 18 phases under FSR at the render scale 1.5, so that a cycle of the jitter cancels in each window. The room's takes after the shadow fix say whether a cycle remains.
+- DriftSigmas = 3. At 2 the test fired in 6 to 7 % of a clean still's block draws, where a normal distribution gives 4.6 %: the drift's tails are heavier. At 3 it fired in about 1 %, with 5 % more specks in the lamp hall against 34 % at 2, and the film's level stays far below main's (+0.47 / +0.23).
+- Flow 1: the temporal dispatch holds each pixel's sample. At the block's tap pixel it also stores the sample's luminance over the exposure scale, and whether the tap counts, in a block light image at block resolution.
+- Flow 2: the region drift pass, one invocation per block. It reads the 17 x 17 block lights, writes this draw's ring entry, computes the test from the ring (no running sums, so no rounding feeds back), and writes the result into a region evidence image at block resolution: NoEvidence or LightEvidence.
+- Flow 3: the spatial dispatch's evidenceOfBlock takes the stronger of the sample ages' level and the region evidence of its block. It stays the one reader and the one place that acts.
+- The evidence can be one draw late if the pass order is cheaper that way. The wait before the first cut is 13 draws or more, so one draw does not matter.
+
+Signatures (GLSL, in a new include region_drift.glsl, with their C# twins where a test needs them)
+
+    const uint RegionWindowDraws = 18u;   // W
+    const int RegionRadiusBlocks = 8;     // 17 x 17 ray blocks
+    const float DriftSigmas = 3.0;
+
+    // One draw of a block's ring. light = the region's light of that draw. validDraws = the count of valid draws in a
+    // row up to that draw, at most 2 W, and 0 for a draw that is not valid.
+    struct RegionDraw { float light; float validDraws; };
+
+    // The region's light of this draw at `block`, from the block light image.
+    RegionDraw regionDrawOf(ivec2 block, float validDrawsBefore);
+
+    // Whether the region's light moved at `block`, from the ring's last 2 W draws. False until 2 W valid draws exist.
+    bool regionLightMoved(ivec2 block);
+
+    // In accumulate_spatial.comp: the block's level is the stronger of its samples' level and its region's.
+    uint evidenceOfBlock(ivec2 pixel);   // unchanged signature, one more source
+
+C#: the ring, the block light image and the region evidence image belong to the signal (TemporalSignal), made only for a signal with a light age. Memory at 1280 x 720: 14,400 blocks x 36 draws x 2 half floats = 2.1 MB per signal, and two small images.
+
+Tests first (accumulator fixture, real shaders)
+1. A still region with noisy samples gives regional evidence in at most a stated small share of its block draws.
+2. While a region's light falls steadily, its bounce history stays short and its light follows the samples' recent mean within a stated bound. This is the trail's bound.
+3. After the light stands still again, the evidence ends within 2 W draws, and the history grows long again.
+4. A camera move gives no regional evidence, and none for 2 W still draws after it.
+5. A change of the exposure alone gives no regional evidence.
+6. A moving object inside a still region does not count in the region's light.
+7. A signal without a light age has no ring and no pass.
+
+Acceptance
+- By the user's bar: the film rect-bay shows no trail in its frames beside main and the still, with a level no worse than main's. The stills bay-sunbeam and exit-cabin look no worse than main and than the line before the remedy: no new blotches, daubs or bright specks.
+- The deck's frame span stays within +0.30 ms of main for the whole of Design X (it has +0.200 ms now). The frame span while a region's light moves: by the decision that follows t0-xdck.
+- Vulkan: no new device feature, no subgroup operation, the same bits on one machine in two runs.
+- ARCHITECTURE.md and docs/plans/bounce-light-confidence.md describe the region's evidence. Hardening: one tools/mutate.py list for the GLSL and Rendering lines.
+- The room (the still rect-lamps, the switch, the stand film): after the shadow fix, by t0-9fo0.
+
+The second design, and why it is not built: the regional lag test with the fast history of 4 draws as its recent mean (W4). It needs no ring. It is a second reader with its own action beside the evidence's reader, against decision Y3, and its best film (+0.89 / +0.43) trails twice as much as the drift test's. It stays a candidate in t0-9fo0's takes only as a control.
+
+Out of scope: the differences at equal jitter phase (rule Q2), which doubled the false evidence in clean stills. The long Halton sequence (t0-f238), which is Alexis's decision. A drift test at ray-block statistics other than one tap per block.

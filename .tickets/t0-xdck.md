@@ -1,6 +1,6 @@
 ---
 id: t0-xdck
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-11-21T17:20:59Z
