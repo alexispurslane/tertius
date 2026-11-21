@@ -174,3 +174,11 @@ Tests added to part 1's list
 8. A block with regional evidence and no other keeps a history of at most 8 draws, and the ray plan gives its pixels the shared ray.
 9. A block with regional evidence and motion evidence acts as under motion evidence alone.
 10. A block with regional evidence and a ray's light evidence cuts to the fast cap.
+
+**2026-11-21T21:18:14Z**
+
+Addition (line orchestrator, 2026-11-21, on the parent orchestrator's order). The parent looked at the frame sheet and the span chart and kept the decision: the region's evidence cuts the bounce history to at most 8 draws. It also kept the three other answers of the line. It reports one limit to Alexis: in the film's middle frame the cut to 8 draws stays nearer to main than to the still (mean gray 154, main 161, the still 119), so the remedy removes the trail's end but only part of its middle.
+
+One cheap measurement, after the timing spike, as a scratch patch on the production build, with no change of src for it: a cut to 6 draws where a pixel whose block has regional evidence counts as mature for the ray plan, so the cut brings no own ray. A pixel that is young for another reason keeps its own ray. The film rect-bay under it: level, blotch, specks of the middle and the last frame, flicker, and the frame span against the cut to 8 in the same rounds. If its last-frame specks are at or under main's 1.28, its flicker under 0.006, its frame span inside the budget, and its level better than the cut to 8, the lead reports it with one frame sheet beside the cut to 8, and the parent decides. If not, 8 stays, and the numbers go into the next report. Sent to the lead as a steer, clientRequestId design-x-line-t0-acxm-steer-cap6.
+
+The room's takes stay blocked: the shadow fix now waits for wider variants of its filter, which Alexis asked for.
