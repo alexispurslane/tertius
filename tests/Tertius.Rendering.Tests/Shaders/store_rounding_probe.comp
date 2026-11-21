@@ -1,0 +1,18 @@
+#version 460
+// The compute paths of StoreRoundingTests: pixel p takes case p.x mod 36 of store_rounding.glsl. r is the case's value
+// stored by imageStore into the RGBA16F sample, as the driver converts it, and g the half float of packHalf2x16 of it,
+// which the store keeps exactly.
+#extension GL_GOOGLE_include_directive : require
+#include "screen_trace.glsl"
+#include "store_rounding.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
+        return;
+    float value = roundingValue(pixel.x % RoundingCases);
+    imageStore(specularSample, pixel, vec4(value, unpackHalf2x16(packHalf2x16(vec2(value, 0.0))).x, 0.0, 1.0));
+}

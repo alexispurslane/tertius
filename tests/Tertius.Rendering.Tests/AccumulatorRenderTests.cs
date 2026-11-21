@@ -84,6 +84,167 @@ public sealed class AccumulatorRenderTests
     private static float[] HistoryOf(VulkanRenderer renderer, SamplePass sample, int part) =>
         renderer.ReadImage(sample.Signal.Slow(part));
 
+    /// <summary>
+    /// The light of the sample that a still history takes in the long-history tests: each pixel takes, in each draw,
+    /// another value of one fixed set. The set spreads evenly from 0.2 to 0.6. Pixel p in draw d takes value
+    /// (p + 355 d) mod n of the n = <see cref="Width"/> · <see cref="Height"/> values, so each draw holds the whole set
+    /// once, and each pixel walks the set in steps of about 0.62 of its width. A walk, and not a repeating pair: the blend
+    /// of a repeating pair settles in a cycle whose store roundings do not change from draw to draw, and the first such
+    /// cycle that a history meets from below lies up to 0.8 % below the pair's mean even under a store that rounds to the
+    /// nearest half float.
+    /// </summary>
+    private static float WalkedLight(int pixel, int frame) => WalkedValue((pixel + 355 * frame) % (Width * Height));
+
+    /// <summary>Value <paramref name="index"/> of the set of <see cref="WalkedLight"/>.</summary>
+    private static float WalkedValue(int index) => 0.2f + 0.4f * index / (Width * Height - 1);
+
+    /// <summary>The mean of the set of <see cref="WalkedLight"/> as the sample image holds it, in half floats.</summary>
+    private static double WalkedMean() =>
+        Enumerable.Range(0, Width * Height).Average(index => (double)(float)(Half)WalkedValue(index));
+
+    /// <summary>Draws <paramref name="frames"/> frames in which each pixel takes its <see cref="WalkedLight"/>.</summary>
+    private static void DrawWalkedSamples(VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene, int frames)
+    {
+        for (int frame = 0; frame < frames; frame++)
+        {
+            int drawn = frame;
+            sample.Samples = (column, row) => new Vector4(new Vector3(WalkedLight(row * Width + column, drawn)), 1);
+            Continue(renderer, scene, frames: 1);
+        }
+    }
+
+    /// <summary>The fast history of part 0 that the last frame wrote, RGBA per pixel: rgb the light, a the deviation.</summary>
+    private static float[] FastOf(VulkanRenderer renderer, SamplePass sample) =>
+        renderer.ReadImage(sample.Signal.Fast(part: 0, parity: (int)(renderer.DrawnFrames & 1) ^ 1));
+
+    [Fact]
+    public void ALongHistoryHoldsTheMeanOfItsSamples()
+    {
+        // Every pixel's history has the same length, so the mean over the pixels of the histories is the blend of the
+        // draws' means over the pixels, and each draw's mean is the set's mean. A store that rounds every draw's blend the
+        // same way would lose the length, 32, times that rounding: about 1 % under a rounding toward zero. The box holds
+        // only the fast histories' spread, which the walk's wide samples leave, so a box of 1000 deviations keeps the
+        // clamp and its anti-lag out of the mean.
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+            parameters: SignalParameters.Diffuse with { ClampSigmas = 1000 }
+        );
+        try
+        {
+            DrawWalkedSamples(renderer: renderer, sample: sample, scene: scene, frames: 320);
+
+            float[] history = HistoryOf(renderer, sample, part: 0);
+            double mean = Enumerable.Range(0, Width * Height).Average(pixel => (double)history[4 * pixel]);
+            (mean / WalkedMean())
+                .Should()
+                .BeApproximately(1, 0.002, "a long history holds the mean of its samples, {0} of the set's", mean);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void TheFastHistoryHoldsTheMeanOfItsSamples()
+    {
+        // The fast history is a mean of the weight 1 / 4 that feeds back too. Every pixel's fast history has the same
+        // length, so the mean over the pixels is the set's mean. A store that rounds every blend toward zero would lose
+        // 4 times that rounding: 0.08 % on a CPU model of this walk, against 0.015 % under the nearest half float.
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+            parameters: SignalParameters.Diffuse
+        );
+        try
+        {
+            DrawWalkedSamples(renderer: renderer, sample: sample, scene: scene, frames: 320);
+
+            float[] fast = FastOf(renderer, sample);
+            double mean = Enumerable.Range(0, Width * Height).Average(pixel => (double)fast[4 * pixel]);
+            (mean / WalkedMean())
+                .Should()
+                .BeApproximately(1, 0.0004, "the fast history holds the mean of its samples, {0} of the set's", mean);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void TheFastDeviationFollowsTheDeviationOfItsSamples()
+    {
+        // The fast history's deviation is a mean that feeds back too. The reference is its update in double precision over
+        // the same samples: the step from the fast history, and the weight 1 / min(L, 4) of both.
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+            parameters: SignalParameters.Diffuse
+        );
+        try
+        {
+            const int Frames = 320;
+            DrawWalkedSamples(renderer: renderer, sample: sample, scene: scene, frames: Frames);
+
+            double exact = Enumerable.Range(0, Width * Height).Average(pixel => ExactFastDeviation(pixel, Frames));
+            float[] fast = FastOf(renderer, sample);
+            double deviation = Enumerable.Range(0, Width * Height).Average(pixel => (double)fast[4 * pixel + 3]);
+            (deviation / exact)
+                .Should()
+                .BeApproximately(1, 0.0005, "the deviation of {0} follows the samples' {1}", deviation, exact);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// The fast history's deviation of <paramref name="pixel"/> after <paramref name="frames"/> draws of
+    /// <see cref="WalkedLight"/>, by the update of accumulate_temporal.comp in double precision, with no store's rounding.
+    /// </summary>
+    private static double ExactFastDeviation(int pixel, int frames)
+    {
+        double fast = 0;
+        double deviation = 0;
+        for (int frame = 0; frame < frames; frame++)
+        {
+            double light = (float)(Half)WalkedLight(pixel, frame);
+            int length = Math.Min(frame + 1, 4);
+            double weight = 1.0 / length;
+            double step = light - fast;
+            deviation = Math.Sqrt((1 - weight) * (deviation * deviation + weight * step * step));
+            fast += (light - fast) / length;
+        }
+
+        return deviation;
+    }
+
+    [Fact]
+    public void ASettledLightThatMovesByFourTenthsOfAPercentCountsAsSpread()
+    {
+        // 0.25 is a half float, so the fast history settles on it exactly, with no deviation. A move to 0.251, the half
+        // float 0.250977, gives a step of 0.39 % of the light: above RoundingShare, 1/384 or 0.26 %, which bounds the
+        // rounding of a store to the nearest half float. The older rule for a store that rounds toward zero, 1/192 or
+        // 0.52 %, took it for the store's rounding.
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+            parameters: SignalParameters.Diffuse
+        );
+        try
+        {
+            int center = Height / 2 * Width + Width / 2;
+            sample.Value = new(x: 0.25f, y: 0.25f, z: 0.25f, w: 1);
+            renderer.Render(scene, 1f);
+            Continue(renderer, scene, frames: 60);
+            FastOf(renderer, sample)[4 * center + 3].Should().Be(0, "the light was constant");
+
+            sample.Value = new(x: 0.251f, y: 0.251f, z: 0.251f, w: 1);
+            Continue(renderer, scene, frames: 1);
+
+            FastOf(renderer, sample)[4 * center + 3].Should().BePositive("a move of 0.4 % is a change of light");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     /// <summary>The light of the slow history of <paramref name="part"/> at the center pixel, and its length.</summary>
     private static (Vector3 Light, float Length) CenterOf(VulkanRenderer renderer, SamplePass sample, int part)
     {
@@ -219,9 +380,8 @@ public sealed class AccumulatorRenderTests
             Continue(renderer, scene, frames: 1);
 
             (Vector3 light, float length) = CenterOf(renderer, sample, part: 0);
-            // Within one half-float step of 1.25, 2^-10: a driver can round the float result toward zero when it stores
-            // the half-float history, as NVIDIA's does (ticket t8-en95). Without the clamp the value is 1.0625, 192 steps
-            // away.
+            // Within one half-float step of 1.25, 2^-10: the store of the history takes the nearest half float to the
+            // float result (half_store.glsl, ticket t8-69v7). Without the clamp the value is 1.0625, 192 steps away.
             light
                 .X.Should()
                 .BeApproximately(1.25f, 1f / 1024, "the clamp moves the slow history to the fast history's mean");
@@ -710,9 +870,9 @@ public sealed class AccumulatorRenderTests
             (Vector3 Light, float Length) control = FrameWithPrototype(false, light, samples);
 
             // The diffuse prototype's spatial pass stores the weighted mean of equal neighbors, which 32-bit float can
-            // leave one step below them, into the half-float history. Vulkan lets the driver round that conversion
-            // toward zero, as NVIDIA's does, so a channel may lie one half-float step low (ticket t8-v31a). A limit of
-            // the region would scale it by far more.
+            // leave one step below them, into the half-float history. The store takes the nearest half float
+            // (half_store.glsl), so a channel lies within one half-float step of the control's (ticket t8-v31a). A
+            // limit of the region would scale it by far more.
             limited.Length.Should().Be(control.Length);
             limited.Light.X.Should().BeApproximately(control.Light.X, HalfStep(control.Light.X));
             limited.Light.Y.Should().BeApproximately(control.Light.Y, HalfStep(control.Light.Y));
@@ -1063,6 +1223,37 @@ public sealed class AccumulatorRenderTests
             );
             return result;
         }
+
+        [Fact]
+        public void ALongGuideHoldsTheMeanOfItsHitDistances() =>
+            WithHistory(
+                (renderer, sample, scene) =>
+                {
+                    // Each pixel's hit distance walks a set from 3.6 to 4.4 m, as WalkedLight does, close enough that the
+                    // reflected place's test keeps every history. Every guide has the length 4, so the mean of the
+                    // guides' distances over the pixels is the set's mean. A store that rounds every blend toward zero
+                    // would lose 4 times that rounding, about 0.13 % at 4 m.
+                    for (int frame = 0; frame < 64; frame++)
+                    {
+                        int drawn = frame;
+                        sample.Samples = (column, row) =>
+                            new Vector4(x: 1, y: 1, z: 1, w: WalkedDistance(WalkedLight(row * Width + column, drawn)));
+                        Continue(renderer, scene, frames: 1);
+                    }
+
+                    float[] guide = renderer.ReadImage(sample.Signal.ReflectionGuide(0));
+                    double mean = Enumerable.Range(0, Width * Height).Average(pixel => (double)guide[4 * pixel]);
+                    double distances = Enumerable
+                        .Range(0, Width * Height)
+                        .Average(index => (double)(float)(Half)WalkedDistance(WalkedValue(index)));
+                    (mean / distances)
+                        .Should()
+                        .BeApproximately(1, 0.0005, "the guide holds the mean of its distances, {0} m", mean);
+                }
+            );
+
+        /// <summary>The hit distance in m of the walk's value <paramref name="light"/>: 3.6 to 4.4 m.</summary>
+        private static float WalkedDistance(float light) => 4 + 2 * (light - 0.4f);
 
         private static (float Distance, float Support) GuideAt(VulkanRenderer renderer, SamplePass sample)
         {

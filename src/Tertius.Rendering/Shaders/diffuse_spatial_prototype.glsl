@@ -74,5 +74,6 @@ void main()
     }
 
     vec3 filtered = weightSum > 0.0 ? lightSum / weightSum : centerLight.rgb;
-    imageStore(diffusePrototypeOutput, pixel, vec4(filtered, centerLight.a));
+    // The output is the slow history, which feeds back, so its store takes the nearest half float (half_store.glsl).
+    imageStore(diffusePrototypeOutput, pixel, slowHistoryValue(vec4(filtered, centerLight.a)));
 }
