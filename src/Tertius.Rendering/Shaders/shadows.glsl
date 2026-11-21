@@ -22,9 +22,9 @@
 //    along each texel axis, so the bias covers the receiver's slope over that reach along an axis. On a slope diagonal
 //    to the texel grid the corner texels of that reach lie up to 2.5 texels off along both axes, and Vulkan lets the
 //    slope be the larger of the two axes' slopes, so their comparisons can fall a little short: at most about 2% of
-//    the light at extreme grazing angles (ARCHITECTURE.md, "Shadow bias"). No tap compares against the receiver's plane extrapolated toward the light: at a
-//    grazing light, that plane passes under a wall that stands on the receiver, and the taps saw the light past the
-//    wall (ter-kn1d).
+//    the taps at extreme grazing angles, which the cascades' lit-side rule doubles (ARCHITECTURE.md, "Shadow bias").
+//    No tap compares against the receiver's plane extrapolated toward the light: at a grazing light, that plane passes
+//    under a wall that stands on the receiver, and the taps saw the light past the wall (ter-kn1d).
 //  - A normal offset of one texel, scaled by sin(angle to the light), frame.shadowParams.y, which the batcher writes in
 //    every frame for the cascades and the tiles alike, plus half a texel of constant depth bias for the cascades.
 #ifndef TERTIUS_SHADOWS_GLSL
@@ -36,7 +36,8 @@
 layout(constant_id = 11) const bool tileCornerMeans = false;
 
 // The least reach of the cascade filter's taps, in texels: one bilinear comparison, which reaches the texel centers within
-// one texel of its lookup and so hides the texel grid. The C# twin is ShadowBias.MinFilterReachTexels.
+// one texel of its lookup. It is the least filter, and it still shows the texel grid as steps near the camera. The C#
+// twin is ShadowBias.MinFilterReachTexels.
 const float MinFilterReachTexels = 1.0;
 
 // The comparison of the cascades' map with a receiver at depth `reference`, at `coordinate` in layer `layer`.
