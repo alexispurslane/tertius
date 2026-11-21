@@ -182,3 +182,14 @@ Addition (line orchestrator, 2026-11-21, on the parent orchestrator's order). Th
 One cheap measurement, after the timing spike, as a scratch patch on the production build, with no change of src for it: a cut to 6 draws where a pixel whose block has regional evidence counts as mature for the ray plan, so the cut brings no own ray. A pixel that is young for another reason keeps its own ray. The film rect-bay under it: level, blotch, specks of the middle and the last frame, flicker, and the frame span against the cut to 8 in the same rounds. If its last-frame specks are at or under main's 1.28, its flicker under 0.006, its frame span inside the budget, and its level better than the cut to 8, the lead reports it with one frame sheet beside the cut to 8, and the parent decides. If not, 8 stays, and the numbers go into the next report. Sent to the lead as a steer, clientRequestId design-x-line-t0-acxm-steer-cap6.
 
 The room's takes stay blocked: the shadow fix now waits for wider variants of its filter, which Alexis asked for.
+
+**2026-11-21T23:13:10Z**
+
+Fork of the timing spike, and my answer (line orchestrator, 2026-11-21 18:15). The lead's spike, four rounds per side on the Mac against the line's head, record at 1c7712b49 on t3/fix-retained-rounding-weight (docs/research/t0-acxm-region-evidence/spike/):
+- The region drift pass with the plain 17 x 17 loop, both signals: deck +0.271 ms (spread 0.082), film +0.289 ms (spread 0.062).
+- The box sum in two steps: deck +0.254 / +0.242 ms, film +0.270 / +0.202 ms.
+- One region dispatch for the bounce light only: deck +0.133 ms (spread 0.181), film +0.209 ms.
+- The tap store alone: deck +0.080 ms (spread 0.203), film +0.073 ms.
+So the work in the pass is not the cost. Each compute dispatch with its barrier costs about 0.06 to 0.13 ms on MoltenVK. The budget of +0.10 ms fails in every listed form.
+
+My answer: the fused design, which the lead proposed. The region's test runs inside the spatial dispatch: the workgroup of a block sums its 17 x 17 taps over its 64 invocations in a fixed order, updates and tests its own ring, and shares the result with the block's level. This replaces flows 2 and 3 of part 1. The separate pass and the region evidence image are not built. The ring's owner is the spatial dispatch, which is the one reader of the evidence, and the evidence is of the same draw. The test's knowledge stays in one include. The budget stays +0.10 ms on the deck, measured with at least eight rounds and paired differences, because the spike's spreads are as large as the budget. If both signals miss it, the bounce light alone is taken with the film as its check. If that misses, the lead stops and reports.
