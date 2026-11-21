@@ -1207,7 +1207,7 @@ public sealed class ShadowTests
     /// <summary>
     /// Ground under a roof 100 texels above it takes no sunlight from half a texel inside the shadow of the roof's edge.
     /// The map's edge lies within half a texel of the geometric edge, and the filter's blur lies on the lit side of the
-    /// map's edge, so it puts no light under the roof at any reach. A symmetric filter that reached 2.5 texels compared
+    /// map's edge, so it puts no light under the roof. A symmetric filter that reached 2.5 texels compared
     /// texels past the roof's edge, where the map holds no caster, and let up to half of the sun onto the ground under the
     /// roof: the strip on rect-lamps' window jambs (t8-rjno).
     /// </summary>

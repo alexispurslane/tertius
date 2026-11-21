@@ -12,10 +12,10 @@ internal static class ShadowBias
 {
     /// <summary>
     /// The casters' slope-scaled depth bias in the cascades and in the local shadow atlas, in multiples of their largest
-    /// depth change per texel. Every tap of the filter compares against the receiver's own depth, and the filter at its
-    /// largest reach, <see cref="FilterReachTexels"/>, compares texels up to 2.5 texels from the lookup along each texel
-    /// axis, so the bias covers the receiver's slope along an axis. On a slope diagonal to the grid the corner texels can
-    /// fall a little short (ARCHITECTURE.md, "Shadow bias"). A receiver-plane term in its place let a grazing light pass
+    /// depth change per texel. Every tap of the filter compares against the receiver's own depth, and the filter
+    /// compares texels up to its reach, <see cref="FilterReachTexels"/>, from the lookup along each texel axis, so the
+    /// bias covers the receiver's slope along an axis. On a slope diagonal to the grid the corner texels can fall a
+    /// little short (ARCHITECTURE.md, "Shadow bias"). A receiver-plane term in its place let a grazing light pass
     /// under a wall that stands on the receiver (ter-kn1d). Measured between acne and shadows that leave their casters
     /// (docs/plans/local-light-shadows.md, decision 33).
     /// </summary>
@@ -35,32 +35,16 @@ internal static class ShadowBias
     public const float ConstantBiasTexels = 0.5f;
 
     /// <summary>
-    /// How far the filter's taps at their largest reach compare from the lookup, in texels: the 5 × 5 texels around the
-    /// lookup's texel, up to 2 texels from it. The maps' margins keep this clearance. shadows.glsl holds the same value
+    /// How far the filter's taps compare from the lookup, in texels: the 5 × 5 texels around the lookup's texel, up to
+    /// 2 texels from it. The maps' margins keep this clearance. shadows.glsl holds the same value
     /// as FilterClearanceTexels.
     /// </summary>
     public const float FilterClearanceTexels = FilterReachTexels - 0.5f;
 
     /// <summary>
-    /// The least reach of the shadow filter's taps from the lookup, in texels: one bilinear comparison, which reaches the
-    /// texel centers within one texel of its lookup. It is the least filter, and it still shows the texel grid as steps
-    /// near the camera. shadows.glsl holds the same value as MinFilterReachTexels.
-    /// </summary>
-    public const float MinFilterReachTexels = 1f;
-
-    /// <summary>
-    /// The largest reach of the shadow filter's taps from the lookup, in texels: 4 × 4 bilinear comparisons one texel
-    /// apart. The biases and the maps' margins are sized for it. The local shadow tiles filter at this reach.
+    /// The reach of the shadow filter's taps from the lookup, in texels: 4 × 4 bilinear comparisons one texel apart, in
+    /// the cascades and the tiles. The biases and the maps' margins are sized for it. The cascades put the filter's blur
+    /// on the lit side of each edge (lightOutsideShadow in shadows.glsl).
     /// </summary>
     public const float FilterReachTexels = 2.5f;
-
-    /// <summary>
-    /// The reach of the cascades' filter, in texels, which the batcher writes into the frame constants
-    /// (shadowParams.w). The filter only hides the map's texel grid, and shadows.glsl puts its blur on the lit side of
-    /// each edge (lightOutsideShadow), so the reach takes light from lit areas and puts none inside a shadow. One bilinear
-    /// comparison put no light inside a shadow either, but it showed the texel grid as a crawling staircase on a shadow
-    /// near the camera. So the cascades take the largest reach, which hides the grid (t8-rjno). It must not exceed
-    /// <see cref="FilterReachTexels"/>, for which the maps' margins and the faces' holding margin are sized.
-    /// </summary>
-    public const float CascadeFilterReachTexels = FilterReachTexels;
 }

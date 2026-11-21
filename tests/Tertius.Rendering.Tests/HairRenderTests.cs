@@ -629,13 +629,12 @@ public sealed class HairRenderTests
     /// depth along the light. The shadow lookups take the card's normal turned toward the sun, at cosine 0.93 with
     /// it: seen from the sun, the card's plane rises tan θ = 0.39 per texel along û = (−0.58, 0.81) of the light's
     /// axes. The caster stands parallel to the card, <c>GapTexels</c> in front of the lookup point, which the normal
-    /// offset moves sin θ = 0.36 texel off the card toward it. Every tap of the cascades' filter compares against the
-    /// lookup point's own depth (filteredCascade in shadows.glsl). A tap lies up to the filter's reach less one texel off
-    /// along each axis: 1.5 texels at the cascades' reach of 2.5. So at the most downhill tap the caster's plane comes
-    /// 1.5 · (0.58 + 0.81) · 0.39 = 0.81 nearer that depth. Every tap sees the caster when the gap is above that drop, the
-    /// spread of a tap's 2 × 2 footprint, 0.54, the constant bias, 0.5, and the caster's slope bias, at most
-    /// 2.5 · 0.39 = 0.98: 2.8 in all. The premise keeps half a texel spare, four times the depth step of the 16-bit
-    /// fallback map.
+    /// offset moves sin θ = 0.36 texel off the card toward it. Every tap of the 4 × 4 kernel compares against the lookup
+    /// point's own depth (filteredCascade in shadows.glsl). A tap lies up to 1.5 texels off along each axis, so at the
+    /// most downhill tap the caster's plane comes 1.5 · (0.58 + 0.81) · 0.39 = 0.81 nearer that depth. Every tap sees the
+    /// caster when the gap is above that drop, the spread of a tap's 2 × 2 footprint, 0.54, the constant bias, 0.5, and
+    /// the caster's slope bias, at most 2.5 · 0.39 = 0.98: 2.8 in all. The premise keeps half a texel spare, four times
+    /// the depth step of the 16-bit fallback map.
     /// </remarks>
     [Fact]
     public void AHairCardLitFromBehindKeepsTheShadowOfACasterCloseBehindIt()
@@ -649,7 +648,7 @@ public sealed class HairRenderTests
         var light = LightBasis.FromDirection(toSun);
         float across = MathF.Abs(Vector3.Dot(towardSun, light.X)) + MathF.Abs(Vector3.Dot(towardSun, light.Y));
         float need =
-            (ShadowBias.CascadeFilterReachTexels - ShadowBias.MinFilterReachTexels) * across / cosine
+            1.5f * across / cosine
             + across / cosine
             + ShadowBias.ConstantBiasTexels
             + ShadowBias.SlopeBias * sine / cosine;
