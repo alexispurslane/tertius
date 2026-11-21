@@ -99,3 +99,7 @@ The review (one reviewer, diff 2f9461158..790fdc1a9): correctness pass, code qua
 - C3: the stall test's comment names R02's form, abs(step) <= BlendRounding * before, in place of "without the fast weight".
 - C4: the filter's halving test now names the stall test as the test that holds a stall's deviation.
 The fix stage changed comments and docs only. The suites ran again at the final head: see the next note.
+
+**2026-11-21T19:00:59Z**
+
+Suites at the final code head db4f14bb0 (ticket lead, 2026-11-21), after the fix stage. Checked, on the staged tree of that commit: every project green. Core 1,207, Simulation 2,007, Physics 1,492 passed (8 skipped), Rendering 3,299 passed (11 skipped) of 3,310, Host 2,072 passed (8 skipped), Unions 59, Style 276, Slop 597. Release, at db4f14bb0: every project green. Core 1,175, Simulation 2,026, Physics 1,493 passed (8 skipped), Rendering 3,298 passed (11 skipped) of 3,309, Host 2,072 passed (8 skipped), Unions 59, Style 276, Slop 597. No snapshot test failed, and the load flake lin-5bsm did not show. The commit of this note changes only this ticket.
