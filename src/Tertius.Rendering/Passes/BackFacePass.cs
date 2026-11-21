@@ -72,9 +72,9 @@ internal sealed unsafe class BackFacePass : RenderPass
         bool cleared = false;
         for (int range = DepthRanges.Far; range <= DepthRanges.Near; range++)
         {
-            BackFaceRuns runs = scene.Opaque[range].BackFace;
             // A rendering instance with no draw costs about 0.025 ms on the M1 Max (t1-s961), so such a range begins none.
-            if (runs.ClosedOneSided.Count + runs.BothFaces.Count == 0)
+            // The pass draws every command of the range.
+            if (scene.Opaque[range].Count == 0)
                 continue;
             BeginRendering(context: context, range: range, clear: !cleared);
             // Sets and dynamic state stay bound across the rendering instances.
@@ -86,12 +86,14 @@ internal sealed unsafe class BackFacePass : RenderPass
             }
 
             GeometryPass.PushDraw(context: context, viewProjection: scene.RangeViewProjection[range]);
-            // Both solid runs first, so that their depth hides the cutout fragments behind them before their texture
-            // sample (docs/plans/skin-and-hair.md, decision 25).
-            GeometryPass.DrawRun(context: context, commands: runs.ClosedOneSided.Solid, pipeline: closedOneSided.Solid);
-            GeometryPass.DrawRun(context: context, commands: runs.BothFaces.Solid, pipeline: bothFaces.Solid);
-            GeometryPass.DrawRun(context: context, commands: runs.ClosedOneSided.Cutout, pipeline: closedOneSided.Cutout);
-            GeometryPass.DrawRun(context: context, commands: runs.BothFaces.Cutout, pipeline: bothFaces.Cutout);
+            BackFaceRuns runs = scene.Opaque[range].BackFace;
+            GeometryPass.DrawRuns(
+                context: context,
+                first: runs.ClosedOneSided,
+                second: runs.BothFaces,
+                solid: (First: closedOneSided.Solid, Second: bothFaces.Solid),
+                cutout: (First: closedOneSided.Cutout, Second: bothFaces.Cutout)
+            );
             context.Vk.CmdEndRendering(context.CommandBuffer);
             cleared = true;
         }
@@ -118,6 +120,7 @@ internal sealed unsafe class BackFacePass : RenderPass
         barriers.Image(targets.Depth, ImageUse.DepthAttachment, discard: true);
         barriers.Image(targets.Distance, ImageUse.SampledFragment);
         barriers.Flush(context.Vk, context.CommandBuffer);
+
         var color = new RenderingAttachmentInfo
         {
             SType = StructureType.RenderingAttachmentInfo,
@@ -127,6 +130,7 @@ internal sealed unsafe class BackFacePass : RenderPass
             StoreOp = AttachmentStoreOp.Store,
             ClearValue = new(new ClearColorValue(float32_0: 0f, float32_1: 0f, float32_2: 0f, float32_3: 0f)),
         };
+
         var depth = new RenderingAttachmentInfo
         {
             SType = StructureType.RenderingAttachmentInfo,
@@ -137,6 +141,7 @@ internal sealed unsafe class BackFacePass : RenderPass
             StoreOp = AttachmentStoreOp.DontCare,
             ClearValue = new(depthStencil: new ClearDepthStencilValue(DepthRanges.ClearDepth(range), 0)),
         };
+
         var rendering = new RenderingInfo
         {
             SType = StructureType.RenderingInfo,

@@ -30,7 +30,8 @@ namespace Tertius.Rendering;
 /// <item>G-buffer: far, middle and near depth ranges, each one vkCmdDrawIndexedIndirect, plus one instanced draw of
 /// the impostor billboards in that range.</item>
 /// <item>The back-face pass (<see cref="BackFacePass"/>), under <see cref="ScreenTrace"/>: the back share of each pixel,
-/// from the G-buffer's commands of each depth range, drawn again with positions only.</item>
+/// from the G-buffer's commands of each depth range, drawn again with positions only, and with texture coordinates for the
+/// cutout runs.</item>
 /// <item>The depth pyramid (<see cref="DepthPyramidPass"/>), under <see cref="ScreenTrace"/>: the min-max inverse depth
 /// of the distance target, level by level, its small mips in one dispatch (<see cref="PyramidTail"/>), and the
 /// finest level, each pixel's center w.</item>

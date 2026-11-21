@@ -100,9 +100,6 @@ internal sealed class RenderTargets : IDisposable
     // diffuse image.
     private readonly bool diffuse;
 
-    // True under the screen tracer, whose frames draw the back share.
-    private readonly bool traced;
-
     /// <param name="glowLevels">The bloom levels, 0 without bloom.</param>
     /// <param name="depthPyramid">True under <see cref="ScreenTrace"/>, whose rays walk the depth pyramid, built with the back share.</param>
     /// <param name="subsurface">
@@ -134,7 +131,6 @@ internal sealed class RenderTargets : IDisposable
                 outputSize: extent
             );
         diffuse = subsurface;
-        traced = depthPyramid;
         CheckFormats(device: device, depthPyramid: depthPyramid, diffuse: diffuse);
 
         GBufferSet = layouts.AllocateGBufferSet();
@@ -155,6 +151,7 @@ internal sealed class RenderTargets : IDisposable
                 format: PyramidImages.DepthFormat,
                 name: "depth pyramid"
             );
+        CreateBackShare();
     }
 
     public Extent2D Extent { get; private set; }
@@ -236,7 +233,17 @@ internal sealed class RenderTargets : IDisposable
         DestroyImages();
         Create(extent);
         Pyramid?.Create(Extent);
+        CreateBackShare();
     }
+
+    /// <summary>
+    /// Makes the back share at the render size beside the depth pyramid, whose build reads it: under the screen tracer
+    /// only. Runs after <see cref="Create"/> and the pyramid's own creation.
+    /// </summary>
+    private void CreateBackShare() =>
+        BackShare = Pyramid is null
+            ? null
+            : ColorTarget(extent: Extent, format: BackShareFormat, name: "back share", readable: true);
 
     /// <summary>The screen tracer's limits on the screen: the depth pyramid's levels, and the own-ray lists' range.</summary>
     private static void CheckTracedScreen(VulkanDevice device, Extent2D extent)
@@ -267,14 +274,12 @@ internal sealed class RenderTargets : IDisposable
         extent = upscaling.RenderExtent(extent, upscaling.LargestScale);
         Extent = extent;
         Upscale?.Resize(extent, OutputExtent);
+
         BaseColor = ColorTarget(extent: extent, format: BaseColorFormat, name: "g-buffer base color");
         Normal = ColorTarget(extent: extent, format: NormalFormat, name: "g-buffer normal", readable: true);
         Specular = ColorTarget(extent: extent, format: SpecularFormat, name: "g-buffer specular", readable: true);
         Emissive = ColorTarget(extent: extent, format: EmissiveFormat, name: "g-buffer emissive");
         Distance = ColorTarget(extent: extent, format: DistanceFormat, name: "g-buffer distance", readable: true);
-        BackShare = traced
-            ? ColorTarget(extent: extent, format: BackShareFormat, name: "back share", readable: true)
-            : null;
         Shading = ColorTarget(extent: extent, format: ShadingFormat, name: "g-buffer shading", readable: true);
         // A storage image too, for the surface test, which writes the sky's motion.
         Motion = ColorTarget(
