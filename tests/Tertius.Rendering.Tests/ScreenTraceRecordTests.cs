@@ -60,31 +60,8 @@ public sealed class ScreenTraceRecordTests
         );
         try
         {
-            MeshId plane = renderer.CreateMesh(Primitives.Plane(1));
-            MaterialId hair = renderer.CreateMaterial(
-                new(BaseColor: Vector4.One, Roughness: 0.3f, Model: new HairShading(StrandDirection.PlusV))
-            );
-            RenderSnapshot scene = Dark();
-            // Two hair cards, sheets, each turned 0.25 rad about the vertical so that its right side lies nearer: so
-            // each pixel's slab has depth, and no ray meets a card only at a slab of no depth (t53-eyrv). The right
-            // card lies farther, so that the probe's rays cross it at its middle column.
-            Quaternion turned =
-                Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.25f)
-                * Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2);
-            foreach (Vector3 position in new Vector3[] { new(-1.5f, 0, -10), new(1.8f, 0, -12) })
-                scene.Instances.Add(
-                    Gpu.Instance(
-                        mesh: plane,
-                        material: hair,
-                        position: position,
-                        rotation: turned,
-                        scale: new(1, 1, 2),
-                        radius: 3,
-                        chainDepth: TestChains.CamerasFrame
-                    )
-                );
             var probe = ScreenTraceProbe.On(renderer, "screen_trace_hair_probe.comp");
-            renderer.Render(scene, 1f);
+            renderer.Render(TwoHairCards(renderer), 1f);
 
             byte[] shading = renderer.ReadShading();
             float[] values = probe.Read();
@@ -169,5 +146,35 @@ public sealed class ScreenTraceRecordTests
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
+    }
+
+    /// <summary>
+    /// Two hair cards in the dark, which are sheets: a left card 10 m away and a right card 12 m away, each 2 m wide. Each
+    /// turns 0.25 rad about the vertical, so that its right side lies nearer. So each pixel's slab has depth, and no ray
+    /// meets a card only at a slab of no depth (t53-eyrv).
+    /// </summary>
+    private static RenderSnapshot TwoHairCards(VulkanRenderer renderer)
+    {
+        MeshId plane = renderer.CreateMesh(Primitives.Plane(1));
+        MaterialId hair = renderer.CreateMaterial(
+            new(BaseColor: Vector4.One, Roughness: 0.3f, Model: new HairShading(StrandDirection.PlusV))
+        );
+        RenderSnapshot scene = Dark();
+        Quaternion turned =
+            Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.25f)
+            * Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2);
+        foreach (Vector3 position in new Vector3[] { new(-1.5f, 0, -10), new(1.8f, 0, -12) })
+            scene.Instances.Add(
+                Gpu.Instance(
+                    mesh: plane,
+                    material: hair,
+                    position: position,
+                    rotation: turned,
+                    scale: new(1, 1, 2),
+                    radius: 3,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+        return scene;
     }
 }

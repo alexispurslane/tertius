@@ -458,6 +458,39 @@ public sealed class DepthPyramidTests
         build.Should().Throw<ArgumentException>("the pyramid needs one distance and one normal for each pixel");
     }
 
+    [Fact]
+    public void APyramidOfInverseDepthsRefusesOneBackShareTooFew()
+    {
+        float[] inverseDepths = [0.1f, 0.2f, 0.3f, 0.4f];
+
+        Action build = () =>
+            DepthPyramid.FromInverseDepths(
+                inverseDepths: inverseDepths,
+                backShares: Solid(inverseDepths).AsSpan(1),
+                width: 2,
+                height: 2
+            );
+
+        build.Should().Throw<ArgumentException>("the pyramid needs one back share for each pixel");
+    }
+
+    [Fact]
+    public void APyramidOfAFrameRefusesOneBackShareTooFew()
+    {
+        CameraView camera = FloorCamera;
+        (float[] distances, Vector3[] normals) = ScreenTesting.Surfaces(camera, Floor);
+
+        Action build = () =>
+            DepthPyramid.Of(
+                camera: camera,
+                distances: distances,
+                geometricNormals: normals,
+                backShares: ScreenTesting.SheetShares(distances).AsSpan(1)
+            );
+
+        build.Should().Throw<ArgumentException>("the pyramid needs one back share for each pixel");
+    }
+
     /// <summary>The back share <see cref="SolidShare"/> for each pixel of <paramref name="inverseDepths"/>.</summary>
     private static float[] Solid(float[] inverseDepths) => [.. inverseDepths.Select(_ => SolidShare)];
 
