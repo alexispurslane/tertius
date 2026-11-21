@@ -448,7 +448,8 @@ public sealed class DiffuseFilterRenderTests(ITestOutputHelper output)
         // 4 / 1536 of the light, 0.00065 (BlendRounding at the fast history's weight 1 / 4), after
         // ln(0.00065 / 0.0505) / ln(3 / 4) ≈ 15 draws. From then on the fast history's last half-float steps toward the
         // sample are the store's rounding, and the variance keeps 31 / 32 a draw: the deviation halves in 44 draws.
-        // Counted as spread, they would keep a deviation of their own size.
+        // Counted as spread, they would keep a deviation of their own size, which this test's bound does not see:
+        // AccumulatorRenderTests.ASampleWithoutNoiseLeavesNoDeviationWhenItsFastHistoryStallsShortOfIt holds it.
         (VulkanRenderer renderer, SamplePass sample, _, RenderSnapshot scene) = FilteringBounceLight();
         try
         {

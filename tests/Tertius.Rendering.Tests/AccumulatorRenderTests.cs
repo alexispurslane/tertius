@@ -1209,8 +1209,8 @@ public sealed class AccumulatorRenderTests
         // units short: a quarter of the last step is half a unit, a tie that rounds back to the even 0.25. So every later
         // draw has a step of 0.000488, 0.2 % of the light. It is the stall of the fast history's blend, which the rounding
         // test zeroes up to 4 / 1536, 0.26 %, at the fast weight. Counted as spread, it would hold the retained deviation
-        // at its own size. A CPU model of these 560 draws gives 5.0e-6 for the fix, and 4.8e-4 for a test without the fast
-        // weight or with no test at all.
+        // at its own size. A CPU model of these 560 draws gives 5.0e-6 for the fix, and 4.8e-4 for a test with no weight,
+        // abs(step) <= BlendRounding * before, or with no test at all.
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
             parameters: SignalParameters.Diffuse
         );
