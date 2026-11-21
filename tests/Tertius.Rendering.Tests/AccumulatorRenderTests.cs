@@ -1202,6 +1202,36 @@ public sealed class AccumulatorRenderTests
         }
     }
 
+    [Fact]
+    public void ASampleWithoutNoiseLeavesNoDeviationWhenItsFastHistoryStallsShortOfIt()
+    {
+        // From 0.2, the fast history's blend of weight 1 / 4 toward the half float 0.250488 stops at 0.25, two half-float
+        // units short: a quarter of the last step is half a unit, a tie that rounds back to the even 0.25. So every later
+        // draw has a step of 0.000488, 0.2 % of the light. It is the stall of the fast history's blend, which the rounding
+        // test zeroes up to 4 / 1536, 0.26 %, at the fast weight. Counted as spread, it would hold the retained deviation
+        // at its own size. A CPU model of these 560 draws gives 5.0e-6 for the fix, and 4.8e-4 for a test without the fast
+        // weight or with no test at all.
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+            parameters: SignalParameters.Diffuse
+        );
+        try
+        {
+            sample.Value = new(x: 0.2f, y: 0.2f, z: 0.2f, w: 1);
+            renderer.Render(scene, 1f);
+            Continue(renderer, scene, frames: 59);
+            sample.Value = new(x: 0.2505f, y: 0.2505f, z: 0.2505f, w: 1);
+            Continue(renderer, scene, frames: 500);
+
+            RetainedDeviationOf(renderer, sample)[Center]
+                .Should()
+                .BeLessThan(0.0001f * 0.2505f, "the light has not changed for 500 draws");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     /// <summary>The history length of part 0 at each pixel after the last frame, row by row from the top: 0 for the sky.</summary>
     private static float[] LengthsOf(VulkanRenderer renderer, SamplePass sample)
     {
