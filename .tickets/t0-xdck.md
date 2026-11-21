@@ -65,3 +65,29 @@ D8 and D4s need one new scratch switch each. Light evidence of a ray keeps its c
 - Timing takes on the Mac under the exclusive GPU lock, at most about 20 minutes per take, each side alone, in turn (for example M D4 D8, D8 D4 M). Give the spread of one side's runs beside each difference.
 - No change under src, tests or tools.
 
+
+## Notes
+
+**2026-11-21T19:30:42Z**
+
+Step note (ticket lead, 2026-11-21): the build stage is done. The record is docs/research/t0-xdck-drift-cut-cost/README.md.
+
+The control passes: D4 repeats t0-ion0's Q3 film, +0.47 / +0.23, blotch 0.122 / 0.148.
+
+Measured, film rect-bay at 1920 x 1080, two frames in flight, four timing rounds on the Mac under the exclusive GPU lock, each side alone, every clock 1292 to 1296 MHz. Median frame span in ms, spread of the four run medians in brackets:
+
+| Side | Frame span | plan..rays | Level mid / last | Specks mid / last | bay-sun lag error |
+|---|---|---|---|---|---|
+| M | 16.05 (0.12) | 4.57 | +1.17 / +0.54 | 0.18 / 1.28 | 0.267 |
+| X | 16.55 (0.10) | 4.80 | +1.86 / +1.91 | 0.16 / 0.10 | 0.281 |
+| Xt | 28.25 (0.27) | 4.80 | not taken | not taken | not taken |
+| D4 | 33.87 (0.72) | 10.24 | +0.47 / +0.23 | 0.22 / 0.18 | 0.102 |
+| D8 | 28.10 (0.58) | 4.63 | +0.86 / +0.31 | 0.20 / 0.63 | 0.131 |
+| D4s | 27.66 (0.46) | 4.18 | +0.47 / +0.22 | 0.44 / 3.61 | 0.091 |
+| C4 | 20.37 (0.38) | 8.53 | +0.43 / +0.18 | 0.21 / 0.29 | 0.090 |
+
+Xt is X with the drift test computed but not acting. It shows that the scratch drift test itself costs +11.7 ms over X: the probe computes the region's light at every render pixel. D4's action costs +5.6 ms over Xt, nearly all in the ray passes. Its own rays reach 54 % of the render pixels over the film. D8's action costs -0.15 ms against Xt, and D4s's -0.59 ms. In the quiet rounds 2 to 4, each side's spread is at most 0.12 ms.
+
+D4s uses TERTIUS_X_FULL_RATE=4, as the ticket's design says. It lowers the own-ray threshold for every pixel, so its own-ray share is 0.2 %, below X's 6 to 7 %. Its film and still show about three times main's bright specks.
+
+Reading: D8 is the action for the remedy. It is better than main in every measure and by the eye, and its action costs no measurable frame span. The remedy's design (t0-acxm) must build the test per block and measure its cost, because the scratch test's 11.7 ms is a per-pixel implementation.

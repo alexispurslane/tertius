@@ -1,0 +1,107 @@
+# Timing of the film rect-bay (timing-table.py r1 r2 r3 r4). Rounds r1 and r3 ran M X Xt D4 D8 D4s C4, r2 and r4 the reverse,
+# each round under one exclusive hold of the GPU lock, each side alone. The load average at each side's start follows.
+
+## Each run
+
+run        clock MHz  median    mean  highest plan..rays plan..accum
+r1-M          1292.1  16.084  16.163   22.343      4.582       9.265
+r1-X          1296.0  16.590  16.640   18.179      4.799       9.739
+r1-Xt         1294.8  28.483  28.554   31.368      4.832      21.661
+r1-D4         1295.9  34.502  33.802   36.862     10.333      27.538
+r1-D8         1293.9  28.630  28.682   34.142      4.687      21.755
+r1-D4s        1295.8  28.053  28.036   28.611      4.226      21.187
+r1-C4         1296.0  20.651  20.646   21.587      8.638      13.730
+r2-M          1296.0  16.018  16.028   16.553      4.572       9.189
+r2-X          1296.0  16.526  16.589   17.947      4.804       9.728
+r2-Xt         1296.0  28.217  28.252   29.752      4.793      21.352
+r2-D4         1296.0  33.836  33.100   35.054     10.225      26.923
+r2-D8         1296.0  28.064  28.121   29.520      4.623      21.189
+r2-D4s        1296.0  27.597  27.575   28.003      4.176      20.723
+r2-C4         1296.0  20.275  20.283   20.748      8.508      13.478
+r3-M          1296.0  15.961  15.965   16.459      4.557       9.137
+r3-X          1296.0  16.493  16.544   17.960      4.794       9.693
+r3-Xt         1296.0  28.233  28.264   29.834      4.791      21.346
+r3-D4         1296.0  33.786  33.090   35.187     10.193      26.879
+r3-D8         1296.0  28.047  28.111   29.533      4.614      21.178
+r3-D4s        1296.0  27.630  27.602   28.025      4.176      20.747
+r3-C4         1296.0  20.355  20.356   20.800      8.521      13.505
+r4-M          1296.0  16.074  16.068   16.538      4.566       9.216
+r4-X          1296.0  16.569  16.636   18.118      4.812       9.733
+r4-Xt         1296.0  28.265  28.300   29.720      4.806      21.391
+r4-D4         1296.0  33.904  33.131   35.167     10.245      26.966
+r4-D8         1296.0  28.137  28.196   29.543      4.626      21.213
+r4-D4s        1296.0  27.683  27.659   28.322      4.186      20.771
+r4-C4         1296.0  20.391  20.395   20.839      8.535      13.540
+
+## Per side over the rounds: median of the runs' medians (spread = highest minus lowest run median)
+
+side  runs         frame span  highest         plan..rays        plan..accum
+M        4     16.046 (0.123)   22.343      4.569 (0.025)      9.203 (0.128)
+X        4     16.547 (0.097)   18.179      4.802 (0.018)      9.730 (0.046)
+Xt       4     28.249 (0.265)   31.368      4.799 (0.041)     21.371 (0.315)
+D4       4     33.870 (0.716)   36.862     10.235 (0.140)     26.944 (0.659)
+D8       4     28.101 (0.584)   34.142      4.625 (0.072)     21.201 (0.578)
+D4s      4     27.656 (0.456)   28.611      4.181 (0.050)     20.759 (0.464)
+C4       4     20.373 (0.375)   21.587      8.528 (0.131)     13.523 (0.252)
+
+## Differences of the medians against M, X and Xt, ms (Xt: the drift test runs but does not act)
+
+X    - M : frame span  +0.501, plan..rays  +0.233, plan..accum  +0.528
+Xt   - M : frame span +12.203, plan..rays  +0.230, plan..accum +12.169
+D4   - M : frame span +17.823, plan..rays  +5.666, plan..accum +17.742
+D8   - M : frame span +12.054, plan..rays  +0.056, plan..accum +11.998
+D4s  - M : frame span +11.610, plan..rays  -0.388, plan..accum +11.556
+C4   - M : frame span  +4.327, plan..rays  +3.960, plan..accum  +4.320
+M    - X : frame span  -0.501, plan..rays  -0.233, plan..accum  -0.528
+Xt   - X : frame span +11.702, plan..rays  -0.003, plan..accum +11.641
+D4   - X : frame span +17.322, plan..rays  +5.433, plan..accum +17.214
+D8   - X : frame span +11.553, plan..rays  -0.177, plan..accum +11.471
+D4s  - X : frame span +11.109, plan..rays  -0.621, plan..accum +11.029
+C4   - X : frame span  +3.825, plan..rays  +3.727, plan..accum  +3.792
+M    - Xt: frame span -12.203, plan..rays  -0.230, plan..accum -12.169
+X    - Xt: frame span -11.702, plan..rays  +0.003, plan..accum -11.641
+D4   - Xt: frame span  +5.620, plan..rays  +5.436, plan..accum  +5.573
+D8   - Xt: frame span  -0.149, plan..rays  -0.174, plan..accum  -0.170
+D4s  - Xt: frame span  -0.593, plan..rays  -0.618, plan..accum  -0.612
+C4   - Xt: frame span  -7.876, plan..rays  +3.729, plan..accum  -7.849
+
+## Load average (1 minute) at each side's start
+
+r1: M 9.98, X 24.47, Xt 39.66, D4 39.92, D8 49.42, D4s 55.45, C4 55.63, 
+r2: C4 3.65, D4s 4.86, D8 4.11, D4 4.02, Xt 3.64, X 3.51, M 4.83, 
+r3: M 2.53, X 4.21, Xt 3.87, D4 3.64, D8 3.54, D4s 3.49, C4 3.48, 
+r4: C4 5.00, D4s 5.42, D8 4.90, D4 4.54, Xt 4.58, X 4.03, M 3.87, 
+
+## The quiet rounds alone (timing-table.py r2 r3 r4): round 1 ran at a load of 10 to 56, the others at 2.5 to 5.4
+
+## Per side over the rounds: median of the runs' medians (spread = highest minus lowest run median)
+
+side  runs         frame span  highest         plan..rays        plan..accum
+M        3     16.018 (0.114)   16.553      4.566 (0.015)      9.189 (0.079)
+X        3     16.526 (0.076)   18.118      4.804 (0.018)      9.728 (0.040)
+Xt       3     28.233 (0.048)   29.834      4.793 (0.014)     21.352 (0.044)
+D4       3     33.836 (0.117)   35.187     10.225 (0.052)     26.923 (0.087)
+D8       3     28.064 (0.091)   29.543      4.623 (0.012)     21.189 (0.035)
+D4s      3     27.630 (0.085)   28.322      4.176 (0.009)     20.747 (0.049)
+C4       3     20.355 (0.116)   20.839      8.521 (0.028)     13.505 (0.063)
+
+## Differences of the medians against M, X and Xt, ms (Xt: the drift test runs but does not act)
+
+X    - M : frame span  +0.508, plan..rays  +0.238, plan..accum  +0.539
+Xt   - M : frame span +12.215, plan..rays  +0.227, plan..accum +12.163
+D4   - M : frame span +17.817, plan..rays  +5.659, plan..accum +17.733
+D8   - M : frame span +12.045, plan..rays  +0.058, plan..accum +11.999
+D4s  - M : frame span +11.611, plan..rays  -0.389, plan..accum +11.557
+C4   - M : frame span  +4.336, plan..rays  +3.956, plan..accum  +4.315
+M    - X : frame span  -0.508, plan..rays  -0.238, plan..accum  -0.539
+Xt   - X : frame span +11.707, plan..rays  -0.012, plan..accum +11.624
+D4   - X : frame span +17.310, plan..rays  +5.421, plan..accum +17.195
+D8   - X : frame span +11.538, plan..rays  -0.181, plan..accum +11.461
+D4s  - X : frame span +11.104, plan..rays  -0.628, plan..accum +11.019
+C4   - X : frame span  +3.829, plan..rays  +3.717, plan..accum  +3.777
+M    - Xt: frame span -12.215, plan..rays  -0.227, plan..accum -12.163
+X    - Xt: frame span -11.707, plan..rays  +0.012, plan..accum -11.624
+D4   - Xt: frame span  +5.602, plan..rays  +5.432, plan..accum  +5.571
+D8   - Xt: frame span  -0.169, plan..rays  -0.169, plan..accum  -0.163
+D4s  - Xt: frame span  -0.604, plan..rays  -0.616, plan..accum  -0.605
+C4   - Xt: frame span  -7.879, plan..rays  +3.729, plan..accum  -7.847
