@@ -1,7 +1,7 @@
 ---
 id: t0-acxm
 status: open
-deps: [t0-xlcu, t0-ion0]
+deps: [t0-xlcu, t0-ion0, t0-9fo0]
 links: [t0-xlcu, t0-ion0]
 created: 2026-11-15T00:42:53Z
 type: bug
