@@ -131,3 +131,11 @@ Motion: boil without the fade over 60 draws after off, floor / wall / ceiling: D
 Not covered: the eye's view at normal speed, other edges, a second run of each side. Tool fixes: the probe patch fitted to 05a27262d (a comment line of sample_age.glsl in its context changed); wobsplit.py prints "none" for a run with no size change. Card job $0.0488; the ticket's cloud spend $0.1635.
 
 My reading for the gate: Design X is faster and steadier than main under the dynamic scale, with a little more boil after off than main's draws of one size (the histories stand at about 9 draws while the light changes, against main's 26).
+
+**2026-11-22T23:51:59Z**
+
+The final take's second film, the walk on the final code, from the combined check's lead, 2026-11-22, commit 07c709f53 (the record's README holds both final films). Video: docs/research/t0-3vwx-dynamic-scale-films/pics/walk-final.mp4 (main 454574bf8 left, Design X with the cap 05a27262d right; 260 draws; H.264, 3840 x 1080, yuv420p, 60 fps, 260 frames, 6.1 MB by my ffprobe).
+
+The walk did not change against take A. Center region's light against the last frame at 0 / 20 / 40 draws after the stop: Design X +5.87 / +4.61 / +3.58 % (equal to X5 without the cap to the last digit), main +5.34 / +3.73 / +2.49 %. The survey's settle after the stop, slowest region: Design X 47 draws (take A: 48), main 25; the whole image settles at once on both. Neither side changes size in the video's draws (main 0.956, Design X 0.949). A walk has no light change, so the cap does not act. The region test runs on 34.7 % of the anchor-draws in the first 60 draws after the stop and on 90.4 % after that. Not covered: a flicker measure during the walk, a second run, the eye's view at normal speed. All frames deleted; the videos and logs stay.
+
+My reading, reported to the orchestrator: gate 5 of the merge (t0-iido) is met in form. For gate 4 the walk is the one take in which Design X is measurably behind main (its trail after a stop fades more slowly). Recommendation: no hold of the merge; a fix belongs with the region test's follow-up (t0-qvm1, t4f-71qp), because the test's count restarts under a moving camera as under a moving size.
