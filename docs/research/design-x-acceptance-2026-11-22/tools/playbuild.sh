@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Tool code of t0-5tyj. playbuild.sh <m|x>: builds the probe demo that macdyn.sh runs, into $BASE/<side>play/probe-bin
+# (default BASE /private/tmp/t0-5tyj), from a scratch copy of the side's tree outside the checkout, which it deletes
+# after the build:
+#   x: the checkout's HEAD (the line's src), its probe patch tools/renderer-survey/probe.patch from the working tree (with
+#      the lamp switch of TERTIUS_PROBE_LAMP_GLOW), then ../scratch-region-log.patch and ../scratch-dynamic-scale.patch;
+#   m: main c4c1f1f2f, main's probe patch with the same lamp switch (../probe-main-2ffd7e66f-glow.patch, written against
+#      main 2ffd7e66f, whose probe patch differs from c4c1f1f2f's in two lines; ShaderConstants.cs takes c4c1f1f2f's own
+#      hunks, see below), then ../scratch-dynamic-scale.patch.
+set -euo pipefail
+side=$1
+R=$(cd "$(dirname "$0")/../../../.." && pwd)
+D=$R/docs/research/design-x-acceptance-2026-11-22
+B=${BASE:-/private/tmp/t0-5tyj}
+free=$(df -BG / | awk 'NR == 2 { gsub("G", "", $4); print $4 }')
+[ "$free" -ge 40 ] || { echo "only $free GiB free, no build"; exit 1; }
+tree=$B/${side}play-src; rm -rf $tree; mkdir -p $tree
+if [ $side = x ]; then
+  git -C $R archive HEAD | tar -x -C $tree
+  patch -d $tree -p1 --forward -s -i $R/tools/renderer-survey/probe.patch
+  patch -d $tree -p1 --forward -s -i $D/scratch-region-log.patch
+else
+  git -C $R archive c4c1f1f2f | tar -x -C $tree
+  # Main's glow patch fails its hunk of ShaderConstants.cs on c4c1f1f2f. That hunk is not part of the lamp switch, so
+  # that file's hunks come from c4c1f1f2f's own probe patch.
+  python3 -I $D/tools/patchfiles.py $D/probe-main-2ffd7e66f-glow.patch drop src/Tertius.Rendering/ShaderConstants.cs \
+    | patch -d $tree -p1 --forward -s
+  git -C $R show c4c1f1f2f:tools/renderer-survey/probe.patch \
+    | python3 -I $D/tools/patchfiles.py /dev/stdin keep src/Tertius.Rendering/ShaderConstants.cs | patch -d $tree -p1 --forward -s
+fi
+patch -d $tree -p1 --forward -s -i $D/scratch-dynamic-scale.patch
+cd $R && nix develop --command bash -c "cd $tree && dotnet build src/Tertius.Demo -c Release -nologo -v:q -p:RunAnalyzers=false \
+  -p:TreatWarningsAsErrors=false -o $B/${side}play/probe-bin 2>&1 | tail -3"
+rm -rf $tree
+echo "$(date +%T) built $B/${side}play/probe-bin"
