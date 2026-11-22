@@ -15,6 +15,7 @@ internal sealed unsafe class SwapchainTarget : IOutputTarget
     private readonly KhrSwapchain api;
     private readonly KhrSurface surfaceApi;
     private readonly bool vsync;
+    private readonly UpscalingSetting upscaling;
     private readonly List<Semaphore> renderFinished = [];
     private readonly SurfaceFormatKHR surfaceFormat;
     private SwapchainKHR swapchain;
@@ -23,12 +24,15 @@ internal sealed unsafe class SwapchainTarget : IOutputTarget
     private uint imageIndex;
     private bool stale;
 
-    public SwapchainTarget(VulkanDevice device, Extent2D extent, bool vsync)
+    /// <summary>A swapchain of <paramref name="extent"/>, or of the surface's own extent, that draws only an output that
+    /// <paramref name="upscaling"/> supports.</summary>
+    public SwapchainTarget(VulkanDevice device, Extent2D extent, bool vsync, UpscalingSetting upscaling)
     {
         this.device = device;
         api = device.SwapchainApi ?? throw new InvalidOperationException("The device has no swapchain support.");
         surfaceApi = device.SurfaceApi ?? throw new InvalidOperationException("The device has no surface.");
         this.vsync = vsync;
+        this.upscaling = upscaling;
         requested = extent;
         surfaceFormat = ChooseFormat();
         Create();
@@ -148,9 +152,10 @@ internal sealed unsafe class SwapchainTarget : IOutputTarget
 
         SwapchainKHR old = swapchain;
         DestroyViews();
-        if (extent.Width == 0 || extent.Height == 0)
+        if (!upscaling.Supports(extent))
         {
-            // Minimized: no swapchain until the window has an area again.
+            // Minimized, or a size that the upscaling cannot draw at exactly its aspect, such as a window in the middle
+            // of its fit: no swapchain until the window has such a size. Stale, so that each acquire asks the surface.
             if (old.Handle != 0)
                 api.DestroySwapchain(device.Device, old, null);
             swapchain = default;

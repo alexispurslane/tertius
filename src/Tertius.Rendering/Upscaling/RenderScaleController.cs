@@ -1,11 +1,13 @@
 namespace Tertius.Rendering;
 
 /// <summary>
-/// Owns the window's measured render scale. Next records the scale under the frame number; Measure consumes that
-/// finished frame's timings. Missing timings leave the scale unchanged (docs/plans/temporal-renderer.md, section 4).
+/// Owns the window's measured render scale. The renderer draws at the exact-ratio size nearest at or below
+/// RequestedScale, and Drew records the scale that the draw realized under its frame number. Measure consumes that
+/// finished frame's timings, so that the cost model describes the area that was drawn, not the request. Missing
+/// timings leave the scale unchanged (docs/plans/temporal-renderer.md, section 4).
 /// </summary>
 /// <remarks>
-/// Invariants, checked on demand by AssertInvariants: the current and recorded scales stay in the target's range,
+/// Invariants, checked on demand by AssertInvariants: the requested and recorded scales stay in the target's range,
 /// each recorded frame occupies its frame-number slot, and measured costs are finite and nonnegative, with positive
 /// cost per render area. The last accepted measurement is -1 before any measurement, then a nonnegative frame number.
 /// </remarks>
@@ -13,7 +15,6 @@ internal sealed class RenderScaleController
 {
     private readonly FrameTimeTarget target;
     private readonly (long Frame, float Scale)?[] drawn = new (long Frame, float Scale)?[8];
-    private float scale;
     private (double Fixed, double PerArea)? model;
     private long measured = -1;
 
@@ -34,15 +35,29 @@ internal sealed class RenderScaleController
         if (RenderScaleSetting.ProblemOf(target) is { } problem)
             throw new ArgumentOutOfRangeException(nameof(target), problem);
         this.target = target;
-        scale = target.MaxScale;
+        RequestedScale = target.MaxScale;
     }
 
-    public float Next(long frame)
+    /// <summary>The scale that the next draw asks for, from the target's smallest to its largest scale.</summary>
+    public float RequestedScale { get; private set; }
+
+    /// <summary>
+    /// Records that draw <paramref name="frame"/> realized <paramref name="realizedScale"/>: its render width over its
+    /// output width, which the exact-ratio size can put below <see cref="RequestedScale"/>.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// The frame is negative, or the scale is not a number inside the target's limits.
+    /// </exception>
+    public void Drew(long frame, float realizedScale)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(frame);
-        drawn[frame % drawn.Length] = (frame, scale);
-        Contract.Ensures(drawn[frame % drawn.Length] == (frame, scale));
-        return scale;
+        if (!(realizedScale >= target.MinScale && realizedScale <= target.MaxScale))
+            throw new ArgumentOutOfRangeException(
+                nameof(realizedScale),
+                $"A draw realized the scale {realizedScale}, outside {target.MinScale} to {target.MaxScale}."
+            );
+        drawn[frame % drawn.Length] = (frame, realizedScale);
+        Contract.Ensures(drawn[frame % drawn.Length] == (frame, realizedScale));
     }
 
     public void Measure(GpuTimings timings)
@@ -63,14 +78,15 @@ internal sealed class RenderScaleController
         measured = timings.Frame;
         double budget = target.Milliseconds * 0.9;
         (double fixedTime, double renderTime) = model.Value;
-        double current = fixedTime + renderTime * scale * scale;
+        double current = fixedTime + renderTime * RequestedScale * RequestedScale;
         if (Math.Abs(current - budget) < budget * 0.03)
             return;
         double wanted = Math.Sqrt(Math.Max(0, (budget - fixedTime) / renderTime));
         wanted = Math.Clamp(wanted, target.MinScale, target.MaxScale);
-        double weight = wanted < scale ? 0.25 : 0.05;
-        scale = (float)Math.Clamp(scale + weight * (wanted - scale), target.MinScale, target.MaxScale);
-        Contract.Ensures(scale >= target.MinScale && scale <= target.MaxScale);
+        double weight = wanted < RequestedScale ? 0.25 : 0.05;
+        RequestedScale = (float)
+            Math.Clamp(RequestedScale + weight * (wanted - RequestedScale), target.MinScale, target.MaxScale);
+        Contract.Ensures(RequestedScale >= target.MinScale && RequestedScale <= target.MaxScale);
     }
 
     /// <summary>
@@ -124,7 +140,7 @@ internal sealed class RenderScaleController
 
     internal void AssertInvariants()
     {
-        Contract.Invariant(scale >= target.MinScale && scale <= target.MaxScale);
+        Contract.Invariant(RequestedScale >= target.MinScale && RequestedScale <= target.MaxScale);
         Contract.Invariant(measured >= -1);
         if (model is { } costs)
         {

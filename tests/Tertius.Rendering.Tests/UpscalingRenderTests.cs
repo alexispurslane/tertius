@@ -7,10 +7,74 @@ namespace Tertius.Rendering.Tests;
 [Collection(GpuCollection.Name)]
 public sealed class UpscalingRenderTests
 {
+    [Fact]
+    public void DelayedGpuFeedbackCountsTheScaleThatWasDrawn()
+    {
+        // 96 × 80 has 16 steps of 6 × 5, so the request of 0.9 draws 14 of them: 84 × 70, a scale of 0.875.
+        VulkanRenderer renderer = WindowRenderer(width: 96, height: 80, target: new(16, 0.5f, 0.9f));
+        try
+        {
+            renderer.Render(BoxScene(renderer), 1);
+            renderer.LastScene.Camera.Width.Should().Be(84);
+            renderer.LastScene.Camera.Height.Should().Be(70);
+
+            renderer.ScaleController!.Measure(
+                new(
+                    0,
+                    new PassTiming[]
+                    {
+                        new("G-buffer", 20) { Stage = FrameGraph.Stage.GBuffer },
+                        new("tone map", 0) { Stage = FrameGraph.Stage.ToneMap },
+                    },
+                    20
+                )
+            );
+
+            // 20 ms at 0.875 is 20 / 0.875² ms per unit area, so the budget of 14.4 ms wants 0.875 * sqrt(14.4 / 20),
+            // and a shrink moves a quarter of the way there.
+            float wanted = 0.875f * MathF.Sqrt(14.4f / 20);
+            renderer.ScaleController.RequestedScale.Should().BeApproximately(0.9f + 0.25f * (wanted - 0.9f), 1e-6f);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AHeadlessOutputWithNoActiveSizeInsideTheScaleLimitsIsRefused()
+    {
+        // 1919 × 1079 has no common factor, so its only exact-ratio size is native, above the fixed 2/3.
+        Action create = () =>
+            VulkanRenderer
+                .CreateHeadless(new() { Width = 1919, Height = 1079, Validation = true, WarmUpFrames = 0 })
+                .Dispose();
+
+        create.Should().Throw<ArgumentOutOfRangeException>().WithMessage("*1919 × 1079*");
+    }
+
+    [Fact]
+    public void AHeadlessResizeToAnOutputWithNoActiveSizeInsideTheScaleLimitsIsRefused()
+    {
+        using var renderer = VulkanRenderer.CreateHeadless(
+            new()
+            {
+                Width = 64,
+                Height = 64,
+                Validation = true,
+                WarmUpFrames = 0,
+            }
+        );
+
+        Action resize = () => renderer.Resize(7, 5);
+
+        resize.Should().Throw<ArgumentOutOfRangeException>().WithMessage("*7 × 5*");
+    }
+
     [Theory]
-    [InlineData(64, 64, 40, 40)]
-    [InlineData(7, 5, 8, 8)]
-    [InlineData(1, 1, 8, 8)]
+    [InlineData(64, 64, 42, 42)]
+    [InlineData(6, 4, 3, 2)]
+    [InlineData(2, 2, 1, 1)]
     public void SmallHeadlessOutputsKeepTheDefaultActiveScale(int width, int height, int renderWidth, int renderHeight)
     {
         var renderer = VulkanRenderer.CreateHeadless(
@@ -61,8 +125,8 @@ public sealed class UpscalingRenderTests
             Capture small = Gpu.RenderAndCapture(renderer: renderer, snapshot: scene, name: "small FSR window");
             small.Width.Should().Be(width);
             small.Height.Should().Be(height);
-            renderer.LastScene.Camera.Width.Should().Be(Math.Max(8, width / 8 * 8));
-            renderer.LastScene.Camera.Height.Should().Be(Math.Max(8, height / 8 * 8));
+            renderer.LastScene.Camera.Width.Should().Be(width, "a native-only window draws every output pixel");
+            renderer.LastScene.Camera.Height.Should().Be(height);
             renderer.ReadSurfaceTest().Should().OnlyContain(bits => bits == 0);
             renderer.Resize(160, 96);
             scene.Time += 1.0 / 60;
@@ -297,10 +361,11 @@ public sealed class UpscalingRenderTests
             panel.Position += new Vector3(4, 0, 0);
             scene.Instances[1] = panel;
 
+            // 20 draws: the model needs about 9 to forget the slow frames, and a step of 640 × 360 is 16 × 9 px.
             DriveScale(
                 renderer: renderer,
                 scene: scene,
-                frames: 12,
+                frames: 20,
                 renderMilliseconds: grows ? 0.01 : 100,
                 fixedMilliseconds: 0.01
             );
@@ -570,8 +635,8 @@ public sealed class UpscalingRenderTests
             Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: scene, name: "resized FSR output");
             image.Width.Should().Be(192);
             image.Height.Should().Be(112);
-            renderer.LastScene.Camera.Width.Should().Be(128);
-            renderer.LastScene.Camera.Height.Should().Be(72);
+            renderer.LastScene.Camera.Width.Should().Be(120, "2/3 of 192 × 112 rounds down to 10 steps of 12 × 7");
+            renderer.LastScene.Camera.Height.Should().Be(70);
             renderer.ReadSurfaceTest().Should().OnlyContain(bits => bits == 0);
         }
         finally
@@ -581,8 +646,8 @@ public sealed class UpscalingRenderTests
     }
 
     [Theory]
-    [InlineData(160, 48, 104, 32)]
-    [InlineData(80, 96, 48, 64)]
+    [InlineData(160, 48, 100, 30)]
+    [InlineData(80, 96, 50, 60)]
     public void AnAcquiredImageChangingOnlyOneAxisRecreatesTargetsAndResetsHistory(
         int width,
         int height,
@@ -1132,8 +1197,8 @@ public sealed class UpscalingRenderTests
             }
         );
         renderer.Render(Gpu.Snapshot(Vector3.UnitZ), 0);
-        renderer.LastScene.Camera.Width.Should().Be(104);
-        renderer.LastScene.Camera.Height.Should().Be(56);
+        renderer.LastScene.Camera.Width.Should().Be(96, "2/3 of 160 × 90 is 6 steps of 16 × 9");
+        renderer.LastScene.Camera.Height.Should().Be(54);
         renderer.Graph.Passes.Select(pass => pass.Name).Should().Contain("FSR 3.1");
         renderer
             .Graph.Passes.Select(pass => pass.Name)

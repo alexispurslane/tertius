@@ -2,14 +2,33 @@ using Silk.NET.Vulkan;
 
 namespace Tertius.Rendering.Tests;
 
+/// <summary>A synthetic draw for the feedback tests: it draws at exactly the requested scale.</summary>
+internal static class RenderScaleTesting
+{
+    extension(RenderScaleController controller)
+    {
+        /// <summary>Records a draw of <paramref name="frame"/> at the requested scale and returns that scale.</summary>
+        public float Next(long frame)
+        {
+            float scale = controller.RequestedScale;
+            controller.Drew(frame: frame, realizedScale: scale);
+            return scale;
+        }
+    }
+}
+
 /// <summary>The active rectangle and the delayed GPU-time feedback of dynamic resolution.</summary>
 public sealed class RenderScaleTests
 {
+    private static readonly UpscalingSetting Dynamic = new Fsr3Upscaling(new FrameTimeTarget(16, 0.5f, 0.9f), 0);
+
     [Theory]
     [InlineData(1920, 1080, 2f / 3, 1280, 720)]
-    [InlineData(1919, 1079, 2f / 3, 1272, 712)]
-    [InlineData(7, 5, 0.5f, 8, 8)]
-    public void EachActiveAxisRoundsDownToEightPixels(
+    [InlineData(1920, 1080, 0.5f, 960, 540)]
+    [InlineData(1920, 1080, 0.8f, 1536, 864)]
+    [InlineData(1080, 1920, 2f / 3, 720, 1280)]
+    [InlineData(96, 80, 0.73f, 66, 55)]
+    public void TheActiveSizeIsTheLargestMultipleOfTheReducedOutputRatioAtOrBelowTheScale(
         int width,
         int height,
         float scale,
@@ -18,9 +37,147 @@ public sealed class RenderScaleTests
     )
     {
         UpscalingSetting setting = new Fsr3Upscaling(new FixedRenderScale(scale), 0);
+
         Extent2D active = setting.RenderExtent(new((uint)width, (uint)height), scale);
-        active.Width.Should().Be((uint)expectedWidth);
-        active.Height.Should().Be((uint)expectedHeight);
+
+        active.Should().Be(new Extent2D((uint)expectedWidth, (uint)expectedHeight));
+    }
+
+    [Theory]
+    [InlineData(1920, 1080)] // 16:9, 120 steps
+    [InlineData(1080, 1920)] // portrait
+    [InlineData(1440, 1080)] // 4:3
+    [InlineData(2560, 1080)] // 64:27, 40 steps
+    [InlineData(1680, 1050)] // 8:5
+    [InlineData(1080, 2400)] // a tall portrait phone, 9:20
+    [InlineData(1368, 768)] // 57:32, 24 steps
+    [InlineData(96, 80)] // 6:5, 16 steps
+    [InlineData(64, 56)] // 8:7, 8 steps: four choices from 0.5 to 0.9
+    public void EveryActiveSizeHasExactlyTheOutputsAspectInsideTheScaleLimits(int width, int height)
+    {
+        for (float scale = 0.45f; scale <= 1.001f; scale += 0.01f)
+        {
+            Extent2D active = Dynamic.RenderExtent(new((uint)width, (uint)height), scale);
+
+            ((ulong)active.Width * (uint)height)
+                .Should()
+                .Be((ulong)active.Height * (uint)width, "{0} × {1} at {2} has the output's ratio", width, height, scale);
+            (active.Width / (float)width).Should().BeInRange(0.5f, 0.9f, "the limits hold at a request of {0}", scale);
+        }
+    }
+
+    [Theory]
+    [InlineData(1919, 1079)]
+    [InlineData(7, 5)]
+    [InlineData(1, 1)]
+    public void AFixedOutputWithNoActiveSizeInsideTheScaleLimitsIsRefused(int width, int height)
+    {
+        UpscalingSetting setting = new Fsr3Upscaling(new FixedRenderScale(2f / 3), 0);
+        var output = new Extent2D((uint)width, (uint)height);
+
+        setting.Supports(output).Should().BeFalse("no multiple of the reduced ratio lies from 0.5 to 2/3");
+        Action select = () => setting.RenderExtent(output, 2f / 3);
+        select.Should().Throw<ArgumentException>();
+    }
+
+    [Theory]
+    [InlineData(1919, 1080, 1920, 1080)]
+    [InlineData(1920, 1080, 1920, 1080)]
+    [InlineData(1081, 1920, 1080, 1920)]
+    [InlineData(1441, 1080, 1440, 1080)]
+    [InlineData(361, 641, 360, 640)]
+    [InlineData(1918, 1080, 1920, 1080)] // 959:540 has one size from 0.5 to 0.9, 959 × 540, and a time target needs two
+    [InlineData(7, 5, 8, 8)]
+    public void AWindowSnapsToTheNearestOutputThatHasActiveSizesAndKeepsOneThatHas(
+        int width,
+        int height,
+        int expectedWidth,
+        int expectedHeight
+    )
+    {
+        Extent2D output = Dynamic.SnapOutput(new((uint)width, (uint)height));
+
+        output.Should().Be(new Extent2D((uint)expectedWidth, (uint)expectedHeight));
+        Dynamic.Supports(output).Should().BeTrue();
+        Dynamic.SnapOutput(output).Should().Be(output, "a supported output stays as it is");
+    }
+
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(0, 1080)]
+    [InlineData(1920, 0)]
+    public void AMinimizedWindowKeepsItsEmptySize(int width, int height)
+    {
+        var output = new Extent2D((uint)width, (uint)height);
+
+        Dynamic.SnapOutput(output).Should().Be(output);
+        Dynamic.Supports(output).Should().BeFalse("an empty output has nothing to draw");
+    }
+
+    [Fact]
+    public void AWindowOfATimeTargetSnapsRatherThanKeepNativeAsItsOnlyChoice()
+    {
+        UpscalingSetting setting = new Fsr3Upscaling(FrameTimeTarget.Default, 0);
+
+        Extent2D output = setting.SnapOutput(new(1919, 1080));
+
+        output.Should().Be(new Extent2D(1920, 1080), "1919 × 1080 has only native, and a time target needs a choice");
+        setting.RenderExtent(output, 0.5f).Should().Be(new Extent2D(960, 540));
+    }
+
+    [Theory]
+    [InlineData(1919, 1080)]
+    [InlineData(7, 5)]
+    [InlineData(1, 1)]
+    public void ANativeOnlySettingKeepsEveryWindowSizeAsItIs(int width, int height)
+    {
+        var output = new Extent2D((uint)width, (uint)height);
+        foreach (
+            UpscalingSetting setting in new UpscalingSetting[]
+            {
+                new NoUpscaling(),
+                new Fsr3Upscaling(new FixedRenderScale(1), 0),
+                new Fsr3Upscaling(new FrameTimeTarget(16, 1, 1), 0),
+            }
+        )
+        {
+            setting.SnapOutput(output).Should().Be(output);
+            setting.RenderExtent(output, 1).Should().Be(output);
+        }
+    }
+
+    [Theory]
+    [InlineData(1, 1, 64, 2)]
+    [InlineData(3, 2, 64, 2)]
+    [InlineData(42, 42, 64, 42)]
+    [InlineData(1, 100, 2, 100)]
+    [InlineData(100, 1, 100, 2)]
+    [InlineData(84, 70, 84, 70)]
+    public void FsrPadsOnlyItsAllocationToALongerSideOf64AndAShorterOf2(
+        int width,
+        int height,
+        int allocatedWidth,
+        int allocatedHeight
+    ) =>
+        Fsr3Upscaler
+            .AllocationSize(new((uint)width, (uint)height))
+            .Should()
+            .Be(new Extent2D((uint)allocatedWidth, (uint)allocatedHeight));
+
+    [Fact]
+    public void TheDelayedTimingsOfADrawCountTheScaleThatTheDrawRealized()
+    {
+        var controller = new RenderScaleController(new(16, 0.5f, 0.9f));
+        controller.RequestedScale.Should().Be(0.9f);
+
+        // The exact-ratio size realized 0.875 of the requested 0.9: 1680 × 945 of a 1920 × 1080 output.
+        controller.Drew(frame: 0, realizedScale: 0.875f);
+        controller.Measure(Timings(frame: 0, scale: 0.875f, renderCost: 40, outputWait: 0));
+
+        // The fixed work is 3 ms and the work at the render size 40 ms per unit area, so 14.4 ms wants
+        // sqrt(11.4 / 40), and a shrink moves a quarter of the way there.
+        double wanted = Math.Sqrt(11.4 / 40);
+        controller.RequestedScale.Should().BeApproximately((float)(0.9 + 0.25 * (wanted - 0.9)), 1e-6f);
     }
 
     [Fact]
@@ -273,6 +430,20 @@ public sealed class RenderScaleTests
 
         record.Should().Throw<ArgumentOutOfRangeException>();
         controller.Next(0).Should().Be(1);
+        controller.AssertInvariants();
+    }
+
+    [Theory]
+    [InlineData(0.49f)]
+    [InlineData(0.95f)]
+    [InlineData(float.NaN)]
+    public void ADrawAtAScaleOutsideTheLimitsIsRefused(float realized)
+    {
+        var controller = new RenderScaleController(new(16, 0.5f, 0.9f));
+
+        Action record = () => controller.Drew(frame: 0, realizedScale: realized);
+
+        record.Should().Throw<ArgumentOutOfRangeException>();
         controller.AssertInvariants();
     }
 
