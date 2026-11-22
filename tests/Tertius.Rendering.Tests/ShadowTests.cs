@@ -1081,6 +1081,301 @@ public sealed class ShadowTests
         }
     }
 
+    // ---- The roof over the ground ----------------------------------------------------------------------------------
+    // A roof slab hangs 100 texels of the first cascade above ground that does not cast, under a sun 2 degrees from
+    // straight above. Its edge on the ground runs at 17 degrees to the world's axes, so that it crosses the texel grid at
+    // every sub-texel place. The roof spans the camera, which looks down at the ground below it.
+
+    /// <summary>The view of the roof over the ground.</summary>
+    private const int RoofWidth = 960,
+        RoofHeight = 540;
+
+    /// <summary>The sun of the roof over the ground: 2 degrees from straight above.</summary>
+    private static readonly Vector3 RoofSun = Vector3.Normalize(new(0.03f, 1f, 0.02f));
+
+    /// <summary>The camera of the roof over the ground, 2 m above it, which looks 60 degrees down.</summary>
+    private static readonly Quaternion RoofCamera = Gpu.PitchDown(60f * MathF.PI / 180f);
+
+    /// <summary>The ground of the roof's scene, and the point of it where the shadow of the roof's edge passes.</summary>
+    private static readonly Vector3 RoofEdgeOnGround = new(0, -2f, -2f / MathF.Tan(60f * MathF.PI / 180f));
+
+    /// <summary>The turn of the roof about the vertical, so that its edge crosses the texel grid at every place.</summary>
+    private static readonly Quaternion RoofTurn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 17f * MathF.PI / 180f);
+
+    /// <summary>The ground's unit direction from the roof's edge toward the part under the roof.</summary>
+    private static readonly Vector3 UnderTheRoof = Vector3.Transform(-Vector3.UnitX, RoofTurn);
+
+    /// <summary>The ground's unit direction along the roof's edge.</summary>
+    private static readonly Vector3 AlongTheRoofsEdge = Vector3.Transform(Vector3.UnitZ, RoofTurn);
+
+    /// <summary>
+    /// The scene of the roof over the ground, seen through <see cref="RoofCamera"/> with no ambient light. With
+    /// <paramref name="roof"/> a slab that only casts hangs <paramref name="roofHeight"/> above the ground, and the sun casts the
+    /// shadow of its edge through <see cref="RoofEdgeOnGround"/>. With a <paramref name="slit"/> above 0, a second such slab
+    /// faces it across a sunlit strip of the ground that is <paramref name="slit"/> m wide. Without <paramref name="roof"/>
+    /// the slabs lie far off the view, so that the cascades are drawn in both scenes.
+    /// </summary>
+    private static RenderSnapshot RoofOverGroundScene(Kit kit, float roofHeight, bool roof, float slit = 0)
+    {
+        RenderSnapshot snapshot = Gpu.Snapshot(RoofSun);
+        snapshot.Ambient.Intensity = 0;
+        snapshot.Camera.Rotation = RoofCamera;
+        snapshot.Camera.PreviousRotation = RoofCamera;
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: kit.Plane,
+                material: kit.Ground,
+                position: RoofEdgeOnGround,
+                scale: new(10f, 1, 10f),
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        snapshot.Instances.Add(
+            RoofSlab(kit: kit, roofHeight: roofHeight, roof: roof, edgeOnGround: RoofEdgeOnGround, under: UnderTheRoof)
+        );
+        if (slit > 0)
+            snapshot.Instances.Add(
+                RoofSlab(
+                    kit: kit,
+                    roofHeight: roofHeight,
+                    roof: roof,
+                    edgeOnGround: RoofEdgeOnGround - UnderTheRoof * slit,
+                    under: -UnderTheRoof
+                )
+            );
+        return snapshot;
+    }
+
+    /// <summary>
+    /// A slab of the roof's scene that only casts, <paramref name="roofHeight"/> above the ground, whose edge's shadow
+    /// falls on <paramref name="edgeOnGround"/> and which spans the ground toward <paramref name="under"/> from there. Without
+    /// <paramref name="roof"/> it lies far off the view.
+    /// </summary>
+    private static RenderInstance RoofSlab(Kit kit, float roofHeight, bool roof, Vector3 edgeOnGround, Vector3 under)
+    {
+        const float length = 20f,
+            thickness = 0.3f;
+        // The sun casts the slab's lower edge onto the edge on the ground. So that lower edge lies straight toward the
+        // sun from it.
+        Vector3 lowerEdge = edgeOnGround + RoofSun * (roofHeight / RoofSun.Y);
+        Vector3 center = lowerEdge + under * (length / 2) + new Vector3(0, thickness / 2, 0);
+        return Gpu.Instance(
+            mesh: kit.Box,
+            material: kit.White,
+            position: roof ? center : new(-60f, 0, -40f),
+            scale: new(length, thickness, length),
+            rotation: RoofTurn,
+            chainDepth: TestChains.CamerasFrame
+        ) with
+        {
+            Flags = RenderFlags.CastsShadow,
+        };
+    }
+
+    /// <summary>
+    /// The share of the sun that reaches the ground of the roof's scene at each of <paramref name="points"/>, in a view of
+    /// <see cref="RoofWidth"/> by <see cref="RoofHeight"/> pixels: the green channel with the roof over the green channel
+    /// without it. <paramref name="slit"/> is as in <see cref="RoofOverGroundScene"/>.
+    /// </summary>
+    private static float[] SunSharesUnderTheRoof(
+        VulkanRenderer renderer,
+        Kit kit,
+        float roofHeight,
+        Vector3[] points,
+        float slit = 0
+    )
+    {
+        renderer.Render(RoofOverGroundScene(kit: kit, roofHeight: roofHeight, roof: false, slit: slit), 1f);
+        float[] lit = renderer.ReadHdr();
+        renderer.Render(RoofOverGroundScene(kit: kit, roofHeight: roofHeight, roof: true, slit: slit), 1f);
+        float[] shadowed = renderer.ReadHdr();
+        float[] shares = new float[points.Length];
+        for (int i = 0; i < points.Length; i++)
+        {
+            Vector2 pixel = Gpu.Project(
+                point: points[i],
+                cameraRotation: RoofCamera,
+                width: RoofWidth,
+                height: RoofHeight
+            );
+            int green = ((int)pixel.Y * RoofWidth + (int)pixel.X) * 4 + 1;
+            lit[green].Should().BeGreaterThan(0, "the sun lights the ground at {0} without the roof", points[i]);
+            shares[i] = shadowed[green] / lit[green];
+        }
+
+        return shares;
+    }
+
+    /// <summary>
+    /// Ground under a roof 100 texels above it takes no sunlight from half a texel inside the shadow of the roof's edge.
+    /// The map's edge lies within half a texel of the geometric edge, and the filter's blur lies on the lit side of the
+    /// map's edge, so it puts no light under the roof. A symmetric filter that reached 2.5 texels compared
+    /// texels past the roof's edge, where the map holds no caster, and let up to half of the sun onto the ground under the
+    /// roof: the strip on rect-lamps' window jambs (t8-rjno).
+    /// </summary>
+    [Fact]
+    public void GroundUnderARoofTakesNoSunlightFromHalfATexelInsideTheShadowOfItsEdge()
+    {
+        VulkanRenderer renderer = Gpu.Headless(width: RoofWidth, height: RoofHeight);
+        try
+        {
+            var kit = Kit.Create(renderer);
+            float texel = Gpu.FirstCascadeTexel(width: RoofWidth, height: RoofHeight);
+            var points = new List<Vector3>();
+            foreach (float inside in (float[])[0.5f, 1f, 1.5f, 2f, 3f, 5f])
+            foreach (float along in (float[])[-0.4f, -0.2f, 0f, 0.2f, 0.4f])
+                points.Add(RoofEdgeOnGround + UnderTheRoof * (inside * texel) + AlongTheRoofsEdge * along);
+
+            float[] shares = SunSharesUnderTheRoof(
+                renderer: renderer,
+                kit: kit,
+                roofHeight: 100f * texel,
+                points: [.. points]
+            );
+
+            shares
+                .Max()
+                .Should()
+                .BeLessThan(
+                    0.01f,
+                    "the roof hides the sun from the ground under it ({0})",
+                    string.Join("; ", shares.Select(share => share.ToString("F3")))
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// The shadow of a roof's edge 100 texels above the ground takes the sun away up to the geometric edge, and the sun
+    /// lights the ground fully from 3 texels outside it: the filter's reach of 2.5 texels plus the half texel of the map's
+    /// edge. The filter's blur lies on the lit side. A symmetric filter gave half the sun at the geometric edge.
+    /// </summary>
+    [Fact]
+    public void TheShadowOfARoofsEdgeTakesTheSunAwayAtTheGeometricEdgeAndLightsTheGroundFullyThreeTexelsOutside()
+    {
+        VulkanRenderer renderer = Gpu.Headless(width: RoofWidth, height: RoofHeight);
+        try
+        {
+            var kit = Kit.Create(renderer);
+            float texel = Gpu.FirstCascadeTexel(width: RoofWidth, height: RoofHeight);
+            // 32 points along the edge cross about 14 texels at 17 degrees to the grid, so each sub-texel place counts.
+            float[] alongs = [.. Enumerable.Range(0, 32).Select(i => (i - 15.5f) * 0.025f)];
+            Vector3 At(float inside, float along) =>
+                RoofEdgeOnGround + UnderTheRoof * (inside * texel) + AlongTheRoofsEdge * along;
+            Vector3[] points =
+            [
+                .. alongs.Select(along => At(inside: 0f, along: along)),
+                .. alongs.Select(along => At(inside: -3f, along: along)),
+            ];
+
+            float[] shares = SunSharesUnderTheRoof(
+                renderer: renderer,
+                kit: kit,
+                roofHeight: 100f * texel,
+                points: points
+            );
+
+            float atTheEdge = shares.Take(alongs.Length).Average();
+            float outside = shares.Skip(alongs.Length).Min();
+            atTheEdge.Should().BeLessThan(0.1f, "the roof's shadow takes the sun away up to its geometric edge");
+            outside.Should().BeGreaterThan(0.99f, "the sun lights the ground 3 texels outside the roof's shadow");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// The sun rises over more than one texel outside the shadow of a roof's edge: 1 texel outside, the ground takes
+    /// between a quarter and three quarters of the sun on average along the edge. The filter's taps one texel apart give
+    /// about half. One bilinear tap gave the full sun there, and its edge showed the texel grid as stair steps that
+    /// crawled with a moving caster 5 m from the camera (t8-rjno).
+    /// </summary>
+    [Fact]
+    public void TheSunRisesOverMoreThanOneTexelOutsideTheShadowOfARoofsEdge()
+    {
+        VulkanRenderer renderer = Gpu.Headless(width: RoofWidth, height: RoofHeight);
+        try
+        {
+            var kit = Kit.Create(renderer);
+            float texel = Gpu.FirstCascadeTexel(width: RoofWidth, height: RoofHeight);
+            // 32 points along the edge cross about 14 texels at 17 degrees to the grid, so each sub-texel place counts.
+            Vector3[] points =
+            [
+                .. Enumerable
+                    .Range(0, 32)
+                    .Select(i => RoofEdgeOnGround - UnderTheRoof * texel + AlongTheRoofsEdge * ((i - 15.5f) * 0.025f)),
+            ];
+
+            float[] shares = SunSharesUnderTheRoof(
+                renderer: renderer,
+                kit: kit,
+                roofHeight: 100f * texel,
+                points: points
+            );
+
+            shares
+                .Average()
+                .Should()
+                .BeInRange(
+                    0.25f,
+                    0.75f,
+                    "the sun rises over the filter's reach outside the edge, not within one texel"
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// A sunlit strip 8 texels wide between the shadows of two roofs keeps the full sun at its center. The filter's blur
+    /// takes light from each side of the strip, but only within its reach of 2.5 texels of each edge.
+    /// </summary>
+    [Fact]
+    public void ASunlitStripEightTexelsWideBetweenTwoRoofsKeepsTheFullSunAtItsCenter()
+    {
+        VulkanRenderer renderer = Gpu.Headless(width: RoofWidth, height: RoofHeight);
+        try
+        {
+            var kit = Kit.Create(renderer);
+            float texel = Gpu.FirstCascadeTexel(width: RoofWidth, height: RoofHeight);
+            float slit = 8f * texel;
+            Vector3[] centers =
+            [
+                .. Enumerable
+                    .Range(0, 9)
+                    .Select(i => RoofEdgeOnGround - UnderTheRoof * (slit / 2) + AlongTheRoofsEdge * ((i - 4) * 0.1f)),
+            ];
+
+            float[] shares = SunSharesUnderTheRoof(
+                renderer: renderer,
+                kit: kit,
+                roofHeight: 100f * texel,
+                points: centers,
+                slit: slit
+            );
+
+            shares
+                .Min()
+                .Should()
+                .BeGreaterThan(
+                    0.99f,
+                    "the sun lights the middle of the strip fully ({0})",
+                    string.Join("; ", shares.Select(share => share.ToString("F3")))
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     // ---- The wall along the cascade seams ------------------------------------------------------------------------
     // A wall 16 m tall and 4 m thick runs straight away from 20 m to 440 m. The sun, 30 degrees up from +X, throws a
     // 28 m shadow to its left, through the cascade seams at about 51 m, 109 m and 277 m. Every sample is compared with the
@@ -1244,6 +1539,112 @@ public sealed class ShadowTests
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
+    }
+
+    /// <summary>
+    /// The wall's shadow on the ground has its outer edge at the same place on both sides of each seam between two
+    /// cascades: where the sun's share crosses one half, it moves by less than a texel of the coarser cascade and a pixel's
+    /// width on the ground. Each side's place comes from one cascade alone: the near side ends before the seam's blend band,
+    /// and the far side lies past the seam.
+    /// </summary>
+    [Fact]
+    public void TheEdgeOfAShadowDoesNotStepWhereTwoCascadesMeet()
+    {
+        // The shadow of the wall's top on its far side from the sun.
+        float edgeX = SeamEdgeWallX - 2f - SeamsWallHeight / MathF.Tan(SeamsSunElevation);
+        float pixelAngle = 2f * MathF.Tan(SeamsFov / 2) / SeamsHeight;
+        VulkanRenderer renderer = Gpu.Headless(width: SeamsWidth, height: SeamsHeight);
+        try
+        {
+            var kit = Kit.Create(renderer);
+            float[] lit = SeamEdgeImage(renderer: renderer, kit: kit, wall: false);
+            float[] shadowed = SeamEdgeImage(renderer: renderer, kit: kit, wall: true);
+            ShadowCascadeArray cascades = renderer.LastScene.CascadeSets[0];
+            float Crossing(float depth, float texel) =>
+                SeamsEdgeCrossing(lit: lit, shadowed: shadowed, edgeX: edgeX, depth: depth, texel: texel);
+
+            for (int seam = 0; seam < ShadowCascades.Count - 1; seam++)
+            {
+                float coarser = cascades[seam + 1].TexelSize;
+                float nearDepth = ShadowCascades.BlendStart(seam) - 1f,
+                    farDepth = ShadowCascades.Split(seam) + 1f;
+                float near = Crossing(nearDepth, coarser),
+                    far = Crossing(farDepth, coarser);
+                float pixel = farDepth * pixelAngle;
+                near.Should().NotBe(float.NaN, "the shadow's edge crosses the ground before seam {0}", seam);
+                far.Should().NotBe(float.NaN, "the shadow's edge crosses the ground past seam {0}", seam);
+                MathF
+                    .Abs(far - near)
+                    .Should()
+                    .BeLessThan(
+                        coarser + pixel,
+                        "the edge keeps its place across seam {0}: {1:F3} m before it and {2:F3} m past it, texel {3:F3} m",
+                        seam,
+                        near,
+                        far,
+                        coarser
+                    );
+            }
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>The camera's height over the ground in the seams scene of the shadow's edge, in meters.</summary>
+    private const float SeamEdgeCameraHeight = 20f;
+
+    /// <summary>The x of the wall in the seams scene of the shadow's edge, in meters.</summary>
+    private const float SeamEdgeWallX = 8f;
+
+    /// <summary>The camera's pitch below the horizon in the seams scene of the shadow's edge, 12 degrees.</summary>
+    private static readonly float SeamEdgePitch = 12f * MathF.PI / 180f;
+
+    /// <summary>The HDR image of the seams scene of the shadow's edge, with or without the <paramref name="wall"/>.</summary>
+    private static float[] SeamEdgeImage(VulkanRenderer renderer, Kit kit, bool wall)
+    {
+        renderer.Render(
+            SeamsScene(
+                kit: kit,
+                cameraHeight: SeamEdgeCameraHeight,
+                pitch: SeamEdgePitch,
+                wallX: SeamEdgeWallX,
+                wall: wall
+            ),
+            1f
+        );
+        return renderer.ReadHdr();
+    }
+
+    /// <summary>
+    /// Where the sun's share on the ground of the seams scene first reaches one half, searched from 4 texels inside the
+    /// shadow's edge at <paramref name="edgeX"/> outward to the lit side, in steps of a sixteenth of
+    /// <paramref name="texel"/>, at view depth <paramref name="depth"/>. NaN when the share never reaches one half.
+    /// </summary>
+    private static float SeamsEdgeCrossing(float[] lit, float[] shadowed, float edgeX, float depth, float texel)
+    {
+        const float height = SeamEdgeCameraHeight;
+        float step = texel / 16f;
+        for (float x = edgeX + 4f * texel; x > edgeX - 4f * texel; x -= step)
+        {
+            var ground = new Vector3(
+                x,
+                -height,
+                -(depth - height * MathF.Sin(SeamEdgePitch)) / MathF.Cos(SeamEdgePitch)
+            );
+            Vector2 pixel = Gpu.Project(
+                point: ground,
+                cameraRotation: Gpu.PitchDown(SeamEdgePitch),
+                width: SeamsWidth,
+                height: SeamsHeight,
+                fov: SeamsFov
+            );
+            int green = ((int)pixel.Y * SeamsWidth + (int)pixel.X) * 4 + 1;
+            if (shadowed[green] / lit[green] >= 0.5f)
+                return x;
+        }
+        return float.NaN;
     }
 
     /// <summary>

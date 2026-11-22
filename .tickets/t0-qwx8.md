@@ -1,6 +1,6 @@
 ---
 id: t0-qwx8
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-12T13:56:24Z
@@ -51,3 +51,7 @@ Whether a measured case of a real strip remains: none that I know.
 - The fault as a model stays true: a lit feature thinner than a pixel arrives as k of N jitter phases. The tests of the design use made-up strips, which stay valid as tests of that model.
 
 My reading for Alexis. Every measured case behind design R (the long Halton jitter t0-f238 and the 128-draw history t0-70v1) comes from one room, and there the strips are the shadow's leak. So hold both builds until the shadow's fix is on main. Then repeat three takes in this room: r11 at ticks 300 and 306 under 18 phases (take bC), r11 per jitter phase in the cabin switch's still control, and the census of young records. If the step, the cycle and the young records are gone, design R has no measured case, and the user's rule applies: leave out a feature that is not needed yet. One more cost counts against it then: a 128-draw history follows a change without evidence four times slower, which works against the bay film's trail (t0-acxm). If a part remains from the real 7 mm, size it with those takes and decide then.
+
+**2026-11-22T03:09:47Z**
+
+Decision (Alexis, 2026-11-21): this ticket closes. The model stays true: a lit feature thinner than a pixel arrives as k of the 18 jitter phases. No take shows a visible case today. Evidence, from the takes after the fix of the sun's shadow (t8-rjno, on main since dcd738552), record docs/research/t0-9fo0-room-after-shadow-fix/README.md on the branch t7-3e22-retained-deviation until Design X merges: the far ceiling's single-bounce light changes by +0.000 % from tick 300 to tick 306 (it fell 43 % before). Its darkest and brightest jitter phase lie -0.87 % and +0.54 % from the cycle's mean. Without jitter it is 0.34 % below that mean (46 % before). The engine as built keeps no young light-age record in a still. The area rule (t0-6gej) stays as built. A scratch build without it still counts young records in 6.0e-4 of the bounce light's block-draws under jitter, at the window jambs and mostly from the lamps, and no light measure shows them. Of the design's parts: the area rule is built, the long jitter sequence (t0-f238) is dropped for now, and the longer history (t0-70v1) stays open on its own reason. A visible case in another scene reopens this ticket, with docs/plans/sub-pixel-strips.md as the design.

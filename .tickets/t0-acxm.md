@@ -175,6 +175,14 @@ Tests added to part 1's list
 9. A block with regional evidence and motion evidence acts as under motion evidence alone.
 10. A block with regional evidence and a ray's light evidence cuts to the fast cap.
 
+**2026-11-21T21:18:14Z**
+
+Addition (line orchestrator, 2026-11-21, on the parent orchestrator's order). The parent looked at the frame sheet and the span chart and kept the decision: the region's evidence cuts the bounce history to at most 8 draws. It also kept the three other answers of the line. It reports one limit to Alexis: in the film's middle frame the cut to 8 draws stays nearer to main than to the still (mean gray 154, main 161, the still 119), so the remedy removes the trail's end but only part of its middle.
+
+One cheap measurement, after the timing spike, as a scratch patch on the production build, with no change of src for it: a cut to 6 draws where a pixel whose block has regional evidence counts as mature for the ray plan, so the cut brings no own ray. A pixel that is young for another reason keeps its own ray. The film rect-bay under it: level, blotch, specks of the middle and the last frame, flicker, and the frame span against the cut to 8 in the same rounds. If its last-frame specks are at or under main's 1.28, its flicker under 0.006, its frame span inside the budget, and its level better than the cut to 8, the lead reports it with one frame sheet beside the cut to 8, and the parent decides. If not, 8 stays, and the numbers go into the next report. Sent to the lead as a steer, clientRequestId design-x-line-t0-acxm-steer-cap6.
+
+The room's takes stay blocked: the shadow fix now waits for wider variants of its filter, which Alexis asked for.
+
 **2026-11-21T23:12:12Z**
 
 Timing spike of the region drift pass (remedy lead, 2026-11-21). Base: the line's head 8ec383c6e. Each side is a Release demo at 1920x1080, --in-flight 2, under the exclusive GPU lock, beside gpu-clock (1296 MHz in every run). Each round runs the deck (scripts/temporal-upscale-timing.json) and the film rect-bay, for each side alone. A difference is the side's medianMs minus base's in the same round. The spread is the largest minus the smallest difference of the four rounds. The budget is +0.10 ms on the deck.
@@ -192,6 +200,17 @@ The side "one" is the least that one dispatch for both signals can cost: one dis
 This is the fork that the brief names. I stopped there. The record: docs/research/t0-acxm-region-evidence/spike/ holds plain.patch, box-and-switches.patch (with the SCRATCH switches off and one) and timing.txt. The tools are in the folder's tools/.
 
 A way out that the brief does not list, not built: fuse the region test into the spatial dispatch. Each spatial workgroup is one block of 8 × 8 pixels. So each workgroup can sum the 17 × 17 taps around it, about 5 loads per invocation, then update and test its own ring, and share the bit through shared memory. The taps go into the barrier that already runs before the spatial dispatch. So the fused test adds no dispatch and no barrier flush. Its expected cost is near the side "off", about +0.08 ms, plus the workgroup's sum. No other workgroup reads a block's ring, so the ring needs no barrier.
+
+**2026-11-21T23:13:10Z**
+
+Fork of the timing spike, and my answer (line orchestrator, 2026-11-21 18:15). The lead's spike, four rounds per side on the Mac against the line's head, record at 1c7712b49 on t3/fix-retained-rounding-weight (docs/research/t0-acxm-region-evidence/spike/):
+- The region drift pass with the plain 17 x 17 loop, both signals: deck +0.271 ms (spread 0.082), film +0.289 ms (spread 0.062).
+- The box sum in two steps: deck +0.254 / +0.242 ms, film +0.270 / +0.202 ms.
+- One region dispatch for the bounce light only: deck +0.133 ms (spread 0.181), film +0.209 ms.
+- The tap store alone: deck +0.080 ms (spread 0.203), film +0.073 ms.
+So the work in the pass is not the cost. Each compute dispatch with its barrier costs about 0.06 to 0.13 ms on MoltenVK. The budget of +0.10 ms fails in every listed form.
+
+My answer: the fused design, which the lead proposed. The region's test runs inside the spatial dispatch: the workgroup of a block sums its 17 x 17 taps over its 64 invocations in a fixed order, updates and tests its own ring, and shares the result with the block's level. This replaces flows 2 and 3 of part 1. The separate pass and the region evidence image are not built. The ring's owner is the spatial dispatch, which is the one reader of the evidence, and the evidence is of the same draw. The test's knowledge stays in one include. The budget stays +0.10 ms on the deck, measured with at least eight rounds and paired differences, because the spike's spreads are as large as the budget. If both signals miss it, the bounce light alone is taken with the film as its check. If that misses, the lead stops and reports.
 
 **2026-11-22T01:47:04Z**
 
@@ -215,6 +234,45 @@ Both orders of the settlement miss the budget. The fused form for both signals c
 The film's numbers are not a pure cost. The bounce-only side costs more in the film than the side with both signals. The film's light moves, so the reflections' region evidence there changes the work of the passes after it. The deck is the budget's measure.
 
 The record: docs/research/t0-acxm-region-evidence/spike/ holds fused-serial.patch, fused-parallel.patch (with the scratch switch one) and the tables in timing.txt. I stopped there, as the settlement says, and took no film take of the bounce-only form. The src changes stay uncommitted in the worktree.
+
+**2026-11-22T01:52:39Z**
+
+Settlement of the second fork (line orchestrator, 2026-11-21, about 21:00): the region's test runs only at anchor blocks.
+
+The measured facts (remedy lead, record d4acd51c1 on t3/fix-retained-rounding-weight): the fused form costs +0.274 ms on the deck for both signals and +0.174 ms for the bounce light alone, against the budget of +0.10 ms. The tap store alone cost +0.080 ms. The budget is the rest of Design X's allowance of 0.30 ms above main on the deck (t0-89zi), so I do not raise it.
+
+The cause of the cost is the model, not the place of the code: every block of 8 x 8 pixels ran its own test, with 289 taps, 36 ring reads and three barriers in each of about 14,000 workgroups, and the temporal dispatch wrote a tap for every block. But the regions of two neighbor blocks share 272 of their 289 taps, so their answers are nearly the same answer.
+
+The new model: one test per anchor.
+
+- An anchor is a block whose two coordinates are multiples of `AnchorStepBlocks` = 8 = `RegionRadiusBlocks`. So 1 block of 64 is an anchor, and the regions of neighbor anchors overlap by half.
+- The test itself does not change: the anchor's region is the 17 x 17 blocks around it, the windows are 18 draws, the tolerance is 3 standard deviations, and the validity rule stays.
+- Only an anchor's workgroup in the spatial dispatch sums its region's taps, updates its ring and tests. The ring image has the anchors' resolution. The ring's draw also holds the test's answer.
+- The taps come from the images that the spatial dispatch binds already: `sampleImage` and `surfaceTest` at each block's tap pixel. The `blockLight` image and the temporal dispatch's tap store go away, unless a tap's value needs a fact that only the temporal dispatch holds. If so, say which fact, and keep the store.
+- Every block takes the region's evidence of the draw before: `RegionEvidence` if any anchor whose region holds the block saw its light move. With a step equal to the radius, those are the up to four anchors around the block. A block reads only ring layers that no workgroup writes in this draw, so the read has no race and one machine gives the same bits in every run.
+- The answer acts one draw late. The windows are 18 draws long, so one draw does not matter. Say so in the comment.
+- The action does not change: `RegionEvidence` cuts the history to at most `FullRateFrames`, the box keeps its widening, and no anti-lag runs.
+
+Signatures (region_drift.glsl stays the only owner of the ring's layout and the test):
+
+```glsl
+const int AnchorStepBlocks = RegionRadiusBlocks;   // an anchor at every 8th block in x and in y
+bool isRegionAnchor(ivec2 block);
+// The anchor's workgroup: sums its region's taps, writes this draw and its answer into its ring. Uniform in the workgroup.
+void updateRegionAnchor(ivec2 anchorBlock);
+// Whether an anchor whose region holds `block` saw its region's light move in the draw before.
+bool regionLightMovedBefore(ivec2 block);
+```
+
+Left out, and why: a smooth share between the anchors in place of the yes or no. The evidence's edges now lie on a grid of 64 pixels. If the bay film shows that grid, the share is the next step, and the lead reports it as a fork.
+
+Tests: tests 1 to 10 keep their statements, with the anchor's region in place of the block's region. Three more: a block takes the evidence of an anchor whose region holds it. A block outside every moved anchor's region keeps its history. The evidence acts in the draw after the anchor's test.
+
+Timing: eight rounds on the deck against 8ec383c6e at a low load, as before. The budget stays +0.10 ms for both signals. If the anchored form misses it, try the bounce light alone. If that misses too, stop and report: the choice between a cost above the allowance and no remedy then goes up to the user.
+
+**2026-11-22T04:14:48Z**
+
+Timing of the anchored form (remedy lead's report, 2026-11-21, about 23:10; the tables come with the build's first commit). Deck, both signals: median +0.091 ms over 29 paired rounds at a load under 8, quartiles +0.056 / +0.123, inside the budget of +0.10 ms. Four queues of 8 rounds gave +0.115, +0.061, +0.088 and +0.094 ms. Bay film: -0.078 ms. Bounce light only: +0.010 ms. The test off: +0.010 ms. Every block's read with no anchor update: +0.022 ms. Accepted changes of the lead: a block on an anchor row or column reads up to 9 anchors, the read runs in 9 threads and merges by atomicMax, the signature is regionAnchorMovedBefore(block, candidate), the tap reads sampleImage, surfaceTest and gbufferDistance in the spatial dispatch and skips limitIncomingEstimate (a prototype that is off by default), and blockLight and storeRegionTap are gone. Two additions that I ordered (answer number 14, not blocking): one bay film side with the region's test for the bounce light only, and one GPU trace pair of the deck that names the passes with the rise. Reason: Design X then stands at about +0.29 ms of its allowance of 0.30 ms, and the reflections' test holds about 0.08 ms of it. I decide between both signals and the bounce light alone from the film.
 
 **2026-11-22T05:19:04Z**
 

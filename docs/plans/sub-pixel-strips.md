@@ -2,6 +2,13 @@
 
 Ticket `t0-qwx8`, under the epic `ter-8hyd` ([renderer-finish.md](renderer-finish.md)). It comes from `ter-g3tk` (cause 1), from `t0-3kyb` (young light-age records in a still) and from decision X3 of [bounce-light-confidence.md](bounce-light-confidence.md) (Design X). Status: design, 2026-11-14. Nothing is built.
 
+Status on 2026-11-21, after the user's decision of that day:
+
+- Built: the area rule of step 1 (`t0-6gej`). A light-age record counts a change only where the change covers an area of 3 × 3 pixels. It stays as built.
+- Dropped for now: the long jitter sequence of step 2 (`t0-f238`, closed as not built). Its only measured case was the leak of the sun's shadow (`t8-rjno`). After that fix, no take shows a visible strip: r11's single-bounce light changes by +0.000 % from tick 300 to tick 306, and its jitter phases lie within −0.87 % and +0.54 % of the cycle's mean (`docs/research/t0-9fo0-room-after-shadow-fix/README.md`).
+- Open on another reason: the longer history of step 3R (`t0-70v1`). It is no longer a step of this design. Its reason is the mirror ball's grain (`ter-jza0`) and the steady bounce mottle. The user decides on it after Design X is on main.
+- The fault ticket `t0-qwx8` is closed. The model of section 2 stays true. A visible case in another scene reopens the ticket with this document as the design.
+
 The software-design skill was not available to this session: the Skill tool did not know it. Sections 4, 13 and 14 compare the design with the skill in the form that bounce-light-confidence.md, sections 5, 16 and 17, uses.
 
 ## 1. What the user gets
