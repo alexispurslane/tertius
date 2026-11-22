@@ -2,7 +2,7 @@
 id: t0-gumm
 status: in_progress
 deps: []
-links: [ter-4iic, t0-o7gf, t0-zmjx, t58-np60]
+links: [ter-4iic, t0-o7gf, t0-zmjx, t58-np60, t0-qvm1]
 created: 2026-11-22T21:31:16Z
 type: task
 priority: 1
@@ -105,3 +105,17 @@ Numbers: today peaks at 678k diffuse own rays per draw for 8 to 12 draws; (0.25,
 Parity: within each draw parity, even and odd columns differ by at most 0.33 %, so the fault of t2-8foa is absent; that is the number that counts, and it passes. The four (column, draw) counts lie within 2.6 % of a quarter because the odd draws of a light-change window take about 2.3 % more catch-up rays; cause not found, not hunted now.
 
 Ordered in addition: one map of the settled diffuse history length of the cabin still with the share of pixels per band, for the orchestrator's review of the approach, and a statement of what a production build would need for the restart's clock.
+
+**2026-11-22T22:30:06Z**
+
+Early result 2 from the combined check's lead, 2026-11-22, commits 24a46634d and ddd14a36c on t3/combined-renderer-check (record docs/research/t0-gumm-catch-up-spread; pics/card-scale-shapes1.png and pics/history-map-cabin.png).
+
+The card, job 1 (RTX 2000 Ada, 16.67 ms, 1920 x 1080, $0.0542): scale changes and largest fall of the render scale in the window after each event, start / off / on / cut; the idle span has 0 changes for every code.
+- Today (1, 8, 0): 57, 0.232 / 54, 0.144 / 53, 0.150 / 49, 0.113.
+- (0.25, 32, 0): 45, 0.127 / 32, 0.045 / 33, 0.052 / 31, 0.053.
+- (0.125, 32, 0): 42, 0.102 / 14, 0.020 / 23, 0.026 / 16, 0.029.
+- (0.0625, 32, 0): 39, 0.091 / 3, 0.005 / 5, 0.009 / 3, 0.014.
+- The cap: 57, 0.234 / 0, 0 / 0, 0 / 50, 0.127.
+In no window with a fall does the scale come back within 60 draws. The search goes on to 1/32 and 1/64; (0, 32, 0) will measure the part of the start's fall that is not catch-up rays. Job 2 waits for the daily cloud limit's reset at 19:00 local time (all agents: $2.88 of $3.00).
+
+The history map of the settled cabin still (Design X, lamps on, draw 190, 2/3), share of pixels by the length of the bounce light's history: under 8 draws 1.9 % (the window openings), 8 to 16 9.7 %, 16 to 24 6.6 %, 24 to 31.5 4.5 %, 31.5 or more 77.4 %. Correction of early result 1: the 20.8 % between 8 and 31.5 draws are whole rectangles of the drift test's region size, held short by the false fires of the region test (t0-qvm1; 1 to 11 of 238 anchors fire in each of the draws 100 to 131), not by the anti-lag. The restart's clock by three reads still stands: the length alone cannot tell these from a restart.
