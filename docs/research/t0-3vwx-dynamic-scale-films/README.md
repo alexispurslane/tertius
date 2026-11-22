@@ -7,11 +7,11 @@ The user's order of 2026-11-22: videos of the walk and the lamp switch "under no
 | Name | Code | In this record |
 |---|---|---|
 | M5 | main `ac5f23915`: the back-face layer, the walk's fix and step 1 of the wobble's fix | take A, left side; the control of take B |
-| X5 | Design X merged with main `ac5f23915`: the tree `e232080f` of the line's staged merge. Design X here has no cap on the cost block after a light change (`t0-zmjx` adds it later) | take A, right side; take B, "after" |
+| X5 | the line's merge `710834cc0`: Design X (`260ead7eb`) merged with main `ac5f23915`, tree `e232080f`. Design X here has no cap on the cost block after a light change (`t0-zmjx` adds it later) | take A, right side; take B, "after" |
 | X3 | the combined check's merge `bcca31e95` (Design X with main `a819b10b2`), before the wobble's fix | take B, "before" |
 | M3 | main `a819b10b2`, before the wobble's fix | take B's control, the switch only |
 
-For the cloud queue, the tree `e232080f` is a commit of its own, `4851ba7db` (made with `git commit-tree`, parents `bcca31e95` and `ac5f23915`). It is not the line's merge commit, which will have other parents and the same tree. X5's changed lines in `src` and `tests` against `bcca31e95` equal main's changed lines from `a819b10b2` to `ac5f23915`, line for line.
+The cloud jobs ran X5 as the commit `4851ba7db`, which `git commit-tree` made from the same tree `e232080f` before the line's merge commit existed (parents `bcca31e95` and `ac5f23915`). X5's changed lines in `src` and `tests` against `bcca31e95` equal main's changed lines from `a819b10b2` to `ac5f23915`, line for line.
 
 Each build is the side's tree with its own survey probe patch, then `scratch-region-log.patch` (X only), `scratch-dynamic-scale.patch` and `scratch-history-log.patch` (`tools/builds.sh`: `x5h`, `m5h`, `x3h`, `m3h`).
 
