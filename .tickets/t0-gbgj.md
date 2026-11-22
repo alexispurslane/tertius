@@ -82,3 +82,7 @@ The combined check's video of the film bay-sunbeam exists, 2026-11-22: docs/rese
 **2026-11-22T16:08:56Z**
 
 Added take, 2026-11-22: the combined check's lead takes the lamp switch on M2 and X2 on the Mac at a constant render scale of 0.956 and of 2/3, with frames at six moments, for the finding of the bright window jambs of Design X in the cloud's dynamic-scale video (see t0-5tyj). The layer changes the slab of these jambs, and the merged head is what would merge. It uses the acceptance lead's scratch patch for the constant scale and its own builds.
+
+**2026-11-22T16:23:27Z**
+
+The user's order of 2026-11-22 changes the lamp switch of every take: a selected lamp loses its light and its glow together (the words and the orders are in t0-5tyj). The combined check's switch take of early result (b) used the old switch and is marked as the glow-stays case. Its lead takes the cabin's switch at 2/3 again with the new switch when the acceptance lead's probe hunks exist, and splits the constant-scale jamb take: the lamps-on settled frames now, the frames after the switch again later.
