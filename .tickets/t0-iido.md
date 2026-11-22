@@ -1,7 +1,7 @@
 ---
 id: t0-iido
 status: open
-deps: [t0-5tyj]
+deps: [t0-5tyj, t0-3vwx, t0-zmjx]
 links: []
 created: 2026-11-12T13:56:24Z
 type: task
