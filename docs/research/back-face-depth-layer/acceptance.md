@@ -378,3 +378,24 @@ So the ticket's own work counted $0.8839 of its $1.00, and the order counted $0.
 - The cloud timing ran six rounds per side in two jobs of two scenes each, because a GPU job runs 840 s at most.
 - The Linux run used a CPU worker, because lavapipe runs on the CPU and a CPU worker costs an eighth of a GPU worker. A job builds the pinned nixpkgs' `mesa` there, because the image has no lavapipe.
 - The first Linux plan was the classes of the changed test files, because the probe's 41 heavy tests took 326 s. The changed files then ran in 930 s, so the whole project ran too.
+
+## A limit of these takes: one render size (added 2026-11-22)
+
+Every still and film of this record ran at the default headless render scale 2/3 of 1920 × 1080. That is one render
+size, 1280 × 720, with exactly the output's aspect. A window under the dynamic render scale drew many other sizes, and
+before step 2 of `ter-qt72` most of them had an aspect a little off 16:9. So these takes could not see a fault that
+depends on the render size's aspect.
+
+One such fault existed: a sunlit line on the cabin's window jambs (`t1-gout`,
+[the shadow grid's phase](../shadow-grid-phase/README.md)). The sun's shadow map rounds a caster's edge to texel centers,
+the texel size follows the camera's aspect, and at some aspects the map's edge lies up to half a texel inside the hull's
+real edge. At 16:9 it lies 0.038 texel inside, about 2 mm, and the jamb reads as on main.
+
+- The orchestrator's ramps of 181 render sizes counted the line at 74 sizes on the code without the layer (`t58-i3sn`)
+  and at 32 sizes with it (`t0-gbgj`, main `a819b10b2`). The cause's record counts 30 of the 181 sizes on the right jamb
+  alone. So the layer did not cause the line, and this record's point 3, "no new leaks", missed a leak that both sides had.
+- Since step 2 of `ter-qt72` (main `2bef1af1f`), every render size has exactly the window's aspect. A 16:9 window then
+  keeps the 16:9 texel at every render scale. No ramp has counted the line on that code. A window of another shape,
+  such as 1800 × 1008, still shows it until `t1-gout`'s remedy merges.
+- The later takes of this line run at two render scales, 2/3 and about 0.96, and in two window shapes, 1920 × 1080 and
+  1800 × 1008.
