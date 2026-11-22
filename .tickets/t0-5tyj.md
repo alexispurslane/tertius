@@ -234,3 +234,14 @@ My reading: on both machines the walk's scale stands still and the lamp switch's
 My answer (34): no extra take to force a hunting scale in the walk now. The dynamic-scale videos are taken again after the wobble's fix reaches main, and the lamp switch is the case where the scale moves.
 
 The size ramp runs on main c4c1f1f2f: 181 sizes for the output 1920 x 1080 at the scales 0.50 to 1.0, 40 draws each, 7,273 draws, 184 kept frames.
+
+**2026-11-22T18:24:24Z**
+
+The fair cabin switch at the fixed scale 2/3 on the Mac as a video, from the acceptance lead, 2026-11-22. Video: docs/research/design-x-acceptance-2026-11-22/pics/switch-cabin-fair-fixed-23.mp4 in the lead's worktree t3-c3911144 (11.1 MB, 3840 x 1080, 320 frames at 60 fps, H.264 yuv420p, CRF 12; M = main c4c1f1f2f left, X = Design X 57b4045ae right; from 20 draws before off to 100 draws after on; scale constant at 2/3, 1280 x 720, no size change; exposure 4.08 stops). I checked the format with ffprobe and looked at the decoded frames 10 and 60 draws after off: the near panel is dark and the far panels glow. Decoded fades match the source within 0.32 %. Not checked: edge motion.
+
+The lead's number from tools/boilnoise.py (mean absolute change of 16 x 16 px blocks from one draw to the next, in % of the crop's light), 20 draws before off / 0 to 60 after off / 60 to 200 after off / 0 to 100 after on:
+- floor: M 0.03 / 1.16 / 0.20 / 0.20; X 0.03 / 1.41 / 0.12 / 0.21
+- left wall: M 0.05 / 1.34 / 0.22 / 0.79; X 0.03 / 1.65 / 0.09 / 0.82
+- ceiling: M 0.06 / 1.65 / 0.24 / 0.76; X 0.05 / 1.96 / 0.13 / 0.78
+
+Defect that I found in the measure: it is the absolute change of each block between two draws, so a room that only dims smoothly also scores above zero. The number is the fade plus the boil. The claims "the boil is there at a fixed size" and "X boils a little more in the first 60 draws" do not follow from it yet, because the room dims in that span and X settles faster there (77 / 51 against 143 / 92 draws). The same holds for the card's rows and for the earlier "10 to 25 times the level before off", which I had passed up as the boil. Sent to the lead: the crop's mean level per draw as a chart (does it go up and then down, as the user described), a measure without the fade (per block the residual against the mean of the two neighbouring draws), the table again with old and new numbers, and a correction of tc-bece and the record. No new take.
