@@ -1376,6 +1376,125 @@ public sealed class ShadowTests
         }
     }
 
+    // ---- The jamb under a roof's edge ------------------------------------------------------------------------------
+    // A side face of a wall ends right under the edge of a roof, as the jamb of a ship's window ends at the hull's outer
+    // face (t1-gout). The sun stands 20 degrees from straight above, toward the face, so the light's x axis is the world's
+    // x and the roof's edge runs along the texel grid. The edge stands at a chosen place within its texel.
+
+    /// <summary>The sun of the jamb under a roof's edge: 20 degrees from straight above, toward +Z.</summary>
+    private static readonly Vector3 JambSun = new(
+        0,
+        MathF.Cos(20f * MathF.PI / 180f),
+        MathF.Sin(20f * MathF.PI / 180f)
+    );
+
+    /// <summary>
+    /// The jamb's scene, with no ambient light: a block that does not cast, whose face lies 1 m before the camera and ends
+    /// at x = <paramref name="edgeX"/>. With <paramref name="roof"/>, a slab that only casts covers x below
+    /// <paramref name="edgeX"/>, 0.8 m to 1 m up, and hides the whole face from the sun.
+    /// </summary>
+    private static RenderSnapshot JambUnderARoofScene(Kit kit, float edgeX, bool roof)
+    {
+        RenderSnapshot snapshot = Gpu.Snapshot(JambSun);
+        snapshot.Ambient.Intensity = 0;
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: kit.Box,
+                material: kit.White,
+                position: new(edgeX - 0.25f, 0, -1.05f),
+                scale: new(0.5f, 0.6f, 0.1f),
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: kit.Box,
+                material: kit.White,
+                position: roof ? new(edgeX - 1.5f, 0.9f, -1f) : new(-60f, 0, -40f),
+                scale: new(3f, 0.2f, 4f),
+                chainDepth: TestChains.CamerasFrame
+            ) with
+            {
+                Flags = RenderFlags.CastsShadow,
+            }
+        );
+        return snapshot;
+    }
+
+    /// <summary>
+    /// The share of the sun on the jamb's face at each of <paramref name="insides"/>, in texels of the first cascade inside
+    /// the roof's edge at <paramref name="edgeX"/>, at three heights each: the green channel with the roof over without it.
+    /// </summary>
+    private static float[] SunSharesOnTheJamb(VulkanRenderer renderer, Kit kit, float edgeX, float[] insides)
+    {
+        var shares = new List<float>();
+        float texel = Gpu.FirstCascadeTexel(width: RoofWidth, height: RoofHeight);
+        renderer.Render(JambUnderARoofScene(kit: kit, edgeX: edgeX, roof: false), 1f);
+        float[] lit = renderer.ReadHdr();
+        renderer.Render(JambUnderARoofScene(kit: kit, edgeX: edgeX, roof: true), 1f);
+        float[] shadowed = renderer.ReadHdr();
+        foreach (float inside in insides)
+        foreach (float height in (float[])[-0.15f, 0f, 0.15f])
+        {
+            Vector2 pixel = Gpu.Project(
+                point: new(edgeX - inside * texel, height, -1f),
+                width: RoofWidth,
+                height: RoofHeight
+            );
+            int green = ((int)pixel.Y * RoofWidth + (int)pixel.X) * 4 + 1;
+            lit[green]
+                .Should()
+                .BeGreaterThan(0, "the sun lights the jamb {0} texels inside the edge without the roof", inside);
+            shares.Add(shadowed[green] / lit[green]);
+        }
+
+        return [.. shares];
+    }
+
+    /// <summary>
+    /// A wall's side face that ends under a roof's edge takes no sunlight up to that edge, wherever the edge stands within
+    /// its texel. The map's edge lay up to half a texel inside the roof's, and the strip between them took up to a quarter
+    /// of the sun: the line on the cabin's window jambs at 1800 × 1008 (t1-gout).
+    /// </summary>
+    [Fact(
+        Skip = "The map's edge lies up to half a texel inside a roof's edge and lets the sun onto the jamb under it; skipped until t1-gout fixes it."
+    )]
+    public void AWallsSideFaceUnderARoofsEdgeTakesNoSunlightWhereverTheEdgeStandsWithinItsTexel()
+    {
+        VulkanRenderer renderer = Gpu.Headless(width: RoofWidth, height: RoofHeight);
+        try
+        {
+            var kit = Kit.Create(renderer);
+            float texel = Gpu.FirstCascadeTexel(width: RoofWidth, height: RoofHeight);
+            var shares = new List<string>();
+            float most = 0;
+            // The grid passes through the camera, the origin of its frame, so x = (5 + place) texels puts the edge at
+            // that place within its texel.
+            foreach (float place in Enumerable.Range(0, 10).Select(i => i * 0.1f))
+            {
+                float[] atPlace = SunSharesOnTheJamb(
+                    renderer: renderer,
+                    kit: kit,
+                    edgeX: (5 + place) * texel,
+                    insides: [0.1f, 0.25f, 0.4f]
+                );
+                most = MathF.Max(most, atPlace.Max());
+                shares.Add($"{place:F1}: {atPlace.Max():F3}");
+            }
+
+            most.Should()
+                .BeLessThan(
+                    0.02f,
+                    "the roof hides the sun from the jamb under it at every place of its edge ({0})",
+                    string.Join("; ", shares)
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     // ---- The wall along the cascade seams ------------------------------------------------------------------------
     // A wall 16 m tall and 4 m thick runs straight away from 20 m to 440 m. The sun, 30 degrees up from +X, throws a
     // 28 m shadow to its left, through the cascade seams at about 51 m, 109 m and 277 m. Every sample is compared with the

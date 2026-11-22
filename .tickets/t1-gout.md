@@ -1,6 +1,6 @@
 ---
 id: t1-gout
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-11-22T19:25:27Z
@@ -264,3 +264,13 @@ The wobble's fix `ter-qt72`. The speck cloud on the ceiling, `ter-fe63`. The oth
 **2026-11-22T20:52:59Z**
 
 2026-11-22, the line orchestrator, from the orchestrator. The user handed the design choices to the orchestrator on 2026-11-22 ("use your best judgement and try to hill climb toward a complete/good lighting system"). So step 2's choice is the orchestrator's, by this rule: the remedy must make the lookup's zero reach the caster's real edge at every phase of the grid, for the sun's cascades and for the local lights' tiles through one mechanism if one exists. Among the remedies that pass, the one that loses less true sunlight at a shadow edge wins. The user's rule for the sun's shadow holds: narrower lit strips are fine, hard-edged shadows everywhere are not. For each design the line orchestrator states what it does to the tiles, whether one rule serves the cascades and the tiles alike, and its cost in sunlight at a true shadow edge in texels and in metres at cascade 0 and at the farthest cascade. The build starts when the recommendation passes the rule and the orchestrator confirms it. The cause as accepted on 2026-11-22: a caster's edge in the map lies on a texel border up to half a texel inside the caster's real edge, because a texel holds a caster only if the caster covers its center, and the one-sided rule starts its ramp at the map's edge. Figure: /Users/alexispurslane/.t3/worktrees/tertius/t3-1b834d57-evidence/jamb/shadow-map-edge-gap.png. The pulsing line in a 16:9 window is part of step 1.
+
+**2026-11-22T21:39:28Z**
+
+Step 1, first part: the cause, the four toggles and the red test.
+- Cause: the map holds the roof in the texels whose centers lie under it, so the map's edge lies up to half a texel inside the hull's outer edge at x = ±10 m. The jamb's outer strip between the two edges takes sunlight. The sun's share there is d/2, where d is the strip's width in texels (lightOutsideShadow of the 4x4 lit fraction 1/2 + d/4). The phase of the edge on cascade 0's grid is 10/texel mod 1: 0.038 at 1920x1080 (no leak) and 0.460 at 1800x1008 (share 0.23 at the edge, over 2.7 cm). This gap model puts the teeth at -0.350 %, +0.420 % and +1.195 % (measured: -0.34, +0.45, +1.25). No size of the ramp with a gap of 0 or less leaks.
+- The sun stays in the ship's YZ plane and turns about the ship's X axis, so the side walls' phase does not change over the orbit.
+- Toggles, scratch build of d1e0349b8 (docs/research/shadow-grid-phase/tools/scratch-toggles.patch), window 1800x1008, scale 1, 4.08 stops, tick 6380. Jamb crops, right / left: base 0.193 / 0.161; slope bias 0: 0.193 / 0.161; constant bias 0: 0.193 / 0.161; normal offset 0: 0.179 / 0.160; symmetric filter: 0.960 / 0.972; screen trace off: 0.092 / 0.119. At tick 100: base 0.098 / 0.058 (= the window test), screen trace off 0.047 / 0.047. 1920x1080 at ticks 100 and 6380: 0.044 / 0.044.
+- Reading: no bias decides it. The lateral filter does, together with where the map's edge falls. The screen rays add about half of the crop's light at tick 6380, and nearly all of it at tick 100.
+- Red test: ShadowTests.AWallsSideFaceUnderARoofsEdgeTakesNoSunlightWhereverTheEdgeStandsWithinItsTexel, through the real shadow pass. Sun share 0.1 texel inside the edge, by the edge's place in its texel: 0.0 and 0.1 give 0.000, 0.2 gives 0.051, 0.3 gives 0.106, 0.4 gives 0.143, 0.5 gives 0.197, 0.6 to 0.9 give 0.000. Committed skipped. It is a GPU test because no C# copy of the cascade lookup exists, so a test without a GPU would only test its own model.
+- Still to do: the record and the rest of step 1 (the 16:9 pulse check, the tiles' case, the tracked script).
