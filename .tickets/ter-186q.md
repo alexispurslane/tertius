@@ -171,3 +171,12 @@ The first review (reviewer task 04313fae): correctness pass, design pass, fulfil
 7. Nit, "12 to 13 pixels": fixed to "12.6 to 13.6 pixels", the lengths of the four steps.
 
 Checked suite at the final code (the nit fixes on 4548576a1): 11,046 tests, 11,020 passed, 26 skipped, 0 failed (Rendering 3,303 passed, 10 skipped, 40 m 17 s at a load of 40 to 130).
+
+**2026-11-22T18:05:29Z**
+
+2026-11-22, the ticket lead. The evidence at the final code, e0010385b (the merge 33bf29228 of main ee9dec413 after it changes only tools/renderer-survey/probe.patch, tools/README.md and tickets, so the code under test is the same).
+- Checked: recorded in the note above (11,046 tests, 11,020 passed, 26 skipped, 0 failed).
+- Release (dotnet test --solution Tertius.slnx -c Release): 11,033 tests, 11,006 passed, 27 skipped, 0 failed. Rendering 3,301 passed, 11 skipped, 40 m 13 s. The one skip more than Checked is GpuTimingTests.APassThatRecordsNothingAddsNearlyNoTimeToTheFramesGpuSpan, which skips itself when other processes stretch the frames too much to resolve 0.05 ms (the load was 40 to 130).
+- Lavapipe at e0010385b (job 2b85f23c-2466-4c4f-92a2-7093ead32caa-u1, 236 s, $0.0061): ScreenWalkSlabTests and ScreenWalkBoundaryTests, 17 tests, 1 failed: ScreenWalkBoundaryTests channel 3 only, as on main (t70-0pr5 item 1).
+- git apply --check tools/renderer-survey/probe.patch at the root after the merge: passes.
+- Cloud money by the job log: $0.0054 + $0.0553 + $0.0061 + $0.0061 = $0.0729 of $0.35.
