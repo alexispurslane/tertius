@@ -2,7 +2,7 @@
 id: t0-zmjx
 status: in_progress
 deps: []
-links: [ter-4iic, t0-70v1, t0-o7gf]
+links: [ter-4iic, t0-70v1, t0-o7gf, t0-gumm]
 created: 2026-11-22T20:26:05Z
 type: task
 priority: 1

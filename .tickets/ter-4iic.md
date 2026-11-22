@@ -2,7 +2,7 @@
 id: ter-4iic
 status: open
 deps: []
-links: [t0-70v1, t0-o7gf, t0-zmjx]
+links: [t0-70v1, t0-o7gf, t0-zmjx, t0-gumm]
 created: 2026-11-10T09:38:12Z
 type: bug
 priority: 1
