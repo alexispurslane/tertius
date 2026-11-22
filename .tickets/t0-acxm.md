@@ -390,3 +390,44 @@ Mutants: one tools/mutate.py list of 36 (docs/research/t0-acxm-region-evidence/m
 | C06 | DescriptorLayouts.cs:1272 | layout without binding 13 | killed |
 
 The first run took 1,878 s and the rerun about 8 minutes.
+
+## Note 2026-11-22: the settlement's changes, the anti-lag rule, and the hardening of the changed lines
+
+The line's settlement of 2026-11-22 decided two things. The region's test runs for the bounce light only, and the anti-lag under region evidence stays if a measured rule holds. Commit `8c3f34e99` builds both, and it closes the review's finding on the dynamic render scale: a draw continues the anchors' draws only with no reset and the same render size (`regionContinues`), and no block reads an anchor beyond the last one that the draw covers (`lastRegionAnchor`). The record `docs/research/t0-acxm-region-evidence/README.md` holds every number below.
+
+The anti-lag rule. Sides: L = the line's head `36c3fd0e8`, R = the reviewer's form `min(antiLagged, FullRateFrames)`, S = the settled form `min(L, FullRateFrames)` (`settled-antilag.patch`). Takes from 03:16 to 03:27, 8 timing rounds from 03:27 to 03:35 at loads 1.87 to 4.96, all at 1296 MHz.
+
+| Point | R | S | Holds |
+|---|---|---|---|
+| 1. Last-frame specks ≤ 0.89 (main), flicker < 0.006 | 0.27, 0.00273 | 0.27, 0.00273 | yes |
+| 2. Level and lag error no worse than S | +0.85 / +0.29, 0.150 | +0.85 / +0.29, 0.150 | yes, the same images |
+| 3. Film span against S ≤ +0.30 ms | +0.012 ms (spread 0.047) | | yes |
+| 4. Deck against the line ≤ +0.10 ms | +0.044 ms (spread 0.105) | +0.038 ms (spread 0.060) | yes |
+
+So `src` keeps R. L's film: level +2.11 / +2.27, lag 40.6 draws, lag error 0.354, flicker 0.00098, last-frame specks 0.09.
+
+The mutants of the changed lines (`mutants/list-2.json`, `tools/mutate.py`, 728 s, then M11 again after the new test):
+
+| id | line | change | result |
+|---|---|---|---|
+| M01 | region_drift.glsl:66 | continues without the render size check | killed by AfterTheRenderSizeFallsNoBlockTakesAnAnswerThatNoAnchorGaveAtThatSize |
+| M02 | :66 | continues without the reset check | killed by AfterACameraCutARegionGivesNoEvidenceUntilBothWindowsHoldOnlyDrawsAfterIt |
+| M03 | :73 | block count rounded down | judgment: with FSR the render size is a multiple of 8, so this differs only without upscaling at a size of 64k + 1 to 64k + 7 pixels, and there the anchor 8 blocks before still covers every block of the last column |
+| M04 | :74 | last anchor one further | killed by the render size test |
+| M05 | :93 | last anchor from the ring's size | killed by the render size test |
+| M06 | :242 | count of the draw before read after a size change | killed by the camera cut test |
+| M07 | accumulate_spatial.comp:173 | the cap alone (the settled form) | killed by UnderARegionEvidenceTheAntiLagStillShortensAHistoryBelowTheRegionsCap |
+| M08 | :173 | the anti-lag alone, no cap | killed |
+| M09 | Tertius.Rendering.csproj:152 | no TERTIUS_REGION_DRIFT | killed |
+| M10 | TemporalSignal.cs:258 | the reflections test too | killed by AMovedRegionDoesNotShortenTheReflectionsHistory |
+| M11 | :258 | the bounce light tests without a light age | survived at first; killed by BesideTheOriginalSpecularHistoryTheBounceLightKeepsNoRegionRing (the old ring test now names the bounce light), by a crash of the test host (exit 139): the set then writes binding 13, which that layout lacks |
+
+The new review of the changed parts (one reviewer, Opus at high effort) found one bug, two test gaps, two doc mismatches and one nit. The fixes:
+
+- Bug: a change of the camera's frame on the draw of a render size change hid the size change, because `PendingFrame.PreviousRenderSize` gave this draw's own size where the draw continued no frame. `regionContinues()` then returned true, and blocks read the old size's answers. The previous render size is now the last drawn frame's, in whichever frame its camera was, as `docs/plans/temporal-renderer.md` already says. That also corrects the other readers of `frame.previousViewport`, which read the last draw's images at that size. Test: AfterTheCamerasFrameChangesThePreviousRenderSizeIsStillTheLastDrawnFramesSize (red first).
+- Test gap: AMovedRegionDoesNotShortenTheReflectionsHistory now stands two windows after the fall, checks that the reflections' histories grow past FullRateFrames there, so that a region cut would show, and then that no draw cut one to exactly FullRateFrames.
+- Test gap: M03 stays a judgment call (the table above).
+- Doc mismatches: the two detectors' comments now say that they miss a cut that the anti-lag takes below FullRateFrames. Four shader comments are fixed: the ring is the bounce light's only, region evidence caps the anti-lag's length, the last adder adds 2 draws, and the render scale is 2/3.
+- Nit: `TestsRegionDrift` is now false for the single-history prototype, whose spatial dispatch has no light-age variant. Test: ThePrototypesSingleBounceHistoryKeepsNoRegionRing.
+
+A bug that the run of the changed classes showed: three test classes set a process-wide switch from the GPU collection, so the tests beside them read it. NeighborLimiterPrototype sets TERTIUS_INDIRECT_LIGHT_PROTOTYPE, and seven region tests failed beside it. PreciseSpecularHistory and PreciseHistoryRayAllocation set TERTIUS_SPECULAR_HISTORY=original, which takes the ring away from the bounce light. All three now run in the process-environment collection, as tests/Tertius.Rendering.Tests/TestSupport.cs requires.

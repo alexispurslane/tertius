@@ -56,7 +56,7 @@
  {
   "id": "M07",
   "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
-  "line": 173,
+  "line": 174,
   "original": "historyLength = min(antiLagged, FullRateFrames);",
   "replacement": "historyLength = min(historyLength, FullRateFrames);",
   "project": "tests/Tertius.Rendering.Tests",
@@ -65,7 +65,7 @@
  {
   "id": "M08",
   "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
-  "line": 173,
+  "line": 174,
   "original": "historyLength = min(antiLagged, FullRateFrames);",
   "replacement": "historyLength = antiLagged;",
   "project": "tests/Tertius.Rendering.Tests",
@@ -86,22 +86,41 @@
  {
   "id": "M10",
   "file": "src/Tertius.Rendering/Frame/TemporalSignal.cs",
-  "line": 258,
-  "original": "public bool TestsRegionDrift => KeepsLightAge && Parameters.Light == SignalLight.Diffuse;",
-  "replacement": "public bool TestsRegionDrift => KeepsLightAge;",
+  "line": 259,
+  "original": "public bool TestsRegionDrift => KeepsLightAge && Parameters.Light == SignalLight.Diffuse &&",
+  "replacement": "public bool TestsRegionDrift => KeepsLightAge &&",
   "project": "tests/Tertius.Rendering.Tests",
   "class": "*+RegionDrift"
  },
  {
   "id": "M11",
   "file": "src/Tertius.Rendering/Frame/TemporalSignal.cs",
-  "line": 258,
-  "original": "public bool TestsRegionDrift => KeepsLightAge && Parameters.Light == SignalLight.Diffuse;",
-  "replacement": "public bool TestsRegionDrift => Parameters.Light == SignalLight.Diffuse;",
+  "line": 259,
+  "original": "public bool TestsRegionDrift => KeepsLightAge && ",
+  "replacement": "public bool TestsRegionDrift => ",
   "project": "tests/Tertius.Rendering.Tests",
   "class": [
    "AccumulatorRenderTests",
-   "DescriptorLayoutsTests"
+   "DescriptorLayoutsTests",
+   "*+EvidenceUnderEachHistory"
   ]
+ },
+ {
+  "id": "M12",
+  "file": "src/Tertius.Rendering/Frame/TemporalSignal.cs",
+  "line": 259,
+  "original": "&& Parameters.Light == SignalLight.Diffuse && !singleDiffuseHistory;",
+  "replacement": "&& Parameters.Light == SignalLight.Diffuse;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+NeighborLimiterPrototype"
+ },
+ {
+  "id": "M13",
+  "file": "src/Tertius.Rendering/Frame/FrameHistory.cs",
+  "line": 202,
+  "original": "PreviousRenderSize: drawn?.RenderSize ?? renderSize",
+  "replacement": "PreviousRenderSize: drawn is { } last && last.Camera.FrameId == snapshot.OriginFrameId ? last.RenderSize : renderSize",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "FrameHistoryTests"
  }
 ]

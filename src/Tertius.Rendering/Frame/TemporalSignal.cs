@@ -250,12 +250,13 @@ internal sealed unsafe class TemporalSignal : IDisposable
 
     /// <summary>
     /// Whether the signal runs the region's drift test (region_drift.glsl) and keeps its anchors' ring
-    /// (<see cref="RegionRing(int)"/>): the bounce light with a light age, and no other signal. Its spatial dispatch is the
-    /// light-age variant (<see cref="LightAgeShader(string)"/>), which alone compiles the test. The reflections' test fired
-    /// falsely in still views and brought bright specks into the bay film, where the bounce light's did neither
-    /// (t0-acxm; docs/plans/bounce-light-confidence.md, section 8.7).
+    /// (<see cref="RegionRing(int)"/>): the bounce light with a light age and its own spatial dispatch, and no other
+    /// signal. That dispatch is the light-age variant (<see cref="LightAgeShader(string)"/>), which alone compiles the
+    /// test; the single-history prototype's spatial dispatch has no such variant. The reflections' test fired falsely in
+    /// still views and brought bright specks into the bay film, where the bounce light's did neither (t0-acxm;
+    /// docs/plans/bounce-light-confidence.md, section 8.7).
     /// </summary>
-    public bool TestsRegionDrift => KeepsLightAge && Parameters.Light == SignalLight.Diffuse;
+    public bool TestsRegionDrift => KeepsLightAge && Parameters.Light == SignalLight.Diffuse && !singleDiffuseHistory;
 
     /// <summary>
     /// The shader variant whose declared slow-history format matches this signal's storage (<see cref="HistoryShader(string,

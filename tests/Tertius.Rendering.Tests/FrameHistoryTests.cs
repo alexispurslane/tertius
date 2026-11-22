@@ -164,6 +164,26 @@ public sealed class FrameHistoryTests
     }
 
     [Fact]
+    public void AfterTheCamerasFrameChangesThePreviousRenderSizeIsStillTheLastDrawnFramesSize()
+    {
+        // A change of the camera's frame resets nothing, so the next draw still reads the images that the last draw wrote,
+        // at the size it wrote them. The region's test then sees a change of the render size (region_drift.glsl).
+        var history = new FrameHistory(StillRule.Window);
+        Draw(history: history, snapshot: Snapshot(frameId: 7), renderSize: new(1280, 720));
+
+        FrameHistory.PendingFrame pending = history.Begin(
+            step: FrameHistoryTesting.FilmStep,
+            draw: 0,
+            snapshot: Snapshot(frameId: 8),
+            outputSize: Output,
+            renderSize: new(960, 540)
+        );
+
+        pending.Reset.Should().BeFalse("a change of the camera's frame is no reset");
+        pending.PreviousRenderSize.Should().Be(new Extent2D(1280, 720));
+    }
+
+    [Fact]
     public void TheDrawIndexCountsTheDrawnFramesSinceTheLastReset()
     {
         var history = new FrameHistory(StillRule.Window);

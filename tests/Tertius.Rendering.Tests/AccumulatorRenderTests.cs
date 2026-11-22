@@ -1774,7 +1774,9 @@ public sealed class AccumulatorRenderTests
         }
     }
 
-    [Collection(GpuCollection.Name)]
+    // It sets TERTIUS_INDIRECT_LIGHT_PROTOTYPE, which every test beside it would read: the region's tests then ran on the
+    // prototype's single history, which keeps no ring.
+    [Collection(ProcessEnvironmentCollection.Name)]
     public sealed class NeighborLimiterPrototype
     {
         [Theory]
@@ -1916,10 +1918,40 @@ public sealed class AccumulatorRenderTests
             original.Light.X.Should().BeLessThan(10, "the isolated estimate must actually be limited");
         }
 
+        [Fact]
+        public void ThePrototypesSingleBounceHistoryKeepsNoRegionRing()
+        {
+            // The single history's spatial dispatch has no light-age variant, so it runs no region test
+            // (TemporalSignal.TestsRegionDrift).
+            WithPrototype(enabled: true, light: SignalLight.Diffuse, (_, sample, _) => sample.Signal.RegionRing(0))
+                .Should()
+                .BeNull("the prototype's spatial dispatch runs no region test");
+        }
+
         private static (Vector3 Light, float Length) FrameWithPrototype(
             bool enabled,
             SignalLight light,
             Func<int, int, Vector4> samples
+        ) =>
+            WithPrototype(
+                enabled: enabled,
+                light: light,
+                (renderer, sample, scene) =>
+                {
+                    sample.Samples = samples;
+                    renderer.Render(scene, 1f);
+                    return CenterOf(renderer, sample, 0);
+                }
+            );
+
+        /// <summary>
+        /// Runs <paramref name="action"/> on a test signal of <paramref name="light"/> with the indirect light prototype
+        /// <paramref name="enabled"/> or not.
+        /// </summary>
+        private static T WithPrototype<T>(
+            bool enabled,
+            SignalLight light,
+            Func<VulkanRenderer, SamplePass, RenderSnapshot, T> action
         )
         {
             string? oldPrototype = Environment.GetEnvironmentVariable("TERTIUS_INDIRECT_LIGHT_PROTOTYPE");
@@ -1936,9 +1968,7 @@ public sealed class AccumulatorRenderTests
                     }
                 );
                 renderer = created;
-                sample.Samples = samples;
-                renderer.Render(scene, 1f);
-                return CenterOf(renderer, sample, 0);
+                return action(renderer, sample, scene);
             }
             finally
             {
@@ -2237,7 +2267,8 @@ public sealed class AccumulatorRenderTests
     }
 
     /// <summary>The precise specular experiment's accepted history and unchanged rejection and anti-lag.</summary>
-    [Collection(GpuCollection.Name)]
+    // It sets TERTIUS_SPECULAR_HISTORY, which every test beside it would read.
+    [Collection(ProcessEnvironmentCollection.Name)]
     public sealed class PreciseSpecularHistory
     {
         [Theory]
@@ -2487,12 +2518,13 @@ public sealed class AccumulatorRenderTests
         }
 
         [Fact]
-        public void TheOriginalSpecularHistoryKeepsNoRegionRings()
+        public void BesideTheOriginalSpecularHistoryTheBounceLightKeepsNoRegionRing()
         {
-            // The region's drift is light evidence, so a signal without a light age has no ring.
+            // The region's drift is light evidence, and the original history's layouts hold no ring's binding. So the
+            // bounce light, the one signal that runs the region's test, keeps no ring without a light age.
             WithHistory(
                 mode: "original",
-                parameters: SignalParameters.Specular(0),
+                parameters: Parameters,
                 (_, sample, _) =>
                     sample.Signal.RegionRing(0).Should().BeNull("the original history has no light evidence")
             );
@@ -2605,9 +2637,11 @@ public sealed class AccumulatorRenderTests
         /// <summary>
         /// Draws one frame whose samples have the mean <paramref name="light"/> and the coefficient of variation
         /// <paramref name="variation"/>. Returns whether region evidence cut a history of part 0 in it: the evidence is a
-        /// derived read inside the spatial dispatch, so its one effect shows it. A history of at least FullRateFrames draws
-        /// before the draw ends it at exactly FullRateFrames under region evidence. Without evidence the blend lengthens it,
-        /// light evidence ends it at the fast cap, and the anti-lag ends it at the fast cap or at a length that is not whole.
+        /// derived read inside the spatial dispatch, so its one effect shows it. Under region evidence, a history of at least
+        /// FullRateFrames draws before the draw ends at exactly FullRateFrames where the anti-lag leaves it at least that
+        /// long. So the detector misses a cut that the anti-lag takes further down. Without evidence the blend lengthens a
+        /// history, light evidence ends it at the fast cap, and the anti-lag ends it at the fast cap or at a length that is
+        /// not whole.
         /// </summary>
         private static bool DrawNoisy(
             VulkanRenderer renderer,
@@ -2757,7 +2791,8 @@ public sealed class AccumulatorRenderTests
         {
             // Region evidence is one more cap on top of the anti-lag, so it never leaves a history longer than no
             // evidence would. The narrow box holds no widening, and the samples hold no noise, so the clamp sets the
-            // slow history onto the fast one. During the fall, region evidence holds the history at FullRateFrames. Then
+            // slow history onto the fast one. During the fall the clamp moves the slow history only a little in each draw,
+            // so the anti-lag leaves the history above the cap, and region evidence holds it at FullRateFrames. Then
             // the light steps from 0.5 to 0.2 in one draw: the slow history blends the step at 1/9 and the fast one at
             // 1/4, so the clamp moves by about 10 % of the light, and the anti-lag takes the history below the cap.
             (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(parameters: NarrowParameters);
@@ -3377,20 +3412,23 @@ public sealed class AccumulatorRenderTests
         public void AMovedRegionDoesNotShortenTheReflectionsHistory()
         {
             // Only the bounce light runs the region's test: the reflections' test fired in still views and brought
-            // bright specks into the bay film (docs/plans/bounce-light-confidence.md, section 8.7). The same fall that
-            // cuts every bounce history to FullRateFrames (ARegionEvidenceAloneCutsTheBounceHistoryToFullRateFrames) cuts
-            // no reflection history there: their anti-lag gives lengths that are not whole.
+            // bright specks into the bay film (docs/plans/bounce-light-confidence.md, section 8.7). After the same fall,
+            // the bounce light's region evidence lasts into the stand (AfterTheRegionsLightStandsStillItsEvidenceEndsWithin
+            // TwoWindows).
+            // In the stand the reflections' histories grow past FullRateFrames, so a region cut would end one at exactly
+            // FullRateFrames, and none does.
             (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
                 parameters: SignalParameters.Specular(0)
             );
             try
             {
                 sample.Signal.RegionRing(0).Should().BeNull("the reflections keep no anchors' ring");
-                FallThenStand(renderer: renderer, sample: sample, scene: scene, standDraws: 0);
+                List<int> cut = FallThenStand(renderer: renderer, sample: sample, scene: scene, standDraws: TwoWindows);
 
                 LengthsOf(renderer, sample)
                     .Should()
-                    .NotContain(FullRateFrames, "no region evidence acts on the reflections");
+                    .Contain(length => length > FullRateFrames, "in the stand a region cut would show");
+                cut.Should().BeEmpty("no region evidence acts on the reflections");
             }
             finally
             {
@@ -3446,7 +3484,8 @@ public sealed class AccumulatorRenderTests
         /// and under it, the scale stays at its largest value, 1. The render size is the scale times the window's size,
         /// rounded down to whole blocks.
         /// Returns whether region evidence cut a history inside the render size: a length of at least FullRateFrames
-        /// before the draw that ends at exactly FullRateFrames.
+        /// before the draw that ends at exactly FullRateFrames. Like <see cref="DrawNoisy"/>, it misses a cut
+        /// that the anti-lag takes below FullRateFrames.
         /// </summary>
         private static bool DrawInTheWindow(
             VulkanRenderer renderer,

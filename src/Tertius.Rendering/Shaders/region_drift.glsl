@@ -4,14 +4,14 @@
 // spatial dispatch sums the taps of its region, keeps the anchor's ring of its region's light and tests whether that light
 // moved (updateRegionAnchor). Every block then takes the answers of the draw before from the anchors whose regions hold
 // it (regionAnchorMovedBefore). The tap's layout, the ring's layout, the validity rule and the test live only here: the
-// spatial dispatch calls the two functions. The ring is a signal's with a light age (TemporalSignal). Needs
-// accumulate.glsl.
+// spatial dispatch calls the two functions. Only the bounce light runs the test and keeps a ring
+// (TemporalSignal.TestsRegionDrift). Needs accumulate.glsl.
 #ifndef TERTIUS_REGION_DRIFT_GLSL
 #define TERTIUS_REGION_DRIFT_GLSL
 
 #include "meter.glsl"
 
-// The draws of each of the test's two windows, W: the jitter's 18 phases under FSR at the render scale 1.5, so that a
+// The draws of each of the test's two windows, W: the jitter's 18 phases under FSR at the render scale 2/3, so that a
 // cycle of the jitter cancels in each window.
 const uint RegionWindowDraws = 18u;
 
@@ -192,8 +192,8 @@ bool regionTestOf(RegionDraw now)
 // caller calls it in a branch that is uniform in the workgroup (isRegionAnchor of the workgroup's block), so that its
 // two barriers run in uniform control flow and the other workgroups run none of them. The sums run in three steps, each
 // in a fixed order: each invocation sums its own taps of the 17 × 17 into its own slot, 8 invocations each add 8 slots
-// and 12 invocations each add 3 of the ring's draws, and invocation 0 adds those parts. So one machine gives the same bits
-// in every run.
+// and 12 invocations add the ring's 35 draws before this one, 3 each and the last 2, and invocation 0 adds those parts.
+// So one machine gives the same bits in every run.
 void updateRegionAnchor(ivec2 anchorBlock)
 {
     uint index = gl_LocalInvocationIndex;

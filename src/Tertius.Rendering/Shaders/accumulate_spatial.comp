@@ -19,8 +19,9 @@
 // The least luminance by which the clamp divides: the lag's share and the chroma of the widening.
 const float LeastLuminance = 1e-4;
 
-// The evidence levels of a block, ordered by how certain the knowledge is (section 8.2). Region evidence cuts the length
-// to FullRateFrames, motion evidence narrows the box for this draw, and light evidence cuts the length to the fast cap.
+// The evidence levels of a block, ordered by how certain the knowledge is (section 8.2). Region evidence caps the
+// anti-lag's length at FullRateFrames, motion evidence narrows the box for this draw, and light evidence cuts the length
+// to the fast cap.
 // The level lives only in this dispatch's shared value.
 const uint NoEvidence = 0u;
 const uint RegionEvidence = 1u;
