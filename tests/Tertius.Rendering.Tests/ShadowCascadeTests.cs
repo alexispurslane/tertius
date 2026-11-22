@@ -220,7 +220,8 @@ public sealed class ShadowCascadeTests
 
     /// <summary>
     /// A shading pass moves its lookup up to <see cref="ShadowBias.NormalOffsetTexels"/> off the receiver, and the
-    /// filter's taps compare texels up to <see cref="ShadowBias.FilterClearanceTexels"/> from the lookup. So each box,
+    /// filter's taps reach <see cref="ShadowBias.FilterReachTexels"/> from the lookup. The farthest texel that they
+    /// compare has its center half a texel nearer than the reach. So each box,
     /// with its center snapped to the texel grid by up to half a texel, keeps both free around the bounding sphere of
     /// its slice, and no tap from a point of the slice reads past the map's edge. The anchors move the snap by
     /// different fractions of a texel.
@@ -257,7 +258,7 @@ public sealed class ShadowCascadeTests
         leastFreeTexels
             .Should()
             .BeGreaterThanOrEqualTo(
-                ShadowBias.FilterClearanceTexels + ShadowBias.NormalOffsetTexels,
+                ShadowBias.FilterReachTexels - 0.5f + ShadowBias.NormalOffsetTexels,
                 "the filter's taps around a lookup that the normal offset moved stay inside the box"
             );
     }
