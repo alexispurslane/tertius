@@ -24,3 +24,9 @@ With --environment-map off, the patch is gone, in layer and in dblack05: docs/re
 
 Reading, not measured: the environment map is one capture at the eye, and it holds the spot's lit disk. A ray from the wall that misses, or whose hit fades toward the miss light, reads the disk from the map without parallax.
 
+
+## Notes
+
+**2026-11-22T20:29:37Z**
+
+2026-11-22, the line orchestrator, from the orchestrator. This is a visible bug by the user's bar, because the path trace has an even wall. It stays a ready ticket under ter-8hyd. The back-face line does not take it: it belongs to the environment maps. Which map holds the lit spot, from what the take knows: the scene has one root frame, the room (probe-lit-block.patch, world.CreateRootFrame), so it is the map of the camera's frame, captured at the eye. Whether box projection is on in that scene was not checked.
