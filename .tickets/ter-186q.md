@@ -180,3 +180,12 @@ Checked suite at the final code (the nit fixes on 4548576a1): 11,046 tests, 11,0
 - Lavapipe at e0010385b (job 2b85f23c-2466-4c4f-92a2-7093ead32caa-u1, 236 s, $0.0061): ScreenWalkSlabTests and ScreenWalkBoundaryTests, 17 tests, 1 failed: ScreenWalkBoundaryTests channel 3 only, as on main (t70-0pr5 item 1).
 - git apply --check tools/renderer-survey/probe.patch at the root after the merge: passes.
 - Cloud money by the job log: $0.0054 + $0.0553 + $0.0061 + $0.0061 = $0.0729 of $0.35.
+
+**2026-11-22T18:10:14Z**
+
+2026-11-22, the ticket lead. The second review (reviewer task 9d81dd81): fulfillment pass, the nit fixes pass. Its five nits:
+- N1: the comment on ScreenTraceRecordTests.TwoHairCards gave t53-eyrv as the reason for the cards' turn. It now says the turn dates from t53-eyrv and is no longer needed. The turn stays, because the hair tests' expected values were set with it.
+- N2: the reason for S02 is completed. S02 differs from the stored rule in an exact tie (the child's front equals the parent's front) and also where the child's front lies within one rounding below the parent's front: there the w computed from s can fall below the child's front, and the stored rule crosses the cell where the mutant meets the slab. It stays a judgment call: no constructed ray reaches such a near tie on purpose, and the C# copy kills the same change on both sides of the test (C02).
+- N3: t70-0pr5 now names the lavapipe runs at 4548576a1 and e0010385b.
+- N4: one more row for the guard of e0010385b. C11, ScreenRay.cs:190, the guard removed (SlabEntry on every step): equivalent, because the entry and entryW of a slab that the ray does not meet are never read (the walk reads them only inside the two meetsSlab branches). The guard's two arms both run: a temporary throw on a StepInverseDepth of 0 outside the slab failed six ScreenWalkTests without the guard and none with it. That probe was an edit, build, test and restore by hand, which CLAUDE.md asks to run through tools/mutate.py; it changed no committed file. The coverage run of the changed C# lines (11/11 lines, 2/2 branches) predates the guard line.
+- N5: the before still and the before film ran on 821481a5c, the review base, not on f7d606fec. 821481a5c holds f7d606fec and the back-face layer, so the still answers whether the layer already fixed the picture: it did not, the band shows.
