@@ -2,7 +2,7 @@
 id: ter-4iic
 status: open
 deps: []
-links: []
+links: [t2b-d2m6, ter-6fka, t1-mybi, ter-13rm]
 created: 2026-11-10T09:38:12Z
 type: bug
 priority: 1

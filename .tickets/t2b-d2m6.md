@@ -2,7 +2,7 @@
 id: t2b-d2m6
 status: open
 deps: []
-links: []
+links: [ter-4iic, ter-6fka, t1-mybi, ter-13rm]
 created: 2026-11-22T20:08:08Z
 type: bug
 priority: 2
