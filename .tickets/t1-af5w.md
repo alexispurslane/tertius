@@ -117,3 +117,7 @@ What both share: the rule that no blur puts light inside the shadow, the blocker
 - The gaps of the demo's views: the share of shadow-edge pixels by gap, in the cabin, the deck, rect-lamps and one outdoor view.
 - One film of the 5 m edge with the ramp at half and at a quarter of 2.5 texels, to find the least width that hides the texel grid.
 - Stills of both designs' softest and sharpest edge in the cabin and outdoors, from scratch builds.
+
+**2026-11-22T20:52:59Z**
+
+2026-11-22, the line orchestrator, from the orchestrator. This step no longer waits for the user: the user handed the design choices to the orchestrator on 2026-11-22. The line orchestrator sends the two options with a recommendation when a slot is free, and the orchestrator decides.
