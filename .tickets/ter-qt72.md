@@ -263,3 +263,27 @@ The review (one reviewer, Claude Opus 5.5 at high effort, on 4298ae7ec..839bce1b
 - Added for the mutants: `TheCamerasPixelCountsAreTheRenderSizes`, a CPU test that the camera's width and height are the render size.
 
 The run on the code of this commit (the review fixes): `nix develop --command bash -c 'bash tools/gpu-lock.sh --shared <log> dotnet test --solution Tertius.slnx -c Checked'`: 11,057 tests, 0 failed, 28 skipped. No snapshot test failed.
+
+**2026-11-22T19:38:21Z**
+
+2026-11-22, the ticket lead. Step 1's remaining runs, all on the code of f54129fcc.
+
+- Release: `nix develop --command bash -c 'bash tools/gpu-lock.sh --shared <log> dotnet test --solution Tertius.slnx -c Release'`: 11,044 tests, 1 failed, 29 skipped. The failure is `Fsr3UpscalerTests.ATimedBatchReportsTheTimeOfOneOfItsUpscalesNotOfTheWholeBatch` (a median of 0.411 ms against a limit of 0.039 ms), the timing test of lin-5bsm that fails under GPU load. Rerun alone under the exclusive GPU lock at a load of 6, with `-c Release --no-build -- --filter-method "*ATimedBatchReportsTheTimeOfOneOfItsUpscalesNotOfTheWholeBatch*"`: 1 passed.
+- Linux: one cloud CPU job (0763a4d8-91ea-447d-be6b-bcc7b13df0b5-u2, 250 s, $0.0064 by the job log) ran `lavapipe-tests.sh` with CLASS_STEMS "OutputCameraTests OutputFramingRenderTests Fsr3HostTests UpscalingRenderTests" on Mesa 26.2.4 lavapipe (llvmpipe, LLVM 21.1.8): 89 tests, 0 failed, 0 skipped.
+- Mutants: `tools/mutate.py` with 11 listed mutants of the changed lines (list and logs in the evidence folder, `mutants-step1.json`, `mutate-step1/`): 9 killed, 1 survived, 1 failed to build.
+
+| id | place | change | result |
+|---|---|---|---|
+| C01 | SceneBatcher.cs:238 | the aspect from the render size | build-failed: the analyzer refuses the then-unused parameter `outputSize` (IDE0060). C03 makes the same change through the call and is killed. |
+| C02 | SceneBatcher.cs:238 | drop `Math.Max(outputSize.Height, 1)` | survived. Judgment call: no draw has an output of zero height, because a headless renderer refuses a zero size and a window without an area acquires no image and draws nothing, so the guard is never reached. |
+| C03 | SceneBatcher.cs:130 | Prepare passes the render size as the output size | killed by AWorldPointKeepsItsPlaceOnTheOutputAtARenderSizeOfAnotherShape |
+| C04 | SceneBatcher.cs:129 | the pixel counts from the output size | killed by TheCamerasPixelCountsAreTheRenderSizes |
+| C05 | SceneBatcher.cs:251 | the width from the output size | killed by TheCamerasPixelCountsAreTheRenderSizes |
+| C06 | SceneBatcher.cs:252 | the height from the output size | killed by TheCamerasPixelCountsAreTheRenderSizes |
+| C07 | Fsr3Constants.cs:98 | tanHalfFOV from the render size's ratio | killed by FsrsViewConstantsDescribeTheOutputsCameraAtARenderSizeOfAnotherShape |
+| C08 | Fsr3Constants.cs:139 | deviceToViewDepth2 from the render size's ratio | killed by the same test |
+| C09 | UpscalePass.cs:93 | the pass hands FSR the render size's ratio | killed by FsrRebuildsViewPositionsWithTheOutputsCameraAtARenderSizeOfAnotherShape |
+| C10 | FrameHistory.cs:341 | the pending frame's output size is its render size | killed by AWorldPointKeepsItsPlaceOnTheOutputAtARenderSizeOfAnotherShape |
+| C11 | VulkanRenderer.cs:1319 | the test hook reads another word | killed by FsrReadsThisFramesExposureRatioBeforeAdaptationWritesTheNextFramesExposure |
+
+- Coverage: `dotnet test --project tests/Tertius.Rendering.Tests -c Checked --coverage --coverage-output-format cobertura` with the classes OutputCameraTests, OutputFramingRenderTests, Fsr3HostTests, UpscalingRenderTests and BatcherTests (190 passed), then `python3 tools/coverage/changed-lines.py --base 4298ae7ec`: 15 of 15 changed lines covered, no branches.
