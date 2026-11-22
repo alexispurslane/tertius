@@ -1249,16 +1249,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>The layouts of the signal set (<see cref="SignalSet"/>) and the light set (<see cref="LightSet"/>).</summary>
     private (DescriptorSetLayout Signal, DescriptorSetLayout Light) CreateTemporalSetLayouts()
     {
-        // The bindings by number: 0 to 10, 11 and 13 with the light age, and 12 with an instrumentation.
         Span<DescriptorSetLayoutBinding> signal =
             stackalloc DescriptorSetLayoutBinding[(int)(SignalSetImages + SignalSetSampledImages)];
         int count = 0;
         for (uint binding = 0; binding <= LastSignalBinding; binding++)
-            if (
-                binding <= 10
-                || binding is 11 or 13 && HistoryMode.KeepsLightAge
-                || binding == 12 && Instrumentation != HistoryInstrumentation.None
-            )
+            if (SignalSetHolds(binding))
                 signal[count++] = binding is 7 or 8
                     ? Image(binding: binding, stages: ShaderStageFlags.ComputeBit)
                     : StorageImage(binding);
@@ -1267,6 +1262,15 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             light[(int)binding] = StorageImage(binding: binding, stages: ShaderStageFlags.FragmentBit);
         return (CreateLayout(bindings: signal, name: "signal set"), CreateLayout(bindings: light, name: "light set"));
     }
+
+    /// <summary>
+    /// Whether this layout's signal set holds <paramref name="binding"/>: 0 to 10 always, 11 and 13 with the light age (the
+    /// sample age and the anchors' rings), and 12 with an instrumentation.
+    /// </summary>
+    private bool SignalSetHolds(uint binding) =>
+        binding <= 10
+        || binding is 11 or 13 && HistoryMode.KeepsLightAge
+        || binding == 12 && Instrumentation != HistoryInstrumentation.None;
 
     /// <summary>The layout of the filter set: <see cref="FilterSetImages"/> storage images for the compute stage.</summary>
     private DescriptorSetLayout CreateFilterSetLayout()

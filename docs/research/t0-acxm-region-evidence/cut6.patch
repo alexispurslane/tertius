@@ -1,0 +1,29 @@
+diff --color=auto -ru a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
+--- a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
++++ b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
+@@ -162,7 +162,9 @@
+         if (evidence == LightEvidence)
+             historyLength = fastCap;
+         else if (evidence == RegionEvidence)
+-            historyLength = min(historyLength, FullRateFrames);
++            // SCRATCH (t0-acxm, the cut to 6 draws): at most 6 draws, marked by a fraction of one half, so that the ray
++            // plan counts the pixel as mature (screen_trace_plan.comp).
++            historyLength = max(fastCap, floor(min(historyLength, 6.0)) - 0.5);
+         else
+             historyLength = max(fastCap, historyLength * (1.0 - min(1.0, lag / parameters.antiLagShare)));
+         slow = clamped;
+diff --color=auto -ru a/src/Tertius.Rendering/Shaders/screen_trace_plan.comp b/src/Tertius.Rendering/Shaders/screen_trace_plan.comp
+--- a/src/Tertius.Rendering/Shaders/screen_trace_plan.comp
++++ b/src/Tertius.Rendering/Shaders/screen_trace_plan.comp
+@@ -215,7 +215,10 @@
+             // A pixel that starts the kind gives its block a chosen pixel.
+             if (!startsKind(p, kind) || !chosenPixelOf(pixel / 2, kind, chosen, c) || all(equal(chosen, pixel)))
+                 continue;
+-            if (historyLengthOf(r, kind) >= FullRateFrames && fits(p, c, kind))
++            // SCRATCH (t0-acxm, the cut to 6 draws): a length with a fraction of one half was cut by region evidence, and
++            // counts as mature.
++            float scratchLength = historyLengthOf(r, kind);
++            if ((scratchLength >= FullRateFrames || abs(fract(scratchLength) - 0.5) < 1.0 / 64.0) && fits(p, c, kind))
+                 continue;
+             if (kind == KindReflection)
+             {
