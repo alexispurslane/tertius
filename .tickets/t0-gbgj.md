@@ -106,3 +106,7 @@ Blocker, 2026-11-22: the disk has 37 GiB free, under the orchestrator's limit of
 **2026-11-22T17:33:11Z**
 
 2026-11-22: the combined check's lead built M2 (main 284025851) with main's version of the probe patch and its constant-scale scratch patch: 0 warnings, 0 errors, 25 s; the disk went from 37.3 GiB free to 37.1 at the lowest sample. The off draw works (log line and frames 220 and 380). Run: /private/tmp/t0-gbgj/runs/scg-M2-23. I then committed the file on main as ee9dec413. X2 builds next.
+
+**2026-11-22T17:40:25Z**
+
+2026-11-22: the combined check's lead takes one half of the jambs' two by two before its fair-switch takes: M2 at a constant 0.956 through the acceptance lead's replay path (the dynamic setting), frames 10 before off and 195 after off, and from its existing frames the whole frame at 0.956 beside 2/3. Reason and the other half: see t0-5tyj.
