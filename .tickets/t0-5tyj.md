@@ -114,3 +114,7 @@ Rules of the pictures. A film or a still where X scores worse than M in any meas
 The record: docs/research/design-x-acceptance-2026-11-22/README.md. It starts with one table for the user's decision: one row per scene and take, with "better", "equal" or "worse" than main by the bar, and the picture's path. Then every take where X is worse than M, named plainly. Then the plan's acceptance points 1 to 14 with pass or fail on both sides. Measured facts stay apart from the reading.
 
 Acceptance of this ticket: the record with its pictures and tables, the probe patch fixed, one review with every finding resolved, and no change under src or tests.
+
+**2026-11-22T11:15:02Z**
+
+Launch (line orchestrator, 2026-11-22). The room's lead continues as the acceptance lead in its thread thread:delegated-task:command%3Amcp%3A8450ae50-a640-49ce-ab14-e0397e6a826d%3Adelegate-task%3Adesign-x-line-t0-xlcu-lead-1, clientRequestId design-x-line-t0-5tyj-acceptance-takes, run ordinal 14, worktree /Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144, branch t3/measure-regional-lag-tolerance, from the line's head 57b4045ae. Cloud budget 1.50 dollars. Step 0 is the probe patch fix of tc-w3c0.
