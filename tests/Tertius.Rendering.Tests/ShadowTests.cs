@@ -1130,7 +1130,9 @@ public sealed class ShadowTests
                 chainDepth: TestChains.CamerasFrame
             )
         );
-        snapshot.Instances.Add(RoofSlab(kit: kit, roofHeight: roofHeight, roof: roof, edgeOnGround: RoofEdgeOnGround, under: UnderTheRoof));
+        snapshot.Instances.Add(
+            RoofSlab(kit: kit, roofHeight: roofHeight, roof: roof, edgeOnGround: RoofEdgeOnGround, under: UnderTheRoof)
+        );
         if (slit > 0)
             snapshot.Instances.Add(
                 RoofSlab(
@@ -1158,16 +1160,16 @@ public sealed class ShadowTests
         Vector3 lowerEdge = edgeOnGround + RoofSun * (roofHeight / RoofSun.Y);
         Vector3 center = lowerEdge + under * (length / 2) + new Vector3(0, thickness / 2, 0);
         return Gpu.Instance(
-                mesh: kit.Box,
-                material: kit.White,
-                position: roof ? center : new(-60f, 0, -40f),
-                scale: new(length, thickness, length),
-                rotation: RoofTurn,
-                chainDepth: TestChains.CamerasFrame
-            ) with
-            {
-                Flags = RenderFlags.CastsShadow,
-            };
+            mesh: kit.Box,
+            material: kit.White,
+            position: roof ? center : new(-60f, 0, -40f),
+            scale: new(length, thickness, length),
+            rotation: RoofTurn,
+            chainDepth: TestChains.CamerasFrame
+        ) with
+        {
+            Flags = RenderFlags.CastsShadow,
+        };
     }
 
     /// <summary>
@@ -1187,7 +1189,7 @@ public sealed class ShadowTests
         float[] lit = renderer.ReadHdr();
         renderer.Render(RoofOverGroundScene(kit: kit, roofHeight: roofHeight, roof: true, slit: slit), 1f);
         float[] shadowed = renderer.ReadHdr();
-        var shares = new float[points.Length];
+        float[] shares = new float[points.Length];
         for (int i = 0; i < points.Length; i++)
         {
             Vector2 pixel = Gpu.Project(
@@ -1319,7 +1321,11 @@ public sealed class ShadowTests
             shares
                 .Average()
                 .Should()
-                .BeInRange(0.25f, 0.75f, "the sun rises over the filter's reach outside the edge, not within one texel");
+                .BeInRange(
+                    0.25f,
+                    0.75f,
+                    "the sun rises over the filter's reach outside the edge, not within one texel"
+                );
         }
         finally
         {
@@ -1553,7 +1559,7 @@ public sealed class ShadowTests
             var kit = Kit.Create(renderer);
             float[] lit = SeamEdgeImage(renderer: renderer, kit: kit, wall: false);
             float[] shadowed = SeamEdgeImage(renderer: renderer, kit: kit, wall: true);
-            var cascades = renderer.LastScene.CascadeSets[0];
+            ShadowCascadeArray cascades = renderer.LastScene.CascadeSets[0];
             float Crossing(float depth, float texel) =>
                 SeamsEdgeCrossing(lit: lit, shadowed: shadowed, edgeX: edgeX, depth: depth, texel: texel);
 
@@ -1599,7 +1605,13 @@ public sealed class ShadowTests
     private static float[] SeamEdgeImage(VulkanRenderer renderer, Kit kit, bool wall)
     {
         renderer.Render(
-            SeamsScene(kit: kit, cameraHeight: SeamEdgeCameraHeight, pitch: SeamEdgePitch, wallX: SeamEdgeWallX, wall: wall),
+            SeamsScene(
+                kit: kit,
+                cameraHeight: SeamEdgeCameraHeight,
+                pitch: SeamEdgePitch,
+                wallX: SeamEdgeWallX,
+                wall: wall
+            ),
             1f
         );
         return renderer.ReadHdr();
@@ -1616,7 +1628,11 @@ public sealed class ShadowTests
         float step = texel / 16f;
         for (float x = edgeX + 4f * texel; x > edgeX - 4f * texel; x -= step)
         {
-            var ground = new Vector3(x, -height, -(depth - height * MathF.Sin(SeamEdgePitch)) / MathF.Cos(SeamEdgePitch));
+            var ground = new Vector3(
+                x,
+                -height,
+                -(depth - height * MathF.Sin(SeamEdgePitch)) / MathF.Cos(SeamEdgePitch)
+            );
             Vector2 pixel = Gpu.Project(
                 point: ground,
                 cameraRotation: Gpu.PitchDown(SeamEdgePitch),
