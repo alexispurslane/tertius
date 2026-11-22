@@ -53,6 +53,28 @@ What the pictures show: both sides look alike and clean at every moment. No blot
 
 Not checked: whether an eye finds the residual edge motion of about 0.3 px rms at normal speed; any edge other than the two tracked window edges; the faults' look at normal speed, beyond the five moments and the three check frames that the video tool decoded.
 
+## Take A: the walk, M5 left and X5 right
+
+[`pics/walk-M5-X5.mp4`](pics/walk-M5-X5.mp4), `/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-3vwx-dynamic-scale-films/pics/walk-M5-X5.mp4`: 3840 × 1080 (1920 × 1080 per side), the walk's last 60 draws and the 200 draws after the stop, 260 frames at 60 frames a second, one draw per frame, H.264 `yuv420p`, CRF 12, 6.1 MB, made by `sidevideo.py` as above. The corner counts the draws since the stop. The played-back sizes of both runs equal the card's logs on every draw. In the video's draws, neither scale moves: M5 stays at 1.000 (1920 × 1080) and X5 at 0.948, with no size change. So the wobble's fix has nothing to act on in the walk's window, on either code.
+
+![five moments of the walk](pics/walk-frames-M5-X5.png)
+
+`pics/walk-frames-M5-X5.png`: the walk 30 draws before the stop, then 0, 20, 60 and 199 draws after it.
+
+What the pictures show: both sides look alike and clean. The floor under the near lamp shows soft, low-contrast clouds on both sides. The walk's trail of light after the stop is the one motion that the video shows.
+
+**The motion measured** (the video tool's check, the center region's light against the last frame, in the source frames and in the decoded video):
+
+| Draws after the stop | M5 source / video | X5 source / video |
+|---|---|---|
+| 0 | +5.49 % / +5.57 % | +5.87 % / +5.91 % |
+| 20 | +3.74 % / +3.90 % | +4.61 % / +4.73 % |
+| 40 | +2.50 % / +2.61 % | +3.58 % / +3.68 % |
+
+The video agrees with its source within 0.31 % in every checked region. X5's center fades back more slowly than M5's: 1.1 points more light at 40 draws after the stop. The settle draws of the survey's measure are in take B. The grain (`measure5.py`, the rms of the luminance minus its 5 × 5 mean, in % of the crop's mean) is about equal on the two sides: the bottom third 0.48 % / 0.47 % and the middle third 2.47 % / 2.58 % in the 60 to 200 draws after the stop (M5 / X5).
+
+Not checked: the walk's trail at normal speed by eye, beyond the three checked moments; the edges, because the camera moves until the stop.
+
 ## The scale's fall at the start of a run (answers to the line orchestrator)
 
 ![the start of each run](pics/start-scale-span.png)
@@ -78,7 +100,7 @@ The numbers: `start.txt`. The logs: `times/` (each run's size, time and gzipped 
 
 - `sizes/`: the card's size logs of the pictures.
 - `times/`: the card's time and per-pass logs.
-- `switch-A.txt`: the outputs of the switch video's tool and of the measures of take A's switch.
+- `switch-A.txt` and `walk-A.txt`: the outputs of the video tool and of the measures of take A's two films.
 - `start.txt`: the start's measures.
 - `scratch-*.patch`: the scratch patches. `scratch-dynamic-scale.patch` and `scratch-region-log.patch` are the acceptance record's of `726bf338c`, unchanged. `scratch-history-log.patch` (31 lines) logs the slow diffuse history's length per draw. `scratch-pass-log.patch` logs each pass's GPU time.
 - `tools/` (each script says what it does in its first lines): `cloud.sh`, `cloudvideo.sh`, `cloudvideo.py` and `macdyn.sh` (copies of the acceptance record's `726bf338c`, with their changes named in their heads); `builds.sh`, `queue-a.sh`, `measure5.py`, `framesheet.py`, `timeslog.py`, `startchart.py`.
