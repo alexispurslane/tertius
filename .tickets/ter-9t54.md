@@ -1,6 +1,6 @@
 ---
 id: ter-9t54
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-22T21:13:04Z
@@ -18,3 +18,9 @@ Experiment E2 of docs/research/lighting-system-review-2026-11-22/README.md, sect
 
 The two sums against the path trace's one-bounce values (0.085 at the back wall, 0.064 at the floor gap, in the units of t2b-xeo7), the leak as a share of the room's light, the script and a short record committed.
 
+
+## Notes
+
+**2026-11-22T21:31:35Z**
+
+2026-11-22, orchestrator: merged. The sender sum gives 76.6 % of the path trace's one bounce at the back wall and 86.3 % at the floor gap, where the engine has 9 to 71 times too little today. The shortfall of 14 to 23 % is not explained (the model omits the glossy reflection and the floor lamp's bounce). Without a wall test, a closed room behind a wall gets 4.8 % (floor) and 12.6 % (far wall) of the lit room's comparable light. That is above the review's limit of a few percent. Reading: design S fixes the dim room and cannot ship without a test of the wall between a sender and the shaded point.
