@@ -2,7 +2,7 @@
 id: ter-bdoh
 status: open
 deps: []
-links: []
+links: [ter-12xp, ter-fe63]
 created: 2026-11-14T16:20:01Z
 type: bug
 priority: 2
