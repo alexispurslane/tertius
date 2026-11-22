@@ -121,3 +121,7 @@ A change of the fade in the engine.
 **2026-11-22T15:14:31Z**
 
 2026-11-22, the line orchestrator. The ticket lead is launched. taskId and child thread: node/thread:delegated-task:command%3Amcp%3A1606afbd-dec8-4bf8-a33c-bc8fce97f948%3Adelegate-task%3Aslabs-3-t1-r9vj-lead-1. clientRequestId: slabs-3-t1-r9vj-lead-1. Target: claudeAgent, claude-opus-5-5, effort high, role implementation, isolation worktree. Base and review base: main 906d1c260. Cloud money: $0.20. No reviewer stage. The lead waits with builds and renders while the Mac's load is above 40 (it was 173 at the launch, from other work).
+
+**2026-11-22T16:25:02Z**
+
+2026-11-22, the line orchestrator. By the orchestrator's order, this take gives way to the wobble fix ter-qt72: its lead starts no build, no render and no path trace until that fix is in its review. The lead is not cancelled.
