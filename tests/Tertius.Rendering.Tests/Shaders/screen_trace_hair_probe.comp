@@ -2,7 +2,12 @@
 #extension GL_GOOGLE_include_directive : require
 #include "screen_trace.glsl"
 
+// The hair test's rays from the left card's pixels (ScreenTraceRecordTests): each walks once with the receiver-card
+// exclusion and once without. Each pixel writes the column of each walk's hit, or -1 for a miss, and its own card code.
 layout(local_size_x = 8, local_size_y = 8) in;
+
+// The middle column of the right card, which every ray meets at the right card's stored center w.
+const int TargetColumn = 92;
 
 void main()
 {
@@ -16,8 +21,15 @@ void main()
         imageStore(specularSample, pixel, vec4(0.0));
         return;
     }
-    ScreenRay ray = ScreenRay(vec2(pixel) + 0.5, vec2(frame.viewport.x, 0.0),
-        texelFetch(depthFinest, pixel, 0).r, -0.0001, 1.0);
+    // The ray runs right along the row, and its w falls by perPixel per pixel. It meets its own card's center w at the
+    // center of the second pixel to the right, and the right card's center w at the center of TargetColumn. Both
+    // crossings lie at a pixel's center, inside its slab, far from the slabs' ends.
+    float w = texelFetch(depthFinest, pixel, 0).r;
+    float ownChange = texelFetch(depthFinest, pixel + ivec2(1, 0), 0).r - w;
+    float target = texelFetch(depthFinest, ivec2(TargetColumn, pixel.y), 0).r;
+    float perPixel = (w + 2.0 * ownChange - target) / float(TargetColumn - pixel.x - 2);
+    ScreenRay ray = ScreenRay(vec2(pixel) + 0.5, vec2(frame.viewport.x, 0.0), w + 2.0 * (perPixel + ownChange),
+        -perPixel * frame.viewport.x, 1.0);
     vec3 direction = normalize(vec3(1.0, 0.0, -0.001));
     vec2 hit;
     ivec2 hitPixel;

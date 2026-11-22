@@ -30,6 +30,9 @@ internal sealed unsafe class PyramidImages : IDisposable
     private readonly Format format;
     private readonly string name;
 
+    /// <summary>Whether the dispatch of level 1 reads the finest level at binding 0, as the light pyramid's does.</summary>
+    private readonly bool levelOneReadsFinest;
+
     /// <summary>The set of each level from 1 to <see cref="DepthPyramid.MaxLevels"/>, at index level − 1.</summary>
     private readonly DescriptorSet[] levelSets = new DescriptorSet[DepthPyramid.MaxLevels];
 
@@ -39,13 +42,19 @@ internal sealed unsafe class PyramidImages : IDisposable
     /// <summary>Allocates the sets for the largest pyramid, and makes the images for a screen of <paramref name="extent"/>.</summary>
     /// <param name="format">The format of every level, the finest included: <see cref="DepthFormat"/> or <see cref="LightFormat"/>.</param>
     /// <param name="name">The pyramid's name in its images' names, such as "depth pyramid".</param>
+    /// <param name="levelOneReadsFinest">
+    /// Whether the dispatch of level 1 reads the finest level at binding 0 of its set, as the light pyramid's down shader
+    /// does. The depth pyramid's level 1 reads the G-buffer and the back share instead, and its owner writes that
+    /// binding.
+    /// </param>
     public PyramidImages(
         VulkanDevice device,
         DeviceAllocator allocator,
         DescriptorLayouts layouts,
         Extent2D extent,
         Format format,
-        string name
+        string name,
+        bool levelOneReadsFinest
     )
     {
         this.device = device;
@@ -53,6 +62,7 @@ internal sealed unsafe class PyramidImages : IDisposable
         this.layouts = layouts;
         this.format = format;
         this.name = name;
+        this.levelOneReadsFinest = levelOneReadsFinest;
         for (int i = 0; i < levelSets.Length; i++)
             levelSets[i] = layouts.AllocatePyramidLevelSet();
         TailSet = layouts.AllocatePyramidTailSet();
@@ -64,16 +74,16 @@ internal sealed unsafe class PyramidImages : IDisposable
     public GpuImage Image { get; private set; }
 
     /// <summary>
-    /// The finest level, in the pyramid's format at the screen's size: of the depth pyramid each pixel's slab, its center
-    /// w and its back w, (0, 0) for sky (docs/plans/temporal-renderer.md, decision 46), of the light pyramid each pixel's
-    /// guide light.
+    /// The finest level, in the pyramid's format at the screen's size. The depth pyramid's holds each pixel's slab, its
+    /// center w and its back w, (0, 0) for sky (docs/plans/back-face-depth-layer.md, "The model"). The light pyramid's
+    /// holds each pixel's guide light.
     /// </summary>
     public GpuImage Finest { get; private set; }
 
     /// <summary>Set 3 of <see cref="DescriptorLayouts.PyramidLayout"/> for the finest level's dispatch: its image at
-    /// binding 1, as a level set holds its level. Binding 0 holds the image that the finest shader reads: the light
-    /// pyramid's owner, <see cref="ScreenTraceImages"/>, writes the direct diffuse light there, and the depth pyramid's
-    /// finest shader reads the G-buffer alone, so its binding 0 stays unwritten.</summary>
+    /// binding 1, as a level set holds its level. Binding 0 holds the image that the finest shader reads, which the
+    /// pyramid's owner writes. The light pyramid's owner, <see cref="ScreenTraceImages"/>, writes the direct diffuse
+    /// light there, and the depth pyramid's owner, <see cref="RenderTargets"/>, the back share.</summary>
     public DescriptorSet FinestSet { get; }
 
     /// <summary>The top level L, whose one cell covers the screen (<see cref="DepthPyramid.LevelCount"/>).</summary>
@@ -137,15 +147,16 @@ internal sealed unsafe class PyramidImages : IDisposable
     /// <summary>Writes the level sets over the mip views of <see cref="Create"/>.</summary>
     private void WriteLevelSets()
     {
-        // Level 1 reads the finest level. The depth pyramid's level 1 leaves it unread: it reads the distance target.
+        // Each level above 1 reads the level below. Level 1 reads the finest level, or what its owner writes there.
         for (int level = 1; level <= TopLevel; level++)
         {
-            layouts.WriteImage(
-                set: levelSets[level - 1],
-                binding: 0,
-                view: level > 1 ? mipViews[level - 2] : Finest.View,
-                layout: ImageLayout.General
-            );
+            if (level > 1 || levelOneReadsFinest)
+                layouts.WriteImage(
+                    set: levelSets[level - 1],
+                    binding: 0,
+                    view: level > 1 ? mipViews[level - 2] : Finest.View,
+                    layout: ImageLayout.General
+                );
             layouts.WriteStorageImage(set: levelSets[level - 1], binding: 1, view: mipViews[level - 1]);
         }
     }

@@ -23,6 +23,12 @@ public sealed class GuidedRaysTests
     private const float DullLight = 0.04f,
         PatchLight = 40;
 
+    /// <summary>
+    /// The back share of every surface pixel: the room is solid, and each back face lies a third deeper than its front.
+    /// So a guided ray that aims a little behind the patch's front meets the patch, as on a wall of the engine.
+    /// </summary>
+    private const float SolidShare = 0.75f;
+
     /// <summary>A floor 1.5 m below the eye and a back wall 10 m ahead.</summary>
     private static readonly SceneRectangle[] Room =
     [
@@ -221,7 +227,12 @@ public sealed class GuidedRaysTests
         }
         return new(
             Camera: camera,
-            Depth: DepthPyramid.Of(camera: camera, distances: distances, geometricNormals: normals),
+            Depth: DepthPyramid.Of(
+                camera: camera,
+                distances: distances,
+                geometricNormals: normals,
+                backShares: [.. distances.Select(distance => distance > 0 ? SolidShare : 0)]
+            ),
             Light: LightPyramid.Of(lights, camera.Width, camera.Height),
             Distances: distances,
             Normals: normals

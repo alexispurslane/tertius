@@ -1,25 +1,34 @@
 #version 460
-// Level 1 of the depth pyramid (docs/plans/screen-space-reflections.md, "The depth pyramid"): each cell merges the slab
-// bounds of the up to four pixels of the distance target under it (pixelSlabBounds). One invocation per texel of the
-// image's mip 0, padding included, which holds the empty bounds because its pixels lie beyond the screen.
+// Level 1 of the depth pyramid (docs/plans/screen-space-reflections.md, "The depth pyramid"). Each cell merges the slab
+// bounds of the up to four pixels under it (pixelSlabBounds). One invocation per texel of the image's mip 0, padding
+// included. The padding holds the empty bounds, because its pixels lie beyond the screen.
 #extension GL_GOOGLE_include_directive : require
 #extension GL_EXT_samplerless_texture_functions : require
 #include "depth_pyramid.glsl"
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
+layout(set = 3, binding = 0) uniform texture2D backShare;                      // the back share, the screen's size
 layout(set = 3, binding = 1, rg32f) uniform writeonly image2D destination;   // level 1
+
+// The slab bounds of a pixel (pixelSlabBounds). A pixel beyond the viewport holds no surface, as no surface lies beyond
+// the screen's edges. Its back share is not read, because the Vulkan spec leaves a fetch out of range undefined without
+// the robustness features.
+vec2 pixelTerm(ivec2 pixel)
+{
+    if (any(greaterThanEqual(pixel, ivec2(frame.viewport.xy))))
+        return vec2(0.0, EmptyBack);
+    return pixelSlabBounds(pixel, texelFetch(backShare, pixel, 0).r);
+}
 
 void main()
 {
     ivec2 cell = ivec2(gl_GlobalInvocationID.xy);
     if (any(greaterThanEqual(cell, imageSize(destination))))
         return;
-    vec2 bounds = vec2(0.0, EmptyFar);
-    // Level 0 is the pixels' slab bounds from the distance target, so cellBounds never reads the pyramid that it is given
-    // here.
+    vec2 bounds = vec2(0.0, EmptyBack);
     for (int y = 0; y < 2; y++)
         for (int x = 0; x < 2; x++)
-            bounds = mergedBounds(bounds, cellBounds(gbufferDistance, 0u, 2 * cell + ivec2(x, y)));
+            bounds = mergedBounds(bounds, pixelTerm(2 * cell + ivec2(x, y)));
     imageStore(destination, cell, vec4(bounds, 0.0, 0.0));
 }

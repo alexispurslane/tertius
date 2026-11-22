@@ -90,7 +90,7 @@ uint walkScreen(texture2D finest, texture2D bounds, ScreenWalk walk, uint cap, o
         float side = exactPowerOfTwo(level);
         float exit = max(cellExit(walk.ray, walk.inverse, cell, side, walk.farSide, crossed), s);
         // A cell beyond the screen holds no surface. Its fetch would leave the active part.
-        vec2 cellBounds = vec2(0.0, EmptyFar);
+        vec2 cellBounds = vec2(0.0, EmptyBack);
         if (!beyondTheScreen(cell, side))
             cellBounds = level == 0 ? texelFetch(finest, ivec2(cell), 0).rg
                 : texelFetch(bounds, ivec2(cell), level - 1).rg;
@@ -116,7 +116,7 @@ uint walkScreen(texture2D finest, texture2D bounds, ScreenWalk walk, uint cap, o
         {
             hit = clamp(walk.ray.start + walk.ray.step * entry, cell, cell + 1.0);
             hitPixel = ivec2(cell);
-            // A thickness that rounds to none leaves a slab of no depth, whose share would be 0 / 0.
+            // A slab of no depth, such as a sheet's that faces the eye, has no entry share: it would be 0 / 0.
             entryShare = back < near ? entryShareOf(inW, back, near) : 0.0;
             return WalkHit;
         }
