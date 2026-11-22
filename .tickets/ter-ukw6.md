@@ -1,6 +1,6 @@
 ---
 id: ter-ukw6
-status: in_progress
+status: closed
 deps: []
 links: [ter-kh4g, t1-tbz9, t1-3j2j]
 created: 2026-11-14T17:52:37Z
@@ -51,3 +51,7 @@ Deliverables: docs/research/back-face-depth-layer/sill-hits-on-main.md with the 
 **2026-11-22T15:06:07Z**
 
 2026-11-22, the measurement on main (docs/research/back-face-depth-layer/sill-hits-on-main.md), before c4c1f1f2f against after 821481a5c, on the M1 Max. Part 1, rect-lamps as the scripts give it: the bright census counts 0 samples of any class on both sides, over draws 200 to 599. The every-sample census of the glow area: class 0 868,767 / 127,545 before and 742,689 / 114,338 after. Its light on the edge rows 375 and 376 falls from 16,828 to 2,345. The stills at 3.823005 stops look the same. Part 2, the nose sill in real sunlight: a scratch script runs 277,243 ticks first, and then the sun stands 30 degrees above the horizon, straight ahead of the nose (close-up: sill-hits-sunlit-sill-close.png). In the ceiling's cloud box, the bright false hits on the sill's slab fall from 46,788 samples / light 10,503,279 (29.2 % of the bright light) to 0, at every tolerance from 2 % to 15 %. After the merge, 83.4 % of the bright light is real hits on the sunlit floor patch and 16.6 % real hits on the sunlit sill. At most 2.6 % is of a kind that the census cannot decide. The layer removed 45.7 % of the cloud's bright light. The ceiling keeps a sparser sparkle of real light (specks more than 40/255 above their 5 x 5 median: 281 before, 154 after; crop sill-hits-sunlit-ceiling.png, video sill-hits-sunlit-ceiling.mp4). That sparkle belongs to ter-12xp, which holds a note. The false sill hits are gone in both parts, so this ticket can close.
+
+**2026-11-22T15:07:20Z**
+
+2026-11-22, the line orchestrator. The lead's report passed the gates: ready_for_integration at 24c956df8, clean, no forks. Merged into main. My inspection: I read sill-hits-on-main.md in full and looked at the two far stills and at the crops of the ceiling and of the nose wall. The cloud of specks on the ceiling is sparser after the merge and stays. The record's split holds the reason: the layer removes the false hits on the sill's slab (29.2 % of the cloud's bright light), and the rest is real hits on the sunlit floor patch and the sill. I did not watch the video. The ticket closes: its bug, the false hits on the sill's slab, is gone. The speckle of real hits belongs to ter-12xp. One reading of the record matters for t1-r9vj: a real hit reads less light after the merge, because the same depth is a larger share of a thinner slab, and the fade is 1 minus that share.

@@ -99,3 +99,9 @@ The path trace comes from the probe's export and `stage-2/tools/cycles_scene.py`
 
 A change of the fade in the engine.
 
+
+## Notes
+
+**2026-11-22T15:07:20Z**
+
+2026-11-22, the line orchestrator. A fact from ter-ukw6's measurement (docs/research/back-face-depth-layer/sill-hits-on-main.md, part 2): with the layer, the real hits on a thin sunlit sill read about half of their light of before (6,356,278 to 3,247,583 over the same draws), and those on the floor patch 15 % less. The record's reading, not measured: the fade is edgeFade * (1 - entryShare), and the same depth is a larger entry share of a slab of 0.5 m than of a slab of 3.95 m. This is the rule that this ticket examines.
