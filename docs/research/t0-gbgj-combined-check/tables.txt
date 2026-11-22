@@ -1,0 +1,832 @@
+# tables.txt of t0-gbgj: part 1 is the output of measure.sh (all) of 12:22 on 2026-11-22, up to the section on motion in the two films, whose film frames were deleted after their videos and numbers were committed; part 2 is the output of "measure.sh 2".
+
+## The survey's numbers
+$ summary.py
+# Stills: specks / blotch / level
+s-M2   rect-lamps         specks 0.0048 blotch 0.0128 level +0.0007 failed []
+s-M2   exit-cabin         specks 0.2267 blotch 0.0215 level -0.0004 failed []
+s-M2   docking-cabin      specks 0.2652 blotch 0.0246 level +0.0012 failed []
+s-M2   cabin-light-cabin  specks 0.1725 blotch 0.0204 level -0.0005 failed []
+s-M2   deck-cuts          specks 0.0051 blotch 0.0057 level -0.0003 failed []
+s-M2   bay-sunbeam        specks 0.1437 blotch 0.0345 level +0.0008 failed []
+s-X2   rect-lamps         specks 0.0000 blotch 0.0105 level +0.0000 failed []
+s-X2   exit-cabin         specks 0.1977 blotch 0.0179 level -0.0008 failed []
+s-X2   docking-cabin      specks 0.2025 blotch 0.0194 level -0.0007 failed []
+s-X2   cabin-light-cabin  specks 0.1478 blotch 0.0160 level -0.0004 failed []
+s-X2   deck-cuts          specks 0.0051 blotch 0.0045 level -0.0000 failed []
+s-X2   bay-sunbeam        specks 0.1487 blotch 0.0294 level -0.0004 failed []
+s-A2   rect-lamps         specks 0.0048 blotch 0.0219 level +0.0010 failed []
+s-A2   exit-cabin         specks 0.1206 blotch 0.0141 level -0.0013 failed []
+s-A2   docking-cabin      specks 0.2074 blotch 0.0158 level -0.0007 failed []
+s-A2   cabin-light-cabin  specks 0.1676 blotch 0.0119 level -0.0000 failed []
+s-A2   deck-cuts          specks 0.0051 blotch 0.0039 level -0.0003 failed []
+s-A2   bay-sunbeam        specks 0.1636 blotch 0.0308 level +0.0008 failed []
+e-M2   rect-lamps         specks 0.0096 blotch 0.0126 level -0.0116 failed []
+e-X2   rect-lamps         specks 0.0096 blotch 0.0106 level -0.0123 failed []
+e-A2   rect-lamps         specks 0.0096 blotch 0.0221 level -0.0275 failed []
+# Switch cabin: r11 over frames 140 to 159, lowest / highest, in % of a lamps-on control
+w-M2 against own control: r11 lowest 100.0 % highest 100.0 %
+w-M2 against M2  control: r11 lowest 100.0 % highest 100.0 %
+w-M2 survey: slowest off/on 142 / 92, whole 77 / 54, failed ['settle']
+w-X2 against own control: r11 lowest 100.0 % highest 100.0 %
+w-X2 against M2  control: r11 lowest 98.5 % highest 98.6 %
+w-X2 survey: slowest off/on 77 / 50, whole 42 / 30, failed ['settle']
+# Film rect-bay
+f-M2 stops -0.2559 own -0.2559 frames 180 flicker 0.00190 grain 0.00580 failed ['motion blotches', 'motion level']
+f-X2 stops -0.2559 own -0.3751 frames 180 flicker 0.00241 grain 0.00619 failed ['motion blotches', 'motion level']
+# Film bay-sunbeam
+fs-M2 stops -4.0119 own -4.0119 frames 180 flicker 0.00397 grain 0.00951 failed ['motion blotches', 'motion level']
+fs-X2 stops -4.0119 own -4.1583 frames 180 flicker 0.00515 grain 0.00981 failed ['motion blotches', 'motion level']
+# Lag bay-sun
+l-M2 median lag 27.85 draws, largest 71.58, median error 0.2663, largest error 0.5481
+l-X2 median lag 13.61 draws, largest 26.20, median error 0.1505, largest error 0.3874
+
+## Take 1: the stills, daub against A2's long reference of the same exposure
+$ daub.py s-M2:rect-lamps s-X2:rect-lamps s-A2:rect-lamps
+s-M2       rect-lamps   daub 0.0119  broad 0.0191  smooth share 0.91  ceiling 0.0114  walls 0.0154
+s-X2       rect-lamps   daub 0.0089  broad 0.0078  smooth share 0.91  ceiling 0.0090  walls 0.0119
+s-A2       rect-lamps   daub 0.0079  broad 0.0215  smooth share 0.91  ceiling 0.0083  walls 0.0111
+
+$ daub.py e-M2:rect-lamps e-X2:rect-lamps e-A2:rect-lamps
+e-M2       rect-lamps   daub 0.0102  broad 0.0178  smooth share 0.92  ceiling 0.0100  walls 0.0132
+e-X2       rect-lamps   daub 0.0081  broad 0.0084  smooth share 0.92  ceiling 0.0086  walls 0.0094
+e-A2       rect-lamps   daub 0.0079  broad 0.0229  smooth share 0.92  ceiling 0.0081  walls 0.0089
+
+$ daub.py s-M2:exit-cabin s-X2:exit-cabin s-A2:exit-cabin
+s-M2       exit-cabin   daub 0.0289  broad 0.0473  smooth share 0.59
+s-X2       exit-cabin   daub 0.0173  broad 0.0135  smooth share 0.59
+s-A2       exit-cabin   daub 0.0131  broad 0.0104  smooth share 0.59
+
+$ daub.py s-M2:docking-cabin s-X2:docking-cabin s-A2:docking-cabin
+s-M2       docking-cabin daub 0.0263  broad 0.0306  smooth share 0.63
+s-X2       docking-cabin daub 0.0169  broad 0.0142  smooth share 0.63
+s-A2       docking-cabin daub 0.0137  broad 0.0119  smooth share 0.63
+
+$ daub.py s-M2:cabin-light-cabin s-X2:cabin-light-cabin s-A2:cabin-light-cabin
+s-M2       cabin-light-cabin daub 0.0428  broad 0.1268  smooth share 0.45
+s-X2       cabin-light-cabin daub 0.0348  broad 0.0483  smooth share 0.45
+s-A2       cabin-light-cabin daub 0.0285  broad 0.0482  smooth share 0.45
+
+$ daub.py s-M2:deck-cuts s-X2:deck-cuts s-A2:deck-cuts
+s-M2       deck-cuts    daub 0.0076  broad 0.0077  smooth share 0.72
+s-X2       deck-cuts    daub 0.0053  broad 0.0044  smooth share 0.72
+s-A2       deck-cuts    daub 0.0034  broad 0.0030  smooth share 0.72
+
+$ daub.py s-M2:bay-sunbeam s-X2:bay-sunbeam s-A2:bay-sunbeam
+s-M2       bay-sunbeam  daub 0.0315  broad 0.0587  smooth share 0.89  walls 0.0294  floor 0.0380
+s-X2       bay-sunbeam  daub 0.0229  broad 0.0383  smooth share 0.89  walls 0.0219  floor 0.0257
+s-A2       bay-sunbeam  daub 0.0149  broad 0.0315  smooth share 0.89  walls 0.0136  floor 0.0204
+
+## Take 1: the light of rect-lamps' ceiling and walls, as a share of A2's long reference
+$ light.py s-A2 s-M2 s-X2 s-A2
+rect-lamps   s-M2       ceiling shown  100.6% settled  101.0%   walls shown  100.2% settled  100.7%
+rect-lamps   s-X2       ceiling shown   99.5% settled   99.9%   walls shown   99.4% settled   99.8%
+rect-lamps   s-A2       ceiling shown   99.0% settled  100.0%   walls shown   99.0% settled  100.0%
+bay-sunbeam  s-M2       walls shown  103.0% settled  102.8%   floor shown   98.3% settled   98.4%
+bay-sunbeam  s-X2       walls shown  100.4% settled   99.7%   floor shown  100.1% settled  100.4%
+bay-sunbeam  s-A2       walls shown  100.9% settled  100.0%   floor shown   99.9% settled  100.0%
+exit-cabin   s-M2       whole shown  107.9% settled  101.3%   r11 shown  106.3% settled   99.2%
+exit-cabin   s-X2       whole shown  106.8% settled  100.1%   r11 shown  107.2% settled   99.8%
+exit-cabin   s-A2       whole shown  106.7% settled  100.0%   r11 shown  107.2% settled  100.0%
+
+$ light.py e-A2 e-M2 e-X2 e-A2
+rect-lamps   e-M2       ceiling shown  101.1% settled  102.7%   walls shown  100.7% settled  102.6%
+rect-lamps   e-X2       ceiling shown   98.8% settled  100.4%   walls shown   98.6% settled  100.3%
+rect-lamps   e-A2       ceiling shown   96.5% settled  100.0%   walls shown   95.9% settled  100.0%
+
+## Take 2: the switch cabin, M2's controls for both sides, then each side against its own
+$ switch.py s/w-M2/results/switch/cabin.json s/w-M2/results/switch/cabin.json s/w-X2/results/switch/cabin.json
+variant                            slowest off/on whole off/on  r11 off/on  lvl60 off w/r11  lvl60 on w/r11  cyc off w/r11  cyc on w/r11  dip off r11   dip on r11 own15 on r11  still lo/hi r11
+w-M2                                  142/92         77/54      116/83       106.9/112.0      95.6/92.7     106.9/112.0    95.7/92.8     112.0@60     82.7@2          -15.5    100.0/100.0  
+w-X2                                   77/50         42/30       63/44       102.6/104.1      97.9/95.6     102.6/104.1    98.0/95.6     104.1@60     81.4@2          -12.9     98.5/98.6   
+levels and dips in % of the reference's control at the same frame; own15 in % against the run's own control
+
+$ switch.py s/w-X2/results/switch/cabin.json s/w-X2/results/switch/cabin.json
+variant                            slowest off/on whole off/on  r11 off/on  lvl60 off w/r11  lvl60 on w/r11  cyc off w/r11  cyc on w/r11  dip off r11   dip on r11 own15 on r11  still lo/hi r11
+w-X2                                   77/50         42/30       63/44       102.6/105.2      98.5/96.9     102.6/105.3    98.5/96.9     105.2@60     82.6@2          -12.9    100.0/100.0  
+levels and dips in % of the reference's control at the same frame; own15 in % against the run's own control
+
+== w-M2 against its own controls
+$ regions.py s/w-M2/results/switch/cabin.json s/w-M2/results/switch/cabin.json
+index settle off settle on lvl60 off lvl60 on share on
+whole         77        54    106.9%    95.6%    1.000
+  r00        141        92    125.1%    89.9%    0.503
+  r01         14        12    101.7%    98.6%    4.076
+  r02        142        92    124.8%    89.9%    0.505
+  r10        131        87    119.3%    91.3%    0.547
+  r11        116        83    112.0%    92.7%    0.877
+  r12        131        87    119.1%    91.3%    0.549
+  r20        129        50    121.0%    96.1%    0.579
+  r21        115        41    114.6%    96.9%    0.785
+  r22        129        51    120.7%    96.1%    0.579
+
+== w-X2 against its own controls
+$ regions.py s/w-X2/results/switch/cabin.json s/w-X2/results/switch/cabin.json
+index settle off settle on lvl60 off lvl60 on share on
+whole         42        30    102.6%    98.5%    1.000
+  r00         77        50    108.2%    96.7%    0.498
+  r01          8         7    100.6%    99.5%    4.084
+  r02         74        50    108.2%    96.7%    0.501
+  r10         72        47    107.0%    97.0%    0.542
+  r11         63        44    105.2%    96.9%    0.871
+  r12         72        47    106.7%    97.0%    0.544
+  r20         76        31    108.1%    98.6%    0.584
+  r21         66        25    105.9%    98.8%    0.791
+  r22         75        31    107.9%    98.6%    0.584
+
+== w-X2 against M2's controls
+$ regions.py s/w-X2/results/switch/cabin.json s/w-M2/results/switch/cabin.json
+index settle off settle on lvl60 off lvl60 on share on
+whole         42        33    102.6%    97.9%    1.000
+  r00         83        57    109.0%    95.5%    0.503
+  r01          8         7    100.6%    99.2%    4.076
+  r02         80        56    109.0%    95.5%    0.505
+  r10         68        55    106.4%    95.6%    0.547
+  r11         55        54    104.1%    95.6%    0.877
+  r12         68        55    106.2%    95.6%    0.549
+  r20        100        29    110.6%    99.1%    0.579
+  r21         75        24    107.0%    99.0%    0.785
+  r22        101        29    110.4%    99.1%    0.579
+
+## Take 3: the film rect-bay (level and blotch at the middle and last frame, specks) and the lag film bay-sun
+$ films.py s/f-M2/results/motion/rect-bay.json s/f-X2/results/motion/rect-bay.json
+variant                          level mid/last  blotch mid/last
+f-M2                             +1.35 / +0.24   0.259 / 0.168
+f-X2                             +1.01 / +0.13   0.219 / 0.134
+
+$ filmspecks.py f-M2 f-X2
+run          rect-bay specks middle / last
+f-M2           0.21 /   0.97
+f-X2           0.19 /   0.26
+
+$ lags.py s/l-M2 s/l-X2
+variant                                     bay-sun        lamp-hall-16-moving   lamp-hall-64-spot-moving
+l-M2                                 27.85 / 0.2663                  not taken                  not taken
+l-X2                                 13.61 / 0.1505                  not taken                  not taken
+
+## Take 3b: the film bay-sunbeam (added by the line orchestrator): level, blotch and specks at the middle and last frame
+$ films.py s/fs-M2/results/motion/bay-sunbeam.json s/fs-X2/results/motion/bay-sunbeam.json
+variant                          level mid/last  blotch mid/last
+fs-M2                            -0.60 / -0.16   0.336 / 0.243
+fs-X2                            -0.37 / -0.06   0.210 / 0.126
+
+$ filmspecks.py --case bay-sunbeam fs-M2 fs-X2
+run          bay-sunbeam specks middle / last
+fs-M2          0.49 /   0.41
+fs-X2          0.24 /   0.16
+
+## Take 3b: the slit's teeth (bug tc-6v3d): four frames in a row on M2 and X2, then frame 90 beside the acceptance record's
+$ teeth.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/bay-sunbeam-slit-teeth.png 89 4 M2=fs-M2 X2=fs-X2
+M2 frame 89: 0 tips, rows/depths [], gaps [], mean depth 0.0 px
+M2 frame 90: 9 tips, rows/depths [(122, 1.8), (147, 2.2), (155, 2.1), (162, 2.6), (172, 2.3), (185, 1.7), (227, 2.6), (261, 2.6), (294, 3.3)], gaps [np.int64(25), np.int64(8), np.int64(7), np.int64(10), np.int64(13), np.int64(42), np.int64(34), np.int64(33)], mean depth 2.4 px
+M2 frame 91: 7 tips, rows/depths [(147, 1.6), (155, 1.6), (162, 2.0), (173, 1.8), (227, 2.3), (261, 2.4), (294, 3.1)], gaps [np.int64(8), np.int64(7), np.int64(11), np.int64(54), np.int64(34), np.int64(33)], mean depth 2.1 px
+M2 frame 92: 5 tips, rows/depths [(162, 1.6), (227, 1.9), (247, 1.6), (261, 2.0), (294, 2.8)], gaps [np.int64(65), np.int64(20), np.int64(14), np.int64(33)], mean depth 2.0 px
+M2 frames 89 and 90: correlation 0.15, best shift -9 rows
+M2 frames 90 and 91: correlation 0.95, best shift 0 rows
+M2 frames 91 and 92: correlation 0.80, best shift 0 rows
+X2 frame 89: 0 tips, rows/depths [], gaps [], mean depth 0.0 px
+X2 frame 90: 9 tips, rows/depths [(122, 1.8), (147, 2.1), (155, 2.1), (162, 2.5), (172, 2.3), (185, 1.7), (227, 2.6), (261, 2.7), (294, 3.3)], gaps [np.int64(25), np.int64(8), np.int64(7), np.int64(10), np.int64(13), np.int64(42), np.int64(34), np.int64(33)], mean depth 2.3 px
+X2 frame 91: 7 tips, rows/depths [(147, 1.6), (155, 1.6), (162, 2.0), (173, 1.8), (227, 2.3), (261, 2.4), (294, 3.2)], gaps [np.int64(8), np.int64(7), np.int64(11), np.int64(54), np.int64(34), np.int64(33)], mean depth 2.1 px
+X2 frame 92: 5 tips, rows/depths [(162, 1.6), (227, 1.9), (247, 1.6), (261, 2.1), (294, 2.8)], gaps [np.int64(65), np.int64(20), np.int64(14), np.int64(33)], mean depth 2.0 px
+X2 frames 89 and 90: correlation 0.14, best shift -9 rows
+X2 frames 90 and 91: correlation 0.95, best shift 0 rows
+X2 frames 91 and 92: correlation 0.78, best shift 0 rows
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/bay-sunbeam-slit-teeth.png
+
+$ layerteeth.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/bay-sunbeam-slit-layer.png /Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/design-x-acceptance-2026-11-22/pics/film-bay-sunbeam-slit.png 90 old main c4c1f1f2f=tile:0 M2=fs-M2 Design X alone=tile:1 X2=fs-X2
+old main c4c1f1f2f: 11 tips, rows/depths [(122, 1.7), (147, 2.0), (155, 2.0), (162, 2.4), (172, 2.2), (185, 1.6), (192, 1.9), (227, 2.5), (261, 2.5), (294, 3.2), (331, 1.8)]
+M2: 9 tips, rows/depths [(122, 1.8), (147, 2.2), (155, 2.1), (162, 2.6), (172, 2.3), (185, 1.7), (227, 2.6), (261, 2.6), (294, 3.3)]
+Design X alone: 11 tips, rows/depths [(122, 1.6), (147, 2.0), (155, 1.9), (162, 2.4), (173, 2.2), (185, 1.6), (192, 2.0), (227, 2.6), (261, 2.7), (272, 1.5), (294, 3.4)]
+X2: 9 tips, rows/depths [(122, 1.8), (147, 2.1), (155, 2.1), (162, 2.5), (172, 2.3), (185, 1.7), (227, 2.6), (261, 2.7), (294, 3.3)]
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/bay-sunbeam-slit-layer.png
+
+## What the layer changed: M2 against old main and X2 against Design X alone (the acceptance lead's still takes)
+$ layerdiff.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/layerdiff-cabin-light-cabin.png cabin-light-cabin 0.4 main: old main to M2=old-M:s-M2 Design X: X alone to X2=old-X:s-X2
+main: old main to M2: exposure ratio 0.951; brighter by over 10 %: 0.0816 of visible pixels, darker: 0.2619
+Design X: X alone to X2: exposure ratio 0.951; brighter by over 10 %: 0.1184 of visible pixels, darker: 0.2612
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/layerdiff-cabin-light-cabin.png
+
+$ layerdiff.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/layerdiff-exit-cabin.png exit-cabin 0.4 main: old main to M2=old-M:s-M2 Design X: X alone to X2=old-X:s-X2
+main: old main to M2: exposure ratio 1.020; brighter by over 10 %: 0.1385 of visible pixels, darker: 0.0530
+Design X: X alone to X2: exposure ratio 1.024; brighter by over 10 %: 0.1511 of visible pixels, darker: 0.0487
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/layerdiff-exit-cabin.png
+
+$ layerdiff.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/layerdiff-docking-cabin.png docking-cabin 0.4 main: old main to M2=old-M:s-M2 Design X: X alone to X2=old-X:s-X2
+main: old main to M2: exposure ratio 1.026; brighter by over 10 %: 0.1433 of visible pixels, darker: 0.0373
+Design X: X alone to X2: exposure ratio 1.023; brighter by over 10 %: 0.1336 of visible pixels, darker: 0.0367
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/layerdiff-docking-cabin.png
+
+$ layerdiff.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/layerdiff-deck-cuts.png deck-cuts 0.4 main: old main to M2=old-M:s-M2 Design X: X alone to X2=old-X:s-X2
+main: old main to M2: exposure ratio 0.994; brighter by over 10 %: 0.0000 of visible pixels, darker: 0.0166
+Design X: X alone to X2: exposure ratio 0.994; brighter by over 10 %: 0.0000 of visible pixels, darker: 0.0157
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/layerdiff-deck-cuts.png
+
+## The pictures
+$ sheet.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/rect-lamps-whole.png rect-lamps full 0.5 M2=s-M2 X2=s-X2
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/rect-lamps-whole.png (1926, 562)
+
+$ sheet.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/rect-lamps-whole-408.png rect-lamps full 0.5 M2, 4.08 stops=e-M2 X2, 4.08 stops=e-X2
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/rect-lamps-whole-408.png (1926, 562)
+
+$ sheet.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/rect-lamps-ceiling.png rect-lamps 640,0,1280,420 1 reference A2=s-A2:reference M2=s-M2 X2=s-X2
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/rect-lamps-ceiling.png (1932, 442)
+
+$ sheet.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/exit-cabin.png exit-cabin full 0.5 M2=s-M2 X2=s-X2
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/exit-cabin.png (1926, 562)
+
+$ sheet.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/docking-cabin.png docking-cabin full 0.5 M2=s-M2 X2=s-X2
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/docking-cabin.png (1926, 562)
+
+$ sheet.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/cabin-light-cabin.png cabin-light-cabin full 0.5 M2=s-M2 X2=s-X2
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/cabin-light-cabin.png (1926, 562)
+
+$ sheet.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/deck-cuts.png deck-cuts full 0.5 M2=s-M2 X2=s-X2
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/deck-cuts.png (1926, 562)
+
+$ sheet.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/bay-sunbeam.png bay-sunbeam full 0.5 M2=s-M2 X2=s-X2
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/bay-sunbeam.png (1926, 562)
+
+$ levelchart.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/switch-r11.png s/w-M2/results/switch/cabin.json M2=s/w-M2/results/switch/cabin.json X2=s/w-X2/results/switch/cabin.json
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/switch-r11.png
+
+$ filmsheet.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/rect-bay-frames.png rect-bay 0.4 still M2=f-M2:still M2=f-M2 still X2=f-X2:still X2=f-X2
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/rect-bay-frames.png (3090, 914)
+
+$ filmcrop.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/rect-bay-end-floor.png end 700,600,1100,1000 still M2=f-M2:still M2=f-M2 X2=f-X2
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/rect-bay-end-floor.png (1212, 422)
+
+$ filmspecks.py old-f-M f-M2 old-f-X f-X2
+run          rect-bay specks middle / last
+old-f-M        0.18 /   0.89
+f-M2           0.21 /   0.97
+old-f-X        0.22 /   0.27
+f-X2           0.19 /   0.26
+
+$ filmspecks.py --case bay-sunbeam old-fs-M fs-M2 old-fs-X fs-X2
+run          bay-sunbeam specks middle / last
+old-fs-M       0.48 /   0.41
+fs-M2          0.49 /   0.41
+old-fs-X       0.25 /   0.14
+fs-X2          0.24 /   0.16
+
+$ filmsheet.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/layer-rect-bay-frames.png rect-bay 0.4 old main c4c1f1f2f=old-f-M M2=f-M2 Design X alone=old-f-X X2=f-X2
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/layer-rect-bay-frames.png (3090, 914)
+
+$ sheet.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/layer-exit-cabin-jamb.png exit-cabin 450,350,750,1000 1 old main c4c1f1f2f=old-M M2=s-M2 Design X alone=old-X X2=s-X2
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/layer-exit-cabin-jamb.png (1218, 672)
+
+## The videos (video.sh), M2 left and X2 right at M2's fixed exposure
+## Motion in the two films: light per region, specks, grain and two fixed edges per frame, and five frames of each
+$ filmmotion.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/rect-bay-motion.png film rect-bay, M2 and X2 at -0.26 stops window:860,180,910,340;corner:990,100,1050,450 M2=f-M2 X2=f-X2
+M2 edge window: x 882.731 to 884.262, range 1.531 px
+M2 edge corner: x 1015.747 to 1019.189, range 3.442 px
+M2 specks mean 0.36 largest 1.30; grain mean 0.0121 largest 0.0194; whole light first / middle / last 0.7226 / 0.3757 / 0.0931; frames 180
+X2 edge window: x 882.732 to 884.210, range 1.478 px
+X2 edge corner: x 1014.140 to 1018.456, range 4.316 px
+X2 specks mean 0.34 largest 1.04; grain mean 0.0120 largest 0.0194; whole light first / middle / last 0.7309 / 0.3726 / 0.0917; frames 180
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/rect-bay-motion.png
+
+$ filmmotion.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/bay-sunbeam-motion.png film bay-sunbeam, M2 and X2 at -4.01 stops window:860,180,910,340;corner:990,100,1050,450 M2=fs-M2 X2=fs-X2
+
+$ filmmotion.py (bay-sunbeam, its own run of 12:00, the same arguments as above)
+M2 edge window: x 883.975 to 886.711, range 2.736 px
+M2 edge corner: x 1019.031 to 1035.841, range 16.810 px
+M2 specks mean 1.01 largest 7.04; grain mean 0.0321 largest 0.0525; whole light first / middle / last 0.0027 / 0.0481 / 0.1828; frames 180
+X2 edge window: x 883.949 to 886.143, range 2.193 px
+X2 edge corner: x 1018.811 to 1035.336, range 16.524 px
+X2 specks mean 0.69 largest 6.93; grain mean 0.0278 largest 0.0362; whole light first / middle / last 0.0027 / 0.0716 / 0.2197; frames 180
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/bay-sunbeam-motion.png
+
+
+# --- tables.txt, part 2: measure.sh 2, run on 2026-11-22 at 15:37 (the sections from take 2b on) ---
+
+## Take 2b: the jambs after the switch at constant render scales 0.956 and 2/3 (the glow-stays case)
+$ jambsheet.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/jamb-sheet-glow-stays.png 2 M2 0.956=sc-M2-956 X2 0.956=sc-X2-956 M2 2/3=sc-M2-23 X2 2/3=sc-X2-23
+M2 0.956: edges at frame 150: back wall left corner x 734.07, back wall right corner x 1185.19; distance 451.12 px
+X2 0.956: edges at frame 150: back wall left corner x 734.08, back wall right corner x 1185.17; distance 451.08 px
+M2 2/3: edges at frame 150: back wall left corner x 734.33, back wall right corner x 1184.72; distance 450.39 px
+X2 2/3: edges at frame 150: back wall left corner x 734.35, back wall right corner x 1184.72; distance 450.37 px
+jamb mean luminance / floor specks per 10,000 visible pixels
+moment                      M2 0.956             X2 0.956               M2 2/3               X2 2/3
+10 before off         0.0446 /   0.0       0.0465 /   0.0       0.0435 /   0.0       0.0435 /   0.0
+20 after off          0.0131 /   0.0       0.0106 /   0.0       0.0100 /   0.0       0.0082 /   0.0
+60 after off          0.0065 /   0.0       0.0104 /   0.0       0.0038 /   0.0       0.0036 /   0.0
+195 after off         0.0066 /   0.0       0.0079 /   0.0       0.0032 /   0.0       0.0033 /   0.0
+20 after on           0.0283 /   0.0       0.0351 /   0.0       0.0275 /   0.0       0.0325 /   0.0
+95 after on           0.0470 /   0.0       0.0519 /   0.0       0.0430 /   0.0       0.0439 /   0.0
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/jamb-sheet-glow-stays.png
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/jamb-sheet-glow-stays-jamb.png
+
+## Take 4: the deck's GPU frame span, per round
+$ timetable.py /private/tmp/t0-gbgj/timing
+round  M2 ms  X2 ms  X2 - M2  clock M2 / X2 (MHz)
+r1     19.247  19.385  +0.138  1296 / 1296
+r2     19.617  19.495  -0.122  1296 / 1296
+r3     19.561  19.781  +0.220  1296 / 1296
+r4     19.148  19.415  +0.267  1296 / 1296
+mean   19.393  19.519  +0.126  (per-round differences: median +0.179, spread 0.389)
+
+## The stills sample at a constant render scale of 0.956 beside 2/3 (M2 = m2g, X2 = x2g, with scratch-render-scale.patch)
+$ sheet.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/s956-rect-lamps.png rect-lamps full 0.4 M2 0.956=s9-M2 X2 0.956=s9-X2 M2 2/3=s-M2 X2 2/3=s-X2
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/s956-rect-lamps.png (3090, 454)
+
+$ sheet.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/s956-exit-cabin.png exit-cabin full 0.4 M2 0.956=s9-M2 X2 0.956=s9-X2 M2 2/3=s-M2 X2 2/3=s-X2
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/s956-exit-cabin.png (3090, 454)
+
+$ sheet.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/s956-deck-cuts.png deck-cuts full 0.4 M2 0.956=s9d-M2 X2 0.956=s9-X2 M2 2/3=s-M2 X2 2/3=s-X2
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/s956-deck-cuts.png (3090, 454)
+
+$ sheet.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/s956-bay-sunbeam.png bay-sunbeam full 0.4 M2 0.956=s9-M2 X2 0.956=s9-X2 M2 2/3=s-M2 X2 2/3=s-X2
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/s956-bay-sunbeam.png (3090, 454)
+
+$ sheet.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/s956-rect-lamps-408.png rect-lamps full 0.4 M2 0.956=e9-M2 X2 0.956=e9-X2 M2 2/3=e-M2 X2 2/3=e-X2
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/s956-rect-lamps-408.png (3090, 454)
+
+$ stillcrops.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/s956-rect-lamps-opening.png rect-lamps 1640,360,1920,600 2 M2 0.956=s9-M2 X2 0.956=s9-X2 M2 2/3=s-M2 X2 2/3=s-X2
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/s956-rect-lamps-opening.png
+
+$ stillcrops.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/s956-deck-cuts-glass.png deck-cuts 1150,40,1600,360 1 M2 0.956=s9d-M2 X2 0.956=s9-X2 M2 2/3=s-M2 X2 2/3=s-X2
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/s956-deck-cuts-glass.png
+
+$ stillcrops.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/s956-bay-sunbeam-slit.png bay-sunbeam 150,0,420,360 2 M2 0.956=s9-M2 X2 0.956=s9-X2 M2 2/3=s-M2 X2 2/3=s-X2
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/s956-bay-sunbeam-slit.png
+
+## Take 2b and 2c: glow stays against glow off at both constant scales
+$ glowsheet.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/glow-switch-23.png 23
+M2 180: 149790 pixels differ, box x 601 to 1324, y 0 to 368, largest 255; jamb crop largest 0, floor crop largest 0
+X2 180: 151063 pixels differ, box x 599 to 1317, y 0 to 371, largest 255; jamb crop largest 0, floor crop largest 0
+M2 220: 151963 pixels differ, box x 589 to 1330, y 0 to 367, largest 255; jamb crop largest 0, floor crop largest 0
+X2 220: 153074 pixels differ, box x 590 to 1323, y 0 to 370, largest 255; jamb crop largest 0, floor crop largest 0
+M2 380: 23626 pixels differ, box x 640 to 1295, y 0 to 344, largest 9; jamb crop largest 0, floor crop largest 0
+X2 380: 21593 pixels differ, box x 677 to 1287, y 0 to 323, largest 9; jamb crop largest 0, floor crop largest 0
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/glow-switch-23.png
+
+$ glowsheet.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/glow-switch-956.png 956
+M2 180: 149988 pixels differ, box x 600 to 1324, y 0 to 408, largest 255; jamb crop largest 0, floor crop largest 0
+X2 180: 150931 pixels differ, box x 599 to 1323, y 0 to 359, largest 255; jamb crop largest 0, floor crop largest 0
+M2 220: 152122 pixels differ, box x 593 to 1319, y 0 to 370, largest 255; jamb crop largest 0, floor crop largest 0
+X2 220: 152737 pixels differ, box x 597 to 1328, y 0 to 365, largest 255; jamb crop largest 0, floor crop largest 0
+M2 380: 4147 pixels differ, box x 651 to 1301, y 0 to 300, largest 8; jamb crop largest 0, floor crop largest 0
+X2 380: 4378 pixels differ, box x 605 to 1290, y 0 to 316, largest 9; jamb crop largest 0, floor crop largest 0
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/glow-switch-956.png
+
+## Take 2c: the fair switch at the survey's scale, M2's controls for both sides, then each side against its own
+$ switch.py s/wg-M2/results/switch/cabin.json s/wg-M2/results/switch/cabin.json s/wg-X2/results/switch/cabin.json
+variant                            slowest off/on whole off/on  r11 off/on  lvl60 off w/r11  lvl60 on w/r11  cyc off w/r11  cyc on w/r11  dip off r11   dip on r11 own15 on r11  still lo/hi r11
+wg-M2                                 142/92        122/53      116/83       115.8/112.0      95.7/92.7     115.8/112.0    95.7/92.8     112.0@60     82.7@2          -15.5    100.0/100.0  
+wg-X2                                  77/50         66/30       63/44       105.8/104.1      98.0/95.6     105.8/104.1    98.0/95.6     104.1@60     81.4@2          -12.9     98.5/98.6   
+levels and dips in % of the reference's control at the same frame; own15 in % against the run's own control
+
+== wg-M2 against its own controls
+$ regions.py s/wg-M2/results/switch/cabin.json s/wg-M2/results/switch/cabin.json
+index settle off settle on lvl60 off lvl60 on share on
+whole        122        53    115.8%    95.7%    1.000
+  r00        141        92    125.1%    89.9%    0.503
+  r01         96         5    109.8%    98.6%    4.076
+  r02        142        92    124.8%    89.9%    0.505
+  r10        131        87    119.3%    91.3%    0.547
+  r11        116        83    112.0%    92.7%    0.877
+  r12        131        87    119.1%    91.3%    0.549
+  r20        129        50    121.0%    96.1%    0.579
+  r21        115        41    114.6%    96.9%    0.785
+  r22        129        51    120.7%    96.1%    0.579
+
+== wg-X2 against its own controls
+$ regions.py s/wg-X2/results/switch/cabin.json s/wg-X2/results/switch/cabin.json
+index settle off settle on lvl60 off lvl60 on share on
+whole         66        30    105.9%    98.5%    1.000
+  r00         77        50    108.2%    96.7%    0.498
+  r01         51         4    103.6%    99.6%    4.084
+  r02         74        50    108.2%    96.7%    0.501
+  r10         72        47    107.0%    97.0%    0.542
+  r11         63        44    105.2%    96.9%    0.871
+  r12         72        47    106.7%    97.0%    0.544
+  r20         76        31    108.1%    98.6%    0.584
+  r21         66        25    105.9%    98.8%    0.791
+  r22         75        31    107.9%    98.6%    0.584
+
+== wg-X2 against wg-M2's controls
+$ regions.py s/wg-X2/results/switch/cabin.json s/wg-M2/results/switch/cabin.json
+index settle off settle on lvl60 off lvl60 on share on
+whole         65        32    105.8%    98.0%    1.000
+  r00         83        57    109.0%    95.5%    0.503
+  r01         48         4    103.2%    99.3%    4.076
+  r02         80        56    109.0%    95.5%    0.505
+  r10         68        55    106.4%    95.6%    0.547
+  r11         55        54    104.1%    95.6%    0.877
+  r12         68        55    106.2%    95.6%    0.549
+  r20        100        29    110.6%    99.1%    0.579
+  r21         75        24    107.0%    99.0%    0.785
+  r22        101        29    110.4%    99.1%    0.579
+
+$ levelchart.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/switch-r11-glow-off.png s/wg-M2/results/switch/cabin.json M2=s/wg-M2/results/switch/cabin.json X2=s/wg-X2/results/switch/cabin.json
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/switch-r11-glow-off.png
+
+## Take 2d: the jambs through the dynamic scale's replay path on M2 at 0.956, beside the fixed path
+$ jambsheet.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/jamb-sheet-replay.png 2 M2 fixed 0.956=sc-M2-956 M2 replay 0.956=scr-M2-956 M2 fixed 2/3=sc-M2-23
+M2 fixed 0.956: edges at frame 150: back wall left corner x 734.07, back wall right corner x 1185.19; distance 451.12 px
+M2 replay 0.956: edges at frame 150: back wall left corner x 734.07, back wall right corner x 1185.19; distance 451.12 px
+M2 fixed 2/3: edges at frame 150: back wall left corner x 734.33, back wall right corner x 1184.72; distance 450.39 px
+jamb mean luminance / floor specks per 10,000 visible pixels
+moment                M2 fixed 0.956      M2 replay 0.956         M2 fixed 2/3
+10 before off         0.0446 /   0.0       0.0446 /   0.0       0.0435 /   0.0
+20 after off          0.0131 /   0.0       0.0131 /   0.0       0.0100 /   0.0
+60 after off          0.0065 /   0.0       0.0065 /   0.0       0.0038 /   0.0
+195 after off         0.0066 /   0.0       0.0066 /   0.0       0.0032 /   0.0
+20 after on           0.0283 /   0.0       0.0283 /   0.0       0.0275 /   0.0
+95 after on           0.0470 /   0.0       0.0470 /   0.0       0.0430 /   0.0
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/jamb-sheet-replay.png
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/jamb-sheet-replay-jamb.png
+
+$ scalepair.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/jamb-m2-replay-0956-vs-fixed.png scr-M2-956 sc-M2-956 150 355
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/jamb-m2-replay-0956-vs-fixed.png
+
+$ scalepair.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/jamb-m2-fixed-0956-vs-23.png sc-M2-956 sc-M2-23 150 355
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/jamb-m2-fixed-0956-vs-23.png
+
+## What stays at a render scale near 1 (bug t58-i3sn), and on M3 and X3
+$ edgefaults.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/opening-0956-vs-23.png 150 220 355 -- M2 0.956=sc-M2-956 X2 0.956=sc-X2-956 M2 2/3=sc-M2-23 X2 2/3=sc-X2-23
+specks per box (groups of pixels), per run and frame
+run                frame      ceiling      opening  floor sides
+M2 0.956             150            5           39            0
+X2 0.956             150            5           39            0
+M2 2/3               150            0            5            0
+X2 2/3               150            0            5            0
+M2 0.956             220           10           36           41
+X2 0.956             220           10           45           33
+M2 2/3               220            0            2            0
+X2 2/3               220            0            0            0
+M2 0.956             355           10           37           30
+X2 0.956             355           11           37           30
+M2 2/3               355            0           32            0
+X2 2/3               355            0           33            0
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/opening-0956-vs-23.png
+
+$ edgefaults.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/opening-0956-m2-vs-m3.png 150 220 355 -- M2 0.956=sc-M2-956 M3 0.956=scr-M3-956 M2 2/3=sc-M2-23
+specks per box (groups of pixels), per run and frame
+run                frame      ceiling      opening  floor sides
+M2 0.956             150            5           39            0
+M3 0.956             150            5           39            0
+M2 2/3               150            0            5            0
+M2 0.956             220           10           36           41
+M3 0.956             220           10           36           42
+M2 2/3               220            0            2            0
+M2 0.956             355           10           37           30
+M3 0.956             355           10           37           31
+M2 2/3               355            0           32            0
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/opening-0956-m2-vs-m3.png
+
+$ edgefaults.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/opening-0956-x2-vs-x3.png 150 220 355 -- X2 0.956=sc-X2-956 X3 0.956=scr-X3-956 X2 2/3=sc-X2-23
+specks per box (groups of pixels), per run and frame
+run                frame      ceiling      opening  floor sides
+X2 0.956             150            5           39            0
+X3 0.956             150            5           39            0
+X2 2/3               150            0            5            0
+X2 0.956             220           10           45           33
+X3 0.956             220           10           45           28
+X2 2/3               220            0            0            0
+X2 0.956             355           11           37           30
+X3 0.956             355           11           37           25
+X2 2/3               355            0           33            0
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/opening-0956-x2-vs-x3.png
+
+## The size ramps (the acceptance lead's sizeramp.sh of b53c037f1; frames deleted, the saved tables' last lines)
+== ramp-M3.txt
+181 sizes, 32 leak (a jamb mean above 0.08): 1000 x 560, 1008 x 560, 1072 x 600, 1080 x 600, 1200 x 672, 1272 x 712, 1344 x 752, 1376 x 776, 1400 x 784, 1416 x 792, 1432 x 808, 1472 x 824, 1488 x 832, 1544 x 864, 1560 x 872, 1600 x 896, 1616 x 904, 1616 x 912, 1632 x 912, 1672 x 936, 1688 x 944, 1744 x 976, 1744 x 984, 1760 x 984, 1800 x 1008, 1800 x 1016, 1816 x 1016, 1816 x 1024, 1832 x 1024, 1872 x 1048, 1872 x 1056, 1888 x 1056
+settle check at 1344 x 752: right 0.0836 10 draws before the last frame, 0.0876 at it; left 0.0842, 0.0890
+settle check at 1832 x 1032: right 0.0482 10 draws before the last frame, 0.0491 at it; left 0.0507, 0.0502
+settle check at 1920 x 1080: right 0.0449 10 draws before the last frame, 0.0444 at it; left 0.0437, 0.0434
+
+== ramp-X3.txt
+181 sizes, 35 leak (a jamb mean above 0.08): 1000 x 560, 1008 x 560, 1072 x 600, 1080 x 600, 1120 x 632, 1144 x 640, 1200 x 672, 1216 x 680, 1272 x 712, 1344 x 752, 1400 x 784, 1416 x 792, 1432 x 808, 1472 x 824, 1488 x 832, 1544 x 864, 1560 x 872, 1600 x 896, 1616 x 904, 1616 x 912, 1632 x 912, 1672 x 936, 1688 x 944, 1744 x 976, 1744 x 984, 1760 x 984, 1800 x 1008, 1800 x 1016, 1816 x 1016, 1816 x 1024, 1832 x 1024, 1872 x 1048, 1872 x 1056, 1888 x 1056, 1904 x 1064
+settle check at 1344 x 752: right 0.0831 10 draws before the last frame, 0.0861 at it; left 0.0830, 0.0887
+settle check at 1832 x 1032: right 0.0507 10 draws before the last frame, 0.0513 at it; left 0.0575, 0.0566
+settle check at 1920 x 1080: right 0.0458 10 draws before the last frame, 0.0455 at it; left 0.0446, 0.0444
+
+== ramp-W.txt
+181 sizes, 0 leak (a jamb mean above 0.08): 
+settle check at 1344 x 752: right 0.0446 10 draws before the last frame, 0.0443 at it; left 0.0432, 0.0431
+settle check at 1832 x 1032: right 0.0439 10 draws before the last frame, 0.0439 at it; left 0.0440, 0.0439
+settle check at 1920 x 1080: right 0.0447 10 draws before the last frame, 0.0443 at it; left 0.0435, 0.0434
+
+## The window test (wintest.sh; frames deleted: the saved results, and the sheet from the opening crops that remain)
+# The window test's results (wintest.sh): side, window width and height, aspect error, right and left jamb means, the crop boxes scaled to the window, and the sizes that the run logged.
+M3 1800 1008 +0.4464% 0.0977 0.0582  right box (1656, 462, 1691, 546) left box (109, 467, 140, 541)  sizes logged: 1800 1008;
+M3 1920 1080 +0.0000% 0.0436 0.0435  right box (1770, 495, 1808, 585) left box (113, 500, 146, 580)  sizes logged: 1920 1080;
+M3 1784 1008 -0.4464% 0.0437 0.0437  right box (1648, 462, 1683, 546) left box (101, 467, 132, 541)  sizes logged: 1784 1008;
+M3 1792 1008 +0.0000% 0.0438 0.0433  right box (1652, 462, 1687, 546) left box (105, 467, 136, 541)  sizes logged: 1792 1008;
+M3 1808 1008 +0.8929% 0.0435 0.0431  right box (1660, 462, 1695, 546) left box (113, 467, 144, 541)  sizes logged: 1808 1008;
+M3 1816 1008 +1.3393% 0.0510 0.0591  right box (1664, 462, 1699, 546) left box (117, 467, 148, 541)  sizes logged: 1816 1008;
+W 1800 1008 +0.4464% 0.0977 0.0582  right box (1656, 462, 1691, 546) left box (109, 467, 140, 541)  sizes logged: 1800 1008;
+W 1920 1080 +0.0000% 0.0436 0.0435  right box (1770, 495, 1808, 585) left box (113, 500, 146, 580)  sizes logged: 1920 1080;
+
+$ winsheet.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/window-1800x1008-M3-W.png M3 1800x1008=/private/tmp/t0-gbgj/runs/win-M3-1800x1008/opening.png W 1800x1008=/private/tmp/t0-gbgj/runs/win-W-1800x1008/opening.png M3 1920x1080=/private/tmp/t0-gbgj/runs/win-M3-1920x1080/opening.png W 1920x1080=/private/tmp/t0-gbgj/runs/win-W-1920x1080/opening.png
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/window-1800x1008-M3-W.png
+
+## The wobble before and after the fix (frames deleted; the saved output)
+== wobble.txt
+before m2r: horizontal distance 1171.40 to 1190.93 output px (range 19.53), vertical distance 257.24 to 259.02 (range 1.78)
+  rms of the horizontal distance around its mean 4.801 px, around the prediction 0.425 px (D0 = 1184.55 px); predicted range 1172.73 to 1190.82
+  correlation with render width +0.274, render height +0.355, (h / w) * 16/9 +0.996; render h/w * 16/9 from 0.9900 to 1.0053
+  noise floor: rms of the frame-to-frame change of the horizontal distance between two draws of one size, over sqrt 2: 0.078 px (235 pairs); vertical distance against (h / w) * 16/9: correlation -0.283, rms around its mean 0.381 px
+after W: horizontal distance 1182.75 to 1185.44 output px (range 2.68), vertical distance 257.22 to 259.02 (range 1.80)
+  rms of the horizontal distance around its mean 0.437 px, around the prediction 4.647 px (D0 = 1185.70 px); predicted range 1173.86 to 1191.97
+  correlation with render width +0.341, render height +0.347, (h / w) * 16/9 +0.167; render h/w * 16/9 from 0.9900 to 1.0053
+  noise floor: rms of the frame-to-frame change of the horizontal distance between two draws of one size, over sqrt 2: 0.119 px (235 pairs); vertical distance against (h / w) * 16/9: correlation -0.259, rms around its mean 0.401 px
+docs/research/t0-gbgj-combined-check/pics/wobble-before-after.png (1300, 560)
+
+== wobsplit.txt
+measure | before change | before one size | after change | after one size
+draws | 84 | 236 | 84 | 236
+distance residual rms / range (px of 1920) | 0.621 / 2.60 | 0.329 / 2.12 | 0.747 / 2.68 | 0.245 / 1.39
+midpoint rms / range (px of 1920) | 0.353 / 1.80 | 0.168 / 1.15 | 0.408 / 1.54 | 0.137 / 1.35
+distance step mean abs / largest (px of 1920) | 0.287 / 1.71 | 0.039 / 0.87 | 0.129 / 1.51 | 0.042 / 1.27
+midpoint step mean abs / largest (px of 1920) | 0.250 / 1.07 | 0.051 / 1.15 | 0.084 / 0.75 | 0.035 / 1.35
+
+before:
+  largest step of the distance residual: 1.71 px of 1920 = 1.14 px of 1280, at film frame 180 (changed, scale 0.6499 -> 0.6525)
+  distance residual: correlation with render scale +0.475, render width +0.475, changed draw -0.423
+  distance residual: between-run rms 0.394 px over 85 runs, within-run rms 0.160 px
+  distance residual by draws since a change, mean abs value / mean abs step (draws): 0: 0.472/0.287 (84), 1: 0.335/0.024 (29), 2: 0.289/0.090 (17), 3: 0.205/0.041 (10), 4: 0.232/0.016 (7), 5+: 0.262/0.037 (172)
+  largest step of the midpoint: 1.15 px of 1920 = 0.77 px of 1280, at film frame 361 (one size, scale 0.7559 -> 0.7559)
+  midpoint: correlation with render scale +0.007, render width +0.005, changed draw -0.080
+  midpoint: between-run rms 0.205 px over 85 runs, within-run rms 0.107 px
+  midpoint by draws since a change, mean abs value / mean abs step (draws): 0: 0.279/0.250 (84), 1: 0.200/0.037 (29), 2: 0.133/0.063 (17), 3: 0.113/0.026 (10), 4: 0.133/0.011 (7), 5+: 0.098/0.055 (172)
+
+after:
+  largest step of the distance residual: 1.51 px of 1920 = 1.00 px of 1280, at film frame 180 (changed, scale 0.6499 -> 0.6525)
+  distance residual: correlation with render scale +0.343, render width +0.341, changed draw -0.410
+  distance residual: between-run rms 0.413 px over 85 runs, within-run rms 0.141 px
+  distance residual by draws since a change, mean abs value / mean abs step (draws): 0: 0.556/0.129 (84), 1: 0.188/0.051 (29), 2: 0.172/0.017 (17), 3: 0.115/0.011 (10), 4: 0.105/0.010 (7), 5+: 0.184/0.046 (172)
+  largest step of the midpoint: 1.35 px of 1920 = 0.90 px of 1280, at film frame 361 (one size, scale 0.7559 -> 0.7559)
+  midpoint: correlation with render scale -0.237, render width -0.237, changed draw +0.018
+  midpoint: between-run rms 0.228 px over 85 runs, within-run rms 0.076 px
+  midpoint by draws since a change, mean abs value / mean abs step (draws): 0: 0.334/0.084 (84), 1: 0.177/0.029 (29), 2: 0.124/0.014 (17), 3: 0.101/0.008 (10), 4: 0.082/0.011 (7), 5+: 0.068/0.041 (172)
+
+per-size share of the variance (all draws / no change draws), distinct sizes; left-right correlation:
+  before: 40 sizes; left 0.35 / 0.27, right 0.51 / 0.47, distance 0.51 / 0.42, midpoint 0.41 / 0.34; left-right correlation +0.089 (no change draws +0.078)
+  after: 40 sizes; left 0.42 / 0.34, right 0.41 / 0.49, distance 0.44 / 0.33, midpoint 0.40 / 0.46; left-right correlation +0.104 (no change draws +0.217)
+  alignment before: size log moved -1 draw: residual rms 3.759 px, on change draws 7.317, on one-size draws 0.329
+  alignment before: size log moved +0 draw: residual rms 0.425 px, on change draws 0.621, on one-size draws 0.329
+  alignment before: size log moved +1 draw: residual rms 3.762 px, on change draws 5.771, on one-size draws 2.704
+
+inside the 60 frames after each lamp switch: changed / one size, rms of the value and mean abs step (draws):
+  before: distance 0.638/0.288 (77) against 0.441/0.118 (43); midpoint 0.361/0.251 (77) against 0.289/0.201 (43)
+  after: distance 0.779/0.140 (77) against 0.411/0.175 (43); midpoint 0.426/0.091 (77) against 0.288/0.149 (43)
+
+per edge: correlation with draws since a change and with the render width:
+  before: left -0.324 / -0.377, right +0.253 / +0.286, distance +0.414 / +0.475, midpoint +0.009 / +0.005
+  after: left -0.051 / -0.524, right +0.232 / +0.045, distance +0.233 / +0.341, midpoint +0.159 / -0.237
+
+the distance residual against a straight line in the render scale:
+  before distance: slope +0.628 px per 0.1 of scale, scale from 0.643 to 0.756; rms left over 0.425 -> 0.374; changed / one size 0.563 / 0.278, inside the switch windows 0.577 / 0.396
+  before midpoint: slope +0.005 px per 0.1 of scale, scale from 0.643 to 0.756; rms left over 0.232 -> 0.232; changed / one size 0.353 / 0.168, inside the switch windows 0.361 / 0.289
+  after distance: slope +0.466 px per 0.1 of scale, scale from 0.643 to 0.756; rms left over 0.437 -> 0.410; changed / one size 0.714 / 0.216, inside the switch windows 0.746 / 0.423
+  after midpoint: slope -0.177 px per 0.1 of scale, scale from 0.643 to 0.756; rms left over 0.240 -> 0.233; changed / one size 0.393 / 0.138, inside the switch windows 0.409 / 0.283
+
+== levjump.txt
+before m2r:
+  floor: before off (0/18): rise - against 0.02/0.01, kink - against 0.01/0.00 | off 0-60 (39/20): rise 2.99/1.33 against 1.36/0.71, kink 0.55/0.22 against 0.80/0.25 | off 60-200 (5/134): rise 1.06/0.57 against 0.51/0.15, kink 0.39/0.21 against 0.36/0.04 | on 0-100 (40/58): rise 0.70/0.30 against 0.40/0.12, kink 0.30/0.15 against 0.21/0.03
+  left wall: before off (0/18): rise - against 0.05/0.02, kink - against 0.03/0.02 | off 0-60 (39/20): rise 3.00/1.58 against 1.81/0.89, kink 1.54/0.65 against 0.96/0.37 | off 60-200 (5/134): rise 2.01/1.59 against 0.58/0.19, kink 0.89/0.77 against 0.89/0.05 | on 0-100 (40/58): rise 2.66/1.17 against 2.62/0.51, kink 0.47/0.21 against 0.44/0.11
+  ceiling: before off (0/18): rise - against 0.09/0.02, kink - against 0.04/0.02 | off 0-60 (39/20): rise 4.82/1.63 against 3.85/1.25, kink 0.99/0.19 against 0.60/0.14 | off 60-200 (5/134): rise 0.94/0.55 against 0.65/0.21, kink 0.32/0.19 against 0.33/0.05 | on 0-100 (40/58): rise 3.50/1.05 against 4.86/0.54, kink 0.58/0.23 against 0.52/0.09
+after W:
+  floor: before off (0/18): rise - against 0.02/0.01, kink - against 0.01/0.00 | off 0-60 (39/20): rise 2.90/1.26 against 1.49/0.83, kink 0.65/0.19 against 0.69/0.15 | off 60-200 (5/134): rise 0.66/0.37 against 0.57/0.16, kink 0.13/0.06 against 0.15/0.03 | on 0-100 (40/58): rise 0.55/0.27 against 0.47/0.13, kink 0.09/0.02 against 0.10/0.02
+  left wall: before off (0/18): rise - against 0.05/0.02, kink - against 0.03/0.02 | off 0-60 (39/20): rise 2.16/1.37 against 1.92/1.03, kink 0.31/0.12 against 0.31/0.09 | off 60-200 (5/134): rise 0.64/0.44 against 0.71/0.20, kink 0.11/0.04 against 0.15/0.02 | on 0-100 (40/58): rise 2.28/1.12 against 2.60/0.54, kink 0.50/0.16 against 0.36/0.11
+  ceiling: before off (0/18): rise - against 0.08/0.02, kink - against 0.03/0.02 | off 0-60 (39/20): rise 4.94/1.58 against 3.99/1.36, kink 1.14/0.19 against 0.61/0.16 | off 60-200 (5/134): rise 0.58/0.34 against 0.71/0.21, kink 0.18/0.08 against 0.15/0.05 | on 0-100 (40/58): rise 3.82/1.02 against 4.90/0.54, kink 0.85/0.10 against 0.49/0.07
+
+== boilnoise.txt
+before m2r: floor: before off 0.02 (0.03), off 0-60 0.19 (0.73) / 0.36 (1.22), off 60-200 0.06 (0.17) / 0.25 (0.47), on 0-100 0.03 (0.10) / 0.15 (0.29) | left wall: before off 0.03 (0.04), off 0-60 0.18 (0.83) / 0.68 (1.49), off 60-200 0.06 (0.20) / 0.75 (1.00), on 0-100 0.14 (0.41) / 0.36 (1.11) | ceiling: before off 0.03 (0.05), off 0-60 0.24 (1.45) / 0.26 (1.56), off 60-200 0.08 (0.22) / 0.21 (0.50), on 0-100 0.13 (0.50) / 0.28 (1.03)
+after W: floor: before off 0.02 (0.03), off 0-60 0.19 (0.84) / 0.26 (1.18), off 60-200 0.06 (0.18) / 0.10 (0.33), on 0-100 0.04 (0.11) / 0.07 (0.27) | left wall: before off 0.03 (0.05), off 0-60 0.18 (0.94) / 0.24 (1.33), off 60-200 0.06 (0.21) / 0.12 (0.41), on 0-100 0.14 (0.43) / 0.26 (1.07) | ceiling: before off 0.03 (0.04), off 0-60 0.25 (1.51) / 0.24 (1.55), off 60-200 0.08 (0.23) / 0.11 (0.38), on 0-100 0.12 (0.50) / 0.16 (0.97)
+
+== wobble-video.txt
+before video: horizontal distance 1171.34 to 1190.92 output px (range 19.57), vertical distance 257.21 to 259.03 (range 1.82)
+  rms of the horizontal distance around its mean 4.797 px, around the prediction 0.429 px (D0 = 1184.56 px); predicted range 1172.74 to 1190.83
+  correlation with render width +0.274, render height +0.355, (h / w) * 16/9 +0.996; render h/w * 16/9 from 0.9900 to 1.0053
+  noise floor: rms of the frame-to-frame change of the horizontal distance between two draws of one size, over sqrt 2: 0.078 px (235 pairs); vertical distance against (h / w) * 16/9: correlation -0.323, rms around its mean 0.415 px
+after video: horizontal distance 1182.74 to 1185.51 output px (range 2.77), vertical distance 257.24 to 258.99 (range 1.75)
+  rms of the horizontal distance around its mean 0.447 px, around the prediction 4.647 px (D0 = 1185.69 px); predicted range 1173.86 to 1191.96
+  correlation with render width +0.329, render height +0.336, (h / w) * 16/9 +0.165; render h/w * 16/9 from 0.9900 to 1.0053
+  noise floor: rms of the frame-to-frame change of the horizontal distance between two draws of one size, over sqrt 2: 0.116 px (235 pairs); vertical distance against (h / w) * 16/9: correlation -0.189, rms around its mean 0.416 px
+/private/tmp/claude-501/-Users-alexispurslane--t3-worktrees-tertius-t3-52bfcd29-81249085ce80dd9f/45227396-32af-4c1c-8b9e-e374cf7f5d7b/scratchpad/wobble-video.png (1300, 560)
+
+## The edge ramp on W: the window edges per render size with the light held still (frames deleted; the saved output)
+== edgeramp.py
+edge ramp: 181 sizes, 40 draws per size, lamps on; places in px of the 1920 x 1080 output
+  left: mean 366.98, range 0.75 (366.76 to 367.51), rms around the mean 0.112; floor (rms of last minus 10 draws before) 0.032; correlation with render width -0.243
+  right: mean 1551.69, range 0.48 (1551.50 to 1551.98), rms around the mean 0.078; floor (rms of last minus 10 draws before) 0.024; correlation with render width +0.197
+  distance: mean 1184.71, range 0.90 (1184.20 to 1185.10), rms around the mean 0.159; floor (rms of last minus 10 draws before) 0.043; correlation with render width +0.268
+  midpoint: mean 959.33, range 0.36 (959.25 to 959.62), rms around the mean 0.055; floor (rms of last minus 10 draws before) 0.019; correlation with render width -0.107
+  left against right over the sizes: correlation -0.377
+
+the film: 320 draws, 40 sizes, 84 changed draws; sizes not in the ramp: []
+  left: over 19 shared sizes, the film's one-size mean per size against the ramp: correlation +0.351, rms of the difference 0.237 (film rms 0.253, ramp rms 0.072)
+    the film around its one-size mean: one size 0.179, changed 0.401; minus the ramp's place of its size: one size 0.178, changed 0.382
+  right: over 19 shared sizes, the film's one-size mean per size against the ramp: correlation +0.064, rms of the difference 0.259 (film rms 0.253, ramp rms 0.074)
+    the film around its one-size mean: one size 0.173, changed 0.699; minus the ramp's place of its size: one size 0.163, changed 0.682
+  distance: over 19 shared sizes, the film's one-size mean per size against the ramp: correlation +0.132, rms of the difference 0.285 (film rms 0.271, ramp rms 0.131)
+    the film around its one-size mean: one size 0.220, changed 0.796; minus the ramp's place of its size: one size 0.219, changed 0.758
+  midpoint: over 19 shared sizes, the film's one-size mean per size against the ramp: correlation +0.375, rms of the difference 0.204 (film rms 0.214, ramp rms 0.033)
+    the film around its one-size mean: one size 0.137, changed 0.408; minus the ramp's place of its size: one size 0.131, changed 0.402
+docs/research/t0-gbgj-combined-check/pics/edgeramp-W.png (1300, 1040)
+
+== ramp.txt (sizeramp.py measure)
+ width height    scale   right    left  leaks
+   960    536  0.50185  0.0439  0.0441  
+   960    544  0.50370  0.0443  0.0439  
+   968    544  0.50417  0.0445  0.0437  
+   976    544  0.50833  0.0445  0.0440  
+   976    552  0.51111  0.0439  0.0438  
+   984    552  0.51250  0.0438  0.0444  
+   992    552  0.51667  0.0444  0.0439  
+   992    560  0.51852  0.0447  0.0446  
+  1000    560  0.52292  0.0441  0.0443  
+  1008    560  0.52546  0.0442  0.0440  
+  1008    568  0.52593  0.0442  0.0434  
+  1016    568  0.53125  0.0435  0.0436  
+  1024    576  0.53333  0.0437  0.0441  
+  1032    576  0.53750  0.0441  0.0437  
+  1032    584  0.54074  0.0429  0.0438  
+  1040    584  0.54167  0.0441  0.0440  
+  1048    584  0.54583  0.0443  0.0437  
+  1048    592  0.54815  0.0439  0.0441  
+  1056    592  0.55000  0.0445  0.0434  
+  1064    592  0.55417  0.0437  0.0435  
+  1064    600  0.55556  0.0443  0.0434  
+  1072    600  0.55833  0.0448  0.0439  
+  1080    600  0.56250  0.0445  0.0438  
+  1080    608  0.56296  0.0438  0.0435  
+  1088    608  0.56667  0.0450  0.0433  
+  1088    616  0.57037  0.0468  0.0430  
+  1096    616  0.57083  0.0445  0.0435  
+  1104    616  0.57500  0.0438  0.0441  
+  1104    624  0.57778  0.0434  0.0444  
+  1112    624  0.57917  0.0436  0.0444  
+  1120    624  0.58333  0.0435  0.0444  
+  1120    632  0.58519  0.0440  0.0442  
+  1128    632  0.58750  0.0438  0.0434  
+  1136    632  0.59167  0.0439  0.0433  
+  1136    640  0.59259  0.0444  0.0435  
+  1144    640  0.59583  0.0446  0.0437  
+  1152    648  0.60000  0.0436  0.0441  
+  1160    648  0.60417  0.0437  0.0435  
+  1160    656  0.60741  0.0435  0.0437  
+  1168    656  0.60833  0.0438  0.0437  
+  1176    656  0.61250  0.0436  0.0436  
+  1176    664  0.61481  0.0444  0.0438  
+  1184    664  0.61667  0.0440  0.0438  
+  1192    664  0.62083  0.0441  0.0435  
+  1192    672  0.62222  0.0446  0.0437  
+  1200    672  0.62500  0.0439  0.0437  
+  1208    672  0.62917  0.0444  0.0432  
+  1208    680  0.62963  0.0440  0.0442  
+  1216    680  0.63333  0.0437  0.0435  
+  1216    688  0.63704  0.0442  0.0432  
+  1224    688  0.63750  0.0441  0.0443  
+  1232    688  0.64167  0.0438  0.0434  
+  1232    696  0.64444  0.0441  0.0436  
+  1240    696  0.64583  0.0440  0.0436  
+  1248    696  0.65000  0.0437  0.0442  
+  1248    704  0.65185  0.0444  0.0433  
+  1256    704  0.65417  0.0440  0.0439  
+  1264    704  0.65833  0.0439  0.0437  
+  1264    712  0.65926  0.0434  0.0439  
+  1272    712  0.66250  0.0447  0.0438  
+  1280    720  0.66667  0.0439  0.0434  
+  1288    720  0.67083  0.0441  0.0436  
+  1288    728  0.67407  0.0440  0.0443  
+  1296    728  0.67500  0.0440  0.0433  
+  1304    728  0.67917  0.0437  0.0435  
+  1304    736  0.68148  0.0434  0.0437  
+  1312    736  0.68333  0.0438  0.0437  
+  1320    736  0.68750  0.0436  0.0443  
+  1320    744  0.68889  0.0440  0.0435  
+  1328    744  0.69167  0.0436  0.0434  
+  1336    744  0.69583  0.0444  0.0435  
+  1336    752  0.69630  0.0467  0.0435  
+  1344    752  0.70000  0.0443  0.0431  
+  1344    760  0.70370  0.0441  0.0435  
+  1352    760  0.70417  0.0438  0.0433  
+  1360    760  0.70833  0.0433  0.0436  
+  1360    768  0.71111  0.0438  0.0432  
+  1368    768  0.71250  0.0440  0.0438  
+  1376    768  0.71667  0.0441  0.0433  
+  1376    776  0.71852  0.0440  0.0436  
+  1384    776  0.72083  0.0441  0.0438  
+  1392    776  0.72500  0.0434  0.0441  
+  1392    784  0.72593  0.0439  0.0438  
+  1400    784  0.72917  0.0437  0.0433  
+  1408    792  0.73333  0.0441  0.0436  
+  1416    792  0.73750  0.0437  0.0438  
+  1416    800  0.74074  0.0436  0.0438  
+  1424    800  0.74167  0.0434  0.0436  
+  1432    800  0.74583  0.0440  0.0434  
+  1432    808  0.74815  0.0442  0.0439  
+  1440    808  0.75000  0.0437  0.0440  
+  1448    808  0.75417  0.0440  0.0434  
+  1448    816  0.75556  0.0440  0.0432  
+  1456    816  0.75833  0.0441  0.0440  
+  1464    816  0.76250  0.0440  0.0437  
+  1464    824  0.76296  0.0436  0.0435  
+  1472    824  0.76667  0.0436  0.0443  
+  1472    832  0.77037  0.0439  0.0436  
+  1480    832  0.77083  0.0439  0.0438  
+  1488    832  0.77500  0.0443  0.0438  
+  1488    840  0.77778  0.0443  0.0442  
+  1496    840  0.77917  0.0442  0.0439  
+  1504    840  0.78333  0.0434  0.0443  
+  1504    848  0.78519  0.0435  0.0437  
+  1512    848  0.78750  0.0437  0.0430  
+  1520    848  0.79167  0.0432  0.0436  
+  1520    856  0.79259  0.0433  0.0437  
+  1528    856  0.79583  0.0439  0.0438  
+  1536    864  0.80000  0.0443  0.0436  
+  1544    864  0.80417  0.0438  0.0432  
+  1544    872  0.80741  0.0441  0.0439  
+  1552    872  0.80833  0.0441  0.0434  
+  1560    872  0.81250  0.0439  0.0438  
+  1560    880  0.81481  0.0440  0.0442  
+  1568    880  0.81667  0.0438  0.0441  
+  1576    880  0.82083  0.0442  0.0432  
+  1576    888  0.82222  0.0437  0.0449  
+  1584    888  0.82500  0.0436  0.0449  
+  1592    888  0.82917  0.0435  0.0436  
+  1592    896  0.83148  0.0434  0.0444  
+  1600    896  0.83333  0.0438  0.0439  
+  1600    904  0.83704  0.0441  0.0435  
+  1608    904  0.83750  0.0444  0.0440  
+  1616    904  0.84167  0.0440  0.0435  
+  1616    912  0.84444  0.0439  0.0434  
+  1624    912  0.84583  0.0450  0.0433  
+  1632    912  0.85000  0.0435  0.0436  
+  1632    920  0.85185  0.0437  0.0433  
+  1640    920  0.85417  0.0435  0.0432  
+  1648    920  0.85833  0.0442  0.0435  
+  1648    928  0.85926  0.0443  0.0438  
+  1656    928  0.86250  0.0435  0.0430  
+  1664    936  0.86667  0.0453  0.0431  
+  1672    936  0.87083  0.0443  0.0436  
+  1672    944  0.87407  0.0435  0.0434  
+  1680    944  0.87500  0.0441  0.0433  
+  1688    944  0.87917  0.0437  0.0433  
+  1688    952  0.88148  0.0436  0.0434  
+  1696    952  0.88333  0.0438  0.0437  
+  1704    952  0.88750  0.0444  0.0437  
+  1704    960  0.88889  0.0436  0.0432  
+  1712    960  0.89167  0.0431  0.0436  
+  1720    960  0.89583  0.0435  0.0436  
+  1720    968  0.89630  0.0436  0.0438  
+  1728    968  0.90000  0.0442  0.0435  
+  1728    976  0.90370  0.0443  0.0442  
+  1736    976  0.90417  0.0438  0.0436  
+  1744    976  0.90833  0.0439  0.0433  
+  1744    984  0.91111  0.0435  0.0438  
+  1752    984  0.91250  0.0439  0.0436  
+  1760    984  0.91667  0.0451  0.0436  
+  1760    992  0.91852  0.0442  0.0437  
+  1768    992  0.92083  0.0437  0.0433  
+  1776    992  0.92500  0.0438  0.0439  
+  1776   1000  0.92593  0.0436  0.0450  
+  1784   1000  0.92917  0.0438  0.0443  
+  1792   1008  0.93333  0.0439  0.0432  
+  1800   1008  0.93750  0.0441  0.0439  
+  1800   1016  0.94074  0.0448  0.0437  
+  1808   1016  0.94167  0.0439  0.0436  
+  1816   1016  0.94583  0.0444  0.0447  
+  1816   1024  0.94815  0.0441  0.0436  
+  1824   1024  0.95000  0.0438  0.0434  
+  1832   1024  0.95417  0.0446  0.0434  
+  1832   1032  0.95556  0.0439  0.0439  
+  1840   1032  0.95833  0.0443  0.0435  
+  1848   1032  0.96250  0.0438  0.0436  
+  1848   1040  0.96296  0.0442  0.0436  
+  1856   1040  0.96667  0.0443  0.0435  
+  1856   1048  0.97037  0.0437  0.0440  
+  1864   1048  0.97083  0.0433  0.0435  
+  1872   1048  0.97500  0.0436  0.0433  
+  1872   1056  0.97778  0.0435  0.0435  
+  1880   1056  0.97917  0.0442  0.0435  
+  1888   1056  0.98333  0.0440  0.0431  
+  1888   1064  0.98519  0.0439  0.0434  
+  1896   1064  0.98750  0.0437  0.0435  
+  1904   1064  0.99167  0.0438  0.0447  
+  1904   1072  0.99259  0.0433  0.0438  
+  1912   1072  0.99583  0.0435  0.0440  
+  1920   1080  1.00000  0.0443  0.0434  
+181 sizes, 0 leak (a jamb mean above 0.08): 
+settle check at 1344 x 752: right 0.0446 10 draws before the last frame, 0.0443 at it; left 0.0432, 0.0431
+settle check at 1832 x 1032: right 0.0439 10 draws before the last frame, 0.0439 at it; left 0.0440, 0.0439
+settle check at 1920 x 1080: right 0.0447 10 draws before the last frame, 0.0443 at it; left 0.0435, 0.0434
+
+== the run's log
+14:41:04 start edgeramp W (load { 12.33 9.66 14.43 })
+181 sizes, 40 draws each, 7273 draws, 362 kept frames
+14:41:07 ramp render /private/tmp/t0-gbgj/bins/wr/probe-bin
+14:50:16 ramp render exit 0
+played-back sizes equal the replay
+ width height    scale   right    left  leaks
+181 sizes, 0 leak (a jamb mean above 0.08): 
+settle check at 1344 x 752: right 0.0446 10 draws before the last frame, 0.0443 at it; left 0.0432, 0.0431
+settle check at 1832 x 1032: right 0.0439 10 draws before the last frame, 0.0439 at it; left 0.0440, 0.0439
+settle check at 1920 x 1080: right 0.0447 10 draws before the last frame, 0.0443 at it; left 0.0435, 0.0434
+/private/tmp/t0-gbgj/runs/edgeramp-W/ramp.png /private/tmp/t0-gbgj/runs/edgeramp-W/ramp.txt; t0-gbgj's copy deletes no frame
+14:51:28 end exit 0

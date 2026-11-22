@@ -500,7 +500,7 @@ The residual that stays after the fix is about 0.4 px rms of 1920, about 0.3 px 
 
 ## The tables
 
-`tables.txt` holds the output of every measure. `tools/measure.sh` prints it.
+`tables.txt` holds the output of every measure, in two parts. Part 1 is the output of `tools/measure.sh` of 12:22 on 2026-11-22, up to the section on motion in the two films. Those sections read the film frames, which were deleted after their videos and numbers were committed. Part 2 is the output of `tools/measure.sh 2`, which starts at take 2b. The size ramps, the window test, the wobble and the edge ramp also read frames that were deleted, so part 2 prints their saved outputs and redraws only the pictures whose inputs remain.
 
 ### Table 1: the stills
 
@@ -673,7 +673,8 @@ The discarded runs lie in `/private/tmp/t0-gbgj/timing/discarded`. Some process 
 ## Files
 
 - `README.md`: this record.
-- `tables.txt`: the output of `tools/measure.sh`, every measure in the order of the tables.
+- `tables.txt`: the output of `tools/measure.sh`, every measure in the order of the tables (part 1 of 12:22, part 2 of `measure.sh 2`).
+- `window.txt`: the window test's results.
 - `ramp-M3.txt`, `ramp-X3.txt`, `ramp-W.txt`: the size ramp's tables.
 - `edgeramp.txt`: the edge ramp's output, its jamb table `ramp.txt` and its log.
 - `wobble.txt`: the wobble take's measures: `wobble.py` on the frames, `wobsplit.py`, `levjump.py`, `boilnoise.py`, and `wobble.py` on the video's two sides.
@@ -691,7 +692,7 @@ The discarded runs lie in `/private/tmp/t0-gbgj/timing/discarded`. Some process 
   - `run-one.sh`, `round-2.sh` and `timing-2.sh`: the timing rounds that count. `run-one.sh` runs one side under the exclusive lock only after a load under 8 at its start, and `round-2.sh` tries again until it gets one.
   - `timetable.py`: the timing rounds' table.
   - `m.sh`: runs a measuring script of this record or of an earlier one (`t0-9fo0`, `t0-acxm`, `t0-xdck`, `t0-ion0`, `t0-xlcu`, `t0-y46f`, `t0-mzhr`) in `/private/tmp/t0-gbgj/w`.
-  - `measure.sh`: every measure and picture. Its output is `tables.txt`.
+  - `measure.sh`: every measure and picture. Its output is `tables.txt`. `measure.sh 2` starts at take 2b.
   - `summary.py`: the survey's numbers that the tables cite.
   - `filmspecks.py`: `t0-xdck`'s speck count of a film's sampled frames, for any case.
   - `layerdiff.py`: where the layer changed a still, after the exposure is taken out.
