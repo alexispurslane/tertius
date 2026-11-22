@@ -1,6 +1,6 @@
 ---
 id: t1-r9vj
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-15T13:23:44Z
@@ -125,3 +125,16 @@ A change of the fade in the engine.
 **2026-11-22T16:25:02Z**
 
 2026-11-22, the line orchestrator. By the orchestrator's order, this take gives way to the wobble fix ter-qt72: its lead starts no build, no render and no path trace until that fix is in its review. The lead is not cancelled.
+
+**2026-11-22T20:22:53Z**
+
+2026-11-22, the ticket lead. The record is docs/research/back-face-depth-layer/stage-2/fade-lit-front.md. Scene: refs/scratch/t1-r9vj-lit-block (7f858c759), patch stage-2/probe-lit-block.patch. One camera, two lightings (lit-block-front, lit-block-back). Takes on 906d1c260, before the walk fix of a819b10b2.
+- Columns: 9 per view (ten, layer, main, layerfade, dfront, dmiss05/15, dblack05/15), frames 231 and 239, 1920 x 1080, bloom off, fixed exposure 2.6805701 and 6.7897105 stops, on the Mac. Plus 2 runs of layer and main again (byte-identical), and 2 runs with --environment-map off.
+- Path trace: Cycles, 2 seeds x 2048 spp per view, full (302 to 395 s per seed) and one bounce (139 to 191 s). Cloud: $0.
+- main is 0.4 % to 3 % brighter than the probe's layer in every receiver region; the frame noise is at most 0.9 %. Deterministic. No difference for the eye.
+- By eye, no rule looks better than layer; there is no fork. No rule is nearer than layer in every cell of the four views.
+- Bugs: t2b-d2m6 (a bright trapezoid on the glossy wall from the environment map at the eye), t2b-xeo7 (lost bounce of a lit face that the camera does not see: 9 to 71 times darker behind the block).
+
+**2026-11-22T20:23:51Z**
+
+2026-11-22, the line orchestrator. Merged into main after the lead's final report: branch t3/fade-lit-front-trace at 37f7e883d, a record with its tools and two bug tickets, no engine code. I read the record's result and both bug tickets and looked at the three sheets: every engine column shows the same picture to the eye in layer, ten, main, layerfade and dmiss15, and dfront, dblack05 and dblack15 add a hard step or a stain on the glossy wall. So the verdict holds: no rule looks better than the fade over the real slab, and no fork goes to the user. The two bugs t2b-d2m6 and t2b-xeo7 go to the orchestrator: neither is a fault of the slab rule.

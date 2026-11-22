@@ -72,6 +72,10 @@ sc.cycles.diffuse_bounces = 32
 sc.cycles.glossy_bounces = 16
 sc.cycles.transmission_bounces = 16
 sc.cycles.transparent_max_bounces = 64
+# REF_MAX_BOUNCES=<n> (t1-r9vj): at most n bounces of indirect light on every path, so 1 keeps the light that a
+# surface sends after one bounce. Without it, up to 32 diffuse bounces.
+if os.environ.get("REF_MAX_BOUNCES"):
+    sc.cycles.max_bounces = sc.cycles.diffuse_bounces = sc.cycles.glossy_bounces = int(os.environ["REF_MAX_BOUNCES"])
 sc.cycles.sample_clamp_direct = 0
 sc.cycles.sample_clamp_indirect = 0
 sc.cycles.blur_glossy = 0
