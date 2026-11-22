@@ -325,3 +325,7 @@ The wobble's residual: the back-face line's stills at a fixed size show a scatte
 **2026-11-22T19:31:18Z**
 
 The variants' builds started, 2026-11-22 14:30 (XB first, 29 GiB free). The lead set XC's constant to 3.5, not 4.0: the restart is stored as exactly 4.0, but the next draw's plan reads it as a weighted mean of four taps divided by the weights' sum, which can round to just under 4.0; a stored length is never between 3 and 4, so 3.5 acts as 'at least fastCap'. Patches: scratch-light-evidence-cap.patch (XB) and scratch-plan-rate-at-fast-cap.patch (XC), on src of 57b4045ae after probe.patch, scratch-region-log.patch and scratch-dynamic-scale.patch. Queue: build XB then XC; the survey's fair switch on both for the settle; the pictures of film frames 140 to 459 at 2/3 for the boil and the videos; then the cost session with two rounds of M, X, XB and XC in turn under the exclusive lock at a load under 8 (runs cost-<side>-s1 and -s2). X's second cost round of the earlier session gave no data and runs in this session.
+
+**2026-11-22T19:32:48Z**
+
+Both variants are built, 2026-11-22 14:31 (XB at 14:31:24, XC at 14:31:50, into /private/tmp/t0-5tyj/xbplay and xcplay; 28 GiB free). Check by the lead: each Rendering assembly embeds 88 SPIR-V modules; XB differs from X in 4 (the variants of accumulate_spatial) and XC in 3 (the variants of screen_trace_plan), no other module differs. The line's rebuild slot is free again.
