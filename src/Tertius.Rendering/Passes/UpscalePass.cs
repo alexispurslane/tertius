@@ -90,6 +90,7 @@ internal sealed class UpscalePass : RenderPass
                     FrameMilliseconds = context.History.FsrFrameMilliseconds,
                     NearMeters = DepthRanges.NearPlane,
                     VerticalFov = context.Scene.Camera.VerticalFov,
+                    Aspect = context.Scene.Camera.Aspect,
                     Reset = context.History.Reset,
                 },
             }

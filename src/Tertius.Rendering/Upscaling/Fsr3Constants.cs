@@ -95,8 +95,7 @@ internal struct Fsr3Constants
         // AMD derives the horizontal field of view from the vertical one, in single floats. Each tangent and arctangent
         // runs in double and rounds to float, which gives the correctly rounded float on every machine: the float
         // functions of the C libraries round differently, and x86-64's tanHalfFOV was 2 ulps from the Mac's (ter-qjyo).
-        float aspect = frame.RenderSize.Width / (float)frame.RenderSize.Height;
-        float horizontalFov = (float)Math.Atan((float)Math.Tan(frame.VerticalFov / 2) * aspect) * 2;
+        float horizontalFov = (float)Math.Atan((float)Math.Tan(frame.VerticalFov / 2) * frame.Aspect) * 2;
         next.TanHalfFov = (float)Math.Tan(horizontalFov * 0.5f);
         next.ViewSpaceToMetersFactor = 1f;
         next.SetDeviceToViewDepth(frame);
@@ -136,9 +135,8 @@ internal struct Fsr3Constants
         // projection for reversed infinite depth are c = FLT_EPSILON and e = that plane, and d = -1.
         DeviceToViewDepth0 = -(0f + FltEpsilon);
         DeviceToViewDepth1 = frame.NearMeters;
-        float aspect = frame.RenderSize.Width / (float)frame.RenderSize.Height;
         float cotHalfFovY = (float)Math.Cos(0.5f * frame.VerticalFov) / (float)Math.Sin(0.5f * frame.VerticalFov);
-        DeviceToViewDepth2 = 1f / (cotHalfFovY / aspect);
+        DeviceToViewDepth2 = 1f / (cotHalfFovY / frame.Aspect);
         DeviceToViewDepth3 = 1f / cotHalfFovY;
     }
 }
@@ -166,6 +164,13 @@ internal readonly record struct Fsr3Frame
 
     /// <summary>The vertical field of view of the projection in radians.</summary>
     public required float VerticalFov { get; init; }
+
+    /// <summary>
+    /// The projection's width over its height, the output's (<see cref="CameraView.Aspect"/>). AMD's host takes the render
+    /// size's, which differs where the render size rounds each axis on its own, so that FSR's view positions would then
+    /// describe another camera than the drawn one (ter-qt72).
+    /// </summary>
+    public required float Aspect { get; init; }
 
     /// <summary>This frame reads no history, as after a cut.</summary>
     public required bool Reset { get; init; }

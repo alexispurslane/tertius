@@ -1,0 +1,505 @@
+diff --git a/src/Tertius.Rendering/Frame/PyramidImages.cs b/src/Tertius.Rendering/Frame/PyramidImages.cs
+index 981785e06..fd3958a97 100644
+--- a/src/Tertius.Rendering/Frame/PyramidImages.cs
++++ b/src/Tertius.Rendering/Frame/PyramidImages.cs
+@@ -125,7 +125,8 @@ internal sealed unsafe class PyramidImages : IDisposable
+     {
+         TopLevel = DepthPyramid.LevelCount((int)extent.Width, (int)extent.Height);
+         Image = CreateImage(extent: ImageExtent(extent), format: format, mipLevels: (uint)TopLevel, name: name);
+-        Finest = CreateImage(extent: extent, format: Format.R32Sfloat, mipLevels: 1, name: $"{name} finest");
++        // THROWAWAY (t1-n8x9): the depth pyramid's finest level is RG32F, the front w and the back w, like its levels.
++        Finest = CreateImage(extent: extent, format: format, mipLevels: 1, name: $"{name} finest");
+         mipViews = MipViews(Image);
+         WriteLevelSets();
+         layouts.WriteStorageImage(set: FinestSet, binding: 1, image: Finest);
+diff --git a/src/Tertius.Rendering/Frame/RenderTargets.cs b/src/Tertius.Rendering/Frame/RenderTargets.cs
+index 6943ffab5..a4f94adcf 100644
+--- a/src/Tertius.Rendering/Frame/RenderTargets.cs
++++ b/src/Tertius.Rendering/Frame/RenderTargets.cs
+@@ -145,6 +145,7 @@ internal sealed class RenderTargets : IDisposable
+                 format: PyramidImages.DepthFormat,
+                 name: "depth pyramid"
+             );
++        WriteBackShareSets();
+     }
+ 
+     public Extent2D Extent { get; private set; }
+@@ -224,6 +225,19 @@ internal sealed class RenderTargets : IDisposable
+         DestroyImages();
+         Create(extent);
+         Pyramid?.Create(Extent);
++        WriteBackShareSets();
++    }
++
++    /// <summary>
++    /// THROWAWAY (t1-n8x9): points binding 0 of the depth pyramid's finest set and of its level-1 set at the back share.
++    /// The depth pyramid's finest shader and its level-1 shader read the G-buffer, so both bindings were unread.
++    /// </summary>
++    private void WriteBackShareSets()
++    {
++        if (Pyramid is null)
++            return;
++        layouts.WriteImage(set: Pyramid.FinestSet, binding: 0, arrayElement: 0, image: BackDistance);
++        layouts.WriteImage(set: Pyramid.LevelSet(1), binding: 0, arrayElement: 0, image: BackDistance);
+     }
+ 
+     /// <summary>The screen tracer's limits on the screen: the depth pyramid's levels, and the own-ray lists' range.</summary>
+diff --git a/src/Tertius.Rendering/Passes/BackFacePass.cs b/src/Tertius.Rendering/Passes/BackFacePass.cs
+index 34126a9f4..dc1a4f84a 100644
+--- a/src/Tertius.Rendering/Passes/BackFacePass.cs
++++ b/src/Tertius.Rendering/Passes/BackFacePass.cs
+@@ -3,11 +3,12 @@ using Silk.NET.Vulkan;
+ namespace Tertius.Rendering;
+ 
+ /// <summary>
+-/// THROWAWAY (ter-kh4g, stage 1): the cost probe of a back-face depth layer. After the G-buffer pass, it draws the back
+-/// faces of the one-sided opaque runs of each depth range into <see cref="RenderTargets.BackDistance"/>, with the
++/// THROWAWAY (ter-kh4g, stages 1 and 1b): the probe of a back-face depth layer. After the G-buffer pass, it draws the back
++/// faces of the one-sided solid runs of each depth range into <see cref="RenderTargets.BackDistance"/>, with the
+ /// G-buffer's depth image and with front faces culled. It keeps the nearest back face behind each pixel's front surface,
+-/// and writes the front surface's distance over the back face's. Nothing reads the image. The cutout run draws as solid,
+-/// so the probe runs no alpha test. Only <c>TERTIUS_BACK_FACE_PROBE=on</c> records the pass.
++/// and writes the front surface's distance over the back face's. The depth pyramid's build reads it (t1-n8x9). Cutout
++/// runs and two-sided runs stay out, so their pixels are sheets where nothing else lies behind them.
++/// <c>TERTIUS_BACK_FACE_PROBE</c> selects the mode (<see cref="Probe"/>).
+ /// </summary>
+ internal sealed unsafe class BackFacePass : RenderPass
+ {
+@@ -39,18 +40,53 @@ internal sealed unsafe class BackFacePass : RenderPass
+     /// scratch commit, because the job's runs share one environment.</summary>
+     private const string DefaultMode = "off";
+ 
+-    /// <summary>Whether the probe records its pass: under <c>TERTIUS_BACK_FACE_PROBE=on</c>, and off without it, so
+-    /// that every test and every other run draws main's frame.</summary>
++    /// <summary>
++    /// THROWAWAY (t1-n8x9): the probe's mode from <c>TERTIUS_BACK_FACE_PROBE</c>, or <see cref="DefaultMode"/> without it.
++    /// <c>off</c> draws no pass and builds the pyramid by the 10 % rule. Otherwise a slab rule, <c>ten</c>, <c>trim</c> or
++    /// <c>layer</c>, draws the pass. After <c>layer</c>, <c>/plane</c>, <c>/ten</c> or <c>/solid</c> selects the rule of a
++    /// pixel with no back face, and a sheet is the default. A last <c>+fade</c> fades a hit over at most the 10 % slab.
++    /// </summary>
+     /// <exception cref="ArgumentException">The variable holds another value.</exception>
+-    public static bool SwitchedOn() =>
+-        (Environment.GetEnvironmentVariable("TERTIUS_BACK_FACE_PROBE") is { Length: > 0 } mode ? mode : DefaultMode) switch
++    public static BackFaceProbe Probe()
++    {
++        string mode = Environment.GetEnvironmentVariable("TERTIUS_BACK_FACE_PROBE") is { Length: > 0 } set ? set : DefaultMode;
++        bool fade = mode.EndsWith("+fade", StringComparison.Ordinal);
++        string rules = fade ? mode[..^"+fade".Length] : mode;
++        // The values of thickness.glsl's Slab and NoBack constants.
++        (bool pass, uint slab, uint noBack) = rules switch
+         {
+-            "on" => true,
+-            "off" => false,
+-            var value => throw new ArgumentException(
+-                $"Unknown TERTIUS_BACK_FACE_PROBE value '{value}': use on or off."
++            "off" => (false, 0u, 0u),
++            "ten" => (true, 0u, 0u),
++            "trim" => (true, 1u, 0u),
++            "layer" or "layer/sheet" => (true, 2u, 0u),
++            "layer/plane" => (true, 2u, 1u),
++            "layer/ten" => (true, 2u, 2u),
++            "layer/solid" => (true, 2u, 3u),
++            _ => throw new ArgumentException(
++                $"Unknown TERTIUS_BACK_FACE_PROBE value '{mode}': use off, ten, trim, layer, layer/plane, layer/ten or layer/solid, with an optional +fade."
+             ),
+         };
++        return new(Pass: pass, SlabRule: slab, NoBackRule: noBack, FadeOverTenPercent: fade);
++    }
++
++    /// <summary>Whether the probe records its pass: in every mode but <c>off</c>.</summary>
++    public static bool SwitchedOn() => Probe().Pass;
++
++    /// <summary>THROWAWAY (t1-n8x9): the draw commands of each kind that the frame's opaque runs hold, summed over the
++    /// depth ranges. The pass draws the one-sided solid ones only.</summary>
++    public static string DrawCounts(PreparedScene scene)
++    {
++        int oneSolid = 0, oneCutout = 0, twoSolid = 0, twoCutout = 0;
++        for (int range = DepthRanges.Far; range <= DepthRanges.Near; range++)
++        {
++            SidedRuns runs = scene.Opaque[range];
++            oneSolid += runs.OneSided.Solid.Count;
++            oneCutout += runs.OneSided.Cutout.Count;
++            twoSolid += runs.TwoSided.Solid.Count;
++            twoCutout += runs.TwoSided.Cutout.Count;
++        }
++        return $"one-sided solid {oneSolid}, one-sided cutout {oneCutout}, two-sided solid {twoSolid}, two-sided cutout {twoCutout}";
++    }
+ 
+     public override void Record(FrameContext context)
+     {
+@@ -66,14 +102,12 @@ internal sealed unsafe class BackFacePass : RenderPass
+                 context.Vk.CmdBindPipeline(context.CommandBuffer, PipelineBindPoint.Graphics, pipeline);
+             }
+ 
+-            OpaqueRuns runs = scene.Opaque[range].OneSided;
+-            if (runs.Count > 0)
++            // t1-n8x9: the one-sided solid run only. A cutout drawn as solid put back faces behind its holes.
++            CommandRange solid = scene.Opaque[range].OneSided.Solid;
++            if (solid.Count > 0)
+             {
+                 GeometryPass.PushDraw(context: context, viewProjection: scene.RangeViewProjection[range]);
+-                if (runs.Solid.Count > 0)
+-                    GeometryPass.DrawIndirect(context, runs.Solid);
+-                if (runs.Cutout.Count > 0)
+-                    GeometryPass.DrawIndirect(context, runs.Cutout);
++                GeometryPass.DrawIndirect(context, solid);
+             }
+ 
+             context.Vk.CmdEndRendering(context.CommandBuffer);
+@@ -126,3 +160,7 @@ internal sealed unsafe class BackFacePass : RenderPass
+ 
+     public override void Dispose() => device.Vk.DestroyPipeline(device.Device, pipeline, null);
+ }
++
++/// <summary>THROWAWAY (t1-n8x9): the probe's mode (<see cref="BackFacePass.Probe"/>): whether the pass draws, and the
++/// values of the specialization constants of thickness.glsl and screen_walk.glsl.</summary>
++internal readonly record struct BackFaceProbe(bool Pass, uint SlabRule, uint NoBackRule, bool FadeOverTenPercent);
+diff --git a/src/Tertius.Rendering/Passes/DepthPyramidPass.cs b/src/Tertius.Rendering/Passes/DepthPyramidPass.cs
+index b9f03dd34..07aff4f72 100644
+--- a/src/Tertius.Rendering/Passes/DepthPyramidPass.cs
++++ b/src/Tertius.Rendering/Passes/DepthPyramidPass.cs
+@@ -12,7 +12,8 @@ internal sealed class DepthPyramidPass(
+     VulkanDevice device,
+     ShaderLibrary shaders,
+     DescriptorLayouts layouts,
+-    PyramidImages pyramid
++    PyramidImages pyramid,
++    ShaderConstants constants
+ ) : RenderPass
+ {
+     private readonly PyramidBuild build = new(
+@@ -20,7 +21,8 @@ internal sealed class DepthPyramidPass(
+         shaders: shaders,
+         layouts: layouts,
+         name: "depth_pyramid",
+-        firstShader: "depth_pyramid_first.comp"
++        firstShader: "depth_pyramid_first.comp",
++        constants: constants
+     );
+ 
+     public override string Name => "depth pyramid";
+@@ -29,6 +31,8 @@ internal sealed class DepthPyramidPass(
+     {
+         context.Barriers.Image(context.Targets.Distance, ImageUse.SampledCompute);
+         context.Barriers.Image(context.Targets.Normal, ImageUse.SampledCompute);
++        // THROWAWAY (t1-n8x9): the back share, which the finest level and level 1 read.
++        context.Barriers.Image(context.Targets.BackDistance, ImageUse.SampledCompute);
+         context.BindSceneSets(PipelineBindPoint.Compute, layouts.PyramidLayout);
+         build.DispatchLevels(context, pyramid);
+         build.DispatchFinest(context, pyramid);
+diff --git a/src/Tertius.Rendering/Passes/PyramidBuild.cs b/src/Tertius.Rendering/Passes/PyramidBuild.cs
+index f58542f5e..e63e003f9 100644
+--- a/src/Tertius.Rendering/Passes/PyramidBuild.cs
++++ b/src/Tertius.Rendering/Passes/PyramidBuild.cs
+@@ -22,6 +22,9 @@ internal sealed unsafe class PyramidBuild : IDisposable
+     private readonly Pipeline down;
+     private readonly PyramidTail tail;
+ 
++    // THROWAWAY (t1-n8x9): the depth pyramid's slab rule, or null for the light pyramid.
++    private readonly ShaderConstants? constants;
++
+     /// <param name="shaders">The library that holds <paramref name="firstShader"/> and <c>{name}_finest.comp</c>,
+     /// <c>{name}_down.comp</c> and <c>{name}_tail.comp</c>.</param>
+     /// <param name="name">The shaders' common name, such as <c>depth_pyramid</c>.</param>
+@@ -32,11 +35,13 @@ internal sealed unsafe class PyramidBuild : IDisposable
+         ShaderLibrary shaders,
+         DescriptorLayouts layouts,
+         string name,
+-        string? firstShader
++        string? firstShader,
++        ShaderConstants? constants = null
+     )
+     {
+         this.device = device;
+         this.layouts = layouts;
++        this.constants = constants;
+         finest = Create(shaders, name: name + " finest", shader: name + "_finest.comp");
+         first = firstShader is null ? null : Create(shaders, name: name + " first", shader: firstShader);
+         down = Create(shaders, name: name + " down", shader: name + "_down.comp");
+@@ -83,6 +88,7 @@ internal sealed unsafe class PyramidBuild : IDisposable
+             Name = name,
+             Shader = shader,
+             Layout = layouts.PyramidLayout,
++            Constants = constants,
+         }.Create(device, shaders);
+ 
+     /// <summary>
+diff --git a/src/Tertius.Rendering/ShaderConstants.cs b/src/Tertius.Rendering/ShaderConstants.cs
+index 99ad27d6f..386aca8dd 100644
+--- a/src/Tertius.Rendering/ShaderConstants.cs
++++ b/src/Tertius.Rendering/ShaderConstants.cs
+@@ -28,6 +28,21 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
+     /// </summary>
+     public bool TileCornerMeans { get; init; }
+ 
++    /// <summary>THROWAWAY (ter-kh4g, stage 1b, t1-n8x9): the constant_ids of slabRule and noBackRule in thickness.glsl,
++    /// and of fadeOverTenPercent in screen_walk.glsl.</summary>
++    public const uint SlabRuleId = 12;
++    public const uint NoBackRuleId = 13;
++    public const uint FadeOverTenPercentId = 14;
++
++    /// <summary>THROWAWAY (t1-n8x9): the slab rule of the depth pyramid's build, a Slab constant of thickness.glsl.</summary>
++    public uint SlabRule { get; init; }
++
++    /// <summary>THROWAWAY (t1-n8x9): the rule of a pixel with no back face, a NoBack constant of thickness.glsl.</summary>
++    public uint NoBackRule { get; init; }
++
++    /// <summary>THROWAWAY (t1-n8x9): whether a hit's fade runs over at most the 10 % slab.</summary>
++    public bool FadeOverTenPercent { get; init; }
++
+     /// <summary>The constant_id of environmentMapOn in environment.glsl.</summary>
+     public const uint EnvironmentMapId = 0;
+ 
+@@ -124,6 +139,9 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
+             (NeighborLimitPrototypeId, VkBool(values.NeighborLimitPrototype)),
+             (ReflectionSharingPrototypeId, VkBool(values.ReflectionSharingPrototype)),
+             (TileCornerMeansId, VkBool(values.TileCornerMeans)),
++            (SlabRuleId, values.SlabRule),
++            (NoBackRuleId, values.NoBackRule),
++            (FadeOverTenPercentId, VkBool(values.FadeOverTenPercent)),
+         ];
+         for (int i = 0; i < rows.Length; i++)
+         {
+@@ -155,7 +173,7 @@ internal struct SpecializationStorage
+     /// The number of constants: one per field of <see cref="ShaderConstants"/>, the subsurface setting's being its taps per
+     /// side. <see cref="ShaderConstants.Specialization"/> writes one row per constant, and a row past this count throws.
+     /// </summary>
+-    public const int Count = 11;
++    public const int Count = 14;
+ 
+     public SpecializationValues Data;
+     public SpecializationEntries Entries;
+diff --git a/src/Tertius.Rendering/Shaders/depth_pyramid_finest.comp b/src/Tertius.Rendering/Shaders/depth_pyramid_finest.comp
+index c0b42b2ab..5fd7afd34 100644
+--- a/src/Tertius.Rendering/Shaders/depth_pyramid_finest.comp
++++ b/src/Tertius.Rendering/Shaders/depth_pyramid_finest.comp
+@@ -10,7 +10,8 @@
+ 
+ layout(local_size_x = 8, local_size_y = 8) in;
+ 
+-layout(set = 3, binding = 1, r32f) uniform writeonly image2D destination;   // the finest level, the screen's size
++layout(set = 3, binding = 0) uniform texture2D backShareImage;                // THROWAWAY (t1-n8x9): the back share
++layout(set = 3, binding = 1, rg32f) uniform writeonly image2D destination;   // the finest level, the screen's size
+ 
+ void main()
+ {
+@@ -19,5 +20,15 @@ void main()
+         return;
+     float distanceToEye = all(lessThan(pixel, ivec2(frame.viewport.xy))) ? texelFetch(gbufferDistance, pixel, 0).r : 0.0;
+     float w = distanceToEye <= 0.0 ? 0.0 : inverseDepthAlong(vec2(pixel) + 0.5, distanceToEye);
+-    imageStore(destination, pixel, vec4(w));
++    // THROWAWAY (ter-kh4g, stage 1b, t1-n8x9): R the center w, G the back w of the pixel's slab (slabBack). Sky holds
++    // (0, 0). A sheet under NoBackSheetPlane reaches its plane's far bound over its square, which is at most w.
++    float back = 0.0;
++    if (w > 0.0)
++    {
++        float share = texelFetch(backShareImage, pixel, 0).r;
++        back = slabBack(w, share);
++        if (slabRule == SlabLayer && noBackRule == NoBackSheetPlane && !(share > 0.0))
++            back = min(back, pixelBounds(pixel).y);
++    }
++    imageStore(destination, pixel, vec4(w, back, 0.0, 0.0));
+ }
+diff --git a/src/Tertius.Rendering/Shaders/depth_pyramid_first.comp b/src/Tertius.Rendering/Shaders/depth_pyramid_first.comp
+index 2f5736836..25902766a 100644
+--- a/src/Tertius.Rendering/Shaders/depth_pyramid_first.comp
++++ b/src/Tertius.Rendering/Shaders/depth_pyramid_first.comp
+@@ -8,8 +8,19 @@
+ 
+ layout(local_size_x = 8, local_size_y = 8) in;
+ 
++layout(set = 3, binding = 0) uniform texture2D backShareImage;              // THROWAWAY (t1-n8x9): the back share
+ layout(set = 3, binding = 1, rg32f) uniform writeonly image2D destination;   // level 1
+ 
++// THROWAWAY (ter-kh4g, stage 1b, t1-n8x9): a pixel's bounds with the far bound moved to the back of its slab
++// (slabBack). The far bound is at most the center w and gets the same share, so the cell's slab holds the pixel's.
++vec2 slabBounds(ivec2 pixel)
++{
++    vec2 bounds = cellBounds(gbufferDistance, 0u, pixel);
++    if (bounds.x > 0.0)
++        bounds.y = slabBack(bounds.y, texelFetch(backShareImage, pixel, 0).r);
++    return bounds;
++}
++
+ void main()
+ {
+     ivec2 cell = ivec2(gl_GlobalInvocationID.xy);
+@@ -19,6 +30,6 @@ void main()
+     // Level 0 is the distance target itself, so cellBounds never reads the pyramid that it is given here.
+     for (int y = 0; y < 2; y++)
+         for (int x = 0; x < 2; x++)
+-            bounds = mergedBounds(bounds, cellBounds(gbufferDistance, 0u, 2 * cell + ivec2(x, y)));
++            bounds = mergedBounds(bounds, slabBounds(2 * cell + ivec2(x, y)));
+     imageStore(destination, cell, vec4(bounds, 0.0, 0.0));
+ }
+diff --git a/src/Tertius.Rendering/Shaders/screen_trace.glsl b/src/Tertius.Rendering/Shaders/screen_trace.glsl
+index e7459f72d..a1ea8c0bc 100644
+--- a/src/Tertius.Rendering/Shaders/screen_trace.glsl
++++ b/src/Tertius.Rendering/Shaders/screen_trace.glsl
+@@ -16,7 +16,7 @@
+ #include "screen_walk.glsl"
+ #include "own_rays.glsl"
+ 
+-layout(set = 3, binding = 0) uniform texture2D depthFinest;                    // R32F: each pixel's center w, 0 for sky
++layout(set = 3, binding = 0) uniform texture2D depthFinest;                    // RG32F (t1-n8x9): each pixel's center w, 0 for sky, and its back w
+ layout(set = 3, binding = 1) uniform texture2D depthPyramid;                   // RG32F, mip m = level m + 1
+ layout(set = 3, binding = 2, rgba16f) uniform readonly image2D directDiffuseLight;   // demodulated and pre-exposed
+ layout(set = 3, binding = 3, rgba16f) uniform readonly image2D directSpecularLight;
+diff --git a/src/Tertius.Rendering/Shaders/screen_walk.glsl b/src/Tertius.Rendering/Shaders/screen_walk.glsl
+index 87389a655..e68e17128 100644
+--- a/src/Tertius.Rendering/Shaders/screen_walk.glsl
++++ b/src/Tertius.Rendering/Shaders/screen_walk.glsl
+@@ -13,6 +13,11 @@ const uint WalkMiss = 2u;
+ 
+ const int WalkTopLevel = 8;   // ScreenRay.WalkTopLevel
+ 
++// THROWAWAY (ter-kh4g, stage 1b, t1-n8x9): true where a hit's entry share runs over at most the 10 % slab, so that the
++// fade 1 − e of a slab thicker than today falls as today's. The slab that decides a hit does not change
++// (ShaderConstants.FadeOverTenPercentId).
++layout(constant_id = 14) const bool fadeOverTenPercent = false;
++
+ // What a walk keeps of its ray from its start to its end.
+ struct ScreenWalk
+ {
+@@ -66,8 +71,8 @@ bool hitsPixel(ScreenWalk walk, ivec2 pixel)
+ }
+ 
+ // Walks the ray through the pyramid to its first hit, its end or `cap` steps, one texel read per step: the finest level,
+-// R32F, the center w of each pixel, and the bounds, RG32F, whose mip m holds level m + 1. A cell is a slab: from its far
+-// bound times 1 / (1 + κ) to its near bound, or at the finest level from w / (1 + κ) to w. A ray that passes in front of
++// RG32F, and the bounds, RG32F, whose mip m holds level m + 1. THROWAWAY (t1-n8x9): a cell is a slab from its second
++// part to its first, which the pyramid's build sets by its slab rule (slabBack in thickness.glsl). A ray that passes in front of
+ // the slab or behind it crosses the cell and goes up a level, one that meets the slab of a level above 0 goes down to
+ // where it enters it, and one that meets a pixel's slab hits where hitsPixel holds. A walk that reaches its cap is a miss.
+ // On a hit, gives the hit's position in pixels, its pixel and the entry share e, 0 at the slab's front and 1 at its back.
+@@ -83,6 +88,7 @@ uint walkScreen(texture2D finest, texture2D bounds, ScreenWalk walk, uint cap, o
+     vec2 cell = floor(walk.ray.start) + walk.travel * crossed;
+     int level = 0;
+     int top = min(textureQueryLevels(bounds), WalkTopLevel);
++    // THROWAWAY (t1-n8x9): read only by the fade switch.
+     const float backShare = 1.0 / (1.0 + ThicknessShare);
+     // Whether a descent solved s as a slab's entry, rather than a crossing reaching it on a cell's edge.
+     bool solved = false;
+@@ -93,10 +99,11 @@ uint walkScreen(texture2D finest, texture2D bounds, ScreenWalk walk, uint cap, o
+         // A cell beyond the screen holds no surface. Its fetch would leave the active part.
+         vec2 cellBounds = vec2(0.0, EmptyFar);
+         if (!beyondTheScreen(cell, side))
+-            cellBounds = level == 0 ? vec2(texelFetch(finest, ivec2(cell), 0).r)
++            cellBounds = level == 0 ? texelFetch(finest, ivec2(cell), 0).rg
+                 : texelFetch(bounds, ivec2(cell), level - 1).rg;
++        // THROWAWAY (t1-n8x9): the pyramid stores the slab, front w and back w, at every level.
+         float near = cellBounds.x;
+-        float back = cellBounds.y * backShare;
++        float back = cellBounds.y;
+         float inW = walk.ray.startW + walk.ray.stepW * s;
+         float outW = walk.ray.startW + walk.ray.stepW * exit;
+         bool inFront = near <= 0.0 || min(inW, outW) > near;
+@@ -118,7 +125,8 @@ uint walkScreen(texture2D finest, texture2D bounds, ScreenWalk walk, uint cap, o
+             hit = clamp(walk.ray.start + walk.ray.step * entry, cell, cell + 1.0);
+             hitPixel = ivec2(cell);
+             // A thickness that rounds to none leaves a slab of no depth, whose share would be 0 / 0.
+-            entryShare = back < near ? entryShareOf(inW, back, near) : 0.0;
++            float fadeBack = fadeOverTenPercent ? max(back, near * backShare) : back;
++            entryShare = fadeBack < near ? entryShareOf(inW, fadeBack, near) : 0.0;
+             return WalkHit;
+         }
+         // Across the cell and up a level: in front of its slab, behind it, or past a pixel that is no hit.
+diff --git a/src/Tertius.Rendering/Shaders/thickness.glsl b/src/Tertius.Rendering/Shaders/thickness.glsl
+index 70fd30486..3dc544ba0 100644
+--- a/src/Tertius.Rendering/Shaders/thickness.glsl
++++ b/src/Tertius.Rendering/Shaders/thickness.glsl
+@@ -8,4 +8,39 @@
+ // distance D from the eye fills D to D (1 + κ) along the eye's ray.
+ const float ThicknessShare = 0.1;
+ 
++// THROWAWAY (ter-kh4g, stage 1b, t1-n8x9): the slab rule of the depth pyramid's build. The pyramid stores the slab: its
++// second part is the w of the slab's back at every level, and the walk reads it with no constant.
++const uint SlabTenPercent = 0u;   // main's rule, through the new store: the control
++const uint SlabTrimmed = 1u;      // optional reference: the 10 % slab, ended at a nearer back face
++const uint SlabLayer = 2u;        // the chosen rule
++
++const uint NoBackSheet = 0u;      // the chosen rule: back w = front w
++const uint NoBackSheetPlane = 1u; // a sheet as deep as its own plane over the pixel's square (finest level only)
++const uint NoBackTenPercent = 2u; // main's rule for these pixels
++const uint NoBackSolid = 3u;      // solid without end: back w = 0
++
++// ShaderConstants.SlabRuleId and NoBackRuleId: the probe's mode (BackFacePass.Probe).
++layout(constant_id = 12) const uint slabRule = SlabTenPercent;
++layout(constant_id = 13) const uint noBackRule = NoBackSheet;
++
++// The w of the back of what is solid behind a surface at inverse depth `w`, whose back share is `share` (0 for no back
++// face). `w` is a pixel's center w at the finest level and its plane's far bound at level 1. A sheet under
++// NoBackSheetPlane gets `w` here, and the finest shader deepens it to its plane's far bound.
++float slabBack(float w, float share)
++{
++    // The walk's old constant, so that the 10 % rule rounds as main's walk rounded it: glslc folds it in double.
++    const float backShare = 1.0 / (1.0 + ThicknessShare);
++    if (slabRule == SlabTenPercent)
++        return w * backShare;
++    if (slabRule == SlabTrimmed)
++        return max(w * backShare, w * share);
++    if (share > 0.0)
++        return w * share;
++    if (noBackRule == NoBackTenPercent)
++        return w * backShare;
++    if (noBackRule == NoBackSolid)
++        return 0.0;
++    return w;
++}
++
+ #endif
+diff --git a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
+index df17cc625..148fde084 100644
+--- a/src/Tertius.Rendering/VulkanRenderer.cs
++++ b/src/Tertius.Rendering/VulkanRenderer.cs
+@@ -1899,6 +1899,24 @@ public sealed unsafe class VulkanRenderer : IRenderer
+                 Path.Combine(folder, $"back-{backFaceDumps}-{size}.f32"),
+                 System.Runtime.InteropServices.MemoryMarshal.AsBytes<float>(ReadImage(targets.BackDistance)).ToArray()
+             );
++            // THROWAWAY (t1-n8x9): the depth pyramid's finest level, RG per pixel, and level 1, RG per texel of its mip,
++            // padding included, with the mip's size in the name. And the draw commands of each kind.
++            if (targets.Pyramid is not null)
++            {
++                File.WriteAllBytes(
++                    Path.Combine(folder, $"finest-{backFaceDumps}-{size}.rg32"),
++                    System.Runtime.InteropServices.MemoryMarshal.AsBytes<float>(ReadDepthFinest()).ToArray()
++                );
++                (float[] bounds, int levelWidth, int levelHeight) = ReadDepthPyramidLevel(1);
++                File.WriteAllBytes(
++                    Path.Combine(folder, $"level1-{backFaceDumps}-{levelWidth}x{levelHeight}.rg32"),
++                    System.Runtime.InteropServices.MemoryMarshal.AsBytes<float>(bounds).ToArray()
++                );
++            }
++            File.WriteAllText(
++                Path.Combine(folder, $"draws-{backFaceDumps}.txt"),
++                BackFacePass.DrawCounts(LastScene) + Environment.NewLine
++            );
+             backFaceDumps++;
+         }
+     }
+@@ -2132,6 +2150,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
+                 options.LocalShadows is LocalShadowAtlas atlas
+                 && TileReadsFor(atlas.Reads, driver) == LocalShadowReads.SixteenCornerMeans,
+             ScreenTraceOn = options.ScreenTrace is ScreenTrace,
++            // THROWAWAY (t1-n8x9): the probe's slab rule and fade switch.
++            SlabRule = BackFacePass.Probe().SlabRule,
++            NoBackRule = BackFacePass.Probe().NoBackRule,
++            FadeOverTenPercent = BackFacePass.Probe().FadeOverTenPercent,
+             ReflectionSharingPrototype =
+                 options.ScreenTrace is ScreenTrace
+                 && Environment.GetEnvironmentVariable("TERTIUS_REFLECTION_SHARING") == "1",
+@@ -2277,7 +2299,13 @@ public sealed unsafe class VulkanRenderer : IRenderer
+         PyramidImages pyramid = targets.Pyramid ?? throw new UnreachableException("The targets make the pyramid.");
+         Graph.Add(
+             FrameGraph.Stage.DepthPyramid,
+-            new DepthPyramidPass(device: device, shaders: shaders, layouts: layouts, pyramid: pyramid)
++            new DepthPyramidPass(
++                device: device,
++                shaders: shaders,
++                layouts: layouts,
++                pyramid: pyramid,
++                constants: ShadingConstants
++            )
+         );
+         TemporalSignal diffuse = CreateSignal(
+             shaders: shaders,

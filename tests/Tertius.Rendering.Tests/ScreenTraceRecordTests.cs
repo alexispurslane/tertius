@@ -60,31 +60,15 @@ public sealed class ScreenTraceRecordTests
         );
         try
         {
-            MeshId plane = renderer.CreateMesh(Primitives.Plane(1));
-            MaterialId hair = renderer.CreateMaterial(
-                new(BaseColor: Vector4.One, Roughness: 0.3f, Model: new HairShading(StrandDirection.PlusV))
-            );
-            RenderSnapshot scene = Dark();
-            foreach (float horizontal in new[] { -1.5f, 1.5f })
-                scene.Instances.Add(
-                    Gpu.Instance(
-                        mesh: plane,
-                        material: hair,
-                        position: new(horizontal, 0, -10),
-                        rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2),
-                        scale: new(1, 1, 2),
-                        radius: 3,
-                        chainDepth: TestChains.CamerasFrame
-                    )
-                );
             var probe = ScreenTraceProbe.On(renderer, "screen_trace_hair_probe.comp");
-            renderer.Render(scene, 1f);
+            renderer.Render(TwoHairCards(renderer), 1f);
 
             byte[] shading = renderer.ReadShading();
             float[] values = probe.Read();
             int compared = 0;
-            for (int y = 30; y < 60; y++)
-            for (int x = 50; x < width / 2 - 5; x++)
+            // The rows where both cards show, and the columns of the left card whose second pixel to the right shows it.
+            for (int y = 34; y < 57; y++)
+            for (int x = 50; x < width / 2 - 8; x++)
             {
                 int at = 4 * (y * width + x);
                 if (CardCode.Read(shading[at + 2], shading[at + 3]) is null)
@@ -162,5 +146,36 @@ public sealed class ScreenTraceRecordTests
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
+    }
+
+    /// <summary>
+    /// Two hair cards in the dark, which are sheets: a left card 10 m away and a right card 12 m away, each 2 m wide. Each
+    /// turns 0.25 rad about the vertical, so that its right side lies nearer and each pixel's slab has depth. The turn
+    /// dates from t53-eyrv, when the walk could miss a slab of no depth. Since the walk keeps the inverse depth that a
+    /// descent solved, it needs no turn.
+    /// </summary>
+    private static RenderSnapshot TwoHairCards(VulkanRenderer renderer)
+    {
+        MeshId plane = renderer.CreateMesh(Primitives.Plane(1));
+        MaterialId hair = renderer.CreateMaterial(
+            new(BaseColor: Vector4.One, Roughness: 0.3f, Model: new HairShading(StrandDirection.PlusV))
+        );
+        RenderSnapshot scene = Dark();
+        Quaternion turned =
+            Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.25f)
+            * Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2);
+        foreach (Vector3 position in new Vector3[] { new(-1.5f, 0, -10), new(1.8f, 0, -12) })
+            scene.Instances.Add(
+                Gpu.Instance(
+                    mesh: plane,
+                    material: hair,
+                    position: position,
+                    rotation: turned,
+                    scale: new(1, 1, 2),
+                    radius: 3,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+        return scene;
     }
 }

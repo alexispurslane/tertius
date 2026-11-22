@@ -99,7 +99,9 @@ internal static class RasterDiagnostic
                         command.FirstInstance,
                     })
                     .ToArray(),
-                OpaqueRanges = context.Scene.Opaque.Select(runs => new { runs.OneSided, runs.TwoSided }).ToArray(),
+                OpaqueRanges = context
+                    .Scene.Opaque.Select(runs => new { runs.Sided.OneSided, runs.Sided.TwoSided })
+                    .ToArray(),
                 BoxGeometry = new
                 {
                     Provenance = "The same MeshData object supplied to VulkanRenderer.CreateMesh, not a separately reconstructed box.",

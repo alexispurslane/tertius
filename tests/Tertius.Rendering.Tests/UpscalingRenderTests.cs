@@ -245,11 +245,7 @@ public sealed class UpscalingRenderTests
             CameraView camera = renderer.LastScene.Camera;
             camera.Width.Should().Be(80);
             camera.Height.Should().Be(48);
-            float[] depth = renderer.ReadDepthFinest();
-            for (int row = 0; row < 96; row++)
-            for (int column = 0; column < 160; column++)
-                if (column >= camera.Width || row >= camera.Height)
-                    depth[row * 160 + column].Should().Be(0, "inactive pixels must not enter the depth pyramid");
+            InactivePixelsLeaveTheDepthPyramid(renderer, camera);
             renderer
                 .ReadSurfaceTest()
                 .Should()
@@ -361,6 +357,29 @@ public sealed class UpscalingRenderTests
                 new HeadlessTarget(device: device, allocator: allocator, extent: extent, bgra: false),
             headless: false
         );
+
+    /// <summary>Asserts that no pixel beyond the draw of <paramref name="camera"/> enters the finest level or level 1 of
+    /// the depth pyramid of a 160 × 96 window.</summary>
+    private static void InactivePixelsLeaveTheDepthPyramid(VulkanRenderer renderer, CameraView camera)
+    {
+        CellBounds[] depth = renderer.ReadDepthFinest();
+        for (int row = 0; row < 96; row++)
+        for (int column = 0; column < 160; column++)
+            if (column >= camera.Width || row >= camera.Height)
+                depth[row * 160 + column]
+                    .Should()
+                    .Be(new CellBounds(Near: 0, Back: 0), "inactive pixels must not enter the depth pyramid");
+        (float[] levelOne, int mipWidth, int mipHeight) = renderer.ReadDepthPyramidLevel(1);
+        (int activeWidth, int activeHeight) = DepthPyramid.LevelSize(camera.Width, camera.Height, 1);
+        var inactiveCells = new List<(float Near, float Back)>();
+        for (int y = 0; y < mipHeight; y++)
+        for (int x = 0; x < mipWidth; x++)
+            if (x >= activeWidth || y >= activeHeight)
+                inactiveCells.Add((levelOne[2 * (y * mipWidth + x)], levelOne[2 * (y * mipWidth + x) + 1]));
+        inactiveCells
+            .Should()
+            .AllBeEquivalentTo((0f, CellBounds.EmptyBack), "inactive pixels must not enter level 1 either");
+    }
 
     private static void DriveScale(
         VulkanRenderer renderer,

@@ -1,0 +1,117 @@
+---
+id: t1-gout
+status: open
+deps: []
+links: []
+created: 2026-11-22T19:25:27Z
+type: bug
+priority: 1
+assignee: Alexis Purslane
+parent: ter-8hyd
+tags: [rendering, shadows]
+---
+# A window opening's edge lights up with sunlight at some positions of the sun's shadow texel grid: a bright line and a glow on the jamb that depend on the camera's aspect
+
+Found on 2026-11-22 by the Design X line's combined-check lead as the jamb leak of its bug ticket `t58-i3sn` (written on that line's branch, not on main yet). The orchestrator moved the jamb leak into the back-face line on 2026-11-22, because the sun's shadow lookup is this line's (`t8-rjno`, with its step 2 `t1-af5w`). Priority: behind the wobble's fix `ter-qt72`, ahead of the ceiling's speck cloud `ter-fe63`.
+
+## What the user sees
+
+In the cabin of the scene `orbit` (camera `person`, 60 ticks, the lamps on), the nearest window openings of the side walls lie at the picture's left and right edges. At some shapes of the picture, a bright vertical line stands where the jamb ends and the dark opening begins. Light glows from it onto the jamb's face, and bright dots lie along the sill. At other shapes the jamb is grey. With the sun off, nothing lights up.
+
+- Crops, the dynamic scale's sizes on main `a819b10b2`: /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/ramp-M3-openings.png
+- Crops, a window of 1800 x 1008 against 1920 x 1080 at a render scale of 1: .../pics/window-1800x1008-M3-W.png in the same folder.
+- Chart of the jamb light against the aspect error: /Users/alexispurslane/.t3/worktrees/tertius/t3-1b834d57-evidence/jamb/jamb-light-against-aspect-error.png
+
+Before the wobble's fix, the dynamic render scale changes the camera's aspect from draw to draw, so the line flickers. After that fix, the aspect is the window's. A 16:9 window then shows a grey jamb at this opening, and a window of 1800 x 1008 shows the line all the time. So the wobble's fix hides the fault at 16:9 and does not cure it.
+
+## The measurements so far
+
+"Jamb light" is the display-linear mean of a crop of the jamb: right jamb x 1770 to 1807, y 495 to 584 of a 1920 x 1080 picture, left jamb x 113 to 145, y 500 to 579. "Aspect error" is (width / height) / (16/9) - 1 of the size that the camera's aspect comes from.
+
+The ramp over the 181 render sizes of a 1920 x 1080 output (tools/sizeramp.sh and sizeramp.py of the Design X acceptance record, 40 draws per size):
+
+| Code | Sizes with a jamb light above 0.08 | Largest jamb light |
+|---|---|---|
+| main `c4c1f1f2f`, without the back-face layer | 74 | 0.77 |
+| main `a819b10b2`, with the layer and the walk fix | 32 | 0.24 |
+| the wobble fix's branch `839bce1b5` | 0 | 0.0468 |
+
+A window at a render scale of 1, so that the render size is the window:
+
+| Code | Window | Aspect error | Right jamb | Left jamb |
+|---|---|---|---|---|
+| main `a819b10b2` | 1800 x 1008 | +0.45 % | 0.0977 | 0.0582 |
+| main `a819b10b2` | 1920 x 1080 | 0 | 0.0436 | 0.0435 |
+| main `a819b10b2` | 1784 x 1008 | -0.45 % | 0.0437 | 0.0437 |
+| main `a819b10b2` | 1792 x 1008 | 0 | 0.0438 | 0.0433 |
+| main `a819b10b2` | 1808 x 1008 | +0.89 % | 0.0435 | 0.0431 |
+| main `a819b10b2` | 1816 x 1008 | +1.34 % | 0.0510 | 0.0591 |
+| the wobble fix's branch `839bce1b5` | 1800 x 1008 | +0.45 % | 0.0977 | 0.0582 |
+
+On the ramp of main `a819b10b2`, the jamb light is a sawtooth in the aspect error, on one curve for every render width. It jumps up at -0.34 %, +0.45 % and +1.25 % and falls back to the floor (about 0.045) within about 0.3 %. So it does not grow with the error: it wraps.
+
+## The model (the line orchestrator, from the code; the period is checked against the measurement)
+
+The texel size of the sun's cascades depends on the camera's aspect, and the texel grid is fixed in the world (src/Tertius.Rendering/Scene/ShadowCascades.cs, `Fit`):
+
+```csharp
+            (float centerDepth, float radius) = BoundingSphere(
+                near: near,
+                far: far,
+                tanHalfX: camera.TanHalfX,
+                tanHalfY: camera.TanHalfY
+            );
+            float texel = 2f * radius / (mapSize - 2 * MarginTexels);
+            ...
+            center.X = (float)(anchorX + Math.Floor((center.X - anchorX) / texel + 0.5) * texel);
+            center.Y = (float)(anchorY + Math.Floor((center.Y - anchorY) / texel + 0.5) * texel);
+```
+
+where
+
+- `near`, `far` = the view depths where the cascade's slice of the view starts and ends, in meters. Cascade 0 runs from 0.05 m to 50.64 m.
+- `camera.TanHalfX`, `camera.TanHalfY` = the tangents of half the camera's horizontal and vertical field of view. `TanHalfX` is `TanHalfY` times the camera's aspect.
+- `radius` = the radius of the smallest sphere around that slice, in meters. For cascade 0 it is `far * sqrt(TanHalfX² + TanHalfY²)`.
+- `mapSize` = the side of a cascade's shadow map, 2048 texels. `MarginTexels` = 4.
+- `texel` = the world size of one texel of the cascade, in meters: 0.05847 m for cascade 0 at 16:9 and a vertical field of view of 60 degrees.
+- `anchorX`, `anchorY` = the place of the origin of the camera's reference frame (here the ship's center) on the light's two lateral axes. The texel grid passes through it.
+- `center` = the cascade box's center in light space, snapped to that grid.
+
+So the grid's lines lie at whole multiples of `texel` from the ship's center. A change of the aspect changes `texel`, and the grid slides against every edge that is not at the ship's center. An edge a lateral distance D from the anchor sees the grid's phase, D / texel modulo 1, wrap once whenever texel changes by one part in D / texel.
+
+The check: the three teeth are 0.79 and 0.80 % of aspect apart. With the formula above, one texel of phase between the teeth at -0.34 % and +0.45 % needs D = 9.75 m, and between +0.45 % and +1.25 % it needs D = 9.73 m. The side walls of the cabin run from x = 9.5 m (`Cabin.X`) to x = 10 m (`Hull.X`) from the ship's center, so the middle of a jamb is at 9.75 m. The match says that the leak follows the grid's phase at the wall. It does not yet say which edge leaks (the wall's middle, where a pane can sit, or a face seen at an angle to the light's axes).
+
+On main before the wobble's fix, the projection, the view rays, the culling, the cascades, the motion and FSR's constants all read one camera view. So no consumer with a second aspect is involved (the audit of `ter-qt72`).
+
+## The class of the bug
+
+A lookup whose answer depends on where a fixed texel grid falls against a thin edge. The sun's cascade lookup is one member. The local lights' shadow tiles keep the symmetric filter on their own texel grid: step 1 says whether they have a member.
+
+## Step 1: the cause, measured. No remedy is built in this ticket before the orchestrator's word.
+
+1. The numbers of the lookup at the leaking line, at 1800 x 1008 against 1920 x 1080, both as windows at a render scale of 1: which cascade, its texel size, the grid's phase at the jamb on both lateral axes, the sun's direction in the ship's axes at tick 60, and which surface the bright line is (the jamb's outer end, a pane's edge, or the hull's outer face).
+2. Which comparison lets the light through: the one-sided rule `lightOutsideShadow` of `t8-rjno` (a lit fraction just above one half), the slope-scaled bias of a caster that the sun grazes, the constant bias, the normal offset, the wall's thickness of 0.5 m against a texel of 0.058 m, or a cascade's border. Say whether a thin strip at that place is truly sunlit: if it is, the fault is that the strip shows at some phases and not at others, and not that light passes a wall.
+3. A CPU test without a GPU that makes the leak red: the cascade's rasterized depths of a thin wall edge and the lookup's 4 x 4 bilinear comparisons, with the grid's phase moved through one texel in small steps. The result at the receiver must not jump with the phase.
+4. Why the jamb light at the render size 1800 x 1008 is 0.230 on the ramp (upscaled by FSR to 1920 x 1080) and 0.098 in a window of 1800 x 1008. Check first how the window test placed its crop. Then say what spreads the line's light after the lookup: the screen rays, bloom, FSR, or a clamp that cuts rare bright samples at a smaller size (`ter-18hc`). The ramp's amplitude also rises with the render width at one aspect error.
+5. What the back-face layer changes: 74 leaking sizes and 0.77 without it, 32 and 0.24 with it. The line itself is direct light, so say which part of the jamb light is the line and which part the screen rays add.
+6. Whether the sun's slow turn in the orbit moves the phase too, so that such a line comes and goes over minutes in a 16:9 window. If so, find a time and an opening where 16:9 shows it, as the tracked demo case.
+7. Whether the local lights' tiles show a member of the class in any scene of the survey.
+
+The deliverable is docs/research/shadow-grid-phase/README.md with the numbers, the stills, and one tracked demo script that shows the line in a still at a fixed size. A fault over time goes to the user as a side-by-side video.
+
+## Step 2: two designs (the line orchestrator, after step 1)
+
+Two designs with what the user gets and what each costs, with pictures, for the orchestrator. The choice can be the user's.
+
+## The rules that bind the designs
+
+- The user's rule for the sun's shadow: lost sunlight and narrower lit strips are fine. Hard-edged shadows everywhere are not.
+- The one-sided filter of `t8-rjno` is the built rule that the user chose on 2026-11-21.
+- The game runs under the dynamic render scale, and nothing holds the render size or the window's shape to help this fix.
+- Takes run in two window shapes at least: 1920 x 1080 and 1800 x 1008.
+
+## Out of scope
+
+The wobble's fix `ter-qt72`. The speck cloud on the ceiling, `ter-fe63`. The other faults of `t58-i3sn` (the specks per box at a render scale near 1), which stay with that ticket.
+
+

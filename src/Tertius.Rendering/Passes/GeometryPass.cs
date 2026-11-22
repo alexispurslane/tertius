@@ -109,7 +109,7 @@ internal sealed unsafe class GeometryPass : RenderPass
                 BindGeometry(context);
             }
 
-            SidedRuns runs = scene.Opaque[range];
+            SidedRuns runs = scene.Opaque[range].Sided;
             if (runs.Count > 0)
             {
                 PushDraw(context: context, viewProjection: scene.RangeViewProjection[range]);
@@ -232,13 +232,33 @@ internal sealed unsafe class GeometryPass : RenderPass
     /// Draws one view's opaque runs of a pass that shades: both solid runs with the variants of <paramref name="solid"/>,
     /// then both cutout runs with those of <paramref name="cutout"/>, as <see cref="DrawRuns(FrameContext, OpaqueRuns, Pipeline, Pipeline)"/> does.
     /// </summary>
-    public static void DrawRuns(FrameContext context, SidedRuns runs, SidedPipeline solid, SidedPipeline cutout)
+    public static void DrawRuns(FrameContext context, SidedRuns runs, SidedPipeline solid, SidedPipeline cutout) =>
+        DrawRuns(
+            context: context,
+            first: runs.OneSided,
+            second: runs.TwoSided,
+            solid: (First: solid.OneSided, Second: solid.TwoSided),
+            cutout: (First: cutout.OneSided, Second: cutout.TwoSided)
+        );
+
+    /// <summary>
+    /// Draws two kinds of a view's opaque runs, each with its own pipelines: both solid runs with <paramref name="solid"/>,
+    /// then both cutout runs with <paramref name="cutout"/>. The passes that shade and the back-face pass use it.
+    /// </summary>
+    public static void DrawRuns(
+        FrameContext context,
+        OpaqueRuns first,
+        OpaqueRuns second,
+        (Pipeline First, Pipeline Second) solid,
+        (Pipeline First, Pipeline Second) cutout
+    )
     {
-        // Both solid runs first, for the early depth writes of decision 25.
-        DrawRun(context: context, commands: runs.OneSided.Solid, pipeline: solid.OneSided);
-        DrawRun(context: context, commands: runs.TwoSided.Solid, pipeline: solid.TwoSided);
-        DrawRun(context: context, commands: runs.OneSided.Cutout, pipeline: cutout.OneSided);
-        DrawRun(context: context, commands: runs.TwoSided.Cutout, pipeline: cutout.TwoSided);
+        // Both solid runs first, so that their depth hides the cutout fragments behind them before their shader runs
+        // (docs/plans/skin-and-hair.md, decision 25).
+        DrawRun(context: context, commands: first.Solid, pipeline: solid.First);
+        DrawRun(context: context, commands: second.Solid, pipeline: solid.Second);
+        DrawRun(context: context, commands: first.Cutout, pipeline: cutout.First);
+        DrawRun(context: context, commands: second.Cutout, pipeline: cutout.Second);
     }
 
     /// <summary>Binds <paramref name="pipeline"/> and draws <paramref name="commands"/>, when they are any.</summary>

@@ -7,7 +7,7 @@ public sealed class EnvironmentBoxTests
 {
     private static readonly MeshInfo[] Meshes =
     [
-        new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: 2, Deform: null),
+        new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: 2, Deform: null, Closed: true),
     ];
 
     [Fact]
@@ -144,8 +144,6 @@ public sealed class EnvironmentBoxTests
                 snapshot: snapshot,
                 alpha: 1,
                 highestStops: Batchers.HighestStops,
-                width: 1600,
-                height: 900,
                 meshes: Meshes,
                 materials: MaterialSlots.Of(1),
                 environment: new WithMap(new FaceMask[maps], new IrradianceReading?[maps]),

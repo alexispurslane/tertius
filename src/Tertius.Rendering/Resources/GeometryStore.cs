@@ -185,7 +185,8 @@ internal sealed unsafe class GeometryStore : IDisposable
                     IndexCount: (uint)data.Indices.Length,
                     VertexOffset: checked((int)(VertexCount + vertexCursor)),
                     Radius: Radius(data.Vertices),
-                    Deform: deforms[mesh] is { } packed ? deformStore.Add(packed) : null
+                    Deform: deforms[mesh] is { } packed ? deformStore.Add(packed) : null,
+                    Closed: staged.Closed
                 )
             );
             vertexCursor += (ulong)data.Vertices.Length;

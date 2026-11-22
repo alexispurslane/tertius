@@ -1,23 +1,22 @@
 #version 460
-// The finest level of the depth pyramid, level 0 of the two-depth walk (docs/plans/temporal-renderer.md, decisions 40
-// and 46): the inverse view depth w of each pixel's center, by the one rule of a depth sample's w (inverseDepthAlong), or
-// 0 for sky. One invocation per pixel. The levels above it hold the bounds of the pixels' surfaces, whose near bound is
-// at least the center's w and whose far bound at most, so each cell's slab holds the flat slab of every pixel under it.
-// DepthPyramid.Finest is the C# copy.
+// The finest level of the depth pyramid, level 0 of the two-depth walk (docs/plans/back-face-depth-layer.md, "The
+// model"). Each texel holds the slab of its pixel (pixelSlab), from the pixel's front surface and its back share: R its
+// center w (inverseDepthAlong) and G its back w (slabBack), or (0, 0) for sky. One invocation per pixel. The levels
+// above it merge the slab bounds of the pixels' surfaces. Their front w is at least the center's w, and their back w at
+// most the pixel's. So each cell's slab holds the slab of every pixel under it. DepthPyramid.PixelSlab is the C# copy.
 #extension GL_GOOGLE_include_directive : require
 #extension GL_EXT_samplerless_texture_functions : require
 #include "depth_pyramid.glsl"
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
-layout(set = 3, binding = 1, r32f) uniform writeonly image2D destination;   // the finest level, the screen's size
+layout(set = 3, binding = 0) uniform texture2D backShare;                      // the back share, the screen's size
+layout(set = 3, binding = 1, rg32f) uniform writeonly image2D destination;   // the finest level, the screen's size
 
 void main()
 {
     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
     if (any(greaterThanEqual(pixel, imageSize(destination))))
         return;
-    float distanceToEye = all(lessThan(pixel, ivec2(frame.viewport.xy))) ? texelFetch(gbufferDistance, pixel, 0).r : 0.0;
-    float w = distanceToEye <= 0.0 ? 0.0 : inverseDepthAlong(vec2(pixel) + 0.5, distanceToEye);
-    imageStore(destination, pixel, vec4(w));
+    imageStore(destination, pixel, vec4(pixelSlab(pixel, texelFetch(backShare, pixel, 0).r), 0.0, 0.0));
 }

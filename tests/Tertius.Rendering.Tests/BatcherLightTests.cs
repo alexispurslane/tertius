@@ -15,7 +15,7 @@ public sealed class BatcherLightTests
 {
     private static readonly MeshInfo[] Meshes =
     [
-        new(FirstIndex: 0, IndexCount: 600, VertexOffset: 0, Radius: 1f, Deform: null),
+        new(FirstIndex: 0, IndexCount: 600, VertexOffset: 0, Radius: 1f, Deform: null, Closed: true),
     ];
 
     private const float TenStopsDown = -10;
@@ -41,8 +41,6 @@ public sealed class BatcherLightTests
             snapshot: snapshot,
             alpha: alpha,
             highestStops: highestStops,
-            width: 1600,
-            height: 900,
             meshes: Meshes,
             materials: MaterialSlots.Of(8),
             environment: environment ?? new WithoutMap(),

@@ -2,7 +2,7 @@
 id: ter-4iic
 status: open
 deps: []
-links: []
+links: [t0-70v1, t0-o7gf, t0-zmjx]
 created: 2026-11-10T09:38:12Z
 type: bug
 priority: 1
@@ -23,3 +23,7 @@ The frames that make the deck's p95 are named from a per-frame trace. If they ar
 **2026-11-10T09:48:17Z**
 
 Correction from the frame-time study (/private/tmp/tertius-perf-plan-20261110/plan.md, research only, no new runs): the trace's p95 of 32.7 ms comes from its 32 warm-up draws, which the trace counts and the survey's timer leaves out. The same run's timer gives a median of 24.54 ms and a p95 of 25.13 ms. So the survey's p95 is not inflated by young histories. The cost stays real in a game window: about 10 ms more per draw for the 8 draws after a camera cut. The view deck-cuts does not measure a cut, because a headless draw after a camera switch is a still with 32 untimed warm-up draws. The acceptance needs a measure of the draws after a cut in a window, not the survey's p95.
+
+**2026-11-22T21:05:14Z**
+
+A structural candidate from the acceptance lead of the Design X line, 2026-11-22, passed to the orchestrator: a ray budget per draw. The plan ranks the pixels that want a ray of their own (young histories, by how young) and grants at most N own rays per block or per frame; the block's ray fills in for the others. Then no event raises a draw's ray cost above the budget: a light change, a start of a run, a camera cut. Evidence for the need: the start of a run costs 26.3 to 26.5 ms at draws 0 and 1 on the card and takes the scale to 0.771 (t58-np60); the variant "own rays wait for the evidence" of t0-zmjx still paid 4 draws at 22.8 to 25.3 ms after a lamp switch and moved the scale by 0.097. With a budget, the restart length after evidence (t0-zmjx: 8 draws) becomes free to choose again (t0-o7gf: 4 draws). Not designed and not measured; the orchestrator's review of the indirect lighting's approach may order it.

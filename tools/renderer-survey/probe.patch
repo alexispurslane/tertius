@@ -397,8 +397,8 @@ index 99ad27d..dda9304 100644
      /// The number of constants: one per field of <see cref="ShaderConstants"/>, the subsurface setting's being its taps per
      /// side. <see cref="ShaderConstants.Specialization"/> writes one row per constant, and a row past this count throws.
      /// </summary>
--    public const int Count = 11;
-+    public const int Count = 13;
+-    public const int Count = 12;
++    public const int Count = 14;
  
      public SpecializationValues Data;
      public SpecializationEntries Entries;

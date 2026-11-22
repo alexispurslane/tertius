@@ -46,16 +46,17 @@ public class SceneBatcherBenchmarks
     /// <summary>The posed tube: 8 segments round, one ring of vertices per joint, each ring bound to its joint alone.</summary>
     private static readonly MeshData Chain = ChainTube();
 
-    /// <summary>The unit cube of the grid, then the posed tube.</summary>
+    /// <summary>The unit cube of the grid, then the posed tube. Each bounds a volume, so each is a closed mesh.</summary>
     internal static readonly MeshInfo[] Meshes =
     [
-        new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: 0.866f, Deform: null),
+        new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: 0.866f, Deform: null, Closed: true),
         new(
             FirstIndex: 36,
             IndexCount: (uint)Chain.Indices.Length,
             VertexOffset: 24,
             Radius: GeometryStore.Radius(Chain.Vertices),
-            Deform: MeshDeform.Pack(StagedMesh.Of(Chain))!.Deform
+            Deform: MeshDeform.Pack(StagedMesh.Of(Chain))!.Deform,
+            Closed: true
         ),
     ];
 
@@ -133,8 +134,6 @@ public class SceneBatcherBenchmarks
             // The highest exposure of the default setting: the reach that every light had before the reach followed the
             // exposure, so the benchmark keeps every light.
             highestStops: AutoExposure.Default.MaxStops,
-            width: Width,
-            height: Height,
             meshes: Meshes,
             materials: Materials,
             environment: environment,

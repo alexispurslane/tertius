@@ -1,17 +1,23 @@
 using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using Silk.NET.Vulkan;
 
 namespace Tertius.Rendering;
 
-/// <summary>A mesh as the batcher sees it: its range in the global buffers and its bounding radius.</summary>
+/// <summary>A mesh as the batcher sees it: its range in the global buffers, its bounding radius and whether it is closed.</summary>
 /// <param name="Deform">The CPU side of a deforming mesh, or null for a rigid mesh and for a deformed copy.</param>
+/// <param name="Closed">
+/// Whether the mesh bounds a volume (<see cref="MeshClosure.IsClosed"/>), which its upload computes once. A deformed copy
+/// keeps its mesh's.
+/// </param>
 internal readonly record struct MeshInfo(
     uint FirstIndex,
     uint IndexCount,
     int VertexOffset,
     float Radius,
-    MeshDeform? Deform
+    MeshDeform? Deform,
+    bool Closed
 );
 
 /// <summary>
@@ -44,25 +50,23 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         LargestScale = 1.1529215e18f;
 
     /// <summary>
-    /// The lowest of the two bits of an opaque draw item's key that name its run, so that the two read as one number:
-    /// twice <see cref="CutoutKeyBit"/>'s plus <see cref="TwoSidedKeyBit"/>'s.
+    /// The lowest of the two bits of an opaque draw item's key that hold its <see cref="OpaqueFaces"/>, above the mesh's
+    /// bits, which a mesh index below 2²⁹ never reaches: no geometry buffer holds half a billion meshes.
     /// </summary>
-    private const int RunKeyShift = 30;
+    internal const int FacesKeyShift = 29;
 
     /// <summary>
     /// The bit of an opaque draw item's key that puts it into its range's cutout runs, below the range's bits and just
-    /// above <see cref="TwoSidedKeyBit"/>.
+    /// above <see cref="FacesKeyBits"/>, so that the three bits read as one number: four times the cutout bit plus the
+    /// faces.
     /// </summary>
-    internal const ulong CutoutKeyBit = TwoSidedKeyBit << 1;
+    internal const ulong CutoutKeyBit = 1UL << (FacesKeyShift + 2);
 
-    /// <summary>
-    /// The bit of an opaque draw item's key that puts it into its range's two-sided runs, above the mesh's bits, which a
-    /// mesh index below 2³⁰ never reaches: no geometry buffer holds a billion meshes.
-    /// </summary>
-    internal const ulong TwoSidedKeyBit = 1UL << RunKeyShift;
+    /// <summary>The bits of an opaque draw item's key that hold its <see cref="OpaqueFaces"/>.</summary>
+    private const ulong FacesKeyBits = 3UL << FacesKeyShift;
 
     /// <summary>The bits of an opaque draw item's key that name its run.</summary>
-    private const ulong RunKeyBits = CutoutKeyBit | TwoSidedKeyBit;
+    private const ulong RunKeyBits = CutoutKeyBit | FacesKeyBits;
 
     private DrawItem[] opaque = new DrawItem[256];
     private readonly OpaqueSorter opaqueSorter = new();
@@ -76,7 +80,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     private readonly HashSet<Entity> lightHolders = [];
 
     // The commands of one face per depth range, indexed by DepthRanges.
-    private readonly SidedRuns[] faceRanges = new SidedRuns[DepthRanges.Count];
+    private readonly RangeRuns[] faceRanges = new RangeRuns[DepthRanges.Count];
 
     // The puffs that this frame draws, in the order of the snapshot, before the sort puts them into PreparedScene.Puffs.
     private GpuPuff[] collectedPuffs = new GpuPuff[64];
@@ -90,8 +94,6 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     /// <param name="highestStops">
     /// The highest exposure, in stops, that the frame uses or its adapt step writes. Each light's reach ends at its cutoff.
     /// </param>
-    /// <param name="width">Output width in pixels.</param>
-    /// <param name="height">Output height in pixels.</param>
     /// <param name="meshes">Meshes that are on the GPU. Instances of <see cref="MeshId.None"/> and of other meshes are skipped.</param>
     /// <param name="materials">
     /// The material slots on the GPU, the default's first. <see cref="MaterialId.None"/> and ids that are not on the GPU
@@ -102,14 +104,15 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     /// maps are those of <paramref name="snapshot"/>'s chain (docs/plans/environment-maps-per-frame.md).
     /// </param>
     /// <param name="region">The deform region that this frame's deformed copies fill.</param>
-    /// <param name="frame">The draw's pending state: the batch joins its placement history and writes this frame's into it.</param>
+    /// <param name="frame">
+    /// The draw's pending state: the batch joins its placement history and writes this frame's into it. Its output size
+    /// gives the camera's aspect, and its render size the camera's pixel counts.
+    /// </param>
     /// <param name="scene">Receives the result.</param>
     public void Prepare(
         RenderSnapshot snapshot,
         float alpha,
         float highestStops,
-        int width,
-        int height,
         ReadOnlySpan<MeshInfo> meshes,
         ReadOnlySpan<MaterialInfo> materials,
         EnvironmentDraw environment,
@@ -120,7 +123,12 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     {
         alpha = ClampAlpha(alpha);
         scene.Reset();
-        scene.Camera = InterpolateCamera(snapshot: snapshot, alpha: alpha, width: width, height: height);
+        scene.Camera = InterpolateCamera(
+            snapshot: snapshot,
+            alpha: alpha,
+            renderSize: frame.RenderSize,
+            outputSize: frame.OutputSize
+        );
 
         // Before the placement, whose motion rows take the last frame's eye relative to this one.
         DrawnCamera camera = DrawnCameraOf(snapshot, scene.Camera);
@@ -210,14 +218,24 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         }
     }
 
-    private static CameraView InterpolateCamera(RenderSnapshot snapshot, float alpha, int width, int height)
+    /// <summary>
+    /// The camera of the draw. Its shape is the output's: the aspect comes from <paramref name="outputSize"/>, so that a
+    /// render size rounded on each axis on its own never stretches the picture. <paramref name="renderSize"/> gives only
+    /// the pixel counts (ter-qt72).
+    /// </summary>
+    private static CameraView InterpolateCamera(
+        RenderSnapshot snapshot,
+        float alpha,
+        Extent2D renderSize,
+        Extent2D outputSize
+    )
     {
         RenderCamera camera = snapshot.Camera;
         Quaternion rotation = Interpolate(camera.PreviousRotation, camera.Rotation, alpha);
         float fov = camera.VerticalFov is > 0f and < MathF.PI
             ? MathF.Max(camera.VerticalFov, NarrowestVerticalFov)
             : DefaultVerticalFov;
-        float aspect = (float)Math.Max(width, 1) / Math.Max(height, 1);
+        float aspect = (float)Math.Max(outputSize.Width, 1) / Math.Max(outputSize.Height, 1);
         float tanY = MathF.Tan(fov * 0.5f);
         return new()
         {
@@ -230,8 +248,8 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
             Aspect = aspect,
             TanHalfY = tanY,
             TanHalfX = tanY * aspect,
-            Width = width,
-            Height = height,
+            Width = (int)renderSize.Width,
+            Height = (int)renderSize.Height,
             View = Matrix4x4.CreateFromQuaternion(Quaternion.Conjugate(rotation)),
             RootRotation = Interpolate(snapshot.PreviousRootRotation, snapshot.RootRotation, alpha),
         };
@@ -677,7 +695,13 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
             )
                 continue;
             int mask = DepthRanges.OpaqueMask(Vector3.Dot(instance.Position, basis.Forward), instance.Radius);
-            AppendOpaque(count: ref opaqueCount, mask: mask, instance: in instance, index: i);
+            AppendOpaque(
+                count: ref opaqueCount,
+                mask: mask,
+                instance: in instance,
+                index: i,
+                closed: meshes[instance.Mesh].Closed
+            );
         }
 
         opaqueSorter.Sort(opaque.AsSpan(0, opaqueCount), meshes.Length);
@@ -695,9 +719,9 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
                 Map: map,
                 Face: face,
                 Basis: basis,
-                Far: faceRanges[DepthRanges.Far],
-                Middle: faceRanges[DepthRanges.Middle],
-                Near: faceRanges[DepthRanges.Near]
+                Far: faceRanges[DepthRanges.Far].Sided,
+                Middle: faceRanges[DepthRanges.Middle].Sided,
+                Near: faceRanges[DepthRanges.Near].Sided
             )
         );
     }
@@ -791,7 +815,8 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
                     count: ref opaqueCount,
                     mask: DepthRanges.OpaqueMask(instance.Depth, instance.Radius),
                     instance: in instance,
-                    index: i
+                    index: i,
+                    closed: meshes[instance.Mesh].Closed
                 );
         }
 
@@ -832,16 +857,28 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
 
     /// <summary>
     /// Adds one opaque draw item of <paramref name="instance"/> per depth range of <paramref name="mask"/>, keyed by the
-    /// range, then the run, then the mesh. The runs go solid before cutout, and within each one-sided before two-sided, so
-    /// that each range's commands form its solid runs and then its cutout runs.
+    /// range, then the run, then the mesh. The runs go solid before cutout, and within each in the order of
+    /// <see cref="OpaqueFaces"/>, so that each range's commands form the six runs of a <see cref="RangeRuns"/>.
     /// </summary>
-    private void AppendOpaque(ref int count, int mask, in PreparedInstance instance, int index)
+    /// <param name="closed">Whether the instance's mesh is closed (<see cref="MeshInfo.Closed"/>).</param>
+    private void AppendOpaque(ref int count, int mask, in PreparedInstance instance, int index, bool closed)
     {
         ulong run =
-            (OpaqueRuns.InCutoutRun(instance.Alpha) ? CutoutKeyBit : 0) | (instance.TwoSided ? TwoSidedKeyBit : 0);
+            (OpaqueRuns.InCutoutRun(instance.Alpha) ? CutoutKeyBit : 0)
+            | ((ulong)FacesOf(twoSided: instance.TwoSided, closed: closed) << FacesKeyShift);
         for (int range = 0; range < DepthRanges.Count; range++)
             if ((mask & (1 << range)) != 0)
                 Append(ref opaque, ref count, new(((ulong)range << 32) | run | (uint)instance.Mesh, index));
+    }
+
+    /// <summary>The class of an opaque instance of a material of <paramref name="twoSided"/> and a mesh of <paramref name="closed"/>.</summary>
+    private static OpaqueFaces FacesOf(bool twoSided, bool closed)
+    {
+        if (twoSided)
+            return OpaqueFaces.TwoSided;
+        if (closed)
+            return OpaqueFaces.ClosedOneSided;
+        return OpaqueFaces.OpenOneSided;
     }
 
     /// <summary>
@@ -988,7 +1025,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
 
     /// <summary>
     /// Writes the GPU instances in sorted order and one indirect command per run of equal (range, run, mesh), with
-    /// firstInstance pointing at the run's first GPU instance, and each range's four runs into <paramref name="ranges"/>.
+    /// firstInstance pointing at the run's first GPU instance, and each range's six runs into <paramref name="ranges"/>.
     /// An item's index is its place in <paramref name="instances"/>.
     /// </summary>
     private static void Emit(
@@ -996,7 +1033,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         ReadOnlySpan<MeshInfo> meshes,
         ReadOnlySpan<PreparedInstance> instances,
         ReadOnlySpan<DrawItem> items,
-        SidedRuns[] ranges
+        RangeRuns[] ranges
     )
     {
         int currentRange = -1,
@@ -1035,11 +1072,15 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     /// Sets the run of <paramref name="range"/> that the key bits <paramref name="run"/> name to the commands from
     /// <paramref name="runStart"/>.
     /// </summary>
-    private static void CloseOpaqueRun(PreparedScene scene, SidedRuns[] ranges, int range, ulong run, int runStart)
+    private static void CloseOpaqueRun(PreparedScene scene, RangeRuns[] ranges, int range, ulong run, int runStart)
     {
         var commands = new CommandRange(runStart, scene.CommandCount - runStart);
         ranges[range] = ranges[range]
-            .With(cutout: (run & CutoutKeyBit) != 0, twoSided: (run & TwoSidedKeyBit) != 0, commands: commands);
+            .With(
+                cutout: (run & CutoutKeyBit) != 0,
+                faces: (OpaqueFaces)((run & FacesKeyBits) >> FacesKeyShift),
+                commands: commands
+            );
     }
 
     /// <summary>
@@ -1680,14 +1721,18 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     /// <summary>
     /// Sorts a view's opaque draw items by key, and keeps their order at equal keys. A view appends its items in the
     /// order of its instances, so this is the order of (key, index). A key is (range, run, mesh), one of
-    /// <see cref="DepthRanges.Count"/> × 4 × meshes, so the sorter counts the items of each key and moves each item once: a
+    /// <see cref="DepthRanges.Count"/> × 8 × meshes, so the sorter counts the items of each key and moves each item once: a
     /// counting sort, in time linear in the items and the meshes, where a comparison sort takes n log n comparisons.
     /// Allocates nothing once its arrays have grown to the view.
     /// </summary>
     internal sealed class OpaqueSorter
     {
-        /// <summary>The runs of a range: solid and cutout, each one-sided and two-sided.</summary>
-        private const int RunsPerRange = 4;
+        /// <summary>
+        /// The values of a range's three run bits: the cutout bit and the two faces bits. Only 6 occur, because three of
+        /// the four faces values name an <see cref="OpaqueFaces"/>. The count is 8 because <see cref="KeyIndex"/> reads
+        /// the three bits as one number, with no remap.
+        /// </summary>
+        private const int RunsPerRange = 8;
 
         private int[] starts = new int[64];
         private DrawItem[] sorted = new DrawItem[256];
@@ -1695,7 +1740,6 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         /// <summary>Sorts <paramref name="items"/> of meshes 0 to <paramref name="meshCount"/> − 1.</summary>
         public void Sort(Span<DrawItem> items, int meshCount)
         {
-            // The four runs of each range.
             int keys = DepthRanges.Count * RunsPerRange * meshCount;
             EnsureCapacity(ref starts, keys + 1);
             EnsureCapacity(ref sorted, items.Length);
@@ -1711,13 +1755,13 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         }
 
         /// <summary>
-        /// The place of an item's key in key order: its range, then its run, solid before cutout and one-sided before
-        /// two-sided, then its mesh.
+        /// The place of an item's key in key order: its range, then its run, solid before cutout and each in the order of
+        /// <see cref="OpaqueFaces"/>, then its mesh.
         /// </summary>
         private static int KeyIndex(DrawItem item, int meshCount)
         {
-            // The two run bits read as one number: twice the cutout bit plus the two-sided bit.
-            int run = (int)((item.Key & RunKeyBits) >> RunKeyShift);
+            // The three run bits read as one number: four times the cutout bit plus the faces.
+            int run = (int)((item.Key & RunKeyBits) >> FacesKeyShift);
             int mesh = (int)((uint)item.Key & ~(uint)RunKeyBits);
             return ((int)(item.Key >> 32) * RunsPerRange + run) * meshCount + mesh;
         }
