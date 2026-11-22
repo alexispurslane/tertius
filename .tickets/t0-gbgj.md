@@ -118,3 +118,7 @@ The combined check's half of the jambs' two by two, 2026-11-22: M2 (main 2840258
 **2026-11-22T17:46:49Z**
 
 Per-region table of the fair cabin switch at 2/3 from the combined check's lead, 2026-11-22 (draws to settle off / on, M2 then X2): whole 122 / 53 and 66 / 30; r00 141 / 92 and 77 / 50; r01 96 / 5 and 51 / 4 (old switch 14 / 12 and 8 / 7); r02 142 / 92 and 74 / 50; r10 131 / 87 and 72 / 47; r11 116 / 83 and 63 / 44; r12 131 / 87 and 72 / 47; r20 129 / 50 and 76 / 31; r21 115 / 41 and 66 / 25; r22 129 / 51 and 75 / 31. Only the whole image and r01, the region that holds the switched panel, differ from the old switch. X2 settles about twice as fast as M2 in every region. Chart pics/switch-r11-glow-off.png. No report went up for this table, because its headline numbers were already reported.
+
+**2026-11-22T18:07:58Z**
+
+2026-11-22: added take for the combined check's lead: the cabin's settled lamps-on frame on M2 at fixed scales from 0.50 to 1.0 in steps of 0.05, plus 0.70 and 0.956, and on X2 at 0.70 and 0.956, with the jamb crop's mean per size. Reason: on the code without the layer the sun leaks onto the jambs at 0.70 and 0.956 only (see t0-5tyj), and the layer's cure is measured at 0.956 alone.
