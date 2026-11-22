@@ -94,7 +94,8 @@ internal sealed class ScreenTraceImages : IDisposable
             layouts: layouts,
             extent: targets.Extent,
             format: PyramidImages.LightFormat,
-            name: "light pyramid"
+            name: "light pyramid",
+            levelOneReadsFinest: true
         );
         Create();
     }

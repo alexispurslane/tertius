@@ -104,11 +104,30 @@ internal static class ScreenTesting
         return (distances, normals);
     }
 
-    /// <summary>The depth pyramid of a synthetic scene seen by <paramref name="camera"/>.</summary>
+    /// <summary>The depth pyramid of a synthetic scene seen by <paramref name="camera"/>, whose rectangles are sheets
+    /// (<see cref="SheetShares"/>).</summary>
     public static DepthPyramid Pyramid(in CameraView camera, ReadOnlySpan<SceneRectangle> scene)
     {
         (float[] distances, Vector3[] normals) = Surfaces(camera, scene);
-        return DepthPyramid.Of(camera: camera, distances: distances, geometricNormals: normals);
+        return DepthPyramid.Of(
+            camera: camera,
+            distances: distances,
+            geometricNormals: normals,
+            backShares: SheetShares(distances)
+        );
+    }
+
+    /// <summary>
+    /// The back share of each pixel of a scene of sheets, from the distance of each pixel, 0 for sky. A rectangle of a
+    /// synthetic scene is an open mesh, whose faces the back-face pass draws both. So the front surface's own fragment
+    /// gives each surface pixel the share 1.
+    /// </summary>
+    public static float[] SheetShares(ReadOnlySpan<float> distances)
+    {
+        float[] shares = new float[distances.Length];
+        for (int pixel = 0; pixel < shares.Length; pixel++)
+            shares[pixel] = distances[pixel] > 0 ? 1 : 0;
+        return shares;
     }
 
     /// <summary>Whether <paramref name="plane"/>'s test of <paramref name="other"/>'s center lies within the share

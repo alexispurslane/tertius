@@ -142,7 +142,7 @@ internal sealed unsafe class GeometryAuditPass : Rendering.RenderPass
         for (int range = DepthRanges.Far; range <= DepthRanges.Near; range++)
         {
             BeginOwnedRange(context, range, ownedDepth);
-            SidedRuns runs = context.Scene.Opaque[range];
+            SidedRuns runs = context.Scene.Opaque[range].Sided;
             if (runs.Count > 0)
             {
                 GeometryPass.PushDraw(context: context, viewProjection: context.Scene.RangeViewProjection[range]);

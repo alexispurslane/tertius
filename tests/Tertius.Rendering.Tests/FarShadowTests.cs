@@ -17,7 +17,7 @@ public sealed class FarShadowTests
 {
     private static readonly MeshInfo[] Meshes =
     [
-        new(FirstIndex: 0, IndexCount: 600, VertexOffset: 0, Radius: 1f, Deform: null),
+        new(FirstIndex: 0, IndexCount: 600, VertexOffset: 0, Radius: 1f, Deform: null, Closed: true),
     ];
     private static readonly MeshId Sphere = new(0);
 
@@ -45,8 +45,6 @@ public sealed class FarShadowTests
                 snapshot: snapshot,
                 alpha: alpha,
                 highestStops: Batchers.HighestStops,
-                width: 1600,
-                height: 900,
                 meshes: Meshes,
                 materials: MaterialSlots.Of(8),
                 environment: default,

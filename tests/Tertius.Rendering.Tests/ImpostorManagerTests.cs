@@ -18,14 +18,15 @@ public sealed class ImpostorManagerTests
 
     private static readonly MeshInfo[] Meshes =
     [
-        new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: MathF.Sqrt(0.75f), Deform: null),
-        new(FirstIndex: 36, IndexCount: 600, VertexOffset: 24, Radius: 1f, Deform: null),
+        new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: MathF.Sqrt(0.75f), Deform: null, Closed: true),
+        new(FirstIndex: 36, IndexCount: 600, VertexOffset: 24, Radius: 1f, Deform: null, Closed: true),
         new(
             FirstIndex: 636,
             IndexCount: (uint)MorphingBoxData.Indices.Length,
             VertexOffset: 324,
             Radius: GeometryStore.Radius(MorphingBoxData.Vertices),
-            Deform: MeshDeform.Pack(StagedMesh.Of(MorphingBoxData))!.Deform
+            Deform: MeshDeform.Pack(StagedMesh.Of(MorphingBoxData))!.Deform,
+            Closed: true
         ),
     ];
 
@@ -73,8 +74,6 @@ public sealed class ImpostorManagerTests
                 snapshot: snapshot,
                 alpha: 1f,
                 highestStops: Batchers.HighestStops,
-                width: Width,
-                height: Height,
                 meshes: Meshes,
                 materials: Materials,
                 environment: environment,

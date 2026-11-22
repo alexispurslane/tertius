@@ -1,0 +1,556 @@
+diff --git a/scripts/ter-kh4g-crowd-timing.json b/scripts/ter-kh4g-crowd-timing.json
+new file mode 100644
+index 000000000..b24fa19b5
+--- /dev/null
++++ b/scripts/ter-kh4g-crowd-timing.json
+@@ -0,0 +1,8 @@
++{
++  "scene": "rigs-crowd",
++  "window": { "width": 1920, "height": 1080 },
++  "steps": [
++    { "do": "run", "ticks": 60 },
++    { "do": "film", "name": "crowd", "frames": 120, "every": 1 }
++  ]
++}
+diff --git a/src/Tertius.Demo/DemoScenes.Rigs.cs b/src/Tertius.Demo/DemoScenes.Rigs.cs
+index 9e7450db2..53adc19c2 100644
+--- a/src/Tertius.Demo/DemoScenes.Rigs.cs
++++ b/src/Tertius.Demo/DemoScenes.Rigs.cs
+@@ -188,7 +188,9 @@ public static partial class DemoScenes
+         RenderData drawn = RigDrawn(resources: resources, mesh: cylinder, color: RigBlue);
+         RigPose rest = RestOf(cylinder);
+         double half = (RigCrowdSide - 1) * RigCrowdSpacing / 2;
+-        for (int i = 0; i < RigCrowdSide * RigCrowdSide; i++)
++        // THROWAWAY (t1-kiaw): TERTIUS_CROWD_COUNT cylinders, the first of the grid, instead of all 100.
++        int count = int.TryParse(Environment.GetEnvironmentVariable("TERTIUS_CROWD_COUNT"), out int set) ? set : RigCrowdSide * RigCrowdSide;
++        for (int i = 0; i < count; i++)
+             AddRig(
+                 world: world,
+                 scene: scene,
+diff --git a/src/Tertius.Rendering/Passes/BackFacePass.cs b/src/Tertius.Rendering/Passes/BackFacePass.cs
+index 98c87e820..2d0e74a8c 100644
+--- a/src/Tertius.Rendering/Passes/BackFacePass.cs
++++ b/src/Tertius.Rendering/Passes/BackFacePass.cs
+@@ -20,9 +20,32 @@ internal sealed unsafe class BackFacePass : RenderPass
+     private readonly Pipeline cardsSolid;
+     private readonly Pipeline cardsCutout;
+ 
+-    public BackFacePass(VulkanDevice device, ShaderLibrary shaders, DescriptorLayouts layouts)
++    /// <summary>THROWAWAY (t1-kiaw): the pipeline of TERTIUS_BACK_FACE_SPLIT=clipped, or the default handle.</summary>
++    private readonly Pipeline clipped;
++
++    /// <summary>THROWAWAY (t1-kiaw): the pass's pipeline description, from which the pulled pipeline is made.</summary>
++    private readonly GraphicsPipelineDesc pulledDesc;
++
++    private readonly ShaderLibrary shaders;
++    private readonly DescriptorLayouts layouts;
++    private readonly KeptPositions? kept;
++
++    /// <summary>THROWAWAY (t1-kiaw): the pulled pipeline for the region base it was made with, and older ones.</summary>
++    private Pipeline pulled;
++
++    private int pulledBase = -1;
++    private readonly List<Pipeline> retired = [];
++    private DescriptorSetLayout probeSetLayout;
++    private PipelineLayout probeLayout;
++    private DescriptorPool probePool;
++    private readonly Dictionary<FrameResources, DescriptorSet> probeSets = [];
++
++    public BackFacePass(VulkanDevice device, ShaderLibrary shaders, DescriptorLayouts layouts, KeptPositions? kept = null)
+     {
+         this.device = device;
++        this.shaders = shaders;
++        this.layouts = layouts;
++        this.kept = kept;
+         var desc = new GraphicsPipelineDesc
+         {
+             Name = "back faces (throwaway)",
+@@ -38,6 +61,14 @@ internal sealed unsafe class BackFacePass : RenderPass
+             CullMode = CullModeFlags.FrontBit,
+         };
+         pipeline = desc.Create(device, shaders);
++        pulledDesc = desc;
++        if (Split == "clipped")
++            clipped = (desc with { Name = "back faces, clipped (throwaway)", VertexShader = "back_face_clipped.vert" }).Create(
++                device,
++                shaders
++            );
++        if (Fetch != "")
++            CreateProbeLayout();
+         if (DrawsCards)
+         {
+             cardsSolid = (
+@@ -81,6 +112,197 @@ internal sealed unsafe class BackFacePass : RenderPass
+ 
+     public override string Name => "back faces";
+ 
++    /// <summary>
++    /// THROWAWAY (t1-kiaw): <c>TERTIUS_BACK_FACE_SPLIT</c>, which splits the pass of stage 1b into its parts. Empty: the
++    /// pass as it is. <c>scissor</c>: a scissor of one pixel, so that the vertex work and the triangle setup stay and no
++    /// fragment runs. <c>clipped</c>: every vertex outside the clip volume, so that only the vertex work stays.
++    /// <c>empty</c>: the three rendering instances and their barriers, with no draw.
++    /// </summary>
++    public static readonly string Split = Environment.GetEnvironmentVariable("TERTIUS_BACK_FACE_SPLIT") switch
++    {
++        null or "" => "",
++        var value when value is "scissor" or "clipped" or "empty" => value,
++        var value => throw new ArgumentException($"Unknown TERTIUS_BACK_FACE_SPLIT value '{value}'."),
++    };
++
++    /// <summary>
++    /// THROWAWAY (t1-kiaw): <c>TERTIUS_BACK_FACE_FETCH</c>, how the pass of stage 1b reads a vertex's position. Empty: the
++    /// vertex input, 12 bytes of each 52-byte vertex. <c>pulled</c>: the same words from the vertex buffer as a storage
++    /// buffer. <c>packed</c>: a deformed vertex reads this frame's kept positions, 12 bytes per vertex, end to end.
++    /// </summary>
++    public static readonly string Fetch = Environment.GetEnvironmentVariable("TERTIUS_BACK_FACE_FETCH") switch
++    {
++        null or "" => "",
++        var value when value is "pulled" or "packed" => value,
++        var value => throw new ArgumentException($"Unknown TERTIUS_BACK_FACE_FETCH value '{value}'."),
++    };
++
++    /// <summary>THROWAWAY (t1-kiaw): <c>TERTIUS_BACK_FACE_COUNT</c>, a file that gets one line of draw counts per frame.</summary>
++    private static readonly string? CountPath = Environment.GetEnvironmentVariable("TERTIUS_BACK_FACE_COUNT") is
++    { Length: > 0 } path
++        ? path
++        : null;
++
++    private long countedFrames;
++
++    /// <summary>THROWAWAY (t1-kiaw): the set layout, pool and pipeline layout of the pulled pipeline's set 3.</summary>
++    private void CreateProbeLayout()
++    {
++        Vk vk = device.Vk;
++        var bindings = stackalloc DescriptorSetLayoutBinding[2];
++        bindings[0] = new(binding: 0, descriptorType: DescriptorType.StorageBuffer, descriptorCount: 1, stageFlags: ShaderStageFlags.VertexBit);
++        bindings[1] = new(binding: 1, descriptorType: DescriptorType.StorageBuffer, descriptorCount: 1, stageFlags: ShaderStageFlags.VertexBit);
++        var setInfo = new DescriptorSetLayoutCreateInfo
++        {
++            SType = StructureType.DescriptorSetLayoutCreateInfo,
++            BindingCount = 2,
++            PBindings = bindings,
++        };
++        DescriptorSetLayout setLayout;
++        vk.CreateDescriptorSetLayout(device.Device, &setInfo, null, &setLayout);
++        probeSetLayout = setLayout;
++        var size = new DescriptorPoolSize(DescriptorType.StorageBuffer, 32);
++        var poolInfo = new DescriptorPoolCreateInfo
++        {
++            SType = StructureType.DescriptorPoolCreateInfo,
++            MaxSets = 16,
++            PoolSizeCount = 1,
++            PPoolSizes = &size,
++        };
++        DescriptorPool pool;
++        vk.CreateDescriptorPool(device.Device, &poolInfo, null, &pool);
++        probePool = pool;
++        DescriptorSetLayout* sets = stackalloc DescriptorSetLayout[4];
++        sets[0] = layouts.FrameSet;
++        sets[1] = layouts.TextureSet;
++        sets[2] = layouts.GBufferSet;
++        sets[3] = probeSetLayout;
++        var range = new PushConstantRange(
++            ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit,
++            0,
++            (uint)sizeof(DrawPushConstants)
++        );
++        var layoutInfo = new PipelineLayoutCreateInfo
++        {
++            SType = StructureType.PipelineLayoutCreateInfo,
++            SetLayoutCount = 4,
++            PSetLayouts = sets,
++            PushConstantRangeCount = 1,
++            PPushConstantRanges = &range,
++        };
++        PipelineLayout layout;
++        vk.CreatePipelineLayout(device.Device, &layoutInfo, null, &layout);
++        probeLayout = layout;
++    }
++
++    /// <summary>
++    /// THROWAWAY (t1-kiaw): points this frame slot's set 3 at the global vertex buffer and at this frame's kept positions,
++    /// declares their reads, and makes the pulled pipeline for the region's base when the base changed.
++    /// </summary>
++    private DescriptorSet PrepareProbeSet(FrameContext context)
++    {
++        Vk vk = device.Vk;
++        if (!probeSets.TryGetValue(context.Frame, out DescriptorSet set))
++        {
++            DescriptorSetLayout setLayout = probeSetLayout;
++            var allocate = new DescriptorSetAllocateInfo
++            {
++                SType = StructureType.DescriptorSetAllocateInfo,
++                DescriptorPool = probePool,
++                DescriptorSetCount = 1,
++                PSetLayouts = &setLayout,
++            };
++            vk.AllocateDescriptorSets(device.Device, &allocate, &set);
++            probeSets[context.Frame] = set;
++        }
++
++        GpuBuffer vertices = context.Geometry.VertexBuffer;
++        GpuBuffer now = kept?.Written(context.History.Parity) ?? vertices;
++        ulong limit = device.Properties.Limits.MaxStorageBufferRange;
++        layouts.WriteBuffer(set: set, binding: 0, type: DescriptorType.StorageBuffer, buffer: vertices, offset: 0, range: Math.Min(vertices.Size, limit));
++        layouts.WriteBuffer(set: set, binding: 1, type: DescriptorType.StorageBuffer, buffer: now, offset: 0, range: Math.Min(now.Size, limit));
++        context.Barriers.Buffer(vertices, BufferUse.ShaderRead);
++        if (now != vertices)
++            context.Barriers.Buffer(now, BufferUse.ShaderRead);
++
++        int regionBase = context.Geometry.Region.Base;
++        if (regionBase != pulledBase)
++        {
++            if (pulled.Handle != 0)
++                retired.Add(pulled);
++            pulled = (
++                pulledDesc with
++                {
++                    Name = $"back faces, {Fetch} (throwaway)",
++                    VertexShader = "back_face_pulled.vert",
++                    VertexInput = VertexInput.None,
++                    Layout = probeLayout,
++                    Constants = new ShaderConstants(EnvironmentMap: false)
++                    {
++                        ProbeRegionBase = (uint)regionBase,
++                        ProbePacked = Fetch == "packed",
++                    },
++                }
++            ).Create(device, shaders);
++            pulledBase = regionBase;
++        }
++
++        return set;
++    }
++
++    /// <summary>
++    /// THROWAWAY (t1-kiaw): appends one line of this frame's draw counts to <see cref="CountPath"/>: the commands, the
++    /// instances, the indices and the vertices that the pass of stage 1b draws (the one-sided solid runs), then those that
++    /// the pass of Design 1 draws (every opaque run). A vertex counts once per instance: a mesh's vertex count, the
++    /// deformed copy's for a deformed instance. The static vertices of a mesh run to the next mesh's first vertex.
++    /// </summary>
++    private void AppendCounts(FrameContext context)
++    {
++        PreparedScene scene = context.Scene;
++        ReadOnlySpan<MeshInfo> statics = context.Geometry.Meshes;
++        var starts = new List<int>(statics.Length);
++        foreach (MeshInfo info in statics)
++            starts.Add(info.VertexOffset);
++        starts.Sort();
++        int staticEnd = (int)context.Geometry.VertexCount;
++        // A deformed copy keeps its static mesh's index range, so the first index names the static mesh.
++        var byFirstIndex = new Dictionary<uint, int>();
++        foreach (MeshInfo info in statics)
++            byFirstIndex.TryAdd(info.FirstIndex, info.VertexOffset);
++
++        long VerticesOf(in DrawIndexedIndirectCommand command)
++        {
++            if (!byFirstIndex.TryGetValue(command.FirstIndex, out int offset))
++                return -1;
++            int at = starts.BinarySearch(offset);
++            int end = at + 1 < starts.Count ? starts[at + 1] : staticEnd;
++            return end - offset;
++        }
++
++        string Sum(Func<SidedRuns, IEnumerable<CommandRange>> pick)
++        {
++            long commands = 0, instances = 0, indices = 0, vertices = 0, deformed = 0;
++            for (int range = DepthRanges.Far; range <= DepthRanges.Near; range++)
++                foreach (CommandRange run in pick(scene.Opaque[range]))
++                    for (int c = run.First; c < run.First + run.Count; c++)
++                    {
++                        DrawIndexedIndirectCommand command = scene.Commands[c];
++                        long v = VerticesOf(command);
++                        commands++;
++                        instances += command.InstanceCount;
++                        indices += (long)command.IndexCount * command.InstanceCount;
++                        vertices += v * command.InstanceCount;
++                        if (command.VertexOffset >= context.Geometry.Region.Base && context.Geometry.Region.Capacity > 0)
++                            deformed += v * command.InstanceCount;
++                    }
++            return $"commands {commands} instances {instances} indices {indices} vertices {vertices} deformed {deformed}";
++        }
++
++        string pass1b = Sum(runs => [runs.OneSided.Solid]);
++        string cards = Sum(runs => [runs.OneSided.Solid, runs.OneSided.Cutout, runs.TwoSided.Solid, runs.TwoSided.Cutout]);
++        File.AppendAllText(CountPath!, $"frame {countedFrames++} pass1b {pass1b} | cards {cards}\n");
++    }
++
+     /// <summary>The probe's mode without <c>TERTIUS_BACK_FACE_PROBE</c>. A timing job on a cloud worker flips it in a
+     /// scratch commit, because the job's runs share one environment.</summary>
+     private const string DefaultMode = "off";
+@@ -154,6 +376,9 @@ internal sealed unsafe class BackFacePass : RenderPass
+     public override void Record(FrameContext context)
+     {
+         PreparedScene scene = context.Scene;
++        if (CountPath is not null)
++            AppendCounts(context);
++        DescriptorSet probeSet = Fetch != "" && !DrawsCards ? PrepareProbeSet(context) : default;
+         for (int range = DepthRanges.Far; range <= DepthRanges.Near; range++)
+         {
+             BeginRange(context, range);
+@@ -162,7 +387,25 @@ internal sealed unsafe class BackFacePass : RenderPass
+                 context.BindSceneSets();
+                 context.SetFullViewport();
+                 GeometryPass.BindGeometry(context);
+-                context.Vk.CmdBindPipeline(context.CommandBuffer, PipelineBindPoint.Graphics, pipeline);
++                // t1-kiaw: the parts of the pass, and how it reads a position.
++                Pipeline chosen = Split == "clipped" ? clipped : probeSet.Handle != 0 ? pulled : pipeline;
++                context.Vk.CmdBindPipeline(context.CommandBuffer, PipelineBindPoint.Graphics, chosen);
++                if (probeSet.Handle != 0)
++                    context.Vk.CmdBindDescriptorSets(
++                        commandBuffer: context.CommandBuffer,
++                        pipelineBindPoint: PipelineBindPoint.Graphics,
++                        layout: probeLayout,
++                        firstSet: 3,
++                        descriptorSetCount: 1,
++                        pDescriptorSets: &probeSet,
++                        dynamicOffsetCount: 0,
++                        pDynamicOffsets: null
++                    );
++                if (Split == "scissor")
++                {
++                    var one = new Rect2D(new Offset2D(0, 0), new Extent2D(1, 1));
++                    context.Vk.CmdSetScissor(context.CommandBuffer, 0, 1, &one);
++                }
+             }
+ 
+             // t1-yy2f: every opaque run, the solid runs before the cutout runs as in the G-buffer pass.
+@@ -191,7 +434,7 @@ internal sealed unsafe class BackFacePass : RenderPass
+ 
+             // t1-n8x9: the one-sided solid run only. A cutout drawn as solid put back faces behind its holes.
+             CommandRange solid = scene.Opaque[range].OneSided.Solid;
+-            if (solid.Count > 0)
++            if (solid.Count > 0 && Split != "empty")
+             {
+                 GeometryPass.PushDraw(context: context, viewProjection: scene.RangeViewProjection[range]);
+                 GeometryPass.DrawIndirect(context, solid);
+@@ -199,6 +442,10 @@ internal sealed unsafe class BackFacePass : RenderPass
+ 
+             context.Vk.CmdEndRendering(context.CommandBuffer);
+         }
++
++        // t1-kiaw: the full scissor again for the passes after this one.
++        if (Split == "scissor")
++            context.SetFullViewport();
+     }
+ 
+     /// <summary>
+@@ -252,6 +499,18 @@ internal sealed unsafe class BackFacePass : RenderPass
+             device.Vk.DestroyPipeline(device.Device, cardsSolid, null);
+         if (cardsCutout.Handle != 0)
+             device.Vk.DestroyPipeline(device.Device, cardsCutout, null);
++        if (clipped.Handle != 0)
++            device.Vk.DestroyPipeline(device.Device, clipped, null);
++        if (pulled.Handle != 0)
++            device.Vk.DestroyPipeline(device.Device, pulled, null);
++        foreach (Pipeline old in retired)
++            device.Vk.DestroyPipeline(device.Device, old, null);
++        if (probeLayout.Handle != 0)
++            device.Vk.DestroyPipelineLayout(device.Device, probeLayout, null);
++        if (probePool.Handle != 0)
++            device.Vk.DestroyDescriptorPool(device.Device, probePool, null);
++        if (probeSetLayout.Handle != 0)
++            device.Vk.DestroyDescriptorSetLayout(device.Device, probeSetLayout, null);
+     }
+ }
+ 
+diff --git a/src/Tertius.Rendering/ShaderConstants.cs b/src/Tertius.Rendering/ShaderConstants.cs
+index 5a0545c3d..70e40189d 100644
+--- a/src/Tertius.Rendering/ShaderConstants.cs
++++ b/src/Tertius.Rendering/ShaderConstants.cs
+@@ -40,6 +40,16 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
+     /// <summary>THROWAWAY (t1-yy2f): whether the finest level marks a sheet for the sheet rules' census.</summary>
+     public bool ProbeSheetMark { get; init; }
+ 
++    /// <summary>THROWAWAY (t1-kiaw): the deform region's first vertex, for back_face_pulled.vert.</summary>
++    public const uint ProbeRegionBaseId = 16;
++
++    /// <summary>THROWAWAY (t1-kiaw): whether back_face_pulled.vert reads a deformed vertex from the kept positions.</summary>
++    public const uint ProbePackedId = 17;
++
++    public uint ProbeRegionBase { get; init; }
++
++    public bool ProbePacked { get; init; }
++
+     /// <summary>THROWAWAY (t1-n8x9): the slab rule of the depth pyramid's build, a Slab constant of thickness.glsl.</summary>
+     public uint SlabRule { get; init; }
+ 
+@@ -149,6 +159,8 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
+             (NoBackRuleId, values.NoBackRule),
+             (FadeOverTenPercentId, VkBool(values.FadeOverTenPercent)),
+             (ProbeSheetMarkId, VkBool(values.ProbeSheetMark)),
++            (ProbeRegionBaseId, values.ProbeRegionBase),
++            (ProbePackedId, VkBool(values.ProbePacked)),
+         ];
+         for (int i = 0; i < rows.Length; i++)
+         {
+@@ -180,7 +192,7 @@ internal struct SpecializationStorage
+     /// The number of constants: one per field of <see cref="ShaderConstants"/>, the subsurface setting's being its taps per
+     /// side. <see cref="ShaderConstants.Specialization"/> writes one row per constant, and a row past this count throws.
+     /// </summary>
+-    public const int Count = 15;
++    public const int Count = 17;
+ 
+     public SpecializationValues Data;
+     public SpecializationEntries Entries;
+diff --git a/src/Tertius.Rendering/Shaders/back_face_clipped.vert b/src/Tertius.Rendering/Shaders/back_face_clipped.vert
+new file mode 100644
+index 000000000..ece008bc9
+--- /dev/null
++++ b/src/Tertius.Rendering/Shaders/back_face_clipped.vert
+@@ -0,0 +1,22 @@
++#version 460
++#extension GL_GOOGLE_include_directive : require
++#include "frame.glsl"
++#include "draw.glsl"
++
++// THROWAWAY (t1-kiaw): back_face.vert with every vertex right of the clip volume, under TERTIUS_BACK_FACE_SPLIT=clipped.
++// The vertex stage does the same work, and clipping rejects every triangle before the rasterizer: the pass's vertex
++// work alone.
++layout(location = 0) in vec3 inPosition;
++
++layout(location = 0) out vec3 outPosition;
++
++void main()
++{
++    GpuInstance instance = instances[gl_InstanceIndex];
++    vec4 p = vec4(inPosition, 1.0);
++    vec3 world = vec3(dot(instance.modelRow0, p), dot(instance.modelRow1, p), dot(instance.modelRow2, p));
++    outPosition = world;
++    vec4 clip = draw.viewProj * vec4(world, 1.0);
++    // x > |w| for every vertex, so each triangle lies wholly outside the plane x = w.
++    gl_Position = vec4(abs(clip.x) + 2.0 * abs(clip.w) + 1.0, clip.yzw);
++}
+diff --git a/src/Tertius.Rendering/Shaders/back_face_pulled.vert b/src/Tertius.Rendering/Shaders/back_face_pulled.vert
+new file mode 100644
+index 000000000..d4cdfbd56
+--- /dev/null
++++ b/src/Tertius.Rendering/Shaders/back_face_pulled.vert
+@@ -0,0 +1,37 @@
++#version 460
++#extension GL_GOOGLE_include_directive : require
++#include "frame.glsl"
++#include "draw.glsl"
++
++// THROWAWAY (t1-kiaw): back_face.vert with the position read from storage buffers instead of the vertex input, under
++// TERTIUS_BACK_FACE_FETCH=pulled or packed. A static vertex reads the three position words of its 13-word GpuVertex in
++// the global vertex buffer. Under packed, a vertex of the deform region reads its three floats in this frame's kept
++// positions (KeptPositions.cs), which deform.comp wrote with the same bits as the copy's position.
++layout(constant_id = 16) const uint ProbeRegionBase = 0u;
++layout(constant_id = 17) const bool ProbePacked = false;
++
++layout(set = 3, binding = 0, std430) readonly buffer ProbeVertexWords { float vertexWords[]; };
++layout(set = 3, binding = 1, std430) readonly buffer ProbeKeptNow { float keptNow[]; };
++
++layout(location = 0) out vec3 outPosition;
++
++void main()
++{
++    GpuInstance instance = instances[gl_InstanceIndex];
++    uint v = uint(gl_VertexIndex);
++    vec3 position;
++    if (ProbePacked && v >= ProbeRegionBase)
++    {
++        uint k = 3u * (v - ProbeRegionBase);
++        position = vec3(keptNow[k], keptNow[k + 1u], keptNow[k + 2u]);
++    }
++    else
++    {
++        uint k = 13u * v;
++        position = vec3(vertexWords[k], vertexWords[k + 1u], vertexWords[k + 2u]);
++    }
++    vec4 p = vec4(position, 1.0);
++    vec3 world = vec3(dot(instance.modelRow0, p), dot(instance.modelRow1, p), dot(instance.modelRow2, p));
++    outPosition = world;
++    gl_Position = draw.viewProj * vec4(world, 1.0);
++}
+diff --git a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
+index c952f8326..412aca062 100644
+--- a/src/Tertius.Rendering/VulkanRenderer.cs
++++ b/src/Tertius.Rendering/VulkanRenderer.cs
+@@ -2283,7 +2283,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
+         Graph.Add(FrameGraph.Stage.GBuffer, geometryPass);
+         // THROWAWAY (ter-kh4g, stage 1): the back-face cost probe.
+         if (BackFacePass.SwitchedOn())
+-            Graph.Add(FrameGraph.Stage.GBuffer, new BackFacePass(device: device, shaders: shaders, layouts: layouts));
++            Graph.Add(FrameGraph.Stage.GBuffer, new BackFacePass(device: device, shaders: shaders, layouts: layouts, kept: keptPositions));
+         Graph.Add(
+             FrameGraph.Stage.SurfaceTest,
+             new SurfaceTestPass(device: device, shaders: shaders, layouts: layouts, images: surfaceHistory)
+diff --git a/tools/bf2/job-crowd.sh b/tools/bf2/job-crowd.sh
+new file mode 100644
+index 000000000..8909bec23
+--- /dev/null
++++ b/tools/bf2/job-crowd.sh
+@@ -0,0 +1,71 @@
++#!/usr/bin/env bash
++# Throwaway (t1-kiaw): the cloud timing of the back-face pass's cost by vertex count and of its remedies, on the tree t.
++# Run from the job's work folder:  bash t/tools/bf2/job-crowd.sh <part>...
++# Parts: crowd, cabin, counts, fetch. One build serves every side: each side is a set of environment variables of the probe.
++# A take runs one scene: one untimed warm-up run of every side (bug ticket t1-s5c1: the first run of a side with the
++# pass was slow on a fresh worker), then rounds in the rows of a Williams square of the sides, so that each side runs once
++# at each position and directly after each other side once per square. Every run has the scene's fixed exposure.
++set -uo pipefail
++W=$PWD
++mkdir -p "$W/out"
++(cd "$W/t" && dotnet build src/Tertius.Demo -c Release -nologo -v:q -p:RunAnalyzers=false -p:TreatWarningsAsErrors=false \
++  -o "$W/bin" 2>&1 | tail -2) || exit 1
++CROWD_STOPS=-9.2693568   # stage 1b's fixed exposure of the crowd on this card (cost.md)
++CABIN_STOPS=-0.4267480   # and of the cabin
++side_env() { # <side>: the probe's variables of a side
++  case $1 in
++    off) echo TERTIUS_BACK_FACE_PROBE=off ;;
++    pass) echo TERTIUS_BACK_FACE_PROBE=ten ;;
++    cards) echo TERTIUS_BACK_FACE_PROBE=ten TERTIUS_BACK_FACE_PASS=cards ;;
++    scissor|clipped|empty) echo TERTIUS_BACK_FACE_PROBE=ten TERTIUS_BACK_FACE_SPLIT=$1 ;;
++    pulled|packed) echo TERTIUS_BACK_FACE_PROBE=ten TERTIUS_BACK_FACE_FETCH=$1 ;;
++    *) echo "unknown side $1" >&2; return 1 ;;
++  esac
++}
++williams() { # <n> <round>: the row of a Williams square of even order n, as side indices
++  local n=$1 r=$2 first=(0) i lo=1 hi=$(( $1 - 1 ))
++  for ((i = 1; i < n; i++)); do
++    if (( i % 2 == 1 )); then first+=($lo); ((lo++)); else first+=($hi); ((hi--)); fi
++  done
++  local row=()
++  for i in "${first[@]}"; do row+=($(( (i + r) % n ))); done
++  echo "${row[@]}"
++}
++one_run() { # <scene folder> <side> <run name> <script> <stops> <extra env>
++  local dir=$1 side=$2 name=$3 script=$4 stops=$5 extra=$6 start code
++  mkdir -p "$dir/$side/$name"
++  start=$(date +%s)
++  (cd "$W/t" && env $(side_env "$side") $extra timeout 300 "$W/bin/Tertius.Demo" --script "$script" --headless \
++    --out "$dir/$side/$name" --size 1920x1080 --video none --exposure "$stops" > "$dir/$side/$name.log" 2>&1)
++  code=$?
++  echo "$side $name exit $code seconds $(( $(date +%s) - start )) $(grep -h 'GPU frame span' "$dir/$side/$name.log" | head -1)" \
++    | tee -a "$dir/take.log"
++}
++take() { # <scene name> <script> <stops> <rounds> <extra env> <side>...
++  local name=$1 script=$2 stops=$3 rounds=$4 extra=$5; shift 5
++  local sides=("$@") n=$# dir="$W/out/$name"
++  mkdir -p "$dir"
++  nvidia-smi --query-gpu=timestamp,clocks.sm,clocks.mem,temperature.gpu,power.draw --format=csv -lms 500 > "$dir/clocks.csv" 2>&1 &
++  local clocks=$!
++  echo "take $name sides ${sides[*]} rounds $rounds stops $stops extra '$extra'" | tee -a "$dir/take.log"
++  for side in "${sides[@]}"; do one_run "$dir" "$side" warm-up "$script" "$stops" "$extra"; done
++  for ((r = 1; r <= rounds; r++)); do
++    local row; row=$(williams "$n" "$(( r - 1 ))")
++    for i in $row; do one_run "$dir" "${sides[$i]}" "run-$r" "$script" "$stops" "$extra"; done
++  done
++  kill "$clocks" 2> /dev/null
++  rm -rf "$dir"/*/warm-up
++  find "$dir" -name '*.png' -delete
++}
++for part in "$@"; do
++  case $part in
++    crowd) take crowd scripts/ter-kh4g-crowd-timing.json $CROWD_STOPS 8 "" off pass cards scissor clipped empty pulled packed ;;
++    cabin) take cabin scripts/ter-kh4g-cabin-timing.json $CABIN_STOPS 6 "" off pass cards scissor clipped empty ;;
++    counts)
++      for count in 1 10 25 50; do
++        take "crowd-$count" scripts/ter-kh4g-crowd-timing.json $CROWD_STOPS 4 "TERTIUS_CROWD_COUNT=$count" off pass
++      done ;;
++    *) echo "unknown part $part" >&2 ;;
++  esac
++done
++echo done | tee -a "$W/out/summary.txt"

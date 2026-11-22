@@ -2,7 +2,7 @@
 id: ter-13rm
 status: open
 deps: [ter-vges, ter-gayt]
-links: []
+links: [t1-mybi]
 created: 2026-11-03T12:30:05Z
 type: feature
 priority: 3

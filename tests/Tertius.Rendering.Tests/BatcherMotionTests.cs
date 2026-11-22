@@ -17,8 +17,8 @@ public sealed class BatcherMotionTests
 
     private static readonly MeshInfo[] Meshes =
     [
-        new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: 0.866f, Deform: null),
-        new(FirstIndex: 36, IndexCount: 600, VertexOffset: 24, Radius: 1f, Deform: null),
+        new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: 0.866f, Deform: null, Closed: true),
+        new(FirstIndex: 36, IndexCount: 600, VertexOffset: 24, Radius: 1f, Deform: null, Closed: true),
     ];
 
     private static readonly Extent2D Size = new(Width, Height);
@@ -41,8 +41,6 @@ public sealed class BatcherMotionTests
             snapshot: snapshot,
             alpha: alpha,
             highestStops: Batchers.HighestStops,
-            width: Width,
-            height: Height,
             meshes: Meshes,
             materials: MaterialSlots.Of(8),
             environment: default,

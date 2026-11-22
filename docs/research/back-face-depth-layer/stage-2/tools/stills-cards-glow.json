@@ -1,0 +1,23 @@
+{
+ "scene": "cards-glow",
+ "window": {
+  "width": 1280,
+  "height": 720
+ },
+ "steps": [
+  {
+   "do": "camera",
+   "entity": "curtain-camera"
+  },
+  {
+   "do": "run",
+   "ticks": 10
+  },
+  {
+   "do": "film",
+   "name": "s",
+   "frames": 240,
+   "every": 1
+  }
+ ]
+}

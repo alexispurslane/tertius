@@ -29,8 +29,17 @@ internal struct CameraView
     public Vector3 Offset;
 
     public float VerticalFov;
+
+    /// <summary>
+    /// The projection's width over its height: the output's, never the render size's (ARCHITECTURE.md, "Temporal upscaling
+    /// and render size").
+    /// </summary>
     public float Aspect;
+
+    /// <summary>The render size's width in pixels. Width over <see cref="Height"/> can differ from <see cref="Aspect"/>.</summary>
     public int Width;
+
+    /// <summary>The render size's height in pixels.</summary>
     public int Height;
 
     /// <summary>World to view rotation, in System.Numerics row-vector form.</summary>
@@ -70,7 +79,7 @@ internal struct CameraView
         }
     }
 
-    /// <summary>The angle that one pixel covers at the center of the screen.</summary>
+    /// <summary>The angle that one pixel covers vertically at the center of the screen.</summary>
     public readonly float PixelAngle => 2f * TanHalfY / Math.Max(Height, 1);
 
     /// <summary>World to clip for one depth range, in System.Numerics row-vector form. See
@@ -332,14 +341,103 @@ internal readonly record struct SidedRuns(OpaqueRuns OneSided, OpaqueRuns TwoSid
 {
     /// <summary>The commands of all four runs.</summary>
     public int Count => OneSided.Count + TwoSided.Count;
+}
 
-    /// <summary>The runs with the run that <paramref name="cutout"/> and <paramref name="twoSided"/> name set to <paramref name="commands"/>.</summary>
-    public SidedRuns With(bool cutout, bool twoSided, CommandRange commands)
+/// <summary>The opaque runs of one depth range, as the back-face pass draws them (docs/plans/back-face-depth-layer.md, decision 4).</summary>
+/// <param name="ClosedOneSided">The instances of a closed mesh with a one-sided material: the pass draws their back faces.</param>
+/// <param name="BothFaces">The instances of a two-sided material or of an open mesh: the pass draws both faces.</param>
+internal readonly record struct BackFaceRuns(OpaqueRuns ClosedOneSided, OpaqueRuns BothFaces);
+
+/// <summary>
+/// The class of an opaque instance by its material's side and its mesh's closure, in the order of its runs
+/// (<see cref="RangeRuns"/>). <see cref="OpenOneSided"/> stays in the middle, because each reader takes two neighbors as
+/// one range: the passes that shade read both one-sided runs, and the back-face pass open one-sided with two-sided.
+/// </summary>
+internal enum OpaqueFaces
+{
+    /// <summary>A closed mesh with a one-sided material.</summary>
+    ClosedOneSided,
+
+    /// <summary>An open mesh with a one-sided material.</summary>
+    OpenOneSided,
+
+    /// <summary>A two-sided material, on any mesh.</summary>
+    TwoSided,
+}
+
+/// <summary>The command counts of one solid or cutout run of a depth range, one per <see cref="OpaqueFaces"/>, in its order.</summary>
+internal readonly record struct FaceCounts(int ClosedOneSided, int OpenOneSided, int TwoSided)
+{
+    /// <summary>The commands of all three runs.</summary>
+    public int Count => ClosedOneSided + OpenOneSided + TwoSided;
+
+    /// <summary>The commands of the one-sided materials, which the passes that shade draw with back faces culled.</summary>
+    public int OneSided => ClosedOneSided + OpenOneSided;
+
+    /// <summary>The commands whose both faces the back-face pass draws.</summary>
+    public int BothFaces => OpenOneSided + TwoSided;
+
+    /// <summary>The counts with the count of <paramref name="faces"/> set to <paramref name="count"/>.</summary>
+    public FaceCounts With(OpaqueFaces faces, int count) =>
+        faces switch
+        {
+            OpaqueFaces.ClosedOneSided => this with { ClosedOneSided = count },
+            OpaqueFaces.OpenOneSided => this with { OpenOneSided = count },
+            OpaqueFaces.TwoSided => this with { TwoSided = count },
+        };
+}
+
+/// <summary>
+/// The opaque commands of one depth range of a view: six runs of consecutive commands from <see cref="First"/>, the solid
+/// runs and then the cutout runs, each in the order of <see cref="OpaqueFaces"/>. The passes that shade read them by
+/// side (<see cref="Sided"/>), and the back-face pass by the faces that it draws (<see cref="BackFace"/>).
+/// </summary>
+/// <param name="First">The range's first command, or 0 for a range of no command.</param>
+internal readonly record struct RangeRuns(int First, FaceCounts Solid, FaceCounts Cutout)
+{
+    /// <summary>The commands of all six runs.</summary>
+    public int Count => Solid.Count + Cutout.Count;
+
+    /// <summary>The runs by the material's side, as the passes that shade draw them.</summary>
+    public SidedRuns Sided =>
+        new(
+            OneSided: new(Solid: Run(First, Solid.OneSided), Cutout: Run(CutoutFirst, Cutout.OneSided)),
+            TwoSided: new(
+                Solid: Run(First + Solid.OneSided, Solid.TwoSided),
+                Cutout: Run(CutoutFirst + Cutout.OneSided, Cutout.TwoSided)
+            )
+        );
+
+    /// <summary>The runs by the faces that the back-face pass draws.</summary>
+    public BackFaceRuns BackFace =>
+        new(
+            ClosedOneSided: new(
+                Solid: Run(First, Solid.ClosedOneSided),
+                Cutout: Run(CutoutFirst, Cutout.ClosedOneSided)
+            ),
+            BothFaces: new(
+                Solid: Run(First + Solid.ClosedOneSided, Solid.BothFaces),
+                Cutout: Run(CutoutFirst + Cutout.ClosedOneSided, Cutout.BothFaces)
+            )
+        );
+
+    private int CutoutFirst => First + Solid.Count;
+
+    /// <summary>
+    /// The runs with the run of <paramref name="cutout"/> and <paramref name="faces"/> set to <paramref name="commands"/>,
+    /// which follow every command of the runs so far. The batcher sets the runs in their order, each at most once.
+    /// </summary>
+    public RangeRuns With(bool cutout, OpaqueFaces faces, CommandRange commands)
     {
-        OpaqueRuns sided = twoSided ? TwoSided : OneSided;
-        sided = cutout ? sided with { Cutout = commands } : sided with { Solid = commands };
-        return twoSided ? this with { TwoSided = sided } : this with { OneSided = sided };
+        Contract.Requires(Count == 0 || commands.First == First + Count);
+        int first = Count == 0 ? commands.First : First;
+        return cutout
+            ? new(First: first, Solid: Solid, Cutout: Cutout.With(faces, commands.Count))
+            : new(First: first, Solid: Solid.With(faces, commands.Count), Cutout: Cutout);
     }
+
+    /// <summary>The run of <paramref name="count"/> commands from <paramref name="first"/>, or no run for none.</summary>
+    private static CommandRange Run(int first, int count) => count == 0 ? default : new(first, count);
 }
 
 /// <summary>The caster commands of a tile view that the frame draws: <see cref="PreparedScene.ShadowTiles"/>[View].</summary>
@@ -424,7 +522,7 @@ internal sealed class PreparedScene
     public int CommandCount;
 
     /// <summary>Opaque commands per depth range, indexed by <see cref="DepthRanges"/>: the solid runs, then the cutout runs.</summary>
-    public readonly SidedRuns[] Opaque = new SidedRuns[DepthRanges.Count];
+    public readonly RangeRuns[] Opaque = new RangeRuns[DepthRanges.Count];
 
     /// <summary>
     /// The runs of the transparent pass per depth range, indexed by <see cref="DepthRanges"/>, each list in draw order. The

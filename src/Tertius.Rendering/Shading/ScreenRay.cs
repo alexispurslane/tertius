@@ -150,9 +150,9 @@ internal readonly record struct ScreenRay(
 
     /// <summary>
     /// The two-depth walk, as walkScreen in screen_walk.glsl walks it (docs/plans/temporal-renderer.md, section 6, "The
-    /// traversal"). A step reads one cell: the bounds of a level above 0, or a pixel's center w at the finest level. A
+    /// traversal"). A step reads one cell's slab: the bounds of a level above 0, or a pixel's slab at the finest level. A
     /// ray that passes in front of the cell's slab or behind it crosses the cell and goes up a level, one that meets the
-    /// slab of a level above 0 goes down a level to where it enters it, and one that meets a pixel's flat slab hits,
+    /// slab of a level above 0 goes down a level to where it enters it, and one that meets a pixel's slab hits,
     /// unless the pixel's surface faces away from the ray.
     /// </summary>
     /// <param name="pyramid">The depth pyramid of the frame.</param>
@@ -164,6 +164,11 @@ internal readonly record struct ScreenRay(
         (float s, Vector2 crossed) = CellExit(level: 0, cell: Floor(Start), travel: travel);
         // The cell that the walk stands in, at its level: the pixel past the origin's pixel to start with.
         Vector2 cell = Floor(Start) + travel * crossed;
+        // The ray's inverse depth at s. After a crossing, it is computed from s. After a descent from outside the slab,
+        // it is the slab bound that SlabEntry aims the entry at, also where the entry is clamped to s or to exit: a
+        // computation from s would miss that bound by a rounding that scales with StartInverseDepth, not with the slab.
+        // After a descent from inside the slab, it stays.
+        float sW = InverseDepthAt(s);
         int top = Math.Min(pyramid.TopLevel, WalkTopLevel);
         int level = 0;
         // Whether a descent solved s as a slab's entry, rather than a crossing reaching it on a cell's edge.
@@ -175,31 +180,35 @@ internal readonly record struct ScreenRay(
             (float cellExit, crossed) = CellExit(level, cell, travel);
             float exit = MathF.Max(cellExit, s);
             (int x, int y) = ((int)cell.X, (int)cell.Y);
-            (float near, float back) = WalkSlab(pyramid: pyramid, level: level, x: x, y: y);
-            float inW = InverseDepthAt(s);
-            bool meetsSlab = MeetsWalkSlab(near: near, back: back, inW: inW, outW: InverseDepthAt(exit));
+            CellBounds slab = pyramid.WalkSlab(level: level, x: x, y: y);
+            (float near, float back) = (slab.Near, slab.Back);
+            float outW = InverseDepthAt(exit);
+            bool meetsSlab = MeetsWalkSlab(near: near, back: back, inW: sW, outW: outW);
 
+            // Only a slab that the ray meets has an entry: a ray at one inverse depth meets only a slab that holds it, so
+            // SlabEntry never divides by a StepInverseDepth of 0.
+            (float solvedEntry, float entryW) = meetsSlab ? SlabEntry(s: s, inW: sW, low: back, high: near) : (s, sW);
             // GLSL's clamp, which never throws: exit can lie a rounding below s.
-            float entry = meetsSlab
-                ? MathF.Min(MathF.Max(SlabEntry(s: s, inW: inW, low: back, high: near), s), exit)
-                : s;
+            float entry = MathF.Min(MathF.Max(solvedEntry, s), exit);
             if (meetsSlab && level > 0)
             {
                 level--;
                 solved = solved || entry > s;
                 cell = ChildAt(parent: cell, level: level, s: entry, travel: travel, leaving: solved);
                 s = entry;
+                sW = entryW;
                 continue;
             }
             if (meetsSlab && Vector3.Dot(pyramid.GeometricNormal(x, y), direction) < 0)
                 return new RayHit(
                     Position: Vector2.Clamp(Start + Step * entry, cell, cell + Vector2.One),
                     Pixel: (x, y),
-                    EntryShare: back < near ? EntryShare(inW, back, near) : 0,
+                    EntryShare: back < near ? EntryShare(sW, back, near) : 0,
                     Steps: steps + 1
                 );
             // Across the cell and up a level: in front of its slab, behind it, or past a surface that faces away.
             s = exit;
+            sW = outW;
             solved = false;
             cell += travel * crossed;
             if (level < top)
@@ -209,16 +218,6 @@ internal readonly record struct ScreenRay(
             }
         }
         return s >= End ? new RayLeftTheSegment(EndsAt, maxSteps) : new RayOutOfSteps(maxSteps);
-    }
-
-    /// <summary>The slab of a cell of the two-depth walk: from its far bound times 1 / (1 + κ) to its near bound, and at
-    /// the finest level from a pixel's center w over 1 + κ to w.</summary>
-    private static (float Near, float Back) WalkSlab(DepthPyramid pyramid, int level, int x, int y)
-    {
-        // A product by the share, as the shader takes it, not a quotient, which rounds otherwise.
-        const float backShare = 1 / (1 + CellBounds.ThicknessShare);
-        CellBounds bounds = level == 0 ? CellBounds.OfSurface(pyramid.Finest(x, y)) : pyramid.Bounds(level, x, y);
-        return (bounds.Near, bounds.Far * backShare);
     }
 
     /// <summary>Whether the ray's inverse depths over a cell, from inW to outW, meet the cell's slab: neither in front
@@ -283,15 +282,15 @@ internal readonly record struct ScreenRay(
 
     private float InverseDepthAt(float s) => StartInverseDepth + StepInverseDepth * s;
 
-    /// <summary>The parameter where the ray enters a slab that it meets: its front from in front, its back from behind,
-    /// or s when it is already inside.</summary>
-    private float SlabEntry(float s, float inW, float low, float high)
+    /// <summary>The parameter where the ray enters a slab that it meets, and the ray's inverse depth there: its front
+    /// from in front, its back from behind, or s and inW when it is already inside.</summary>
+    private (float Entry, float EntryW) SlabEntry(float s, float inW, float low, float high)
     {
         if (inW > high)
-            return (high - StartInverseDepth) / StepInverseDepth;
+            return ((high - StartInverseDepth) / StepInverseDepth, high);
         if (inW < low)
-            return (low - StartInverseDepth) / StepInverseDepth;
-        return s;
+            return ((low - StartInverseDepth) / StepInverseDepth, low);
+        return (s, inW);
     }
 
     /// <summary>The parameters where the image reaches the line x = edge.X and the line y = edge.Y, or still on an axis

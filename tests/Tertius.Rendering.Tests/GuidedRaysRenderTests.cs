@@ -572,9 +572,7 @@ public sealed class GuidedRaysRenderTests
         for (int y = Height / 2 + 5; y < Height - 1; y += 2)
         for (int x = 0; x < Width - 1; x += 2)
         {
-            int chosen = Enumerable
-                .Range(0, 4)
-                .FirstOrDefault(corner => ((int)plan[(y + corner / 2) * Width + x + corner % 2] & 2) == 0, -1);
+            int chosen = ChosenCorner(plan, x, y);
             if (chosen < 0)
                 continue;
             int pixel = (y + chosen / 2) * Width + x + chosen % 2;
@@ -609,9 +607,8 @@ public sealed class GuidedRaysRenderTests
         Vector4 parameters = renderer.LastScene.Constants.RenderParams;
         var jitter = new Vector2(parameters.Y, parameters.Z);
         jitter.Should().NotBe(Vector2.Zero, "the debug switch jitters every draw");
-        (float[] lights, _, _) = renderer.ReadLightPyramidLevel(0);
-        var light = LightPyramid.Of(lights, Width, Height);
-        var depth = DepthPyramid.FromInverseDepths(renderer.ReadDepthFinest(), Width, Height);
+        var light = LightPyramid.Of(renderer.ReadLightPyramidLevel(0).Lights, Width, Height);
+        DepthPyramid depth = CenterPyramidOf(renderer);
         float[] plan = renderer.ReadImage(renderer.ScreenTraceImages.Plan);
         float[] records = renderer.ReadImageLayer(renderer.ScreenTraceImages.BlockRay, 1);
         float[] hits = renderer.ReadImageLayer(renderer.ScreenTraceImages.BlockLight, 1);
@@ -623,9 +620,7 @@ public sealed class GuidedRaysRenderTests
         for (int y = Height / 2 + 5; y < Height - 1; y += 2)
         for (int x = 0; x < Width - 1; x += 2)
         {
-            int chosen = Enumerable
-                .Range(0, 4)
-                .FirstOrDefault(corner => ((int)plan[(y + corner / 2) * Width + x + corner % 2] & 2) == 0, -1);
+            int chosen = ChosenCorner(plan, x, y);
             if (chosen < 0)
                 continue;
             (int X, int Y) start = (x + chosen % 2, y + chosen / 2);
@@ -670,6 +665,23 @@ public sealed class GuidedRaysRenderTests
         mismatched.Count.Should().BeLessThan(compared / 20, string.Join("; ", mismatched));
         return (compared, guided);
     }
+
+    /// <summary>A C# depth pyramid over the center w of each pixel of the last frame's finest level on the GPU, as
+    /// surfaces that face the eye, with the frame's back share.</summary>
+    private static DepthPyramid CenterPyramidOf(VulkanRenderer renderer) =>
+        DepthPyramid.FromInverseDepths(
+            inverseDepths: [.. renderer.ReadDepthFinest().Select(slab => slab.Near)],
+            backShares: renderer.ReadBackShare(),
+            width: renderer.LastScene.Camera.Width,
+            height: renderer.LastScene.Camera.Height
+        );
+
+    /// <summary>The corner of the 2 × 2 block at (<paramref name="x"/>, <paramref name="y"/>) whose plan bits choose it
+    /// for the block's ray, 0 to 3 row by row, or −1 for a block with no chosen pixel.</summary>
+    private static int ChosenCorner(float[] plan, int x, int y) =>
+        Enumerable
+            .Range(0, 4)
+            .FirstOrDefault(corner => ((int)plan[(y + corner / 2) * Width + x + corner % 2] & 2) == 0, -1);
 
     /// <summary>
     /// The origin of the rays of <paramref name="pixel"/>, camera-relative: its surface point on the jittered view ray at

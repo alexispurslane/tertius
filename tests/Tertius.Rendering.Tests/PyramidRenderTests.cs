@@ -37,7 +37,7 @@ public sealed class PyramidRenderTests
         {
             renderer.Render(Gpu.Snapshot(Vector3.UnitY), 1f);
 
-            renderer.ReadDepthFinest().Should().Equal(new float[width * height]);
+            renderer.ReadDepthFinest().Should().Equal(new CellBounds[width * height]);
         }
         finally
         {
@@ -71,7 +71,7 @@ public sealed class PyramidRenderTests
             for (int x = 0; x < levelWidth; x++)
             {
                 CellBounds cell = expected.Bounds(level, x, y);
-                (bool nearUndecided, bool farUndecided) = Undecided(
+                (bool nearUndecided, bool backUndecided) = Undecided(
                     expected: expected,
                     slack: slack,
                     level: level,
@@ -91,14 +91,14 @@ public sealed class PyramidRenderTests
                         );
                     compared++;
                 }
-                if (!farUndecided)
+                if (!backUndecided)
                 {
                     bounds[index + 1]
                         .Should()
                         .BeApproximately(
-                            cell.Far,
-                            cell.Far * InverseDepthTolerance,
-                            "the far bound of cell ({0}, {1})",
+                            cell.Back,
+                            cell.Back * InverseDepthTolerance,
+                            "the back w of cell ({0}, {1})",
                             x,
                             y
                         );
@@ -141,7 +141,7 @@ public sealed class PyramidRenderTests
                     .Should()
                     .BeGreaterThanOrEqualTo(
                         centerLine * (1 - 1e-5f),
-                        "the panel's plane stops at its last row's center line toward the wall, in cell ({0}, {1})",
+                        "the panel's slab ends at its last row's center line, not at the wall, in cell ({0}, {1})",
                         x,
                         PanelLastRow / 2
                     );
@@ -161,7 +161,7 @@ public sealed class PyramidRenderTests
             renderer.Render(Scene(renderer), 1f);
             CameraView camera = renderer.LastScene.Camera;
             float[] distance = renderer.ReadDistance();
-            float[] finest = renderer.ReadDepthFinest();
+            CellBounds[] finest = renderer.ReadDepthFinest();
 
             int surfaces = 0;
             var wrong = new List<string>();
@@ -173,13 +173,101 @@ public sealed class PyramidRenderTests
                     distanceToEye <= 0 ? 0 : camera.ViewRayThrough(new(x + 0.5f, y + 0.5f)).Length() / distanceToEye;
                 if (distanceToEye > 0)
                     surfaces++;
-                float texel = finest[y * Width + x];
+                float texel = finest[y * Width + x].Near;
                 if (MathF.Abs(texel - expected) > InverseDepthTolerance * expected)
                     wrong.Add($"({x}, {y}): {texel}, not {expected}");
             }
 
             surfaces.Should().BeInRange(Width * Height / 4, Width * Height - 1, "the premise: floor, boxes and sky");
             wrong.Should().BeEmpty();
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void TheFinestLevelAndLevelOneHoldTheSlabsOfTheCopyForABoxACardAndTheSky()
+    {
+        VulkanRenderer renderer = Gpu.Headless(screenTrace: ScreenTrace.Default);
+        try
+        {
+            renderer.Render(BoxCardAndSky(renderer), 1f);
+            DepthPyramid expected = ReflectionTesting.PyramidOf(renderer);
+            float[] slack = UndecidedSlack(renderer);
+            float[] share = renderer.ReadBackShare();
+            CellBounds[] finest = renderer.ReadDepthFinest();
+            (float[] bounds, int mipWidth, _) = renderer.ReadDepthPyramidLevel(1);
+
+            share.Count(value => value is > 0 and < 1).Should().BeGreaterThan(1_000, "the premise: the box's pixels");
+            share.Count(value => value == 1).Should().BeGreaterThan(1_000, "the premise: the card's pixels");
+            share.Count(value => value == 0).Should().BeGreaterThan(Width * Height / 2, "the premise: the sky");
+            var wrong = new List<string>();
+            for (int y = 0; y < Height; y++)
+            for (int x = 0; x < Width; x++)
+            {
+                CellBounds pixel = expected.PixelSlab(x, y);
+                CellBounds texel = finest[y * Width + x];
+                bool backUndecided = slack[y * Width + x] > 0;
+                if (!Close(texel.Near, pixel.Near) || !backUndecided && !Close(texel.Back, pixel.Back))
+                    wrong.Add($"pixel ({x}, {y}): {texel}, not {pixel}");
+            }
+            (int levelWidth, int levelHeight) = DepthPyramid.LevelSize(Width, Height, 1);
+            for (int y = 0; y < levelHeight; y++)
+            for (int x = 0; x < levelWidth; x++)
+            {
+                CellBounds cell = expected.Bounds(1, x, y);
+                (bool nearUndecided, bool backUndecided) = Undecided(
+                    expected: expected,
+                    slack: slack,
+                    level: 1,
+                    cell: (x, y)
+                );
+                int index = 2 * (y * mipWidth + x);
+                if (
+                    !nearUndecided && !Close(bounds[index], cell.Near)
+                    || !backUndecided && !Close(bounds[index + 1], cell.Back)
+                )
+                    wrong.Add($"cell ({x}, {y}): ({bounds[index]}, {bounds[index + 1]}), not {cell}");
+            }
+
+            wrong.Should().BeEmpty("the GPU builds the slabs of the copy from the same back share");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+
+        static bool Close(float gpu, float copy) => MathF.Abs(gpu - copy) <= InverseDepthTolerance * copy;
+    }
+
+    [Fact]
+    public void TheSlabOfEachCellOfLevelOneHoldsTheSlabOfEachPixelUnderIt()
+    {
+        VulkanRenderer renderer = Gpu.Headless(screenTrace: ScreenTrace.Default);
+        try
+        {
+            renderer.Render(Scene(renderer), 1f);
+            CellBounds[] finest = renderer.ReadDepthFinest();
+            (float[] bounds, int mipWidth, _) = renderer.ReadDepthPyramidLevel(1);
+
+            var wrong = new List<string>();
+            int surfaces = 0;
+            for (int y = 0; y < Height; y++)
+            for (int x = 0; x < Width; x++)
+            {
+                CellBounds pixel = finest[y * Width + x];
+                if (pixel.Near <= 0)
+                    continue;
+                surfaces++;
+                int cell = 2 * (y / 2 * mipWidth + x / 2);
+                if (bounds[cell] < pixel.Near || bounds[cell + 1] > pixel.Back)
+                    wrong.Add($"({x}, {y}): {pixel} under ({bounds[cell]}, {bounds[cell + 1]})");
+            }
+
+            surfaces.Should().BeGreaterThan(Width * Height / 4, "the premise: floor and boxes");
+            wrong.Should().BeEmpty("the walk passes no pixel's slab that a cell above it holds");
         }
         finally
         {
@@ -200,7 +288,7 @@ public sealed class PyramidRenderTests
             // The top row of level 3 covers the 8 top rows of the screen, which look at the sky over the floor.
             expected.Bounds(level: 3, x: 0, y: 0).Should().Be(CellBounds.Empty, "the scene puts sky at the top");
             bounds[0].Should().Be(0, "a cell with no surface has no near bound");
-            bounds[1].Should().Be(CellBounds.EmptyFar, "and the empty far bound, exactly");
+            bounds[1].Should().Be(CellBounds.EmptyBack, "and the empty far bound, exactly");
         }
         finally
         {
@@ -231,7 +319,7 @@ public sealed class PyramidRenderTests
             padding
                 .Should()
                 .AllBeEquivalentTo(
-                    (0f, CellBounds.EmptyFar),
+                    (0f, CellBounds.EmptyBack),
                     "the trace reads the padding as cells outside the screen"
                 );
         }
@@ -395,10 +483,15 @@ public sealed class PyramidRenderTests
     /// Whether a cell's near bound and its far bound can rest on an undecided pixel under it: one whose bound, moved by
     /// its <see cref="UndecidedSlack"/>, reaches the cell's bound. Only there may the GPU's bound differ from the C# copy's.
     /// </summary>
-    private static (bool Near, bool Far) Undecided(DepthPyramid expected, float[] slack, int level, (int X, int Y) cell)
+    private static (bool Near, bool Back) Undecided(
+        DepthPyramid expected,
+        float[] slack,
+        int level,
+        (int X, int Y) cell
+    )
     {
         CellBounds bounds = expected.Bounds(level, cell.X, cell.Y);
-        (bool near, bool far) = (false, false);
+        (bool near, bool back) = (false, false);
         for (int y = cell.Y << level; y < Math.Min((cell.Y + 1) << level, expected.Height); y++)
         for (int x = cell.X << level; x < Math.Min((cell.X + 1) << level, expected.Width); x++)
         {
@@ -407,9 +500,9 @@ public sealed class PyramidRenderTests
                 continue;
             CellBounds pixel = expected.Bounds(0, x, y);
             near |= pixel.Near + pixelSlack >= bounds.Near * (1 - InverseDepthTolerance);
-            far |= pixel.Far - pixelSlack <= bounds.Far * (1 + InverseDepthTolerance);
+            back |= pixel.Back - pixelSlack <= bounds.Back * (1 + InverseDepthTolerance);
         }
-        return (near, far);
+        return (near, back);
     }
 
     /// <summary>The height of the bottom of the panel of <see cref="PanelBeforeAWall"/> above the eye, in m.</summary>
@@ -428,9 +521,10 @@ public sealed class PyramidRenderTests
     private static float PanelFarEdge => PanelHeight / ((Height / 2 - PanelLastRow - 1) * RowTangent);
 
     /// <summary>
-    /// A gray panel 6 m wide whose bottom lies <see cref="PanelHeight"/> above the eye, from 2 m ahead to
-    /// <see cref="PanelFarEdge"/>, before a gray wall that faces the eye under the sky. The wall stands where the panel's
-    /// plane meets the view ray through the center of the row below <see cref="PanelLastRow"/>, and 0.5 % farther.
+    /// A gray panel 6 m wide <see cref="PanelHeight"/> above the eye, from 2 m ahead to <see cref="PanelFarEdge"/>,
+    /// before a gray wall that faces the eye under the sky. The panel is an open quad that faces down, a sheet, so that
+    /// its slab ends at its plane's far w. The wall stands where the panel's plane meets the view ray through the center
+    /// of the row below <see cref="PanelLastRow"/>, and 0.5 % farther.
     /// </summary>
     private static RenderSnapshot PanelBeforeAWall(VulkanRenderer renderer)
     {
@@ -440,12 +534,17 @@ public sealed class PyramidRenderTests
             MaterialDesc.Color(new(x: 0.5f, y: 0.5f, z: 0.5f, w: 1), roughness: 0.5f)
         );
         float wall = 1.005f * PanelHeight / ((Height / 2 - PanelLastRow - 1.5f) * RowTangent);
+        var panelSize = new Vector3(6, 1, PanelFarEdge - 2);
+        // The plane mesh's front, +Y, turned down toward the eye.
         snapshot.Instances.Add(
-            Block(
-                box: box,
+            Gpu.Instance(
+                mesh: renderer.CreateMesh(Primitives.Plane(0.5f)),
                 material: gray,
-                center: new(0, PanelHeight + 0.05f, -(2 + PanelFarEdge) / 2),
-                size: new(6, 0.1f, PanelFarEdge - 2)
+                position: new(0, PanelHeight, -(2 + PanelFarEdge) / 2),
+                scale: panelSize,
+                rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI),
+                radius: panelSize.Length() / 2,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         snapshot.Instances.Add(
@@ -498,6 +597,43 @@ public sealed class PyramidRenderTests
                 position: new(0.3f, -0.8f, -4),
                 color: Vector3.One,
                 intensity: 4,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        return snapshot;
+    }
+
+    /// <summary>
+    /// A closed gray box turned about the vertical axis and an open gray quad tilted back, a card, before the sky. The box
+    /// lies 6 m away, and the card 4 m away. The sun lights both.
+    /// </summary>
+    private static RenderSnapshot BoxCardAndSky(VulkanRenderer renderer)
+    {
+        RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.8f, 0.3f));
+        MaterialId gray = renderer.CreateMaterial(
+            MaterialDesc.Color(new(x: 0.5f, y: 0.5f, z: 0.5f, w: 1), roughness: 0.5f)
+        );
+        var boxSize = new Vector3(2, 1.5f, 1.2f);
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: renderer.CreateMesh(Primitives.Box(new(0.5f))),
+                material: gray,
+                position: new(-1.8f, -0.2f, -6),
+                scale: boxSize,
+                rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.6f),
+                radius: boxSize.Length() / 2,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        // The plane mesh's front, +Y, turned 70° toward the eye: the card faces it at a slant.
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: renderer.CreateMesh(Primitives.Plane(0.8f)),
+                material: gray,
+                position: new(1.5f, 0, -4),
+                scale: Vector3.One,
+                rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitX, 1.2f),
+                radius: 1.2f,
                 chainDepth: TestChains.CamerasFrame
             )
         );

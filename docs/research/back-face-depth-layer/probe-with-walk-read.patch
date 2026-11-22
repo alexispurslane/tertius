@@ -1,0 +1,425 @@
+diff --git a/scripts/ter-kh4g-cabin-timing.json b/scripts/ter-kh4g-cabin-timing.json
+new file mode 100644
+index 000000000..8d44d1df8
+--- /dev/null
++++ b/scripts/ter-kh4g-cabin-timing.json
+@@ -0,0 +1,9 @@
++{
++  "scene": "demo-exit",
++  "window": { "width": 1920, "height": 1080 },
++  "steps": [
++    { "do": "camera", "entity": "cabin-camera" },
++    { "do": "run", "ticks": 60 },
++    { "do": "film", "name": "cabin", "frames": 120, "every": 1 }
++  ]
++}
+diff --git a/scripts/ter-kh4g-rect-lamps-timing.json b/scripts/ter-kh4g-rect-lamps-timing.json
+new file mode 100644
+index 000000000..664a96735
+--- /dev/null
++++ b/scripts/ter-kh4g-rect-lamps-timing.json
+@@ -0,0 +1,9 @@
++{
++  "scene": "orbit",
++  "window": { "width": 1920, "height": 1080 },
++  "steps": [
++    { "do": "camera", "entity": "person" },
++    { "do": "run", "ticks": 60 },
++    { "do": "film", "name": "rect-lamps", "frames": 120, "every": 1 }
++  ]
++}
+diff --git a/src/Tertius.Rendering/Frame/DescriptorLayouts.cs b/src/Tertius.Rendering/Frame/DescriptorLayouts.cs
+index 3668aa8d0..c19baa77f 100644
+--- a/src/Tertius.Rendering/Frame/DescriptorLayouts.cs
++++ b/src/Tertius.Rendering/Frame/DescriptorLayouts.cs
+@@ -834,6 +834,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+             // The screen tracer reads each pixel's surface, its model and its light mark included, and a hair receiver's
+             // own card, which its rays pass through.
+             Image(binding: RenderTargets.ShadingBinding, stages: shading),
++            // THROWAWAY (ter-kh4g, stage 1): the back-face probe's target, which the screen walk reads.
++            Image(binding: 9, stages: ShaderStageFlags.ComputeBit),
+             // Every stage that samples the tiles reads their bounds first.
+             Image(binding: ShadowAtlas.BoundsBinding, stages: graphics),
+             // The direct pass under key and fill reads its pixel's tile record.
+@@ -982,7 +984,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+             // face surface set and four for the key fill tiles set.
+             new(
+                 DescriptorType.SampledImage,
+-                20
++                // THROWAWAY (ter-kh4g, stage 1): 21, with the back-face probe's target in the G-buffer set.
++                21
+                     + 1
+                     + 4
+                     + 7 * frames
+diff --git a/src/Tertius.Rendering/Frame/RenderTargets.cs b/src/Tertius.Rendering/Frame/RenderTargets.cs
+index e4e17cd97..c57519063 100644
+--- a/src/Tertius.Rendering/Frame/RenderTargets.cs
++++ b/src/Tertius.Rendering/Frame/RenderTargets.cs
+@@ -157,6 +157,10 @@ internal sealed class RenderTargets : IDisposable
+     public GpuImage Emissive { get; private set; }
+     public GpuImage Distance { get; private set; }
+ 
++    /// <summary>THROWAWAY (ter-kh4g, stage 1): the back-face cost probe's target, the nearest back face's distance to the
++    /// eye in m, 0 without one.</summary>
++    public GpuImage BackDistance { get; private set; }
++
+     /// <summary>The shading model of each pixel and a hair pixel's strand, the sixth G-buffer target.</summary>
+     public GpuImage Shading { get; private set; }
+ 
+@@ -238,6 +242,7 @@ internal sealed class RenderTargets : IDisposable
+         nameof(Specular),
+         nameof(Emissive),
+         nameof(Distance),
++        nameof(BackDistance),
+         nameof(Shading),
+         nameof(Motion),
+         nameof(Depth),
+@@ -256,6 +261,7 @@ internal sealed class RenderTargets : IDisposable
+         Specular = ColorTarget(extent: extent, format: SpecularFormat, name: "g-buffer specular", readable: true);
+         Emissive = ColorTarget(extent: extent, format: EmissiveFormat, name: "g-buffer emissive");
+         Distance = ColorTarget(extent: extent, format: DistanceFormat, name: "g-buffer distance", readable: true);
++        BackDistance = ColorTarget(extent: extent, format: DistanceFormat, name: "back distance (throwaway)", readable: true);
+         Shading = ColorTarget(extent: extent, format: ShadingFormat, name: "g-buffer shading", readable: true);
+         // A storage image too, for the surface test, which writes the sky's motion.
+         Motion = ColorTarget(
+@@ -299,6 +305,8 @@ internal sealed class RenderTargets : IDisposable
+         for (int i = 0; i < 5; i++)
+             layouts.WriteImage(set: GBufferSet, binding: (uint)i, arrayElement: 0, image: GBuffer[i]);
+         layouts.WriteImage(set: GBufferSet, binding: ShadingBinding, arrayElement: 0, image: Shading);
++        // THROWAWAY (ter-kh4g, stage 1).
++        layouts.WriteImage(set: GBufferSet, binding: 9, arrayElement: 0, image: BackDistance);
+         layouts.WriteImage(set: PostSet, binding: 0, arrayElement: 0, image: PostHdr);
+         layouts.WriteImage(set: MeterSet, binding: 0, arrayElement: 0, image: Hdr);
+         layouts.WriteImage(set: MeterSet, binding: 1, arrayElement: 0, image: Distance);
+@@ -471,6 +479,7 @@ internal sealed class RenderTargets : IDisposable
+         foreach (GpuImage image in GBuffer)
+             image.Dispose();
+         Depth?.Dispose();
++        BackDistance?.Dispose();
+         Hdr?.Dispose();
+         DirectDiffuse?.Dispose();
+         DirectSpecular?.Dispose();
+diff --git a/src/Tertius.Rendering/Passes/BackFacePass.cs b/src/Tertius.Rendering/Passes/BackFacePass.cs
+new file mode 100644
+index 000000000..7428d7b2b
+--- /dev/null
++++ b/src/Tertius.Rendering/Passes/BackFacePass.cs
+@@ -0,0 +1,135 @@
++using Silk.NET.Vulkan;
++
++namespace Tertius.Rendering;
++
++/// <summary>
++/// THROWAWAY (ter-kh4g, stage 1): the cost probe of a back-face depth layer. After the G-buffer pass, it draws the back
++/// faces of the one-sided opaque runs of each depth range into <see cref="RenderTargets.BackDistance"/>, with the
++/// G-buffer's depth image, front faces culled and the nearest back face behind the pixel's front surface kept. Nothing reads the image. The cutout run
++/// draws as solid, so the probe runs no alpha test. Only <c>TERTIUS_BACK_FACE_PROBE=on</c> records the pass.
++/// </summary>
++internal sealed unsafe class BackFacePass : RenderPass
++{
++    private readonly VulkanDevice device;
++    private readonly Pipeline pipeline;
++
++    public BackFacePass(VulkanDevice device, ShaderLibrary shaders, DescriptorLayouts layouts)
++    {
++        this.device = device;
++        pipeline = new GraphicsPipelineDesc
++        {
++            Name = "back faces (throwaway)",
++            VertexShader = "back_face.vert",
++            FragmentShader = "back_face.frag",
++            Layout = layouts.SceneLayout,
++            ColorFormats = [RenderTargets.DistanceFormat],
++            DepthFormat = RenderTargets.DepthFormat,
++            VertexInput = VertexInput.PositionOnly,
++            DepthTest = true,
++            DepthWrite = true,
++            DepthCompare = CompareOp.Greater,
++            CullMode = CullModeFlags.FrontBit,
++        }.Create(device, shaders);
++    }
++
++    public override string Name => "back faces";
++
++    /// <summary>The probe's mode without <c>TERTIUS_BACK_FACE_PROBE</c>. A timing job on a cloud worker flips it in a
++    /// scratch commit, because the job's runs share one environment.</summary>
++    private const string DefaultMode = "off";
++
++    /// <summary>Whether the probe records its pass: under <c>TERTIUS_BACK_FACE_PROBE=on</c>, and off without it, so
++    /// that every test and every other run draws main's frame.</summary>
++    /// <exception cref="ArgumentException">The variable holds another value.</exception>
++    public static bool SwitchedOn() =>
++        (Environment.GetEnvironmentVariable("TERTIUS_BACK_FACE_PROBE") is { Length: > 0 } mode ? mode : DefaultMode) switch
++        {
++            "on" or "walk" or "read" => true,
++            "off" => false,
++            var value => throw new ArgumentException(
++                $"Unknown TERTIUS_BACK_FACE_PROBE value '{value}': use on, walk, read or off."
++            ),
++        };
++
++    /// <summary>How the screen walk reads the probe's target: 1 under <c>TERTIUS_BACK_FACE_PROBE=walk</c>, where a
++    /// pixel's slab ends at its back face. 2 under <c>read</c>, where the walk reads the target and ignores it, so that a
++    /// timing run splits the cost of the read from the cost of the longer walks. 0 otherwise.</summary>
++    public static uint WalkMode() =>
++        (Environment.GetEnvironmentVariable("TERTIUS_BACK_FACE_PROBE") is { Length: > 0 } mode ? mode : DefaultMode) switch
++        {
++            "walk" => 1u,
++            "read" => 2u,
++            _ => 0u,
++        };
++
++    public override void Record(FrameContext context)
++    {
++        Vk vk = context.Vk;
++        CommandBuffer commandBuffer = context.CommandBuffer;
++        RenderTargets targets = context.Targets;
++        BarrierBatch barriers = context.Barriers;
++        PreparedScene scene = context.Scene;
++        for (int range = DepthRanges.Far; range <= DepthRanges.Near; range++)
++        {
++            bool first = range == DepthRanges.Far;
++            barriers.Image(targets.BackDistance, ImageUse.ColorAttachment, discard: first);
++            barriers.Image(targets.Depth, ImageUse.DepthAttachment, discard: true);
++            barriers.Image(targets.Distance, ImageUse.SampledFragment);
++            barriers.Flush(vk, commandBuffer);
++            var color = new RenderingAttachmentInfo
++            {
++                SType = StructureType.RenderingAttachmentInfo,
++                ImageView = targets.BackDistance.View,
++                ImageLayout = ImageLayout.ColorAttachmentOptimal,
++                LoadOp = first ? AttachmentLoadOp.Clear : AttachmentLoadOp.Load,
++                StoreOp = AttachmentStoreOp.Store,
++                // Distance 0: no back face.
++                ClearValue = new(new ClearColorValue(float32_0: 0f, float32_1: 0f, float32_2: 0f, float32_3: 0f)),
++            };
++            var depth = new RenderingAttachmentInfo
++            {
++                SType = StructureType.RenderingAttachmentInfo,
++                ImageView = targets.Depth.View,
++                ImageLayout = ImageLayout.DepthAttachmentOptimal,
++                LoadOp = AttachmentLoadOp.Clear,
++                StoreOp = AttachmentStoreOp.DontCare,
++                ClearValue = new(depthStencil: new ClearDepthStencilValue(DepthRanges.ClearDepth(range), 0)),
++            };
++            var rendering = new RenderingInfo
++            {
++                SType = StructureType.RenderingInfo,
++                RenderArea = new(new Offset2D(0, 0), targets.Extent),
++                LayerCount = 1,
++                ColorAttachmentCount = 1,
++                PColorAttachments = &color,
++                PDepthAttachment = &depth,
++            };
++            vk.CmdBeginRendering(commandBuffer, &rendering);
++            if (first)
++            {
++                context.BindSceneSets();
++                context.SetFullViewport();
++                GeometryPass.BindGeometry(context);
++                vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, pipeline);
++            }
++
++            OpaqueRuns runs = scene.Opaque[range].OneSided;
++            if (runs.Solid.Count + runs.Cutout.Count > 0)
++            {
++                GeometryPass.PushDraw(context: context, viewProjection: scene.RangeViewProjection[range]);
++                if (runs.Solid.Count > 0)
++                    GeometryPass.DrawIndirect(context, runs.Solid);
++                if (runs.Cutout.Count > 0)
++                    GeometryPass.DrawIndirect(context, runs.Cutout);
++            }
++
++            vk.CmdEndRendering(commandBuffer);
++        }
++
++        // The screen walk reads the target in the tracer's compute stage.
++        barriers.Image(targets.BackDistance, ImageUse.SampledCompute);
++        barriers.Flush(vk, commandBuffer);
++    }
++
++    public override void Dispose() => device.Vk.DestroyPipeline(device.Device, pipeline, null);
++}
+diff --git a/src/Tertius.Rendering/ShaderConstants.cs b/src/Tertius.Rendering/ShaderConstants.cs
+index 99ad27d6f..4d3c56a4e 100644
+--- a/src/Tertius.Rendering/ShaderConstants.cs
++++ b/src/Tertius.Rendering/ShaderConstants.cs
+@@ -21,6 +21,13 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
+     /// <summary>The constant_id of tileCornerMeans in shadows.glsl.</summary>
+     public const uint TileCornerMeansId = 11;
+ 
++    /// <summary>THROWAWAY (ter-kh4g, stage 1): the constant_id of backFaceWalk in screen_walk.glsl.</summary>
++    public const uint BackFaceWalkId = 12;
++
++    /// <summary>THROWAWAY (ter-kh4g, stage 1): how the walk reads the back-face probe's target
++    /// (<see cref="BackFacePass.WalkMode"/>): 0 not at all, 1 it reads and uses it, 2 it reads and ignores it.</summary>
++    public uint BackFaceWalk { get; init; }
++
+     /// <summary>
+     /// True when the filter of a local shadow tile reads sixteen corner means, false when it reads nine gathers
+     /// (<see cref="LocalShadowReads"/>). The renderer sets it for every shading pipeline from its atlas's reads on its
+@@ -124,6 +131,7 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
+             (NeighborLimitPrototypeId, VkBool(values.NeighborLimitPrototype)),
+             (ReflectionSharingPrototypeId, VkBool(values.ReflectionSharingPrototype)),
+             (TileCornerMeansId, VkBool(values.TileCornerMeans)),
++            (BackFaceWalkId, values.BackFaceWalk),
+         ];
+         for (int i = 0; i < rows.Length; i++)
+         {
+@@ -155,7 +163,7 @@ internal struct SpecializationStorage
+     /// The number of constants: one per field of <see cref="ShaderConstants"/>, the subsurface setting's being its taps per
+     /// side. <see cref="ShaderConstants.Specialization"/> writes one row per constant, and a row past this count throws.
+     /// </summary>
+-    public const int Count = 11;
++    public const int Count = 12;
+ 
+     public SpecializationValues Data;
+     public SpecializationEntries Entries;
+diff --git a/src/Tertius.Rendering/Shaders/back_face.frag b/src/Tertius.Rendering/Shaders/back_face.frag
+new file mode 100644
+index 000000000..30fbf789f
+--- /dev/null
++++ b/src/Tertius.Rendering/Shaders/back_face.frag
+@@ -0,0 +1,26 @@
++#version 460
++#extension GL_GOOGLE_include_directive : require
++#include "frame.glsl"
++#include "draw.glsl"
++#include "gbuffer_inputs.glsl"
++
++// THROWAWAY (ter-kh4g, stage 1): the fragment stage of the back-face cost probe. It writes the back face's distance
++// to the eye in m, as gbuffer.frag writes the front face's. It keeps only a back face behind the pixel's front surface:
++// the first run showed the back faces of the person's own body, 0.3 m from the eye, over the whole screen.
++layout(location = 0) in vec3 inPosition;
++
++layout(location = 0) out float outDistance;
++
++// The share of the front surface's distance by which a back face must lie behind it.
++const float BehindShare = 1e-4;
++
++void main()
++{
++    float back = length(inPosition - draw.eye.xyz);
++    float front = texelFetch(gbufferDistance, ivec2(gl_FragCoord.xy), 0).r;
++    if (front <= 0.0 || back <= front * (1.0 + BehindShare))
++        discard;
++    // The back share: the front surface's distance over the back face's, in (0, 1). A pixel's back w is its center w
++    // times this share, because both points lie on one view ray.
++    outDistance = front / back;
++}
+diff --git a/src/Tertius.Rendering/Shaders/back_face.vert b/src/Tertius.Rendering/Shaders/back_face.vert
+new file mode 100644
+index 000000000..3fa7b9382
+--- /dev/null
++++ b/src/Tertius.Rendering/Shaders/back_face.vert
+@@ -0,0 +1,20 @@
++#version 460
++#extension GL_GOOGLE_include_directive : require
++#include "frame.glsl"
++#include "draw.glsl"
++
++// THROWAWAY (ter-kh4g, stage 1): the vertex stage of the back-face cost probe. It draws from the same instance buffer
++// and indirect commands as the G-buffer pass, with a range's matrix in draw.viewProj, and gives the fragment stage the
++// camera-relative position. Only the position attribute is bound.
++layout(location = 0) in vec3 inPosition;
++
++layout(location = 0) out vec3 outPosition;
++
++void main()
++{
++    GpuInstance instance = instances[gl_InstanceIndex];
++    vec4 p = vec4(inPosition, 1.0);
++    vec3 world = vec3(dot(instance.modelRow0, p), dot(instance.modelRow1, p), dot(instance.modelRow2, p));
++    outPosition = world;
++    gl_Position = draw.viewProj * vec4(world, 1.0);
++}
+diff --git a/src/Tertius.Rendering/Shaders/gbuffer_inputs.glsl b/src/Tertius.Rendering/Shaders/gbuffer_inputs.glsl
+index f25b4f856..5703b5257 100644
+--- a/src/Tertius.Rendering/Shaders/gbuffer_inputs.glsl
++++ b/src/Tertius.Rendering/Shaders/gbuffer_inputs.glsl
+@@ -24,6 +24,9 @@ layout(set = 2, binding = 5) uniform texture2DArray shadowCascades;   // D32: on
+ layout(set = 2, binding = 6) uniform samplerShadow shadowSampler;      // linear GREATER_OR_EQUAL comparison (PCF)
+ layout(set = 2, binding = 8) uniform texture2DArray shadowAtlas;      // D32: one tile per layer, reversed depth;
+                                                                        // partially bound, empty without the atlas
++layout(set = 2, binding = 9) uniform texture2D backFaceShare;          // THROWAWAY (ter-kh4g, stage 1). R32F: the front
++                                                                       // surface's distance over the nearest back
++                                                                       // face's behind it, 0 without one
+ layout(set = 2, binding = 10) uniform utexture2D gbufferShading;       // RGBA8 UINT: rg a hair pixel's strand code (strandCode,
+                                                                        // octahedral.glsl), bit 0 of b 1 where the entity
+                                                                        // holds a light, bits 0 and 1 of a the shading
+diff --git a/src/Tertius.Rendering/Shaders/screen_walk.glsl b/src/Tertius.Rendering/Shaders/screen_walk.glsl
+index 87389a655..4573fb6be 100644
+--- a/src/Tertius.Rendering/Shaders/screen_walk.glsl
++++ b/src/Tertius.Rendering/Shaders/screen_walk.glsl
+@@ -13,6 +13,10 @@ const uint WalkMiss = 2u;
+ 
+ const int WalkTopLevel = 8;   // ScreenRay.WalkTopLevel
+ 
++// THROWAWAY (ter-kh4g, stage 1): 1 where a pixel's slab ends at its back face where that is nearer than the fixed share,
++// 2 where the walk reads the back share and ignores it, which times the read alone, and 0 where it reads nothing.
++layout(constant_id = 12) const uint backFaceWalk = 0u;
++
+ // What a walk keeps of its ray from its start to its end.
+ struct ScreenWalk
+ {
+@@ -97,6 +101,11 @@ uint walkScreen(texture2D finest, texture2D bounds, ScreenWalk walk, uint cap, o
+                 : texelFetch(bounds, ivec2(cell), level - 1).rg;
+         float near = cellBounds.x;
+         float back = cellBounds.y * backShare;
++        if (backFaceWalk != 0u && level == 0 && near > 0.0)
++        {
++            float share = texelFetch(backFaceShare, ivec2(cell), 0).r;
++            back = max(back, near * (backFaceWalk == 2u ? min(share, 0.0) : share));
++        }
+         float inW = walk.ray.startW + walk.ray.stepW * s;
+         float outW = walk.ray.startW + walk.ray.stepW * exit;
+         bool inFront = near <= 0.0 || min(inW, outW) > near;
+diff --git a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
+index 8409e824a..ca0a4bd58 100644
+--- a/src/Tertius.Rendering/VulkanRenderer.cs
++++ b/src/Tertius.Rendering/VulkanRenderer.cs
+@@ -1885,8 +1885,26 @@ public sealed unsafe class VulkanRenderer : IRenderer
+             for (int i = 0; i < pixels.Length; i += 4)
+                 (pixels[i], pixels[i + 2]) = (pixels[i + 2], pixels[i]);
+         sink.Take(new(pixels, width, height));
++        // THROWAWAY (ter-kh4g, stage 1): under TERTIUS_BACK_FACE_DUMP=<folder>, writes the captured frame's front and back
++        // distances as raw 32-bit floats, row by row from the top, with the render size in the file names.
++        if (Environment.GetEnvironmentVariable("TERTIUS_BACK_FACE_DUMP") is { Length: > 0 } folder && BackFacePass.SwitchedOn())
++        {
++            Directory.CreateDirectory(folder);
++            string size = $"{targets.Extent.Width}x{targets.Extent.Height}";
++            File.WriteAllBytes(
++                Path.Combine(folder, $"front-{backFaceDumps}-{size}.f32"),
++                System.Runtime.InteropServices.MemoryMarshal.AsBytes<float>(ReadImage(targets.Distance)).ToArray()
++            );
++            File.WriteAllBytes(
++                Path.Combine(folder, $"back-{backFaceDumps}-{size}.f32"),
++                System.Runtime.InteropServices.MemoryMarshal.AsBytes<float>(ReadImage(targets.BackDistance)).ToArray()
++            );
++            backFaceDumps++;
++        }
+     }
+ 
++    private int backFaceDumps;
++
+     /// <summary>The one context of the renderer's life, which holds what every frame shares (see <see cref="SetContext"/>).</summary>
+     private FrameContext CreateContext() =>
+         new()
+@@ -2055,6 +2073,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
+             kept: keptPositions
+         );
+         Graph.Add(FrameGraph.Stage.GBuffer, geometryPass);
++        // THROWAWAY (ter-kh4g, stage 1): the back-face cost probe.
++        if (BackFacePass.SwitchedOn())
++            Graph.Add(FrameGraph.Stage.GBuffer, new BackFacePass(device: device, shaders: shaders, layouts: layouts));
+         Graph.Add(
+             FrameGraph.Stage.SurfaceTest,
+             new SurfaceTestPass(device: device, shaders: shaders, layouts: layouts, images: surfaceHistory)
+@@ -2111,6 +2132,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
+                 options.LocalShadows is LocalShadowAtlas atlas
+                 && TileReadsFor(atlas.Reads, driver) == LocalShadowReads.SixteenCornerMeans,
+             ScreenTraceOn = options.ScreenTrace is ScreenTrace,
++            BackFaceWalk = BackFacePass.WalkMode(),
+             ReflectionSharingPrototype =
+                 options.ScreenTrace is ScreenTrace
+                 && Environment.GetEnvironmentVariable("TERTIUS_REFLECTION_SHARING") == "1",

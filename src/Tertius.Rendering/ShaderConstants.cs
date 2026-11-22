@@ -49,6 +49,9 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
     /// <summary>The constant_id of screenTraceOn in temporal.glsl.</summary>
     public const uint ScreenTraceOnId = 6;
 
+    /// <summary>The constant_id of bothFaces in back_face.glsl.</summary>
+    public const uint BothFacesId = 7;
+
     /// <summary>The constant_id of mainView in material.glsl.</summary>
     public const uint MainViewId = 8;
 
@@ -89,6 +92,12 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
     public uint RayKind { get; init; }
 
     /// <summary>
+    /// True in the back-face pass's pipelines of the runs whose both faces it draws (<see cref="BackFaceRuns.BothFaces"/>):
+    /// a fragment at the front surface's own distance counts there, with the share 1.
+    /// </summary>
+    public bool BothFaces { get; init; }
+
+    /// <summary>
     /// True under <see cref="ScreenTrace"/>, whose signals' slow histories the composite reads; false under <see
     /// cref="NoScreenTrace"/>, under which it computes the closed forms.
     /// </summary>
@@ -120,6 +129,7 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
             (WritesMotionId, VkBool(values.WritesMotion)),
             (RayKindId, values.RayKind),
             (ScreenTraceOnId, VkBool(values.ScreenTraceOn)),
+            (BothFacesId, VkBool(values.BothFaces)),
             (MainViewId, VkBool(values.MainView)),
             (NeighborLimitPrototypeId, VkBool(values.NeighborLimitPrototype)),
             (ReflectionSharingPrototypeId, VkBool(values.ReflectionSharingPrototype)),
@@ -155,7 +165,7 @@ internal struct SpecializationStorage
     /// The number of constants: one per field of <see cref="ShaderConstants"/>, the subsurface setting's being its taps per
     /// side. <see cref="ShaderConstants.Specialization"/> writes one row per constant, and a row past this count throws.
     /// </summary>
-    public const int Count = 11;
+    public const int Count = 12;
 
     public SpecializationValues Data;
     public SpecializationEntries Entries;
