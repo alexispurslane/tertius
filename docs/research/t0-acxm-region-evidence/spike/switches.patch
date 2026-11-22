@@ -1,0 +1,37 @@
+--- a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
++++ b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
+@@ -49,14 +49,16 @@
+ uint evidenceOfBlock(ivec2 pixel)
+ {
+     ivec2 block = ivec2(gl_WorkGroupID.xy);
+-    if (isRegionAnchor(block))
++    // SCRATCH (t0-acxm spike): a regionSlot of 0xFFFFFFFF skips the region's test, and 0xFFFFFFFE only the anchors'
++    // update. It is uniform, a push constant.
++    if (parameters.regionSlot < 0xFFFFFFFEu && isRegionAnchor(block))
+         updateRegionAnchor(block);
+     if (gl_LocalInvocationIndex == 0u)
+         blockEvidence = NoEvidence;
+     barrier();
+     if (insideImages(pixel))
+         atomicMax(blockEvidence, evidenceOfSample(imageLoad(sampleAge, pixel).r));
+-    if (regionAnchorMovedBefore(block, gl_LocalInvocationIndex))
++    if (parameters.regionSlot != 0xFFFFFFFFu && regionAnchorMovedBefore(block, gl_LocalInvocationIndex))
+         atomicMax(blockEvidence, RegionEvidence);
+     barrier();
+     return blockEvidence;
+--- a/src/Tertius.Rendering/Frame/TemporalSignal.cs
++++ b/src/Tertius.Rendering/Frame/TemporalSignal.cs
+@@ -505,6 +505,13 @@
+     {
+         context.BeginComputePass(pipeline: pipeline, layout: layouts.AccumulateLayout, passSet: set);
+         var push = AccumulatePushConstants.Of(Parameters, context.History.Reset, context.History.DrawIndex);
++        // SCRATCH (t0-acxm spike): TERTIUS_SPIKE_REGION=one runs the region's test for the bounce light only, and =off
++        // for neither signal.
++        string? spike = Environment.GetEnvironmentVariable("TERTIUS_SPIKE_REGION");
++        if (spike == "off" || spike == "one" && Name != "indirect diffuse")
++            push.RegionSlot = uint.MaxValue;
++        else if (spike == "reads")
++            push.RegionSlot = uint.MaxValue - 1;
+         if (HistoryMode == SpecularHistoryMode.PreciseUncapped)
+         {
+             push.Cap = float.PositiveInfinity;

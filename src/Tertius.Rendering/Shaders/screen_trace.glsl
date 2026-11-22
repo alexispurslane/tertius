@@ -249,10 +249,6 @@ const uint KindDiffuse = 1u;
 const uint PlanOwnReflection = 1u;
 const uint PlanOwnDiffuse = 2u;
 
-
-// A pixel traces its own ray of a kind while its history of that kind is shorter than this (section 6, "The ray budget").
-const float FullRateFrames = 8.0;
-
 // The largest weight of a ray at a pixel, which trades a small bias for no fireflies (section 6, "The resolve").
 const float MostRayWeight = 4.0;
 

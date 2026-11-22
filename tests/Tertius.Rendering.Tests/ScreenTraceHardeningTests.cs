@@ -161,7 +161,8 @@ public sealed class ScreenTraceHardeningTests
     }
 
     /// <summary>The paired history modes keep ray allocation independent of specular age, including after resize.</summary>
-    [Collection(GpuCollection.Name)]
+    // It sets TERTIUS_SPECULAR_HISTORY and three more switches, which every test beside it would read.
+    [Collection(ProcessEnvironmentCollection.Name)]
     public sealed class PreciseHistoryRayAllocation
     {
         [Theory]

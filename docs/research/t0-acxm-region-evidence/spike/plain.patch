@@ -1,0 +1,552 @@
+diff --git a/src/Tertius.Rendering/Frame/DescriptorLayouts.cs b/src/Tertius.Rendering/Frame/DescriptorLayouts.cs
+index bb7155c8a..e48d082f9 100644
+--- a/src/Tertius.Rendering/Frame/DescriptorLayouts.cs
++++ b/src/Tertius.Rendering/Frame/DescriptorLayouts.cs
+@@ -139,15 +139,15 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+ 
+     /// <summary>
+     /// The storage images of a signal set: nine, with the light-change age of a precise specular history the signal's
+-    /// sample age at binding 11, which the spatial dispatch reads, and at binding 12 the instrumentation's image, the
+-    /// uncovered-surface diagnostic or the accumulation trace. The original history refuses the instrumentation (the
+-    /// constructor).
++    /// sample age at binding 11, which the spatial dispatch reads, and the region drift pass's three images at bindings
++    /// 13 to 15 (region_drift.glsl), and at binding 12 the instrumentation's image, the uncovered-surface diagnostic or
++    /// the accumulation trace. The original history refuses the instrumentation (the constructor).
+     /// </summary>
+     private uint SignalSetImages =>
+-        9u + (HistoryMode.KeepsLightAge ? 1u : 0u) + (Instrumentation == HistoryInstrumentation.None ? 0u : 1u);
++        9u + (HistoryMode.KeepsLightAge ? 4u : 0u) + (Instrumentation == HistoryInstrumentation.None ? 0u : 1u);
+ 
+-    /// <summary>The highest binding that a signal set can hold: 12, the instrumentation's image.</summary>
+-    private const uint LastSignalBinding = 12;
++    /// <summary>The highest binding that a signal set can hold: 15, the region drift pass's evidence.</summary>
++    private const uint LastSignalBinding = 15;
+ 
+     /// <summary>The sampled images of a signal set: the last surface history and the last device depth.</summary>
+     private const uint SignalSetSampledImages = 2;
+@@ -1249,14 +1249,14 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+     /// <summary>The layouts of the signal set (<see cref="SignalSet"/>) and the light set (<see cref="LightSet"/>).</summary>
+     private (DescriptorSetLayout Signal, DescriptorSetLayout Light) CreateTemporalSetLayouts()
+     {
+-        // The bindings by number: 0 to 10, 11 with the light age and 12 with an instrumentation.
++        // The bindings by number: 0 to 10, 11 and 13 to 15 with the light age, and 12 with an instrumentation.
+         Span<DescriptorSetLayoutBinding> signal =
+             stackalloc DescriptorSetLayoutBinding[(int)(SignalSetImages + SignalSetSampledImages)];
+         int count = 0;
+         for (uint binding = 0; binding <= LastSignalBinding; binding++)
+             if (
+                 binding <= 10
+-                || binding == 11 && HistoryMode.KeepsLightAge
++                || binding is 11 or >= 13 && HistoryMode.KeepsLightAge
+                 || binding == 12 && Instrumentation != HistoryInstrumentation.None
+             )
+                 signal[count++] = binding is 7 or 8
+diff --git a/src/Tertius.Rendering/Frame/HistoryInstrumentation.cs b/src/Tertius.Rendering/Frame/HistoryInstrumentation.cs
+index 7a03f1542..6a563abd0 100644
+--- a/src/Tertius.Rendering/Frame/HistoryInstrumentation.cs
++++ b/src/Tertius.Rendering/Frame/HistoryInstrumentation.cs
+@@ -32,12 +32,16 @@ internal readonly record struct ShaderVariant(string Suffix, string[] Shaders)
+     public const string PreciseSuffix = "_precise";
+ 
+     /// <summary>
+-    /// The LightAgeShader items of Tertius.Rendering.csproj (ticket ter-wkvw): the spatial dispatch of a half-precision
+-    /// history whose samples have a light age, the diffuse signal's beside a precise specular history. It acts on its
+-    /// block's evidence, as the precise variants do (docs/plans/bounce-light-confidence.md, section 8.4). The temporal
+-    /// dispatch reads no light age: no cut runs before the blend (section 4).
++    /// The LightAgeShader items of Tertius.Rendering.csproj (ticket ter-wkvw): both dispatches of a half-precision history
++    /// whose samples have a light age, the diffuse signal's beside a precise specular history, as the precise variants
++    /// have them. The temporal dispatch stores its blocks' taps for the region drift pass (ticket t0-acxm), and the
++    /// spatial dispatch acts on its block's evidence (docs/plans/bounce-light-confidence.md, sections 8.4 and 8.6). No cut
++    /// runs before the blend (section 4).
+     /// </summary>
+-    public static readonly ShaderVariant LightAge = new(Suffix: "_lightage", Shaders: ["accumulate_spatial.comp"]);
++    public static readonly ShaderVariant LightAge = new(
++        Suffix: "_lightage",
++        Shaders: ["accumulate_temporal.comp", "accumulate_spatial.comp"]
++    );
+ 
+     /// <summary>The file name of <paramref name="shader"/>'s variant, such as composite_precise.frag.</summary>
+     public static string Of(string shader, string suffix) =>
+diff --git a/src/Tertius.Rendering/Frame/TemporalSignal.cs b/src/Tertius.Rendering/Frame/TemporalSignal.cs
+index 915c07915..baa044d17 100644
+--- a/src/Tertius.Rendering/Frame/TemporalSignal.cs
++++ b/src/Tertius.Rendering/Frame/TemporalSignal.cs
+@@ -70,6 +70,27 @@ internal sealed unsafe class TemporalSignal : IDisposable
+     /// </summary>
+     private const uint GroupSize = 8;
+ 
++    /// <summary>
++    /// The draws that a block's ring keeps in the region drift pass, two windows of 18 draws (region_drift.glsl,
++    /// RegionRingDraws): the layers of <see cref="RegionRing(int)"/>.
++    /// </summary>
++    public const int RegionRingDraws = 36;
++
++    /// <summary>
++    /// The format of a block's tap (region_drift.glsl, blockLight): r the luminance of the tap pixel's sample over the
++    /// draw's exposure scale, g 1 where the tap counts, else 0.
++    /// </summary>
++    public const Format BlockLightFormat = Format.R32G32Sfloat;
++
++    /// <summary>
++    /// The format of a layer of a block's ring (region_drift.glsl, regionRing): r the region's light of a draw, g the
++    /// count of valid draws in a row up to it.
++    /// </summary>
++    public const Format RegionRingFormat = Format.R32G32Sfloat;
++
++    /// <summary>The format of a block's region evidence (region_drift.glsl, regionEvidence): 1 where its region's light moved.</summary>
++    public const Format RegionEvidenceFormat = Format.R32Uint;
++
+     private readonly VulkanDevice device;
+     private readonly DeviceAllocator allocator;
+     private readonly DescriptorLayouts layouts;
+@@ -78,6 +99,9 @@ internal sealed unsafe class TemporalSignal : IDisposable
+     private readonly SignalScratch scratch;
+     private readonly Pipeline temporal;
+     private readonly Pipeline spatial;
++
++    /// <summary>The region drift pass, region_drift.comp, of a signal with a light age; the null handle without one.</summary>
++    private readonly Pipeline regionDrift;
+     private readonly bool singleDiffuseHistory;
+     private readonly bool reflectionDistanceHistory;
+     private readonly PartImages[] parts;
+@@ -158,6 +182,13 @@ internal sealed unsafe class TemporalSignal : IDisposable
+             prototype.LimitIncoming
+         );
+         spatial = CreatePipeline(shaders, singleDiffuseHistory ? "diffuse_single_spatial" : "spatial");
++        if (KeepsLightAge)
++            regionDrift = new ComputePipelineDesc
++            {
++                Name = $"region drift {Name}",
++                Shader = "region_drift.comp",
++                Layout = layouts.AccumulateLayout,
++            }.Create(device, shaders);
+         Create();
+     }
+ 
+@@ -295,6 +326,24 @@ internal sealed unsafe class TemporalSignal : IDisposable
+     /// </summary>
+     public GpuImage? SampleAge(int part) => parts[part].SampleAge;
+ 
++    /// <summary>
++    /// The taps of <paramref name="part"/>'s blocks of this draw (<see cref="BlockLightFormat"/>), one texel per block of
++    /// 8 × 8 pixels, or null without a light age. The temporal dispatch writes them, and the region drift pass reads them.
++    /// </summary>
++    public GpuImage? BlockLight(int part) => parts[part].Regions is [var light, _, _] ? light : null;
++
++    /// <summary>
++    /// The rings of <paramref name="part"/>'s blocks (<see cref="RegionRingFormat"/>, <see cref="RegionRingDraws"/> layers),
++    /// or null without a light age. Only the region drift pass reads and writes them.
++    /// </summary>
++    public GpuImage? RegionRing(int part) => parts[part].Regions is [_, var ring, _] ? ring : null;
++
++    /// <summary>
++    /// The region evidence of <paramref name="part"/>'s blocks in this draw (<see cref="RegionEvidenceFormat"/>), or null
++    /// without a light age. The region drift pass writes it, and the spatial dispatch reads it.
++    /// </summary>
++    public GpuImage? RegionEvidence(int part) => parts[part].Regions is [_, _, var evidence] ? evidence : null;
++
+     /// <summary>
+     /// The diagnostic of uncovered surfaces of <paramref name="part"/> under <see cref="HistoryInstrumentation.LightAgeDiagnostic"/>
+     /// (<see cref="UncoveredDiagnosticFormat"/>), or null without it. Only the capture tool and the tests read it.
+@@ -369,12 +418,22 @@ internal sealed unsafe class TemporalSignal : IDisposable
+         barriers.Image(surfaces.Last(parity), ImageUse.SampledCompute);
+         barriers.Image(surfaces.LastDepth(parity), ImageUse.SampledCompute);
+         barriers.Buffer(context.Exposure.Buffer, BufferUse.ShaderRead);
++        Extent2D blocks = BlocksOf(context.Extent);
+         for (int part = 0; part < parts.Length; part++)
+         {
+             BeforeTemporal(barriers: barriers, part: part, parity: parity);
+-            Dispatch(context: context, pipeline: temporal, set: sets[part, parity]);
++            Dispatch(context: context, pipeline: temporal, set: sets[part, parity], groups: blocks);
++            if (parts[part].Regions is [var light, var ring, var evidence])
++            {
++                // After the temporal dispatch, which wrote this draw's taps. Every block's evidence is written anew.
++                barriers.Image(light, ImageUse.StorageCompute);
++                barriers.Image(ring, ImageUse.StorageCompute);
++                barriers.Image(evidence, ImageUse.StorageCompute, discard: true);
++                Dispatch(context: context, pipeline: regionDrift, set: sets[part, parity], groups: BlocksOf(blocks));
++                barriers.Image(evidence, ImageUse.StorageCompute);
++            }
+             BeforeSpatial(barriers: barriers, part: part, parity: parity);
+-            Dispatch(context: context, pipeline: spatial, set: sets[part, parity]);
++            Dispatch(context: context, pipeline: spatial, set: sets[part, parity], groups: blocks);
+         }
+     }
+ 
+@@ -389,6 +448,9 @@ internal sealed unsafe class TemporalSignal : IDisposable
+             barriers.Image(age, ImageUse.StorageCompute);
+         foreach (GpuImage trace in images.Traces)
+             barriers.Image(trace, ImageUse.StorageCompute);
++        // Discarded: the region drift pass reads only the taps that this dispatch writes.
++        if (images.Regions is [var light, _, _])
++            barriers.Image(light, ImageUse.StorageCompute, discard: true);
+         barriers.Image(images.Slow, ImageUse.StorageCompute);
+         if (!singleDiffuseHistory)
+         {
+@@ -464,10 +526,10 @@ internal sealed unsafe class TemporalSignal : IDisposable
+     private static Extent2D BlocksOf(Extent2D extent) =>
+         new((extent.Width + GroupSize - 1) / GroupSize, (extent.Height + GroupSize - 1) / GroupSize);
+ 
+-    private void Dispatch(FrameContext context, Pipeline pipeline, DescriptorSet set)
++    private void Dispatch(FrameContext context, Pipeline pipeline, DescriptorSet set, Extent2D groups)
+     {
+         context.BeginComputePass(pipeline: pipeline, layout: layouts.AccumulateLayout, passSet: set);
+-        var push = AccumulatePushConstants.Of(Parameters, context.History.Reset);
++        var push = AccumulatePushConstants.Of(Parameters, context.History.Reset, context.History.DrawIndex);
+         if (HistoryMode == SpecularHistoryMode.PreciseUncapped)
+         {
+             push.Cap = float.PositiveInfinity;
+@@ -481,7 +543,6 @@ internal sealed unsafe class TemporalSignal : IDisposable
+             size: (uint)sizeof(AccumulatePushConstants),
+             pValues: &push
+         );
+-        Extent2D groups = BlocksOf(context.Extent);
+         context.Vk.CmdDispatch(
+             commandBuffer: context.CommandBuffer,
+             groupCountX: groups.Width,
+@@ -522,6 +583,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
+                     ]
+                     : [],
+                 Ages: CreateAges(extent, part),
++                Regions: KeepsLightAge ? CreateRegions(BlocksOf(extent), part) : [],
+                 Traces: Instrumentation == HistoryInstrumentation.ControlTrace ? [CreateTrace(extent, part)] : []
+             );
+             for (int parity = 0; parity < 2; parity++)
+@@ -553,6 +615,13 @@ internal sealed unsafe class TemporalSignal : IDisposable
+         // The sample age, which the temporal dispatch of both signals reads.
+         if (images.SampleAge is { } age)
+             layouts.WriteStorageImage(set: set, binding: 11, image: age);
++        // The region drift pass's images (region_drift.glsl).
++        if (images.Regions is [var light, var ring, var evidence])
++        {
++            layouts.WriteStorageImage(set: set, binding: 13, image: light);
++            layouts.WriteStorageImage(set: set, binding: 14, image: ring);
++            layouts.WriteStorageImage(set: set, binding: 15, image: evidence);
++        }
+         // The diagnostic of uncovered surfaces, which only the specular signal's temporal dispatch writes.
+         if (scratch.Instrumentation == HistoryInstrumentation.LightAgeDiagnostic)
+             layouts.WriteStorageImage(
+@@ -590,6 +659,32 @@ internal sealed unsafe class TemporalSignal : IDisposable
+             ],
+         };
+ 
++    /// <summary>
++    /// The region drift pass's images of <paramref name="part"/> at <paramref name="blocks"/>, one texel per block: the
++    /// taps, the rings and the evidence (region_drift.glsl). A ring's contents need not survive a new size: the draw after
++    /// it resets, and the pass reads a ring's draws only after it wrote them since the last reset.
++    /// </summary>
++    private GpuImage[] CreateRegions(Extent2D blocks, int part) =>
++    [
++        CreateImage(extent: blocks, imageName: $"{Name} block light {part}", extraUsage: 0, format: BlockLightFormat),
++        GpuImage.Create(
++            device: device,
++            allocator: allocator,
++            extent: blocks,
++            format: RegionRingFormat,
++            usage: ImageUsageFlags.StorageBit | ImageUsageFlags.TransferSrcBit,
++            mipLevels: 1,
++            name: $"{Name} region ring {part}",
++            arrayLayers: RegionRingDraws
++        ),
++        CreateImage(
++            extent: blocks,
++            imageName: $"{Name} region evidence {part}",
++            extraUsage: 0,
++            format: RegionEvidenceFormat
++        ),
++    ];
++
+     /// <summary>The sample age of <paramref name="part"/>, which its producer writes as it writes the sample.</summary>
+     private GpuImage CreateSampleAge(Extent2D extent, int part) =>
+         CreateImage(
+@@ -652,6 +747,8 @@ internal sealed unsafe class TemporalSignal : IDisposable
+         DestroyImages();
+         device.Vk.DestroyPipeline(device.Device, temporal, null);
+         device.Vk.DestroyPipeline(device.Device, spatial, null);
++        if (KeepsLightAge)
++            device.Vk.DestroyPipeline(device.Device, regionDrift, null);
+     }
+ 
+     /// <summary>The images of one part.</summary>
+@@ -661,6 +758,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
+         GpuImage[] Fasts,
+         GpuImage[] Guides,
+         GpuImage[] Ages,
++        GpuImage[] Regions,
+         GpuImage[] Traces
+     )
+     {
+@@ -676,7 +774,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
+ 
+         public GpuImage? SampleAge => Ages is [var age, ..] ? age : null;
+ 
+-        public IEnumerable<GpuImage> All => [Sample, Slow, .. Fasts, .. Guides, .. Ages, .. Traces];
++        public IEnumerable<GpuImage> All => [Sample, Slow, .. Fasts, .. Guides, .. Ages, .. Regions, .. Traces];
+ 
+         /// <summary>Whether every image has <paramref name="extent"/>.</summary>
+         public bool Fit(Extent2D extent) =>
+@@ -685,6 +783,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
+             && AllFit(Fasts, extent)
+             && AllFit(Guides, extent)
+             && AllFit(Ages, extent)
++            && AllFit(Regions, BlocksOf(extent))
+             && AllFit(Traces, extent);
+ 
+         /// <summary>Whether every image of <paramref name="images"/> has <paramref name="extent"/>.</summary>
+diff --git a/src/Tertius.Rendering/Scene/GpuTypes.cs b/src/Tertius.Rendering/Scene/GpuTypes.cs
+index 7cd31f3df..cd5c1c1b3 100644
+--- a/src/Tertius.Rendering/Scene/GpuTypes.cs
++++ b/src/Tertius.Rendering/Scene/GpuTypes.cs
+@@ -823,7 +823,13 @@ internal struct AccumulatePushConstants
+     /// </summary>
+     public float RetainedSigmas;
+ 
+-    public static AccumulatePushConstants Of(SignalParameters parameters, bool reset) =>
++    /// <summary>
++    /// The ring layer of this draw in the region drift pass: the draw's index since the last reset modulo
++    /// <see cref="TemporalSignal.RegionRingDraws"/> (region_drift.glsl).
++    /// </summary>
++    public uint RegionSlot;
++
++    public static AccumulatePushConstants Of(SignalParameters parameters, bool reset, long drawIndex) =>
+         new()
+         {
+             Cap = parameters.Cap,
+@@ -835,6 +841,7 @@ internal struct AccumulatePushConstants
+             Light = (uint)parameters.Light,
+             ReflectedPlaceBelow = parameters.ReflectedPlaceBelow,
+             Reset = reset ? 1u : 0u,
++            RegionSlot = (uint)(drawIndex % TemporalSignal.RegionRingDraws),
+             RetainedSigmas = parameters.Confidence switch
+             {
+                 WidenedBox { RetainedSigmas: var sigmas } => sigmas,
+diff --git a/src/Tertius.Rendering/Shaders/accumulate.glsl b/src/Tertius.Rendering/Shaders/accumulate.glsl
+index f9bf68579..b3a035bcc 100644
+--- a/src/Tertius.Rendering/Shaders/accumulate.glsl
++++ b/src/Tertius.Rendering/Shaders/accumulate.glsl
+@@ -65,6 +65,7 @@ layout(push_constant, std430) uniform AccumulatePush
+     float reflectedPlaceBelow;   // the roughness below which the reflected place competes, with its distance test, 0 for none
+     uint reset;          // 1 in a frame that resets every history
+     float retainedSigmas;  // the clamp box's least half width in retained deviations, 0 for the narrow box
++    uint regionSlot;     // the ring layer of this draw: its index since the last reset modulo RegionRingDraws (region_drift.glsl)
+ } parameters;
+ 
+ // SignalLight.
+diff --git a/src/Tertius.Rendering/Shaders/accumulate_temporal.comp b/src/Tertius.Rendering/Shaders/accumulate_temporal.comp
+index 34b41212a..2fe17f0a9 100644
+--- a/src/Tertius.Rendering/Shaders/accumulate_temporal.comp
++++ b/src/Tertius.Rendering/Shaders/accumulate_temporal.comp
+@@ -17,6 +17,9 @@
+ #include "meter.glsl"
+ #include "motion.glsl"
+ #include "neighbor_limit_prototype.glsl"
++#ifdef TERTIUS_LIGHT_AGE
++#include "region_drift.glsl"
++#endif
+ 
+ // The draws of the retained deviation's window: the bounce cap. A half-float store cannot follow a weight below about
+ // 2^−11, so an uncapped history takes this window too.
+@@ -239,6 +242,17 @@ vec4 tracedPlaceWeights(ivec2 pixel)
+ }
+ #endif
+ 
++// Stores the block's tap where `pixel` is its block's tap (region_drift.glsl): the luminance of `sampled` over the draw's
++// exposure scale, so that a change of the exposure alone leaves it, and whether it counts.
++void storeRegionTap(ivec2 pixel, vec3 sampled, bool counts)
++{
++#ifdef TERTIUS_LIGHT_AGE
++    if (isRegionTap(pixel))
++        imageStore(blockLight, blockOf(pixel), vec4(counts ? luminance(sampled) / exposureScale() : 0.0, counts ? 1.0 : 0.0,
++            0.0, 0.0));
++#endif
++}
++
+ void main()
+ {
+     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+@@ -247,6 +261,7 @@ void main()
+     if (texelFetch(gbufferDistance, pixel, 0).r <= 0.0)
+     {
+         // The sky: no signal, and no reader reads it.
++        storeRegionTap(pixel, vec3(0.0), false);
+         imageStore(scratch, pixel, vec4(0.0));
+         imageStore(fastHistory, pixel, vec4(0.0));
+         if (reflectionSharingPrototype && parameters.light == SpecularLight)
+@@ -262,6 +277,8 @@ void main()
+     vec4 sample4 = imageLoad(sampleImage, pixel);
+     vec3 sampled = limitIncomingEstimate(pixel, sample4.rgb);
+     bool hasSample = finiteSample(sampled);
++    // A tap whose surface moves on screen shows another surface point in each draw, so it does not count.
++    storeRegionTap(pixel, sampled, hasSample && (imageLoad(surfaceTest, pixel).r & SurfaceMovesOnScreen) == 0u);
+     // The specular signal's sample holds its hit distance in alpha, 0 for a miss.
+     float hitDistance = parameters.light == SpecularLight && hasSample && !isnan(sample4.a) ? sample4.a : 0.0;
+     float roughness = roughnessAt(pixel);
+diff --git a/src/Tertius.Rendering/Shaders/region_drift.comp b/src/Tertius.Rendering/Shaders/region_drift.comp
+new file mode 100644
+index 000000000..ed7954da1
+--- /dev/null
++++ b/src/Tertius.Rendering/Shaders/region_drift.comp
+@@ -0,0 +1,82 @@
++#version 460
++// The region drift pass of a signal with a light age (region_drift.glsl): one invocation per block of 8 × 8 pixels. It
++// takes the region's light of this draw from the taps that the temporal dispatch stored, writes it into the block's ring,
++// and tests the ring's newer window against its older one. The spatial dispatch reads the result
++// (docs/plans/bounce-light-confidence.md, section 8.6).
++#extension GL_GOOGLE_include_directive : require
++#include "accumulate.glsl"
++#include "region_drift.glsl"
++
++// One draw of a block's ring.
++struct RegionDraw
++{
++    float light;        // the region's light of the draw: the mean of its counted taps
++    float validDraws;   // the count of valid draws in a row up to the draw, at most RegionRingDraws, 0 if it is not valid
++};
++
++// The region's light of this draw at `block`: the mean over the counted taps of the 17 × 17 blocks around it. The draw is
++// valid where at least half of the region's taps inside the images count, so that the mean is of mostly the same surfaces
++// from draw to draw: a camera move makes every tap move, so the count restarts. `validDrawsBefore` is the count of the
++// draw before.
++RegionDraw regionDrawOf(ivec2 block, float validDrawsBefore)
++{
++    float sum = 0.0;
++    float counted = 0.0;
++    float inside = 0.0;
++    for (int y = -RegionRadiusBlocks; y <= RegionRadiusBlocks; y++)
++        for (int x = -RegionRadiusBlocks; x <= RegionRadiusBlocks; x++)
++        {
++            ivec2 tap = block + ivec2(x, y);
++            if (!tapInsideImages(tap))
++                continue;
++            vec2 light = imageLoad(blockLight, tap).rg;
++            inside += 1.0;
++            sum += light.r * light.g;
++            counted += light.g;
++        }
++    bool valid = counted > 0.0 && 2.0 * counted >= inside;
++    return RegionDraw(valid ? sum / counted : 0.0, valid ? min(validDrawsBefore + 1.0, float(RegionRingDraws)) : 0.0);
++}
++
++// Whether the region's light moved at `block`, from this draw `now` and the ring's draws before it: whether the mean of
++// the newer window (this draw and the W − 1 before it) differs from the mean of the older window (the W draws before
++// those) by more than DriftSigmas standard deviations of the older window's spread, times sqrt(2 / W), the spread of a
++// difference of two means of W draws. False until 2 W valid draws in a row exist. The older window's spread is a
++// measured quantity: a step inside the newer window does not raise it.
++bool regionLightMoved(ivec2 block, RegionDraw now)
++{
++    if (now.validDraws < float(RegionRingDraws))
++        return false;
++    float newer = now.light;
++    for (uint back = 1u; back < RegionWindowDraws; back++)
++        newer += imageLoad(regionRing, ivec3(block, int((parameters.regionSlot + RegionRingDraws - back) % RegionRingDraws))).r;
++    float older[RegionWindowDraws];
++    float olderSum = 0.0;
++    for (uint back = 0u; back < RegionWindowDraws; back++)
++    {
++        uint slot = (parameters.regionSlot + RegionWindowDraws - back) % RegionRingDraws;
++        older[back] = imageLoad(regionRing, ivec3(block, int(slot))).r;
++        olderSum += older[back];
++    }
++    float window = float(RegionWindowDraws);
++    float olderMean = olderSum / window;
++    float squares = 0.0;
++    for (uint back = 0u; back < RegionWindowDraws; back++)
++        squares += (older[back] - olderMean) * (older[back] - olderMean);
++    float olderSpread = sqrt(squares / (window - 1.0));
++    return abs(newer / window - olderMean) > DriftSigmas * olderSpread * sqrt(2.0 / window);
++}
++
++void main()
++{
++    ivec2 block = ivec2(gl_GlobalInvocationID.xy);
++    if (!insideImages(8 * block))
++        return;
++    float before = parameters.reset != 0u
++        ? 0.0
++        : imageLoad(regionRing, ivec3(block, int((parameters.regionSlot + RegionRingDraws - 1u) % RegionRingDraws))).g;
++    RegionDraw now = regionDrawOf(block, before);
++    bool moved = regionLightMoved(block, now);
++    imageStore(regionRing, ivec3(block, int(parameters.regionSlot)), vec4(now.light, now.validDraws, 0.0, 0.0));
++    imageStore(regionEvidence, block, uvec4(moved ? 1u : 0u));
++}
+diff --git a/src/Tertius.Rendering/Shaders/region_drift.glsl b/src/Tertius.Rendering/Shaders/region_drift.glsl
+new file mode 100644
+index 000000000..3b6afebed
+--- /dev/null
++++ b/src/Tertius.Rendering/Shaders/region_drift.glsl
+@@ -0,0 +1,55 @@
++// The region's drift (docs/plans/bounce-light-confidence.md, section 8.6; ticket t0-acxm): the second source of a block's
++// light evidence. The temporal dispatch stores one tap per block of 8 × 8 pixels, the region drift pass keeps each block's
++// ring of its region's light and tests whether that light moved, and the spatial dispatch reads the test. The three images
++// are a signal's with a light age (TemporalSignal), at block resolution. Needs accumulate.glsl.
++#ifndef TERTIUS_REGION_DRIFT_GLSL
++#define TERTIUS_REGION_DRIFT_GLSL
++
++// The draws of each of the test's two windows, W: the jitter's 18 phases under FSR at the render scale 1.5, so that a
++// cycle of the jitter cancels in each window.
++const uint RegionWindowDraws = 18u;
++
++// The draws that a block's ring keeps: the newer and the older window.
++const uint RegionRingDraws = 2u * RegionWindowDraws;
++
++// The region of a block: the blocks up to this far in x and in y, 17 × 17 blocks.
++const int RegionRadiusBlocks = 8;
++
++// The tolerance of the test, in standard deviations of the older window's spread of the region's light.
++const float DriftSigmas = 3.0;
++
++// The pixel of a block whose sample is the block's tap, in the block's own pixels.
++const ivec2 RegionTapPixel = ivec2(4);
++
++// Each block's tap of this draw (TemporalSignal.BlockLightFormat): r the luminance of the tap pixel's sample over the
++// draw's exposure scale, g 1 where the tap counts, else 0. A tap counts where its pixel shows a surface that does not move
++// on screen, and holds a finite sample.
++layout(set = 3, binding = 13, rg32f) uniform image2D blockLight;
++
++// Each block's ring (TemporalSignal.RegionRingFormat): layer k holds the draw whose regionSlot is k, r the region's light
++// of that draw, g the count of valid draws in a row up to it, at most RegionRingDraws, 0 for a draw that is not valid.
++layout(set = 3, binding = 14, rg32f) uniform image2DArray regionRing;
++
++// Each block's region evidence of this draw (TemporalSignal.RegionEvidenceFormat): 1 where its region's light moved, else
++// 0. The region drift pass writes it, and the spatial dispatch reads it.
++layout(set = 3, binding = 15, r32ui) uniform uimage2D regionEvidence;
++
++// The block of a pixel.
++ivec2 blockOf(ivec2 pixel)
++{
++    return pixel / 8;
++}
++
++// Whether a pixel is its block's tap.
++bool isRegionTap(ivec2 pixel)
++{
++    return all(equal(pixel & 7, RegionTapPixel));
++}
++
++// Whether the tap of `block` lies inside the images.
++bool tapInsideImages(ivec2 block)
++{
++    return insideImages(8 * block + RegionTapPixel);
++}
++
++#endif
+diff --git a/src/Tertius.Rendering/Tertius.Rendering.csproj b/src/Tertius.Rendering/Tertius.Rendering.csproj
+index 83a79b674..0e8466232 100644
+--- a/src/Tertius.Rendering/Tertius.Rendering.csproj
++++ b/src/Tertius.Rendering/Tertius.Rendering.csproj
+@@ -50,11 +50,11 @@
+     <AccumulationTraceShader Include="Shaders/accumulate_temporal.comp;Shaders/accumulate_spatial.comp" />
+     <!-- HistoryInstrumentationSelection lists the shaders of the two items above, and ShaderVariantTests checks the
+          list against the embedded shaders. -->
+-    <!-- The light-age variant (ticket ter-wkvw): the diffuse signal's spatial dispatch beside a precise specular history,
+-         which keeps its half-precision history and acts on its blocks' evidence. The temporal dispatch reads no light
+-         age. ShaderVariant.LightAge lists it. TERTIUS_LIGHT_AGE marks every build whose dispatches read the light age:
++    <!-- The light-age variant (ticket ter-wkvw): the diffuse signal's dispatches beside a precise specular history, which
++         keep its half-precision history. The temporal dispatch stores its blocks' taps for the region drift pass (ticket
++         t0-acxm), and the spatial dispatch acts on its blocks' evidence. ShaderVariant.LightAge lists it. TERTIUS_LIGHT_AGE marks every build whose dispatches read the light age:
+          this variant and every variant of a precise history. -->
+-    <LightAgeShader Include="Shaders/accumulate_spatial.comp" />
++    <LightAgeShader Include="Shaders/accumulate_temporal.comp;Shaders/accumulate_spatial.comp" />
+     <GlslInclude Include="Shaders/*.glsl" />
+     <None Include="@(GlslShader);@(GlslInclude)" />
+   </ItemGroup>

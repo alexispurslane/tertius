@@ -378,15 +378,16 @@ What that cost, from the T4 to T6 notes of `t0-4fth`:
 
 Without evidence, the wide box follows a change only at the slow blend, 1/32 per draw. Step 10 finds the cause of the narrow box's 4 % plateau (section 23), because the plateau can also affect Design X.
 
-### 8.2 The two evidence levels and their actions
+### 8.2 The evidence levels and their actions
 
-The evidence level of a block is a closed set of three values, ordered by strength. A block takes the strongest level of its pixels' samples in this draw.
+The evidence level of a block is a closed set of four values, ordered by how certain the knowledge is. A block takes the strongest level of its pixels' samples and of its region (section 8.7, the bounce light only) in this draw.
 
 | Level | When a pixel's sample has it | Action on every pixel of the block with L > `FastCap` |
 |---|---|---|
 | `NoEvidence` (0) | Neither below | The bounce light's wide box. The reflections' narrow box. The anti-lag as on main. |
-| `MotionEvidence` (1) | The sample saw motion: its pixel moves on screen by at least `LeastMotion`, or one of its rays hit a moved surface | The narrow box for this draw. The anti-lag shortens L by the clamp's move, as on main. |
-| `LightEvidence` (2) | One of its rays hit a recent light change: the sample's youngest light code is 1 to 7 | L becomes `FastCap`. The box keeps its widening. |
+| `RegionEvidence` (1) | Not a sample's, and the bounce light's only: an anchor whose region holds the block found that the region's light moved in the draw before (section 8.7) | The anti-lag as without evidence, then L becomes at most `FullRateFrames`, 8. The box keeps its widening. |
+| `MotionEvidence` (2) | The sample saw motion: its pixel moves on screen by at least `LeastMotion`, or one of its rays hit a moved surface | The narrow box for this draw. The anti-lag shortens L by the clamp's move, as on main. |
+| `LightEvidence` (3) | One of its rays hit a recent light change: the sample's youngest light code is 1 to 7 | L becomes `FastCap`. The box keeps its widening. |
 
 The reasons for two actions:
 
@@ -432,7 +433,7 @@ Motion counts in the draws in which it happens. After it stops, S has had the na
 
 ### 8.4 Where each part runs
 
-Five passes each add what only they know. No pass stores a new image.
+Five passes each add what only they know. No pass stores a new image. The region's drift of section 8.7 later added one image per signal, the anchors' ring.
 
 1. The surface test pass, one invocation per pixel q, already holds q's surface point and its motion target. It decides whether q's surface moved in the camera's frame, and whether q moves on screen, and writes both facts above the pass bits of the surface test image (`SurfaceMoved`, bit 8, and `SurfaceMovesOnScreen`, bit 9, in `signals.glsl`). The image became R16UI for them (`t0-89zi`). The ray plan, which already writes q's light-age record and its hit light, copies the moved fact into the alpha of both layers of the hit light: 1 where q's surface moved, else 0. The alpha was 0 and had no reader.
 
@@ -572,6 +573,117 @@ The block is the spatial dispatch's workgroup, as decision X1 asks. The action c
 - No division in the level, and no `clamp` of a value that can be NaN. The plan's comparisons take finite motion: a new instance's (2, 2) is finite.
 - The hit light's alpha holds 0 or 1, which a half float holds exactly.
 - R16UI storage needs `shaderStorageImageExtendedFormats`, which the renderer already requires. No new device feature.
+
+### 8.7 The region's drift (`t0-acxm`)
+
+Decision Y1 of section 2.3 gives a block a second source of evidence: its region. A block learns that its region's light moved from the samples alone. The takes chose the drift test, which compares the region's recent mean with its own older mean (`t0-ion0`, `docs/research/t0-ion0-region-drift/README.md`). The lag test against the histories did not close the film `rect-bay` (`t0-xlcu`). `docs/research/t0-acxm-region-evidence/README.md` holds the remedy's record.
+
+The model. Only the bounce light runs it (see "Which signal runs the test" below):
+
+- The tap. Each ray block of 8 × 8 pixels has one tap pixel, (4, 4) of the block. The tap is the luminance of that pixel's sample over the draw's exposure scale, so that a change of the exposure alone does not move it. A tap counts where its pixel shows a surface, holds a finite sample and its surface does not move on screen (`SurfaceMovesOnScreen`). A moving surface shows another surface point in each draw.
+- The anchors. The test runs at anchor blocks only: every 8th block in x and in y. The regions of two neighbor blocks share 272 of their 289 taps, so their answers are nearly one answer.
+- The region's light of a draw at an anchor. It is the mean of the counted taps of the 17 × 17 blocks around the anchor. A draw is valid where at least half of the region's taps inside the images count. A camera move makes every tap move, so its draws are not valid, and the count of valid draws restarts. A reset restarts it too, and so does a change of the render size: the scene points under the taps move, and the anchors that the dispatch covers change (`regionContinues`).
+- The ring. Each anchor keeps the region's light of its last 36 draws, the count of valid draws in a row, and the test's answer: `regionRing`, an RGBA32F array of 36 layers with one texel per anchor. Layer k holds the draw whose index modulo 36 is k. The ring has the size of the largest render size. At 1280 × 720 that is 20 × 12 anchors, 138 KB.
+- The test. It runs when the count of valid draws reaches 36. Rnew is the mean of the last 18 draws, and Rold the mean of the 18 before. dold is the standard deviation of those older 18. If |Rnew − Rold| > 3 · dold · sqrt(2 / 18), the region's light moved. The tolerance is a measured quantity, as Y4 asks: the spread of the region's own light in the older window, times the spread of a difference of two means of 18 draws. So a step inside the newer window does not raise it. 3 · sqrt(2 / 18) is exactly 1, so the test reads |Rnew − Rold| > dold. 18 draws are the jitter's 18 phases under FSR at the render scale 2/3, the scale of every headless run, so that a cycle of the jitter cancels in each window. At another render scale the cycle has another length, 8 / scale² phases, and a window of 18 draws does not cancel it.
+- The answer. A block has region evidence where any anchor whose region holds it found a move in the draw before. A block lies in the regions of 4 anchors, or of up to 9 on the anchors' own rows and columns, because a region reaches exactly one step. Only the anchors that this draw's dispatch covers count (`lastRegionAnchor`): the ring's texels beyond them hold the answers of a larger render size. A draw that does not continue the draw before reads no answer. The answer acts one draw late, so that no block reads a layer that a workgroup writes in this draw. The windows are 18 draws long, so one draw does not matter.
+
+Where it runs. The anchor's workgroup of the spatial dispatch does the whole test, and every block's workgroup reads the answers. `evidenceOfBlock` of `accumulate_spatial.comp` calls both:
+
+```glsl
+uint evidenceOfBlock(ivec2 pixel)
+{
+#ifdef TERTIUS_REGION_DRIFT
+    ivec2 block = ivec2(gl_WorkGroupID.xy);
+    if (isRegionAnchor(block))
+        updateRegionAnchor(block);
+#endif
+    if (gl_LocalInvocationIndex == 0u)
+        blockEvidence = NoEvidence;
+    barrier();
+    if (insideImages(pixel))
+        atomicMax(blockEvidence, evidenceOfSample(imageLoad(sampleAge, pixel).r));
+#ifdef TERTIUS_REGION_DRIFT
+    if (regionAnchorMovedBefore(block, gl_LocalInvocationIndex))
+        atomicMax(blockEvidence, RegionEvidence);
+#endif
+    barrier();
+    return blockEvidence;
+}
+```
+
+where
+
+- `pixel` = the invocation's pixel. `block` = the workgroup's ray block, in blocks.
+- `isRegionAnchor(block)` = whether both of the block's coordinates are multiples of `AnchorStepBlocks`, 8.
+- `updateRegionAnchor(block)` = the anchor's work: it sums the taps of its region, tests, and writes this draw's light, count of valid draws and answer into the ring's layer `regionSlot`.
+- `blockEvidence` = the block's level, in shared memory. A maximum does not depend on the order of the invocations.
+- `evidenceOfSample` = the level of the pixel's own sample, from its sample age (section 8.2).
+- `regionAnchorMovedBefore(block, k)` = whether candidate anchor k of the 9 around the block exists, holds the block in its region, and found a move in the draw before. Invocations 0 to 8 each read one candidate. The other invocations read none.
+- `gl_LocalInvocationIndex` = the invocation's index in the workgroup, 0 to 63.
+- `TERTIUS_REGION_DRIFT` = the define of the bounce light's spatial dispatch, the light-age variant. No other variant compiles the region's code.
+
+`region_drift.glsl` holds the tap's layout, the ring's layout, the validity rule and the test. `isRegionAnchor` depends only on the workgroup's block, so the branch is uniform in the workgroup and the two barriers of `updateRegionAnchor` run in uniform control flow. The sums run in three steps, each in a fixed order. Each invocation sums its own taps of the 17 × 17 into its own slot. 8 invocations each add 8 slots, and 12 invocations add the ring's 35 earlier draws, 3 each, the last one 2. Invocation 0 adds those parts and tests. Every sum of the test subtracts the older window's first draw from each of its draws. So the spread keeps its precision when it is small beside the light, and draws of exactly one light give both windows exactly the same mean: a difference of rounding cannot pass a tolerance of 0. The ring joins the barrier that already runs before the spatial dispatch (`TemporalSignal.BeforeSpatial`), so it adds no barrier.
+
+The levels. Section 8.2's table gains one level, `RegionEvidence`, between `NoEvidence` and `MotionEvidence`. The levels are ordered by how certain the knowledge is, and the level lives only in the dispatch's shared value.
+
+- Region evidence caps L at `FullRateFrames`, 8 draws, on top of the anti-lag: `min(antiLagged, FullRateFrames)`, where `antiLagged` is the length that the anti-lag gives without evidence. So region evidence only ever shortens a history. It keeps the box's widening. A measured rule chose this form over the cap alone, `min(L, FullRateFrames)`, on 2026-11-22. In the bay's film, its lag film and its stills, the two forms gave the same images to the last digit, and the film's span differed by +0.012 ms (spread 0.047). The deck rose by +0.044 ms against the line's head (spread 0.105), inside the budget of +0.10 ms. Under the bounce light's widened box, the retained deviation tracks the lag, so near a length of 9 draws the anti-lag cuts below 8 only where the lag exceeds about 0.056 of the mean. So this form keeps one meaning of the anti-lag under every level but the light's, at no measured cost (`docs/research/t0-acxm-region-evidence/README.md`, "The rule for the anti-lag").
+- 8 draws is the shortest length that keeps the block's shared ray. A cut to 4 draws cost +5.63 ms a frame while a light moves, because 54 % of the pixels then traced their own ray. The cut to 8 cost nothing (`t0-xdck`, `docs/research/t0-xdck-drift-cut-cost/README.md`). `FullRateFrames` lives in `sample_age.glsl`, which the ray plan and the spatial dispatch both include.
+- Motion stands above the region. The narrow box measures the change at the pixel itself, and the region's statistic is the weaker knowledge.
+- A history held at 8 draws blends at the weight 1/9. So under a steady fall of the light it trails the samples by about 8 draws. The test `WhileTheRegionsLightFallsItsBounceHistoryTrailsTheSamplesByAtMostNineDrawsOfTheFall` holds that bound.
+
+#### The cost, and the forms that the timing rejected
+
+The budget is +0.10 ms on the deck's GPU frame span on the Mac. The timing of the forms below ran the test for both signals, and the last rows for the bounce light alone. Each form ran in paired rounds against the line's head under the exclusive GPU lock: four rounds for the first forms, eight for the later ones, with the load beside each run (`docs/research/t0-acxm-region-evidence/spike/timing.txt`).
+
+| Form | Deck | Film `rect-bay` |
+|---|---:|---:|
+| A separate region pass per signal, 17 × 17 loads per block | +0.271 ms (spread 0.082) | +0.289 ms (spread 0.062) |
+| A separate region pass per signal, box sum in two steps through shared memory | +0.254 ms (spread 0.196) | +0.270 ms (spread 0.113) |
+| One separate pass for the bounce light only | +0.133 ms (spread 0.181) | +0.209 ms (spread 0.103) |
+| The tap store in the temporal dispatch alone | +0.080 ms (spread 0.203) | +0.073 ms (spread 0.100) |
+| The test at every block inside the spatial dispatch, invocation 0 sums | +0.29 to +0.40 ms | +0.19 to +0.22 ms |
+| The test at every block inside the spatial dispatch, sums in parallel | +0.274 ms (spread 0.102) | +0.139 ms (spread 0.138) |
+| The same, bounce light only | +0.174 ms | +0.287 ms |
+| The test at anchors, each block reads its anchors in one invocation | +0.135 ms (spread 0.114) | −0.070 ms |
+| The test at anchors, the read in 9 invocations (as built) | +0.091 ms (quartiles +0.056 and +0.123) | −0.078 ms |
+
+- The box sum cost what the plain loop cost, so the pass's arithmetic was not the cost. Each compute dispatch behind a barrier costs about 0.06 to 0.13 ms on MoltenVK, whatever work it holds: MoltenVK ends a Metal compute encoder at each barrier. So the test runs inside a dispatch that already exists.
+- Inside the spatial dispatch, a test at every block still cost +0.27 ms: each of the 14,400 workgroups of a signal summed 289 taps and 36 ring layers.
+- At the anchors, the read of the answers was the cost. In the first anchored form, invocation 0 read up to 9 ring texels one after another while the other 63 invocations waited at the barrier. The read in 9 invocations, merged through the `atomicMax` that the level already uses, took about 0.04 ms off.
+- The as-built number pools the 29 runs of four queues whose loads were both under 8. The queues scatter between +0.06 and +0.12 ms at the same load, so one queue of 8 rounds does not settle a difference of 0.02 ms. The film is cheaper than the line's head because the evidence cuts histories while its light moves.
+- The test off cost +0.010 ms, the bounce light's test alone +0.010 ms, and every block's read without an anchor's update +0.022 ms (8 rounds each). So the reflections' test holds about 0.08 ms of the cost.
+
+#### Which signal runs the test
+
+Only the bounce light. `TemporalSignal.TestsRegionDrift` names the rule, the light-age variant alone compiles the code (`TERTIUS_REGION_DRIFT`), and the reflections keep no ring. The bay takes of `t0-acxm` measured both signals against the bounce light alone, both on main after the shadow fix (`docs/research/t0-acxm-region-evidence/README.md`):
+
+| Side | Film level, middle / last | Last-frame specks | Lag error | Deck span against main |
+|---|---|---|---|---|
+| Main | +1.17 / +0.53 | 0.89 | 0.270 | 0 |
+| Both signals (rejected) | +0.84 / +0.28 | 1.07 | 0.150 | +0.279 ms |
+| The bounce light alone | +0.85 / +0.29 | 0.27 | 0.150 | +0.254 ms |
+
+- The level and the lag error are the same, so the reflections' test does not help the trail.
+- With both signals, the last frame's specks are above main's, and the film's bar is "no worse than main".
+- In still views the reflections' test fired falsely, and the bounce light's did not (below).
+- The reflections' trail in the bay film has its own ticket, `t3-5r0z`.
+
+#### False evidence in a still view
+
+In a still view a test can fire now and then, because the region's light of one tap per block has a spread. A false fire cuts a history to 8 draws, which keeps the shared ray and loses little. A probe read the rings over the 64 still draws of `LightAgeHistoryTests`. The reflections' region light there swings between 0.24 and 0.46 from draw to draw, a spread of about 15 %. Their test fired at draws 44 and 45, 2 of the 28 draws that it tested, about 7 %. The bounce light's fired in none. That is one reason why only the bounce light runs the test.
+
+#### Left out on purpose
+
+- A smooth share between the anchors. A block takes the whole cut where any of its anchors moved, and none where none moved. If a film shows that grid as an edge, a daub or a flicker, the share is the next step. The orchestrator decided not to build it before a film asks for it.
+- A tap per pixel, and a test per block. The timing above rejects both.
+- A test that keeps counting across a change of the render size. The count restarts instead, so the test needs 36 draws at one render size. Under a render scale that changes in most draws, the test does not run. Headless runs keep a fixed scale. Ticket `t4f-71qp` measures how often the windowed game's scale changes.
+
+#### Determinism and portability
+
+- The two barriers of `updateRegionAnchor` run in uniform control flow, because the branch depends only on the workgroup's block.
+- Every sum runs in a fixed order, and the merge of the answers is a maximum. So one machine gives the same bits in every run.
+- No subgroup operation, and no new device feature: RGBA32F storage images are core.
+- `finiteSample` keeps a non-finite sample out of the sums, and the test divides only by the window's constant size.
 
 ## 9. Every cause of a changed ray, and its signal
 
@@ -829,8 +941,11 @@ The step numbers are those of section 23.
 | `HistoryConfidence`, two cases | `SignalParameters` (12). `TemporalSignal.ConfidenceOf` (12) | Push constants (12) |
 | `retainedSigmas` push constant | `AccumulatePushConstants.Of` (2a) | Spatial box (2a) |
 | `ShaderVariant.LightAge` with the spatial dispatch | `HistoryInstrumentation.cs`, `Tertius.Rendering.csproj` (12) | `TemporalSignal.LightAgeShader`. `ShaderVariantTests` (12) |
-| Signal set binding list without 13 to 17 | `DescriptorLayouts` (12) | Signal set writer (12) |
+| Signal set binding list without 13 to 17. Binding 13 came back for the anchors' ring (`t0-acxm`) | `DescriptorLayouts` (12) | Signal set writer (12) |
 | Probe knobs and the evidence census | `tools/renderer-survey/probe.patch` (15) | `tools/renderer-survey.py` (15). Takes T12 to T16 |
+| The anchors' ring `regionRing`, binding 13, the bounce light's only (section 8.7) | The anchor's workgroup of the spatial dispatch, into this draw's layer only (`t0-acxm`) | The anchor's workgroup in later draws. Every block's workgroup, the layer of the draw before. The tests through `TemporalSignal.RegionRing` |
+| `regionSlot` push constant: the draw's index modulo 36 | `AccumulatePushConstants.Of` (`t0-acxm`) | The spatial dispatch's region test (`region_drift.glsl`) |
+| `RegionEvidence`, a block level from the region, derived and never stored | Spatial dispatch (`t0-acxm`) | The cut to `FullRateFrames` in the same workgroup |
 | Young sign of the variance output | Variance dispatch (2b) | Feedback step (2b) |
 | Filter sets per parity | `DiffuseFilter` (2b) | Wavelet dispatches (2b) |
 | Removed: block sums, R, reflections' σr pair, `DropEvidence`, `changeShare`, `blockTest`, the test's constants | Removed in step 12. The survey capture in step 15 | Their only readers go with them |
