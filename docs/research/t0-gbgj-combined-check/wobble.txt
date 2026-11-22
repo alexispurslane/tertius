@@ -1,0 +1,85 @@
+== wobble.txt
+before m2r: horizontal distance 1171.40 to 1190.93 output px (range 19.53), vertical distance 257.24 to 259.02 (range 1.78)
+  rms of the horizontal distance around its mean 4.801 px, around the prediction 0.425 px (D0 = 1184.55 px); predicted range 1172.73 to 1190.82
+  correlation with render width +0.274, render height +0.355, (h / w) * 16/9 +0.996; render h/w * 16/9 from 0.9900 to 1.0053
+  noise floor: rms of the frame-to-frame change of the horizontal distance between two draws of one size, over sqrt 2: 0.078 px (235 pairs); vertical distance against (h / w) * 16/9: correlation -0.283, rms around its mean 0.381 px
+after W: horizontal distance 1182.75 to 1185.44 output px (range 2.68), vertical distance 257.22 to 259.02 (range 1.80)
+  rms of the horizontal distance around its mean 0.437 px, around the prediction 4.647 px (D0 = 1185.70 px); predicted range 1173.86 to 1191.97
+  correlation with render width +0.341, render height +0.347, (h / w) * 16/9 +0.167; render h/w * 16/9 from 0.9900 to 1.0053
+  noise floor: rms of the frame-to-frame change of the horizontal distance between two draws of one size, over sqrt 2: 0.119 px (235 pairs); vertical distance against (h / w) * 16/9: correlation -0.259, rms around its mean 0.401 px
+docs/research/t0-gbgj-combined-check/pics/wobble-before-after.png (1300, 560)
+
+== wobsplit.txt
+measure | before change | before one size | after change | after one size
+draws | 84 | 236 | 84 | 236
+distance residual rms / range (px of 1920) | 0.621 / 2.60 | 0.329 / 2.12 | 0.747 / 2.68 | 0.245 / 1.39
+midpoint rms / range (px of 1920) | 0.353 / 1.80 | 0.168 / 1.15 | 0.408 / 1.54 | 0.137 / 1.35
+distance step mean abs / largest (px of 1920) | 0.287 / 1.71 | 0.039 / 0.87 | 0.129 / 1.51 | 0.042 / 1.27
+midpoint step mean abs / largest (px of 1920) | 0.250 / 1.07 | 0.051 / 1.15 | 0.084 / 0.75 | 0.035 / 1.35
+
+before:
+  largest step of the distance residual: 1.71 px of 1920 = 1.14 px of 1280, at film frame 180 (changed, scale 0.6499 -> 0.6525)
+  distance residual: correlation with render scale +0.475, render width +0.475, changed draw -0.423
+  distance residual: between-run rms 0.394 px over 85 runs, within-run rms 0.160 px
+  distance residual by draws since a change, mean abs value / mean abs step (draws): 0: 0.472/0.287 (84), 1: 0.335/0.024 (29), 2: 0.289/0.090 (17), 3: 0.205/0.041 (10), 4: 0.232/0.016 (7), 5+: 0.262/0.037 (172)
+  largest step of the midpoint: 1.15 px of 1920 = 0.77 px of 1280, at film frame 361 (one size, scale 0.7559 -> 0.7559)
+  midpoint: correlation with render scale +0.007, render width +0.005, changed draw -0.080
+  midpoint: between-run rms 0.205 px over 85 runs, within-run rms 0.107 px
+  midpoint by draws since a change, mean abs value / mean abs step (draws): 0: 0.279/0.250 (84), 1: 0.200/0.037 (29), 2: 0.133/0.063 (17), 3: 0.113/0.026 (10), 4: 0.133/0.011 (7), 5+: 0.098/0.055 (172)
+
+after:
+  largest step of the distance residual: 1.51 px of 1920 = 1.00 px of 1280, at film frame 180 (changed, scale 0.6499 -> 0.6525)
+  distance residual: correlation with render scale +0.343, render width +0.341, changed draw -0.410
+  distance residual: between-run rms 0.413 px over 85 runs, within-run rms 0.141 px
+  distance residual by draws since a change, mean abs value / mean abs step (draws): 0: 0.556/0.129 (84), 1: 0.188/0.051 (29), 2: 0.172/0.017 (17), 3: 0.115/0.011 (10), 4: 0.105/0.010 (7), 5+: 0.184/0.046 (172)
+  largest step of the midpoint: 1.35 px of 1920 = 0.90 px of 1280, at film frame 361 (one size, scale 0.7559 -> 0.7559)
+  midpoint: correlation with render scale -0.237, render width -0.237, changed draw +0.018
+  midpoint: between-run rms 0.228 px over 85 runs, within-run rms 0.076 px
+  midpoint by draws since a change, mean abs value / mean abs step (draws): 0: 0.334/0.084 (84), 1: 0.177/0.029 (29), 2: 0.124/0.014 (17), 3: 0.101/0.008 (10), 4: 0.082/0.011 (7), 5+: 0.068/0.041 (172)
+
+per-size share of the variance (all draws / no change draws), distinct sizes; left-right correlation:
+  before: 28 sizes; left 0.26 / 0.22, right 0.37 / 0.31, distance 0.45 / 0.39, midpoint 0.23 / 0.17; left-right correlation +0.089 (no change draws +0.078)
+  after: 28 sizes; left 0.39 / 0.31, right 0.34 / 0.37, distance 0.38 / 0.26, midpoint 0.34 / 0.39; left-right correlation +0.104 (no change draws +0.217)
+  alignment before: size log moved -1 draw: residual rms 3.759 px, on change draws 7.317, on one-size draws 0.329
+  alignment before: size log moved +0 draw: residual rms 0.425 px, on change draws 0.621, on one-size draws 0.329
+  alignment before: size log moved +1 draw: residual rms 3.762 px, on change draws 5.771, on one-size draws 2.704
+
+inside the 60 frames after each lamp switch: changed / one size, rms of the value and mean abs step (draws):
+  before: distance 0.638/0.288 (77) against 0.441/0.118 (43); midpoint 0.361/0.251 (77) against 0.289/0.201 (43)
+  after: distance 0.779/0.140 (77) against 0.411/0.175 (43); midpoint 0.426/0.091 (77) against 0.288/0.149 (43)
+
+per edge: correlation with draws since a change and with the render width:
+  before: left -0.324 / -0.377, right +0.253 / +0.286, distance +0.414 / +0.475, midpoint +0.009 / +0.005
+  after: left -0.051 / -0.524, right +0.232 / +0.045, distance +0.233 / +0.341, midpoint +0.159 / -0.237
+
+the distance residual against a straight line in the render scale:
+  before distance: slope +0.628 px per 0.1 of scale, scale from 0.643 to 0.756; rms left over 0.425 -> 0.374; changed / one size 0.563 / 0.278, inside the switch windows 0.577 / 0.396
+  before midpoint: slope +0.005 px per 0.1 of scale, scale from 0.643 to 0.756; rms left over 0.232 -> 0.232; changed / one size 0.353 / 0.168, inside the switch windows 0.361 / 0.289
+  after distance: slope +0.466 px per 0.1 of scale, scale from 0.643 to 0.756; rms left over 0.437 -> 0.410; changed / one size 0.714 / 0.216, inside the switch windows 0.746 / 0.423
+  after midpoint: slope -0.177 px per 0.1 of scale, scale from 0.643 to 0.756; rms left over 0.240 -> 0.233; changed / one size 0.393 / 0.138, inside the switch windows 0.409 / 0.283
+
+== levjump.txt
+before m2r:
+  floor: before off (0/18): rise - against 0.02/0.01, kink - against 0.01/0.00 | off 0-60 (39/20): rise 2.99/1.33 against 1.36/0.71, kink 0.55/0.22 against 0.80/0.25 | off 60-200 (5/134): rise 1.06/0.57 against 0.51/0.15, kink 0.39/0.21 against 0.36/0.04 | on 0-100 (40/58): rise 0.70/0.30 against 0.40/0.12, kink 0.30/0.15 against 0.21/0.03
+  left wall: before off (0/18): rise - against 0.05/0.02, kink - against 0.03/0.02 | off 0-60 (39/20): rise 3.00/1.58 against 1.81/0.89, kink 1.54/0.65 against 0.96/0.37 | off 60-200 (5/134): rise 2.01/1.59 against 0.58/0.19, kink 0.89/0.77 against 0.89/0.05 | on 0-100 (40/58): rise 2.66/1.17 against 2.62/0.51, kink 0.47/0.21 against 0.44/0.11
+  ceiling: before off (0/18): rise - against 0.09/0.02, kink - against 0.04/0.02 | off 0-60 (39/20): rise 4.82/1.63 against 3.85/1.25, kink 0.99/0.19 against 0.60/0.14 | off 60-200 (5/134): rise 0.94/0.55 against 0.65/0.21, kink 0.32/0.19 against 0.33/0.05 | on 0-100 (40/58): rise 3.50/1.05 against 4.86/0.54, kink 0.58/0.23 against 0.52/0.09
+after W:
+  floor: before off (0/18): rise - against 0.02/0.01, kink - against 0.01/0.00 | off 0-60 (39/20): rise 2.90/1.26 against 1.49/0.83, kink 0.65/0.19 against 0.69/0.15 | off 60-200 (5/134): rise 0.66/0.37 against 0.57/0.16, kink 0.13/0.06 against 0.15/0.03 | on 0-100 (40/58): rise 0.55/0.27 against 0.47/0.13, kink 0.09/0.02 against 0.10/0.02
+  left wall: before off (0/18): rise - against 0.05/0.02, kink - against 0.03/0.02 | off 0-60 (39/20): rise 2.16/1.37 against 1.92/1.03, kink 0.31/0.12 against 0.31/0.09 | off 60-200 (5/134): rise 0.64/0.44 against 0.71/0.20, kink 0.11/0.04 against 0.15/0.02 | on 0-100 (40/58): rise 2.28/1.12 against 2.60/0.54, kink 0.50/0.16 against 0.36/0.11
+  ceiling: before off (0/18): rise - against 0.08/0.02, kink - against 0.03/0.02 | off 0-60 (39/20): rise 4.94/1.58 against 3.99/1.36, kink 1.14/0.19 against 0.61/0.16 | off 60-200 (5/134): rise 0.58/0.34 against 0.71/0.21, kink 0.18/0.08 against 0.15/0.05 | on 0-100 (40/58): rise 3.82/1.02 against 4.90/0.54, kink 0.85/0.10 against 0.49/0.07
+
+== boilnoise.txt
+before m2r: floor: before off 0.02 (0.03), off 0-60 0.19 (0.73) / 0.36 (1.22), off 60-200 0.06 (0.17) / 0.25 (0.47), on 0-100 0.03 (0.10) / 0.15 (0.29) | left wall: before off 0.03 (0.04), off 0-60 0.18 (0.83) / 0.68 (1.49), off 60-200 0.06 (0.20) / 0.75 (1.00), on 0-100 0.14 (0.41) / 0.36 (1.11) | ceiling: before off 0.03 (0.05), off 0-60 0.24 (1.45) / 0.26 (1.56), off 60-200 0.08 (0.22) / 0.21 (0.50), on 0-100 0.13 (0.50) / 0.28 (1.03)
+after W: floor: before off 0.02 (0.03), off 0-60 0.19 (0.84) / 0.26 (1.18), off 60-200 0.06 (0.18) / 0.10 (0.33), on 0-100 0.04 (0.11) / 0.07 (0.27) | left wall: before off 0.03 (0.05), off 0-60 0.18 (0.94) / 0.24 (1.33), off 60-200 0.06 (0.21) / 0.12 (0.41), on 0-100 0.14 (0.43) / 0.26 (1.07) | ceiling: before off 0.03 (0.04), off 0-60 0.25 (1.51) / 0.24 (1.55), off 60-200 0.08 (0.23) / 0.11 (0.38), on 0-100 0.12 (0.50) / 0.16 (0.97)
+
+== wobble-video.txt
+before video: horizontal distance 1171.34 to 1190.92 output px (range 19.57), vertical distance 257.21 to 259.03 (range 1.82)
+  rms of the horizontal distance around its mean 4.797 px, around the prediction 0.429 px (D0 = 1184.56 px); predicted range 1172.74 to 1190.83
+  correlation with render width +0.274, render height +0.355, (h / w) * 16/9 +0.996; render h/w * 16/9 from 0.9900 to 1.0053
+  noise floor: rms of the frame-to-frame change of the horizontal distance between two draws of one size, over sqrt 2: 0.078 px (235 pairs); vertical distance against (h / w) * 16/9: correlation -0.323, rms around its mean 0.415 px
+after video: horizontal distance 1182.74 to 1185.51 output px (range 2.77), vertical distance 257.24 to 258.99 (range 1.75)
+  rms of the horizontal distance around its mean 0.447 px, around the prediction 4.647 px (D0 = 1185.69 px); predicted range 1173.86 to 1191.96
+  correlation with render width +0.329, render height +0.336, (h / w) * 16/9 +0.165; render h/w * 16/9 from 0.9900 to 1.0053
+  noise floor: rms of the frame-to-frame change of the horizontal distance between two draws of one size, over sqrt 2: 0.116 px (235 pairs); vertical distance against (h / w) * 16/9: correlation -0.189, rms around its mean 0.416 px
+/private/tmp/claude-501/-Users-alexispurslane--t3-worktrees-tertius-t3-52bfcd29-81249085ce80dd9f/45227396-32af-4c1c-8b9e-e374cf7f5d7b/scratchpad/wobble-video.png (1300, 560)
+

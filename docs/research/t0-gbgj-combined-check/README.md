@@ -33,6 +33,7 @@ Each row says what the pictures show first, then the scores. "Better", "equal" a
 | The jambs through the dynamic scale's path, M2 only (take 2d) | Grey jambs, the same picture as the fixed path within 4 of 255 steps | | |
 | Faults at 0.956 that 2/3 hides (bug `t58-i3sn`) | Ceiling specks, a bright line and dots at the openings' edges, grain on the floor's sides, on both sides | Equal: the same faults and about the same counts | Not taken |
 | The deck's frame span | No pictures. | Within the allowance: X2 − M2 is +0.126 ms in the mean of four rounds (median +0.179), each round between −0.122 and +0.267 ms. Design X's allowance is +0.30 ms | |
+| The wobble under the dynamic scale, before (M2) and after (W) the fix (take 2 on W) | The window edges swing with the render size before the fix and stay within about 1 px of 1920 after it. The bright line on the left jamb goes away | W against M2: edge distance range 19.53 px to 2.68 px, correlation with the rounded aspect +0.996 to +0.167. A residual of 0.44 px rms stays, larger on changed draws (0.747 against 0.245) | |
 | Checked and Release suites | | Pass: Checked 11,141 tests and Release 11,128, 0 failed in each | |
 
 The values "a / b" are at the automatic exposure and at 4.08 stops for the stills, after the lamps go off and after they come on for the switch, and at the film's middle and last frame for the films.
@@ -392,6 +393,90 @@ On W, the wobble fix's branch (`ramp-W.txt`, `pics/ramp-W.png`), no size leaks: 
 - 1792 and 1808 lie on the floor and 1816 a little above it, as the sawtooth predicts. 1784 lies on the floor, where the reading put a tooth near −0.34 %. The sizes between were not tested.
 - The cause is not measured. The back-face line's candidate, read from the code, is the texel grid of the sun's shadow cascades: a cascade's texel size depends on the field of view and the aspect (`ShadowCascades.cs`), and its center snaps to a grid fixed in the world.
 
+### The wobble before and after the fix (take 2 on W)
+
+The take plays one film twice: the switch "cabin" with the fair lamp switch, at the fixed exposure 4.08 stops, through the dynamic scale's replay path. Both sides play back the same size log, the card's Design X side at the 10 ms target (`/private/tmp/t0-5tyj/cloud/sizes/out/sizes/switch-x-10/size-193-393.txt`, copied to `/private/tmp/t0-gbgj/size-card-switch-x-10.txt`). Its render scale runs from 0.643 to 0.756, with 84 size changes in film frames 140 to 459. The size logs of both runs equal the card's log line for line. "Before" is `m2r` (M2 with the replay patch, the projection's aspect from the render size). "After" is the build of W, `839bce1b5` (the projection's and FSR's aspect from the output). Film frame k shows draw 33 + k. The lamps go off at frame 160 and on at frame 360.
+
+The terms:
+
+- The edge distance is the distance between the left edge of the left wall's window opening and the right edge of the right wall's window opening, on rows 525 to 554 of the 1920 × 1080 output, in output px. `tools/wobble.py` (the acceptance lead's `wobble.py` of `b53c037f1`, copied with two changes: it reads a folder of PNGs, and it writes its per-frame edges) finds each edge to a fraction of a pixel in the frame scaled to 1280 × 720 and multiplies by 1.5.
+- The edges' midpoint is the mean of the two edges' places, in output px.
+- The residual of the distance is the distance minus the projection's prediction. Before the fix, the prediction is D0 · (h / w) · 16/9 for the render size w × h, with D0 = 1184.55 px fitted. After the fix, the prediction is a constant, the film's mean. The midpoint's residual is the midpoint minus its mean, on both sides.
+- A changed draw is a draw whose render size differs from the draw before's. A one-size draw has the same size as the draw before.
+- A step is the change of a value from the draw before to this draw.
+
+![the edge distance per frame, before and after](pics/wobble-before-after.png)
+
+`pics/wobble-before-after.png`: the edge distance per film frame (red) and the prediction from the render size (blue), before on top, after below.
+
+- Before the fix, the distance runs from 1171.40 to 1190.93 px, a range of 19.53 px (1.65 % of D0). It follows the prediction with a correlation of +0.996, and the rms around the prediction is 0.425 px.
+- After the fix, the distance runs from 1182.75 to 1185.44 px, a range of 2.68 px (0.23 %). Its correlation with (h / w) · 16/9 is +0.167, and its rms around its mean is 0.437 px.
+- The noise floor, the rms of the step between two one-size draws over √2, is 0.078 px before and 0.119 px after.
+- The vertical distance between the near ceiling lamp's top edge and the back window's bottom edge ranges 1.78 px before and 1.80 px after. The fix does not change it, as the hypothesis predicts.
+
+**The residual after the fix.** The fix removes the stretch that followed the aspect. A residual of about 0.44 px rms stays, about four times the noise floor. The split by changed and one-size draws (`tools/wobsplit.py`, in px of the 1920 × 1080 output):
+
+| Measure | Before, changed | Before, one size | After, changed | After, one size |
+|---|---|---|---|---|
+| Draws | 84 | 236 | 84 | 236 |
+| Distance residual, rms / range | 0.621 / 2.60 | 0.329 / 2.12 | 0.747 / 2.68 | 0.245 / 1.39 |
+| Midpoint residual, rms / range | 0.353 / 1.80 | 0.168 / 1.15 | 0.408 / 1.54 | 0.137 / 1.35 |
+| Distance step, mean abs / largest | 0.287 / 1.71 | 0.039 / 0.87 | 0.129 / 1.51 | 0.042 / 1.27 |
+| Midpoint step, mean abs / largest | 0.250 / 1.07 | 0.051 / 1.15 | 0.084 / 0.75 | 0.035 / 1.35 |
+| Inside the 60 frames after each switch: distance rms / mean abs step | 0.638 / 0.288 (77) | 0.441 / 0.118 (43) | 0.779 / 0.140 (77) | 0.411 / 0.175 (43) |
+| Inside the 60 frames after each switch: midpoint rms / mean abs step | 0.361 / 0.251 (77) | 0.289 / 0.201 (43) | 0.426 / 0.091 (77) | 0.288 / 0.149 (43) |
+
+- The largest single step of the distance is 1.71 px of 1920 (1.14 px of 1280) before and 1.51 px (1.00 px of 1280) after, both at film frame 180, a changed draw (scale 0.6499 to 0.6525). The largest step of the midpoint is 1.15 px (0.77 px of 1280) before and 1.35 px (0.90 px of 1280) after, both at film frame 360, a one-size draw where the lamps come on.
+- After the fix, the distance residual's mean absolute value by draws since a change is 0.556 px on the changed draw, 0.188 on the draw after, 0.172, 0.115 and 0.105 on the next three, and 0.184 on later draws. The midpoint's is 0.334, 0.177, 0.124, 0.101, 0.082 and 0.068. Size changes come in runs: 79 of the 84 fall in the 60 frames after a switch, where the size changes on most draws. So the residual lasts as long as a run of changes and about one draw after its end.
+- Inside those windows, a changed draw steps no more than a one-size draw after the fix (mean 0.140 px against 0.175). So the residual is an offset that holds through a run of changes, not a jump on each changed draw.
+- One line each, after the fix: the distance residual correlates with the render scale at +0.343, with the render width at +0.341, and with "changed" at −0.410. The midpoint's are −0.237, −0.237 and +0.018. Before the fix: +0.475, +0.475 and −0.423 for the distance, and +0.007, +0.005 and −0.080 for the midpoint.
+- A straight line in the render scale takes little of it: after the fix, its slope is +0.47 px per 0.1 of scale, and the distance residual's rms falls only from 0.437 to 0.410 px. What the line leaves is 0.714 px rms on changed draws against 0.216 on one-size draws.
+- Per tracked edge (the line orchestrator's measure from the back-face line's film): the means per render size (28 sizes) explain this share of the variance, all draws / without changed draws. Before: left 0.26 / 0.22, right 0.37 / 0.31, distance 0.45 / 0.39, midpoint 0.23 / 0.17. After: left 0.39 / 0.31, right 0.34 / 0.37, distance 0.38 / 0.26, midpoint 0.34 / 0.39.
+- The left edge's place and the right edge's place correlate at +0.089 before and +0.104 after (+0.217 without changed draws). So the two edges do not move together: there is no common shift of the picture.
+- The size log is aligned with the frames: moved by one draw either way, the fit before the fix gets worse, from 0.425 px rms to 3.76 px.
+
+My reading: the two films agree on two facts and differ on one. They agree that the residual after the fix is not a common shift and not a stretch, and that it is no jump on the changed draw itself. They differ on what it follows. On the back-face line's film, the residual does not depend on the draws since a change, and each render size gives its own offset. On this film, the residual is about three times larger on changed draws than on one-size draws, it fades within one to three draws after a run of changes, and the per-size means explain only about a third of its variance. That fits FSR's history after a run of size changes better than an offset per size. But this film cannot separate the two causes: its size changes fall in the 60 frames after each switch, where the light itself still changes. The one-size draws inside those windows also have a larger residual than the one-size draws over the whole film (rms 0.411 against 0.245 px). A take with the light fixed and the size held for many draws per size, such as the size ramp with the edges tracked, would separate the offset per size from the history after a change. I did not take it.
+
+**The light level at size changes.** `tools/levjump.py` takes the boil's three crops (floor, left wall, ceiling) and the level of each crop per draw. The kink of a draw is its level against the straight line through its two neighbours, in % of the level. A smooth fade gives no kink, and a size change that moves bright edges into or out of the crop gives one. Mean kink on changed / one-size draws, in %:
+
+| Span | Crop | Before, changed / one size | After, changed / one size |
+|---|---|---|---|
+| 60 to 200 draws after off (5 / 134 draws) | floor | 0.21 / 0.04 | 0.06 / 0.03 |
+| | left wall | 0.77 / 0.05 | 0.04 / 0.02 |
+| | ceiling | 0.19 / 0.05 | 0.08 / 0.05 |
+| 0 to 100 draws after on (40 / 58 draws) | floor | 0.15 / 0.03 | 0.02 / 0.02 |
+| | left wall | 0.21 / 0.11 | 0.16 / 0.11 |
+| | ceiling | 0.23 / 0.09 | 0.10 / 0.07 |
+
+Before the fix, the level kinks at a size change by up to 15 times the one-size kink (the left wall after off). After the fix, the changed draws come within about 0.05 % of the one-size draws, except the ceiling after on (0.10 against 0.07). The largest single kink on a changed draw falls from 0.89 % to 0.11 % on the left wall after off. In the first 60 draws after off, the light's own fade dominates on both sides. `pics/wobble-level.png` shows each crop's level per draw: the two sides lie on one line at this scale.
+
+**The boil** (the acceptance lead's `boilnoise.py` of `b53c037f1`, by its path; there a changed draw differs in size from either neighbour). Mean boil on one-size / changed draws, in % of the crop's light:
+
+| Span | Crop | Before | After |
+|---|---|---|---|
+| 0 to 60 draws after off | floor, left wall, ceiling | 0.19 / 0.36, 0.18 / 0.68, 0.24 / 0.26 | 0.19 / 0.26, 0.18 / 0.24, 0.25 / 0.24 |
+| 60 to 200 draws after off | floor, left wall, ceiling | 0.06 / 0.25, 0.06 / 0.75, 0.08 / 0.21 | 0.06 / 0.10, 0.06 / 0.12, 0.08 / 0.11 |
+| 0 to 100 draws after on | floor, left wall, ceiling | 0.03 / 0.15, 0.14 / 0.36, 0.13 / 0.28 | 0.04 / 0.07, 0.14 / 0.26, 0.12 / 0.16 |
+
+The fix leaves the boil of one-size draws as it was and lowers the boil of changed draws by a factor of 1.1 to 6.3, the most on the left wall 60 to 200 draws after off (0.75 to 0.12). The changed draws still boil more than the one-size draws after the fix, most on the left wall after on (0.26 against 0.14).
+
+**The video.** [`pics/wobble-before-after.mp4`](pics/wobble-before-after.mp4), `/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/wobble-before-after.mp4`: before on the left, after on the right, 1920 × 1080 per side, the 320 film frames 140 to 459 at 60 frames a second, one draw per video frame, H.264 `yuv420p`, CRF 12, 12 MB (`tools/wobvideo.py`). Each side shows its label and its draw's render scale and render size. Short cyan ticks above and below the tracked rows mark each side's mean place of the two tracked edges, so an eye sees the edges move against them. The film frame, the draw and the lamps' state go at the bottom right. `ffprobe` reads 320 frames of 3840 × 1080.
+
+What I measured in the video, not in the frames: `wobble.py` on each side of the decoded video gives the same answer as on the frames. Before: range 19.57 px, correlation +0.996, rms 0.429 px around the prediction. After: range 2.77 px, correlation +0.165, rms 0.447 px around the mean. So the encoding keeps the wobble that the record claims.
+
+![the left window's jamb, before and after](pics/wobble-left-jamb.png)
+
+`pics/wobble-left-jamb.png`: the left window at the image's left edge (output x 0 to 299, y 380 to 679), before on top, after below, at film frames 140, 200, 350 and 450. Before the fix, a bright line runs down the window's inner jamb in every frame. After the fix it is gone. This is the jamb leak of bug `t58-i3sn`: on M2 the render sizes off 16:9 leak, and W draws every render size at 16:9, as its size ramp showed. The video shows it too.
+
+The residual that stays after the fix is about 0.4 px rms of 1920, about 0.3 px of 1280, with steps up to 1.5 px of 1920. I did not check:
+
+- whether an eye finds the residual in the video at normal speed;
+- any edge other than the two window edges and the two vertical edges, and any region away from them;
+- a vertical shift of the picture, other than the vertical distance;
+- the residual with the light held fixed, which would separate an offset per render size from FSR's history after a size change;
+- a second run of either build, so the spread between two runs of one build is not measured;
+- another scene, a moving camera, or Linux.
+
 ## The tables
 
 `tables.txt` holds the output of every measure. `tools/measure.sh` prints it.
@@ -569,9 +654,10 @@ The discarded runs lie in `/private/tmp/t0-gbgj/timing/discarded`. Some process 
 - `README.md`: this record.
 - `tables.txt`: the output of `tools/measure.sh`, every measure in the order of the tables.
 - `ramp-M3.txt`, `ramp-X3.txt`, `ramp-W.txt`: the size ramp's tables.
+- `wobble.txt`: the wobble take's measures: `wobble.py` on the frames, `wobsplit.py`, `levjump.py`, `boilnoise.py`, and `wobble.py` on the video's two sides.
 - `scratch-probe-m2.patch`: main's survey probe fitted to the layer, M2's probe. Main's `2ffd7e66f` holds the same patch.
 - `scratch-render-scale.patch`: a constant headless render scale from `TERTIUS_X_RENDER_SCALE`, for take 2b only.
-- `pics/`: the pictures and the two videos above.
+- `pics/`: the pictures, the two videos above, and the wobble take's video `pics/wobble-before-after.mp4`.
 - `tools/` (tool code; each script says what it does in its first lines):
   - `vars.sh`: the takes' folder and the sides.
   - `build.sh` and `builds.sh`: the four builds, from `git archive` of a revision and patches, outside the checkout.
@@ -593,5 +679,8 @@ The discarded runs lie in `/private/tmp/t0-gbgj/timing/discarded`. Some process 
   - `diskbuild.sh`: `build.sh` beside a sampler of the free disk.
   - `glowsheet.py`, `scalepair.py`, `edgefaults.py`, `stillcrops.py`: the glow sheets, the whole frames at two scales, the speck counts per box, and the still crops.
   - `rampcrops.py`, `wintest.py`, `wintest.sh`, `winsheet.py`: the ramp's crops, the window test and its sheet. The ramp itself is the acceptance lead's `sizeramp.sh` and `sizeramp.py` of `b53c037f1`, run by their paths.
+  - `wobfilm.py` and `wobtake.sh`: the wobble take, before on `m2r` and after on W's build, both playing back the card's size log.
+  - `wobble.py`: the acceptance lead's `wobble.py` of `b53c037f1`, copied with two changes: it reads a folder of PNGs, and `WOBBLE_DUMP` writes its per-frame edges.
+  - `wobsplit.py`, `levjump.py`, `wobvideo.py`: the residual's split by changed and one-size draws and by render size, the level's kinks at size changes, and the side-by-side video.
   - `jambsheet.py`: take 2b's sheets, the jamb crop's mean and the floor crop's specks, and the two edges' distance.
 - Scripts of earlier records that this record runs: `daub.py`, `light.py`, `sheet.py`, `levelchart.py` and `films.py` of `t0-mzhr`, `switch.py` and `stills.py` of `t0-xlcu`, `regions.py` of `t0-9fo0`, `filmsheet.py` of `t0-ion0`, `filmcrop.py` of `t0-acxm`.

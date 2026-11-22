@@ -1,5 +1,6 @@
-# Tool code of t0-5tyj, copied from b53c037f1 into t0-gbgj's record with one change: frames() also reads a PNG
-# folder (see there). wobble.py <chart.png> <label|side mp4|size log>...: the horizontal wobble of the switch cabin's
+# Tool code of t0-5tyj, copied from b53c037f1 into t0-gbgj's record with two changes: frames() also reads a PNG
+# folder (see there), and WOBBLE_DUMP=<folder> writes each side's per-frame edges to <folder>/<label>.txt for
+# wobsplit.py. wobble.py <chart.png> <label|side mp4|size log>...: the horizontal wobble of the switch cabin's
 # picture under the dynamic render scale, from a cloud job's side video (cloudvideo.sh video: film "f" frames 140 to 459,
 # one draw per frame, 1280 x 720 from the 1920 x 1080 output) and the size log of its run (one line per draw,
 # "<frame> <render width> <render height> <scale>"; film frame k is draw 33 + k). The camera stands still in this
@@ -56,13 +57,21 @@ for label, path, size_log in specs:
     video = frames(path)
     sizes = [tuple(map(int, l.split()[1:3])) for l in open(size_log)]
     places = [246.0, 1033.0, 203.0, 375.0]
-    rows = []
+    rows, mids = [], []
     for k, f in enumerate(video):
         row = f[350:370].mean(0)
         col = f[:, 630:650].mean(1)
         places = [edge(row, places[0]), edge(row, places[1]), edge(col, places[2]), edge(col, places[3])]
         w, h = sizes[STILL + FIRST + k]
         rows.append((SCALE * (places[1] - places[0]), SCALE * (places[3] - places[2]), w, h))
+        mids.append(SCALE * (places[0] + places[1]) / 2)
+    if os.environ.get('WOBBLE_DUMP'):
+        # t0-gbgj's change: one line per film frame, "<frame> <distance> <midpoint> <width> <height> <scale>", the
+        # distance and the midpoint of the two window edges in output px.
+        scales = [float(l.split()[3]) for l in open(size_log)]
+        with open(f"{os.environ['WOBBLE_DUMP']}/{label.split()[0]}.txt", 'w') as dump:
+            for k, (r, m) in enumerate(zip(rows, mids)):
+                dump.write(f'{FIRST + k} {r[0]:.4f} {m:.4f} {r[2]} {r[3]} {scales[STILL + FIRST + k]}\n')
     a = np.array(rows)
     dx, dy, w, h = a.T
     ratio = h / w * 1920 / 1080
