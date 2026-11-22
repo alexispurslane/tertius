@@ -102,3 +102,7 @@ Early result of the combined check lead, 2026-11-22: motion measured per frame i
 **2026-11-22T17:28:10Z**
 
 Blocker, 2026-11-22: the disk has 37 GiB free, under the orchestrator's limit of 40 GiB for a new build (57 this morning, 47 at 11:08, 43 at 11:45). The combined check's lead stopped before its two builds with the new probe. Without a build it checked on a temporary index that main's version of the probe patch applies to main 284025851 as it is, and that the line's version applies to the merged head a7e373197 with the one known fit (the Count hunk reads 12 to 14). The line's own scratch data is about 7.5 GiB (3.2 in /private/tmp/t0-5tyj, 1.7 in /private/tmp/t0-gbgj, and three worktrees), so deleting it would not reach 40 and would destroy evidence. I passed the question up with two options: free the disk to 40 GiB, or allow the two builds below 40 with a measured peak and a floor. I did not lift the limit.
+
+**2026-11-22T17:33:11Z**
+
+2026-11-22: the combined check's lead built M2 (main 284025851) with main's version of the probe patch and its constant-scale scratch patch: 0 warnings, 0 errors, 25 s; the disk went from 37.3 GiB free to 37.1 at the lowest sample. The off draw works (log line and frames 220 and 380). Run: /private/tmp/t0-gbgj/runs/scg-M2-23. I then committed the file on main as ee9dec413. X2 builds next.
