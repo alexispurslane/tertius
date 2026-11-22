@@ -27,3 +27,9 @@ Decision of the user, 2026-11-22, on the remedy under a moving render scale, in 
 **2026-11-22T16:23:27Z**
 
 The merge decision waits, by the orchestrator's word of 2026-11-22, for two results: the cause of Design X's bright speckled window jambs at a render scale near 1 (measured on the Mac at a constant scale, with the fair lamp switch), and the dynamic-scale videos taken again after the wobble's fix is on main (the projection's aspect from the output extent, built by the back-face line).
+
+**2026-11-22T20:53:26Z**
+
+The merge decision is the orchestrator's since 2026-11-22, by the user's hand-over, on these gates: (1) the cost variant built with red-green tests (t0-zmjx); (2) tc-8142 fixed; (3) Checked and Release green on the merged code; (4) the per-scene table with no scene worse than main by the user's bar; (5) the two films under the dynamic render scale on the final code, with their motion measured (t0-3vwx). When all hold, the line orchestrator tells the orchestrator, who does the last read of the diff and says go. The user sees the films afterwards. The direction stands: Design X is "strictly better", it merges without holding the render size, and it is "a platform of better logic to work off of".
+
+For gate 5 the line orchestrator reversed its answer 55 (the walk is not taken again): both films are taken again on the final code, each with a new scale log from the card. The combined check's lead has the notice.

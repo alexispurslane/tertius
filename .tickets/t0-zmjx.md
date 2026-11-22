@@ -81,3 +81,13 @@ To deliver: the table with the row XD (settle, GPU span settled, peak, draws abo
 **2026-11-22T20:41:09Z**
 
 Answer 58 of the line orchestrator, 2026-11-22: the orchestrator's 16 GiB floor ended at 15:50 (33 GiB free; the limits 22 / 20 / 30 hold again) and left the choice of the video's panes to me. The panes of Design X and of the cap in the video with the third variant are rendered again from the builds that exist, not decoded from the committed three-pane video, because a second encode softens the grain that the user judges. Fallback under 22 GiB: decode, and mark those panes as second-generation.
+
+**2026-11-22T20:53:26Z**
+
+Change of who decides, from the orchestrator, 2026-11-22. The user's words: "can you just use your best judgement and try to hill climb toward a complete/good lighting system from here? im utterly exhausted of choosing these in the weeds designs, and honestly with the wackamole we're playing, im worried theres some fundamental approach we're doing wrong". Forks now go to the orchestrator, who decides; still for the user: deletions outside the line's own evidence, money above the limit, anything outward-facing.
+
+The orchestrator's rule for the choice between the restart at 8 draws and "own rays wait for the evidence", which the line orchestrator applies and the orchestrator confirms: (1) a variant must leave no cost peak that moves the render scale on the card's log; (2) among the variants that pass, the faster settle wins, unless its boil in the first 60 draws is higher by more than the difference between two runs of one code; (3) on a tie, the smaller reach and less code wins. After the table with the rule's application, the production build starts on 710834cc0 without a wait.
+
+Answer 59 of the line orchestrator: a played-back run is deterministic on one machine, so "the difference between two runs of one code" is measured as the spread of the boil numbers over runs of the cap's build with the switch one and two draws later, after one repeated run confirms that equal runs give equal numbers.
+
+The orchestrator also asks for root causes before one more rule: each report names the root cause that a rule acts on and whether a structural change removes the fault with others (here: the start-of-run cost, ter-4iic and t58-np60). A separate read-only review of the whole indirect lighting's approach runs at the orchestrator; it may reorder t0-o7gf and t0-70v1.
