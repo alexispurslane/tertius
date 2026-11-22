@@ -123,3 +123,21 @@ The history map of the settled cabin still (Design X, lamps on, draw 190, 2/3), 
 **2026-11-22T22:30:58Z**
 
 The orchestrator's answers to early result 2, 2026-11-22: the daily cloud limit stays, job 2 waits for 19:00; the start is reported as two numbers after the shape (0, 32, 0); the final table compares three codes: A, today's cliff with the cap (what merges); B, the spread with the restart at 4 draws; C, the spread together with the cap (my reading: with the spread's catch-up rays also after a light change, by the three clocks; C' with the light clocks off only if one parameter does it).
+
+**2026-11-22T22:51:20Z**
+
+Early result 3 from the combined check's lead, 2026-11-22, commits e4e1dd3f0 and 0ad907f2f (pics/card-scale-shapes2.png). Card job 2, $0.0846, the ticket's spend $0.1388. Scale changes and largest fall, start / off / on / cut:
+- Today: 0.232 / 54, 0.154 / 53, 0.151 / 56, 0.140.
+- A, the cap: 0.231 / 0 / 0 / 58, 0.140.
+- (0, 32, 0), no catch-up ray: 0.070 / 0 / 0 / rises only.
+- B32, (0.03125, 32, 0): 0.084 / 0 / 1, 0.005 / rises only.
+- B16, (0.0625, 32, 0), second run: 0.092 / 8, 0.013 / 9, 0.008 / 4, 0.003.
+- C32, the cap with B32's shape: 0.086 / 0 / 1, 0.004 / rises only.
+- C' at 1/16 (the cap, light clocks off): 0.093 / 0 / 0 / 5, 0.007.
+The search's answer is a peak share of 1/32 (1/64 gives the same): the card's own noise reaches 3 changes in an idle span, B16's two runs differ (3 and 8 changes after off), so B32's one change lies inside the noise and 1/16 moves the scale in both runs. EndFrames 16 and Fall 1 at 1/16 do not beat the smaller peak with the box.
+
+The start in two parts (largest fall, scale lost over 60 draws): without catch-up rays 0.070, 3.29; today's catch-up rays on top 0.162, 4.10; B32's catch-up rays on top 0.014, 0.64.
+
+A new film for the camera cut: person camera, one frame on the chase camera, the person camera again; at draw 134 the mean history length falls from 25.6 to 0.98 draws. The old cut film (bright exterior, then the cabin) stayed saturated white for over 100 draws; the lead files that as a bug.
+
+My reading: 1/32 for 32 draws is 1 catch-up ray per restarted pixel, against 8 to 11 today and none with the cap; this card allows no more. The Mac's measures must show whether that one ray buys anything against the cap alone. The share is a cost budget; a production form could take it from the controller's headroom (noted, not built).
