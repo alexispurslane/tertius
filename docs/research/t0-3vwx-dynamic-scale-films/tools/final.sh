@@ -40,16 +40,22 @@ case $film in
   walk) runs="w-MF w-XF"; log=size-none; part=walk; case=cabin-walk; json=walk/cabin-walk; sv=wk ;;
   *) echo "final.sh <switch|walk>"; exit 1 ;;
 esac
+# FROM=4 starts at the survey's takes and keeps the picture runs of an earlier call (queue-a.sh can make a missing one);
+# FROM=5 starts at the measures and keeps the survey's takes too.
+if [ "${FROM:-1}" -le 3 ]; then
 # 3. The picture runs (a run's folder is replaced when it exists).
 for r in $runs; do rm -rf $O/$r; done
 q=$(SIZES=$S bash "$T/queue-a.sh" $runs); echo "$q" | tee -a $W/logs/final.log
 ! grep -q "DIFFER\|stop before" <<< "$q" || { echo "a picture run failed its check: stop"; exit 1; }
+fi
+if [ "${FROM:-1}" -le 4 ]; then
 # 4. The survey's takes.
 for side in m x; do
   b=${side}f; run=$sv-$([ $side = m ] && echo M || echo X)F; rm -rf $W/runs/$run
   bash "$G/take.sh" $run $part $case $b TERTIUS_X_FRAME_TIME_TARGET=16.6667 \
     TERTIUS_X_SIZE_REPLAY=$S/$film-$side-16.6667/$log.txt TERTIUS_X_SIZE_LOG=$W/runs/$run/sizes
 done
+fi
 # 5. The measures.
 out=$N/final-$film.txt; mkdir -p $D $W/check-final
 py() { echo "\$ $*"; nix develop "$R" --command python3 -I "$@" 2>&1 | grep -vE "^warning|sqlite|^\s*$"; echo; }
