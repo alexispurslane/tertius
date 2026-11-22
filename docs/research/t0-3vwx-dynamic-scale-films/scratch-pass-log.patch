@@ -1,0 +1,16 @@
+# SCRATCH patch of t0-3vwx, never commit to src. It applies after scratch-dynamic-scale.patch. With TERTIUS_X_TIME_LOG and
+# TERTIUS_X_PASS_LOG=<folder>, each collected frame appends one line per pass, "<frame number> <pass name, spaces as _>
+# <the controller's cost group> <ms>", to <folder>/pass-<TERTIUS_PROBE_LAMP_OFF, or "none">.txt.
+--- a/src/Tertius.Rendering/VulkanRenderer.cs
++++ b/src/Tertius.Rendering/VulkanRenderer.cs
+@@ -913,6 +913,10 @@
+             foreach (PassTiming probePass in probeTimings.Passes.Span)
+             {
+                 RenderScaleController.CostGroup probeGroup = RenderScaleController.CostGroupOf(probePass.Stage);
++                // SCRATCH (t0-3vwx, never commit to src): with TERTIUS_X_PASS_LOG=<folder> too, one line per pass.
++                if (Environment.GetEnvironmentVariable("TERTIUS_X_PASS_LOG") is { Length: > 0 } probePassFolder)
++                    System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Directory.CreateDirectory(probePassFolder).FullName, $"pass-{(Environment.GetEnvironmentVariable("TERTIUS_PROBE_LAMP_OFF") is { Length: > 0 } probePassOff ? probePassOff : "none")}.txt"),
++                        string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{probeTimings.Frame} {probePass.Pass.Replace(' ', '_')} {probeGroup} {probePass.Milliseconds:R}\n"));
+                 probeReached |= probeGroup == RenderScaleController.CostGroup.Output;
+                 if (probeReached)
+                     probeOutput += probePass.Milliseconds;

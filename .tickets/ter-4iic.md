@@ -2,7 +2,7 @@
 id: ter-4iic
 status: open
 deps: []
-links: []
+links: [t58-np60]
 created: 2026-11-10T09:38:12Z
 type: bug
 priority: 1

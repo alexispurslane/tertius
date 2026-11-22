@@ -1,0 +1,57 @@
+# SCRATCH patch of t0-3vwx, never commit to src. It applies after tools/renderer-survey/probe.patch, scratch-region-log.patch
+# (on X) and scratch-dynamic-scale.patch. TERTIUS_X_HISTORY_LOG=<folder> logs the slow diffuse history's length per draw:
+# the mean, the share under 8 draws and the share at 0, over the render size of the draw (see the comment in the hunk).
+--- a/src/Tertius.Rendering/VulkanRenderer.cs
++++ b/src/Tertius.Rendering/VulkanRenderer.cs
+@@ -618,6 +618,33 @@
+         // SCRATCH (t0-5tyj, never commit to src): with TERTIUS_X_SIZE_REPLAY=<size log>, each draw takes the render scale
+         // that the size log of an earlier run gives for its frame number, in place of the controller's. The picture runs
+         // use it: their PNG writes stall the frames, and the controller would then lower the scale to its floor.
++        // SCRATCH (t0-3vwx, never commit to src): with TERTIUS_X_HISTORY_LOG=<folder>, each draw first reads the slow diffuse
++        // history that the draws before it left (ScreenTraceSignals.Diffuse.Slow(0): a = the length in draws) over the render
++        // size of the draw before, and appends "<that draw's frame number> <width> <height> <mean length> <share under 8>
++        // <share at 0 or below>" to <folder>/history-<TERTIUS_PROBE_LAMP_OFF, or "none">.txt. The read waits for the device.
++        if (Environment.GetEnvironmentVariable("TERTIUS_X_HISTORY_LOG") is { Length: > 0 } probeHistoryFolder && probeLastSize.Width > 0)
++        {
++            (float[] probeValues, int probeWidth, _) = ReadLevel(image: ScreenTraceSignals.Diffuse.Slow(0), layer: 0, mip: 0);
++            double probeSum = 0, probeShort = 0, probeZero = 0, probeCount = (double)probeLastSize.Width * probeLastSize.Height;
++            for (int probeY = 0; probeY < probeLastSize.Height; probeY++)
++                for (int probeX = 0; probeX < probeLastSize.Width; probeX++)
++                {
++                    float probeLength = probeValues[4 * (probeY * probeWidth + probeX) + 3];
++                    probeSum += probeLength;
++                    probeShort += probeLength < 8 ? 1 : 0;
++                    probeZero += probeLength <= 0 ? 1 : 0;
++                }
++            System.IO.File.AppendAllText(
++                System.IO.Path.Combine(
++                    System.IO.Directory.CreateDirectory(probeHistoryFolder).FullName,
++                    $"history-{(Environment.GetEnvironmentVariable("TERTIUS_PROBE_LAMP_OFF") is { Length: > 0 } probeOff ? probeOff : "none")}.txt"
++                ),
++                string.Create(
++                    System.Globalization.CultureInfo.InvariantCulture,
++                    $"{FrameNumber - 1} {probeLastSize.Width} {probeLastSize.Height} {probeSum / probeCount:R} {probeShort / probeCount:R} {probeZero / probeCount:R}\n"
++                )
++            );
++        }
+         float probeScale =
+             Environment.GetEnvironmentVariable("TERTIUS_X_SIZE_REPLAY") is { Length: > 0 } probeReplay
+                 ? float.Parse(
+@@ -628,6 +655,7 @@
+                 )
+                 : ScaleController?.Next(FrameNumber) ?? upscaling.LargestScale;
+         Extent2D probeRenderSize = upscaling.RenderExtent(targets.OutputExtent, probeScale);
++        probeLastSize = probeRenderSize;
+         FrameHistory.PendingFrame pending = history.Begin(
+             snapshot: snapshot,
+             step: step,
+@@ -1460,6 +1488,9 @@
+ 
+     /// <summary>The screen tracer's two signals. A test hook.</summary>
+     /// <exception cref="InvalidOperationException">The setting is <see cref="NoScreenTrace"/>.</exception>
++    // SCRATCH (t0-3vwx, never commit to src): the render size of the last draw, for TERTIUS_X_HISTORY_LOG.
++    private Extent2D probeLastSize;
++
+     internal (TemporalSignal Diffuse, TemporalSignal Specular) ScreenTraceSignals =>
+         screenTrace is { } tracer
+             ? (tracer.Diffuse, tracer.Specular)
