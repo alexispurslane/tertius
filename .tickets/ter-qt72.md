@@ -412,3 +412,31 @@ Step 2's runs:
   - The report of limits too close for any window: now covered by the new LimitsTooCloseForTwoSizesOfAnyWindowAreReported.
   - `ScaleLimits`' throw for an FSR setting without a scale source: unreachable, because `CheckOptions` refuses that setting first.
   - The failing branches of two contracts.
+
+Step 2's film. The lamp hall with the same played-back render scales (size log d16M) as step 1's film, rendered at 74395e38c in a build copy with the scratch edit `scratch-replay2.py`, which never enters src. Every one of its 305 draws had an exact-ratio size. The 240 film frames took 14 sizes, from 992 × 558 to 1200 × 675, with 38 size changes, against step 1's 31 sizes and 72 changes, because a step of 1920 × 1080 is 16 × 9 px. The video: `/Users/alexispurslane/.t3/worktrees/tertius/t3-1f553e45-00934a8d076a004a-evidence/video/lamp-hall-step1-vs-step2.mp4`, step 1 on the left (839bce1b5, from step 1's film) and step 2 on the right, 240 frames at 60 a second, H.264 at CRF 12, 3840 × 1080. The tracked edges (`edges.py`), in output pixels:
+
+| | Step 1 | Step 2 |
+|---|---:|---:|
+| Outer distance (about 1,700 px): sd | 0.489 | 0.562 |
+| Outer distance: range | 2.894 | 1.805 |
+| Its midpoint: sd | 0.245 | 0.184 |
+| Its midpoint: range | 1.931 | 0.996 |
+| Noise floor of the outer distance (same size, frame to frame, / sqrt 2) | 0.165 | 0.080 |
+| Noise floor of its midpoint | 0.083 | 0.040 |
+
+Neither spread reaches the noise floor. The named reason, from step 2's own numbers:
+- The means of the 14 render sizes explain 0.31 of the outer distance's variance and 0.26 of the midpoint's. That is the offset per render size, 0.36 px sd of the size means.
+- The rest is no more on the draws whose size changed (0.51 px rms, 38 draws) than on the draws of one size (0.46 px).
+- It drifts with the film's time: the correlation with the frame index is +0.30. The two edges move against each other (correlation -0.42).
+- So, as Take B found, nothing of it follows a size change. The exact-ratio sizes give no visible gain on these edges and lose nothing measurable. The ranges fell, and the outer distance's sd moved by 0.07 px.
+
+A finding of the film: bright specks on the ceiling near the lamps (`specks.py`, pixels more than 12 of 255 above the median of their 7 × 7 neighbourhood, lamps left out):
+
+| Film | Frames with more than 5 specks | When |
+|---|---:|---|
+| Main before step 1 (ee9dec413) | 191 of 240 | Throughout, a few specks each |
+| Step 1 (839bce1b5) | 4 | |
+| Main with step 1 (ac5f23915), same scales | 4 | |
+| Step 2 (74395e38c) | 42 | Two bursts, film frames 51 to 66 and 75 to 93, with 67 to 216 specks each, at 1072 × 603, 1088 × 612 and 1104 × 621 |
+
+The same three sizes at other times of the film show none, so the bursts belong to a time of the film, not to one size. They are of the speck class that t7-3e22 describes (fine specks near the far lamps in rect-lamps). Which frames that class hits depends on the sample pattern of the render size, and main before step 1 shows it most. One film cannot tell whether exact-ratio sizes make the class more frequent. That needs a comparison of the class over many sizes, and it stays open here.
