@@ -119,3 +119,7 @@ The card, job 1 (RTX 2000 Ada, 16.67 ms, 1920 x 1080, $0.0542): scale changes an
 In no window with a fall does the scale come back within 60 draws. The search goes on to 1/32 and 1/64; (0, 32, 0) will measure the part of the start's fall that is not catch-up rays. Job 2 waits for the daily cloud limit's reset at 19:00 local time (all agents: $2.88 of $3.00).
 
 The history map of the settled cabin still (Design X, lamps on, draw 190, 2/3), share of pixels by the length of the bounce light's history: under 8 draws 1.9 % (the window openings), 8 to 16 9.7 %, 16 to 24 6.6 %, 24 to 31.5 4.5 %, 31.5 or more 77.4 %. Correction of early result 1: the 20.8 % between 8 and 31.5 draws are whole rectangles of the drift test's region size, held short by the false fires of the region test (t0-qvm1; 1 to 11 of 238 anchors fire in each of the draws 100 to 131), not by the anti-lag. The restart's clock by three reads still stands: the length alone cannot tell these from a restart.
+
+**2026-11-22T22:30:58Z**
+
+The orchestrator's answers to early result 2, 2026-11-22: the daily cloud limit stays, job 2 waits for 19:00; the start is reported as two numbers after the shape (0, 32, 0); the final table compares three codes: A, today's cliff with the cap (what merges); B, the spread with the restart at 4 draws; C, the spread together with the cap (my reading: with the spread's catch-up rays also after a light change, by the three clocks; C' with the light clocks off only if one parameter does it).

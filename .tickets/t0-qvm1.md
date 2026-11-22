@@ -27,3 +27,13 @@ The arithmetic that this ticket's first text did not do: a false fire rate of 0.
 Measured effect so far: none in a picture or a score (take B of t0-3vwx: the left wall's boil on settled draws of one size is 0.05 % on Design X and on main; the stills' daub is lower on Design X). Second effect: the history's length is no clock of a restart, which made the catch-up ray experiment read a restart from three other clocks.
 
 My recommendation to the orchestrator: no gate of the merge; the first follow-up after it. The aim is a test whose false fire rate fits its cost of 24 draws: by the ticket's replay script regionnoise.py, find the threshold or the spread estimate at which under about 2 % of a still picture is under the cap. Priority raised from 3 to 2.
+
+**2026-11-22T22:30:58Z**
+
+The orchestrator's decision, 2026-11-22: this ticket stays out of the gates of the merge of Design X (no picture shows the rectangles, and Design X is better than main in every still). It is the first follow-up after the merge. The hold on new trust rules behind the ray census (ter-8pco) does not cover it: it repairs an existing rule and adds none.
+
+The model, which a fix must state: the share of a still picture under the history's cap is about the false fire rate per draw times the draws of recovery. Today that is 0.8 % times 24 draws, about 19 %, and the map measures 20.8 %. A fix names the fire rate that its recovery time can bear.
+
+First step, before anyone tunes the rate: measure what the rule buys and what it costs, so that this ticket can also end with "remove the rule". Design X with the region test off (TemporalSignal.TestsRegionDrift false, or the remedy's "without" build of t0-acxm) against Design X as it is, at the fixed scale 2/3 on the Mac: the cabin still's daub and its map of the history length; the still exit-cabin's daub against the reference with both clamps off (the per-scene table has Design X at 0.0173 and the no-clamp floor at 0.0131 there: how much of that gap do the false fires make); the fair lamp switch's settle; the bay film's trail, which the region evidence was built to remedy. If the rule buys little settle and little of the trail's remedy and costs a fifth of the picture's history, the simpler system wins.
+
+This step is ordered at the combined check's lead (my answer 78), to run while it waits on the card for the catch-up ray experiment t0-gumm. A scratch build is allowed if no build or switch exists.
