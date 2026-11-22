@@ -38,9 +38,15 @@ public sealed class OutputFramingRenderTests(ITestOutputHelper output)
         // FSR rebuilds a marker's edges from another grid of samples at each render size, which scatters its centroid by
         // up to about 0.45 output px on each axis, with no trend in the render size. A stretch moved the far marker
         // sideways by 1.3 to 3.8 px.
-        MathF.Abs(drawn.Near.X - exact.Near.X).Should().BeLessThan(0.6f, "the marker near the centre must not move sideways");
+        MathF
+            .Abs(drawn.Near.X - exact.Near.X)
+            .Should()
+            .BeLessThan(0.6f, "the marker near the centre must not move sideways");
         MathF.Abs(drawn.Near.Y - exact.Near.Y).Should().BeLessThan(0.6f);
-        MathF.Abs(drawn.Far.X - exact.Far.X).Should().BeLessThan(0.6f, "the marker far from the centre must not stretch");
+        MathF
+            .Abs(drawn.Far.X - exact.Far.X)
+            .Should()
+            .BeLessThan(0.6f, "the marker far from the centre must not stretch");
         MathF.Abs(drawn.Far.Y - exact.Far.Y).Should().BeLessThan(0.6f);
     }
 
@@ -60,7 +66,9 @@ public sealed class OutputFramingRenderTests(ITestOutputHelper output)
 
             Fsr3Constants constants = renderer.ReadFsrConstants();
             float tanHalfX = MathF.Tan(Gpu.Fov / 2) * Width / Height;
-            constants.DeviceToViewDepth2.Should().BeApproximately(tanHalfX, 1e-5f, "FSR draws at 576 × 320 for a 640 × 360 output");
+            constants
+                .DeviceToViewDepth2.Should()
+                .BeApproximately(tanHalfX, 1e-5f, "FSR draws at 576 × 320 for a 640 × 360 output");
             constants.TanHalfFov.Should().BeApproximately(tanHalfX, 1e-5f);
         }
         finally
@@ -93,7 +101,11 @@ public sealed class OutputFramingRenderTests(ITestOutputHelper output)
                         chainDepth: TestChains.CamerasFrame
                     )
                 );
-            Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: scene, name: $"markers at scale {scale}");
+            Capture image = Gpu.RenderAndCapture(
+                renderer: renderer,
+                snapshot: scene,
+                name: $"markers at scale {scale}"
+            );
             return (Centroid(image, Expected(Near)), Centroid(image, Expected(Far)));
         }
         finally
@@ -107,10 +119,7 @@ public sealed class OutputFramingRenderTests(ITestOutputHelper output)
     {
         float tanY = MathF.Tan(Gpu.Fov / 2);
         float tanX = tanY * Width / Height;
-        return new(
-            (point.X / -point.Z / tanX + 1) * 0.5f * Width,
-            (-point.Y / -point.Z / tanY + 1) * 0.5f * Height
-        );
+        return new((point.X / -point.Z / tanX + 1) * 0.5f * Width, (-point.Y / -point.Z / tanY + 1) * 0.5f * Height);
     }
 
     /// <summary>The brightness-weighted centroid of the red channel within 24 output pixels of <paramref name="around"/>.</summary>

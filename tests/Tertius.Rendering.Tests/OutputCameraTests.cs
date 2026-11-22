@@ -22,8 +22,18 @@ public sealed class OutputCameraTests(ITestOutputHelper output)
 
         float horizontalFov = 2 * MathF.Atan(scene.Camera.TanHalfX);
         float outputFov = 2 * MathF.Atan(MathF.Tan(Gpu.Fov / 2) * 1920 / 1080);
-        output.WriteLine($"{width} × {height}: horizontal fov {float.RadiansToDegrees(horizontalFov):F4}°, output's {float.RadiansToDegrees(outputFov):F4}°");
-        horizontalFov.Should().BeApproximately(outputFov, 1e-6f, "the render size {0} × {1} says only how many samples the picture gets", width, height);
+        output.WriteLine(
+            $"{width} × {height}: horizontal fov {float.RadiansToDegrees(horizontalFov):F4}°, output's {float.RadiansToDegrees(outputFov):F4}°"
+        );
+        horizontalFov
+            .Should()
+            .BeApproximately(
+                outputFov,
+                1e-6f,
+                "the render size {0} × {1} says only how many samples the picture gets",
+                width,
+                height
+            );
     }
 
     [Theory]
@@ -37,9 +47,19 @@ public sealed class OutputCameraTests(ITestOutputHelper output)
         Vector2 exact = OutputPlace(point, new(1280, 720));
 
         Vector2 drawn = OutputPlace(point, new((uint)width, (uint)height));
-        output.WriteLine($"{width} × {height}: the point moves by ({drawn.X - exact.X:F3}, {drawn.Y - exact.Y:F3}) output px");
+        output.WriteLine(
+            $"{width} × {height}: the point moves by ({drawn.X - exact.X:F3}, {drawn.Y - exact.Y:F3}) output px"
+        );
 
-        drawn.X.Should().BeApproximately(exact.X, 0.001f, "the projection takes its width from the output, not from {0} × {1}", width, height);
+        drawn
+            .X.Should()
+            .BeApproximately(
+                exact.X,
+                0.001f,
+                "the projection takes its width from the output, not from {0} × {1}",
+                width,
+                height
+            );
         drawn.Y.Should().BeApproximately(exact.Y, 0.001f);
     }
 
@@ -58,7 +78,7 @@ public sealed class OutputCameraTests(ITestOutputHelper output)
         var render = new Extent2D(1872, 1048);
         PreparedScene scene = Draw(render);
 
-        Fsr3Constants constants = Fsr3Constants.Next(
+        var constants = Fsr3Constants.Next(
             last: Fsr3Constants.Created(Output, Output),
             frame: new()
             {
@@ -75,7 +95,9 @@ public sealed class OutputCameraTests(ITestOutputHelper output)
 
         float tanHalfY = MathF.Tan(Gpu.Fov / 2);
         float tanHalfX = tanHalfY * 1920 / 1080;
-        constants.TanHalfFov.Should().BeApproximately(tanHalfX, 1e-6f, "FSR reads view positions of the output's camera");
+        constants
+            .TanHalfFov.Should()
+            .BeApproximately(tanHalfX, 1e-6f, "FSR reads view positions of the output's camera");
         constants.DeviceToViewDepth2.Should().BeApproximately(tanHalfX, 1e-6f);
         constants.DeviceToViewDepth3.Should().BeApproximately(tanHalfY, 1e-6f);
     }
