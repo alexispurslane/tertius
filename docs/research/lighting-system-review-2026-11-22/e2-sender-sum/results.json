@@ -1,0 +1,470 @@
+{
+  "evidence": "/Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7-evidence",
+  "scene_sha256": "bddd5ca22631eae7427a06e5e4552182f8b7409ff677d65b1a19a31399f27967",
+  "camera_world_m": [
+    1.0,
+    1.5,
+    4.5
+  ],
+  "camera": {
+    "right": [
+      0.95039713,
+      -1.3969839e-08,
+      -0.31103903
+    ],
+    "up": [
+      -0.042592857,
+      0.9905797,
+      -0.13014485
+    ],
+    "forward": [
+      -0.30810896,
+      -0.13693732,
+      -0.94144404
+    ],
+    "verticalFov": 1.0471976,
+    "tanHalfX": 1.0264004,
+    "tanHalfY": 0.57735026,
+    "width": 1280,
+    "height": 720
+  },
+  "key_world": {
+    "position": [
+      0.0,
+      0.8,
+      -2.1500000000000004
+    ],
+    "intensity": [
+      11.879486,
+      10.691537,
+      8.909615
+    ],
+    "radius": 0.05,
+    "reach": 445.64072,
+    "distance": 6.761102073752292,
+    "castsShadow": true,
+    "inMainView": true,
+    "kind": "spot",
+    "axis": [
+      1.2246469e-16,
+      0,
+      1
+    ],
+    "cosInner": 0.90630776,
+    "cosOuter": 0.8660254,
+    "outerAngle": 0.5235988
+  },
+  "boxes_world_m": [
+    [
+      [
+        -6.199999809265137,
+        -0.2000000014901162,
+        -4.199999809265137
+      ],
+      [
+        2.1999998092651367,
+        1.4901160305669237e-09,
+        6.199999809265137
+      ]
+    ],
+    [
+      [
+        -6.199999809265137,
+        3.9999999985098835,
+        -4.199999809265137
+      ],
+      [
+        2.1999998092651367,
+        4.200000001490116,
+        6.199999809265137
+      ]
+    ],
+    [
+      [
+        1.999999998509884,
+        0.0,
+        -4.199999809265137
+      ],
+      [
+        2.200000001490116,
+        4.0,
+        6.199999809265137
+      ]
+    ],
+    [
+      [
+        -6.200000001490116,
+        0.0,
+        -4.199999809265137
+      ],
+      [
+        -5.9999999985098835,
+        4.0,
+        6.199999809265137
+      ]
+    ],
+    [
+      [
+        -6.0,
+        0.0,
+        5.9999999985098835
+      ],
+      [
+        2.0,
+        4.0,
+        6.200000001490116
+      ]
+    ],
+    [
+      [
+        -6.0,
+        0.0,
+        -4.200000001490116
+      ],
+      [
+        2.0,
+        4.0,
+        -3.9999999985098835
+      ]
+    ],
+    [
+      [
+        -1.2000000476837158,
+        -1.1920928910669204e-08,
+        -0.75
+      ],
+      [
+        1.2000000476837158,
+        1.600000011920929,
+        0.75
+      ]
+    ]
+  ],
+  "neutral_radiance_W_m2_sr": 0.22207180727534487,
+  "receiver_samples": 2048,
+  "receiver_sampling": "Midpoints of equal-count strata of row-major masked pixels",
+  "region_definitions": {
+    "back wall above the block": {
+      "box": [
+        760,
+        60,
+        1390,
+        545
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "z": [
+        -8.6,
+        -8.4
+      ]
+    },
+    "floor behind, right gap": {
+      "box": [
+        1300,
+        560,
+        1420,
+        820
+      ],
+      "normal": [
+        0,
+        1,
+        0
+      ],
+      "z": [
+        -8.5,
+        -5.3
+      ]
+    }
+  },
+  "reference": {
+    "back wall above the block": {
+      "pixel_count": 174418,
+      "world_min_m": [
+        -3.898367404937744,
+        0.37308835983276367,
+        -4.0
+      ],
+      "world_max_m": [
+        1.9923195242881775,
+        3.99233341217041,
+        -4.0
+      ],
+      "seed_radiances_W_m2_sr": [
+        0.018856285644163362,
+        0.01885747491080731
+      ],
+      "radiance_W_m2_sr": 0.018856880277485336,
+      "normalized": 0.08491343637378003
+    },
+    "floor behind, right gap": {
+      "pixel_count": 9762,
+      "world_min_m": [
+        1.2914270758628845,
+        0.0,
+        -3.950979232788086
+      ],
+      "world_max_m": [
+        1.9932371377944946,
+        0.0,
+        -0.8197274208068848
+      ],
+      "seed_radiances_W_m2_sr": [
+        0.014307656120884027,
+        0.014304950518081347
+      ],
+      "radiance_W_m2_sr": 0.014306303319482686,
+      "normalized": 0.06442197006009154
+    }
+  },
+  "convergence": [
+    {
+      "senders": {
+        "grid": 8,
+        "active_patches": 52,
+        "patch_area_m2": 0.04041452172298925,
+        "reflected_flux_W": 5.4269423144366105,
+        "largest_reflected_patch_flux_W": 0.15372389963469058
+      },
+      "regions": {
+        "back wall above the block": {
+          "irradiance_visible_W_m2": 0.06494278632429379,
+          "irradiance_unoccluded_W_m2": 0.06494278632429379,
+          "radiance_visible_W_m2_sr": 0.014470351646340935,
+          "radiance_unoccluded_W_m2_sr": 0.014470351646340935,
+          "largest_patch_share_of_region_mean": 0.03018599175752701,
+          "largest_patch_share_at_any_receiver": 0.032326779393677285,
+          "max_blocked_irradiance_W_m2": 0.0,
+          "normalized_visible": 0.06516068754463404,
+          "normalized_unoccluded": 0.06516068754463404,
+          "ratio_to_reference": 0.7673778182501476
+        },
+        "floor behind, right gap": {
+          "irradiance_visible_W_m2": 0.055515223191598975,
+          "irradiance_unoccluded_W_m2": 0.055515223191598975,
+          "radiance_visible_W_m2_sr": 0.012369731062909924,
+          "radiance_unoccluded_W_m2_sr": 0.012369731062909924,
+          "largest_patch_share_of_region_mean": 0.04862605085793658,
+          "largest_patch_share_at_any_receiver": 0.0768027541563821,
+          "max_blocked_irradiance_W_m2": 0.0,
+          "normalized_visible": 0.055701492299618224,
+          "normalized_unoccluded": 0.055701492299618224,
+          "ratio_to_reference": 0.8646350344092392
+        }
+      }
+    },
+    {
+      "senders": {
+        "grid": 16,
+        "active_patches": 208,
+        "patch_area_m2": 0.010103630430747312,
+        "reflected_flux_W": 5.415673331910616,
+        "largest_reflected_patch_flux_W": 0.03887645256504543
+      },
+      "regions": {
+        "back wall above the block": {
+          "irradiance_visible_W_m2": 0.06481070704598929,
+          "irradiance_unoccluded_W_m2": 0.06481070704598929,
+          "radiance_visible_W_m2_sr": 0.014440922148309894,
+          "radiance_unoccluded_W_m2_sr": 0.014440922148309894,
+          "largest_patch_share_of_region_mean": 0.007614243367012273,
+          "largest_patch_share_at_any_receiver": 0.008100477783133072,
+          "max_blocked_irradiance_W_m2": 0.0,
+          "normalized_visible": 0.06502816510339254,
+          "normalized_unoccluded": 0.06502816510339254,
+          "ratio_to_reference": 0.7658171413196069
+        },
+        "floor behind, right gap": {
+          "irradiance_visible_W_m2": 0.05539610584732363,
+          "irradiance_unoccluded_W_m2": 0.05539610584732363,
+          "radiance_visible_W_m2_sr": 0.012343189703100763,
+          "radiance_unoccluded_W_m2_sr": 0.012343189703100763,
+          "largest_patch_share_of_region_mean": 0.01393384495137999,
+          "largest_patch_share_at_any_receiver": 0.02470840641695372,
+          "max_blocked_irradiance_W_m2": 0.0,
+          "normalized_visible": 0.05558197528332154,
+          "normalized_unoccluded": 0.05558197528332154,
+          "ratio_to_reference": 0.8627798130276949
+        }
+      }
+    },
+    {
+      "senders": {
+        "grid": 32,
+        "active_patches": 816,
+        "patch_area_m2": 0.002525907607686828,
+        "reflected_flux_W": 5.414390169236125,
+        "largest_reflected_patch_flux_W": 0.009747292006350314
+      },
+      "regions": {
+        "back wall above the block": {
+          "irradiance_visible_W_m2": 0.06479514318853716,
+          "irradiance_unoccluded_W_m2": 0.06479514318853716,
+          "radiance_visible_W_m2_sr": 0.014437454257523977,
+          "radiance_unoccluded_W_m2_sr": 0.014437454257523977,
+          "largest_patch_share_of_region_mean": 0.0019061315512387887,
+          "largest_patch_share_at_any_receiver": 0.0020255607088479357,
+          "max_blocked_irradiance_W_m2": 0.0,
+          "normalized_visible": 0.06501254902484359,
+          "normalized_unoccluded": 0.06501254902484359,
+          "ratio_to_reference": 0.7656332354595234
+        },
+        "floor behind, right gap": {
+          "irradiance_visible_W_m2": 0.05538271954084392,
+          "irradiance_unoccluded_W_m2": 0.05538271954084392,
+          "radiance_visible_W_m2_sr": 0.01234020700751638,
+          "radiance_unoccluded_W_m2_sr": 0.01234020700751638,
+          "largest_patch_share_of_region_mean": 0.0034230155475917334,
+          "largest_patch_share_at_any_receiver": 0.006436149325187615,
+          "max_blocked_irradiance_W_m2": 0.0,
+          "normalized_visible": 0.05556854406203786,
+          "normalized_unoccluded": 0.05556854406203786,
+          "ratio_to_reference": 0.8625713248167453
+        }
+      }
+    }
+  ],
+  "receiver_convergence": {
+    "back wall above the block": {
+      "irradiance_visible_W_m2": 0.06475176101012012,
+      "irradiance_unoccluded_W_m2": 0.06475176101012012,
+      "radiance_visible_W_m2_sr": 0.014427787974131944,
+      "radiance_unoccluded_W_m2_sr": 0.014427787974131944,
+      "largest_patch_share_of_region_mean": 0.001906153058610193,
+      "largest_patch_share_at_any_receiver": 0.002025571156586157,
+      "max_blocked_irradiance_W_m2": 0.0
+    },
+    "floor behind, right gap": {
+      "irradiance_visible_W_m2": 0.05549078849292574,
+      "irradiance_unoccluded_W_m2": 0.05549078849292574,
+      "radiance_visible_W_m2_sr": 0.012364286598602395,
+      "radiance_unoccluded_W_m2_sr": 0.012364286598602395,
+      "largest_patch_share_of_region_mean": 0.00342452481575642,
+      "largest_patch_share_at_any_receiver": 0.006436149325187615,
+      "max_blocked_irradiance_W_m2": 0.0
+    }
+  },
+  "probes": {
+    "dark_floor_center": {
+      "position_m": [
+        -2,
+        0,
+        -9.2
+      ],
+      "normal": [
+        0,
+        1,
+        0
+      ],
+      "irradiance_visible_W_m2": 0.0,
+      "irradiance_unoccluded_W_m2": 0.0019905854681403646,
+      "radiance_visible_W_m2_sr": 0.0,
+      "radiance_unoccluded_W_m2_sr": 0.000443536123662007,
+      "largest_patch_share_of_region_mean": 0,
+      "largest_patch_share_at_any_receiver": 0.0,
+      "max_blocked_irradiance_W_m2": 0.0019905854681403646
+    },
+    "dark_far_wall_center": {
+      "position_m": [
+        -2,
+        2,
+        -14.2
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "irradiance_visible_W_m2": 0.0,
+      "irradiance_unoccluded_W_m2": 0.008956583367050136,
+      "radiance_visible_W_m2_sr": 0.0,
+      "radiance_unoccluded_W_m2_sr": 0.001995678322512953,
+      "largest_patch_share_of_region_mean": 0,
+      "largest_patch_share_at_any_receiver": 0.0,
+      "max_blocked_irradiance_W_m2": 0.008956583367050136
+    },
+    "lit_floor_center": {
+      "position_m": [
+        -2,
+        0,
+        1
+      ],
+      "normal": [
+        0,
+        1,
+        0
+      ],
+      "irradiance_visible_W_m2": 0.0,
+      "irradiance_unoccluded_W_m2": 0.0,
+      "radiance_visible_W_m2_sr": 0.0,
+      "radiance_unoccluded_W_m2_sr": 0.0,
+      "largest_patch_share_of_region_mean": 0,
+      "largest_patch_share_at_any_receiver": 0.0,
+      "max_blocked_irradiance_W_m2": 0.0
+    },
+    "lit_rear_half_floor_center": {
+      "position_m": [
+        -2,
+        0,
+        -2.375
+      ],
+      "normal": [
+        0,
+        1,
+        0
+      ],
+      "irradiance_visible_W_m2": 0.041878919293529535,
+      "irradiance_unoccluded_W_m2": 0.041878919293529535,
+      "radiance_visible_W_m2_sr": 0.00933133182367648,
+      "radiance_unoccluded_W_m2_sr": 0.00933133182367648,
+      "largest_patch_share_of_region_mean": 0.002921723707408665,
+      "largest_patch_share_at_any_receiver": 0.002921723707408665,
+      "max_blocked_irradiance_W_m2": 0.0
+    },
+    "lit_back_wall_center": {
+      "position_m": [
+        -2,
+        2,
+        -4
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "irradiance_visible_W_m2": 0.07109039318857319,
+      "irradiance_unoccluded_W_m2": 0.07109039318857319,
+      "radiance_visible_W_m2_sr": 0.01584014247523096,
+      "radiance_unoccluded_W_m2_sr": 0.01584014247523096,
+      "largest_patch_share_of_region_mean": 0.002006640620773853,
+      "largest_patch_share_at_any_receiver": 0.002006640620773853,
+      "max_blocked_irradiance_W_m2": 0.0
+    },
+    "camera_side_floor": {
+      "position_m": [
+        0,
+        0,
+        2
+      ],
+      "normal": [
+        0,
+        1,
+        0
+      ],
+      "irradiance_visible_W_m2": 0.0,
+      "irradiance_unoccluded_W_m2": 0.0,
+      "radiance_visible_W_m2_sr": 0.0,
+      "radiance_unoccluded_W_m2_sr": 0.0,
+      "largest_patch_share_of_region_mean": 0,
+      "largest_patch_share_at_any_receiver": 0.0,
+      "max_blocked_irradiance_W_m2": 0.0
+    }
+  },
+  "leak_ratios": {
+    "dark_floor_center": 0.04753192063501787,
+    "dark_far_wall_center": 0.12598865986423866
+  },
+  "elapsed_seconds": 5.00821387488395
+}
