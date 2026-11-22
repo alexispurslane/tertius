@@ -1,22 +1,24 @@
-# SCRATCH patch of t0-gumm, never commit to src. It applies after scratch-ownray-log.patch. TERTIUS_X_CATCHUP="<peak> <end> <fall>" sets the catch-up share's shape (screen_trace_plan.comp, catchUpShare and catchUpTurn); without it, today's cliff (1 8 0).
+# SCRATCH patch of t0-gumm, never commit to src. It applies after scratch-ownray-log.patch. TERTIUS_X_CATCHUP="<peak> <end> <fall> [light]" sets the catch-up share's shape (screen_trace_plan.comp, catchUpShare and catchUpTurn); without it, today's cliff (1 8 0). light 0 makes only a reset (a start or a cut) count as young, not a light change (default 1).
 diff --git a/src/Tertius.Rendering/Scene/GpuTypes.cs b/src/Tertius.Rendering/Scene/GpuTypes.cs
-index c0e09b4..7c84eb4 100644
+index c0e09b4..f0231fa 100644
 --- a/src/Tertius.Rendering/Scene/GpuTypes.cs
 +++ b/src/Tertius.Rendering/Scene/GpuTypes.cs
-@@ -1003,7 +1003,24 @@ internal struct ScreenTracePushConstants
+@@ -1003,7 +1003,26 @@ internal struct ScreenTracePushConstants
              ReflectionSteps = (uint)trace.ReflectionSteps,
              DiffuseSteps = (uint)trace.DiffuseSteps,
              GuidedShare = guided ? LightPyramid.GuidedShare : 0,
 +            CatchUpPeak = ProbeCatchUp[0],
 +            CatchUpEnd = ProbeCatchUp[1],
 +            CatchUpFall = ProbeCatchUp[2],
++            CatchUpLight = ProbeCatchUp.Length > 3 ? ProbeCatchUp[3] : 1f,
          };
 +
-+    // SCRATCH (t0-gumm, never commit to src): the catch-up share's shape, TERTIUS_X_CATCHUP="<peak> <end> <fall>",
-+    // read once; without it today's cliff (1, 8, 0).
++    // SCRATCH (t0-gumm, never commit to src): the catch-up share's shape, TERTIUS_X_CATCHUP="<peak> <end> <fall> [light]",
++    // read once; without it today's cliff (1, 8, 0). light 0 turns off the two light clocks of youngHistory (default 1).
 +    public float CatchUpPeak;
 +    public float CatchUpEnd;
 +    public float CatchUpFall;
++    public float CatchUpLight;
 +
 +    private static readonly float[] ProbeCatchUp =
 +        System.Environment.GetEnvironmentVariable("TERTIUS_X_CATCHUP") is { Length: > 0 } probeShape
@@ -29,7 +31,7 @@ index c0e09b4..7c84eb4 100644
  
  /// <summary>The push constants of the depth pyramid's tail, depth_pyramid_tail.comp (<see cref="PyramidTail"/>).</summary>
 diff --git a/src/Tertius.Rendering/Shaders/screen_trace.glsl b/src/Tertius.Rendering/Shaders/screen_trace.glsl
-index c1aab2a..8a32292 100644
+index c1aab2a..fa8dec0 100644
 --- a/src/Tertius.Rendering/Shaders/screen_trace.glsl
 +++ b/src/Tertius.Rendering/Shaders/screen_trace.glsl
 @@ -71,13 +71,14 @@ layout(set = 3, binding = 19, rg32f) uniform readonly image2D lastLightAge;
@@ -49,7 +51,7 @@ index c1aab2a..8a32292 100644
  
  // The age of a pixel whose light the record never saw change, in the frame that first shows it: no evidence. Each later
  // frame that shows it unchanged lowers it by one, down to −(MostLightAge + 1).
-@@ -238,6 +239,11 @@ layout(push_constant, std430) uniform ScreenTracePush
+@@ -238,6 +239,12 @@ layout(push_constant, std430) uniform ScreenTracePush
      uint reflectionSteps;    // the caps of decision 41
      uint diffuseSteps;
      float guidedShare;       // LightPyramid.GuidedShare, or 0 with the guiding off (TERTIUS_GUIDED_RAYS)
@@ -58,14 +60,15 @@ index c1aab2a..8a32292 100644
 +    float catchUpPeak;
 +    float catchUpEnd;
 +    float catchUpFall;
++    float catchUpLight;      // 0: only a reset makes a history young (youngHistory), not a light change
  } trace;
  
  // The two ray kinds, which index the record layers and the constants of the draws.
 diff --git a/src/Tertius.Rendering/Shaders/screen_trace_plan.comp b/src/Tertius.Rendering/Shaders/screen_trace_plan.comp
-index 84a0dd7..0f61de5 100644
+index 84a0dd7..d493ea0 100644
 --- a/src/Tertius.Rendering/Shaders/screen_trace_plan.comp
 +++ b/src/Tertius.Rendering/Shaders/screen_trace_plan.comp
-@@ -195,14 +195,104 @@ bool fits(TracingPixel p, TracingPixel c, uint kind)
+@@ -195,14 +195,105 @@ bool fits(TracingPixel p, TracingPixel c, uint kind)
      return fit;
  }
  
@@ -134,7 +137,8 @@ index 84a0dd7..0f61de5 100644
 +bool youngHistory(float lightAge, uint blockCode)
 +{
 +    float end = trace.catchUpEnd;
-+    return float(trace.drawIndex) < end || (lightAge >= 0.0 && lightAge < end) || (blockCode != 0u && float(blockCode) < end);
++    return float(trace.drawIndex) < end
++        || (trace.catchUpLight != 0.0 && ((lightAge >= 0.0 && lightAge < end) || (blockCode != 0u && float(blockCode) < end)));
 +}
 +
  void main()
@@ -170,7 +174,7 @@ index 84a0dd7..0f61de5 100644
  #endif
      uint plan = 0u;
      if (tracedSurface(pixel))
-@@ -218,7 +308,7 @@ void main()
+@@ -218,7 +309,7 @@ void main()
              // A pixel that starts the kind gives its block a chosen pixel.
              if (!startsKind(p, kind) || !chosenPixelOf(pixel / 2, kind, chosen, c) || all(equal(chosen, pixel)))
                  continue;

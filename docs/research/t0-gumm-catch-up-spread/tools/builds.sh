@@ -8,14 +8,20 @@
 #       probe patch, t0-3vwx's region log, dynamic scale and history log, and this record's scratch-ownray-log.patch and
 #       scratch-catch-up-share.patch.
 #       The catch-up share's shape is read at run time (TERTIUS_X_CATCHUP), so one build serves every shape.
+#   xb: the cap: as xg without the share, with the acceptance record's scratch-light-evidence-cap.patch (light evidence
+#       restarts a history at 8 draws, so today's plan traces no catch-up ray after a light change). Read by its path.
+#   xc: the share with the cap: xg with scratch-light-evidence-cap.patch after the share.
 set -uo pipefail
 T=$(cd "$(dirname "$0")" && pwd); N=$(cd "$T/.." && pwd); V=$(cd "$N/../t0-3vwx-dynamic-scale-films" && pwd)
 B=$(cd "$N/../t0-gbgj-combined-check/tools" && pwd)
 X5=e232080fd2c29b94bd639d094cabe336bf7f6291
+CAP=/Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/design-x-acceptance-2026-11-22/scratch-light-evidence-cap.patch
 for name in ${@:-xt xg}; do
   case $name in
     xt) args="$X5 ${X5}:tools/renderer-survey/probe.patch $V/scratch-region-log.patch $V/scratch-dynamic-scale.patch $V/scratch-history-log.patch $N/scratch-ownray-log.patch $N/scratch-history-dump.patch" ;;
     xg) args="$X5 ${X5}:tools/renderer-survey/probe.patch $V/scratch-region-log.patch $V/scratch-dynamic-scale.patch $V/scratch-history-log.patch $N/scratch-ownray-log.patch $N/scratch-catch-up-share.patch" ;;
+    xb) args="$X5 ${X5}:tools/renderer-survey/probe.patch $V/scratch-region-log.patch $V/scratch-dynamic-scale.patch $V/scratch-history-log.patch $N/scratch-ownray-log.patch $CAP" ;;
+    xc) args="$X5 ${X5}:tools/renderer-survey/probe.patch $V/scratch-region-log.patch $V/scratch-dynamic-scale.patch $V/scratch-history-log.patch $N/scratch-ownray-log.patch $N/scratch-catch-up-share.patch $CAP" ;;
     *) echo "no build $name"; exit 1 ;;
   esac
   log=/private/tmp/t0-gbgj/logs/build-$name.log

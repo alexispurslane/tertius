@@ -7,7 +7,7 @@
  "steps": [
   {
    "do": "camera",
-   "entity": "chase"
+   "entity": "person"
   },
   {
    "do": "run",
@@ -21,6 +21,16 @@
    "do": "film",
    "name": "a",
    "frames": 100,
+   "every": 1
+  },
+  {
+   "do": "camera",
+   "entity": "chase"
+  },
+  {
+   "do": "film",
+   "name": "x",
+   "frames": 1,
    "every": 1
   },
   {

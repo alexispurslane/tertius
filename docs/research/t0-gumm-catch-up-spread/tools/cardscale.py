@@ -9,9 +9,11 @@
 #   - the GPU span: its peak, and the draws above the largest span of the same code's idle span. The idle span itself runs
 #     at about 17.2 to 17.5 ms, above the target, without a change of scale: the controller's dead band holds it.
 # The windows: the start (switch film, draws 0 to 59; the scale before is 1), off (switch, 193 to 252), on (switch, 393 to
-# 452), the cut (cut film, 133 to 192), and the idle span (switch, 133 to 192: lamps on, settled, nothing changes), which is
+# 452), the cut (cut film, CUT to CUT + 59, CUT 134 by default; job shapes1 ran the old cut film,
+# whose cut is at draw 133: CUT=133), and the idle span (switch, 133 to 192: lamps on, settled, nothing changes), which is
 # the bar: an event's block moves the scale when its changes or its fall exceed the idle span's.
 # The chart: the scale per draw in the four event windows, one line per code.
+import os
 import sys
 from pathlib import Path
 import numpy as np
@@ -19,7 +21,7 @@ from PIL import Image, ImageDraw
 
 root = Path(sys.argv[1])
 WINDOWS = {'idle': ('switch', 133), 'start': ('switch', 0), 'off': ('switch', 193), 'on': ('switch', 393),
-           'cut': ('cut', 133)}
+           'cut': ('cut', int(os.environ.get('CUT', '134')))}
 N = 60
 
 
@@ -71,7 +73,7 @@ if len(sys.argv) > 2:
             scale, _ = data[(film, c)]
             d.line([(x(k), y(scale.get(at + k, 1.0))) for k in range(-5, N)], fill=colours[j % 6], width=2)
         d.text((x0, H - 52), {'start': 'the start (switch film, draw 0)', 'off': 'lamps off (draw 193)',
-                              'on': 'lamps on (draw 393)', 'cut': 'camera cut (cut film, draw 133)'}[w], fill='black')
+                              'on': 'lamps on (draw 393)', 'cut': f'camera cut (cut film, draw {at})'}[w], fill='black')
     for j, c in enumerate(codes):
         d.text((L + 10 + 230 * j, 8), {'1,8,0': 'today (1, 8, 0)', 'cap': 'the cap'}.get(c, f'({c.replace(",", ", ")})'),
                fill=colours[j % 6])

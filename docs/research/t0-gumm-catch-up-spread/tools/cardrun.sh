@@ -2,8 +2,9 @@
 # Tool code of t0-gumm. One cloud job's work (card.sh submits it through tools/runpod/gpu_job.py), run in the job's folder,
 # which holds the tree x (X5, the line's merge tree e232080f) with this record's job files unpacked into x/$D, inside the
 # dev shell. cardrun.sh <target ms> <code...>: a code is "cap" (X5 with the acceptance record's
-# scratch-light-evidence-cap.patch, today's cliff in the plan) or a catch-up shape "<peak>,<end>,<fall>" on X5 with
-# scratch-catch-up-share.patch ("1,8,0" is today's code). Both builds carry X5's probe patch and t0-3vwx's region,
+# scratch-light-evidence-cap.patch, today's cliff in the plan), a catch-up shape "<peak>,<end>,<fall>[,<light>]" on X5
+# with scratch-catch-up-share.patch ("1,8,0" is today's code; light 0 turns the two light clocks off), or
+# "cap+<shape>", the shape with the cap (the share's patch, then the cap's). The builds carry X5's probe patch and t0-3vwx's region,
 # dynamic-scale and history-log patches, and this record's own-ray log; the logs that wait for the device are off here.
 # First one warm-up run of each build (the first run of a binary on a worker costs 230 to 239 ms at draw 0, t58-phgr),
 # whose logs are dropped. Then for each code two runs without pictures at 1920 x 1080 under the dynamic render scale
@@ -11,8 +12,8 @@
 # TERTIUS_X_TIME_LOG) into out/card/<event>-<code>/:
 #   switch: the survey's switch "cabin" (switch_script), the fair lamp switch (the glow goes off with the light), lamps
 #     off at draw 193 and on at 393; its draws 0 to 60 are also the start of a run;
-#   cut: cut.json, the orbit scene on the chase camera for a still and 100 film frames, then a cut to the person camera
-#     (the switch's view) at draw 133 for 200 frames, which restarts every history.
+#   cut: cut.json, the cabin's person camera (the switch's view) for a still and 100 film frames, one frame on the chase
+#     camera, then the person camera again from draw 134 for 200 frames: the second cut restarts every history.
 set -uo pipefail
 D=docs/research/t0-gumm-catch-up-spread; V=docs/research/t0-3vwx-dynamic-scale-films
 target=$1; shift
@@ -37,6 +38,7 @@ build() {  # build <name> <last patch>
 }
 build xg $D/scratch-catch-up-share.patch
 build xb $D/scratch-light-evidence-cap.patch
+build xc "$D/scratch-catch-up-share.patch $D/scratch-light-evidence-cap.patch"
 run() {  # run <build> <event> <log folder> [environment...]
   local b=$1 event=$2 log=$3; shift 3
   local lamps=(TERTIUS_X_NONE=1); [ $event = switch ] && lamps=(TERTIUS_PROBE_LAMP_SEL=z:-12:4 TERTIUS_PROBE_LAMP_OFF=193-393)
@@ -47,10 +49,11 @@ run() {  # run <build> <event> <log folder> [environment...]
   echo "$(date +%T) $event $b $* exit $? $(wc -l < $log/size-*.txt 2>/dev/null) draws"
   rm -rf runs series.txt
 }
-run xg switch out/warm-xg; run xb switch out/warm-xb; rm -rf out/warm-*
+run xg switch out/warm-xg; run xb switch out/warm-xb; run xc switch out/warm-xc; rm -rf out/warm-*
 for code in "$@"; do
   for event in switch cut; do
     if [ $code = cap ]; then run xb $event out/card/$event-cap
+    elif [[ $code == cap+* ]]; then shape=${code#cap+}; run xc $event out/card/$event-$code "TERTIUS_X_CATCHUP=${shape//,/ }"
     else run xg $event out/card/$event-$code "TERTIUS_X_CATCHUP=${code//,/ }"; fi
   done
 done
