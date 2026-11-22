@@ -1,6 +1,6 @@
 ---
 id: t0-gkuz
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-11-15T08:36:14Z
@@ -51,3 +51,9 @@ The test, in `AccumulatorRenderTests` or beside the surface test's tests, whiche
 
 - Each new test is red on its mutant first (`tools/mutate.py` with a list of S01, S02 and S18 by their new line numbers), and the note holds the table.
 - The Checked and Release suites of the Rendering tests pass.
+
+## Notes
+
+**2026-11-22T10:12:14Z**
+
+Launch (line orchestrator, 2026-11-22, about 05:45). Ticket lead: Claude Opus 5.5 at high effort, clientRequestId design-x-line-t0-gkuz-lead-1, task node:delegated-task:command%3Amcp%3A16c59c64-d6e8-44ed-9353-8ca02be2fd77%3Adelegate-task%3Adesign-x-line-t0-gkuz-lead-1, child thread thread:delegated-task:command%3Amcp%3A16c59c64-d6e8-44ed-9353-8ca02be2fd77%3Adelegate-task%3Adesign-x-line-t0-gkuz-lead-1, review base 6d8a68332, its own worktree, no cloud money. The lead finds the three mutants' lines again by their code, because the line changed since the design.
