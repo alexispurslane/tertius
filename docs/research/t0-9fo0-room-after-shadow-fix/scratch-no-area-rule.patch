@@ -1,0 +1,12 @@
+--- a/src/Tertius.Rendering/Shaders/screen_trace_plan.comp	2026-11-21 20:43:49
++++ b/src/Tertius.Rendering/Shaders/screen_trace_plan.comp	2026-11-21 20:43:49
+@@ -138,7 +138,8 @@
+     // the jitter makes at a still feature thinner than a pixel, becomes the record's light, and the age goes on. The
+     // change takes age 0, not the pending draws: those draws blended the new light into the receivers' histories, and a
+     // cut to their count would keep the old light that the histories still hold.
+-    return vec2(light, insideChangedLastArea(center) ? 0.0 : older);
++    // SCRATCH (t0-9fo0): the area rule off, so that the census counts every lasting change of a record.
++    return vec2(light, 0.0);
+ }
+ 
+ #endif
