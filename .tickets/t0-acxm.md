@@ -1,6 +1,6 @@
 ---
 id: t0-acxm
-status: in_progress
+status: closed
 deps: [t0-xlcu, t0-ion0, t0-xdck]
 links: [t0-xlcu, t0-ion0]
 created: 2026-11-15T00:42:53Z
@@ -446,3 +446,11 @@ The final checks on `9134dac00`:
 - Mutants of the review's lines: M10 and M11 (fitted to the new line) and the new M12 (`TestsRegionDrift` without `!singleDiffuseHistory`, killed by ThePrototypesSingleBounceHistoryKeepsNoRegionRing) and M13 (the previous render size from the continued frame only, killed by AfterTheCamerasFrameChangesThePreviousRenderSizeIsStillTheLastDrawnFramesSize): 4 killed. So the second list ends at 12 killed and 1 judgment call (M03).
 - Checked suite: 11,039 passed, 27 skipped, 0 failed. Release suite: 11,026 passed, 27 skipped, 0 failed.
 - Linux (`tools/runpod/gpu_job.py`, NVIDIA RTX 2000 Ada, job 47a0d54f, 355 s, $0.068): the classes DescriptorLayoutsTests, FrameHistoryTests, ShaderVariantTests, LightAgeHistoryTests, RegionDrift, EvidenceUnderEachHistory and NeighborLimiterPrototype, 157 passed of 157. The ticket's cloud spend is now about $0.17.
+
+**2026-11-22T10:10:48Z**
+
+Integration (line orchestrator, 2026-11-22, about 05:30). The remedy lead's branch t3/fix-retained-rounding-weight at bca8b7b59 is merged into the line as 4d660b215. The merged tree equals the lead's head plus one ticket note, so the lead's suites cover it: Checked 11,039 passed and Release 11,026 passed, 27 skipped and 0 failed in both, on 9134dac00. Linux run on an NVIDIA RTX 2000 Ada: 157 of 157 tests of the changed classes. Gates: no fork left, clean checkout, the head exists, every finding of both reviews has its resolution, and the required checks ran. Mutants of the changed lines: 12 killed, 1 judgment call (M03). Cloud money of this ticket: 0.17 dollars.
+
+My last check of the merged diff (4c57ac91b..4d660b215, the shaders, TemporalSignal.cs, DescriptorLayouts.cs, FrameHistory.cs, GpuTypes.cs). Functionality: the candidates of a block are the anchors from ceil((block - 8) / 8) to floor((block + 8) / 8), clamped to the dispatched anchors, and a negative quotient is clamped to 0 under either rounding of the division. A block reads only the layer of the draw before, and an anchor writes only this draw's layer. The count restarts at a reset and at a change of the render size, and a draw that does not continue reads no answer. The action is one cap on top of the anti-lag. Quality: region_drift.glsl owns the tap, the ring, the validity rule and the test, and the spatial dispatch calls two functions. One note, no change asked: FullRateFrames now lives in sample_age.glsl, the include that the ray plan and the spatial dispatch share. Its comment says why.
+
+Result against the bar, bay film rect-bay, main c4c1f1f2f: level +0.85 / +0.29 against main's +1.17 / +0.53, last-frame specks 0.27 against 0.89, lag error 0.150 against 0.270, flicker 0.00273 against 0.00204 (limit 0.006). The film is no worse than main, and better in all but the flicker. The trail is not closed: the last frame is still 29 % too bright against its still. Deck: +0.044 ms against the line without the remedy (spread 0.105), inside the budget of +0.10 ms. New ticket of the lead: t4f-71qp (the count restarts at every change of the render size).
