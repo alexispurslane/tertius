@@ -99,9 +99,86 @@ A lookup whose answer depends on where a fixed texel grid falls against a thin e
 
 The deliverable is docs/research/shadow-grid-phase/README.md with the numbers, the stills, and one tracked demo script that shows the line in a still at a fixed size. A fault over time goes to the user as a side-by-side video.
 
-## Step 2: two designs (the line orchestrator, after step 1)
+## Step 2: the two designs (the line orchestrator, 2026-11-22, after the toggles and the red test)
 
-Two designs with what the user gets and what each costs, with pictures, for the orchestrator. The choice can be the user's.
+### The measured cause
+
+A texel of a shadow map holds a caster only if the caster covers the texel's center. So a caster's edge in the map lies on a texel border between half a texel inside the caster's real edge and half a texel outside it. "Gap" g is how far the map's edge lies inside the real edge, in texels: -0.5 < g <= 0.5. The cascade filter's lit fraction is 1/2 at the map's edge and changes by 1/4 per texel across an edge that runs along the grid. `lightOutsideShadow` starts the sun's share at a lit fraction of 1/2, which is the map's edge. So a receiver at the real edge gets the share g / 2 when g > 0, up to 0.25. The toggles showed that no bias decides it, and the red test measured (place - 0.1) / 2 at ten places of the edge.
+
+### The one model
+
+A shadow map knows a caster's edge only within two doubts: the filter's blur, and the rounding of the edge to texel centers. A lookup that must put no light under a caster gives every doubt to the shadow. `t8-rjno` did this for the blur. This ticket does it for the rounding. The property that both designs must give: the lookup's zero reaches the caster's real edge at every phase of the grid.
+
+### The two designs
+
+| | Design L: the lookup takes the rounding's doubt | Design M: the map holds every texel that a caster touches |
+|---|---|---|
+| Where the change is | One function of the shader, `lightOutsideShadow` | A new pass after each shadow pass, plus both lookups' coordinates, the slope bias and the maps' margins |
+| The mechanism | The share starts at a lit fraction of 5/8, not 1/2. 1/8 is half a texel of rounding times the filter's 1/4 per texel | A second image per map: each of its texels is centered on a corner of four map texels and holds the nearest of the four depths. A texel of it holds a caster if the caster covers any of its own four corners. The lookups read this image |
+| The map's edge against the real edge | As today: from 0.5 texel inside to 0.5 outside | From 0 to 1 texel outside, never inside |
+| Where the sun's share starts, outside the real edge | 0 to 1 texel, mean 0.5 (today: -0.5 to 0.5, mean 0) | 0 to 1 texel, mean 0.5 |
+| Where the share is full | 1.5 to 2.5 texels, mean 2, as today | 2 to 3 texels, mean 2.5 |
+| Width of the edge's ramp | 1.5 texels (today 2): the edge is a quarter sharper | 2 texels, as today |
+| Sunlight lost at a true edge, more than today | 0.25 texel of full light: 1.5 cm at cascade 0, 0.58 m at the farthest cascade | 0.5 texel: 2.9 cm at cascade 0, 1.15 m at the farthest cascade |
+| A lit slot shows light when it is wider than | 2.5 texels (today 2) | 3 texels |
+| Cost per draw | None: the same 16 comparisons | One pass over 4 x 2048 x 2048 cascade texels and the atlas, 4 reads each, in every draw that draws shadows |
+| Depth side effect | None: the change is lateral only | A texel takes a depth from half a texel away on each axis, so the casters' slope bias must cover one texel more (2.5 to 3.5) and the margins grow by one texel. More bias lets shadows leave their casters |
+| The tiles | The same function on the tiles' lit fraction: the tiles have the same 4 x 4 filter. One mechanism for every shadow map | The tiles need the image and also the one-sided rule: with the symmetric filter the share at the real edge is still 0.25 to 0.5 |
+
+The texels of the four cascades at 16:9 and 60 degrees are 0.0585 m, 0.1259 m, 0.3201 m and 2.3091 m.
+
+Design L in use, the whole change of the cascade lookup:
+
+```glsl
+// The lit fraction below which a caster can lie over the lookup: one half for the filter's blur, plus one eighth for the
+// half texel by which the map's edge can lie inside the caster's real edge (t1-gout).
+const float DoubtfulLitFraction = 0.625;
+
+float lightOutsideShadow(float litFraction)
+{
+    return clamp((litFraction - DoubtfulLitFraction) / (1.0 - DoubtfulLitFraction), 0.0, 1.0);
+}
+```
+
+where
+
+- `litFraction` = the share of the filter's 5 x 5 texels, by weight, that hold no caster nearer the light than the receiver, from 0 to 1.
+- `DoubtfulLitFraction` = the largest lit fraction that a lookup at a caster's real edge can have, for an edge along the grid.
+- the result = the sun's share at the receiver, from 0 to 1.
+
+and for a tile, `tileShadow` returns `lightOutsideShadow(lit)` in place of `lit`. Its two shortcuts through the bounds stay right, because a lit fraction of 0 gives 0 and one of 1 gives 1.
+
+Design M in use: a pass `CoveredShadowPass` after `ShadowPass` and after `LocalShadowPass` writes `shadowCascadesCovered` and `shadowAtlasCovered`, and `filteredCascade` and `tileShadow` read those with their coordinate moved by half a texel. `ShadowBias.SlopeBias` becomes 3.5 and `ShadowCascades.MarginTexels` 5.
+
+What both designs share:
+
+- The red test `ShadowTests.AWallsSideFaceUnderARoofsEdgeTakesNoSunlightWhereverTheEdgeStandsWithinItsTexel` loses its skip and passes at all ten places.
+- New red tests first: the same case with the edge at 45 degrees and at one odd angle to the grid, and the same case for a spot lamp's tile.
+- The one-sided rule of `t8-rjno` stays. Lit areas get a little narrower, which the user's rule allows.
+- The phase still moves the place where the light starts by up to one texel when the texel size changes. It never moves it inside the real edge.
+- Reference images with a sun's shadow edge change. Each one is reviewed as CLAUDE.md says.
+
+### Rejected
+
+- Conservative rasterization (VK_EXT_conservative_rasterization) for the casters. The Mac's Vulkan does not offer it (vulkaninfo on the M1 Max, 2026-11-22: the extension is absent). It would need a second path for the Mac, and two paths can disagree.
+- A 3 x 3 growth of the map. It moves the map's edge a whole texel outward (0.5 to 1.5 outside the real edge), so it loses twice the light of design M for the same pass.
+- Casters drawn four times with a shift of half a texel. It gives design M's coverage at four times the shadow passes' geometry cost.
+
+### The recommendation, by the orchestrator's rule
+
+Design L. Both designs give the property for the sun's cascades. For the tiles, the property needs the one-sided rule in either design, because a symmetric filter puts light under a caster by its definition. With that, design L is one mechanism for every shadow map, and design M is two. Design L also loses half as much true sunlight at an edge (0.25 against 0.5 texel), costs nothing per draw and touches no bias.
+
+What design L costs the look: the sun's edge ramp is 1.5 texels wide in place of 2. And the tiles change more than the cascades: a lamp's shadow edge goes from the symmetric filter's 4 texels of ramp to 1.5, and a lamp's lit area loses about 1.75 texels at each edge. The user's rule against hard edges was stated for the sun. So the build shows the lamps' shadows before and after in stills, and the orchestrator confirms the tiles' part on those pictures. If the lamps' edges look too hard, the tiles keep the symmetric filter and their light under an edge (a share of 0.5 to 0.625 at the real edge, reaching up to 2.5 texels inside) stays a known limit with its own ticket.
+
+What I did not derive: the largest lit fraction at a real edge that runs at an angle to the grid. My estimate gives 5/8 again at 45 degrees and less at other angles, because the rounding averages along such an edge. The red tests at 45 degrees and at an odd angle measure it first. If one of them needs more than 5/8, the constant takes the measured worst case, and the ticket records the number.
+
+### Acceptance of the build (after the orchestrator's word)
+
+- The red tests above, red first and then green, through the real shadow passes and shaders.
+- Stills of the cabin's near window openings at 1800 x 1008 and 1920 x 1080, at tick 6380, before and after: no line, no glow on the jamb, no dots on the sill.
+- Before and after stills of sun shadows in the cabin, the deck and bay-sunbeam, and of lamp shadows on the deck, at the render scales 2/3 and about 0.96. A fault over time goes to the user as a side-by-side video.
+- No added cost: the frame's GPU time inside main's spread, on the Mac at a quiet load and on the card.
+- Both suites, the Linux run of the changed classes, ARCHITECTURE.md ("Shadow bias" and the filter's text), one reviewer, coverage and mutants of the changed lines.
 
 ## The rules that bind the designs
 
