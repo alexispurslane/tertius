@@ -117,3 +117,12 @@ A change of the fade in the engine.
 - If another rule looks better than `layer`, that is a fork for the user. The record shows it with its pictures. Nobody builds it in this ticket.
 - The path trace: two views, as the ticket says. The trace machinery is stage 2's. If it does not run within about two hours of work, report the views with the engine's columns alone and name what stopped the trace.
 - Cloud money: $0.20, as the ticket says. The deliverable's place and the rest stay as written.
+
+**2026-11-22T20:22:53Z**
+
+2026-11-22, the ticket lead. The record is docs/research/back-face-depth-layer/stage-2/fade-lit-front.md. Scene: refs/scratch/t1-r9vj-lit-block (7f858c759), patch stage-2/probe-lit-block.patch. One camera, two lightings (lit-block-front, lit-block-back). Takes on 906d1c260, before the walk fix of a819b10b2.
+- Columns: 9 per view (ten, layer, main, layerfade, dfront, dmiss05/15, dblack05/15), frames 231 and 239, 1920 x 1080, bloom off, fixed exposure 2.6805701 and 6.7897105 stops, on the Mac. Plus 2 runs of layer and main again (byte-identical), and 2 runs with --environment-map off.
+- Path trace: Cycles, 2 seeds x 2048 spp per view, full (302 to 395 s per seed) and one bounce (139 to 191 s). Cloud: $0.
+- main is 0.4 % to 3 % brighter than the probe's layer in every receiver region; the frame noise is at most 0.9 %. Deterministic. No difference for the eye.
+- By eye, no rule looks better than layer; there is no fork. No rule is nearer than layer in every cell of the four views.
+- Bugs: t2b-d2m6 (a bright trapezoid on the glossy wall from the environment map at the eye), t2b-xeo7 (lost bounce of a lit face that the camera does not see: 9 to 71 times darker behind the block).

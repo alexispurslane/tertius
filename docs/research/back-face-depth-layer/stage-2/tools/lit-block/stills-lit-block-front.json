@@ -1,0 +1,7 @@
+{
+ "scene": "lit-block-front",
+ "window": { "width": 1280, "height": 720 },
+ "steps": [
+  { "do": "film", "name": "s", "frames": 240, "every": 1 }
+ ]
+}
