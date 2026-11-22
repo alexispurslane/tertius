@@ -1,6 +1,6 @@
 // The depth pyramid (docs/plans/screen-space-reflections.md, "The depth pyramid", docs/plans/temporal-renderer.md,
-// section 6, and docs/plans/back-face-depth-layer.md). Every level holds slabs: the interval of inverse view depth w, in
-// 1/m, that the walk treats as solid, as (front w, back w). The finest level holds each pixel's slab (pixelSlab,
+// section 6, and docs/plans/back-face-depth-layer.md). Every level holds slabs: the interval of inverse view depth w,
+// in 1/m, that the walk treats as solid, as (front w, back w). The finest level holds each pixel's slab (pixelSlab,
 // depth_pyramid_finest.comp). A cell of level 1 merges its pixels' slab bounds (pixelSlabBounds) from their surfaces
 // (pixelSurface). The merge takes the largest front w and the smallest back w. A cell with no surface holds the empty
 // bounds (0, EmptyBack). Mip m of the pyramid image holds level m + 1. A pixel's slab comes from its front surface and
@@ -155,7 +155,8 @@ float surfaceW(PixelSurface surface, vec2 position)
 
 // The bounds of a pixel inside the image: the nearest and the farthest inverse depth of its surface over its square. A
 // pixel that sees the sky has the empty bounds. The surface is affine over its part and constant past it, so the part's
-// corners hold both.
+// corners hold both. The far w is at least 0, because a steep plane can pass behind the eye inside its square
+// (PixelSurface.Bounds).
 vec2 pixelBounds(ivec2 pixel)
 {
     PixelSurface surface;
@@ -165,7 +166,7 @@ vec2 pixelBounds(ivec2 pixel)
     vec2 toHigh = surface.gradient * (surface.high - surface.center);
     // Summed in the order of the C# copy, so that both round alike.
     return vec2(surface.centerW + max(toLow.x, toHigh.x) + max(toLow.y, toHigh.y),
-        surface.centerW + min(toLow.x, toHigh.x) + min(toLow.y, toHigh.y));
+        max(0.0, surface.centerW + min(toLow.x, toHigh.x) + min(toLow.y, toHigh.y)));
 }
 
 // The w of the back of what is solid behind a surface at inverse depth `w` whose back share is `share`
@@ -190,8 +191,8 @@ vec2 pixelSlab(ivec2 pixel, float share)
 }
 
 // The bounds of a pixel inside the viewport for level 1, whose back share is `share` (PixelSurface.SlabBounds): x its
-// plane's near w, y the back w of its slab from its plane's far w, or the empty bounds for sky. The plane's near w is at
-// least the center w and its far w at most. So these bounds hold the pixel's slab, because a share is at most 1.
+// plane's near w, y the back w of its slab from its plane's far w, or the empty bounds for sky. The plane's near w is
+// at least the center w and its far w at most. So these bounds hold the pixel's slab, because a share is at most 1.
 vec2 pixelSlabBounds(ivec2 pixel, float share)
 {
     vec2 bounds = pixelBounds(pixel);

@@ -1,6 +1,6 @@
 #version 460
-// Rays behind the front of a box on the GPU (BackFaceSlabWalkTests): from each pixel, three rays run up the screen, each
-// at one inverse depth. Each pixel writes the outcomes of its three rays, at the view depths of RayDepths.
+// Rays behind the front of a box on the GPU (BackFaceSlabWalkTests): from each pixel, three rays run up the screen,
+// each at one inverse depth. Each pixel writes the outcomes of its three rays, at the view depths of RayDepths.
 #extension GL_GOOGLE_include_directive : require
 #include "screen_trace.glsl"
 

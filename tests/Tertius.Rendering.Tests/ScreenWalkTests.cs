@@ -184,9 +184,7 @@ public sealed class ScreenWalkTests
         public void AtACapOf4096TheTwoDepthWalkFindsTheHitOfAMarchOverTheFlatSlabsOnAMillionRandomRays()
         {
             // Solid slabs: every surface pixel's back face lies a third deeper than its front.
-            (int hits, List<string> disagreements, long portSteps, long spikeSteps) = WalkAndMarch(
-                surfaceShare: 0.75f
-            );
+            (int hits, List<string> disagreements, long portSteps, long spikeSteps) = WalkAndMarch(surfaceShare: 0.75f);
 
             hits.Should().BeGreaterThan(200_000, "most random rays meet a surface of the scene");
             disagreements.Should().BeEmpty();
@@ -335,7 +333,12 @@ public sealed class ScreenWalkTests
                 float[] backShares = new float[16 * 16];
                 for (int pixel = 0; pixel < backShares.Length; pixel++)
                     backShares[pixel] = random.Next(8) == 0 ? 1 : random.Next(4, 8) / 8f;
-                var pyramid = DepthPyramid.FromInverseDepths(inverseDepths: inverseDepths, backShares: backShares, width: 16, height: 16);
+                var pyramid = DepthPyramid.FromInverseDepths(
+                    inverseDepths: inverseDepths,
+                    backShares: backShares,
+                    width: 16,
+                    height: 16
+                );
                 var step = new Vector2(steps[random.Next(steps.Length)], steps[random.Next(steps.Length)]);
                 if (step == Vector2.Zero)
                     continue;
@@ -385,7 +388,12 @@ public sealed class ScreenWalkTests
         float[] backShares = new float[16];
         inverseDepths[8] = 0.2f;
         backShares[8] = 1;
-        return DepthPyramid.FromInverseDepths(inverseDepths: inverseDepths, backShares: backShares, width: 16, height: 1);
+        return DepthPyramid.FromInverseDepths(
+            inverseDepths: inverseDepths,
+            backShares: backShares,
+            width: 16,
+            height: 1
+        );
     }
 
     /// <summary>The image of a ray from a bare origin, whose own view depth is the depth that the walk expects of it.

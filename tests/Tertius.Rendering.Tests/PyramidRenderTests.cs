@@ -218,9 +218,17 @@ public sealed class PyramidRenderTests
             for (int x = 0; x < levelWidth; x++)
             {
                 CellBounds cell = expected.Bounds(1, x, y);
-                (bool nearUndecided, bool backUndecided) = Undecided(expected: expected, slack: slack, level: 1, cell: (x, y));
+                (bool nearUndecided, bool backUndecided) = Undecided(
+                    expected: expected,
+                    slack: slack,
+                    level: 1,
+                    cell: (x, y)
+                );
                 int index = 2 * (y * mipWidth + x);
-                if (!nearUndecided && !Close(bounds[index], cell.Near) || !backUndecided && !Close(bounds[index + 1], cell.Back))
+                if (
+                    !nearUndecided && !Close(bounds[index], cell.Near)
+                    || !backUndecided && !Close(bounds[index + 1], cell.Back)
+                )
                     wrong.Add($"cell ({x}, {y}): ({bounds[index]}, {bounds[index + 1]}), not {cell}");
             }
 
@@ -233,7 +241,6 @@ public sealed class PyramidRenderTests
 
         static bool Close(float gpu, float copy) => MathF.Abs(gpu - copy) <= InverseDepthTolerance * copy;
     }
-
 
     [Fact]
     public void TheSlabOfEachCellOfLevelOneHoldsTheSlabOfEachPixelUnderIt()

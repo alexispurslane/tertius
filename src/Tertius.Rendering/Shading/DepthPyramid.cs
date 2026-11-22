@@ -172,7 +172,10 @@ internal readonly record struct PixelSurface(
 )
 {
     /// <summary>The bounds of the surface over the pixel's square: its nearest and its farthest inverse depth. The
-    /// surface is affine over its part and constant past it, so the part's corners hold both.</summary>
+    /// surface is affine over its part and constant past it, so the part's corners hold both. The far w is at least 0.
+    /// A steep plane can pass behind the eye inside its square, and no point behind the eye is part of the slab. A
+    /// back w of 0 also keeps every back w that a share scales at most the plane's far w, which the cell invariant
+    /// needs. pixelBounds in depth_pyramid.glsl is the GLSL copy.</summary>
     public (float Near, float Far) Bounds
     {
         get
@@ -181,7 +184,7 @@ internal readonly record struct PixelSurface(
             Vector2 toHigh = Gradient * (High - Center);
             return (
                 Near: CenterInverseDepth + MathF.Max(toLow.X, toHigh.X) + MathF.Max(toLow.Y, toHigh.Y),
-                Far: CenterInverseDepth + MathF.Min(toLow.X, toHigh.X) + MathF.Min(toLow.Y, toHigh.Y)
+                Far: MathF.Max(0, CenterInverseDepth + MathF.Min(toLow.X, toHigh.X) + MathF.Min(toLow.Y, toHigh.Y))
             );
         }
     }
@@ -313,14 +316,23 @@ internal sealed class DepthPyramid
     /// <summary>The back share of each pixel, row by row from the top (<see cref="RenderTargets.BackShare"/>).</summary>
     private readonly float[] backShares;
 
-    private DepthPyramid(PixelSurface?[] surfaces, Vector3[] geometricNormals, float[] backShares, int width, int height)
+    private DepthPyramid(
+        PixelSurface?[] surfaces,
+        Vector3[] geometricNormals,
+        float[] backShares,
+        int width,
+        int height
+    )
     {
         this.surfaces = surfaces;
         this.geometricNormals = geometricNormals;
         this.backShares = backShares;
         int topLevel = LevelCount(width, height);
         levels = new CellBounds[topLevel + 1][];
-        levels[0] = [.. surfaces.Select((surface, pixel) => surface?.SlabBounds(backShares[pixel]) ?? CellBounds.Empty)];
+        levels[0] =
+        [
+            .. surfaces.Select((surface, pixel) => surface?.SlabBounds(backShares[pixel]) ?? CellBounds.Empty),
+        ];
         for (int level = 1; level <= topLevel; level++)
             levels[level] = MergedLevel(
                 levels[level - 1],

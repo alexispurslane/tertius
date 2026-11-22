@@ -178,9 +178,9 @@ bool insideLobe(TracingPixel p, TracingPixel c)
 // How far a neighbor's point can lie off a pixel's plane and still fit it, as a share of the neighbor's view depth.
 const float PlaneFitShare = 0.1;
 
-// Whether the block's ray of the kind from its chosen pixel c fits the pixel p: c's plane passes p's surface point within
-// PlaneFitShare of p's view depth, and their geometric normals lie within 25°. With the precise specular history, a reflection ray must
-// also lie inside p's reflection lobe.
+// Whether the block's ray of the kind from its chosen pixel c fits the pixel p: c's plane passes p's surface point
+// within PlaneFitShare of p's view depth, and their geometric normals lie within 25°. With the precise specular
+// history, a reflection ray must also lie inside p's reflection lobe.
 bool fits(TracingPixel p, TracingPixel c, uint kind)
 {
     bool fit = abs(dot(p.point - c.point, c.s.geometricNormal)) <= PlaneFitShare * p.viewDepth
