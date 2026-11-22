@@ -1,4 +1,4 @@
-diff --color=auto -ruN a/src/Tertius.Host/ScriptCommand.Options.cs b/src/Tertius.Host/ScriptCommand.Options.cs
+diff -ruN a/src/Tertius.Host/ScriptCommand.Options.cs b/src/Tertius.Host/ScriptCommand.Options.cs
 --- a/src/Tertius.Host/ScriptCommand.Options.cs
 +++ b/src/Tertius.Host/ScriptCommand.Options.cs
 @@ -118,6 +118,9 @@
@@ -11,7 +11,7 @@ diff --color=auto -ruN a/src/Tertius.Host/ScriptCommand.Options.cs b/src/Tertius
              if (FramesInFlight is { } count)
              {
                  options.FramesInFlight = count;
-diff --color=auto -ruN a/src/Tertius.Rendering/Frame/FrameHistory.cs b/src/Tertius.Rendering/Frame/FrameHistory.cs
+diff -ruN a/src/Tertius.Rendering/Frame/FrameHistory.cs b/src/Tertius.Rendering/Frame/FrameHistory.cs
 --- a/src/Tertius.Rendering/Frame/FrameHistory.cs
 +++ b/src/Tertius.Rendering/Frame/FrameHistory.cs
 @@ -185,7 +185,12 @@
@@ -28,7 +28,7 @@ diff --color=auto -ruN a/src/Tertius.Rendering/Frame/FrameHistory.cs b/src/Terti
          derived = new(
              Reset: reset,
              DrawIndex: reset ? 0 : lastDrawIndex + 1,
-diff --color=auto -ruN a/src/Tertius.Rendering/Frame/FrameResources.cs b/src/Tertius.Rendering/Frame/FrameResources.cs
+diff -ruN a/src/Tertius.Rendering/Frame/FrameResources.cs b/src/Tertius.Rendering/Frame/FrameResources.cs
 --- a/src/Tertius.Rendering/Frame/FrameResources.cs
 +++ b/src/Tertius.Rendering/Frame/FrameResources.cs
 @@ -248,7 +248,54 @@
@@ -86,7 +86,7 @@ diff --color=auto -ruN a/src/Tertius.Rendering/Frame/FrameResources.cs b/src/Ter
      }
  
      /// <summary>A storage buffer of this frame that the CPU rewrites each frame, named after the frame and <paramref name="contents"/>.</summary>
-diff --color=auto -ruN a/src/Tertius.Rendering/PngCaptureSink.cs b/src/Tertius.Rendering/PngCaptureSink.cs
+diff -ruN a/src/Tertius.Rendering/PngCaptureSink.cs b/src/Tertius.Rendering/PngCaptureSink.cs
 --- a/src/Tertius.Rendering/PngCaptureSink.cs
 +++ b/src/Tertius.Rendering/PngCaptureSink.cs
 @@ -19,8 +19,74 @@
@@ -164,7 +164,7 @@ diff --color=auto -ruN a/src/Tertius.Rendering/PngCaptureSink.cs b/src/Tertius.R
          // A copy: the pixels belong to the renderer's readback buffer, and the alpha byte of each pixel has no defined value.
          byte[] rgba = image.Rgba.ToArray();
          for (int i = 3; i < rgba.Length; i += 4)
-diff --color=auto -ruN a/src/Tertius.Rendering/Scene/GpuTypes.cs b/src/Tertius.Rendering/Scene/GpuTypes.cs
+diff -ruN a/src/Tertius.Rendering/Scene/GpuTypes.cs b/src/Tertius.Rendering/Scene/GpuTypes.cs
 --- a/src/Tertius.Rendering/Scene/GpuTypes.cs
 +++ b/src/Tertius.Rendering/Scene/GpuTypes.cs
 @@ -829,7 +829,117 @@
@@ -285,7 +285,7 @@ diff --color=auto -ruN a/src/Tertius.Rendering/Scene/GpuTypes.cs b/src/Tertius.R
          new()
          {
              Cap = parameters.Cap,
-diff --color=auto -ruN a/src/Tertius.Rendering/ShaderConstants.cs b/src/Tertius.Rendering/ShaderConstants.cs
+diff -ruN a/src/Tertius.Rendering/ShaderConstants.cs b/src/Tertius.Rendering/ShaderConstants.cs
 --- a/src/Tertius.Rendering/ShaderConstants.cs
 +++ b/src/Tertius.Rendering/ShaderConstants.cs
 @@ -124,6 +124,10 @@
@@ -308,7 +308,7 @@ diff --color=auto -ruN a/src/Tertius.Rendering/ShaderConstants.cs b/src/Tertius.
  
      public SpecializationValues Data;
      public SpecializationEntries Entries;
-diff --color=auto -ruN a/src/Tertius.Rendering/Shaders/accumulate.glsl b/src/Tertius.Rendering/Shaders/accumulate.glsl
+diff -ruN a/src/Tertius.Rendering/Shaders/accumulate.glsl b/src/Tertius.Rendering/Shaders/accumulate.glsl
 --- a/src/Tertius.Rendering/Shaders/accumulate.glsl
 +++ b/src/Tertius.Rendering/Shaders/accumulate.glsl
 @@ -66,6 +66,15 @@
@@ -327,7 +327,7 @@ diff --color=auto -ruN a/src/Tertius.Rendering/Shaders/accumulate.glsl b/src/Ter
  } parameters;
  
  // SignalLight.
-diff --color=auto -ruN a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
+diff -ruN a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
 --- a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
 +++ b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
 @@ -36,9 +36,16 @@
@@ -370,7 +370,7 @@ diff --color=auto -ruN a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp b
  #else
      uint evidence = NoEvidence;
  #endif
-diff --color=auto -ruN a/src/Tertius.Rendering/Shaders/composite_pass.glsl b/src/Tertius.Rendering/Shaders/composite_pass.glsl
+diff -ruN a/src/Tertius.Rendering/Shaders/composite_pass.glsl b/src/Tertius.Rendering/Shaders/composite_pass.glsl
 --- a/src/Tertius.Rendering/Shaders/composite_pass.glsl
 +++ b/src/Tertius.Rendering/Shaders/composite_pass.glsl
 @@ -27,6 +27,11 @@
@@ -421,7 +421,7 @@ diff --color=auto -ruN a/src/Tertius.Rendering/Shaders/composite_pass.glsl b/src
      outColor = vec4(
          min(directDiffuse + directSpecular + indirectDiffuse + indirectSpecular + emissive, vec3(MaxRadiance)), 1.0);
      // D, at most MaxRadiance, and the mask, which marks the skin pixels that alone the scatter passes spread.
-diff --color=auto -ruN a/src/Tertius.Rendering/Shaders/motion.glsl b/src/Tertius.Rendering/Shaders/motion.glsl
+diff -ruN a/src/Tertius.Rendering/Shaders/motion.glsl b/src/Tertius.Rendering/Shaders/motion.glsl
 --- a/src/Tertius.Rendering/Shaders/motion.glsl
 +++ b/src/Tertius.Rendering/Shaders/motion.glsl
 @@ -32,7 +32,8 @@
@@ -434,7 +434,7 @@ diff --color=auto -ruN a/src/Tertius.Rendering/Shaders/motion.glsl b/src/Tertius
  
  // The relative rounding of the motion target's half floats, which keep 10 bits below their leading bit: twice their
  // largest rounding, so that a still surface's target and its still motion (stillMotionOf) stay inside it.
-diff --color=auto -ruN a/src/Tertius.Rendering/Shaders/sample_age.glsl b/src/Tertius.Rendering/Shaders/sample_age.glsl
+diff -ruN a/src/Tertius.Rendering/Shaders/sample_age.glsl b/src/Tertius.Rendering/Shaders/sample_age.glsl
 --- a/src/Tertius.Rendering/Shaders/sample_age.glsl
 +++ b/src/Tertius.Rendering/Shaders/sample_age.glsl
 @@ -12,8 +12,12 @@
@@ -452,7 +452,7 @@ diff --color=auto -ruN a/src/Tertius.Rendering/Shaders/sample_age.glsl b/src/Ter
  
  // The light ages below which a light change is recent: 0 to 6, the light codes 1 to 7. The record counts a change after
  // it lasts 4 draws, so a recent change began less than 11 draws ago, and the fast history, which keeps (3 / 4)^k of a
-diff --color=auto -ruN a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
+diff -ruN a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
 --- a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
 +++ b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
 @@ -103,7 +103,8 @@
@@ -475,7 +475,7 @@ diff --color=auto -ruN a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
  #endif
  #ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
      imageStore(uncoveredDiagnostic, pixel, vec4(float(seenCode) - 1.0, 0.0, 0.0, 0.0));
-diff --color=auto -ruN a/src/Tertius.Rendering/Shaders/tonemap.glsl b/src/Tertius.Rendering/Shaders/tonemap.glsl
+diff -ruN a/src/Tertius.Rendering/Shaders/tonemap.glsl b/src/Tertius.Rendering/Shaders/tonemap.glsl
 --- a/src/Tertius.Rendering/Shaders/tonemap.glsl
 +++ b/src/Tertius.Rendering/Shaders/tonemap.glsl
 @@ -67,6 +67,18 @@
@@ -497,7 +497,7 @@ diff --color=auto -ruN a/src/Tertius.Rendering/Shaders/tonemap.glsl b/src/Tertiu
      vec3 ldr = tonemap.toneCurve == toneCurveAcesFitted ? acesFitted(hdr) : hable(hdr);
      if (tonemap.encodeSrgb != 0u)
          ldr = linearToSrgb(ldr);
-diff --color=auto -ruN a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
+diff -ruN a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
 --- a/src/Tertius.Rendering/VulkanRenderer.cs
 +++ b/src/Tertius.Rendering/VulkanRenderer.cs
 @@ -619,6 +619,7 @@

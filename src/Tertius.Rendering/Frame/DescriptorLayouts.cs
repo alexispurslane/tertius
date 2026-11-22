@@ -1265,7 +1265,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>
     /// Whether this layout's signal set holds <paramref name="binding"/>: 0 to 10 always, 11 and 13 with the light age (the
-    /// sample age and the anchors' rings), and 12 with an instrumentation.
+    /// sample age and the anchors' rings), and 12 with an instrumentation. Every signal shares the layout, and only the
+    /// bounce light writes and reads binding 13 (TemporalSignal.TestsRegionDrift).
     /// </summary>
     private bool SignalSetHolds(uint binding) =>
         binding <= 10

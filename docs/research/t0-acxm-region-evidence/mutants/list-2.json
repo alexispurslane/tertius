@@ -1,0 +1,107 @@
+[
+ {
+  "id": "M01",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 66,
+  "original": "return parameters.reset == 0u && all(equal(frame.previousViewport.xy, frame.viewport.xy));",
+  "replacement": "return parameters.reset == 0u;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "M02",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 66,
+  "original": "return parameters.reset == 0u && all(equal(frame.previousViewport.xy, frame.viewport.xy));",
+  "replacement": "return all(equal(frame.previousViewport.xy, frame.viewport.xy));",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "M03",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 73,
+  "original": "ivec2 blocks = (ivec2(frame.viewport.xy) + 7) / 8;",
+  "replacement": "ivec2 blocks = ivec2(frame.viewport.xy) / 8;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "M04",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 74,
+  "original": "return (blocks - 1) / AnchorStepBlocks;",
+  "replacement": "return blocks / AnchorStepBlocks;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "M05",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 93,
+  "original": "AnchorStepBlocks, lastRegionAnchor());",
+  "replacement": "AnchorStepBlocks, imageSize(regionRing).xy - 1);",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "M06",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 242,
+  "original": "float before = regionContinues() ? regionRingBefore[layerBefore()].g : 0.0;",
+  "replacement": "float before = regionRingBefore[layerBefore()].g;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "M07",
+  "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+  "line": 173,
+  "original": "historyLength = min(antiLagged, FullRateFrames);",
+  "replacement": "historyLength = min(historyLength, FullRateFrames);",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "M08",
+  "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+  "line": 173,
+  "original": "historyLength = min(antiLagged, FullRateFrames);",
+  "replacement": "historyLength = antiLagged;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "M09",
+  "file": "src/Tertius.Rendering/Tertius.Rendering.csproj",
+  "line": 152,
+  "original": " -DTERTIUS_LIGHT_AGE -DTERTIUS_REGION_DRIFT -I",
+  "replacement": " -DTERTIUS_LIGHT_AGE -I",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "*+RegionDrift",
+   "ShaderVariantTests"
+  ]
+ },
+ {
+  "id": "M10",
+  "file": "src/Tertius.Rendering/Frame/TemporalSignal.cs",
+  "line": 258,
+  "original": "public bool TestsRegionDrift => KeepsLightAge && Parameters.Light == SignalLight.Diffuse;",
+  "replacement": "public bool TestsRegionDrift => KeepsLightAge;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "M11",
+  "file": "src/Tertius.Rendering/Frame/TemporalSignal.cs",
+  "line": 258,
+  "original": "public bool TestsRegionDrift => KeepsLightAge && Parameters.Light == SignalLight.Diffuse;",
+  "replacement": "public bool TestsRegionDrift => Parameters.Light == SignalLight.Diffuse;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "AccumulatorRenderTests",
+   "DescriptorLayoutsTests"
+  ]
+ }
+]

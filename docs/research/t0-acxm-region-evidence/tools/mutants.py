@@ -1,5 +1,7 @@
-# Tool code of t0-acxm. mutants.py <repository> <out.json>: writes the tools/mutate.py list of the remedy
-# (mutants/list.json), with each mutant's line found from its original text.
+# Tool code of t0-acxm. mutants.py <repository> <out.json> [second]: writes the tools/mutate.py list of the remedy
+# (mutants/list.json), with each mutant's line found from its original text. With `second`, it writes the list of the
+# lines that changed after the settlement of 2026-11-22 (mutants/list-2.json): the bounce light alone, the restart at a
+# render size change, and the anti-lag under region evidence.
 import json, sys
 R = sys.argv[1]
 P = 'tests/Tertius.Rendering.Tests'
@@ -48,6 +50,27 @@ m = [
  ('C05', TS, 'Regions: KeepsLightAge ? [CreateRegionRing(AnchorsOf(extent), part)] : [],', 'Regions: [CreateRegionRing(AnchorsOf(extent), part)],', [AR, 'DescriptorLayoutsTests']),
  ('C06', DL, 'binding is 11 or 13 && HistoryMode.KeepsLightAge', 'binding is 11 && HistoryMode.KeepsLightAge', ['DescriptorLayoutsTests', RD]),
 ]
+CS = 'src/Tertius.Rendering/Tertius.Rendering.csproj'
+second = [
+ ('M01', G, 'return parameters.reset == 0u && all(equal(frame.previousViewport.xy, frame.viewport.xy));',
+  'return parameters.reset == 0u;', RD),
+ ('M02', G, 'return parameters.reset == 0u && all(equal(frame.previousViewport.xy, frame.viewport.xy));',
+  'return all(equal(frame.previousViewport.xy, frame.viewport.xy));', RD),
+ ('M03', G, 'ivec2 blocks = (ivec2(frame.viewport.xy) + 7) / 8;', 'ivec2 blocks = ivec2(frame.viewport.xy) / 8;', RD),
+ ('M04', G, 'return (blocks - 1) / AnchorStepBlocks;', 'return blocks / AnchorStepBlocks;', RD),
+ ('M05', G, 'AnchorStepBlocks, lastRegionAnchor());', 'AnchorStepBlocks, imageSize(regionRing).xy - 1);', RD),
+ ('M06', G, 'float before = regionContinues() ? regionRingBefore[layerBefore()].g : 0.0;',
+  'float before = regionRingBefore[layerBefore()].g;', RD),
+ ('M07', SP, 'historyLength = min(antiLagged, FullRateFrames);', 'historyLength = min(historyLength, FullRateFrames);', RD),
+ ('M08', SP, 'historyLength = min(antiLagged, FullRateFrames);', 'historyLength = antiLagged;', RD),
+ ('M09', CS, ' -DTERTIUS_LIGHT_AGE -DTERTIUS_REGION_DRIFT -I', ' -DTERTIUS_LIGHT_AGE -I', [RD, 'ShaderVariantTests']),
+ ('M10', TS, 'public bool TestsRegionDrift => KeepsLightAge && Parameters.Light == SignalLight.Diffuse;',
+  'public bool TestsRegionDrift => KeepsLightAge;', RD),
+ ('M11', TS, 'public bool TestsRegionDrift => KeepsLightAge && Parameters.Light == SignalLight.Diffuse;',
+  'public bool TestsRegionDrift => Parameters.Light == SignalLight.Diffuse;', [AR, 'DescriptorLayoutsTests']),
+]
+if sys.argv[3:] == ['second']:
+    m = second
 out = []
 for id, f, orig, rep, cls in m:
     text = open(f'{R}/{f}').read()

@@ -1,4 +1,4 @@
-diff --color=auto -ru a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
+diff -ru a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
 --- a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
 +++ b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
 @@ -162,7 +162,9 @@
@@ -12,7 +12,7 @@ diff --color=auto -ru a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp b/
          else
              historyLength = max(fastCap, historyLength * (1.0 - min(1.0, lag / parameters.antiLagShare)));
          slow = clamped;
-diff --color=auto -ru a/src/Tertius.Rendering/Shaders/screen_trace_plan.comp b/src/Tertius.Rendering/Shaders/screen_trace_plan.comp
+diff -ru a/src/Tertius.Rendering/Shaders/screen_trace_plan.comp b/src/Tertius.Rendering/Shaders/screen_trace_plan.comp
 --- a/src/Tertius.Rendering/Shaders/screen_trace_plan.comp
 +++ b/src/Tertius.Rendering/Shaders/screen_trace_plan.comp
 @@ -215,7 +215,10 @@

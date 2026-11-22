@@ -249,6 +249,15 @@ internal sealed unsafe class TemporalSignal : IDisposable
     public bool KeepsLightAge => scratch.HistoryMode.KeepsLightAge;
 
     /// <summary>
+    /// Whether the signal runs the region's drift test (region_drift.glsl) and keeps its anchors' ring
+    /// (<see cref="RegionRing(int)"/>): the bounce light with a light age, and no other signal. Its spatial dispatch is the
+    /// light-age variant (<see cref="LightAgeShader(string)"/>), which alone compiles the test. The reflections' test fired
+    /// falsely in still views and brought bright specks into the bay film, where the bounce light's did neither
+    /// (t0-acxm; docs/plans/bounce-light-confidence.md, section 8.7).
+    /// </summary>
+    public bool TestsRegionDrift => KeepsLightAge && Parameters.Light == SignalLight.Diffuse;
+
+    /// <summary>
     /// The shader variant whose declared slow-history format matches this signal's storage (<see cref="HistoryShader(string,
     /// SpecularHistoryMode, HistoryInstrumentation)"/>), and which reads the light age where the signal keeps it
     /// (<see cref="LightAgeShader(string)"/>).
@@ -315,8 +324,9 @@ internal sealed unsafe class TemporalSignal : IDisposable
 
     /// <summary>
     /// The rings of <paramref name="part"/>'s anchors (<see cref="RegionRingFormat"/>, <see cref="RegionRingDraws"/>
-    /// layers, one texel per anchor), or null without a light age. Only the spatial dispatch reads and writes them: an
-    /// anchor's workgroup writes this draw's layer, and every block reads the layer of the draw before.
+    /// layers, one texel per anchor), or null where the signal runs no region test (<see cref="TestsRegionDrift"/>). Only
+    /// the spatial dispatch reads and writes them: an anchor's workgroup writes this draw's layer, and every block reads
+    /// the layer of the draw before.
     /// </summary>
     public GpuImage? RegionRing(int part) => parts[part].Regions is [var ring] ? ring : null;
 
@@ -559,7 +569,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
                     ]
                     : [],
                 Ages: CreateAges(extent, part),
-                Regions: KeepsLightAge ? [CreateRegionRing(AnchorsOf(extent), part)] : [],
+                Regions: TestsRegionDrift ? [CreateRegionRing(AnchorsOf(extent), part)] : [],
                 Traces: Instrumentation == HistoryInstrumentation.ControlTrace ? [CreateTrace(extent, part)] : []
             );
             for (int parity = 0; parity < 2; parity++)
@@ -591,7 +601,8 @@ internal sealed unsafe class TemporalSignal : IDisposable
         // The sample age, which the temporal dispatch of both signals reads.
         if (images.SampleAge is { } age)
             layouts.WriteStorageImage(set: set, binding: 11, image: age);
-        // The anchors' rings (region_drift.glsl).
+        // The anchors' rings (region_drift.glsl), the bounce light's only. The reflections' sets leave binding 13
+        // unwritten, and their shaders do not declare it.
         if (images.Regions is [var ring])
             layouts.WriteStorageImage(set: set, binding: 13, image: ring);
         // The diagnostic of uncovered surfaces, which only the specular signal's temporal dispatch writes.

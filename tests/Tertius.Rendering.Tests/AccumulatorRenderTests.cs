@@ -45,9 +45,25 @@ public sealed class AccumulatorRenderTests
         float roughness = 0.5f,
         (Vector3 Center, Vector3 Size)? wall = null,
         int width = Width
+    ) =>
+        AccumulatingOn(
+            renderer: Gpu.Headless(width: width, height: Height, exposure: exposure),
+            parameters: parameters,
+            roughness: roughness,
+            wall: wall
+        );
+
+    /// <summary>
+    /// <see cref="Accumulating"/> on <paramref name="renderer"/>: the scene of the wall, and the test signal with its
+    /// producer and accumulation after the direct pass.
+    /// </summary>
+    private static (VulkanRenderer Renderer, SamplePass Sample, RenderSnapshot Scene) AccumulatingOn(
+        VulkanRenderer renderer,
+        SignalParameters? parameters = null,
+        float roughness = 0.5f,
+        (Vector3 Center, Vector3 Size)? wall = null
     )
     {
-        VulkanRenderer renderer = Gpu.Headless(width: width, height: Height, exposure: exposure);
         MeshId cube = renderer.CreateMesh(Primitives.Box(new(0.5f)));
         MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: roughness));
         RenderSnapshot scene = Gpu.Snapshot(new(0.3f, 1f, 0.4f));
@@ -2737,6 +2753,46 @@ public sealed class AccumulatorRenderTests
         }
 
         [Fact]
+        public void UnderARegionEvidenceTheAntiLagStillShortensAHistoryBelowTheRegionsCap()
+        {
+            // Region evidence is one more cap on top of the anti-lag, so it never leaves a history longer than no
+            // evidence would. The narrow box holds no widening, and the samples hold no noise, so the clamp sets the
+            // slow history onto the fast one. During the fall, region evidence holds the history at FullRateFrames. Then
+            // the light steps from 0.5 to 0.2 in one draw: the slow history blends the step at 1/9 and the fast one at
+            // 1/4, so the clamp moves by about 10 % of the light, and the anti-lag takes the history below the cap.
+            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(parameters: NarrowParameters);
+            try
+            {
+                sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
+                renderer.Render(scene, 1f);
+                int frame = 0;
+                for (; frame < 60; frame++)
+                    DrawNoisy(renderer: renderer, sample: sample, scene: scene, light: 1, frame: frame, variation: 0);
+                for (int fallen = 1; fallen <= 25; fallen++, frame++)
+                    DrawNoisy(
+                        renderer: renderer,
+                        sample: sample,
+                        scene: scene,
+                        light: 1 - 0.02f * fallen,
+                        frame: frame,
+                        variation: 0
+                    );
+                DrawNoisy(renderer: renderer, sample: sample, scene: scene, light: 0.2f, frame: frame, variation: 0);
+
+                LengthsOf(renderer, sample)
+                    .Should()
+                    .OnlyContain(
+                        length => length > FastCap && length < FullRateFrames,
+                        "the anti-lag shortens the history below the region's cap"
+                    );
+            }
+            finally
+            {
+                Gpu.DisposeAndAssertClean(renderer);
+            }
+        }
+
+        [Fact]
         public void UnderLightEvidenceARegionEvidenceCutsTheBounceHistoryToTheFastCap()
         {
             // A ray that saw the light change is the most certain knowledge, so its cut to the fast cap stands above the
@@ -3310,6 +3366,180 @@ public sealed class AccumulatorRenderTests
                         withEvidence.Add(draw);
 
                 withEvidence.Should().BeEmpty("the count of valid draws starts again at the cut");
+            }
+            finally
+            {
+                Gpu.DisposeAndAssertClean(renderer);
+            }
+        }
+
+        [Fact]
+        public void AMovedRegionDoesNotShortenTheReflectionsHistory()
+        {
+            // Only the bounce light runs the region's test: the reflections' test fired in still views and brought
+            // bright specks into the bay film (docs/plans/bounce-light-confidence.md, section 8.7). The same fall that
+            // cuts every bounce history to FullRateFrames (ARegionEvidenceAloneCutsTheBounceHistoryToFullRateFrames) cuts
+            // no reflection history there: their anti-lag gives lengths that are not whole.
+            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+                parameters: SignalParameters.Specular(0)
+            );
+            try
+            {
+                sample.Signal.RegionRing(0).Should().BeNull("the reflections keep no anchors' ring");
+                FallThenStand(renderer: renderer, sample: sample, scene: scene, standDraws: 0);
+
+                LengthsOf(renderer, sample)
+                    .Should()
+                    .NotContain(FullRateFrames, "no region evidence acts on the reflections");
+            }
+            finally
+            {
+                Gpu.DisposeAndAssertClean(renderer);
+            }
+        }
+
+        /// <summary>The window of <see cref="AccumulatingInAWindow"/>: at its largest render size 48 × 9 blocks.</summary>
+        private const int WindowWidth = 384,
+            WindowHeight = 72;
+
+        /// <summary>
+        /// The test signal of the bounce light in a window's renderer with FSR 3.1 and a frame-time target, so that its
+        /// render size can fall below its images' size, which is the largest render size. The wall fills the view.
+        /// </summary>
+        private static (VulkanRenderer Renderer, SamplePass Sample, RenderSnapshot Scene) AccumulatingInAWindow() =>
+            AccumulatingOn(
+                renderer: VulkanRenderer.CreateOffscreen(
+                    options: new()
+                    {
+                        Width = WindowWidth,
+                        Height = WindowHeight,
+                        FramesInFlight = 1,
+                        Validation = true,
+                        Impostors = false,
+                        EnvironmentMap = new NoEnvironmentMap(),
+                        Exposure = new FixedExposure(0),
+                        Bloom = new NoBloom(),
+                        Upscaling = new Fsr3Upscaling(FrameTimeTarget.Default, 0),
+                        WarmUpFrames = 0,
+                    },
+                    createOutput: (device, allocator, extent) =>
+                        new HeadlessTarget(device: device, allocator: allocator, extent: extent, bgra: false),
+                    headless: false
+                ),
+                parameters: SignalParameters.Diffuse,
+                wall: (new(0, 0, -20), new(400, 40, 1))
+            );
+
+        /// <summary>
+        /// The history lengths of part 0 of the window after the last frame, row by row from the top, over the images'
+        /// whole size: the pixels beyond the render size keep the lengths of an earlier draw.
+        /// </summary>
+        private static float[] WindowLengthsOf(VulkanRenderer renderer, SamplePass sample)
+        {
+            float[] history = HistoryOf(renderer, sample, part: 0);
+            return [.. Enumerable.Range(0, WindowWidth * WindowHeight).Select(pixel => history[4 * pixel + 3])];
+        }
+
+        /// <summary>
+        /// Draws one frame of noisy samples of mean <paramref name="light"/>, and then reports its timings
+        /// (<see cref="Report"/>): over the budget, the render scale falls to its least value, a half, and stays there,
+        /// and under it, the scale stays at its largest value, 1. The render size is the scale times the window's size,
+        /// rounded down to whole blocks.
+        /// Returns whether region evidence cut a history inside the render size: a length of at least FullRateFrames
+        /// before the draw that ends at exactly FullRateFrames.
+        /// </summary>
+        private static bool DrawInTheWindow(
+            VulkanRenderer renderer,
+            SamplePass sample,
+            RenderSnapshot scene,
+            float light,
+            int frame,
+            bool overBudget
+        )
+        {
+            float[] before = WindowLengthsOf(renderer, sample);
+            sample.Samples = (column, row) =>
+                NoisySample(light: light, variation: Variation, column: column, row: row, frame: frame);
+            Continue(renderer, scene, frames: 1);
+            Report(renderer, overBudget);
+            float[] after = WindowLengthsOf(renderer, sample);
+            CameraView camera = renderer.LastScene.Camera;
+            return Enumerable
+                .Range(0, after.Length)
+                .Where(pixel => pixel % WindowWidth < camera.Width && pixel / WindowWidth < camera.Height)
+                .Any(pixel => before[pixel] >= FullRateFrames && after[pixel] == FullRateFrames);
+        }
+
+        /// <summary>
+        /// Reports the last frame's timings to the render scale's controller: far over the frame's budget where
+        /// <paramref name="overBudget"/>, else far under it. The report comes before the renderer collects the frame's
+        /// own timings, which it then ignores.
+        /// </summary>
+        private static void Report(VulkanRenderer renderer, bool overBudget)
+        {
+            double cost = overBudget ? 100 : 0.1;
+            renderer.ScaleController!.Measure(
+                new(
+                    renderer.DrawnFrames - 1,
+                    new PassTiming[]
+                    {
+                        new("G-buffer", cost) { Stage = FrameGraph.Stage.GBuffer },
+                        new("exposure", 0) { Stage = FrameGraph.Stage.Exposure },
+                        new("FSR 3.1", 1) { Stage = FrameGraph.Stage.Upscale },
+                        new("bloom", 1) { Stage = FrameGraph.Stage.Bloom },
+                        new("tone map", cost) { Stage = FrameGraph.Stage.ToneMap },
+                    },
+                    2 * cost + 2
+                )
+            );
+        }
+
+        [Fact]
+        public void AfterTheRenderSizeFallsNoBlockTakesAnAnswerThatNoAnchorGaveAtThatSize()
+        {
+            // At the largest render size the light falls everywhere, so every anchor's ring holds moves. At half the
+            // size, 192 × 32 pixels, the dispatch covers the anchors 0, 8 and 16 of row 0 only, and the ring's other
+            // texels keep the moves of the larger size. A change of the render size also moves the scene under the taps,
+            // so the count of valid draws restarts. The light then stands still, so no answer at the half size is a move.
+            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = AccumulatingInAWindow();
+            try
+            {
+                sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
+                renderer.Render(scene, 1f);
+                Report(renderer, overBudget: false);
+                int frame = 0;
+                for (; frame < 100 + FallDraws; frame++)
+                {
+                    float light = frame < 100 ? 1 : 1 - 0.5f * (frame - 99) / FallDraws;
+                    DrawInTheWindow(renderer: renderer, sample: sample, scene: scene, light: light, frame: frame, overBudget: false);
+                }
+                renderer.LastScene.Camera.Width.Should().Be(WindowWidth, "the reports kept the render size at its largest");
+                // A draw whose render size changed reads no answer of the draw before.
+                List<int> changedWithEvidence = [];
+                for (int draw = 0; draw < 40 && renderer.LastScene.Camera.Width > WindowWidth / 2; draw++, frame++)
+                {
+                    int widthBefore = renderer.LastScene.Camera.Width;
+                    bool cut = DrawInTheWindow(
+                        renderer: renderer,
+                        sample: sample,
+                        scene: scene,
+                        light: 0.5f,
+                        frame: frame,
+                        overBudget: true
+                    );
+                    if (cut && renderer.LastScene.Camera.Width != widthBefore)
+                        changedWithEvidence.Add(draw);
+                }
+                renderer.LastScene.Camera.Width.Should().Be(WindowWidth / 2, "the reports lowered the render size to half");
+                changedWithEvidence.Should().BeEmpty("a draw whose render size changed takes no answer of the draw before");
+
+                List<int> withEvidence = [];
+                for (int draw = 0; draw < TwoWindows + 40; draw++, frame++)
+                    if (DrawInTheWindow(renderer: renderer, sample: sample, scene: scene, light: 0.5f, frame: frame, overBudget: true))
+                        withEvidence.Add(draw);
+
+                renderer.LastScene.Camera.Width.Should().Be(WindowWidth / 2, "the render size stayed at half");
+                withEvidence.Should().BeEmpty("no anchor at the half size saw its light move");
             }
             finally
             {

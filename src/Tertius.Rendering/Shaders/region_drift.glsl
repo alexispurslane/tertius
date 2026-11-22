@@ -58,6 +58,22 @@ int layerBefore()
     return int((parameters.regionSlot + RegionRingDraws - 1u) % RegionRingDraws);
 }
 
+// Whether this draw continues the anchors' draws of the draw before: no reset, and the same render size. A change of the
+// render size moves the scene points under the taps and changes the anchors that the dispatch covers, so the count of
+// valid draws restarts, and no block reads the answers of the draw before.
+bool regionContinues()
+{
+    return parameters.reset == 0u && all(equal(frame.previousViewport.xy, frame.viewport.xy));
+}
+
+// The last anchor that this draw's dispatch covers, in blocks. The ring has the size of the largest render size, so its
+// texels beyond this anchor hold no answer of the draw before.
+ivec2 lastRegionAnchor()
+{
+    ivec2 blocks = (ivec2(frame.viewport.xy) + 7) / 8;
+    return (blocks - 1) / AnchorStepBlocks;
+}
+
 // The anchors that can hold a block in their regions: up to 3 in x and 3 in y, so that each candidate's read can run in
 // its own invocation.
 const uint RegionCandidates = 9u;
@@ -67,14 +83,14 @@ const uint RegionCandidates = 9u;
 // the images, or one whose region does not reach the block. A block has region evidence where any candidate says yes, so
 // the caller merges the 9 answers with a maximum, which does not depend on their order. The answer acts one draw late, so
 // that no block reads a layer that a workgroup writes in this draw: the windows are 18 draws long, so one draw does not
-// matter. A reset leaves no draw before.
+// matter. A draw that does not continue the draw before (regionContinues) reads no answer.
 bool regionAnchorMovedBefore(ivec2 block, uint candidate)
 {
-    if (parameters.reset != 0u || candidate >= RegionCandidates)
+    if (!regionContinues() || candidate >= RegionCandidates)
         return false;
     ivec2 first = max((block - RegionRadiusBlocks + AnchorStepBlocks - 1) / AnchorStepBlocks, ivec2(0));
     ivec2 anchor = first + ivec2(int(candidate % 3u), int(candidate / 3u));
-    ivec2 last = min((block + RegionRadiusBlocks) / AnchorStepBlocks, imageSize(regionRing).xy - 1);
+    ivec2 last = min((block + RegionRadiusBlocks) / AnchorStepBlocks, lastRegionAnchor());
     if (any(greaterThan(anchor, last)))
         return false;
     return imageLoad(regionRing, ivec3(anchor, layerBefore())).b != 0.0;
@@ -129,7 +145,8 @@ vec3 regionTapOf(ivec2 block)
 
 // The region's light of this draw from its `sums`: the mean of its counted taps. The draw is valid where at least half of
 // the region's taps inside the images count, so that the mean is of mostly the same surfaces from draw to draw: a camera
-// move makes every tap move, so the count restarts. `validDrawsBefore` is the count of the draw before.
+// move makes every tap move, so the count restarts. `validDrawsBefore` is the count of the draw before, 0 where this draw
+// does not continue it.
 RegionDraw regionDrawOf(vec3 sums, float validDrawsBefore)
 {
     bool valid = sums.y > 0.0 && 2.0 * sums.y >= sums.z;
@@ -222,7 +239,7 @@ void updateRegionAnchor(ivec2 anchorBlock)
         vec3 sums = vec3(0.0);
         for (uint part = 0u; part < RegionAdders; part++)
             sums += regionParts[part];
-        float before = parameters.reset != 0u ? 0.0 : regionRingBefore[layerBefore()].g;
+        float before = regionContinues() ? regionRingBefore[layerBefore()].g : 0.0;
         RegionDraw now = regionDrawOf(sums, before);
         bool moved = regionTestOf(now);
         imageStore(regionRing, ivec3(texel, int(parameters.regionSlot)), vec4(now.light, now.validDraws, moved ? 1.0 : 0.0, 0.0));
