@@ -134,8 +134,6 @@ public class SceneBatcherBenchmarks
             // The highest exposure of the default setting: the reach that every light had before the reach followed the
             // exposure, so the benchmark keeps every light.
             highestStops: AutoExposure.Default.MaxStops,
-            width: Width,
-            height: Height,
             meshes: Meshes,
             materials: Materials,
             environment: environment,

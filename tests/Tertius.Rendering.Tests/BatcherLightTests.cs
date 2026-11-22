@@ -41,8 +41,6 @@ public sealed class BatcherLightTests
             snapshot: snapshot,
             alpha: alpha,
             highestStops: highestStops,
-            width: 1600,
-            height: 900,
             meshes: Meshes,
             materials: MaterialSlots.Of(8),
             environment: environment ?? new WithoutMap(),

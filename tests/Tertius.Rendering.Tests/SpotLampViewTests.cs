@@ -38,8 +38,6 @@ public sealed class SpotLampViewTests
                 snapshot: snapshot,
                 alpha: 1f,
                 highestStops: highestStops,
-                width: 1600,
-                height: 900,
                 meshes: Meshes,
                 materials: MaterialSlots.Of(8),
                 environment: new WithoutMap(),

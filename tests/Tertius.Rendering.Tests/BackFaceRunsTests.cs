@@ -29,8 +29,6 @@ public sealed class BackFaceRunsTests
                 snapshot: snapshot,
                 alpha: 1f,
                 highestStops: Batchers.HighestStops,
-                width: 1600,
-                height: 900,
                 meshes: Meshes,
                 materials: MaterialSlots.Of(10),
                 environment: default,

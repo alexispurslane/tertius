@@ -960,6 +960,7 @@ public sealed class Fsr3UpscalerTests
                     FrameMilliseconds = 1000f / 60f,
                     NearMeters = 0.05f,
                     VerticalFov = MathF.PI / 3f,
+                    Aspect = RenderSize.Width / (float)RenderSize.Height,
                     Reset = reset,
                 },
             };

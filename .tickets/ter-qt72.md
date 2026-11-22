@@ -168,3 +168,122 @@ Not checked by anyone: the wobble in the windowed game. The report says whether 
 **2026-11-22T16:33:02Z**
 
 2026-11-22, the line orchestrator. The orchestrator corrected the first design: the user's decisions of 2026-11-05 from ticket ter-fkd3 are now in this ticket's text, with the build order in two steps. The first design's section "Rejected, with the reason" and its sentence that render pixels need not be square are struck. The lead got the correction as a steer message and confirmed it. It had built nothing against the first design: no file changed and no commit, only reading (the batcher, FSR's constants, the jitter's projection, the shaders' footprints). Its worktree: /Users/alexispurslane/.t3/worktrees/tertius/t3-1f553e45-00934a8d076a004a, branch t3/fix-projection-aspect-wobble. The orchestrator asks the user what happens to ter-fkd3 itself. No agent of this line runs a tk command that writes into ter-fkd3, ter-5kz6 or ter-89xq, because their files hold another session's uncommitted work.
+
+**2026-11-22T17:59:31Z**
+
+2026-11-22, the ticket lead. Step 1, the output-defined camera.
+
+The change. `SceneBatcher.Prepare` takes no width and no height any more. It reads both sizes from the draw's `FrameHistory.PendingFrame`, which already held them: the output size gives the projection's aspect, and the render size gives the camera's pixel counts. So no caller can build a projection from the render size again, and the pending frame stays the one store of the draw's two sizes. `PendingFrame.OutputSize` is new. `Fsr3Frame.Aspect` is new and required: `UpscalePass` passes `CameraView.Aspect`, and `Fsr3Constants` takes `tanHalfFOV` and `deviceToViewDepth2` from it in place of the render size's ratio. The golden test of AMD's host passes the render size's ratio, because AMD's host draws at that aspect. The brief's suggested signature (an aspect beside the render size) would have left a second store of the output size and a caller that could pass a mismatched pair.
+
+Red tests on 4298ae7ec (before the fix), with a 1920 x 1080 output and a vertical field of view of 60 degrees (the output's horizontal field of view is 91.4928 degrees):
+
+| Render size | Horizontal fov (deg) | World point (3, 1, -5) moves, output px |
+|---|---:|---:|
+| 1904 x 1072 | 91.4394 | +0.524, 0.000 |
+| 1912 x 1072 | 91.6795 | not run |
+| 1872 x 1048 | 91.7654 | -2.665, 0.000 |
+| 976 x 544 | not run | -5.111, 0.000 |
+| 976 x 552 | not run | +3.067, 0.000 |
+| 1280 x 720 | exact (passed) | reference |
+
+FSR's `tanHalfFOV` and `deviceToViewDepth2` also took the render size's ratio: red at 1872 x 1048.
+
+The GPU test through the real FSR path (headless stills at a fixed render scale, 640 x 360 output, 32 warm-up draws), markers at 6 px and 218 px from the centre, against 512 x 288 (the exact ratio). Before the fix, with 0.3 m markers, the far marker moved +1.27 px at 424 x 240, -2.72 px at 576 x 320 and -3.77 px at 608 x 336, against +1.36, -2.7 and -3.8 px that the ratio predicts. After the fix, with 0.8 m markers, every marker moves 0.45 px or less on each axis. The test's limit is 0.6 px.
+
+The sideways shift that the aspect does not explain. A sweep of 12 render scales from 0.5 to 1 (320 x 176 to 640 x 360) measured each marker's centroid against the analytic projection of the output. The near marker's offset scatters from -0.05 to +0.44 px in x and from -0.22 to +0.25 px in y, with no trend in the render size. A convention error of half a render pixel would grow steadily from 0.5 output px at the scale 1 to 1.0 output px at the scale 0.5. The same scale gave the same numbers every time. So these stills show no pixel-centre error. The scatter comes from FSR's reconstruction of a sharp edge from a different grid of samples at each size. The moving video measures the midpoint again.
+
+Does the test run a window's path? It runs the same `RenderExtent`, batcher, projection, jitter, FSR constants and FSR passes as a window. A window differs in the clock (the window clock and the controller's scale against a still with warm-up draws) and in the output (a swapchain image against an offscreen image). The upscale path is the same code.
+
+The audit. Each place that reads a shape, a field of view or a pixel's footprint from the render size, or assumes square render pixels:
+
+| Place | What it reads | Verdict |
+|---|---|---|
+| `SceneBatcher.InterpolateCamera` | the aspect from the render size | Fixed: the output size's aspect. |
+| `CameraView.ViewProjection`, `Culls`, `TanHalfX` | the camera's aspect | Right: they follow the fixed aspect. |
+| `Fsr3Constants`: `TanHalfFov`, `DeviceToViewDepth2` | the render size's ratio | Fixed: `Fsr3Frame.Aspect`. |
+| `Fsr3Constants`: `RenderSize`, `DownscaleFactor`, `MotionVectorScale`, `JitterPhaseCount` | counts per axis | Right: they count samples, each axis on its own. |
+| `VulkanRenderer.ApplyRenderProjection`: jitter shift `-2 j / W`, `-2 j / H`, and the previous jitter's phases from `PreviousRenderSize` | the render size per axis | Right: the jitter is in render pixels of each axis, of the size that drew it. |
+| The main view's mip bias, `log2(renderWidth / outputWidth) - 1` | the horizontal ratio only | Right: the vertical ratio differs by 1 % at most, 0.015 of a mip level. |
+| `CameraView.PixelAngle` (`2 tanY / H`, `frame.params.z`) and its readers: `gbuffer_surface.glsl`, `reflection_footprint.glsl`, `screen_ray.glsl` (origin offset), `ScreenRay.OriginOffset`, `key_fill_light.glsl`, `key_fill_corners.frag`, `sky.glsl` (stars), `accumulate_diffuse_single_temporal.comp`, `diffuse_spatial_prototype.glsl`, `reflection_sharing_prototype.glsl`, the batcher's occluder `pixelShare` | the vertical pixel angle as one angle for both axes | Right: each is an estimate of a footprint or a threshold, and the horizontal pixel angle differs from it by 1 % at most. |
+| `ImpostorManager` projected size, `Height * tan / TanHalfY` | the vertical axis | Right: an estimate of a capture's resolution, exact vertically. |
+| `DepthPyramid.cs` slope, `depth_pyramid.glsl` line 75 | `TanHalfX * 2 / W` and `TanHalfY * 2 / H` | Right: each axis on its own. |
+| `LightPyramid.cs` lines 184 and 197, `screen_trace.glsl` lines 632 to 653 | per-axis edges and the product of both footprints | Right. |
+| `screen.glsl` (`viewRayThrough`, screen place, uv), `lighting.vert`, `outline.vert`, `outline.frag` | `cameraRight`, `cameraUp` and the viewport per axis | Right. |
+| `accumulate_temporal.comp`, `screen_trace_plan.comp` reprojection | `previousViewport` per axis, the previous jitter | Right. |
+| `ScreenRay.cs`, `screen_ray.glsl` limits and cells | pixel bounds per axis | Right. |
+| `skin_scatter.glsl` `pixelsPerMeter = H / (2 z tanY)`, which the rows take too | assumes square pixels | Right enough for step 1: the rows' kernel is up to 1 % too wide or too narrow in meters, and each tap rounds to a whole pixel, so a tap moves only where its offset lies within 1 % of a half pixel. Step 2 makes the pixels square again, which makes it exact. |
+| The diffuse filters' and the reflection filters' kernels in pixels | pixel offsets, the same on both axes | Right enough for step 1: a blur radius up to 1 % wider in angle on one axis. Exact after step 2. |
+| `ShadowCascades` fit | `TanHalfX`, `TanHalfY` | Right: it follows the camera. |
+| Environment faces and local shadow tiles | their own square views (aspect 1) | Right: their own cameras. |
+| The depth and light pyramids' level sizes | the render size's counts | Right. |
+| Bloom, tone map, outlines | the output size | Right. |
+| `NoUpscaling` | render size = output size | Right: exact. |
+| `FixedRenderScale` | rounds each axis like `FrameTimeTarget` | Fixed by the same change: its camera now takes the output's aspect too. |
+| `puff.vert` billboard axes | the camera's axes, normalized | Right. |
+| `DrawnCamera.TanHalfX` into `PreviousView` | the drawn camera | Right: the motion of the next frame uses the same camera. |
+| Host and Demo | no aspect of their own | Right. |
+
+The runs on the code of this commit (step 1):
+
+- `nix develop --command bash -c 'bash tools/gpu-lock.sh --shared <log> dotnet test --solution Tertius.slnx -c Checked'`: 11,055 tests, 0 failed, 28 skipped (Rendering 3,310 passed and 12 skipped in 32 min 51 s under a load of 30 to 100). No snapshot test failed, so no reference image changed.
+- The red runs: `dotnet test --project tests/Tertius.Rendering.Tests -c Checked -- --filter-class "*OutputCameraTests" --filter-class "*OutputFramingRenderTests"` on 4298ae7ec with the new tests: 11 of 12 failed (the 1280 x 720 case passed). After the fix: the changed CPU classes (OutputCameraTests, BatcherTests, BatcherLightTests, BatcherMotionTests, BatcherDeformTests, ImpostorManagerTests, Fsr3HostTests) 330 passed, 0 failed.
+
+**2026-11-22T19:01:23Z**
+
+2026-11-22, the ticket lead. Step 1's film, the review and its fixes.
+
+The film. The lamp hall (`scripts/rect-lamps.json`) at 1920 x 1080 with a fixed exposure of 4.08 stops, headless, under a played-back moving render size: the Design X lead's logged run d16M (`/private/tmp/t0-5tyj/dynlog/d16M/size-none.txt`, copied to the evidence folder), 31 render sizes from 992 x 560 to 1200 x 672 and 72 size changes over the 240 film frames. Both sides played back the same sizes (their size logs are equal). Main is ee9dec413, and the fix is 839bce1b5, each a build copy under /private/tmp/ter-qt72 with a scratch edit (`scratch-replay.py`) that never enters src. The scratch edit takes TERTIUS_X_FRAME_TIME_TARGET, TERTIUS_X_SIZE_REPLAY and TERTIUS_X_SIZE_LOG from the Design X lead's `scratch-dynamic-scale.patch`. The video: /Users/alexispurslane/.t3/worktrees/tertius/t3-1f553e45-00934a8d076a004a-evidence/video/lamp-hall-wobble-main-vs-fix.mp4, main on the left and the fix on the right, 240 frames at 60 a second, H.264 at CRF 12, 3840 x 1080.
+
+The tracked edges (`edges.py`, adapted from the Design X lead's `wobble.py`): four vertical edges on rows 530 to 549, each to a sub-pixel by the peak of the brightness gradient. The outer pair are the inner edges of the nearest wall openings, about 850 px left and right of the centre. The inner pair are the two sides of the back wall's dark panel near the centre. All numbers are in output pixels:
+
+| | Main | Fix |
+|---|---:|---:|
+| Outer distance (about 1,700 px): sd | 7.378 | 0.489 |
+| Outer distance: range | 33.644 | 2.894 |
+| Its midpoint: sd | 0.894 | 0.245 |
+| Its midpoint: range | 4.771 | 1.931 |
+| Inner distance (about 140 px): sd | 0.782 | 0.297 |
+| Inner midpoint: sd | 0.300 | 0.136 |
+| Correlation of the outer distance with (h / w) * 16/9 | +0.989 | +0.045 |
+| Noise floor of the outer distance (same size, frame to frame, / sqrt 2) | 0.291 | 0.165 |
+| Noise floor of its midpoint | 0.146 | 0.083 |
+
+What is left on the fix side, and why. The outer distance still spreads by sd 0.49 px, against a noise floor of 0.17 px, and its midpoint by 0.25 px against 0.08 px. A framing change moves the two edges together (a shift) or against each other (a stretch). On the fix side the left edge's place and the right edge's place correlate at +0.003, with sd 0.32 and 0.37 px. So each edge has an offset of its own at each render size. Both edges stay sharp (1 to 2 px wide at half the gradient's peak). Their place correlates with the render width at -0.12 and -0.42. That is FSR's reconstruction of an edge from another grid of samples at each render size, the scatter that the GPU sweep showed in stills (±0.2 px with no trend in the render size). No common shift and no stretch is left. The midpoint's 1.0 to 1.7 px of the Design X lead's measurement was on main, with the stretch. On this film, main's midpoint spread (sd 0.89) also falls to 0.25 with the fix.
+
+The review (one reviewer, Claude Opus 5.5 at high effort, on 4298ae7ec..839bce1b5): correctness pass, fulfillment changes-required, design changes-required. The resolutions:
+
+- F1, a text that allowed non-square pixels as the design: fixed. ARCHITECTURE.md now says the active rectangle's ratio differs by about 1 % only until step 2. SceneBatcher's comment no longer says that pixels need not be square.
+- F2, the fields of `CameraView` without docs: fixed. `Aspect` is the projection's, the output's. `Width` and `Height` are the render size, whose ratio can differ. `PixelAngle` is the vertical pixel angle.
+- F3, the GPU test asserted a distance against a reason per axis: fixed. It asserts each axis below 0.6 px.
+- F4, the sweep cannot see errors that arise only at a change of size: answered by the film above, which changes the size 72 times. No common shift is left.
+- F5, no test pinned `UpscalePass`'s aspect: fixed. A test hook `VulkanRenderer.ReadFsrConstants` (which `ReadFsrExposureRatio` now uses) and the test `FsrRebuildsViewPositionsWithTheOutputsCameraAtARenderSizeOfAnotherShape`. With the pass's line set to the render size's ratio, the test failed: deviceToViewDepth2 1.0392 against 1.0264. How the CPU FSR test was red on 4298ae7ec: it compiled there without the `Aspect` line, because `Fsr3Frame` had no such member, and it asserted the output's tangent, 1.0264 at 60 degrees. It failed there. The green step added the required member and the one line that passes it.
+- F6, the fact of AMD's aspect in two places: fixed, the line comment is gone, and the doc of `Fsr3Frame.Aspect` keeps it.
+- F7, null for a default size: fixed, two overloads of `Batchers.FirstFrame`.
+- F8, `FrameHistory.Jitter` and `ApplyRenderProjection` read the output size from another store of the same draw: rejected for this ticket. It is older than this change, both values are equal by construction, and the brief asks for a small diff in these files.
+- Added for the mutants: `TheCamerasPixelCountsAreTheRenderSizes`, a CPU test that the camera's width and height are the render size.
+
+The run on the code of this commit (the review fixes): `nix develop --command bash -c 'bash tools/gpu-lock.sh --shared <log> dotnet test --solution Tertius.slnx -c Checked'`: 11,057 tests, 0 failed, 28 skipped. No snapshot test failed.
+
+**2026-11-22T19:38:21Z**
+
+2026-11-22, the ticket lead. Step 1's remaining runs, all on the code of f54129fcc.
+
+- Release: `nix develop --command bash -c 'bash tools/gpu-lock.sh --shared <log> dotnet test --solution Tertius.slnx -c Release'`: 11,044 tests, 1 failed, 29 skipped. The failure is `Fsr3UpscalerTests.ATimedBatchReportsTheTimeOfOneOfItsUpscalesNotOfTheWholeBatch` (a median of 0.411 ms against a limit of 0.039 ms), the timing test of lin-5bsm that fails under GPU load. Rerun alone under the exclusive GPU lock at a load of 6, with `-c Release --no-build -- --filter-method "*ATimedBatchReportsTheTimeOfOneOfItsUpscalesNotOfTheWholeBatch*"`: 1 passed.
+- Linux: one cloud CPU job (0763a4d8-91ea-447d-be6b-bcc7b13df0b5-u2, 250 s, $0.0064 by the job log) ran `lavapipe-tests.sh` with CLASS_STEMS "OutputCameraTests OutputFramingRenderTests Fsr3HostTests UpscalingRenderTests" on Mesa 26.2.4 lavapipe (llvmpipe, LLVM 21.1.8): 89 tests, 0 failed, 0 skipped.
+- Mutants: `tools/mutate.py` with 11 listed mutants of the changed lines (list and logs in the evidence folder, `mutants-step1.json`, `mutate-step1/`): 9 killed, 1 survived, 1 failed to build.
+
+| id | place | change | result |
+|---|---|---|---|
+| C01 | SceneBatcher.cs:238 | the aspect from the render size | build-failed: the analyzer refuses the then-unused parameter `outputSize` (IDE0060). C03 makes the same change through the call and is killed. |
+| C02 | SceneBatcher.cs:238 | drop `Math.Max(outputSize.Height, 1)` | survived. Judgment call: no draw has an output of zero height, because a headless renderer refuses a zero size and a window without an area acquires no image and draws nothing, so the guard is never reached. |
+| C03 | SceneBatcher.cs:130 | Prepare passes the render size as the output size | killed by AWorldPointKeepsItsPlaceOnTheOutputAtARenderSizeOfAnotherShape |
+| C04 | SceneBatcher.cs:129 | the pixel counts from the output size | killed by TheCamerasPixelCountsAreTheRenderSizes |
+| C05 | SceneBatcher.cs:251 | the width from the output size | killed by TheCamerasPixelCountsAreTheRenderSizes |
+| C06 | SceneBatcher.cs:252 | the height from the output size | killed by TheCamerasPixelCountsAreTheRenderSizes |
+| C07 | Fsr3Constants.cs:98 | tanHalfFOV from the render size's ratio | killed by FsrsViewConstantsDescribeTheOutputsCameraAtARenderSizeOfAnotherShape |
+| C08 | Fsr3Constants.cs:139 | deviceToViewDepth2 from the render size's ratio | killed by the same test |
+| C09 | UpscalePass.cs:93 | the pass hands FSR the render size's ratio | killed by FsrRebuildsViewPositionsWithTheOutputsCameraAtARenderSizeOfAnotherShape |
+| C10 | FrameHistory.cs:341 | the pending frame's output size is its render size | killed by AWorldPointKeepsItsPlaceOnTheOutputAtARenderSizeOfAnotherShape |
+| C11 | VulkanRenderer.cs:1319 | the test hook reads another word | killed by FsrReadsThisFramesExposureRatioBeforeAdaptationWritesTheNextFramesExposure |
+
+- Coverage: `dotnet test --project tests/Tertius.Rendering.Tests -c Checked --coverage --coverage-output-format cobertura` with the classes OutputCameraTests, OutputFramingRenderTests, Fsr3HostTests, UpscalingRenderTests and BatcherTests (190 passed), then `python3 tools/coverage/changed-lines.py --base 4298ae7ec`: 15 of 15 changed lines covered, no branches.

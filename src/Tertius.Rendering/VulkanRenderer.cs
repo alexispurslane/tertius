@@ -768,8 +768,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
             snapshot: snapshot,
             alpha: alpha,
             highestStops: Exposure.HighestStops(frame: FrameNumber, step: pending.ExposureStep),
-            width: (int)pending.RenderSize.Width,
-            height: (int)pending.RenderSize.Height,
             meshes: geometry.Meshes,
             materials: materials.Infos,
             environment: environment,
@@ -1318,12 +1316,13 @@ public sealed unsafe class VulkanRenderer : IRenderer
     internal float[] ReadMotion() => ReadLevel(image: targets.Motion, layer: 0, mip: 0).Values;
 
     /// <summary>The FSR exposure ratio recorded before adaptation, or an error without FSR. A test hook.</summary>
-    internal float ReadFsrExposureRatio()
+    internal float ReadFsrExposureRatio() => ReadFsrConstants().DeltaPreExposure;
+
+    /// <summary>FSR's constants as the last recorded upscale left them, or an error without FSR. A test hook.</summary>
+    internal Fsr3Constants ReadFsrConstants()
     {
         GpuBuffer constants = upscalePass?.Constants ?? throw new InvalidOperationException("FSR is off.");
-        uint[] words = ReadBufferWords(constants);
-        int word = (int)Marshal.OffsetOf<Fsr3Constants>(nameof(Fsr3Constants.DeltaPreExposure)) / sizeof(uint);
-        return BitConverter.UInt32BitsToSingle(words[word]);
+        return MemoryMarshal.Read<Fsr3Constants>(MemoryMarshal.AsBytes(ReadBufferWords(constants).AsSpan()));
     }
 
     /// <summary>The reactive mask as bytes from 0 to 255, or an error without FSR. A test hook.</summary>

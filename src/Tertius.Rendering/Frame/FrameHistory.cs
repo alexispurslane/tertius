@@ -334,8 +334,12 @@ internal sealed class FrameHistory
         /// <summary>Which of two alternating images this draw writes: the parity of <see cref="DrawnFrames"/>. It reads the other.</summary>
         public int Parity => (int)(DrawnFrames & 1);
 
-        /// <summary>The draw's render size.</summary>
+        /// <summary>The draw's render size: how many samples the picture gets, never what the camera sees.</summary>
         public Extent2D RenderSize => history.derived.RenderSize;
+
+        /// <summary>The draw's output size, whose width over height is the camera's aspect (ARCHITECTURE.md, "Temporal upscaling and render size").</summary>
+        public Extent2D OutputSize => history.derived.OutputSize;
+
         public float FsrFrameMilliseconds => history.derived.FsrFrameMilliseconds;
         public Vector2 Jitter
         {
