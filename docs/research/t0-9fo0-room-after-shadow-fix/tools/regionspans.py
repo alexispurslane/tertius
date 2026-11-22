@@ -1,30 +1,28 @@
 # Tool code of t0-9fo0, part B. regionspans.py <log name> <still run> <map.png> <first,last>...: the region's drift test
-# per span of draws, from one per-anchor log of scratch-region-log.patch: region-<name>.txt (one line per draw: the draw
-# since the process start, the draw index since the last reset, the anchors, the tested anchors, the fires, the anchors
-# per ring row) and region-<name>.f32 (per draw and anchor: the region's light, the count of valid draws, the moved
-# answer). <log name> is the log's path without its extension. Each span is a range of draw indices since the last reset,
-# both ends included. Per span it prints:
+# per span of draws, from one per-anchor log of scratch-region-log.patch (read by regionlog.py). <log name> is the log's
+# path without its extension. Each span is a range of draw indices since the last reset, both ends included. Per span it
+# prints:
 #   - the anchor-draws at which the test ran (36 valid draws in a row), the fires among them and their share;
 #   - the region's light change over the span: per anchor, the mean light of the span's last 18 draws over the mean of
-#     its first 18, minus 1, as the median over the tested anchors of its magnitude, and the mean over the anchors;
+#     its first 18, minus 1, as the median over the tested anchors of its magnitude, and the mean over the anchors. Two
+#     means of 18 draws scatter with the light, so at an anchor whose light scatters widely this is not a trend measure
+#     (regionnoise.py measures the trend);
+#   - how the fires spread over the anchors: the share of all fires at the 10 anchors that fire most, and the share of
+#     fires among the other anchors' tested anchor-draws;
 #   - the anchors that fire most, with their share and their own light change over the span.
-# A pure-noise test at 3 standard deviations fires at about 0.3 % of its anchor-draws, if each draw's answer is
-# independent. <map.png> marks, for the first span and the last, each anchor's share of fires on the still rect-lamps
-# of <still run> (1920 x 1080 output from 1280 x 720 render): a square of 96 x 96 output pixels around the anchor's tap
-# block, red with a strength from 0 to a share of 10 %, and the share in % as text. Run it through m.sh.
+# A test with a known spread at 3 standard deviations fires at 0.27 % of its tests on noise. This test estimates its
+# spread from 18 draws, so it fires at about 0.8 % on Gaussian noise (regionnoise.py). <map.png> marks, for the first
+# span and the last, each anchor's share of fires on the still rect-lamps of <still run> (1920 x 1080 output from 1280 x
+# 720 render): a square of 96 x 96 output pixels around the anchor's tap block, red with a strength from 0 to a share of
+# 10 %, and the share in % as text. Run it through m.sh.
 import sys
-from pathlib import Path
 import numpy as np
+import regionlog
 from PIL import Image, ImageDraw
 
-log, still, out = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+log, still, out = sys.argv[1], sys.argv[2], sys.argv[3]
 spans = [tuple(int(v) for v in s.split(',')) for s in sys.argv[4:]]
-lines = np.array([[int(v) for v in l.split()] for l in log.with_suffix('.txt').read_text().splitlines()])
-anchors, wide = int(lines[0, 2]), int(lines[0, 5])
-data = np.fromfile(log.with_suffix('.f32'), dtype='<f4').reshape(len(lines), anchors, 3)
-index = lines[:, 1]
-light, valid, moved = data[..., 0], data[..., 1], data[..., 2] != 0
-tested = valid >= 36
+index, light, tested, moved, wide = regionlog.load(log)
 shares = {}
 for first, last in spans:
     rows = (index >= first) & (index <= last)
@@ -38,6 +36,11 @@ for first, last in spans:
     print(f'draws {first} to {last}: {rows.sum()} draws, anchor-draws tested {t.sum()}, fires {f.sum()}, share {100 * share:.2f} %,'
           f' light change over the span: median |change| {100 * np.median(np.abs(change[live])):.2f} %,'
           f' mean change {100 * change[live].mean():+.2f} %')
+    busiest = np.argsort(f.sum(axis=0))[::-1][:10]
+    rest = np.ones(per_anchor.shape, dtype=bool)
+    rest[busiest] = False
+    print(f'    the 10 anchors that fire most hold {100 * f[:, busiest].sum() / max(f.sum(), 1):.1f} % of the fires; the other '
+          f'{rest.sum()} anchors fire at {100 * f[:, rest].sum() / max(t[:, rest].sum(), 1):.2f} % of their tested anchor-draws')
     for a in np.argsort(per_anchor)[::-1][:5]:
         if per_anchor[a] > 0:
             print(f'    anchor ({a % wide}, {a // wide}): share {100 * per_anchor[a]:.1f} %, its light change {100 * change[a]:+.2f} %')

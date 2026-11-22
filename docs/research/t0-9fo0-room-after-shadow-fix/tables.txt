@@ -240,6 +240,9 @@ same: /private/tmp/t0-9fo0b/runs/s-X/images/still/rect-lamps-reference.png /priv
 /Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-9fo0-room-after-shadow-fix/pics/b-rect-lamps-whole-408.png (1929, 381)
 /Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-9fo0-room-after-shadow-fix/pics/b-rect-lamps-ceiling.png (1932, 442)
 /Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-9fo0-room-after-shadow-fix/pics/b-rect-lamps-ceiling-408.png (1932, 442)
+M: map score against the 8-bit reference 0.0128
+X0: map score against the 8-bit reference 0.0202
+X: map score against the 8-bit reference 0.0105
 /Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-9fo0-room-after-shadow-fix/pics/b-rect-lamps-blotch-map.png (2892, 584)
 # Take 2: the switch cabin (switch.py of t0-xlcu: M's controls for all sides, then each side against its own)
 variant                            slowest off/on whole off/on  r11 off/on  lvl60 off w/r11  lvl60 on w/r11  cyc off w/r11  cyc on w/r11  dip off r11   dip on r11 own15 on r11  still lo/hi r11
@@ -299,84 +302,92 @@ frame 220: X against X0, mean signed difference in the crop -15.34 %, over the m
 frame 380: X against X0, mean signed difference in the crop +2.29 %, over the measured pixels +1.07 %
 frame 420: X against X0, mean signed difference in the crop +8.09 %, over the measured pixels +5.11 %
 /Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-9fo0-room-after-shadow-fix/pics/b-grid-whole.png /Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-9fo0-room-after-shadow-fix/pics/b-grid-crops.png
-run frame  vertical-lines  horizontal-lines   (step at the grid over the median step elsewhere)
-M     159           0.686             1.341
-X0    159           0.721             1.279
-X     159           0.724             1.305
-M     180           0.830             1.231
-X0    180           0.896             1.179
-X     180           0.847             1.193
-M     220           0.841             1.367
-X0    220           0.846             1.287
-X     220           0.847             1.314
-M     380           0.913             1.134
-X0    380           0.957             1.095
-X     380           0.970             1.102
-M     420           0.853             1.264
-X0    420           0.848             1.283
-X     420           0.833             1.340
-220 x 96-192 rows 276..299 mean log2 lum per row, minus row 287:
-  M    -3.8  -3.3  -2.9  -2.5  -2.2  -1.9  -1.6  -1.3  -1.0  -0.7  -0.3  +0.0  +0.3  +0.7  +1.0  +1.4  +1.8  +2.0  +2.1  +2.5  +2.7  +2.9  +3.0  +3.2
-  X0   -3.4  -3.0  -2.6  -2.3  -2.0  -1.8  -1.5  -1.3  -0.9  -0.6  -0.3  +0.0  +0.3  +0.5  +0.9  +1.3  +1.6  +1.7  +2.0  +2.3  +2.5  +2.7  +2.7  +2.8
-  X    -4.3  -3.8  -3.3  -2.9  -2.6  -2.2  -1.9  -1.5  -1.3  -0.9  -0.4  +0.0  +0.3  +0.7  +1.1  +1.5  +1.9  +2.2  +2.5  +2.8  +3.1  +3.2  +3.4  +3.5
-  X/X0  -0.9  -0.9  -0.7  -0.6  -0.5  -0.4  -0.4  -0.3  -0.3  -0.2  -0.1  +0.0  +0.0  +0.2  +0.3  +0.2  +0.3  +0.5  +0.5  +0.5  +0.6  +0.6  +0.7  +0.7
-220 x 192-288 rows 276..299 mean log2 lum per row, minus row 287:
-  M    -4.6  -4.1  -3.7  -3.2  -2.8  -2.5  -2.2  -1.6  -1.3  -0.8  -0.4  +0.0  +0.5  +0.9  +1.2  +1.5  +1.8  +2.1  +2.4  +2.9  +3.3  +3.6  +4.0  +4.2
-  X0   -3.8  -3.4  -3.1  -2.6  -2.3  -2.0  -1.8  -1.4  -1.1  -0.6  -0.3  +0.0  +0.5  +0.9  +1.1  +1.4  +1.7  +1.9  +2.2  +2.6  +2.9  +3.2  +3.6  +3.9
-  X    -4.6  -4.1  -3.6  -3.1  -2.8  -2.5  -2.1  -1.7  -1.3  -0.7  -0.4  +0.0  +0.6  +1.1  +1.4  +1.8  +2.1  +2.4  +2.8  +3.2  +3.6  +4.0  +4.4  +4.7
-  X/X0  -0.8  -0.7  -0.6  -0.5  -0.5  -0.5  -0.4  -0.3  -0.2  -0.1  -0.0  +0.0  +0.1  +0.2  +0.3  +0.3  +0.5  +0.5  +0.5  +0.6  +0.7  +0.8  +0.8  +0.8
-220 x 288-384 rows 276..299 mean log2 lum per row, minus row 287:
-  M    -3.5  -3.2  -2.8  -2.5  -2.2  -2.0  -1.7  -1.3  -1.0  -0.7  -0.4  +0.0  +0.4  +0.9  +1.1  +1.4  +1.8  +2.2  +2.5  +2.9  +3.3  +3.7  +4.2  +4.7
-  X0   -3.5  -3.2  -2.9  -2.5  -2.3  -2.0  -1.7  -1.3  -1.0  -0.6  -0.2  +0.0  +0.4  +0.8  +1.1  +1.4  +1.9  +2.2  +2.6  +2.9  +3.2  +3.5  +3.8  +4.2
-  X    -4.1  -3.7  -3.3  -2.9  -2.5  -2.2  -1.9  -1.5  -1.2  -0.7  -0.3  +0.0  +0.5  +0.8  +1.1  +1.5  +2.0  +2.5  +2.9  +3.3  +3.6  +4.0  +4.5  +4.9
-  X/X0  -0.6  -0.6  -0.5  -0.4  -0.3  -0.3  -0.3  -0.3  -0.2  -0.2  -0.1  +0.0  +0.0  -0.0  +0.0  +0.1  +0.1  +0.3  +0.3  +0.5  +0.5  +0.5  +0.7  +0.7
-220 x 384-480 rows 276..299 mean log2 lum per row, minus row 287:
-  M    -5.0  -4.6  -4.2  -3.9  -3.4  -3.0  -2.6  -2.1  -1.5  -0.9  -0.4  +0.0  +0.5  +1.0  +1.5  +2.2  +2.7  +3.3  +3.7  +4.3  +4.9  +5.6  +6.4  +7.1
-  X0   -4.8  -4.3  -3.9  -3.6  -3.1  -2.8  -2.3  -1.8  -1.4  -0.9  -0.4  +0.0  +0.5  +1.0  +1.4  +1.8  +2.4  +2.8  +3.2  +3.9  +4.2  +4.7  +5.3  +5.7
-  X    -5.4  -4.9  -4.4  -4.0  -3.6  -3.0  -2.5  -2.1  -1.5  -1.0  -0.5  +0.0  +0.5  +1.1  +1.7  +2.3  +2.8  +3.3  +3.9  +4.4  +5.0  +5.6  +6.3  +7.1
-  X/X0  -0.6  -0.6  -0.5  -0.4  -0.4  -0.3  -0.2  -0.2  -0.2  -0.2  -0.1  +0.0  +0.0  +0.1  +0.3  +0.4  +0.4  +0.6  +0.7  +0.6  +0.8  +0.9  +1.0  +1.4
-420 x 96-192 rows 276..299 mean log2 lum per row, minus row 287:
-  M    -2.9  -2.6  -2.2  -1.8  -1.6  -1.4  -1.1  -0.8  -0.6  -0.3  -0.2  +0.0  +0.4  +0.7  +1.0  +1.3  +1.5  +1.7  +1.9  +2.1  +2.3  +2.5  +2.7  +2.9
-  X0   -2.7  -2.4  -2.1  -1.8  -1.6  -1.4  -1.0  -0.7  -0.6  -0.4  -0.2  +0.0  +0.3  +0.7  +0.9  +1.2  +1.4  +1.6  +1.8  +1.9  +2.1  +2.4  +2.5  +2.7
-  X    -2.7  -2.4  -2.1  -1.8  -1.6  -1.3  -1.0  -0.8  -0.6  -0.3  -0.2  +0.0  +0.4  +0.7  +0.9  +1.2  +1.4  +1.5  +1.6  +1.8  +2.0  +2.2  +2.4  +2.6
-  X/X0  +0.1  -0.0  -0.0  +0.0  +0.0  +0.0  +0.0  -0.1  -0.0  +0.0  +0.0  +0.0  +0.0  -0.0  -0.0  -0.0  -0.1  -0.1  -0.1  -0.1  -0.2  -0.2  -0.2  -0.1
-420 x 192-288 rows 276..299 mean log2 lum per row, minus row 287:
-  M    -3.1  -2.8  -2.5  -2.2  -1.9  -1.5  -1.1  -0.8  -0.6  -0.4  -0.2  +0.0  +0.2  +0.5  +0.8  +1.2  +1.5  +1.7  +2.1  +2.5  +2.8  +3.2  +3.5  +3.7
-  X0   -3.2  -2.7  -2.5  -2.2  -1.9  -1.5  -1.1  -0.8  -0.6  -0.4  -0.2  +0.0  +0.3  +0.6  +0.9  +1.2  +1.4  +1.7  +2.1  +2.4  +2.6  +3.0  +3.3  +3.5
-  X    -2.8  -2.5  -2.2  -1.9  -1.6  -1.3  -0.9  -0.6  -0.4  -0.3  -0.2  +0.0  +0.3  +0.6  +0.9  +1.1  +1.3  +1.6  +2.0  +2.3  +2.5  +2.9  +3.2  +3.3
-  X/X0  +0.4  +0.3  +0.3  +0.3  +0.2  +0.2  +0.2  +0.1  +0.2  +0.1  -0.0  +0.0  +0.0  +0.0  -0.0  -0.1  -0.1  -0.1  -0.1  -0.1  -0.0  -0.0  -0.1  -0.2
-420 x 288-384 rows 276..299 mean log2 lum per row, minus row 287:
-  M    -3.6  -3.2  -3.0  -2.6  -2.2  -2.0  -1.8  -1.4  -1.1  -0.7  -0.4  +0.0  +0.4  +0.6  +0.7  +0.9  +1.3  +1.6  +2.0  +2.4  +2.8  +3.1  +3.4  +3.6
-  X0   -3.8  -3.5  -3.1  -2.8  -2.4  -2.2  -1.9  -1.5  -1.2  -0.8  -0.3  +0.0  +0.2  +0.5  +0.7  +1.0  +1.4  +1.5  +2.0  +2.5  +2.7  +3.0  +3.4  +3.6
-  X    -3.2  -2.9  -2.6  -2.2  -1.9  -1.7  -1.5  -1.2  -1.0  -0.6  -0.2  +0.0  +0.3  +0.6  +0.7  +0.9  +1.2  +1.5  +1.8  +2.3  +2.6  +2.8  +3.1  +3.4
-  X/X0  +0.6  +0.6  +0.5  +0.6  +0.4  +0.4  +0.4  +0.3  +0.2  +0.2  +0.1  +0.0  +0.1  +0.1  +0.0  -0.1  -0.1  -0.1  -0.2  -0.2  -0.1  -0.2  -0.2  -0.2
-420 x 384-480 rows 276..299 mean log2 lum per row, minus row 287:
-  M    -4.4  -4.1  -3.7  -3.3  -3.0  -2.6  -2.1  -1.6  -1.2  -0.7  -0.3  +0.0  +0.4  +0.9  +1.1  +1.2  +1.5  +2.0  +2.4  +3.1  +3.6  +4.1  +4.4  +4.9
-  X0   -4.4  -4.0  -3.8  -3.5  -3.0  -2.6  -2.1  -1.5  -1.2  -0.7  -0.3  +0.0  +0.5  +1.0  +1.2  +1.5  +2.0  +2.4  +2.8  +3.3  +3.8  +4.2  +4.6  +4.9
-  X    -4.0  -3.5  -3.4  -3.2  -2.9  -2.4  -2.1  -1.5  -1.1  -0.7  -0.2  +0.0  +0.2  +0.6  +0.8  +1.0  +1.5  +1.8  +2.2  +2.8  +3.2  +3.7  +4.0  +4.4
-  X/X0  +0.4  +0.5  +0.5  +0.3  +0.1  +0.1  +0.0  +0.0  +0.1  -0.0  +0.0  +0.0  -0.3  -0.4  -0.4  -0.5  -0.5  -0.6  -0.6  -0.6  -0.6  -0.6  -0.6  -0.5
-# The region's test: the share of anchor-draws with a moved answer (regionfires.py, the counts of the first log)
-/private/tmp/t0-9fo0b/regionlog/s-Xr/region-none.txt
-  the whole still: draws 924, anchors 240, anchor-draws tested 211344, fires 3137, share 0.0148, draws with a fire 742, first / last draw index with a fire 36 / 923
-/private/tmp/t0-9fo0b/regionlog/g-Xr/region-193-393.txt
-  before the switch, frames 0 to 159: draws 160, anchors 240, anchor-draws tested 37366, fires 1022, share 0.0274, draws with a fire 148, first / last draw index with a fire 36 / 192
-  100 draws after off, frames 160 to 259: draws 100, anchors 240, anchor-draws tested 23800, fires 12776, share 0.5368, draws with a fire 100, first / last draw index with a fire 193 / 292
-  frames 260 to 359, lamps still off: draws 100, anchors 240, anchor-draws tested 23800, fires 543, share 0.0228, draws with a fire 97, first / last draw index with a fire 293 / 392
-  100 draws after on, frames 360 to 459: draws 100, anchors 240, anchor-draws tested 23800, fires 11972, share 0.5030, draws with a fire 100, first / last draw index with a fire 393 / 492
+series  frame   vertical lines, phase 0 / 12   horizontal lines, phase 0 / 12   (step there over the median step)
+M        159          0.684 / 0.889                  1.333 / 0.923
+X0       159          0.715 / 0.924                  1.278 / 0.897
+X        159          0.722 / 0.958                  1.303 / 0.909
+X/X0     159          0.958 / 1.094                  1.058 / 0.918
+M/X0     159          0.919 / 1.125                  1.140 / 0.985
+M        180          0.826 / 0.965                  1.231 / 1.047
+X0       180          0.894 / 0.955                  1.179 / 1.046
+X        180          0.845 / 0.939                  1.196 / 1.060
+X/X0     180          1.060 / 1.047                  1.188 / 1.102
+M/X0     180          1.071 / 1.075                  1.205 / 1.143
+M        220          0.842 / 1.080                  1.369 / 1.013
+X0       220          0.847 / 1.174                  1.276 / 0.981
+X        220          0.848 / 1.128                  1.310 / 0.985
+X/X0     220          0.963 / 1.027                  1.306 / 1.057
+M/X0     220          0.967 / 1.088                  1.385 / 1.093
+M        380          0.911 / 0.935                  1.127 / 0.905
+X0       380          0.955 / 0.963                  1.095 / 0.949
+X        380          0.969 / 0.971                  1.101 / 0.959
+X/X0     380          1.022 / 1.020                  1.114 / 1.048
+M/X0     380          1.043 / 1.081                  1.197 / 1.067
+M        420          0.849 / 0.959                  1.260 / 0.965
+X0       420          0.846 / 0.972                  1.273 / 0.965
+X        420          0.831 / 0.966                  1.332 / 0.973
+X/X0     420          0.976 / 0.990                  1.107 / 0.982
+M/X0     420          1.004 / 1.016                  1.116 / 0.989
+220 x 96-192 rows 276..311, 100 ln(luminance) per row, minus row 287:
+  M    -2.6  -2.3  -2.0  -1.7  -1.5  -1.3  -1.1  -0.9  -0.7  -0.5  -0.2  +0.0  +0.2  +0.5  +0.7  +1.0  +1.2  +1.4  +1.5  +1.7  +1.9  +2.0  +2.1  +2.2  +2.4  +2.8  +3.1  +3.3  +3.5  +3.7  +3.7  +3.8  +4.0  +4.0  +4.2  +4.3
+  X0   -2.4  -2.0  -1.8  -1.6  -1.4  -1.2  -1.1  -0.9  -0.6  -0.4  -0.2  +0.0  +0.2  +0.4  +0.6  +0.9  +1.1  +1.2  +1.4  +1.6  +1.7  +1.8  +1.9  +2.0  +2.1  +2.4  +2.7  +2.9  +3.0  +3.2  +3.3  +3.4  +3.6  +3.7  +3.8  +3.9
+  X    -3.0  -2.7  -2.3  -2.0  -1.8  -1.6  -1.3  -1.1  -0.9  -0.6  -0.3  +0.0  +0.2  +0.5  +0.8  +1.0  +1.3  +1.5  +1.7  +1.9  +2.1  +2.2  +2.4  +2.4  +2.6  +3.0  +3.3  +3.5  +3.8  +3.9  +4.0  +4.2  +4.3  +4.4  +4.6  +4.7
+  X/X0  -0.6  -0.6  -0.5  -0.4  -0.4  -0.3  -0.3  -0.2  -0.2  -0.2  -0.1  +0.0  +0.0  +0.1  +0.2  +0.2  +0.2  +0.3  +0.4  +0.3  +0.4  +0.4  +0.5  +0.5  +0.5  +0.6  +0.6  +0.7  +0.7  +0.7  +0.7  +0.8  +0.7  +0.7  +0.7  +0.8
+220 x 192-288 rows 276..311, 100 ln(luminance) per row, minus row 287:
+  M    -3.2  -2.8  -2.6  -2.2  -2.0  -1.7  -1.5  -1.1  -0.9  -0.6  -0.2  +0.0  +0.3  +0.7  +0.9  +1.0  +1.3  +1.5  +1.7  +2.0  +2.3  +2.5  +2.8  +2.9  +3.0  +3.3  +3.4  +3.6  +3.8  +4.0  +4.2  +4.4  +4.5  +4.6  +4.6  +4.8
+  X0   -2.7  -2.4  -2.1  -1.8  -1.6  -1.4  -1.2  -1.0  -0.7  -0.4  -0.2  +0.0  +0.3  +0.6  +0.8  +1.0  +1.2  +1.3  +1.6  +1.8  +2.0  +2.2  +2.5  +2.7  +2.8  +3.0  +3.2  +3.4  +3.6  +3.8  +4.0  +4.1  +4.3  +4.4  +4.5  +4.6
+  X    -3.2  -2.9  -2.5  -2.2  -1.9  -1.7  -1.5  -1.2  -0.9  -0.5  -0.3  +0.0  +0.4  +0.8  +1.0  +1.2  +1.5  +1.7  +1.9  +2.2  +2.5  +2.8  +3.1  +3.2  +3.4  +3.6  +3.8  +4.1  +4.3  +4.4  +4.6  +4.8  +5.0  +5.1  +5.3  +5.4
+  X/X0  -0.6  -0.5  -0.4  -0.3  -0.3  -0.3  -0.3  -0.2  -0.2  -0.1  -0.0  +0.0  +0.1  +0.2  +0.2  +0.2  +0.3  +0.4  +0.4  +0.4  +0.5  +0.6  +0.5  +0.6  +0.6  +0.6  +0.6  +0.7  +0.7  +0.7  +0.7  +0.7  +0.7  +0.7  +0.8  +0.8
+220 x 288-384 rows 276..311, 100 ln(luminance) per row, minus row 287:
+  M    -2.4  -2.2  -2.0  -1.7  -1.5  -1.4  -1.2  -0.9  -0.7  -0.5  -0.3  +0.0  +0.2  +0.6  +0.8  +1.0  +1.3  +1.5  +1.7  +2.0  +2.3  +2.6  +2.9  +3.2  +3.6  +3.9  +4.2  +4.3  +4.6  +4.8  +5.0  +5.5  +5.8  +6.0  +6.3  +6.6
+  X0   -2.4  -2.2  -2.0  -1.7  -1.6  -1.4  -1.1  -0.9  -0.7  -0.4  -0.2  +0.0  +0.3  +0.6  +0.8  +1.0  +1.3  +1.5  +1.8  +2.0  +2.2  +2.4  +2.6  +2.9  +3.2  +3.4  +3.5  +3.7  +3.9  +4.0  +4.2  +4.6  +4.8  +5.1  +5.3  +5.5
+  X    -2.9  -2.6  -2.3  -2.0  -1.7  -1.6  -1.3  -1.1  -0.8  -0.5  -0.2  +0.0  +0.3  +0.6  +0.8  +1.0  +1.4  +1.7  +2.0  +2.3  +2.5  +2.8  +3.1  +3.4  +3.7  +4.1  +4.3  +4.6  +4.8  +5.0  +5.2  +5.6  +5.9  +6.2  +6.5  +6.8
+  X/X0  -0.4  -0.4  -0.3  -0.3  -0.2  -0.2  -0.2  -0.2  -0.1  -0.1  -0.1  +0.0  +0.0  -0.0  +0.0  +0.1  +0.1  +0.2  +0.2  +0.3  +0.3  +0.4  +0.5  +0.5  +0.6  +0.7  +0.7  +0.8  +0.9  +1.0  +1.0  +1.0  +1.1  +1.1  +1.2  +1.3
+220 x 384-480 rows 276..311, 100 ln(luminance) per row, minus row 287:
+  M    -3.4  -3.2  -2.9  -2.7  -2.3  -2.1  -1.8  -1.4  -1.0  -0.6  -0.3  +0.0  +0.4  +0.7  +1.0  +1.5  +1.9  +2.3  +2.5  +3.0  +3.4  +3.9  +4.4  +4.9  +5.2  +5.5  +5.7  +6.1  +6.5  +6.8  +7.0  +7.4  +7.6  +7.9  +8.1  +8.4
+  X0   -3.3  -3.0  -2.7  -2.5  -2.2  -1.9  -1.6  -1.3  -1.0  -0.6  -0.3  +0.0  +0.3  +0.7  +1.0  +1.3  +1.6  +1.9  +2.2  +2.7  +2.9  +3.2  +3.7  +3.9  +4.3  +4.6  +4.8  +5.2  +5.5  +5.7  +6.0  +6.3  +6.5  +6.8  +7.2  +7.5
+  X    -3.7  -3.4  -3.0  -2.8  -2.5  -2.1  -1.8  -1.4  -1.1  -0.7  -0.4  +0.0  +0.4  +0.7  +1.2  +1.6  +1.9  +2.3  +2.7  +3.1  +3.5  +3.9  +4.4  +4.9  +5.3  +5.6  +5.9  +6.3  +6.6  +7.0  +7.3  +7.6  +7.9  +8.2  +8.5  +8.9
+  X/X0  -0.4  -0.4  -0.3  -0.3  -0.3  -0.2  -0.2  -0.2  -0.1  -0.1  -0.1  +0.0  +0.0  +0.1  +0.2  +0.3  +0.3  +0.4  +0.5  +0.4  +0.6  +0.6  +0.7  +1.0  +1.1  +1.1  +1.1  +1.1  +1.2  +1.3  +1.3  +1.2  +1.3  +1.4  +1.3  +1.4
+420 x 96-192 rows 276..311, 100 ln(luminance) per row, minus row 287:
+  M    -2.0  -1.8  -1.5  -1.3  -1.1  -0.9  -0.7  -0.5  -0.4  -0.2  -0.1  +0.0  +0.2  +0.5  +0.7  +0.9  +1.1  +1.2  +1.3  +1.5  +1.6  +1.7  +1.8  +2.0  +2.2  +2.4  +2.5  +2.6  +2.6  +2.7  +2.9  +3.0  +3.1  +3.2  +3.3  +3.4
+  X0   -1.9  -1.6  -1.4  -1.3  -1.1  -0.9  -0.7  -0.5  -0.4  -0.2  -0.1  +0.0  +0.2  +0.5  +0.6  +0.8  +1.0  +1.1  +1.2  +1.3  +1.5  +1.6  +1.8  +1.9  +2.1  +2.3  +2.4  +2.5  +2.6  +2.7  +2.8  +3.0  +3.1  +3.2  +3.3  +3.4
+  X    -1.8  -1.7  -1.4  -1.2  -1.1  -0.9  -0.7  -0.5  -0.4  -0.2  -0.1  +0.0  +0.3  +0.5  +0.6  +0.8  +0.9  +1.0  +1.1  +1.3  +1.4  +1.5  +1.6  +1.8  +1.9  +2.1  +2.2  +2.3  +2.3  +2.4  +2.5  +2.6  +2.7  +2.8  +2.9  +3.0
+  X/X0  +0.0  -0.0  -0.0  +0.0  +0.0  +0.0  +0.0  -0.0  -0.0  +0.0  +0.0  +0.0  +0.0  -0.0  -0.0  -0.0  -0.1  -0.1  -0.1  -0.1  -0.1  -0.1  -0.1  -0.1  -0.2  -0.2  -0.2  -0.2  -0.3  -0.3  -0.3  -0.4  -0.4  -0.4  -0.3  -0.3
+420 x 192-288 rows 276..311, 100 ln(luminance) per row, minus row 287:
+  M    -2.2  -1.9  -1.7  -1.5  -1.3  -1.0  -0.7  -0.5  -0.4  -0.3  -0.1  +0.0  +0.2  +0.3  +0.6  +0.8  +1.0  +1.2  +1.5  +1.7  +1.9  +2.2  +2.4  +2.5  +2.7  +2.9  +3.0  +3.4  +3.6  +3.7  +3.8  +4.0  +4.1  +4.3  +4.4  +4.6
+  X0   -2.2  -1.9  -1.7  -1.5  -1.3  -1.0  -0.8  -0.5  -0.4  -0.3  -0.1  +0.0  +0.2  +0.4  +0.6  +0.8  +1.0  +1.2  +1.5  +1.7  +1.8  +2.1  +2.3  +2.4  +2.6  +2.7  +2.9  +3.2  +3.4  +3.5  +3.7  +3.8  +3.9  +4.1  +4.3  +4.4
+  X    -2.0  -1.7  -1.5  -1.3  -1.1  -0.9  -0.6  -0.4  -0.3  -0.2  -0.1  +0.0  +0.2  +0.4  +0.6  +0.8  +0.9  +1.1  +1.4  +1.6  +1.8  +2.0  +2.2  +2.3  +2.4  +2.6  +2.7  +3.0  +3.2  +3.3  +3.4  +3.5  +3.6  +3.8  +3.9  +4.0
+  X/X0  +0.2  +0.2  +0.2  +0.2  +0.2  +0.2  +0.1  +0.1  +0.1  +0.1  -0.0  +0.0  +0.0  +0.0  -0.0  -0.1  -0.1  -0.0  -0.1  -0.1  -0.0  -0.0  -0.1  -0.1  -0.1  -0.2  -0.2  -0.2  -0.2  -0.2  -0.2  -0.3  -0.3  -0.3  -0.4  -0.4
+420 x 288-384 rows 276..311, 100 ln(luminance) per row, minus row 287:
+  M    -2.5  -2.2  -2.1  -1.8  -1.5  -1.4  -1.3  -1.0  -0.8  -0.5  -0.2  +0.0  +0.2  +0.4  +0.5  +0.6  +0.9  +1.1  +1.4  +1.7  +1.9  +2.1  +2.3  +2.5  +2.8  +3.0  +3.2  +3.4  +3.6  +3.7  +3.9  +4.1  +4.4  +4.6  +4.8  +5.1
+  X0   -2.7  -2.4  -2.2  -1.9  -1.6  -1.5  -1.3  -1.1  -0.8  -0.6  -0.2  +0.0  +0.2  +0.4  +0.5  +0.7  +0.9  +1.1  +1.4  +1.7  +1.9  +2.1  +2.3  +2.5  +2.7  +3.0  +3.2  +3.4  +3.6  +3.8  +3.9  +4.2  +4.4  +4.6  +4.9  +5.0
+  X    -2.2  -2.0  -1.8  -1.5  -1.3  -1.2  -1.1  -0.8  -0.7  -0.4  -0.1  +0.0  +0.2  +0.4  +0.5  +0.6  +0.9  +1.0  +1.3  +1.6  +1.8  +1.9  +2.2  +2.4  +2.6  +2.8  +3.0  +3.1  +3.3  +3.4  +3.6  +3.8  +4.0  +4.2  +4.4  +4.6
+  X/X0  +0.4  +0.4  +0.4  +0.4  +0.3  +0.3  +0.3  +0.2  +0.2  +0.1  +0.1  +0.0  +0.1  +0.0  +0.0  -0.1  -0.1  -0.0  -0.1  -0.1  -0.1  -0.1  -0.2  -0.1  -0.1  -0.2  -0.2  -0.3  -0.3  -0.4  -0.3  -0.4  -0.4  -0.4  -0.4  -0.4
+420 x 384-480 rows 276..311, 100 ln(luminance) per row, minus row 287:
+  M    -3.1  -2.8  -2.6  -2.3  -2.1  -1.8  -1.4  -1.1  -0.8  -0.5  -0.2  +0.0  +0.3  +0.7  +0.7  +0.8  +1.1  +1.4  +1.7  +2.1  +2.5  +2.8  +3.0  +3.4  +3.8  +4.1  +4.3  +4.4  +4.6  +4.9  +5.2  +5.6  +5.8  +6.0  +6.2  +6.5
+  X0   -3.1  -2.8  -2.7  -2.4  -2.1  -1.8  -1.5  -1.0  -0.8  -0.5  -0.2  +0.0  +0.3  +0.7  +0.9  +1.1  +1.4  +1.7  +1.9  +2.3  +2.6  +2.9  +3.2  +3.4  +3.8  +4.1  +4.3  +4.4  +4.7  +4.9  +5.4  +5.8  +5.9  +6.1  +6.3  +6.5
+  X    -2.8  -2.4  -2.3  -2.2  -2.0  -1.7  -1.4  -1.0  -0.8  -0.5  -0.1  +0.0  +0.1  +0.4  +0.6  +0.7  +1.0  +1.2  +1.5  +1.9  +2.2  +2.5  +2.8  +3.1  +3.4  +3.6  +3.8  +3.9  +4.1  +4.3  +4.7  +5.0  +5.2  +5.4  +5.6  +5.8
+  X/X0  +0.3  +0.3  +0.3  +0.2  +0.1  +0.1  +0.0  +0.0  +0.0  -0.0  +0.0  +0.0  -0.2  -0.2  -0.3  -0.4  -0.3  -0.4  -0.4  -0.4  -0.4  -0.4  -0.4  -0.3  -0.4  -0.5  -0.5  -0.5  -0.6  -0.6  -0.7  -0.7  -0.7  -0.7  -0.7  -0.7
+# The region log: the first form (x, counts per draw) and the second (x2, per anchor) give the same counts
+same counts: s-Xr/region-none
+same counts: g-Xr/region-193-393
 # The region's test per span (regionspans.py, the per-anchor log): the still, then the switch
-draws 37 to 132: 96 draws, anchor-draws tested 22848, fires 821, share 3.59 %, light change over the span: median |change| 3.96 %, mean change +3.79 %
-    anchor (17, 6): share 22.9 %, its light change +1.21 %
-    anchor (8, 6): share 20.8 %, its light change +3.24 %
-    anchor (12, 6): share 19.8 %, its light change +4.27 %
-    anchor (13, 5): share 17.7 %, its light change +3.81 %
-    anchor (5, 10): share 17.7 %, its light change +5.41 %
+draws 36 to 132: 97 draws, anchor-draws tested 23086, fires 843, share 3.65 %, light change over the span: median |change| 3.94 %, mean change +3.81 %
+    the 10 anchors that fire most hold 20.8 % of the fires; the other 230 anchors fire at 3.02 % of their tested anchor-draws
+    anchor (17, 6): share 22.7 %, its light change +1.36 %
+    anchor (8, 6): share 21.6 %, its light change +3.54 %
+    anchor (12, 6): share 20.6 %, its light change +4.09 %
+    anchor (13, 5): share 17.5 %, its light change +3.53 %
+    anchor (7, 7): share 17.5 %, its light change +2.89 %
 draws 133 to 400: 268 draws, anchor-draws tested 63784, fires 781, share 1.22 %, light change over the span: median |change| 1.22 %, mean change +0.30 %
+    the 10 anchors that fire most hold 38.9 % of the fires; the other 230 anchors fire at 0.78 % of their tested anchor-draws
     anchor (1, 6): share 19.4 %, its light change -6.08 %
     anchor (1, 5): share 17.5 %, its light change -6.51 %
     anchor (14, 6): share 14.2 %, its light change +2.18 %
     anchor (2, 6): share 12.3 %, its light change -3.98 %
     anchor (2, 5): share 12.3 %, its light change -5.12 %
 draws 401 to 923: 523 draws, anchor-draws tested 124474, fires 1513, share 1.22 %, light change over the span: median |change| 1.12 %, mean change -0.40 %
+    the 10 anchors that fire most hold 34.7 % of the fires; the other 230 anchors fire at 0.83 % of their tested anchor-draws
     anchor (1, 6): share 13.0 %, its light change +6.07 %
     anchor (2, 6): share 12.2 %, its light change +3.62 %
     anchor (2, 5): share 11.1 %, its light change +3.61 %
@@ -384,30 +395,35 @@ draws 401 to 923: 523 draws, anchor-draws tested 124474, fires 1513, share 1.22 
     anchor (15, 5): share 10.3 %, its light change -9.83 %
 /Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-9fo0-room-after-shadow-fix/pics/b-fires-still.png (1926, 562)
 draws 36 to 132: 97 draws, anchor-draws tested 23086, fires 846, share 3.66 %, light change over the span: median |change| 3.90 %, mean change +3.73 %
+    the 10 anchors that fire most hold 20.9 % of the fires; the other 230 anchors fire at 3.02 % of their tested anchor-draws
     anchor (17, 6): share 21.6 %, its light change +1.27 %
     anchor (8, 6): share 21.6 %, its light change +3.52 %
     anchor (12, 6): share 20.6 %, its light change +4.03 %
     anchor (1, 5): share 18.6 %, its light change +7.56 %
     anchor (7, 7): share 17.5 %, its light change +2.84 %
 draws 133 to 192: 60 draws, anchor-draws tested 14280, fires 176, share 1.23 %, light change over the span: median |change| 1.19 %, mean change +0.53 %
+    the 10 anchors that fire most hold 52.3 % of the fires; the other 230 anchors fire at 0.61 % of their tested anchor-draws
     anchor (1, 5): share 26.7 %, its light change -9.04 %
     anchor (1, 6): share 26.7 %, its light change -6.25 %
     anchor (2, 6): share 20.0 %, its light change -5.32 %
     anchor (2, 5): share 13.3 %, its light change -5.02 %
     anchor (13, 10): share 11.7 %, its light change +0.88 %
 draws 193 to 292: 100 draws, anchor-draws tested 23800, fires 12776, share 53.68 %, light change over the span: median |change| 42.96 %, mean change -40.82 %
+    the 10 anchors that fire most hold 5.7 % of the fires; the other 230 anchors fire at 52.84 % of their tested anchor-draws
     anchor (18, 2): share 75.0 %, its light change -41.46 %
     anchor (15, 3): share 75.0 %, its light change -30.65 %
     anchor (17, 2): share 75.0 %, its light change -40.34 %
     anchor (17, 1): share 74.0 %, its light change -45.80 %
     anchor (2, 7): share 73.0 %, its light change -47.89 %
 draws 293 to 392: 100 draws, anchor-draws tested 23800, fires 543, share 2.28 %, light change over the span: median |change| 2.24 %, mean change -1.82 %
+    the 10 anchors that fire most hold 52.7 % of the fires; the other 230 anchors fire at 1.13 % of their tested anchor-draws
     anchor (2, 6): share 43.0 %, its light change -2.12 %
     anchor (1, 6): share 38.0 %, its light change -7.40 %
     anchor (1, 5): share 37.0 %, its light change -6.51 %
     anchor (2, 5): share 32.0 %, its light change -5.59 %
     anchor (14, 6): share 30.0 %, its light change +0.32 %
 draws 393 to 492: 100 draws, anchor-draws tested 23800, fires 11972, share 50.30 %, light change over the span: median |change| 42.87 %, mean change +49.67 %
+    the 10 anchors that fire most hold 5.7 % of the fires; the other 230 anchors fire at 49.51 % of their tested anchor-draws
     anchor (8, 6): share 72.0 %, its light change +31.06 %
     anchor (16, 2): share 71.0 %, its light change +37.70 %
     anchor (17, 4): share 69.0 %, its light change +40.62 %
@@ -416,61 +432,61 @@ draws 393 to 492: 100 draws, anchor-draws tested 23800, fires 11972, share 50.30
 /Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/t0-9fo0-room-after-shadow-fix/pics/b-fires-switch.png (1926, 562)
 # The region test replayed on real, shuffled and Gaussian light (regionnoise.py): the still, then the switch
 replay: 100.000 % of the 211344 tested anchor-draws give the logged answer; fires logged 3137, replayed 3137
-draws 37 to 132, tests from draw 72: real order 2.58 %, random order 0.97 % (spread 0.19), Gaussian noise 0.80 %
+draws 36 to 132, tests from draw 71: real order 2.58 %, random order within the phases 1.08 % (spread 0.24), fully random order 0.97 % (spread 0.14), Gaussian noise 0.75 %
     scatter from draw to draw: median 5.2 %, 10th to 90th percentile 3.9 to 10.8 %
     trend over the span: not measured, the span holds only 5 means of 18 draws
-    anchor (5, 10): real 23.0 %, random order 0.0 %, slope +0.22 % per 100 draws (t +0.0), half change +1.24 %, scatter 9.0 %
-    anchor (7, 6): real 19.7 %, random order 0.0 %, slope +8.00 % per 100 draws (t +3.0), half change +4.82 %, scatter 4.4 %
-    anchor (6, 2): real 19.7 %, random order 0.0 %, slope +6.27 % per 100 draws (t +1.8), half change +3.04 %, scatter 3.9 %
-    anchor (11, 3): real 19.7 %, random order 0.0 %, slope +4.73 % per 100 draws (t +1.4), half change +1.56 %, scatter 4.3 %
-    anchor (9, 9): real 18.0 %, random order 0.0 %, slope +1.71 % per 100 draws (t +0.3), half change +3.21 %, scatter 7.9 %
-    anchor (6, 3): real 18.0 %, random order 0.0 %, slope +6.71 % per 100 draws (t +3.3), half change +3.47 %, scatter 4.1 %
-draws 133 to 400, tests from draw 168: real order 1.16 %, random order 1.25 % (spread 0.11), Gaussian noise 0.78 %
+    anchor (5, 10): real 22.6 %, random order within the phases 0.0 %, slope +1.19 % per 100 draws (t +0.2), half change +1.66 %, scatter 9.0 %
+    anchor (6, 2): real 21.0 %, random order within the phases 0.0 %, slope +6.18 % per 100 draws (t +2.2), half change +3.20 %, scatter 3.9 %
+    anchor (7, 6): real 19.4 %, random order within the phases 0.0 %, slope +8.76 % per 100 draws (t +2.8), half change +5.15 %, scatter 4.4 %
+    anchor (11, 3): real 19.4 %, random order within the phases 0.0 %, slope +4.71 % per 100 draws (t +1.3), half change +1.16 %, scatter 4.2 %
+    anchor (9, 9): real 17.7 %, random order within the phases 0.0 %, slope +2.98 % per 100 draws (t +0.5), half change +3.64 %, scatter 7.9 %
+    anchor (6, 3): real 17.7 %, random order within the phases 0.0 %, slope +7.12 % per 100 draws (t +3.2), half change +3.83 %, scatter 4.1 %
+draws 133 to 400, tests from draw 168: real order 1.16 %, random order within the phases 1.25 % (spread 0.08), fully random order 1.27 % (spread 0.11), Gaussian noise 0.80 %
     scatter from draw to draw: median 5.2 %, 10th to 90th percentile 3.6 to 11.8 %
     trend over the span: anchors with |t| > 3: 0.0 %, median |half change| 0.43 %
-    anchor (14, 6): real 16.3 %, random order 4.3 %, slope +0.86 % per 100 draws (t +1.6), half change +0.83 %, scatter 6.7 %
-    anchor (1, 6): real 15.5 %, random order 16.3 %, slope +0.88 % per 100 draws (t +0.6), half change +1.51 %, scatter 20.1 %
-    anchor (1, 5): real 13.3 %, random order 19.3 %, slope +1.43 % per 100 draws (t +1.0), half change +2.05 %, scatter 16.9 %
-    anchor (15, 6): real 10.7 %, random order 7.7 %, slope +0.22 % per 100 draws (t +0.5), half change +0.24 %, scatter 7.9 %
-    anchor (2, 5): real 10.7 %, random order 8.6 %, slope +0.79 % per 100 draws (t +0.8), half change +1.55 %, scatter 12.6 %
-    anchor (4, 6): real 9.4 %, random order 7.7 %, slope -0.01 % per 100 draws (t -0.0), half change -1.05 %, scatter 15.8 %
-draws 401 to 923, tests from draw 436: real order 1.10 %, random order 1.36 % (spread 0.06), Gaussian noise 0.81 %
+    anchor (14, 6): real 16.3 %, random order within the phases 9.4 %, slope +0.86 % per 100 draws (t +1.6), half change +0.83 %, scatter 6.7 %
+    anchor (1, 6): real 15.5 %, random order within the phases 14.6 %, slope +0.88 % per 100 draws (t +0.6), half change +1.51 %, scatter 20.1 %
+    anchor (1, 5): real 13.3 %, random order within the phases 14.2 %, slope +1.43 % per 100 draws (t +1.0), half change +2.05 %, scatter 16.9 %
+    anchor (15, 6): real 10.7 %, random order within the phases 4.7 %, slope +0.22 % per 100 draws (t +0.5), half change +0.24 %, scatter 7.9 %
+    anchor (2, 5): real 10.7 %, random order within the phases 15.5 %, slope +0.79 % per 100 draws (t +0.8), half change +1.55 %, scatter 12.6 %
+    anchor (4, 6): real 9.4 %, random order within the phases 7.7 %, slope -0.01 % per 100 draws (t -0.0), half change -1.05 %, scatter 15.8 %
+draws 401 to 923, tests from draw 436: real order 1.10 %, random order within the phases 1.35 % (spread 0.06), fully random order 1.35 % (spread 0.06), Gaussian noise 0.79 %
     scatter from draw to draw: median 5.2 %, 10th to 90th percentile 3.7 to 12.2 %
     trend over the span: anchors with |t| > 3: 1.3 %, median |half change| 0.33 %
-    anchor (1, 6): real 13.9 %, random order 11.9 %, slope +0.46 % per 100 draws (t +1.1), half change +0.91 %, scatter 17.0 %
-    anchor (2, 6): real 13.1 %, random order 9.0 %, slope +0.24 % per 100 draws (t +0.8), half change -0.11 %, scatter 11.8 %
-    anchor (2, 5): real 11.9 %, random order 5.7 %, slope +0.44 % per 100 draws (t +1.5), half change +0.79 %, scatter 11.0 %
-    anchor (1, 5): real 10.5 %, random order 12.7 %, slope +0.44 % per 100 draws (t +1.1), half change +0.77 %, scatter 15.1 %
-    anchor (19, 4): real 7.8 %, random order 4.5 %, slope +0.37 % per 100 draws (t +1.1), half change +1.43 %, scatter 11.3 %
-    anchor (15, 6): real 7.6 %, random order 11.9 %, slope -0.45 % per 100 draws (t -1.3), half change -0.53 %, scatter 13.7 %
+    anchor (1, 6): real 13.9 %, random order within the phases 14.8 %, slope +0.46 % per 100 draws (t +1.1), half change +0.91 %, scatter 17.0 %
+    anchor (2, 6): real 13.1 %, random order within the phases 6.6 %, slope +0.24 % per 100 draws (t +0.8), half change -0.11 %, scatter 11.8 %
+    anchor (2, 5): real 11.9 %, random order within the phases 10.9 %, slope +0.44 % per 100 draws (t +1.5), half change +0.79 %, scatter 11.0 %
+    anchor (1, 5): real 10.5 %, random order within the phases 12.5 %, slope +0.44 % per 100 draws (t +1.1), half change +0.77 %, scatter 15.1 %
+    anchor (19, 4): real 7.8 %, random order within the phases 6.6 %, slope +0.37 % per 100 draws (t +1.1), half change +1.43 %, scatter 11.3 %
+    anchor (15, 6): real 7.6 %, random order within the phases 9.8 %, slope -0.45 % per 100 draws (t -1.3), half change -0.53 %, scatter 13.7 %
 replay: 100.000 % of the 108766 tested anchor-draws give the logged answer; fires logged 26313, replayed 26313
-draws 36 to 132, tests from draw 71: real order 2.57 %, random order 1.03 % (spread 0.22), Gaussian noise 0.80 %
+draws 36 to 132, tests from draw 71: real order 2.57 %, random order within the phases 1.08 % (spread 0.25), fully random order 0.97 % (spread 0.14), Gaussian noise 0.75 %
     scatter from draw to draw: median 5.2 %, 10th to 90th percentile 3.9 to 10.7 %
     trend over the span: not measured, the span holds only 5 means of 18 draws
-    anchor (5, 10): real 22.6 %, random order 0.0 %, slope +0.92 % per 100 draws (t +0.1), half change +1.53 %, scatter 9.0 %
-    anchor (6, 2): real 21.0 %, random order 0.0 %, slope +6.15 % per 100 draws (t +2.2), half change +3.18 %, scatter 3.9 %
-    anchor (11, 3): real 19.4 %, random order 0.0 %, slope +4.70 % per 100 draws (t +1.3), half change +1.16 %, scatter 4.2 %
-    anchor (7, 6): real 17.7 %, random order 0.0 %, slope +8.73 % per 100 draws (t +2.8), half change +5.13 %, scatter 4.4 %
-    anchor (6, 3): real 17.7 %, random order 0.0 %, slope +7.10 % per 100 draws (t +3.2), half change +3.82 %, scatter 4.1 %
-    anchor (9, 9): real 17.7 %, random order 0.0 %, slope +2.76 % per 100 draws (t +0.5), half change +3.52 %, scatter 7.8 %
-draws 133 to 192, tests from draw 168: real order 0.66 %, random order 1.08 % (spread 0.26), Gaussian noise 0.78 %
+    anchor (5, 10): real 22.6 %, random order within the phases 0.0 %, slope +0.92 % per 100 draws (t +0.1), half change +1.53 %, scatter 9.0 %
+    anchor (6, 2): real 21.0 %, random order within the phases 0.0 %, slope +6.15 % per 100 draws (t +2.2), half change +3.18 %, scatter 3.9 %
+    anchor (11, 3): real 19.4 %, random order within the phases 0.0 %, slope +4.70 % per 100 draws (t +1.3), half change +1.16 %, scatter 4.2 %
+    anchor (7, 6): real 17.7 %, random order within the phases 0.0 %, slope +8.73 % per 100 draws (t +2.8), half change +5.13 %, scatter 4.4 %
+    anchor (6, 3): real 17.7 %, random order within the phases 0.0 %, slope +7.10 % per 100 draws (t +3.2), half change +3.82 %, scatter 4.1 %
+    anchor (9, 9): real 17.7 %, random order within the phases 0.0 %, slope +2.76 % per 100 draws (t +0.5), half change +3.52 %, scatter 7.8 %
+draws 133 to 192, tests from draw 168: real order 0.66 %, random order within the phases 1.21 % (spread 0.25), fully random order 0.96 % (spread 0.26), Gaussian noise 0.85 %
     scatter from draw to draw: median 4.9 %, 10th to 90th percentile 3.5 to 10.6 %
     trend over the span: not measured, the span holds only 3 means of 18 draws
-    anchor (7, 3): real 28.0 %, random order 0.0 %, slope -5.42 % per 100 draws (t -0.8), half change -2.46 %, scatter 3.4 %
-    anchor (14, 6): real 16.0 %, random order 0.0 %, slope +7.88 % per 100 draws (t +5.3), half change +1.92 %, scatter 3.4 %
-    anchor (13, 6): real 16.0 %, random order 0.0 %, slope +13.07 % per 100 draws (t +1.8), half change +2.46 %, scatter 4.6 %
-    anchor (13, 7): real 16.0 %, random order 0.0 %, slope +16.42 % per 100 draws (t +3.9), half change +3.87 %, scatter 5.7 %
-    anchor (5, 3): real 16.0 %, random order 0.0 %, slope +2.13 % per 100 draws (t +0.3), half change -0.60 %, scatter 3.6 %
-    anchor (6, 3): real 16.0 %, random order 0.0 %, slope -1.02 % per 100 draws (t -0.1), half change -1.44 %, scatter 4.1 %
-draws 293 to 392, tests from draw 328: real order 2.13 %, random order 1.90 % (spread 0.29), Gaussian noise 0.79 %
+    anchor (7, 3): real 28.0 %, random order within the phases 0.0 %, slope -5.42 % per 100 draws (t -0.8), half change -2.46 %, scatter 3.4 %
+    anchor (14, 6): real 16.0 %, random order within the phases 0.0 %, slope +7.88 % per 100 draws (t +5.3), half change +1.92 %, scatter 3.4 %
+    anchor (13, 6): real 16.0 %, random order within the phases 0.0 %, slope +13.07 % per 100 draws (t +1.8), half change +2.46 %, scatter 4.6 %
+    anchor (13, 7): real 16.0 %, random order within the phases 0.0 %, slope +16.42 % per 100 draws (t +3.9), half change +3.87 %, scatter 5.7 %
+    anchor (5, 3): real 16.0 %, random order within the phases 0.0 %, slope +2.13 % per 100 draws (t +0.3), half change -0.60 %, scatter 3.6 %
+    anchor (6, 3): real 16.0 %, random order within the phases 0.0 %, slope -1.02 % per 100 draws (t -0.1), half change -1.44 %, scatter 4.1 %
+draws 293 to 392, tests from draw 328: real order 2.13 %, random order within the phases 1.82 % (spread 0.23), fully random order 1.90 % (spread 0.20), Gaussian noise 0.75 %
     scatter from draw to draw: median 7.2 %, 10th to 90th percentile 4.2 to 15.7 %
     trend over the span: not measured, the span holds only 5 means of 18 draws
-    anchor (19, 6): real 36.9 %, random order 27.7 %, slope +16.31 % per 100 draws (t +2.1), half change +7.39 %, scatter 31.1 %
-    anchor (1, 6): real 30.8 %, random order 38.5 %, slope +8.61 % per 100 draws (t +0.3), half change +5.14 %, scatter 66.8 %
-    anchor (2, 6): real 30.8 %, random order 40.0 %, slope +7.21 % per 100 draws (t +0.4), half change +4.01 %, scatter 42.6 %
-    anchor (19, 5): real 29.2 %, random order 27.7 %, slope +9.45 % per 100 draws (t +1.0), half change +4.67 %, scatter 27.0 %
-    anchor (15, 5): real 29.2 %, random order 23.1 %, slope +9.20 % per 100 draws (t +1.7), half change +3.27 %, scatter 15.6 %
-    anchor (14, 6): real 29.2 %, random order 6.2 %, slope +7.15 % per 100 draws (t +1.1), half change +1.14 %, scatter 15.2 %
+    anchor (19, 6): real 36.9 %, random order within the phases 32.3 %, slope +16.31 % per 100 draws (t +2.1), half change +7.39 %, scatter 31.1 %
+    anchor (1, 6): real 30.8 %, random order within the phases 32.3 %, slope +8.61 % per 100 draws (t +0.3), half change +5.14 %, scatter 66.8 %
+    anchor (2, 6): real 30.8 %, random order within the phases 40.0 %, slope +7.21 % per 100 draws (t +0.4), half change +4.01 %, scatter 42.6 %
+    anchor (19, 5): real 29.2 %, random order within the phases 10.8 %, slope +9.45 % per 100 draws (t +1.0), half change +4.67 %, scatter 27.0 %
+    anchor (15, 5): real 29.2 %, random order within the phases 3.1 %, slope +9.20 % per 100 draws (t +1.7), half change +3.27 %, scatter 15.6 %
+    anchor (14, 6): real 29.2 %, random order within the phases 4.6 %, slope +7.15 % per 100 draws (t +1.1), half change +1.14 %, scatter 15.2 %
 # Take 3: the stand part (survey results, region r11 = index 5), and part A's M and X0
 st-X settleDraws [23, 16, 18, 13, 27, 34, 27, 14, 20, 20] after tick [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] first window r11 -0.0767 failed []
 # Take 3: the stand film (standfilm.py: the survey's motion part)

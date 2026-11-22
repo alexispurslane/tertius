@@ -2,8 +2,8 @@
 # For each still, the survey's blotch map: the blurred still, divided by its whole level, against its own build's
 # blurred long reference (tools/renderer-survey.py, blotch), as a signed relative difference per output pixel, shown at
 # half size on one diverging scale from -5 % (blue) through 0 (gray) to +5 % (red). Pixels that the score leaves out
-# (not visible, or near an emitter) are black. Under each map: the score (the 90th percentile of the magnitude). Run it
-# through m.sh.
+# (not visible, or near an emitter) are black. Under each map, and printed: the score (the 90th percentile of the
+# magnitude). Run it through m.sh.
 # The formula below repeats survey.blotch (tools/renderer-survey.py), which stays the source of truth: the survey returns
 # only the score, and this map needs the signed difference per pixel. The map reads the stored reference, an 8-bit gray
 # PNG, where the survey scored against the float mean of the captures, so its score differs from the survey's a little.
@@ -27,6 +27,7 @@ for arg in sys.argv[2:]:
     b = survey.blur(r)
     signed = (survey.blur(y) / (1 + survey.level(y, r)) - b) / (b + survey.RELATIVE_FLOOR)
     score = float(np.percentile(np.abs(signed[mask]), 90))
+    print(f'{label}: map score against the 8-bit reference {score:.4f}')
     t = np.clip(signed / SCALE, -1, 1)
     rgb = np.zeros(signed.shape + (3,))
     gray = np.array([0.55, 0.55, 0.55])

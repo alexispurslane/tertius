@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Tool code of t0-9fo0, part B. queue-b.sh: the takes of part B in order, into /private/tmp/t0-9fo0b/runs. Builds by
-# build.sh: X = 6d8a68332 with probe-acxm.patch and scratch-region-log.patch, X0 = 631cc61cc and M = d8559eb58, each with
-# the survey probe of its own tree. M and X0 run again only where a picture or the chart needs their frames. Runs whose
+# Tool code of t0-9fo0, part B. queue-b.sh: the takes of part B in order, into /private/tmp/t0-9fo0b/runs, on the builds
+# of builds-b.sh: x (X, with the first form of the region log, inactive without TERTIUS_X_REGION_LOG), m (M) and x0 (X0). M and X0 run again only where a picture or the chart needs their frames. Runs whose
 # name ends in "r" carry the region log (TERTIUS_X_REGION_LOG) and repeat a plain run as its control.
 T=$(cd "$(dirname "$0")" && pwd)
 export BASE=/private/tmp/t0-9fo0b

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Tool code of t0-9fo0. take.sh <name> <parts> <cases,comma> [ENV=VALUE ...]: one survey run into $BASE/runs/<name>
 # (BASE: /private/tmp/t0-9fo0 for part A, /private/tmp/t0-9fo0b for part B), through this checkout's
-# tools/renderer-survey.py. The probe is X0's, the line's head with the survey's probe patch
-# (/private/tmp/t0-9fo0/out-x0), unless PROBE names another, for example
-# /private/tmp/t0-9fo0/out-m/probe-bin for main (M). The survey takes the shared GPU lock for each render (--chunk 0).
+# tools/renderer-survey.py. The probe is PROBE. Without it, the probe is $BASE/out-x0/probe-bin, part A's X0 (the
+# line's head with the survey's probe patch), and /private/tmp/t0-9fo0/out-m/probe-bin is part A's main (M). Part B
+# has no out-x0, so its queues always set PROBE (builds-b.sh makes its builds). The survey takes the shared GPU lock for each render (--chunk 0).
 # A run whose survey already wrote a result is kept, so that a stopped queue resumes.
 set -uo pipefail
 name=$1; parts=$2; cases=$3; shift 3

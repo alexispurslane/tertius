@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Tool code of t0-9fo0. standfilm.sh <name> [ENV=VALUE ...]: standfilm.py into $BASE/runs/<name> (as take.sh), with the
-# probe of take.sh's rule (PROBE= for main). A run with a result is kept.
+# probe of take.sh's rule (PROBE, else part A's X0). A run with a result is kept.
 set -uo pipefail
 name=$1; shift
 out=${BASE:-/private/tmp/t0-9fo0}/runs/$name

@@ -13,10 +13,12 @@
 # its mean over the map's own measured pixels (the frame's for a whole map, the crop's for a crop), from -3 % (blue)
 # through 0 (gray) to +3 % (red), so that a step along the grid shows beside the broad change, which the title gives.
 # The crop is the 480 x 320 window, on a grid of 32 output pixels, with the largest mean
-# magnitude of that difference over the four frames. The anchors' grid: a region's evidence changes at the borders of
-# the anchors' regions, which lie on lines every 8 blocks of 8 render pixels, every 64 render pixels = 96 output pixels
-# at 1920 x 1080 output from 1280 x 720 render. The lines are drawn at x = 96 i and y = 96 j, thin and green, on the
-# difference map only. It prints the crop and, per frame, the mean signed difference of X against X0 in the crop and
+# magnitude of that difference over the four frames. The anchors' grid: a block's region evidence can change only where
+# the set of anchors whose regions hold it changes (region_drift.glsl, regionAnchorMovedBefore). A block on an anchor's
+# column (block 8 i) lies in 3 regions along x, and its neighbors in 2, so the set changes at both edges of that block:
+# at render pixels 64 i and 64 i + 8, which are output pixels 96 i and 96 i + 12 at 1920 x 1080 output from 1280 x 720
+# render. The same holds along y. The lines are drawn at x = 96 i and 96 i + 12 and at y = 96 j and 96 j + 12, thin and
+# green, on the difference map only. It prints the crop and, per frame, the mean signed difference of X against X0 in the crop and
 # over the measured pixels. Run it through m.sh.
 import importlib.util
 import sys
@@ -30,7 +32,7 @@ survey = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(survey)
 FRAMES = (180, 220, 380, 420)
 LABELS = {180: '20 draws after the lamps go off', 220: '60 after off', 380: '20 after the lamps come on', 420: '60 after on'}
-CW, CH, SCALE, STEP = 480, 320, 0.03, 96
+CW, CH, SCALE, STEP, STRIP = 480, 320, 0.03, 96, 12
 whole_out, crops_out, runs = sys.argv[1], sys.argv[2], dict(zip(('M', 'X0', 'X'), sys.argv[3:6]))
 
 
@@ -114,9 +116,9 @@ for k in FRAMES:
     for part in (whole, region):
         m = diffmap(diffs[k], part)
         d = ImageDraw.Draw(m)
-        for gx in range(0, 1920, STEP):
+        for gx in [g + e for g in range(0, 1920, STEP) for e in (0, STRIP)]:
             d.line([(gx, 0), (gx, 1079)], fill=(0, 200, 0), width=1)
-        for gy in range(0, 1080, STEP):
+        for gy in [g + e for g in range(0, 1080, STEP) for e in (0, STRIP)]:
             d.line([(0, gy), (1919, gy)], fill=(0, 200, 0), width=1)
         maps.append(m)
     broad = 100 * diffs[k][measured].mean()

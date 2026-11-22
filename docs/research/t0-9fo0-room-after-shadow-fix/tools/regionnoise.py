@@ -1,33 +1,32 @@
 # Tool code of t0-9fo0, part B. regionnoise.py <log path without extension> <first,last>...: how many of the region test's
-# fires noise alone explains, from one per-anchor log of scratch-region-log.patch (see regionspans.py).
+# fires noise alone explains, from one per-anchor log of scratch-region-log.patch (read by regionlog.py).
 #   1. It replays the test of region_drift.glsl on the logged light of every anchor: at each draw with 36 valid draws, the
 #      newer window is the last 18 draws up to this one and the older window the 18 before, and the test fires where
 #      |mean(newer) - mean(older)| > 3 * s(older) * sqrt(2 / 18), with s the older window's sample standard deviation.
 #      It prints whether the replay gives the logged answer at every tested anchor-draw.
 #   2. Per span of draw indices: the share of fires of the replay, counted from the span's 36th draw so that each test sees
-#      only the span's draws; the same with each anchor's draws in a random order (20 orders, which keep each anchor's
-#      spread of light and remove any trend and the jitter's order); and the same on Gaussian noise (20 draws of noise
-#      with the span's shape). A test whose spread comes from 18 draws fires on Gaussian noise more often than the 0.27 %
-#      of a known spread, because the estimate of the spread scatters.
+#      only the span's draws; the same with each anchor's draws in a random order within each jitter phase (20 orders:
+#      the draws of one phase, draw index modulo 18, trade places only with each other); the same in a fully random order
+#      (20 orders); and the same on Gaussian noise (20 draws of noise with the span's shape). A random order keeps each
+#      anchor's spread of light and removes any trend. The order within the phases also keeps one draw of each phase in
+#      every window of 18, so that the jitter cycle still cancels in each window's mean, as the test's window length
+#      intends (region_drift.glsl). The fully random order breaks that, which adds the cycle to the difference of the
+#      means and makes it fire more often. A test whose spread comes from 18 draws fires on Gaussian noise more often than
+#      the 0.27 % of a known spread, because the estimate of the spread scatters.
 #   3. Per span, the scatter of each anchor's light from draw to draw (its standard deviation over its mean) as the median
 #      and the 10th to 90th percentile over the anchors, and the anchors that fire most, with their share in the real order
-#      and in one random order, and their scatter.
+#      and in one random order within the phases, and their scatter. The shares count from the span's 36th draw.
 #   4. Per span and anchor, the trend of the light: the slope of the 18-draw means over the span, in % per 100 draws, with
 #      its t value, and the change from the span's first half to its second half. A span with fewer than 8 such means gets
 #      no trend line, because a t value of so few means says little.
 # Run it through m.sh.
 import sys
-from pathlib import Path
 import numpy as np
+import regionlog
 
-log = Path(sys.argv[1])
 spans = [tuple(int(v) for v in s.split(',')) for s in sys.argv[2:]]
-lines = np.array([[int(v) for v in l.split()] for l in log.with_suffix('.txt').read_text().splitlines()])
-anchors, wide = int(lines[0, 2]), int(lines[0, 5])
-data = np.fromfile(log.with_suffix('.f32'), dtype='<f4').reshape(len(lines), anchors, 3).astype(np.float64)
-light, valid, moved = data[..., 0], data[..., 1], data[..., 2] != 0
-index = lines[:, 1]
-tested = valid >= 36
+index, light, tested, moved, wide = regionlog.load(sys.argv[1])
+CYCLE = 18
 rng = np.random.default_rng(1)
 
 
@@ -40,8 +39,14 @@ def test(series):
     return fires
 
 
-def shuffled(series):
-    return np.stack([series[rng.permutation(series.shape[0]), a] for a in range(series.shape[1])], axis=1)
+def shuffled(series, phases=None):
+    columns = []
+    for a in range(series.shape[1]):
+        order = np.arange(series.shape[0])
+        for group in ([order] if phases is None else [np.where(phases == p)[0] for p in range(CYCLE)]):
+            order[group] = rng.permutation(group)
+        columns.append(series[order, a])
+    return np.stack(columns, axis=1)
 
 
 replay = test(light)
@@ -49,14 +54,16 @@ print(f'replay: {(replay[tested] == moved[tested]).mean() * 100:.3f} % of the {t
       f'answer; fires logged {(moved & tested).sum()}, replayed {(replay & tested).sum()}')
 for first, last in spans:
     rows = (index >= first) & (index <= last)
-    series, ok = light[rows], tested[rows][35:]
+    series, ok, phases = light[rows], tested[rows][35:], index[rows] % CYCLE
     real = test(series)[35:] & ok
+    within = [(test(shuffled(series, phases))[35:] & ok).sum() / ok.sum() for _ in range(20)]
     orders = [(test(shuffled(series))[35:] & ok).sum() / ok.sum() for _ in range(20)]
     noise = [test(rng.normal(1.0, 0.1, size=series.shape))[35:].mean() for _ in range(20)]
     print(f'draws {first} to {last}, tests from draw {first + 35}: real order {100 * real.sum() / ok.sum():.2f} %, random order '
+          f'within the phases {100 * np.mean(within):.2f} % (spread {100 * np.std(within):.2f}), fully random order '
           f'{100 * np.mean(orders):.2f} % (spread {100 * np.std(orders):.2f}), Gaussian noise {100 * np.mean(noise):.2f} %')
     per_real = real.sum(0) / np.maximum(ok.sum(0), 1)
-    per_order = (test(shuffled(series))[35:] & ok).sum(0) / np.maximum(ok.sum(0), 1)
+    per_order = (test(shuffled(series, phases))[35:] & ok).sum(0) / np.maximum(ok.sum(0), 1)
     k = series.shape[0] // 18
     means = series[:k * 18].reshape(k, 18, -1).mean(axis=1)
     rel = means / np.where(means.mean(axis=0) > 0, means.mean(axis=0), 1) - 1
@@ -76,6 +83,6 @@ for first, last in spans:
     else:
         print(f'    trend over the span: not measured, the span holds only {k} means of 18 draws')
     for a in np.argsort(per_real)[::-1][:6]:
-        print(f'    anchor ({a % wide}, {a // wide}): real {100 * per_real[a]:.1f} %, random order {100 * per_order[a]:.1f} %, '
+        print(f'    anchor ({a % wide}, {a // wide}): real {100 * per_real[a]:.1f} %, random order within the phases {100 * per_order[a]:.1f} %, '
               f'slope {100 * 100 * slope[a]:+.2f} % per 100 draws (t {tval[a]:+.1f}), half change {100 * halves[a]:+.2f} %, '
               f'scatter {100 * scatter[a]:.1f} %')

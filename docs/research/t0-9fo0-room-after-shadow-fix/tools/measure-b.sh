@@ -40,14 +40,15 @@ echo "# Take 2: the anchors' grid (gridsheet.py, gridedge.py)"
 m gridsheet.py $P/b-grid-whole.png $P/b-grid-crops.png g-M g-X0 g-Xr
 m gridedge.py g-M g-X0 g-Xr
 m gridstep.py g-M g-X0 g-Xr
-echo "# The region's test: the share of anchor-draws with a moved answer (regionfires.py, the counts of the first log)"
-m regionfires.py $L/s-Xr
-m regionfires.py $L/g-Xr
+echo "# The region log: the first form (x, counts per draw) and the second (x2, per anchor) give the same counts"
+for r in s-Xr/region-none g-Xr/region-193-393; do
+  diff <(cut -d' ' -f1-5 $L/$r.txt) <(cut -d' ' -f1-5 $L/${r/Xr/Xr2}.txt) > /dev/null && echo "same counts: $r" || echo "DIFFERENT counts: $r"
+done
 echo "# The region's test per span (regionspans.py, the per-anchor log): the still, then the switch"
-m regionspans.py $L/s-Xr2/region-none s-X $P/b-fires-still.png 37,132 133,400 401,923
+m regionspans.py $L/s-Xr2/region-none s-X $P/b-fires-still.png 36,132 133,400 401,923
 m regionspans.py $L/g-Xr2/region-193-393 s-X $P/b-fires-switch.png 36,132 133,192 193,292 293,392 393,492
 echo "# The region test replayed on real, shuffled and Gaussian light (regionnoise.py): the still, then the switch"
-m regionnoise.py $L/s-Xr2/region-none 37,132 133,400 401,923
+m regionnoise.py $L/s-Xr2/region-none 36,132 133,400 401,923
 m regionnoise.py $L/g-Xr2/region-193-393 36,132 133,192 293,392
 echo "# Take 3: the stand part (survey results, region r11 = index 5), and part A's M and X0"
 for v in st-X; do python3 -c "

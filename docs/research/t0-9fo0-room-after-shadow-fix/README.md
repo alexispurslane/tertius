@@ -290,10 +290,11 @@ Part B takes the same room on the line's head, which now holds the remedy for th
 
 ### The sides of part B
 
-- X is the line's head `6d8a68332`, with `probe-acxm.patch` of `t0-acxm` (the survey's probe fitted to the remedy's push constants). The line's own probe patch does not apply to this tree ("The changes to the takes in part B").
-- M and X0 are part A's sides, built again from the same commits and the same probe patches by `tools/build.sh`. Their stills repeat part A's numbers to every digit. They run again only where a picture, the chart or the grid sheet needs their frames.
+- X is the line's head `6d8a68332`, with `probe-acxm.patch` of `t0-acxm` (the survey's probe fitted to the remedy's push constants) and `scratch-region-log-v1.patch`, the first form of the region log. The log does nothing without the variable `TERTIUS_X_REGION_LOG`. A build of the same tree with the second form of the log (x2) gives the still s-X byte for byte without the variable (s-X2). The line's own probe patch does not apply to this tree ("The changes to the takes in part B").
+- M and X0 are part A's sides, built again from the same commits and the same probe patches. Their stills and M's stand film repeat part A's numbers to every digit. They run again only where a picture, the chart or the grid sheet needs their frames.
 - A is X with both history clamps off (`TERTIUS_A_NO_CLAMP=1`), the reference of the daub.
-- Xr is X with `scratch-region-log.patch`, which writes the region test's answers of each draw to a file. It is a scratch build outside the checkout. Its images equal X's byte for byte.
+- Xr and Xr2 are X's takes with the variable set: the still and the grid film on build x (first form) and on build x2 (second form, `scratch-region-log.patch`). Their images equal X's byte for byte.
+- `tools/builds-b.sh` makes the four builds (x, m, x0, x2) outside the checkout.
 
 ### The terms of part B
 
@@ -301,26 +302,30 @@ Part B takes the same room on the line's head, which now holds the remedy for th
 - An anchor's region is the 17 x 17 blocks around it. Neighbor regions overlap by half, so a block lies in the regions of 4 anchors, or of up to 9 on the anchors' own rows and columns. The anchor keeps a ring of its region's light (the mean of one tap pixel per block) over the last 36 draws.
 - A fire is an anchor's answer "the region's light moved". The test compares the mean light of the newer 18 draws in the ring with the mean of the older 18 draws. It fires where they differ by more than 3 times the older draws' standard deviation times sqrt(2 / 18), the spread of such a difference. The test runs only when the ring holds 36 valid draws in a row. A block gets region evidence on the draw after a fire of any anchor whose region holds it. Region evidence caps the block's history length at 8 draws.
 - An anchor-draw is one anchor at one draw. A tested anchor-draw is one at which the test ran. The share of fires is the fires over the tested anchor-draws.
-- Pure noise makes a test at 3 standard deviations fire at about 0.27 % of its tests. So a share near 0.3 % is what a still with no moving light gives.
-- The anchors' grid is the lines where the set of regions that hold a block changes: every 8 blocks, which is every 96 output pixels in x and in y. A block's region evidence can change only at these lines, so a fault of the remedy would show as a straight edge along them.
+- A test at 3 standard deviations with a known spread fires at 0.27 % of its tests on noise. The brief's limit of about 0.3 % comes from that. This test estimates its spread from 18 draws, so it fires at about 0.8 % on Gaussian noise (`regionnoise.py`).
+- The anchors' grid is the lines where the set of regions that hold a block changes. A block on an anchor's column lies in 3 regions along x, and its neighbors lie in 2. So the set changes at both edges of that block: at output pixels 96 i and 96 i + 12 in x, and the same in y. A block's region evidence can change only at these lines, so a fault of the remedy would show as a straight edge along them.
 
 ### The answers to question 2 in short
 
-| Question | Measured |
-|---|---|
-| Does X keep the still clean? | Yes. At both exposures, X's still shows no blotch, no daub and no straight edge, beside M and X0 (take 1). It has 2 specks in the whole view at the automatic exposure and 3 at 4.08 stops (M 2 and 2, X0 1 and 2). Its blotch is the lowest of the three: 0.0102 against M's 0.0129 and X0's 0.0208. Its daub equals X0's: 0.0088 and 0.0081. |
-| How does X settle the switch against M and X0? | Faster than both in every region but r01, where X equals X0 (9 / 7 draws after off / on) and both beat M (15 / 12). The whole image settles in 43 / 31 draws (M 79 / 55, X0 94 / 50). The corners settle in 75 to 77 draws after off and 31 to 51 after on. X0 does not settle r00 and r02 within the window, and M needs 131 to 143 / 51 to 92 draws there. X still needs more than 60 draws after the lamps go off in 8 of the 9 regions, so the survey fails it on the settle, as it fails M and X0. By the bar, X still trails after the lamps go off, for less time than M and X0. |
-| Does X flicker before the switch? | No. r11 stays at 100.0 % of X's own control over frames 140 to 159, in its lowest and its highest frame. The grid sheets show no flicker, and the chart shows no swing. |
-| Is the stand film clean? | Yes. The frames are clean beside M's. Flicker 0.00025 (M 0.00029), grain flicker 0.00063 (M 0.00074), blotch 0.0114 / 0.0116 (M 0.0143 / 0.0153), all far under the survey's limits. |
-| The bay film (cited, not taken again) | In the remedy's record, the built form R is better than main in level, blotch, last-frame specks and lag. Its flicker, 0.00273, is above main's 0.00204 and far under the limit of 0.006 (table B4). |
-| The region test's fires | In the still's last 523 draws, 1.22 % of the tested anchor-draws fire, above the brief's 0.3 %. Most of them lie at the near windows, where the light does not move: these fires are false. A random order of the same draws fires at 1.36 %, and the test fires at 0.80 % on Gaussian noise. In the first 96 draws, while the light climbs, the share is 3.59 %, and these fires are true. |
-| The anchors' grid | No grid edge, daub or flicker shows in X's frames at 20 and 60 draws after either switch. The step across the grid's lines is the same on M, which has no region test. |
+Each answer starts with what the pictures show. The measures follow. My reading, with the verdicts by the bar, is below the table.
+
+| Question | What the pictures show | Measured |
+|---|---|---|
+| Does X keep the still clean? | At both exposures, X's still looks like M's and X0's: no blotch, no daub, no straight edge, and only a few single bright pixels (take 1). | 2 specks in the whole view at the automatic exposure and 3 at 4.08 stops (M 2 and 2, X0 1 and 2). Blotch 0.0102 at both exposures, against M's 0.0129 / 0.0127 and X0's 0.0208 / 0.0206. Daub 0.0088 / 0.0081, against X0's 0.0088 / 0.0080. |
+| How does X settle the switch against M and X0? | In the r11 chart, X's light returns to the control smoothly and sooner than M's and X0's after both switches. In the grid sheets, X at 60 draws after the lamps go off is darker than X0 in the middle of the room, where X0 still holds the old light. | X settles faster than both in every region but r01, where it equals X0 (9 / 7 draws after off / on) and both beat M (15 / 12). The whole image settles in 43 / 31 draws (M 79 / 55, X0 94 / 50). The corners settle in 75 to 77 draws after off and 31 to 51 after on. X0 does not settle r00 and r02 within the window, and M needs 131 to 143 / 51 to 92 draws there. X needs more than 60 draws after the lamps go off in 8 of the 9 regions, and the survey fails it on the settle, as it fails M and X0. |
+| Does X flicker before the switch? | The r11 chart is flat from frame 140 to frame 159 on all three sides. | Against M's lamps-on control, X's r11 is 98.4 % in its lowest and its highest frame of frames 140 to 159 (X0 97.4 / 97.5 %). Against X's own control, it is 100.0 / 100.0 %, but before frame 160 the control draws the same frames as the switch run, so that only shows that the run repeats. |
+| Is the stand film clean? | The middle and last frames are clean beside M's: no speck, blotch or daub. | Flicker 0.00025 (M 0.00029), grain flicker 0.00063 (M 0.00074), blotch 0.0114 / 0.0116 (M 0.0143 / 0.0153), all far under the survey's limits. |
+| The bay film (cited, not taken again) | No picture of the bay film was taken again. | In the remedy's record, the built form R is better than main in level, blotch, last-frame specks and lag, and worse in flicker (0.00273 against 0.00204) and grain flicker (0.00709 against 0.00638), both far under the limits. That record also says that the trail is not closed: the last frame is still 29 % too bright (table B4). |
+| The region test's fires | The fire maps: early in the still, fires cover the middle of the room. In the last span, they stay at the near windows. | Draws 36 to 132 of the still: 3.65 %. Draws 401 to 923: 1.22 %. In the last span, the 10 anchors that fire most (all at the side walls' windows) hold 34.7 % of the fires, and the other 230 anchors fire at 0.83 %. In the replay from draw 436, the real order fires at 1.10 %, a random order within the jitter phases at 1.35 %, and Gaussian noise at 0.79 %. |
+| The anchors' grid | No grid edge or daub shows in X's frames at 20 and 60 draws after either switch. | The step across the grid's lines in X / X0 is the same as in M / X0, and M has no region test. |
 
 My reading:
 
-- X keeps the still clean. Its still at draw 132 lies closer to its long mean than X0's at both exposures (level −0.0002 against +0.0013, and −0.0116 against −0.0245), and about as close as M's. The region test's true fires in the first 96 draws cause that.
-- X settles the switch faster than M and X0, about twice as fast after the lamps go off. It is the only side of the three whose every region settles within 60 draws after the lamps come on. The trail after the lamps go off remains, 64 to 77 draws in the middle and the corners. That fault is smaller than on M and X0, but it is not gone.
-- The false fires at the near windows cost nothing that the pictures or the scores show. Each of those anchors caps the history of the blocks in its region at 8 draws on 8 to 14 % of the draws in a still. A block lies in up to 9 regions, so its history can get the cap more often. A change of the test could lower that share, for example a spread from all 36 draws, or a spread that ignores the brightest draws. Part B did not try it.
+- By the bar, X keeps the still clean. Its still at draw 132 lies closer to its long mean than X0's at both exposures (level −0.0002 against +0.0013, and −0.0116 against −0.0245), and about as close as M's. The region test's true fires in the first 97 draws are the likely cause.
+- By the bar, X still trails after the lamps go off: 64 to 77 draws in the middle and the corners. The trail is shorter than on M and X0, about half as long. X is the only side of the three whose every region settles within 60 draws after the lamps come on.
+- By the bar, X does not flicker before the switch, and its stand film is clean.
+- By the bay film's bar, no worse than main: R is better in level, blotch, specks and lag, and worse in flicker and grain flicker. Whether that flicker shows in the film is a question for its pictures, which part B did not take again. X is R plus the review's fixes, which no take of the bay film tested.
+- The fires after draw 133 in the still are false: the light there does not move. The 230 quieter anchors fire at the rate of noise for this test. The 10 busiest anchors fire more because their light scatters widely from draw to draw. The false fires cost nothing that the pictures or the scores show. Each of the busy anchors caps the history of the blocks in its region at 8 draws on 8 to 14 % of the draws. A block lies in up to 9 regions, so its history can get the cap more often. A change of the test could lower that share, for example a spread from all 36 draws, or a spread that ignores the brightest draws. Part B did not try it.
 
 ### What the pictures show in part B
 
@@ -336,9 +341,9 @@ My reading:
 
 ![The signed blotch maps](pics/b-rect-lamps-blotch-map.png)
 
-`pics/b-rect-lamps-blotch-map.png`: the survey's signed blotch map (the still over its own long reference, blurred, from −5 % blue to +5 % red). X0's map has a broad split: the upper half is blue (the still is darker than its long mean), and the floor is red. X's map has lost most of that split. It is gray with weak blue on the ceiling, like M's. The small spots at the window jambs remain in all three, at the same places. The scores, read from these maps: M 0.0128, X0 0.0202, X 0.0105.
+`pics/b-rect-lamps-blotch-map.png`: the survey's signed blotch map (the still over its own long reference, blurred, from −5 % blue to +5 % red). X0's map has a broad split: the upper half is blue (the still is darker than its long mean), and the floor is red. X's map has lost most of that split. It is gray with weak blue on the ceiling, like M's. The small spots at the window jambs remain in all three, at the same places. The maps' own scores (`blotchmap.py`, printed in `tables.txt`) are M 0.0128, X0 0.0202 and X 0.0105. They differ a little from the survey's scores in table B1, because the map compares against the stored 8-bit reference and the survey against the float mean of the captures.
 
-My reading: the remedy lets the still's bounce light reach its long mean sooner, which removes X0's broad lag at draw 132. The fires of the region test in the still (below) are the cause, and most of them come before draw 133.
+My reading: the remedy lets the still's bounce light reach its long mean sooner, which removes X0's broad lag at draw 132. The region test's fires in the still's first 97 draws (below) are the likely cause: there the share of fires is three times that of the later spans.
 
 #### Take 2: the switch "cabin"
 
@@ -351,7 +356,7 @@ After the lamps come on, all three drop to about 80 to 82 %. X climbs with X0 fo
 
 ![The stand film's middle and last frames, M and X](pics/b-stand-film-frames.png)
 
-`pics/b-stand-film-frames.png`: the stand film's middle frame (top row) and last frame (bottom row), M (left) and X (right), at half size, at the film's fixed exposure. All four frames are clean: no specks, no blotch, no daub, no straight edge. The ceiling, the walls and the floor are smooth. X's top left corner looks a little darker than M's to the eye, as X0's did in part A.
+`pics/b-stand-film-frames.png`: the stand film's middle frame (top row) and last frame (bottom row), M (left) and X (right), at half size, at the film's fixed exposure. All four frames are clean: no specks, no blotch, no daub, no straight edge. The ceiling, the walls and the floor are smooth. To the eye, X's left wall in its upper half and the left part of its ceiling are a little darker than M's, as X0's were in part A. The film's level is the same on both sides (+1.04 against +1.05 % in the middle frame), so the darker wall is at most a little lost light, which the bar accepts.
 
 #### The anchors' grid in the switch
 
@@ -365,80 +370,82 @@ After the lamps come on, all three drop to about 80 to 82 %. X climbs with X0 fo
 
 What the sheets show:
 
-- No tile of X shows a straight edge, a daub or a speck. The ceiling, the walls and the floor are smooth in every frame. Frame 420's crop shows two or three single bright pixels on the ceiling in M, X0 and X alike.
+- No tile of X shows a straight edge, a daub or a speck. The ceiling, the walls and the floor are smooth in every frame. Frame 420's crop shows two or three single bright pixels on the ceiling in M, X0 and X alike. A sheet of single frames cannot show flicker. The r11 chart (take 2) and the stand film's flicker score answer that.
 - The difference maps follow the room, not the grid. At frame 220, X is 9.75 % darker than X0 on the whole measured image and 15.3 % darker in the crop. The map is red in the middle of the room and blue on the outer walls and the ceiling's corners, with soft borders that follow the light's falloff from the large lamp. At frame 420, X is 5.1 % brighter than X0. The map is red on the upper walls and ceiling and blue on the floor.
-- The crop's map at frame 220 has a large blue area at the top and a red band at the bottom, with soft borders. To the eye, the red seems to begin at the lowest green line (y = 288). The profile across that line (`gridstep.py`) shows no step: X / X0 changes by 0.0 to 0.1 % between rows 287 and 288, as between any two rows beside them. It climbs smoothly by about 0.07 % per row over the 24 rows around the line. The map's ±3 % scale around the crop's mean of −15 % makes that slope look like a band. At frame 420, the largest step of X / X0 between rows 287 and 288 is 0.3 %, at x 384 to 480. The row-to-row steps of M's and X0's own light scatter by ±0.2 % there, and the step does not show in X's tile.
+- The crop's map at frame 220 has a large blue area at the top and a red band at the bottom, with soft borders. To the eye, the red seems to begin at the lines y = 288 and y = 300. The profile across those lines (`gridstep.py`, in 100 times the natural log, which is % for small changes) shows a smooth climb of X / X0 by about 0.05 % per row over the 36 rows around them. The largest jumps of X / X0 at a line are 0.2 to 0.3 %: at frame 220 at y = 300, and at frame 420 at y = 288, both at x 384 to 480. X's own light steps by 0.1 to 0.5 % from row to row along the ceiling's gradient there, and so do M's and X0's. So the jumps lie within the rows' scatter, and X's tile shows no line. The map's ±3 % scale around the crop's mean of −15 % makes the slope look like a band.
 
-The edge measure (`gridedge.py`): for each frame, the step of the log luminance across the grid's lines, over the median step across the other 95 lines of each 96-pixel period. A ratio of 1 means no edge on the grid.
+The edge measure (`gridedge.py`): for each frame, the step of the log luminance across the grid's lines at phase 0 (output pixel 96 i) and phase 12 (96 i + 12), over the median step across the other 94 lines of each 96-pixel period. A ratio of 1 means no edge on the grid. Each side's own light holds the room's edges. The ratio X / X0 removes the room, so an edge that the remedy adds would show in X / X0 and not in M / X0. M and X0 have no region test.
 
-| Frame | M, vertical / horizontal lines | X0 | X |
-|---|---|---|---|
-| 159 (before the switch) | 0.686 / 1.341 | 0.721 / 1.279 | 0.724 / 1.305 |
-| 180 | 0.830 / 1.231 | 0.896 / 1.179 | 0.847 / 1.193 |
-| 220 | 0.841 / 1.367 | 0.846 / 1.287 | 0.847 / 1.314 |
-| 380 | 0.913 / 1.134 | 0.957 / 1.095 | 0.970 / 1.102 |
-| 420 | 0.853 / 1.264 | 0.848 / 1.283 | 0.833 / 1.340 |
+| Frame | X / X0, vertical lines, phase 0 / 12 | M / X0, vertical | X / X0, horizontal lines, phase 0 / 12 | M / X0, horizontal | X alone, vertical / horizontal, phase 0 |
+|---|---|---|---|---|---|
+| 159 (before the switch) | 0.958 / 1.094 | 0.919 / 1.125 | 1.058 / 0.918 | 1.140 / 0.985 | 0.722 / 1.303 |
+| 180 | 1.060 / 1.047 | 1.071 / 1.075 | 1.188 / 1.102 | 1.205 / 1.143 | 0.845 / 1.196 |
+| 220 | 0.963 / 1.027 | 0.967 / 1.088 | 1.306 / 1.057 | 1.385 / 1.093 | 0.848 / 1.310 |
+| 380 | 1.022 / 1.020 | 1.043 / 1.081 | 1.114 / 1.048 | 1.197 / 1.067 | 0.969 / 1.101 |
+| 420 | 0.976 / 0.990 | 1.004 / 1.016 | 1.107 / 0.982 | 1.116 / 0.989 | 0.831 / 1.332 |
 
-My reading: the ratios differ from 1 by the same amount on M, which has no region test, so the room's edges (the windows' rows, the wall's corners) cause them. X's ratios lie within the spread of M's and X0's in every frame. So the measure finds no edge that the remedy adds. The difference X − X0 is the faster settle of the switch, spread smoothly over the room.
+`tables.txt` holds the same for M and X0 alone. Their phase-0 ratios lie between 0.68 and 1.37, as X's do.
+
+My reading: in every frame, X / X0 is at or below M / X0 on both lines and both axes. The ratios above 1 on the horizontal lines at phase 0 appear in M / X0 too, so the room and the two builds' own noise cause them, not the remedy. The measure finds no edge that the remedy adds. The difference X − X0 is the faster settle of the switch, spread smoothly over the room.
 
 #### The region test's fires
 
 ![Where the test fires in the still](pics/b-fires-still.png)
 
-`pics/b-fires-still.png`: the still rect-lamps of X, with one square of 96 x 96 output pixels around each anchor's tap pixel. The red's strength is the anchor's share of fires, from 0 to 10 % and more, and the number is that share in %. Left: draws 37 to 132, while the still's light climbs. Right: draws 401 to 923. In the early span, fires cover the middle of the room: the floor below the lamps, the far wall, the ceiling and the rows of windows, at 5 to 23 % per anchor. In the last span, nearly all anchors fire at 0 to 2 %. The ones that fire more lie at the near windows: on the left at columns 1 and 2, rows 5 and 6 (10 to 13 %), and on the right at columns 14 to 16 and 19 (4 to 11 %).
+`pics/b-fires-still.png`: the still rect-lamps of X, with one square of 96 x 96 output pixels around each anchor's tap pixel. The red's strength is the anchor's share of fires, from 0 to 10 % and more, and the number is that share in %. Left: draws 36 to 132, while the still's light climbs. Right: draws 401 to 923. In the early span, fires cover the middle of the room: the floor below the lamps, the far wall, the ceiling and the rows of windows, at 5 to 23 % per anchor. In the last span, nearly all anchors fire at 0 to 2 %. The ones that fire more lie in rows 5 and 6, at the windows of the side walls: on the left at columns 1 and 2 (10 to 13 %), and on the right at columns 15, 16 and 19 (4 to 11 %).
 
 ![Where the test fires in the switch](pics/b-fires-switch.png)
 
 `pics/b-fires-switch.png`: the same marks for the switch film, drawn on the still of the same view. Left: draws 36 to 132, the film's start, which looks like the still's early span. Right: draws 393 to 492, the 100 draws after the lamps come on. Every anchor fires there, at 24 to 72 %.
 
-The share of tested anchor-draws with a fire per span (`regionspans.py`). The light change of a span is, per anchor, the mean light of the span's last 18 draws over that of its first 18, minus 1.
+The share of tested anchor-draws with a fire per span (`regionspans.py`). The test first runs at draw 36, when the ring holds 36 valid draws. The light change of a span is, per anchor, the mean light of the span's last 18 draws over that of its first 18, minus 1. "Busiest 10" is the share of the span's fires at the 10 anchors that fire most, and "the other 230" is the share of fires among the other anchors' tested anchor-draws.
 
-| Run | Draws | Tested anchor-draws | Fires | Share | Light change: median magnitude / mean |
-|---|---|---:|---:|---:|---|
-| Still | 37 to 132 | 22,848 | 821 | 3.59 % | 3.96 % / +3.79 % |
-| Still | 133 to 400 | 63,784 | 781 | 1.22 % | 1.22 % / +0.30 % |
-| Still | 401 to 923 | 124,474 | 1,513 | 1.22 % | 1.12 % / −0.40 % |
-| Switch | 36 to 132 | 23,086 | 846 | 3.66 % | 3.90 % / +3.73 % |
-| Switch | 133 to 192 (before the switch) | 14,280 | 176 | 1.23 % | 1.19 % / +0.53 % |
-| Switch | 193 to 292 (100 draws after off) | 23,800 | 12,776 | 53.68 % | 42.96 % / −40.82 % |
-| Switch | 293 to 392 | 23,800 | 543 | 2.28 % | 2.24 % / −1.82 % |
-| Switch | 393 to 492 (100 draws after on) | 23,800 | 11,972 | 50.30 % | 42.87 % / +49.67 % |
+| Run | Draws | Tested anchor-draws | Fires | Share | Busiest 10 | The other 230 | Light change: median magnitude / mean |
+|---|---|---:|---:|---:|---:|---:|---|
+| Still | 36 to 132 | 23,086 | 843 | 3.65 % | 20.8 % | 3.02 % | 3.94 % / +3.81 % |
+| Still | 133 to 400 | 63,784 | 781 | 1.22 % | 38.9 % | 0.78 % | 1.22 % / +0.30 % |
+| Still | 401 to 923 | 124,474 | 1,513 | 1.22 % | 34.7 % | 0.83 % | 1.12 % / −0.40 % |
+| Switch | 36 to 132 | 23,086 | 846 | 3.66 % | 20.9 % | 3.02 % | 3.90 % / +3.73 % |
+| Switch | 133 to 192 (before the switch) | 14,280 | 176 | 1.23 % | 52.3 % | 0.61 % | 1.19 % / +0.53 % |
+| Switch | 193 to 292 (100 draws after off) | 23,800 | 12,776 | 53.68 % | 5.7 % | 52.84 % | 42.96 % / −40.82 % |
+| Switch | 293 to 392 | 23,800 | 543 | 2.28 % | 52.7 % | 1.13 % | 2.24 % / −1.82 % |
+| Switch | 393 to 492 (100 draws after on) | 23,800 | 11,972 | 50.30 % | 5.7 % | 49.51 % | 42.87 % / +49.67 % |
 
-The draw index counts from the run's start. The switch film's frame k is draw 33 + k, so the lamps go off at draw 193 (frame 160) and come on at draw 393 (frame 360).
+The draw index counts from the run's start. The switch film's frame k is draw 33 + k, so the lamps go off at draw 193 (frame 160) and come on at draw 393 (frame 360). The light change compares two means of 18 draws, so at an anchor whose light scatters widely, noise dominates it. For example, `tables.txt` gives −8.6 % and −9.8 % at anchors (15, 6) and (15, 5) in the still's last span, where their slopes say that the light does not move (below). The trend measure is the slope.
 
-How much of each share noise alone explains (`regionnoise.py`). The script replays the test on the logged light of every anchor. The replay gives the logged answer at all 211,344 tested anchor-draws of the still and all 108,766 of the switch. Then it replays the test on each anchor's draws in a random order, which keeps the spread of the light and removes any trend, and on Gaussian noise. Each test of a span uses only the span's draws, so the counts start at the span's 36th draw.
+How much of each share noise alone explains (`regionnoise.py`). The script replays the test on the logged light of every anchor. The replay gives the logged answer at all 211,344 tested anchor-draws of the still and all 108,766 of the switch. Then it replays the test on each anchor's draws in a random order, and on Gaussian noise. A random order keeps the spread of the light and removes any trend. The order "within the phases" lets a draw trade places only with draws of the same jitter phase (draw index modulo 18). So each window of 18 still holds one draw of each phase, and the jitter cycle still cancels in each window's mean, as in the real order. The fully random order breaks that. Each test of a span uses only the span's draws, so these shares count from the span's 36th draw.
 
-| Run | Draws | Real order | Random order (spread of 20 orders) | Gaussian noise | Anchors with a trend, abs(t) > 3 |
-|---|---|---:|---:|---:|---:|
-| Still | 37 to 132 | 2.58 % | 0.97 % (0.19) | 0.80 % | not measured, 5 means |
-| Still | 133 to 400 | 1.16 % | 1.25 % (0.11) | 0.78 % | 0.0 % |
-| Still | 401 to 923 | 1.10 % | 1.36 % (0.06) | 0.81 % | 1.3 % |
-| Switch | 36 to 132 | 2.57 % | 1.03 % (0.22) | 0.80 % | not measured, 5 means |
-| Switch | 133 to 192 | 0.66 % | 1.08 % (0.26) | 0.78 % | not measured, 3 means |
-| Switch | 293 to 392 | 2.13 % | 1.90 % (0.29) | 0.79 % | not measured, 5 means |
+| Run | Draws, tests from | Real order | Random order within the phases (spread of 20 orders) | Fully random order (spread) | Gaussian noise | Anchors with a trend, abs(t) > 3 |
+|---|---|---:|---:|---:|---:|---:|
+| Still | 36 to 132, from 71 | 2.58 % | 1.08 % (0.24) | 0.97 % (0.14) | 0.75 % | not measured, 5 means |
+| Still | 133 to 400, from 168 | 1.16 % | 1.25 % (0.08) | 1.27 % (0.11) | 0.80 % | 0.0 % |
+| Still | 401 to 923, from 436 | 1.10 % | 1.35 % (0.06) | 1.35 % (0.06) | 0.79 % | 1.3 % |
+| Switch | 36 to 132, from 71 | 2.57 % | 1.08 % (0.25) | 0.97 % (0.14) | 0.75 % | not measured, 5 means |
+| Switch | 133 to 192, from 168 | 0.66 % | 1.21 % (0.25) | 0.96 % (0.26) | 0.85 % | not measured, 3 means |
+| Switch | 293 to 392, from 328 | 2.13 % | 1.82 % (0.23) | 1.90 % (0.20) | 0.75 % | not measured, 5 means |
 
 The trend is the slope of each anchor's 18-draw means over the span, against its standard error. Spans with fewer than 8 such means get no trend.
 
-The anchors at the near windows in the still's last span:
+The anchors that fire most in the still's last span, with the replay's shares from draw 436 (so (15, 6) has 7.6 % here and 10.5 % in the span's map):
 
-| Anchor (column, row) | Share of fires | In a random order | Slope per 100 draws (t) | Second half against first | Scatter from draw to draw |
+| Anchor (column, row) | Share of fires, from draw 436 | In a random order within the phases | Slope per 100 draws (t) | Second half against first | Scatter from draw to draw |
 |---|---:|---:|---|---:|---:|
-| (1, 6) | 13.9 % | 11.9 % | +0.46 % (+1.1) | +0.91 % | 17.0 % |
-| (2, 6) | 13.1 % | 9.0 % | +0.24 % (+0.8) | −0.11 % | 11.8 % |
-| (2, 5) | 11.9 % | 5.7 % | +0.44 % (+1.5) | +0.79 % | 11.0 % |
-| (1, 5) | 10.5 % | 12.7 % | +0.44 % (+1.1) | +0.77 % | 15.1 % |
-| (19, 4) | 7.8 % | 4.5 % | +0.37 % (+1.1) | +1.43 % | 11.3 % |
-| (15, 6) | 7.6 % | 11.9 % | −0.45 % (−1.3) | −0.53 % | 13.7 % |
+| (1, 6) | 13.9 % | 14.8 % | +0.46 % (+1.1) | +0.91 % | 17.0 % |
+| (2, 6) | 13.1 % | 6.6 % | +0.24 % (+0.8) | −0.11 % | 11.8 % |
+| (2, 5) | 11.9 % | 10.9 % | +0.44 % (+1.5) | +0.79 % | 11.0 % |
+| (1, 5) | 10.5 % | 12.5 % | +0.44 % (+1.1) | +0.77 % | 15.1 % |
+| (19, 4) | 7.8 % | 6.6 % | +0.37 % (+1.1) | +1.43 % | 11.3 % |
+| (15, 6) | 7.6 % | 9.8 % | −0.45 % (−1.3) | −0.53 % | 13.7 % |
 
 The scatter is the standard deviation of the anchor's light from draw to draw over its mean. Over all anchors in this span, its median is 5.2 %, and 80 % of the anchors lie between 3.7 and 12.2 %.
 
 My reading:
 
-- A fire is true where the light moves. In the first 96 draws of the still and of the switch film, the light still climbs: the mean light rises by 3.8 % over the span, and the real order fires 2.5 to 2.7 times as often as a random order. These fires are true evidence of the climb, which is the test's job. They are the likely cause of X's lower blotch at draw 132 (take 1).
-- After draw 133, the light of the still does not move. Only 0.0 % and 1.3 % of the anchors trend at abs(t) > 3, and their halves differ by 0.43 % and 0.33 % in the median. The real order fires no more often than a random order. So the 1.22 % of the still's last two spans are false fires.
-- The brief's limit of about 0.3 % assumes a test with a known spread. This test estimates its spread from the older 18 draws, so it fires at about 0.8 % on Gaussian noise. The anchors at the near windows fire more again. Their light scatters by 11 to 17 % from draw to draw, two to three times the median anchor's 5.2 %. Over all anchors, a random order of the same draws fires at least as often as the real order. So the shape of their scatter, not a trend, makes them fire. The record does not show which pixels of their regions cause that scatter.
-- The still's last span exceeds 0.3 % at the near windows' anchors. There the light does not move. Their false fires cap the history of the blocks around them at 8 draws on about 10 % of the draws. No picture shows a fault there, and the walls' daub is X 0.0118 against X0 0.0116 (automatic) and 0.0094 against 0.0096 (4.08 stops).
-- In the switch before the lamps go off, draws 133 to 192 fire at 1.23 % (0.66 % in the replay from draw 168, under the random order's 1.08 %). r11 does not swing in frames 140 to 159 (take 2). After each switch, about half of all tested anchor-draws fire for 100 draws. These are true fires of the switch.
+- A fire is true where the light moves. In the first 97 draws of the still and of the switch film, the light still climbs: the mean light rises by 3.8 % over the span. The real order fires 2.4 times as often as a random order within the phases. These fires are true evidence of the climb, which is the test's job. They are the likely cause of X's lower blotch at draw 132 (take 1).
+- After draw 133, the light of the still does not move. The slopes rest that on: only 0.0 % and 1.3 % of the anchors trend at abs(t) > 3, and the halves of a span differ by 0.43 % and 0.33 % in the median. So the 1.22 % of the still's last two spans are false fires.
+- The 230 quieter anchors fire at 0.78 % and 0.83 %, the rate of this test on Gaussian noise. The 10 busiest anchors fire more: their light scatters by 11 to 17 % from draw to draw, two to three times the median anchor's 5.2 %. In the real order, the still's last span fires at 1.10 %, and a random order within the phases fires at 1.35 %. So the spread of the busy anchors' light, not a trend, makes them fire. The record does not show which pixels of their regions cause that spread.
+- The still's last span exceeds the brief's 0.3 %. Part of the excess is the test's own rate on noise (about 0.8 %), and the rest comes from the busy anchors at the side walls' windows, where the light does not move. Their false fires cap the history of the blocks around them at 8 draws on 8 to 14 % of the draws. No picture shows a fault there, and the walls' daub is X 0.0118 against X0 0.0116 (automatic) and 0.0094 against 0.0096 (4.08 stops).
+- In the switch before the lamps go off, draws 133 to 192 fire at 1.23 %, half of them at the 10 busiest anchors. The replay from draw 168 gives 0.66 %, under the random order's 1.21 %. After each switch, about half of all tested anchor-draws fire for 100 draws. These are true fires of the switch.
 
 ### The tables of part B
 
@@ -500,7 +507,7 @@ The survey's limits are 0.006 for flicker, 0.05 for grain flicker, 0.04 for blot
 
 #### Table B4: the bay film (take 4, cited, not taken again)
 
-Source: `docs/research/t0-acxm-region-evidence/README.md`, sections "The film rect-bay" and "The lag film bay-sun". There, M is main at `c4c1f1f2f`, L is the line without the remedy (`36c3fd0e8`), and R is the remedy's built form, from the working tree `41e6119e1` with `probe-acxm.patch`.
+Source: `docs/research/t0-acxm-region-evidence/README.md`, sections "The film rect-bay" and "The lag film bay-sun", and its "The answers in short" for the trail that remains. There, M is main at `c4c1f1f2f`, L is the line without the remedy (`36c3fd0e8`), and R is the remedy's built form, from the working tree `41e6119e1` with `probe-acxm.patch`.
 
 | Side | Level, middle / last frame | Blotch, middle / last | Specks, middle / last | Flicker | Grain flicker | Median lag | Largest lag | Median lag error | Largest lag error |
 |---|---|---|---|---:|---:|---|---|---:|---:|
@@ -510,24 +517,26 @@ Source: `docs/research/t0-acxm-region-evidence/README.md`, sections "The film re
 
 R is not exactly X. X (`6d8a68332`) adds the review's fixes of the remedy to R: the previous render size after a change of the camera's frame (`FrameHistory`), no region test for the single-history prototype, and comments. No part B take shows whether these change the bay film's images.
 
-My reading by the bay film's bar (no worse than main): R is better than main in level, blotch, last-frame specks and lag. Its flicker is higher than main's (0.00273 against 0.00204), far under the survey's limit of 0.006.
+My reading by the bay film's bar (no worse than main): R is better than main in level, blotch, last-frame specks and lag. It is worse than main in flicker (0.00273 against 0.00204) and grain flicker (0.00709 against 0.00638), both far under the survey's limits of 0.006 and 0.05. The remedy's record also says that the trail is not closed: the last frame is still 29 % too bright. No picture of the bay film was taken again in part B, so part B cannot say whether the higher flicker shows.
 
 ### The changes to the takes in part B
 
 - X's probe is `probe-acxm.patch` of `t0-acxm`, not the line's `tools/renderer-survey/probe.patch`. The line's patch does not apply to `6d8a68332`: `patch -p1` rejects its hunks in `GpuTypes.cs` and `accumulate.glsl`, because the remedy added a push constant and an argument where the probe inserts its own. Ticket `tc-w3c0` (a bug under `ter-8hyd`) records the fix. `probe-acxm.patch` is the same probe, fitted to those two places.
-- `tools/build.sh` builds each side outside the checkout, from `git archive` of the commit and the patches, so that no build needs a worktree. M and X0 are built again from part A's commits.
+- `tools/build.sh` builds each side outside the checkout, from `git archive` of the commit and the patches, so that no build needs a worktree. `tools/builds-b.sh` holds the four builds. M and X0 are built again from part A's commits.
 - M and X0 ran again. Their stills give part A's numbers to every digit, so the record keeps one row each.
 - The grid sheet needs frames that the survey's switch run does not keep: the survey keeps a run's frames only where `TERTIUS_PROBE_KEEP` names them, and its `render()` sets that variable itself. `gridfilm.py` runs the switch run alone through the survey's `render()` with its own list of kept frames. Its region series equals the survey's switch run byte for byte for M, X0 and X, so the grid film is the same film.
-- The region log (`scratch-region-log.patch`) is a scratch build. It reads back the anchors' ring each draw. Its stills and grid film equal X's byte for byte, so the log does not change the images.
+- The region log is a scratch change. It reads back the anchors' ring each draw. Build x carries its first form (`scratch-region-log-v1.patch`, counts per draw), and every X take ran on x with the log off. The second form (`scratch-region-log.patch`) also writes the ring's whole layer, for the fires per span and per anchor, and runs on x2. Both forms give the same counts per draw, and their stills and grid films equal X's byte for byte, so the log does not change the images. The first record of the counts (`regionfires.py` of the commit before the review) gave the same counts. The per-anchor log replaces it.
 
 ### The files of part B
 
 - `tools/build.sh`: builds a side outside the checkout, from `git archive` of a commit and the patches.
-- `scratch-region-log.patch`: the scratch build's change on top of `probe-acxm.patch`: the region log, per draw and per anchor.
+- `scratch-region-log-v1.patch` and `scratch-region-log.patch`: the two forms of the region log, each on top of `probe-acxm.patch`: counts per draw, and the ring's whole layer per draw.
+- `tools/builds-b.sh`: the four builds of part B.
 - `tools/queue-b.sh`: the takes of part B in order. `tools/queue-b2.sh`: the takes with the per-anchor log, on the build x2.
 - `tools/gridfilm.sh` and `tools/gridfilm.py`: the switch run alone, with the frames that the grid sheets need.
 - `tools/measure-b.sh`: every measure of part B and its pictures, in the order of the tables. Its output is the part B half of `tables.txt`.
-- `tools/gridsheet.py`: the grid sheets. `tools/gridedge.py`: the step across the grid's lines. `tools/gridstep.py`: the light across one line.
-- `tools/regionfires.py`: the fire counts of the first log, per window of the switch. `tools/regionspans.py`: the fires per span, and their maps. `tools/regionnoise.py`: the replay of the test on real, shuffled and Gaussian light.
+- `tools/gridsheet.py`: the grid sheets. `tools/gridedge.py`: the step across the grid's lines. `tools/gridstep.py`: the light across two lines.
+- `tools/regionlog.py`: the reader of the per-anchor log. `tools/regionspans.py`: the fires per span, and their maps. `tools/regionnoise.py`: the replay of the test on real, shuffled and Gaussian light.
+- `tools/blotchmap.py` (part A's) now also prints its scores.
 - `pics/b-*.png`: the pictures of part B.
 - Scripts of the earlier records that part B runs: as in part A, and `probe-acxm.patch` of `t0-acxm`.

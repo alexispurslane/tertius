@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Tool code of t0-9fo0, part B. build.sh <name> <commit> <patch>...: one probe build, as the survey's probe-build makes it,
-# from a revision and patches instead of the checkout's head. It archives <commit> into
-# /private/tmp/t0-9fo0b/<name>/src, applies each patch in order, builds src/Tertius.Demo in Release into
-# /private/tmp/t0-9fo0b/<name>/probe-bin, and deletes the source tree. A patch given as <commit>:<path> is read from that
+# from a revision and patches instead of the checkout's head. It archives <commit> into $BASE/<name>/src (BASE: default
+# /private/tmp/t0-9fo0b), applies each patch in order, builds src/Tertius.Demo in Release into $BASE/<name>/probe-bin,
+# and deletes the source tree. A patch given as <commit>:<path> is read from that
 # revision, so that X0 and M take the survey probe of their own tree. It stops below 40 GiB of free disk.
 set -euo pipefail
 name=$1; commit=$2; shift 2
 R=$(cd "$(dirname "$0")/../../../.." && pwd)
-out=/private/tmp/t0-9fo0b/$name
+out=${BASE:-/private/tmp/t0-9fo0b}/$name
 free=$(df -Pk /System/Volumes/Data | awk 'NR == 2 {print int($4 / 1048576)}')
 if [ "$free" -lt 40 ]; then echo "only $free GiB free: no build"; exit 1; fi
 command rm -rf "$out/src" && mkdir -p "$out/src"
