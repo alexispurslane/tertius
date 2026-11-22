@@ -11,19 +11,23 @@
 #   xb: the cap: as xg without the share, with the acceptance record's scratch-light-evidence-cap.patch (light evidence
 #       restarts a history at 8 draws, so today's plan traces no catch-up ray after a light change). Read by its path.
 #   xc: the share with the cap: xg with scratch-light-evidence-cap.patch after the share.
+#   xts, xgs, xbs, xcs: xt, xg, xb and xc with scratch-first-filmed.patch last, for start.json (macrun.sh's start event):
+#       with TERTIUS_X_FIRST_FILMED=1 the first drawn frame draws once, so the start's every draw is a film frame.
 set -uo pipefail
 T=$(cd "$(dirname "$0")" && pwd); N=$(cd "$T/.." && pwd); V=$(cd "$N/../t0-3vwx-dynamic-scale-films" && pwd)
 B=$(cd "$N/../t0-gbgj-combined-check/tools" && pwd)
 X5=e232080fd2c29b94bd639d094cabe336bf7f6291
 CAP=/Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/design-x-acceptance-2026-11-22/scratch-light-evidence-cap.patch
 for name in ${@:-xt xg}; do
-  case $name in
+  first=; [[ $name == x?s ]] && first=$N/scratch-first-filmed.patch
+  case ${name%s} in
     xt) args="$X5 ${X5}:tools/renderer-survey/probe.patch $V/scratch-region-log.patch $V/scratch-dynamic-scale.patch $V/scratch-history-log.patch $N/scratch-ownray-log.patch $N/scratch-history-dump.patch" ;;
     xg) args="$X5 ${X5}:tools/renderer-survey/probe.patch $V/scratch-region-log.patch $V/scratch-dynamic-scale.patch $V/scratch-history-log.patch $N/scratch-ownray-log.patch $N/scratch-catch-up-share.patch" ;;
     xb) args="$X5 ${X5}:tools/renderer-survey/probe.patch $V/scratch-region-log.patch $V/scratch-dynamic-scale.patch $V/scratch-history-log.patch $N/scratch-ownray-log.patch $CAP" ;;
     xc) args="$X5 ${X5}:tools/renderer-survey/probe.patch $V/scratch-region-log.patch $V/scratch-dynamic-scale.patch $V/scratch-history-log.patch $N/scratch-ownray-log.patch $N/scratch-catch-up-share.patch $CAP" ;;
     *) echo "no build $name"; exit 1 ;;
   esac
+  args="$args $first"
   log=/private/tmp/t0-gbgj/logs/build-$name.log
   echo "$(date +%T) start $name, disk $(df -Pk / | awk 'NR == 2 {printf "%.1f", $4 / 1048576}') GiB" | tee "$log"
   MIN_GIB=22 bash "$B/build.sh" $name $args >> "$log" 2>&1; code=$?

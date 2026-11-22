@@ -5,7 +5,9 @@
 # VAR=value words go into its environment, such as TERTIUS_X_CATCHUP="0.0625 32 0". The events:
 #   switch, switch+1, switch+2: the switch film (X5's survey, switch_script of the cabin; film frame f-k is draw 33 + k),
 #     the lamps off at draw 193 + k and on at 393 + k;
-#   start: start.json, the cabin's person camera filmed from draw 0 for 200 frames (f-k is draw k);
+#   start: start.json, the cabin's person camera filmed from draw 0 for 200 frames (f-k is draw k). A headless run's
+#     first frame is a still of 33 draws (FrameHistory.IsStill: its step is endless), so the start runs the build
+#     <build>s (builds.sh: with scratch-first-filmed.patch) with TERTIUS_X_FIRST_FILMED=1, which draws it once;
 #   cut, cut+1, cut+2: cut.json, the cabin's person camera, film a (a-k is draw 33 + k, 100 + k frames), one frame x on
 #     the chase camera (draw 133 + k), then the person camera again, film b from draw 134 + k. Each camera change is a cut,
 #     and the second restarts every history in the cabin's view (the history log: the mean length falls from 25.6 to
@@ -26,7 +28,7 @@ case ${event%+*} in
   switch) script=$B/macdyn5/switch.json; draws=$((493 + k))
           lamps=(TERTIUS_PROBE_LAMP_SEL=z:-12:4 TERTIUS_PROBE_LAMP_OFF=$((193 + k))-$((393 + k)))
           keep="$(f f $((140 + k)) $((220 + k)))$(f f $((340 + k)) $((420 + k)))" ;;
-  start) script=$N/start.json; draws=200; keep="$(f f 0 61)$(f f 180 199)" ;;
+  start) script=$N/start.json; draws=200; keep="$(f f 0 61)$(f f 180 199)"; build=${build}s; set -- "$@" TERTIUS_X_FIRST_FILMED=1 ;;
   cut) script=$O/cut+$k.json; draws=$((334 + k))
        python3 -I -c "import json, sys; d = json.load(open(sys.argv[1])); d['steps'][3]['frames'] += $k; json.dump(d, open(sys.argv[2], 'w'), indent=1)" $N/cut.json $script
        keep="$(f a $((80 + k)) $((99 + k)))x-000000,$(f b 0 61)$(f b 180 199)" ;;
