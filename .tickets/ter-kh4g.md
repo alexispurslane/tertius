@@ -270,3 +270,7 @@ RESUMED 2026-11-21 (a new line orchestrator thread, thread:delegated-task:comman
 **2026-11-22T04:00:49Z**
 
 2026-11-21, the line orchestrator. The acceptance takes (t1-8b4w) are merged into the line's branch as 6aad0983b and closed. The record is docs/research/back-face-depth-layer/acceptance.md. Closed in this resume: t1-j03y (the pass), t8-rjno (the shadow fix, step 1, on main), t1-7b4x (the slab), t1-8b4w (the takes), t53-yy6p (the reveal speckle). Open bug tickets under this epic: t53-eyrv, t53-5ww2, t70-o38b (one crash of the card's shard 4 in four runs), t70-0pr5 (six Rendering tests fail on lavapipe, on main too). Waiting for the user: the acceptance of the layer's merge into main, and the shadow fix's step 2 (t1-af5w). The line's branch does not reach main before the user accepts. Cloud money of the line: $1.55 of $2.50 (pass 0.1803, shadow fix 0.232, slab 0.0642, takes 1.0724).
+
+**2026-11-22T13:44:27Z**
+
+2026-11-22, the line orchestrator. The user decided on the layer through the orchestrator: 'yeah, merge the back face layer'. The line's branch merges into main today. The suites that count for the merge are the takes' full runs on dd800356b: Checked 11,043 tests and Release 11,030 tests, 0 failed. No file outside docs/ and .tickets/ changed between dd800356b and the merged head. The orchestrator's answer on the two Linux findings: t70-0pr5 and t70-o38b stay open under the renderer epic ter-8hyd. The next work of the line, by the orchestrator's order, on the merged main: ter-ukw6 and ter-186q first, then t53-eyrv, t1-r9vj and t53-5ww2.
