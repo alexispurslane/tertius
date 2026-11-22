@@ -50,3 +50,7 @@ The takes, each on M2 and X2 through the survey:
 5. The Checked suite and then the Release suite on the merged head.
 
 Acceptance: the record docs/research/t0-gbgj-combined-check/README.md with the pictures first, each beside M2, and one table "X2 against M2, and against the record of Design X alone". No new fault by the user's bar against M2. Both suites pass. A take where the merged head is worse than the record of t0-5tyj says so plainly.
+
+**2026-11-22T14:01:31Z**
+
+Launch of the combined check lead (2026-11-22): clientRequestId design-x-line-t0-gbgj-lead-1, task node:delegated-task:command%3Amcp%3Aa061e2e4-17a4-45d5-ac91-153bf5752d2c%3Adelegate-task%3Adesign-x-line-t0-gbgj-lead-1, child thread thread:delegated-task:command%3Amcp%3Aa061e2e4-17a4-45d5-ac91-153bf5752d2c%3Adelegate-task%3Adesign-x-line-t0-gbgj-lead-1. Target claudeAgent, claude-opus-5-5, effort high, own worktree. The lead makes the merge of the line head 795e1661f with main 284025851 on its own branch, with the resolved ARCHITECTURE.md from /private/tmp/t0-gbgj/ARCHITECTURE.resolved.md, then runs the takes of the design note. Cloud budget 0.50 dollars. Stage chain: merge and build, Checked suite, commit, probe patch, takes, Release suite, record, review, fix.
