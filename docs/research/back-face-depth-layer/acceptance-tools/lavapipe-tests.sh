@@ -34,6 +34,22 @@ grep -E "deviceName|driverName|driverInfo|apiVersion" "$out/vulkaninfo.txt" | te
 (cd "$tree" && dotnet build tests/Tertius.Rendering.Tests -c Checked -nologo -v:q 2>&1 | tail -3) | tee -a "$out/steps.txt"
 stamp "built"
 dll=$tree/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll
+# With CLASS_STEMS="<file stem> ..." and SHARD="<count> <index>", the runner arguments become the classes of the built
+# assembly whose outer class is one of the stems, nested ones included, in shard <index> of <count> (shards.py's rule).
+if [[ -n ${CLASS_STEMS:-} ]]; then
+  read -r count index <<< "$SHARD"
+  mapfile -t picked < <(dotnet "$dll" -list classes 2>/dev/null | python3 -I -c '
+import sys
+sys.path.insert(0, sys.argv[1])
+import shards
+stems = set(sys.argv[2].split())
+names = [n for n in shards.classes_of(sys.stdin.read()) if n.rsplit(".", 1)[-1].split("+")[0] in stems]
+for argument in shards.filters(shards.shard(names, int(sys.argv[3]), int(sys.argv[4]))):
+    print(argument)
+' "$tree/tools/runpod" "$CLASS_STEMS" "$count" "$index")
+  set -- "${picked[@]}"
+  stamp "shard $index of $count: $(( ${#picked[@]} / 2 )) classes: $(printf '%s ' "${picked[@]}" | sed 's/-class Tertius.Rendering.Tests.//g')"
+fi
 (cd "$tree" && dotnet "$dll" -maxThreads 2 -longRunning 120 -noColor -result-ctrf "$out/tests.json" "$@" \
   > "$out/tests.log" 2>&1)
 stamp "tests exit $?"
