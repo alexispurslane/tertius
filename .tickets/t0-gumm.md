@@ -2,7 +2,7 @@
 id: t0-gumm
 status: open
 deps: []
-links: [ter-4iic, t0-o7gf, t0-zmjx]
+links: [ter-4iic, t0-o7gf, t0-zmjx, t58-np60]
 created: 2026-11-22T21:31:16Z
 type: task
 priority: 1

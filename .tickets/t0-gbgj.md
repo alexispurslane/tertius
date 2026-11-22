@@ -1,6 +1,6 @@
 ---
 id: t0-gbgj
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-22T11:15:34Z
@@ -267,3 +267,12 @@ Interim disk limits from the orchestrator, 2026-11-22: the third variant of the 
 **2026-11-22T20:42:57Z**
 
 From the orchestrator, 2026-11-22, measured by the back-face line: the window of 1800 x 1008 reads 0.0977 at tick 100 (byte for byte the combined check's window test) and 0.193 at tick 6380, the ramp's tick for that size. So the window test against the ramp differs by the tick, not by the size, and a ramp's count is a count of (size, tick) pairs; a comparison of two codes on one ramp keeps its meaning. The jamb leak's cause, found by the back-face line (t58-i3sn): a caster's edge in the shadow map is rounded inward to texel centers, and the one-sided lookup starts its ramp at the map's edge, so the strip between the map's edge and the real edge gets sunlight. Its width follows the phase of cascade 0's grid at the wall, which the aspect error moved before the wobble's fix. At a 16:9 window the gap at the side jambs is 0.038 texel, which is why the films on the fixed code show grey jambs. The orchestrator confirmed answers 56 and 57. Both leads have these facts for their records.
+
+**2026-11-22T21:38:12Z**
+
+Merged into the line on 2026-11-22 as 2d07f097d (the lead's head ef379409e, checkout clean, final JSON status "done"). The gates, as I applied them:
+- Review: one reviewer, 15 findings; correctness "needs work, now fixed", fulfillment and design pass; each finding has a recorded resolution (fixes in 7f4b4c184; finding 15 kept with a reason).
+- Checks: this branch changes no file under src or tests against the line's head (git diff of the merge is empty there); only the records, research tools, tickets and one ARCHITECTURE.md sentence (R16UI among the extended formats). The lead's suites: Checked 11,141 tests on b1a433aae and Release 11,128 on a7e373197, 0 failed, both before main moved; the Rendering Checked run of the hook on bcca31e95, 3,411 tests, 0 failed. The full suites have not run on the line's head; they are a gate of the merge into main (t0-iido).
+- The lead's two decisions, which it listed as forks, both accepted (my answer 72): the full suites wait for the line's head before the merge into main; the extra specks of bay-sunbeam's floor cell r21 at 0.956 are finer grain on both sides and no fault of Design X (X2 has fewer than M2 there). I looked at pics/s956-bay-sunbeam.png: main's floor shows the soft cloud, Design X's floor is smoother; that sheet is too small to judge the fine grain, so the reading of r21 rests on the lead's crop.
+
+The record's result, by the user's bar: X2 (Design X merged with the back-face layer) shows no new fault against M2 at the survey's render scale; every still and both films look as good as M2 or better; the flicker score of the two bay films is higher than main's and under the survey's limit; the deck's span is +0.126 ms within the allowance of +0.30 ms. The jambs at a constant 0.956 (worse on X2, 0.0104 against 0.0065) belong to the jamb leak t58-i3sn, whose cause the back-face line found; on the code with the wobble's fix the jambs are about equal (take B of t0-3vwx).

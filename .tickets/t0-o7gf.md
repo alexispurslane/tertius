@@ -2,7 +2,7 @@
 id: t0-o7gf
 status: open
 deps: [t0-iido]
-links: [ter-4iic, t0-70v1, t0-zmjx, t0-gumm]
+links: [ter-4iic, t0-70v1, t0-zmjx, t0-gumm, t58-np60]
 created: 2026-11-22T20:26:25Z
 type: task
 priority: 2
