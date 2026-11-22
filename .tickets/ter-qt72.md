@@ -227,3 +227,39 @@ The runs on the code of this commit (step 1):
 
 - `nix develop --command bash -c 'bash tools/gpu-lock.sh --shared <log> dotnet test --solution Tertius.slnx -c Checked'`: 11,055 tests, 0 failed, 28 skipped (Rendering 3,310 passed and 12 skipped in 32 min 51 s under a load of 30 to 100). No snapshot test failed, so no reference image changed.
 - The red runs: `dotnet test --project tests/Tertius.Rendering.Tests -c Checked -- --filter-class "*OutputCameraTests" --filter-class "*OutputFramingRenderTests"` on 4298ae7ec with the new tests: 11 of 12 failed (the 1280 x 720 case passed). After the fix: the changed CPU classes (OutputCameraTests, BatcherTests, BatcherLightTests, BatcherMotionTests, BatcherDeformTests, ImpostorManagerTests, Fsr3HostTests) 330 passed, 0 failed.
+
+**2026-11-22T19:01:23Z**
+
+2026-11-22, the ticket lead. Step 1's film, the review and its fixes.
+
+The film. The lamp hall (`scripts/rect-lamps.json`) at 1920 x 1080 with a fixed exposure of 4.08 stops, headless, under a played-back moving render size: the Design X lead's logged run d16M (`/private/tmp/t0-5tyj/dynlog/d16M/size-none.txt`, copied to the evidence folder), 31 render sizes from 992 x 560 to 1200 x 672 and 72 size changes over the 240 film frames. Both sides played back the same sizes (their size logs are equal). Main is ee9dec413, and the fix is 839bce1b5, each a build copy under /private/tmp/ter-qt72 with a scratch edit (`scratch-replay.py`) that never enters src. The scratch edit takes TERTIUS_X_FRAME_TIME_TARGET, TERTIUS_X_SIZE_REPLAY and TERTIUS_X_SIZE_LOG from the Design X lead's `scratch-dynamic-scale.patch`. The video: /Users/alexispurslane/.t3/worktrees/tertius/t3-1f553e45-00934a8d076a004a-evidence/video/lamp-hall-wobble-main-vs-fix.mp4, main on the left and the fix on the right, 240 frames at 60 a second, H.264 at CRF 12, 3840 x 1080.
+
+The tracked edges (`edges.py`, adapted from the Design X lead's `wobble.py`): four vertical edges on rows 530 to 549, each to a sub-pixel by the peak of the brightness gradient. The outer pair are the inner edges of the nearest wall openings, about 850 px left and right of the centre. The inner pair are the two sides of the back wall's dark panel near the centre. All numbers are in output pixels:
+
+| | Main | Fix |
+|---|---:|---:|
+| Outer distance (about 1,700 px): sd | 7.378 | 0.489 |
+| Outer distance: range | 33.644 | 2.894 |
+| Its midpoint: sd | 0.894 | 0.245 |
+| Its midpoint: range | 4.771 | 1.931 |
+| Inner distance (about 140 px): sd | 0.782 | 0.297 |
+| Inner midpoint: sd | 0.300 | 0.136 |
+| Correlation of the outer distance with (h / w) * 16/9 | +0.989 | +0.045 |
+| Noise floor of the outer distance (same size, frame to frame, / sqrt 2) | 0.291 | 0.165 |
+| Noise floor of its midpoint | 0.146 | 0.083 |
+
+What is left on the fix side, and why. The outer distance still spreads by sd 0.49 px, against a noise floor of 0.17 px, and its midpoint by 0.25 px against 0.08 px. A framing change moves the two edges together (a shift) or against each other (a stretch). On the fix side the left edge's place and the right edge's place correlate at +0.003, with sd 0.32 and 0.37 px. So each edge has an offset of its own at each render size. Both edges stay sharp (1 to 2 px wide at half the gradient's peak). Their place correlates with the render width at -0.12 and -0.42. That is FSR's reconstruction of an edge from another grid of samples at each render size, the scatter that the GPU sweep showed in stills (±0.2 px with no trend in the render size). No common shift and no stretch is left. The midpoint's 1.0 to 1.7 px of the Design X lead's measurement was on main, with the stretch. On this film, main's midpoint spread (sd 0.89) also falls to 0.25 with the fix.
+
+The review (one reviewer, Claude Opus 5.5 at high effort, on 4298ae7ec..839bce1b5): correctness pass, fulfillment changes-required, design changes-required. The resolutions:
+
+- F1, a text that allowed non-square pixels as the design: fixed. ARCHITECTURE.md now says the active rectangle's ratio differs by about 1 % only until step 2. SceneBatcher's comment no longer says that pixels need not be square.
+- F2, the fields of `CameraView` without docs: fixed. `Aspect` is the projection's, the output's. `Width` and `Height` are the render size, whose ratio can differ. `PixelAngle` is the vertical pixel angle.
+- F3, the GPU test asserted a distance against a reason per axis: fixed. It asserts each axis below 0.6 px.
+- F4, the sweep cannot see errors that arise only at a change of size: answered by the film above, which changes the size 72 times. No common shift is left.
+- F5, no test pinned `UpscalePass`'s aspect: fixed. A test hook `VulkanRenderer.ReadFsrConstants` (which `ReadFsrExposureRatio` now uses) and the test `FsrRebuildsViewPositionsWithTheOutputsCameraAtARenderSizeOfAnotherShape`. With the pass's line set to the render size's ratio, the test failed: deviceToViewDepth2 1.0392 against 1.0264. How the CPU FSR test was red on 4298ae7ec: it compiled there without the `Aspect` line, because `Fsr3Frame` had no such member, and it asserted the output's tangent, 1.0264 at 60 degrees. It failed there. The green step added the required member and the one line that passes it.
+- F6, the fact of AMD's aspect in two places: fixed, the line comment is gone, and the doc of `Fsr3Frame.Aspect` keeps it.
+- F7, null for a default size: fixed, two overloads of `Batchers.FirstFrame`.
+- F8, `FrameHistory.Jitter` and `ApplyRenderProjection` read the output size from another store of the same draw: rejected for this ticket. It is older than this change, both values are equal by construction, and the brief asks for a small diff in these files.
+- Added for the mutants: `TheCamerasPixelCountsAreTheRenderSizes`, a CPU test that the camera's width and height are the render size.
+
+The run on the code of this commit (the review fixes): `nix develop --command bash -c 'bash tools/gpu-lock.sh --shared <log> dotnet test --solution Tertius.slnx -c Checked'`: 11,057 tests, 0 failed, 28 skipped. No snapshot test failed.

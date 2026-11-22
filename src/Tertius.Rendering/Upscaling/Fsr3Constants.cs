@@ -95,7 +95,6 @@ internal struct Fsr3Constants
         // AMD derives the horizontal field of view from the vertical one, in single floats. Each tangent and arctangent
         // runs in double and rounds to float, which gives the correctly rounded float on every machine: the float
         // functions of the C libraries round differently, and x86-64's tanHalfFOV was 2 ulps from the Mac's (ter-qjyo).
-        // AMD's host takes the aspect from the render size, and the engine takes the projection's (Fsr3Frame.Aspect).
         float horizontalFov = (float)Math.Atan((float)Math.Tan(frame.VerticalFov / 2) * frame.Aspect) * 2;
         next.TanHalfFov = (float)Math.Tan(horizontalFov * 0.5f);
         next.ViewSpaceToMetersFactor = 1f;

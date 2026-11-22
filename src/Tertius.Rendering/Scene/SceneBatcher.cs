@@ -221,7 +221,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     /// <summary>
     /// The camera of the draw. Its shape is the output's: the aspect comes from <paramref name="outputSize"/>, so that a
     /// render size rounded on each axis on its own never stretches the picture. <paramref name="renderSize"/> gives only
-    /// the pixel counts, whose pixels need not be square (ter-qt72).
+    /// the pixel counts (ter-qt72).
     /// </summary>
     private static CameraView InterpolateCamera(
         RenderSnapshot snapshot,

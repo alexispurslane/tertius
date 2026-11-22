@@ -36,9 +36,37 @@ public sealed class OutputFramingRenderTests(ITestOutputHelper output)
                 + $"far Δ = ({drawn.Far.X - exact.Far.X:F3}, {drawn.Far.Y - exact.Far.Y:F3}) output px"
         );
         // FSR rebuilds a marker's edges from another grid of samples at each render size, which scatters its centroid by
-        // up to about 0.45 output px with no trend in the render size. A stretch moved the far marker by 1.3 to 3.8 px.
-        Vector2.Distance(drawn.Near, exact.Near).Should().BeLessThan(0.6f, "the marker near the centre must not move sideways");
-        Vector2.Distance(drawn.Far, exact.Far).Should().BeLessThan(0.6f, "the marker far from the centre must not stretch");
+        // up to about 0.45 output px on each axis, with no trend in the render size. A stretch moved the far marker
+        // sideways by 1.3 to 3.8 px.
+        MathF.Abs(drawn.Near.X - exact.Near.X).Should().BeLessThan(0.6f, "the marker near the centre must not move sideways");
+        MathF.Abs(drawn.Near.Y - exact.Near.Y).Should().BeLessThan(0.6f);
+        MathF.Abs(drawn.Far.X - exact.Far.X).Should().BeLessThan(0.6f, "the marker far from the centre must not stretch");
+        MathF.Abs(drawn.Far.Y - exact.Far.Y).Should().BeLessThan(0.6f);
+    }
+
+    [Fact]
+    public void FsrRebuildsViewPositionsWithTheOutputsCameraAtARenderSizeOfAnotherShape()
+    {
+        VulkanRenderer renderer = Gpu.Headless(
+            width: Width,
+            height: Height,
+            upscaling: new Fsr3Upscaling(new FixedRenderScale(0.9f), 0),
+            cascadedLights: 0,
+            warmUpFrames: 0
+        );
+        try
+        {
+            renderer.Render(ReflectionTesting.Dark(), 1);
+
+            Fsr3Constants constants = renderer.ReadFsrConstants();
+            float tanHalfX = MathF.Tan(Gpu.Fov / 2) * Width / Height;
+            constants.DeviceToViewDepth2.Should().BeApproximately(tanHalfX, 1e-5f, "FSR draws at 576 × 320 for a 640 × 360 output");
+            constants.TanHalfFov.Should().BeApproximately(tanHalfX, 1e-5f);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
     }
 
     /// <summary>The centroids of the two markers on the output image of a still drawn at <paramref name="scale"/>.</summary>

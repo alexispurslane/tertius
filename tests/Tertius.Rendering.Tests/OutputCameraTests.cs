@@ -44,6 +44,15 @@ public sealed class OutputCameraTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void TheCamerasPixelCountsAreTheRenderSizes()
+    {
+        PreparedScene scene = Draw(new(1872, 1048));
+
+        scene.Camera.Width.Should().Be(1872, "the render size says how many samples the picture gets");
+        scene.Camera.Height.Should().Be(1048);
+    }
+
+    [Fact]
     public void FsrsViewConstantsDescribeTheOutputsCameraAtARenderSizeOfAnotherShape()
     {
         var render = new Extent2D(1872, 1048);

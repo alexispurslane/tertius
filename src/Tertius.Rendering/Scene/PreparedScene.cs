@@ -29,8 +29,17 @@ internal struct CameraView
     public Vector3 Offset;
 
     public float VerticalFov;
+
+    /// <summary>
+    /// The projection's width over its height: the output's, never the render size's (ARCHITECTURE.md, "Temporal upscaling
+    /// and render size").
+    /// </summary>
     public float Aspect;
+
+    /// <summary>The render size's width in pixels. Width over <see cref="Height"/> can differ from <see cref="Aspect"/>.</summary>
     public int Width;
+
+    /// <summary>The render size's height in pixels.</summary>
     public int Height;
 
     /// <summary>World to view rotation, in System.Numerics row-vector form.</summary>
@@ -70,7 +79,7 @@ internal struct CameraView
         }
     }
 
-    /// <summary>The angle that one pixel covers at the center of the screen.</summary>
+    /// <summary>The angle that one pixel covers vertically at the center of the screen.</summary>
     public readonly float PixelAngle => 2f * TanHalfY / Math.Max(Height, 1);
 
     /// <summary>World to clip for one depth range, in System.Numerics row-vector form. See

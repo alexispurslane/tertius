@@ -607,15 +607,18 @@ internal static class Batchers
 
     /// <summary>
     /// The pending state of the first draw of a renderer, which continues no drawn frame: the frame of a CPU test that
-    /// prepares one frame. Its output and its render size are both <paramref name="size"/>, 1600 × 900 unless asked for.
+    /// prepares one frame, at an output and a render size of 1600 × 900.
     /// </summary>
-    public static FrameHistory.PendingFrame FirstFrame(Silk.NET.Vulkan.Extent2D? size = null) =>
+    public static FrameHistory.PendingFrame FirstFrame() => FirstFrame(new(1600, 900));
+
+    /// <summary>The pending state of a first draw whose output and render size are both <paramref name="size"/>.</summary>
+    public static FrameHistory.PendingFrame FirstFrame(Silk.NET.Vulkan.Extent2D size) =>
         new FrameHistory(StillRule.Window).Begin(
             step: FrameHistoryTesting.FilmStep,
             draw: 0,
             snapshot: new RenderSnapshot(),
-            outputSize: size ?? new(1600, 900),
-            renderSize: size ?? new(1600, 900)
+            outputSize: size,
+            renderSize: size
         );
 }
 
