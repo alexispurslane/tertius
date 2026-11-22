@@ -27,9 +27,13 @@ R=$(cd "$(dirname "$0")/../../../.." && pwd)
 B=/private/tmp/t0-gbgj; O=$B/macdyn5; mkdir -p $O
 if [ "$scene" = switch ]; then lamps=(TERTIUS_PROBE_LAMP_SEL=z:-12:4 TERTIUS_PROBE_LAMP_OFF=193-393); draws=493
 else lamps=(TERTIUS_X_NONE=1); draws=533; fi
-# t0-3vwx: the survey of X5's tree, in $O/survey (renderer-survey.py and renderer-survey/).
-[ -d $O/survey/tools ] || { mkdir -p $O/survey && git -C "$R" archive e232080fd2c29b94bd639d094cabe336bf7f6291 tools/renderer-survey.py tools/renderer-survey | tar -x -C $O/survey; }
-[ -f $O/$scene.json ] || (cd "$O/survey" && nix develop "$R" --command python3 -I - "$scene" "$O/$scene.json" <<'PY'
+# t0-3vwx: the scripts come from the survey of SURVEY_TREE (default X5's tree e232080f), in $O/survey-<tree>
+# (renderer-survey.py and renderer-survey/), and the scene's script is $O/<scene>-<tree>.json. For X5's tree these are
+# the folder and file names of takes A and B, $O/survey and $O/<scene>.json.
+ST=${SURVEY_TREE:-e232080fd2c29b94bd639d094cabe336bf7f6291}
+if [ $ST = e232080fd2c29b94bd639d094cabe336bf7f6291 ]; then SV=$O/survey; SJ=$O/$scene.json; else SV=$O/survey-${ST:0:9}; SJ=$O/$scene-${ST:0:9}.json; fi
+[ -d $SV/tools ] || { mkdir -p $SV && git -C "$R" archive $ST tools/renderer-survey.py tools/renderer-survey | tar -x -C $SV; }
+[ -f $SJ ] || (cd "$SV" && nix develop "$R" --command python3 -I - "$scene" "$SJ" <<'PY'
 import importlib.util, json, sys
 from pathlib import Path
 spec = importlib.util.spec_from_file_location("survey", Path.cwd() / "tools" / "renderer-survey.py")
@@ -49,7 +53,7 @@ sizes)
   echo "$(date +%T) sizes $scene $side $target: $(uptime)"
   env "${lamps[@]}" TERTIUS_PROBE_EXPOSURE=4.08 TERTIUS_X_FRAME_TIME_TARGET=$target TERTIUS_X_SIZE_LOG=$out TERTIUS_X_TIME_LOG=$out \
     TERTIUS_PROBE_SERIES=$O/tmp-$side.series TERTIUS_PROBE_KEEP= \
-    nix develop --command bash tools/gpu-lock.sh $out/lock.log $B/bins/$side/probe-bin/Tertius.Demo --script $O/$scene.json \
+    nix develop --command bash tools/gpu-lock.sh $out/lock.log $B/bins/$side/probe-bin/Tertius.Demo --script $SJ \
     --headless --out $O/tmp-$side --size 1920x1080 > $out/run.log 2>&1
   echo "$(date +%T) exit $? $(wc -l < $out/size-*.txt) draws: $(uptime)"
   rm -rf $O/tmp-$side $O/tmp-$side.series ;;
@@ -63,7 +67,7 @@ pictures)
   env "${lamps[@]}" TERTIUS_PROBE_EXPOSURE=4.08 TERTIUS_X_FRAME_TIME_TARGET=16.6667 TERTIUS_X_SIZE_REPLAY=$replay \
     TERTIUS_X_SIZE_LOG=$out "${region[@]}" TERTIUS_PROBE_SERIES=$out/frames.series TERTIUS_PROBE_KEEP="${KEEP:-}" "$@" \
     nix develop --command bash tools/gpu-lock.sh --shared $out/lock.log $B/bins/$side/probe-bin/Tertius.Demo \
-    --script $O/$scene.json --headless --out $out --size 1920x1080 > $out/run.log 2>&1
+    --script $SJ --headless --out $out --size 1920x1080 > $out/run.log 2>&1
   echo "$(date +%T) exit $? $(ls $out/*.png 2>/dev/null | wc -l) pictures" ;;
 fixed)
   scale=$1; name=$2; shift 2; out=$O/pics/$name; rm -rf $out; mkdir -p $out
@@ -71,6 +75,6 @@ fixed)
   env "${lamps[@]}" TERTIUS_PROBE_EXPOSURE=4.08 TERTIUS_X_RENDER_SCALE=$scale TERTIUS_PROBE_SERIES=$out/frames.series \
     TERTIUS_PROBE_KEEP="${KEEP:-}" "$@" \
     nix develop --command bash tools/gpu-lock.sh --shared $out/lock.log $B/bins/$side/probe-bin/Tertius.Demo \
-    --script $O/$scene.json --headless --out $out --size 1920x1080 > $out/run.log 2>&1
+    --script $SJ --headless --out $out --size 1920x1080 > $out/run.log 2>&1
   echo "$(date +%T) exit $? $(ls $out/*.png 2>/dev/null | wc -l) pictures" ;;
 esac

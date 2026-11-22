@@ -11,8 +11,9 @@
 #   l-X5: X5's switch log on X5 with the lamps on through the whole run (TERTIUS_PROBE_LAMP_OFF empty): the sizes change
 #   97 times under a still light and a still camera, which separates the edges' residual of a size change from that of
 #   the light's change. Its own size and history logs are then size-none.txt and history-none.txt.
+#   s-XF, w-XF, s-MF, w-MF: the final take (final.sh), on the builds xf and mf, from the card logs in $SIZES.
 set -uo pipefail
-T=$(cd "$(dirname "$0")" && pwd); S=$(cd "$T/../sizes" && pwd); O=/private/tmp/t0-gbgj/macdyn5
+T=$(cd "$(dirname "$0")" && pwd); S=${SIZES:-$(cd "$T/../sizes" && pwd)}; O=/private/tmp/t0-gbgj/macdyn5
 free() { df -Pk / | awk 'NR == 2 {printf "%.1f", $4 / 1048576}'; }
 sw=$(for k in $(seq 140 459); do printf 'f-%06d,' $k; done)
 wk=$( (for k in $(seq 60 119); do printf 'g-%06d,' $k; done; for k in $(seq 0 199); do printf 'h-%06d,' $k; done) )
@@ -23,6 +24,8 @@ for name in ${@:-s-M5 s-X5 w-M5 w-X5 s-X3 w-X3 s-M3}; do
     s-X3) scene=switch build=x3h log=x ;; w-X3) scene=walk build=x3h log=x ;;
     s-M3) scene=switch build=m3h log=m ;;
     l-X5) scene=switch build=x5h log=x ;;
+    s-XF) scene=switch build=xf log=x ;; w-XF) scene=walk build=xf log=x ;;
+    s-MF) scene=switch build=mf log=m ;; w-MF) scene=walk build=mf log=m ;;
     *) echo "no run $name"; exit 1 ;;
   esac
   if [ $scene = switch ]; then keep=$sw; file=size-193-393.txt; else keep=$wk; file=size-none.txt; fi

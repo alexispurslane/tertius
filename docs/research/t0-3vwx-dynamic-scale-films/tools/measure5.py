@@ -14,6 +14,7 @@
 #     so a frame's own line is that of its draw).
 # Spans: the switch's 20 draws before off, 0 to 60 and 60 to 200 draws after off, 0 to 100 draws after on; the walk's last
 # 60 draws of the walk and 0 to 60 and 60 to 200 draws after the stop.
+import os
 import sys
 import numpy as np
 from PIL import Image
@@ -51,9 +52,12 @@ def grain(y, box):
 
 
 for label, folder in specs:
-    sizes = [tuple(l.split()[1:3]) for l in open(f'{folder}/{log}')]
+    run_log = log
+    if scene == 'switch' and not os.path.exists(f'{folder}/{log}'):
+        run_log = 'size-none.txt'  # the still-light run l-X5: the lamps stay on, so its logs are named "none"
+    sizes = [tuple(l.split()[1:3]) for l in open(f'{folder}/{run_log}')]
     history = {}
-    hist_name = log.replace('size-', 'history-')
+    hist_name = run_log.replace('size-', 'history-')
     try:
         for l in open(f'{folder}/{hist_name}'):
             f, w, h, mean, short, zero = l.split()

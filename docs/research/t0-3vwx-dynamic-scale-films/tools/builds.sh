@@ -9,6 +9,7 @@
 #   m5h: main ac5f23915, its probe patch, the dynamic scale and the history log;
 #   x3h: the combined check's merge bcca31e95, its probe patch, the region log, the dynamic scale and the history log;
 #   m3h: main a819b10b2, its probe patch, the dynamic scale and the history log.
+#   xf, mf: the final take's Design X commit $XF and main commit $MF (final.sh), as x5h and m5h.
 # With WAIT_FOR=<log> it first waits until that log shows the line "cost cost-xc-s2" followed by its exit line (the end
 # of the acceptance lead's timing session).
 set -uo pipefail
@@ -27,6 +28,8 @@ for name in "${@:-x5h m5h x3h m3h}"; do for name in $name; do
     m5h) args="ac5f23915 ac5f23915:tools/renderer-survey/probe.patch $N/scratch-dynamic-scale.patch $N/scratch-history-log.patch" ;;
     x3h) args="bcca31e95 bcca31e95:tools/renderer-survey/probe.patch $N/scratch-region-log.patch $N/scratch-dynamic-scale.patch $N/scratch-history-log.patch" ;;
     m3h) args="a819b10b2 a819b10b2:tools/renderer-survey/probe.patch $N/scratch-dynamic-scale.patch $N/scratch-history-log.patch" ;;
+    xf) args="$XF $XF:tools/renderer-survey/probe.patch $N/scratch-region-log.patch $N/scratch-dynamic-scale.patch $N/scratch-history-log.patch" ;;
+    mf) args="$MF $MF:tools/renderer-survey/probe.patch $N/scratch-dynamic-scale.patch $N/scratch-history-log.patch" ;;
     *) echo "no build $name"; exit 1 ;;
   esac
   log=$L/build-$name.log

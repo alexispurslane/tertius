@@ -7,7 +7,7 @@ The user's order of 2026-11-22: videos of the walk and the lamp switch "under no
 | Name | Code | In this record |
 |---|---|---|
 | M5 | main `ac5f23915`: the back-face layer, the walk's fix and step 1 of the wobble's fix | take A, left side; the control of take B |
-| X5 | the line's merge `710834cc0`: Design X (`260ead7eb`) merged with main `ac5f23915`, tree `e232080f`. Design X here has no cap on the cost block after a light change (`t0-zmjx` adds it later) | take A, right side; take B, "after" |
+| X5 | the line's merge `710834cc0`: Design X (`260ead7eb`) merged with main `ac5f23915`, tree `e232080f`. Design X here has no cap on the cost block after a light change. A cap waits for the user's choice of variant | take A, right side; take B, "after" |
 | X3 | the combined check's merge `bcca31e95` (Design X with main `a819b10b2`), before the wobble's fix | take B, "before" |
 | M3 | main `a819b10b2`, before the wobble's fix | take B's control, the switch only |
 
@@ -75,6 +75,63 @@ The video agrees with its source within 0.31 % in every checked region. X5's cen
 
 Not checked: the walk's trail at normal speed by eye, beyond the three checked moments; the edges, because the camera moves until the stop.
 
+## Take B: did the wobble's fix help Design X under a moving render size?
+
+Take B plays one card size log, X5's switch log at 16.67 ms, on X3 (Design X before the fix) and on X5 (after it). The only code change from X3 to X5 is the fix, the commits `0495319e3` and `f54129fcc` of `ter-qt72`. M3 and M5 play M5's log as the control. A third run on X5, `l-X5`, plays X5's log with the lamps on through the whole run, to separate the size change from the light's change. Each run's played-back sizes equal its card log on every draw. The walk on X3 is left out: the walk's scale stands still in the film's window (take A), so the fix cannot act there.
+
+The terms of take A apply. A changed draw has a render size that differs from the draw before. The levels and the boil are in % of the crop's light, and the edges are in px of the 1920 × 1080 output. A settle is the survey's count of draws until a region's light stays within its tolerance of the run's own controls, which take the same played-back sizes. "None" means that the region does not settle inside the window (200 draws after off, 100 after on). The numbers are in `takeB.txt`, from `tools/takeB.sh`.
+
+| Measure | X3, before the fix | X5, after the fix | M3 (control) | M5 (control) |
+|---|---|---|---|---|
+| Edge distance: range, and correlation with the rounded aspect (h / w) · 16/9 | 13.44 px, +0.994 | 2.16 px, −0.010 | 13.45 px, +0.997 | 1.69 px, +0.048 |
+| Distance residual step, mean abs, changed / one size | 0.241 / 0.034 | 0.057 / 0.014 | 0.201 / 0.021 | 0.041 / 0.025 |
+| Midpoint residual, rms, changed / one size | 0.243 / 0.171 | 0.119 / 0.045 | 0.280 / 0.113 | 0.185 / 0.071 |
+| Left wall's kink, 60 to 200 draws after off, mean on changed / one-size draws | 0.59 / 0.02 | 0.02 / 0.01 | 0.60 / 0.02 | 0.05 / 0.02 |
+| Left wall's boil, 60 to 200 draws after off, one size / changed | 0.04 / 0.60 | 0.05 / 0.08 | 0.05 / 0.60 | 0.05 / 0.08 |
+| Wall grain, 60 to 200 draws after off, one size / changed | 1.20 / 6.15 | 1.01 / 0.97 | 6.68 / 5.29 | 1.06 / 1.07 |
+| Right jamb's mean, 0 to 100 draws after on, one size / changed | 0.0604 / 0.0430 | 0.0376 / 0.0343 | 0.0399 / 0.0337 | 0.0366 / 0.0272 |
+| Share of history under 8 draws, 0 to 60 draws after off, one size / changed | 0.136 / 0.228 | 0.123 / 0.196 | 0.054 / 0.055 | 0.051 / 0.051 |
+| Region test: tested anchor-draws, 100 draws after off / after on | 11.7 % / 12.1 % | 11.7 % / 12.1 % | | |
+| Settle, whole image, after off / after on | 125 / 36 | 141 / 45 | 119 / 54 | 121 / 54 |
+| Settle, slowest region, after off / after on | 158 / 87 | 166 / None | 142 / 93 | 143 / 94 |
+
+- The settle of X5 is not noise. A second run of the survey on X5 (`sw-X5r`) gave the same series bit for bit.
+- X3 and X5 draw the same render sizes, and so do M3 and M5. The X sides and the M sides draw different sizes: each plays its own code's card log.
+
+**The plain answer.** The fix helped Design X's picture under a moving size and slowed its settle.
+
+- The picture: the stretch that followed the aspect is gone (range 13.44 to 2.16 px). The edges' steps on changed draws fell by a factor of 4. The left wall's kink and boil on changed draws fell to the one-size level (0.59 to 0.02, and 0.60 to 0.08). The jambs' leak after on is gone (0.0604 to 0.0376), and so is the wall's grain on changed draws (6.15 to 0.97). Main gained the same from the fix.
+- The settle: after the fix, Design X settles 16 draws later after off and 9 draws later after on in the whole image. After on, three corner and edge regions no longer settle in 100 draws (`r00`, `r02`, `r12`; before the fix 87, 87 and 76). Main's settle did not change (119 / 54 to 121 / 54).
+- My reading, not measured: before the fix, each size change stretched the picture, so every pixel's point moved on screen by more than `LeastMotion`, 1/32 px. That gave Design X's blocks motion evidence on each changed draw, and motion evidence drops the box's widening, so the history follows the light sooner. The size changes cluster in the draws after a switch, so this sped up the settle and also brought the boil on changed draws. The fix removes both. Main has no evidence of this kind, so its settle did not change. A log of the evidence level per block would test this reading.
+- Under its own controller, Design X now settles slower than main after off (141 against 121 draws, whole image) and faster after on (45 against 54). In the survey's fixed 2/3, X2 settled faster than M2 after both (66 / 30 against 122 / 53, `t0-gbgj` take 2c). The region test, Design X's detector of slow changes in the bounce light, runs on only about 12 % of the anchor-draws in the 100 draws after each switch. It needs 36 draws in a row at one render size, and the size changes restart its count (`t4f-71qp`).
+
+**The cause test: size change or light change?** `l-X5` draws the same sizes as `s-X5` with the lamps held on (`wobsplit.py`, the residual around the film's mean, px of 1920):
+
+| Measure | X5 with the switch, changed / one size | X5 with the lamps held on, changed / one size |
+|---|---|---|
+| Distance residual, rms | 0.465 / 0.213 | 0.096 / 0.139 |
+| Midpoint residual, rms | 0.119 / 0.045 | 0.060 / 0.028 |
+| Distance residual step, mean abs | 0.057 / 0.014 | 0.013 / 0.007 |
+| Distance residual's correlation with the render scale | +0.610 | −0.025 |
+| Distance range | 2.16 px | 0.56 px |
+| Left wall's boil, 60 to 200 draws after off, one size / changed | 0.05 / 0.08 | 0.02 / 0.02 |
+
+With the light held still, the residual on changed draws falls below the one-size level. So the residual on changed draws belonged to the light's change, not to the size change. The residual only followed the size because the controller lowers the scale while the light changes: Design X's frames cost more after a light change. The sentence for the back-face line: "With the wobble's fix, the window edges' remaining residual on changed draws follows the change of the light, not the change of the render size: on X5's own size log with the lamps held on, it falls from 0.465 to 0.096 px rms (below the one-size draws' 0.139), and its correlation with the render scale from +0.61 to −0.03."
+
+**The edges and the sun.** The two tracked edges lie between the lamp-lit wall and a dark window opening. In `l-X5`, the opening's side of each edge (a box 16 px wide on rows 525 to 554) stays at a display-linear 0.0077, within 0.8 % over the 320 frames, and the wall's side changes by about 3 %. So no sunlight reaches the tracked edges in this view. In the edge ramp of `t0-gbgj`, the size and the sun's place together moved the distance by only 0.159 px rms, which bounds what a moving sun did to these edges there.
+
+**The walk.** The walk's scale stands still in the film's window on both sides, so the fix has nothing to act on there, and X3's walk was not taken. X5's logs of take A's walk (`tools/walklogs.py`):
+
+| Span | History mean, M5 / X5 (draws) | History under 8 draws, M5 / X5 | X5's region test: tested anchor-draws, fires |
+|---|---|---|---|
+| The walk's last 60 draws | 29.31 / 29.34 | 0.0228 / 0.0227 | 0.0 %, none |
+| Draws 0 to 59 after the stop | 29.35 / 29.51 | 0.0289 / 0.0202 | 34.7 %, 1.7 % of tested |
+| Draws 60 to 199 after the stop | 29.61 / 26.99 | 0.0274 / 0.0198 | 90.4 %, 1.0 % of tested |
+
+The region test does not run while the camera moves, because its taps need surfaces that do not move on screen. It starts again about 36 draws after the stop. The center region's light after the stop, +5.87 / +4.61 / +3.58 % at 0, 20 and 40 draws (take A), matches the earlier walk film of Design X that the line orchestrator quoted, +5.72 / +4.56 / +3.56 %. The survey's walk "cabin-walk" under the played-back scale, each side on its own card log (`wk-M5`, `wk-X5`): the whole image settles at once after the stop on both. The slowest region settles 48 draws after the stop on X5 against 25 on M5. The slow regions are the upper corners `r00` and `r02` (47 and 48 draws against 23 and 25) and the middle row's sides `r10` and `r12` (36 against 15 and 16). The survey passes both. So Design X's trail after the stop lasts about twice as long as main's in these regions, as take A's center region showed (1.1 points more light 40 draws after the stop).
+
+What take B does not cover: the eye's view of the remaining edge motion at normal speed; edges other than the two tracked window edges; a log of Design X's evidence level per block, which would test the reading on the settle; the walk on X3.
+
 ## The scale's fall at the start of a run (answers to the line orchestrator)
 
 ![the start of each run](pics/start-scale-span.png)
@@ -96,12 +153,16 @@ The numbers: `start.txt`. The logs: `times/` (each run's size, time and gzipped 
 | `89e20008` | the time and per-pass logs: two runs per scene and code | 335 s | $0.0649 |
 | | this take so far | | $0.1147 |
 
+Take B ran on the Mac only and used no cloud job.
+
 ## Files
 
 - `sizes/`: the card's size logs of the pictures.
 - `times/`: the card's time and per-pass logs.
 - `switch-A.txt` and `walk-A.txt`: the outputs of the video tool and of the measures of take A's two films.
+- `takeB.txt`: the output of `tools/takeB.sh`, every measure of take B.
 - `start.txt`: the start's measures.
 - `scratch-*.patch`: the scratch patches. `scratch-dynamic-scale.patch` and `scratch-region-log.patch` are the acceptance record's of `726bf338c`, unchanged. `scratch-history-log.patch` (31 lines) logs the slow diffuse history's length per draw. `scratch-pass-log.patch` logs each pass's GPU time.
-- `tools/` (each script says what it does in its first lines): `cloud.sh`, `cloudvideo.sh`, `cloudvideo.py` and `macdyn.sh` (copies of the acceptance record's `726bf338c`, with their changes named in their heads); `builds.sh`, `queue-a.sh`, `measure5.py`, `framesheet.py`, `timeslog.py`, `startchart.py`.
-- Tools of other records that this record runs by their paths: `sidevideo.py`, `boilnoise.py` and `dynscale.py` of the acceptance record (`726bf338c`); `wobble.py` and `levjump.py` of the combined check (`docs/research/t0-gbgj-combined-check/tools`).
+- `tools/` (each script says what it does in its first lines): `cloud.sh`, `cloudvideo.sh`, `cloudvideo.py` and `macdyn.sh` (copies of the acceptance record's `726bf338c`, with their changes named in their heads); `builds.sh`, `queue-a.sh`, `queue-b.sh`, `measure5.py`, `walklogs.py`, `takeB.sh`, `framesheet.py`, `timeslog.py`, `startchart.py`.
+- The final take (`tools/final.sh <switch|walk>`, with `XF` the Design X commit and `MF` the main commit): one command per film builds both codes, logs the card's sizes (one cloud job for both films, about $0.05), runs the played-back pictures and the survey's takes, writes the measures to `final-<film>.txt`, and makes the video `pics/<film>-final.mp4`. `cloud.sh` takes `M` and `C`, `builds.sh` the builds `xf` and `mf`, `queue-a.sh` the runs `s-XF`, `w-XF`, `s-MF` and `w-MF` from `SIZES`, and `macdyn.sh` the survey's tree `SURVEY_TREE`. It has not run end to end yet.
+- Tools of other records that this record runs by their paths: `sidevideo.py`, `boilnoise.py` and `dynscale.py` of the acceptance record (`726bf338c`); `wobble.py`, `wobsplit.py`, `levjump.py`, `regions.py` (through `m.sh`) and `take.sh` of the combined check (`docs/research/t0-gbgj-combined-check/tools`).

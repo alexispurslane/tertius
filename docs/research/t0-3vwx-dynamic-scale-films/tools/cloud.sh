@@ -16,8 +16,10 @@
 #     own tree with its own probe patch, both run by the head's survey tool, in one job.
 set -uo pipefail
 R=$(cd "$(dirname "$0")/../../../.." && pwd)
-C=/private/tmp/t0-gbgj/cloud5; mkdir -p $C
+C=${C:-/private/tmp/t0-gbgj/cloud5}; mkdir -p $C
 X=${X:-4851ba7db147563e5b8a94856710dd5c37efe2d6}
+# t0-3vwx: M names main's side (default ac5f23915) and C the output folder (default cloud5), for the final take.
+M=${M:-ac5f23915}
 submit() { local name=$1; shift
   (cd "$R" && python3 -I tools/runpod/gpu_job.py submit --agent t0-3vwx "$@" --out "$C/$name") > "$C/$name.log" 2>&1
   echo "$(date +%T) exit $? $name: $(tail -1 "$C/$name.log" | cut -c1-200)"; }
@@ -40,18 +42,18 @@ sizes|video|regions|times)
   if [ $1 = times ]; then
     # t0-3vwx: the time and per-pass logs (cloudvideo.sh times).
     shift
-    submit times --tree x=$X --tree m=ac5f23915 --run "echo $pack | base64 -d | tar -xz -C x" \
+    submit times --tree x=$X --tree m=$M --run "echo $pack | base64 -d | tar -xz -C x" \
       --run "bash x/$D/tools/cloudvideo.sh times $*" --output 'out/times/*/*' --timeout 600
   elif [ $1 = sizes ]; then
     shift
-    submit sizes --tree x=$X --tree m=ac5f23915 --run "echo $pack | base64 -d | tar -xz -C x" \
+    submit sizes --tree x=$X --tree m=$M --run "echo $pack | base64 -d | tar -xz -C x" \
       --run "bash x/$D/tools/cloudvideo.sh sizes $*" --output 'out/sizes/*/*.txt' --timeout 830
   elif [ $1 = regions ]; then
-    submit "regions-$2" --tree x=$X --tree m=ac5f23915 --run "echo $pack | base64 -d | tar -xz -C x" \
+    submit "regions-$2" --tree x=$X --tree m=$M --run "echo $pack | base64 -d | tar -xz -C x" \
       --run "bash x/$D/tools/cloudvideo.sh $*" --output 'out/*-replay/*.txt' --timeout 600
   else
     shift; name="video-$1-$2-$3"
-    submit "$name" --tree x=$X --tree m=ac5f23915 --run "echo $pack | base64 -d | tar -xz -C x" \
+    submit "$name" --tree x=$X --tree m=$M --run "echo $pack | base64 -d | tar -xz -C x" \
       --run "bash x/$D/tools/cloudvideo.sh video $*" \
       --output 'out/*.mp4' --output 'out/*-means.json' --output 'out/*-replay/*.txt' --output 'out/*-survey/*.txt' \
       --output 'out-*/results/*/*.json' --output 'out/*-run.log' --timeout 830
@@ -59,7 +61,7 @@ sizes|video|regions|times)
 switch)
   B='cd @T@ && patch -p1 --forward -i tools/renderer-survey/probe.patch > /dev/null && dotnet build src/Tertius.Demo -c Release -nologo -v:q -p:RunAnalyzers=false -p:TreatWarningsAsErrors=false -o ../out-@T@/probe-bin | tail -2'
   S='mkdir -p out-@T@ && cd x && TERTIUS_SURVEY_HOLDS_LOCK=1 python3 -I tools/renderer-survey.py run ../out-@T@ --parts switch --only bay-sun-off --no-build 2>&1 | grep -v "^  " | tail -3'
-  submit switch --tree x=$X --tree m=ac5f23915 \
+  submit switch --tree x=$X --tree m=$M \
     --run "${B//@T@/m}" --run "${B//@T@/x}" --run "${S//@T@/m}" --run "${S//@T@/x}" \
     --output 'out-*/results/*/*.json' --timeout 1500 ;;
 esac
