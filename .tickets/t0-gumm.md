@@ -1,6 +1,6 @@
 ---
 id: t0-gumm
-status: open
+status: in_progress
 deps: []
 links: [ter-4iic, t0-o7gf, t0-zmjx, t58-np60]
 created: 2026-11-22T21:31:16Z
@@ -85,3 +85,7 @@ Out of scope: a change of the accumulation, of FullRateFrames' use by region evi
 **2026-11-22T21:31:26Z**
 
 Written by the line orchestrator on 2026-11-22 from the orchestrator's order. Lead: the acceptance lead (thread design-x-line-t0-xlcu-lead-1, worktree t3-c3911144), after the cap's build (t0-zmjx) and tc-8142, or beside them where it waits on nothing. Links still to make when those tickets reach the line's branch: ter-6fka (the structural step), ter-8pco (the ray census) and t58-np60 (the scale's fall at every start, in the combined check's worktree). Facts for the design: the diffuse signal's cap is 32 draws at every roughness (SignalParameters.cs), so EndFrames = 32 ends at the cap for the bounce light; the reflections' cap follows the roughness (capAt in accumulate.glsl), and the plan does not have the accumulation's parameters today, so the scratch may carry the caps as constants and the lead says so. My design answers, which the orchestrator can reverse: the turn rule (a golden-ratio step in time on a blue-noise offset in space), the invariant that a settled history traces no catch-up ray, the check of (1, 8, 0) against today's counts, and the limit of 1.50 dollars of cloud money.
+
+**2026-11-22T21:39:00Z**
+
+Answer 73 of the line orchestrator, 2026-11-22: the experiment moves from the acceptance lead's queue to the combined check's lead (thread thread:delegated-task:command%3Amcp%3Aa061e2e4-17a4-45d5-ac91-153bf5752d2c%3Adelegate-task%3Adesign-x-line-t0-gbgj-lead-1, request design-x-line-t0-gbgj-lead-1, worktree t3-52bfcd29-81249085ce80dd9f, branch t3/combined-renderer-check), as a continuation sent about 16:50. Reason: its slot became free with the close of t0-gbgj, and it holds the build of the experiment's tree (x5h, the line's merge 710834cc0), the card's logging jobs, the history-length log and the video tools. It runs the acceptance lead's cost and boil tools by path. Order of its work: the experiment now; the final films of t0-3vwx first when the cap's commit exists; then the experiment's three events, videos, table and one reviewer; one final JSON for t0-3vwx and t0-gumm. Links to t58-np60 are made; ter-6fka and ter-8pco are not on the line's branch yet.
