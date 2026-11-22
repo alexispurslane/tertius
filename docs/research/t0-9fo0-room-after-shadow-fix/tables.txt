@@ -1,0 +1,181 @@
+# Take 1: the still rect-lamps (stills.py, daub.py against A's long reference, light.py against A)
+s-M            rect-lamps   specks   0.01  blotch 0.0129
+s-X0           rect-lamps   specks   0.00  blotch 0.0208
+s-A            rect-lamps   specks   0.00  blotch 0.0221
+s-AM           rect-lamps   specks   0.01  blotch 0.0129
+e-M            rect-lamps   specks   0.01  blotch 0.0127
+e-X0           rect-lamps   specks   0.01  blotch 0.0206
+e-A            rect-lamps   specks   0.00  blotch 0.0219
+e-AM           rect-lamps   specks   0.01  blotch 0.0127
+s-M specks 0.00965 blotch 0.01285 level +0.00082
+s-X0 specks 0.00482 blotch 0.02083 level +0.00126
+s-A specks 0.00482 blotch 0.02214 level +0.00133
+s-AM specks 0.00965 blotch 0.01285 level +0.00082
+e-M specks 0.00965 blotch 0.01268 level -0.01102
+e-X0 specks 0.00965 blotch 0.02061 level -0.02454
+e-A specks 0.00482 blotch 0.02189 level -0.02610
+e-AM specks 0.00965 blotch 0.01268 level -0.01102
+s-M        rect-lamps   daub 0.0117  broad 0.0202  smooth share 0.91  ceiling 0.0110  walls 0.0150
+s-X0       rect-lamps   daub 0.0088  broad 0.0195  smooth share 0.91  ceiling 0.0087  walls 0.0116
+s-A        rect-lamps   daub 0.0080  broad 0.0213  smooth share 0.91  ceiling 0.0084  walls 0.0111
+e-M        rect-lamps   daub 0.0102  broad 0.0190  smooth share 0.92  ceiling 0.0100  walls 0.0128
+e-X0       rect-lamps   daub 0.0080  broad 0.0193  smooth share 0.92  ceiling 0.0078  walls 0.0096
+e-A        rect-lamps   daub 0.0079  broad 0.0226  smooth share 0.92  ceiling 0.0079  walls 0.0089
+rect-lamps   s-M        ceiling shown  100.6% settled  101.0%   walls shown  100.3% settled  100.7%
+rect-lamps   s-X0       ceiling shown   99.1% settled   99.9%   walls shown   98.8% settled   99.8%
+rect-lamps   s-A        ceiling shown   99.0% settled  100.0%   walls shown   99.0% settled  100.0%
+rect-lamps   e-M        ceiling shown  101.2% settled  102.8%   walls shown  101.0% settled  102.8%
+rect-lamps   e-X0       ceiling shown   97.2% settled  100.3%   walls shown   96.4% settled  100.2%
+rect-lamps   e-A        ceiling shown   96.7% settled  100.0%   walls shown   96.0% settled  100.0%
+rect-lamps   e-AM       ceiling shown  101.2% settled  102.8%   walls shown  101.0% settled  102.8%
+# Take 1, check 2: the side walls (walls.py)
+variant  image      box      left    right left/right
+s-M      still      mid   0.09474  0.09571     0.9899
+s-M      still      top   0.07155  0.07274     0.9836
+s-M      still      edge  0.07167  0.07325     0.9785
+s-M      reference  mid   0.09495  0.09589     0.9903
+s-M      reference  top   0.07166  0.07283     0.9839
+s-M      reference  edge  0.07171  0.07317     0.9801
+s-X0     still      mid   0.09445  0.09542     0.9898
+s-X0     still      top   0.07211  0.07320     0.9851
+s-X0     still      edge  0.07264  0.07415     0.9797
+s-X0     reference  mid   0.09478  0.09571     0.9904
+s-X0     reference  top   0.07221  0.07334     0.9846
+s-X0     reference  edge  0.07253  0.07403     0.9797
+s-A      still      mid   0.09478  0.09573     0.9900
+s-A      still      top   0.07231  0.07341     0.9850
+s-A      still      edge  0.07290  0.07438     0.9801
+s-A      reference  mid   0.09507  0.09598     0.9904
+s-A      reference  top   0.07233  0.07346     0.9847
+s-A      reference  edge  0.07270  0.07421     0.9797
+# Take 2: the switch cabin (switch.py of t0-xlcu: each side against its own controls, then X0 against M's)
+variant                            slowest off/on whole off/on  r11 off/on  lvl60 off w/r11  lvl60 on w/r11  cyc off w/r11  cyc on w/r11  dip off r11   dip on r11 own15 on r11  still lo/hi r11
+w-M                                   143/92         79/55      119/85       107.2/112.8      95.5/92.3     107.1/112.8    95.6/92.4     112.8@60     81.9@2          -16.2    100.0/100.0  
+levels and dips in % of the reference's control at the same frame; own15 in % against the run's own control
+variant                            slowest off/on whole off/on  r11 off/on  lvl60 off w/r11  lvl60 on w/r11  cyc off w/r11  cyc on w/r11  dip off r11   dip on r11 own15 on r11  still lo/hi r11
+w-X0                                 none/none       94/50      153/93       107.5/112.1      95.6/93.0     107.4/112.1    95.7/93.1     112.1@60     83.1@2          -12.8    100.0/100.0  
+levels and dips in % of the reference's control at the same frame; own15 in % against the run's own control
+variant                            slowest off/on whole off/on  r11 off/on  lvl60 off w/r11  lvl60 on w/r11  cyc off w/r11  cyc on w/r11  dip off r11   dip on r11 own15 on r11  still lo/hi r11
+w-X0                                 none/none       94/50      153/93       106.7/109.1      95.0/91.5     106.7/109.1    95.1/91.5     109.1@60     81.7@2          -12.8     97.4/97.5   
+levels and dips in % of the reference's control at the same frame; own15 in % against the run's own control
+# Take 2 per region (regions.py), M then X0
+index settle off settle on lvl60 off lvl60 on share on
+whole         79        55    107.2%    95.5%    1.000
+  r00        143        92    126.2%    89.8%    0.501
+  r01         15        12    101.7%    98.5%    4.072
+  r02        143        92    125.8%    89.7%    0.503
+  r10        133        88    120.2%    91.1%    0.547
+  r11        119        85    112.8%    92.3%    0.883
+  r12        133        88    119.9%    91.1%    0.550
+  r20        131        51    121.8%    96.1%    0.579
+  r21        118        42    115.2%    96.8%    0.785
+  r22        131        51    121.5%    96.0%    0.579
+index settle off settle on lvl60 off lvl60 on share on
+whole         94        50    107.5%    95.6%    1.000
+  r00       None      None    130.1%    89.4%    0.494
+  r01          9         7    101.7%    98.6%    4.096
+  r02       None      None    128.1%    89.2%    0.496
+  r10        185      None    121.4%    91.2%    0.539
+  r11        153        93    112.1%    93.0%    0.867
+  r12        183      None    120.2%    91.1%    0.542
+  r20        182        48    125.1%    96.0%    0.586
+  r21        155        33    116.2%    96.9%    0.793
+  r22        180        48    124.3%    95.9%    0.586
+# Take 3: the stand part (survey results, region r11 = index 5)
+st-M settleDraws [24, 15, 17, 14, 30, 49, 29, 0, 3, 0] after tick [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] first window r11 -0.0852 failed []
+st-X0 settleDraws [42, 27, 28, 22, 53, 84, 51, 20, 30, 21] after tick [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] first window r11 -0.0959 failed []
+# Take 3: the stand film (standfilm.py: the survey's motion part)
+sf-M stops 3.82839135 flicker 0.0002866250724764541 grain 0.0007375414134003222 samples {'middle': {'blotch': 0.014342457056045532, 'blotchRms': 0.009859168902039528, 'level': 0.010495305061340332}, 'end': {'blotch': 0.015297980979084969, 'blotchRms': 0.010620634071528912, 'level': 0.012532353401184082}} failed []
+sf-X0 stops 3.8572916 flicker 0.0002314938319614157 grain 0.0005995493265800178 samples {'middle': {'blotch': 0.01924220658838749, 'blotchRms': 0.014300979673862457, 'level': 0.023081541061401367}, 'end': {'blotch': 0.022869549691677094, 'blotchRms': 0.016729053109884262, 'level': 0.02711319923400879}} failed []
+# Take 3: the stand film's single-bounce cycle (cycle.py)
+stand s/st-M/results/stand/cabin-stand.json frames 100..330
+  whole: cycle 0.02 %  spread 0.01 %  phase means +0.01 -0.00 -0.01 +0.02 +0.01 +0.01 +0.01 +0.00 -0.00 +0.01 -0.00 -0.01 +0.01 +0.00 +0.00 +0.01 +0.01 +0.00
+  r11: cycle 0.04 %  spread 0.02 %  phase means +0.00 -0.01 -0.01 +0.03 +0.02 +0.02 +0.02 +0.01 -0.00 +0.01 -0.00 -0.01 +0.02 +0.01 +0.01 +0.01 +0.00 -0.01
+stand s/st-X0/results/stand/cabin-stand.json frames 100..330
+  whole: cycle 0.02 %  spread 0.01 %  phase means +0.01 +0.01 -0.00 +0.01 +0.01 +0.01 +0.01 +0.01 +0.01 +0.01 +0.01 -0.00 +0.01 +0.00 +0.00 +0.00 +0.01 +0.01
+  r11: cycle 0.04 %  spread 0.02 %  phase means +0.00 +0.00 -0.01 +0.03 +0.03 +0.03 +0.02 +0.02 +0.01 +0.01 +0.01 -0.00 +0.01 +0.01 +0.01 +0.00 +0.01 +0.00
+# Take 5: the climb's step from tick 300 to 306 on M (climbstep.py)
+region      t300      t306     step  sd t300  sd t306
+ whole   0.05710   0.05710  +0.001%   0.037%   0.037%
+   r00   0.07894   0.07894  -0.000%   0.088%   0.088%
+   r01   0.09924   0.09924  +0.001%   0.060%   0.060%
+   r02   0.07939   0.07939  +0.000%   0.057%   0.057%
+   r10   0.06153   0.06153  -0.000%   0.077%   0.077%
+   r11   0.07667   0.07667  +0.000%   0.138%   0.137%
+   r12   0.06194   0.06195  +0.003%   0.100%   0.100%
+   r20   0.01843   0.01843  +0.000%   0.101%   0.101%
+   r21   0.01933   0.01933  +0.000%   0.105%   0.105%
+   r22   0.01843   0.01843  +0.000%   0.172%   0.172%
+# Take 5: the jitter phases of the lamps-on control, M with and without jitter (phases.py), and X0
+frames 36..215
+region cycle mean  darkest brightest no jitter
+ whole     0.3595   -0.28%    +0.22%    +0.36%
+   r00     0.1805   -0.17%    +0.16%    -0.02%
+   r01     1.4624   -0.52%    +0.37%    +0.90%
+   r02     0.1813   -0.17%    +0.15%    -0.04%
+   r10     0.1972   -0.16%    +0.17%    -0.02%
+   r11     0.3180   -0.87%    +0.54%    -0.34%
+   r12     0.1981   -0.17%    +0.14%    -0.11%
+   r20     0.2080   -0.05%    +0.06%    -0.01%
+   r21     0.2822   -0.07%    +0.04%    +0.03%
+   r22     0.2080   -0.06%    +0.04%    -0.02%
+frames 172..459
+region cycle mean  darkest brightest no jitter
+ whole     0.3611   -0.25%    +0.18%    +0.71%
+   r00     0.1821   -0.02%    +0.02%    -0.00%
+   r01     1.4644   -0.51%    +0.37%    +1.57%
+   r02     0.1831   -0.02%    +0.02%    -0.02%
+   r10     0.1989   -0.02%    +0.02%    -0.04%
+   r11     0.3214   -0.83%    +0.41%    +0.08%
+   r12     0.1998   -0.02%    +0.02%    -0.08%
+   r20     0.2086   -0.01%    +0.01%    -0.00%
+   r21     0.2830   -0.03%    +0.01%    +0.04%
+   r22     0.2087   -0.01%    +0.01%    -0.02%
+frames 36..215
+region cycle mean  darkest brightest no jitter
+ whole     0.3559   -0.28%    +0.23%
+   r00     0.1764   -0.19%    +0.18%
+   r01     1.4556   -0.52%    +0.37%
+   r02     0.1771   -0.19%    +0.17%
+   r10     0.1923   -0.17%    +0.19%
+   r11     0.3097   -0.91%    +0.56%
+   r12     0.1934   -0.18%    +0.16%
+   r20     0.2083   -0.05%    +0.07%
+   r21     0.2820   -0.07%    +0.04%
+   r22     0.2083   -0.06%    +0.05%
+# Take 5: the jitter cycle after the trend's division (cycle.py), M then X0
+switch:on s/w-M/results/switch/cabin.json frames 36..215
+  whole: cycle 0.44 %  spread 0.14 %  phase means +0.04 +0.15 -0.14 -0.02 +0.01 -0.22 -0.25 +0.13 +0.19 +0.13 +0.13 -0.24 -0.12 -0.00 +0.03 +0.02 +0.16 +0.11
+  r00: cycle 0.06 %  spread 0.02 %  phase means +0.01 +0.05 +0.03 +0.02 +0.02 +0.01 -0.00 +0.02 +0.01 +0.00 +0.03 +0.01 -0.00 +0.01 +0.00 -0.01 +0.03 +0.02
+  r01: cycle 0.88 %  spread 0.27 %  phase means +0.07 +0.33 -0.15 -0.12 -0.00 -0.47 -0.51 +0.25 +0.37 +0.27 +0.29 -0.36 -0.29 -0.06 -0.04 -0.03 +0.30 +0.19
+  r02: cycle 0.05 %  spread 0.02 %  phase means +0.01 +0.03 +0.02 +0.00 +0.01 +0.00 -0.01 +0.03 +0.01 +0.00 +0.04 +0.02 +0.01 +0.02 +0.00 -0.01 +0.02 +0.01
+  r10: cycle 0.03 %  spread 0.02 %  phase means +0.02 +0.03 +0.01 +0.01 +0.02 +0.01 -0.00 +0.01 +0.01 +0.01 +0.03 +0.01 +0.00 +0.01 +0.00 -0.00 +0.03 +0.03
+  r11: cycle 1.25 %  spread 0.32 %  phase means +0.10 -0.05 -0.72 +0.30 +0.08 -0.16 -0.24 +0.15 +0.16 +0.11 -0.07 -0.81 +0.13 +0.18 +0.44 +0.37 +0.15 +0.15
+  r12: cycle 0.05 %  spread 0.02 %  phase means +0.01 +0.04 +0.03 +0.01 +0.02 +0.01 -0.00 +0.02 +0.00 -0.01 +0.02 +0.02 +0.01 +0.02 +0.01 +0.00 +0.02 +0.01
+  r20: cycle 0.02 %  spread 0.01 %  phase means +0.01 +0.00 -0.00 -0.00 +0.00 +0.00 -0.00 +0.00 +0.00 +0.01 +0.01 -0.00 -0.01 +0.01 +0.00 -0.00 +0.01 +0.02
+  r21: cycle 0.04 %  spread 0.01 %  phase means -0.01 -0.02 -0.01 +0.02 +0.02 +0.02 +0.01 -0.00 +0.01 +0.01 -0.01 -0.00 +0.02 +0.01 +0.01 +0.01 +0.00 -0.01
+  r22: cycle 0.02 %  spread 0.01 %  phase means -0.01 +0.01 +0.01 +0.01 +0.02 +0.01 +0.00 +0.01 +0.01 -0.00 +0.00 +0.00 +0.01 +0.00 -0.00 -0.01 +0.00 -0.01
+switch:on s/w-X0/results/switch/cabin.json frames 36..215
+  whole: cycle 0.45 %  spread 0.14 %  phase means +0.04 +0.15 -0.14 -0.02 +0.01 -0.23 -0.26 +0.13 +0.19 +0.14 +0.13 -0.24 -0.12 -0.00 +0.03 +0.02 +0.16 +0.11
+  r00: cycle 0.05 %  spread 0.02 %  phase means +0.01 +0.04 +0.02 +0.02 +0.02 +0.01 -0.00 +0.02 +0.01 +0.01 +0.03 +0.01 -0.00 +0.01 +0.00 -0.01 +0.03 +0.02
+  r01: cycle 0.89 %  spread 0.27 %  phase means +0.07 +0.33 -0.16 -0.12 -0.00 -0.47 -0.51 +0.25 +0.38 +0.27 +0.29 -0.37 -0.29 -0.06 -0.04 -0.04 +0.30 +0.20
+  r02: cycle 0.05 %  spread 0.02 %  phase means +0.01 +0.03 +0.01 +0.00 +0.01 +0.00 -0.01 +0.03 +0.01 +0.01 +0.04 +0.02 +0.02 +0.02 +0.00 -0.01 +0.02 +0.01
+  r10: cycle 0.04 %  spread 0.01 %  phase means +0.02 +0.03 +0.01 +0.01 +0.02 +0.01 -0.00 +0.02 +0.01 +0.01 +0.03 +0.01 +0.00 +0.01 +0.00 -0.01 +0.03 +0.03
+  r11: cycle 1.29 %  spread 0.33 %  phase means +0.10 -0.05 -0.74 +0.31 +0.08 -0.16 -0.24 +0.16 +0.17 +0.12 -0.08 -0.84 +0.14 +0.18 +0.45 +0.38 +0.15 +0.15
+  r12: cycle 0.04 %  spread 0.02 %  phase means +0.00 +0.04 +0.03 +0.02 +0.03 +0.01 +0.00 +0.02 +0.01 +0.00 +0.02 +0.01 +0.01 +0.01 +0.00 -0.01 +0.02 +0.00
+  r20: cycle 0.02 %  spread 0.01 %  phase means +0.01 +0.00 -0.00 +0.00 +0.01 +0.00 -0.00 +0.00 +0.00 +0.01 +0.01 -0.00 -0.00 +0.01 +0.00 -0.00 +0.01 +0.02
+  r21: cycle 0.04 %  spread 0.01 %  phase means -0.01 -0.02 -0.01 +0.02 +0.02 +0.02 +0.01 -0.00 +0.01 +0.01 -0.01 -0.00 +0.02 +0.01 +0.01 +0.01 +0.00 -0.01
+  r22: cycle 0.02 %  spread 0.01 %  phase means -0.01 +0.01 +0.01 +0.01 +0.02 +0.01 +0.01 +0.01 +0.01 -0.00 +0.00 +0.00 +0.00 +0.00 -0.00 -0.01 +0.01 -0.01
+# Take 5: the census of young light-age records in the still (survey results)
+n-X0 diffuse draws 329 levels {'none': 4737600, 'motion': 0, 'light': 0} light pixel-draws 0 share 0.0
+n-X0 specular draws 329 levels {'none': 4737600, 'motion': 0, 'light': 0} light pixel-draws 0 share 0.0
+nj-X0 diffuse draws 329 levels {'none': 4737600, 'motion': 0, 'light': 0} light pixel-draws 0 share 0.0
+nj-X0 specular draws 329 levels {'none': 4737600, 'motion': 0, 'light': 0} light pixel-draws 0 share 0.0
+na-X0 diffuse draws 329 levels {'none': 4734759, 'motion': 0, 'light': 2841} light pixel-draws 8064 share 2.6595744680851064e-05
+na-X0 specular draws 329 levels {'none': 4734514, 'motion': 0, 'light': 3086} light pixel-draws 8841 share 2.91583554964539e-05
+naj-X0 diffuse draws 329 levels {'none': 4737600, 'motion': 0, 'light': 0} light pixel-draws 0 share 0.0
+naj-X0 specular draws 329 levels {'none': 4737600, 'motion': 0, 'light': 0} light pixel-draws 0 share 0.0
+nm-X0 diffuse draws 329 levels {'none': 4734759, 'motion': 0, 'light': 2841} light pixel-draws 8064 share 2.6595744680851064e-05
+nm-X0 specular draws 329 levels {'none': 4734514, 'motion': 0, 'light': 3086} light pixel-draws 8841 share 2.91583554964539e-05
+ns-X0 diffuse draws 329 levels {'none': 4735004, 'motion': 0, 'light': 2596} light pixel-draws 7266 share 2.3963874113475176e-05
+ns-X0 specular draws 329 levels {'none': 4734794, 'motion': 0, 'light': 2806} light pixel-draws 8015 share 2.6434138593380616e-05
