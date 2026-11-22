@@ -1,6 +1,6 @@
 ---
 id: ter-qt72
-status: in_progress
+status: closed
 deps: []
 links: [ter-89xq]
 created: 2026-11-22T16:23:08Z
@@ -440,3 +440,7 @@ A finding of the film: bright specks on the ceiling near the lamps (`specks.py`,
 | Step 2 (74395e38c) | 42 | Two bursts, film frames 51 to 66 and 75 to 93, with 67 to 216 specks each, at 1072 × 603, 1088 × 612 and 1104 × 621 |
 
 The same three sizes at other times of the film show none, so the bursts belong to a time of the film, not to one size. They are of the speck class that t7-3e22 describes (fine specks near the far lamps in rect-lamps). Which frames that class hits depends on the sample pattern of the render size, and main before step 1 shows it most. One film cannot tell whether exact-ratio sizes make the class more frequent. That needs a comparison of the class over many sizes, and it stays open here.
+
+**2026-11-22T23:52:55Z**
+
+2026-11-22, the line orchestrator. Step 2 is merged into main by fast-forward at 2bef1af1f, with the push hook's cleanup commit 3c5c0329b on top. The gates: the lead's report gives all ten review findings resolved with evidence, full Checked and full Release green on e60d6c937, lavapipe green for the 6 changed classes (186 tests), 34 mutants with a result each, the coverage of the changed lines, the real-window check, the film, ARCHITECTURE.md, and tools/renderer-survey/probe.patch applies on the merged code (I ran git apply --check). One gap against my gate of Release at the final code: the two hardening commits after e60d6c937 changed 20 lines of UpscalingSetting.cs and VulkanRenderer.cs (two loops that never fire removed, one local inlined). Their hooks ran all of Rendering in Checked, 0 failed. Release at the final code runs as the lead's first step after the merge. I read the merged diff once: UpscalingSetting owns the size and the one predicate, the controller records the realized scale, and the swapchain asks the predicate. No finding. Open from the film: step 2's side shows bright ceiling specks in 42 of 240 frames against 4 for step 1 on the same scales. One film cannot tell whether exact-ratio sizes cause it. The lead measures that next, and the result goes into t7-3e22. Step 2's case rests on the user's decision of 2026-11-05 and on correctness: the film shows no visible gain on the measured edges, as Take B predicted.
