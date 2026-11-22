@@ -3,7 +3,9 @@
   "repository": "https://github.com/alexispurslane/tertius.git",
   "daily_caps_usd": {
     "2026-11-11": 10.0,
-    "2026-11-13": 3.0
+    "2026-11-13": 3.0,
+    "2026-11-22": 6.0,
+    "2026-11-23": 5.0
   },
   "total_cap_usd": 30.0,
   "kinds": {
