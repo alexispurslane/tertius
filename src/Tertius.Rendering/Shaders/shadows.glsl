@@ -6,19 +6,22 @@
 // and the last cascade fades out to fully lit at 2 km, so there are no shadow-map shadows beyond it.
 //
 // Filtering: 4 × 4 hardware-PCF taps one texel apart. Each tap is a bilinear 2 × 2 comparison, so together they
-// cover 5 × 5 texels with a smooth tent-like weight. The tiles compute the same filter with exact weights, from nine
-// gathers or from sixteen reads at texel corners (tileShadow).
+// cover 5 × 5 texels with a smooth tent-like weight, and reach 2.5 texels from the lookup (ShadowBias.FilterReachTexels).
+// Past a caster's edge the map holds no caster, so the filter's lit fraction under the caster's edge is up to a half.
+// So the cascades' sun share is lightOutsideShadow of the lit fraction, 0 up to a half: the blur lies on the lit side
+// of each edge and puts no light inside a shadow (t8-rjno). The tiles keep the symmetric filter and compute it with
+// exact weights, from nine gathers or from sixteen reads at texel corners (tileShadow).
 //
 // Bias, the same model for the cascades and the tiles (docs/plans/local-light-shadows.md, decision 33), in parts that
 // each scale with the texel size:
 //  - The shadow passes add a slope-scaled depth bias to the casters, ShadowBias.SlopeBias. Every tap compares against
-//    the receiver's own depth, and the filter compares texels up to 2.5 texels from the lookup along each texel axis,
-//    so the bias covers the receiver's slope over that reach along an axis. On a slope diagonal to the texel grid the
-//    corner texels lie up to 2.5 texels off along both axes, and Vulkan lets the slope be the larger of the two axes'
-//    slopes, so their comparisons can fall a little short: at most about 2% of the light at extreme grazing angles
-//    (ARCHITECTURE.md, "Shadow bias"). No tap compares against the receiver's plane extrapolated toward the light: at a
-//    grazing light, that plane passes under a wall that stands on the receiver, and the taps saw the light past the
-//    wall (ter-kn1d).
+//    the receiver's own depth, and the filter compares texels up to its reach, 2.5 texels, from the lookup along each
+//    texel axis, so the bias covers the receiver's slope over that reach along an axis. On a slope diagonal to the
+//    texel grid the corner texels lie up to 2.5 texels off along both axes, and Vulkan lets the slope be the larger of
+//    the two axes' slopes, so their comparisons can fall a little short: at most about 2% of the taps at extreme
+//    grazing angles, which the cascades' lit-side rule doubles (ARCHITECTURE.md, "Shadow bias").
+//    No tap compares against the receiver's plane extrapolated toward the light: at a grazing light, that plane passes
+//    under a wall that stands on the receiver, and the taps saw the light past the wall (ter-kn1d).
 //  - A normal offset of one texel, scaled by sin(angle to the light), frame.shadowParams.y, which the batcher writes in
 //    every frame for the cascades and the tiles alike, plus half a texel of constant depth bias for the cascades.
 #ifndef TERTIUS_SHADOWS_GLSL
@@ -29,31 +32,50 @@
 // ShaderConstants.TileCornerMeans: whether tileShadow reads a tile's texels as sixteen corner means, or as nine gathers.
 layout(constant_id = 11) const bool tileCornerMeans = false;
 
-// The lit fraction of one cascade of one cascade set at a world position, with geometricNormal and sinTheta as in
-// cascadeShadow.
+// The comparison of the cascades' map with a receiver at depth `reference`, at `coordinate` in layer `layer`.
+float cascadeComparison(vec2 coordinate, float layer, float reference)
+{
+    // Explicit zero gradients (mip 0): the calling code branches per pixel, where implicit derivatives are undefined.
+    return textureGrad(sampler2DArrayShadow(shadowCascades, shadowSampler), vec4(coordinate, layer, reference),
+        vec2(0.0), vec2(0.0));
+}
+
+// The lit fraction of the cascade's texels around `coordinate` for a receiver at depth `reference`: the 4 × 4 bilinear
+// comparisons one texel apart.
+float filteredCascade(vec2 coordinate, float layer, float reference)
+{
+    vec2 stride = vec2(frame.shadowParams.x);
+    float lit = 0.0;
+    for (int y = 0; y < 4; y++)
+    {
+        for (int x = 0; x < 4; x++)
+            lit += cascadeComparison(coordinate + (vec2(float(x), float(y)) - 1.5) * stride, layer, reference);
+    }
+    return lit * (1.0 / 16.0);
+}
+
+// The sun's share at a receiver whose cascade filter is lit by the fraction `litFraction`: 0 up to one half, then rising
+// to 1. A filter that is centered on a straight shadow edge is half lit. So the filter's blur, which only hides the map's
+// texel grid, lies on the lit side of the edge and puts no light inside the shadow (t8-rjno; the user chose it on
+// 2026-11-21). The ramp is the filter's 2.5 texels, half of the symmetric filter's 5, so edges are about twice as sharp,
+// and lit areas lose about 1.25 texels at each edge. Main's softness under this rule needs a reach of 5 texels, but the
+// slope bias, the maps' margins and the tap count are sized for 2.5. One bilinear comparison showed a crawling staircase.
+float lightOutsideShadow(float litFraction)
+{
+    return clamp(2.0 * litFraction - 1.0, 0.0, 1.0);
+}
+
+// The sun's share from one cascade of one cascade set at a world position, with geometricNormal and sinTheta as in
+// cascadeShadow. Each cascade applies lightOutsideShadow before cascadeShadow blends two of them.
 float sampleCascade(uint set, uint cascade, vec3 position, vec3 geometricNormal, float sinTheta)
 {
     float texel = frame.shadowTexel[cascade];
     vec3 lookup = position + geometricNormal * (frame.shadowParams.y * texel * sinTheta);
     vec4 clip = frame.cascadeSets[set].viewProj[cascade] * vec4(lookup, 1.0);
-    vec2 uv = clip.xy * 0.5 + 0.5;
     float reference = clip.z + frame.shadowParams.z;
-    float invSize = frame.shadowParams.x;
     // ShadowMap.Layer: the layers of a set follow those of the sets before it.
     float layer = float(set * 4u + cascade);
-
-    float lit = 0.0;
-    for (int y = 0; y < 4; y++)
-    {
-        for (int x = 0; x < 4; x++)
-        {
-            vec2 offset = vec2(float(x) - 1.5, float(y) - 1.5) * invSize;
-            vec4 coordinate = vec4(uv + offset, layer, reference);
-            // Explicit zero gradients (mip 0): the calling code branches per pixel, where implicit derivatives are undefined.
-            lit += textureGrad(sampler2DArrayShadow(shadowCascades, shadowSampler), coordinate, vec2(0.0), vec2(0.0));
-        }
-    }
-    return lit * (1.0 / 16.0);
+    return lightOutsideShadow(filteredCascade(clip.xy * 0.5 + 0.5, layer, reference));
 }
 
 // How far a world position is beyond the shadow maps: 0 where they shadow it, 1 past their end, and a smooth step over
@@ -101,8 +123,8 @@ float cascadeShadow(uint set, vec3 position, vec3 geometricNormal, float sinThet
 // only for points in the main view's frustum: a point behind the camera has a negative depth, and cascade 0 does not hold
 // it once it lies more than a few meters back. Each set has its own boxes, along its own light.
 
-// How far the 4 × 4 taps reach from the lookup, in texels: they compare the 5 × 5 texels around the lookup's texel, up
-// to 2 texels from it. The C# twin is ShadowBias.FilterClearanceTexels.
+// How far the filter's taps compare from the lookup, in texels: the 5 × 5 texels around the lookup's texel, up to 2
+// texels from it. The C# twin is ShadowBias.FilterClearanceTexels.
 const float FilterClearanceTexels = 2.0;
 
 // A position in the clip space of a cascade box: xy in [−1, 1] across the box, z in [0, 1] along the light.
@@ -252,8 +274,7 @@ TileLookup tileLookupOf(GpuLight light, vec3 position, vec3 L, float d, vec3 geo
     float size = float(textureSize(shadowAtlas, 0).x);
     t.layer = float(tile.layer);
 
-    // The filter of the cascades' 4 × 4 bilinear taps at −1.5 to 1.5 texels, computed exactly: it weighs the 5 × 5 texels
-    // from texel `first` by (1 − f, 1, 1, 1, f) along each axis, f the lookup's place within its texel. The hardware's
+    // The filter's 4 × 4 bilinear taps at −1.5 to 1.5 texels, computed exactly: it weighs the 5 × 5 texels from texel `first` by (1 − f, 1, 1, 1, f) along each axis, f the lookup's place within its texel. The hardware's
     // filter at the lookup's own place rounds f to the device's sub-texel precision, which Vulkan lets be as coarse as
     // 4 bits, so tileShadow applies f itself.
     vec2 corner = uv * size - 2.0;
@@ -279,7 +300,7 @@ bool fullyShadowed(TileLookup t)
 
 // The share of a near light that its atlas tiles let through at a world position (docs/plans/local-light-shadows.md,
 // "Sampling"): the one tile of a spot light, or the tile of the cube face of a point light that holds the direction from
-// the light to the position. The filter of the cascades' 4 × 4 PCF taps, computed with exact weights, with the normal
+// the light to the position. The filter's 4 × 4 PCF taps, computed with exact weights, with the normal
 // offset at the receiver's distance and the casters' slope-scaled bias, as the cascades take them. Texels past the tile
 // clamp to its edge. The tile's bounds skip the reads where every comparison agrees. L is the unit direction toward the
 // light and d its distance; geometricNormal and sinTheta are as in cascadeShadow.
