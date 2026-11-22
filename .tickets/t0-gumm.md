@@ -89,3 +89,19 @@ Written by the line orchestrator on 2026-11-22 from the orchestrator's order. Le
 **2026-11-22T21:39:00Z**
 
 Answer 73 of the line orchestrator, 2026-11-22: the experiment moves from the acceptance lead's queue to the combined check's lead (thread thread:delegated-task:command%3Amcp%3Aa061e2e4-17a4-45d5-ac91-153bf5752d2c%3Adelegate-task%3Adesign-x-line-t0-gbgj-lead-1, request design-x-line-t0-gbgj-lead-1, worktree t3-52bfcd29-81249085ce80dd9f, branch t3/combined-renderer-check), as a continuation sent about 16:50. Reason: its slot became free with the close of t0-gbgj, and it holds the build of the experiment's tree (x5h, the line's merge 710834cc0), the card's logging jobs, the history-length log and the video tools. It runs the acceptance lead's cost and boil tools by path. Order of its work: the experiment now; the final films of t0-3vwx first when the cap's commit exists; then the experiment's three events, videos, table and one reviewer; one final JSON for t0-3vwx and t0-gumm. Links to t58-np60 are made; ter-6fka and ter-8pco are not on the line's branch yet.
+
+**2026-11-22T22:10:27Z**
+
+Early result 1 from the combined check's lead, 2026-11-22, commit 91b122d3a on t3/combined-renderer-check, record docs/research/t0-gumm-catch-up-spread (chart pics/ownrays-switch-23.png: diffuse own rays per draw of the switch film at the constant scale 2/3, at the start, after off and after on).
+
+Check 1 passes: the experiment's build with no shape and with the shape (1, 8, 0) gives an own-ray log equal to today's code byte for byte in all 492 draws.
+
+Two changes of the design, accepted (my answers 74 and 75):
+1. The share of the length alone breaks the invariant. In the settled cabin the anti-lag holds about 17 % of the diffuse histories between 8 and 32 draws for good; the shape (1, E, 0) then gives 33,844 / 65,315 / 130,638 / 163,080 settled diffuse own rays per draw for E = 12 / 16 / 24 / 32, against today's 2,164. So the share acts only on a history that restarted less than End draws ago, by three clocks: draws since a reset (drawIndex), draws since the pixel's own exact light changed, and the block's youngest light code of the last draw's samples (the read of "own rays wait for the evidence"). Every other history keeps today's rule. Without the block's clock about half of today's peak stayed after a lamp switch.
+2. The offset takes the blue-noise byte as its high 8 bits and a pcg3d hash of the pixel as its low 24. The caps are scratch constants (diffuse 32; reflections 4 to 32 by roughness).
+
+Numbers: today peaks at 678k diffuse own rays per draw for 8 to 12 draws; (0.25, 32, 0) is a flat 176k for 32 draws; (0.125, 32, 0) about 92k. Totals of diffuse catch-up rays over 60 draws, today / (0.25, 32, 0) / (0.125, 32, 0): start 5.41 M / 5.41 M / 2.71 M; off 6.79 M / 5.25 M / 2.64 M; on 6.37 M / 5.22 M / 2.63 M. Settled diffuse counts equal today's; reflection counts differ by at most 15 per draw.
+
+Parity: within each draw parity, even and odd columns differ by at most 0.33 %, so the fault of t2-8foa is absent; that is the number that counts, and it passes. The four (column, draw) counts lie within 2.6 % of a quarter because the odd draws of a light-change window take about 2.3 % more catch-up rays; cause not found, not hunted now.
+
+Ordered in addition: one map of the settled diffuse history length of the cabin still with the share of pixels per band, for the orchestrator's review of the approach, and a statement of what a production build would need for the restart's clock.
