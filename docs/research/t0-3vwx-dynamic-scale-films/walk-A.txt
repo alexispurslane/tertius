@@ -1,0 +1,16 @@
+unpacking 'https://flakehub.com/f/DeterminateSystems/nixpkgs-weekly/0.1' into the Git cache...
+docs/research/t0-3vwx-dynamic-scale-films/pics/walk-M5-X5.mp4 6.1 MB, 260 frames at 60 per second, 3840 x 1080
+pane 1 M5  main ac5f23915: render scale 1.000 to 1.000, 0 size changes in the video's 260 draws
+pane 2 X5  Design X (no cap) + main ac5f23915: render scale 0.948 to 0.948, 0 size changes in the video's 260 draws
+draws after the stop: 0, against the last frame: M5  main ac5f23915: r11 source +5.49 %, video +5.57 %, largest difference 0.14 %; X5  Design X (no cap) + main ac5f23915: r11 source +5.87 %, video +5.91 %, largest difference 0.18 %
+draws after the stop: 20, against the last frame: M5  main ac5f23915: r11 source +3.74 %, video +3.90 %, largest difference 0.28 %; X5  Design X (no cap) + main ac5f23915: r11 source +4.61 %, video +4.73 %, largest difference 0.31 %
+draws after the stop: 40, against the last frame: M5  main ac5f23915: r11 source +2.50 %, video +2.61 %, largest difference 0.20 %; X5  Design X (no cap) + main ac5f23915: r11 source +3.58 %, video +3.68 %, largest difference 0.26 %
+== M5 (/private/tmp/t0-gbgj/macdyn5/pics/w-M5)
+  walk last 60 (60 one size / 0 changed): grain bottom 0.4774 / -, grain middle 2.41 / -, history mean 29.31 / -, history <8 0.02281 / -
+  stop 0-60 (60 one size / 0 changed): grain bottom 0.505 / -, grain middle 2.424 / -, history mean 29.35 / -, history <8 0.02888 / -
+  stop 60-200 (140 one size / 0 changed): grain bottom 0.4783 / -, grain middle 2.471 / -, history mean 29.61 / -, history <8 0.02736 / -
+== X5 (/private/tmp/t0-gbgj/macdyn5/pics/w-X5)
+  walk last 60 (60 one size / 0 changed): grain bottom 0.4635 / -, grain middle 2.377 / -, history mean 29.34 / -, history <8 0.02267 / -
+  stop 0-60 (60 one size / 0 changed): grain bottom 0.491 / -, grain middle 2.509 / -, history mean 29.51 / -, history <8 0.02025 / -
+  stop 60-200 (140 one size / 0 changed): grain bottom 0.4676 / -, grain middle 2.58 / -, history mean 26.99 / -, history <8 0.01983 / -
+docs/research/t0-3vwx-dynamic-scale-films/pics/walk-frames-M5-X5.png (1548, 2304)
