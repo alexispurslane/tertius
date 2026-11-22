@@ -146,3 +146,23 @@ The size ramp tool, 2026-11-22. The acceptance lead committed it as b53c037f1 on
 Passed to the combined check's lead for M3 (main a819b10b2) and X3 (the merged head with it): it runs the script by its path from the acceptance lead's worktree, checks the two files against b53c037f1 first, and writes the tool's commit beside its result. My answer (38): one copy of the tool, in the acceptance record; a copy in the combined check's record only if the harness refuses a script outside the lead's worktree. My answer (39): the combined check starts with 40 draws per size and does not wait for the tool's check on main without the layer; if that check asks for more draws, I send the number.
 
 The tool's own check on main c4c1f1f2f (does it find 1344 x 752 and 1832 x 1032, do 40 draws settle the jamb) waits for the GPU lock.
+
+**2026-11-22T18:52:59Z**
+
+The size ramp with the back-face layer, from the combined check's lead, 2026-11-22. Side M3 = main a819b10b2 (with the layer and the walk's stored inverse depth), build m3r with its tree's probe patch and scratch-dynamic-scale.patch, tool sizeramp.sh of b53c037f1 run by its path, 40 draws per size, played-back sizes equal the replay. Pictures in the lead's worktree t3-52bfcd29-81249085ce80dd9f under docs/research/t0-gbgj-combined-check/pics: ramp-M3.png (the chart), ramp-M3-openings.png (the near right opening at 1800 x 1008, 1872 x 1048, 1600 x 896, 1344 x 752 and 1920 x 1080), opening-0956-m2-vs-m3.png. Table: docs/research/t0-gbgj-combined-check/ramp-M3.txt. I looked at the three pictures and read the table.
+
+Measured: 32 of the 181 render sizes leak with the layer (a jamb crop mean above 0.08): 1000x560, 1008x560, 1072x600, 1080x600, 1200x672, 1272x712, 1344x752, 1376x776, 1400x784, 1416x792, 1432x808, 1472x824, 1488x832, 1544x864, 1560x872, 1600x896, 1616x904, 1616x912, 1632x912, 1672x936, 1688x944, 1744x976, 1744x984, 1760x984, 1800x1008, 1800x1016, 1816x1016, 1816x1024, 1832x1024, 1872x1048, 1872x1056, 1888x1056. The brightest, right / left: 1800x1008 0.2298 / 0.2420; 1872x1048 0.2073 / 0.2390; 1600x896 0.1789 / 0.2099. Without the layer the bright jambs measured up to 0.77. 1832x1032 (the scale 0.956 of the earlier takes) gives 0.0491, so those takes saw grey jambs; 1832x1024 gives 0.0805 / 0.0888; 1344x752 gives 0.0876 / 0.0890. Settle check: 1344x752 right 0.0836 then 0.0876; 1832x1032 0.0482 then 0.0491; 1920x1080 0.0449 then 0.0444.
+
+My own reading of the table: all 32 leaking sizes are among the 74 that leak without the layer. All 8 sizes of the exact 16:9 aspect sit on the floor (0.043 to 0.047). 17 more sizes measure 0.06 to 0.08, so 49 of 181 are above 0.06. In the crops a leaking size shows a broad bright line at the opening's inner edge with a glow onto the jamb face and into the dark opening, and dots along the sill; 1920x1080 shows a thin line and a clean face.
+
+Result: the layer weakens the jamb leak and does not cure it. The jambs are not closed. It goes into t58-i3sn and up to the orchestrator for the back-face line.
+
+The crops of t58-i3sn at 0.956 on the new main: every fault is the same on M3 as on M2 (specks per box ceiling / opening / floor's sides at film frames 150, 220, 355: M2 5/39/0, 10/36/41, 10/37/30; M3 5/39/0, 10/36/42, 10/37/31). So the walk fix did not cure them, and t58-i3sn stays an open bug.
+
+X3 = the lead's merge bcca31e95 (main a819b10b2 merged into the merged head; only the probe patch conflicted; resolved with the line's fair-switch probe, Count 12 to 14). The hook's Rendering tests passed: 3,411 total, 0 failed, 10 skipped. X3's ramp runs.
+
+Deck timing, four valid rounds under a load of 8: X2 minus M2 = +0.138, -0.122, +0.220, +0.267 ms; mean +0.126 ms, median +0.179 ms; every round under the allowance of +0.30 ms.
+
+The stills sample at 0.956 (M2 and X2 alike): rect-lamps specks rise from 0.005 to 0.024, all at the openings; deck-cuts specks rise from 0.005 to 0.025 around the glass hall's frames, and a bright streak on a pillar's lower edge is a little longer than at 2/3; exit-cabin no change; bay-sunbeam better, specks fall from 0.14 to 0.01 because the slit's teeth of 2/3 are gone at 0.956.
+
+Found: the lead's record folder and t58-i3sn.md were untracked in its worktree. I told the lead to commit them now and after each result.
