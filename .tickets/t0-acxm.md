@@ -431,3 +431,9 @@ The new review of the changed parts (one reviewer, Opus at high effort) found on
 - Nit: `TestsRegionDrift` is now false for the single-history prototype, whose spatial dispatch has no light-age variant. Test: ThePrototypesSingleBounceHistoryKeepsNoRegionRing.
 
 A bug that the run of the changed classes showed: three test classes set a process-wide switch from the GPU collection, so the tests beside them read it. NeighborLimiterPrototype sets TERTIUS_INDIRECT_LIGHT_PROTOTYPE, and seven region tests failed beside it. PreciseSpecularHistory and PreciseHistoryRayAllocation set TERTIUS_SPECULAR_HISTORY=original, which takes the ring away from the bounce light. All three now run in the process-environment collection, as tests/Tertius.Rendering.Tests/TestSupport.cs requires.
+
+The final checks on `9134dac00`:
+
+- Mutants of the review's lines: M10 and M11 (fitted to the new line) and the new M12 (`TestsRegionDrift` without `!singleDiffuseHistory`, killed by ThePrototypesSingleBounceHistoryKeepsNoRegionRing) and M13 (the previous render size from the continued frame only, killed by AfterTheCamerasFrameChangesThePreviousRenderSizeIsStillTheLastDrawnFramesSize): 4 killed. So the second list ends at 12 killed and 1 judgment call (M03).
+- Checked suite: 11,039 passed, 27 skipped, 0 failed. Release suite: 11,026 passed, 27 skipped, 0 failed.
+- Linux (`tools/runpod/gpu_job.py`, NVIDIA RTX 2000 Ada, job 47a0d54f, 355 s, $0.068): the classes DescriptorLayoutsTests, FrameHistoryTests, ShaderVariantTests, LightAgeHistoryTests, RegionDrift, EvidenceUnderEachHistory and NeighborLimiterPrototype, 157 passed of 157. The ticket's cloud spend is now about $0.17.
