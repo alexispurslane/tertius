@@ -1,6 +1,6 @@
 ---
 id: t1-r9vj
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-15T13:23:44Z
@@ -134,3 +134,7 @@ A change of the fade in the engine.
 - main is 0.4 % to 3 % brighter than the probe's layer in every receiver region; the frame noise is at most 0.9 %. Deterministic. No difference for the eye.
 - By eye, no rule looks better than layer; there is no fork. No rule is nearer than layer in every cell of the four views.
 - Bugs: t2b-d2m6 (a bright trapezoid on the glossy wall from the environment map at the eye), t2b-xeo7 (lost bounce of a lit face that the camera does not see: 9 to 71 times darker behind the block).
+
+**2026-11-22T20:23:51Z**
+
+2026-11-22, the line orchestrator. Merged into main after the lead's final report: branch t3/fade-lit-front-trace at 37f7e883d, a record with its tools and two bug tickets, no engine code. I read the record's result and both bug tickets and looked at the three sheets: every engine column shows the same picture to the eye in layer, ten, main, layerfade and dmiss15, and dfront, dblack05 and dblack15 add a hard step or a stain on the glossy wall. So the verdict holds: no rule looks better than the fade over the real slab, and no fork goes to the user. The two bugs t2b-d2m6 and t2b-xeo7 go to the orchestrator: neither is a fault of the slab rule.
