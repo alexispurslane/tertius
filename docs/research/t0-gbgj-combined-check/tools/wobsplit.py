@@ -31,7 +31,7 @@ def load(path, model):
         if d >= draws[0]:
             since.append(n)
     run = np.cumsum(changed)
-    return dict(res=dist - pred, mid=mid - mid.mean(), w=w, scale=scale, changed=changed, since=np.array(since), run=run)
+    return dict(res=dist - pred, mid=mid - mid.mean(), w=w, h=h, scale=scale, changed=changed, since=np.array(since), run=run)
 
 
 def stats(v, sel):
@@ -94,7 +94,7 @@ for label, s in sides:
 print('\nper-size share of the variance (all draws / no change draws), distinct sizes; left-right correlation:')
 for label, s in sides:
     left, right = s['mid'] - s['res'] / 2, s['mid'] + s['res'] / 2
-    key = s['w'] * 10000 + s['scale'] * 0  # one key per render width; the height follows the width in this film
+    key = s['w'] * 10000 + s['h']  # one key per render size (width and height)
     out = []
     for name, v in (('left', left), ('right', right), ('distance', s['res']), ('midpoint', s['mid'])):
         shares = []
