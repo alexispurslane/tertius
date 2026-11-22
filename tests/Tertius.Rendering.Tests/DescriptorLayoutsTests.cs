@@ -198,7 +198,7 @@ public sealed class DescriptorLayoutsTests
     /// ARCHITECTURE.md, "Required device features", states.
     /// </summary>
     [Fact]
-    public void TheLayoutsNeedOfAStageTenStorageBuffersTwentyStorageImagesAndSeventeenSampledImages()
+    public void TheLayoutsNeedOfAStageTenStorageBuffersTwentyOneStorageImagesAndSeventeenSampledImages()
     {
         using var device = VulkanDevice.Create(validation: true, surfaceExtensions: [], createSurface: null);
         using var layouts = new DescriptorLayouts(device: device, framesInFlight: 2, glowLevels: 0);
@@ -214,19 +214,20 @@ public sealed class DescriptorLayoutsTests
         all.Max(counts => counts.StorageBuffers.Most).Should().Be(10, "the frame set's vertex stage sees ten");
         all.Max(counts => counts.StorageImages.Most)
             .Should()
-            .Be(20, "the screen tracer's compute stage sees fifteen, the light-change age's four and the hit light");
+            .Be(21, "the screen tracer's compute stage sees fifteen, the light-change age's five and the hit light");
         all.Max(counts => counts.SampledImages.Most)
             .Should()
             .Be(17, "the impostor layout's fragment stage sees seventeen");
     }
 
     /// <summary>
-    /// The light-change age of a precise specular history adds four storage images to the screen tracer's compute stage,
-    /// the two light-age records, the sample age and FSR's light-change mask, and one to the accumulator's, the sample age. The original history
-    /// keeps H13's shaders, which have no light age.
+    /// The light-change age of a precise specular history adds five storage images to the screen tracer's compute stage,
+    /// the two light-age records, the two samples' ages and FSR's light-change mask, and two to the accumulator's: the
+    /// sample age of its signal, and the anchors' rings (region_drift.glsl). The original history keeps H13's
+    /// shaders, which have no light age.
     /// </summary>
     [Fact]
-    public void APreciseHistoryAddsTheLightAgesFourStorageImagesToTheScreenTracerAndOneToTheAccumulator()
+    public void APreciseHistoryAddsTheLightAgesFiveStorageImagesToTheScreenTracerAndTwoToTheAccumulator()
     {
         using var device = VulkanDevice.Create(validation: true, surfaceExtensions: [], createSurface: null);
         using var original = new DescriptorLayouts(
@@ -240,11 +241,11 @@ public sealed class DescriptorLayoutsTests
         layouts
             .DescriptorsOf(layouts.ScreenTraceLayout)
             .StorageImages.Compute.Should()
-            .Be(original.DescriptorsOf(original.ScreenTraceLayout).StorageImages.Compute + 4);
+            .Be(original.DescriptorsOf(original.ScreenTraceLayout).StorageImages.Compute + 5);
         layouts
             .DescriptorsOf(layouts.AccumulateLayout)
             .StorageImages.Compute.Should()
-            .Be(original.DescriptorsOf(original.AccumulateLayout).StorageImages.Compute + 1);
+            .Be(original.DescriptorsOf(original.AccumulateLayout).StorageImages.Compute + 2);
     }
 
     [Fact]

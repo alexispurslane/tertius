@@ -20,10 +20,14 @@ namespace Tertius.Rendering;
 /// Each part owns a sample, a slow history and two fast histories, which alternate by the parity of the drawn frames
 /// (<see cref="FrameHistory.PendingFrame.Parity"/>), RGBA16F at the targets' size except the experiment's RGBA32F slow history. The slow history holds the length
 /// in alpha, the specular signal's sample and fast history the hit distance, 0 for a miss, and the diffuse signal's fast
-/// history the deviation of its samples' luminance, which the diffuse filter reads. The sample is a color
-/// attachment of its producer, and every other image stays in the General layout. The signals share the scratch images
-/// (<see cref="SignalScratch"/>). With a precise history, the specular part also owns its sample's light age, which the
-/// resolve writes and the temporal dispatch reads at binding 11 (the light-change age, ticket tiunr-7haj).
+/// history its retained deviation, which the clamp's box and the diffuse filter read (<see cref="HistoryConfidence"/>).
+/// The sample is a color attachment of its producer, and every other image stays in the General layout. The signals share
+/// the scratch images (<see cref="SignalScratch"/>). Beside a precise specular history, each part also owns its sample's
+/// age (<see cref="SampleAge"/>, sample_age.glsl), which the resolve writes and the spatial dispatch reads at binding 11
+/// (the light-change age, ticket tiunr-7haj): it acts on the evidence of each block of 8 × 8 pixels after the blend
+/// (docs/plans/bounce-light-confidence.md, sections 4 and 8). The temporal dispatch reads no light age. The diffuse signal
+/// keeps its half-precision history and takes the light-age variant of the spatial dispatch
+/// (<see cref="ShaderVariant.LightAge"/>).
 /// </para>
 /// <para>Invariants, checked by <see cref="AssertInvariants"/>:</para>
 /// <list type="bullet">
@@ -38,22 +42,51 @@ internal sealed unsafe class TemporalSignal : IDisposable
     public const Format SignalFormat = Format.R16G16B16A16Sfloat;
 
     /// <summary>
-    /// The format of the specular sample's light age with a precise history: 0 for no evidence, else the age in frames
-    /// plus 1.
+    /// The format of a sample's age beside a precise specular history (sample_age.glsl): in <see cref="LightCodeMask"/> the
+    /// youngest light code of the sample's rays, 0 for no light age, else the light age in frames plus 1, and the
+    /// <see cref="SampleMotionBit"/>.
     /// </summary>
     public const Format SampleAgeFormat = Format.R16Uint;
+
+    /// <summary>The bit of a sample age that says that the sample saw motion (sample_age.glsl, SampleMotionBit).</summary>
+    public const ushort SampleMotionBit = 0x8000;
+
+    /// <summary>The bits of a sample age that hold the youngest light code (sample_age.glsl, LightCodeMask).</summary>
+    public const ushort LightCodeMask = 0x7FFF;
 
     /// <summary>
     /// The format of the diagnostic of uncovered surfaces under <see cref="HistoryInstrumentation.LightAgeDiagnostic"/>: r the
     /// fewest frames seen among the never-changed surfaces that the specular sample's rays hit, or −1 for none, which the
-    /// resolve writes; g the slow history's length just before its blend, after the light-age cut, or −1 without a
-    /// sample; b 1 where the sample holds at least a quarter of the slow history's luminance, else 0, an observation that no
-    /// rule uses since ter-g3tk; a the length before the light-age cut. The temporal dispatch writes g, b and a.
+    /// resolve writes; g the slow history's length just before its blend, or −1 without a sample; b 1 where the sample
+    /// holds at least a quarter of the slow history's luminance, else 0, an observation that no rule uses since ter-g3tk;
+    /// a the length just before the blend again, where it held the length before the light-age cut until that cut went
+    /// (docs/plans/bounce-light-confidence.md, section 4). The temporal dispatch writes g, b and a.
     /// </summary>
     public const Format UncoveredDiagnosticFormat = Format.R32G32B32A32Sfloat;
 
-    /// <summary>The width and the height of a workgroup of both dispatches: the shaders' local size.</summary>
+    /// <summary>
+    /// The width and the height of a workgroup of both dispatches, the shaders' local size, and so of a block, whose
+    /// evidence the spatial dispatch shares among its pixels.
+    /// </summary>
     private const uint GroupSize = 8;
+
+    /// <summary>
+    /// The draws that an anchor's ring keeps for the region's drift test, two windows of 18 draws (region_drift.glsl,
+    /// RegionRingDraws): the layers of <see cref="RegionRing(int)"/>.
+    /// </summary>
+    public const int RegionRingDraws = 36;
+
+    /// <summary>
+    /// The anchors' step in blocks of 8 × 8 pixels, in x and in y (region_drift.glsl, AnchorStepBlocks): the ring holds
+    /// one texel per anchor, every 8th block.
+    /// </summary>
+    public const int AnchorStepBlocks = 8;
+
+    /// <summary>
+    /// The format of a layer of an anchor's ring (region_drift.glsl, regionRing): r the region's light of a draw, g the
+    /// count of valid draws in a row up to it, b 1 where the region's light moved in that draw.
+    /// </summary>
+    public const Format RegionRingFormat = Format.R32G32B32A32Sfloat;
 
     private readonly VulkanDevice device;
     private readonly DeviceAllocator allocator;
@@ -91,6 +124,11 @@ internal sealed unsafe class TemporalSignal : IDisposable
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(parts, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(parts, MostParts);
+        if (!ConfidenceFitsLight(parameters))
+            throw new ArgumentException(
+                "The widened box keeps the deviation of the diffuse light in its fast alpha, where the reflections keep the hit distance.",
+                nameof(parameters)
+            );
         CheckDevice(device);
 
         this.device = device;
@@ -101,7 +139,6 @@ internal sealed unsafe class TemporalSignal : IDisposable
         this.scratch = scratch;
 
         Name = name;
-        Parameters = parameters;
         HistoryMode = parameters.Light == SignalLight.Specular ? scratch.HistoryMode : SpecularHistoryMode.Original;
         Instrumentation =
             parameters.Light == SignalLight.Specular ? scratch.Instrumentation : HistoryInstrumentation.None;
@@ -126,6 +163,10 @@ internal sealed unsafe class TemporalSignal : IDisposable
             light: parameters.Light
         );
         singleDiffuseHistory = prototype.SingleDiffuseHistory;
+        Parameters = parameters with
+        {
+            Confidence = ConfidenceOf(parameters.Confidence, singleDiffuseHistory, scratch.HistoryMode.KeepsLightAge),
+        };
         reflectionDistanceHistory =
             parameters.Light == SignalLight.Specular
             && Environment.GetEnvironmentVariable("TERTIUS_REFLECTION_SHARING") == "1";
@@ -137,6 +178,27 @@ internal sealed unsafe class TemporalSignal : IDisposable
         spatial = CreatePipeline(shaders, singleDiffuseHistory ? "diffuse_single_spatial" : "spatial");
         Create();
     }
+
+    /// <summary>
+    /// Whether the confidence rules of <paramref name="parameters"/> keep their deviation where its signal's shaders look
+    /// for it: only the diffuse light's fast history keeps a deviation in its alpha.
+    /// </summary>
+    private static bool ConfidenceFitsLight(SignalParameters parameters) =>
+        parameters.Confidence switch
+        {
+            WidenedBox => parameters.Light == SignalLight.Diffuse,
+            NarrowBox => true,
+            null => throw new ArgumentException("A signal's parameters need confidence rules.", nameof(parameters)),
+        };
+
+    /// <summary>
+    /// The rules that a signal of <paramref name="confidence"/> follows: the narrow box where its storage keeps no deviation
+    /// to widen a box by, or its samples no light age, whose evidence would narrow the box again. The single history keeps
+    /// no fast history, and beside the original specular history no sample has a light age
+    /// (docs/plans/bounce-light-confidence.md, section 13).
+    /// </summary>
+    private static HistoryConfidence ConfidenceOf(HistoryConfidence confidence, bool singleHistory, bool lightAge) =>
+        singleHistory || !lightAge ? new NarrowBox() : confidence;
 
     /// <summary>The pipeline of the dispatch of <paramref name="kind"/>, "temporal" or "spatial": accumulate_kind.comp.</summary>
     private Pipeline CreatePipeline(ShaderLibrary shaders, string kind, bool limitIncoming = false) =>
@@ -170,17 +232,50 @@ internal sealed unsafe class TemporalSignal : IDisposable
     /// <summary>The signal's parameter set.</summary>
     public SignalParameters Parameters { get; }
 
-    /// <summary>The specular history's storage and age policy, or original storage for other signals.</summary>
+    /// <summary>
+    /// The slow history's storage: the specular history's mode, or original storage for other signals. Whether the signal's
+    /// samples have a light age is <see cref="KeepsLightAge"/>.
+    /// </summary>
     public SpecularHistoryMode HistoryMode { get; }
 
     /// <summary>The instrumentation of the specular history, or none for other signals.</summary>
     public HistoryInstrumentation Instrumentation { get; }
 
     /// <summary>
-    /// The shader variant whose declared slow-history format matches this signal's storage (<see cref="HistoryShader(string,
-    /// SpecularHistoryMode, HistoryInstrumentation)"/>).
+    /// Whether the signal's samples have a light age (<see cref="SampleAge(int)"/>), the evidence of a light change by which
+    /// its history is cut: every signal beside a precise specular history, whose screen tracer records the light-change age
+    /// of each pixel.
     /// </summary>
-    public string HistoryShader(string shader) => HistoryShader(shader, HistoryMode, Instrumentation);
+    public bool KeepsLightAge => scratch.HistoryMode.KeepsLightAge;
+
+    /// <summary>
+    /// Whether the signal runs the region's drift test (region_drift.glsl) and keeps its anchors' ring
+    /// (<see cref="RegionRing(int)"/>): the bounce light with a light age and its own spatial dispatch, and no other
+    /// signal. That dispatch is the light-age variant (<see cref="LightAgeShader(string)"/>), which alone compiles the
+    /// test; the single-history prototype's spatial dispatch has no such variant. The reflections' test fired falsely in
+    /// still views and brought bright specks into the bay film, where the bounce light's did neither (t0-acxm;
+    /// docs/plans/bounce-light-confidence.md, section 8.7).
+    /// </summary>
+    public bool TestsRegionDrift => KeepsLightAge && Parameters.Light == SignalLight.Diffuse && !singleDiffuseHistory;
+
+    /// <summary>
+    /// The shader variant whose declared slow-history format matches this signal's storage (<see cref="HistoryShader(string,
+    /// SpecularHistoryMode, HistoryInstrumentation)"/>), and which reads the light age where the signal keeps it
+    /// (<see cref="LightAgeShader(string)"/>).
+    /// </summary>
+    public string HistoryShader(string shader) =>
+        HistoryMode == SpecularHistoryMode.Original && KeepsLightAge
+            ? LightAgeShader(shader)
+            : HistoryShader(shader, HistoryMode, Instrumentation);
+
+    /// <summary>
+    /// The variant of <paramref name="shader"/> for a half-precision history whose samples have a light age: the
+    /// light-age variant for the shaders that it holds, the spatial dispatch alone, and the shader itself otherwise.
+    /// </summary>
+    internal static string LightAgeShader(string shader) =>
+        ShaderVariant.LightAge.Shaders.Contains(shader)
+            ? ShaderVariant.Of(shader, ShaderVariant.LightAge.Suffix)
+            : shader;
 
     /// <summary>
     /// The variant of <paramref name="shader"/> for a history of <paramref name="mode"/>. The precise variants keep the
@@ -223,10 +318,18 @@ internal sealed unsafe class TemporalSignal : IDisposable
     public GpuImage ReflectionGuide(int part) => parts[part].ReflectionGuide;
 
     /// <summary>
-    /// The light age of the sample of <paramref name="part"/>, which the resolve writes with a precise specular history
-    /// (<see cref="SampleAgeFormat"/>), or null without it.
+    /// The light age of the sample of <paramref name="part"/>, which the resolve writes beside a precise specular history
+    /// (<see cref="SampleAgeFormat"/>, <see cref="KeepsLightAge"/>), or null without it.
     /// </summary>
-    public GpuImage? SampleAge(int part) => parts[part].Ages is [var age, ..] ? age : null;
+    public GpuImage? SampleAge(int part) => parts[part].SampleAge;
+
+    /// <summary>
+    /// The rings of <paramref name="part"/>'s anchors (<see cref="RegionRingFormat"/>, <see cref="RegionRingDraws"/>
+    /// layers, one texel per anchor), or null where the signal runs no region test (<see cref="TestsRegionDrift"/>). Only
+    /// the spatial dispatch reads and writes them: an anchor's workgroup writes this draw's layer, and every block reads
+    /// the layer of the draw before.
+    /// </summary>
+    public GpuImage? RegionRing(int part) => parts[part].Regions is [var ring] ? ring : null;
 
     /// <summary>
     /// The diagnostic of uncovered surfaces of <paramref name="part"/> under <see cref="HistoryInstrumentation.LightAgeDiagnostic"/>
@@ -304,45 +407,63 @@ internal sealed unsafe class TemporalSignal : IDisposable
         barriers.Buffer(context.Exposure.Buffer, BufferUse.ShaderRead);
         for (int part = 0; part < parts.Length; part++)
         {
-            PartImages images = parts[part];
-            GpuImage scratched = scratch.Part(part, HistoryMode);
-            if (!reflectionDistanceHistory && HistoryMode != SpecularHistoryMode.Original)
-                barriers.Image(scratch.Part(part), ImageUse.StorageCompute);
-            barriers.Image(images.Sample, ImageUse.StorageCompute);
-            foreach (GpuImage age in images.Ages)
-                barriers.Image(age, ImageUse.StorageCompute);
-            foreach (GpuImage trace in images.Traces)
-                barriers.Image(trace, ImageUse.StorageCompute);
-            barriers.Image(images.Slow, ImageUse.StorageCompute);
-            if (!singleDiffuseHistory)
-                barriers.Image(images.LastFast(parity), ImageUse.StorageCompute);
-            // Discarded: the temporal dispatch writes every pixel of each.
-            if (!singleDiffuseHistory)
-                barriers.Image(images.Fast(parity), ImageUse.StorageCompute, discard: true);
-            if (reflectionDistanceHistory)
-            {
-                barriers.Image(images.ReflectionGuide, ImageUse.StorageCompute);
-                barriers.Image(images.ReflectionGuideScratch, ImageUse.StorageCompute, discard: true);
-            }
-            // After the last signal's spatial dispatch, which read it.
-            barriers.Image(scratched, ImageUse.StorageCompute, discard: true);
+            BeforeTemporal(barriers: barriers, part: part, parity: parity);
             Dispatch(context: context, pipeline: temporal, set: sets[part, parity]);
-
-            // The spatial dispatch reads the neighbors' results of the temporal one.
-            barriers.Image(scratched, ImageUse.StorageCompute);
-            if (!reflectionDistanceHistory && HistoryMode != SpecularHistoryMode.Original)
-                barriers.Image(scratch.Part(part), ImageUse.StorageCompute);
-            if (!singleDiffuseHistory)
-                barriers.Image(images.Fast(parity), ImageUse.StorageCompute);
-            barriers.Image(images.Slow, ImageUse.StorageCompute);
-            foreach (GpuImage trace in images.Traces)
-                barriers.Image(trace, ImageUse.StorageCompute);
-            if (reflectionDistanceHistory)
-            {
-                barriers.Image(images.ReflectionGuideScratch, ImageUse.StorageCompute);
-                barriers.Image(images.ReflectionGuide, ImageUse.StorageCompute, discard: true);
-            }
+            BeforeSpatial(barriers: barriers, part: part, parity: parity);
             Dispatch(context: context, pipeline: spatial, set: sets[part, parity]);
+        }
+    }
+
+    /// <summary>The barriers of <paramref name="part"/>'s images before its temporal dispatch.</summary>
+    private void BeforeTemporal(BarrierBatch barriers, int part, int parity)
+    {
+        PartImages images = parts[part];
+        if (!reflectionDistanceHistory && HistoryMode != SpecularHistoryMode.Original)
+            barriers.Image(scratch.Part(part), ImageUse.StorageCompute);
+        barriers.Image(images.Sample, ImageUse.StorageCompute);
+        foreach (GpuImage age in images.Ages)
+            barriers.Image(age, ImageUse.StorageCompute);
+        foreach (GpuImage trace in images.Traces)
+            barriers.Image(trace, ImageUse.StorageCompute);
+        barriers.Image(images.Slow, ImageUse.StorageCompute);
+        if (!singleDiffuseHistory)
+        {
+            barriers.Image(images.LastFast(parity), ImageUse.StorageCompute);
+            // Discarded: the temporal dispatch writes every pixel of it.
+            barriers.Image(images.Fast(parity), ImageUse.StorageCompute, discard: true);
+        }
+        if (reflectionDistanceHistory)
+        {
+            barriers.Image(images.ReflectionGuide, ImageUse.StorageCompute);
+            barriers.Image(images.ReflectionGuideScratch, ImageUse.StorageCompute, discard: true);
+        }
+        // After the last signal's spatial dispatch, which read it.
+        barriers.Image(scratch.Part(part, HistoryMode), ImageUse.StorageCompute, discard: true);
+    }
+
+    /// <summary>
+    /// The barriers of <paramref name="part"/>'s images before its spatial dispatch, which reads the neighbors' results of
+    /// the temporal one. The sample age needs none: only the spatial dispatch reads it, and nothing writes it here.
+    /// </summary>
+    private void BeforeSpatial(BarrierBatch barriers, int part, int parity)
+    {
+        PartImages images = parts[part];
+        barriers.Image(scratch.Part(part, HistoryMode), ImageUse.StorageCompute);
+        if (!reflectionDistanceHistory && HistoryMode != SpecularHistoryMode.Original)
+            barriers.Image(scratch.Part(part), ImageUse.StorageCompute);
+        if (!singleDiffuseHistory)
+            barriers.Image(images.Fast(parity), ImageUse.StorageCompute);
+        barriers.Image(images.Slow, ImageUse.StorageCompute);
+        foreach (GpuImage trace in images.Traces)
+            barriers.Image(trace, ImageUse.StorageCompute);
+        // The rings, which the last draw's spatial dispatch wrote. They join this barrier, so the region's test adds no
+        // barrier of its own.
+        foreach (GpuImage region in images.Regions)
+            barriers.Image(region, ImageUse.StorageCompute);
+        if (reflectionDistanceHistory)
+        {
+            barriers.Image(images.ReflectionGuideScratch, ImageUse.StorageCompute);
+            barriers.Image(images.ReflectionGuide, ImageUse.StorageCompute, discard: true);
         }
     }
 
@@ -379,10 +500,22 @@ internal sealed unsafe class TemporalSignal : IDisposable
 
     private static bool SameExtent(Extent2D a, Extent2D b) => a.Width == b.Width && a.Height == b.Height;
 
+    /// <summary>The blocks of 8 × 8 pixels that cover <paramref name="extent"/>: one workgroup of each dispatch per block.</summary>
+    private static Extent2D BlocksOf(Extent2D extent) =>
+        new((extent.Width + GroupSize - 1) / GroupSize, (extent.Height + GroupSize - 1) / GroupSize);
+
+    /// <summary>The anchors of the blocks at <paramref name="extent"/>: the blocks whose coordinates are multiples of <see cref="AnchorStepBlocks"/>.</summary>
+    private static Extent2D AnchorsOf(Extent2D extent)
+    {
+        Extent2D blocks = BlocksOf(extent);
+        const uint step = AnchorStepBlocks;
+        return new((blocks.Width + step - 1) / step, (blocks.Height + step - 1) / step);
+    }
+
     private void Dispatch(FrameContext context, Pipeline pipeline, DescriptorSet set)
     {
         context.BeginComputePass(pipeline: pipeline, layout: layouts.AccumulateLayout, passSet: set);
-        var push = AccumulatePushConstants.Of(Parameters, context.History.Reset);
+        var push = AccumulatePushConstants.Of(Parameters, context.History.Reset, context.History.DrawIndex);
         if (HistoryMode == SpecularHistoryMode.PreciseUncapped)
         {
             push.Cap = float.PositiveInfinity;
@@ -396,11 +529,11 @@ internal sealed unsafe class TemporalSignal : IDisposable
             size: (uint)sizeof(AccumulatePushConstants),
             pValues: &push
         );
-        Extent2D extent = context.Extent;
+        Extent2D groups = BlocksOf(context.Extent);
         context.Vk.CmdDispatch(
             commandBuffer: context.CommandBuffer,
-            groupCountX: (extent.Width + GroupSize - 1) / GroupSize,
-            groupCountY: (extent.Height + GroupSize - 1) / GroupSize,
+            groupCountX: groups.Width,
+            groupCountY: groups.Height,
             groupCountZ: 1
         );
     }
@@ -436,36 +569,9 @@ internal sealed unsafe class TemporalSignal : IDisposable
                         CreateImage(extent, $"{Name} distance guide scratch {part}", 0),
                     ]
                     : [],
-                Ages: (HistoryMode.KeepsLightAge, Instrumentation) switch
-                {
-                    (false, _) => [],
-                    (true, not HistoryInstrumentation.LightAgeDiagnostic) => [CreateSampleAge(extent, part)],
-                    (true, HistoryInstrumentation.LightAgeDiagnostic) =>
-                    [
-                        CreateSampleAge(extent, part),
-                        CreateImage(
-                            extent: extent,
-                            imageName: $"{Name} uncovered diagnostic {part}",
-                            extraUsage: 0,
-                            format: UncoveredDiagnosticFormat
-                        ),
-                    ],
-                },
-                Traces: Instrumentation == HistoryInstrumentation.ControlTrace
-                    ?
-                    [
-                        GpuImage.Create(
-                            device: device,
-                            allocator: allocator,
-                            extent: extent,
-                            format: TraceFormat,
-                            usage: ImageUsageFlags.StorageBit | ImageUsageFlags.TransferSrcBit,
-                            mipLevels: 1,
-                            name: $"{Name} accumulation trace {part}",
-                            arrayLayers: TraceLayers
-                        ),
-                    ]
-                    : []
+                Ages: CreateAges(extent, part),
+                Regions: TestsRegionDrift ? [CreateRegionRing(AnchorsOf(extent), part)] : [],
+                Traces: Instrumentation == HistoryInstrumentation.ControlTrace ? [CreateTrace(extent, part)] : []
             );
             for (int parity = 0; parity < 2; parity++)
                 WriteSignalSet(set: sets[part, parity], images: parts[part], part: part, parity: parity);
@@ -493,9 +599,13 @@ internal sealed unsafe class TemporalSignal : IDisposable
             binding: 10,
             image: reflectionDistanceHistory ? images.ReflectionGuideScratch : scratch.Part(part)
         );
-        // The sample age, which only the specular signal's temporal dispatch reads: another signal binds its sample.
-        if (scratch.HistoryMode.KeepsLightAge)
-            layouts.WriteStorageImage(set: set, binding: 11, image: images.Ages is [var age, ..] ? age : images.Sample);
+        // The sample age, which the temporal dispatch of both signals reads.
+        if (images.SampleAge is { } age)
+            layouts.WriteStorageImage(set: set, binding: 11, image: age);
+        // The anchors' rings (region_drift.glsl), the bounce light's only. The reflections' sets leave binding 13
+        // unwritten, and their shaders do not declare it.
+        if (images.Regions is [var ring])
+            layouts.WriteStorageImage(set: set, binding: 13, image: ring);
         // The diagnostic of uncovered surfaces, which only the specular signal's temporal dispatch writes.
         if (scratch.Instrumentation == HistoryInstrumentation.LightAgeDiagnostic)
             layouts.WriteStorageImage(
@@ -512,8 +622,65 @@ internal sealed unsafe class TemporalSignal : IDisposable
             );
     }
 
+    /// <summary>
+    /// The light-age images of <paramref name="part"/>: none without the light age, else the sample age, and under the
+    /// diagnostic the diagnostic of uncovered surfaces after it.
+    /// </summary>
+    private GpuImage[] CreateAges(Extent2D extent, int part) =>
+        (KeepsLightAge, Instrumentation) switch
+        {
+            (false, _) => [],
+            (true, not HistoryInstrumentation.LightAgeDiagnostic) => [CreateSampleAge(extent, part)],
+            (true, HistoryInstrumentation.LightAgeDiagnostic) =>
+            [
+                CreateSampleAge(extent, part),
+                CreateImage(
+                    extent: extent,
+                    imageName: $"{Name} uncovered diagnostic {part}",
+                    extraUsage: 0,
+                    format: UncoveredDiagnosticFormat
+                ),
+            ],
+        };
+
+    /// <summary>
+    /// The ring of <paramref name="part"/>'s anchors at <paramref name="anchors"/>, one texel per anchor
+    /// (region_drift.glsl). Its contents need not survive a new size: the draw after it resets, and the spatial dispatch
+    /// reads a ring's draws only after it wrote them since the last reset.
+    /// </summary>
+    private GpuImage CreateRegionRing(Extent2D anchors, int part) =>
+        GpuImage.Create(
+            device: device,
+            allocator: allocator,
+            extent: anchors,
+            format: RegionRingFormat,
+            usage: ImageUsageFlags.StorageBit | ImageUsageFlags.TransferSrcBit,
+            mipLevels: 1,
+            name: $"{Name} region ring {part}",
+            arrayLayers: RegionRingDraws
+        );
+
+    /// <summary>The sample age of <paramref name="part"/>, which its producer writes as it writes the sample.</summary>
     private GpuImage CreateSampleAge(Extent2D extent, int part) =>
-        CreateImage(extent: extent, imageName: $"{Name} sample age {part}", extraUsage: 0, format: SampleAgeFormat);
+        CreateImage(
+            extent: extent,
+            imageName: $"{Name} sample age {part}",
+            extraUsage: ImageUsageFlags.TransferDstBit,
+            format: SampleAgeFormat
+        );
+
+    /// <summary>The accumulation trace of <paramref name="part"/> (<see cref="TraceLayers"/>).</summary>
+    private GpuImage CreateTrace(Extent2D extent, int part) =>
+        GpuImage.Create(
+            device: device,
+            allocator: allocator,
+            extent: extent,
+            format: TraceFormat,
+            usage: ImageUsageFlags.StorageBit | ImageUsageFlags.TransferSrcBit,
+            mipLevels: 1,
+            name: $"{Name} accumulation trace {part}",
+            arrayLayers: TraceLayers
+        );
 
     /// <summary>
     /// An image of the signal at <paramref name="extent"/>: a storage image, which the read hooks copy out, plus
@@ -564,6 +731,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
         GpuImage[] Fasts,
         GpuImage[] Guides,
         GpuImage[] Ages,
+        GpuImage[] Regions,
         GpuImage[] Traces
     )
     {
@@ -577,16 +745,28 @@ internal sealed unsafe class TemporalSignal : IDisposable
 
         public GpuImage ReflectionGuideScratch => Guides[1];
 
-        public IEnumerable<GpuImage> All => [Sample, Slow, .. Fasts, .. Guides, .. Ages, .. Traces];
+        public GpuImage? SampleAge => Ages is [var age, ..] ? age : null;
+
+        public IEnumerable<GpuImage> All => [Sample, Slow, .. Fasts, .. Guides, .. Ages, .. Regions, .. Traces];
 
         /// <summary>Whether every image has <paramref name="extent"/>.</summary>
         public bool Fit(Extent2D extent) =>
             SameExtent(Sample.Extent, extent)
             && SameExtent(Slow.Extent, extent)
-            && (Fasts.Length == 0 || SameExtent(Fasts[0].Extent, extent) && SameExtent(Fasts[1].Extent, extent))
-            && (Guides.Length == 0 || SameExtent(Guides[0].Extent, extent) && SameExtent(Guides[1].Extent, extent))
-            && Ages.All(age => SameExtent(age.Extent, extent))
-            && Traces.All(trace => SameExtent(trace.Extent, extent));
+            && AllFit(Fasts, extent)
+            && AllFit(Guides, extent)
+            && AllFit(Ages, extent)
+            && AllFit(Regions, AnchorsOf(extent))
+            && AllFit(Traces, extent);
+
+        /// <summary>Whether every image of <paramref name="images"/> has <paramref name="extent"/>.</summary>
+        private static bool AllFit(GpuImage[] images, Extent2D extent)
+        {
+            foreach (GpuImage image in images)
+                if (!SameExtent(image.Extent, extent))
+                    return false;
+            return true;
+        }
     }
 }
 

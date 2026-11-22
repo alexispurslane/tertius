@@ -25,7 +25,7 @@ internal sealed class ScreenTraceImages : IDisposable
 
     /// <summary>
     /// The format of the hit light: rgb the light that leaves a pixel toward a ray of the layer's kind, pre-exposed and at
-    /// most MaxRadiance, so below the largest half float.
+    /// most MaxRadiance, so below the largest half float, and a the pixel's moved mark, 1 or 0.
     /// </summary>
     public const Format HitLightFormat = Format.R16G16B16A16Sfloat;
 
@@ -117,7 +117,9 @@ internal sealed class ScreenTraceImages : IDisposable
 
     /// <summary>
     /// The hit light, one layer per kind (ticket ter-67y3): at each pixel that a walk can hit, the light that leaves it
-    /// toward a ray of the kind, which the plan writes and a ray's hit reads.
+    /// toward a ray of the kind, which the plan writes and a ray's hit reads. With a precise specular history, alpha holds
+    /// the pixel's moved mark, 1 where its surface moved since the last draw, which a hit carries into its ray's record
+    /// (docs/plans/bounce-light-confidence.md, section 8.4). Otherwise alpha is 0.
     /// </summary>
     public GpuImage HitLight { get; private set; }
 
@@ -220,7 +222,7 @@ internal sealed class ScreenTraceImages : IDisposable
         HitLight = CreateImage(extent: extent, format: HitLightFormat, layers: Kinds, name: "screen trace hit light");
 
         OwnRays = [CreateOwnRayList(extent, "reflection"), CreateOwnRayList(extent, "diffuse")];
-        lightAges = Specular.HistoryMode.KeepsLightAge
+        lightAges = Specular.KeepsLightAge
             ?
             [
                 CreateImage(extent: extent, format: LightAgeFormat, layers: 1, name: "screen trace light age 0"),
@@ -284,7 +286,8 @@ internal sealed class ScreenTraceImages : IDisposable
                 type: DescriptorType.StorageBuffer,
                 buffer: OwnRays[kind]
             );
-        // The light-change age after the lists: the last frame's record, this frame's, and the specular sample's age.
+        // The light-change age after the lists: the last frame's record, this frame's, the specular sample's age, FSR's
+        // light-change mask and the diffuse sample's age.
         if (lightAges.Length != 0)
         {
             layouts.WriteStorageImage(set: set, binding: 19, image: lightAges[1 - parity]);
@@ -299,10 +302,15 @@ internal sealed class ScreenTraceImages : IDisposable
                 binding: 22,
                 image: LightChangeMask ?? throw new UnreachableException("The light age makes the light-change mask.")
             );
+            layouts.WriteStorageImage(
+                set: set,
+                binding: 23,
+                image: Diffuse.SampleAge(0) ?? throw new UnreachableException("The light age makes the sample age.")
+            );
         }
         // The diagnostic of uncovered surfaces, whose first channel the resolve writes.
         if (Specular.UncoveredDiagnostic(0) is { } diagnostic)
-            layouts.WriteStorageImage(set: set, binding: 23, image: diagnostic);
+            layouts.WriteStorageImage(set: set, binding: 24, image: diagnostic);
         layouts.WriteStorageImage(set: set, binding: DescriptorLayouts.ScreenTraceHitLightBinding, image: HitLight);
     }
 

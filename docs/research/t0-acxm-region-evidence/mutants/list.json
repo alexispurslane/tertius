@@ -1,0 +1,338 @@
+[
+ {
+  "id": "R01",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 46,
+  "original": "return all(equal(block % AnchorStepBlocks",
+  "replacement": "return any(equal(block % AnchorStepBlocks",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "R02",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 58,
+  "original": "RegionRingDraws - 1u) % RegionRingDraws)",
+  "replacement": "RegionRingDraws - 2u) % RegionRingDraws)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "R03",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 73,
+  "original": "if (parameters.reset != 0u || candidate >= RegionCandidates)",
+  "replacement": "if (candidate >= RegionCandidates)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "R04",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 76,
+  "original": "int(candidate % 3u)",
+  "replacement": "int(candidate % 2u)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "R05",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 75,
+  "original": "(block - RegionRadiusBlocks + AnchorStepBlocks - 1) / AnchorStepBlocks",
+  "replacement": "(block - RegionRadiusBlocks) / AnchorStepBlocks",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "R06",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 77,
+  "original": "min((block + RegionRadiusBlocks) / AnchorStepBlocks",
+  "replacement": "min((block + RegionRadiusBlocks + 1) / AnchorStepBlocks",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "R07",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 80,
+  "original": "layerBefore())).b != 0.0",
+  "replacement": "layerBefore())).b == 0.0",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "R08",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 121,
+  "original": "if (!insideImages(pixel))\n        return vec3(0.0);",
+  "replacement": "if (!insideImages(pixel))\n        return vec3(0.0, 0.0, 1.0);",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "R09",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 124,
+  "original": "bool counts = texelFetch(gbufferDistance, pixel, 0).r > 0.0\n        && finiteSample(sampled)",
+  "replacement": "bool counts = finiteSample(sampled)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "R10",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 125,
+  "original": "\n        && (imageLoad(surfaceTest, pixel).r & SurfaceMovesOnScreen) == 0u;",
+  "replacement": ";",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "R11",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 127,
+  "original": "luminance(sampled) / exposureScale()",
+  "replacement": "luminance(sampled)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "R12",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 135,
+  "original": "2.0 * sums.y >= sums.z",
+  "replacement": "sums.y >= sums.z",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "R13",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 136,
+  "original": "min(validDrawsBefore + 1.0, float(RegionRingDraws))",
+  "replacement": "validDrawsBefore + 1.0",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "R14",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 160,
+  "original": "if (now.validDraws < float(RegionRingDraws))",
+  "replacement": "if (now.validDraws < float(RegionWindowDraws))",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "R15",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 32,
+  "original": "const float DriftSigmas = 3.0;",
+  "replacement": "const float DriftSigmas = 2.0;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "R16",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 171,
+  "original": "sqrt(2.0 / window)",
+  "replacement": "sqrt(1.0 / window)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "R17",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 170,
+  "original": "/ (window - 1.0));",
+  "replacement": "/ window);",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "R18",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 162,
+  "original": "float newer = now.light - regionOlderFirst();",
+  "replacement": "float newer = now.light;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "*+RegionDrift",
+   "LightAgeHistoryTests"
+  ]
+ },
+ {
+  "id": "R19",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 186,
+  "original": "(int(tap) % RegionSide, int(tap) / RegionSide) - RegionRadiusBlocks);",
+  "replacement": "(int(tap) % RegionSide, int(tap) / RegionSide) - RegionRadiusBlocks + 1);",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "R20",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 188,
+  "original": "if (index < RegionRingDraws)\n        regionRingBefore",
+  "replacement": "if (index < RegionRingDraws - 1u)\n        regionRingBefore",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "R21",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 194,
+  "original": "slot < (index + 1u) * RegionSlotsPerAdder;",
+  "replacement": "slot < (index + 1u) * RegionSlotsPerAdder - 1u;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "R22",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 201,
+  "original": "uint first = RegionWindowDraws + (index - RegionAdders) * RegionDrawsPerAdder;",
+  "replacement": "uint first = RegionWindowDraws - 1u + (index - RegionAdders) * RegionDrawsPerAdder;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "R23",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 215,
+  "original": "min(first + RegionDrawsPerAdder, RegionWindowDraws)",
+  "replacement": "first + RegionDrawsPerAdder",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "R24",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 225,
+  "original": "float before = parameters.reset != 0u ? 0.0 : regionRingBefore[layerBefore()].g;",
+  "replacement": "float before = regionRingBefore[layerBefore()].g;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "R25",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 228,
+  "original": "moved ? 1.0 : 0.0, 0.0)",
+  "replacement": "0.0, 0.0)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "R26",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 206,
+  "original": "part += vec2(apart, apart * apart);",
+  "replacement": "part += vec2(apart, apart * abs(apart) * 0.5);",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "*+RegionDrift",
+   "LightAgeHistoryTests"
+  ]
+ },
+ {
+  "id": "S01",
+  "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+  "line": 52,
+  "original": "if (isRegionAnchor(block))\n        updateRegionAnchor(block);",
+  "replacement": "",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "S02",
+  "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+  "line": 60,
+  "original": "atomicMax(blockEvidence, RegionEvidence);",
+  "replacement": "atomicMax(blockEvidence, MotionEvidence);",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "S03",
+  "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+  "line": 165,
+  "original": "historyLength = min(historyLength, FullRateFrames);",
+  "replacement": "historyLength = min(historyLength, FullRateFrames - 1.0);",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "S04",
+  "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+  "line": 25,
+  "original": "const uint RegionEvidence = 1u;",
+  "replacement": "const uint RegionEvidence = 4u;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "C01",
+  "file": "src/Tertius.Rendering/Scene/GpuTypes.cs",
+  "line": 844,
+  "original": "drawIndex % TemporalSignal.RegionRingDraws",
+  "replacement": "drawIndex % (TemporalSignal.RegionRingDraws - 1)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "C02",
+  "file": "src/Tertius.Rendering/Frame/TemporalSignal.cs",
+  "line": 450,
+  "original": "foreach (GpuImage region in images.Regions)\n            barriers.Image(region, ImageUse.StorageCompute);",
+  "replacement": "",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "C03",
+  "file": "src/Tertius.Rendering/Frame/TemporalSignal.cs",
+  "line": 501,
+  "original": "return new((blocks.Width + step - 1) / step, (blocks.Height + step - 1) / step);",
+  "replacement": "return new(blocks.Width / step, blocks.Height / step);",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "C04",
+  "file": "src/Tertius.Rendering/Frame/TemporalSignal.cs",
+  "line": 747,
+  "original": "&& AllFit(Regions, AnchorsOf(extent))",
+  "replacement": "&& AllFit(Regions, extent)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "C05",
+  "file": "src/Tertius.Rendering/Frame/TemporalSignal.cs",
+  "line": 562,
+  "original": "Regions: KeepsLightAge ? [CreateRegionRing(AnchorsOf(extent), part)] : [],",
+  "replacement": "Regions: [CreateRegionRing(AnchorsOf(extent), part)],",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "AccumulatorRenderTests",
+   "DescriptorLayoutsTests"
+  ]
+ },
+ {
+  "id": "C06",
+  "file": "src/Tertius.Rendering/Frame/DescriptorLayouts.cs",
+  "line": 1272,
+  "original": "binding is 11 or 13 && HistoryMode.KeepsLightAge",
+  "replacement": "binding is 11 && HistoryMode.KeepsLightAge",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "DescriptorLayoutsTests",
+   "*+RegionDrift"
+  ]
+ }
+]

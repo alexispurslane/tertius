@@ -1,11 +1,14 @@
 #version 460
-// The temporal dispatch of an accumulation (docs/plans/temporal-renderer.md, section 8, "The model", steps 1 and 2): one
-// invocation per pixel reprojects the last frame's slow and fast histories through the surface test, rescales them by the
-// exposure ratio and blends the sample in. The specular signal also tests the reflected point's place and that place's
-// hit distances (section 8, "The specular signal's own tests"). It writes the slow history into the scratch image, so that
-// the spatial dispatch reads the neighbors' results while it writes the slow history, and this frame's fast history. The
-// diffuse signal's fast history keeps in alpha the standard deviation of its samples' luminance over the fast history's
-// frames, which the diffuse filter reads (DiffuseFilter.cs).
+// The temporal dispatch of an accumulation (docs/plans/temporal-renderer.md, section 8, "The model", steps 1 and 2):
+// one invocation per pixel reprojects the last frame's slow and fast histories through the surface test, rescales them
+// by the exposure ratio and blends the sample in. The specular signal also tests the reflected point's place and that
+// place's hit distances (section 8, "The specular signal's own tests"). It writes the slow history into the scratch
+// image, so that the spatial dispatch reads the neighbors' results while it writes the slow history, and this frame's
+// fast history. The diffuse signal's fast history keeps in alpha the retained deviation: the standard deviation of the
+// luminance of the samples that the slow history averages, weighted as it weighs them
+// (docs/plans/bounce-light-confidence.md, section 6). The clamp's box and the diffuse filter read it. The reflections
+// keep none, because their fast history's alpha holds the hit distance. It reads no light age: the spatial dispatch acts on
+// the samples' evidence after the blend (sections 4 and 8.4).
 #extension GL_GOOGLE_include_directive : require
 #include "accumulate.glsl"
 #include "accumulate_reflection_guide.glsl"
@@ -15,29 +18,32 @@
 #include "motion.glsl"
 #include "neighbor_limit_prototype.glsl"
 
-// The share of the fast history's luminance within which a sample's step is rounding, not noise. Every store of a history
-// takes the nearest half float (half_store.glsl), so the fast history's blend with the weight 1 / 4 stops where its step
-// falls below half a half-float step: within two half-float steps of a constant sample, on either side. A step is at most
-// 2^−10 of a value: under 2^−9, and (4 / 3) 2^−9 = 1 / 384 leaves a margin for the luminance's own rounding.
-const float RoundingShare = 1.0 / 384.0;
+// The draws of the retained deviation's window: the bounce cap. A half-float store cannot follow a weight below about
+// 2^−11, so an uncapped history takes this window too.
+const float DeviationFrames = 32.0;
+
+// The share of the fast history's luminance F within which a sample's weighted step is the store's rounding, not noise.
+// The step goes from F, whose blend has the weight wf = 1 / min(L, the fast cap). Every store of a history takes the
+// nearest half float (half_store.glsl), so F's blend stops where its step times wf falls below half a half-float step.
+// A half-float step is at most 2^−10 of a value at or above 2^−14, the least normal half float: so at most 2^−11 of F,
+// and (4 / 3) 2^−11 with a margin for the luminance's own rounding. So the test weighs the step with wf: a step up to
+// (4 / 3) 2^−11 / wf of F, at most 0.26 % at the fast cap's length 4, is the stall of F's blend. σr's own weight
+// 1 / min(L, DeviationFrames) is smaller above that length, and with it the test zeroed real steps up to about 2.1 % of
+// F at L = 32 (ticket lin-4ffc).
+const float BlendRounding = 1.0 / 1536.0;
 
 // The share of the larger of two hit distances by which they may differ for a tap to pass.
 const float HitDistanceShare = 0.5;
 
-#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
-// The specular sample's light age (ticket tiunr-py6q, TemporalSignal.SampleAge): 0 for no evidence, else the age in frames
-// of the youngest light that its rays hit, plus 1.
-layout(set = 3, binding = 11, r16ui) uniform readonly uimage2D sampleAge;
-#endif
-
 #ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
 // The diagnostic of uncovered surfaces (TemporalSignal.UncoveredDiagnostic): the resolve wrote r, and this dispatch keeps
-// it and writes the length just before the blend, whether the sample holds the cut share, and the length before the cut.
+// it and writes the length just before the blend, whether the sample holds the cut share, and the length just before the
+// blend again, where it once kept the length before the light-age cut, which no longer runs.
 layout(set = 3, binding = 12, rgba32f) uniform image2D uncoveredDiagnostic;
 
 // The share of the slow history's luminance that the diagnostic reports a sample to hold. Until ter-g3tk, only a sample
-// that held it could cut the history. That restarted the history from its bright samples after a lamp went out, so every
-// sample with an age now cuts, and the share is only an observation for tools/Tertius.ReflectionReference.
+// that held it could cut the history before the blend. No sample cuts there now (section 4 of
+// docs/plans/bounce-light-confidence.md), and the share is only an observation for tools/Tertius.ReflectionReference.
 const float AgeCutShare = 0.25;
 #endif
 
@@ -144,7 +150,7 @@ Reprojection historyPlaceOf(ivec2 pixel, float roughness, bool hasSample, float 
     bool specular = parameters.light == SpecularLight;
     bool tryReflected = specular && hasSample && roughness < parameters.reflectedPlaceBelow;
     // The specular signal takes the taps that pass the specular test, bits 4 to 7.
-    uint surfaceBits = specular ? (bits >> 4) & 0xFu : bits & 0xFu;
+    uint surfaceBits = specular ? specularPassBits(bits) : surfacePassBits(bits);
     Reprojection surface = reprojectionOf(surfacePlace, surfaceBits);
 #ifdef TERTIUS_ACCUMULATION_TRACE
     tracedPlace = holdsHistory(surface) ? TracedSurfaceHolds : 0u;
@@ -164,7 +170,7 @@ Reprojection historyPlaceOf(ivec2 pixel, float roughness, bool hasSample, float 
     HistoryTaps taps = historyTaps(lastSurfaceHistory, lastDeviceDepth, reflectedPlaceOf(point, hitDistance),
         pixelReflectedPlaceOf(point, hitDistance), lastPoint, normal, roughness);
     vec2 reflectedPlace = taps.place;
-    uint reflectedBits = (taps.bits >> 4) & 0xFu;
+    uint reflectedBits = specularPassBits(taps.bits);
 #ifdef TERTIUS_ACCUMULATION_TRACE
     tracedPixelPlaces |= taps.pixel ? TracedReflectedPixelPlaceRead : 0u;
 #endif
@@ -227,8 +233,9 @@ vec4 tracedPlaceWeights(ivec2 pixel)
         if (all(greaterThanEqual(ownPlace, vec2(0.0))) && all(lessThanEqual(ownPlace, vec2(1.0))))
             ownBits = surfaceTaps(lastSurfaceHistory, lastDeviceDepth, ownPlace, lastPoint, normal, roughness);
     }
-    return vec4(tracedWeightOf(ownPlace, ownBits & 0xFu), tracedWeightOf(samplePlace, sampleBits & 0xFu),
-        tracedWeightOf(ownPlace, (ownBits >> 4) & 0xFu), tracedWeightOf(samplePlace, (sampleBits >> 4) & 0xFu));
+    return vec4(tracedWeightOf(ownPlace, surfacePassBits(ownBits)),
+        tracedWeightOf(samplePlace, surfacePassBits(sampleBits)), tracedWeightOf(ownPlace, specularPassBits(ownBits)),
+        tracedWeightOf(samplePlace, specularPassBits(sampleBits)));
 }
 #endif
 
@@ -266,7 +273,7 @@ void main()
     vec4 slow = lastSlowAt(r);
     vec4 lastFast4 = lastFastAt(r);
     vec3 fast = lastFast4.rgb;
-    // The diffuse signal's deviation of its samples' luminance; the specular signal's alpha holds its hit distance.
+    // The diffuse signal's retained deviation; the specular signal's alpha holds its hit distance.
     float deviation = parameters.light == DiffuseLight ? lastFast4.a : 0.0;
     vec2 guide = vec2(0.0);
     if (reflectionSharingPrototype && parameters.light == SpecularLight)
@@ -308,20 +315,16 @@ void main()
         deviation = min(deviation * ratio, MaxRadiance);
     }
 
-#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
-    // The light-change age: the history keeps no more frames than the age of the light that the sample's rays see, so
-    // after the blend it holds only frames from after the change.
+    // The sample's light code cuts no length before the blend: the block's light evidence acts after it, in the spatial
+    // dispatch, so that every sample takes its normal weight. A cut before the blend gave exactly the sample that brought
+    // a young code the weight 1 / (age + 1), and such a sample is often far brighter than the mean, as a ray that hits a
+    // sun strip whose record the jitter keeps young. The weight then depended on the sample's own value, which biased the
+    // bounce history up by 6 to 11 % in a still cabin (docs/plans/bounce-light-confidence.md, section 4).
 #ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
-    float uncutLength = historyLength;
-#endif
-    uint ageCode = imageLoad(sampleAge, pixel).r;
-    if (hasSample && ageCode != 0u)
-        historyLength = min(historyLength, float(ageCode - 1u));
-#ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
+    // The length before the blend, twice, where the diagnostic once kept it before and after the cut.
     bool holdsCutShare = hasSample && luminance(sampled) >= AgeCutShare * luminance(slow.rgb);
     imageStore(uncoveredDiagnostic, pixel, vec4(imageLoad(uncoveredDiagnostic, pixel).r,
-        hasSample ? historyLength : -1.0, holdsCutShare ? 1.0 : 0.0, uncutLength));
-#endif
+        hasSample ? historyLength : -1.0, holdsCutShare ? 1.0 : 0.0, historyLength));
 #endif
 
 #ifdef TERTIUS_ACCUMULATION_TRACE
@@ -344,6 +347,17 @@ void main()
     if (hasSample)
     {
         historyLength = min(historyLength + 1.0, cap);
+        // The retained deviation: the exponential update of the variance with the sample's weight w is
+        // (1 − w) (variance + w step²), 0 for the first sample (Finch 2009). Updated from the step, not from the mean of
+        // the squares, so that samples without noise keep exactly 0. The step goes from the fast history, the mean of the
+        // pixel's own samples, because the diffuse filter writes the light that it moves into the slow history: a step
+        // from that light would count a stable edge's moved light as spread and hold the luminance stop open across it.
+        float fastLength = min(historyLength, fastCapOf(cap));
+        float before = luminance(fast);
+        float weight = 1.0 / min(historyLength, DeviationFrames);
+        float step = luminance(sampled) - before;
+        step = abs(step) <= BlendRounding * before * fastLength ? 0.0 : step;
+        deviation = min(sqrt((1.0 - weight) * (deviation * deviation + weight * step * step)), MaxRadiance);
         // The weight 1 / length, written as a step toward the sample, so that a sample equal to the history leaves it
         // exact. A length of 1 takes the sample itself.
         slow.rgb = historyLength <= 1.0 ? sampled : slow.rgb + (sampled - slow.rgb) / historyLength;
@@ -352,18 +366,10 @@ void main()
             vec2 sampledGuide = reflectionDistanceSample(hitDistance);
             guide = historyLength <= 1.0 ? sampledGuide : guide + (sampledGuide - guide) / historyLength;
         }
-        float fastLength = min(historyLength, fastCapOf(cap));
-        // The variance of the luminance, weighted as the fast history weighs its samples: the exponential update of the
-        // variance with the sample's weight w is (1 − w) (variance + w step²), 0 for the first sample. Updated from the
-        // step, not from the mean of the squares, so that samples without noise keep exactly 0.
-        float weight = fastLength <= 1.0 ? 1.0 : 1.0 / fastLength;
-        float step = luminance(sampled) - luminance(fast);
-        step = abs(step) <= RoundingShare * luminance(fast) ? 0.0 : step;
-        deviation = min(sqrt((1.0 - weight) * (deviation * deviation + weight * step * step)), MaxRadiance);
         fast = fastLength <= 1.0 ? sampled : fast + (sampled - fast) / fastLength;
     }
-    // Each history's light and length, the fast deviation and the guide are read back in the next draw, so each store
-    // takes the nearest half float (half_store.glsl). The hit distance is this draw's sample, which no blend reads.
+    // Each history's light and length, the retained deviation and the guide are read back in the next draw, so each
+    // store takes the nearest half float (half_store.glsl). The hit distance is this draw's sample, which no blend reads.
     imageStore(scratch, pixel, slowHistoryValue(vec4(slow.rgb, historyLength)));
     imageStore(fastHistory, pixel,
         vec4(nearestHalf(fast), parameters.light == SpecularLight ? hitDistance : nearestHalf(deviation)));

@@ -3,6 +3,7 @@
 
 #include "half_store.glsl"
 
+// The format of the slow history.
 #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
 #define SPECULAR_HISTORY_FORMAT rgba32f
 #else
