@@ -166,3 +166,11 @@ Deck timing, four valid rounds under a load of 8: X2 minus M2 = +0.138, -0.122, 
 The stills sample at 0.956 (M2 and X2 alike): rect-lamps specks rise from 0.005 to 0.024, all at the openings; deck-cuts specks rise from 0.005 to 0.025 around the glass hall's frames, and a bright streak on a pillar's lower edge is a little longer than at 2/3; exit-cabin no change; bay-sunbeam better, specks fall from 0.14 to 0.01 because the slit's teeth of 2/3 are gone at 0.956.
 
 Found: the lead's record folder and t58-i3sn.md were untracked in its worktree. I told the lead to commit them now and after each result.
+
+**2026-11-22T18:54:23Z**
+
+Order from the orchestrator, 2026-11-22: do not wait for the merge; the combined check's lead runs the size ramp now on the wobble fix's branch t3/fix-projection-aspect-wobble (step 1 of ter-qt72: the projection's and FSR's aspect from the output extent), in a build of that branch alone, and also takes the lamp switch under the card's played-back sizes with the two tracked edges as the wobble's before and after on the Mac. The orchestrator passes the 32 sizes and t58-i3sn to the back-face line.
+
+Sent to the combined check's lead: side W = the branch's head (839bce1b5 at 13:54: 0495319e3 plus main ee9dec413; it holds the layer and the fair-switch probe, not the walk fix; it changes SceneBatcher.cs, Fsr3Constants.cs, FrameHistory.cs, UpscalePass.cs and VulkanRenderer.cs). Take 1: the ramp on W, 181 sizes, 40 draws each; the count of leaking sizes beside 74 and 32. Take 2: the fair cabin switch with one played-back size log on m2r (before) and on W (after), measured with wobble.py (edge distance, midpoint, correlation with the rounded aspect), the level's rise at size-change draws, and the new boil measure; one side-by-side video.
+
+My answers (40 to 42): the before build is m2r (main 284025851), because the fix branch does not hold the walk fix. The played-back log is the card's log of the Design X side at the 10 ms target (switch-x-10, scales 0.643 to 0.756, 84 changes), on both builds, because it has the most size changes and one log on both builds makes a true before and after. The take gets a side-by-side video besides the numbers, because the wobble is a fault over time.
