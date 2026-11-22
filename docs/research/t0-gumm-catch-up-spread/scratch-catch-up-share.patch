@@ -1,0 +1,181 @@
+# SCRATCH patch of t0-gumm, never commit to src. It applies after scratch-ownray-log.patch. TERTIUS_X_CATCHUP="<peak> <end> <fall>" sets the catch-up share's shape (screen_trace_plan.comp, catchUpShare and catchUpTurn); without it, today's cliff (1 8 0).
+diff --git a/src/Tertius.Rendering/Scene/GpuTypes.cs b/src/Tertius.Rendering/Scene/GpuTypes.cs
+index c0e09b4..7c84eb4 100644
+--- a/src/Tertius.Rendering/Scene/GpuTypes.cs
++++ b/src/Tertius.Rendering/Scene/GpuTypes.cs
+@@ -1003,7 +1003,24 @@ internal struct ScreenTracePushConstants
+             ReflectionSteps = (uint)trace.ReflectionSteps,
+             DiffuseSteps = (uint)trace.DiffuseSteps,
+             GuidedShare = guided ? LightPyramid.GuidedShare : 0,
++            CatchUpPeak = ProbeCatchUp[0],
++            CatchUpEnd = ProbeCatchUp[1],
++            CatchUpFall = ProbeCatchUp[2],
+         };
++
++    // SCRATCH (t0-gumm, never commit to src): the catch-up share's shape, TERTIUS_X_CATCHUP="<peak> <end> <fall>",
++    // read once; without it today's cliff (1, 8, 0).
++    public float CatchUpPeak;
++    public float CatchUpEnd;
++    public float CatchUpFall;
++
++    private static readonly float[] ProbeCatchUp =
++        System.Environment.GetEnvironmentVariable("TERTIUS_X_CATCHUP") is { Length: > 0 } probeShape
++            ? System.Array.ConvertAll(
++                probeShape.Split(' ', System.StringSplitOptions.RemoveEmptyEntries),
++                v => float.Parse(v, System.Globalization.CultureInfo.InvariantCulture)
++            )
++            : [1f, 8f, 0f];
+ }
+ 
+ /// <summary>The push constants of the depth pyramid's tail, depth_pyramid_tail.comp (<see cref="PyramidTail"/>).</summary>
+diff --git a/src/Tertius.Rendering/Shaders/screen_trace.glsl b/src/Tertius.Rendering/Shaders/screen_trace.glsl
+index c1aab2a..8a32292 100644
+--- a/src/Tertius.Rendering/Shaders/screen_trace.glsl
++++ b/src/Tertius.Rendering/Shaders/screen_trace.glsl
+@@ -71,13 +71,14 @@ layout(set = 3, binding = 19, rg32f) uniform readonly image2D lastLightAge;
+ layout(set = 3, binding = 20, rg32f) uniform image2D lightAge;
+ // The two samples' ages (TemporalSignal.SampleAge), which the resolve writes: the youngest light code of their rays
+ // (ageCodeOf) and their motion bit (sample_age.glsl).
+-layout(set = 3, binding = 21, r16ui) uniform writeonly uimage2D specularSampleAge;
++// SCRATCH (t0-gumm, never commit to src): the plan reads the last draw's sample ages (youngHistory), as XD of t0-5tyj did.
++layout(set = 3, binding = 21, r16ui) uniform uimage2D specularSampleAge;
+ // FSR 3.1's transparency and composition mask (ScreenTraceImages.LightChangeMask), which the resolve writes from this
+ // frame's records (lightChangeMaskAt): where the direct light changed, FSR's history keeps to this frame's light (ticket
+ // t1-4hij).
+ layout(set = 3, binding = 22, r8) uniform writeonly image2D lightChangeMask;
+ // The diffuse sample's age (TemporalSignal.SampleAge), which the resolve writes as the specular sample's.
+-layout(set = 3, binding = 23, r16ui) uniform writeonly uimage2D diffuseSampleAge;
++layout(set = 3, binding = 23, r16ui) uniform uimage2D diffuseSampleAge;
+ 
+ // The age of a pixel whose light the record never saw change, in the frame that first shows it: no evidence. Each later
+ // frame that shows it unchanged lowers it by one, down to −(MostLightAge + 1).
+@@ -238,6 +239,11 @@ layout(push_constant, std430) uniform ScreenTracePush
+     uint reflectionSteps;    // the caps of decision 41
+     uint diffuseSteps;
+     float guidedShare;       // LightPyramid.GuidedShare, or 0 with the guiding off (TERTIUS_GUIDED_RAYS)
++    // SCRATCH (t0-gumm, never commit to src): the shape of the catch-up share (screen_trace_plan.comp, catchUpShare),
++    // from TERTIUS_X_CATCHUP="<peak> <end> <fall>"; (1, 8, 0) is today's cliff.
++    float catchUpPeak;
++    float catchUpEnd;
++    float catchUpFall;
+ } trace;
+ 
+ // The two ray kinds, which index the record layers and the constants of the draws.
+diff --git a/src/Tertius.Rendering/Shaders/screen_trace_plan.comp b/src/Tertius.Rendering/Shaders/screen_trace_plan.comp
+index 84a0dd7..0f61de5 100644
+--- a/src/Tertius.Rendering/Shaders/screen_trace_plan.comp
++++ b/src/Tertius.Rendering/Shaders/screen_trace_plan.comp
+@@ -195,14 +195,104 @@ bool fits(TracingPixel p, TracingPixel c, uint kind)
+     return fit;
+ }
+ 
++// SCRATCH (t0-gumm, never commit to src): the catch-up share in place of the cliff at FullRateFrames.
++
++// The cap of the pixel's history of the kind, in draws, as the accumulation's capAt gives it (accumulate.glsl): the
++// diffuse signal's cap is 32 draws at every roughness; the specular signal's runs from its smooth cap of 4 draws up to
++// SmoothRoughness 0.1, linear to 32 at RoughRoughness 0.7 (SignalParameters.Specular). The plan has no signal
++// parameters, so the scratch carries them as constants.
++float capOf(TracingPixel p, uint kind)
++{
++    if (kind == KindDiffuse)
++        return 32.0;
++    float share = clamp((sqrt(p.alpha) - 0.1) / (0.7 - 0.1), 0.0, 1.0);
++    return mix(4.0, 32.0, share);
++}
++
++// The share of draws, 0 to 1, on which a pixel whose history of a kind holds `historyLength` draws traces a ray of its
++// own to catch up. 1 is today's rate under FullRateFrames. `cap` is the history's cap at the pixel, in draws. `young`
++// says that the history restarted less than the shape's end ago (youngHistory). A history that is not young keeps
++// today's rule, an own ray in every draw while it is under FullRateFrames: the anti-lag holds about 17 % of a settled
++// view's diffuse histories between 8 and 32 draws for good (t0-gumm's record), and the length alone cannot tell them
++// from a history that grows after a restart, so a share of the length past FullRateFrames would trace own rays there
++// for ever. A pixel whose cap is under FullRateFrames also keeps today's rule. So a settled history traces exactly
++// today's own rays, and the share ends at the cap at the latest.
++float catchUpShare(float historyLength, float cap, bool young)
++{
++    if (!young || cap < FullRateFrames)
++        return historyLength < FullRateFrames ? 1.0 : 0.0;
++    float end = min(trace.catchUpEnd, cap);
++    if (historyLength >= end)
++        return 0.0;
++    return trace.catchUpPeak * (trace.catchUpFall == 0.0 ? 1.0 : pow(1.0 - historyLength / end, trace.catchUpFall));
++}
++
++// The constants of pcg3d's third value for the catch-up turn's low bits, "CR" and "CD".
++const uint CatchUpDraw[2] = uint[2](0x4352u, 0x4344u);
++
++// Whether the pixel takes its turn of the catch-up rays of the kind in this draw, for a share of 0 to 1. A share of 1
++// is always true and a share of 0 never. The phase steps by 2^32 / the golden ratio per draw, so a pixel's turns come at
++// nearly even gaps of 1 / share draws; its offset is the blue-noise mask's first frame at the pixel (red for the
++// reflections, green for the diffuse rays) in its high 8 bits and a hash of the pixel in the low 24, so the pixels that
++// take their turn in one draw are spread evenly with no clumps, and small shares still get distinct offsets.
++bool catchUpTurn(ivec2 pixel, uint kind, float share)
++{
++    if (share >= 1.0)
++        return true;
++    if (share <= 0.0)
++        return false;
++    uvec2 bytes = texelFetch(blueNoiseMask, pixel & int(BlueNoiseSide - 1u), 0).rg;
++    uint offset = (kind == KindReflection ? bytes.r : bytes.g) << 24 | drawOf(pixel, 0u, CatchUpDraw[kind]).x >> 8;
++    uint phase = offset + trace.drawIndex * 2654435769u;
++    // 4294967040 is the largest float below 2^32, so the product converts without overflow.
++    return phase < uint(share * 4294967040.0);
++}
++
++// The youngest light code of the last draw's samples of each kind over the plan's 8 x 8 workgroup, which is the spatial
++// dispatch's block: the light evidence that restarts a block's histories comes from these codes. 0 for none.
++shared uint youngestLastCode[2];
++
++// Whether the pixel's history of a kind restarted less than the catch-up shape's end ago: the draws since the last reset
++// (a start or a camera cut, which empties every history), the draws since the pixel's own exact light changed (its
++// light-age record), or the draws since its block's rays last saw a changed light (`blockCode`, the youngest light code
++// of the block's last samples: a light age of code − 1 in the last draw, so of `code` in this one). The last covers the
++// histories that light evidence restarts where only the bounced light changed.
++bool youngHistory(float lightAge, uint blockCode)
++{
++    float end = trace.catchUpEnd;
++    return float(trace.drawIndex) < end || (lightAge >= 0.0 && lightAge < end) || (blockCode != 0u && float(blockCode) < end);
++}
++
+ void main()
+ {
+     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
++#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
++    // SCRATCH (t0-gumm): every invocation reaches these barriers before any return.
++    if (gl_LocalInvocationIndex < 2u)
++        youngestLastCode[gl_LocalInvocationIndex] = 0xFFFFFFFFu;
++    barrier();
++    if (all(lessThan(vec2(pixel), frame.viewport.xy)))
++    {
++        uint reflectionCode = lightCodeOf(imageLoad(specularSampleAge, pixel).r);
++        uint diffuseCode = lightCodeOf(imageLoad(diffuseSampleAge, pixel).r);
++        if (reflectionCode != 0u)
++            atomicMin(youngestLastCode[KindReflection], reflectionCode);
++        if (diffuseCode != 0u)
++            atomicMin(youngestLastCode[KindDiffuse], diffuseCode);
++    }
++    barrier();
++#endif
+     if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
+         return;
+ #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+     vec2 record = lightAgeOf(pixel);
+     imageStore(lightAge, pixel, vec4(record, 0.0, 0.0));
++    float ownAge = ageOfRecord(record.g);
++    uint blockCodes[2] = uint[2](youngestLastCode[0] == 0xFFFFFFFFu ? 0u : youngestLastCode[0],
++                                 youngestLastCode[1] == 0xFFFFFFFFu ? 0u : youngestLastCode[1]);
++#else
++    float ownAge = -1.0;
++    uint blockCodes[2] = uint[2](0u, 0u);
+ #endif
+     uint plan = 0u;
+     if (tracedSurface(pixel))
+@@ -218,7 +308,7 @@ void main()
+             // A pixel that starts the kind gives its block a chosen pixel.
+             if (!startsKind(p, kind) || !chosenPixelOf(pixel / 2, kind, chosen, c) || all(equal(chosen, pixel)))
+                 continue;
+-            if (historyLengthOf(r, kind) >= FullRateFrames && fits(p, c, kind))
++            if (fits(p, c, kind) && !catchUpTurn(pixel, kind, catchUpShare(historyLengthOf(r, kind), capOf(p, kind), youngHistory(ownAge, blockCodes[kind]))))
+                 continue;
+             if (kind == KindReflection)
+             {
