@@ -5,7 +5,7 @@
 - M3 is main `a819b10b2`, which adds the walk's stored inverse depth (`ter-186q`, `t53-eyrv`, ending at `8c52592de`) and the survey's fair lamp switch (`ee9dec413`) to M2. X3 is this branch's merge of it, `bcca31e95`. The takes after 13:17 on 2026-11-22 ran on M3 and X3. The takes before stay on M2 and X2, each named by its side.
 - W is the wobble fix's branch `t3/fix-projection-aspect-wobble` at `839bce1b5` (step 1 of `ter-qt72`: the projection's and FSR's aspect from the output extent). It holds the layer and the fair-switch probe, and not the walk's fix, so its "before" is M2.
 - A2 is X2 with both history clamps off (`TERTIUS_A_NO_CLAMP=1`): the reference of the daub. It explains a fault and is not the bar.
-- "Design X alone" is the record of the line before the merge, against main `c4c1f1f2f` (old main, without the layer): the room's part B (`docs/research/t0-9fo0-room-after-shadow-fix`, the still rect-lamps and the switch), the remedy's record (`docs/research/t0-acxm-region-evidence`, the bay), and the acceptance lead's takes of `t0-5tyj` on the line's head `57b4045ae`, whose `src` equals `795e1661f`. Those takes lie in `/private/tmp/t0-5tyj/runs`, and their record is not committed yet.
+- "Design X alone" is the record of the line before the merge, against main `c4c1f1f2f` (old main, without the layer): the room's part B (`docs/research/t0-9fo0-room-after-shadow-fix`, the still rect-lamps and the switch), the remedy's record (`docs/research/t0-acxm-region-evidence`, the bay), and the acceptance lead's takes of `t0-5tyj` on the line's head `57b4045ae`, whose `src` equals `795e1661f`. Those takes lie in `/private/tmp/t0-5tyj/runs`. Their record is now committed at `7ed41ea71` on `t3/measure-regional-lag-tolerance` (`docs/research/design-x-acceptance-2026-11-22`). That README does not quote the per-still survey scores that this record compares. They come from the survey's results in those run folders.
 
 This record changes nothing in `src` or `tests`. The merge needed no change there. Under `tools`, it changes only `tools/renderer-survey/probe.patch`.
 
@@ -33,7 +33,7 @@ Each row says what the pictures show first, then the scores. "Better", "equal" a
 | The jambs through the dynamic scale's path, M2 only (take 2d) | Grey jambs, the same picture as the fixed path within 4 of 255 steps | | |
 | Faults at 0.956 that 2/3 hides (bug `t58-i3sn`) | Ceiling specks, a bright line and dots at the openings' edges, grain on the floor's sides, on both sides | Equal: the same faults and about the same counts | Not taken |
 | The deck's frame span | No pictures. | Within the allowance: X2 − M2 is +0.126 ms in the mean of four rounds (median +0.179), each round between −0.122 and +0.267 ms. Design X's allowance is +0.30 ms | |
-| The wobble under the dynamic scale, before (M2) and after (W) the fix (take 2 on W) | The window edges swing with the render size before the fix and stay within about 1 px of 1920 after it. The bright line on the left jamb goes away | W against M2: edge distance range 19.53 px to 2.68 px, correlation with the rounded aspect +0.996 to +0.167. A residual of 0.44 px rms stays, larger on changed draws (0.747 against 0.245). With the light held still, the render size moves the distance by only 0.16 px rms and explains almost none of it | |
+| The wobble under the dynamic scale, before (M2) and after (W) the fix (take 2 on W) | The window edges swing with the render size before the fix and stay within a range of 2.7 px of 1920 after it. The bright line on the left jamb goes away | W against M2: edge distance range 19.53 px to 2.68 px, correlation with the rounded aspect +0.996 to +0.167. A residual of 0.44 px rms stays, larger on changed draws (0.747 against 0.245, around the film's mean). With the light held still, the render size moves the distance by only 0.16 px rms and explains almost none of it. Take B of `t0-3vwx` shows that the residual follows the light's change, not the size change | |
 | Checked and Release suites | | Pass: Checked 11,141 tests and Release 11,128, 0 failed in each | |
 
 The values "a / b" are at the automatic exposure and at 4.08 stops for the stills, after the lamps go off and after they come on for the switch, and at the film's middle and last frame for the films.
@@ -209,9 +209,9 @@ The two edges, the back wall's left and right corners (boxes x 715 to 755 and 11
 
 Both sides carry the layer, so the M2-to-X2 difference is Design X on the layer. This take has no side without the layer, so it does not separate the layer's own effect. The answers:
 
-1. Brightness: at 0.956, X2's jambs hold more light after off (60 after off, 0.0104 against 0.0065) and are brighter after on (+24 % 20 after on). At 2/3 the two sides match after off within 0.0002, and X2 is +18 % 20 after on.
+1. Brightness: at 0.956, X2's jambs hold more light after off (60 after off, 0.0104 against 0.0065) and are brighter after on (+24 % 20 after on). At 2/3 the two sides match from 60 draws after off, within 0.0002. At 20 after off, X2 is 18 % lower (0.0082 against 0.0100), as at 0.956, and X2 is +18 % 20 after on.
 2. Speckle: at 0.956, both sides show blotches and single bright texels after off, X2 the brightest one. At 2/3, both sides are clean.
-3. Fade: at 0.956, X2 falls faster for the first 20 draws (0.0106 against 0.0131), then stops falling while M2 goes on down to 0.0065. At 2/3 both fade the same.
+3. Fade: at 0.956, X2 falls faster for the first 20 draws (0.0106 against 0.0131), then stops falling while M2 goes on down to 0.0065. At 2/3, X2 also falls faster for the first 20 draws (0.0082 against 0.0100), and from 60 draws after off both hold the same level.
 
 ### Take 2c: the fair lamp switch (glow off with the light)
 
@@ -283,7 +283,7 @@ The acceptance lead's take of the same frames at a constant 0.956 shows bright s
 
 With the layer, the jambs are grey through both paths. So the scale's path does not make bright jambs on M2. The acceptance lead's half of the separation tests main without the layer through the fixed path.
 
-### What stays at a render scale near 1 (bug `t58-i3sn`)
+### What stays at a render scale of 0.956 (bug `t58-i3sn`)
 
 On M2 and on X2 at 0.956, at 1:1, four faults stay that are gone or much weaker at 2/3:
 
@@ -306,6 +306,7 @@ Specks per box (`tools/edgefaults.py`, which counts groups of pixels at least 1.
 
 - At 2/3, frame 355 shows a faint dotted line at the opening's inner edge, which gives the 32 and 33 specks. It is much dimmer than at 0.956.
 - M2 and X2 carry the same faults at the same places, in about the same counts. At frame 220, X2's jamb face carries a brighter blotch than M2's.
+- This take cannot separate the render scale from the aspect error of the render size. 0.956 gives 1832 × 1032, 0.146 % off 16:9, and 2/3 gives 1280 × 720, exactly 16:9. The jamb leak follows the aspect error (the window test below), and the bright line on the left jamb goes away with the wobble's fix (take 2 on W). So the bright line at the openings' inner edge can belong to the aspect, not to the scale. The ceiling's specks, the sill's dots and the floor's grain were not tested against the aspect.
 - Bug `t58-i3sn` records them. It names two candidate causes, both untested: screen rays at the openings' edges (the class of `ter-ukw6`), and rare bright hits on the lit panels (the class of `ter-fe63`).
 
 ### The stills sample at a constant render scale of 0.956
@@ -320,15 +321,28 @@ The survey's still part of rect-lamps (at the automatic exposure and at 4.08 sto
 | deck-cuts | 0.0255 / 0.0204 | 0.0051 / 0.0051 | 0.0047 / 0.0037 | 0.0057 / 0.0045 |
 | bay-sunbeam | 0.0099 / 0.0099 | 0.1437 / 0.1487 | 0.0313 / 0.0255 | 0.0345 / 0.0294 |
 
-The sheets `pics/s956-<still>.png` show each still whole in four columns: M2 and X2 at 0.956, M2 and X2 at 2/3. Where the specks differ, a count per cell of a 3 × 3 grid found them, and a crop at 1:1 or 2x shows them:
+The survey's speck score counts specks per 10,000 visible pixels, so one speck in a whole still is about 0.0048. In those units, M2's rect-lamps at the automatic exposure has 4 more specks at 0.956 than at 2/3, deck-cuts 4 more, and bay-sunbeam about 28 fewer.
+
+The survey's rule needs a speck to stand at least 0.03 above its neighborhood, so it leaves out the dim specks that the eye sees at 0.956. A second counter, `tools/gridspecks.py`, counts them with the relative rule of `tools/edgefaults.py`: a group of pixels at least 1.5 times and at least 0.01 above the median of its 7 × 7 neighborhood in display-linear light. It counts per cell of a 3 × 3 grid, `r00` at the top left. Its counts, at the automatic exposure (`tables.txt`):
+
+| Still | Cells that differ | M2 / X2 at 0.956 | M2 / X2 at 2/3 | Whole image, M2 / X2 at 0.956 | Whole image, M2 / X2 at 2/3 |
+|---|---|---|---|---|---|
+| rect-lamps | r10 + r12 | 107 / 106 | 19 / 19 | 131 / 129 | 37 / 37 |
+| rect-lamps, 4.08 stops | r10 + r12 | 106 / 107 | 19 / 19 | 129 / 130 | 41 / 40 |
+| deck-cuts | r02 + r12 | 66 / 61 | 49 / 49 | 121 / 117 | 103 / 106 |
+| bay-sunbeam | r00 | 12 / 11 | 125 / 120 | 181 / 118 | 262 / 224 |
+| bay-sunbeam | r21 | 141 / 87 | 76 / 53 | | |
+| exit-cabin | every cell | | | 357 / 360 | 576 / 590 |
+
+The sheets `pics/s956-<still>.png` show each still whole in four columns: M2 and X2 at 0.956, M2 and X2 at 2/3. A crop at 1:1 or 2x shows the cells that differ:
 
 ![rect-lamps' opening](pics/s956-rect-lamps-opening.png)
 
-- rect-lamps (`pics/s956-rect-lamps-opening.png`): at 0.956 about 90 more specks, all in the middle row's left and right cells. They are the bright line at the openings' inner edge and the dots along the sill of bug `t58-i3sn`. At 2/3 the openings are clean.
-- deck-cuts (`pics/s956-deck-cuts-glass.png`): about 11 more specks around the glass hall's frames. A bright streak on a pillar's lower edge shows on all four tiles, a little longer at 0.956. No other fault that 2/3 hides.
-- bay-sunbeam (`pics/s956-bay-sunbeam-slit.png`): better at 0.956. At 2/3 the slit's edge has stair-step teeth (bug `tc-6v3d`) and the wall beside it a coarser grain, which give the 60 extra specks. At 0.956 the edge is smooth and the grain finer.
-- exit-cabin: no change in score, and the sheet at 0.4 scale shows none. I did not look at it at 1:1.
-- M2 and X2 match in every crop and grid cell, within one or two specks.
+- rect-lamps (`pics/s956-rect-lamps-opening.png`): at 0.956, about 88 more specks, all in the middle row's left and right cells. They are the bright line at the openings' inner edge and the dots along the sill of bug `t58-i3sn`. At 2/3 the openings are clean.
+- deck-cuts (`pics/s956-deck-cuts-glass.png`): about 15 more specks around the glass hall's frames, in the right column. A bright streak on a pillar's lower edge shows on all four tiles, a little longer at 0.956. No other fault that 2/3 hides.
+- bay-sunbeam (`pics/s956-bay-sunbeam-slit.png`): better at 0.956 in the top left cell. At 2/3 the slit's edge has stair-step teeth (bug `tc-6v3d`) and the wall beside it a coarser grain, which give about 110 more specks there. At 0.956 the edge is smooth and the grain finer. The floor's bottom middle cell `r21` counts more specks at 0.956 (141 / 87 against 76 / 53). Its crop shows the same fine grain on the floor's left part on all four tiles, finer at 0.956, so the relative rule counts more of its dots. It shows no fault there that 2/3 lacks.
+- exit-cabin: the relative rule counts fewer specks at 0.956 in every cell. The survey's score does not change, and the sheet at 0.4 scale shows no difference. I did not look at it at 1:1.
+- M2 and X2 match in every crop and in every cell of rect-lamps and deck-cuts, within five specks. In bay-sunbeam's `r21`, X2 has fewer specks than M2 at both scales.
 
 ### Main moved: the sides M3 and X3
 
@@ -350,6 +364,8 @@ Main moved during the check to `a819b10b2`. Against M2 it changes `Shaders/scree
 ### The jambs at every render size (the size ramp)
 
 The acceptance lead found on main without the layer (`c4c1f1f2f`) that sunlight leaks onto the cabin's window jambs at some render sizes and not at others. Its ramp (`sizeramp.sh` and `sizeramp.py` of `b53c037f1`, run by their paths; both files equal the commit) holds each of the 181 render sizes that `RenderExtent` gives for 1920 × 1080 at the scales 0.50 to 1.0 for 40 draws, in the cabin's view with the lamps on at 4.08 stops, and measures the display-linear mean of the right and the left jamb crop. A size leaks when either mean is above 0.08. Grey jambs measure 0.035 to 0.055.
+
+The ramp draws size i at the ticks of about 60 + 40i to 60 + 40i + 39 of the scene's orbit, so each size is also a moment of the orbit and a place of the sun. The back-face line measured 1800 × 1008 at tick 100, where it gives 0.0977 (equal to the window test below), and at tick 6380, where it gives 0.193. So each count below is a count of (size, tick) pairs. It compares two codes on one ramp, which draws the same pairs on both. It does not prove that the teeth belong to the size alone. The window test below holds the size and the tick together and stands as the test of the aspect.
 
 ![the ramp on M3](pics/ramp-M3.png)
 
@@ -391,7 +407,7 @@ On W, the wobble fix's branch (`ramp-W.txt`, `pics/ramp-W.png`), no size leaks: 
 - A window whose own shape is off 16:9 by +0.45 % leaks with no dynamic scale, and it leaks the same on W, equal to four decimals. So W's zero hides the leak at a 16:9 output and does not cure it.
 - The leak at the window is weaker than at the same render size on the ramp (right 0.098 against 0.230), where 1800 × 1008 is upscaled to a 1920 × 1080 output.
 - 1792 and 1808 lie on the floor and 1816 a little above it, as the sawtooth predicts. 1784 lies on the floor, where the reading put a tooth near −0.34 %. The sizes between were not tested.
-- The cause is not measured. The back-face line's candidate, read from the code, is the texel grid of the sun's shadow cascades: a cascade's texel size depends on the field of view and the aspect (`ShadowCascades.cs`), and its center snaps to a grid fixed in the world.
+- This record does not measure the cause. The back-face line found it, and this record cites it without a new measure. The shadow map rounds a caster's edge inward to texel centers. The one-sided lookup starts its ramp at the map's edge. So the strip between the map's edge and the real edge gets sunlight. The strip's width follows the phase of cascade 0's texel grid at the wall, and before the fix the aspect error moved that phase. At 16:9, the gap at the side jambs is 0.038 texel.
 
 ### The wobble before and after the fix (take 2 on W)
 
@@ -421,12 +437,12 @@ The terms:
 | Draws | 84 | 236 | 84 | 236 |
 | Distance residual, rms / range | 0.621 / 2.60 | 0.329 / 2.12 | 0.747 / 2.68 | 0.245 / 1.39 |
 | Midpoint residual, rms / range | 0.353 / 1.80 | 0.168 / 1.15 | 0.408 / 1.54 | 0.137 / 1.35 |
-| Distance step, mean abs / largest | 0.287 / 1.71 | 0.039 / 0.87 | 0.129 / 1.51 | 0.042 / 1.27 |
-| Midpoint step, mean abs / largest | 0.250 / 1.07 | 0.051 / 1.15 | 0.084 / 0.75 | 0.035 / 1.35 |
+| Distance residual step, mean abs / largest | 0.287 / 1.71 | 0.039 / 0.87 | 0.129 / 1.51 | 0.042 / 1.27 |
+| Midpoint residual step, mean abs / largest | 0.250 / 1.07 | 0.051 / 1.15 | 0.084 / 0.75 | 0.035 / 1.35 |
 | Inside the 60 frames after each switch: distance rms / mean abs step | 0.638 / 0.288 (77) | 0.441 / 0.118 (43) | 0.779 / 0.140 (77) | 0.411 / 0.175 (43) |
 | Inside the 60 frames after each switch: midpoint rms / mean abs step | 0.361 / 0.251 (77) | 0.289 / 0.201 (43) | 0.426 / 0.091 (77) | 0.288 / 0.149 (43) |
 
-- The largest single step of the distance is 1.71 px of 1920 (1.14 px of 1280) before and 1.51 px (1.00 px of 1280) after, both at film frame 180, a changed draw (scale 0.6499 to 0.6525). The largest step of the midpoint is 1.15 px (0.77 px of 1280) before and 1.35 px (0.90 px of 1280) after, both at film frame 360, a one-size draw where the lamps come on.
+- The largest single step of the distance residual is 1.71 px of 1920 (1.14 px of 1280) before and 1.51 px (1.00 px of 1280) after, both at film frame 180, a changed draw (scale 0.6499 to 0.6525). The largest step of the midpoint is 1.15 px (0.77 px of 1280) before and 1.35 px (0.90 px of 1280) after, both at film frame 361, a one-size draw, the draw after the lamps come on.
 - After the fix, the distance residual's mean absolute value by draws since a change is 0.556 px on the changed draw, 0.188 on the draw after, 0.172, 0.115 and 0.105 on the next three, and 0.184 on later draws. The midpoint's is 0.334, 0.177, 0.124, 0.101, 0.082 and 0.068. Size changes come in runs: 79 of the 84 fall in the 60 frames after a switch, where the size changes on most draws. So the residual lasts as long as a run of changes and about one draw after its end.
 - Inside those windows, a changed draw steps no more than a one-size draw after the fix (mean 0.140 px against 0.175). So the residual is an offset that holds through a run of changes, not a jump on each changed draw.
 - One line each, after the fix: the distance residual correlates with the render scale at +0.343, with the render width at +0.341, and with "changed" at −0.410. The midpoint's are −0.237, −0.237 and +0.018. Before the fix: +0.475, +0.475 and −0.423 for the distance, and +0.007, +0.005 and −0.080 for the midpoint.
@@ -435,9 +451,11 @@ The terms:
 - The left edge's place and the right edge's place correlate at +0.089 before and +0.104 after (+0.217 without changed draws). So the two edges do not move together: there is no common shift of the picture.
 - The size log is aligned with the frames: moved by one draw either way, the fit before the fix gets worse, from 0.425 px rms to 3.76 px.
 
-My reading: the two films agree on two facts and differ on one. They agree that the residual after the fix is not a common shift and not a stretch, and that it is no jump on the changed draw itself. They differ on what it follows. On the back-face line's film, the residual does not depend on the draws since a change, and each render size gives its own offset. On this film, the residual is about three times larger on changed draws than on one-size draws, it fades within one to three draws after a run of changes, and the per-size means explain less than half of its variance. That fits FSR's history after a run of size changes better than an offset per size. But this film cannot separate the two causes: its size changes fall in the 60 frames after each switch, where the light itself still changes. The one-size draws inside those windows also have a larger residual than the one-size draws over the whole film (rms 0.411 against 0.245 px). A take with the light fixed and the size held for many draws per size, such as the size ramp with the edges tracked, would separate the offset per size from the history after a change. The edge ramp below is that take.
+My reading: the two films agree on two facts and differ on one. They agree that the residual after the fix is not a common shift and not a stretch, and that it is no jump on the changed draw itself. They differ on what it follows. On the back-face line's film, the residual does not depend on the draws since a change, and each render size gives its own offset. On this film, the residual is about three times larger on changed draws than on one-size draws, it fades about one draw after a run of changes, and the per-size means explain less than half of its variance. That fits FSR's history after a run of size changes better than an offset per size. But this film cannot separate the two causes: its size changes fall in the 60 frames after each switch, where the light itself still changes. The one-size draws inside those windows also have a larger residual than the one-size draws over the whole film (rms 0.411 against 0.245 px). A take with the light fixed and the size held for many draws per size, such as the size ramp with the edges tracked, would separate the offset per size from the history after a change. The edge ramp below is that take.
 
 **The edge ramp: the edges at every render size with the light held still.** The line orchestrator asked for the separating take. `tools/edgeramp.sh` is the acceptance lead's `sizeramp.sh` of `b53c037f1`, and `tools/sizeramp.py` is its `sizeramp.py`. The copies make two changes: they keep the last draw of each size and the draw 10 before it, and they delete no frame. The ramp renders the same view as the film on W's build: the lamps stay on, the exposure is 4.08 stops, and each of the 181 render sizes holds for 40 draws. The played-back sizes equal the replay on every draw, and no size leaks onto the jambs. `tools/edgeramp.py` tracks the same two window edges on the same rows as `wobble.py`. All places are in px of the 1920 × 1080 output.
+
+"The light held still" means the lamps. The ramp's ticks run on, so the sun's place changes from size to size, as in the size ramp above, and each place per size mixes the size with the sun's place. The tracked edges lie between the lamp-lit wall and a dark window opening. In the still-light run of `t0-3vwx` (`l-X5`, the same view, film frames 140 to 459), the opening's side of each edge (a box 16 px wide on rows 525 to 554) stays at a display-linear 0.0077, within 0.8 %, and the wall's side changes by about 3 %. So no sunlight reaches the edges in that run. The ramp's frames are deleted, so this record cannot check the ramp's later ticks. The size and the sun together moved the distance by only 0.159 px rms, which bounds what a moving sun did to these edges in the ramp.
 
 ![the edges against the render width](pics/edgeramp-W.png)
 
@@ -452,9 +470,11 @@ My reading: the two films agree on two facts and differ on one. They agree that 
 
 - Over the sizes, the left edge's place and the right edge's place correlate at −0.377.
 - The film visits 40 render sizes, all of them in the ramp. 19 of them have one-size draws in the film. For those 19 sizes, the film's mean distance per size correlates with the ramp's at +0.132, and the rms of their difference is 0.285 px. The film's means spread by 0.271 px rms, and the ramp's by 0.131. For the left edge, the right edge and the midpoint, the correlations are +0.351, +0.064 and +0.375.
-- I took the film's distance residual and subtracted the ramp's place for each draw's size. The rms on one-size draws went from 0.220 to 0.219 px. On changed draws it went from 0.796 to 0.758 px.
+- I took the film's distance minus the mean of its one-size draws (`tools/edgeramp.py`; `tools/wobsplit.py`'s residual is around the mean of all draws, so it reads 0.245 and 0.747 px) and subtracted the ramp's place for each draw's size. The rms on one-size draws went from 0.220 to 0.219 px. On changed draws it went from 0.796 to 0.758 px.
 
-My reading: with the light held still, the render size moves the edge distance by 0.159 px rms, and two draws of one size differ by 0.043 px. That offset per size does not predict the film's means per size, and removing it leaves the film's residual almost as it was. So almost none of the film's residual (0.44 px rms) belongs to the render size. The rest sits on the changed draws (0.76 px rms against 0.22 px on one-size draws), and in the one-size draws of the 60 frames after each switch. In this film, then, the residual belongs to the change of size, or to the light that changes in the same windows, and not to the size itself. This take cannot tell those two apart: in the film, both happen in the same draws.
+My reading: with the light held still, the render size moves the edge distance by 0.159 px rms, and two draws of one size differ by 0.043 px. That offset per size does not predict the film's means per size, and removing it leaves the film's residual almost as it was. So almost none of the film's residual (0.44 px rms) belongs to the render size. The rest sits on the changed draws (0.76 px rms against 0.22 px on one-size draws, around the one-size mean), and in the one-size draws of the 60 frames after each switch. In this film, then, the residual belongs to the change of size, or to the light that changes in the same windows, and not to the size itself. This take cannot tell those two apart: in the film, both happen in the same draws.
+
+Take B of `t0-3vwx` (`docs/research/t0-3vwx-dynamic-scale-films`) separated them. It played one card size log twice on X5, the line's merge `710834cc0`, which has the fix: once with the lamp switch, and once with the lamps on through the whole run. The two runs draw the same render size on every draw. With the same `wobsplit.py` (the residual around the film's mean), the distance residual on changed draws is 0.465 px rms against 0.213 on one-size draws with the switch, and 0.096 against 0.139 with the lamps held on. Its correlation with the render scale falls from +0.610 to −0.025, and the distance's range from 2.16 to 0.56 px. So the residual on changed draws belongs to the light's change, not to the size change. It only followed the size because the controller lowers the scale while the light changes.
 
 The earlier share per size (the bullet above) explains much more of the film's variance than the ramp's offsets can. With 40 sizes over 320 draws, many sizes are visited for only a few draws, so their means take up whatever happens on those draws. The ramp shows that what happens there is not an offset of the size.
 
@@ -469,7 +489,7 @@ The earlier share per size (the bullet above) explains much more of the film's v
 | | left wall | 0.21 / 0.11 | 0.16 / 0.11 |
 | | ceiling | 0.23 / 0.09 | 0.10 / 0.07 |
 
-Before the fix, the level kinks at a size change by up to 15 times the one-size kink (the left wall after off). After the fix, the changed draws come within about 0.05 % of the one-size draws, except the ceiling after on (0.10 against 0.07). The largest single kink on a changed draw falls from 0.89 % to 0.11 % on the left wall after off. In the first 60 draws after off, the light's own fade dominates on both sides. `pics/wobble-level.png` shows each crop's level per draw: the two sides lie on one line at this scale.
+Before the fix, the level kinks at a size change by up to 15 times the one-size kink (the left wall after off). After the fix, the changed draws come within about 0.05 % of the one-size draws, except the left wall after on (0.16 against 0.11) and the ceiling after on (0.10 against 0.07). The largest single kink on a changed draw falls from 0.89 % to 0.11 % on the left wall after off. In the first 60 draws after off, the light's own fade dominates on both sides. `pics/wobble-level.png` shows each crop's level per draw: the two sides lie on one line at this scale.
 
 **The boil** (the acceptance lead's `boilnoise.py` of `b53c037f1`, by its path; there a changed draw differs in size from either neighbour). Mean boil on one-size / changed draws, in % of the crop's light:
 
@@ -628,7 +648,7 @@ Fact: in every round X2's difference lies under +0.30 ms, and the mean is +0.126
 
 ## The suites
 
-Both suites ran on the merged tree with `nix develop --command dotnet test --solution Tertius.slnx`, one after the other.
+Both suites ran on the merged tree with `nix develop --command dotnet test --solution Tertius.slnx`, one after the other. They ran before main moved. X3 (`bcca31e95`) brought in main's walk fix (`screen_walk.glsl`, `screen_ray.glsl`, `ScreenRay.cs`), and on X3 only the pre-commit hook's Rendering tests ran (Checked, 3,411 tests, 0 failed). The full Checked and Release suites have not run on X3 or on this branch's head. Before the line merges into main, they must run on its head.
 
 | Suite | Tree | Total | Passed | Failed | Skipped | Rendering project |
 |---|---|---:|---:|---:|---:|---|
@@ -700,7 +720,7 @@ The discarded runs lie in `/private/tmp/t0-gbgj/timing/discarded`. Some process 
   - `filmmotion.py` and `filmstrip.py`: the motion measures of a kept film with their chart, and five of its frames.
   - `queue-4.sh`, `queue-5.sh` and `queue-6.sh`: the fair-switch takes, the stills sample at 0.956, and the takes on M3 and X3.
   - `diskbuild.sh`: `build.sh` beside a sampler of the free disk.
-  - `glowsheet.py`, `scalepair.py`, `edgefaults.py`, `stillcrops.py`: the glow sheets, the whole frames at two scales, the speck counts per box, and the still crops.
+  - `glowsheet.py`, `scalepair.py`, `edgefaults.py`, `gridspecks.py`, `stillcrops.py`: the glow sheets, the whole frames at two scales with their pixel differences, the speck counts per box and per grid cell, and the still crops.
   - `rampcrops.py`, `wintest.py`, `wintest.sh`, `winsheet.py`: the ramp's crops, the window test and its sheet. The ramp itself is the acceptance lead's `sizeramp.sh` and `sizeramp.py` of `b53c037f1`, run by their paths.
   - `wobfilm.py` and `wobtake.sh`: the wobble take, before on `m2r` and after on W's build, both playing back the card's size log.
   - `wobble.py`: the acceptance lead's `wobble.py` of `b53c037f1`, copied with two changes: it reads a folder of PNGs, and `WOBBLE_DUMP` writes its per-frame edges.

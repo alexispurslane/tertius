@@ -7,8 +7,9 @@
 # edge ramp also read frames that were deleted; this script prints their saved outputs (the record's ramp-*.txt,
 # window.txt, wobble.txt and edgeramp.txt) and redraws only the pictures whose inputs remain.
 T=$(cd "$(dirname "$0")" && pwd); P=$(cd "$T/../pics" && pwd); . "$T/vars.sh"
-# The acceptance lead's crop of the slit (t0-5tyj, in its worktree; not committed when this record was written).
-EARLIER=/Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/design-x-acceptance-2026-11-22/pics/film-bay-sunbeam-slit.png
+# The acceptance lead's crop of the slit, from its record as committed in 7ed41ea71 (t0-5tyj).
+EARLIER=$W/film-bay-sunbeam-slit-7ed41ea71.png
+git -C "$T" show 7ed41ea71:docs/research/design-x-acceptance-2026-11-22/pics/film-bay-sunbeam-slit.png > "$EARLIER"
 m() { echo "\$ $*"; bash "$T/m.sh" "$@" 2>&1 | grep -vE "^warning|^\s*$|sqlite"; echo; }
 R=results/switch/cabin.json; F=results/motion/rect-bay.json; D=$(cd "$T/.." && pwd)
 if [ "${1:-all}" = all ]; then
@@ -72,6 +73,10 @@ m jambsheet.py $P/jamb-sheet-glow-stays.png 2 'M2 0.956=sc-M2-956' 'X2 0.956=sc-
 echo "## Take 4: the deck's GPU frame span, per round"
 echo "\$ timetable.py $W/timing"; python3 -I "$T/timetable.py" $W/timing; echo
 echo "## The stills sample at a constant render scale of 0.956 beside 2/3 (M2 = m2g, X2 = x2g, with scratch-render-scale.patch)"
+m summary.py s9-M2 s9d-M2 s9-X2 e9-M2 e9-X2
+for c in rect-lamps exit-cabin deck-cuts bay-sunbeam; do m2=s9-M2; [ $c = deck-cuts ] && m2=s9d-M2
+  m gridspecks.py $c "M2 0.956=$m2" "X2 0.956=s9-X2" "M2 2/3=s-M2" "X2 2/3=s-X2"; done
+m gridspecks.py rect-lamps "M2 0.956=e9-M2" "X2 0.956=e9-X2" "M2 2/3=e-M2" "X2 2/3=e-X2"
 for c in rect-lamps exit-cabin deck-cuts bay-sunbeam; do m2=s9-M2; [ $c = deck-cuts ] && m2=s9d-M2
   m sheet.py $P/s956-$c.png $c full 0.4 "M2 0.956=$m2" "X2 0.956=s9-X2" "M2 2/3=s-M2" "X2 2/3=s-X2"; done
 m sheet.py $P/s956-rect-lamps-408.png rect-lamps full 0.4 "M2 0.956=e9-M2" "X2 0.956=e9-X2" "M2 2/3=e-M2" "X2 2/3=e-X2"
@@ -89,8 +94,9 @@ m levelchart.py $P/switch-r11-glow-off.png s/wg-M2/$R M2=s/wg-M2/$R X2=s/wg-X2/$
 echo "## Take 2d: the jambs through the dynamic scale's replay path on M2 at 0.956, beside the fixed path"
 m jambsheet.py $P/jamb-sheet-replay.png 2 'M2 fixed 0.956=sc-M2-956' 'M2 replay 0.956=scr-M2-956' 'M2 fixed 2/3=sc-M2-23'
 m scalepair.py $P/jamb-m2-replay-0956-vs-fixed.png scr-M2-956 sc-M2-956 150 355
+m scalepair.py $W/w/scalepair-six.png scr-M2-956 sc-M2-956 150 180 220 355 380 455  # the pixel counts of all six frames
 m scalepair.py $P/jamb-m2-fixed-0956-vs-23.png sc-M2-956 sc-M2-23 150 355
-echo "## What stays at a render scale near 1 (bug t58-i3sn), and on M3 and X3"
+echo "## What stays at a render scale of 0.956 (bug t58-i3sn), and on M3 and X3"
 m edgefaults.py $P/opening-0956-vs-23.png 150 220 355 -- 'M2 0.956=sc-M2-956' 'X2 0.956=sc-X2-956' 'M2 2/3=sc-M2-23' 'X2 2/3=sc-X2-23'
 m edgefaults.py $P/opening-0956-m2-vs-m3.png 150 220 355 -- 'M2 0.956=sc-M2-956' 'M3 0.956=scr-M3-956' 'M2 2/3=sc-M2-23'
 m edgefaults.py $P/opening-0956-x2-vs-x3.png 150 220 355 -- 'X2 0.956=sc-X2-956' 'X3 0.956=scr-X3-956' 'X2 2/3=sc-X2-23'

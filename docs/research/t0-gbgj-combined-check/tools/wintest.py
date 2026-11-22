@@ -8,6 +8,7 @@
 #     scaled to the window. The vertical field of view is fixed (SceneBatcher.DefaultVerticalFov), so a point's offset
 #     from the picture's center grows with the window's height: x' = W / 2 + (x - 960) H / 1080, y' = y H / 1080. It
 #     prints one line "W H aspect-error right left", and writes <folder>/opening.png, the near right opening at 2x.
+# Twin: luminance() and the RIGHT and LEFT jamb boxes are copied in sizeramp.py, and the README compares the two tools' outputs. Change both copies together.
 import json
 import sys
 import numpy as np

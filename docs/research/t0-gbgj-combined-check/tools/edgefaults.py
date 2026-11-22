@@ -1,4 +1,4 @@
-# Tool code of t0-gbgj. edgefaults.py <out.png> <frame>... -- <label=run>...: the faults that stay at a render scale near 1
+# Tool code of t0-gbgj. edgefaults.py <out.png> <frame>... -- <label=run>...: the faults that stay at a render scale of 0.956
 # in the kept frames of the switch "cabin" (s/<run>/images/scale/cabin-<frame>.png). Per run and frame it counts bright
 # specks in four boxes: the ceiling (x 500 to 1400, y 0 to 350), the near right opening with its jamb and sill (x 1700 to
 # 1920, y 440 to 640), and the floor's left and right sides (x 0 to 700 and 1220 to 1920, y 650 to 1080). A speck is a

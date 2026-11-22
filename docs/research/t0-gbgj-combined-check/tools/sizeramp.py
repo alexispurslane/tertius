@@ -21,7 +21,8 @@
 #     right jamb crop (x 1770 to 1807, y 495 to 584) and of the left jamb crop (the nearest opening of the left wall,
 #     x 113 to 145, y 500 to 579), and "leaks" where either mean is above LEAK. It prints the table, the count, the list of
 #     leaking sizes and the settle check, writes <out prefix>.png (both means against the render width) and
-#     <out prefix>.txt (the table), and deletes the frames of the sizes that do not leak.
+#     <out prefix>.txt (the table). This copy deletes no frame (see the head of this file).
+# Twin: luminance() and the RIGHT and LEFT jamb boxes are copied in wintest.py, and the README compares the two tools' outputs. Change both copies together.
 import json
 import os
 import sys

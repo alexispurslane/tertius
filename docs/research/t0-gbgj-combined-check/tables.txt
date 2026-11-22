@@ -298,7 +298,7 @@ X2 specks mean 0.69 largest 6.93; grain mean 0.0278 largest 0.0362; whole light 
 /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/bay-sunbeam-motion.png
 
 
-# --- tables.txt, part 2: measure.sh 2, run on 2026-11-22 at 15:37 (the sections from take 2b on) ---
+# --- tables.txt, part 2: measure.sh 2, run on 2026-11-22 at 16:15 (the sections from take 2b on) ---
 
 ## Take 2b: the jambs after the switch at constant render scales 0.956 and 2/3 (the glow-stays case)
 $ jambsheet.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/jamb-sheet-glow-stays.png 2 M2 0.956=sc-M2-956 X2 0.956=sc-X2-956 M2 2/3=sc-M2-23 X2 2/3=sc-X2-23
@@ -327,6 +327,54 @@ r4     19.148  19.415  +0.267  1296 / 1296
 mean   19.393  19.519  +0.126  (per-round differences: median +0.179, spread 0.389)
 
 ## The stills sample at a constant render scale of 0.956 beside 2/3 (M2 = m2g, X2 = x2g, with scratch-render-scale.patch)
+$ summary.py s9-M2 s9d-M2 s9-X2 e9-M2 e9-X2
+# Stills: specks / blotch / level
+s9-M2  rect-lamps         specks 0.0241 blotch 0.0150 level +0.0019 failed []
+s9-M2  exit-cabin         specks 0.2025 blotch 0.0174 level +0.0000 failed []
+s9-M2  bay-sunbeam        specks 0.0099 blotch 0.0313 level +0.0000 failed []
+s9d-M2 deck-cuts          specks 0.0255 blotch 0.0047 level -0.0004 failed []
+s9-X2  rect-lamps         specks 0.0193 blotch 0.0109 level +0.0009 failed []
+s9-X2  exit-cabin         specks 0.2074 blotch 0.0140 level +0.0001 failed []
+s9-X2  deck-cuts          specks 0.0204 blotch 0.0037 level -0.0001 failed []
+s9-X2  bay-sunbeam        specks 0.0099 blotch 0.0255 level -0.0013 failed []
+e9-M2  rect-lamps         specks 0.0145 blotch 0.0146 level -0.0120 failed []
+e9-X2  rect-lamps         specks 0.0096 blotch 0.0106 level -0.0109 failed []
+
+$ gridspecks.py rect-lamps M2 0.956=s9-M2 X2 0.956=s9-X2 M2 2/3=s-M2 X2 2/3=s-X2
+== rect-lamps: specks per cell (r00 r01 r02 | r10 r11 r12 | r20 r21 r22), and in the whole image
+M2 0.956          2   10    2 |   51   10   56 |    0    0    0   whole 131
+X2 0.956          2    9    2 |   49   10   57 |    0    0    0   whole 129
+M2 2/3            1   12    1 |   10    4    9 |    0    0    0   whole 37
+X2 2/3            1   12    1 |   10    4    9 |    0    0    0   whole 37
+
+$ gridspecks.py exit-cabin M2 0.956=s9-M2 X2 0.956=s9-X2 M2 2/3=s-M2 X2 2/3=s-X2
+== exit-cabin: specks per cell (r00 r01 r02 | r10 r11 r12 | r20 r21 r22), and in the whole image
+M2 0.956         18  152   26 |   37   80   27 |    3    0   19   whole 357
+X2 0.956         20  151   27 |   35   77   31 |    2    0   21   whole 360
+M2 2/3           25  185   33 |   90  146   44 |   25    0   31   whole 576
+X2 2/3           20  192   37 |   91  151   48 |   23    0   31   whole 590
+
+$ gridspecks.py deck-cuts M2 0.956=s9d-M2 X2 0.956=s9-X2 M2 2/3=s-M2 X2 2/3=s-X2
+== deck-cuts: specks per cell (r00 r01 r02 | r10 r11 r12 | r20 r21 r22), and in the whole image
+M2 0.956          1   37   24 |    0   22   42 |    0    0    0   whole 121
+X2 0.956          1   36   22 |    0   24   39 |    0    0    0   whole 117
+M2 2/3            0   36   20 |    0   20   29 |    0    0    0   whole 103
+X2 2/3            2   35   21 |    0   22   28 |    0    0    0   whole 106
+
+$ gridspecks.py bay-sunbeam M2 0.956=s9-M2 X2 0.956=s9-X2 M2 2/3=s-M2 X2 2/3=s-X2
+== bay-sunbeam: specks per cell (r00 r01 r02 | r10 r11 r12 | r20 r21 r22), and in the whole image
+M2 0.956         12    6    2 |    8    3    0 |    9  141    0   whole 181
+X2 0.956         11    5    0 |    7    2    0 |    6   87    0   whole 118
+M2 2/3          125    4    3 |   41    5    1 |    7   76    0   whole 262
+X2 2/3          120    9    1 |   38    1    0 |    2   53    0   whole 224
+
+$ gridspecks.py rect-lamps M2 0.956=e9-M2 X2 0.956=e9-X2 M2 2/3=e-M2 X2 2/3=e-X2
+== rect-lamps: specks per cell (r00 r01 r02 | r10 r11 r12 | r20 r21 r22), and in the whole image
+M2 0.956          2    9    2 |   50   10   56 |    0    0    0   whole 129
+X2 0.956          2    9    2 |   48   10   59 |    0    0    0   whole 130
+M2 2/3            2   15    1 |    9    4   10 |    0    0    0   whole 41
+X2 2/3            1   15    1 |   10    4    9 |    0    0    0   whole 40
+
 $ sheet.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/s956-rect-lamps.png rect-lamps full 0.4 M2 0.956=s9-M2 X2 0.956=s9-X2 M2 2/3=s-M2 X2 2/3=s-X2
 /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/s956-rect-lamps.png (3090, 454)
 
@@ -439,12 +487,25 @@ moment                M2 fixed 0.956      M2 replay 0.956         M2 fixed 2/3
 /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/jamb-sheet-replay-jamb.png
 
 $ scalepair.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/jamb-m2-replay-0956-vs-fixed.png scr-M2-956 sc-M2-956 150 355
+frame 150: 876 pixels differ, largest difference 4 of 255, jamb crop largest 0
+frame 355: 1764 pixels differ, largest difference 3 of 255, jamb crop largest 0
 /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/jamb-m2-replay-0956-vs-fixed.png
 
+$ scalepair.py /private/tmp/t0-gbgj/w/scalepair-six.png scr-M2-956 sc-M2-956 150 180 220 355 380 455
+frame 150: 876 pixels differ, largest difference 4 of 255, jamb crop largest 0
+frame 180: 1746 pixels differ, largest difference 4 of 255, jamb crop largest 0
+frame 220: 2886 pixels differ, largest difference 3 of 255, jamb crop largest 1
+frame 355: 1764 pixels differ, largest difference 3 of 255, jamb crop largest 0
+frame 380: 1013 pixels differ, largest difference 3 of 255, jamb crop largest 0
+frame 455: 1664 pixels differ, largest difference 3 of 255, jamb crop largest 0
+/private/tmp/t0-gbgj/w/scalepair-six.png
+
 $ scalepair.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/jamb-m2-fixed-0956-vs-23.png sc-M2-956 sc-M2-23 150 355
+frame 150: 1440324 pixels differ, largest difference 152 of 255, jamb crop largest 9
+frame 355: 1588787 pixels differ, largest difference 183 of 255, jamb crop largest 35
 /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/jamb-m2-fixed-0956-vs-23.png
 
-## What stays at a render scale near 1 (bug t58-i3sn), and on M3 and X3
+## What stays at a render scale of 0.956 (bug t58-i3sn), and on M3 and X3
 $ edgefaults.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/pics/opening-0956-vs-23.png 150 220 355 -- M2 0.956=sc-M2-956 X2 0.956=sc-X2-956 M2 2/3=sc-M2-23 X2 2/3=sc-X2-23
 specks per box (groups of pixels), per run and frame
 run                frame      ceiling      opening  floor sides

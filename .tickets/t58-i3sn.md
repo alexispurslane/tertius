@@ -9,7 +9,7 @@ priority: 2
 assignee: Alexis Purslane
 parent: ter-8hyd
 ---
-# At a render scale near 1 the cabin shows bright specks on the ceiling, a bright line and dots at the openings' edges, and grain on the floor's sides
+# At a render scale of 0.956 (1832 x 1032, 0.146 % off 16:9) the cabin shows bright specks on the ceiling, a bright line and dots at the openings' edges, and grain on the floor's sides
 
 Found by the combined check t0-gbgj (record docs/research/t0-gbgj-combined-check, take 2b). Both sides carry the back-face layer: M2 is main 284025851, X2 is the merged head a7e373197 (Design X on the layer).
 
@@ -67,3 +67,9 @@ The ramps on X3 (the line's merge bcca31e95) and on W (the wobble fix's branch 8
 - W: 0 sizes leak, 0 above 0.06, largest 0.0468. The fix draws every render size at 16:9.
 - Window test (render scale held at 1, the render size equals the window; crops scaled by x' = W/2 + (x - 960) H/1080, y' = y H/1080): M3 1800 x 1008 (aspect error +0.45 %) right 0.0977, left 0.0582; W the same to four decimals; 1920 x 1080 0.0436 / 0.0435 on both. On M3: 1784 x 1008 0.0437 / 0.0437, 1792 x 1008 0.0438 / 0.0433, 1808 x 1008 0.0435 / 0.0431, 1816 x 1008 0.0510 / 0.0591. Crop: docs/research/t0-gbgj-combined-check/pics/window-1800x1008-M3-W.png.
 - So W hides the leak at a 16:9 output and does not cure it: a window whose own shape is off 16:9 can sit on a tooth all the time. Candidate cause (from the back-face line, read from the code, not measured): the texel grid of the sun's shadow cascades, whose texel size depends on the field of view and the aspect (ShadowCascades.cs).
+
+**2026-11-22T21:14:59Z**
+
+The take of 0.956 against 2/3 mixes the render scale with the aspect error of the render size (review of t0-gbgj, finding 3). 0.956 gives 1832 x 1032, +0.146 % off 16:9; 2/3 gives 1280 x 720, exactly 16:9. The jamb leak follows the aspect error (the window test), and the bright line on the left jamb goes away with the wobble's fix ter-qt72 (t0-gbgj, take 2 on W). So the bright line at the openings' inner edge can belong to the aspect, not to the scale. The ceiling's specks, the sill's dots and the floor's grain were not tested against the aspect. A take with the window test's method at a 16:9 window near 1920 x 1080, such as 1792 x 1008, beside a window off 16:9 would separate them. The title now names the size instead of 'near 1'.
+
+The jamb leak's cause, found by the back-face line and cited here without a new measure: the shadow map rounds a caster's edge inward to texel centers, and the one-sided lookup starts its ramp at the map's edge, so the strip between the map's edge and the real edge gets sunlight. The strip's width follows the phase of cascade 0's texel grid at the wall, which the aspect error moved before the fix. At 16:9 the gap at the side jambs is 0.038 texel.

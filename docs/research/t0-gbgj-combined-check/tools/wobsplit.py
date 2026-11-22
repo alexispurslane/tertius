@@ -56,7 +56,7 @@ print('measure | ' + ' | '.join(n for n, _, _ in cols))
 print('draws | ' + ' | '.join(str(int(sel.sum())) for _, _, sel in cols))
 for name, key in (('distance residual rms / range (px of 1920)', 'res'), ('midpoint rms / range (px of 1920)', 'mid')):
     print(f'{name} | ' + ' | '.join(stats(s[key], sel) for _, s, sel in cols))
-for name, key in (('distance step mean abs / largest (px of 1920)', 'res'), ('midpoint step mean abs / largest (px of 1920)', 'mid')):
+for name, key in (('distance residual step mean abs / largest (px of 1920)', 'res'), ('midpoint residual step mean abs / largest (px of 1920)', 'mid')):
     row = []
     for _, s, sel in cols:
         st = steps(s[key])

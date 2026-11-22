@@ -2,16 +2,19 @@
 # runs it in $W/w, where s/<run> links each run). Stills: specks (per 10,000 visible pixels), blotch and level of each
 # case. Switch: r11 (series index 5) over frames 140 to 159 against the side's own lamps-on control and against M2's.
 # Films rect-bay and bay-sunbeam: the survey's flicker, grain flicker, the exposure and the side's own exposure. Lag: the median and largest lag
-# and lag error.
-import json, os
+# and lag error. summary.py <run>... prints only the stills of the named runs (the stills at 0.956: s9-M2, s9d-M2, s9-X2,
+# e9-M2 and e9-X2).
+import json, os, sys
 def load(p):
     return json.load(open(p)) if os.path.exists(p) else None
 STILLS = ['rect-lamps', 'exit-cabin', 'docking-cabin', 'cabin-light-cabin', 'deck-cuts', 'bay-sunbeam']
 print('# Stills: specks / blotch / level')
-for run in ['s-M2', 's-X2', 's-A2', 'e-M2', 'e-X2', 'e-A2']:
+for run in sys.argv[1:] or ['s-M2', 's-X2', 's-A2', 'e-M2', 'e-X2', 'e-A2']:
     for c in STILLS:
         r = load(f's/{run}/results/still/{c}.json')
         if r: print(f"{run:6s} {c:18s} specks {r['specks']:.4f} blotch {r['blotch']:.4f} level {r['level']:+.4f} failed {r['failed']}")
+if sys.argv[1:]:
+    sys.exit()
 print('# Switch cabin: r11 over frames 140 to 159, lowest / highest, in % of a lamps-on control')
 ref = load('s/w-M2/results/switch/cabin.json')
 for run in ['w-M2', 'w-X2']:

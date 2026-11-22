@@ -21,6 +21,7 @@
 # horizontal distance with the render width, the render height and the predicted ratio, and a noise floor: the change
 # of the horizontal distance from one draw to the next where the render size stays the same. The chart: per side, the
 # horizontal distance and its prediction per film frame.
+# Twin: edge() and the read at 1280 x 720 with Lanczos are copied in edgeramp.py, and the README compares the two tools' outputs. Change both copies together.
 import os
 import subprocess
 import sys

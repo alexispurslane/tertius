@@ -17,6 +17,7 @@
 #     draws, beside the film's value around its mean. What the ramp's place removes belongs to the render size.
 # The chart: per measure, the ramp's place against the render width (red: last draw, orange: 10 draws before) and the
 # film's mean per size on one-size draws (blue), shifted by the mean difference over the shared sizes.
+# Twin: edge() and the read at 1280 x 720 with Lanczos are copied in wobble.py, and the README compares the two tools' outputs. Change both copies together.
 import json
 import sys
 import numpy as np
