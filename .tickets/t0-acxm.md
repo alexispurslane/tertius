@@ -193,3 +193,38 @@ Fork of the timing spike, and my answer (line orchestrator, 2026-11-21 18:15). T
 So the work in the pass is not the cost. Each compute dispatch with its barrier costs about 0.06 to 0.13 ms on MoltenVK. The budget of +0.10 ms fails in every listed form.
 
 My answer: the fused design, which the lead proposed. The region's test runs inside the spatial dispatch: the workgroup of a block sums its 17 x 17 taps over its 64 invocations in a fixed order, updates and tests its own ring, and shares the result with the block's level. This replaces flows 2 and 3 of part 1. The separate pass and the region evidence image are not built. The ring's owner is the spatial dispatch, which is the one reader of the evidence, and the evidence is of the same draw. The test's knowledge stays in one include. The budget stays +0.10 ms on the deck, measured with at least eight rounds and paired differences, because the spike's spreads are as large as the budget. If both signals miss it, the bounce light alone is taken with the film as its check. If that misses, the lead stops and reports.
+
+**2026-11-22T01:52:39Z**
+
+Settlement of the second fork (line orchestrator, 2026-11-21, about 21:00): the region's test runs only at anchor blocks.
+
+The measured facts (remedy lead, record d4acd51c1 on t3/fix-retained-rounding-weight): the fused form costs +0.274 ms on the deck for both signals and +0.174 ms for the bounce light alone, against the budget of +0.10 ms. The tap store alone cost +0.080 ms. The budget is the rest of Design X's allowance of 0.30 ms above main on the deck (t0-89zi), so I do not raise it.
+
+The cause of the cost is the model, not the place of the code: every block of 8 x 8 pixels ran its own test, with 289 taps, 36 ring reads and three barriers in each of about 14,000 workgroups, and the temporal dispatch wrote a tap for every block. But the regions of two neighbor blocks share 272 of their 289 taps, so their answers are nearly the same answer.
+
+The new model: one test per anchor.
+
+- An anchor is a block whose two coordinates are multiples of `AnchorStepBlocks` = 8 = `RegionRadiusBlocks`. So 1 block of 64 is an anchor, and the regions of neighbor anchors overlap by half.
+- The test itself does not change: the anchor's region is the 17 x 17 blocks around it, the windows are 18 draws, the tolerance is 3 standard deviations, and the validity rule stays.
+- Only an anchor's workgroup in the spatial dispatch sums its region's taps, updates its ring and tests. The ring image has the anchors' resolution. The ring's draw also holds the test's answer.
+- The taps come from the images that the spatial dispatch binds already: `sampleImage` and `surfaceTest` at each block's tap pixel. The `blockLight` image and the temporal dispatch's tap store go away, unless a tap's value needs a fact that only the temporal dispatch holds. If so, say which fact, and keep the store.
+- Every block takes the region's evidence of the draw before: `RegionEvidence` if any anchor whose region holds the block saw its light move. With a step equal to the radius, those are the up to four anchors around the block. A block reads only ring layers that no workgroup writes in this draw, so the read has no race and one machine gives the same bits in every run.
+- The answer acts one draw late. The windows are 18 draws long, so one draw does not matter. Say so in the comment.
+- The action does not change: `RegionEvidence` cuts the history to at most `FullRateFrames`, the box keeps its widening, and no anti-lag runs.
+
+Signatures (region_drift.glsl stays the only owner of the ring's layout and the test):
+
+```glsl
+const int AnchorStepBlocks = RegionRadiusBlocks;   // an anchor at every 8th block in x and in y
+bool isRegionAnchor(ivec2 block);
+// The anchor's workgroup: sums its region's taps, writes this draw and its answer into its ring. Uniform in the workgroup.
+void updateRegionAnchor(ivec2 anchorBlock);
+// Whether an anchor whose region holds `block` saw its region's light move in the draw before.
+bool regionLightMovedBefore(ivec2 block);
+```
+
+Left out, and why: a smooth share between the anchors in place of the yes or no. The evidence's edges now lie on a grid of 64 pixels. If the bay film shows that grid, the share is the next step, and the lead reports it as a fork.
+
+Tests: tests 1 to 10 keep their statements, with the anchor's region in place of the block's region. Three more: a block takes the evidence of an anchor whose region holds it. A block outside every moved anchor's region keeps its history. The evidence acts in the draw after the anchor's test.
+
+Timing: eight rounds on the deck against 8ec383c6e at a low load, as before. The budget stays +0.10 ms for both signals. If the anchored form misses it, try the bounce light alone. If that misses too, stop and report: the choice between a cost above the allowance and no remedy then goes up to the user.
