@@ -329,3 +329,38 @@ The variants' builds started, 2026-11-22 14:30 (XB first, 29 GiB free). The lead
 **2026-11-22T19:32:48Z**
 
 Both variants are built, 2026-11-22 14:31 (XB at 14:31:24, XC at 14:31:50, into /private/tmp/t0-5tyj/xbplay and xcplay; 28 GiB free). Check by the lead: each Rendering assembly embeds 88 SPIR-V modules; XB differs from X in 4 (the variants of accumulate_spatial) and XC in 3 (the variants of screen_trace_plan), no other module differs. The line's rebuild slot is free again.
+
+**2026-11-22T19:45:56Z**
+
+The variants' early result, from the acceptance lead, 2026-11-22 (the fair cabin switch at the fixed scale 2/3 on the Mac; the cost runs follow; the cost session started at 14:39 at a load of 4.6). XB = X with the light evidence's restart capped at FullRateFrames; XC = X with the restart at fastCap and the plan's own-ray test at 3.5 draws.
+
+Measured, settle in draws, slowest region off / on, then whole image off / on: M 143 / 92 and 123 / 55; X 77 / 51 and 67 / 31; XB 82 / 55 and 72 / 34; XC 78 / 51 and 67 / 31.
+
+Measured, boil without the fade in % (floor / wall / ceiling), 0 to 60 after off, 60 to 200 after off, 0 to 100 after on: X 0.26 / 0.29 / 0.32, 0.06 / 0.04 / 0.07, 0.05 / 0.20 / 0.14; XB 0.26 / 0.27 / 0.29, 0.06 / 0.04 / 0.07, 0.05 / 0.20 / 0.13; XC 0.27 / 0.30 / 0.34, 0.06 / 0.04 / 0.07, 0.05 / 0.21 / 0.15. The 18 draws before off are 0.02 to 0.04 on all three. M: 0.24 / 0.23 / 0.29 and 0.07 / 0.07 / 0.09 (tc-bece).
+
+Measured, differences from X per frame, film frames 160 to 459: XB's crops are up to 8 / 12 / 14 % brighter than X's in the 60 draws after off and up to 2 / 10 / 8 % darker in the 100 draws after on; the 99th percentile of the per-pixel difference reaches 9 of 255. XC differs from X by at most 1.7 % in a crop and 4 of 255 at the 99th percentile.
+
+Results so far: the cap (XB) costs 5 / 4 draws of settle in the slowest region and 5 / 3 in the whole image against X, and stays far faster than main; its boil is not higher. The restart without own rays (XC) settles as X and boils 0.01 to 0.02 points more in the first 60 draws. The cost per draw decides between them.
+
+Also on 2026-11-22: step 1 of the wobble's fix is on main at ac5f23915. I merged it into the line's worktree without a commit (two conflicts: ARCHITECTURE.md and tools/renderer-survey/probe.patch, both resolved from the combined check's merge bcca31e95 plus main's changes since a819b10b2; the probe patch applies to the merged tree; tree e232080fd2c29b94bd639d094cabe336bf7f6291). I started the merge commit at 14:43 and stopped it within a minute, because its hook builds and runs the Rendering tests and the acceptance lead's timing session runs. The commit follows when that session ends. The films on the fixed code are the ticket t0-3vwx.
+
+**2026-11-22T19:47:09Z**
+
+The orchestrator reversed my answer 49 on 2026-11-22: the user decides between the two variants from a video, not from a table, and grain at all is bad. So the acceptance lead makes one video with three panes at one fixed exposure (Design X, the cap, no own rays) through off and on, from the frames that exist. If the frames of 'no own rays' are gone, the sentence with the measured difference stays and no new take is made for it. Answers 47 and 48 stand.
+
+**2026-11-22T20:14:58Z**
+
+The experiment for the cost block after a light change, complete, from the acceptance lead, 2026-11-22, committed as 3cdeb2bc6 on t3/measure-regional-lag-tolerance. Chart: docs/research/design-x-acceptance-2026-11-22/pics/cost-switch-fair-23.png. Video: docs/research/design-x-acceptance-2026-11-22/pics/switch-cabin-fair-fixed-23-x-xb-xc.mp4 (three panes X, XB, XC of 1280 x 720 each, 3840 x 720, 320 frames at 60 fps, H.264 yuv420p, CRF 12, 6.2 MB; from 20 draws before off to 100 draws after on; exposure 4.08 stops, fixed scale 2/3). I looked at the chart, checked the video's format with ffprobe and looked at a decoded frame.
+
+Measured, the fair cabin switch at the fixed 2/3 on the Mac. Settle slowest region off / on, whole image off / on, GPU span settled, mean 0 to 59 draws after off / on, peak after a switch, draws more than 1 ms above settled after off / on:
+- M: 143 / 92, 123 / 55, 15.08 ms, 15.38 / 15.36 ms, 17.5 to 17.7 ms, 7 / 7
+- X: 77 / 51, 67 / 31, 15.34 ms, 16.58 / 16.58 ms, 22.8 to 22.9 ms, 13 / 10 to 11
+- XB (the cap): 82 / 55, 72 / 34, 15.30 ms, 15.27 / 15.39 ms, 15.6 to 15.7 ms, 0 / 0
+- XC (no own rays from 4 draws): 78 / 51, 67 / 31, 15.34 ms, 15.18 / 15.45 ms, 15.7 ms (one draw 17.4), 0 to 1 / 0
+Runs: M 4, X 3, XB 2, XC 2; load 2.6 to 7.0 at each lock. M's first session run was disturbed by the lead's boil measure (18.21 ms settled) and is dropped. In the first 10 draws after a switch XB and XC are 0.9 to 1.1 ms cheaper than M; in settled draws they cost 0.22 to 0.27 ms more than M, as X does.
+
+Measured, boil without the fade in % (floor / wall / ceiling), before off, 0 to 60 after off, 60 to 200 after off, 0 to 100 after on: M 0.02 / 0.03 / 0.04, 0.24 / 0.23 / 0.29, 0.07 / 0.07 / 0.09, 0.05 / 0.21 / 0.13; X 0.02 / 0.02 / 0.04, 0.26 / 0.29 / 0.32, 0.06 / 0.04 / 0.07, 0.05 / 0.20 / 0.14; XB 0.02 / 0.02 / 0.04, 0.26 / 0.27 / 0.29, 0.06 / 0.04 / 0.07, 0.05 / 0.20 / 0.13; XC 0.02 / 0.02 / 0.04, 0.27 / 0.30 / 0.34, 0.06 / 0.04 / 0.07, 0.05 / 0.21 / 0.15.
+
+Measured in the video: the fade per pane against the source differs by at most 0.26 % (r11 at 20 draws after on, source / video: X -14.37 / -14.13 %, XB -16.09 / -15.90 %, XC -14.09 / -13.87 %). The encode adds boil to each pane about equally (floor in the 60 draws after off, video / source: 0.58 / 0.25 on all three), so the video shows more boil on the dark floor than the engine makes; a test at CRF 4 still gave 0.41, so most of it is the 8-bit encode of dark tones. Not checked: single specks over time, and whether the eye sees XC's difference of at most 1.7 %.
+
+Results: both variants remove the cost block, and also main's smaller block. The cap fades visibly more slowly than Design X (+5 / +4 draws in the slowest region) with equal or lower boil. No own rays keeps Design X's settle and fade with 0.01 to 0.02 points more boil in the 60 draws after off. XC's scratch line is wider than its design: it takes the own ray from every history of 4 to 7 draws, so it also halves the full-rate draws at a start, a camera cut and a disocclusion; those cases are not measured.
