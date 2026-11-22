@@ -3,10 +3,9 @@
 // per pixel fixes a short history from its neighbors in the scratch image, clamps the slow history into the box of this
 // frame's fast history around the pixel, shortens the length by the clamp's move, and writes the slow history. The
 // workgroup is a block of 8 × 8 pixels, and the block's evidence level, the strongest of its pixels' samples, acts on
-// every pixel of it in this draw: motion evidence drops the box's widening, and light evidence cuts the length to the
-// fast cap and leaves the box (docs/plans/bounce-light-confidence.md, section 8). The bounce light also takes the region
-// evidence of its block (region_drift.glsl, TERTIUS_REGION_DRIFT), which caps the length at FullRateFrames and leaves the
-// box.
+// every pixel of it in this draw: motion evidence drops the box's widening, and light evidence cuts the length to at most
+// FullRateFrames and leaves the box (docs/plans/bounce-light-confidence.md, section 8). The bounce light also takes the
+// region evidence of its block (region_drift.glsl, TERTIUS_REGION_DRIFT), which cuts the length in the same way.
 #extension GL_GOOGLE_include_directive : require
 #include "accumulate.glsl"
 #ifdef TERTIUS_REGION_DRIFT
@@ -19,9 +18,8 @@
 // The least luminance by which the clamp divides: the lag's share and the chroma of the widening.
 const float LeastLuminance = 1e-4;
 
-// The evidence levels of a block, ordered by how certain the knowledge is (section 8.2). Region evidence caps the
-// anti-lag's length at FullRateFrames, motion evidence narrows the box for this draw, and light evidence cuts the length
-// to the fast cap.
+// The evidence levels of a block, ordered by how certain the knowledge is (section 8.2). Region and light evidence cap the
+// anti-lag's length at FullRateFrames, and motion evidence narrows the box for this draw.
 // The level lives only in this dispatch's shared value.
 const uint NoEvidence = 0u;
 const uint RegionEvidence = 1u;
@@ -162,18 +160,12 @@ void accumulateAt(ivec2 pixel, uint evidence)
         storeTrace(pixel, 6, vec4(mean, lag));
         storeTrace(pixel, 7, vec4(sigma, 0.0));
 #endif
-        // Light evidence has a known age, so it bounds the length: the history restarts at the fast window's length.
-        // Without it, the anti-lag shortens the history by the clamp's move: motion has no known size, so the box
-        // measures it. Region evidence states a change of unknown size, so it adds one cap on top of the anti-lag: at
-        // most FullRateFrames draws, the shortest length that keeps the block's shared ray. So it only ever shortens a
-        // history.
+        // The anti-lag shortens the history by the clamp's move: motion has no known size, so the box measures it. Light
+        // and region evidence state a change, so each adds one cap on top of the anti-lag: at most FullRateFrames draws,
+        // the shortest length that keeps the block's shared ray. A shorter restart made every pixel of the block trace
+        // its own rays (section 2.2, record of 2026-11-22). So evidence only ever shortens a history.
         float antiLagged = max(fastCap, historyLength * (1.0 - min(1.0, lag / parameters.antiLagShare)));
-        if (evidence == LightEvidence)
-            historyLength = fastCap;
-        else if (evidence == RegionEvidence)
-            historyLength = min(antiLagged, FullRateFrames);
-        else
-            historyLength = antiLagged;
+        historyLength = evidence == LightEvidence || evidence == RegionEvidence ? min(antiLagged, FullRateFrames) : antiLagged;
         slow = clamped;
     }
 
