@@ -101,3 +101,9 @@ Each red test's numbers go to the line orchestrator at once, because they are th
 
 A change of the render scale controller or of the rounding to multiples of 8. Other tickets of the dynamic resolution's epic ter-89xq: keep the diff small, because other sessions work in those files.
 
+
+## Notes
+
+**2026-11-22T16:25:02Z**
+
+2026-11-22, the line orchestrator. The ticket lead is launched. taskId and child thread: node/thread:delegated-task:command%3Amcp%3A49b05ffc-1378-4e84-92ef-b16c94dc7acb%3Adelegate-task%3Aslabs-4-ter-qt72-lead-1. clientRequestId: slabs-4-ter-qt72-lead-1. Target: claudeAgent, claude-opus-5-5, effort high, role implementation, isolation worktree. Its reviewer: the same target, role review. Base and review base: main 4298ae7ec. Cloud money: $0.30. The research take t1-r9vj starts no build and no render until this fix is in its review. Before the launch I removed the build output (bin and obj folders, 3.2 GiB) of three worktrees of the line whose work is merged or mine: t3-58f87f59-3970e2671e4b1d5d, t3-7e999be0 and t3-1b834d57.
