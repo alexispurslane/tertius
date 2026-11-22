@@ -28,7 +28,9 @@ public sealed class ScreenWalkSlabTests
 
     [Fact]
     public void ARayJustBehindTheStoredBackWOfAWallMissesIt() =>
-        Values()[Middle + 2].Should().Be(2, "the stored back w ends the wall's slab, with no thickness added by the walk");
+        Values()[Middle + 2]
+            .Should()
+            .Be(2, "the stored back w ends the wall's slab, with no thickness added by the walk");
 
     private static float[] Values()
     {

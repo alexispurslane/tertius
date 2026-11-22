@@ -222,10 +222,16 @@ public sealed class BackFacePassTests
             renderer.Render(snapshot, 1f);
             float[] share = renderer.ReadBackShare();
 
-            At(share, new(0.2f, 0.1f, -3)).Should().Be(1f, "the card is the pixel's front surface, and it ends its slab");
+            At(share, new(0.2f, 0.1f, -3))
+                .Should()
+                .Be(1f, "the card is the pixel's front surface, and it ends its slab");
             At(share, new(1.2f, 0, -5))
                 .Should()
-                .BeApproximately(5f / 7, ShareTolerance, "beside the card, the box's front lies 5 m deep and its back 7 m");
+                .BeApproximately(
+                    5f / 7,
+                    ShareTolerance,
+                    "beside the card, the box's front lies 5 m deep and its back 7 m"
+                );
         }
         finally
         {
@@ -241,7 +247,9 @@ public sealed class BackFacePassTests
         {
             MeshId plate = renderer.CreateMesh(Primitives.Box(new(1, 1, 0.02f)));
             RenderSnapshot snapshot = Lit();
-            snapshot.Instances.Add(Placed(mesh: plate, material: Matte(renderer), position: new(0, 0, -5), radius: 1.5f));
+            snapshot.Instances.Add(
+                Placed(mesh: plate, material: Matte(renderer), position: new(0, 0, -5), radius: 1.5f)
+            );
             renderer.Render(snapshot, 1f);
             float[] share = renderer.ReadBackShare();
 
@@ -267,7 +275,9 @@ public sealed class BackFacePassTests
         {
             MeshId plate = renderer.CreateMesh(Primitives.Box(new(1, 1, 5e-5f)));
             RenderSnapshot snapshot = Lit();
-            snapshot.Instances.Add(Placed(mesh: plate, material: Matte(renderer), position: new(0, 0, -4), radius: 1.5f));
+            snapshot.Instances.Add(
+                Placed(mesh: plate, material: Matte(renderer), position: new(0, 0, -4), radius: 1.5f)
+            );
             renderer.Render(snapshot, 1f);
             float[] share = renderer.ReadBackShare();
 
@@ -384,7 +394,9 @@ public sealed class BackFacePassTests
             renderer.Render(Lit(), 1f);
             float[] share = renderer.ReadBackShare();
 
-            share.Should().OnlyContain(value => value == 0f, "the frame's share clears once, also with no draw of the pass");
+            share
+                .Should()
+                .OnlyContain(value => value == 0f, "the frame's share clears once, also with no draw of the pass");
         }
         finally
         {
@@ -553,17 +565,29 @@ public sealed class BackFacePassTests
             MeshId near = renderer.CreateMesh(Primitives.Box(new(0.5f)));
             MeshId far = renderer.CreateMesh(Primitives.Box(new(3e6f)));
             RenderSnapshot snapshot = Lit();
-            snapshot.Instances.Add(Placed(mesh: far, material: Matte(renderer), position: new(0, 0, -1e7f), radius: 5.2e6f));
-            snapshot.Instances.Add(Placed(mesh: near, material: Matte(renderer), position: new(0, 0, -5), radius: 0.9f));
+            snapshot.Instances.Add(
+                Placed(mesh: far, material: Matte(renderer), position: new(0, 0, -1e7f), radius: 5.2e6f)
+            );
+            snapshot.Instances.Add(
+                Placed(mesh: near, material: Matte(renderer), position: new(0, 0, -5), radius: 0.9f)
+            );
             renderer.Render(snapshot, 1f);
             float[] share = renderer.ReadBackShare();
 
             At(share, new(0, 0, -4.5f))
                 .Should()
-                .BeApproximately(4.5f / 5.5f, ShareTolerance, "the near box's front lies 4.5 m deep and its back 5.5 m");
+                .BeApproximately(
+                    4.5f / 5.5f,
+                    ShareTolerance,
+                    "the near box's front lies 4.5 m deep and its back 5.5 m"
+                );
             At(share, new(1.2e6f, 0, -7e6f))
                 .Should()
-                .BeApproximately(7f / 13, ShareTolerance, "beside the near box, the far box's front lies 7,000 km deep and its back 13,000 km");
+                .BeApproximately(
+                    7f / 13,
+                    ShareTolerance,
+                    "beside the near box, the far box's front lies 7,000 km deep and its back 13,000 km"
+                );
         }
         finally
         {
@@ -579,7 +603,9 @@ public sealed class BackFacePassTests
         {
             MeshId box = renderer.CreateMesh(Primitives.Box(new(2e4f)));
             RenderSnapshot snapshot = Lit();
-            snapshot.Instances.Add(Placed(mesh: box, material: Matte(renderer), position: new(0, 0, -1e5f), radius: 3.5e4f));
+            snapshot.Instances.Add(
+                Placed(mesh: box, material: Matte(renderer), position: new(0, 0, -1e5f), radius: 3.5e4f)
+            );
             renderer.Render(snapshot, 1f);
             float[] share = renderer.ReadBackShare();
 
@@ -608,8 +634,12 @@ public sealed class BackFacePassTests
             MeshId large = renderer.CreateMesh(Primitives.Box(new(500, 500, 1000)));
             MeshId small = renderer.CreateMesh(Primitives.Box(new(100, 100, 50)));
             RenderSnapshot snapshot = Lit();
-            snapshot.Instances.Add(Placed(mesh: large, material: Matte(renderer), position: new(0, 0, -2000), radius: 1225));
-            snapshot.Instances.Add(Placed(mesh: small, material: Matte(renderer), position: new(0, 0, -2550), radius: 150));
+            snapshot.Instances.Add(
+                Placed(mesh: large, material: Matte(renderer), position: new(0, 0, -2000), radius: 1225)
+            );
+            snapshot.Instances.Add(
+                Placed(mesh: small, material: Matte(renderer), position: new(0, 0, -2550), radius: 150)
+            );
             renderer.Render(snapshot, 1f);
             float[] share = renderer.ReadBackShare();
 
@@ -644,7 +674,7 @@ public sealed class BackFacePassTests
         try
         {
             MeshId plane = renderer.CreateMesh(Primitives.Plane(1));
-            Quaternion tilted = Quaternion.Concatenate(
+            var tilted = Quaternion.Concatenate(
                 FacingTheCamera,
                 Quaternion.CreateFromAxisAngle(Vector3.Normalize(new(1, 1, 0)), 1.1f)
             );

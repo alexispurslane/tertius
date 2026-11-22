@@ -114,7 +114,8 @@ internal sealed unsafe class BackFacePass : RenderPass
     {
         RenderTargets targets = context.Targets;
         GpuImage share =
-            targets.BackShare ?? throw new UnreachableException("The targets of the screen tracer hold the back share.");
+            targets.BackShare
+            ?? throw new UnreachableException("The targets of the screen tracer hold the back share.");
         BarrierBatch barriers = context.Barriers;
         barriers.Image(share, ImageUse.ColorAttachment, discard: clear);
         barriers.Image(targets.Depth, ImageUse.DepthAttachment, discard: true);
