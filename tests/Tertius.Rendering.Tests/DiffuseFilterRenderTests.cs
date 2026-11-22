@@ -541,13 +541,14 @@ public sealed class DiffuseFilterRenderTests(ITestOutputHelper output)
     /// <summary>
     /// The thin kernel's feedback step alone, a kernel of one dispatch: that dispatch is also the last, so it writes
     /// <see cref="DiffuseFilter.Filtered"/>, and a test reads there the deviation that the feedback step hands to the
-    /// next step.
+    /// next step. A property, so that a change of the constructor fails only the tests that use it.
     /// </summary>
-    private static readonly DiffuseFilterKernel FeedbackStepAlone = NewKernel(
-        dispatches: 1,
-        waveletShader: DiffuseFilterKernel.Thin.WaveletShader,
-        feedbackShader: DiffuseFilterKernel.Thin.FeedbackShader
-    );
+    private static DiffuseFilterKernel FeedbackStepAlone =>
+        NewKernel(
+            dispatches: 1,
+            waveletShader: DiffuseFilterKernel.Thin.WaveletShader,
+            feedbackShader: DiffuseFilterKernel.Thin.FeedbackShader
+        );
 
     /// <summary>A box 10 m before the eye that hides the right half of the view, from its middle on.</summary>
     private static readonly (Vector3 Center, float Turn, Vector3 Scale) RightHalfCover = (
@@ -603,9 +604,12 @@ public sealed class DiffuseFilterRenderTests(ITestOutputHelper output)
     {
         // The scene of TheRetainedDeviationOfAMaturePixelTakesNothingFromItsYoungNeighbors. The mature pixel's own
         // deviation and those of its mature taps are 0. Its three young taps on the right weigh 0.25 in all before their
-        // stops. Each one's young estimate is the spread of the luminances 1, 0 and 2 over its 7 × 7 window, raised by
-        // √(4 / 1) for a history of one sample, so it is more than 1, and the luminance stop between 1 and 0 or 2 is then
-        // more than exp(−1 / 4) ≈ 0.78. So the step hands on more than 0.19, about 0.37 on this Mac.
+        // stops, and on the flat wall the plane and normal stops are 1. Each young tap's window of 7 × 7 holds 21 fast
+        // histories of 1 and 28 of the checker, a spread of √(4 / 7), which √(4 / 1) raises for a history of one
+        // sample: an estimate of 4 / √7 ≈ 1.51. A young tap's light lies between 0 and 2, so its luminance stop is more
+        // than exp(−1 / 4) ≈ 0.78 for any estimate above 1, and the step hands on more than 0.25 · 0.78 ≈ 0.19. The
+        // light of a short history is its neighbors' mean, weighted by their lengths, so near the mature 1 here, and
+        // the stop is near 1: the step hands on 0.37 on this Mac.
         (VulkanRenderer renderer, SamplePass sample, DiffuseFilter filter, RenderSnapshot scene) = Filtering(
             filtered: true,
             kernel: FeedbackStepAlone,

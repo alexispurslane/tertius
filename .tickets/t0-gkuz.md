@@ -87,3 +87,23 @@ Mutation table (tools/mutate.py, list t0-gkuz-mutants.json, on the final test co
 Each failure says the reason in the test name. S01: the step handed on −0.367, below the bound 0.19. S02: the retained deviation was 0.367, not 0. S18: the length was 1, not 9. Each test passes on the code as it is.
 
 Suites: the full Checked suite passed on the final code (11,069 tests: 11,042 passed, 27 skipped, 0 failed; Rendering 3,332 passed in 17 m 39 s), then the full Release suite (11,056 tests: 11,029 passed, 27 skipped, 0 failed; Rendering 3,331 passed in 17 m 29 s).
+
+**2026-11-22T11:48:06Z**
+
+Fix (test gaps lead), after the one review (verdict pass on correctness, fulfillment and design, with three low findings and one gap):
+
+- F1 (the fourth-tap test isolates tap 1 by 0.011 px under the draw-8 jitter): rejected with evidence. The draws of these tests do not jitter. VulkanRenderer.DrawsJitter jitters only under FSR, or when TERTIUS_DEBUG_JITTER asks for it (DebugJitter.Selected: the default is "upscaler"), and AccumulatorRenderTests makes no FSR renderer. So each texel shows what lies at its center, and the margin to the box's last edge is 0.4 px, not 0.011 px. The test's comment now says so.
+- F2 (the deviation test's comment skips steps): fixed. The comment now gives the window (21 fast histories of 1 and 28 of the checker), the estimate 4 / √7 ≈ 1.51, the plane and normal stops of 1 on the flat wall, and the bound 0.25 · exp(−1 / 4) ≈ 0.19 for any estimate above 1.
+- F3 (the static field runs the UnsafeAccessor in the type initializer): fixed. FeedbackStepAlone is a property, so a change of the constructor fails only the two tests that use it.
+- The gap (measured 0.367, traced 0.32): settled with a diagnostic run that was not kept. The young taps' fast histories hold 0 and 2 and their lengths are 1, as traced. But their slow light, which the luminance stop compares, is near 1, because the accumulation's fix of a short history takes its neighbors' mean weighted by their lengths (9 on the mature side). So the stop is near 1, not 0.85, and 0.25 · 1.51 · ~0.97 ≈ 0.367. The comment now says this. The asserted bound 0.19 rests only on the light lying between 0 and 2, so it holds either way.
+
+Mutation table on the code after the fix (tools/mutate.py, list t0-gkuz-mutants.json, 370 s):
+
+| id | place | change | result | killed by | s |
+|---|---|---|---|---|---:|
+| S01 | src/Tertius.Rendering/Shaders/diffuse_filter_wavelet.glsl:72 | feedback deviation sum loses the young sign's magnitude | killed | DiffuseFilterRenderTests.TheDeviationThatAMaturePixelHandsToTheNextFilterStepCountsItsYoungNeighborsNoise | 68.3 |
+| S02 | src/Tertius.Rendering/Shaders/diffuse_filter_wavelet.glsl:73 | young taps carry into the store | killed | DiffuseFilterRenderTests.TheRetainedDeviationOfAMaturePixelTakesNothingFromItsYoungNeighbors | 61.2 |
+| S18 | src/Tertius.Rendering/Shaders/signals.glsl:28 | surfacePassBits drops tap 3 | killed | AccumulatorRenderTests.APixelWhoseSurfaceLiesOnlyUnderTheFourthTexelOfItsLastPlaceKeepsThatTexelsHistory | 103.6 |
+3 rows: killed 3, timeout 0, survived 0, no-coverage 0, build-failed 0, no-tests 0, no-mutant 0, removed 0
+
+The fix changes only test comments and the field into a property, so the affected checks are the Rendering tests: the full project passed in Checked (3,343 tests: 3,332 passed, 11 skipped, 0 failed, 17 m 52 s), then in Release (3,342 tests: 3,331 passed, 11 skipped, 0 failed, 18 m 22 s).

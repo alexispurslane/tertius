@@ -636,7 +636,8 @@ public sealed class AccumulatorRenderTests
         // For 8 draws it stands 0.9 pixels right of and below that, then it moves there. The point of the pixel right of
         // and below the corner had its last place 0.9 pixels right of and below the pixel's center. Of the 2 × 2 texels
         // around that place, the first three showed the wall 10 m behind, and only the fourth, at (+1, +1), showed the
-        // box. That texel holds the weight 0.9 × 0.9 and a history of 8 draws.
+        // box. That texel holds the weight 0.9 × 0.9 and a history of 8 draws. The draws do not jitter without FSR, so
+        // each texel showed what lies at its center, 0.4 pixels from the box's last edge.
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
         try
         {
