@@ -12,7 +12,7 @@
 # 452), the cut (cut film, CUT to CUT + 59, CUT 134 by default; job shapes1 ran the old cut film,
 # whose cut is at draw 133: CUT=133), and the idle span (switch, 133 to 192: lamps on, settled, nothing changes), which is
 # the bar: an event's block moves the scale when its changes or its fall exceed the idle span's.
-# The chart: the scale per draw in the four event windows, one line per code.
+# The chart: the scale per draw in the four event windows, one line per code (CODES="<code> ...": only those, at most six).
 import os
 import sys
 from pathlib import Path
@@ -53,6 +53,8 @@ for c in codes:
               f'{sum(before - x for x in s):.2f} | {max(sp):.2f}, {sum(x > idle_top for x in sp)}')
 
 if len(sys.argv) > 2:
+    if os.environ.get('CODES'):
+        codes = os.environ['CODES'].split()
     W, H, L = 1600, 420, 50
     im = Image.new('RGB', (W, H), 'white'); d = ImageDraw.Draw(im)
     events = ['start', 'off', 'on', 'cut']
@@ -75,7 +77,7 @@ if len(sys.argv) > 2:
         d.text((x0, H - 52), {'start': 'the start (switch film, draw 0)', 'off': 'lamps off (draw 193)',
                               'on': 'lamps on (draw 393)', 'cut': f'camera cut (cut film, draw {at})'}[w], fill='black')
     for j, c in enumerate(codes):
-        d.text((L + 10 + 230 * j, 8), {'1,8,0': 'today (1, 8, 0)', 'cap': 'the cap'}.get(c, f'({c.replace(",", ", ")})'),
+        d.text((L + 10 + 250 * j, 8), {'1,8,0': 'today (1, 8, 0)', 'cap': 'A: the cap'}.get(c, f'({c.replace(",", ", ")})'),
                fill=colours[j % 6])
     d.text((L, H - 30), 'render scale per draw on the card (RTX 2000 Ada, 1920 x 1080, dynamic scale at 16.67 ms), '
            '5 draws before each event to 59 after', fill='black')

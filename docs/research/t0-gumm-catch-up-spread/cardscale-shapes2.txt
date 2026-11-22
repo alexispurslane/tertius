@@ -1,0 +1,76 @@
+copying path '/nix/store/69fq52rmcs8ivixxp5k0b3vhqmhcy6gd-bin' from 'https://cache.nixos.org'...
+copying path '/nix/store/6wbr29wj1c0690ybr06ia55z478fl644-builder.pl' from 'https://cache.nixos.org'...
+copying path '/nix/store/a1p5dzp5afqqikqm0lgqqa4k8l9jiaxp-cereal-1.3.2' from 'https://cache.nixos.org'...
+copying path '/nix/store/rw2allrnby4ras8shzyjngyccdzk1jj1-source' from 'https://cache.nixos.org'...
+copying path '/nix/store/v8ld9rw5ps3b28v9kjafxqxh337brik1-source' from 'https://cache.nixos.org'...
+copying path '/nix/store/1qbw138456azg7xxzdkjbywxw7d14imz-spirv-cross-1.4.357.0' from 'https://cache.nixos.org'...
+copying path '/nix/store/9qhwx1i2hrkkla09jhacs4xhj5z67f3g-die-hook' from 'https://cache.nixos.org'...
+copying path '/nix/store/dlhzg5y2r8d6wqq4h1z6icl1jms83qpl-qhull-2020.2' from 'https://cache.nixos.org'...
+copying path '/nix/store/b5cc3ic4vx1m8mqsv9v9hkgif7kyzpc2-apple-sdk-26.5' from 'https://cache.nixos.org'...
+copying path '/nix/store/8465c4x7anbmd579wj649d59j64iqd61-xcbuild-hook' from 'https://cache.nixos.org'...
+copying path '/nix/store/9w7180x9zhy6f7acldggqra45jxgjnvc-stdenv-darwin-no-cc' from 'https://cache.nixos.org'...
+building '/nix/store/4ml8h0s7w55qjrf4c2lvnykcc4fc66f5-stbn-mask-1.drv'...
+copying path '/nix/store/y092pzn07blhmqca5xpa9s06v0348qm0-make-binary-wrapper-hook' from 'https://cache.nixos.org'...
+copying path '/nix/store/y19n8cq0ypv23vpnrdw6n2jxvs73vrir-python3.14-scipy-1.18.1' from 'https://cache.nixos.org'...
+building '/nix/store/cvzg6hrvczn668vmsclb5j1hhmn7j2hh-python3-3.14.7-env.drv'...
+building '/nix/store/nb1i1gpggkvgl2cr2a56ayd1v22r39ha-MoltenVK-1.4.2.drv'...
+building '/nix/store/sskybn3ak4snx1s1ddagmfn571nsca0s-nix-shell-env.drv'...
+this path will be fetched (107.5 KiB download, 107.4 KiB unpacked):
+  /nix/store/kakn9yyj2h86hqalm14wvfnxwaivs650-bash-interactive-5.3p15-man
+copying path '/nix/store/kakn9yyj2h86hqalm14wvfnxwaivs650-bash-interactive-5.3p15-man' from 'https://cache.nixos.org'...
+code | window | scale changes | largest fall, draws back | scale at +59, scale lost | GPU span peak ms, draws above the idle span's largest
+1,8,0 | idle | 0 | 0.000 (from 0.993 to 0.993 at +0), none | 0.993, 0.00 | 17.46, 0
+1,8,0 | start | 57 | 0.232 (from 1.000 to 0.768 at +9), >60 | 0.967, 7.39 | 26.70, 5
+1,8,0 | off | 54 | 0.154 (from 0.993 to 0.839 at +14), >60 | 0.979, 4.06 | 24.92, 11
+1,8,0 | on | 53 | 0.151 (from 0.990 to 0.838 at +14), >60 | 0.977, 4.04 | 24.45, 12
+1,8,0 | cut | 56 | 0.140 (from 0.993 to 0.853 at +9), >60 | 0.984, 3.49 | 27.26, 8
+0,32,0 | idle | 0 | 0.000 (from 0.988 to 0.988 at +0), none | 0.988, 0.00 | 17.44, 0
+0,32,0 | start | 30 | 0.070 (from 1.000 to 0.930 at +5), >60 | 0.979, 3.29 | 18.34, 3
+0,32,0 | off | 0 | 0.000 (from 0.988 to 0.988 at +0), none | 0.988, 0.00 | 17.56, 13
+0,32,0 | on | 0 | 0.000 (from 0.988 to 0.988 at +0), none | 0.988, 0.00 | 17.84, 26
+0,32,0 | cut | 6 | -0.001 (from 0.988 to 0.989 at +0), none | 0.991, -0.18 | 18.72, 8
+0.015625,32,0 | idle | 0 | 0.000 (from 0.988 to 0.988 at +0), none | 0.988, 0.00 | 17.58, 0
+0.015625,32,0 | start | 34 | 0.081 (from 1.000 to 0.919 at +6), >60 | 0.975, 3.76 | 18.60, 3
+0.015625,32,0 | off | 0 | 0.000 (from 0.988 to 0.988 at +0), none | 0.988, 0.00 | 17.98, 32
+0.015625,32,0 | on | 1 | 0.004 (from 0.988 to 0.984 at +21), >60 | 0.984, 0.17 | 18.06, 23
+0.015625,32,0 | cut | 3 | -0.001 (from 0.986 to 0.987 at +0), none | 0.988, -0.11 | 18.93, 17
+0.03125,32,0 | idle | 0 | 0.000 (from 0.988 to 0.988 at +0), none | 0.988, 0.00 | 17.62, 0
+0.03125,32,0 | start | 32 | 0.084 (from 1.000 to 0.916 at +6), >60 | 0.974, 3.93 | 18.77, 3
+0.03125,32,0 | off | 0 | 0.000 (from 0.988 to 0.988 at +0), none | 0.988, 0.00 | 18.03, 23
+0.03125,32,0 | on | 1 | 0.005 (from 0.988 to 0.984 at +9), >60 | 0.984, 0.23 | 18.29, 25
+0.03125,32,0 | cut | 3 | -0.001 (from 0.988 to 0.988 at +0), none | 0.989, -0.10 | 19.12, 21
+0.0625,16,0 | idle | 0 | 0.000 (from 0.988 to 0.988 at +0), none | 0.988, 0.00 | 17.70, 0
+0.0625,16,0 | start | 45 | 0.093 (from 1.000 to 0.907 at +6), >60 | 0.976, 3.98 | 19.11, 3
+0.0625,16,0 | off | 8 | 0.013 (from 0.988 to 0.975 at +13), >60 | 0.979, 0.54 | 18.30, 11
+0.0625,16,0 | on | 21 | 0.018 (from 0.979 to 0.962 at +17), 44 | 0.979, 0.35 | 18.65, 12
+0.0625,16,0 | cut | 11 | 0.011 (from 0.986 to 0.975 at +15), >60 | 0.980, 0.43 | 20.32, 14
+0.0625,32,0 | idle | 0 | 0.000 (from 0.988 to 0.988 at +0), none | 0.988, 0.00 | 17.63, 0
+0.0625,32,0 | start | 35 | 0.092 (from 1.000 to 0.908 at +6), >60 | 0.973, 4.19 | 19.12, 3
+0.0625,32,0 | off | 8 | 0.013 (from 0.988 to 0.975 at +16), >60 | 0.980, 0.55 | 18.50, 16
+0.0625,32,0 | on | 9 | 0.008 (from 0.982 to 0.974 at +12), >60 | 0.980, 0.32 | 18.25, 20
+0.0625,32,0 | cut | 4 | 0.003 (from 0.987 to 0.984 at +8), >60 | 0.984, 0.14 | 20.58, 19
+0.0625,32,1 | idle | 0 | 0.000 (from 0.986 to 0.986 at +0), none | 0.986, 0.00 | 17.50, 0
+0.0625,32,1 | start | 43 | 0.091 (from 1.000 to 0.909 at +6), >60 | 0.974, 4.00 | 19.10, 3
+0.0625,32,1 | off | 1 | 0.004 (from 0.986 to 0.981 at +12), >60 | 0.981, 0.20 | 18.23, 18
+0.0625,32,1 | on | 12 | 0.014 (from 0.981 to 0.968 at +12), >60 | 0.976, 0.51 | 18.40, 10
+0.0625,32,1 | cut | 4 | 0.002 (from 0.986 to 0.984 at +8), >60 | 0.984, 0.10 | 20.35, 13
+cap+0.03125,32,0 | idle | 0 | 0.000 (from 0.986 to 0.986 at +0), none | 0.986, 0.00 | 17.48, 0
+cap+0.03125,32,0 | start | 31 | 0.086 (from 1.000 to 0.914 at +6), >60 | 0.973, 4.03 | 18.84, 3
+cap+0.03125,32,0 | off | 0 | 0.000 (from 0.986 to 0.986 at +0), none | 0.986, 0.00 | 17.96, 30
+cap+0.03125,32,0 | on | 1 | 0.004 (from 0.986 to 0.982 at +16), >60 | 0.982, 0.18 | 18.16, 29
+cap+0.03125,32,0 | cut | 3 | -0.001 (from 0.986 to 0.987 at +0), none | 0.988, -0.12 | 19.68, 38
+cap+0.0625,32,0 | idle | 3 | 0.000 (from 0.984 to 0.984 at +0), none | 0.986, -0.10 | 17.56, 0
+cap+0.0625,32,0 | start | 34 | 0.092 (from 1.000 to 0.908 at +6), >60 | 0.970, 4.30 | 19.16, 3
+cap+0.0625,32,0 | off | 5 | 0.009 (from 0.986 to 0.978 at +20), >60 | 0.980, 0.34 | 18.22, 21
+cap+0.0625,32,0 | on | 6 | 0.009 (from 0.980 to 0.971 at +11), >60 | 0.975, 0.40 | 18.41, 21
+cap+0.0625,32,0 | cut | 11 | 0.011 (from 0.987 to 0.976 at +16), >60 | 0.980, 0.47 | 19.55, 16
+cap+0.0625,32,0,0 | idle | 0 | 0.000 (from 0.985 to 0.985 at +0), none | 0.985, 0.00 | 17.53, 0
+cap+0.0625,32,0,0 | start | 32 | 0.093 (from 1.000 to 0.907 at +6), >60 | 0.972, 4.30 | 19.12, 3
+cap+0.0625,32,0,0 | off | 0 | 0.000 (from 0.985 to 0.985 at +0), none | 0.985, 0.00 | 17.64, 13
+cap+0.0625,32,0,0 | on | 0 | 0.000 (from 0.985 to 0.985 at +0), none | 0.985, 0.00 | 18.17, 28
+cap+0.0625,32,0,0 | cut | 5 | 0.007 (from 0.987 to 0.980 at +9), >60 | 0.980, 0.34 | 19.86, 28
+cap | idle | 0 | 0.000 (from 0.995 to 0.995 at +0), none | 0.995, 0.00 | 17.38, 0
+cap | start | 57 | 0.231 (from 1.000 to 0.769 at +9), >60 | 0.967, 7.42 | 26.57, 5
+cap | off | 0 | 0.000 (from 0.995 to 0.995 at +0), none | 0.995, 0.00 | 17.74, 25
+cap | on | 0 | 0.000 (from 0.995 to 0.995 at +0), none | 0.995, 0.00 | 18.27, 30
+cap | cut | 58 | 0.140 (from 0.993 to 0.853 at +9), >60 | 0.986, 3.47 | 27.65, 8
