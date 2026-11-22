@@ -115,7 +115,8 @@ def measure(folder, frames, prefix):
     W, H, L, B = 1300, 520, 70, 50
     im = Image.new('RGB', (W, H), 'white')
     d = ImageDraw.Draw(im)
-    top = max(max(r[3], r[4]) for r in rows) * 1.05
+    # The axis reaches at least the threshold, so that a ramp without a leak still draws the line of LEAK.
+    top = max(LEAK, max(max(r[3], r[4]) for r in rows)) * 1.05
     x = lambda w: L + (w - 960) / 960 * (W - L - 20)
     y = lambda v: 30 + (top - v) / top * (H - 30 - B)
     for v in np.arange(0, top, 0.05):
