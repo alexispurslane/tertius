@@ -115,3 +115,9 @@ Two designs with what the user gets and what each costs, with pictures, for the 
 The wobble's fix `ter-qt72`. The speck cloud on the ceiling, `ter-fe63`. The other faults of `t58-i3sn` (the specks per box at a render scale near 1), which stay with that ticket.
 
 
+
+## Notes
+
+**2026-11-22T20:26:52Z**
+
+2026-11-22, the line orchestrator. Step 1 is launched as a continuation of the research take's lead, in its own worktree, because the disk allows no new worktree with a full build (27 GiB free, 30 needed). Child thread: thread:delegated-task:command%3Amcp%3A1606afbd-dec8-4bf8-a33c-bc8fce97f948%3Adelegate-task%3Aslabs-3-t1-r9vj-lead-1. taskId of the continuation: node:delegated-task:command%3Amcp%3A34861019-e8fc-4982-9f60-62510de9c334%3Athread-send%3Aslabs-3-continue-t1-gout-step1. clientRequestId: slabs-3-continue-t1-gout-step1. Target as before: claudeAgent, claude-opus-5-5, effort high. Worktree /Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7, branch t3/fade-lit-front-trace, fast-forwarded to main d1e0349b8. No reviewer stage: step 1 changes no engine code, and the line orchestrator inspects the record. Cloud money: $0.20. One choice of mine in the brief: the red test runs without a GPU if the cause needs only the map's depths and the lookup's comparisons, and through the real pass and shader if it needs the rasterizer's own depth bias. It is committed skipped, with t1-gout as the reason.
