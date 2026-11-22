@@ -211,8 +211,22 @@ public sealed class RenderScaleTests
     {
         UpscalingSetting setting = new Fsr3Upscaling(new FrameTimeTarget(16, 0.8f, 0.85f), 0);
 
-        setting.Supports(new(1919, 1080)).Should().BeFalse("1919 × 1080 has no size from 0.8 to 0.85");
-        setting.SnapOutput(new(1919, 1080)).Should().Be(new Extent2D(1920, 1080));
+        setting.Supports(new(1013, 1012)).Should().BeFalse("1013 × 1012 has no size from 0.8 to 0.85");
+        setting
+            .SnapOutput(new(1013, 1012))
+            .Should()
+            .Be(new Extent2D(1020, 1020), "the grid grows to 20 px, the first with two sizes: 16/20 and 17/20");
+    }
+
+    [Fact]
+    public void LimitsTooCloseForTwoSizesOfAnyWindowAreReported()
+    {
+        // Two sizes 1/q apart cannot both lie within one float of 0.5 for any grid q up to 65,536 px.
+        UpscalingSetting setting = new Fsr3Upscaling(new FrameTimeTarget(16, 0.5f, MathF.BitIncrement(0.5f)), 0);
+
+        Action snap = () => setting.SnapOutput(new(1919, 1080));
+
+        snap.Should().Throw<NotSupportedException>().WithMessage("*65,536 px*");
     }
 
     [Fact]

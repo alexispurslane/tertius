@@ -177,7 +177,7 @@ public readonly partial struct UpscalingSetting
     private uint SizesInside(uint divisor)
     {
         (uint first, uint last) = Steps(divisor);
-        return first <= last ? last - first + 1 : 0;
+        return last + 1 - first;
     }
 
     /// <summary>

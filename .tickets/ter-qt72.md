@@ -362,3 +362,53 @@ The residual of step 1's film, for this audit: its cause is found, and the quest
 - So nothing of the residual is left on these edges for the exact-ratio sizes to remove, beyond that per-size offset. Step 2 rests on the user's decisions of 2026-11-05 and on correctness: square render pixels for every pass, exact-ratio sizes, and the realized feedback. Its film is a check that nothing got worse, not a visible gain, unless its numbers show one.
 
 After step 2 every render size of a 16:9 window has the output's exact ratio, so the jamb leak of t1-gout cannot show through the size.
+
+Step 2's runs:
+
+- Checked, on e60d6c937's code: `nix develop --command bash -c 'bash tools/test-all.sh -c Checked'`, 0 failures in all 8 modules (Rendering 3,377 tests, 10 skipped). The five walk classes of ter-186q ran in it on the merged code with no failure. The hook of 924820e5f ran all of Rendering again: 3,383 tests, 0 failed.
+- Release, on e60d6c937: `bash tools/test-all.sh -c Release`, 0 failures in all 8 modules (Rendering 3,376 tests, 10 skipped).
+- Linux: one cloud CPU job (94ae5781-3f56-4b48-acc9-697e20793c31-u2, 700 s, $0.0154) ran `lavapipe-tests.sh` with CLASS_STEMS "RenderScaleTests UpscalingRenderTests OutputFramingRenderTests OutputCameraTests KeyAndFillRenderTests EnvironmentBoxRenderTests" on Mesa 26.2.4 lavapipe (llvmpipe, LLVM 21.1.8) at e60d6c937: 186 tests, 0 failed, 0 skipped.
+- Mutants: `tools/mutate.py` with 34 listed mutants of the changed lines (`mutants-step2.json`, `mutate-step2/`), then 15 rewritten or still-alive ones after the hardening commit 924820e5f (`mutants-step2b.json`, `mutate-step2b/`). In round 1, 7 mutants failed to build: an analyzer refused an unused value, an unreachable loop or an `int` in a `uint`, and one build lost its Nix store path to the garbage collection. Round 2 rewrote them so that they compile.
+
+| id | place | change | result |
+|---|---|---|---|
+| S01 | UpscalingSetting.RenderExtent | one step above the upper limit | killed by EveryActiveSizeHasExactlyTheOutputsAspectInsideTheScaleLimits |
+| S02 | RenderExtent | always the largest step | round 2 killed by ARequestBelowTheLimitsDrawsTheSmallestSizeInsideThem |
+| S03 | RenderExtent | the height rounds on its own | killed by AFixedScaleDrawsAnOutputWithOneSizeInsideItsLimits |
+| S04 | OutputProblem | a zero height counts as drawable | killed by AMinimizedWindowKeepsItsEmptySize |
+| S05 | SnapOutput | an empty window snaps to the grid | killed by AMinimizedWindowKeepsItsEmptySize |
+| S06 | SnapOutput | the grid starts at 1 px | survived, then killed by the new AWindowOfAFixedScaleSnapsToTheGridOf8SoThatItsScaleIsAnEighth |
+| S07 | SnapOutput | the grid never grows past 8 | survived round 2: its test's snap gave the same size on both grids. The test now snaps 1013 × 1012 to 1020 × 1020 on a grid of 20 px; round 3 below |
+| S08 | ScaleLimits | a fixed scale must be met exactly | killed by AFixedScaleDrawsAnOutputWithOneSizeInsideItsLimits |
+| S09 | ScaleLimits | a fixed scale may be exceeded | round 2 killed by AFixedOutputWithNoActiveSizeInsideTheScaleLimitsIsRefused |
+| S10 | ScaleLimits | a target ignores its own limits | round 2 killed by EveryActiveSizeHasExactlyTheOutputsAspectInsideTheScaleLimits |
+| S11 | SizesNeeded | a time target settles for two sizes | round 2 killed by AWindowOfATimeTargetHasAtLeastAsManySizesAsTheEighthsInsideItsLimits |
+| S12 | SizesNeeded | no floor of two sizes | survived, then killed by the new ATargetWithNoEighthInsideItsLimitsStillNeedsTwoSizes |
+| S13 | Steps | the first step from the floor | survived, then killed by the new ARequestBelowTheLimitsDrawsTheSmallestSizeInsideThem |
+| S14 | Steps | no step down to a first step whose float is the limit | survived, then killed by the new ALowerLimitThatIsTheFloatOfAStepAdmitsThatStep |
+| S15 | Steps | no step up of the first step | survived. Removed with its loop: the ceiling of the exact double product never needs a step up (the comment in Steps) |
+| S16 | StepsAtMost | the ceiling of the request | survived (the step-down loop undid it), then killed once that loop was removed |
+| S17 | StepsAtMost | no step up to a step whose float is the scale | survived, then killed by the new AScaleThatIsTheFloatOfAStepDrawsThatStep |
+| S18 | StepsAtMost | no step down of the largest step | survived. Removed with its loop: the floor of the exact double product never needs a step down |
+| S19 | Divisor | `/` for `%` | timeout: the loop never ends, which the test run's limit catches |
+| S20 | Snapped | snapping rounds down | killed by AWindowOfATimeTargetSnapsRatherThanKeepNativeAsItsOnlyChoice |
+| S21 | Snapped | a narrow axis snaps to 0 | survived, then killed by the new row 3 × 1080 → 8 × 1080 |
+| S22 | RenderScaleController.Drew | NaN passes the guard | killed by ADrawAtAScaleOutsideTheLimitsIsRefused |
+| S23 | Drew | records the request | killed by TheDelayedTimingsOfADrawCountTheScaleThatTheDrawRealized and DelayedGpuFeedbackCountsTheScaleThatWasDrawn |
+| S24 | Fsr3Upscaler.AllocationSize | a shorter side of 1 | killed by FsrPadsOnlyItsAllocationToALongerSideOf64AndAShorterOf2 |
+| S25 | AllocationSize | no minimum height | killed by the same test |
+| S26 | VulkanRenderer.CreateOffscreen | checks the setting before the headless 2/3 | killed by ASmallHeadlessOutputDrawsTheLargestExactRatioSizeAtOrBelowTheDefaultScale |
+| S27 | CreateOffscreen | no check at creation | killed by AHeadlessOutputWithNoActiveSizeInsideTheScaleLimitsIsRefused |
+| S28 | Resize | a headless resize goes unchecked | killed by AHeadlessResizeToAnOutputWithNoActiveSizeInsideTheScaleLimitsIsRefused |
+| S29 | CommitDrawnFrame | records the request | killed by DelayedGpuFeedbackCountsTheScaleThatWasDrawn |
+| S30 | ApplyPendingResize | resizes the targets at any nonzero output | survived. Judgment call: only a window's swapchain reports an undrawable nonzero size after a resize, because every renderer without a window refuses one at `Resize`, and no suite test opens a window |
+| S31 | SizesNeeded | a single-scale target needs the eighths too | round 2 killed by ANativeOnlySettingKeepsEveryWindowSizeAsItIs |
+| S32 | SizesInside | no test of an empty range | survived twice. Equivalent: the first step exceeds the last by at most one, because the ceiling of the lower limit's product is at most one above the floor of the upper one. The code now returns `last + 1 - first`, and the mutant is gone |
+| S33 | CreateTargets | the targets take the surface's size | killed by AWindowWhoseSurfaceStartsAtASizeItCannotDrawStartsAndDrawsOnceItHasOne |
+| S34 | AllocationSize | always pads the width to 64 | round 2 killed by FsrPadsOnlyItsAllocationToALongerSideOf64AndAShorterOf2 |
+
+- Coverage: `dotnet test --project tests/Tertius.Rendering.Tests -c Checked --coverage --coverage-output-format cobertura` with RenderScaleTests, UpscalingRenderTests, OutputFramingRenderTests, OutputCameraTests, KeyAndFillRenderTests and EnvironmentBoxRenderTests (192 passed), then `python3 tools/coverage/changed-lines.py --base ac5f23915`: 87 of 130 changed lines, 59 of 74 branches. What is not covered:
+  - `CreateForWindow`, `FitWindow`, the framebuffer handler and the swapchain gate: 38 lines. Only a real window reaches them, and no suite test opens one. The real-window probe ran them (above).
+  - The report of limits too close for any window: now covered by the new LimitsTooCloseForTwoSizesOfAnyWindowAreReported.
+  - `ScaleLimits`' throw for an FSR setting without a scale source: unreachable, because `CheckOptions` refuses that setting first.
+  - The failing branches of two contracts.
