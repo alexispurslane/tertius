@@ -2000,13 +2000,12 @@ public sealed unsafe class VulkanRenderer : IRenderer
         // The targets take only an output that the upscaling can draw (UpscalingSetting.Supports). A window whose surface
         // has another size or none, still fitting or minimized, gets the nearest such size until its first image
         // (MatchTargetsTo).
-        Extent2D extent = upscaling.SnapOutput(new(Math.Max(output.Extent.Width, 1), Math.Max(output.Extent.Height, 1)));
         return Own(
             new RenderTargets(
                 device: device,
                 allocator: Allocator,
                 layouts: layouts,
-                extent: extent,
+                extent: upscaling.SnapOutput(new(Math.Max(output.Extent.Width, 1), Math.Max(output.Extent.Height, 1))),
                 glowLevels: GlowLevelsOf(options.Bloom),
                 upscaling: upscaling,
                 depthPyramid: options.ScreenTrace is ScreenTrace,

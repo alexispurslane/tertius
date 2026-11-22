@@ -88,6 +88,7 @@ public sealed class RenderScaleTests
     [InlineData(361, 641, 360, 640)]
     [InlineData(1918, 1080, 1920, 1080)] // 959:540 has one size from 0.5 to 0.9, and a time target needs the four eighths
     [InlineData(7, 5, 8, 8)]
+    [InlineData(3, 1080, 8, 1080)] // a narrow axis snaps up to the grid, not down to nothing
     public void AWindowSnapsToTheNearestOutputThatHasActiveSizesAndKeepsOneThatHas(
         int width,
         int height,
@@ -193,6 +194,51 @@ public sealed class RenderScaleTests
             .AllocationSize(new((uint)width, (uint)height))
             .Should()
             .Be(new Extent2D((uint)allocatedWidth, (uint)allocatedHeight));
+
+    [Fact]
+    public void AWindowOfAFixedScaleSnapsToTheGridOf8SoThatItsScaleIsAnEighth()
+    {
+        UpscalingSetting setting = new Fsr3Upscaling(new FixedRenderScale(0.75f), 0);
+
+        Extent2D output = setting.SnapOutput(new(1919, 1081));
+
+        output.Should().Be(new Extent2D(1920, 1080), "a grid of 2 would give 1920 × 1082, with 0.5 as its only size");
+        setting.RenderExtent(output, 0.75f).Should().Be(new Extent2D(1440, 810));
+    }
+
+    [Fact]
+    public void ATargetWithNoEighthInsideItsLimitsStillNeedsTwoSizes()
+    {
+        UpscalingSetting setting = new Fsr3Upscaling(new FrameTimeTarget(16, 0.8f, 0.85f), 0);
+
+        setting.Supports(new(1919, 1080)).Should().BeFalse("1919 × 1080 has no size from 0.8 to 0.85");
+        setting.SnapOutput(new(1919, 1080)).Should().Be(new Extent2D(1920, 1080));
+    }
+
+    [Fact]
+    public void ARequestBelowTheLimitsDrawsTheSmallestSizeInsideThem()
+    {
+        // 45 × 27 has 9 steps of 5 × 3, and 0.5 of 9 is 4.5, so the smallest size inside the limits is 5 steps.
+        Dynamic.RenderExtent(new(45, 27), 0.3f).Should().Be(new Extent2D(25, 15));
+    }
+
+    [Fact]
+    public void ALowerLimitThatIsTheFloatOfAStepAdmitsThatStep()
+    {
+        // 0.6f lies above 0.6, and 72 of 120 rounds to 0.6f, so 72 steps lie inside the limits.
+        UpscalingSetting setting = new Fsr3Upscaling(new FrameTimeTarget(16, 0.6f, 1), 0);
+
+        setting.RenderExtent(new(1920, 1080), 0.5f).Should().Be(new Extent2D(1152, 648));
+    }
+
+    [Fact]
+    public void AScaleThatIsTheFloatOfAStepDrawsThatStep()
+    {
+        // 0.7f lies below 0.7, and 84 of 120 rounds to 0.7f, so 84 steps lie at or below the scale.
+        UpscalingSetting setting = new Fsr3Upscaling(new FixedRenderScale(0.7f), 0);
+
+        setting.RenderExtent(new(1920, 1080), 0.7f).Should().Be(new Extent2D(1344, 756));
+    }
 
     [Fact]
     public void TheDelayedTimingsOfADrawCountTheScaleThatTheDrawRealized()

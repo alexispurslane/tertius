@@ -180,17 +180,20 @@ public readonly partial struct UpscalingSetting
         return first <= last ? last - first + 1 : 0;
     }
 
-    /// <summary>The fewest and the most steps of an output with <paramref name="divisor"/> steps that lie inside the
-    /// scale limits. The first exceeds the last when none does.</summary>
+    /// <summary>
+    /// The fewest and the most steps of an output with <paramref name="divisor"/> steps whose realized scale lies
+    /// inside the limits. The first exceeds the last, by one, when none does.
+    /// </summary>
     private (uint First, uint Last) Steps(uint divisor)
     {
         (float smallest, float largest) = ScaleLimits;
         uint last = StepsAtMost(largest, divisor);
+        // The product of a float and a divisor below 2^24 is exact in double, so the ceiling's ratio is at least the
+        // limit and rounds to a float at least as large. A ratio just below the limit can round up to it, as 72 of 120
+        // does to 0.6f, which lies above 0.6: such a step also counts.
         uint first = Math.Max(1, (uint)Math.Ceiling(smallest * (double)divisor));
         while (first > 1 && Realized(first - 1, divisor) >= smallest)
             first--;
-        while (first <= last && Realized(first, divisor) < smallest)
-            first++;
         return (first, last);
     }
 
@@ -198,11 +201,11 @@ public readonly partial struct UpscalingSetting
     /// <paramref name="scale"/>.</summary>
     private static uint StepsAtMost(float scale, uint divisor)
     {
+        // As in Steps: the floor's ratio rounds to at most the scale, and a ratio just above the scale can round down
+        // to it, as 84 of 120 does to 0.7f, which lies below 0.7: such a step also counts.
         uint steps = (uint)Math.Clamp(Math.Floor(scale * (double)divisor), 0, divisor);
         while (steps < divisor && Realized(steps + 1, divisor) <= scale)
             steps++;
-        while (steps > 0 && Realized(steps, divisor) > scale)
-            steps--;
         return steps;
     }
 
