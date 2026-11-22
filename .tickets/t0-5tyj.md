@@ -118,3 +118,7 @@ Acceptance of this ticket: the record with its pictures and tables, the probe pa
 **2026-11-22T11:15:02Z**
 
 Launch (line orchestrator, 2026-11-22). The room's lead continues as the acceptance lead in its thread thread:delegated-task:command%3Amcp%3A8450ae50-a640-49ce-ab14-e0397e6a826d%3Adelegate-task%3Adesign-x-line-t0-xlcu-lead-1, clientRequestId design-x-line-t0-5tyj-acceptance-takes, run ordinal 14, worktree /Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144, branch t3/measure-regional-lag-tolerance, from the line's head 57b4045ae. Cloud budget 1.50 dollars. Step 0 is the probe patch fix of tc-w3c0.
+
+**2026-11-22T13:43:48Z**
+
+From the parent orchestrator, 2026-11-22 (recorded by the line orchestrator). (1) The user looked at the stills table and wrote: "I think Design X is strictly better, since the 'worse' captures aren't visibly worse to me either." So the 18 stills that score worse do not count against Design X and need no more work. (2) The user decided to merge the back-face layer into main. The combined check t0-gbgj starts only on the parent's word, with main's new commit. (3) One more take in this record, for the merge decision: the region's test under the dynamic render scale (t4f-71qp). The switch cabin with the dynamic scale on, the render size of every draw, the test's fires after each switch, and the draws to settle beside the fixed-scale X, X0 and M. Sent to the acceptance lead as a steer, clientRequestId design-x-line-t0-5tyj-steer-dynamic-scale.
