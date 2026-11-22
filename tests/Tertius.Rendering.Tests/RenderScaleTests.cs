@@ -61,7 +61,13 @@ public sealed class RenderScaleTests
 
             ((ulong)active.Width * (uint)height)
                 .Should()
-                .Be((ulong)active.Height * (uint)width, "{0} × {1} at {2} has the output's ratio", width, height, scale);
+                .Be(
+                    (ulong)active.Height * (uint)width,
+                    "{0} × {1} at {2} has the output's ratio",
+                    width,
+                    height,
+                    scale
+                );
             (active.Width / (float)width).Should().BeInRange(0.5f, 0.9f, "the limits hold at a request of {0}", scale);
         }
     }
@@ -230,11 +236,9 @@ public sealed class RenderScaleTests
     }
 
     [Fact]
-    public void ARequestBelowTheLimitsDrawsTheSmallestSizeInsideThem()
-    {
+    public void ARequestBelowTheLimitsDrawsTheSmallestSizeInsideThem() =>
         // 45 × 27 has 9 steps of 5 × 3, and 0.5 of 9 is 4.5, so the smallest size inside the limits is 5 steps.
         Dynamic.RenderExtent(new(45, 27), 0.3f).Should().Be(new Extent2D(25, 15));
-    }
 
     [Fact]
     public void ALowerLimitThatIsTheFloatOfAStepAdmitsThatStep()

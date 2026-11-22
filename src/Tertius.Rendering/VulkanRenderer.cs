@@ -1995,12 +1995,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <summary>
     /// The render-sized images and output-sized post images of <paramref name="options"/>, owned by the renderer.
     /// </summary>
-    private RenderTargets CreateTargets(RendererOptions options)
-    {
+    private RenderTargets CreateTargets(RendererOptions options) =>
         // The targets take only an output that the upscaling can draw (UpscalingSetting.Supports). A window whose surface
         // has another size or none, still fitting or minimized, gets the nearest such size until its first image
         // (MatchTargetsTo).
-        return Own(
+        Own(
             new RenderTargets(
                 device: device,
                 allocator: Allocator,
@@ -2012,7 +2011,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 subsurface: options.Subsurface is SeparableSubsurface
             )
         );
-    }
 
     /// <summary>
     /// The images and tile records of key and fill that <paramref name="setting"/> asks for, which the renderer owns, or

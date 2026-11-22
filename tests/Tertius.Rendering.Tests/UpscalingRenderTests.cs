@@ -90,7 +90,15 @@ public sealed class UpscalingRenderTests
         // 1919 × 1079 has no common factor, so its only exact-ratio size is native, above the fixed 2/3.
         Action create = () =>
             VulkanRenderer
-                .CreateHeadless(new() { Width = 1919, Height = 1079, Validation = true, WarmUpFrames = 0 })
+                .CreateHeadless(
+                    new()
+                    {
+                        Width = 1919,
+                        Height = 1079,
+                        Validation = true,
+                        WarmUpFrames = 0,
+                    }
+                )
                 .Dispose();
 
         create.Should().Throw<ArgumentOutOfRangeException>().WithMessage("*1919 × 1079*");
@@ -118,7 +126,12 @@ public sealed class UpscalingRenderTests
     [InlineData(64, 64, 42, 42)]
     [InlineData(6, 4, 3, 2)]
     [InlineData(2, 2, 1, 1)]
-    public void ASmallHeadlessOutputDrawsTheLargestExactRatioSizeAtOrBelowTheDefaultScale(int width, int height, int renderWidth, int renderHeight)
+    public void ASmallHeadlessOutputDrawsTheLargestExactRatioSizeAtOrBelowTheDefaultScale(
+        int width,
+        int height,
+        int renderWidth,
+        int renderHeight
+    )
     {
         var renderer = VulkanRenderer.CreateHeadless(
             new()
@@ -474,8 +487,10 @@ public sealed class UpscalingRenderTests
                 WarmUpFrames = 0,
             },
             createOutput: createOutput
-                ?? ((device, allocator, extent) =>
-                    new HeadlessTarget(device: device, allocator: allocator, extent: extent, bgra: false)),
+                ?? (
+                    (device, allocator, extent) =>
+                        new HeadlessTarget(device: device, allocator: allocator, extent: extent, bgra: false)
+                ),
             headless: false
         );
 
