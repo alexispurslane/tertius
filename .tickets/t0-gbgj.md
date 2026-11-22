@@ -122,3 +122,7 @@ Per-region table of the fair cabin switch at 2/3 from the combined check's lead,
 **2026-11-22T18:07:58Z**
 
 2026-11-22: added take for the combined check's lead: the cabin's settled lamps-on frame on M2 at fixed scales from 0.50 to 1.0 in steps of 0.05, plus 0.70 and 0.956, and on X2 at 0.70 and 0.956, with the jamb crop's mean per size. Reason: on the code without the layer the sun leaks onto the jambs at 0.70 and 0.956 only (see t0-5tyj), and the layer's cure is measured at 0.956 alone.
+
+**2026-11-22T18:08:38Z**
+
+2026-11-22: the sweep in steps of 0.05 is replaced by the acceptance lead's size ramp over every render size (see t0-5tyj). The combined check's lead runs it on M2 with its m2r build and on X2 with one more small build with the replay patch.
