@@ -98,3 +98,7 @@ Early result of the combined check lead, 2026-11-22: motion measured per frame i
 **2026-11-22T17:27:05Z**
 
 2026-11-22: the probe's glow change is passed to the combined check's lead (commits 68239c0af and a01ec40d0 on t3/measure-regional-lag-tolerance). It builds M2 with main's version of the patch first and tells me, because I bring that file to main after its build. Then the fair cabin switch at 2/3 and the jamb frames after the switch on M2 and X2.
+
+**2026-11-22T17:28:10Z**
+
+Blocker, 2026-11-22: the disk has 37 GiB free, under the orchestrator's limit of 40 GiB for a new build (57 this morning, 47 at 11:08, 43 at 11:45). The combined check's lead stopped before its two builds with the new probe. Without a build it checked on a temporary index that main's version of the probe patch applies to main 284025851 as it is, and that the line's version applies to the merged head a7e373197 with the one known fit (the Count hunk reads 12 to 14). The line's own scratch data is about 7.5 GiB (3.2 in /private/tmp/t0-5tyj, 1.7 in /private/tmp/t0-gbgj, and three worktrees), so deleting it would not reach 40 and would destroy evidence. I passed the question up with two options: free the disk to 40 GiB, or allow the two builds below 40 with a measured peak and a floor. I did not lift the limit.
