@@ -24,3 +24,7 @@ The rounding of the entry's w scales with the ray's start w, not with the slab's
 **2026-11-22T13:53:36Z**
 
 2026-11-22, the line orchestrator. This bug and ter-186q are one class: the walk derives the ray's inverse depth at a solved entry again from s, with a rounding larger than a thin slab. One ticket lead fixes both in the walk. The design is the note of 2026-11-22 in ter-186q.
+
+**2026-11-22T13:55:46Z**
+
+2026-11-22, the line orchestrator. The lead of ter-186q fixes this ticket too. Its task and thread are in ter-186q's note of today.

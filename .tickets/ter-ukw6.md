@@ -43,3 +43,7 @@ The measurement has two parts, each as before against after, with stage 1b's hit
 The result says, per part: the count and the light of class 0 and class 1 before and after, the share of the glow area's bright reflection light that is false, and what an eye sees in the two stills. Then one of two ends. If the false hits are gone or near 0 in both parts, the ticket closes with the numbers and the stills. If some stay, the record names them: where they lie, how bright they are, and which rays make them. A fix is another ticket.
 
 Deliverables: docs/research/back-face-depth-layer/sill-hits-on-main.md with the numbers, the commands and two to four crops as PNG files beside it, and a note in this ticket. The census stays a patch. Out of scope: the older follow-ups of t0-adau (the robust reference, guiding of the rough reflection rays).
+
+**2026-11-22T13:55:46Z**
+
+2026-11-22, the line orchestrator. The ticket lead is launched. taskId and child thread: node/thread:delegated-task:command%3Amcp%3A74ca186e-009d-4ae5-9d02-543595124443%3Adelegate-task%3Aslabs-1-ter-ukw6-lead-1. clientRequestId: slabs-1-ter-ukw6-lead-1. Target: claudeAgent, claude-opus-5-5, effort high, role implementation, isolation worktree. Base and review base: main 821481a5c. No cloud money. No reviewer stage: the ticket adds documents and tools only.

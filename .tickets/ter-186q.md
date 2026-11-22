@@ -76,3 +76,7 @@ walkScreen keeps a local for the inverse depth at s (a name such as sW) beside s
 - ARCHITECTURE.md, 'The screen tracer', says what the walk stores.
 
 Out of scope: the one-image pyramid (ter-y3k4), the miss's closed form, and any change of the pyramid's build.
+
+**2026-11-22T13:55:46Z**
+
+2026-11-22, the line orchestrator. One ticket lead is launched for this ticket and t53-eyrv. taskId and child thread: node/thread:delegated-task:command%3Amcp%3A74ca186e-009d-4ae5-9d02-543595124443%3Adelegate-task%3Aslabs-2-ter-186q-t53-eyrv-lead-1. clientRequestId: slabs-2-ter-186q-t53-eyrv-lead-1. Target: claudeAgent, claude-opus-5-5, effort high, role implementation, isolation worktree. Its reviewer: the same target, role review. Base and review base: main 821481a5c. Cloud money: $0.35.
