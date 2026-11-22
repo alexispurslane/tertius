@@ -11,5 +11,7 @@ for arg in sys.argv[1:]:
     label, folder = arg.split('=', 1)
     for p in sorted(Path(folder, 'results', 'switch').glob('*.json')):
         r = json.loads(p.read_text())
-        print(f"{p.stem:14s} {label:10s} {r['offDraws']:5d} {r['onDraws']:5d} {r['offDrawsWhole']:10d} {r['onDrawsWhole']:9d} "
+        # A region that does not settle within its window has no draw count: "none".
+        d = {k: 'none' if r[k] is None else str(r[k]) for k in ('offDraws', 'onDraws', 'offDrawsWhole', 'onDrawsWhole')}
+        print(f"{p.stem:14s} {label:10s} {d['offDraws']:>5s} {d['onDraws']:>5s} {d['offDrawsWhole']:>10s} {d['onDrawsWhole']:>9s} "
               f"{r['change']:+8.4f}  {','.join(r['failed']) or '-'}")
