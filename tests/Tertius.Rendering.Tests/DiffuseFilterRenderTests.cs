@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using Silk.NET.Vulkan;
 using Tertius.Testing;
 
@@ -523,6 +524,107 @@ public sealed class DiffuseFilterRenderTests(ITestOutputHelper output)
             RetainedDeviationOf(renderer, sample)[Center]
                 .Should()
                 .BeApproximately(MathF.Sqrt(8f / 9), 0.01f, "the history's own samples deviate so");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// The private constructor of <see cref="DiffuseFilterKernel"/>, which the tests of the feedback step alone call: the
+    /// engine keeps only its two kernels, and no other dispatch count serves a caller.
+    /// </summary>
+    [UnsafeAccessor(UnsafeAccessorKind.Constructor)]
+    private static extern DiffuseFilterKernel NewKernel(int dispatches, string waveletShader, string feedbackShader);
+
+    /// <summary>
+    /// The thin kernel's feedback step alone, a kernel of one dispatch: that dispatch is also the last, so it writes
+    /// <see cref="DiffuseFilter.Filtered"/>, and a test reads there the deviation that the feedback step hands to the
+    /// next step.
+    /// </summary>
+    private static readonly DiffuseFilterKernel FeedbackStepAlone = NewKernel(
+        dispatches: 1,
+        waveletShader: DiffuseFilterKernel.Thin.WaveletShader,
+        feedbackShader: DiffuseFilterKernel.Thin.FeedbackShader
+    );
+
+    /// <summary>A box 10 m before the eye that hides the right half of the view, from its middle on.</summary>
+    private static readonly (Vector3 Center, float Turn, Vector3 Scale) RightHalfCover = (
+        new(10, 0, -10),
+        0,
+        new(20, 40, 1)
+    );
+
+    /// <summary>
+    /// The mature pixel at the edge of the left half: the pixel left of the center, whose three taps on the right lie in
+    /// the right half.
+    /// </summary>
+    private const int MatureEdge = Center - 1;
+
+    [Fact]
+    public void TheRetainedDeviationOfAMaturePixelTakesNothingFromItsYoungNeighbors()
+    {
+        // For 8 draws, a box hides the right half, and the left half's wall holds light 1 without noise. Then the box is
+        // gone: the left half holds a history of 9 samples, mature, and the right half a history of one sample of the
+        // checker of 0 and 2, young. A young history's estimate holds the light's own edges, so the store never takes it,
+        // also not through a mature pixel beside it.
+        (VulkanRenderer renderer, SamplePass sample, DiffuseFilter filter, RenderSnapshot scene) = Filtering(
+            filtered: true,
+            kernel: FeedbackStepAlone,
+            boxes: [Wall, RightHalfCover]
+        );
+        try
+        {
+            Func<int, int, Vector4> checker = Flicker(() => 0);
+            sample.Samples = (column, row) => column < Width / 2 ? new(Vector3.One, 1) : checker(column, row);
+            renderer.Render(scene, 1f);
+            Continue(renderer, scene, frames: 7);
+            scene.Instances.RemoveAt(1);
+
+            Continue(renderer, scene, frames: 1);
+
+            MathF
+                .Abs(renderer.ReadImage(filter.Filtered)[4 * MatureEdge + 3])
+                .Should()
+                .BeGreaterThan(0.19f, "the young taps' noise reached the mature pixel's sums");
+            RetainedDeviationOf(renderer, sample)[MatureEdge]
+                .Should()
+                .Be(0, "the pixel's own samples and those of its mature taps never deviated");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void TheDeviationThatAMaturePixelHandsToTheNextFilterStepCountsItsYoungNeighborsNoise()
+    {
+        // The scene of TheRetainedDeviationOfAMaturePixelTakesNothingFromItsYoungNeighbors. The mature pixel's own
+        // deviation and those of its mature taps are 0. Its three young taps on the right weigh 0.25 in all before their
+        // stops. Each one's young estimate is the spread of the luminances 1, 0 and 2 over its 7 × 7 window, raised by
+        // √(4 / 1) for a history of one sample, so it is more than 1, and the luminance stop between 1 and 0 or 2 is then
+        // more than exp(−1 / 4) ≈ 0.78. So the step hands on more than 0.19, about 0.37 on this Mac.
+        (VulkanRenderer renderer, SamplePass sample, DiffuseFilter filter, RenderSnapshot scene) = Filtering(
+            filtered: true,
+            kernel: FeedbackStepAlone,
+            boxes: [Wall, RightHalfCover]
+        );
+        try
+        {
+            Func<int, int, Vector4> checker = Flicker(() => 0);
+            sample.Samples = (column, row) => column < Width / 2 ? new(Vector3.One, 1) : checker(column, row);
+            renderer.Render(scene, 1f);
+            Continue(renderer, scene, frames: 7);
+            scene.Instances.RemoveAt(1);
+
+            Continue(renderer, scene, frames: 1);
+
+            renderer
+                .ReadImage(filter.Filtered)[4 * MatureEdge + 3]
+                .Should()
+                .BeGreaterThan(0.19f, "the step counts each young tap's noise by its share");
         }
         finally
         {

@@ -629,6 +629,47 @@ public sealed class AccumulatorRenderTests
         }
     }
 
+    [Fact]
+    public void APixelWhoseSurfaceLiesOnlyUnderTheFourthTexelOfItsLastPlaceKeepsThatTexelsHistory()
+    {
+        // A box 10 m ahead, before the wall, has its top left corner at the center of the view, where four pixels meet.
+        // For 8 draws it stands 0.9 pixels right of and below that, then it moves there. The point of the pixel right of
+        // and below the corner had its last place 0.9 pixels right of and below the pixel's center. Of the 2 × 2 texels
+        // around that place, the first three showed the wall 10 m behind, and only the fourth, at (+1, +1), showed the
+        // box. That texel holds the weight 0.9 × 0.9 and a history of 8 draws.
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
+        try
+        {
+            MeshId cube = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+            MaterialId paint = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.5f));
+            float pixelSize = 2 * 10 * MathF.Tan(Gpu.Fov / 2) / Height;
+            RenderInstance BoxShiftedBy(float pixels) =>
+                Gpu.Instance(
+                    mesh: cube,
+                    material: paint,
+                    position: new Vector3(3, -3, -10.5f) + pixels * pixelSize * new Vector3(1, -1, 0),
+                    scale: new(6, 6, 1),
+                    chainDepth: TestChains.CamerasFrame,
+                    entity: 2
+                );
+            scene.Instances.Add(BoxShiftedBy(0.9f));
+            sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
+            renderer.Render(scene, 1f);
+            Continue(renderer, scene, frames: 7);
+            scene.Instances[1] = BoxShiftedBy(0);
+
+            Continue(renderer, scene, frames: 1);
+
+            CenterOf(renderer, sample, part: 0)
+                .Length.Should()
+                .Be(9f, "the fourth texel's history of 8 draws goes on");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     [Theory]
     [InlineData(true, 0.05f, 20f, 8f)]
     [InlineData(true, 0.05f, 39f, 8f)]
