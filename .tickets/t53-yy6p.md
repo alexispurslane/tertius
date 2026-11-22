@@ -1,6 +1,6 @@
 ---
 id: t53-yy6p
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-22T00:18:59Z
@@ -22,3 +22,7 @@ Candidate causes, none checked: the walk's misses on slabs of no depth (t53-eyrv
 **2026-11-22T02:05:26Z**
 
 2026-11-21, t1-8b4w (the acceptance takes): the speckle is gone. The same script (scripts/rect-lamps.json, 1280 x 720, --exposure 3.341) ran on the Mac with main d8559eb58 and with the branch dd800356b. On both sides, the capture 'cabin' and the film's frame 239 show smooth grey reveals: no speckle and no bright strip, also at three times the contrast. The high-pass deviation of the reveals' luminance is 0.23 to 0.38 of 255 on both sides, equal to 0.01. The old crop's base had no fix of the sun's shadow leak (t8-rjno), so its speckle and strip most likely came from the leaked sunlight on the jambs. The crops are docs/research/back-face-depth-layer/acceptance-reveals.png and acceptance-reveals-contrast.png (top: the capture, bottom: frame 239, left: main, right: the branch). The record is docs/research/back-face-depth-layer/acceptance.md, point 1. The ticket can close.
+
+**2026-11-22T04:00:49Z**
+
+2026-11-21, the line orchestrator. Closed: the speckle is gone on main d8559eb58 and on the branch dd800356b (acceptance.md, point 1). It needed the base without the sun's shadow fix.
