@@ -7,7 +7,8 @@
 #   2. renders the scene's survey script (renderer-survey.py: walk_script of cabin-walk, or switch_script of the switch
 #      cabin with its lamps off from draw 193 to 393) as pictures: the default ACES curve and bloom, the probe's fixed
 #      exposure of 4.08 stops, 1920 x 1080, under the dynamic render scale FrameTimeTarget(<target>, 0.5, 1), with each
-#      draw's render size logged (out/<scene>-<side>-sizes);
+#      draw's render size logged (out/<scene>-<side>-sizes). It writes the PNGs of the video's frames only
+#      (TERTIUS_PROBE_KEEP, which needs TERTIUS_PROBE_SERIES; the series' numbers mean nothing under the ACES curve);
 #   3. encodes the video's frames into out/<scene>-<side>.mp4 and writes their region means (cloudvideo.py);
 #   4. runs the survey's own take of the scene (walk cabin-walk or switch cabin) at the same target, with the size log,
 #      for the settle draws (out-<side>/results).
@@ -31,8 +32,10 @@ Path(sys.argv[2]).write_text(json.dumps(script, indent=1))
 PY
 if [ "$scene" = switch ]; then
   lamps=(TERTIUS_PROBE_LAMP_SEL=z:-12:4 TERTIUS_PROBE_LAMP_OFF=193-393); part=switch; case=cabin
+  keep=$(for k in $(seq 140 459); do printf 'f-%06d,' $k; done)
 else
-  lamps=(); part=walk; case=cabin-walk
+  lamps=(TERTIUS_X_NONE=1); part=walk; case=cabin-walk
+  keep=$( (for k in $(seq 60 119); do printf 'g-%06d,' $k; done; for k in $(seq 0 199); do printf 'h-%06d,' $k; done) )
 fi
 for side in m x; do
   echo "$(date +%T) build $side"
@@ -45,10 +48,11 @@ done
 for side in m x; do
   echo "$(date +%T) render $side: $(uptime)"
   env "${lamps[@]}" TERTIUS_PROBE_EXPOSURE=4.08 TERTIUS_X_FRAME_TIME_TARGET=$target TERTIUS_X_SIZE_LOG=out/$scene-$side-sizes \
+    TERTIUS_PROBE_SERIES=frames-$side.series TERTIUS_PROBE_KEEP="$keep" \
     out-$side/probe-bin/Tertius.Demo --script out/script.json --headless --out frames-$side --size 1920x1080 > out/$scene-$side-run.log 2>&1
   echo "$(date +%T) render $side exit $?"
   python3 -I $D/tools/cloudvideo.py "$scene" frames-$side out/$scene-$side
-  rm -rf frames-$side
+  rm -rf frames-$side frames-$side.series
   echo "$(date +%T) survey $side"
   (cd x && TERTIUS_SURVEY_HOLDS_LOCK=1 TERTIUS_X_FRAME_TIME_TARGET=$target TERTIUS_X_SIZE_LOG=../out/$scene-$side-survey-sizes \
     python3 -I tools/renderer-survey.py run ../out-$side --parts $part --only $case --no-build 2>&1 | grep -v "^  " | tail -2)
