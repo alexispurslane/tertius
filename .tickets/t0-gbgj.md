@@ -213,3 +213,13 @@ No field-of-view switch exists, so the cheap form with window widths ran.
 Results: the back-face line's reading holds in its main point. A window whose own shape is off 16:9 by +0.45 % leaks with no dynamic scale, and it leaks the same on the fix's branch (equal to four decimals). So the ramp's zero on W means "hidden at 16:9", not "cured". The fix pins the aspect at the window's, and a window off 16:9 can sit on a tooth all the time. Against the predictions: 1792 and 1808 on the floor as predicted; 1816 above the floor and under the threshold, near a tooth as predicted; 1784 on the floor against the prediction of a tooth near -0.34 % (sizes between were not tested). The leak in the window (0.098 right) is weaker than at the same render size on the ramp (0.230), where FSR upscales 1800 x 1008 to 1920 x 1080.
 
 Tool defect, small: ramp.png scales its axis to the largest mean, so a ramp without a leak draws no threshold line (ramp-W.png ends near 0.05).
+
+**2026-11-22T19:28:17Z**
+
+The wobble's before and after on the Mac, first numbers from the combined check's lead, 2026-11-22. The fair cabin switch, one played-back size log on both builds (the card's log of the Design X side at the 10 ms target: 84 size changes in film frames 140 to 459, played back exactly on both). Before = m2r (main 284025851), run 14:19 to 14:22; after = W (the wobble fix's branch at 839bce1b5), run 14:22 to 14:26. Tool: the lead's copy of wobble.py from b53c037f1 with one change (it reads a PNG folder, scaled to 1280 x 720 with Lanczos).
+
+Measured, the distance between the two tracked window edges: before 1171.40 to 1190.93 px, a range of 19.53 px (1.65 % of the mean), correlation with (h/w)*16/9 +0.996, rms 0.425 px around the prediction against 4.801 px around the mean. After 1182.75 to 1185.44 px, a range of 2.68 px (0.23 %), correlation +0.167, rms 0.437 px around the mean. Noise floor between two draws of one size: 0.078 px before, 0.119 px after.
+
+Result so far: step 1 of the wobble's fix removes the part of the wobble that follows the rounded aspect (19.53 px to 2.68 px). A residual of about four times the noise floor stays and does not follow the aspect. I asked the lead what it follows (the render scale, the width, or the size-change draws). Still to come: the midpoint's spread, the level's jumps at size changes, the boil, the video.
+
+Disk: the lead freed 1,378 MiB (frames of the films rect-bay and bay-sunbeam on M2 and X2, of the three ramps and of the window test; their pictures and numbers are committed). The disk shows 28 GiB free. The wobble take's 640 frames (1.0 GiB) go when its video and numbers are committed.
