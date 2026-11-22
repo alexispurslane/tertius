@@ -768,8 +768,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
             snapshot: snapshot,
             alpha: alpha,
             highestStops: Exposure.HighestStops(frame: FrameNumber, step: pending.ExposureStep),
-            width: (int)pending.RenderSize.Width,
-            height: (int)pending.RenderSize.Height,
             meshes: geometry.Meshes,
             materials: materials.Infos,
             environment: environment,

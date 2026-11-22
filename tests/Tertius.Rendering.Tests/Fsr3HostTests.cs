@@ -588,6 +588,8 @@ public sealed class Fsr3HostTests
             FrameMilliseconds = golden.FrameMilliseconds,
             NearMeters = sequence.NearMeters,
             VerticalFov = golden.VerticalFov,
+            // AMD's host takes the projection's aspect from the render size, so its frames draw at that aspect.
+            Aspect = golden.RenderWidth / (float)golden.RenderHeight,
             Reset = golden.Reset,
         };
 

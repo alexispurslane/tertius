@@ -41,8 +41,6 @@ public sealed class BatcherMotionTests
             snapshot: snapshot,
             alpha: alpha,
             highestStops: Batchers.HighestStops,
-            width: Width,
-            height: Height,
             meshes: Meshes,
             materials: MaterialSlots.Of(8),
             environment: default,

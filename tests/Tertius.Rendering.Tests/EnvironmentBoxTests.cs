@@ -144,8 +144,6 @@ public sealed class EnvironmentBoxTests
                 snapshot: snapshot,
                 alpha: 1,
                 highestStops: Batchers.HighestStops,
-                width: 1600,
-                height: 900,
                 meshes: Meshes,
                 materials: MaterialSlots.Of(1),
                 environment: new WithMap(new FaceMask[maps], new IrradianceReading?[maps]),

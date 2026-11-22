@@ -42,8 +42,6 @@ public sealed class ShadowPassTests
                 snapshot: snapshot,
                 alpha: 1f,
                 highestStops: 0,
-                width: 1600,
-                height: 900,
                 meshes: Meshes,
                 materials: MaterialSlots.Of(1),
                 environment: new WithoutMap(),

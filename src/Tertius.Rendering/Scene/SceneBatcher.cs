@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using Silk.NET.Vulkan;
 
 namespace Tertius.Rendering;
 
@@ -93,8 +94,6 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     /// <param name="highestStops">
     /// The highest exposure, in stops, that the frame uses or its adapt step writes. Each light's reach ends at its cutoff.
     /// </param>
-    /// <param name="width">Output width in pixels.</param>
-    /// <param name="height">Output height in pixels.</param>
     /// <param name="meshes">Meshes that are on the GPU. Instances of <see cref="MeshId.None"/> and of other meshes are skipped.</param>
     /// <param name="materials">
     /// The material slots on the GPU, the default's first. <see cref="MaterialId.None"/> and ids that are not on the GPU
@@ -105,14 +104,15 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     /// maps are those of <paramref name="snapshot"/>'s chain (docs/plans/environment-maps-per-frame.md).
     /// </param>
     /// <param name="region">The deform region that this frame's deformed copies fill.</param>
-    /// <param name="frame">The draw's pending state: the batch joins its placement history and writes this frame's into it.</param>
+    /// <param name="frame">
+    /// The draw's pending state: the batch joins its placement history and writes this frame's into it. Its output size
+    /// gives the camera's aspect, and its render size the camera's pixel counts.
+    /// </param>
     /// <param name="scene">Receives the result.</param>
     public void Prepare(
         RenderSnapshot snapshot,
         float alpha,
         float highestStops,
-        int width,
-        int height,
         ReadOnlySpan<MeshInfo> meshes,
         ReadOnlySpan<MaterialInfo> materials,
         EnvironmentDraw environment,
@@ -123,7 +123,12 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     {
         alpha = ClampAlpha(alpha);
         scene.Reset();
-        scene.Camera = InterpolateCamera(snapshot: snapshot, alpha: alpha, width: width, height: height);
+        scene.Camera = InterpolateCamera(
+            snapshot: snapshot,
+            alpha: alpha,
+            renderSize: frame.RenderSize,
+            outputSize: frame.OutputSize
+        );
 
         // Before the placement, whose motion rows take the last frame's eye relative to this one.
         DrawnCamera camera = DrawnCameraOf(snapshot, scene.Camera);
@@ -213,14 +218,24 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         }
     }
 
-    private static CameraView InterpolateCamera(RenderSnapshot snapshot, float alpha, int width, int height)
+    /// <summary>
+    /// The camera of the draw. Its shape is the output's: the aspect comes from <paramref name="outputSize"/>, so that a
+    /// render size rounded on each axis on its own never stretches the picture. <paramref name="renderSize"/> gives only
+    /// the pixel counts, whose pixels need not be square (ter-qt72).
+    /// </summary>
+    private static CameraView InterpolateCamera(
+        RenderSnapshot snapshot,
+        float alpha,
+        Extent2D renderSize,
+        Extent2D outputSize
+    )
     {
         RenderCamera camera = snapshot.Camera;
         Quaternion rotation = Interpolate(camera.PreviousRotation, camera.Rotation, alpha);
         float fov = camera.VerticalFov is > 0f and < MathF.PI
             ? MathF.Max(camera.VerticalFov, NarrowestVerticalFov)
             : DefaultVerticalFov;
-        float aspect = (float)Math.Max(width, 1) / Math.Max(height, 1);
+        float aspect = (float)Math.Max(outputSize.Width, 1) / Math.Max(outputSize.Height, 1);
         float tanY = MathF.Tan(fov * 0.5f);
         return new()
         {
@@ -233,8 +248,8 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
             Aspect = aspect,
             TanHalfY = tanY,
             TanHalfX = tanY * aspect,
-            Width = width,
-            Height = height,
+            Width = (int)renderSize.Width,
+            Height = (int)renderSize.Height,
             View = Matrix4x4.CreateFromQuaternion(Quaternion.Conjugate(rotation)),
             RootRotation = Interpolate(snapshot.PreviousRootRotation, snapshot.RootRotation, alpha),
         };

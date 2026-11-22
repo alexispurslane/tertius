@@ -74,8 +74,6 @@ public sealed class ImpostorManagerTests
                 snapshot: snapshot,
                 alpha: 1f,
                 highestStops: Batchers.HighestStops,
-                width: Width,
-                height: Height,
                 meshes: Meshes,
                 materials: Materials,
                 environment: environment,

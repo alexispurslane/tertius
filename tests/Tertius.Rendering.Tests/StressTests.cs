@@ -254,13 +254,11 @@ public sealed class StressTests(ITestOutputHelper output)
                 snapshot: snapshot,
                 alpha: 1f,
                 highestStops: Batchers.HighestStops,
-                width: width,
-                height: height,
                 meshes: meshes,
                 materials: MaterialSlots.Of(8),
                 environment: default,
                 region: DeformRegion.None,
-                frame: Batchers.FirstFrame(),
+                frame: Batchers.FirstFrame(new((uint)width, (uint)height)),
                 scene: scene
             );
         var timer = Stopwatch.StartNew();
@@ -269,13 +267,11 @@ public sealed class StressTests(ITestOutputHelper output)
                 snapshot: snapshot,
                 alpha: 1f,
                 highestStops: Batchers.HighestStops,
-                width: width,
-                height: height,
                 meshes: meshes,
                 materials: MaterialSlots.Of(8),
                 environment: default,
                 region: DeformRegion.None,
-                frame: Batchers.FirstFrame(),
+                frame: Batchers.FirstFrame(new((uint)width, (uint)height)),
                 scene: scene
             );
         return timer.Elapsed.TotalMilliseconds / 50;
