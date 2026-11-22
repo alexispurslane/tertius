@@ -119,3 +119,15 @@ The walk: the scale stands still, w-X3 not taken. Slowest region's settle after 
 Under the dynamic scale, each on its own log, X5 without the cap is slower than M5 after off (141 against 121) and faster after on (45 against 54); at the fixed 2/3 X2 was 66 / 30 against 122 / 53. My prediction, reported to the orchestrator: the cap removes the size changes after a switch on the card (scale 1.000 throughout), so the final code settles as at a fixed scale and faster than main; the film on the final code tests it. My answer 71: no log of the evidence level per block now.
 
 The final take is prepared: tools/final.sh <switch|walk> with XF=<Design X commit> and MF=<main commit>. Not covered by its measures: flicker during the walk, what the eye sees at normal speed, more than two window edges. Not checked: that the probe and scratch patches apply on the new commit, and an end-to-end run of the script.
+
+**2026-11-22T23:44:56Z**
+
+The final take's first film, the lamp switch on the final code, from the combined check's lead, 2026-11-22, commit 5e1e94c0f. Video: docs/research/t0-3vwx-dynamic-scale-films/pics/switch-final.mp4 (main 454574bf8, whose src equals ac5f23915, left; Design X with the cap, 05a27262d, right; each on its own card log; 320 draws; H.264, 3840 x 1080, yuv420p, 60 fps, 320 frames, 10.9 MB by my ffprobe).
+
+My prediction holds. The card's scale log of Design X has no size change in the whole switch (0.993 from draw 133 to the end); main changes size 38 times in the film's 320 draws. Settle, off / on: whole image main 121 / 54, Design X 73 / 33 (take B's X5 without the cap: 141 / 45; X2 at the fixed 2/3: 66 / 30); slowest region main 143 / 94, Design X 86 / 53 (X5: 166 / none in 100).
+
+Motion: boil without the fade over 60 draws after off, floor / wall / ceiling: Design X 0.21 / 0.22 / 0.21; main 0.18 / 0.17 / 0.21 on draws of one size and 0.23 / 0.22 / 0.23 on changed draws. After on (100 draws): 0.05 / 0.15 / 0.11 against 0.04 / 0.13 / 0.10. Floor grain 60 draws after off: 3.00 % against 2.90 %. Jambs' mean 60 draws after off, right / left: 0.0103 / 0.0100 against 0.0096 / 0.0094. Edge distance rms: 0.085 px (floor 0.045) against 0.267 px. Mean history length in the 60 draws after off: 8.9 draws against 26.4; share under 8 draws 1.9 % against 5.0 %. The region test runs on 99 % of the anchor-draws after each switch (12 % in take B) and fires on 56 % and 53 % of them in the 100 draws after off and on.
+
+Not covered: the eye's view at normal speed, other edges, a second run of each side. Tool fixes: the probe patch fitted to 05a27262d (a comment line of sample_age.glsl in its context changed); wobsplit.py prints "none" for a run with no size change. Card job $0.0488; the ticket's cloud spend $0.1635.
+
+My reading for the gate: Design X is faster and steadier than main under the dynamic scale, with a little more boil after off than main's draws of one size (the histories stand at about 9 draws while the light changes, against main's 26).
