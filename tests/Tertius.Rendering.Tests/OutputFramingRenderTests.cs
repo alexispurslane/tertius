@@ -5,8 +5,10 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The upscaled picture keeps the output's framing at every render size: two glowing markers, one near the centre and
-/// one far from it, land at the same output pixels whatever the render size's shape (ter-qt72). Each draw is a headless
-/// still through FSR 3.1 at a fixed render scale, the upscale path of a window under the dynamic render scale.
+/// one far from it, land at the same output pixels whatever the render size (ter-qt72). Each draw is a headless still
+/// through FSR 3.1 at a fixed render scale, the upscale path of a window under the dynamic render scale. Every render
+/// size has the output's exact shape, a whole number of 16 × 9 px steps of 640 × 360. Before that, the axes rounded on
+/// their own, and the tests drew sizes of another shape.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class OutputFramingRenderTests(ITestOutputHelper output)
@@ -18,14 +20,14 @@ public sealed class OutputFramingRenderTests(ITestOutputHelper output)
     private static readonly Vector3 Near = new(0.2f, 0.1f, -10),
         Far = new(7, 3, -10);
 
-    /// <summary>The render scale whose render size, 512 × 288, has the output's exact shape.</summary>
+    /// <summary>The render scale of the reference render size, 512 × 288: 32 steps of 16 × 9 px.</summary>
     private const float ExactScale = 0.8f;
 
     [Theory]
-    [InlineData(0.9f)] // 576 × 320
-    [InlineData(0.95f)] // 608 × 336
-    [InlineData(2f / 3)] // 424 × 240
-    public void TheMarkersLandAtTheSameOutputPixelsAsAtARenderSizeOfTheOutputsShape(float scale)
+    [InlineData(0.9f)] // 576 × 324, 576 × 320 when the axes rounded on their own
+    [InlineData(0.95f)] // 608 × 342, then 608 × 336
+    [InlineData(2f / 3)] // 416 × 234, then 424 × 240
+    public void TheMarkersLandAtTheSameOutputPixelsAtEveryRenderSize(float scale)
     {
         (Vector2 Near, Vector2 Far) exact = MarkerPlaces(ExactScale);
 
@@ -51,7 +53,7 @@ public sealed class OutputFramingRenderTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void FsrRebuildsViewPositionsWithTheOutputsCameraAtARenderSizeOfAnotherShape()
+    public void FsrRebuildsViewPositionsWithTheOutputsCamera()
     {
         VulkanRenderer renderer = Gpu.Headless(
             width: Width,
@@ -68,7 +70,7 @@ public sealed class OutputFramingRenderTests(ITestOutputHelper output)
             float tanHalfX = MathF.Tan(Gpu.Fov / 2) * Width / Height;
             constants
                 .DeviceToViewDepth2.Should()
-                .BeApproximately(tanHalfX, 1e-5f, "FSR draws at 576 × 320 for a 640 × 360 output");
+                .BeApproximately(tanHalfX, 1e-5f, "FSR draws at 576 × 324 for a 640 × 360 output");
             constants.TanHalfFov.Should().BeApproximately(tanHalfX, 1e-5f);
         }
         finally
