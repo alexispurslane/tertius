@@ -11,20 +11,24 @@
 #   xb: the cap: as xg without the share, with the acceptance record's scratch-light-evidence-cap.patch (light evidence
 #       restarts a history at 8 draws, so today's plan traces no catch-up ray after a light change). Read by its path.
 #   xc: the share with the cap: xg with scratch-light-evidence-cap.patch after the share.
-#   xn: xt with scratch-no-region-evidence.patch last: Design X without region evidence (the take of t0-qvm1).
+#   xfd, xfn: the take of t0-qvm1, on the final code 05a27262d (Design X with the cap) with t0-3vwx's fitted probe patch
+#       and its region, dynamic-scale and history logs, and this record's own-ray log and history dump. xfn adds
+#       scratch-no-region-evidence.patch: Design X without region evidence.
 #   xts, xgs, xbs, xcs: xt, xg, xb and xc with scratch-first-filmed.patch last, for start.json (macrun.sh's start event):
 #       with TERTIUS_X_FIRST_FILMED=1 the first drawn frame draws once, so the start's every draw is a film frame.
 set -uo pipefail
 T=$(cd "$(dirname "$0")" && pwd); N=$(cd "$T/.." && pwd); V=$(cd "$N/../t0-3vwx-dynamic-scale-films" && pwd)
 B=$(cd "$N/../t0-gbgj-combined-check/tools" && pwd)
 X5=e232080fd2c29b94bd639d094cabe336bf7f6291
+XF=05a27262d9c336ffcc2aed64f7e877565af1bb84
 CAP=/Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/design-x-acceptance-2026-11-22/scratch-light-evidence-cap.patch
 for name in ${@:-xt xg}; do
   first=; [[ $name == x?s ]] && first=$N/scratch-first-filmed.patch
   case ${name%s} in
     xt) args="$X5 ${X5}:tools/renderer-survey/probe.patch $V/scratch-region-log.patch $V/scratch-dynamic-scale.patch $V/scratch-history-log.patch $N/scratch-ownray-log.patch $N/scratch-history-dump.patch" ;;
     xg) args="$X5 ${X5}:tools/renderer-survey/probe.patch $V/scratch-region-log.patch $V/scratch-dynamic-scale.patch $V/scratch-history-log.patch $N/scratch-ownray-log.patch $N/scratch-catch-up-share.patch" ;;
-    xn) args="$X5 ${X5}:tools/renderer-survey/probe.patch $V/scratch-region-log.patch $V/scratch-dynamic-scale.patch $V/scratch-history-log.patch $N/scratch-ownray-log.patch $N/scratch-history-dump.patch $N/scratch-no-region-evidence.patch" ;;
+    xfd) args="$XF $V/probe-05a27262d.patch $V/scratch-region-log.patch $V/scratch-dynamic-scale.patch $V/scratch-history-log.patch $N/scratch-ownray-log.patch $N/scratch-history-dump.patch" ;;
+    xfn) args="$XF $V/probe-05a27262d.patch $V/scratch-region-log.patch $V/scratch-dynamic-scale.patch $V/scratch-history-log.patch $N/scratch-ownray-log.patch $N/scratch-history-dump.patch $N/scratch-no-region-evidence.patch" ;;
     xb) args="$X5 ${X5}:tools/renderer-survey/probe.patch $V/scratch-region-log.patch $V/scratch-dynamic-scale.patch $V/scratch-history-log.patch $N/scratch-ownray-log.patch $CAP" ;;
     xc) args="$X5 ${X5}:tools/renderer-survey/probe.patch $V/scratch-region-log.patch $V/scratch-dynamic-scale.patch $V/scratch-history-log.patch $N/scratch-ownray-log.patch $N/scratch-catch-up-share.patch $CAP" ;;
     *) echo "no build $name"; exit 1 ;;
