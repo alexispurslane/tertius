@@ -145,13 +145,65 @@ What take B does not cover: the eye's view of the remaining edge motion at norma
 
 The numbers: `start.txt`. The logs: `times/` (each run's size, time and gzipped per-pass log). The tools: `tools/timeslog.py` and `tools/startchart.py`. The per-pass line is `scratch-pass-log.patch`, 4 lines inside the time log's loop.
 
+## The final films: Design X with the cap (`05a27262d`) against main
+
+The merge gate's take, on the final code: Design X `05a27262d` (the acceptance lead's commit: light evidence takes region evidence's branch, `min(antiLagged, FullRateFrames)`, the cap of `t0-zmjx`) against main `454574bf8`, whose `src` equals `ac5f23915`. Each side plays back its own card scale log at 16.67 ms (one new card job for both films). `tools/final.sh switch` and `tools/final.sh walk`; the outputs are `final-switch.txt` and `final-walk.txt`, the card's logs `sizes-final/`.
+
+`git apply --check` on `05a27262d`: the survey's probe patch fails in `sample_age.glsl`, where the commit changed a comment line inside the hunk's context. `probe-05a27262d.patch` is the original with that context fitted, and `builds.sh` and `cloudvideo.sh` take it for that commit. The record's scratch patches apply unchanged, on both sides.
+
+### The switch
+
+Video: `pics/switch-final.mp4`, main left and Design X right, 320 draws (20 before off, on at draw 220).
+
+The line orchestrator's prediction: with the cap, the card's scale log has no size change after a switch, so Design X settles as at a fixed scale and faster than main after off and after on. **The numbers confirm it.**
+
+- The card's scale: Design X holds 0.993 from draw 133 to the end, with 0 size changes. Main changes size 38 times in the film's 320 draws (42 in the 60 draws after off, 41 after on).
+- The survey's settle under the card's sizes:
+
+| Settle draws, after off / after on | Whole image | Slowest region |
+|---|---|---|
+| Main `454574bf8` | 121 / 54 | 143 / 94 |
+| Design X `05a27262d` | 73 / 33 | 86 / 53 |
+| Take B's X5 | 141 / 45 | 166 / not in 100 |
+| X2 at a fixed 2/3 (`t0-gbgj` take 2c, older code) | 66 / 30 | not measured |
+
+| Measure, from the frames | Design X | Main, draws of one size | Main, changed draws |
+|---|---|---|---|
+| Boil without the fade, 60 draws after off, % (floor / wall / ceiling) | 0.21 / 0.22 / 0.21 | 0.18 / 0.17 / 0.21 | 0.23 / 0.22 / 0.23 |
+| Boil without the fade, 100 draws after on, % | 0.05 / 0.15 / 0.11 | 0.04 / 0.13 / 0.10 | 0.06 / 0.22 / 0.18 |
+| Jamb means, 60 draws after off (right / left) | 0.0103 / 0.0100 | 0.0096 / 0.0094 | 0.0104 / 0.0096 |
+| Floor grain, 60 draws after off, % | 3.00 | 2.90 | 3.13 |
+| Slow diffuse history mean, 60 draws after off | 8.9 draws | 26.4 draws | 25.6 draws |
+| Edge distance rms around its mean | 0.085 px (noise floor 0.045) | 0.267 px over all draws | |
+
+- The region test now runs on 99 % of the anchor-draws in the 200 draws after off and the 100 after on (take B: about 12 %). It fires on 56 % of them in the 100 draws after off and on 53 % after on.
+- Design X boils a little more than main's draws of one size after off, and about as much as main's changed draws.
+
+### The walk
+
+Video: `pics/walk-final.mp4`, main left and Design X right, 260 draws (the last 60 of the walk and 200 after the stop).
+
+- Neither side changes size in the video's draws (main 0.956, Design X 0.949).
+- The center region's light after the stop, against the last frame, at 0, 20 and 40 draws: Design X +5.87 / +4.61 / +3.58 %, the same as take A's X5 to the last digit. Main +5.34 / +3.73 / +2.49 %.
+- The survey's settle after the stop, slowest region: Design X 47 draws (take A's X5: 48), main 25. The slow regions are again the upper corners and the middle row's sides (`r01`, `r10` 47, `r11` 35, `r20` 36).
+- So the cap changed neither the trail nor the settle after the stop. A walk has no light change, so light evidence does not act there, and the trail is the region test's slow start after the stop (34.7 % of the anchor-draws tested in the first 60 draws after it).
+- No flicker measure of the walk exists in this record's tools.
+
+### What the final films do not cover
+
+- The eye's view at normal speed.
+- Edges other than the two tracked window edges.
+- A second run of each side: the takes ran once.
+- A flicker measure of the walk.
+
 ## The cloud spend
 
 | Job | What | Execution | Counted |
 |---|---|---|---|
 | `f434f616` | the size logs: walk and switch, M5 and X5, 16.67 ms, and the replay check | 241 s | $0.0498 |
 | `89e20008` | the time and per-pass logs: two runs per scene and code | 335 s | $0.0649 |
-| | this take so far | | $0.1147 |
+| `d3eebea0` | the final films' size logs: walk and switch, main and Design X `05a27262d` | 235 s | $0.0488 |
+| | this record so far | | $0.1635 |
 
 Take B ran on the Mac only and used no cloud job.
 
@@ -164,5 +216,5 @@ Take B ran on the Mac only and used no cloud job.
 - `start.txt`: the start's measures.
 - `scratch-*.patch`: the scratch patches. `scratch-dynamic-scale.patch` and `scratch-region-log.patch` are the acceptance record's of `726bf338c`, unchanged. `scratch-history-log.patch` (31 lines) logs the slow diffuse history's length per draw. `scratch-pass-log.patch` logs each pass's GPU time.
 - `tools/` (each script says what it does in its first lines): `cloud.sh`, `cloudvideo.sh`, `cloudvideo.py` and `macdyn.sh` (copies of the acceptance record's `726bf338c`, with their changes named in their heads); `builds.sh`, `queue-a.sh`, `queue-b.sh`, `measure5.py`, `walklogs.py`, `takeB.sh`, `framesheet.py`, `timeslog.py`, `startchart.py`.
-- The final take (`tools/final.sh <switch|walk>`, with `XF` the Design X commit and `MF` the main commit): one command per film builds both codes, logs the card's sizes (one cloud job for both films, about $0.05), runs the played-back pictures and the survey's takes, writes the measures to `final-<film>.txt`, and makes the video `pics/<film>-final.mp4`. `cloud.sh` takes `M` and `C`, `builds.sh` the builds `xf` and `mf`, `queue-a.sh` the runs `s-XF`, `w-XF`, `s-MF` and `w-MF` from `SIZES`, and `macdyn.sh` the survey's tree `SURVEY_TREE`. It has not run end to end yet.
+- The final take (`tools/final.sh <switch|walk>`, with `XF` the Design X commit and `MF` the main commit): one command per film builds both codes, logs the card's sizes (one cloud job for both films, about $0.05), runs the played-back pictures and the survey's takes, writes the measures to `final-<film>.txt`, and makes the video `pics/<film>-final.mp4`. `cloud.sh` takes `M` and `C`, `builds.sh` the builds `xf` and `mf`, `queue-a.sh` the runs `s-XF`, `w-XF`, `s-MF` and `w-MF` from `SIZES`, and `macdyn.sh` the survey's tree `SURVEY_TREE`. `FROM=4` starts at the survey's takes, `FROM=5` at the measures. `GPU_JOB` names another checkout's `gpu_job.py`. `probe-<commit>.patch` is a probe patch fitted to that commit.
 - Tools of other records that this record runs by their paths: `sidevideo.py`, `boilnoise.py` and `dynscale.py` of the acceptance record (`726bf338c`); `wobble.py`, `wobsplit.py`, `levjump.py`, `regions.py` (through `m.sh`) and `take.sh` of the combined check (`docs/research/t0-gbgj-combined-check/tools`).
