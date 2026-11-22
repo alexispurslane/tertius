@@ -146,9 +146,10 @@ public sealed class ScreenRayTests
     }
 
     // The rounding of the ray's inverse depth near its vanishing point is larger than the slab of a surface 10,000 km
-    // away (docs/plans/screen-space-reflections.md, "Precision and determinism"). Of these 3,613 rays, the walk leaves
-    // 209 at the vanishing point without meeting the slab, and gives 531 hits an entry share of 0.05 to 0.59.
-    [Fact(Skip = "The walk misjudges a far slab near a vanishing point; skipped until ter-186q fixes it.")]
+    // away (docs/plans/screen-space-reflections.md, "Precision and determinism"). When the walk computed the inverse
+    // depth at a descent's entry from s, it left 209 of these 3,613 rays at the vanishing point without meeting the
+    // slab, and gave 531 hits an entry share of 0.05 to 0.59 (ter-186q).
+    [Fact]
     public void EveryFloorPixelWhoseVanishingPointAPlanetCoversHitsThePlanetThroughTheFrontOfItsSlab() =>
         PlanetHitsOfFloorRays()
             .Where(ray => ray.Trace is not RayHit { EntryShare: 0 } hit || hit.Pixel != ray.VanishingPixel)

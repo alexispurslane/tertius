@@ -150,8 +150,9 @@ public sealed class ScreenTraceRecordTests
 
     /// <summary>
     /// Two hair cards in the dark, which are sheets: a left card 10 m away and a right card 12 m away, each 2 m wide. Each
-    /// turns 0.25 rad about the vertical, so that its right side lies nearer. So each pixel's slab has depth, and no ray
-    /// meets a card only at a slab of no depth (t53-eyrv).
+    /// turns 0.25 rad about the vertical, so that its right side lies nearer and each pixel's slab has depth. The turn
+    /// dates from t53-eyrv, when the walk could miss a slab of no depth. Since the walk keeps the inverse depth that a
+    /// descent solved, it needs no turn.
     /// </summary>
     private static RenderSnapshot TwoHairCards(VulkanRenderer renderer)
     {

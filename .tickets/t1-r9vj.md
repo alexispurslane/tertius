@@ -1,6 +1,6 @@
 ---
 id: t1-r9vj
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-11-15T13:23:44Z
@@ -99,3 +99,29 @@ The path trace comes from the probe's export and `stage-2/tools/cycles_scene.py`
 
 A change of the fade in the engine.
 
+
+## Notes
+
+**2026-11-22T15:07:20Z**
+
+2026-11-22, the line orchestrator. A fact from ter-ukw6's measurement (docs/research/back-face-depth-layer/sill-hits-on-main.md, part 2): with the layer, the real hits on a thin sunlit sill read about half of their light of before (6,356,278 to 3,247,583 over the same draws), and those on the floor patch 15 % less. The record's reading, not measured: the fade is edgeFade * (1 - entryShare), and the same depth is a larger entry share of a slab of 0.5 m than of a slab of 3.95 m. This is the rule that this ticket examines.
+
+**2026-11-22T15:10:50Z**
+
+2026-11-22, the line orchestrator. The deferral ends by the orchestrator's order of today: the user wants the slab right wherever the walk uses it. The facts that changed since this ticket was written:
+
+- The back-face depth layer is on main since 2026-11-22 (main 84802ed66). The column `layer`, the fade over the real slab, is what main ships. The probe of the columns is still the scratch ref refs/scratch/ter-kh4g-2-ref-controls, on its old base. Add one more column, `main`: main 84802ed66 itself, with no probe. It must agree with `layer` within the frame noise. If it does not, say so first, because then the probe's `layer` is not what ships.
+- The judge is the eye first. The user's bar is a good look with no visible bug, and a path trace is a tool to explain a difference. So each view's sheet of the columns comes first in the record, with a plain sentence per column on what an eye sees: light of the lit front on the receivers behind the block, a dark stain, a hard step, or nothing. The ratios beside the path trace come second.
+- A fact from ter-ukw6 (docs/research/back-face-depth-layer/sill-hits-on-main.md, part 2): on a thin sunlit sill, the real hits read about half of their earlier light with the layer. The record's reading is that the same depth is a larger entry share of a thinner slab. That is lost light, which the bar accepts. It is context for the reading of the columns, not a third view.
+- A fault that shows over time (a flicker, a crawl, a fade) goes into one side-by-side video: `layer` on the left and the other column on the right, real frames at 60 a second, one fixed exposure, H.264 at CRF 12 or lower. A fault that stands still stays a sheet of stills.
+- If another rule looks better than `layer`, that is a fork for the user. The record shows it with its pictures. Nobody builds it in this ticket.
+- The path trace: two views, as the ticket says. The trace machinery is stage 2's. If it does not run within about two hours of work, report the views with the engine's columns alone and name what stopped the trace.
+- Cloud money: $0.20, as the ticket says. The deliverable's place and the rest stay as written.
+
+**2026-11-22T15:14:31Z**
+
+2026-11-22, the line orchestrator. The ticket lead is launched. taskId and child thread: node/thread:delegated-task:command%3Amcp%3A1606afbd-dec8-4bf8-a33c-bc8fce97f948%3Adelegate-task%3Aslabs-3-t1-r9vj-lead-1. clientRequestId: slabs-3-t1-r9vj-lead-1. Target: claudeAgent, claude-opus-5-5, effort high, role implementation, isolation worktree. Base and review base: main 906d1c260. Cloud money: $0.20. No reviewer stage. The lead waits with builds and renders while the Mac's load is above 40 (it was 173 at the launch, from other work).
+
+**2026-11-22T16:25:02Z**
+
+2026-11-22, the line orchestrator. By the orchestrator's order, this take gives way to the wobble fix ter-qt72: its lead starts no build, no render and no path trace until that fix is in its review. The lead is not cancelled.

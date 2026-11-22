@@ -1,0 +1,25 @@
+#version 460
+// The walk near a vanishing point on the GPU (ScreenWalkSlabTests): from each pixel, a ray that starts 2 m away runs
+// toward the middle of the center pixel, where its inverse depth reaches 0 at s = 1, the end of its segment. A box that
+// covers the screen 10,000 km away has a slab thinner than the rounding of the ray's inverse depth there. Each pixel
+// writes the ray's outcome, its entry share and its hit pixel.
+#extension GL_GOOGLE_include_directive : require
+#include "screen_trace.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
+        return;
+    vec2 start = vec2(pixel) + 0.5;
+    vec2 vanishing = floor(0.5 * frame.viewport.xy) + 0.5;
+    ScreenRay toward = ScreenRay(start, vanishing - start, 0.5, -0.5, 1.0);
+    vec2 hit;
+    ivec2 hitPixel;
+    float share;
+    uint result = walkScreen(depthFinest, depthPyramid,
+        screenWalkOf(toward, vec3(0.0, 0.0, -1.0), NoCard), 256u, hit, hitPixel, share);
+    imageStore(specularSample, pixel, vec4(float(result), share, vec2(hitPixel)));
+}

@@ -1,7 +1,8 @@
 #version 460
 // The walk's slab on the GPU (ScreenWalkSlabTests): rays that run at one inverse depth across a wall that faces the eye,
-// inside the wall's stored slab and just behind its stored back w. Each pixel writes the first ray's outcome and entry
-// share, and the second ray's outcome.
+// inside the wall's stored slab and just behind its stored back w, and a third ray that starts just in front of the
+// wall and passes behind its back w inside its own pixel. Each pixel writes the first ray's outcome and entry share, and
+// the second and the third ray's outcomes.
 #extension GL_GOOGLE_include_directive : require
 #include "screen_trace.glsl"
 
@@ -15,6 +16,9 @@ void main()
     vec2 slab = texelFetch(depthFinest, pixel, 0).rg;
     ScreenRay inside = ScreenRay(vec2(pixel) + 0.5, vec2(1.0, 0.0), 0.5 * (slab.x + slab.y), 0.0, 4.0);
     ScreenRay behind = ScreenRay(vec2(pixel) + 0.5, vec2(1.0, 0.0), slab.y * 0.999, 0.0, 4.0);
+    // At s = 0.5, where its image leaves its own pixel, the ray's w is 0.901 of the front w, behind the back w of about
+    // 0.95 of it.
+    ScreenRay through = ScreenRay(vec2(pixel) + 0.5, vec2(1.0, 0.0), slab.x * 1.001, -0.2 * slab.x, 4.0);
     vec2 hit;
     ivec2 hitPixel;
     float insideShare;
@@ -23,5 +27,8 @@ void main()
         screenWalkOf(inside, vec3(0.0, 0.0, -1.0), NoCard), 256u, hit, hitPixel, insideShare);
     uint behindResult = walkScreen(depthFinest, depthPyramid,
         screenWalkOf(behind, vec3(0.0, 0.0, -1.0), NoCard), 256u, hit, hitPixel, behindShare);
-    imageStore(specularSample, pixel, vec4(float(insideResult), insideShare, float(behindResult), 0.0));
+    uint throughResult = walkScreen(depthFinest, depthPyramid,
+        screenWalkOf(through, vec3(0.0, 0.0, -1.0), NoCard), 256u, hit, hitPixel, behindShare);
+    imageStore(specularSample, pixel,
+        vec4(float(insideResult), insideShare, float(behindResult), float(throughResult)));
 }

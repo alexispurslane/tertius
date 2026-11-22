@@ -1,0 +1,29 @@
+#version 460
+// The walk's descent onto a slab of no depth on the GPU (ScreenWalkSlabTests): from each pixel, four rays start at half
+// the depth of a sheet that faces the eye and run away from the eye in four directions across the screen. Each reaches
+// the sheet's inverse depth at s = 1, after its image crossed 12.6 to 13.6 pixels, where it descends onto the sheet's slab.
+// Each pixel writes the four rays' outcomes.
+#extension GL_GOOGLE_include_directive : require
+#include "screen_trace.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
+        return;
+    float sheetW = texelFetch(depthFinest, pixel, 0).r;
+    const vec2 steps[4] = vec2[4](vec2(12.0, 4.0), vec2(-12.0, 5.0), vec2(5.0, 12.0), vec2(-4.0, -13.0));
+    vec4 outcomes;
+    for (int ray = 0; ray < 4; ray++)
+    {
+        vec2 hit;
+        ivec2 hitPixel;
+        float share;
+        ScreenRay away = ScreenRay(vec2(pixel) + 0.5, steps[ray], 2.0 * sheetW, -sheetW, 1.5);
+        outcomes[ray] = float(walkScreen(depthFinest, depthPyramid,
+            screenWalkOf(away, vec3(0.0, 0.0, -1.0), NoCard), 256u, hit, hitPixel, share));
+    }
+    imageStore(specularSample, pixel, outcomes);
+}

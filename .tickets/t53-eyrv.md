@@ -1,6 +1,6 @@
 ---
 id: t53-eyrv
-status: in_progress
+status: closed
 deps: []
 links: [ter-186q]
 created: 2026-11-21T21:17:26Z
@@ -28,3 +28,11 @@ The rounding of the entry's w scales with the ray's start w, not with the slab's
 **2026-11-22T13:55:46Z**
 
 2026-11-22, the line orchestrator. The lead of ter-186q fixes this ticket too. Its task and thread are in ter-186q's note of today.
+
+**2026-11-22T14:28:21Z**
+
+2026-11-22, the ticket lead. Fixed with ter-186q in one commit: the walk keeps the inverse depth that a descent solved (the note of ter-186q holds the runs). ScreenWalkTests+RandomRays.OnSheetSlabsTheWalkFindsTheHitOfTheMarchOnAMillionRandomRays was red on ray 6763 before the fix and passes after it. The new GPU test ScreenWalkSlabTests.EveryRayThatDescendsOntoASheetThatFacesTheEyeHitsIt holds the shader copy: 1,107 of 15,360 rays missed a facing sheet on MoltenVK before, none after.
+
+**2026-11-22T18:13:52Z**
+
+2026-11-22, the line orchestrator. Merged into main by a fast-forward to 8c52592de, after the lead's final report passed the gates: both reviews pass, Checked 11,020 passed and Release 11,006 passed with 0 failed at the code of e0010385b, lavapipe fails only ScreenWalkBoundaryTests channel 3 as on main (t70-0pr5), 22 mutant rows with 17 killed, 1 equivalent and 4 survivors with reasons, and probe.patch applies. I read the merged diff once for function and quality and found no defect: the walk stores the ray's inverse depth at s in both copies, the three writes of s and sW sit on adjacent lines, and ARCHITECTURE.md drops the two known limits.

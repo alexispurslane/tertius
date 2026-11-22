@@ -153,15 +153,17 @@ float entryShareOf(float edgeW, float low, float high)
     return (high - edgeW) / (high - low);
 }
 
-// The parameter where the ray enters a slab that it meets: its front from in front, its back from behind, or s when it
-// is already inside. Selects, not branches, so that the lanes of a wave stay on one path.
-float slabEntry(ScreenRay ray, RayReciprocals inverse, float s, float inW, float low, float high)
+// The parameter where the ray enters a slab that it meets, and in entryW the ray's inverse depth there: the slab's front
+// from in front, its back from behind, or s and inW when the ray is already inside. Selects, not branches, so that the
+// lanes of a wave stay on one path.
+float slabEntry(ScreenRay ray, RayReciprocals inverse, float s, float inW, float low, float high, out float entryW)
 {
     bool inside = inW <= high && inW >= low;
     // Capped at the nearest surface's inverse depth, which no slab that the ray meets passes, so that the product stays
     // finite also for a missed cell's empty bounds, whose entry the trace never takes.
     float towardW = min(inW > high ? high : low, 1.0 / NearPlane);
     float solved = parameterAt(towardW - ray.startW, ray.stepW, inverse.stepW, s);
+    entryW = inside ? inW : towardW;
     return inside ? s : solved;
 }
 

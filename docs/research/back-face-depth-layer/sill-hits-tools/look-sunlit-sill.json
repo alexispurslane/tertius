@@ -1,0 +1,13 @@
+{
+ "scene": "orbit",
+ "window": { "width": 1280, "height": 720 },
+ "steps": [
+  { "do": "camera", "entity": "person" },
+  { "do": "post", "to": { "kind": "topic", "name": "input" }, "event": "InputEvent", "payload": { "kind": "keyDown", "code": 87 } },
+  { "do": "run", "ticks": 670 },
+  { "do": "post", "to": { "kind": "topic", "name": "input" }, "event": "InputEvent", "payload": { "kind": "keyUp", "code": 87 } },
+  { "do": "post", "to": { "kind": "topic", "name": "input" }, "event": "InputEvent", "payload": { "kind": "mouseMove", "delta": [0, 80] } },
+  { "do": "run", "ticks": 276573 },
+  { "do": "film", "name": "s", "frames": 240, "every": 1 }
+ ]
+}
