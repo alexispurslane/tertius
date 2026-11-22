@@ -1,0 +1,60 @@
+# SCRATCH patch of t0-5tyj (ticket t4f-71qp), never commit to src. It applies after tools/renderer-survey/probe.patch and
+# scratch-region-log.patch. TERTIUS_X_FRAME_TIME_TARGET=<ms> gives a headless run the dynamic render scale
+# FrameTimeTarget(<ms>, 0.5, 1). TERTIUS_X_SIZE_LOG=<folder> logs each draw's render size.
+--- a/src/Tertius.Rendering/VulkanRenderer.cs
++++ b/src/Tertius.Rendering/VulkanRenderer.cs
+@@ -144,6 +144,20 @@
+         this.device = device;
+         this.headless = headless;
+         upscaling = headless ? options.Upscaling.ForHeadless() : options.Upscaling;
++        // SCRATCH (t0-5tyj, never commit to src): with TERTIUS_X_FRAME_TIME_TARGET=<milliseconds>, a headless run keeps the
++        // window's dynamic render scale, FrameTimeTarget(<milliseconds>, 0.5, 1), in place of the fixed 2/3 (t4f-71qp).
++        if (
++            Environment.GetEnvironmentVariable("TERTIUS_X_FRAME_TIME_TARGET") is { Length: > 0 } probeTarget
++            && upscaling is Fsr3Upscaling probeFsr
++        )
++            upscaling = probeFsr with
++            {
++                RenderScale = new FrameTimeTarget(
++                    float.Parse(probeTarget, System.Globalization.CultureInfo.InvariantCulture),
++                    0.5f,
++                    1f
++                ),
++            };
+         if (upscaling is Fsr3Upscaling { RenderScale: FrameTimeTarget target })
+             ScaleController = new(target);
+         capturesInFlight = options.CapturesInFlight;
+@@ -590,16 +604,29 @@
+ 
+         // The draw's one choke point of the history: its reset, its draw index, its exposure step, its refresh of the map's
+         // faces and the last frame's state. After the acquire, which can change the output size.
++        float probeScale = ScaleController?.Next(FrameNumber) ?? upscaling.LargestScale;
++        Extent2D probeRenderSize = upscaling.RenderExtent(targets.OutputExtent, probeScale);
+         FrameHistory.PendingFrame pending = history.Begin(
+             snapshot: snapshot,
+             step: step,
+             draw: draw,
+             outputSize: targets.OutputExtent,
+-            renderSize: upscaling.RenderExtent(
+-                targets.OutputExtent,
+-                ScaleController?.Next(FrameNumber) ?? upscaling.LargestScale
+-            )
++            renderSize: probeRenderSize
+         );
++        // SCRATCH (t0-5tyj, never commit to src): with TERTIUS_X_SIZE_LOG=<folder>, each draw appends one line
++        // "<frame number> <render width> <render height> <render scale>" to <folder>/size-<TERTIUS_PROBE_LAMP_OFF, or
++        // "none">.txt, the names of the region log's files.
++        if (Environment.GetEnvironmentVariable("TERTIUS_X_SIZE_LOG") is { Length: > 0 } probeSizeFolder)
++            System.IO.File.AppendAllText(
++                System.IO.Path.Combine(
++                    System.IO.Directory.CreateDirectory(probeSizeFolder).FullName,
++                    $"size-{(Environment.GetEnvironmentVariable("TERTIUS_PROBE_LAMP_OFF") is { Length: > 0 } probeOff ? probeOff : "none")}.txt"
++                ),
++                string.Create(
++                    System.Globalization.CultureInfo.InvariantCulture,
++                    $"{FrameNumber} {probeRenderSize.Width} {probeRenderSize.Height} {probeScale:R}\n"
++                )
++            );
+         ICaptureSink? sink = takeCapture ? Interlocked.Exchange(ref pendingCapture, null) : null;
+         GpuBuffer? capture = sink != null ? CaptureBuffer(slot: frame.Index, extent: image.Extent) : null;
+         // After the output gave the frame an image, so a skipped frame leaves the map's frame as it is, and before
