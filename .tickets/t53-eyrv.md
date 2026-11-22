@@ -25,6 +25,10 @@ The rounding of the entry's w scales with the ray's start w, not with the slab's
 
 2026-11-22, the line orchestrator. This bug and ter-186q are one class: the walk derives the ray's inverse depth at a solved entry again from s, with a rounding larger than a thin slab. One ticket lead fixes both in the walk. The design is the note of 2026-11-22 in ter-186q.
 
+**2026-11-22T13:55:46Z**
+
+2026-11-22, the line orchestrator. The lead of ter-186q fixes this ticket too. Its task and thread are in ter-186q's note of today.
+
 **2026-11-22T14:28:21Z**
 
 2026-11-22, the ticket lead. Fixed with ter-186q in one commit: the walk keeps the inverse depth that a descent solved (the note of ter-186q holds the runs). ScreenWalkTests+RandomRays.OnSheetSlabsTheWalkFindsTheHitOfTheMarchOnAMillionRandomRays was red on ray 6763 before the fix and passes after it. The new GPU test ScreenWalkSlabTests.EveryRayThatDescendsOntoASheetThatFacesTheEyeHitsIt holds the shader copy: 1,107 of 15,360 rays missed a facing sheet on MoltenVK before, none after.

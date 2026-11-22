@@ -1,0 +1,9 @@
+{
+ "scene": "orbit",
+ "window": { "width": 1280, "height": 720 },
+ "steps": [
+  { "do": "camera", "entity": "person" },
+  { "do": "run", "ticks": 277243 },
+  { "do": "film", "name": "s", "frames": 240, "every": 1 }
+ ]
+}
