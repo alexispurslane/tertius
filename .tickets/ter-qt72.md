@@ -107,3 +107,23 @@ A change of the render scale controller or of the rounding to multiples of 8. Ot
 **2026-11-22T16:25:02Z**
 
 2026-11-22, the line orchestrator. The ticket lead is launched. taskId and child thread: node/thread:delegated-task:command%3Amcp%3A49b05ffc-1378-4e84-92ef-b16c94dc7acb%3Adelegate-task%3Aslabs-4-ter-qt72-lead-1. clientRequestId: slabs-4-ter-qt72-lead-1. Target: claudeAgent, claude-opus-5-5, effort high, role implementation, isolation worktree. Its reviewer: the same target, role review. Base and review base: main 4298ae7ec. Cloud money: $0.30. The research take t1-r9vj starts no build and no render until this fix is in its review. Before the launch I removed the build output (bin and obj folders, 3.2 GiB) of three worktrees of the line whose work is merged or mine: t3-58f87f59-3970e2671e4b1d5d, t3-7e999be0 and t3-1b834d57.
+
+**2026-11-22T16:26:33Z**
+
+2026-11-22, the line orchestrator, from the orchestrator. The Design X line's acceptance lead measured the wobble on existing frames (headless probe, the render size played back). The code reading holds, and a second, smaller effect exists.
+
+The measurement:
+- The distance between two window edges about 1,185 output pixels apart follows (render height / render width) x 16/9 draw by draw, with no lag: correlation +0.993 to +0.996, on main and on Design X, at frame time targets of 16.67 ms and 10 ms. Its range is 11.9 to 19.6 pixels. The vertical distance does not move.
+- The rounded render aspect runs up to 1.0 % from the exact one, 1.65 % peak to peak at 10 ms. Smaller render sizes round harder. So the 0.57 % in this ticket's text is too small.
+- Chart: /Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/design-x-acceptance-2026-11-22/pics/wobble-switch-dynamic.png
+
+What the aspect does not explain:
+- A fixed offset per render size of 0.21 to 0.31 output pixels, which correlates +0.41 to +0.50 with the render width.
+- The midpoint of the two edges, near the screen's centre, moves sideways by 1.0 to 1.7 output pixels peak to peak. A pure stretch about the centre would not move it.
+- A reading that nobody measured: a sideways shift of about half a render pixel per size, such as a pixel-centre convention between the render grid and the output image, or the jitter's offset in the wrong size's units. It is the same class of bug, so it is part of the audit. A small and clear fix goes into this ticket. A separate cause with its own risk gets its own bug ticket, and the aspect's fix does not wait for it.
+
+The acceptance changes: two numbers per frame under a played-back moving render size, the spread of the edge distance and the spread of the edges' midpoint. The target after the fix: both at the edge finder's noise floor (0.04 to 0.07 output pixels), or a named reason for what is left. This replaces the "about 0.2 output pixels" above.
+
+The method's files, uncommitted in another lead's worktree: scratch-dynamic-scale.patch (TERTIUS_X_SIZE_LOG, TERTIUS_X_SIZE_REPLAY, TERTIUS_X_FRAME_TIME_TARGET) and tools/wobble.py, both under /Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/design-x-acceptance-2026-11-22/. The patch never enters src.
+
+Not checked by anyone: the wobble in the windowed game. The report says whether the renderer test through the real upscaling path runs the path that a window runs.
