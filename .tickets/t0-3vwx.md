@@ -100,3 +100,22 @@ Measured: neither scale moves in the video's draws: M5 stays at 1.000 and X5 at 
 Result: in the walk's window the wobble's fix has nothing to act on, on either code. X5 fades back more slowly than main, as Design X did before (+5.72 / +4.56 / +3.56 % on the old code).
 
 My answers (56, 57): the walk's run on the code before the fix is dropped, because no size changes in the window. In its place the lead plays X5's switch log back with the lamps on through the whole run: 97 size changes at a still light and a still camera, which separates the change of size from the change of light as the cause of the wobble's residual. Take B's queue: the switch before the fix on the same log, the still-light run, then main's switch before the fix as the control. Each waits for 22 GiB free; the disk shows 20 GiB.
+
+**2026-11-22T21:37:23Z**
+
+Take B, from the combined check's lead, 2026-11-22, commit ef379409e on t3/combined-renderer-check (record docs/research/t0-3vwx-dynamic-scale-films, section "Take B", takeB.txt). X3 (before the wobble's fix) and X5 (after it) play X5's card switch log; M3 and M5 play M5's log as the control. Columns X3 / X5 / M3 / M5:
+- Edge distance range, px of 1920: 13.44 / 2.16 / 13.45 / 1.69.
+- Left wall's boil on changed draws, 60 to 200 after off, %: 0.60 / 0.08 / 0.60 / 0.08 (one size: 0.04 / 0.05 / 0.05 / 0.05).
+- Right jamb's mean, 0 to 100 after on, changed / one size: 0.060 / 0.043, 0.038 / 0.034, 0.040 / 0.034, 0.037 / 0.027.
+- Share of histories under 8 draws, 0 to 60 after off, one size / changed: 0.136 / 0.228, 0.123 / 0.196, 0.054 / 0.055, 0.051 / 0.051.
+- Settle of the whole image, off / on: 125 / 36, 141 / 45, 119 / 54, 121 / 54. Slowest region: 158 / 87, 166 / not within 100, 142 / 93, 143 / 94. A repeated run of X5 gave the same series bit for bit.
+
+The plain answer to the user's hypothesis: the fix helped Design X's picture under a moving size (stretch gone, boil on changed draws at the one-size level, jamb's light lower), kept a little fewer young histories, and slowed the settle (16 draws later after off, 9 after on; r00, r02 and r12 no longer settle within 100 draws after on).
+
+The cause test, X5's log with the lamps held on: the edge distance's residual on changed draws falls from 0.465 to 0.096 px rms (one size: 0.213 to 0.139), its correlation with the render scale from +0.610 to -0.025. So the wobble's residual follows the change of the light, not the change of the size. No sunlight reaches the tracked edges (the dark side stays within 0.8 % over 320 frames).
+
+The walk: the scale stands still, w-X3 not taken. Slowest region's settle after the stop 48 draws on X5 against 25 on M5; both pass the survey.
+
+Under the dynamic scale, each on its own log, X5 without the cap is slower than M5 after off (141 against 121) and faster after on (45 against 54); at the fixed 2/3 X2 was 66 / 30 against 122 / 53. My prediction, reported to the orchestrator: the cap removes the size changes after a switch on the card (scale 1.000 throughout), so the final code settles as at a fixed scale and faster than main; the film on the final code tests it. My answer 71: no log of the evidence level per block now.
+
+The final take is prepared: tools/final.sh <switch|walk> with XF=<Design X commit> and MF=<main commit>. Not covered by its measures: flicker during the walk, what the eye sees at normal speed, more than two window edges. Not checked: that the probe and scratch patches apply on the new commit, and an end-to-end run of the script.
