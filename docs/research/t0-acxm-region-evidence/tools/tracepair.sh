@@ -16,8 +16,13 @@ import sys
 p = sys.argv[1]; s = open(p).read()
 s = s.replace('root=$(git rev-parse --show-toplevel)', 'root=$(pwd)'); open(p, 'w').write(s)
 PY
+  # The extracted tree has no built gpu-clock, so it takes this worktree's (tools/README.md, "GPU calibration").
+  mkdir -p "$src/captures/gpu-calibration/bin"
+  cp "$R/captures/gpu-calibration/bin/gpu-clock" "$src/captures/gpu-calibration/bin/"
   echo "$(date +%T) trace $rev (load $(sysctl -n vm.loadavg))"
-  (cd "$src" && bash tools/gpu-trace.sh --no-counters --start 399 --frames 120 --out "$out/$rev" scripts/demo-exit.json --in-flight 2)
+  # TERTIUS_DIFFUSE_FILTER=on, the default kernel: gpu-trace.sh passes an empty --env value otherwise, which xctrace
+  # refuses (t0-8jfj).
+  (cd "$src" && TERTIUS_DIFFUSE_FILTER=on bash tools/gpu-trace.sh --no-counters --start 399 --frames 120 --out "$out/$rev" scripts/demo-exit.json --in-flight 2)
   echo "$(date +%T) end $rev exit $?"
   /bin/rm -rf "$src"
 done

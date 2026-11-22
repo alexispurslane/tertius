@@ -2936,6 +2936,15 @@ public sealed class AccumulatorRenderTests
         /// <summary>The columns of the wide scene whose light falls in <see cref="FallInTheLeftThird"/>: the blocks 0 to 7.</summary>
         private const int FallingColumns = 64;
 
+        /// <summary>The first column of the wide scene whose light falls in <see cref="FallInTheRightPart"/>: block 17.</summary>
+        private const int FirstRightFallingColumn = 136;
+
+        /// <summary>
+        /// The distance from the camera to the front face of the scenes' walls, whose center lies 20 units away and whose
+        /// depth is 1.
+        /// </summary>
+        private const float WallFaceDistance = 19.5f;
+
         /// <summary>The wide scene: the wall fills its view.</summary>
         private static (VulkanRenderer Renderer, SamplePass Sample, RenderSnapshot Scene) AccumulatingWide() =>
             Accumulating(
@@ -2968,6 +2977,41 @@ public sealed class AccumulatorRenderTests
             RenderSnapshot scene,
             int fallDraws,
             Action<int>? afterEach = null
+        ) =>
+            FallIn(
+                renderer: renderer,
+                sample: sample,
+                scene: scene,
+                falls: column => column < FallingColumns,
+                fallDraws: fallDraws,
+                afterEach: afterEach
+            );
+
+        /// <summary>
+        /// <see cref="FallInTheLeftThird"/> for the columns from <see cref="FirstRightFallingColumn"/> on, the blocks 17 to
+        /// 23: they lie in anchor 16's region, the blocks 8 to 23, and in no other anchor's.
+        /// </summary>
+        private static void FallInTheRightPart(VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) =>
+            FallIn(
+                renderer: renderer,
+                sample: sample,
+                scene: scene,
+                falls: column => column >= FirstRightFallingColumn,
+                fallDraws: FallDraws
+            );
+
+        /// <summary>
+        /// Draws 100 frames of noisy samples of mean 1 in the wide scene, then <paramref name="fallDraws"/> frames in which
+        /// the light of the columns that <paramref name="falls"/> picks falls steadily, by 0.5 over <see cref="FallDraws"/>
+        /// draws, while the rest stays at 1. <paramref name="afterEach"/> runs after each frame of the fall, with its index.
+        /// </summary>
+        private static void FallIn(
+            VulkanRenderer renderer,
+            SamplePass sample,
+            RenderSnapshot scene,
+            Func<int, bool> falls,
+            int fallDraws,
+            Action<int>? afterEach = null
         )
         {
             sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
@@ -2978,7 +3022,7 @@ public sealed class AccumulatorRenderTests
                 float falling = frame < 100 ? 1 : 1 - 0.5f * (frame - 99) / FallDraws;
                 sample.Samples = (column, row) =>
                     NoisySample(
-                        light: column < FallingColumns ? falling : 1,
+                        light: falls(column) ? falling : 1,
                         variation: Variation,
                         column: column,
                         row: row,
@@ -3073,6 +3117,199 @@ public sealed class AccumulatorRenderTests
                 firstMoved.Should().NotBeNull("anchor 0's region light falls");
                 cutInFirst.Should().BeFalse("the test's own draw reads the answers of the draw before");
                 cutAfterFirst.Should().BeTrue("the next draw takes the answer");
+            }
+            finally
+            {
+                Gpu.DisposeAndAssertClean(renderer);
+            }
+        }
+
+        /// <summary>
+        /// The mean of the taps of the wide scene's blocks within 8 blocks of block (<paramref name="anchor"/>, 0), the
+        /// region of that anchor, with the light <paramref name="lightAt"/> of each pixel. A tap is the sample at pixel
+        /// (4, 4) of its block. The taps of the last block row lie below the image's 36 rows, so its blocks have none.
+        /// </summary>
+        private static float TapMeanAround(int anchor, Func<int, int, float> lightAt)
+        {
+            int[] columns = [.. Enumerable.Range(0, WideWidth / 8).Where(block => Math.Abs(block - anchor) <= 8)];
+            int[] rows = [.. Enumerable.Range(0, (Height - 4 + 7) / 8)];
+            return columns.SelectMany(column => rows.Select(row => lightAt(8 * column + 4, 8 * row + 4))).Average();
+        }
+
+        [Fact]
+        public void AnAnchorsRingHoldsTheMeanOfTheTapsOfItsOwnRegion()
+        {
+            // The light differs from block to block in both directions, so each anchor's region has its own mean. The
+            // test compares the anchors' light with each other, so that the exposure's scale, which divides every tap,
+            // drops out.
+            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = AccumulatingWide();
+            try
+            {
+                static float LightAt(int column, int row) => 1 + column / 64f + row / 12f;
+                sample.Samples = (column, row) => new Vector4(new Vector3(LightAt(column, row)), 1);
+                renderer.Render(scene, 1f);
+                Continue(renderer, scene, frames: 3);
+
+                // The last draw's index since the reset is 3, and the ring's texels are the anchors 0, 8 and 16 of row 0.
+                float[] ring = renderer.ReadImageLayer(sample.Signal.RegionRing(0)!, 3);
+                float[] expected = [.. new[] { 0, 8, 16 }.Select(anchor => TapMeanAround(anchor, LightAt))];
+                (ring[4] / ring[0]).Should().BeApproximately(expected[1] / expected[0], 1e-4f, "anchor 8 holds its own mean");
+                (ring[8] / ring[0]).Should().BeApproximately(expected[2] / expected[0], 1e-4f, "anchor 16 holds its own mean");
+            }
+            finally
+            {
+                Gpu.DisposeAndAssertClean(renderer);
+            }
+        }
+
+        [Fact]
+        public void ABlockOneStepFromAnAnchorTakesThatAnchorsEvidence()
+        {
+            // Block 8 lies on anchor 8's column and at the edge of anchor 16's region, the blocks 8 to 23. Only anchor
+            // 16's region holds the falling blocks 17 to 23.
+            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = AccumulatingWide();
+            try
+            {
+                FallInTheRightPart(renderer, sample, scene);
+
+                BlockColumnLengths(WideLengthsOf(renderer, sample), column: 8)
+                    .Should()
+                    .OnlyContain(length => length == FullRateFrames, "anchor 16's region holds block 8");
+            }
+            finally
+            {
+                Gpu.DisposeAndAssertClean(renderer);
+            }
+        }
+
+        [Fact]
+        public void ABlockMoreThanOneStepFromAnAnchorDoesNotTakeThatAnchorsEvidence()
+        {
+            // Block 7 lies 9 blocks from anchor 16, one block outside its region. The regions of anchors 0 and 8, which
+            // hold block 7, end at block 16, before the falling blocks 17 to 23.
+            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = AccumulatingWide();
+            try
+            {
+                FallInTheRightPart(renderer, sample, scene);
+
+                BlockColumnLengths(WideLengthsOf(renderer, sample), column: 7)
+                    .Should()
+                    .OnlyContain(length => length == 32, "no anchor whose region holds block 7 saw its light move");
+            }
+            finally
+            {
+                Gpu.DisposeAndAssertClean(renderer);
+            }
+        }
+
+        /// <summary>
+        /// The center and the size of a wall of the wide scene that shows in the columns of the blocks
+        /// <paramref name="first"/> to <paramref name="last"/>, its edges on the blocks' edges.
+        /// </summary>
+        private static (Vector3 Center, Vector3 Size) WallOverBlocks(int first, int last)
+        {
+            float halfWidth = WallFaceDistance * MathF.Tan(Gpu.Fov / 2) * WideWidth / Height;
+            float XOf(int column) => (2f * column / WideWidth - 1) * halfWidth;
+            float left = XOf(8 * first);
+            float right = XOf(8 * (last + 1));
+            return (new((left + right) / 2, 0, -20), new(right - left, 40, 1));
+        }
+
+        /// <summary>
+        /// The wide scene with the sky around two walls, over the blocks 0 to 11 and 17 to 19. So the taps of anchor 8's
+        /// region, the blocks 0 to 16, show a surface in 12 of its 17 columns, and those of anchor 16's region, the blocks
+        /// 8 to 23, in 7 of its 16.
+        /// </summary>
+        private static (VulkanRenderer Renderer, SamplePass Sample, RenderSnapshot Scene) AccumulatingTwoWalls()
+        {
+            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+                parameters: SignalParameters.Diffuse,
+                wall: WallOverBlocks(first: 0, last: 11),
+                width: WideWidth
+            );
+            MeshId cube = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.5f));
+            (Vector3 center, Vector3 size) = WallOverBlocks(first: 17, last: 19);
+            scene.Instances.Add(
+                Gpu.Instance(
+                    mesh: cube,
+                    material: white,
+                    position: center,
+                    scale: size,
+                    chainDepth: TestChains.CamerasFrame,
+                    entity: 2
+                )
+            );
+            return (renderer, sample, scene);
+        }
+
+        [Fact]
+        public void ARegionWhoseTapsShowASurfaceInAtLeastHalfGivesEvidence()
+        {
+            // Block 10 lies in the regions of anchors 8 and 16. The light falls everywhere, and anchor 8's taps show a
+            // surface in 12 of its 17 columns, so its draws are valid.
+            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = AccumulatingTwoWalls();
+            try
+            {
+                FallIn(renderer: renderer, sample: sample, scene: scene, falls: _ => true, fallDraws: FallDraws);
+
+                BlockColumnLengths(WideLengthsOf(renderer, sample), column: 10)
+                    .Should()
+                    .OnlyContain(length => length == FullRateFrames, "anchor 8's region light falls");
+            }
+            finally
+            {
+                Gpu.DisposeAndAssertClean(renderer);
+            }
+        }
+
+        [Fact]
+        public void ARegionWhoseTapsShowASurfaceInLessThanHalfHasNoValidDraw()
+        {
+            // Anchor 16's taps show a surface in 7 of its 16 columns: the sky's taps do not count, so no draw is valid,
+            // and the test never runs, although the light falls everywhere. The ring's count of valid draws shows it. The
+            // lengths cannot: the anti-lag shortens the falling blocks' histories without any evidence.
+            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = AccumulatingTwoWalls();
+            try
+            {
+                FallIn(renderer: renderer, sample: sample, scene: scene, falls: _ => true, fallDraws: FallDraws);
+
+                // The last draw's index since the reset is 100 + FallDraws, and anchor 16's texel is the third of row 0.
+                float[] ring = renderer.ReadImageLayer(
+                    sample.Signal.RegionRing(0)!,
+                    (100 + FallDraws) % TemporalSignal.RegionRingDraws
+                );
+                ring[4 + 1].Should().BeGreaterThan(0, "anchor 8's taps show a surface in 12 of its 17 columns");
+                ring[8 + 1].Should().Be(0, "anchor 16's region has no valid draw");
+            }
+            finally
+            {
+                Gpu.DisposeAndAssertClean(renderer);
+            }
+        }
+
+        [Fact]
+        public void AfterACameraCutARegionGivesNoEvidenceUntilBothWindowsHoldOnlyDrawsAfterIt()
+        {
+            // A camera cut resets every history and the count of valid draws. The light is 1 before the cut and 0.5
+            // after it, so a test whose windows reached back across the cut would see a move.
+            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+                parameters: SignalParameters.Diffuse
+            );
+            try
+            {
+                sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
+                renderer.Render(scene, 1f);
+                int frame = 0;
+                for (; frame < 100; frame++)
+                    DrawNoisy(renderer: renderer, sample: sample, scene: scene, light: 1, frame: frame);
+                scene.CameraCuts++;
+                List<int> withEvidence = [];
+                for (int draw = 0; draw < TwoWindows + 40; draw++, frame++)
+                    if (DrawNoisy(renderer: renderer, sample: sample, scene: scene, light: 0.5f, frame: frame))
+                        withEvidence.Add(draw);
+
+                withEvidence.Should().BeEmpty("the count of valid draws starts again at the cut");
             }
             finally
             {

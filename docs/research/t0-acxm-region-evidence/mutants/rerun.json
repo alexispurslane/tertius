@@ -1,0 +1,77 @@
+[
+ {
+  "id": "R01",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 46,
+  "original": "return all(equal(block % AnchorStepBlocks",
+  "replacement": "return any(equal(block % AnchorStepBlocks",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "R04",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 76,
+  "original": "int(candidate % 3u)",
+  "replacement": "int(candidate % 2u)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "R06",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 77,
+  "original": "min((block + RegionRadiusBlocks) / AnchorStepBlocks",
+  "replacement": "min((block + RegionRadiusBlocks + 1) / AnchorStepBlocks",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "R09",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 124,
+  "original": "bool counts = texelFetch(gbufferDistance, pixel, 0).r > 0.0\n        && finiteSample(sampled)",
+  "replacement": "bool counts = finiteSample(sampled)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "R12",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 135,
+  "original": "2.0 * sums.y >= sums.z",
+  "replacement": "sums.y >= sums.z",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "R21",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 194,
+  "original": "slot < (index + 1u) * RegionSlotsPerAdder;",
+  "replacement": "slot < (index + 1u) * RegionSlotsPerAdder - 1u;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "R24",
+  "file": "src/Tertius.Rendering/Shaders/region_drift.glsl",
+  "line": 225,
+  "original": "float before = parameters.reset != 0u ? 0.0 : regionRingBefore[layerBefore()].g;",
+  "replacement": "float before = regionRingBefore[layerBefore()].g;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*+RegionDrift"
+ },
+ {
+  "id": "C05",
+  "file": "src/Tertius.Rendering/Frame/TemporalSignal.cs",
+  "line": 562,
+  "original": "Regions: KeepsLightAge ? [CreateRegionRing(AnchorsOf(extent), part)] : [],",
+  "replacement": "Regions: [CreateRegionRing(AnchorsOf(extent), part)],",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "*+EvidenceUnderEachHistory",
+   "DescriptorLayoutsTests"
+  ]
+ }
+]

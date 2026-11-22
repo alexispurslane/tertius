@@ -318,3 +318,75 @@ The full Checked suite after green found 25 failures in Rendering, of two kinds.
 So the reflections' region test fires falsely in a still view at a rate well above the bounce light's in this scene. That bears on whether the reflections' test earns its 0.08 ms. The bay takes measure the side with the bounce light only beside the side with both.
 
 The full Checked suite after these fixes: every project green. Core 1,207, Simulation 2,007, Physics 1,492 passed (8 skipped), Rendering 3,313 passed (11 skipped) of 3,324, Host 2,072 passed (8 skipped), Unions 59, Style 276, Slop 597.
+
+**2026-11-22T06:20:40Z**
+
+The bay takes after the merge of the line's head with the shadow fix (remedy lead, 2026-11-22). Record: docs/research/t0-acxm-region-evidence/README.md. Every side holds the fix: M is main c4c1f1f2f, B the build c98d3d2da, B1 the build with the region's test for the bounce light only (spike/switches.patch, TERTIUS_SPIKE_REGION=one), B6 the scratch cut to 6 draws (cut6.patch), A the clamps-off reference. The build sides take probe-acxm.patch, the survey's probe fitted to the push constant regionSlot.
+
+Film rect-bay, middle / last frame:
+
+| Side | Level | Blotch | Specks | Flicker |
+|---|---|---|---|---|
+| M | +1.17 / +0.53 | 0.238 / 0.231 | 0.18 / 0.89 | 0.00204 |
+| B | +0.84 / +0.28 | 0.180 / 0.162 | 0.21 / 1.07 | 0.00263 |
+| B1 | +0.85 / +0.29 | 0.187 / 0.162 | 0.22 / 0.27 | 0.00273 |
+| B6 | +0.56 / +0.22 | 0.129 / 0.123 | 0.39 / 2.23 | 0.00341 |
+
+Lag film bay-sun, median lag / lag error: M 28.3 draws / 0.270, B 12.7 / 0.150, B1 14.0 / 0.150. Stills, daub against A: bay-sunbeam M 0.0311, B 0.0228, B1 0.0225; exit-cabin M 0.0273, B 0.0167, B1 0.0166.
+
+Timing, 8 paired rounds, loads 4.05 to 7.48, 1296 MHz: B − M deck +0.279 ms (spread 0.072), film −0.245; B1 − B deck −0.026 (spread 0.106), film +0.223; B6 − B deck +0.003 (spread 0.060), film −0.052.
+
+GPU trace of the deck, line's head 36c3fd0e8 against B (--no-counters, with TERTIUS_DIFFUSE_FILTER=on for t0-8jfj): mean frame span +0.036 ms, median +0.068 ms. The rise lies in accumulate indirect diffuse (+0.040 ms) and accumulate indirect specular (+0.049 ms), the passes of the two spatial dispatches. No pass after the reflections' spatial dispatch rose, so the false-fire share on the deck was not measured.
+
+The cut to 6 draws: level and flicker pass, and the span is within budget, but its last-frame specks are 2.23 against the bar of 1.28. So the cut stays at 8 draws, and src does not change for it.
+
+Against main, B is better in level, blotch, lag and daub, and worse in the film's last-frame specks (1.07 against 0.89) and flicker (0.00263 against 0.00204, limit 0.006). The trail is not closed: the last frame is still 28 % too bright. B1 has the same level and lag error as B with 0.27 last-frame specks. The choice between B and B1 is the orchestrator's.
+
+**2026-11-22T07:26:33Z**
+
+Hardening of the remedy (remedy lead, 2026-11-22).
+
+Coverage: Rendering's tests in Debug with coverage, against 36c3fd0e8: the changed C# lines 30/30 covered, branches 30/30. The run passed 3,318 tests (11 skipped).
+
+Mutants: one tools/mutate.py list of 36 (docs/research/t0-acxm-region-evidence/mutants/list.json, from tools/mutants.py). No Stryker: the remedy changed no line of Core, Simulation or Physics. The first run killed 24 and 12 survived. Six new tests in AccumulatorRenderTests+RegionDrift kill 7 of them, and C05 was a list error (its test lies in the nested class EvidenceUnderEachHistory). The rerun (mutants/rerun.json) killed all 8.
+
+| id | line | change | result |
+|---|---|---|---|
+| R01 | region_drift.glsl:46 | anchors where any coordinate is a multiple of 8 | killed by AnAnchorsRingHoldsTheMeanOfTheTapsOfItsOwnRegion (new) |
+| R02 | :58 | layer two draws before | killed |
+| R03 | :73 | no reset check in regionAnchorMovedBefore | equivalent: at a reset draw every history restarts below the fast cap, so no evidence level acts in that draw |
+| R04 | :76 | candidate % 2 | killed by ABlockOneStepFromAnAnchorTakesThatAnchorsEvidence (new) |
+| R05 | :75 | first anchor rounded down | killed |
+| R06 | :77 | last anchor one block further | killed by ABlockMoreThanOneStepFromAnAnchorDoesNotTakeThatAnchorsEvidence (new) |
+| R07 | :80 | answer inverted | killed |
+| R08 | :121 | a tap outside the images counts as inside | killed |
+| R09 | :124 | a tap without a surface counts | killed by ARegionWhoseTapsShowASurfaceInLessThanHalfHasNoValidDraw (new) |
+| R10 | :125 | a moving surface's tap counts | killed |
+| R11 | :127 | no division by the exposure scale | killed |
+| R12 | :135 | every tap must count | killed by ARegionWhoseTapsShowASurfaceInAtLeastHalfGivesEvidence (new) |
+| R13 | :136 | count of valid draws without its cap | equivalent: the count only meets the test "< 36", which it passes in the same draws without the cap, and a float counts whole draws exactly up to 2^24 |
+| R14 | :160 | test from 18 valid draws | killed |
+| R15 | :32 | DriftSigmas 2 | killed |
+| R16 | :171 | sqrt(1 / W) | killed |
+| R17 | :170 | spread divided by W, not W − 1 | judgment: it narrows the tolerance by 3 %, which moves a still region's fire rate by less than the scatter of a count over 400 draws, so a test would need thousands of draws |
+| R18 | :162 | newer sum without the shift | killed |
+| R19 | :186 | region shifted by one block | killed |
+| R20 | :188 | oldest ring layer not read | killed |
+| R21 | :194 | each adder drops one slot | killed by the new validity test (rerun) |
+| R22 | :201 | older window one draw newer | judgment: the windows then overlap by one draw, and the evidence ends about one draw sooner after a stop; a test that pinned that draw would test the window's constant, not a behavior |
+| R23 | :215 | newer window takes the draw 18 back | killed |
+| R24 | :225 | no reset of the count | killed by AfterACameraCutARegionGivesNoEvidenceUntilBothWindowsHoldOnlyDrawsAfterIt (new) |
+| R25 | :228 | answer never stored | killed |
+| R26 | :206 | squares changed | killed |
+| S01 | accumulate_spatial.comp:52 | no anchor update | killed |
+| S02 | :60 | region evidence as motion evidence | killed |
+| S03 | :165 | cut to 7 draws | killed |
+| S04 | :25 | RegionEvidence above LightEvidence | killed |
+| C01 | GpuTypes.cs:844 | slot modulo 35 | killed |
+| C02 | TemporalSignal.cs:450 | ring left out of the barrier | killed |
+| C03 | TemporalSignal.cs:501 | anchors rounded down | killed |
+| C04 | TemporalSignal.cs:747 | ring fit to the pixel extent | killed |
+| C05 | TemporalSignal.cs:562 | ring for a signal without a light age | killed in the rerun by a crash of the test host (exit 139): the signal set then writes binding 13, which that layout lacks |
+| C06 | DescriptorLayouts.cs:1272 | layout without binding 13 | killed |
+
+The first run took 1,878 s and the rerun about 8 minutes.
