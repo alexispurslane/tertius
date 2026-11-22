@@ -1,0 +1,19 @@
+{
+ "scene": "demo-meshes",
+ "window": {
+  "width": 1280,
+  "height": 720
+ },
+ "steps": [
+  {
+   "do": "run",
+   "ticks": 180
+  },
+  {
+   "do": "film",
+   "name": "c",
+   "frames": 48,
+   "every": 1
+  }
+ ]
+}

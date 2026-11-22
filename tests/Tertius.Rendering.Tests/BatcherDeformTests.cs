@@ -25,20 +25,22 @@ public sealed class BatcherDeformTests
     /// <summary>A rigid box, the bending cylinder and the morphing box, with the box's indices first.</summary>
     private static readonly MeshInfo[] Meshes =
     [
-        new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: MathF.Sqrt(0.75f), Deform: null),
+        new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: MathF.Sqrt(0.75f), Deform: null, Closed: true),
         new(
             FirstIndex: 36,
             IndexCount: (uint)CylinderData.Indices.Length,
             VertexOffset: 24,
             Radius: GeometryStore.Radius(CylinderData.Vertices),
-            Deform: CylinderDeform
+            Deform: CylinderDeform,
+            Closed: true
         ),
         new(
             FirstIndex: 36 + (uint)CylinderData.Indices.Length,
             IndexCount: (uint)BoxData.Indices.Length,
             VertexOffset: 24 + CylinderData.Vertices.Length,
             Radius: GeometryStore.Radius(BoxData.Vertices),
-            Deform: BoxDeform
+            Deform: BoxDeform,
+            Closed: true
         ),
     ];
 
@@ -112,6 +114,24 @@ public sealed class BatcherDeformTests
     /// <summary>The vertex offsets of the scene's commands, in command order.</summary>
     private static int[] VertexOffsets(PreparedScene scene) =>
         [.. scene.Commands.AsSpan(0, scene.CommandCount).ToArray().Select(command => command.VertexOffset)];
+
+    [Fact]
+    public void ADeformedCopyOfAClosedMeshDrawsInTheClosedOneSidedRunOfTheBackFacePass()
+    {
+        RenderSnapshot snapshot = Empty();
+        AddPosed(snapshot, Instance(Cylinder, new(0, 0, -10)), CylinderRest);
+
+        PreparedScene scene = Prepare(snapshot, Roomy);
+
+        VertexOffsets(scene).Should().Equal([RegionBase], "the instance draws its deformed copy");
+        scene
+            .Opaque[DepthRanges.Near]
+            .BackFace.Should()
+            .Be(
+                new BackFaceRuns(ClosedOneSided: new(Solid: new(0, 1), Cutout: default), BothFaces: default),
+                "a deformation moves the vertices and keeps the triangles, so the copy is closed as its mesh is"
+            );
+    }
 
     [Fact]
     public void PosedInstanceDrawsItsDeformedCopy()

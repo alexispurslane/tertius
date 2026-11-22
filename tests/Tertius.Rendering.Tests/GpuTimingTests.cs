@@ -243,11 +243,12 @@ public sealed class GpuTimingTests
             string[] passes = [.. renderer.LastFrameStats.GpuTimings!.Value.Passes.ToArray().Select(pass => pass.Pass)];
             passes
                 .SkipWhile(pass => pass != "G-buffer")
-                .Take(13)
+                .Take(14)
                 .Should()
                 .Equal(
                     [
                         "G-buffer",
+                        "back faces",
                         "surface test",
                         "depth pyramid",
                         "direct light",
@@ -261,7 +262,7 @@ public sealed class GpuTimingTests
                         "accumulate indirect specular",
                         "composite",
                     ],
-                    "the light pyramid sums the direct light, the rays read the pyramids and the direct light, the "
+                    "the back-face pass reads the G-buffer's distance, the light pyramid sums the direct light, the rays read the pyramids and the direct light, the "
                         + "accumulations read the resolve's samples, the filter reads the diffuse histories, and the "
                         + "composite reads the filtered light and the slow specular history"
                 );
@@ -291,7 +292,7 @@ public sealed class GpuTimingTests
                     ["G-buffer", "surface test", "direct light", "composite"],
                     "the composite takes the closed forms, so no pass sits between the direct pass and it"
                 );
-            passes.Should().NotContain(["depth pyramid", "ray plan", "screen trace resolve"]);
+            passes.Should().NotContain(["back faces", "depth pyramid", "ray plan", "screen trace resolve"]);
         }
         finally
         {

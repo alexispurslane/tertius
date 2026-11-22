@@ -1,12 +1,14 @@
+using System.Diagnostics;
 using Silk.NET.Vulkan;
 
 namespace Tertius.Rendering;
 
 /// <summary>
 /// The depth pyramid pass, under <see cref="ScreenTrace"/> (docs/plans/screen-space-reflections.md, "The depth
-/// pyramid"): levels 1 to L of the min-max inverse depth, from the surfaces of the pixels, which the distance target and
-/// the normals target's geometric normals give, one dispatch per level below the tail and one for the tail. Then the
-/// finest level, each pixel's center w, in one more dispatch (docs/plans/temporal-renderer.md, decision 40).
+/// pyramid"): levels 1 to L of the slabs, one dispatch per level below the tail and one for the tail. Then the finest
+/// level, each pixel's slab, in one more dispatch (docs/plans/back-face-depth-layer.md, "The model"). Level 1 and the
+/// finest level read the pixels' surfaces, which the distance target and the normals target's geometric normals give,
+/// and the back share of <see cref="BackFacePass"/>.
 /// </summary>
 internal sealed class DepthPyramidPass(
     VulkanDevice device,
@@ -29,6 +31,11 @@ internal sealed class DepthPyramidPass(
     {
         context.Barriers.Image(context.Targets.Distance, ImageUse.SampledCompute);
         context.Barriers.Image(context.Targets.Normal, ImageUse.SampledCompute);
+        context.Barriers.Image(
+            context.Targets.BackShare
+                ?? throw new UnreachableException("The targets of the screen tracer hold the back share."),
+            ImageUse.SampledCompute
+        );
         context.BindSceneSets(PipelineBindPoint.Compute, layouts.PyramidLayout);
         build.DispatchLevels(context, pyramid);
         build.DispatchFinest(context, pyramid);

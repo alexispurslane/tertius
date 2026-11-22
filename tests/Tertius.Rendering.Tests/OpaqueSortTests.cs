@@ -2,13 +2,13 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The order of a view's opaque draws: by depth range, then by run, the solid runs before the cutout runs and within each
-/// the one-sided run before the two-sided one, then by mesh, and at equal keys in the order of the visible instances, so
+/// the closed one-sided run, the open one-sided run and the two-sided run, then by mesh, and at equal keys in the order of the visible instances, so
 /// one scene always gives the same commands.
 /// </summary>
 public sealed class OpaqueSortTests
 {
     /// <summary>
-    /// Items that a view appends in the order of its instances, each in up to three ranges, in one of the four runs, of meshes 0
+    /// Items that a view appends in the order of its instances, each in up to three ranges, in one of the six runs, of meshes 0
     /// to <paramref name="meshes"/> − 1, come out in the order of (key, index), the order that sorting by both gives.
     /// </summary>
     [Theory]
@@ -25,7 +25,7 @@ public sealed class OpaqueSortTests
             int mesh = random.Next(meshes);
             ulong run =
                 (random.Next(2) == 0 ? SceneBatcher.CutoutKeyBit : 0)
-                | (random.Next(2) == 0 ? SceneBatcher.TwoSidedKeyBit : 0);
+                | ((ulong)random.Next(3) << SceneBatcher.FacesKeyShift);
             for (int range = 0; range < DepthRanges.Count; range++)
                 if (random.Next(3) == 0 || range == DepthRanges.Count - 1 && items.Count == 0)
                     items.Add(new(((ulong)range << 32) | run | (uint)mesh, index));

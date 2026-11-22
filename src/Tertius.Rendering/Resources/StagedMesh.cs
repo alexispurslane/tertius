@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace Tertius.Rendering;
 
 /// <summary>
@@ -7,9 +9,9 @@ namespace Tertius.Rendering;
 /// </summary>
 internal sealed class StagedMesh
 {
-    private StagedMesh(MeshData data, GpuVertex[] vertices)
+    private StagedMesh(MeshData data, GpuVertex[] vertices, bool closed)
     {
-        (Data, Vertices) = (data, vertices);
+        (Data, Vertices, Closed) = (data, vertices, closed);
     }
 
     /// <summary>The mesh as the caller gave it: its indices, its rigging and its vertices before staging.</summary>
@@ -17,6 +19,9 @@ internal sealed class StagedMesh
 
     /// <summary>The GPU vertex of each vertex of <see cref="Data"/>, in the same order.</summary>
     public GpuVertex[] Vertices { get; }
+
+    /// <summary>Whether the mesh bounds a volume (<see cref="MeshClosure.IsClosed"/>).</summary>
+    public bool Closed { get; }
 
     /// <summary>
     /// <paramref name="mesh"/>, staged. It walks the mesh's triangles, so the upload queue calls it on the caller's thread
@@ -28,6 +33,9 @@ internal sealed class StagedMesh
         var vertices = new GpuVertex[mesh.Vertices.Length];
         for (int i = 0; i < vertices.Length; i++)
             vertices[i] = GpuVertex.Of(GeometryStore.Staged(mesh.Vertices[i]), cards[i]);
-        return new(mesh, vertices);
+        var positions = new Vector3[mesh.Vertices.Length];
+        for (int i = 0; i < positions.Length; i++)
+            positions[i] = mesh.Vertices[i].Position;
+        return new(data: mesh, vertices: vertices, closed: MeshClosure.IsClosed(mesh.Indices, positions));
     }
 }

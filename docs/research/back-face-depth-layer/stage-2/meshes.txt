@@ -1,0 +1,62 @@
+check box: closed True, vertices 24, welded positions 8, triangles 12 of 12, unpaired edges 0, repeated edges 0
+check quad: closed False, vertices 4, welded positions 4, triangles 2 of 2, unpaired edges 4, repeated edges 0
+check box less one face: closed False, vertices 24, welded positions 8, triangles 10 of 10, unpaired edges 4, repeated edges 0
+check sphere: closed True, vertices 1225, welded positions 1106, triangles 2208 of 2304, unpaired edges 0, repeated edges 0
+scene bounce-raised-box (bounce-raised-box): drawn entities 2, one-sided opaque 2, of open meshes 0 distinct meshes of 2
+scene bounce-red-wall (bounce-red-wall): drawn entities 2, one-sided opaque 2, of open meshes 0 distinct meshes of 2
+scene deep-yard (deep-yard): drawn entities 3, one-sided opaque 3, of open meshes 0 distinct meshes of 2
+scene demo-exit (demo-exit-deck-cuts, demo-exit, temporal-upscale-timing, temporal-upscale-validation, ter-7tnv-floor, ter-kh4g-cabin-timing): drawn entities 88, one-sided opaque 48, of open meshes 0 distinct meshes of 66
+  station-chute-brake: mesh 9, opaque, closed only by the pairing rule: 4 directed edges of more than one triangle, 36 triangles
+  station-chute: mesh 8, opaque, closed only by the pairing rule: 4 directed edges of more than one triangle, 36 triangles
+  station-spokes: mesh 6, opaque, closed only by the pairing rule: 32 directed edges of more than one triangle, 192 triangles
+scene demo-meshes (demo-meshes): drawn entities 7, one-sided opaque 7, of open meshes 0 distinct meshes of 7
+scene demo-shuttle (demo-shuttle): drawn entities 86, one-sided opaque 6, of open meshes 0 distinct meshes of 86
+scene demo-surface (blue-danube, cabin-light, demo-docking, demo-launch, demo-surface, rect-bay, ter-7tnv-box-cabin, ter-7tnv-terminal): drawn entities 97, one-sided opaque 57, of open meshes 0 distinct meshes of 74
+  station-chute-brake: mesh 17, opaque, closed only by the pairing rule: 4 directed edges of more than one triangle, 36 triangles
+  station-chute: mesh 16, opaque, closed only by the pairing rule: 4 directed edges of more than one triangle, 36 triangles
+  station-spokes: mesh 14, opaque, closed only by the pairing rule: 32 directed edges of more than one triangle, 192 triangles
+scene doorway (doorway): drawn entities 4, one-sided opaque 4, of open meshes 0 distinct meshes of 4
+scene drop-box (drop-box): drawn entities 2, one-sided opaque 2, of open meshes 0 distinct meshes of 2
+scene earth-system (earth-system): drawn entities 42, one-sided opaque 42, of open meshes 0 distinct meshes of 23
+  station-chute-brake: mesh 11, opaque, closed only by the pairing rule: 4 directed edges of more than one triangle, 36 triangles
+  station-chute: mesh 10, opaque, closed only by the pairing rule: 4 directed edges of more than one triangle, 36 triangles
+  station-spokes: mesh 8, opaque, closed only by the pairing rule: 32 directed edges of more than one triangle, 192 triangles
+scene hair-bent-cards (hair-bent-cards): drawn entities 11, one-sided opaque 1, of open meshes 0 distinct meshes of 3
+scene hair-rugs (hair-rugs): drawn entities 4, one-sided opaque 2, of open meshes 0 distinct meshes of 3
+scene lamp-hall-16 (lamp-hall-16): drawn entities 42, one-sided opaque 42, of open meshes 0 distinct meshes of 42
+scene lamp-hall-16-hair (lamp-hall-16-hair): drawn entities 138, one-sided opaque 42, of open meshes 0 distinct meshes of 43
+scene lamp-hall-16-moving (lamp-hall-16-moving): drawn entities 42, one-sided opaque 42, of open meshes 0 distinct meshes of 42
+scene lamp-hall-16-spot (lamp-hall-16-spot): drawn entities 42, one-sided opaque 42, of open meshes 0 distinct meshes of 42
+scene lamp-hall-16-spot-moving (lamp-hall-16-spot-moving): drawn entities 42, one-sided opaque 42, of open meshes 0 distinct meshes of 42
+scene lamp-hall-4 (lamp-hall-4): drawn entities 14, one-sided opaque 14, of open meshes 0 distinct meshes of 14
+scene lamp-hall-4-moving (lamp-hall-4-moving): drawn entities 14, one-sided opaque 14, of open meshes 0 distinct meshes of 14
+scene lamp-hall-4-spot (lamp-hall-4-spot): drawn entities 14, one-sided opaque 14, of open meshes 0 distinct meshes of 14
+scene lamp-hall-4-spot-moving (lamp-hall-4-spot-moving): drawn entities 14, one-sided opaque 14, of open meshes 0 distinct meshes of 14
+scene lamp-hall-64 (lamp-hall-64): drawn entities 146, one-sided opaque 146, of open meshes 0 distinct meshes of 146
+scene lamp-hall-64-moving (lamp-hall-64-moving): drawn entities 146, one-sided opaque 146, of open meshes 0 distinct meshes of 146
+scene lamp-hall-64-spot (lamp-hall-64-spot): drawn entities 146, one-sided opaque 146, of open meshes 0 distinct meshes of 146
+scene lamp-hall-64-spot-moving (lamp-hall-64-spot-moving): drawn entities 146, one-sided opaque 146, of open meshes 0 distinct meshes of 146
+scene mars-air (mars-air): drawn entities 16, one-sided opaque 16, of open meshes 0 distinct meshes of 16
+scene mirror-balls (mirror-balls): drawn entities 50, one-sided opaque 10, of open meshes 0 distinct meshes of 47
+scene orbit (airlock, orbit-umbra, orbit, rect-lamps, spacewalk, ter-kh4g-rect-lamps-timing, throw, walk, windows): drawn entities 34, one-sided opaque 16, of open meshes 0 distinct meshes of 11
+  ship: mesh 3, opaque, closed only by the pairing rule: 4 directed edges of more than one triangle, 588 triangles
+scene orbit-cluster (orbit-cluster): drawn entities 38, one-sided opaque 20, of open meshes 0 distinct meshes of 13
+  ship: mesh 3, opaque, closed only by the pairing rule: 4 directed edges of more than one triangle, 588 triangles
+scene pbr-spheres (pbr-spheres, ter-7tnv-pbr): drawn entities 14, one-sided opaque 14, of open meshes 0 distinct meshes of 3
+scene pillar-room (pillar-room): drawn entities 16, one-sided opaque 16, of open meshes 0 distinct meshes of 16
+scene puff-yard (puff-yard): drawn entities 5, one-sided opaque 5, of open meshes 0 distinct meshes of 5
+scene rect-lights (rect-lights): drawn entities 5, one-sided opaque 5, of open meshes 0 distinct meshes of 3
+scene reflections (reflections): drawn entities 11, one-sided opaque 11, of open meshes 0 distinct meshes of 6
+scene rigs (rigs): drawn entities 5, one-sided opaque 5, of open meshes 0 distinct meshes of 5
+scene rigs-crowd (rigs-crowd): drawn entities 102, one-sided opaque 102, of open meshes 0 distinct meshes of 3
+scene skin-and-hair (skin-and-hair): drawn entities 42, one-sided opaque 5, of open meshes 0 distinct meshes of 6
+scene spin-station (spin-station): drawn entities 134, one-sided opaque 134, of open meshes 0 distinct meshes of 6
+scene spot-box (spot-box): drawn entities 3, one-sided opaque 3, of open meshes 0 distinct meshes of 3
+scene stars-1 (stars-1): drawn entities 6, one-sided opaque 6, of open meshes 0 distinct meshes of 6
+scene stars-2 (stars-2): drawn entities 6, one-sided opaque 6, of open meshes 0 distinct meshes of 6
+scene stars-4 (stars-4): drawn entities 6, one-sided opaque 6, of open meshes 0 distinct meshes of 6
+scene station (station): drawn entities 16, one-sided opaque 16, of open meshes 0 distinct meshes of 10
+  station: mesh 3, opaque, closed only by the pairing rule: 4 directed edges of more than one triangle, 112 triangles
+scene surface-yard (surface-yard): drawn entities 5, one-sided opaque 5, of open meshes 0 distinct meshes of 3
+scene weightless-push (weightless-push): drawn entities 36, one-sided opaque 18, of open meshes 0 distinct meshes of 13
+  ship: mesh 3, opaque, closed only by the pairing rule: 4 directed edges of more than one triangle, 588 triangles

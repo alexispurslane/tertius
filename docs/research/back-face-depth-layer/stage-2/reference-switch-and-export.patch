@@ -1,0 +1,471 @@
+diff --git a/src/Tertius.Rendering/Passes/BackFacePass.cs b/src/Tertius.Rendering/Passes/BackFacePass.cs
+index dc1a4f84a..ac9614c0e 100644
+--- a/src/Tertius.Rendering/Passes/BackFacePass.cs
++++ b/src/Tertius.Rendering/Passes/BackFacePass.cs
+@@ -50,6 +50,22 @@ internal sealed unsafe class BackFacePass : RenderPass
+     public static BackFaceProbe Probe()
+     {
+         string mode = Environment.GetEnvironmentVariable("TERTIUS_BACK_FACE_PROBE") is { Length: > 0 } set ? set : DefaultMode;
++        // THROWAWAY (t1-g4p1): a last +known/<miss|black|front>/<a> selects the known-light rule of column D.
++        (uint known, float footprint) = (0u, 0.5f);
++        int knownAt = mode.IndexOf("+known/", StringComparison.Ordinal);
++        if (knownAt >= 0)
++        {
++            string[] parts = mode[(knownAt + "+known/".Length)..].Split('/');
++            known = parts[0] switch
++            {
++                "miss" => 1u,
++                "black" => 2u,
++                "front" => 3u,
++                _ => throw new ArgumentException($"Unknown unknown-face light '{parts[0]}': use miss, black or front."),
++            };
++            footprint = float.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture);
++            mode = mode[..knownAt];
++        }
+         bool fade = mode.EndsWith("+fade", StringComparison.Ordinal);
+         string rules = fade ? mode[..^"+fade".Length] : mode;
+         // The values of thickness.glsl's Slab and NoBack constants.
+@@ -66,7 +82,8 @@ internal sealed unsafe class BackFacePass : RenderPass
+                 $"Unknown TERTIUS_BACK_FACE_PROBE value '{mode}': use off, ten, trim, layer, layer/plane, layer/ten or layer/solid, with an optional +fade."
+             ),
+         };
+-        return new(Pass: pass, SlabRule: slab, NoBackRule: noBack, FadeOverTenPercent: fade);
++        return new(Pass: pass, SlabRule: slab, NoBackRule: noBack, FadeOverTenPercent: fade, KnownLightRule: known,
++            VisibleFootprint: footprint);
+     }
+ 
+     /// <summary>Whether the probe records its pass: in every mode but <c>off</c>.</summary>
+@@ -163,4 +180,5 @@ internal sealed unsafe class BackFacePass : RenderPass
+ 
+ /// <summary>THROWAWAY (t1-n8x9): the probe's mode (<see cref="BackFacePass.Probe"/>): whether the pass draws, and the
+ /// values of the specialization constants of thickness.glsl and screen_walk.glsl.</summary>
+-internal readonly record struct BackFaceProbe(bool Pass, uint SlabRule, uint NoBackRule, bool FadeOverTenPercent);
++internal readonly record struct BackFaceProbe(bool Pass, uint SlabRule, uint NoBackRule, bool FadeOverTenPercent,
++    uint KnownLightRule, float VisibleFootprint);
+diff --git a/src/Tertius.Rendering/Resources/GeometryStore.cs b/src/Tertius.Rendering/Resources/GeometryStore.cs
+index 35b761686..74e44aede 100644
+--- a/src/Tertius.Rendering/Resources/GeometryStore.cs
++++ b/src/Tertius.Rendering/Resources/GeometryStore.cs
+@@ -179,6 +179,8 @@ internal sealed unsafe class GeometryStore : IDisposable
+             MemoryMarshal
+                 .AsBytes(data.Indices.AsSpan())
+                 .CopyTo(new(indexStage.Pointer + indexCursor * sizeof(uint), data.Indices.Length * sizeof(uint)));
++            // THROWAWAY (t1-g4p1): the scene export's CPU copy.
++            SceneExport.KeepMesh(staged.Vertices, data.Indices, deforms[mesh] is not null);
+             meshes.Add(
+                 new(
+                     FirstIndex: (uint)(IndexCount + indexCursor),
+diff --git a/src/Tertius.Rendering/Resources/MaterialStore.cs b/src/Tertius.Rendering/Resources/MaterialStore.cs
+index d3d7be64c..584525bc4 100644
+--- a/src/Tertius.Rendering/Resources/MaterialStore.cs
++++ b/src/Tertius.Rendering/Resources/MaterialStore.cs
+@@ -184,6 +184,8 @@ internal sealed unsafe class MaterialStore : IDisposable
+     private void Stage(Span<GpuMaterial> staged, ref int cursor, MaterialDesc desc)
+     {
+         staged[cursor++] = ToGpu(desc);
++        // THROWAWAY (t1-g4p1): the scene export's CPU copy.
++        SceneExport.KeepMaterial(staged[cursor - 1]);
+         infos.Add(new(Alpha: desc.Alpha, TwoSided: DrawsBothSides(desc.Model)));
+     }
+ 
+diff --git a/src/Tertius.Rendering/Scene/SceneBatcher.cs b/src/Tertius.Rendering/Scene/SceneBatcher.cs
+index 9c273273e..258868fdc 100644
+--- a/src/Tertius.Rendering/Scene/SceneBatcher.cs
++++ b/src/Tertius.Rendering/Scene/SceneBatcher.cs
+@@ -1077,6 +1077,9 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float
+             );
+             if (!Reaches(faces: faces, axes: scene.MapAxes, light: prepared))
+                 continue;
++            // THROWAWAY (ter-kh4g, stage 2, t1-g4p1): the control without the sun drops every light beyond 10^9 m.
++            if (prepared.Distance > 1e9 && Environment.GetEnvironmentVariable("TERTIUS_NO_SUN") == "1")
++                continue;
+             if (i == sun)
+                 scene.AirSunLight = scene.LightCount;
+             scene.AddLight() = prepared;
+diff --git a/src/Tertius.Rendering/SceneExport.cs b/src/Tertius.Rendering/SceneExport.cs
+new file mode 100644
+index 000000000..0673cf9cd
+--- /dev/null
++++ b/src/Tertius.Rendering/SceneExport.cs
+@@ -0,0 +1,207 @@
++using System.Numerics;
++using System.Text.Json;
++
++namespace Tertius.Rendering;
++
++/// <summary>
++/// THROWAWAY (ter-kh4g, stage 2, t1-g4p1): writes the geometry, the materials, the lights and the camera of one drawn frame,
++/// so that an offline path tracer (Blender's Cycles) can render a reference of the same view. Under
++/// <c>TERTIUS_SCENE_EXPORT=&lt;folder&gt;</c> the stores keep a CPU copy of every mesh and material that they upload, and
++/// the capture of index <c>TERTIUS_SCENE_EXPORT_AT</c> (0 for the first) writes <c>scene.json</c> and one
++/// <c>mesh-&lt;id&gt;.bin</c> per mesh that a placed instance draws. Every position is camera-relative, in the renderer's
++/// world axes, in m.
++/// </summary>
++internal static class SceneExport
++{
++    public static readonly string? Folder =
++        Environment.GetEnvironmentVariable("TERTIUS_SCENE_EXPORT") is { Length: > 0 } folder ? folder : null;
++
++    private static readonly int At = int.TryParse(Environment.GetEnvironmentVariable("TERTIUS_SCENE_EXPORT_AT"), out int at)
++        ? at
++        : 0;
++
++    private static readonly List<(Vector3[] Positions, Vector3[] Normals, uint[] Indices, bool Deforms)> meshes = [];
++    private static readonly List<GpuMaterial> materials = [];
++    private static int captures;
++
++    public static void KeepMesh(GpuVertex[] vertices, uint[] indices, bool deforms)
++    {
++        if (Folder is null)
++            return;
++        var positions = new Vector3[vertices.Length];
++        var normals = new Vector3[vertices.Length];
++        for (int i = 0; i < vertices.Length; i++)
++        {
++            positions[i] = vertices[i].Position;
++            normals[i] = vertices[i].Normal;
++        }
++        meshes.Add((positions, normals, (uint[])indices.Clone(), deforms));
++    }
++
++    public static void KeepMaterial(in GpuMaterial material)
++    {
++        if (Folder is not null)
++            materials.Add(material);
++    }
++
++    /// <summary>Counts a capture and writes the scene at the chosen one.</summary>
++    public static void Captured(PreparedScene scene, ReadOnlySpan<MaterialInfo> infos)
++    {
++        if (Folder is null)
++            return;
++        if (captures++ != At)
++            return;
++        Directory.CreateDirectory(Folder);
++        using var stream = File.Create(Path.Combine(Folder, "scene.json"));
++        using var json = new Utf8JsonWriter(stream, new() { Indented = true });
++        json.WriteStartObject();
++        json.WriteNumber("capture", At);
++        CameraView camera = scene.Camera;
++        json.WriteStartObject("camera");
++        Vec(json, "right", camera.Right);
++        Vec(json, "up", camera.Up);
++        Vec(json, "forward", camera.Forward);
++        json.WriteNumber("verticalFov", camera.VerticalFov);
++        json.WriteNumber("tanHalfX", camera.TanHalfX);
++        json.WriteNumber("tanHalfY", camera.TanHalfY);
++        json.WriteNumber("width", camera.Width);
++        json.WriteNumber("height", camera.Height);
++        json.WriteEndObject();
++        json.WriteString(
++            "ambient",
++            scene.Ambient.TryGetValue(out HemisphereAmbient hemisphere)
++                ? $"hemisphere sky {hemisphere.Light.SkyColor} ground {hemisphere.Light.GroundColor} x {hemisphere.Light.Intensity}"
++                : "map"
++        );
++        json.WriteString("atmosphere", $"center {scene.Atmosphere.CenterRadius} sky {scene.Atmosphere.Sky} haze {scene.Atmosphere.Haze} sun {scene.Atmosphere.Sun}");
++        json.WriteNumber("airSunLight", scene.AirSunLight ?? -1);
++        var used = new SortedSet<int>();
++        json.WriteStartArray("instances");
++        foreach (ref readonly PreparedInstance instance in scene.PlacedSpan)
++        {
++            json.WriteStartObject();
++            json.WriteNumber("mesh", instance.Mesh);
++            json.WriteNumber("material", instance.Material);
++            Vec(json, "position", instance.Position);
++            json.WriteStartArray("rotation");
++            json.WriteNumberValue(instance.Rotation.X);
++            json.WriteNumberValue(instance.Rotation.Y);
++            json.WriteNumberValue(instance.Rotation.Z);
++            json.WriteNumberValue(instance.Rotation.W);
++            json.WriteEndArray();
++            Vec(json, "scale", instance.Scale);
++            json.WriteNumber("radius", instance.Radius);
++            json.WriteNumber("flags", (uint)instance.Flags);
++            json.WriteString("alpha", instance.Alpha.ToString());
++            json.WriteBoolean("twoSided", instance.TwoSided);
++            json.WriteBoolean("holdsLight", instance.HoldsLight);
++            json.WriteEndObject();
++            used.Add(instance.Mesh);
++        }
++        json.WriteEndArray();
++        json.WriteStartArray("materials");
++        for (int slot = 0; slot < materials.Count; slot++)
++        {
++            GpuMaterial m = materials[slot];
++            json.WriteStartObject();
++            json.WriteNumber("slot", slot);
++            json.WriteStartArray("baseColor");
++            json.WriteNumberValue(m.BaseColor.X);
++            json.WriteNumberValue(m.BaseColor.Y);
++            json.WriteNumberValue(m.BaseColor.Z);
++            json.WriteNumberValue(m.BaseColor.W);
++            json.WriteEndArray();
++            Vec(json, "emissive", m.Emissive);
++            json.WriteNumber("metallic", m.Metallic);
++            json.WriteNumber("roughness", m.Roughness);
++            json.WriteNumber("reflectance", m.Reflectance);
++            json.WriteNumber("baseColorMap", m.BaseColorMap);
++            json.WriteNumber("normalMap", m.NormalMap);
++            json.WriteNumber("metallicRoughnessMap", m.MetallicRoughnessMap);
++            json.WriteNumber("shading", m.Shading);
++            json.WriteString("alpha", slot < infos.Length ? infos[slot].Alpha.ToString() : "?");
++            json.WriteEndObject();
++        }
++        json.WriteEndArray();
++        json.WriteStartArray("lights");
++        for (int i = 0; i < scene.LightCount; i++)
++        {
++            ref readonly PreparedLight light = ref scene.Lights[i];
++            json.WriteStartObject();
++            Vec(json, "position", light.Position);
++            Vec(json, "intensity", light.RadiantIntensity);
++            json.WriteNumber("radius", light.Radius);
++            json.WriteNumber("reach", light.Reach);
++            json.WriteNumber("distance", light.Distance);
++            json.WriteBoolean("castsShadow", light.CastsShadow);
++            json.WriteBoolean("inMainView", light.InMainView);
++            switch (light.Spread)
++            {
++                case EveryDirection(var halfSegment):
++                    json.WriteString("kind", halfSegment == Vector3.Zero ? "point" : "tube");
++                    Vec(json, "halfSegment", halfSegment);
++                    break;
++                case Cone(var axis, var cosInner, var cosOuter, var outerAngle):
++                    json.WriteString("kind", "spot");
++                    Vec(json, "axis", axis);
++                    json.WriteNumber("cosInner", cosInner);
++                    json.WriteNumber("cosOuter", cosOuter);
++                    json.WriteNumber("outerAngle", outerAngle);
++                    break;
++                case RectFace(var halfWidth, var halfHeight):
++                    json.WriteString("kind", "rect");
++                    Vec(json, "halfWidth", halfWidth);
++                    Vec(json, "halfHeight", halfHeight);
++                    break;
++            }
++            json.WriteEndObject();
++        }
++        json.WriteEndArray();
++        json.WriteStartArray("meshes");
++        foreach (int mesh in used)
++        {
++            json.WriteStartObject();
++            json.WriteNumber("id", mesh);
++            if (mesh < meshes.Count)
++            {
++                (Vector3[] positions, Vector3[] normals, uint[] indices, bool deforms) = meshes[mesh];
++                json.WriteNumber("vertices", positions.Length);
++                json.WriteNumber("indices", indices.Length);
++                json.WriteBoolean("deforms", deforms);
++                using var file = File.Create(Path.Combine(Folder, $"mesh-{mesh}.bin"));
++                using var writer = new BinaryWriter(file);
++                writer.Write(positions.Length);
++                writer.Write(indices.Length);
++                foreach (Vector3 p in positions)
++                {
++                    writer.Write(p.X);
++                    writer.Write(p.Y);
++                    writer.Write(p.Z);
++                }
++                foreach (Vector3 n in normals)
++                {
++                    writer.Write(n.X);
++                    writer.Write(n.Y);
++                    writer.Write(n.Z);
++                }
++                foreach (uint index in indices)
++                    writer.Write(index);
++            }
++            else
++                json.WriteString("missing", "a frame mesh past the static meshes");
++            json.WriteEndObject();
++        }
++        json.WriteEndArray();
++        json.WriteEndObject();
++        Console.WriteLine($"scene export: capture {At}, {scene.PlacedCount} instances, {scene.LightCount} lights, into {Folder}");
++    }
++
++    private static void Vec(Utf8JsonWriter json, string name, Vector3 value)
++    {
++        json.WriteStartArray(name);
++        json.WriteNumberValue(value.X);
++        json.WriteNumberValue(value.Y);
++        json.WriteNumberValue(value.Z);
++        json.WriteEndArray();
++    }
++}
+diff --git a/src/Tertius.Rendering/ShaderConstants.cs b/src/Tertius.Rendering/ShaderConstants.cs
+index 386aca8dd..58be6a264 100644
+--- a/src/Tertius.Rendering/ShaderConstants.cs
++++ b/src/Tertius.Rendering/ShaderConstants.cs
+@@ -34,6 +34,24 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
+     public const uint NoBackRuleId = 13;
+     public const uint FadeOverTenPercentId = 14;
+ 
++    /// <summary>THROWAWAY (ter-kh4g, stage 2, t1-g4p1): the constant_ids of knownLightRule and visibleFootprint in
++    /// screen_walk.glsl.</summary>
++    public const uint KnownLightRuleId = 15;
++    public const uint VisibleFootprintId = 16;
++
++    /// <summary>THROWAWAY (t1-g4p1): the constant_id of walkTopCap in screen_walk.glsl, and its value from
++    /// TERTIUS_WALK_TOP (8, the walk's own top, without it).</summary>
++    public const uint WalkTopCapId = 17;
++    public static uint WalkTopCap =>
++        uint.TryParse(Environment.GetEnvironmentVariable("TERTIUS_WALK_TOP"), out uint top) ? top : 8u;
++
++    /// <summary>THROWAWAY (t1-g4p1): 0 for the fade by the entry share, or the unknown-face light of the known-light rule:
++    /// 1 the miss light, 2 black, 3 the front pixel's light.</summary>
++    public uint KnownLightRule { get; init; }
++
++    /// <summary>THROWAWAY (t1-g4p1): the footprint's half-width a of the known-light rule, in pixels.</summary>
++    public float VisibleFootprint { get; init; } = 0.5f;
++
+     /// <summary>THROWAWAY (t1-n8x9): the slab rule of the depth pyramid's build, a Slab constant of thickness.glsl.</summary>
+     public uint SlabRule { get; init; }
+ 
+@@ -142,6 +160,9 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
+             (SlabRuleId, values.SlabRule),
+             (NoBackRuleId, values.NoBackRule),
+             (FadeOverTenPercentId, VkBool(values.FadeOverTenPercent)),
++            (KnownLightRuleId, values.KnownLightRule),
++            (VisibleFootprintId, BitConverter.SingleToUInt32Bits(values.VisibleFootprint)),
++            (WalkTopCapId, WalkTopCap),
+         ];
+         for (int i = 0; i < rows.Length; i++)
+         {
+@@ -173,7 +194,7 @@ internal struct SpecializationStorage
+     /// The number of constants: one per field of <see cref="ShaderConstants"/>, the subsurface setting's being its taps per
+     /// side. <see cref="ShaderConstants.Specialization"/> writes one row per constant, and a row past this count throws.
+     /// </summary>
+-    public const int Count = 14;
++    public const int Count = 17;
+ 
+     public SpecializationValues Data;
+     public SpecializationEntries Entries;
+diff --git a/src/Tertius.Rendering/Shaders/screen_trace.glsl b/src/Tertius.Rendering/Shaders/screen_trace.glsl
+index a1ea8c0bc..7ee5c7c0e 100644
+--- a/src/Tertius.Rendering/Shaders/screen_trace.glsl
++++ b/src/Tertius.Rendering/Shaders/screen_trace.glsl
+@@ -748,10 +748,11 @@ TracedRay traceFrom(ivec2 pixel, ivec2 cell, TracingPixel p, uint kind)
+     vec2 hit;
+     ivec2 hitPixel;
+     float entryShare;
++    float entryW;
+     uint steps = kind == KindReflection ? trace.reflectionSteps : trace.diffuseSteps;
+     vec3 missLight = missLightOf(p, pixel, kind, result.direction);
+     result.light = missLight;
+-    if (walkScreen(depthFinest, depthPyramid, walk, steps, hit, hitPixel, entryShare) != WalkHit)
++    if (walkScreen(depthFinest, depthPyramid, walk, steps, hit, hitPixel, entryShare, entryW) != WalkHit)
+     {
+         // A miss has no guided density. A guided ray counts only where it hits a pixel near its target, so a miss brings
+         // nothing.
+@@ -776,6 +777,16 @@ TracedRay traceFrom(ivec2 pixel, ivec2 cell, TracingPixel p, uint kind)
+     result.distance = length(hitPoint - p.origin);
+     float fade = edgeFade(hit) * (1.0 - entryShare);
+     result.light = mix(missLight, hitLightOf(hitPixel, kind), fade);
++    // THROWAWAY (ter-kh4g, stage 2, t1-g4p1): the known-light rule. The hit pixel's light where the ray enters its visible
++    // face, the unknown-face light elsewhere, and no fade by the slab's thickness. The screen-edge fade stays.
++    if (knownLightRule != 0u)
++    {
++        vec3 hitLight = hitLightOf(hitPixel, kind);
++        vec3 unknownFaceLight = knownLightRule == 1u ? missLight : knownLightRule == 2u ? vec3(0.0) : hitLight;
++        fade = edgeFade(hit);
++        result.light = mix(missLight,
++            entersVisibleFace(hitPixel, entryW, visibleFootprint) ? hitLight : unknownFaceLight, fade);
++    }
+ #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+     if (fade > 0.0)
+         result.age = imageLoad(lightAge, hitPixel).g;
+diff --git a/src/Tertius.Rendering/Shaders/screen_walk.glsl b/src/Tertius.Rendering/Shaders/screen_walk.glsl
+index e68e17128..80d9565d3 100644
+--- a/src/Tertius.Rendering/Shaders/screen_walk.glsl
++++ b/src/Tertius.Rendering/Shaders/screen_walk.glsl
+@@ -18,6 +18,15 @@ const int WalkTopLevel = 8;   // ScreenRay.WalkTopLevel
+ // (ShaderConstants.FadeOverTenPercentId).
+ layout(constant_id = 14) const bool fadeOverTenPercent = false;
+ 
++// THROWAWAY (ter-kh4g, stage 2, t1-g4p1): the known-light rule of column D. 0 keeps the fade by the entry share. 1, 2 and 3
++// give a ray that enters the hit pixel's slab off its visible face the miss light, black or the front pixel's light.
++layout(constant_id = 15) const uint knownLightRule = 0u;
++// THROWAWAY (t1-g4p1): the half-width a, in pixels, of the footprint over which a pixel's plane span counts as its
++// visible face.
++layout(constant_id = 16) const float visibleFootprint = 0.5;
++// THROWAWAY (t1-g4p1): the highest level that the walk climbs to, for the test of the bands on the jamb.
++layout(constant_id = 17) const int walkTopCap = WalkTopLevel;
++
+ // What a walk keeps of its ray from its start to its end.
+ struct ScreenWalk
+ {
+@@ -77,17 +86,18 @@ bool hitsPixel(ScreenWalk walk, ivec2 pixel)
+ // where it enters it, and one that meets a pixel's slab hits where hitsPixel holds. A walk that reaches its cap is a miss.
+ // On a hit, gives the hit's position in pixels, its pixel and the entry share e, 0 at the slab's front and 1 at its back.
+ uint walkScreen(texture2D finest, texture2D bounds, ScreenWalk walk, uint cap, out vec2 hit, out ivec2 hitPixel,
+-    out float entryShare)
++    out float entryShare, out float entryW)
+ {
+     hit = vec2(0.0);
+     hitPixel = ivec2(0);
+     entryShare = 0.0;
++    entryW = 0.0;
+     vec2 crossed;
+     float s = cellExit(walk.ray, walk.inverse, floor(walk.ray.start), 1.0, walk.farSide, crossed);
+     // The cell that the walk stands in, at its level: the pixel past the origin's pixel to start with.
+     vec2 cell = floor(walk.ray.start) + walk.travel * crossed;
+     int level = 0;
+-    int top = min(textureQueryLevels(bounds), WalkTopLevel);
++    int top = min(min(textureQueryLevels(bounds), WalkTopLevel), walkTopCap);
+     // THROWAWAY (t1-n8x9): read only by the fade switch.
+     const float backShare = 1.0 / (1.0 + ThicknessShare);
+     // Whether a descent solved s as a slab's entry, rather than a crossing reaching it on a cell's edge.
+@@ -127,6 +137,9 @@ uint walkScreen(texture2D finest, texture2D bounds, ScreenWalk walk, uint cap, o
+             // A thickness that rounds to none leaves a slab of no depth, whose share would be 0 / 0.
+             float fadeBack = fadeOverTenPercent ? max(back, near * backShare) : back;
+             entryShare = fadeBack < near ? entryShareOf(inW, fadeBack, near) : 0.0;
++            // THROWAWAY (t1-g4p1): the inverse depth where the ray enters the pixel's slab: its front from in front, its
++            // back from behind, or the cell's entry from inside.
++            entryW = clamp(inW, min(back, near), near);
+             return WalkHit;
+         }
+         // Across the cell and up a level: in front of its slab, behind it, or past a pixel that is no hit.
+@@ -142,4 +155,18 @@ uint walkScreen(texture2D finest, texture2D bounds, ScreenWalk walk, uint cap, o
+     return WalkMiss;
+ }
+ 
++// THROWAWAY (t1-g4p1): whether the ray's entry into the hit pixel's slab lies on the visible face: within the plane span of
++// the hit pixel over a footprint of half-width `footprint` pixels, behind the pixel's center w. An edge-on plane spans
++// every depth, so its entry counts as on the face.
++bool entersVisibleFace(ivec2 hitPixel, float entryW, float footprint)
++{
++    PixelPlane plane;
++    if (!pixelPlane(hitPixel, plane))
++        return true;
++    if (plane.edgeOn)
++        return true;
++    float span = footprint * (abs(plane.gradient.x) + abs(plane.gradient.y));
++    return entryW >= plane.centerW - span;
++}
++
+ #endif
+diff --git a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
+index 148fde084..4787930a6 100644
+--- a/src/Tertius.Rendering/VulkanRenderer.cs
++++ b/src/Tertius.Rendering/VulkanRenderer.cs
+@@ -1885,6 +1885,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
+             for (int i = 0; i < pixels.Length; i += 4)
+                 (pixels[i], pixels[i + 2]) = (pixels[i + 2], pixels[i]);
+         sink.Take(new(pixels, width, height));
++        // THROWAWAY (ter-kh4g, stage 2, t1-g4p1): the scene export at its chosen capture.
++        SceneExport.Captured(LastScene, materials.Infos);
+         // THROWAWAY (ter-kh4g, stage 1): under TERTIUS_BACK_FACE_DUMP=<folder>, writes the captured frame's front
+         // distances and back shares as raw 32-bit floats, row by row from the top, with the render size in the file names.
+         if (Environment.GetEnvironmentVariable("TERTIUS_BACK_FACE_DUMP") is { Length: > 0 } folder && BackFacePass.SwitchedOn())
+@@ -2154,6 +2156,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
+             SlabRule = BackFacePass.Probe().SlabRule,
+             NoBackRule = BackFacePass.Probe().NoBackRule,
+             FadeOverTenPercent = BackFacePass.Probe().FadeOverTenPercent,
++            KnownLightRule = BackFacePass.Probe().KnownLightRule,
++            VisibleFootprint = BackFacePass.Probe().VisibleFootprint,
+             ReflectionSharingPrototype =
+                 options.ScreenTrace is ScreenTrace
+                 && Environment.GetEnvironmentVariable("TERTIUS_REFLECTION_SHARING") == "1",

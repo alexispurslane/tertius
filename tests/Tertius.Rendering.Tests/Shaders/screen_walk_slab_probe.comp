@@ -1,0 +1,27 @@
+#version 460
+// The walk's slab on the GPU (ScreenWalkSlabTests): rays that run at one inverse depth across a wall that faces the eye,
+// inside the wall's stored slab and just behind its stored back w. Each pixel writes the first ray's outcome and entry
+// share, and the second ray's outcome.
+#extension GL_GOOGLE_include_directive : require
+#include "screen_trace.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
+        return;
+    vec2 slab = texelFetch(depthFinest, pixel, 0).rg;
+    ScreenRay inside = ScreenRay(vec2(pixel) + 0.5, vec2(1.0, 0.0), 0.5 * (slab.x + slab.y), 0.0, 4.0);
+    ScreenRay behind = ScreenRay(vec2(pixel) + 0.5, vec2(1.0, 0.0), slab.y * 0.999, 0.0, 4.0);
+    vec2 hit;
+    ivec2 hitPixel;
+    float insideShare;
+    float behindShare;
+    uint insideResult = walkScreen(depthFinest, depthPyramid,
+        screenWalkOf(inside, vec3(0.0, 0.0, -1.0), NoCard), 256u, hit, hitPixel, insideShare);
+    uint behindResult = walkScreen(depthFinest, depthPyramid,
+        screenWalkOf(behind, vec3(0.0, 0.0, -1.0), NoCard), 256u, hit, hitPixel, behindShare);
+    imageStore(specularSample, pixel, vec4(float(insideResult), insideShare, float(behindResult), 0.0));
+}

@@ -59,6 +59,12 @@ internal sealed class RenderTargets : IDisposable
     public const Format DepthFormat = Format.D32Sfloat;
     public const Format HdrFormat = Format.R16G16B16A16Sfloat;
     public const Format DiffuseFormat = Format.R16G16B16A16Sfloat;
+
+    /// <summary>
+    /// The back share's format: a color target format that the Vulkan spec requires, exact at 0 and at 1
+    /// (docs/plans/back-face-depth-layer.md, decision 9).
+    /// </summary>
+    public const Format BackShareFormat = Format.R16Sfloat;
     public const Format DirectFormat = Format.R16G16B16A16Sfloat;
 
     /// <summary>
@@ -95,7 +101,7 @@ internal sealed class RenderTargets : IDisposable
     private readonly bool diffuse;
 
     /// <param name="glowLevels">The bloom levels, 0 without bloom.</param>
-    /// <param name="depthPyramid">True under <see cref="ScreenTrace"/>, whose rays walk the depth pyramid.</param>
+    /// <param name="depthPyramid">True under <see cref="ScreenTrace"/>, whose rays walk the depth pyramid, built with the back share.</param>
     /// <param name="subsurface">
     /// True under <see cref="SeparableSubsurface"/>, whose columns pass writes the HDR target and which reads the diffuse
     /// image.
@@ -143,8 +149,10 @@ internal sealed class RenderTargets : IDisposable
                 layouts: layouts,
                 extent: Extent,
                 format: PyramidImages.DepthFormat,
-                name: "depth pyramid"
+                name: "depth pyramid",
+                levelOneReadsFinest: false
             );
+        CreateBackShare();
     }
 
     public Extent2D Extent { get; private set; }
@@ -156,6 +164,12 @@ internal sealed class RenderTargets : IDisposable
     public GpuImage Specular { get; private set; }
     public GpuImage Emissive { get; private set; }
     public GpuImage Distance { get; private set; }
+
+    /// <summary>
+    /// The back share of each pixel after <see cref="BackFacePass"/>, or null under <see cref="NoScreenTrace"/>: its front
+    /// distance over the distance of the nearest counted fragment, 0 for none (docs/plans/back-face-depth-layer.md).
+    /// </summary>
+    public GpuImage? BackShare { get; private set; }
 
     /// <summary>The shading model of each pixel and a hair pixel's strand, the sixth G-buffer target.</summary>
     public GpuImage Shading { get; private set; }
@@ -220,6 +234,21 @@ internal sealed class RenderTargets : IDisposable
         DestroyImages();
         Create(extent);
         Pyramid?.Create(Extent);
+        CreateBackShare();
+    }
+
+    /// <summary>
+    /// Makes the back share at the render size beside the depth pyramid, under the screen tracer only, and binds it at
+    /// binding 0 of the pyramid's finest set and of its set of level 1, whose shaders read it. Runs after
+    /// <see cref="Create"/> and the pyramid's own creation.
+    /// </summary>
+    private void CreateBackShare()
+    {
+        if (Pyramid is null)
+            return;
+        BackShare = ColorTarget(extent: Extent, format: BackShareFormat, name: "back share", readable: true);
+        layouts.WriteImage(set: Pyramid.FinestSet, binding: 0, arrayElement: 0, image: BackShare);
+        layouts.WriteImage(set: Pyramid.LevelSet(1), binding: 0, arrayElement: 0, image: BackShare);
     }
 
     /// <summary>The screen tracer's limits on the screen: the depth pyramid's levels, and the own-ray lists' range.</summary>
@@ -251,6 +280,7 @@ internal sealed class RenderTargets : IDisposable
         extent = upscaling.RenderExtent(extent, upscaling.LargestScale);
         Extent = extent;
         Upscale?.Resize(extent, OutputExtent);
+
         BaseColor = ColorTarget(extent: extent, format: BaseColorFormat, name: "g-buffer base color");
         Normal = ColorTarget(extent: extent, format: NormalFormat, name: "g-buffer normal", readable: true);
         Specular = ColorTarget(extent: extent, format: SpecularFormat, name: "g-buffer specular", readable: true);
@@ -460,7 +490,7 @@ internal sealed class RenderTargets : IDisposable
         )
             throw new NotSupportedException($"{storageImages} ({device.DeviceName})");
         const FormatFeatureFlags pyramid = FormatFeatureFlags.SampledImageBit | FormatFeatureFlags.StorageImageBit;
-        foreach (Format format in (Format[])[PyramidImages.DepthFormat, Format.R32Sfloat])
+        foreach (Format format in (Format[])[PyramidImages.DepthFormat, PyramidImages.LightFormat])
             if ((device.FormatProperties(format).OptimalTilingFeatures & pyramid) != pyramid)
                 throw new NotSupportedException($"{format} cannot be sampled and stored on {device.DeviceName}.");
     }
@@ -471,6 +501,7 @@ internal sealed class RenderTargets : IDisposable
         foreach (GpuImage image in GBuffer)
             image.Dispose();
         Depth?.Dispose();
+        BackShare?.Dispose();
         Hdr?.Dispose();
         DirectDiffuse?.Dispose();
         DirectSpecular?.Dispose();

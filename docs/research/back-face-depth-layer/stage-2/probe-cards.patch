@@ -1,0 +1,1701 @@
+diff --git a/src/Tertius.Demo/DemoScenes.CardsGlow.cs b/src/Tertius.Demo/DemoScenes.CardsGlow.cs
+new file mode 100644
+index 000000000..415aeaa0e
+--- /dev/null
++++ b/src/Tertius.Demo/DemoScenes.CardsGlow.cs
+@@ -0,0 +1,111 @@
++using System.Numerics;
++
++using Tertius.Host;
++using Tertius.Simulation;
++
++namespace Tertius.Demo;
++
++// THROWAWAY (t1-yy2f, never merges): the view of part 2 of the experiment of the borrowed back face.
++public static partial class DemoScenes
++{
++    /// <summary>
++    /// THROWAWAY (t1-yy2f): a curtain of hair cards with a glowing box behind it, over a glossy floor.
++    /// <list type="bullet">
++    /// <item>The curtain, <c>curtain-0</c> and on: the wall of hair of <c>lamp-hall-16-hair</c>, 4 rows of 24 cutout cards,
++    /// facing +Z, with its middle 0.75 m above the floor, so that its lowest cards end 0.24 m above it.</item>
++    /// <item>The <c>glow</c>: a white glowing box 1 m wide and 0.7 m tall, 1.2 m behind the curtain, standing on the
++    /// floor.</item>
++    /// <item>The <c>mirror</c>: a dark glossy plate on the floor, 8 m square and 2 cm thick, of roughness 0.05.</item>
++    /// <item>The view <c>curtain-camera</c> looks at the curtain's lower half from 2.2 m along +Z and 0.55 m up. It sees
++    /// the cards, the glow through their gaps, and the mirror's reflection of both.</item>
++    /// </list>
++    /// </summary>
++    private static SceneInstance CardsGlow(World world, IRenderResources resources)
++    {
++        var scene = new SceneInstance();
++        FrameHandle surface = EarthSurface(
++            world: world,
++            resources: resources,
++            scene: scene,
++            floorHalfExtents: new(10, 0.5f, 10)
++        );
++        ReviewSky(world);
++        world.VerticalFov = 40 * MathF.PI / 180;
++        var mirrorHalf = new Vector3(4, 0.01f, 4);
++        scene.Add(
++            "mirror",
++            world.Spawn(
++                DrawnAt(
++                    frame: surface,
++                    position: new(0, EarthRadius + mirrorHalf.Y, 0),
++                    render: Shaded(
++                        mesh: resources.CreateMesh(Primitives.Box(mirrorHalf)),
++                        material: resources.CreateMaterial(
++                            MaterialDesc.Color(new(x: 0.04f, y: 0.04f, z: 0.045f, w: 1), roughness: 0.05f)
++                        ),
++                        boundingRadius: mirrorHalf.Length()
++                    )
++                )
++            )
++        );
++        double floor = EarthRadius + 2 * mirrorHalf.Y;
++        TextureId strands = resources.CreateTexture(StrandImage());
++        MeshId card = resources.CreateMesh(StrandCard());
++        StrandFan fan = StrandFans.Single(f => f.Alpha is CutoutAlpha);
++        MaterialId[] materials =
++        [
++            .. new[] { DarkBrownHair, LightBrownHair }.Select(color =>
++                resources.CreateMaterial(
++                    new(BaseColor: color, Roughness: 0.35f, BaseColorMap: strands, Model: fan.Model, Alpha: fan.Alpha)
++                )
++            ),
++        ];
++        var middle = new Double3(0, floor + 0.75, 0);
++        for (int row = 0; row < HairWallRows; row++)
++        for (int column = 0; column < HairWallColumns; column++)
++        {
++            int i = row * HairWallColumns + column;
++            double twist = (i % 2 == 0 ? 20 : -20) * Math.PI / 180;
++            var offset = new Double3(
++                (column - (HairWallColumns - 1) / 2.0) * 0.06,
++                (row - (HairWallRows - 1) / 2.0) * StrandCardLength * 0.8,
++                0.01 * (column % 3)
++            );
++            scene.Add(
++                $"curtain-{i}",
++                world.Spawn(
++                    new()
++                    {
++                        Frame = surface,
++                        Pose = new(middle + offset, DQuaternion.FromAxisAngle(Double3.UnitY, twist)),
++                        Render = new RenderData
++                        {
++                            Mesh = card,
++                            Material = materials[i % materials.Length],
++                            BoundingRadius = StrandCardBoundingRadius,
++                            Flags = RenderFlags.Visible | RenderFlags.CastsShadow | RenderFlags.NoImpostor,
++                        },
++                    }
++                )
++            );
++        }
++
++        scene.Add(
++            "glow",
++            world.Spawn(
++                GlowingBox(
++                    surface: surface,
++                    resources: resources,
++                    standsOn: new(0, floor, -1.2),
++                    halfExtents: new(0.5f, 0.35f, 0.05f)
++                )
++            )
++        );
++        Entity camera = world.Spawn(ViewIn(surface, LookingAt(new(0, floor + 0.55, 2.2), new(0, floor + 0.45, 0))));
++        scene.Add("curtain-camera", camera);
++        Star(world: world, scene: scene, frame: surface, center: new(0, EarthRadius, 0), direction: new(0.3, 0.6, 1));
++        scene.AddView("curtain-camera");
++        world.Camera = camera;
++        return scene;
++    }
++}
+diff --git a/src/Tertius.Demo/DemoScenes.HairCards.cs b/src/Tertius.Demo/DemoScenes.HairCards.cs
+index 2e005927b..5706df431 100644
+--- a/src/Tertius.Demo/DemoScenes.HairCards.cs
++++ b/src/Tertius.Demo/DemoScenes.HairCards.cs
+@@ -25,6 +25,8 @@ public static partial class DemoScenes
+             new("hair-cards-backlit", (world, resources) => HairCards(world, resources, toSun: new(0.25, 0.45, -1))),
+             new("hair-bent-cards", HairBentCards),
+             new("hair-rugs", HairRugs),
++            // THROWAWAY (t1-yy2f): the curtain of cards before a glow.
++            new("cards-glow", CardsGlow),
+         ];
+ 
+     /// <summary>The segments of each bent card of the hair-bent-cards scene, along its strands.</summary>
+diff --git a/src/Tertius.Demo/ProbeMeshCensus.cs b/src/Tertius.Demo/ProbeMeshCensus.cs
+new file mode 100644
+index 000000000..53c58f4c5
+--- /dev/null
++++ b/src/Tertius.Demo/ProbeMeshCensus.cs
+@@ -0,0 +1,143 @@
++using System.Globalization;
++using System.Numerics;
++using System.Text;
++using Tertius.Host;
++using Tertius.Host.Scripting;
++using Tertius.Physics;
++using Tertius.Rendering;
++using Tertius.Simulation;
++
++namespace Tertius.Demo;
++
++/// <summary>
++/// THROWAWAY (t1-yy2f, never merges): the census of open meshes of part 1. <c>--probe-meshes &lt;scripts folder&gt;
++/// &lt;report&gt;</c> first checks <see cref="MeshClosure"/> on four small meshes. Then it builds the scene of every
++/// script in the folder with no renderer, and lists each drawn entity whose material is one-sided and opaque and whose
++/// mesh is open (<see cref="MeshClosure.IsClosed"/>). Entities that a scene spawns after its build are not counted.
++/// </summary>
++internal static class ProbeMeshCensus
++{
++    public static int Run(string[] args, TextWriter output)
++    {
++        var report = new StringBuilder();
++        CheckClosure(report);
++        var scenes = Directory
++            .GetFiles(args[1], "*.json")
++            .Order(StringComparer.Ordinal)
++            .Select(path => (Script: Path.GetFileNameWithoutExtension(path), Scene: Script.Load(path).Scene))
++            .ToList();
++        foreach (var group in scenes.GroupBy(s => s.Scene).OrderBy(g => g.Key, StringComparer.Ordinal))
++            CensusOf(group.Key, group.Select(s => s.Script).ToList(), report);
++        File.WriteAllText(args[2], report.ToString());
++        output.Write(report.ToString());
++        return 0;
++    }
++
++    /// <summary>The closed-mesh test on a box, a single quad, a box with one face removed, and a UV sphere.</summary>
++    private static void CheckClosure(StringBuilder report)
++    {
++        MeshData box = Primitives.Box(new(1, 2, 3));
++        MeshData quad = Primitives.Plane(1);
++        // The box's first face: its first six indices.
++        MeshData openBox = box with { Indices = box.Indices[6..] };
++        MeshData sphere = Primitives.Sphere(1);
++        foreach (var (name, mesh) in new[] { ("box", box), ("quad", quad), ("box less one face", openBox), ("sphere", sphere) })
++        {
++            var counts = MeshClosure.Count(mesh.Indices, mesh.Vertices.Select(v => v.Position).ToArray());
++            report.Append(
++                CultureInfo.InvariantCulture,
++                $"check {name}: closed {counts.Closed}, vertices {mesh.Vertices.Length}, welded positions {counts.Positions}, triangles {counts.Triangles} of {mesh.Indices.Length / 3}, unpaired edges {counts.Unpaired}, repeated edges {counts.Repeated}\n"
++            );
++        }
++    }
++
++    private static void CensusOf(string sceneName, List<string> scripts, StringBuilder report)
++    {
++        Scene? scene = DemoScenes.All.SingleOrDefault(s => s.Name == sceneName);
++        if (scene is null)
++        {
++            report.Append(CultureInfo.InvariantCulture, $"scene {sceneName} ({string.Join(", ", scripts)}): not found\n");
++            return;
++        }
++        var resources = new RecordingResources();
++        using var world = new World(new() { DisposePhysics = true }, new JoltPhysicsBackend(JoltBackendOptions.Unpaced));
++        SceneInstance instance = scene.Build(world, resources);
++        var entities = new List<Entity>();
++        world.CopyLiveEntities(entities);
++        int drawn = 0,
++            oneSided = 0;
++        var open = new List<string>();
++        var meshesSeen = new HashSet<int>();
++        var openMeshes = new HashSet<int>();
++        foreach (Entity entity in entities)
++        {
++            RenderData render = world.GetRender(entity);
++            if (render.Mesh.IsNone || (render.Flags & RenderFlags.Visible) == 0)
++                continue;
++            drawn++;
++            meshesSeen.Add(render.Mesh.Value);
++            MaterialDesc? material = render.Material.IsNone ? null : resources.Materials[render.Material.Value];
++            bool twoSided = material is { } m && m.Model switch
++            {
++                HairShading => true,
++                StandardShading or SkinShading => false,
++            };
++            string alpha = material is { } a ? a.Alpha switch
++            {
++                OpaqueAlpha => "opaque",
++                CutoutAlpha => "cutout",
++                FringedAlpha => "fringed",
++                GlassAlpha => "glass",
++            } : "opaque";
++            if (twoSided || alpha == "glass")
++                continue;
++            oneSided++;
++            MeshData mesh = resources.Meshes[render.Mesh.Value];
++            var counts = MeshClosure.Count(mesh.Indices, mesh.Vertices.Select(v => v.Position).ToArray());
++            if (counts.Closed && counts.Repeated > 0)
++                open.Add(
++                    string.Create(
++                        CultureInfo.InvariantCulture,
++                        $"  {instance.IdOf(entity)}: mesh {render.Mesh.Value}, {alpha}, closed only by the pairing rule: {counts.Repeated} directed edges of more than one triangle, {counts.Triangles} triangles"
++                    )
++                );
++            if (counts.Closed)
++                continue;
++            openMeshes.Add(render.Mesh.Value);
++            open.Add(
++                string.Create(
++                    CultureInfo.InvariantCulture,
++                    $"  {instance.IdOf(entity)}: mesh {render.Mesh.Value}, {alpha}, {counts.Triangles} triangles, {counts.Unpaired} unpaired and {counts.Repeated} repeated directed edges, radius {render.BoundingRadius:0.###} m"
++                )
++            );
++        }
++        report.Append(
++            CultureInfo.InvariantCulture,
++            $"scene {sceneName} ({string.Join(", ", scripts)}): drawn entities {drawn}, one-sided opaque {oneSided}, of open meshes {openMeshes.Count} distinct meshes of {meshesSeen.Count}\n"
++        );
++        foreach (string line in open.Order(StringComparer.Ordinal))
++            report.Append(line).Append('\n');
++    }
++
++    /// <summary>Resources that keep what a scene creates, by id, and draw nothing.</summary>
++    private sealed class RecordingResources : IRenderResources
++    {
++        public List<MeshData> Meshes { get; } = [];
++        public List<MaterialDesc> Materials { get; } = [];
++        private int textures;
++
++        public MeshId CreateMesh(MeshData mesh)
++        {
++            Meshes.Add(mesh);
++            return new MeshId(Meshes.Count - 1);
++        }
++
++        public TextureId CreateTexture(TextureData texture) => new(textures++);
++
++        public MaterialId CreateMaterial(MaterialDesc material)
++        {
++            Materials.Add(material);
++            return new MaterialId(Materials.Count - 1);
++        }
++    }
++}
+diff --git a/src/Tertius.Demo/Program.cs b/src/Tertius.Demo/Program.cs
+index 8add50772..e959f4bc6 100644
+--- a/src/Tertius.Demo/Program.cs
++++ b/src/Tertius.Demo/Program.cs
+@@ -43,6 +43,8 @@ public static class Program
+             ["--generate", ..] => Generate(args, output, error),
+             ["--readouts", ..] => Readouts(args: args, scenes: DemoScenes.All, output: output, error: error),
+             ["--edit", ..] => EditCommand.Run(args: args, cuts: BlueDanubeEdit.Cuts, output: output, error: error),
++            // THROWAWAY (t1-yy2f): the census of open meshes.
++            ["--probe-meshes", ..] => ProbeMeshCensus.Run(args, output),
+             _ => ScriptCommand.Run(args: args, scenes: DemoScenes.All, output: output, error: error),
+         };
+ 
+diff --git a/src/Tertius.Rendering/Frame/DescriptorLayouts.cs b/src/Tertius.Rendering/Frame/DescriptorLayouts.cs
+index 3668aa8d0..f64543577 100644
+--- a/src/Tertius.Rendering/Frame/DescriptorLayouts.cs
++++ b/src/Tertius.Rendering/Frame/DescriptorLayouts.cs
+@@ -117,6 +117,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+     /// <summary>The binding of the hit light in a screen tracer set, a storage image after the light pyramid's two.</summary>
+     public const uint ScreenTraceHitLightBinding = ScreenTraceLightBinding + ScreenTraceLightImages;
+ 
++    /// <summary>PROBE (t1-yy2f, never merges): the binding of the sheet rules' census records.</summary>
++    public const uint ProbeRecordsBinding = ScreenTraceHitLightBinding + 1;
++
+     /// <summary>
+     /// The storage images that the light-change age of a precise specular history adds to a screen tracer set after its
+     /// lists, at bindings 19 to 22: the last and this frame's light-age records, the specular sample's age and FSR's
+@@ -971,6 +974,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+                     + 2
+                     + ScreenTraceStorageBuffers * ScreenTraceSets
+                     + 2
++                    // PROBE (t1-yy2f): the census records of each screen tracer set.
++                    + ScreenTraceSets
+             ),
+             // Three per frame set (the material sampler and the immutable linear clamp and environment samplers), the
+             // immutable samplers of the G-buffer, atlas, post and prefilter sets, and one per glow source set.
+@@ -1213,7 +1218,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+         int beforeLight = (int)(lists + ScreenTraceStorageBuffers + ScreenTraceAgeImages);
+         Span<DescriptorSetLayoutBinding> bindings =
+             stackalloc DescriptorSetLayoutBinding[
+-                beforeLight + (int)(ScreenTraceLightImages + ScreenTraceHitLightImages)
++                beforeLight + (int)(ScreenTraceLightImages + ScreenTraceHitLightImages) + 1
+             ];
+         for (uint binding = 0; binding < ScreenTraceSampledImages; binding++)
+             bindings[(int)binding] = Image(binding: binding, stages: ShaderStageFlags.ComputeBit);
+@@ -1233,7 +1238,14 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+                 binding: ScreenTraceLightBinding + image,
+                 stages: ShaderStageFlags.ComputeBit
+             );
+-        bindings[^1] = StorageImage(ScreenTraceHitLightBinding);
++        bindings[^2] = StorageImage(ScreenTraceHitLightBinding);
++        // PROBE (t1-yy2f, never merges): the sheet rules' census records (screen_trace_resolve.comp).
++        bindings[^1] = new(
++            binding: ProbeRecordsBinding,
++            descriptorType: DescriptorType.StorageBuffer,
++            descriptorCount: 1,
++            stageFlags: ShaderStageFlags.ComputeBit
++        );
+         return CreateLayout(bindings: bindings, name: "screen trace set");
+     }
+ 
+diff --git a/src/Tertius.Rendering/Frame/ScreenTraceImages.cs b/src/Tertius.Rendering/Frame/ScreenTraceImages.cs
+index 2ee20c48e..1826e92fa 100644
+--- a/src/Tertius.Rendering/Frame/ScreenTraceImages.cs
++++ b/src/Tertius.Rendering/Frame/ScreenTraceImages.cs
+@@ -143,6 +143,9 @@ internal sealed class ScreenTraceImages : IDisposable
+     /// <summary>The own-ray list of each kind, in the layout of <see cref="OwnRayList"/>.</summary>
+     public GpuBuffer[] OwnRays { get; private set; } = [];
+ 
++    /// <summary>PROBE (t1-yy2f, never merges): the sheet rules' census records (screen_trace_resolve.comp).</summary>
++    public GpuBuffer? ProbeRecords { get; private set; }
++
+     /// <summary>The tracer set of each parity of the drawn frames: the one that a draw of that parity binds.</summary>
+     public DescriptorSet[] Sets { get; }
+ 
+@@ -219,6 +222,15 @@ internal sealed class ScreenTraceImages : IDisposable
+         HitLight = CreateImage(extent: extent, format: HitLightFormat, layers: Kinds, name: "screen trace hit light");
+ 
+         OwnRays = [CreateOwnRayList(extent, "reflection"), CreateOwnRayList(extent, "diffuse")];
++        // PROBE (t1-yy2f, never merges): 16 words per render pixel under the sheet rules' census, else one record's room.
++        ProbeRecords = GpuBuffer.Create(
++            device: device,
++            allocator: allocator,
++            size: (ulong)(ScreenTracePushConstants.ProbeSheetRules ? (long)extent.Width * extent.Height : 1) * 16 * sizeof(uint),
++            usage: BufferUsageFlags.StorageBufferBit | BufferUsageFlags.TransferSrcBit,
++            memoryUsage: MemoryUsage.GpuOnly,
++            name: "screen trace probe records"
++        );
+         lightAges = Specular.HistoryMode.KeepsLightAge
+             ?
+             [
+@@ -303,6 +315,12 @@ internal sealed class ScreenTraceImages : IDisposable
+         if (Specular.UncoveredDiagnostic(0) is { } diagnostic)
+             layouts.WriteStorageImage(set: set, binding: 23, image: diagnostic);
+         layouts.WriteStorageImage(set: set, binding: DescriptorLayouts.ScreenTraceHitLightBinding, image: HitLight);
++        layouts.WriteBuffer(
++            set: set,
++            binding: DescriptorLayouts.ProbeRecordsBinding,
++            type: DescriptorType.StorageBuffer,
++            buffer: ProbeRecords
++        );
+     }
+ 
+     /// <summary>Writes the sampled images of <paramref name="set"/>: the depth pyramid at bindings 0 and 1, and the light
+@@ -370,5 +388,6 @@ internal sealed class ScreenTraceImages : IDisposable
+         foreach (GpuBuffer list in OwnRays)
+             list.Dispose();
+         OwnRays = [];
++        ProbeRecords?.Dispose();
+     }
+ }
+diff --git a/src/Tertius.Rendering/Passes/BackFacePass.cs b/src/Tertius.Rendering/Passes/BackFacePass.cs
+index dc1a4f84a..98c87e820 100644
+--- a/src/Tertius.Rendering/Passes/BackFacePass.cs
++++ b/src/Tertius.Rendering/Passes/BackFacePass.cs
+@@ -15,10 +15,15 @@ internal sealed unsafe class BackFacePass : RenderPass
+     private readonly VulkanDevice device;
+     private readonly Pipeline pipeline;
+ 
++    /// <summary>THROWAWAY (t1-yy2f): the pipelines of the pass as Design 1 has it, without a culled face: the solid runs
++    /// and the cutout runs. Default handles under the stage 1b pass.</summary>
++    private readonly Pipeline cardsSolid;
++    private readonly Pipeline cardsCutout;
++
+     public BackFacePass(VulkanDevice device, ShaderLibrary shaders, DescriptorLayouts layouts)
+     {
+         this.device = device;
+-        pipeline = new GraphicsPipelineDesc
++        var desc = new GraphicsPipelineDesc
+         {
+             Name = "back faces (throwaway)",
+             VertexShader = "back_face.vert",
+@@ -31,9 +36,49 @@ internal sealed unsafe class BackFacePass : RenderPass
+             DepthWrite = true,
+             DepthCompare = CompareOp.Greater,
+             CullMode = CullModeFlags.FrontBit,
+-        }.Create(device, shaders);
++        };
++        pipeline = desc.Create(device, shaders);
++        if (DrawsCards)
++        {
++            cardsSolid = (
++                desc with
++                {
++                    Name = "back faces, cards (throwaway)",
++                    VertexShader = "back_face_cards.vert",
++                    FragmentShader = "back_face_cards.frag",
++                    CullMode = CullModeFlags.None,
++                }
++            ).Create(device, shaders);
++            cardsCutout = (
++                desc with
++                {
++                    Name = "back faces, cards, cutout (throwaway)",
++                    VertexShader = "back_face_cards_cutout.vert",
++                    FragmentShader = "back_face_cards_cutout.frag",
++                    VertexInput = VertexInput.PositionAndTexCoord,
++                    CullMode = CullModeFlags.None,
++                    // The main view's mip bias, as the G-buffer's cutout test samples, so that both keep the same texels.
++                    Constants = new ShaderConstants(EnvironmentMap: false) { MainView = true },
++                }
++            ).Create(device, shaders);
++        }
+     }
+ 
++    /// <summary>
++    /// THROWAWAY (t1-yy2f): whether the pass draws as Design 1 has it, under <c>TERTIUS_BACK_FACE_PASS=cards</c>: every
++    /// opaque run, with no face culled, with the cutout test on the cutout runs. A closed one-sided mesh keeps only its back
++    /// faces behind the front (<see cref="GpuInstance.ProbeBackFacesOnly"/>), and any other mesh's own fragment ends its
++    /// slab. Without the variable, or with <c>1b</c>, the pass draws the one-sided solid runs of stage 1b.
++    /// </summary>
++    /// <exception cref="ArgumentException">The variable holds another value.</exception>
++    public static bool DrawsCards =>
++        Environment.GetEnvironmentVariable("TERTIUS_BACK_FACE_PASS") switch
++        {
++            null or "" or "1b" => false,
++            "cards" => true,
++            var value => throw new ArgumentException($"Unknown TERTIUS_BACK_FACE_PASS value '{value}': use 1b or cards."),
++        };
++
+     public override string Name => "back faces";
+ 
+     /// <summary>The probe's mode without <c>TERTIUS_BACK_FACE_PROBE</c>. A timing job on a cloud worker flips it in a
+@@ -85,7 +130,25 @@ internal sealed unsafe class BackFacePass : RenderPass
+             twoSolid += runs.TwoSided.Solid.Count;
+             twoCutout += runs.TwoSided.Cutout.Count;
+         }
+-        return $"one-sided solid {oneSolid}, one-sided cutout {oneCutout}, two-sided solid {twoSolid}, two-sided cutout {twoCutout}";
++        // t1-yy2f: the instances that the pass of Design 1 draws with both faces, among the one-sided runs.
++        int open = 0,
++            oneSided = 0;
++        for (int range = DepthRanges.Far; range <= DepthRanges.Near; range++)
++        {
++            OpaqueRuns runs = scene.Opaque[range].OneSided;
++            foreach (CommandRange commands in (ReadOnlySpan<CommandRange>)[runs.Solid, runs.Cutout])
++                for (int c = commands.First; c < commands.First + commands.Count; c++)
++                {
++                    var command = scene.Commands[c];
++                    for (uint i = 0; i < command.InstanceCount; i++)
++                    {
++                        oneSided++;
++                        if (scene.Instances[(int)(command.FirstInstance + i)].ProbeBackFacesOnly == 0)
++                            open++;
++                    }
++                }
++        }
++        return $"one-sided solid {oneSolid}, one-sided cutout {oneCutout}, two-sided solid {twoSolid}, two-sided cutout {twoCutout}; one-sided instances {oneSided}, of open meshes {open}";
+     }
+ 
+     public override void Record(FrameContext context)
+@@ -102,6 +165,30 @@ internal sealed unsafe class BackFacePass : RenderPass
+                 context.Vk.CmdBindPipeline(context.CommandBuffer, PipelineBindPoint.Graphics, pipeline);
+             }
+ 
++            // t1-yy2f: every opaque run, the solid runs before the cutout runs as in the G-buffer pass.
++            if (DrawsCards)
++            {
++                SidedRuns runs = scene.Opaque[range];
++                if (runs.Count > 0)
++                {
++                    GeometryPass.PushDraw(context: context, viewProjection: scene.RangeViewProjection[range]);
++                    GeometryPass.DrawRuns(
++                        context: context,
++                        runs: new OpaqueRuns(Solid: runs.OneSided.Solid, Cutout: runs.OneSided.Cutout),
++                        solid: cardsSolid,
++                        cutout: cardsCutout
++                    );
++                    GeometryPass.DrawRuns(
++                        context: context,
++                        runs: new OpaqueRuns(Solid: runs.TwoSided.Solid, Cutout: runs.TwoSided.Cutout),
++                        solid: cardsSolid,
++                        cutout: cardsCutout
++                    );
++                }
++                context.Vk.CmdEndRendering(context.CommandBuffer);
++                continue;
++            }
++
+             // t1-n8x9: the one-sided solid run only. A cutout drawn as solid put back faces behind its holes.
+             CommandRange solid = scene.Opaque[range].OneSided.Solid;
+             if (solid.Count > 0)
+@@ -158,7 +245,14 @@ internal sealed unsafe class BackFacePass : RenderPass
+         context.Vk.CmdBeginRendering(context.CommandBuffer, &rendering);
+     }
+ 
+-    public override void Dispose() => device.Vk.DestroyPipeline(device.Device, pipeline, null);
++    public override void Dispose()
++    {
++        device.Vk.DestroyPipeline(device.Device, pipeline, null);
++        if (cardsSolid.Handle != 0)
++            device.Vk.DestroyPipeline(device.Device, cardsSolid, null);
++        if (cardsCutout.Handle != 0)
++            device.Vk.DestroyPipeline(device.Device, cardsCutout, null);
++    }
+ }
+ 
+ /// <summary>THROWAWAY (t1-n8x9): the probe's mode (<see cref="BackFacePass.Probe"/>): whether the pass draws, and the
+diff --git a/src/Tertius.Rendering/Passes/ScreenTracePass.cs b/src/Tertius.Rendering/Passes/ScreenTracePass.cs
+index d1bc7c72e..f43cf8762 100644
+--- a/src/Tertius.Rendering/Passes/ScreenTracePass.cs
++++ b/src/Tertius.Rendering/Passes/ScreenTracePass.cs
+@@ -231,6 +231,9 @@ internal sealed class ScreenTraceResolvePass(ScreenTraceKernel kernel, ScreenTra
+             context.Barriers.Image(image, ImageUse.StorageCompute);
+         context.Barriers.Image(images.Diffuse.Sample(0), ImageUse.StorageCompute, discard: true);
+         context.Barriers.Image(images.Specular.Sample(0), ImageUse.StorageCompute, discard: true);
++        // PROBE (t1-yy2f): the census records, which the resolve writes.
++        if (images.ProbeRecords is { } records)
++            context.Barriers.Buffer(records, BufferUse.ComputeWrite);
+         if (images.Specular.SampleAge(0) is { } age)
+             context.Barriers.Image(age, ImageUse.StorageCompute, discard: true);
+         if (images.Specular.UncoveredDiagnostic(0) is { } diagnostic)
+diff --git a/src/Tertius.Rendering/Resources/GeometryStore.cs b/src/Tertius.Rendering/Resources/GeometryStore.cs
+index 35b761686..8749a8ed0 100644
+--- a/src/Tertius.Rendering/Resources/GeometryStore.cs
++++ b/src/Tertius.Rendering/Resources/GeometryStore.cs
+@@ -185,7 +185,8 @@ internal sealed unsafe class GeometryStore : IDisposable
+                     IndexCount: (uint)data.Indices.Length,
+                     VertexOffset: checked((int)(VertexCount + vertexCursor)),
+                     Radius: Radius(data.Vertices),
+-                    Deform: deforms[mesh] is { } packed ? deformStore.Add(packed) : null
++                    Deform: deforms[mesh] is { } packed ? deformStore.Add(packed) : null,
++                    Closed: staged.Closed
+                 )
+             );
+             vertexCursor += (ulong)data.Vertices.Length;
+diff --git a/src/Tertius.Rendering/Resources/MeshClosure.cs b/src/Tertius.Rendering/Resources/MeshClosure.cs
+new file mode 100644
+index 000000000..d72c0dd1a
+--- /dev/null
++++ b/src/Tertius.Rendering/Resources/MeshClosure.cs
+@@ -0,0 +1,69 @@
++using System.Numerics;
++
++namespace Tertius.Rendering;
++
++/// <summary>
++/// THROWAWAY (t1-yy2f, never merges): whether a mesh is closed, for the back-face pass of the probe. The real test comes
++/// with the build of the back-face depth layer, with tests.
++/// </summary>
++public static class MeshClosure
++{
++    /// <summary>Whether every edge of the mesh belongs to exactly two triangles with opposite winding (see the remarks
++    /// for an edge of more than two).</summary>
++    /// <remarks>
++    /// Two vertices at the same position count as one, because a hard edge splits its vertices. The same position means
++    /// within 2^−20 of the mesh's largest coordinate: the south pole of <see cref="Primitives.Sphere"/> holds positions
++    /// that differ by about 10^−7 of its radius. A triangle with fewer than three distinct positions covers no area and
++    /// does not count. A mesh with no such triangle is open. An edge that 2k triangles share, k in each direction, also
++    /// counts as closed: such a mesh is a union of closed parts that touch along the edge, as the station's spokes.
++    /// </remarks>
++    public static bool IsClosed(ReadOnlySpan<uint> indices, ReadOnlySpan<Vector3> positions) =>
++        Count(indices, positions).Closed;
++
++    /// <summary>The counts behind <see cref="IsClosed"/>: the triangles that count, the welded positions, the
++    /// directed edges that as many opposite edges do not pair, and the directed edges that more than one triangle holds.
++    /// Repeated edges do not make a mesh open.</summary>
++    public static (bool Closed, int Triangles, int Positions, int Unpaired, int Repeated) Count(
++        ReadOnlySpan<uint> indices,
++        ReadOnlySpan<Vector3> positions
++    )
++    {
++        float extent = 0;
++        foreach (Vector3 p in positions)
++            extent = MathF.Max(extent, MathF.Max(MathF.Abs(p.X), MathF.Max(MathF.Abs(p.Y), MathF.Abs(p.Z))));
++        double quantum = extent > 0 ? extent * Math.Pow(2, -20) : 1;
++        var weld = new Dictionary<(long, long, long), int>();
++        var welded = new int[positions.Length];
++        for (int i = 0; i < positions.Length; i++)
++        {
++            Vector3 p = positions[i];
++            var key = ((long)Math.Round(p.X / quantum), (long)Math.Round(p.Y / quantum), (long)Math.Round(p.Z / quantum));
++            if (!weld.TryGetValue(key, out int id))
++                weld[key] = id = weld.Count;
++            welded[i] = id;
++        }
++        var edges = new Dictionary<(int From, int To), int>();
++        int triangles = 0;
++        for (int t = 0; t + 2 < indices.Length; t += 3)
++        {
++            int a = welded[indices[t]],
++                b = welded[indices[t + 1]],
++                c = welded[indices[t + 2]];
++            if (a == b || b == c || a == c)
++                continue;
++            triangles++;
++            foreach ((int From, int To) edge in (ReadOnlySpan<(int, int)>)[(a, b), (b, c), (c, a)])
++                edges[edge] = edges.GetValueOrDefault(edge) + 1;
++        }
++        int unpaired = 0,
++            repeated = 0;
++        foreach (((int from, int to), int count) in edges)
++        {
++            if (count > 1)
++                repeated++;
++            if (edges.GetValueOrDefault((to, from)) != count)
++                unpaired++;
++        }
++        return (triangles > 0 && unpaired == 0, triangles, weld.Count, unpaired, repeated);
++    }
++}
+diff --git a/src/Tertius.Rendering/Resources/StagedMesh.cs b/src/Tertius.Rendering/Resources/StagedMesh.cs
+index ea5f761bf..404f79c2b 100644
+--- a/src/Tertius.Rendering/Resources/StagedMesh.cs
++++ b/src/Tertius.Rendering/Resources/StagedMesh.cs
+@@ -7,11 +7,14 @@ namespace Tertius.Rendering;
+ /// </summary>
+ internal sealed class StagedMesh
+ {
+-    private StagedMesh(MeshData data, GpuVertex[] vertices)
++    private StagedMesh(MeshData data, GpuVertex[] vertices, bool closed)
+     {
+-        (Data, Vertices) = (data, vertices);
++        (Data, Vertices, Closed) = (data, vertices, closed);
+     }
+ 
++    /// <summary>THROWAWAY (t1-yy2f): whether the mesh is closed (<see cref="MeshClosure.IsClosed"/>).</summary>
++    public bool Closed { get; }
++
+     /// <summary>The mesh as the caller gave it: its indices, its rigging and its vertices before staging.</summary>
+     public MeshData Data { get; }
+ 
+@@ -28,6 +31,9 @@ internal sealed class StagedMesh
+         var vertices = new GpuVertex[mesh.Vertices.Length];
+         for (int i = 0; i < vertices.Length; i++)
+             vertices[i] = GpuVertex.Of(GeometryStore.Staged(mesh.Vertices[i]), cards[i]);
+-        return new(mesh, vertices);
++        var positions = new System.Numerics.Vector3[mesh.Vertices.Length];
++        for (int i = 0; i < positions.Length; i++)
++            positions[i] = mesh.Vertices[i].Position;
++        return new(mesh, vertices, MeshClosure.IsClosed(mesh.Indices, positions));
+     }
+ }
+diff --git a/src/Tertius.Rendering/Scene/GpuTypes.cs b/src/Tertius.Rendering/Scene/GpuTypes.cs
+index a5048f908..40f92dadb 100644
+--- a/src/Tertius.Rendering/Scene/GpuTypes.cs
++++ b/src/Tertius.Rendering/Scene/GpuTypes.cs
+@@ -117,6 +117,10 @@ internal struct GpuInstance
+     /// </summary>
+     public uint PlacedIndex;
+ 
++    /// <summary>THROWAWAY (t1-yy2f): 1 when the back-face pass draws only the instance's back faces: a closed mesh of a
++    /// one-sided material. 0 draws both faces, and the instance's own fragment ends its slab.</summary>
++    public uint ProbeBackFacesOnly;
++
+     /// <param name="map">The instance's map, from 0 to <see cref="EnvironmentChain.MaxMaps"/> − 1.</param>
+     /// <param name="holdsLight">Whether the instance's entity holds a light.</param>
+     /// <param name="placedIndex">
+@@ -873,7 +877,15 @@ internal struct ScreenTracePushConstants
+         // Bits 8 to 15: TERTIUS_PROBE_CROSSING_TOLERANCE, the crossing's distance tolerance in thousandths (2 % without it).
+         | (uint.TryParse(Environment.GetEnvironmentVariable("TERTIUS_PROBE_CROSSING_TOLERANCE"), out uint tolerance) ? Math.Min(tolerance, 255u) << 8 : 0u)
+         // Bit 16: TERTIUS_PROBE_SILL_ALL=1, the sill census takes every sample, not only those of luminance 50 or more.
+-        | (Environment.GetEnvironmentVariable("TERTIUS_PROBE_SILL_ALL") == "1" ? 1u << 16 : 0u);
++        | (Environment.GetEnvironmentVariable("TERTIUS_PROBE_SILL_ALL") == "1" ? 1u << 16 : 0u)
++        // Bit 2 (t1-yy2f): TERTIUS_PROBE_SHEET_RULES=1 with the sheet census, the records of the sheet rules.
++        | (ProbeSheetRules ? 4u : 0u);
++
++    /// <summary>PROBE (t1-yy2f, never merges): whether the sheet census also writes the sheet rules' records:
++    /// <c>TERTIUS_PROBE_SHEET_RULES=1</c> with <c>TERTIUS_PROBE_SHEET_CENSUS=1</c>.</summary>
++    internal static bool ProbeSheetRules =>
++        Environment.GetEnvironmentVariable("TERTIUS_PROBE_SHEET_RULES") == "1"
++        && Environment.GetEnvironmentVariable("TERTIUS_PROBE_SHEET_CENSUS") == "1";
+ 
+     /// <summary>
+     /// The push constants of a draw of index <paramref name="drawIndex"/> under <paramref name="trace"/>, with the
+diff --git a/src/Tertius.Rendering/Scene/SceneBatcher.cs b/src/Tertius.Rendering/Scene/SceneBatcher.cs
+index 9c273273e..dc86ce6bf 100644
+--- a/src/Tertius.Rendering/Scene/SceneBatcher.cs
++++ b/src/Tertius.Rendering/Scene/SceneBatcher.cs
+@@ -6,12 +6,15 @@ namespace Tertius.Rendering;
+ 
+ /// <summary>A mesh as the batcher sees it: its range in the global buffers and its bounding radius.</summary>
+ /// <param name="Deform">The CPU side of a deforming mesh, or null for a rigid mesh and for a deformed copy.</param>
++/// <param name="Closed">THROWAWAY (t1-yy2f): whether the mesh is closed (<see cref="MeshClosure.IsClosed"/>). A deformed
++/// copy keeps its static mesh's.</param>
+ internal readonly record struct MeshInfo(
+     uint FirstIndex,
+     uint IndexCount,
+     int VertexOffset,
+     float Radius,
+-    MeshDeform? Deform
++    MeshDeform? Deform,
++    bool Closed = false
+ );
+ 
+ /// <summary>
+@@ -966,6 +969,8 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float
+             placedIndex: instance.PlacedIndex,
+             hemisphere: instance.Hemisphere
+         );
++        // THROWAWAY (t1-yy2f): the back-face pass draws only the back faces of a closed one-sided mesh.
++        scene.Instances[gpuIndex].ProbeBackFacesOnly = meshes[instance.Mesh].Closed && !instance.TwoSided ? 1u : 0u;
+         if (instance.Mesh == currentMesh)
+         {
+             scene.Commands[scene.CommandCount - 1].InstanceCount++;
+diff --git a/src/Tertius.Rendering/ShaderConstants.cs b/src/Tertius.Rendering/ShaderConstants.cs
+index 386aca8dd..5a0545c3d 100644
+--- a/src/Tertius.Rendering/ShaderConstants.cs
++++ b/src/Tertius.Rendering/ShaderConstants.cs
+@@ -34,6 +34,12 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
+     public const uint NoBackRuleId = 13;
+     public const uint FadeOverTenPercentId = 14;
+ 
++    /// <summary>THROWAWAY (t1-yy2f): the constant_id of probeSheetMark in thickness.glsl.</summary>
++    public const uint ProbeSheetMarkId = 15;
++
++    /// <summary>THROWAWAY (t1-yy2f): whether the finest level marks a sheet for the sheet rules' census.</summary>
++    public bool ProbeSheetMark { get; init; }
++
+     /// <summary>THROWAWAY (t1-n8x9): the slab rule of the depth pyramid's build, a Slab constant of thickness.glsl.</summary>
+     public uint SlabRule { get; init; }
+ 
+@@ -142,6 +148,7 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
+             (SlabRuleId, values.SlabRule),
+             (NoBackRuleId, values.NoBackRule),
+             (FadeOverTenPercentId, VkBool(values.FadeOverTenPercent)),
++            (ProbeSheetMarkId, VkBool(values.ProbeSheetMark)),
+         ];
+         for (int i = 0; i < rows.Length; i++)
+         {
+@@ -173,7 +180,7 @@ internal struct SpecializationStorage
+     /// The number of constants: one per field of <see cref="ShaderConstants"/>, the subsurface setting's being its taps per
+     /// side. <see cref="ShaderConstants.Specialization"/> writes one row per constant, and a row past this count throws.
+     /// </summary>
+-    public const int Count = 14;
++    public const int Count = 15;
+ 
+     public SpecializationValues Data;
+     public SpecializationEntries Entries;
+diff --git a/src/Tertius.Rendering/Shaders/back_face_cards.frag b/src/Tertius.Rendering/Shaders/back_face_cards.frag
+new file mode 100644
+index 000000000..d77b71af5
+--- /dev/null
++++ b/src/Tertius.Rendering/Shaders/back_face_cards.frag
+@@ -0,0 +1,15 @@
++#version 460
++#extension GL_GOOGLE_include_directive : require
++#include "frame.glsl"
++#include "draw.glsl"
++#include "gbuffer_inputs.glsl"
++#include "back_face_cards.glsl"
++
++// THROWAWAY (t1-yy2f): the fragment stage of the back-face pass for the solid runs (back_face_cards.glsl).
++layout(location = 0) in vec3 inPosition;
++layout(location = 1) flat in uint inBackFacesOnly;
++
++void main()
++{
++    writeBackShare(inPosition, inBackFacesOnly);
++}
+diff --git a/src/Tertius.Rendering/Shaders/back_face_cards.glsl b/src/Tertius.Rendering/Shaders/back_face_cards.glsl
+new file mode 100644
+index 000000000..f7474a8f7
+--- /dev/null
++++ b/src/Tertius.Rendering/Shaders/back_face_cards.glsl
+@@ -0,0 +1,33 @@
++// THROWAWAY (t1-yy2f): the fragment rule of the back-face pass as Design 1 has it. A closed one-sided mesh draws its back
++// faces only, and a back face counts only behind the pixel's front surface. A two-sided or open mesh draws both faces,
++// and a fragment at the front's own distance counts: the pixel's own fragment ends its slab with a share of 1.
++#ifndef TERTIUS_BACK_FACE_CARDS_GLSL
++#define TERTIUS_BACK_FACE_CARDS_GLSL
++
++layout(location = 0) out float outDistance;
++
++// The share of the front surface's distance by which a fragment counts as the front's own: a back face must lie behind
++// it by more, and a fragment of a mesh that draws both faces must not lie in front of it by more.
++const float BehindShare = 1e-4;
++
++// Writes the back share of a fragment at camera-relative `position`, or discards it. `backFacesOnly` is
++// GpuInstance.probeBackFacesOnly.
++void writeBackShare(vec3 position, uint backFacesOnly)
++{
++    float back = length(position - draw.eye.xyz);
++    float front = texelFetch(gbufferDistance, ivec2(gl_FragCoord.xy), 0).r;
++    if (front <= 0.0)
++        discard;
++    if (backFacesOnly != 0u)
++    {
++        if (gl_FrontFacing || back <= front * (1.0 + BehindShare))
++            discard;
++        outDistance = front / back;
++        return;
++    }
++    if (back < front * (1.0 - BehindShare))
++        discard;
++    outDistance = back <= front * (1.0 + BehindShare) ? 1.0 : front / back;
++}
++
++#endif
+diff --git a/src/Tertius.Rendering/Shaders/back_face_cards.vert b/src/Tertius.Rendering/Shaders/back_face_cards.vert
+new file mode 100644
+index 000000000..42a706afe
+--- /dev/null
++++ b/src/Tertius.Rendering/Shaders/back_face_cards.vert
+@@ -0,0 +1,21 @@
++#version 460
++#extension GL_GOOGLE_include_directive : require
++#include "frame.glsl"
++#include "draw.glsl"
++
++// THROWAWAY (t1-yy2f): the vertex stage of the back-face pass for the solid runs: back_face.vert, which also passes the
++// instance's GpuInstance.probeBackFacesOnly.
++layout(location = 0) in vec3 inPosition;
++
++layout(location = 0) out vec3 outPosition;
++layout(location = 1) flat out uint outBackFacesOnly;
++
++void main()
++{
++    GpuInstance instance = instances[gl_InstanceIndex];
++    vec4 p = vec4(inPosition, 1.0);
++    vec3 world = vec3(dot(instance.modelRow0, p), dot(instance.modelRow1, p), dot(instance.modelRow2, p));
++    outPosition = world;
++    outBackFacesOnly = instance.probeBackFacesOnly;
++    gl_Position = draw.viewProj * vec4(world, 1.0);
++}
+diff --git a/src/Tertius.Rendering/Shaders/back_face_cards_cutout.frag b/src/Tertius.Rendering/Shaders/back_face_cards_cutout.frag
+new file mode 100644
+index 000000000..7ea7539f5
+--- /dev/null
++++ b/src/Tertius.Rendering/Shaders/back_face_cards_cutout.frag
+@@ -0,0 +1,23 @@
++#version 460
++#extension GL_GOOGLE_include_directive : require
++#include "frame.glsl"
++#include "draw.glsl"
++#include "gbuffer_inputs.glsl"
++#include "material.glsl"
++#include "back_face_cards.glsl"
++
++// THROWAWAY (t1-yy2f): the fragment stage of the back-face pass for the cutout runs: the cutout test of
++// shadow_cutout.frag, then back_face_cards.glsl. The sample comes first, so that its implicit derivatives stay defined.
++layout(location = 0) in vec3 inPosition;
++layout(location = 1) flat in uint inBackFacesOnly;
++layout(location = 2) in vec2 inTexCoord;
++layout(location = 3) flat in uint inMaterial;
++
++void main()
++{
++    GpuMaterial m = materials[inMaterial];
++    float alpha = m.baseColor.a * sampleTexture(m.baseColorMap, inTexCoord).a;
++    if (!reachesCutoff(alpha, m.alphaCutoff))
++        discard;
++    writeBackShare(inPosition, inBackFacesOnly);
++}
+diff --git a/src/Tertius.Rendering/Shaders/back_face_cards_cutout.vert b/src/Tertius.Rendering/Shaders/back_face_cards_cutout.vert
+new file mode 100644
+index 000000000..f4069bc0f
+--- /dev/null
++++ b/src/Tertius.Rendering/Shaders/back_face_cards_cutout.vert
+@@ -0,0 +1,26 @@
++#version 460
++#extension GL_GOOGLE_include_directive : require
++#include "frame.glsl"
++#include "draw.glsl"
++
++// THROWAWAY (t1-yy2f): the vertex stage of the back-face pass for the cutout runs: back_face_cards.vert, which also
++// passes the texture coordinate and the material, as shadow_cutout.vert does.
++layout(location = 0) in vec3 inPosition;
++layout(location = 3) in vec2 inTexCoord;
++
++layout(location = 0) out vec3 outPosition;
++layout(location = 1) flat out uint outBackFacesOnly;
++layout(location = 2) out vec2 outTexCoord;
++layout(location = 3) flat out uint outMaterial;
++
++void main()
++{
++    GpuInstance instance = instances[gl_InstanceIndex];
++    vec4 p = vec4(inPosition, 1.0);
++    vec3 world = vec3(dot(instance.modelRow0, p), dot(instance.modelRow1, p), dot(instance.modelRow2, p));
++    outPosition = world;
++    outBackFacesOnly = instance.probeBackFacesOnly;
++    outTexCoord = inTexCoord;
++    outMaterial = instance.material;
++    gl_Position = draw.viewProj * vec4(world, 1.0);
++}
+diff --git a/src/Tertius.Rendering/Shaders/depth_pyramid_finest.comp b/src/Tertius.Rendering/Shaders/depth_pyramid_finest.comp
+index 5fd7afd34..0a3df878e 100644
+--- a/src/Tertius.Rendering/Shaders/depth_pyramid_finest.comp
++++ b/src/Tertius.Rendering/Shaders/depth_pyramid_finest.comp
+@@ -27,8 +27,11 @@ void main()
+     {
+         float share = texelFetch(backShareImage, pixel, 0).r;
+         back = slabBack(w, share);
+-        if (slabRule == SlabLayer && noBackRule == NoBackSheetPlane && !(share > 0.0))
++        if (slabRule == SlabLayer && noBackRule == NoBackSheetPlane && sheetShare(share))
+             back = min(back, pixelBounds(pixel).y);
++        // THROWAWAY (t1-yy2f): the census's mark of a sheet. The walk reads abs(G) under it.
++        if (probeSheetMark && sheetShare(share))
++            back = -back;
+     }
+     imageStore(destination, pixel, vec4(w, back, 0.0, 0.0));
+ }
+diff --git a/src/Tertius.Rendering/Shaders/frame.glsl b/src/Tertius.Rendering/Shaders/frame.glsl
+index 5638725a9..88d0a53c5 100644
+--- a/src/Tertius.Rendering/Shaders/frame.glsl
++++ b/src/Tertius.Rendering/Shaders/frame.glsl
+@@ -29,7 +29,9 @@ struct GpuInstance
+     // The instance's place among the frame's placed instances, the same in every view and depth range that draws it,
+     // which its hair pixels' card codes mix in (GpuInstance.PlacedIndex).
+     uint placedIndex;
+-};                            // std430: 92 bytes of members, a stride of 96
++    // THROWAWAY (t1-yy2f): 1 when the back-face pass draws only the back faces (GpuInstance.ProbeBackFacesOnly).
++    uint probeBackFacesOnly;
++};                            // std430: 96 bytes of members, a stride of 96
+ 
+ // A hair pixel's card code (docs/plans/skin-and-hair.md, "The card number"): the number of its card in its mesh, mixed
+ // with its instance's place into 13 bits. 5063, about 2^13 / φ and odd, puts neighbor instances' codes far apart, and the
+diff --git a/src/Tertius.Rendering/Shaders/screen_trace.glsl b/src/Tertius.Rendering/Shaders/screen_trace.glsl
+index ab75b4398..6217374d5 100644
+--- a/src/Tertius.Rendering/Shaders/screen_trace.glsl
++++ b/src/Tertius.Rendering/Shaders/screen_trace.glsl
+@@ -711,8 +711,25 @@ struct TracedRay
+     bool probeBehind;       // the ray meets the hit pixel's geometric plane from behind
+     uint probeReason;       // why the crossing is undetermined: 0 it is not, 1 the ray runs parallel to the plane, 2 the
+                             // crossing lies before the ray's start (the start is behind the plane), 3 off screen
++    // PROBE (t1-yy2f, never merges): the sheet rules' census.
++    uint probeWalkEnd;      // the walk's end: 0 a hit, 1 the ray's end, 2 the step cap (probeWalkEnd in screen_walk.glsl)
++    vec2 probePlace;        // where on screen the ray crosses the hit pixel's plane, in pixels, when on screen
++    float probeT;           // the ray's length from its start to that crossing, in m
++    float probeSine;        // |cos| of the ray against the hit pixel's normal: the sine of its angle to the plane
++    float probeInW;         // the ray's w where it enters the hit cell, and where it leaves it (screen_walk.glsl)
++    float probeOutW;
++    float probeHitLight;    // the luminance of the hit's light times its fade, pre-exposed
++    uint probeCards;        // the hit pixel's card code | the crossing place's << 16: 13 bits each, 0x2000 for no card
+ };
+ 
++// PROBE (t1-yy2f, never merges): a pixel's card code in 14 bits, 0x2000 for a pixel that is not hair.
++uint probeCardAt(ivec2 pixel)
++{
++    uvec4 shading = texelFetch(gbufferShading, pixel, 0);
++    uint card = cardOfWords(shading.b, shading.a);
++    return card == NoCard ? 0x2000u : card & 0x1FFFu;
++}
++
+ // Traces the ray of the kind from the pixel that starts it: its draw, its walk to the kind's cap, and its light. A
+ // direction below the geometric plane brings no light and traces nothing (section 6, "The ray kinds"). `cell` is the
+ // ray's cell of the blue-noise mask: its block for a block's ray, its pixel for a pixel's own ray.
+@@ -752,6 +769,14 @@ TracedRay traceFrom(ivec2 pixel, ivec2 cell, TracingPixel p, uint kind)
+     result.probeCrossing = 3u;
+     result.probeBehind = false;
+     result.probeReason = 0u;
++    result.probeWalkEnd = 0u;
++    result.probePlace = vec2(-1.0);
++    result.probeT = 0.0;
++    result.probeSine = 0.0;
++    result.probeInW = 0.0;
++    result.probeOutW = 0.0;
++    result.probeHitLight = 0.0;
++    result.probeCards = 0u;
+ #ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
+     result.age = MissLightAge;
+ #elif defined(TERTIUS_PRECISE_SPECULAR_HISTORY)
+@@ -766,7 +791,9 @@ TracedRay traceFrom(ivec2 pixel, ivec2 cell, TracingPixel p, uint kind)
+     uint steps = kind == KindReflection ? trace.reflectionSteps : trace.diffuseSteps;
+     vec3 missLight = missLightOf(p, pixel, kind, result.direction);
+     result.light = missLight;
+-    if (walkScreen(depthFinest, depthPyramid, walk, steps, hit, hitPixel, entryShare) != WalkHit)
++    uint walked = walkScreen(depthFinest, depthPyramid, walk, steps, hit, hitPixel, entryShare);
++    result.probeWalkEnd = probeWalkEnd;
++    if (walked != WalkHit)
+     {
+         // A miss has no guided density. A guided ray counts only where it hits a pixel near its target, so a miss brings
+         // nothing.
+@@ -801,6 +828,12 @@ TracedRay traceFrom(ivec2 pixel, ivec2 cell, TracingPixel p, uint kind)
+         float along = dot(result.direction, n);
+         result.probeBehind = along > 0.0;
+         float t = abs(along) > 1e-4 ? dot(hitPoint - p.origin, n) / along : 0.0;
++        result.probeT = t;
++        result.probeSine = abs(along);
++        result.probeInW = probeInW;
++        result.probeOutW = probeOutW;
++        result.probeHitLight = dot(hitLightOf(hitPixel, kind), vec3(0.2126, 0.7152, 0.0722)) * fade;
++        result.probeCards = probeCardAt(hitPixel) | (0x2000u << 16);
+         result.probeReason = abs(along) <= 1e-4 ? 1u : t <= 0.0 ? 2u : 3u;
+         // Only a crossing ahead of the ray's start gets a class: a ray never reaches a crossing behind its start.
+         if (abs(along) > 1e-4 && t > 0.0)
+@@ -812,6 +845,8 @@ TracedRay traceFrom(ivec2 pixel, ivec2 cell, TracingPixel p, uint kind)
+             {
+                 result.probeReason = 0u;
+                 ivec2 s = ivec2(place);
++                result.probePlace = place;
++                result.probeCards = probeCardAt(hitPixel) | (probeCardAt(s) << 16);
+                 float seen = texelFetch(gbufferDistance, s, 0).r;
+                 float there = length(crossing);
+                 // The tolerance: bits 8 to 15 of probeCensus in thousandths, 2 % without them.
+diff --git a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
+index e3a991e17..b43fa3e15 100644
+--- a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
++++ b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
+@@ -79,6 +79,59 @@ float censusHalf(uint code)
+ {
+     return unpackHalf2x16(0x0400u + code).x;
+ }
++
++// PROBE (t1-yy2f, never merges): the sheet rules' census (bit 2 with bit 1): ProbeRecordWords words per render pixel,
++// row by row. Word 0 is 0 where the pixel's counted ray did not hit a sheet; VulkanRenderer.ProbeCensus reads the rest.
++const uint ProbeRecordWords = 16u;
++layout(set = 3, binding = 27, std430) writeonly buffer ProbeRecords
++{
++    uint probeRecords[];
++};
++
++// The record of a counted ray that hits a sheet under the frame's own slab (`again`), from `pixel`, with its walks again
++// under the four sheet rules. Word 0: 1 | the crossing's class << 1 | its reason << 4 | behind << 6 | own << 7 |
++// diffuse << 8 | the start is a hair card << 9 | the crossing is on screen << 10 | the outcome of rule r << (12 + 4 r).
++// An outcome is 0 for a hit that a guided ray does not count, 1 the ray's end, 2 the step cap, 4 + the class of a hit,
++// plus 8 where the hit pixel is the same. Words 1 to 15: the hit pixel x | y << 16, the crossing's place x and y, the
++// hit pixel's center w, the ray's w into and out of the hit cell, |g_x| + |g_y|, the plane's far bound, the sine, the
++// hit's light, the crossing's t, the card codes (TracedRay.probeCards), g_x, g_y and the hit's distance.
++void probeRecord(ivec2 pixel, ivec2 cell, TracingPixel c, uint kind, bool own, TracedRay again)
++{
++    ivec2 h = again.probeHitPixel;
++    PixelPlane plane;
++    pixelPlane(h, plane);
++    uint outcomes = 0u;
++    for (uint rule = ProbeSheetNone; rule <= ProbeSheetPlaneBounds; rule++)
++    {
++        probeSheetRule = rule;
++        TracedRay sheet = traceFrom(pixel, cell, c, kind);
++        uint outcome = sheet.probeHitPixel.x < 0 ? sheet.probeWalkEnd
++            : 4u + sheet.probeCrossing + (sheet.probeHitPixel == h ? 8u : 0u);
++        outcomes |= outcome << (12u + 4u * rule);
++    }
++    probeSheetRule = 0u;
++    uint base = (uint(pixel.y) * uint(frame.viewport.x) + uint(pixel.x)) * ProbeRecordWords;
++    if (base + ProbeRecordWords > uint(probeRecords.length()))
++        return;
++    probeRecords[base] = 1u | (again.probeCrossing << 1) | (again.probeReason << 4) | (again.probeBehind ? 1u << 6 : 0u)
++        | (own ? 1u << 7 : 0u) | (kind == KindDiffuse ? 1u << 8 : 0u) | (c.ownCard != NoCard ? 1u << 9 : 0u)
++        | (again.probePlace.x >= 0.0 ? 1u << 10 : 0u) | outcomes;
++    probeRecords[base + 1u] = uint(h.x) | (uint(h.y) << 16);
++    probeRecords[base + 2u] = floatBitsToUint(again.probePlace.x);
++    probeRecords[base + 3u] = floatBitsToUint(again.probePlace.y);
++    probeRecords[base + 4u] = floatBitsToUint(texelFetch(depthFinest, h, 0).r);
++    probeRecords[base + 5u] = floatBitsToUint(again.probeInW);
++    probeRecords[base + 6u] = floatBitsToUint(again.probeOutW);
++    probeRecords[base + 7u] = floatBitsToUint(abs(plane.gradient.x) + abs(plane.gradient.y));
++    probeRecords[base + 8u] = floatBitsToUint(pixelBounds(h).y);
++    probeRecords[base + 9u] = floatBitsToUint(again.probeSine);
++    probeRecords[base + 10u] = floatBitsToUint(again.probeHitLight);
++    probeRecords[base + 11u] = floatBitsToUint(again.probeT);
++    probeRecords[base + 12u] = again.probeCards;
++    probeRecords[base + 13u] = floatBitsToUint(plane.gradient.x);
++    probeRecords[base + 14u] = floatBitsToUint(plane.gradient.y);
++    probeRecords[base + 15u] = floatBitsToUint(again.distance);
++}
+ #endif
+ 
+ void main()
+@@ -88,6 +141,13 @@ void main()
+         return;
+ #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+     imageStore(lightChangeMask, pixel, vec4(lightChangeMaskAt(pixel), 0.0, 0.0, 0.0));
++#endif
++#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
++    // PROBE (t1-yy2f): no record until a counted ray hits a sheet. Cleared before the sky's early return, so that a
++    // pixel that turns into sky keeps no record of an earlier draw.
++    uint recordBase = (uint(pixel.y) * uint(frame.viewport.x) + uint(pixel.x)) * ProbeRecordWords;
++    if ((trace.probeCensus & 6u) == 6u && recordBase < uint(probeRecords.length()))
++        probeRecords[recordBase] = 0u;
+ #endif
+     if (!tracedSurface(pixel))
+     {
+@@ -208,6 +268,10 @@ void main()
+             {
+                 TracedRay again = traceFrom(pixel, own ? pixel : pixel / 2, c, kind);
+                 age = !again.traced ? CensusUntraced : CensusWalkMisses;
++                // PROBE (t1-yy2f): a hit on a sheet, which the finest level marks with a negative back w.
++                if ((trace.probeCensus & 4u) != 0u && again.probeHitPixel.x >= 0
++                    && texelFetch(depthFinest, again.probeHitPixel, 0).g < 0.0)
++                    probeRecord(pixel, own ? pixel : pixel / 2, c, kind, own, again);
+                 if (again.probeHitPixel.x >= 0)
+                 {
+                     age = CensusRecord | uint(again.probeHitPixel.y) | (own ? 1u << 10 : 0u) | (again.probeCrossing << 11)
+diff --git a/src/Tertius.Rendering/Shaders/screen_walk.glsl b/src/Tertius.Rendering/Shaders/screen_walk.glsl
+index e68e17128..19977b194 100644
+--- a/src/Tertius.Rendering/Shaders/screen_walk.glsl
++++ b/src/Tertius.Rendering/Shaders/screen_walk.glsl
+@@ -18,6 +18,32 @@ const int WalkTopLevel = 8;   // ScreenRay.WalkTopLevel
+ // (ShaderConstants.FadeOverTenPercentId).
+ layout(constant_id = 14) const bool fadeOverTenPercent = false;
+ 
++// THROWAWAY (t1-yy2f): the sheet rules' census. The resolve's census sets probeSheetRule before a walk: 0 the frame's
++// own slab at every pixel, else a sheet's slab at the finest level by ProbeSheetNone, ProbeSheetPlaneHalf or
++// ProbeSheetPlaneOneAndHalf. Every other pixel keeps the frame's slab. Only the census reads the other globals.
++const uint ProbeSheetNone = 1u;               // back w = the center w: no thickness
++const uint ProbeSheetPlaneHalf = 2u;          // the plane's far bound over the pixel's square, as NoBackSheetPlane
++const uint ProbeSheetPlaneOneAndHalf = 3u;    // the center w less 1.5 (|g_x| + |g_y|), the plane's span with a = 1.5
++const uint ProbeSheetPlaneBounds = 4u;        // the plane's bounds over the pixel's square, both sides (pixelBounds)
++uint probeSheetRule = 0u;
++float probeInW = 0.0;      // the ray's w where it enters the hit cell
++float probeOutW = 0.0;     // and where it leaves it
++uint probeWalkEnd = 0u;    // 0 a hit, 1 the ray's end, 2 the step cap
++
++// THROWAWAY (t1-yy2f): the back w of a sheet pixel under the census's sheet rule `rule`, whose center w is `near`.
++float probeSheetBack(ivec2 pixel, float near, uint rule)
++{
++    if (rule == ProbeSheetPlaneHalf)
++        return min(near, pixelBounds(pixel).y);
++    if (rule == ProbeSheetPlaneOneAndHalf)
++    {
++        PixelPlane plane;
++        if (pixelPlane(pixel, plane))
++            return min(near, near - 1.5 * (abs(plane.gradient.x) + abs(plane.gradient.y)));
++    }
++    return near;
++}
++
+ // What a walk keeps of its ray from its start to its end.
+ struct ScreenWalk
+ {
+@@ -104,6 +130,21 @@ uint walkScreen(texture2D finest, texture2D bounds, ScreenWalk walk, uint cap, o
+         // THROWAWAY (t1-n8x9): the pyramid stores the slab, front w and back w, at every level.
+         float near = cellBounds.x;
+         float back = cellBounds.y;
++        // THROWAWAY (t1-yy2f): the census's mark of a sheet, and its sheet rule.
++        if (probeSheetMark && level == 0)
++        {
++            bool sheet = back < 0.0;
++            back = abs(back);
++            if (sheet && probeSheetRule == ProbeSheetPlaneBounds)
++            {
++                // The slab of the plane itself over the pixel's square: nearer than the center w as well as farther.
++                vec2 bounds = pixelBounds(ivec2(cell));
++                back = min(near, bounds.y);
++                near = max(near, bounds.x);
++            }
++            else if (sheet && probeSheetRule != 0u)
++                back = probeSheetBack(ivec2(cell), near, probeSheetRule);
++        }
+         float inW = walk.ray.startW + walk.ray.stepW * s;
+         float outW = walk.ray.startW + walk.ray.stepW * exit;
+         bool inFront = near <= 0.0 || min(inW, outW) > near;
+@@ -127,6 +168,9 @@ uint walkScreen(texture2D finest, texture2D bounds, ScreenWalk walk, uint cap, o
+             // A thickness that rounds to none leaves a slab of no depth, whose share would be 0 / 0.
+             float fadeBack = fadeOverTenPercent ? max(back, near * backShare) : back;
+             entryShare = fadeBack < near ? entryShareOf(inW, fadeBack, near) : 0.0;
++            probeInW = inW;
++            probeOutW = outW;
++            probeWalkEnd = 0u;
+             return WalkHit;
+         }
+         // Across the cell and up a level: in front of its slab, behind it, or past a pixel that is no hit.
+@@ -139,6 +183,7 @@ uint walkScreen(texture2D finest, texture2D bounds, ScreenWalk walk, uint cap, o
+             cell = floor(cell * 0.5);
+         }
+     }
++    probeWalkEnd = s >= walk.ray.end ? 1u : 2u;
+     return WalkMiss;
+ }
+ 
+diff --git a/src/Tertius.Rendering/Shaders/thickness.glsl b/src/Tertius.Rendering/Shaders/thickness.glsl
+index 3dc544ba0..35947f41c 100644
+--- a/src/Tertius.Rendering/Shaders/thickness.glsl
++++ b/src/Tertius.Rendering/Shaders/thickness.glsl
+@@ -23,6 +23,16 @@ const uint NoBackSolid = 3u;      // solid without end: back w = 0
+ layout(constant_id = 12) const uint slabRule = SlabTenPercent;
+ layout(constant_id = 13) const uint noBackRule = NoBackSheet;
+ 
++// THROWAWAY (t1-yy2f): ShaderConstants.ProbeSheetMarkId. True under the sheet rules' census (TERTIUS_PROBE_SHEET_RULES=1):
++// the finest level stores a sheet's back w negated, so that the census's walks can tell a sheet from a solid pixel.
++layout(constant_id = 15) const bool probeSheetMark = false;
++
++// THROWAWAY (t1-yy2f): whether a back share marks a sheet: no back face (0), or the pixel's own fragment (1).
++bool sheetShare(float share)
++{
++    return !(share > 0.0) || share >= 1.0;
++}
++
+ // The w of the back of what is solid behind a surface at inverse depth `w`, whose back share is `share` (0 for no back
+ // face). `w` is a pixel's center w at the finest level and its plane's far bound at level 1. A sheet under
+ // NoBackSheetPlane gets `w` here, and the finest shader deepens it to its plane's far bound.
+@@ -34,7 +44,9 @@ float slabBack(float w, float share)
+         return w * backShare;
+     if (slabRule == SlabTrimmed)
+         return max(w * backShare, w * share);
+-    if (share > 0.0)
++    // t1-yy2f: a share of 1 is a pixel whose own fragment ends its slab at the front (a card or an open mesh): a sheet,
++    // as a pixel with no back face (share 0).
++    if (share > 0.0 && share < 1.0)
+         return w * share;
+     if (noBackRule == NoBackTenPercent)
+         return w * backShare;
+diff --git a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
+index 24e447c07..c952f8326 100644
+--- a/src/Tertius.Rendering/VulkanRenderer.cs
++++ b/src/Tertius.Rendering/VulkanRenderer.cs
+@@ -1900,6 +1900,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
+                 Path.Combine(folder, $"back-{backFaceDumps}-{size}.f32"),
+                 System.Runtime.InteropServices.MemoryMarshal.AsBytes<float>(ReadImage(targets.BackDistance)).ToArray()
+             );
++            // THROWAWAY (t1-yy2f): the G-buffer's shading words, four bytes per pixel (the model in a's low bits).
++            File.WriteAllBytes(Path.Combine(folder, $"shading-{backFaceDumps}-{size}.u8"), ReadShading());
+             // THROWAWAY (t1-n8x9): the depth pyramid's finest level, RG per pixel, and level 1, RG per texel of its mip,
+             // padding included, with the mip's size in the name. And the draw commands of each kind.
+             if (targets.Pyramid is not null)
+@@ -1980,7 +1982,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
+         float[] back = ReadImage(targets.BackDistance);
+         int Code(int i) => BitConverter.HalfToUInt16Bits((Half)diffuse[4 * i + 3]) - 0x0400;
+         double Luminance(int i) => 0.2126 * specular[4 * i] + 0.7152 * specular[4 * i + 1] + 0.0722 * specular[4 * i + 2];
+-        bool Sheet(int x, int y) => front[y * width + x] > 0 && !(back[y * width + x] > 0);
++        // t1-yy2f: a share of 1 is a pixel whose own fragment ends its slab, a sheet as one with no back face.
++        bool Sheet(int x, int y) => front[y * width + x] > 0 && (!(back[y * width + x] > 0) || back[y * width + x] >= 1);
+         if ((ScreenTracePushConstants.ProbeCensusValue & 1u) != 0)
+             for (int box = 0; box < ProbeCensusBoxes.Length; box++)
+             {
+@@ -2021,7 +2024,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
+                     if (front[i] > 0)
+                     {
+                         surface++;
+-                        if (!(back[i] > 0))
++                        if (!(back[i] > 0) || back[i] >= 1)
+                             sheets++;
+                     }
+                     int age = (int)ages[i];
+@@ -2057,6 +2060,28 @@ public sealed unsafe class VulkanRenderer : IRenderer
+                         probeSheetHitsFrom[kind][i]++;
+                     }
+                 }
++            // PROBE (t1-yy2f): the sheet rules' records of this draw, appended to records.bin: per record the draw, the
++            // pixel x | y << 16, and the record's 16 words (screen_trace_resolve.comp, probeRecord).
++            if (ScreenTracePushConstants.ProbeSheetRules && tracer.ProbeRecords is { } recordBuffer)
++            {
++                uint[] words = ReadBufferWords(recordBuffer);
++                Directory.CreateDirectory(folder);
++                using var stream = new FileStream(Path.Combine(folder, "records.bin"), FileMode.Append);
++                using var writer = new BinaryWriter(stream);
++                long records = 0;
++                for (int i = 0; i < width * height && (i + 1) * 16 <= words.Length; i++)
++                {
++                    if ((words[i * 16] & 1) == 0)
++                        continue;
++                    records++;
++                    writer.Write((uint)draw);
++                    writer.Write((uint)(i % width) | ((uint)(i / width) << 16));
++                    for (int k = 0; k < 16; k++)
++                        writer.Write(words[i * 16 + k]);
++                }
++                probeCensusKeys.TryGetValue("frame sheet-records", out var s2);
++                probeCensusKeys["frame sheet-records"] = (s2.Count + 1, s2.Light + records);
++            }
+             probeCensusKeys.TryGetValue("frame surface-pixels", out var s0);
+             probeCensusKeys["frame surface-pixels"] = (s0.Count + 1, s0.Light + surface);
+             probeCensusKeys.TryGetValue("frame sheet-pixels", out var s1);
+@@ -2319,6 +2344,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
+             SlabRule = BackFacePass.Probe().SlabRule,
+             NoBackRule = BackFacePass.Probe().NoBackRule,
+             FadeOverTenPercent = BackFacePass.Probe().FadeOverTenPercent,
++            ProbeSheetMark = ScreenTracePushConstants.ProbeSheetRules,
+             ReflectionSharingPrototype =
+                 options.ScreenTrace is ScreenTrace
+                 && Environment.GetEnvironmentVariable("TERTIUS_REFLECTION_SHARING") == "1",
+diff --git a/tools/bf1b/cards-glow-one.json b/tools/bf1b/cards-glow-one.json
+new file mode 100644
+index 000000000..e6ee84e7e
+--- /dev/null
++++ b/tools/bf1b/cards-glow-one.json
+@@ -0,0 +1,9 @@
++{
++  "scene": "cards-glow",
++  "window": { "width": 1280, "height": 720 },
++  "steps": [
++    { "do": "camera", "entity": "curtain-camera" },
++    { "do": "run", "ticks": 10 },
++    { "do": "capture", "name": "c" }
++  ]
++}
+diff --git a/tools/bf1b/cards_report.py b/tools/bf1b/cards_report.py
+new file mode 100644
+index 000000000..6832757a2
+--- /dev/null
++++ b/tools/bf1b/cards_report.py
+@@ -0,0 +1,49 @@
++#!/usr/bin/env python3
++"""Throwaway (t1-yy2f, part 2): the counts of the sheet census files, as sheet_report.py of stage 1b counts them.
++
++    python3 -I cards_report.py <census run folder> [...]
++
++For each run and ray kind: the counted rays, their hits, the hits whose crossing lies behind the ray's start (class 3,
++reason 2), the hits on a sheet, and the hits on a sheet of class 1 (the ray crosses the hit pixel's plane ahead of its
++start, where the eye sees a surface within 2 %). Also the mean share of surface pixels that are sheets."""
++import sys
++from collections import defaultdict
++from pathlib import Path
++
++
++def read(run):
++    c = defaultdict(int)
++    frame = {}
++    for line in (Path(run) / "census.txt").read_text().splitlines()[1:]:
++        p = line.split()
++        if p[0] == "frame":
++            frame[p[1]] = float(p[3]) / int(p[2])
++            continue
++        kind = p[0][len("sheet-"):]
++        n = int(p[-2])
++        if p[1] != "hit":
++            c[(kind, "rays")] += n if p[1] == "miss" else 0
++            continue
++        c[(kind, "rays")] += n
++        c[(kind, "hits")] += n
++        if p[6] == "3" and p[8] == "2":
++            c[(kind, "behind-start")] += n
++        if p[2] == "sheet":
++            c[(kind, "sheet")] += n
++            if p[6] == "1":
++                c[(kind, "sheet1")] += n
++            if p[6] == "3" and p[8] == "2":
++                c[(kind, "sheet-behind")] += n
++    return c, frame
++
++
++print("| Run | Kind | Rays | Hits | Crossing behind the start | Hits on sheets | Of class 1 | On sheets, crossing behind the start | Sheets per surface pixel |")
++print("|---|---|---:|---:|---:|---:|---:|---:|---:|")
++for run in sys.argv[1:]:
++    c, frame = read(run)
++    share = frame.get("sheet-pixels", 0) / max(frame.get("surface-pixels", 1), 1)
++    for kind in ("reflection", "diffuse"):
++        print(
++            f"| {Path(run).name} | {kind} | {c[(kind, 'rays')]} | {c[(kind, 'hits')]} | {c[(kind, 'behind-start')]} | "
++            f"{c[(kind, 'sheet')]} | {c[(kind, 'sheet1')]} | {c[(kind, 'sheet-behind')]} | {100 * share:.1f} % |"
++        )
+diff --git a/tools/bf1b/census-cards-glow.json b/tools/bf1b/census-cards-glow.json
+new file mode 100644
+index 000000000..fee62b88d
+--- /dev/null
++++ b/tools/bf1b/census-cards-glow.json
+@@ -0,0 +1,23 @@
++{
++ "scene": "cards-glow",
++ "window": {
++  "width": 1280,
++  "height": 720
++ },
++ "steps": [
++  {
++   "do": "camera",
++   "entity": "curtain-camera"
++  },
++  {
++   "do": "run",
++   "ticks": 10
++  },
++  {
++   "do": "film",
++   "name": "c",
++   "frames": 48,
++   "every": 1
++  }
++ ]
++}
+\ No newline at end of file
+diff --git a/tools/bf1b/hair-one.json b/tools/bf1b/hair-one.json
+new file mode 100644
+index 000000000..919d16093
+--- /dev/null
++++ b/tools/bf1b/hair-one.json
+@@ -0,0 +1,9 @@
++{
++  "scene": "lamp-hall-16-hair",
++  "window": { "width": 1280, "height": 720 },
++  "steps": [
++    { "do": "camera", "entity": "hair-camera" },
++    { "do": "run", "ticks": 10 },
++    { "do": "capture", "name": "hair" }
++  ]
++}
+diff --git a/tools/bf1b/job-cards.sh b/tools/bf1b/job-cards.sh
+new file mode 100644
+index 000000000..95034797f
+--- /dev/null
++++ b/tools/bf1b/job-cards.sh
+@@ -0,0 +1,84 @@
++#!/usr/bin/env bash
++# Throwaway (t1-yy2f): the census and stills runs of stage 2 in a cloud job, after the build of the tree t.
++# Run from the job's work folder:  bash t/tools/bf1b/job-cards.sh <census|rules|stills>
++# rules: the sheet rules' runs of census alone.
++# census: the sheet census of three views over the draws 16 to 47 of one film, under the 10 % rule and the layer with
++#   the pass of stage 1b (TERTIUS_BACK_FACE_PASS=1b) and with the pass of Design 1 (cards), and the sheet rules'
++#   records under the 10 % rule with the pass of Design 1. Each run writes out/<view>-<column>/census.txt.
++# stills: the view cards-glow in three columns at one exposure, the stops of the film's frame 239 under ten: ten,
++#   layer with the pass of stage 1b, and layer with the pass of Design 1. Also the lamp hall's layer column with the pass
++#   of Design 1, at the stops of stage 1b (5.4094524). The frames go to out/pack as lossless WebP.
++set -uo pipefail
++part=$1
++W=$PWD
++mkdir -p "$W/out/pack"
++(cd "$W/t" && dotnet build src/Tertius.Demo -c Release -nologo -v:q -p:RunAnalyzers=false -p:TreatWarningsAsErrors=false \
++  -o "$W/bin" 2>&1 | tail -2) || exit 1
++census() { # <folder> <pass> <mode> <script> [rules]
++  local name=$1 pass=$2 mode=$3 script=$4 rules=${5:-0}
++  mkdir -p "$W/out/$name"
++  (cd "$W/t" && TERTIUS_BACK_FACE_PASS=$pass TERTIUS_BACK_FACE_PROBE=$mode TERTIUS_PROBE_SHEET_CENSUS=1 \
++    TERTIUS_PROBE_SHEET_RULES=$rules TERTIUS_PROBE_CENSUS_OUT="$W/out/$name" TERTIUS_PROBE_CENSUS_FROM=16 \
++    TERTIUS_PROBE_CENSUS_TO=48 timeout 400 "$W/bin/Tertius.Demo" --script "$script" --headless --out "$W/out/$name/run" \
++    --size 1920x1080 --bloom off --video none > "$W/out/$name/run.log" 2>&1)
++  echo "$name exit $? $(head -1 "$W/out/$name/census.txt" 2>/dev/null)" | tee -a "$W/out/summary.txt"
++}
++still() { # <column> <pass> <mode> <script> <stops or auto>
++  local name=$1 pass=$2 mode=$3 script=$4 stops=$5 exposure=()
++  [[ $stops != auto ]] && exposure=(--exposure "$stops")
++  mkdir -p "$W/out/$name"
++  (cd "$W/t" && TERTIUS_BACK_FACE_PASS=$pass TERTIUS_BACK_FACE_PROBE=$mode timeout 400 "$W/bin/Tertius.Demo" \
++    --script "$script" --headless --out "$W/out/$name" --size 1920x1080 --bloom off "${exposure[@]}" > "$W/out/$name/run.log" 2>&1)
++  echo "$name exit $?" | tee -a "$W/out/summary.txt"
++  find "$W/out/$name" -name 's-*.png' ! -name s-000239.png ! -name s-000231.png -delete
++}
++case $part in
++  rules)
++    # The sheet rules' records alone, after the fourth rule (the plane's bounds over the pixel's square) joined.
++    for view in lamp-hall-hair cards-glow skin-hair; do
++      census "$view-rules" cards ten "tools/bf1b/census-$view.json" 1
++    done
++    python3 "$W/t/tools/bf1b/sheet_rules.py" "$W"/out/*-rules > "$W/out/sheet-rules.txt" 2>&1
++    echo "sheet_rules exit $?" | tee -a "$W/out/summary.txt"
++    # The control of run to run: this tree's census of the lamp hall under layer with the pass of stage 1b, twice. The
++    # first stills job compared it with the census tree of stage 1b: the maps were equal, and one sample moved class.
++    for run in 1 2; do
++      census "control-$run" 1b layer tools/bf1b/census-lamp-hall-hair.json
++    done
++    cmp "$W/out/control-1/census.txt" "$W/out/control-2/census.txt" && echo "control: census equal" | tee -a "$W/out/summary.txt"
++    for f in "$W"/out/control-1/*.f32; do
++      cmp -s "$f" "$W/out/control-2/$(basename "$f")" && echo "control: $(basename "$f") equal" | tee -a "$W/out/summary.txt"
++    done
++    rm -f "$W"/out/control-*/*.f32 ;;
++  census)
++    for view in lamp-hall-hair cards-glow skin-hair; do
++      script=tools/bf1b/census-$view.json
++      [[ $view != skin-hair ]] && census "$view-ten" 1b ten "$script"
++      [[ $view != skin-hair ]] && census "$view-layer-1b" 1b layer "$script"
++      census "$view-layer-cards" cards layer "$script"
++      census "$view-rules" cards ten "$script" 1
++    done
++    python3 "$W/t/tools/bf1b/sheet_rules.py" "$W"/out/*-rules > "$W/out/sheet-rules.txt" 2>&1
++    echo "sheet_rules exit $?" | tee -a "$W/out/summary.txt" ;;
++  stills)
++    # The stops of the frame 239 under ten come from the first stills job (6e81457d), which ran out of time: -11.056582.
++    stops=-11.056582
++    echo "stops $stops" | tee -a "$W/out/summary.txt"
++    still ten 1b ten tools/bf1b/stills-cards-glow.json "$stops"
++    still layer1b 1b layer tools/bf1b/stills-cards-glow.json "$stops"
++    still layercards cards layer tools/bf1b/stills-cards-glow.json "$stops"
++    still hall-layercards cards layer tools/bf1b/stills-lamp-hall-hair.json 5.4094524
++    python3 - "$W/out" <<'PY'
++import sys
++from pathlib import Path
++from PIL import Image
++out = Path(sys.argv[1])
++for png in sorted(out.glob("*/s-0002*.png")):
++    # The frame 231 only of ten, the noise floor's partner: the job returns at most about 6 MB.
++    if png.parent.name == "auto" or (png.stem == "s-000231" and png.parent.name != "ten"):
++        continue
++    Image.open(png).convert("RGB").save(out / "pack" / f"{png.parent.name}-{png.stem[2:]}.webp", lossless=True, method=4, quality=100)
++print("pack", sum(p.stat().st_size for p in (out / "pack").iterdir()))
++PY
++    ;;
++esac
+diff --git a/tools/bf1b/sheet_rules.py b/tools/bf1b/sheet_rules.py
+new file mode 100644
+index 000000000..a0de3718c
+--- /dev/null
++++ b/tools/bf1b/sheet_rules.py
+@@ -0,0 +1,153 @@
++#!/usr/bin/env python3
++"""Throwaway (t1-yy2f, part 3): the real hits on sheets that a sheet rule loses, by reason.
++
++Reads the records.bin of a census run with TERTIUS_PROBE_SHEET_RULES=1 (screen_trace_resolve.comp, probeRecord): one
++record per counted ray that hits a sheet under the frame's own slab, the 10 % rule. Each record holds 18 words: the draw,
++the starting pixel x | y << 16, and the 16 words of probeRecord. Prints the tables of cards.md, part 3.
++
++    python3 -I sheet_rules.py <census folder> [<census folder> ...]
++"""
++import sys
++from pathlib import Path
++
++import numpy as np
++
++RULES = {1: "no thickness", 2: "plane span, a = 0.5", 3: "plane span, a = 1.5", 4: "plane bounds, both sides"}
++REASONS = {
++    1: "1 the stair case: the crossing inside the hit pixel",
++    2: "2 the crossing one pixel before the hit pixel",
++    3: "3 the crossing two or more pixels before the hit pixel",
++    4: "4 the crossing shows another surface than the hit pixel's card",
++    5: "5 other: the crossing off screen",
++}
++
++
++def load(folder):
++    words = np.fromfile(Path(folder) / "records.bin", dtype="<u4").reshape(-1, 18)
++    f = words[:, 2:].view(np.float32)
++    w0 = words[:, 2]
++    r = {
++        "draw": words[:, 0],
++        "start": words[:, 1],
++        "crossing": (w0 >> 1) & 7,
++        "reason": (w0 >> 4) & 3,
++        "behind": (w0 >> 6) & 1,
++        "own": (w0 >> 7) & 1,
++        "diffuse": (w0 >> 8) & 1,
++        "on_card": (w0 >> 9) & 1,
++        "placed": (w0 >> 10) & 1,
++        "hx": (words[:, 3] & 0xFFFF).astype(np.float64),
++        "hy": (words[:, 3] >> 16).astype(np.float64),
++        "px": f[:, 2].astype(np.float64),
++        "py": f[:, 3].astype(np.float64),
++        "w": f[:, 4].astype(np.float64),
++        "in_w": f[:, 5].astype(np.float64),
++        "out_w": f[:, 6].astype(np.float64),
++        "span": f[:, 7].astype(np.float64),
++        "far": f[:, 8].astype(np.float64),
++        "sine": f[:, 9].astype(np.float64),
++        "light": f[:, 10].astype(np.float64),
++        "t": f[:, 11].astype(np.float64),
++        "card_h": words[:, 14] & 0x3FFF,
++        "card_p": (words[:, 14] >> 16) & 0x3FFF,
++        "gx": f[:, 13].astype(np.float64),
++        "gy": f[:, 14].astype(np.float64),
++        "distance": f[:, 15].astype(np.float64),
++    }
++    for rule in RULES:
++        r[f"outcome{rule}"] = (w0 >> (12 + 4 * rule)) & 15
++    return r
++
++
++def kept(r, rule):
++    """A rule keeps a real hit when its walk again ends in a hit of class 1, on any pixel."""
++    return (r[f"outcome{rule}"] & 7) == 5
++
++
++def reasons(r):
++    """The reason of each record, by the first that applies: 4, then 5, then 1 to 3 by the crossing's distance."""
++    cheb = np.maximum(np.abs(np.floor(r["px"]) - r["hx"]), np.abs(np.floor(r["py"]) - r["hy"]))
++    reason = np.where(cheb == 0, 1, np.where(cheb == 1, 2, 3))
++    reason = np.where(r["placed"] == 0, 5, reason)
++    other = (r["card_p"] != r["card_h"]) & (r["placed"] == 1)
++    return np.where(other, 4, reason), cheb
++
++
++def pct(a, b):
++    return f"{100.0 * a / b:.1f} %" if b else "n/a"
++
++
++def report(folder):
++    r = load(folder)
++    reason, cheb = reasons(r)
++    depth = (r["w"] - np.maximum(r["in_w"], r["out_w"])) / np.maximum(0.5 * r["span"], 1e-30)
++    angle = np.degrees(np.arcsin(np.clip(r["sine"], 0, 1)))
++    # How far behind the hit pixel's center the ray's nearest point in the hit cell lies, along the view axis, in mm.
++    depth_mm = (1.0 / np.maximum(np.maximum(r["in_w"], r["out_w"]), 1e-30) - 1.0 / r["w"]) * 1000.0
++    print(f"## {folder}")
++    print(f"records (hits on sheets under the 10 % rule): {len(reason)}")
++    # Controls: a fresh record's ray kind follows its draw (even draws trace reflection rays), and the records count the
++    # same hits on sheets as the census file of the same run.
++    print(f"check: records whose ray kind does not match the draw's parity: {(r['diffuse'] != (r['draw'] & 1)).sum()}")
++    census = Path(folder) / "census.txt"
++    if census.exists():
++        counts = {}
++        for line in census.read_text().splitlines()[1:]:
++            p = line.split()
++            if p[0].startswith("sheet-") and p[1] == "hit" and p[2] == "sheet":
++                key = (p[0][len("sheet-"):], p[6] == "1")
++                counts[key] = counts.get(key, 0) + int(p[-2])
++        for kind, name in ((0, "reflection"), (1, "diffuse")):
++            k = r["diffuse"] == kind
++            print(f"check: {name} hits on sheets, records {k.sum()} against census {counts.get((name, False), 0) + counts.get((name, True), 0)};"
++                  f" real, records {(k & (r['crossing'] == 1)).sum()} against census {counts.get((name, True), 0)}")
++    for kind, name in ((0, "reflection"), (1, "diffuse")):
++        k = r["diffuse"] == kind
++        real = k & (r["crossing"] == 1)
++        print(f"\n### {name}: hits on sheets {k.sum()}, real (class 1) {real.sum()}")
++        print("| Class of the 10 % rule's hit | Hits | " + " | ".join(f"Kept by {n}" for n in RULES.values()) + " |")
++        print("|---|---:|" + "---:|" * len(RULES))
++        for c, cname in ((1, "1 real"), (0, "0 an opening"), (2, "2 hidden"), (3, "3 undetermined")):
++            m = k & (r["crossing"] == c)
++            print(f"| {cname} | {m.sum()} | " + " | ".join(f"{(m & kept(r, x)).sum() if c == 1 else ((r[f'outcome{x}'] >= 4) & m).sum()}" for x in RULES) + " |")
++        lost = real & ~kept(r, 1)
++        light = r["light"][lost].sum()
++        print(f"\nReal hits that no thickness loses: {lost.sum()} ({pct(lost.sum(), real.sum())}), light {light:.4g}")
++        visible = real & (r["placed"] == 1) & (r["card_p"] == r["card_h"])
++        other = real & ~visible
++        print("\n| Real hits of the 10 % rule | Hits | " + " | ".join(f"Kept by {n}" for n in RULES.values()) + " |")
++        print("|---|---:|" + "---:|" * len(RULES))
++        for name, m in (("the crossing shows the hit pixel's card", visible), ("the crossing shows another surface", other)):
++            print(f"| {name} | {m.sum()} | " + " | ".join(f"{(m & kept(r, x)).sum()} ({pct((m & kept(r, x)).sum(), m.sum())})" for x in RULES) + " |")
++        print("\n| Reason | Lost hits | Share | Share of light | Depth into the slab, 25/50/75 % (spans) | Depth, 50 % (mm) | Angle to the plane, 50 % (deg) | Start on a card | " + " | ".join(f"Kept by {n}" for n in list(RULES.values())[1:]) + " |")
++        print("|---|---:|---:|---:|---|---:|---:|---:|" + "---:|" * (len(RULES) - 1))
++        for k_reason, rname in REASONS.items():
++            m = lost & (reason == k_reason)
++            if not m.any():
++                print(f"| {rname} | 0 |" + " |" * (6 + len(RULES)))
++                continue
++            d = np.percentile(depth[m], [25, 50, 75])
++            print(
++                f"| {rname} | {m.sum()} | {pct(m.sum(), lost.sum())} | {pct(r['light'][m].sum(), light)} | "
++                f"{d[0]:.3g} / {d[1]:.3g} / {d[2]:.3g} | {np.median(depth_mm[m]):.3g} | {np.median(angle[m]):.3g} | {pct(r['on_card'][m].sum(), m.sum())} | "
++                + " | ".join(f"{(m & kept(r, x)).sum()}" for x in list(RULES)[1:])
++                + " |"
++            )
++        # Checks of the census's own consistency.
++        s1 = lost & (reason == 1)
++        if s1.any():
++            plane_at = r["w"] + r["gx"] * (r["px"] - r["hx"] - 0.5) + r["gy"] * (r["py"] - r["hy"] - 0.5)
++            print(f"\ncheck: stair-case crossings where the plane is farther than the center: {(plane_at[s1] < r['w'][s1]).sum()} of {s1.sum()}")
++        behind_center = real & (np.maximum(r["in_w"], r["out_w"]) < r["w"])
++        print(f"check: real hits whose ray stays behind the center w across the hit cell: {behind_center.sum()}, of them lost by no thickness: {(behind_center & lost).sum()}; lost hits not behind it: {(lost & ~behind_center).sum()}")
++        for x in (2, 3):
++            pred = real & (depth <= (1 if x == 2 else 3))
++            print(f"check: {RULES[x]}: real hits with depth <= {1 if x == 2 else 3} spans {pred.sum()}, kept {(real & kept(r, x)).sum()}, kept and not so deep {(real & kept(r, x) & ~pred).sum()}")
++        print(f"cheb distance of lost hits: " + ", ".join(f"{d}: {(lost & (cheb == d)).sum()}" for d in range(0, 4)) + f", 4+: {(lost & (cheb >= 4)).sum()}")
++        same = lost & (reason != 4) & (reason != 5)
++        print(f"lost real hits whose crossing shows the hit pixel's own card: {same.sum()} ({pct(same.sum(), lost.sum())}), light {pct(r['light'][same].sum(), light)}")
++
++
++if __name__ == "__main__":
++    for folder in sys.argv[1:]:
++        report(folder)
+diff --git a/tools/bf1b/skin-one.json b/tools/bf1b/skin-one.json
+new file mode 100644
+index 000000000..1a08c0710
+--- /dev/null
++++ b/tools/bf1b/skin-one.json
+@@ -0,0 +1,9 @@
++{
++  "scene": "skin-and-hair",
++  "window": { "width": 1280, "height": 720 },
++  "steps": [
++    { "do": "camera", "entity": "hair-camera" },
++    { "do": "run", "ticks": 10 },
++    { "do": "capture", "name": "hair" }
++  ]
++}
+diff --git a/tools/bf1b/stills-cards-glow.json b/tools/bf1b/stills-cards-glow.json
+new file mode 100644
+index 000000000..8d41c6193
+--- /dev/null
++++ b/tools/bf1b/stills-cards-glow.json
+@@ -0,0 +1,23 @@
++{
++ "scene": "cards-glow",
++ "window": {
++  "width": 1280,
++  "height": 720
++ },
++ "steps": [
++  {
++   "do": "camera",
++   "entity": "curtain-camera"
++  },
++  {
++   "do": "run",
++   "ticks": 10
++  },
++  {
++   "do": "film",
++   "name": "s",
++   "frames": 240,
++   "every": 1
++  }
++ ]
++}
+\ No newline at end of file

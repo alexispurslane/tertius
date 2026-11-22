@@ -14,7 +14,7 @@ layout(set = 3, binding = 1, rg32f) uniform writeonly image2D destination;   // 
 vec2 childBounds(ivec2 child)
 {
     if (any(greaterThanEqual(child, textureSize(source, 0))))
-        return vec2(0.0, EmptyFar);
+        return vec2(0.0, EmptyBack);
     return texelFetch(source, child, 0).rg;
 }
 
@@ -23,7 +23,7 @@ void main()
     ivec2 cell = ivec2(gl_GlobalInvocationID.xy);
     if (any(greaterThanEqual(cell, imageSize(destination))))
         return;
-    vec2 bounds = vec2(0.0, EmptyFar);
+    vec2 bounds = vec2(0.0, EmptyBack);
     for (int y = 0; y < 2; y++)
         for (int x = 0; x < 2; x++)
             bounds = mergedBounds(bounds, childBounds(2 * cell + ivec2(x, y)));

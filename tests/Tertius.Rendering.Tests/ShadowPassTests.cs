@@ -13,7 +13,7 @@ public sealed class ShadowPassTests
 {
     private static readonly MeshInfo[] Meshes =
     [
-        new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: 0.866f, Deform: null),
+        new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: 0.866f, Deform: null, Closed: true),
     ];
 
     /// <summary>A white star 1.5 × 10¹¹ m along <paramref name="direction"/>, that casts shadows.</summary>

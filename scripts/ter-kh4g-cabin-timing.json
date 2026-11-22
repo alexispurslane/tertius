@@ -1,0 +1,9 @@
+{
+  "scene": "demo-exit",
+  "window": { "width": 1920, "height": 1080 },
+  "steps": [
+    { "do": "camera", "entity": "cabin-camera" },
+    { "do": "run", "ticks": 60 },
+    { "do": "film", "name": "cabin", "frames": 120, "every": 1 }
+  ]
+}

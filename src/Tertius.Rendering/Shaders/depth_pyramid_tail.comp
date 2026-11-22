@@ -10,7 +10,7 @@
 
 vec2 emptyCell()
 {
-    return vec2(0.0, EmptyFar);
+    return vec2(0.0, EmptyBack);
 }
 
 vec2 mergedCells(vec2 a, vec2 b)

@@ -1,0 +1,23 @@
+{
+ "scene": "demo-exit",
+ "window": {
+  "width": 1280,
+  "height": 720
+ },
+ "steps": [
+  {
+   "do": "camera",
+   "entity": "cabin-camera"
+  },
+  {
+   "do": "run",
+   "ticks": 60
+  },
+  {
+   "do": "film",
+   "name": "s",
+   "frames": 240,
+   "every": 1
+  }
+ ]
+}

@@ -29,6 +29,9 @@ namespace Tertius.Rendering;
 /// during batching, each rendered alone into its tile of the impostor atlas.</item>
 /// <item>G-buffer: far, middle and near depth ranges, each one vkCmdDrawIndexedIndirect, plus one instanced draw of
 /// the impostor billboards in that range.</item>
+/// <item>The back-face pass (<see cref="BackFacePass"/>), under <see cref="ScreenTrace"/>: the back share of each pixel,
+/// from the G-buffer's commands of each depth range, drawn again with positions only, and with texture coordinates for the
+/// cutout runs.</item>
 /// <item>The depth pyramid (<see cref="DepthPyramidPass"/>), under <see cref="ScreenTrace"/>: the min-max inverse depth
 /// of the distance target, level by level, its small mips in one dispatch (<see cref="PyramidTail"/>), and the
 /// finest level, each pixel's center w.</item>
@@ -1368,7 +1371,19 @@ public sealed unsafe class VulkanRenderer : IRenderer
         ).Values;
 
     /// <summary>
-    /// Level 1 to L of the last frame's depth pyramid: the near and the far bound of each texel of its mip, padding
+    /// The last frame's back share of each pixel (<see cref="RenderTargets.BackShare"/>), row by row from the top. A test
+    /// hook: it waits for the device to be idle and submits its own copy.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The screen tracer is off.</exception>
+    internal float[] ReadBackShare() =>
+        ReadLevel(
+            image: targets.BackShare ?? throw new InvalidOperationException("The screen tracer is off."),
+            layer: 0,
+            mip: 0
+        ).Values;
+
+    /// <summary>
+    /// Level 1 to L of the last frame's depth pyramid: the front w and the back w of each texel of its mip, padding
     /// included, row by row from the top. A test hook: it waits for the device to be idle and submits its own copy.
     /// </summary>
     /// <exception cref="InvalidOperationException">The screen tracer is off.</exception>
@@ -1381,11 +1396,15 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
-    /// The last frame's finest level of the depth pyramid: each pixel's center w in 1/m, 0 for sky, row by row from the
-    /// top. A test hook, like <see cref="ReadDepthPyramidLevel"/>.
+    /// The last frame's finest level of the depth pyramid: each pixel's slab, its center w and its back w in 1/m, (0, 0)
+    /// for sky, row by row from the top. A test hook, like <see cref="ReadDepthPyramidLevel"/>.
     /// </summary>
     /// <exception cref="InvalidOperationException">The screen tracer is off.</exception>
-    internal float[] ReadDepthFinest() => ReadLevel(image: PyramidOrThrow().Finest, layer: 0, mip: 0).Values;
+    internal CellBounds[] ReadDepthFinest()
+    {
+        float[] values = ReadLevel(image: PyramidOrThrow().Finest, layer: 0, mip: 0).Values;
+        return [.. values.Chunk(2).Select(texel => new CellBounds(Near: texel[0], Back: texel[1]))];
+    }
 
     /// <summary>
     /// Level 0 to L of the last frame's light pyramid: the guide light of each pixel at level 0, and the sum of each texel of
@@ -2254,6 +2273,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         if (setting is not ScreenTrace trace)
             return null;
         PyramidImages pyramid = targets.Pyramid ?? throw new UnreachableException("The targets make the pyramid.");
+        Graph.Add(FrameGraph.Stage.BackFaces, new BackFacePass(device: device, shaders: shaders, layouts: layouts));
         Graph.Add(
             FrameGraph.Stage.DepthPyramid,
             new DepthPyramidPass(device: device, shaders: shaders, layouts: layouts, pyramid: pyramid)

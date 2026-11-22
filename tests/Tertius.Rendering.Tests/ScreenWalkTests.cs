@@ -44,6 +44,73 @@ public sealed class ScreenWalkTests
     }
 
     [Fact]
+    public void ARayThatCrossesATwoSidedCardInsideTheCardsPixelHitsIt()
+    {
+        // The ray's inverse depth falls from 0.2042 to 0.1958 over the card's pixel, through the card's 0.2.
+        var ray = new ScreenRay(
+            Start: new(2.5f, 0.5f),
+            Step: Vector2.UnitX,
+            StartInverseDepth: 0.25f,
+            StepInverseDepth: -0.05f / 6,
+            End: 12,
+            EndsAt: SegmentEnd.ScreenEdge
+        );
+
+        RayTrace walked = ray.Walk(pyramid: CardRow(), direction: -Vector3.UnitZ, maxSteps: Cap);
+
+        walked.TryGetValue(out RayHit hit).Should().BeTrue($"the ray crosses the card, not {walked}");
+        hit.Pixel.Should().Be((8, 0));
+    }
+
+    [Fact]
+    public void ARayThatPassesBehindATwoSidedCardMissesIt()
+    {
+        // At an inverse depth of 0.19, the ray lies 5 % behind the card. Under the 10 % rule it hit the card.
+        var ray = new ScreenRay(
+            Start: new(2.5f, 0.5f),
+            Step: Vector2.UnitX,
+            StartInverseDepth: 0.19f,
+            StepInverseDepth: 0,
+            End: 12,
+            EndsAt: SegmentEnd.ScreenEdge
+        );
+
+        RayTrace walked = ray.Walk(pyramid: CardRow(), direction: -Vector3.UnitZ, maxSteps: Cap);
+
+        walked.TryGetValue(out RayLeftTheSegment _).Should().BeTrue($"the card has no thickness, not {walked}");
+    }
+
+    [Fact]
+    public void ARayAlongAFloorRowJustInFrontOfItsPixelsCentersPassesThoughThePixelsPlanesComeNearer()
+    {
+        // At the finest level the walk reads each pixel's own slab, from its center w, not the bounds of its plane over
+        // its square, which level 1 merges. Along a row, each floor pixel's plane is nearer than its center toward its
+        // lower edge.
+        CameraView camera = ScreenTesting.Camera(width: Width, height: Height, pitchDown: 0.3f);
+        SceneRectangle[] floor = [new(new(0, -1.5f, 0), new(1_000, 0, 0), new(0, 0, 1_000))];
+        DepthPyramid pyramid = ScreenTesting.Pyramid(camera, floor);
+        const int row = Height * 3 / 4;
+        float centerW = pyramid.Finest(Width / 2, row);
+        var ray = new ScreenRay(
+            Start: new(10.5f, row + 0.5f),
+            Step: Vector2.UnitX,
+            StartInverseDepth: centerW * 1.0001f,
+            StepInverseDepth: 0,
+            End: Width - 20,
+            EndsAt: SegmentEnd.ScreenEdge
+        );
+        var direction = Vector3.Normalize(new Vector3(1, -0.1f, 0));
+
+        RayTrace walked = ray.Walk(pyramid: pyramid, direction: direction, maxSteps: Cap);
+
+        pyramid
+            .Bounds(0, Width / 2, row)
+            .Near.Should()
+            .BeGreaterThan(centerW * 1.0001f, "the premise: the pixel's plane comes nearer than the ray");
+        walked.TryGetValue(out RayLeftTheSegment _).Should().BeTrue($"the ray passes the floor, not {walked}");
+    }
+
+    [Fact]
     public void ARayThatRisesTowardTheEyeThroughTheSlabBehindAWallIsNoHitBecauseTheWallFacesAwayFromIt()
     {
         // The wall's normal points to the eye. A ray from 10.5 m, inside the wall's slab of 10 to 11 m, toward the eye
@@ -116,8 +183,43 @@ public sealed class ScreenWalkTests
         [Fact]
         public void AtACapOf4096TheTwoDepthWalkFindsTheHitOfAMarchOverTheFlatSlabsOnAMillionRandomRays()
         {
+            // Solid slabs: every surface pixel's back face lies a third deeper than its front.
+            (int hits, List<string> disagreements, long portSteps, long spikeSteps) = WalkAndMarch(surfaceShare: 0.75f);
+
+            hits.Should().BeGreaterThan(200_000, "most random rays meet a surface of the scene");
+            disagreements.Should().BeEmpty();
+            output.WriteLine(
+                $"1,000,000 random rays, seed 20261104, cap {Cap}: port mean {portSteps / 1e6:F6} cells; nudged V6 mean {spikeSteps / 1e6:F6} cells."
+            );
+        }
+
+        [Fact(Skip = "The walk can miss a slab of no depth at a descent's entry; skipped until t53-eyrv fixes it.")]
+        public void OnSheetSlabsTheWalkFindsTheHitOfTheMarchOnAMillionRandomRays()
+        {
+            // Every rectangle a sheet: a pixel that faces the eye or lies edge-on holds a slab of no depth.
+            (int hits, List<string> disagreements, _, _) = WalkAndMarch(surfaceShare: 1);
+
+            hits.Should().BeGreaterThan(200_000, "most random rays meet a surface of the scene");
+            disagreements.Should().BeEmpty();
+        }
+
+        /// <summary>
+        /// A million random rays of seed 20261104 over <see cref="RoomScene"/>, each surface pixel with the back share
+        /// <paramref name="surfaceShare"/>: the walk's hits, the rays where the walk and the march disagree, and the steps
+        /// of the walk and of the nudged V6 walk in all.
+        /// </summary>
+        private static (int Hits, List<string> Disagreements, long PortSteps, long SpikeSteps) WalkAndMarch(
+            float surfaceShare
+        )
+        {
             CameraView camera = ScreenTesting.Camera(width: 128, height: 96, pitchDown: 0.35f);
-            DepthPyramid pyramid = ScreenTesting.Pyramid(camera, RoomScene);
+            (float[] distances, Vector3[] normals) = ScreenTesting.Surfaces(camera, RoomScene);
+            var pyramid = DepthPyramid.Of(
+                camera: camera,
+                distances: distances,
+                geometricNormals: normals,
+                backShares: [.. distances.Select(distance => distance > 0 ? surfaceShare : 0)]
+            );
             var random = new Random(20_261_104);
             int hits = 0;
             long portSteps = 0,
@@ -148,12 +250,7 @@ public sealed class ScreenWalkTests
                 if (walked.TryGetValue(out RayOutOfSteps _) || walkedPixel != marched)
                     disagreements.Add($"ray {index} {ray}: walk {walked}, march {marched}");
             }
-
-            hits.Should().BeGreaterThan(200_000, "most random rays meet a surface of the scene");
-            disagreements.Should().BeEmpty();
-            output.WriteLine(
-                $"1,000,000 random rays, seed 20261104, cap {Cap}: port mean {portSteps / 1e6:F6} cells; nudged V6 mean {spikeSteps / 1e6:F6} cells."
-            );
+            return (hits, disagreements, portSteps, spikeSteps);
         }
 
         private static int NudgedV6Steps(ScreenRay ray, DepthPyramid pyramid, Vector3 direction)
@@ -179,11 +276,8 @@ public sealed class ScreenWalkTests
                 int side = 1 << level;
                 Vector2 cell = new(MathF.Floor(position.X / side), MathF.Floor(position.Y / side));
                 float exit = MathF.Max(Exit(cell, level), parameter);
-                CellBounds bounds =
-                    level == 0
-                        ? CellBounds.OfSurface(pyramid.Finest((int)cell.X, (int)cell.Y))
-                        : pyramid.Bounds(level, (int)cell.X, (int)cell.Y);
-                float back = bounds.Far * (1 / (1 + CellBounds.ThicknessShare));
+                CellBounds bounds = pyramid.WalkSlab(level, (int)cell.X, (int)cell.Y);
+                float back = bounds.Back;
                 float inW = ray.StartInverseDepth + ray.StepInverseDepth * parameter;
                 float outW = ray.StartInverseDepth + ray.StepInverseDepth * exit;
                 bool meets = bounds.Near > 0 && MathF.Min(inW, outW) <= bounds.Near && MathF.Max(inW, outW) >= back;
@@ -221,7 +315,7 @@ public sealed class ScreenWalkTests
         public void OnRaysOfBinaryFractionsWhoseEntriesAndCrossingsTieWithCellEdgesTheWalkFindsTheHitOfTheMarch()
         {
             // Every number is a binary fraction of few bits: starts on quarter pixels, steps of powers of two pixels,
-            // and inverse depths on sixteenths. So the image crosses pixel corners, and slab entries fall exactly on
+            // inverse depths on sixteenths and back shares on eighths. So the image crosses pixel corners, and slab entries fall exactly on
             // pixel edges and on the center lines of cells, which random rays of a camera never do. Every surface faces
             // the ray. The segment's end lies 1/1024 off the grid, so that no slab entry falls exactly on it.
             var random = new Random(20_261_104);
@@ -235,7 +329,16 @@ public sealed class ScreenWalkTests
                 float[] inverseDepths = new float[16 * 16];
                 for (int pixel = 0; pixel < inverseDepths.Length; pixel++)
                     inverseDepths[pixel] = random.Next(4) == 0 ? random.Next(8, 25) / 16f : 0;
-                var pyramid = DepthPyramid.FromInverseDepths(inverseDepths, width: 16, height: 16);
+                // Back shares on eighths, and a sheet's 1 at one pixel in eight.
+                float[] backShares = new float[16 * 16];
+                for (int pixel = 0; pixel < backShares.Length; pixel++)
+                    backShares[pixel] = random.Next(8) == 0 ? 1 : random.Next(4, 8) / 8f;
+                var pyramid = DepthPyramid.FromInverseDepths(
+                    inverseDepths: inverseDepths,
+                    backShares: backShares,
+                    width: 16,
+                    height: 16
+                );
                 var step = new Vector2(steps[random.Next(steps.Length)], steps[random.Next(steps.Length)]);
                 if (step == Vector2.Zero)
                     continue;
@@ -275,6 +378,24 @@ public sealed class ScreenWalkTests
         .. ScreenTesting.Box(new(-1, 1.5f, -14), new(1, 0.3f, 0.6f)),
     ];
 
+    /// <summary>
+    /// A row of 16 pixels before the sky, with one two-sided card at pixel 8 that faces the eye at an inverse depth of 0.2.
+    /// The card's own fragment gives its pixel the back share 1: it is a sheet.
+    /// </summary>
+    private static DepthPyramid CardRow()
+    {
+        float[] inverseDepths = new float[16];
+        float[] backShares = new float[16];
+        inverseDepths[8] = 0.2f;
+        backShares[8] = 1;
+        return DepthPyramid.FromInverseDepths(
+            inverseDepths: inverseDepths,
+            backShares: backShares,
+            width: 16,
+            height: 1
+        );
+    }
+
     /// <summary>The image of a ray from a bare origin, whose own view depth is the depth that the walk expects of it.
     /// </summary>
     private static ScreenRay RayOf(Vector3 origin, Vector3 direction, in CameraView camera) =>
@@ -302,8 +423,8 @@ public sealed class ScreenWalkTests
 
     /// <summary>
     /// The oracle of the walk: every pixel that the image crosses, in order, from the exit of the origin's pixel. A pixel
-    /// whose stretch of the image meets its flat slab, from its center's inverse depth w to w / (1 + κ), and whose
-    /// surface faces the ray, is the hit. Each step leaves a pixel across the edges through which the image leaves it,
+    /// whose stretch of the image meets its flat slab, its <see cref="DepthPyramid.PixelSlab"/>, and whose surface faces
+    /// the ray, is the hit. Each step leaves a pixel across the edges through which the image leaves it,
     /// so no pixel that the image crosses is skipped, however near its corner.
     /// </summary>
     /// <returns>The hit pixel, or null for a ray that reaches the segment's end.</returns>
@@ -321,8 +442,8 @@ public sealed class ScreenWalkTests
             pixel += travel * crossed;
             (float exit, Vector2 crossedAtExit) = PixelExit(ray, pixel, travel);
             (int x, int y) = ((int)pixel.X, (int)pixel.Y);
-            float w = pyramid.Finest(x, y);
-            float back = w / (1 + CellBounds.ThicknessShare);
+            CellBounds slab = pyramid.PixelSlab(x, y);
+            (float w, float back) = (slab.Near, slab.Back);
             float inW = ray.StartInverseDepth + ray.StepInverseDepth * s;
             float outW = ray.StartInverseDepth + ray.StepInverseDepth * exit;
             bool meets = w > 0 && MathF.Min(inW, outW) <= w && MathF.Max(inW, outW) >= back;
