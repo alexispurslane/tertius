@@ -890,11 +890,12 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 // The plan gives a pixel a ray of its own while its history is shorter than FullRateFrames
                 // (screen_trace_plan.comp). Light evidence cuts a settled history to exactly that length, so a light
                 // change buys no block of own rays in the draws while its age is recent, and the frame costs about what
-                // a still frame costs (ticket t0-zmjx). A cut to the fast cap gave 2,161 to 3,059 of the 9,216 pixels
-                // an own ray in 10 draws. The count before the change is the most of 8 settled draws, since the jitter
-                // moves a few pixels across the threshold of a fit. The dimming also moves the clamp, and the anti-lag
-                // shortens a few histories below FullRateFrames by that move, as it does without evidence: up to 41
-                // more pixels in the take of 2026-11-22, so the bound is 1 % of the pixels.
+                // a still frame costs (ticket t0-zmjx). The count is of own rays, up to two per pixel, one of each kind.
+                // A cut to the fast cap gave 2,161 to 3,059 own rays in each of 10 draws, on 9,216 pixels. The count
+                // before the change is the most of 8 settled draws, since the jitter moves a few pixels across the
+                // threshold of a fit. The dimming also moves the clamp, and the anti-lag shortens a few histories below
+                // FullRateFrames by that move, as it does without evidence: up to 41 more own rays in the take of
+                // 2026-11-22, so the bound is 92 more, 1 % of the pixel count.
                 Draw(renderer, scene, 64);
                 int settled = 0;
                 for (int draw = 0; draw < 8; draw++)
@@ -1745,7 +1746,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
 
     /// <summary>
     /// The receivers whose ray hits the emitter in the draw that counts its change bring back age 0, which gives their
-    /// blocks light evidence: their histories fall to the fast cap after the blend.
+    /// blocks light evidence: their histories fall to FullRateFrames after the blend.
     /// </summary>
     private void AReceiverWhoseRayHitsTheChangedEmitterFallsToFullRateFrames(Vector3 glow) =>
         WithRenderer(

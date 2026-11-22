@@ -112,3 +112,27 @@ My answers: 60, the run-to-run spread is not taken (one candidate); 61, the thre
 **2026-11-22T21:05:54Z**
 
 The orchestrator confirmed on 2026-11-22: the restart at 8 draws is the choice, by point 1 of the rule; answers 59 to 63 stand. The user's own variant got a fair test: 'own rays wait for the evidence' was built as a scratch variant with the plan's exact reach (scratch-plan-waits-for-evidence.patch in the acceptance record) and measured on the card and on the Mac. Its result in one line: the dear draws shrink from 10 to 4, each still costs up to 25 ms on the card (settled 17.6 ms), and the render scale still falls by 0.097 after a switch, where the restart at 8 draws leaves it at 1.000. The ray budget per draw is a candidate in the orchestrator's review of the approach and is not designed on this line now.
+
+**2026-11-22T23:30:07Z**
+
+The build (acceptance lead, 2026-11-22). Commit 05a27262d on the merge 64d34b63c of the line's head. The form: one condition for both kinds of evidence, `evidence == LightEvidence || evidence == RegionEvidence ? min(antiLagged, FullRateFrames) : antiLagged` (accumulate_spatial.comp:168).
+
+Red on the parent's shader: 18 tests of AccumulatorRenderTests and LightAgeHistoryTests failed, each finding 4 draws where 8 was wanted. The plan test read 85 own rays at most when settled, then 2,161 to 3,059 own rays in each of 10 draws after the dimming. Green: the full Checked Rendering suite, 3,416 passed, 0 failed. The plan test read 79 to 126 own rays, and its bound is the settled count plus 1 % of the pixel count, because the anti-lag shortens a few histories below 8 by the dimming's clamp move, as without evidence.
+
+The mutants (tools/mutate.py, list /private/tmp/t0-5tyj/zmjx/mutants*.json). The first run's Z04 to Z10 failed to build after a Nix garbage collection removed the blue-noise mask, so they ran again in a fresh dev shell.
+
+| id | change | result | killed by |
+|---|---|---|---|
+| Z01 | light evidence leaves the cap | killed | RegionDrift.LightEvidenceCutsASettledBounceHistoryToTheLengthOfTheRegionsCut, AReflectionWithARecentLightCodeIsCutToFullRateFrames |
+| Z02 | region evidence leaves the cap | killed | RegionDrift (3 tests) |
+| Z03 | `\|\|` to `&&` | killed | RegionDrift (3 tests) |
+| Z04 | motion evidence caps too | killed | RegionDrift.UnderMotionEvidenceARegionEvidenceActsAsTheMotionEvidenceAlone |
+| Z05 | min to max | killed | RegionDrift (several) |
+| Z06 | evidence sets 8 and skips the anti-lag | killed | RegionDrift.UnderARegionEvidenceTheAntiLagStillShortensAHistoryBelowTheRegionsCap |
+| Z07 | the old cut to the fast cap | killed | RegionDrift (several) |
+| Z08 | cap at 9 | killed | RegionDrift (several) |
+| Z09 | evidence ignores the anti-lag | killed | RegionDrift.UnderARegionEvidenceTheAntiLagStillShortensAHistoryBelowTheRegionsCap |
+| Z10 | no anti-lag without evidence | survived the evidence classes, killed by the main class | ASampleThatSawMotionNarrowsTheBoxOfItsBlockAndKeepsItsLength, UnderTheNarrowBoxADimmingStepShortensTheHistoryByTheClampsMoveOverHalfTheMeansLight |
+| Z11 | light evidence beside motion takes the narrow box (line 151) | killed | ALightCodeWithTheMotionBitKeepsTheWidenedBoxOfLightEvidence and two others |
+
+The review (one reviewer, claudeAgent claude-opus-5-5 at high effort): correctness pass, fulfillment pass, design fail on one finding. A block with light evidence and motion keeps the wide box and now up to 8 draws of a moving view, and the reason for that order ("a history at FastCap holds no lag") no longer holds. Resolution: the order stays as it was, because the cap did not change it. Section 8.2 records the open point, the test ALightCodeWithTheMotionBitKeepsTheWidenedBoxOfLightEvidence pins the present order (Z11), and tc-tc8c measures a lamp switch during a walk with the composed level (motion's narrow box beside the cap) as its candidate. The four nits are fixed: a stale summary, own rays counted as pixels, the wording of X1's parenthesis, and a sentence on reflections whose cap lies between 4 and 8.

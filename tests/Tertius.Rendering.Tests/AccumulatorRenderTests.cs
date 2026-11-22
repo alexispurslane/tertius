@@ -1663,6 +1663,34 @@ public sealed class AccumulatorRenderTests
     }
 
     [Fact]
+    public void ALightCodeWithTheMotionBitKeepsTheWidenedBoxOfLightEvidence()
+    {
+        // Light evidence stands above motion, so a block whose samples bring both keeps the widened box, as light
+        // evidence alone does, and its length falls to FullRateFrames. No take has measured such a block under a moving
+        // view since the cut moved to 8 draws (docs/plans/bounce-light-confidence.md, section 8.2, ticket tc-tc8c).
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
+        try
+        {
+            BlinkThenDrawWithAges(
+                renderer: renderer,
+                sample: sample,
+                scene: scene,
+                codes: (column, row) =>
+                    IsWitness(column, row) ? (ushort)(TemporalSignal.SampleMotionBit | 5u) : (ushort)0
+            );
+
+            BoxNarrowedAt(renderer, sample, Center).Should().BeFalse("light evidence keeps the widening beside motion");
+            CenterOf(renderer, sample, part: 0)
+                .Length.Should()
+                .Be(FullRateFrames, "light evidence caps the length beside motion");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void ABrightSampleWithAYoungLightCodeTakesTheNormalWeightInItsDraw()
     {
         // A still pixel's sample is 25 times its history's light and brings the light code 1, as a ray that hits a sun
