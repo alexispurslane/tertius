@@ -59,3 +59,11 @@ Crops: docs/research/t0-gbgj-combined-check/pics/ramp-M3-openings.png, the near 
 So the layer weakens the leak but does not cure it: on main without the layer, the acceptance lead's bright jambs measured 0.27 to 0.46. The candidate stays as written: rays or shadow tests at the thin edge of the wall's opening, aliased against the render grid (the class of ter-ukw6). Not tested.
 
 The new main a819b10b2 against M2 = 284025851 at the constant 0.956 (1832 x 1032): the bright line at the openings' inner edge, the sill's dots, the ceiling's specks and the floor's grain are the same. Specks per box (ceiling / opening / floor sides) at frames 150, 220, 355: M2 5/39/0, 10/36/41, 10/37/30; M3 5/39/0, 10/36/42, 10/37/31. pics/opening-0956-m2-vs-m3.png. The jamb's soft blotch at frame 220 may be a little dimmer on M3.
+
+**2026-11-22T19:20:54Z**
+
+The ramps on X3 (the line's merge bcca31e95) and on W (the wobble fix's branch 839bce1b5), and the window test, from t0-gbgj.
+- X3: 35 sizes leak, 54 above 0.06, largest 0.2339 / 0.2996 at 1800 x 1008. It differs from M3 only at five sizes within 0.012 of the threshold. Design X leaks where main with the layer leaks.
+- W: 0 sizes leak, 0 above 0.06, largest 0.0468. The fix draws every render size at 16:9.
+- Window test (render scale held at 1, the render size equals the window; crops scaled by x' = W/2 + (x - 960) H/1080, y' = y H/1080): M3 1800 x 1008 (aspect error +0.45 %) right 0.0977, left 0.0582; W the same to four decimals; 1920 x 1080 0.0436 / 0.0435 on both. On M3: 1784 x 1008 0.0437 / 0.0437, 1792 x 1008 0.0438 / 0.0433, 1808 x 1008 0.0435 / 0.0431, 1816 x 1008 0.0510 / 0.0591. Crop: docs/research/t0-gbgj-combined-check/pics/window-1800x1008-M3-W.png.
+- So W hides the leak at a 16:9 output and does not cure it: a window whose own shape is off 16:9 can sit on a tooth all the time. Candidate cause (from the back-face line, read from the code, not measured): the texel grid of the sun's shadow cascades, whose texel size depends on the field of view and the aspect (ShadowCascades.cs).

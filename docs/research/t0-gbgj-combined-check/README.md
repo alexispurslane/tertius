@@ -2,6 +2,8 @@
 
 - M2 is main at `284025851`, the back-face depth layer, with main's survey probe fitted to the layer. That fit equals byte for byte the probe patch that main got later in `2ffd7e66f` (bug `t58-k95j`, a tool fix only).
 - X2 is the merged head `a7e373197`: Design X's line `795e1661f` merged into main `284025851` (merge `b1a433aae`), with this branch's survey probe patch (`e867afcc1`, the cherry-pick of `0e441286d`, fitted to the layer in `a7e373197`).
+- M3 is main `a819b10b2`, which adds the walk's stored inverse depth (`ter-186q`, `t53-eyrv`, ending at `8c52592de`) and the survey's fair lamp switch (`ee9dec413`) to M2. X3 is this branch's merge of it, `bcca31e95`. The takes after 13:17 on 2026-11-22 ran on M3 and X3. The takes before stay on M2 and X2, each named by its side.
+- W is the wobble fix's branch `t3/fix-projection-aspect-wobble` at `839bce1b5` (step 1 of `ter-qt72`: the projection's and FSR's aspect from the output extent). It holds the layer and the fair-switch probe, and not the walk's fix, so its "before" is M2.
 - A2 is X2 with both history clamps off (`TERTIUS_A_NO_CLAMP=1`): the reference of the daub. It explains a fault and is not the bar.
 - "Design X alone" is the record of the line before the merge, against main `c4c1f1f2f` (old main, without the layer): the room's part B (`docs/research/t0-9fo0-room-after-shadow-fix`, the still rect-lamps and the switch), the remedy's record (`docs/research/t0-acxm-region-evidence`, the bay), and the acceptance lead's takes of `t0-5tyj` on the line's head `57b4045ae`, whose `src` equals `795e1661f`. Those takes lie in `/private/tmp/t0-5tyj/runs`, and their record is not committed yet.
 
@@ -305,6 +307,91 @@ Specks per box (`tools/edgefaults.py`, which counts groups of pixels at least 1.
 - M2 and X2 carry the same faults at the same places, in about the same counts. At frame 220, X2's jamb face carries a brighter blotch than M2's.
 - Bug `t58-i3sn` records them. It names two candidate causes, both untested: screen rays at the openings' edges (the class of `ter-ukw6`), and rare bright hits on the lit panels (the class of `ter-fe63`).
 
+### The stills sample at a constant render scale of 0.956
+
+The survey's still part of rect-lamps (at the automatic exposure and at 4.08 stops), exit-cabin, deck-cuts and bay-sunbeam, on M2 and X2 at a constant 0.956 (builds `m2g` and `x2g` with `scratch-render-scale.patch`, runs `s9-*`, `e9-*` and `s9d-M2`), beside take 1's stills at 2/3. M2's first run of deck-cuts failed with `ErrorIncompatibleDriver`, and `s9d-M2` is its repeat.
+
+| Still | Specks, M2 / X2 at 0.956 | Specks, M2 / X2 at 2/3 | Blotch, M2 / X2 at 0.956 | Blotch, M2 / X2 at 2/3 |
+|---|---|---|---|---|
+| rect-lamps, automatic | 0.0241 / 0.0193 | 0.0048 / 0.0000 | 0.0150 / 0.0109 | 0.0128 / 0.0105 |
+| rect-lamps, 4.08 stops | 0.0145 / 0.0096 | 0.0096 / 0.0096 | 0.0146 / 0.0106 | 0.0126 / 0.0106 |
+| exit-cabin | 0.2025 / 0.2074 | 0.2267 / 0.1977 | 0.0174 / 0.0140 | 0.0215 / 0.0179 |
+| deck-cuts | 0.0255 / 0.0204 | 0.0051 / 0.0051 | 0.0047 / 0.0037 | 0.0057 / 0.0045 |
+| bay-sunbeam | 0.0099 / 0.0099 | 0.1437 / 0.1487 | 0.0313 / 0.0255 | 0.0345 / 0.0294 |
+
+The sheets `pics/s956-<still>.png` show each still whole in four columns: M2 and X2 at 0.956, M2 and X2 at 2/3. Where the specks differ, a count per cell of a 3 × 3 grid found them, and a crop at 1:1 or 2x shows them:
+
+![rect-lamps' opening](pics/s956-rect-lamps-opening.png)
+
+- rect-lamps (`pics/s956-rect-lamps-opening.png`): at 0.956 about 90 more specks, all in the middle row's left and right cells. They are the bright line at the openings' inner edge and the dots along the sill of bug `t58-i3sn`. At 2/3 the openings are clean.
+- deck-cuts (`pics/s956-deck-cuts-glass.png`): about 11 more specks around the glass hall's frames. A bright streak on a pillar's lower edge shows on all four tiles, a little longer at 0.956. No other fault that 2/3 hides.
+- bay-sunbeam (`pics/s956-bay-sunbeam-slit.png`): better at 0.956. At 2/3 the slit's edge has stair-step teeth (bug `tc-6v3d`) and the wall beside it a coarser grain, which give the 60 extra specks. At 0.956 the edge is smooth and the grain finer.
+- exit-cabin: no change in score, and the sheet at 0.4 scale shows none. I did not look at it at 1:1.
+- M2 and X2 match in every crop and grid cell, within one or two specks.
+
+### Main moved: the sides M3 and X3
+
+Main moved during the check to `a819b10b2`. Against M2 it changes `Shaders/screen_ray.glsl`, `Shaders/screen_walk.glsl` and `Shading/ScreenRay.cs`: the walk keeps the inverse depth that a descent solved. The line orchestrator ordered every take that had not started onto the new sides.
+
+- X3, the merge `bcca31e95`: only `tools/renderer-survey/probe.patch` conflicted. Its resolution is the line's fair-switch probe of `68239c0af` with the `Count` hunk at 12 to 14. `ARCHITECTURE.md` merged without a conflict: it takes main's new paragraph of the walk and main's removal of the two limits that the fix ends, and `ter-18hc` and `td-hjn6` stay out of the known limits as before. The pre-commit hook ran the Rendering tests on it: 3,411 tests, 0 failed, 10 skipped.
+- The replay builds `m3r` (`a819b10b2` with its tree's probe patch and `scratch-dynamic-scale.patch`) and `x3r` (`bcca31e95` the same way) built with 0 warnings and 0 errors.
+- The faults of `t58-i3sn` at 0.956 (1832 × 1032), old beside new, specks per box (ceiling / opening / floor's sides) at film frames 150, 220 and 355:
+
+| Side | 150 | 220 | 355 |
+|---|---|---|---|
+| M2 | 5 / 39 / 0 | 10 / 36 / 41 | 10 / 37 / 30 |
+| M3 | 5 / 39 / 0 | 10 / 36 / 42 | 10 / 37 / 31 |
+| X2 | 5 / 39 / 0 | 10 / 45 / 33 | 11 / 37 / 30 |
+| X3 | 5 / 39 / 0 | 10 / 45 / 28 | 11 / 37 / 25 |
+
+`pics/opening-0956-m2-vs-m3.png` and `pics/opening-0956-x2-vs-x3.png` show the opening old beside new. The bright line, the sill's dots and the ceiling's specks are the same on the new main. The floor's grain is the same on M3 and a little weaker on X3. The jamb's soft blotch at frame 220 may be a little dimmer on M3.
+
+### The jambs at every render size (the size ramp)
+
+The acceptance lead found on main without the layer (`c4c1f1f2f`) that sunlight leaks onto the cabin's window jambs at some render sizes and not at others. Its ramp (`sizeramp.sh` and `sizeramp.py` of `b53c037f1`, run by their paths; both files equal the commit) holds each of the 181 render sizes that `RenderExtent` gives for 1920 × 1080 at the scales 0.50 to 1.0 for 40 draws, in the cabin's view with the lamps on at 4.08 stops, and measures the display-linear mean of the right and the left jamb crop. A size leaks when either mean is above 0.08. Grey jambs measure 0.035 to 0.055.
+
+![the ramp on M3](pics/ramp-M3.png)
+
+On M3, with the layer (`ramp-M3.txt`):
+
+- 32 of the 181 sizes leak. All 32 are among the 74 sizes that leak on main without the layer (the acceptance record's `ramp-jambs-main-c4c1f1f2f.txt`). 49 sizes measure above 0.06, so 17 lie between 0.06 and 0.08.
+- The brightest: 1800 × 1008 (right 0.2298, left 0.2420), 1872 × 1048 (0.2073, 0.2390) and 1600 × 896 (0.1789, 0.2099). Without the layer the largest jamb mean is 0.7722.
+- All 8 sizes of the exact 16:9 aspect are on the floor, 0.043 to 0.047 on both jambs.
+- The leak is not monotone in the size. 1832 × 1032, the size of the constant 0.956 in takes 2b to 2d, gives 0.0491. That is why those takes showed grey jambs. The next size down, 1832 × 1024, gives 0.0805 and 0.0888.
+- The settle check: at 1344 × 752 the right jamb measures 0.0836 ten draws before the size's last frame and 0.0876 at it; at 1920 × 1080, 0.0449 and 0.0444.
+
+![the opening at leaking sizes](pics/ramp-M3-openings.png)
+
+`pics/ramp-M3-openings.png`: the near right opening at 2x at 1800 × 1008, 1872 × 1048, 1600 × 896 and 1344 × 752, and at 1920 × 1080, which does not leak. At the leaking sizes the jamb face is silver and speckled, the inner edge carries a broad bright line with a glow, and the sill and the ceiling carry bright dots. At 1920 × 1080 the opening is grey and clean.
+
+Fact: with the layer, 32 sizes leak against 74 without it, and the brightest leak is 0.24 against 0.77. Reading: the layer weakens the leak but does not cure it. Bug `t58-i3sn` holds the list and the crops.
+
+On X3 (`ramp-X3.txt`, `pics/ramp-X3.png`), 35 sizes leak and 54 measure above 0.06. The largest mean is again at 1800 × 1008: right 0.2339, left 0.2996. The lists of M3 and X3 differ at five sizes, and every one of them lies within 0.012 of the threshold on both sides. Only on M3: 1376 × 776 (0.0801 on M3 against 0.0791 on X3, left). Only on X3: 1120 × 632, 1144 × 640, 1216 × 680 and 1904 × 1064. Per size, X3's larger mean minus M3's has a median of +0.0014 and ranges from −0.0134 to +0.0576. So Design X leaks at the same sizes as main with the layer, a little higher on a few of them.
+
+On W, the wobble fix's branch (`ramp-W.txt`, `pics/ramp-W.png`), no size leaks: 0 of 181 above 0.08 and 0 above 0.06. The largest mean is 0.0468, at 1088 × 616. At 1800 × 1008, W gives 0.0441 and 0.0439. The fix takes the projection's and FSR's aspect from the output, so every render size draws the picture at 16:9.
+
+**The window test.** The back-face line read the ramp of M3 against the aspect error of the render size, (width / height) / (16 / 9) − 1. All sizes lie on one sawtooth curve of it, so a zero on W can mean "cured" or "hidden at 16:9". The test draws windows of a given shape with the render scale held at 1, so the render size equals the window (`tools/wintest.py` and `tools/wintest.sh`, the ramp's view and 40 draws). The crop boxes scale to the window by the projection's rule: the vertical field of view is fixed, so x' = W / 2 + (x − 960) H / 1080 and y' = y H / 1080. At 1800 × 1008 the right box sits on the jamb face, as the crop shows. The camera's field of view has no switch, so the test varies the window's width at the height 1008.
+
+| Code | Window | Aspect error | Right | Left |
+|---|---|---|---|---|
+| M3 | 1800 × 1008 | +0.45 % | 0.0977 | 0.0582 |
+| M3 | 1920 × 1080 | 0 | 0.0436 | 0.0435 |
+| M3 | 1784 × 1008 | −0.45 % | 0.0437 | 0.0437 |
+| M3 | 1792 × 1008 | 0 | 0.0438 | 0.0433 |
+| M3 | 1808 × 1008 | +0.89 % | 0.0435 | 0.0431 |
+| M3 | 1816 × 1008 | +1.34 % | 0.0510 | 0.0591 |
+| W | 1800 × 1008 | +0.45 % | 0.0977 | 0.0582 |
+| W | 1920 × 1080 | 0 | 0.0436 | 0.0435 |
+
+![the window test](pics/window-1800x1008-M3-W.png)
+
+`pics/window-1800x1008-M3-W.png`: the near right opening at 2x, M3 and W at the window 1800 × 1008, then both at 1920 × 1080.
+
+- A window whose own shape is off 16:9 by +0.45 % leaks with no dynamic scale, and it leaks the same on W, equal to four decimals. So W's zero hides the leak at a 16:9 output and does not cure it.
+- The leak at the window is weaker than at the same render size on the ramp (right 0.098 against 0.230), where 1800 × 1008 is upscaled to a 1920 × 1080 output.
+- 1792 and 1808 lie on the floor and 1816 a little above it, as the sawtooth predicts. 1784 lies on the floor, where the reading put a tooth near −0.34 %. The sizes between were not tested.
+- The cause is not measured. The back-face line's candidate, read from the code, is the texel grid of the sun's shadow cascades: a cascade's texel size depends on the field of view and the aspect (`ShadowCascades.cs`), and its center snaps to a grid fixed in the world.
+
 ## The tables
 
 `tables.txt` holds the output of every measure. `tools/measure.sh` prints it.
@@ -481,6 +568,7 @@ The discarded runs lie in `/private/tmp/t0-gbgj/timing/discarded`. Some process 
 
 - `README.md`: this record.
 - `tables.txt`: the output of `tools/measure.sh`, every measure in the order of the tables.
+- `ramp-M3.txt`, `ramp-X3.txt`, `ramp-W.txt`: the size ramp's tables.
 - `scratch-probe-m2.patch`: main's survey probe fitted to the layer, M2's probe. Main's `2ffd7e66f` holds the same patch.
 - `scratch-render-scale.patch`: a constant headless render scale from `TERTIUS_X_RENDER_SCALE`, for take 2b only.
 - `pics/`: the pictures and the two videos above.
@@ -501,5 +589,9 @@ The discarded runs lie in `/private/tmp/t0-gbgj/timing/discarded`. Some process 
   - `layerdiff.py`: where the layer changed a still, after the exposure is taken out.
   - `teeth.py` and `layerteeth.py`: the slit's teeth in kept frames, and beside the acceptance lead's crop.
   - `filmmotion.py` and `filmstrip.py`: the motion measures of a kept film with their chart, and five of its frames.
+  - `queue-4.sh`, `queue-5.sh` and `queue-6.sh`: the fair-switch takes, the stills sample at 0.956, and the takes on M3 and X3.
+  - `diskbuild.sh`: `build.sh` beside a sampler of the free disk.
+  - `glowsheet.py`, `scalepair.py`, `edgefaults.py`, `stillcrops.py`: the glow sheets, the whole frames at two scales, the speck counts per box, and the still crops.
+  - `rampcrops.py`, `wintest.py`, `wintest.sh`, `winsheet.py`: the ramp's crops, the window test and its sheet. The ramp itself is the acceptance lead's `sizeramp.sh` and `sizeramp.py` of `b53c037f1`, run by their paths.
   - `jambsheet.py`: take 2b's sheets, the jamb crop's mean and the floor crop's specks, and the two edges' distance.
 - Scripts of earlier records that this record runs: `daub.py`, `light.py`, `sheet.py`, `levelchart.py` and `films.py` of `t0-mzhr`, `switch.py` and `stills.py` of `t0-xlcu`, `regions.py` of `t0-9fo0`, `filmsheet.py` of `t0-ion0`, `filmcrop.py` of `t0-acxm`.
