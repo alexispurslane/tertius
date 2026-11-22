@@ -164,6 +164,10 @@ internal readonly record struct ScreenRay(
         (float s, Vector2 crossed) = CellExit(level: 0, cell: Floor(Start), travel: travel);
         // The cell that the walk stands in, at its level: the pixel past the origin's pixel to start with.
         Vector2 cell = Floor(Start) + travel * crossed;
+        // The ray's inverse depth at s: at a crossing's s, computed from s; at an entry that a descent solved, the bound
+        // of the slab that the entry was solved for, which a computation from s would miss by a rounding that scales
+        // with StartInverseDepth, not with the slab.
+        float sW = InverseDepthAt(s);
         int top = Math.Min(pyramid.TopLevel, WalkTopLevel);
         int level = 0;
         // Whether a descent solved s as a slab's entry, rather than a crossing reaching it on a cell's edge.
@@ -177,30 +181,31 @@ internal readonly record struct ScreenRay(
             (int x, int y) = ((int)cell.X, (int)cell.Y);
             CellBounds slab = pyramid.WalkSlab(level: level, x: x, y: y);
             (float near, float back) = (slab.Near, slab.Back);
-            float inW = InverseDepthAt(s);
-            bool meetsSlab = MeetsWalkSlab(near: near, back: back, inW: inW, outW: InverseDepthAt(exit));
+            float outW = InverseDepthAt(exit);
+            bool meetsSlab = MeetsWalkSlab(near: near, back: back, inW: sW, outW: outW);
 
+            (float solvedEntry, float entryW) = SlabEntry(s: s, inW: sW, low: back, high: near);
             // GLSL's clamp, which never throws: exit can lie a rounding below s.
-            float entry = meetsSlab
-                ? MathF.Min(MathF.Max(SlabEntry(s: s, inW: inW, low: back, high: near), s), exit)
-                : s;
+            float entry = meetsSlab ? MathF.Min(MathF.Max(solvedEntry, s), exit) : s;
             if (meetsSlab && level > 0)
             {
                 level--;
                 solved = solved || entry > s;
                 cell = ChildAt(parent: cell, level: level, s: entry, travel: travel, leaving: solved);
                 s = entry;
+                sW = entryW;
                 continue;
             }
             if (meetsSlab && Vector3.Dot(pyramid.GeometricNormal(x, y), direction) < 0)
                 return new RayHit(
                     Position: Vector2.Clamp(Start + Step * entry, cell, cell + Vector2.One),
                     Pixel: (x, y),
-                    EntryShare: back < near ? EntryShare(inW, back, near) : 0,
+                    EntryShare: back < near ? EntryShare(sW, back, near) : 0,
                     Steps: steps + 1
                 );
             // Across the cell and up a level: in front of its slab, behind it, or past a surface that faces away.
             s = exit;
+            sW = outW;
             solved = false;
             cell += travel * crossed;
             if (level < top)
@@ -274,15 +279,15 @@ internal readonly record struct ScreenRay(
 
     private float InverseDepthAt(float s) => StartInverseDepth + StepInverseDepth * s;
 
-    /// <summary>The parameter where the ray enters a slab that it meets: its front from in front, its back from behind,
-    /// or s when it is already inside.</summary>
-    private float SlabEntry(float s, float inW, float low, float high)
+    /// <summary>The parameter where the ray enters a slab that it meets, and the ray's inverse depth there: its front
+    /// from in front, its back from behind, or s and inW when it is already inside.</summary>
+    private (float Entry, float EntryW) SlabEntry(float s, float inW, float low, float high)
     {
         if (inW > high)
-            return (high - StartInverseDepth) / StepInverseDepth;
+            return ((high - StartInverseDepth) / StepInverseDepth, high);
         if (inW < low)
-            return (low - StartInverseDepth) / StepInverseDepth;
-        return s;
+            return ((low - StartInverseDepth) / StepInverseDepth, low);
+        return (s, inW);
     }
 
     /// <summary>The parameters where the image reaches the line x = edge.X and the line y = edge.Y, or still on an axis

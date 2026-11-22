@@ -81,6 +81,10 @@ uint walkScreen(texture2D finest, texture2D bounds, ScreenWalk walk, uint cap, o
     float s = cellExit(walk.ray, walk.inverse, floor(walk.ray.start), 1.0, walk.farSide, crossed);
     // The cell that the walk stands in, at its level: the pixel past the origin's pixel to start with.
     vec2 cell = floor(walk.ray.start) + walk.travel * crossed;
+    // The ray's inverse depth at s: at a crossing's s, computed from s; at an entry that a descent solved, the bound of
+    // the slab that the entry was solved for, which a computation from s would miss by a rounding that scales with
+    // startW, not with the slab.
+    float sW = walk.ray.startW + walk.ray.stepW * s;
     int level = 0;
     int top = min(textureQueryLevels(bounds), WalkTopLevel);
     // Whether a descent solved s as a slab's entry, rather than a crossing reaching it on a cell's edge.
@@ -96,20 +100,21 @@ uint walkScreen(texture2D finest, texture2D bounds, ScreenWalk walk, uint cap, o
                 : texelFetch(bounds, ivec2(cell), level - 1).rg;
         float near = cellBounds.x;
         float back = cellBounds.y;
-        float inW = walk.ray.startW + walk.ray.stepW * s;
         float outW = walk.ray.startW + walk.ray.stepW * exit;
-        bool inFront = near <= 0.0 || min(inW, outW) > near;
-        bool behind = !inFront && max(inW, outW) < back;
+        bool inFront = near <= 0.0 || min(sW, outW) > near;
+        bool behind = !inFront && max(sW, outW) < back;
         bool meetsSlab = !inFront && !behind;
         // min and max, not clamp: exit can lie a rounding below s, and clamp is undefined when its minimum passes its
         // maximum.
-        float entry = min(max(slabEntry(walk.ray, walk.inverse, s, inW, back, near), s), exit);
+        float entryW;
+        float entry = min(max(slabEntry(walk.ray, walk.inverse, s, sW, back, near, entryW), s), exit);
         if (meetsSlab && level > 0)
         {
             level--;
             solved = solved || entry > s;
             cell = childAt(walk, cell, level, entry, solved);
             s = entry;
+            sW = entryW;
             continue;
         }
         if (meetsSlab && hitsPixel(walk, ivec2(cell)))
@@ -117,11 +122,12 @@ uint walkScreen(texture2D finest, texture2D bounds, ScreenWalk walk, uint cap, o
             hit = clamp(walk.ray.start + walk.ray.step * entry, cell, cell + 1.0);
             hitPixel = ivec2(cell);
             // A slab of no depth, such as a sheet's that faces the eye, has no entry share: it would be 0 / 0.
-            entryShare = back < near ? entryShareOf(inW, back, near) : 0.0;
+            entryShare = back < near ? entryShareOf(sW, back, near) : 0.0;
             return WalkHit;
         }
         // Across the cell and up a level: in front of its slab, behind it, or past a pixel that is no hit.
         s = exit;
+        sW = outW;
         solved = false;
         cell += walk.travel * crossed;
         if (level < top)

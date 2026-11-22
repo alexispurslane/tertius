@@ -193,7 +193,7 @@ public sealed class ScreenWalkTests
             );
         }
 
-        [Fact(Skip = "The walk can miss a slab of no depth at a descent's entry; skipped until t53-eyrv fixes it.")]
+        [Fact]
         public void OnSheetSlabsTheWalkFindsTheHitOfTheMarchOnAMillionRandomRays()
         {
             // Every rectangle a sheet: a pixel that faces the eye or lies edge-on holds a slab of no depth.

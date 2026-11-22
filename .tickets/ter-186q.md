@@ -76,3 +76,25 @@ walkScreen keeps a local for the inverse depth at s (a name such as sW) beside s
 - ARCHITECTURE.md, 'The screen tracer', says what the walk stores.
 
 Out of scope: the one-image pyramid (ter-y3k4), the miss's closed form, and any change of the pyramid's build.
+
+**2026-11-22T14:28:10Z**
+
+2026-11-22, the ticket lead. The fix (both copies), on branch t3/preserve-ray-inverse-depth from 821481a5c.
+
+The walk keeps sW, the ray's inverse depth at s, beside s. A crossing sets it to outW = startW + stepW · exit, the value its test already computed. A descent sets it to the entryW of slabEntry (GLSL: an out parameter; C#: a tuple), the bound that the entry was solved for, or s's own sW when the ray is already inside. The cell's test, the entry and the entry share read sW. No other change.
+
+Red first, on 821481a5c with the C# copy unchanged (Checked, filter-method):
+- ScreenRayTests.EveryFloorPixelWhoseVanishingPointAPlanetCoversHitsThePlanetThroughTheFrontOfItsSlab: failed, first ray floor pixel (105, 159) RayLeftTheSegment at VanishingPoint after 6 steps.
+- ScreenWalkTests+RandomRays.OnSheetSlabsTheWalkFindsTheHitOfTheMarchOnAMillionRandomRays: failed, ray 6763 walk hits (67, 31), march (67, 34): the ticket's ray.
+After the C# change both pass. The stored inverse depth covers all 209 misses: no second cause showed (outW at the coarse levels stays a computation, and no ray of the test needed more).
+
+A new GPU test for the shader copy: ScreenWalkSlabTests.EveryRayThatDescendsOntoASheetThatFacesTheEyeHitsIt (probe screen_walk_sheet_probe.comp). A sheet (Primitives.Plane, open, so a slab of no depth) fills a 128 × 72 screen 20 m away and faces the eye. From each pixel 16 px inside the edges, four rays start at half its depth and reach its w at s = 1, 12 to 13 px away. Red on MoltenVK with the old shader: 1,107 of 15,360 rays missed. Green after the GLSL change.
+
+Classes ScreenWalk*, ScreenRay*, ScreenTrace* and BackFaceSlabWalkTests after both changes: 127 passed, 0 failed. The GPU pins of ScreenTraceRenderTests pass with no reference image changed.
+
+Full Checked suite (dotnet test --solution Tertius.slnx -c Checked): 11,044 tests, 11,018 passed, 26 skipped, 0 failed (Rendering 3,301 passed, 10 skipped, 19 m 24 s).
+
+Stills (reflections scene, scratch planet: a sphere of radius 3,500 km about 10,800 km away, Celestial, behind the mirror strip; patch /Users/alexispurslane/.t3/worktrees/tertius/t3-f57a4dae-afc864dc100ee0f6-evidence/scratch-planet.patch, script /Users/alexispurslane/.t3/worktrees/tertius/t3-f57a4dae-afc864dc100ee0f6-evidence/planet-reflection.json, Release, headless):
+- before/low.png and after/low.png in /Users/alexispurslane/.t3/worktrees/tertius/t3-f57a4dae-afc864dc100ee0f6-evidence. Before: the planet's reflection on the rough strips beside the red box's reflection holds a darker band. After: that band takes the planet's blue evenly. Side by side: /Users/alexispurslane/.t3/worktrees/tertius/t3-f57a4dae-afc864dc100ee0f6-evidence/low-before-after-crop.png. 27,205 pixels differ by more than 8 of 255, at most 30.
+- before/front.png and after/front.png: the mirror strip's reflection of the planet. 24 pixels differ by more than 8 of 255. No visible change.
+- ARCHITECTURE.md, 'The walk', says what the walk stores. The two known limits of ter-186q and t53-eyrv are gone.
