@@ -291,3 +291,17 @@ Readings, not shown: the lead ties the 4-draw start to the light-change count of
 Sent to the lead: split the span by pass at the plateau's draws and at settled draws for both sides, and give the share of pixels or blocks that trace at the full rate if a counter exists; no engine code beyond a few scratch lines. Also a small fix of sizeramp.py: the chart's axis must reach the threshold.
 
 By the bar this is a cost fault of Design X against main. Whether it needs a bound before the merge is a point of the merge decision; a ticket follows when the pass split names the cause.
+
+**2026-11-22T19:27:11Z**
+
+The cause of Design X's cost block after a light change, read from the line's code on 2026-11-22 (by the acceptance lead and by me), not measured by pass. No per-pass span can be had without two rebuilds, and no counter reads the own-ray lists back.
+
+The code: accumulate_spatial.comp sets historyLength = fastCap for every pixel with light evidence (fastCap = 4 draws, SignalParameters), where region evidence sets min(antiLagged, FullRateFrames) and main's code only shortens a history by the anti-lag. sample_age.glsl: RecentLightAge = 7 (light ages 0 to 6 are recent) and FullRateFrames = 8. screen_trace_plan.comp gives a pixel its own ray of a kind while historyLengthOf(r, kind) < FullRateFrames. screen_trace.glsl: LightChangeDraws = 4, a change counts after 4 draws in a row.
+
+The arithmetic: light evidence holds a history at 4 draws for 7 draws, then the history needs 4 more draws to pass 8. That is 11 draws of own rays for every pixel whose rays see the changed light, against the measured block of 13 draws after off and 10 after on. The start at the 4th draw fits LightChangeDraws on both sides.
+
+My answer (44): the pass split is dropped. In its place the acceptance lead runs one experiment on one rebuild when the disk is above 32 GiB: side XB = X with the scratch line "if (evidence == LightEvidence) historyLength = min(antiLagged, FullRateFrames);" (the cap that region evidence already has, the shortest length that keeps the block's shared ray), the fair cabin switch at the fixed 2/3, with the cost per draw, the settle (M 143 / 92, X 77 / 51 draws), the boil without the fade, and a video X against XB if they differ to the eye. It is an experiment for a design decision; the shader's change is not committed.
+
+Disk, 14:26: 24 GiB free, under the stop limit of 30 GiB; swap 27.4 GB used of 28.7 GB; load 36. Both leads hold builds and frame-writing takes and delete the raw frames of finished, committed takes (/private/tmp/t0-5tyj 5.1 GiB, /private/tmp/t0-gbgj/runs 2.6 GiB). The wobble's before and after and the experiment wait for the disk.
+
+sizeramp.py's chart axis is fixed in 726bf338c (the axis reaches at least the threshold); the table and the count do not change.
