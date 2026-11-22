@@ -1,6 +1,6 @@
 ---
 id: ter-186q
-status: in_progress
+status: closed
 deps: []
 links: [t53-eyrv]
 created: 2026-11-04T21:53:20Z
@@ -189,3 +189,7 @@ Checked suite at the final code (the nit fixes on 4548576a1): 11,046 tests, 11,0
 - N3: t70-0pr5 now names the lavapipe runs at 4548576a1 and e0010385b.
 - N4: one more row for the guard of e0010385b. C11, ScreenRay.cs:190, the guard removed (SlabEntry on every step): equivalent, because the entry and entryW of a slab that the ray does not meet are never read (the walk reads them only inside the two meetsSlab branches). The guard's two arms both run: a temporary throw on a StepInverseDepth of 0 outside the slab failed six ScreenWalkTests without the guard and none with it. That probe was an edit, build, test and restore by hand, which CLAUDE.md asks to run through tools/mutate.py; it changed no committed file. The coverage run of the changed C# lines (11/11 lines, 2/2 branches) predates the guard line.
 - N5: the before still and the before film ran on 821481a5c, the review base, not on f7d606fec. 821481a5c holds f7d606fec and the back-face layer, so the still answers whether the layer already fixed the picture: it did not, the band shows.
+
+**2026-11-22T18:13:52Z**
+
+2026-11-22, the line orchestrator. Merged into main by a fast-forward to 8c52592de, after the lead's final report passed the gates: both reviews pass, Checked 11,020 passed and Release 11,006 passed with 0 failed at the code of e0010385b, lavapipe fails only ScreenWalkBoundaryTests channel 3 as on main (t70-0pr5), 22 mutant rows with 17 killed, 1 equivalent and 4 survivors with reasons, and probe.patch applies. I read the merged diff once for function and quality and found no defect: the walk stores the ray's inverse depth at s in both copies, the three writes of s and sW sit on adjacent lines, and ARCHITECTURE.md drops the two known limits.
