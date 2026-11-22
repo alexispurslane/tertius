@@ -1,6 +1,6 @@
 ---
 id: t8-rjno
-status: in_progress
+status: closed
 deps: [t1-3j2j]
 links: []
 created: 2026-11-15T12:54:02Z
@@ -209,3 +209,15 @@ The line orchestrator's reading: under the rule the ramp is as wide as the reach
 **2026-11-21T22:40:34Z**
 
 2026-11-21, the user's decision, through the orchestrator: "yeah, new filter as built". The rule at one half with the reach of 2.5 texels, as committed at e93f970b0, goes into main. The user saw the four-panel pictures of the cabin floor and the rigs, the table of the variants, and the option to wait for C4. The known costs that the user accepted: every sun shadow's edge has a ramp of 2.5 texels on the lit side, so it is about twice as sharp as before. A lit area loses about 1.25 texels at each edge. A sunlit slit of 0.1 m goes dark. C4 (the map of 1024) is stopped. The hold on the reach parameter ends: the lead removes it, proves with two stills compared byte for byte that the image does not change, runs Checked and Release once more, and records the decision in ARCHITECTURE.md. The orchestrator's look before the merge is done. The line orchestrator merges into main when the lead's final report passes the gates. Step 2 (t1-af5w) stays the user's decision. Its purpose from the user: softness that varies, sharp near the caster and soft far from it.
+
+**2026-11-22T00:11:16Z**
+
+2026-11-21, merged into main as dcd738552 and closed. The branch t8-rjno-sun-shadow-one-tap ends at 04ce9d082, four commits on 13f4714a9: the lit-side rule, the lock-in tests, the review's answers, and the removal of the reach parameter. Main differed from the base only in .tickets, so the tested code is the merged code.
+
+The last commit's checks, by the lead: the shadow, far-shadow, cascade and hair classes 98 of 98 in Checked. Full Checked passed, then full Release passed, with no reference image changed. Mutants S10 and S11 killed, and six rows dropped with their lines. The removal changed the image by 1 of 255 levels in 34 pixels of the test scene's view 0 and in 3 pixels of view 6. rect-lamps and view 3 are byte for byte equal, and each build equals itself on a second run. So the difference comes from the compiled shader, where the stride is now a constant and one branch is gone. That cause is the lead's guess. The line orchestrator accepted the difference.
+
+The variant C4 (the committed rule on a shadow map of 1024) finished before it was stopped: the jamb's mean is 0.0037 W/(m² sr) with 2 columns above 0.01, so the coarser texel leaves a small leak. It is a record only.
+
+The last check of the diff by the line orchestrator: the filter is main's 16 taps plus the one-line rule lightOutsideShadow, with one store of the reach (ShadowBias.FilterReachTexels). No defect found. One nit for the next change of shadows.glsl: the comment above the tile filter's corner in tileLookupOf holds one line that is longer than the file's width.
+
+The comb of streaks at 290 m in cascade 3 that main showed is gone with this fix, so it gets no bug ticket. Evidence: /Users/alexispurslane/.t3/worktrees/tertius/t3-7e999be0-evidence/. Cloud dollars: $0.232 of $0.50 at the lead's last count.
