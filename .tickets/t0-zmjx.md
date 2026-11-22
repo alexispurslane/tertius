@@ -91,3 +91,20 @@ The orchestrator's rule for the choice between the restart at 8 draws and "own r
 Answer 59 of the line orchestrator: a played-back run is deterministic on one machine, so "the difference between two runs of one code" is measured as the spread of the boil numbers over runs of the cap's build with the switch one and two draws later, after one repeated run confirms that equal runs give equal numbers.
 
 The orchestrator also asks for root causes before one more rule: each report names the root cause that a rule acts on and whether a structural change removes the fault with others (here: the start-of-run cost, ter-4iic and t58-np60). A separate read-only review of the whole indirect lighting's approach runs at the orchestrator; it may reorder t0-o7gf and t0-70v1.
+
+**2026-11-22T21:05:14Z**
+
+The rule applied, 2026-11-22 (line orchestrator, from the acceptance lead's table). The hold ends; the production build of the cap is released on the line's head with the merge 710834cc0.
+
+Point 1, the card's scale log (RTX 2000 Ada, target 16.67 ms, the glow-stays lamp switch, one job, $0.0449), changes and largest fall of the render scale from 10 draws before to 60 draws after a switch, off / on; idle = draws 133 to 192:
+- The cap (XB): idle 0 changes; 0 changes, fall 0.000 / 0 changes, fall 0.000 (1.000 throughout). Passes.
+- Own rays wait for the evidence (XD): idle 0 changes; 32 changes, fall 0.097 (0.998 to 0.901) / 32 changes, fall 0.099. Fails. Its GPU span per draw after off: draws 0 to 9 cost 17.7 to 18.7 ms (settled 17.6), draws 10 to 13 cost 25.2, 24.1, 25.3, 22.8 ms, draw 14 costs 19.8 ms. So the dear block moves behind the evidence and shrinks from 10 draws to 4, at the same height.
+- Design X without a fix, same job: 43 changes, fall 0.133 / 41, 0.138. Main c4c1f1f2f, old job: 15, 0.041 / 18, 0.042. Main ac5f23915 has no such log.
+
+Point 2 (the fair switch at the fixed 2/3 on the Mac; slowest region off / on, whole image off / on, boil 0 to 60 draws after off on floor / wall / ceiling): Design X 77 / 51, 67 / 31, 0.26 / 0.29 / 0.32; the cap 82 / 55, 72 / 34, 0.26 / 0.27 / 0.29; XD 77 / 51, 67 / 31, 0.26 / 0.29 / 0.33; main c4c1f1f2f 143 / 92, 123 / 55, 0.24 / 0.23 / 0.29. With one candidate left, points 2 and 3 decide nothing.
+
+Point 3: the cap is 1 changed line in accumulate_spatial.comp and changes no ray plan; XD is about 20 lines in screen_trace.glsl and screen_trace_plan.comp, reads the last draw's sample ages in the plan (writeonly dropped, a read-after-write barrier from the last draw's resolve, not checked on Linux), and keeps the plan's reach exactly.
+
+Root causes (the lead's reading, which I share): the plan ties the own-ray rate to the history's length, so a restart buys rays whether or not they can be used. The cap puts the restart at the plan's threshold, one rule for both kinds of evidence, and the fade pays about 5 draws after off and 4 after on. XD acts on the plan and still pays the 4 draws of growth from 4 to 8. Neither bounds the start-of-run cost; the structural candidate for that is a ray budget per draw (noted in ter-4iic).
+
+My answers: 60, the run-to-run spread is not taken (one candidate); 61, the three-pane video and the chart are finished from the frames that exist, the Mac's cost runs of XD are dropped, the scratch patch and the card's logs are committed as evidence; 62, a new acceptance condition: on the card's scale log through the lamp switch, the production build shows no more scale changes in the windows from 10 draws before to 60 draws after each switch than in the 60 idle draws before the first switch.
