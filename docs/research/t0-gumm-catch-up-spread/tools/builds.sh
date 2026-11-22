@@ -11,6 +11,7 @@
 #   xb: the cap: as xg without the share, with the acceptance record's scratch-light-evidence-cap.patch (light evidence
 #       restarts a history at 8 draws, so today's plan traces no catch-up ray after a light change). Read by its path.
 #   xc: the share with the cap: xg with scratch-light-evidence-cap.patch after the share.
+#   xn: xt with scratch-no-region-evidence.patch last: Design X without region evidence (the take of t0-qvm1).
 #   xts, xgs, xbs, xcs: xt, xg, xb and xc with scratch-first-filmed.patch last, for start.json (macrun.sh's start event):
 #       with TERTIUS_X_FIRST_FILMED=1 the first drawn frame draws once, so the start's every draw is a film frame.
 set -uo pipefail
@@ -23,6 +24,7 @@ for name in ${@:-xt xg}; do
   case ${name%s} in
     xt) args="$X5 ${X5}:tools/renderer-survey/probe.patch $V/scratch-region-log.patch $V/scratch-dynamic-scale.patch $V/scratch-history-log.patch $N/scratch-ownray-log.patch $N/scratch-history-dump.patch" ;;
     xg) args="$X5 ${X5}:tools/renderer-survey/probe.patch $V/scratch-region-log.patch $V/scratch-dynamic-scale.patch $V/scratch-history-log.patch $N/scratch-ownray-log.patch $N/scratch-catch-up-share.patch" ;;
+    xn) args="$X5 ${X5}:tools/renderer-survey/probe.patch $V/scratch-region-log.patch $V/scratch-dynamic-scale.patch $V/scratch-history-log.patch $N/scratch-ownray-log.patch $N/scratch-history-dump.patch $N/scratch-no-region-evidence.patch" ;;
     xb) args="$X5 ${X5}:tools/renderer-survey/probe.patch $V/scratch-region-log.patch $V/scratch-dynamic-scale.patch $V/scratch-history-log.patch $N/scratch-ownray-log.patch $CAP" ;;
     xc) args="$X5 ${X5}:tools/renderer-survey/probe.patch $V/scratch-region-log.patch $V/scratch-dynamic-scale.patch $V/scratch-history-log.patch $N/scratch-ownray-log.patch $N/scratch-catch-up-share.patch $CAP" ;;
     *) echo "no build $name"; exit 1 ;;
