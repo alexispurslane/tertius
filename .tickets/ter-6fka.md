@@ -32,3 +32,7 @@ Decided after the experiments. At least: the film of t2b-xeo7 shows no visible c
 **2026-11-22T21:31:35Z**
 
 2026-11-22, orchestrator: experiment E2 (ter-9t54) is done. The senders' light is right to within 14 to 23 % in the lit-block room. The leak through a wall is 4.8 % and 12.6 % of the lit room's comparable light, above the review's limit. So design S as sketched fails its own condition, and a design that takes the lamps' views as writers needs a visibility test that works behind the camera. Capture points have one through their stored distance.
+
+**2026-11-22T22:09:05Z**
+
+2026-11-22, orchestrator: the film of t2b-xeo7 is on main (docs/research/back-face-depth-layer/stage-2/lit-back-film/). A floor point behind the block that no lamp reaches reads 0.078 at rest, 0.507 while the eye sees the lit face (6.5 times), and 0.081 after the walk back, dark again within about 40 draws. A turn of the camera with the eye at rest moves it by at most 8 %. So the eye-bound class is a visible change over time by the user's bar, not accepted lost light. The review's first condition for the step holds. Open: the ray census (ter-8pco) and the face cost (ter-yglw).
