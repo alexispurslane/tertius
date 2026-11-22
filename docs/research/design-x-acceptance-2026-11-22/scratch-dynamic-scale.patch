@@ -1,6 +1,8 @@
 # SCRATCH patch of t0-5tyj (ticket t4f-71qp), never commit to src. It applies after tools/renderer-survey/probe.patch and
 # scratch-region-log.patch. TERTIUS_X_FRAME_TIME_TARGET=<ms> gives a headless run the dynamic render scale
-# FrameTimeTarget(<ms>, 0.5, 1). TERTIUS_X_SIZE_LOG=<folder> logs each draw's render size.
+# FrameTimeTarget(<ms>, 0.5, 1). TERTIUS_X_SIZE_LOG=<folder> logs each draw's render size. TERTIUS_X_SIZE_REPLAY=<size
+# log> makes each draw take the scale that an earlier run's size log gives for its frame number. TERTIUS_X_TIME_LOG=<folder>
+# logs each collected frame's GPU span and the controller's cost sums.
 --- a/src/Tertius.Rendering/VulkanRenderer.cs
 +++ b/src/Tertius.Rendering/VulkanRenderer.cs
 @@ -144,6 +144,20 @@
@@ -24,11 +26,22 @@
          if (upscaling is Fsr3Upscaling { RenderScale: FrameTimeTarget target })
              ScaleController = new(target);
          capturesInFlight = options.CapturesInFlight;
-@@ -590,16 +604,29 @@
+@@ -590,16 +604,40 @@
  
          // The draw's one choke point of the history: its reset, its draw index, its exposure step, its refresh of the map's
          // faces and the last frame's state. After the acquire, which can change the output size.
-+        float probeScale = ScaleController?.Next(FrameNumber) ?? upscaling.LargestScale;
++        // SCRATCH (t0-5tyj, never commit to src): with TERTIUS_X_SIZE_REPLAY=<size log>, each draw takes the render scale
++        // that the size log of an earlier run gives for its frame number, in place of the controller's. The picture runs
++        // use it: their PNG writes stall the frames, and the controller would then lower the scale to its floor.
++        float probeScale =
++            Environment.GetEnvironmentVariable("TERTIUS_X_SIZE_REPLAY") is { Length: > 0 } probeReplay
++                ? float.Parse(
++                    System.Linq.Enumerable
++                        .First(System.IO.File.ReadLines(probeReplay), probeLine => probeLine.StartsWith($"{FrameNumber} ", StringComparison.Ordinal))
++                        .Split(' ')[3],
++                    System.Globalization.CultureInfo.InvariantCulture
++                )
++                : ScaleController?.Next(FrameNumber) ?? upscaling.LargestScale;
 +        Extent2D probeRenderSize = upscaling.RenderExtent(targets.OutputExtent, probeScale);
          FrameHistory.PendingFrame pending = history.Begin(
              snapshot: snapshot,
@@ -58,3 +71,48 @@
          ICaptureSink? sink = takeCapture ? Interlocked.Exchange(ref pendingCapture, null) : null;
          GpuBuffer? capture = sink != null ? CaptureBuffer(slot: frame.Index, extent: image.Extent) : null;
          // After the output gave the frame an image, so a skipped frame leaves the map's frame as it is, and before
+@@ -847,6 +885,44 @@
+         timer.Collect(frame.Index, frame.Number);
+         if (timer.Latest is { } timings)
+             ScaleController?.Measure(timings);
++        // SCRATCH (t0-5tyj, never commit to src): with TERTIUS_X_TIME_LOG=<folder>, each collect appends one line
++        // "<frame number> <GPU span> <before the output> <at the render size> <output>", in ms, to <folder>/time-<
++        // TERTIUS_PROBE_LAMP_OFF, or "none">.txt. The second and third sums are the controller's costs (RenderScaleController
++        // .Costs): the passes before the output, and of them the passes at the render size. A frame collected twice gives
++        // two equal lines.
++        if (
++            timer.Latest is { } probeTimings
++            && Environment.GetEnvironmentVariable("TERTIUS_X_TIME_LOG") is { Length: > 0 } probeTimeFolder
++        )
++        {
++            double probeBefore = 0,
++                probeAtSize = 0,
++                probeOutput = 0;
++            bool probeReached = false;
++            foreach (PassTiming probePass in probeTimings.Passes.Span)
++            {
++                RenderScaleController.CostGroup probeGroup = RenderScaleController.CostGroupOf(probePass.Stage);
++                probeReached |= probeGroup == RenderScaleController.CostGroup.Output;
++                if (probeReached)
++                    probeOutput += probePass.Milliseconds;
++                else
++                {
++                    probeBefore += probePass.Milliseconds;
++                    if (probeGroup == RenderScaleController.CostGroup.AtRenderSize)
++                        probeAtSize += probePass.Milliseconds;
++                }
++            }
++            System.IO.File.AppendAllText(
++                System.IO.Path.Combine(
++                    System.IO.Directory.CreateDirectory(probeTimeFolder).FullName,
++                    $"time-{(Environment.GetEnvironmentVariable("TERTIUS_PROBE_LAMP_OFF") is { Length: > 0 } probeOff ? probeOff : "none")}.txt"
++                ),
++                string.Create(
++                    System.Globalization.CultureInfo.InvariantCulture,
++                    $"{probeTimings.Frame} {probeTimings.SpanMilliseconds:R} {probeBefore:R} {probeAtSize:R} {probeOutput:R}\n"
++                )
++            );
++        }
+         Exposure.Collect(frame.Index, frame.Number);
+         environmentMap?.Collect(frame.Index, frame.Number);
+         frame.Staging.Reset();

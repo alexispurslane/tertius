@@ -1,24 +1,30 @@
 #!/usr/bin/env bash
-# Tool code of t0-5tyj (ticket t4f-71qp). cloudvideo.sh <walk|switch> <target ms> [sweep targets...]: one cloud job's
-# work, run by gpu_job.py in the job's folder, which holds the trees x (the line's head) and m (main c4c1f1f2f), inside
-# the dev shell. For each side it:
-#   1. builds the probe demo: the tree's own survey probe and ../scratch-dynamic-scale.patch (X also
-#      ../scratch-region-log.patch, which the dynamic patch's context needs; the region log stays off);
-#   2. renders the scene's survey script (renderer-survey.py: walk_script of cabin-walk, or switch_script of the switch
-#      cabin with its lamps off from draw 193 to 393) as pictures: the default ACES curve and bloom, the probe's fixed
-#      exposure of 4.08 stops, 1920 x 1080, under the dynamic render scale FrameTimeTarget(<target>, 0.5, 1), with each
-#      draw's render size logged (out/<scene>-<side>-sizes). It writes the PNGs of the video's frames only
-#      (TERTIUS_PROBE_KEEP, which needs TERTIUS_PROBE_SERIES; the series' numbers mean nothing under the ACES curve);
-#   3. encodes the video's frames into out/<scene>-<side>.mp4 and writes their region means (cloudvideo.py);
-#   4. runs the survey's own take of the scene (walk cabin-walk or switch cabin) at the same target, with the size log,
-#      for the settle draws (out-<side>/results).
-# Then, with sweep targets, it renders the scene's script on X once per target with the size log only and no pictures
-# (TERTIUS_PROBE_KEEP empty), to find a target at which the scale moves in the middle of its range.
+# Tool code of t0-5tyj (ticket t4f-71qp). One cloud job's work, run by gpu_job.py in the job's folder, which holds the
+# trees x (the line's head, with this folder unpacked into it) and m (main c4c1f1f2f), inside the dev shell. The scene is
+# the walk (renderer-survey.py: walk_script of cabin-walk) or the switch (switch_script of the switch cabin, its lamps
+# off from draw 193 to 393). Every run renders at 1920 x 1080 under the dynamic render scale FrameTimeTarget(<target>,
+# 0.5, 1) of the scratch patch ../scratch-dynamic-scale.patch, and logs each draw's render size.
+#
+#   cloudvideo.sh sizes <targets...>: builds both sides. Then, with nothing else running in the job, for each scene, side
+#     and target, it renders the scene's script without pictures (TERTIUS_PROBE_KEEP empty), as the survey's own takes
+#     do, and keeps its size log in out/sizes/<scene>-<side>-<target>/. These runs choose the render scale of the videos.
+#     Last, it plays the walk's X log at the first target back (TERTIUS_X_SIZE_REPLAY) into out/sizes/replay-check/, to
+#     show that the playback gives each draw the logged size.
+#   cloudvideo.sh regions <scene> <targets...>: builds X and plays its size log of each target back without pictures,
+#     with the region log, into out/<scene>-x-<target>-replay/.
+#   cloudvideo.sh video <scene> <side> <target> [survey]: builds the side, then renders the scene's script as pictures
+#     (the default ACES curve and bloom, the probe's fixed exposure of 4.08 stops), with each draw's render scale played
+#     back from sizes/<scene>-<side>-<target>/ of this folder (the sizes job's log). A picture run cannot choose its own
+#     scale: its PNG writes stall the frames, and the controller then holds the scale at its floor of 0.5. The run writes
+#     the PNGs of the video's frames only (TERTIUS_PROBE_KEEP, which needs TERTIUS_PROBE_SERIES) and logs its sizes into
+#     out/<scene>-<side>-<target>-replay/, on X with the region log. cloudvideo.py encodes them into out/<scene>-<side>.mp4 with their region
+#     means. With "survey", it then runs the survey's own take of the scene at the target, for the settle draws.
 set -uo pipefail
-scene=$1; target=$2; shift 2
 D=x/docs/research/design-x-acceptance-2026-11-22
+mode=$1; shift
 mkdir -p out
-python3 -I - "$scene" out/script.json <<'PY'
+script() {
+  python3 -I - "$1" "out/$1.json" <<'PY'
 import importlib.util, json, sys
 from pathlib import Path
 spec = importlib.util.spec_from_file_location("survey", Path("x/tools/renderer-survey.py"))
@@ -30,38 +36,66 @@ else:
     script = survey.switch_script(next(c for c in cases["switches"] if c["name"] == "cabin"))
 Path(sys.argv[2]).write_text(json.dumps(script, indent=1))
 PY
-if [ "$scene" = switch ]; then
-  lamps=(TERTIUS_PROBE_LAMP_SEL=z:-12:4 TERTIUS_PROBE_LAMP_OFF=193-393); part=switch; case=cabin
-  keep=$(for k in $(seq 140 459); do printf 'f-%06d,' $k; done)
-else
-  lamps=(TERTIUS_X_NONE=1); part=walk; case=cabin-walk
-  keep=$( (for k in $(seq 60 119); do printf 'g-%06d,' $k; done; for k in $(seq 0 199); do printf 'h-%06d,' $k; done) )
-fi
-for side in m x; do
-  echo "$(date +%T) build $side"
-  (cd $side && patch -p1 --forward -s -i tools/renderer-survey/probe.patch \
-    && { [ $side = m ] || patch -p1 --forward -s -i ../$D/scratch-region-log.patch; } \
+}
+lamps() { if [ "$1" = switch ]; then echo TERTIUS_PROBE_LAMP_SEL=z:-12:4 TERTIUS_PROBE_LAMP_OFF=193-393; else echo TERTIUS_X_NONE=1; fi; }
+build() {
+  echo "$(date +%T) build $1"
+  (cd $1 && patch -p1 --forward -s -i tools/renderer-survey/probe.patch \
+    && { [ $1 = m ] || patch -p1 --forward -s -i ../$D/scratch-region-log.patch; } \
     && patch -p1 --forward -s -i ../$D/scratch-dynamic-scale.patch \
     && dotnet build src/Tertius.Demo -c Release -nologo -v:q -p:RunAnalyzers=false -p:TreatWarningsAsErrors=false \
-       -o ../out-$side/probe-bin | tail -1)
-done
-for side in m x; do
-  echo "$(date +%T) render $side: $(uptime)"
-  env "${lamps[@]}" TERTIUS_PROBE_EXPOSURE=4.08 TERTIUS_X_FRAME_TIME_TARGET=$target TERTIUS_X_SIZE_LOG=out/$scene-$side-sizes \
-    TERTIUS_PROBE_SERIES=frames-$side.series TERTIUS_PROBE_KEEP="$keep" \
-    out-$side/probe-bin/Tertius.Demo --script out/script.json --headless --out frames-$side --size 1920x1080 > out/$scene-$side-run.log 2>&1
-  echo "$(date +%T) render $side exit $?"
+       -o ../out-$1/probe-bin | tail -1)
+}
+# run <scene> <side> <target> <size log folder> [extra environment...]: one run of the scene's script without pictures.
+run() {
+  local scene=$1 side=$2 target=$3 log=$4; shift 4
+  env $(lamps $scene) TERTIUS_PROBE_EXPOSURE=4.08 TERTIUS_X_FRAME_TIME_TARGET=$target TERTIUS_X_SIZE_LOG=$log \
+    TERTIUS_PROBE_SERIES=series-$side.txt TERTIUS_PROBE_KEEP= "$@" \
+    out-$side/probe-bin/Tertius.Demo --script out/$scene.json --headless --out runs-$side --size 1920x1080 > /dev/null 2>&1
+  echo "$(date +%T) $scene $side $target exit $?"
+  rm -rf runs-$side series-$side.txt
+}
+logname() { if [ "$1" = switch ]; then echo size-193-393.txt; else echo size-none.txt; fi; }
+# region <scene> <side> <target>: on X, the environment that writes the region log (scratch-region-log.patch) beside
+# the played-back run's size log. The region test depends on the render sizes and the images only, not on the frame
+# time, so a played-back run logs the same region test as the run that chose the sizes.
+region() { [ $2 = x ] && echo TERTIUS_X_REGION_LOG=out/$1-$2-$3-replay; }
+case $mode in
+regions)
+  scene=$1; shift
+  script $scene; build x
+  for t in "$@"; do
+    run $scene x $t out/$scene-x-$t-replay TERTIUS_X_SIZE_REPLAY=$D/sizes/$scene-x-$t/$(logname $scene) $(region $scene x $t)
+  done ;;
+sizes)
+  script walk; script switch
+  build m; build x
+  for scene in walk switch; do for side in m x; do for t in "$@"; do
+    run $scene $side $t out/sizes/$scene-$side-$t
+  done; done; done
+  run walk x $1 out/sizes/replay-check TERTIUS_X_SIZE_REPLAY=out/sizes/walk-x-$1/size-none.txt ;;
+video)
+  scene=$1; side=$2; target=$3; survey=${4:-}
+  script $scene; build $side
+  if [ "$scene" = switch ]; then
+    part=switch; case=cabin; log=size-193-393.txt
+    keep=$(for k in $(seq 140 459); do printf 'f-%06d,' $k; done)
+  else
+    part=walk; case=cabin-walk; log=size-none.txt
+    keep=$( (for k in $(seq 60 119); do printf 'g-%06d,' $k; done; for k in $(seq 0 199); do printf 'h-%06d,' $k; done) )
+  fi
+  echo "$(date +%T) render $scene $side: $(uptime)"
+  env $(lamps $scene) TERTIUS_PROBE_EXPOSURE=4.08 TERTIUS_X_FRAME_TIME_TARGET=$target \
+    TERTIUS_X_SIZE_REPLAY=$D/sizes/$scene-$side-$target/$log TERTIUS_X_SIZE_LOG=out/$scene-$side-$target-replay \
+    TERTIUS_PROBE_SERIES=frames-$side.series TERTIUS_PROBE_KEEP="$keep" $(region $scene $side $target) \
+    out-$side/probe-bin/Tertius.Demo --script out/$scene.json --headless --out frames-$side --size 1920x1080 > out/$scene-$side-run.log 2>&1
+  echo "$(date +%T) render exit $?"
   python3 -I $D/tools/cloudvideo.py "$scene" frames-$side out/$scene-$side
   rm -rf frames-$side frames-$side.series
-  echo "$(date +%T) survey $side"
-  (cd x && TERTIUS_SURVEY_HOLDS_LOCK=1 TERTIUS_X_FRAME_TIME_TARGET=$target TERTIUS_X_SIZE_LOG=../out/$scene-$side-survey-sizes \
-    python3 -I tools/renderer-survey.py run ../out-$side --parts $part --only $case --no-build 2>&1 | grep -v "^  " | tail -2)
-done
-for t in "$@"; do
-  echo "$(date +%T) sweep $t"
-  env "${lamps[@]}" TERTIUS_PROBE_EXPOSURE=4.08 TERTIUS_X_FRAME_TIME_TARGET=$t TERTIUS_X_SIZE_LOG=out/sweep-$t \
-    TERTIUS_PROBE_SERIES=out/sweep-$t-series.txt TERTIUS_PROBE_KEEP= \
-    out-x/probe-bin/Tertius.Demo --script out/script.json --headless --out sweep-$t --size 1920x1080 > /dev/null 2>&1
-  rm -rf sweep-$t out/sweep-$t-series.txt
-done
+  if [ "$survey" = survey ]; then
+    echo "$(date +%T) survey $scene $side"
+    (cd x && TERTIUS_SURVEY_HOLDS_LOCK=1 TERTIUS_X_FRAME_TIME_TARGET=$target TERTIUS_X_SIZE_LOG=../out/$scene-$side-$target-survey \
+      python3 -I tools/renderer-survey.py run ../out-$side --parts $part --only $case --no-build 2>&1 | grep -v "^  " | tail -2)
+  fi ;;
+esac
 ls -la out
