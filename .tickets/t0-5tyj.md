@@ -81,3 +81,36 @@ Cloud cost of the films and the rect-bay diagnosis by the job log: $0.1078 + $0.
 | reference | 122 / none in 100 | 1.064 / 1.051 | 0.942 / 0.940 | 0.911 |
 
 Main's own controls stand at 0.835 (whole) and 0.769 (center) of the reference's with the lamps on, and at 0.875 and 0.892 with the lamps off: main settles fast to a level that is 11 to 23 % too dark. The fixed branch's controls equal the reference's to three digits. So by the first measure the branch is slower than main after the lamps return, and by the second it is nearer to the reference than main at every one of these points. One exception: in the 60 draws after the lamps go off, the center's lowest level is 0.778 on the fixed branch and 0.820 on main, which is the dip after a cut.
+
+**2026-11-22T11:14:17Z**
+
+Design of the last acceptance takes (line orchestrator, 2026-11-22). The takes of 2026-11-14 are out of date: since then the line got the frame time cuts, the half-float store fix, the rounding weight fix, the sun's shadow fix from main, and the remedy for the bay film's trail (the region's drift test). Main got the store fix and the shadow fix. So the user's decision on the merge (t0-iido) needs every take again, on today's heads. This is an experiment plus one tool fix. No change under src or tests.
+
+The sides:
+- M = main at c4c1f1f2f, with main's survey probe patch.
+- X = the line's head, with the line's survey probe patch after the fix below.
+- A = X with both history clamps off, the reference that explains a fault. It is not the bar.
+
+Step 0, the tool fix (bug tc-w3c0): bring the two hunks of docs/research/t0-acxm-region-evidence/probe-acxm.patch into tools/renderer-survey/probe.patch, so that probe-build works on the line's head. Its acceptance is in that ticket: the still rect-lamps equals the build from probe-acxm.patch byte for byte.
+
+What is taken already on today's code, and is cited, not taken again (the code under src did not change since 6d8a68332):
+- The room (docs/research/t0-9fo0-room-after-shadow-fix): the still rect-lamps, the switch cabin and the stand film, on M and X.
+- The bay (docs/research/t0-acxm-region-evidence): the film rect-bay, the lag film bay-sun and the stills bay-sunbeam and exit-cabin, on M and on the remedy's build before its review fixes. Take the film rect-bay once more on X, and say whether its numbers equal the cited ones.
+- The deck's frame span: +0.254 ms against M (spread 0.145), from the remedy's paired rounds.
+
+The new takes, each on M and on X through the survey, with the same measure on both sides:
+1. Stills, the survey's whole still part. Blotch, specks and level for every case. The daub against A and the light share for rect-lamps, bay-sunbeam and docking-bay (acceptance 1, 2 and 4).
+2. Motion films, all 18. Flicker, grain flicker, and the blotch and the level of the worst sampled frame.
+3. Switches: bay-sun-off and lamp-hall-16 (acceptance 5). The cabin is cited.
+4. Lag films: lamp-hall-16-moving and lamp-hall-64-spot-moving (acceptance 9). bay-sun is cited.
+5. The walk cabin-walk and the climb cabin-climb (acceptance 6 and 11).
+6. The census of the four stills rect-lamps, exit-cabin, docking-bay and station-cabin on X (acceptance 12): the share of block-draws with motion evidence and with light evidence, and beside it the share of tested anchor-draws in which the region's test fires.
+7. Frame time, take T17 (acceptance 13): three rounds in turn of the deck on M and on X under the exclusive lock, at a low machine load. Check the load before each round, and repeat a round that scatters. Also record the frame span of the film rect-bay on both sides.
+8. Linux, take T18 (acceptance 14): the whole Checked Rendering test project with validation on a Linux worker, with no validation message. The switch bay-sun-off on Linux, which must lie within about 3 draws of the Mac's. Read t0-89zi and t0-iido for the pixel equality of the frame time cuts on Linux, and take what they name.
+9. Screenshots, take T19: two to four headless screenshots of the real renderer on X, main beside them.
+
+Rules of the pictures. A film or a still where X scores worse than M in any measure gets a sheet: M beside X, with the still of the same state where the survey keeps one. Open each sheet with the Read tool and say by the bar what it shows. The films rect-bay, bay-sunbeam, docking-landing, exit-floor and rect-lamps get a sheet in any case, because their light is on its way in both builds.
+
+The record: docs/research/design-x-acceptance-2026-11-22/README.md. It starts with one table for the user's decision: one row per scene and take, with "better", "equal" or "worse" than main by the bar, and the picture's path. Then every take where X is worse than M, named plainly. Then the plan's acceptance points 1 to 14 with pass or fail on both sides. Measured facts stay apart from the reading.
+
+Acceptance of this ticket: the record with its pictures and tables, the probe patch fixed, one review with every finding resolved, and no change under src or tests.
