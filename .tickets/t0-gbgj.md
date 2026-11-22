@@ -126,3 +126,7 @@ Per-region table of the fair cabin switch at 2/3 from the combined check's lead,
 **2026-11-22T18:08:38Z**
 
 2026-11-22: the sweep in steps of 0.05 is replaced by the acceptance lead's size ramp over every render size (see t0-5tyj). The combined check's lead runs it on M2 with its m2r build and on X2 with one more small build with the replay patch.
+
+**2026-11-22T18:09:45Z**
+
+Interim from the combined check's lead, 2026-11-22: the bug ticket for the faults that stay at a render scale near 1 with the layer is t58-i3sn (under ter-8hyd, in the lead's worktree). X2's replay build x2r is ready (0 warnings, 0 errors; disk 34.9 GiB free before, 34.8 lowest); with m2r both wait for the acceptance lead's ramp tool. Binaries: /private/tmp/t0-gbgj/bins/m2r/probe-bin and /private/tmp/t0-gbgj/bins/x2r/probe-bin. The deck's timing so far: round 1 X2 minus M2 +0.138 ms; round 2 M2 19.617 ms and X2 19.495 ms, both started under a load of 8; mean difference over two rounds +0.008 ms against the allowance of +0.30 ms. Round 3 waits for the lock and a load under 8. The stills sample at 0.956 runs.
