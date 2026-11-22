@@ -265,3 +265,15 @@ Results: a boil exists at a fixed size in the first 60 draws after off, on both 
 My reading: the user's "going up and then down" is the level's jump at a size change in the moving-scale videos, not a property of the switch at a fixed size. The lead's cause "a larger render scale draws a little more light" is not shown yet: the wobble also moves the picture inside a fixed crop. Open point for the takes after the wobble's fix: the level per draw against the render size. If the level still follows the size, that is a bug ticket of its own.
 
 The size ramp's first run failed at its start (vkCreateInstance returned ErrorIncompatibleDriver, seen once before during a nix store copy); it runs again.
+
+**2026-11-22T18:51:28Z**
+
+The size ramp on main c4c1f1f2f (without the back-face layer), from the acceptance lead, 2026-11-22, committed as 939d8ea1e. Chart: docs/research/design-x-acceptance-2026-11-22/pics/ramp-jambs-main-c4c1f1f2f.png; table: docs/research/design-x-acceptance-2026-11-22/ramp-jambs-main-c4c1f1f2f.txt (both in the lead's worktree t3-c3911144). I looked at the chart and read the table.
+
+Measured: 74 of the 181 render sizes leak sunlight onto the jambs (a jamb crop mean above 0.08). The leaking sizes run from 1000 x 560 to 1904 x 1072; below 1000 px of width nothing leaks. Leaking means 0.09 to 0.77; grey jambs 0.035 to 0.07. The method's check passes: played-back sizes equal the replay for all 7,273 draws, and the six known sizes come out as the constant-scale runs found them (1344 x 752: 0.4388 / 0.5329 against 0.4637; 1832 x 1032: 0.2842 / 0.3299 against 0.2730; 1280 x 720, 1536 x 864, 1728 x 968, 1920 x 1080 grey). Settle check: 1832 x 1032 and 1920 x 1080 settled within 40 draws; 1344 x 752 still rises at its 40th draw (0.3883 to 0.4388 right) but is five times above the threshold. So 40 draws classify correctly.
+
+Measured: all 8 sizes of the exact 16:9 aspect are grey; 99 of the 173 sizes with an inexact aspect are grey too; 36 leaking sizes are wider than 16:9 and 38 narrower.
+
+My own look at the table: above 1700 px of width the leak follows the width, not the height. Both heights of a width leak or both do not, and the leaking widths repeat with a period of 72 px: 1744, 1760, 1776 | 1800, 1816, 1832, 1848 | 1872, 1888, 1904. I have no cause for it. The remainders of width and height by 16 and by 32 show no link (each class leaks at 36 to 55 %).
+
+Readings, not shown: the lead reads an inexact aspect as needed for the leak and not enough, which makes the wobble's fix a second candidate cure beside the layer. With 8 exact sizes and a leak rate of 41 %, all 8 being grey by chance has a probability of about 1.5 %, so the link is likely and not proven. This code no longer is main: main has the layer. The ramp on main a819b10b2 and on the merged head decides whether any size leaks with the layer.
