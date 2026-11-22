@@ -32,19 +32,34 @@ The shape comes from `TERTIUS_X_CATCHUP="<peak> <end> <fall>"` through three new
 
 ## Where the ticket's design did not fit, and the forms chosen
 
-1. **The young test.** The ticket's share is a function of L alone, ending at the cap. In the settled cabin at 2/3, the anti-lag holds many diffuse histories below the cap of 32 for good. Shape (1, E, 0) on today's code, mean diffuse own rays per draw over the settled draws 150 to 192 (today: 2,164):
+1. **The young test.** The ticket's share is a function of L alone, ending at the cap. In the settled cabin at 2/3, many diffuse histories stay below the cap of 32 for good. The map below shows why: region evidence that fires falsely, not the anti-lag as I first read it (the patch's comment still says the anti-lag). Shape (1, E, 0) on today's code, mean diffuse own rays per draw over the settled draws 150 to 192 (today: 2,164):
 
    | End | 12 | 16 | 24 | 32 |
    |---|---|---|---|---|
    | Diffuse own rays per draw | 33,844 | 65,315 | 130,638 | 163,080 |
 
-   So about 161,000 of 921,600 pixels (17 %) hold between 8 and 32 draws. L alone cannot tell such a held history from one that grows after a restart, and any End above 8 draws would trace own rays there for ever. The chosen form gates the share by the time since the history's restart. A history is young while one of these is under End draws:
+   So about 161,000 of 921,600 pixels (17 %) sit between 8 and 32 draws. L alone cannot tell such a history from one that grows after a light change or a reset, and any End above 8 draws would trace own rays there for ever. The chosen form gates the share by the time since the history's restart. A history is young while one of these is under End draws:
    - the draws since the last reset (`drawIndex`: a start or a camera cut empties every history);
    - the draws since the pixel's own exact light changed (its light-age record);
    - the draws since its block's rays last saw a changed light: the youngest light code of the last draw's samples over the plan's 8 × 8 workgroup, which is the spatial dispatch's block. This is the source of the light evidence that restarts the block's histories, and it covers the pixels whose own direct light did not change. Without it, about half of today's peak stayed after a lamp switch (286,000 to 322,000 diffuse own rays per draw in draws 1 to 10 after off, against today's 545,000 to 675,000). The read is the one that the acceptance lead's variant XD made: the plan reads the last draw's sample ages (the images lose `writeonly`), with two barriers that every invocation reaches before any return.
 
    A history that is not young keeps today's rule exactly, so a settled view traces today's own rays.
 2. **The offset.** The blue-noise mask holds 8 bits per channel. The offset takes the mask's first frame at the pixel (red for the reflections, green for the diffuse rays) as its high 8 bits and `pcg3d` of the pixel as its low 24, so that small shares still get distinct offsets.
+
+## The settled history lengths of the cabin
+
+![the settled history lengths](pics/history-map-cabin.png)
+
+`pics/history-map-cabin.png`: the cabin of the switch film with the lamps on through the whole run (no switch), at the constant scale 2/3, draw 190 on today's code `xt` (`scratch-history-dump.patch`, `tools/histmap.py`). Left the still, right the slow diffuse history's length per render pixel, in five bands (`historymap.txt`):
+
+| Band, draws | Under 8 | 8 to under 16 | 16 to under 24 | 24 to under 31.5 | 31.5 or more (the cap) |
+|---|---|---|---|---|---|
+| Share of the pixels | 1.9 % | 9.7 % | 6.6 % | 4.5 % | 77.4 % |
+
+- Under 8 draws: the window openings, which show space and hold no history.
+- 8 to 31.5 draws, 20.8 % of the pixels: whole rectangles about 136 render pixels high, which is the size of a region of the drift test (17 × 17 blocks of 8 pixels), on the ceiling, the walls and the floor. In the same run, the region test fires on 1 to 11 of its 238 tested anchors in each of the draws 100 to 131, although nothing changes. Region evidence caps a region's histories at 8 draws, and they regrow by one per draw, so the rectangles show fires of different ages. These are the false fires of `t0-qvm1`.
+- The short histories do not lie at edges, at the jambs or on the floor's glow, and they are not grain spread over the view.
+- Main has no region test. There is no dump of main `ac5f23915` (`m5h` has no dump patch), so the map has no main row.
 
 ## Check 1: the shape (1, 8, 0) gives today's own-ray counts
 
@@ -69,7 +84,8 @@ The switch film (the fair lamp switch of the cabin, the lamps off at draw 193 an
 
 ## Files
 
-- `scratch-ownray-log.patch`, `scratch-catch-up-share.patch`: the scratch patches.
-- `check1.txt`: the output of `tools/ownrays.py` for check 1.
+- `scratch-ownray-log.patch`, `scratch-catch-up-share.patch`, `scratch-history-dump.patch`: the scratch patches. The last writes one draw's slow diffuse history length for the map.
+- `check1.txt`: the output of `tools/ownrays.py` for check 1. `historymap.txt`: the output of `tools/histmap.py`.
+- `cut.json`: the cut film, the orbit scene on the chase camera for a still and 100 frames, then a cut to the person camera (the switch's view) at draw 133 for 200 frames. On the Mac the draw index restarts at 0 at draw 133, and the diffuse history mean falls from 10.5 to 0.98 draws in the first draw after the cut.
 - `logs/`: the own-ray logs.
-- `tools/` (each script says what it does in its first lines): `builds.sh`, `ownrays.py`.
+- `tools/` (each script says what it does in its first lines): `builds.sh`, `ownrays.py`, `histmap.py`, `card.sh` and `cardrun.sh` (the card's job).
