@@ -245,3 +245,23 @@ The lead's number from tools/boilnoise.py (mean absolute change of 16 x 16 px bl
 - ceiling: M 0.06 / 1.65 / 0.24 / 0.76; X 0.05 / 1.96 / 0.13 / 0.78
 
 Defect that I found in the measure: it is the absolute change of each block between two draws, so a room that only dims smoothly also scores above zero. The number is the fade plus the boil. The claims "the boil is there at a fixed size" and "X boils a little more in the first 60 draws" do not follow from it yet, because the room dims in that span and X settles faster there (77 / 51 against 143 / 92 draws). The same holds for the card's rows and for the earlier "10 to 25 times the level before off", which I had passed up as the boil. Sent to the lead: the crop's mean level per draw as a chart (does it go up and then down, as the user described), a measure without the fade (per block the residual against the mean of the two neighbouring draws), the table again with old and new numbers, and a correction of tc-bece and the record. No new take.
+
+**2026-11-22T18:37:30Z**
+
+The boil without the fade, from the acceptance lead, 2026-11-22. Chart: docs/research/design-x-acceptance-2026-11-22/pics/boil-levels-fair-23.png in the lead's worktree t3-c3911144 (I looked at it: three crops, M red, X blue, fair switch at the fixed 2/3 on the Mac).
+
+Measured, level per draw: after off the crop's mean light falls smoothly on both sides, X faster; after on it rises smoothly. No rise and fall. The largest rise from one draw to the next in the 200 draws after off is +0.18 % (X, ceiling, 188 draws after off) and +0.14 % (M). On the card's moving scale (old switch) single draws rise by up to +0.71 % (M) and +0.88 % (X) at 16.67 ms and +1.11 % (X, left wall) at 10 ms.
+
+New measure in tools/boilnoise.py: per 16 x 16 px display-linear block the residual b[k] - (b[k - 1] + b[k + 1]) / 2, then the mean absolute residual over the blocks in % of the crop's mean light. A fade that is linear over three draws gives zero; a fade that bends sharply leaves a little. The span "before off" now ends 2 draws before the switch.
+
+Measured, new boil at a fixed size (fair switch, 2/3, Mac), before off / 0 to 60 after off / 60 to 200 after off / 0 to 100 after on:
+- floor: M 0.02 / 0.24 / 0.07 / 0.05; X 0.02 / 0.26 / 0.06 / 0.05
+- left wall: M 0.03 / 0.23 / 0.07 / 0.21; X 0.02 / 0.29 / 0.04 / 0.20
+- ceiling: M 0.04 / 0.29 / 0.09 / 0.13; X 0.04 / 0.32 / 0.07 / 0.14
+On the card (old switch, 16.67 ms), draws of one size / draws whose size changed, 0 to 60 after off: floor M 0.43 / 0.86, X 0.34 / 0.58; left wall M 0.27 / 0.49, X 0.47 / 0.67; ceiling M 0.30 / 0.37, X 0.42 / 0.44. A size change about doubles the boil on its draws.
+
+Results: a boil exists at a fixed size in the first 60 draws after off, on both sides, about 8 times the level before off (M 0.23 to 0.29 %, X 0.26 to 0.32 %). From 60 to 200 draws after off it is small, and X shows less. After on the sides are alike. The old numbers were mostly fade. tc-bece is corrected and drops "10 to 25 times".
+
+My reading: the user's "going up and then down" is the level's jump at a size change in the moving-scale videos, not a property of the switch at a fixed size. The lead's cause "a larger render scale draws a little more light" is not shown yet: the wobble also moves the picture inside a fixed crop. Open point for the takes after the wobble's fix: the level per draw against the render size. If the level still follows the size, that is a bug ticket of its own.
+
+The size ramp's first run failed at its start (vkCreateInstance returned ErrorIncompatibleDriver, seen once before during a nix store copy); it runs again.
