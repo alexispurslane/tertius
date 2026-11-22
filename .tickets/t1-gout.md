@@ -172,13 +172,75 @@ What design L costs the look: the sun's edge ramp is 1.5 texels wide in place of
 
 What I did not derive: the largest lit fraction at a real edge that runs at an angle to the grid. My estimate gives 5/8 again at 45 degrees and less at other angles, because the rounding averages along such an edge. The red tests at 45 degrees and at an odd angle measure it first. If one of them needs more than 5/8, the constant takes the measured worst case, and the ticket records the number.
 
-### Acceptance of the build (after the orchestrator's word)
+## Step 3: the build of design L (the orchestrator confirmed design L on 2026-11-22)
+
+The orchestrator's reasons: design L passes the rule at every phase through one function for every shadow map, it loses half as much true sunlight at an edge as design M (0.25 against 0.5 texel), it costs nothing per draw, and it touches no bias. The cascades' part is confirmed. The tiles' part is built behind the same function and decided on pictures.
+
+### The system design
+
+- The shadow maps stay as they are. They own the casters' depths, rounded to texel centers.
+- `lightOutsideShadow` owns one decision: which lit fractions can lie under a caster. No other code knows the filter's blur or the rounding. Every lookup of a shadow map turns its lit fraction into a light's share through this one function.
+- The filter's size owns the constant. The constant is computed from the number of comparisons per axis, so a change of the filter's size cannot leave it stale.
+
+### The signatures
+
+```glsl
+// The bilinear comparisons of the cascade filter along one axis, one texel apart. One texel of a straight edge's travel
+// changes the lit fraction by 1 / FilterTapsPerAxis.
+const int FilterTapsPerAxis = 4;
+
+// The largest lit fraction of a lookup that lies under a caster: one half for the filter's blur, plus the half texel by
+// which the map's edge can lie inside the caster's real edge, at the filter's change per texel (t1-gout).
+const float DoubtfulLitFraction = 0.5 + 0.5 / float(FilterTapsPerAxis);
+
+float lightOutsideShadow(float litFraction)
+{
+    return clamp((litFraction - DoubtfulLitFraction) / (1.0 - DoubtfulLitFraction), 0.0, 1.0);
+}
+```
+
+where
+
+- `FilterTapsPerAxis` = the count of comparisons along one axis of the cascade filter, 4 today. `filteredCascade`'s two loops and its division by 16 use it too.
+- `DoubtfulLitFraction` = 0.625 today. If a red test at an angle measures a larger worst case, the constant's formula takes the measured term, the comment gives the derivation or the measurement, and the test pins it.
+- `litFraction` = the share of the filter's texels, by weight, that hold no caster nearer the light than the receiver, from 0 to 1.
+
+For the tiles, the lit fraction and the share are two functions, so that one line holds the tiles' decision:
+
+```glsl
+float tileLitFraction(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float sinTheta);
+
+float tileShadow(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float sinTheta)
+{
+    return lightOutsideShadow(tileLitFraction(light, position, L, d, geometricNormal, sinTheta));
+}
+```
+
+where
+
+- `tileLitFraction` = today's body of `tileShadow`: the lit fraction of the tile's 5 x 5 texels, with both ways of reading them and the two shortcuts through the bounds.
+- `tileShadow` = the lamp's share at the receiver. If the orchestrator judges the lamps' edges too hard, this line returns `tileLitFraction(...)` unchanged, and the tiles' light under an edge gets its own ticket. No setting and no specialization constant ships for this choice.
+
+The lead finds every other copy of the rule (a C# reference of the lookup in the tests, the far shadows, the environment faces' lookups) and keeps them on the one function. The lead changes a signature when the code shows a better one, and records the change.
+
+### The settled decisions
+
+1. Red first. The skipped test `ShadowTests.AWallsSideFaceUnderARoofsEdgeTakesNoSunlightWhereverTheEdgeStandsWithinItsTexel` loses its skip and passes at all ten places. New red tests come first for an edge at 45 degrees to the grid, for an edge at an odd angle, and for a spot lamp's tile.
+2. The constant is computed in the shader from the filter's constants. The source does not hold 0.625.
+3. The cascades and the tiles are two decisions in one build. The tiles' part waits for the orchestrator's judgment of the pictures, by the user's rule: narrower lit strips are fine, hard-edged shadows everywhere are not.
+4. No bias, no margin and no map changes.
+
+### Acceptance
 
 - The red tests above, red first and then green, through the real shadow passes and shaders.
-- Stills of the cabin's near window openings at 1800 x 1008 and 1920 x 1080, at tick 6380, before and after: no line, no glow on the jamb, no dots on the sill.
-- Before and after stills of sun shadows in the cabin, the deck and bay-sunbeam, and of lamp shadows on the deck, at the render scales 2/3 and about 0.96. A fault over time goes to the user as a side-by-side video.
-- No added cost: the frame's GPU time inside main's spread, on the Mac at a quiet load and on the card.
-- Both suites, the Linux run of the changed classes, ARCHITECTURE.md ("Shadow bias" and the filter's text), one reviewer, coverage and mutants of the changed lines.
+- For the sun: the ramp of the 181 sizes, or a part of it that covers the three teeth (aspect errors of -0.350 %, +0.420 % and +1.195 %), with the fix. No size leaks at tick 6380 and at tick 100. The window of 1800 x 1008 at both ticks.
+- A still of bay-sunbeam at 16:9 before and after, at one exposure, with a crop of a sun shadow's edge at 1:1.
+- The survey's stills that hold the sun get no new fault.
+- For the tiles: stills of the lamps' shadows before and after in the cabin, on the deck and in one scene with a spot lamp close to a wall, at one exposure, with crops of the edges at 1:1. The "before" is the tile line with `tileLitFraction` alone.
+- The takes run under the dynamic render scale, at the scales 2/3 and about 0.96. A fault over time goes to the user as a side-by-side video.
+- No added cost: the frame's GPU time inside main's spread, on the Mac at a quiet load.
+- Checked and Release, lavapipe for the changed shadow classes, mutants and coverage of the changed lines, one reviewer, and ARCHITECTURE.md's shadow section.
+- Each changed reference image is reviewed as CLAUDE.md says.
 
 ## The rules that bind the designs
 
