@@ -130,3 +130,11 @@ Per-region table of the fair cabin switch at 2/3 from the combined check's lead,
 **2026-11-22T18:09:45Z**
 
 Interim from the combined check's lead, 2026-11-22: the bug ticket for the faults that stay at a render scale near 1 with the layer is t58-i3sn (under ter-8hyd, in the lead's worktree). X2's replay build x2r is ready (0 warnings, 0 errors; disk 34.9 GiB free before, 34.8 lowest); with m2r both wait for the acceptance lead's ramp tool. Binaries: /private/tmp/t0-gbgj/bins/m2r/probe-bin and /private/tmp/t0-gbgj/bins/x2r/probe-bin. The deck's timing so far: round 1 X2 minus M2 +0.138 ms; round 2 M2 19.617 ms and X2 19.495 ms, both started under a load of 8; mean difference over two rounds +0.008 ms against the allowance of +0.30 ms. Round 3 waits for the lock and a load under 8. The stills sample at 0.956 runs.
+
+**2026-11-22T18:17:22Z**
+
+Order after main's walk fix, 2026-11-22. The orchestrator: main and origin are at a819b10b2; the engine change ends at 8c52592de (Shaders/screen_ray.glsl, Shaders/screen_walk.glsl, Shading/ScreenRay.cs; 37 lines added, 20 removed); the screen walk keeps the ray's inverse depth that a descent solved, so rays no longer miss a sheet that faces the eye or a far slab. The side "main with the layer" of every take that is not yet running becomes main a819b10b2, and the merged head gets main merged in again. Takes that already ran stay, marked with their commit. If a fault at a scale near 1 is gone on the new main, t58-i3sn is the back-face line's closed work.
+
+Sent to the combined check's lead: M3 = main a819b10b2, X3 = its merged head with a819b10b2 merged in again; replay builds of both with the fair-switch probe; the size ramp runs on M3 and X3; the stills behind the crops of t58-i3sn are taken again at 0.956 on M3 and X3, each fault reported as gone, weaker, the same or stronger.
+
+My answers (35 to 37): timing round 3 stays on the pair M2 and X2, so that it averages with rounds 1 and 2. No new run of the Checked suite for X3 unless the merge conflicts in code, because the line's merge of main gets the full suites when the wobble's fix is on main too. The build outputs m2r and x2r may be deleted if the disk is short, because the commit and the record's patch give them again.
