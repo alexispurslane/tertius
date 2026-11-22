@@ -2,7 +2,7 @@
 id: t0-qvm1
 status: open
 deps: []
-links: [t0-gumm]
+links: [t0-gumm, t4f-71qp]
 created: 2026-11-22T11:13:56Z
 type: task
 priority: 2
@@ -37,3 +37,13 @@ The model, which a fix must state: the share of a still picture under the histor
 First step, before anyone tunes the rate: measure what the rule buys and what it costs, so that this ticket can also end with "remove the rule". Design X with the region test off (TemporalSignal.TestsRegionDrift false, or the remedy's "without" build of t0-acxm) against Design X as it is, at the fixed scale 2/3 on the Mac: the cabin still's daub and its map of the history length; the still exit-cabin's daub against the reference with both clamps off (the per-scene table has Design X at 0.0173 and the no-clamp floor at 0.0131 there: how much of that gap do the false fires make); the fair lamp switch's settle; the bay film's trail, which the region evidence was built to remedy. If the rule buys little settle and little of the trail's remedy and costs a fifth of the picture's history, the simpler system wins.
 
 This step is ordered at the combined check's lead (my answer 78), to run while it waits on the card for the catch-up ray experiment t0-gumm. A scratch build is allowed if no build or switch exists.
+
+**2026-11-22T23:52:18Z**
+
+The orchestrator's decision, 2026-11-22: one follow-up, not three. The region's drift test has three measured faults, and they are one design question: when may the test count, and at what rate may it fire.
+1. It fires falsely in a still scene and holds about a fifth of the picture under the history's cap (this ticket; the map of t0-gumm).
+2. Its count restarts on a moving render size, so it ran on 12 % of its anchor-draws after a lamp switch without the cap (t4f-71qp; take B of t0-3vwx).
+3. Its count restarts while the camera moves, so after a stop it runs on 34.7 % of its anchor-draws in the first 60 draws, and Design X's trail after a stop fades more slowly than main's (the final walk film of t0-3vwx: center region +4.61 % against +3.73 % at 20 draws, slowest region 47 draws against 25).
+This ticket is the first follow-up after the merge of Design X and holds all three; t4f-71qp is linked and stays as the record of fault 2. The follow-up may end with a repaired rule or with no rule.
+
+The first step is unchanged, with one take added: the rule off against the rule on. Takes: the cabin still (daub and history map), the still exit-cabin (daub against the reference with both clamps off), the fair lamp switch (settle), the bay film's trail, and now the walk's stop: with the rule off, how long is the trail? Ordered at the combined check's lead.
