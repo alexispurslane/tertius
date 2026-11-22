@@ -10,7 +10,8 @@
 # more than 1 ms above the run's settled span ("block"), with the first and last such draw after the switch. Then the
 # excess of each other side (X, XB, XC) over M in each span, and per 10 draws after each switch, so that a cost of young
 # histories shows as an excess that falls with the draws since the switch. Each side has one colour on the chart, and
-# its later rounds a lighter shade.
+# its later rounds a lighter shade. TITLE=<text> replaces the chart's title, for runs of another kind (the card's).
+import os
 import sys
 from collections import defaultdict
 from PIL import Image, ImageDraw
@@ -18,7 +19,7 @@ from PIL import Image, ImageDraw
 out, runs = sys.argv[1], [a.split('|') for a in sys.argv[2:]]
 SPANS = {'settled on': range(40, 160), 'off 0-59': range(160, 220), 'off 100-199': range(260, 360),
          'on 0-59': range(360, 420)}
-SIDE_COLOURS = {'M': (200, 60, 60), 'X': (40, 110, 200), 'XB': (40, 150, 60), 'XC': (200, 130, 20)}
+SIDE_COLOURS = {'M': (200, 60, 60), 'X': (40, 110, 200), 'XB': (40, 150, 60), 'XC': (200, 130, 20), 'XD': (130, 60, 170)}
 
 
 def load(path):
@@ -78,8 +79,8 @@ for i, (label, s) in enumerate(data.items()):
     colour = tuple(int(c + (255 - c) * shade) for c in SIDE_COLOURS.get(side, (90, 90, 90)))
     d.line([(x(k), y(s[k])) for k in range(T0, T1 + 1) if k in s], fill=colour, width=1)
     d.text((W - 260, 36 + 16 * i), label, fill=colour)
-d.text((L, 8), 'GPU span per draw (ms), the fair cabin switch at the fixed 2/3. Grey lines: lamps off (frame 160), on (360).',
-       fill='black')
+d.text((L, 8), os.environ.get('TITLE', 'GPU span per draw (ms), the fair cabin switch at the fixed 2/3.')
+       + ' Grey lines: lamps off (frame 160), on (360).', fill='black')
 d.text((L, H - 24), 'film frame 140 to 459 (draw = 33 + frame)', fill='black')
 im.save(out)
 print(out, im.size)

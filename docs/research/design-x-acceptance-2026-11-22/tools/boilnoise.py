@@ -17,6 +17,9 @@
 # draws whose size changed (from the size log, draw = 33 + frame; a draw counts as changed when its size differs from
 # either neighbour). A size change also moves the picture sideways (wobble.py), which adds change at edges in the crops.
 # With --chart it draws each run's crop means per draw (the level), one panel per crop, off and on marked.
+# FIRST=<film frame> (default 140) reads the film frames FIRST to FIRST + 319 of a PNG folder, for a run whose lamps go
+# off at film frame FIRST + 20 (TERTIUS_PROBE_LAMP_OFF=<33 + FIRST + 20>-<33 + FIRST + 220>), so that the spans keep
+# their place against the switch.
 import os
 import subprocess
 import sys
@@ -24,6 +27,7 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 FFMPEG = os.environ.get('FFMPEG', 'ffmpeg')
+FIRST = int(os.environ.get('FIRST', '140'))
 CROPS = {'floor': (520, 700, 100, 1180), 'left wall': (150, 330, 60, 300), 'ceiling': (40, 180, 300, 980)}
 SPANS = {'before off': range(1, 19), 'off 0-60': range(21, 80), 'off 60-200': range(80, 219), 'on 0-100': range(221, 319)}
 COLOURS = [(200, 60, 60), (40, 110, 200), (230, 150, 20), (120, 170, 60)]
@@ -32,7 +36,7 @@ COLOURS = [(200, 60, 60), (40, 110, 200), (230, 150, 20), (120, 170, 60)]
 def frames(path):
     if not path.endswith('.mp4'):
         return np.array([np.asarray(Image.open(f'{path}/f-{k:06d}.png').convert('L').resize((1280, 720), Image.LANCZOS))
-                         for k in range(140, 460)]).astype(float)
+                         for k in range(FIRST, FIRST + 320)]).astype(float)
     raw = subprocess.run([FFMPEG, '-loglevel', 'error', '-i', path, '-f', 'rawvideo', '-pix_fmt', 'gray', '-'],
                          capture_output=True, check=True).stdout
     return np.frombuffer(raw, np.uint8).reshape(-1, 720, 1280).astype(float)
@@ -53,7 +57,7 @@ levels = {}
 for label, path, size_log in (s.split('|') for s in args):
     video = frames(path)
     sizes = [tuple(l.split()[1:3]) for l in open(size_log)]
-    step = [sizes[173 + k] != sizes[172 + k] for k in range(len(video))]
+    step = [sizes[33 + FIRST + k] != sizes[32 + FIRST + k] for k in range(len(video))]
     changed = [step[k] or (k + 1 < len(step) and step[k + 1]) for k in range(len(video))]
     cells = []
     for name, (y0, y1, x0, x1) in CROPS.items():

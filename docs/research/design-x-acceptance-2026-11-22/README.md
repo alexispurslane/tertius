@@ -266,7 +266,30 @@ What I measured in the video:
 - The boil, per pane and crop, video against source (the ceiling's rows 100 to 179, under the labels). In the 60 draws after off: X floor 0.58 / 0.25, wall 0.40 / 0.29, ceiling 0.47 / 0.29. XB 0.58 / 0.26, 0.37 / 0.26, 0.42 / 0.28. XC 0.58 / 0.26, 0.40 / 0.29, 0.46 / 0.30. So the encode adds boil, most on the dark floor, and adds the same amount to each pane. A test at CRF 4 (42.5 MB) still gave 0.41 on X's floor, so most of the added boil comes from the 8-bit encode of dark tones, not from the CRF.
 - Not checked: single specks over time, and whether the eye sees XC's 1.7 % difference.
 
-Reading: both variants remove the block. Neither changes the grain or the boil by more than 0.03 points. XB pays with a slower fade (+3 to +5 draws of settle and a visible lag of up to 14 % in the first draws). XC keeps X's settle and fade, and its boil is 0.01 to 0.02 points higher in the 60 draws after off. The user decides between the designs.
+### The third variant XD and the choice
+
+The user asked for a third variant after the first two (2026-11-22): "why not reset to 4, but then hold off on casting a ray for the surface, despite being below 8, until the evidence has also stopped resetting it to 4".
+
+- XD (`scratch-plan-waits-for-evidence.patch`): the accumulation stays as on X. The ray plan gives a pixel no ray of its own while light evidence holds its block's histories at `fastCap`, if the block's ray fits it. The plan runs before this draw's evidence exists, so it derives it from the last draw's sample ages: a last light code c with c + 1 still recent. It reduces them over its 8 × 8 workgroup, which is the spatial dispatch's block. So it keeps the plan's reach exactly: when the evidence ends, the same pixels trace their own rays while the history grows from 4 to 8. Region and motion evidence do not hold the rays back. The scratch drops `writeonly` from the two sample-age images in `screen_trace.glsl` and adds about 20 lines to `screen_trace_plan.comp`. In production the predicate would live in `sample_age.glsl` beside `recentLightCode`.
+- XD's build differs from X in 4 SPIR-V modules: the two precise variants of the plan and the two that bind the sample-age images.
+- On the Mac at the fixed 2/3: XD settles in 77 / 51 draws (whole image 67 / 31), as X. Its boil is X's within 0.01 points (0 to 60 after off 0.26 / 0.29 / 0.33 %, 60 to 200 after off 0.06 / 0.04 / 0.07 %, 0 to 100 after on 0.05 / 0.20 / 0.14 %).
+- On the card at 16.67 ms (`cloud-variants-16ms/`, one job with X, XB and XD, the glow-stays switch of the earlier logs, $0.0449): XD's frames 0 to 9 after off cost 17.7 to 18.7 ms (settled 17.6 ms). Frames 10 to 13 cost 25.2, 24.1, 25.3 and 22.8 ms, X's height. Its scale falls from 0.998 to 0.901 after off and to 0.899 after on. X's frames 4 to 13 cost 22.2 to 24.7 ms, and its scale falls from 0.956 to 0.822. XB's scale stays at 1.000 through both switches, and no frame lies more than 1 ms above its settled span (`pics/cost-switch-card-16ms-x-xb-xd.png`).
+
+The card's scale in the windows from 10 draws before to 60 draws after each switch, against the 60 idle draws before the first switch:
+
+| Code | Idle, draws 133 to 192 | Around off: changes, largest fall | Around on: changes, largest fall |
+|---|---|---|---|
+| XB | 0 changes, 0.999 to 1.000 | 0, 0.000 | 0, 0.000 |
+| XD | 0 changes, 0.997 to 0.998 | 32, 0.097 | 32, 0.099 |
+| X, same job | 0 changes, 0.956 | 43, 0.133 | 41, 0.138 |
+| X, old job | 0 changes, 0.993 | 45, 0.164 | 46, 0.165 |
+| M `c4c1f1f2f`, old job | 0 changes, 0.999 to 1.000 | 15, 0.041 | 18, 0.042 |
+
+The choice (the line orchestrator, by the rule that the user handed it on 2026-11-22): a variant passes only if it leaves no cost peak that moves the render scale on the card's log. Among those that pass, the faster settle wins unless its boil is higher by more than two runs of one code differ. On a tie, the smaller reach and less code win. XB passes and XD does not, so XB won, and ticket `t0-zmjx` builds it. Two equal runs on this Mac give equal frames: the rerendered X and XB give the boil of their first runs to every printed digit.
+
+The video of the choice: `pics/switch-cabin-fair-fixed-23-x-xb-xd.mp4`, panes X, XB and XD, made as the first video, from first-generation source frames (X and XB were rendered again for it). 6.1 MB. Each pane's fade matches its source within 0.26 %. Its X and XB panes differ from those of `switch-cabin-fair-fixed-23-x-xb-xc.mp4` by at most 0.36 % in a region and 3 of 255 at the 99th percentile of a pixel. The encode adds boil to each pane about equally, as in the first video (X's floor 0.57 % in the video against 0.25 % in the source frames).
+
+Reading: XB and XC remove the block on the Mac. Neither changes the grain or the boil by more than 0.03 points. XB pays with a slower fade (+3 to +5 draws of settle and a visible lag of up to 14 % in the first draws). XC keeps X's settle and fade, and its boil is 0.01 to 0.02 points higher in the 60 draws after off. The user decides between the designs.
 ### Frame time (T17)
 
 T17 PENDING
@@ -322,7 +345,9 @@ Sunlight leaks onto the cabin's window jambs at some render sizes and not at oth
 - At a constant 0.956 (the card's scale) M, X and A all have bright jambs (M 0.2730 with the lamps on). At 2/3 they are grey (0.0446). The fixed path and the replay give equal values. With the sun off the jambs are grey at 0.956 (0.0440).
 - The size ramp on main `c4c1f1f2f` (`tools/sizeramp.sh`, `ramp-jambs-main-c4c1f1f2f.txt`): 74 of the 181 render sizes leak (a jamb mean above 0.08), from 1000 × 560 up. All 8 sizes of the exact 16:9 aspect are grey.
 - The combined check (`docs/research/t0-gbgj-combined-check/README.md` on branch `t3/combined-renderer-check`, commit `3ddcc475a`) ran the same ramp: 32 of 181 sizes leak on main `a819b10b2` with the layer, 35 on the merged head, and 0 on the wobble fix's branch. A window of 1800 × 1008 at a render scale of 1 leaks the same on main and on the fix's branch (right jamb 0.0977). The back-face line found that the jamb light is one sawtooth curve of the render size's aspect error, (width / height) / (16 / 9) − 1, with teeth near −0.34 %, +0.45 % and +1.25 %.
-- Reading: the wobble fix hides the leak at a 16:9 output and does not cure it. The cause is not measured. The back-face line's candidate is the texel grid of the sun's shadow cascades. Bug `t58-i3sn` holds it.
+- The ramp's sizes are not drawn at one moment of the orbit. Its script is a film with one tick per frame, so size i is drawn at ticks 60 + 40 i to 60 + 40 i + 39, and the sun stands elsewhere at a later size. The back-face line measured it: the window of 1800 × 1008 reads 0.0977 at tick 100 and 0.193 at tick 6380, the ramp's tick for that size. So a ramp's count (74 of 181 sizes on main `c4c1f1f2f`) is a count of (size, tick) pairs. It compares two codes on the same ramp, because both draw size i at the same ticks. It does not prove that the leak belongs to the size alone.
+- The cause, found by the back-face line (`t58-i3sn`): a caster's edge in the sun's shadow map is rounded inward to texel centers, and the one-sided lookup starts its ramp at the map's edge. The strip between the map's edge and the real edge gets sunlight. Its width follows the phase of cascade 0's grid at the wall, which the aspect error moved before the wobble's fix. At a 16:9 window the gap at the side jambs is 0.038 texel.
+- Reading: the wobble fix hides the leak at a 16:9 output and does not cure it.
 
 The line orchestrator's pictures of the jambs (commit `0abdcabd7` on the line, not copied here): `pics/line-jamb-sheet-switch-dynamic-16ms.png`, `pics/line-jamb-walk-fixed-mac.png` and `pics/line-frame-switch-dynamic-16ms-off60.png`.
 
@@ -360,7 +385,7 @@ Not measured:
 
 ## Cloud money
 
-$1.5700 of the ticket's $2.00, all through `tools/runpod/gpu_job.py`: the dynamic-scale videos, their sizes and region jobs, and one failed first attempt ($0.2784).
+$1.6149 of the ticket's $2.00, all through `tools/runpod/gpu_job.py`: the dynamic-scale videos, their sizes and region jobs, one failed first attempt ($0.2784), and the variants' scale logs ($0.0449).
 
 ## Files
 

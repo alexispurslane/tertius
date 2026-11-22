@@ -10,6 +10,11 @@
 #     do, and keeps its size log in out/sizes/<scene>-<side>-<target>/. These runs choose the render scale of the videos.
 #     Last, it plays the walk's X log at the first target back (TERTIUS_X_SIZE_REPLAY) into out/sizes/replay-check/, to
 #     show that the playback gives each draw the logged size.
+#   cloudvideo.sh variants <target> <side...>: for each side (x, or a variant xb, xc or xd of X: X's tree with
+#     ../scratch-light-evidence-cap.patch, ../scratch-plan-rate-at-fast-cap.patch or ../scratch-plan-waits-for-evidence.patch),
+#     a copy of the tree x, built, and the switch rendered without pictures at the target, with the glow-stays switch
+#     (TERTIUS_PROBE_LAMP_GLOW=stays) of the earlier sizes jobs, so that its size log compares with theirs. The logs go to
+#     out/variants/switch-<side>-<target>/, with the time log.
 #   cloudvideo.sh regions <scene> <targets...>: builds X and plays its size log of each target back without pictures,
 #     with the region log, into out/<scene>-x-<target>-replay/.
 #   cloudvideo.sh video <scene> <side> <target> [survey]: builds the side, then renders the scene's script as pictures
@@ -38,10 +43,13 @@ Path(sys.argv[2]).write_text(json.dumps(script, indent=1))
 PY
 }
 lamps() { if [ "$1" = switch ]; then echo TERTIUS_PROBE_LAMP_SEL=z:-12:4 TERTIUS_PROBE_LAMP_OFF=193-393; else echo TERTIUS_X_NONE=1; fi; }
+variant() { case $1 in xb) echo scratch-light-evidence-cap.patch ;; xc) echo scratch-plan-rate-at-fast-cap.patch ;;
+  xd) echo scratch-plan-waits-for-evidence.patch ;; esac; }
 build() {
   echo "$(date +%T) build $1"
   (cd $1 && patch -p1 --forward -s -i tools/renderer-survey/probe.patch \
     && { [ $1 = m ] || patch -p1 --forward -s -i ../$D/scratch-region-log.patch; } \
+    && { [ -z "$(variant $1)" ] || patch -p1 --forward -s -i ../$D/$(variant $1); } \
     && patch -p1 --forward -s -i ../$D/scratch-dynamic-scale.patch \
     && dotnet build src/Tertius.Demo -c Release -nologo -v:q -p:RunAnalyzers=false -p:TreatWarningsAsErrors=false \
        -o ../out-$1/probe-bin | tail -1)
@@ -61,6 +69,16 @@ logname() { if [ "$1" = switch ]; then echo size-193-393.txt; else echo size-non
 # time, so a played-back run logs the same region test as the run that chose the sizes.
 region() { [ $2 = x ] && echo TERTIUS_X_REGION_LOG=out/$1-$2-$3-replay; }
 case $mode in
+variants)
+  target=$1; shift
+  script switch
+  for side in "$@"; do
+    [ $side = x ] || cp -a x $side
+  done
+  for side in "$@"; do build $side; done
+  for side in "$@"; do
+    run switch $side $target out/variants/switch-$side-$target TERTIUS_PROBE_LAMP_GLOW=stays TERTIUS_X_TIME_LOG=out/variants/switch-$side-$target
+  done ;;
 regions)
   scene=$1; shift
   script $scene; build x

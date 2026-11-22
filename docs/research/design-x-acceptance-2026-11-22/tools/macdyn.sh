@@ -7,7 +7,7 @@
 #     FrameTimeTarget(<target>, 0.5, 1), which holds the GPU lock alone, so that the scale follows this Mac's own frame
 #     time. Its size log and its time log (each frame's GPU span and the controller's cost sums) go to
 #     sizes/<scene>-<side>-<target>/.
-#   macdyn.sh pictures <walk|switch> <m|x|xb|xc> <size log | constant scale> <name> [VAR=value...]: one picture run (the default
+#   macdyn.sh pictures <walk|switch> <m|x|xb|xc|xd> <size log | constant scale> <name> [VAR=value...]: one picture run (the default
 #     ACES curve and bloom) whose render scale each draw takes from the size log (TERTIUS_X_SIZE_REPLAY), or the same
 #     scale on every draw when the argument is a number. It writes the PNGs of the film frames in KEEP (a comma-separated
 #     list such as "f-000150,f-000220"; empty keeps none) into pics/<name>/, with its own size log, and on X the region
@@ -16,7 +16,7 @@
 #   macdyn.sh fixed <walk|switch> <side> <scale> <name> [VAR=value...]: as pictures, but through the fixed path: the
 #     headless FixedRenderScale(<scale>) of t0-gbgj's patch (TERTIUS_X_RENDER_SCALE), whose render targets are sized for
 #     that scale. The side here names the build, such as mfix.
-#   macdyn.sh cost <walk|switch> <m|x|xb|xc> <name>: one run without pictures at the headless default, the fixed 2/3, with the
+#   macdyn.sh cost <walk|switch> <m|x|xb|xc|xd> <name>: one run without pictures at the headless default, the fixed 2/3, with the
 #     time log (each collected frame's GPU span and the controller's cost sums) into cost/<name>/, under the GPU lock
 #     alone, for the frame's cost after a switch. It logs the uptime before and after.
 # The binary is $BASE/<side>play/probe-bin (playbuild.sh).

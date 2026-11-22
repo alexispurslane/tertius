@@ -7,6 +7,8 @@
 #     pictures (cloudvideo.sh sizes), in one job with nothing else in it.
 #   video <walk|switch> <m|x> <target ms> [survey]: one side's video of the scene, its render scale played back from the
 #     sizes job's log (cloudvideo.sh video), with its region means and, with "survey", the survey's settle take.
+#   variants <target> <side...>: the switch's size and time logs of X and of its scratch variants at one target, from
+#     runs without pictures with the glow-stays switch (cloudvideo.sh variants), in one job.
 #   regions <walk|switch> <targets...>: X's region log of the scene at each target, its sizes played back from the sizes
 #     job's log, without pictures (cloudvideo.sh regions).
 #   switch: the survey's switch bay-sun-off on M (main c4c1f1f2f) and on X (the line's head), each a probe build of its
@@ -25,7 +27,7 @@ shard)
     --run "cd x && dotnet build tests/Tertius.Rendering.Tests -c Checked -nologo -v:q" \
     --run "mkdir -p out; cd x && dll=tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll && dotnet \$dll -maxThreads 2 -longRunning 60 -noColor -result-ctrf ../out/shard.json \$(python3 -I tools/runpod/shards.py \$dll 6 $i)" \
     --output out/shard.json --timeout 900 ;;
-sizes|video|regions)
+sizes|video|regions|variants)
   # The worker checks out no docs/ (tools/runpod/handler.py, SPARSE), so the first command unpacks the job's scripts, the
   # scratch patches and the sizes job's logs (sizes/, for the video jobs) from this folder into the tree x, as a base64
   # tar of the working files.
@@ -38,6 +40,10 @@ sizes|video|regions)
     shift
     submit sizes --tree x=$X --tree m=c4c1f1f2f --run "echo $pack | base64 -d | tar -xz -C x" \
       --run "bash x/$D/tools/cloudvideo.sh sizes $*" --output 'out/sizes/*/*.txt' --timeout 830
+  elif [ $1 = variants ]; then
+    shift
+    submit "variants-$1" --tree x=$X --run "echo $pack | base64 -d | tar -xz -C x" \
+      --run "bash x/$D/tools/cloudvideo.sh variants $*" --output 'out/variants/*/*.txt' --timeout 900
   elif [ $1 = regions ]; then
     submit "regions-$2" --tree x=$X --tree m=c4c1f1f2f --run "echo $pack | base64 -d | tar -xz -C x" \
       --run "bash x/$D/tools/cloudvideo.sh $*" --output 'out/*-replay/*.txt' --timeout 600
