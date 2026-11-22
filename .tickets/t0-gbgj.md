@@ -182,3 +182,13 @@ A new reading of the jamb leak from the back-face line, passed by the orchestrat
 Sent to the combined check's lead, after the running ramp and before the wobble's before and after: at a render scale of 1, windows of 1800 x 1008 (aspect error +0.45 % by the window's shape) and 1920 x 1080 on main a819b10b2 and on the fix's branch; the reading predicts a jamb light near 0.24 at 1800 x 1008 on both, and a floor value near 0.045 refutes it. Then, if cheap, the field of view in small steps on main.
 
 My answer (43): if the field of view has no switch in the script or the probe, the lead writes no engine code for it and takes windows of the height 1008 and the widths 1784, 1792, 1808 and 1816 on main in its place (aspect errors -0.45 %, 0, +0.89 %, +1.34 %).
+
+**2026-11-22T19:05:57Z**
+
+The size ramp on the merged head, from the combined check's lead, 2026-11-22. Side X3 = the lead's merge bcca31e95 (Design X with main a819b10b2), build x3r, tool sizeramp.sh of b53c037f1 by its path, 40 draws per size, played-back sizes equal the replay. Chart: docs/research/t0-gbgj-combined-check/pics/ramp-X3.png, table ramp-X3.txt, in the lead's worktree t3-52bfcd29-81249085ce80dd9f. I looked at the chart.
+
+Measured, M3 (main a819b10b2) / X3: sizes above 0.08: 32 / 35. Sizes above 0.06: 49 / 54. Largest jamb mean, both at 1800 x 1008, right / left: 0.2298 / 0.2420 against 0.2339 / 0.2996. Settle check 1344 x 752 right, 10 draws before the last frame / at it: 0.0836 / 0.0876 against 0.0831 / 0.0861; 1920 x 1080 right: 0.0449 / 0.0444 against 0.0458 / 0.0455. The lists differ at five sizes, each within 0.012 of the threshold: only M3 leaks at 1376x776; only X3 leaks at 1120x632, 1144x640, 1216x680 and 1904x1064. Per size, X3's larger jamb mean minus M3's has a median of +0.0014 and ranges from -0.0134 to +0.0576 (the left jamb at 1800 x 1008).
+
+Result: the teeth are the same on both codes. Design X adds no leaking size of its own; it sits a little higher on a few teeth. My reading: the leaked light is the same fault of main on both sides, and Design X's wider clamp keeps a little more of its bright samples at a held size.
+
+The fix branch's build W from 839bce1b5: its probe patch and scratch-dynamic-scale.patch apply unchanged; 0 warnings, 0 errors; disk 34.0 GiB free. W's ramp runs next, then the window test (no field-of-view switch exists, so the cheap form with the widths 1784, 1792, 1808, 1816 at the height 1008), then the wobble's before and after.
