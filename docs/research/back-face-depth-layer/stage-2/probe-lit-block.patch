@@ -1,0 +1,136 @@
+diff --git a/src/Tertius.Demo/DemoScenes.LitBlock.cs b/src/Tertius.Demo/DemoScenes.LitBlock.cs
+new file mode 100644
+index 0000000..6af2f00
+--- /dev/null
++++ b/src/Tertius.Demo/DemoScenes.LitBlock.cs
+@@ -0,0 +1,117 @@
++using System.Numerics;
++using Tertius.Host;
++using Tertius.Simulation;
++
++namespace Tertius.Demo;
++
++// THROWAWAY (never merges), t1-r9vj: the scene of the lit block, for the test of the fade of a blocked ray's light.
++public static partial class DemoScenes
++{
++    /// <summary>The light gray of every diffuse surface of the lit block's room.</summary>
++    private static readonly Vector4 LitBlockGray = new(x: 0.7f, y: 0.7f, z: 0.7f, w: 1);
++
++    /// <summary>The roughness of the diffuse surfaces of the lit block's room.</summary>
++    private const float LitBlockRough = 0.9f;
++
++    /// <summary>The roughness of the glossy wall beside the lit block, at +X.</summary>
++    private const float LitBlockGlossy = 0.2f;
++
++    /// <summary>
++    /// The lit block: a closed room with one block, lit on one face only, with no sun and no sky. <c>lit-block-front</c>
++    /// lights the block's +Z face, which the camera sees; <c>lit-block-back</c> lights its -Z face, which the camera does
++    /// not see.
++    /// <list type="bullet">
++    /// <item>The room is 8 m wide (x from -6 to 2), 10 m long (z from -4 to 6) and 4 m tall inside. Every slab is 0.2 m
++    /// thick, light gray and diffuse, except the wall at +X, which is light gray and glossy.</item>
++    /// <item>The <c>block</c>, 2.4 m wide, 1.6 m tall and 1.5 m deep, stands on the floor at the origin, 0.8 m from the
++    /// wall at +X.</item>
++    /// <item>The <c>key</c>, a spot lamp of 10 W with an outer half-angle of 30 degrees, 0.8 m above the floor and 1.4 m
++    /// from the lit face, aims straight at that face's center. Its cone ends on the face, so the block's other faces get
++    /// no direct light.</item>
++    /// <item>The <c>floor-lamp</c>, a spot lamp of 10 W aimed straight down from 3.9 m at (-3.5, 1.5), lights the neutral
++    /// floor patch away from the block.</item>
++    /// <item>The view <c>camera</c> stands at (1, 1.5, 4.5), below the block's top, and looks at its +Z face. It stands
++    /// inside the plane of the block's +X face, so that face is hidden, and the gap at +X shows the floor and the wall
++    /// beside and behind the block.</item>
++    /// </list>
++    /// </summary>
++    private static SceneInstance LitBlock(World world, IRenderResources resources, bool litBack)
++    {
++        var scene = new SceneInstance();
++        FrameHandle room = world.CreateRootFrame(new(FrameBounds.Sphere(1e4f)));
++        scene.Add("room", room.Entity);
++        (string Name, Double3 Place, Vector3 HalfExtents, float Roughness)[] slabs =
++        [
++            ("floor", new(-2, -0.1, 1), new(4.2f, 0.1f, 5.2f), LitBlockRough),
++            ("ceiling", new(-2, 4.1, 1), new(4.2f, 0.1f, 5.2f), LitBlockRough),
++            ("wall-px", new(2.1, 2, 1), new(0.1f, 2, 5.2f), LitBlockGlossy),
++            ("wall-nx", new(-6.1, 2, 1), new(0.1f, 2, 5.2f), LitBlockRough),
++            ("wall-pz", new(-2, 2, 6.1), new(4, 2, 0.1f), LitBlockRough),
++            ("wall-nz", new(-2, 2, -4.1), new(4, 2, 0.1f), LitBlockRough),
++            ("block", new(0, 0.8, 0), new(1.2f, 0.8f, 0.75f), LitBlockRough),
++        ];
++        foreach ((string name, Double3 place, Vector3 halfExtents, float roughness) in slabs)
++            scene.Add(
++                name,
++                world.Spawn(
++                    new()
++                    {
++                        Frame = room,
++                        Pose = new(place, DQuaternion.Identity),
++                        Render = new RenderData
++                        {
++                            Mesh = resources.CreateMesh(Primitives.Box(halfExtents)),
++                            Material = resources.CreateMaterial(MaterialDesc.Color(LitBlockGray, roughness)),
++                            BoundingRadius = halfExtents.Length(),
++                            Flags = RenderFlags.Visible | RenderFlags.CastsShadow,
++                        },
++                    }
++                )
++            );
++        scene.Add(
++            "key",
++            world.Spawn(
++                SpotLamp(
++                    frame: room,
++                    resources: resources,
++                    pose: litBack
++                        ? LookingAt(new(0, 0.8, -2.15), new(0, 0.8, -0.75))
++                        : LookingAt(new(0, 0.8, 2.15), new(0, 0.8, 0.75)),
++                    light: new SpotLightData(
++                        Offset: new(Vector3.Zero, Quaternion.Identity),
++                        Color: LampColor,
++                        Power: CabinLampPower,
++                        Radius: LampRadius,
++                        CastsShadow: true,
++                        InnerConeAngle: 25 * MathF.PI / 180,
++                        OuterConeAngle: 30 * MathF.PI / 180
++                    )
++                )
++            )
++        );
++        scene.Add(
++            "floor-lamp",
++            world.Spawn(
++                SpotLamp(
++                    frame: room,
++                    resources: resources,
++                    pose: new(new(-3.5, 3.9, 1.5), DQuaternion.FromAxisAngle(Double3.UnitX, -Math.PI / 2)),
++                    light: new SpotLightData(
++                        Offset: new(Vector3.Zero, Quaternion.Identity),
++                        Color: LampColor,
++                        Power: CabinLampPower,
++                        Radius: LampRadius,
++                        CastsShadow: true,
++                        InnerConeAngle: 18 * MathF.PI / 180,
++                        OuterConeAngle: 25 * MathF.PI / 180
++                    )
++                )
++            )
++        );
++        Entity camera = world.Spawn(ViewIn(room, LookingAt(new(1, 1.5, 4.5), new(-0.8, 0.7, -1))));
++        scene.Add("camera", camera);
++        scene.AddView("camera");
++        world.Camera = camera;
++        return scene;
++    }
++}
+diff --git a/src/Tertius.Demo/DemoScenes.Shadows.cs b/src/Tertius.Demo/DemoScenes.Shadows.cs
+index 54fee43..e660b4c 100644
+--- a/src/Tertius.Demo/DemoScenes.Shadows.cs
++++ b/src/Tertius.Demo/DemoScenes.Shadows.cs
+@@ -78,6 +78,8 @@ public static partial class DemoScenes
+         [
+             new("spot-box", SpotBox),
+             new("pillar-room", PillarRoom),
++            new("lit-block-front", (world, resources) => LitBlock(world, resources, litBack: false)),
++            new("lit-block-back", (world, resources) => LitBlock(world, resources, litBack: true)),
+             .. HallLampCounts.SelectMany(LampHallScenes),
+             new("lamp-hall-16-hair", LampHallHair),
+             .. StarCounts.Select(stars => new Scene(
