@@ -164,9 +164,10 @@ internal readonly record struct ScreenRay(
         (float s, Vector2 crossed) = CellExit(level: 0, cell: Floor(Start), travel: travel);
         // The cell that the walk stands in, at its level: the pixel past the origin's pixel to start with.
         Vector2 cell = Floor(Start) + travel * crossed;
-        // The ray's inverse depth at s: at a crossing's s, computed from s; at an entry that a descent solved, the bound
-        // of the slab that the entry was solved for, which a computation from s would miss by a rounding that scales
-        // with StartInverseDepth, not with the slab.
+        // The ray's inverse depth at s. After a crossing, it is computed from s. After a descent from outside the slab,
+        // it is the slab bound that SlabEntry aims the entry at, also where the entry is clamped to s or to exit: a
+        // computation from s would miss that bound by a rounding that scales with StartInverseDepth, not with the slab.
+        // After a descent from inside the slab, it stays.
         float sW = InverseDepthAt(s);
         int top = Math.Min(pyramid.TopLevel, WalkTopLevel);
         int level = 0;
@@ -184,9 +185,11 @@ internal readonly record struct ScreenRay(
             float outW = InverseDepthAt(exit);
             bool meetsSlab = MeetsWalkSlab(near: near, back: back, inW: sW, outW: outW);
 
-            (float solvedEntry, float entryW) = SlabEntry(s: s, inW: sW, low: back, high: near);
+            // Only a slab that the ray meets has an entry: a ray at one inverse depth meets only a slab that holds it, so
+            // SlabEntry never divides by a StepInverseDepth of 0.
+            (float solvedEntry, float entryW) = meetsSlab ? SlabEntry(s: s, inW: sW, low: back, high: near) : (s, sW);
             // GLSL's clamp, which never throws: exit can lie a rounding below s.
-            float entry = meetsSlab ? MathF.Min(MathF.Max(solvedEntry, s), exit) : s;
+            float entry = MathF.Min(MathF.Max(solvedEntry, s), exit);
             if (meetsSlab && level > 0)
             {
                 level--;

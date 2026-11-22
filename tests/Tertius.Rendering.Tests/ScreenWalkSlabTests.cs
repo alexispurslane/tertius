@@ -72,7 +72,7 @@ public sealed class ScreenWalkSlabTests
         misses
             .Should()
             .BeEmpty(
-                "each ray reaches the sheet's inverse depth 12 to 13 pixels from its start, on the sheet ({0} of {1} missed)",
+                "each ray reaches the sheet's inverse depth 12.6 to 13.6 pixels from its start, on the sheet ({0} of {1} missed)",
                 misses.Count,
                 4 * (sheetWidth - 2 * margin) * (sheetHeight - 2 * margin)
             );
@@ -84,7 +84,7 @@ public sealed class ScreenWalkSlabTests
         // The box's slab is about 9e-9 in w, thinner than the rounding of the ray's inverse depth near its vanishing
         // point, about 3e-8 for rays that start 2 m away. Only the bound that a descent solved tells the ray's w there.
         float[] values = ProbeValues(
-            probe: "screen_walk_planet_probe.comp",
+            probe: "screen_walk_far_box_probe.comp",
             width: Width,
             height: Height,
             instance: renderer =>

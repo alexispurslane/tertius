@@ -1,7 +1,7 @@
 #version 460
 // The walk's descent onto a slab of no depth on the GPU (ScreenWalkSlabTests): from each pixel, four rays start at half
 // the depth of a sheet that faces the eye and run away from the eye in four directions across the screen. Each reaches
-// the sheet's inverse depth at s = 1, after its image crossed 12 to 13 pixels, where it descends onto the sheet's slab.
+// the sheet's inverse depth at s = 1, after its image crossed 12.6 to 13.6 pixels, where it descends onto the sheet's slab.
 // Each pixel writes the four rays' outcomes.
 #extension GL_GOOGLE_include_directive : require
 #include "screen_trace.glsl"

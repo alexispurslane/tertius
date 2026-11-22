@@ -81,9 +81,10 @@ uint walkScreen(texture2D finest, texture2D bounds, ScreenWalk walk, uint cap, o
     float s = cellExit(walk.ray, walk.inverse, floor(walk.ray.start), 1.0, walk.farSide, crossed);
     // The cell that the walk stands in, at its level: the pixel past the origin's pixel to start with.
     vec2 cell = floor(walk.ray.start) + walk.travel * crossed;
-    // The ray's inverse depth at s: at a crossing's s, computed from s; at an entry that a descent solved, the bound of
-    // the slab that the entry was solved for, which a computation from s would miss by a rounding that scales with
-    // startW, not with the slab.
+    // The ray's inverse depth at s. After a crossing, it is computed from s. After a descent from outside the slab, it is
+    // the slab bound that slabEntry aims the entry at, also where the entry is clamped to s or to exit: a computation
+    // from s would miss that bound by a rounding that scales with startW, not with the slab. After a descent from inside
+    // the slab, it stays.
     float sW = walk.ray.startW + walk.ray.stepW * s;
     int level = 0;
     int top = min(textureQueryLevels(bounds), WalkTopLevel);

@@ -98,3 +98,72 @@ Stills (reflections scene, scratch planet: a sphere of radius 3,500 km about 10,
 - before/low.png and after/low.png in /Users/alexispurslane/.t3/worktrees/tertius/t3-f57a4dae-afc864dc100ee0f6-evidence. Before: the planet's reflection on the rough strips beside the red box's reflection holds a darker band. After: that band takes the planet's blue evenly. Side by side: /Users/alexispurslane/.t3/worktrees/tertius/t3-f57a4dae-afc864dc100ee0f6-evidence/low-before-after-crop.png. 27,205 pixels differ by more than 8 of 255, at most 30.
 - before/front.png and after/front.png: the mirror strip's reflection of the planet. 24 pixels differ by more than 8 of 255. No visible change.
 - ARCHITECTURE.md, 'The walk', says what the walk stores. The two known limits of ter-186q and t53-eyrv are gone.
+
+**2026-11-22T17:18:32Z**
+
+2026-11-22, the ticket lead. Hardening, cost, lavapipe and the first review. E = /Users/alexispurslane/.t3/worktrees/tertius/t3-f57a4dae-afc864dc100ee0f6-evidence.
+
+Release suite at f6b55d811 (dotnet test --solution Tertius.slnx -c Release): 11,031 tests, 11,005 passed, 26 skipped, 0 failed (Rendering 3,300 passed, 10 skipped, 34 m 37 s at a load of 26 to 50).
+
+Two GPU tests from 4548576a1, red on the old rule by mutants S05 and S07 below:
+- ScreenWalkSlabTests.EveryRayTowardAVanishingPointThatAFarBoxCoversHitsTheBoxThereThroughTheFrontOfItsSlab (probe screen_walk_far_box_probe.comp): a box 1,000 km deep whose front is 10,000 km away fills a 64 × 36 screen. From each pixel, a ray from 2 m away runs to the middle of the center pixel, where its w reaches 0 at s = 1. Every ray beyond 2 px of the center must hit the center pixel with an entry share of 0. S05 (a descent computes w from s again, the old rule) and S07 (the entry share reads a w computed from s) fail it.
+- ScreenWalkSlabTests.ARayThatPassesBehindAWallInsideItsOwnPixelMissesTheWallsNextPixel (fourth channel of screen_walk_slab_probe.comp): S01 (the first sW is startW, not the w at the first crossing) fails it.
+
+Coverage of the changed C# lines (Debug, ScreenRayTests and ScreenWalkTests, tools/coverage/changed-lines.py): lines 11/11, branches 2/2. The GLSL lines have no coverage tool. The mutants below cover them.
+
+Mutants (tools/mutate.py, list $E/mutants/list.json, runs $E/mutants/out, out2, out3, out4). Each row gives its last valid run. In run out2, from S02 on, the Vulkan driver was missing (vkCreateInstance failed: ErrorIncompatibleDriver: the dev shell's MoltenVK store path was gone and was built again). So those rows ran again in out3. S11 timed out in out3 at a load of 68, and it ran again in out4.
+
+| id | place | change | result | killed by |
+|---|---|---|---|---|
+| C01 | ScreenRay.cs:170 | first sW: the w at 0, not at s | killed | ScreenWalkTests+RandomRays (binary fractions, sheets, solid) |
+| C02 | ScreenRay.cs:185 | cell test reads a w computed from s | killed | ScreenRayTests.EveryFloorPixel...ThroughTheFrontOfItsSlab, ScreenWalkTests+RandomRays.OnSheetSlabs... |
+| C03 | ScreenRay.cs:187 | entry from a w computed from s | killed | same two |
+| C04 | ScreenRay.cs:196 | descent computes w from s (the old rule), as InverseDepthAt(entry + 0 * entryW) | killed | same two |
+| C05 | ScreenRay.cs:196 | descent keeps the earlier sW (_ = entryW) | survived | judgment call, below |
+| C06 | ScreenRay.cs:203 | entry share from a w computed from s | killed | ScreenRayTests.EveryFloorPixel...ThroughTheFrontOfItsSlab |
+| C07 | ScreenRay.cs:208 | crossing keeps the earlier sW | killed | ScreenWalkTests+RandomRays (three tests) |
+| C08 | ScreenRay.cs:287 | entry from in front gives the back | killed | ScreenRayTests.ARayFromANearFloorHitsAPlanetAtItsVanishingPoint and others |
+| C09 | ScreenRay.cs:289 | entry from behind gives the front | killed | ScreenWalkTests+RandomRays (three tests) |
+| C10 | ScreenRay.cs:290 | inside: w computed from s | killed | ScreenRayTests.EveryFloorPixel..., ScreenWalkTests+RandomRays.OnSheetSlabs... |
+| S01 | screen_walk.glsl:87 | first sW: startW | killed | ScreenWalkSlabTests.ARayThatPassesBehindAWallInsideItsOwnPixelMissesTheWallsNextPixel |
+| S02 | screen_walk.glsl:104 | in-front test reads a w computed from s | survived | judgment call, below |
+| S03 | screen_walk.glsl:105 | behind test reads a w computed from s | killed | ScreenWalkSlabTests.EveryRayThatDescendsOntoASheetThatFacesTheEyeHitsIt |
+| S04 | screen_walk.glsl:110 | entry from a w computed from s | killed | same |
+| S05 | screen_walk.glsl:117 | descent computes w from s (the old rule) | killed | ScreenWalkSlabTests far box and sheet tests |
+| S06 | screen_walk.glsl:117 | descent keeps the earlier sW | survived | judgment call, below |
+| S07 | screen_walk.glsl:125 | entry share from a w computed from s | killed | ScreenWalkSlabTests far box test |
+| S08 | screen_walk.glsl:130 | crossing keeps the earlier sW | killed | ScreenTraceRenderTests.InAClosedBoxTheDiffuseLightRisesWithNoOvershootTowardTheSumOfTheBounces |
+| S09 | screen_ray.glsl:166 | entryW computed at the solved entry | killed | ScreenWalkSlabTests sheet test |
+| S10 | screen_ray.glsl:166 | inside: entryW is a bound | killed | ScreenTraceRenderTests.AMirrorFloorShowsAGlowingPanelAtThePlaceOfItsMirrorImage |
+| S11 | screen_ray.glsl:166 | outside: entryW is inW | survived | equivalent to S06, below |
+
+21 rows: killed 17, timeout 0, survived 4, no-coverage 0, build-failed 0. (C04 and C05 first failed to build, because they left entryW unused, IDE0059. They were rewritten to keep it read.)
+
+The triage of the four survivors:
+- C05 and S06, judgment call. After a descent from in front, the earlier sW lies in front of the parent's slab, so at or in front of the child's front. The stored bound gives the same in-front, behind and entry-share results, except in one tie: the child's front equals the parent's front and the w computed at the child's exit rounds in front of it. Then the earlier sW lets the ray cross into the next cell of the same surface and hit there, one pixel on. The same holds from behind. No constructed ray reaches that tie on purpose. The walk keeps the bound because it is the ray's true w at s, which ARCHITECTURE.md states.
+- S11, equivalent to S06. With entryW = inW on both sides of the select, a descent leaves sW at its earlier value on every path, as S06 does.
+- S02, judgment call. The in-front test differs from the original only in the same tie as C05. The behind test of the same line (S03) and the entry (S04) are killed.
+
+The walk's cost, on the cloud's RTX 2000 Ada, because the Mac's 1-minute load stood at 100 to 170 in the morning, by the line orchestrator's answer. One job (efbaae12-8168-4ccb-9eb8-c706c33f5005-u1, 276 s, $0.0553 by the log) ran cloud-cost.sh's method for the deck (scripts/temporal-upscale-timing.json) and rect-lamps (scripts/ter-kh4g-rect-lamps-timing.json): one automatic-exposure run of main, then six interleaved rounds of main 821481a5c and the branch f6b55d811 at that fixed exposure. The table gives the median GPU frame span without the capture pass, in ms, over rounds 2 to 6 (cost_report.py cloud):
+
+| Scene | Stops | Main: mean (spread) | Branch: mean (spread) | Branch minus main (lowest to highest round) | Reflection rays, branch minus main |
+|---|---:|---|---|---|---:|
+| Deck | 0.7153527 | 8.521 (0.031) | 8.539 (0.012) | +0.018 (+0.006 to +0.034) | +0.013 |
+| rect-lamps | 3.86539235 | 7.039 (0.028) | 7.045 (0.024) | +0.006 (−0.012 to +0.020) | +0.008 |
+
+Both differences lie inside main's run-to-run spread. The reflection-ray pass is 0.008 to 0.013 ms slower in every round, and the diffuse rays 0.005 ms faster. A Mac take was started at a load of 6 and stopped unrun, because another agent's test suite held the GPU lock for more than 16 minutes.
+
+Lavapipe (ScreenWalkBoundaryTests and ScreenWalkSlabTests, Mesa 26.2.4 llvmpipe, through lavapipe-tests.sh in cloud CPU jobs): main 821481a5c 14 tests, 1 failed; f6b55d811 15 tests, 1 failed; 4548576a1 17 tests, 1 failed (job 417681a9-e044-453f-8f00-b8bd79a39765-u2, $0.0061). The failure is always ScreenWalkBoundaryTests channel 3, which t70-0pr5 item 1 holds. The three new walk tests pass on lavapipe.
+
+Film: the band of the before still stands still. 180 frames of the low view at one fixed exposure (-8.104065 stops, the median of the before still's exposure.json), main and branch, each with the scratch planet: the mean of the band region (x 100 to 560, y 440 to 580) stays at 122.1 to 122.4 of 255 on main and 129.3 to 129.6 on the branch, with a frame-to-frame change of 0.16 on both. So stills show it, and no video is needed. First and last frames: $E/film-main/ and $E/film-branch/.
+
+The first review (reviewer task 04313fae): correctness pass, design pass, fulfillment unverified for missing records. Its findings and what became of them:
+1. Gap: no Release run and no run at HEAD recorded. Recorded here, and the suites ran again at the final code (below).
+2. Gap: the new tests had not run on lavapipe. Run at 4548576a1 (above) and again at the final HEAD (below).
+3. Nit, the comments on sW: fixed in both copies and in ARCHITECTURE.md. sW is the bound after a descent from outside the slab, also where the entry is clamped to s or to the exit, and it stays after a descent from inside.
+4. Nit, the probe's name: renamed to screen_walk_far_box_probe.comp, as the test calls the box.
+5. Nit, the C# SlabEntry ran on every step and divided by a StepInverseDepth of 0 where the ray does not meet the slab (the result was dropped). Fixed: the C# walk calls SlabEntry only for a met slab, as before the fix. The guarded input is a ray at one inverse depth (StepInverseDepth exactly 0) at a cell whose slab it does not meet. Tests reach it: with a throw on that input and no guard, six ScreenWalkTests failed (for example BehindABlockAWalkTakesFewerStepsThanTheMarchTestsPixels and OverEmptySpaceAWalkTakesFewerStepsThanThePixelsItCrosses). With the guard and the same throw, the 24 tests of ScreenRayTests and ScreenWalkTests passed. So a ray at one inverse depth meets only a slab that holds it, and SlabEntry never divides by 0. GLSL already guards it in parameterAt.
+6. Nit (optional), an (s, w) pair type: rejected. Each copy writes s and sW together on three adjacent lines, and a pair type adds one type to each copy for three writes. The reviewer accepted the locals.
+7. Nit, "12 to 13 pixels": fixed to "12.6 to 13.6 pixels", the lengths of the four steps.
+
+Checked suite at the final code (the nit fixes on 4548576a1): 11,046 tests, 11,020 passed, 26 skipped, 0 failed (Rendering 3,303 passed, 10 skipped, 40 m 17 s at a load of 40 to 130).
