@@ -192,3 +192,24 @@ Measured, M3 (main a819b10b2) / X3: sizes above 0.08: 32 / 35. Sizes above 0.06:
 Result: the teeth are the same on both codes. Design X adds no leaking size of its own; it sits a little higher on a few teeth. My reading: the leaked light is the same fault of main on both sides, and Design X's wider clamp keeps a little more of its bright samples at a held size.
 
 The fix branch's build W from 839bce1b5: its probe patch and scratch-dynamic-scale.patch apply unchanged; 0 warnings, 0 errors; disk 34.0 GiB free. W's ramp runs next, then the window test (no field-of-view switch exists, so the cheap form with the widths 1784, 1792, 1808, 1816 at the height 1008), then the wobble's before and after.
+
+**2026-11-22T19:20:51Z**
+
+The size ramp on the wobble fix's branch and the window test, from the combined check's lead, 2026-11-22. Side W = t3/fix-projection-aspect-wobble at 839bce1b5 (step 1 of ter-qt72), build wr with its probe patch and scratch-dynamic-scale.patch, both unchanged. Pictures in the lead's worktree t3-52bfcd29-81249085ce80dd9f under docs/research/t0-gbgj-combined-check/pics: ramp-W.png and window-1800x1008-M3-W.png. I looked at both.
+
+Measured, the ramp on W (181 sizes, 40 draws each, played-back sizes equal the replay): 0 sizes above 0.08 and 0 above 0.06, against 74 without the layer, 32 on M3 (main a819b10b2) and 35 on X3. Largest jamb mean 0.0468 (right, 1088 x 616); median of the larger jamb per size 0.0441. At 1800 x 1008 W gives 0.0441 / 0.0439 where M3 gives 0.2298 / 0.2420. Settle check: 1344 x 752 right 0.0446 then 0.0443; 1920 x 1080 right 0.0447 then 0.0443.
+
+Measured, the window test (the ramp's view, the render scale held at 1 through the replay so that the render size equals the window, 40 draws; crop boxes scaled by x' = W/2 + (x - 960) * H/1080, y' = y * H/1080, checked on the frame), right / left jamb mean:
+- M3 1800 x 1008 (aspect error +0.45 %): 0.0977 / 0.0582
+- M3 1920 x 1080 (0): 0.0436 / 0.0435
+- M3 1784 x 1008 (-0.45 %): 0.0437 / 0.0437
+- M3 1792 x 1008 (0): 0.0438 / 0.0433
+- M3 1808 x 1008 (+0.89 %): 0.0435 / 0.0431
+- M3 1816 x 1008 (+1.34 %): 0.0510 / 0.0591
+- W 1800 x 1008: 0.0977 / 0.0582
+- W 1920 x 1080: 0.0436 / 0.0435
+No field-of-view switch exists, so the cheap form with window widths ran.
+
+Results: the back-face line's reading holds in its main point. A window whose own shape is off 16:9 by +0.45 % leaks with no dynamic scale, and it leaks the same on the fix's branch (equal to four decimals). So the ramp's zero on W means "hidden at 16:9", not "cured". The fix pins the aspect at the window's, and a window off 16:9 can sit on a tooth all the time. Against the predictions: 1792 and 1808 on the floor as predicted; 1816 above the floor and under the threshold, near a tooth as predicted; 1784 on the floor against the prediction of a tooth near -0.34 % (sizes between were not tested). The leak in the window (0.098 right) is weaker than at the same render size on the ramp (0.230), where FSR upscales 1800 x 1008 to 1920 x 1080.
+
+Tool defect, small: ramp.png scales its axis to the largest mean, so a ramp without a leak draws no threshold line (ramp-W.png ends near 0.05).
