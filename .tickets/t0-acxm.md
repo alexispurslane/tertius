@@ -183,6 +183,24 @@ One cheap measurement, after the timing spike, as a scratch patch on the product
 
 The room's takes stay blocked: the shadow fix now waits for wider variants of its filter, which Alexis asked for.
 
+**2026-11-21T23:12:12Z**
+
+Timing spike of the region drift pass (remedy lead, 2026-11-21). Base: the line's head 8ec383c6e. Each side is a Release demo at 1920x1080, --in-flight 2, under the exclusive GPU lock, beside gpu-clock (1296 MHz in every run). Each round runs the deck (scripts/temporal-upscale-timing.json) and the film rect-bay, for each side alone. A difference is the side's medianMs minus base's in the same round. The spread is the largest minus the smallest difference of the four rounds. The budget is +0.10 ms on the deck.
+
+| Side | What it records | Rounds | Deck | Film |
+|---|---|---|---:|---:|
+| plain | the tap store, and a region pass of 17 × 17 imageLoads per block, for both signals | r2 to r5 | +0.271 (spread 0.082) | +0.289 (spread 0.062) |
+| box | the tap store, and a region pass with a box sum in two steps through shared memory, for both signals | b1 to b4 | +0.254 (spread 0.196) | +0.270 (spread 0.113) |
+| box again | the same binary | c1 to c4 | +0.242 (spread 0.127) | +0.202 (spread 0.069) |
+| off | the tap store only, no region pass | b1 to b4 | +0.080 (spread 0.203) | +0.073 (spread 0.100) |
+| one | the tap store, and the box region pass for the diffuse signal only | c1 to c4 | +0.133 (spread 0.181) | +0.209 (spread 0.103) |
+
+The side "one" is the least that one dispatch for both signals can cost: one dispatch and one barrier flush. A single dispatch for both signals also does the work of both, so it costs at least as much. So all three ways of the design miss the budget. The box sum costs about what the plain loop costs, so the pass's arithmetic is not the cost. The cost is mostly fixed: each region dispatch and its barrier flush cost about 0.06 to 0.13 ms on MoltenVK, and the tap store about 0.08 ms.
+
+This is the fork that the brief names. I stopped there. The record: docs/research/t0-acxm-region-evidence/spike/ holds plain.patch, box-and-switches.patch (with the SCRATCH switches off and one) and timing.txt. The tools are in the folder's tools/.
+
+A way out that the brief does not list, not built: fuse the region test into the spatial dispatch. Each spatial workgroup is one block of 8 × 8 pixels. So each workgroup can sum the 17 × 17 taps around it, about 5 loads per invocation, then update and test its own ring, and share the bit through shared memory. The taps go into the barrier that already runs before the spatial dispatch. So the fused test adds no dispatch and no barrier flush. Its expected cost is near the side "off", about +0.08 ms, plus the workgroup's sum. No other workgroup reads a block's ring, so the ring needs no barrier.
+
 **2026-11-21T23:13:10Z**
 
 Fork of the timing spike, and my answer (line orchestrator, 2026-11-21 18:15). The lead's spike, four rounds per side on the Mac against the line's head, record at 1c7712b49 on t3/fix-retained-rounding-weight (docs/research/t0-acxm-region-evidence/spike/):
@@ -193,6 +211,29 @@ Fork of the timing spike, and my answer (line orchestrator, 2026-11-21 18:15). T
 So the work in the pass is not the cost. Each compute dispatch with its barrier costs about 0.06 to 0.13 ms on MoltenVK. The budget of +0.10 ms fails in every listed form.
 
 My answer: the fused design, which the lead proposed. The region's test runs inside the spatial dispatch: the workgroup of a block sums its 17 x 17 taps over its 64 invocations in a fixed order, updates and tests its own ring, and shares the result with the block's level. This replaces flows 2 and 3 of part 1. The separate pass and the region evidence image are not built. The ring's owner is the spatial dispatch, which is the one reader of the evidence, and the evidence is of the same draw. The test's knowledge stays in one include. The budget stays +0.10 ms on the deck, measured with at least eight rounds and paired differences, because the spike's spreads are as large as the budget. If both signals miss it, the bounce light alone is taken with the film as its check. If that misses, the lead stops and reports.
+
+**2026-11-22T01:47:04Z**
+
+Timing of the fused form (remedy lead, 2026-11-21), after the settlement of the fork. The region's test runs inside the spatial dispatch. The separate pass and the region evidence image are gone. Base: the line's head 8ec383c6e, as in the first spike. Each round waits until the machine's load over one minute is below 8 or 10, and the table gives the load beside each run (tools/table.py). The budget is +0.10 ms on the deck, for both signals.
+
+Three forms ran:
+- serial: each invocation sums its share of the 17 × 17 taps into its own slot. Invocation 0 adds the 64 slots and runs the ring's test alone, while the other 63 wait. Two barriers.
+- parallel: 8 invocations each add 8 slots, and 12 invocations each add 3 of the ring's draws. Invocation 0 adds those parts. The older window's sums subtract its first draw, so that the spread keeps its precision. Three barriers. Every sum has a fixed order.
+- parallel, bounce light only: the same binary with TERTIUS_SPIKE_REGION=one, which skips the test of the reflections through a sentinel ring slot.
+
+| Side | Rounds at low load | Deck | Film rect-bay |
+|---|---|---:|---:|
+| serial | f2, g2 to g4 | +0.347, then +0.397 / +0.402 / +0.287 | +0.314, then +0.190 / +0.273 / +0.162 |
+| parallel, both signals | g2 to g9 (8) | +0.274 (spread 0.102) | +0.139 (spread 0.138) |
+| parallel, bounce light only | g2 to g9 (8) | +0.174 (spread 0.142) | +0.287 (spread 0.149) |
+
+Round g1 ran at a load of about 23 and scattered (+0.44 to +0.55 ms). It is in timing.txt and left out of the medians. Every run's clock was 1296 MHz.
+
+Both orders of the settlement miss the budget. The fused form for both signals costs +0.274 ms on the deck. The fused form for the bounce light alone costs +0.174 ms. The tap store alone cost +0.080 ms in the first spike. So the test inside the spatial dispatch costs about 0.09 ms per signal above the taps.
+
+The film's numbers are not a pure cost. The bounce-only side costs more in the film than the side with both signals. The film's light moves, so the reflections' region evidence there changes the work of the passes after it. The deck is the budget's measure.
+
+The record: docs/research/t0-acxm-region-evidence/spike/ holds fused-serial.patch, fused-parallel.patch (with the scratch switch one) and the tables in timing.txt. I stopped there, as the settlement says, and took no film take of the bounce-only form. The src changes stay uncommitted in the worktree.
 
 **2026-11-22T01:52:39Z**
 
@@ -242,3 +283,166 @@ Answer 15: the region's test belongs to the bounce light only. Reasons: the same
 Answer 16, on the review's finding 2 (region evidence replaced the anti-lag, so a pixel far outside the box kept 8 draws in a moved region and 4 outside it): build the reviewer's form min(FullRateFrames, the anti-lag's length), so that region evidence only ever shortens a history, and keep it by a measured rule against the settled form: last-frame specks at or under main's 0.89, flicker under the limit, level and lag error no worse, film span at most +0.30 ms above the settled form's, deck inside the budget. If one fails, the settled form stays, with the reason in the code: below FullRateFrames a pixel traces its own ray, and from 9 draws a clamp move of 11 % of antiLagShare is enough.
 
 The lead fixes the review's finding 1 unasked: under a dynamic render scale the ring is sized for the largest render size, so edge blocks read anchors that no workgroup writes, and a step of the scale does not restart the count.
+**2026-11-22T05:19:04Z**
+
+The anchored form: timing and build (remedy lead, 2026-11-21), after the settlement of the second fork. The region's test runs only at anchor blocks, every 8th block in x and in y. Base: the line's head 8ec383c6e. The tables are in docs/research/t0-acxm-region-evidence/spike/timing.txt.
+
+Timing on the deck, GPU frame span against base, 8 paired rounds per side, with the load beside each run:
+
+| Side | Rounds | Deck | Film rect-bay |
+|---|---|---:|---:|
+| anchored, each block reads its anchors in one thread | h1 to h8 | +0.135 (spread 0.114) | −0.070 |
+| anchored, test off | h1 to h8 | +0.010 (spread 0.092) | +0.009 |
+| anchored, the read in 9 threads | k1 to k8 | +0.115 (spread 0.092) | −0.066 |
+| the same, with the scratch switches compiled in | m1 to m8 | +0.061 (spread 0.099) | −0.084 |
+| the same two side by side | n1 to n8 | +0.088 and +0.094 | −0.076 and −0.076 |
+| bounce light only | m1 to m8 | +0.010 (spread 0.146) | +0.153 |
+| every block's read, no anchor update | m1 to m8 | +0.022 (spread 0.133) | +0.024 |
+
+Pooled over the 29 runs of the read in 9 threads whose loads were both under 8: deck +0.091 ms (quartiles +0.056 and +0.123), film −0.078 ms. That fits the budget of +0.10 ms. The queues scatter between +0.06 and +0.12 ms at the same load, so one queue of 8 rounds does not settle a difference of 0.02 ms. The film is cheaper than base because the evidence cuts histories while its light moves.
+
+Why the read runs in 9 threads. In the first anchored build, invocation 0 read up to 9 ring texels one after another, with an early return, while the other 63 invocations waited at the barrier. Every one of the 14,400 workgroups paid that latency. Now invocation k reads candidate k, and the answers merge through the atomicMax that the level already uses. A maximum does not depend on the order. The signature changed for it: regionAnchorMovedBefore(block, candidate) in place of regionLightMovedBefore(block).
+
+What the build differs in from the settlement's sketch:
+- A block on an anchor's row or column lies in the regions of up to 9 anchors, not 4, because a region reaches exactly one step. The read covers all of them.
+- The tap reads sampleImage, surfaceTest and gbufferDistance at each block's tap pixel in the spatial dispatch. So the blockLight image and storeRegionTap are gone, and the temporal dispatch is main's again. The tap skips limitIncomingEstimate: it is a prototype that is off by default (specialization constant 9), and with it off it returns the sample unchanged.
+- The light-age variant covers the spatial dispatch alone again, as before the remedy.
+- The ring is RGBA32F at the anchors' resolution, 36 layers: r the region's light, g the count of valid draws, b the answer. At 1280 × 720 that is 20 × 12 anchors, 138 KB per signal.
+- The older window's sums subtract its first draw, so that the spread keeps its precision when it is small beside the light.
+
+Red and green. The tests ran red with TERTIUS_SPIKE_REGION=off, the scratch switch that runs no region test. Six failed. Five failed for the missing feature: no history was cut to 8 draws, the falling light trailed at 0.647 against 0.5, and no anchor's ring showed a move. The sixth was my own test's count of the layout: a light age adds 2 storage images to the accumulator, the sample age and the ring, not 3. I fixed that test. The tests of absence and of precedence passed red, as they must: a still region, a camera move, the exposure, a moving surface, a block outside every moved anchor, the growth back to the cap, motion above the region and light above the region. Their kill comes from the mutants.
+
+Green: 40 of 41. The trail test's bound was wrong. I took the lag of a box mean of 8 draws, 3.5 draws. A history held at 8 draws blends at the weight 1/9, and a mean of that weight trails a steady fall by 8 draws. The test measured 0.5407, 8.1 draws. Its new statement: the history trails the fall by at most 9 draws.
+
+The scratch switches are out of src. docs/research/t0-acxm-region-evidence/spike/switches.patch puts them back for the takes: TERTIUS_SPIKE_REGION=one (bounce light only), off, and reads.
+
+The full Checked suite after green found 25 failures in Rendering, of two kinds.
+
+1. A bug of the test, fixed: a constant history was cut to 8 draws. Twenty of the failures were constant reflection histories that must grow past 2,048 frames. With samples of exactly one light, the older window's spread is exactly 0, so the tolerance is 0. The newer mean then summed the same 18 values in another order than the older one, so the two means differed in the last bit, and that passed the tolerance. Now every sum of the test subtracts the older window's first draw, so equal draws give a difference of exactly 0. The tests of the precise history pass again.
+
+2. False evidence in a still view, which the design accepts at about 1 % of block draws. A probe read the rings over the 64 still draws of LightAgeHistoryTests: the reflections' region light swings between 0.24 and 0.46 from draw to draw, a spread of about 15 %, with one tap per block. Their test fired at draws 44 and 45, so 2 of the 28 draws that it tested. The bounce light's fired in none. The cut left the reflections near 26 draws at draw 64. Three tests changed for it, each with its reason in a comment:
+- LightAgeHistoryTests.ByDefaultALastingDimmingOfTheEmitterCutsTheReflectionHistoryToTheFastCap and ACutHistoryGrowsBackWithTheAgeOfTheLight: their precondition, a warm history longer than 32 draws, is now longer than FullRateFrames. That keeps their statement: only light evidence cuts such a history to the fast cap. TheCappedPreciseHistoryAlsoFallsToTheFastCap already uses 8.
+- ScreenTraceRenderTests.TheBounceLightOfALitPoolKeepsItsEdgeWithRealRays: the filtered light still rises over 37 pixels, but the unfiltered slow history now rises over 27 and not 31. Region evidence cuts it to 8 draws now and then in that still view, and a shorter history follows the real edge more closely. The bound, which holds the measured width until the user decides (t0-anp3), is now unfiltered + 10.
+
+So the reflections' region test fires falsely in a still view at a rate well above the bounce light's in this scene. That bears on whether the reflections' test earns its 0.08 ms. The bay takes measure the side with the bounce light only beside the side with both.
+
+The full Checked suite after these fixes: every project green. Core 1,207, Simulation 2,007, Physics 1,492 passed (8 skipped), Rendering 3,313 passed (11 skipped) of 3,324, Host 2,072 passed (8 skipped), Unions 59, Style 276, Slop 597.
+
+**2026-11-22T06:20:40Z**
+
+The bay takes after the merge of the line's head with the shadow fix (remedy lead, 2026-11-22). Record: docs/research/t0-acxm-region-evidence/README.md. Every side holds the fix: M is main c4c1f1f2f, B the build c98d3d2da, B1 the build with the region's test for the bounce light only (spike/switches.patch, TERTIUS_SPIKE_REGION=one), B6 the scratch cut to 6 draws (cut6.patch), A the clamps-off reference. The build sides take probe-acxm.patch, the survey's probe fitted to the push constant regionSlot.
+
+Film rect-bay, middle / last frame:
+
+| Side | Level | Blotch | Specks | Flicker |
+|---|---|---|---|---|
+| M | +1.17 / +0.53 | 0.238 / 0.231 | 0.18 / 0.89 | 0.00204 |
+| B | +0.84 / +0.28 | 0.180 / 0.162 | 0.21 / 1.07 | 0.00263 |
+| B1 | +0.85 / +0.29 | 0.187 / 0.162 | 0.22 / 0.27 | 0.00273 |
+| B6 | +0.56 / +0.22 | 0.129 / 0.123 | 0.39 / 2.23 | 0.00341 |
+
+Lag film bay-sun, median lag / lag error: M 28.3 draws / 0.270, B 12.7 / 0.150, B1 14.0 / 0.150. Stills, daub against A: bay-sunbeam M 0.0311, B 0.0228, B1 0.0225; exit-cabin M 0.0273, B 0.0167, B1 0.0166.
+
+Timing, 8 paired rounds, loads 4.05 to 7.48, 1296 MHz: B − M deck +0.279 ms (spread 0.072), film −0.245; B1 − B deck −0.026 (spread 0.106), film +0.223; B6 − B deck +0.003 (spread 0.060), film −0.052.
+
+GPU trace of the deck, line's head 36c3fd0e8 against B (--no-counters, with TERTIUS_DIFFUSE_FILTER=on for t0-8jfj): mean frame span +0.036 ms, median +0.068 ms. The rise lies in accumulate indirect diffuse (+0.040 ms) and accumulate indirect specular (+0.049 ms), the passes of the two spatial dispatches. No pass after the reflections' spatial dispatch rose, so the false-fire share on the deck was not measured.
+
+The cut to 6 draws: level and flicker pass, and the span is within budget, but its last-frame specks are 2.23 against the bar of 1.28. So the cut stays at 8 draws, and src does not change for it.
+
+Against main, B is better in level, blotch, lag and daub, and worse in the film's last-frame specks (1.07 against 0.89) and flicker (0.00263 against 0.00204, limit 0.006). The trail is not closed: the last frame is still 28 % too bright. B1 has the same level and lag error as B with 0.27 last-frame specks. The choice between B and B1 is the orchestrator's.
+
+**2026-11-22T07:26:33Z**
+
+Hardening of the remedy (remedy lead, 2026-11-22).
+
+Coverage: Rendering's tests in Debug with coverage, against 36c3fd0e8: the changed C# lines 30/30 covered, branches 30/30. The run passed 3,318 tests (11 skipped).
+
+Mutants: one tools/mutate.py list of 36 (docs/research/t0-acxm-region-evidence/mutants/list.json, from tools/mutants.py). No Stryker: the remedy changed no line of Core, Simulation or Physics. The first run killed 24 and 12 survived. Six new tests in AccumulatorRenderTests+RegionDrift kill 7 of them, and C05 was a list error (its test lies in the nested class EvidenceUnderEachHistory). The rerun (mutants/rerun.json) killed all 8.
+
+| id | line | change | result |
+|---|---|---|---|
+| R01 | region_drift.glsl:46 | anchors where any coordinate is a multiple of 8 | killed by AnAnchorsRingHoldsTheMeanOfTheTapsOfItsOwnRegion (new) |
+| R02 | :58 | layer two draws before | killed |
+| R03 | :73 | no reset check in regionAnchorMovedBefore | equivalent: at a reset draw every history restarts below the fast cap, so no evidence level acts in that draw |
+| R04 | :76 | candidate % 2 | killed by ABlockOneStepFromAnAnchorTakesThatAnchorsEvidence (new) |
+| R05 | :75 | first anchor rounded down | killed |
+| R06 | :77 | last anchor one block further | killed by ABlockMoreThanOneStepFromAnAnchorDoesNotTakeThatAnchorsEvidence (new) |
+| R07 | :80 | answer inverted | killed |
+| R08 | :121 | a tap outside the images counts as inside | killed |
+| R09 | :124 | a tap without a surface counts | killed by ARegionWhoseTapsShowASurfaceInLessThanHalfHasNoValidDraw (new) |
+| R10 | :125 | a moving surface's tap counts | killed |
+| R11 | :127 | no division by the exposure scale | killed |
+| R12 | :135 | every tap must count | killed by ARegionWhoseTapsShowASurfaceInAtLeastHalfGivesEvidence (new) |
+| R13 | :136 | count of valid draws without its cap | equivalent: the count only meets the test "< 36", which it passes in the same draws without the cap, and a float counts whole draws exactly up to 2^24 |
+| R14 | :160 | test from 18 valid draws | killed |
+| R15 | :32 | DriftSigmas 2 | killed |
+| R16 | :171 | sqrt(1 / W) | killed |
+| R17 | :170 | spread divided by W, not W − 1 | judgment: it narrows the tolerance by 3 %, which moves a still region's fire rate by less than the scatter of a count over 400 draws, so a test would need thousands of draws |
+| R18 | :162 | newer sum without the shift | killed |
+| R19 | :186 | region shifted by one block | killed |
+| R20 | :188 | oldest ring layer not read | killed |
+| R21 | :194 | each adder drops one slot | killed by the new validity test (rerun) |
+| R22 | :201 | older window one draw newer | judgment: the windows then overlap by one draw, and the evidence ends about one draw sooner after a stop; a test that pinned that draw would test the window's constant, not a behavior |
+| R23 | :215 | newer window takes the draw 18 back | killed |
+| R24 | :225 | no reset of the count | killed by AfterACameraCutARegionGivesNoEvidenceUntilBothWindowsHoldOnlyDrawsAfterIt (new) |
+| R25 | :228 | answer never stored | killed |
+| R26 | :206 | squares changed | killed |
+| S01 | accumulate_spatial.comp:52 | no anchor update | killed |
+| S02 | :60 | region evidence as motion evidence | killed |
+| S03 | :165 | cut to 7 draws | killed |
+| S04 | :25 | RegionEvidence above LightEvidence | killed |
+| C01 | GpuTypes.cs:844 | slot modulo 35 | killed |
+| C02 | TemporalSignal.cs:450 | ring left out of the barrier | killed |
+| C03 | TemporalSignal.cs:501 | anchors rounded down | killed |
+| C04 | TemporalSignal.cs:747 | ring fit to the pixel extent | killed |
+| C05 | TemporalSignal.cs:562 | ring for a signal without a light age | killed in the rerun by a crash of the test host (exit 139): the signal set then writes binding 13, which that layout lacks |
+| C06 | DescriptorLayouts.cs:1272 | layout without binding 13 | killed |
+
+The first run took 1,878 s and the rerun about 8 minutes.
+
+## Note 2026-11-22: the settlement's changes, the anti-lag rule, and the hardening of the changed lines
+
+The line's settlement of 2026-11-22 decided two things. The region's test runs for the bounce light only, and the anti-lag under region evidence stays if a measured rule holds. Commit `8c3f34e99` builds both, and it closes the review's finding on the dynamic render scale: a draw continues the anchors' draws only with no reset and the same render size (`regionContinues`), and no block reads an anchor beyond the last one that the draw covers (`lastRegionAnchor`). The record `docs/research/t0-acxm-region-evidence/README.md` holds every number below.
+
+The anti-lag rule. Sides: L = the line's head `36c3fd0e8`, R = the reviewer's form `min(antiLagged, FullRateFrames)`, S = the settled form `min(L, FullRateFrames)` (`settled-antilag.patch`). Takes from 03:16 to 03:27, 8 timing rounds from 03:27 to 03:35 at loads 1.87 to 4.96, all at 1296 MHz.
+
+| Point | R | S | Holds |
+|---|---|---|---|
+| 1. Last-frame specks ≤ 0.89 (main), flicker < 0.006 | 0.27, 0.00273 | 0.27, 0.00273 | yes |
+| 2. Level and lag error no worse than S | +0.85 / +0.29, 0.150 | +0.85 / +0.29, 0.150 | yes, the same images |
+| 3. Film span against S ≤ +0.30 ms | +0.012 ms (spread 0.047) | | yes |
+| 4. Deck against the line ≤ +0.10 ms | +0.044 ms (spread 0.105) | +0.038 ms (spread 0.060) | yes |
+
+So `src` keeps R. L's film: level +2.11 / +2.27, lag 40.6 draws, lag error 0.354, flicker 0.00098, last-frame specks 0.09.
+
+The mutants of the changed lines (`mutants/list-2.json`, `tools/mutate.py`, 728 s, then M11 again after the new test):
+
+| id | line | change | result |
+|---|---|---|---|
+| M01 | region_drift.glsl:66 | continues without the render size check | killed by AfterTheRenderSizeFallsNoBlockTakesAnAnswerThatNoAnchorGaveAtThatSize |
+| M02 | :66 | continues without the reset check | killed by AfterACameraCutARegionGivesNoEvidenceUntilBothWindowsHoldOnlyDrawsAfterIt |
+| M03 | :73 | block count rounded down | judgment: with FSR the render size is a multiple of 8, so this differs only without upscaling at a size of 64k + 1 to 64k + 7 pixels, and there the anchor 8 blocks before still covers every block of the last column |
+| M04 | :74 | last anchor one further | killed by the render size test |
+| M05 | :93 | last anchor from the ring's size | killed by the render size test |
+| M06 | :242 | count of the draw before read after a size change | killed by the camera cut test |
+| M07 | accumulate_spatial.comp:173 | the cap alone (the settled form) | killed by UnderARegionEvidenceTheAntiLagStillShortensAHistoryBelowTheRegionsCap |
+| M08 | :173 | the anti-lag alone, no cap | killed |
+| M09 | Tertius.Rendering.csproj:152 | no TERTIUS_REGION_DRIFT | killed |
+| M10 | TemporalSignal.cs:258 | the reflections test too | killed by AMovedRegionDoesNotShortenTheReflectionsHistory |
+| M11 | :258 | the bounce light tests without a light age | survived at first; killed by BesideTheOriginalSpecularHistoryTheBounceLightKeepsNoRegionRing (the old ring test now names the bounce light), by a crash of the test host (exit 139): the set then writes binding 13, which that layout lacks |
+
+The new review of the changed parts (one reviewer, Opus at high effort) found one bug, two test gaps, two doc mismatches and one nit. The fixes:
+
+- Bug: a change of the camera's frame on the draw of a render size change hid the size change, because `PendingFrame.PreviousRenderSize` gave this draw's own size where the draw continued no frame. `regionContinues()` then returned true, and blocks read the old size's answers. The previous render size is now the last drawn frame's, in whichever frame its camera was, as `docs/plans/temporal-renderer.md` already says. That also corrects the other readers of `frame.previousViewport`, which read the last draw's images at that size. Test: AfterTheCamerasFrameChangesThePreviousRenderSizeIsStillTheLastDrawnFramesSize (red first).
+- Test gap: AMovedRegionDoesNotShortenTheReflectionsHistory now stands two windows after the fall, checks that the reflections' histories grow past FullRateFrames there, so that a region cut would show, and then that no draw cut one to exactly FullRateFrames.
+- Test gap: M03 stays a judgment call (the table above).
+- Doc mismatches: the two detectors' comments now say that they miss a cut that the anti-lag takes below FullRateFrames. Four shader comments are fixed: the ring is the bounce light's only, region evidence caps the anti-lag's length, the last adder adds 2 draws, and the render scale is 2/3.
+- Nit: `TestsRegionDrift` is now false for the single-history prototype, whose spatial dispatch has no light-age variant. Test: ThePrototypesSingleBounceHistoryKeepsNoRegionRing.
+
+A bug that the run of the changed classes showed: three test classes set a process-wide switch from the GPU collection, so the tests beside them read it. NeighborLimiterPrototype sets TERTIUS_INDIRECT_LIGHT_PROTOTYPE, and seven region tests failed beside it. PreciseSpecularHistory and PreciseHistoryRayAllocation set TERTIUS_SPECULAR_HISTORY=original, which takes the ring away from the bounce light. All three now run in the process-environment collection, as tests/Tertius.Rendering.Tests/TestSupport.cs requires.
+
+The final checks on `9134dac00`:
+
+- Mutants of the review's lines: M10 and M11 (fitted to the new line) and the new M12 (`TestsRegionDrift` without `!singleDiffuseHistory`, killed by ThePrototypesSingleBounceHistoryKeepsNoRegionRing) and M13 (the previous render size from the continued frame only, killed by AfterTheCamerasFrameChangesThePreviousRenderSizeIsStillTheLastDrawnFramesSize): 4 killed. So the second list ends at 12 killed and 1 judgment call (M03).
+- Checked suite: 11,039 passed, 27 skipped, 0 failed. Release suite: 11,026 passed, 27 skipped, 0 failed.
+- Linux (`tools/runpod/gpu_job.py`, NVIDIA RTX 2000 Ada, job 47a0d54f, 355 s, $0.068): the classes DescriptorLayoutsTests, FrameHistoryTests, ShaderVariantTests, LightAgeHistoryTests, RegionDrift, EvidenceUnderEachHistory and NeighborLimiterPrototype, 157 passed of 157. The ticket's cloud spend is now about $0.17.
