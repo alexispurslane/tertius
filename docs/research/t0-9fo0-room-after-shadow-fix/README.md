@@ -26,13 +26,13 @@ Both builds come from `tools/renderer-survey.py probe-build`: M's in a scratch w
 
 | Question | Measured |
 |---|---|
-| 1. Does X0 look good in this room beside M? | The still: yes. Both are clean at both exposures, with 1 or 2 specks in the whole image (M 0.0096, X0 0.0048 and 0.0096). Before the fix, the line's still had 5.96 specks. The switch: no flicker before the switch on either side. Both lag after each switch, smoothly, and neither settles within 60 draws. X0 lags longer than M in the corner regions. The stand film: yes. Both films are clean, with flicker far below the limit. |
-| 3. Does a measured case of a real sub-pixel strip remain? | No step: r11's single-bounce plateau changes by +0.000 % from tick 300 to tick 306 on M (it fell 43 % before the fix). No large cycle: in M's lamps-on control, r11's darkest and brightest jitter phase lie −0.87 % and +0.54 % from the cycle's mean. Without jitter, r11 is 0.34 % below that mean (46 % before the fix). No young light-age records in the engine as built (X0: 0 with and without jitter). A scratch build has the area rule switched off. Under the jitter, 0.0027 % of its pixel-draws hold a young record (0.136 % before the fix). Without jitter, none do. The lamps cause 90 % of them, not the sun. |
+| 1. Does X0 look good in this room beside M? | The still: yes. Both are clean at both exposures, with 1 or 2 specks in the whole image (M 0.0096, X0 0.0048 and 0.0096). Before the fix, the line's still had 5.96 specks. The switch: no, on both sides, by the bar's trail. Neither flickers before the switch, but both lag smoothly after each switch, and neither settles within 60 draws. X0 is worse in the corners: r00 and r02 do not settle within the window, where M's settle in 143 / 92 draws. The stand film: yes. Both films are clean, with flicker far below the limit. |
+| 3. Does a measured case of a real sub-pixel strip remain? | No step: r11's single-bounce plateau changes by +0.000 % from tick 300 to tick 306 on M (it fell 43 % before the fix). No large cycle: in M's lamps-on control, r11's darkest and brightest jitter phase lie −0.87 % and +0.54 % from the cycle's mean. Without jitter, r11 is 0.34 % below that mean (46 % before the fix). No young light-age records in the engine as built (X0: 0 with and without jitter). A scratch build has the area rule switched off. Under the jitter, 6.0e-4 of its diffuse block-draws hold light evidence, against 1.95e-2 in the same census before the fix (`t0-6gej`). That still fails the survey's limit of 1e-4. Without jitter, none do. With the sun off, 90 % of them remain. |
 
 My reading:
 
 - The shadow fix removed the leak's three effects in this room: the specks, r11's step at tick 300 to 306, and r11's large jitter cycle. On these measures, X0 looks as good as M in the still and in the stand film.
-- A small jitter effect remains in the light-age record: young records on the near windows' jambs and along their top edge, from the lamps' light. The area rule (`t0-6gej`) removes all of them, and no light measure shows them.
+- A small jitter effect remains in the light-age record: young records on the near windows' jambs and along their top edge, mostly from the lamps' light. The area rule (`t0-6gej`) removes all of them, and no light measure shows them.
 - The switch's lag is the one fault left in this room, and M has it too. It is a slow, smooth return to the control, not a flicker. In X0 it lasts longer in the corners. It is the measure that part B's remedy must not make worse.
 
 ## What the pictures show
@@ -65,9 +65,9 @@ My reading:
 
 ![The survey's blotch map of M and X0](pics/rect-lamps-blotch-map.png)
 
-`pics/rect-lamps-blotch-map.png`: the survey's signed blotch map of each still against its own build's long reference, at half size. The scale goes from −5 % (blue) through 0 (gray) to +5 % (red). The pixels that the score leaves out are black. X0's map is one broad, smooth split: the ceiling, the upper walls and the far wall are 2 to 4 % low, and the floor is about 2 % high. M's map shows the same kind of split, weaker and patchier. Both maps show fine regular stripes, which are the moiré of the blur against the image's regular geometry. Neither shows a patch.
+`pics/rect-lamps-blotch-map.png`: the survey's signed blotch map of each still against its own build's long reference, at half size. The scale goes from −5 % (blue) through 0 (gray) to +5 % (red). The pixels that the score leaves out are black. X0's map is one broad, smooth split: the ceiling, the upper walls and the far wall are 2 to 4 % low, and the floor is about 2 % high. M's map shows the same kind of split, weaker and patchier. Both maps show fine regular stripes, which are the moiré of the blur against the image's regular geometry. Both maps also hold small spots at the full ±5 % at window jambs. On M, a blue spot lies at the second left window and red spots at two right windows. On X0, a blue spot lies at the second left window. Red spots lie at the near right window, the far wall's window and the near left window. These are the places where the census finds young records. Their cause is not measured. Apart from these spots, neither map shows a patch.
 
-Measured: the score of X0 is 0.0208, of M 0.0129 and of A 0.0221 (table 1). At 4.08 stops, where the exposure is fixed, the still at draw 132 stands below its own long reference: M by 1.1 %, X0 by 2.5 % and A by 2.6 %.
+Measured: the score of X0 is 0.0208, of M 0.0129 and of A 0.0221 (table 1). The map's own scores are 0.0202 and 0.0128. The gap comes from the reference: the survey scores against the float mean of the 20 captures (`run_still`), and the map reads the stored reference, an 8-bit gray PNG. At 4.08 stops, where the exposure is fixed, the still at draw 132 stands below its own long reference: M by 1.1 %, X0 by 2.5 % and A by 2.6 %.
 
 My reading: X0's score counts the shape of a still that still settles at draw 132. Its top half is still darker than its long mean, and the score's division by the whole level turns that into a split. A, with no clamps, has the same score and the same level. So it is the slow climb of the bounce light, not a blotch that the eye sees.
 
@@ -75,9 +75,9 @@ My reading: X0's score counts the shape of a still that still settles at draw 13
 
 ![The left wall at 1:1](pics/rect-lamps-left-wall.png)
 
-`pics/rect-lamps-left-wall.png`: output pixels 0 to 640 by 0 to 560 at 1:1, from left to right: M's still, X0's still, X0's long reference and A's long reference. All four show the same gradient, darker toward the top left corner.
+`pics/rect-lamps-left-wall.png`: output pixels 0 to 640 by 0 to 560 at 1:1, from left to right: M's still, X0's still, X0's long reference and A's long reference. All four show the same gradient, darker toward the top left corner. The two reference tiles are gray, because the survey stores its reference without color.
 
-Measured (`walls.py`, display-linear luminance, left box over the mirrored right box):
+Measured (`walls.py`, display-linear luminance). First, each left box over the mirrored right box:
 
 | Side | Image | Wall above the windows | Top corner | Outer 100 columns |
 |---|---|---:|---:|---:|
@@ -88,7 +88,16 @@ Measured (`walls.py`, display-linear luminance, left box over the mirrored right
 | A | still | 0.9900 | 0.9850 | 0.9801 |
 | A | long reference | 0.9904 | 0.9847 | 0.9797 |
 
-My reading: no build has a one-sided gradient of its own. In every build and in A, the left wall is 1 to 2 % darker than the right wall. The outer columns differ by at most 0.16 points between the six images. This holds in the still and in the long mean alike. So it is the room's light, steady over the long mean. The impression in the whole-frame sheet comes from X0's darker left edge beside M's lighter right edge, where the two tiles meet.
+Second, the left box of X0 against the same box of M, the direct comparison of the builds:
+
+| Exposure | Image | Wall above the windows | Top corner | Outer 100 columns |
+|---|---|---:|---:|---:|
+| automatic | still | 0.9969 | 1.0079 | 1.0135 |
+| automatic | long reference | 0.9982 | 1.0077 | 1.0113 |
+| 4.08 stops | still | 0.9684 | 0.9777 | 0.9833 |
+| 4.08 stops | long reference | 0.9832 | 0.9911 | 0.9955 |
+
+My reading: X0's upper left wall is not darker than M's. The whole-frame sheet has the automatic exposure. There, X0's top corner is 0.8 % lighter than M's, and its outer columns 1.1 to 1.4 % lighter. At 4.08 stops, X0 is darker than M on the whole image (table 1), and its left wall by no more than that. No build has a one-sided gradient of its own. In every build and in A, the left wall is 1 to 2 % darker than the right wall. This holds in the still and in the long mean alike. The eye's impression of a darker corner in the sheet is not in the numbers. My guess is that it comes from the sheet, where X0's left edge sits beside M's lighter right edge. That guess is not measured.
 
 ### Take 2: the switch "cabin"
 
@@ -100,7 +109,7 @@ My reading: no build has a one-sided gradient of its own. In every build and in 
 
 ![The stand film's middle and last frames](pics/stand-film-frames.png)
 
-`pics/stand-film-frames.png`: the stand film's middle frame (top row) and last frame (bottom row), M (left) and X0 (right), at half size, at the film's fixed exposure. All four frames are clean and look like the still: no specks, no blotch, no daub. X0's left wall is darker at the top left corner, as in take 1.
+`pics/stand-film-frames.png`: the stand film's middle frame (top row) and last frame (bottom row), M (left) and X0 (right), at half size, at the film's fixed exposure. All four frames are clean and look like the still: no specks, no blotch, no daub. X0's top left corner looks a little darker to the eye, as in take 1, where it measures as no darker than M's (check 2).
 
 ![The stills of the same states](pics/stand-film-stills.png)
 
@@ -186,9 +195,10 @@ Today's jitter unless the row says otherwise.
 | The same over frames 172 to 459, as `t0-ion0` took it | −0.83 / +0.41 % | reference −1.0 / +0.7 %, cap 4 −11.6 / +9.5 % (cap 4 without the sun −0.9 / +0.4 %) |
 | r11 without jitter against the cycle mean, frames 36 to 215 | −0.34 % | reference −46 % |
 | The same over frames 172 to 459 | +0.08 % | |
-| Young light-age records in the still, share of pixel-draws, X0 as built, with / without jitter | 0 / 0 | 0.136 % / 0 |
-| The same on the scratch build without the area rule, with / without jitter | 0.0027 % / 0 | |
-| The same without the area rule and with the sun off, with jitter | 0.0024 % | |
+| Light evidence in the census still, share of diffuse / specular block-draws, X0 as built, today's jitter | 0 / 0 | |
+| The same on the scratch build without the area rule, today's jitter | 6.0e-4 / 6.5e-4 | 1.95e-2 / 5.13e-3 (`t0-6gej`, Design X 5a1d70cae) |
+| The same without the area rule, no jitter | 0 / 0 | |
+| The same without the area rule, today's jitter, sun off | 5.5e-4 / 5.9e-4 | |
 
 Per region, darkest and brightest jitter phase against the cycle mean, M's lamps-on control over frames 36 to 215 (`phases.py`). Each frame's value includes the slow trend of a still that still settles. So a region that rises slowly shows about ±0.17 % with no cycle at all.
 
@@ -215,32 +225,32 @@ My reading: no measured case of a real sub-pixel strip remains in this room. The
 
 #### The census of young light-age records
 
-A young light-age record is a pixel whose record counted a lasting change of its light in the last few draws. In a still, nothing changes, so a young record there is false. The census (`TERTIUS_X_CENSUS`, the line's probe only) counts such pixels in every draw of a still to draw 300. Since `t0-6gej`, the record counts a change only where it covers an area of 3 x 3 pixels (the area rule). The 0.136 % of before the fix was counted without that rule. So the census of X0 as built (0 with and without jitter) cannot tell whether the strips are gone or the rule hides them.
+A young light-age record is a pixel whose record counted a lasting change of its light in the last few draws. In a still, nothing changes, so a young record there is false. The census (`TERTIUS_X_CENSUS`, the line's probe only) counts such pixels in every draw of the census still: 10 continued stills of 33 draws, 330 draws, of which it counts the 329 after the first. Since `t0-6gej`, the record counts a change only where it covers an area of 3 x 3 pixels (the area rule). The census of `t0-6gej` before the fix and before that rule found light evidence in 1.95e-2 of the bounce light's block-draws in this still. The brief's 0.136 % comes from another census (`t0-3kyb`, the cabin's lamps-on control film), so this record does not compare with it. The census of X0 as built (0 with and without jitter) cannot tell whether the strips are gone or the rule hides them.
 
 The better take: a scratch build of X0 with the area rule off (`scratch-no-area-rule.patch`, one line of `screen_trace_plan.comp`). It was built in `/private/tmp/t0-9fo0/na` and never committed under `src`. Its census keeps the block maps (`TERTIUS_X_CENSUS_EVERY=1`), which show where the records lie. A second run with the sun off (`TERTIUS_PROBE_SUN=off`) tells the sun's records from the lamps'.
 
-| Run | Diffuse pixel-draws | Specular pixel-draws | Share of pixel-draws |
-|---|---:|---:|---:|
-| X0 as built, today's jitter | 0 | 0 | 0 |
-| X0 as built, no jitter | 0 | 0 | 0 |
-| Area rule off, today's jitter | 8,064 | 8,841 | 0.0027 % |
-| Area rule off, today's jitter, repeated with maps | 8,064 | 8,841 | 0.0027 % |
-| Area rule off, no jitter | 0 | 0 | 0 |
-| Area rule off, today's jitter, sun off | 7,266 | 8,015 | 0.0024 % |
+| Run | Diffuse / specular pixel-draws | Diffuse / specular block-draws with light evidence | Share of block-draws | Acceptance 12 |
+|---|---:|---:|---:|---|
+| X0 as built, today's jitter | 0 / 0 | 0 / 0 | 0 / 0 | pass |
+| X0 as built, no jitter | 0 / 0 | 0 / 0 | 0 / 0 | pass |
+| Area rule off, today's jitter | 8,064 / 8,841 | 2,841 / 3,086 | 6.0e-4 / 6.5e-4 | fail |
+| Area rule off, today's jitter, repeated with maps | 8,064 / 8,841 | 2,841 / 3,086 | 6.0e-4 / 6.5e-4 | fail |
+| Area rule off, no jitter | 0 / 0 | 0 / 0 | 0 / 0 | pass |
+| Area rule off, today's jitter, sun off | 7,266 / 8,015 | 2,596 / 2,806 | 5.5e-4 / 5.9e-4 | fail |
 
-A pixel-draw is one render pixel (1280 x 720) in one draw of one signal, over 329 draws. 8,064 diffuse pixel-draws are about 25 render pixels per draw.
+A pixel-draw is one render pixel (1280 x 720) in one counted draw of one signal. A block-draw is one block of 8 x 8 render pixels in one counted draw. If a pixel of a block holds a young record, the block has light evidence. Acceptance 12 of the survey allows light evidence in at most 1e-4 of each signal's block-draws. 8,064 diffuse pixel-draws are about 25 render pixels per draw.
 
 ![Where the young records lie](pics/census-young-records.png)
 
-`pics/census-young-records.png`: each block of 8 x 8 render pixels that held a young record in any draw, marked on X0's still. Yellow marks 1 draw, and red marks 50 draws or more. The top row has the sun on, the middle row the sun off, and the last row shows the near left window without marks. The left column is the whole image at half size. The right column is the near left window at 3 times. With the sun on and off, the marks are almost the same. The red marks cover the near windows' inner jamb faces and the row of blocks along each window's top edge. A thin field of single yellow marks lies on the ceiling around the large lamp and on the floor below the left windows. The still itself shows no fault at these places.
+`pics/census-young-records.png`: each block of 8 x 8 render pixels that held a young record in any draw, marked on X0's still. Yellow marks 1 draw, and red marks 50 draws or more. The top row has the sun on, the middle row the sun off, and the last row shows the near left window without marks. The left column is the whole image at half size. The right column is the near left window at 3 times. With the sun on and off, the marks are almost the same. The red marks cover the near windows' inner jamb faces and the row of blocks along each window's top edge. A field of hundreds of yellow marks covers most of the ceiling's left and center around the large lamp. A dense column of them lies on the floor below the left windows. The still itself shows no fault at these places.
 
-My reading: a small jitter effect on the light-age record remains. It lies where the lamps light the windows' jambs and edges beside the black opening. That is the layout that `t0-6gej` found: a strip between a surface and the sky. The sun does not cause it. The area rule removes all of it, so the engine as built keeps no young record in this still. No light measure of this room shows it: neither r11's step nor its cycle.
+My reading: a small jitter effect on the light-age record remains. Its densest part lies where the lamps light the windows' jambs and edges beside the black opening. That is the layout that `t0-6gej` found: a strip between a surface and the sky. The sun causes at most about 10 % of it. The area rule removes all of it, so the engine as built keeps no young record in this still. No light measure of this room shows it: neither r11's step nor its cycle. Against the census before the fix, the bounce light's share fell from 1.95e-2 to 6.0e-4 of the block-draws without the area rule.
 
 ## The changes to the takes and their reasons
 
-- The census runs on X0, not on M. Main's probe has no census switch (`TERTIUS_X_CENSUS`), and main's history has no light-age record to count. The orchestrator accepted this.
+- The census runs on X0, not on M. Main's probe has no census switch (`TERTIUS_X_CENSUS`). Main has the light-age record and the area rule, but its probe cannot count them. The orchestrator accepted this.
 - A runs on X0's build only. Main's probe has no clamp switch, so M with the switch is a plain M run. It stays in the record as M's repeat run (table 1).
-- The light per jitter phase comes from the switch's lamps-on control film. A continued still has 33 draws, so it visits only 6 of the 18 phases (33 mod 18 = 15). The film visits each phase every 18 draws.
+- The light per jitter phase comes from the switch's lamps-on control film. A continued still has 33 draws, and the largest common divisor of 33 and 18 is 3. So its captures visit only 18 / 3 = 6 of the 18 phases. The film visits each phase every 18 draws.
 - The per-phase frames stop at 215, before frame 239, which shows world tick 300. The climb shows that the light does not change there now, so the record also gives the old span of 172 to 459.
 - The stand film runs through `standfilm.py`, the survey's motion part on the stand case (`run_motion`). The survey's stand part keeps region means only, and the brief asks for frames and the survey's flicker.
 - The census also runs on a scratch build of X0 without the area rule. The census of X0 as built cannot see the strips through that rule ("The census of young light-age records").

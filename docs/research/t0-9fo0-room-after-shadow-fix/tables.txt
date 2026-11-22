@@ -29,25 +29,38 @@ rect-lamps   e-X0       ceiling shown   97.2% settled  100.3%   walls shown   96
 rect-lamps   e-A        ceiling shown   96.7% settled  100.0%   walls shown   96.0% settled  100.0%
 rect-lamps   e-AM       ceiling shown  101.2% settled  102.8%   walls shown  101.0% settled  102.8%
 # Take 1, check 2: the side walls (walls.py)
-variant  image      box      left    right left/right
-s-M      still      mid   0.09474  0.09571     0.9899
-s-M      still      top   0.07155  0.07274     0.9836
-s-M      still      edge  0.07167  0.07325     0.9785
-s-M      reference  mid   0.09495  0.09589     0.9903
-s-M      reference  top   0.07166  0.07283     0.9839
-s-M      reference  edge  0.07171  0.07317     0.9801
-s-X0     still      mid   0.09445  0.09542     0.9898
-s-X0     still      top   0.07211  0.07320     0.9851
-s-X0     still      edge  0.07264  0.07415     0.9797
-s-X0     reference  mid   0.09478  0.09571     0.9904
-s-X0     reference  top   0.07221  0.07334     0.9846
-s-X0     reference  edge  0.07253  0.07403     0.9797
-s-A      still      mid   0.09478  0.09573     0.9900
-s-A      still      top   0.07231  0.07341     0.9850
-s-A      still      edge  0.07290  0.07438     0.9801
-s-A      reference  mid   0.09507  0.09598     0.9904
-s-A      reference  top   0.07233  0.07346     0.9847
-s-A      reference  edge  0.07270  0.07421     0.9797
+variant  image      box      left    right left/right left/first
+s-M      still      mid   0.09474  0.09571     0.9899     1.0000
+s-M      still      top   0.07155  0.07274     0.9836     1.0000
+s-M      still      edge  0.07167  0.07325     0.9785     1.0000
+s-M      reference  mid   0.09495  0.09589     0.9903     1.0000
+s-M      reference  top   0.07166  0.07283     0.9839     1.0000
+s-M      reference  edge  0.07171  0.07317     0.9801     1.0000
+s-X0     still      mid   0.09445  0.09542     0.9898     0.9969
+s-X0     still      top   0.07211  0.07320     0.9851     1.0079
+s-X0     still      edge  0.07264  0.07415     0.9797     1.0135
+s-X0     reference  mid   0.09478  0.09571     0.9904     0.9982
+s-X0     reference  top   0.07221  0.07334     0.9846     1.0077
+s-X0     reference  edge  0.07253  0.07403     0.9797     1.0113
+s-A      still      mid   0.09478  0.09573     0.9900     1.0003
+s-A      still      top   0.07231  0.07341     0.9850     1.0107
+s-A      still      edge  0.07290  0.07438     0.9801     1.0171
+s-A      reference  mid   0.09507  0.09598     0.9904     1.0012
+s-A      reference  top   0.07233  0.07346     0.9847     1.0094
+s-A      reference  edge  0.07270  0.07421     0.9797     1.0138
+variant  image      box      left    right left/right left/first
+e-M      still      mid   0.12248  0.12370     0.9902     1.0000
+e-M      still      top   0.09336  0.09485     0.9842     1.0000
+e-M      still      edge  0.09331  0.09527     0.9794     1.0000
+e-M      reference  mid   0.12424  0.12538     0.9909     1.0000
+e-M      reference  top   0.09462  0.09616     0.9840     1.0000
+e-M      reference  edge  0.09445  0.09637     0.9801     1.0000
+e-X0     still      mid   0.11861  0.11979     0.9901     0.9684
+e-X0     still      top   0.09128  0.09259     0.9858     0.9777
+e-X0     still      edge  0.09175  0.09358     0.9804     0.9833
+e-X0     reference  mid   0.12216  0.12328     0.9909     0.9832
+e-X0     reference  top   0.09378  0.09525     0.9846     0.9911
+e-X0     reference  edge  0.09402  0.09590     0.9804     0.9955
 # Take 2: the switch cabin (switch.py of t0-xlcu: each side against its own controls, then X0 against M's)
 variant                            slowest off/on whole off/on  r11 off/on  lvl60 off w/r11  lvl60 on w/r11  cyc off w/r11  cyc on w/r11  dip off r11   dip on r11 own15 on r11  still lo/hi r11
 w-M                                   143/92         79/55      119/85       107.2/112.8      95.5/92.3     107.1/112.8    95.6/92.4     112.8@60     81.9@2          -16.2    100.0/100.0  

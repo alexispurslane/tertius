@@ -10,7 +10,8 @@ out=/private/tmp/t0-9fo0/runs/$name
 if compgen -G "$out/results/*/*.json" > /dev/null; then echo "$(date +%T) kept $name"; exit 0; fi
 mkdir -p "$out"; [ -e "$out/probe-bin" ] || ln -sfn "${PROBE:-/private/tmp/t0-9fo0/out-x0/probe-bin}" "$out/probe-bin"
 echo "$parts $cases $* probe=$(readlink "$out/probe-bin")" > "$out/take.txt"
-cd /Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144
+R=$(cd "$(dirname "$0")/../../../.." && pwd)
+cd "$R"
 echo "$(date +%T) start $name $parts $cases $*"
 env "$@" nix develop --command python3 -I tools/renderer-survey.py run "$out" --parts "$parts" --only ${cases//,/ } --no-build --chunk 0 > "$out/survey.log" 2>&1
 rc=$?

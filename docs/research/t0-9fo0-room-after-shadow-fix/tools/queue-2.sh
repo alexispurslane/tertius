@@ -3,7 +3,7 @@
 # (the bounce light alone) and the stand view as a film with every signal (standfilm.sh), M and X0. Take 5 on M: the
 # climb (the bounce light alone at world ticks 300 and 306, the survey's form of take bC), and the switch's lamps-on
 # control without jitter (only the run "on", TERTIUS_SURVEY_SWITCH_RUNS=on). The census of young light-age records runs
-# on X0 with and without jitter, because main keeps no light-age records.
+# on X0 with and without jitter, because main's probe has no census switch (TERTIUS_X_CENSUS).
 D=$(dirname "$0"); T=$D/take.sh
 source $D/vars.sh
 while pgrep -f "queue-1.sh" > /dev/null; do sleep 20; done

@@ -14,6 +14,7 @@ m light.py s-A s-M s-X0 s-A
 m light.py e-A e-M e-X0 e-A e-AM
 echo "# Take 1, check 2: the side walls (walls.py)"
 m walls.py s-M s-X0 s-A
+m walls.py e-M e-X0
 echo "# Take 2: the switch cabin (switch.py of t0-xlcu: each side against its own controls, then X0 against M's)"
 m switch.py s/w-M/$R s/w-M/$R
 m switch.py s/w-X0/$R s/w-X0/$R

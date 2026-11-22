@@ -7,7 +7,7 @@ out=/private/tmp/t0-9fo0/runs/$name
 if compgen -G "$out/results/*/*.json" > /dev/null; then echo "$(date +%T) kept $name"; exit 0; fi
 mkdir -p "$out"; [ -e "$out/probe-bin" ] || ln -sfn "${PROBE:-/private/tmp/t0-9fo0/out-x0/probe-bin}" "$out/probe-bin"
 echo "standfilm $* probe=$(readlink "$out/probe-bin")" > "$out/take.txt"
-R=/Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144
+R=$(cd "$(dirname "$0")/../../../.." && pwd)
 cd $R
 echo "$(date +%T) start $name standfilm $*"
 env "$@" nix develop --command python3 -I $R/docs/research/t0-9fo0-room-after-shadow-fix/tools/standfilm.py "$out" > "$out/survey.log" 2>&1
