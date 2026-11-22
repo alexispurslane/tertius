@@ -1,6 +1,6 @@
 ---
 id: t0-gkuz
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-15T08:36:14Z
@@ -110,3 +110,7 @@ Mutation table on the code after the fix (tools/mutate.py, list t0-gkuz-mutants.
 3 rows: killed 3, timeout 0, survived 0, no-coverage 0, build-failed 0, no-tests 0, no-mutant 0, removed 0
 
 The fix changes only test comments and the field into a property, so the affected checks are the Rendering tests: the full project passed in Checked (3,343 tests: 3,332 passed, 11 skipped, 0 failed, 17 m 52 s), then in Release (3,342 tests: 3,331 passed, 11 skipped, 0 failed, 18 m 22 s).
+
+**2026-11-22T12:27:15Z**
+
+Integration (line orchestrator, 2026-11-22). The test gaps lead's branch t3/diffuse-feedback-history-tests at df83b6faf is merged into the line as 642d1048a. Tests only: three new tests in DiffuseFilterRenderTests and AccumulatorRenderTests, nothing under src. Gates: ready_for_integration, no fork, clean checkout, the head exists, three review verdicts pass, and each finding and gap has its resolution with evidence. Mutants S01, S02 and S18: survived 3 of 3 before the tests, killed 3 of 3 after them, each by its own test. Suites on the build commit: Checked 11,042 passed and Release 11,029 passed, 27 skipped and 0 failed in both. After the fix of comments and one property: the Rendering project in Checked (3,332 passed) and in Release (3,331 passed). The line changed only docs and tickets since the lead's base, so these runs cover the merged tree. My last check of the diff: each test states one behavior and can fail for the reason in its name. The feedback step runs alone through a kernel of one dispatch, made by the engine's own constructor, so nothing under src changed for the test. The fourth-tap test rests on the fact that draws do not jitter without FSR, and its comment says so. The lead's three changes to my design are accepted: the feedback step alone (the full kernel squares the deviation and hides S01), a lower bound in place of a value, and the history's length in place of differing texels.
