@@ -1,0 +1,54 @@
+--- a/src/Tertius.Rendering/VulkanRenderer.cs	2026-11-22 06:05:24
++++ b/src/Tertius.Rendering/VulkanRenderer.cs	2026-11-22 06:05:24
+@@ -620,6 +620,7 @@
+         output.SubmitAndPresent(frame);
+         CommitDrawnFrame(frame: frame, snapshot: snapshot, pending: pending);
+         ProbeCensus();
++        ProbeRegion();
+ 
+         if (sink != null && capture != null)
+         {
+@@ -638,6 +639,43 @@
+             exposure: Exposure.Latest
+         );
+         return true;
++    }
++
++    // SCRATCH (t0-9fo0, never commit to src): the region's test count. With TERTIUS_X_REGION_LOG=<folder>, each draw reads
++    // back the layer of the bounce light's anchor ring that this draw wrote (region_drift.glsl: layer = draw index since
++    // the last reset modulo 36) and appends one line to <folder>/region-<TERTIUS_PROBE_LAMP_OFF, or "none">.txt:
++    // "<draw since the process start> <draw index since the last reset> <anchors> <anchors with 36 valid draws in a row>
++    // <anchors whose test found that the region's light moved>". Each readback waits for the device.
++    private static readonly string? ProbeRegionFolder =
++        Environment.GetEnvironmentVariable("TERTIUS_X_REGION_LOG") is { Length: > 0 } regionFolder ? regionFolder : null;
++    private long probeRegionDraw;
++
++    private void ProbeRegion()
++    {
++        if (ProbeRegionFolder is not { } folder || screenTrace is not { } tracer)
++            return;
++        long draw = probeRegionDraw++;
++        if (tracer.Diffuse.RegionRing(0) is not { } ring)
++            return;
++        (long drawIndex, bool _) = LastDraw;
++        int layer = (int)(drawIndex % TemporalSignal.RegionRingDraws);
++        float[] texels = ReadImageLayer(ring, layer);
++        int anchors = (int)(ring.Extent.Width * ring.Extent.Height);
++        int valid = 0;
++        int moved = 0;
++        for (int anchor = 0; anchor < anchors; anchor++)
++        {
++            if (texels[4 * anchor + 1] >= TemporalSignal.RegionRingDraws)
++                valid++;
++            if (texels[4 * anchor + 2] != 0)
++                moved++;
++        }
++        System.IO.Directory.CreateDirectory(folder);
++        string name = Environment.GetEnvironmentVariable("TERTIUS_PROBE_LAMP_OFF") is { Length: > 0 } off ? off : "none";
++        System.IO.File.AppendAllText(
++            System.IO.Path.Combine(folder, $"region-{name}.txt"),
++            string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{draw} {drawIndex} {anchors} {valid} {moved}\n")
++        );
+     }
+ 
+     // PROBE (tools/renderer-survey, never commit to src): the evidence census of docs/plans/bounce-light-confidence.md
