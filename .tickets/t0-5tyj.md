@@ -305,3 +305,7 @@ My answer (44): the pass split is dropped. In its place the acceptance lead runs
 Disk, 14:26: 24 GiB free, under the stop limit of 30 GiB; swap 27.4 GB used of 28.7 GB; load 36. Both leads hold builds and frame-writing takes and delete the raw frames of finished, committed takes (/private/tmp/t0-5tyj 5.1 GiB, /private/tmp/t0-gbgj/runs 2.6 GiB). The wobble's before and after and the experiment wait for the disk.
 
 sizeramp.py's chart axis is fixed in 726bf338c (the axis reaches at least the threshold); the table and the count do not change.
+
+**2026-11-22T19:27:54Z**
+
+Disk, 2026-11-22 about 14:35: the acceptance lead deleted only PNG frames of finished, committed takes (the two fixed-scale walk films, the Mac's dynamic walk films, main's fair switch film) and freed about 2.3 GiB; /private/tmp/t0-5tyj holds 2.8 GiB; the disk has 27 GiB free, still under the stop limit of 30 GiB. Kept: Design X's fair switch frames (504 MB, for the video of X beside the experiment XB), the screenshots (670 MB), the runs (764 MB), the ramp's kept frames (127 MB), the jamb takes (about 120 MB), every build and every log.
