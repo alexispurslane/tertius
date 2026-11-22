@@ -1,8 +1,8 @@
 ---
 id: ter-186q
-status: open
+status: in_progress
 deps: []
-links: []
+links: [t53-eyrv]
 created: 2026-11-04T21:53:20Z
 type: bug
 priority: 2
@@ -20,3 +20,59 @@ Near a vanishing point, the rounding of the ray's inverse depth, StartInverseDep
 
 The old cone trace judged no slab by the inverse depth at a solved entry, and its test asserted a hit with q = 0 on every ray. The skipped test ScreenRayTests.EveryFloorPixelWhoseVanishingPointAPlanetCoversHitsThePlanetThroughTheFrontOfItsSlab holds that behavior. ARayFromANearFloorHitsAPlanetAtItsVanishingPoint, one ray, passes. A fix changes walkScreen in screen_ray.glsl and ScreenRay.Walk together, and the GPU pin tests of ScreenTraceRenderTests must stay green. One idea: at a hit whose s a descent solved, take q from the side that the ray came from when the coarse level solved the entry (0 from in front, 1 from behind), where the inverse depth is far from the slab.
 
+
+## Notes
+
+**2026-11-22T13:53:36Z**
+
+2026-11-22, the line orchestrator. The design of the fix. It covers this ticket and t53-eyrv, because both are one class of bug. One ticket lead does both.
+
+## The class of the bug
+
+The walk (walkScreen in screen_walk.glsl, and its C# copy ScreenRay.Walk) keeps the ray's parameter s. At each cell it computes the ray's inverse depth again from s: inW = startW + stepW * s. A descent sets s to the entry of the parent's slab, which slabEntry solved for one bound of that slab (towardW: the front from in front, the back from behind). So the true inverse depth at that s is that bound. The recomputed inW is that bound plus a rounding, and the rounding scales with the ray's start w, not with the slab.
+
+The child's test then compares a rounded inW with a slab that is thinner than the rounding:
+- ter-186q: a planet 10,000 km away has a slab of about 1e-7 in w, and the rounding is about 3e-8. Of 3,613 rays, 209 leave without a hit, and 531 hit with an entry share of 0.05 to 0.59 that is noise, so the hit's fade dims them.
+- t53-eyrv: a sheet that faces the eye or lies edge-on has a slab of no depth since the layer (t1-7b4x). The rounded inW falls one unit in the last place behind it, and the walk passes the pixel: 8 of 4,559 hits.
+
+The class: a value that a descent solved exactly is stored only as s and derived again with a rounding. Every thin slab can show it.
+
+## The model
+
+The walk's state holds the ray's inverse depth at s beside s. One rule sets it:
+- After a crossing, it is startW + stepW * s, as today.
+- After a descent that solved an entry, it is the bound that the entry was solved for (slabEntry's towardW), with no recomputation.
+
+The cell's test and the entry share read that stored value in place of the recomputed inW. A child's slab lies inside its parent's slab (DepthPyramid.AssertInvariants holds this). So a ray that enters the parent at its front bound stands at or in front of every child's front, and a child whose front is the parent's front takes the ray at its front, with an entry share of 0. The same holds at the back bound.
+
+This makes the class impossible for solved entries: the walk no longer compares a rounded copy of a bound with the bound.
+
+## Signatures
+
+GLSL, screen_ray.glsl. The solved parameter and the bound come from one place:
+
+```glsl
+// The parameter where the ray enters a slab that it meets, and in `entryW` the ray's inverse depth there: the slab's
+// front from in front, its back from behind, or s and inW when the ray is already inside.
+float slabEntry(ScreenRay ray, RayReciprocals inverse, float s, float inW, float low, float high, out float entryW);
+```
+
+walkScreen keeps a local for the inverse depth at s (a name such as sW) beside s. The C# copy ScreenRay.Walk changes the same way. The lead can choose another shape, such as a small struct of (s, w), if the code reads better. Both copies change together.
+
+## Settled decisions
+
+- One fix for both tickets, in the walk. No tolerance in the pyramid's build, because the rounding does not scale with the slab.
+- The 209 rays of ter-186q that leave without meeting the slab can have a second cause at the coarse levels (outW is recomputed too). Find it with the skipped test. If the stored inverse depth does not cover them, say what does, and fix it in the same model if the fix is small. A larger change is a report to me first.
+- Write to the Vulkan spec: no reliance on a fused multiply-add or on its absence. On lavapipe, ScreenWalkBoundaryTests.TheShaderHitsTheNextWallPixelOnlyWithinItsSegmentAndStepCap (channel 3) returns WalkMiss where WalkHit is expected, on main too (t70-0pr5, item 1). It can be this class. Run that test class on lavapipe before and after the fix, and record the result in t70-0pr5.
+- The ray kinds, the hair-card rule and the cap of steps do not change.
+
+## Acceptance
+
+- Red first, then green: ScreenRayTests.EveryFloorPixelWhoseVanishingPointAPlanetCoversHitsThePlanetThroughTheFrontOfItsSlab and ScreenWalkTests.RandomRays.OnSheetSlabsTheWalkFindsTheHitOfTheMarchOnAMillionRandomRays lose their skip and pass.
+- The GPU pin tests of ScreenTraceRenderTests stay green. A reference image that changes gets a real review: the reference, the actual image and the FLIP heat map.
+- Before the fix, reproduce ter-186q on main f7d606fec in the engine: a still of a planet's reflection near a vanishing point on a reflective floor. If the layer already fixed the picture, say so with the still, and the fix still lands for the tests. After the fix, the same still. Two to four stills with a caption each.
+- The walk's cost: the frame cost in the deck and rect-lamps on the Mac, main against the branch, one exclusive hold per scene. A change above the run-to-run spread is reported with its number.
+- Checked, then Release. Coverage of the changed lines, and the mutants of the changed lines through tools/mutate.py (Rendering code is outside Stryker's modules).
+- ARCHITECTURE.md, 'The screen tracer', says what the walk stores.
+
+Out of scope: the one-image pyramid (ter-y3k4), the miss's closed form, and any change of the pyramid's build.

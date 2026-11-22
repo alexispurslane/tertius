@@ -1,6 +1,6 @@
 ---
 id: ter-kh4g
-status: in_progress
+status: closed
 deps: []
 links: [ter-ukw6, t1-i54g, t1-0ti7]
 created: 2026-11-14T18:53:04Z
@@ -274,3 +274,7 @@ RESUMED 2026-11-21 (a new line orchestrator thread, thread:delegated-task:comman
 **2026-11-22T13:44:27Z**
 
 2026-11-22, the line orchestrator. The user decided on the layer through the orchestrator: 'yeah, merge the back face layer'. The line's branch merges into main today. The suites that count for the merge are the takes' full runs on dd800356b: Checked 11,043 tests and Release 11,030 tests, 0 failed. No file outside docs/ and .tickets/ changed between dd800356b and the merged head. The orchestrator's answer on the two Linux findings: t70-0pr5 and t70-o38b stay open under the renderer epic ter-8hyd. The next work of the line, by the orchestrator's order, on the merged main: ter-ukw6 and ter-186q first, then t53-eyrv, t1-r9vj and t53-5ww2.
+
+**2026-11-22T13:53:11Z**
+
+2026-11-22, the line orchestrator. The back-face depth layer is on main: merge b032604f1, the benchmark's fix e250c000e, and the push's cleanup f7d606fec, which is main and origin/main. Every step of the design is merged, so the epic closes. Its open children move to the renderer epic ter-8hyd: t1-r9vj, t53-eyrv and t53-5ww2. The line goes on with the slab follow-ups by the orchestrator's order of 2026-11-22: ter-ukw6 and ter-186q with t53-eyrv first, then t1-r9vj and t53-5ww2.

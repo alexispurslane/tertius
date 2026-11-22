@@ -1,6 +1,6 @@
 ---
 id: ter-ukw6
-status: open
+status: in_progress
 deps: []
 links: [ter-kh4g, t1-tbz9, t1-3j2j]
 created: 2026-11-14T17:52:37Z
@@ -27,3 +27,19 @@ Found 2026-11-14 by the t0-adau probe (/tmp/t7-3e22/robust, patches hitclass-fin
 **2026-11-15T01:25:26Z**
 
 2026-11-15, stage 1b of ter-kh4g measured the sill leak with a census on the RTX 2000 Ada (docs/research/back-face-depth-layer/stage-1b/pictures.md, part 1). Under the 10 % rule, 6,783 bright samples with a light of 3,011,681 are false hits, 74.34 % of the glow area's bright reflection light, and 99.5 % of that light lands on the first render row below the end window. Under the layer as the slab, 4 samples with a light of 483 stay, 0.016 %. The back-face depth layer removes this bug, and no other mechanism is needed for it.
+
+**2026-11-22T13:53:11Z**
+
+2026-11-22, the line orchestrator. The design of this ticket's last step, a measurement on the merged main. No engine code changes.
+
+The layer is on main since f7d606fec. Main before the merge is c4c1f1f2f: the 10 % rule, with the sun's shadow fix (t8-rjno). Main after the merge is f7d606fec: each pixel's slab ends at its real back face.
+
+What exists already (docs/research/back-face-depth-layer/acceptance.md, point 2): on the layer's code, the census of stage 1b counts 0 bright samples of any class in rect-lamps' glow area over 400 draws. The shadow fix removed the leaked sunlight that lit the sill, so today no bright light lies there under either rule. That census alone does not show what the layer does to a sill that the sun really lights. And the census of main before the merge did not run.
+
+The measurement has two parts, each as before against after, with stage 1b's hit classes (class 0 the false hits, class 1 the real hits):
+1. rect-lamps as the scripts give it: the census of main before the merge (stage 1b's census.patch) beside the census after it (acceptance-tools/census-port.patch), bright samples and every sample. One still per side at one fixed exposure, frame 239.
+2. A view where the sun really lights a thin sill or a reveal that the camera sees almost edge-on, with an opening behind it. This is the ticket's case without the leak. Change the sun's direction or the camera in a scratch copy of the script, or in a scratch patch of the demo if the script cannot. First list what lights each pixel of the glow area (the sun on the sill, the lamps, the sky), so that the view tests the false hits and not a missing light. Then the same census and the same stills, before against after.
+
+The result says, per part: the count and the light of class 0 and class 1 before and after, the share of the glow area's bright reflection light that is false, and what an eye sees in the two stills. Then one of two ends. If the false hits are gone or near 0 in both parts, the ticket closes with the numbers and the stills. If some stay, the record names them: where they lie, how bright they are, and which rays make them. A fix is another ticket.
+
+Deliverables: docs/research/back-face-depth-layer/sill-hits-on-main.md with the numbers, the commands and two to four crops as PNG files beside it, and a note in this ticket. The census stays a patch. Out of scope: the older follow-ups of t0-adau (the robust reference, guiding of the rough reflection rays).

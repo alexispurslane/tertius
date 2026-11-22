@@ -1,13 +1,13 @@
 ---
 id: t53-eyrv
-status: open
+status: in_progress
 deps: []
-links: []
+links: [ter-186q]
 created: 2026-11-21T21:17:26Z
 type: bug
 priority: 2
 assignee: Alexis Purslane
-parent: ter-kh4g
+parent: ter-8hyd
 tags: [rendering]
 ---
 # The walk can miss a slab of no depth where a descent enters it at its own w: 8 of a million random rays
@@ -18,3 +18,9 @@ Evidence (C# copy): ScreenWalkTests' million random rays over RoomScene with eve
 
 The rounding of the entry's w scales with the ray's start w, not with the slab's w, so a tolerance in the pyramid's build cannot bound it. A fix belongs in the walk: for example, a pixel that a solved descent entered counts the entry's w as inside the parent's slab. The GLSL walk and its C# copy change together. The skipped test ScreenWalkTests.RandomRays.OnSheetSlabsTheWalkFindsTheHitOfTheMarchOnAMillionRandomRays turns on when the fix lands. Effect on the image: a ray in about 125,000 that should meet a facing or edge-on sheet passes behind it. No still showed it.
 
+
+## Notes
+
+**2026-11-22T13:53:36Z**
+
+2026-11-22, the line orchestrator. This bug and ter-186q are one class: the walk derives the ray's inverse depth at a solved entry again from s, with a rounding larger than a thin slab. One ticket lead fixes both in the walk. The design is the note of 2026-11-22 in ter-186q.

@@ -7,7 +7,7 @@ created: 2026-11-15T13:23:44Z
 type: task
 priority: 2
 assignee: Alexis Purslane
-parent: ter-kh4g
+parent: ter-8hyd
 tags: [rendering, research]
 ---
 # A view with a lit front and a dark back, with its own path trace: is any rule for a blocked ray's light nearer than the fade over the real slab
