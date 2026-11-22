@@ -15,7 +15,8 @@ export BASE=/private/tmp/t0-5tyj
 B=$BASE
 cd "$R"
 [ -f $B/macdyn/switch.json ] || bash "$T/macdyn.sh" none switch m 2>/dev/null
-O=$B/macdyn/stayscheck; rm -rf $O; mkdir -p $O/old $O/new
+O=$B/macdyn/stayscheck
+if [ ! -f $O/new/f-000380.png ]; then rm -rf $O; mkdir -p $O/old $O/new
 for v in old new; do
   bin=$([ $v = old ] && echo $B/x/probe-bin || echo $B/xplay/probe-bin)
   env TERTIUS_PROBE_LAMP_SEL=z:-12:4 TERTIUS_PROBE_LAMP_OFF=193-393 TERTIUS_PROBE_LAMP_GLOW=stays TERTIUS_PROBE_EXPOSURE=4.08 \
@@ -24,6 +25,7 @@ for v in old new; do
     --headless --out $O/$v --size 1920x1080 > $O/$v.log 2>&1
   echo "$(date +%T) stays check $v exit $?"
 done
+fi
 PROBE=$B/mplay/probe-bin bash "$T/take.sh" fair-M switch cabin
 PROBE=$B/xplay/probe-bin bash "$T/take.sh" fair-X switch cabin
 export KEEP=f-000150,f-000180,f-000220,f-000355,f-000380,f-000455

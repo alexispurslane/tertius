@@ -13,6 +13,9 @@
 #     list such as "f-000150,f-000220"; empty keeps none) into pics/<name>/, with its own size log, and on X the region
 #     log. The extra VAR=value words go into its environment, such as TERTIUS_A_NO_CLAMP=1. A picture run's PNG writes do
 #     not change its sizes, so it holds the lock in its shared mode.
+#   macdyn.sh fixed <walk|switch> <side> <scale> <name> [VAR=value...]: as pictures, but through the fixed path: the
+#     headless FixedRenderScale(<scale>) of t0-gbgj's patch (TERTIUS_X_RENDER_SCALE), whose render targets are sized for
+#     that scale. The side here names the build, such as mfix.
 # The binary is $BASE/<side>play/probe-bin (playbuild.sh).
 set -uo pipefail
 mode=$1; scene=$2; side=$3; shift 3
@@ -53,6 +56,14 @@ pictures)
   echo "$(date +%T) pictures $name"
   env "${lamps[@]}" TERTIUS_PROBE_EXPOSURE=4.08 TERTIUS_X_FRAME_TIME_TARGET=16.6667 TERTIUS_X_SIZE_REPLAY=$replay \
     TERTIUS_X_SIZE_LOG=$out "${region[@]}" TERTIUS_PROBE_SERIES=$out/frames.series TERTIUS_PROBE_KEEP="${KEEP:-}" "$@" \
+    nix develop --command bash tools/gpu-lock.sh --shared $out/lock.log $B/${side}play/probe-bin/Tertius.Demo \
+    --script $O/$scene.json --headless --out $out --size 1920x1080 > $out/run.log 2>&1
+  echo "$(date +%T) exit $? $(ls $out/*.png 2>/dev/null | wc -l) pictures" ;;
+fixed)
+  scale=$1; name=$2; shift 2; out=$O/pics/$name; rm -rf $out; mkdir -p $out
+  echo "$(date +%T) fixed $name"
+  env "${lamps[@]}" TERTIUS_PROBE_EXPOSURE=4.08 TERTIUS_X_RENDER_SCALE=$scale TERTIUS_PROBE_SERIES=$out/frames.series \
+    TERTIUS_PROBE_KEEP="${KEEP:-}" "$@" \
     nix develop --command bash tools/gpu-lock.sh --shared $out/lock.log $B/${side}play/probe-bin/Tertius.Demo \
     --script $O/$scene.json --headless --out $out --size 1920x1080 > $out/run.log 2>&1
   echo "$(date +%T) exit $? $(ls $out/*.png 2>/dev/null | wc -l) pictures" ;;
