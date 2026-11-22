@@ -12,6 +12,7 @@
 set -uo pipefail
 tree=$1; out=$2; shift 2
 mkdir -p "$out"
+out=$(cd "$out" && pwd); tree=$(cd "$tree" && pwd)
 started=$(date +%s)
 stamp() { echo "$(( $(date +%s) - started )) s: $*" | tee -a "$out/steps.txt"; }
 
