@@ -1,3 +1,5 @@
+# Tool code (t1-gout). extra.py: the four cascades' texels at 16:9, and the tiles' constructed case: the symmetric
+# filter's share at a caster's real edge and its reach inside it. Run from this folder (it reads phase.py).
 import math
 exec(open('phase.py').read().split("print('far'")[0])
 ty = math.tan(math.pi / 6); tx = ty * 16 / 9; k2 = tx * tx + ty * ty

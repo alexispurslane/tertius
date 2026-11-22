@@ -1,3 +1,7 @@
+# Tool code (t1-gout). phase.py: the gap model. texel(aspect) is cascade 0's texel from ShadowCascades.Fit at a 60 degree
+# vertical field of view; the gap is how far the map's edge lies inside a caster's edge at x = +-10 m from the grid's anchor,
+# in texels; lit_fraction(d) is the 4 x 4 bilinear filter's lit fraction d texels outside the map's edge. It prints both
+# windows' phases and the teeth of the aspect error. Run in the dev shell: python3 -I phase.py
 import math, numpy as np
 near, far_all, lam, N = 0.05, 2000.0, 0.9, 4
 f32 = np.float32

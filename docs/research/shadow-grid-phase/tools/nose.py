@@ -1,3 +1,5 @@
+# Tool code (t1-gout). nose.py: the roof's front edge at z = -30 m at 16:9 over the first 20 s: the gap and the sill strip
+# between the true shadow's start and the map's edge, per tick. Run from this folder (it reads phase.py).
 import math
 exec(open('phase.py').read().split("print('far'")[0])
 n = math.sqrt(3.986004418e14 / (6.371e6 + 400e3) ** 3)

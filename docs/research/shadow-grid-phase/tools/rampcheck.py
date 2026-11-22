@@ -1,3 +1,5 @@
+# Tool code (t1-gout). rampcheck.py <ramp table>: the model's gap at every size of t0-gbgj's ramp-M3.txt against its
+# jamb light: the count of leaks per range of the gap, and every leaking size. Run from this folder (it reads phase.py).
 import math, sys
 exec(open('phase.py').read().split('print(\'far\'')[0])
 rows = []

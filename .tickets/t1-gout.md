@@ -274,3 +274,13 @@ Step 1, first part: the cause, the four toggles and the red test.
 - Reading: no bias decides it. The lateral filter does, together with where the map's edge falls. The screen rays add about half of the crop's light at tick 6380, and nearly all of it at tick 100.
 - Red test: ShadowTests.AWallsSideFaceUnderARoofsEdgeTakesNoSunlightWhereverTheEdgeStandsWithinItsTexel, through the real shadow pass. Sun share 0.1 texel inside the edge, by the edge's place in its texel: 0.0 and 0.1 give 0.000, 0.2 gives 0.051, 0.3 gives 0.106, 0.4 gives 0.143, 0.5 gives 0.197, 0.6 to 0.9 give 0.000. Committed skipped. It is a GPU test because no C# copy of the cascade lookup exists, so a test without a GPU would only test its own model.
 - Still to do: the record and the rest of step 1 (the 16:9 pulse check, the tiles' case, the tracked script).
+
+**2026-11-22T22:16:15Z**
+
+Step 1 done: docs/research/shadow-grid-phase/README.md, scripts/jamb-grid-phase.json, and the skipped test of 9b84e5a6c.
+- The line is the jamb face's outer strip at x -> +-10 m. The roof's map edge lies up to half a texel inside the hull's outer edge, and the strip between them takes a share of gap/2 (0.23 at 1800x1008, 0.019 at 16:9). No strip there is truly sunlit.
+- No bias decides it. The lateral filter does, together with where the map's edge falls. The symmetric filter is far worse (0.96).
+- The ramp's 0.230 against the window test's 0.098 is mostly the tick (N.L 0.120 at tick 6380 against 0.0019 at tick 100). The same window reads 0.193 at tick 6380.
+- The screen's rays make almost all of the excess at tick 100 and half at tick 6380.
+- At 16:9 the side walls' phase is fixed for the whole orbit. The nose's moving phase opens at most a 6.7 mm strip before tick 120. A 360-draw film at 1920x1080 shows no line.
+- Tiles: the symmetric filter gives 0.50 to 0.625 at a caster's real edge, with light up to 2.5 texels inside it. Their phase moves only with a lamp or a caster.
