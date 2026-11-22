@@ -1,8 +1,8 @@
 diff --git a/src/Tertius.Host/ScriptCommand.Options.cs b/src/Tertius.Host/ScriptCommand.Options.cs
-index 9a9d673..8c5e5c4 100644
+index fd0cccb..1b779b7 100644
 --- a/src/Tertius.Host/ScriptCommand.Options.cs
 +++ b/src/Tertius.Host/ScriptCommand.Options.cs
-@@ -112,6 +112,9 @@ public static partial class ScriptCommand
+@@ -118,6 +118,9 @@ public static partial class ScriptCommand
                  options.Subsurface = new NoSubsurface();
              if (PassTimestampsOff)
                  options.PassTimestamps = false;
@@ -13,7 +13,7 @@ index 9a9d673..8c5e5c4 100644
              {
                  options.FramesInFlight = count;
 diff --git a/src/Tertius.Rendering/Frame/FrameHistory.cs b/src/Tertius.Rendering/Frame/FrameHistory.cs
-index b4ceb4b..61c6b36 100644
+index 7f32127..9b2cf1a 100644
 --- a/src/Tertius.Rendering/Frame/FrameHistory.cs
 +++ b/src/Tertius.Rendering/Frame/FrameHistory.cs
 @@ -185,7 +185,12 @@ internal sealed class FrameHistory
@@ -171,12 +171,12 @@ index 9e4fc4c..8797aea 100644
          byte[] rgba = image.Rgba.ToArray();
          for (int i = 3; i < rgba.Length; i += 4)
 diff --git a/src/Tertius.Rendering/Scene/GpuTypes.cs b/src/Tertius.Rendering/Scene/GpuTypes.cs
-index 0ff0e0a..307c395 100644
+index 7fd8cf0..c0e09b4 100644
 --- a/src/Tertius.Rendering/Scene/GpuTypes.cs
 +++ b/src/Tertius.Rendering/Scene/GpuTypes.cs
-@@ -815,7 +815,117 @@ internal struct AccumulatePushConstants
+@@ -829,7 +829,117 @@ internal struct AccumulatePushConstants
      /// </summary>
-     public float RetainedSigmas;
+     public uint RegionSlot;
  
 +    // PROBE (tools/renderer-survey, never commit to src): the knobs of docs/plans/bounce-light-confidence.md (section 21),
 +    // read once from the environment (ProbeX). A knob that is not set keeps the build's value. TERTIUS_A_RETAINED_SIGMAS
@@ -271,8 +271,8 @@ index 0ff0e0a..307c395 100644
 +        }
 +    }
 +
-     public static AccumulatePushConstants Of(SignalParameters parameters, bool reset) =>
-+        Probe(OfParameters(parameters, reset));
+     public static AccumulatePushConstants Of(SignalParameters parameters, bool reset, long drawIndex) =>
++        Probe(OfParameters(parameters, reset, drawIndex));
 +
 +    private static AccumulatePushConstants Probe(AccumulatePushConstants c)
 +    {
@@ -288,7 +288,7 @@ index 0ff0e0a..307c395 100644
 +        return c;
 +    }
 +
-+    private static AccumulatePushConstants OfParameters(SignalParameters parameters, bool reset) =>
++    private static AccumulatePushConstants OfParameters(SignalParameters parameters, bool reset, long drawIndex) =>
          new()
          {
              Cap = parameters.Cap,
@@ -317,13 +317,13 @@ index 99ad27d..dda9304 100644
      public SpecializationValues Data;
      public SpecializationEntries Entries;
 diff --git a/src/Tertius.Rendering/Shaders/accumulate.glsl b/src/Tertius.Rendering/Shaders/accumulate.glsl
-index e3f70de..3798b4e 100644
+index b3a035b..387c037 100644
 --- a/src/Tertius.Rendering/Shaders/accumulate.glsl
 +++ b/src/Tertius.Rendering/Shaders/accumulate.glsl
-@@ -65,6 +65,15 @@ layout(push_constant, std430) uniform AccumulatePush
-     float reflectedPlaceBelow;   // the roughness below which the reflected place competes, with its distance test, 0 for none
+@@ -66,6 +66,15 @@ layout(push_constant, std430) uniform AccumulatePush
      uint reset;          // 1 in a frame that resets every history
      float retainedSigmas;  // the clamp box's least half width in retained deviations, 0 for the narrow box
+     uint regionSlot;     // the ring layer of this draw: its index since the last reset modulo RegionRingDraws (region_drift.glsl)
 +    // PROBE (tools/renderer-survey): Design X's knobs (AccumulatePushConstants.ProbeX). 1 where both causes of motion cut
 +    // as light evidence does (TERTIUS_A_MOTION_CUTS), 1 where the moved mark cuts (TERTIUS_X_MOVED_ACTION=cut), the causes
 +    // that give evidence (TERTIUS_X_CAUSES: 1 light, 2 moved, 4 moving), 0 where evidence does not act
@@ -337,10 +337,10 @@ index e3f70de..3798b4e 100644
  
  // SignalLight.
 diff --git a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
-index b129db7..c2022b7 100644
+index df14a41..2b21024 100644
 --- a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
 +++ b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
-@@ -29,9 +29,16 @@ shared uint blockEvidence;
+@@ -38,9 +38,16 @@ shared uint blockEvidence;
  // lasts (docs/plans/bounce-light-confidence.md, section 8.2, open point 1).
  uint evidenceOfSample(uint sampleAge)
  {
@@ -358,8 +358,8 @@ index b129db7..c2022b7 100644
 +    return moved || moving ? MotionEvidence : NoEvidence;
  }
  
- // The evidence level of the workgroup's block: the strongest level of its pixels' samples. Every invocation of the
-@@ -134,7 +141,8 @@ void accumulateAt(ivec2 pixel, uint evidence)
+ // The evidence level of the workgroup's block: the strongest of its pixels' samples' levels and, for the bounce light, its
+@@ -155,7 +162,8 @@ void accumulateAt(ivec2 pixel, uint evidence)
              float deviation = imageLoad(fastHistory, pixel).a;
              spread = max(spread, parameters.retainedSigmas * deviation * slow / max(luminance(slow), LeastLuminance));
          }
@@ -369,7 +369,7 @@ index b129db7..c2022b7 100644
          float lag = luminance(abs(slow - clamped)) / max(luminance(mean), LeastLuminance);
  #ifdef TERTIUS_ACCUMULATION_TRACE
          storeTrace(pixel, 5, vec4(slow, 1.0));
-@@ -171,6 +179,10 @@ void main()
+@@ -200,6 +208,10 @@ void main()
      // A signal without a light age has no evidence.
  #ifdef TERTIUS_LIGHT_AGE
      uint evidence = evidenceOfBlock(pixel);
@@ -433,9 +433,11 @@ index 7251102..4a44194 100644
          min(directDiffuse + directSpecular + indirectDiffuse + indirectSpecular + emissive, vec3(MaxRadiance)), 1.0);
      // D, at most MaxRadiance, and the mask, which marks the skin pixels that alone the scatter passes spread.
 diff --git a/src/Tertius.Rendering/Shaders/motion.glsl b/src/Tertius.Rendering/Shaders/motion.glsl
+index b8381fb..1bd4384 100644
 --- a/src/Tertius.Rendering/Shaders/motion.glsl
 +++ b/src/Tertius.Rendering/Shaders/motion.glsl
-@@ -33,5 +33,6 @@
+@@ -32,7 +32,8 @@ vec3 clipOf(vec3 world)
+ }
  
  // The least motion on screen that counts, in pixels per draw: the gate's threshold of ter-18hc.
 -const float LeastMotion = 1.0 / 32.0;
@@ -443,8 +445,9 @@ diff --git a/src/Tertius.Rendering/Shaders/motion.glsl b/src/Tertius.Rendering/S
 +layout(constant_id = 13) const float LeastMotion = 0.03125;
  
  // The relative rounding of the motion target's half floats, which keep 10 bits below their leading bit: twice their
+ // largest rounding, so that a still surface's target and its still motion (stillMotionOf) stay inside it.
 diff --git a/src/Tertius.Rendering/Shaders/sample_age.glsl b/src/Tertius.Rendering/Shaders/sample_age.glsl
-index cd2d944..587b992 100644
+index bc0fffb..2623432 100644
 --- a/src/Tertius.Rendering/Shaders/sample_age.glsl
 +++ b/src/Tertius.Rendering/Shaders/sample_age.glsl
 @@ -12,8 +12,12 @@
@@ -463,11 +466,11 @@ index cd2d944..587b992 100644
  // The light ages below which a light change is recent: 0 to 6, the light codes 1 to 7. The record counts a change after
  // it lasts 4 draws, so a recent change began less than 11 draws ago, and the fast history, which keeps (3 / 4)^k of a
 diff --git a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
-index 321c4be..4c850c2 100644
+index 6cea974..3097733 100644
 --- a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
 +++ b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
-@@ -112,7 +112,8 @@ void main()
-     bool moves = movesOnScreen(pixel);
+@@ -103,7 +103,8 @@ void main()
+     bool moves = movesOnScreenAt(pixel);
      uint diffuseCode = diffuseRay.brings ? ageCodeOfRecord(diffuse.ray) : 0u;
      bool diffuseMoved = diffuseRay.brings && movedHitOfRecord(diffuse.ray);
 -    imageStore(diffuseSampleAge, pixel, uvec4(sampleAgeOf(diffuseCode, moves || diffuseMoved)));
@@ -476,7 +479,7 @@ index 321c4be..4c850c2 100644
  #endif
  
      // The share of the diffuse ray's estimate in the specular sample: 0 below the hand-over band, 1 above it.
-@@ -163,7 +164,8 @@ void main()
+@@ -154,7 +155,8 @@ void main()
      }
      imageStore(specularSample, pixel, vec4(min(specularLight, vec3(MaxRadiance)), hitDistance));
  #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
@@ -510,10 +513,10 @@ index b013dc9..d40cc1d 100644
      if (tonemap.encodeSrgb != 0u)
          ldr = linearToSrgb(ldr);
 diff --git a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
-index 8e00ecf..a7bae5f 100644
+index a27542c..7b42b9a 100644
 --- a/src/Tertius.Rendering/VulkanRenderer.cs
 +++ b/src/Tertius.Rendering/VulkanRenderer.cs
-@@ -614,6 +614,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
+@@ -619,6 +619,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
          device.Vk.ResetFences(device.Device, 1, &fence).Check("vkResetFences");
          output.SubmitAndPresent(frame);
          CommitDrawnFrame(frame: frame, snapshot: snapshot, pending: pending);
@@ -521,7 +524,7 @@ index 8e00ecf..a7bae5f 100644
  
          if (sink != null && capture != null)
          {
-@@ -634,6 +635,94 @@ public sealed unsafe class VulkanRenderer : IRenderer
+@@ -639,6 +640,94 @@ public sealed unsafe class VulkanRenderer : IRenderer
          return true;
      }
  
