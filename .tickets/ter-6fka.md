@@ -22,3 +22,9 @@ One model (review, section 11): one store of first-bounce and far light, written
 
 Decided after the experiments. At least: the film of t2b-xeo7 shows no visible change of the room's light when the eye moves around the block, no new leak through a wall in any survey scene, and no cost peak at a start or after a light change that moves the render scale.
 
+
+## Notes
+
+**2026-11-22T21:20:12Z**
+
+2026-11-22, orchestrator: the review's claim that tuning cannot reach the bar for the ray noise is refuted for the scene that it cites, and holds elsewhere. Combined check's table (t3/combined-renderer-check, docs/research/t0-gbgj-combined-check/tables.txt, draw 132 at render scale 2/3, daub against the long reference with both clamps off): rect-lamps main 0.0119, Design X 0.0089, no clamp 0.0079 (ceiling 0.0114 / 0.0090 / 0.0083, against 0.0567 on 2026-11-14). deck-cuts 0.0076 / 0.0053 / 0.0034. exit-cabin 0.0289 / 0.0173 / 0.0131. docking-cabin 0.0263 / 0.0169 / 0.0137. bay-sunbeam 0.0315 / 0.0229 / 0.0149. cabin-light-cabin 0.0428 / 0.0348 / 0.0285. Reading: two scenes are at the bar of about 0.010. In four scenes the still with no trust rule at all stays 1.3 to 2.9 times above it, so that part is ray noise and no rule removes it. Design X closes most of the gap between main and that floor. The fall of rect-lamps from 0.0567 came before the back-face layer (the Design X line's guess: the room's shadow fix), so the review's cause for it is not supported.
