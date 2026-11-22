@@ -192,3 +192,26 @@ The side "one" is the least that one dispatch for both signals can cost: one dis
 This is the fork that the brief names. I stopped there. The record: docs/research/t0-acxm-region-evidence/spike/ holds plain.patch, box-and-switches.patch (with the SCRATCH switches off and one) and timing.txt. The tools are in the folder's tools/.
 
 A way out that the brief does not list, not built: fuse the region test into the spatial dispatch. Each spatial workgroup is one block of 8 × 8 pixels. So each workgroup can sum the 17 × 17 taps around it, about 5 loads per invocation, then update and test its own ring, and share the bit through shared memory. The taps go into the barrier that already runs before the spatial dispatch. So the fused test adds no dispatch and no barrier flush. Its expected cost is near the side "off", about +0.08 ms, plus the workgroup's sum. No other workgroup reads a block's ring, so the ring needs no barrier.
+
+**2026-11-22T01:47:04Z**
+
+Timing of the fused form (remedy lead, 2026-11-21), after the settlement of the fork. The region's test runs inside the spatial dispatch. The separate pass and the region evidence image are gone. Base: the line's head 8ec383c6e, as in the first spike. Each round waits until the machine's load over one minute is below 8 or 10, and the table gives the load beside each run (tools/table.py). The budget is +0.10 ms on the deck, for both signals.
+
+Three forms ran:
+- serial: each invocation sums its share of the 17 × 17 taps into its own slot. Invocation 0 adds the 64 slots and runs the ring's test alone, while the other 63 wait. Two barriers.
+- parallel: 8 invocations each add 8 slots, and 12 invocations each add 3 of the ring's draws. Invocation 0 adds those parts. The older window's sums subtract its first draw, so that the spread keeps its precision. Three barriers. Every sum has a fixed order.
+- parallel, bounce light only: the same binary with TERTIUS_SPIKE_REGION=one, which skips the test of the reflections through a sentinel ring slot.
+
+| Side | Rounds at low load | Deck | Film rect-bay |
+|---|---|---:|---:|
+| serial | f2, g2 to g4 | +0.347, then +0.397 / +0.402 / +0.287 | +0.314, then +0.190 / +0.273 / +0.162 |
+| parallel, both signals | g2 to g9 (8) | +0.274 (spread 0.102) | +0.139 (spread 0.138) |
+| parallel, bounce light only | g2 to g9 (8) | +0.174 (spread 0.142) | +0.287 (spread 0.149) |
+
+Round g1 ran at a load of about 23 and scattered (+0.44 to +0.55 ms). It is in timing.txt and left out of the medians. Every run's clock was 1296 MHz.
+
+Both orders of the settlement miss the budget. The fused form for both signals costs +0.274 ms on the deck. The fused form for the bounce light alone costs +0.174 ms. The tap store alone cost +0.080 ms in the first spike. So the test inside the spatial dispatch costs about 0.09 ms per signal above the taps.
+
+The film's numbers are not a pure cost. The bounce-only side costs more in the film than the side with both signals. The film's light moves, so the reflections' region evidence there changes the work of the passes after it. The deck is the budget's measure.
+
+The record: docs/research/t0-acxm-region-evidence/spike/ holds fused-serial.patch, fused-parallel.patch (with the scratch switch one) and the tables in timing.txt. I stopped there, as the settlement says, and took no film take of the bounce-only form. The src changes stay uncommitted in the worktree.
