@@ -1,8 +1,9 @@
 namespace Tertius.Rendering;
 
 /// <summary>
-/// Owns the window's measured render scale. The renderer draws at the exact-ratio size nearest at or below
-/// RequestedScale, and Drew records the scale that the draw realized under its frame number. Measure consumes that
+/// Owns the window's measured render scale. The renderer draws at the largest exact-ratio size at or below
+/// RequestedScale, or at the smallest inside the limits when none is, and Drew records the scale that the draw realized
+/// under its frame number. Measure consumes that
 /// finished frame's timings, so that the cost model describes the area that was drawn, not the request. Missing
 /// timings leave the scale unchanged (docs/plans/temporal-renderer.md, section 4).
 /// </summary>
@@ -57,7 +58,6 @@ internal sealed class RenderScaleController
                 $"A draw realized the scale {realizedScale}, outside {target.MinScale} to {target.MaxScale}."
             );
         drawn[frame % drawn.Length] = (frame, realizedScale);
-        Contract.Ensures(drawn[frame % drawn.Length] == (frame, realizedScale));
     }
 
     public void Measure(GpuTimings timings)

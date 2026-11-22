@@ -382,18 +382,17 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
         Math.Max(1, (int)(8f * MathF.Pow((float)outputWidth / renderWidth, 2f)));
 
     /// <summary>
-    /// Pads only FSR's internal allocation to its smallest largest render size, without changing the active size: a
-    /// longer side of at least 64 pixels for its six-level pyramid, by a wider allocation, and a shorter side of at
-    /// least 2. An exact-ratio active size can be as small as one step of the output's ratio, 1 × 1 of a square.
+    /// Pads only FSR's internal allocation to its smallest largest render size (<see cref="CheckArguments"/>), without
+    /// changing the active size: a longer side of at least 64 pixels for its six-level pyramid, which a wider allocation
+    /// gives, and a shorter side of at least 2, because AMD's images at half the largest render size need a pixel on each
+    /// side. An exact-ratio active size can be as small as one step of the output's ratio, 1 × 1 of a square.
     /// </summary>
-    internal static Extent2D AllocationSize(Extent2D renderSize) =>
-        new(
-            Math.Max(
-                renderSize.Width,
-                Math.Max(renderSize.Width, renderSize.Height) >= SmallestLargestSide ? 2 : SmallestLargestSide
-            ),
-            Math.Max(renderSize.Height, 2)
-        );
+    internal static Extent2D AllocationSize(Extent2D renderSize)
+    {
+        bool longEnough = Math.Max(renderSize.Width, renderSize.Height) >= SmallestLargestSide;
+        uint smallestWidth = longEnough ? 2u : SmallestLargestSide;
+        return new(Math.Max(renderSize.Width, smallestWidth), Math.Max(renderSize.Height, 2));
+    }
 
     /// <summary>
     /// AMD's jitter of draw <paramref name="index"/> in a sequence of <paramref name="phaseCount"/> phases, in render

@@ -41,6 +41,49 @@ public sealed class UpscalingRenderTests
         }
     }
 
+    [Theory]
+    [InlineData(1919, 1079)]
+    [InlineData(7, 5)]
+    [InlineData(0, 0)]
+    public void AWindowWhoseSurfaceStartsAtASizeItCannotDrawStartsAndDrawsOnceItHasOne(int width, int height)
+    {
+        // The surface of a window that a window manager sizes, or a minimized one at 0 × 0: a swapchain without images.
+        VulkanRenderer renderer = WindowRenderer(
+            createOutput: (device, allocator, _) =>
+                width == 0
+                    ? new TestOutput(device: device, allocator: allocator, extent: new(160, 96), bgra: false)
+                    {
+                        Minimized = true,
+                    }
+                    : new TestOutput(
+                        device: device,
+                        allocator: allocator,
+                        extent: new((uint)width, (uint)height),
+                        bgra: false
+                    )
+                    {
+                        FramesToSkip = 1,
+                    }
+        );
+        try
+        {
+            RenderSnapshot scene = BoxScene(renderer);
+            renderer.Render(scene, 1);
+            renderer.LastFrameStats.Rendered.Should().BeFalse();
+
+            renderer.Resize(160, 96);
+            scene.Time += 1.0 / 60;
+            Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: scene, name: "window after its fit");
+
+            (image.Width, image.Height).Should().Be((160, 96));
+            (renderer.LastScene.Camera.Width, renderer.LastScene.Camera.Height).Should().Be((160, 96));
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     [Fact]
     public void AHeadlessOutputWithNoActiveSizeInsideTheScaleLimitsIsRefused()
     {
@@ -75,7 +118,7 @@ public sealed class UpscalingRenderTests
     [InlineData(64, 64, 42, 42)]
     [InlineData(6, 4, 3, 2)]
     [InlineData(2, 2, 1, 1)]
-    public void SmallHeadlessOutputsKeepTheDefaultActiveScale(int width, int height, int renderWidth, int renderHeight)
+    public void ASmallHeadlessOutputDrawsTheLargestExactRatioSizeAtOrBelowTheDefaultScale(int width, int height, int renderWidth, int renderHeight)
     {
         var renderer = VulkanRenderer.CreateHeadless(
             new()
@@ -333,18 +376,7 @@ public sealed class UpscalingRenderTests
         VulkanRenderer renderer = WindowRenderer(width: 640, height: 360);
         try
         {
-            RenderSnapshot scene = ReflectionTesting.Dark();
-            scene.Instances.Add(ReflectionTesting.Floor(renderer, ReflectionTesting.Mirror()));
-            scene.Instances.Add(
-                Gpu.Instance(
-                    mesh: renderer.CreateMesh(Primitives.Box(new(0.5f))),
-                    material: ReflectionTesting.Glow(renderer, new(4f)),
-                    position: new(0, -0.5f, -12),
-                    scale: new(3, 2, 0.2f),
-                    radius: 1.8f,
-                    chainDepth: TestChains.CamerasFrame
-                )
-            );
+            RenderSnapshot scene = GlowingPanelOverAMirror(renderer);
             renderer.Render(scene, 1);
             DriveScale(
                 renderer: renderer,
@@ -399,7 +431,30 @@ public sealed class UpscalingRenderTests
         }
     }
 
-    private static VulkanRenderer WindowRenderer(int width = 160, int height = 96, FrameTimeTarget? target = null) =>
+    /// <summary>A glowing panel 12 m ahead, over a mirror floor, in the dark: instance 1 is the panel.</summary>
+    private static RenderSnapshot GlowingPanelOverAMirror(VulkanRenderer renderer)
+    {
+        RenderSnapshot scene = ReflectionTesting.Dark();
+        scene.Instances.Add(ReflectionTesting.Floor(renderer, ReflectionTesting.Mirror()));
+        scene.Instances.Add(
+            Gpu.Instance(
+                mesh: renderer.CreateMesh(Primitives.Box(new(0.5f))),
+                material: ReflectionTesting.Glow(renderer, new(4f)),
+                position: new(0, -0.5f, -12),
+                scale: new(3, 2, 0.2f),
+                radius: 1.8f,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        return scene;
+    }
+
+    private static VulkanRenderer WindowRenderer(
+        int width = 160,
+        int height = 96,
+        FrameTimeTarget? target = null,
+        Func<VulkanDevice, DeviceAllocator, Silk.NET.Vulkan.Extent2D, IOutputTarget>? createOutput = null
+    ) =>
         VulkanRenderer.CreateOffscreen(
             options: new()
             {
@@ -418,8 +473,9 @@ public sealed class UpscalingRenderTests
                 Upscaling = new Fsr3Upscaling(target ?? FrameTimeTarget.Default, 0),
                 WarmUpFrames = 0,
             },
-            createOutput: (device, allocator, extent) =>
-                new HeadlessTarget(device: device, allocator: allocator, extent: extent, bgra: false),
+            createOutput: createOutput
+                ?? ((device, allocator, extent) =>
+                    new HeadlessTarget(device: device, allocator: allocator, extent: extent, bgra: false)),
             headless: false
         );
 

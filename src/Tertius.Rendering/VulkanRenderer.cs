@@ -146,7 +146,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     {
         this.device = device;
         this.headless = headless;
-        upscaling = headless ? options.Upscaling.ForHeadless() : options.Upscaling;
+        upscaling = UpscalingOf(options, headless);
         if (upscaling is Fsr3Upscaling { RenderScale: FrameTimeTarget target })
             ScaleController = new(target);
         capturesInFlight = options.CapturesInFlight;
@@ -311,6 +311,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
     /// <summary>Creates a renderer that draws into an offscreen image of <see cref="RendererOptions.Width"/> by
     /// <see cref="RendererOptions.Height"/>.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// An option is out of range, or the upscaling cannot draw the output: it has no size of exactly its aspect inside
+    /// the render scale's limits, such as 1919 × 1079 at the headless 2/3 (ARCHITECTURE.md, "Temporal upscaling and
+    /// render size").
+    /// </exception>
     public static VulkanRenderer CreateHeadless(RendererOptions options) =>
         CreateOffscreen(
             options,
@@ -336,8 +341,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 "A headless renderer needs a positive Width and Height."
             );
         var extent = new Extent2D((uint)options.Width, (uint)options.Height);
-        UpscalingSetting upscaling = headless ? options.Upscaling.ForHeadless() : options.Upscaling;
-        if (upscaling.OutputProblem(extent) is { } problem)
+        if (UpscalingOf(options, headless).OutputProblem(extent) is { } problem)
             throw new ArgumentOutOfRangeException(nameof(options), problem);
         var device = VulkanDevice.Create(options.Validation, [], null);
         return new(
@@ -553,6 +557,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>Requests a new output size. It takes effect at the start of the next <see cref="Render"/>.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// A side is negative, or a renderer without a window gets a size that its upscaling cannot draw: an empty one, or
+    /// one without a size of exactly its aspect inside the render scale's limits. A window's swapchain waits instead.
+    /// </exception>
     public void Resize(int width, int height)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(width);
@@ -642,18 +650,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
         MatchTargetsTo(image);
 
-        // The draw's one choke point of the history: its reset, its draw index, its exposure step, its refresh of the map's
-        // faces and the last frame's state. After the acquire, which can change the output size.
-        FrameHistory.PendingFrame pending = history.Begin(
-            snapshot: snapshot,
-            step: step,
-            draw: draw,
-            outputSize: targets.OutputExtent,
-            renderSize: upscaling.RenderExtent(
-                targets.OutputExtent,
-                ScaleController?.RequestedScale ?? upscaling.LargestScale
-            )
-        );
+        FrameHistory.PendingFrame pending = BeginDraw(snapshot: snapshot, step: step, draw: draw);
         ICaptureSink? sink = takeCapture ? Interlocked.Exchange(ref pendingCapture, null) : null;
         GpuBuffer? capture = sink != null ? CaptureBuffer(slot: frame.Index, extent: image.Extent) : null;
         // After the output gave the frame an image, so a skipped frame leaves the map's frame as it is, and before
@@ -692,6 +689,27 @@ public sealed unsafe class VulkanRenderer : IRenderer
         );
         return true;
     }
+
+    /// <summary>
+    /// The draw's one choke point of the history: its reset, its draw index, its exposure step, its refresh of the map's
+    /// faces and the last frame's state. Its render size is the active size of the output at the requested scale. After
+    /// the acquire, which can change the output size.
+    /// </summary>
+    private FrameHistory.PendingFrame BeginDraw(RenderSnapshot snapshot, float step, int draw) =>
+        history.Begin(
+            snapshot: snapshot,
+            step: step,
+            draw: draw,
+            outputSize: targets.OutputExtent,
+            renderSize: upscaling.RenderExtent(
+                targets.OutputExtent,
+                ScaleController?.RequestedScale ?? upscaling.LargestScale
+            )
+        );
+
+    /// <summary>The upscaling that a renderer draws with: a headless one draws a frame-time target at a fixed 2/3.</summary>
+    private static UpscalingSetting UpscalingOf(RendererOptions options, bool headless) =>
+        headless ? options.Upscaling.ForHeadless() : options.Upscaling;
 
     /// <summary>Resizes the targets to the output's <paramref name="image"/> when the swapchain changed size on its own (out of date).</summary>
     private void MatchTargetsTo(GpuImage image)
@@ -1979,7 +1997,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// </summary>
     private RenderTargets CreateTargets(RendererOptions options)
     {
-        Extent2D extent = output.Extent.Width > 0 && output.Extent.Height > 0 ? output.Extent : new(1, 1);
+        // The targets take only an output that the upscaling can draw (UpscalingSetting.Supports). A window whose surface
+        // has another size or none, still fitting or minimized, gets the nearest such size until its first image
+        // (MatchTargetsTo).
+        Extent2D extent = upscaling.SnapOutput(new(Math.Max(output.Extent.Width, 1), Math.Max(output.Extent.Height, 1)));
         return Own(
             new RenderTargets(
                 device: device,

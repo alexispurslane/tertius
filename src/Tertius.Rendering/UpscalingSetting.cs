@@ -5,7 +5,11 @@ namespace Tertius.Rendering;
 /// <summary>No temporal anti-aliasing or upscale: every pass draws at the output size, without jitter.</summary>
 public readonly record struct NoUpscaling;
 
-/// <summary>A fixed ratio of render pixels to output pixels on each axis, from 0.5 to 1.</summary>
+/// <summary>
+/// The largest ratio of render pixels to output pixels on each axis, from 0.5 to 1. A draw takes the largest size of
+/// exactly the output's aspect at or below it, and at least half the output (ARCHITECTURE.md, "Temporal upscaling and
+/// render size").
+/// </summary>
 public readonly record struct FixedRenderScale(float Scale);
 
 /// <summary>The GPU frame target in ms and the allowed render scales on each axis.</summary>
@@ -98,9 +102,12 @@ public readonly partial struct UpscalingSetting
     }
 
     /// <summary>
-    /// Whether the renderer can draw <paramref name="output"/>: it has an area, and its active sizes inside the scale
-    /// limits give the setting what it needs. A fixed scale needs one size, a frame-time target with a range two, so
-    /// that the controller has a choice. Every positive output has the native size, so a native-only setting draws all.
+    /// Whether the renderer can draw <paramref name="output"/>: it has an area, and it has as many active sizes inside
+    /// the scale limits as the setting needs. A fixed scale needs one. A frame-time target with a range needs at least
+    /// as many as the eighths of the output inside its limits, and at least two, so that the controller's choice is no
+    /// coarser than an eighth: five for 0.5 to 1. So 1366 × 768, whose greatest common divisor 2 gives only 0.5 and 1,
+    /// is not drawable under the default target, and 1680 × 1050, with 106 sizes from 0.5 to 1, is. Every positive
+    /// output has the native size, so a native-only setting draws all.
     /// </summary>
     internal bool Supports(Extent2D output) => OutputProblem(output) == null;
 
@@ -112,8 +119,9 @@ public readonly partial struct UpscalingSetting
         if (HasSizes(Divisor(output)))
             return null;
         (float smallest, float largest) = ScaleLimits;
-        return $"The output {output.Width} × {output.Height} has too few sizes of exactly its aspect from {smallest} to "
-            + $"{largest} of it: its width and height have the greatest common divisor {Divisor(output)}.";
+        return $"The output {output.Width} × {output.Height} has fewer than {SizesNeeded} sizes of exactly its aspect "
+            + $"from {smallest} to {largest} of it: its width and height have the greatest common divisor "
+            + $"{Divisor(output)}.";
     }
 
     /// <summary>
@@ -121,8 +129,8 @@ public readonly partial struct UpscalingSetting
     /// renderer can draw it or it has no area, else each axis rounded to the nearest multiple of the window grid, ties
     /// up. The grid is the smallest number of pixels from 8 up whose square has the sizes that the setting needs. A
     /// multiple of the grid on both axes has them too, because its greatest common divisor is a multiple of the grid.
-    /// The grid starts at 8 so that a snapped output keeps at least every eighth of it inside the limits as a size, and
-    /// an axis moves by at most half the grid.
+    /// The grid starts at 8, the grid of the eighths that a frame-time target needs, and an axis moves by at most half
+    /// the grid.
     /// </summary>
     /// <exception cref="NotSupportedException">No grid up to 65,536 px gives the sizes: the scale limits lie too close.</exception>
     internal Extent2D SnapOutput(Extent2D output)
@@ -134,8 +142,8 @@ public readonly partial struct UpscalingSetting
         {
             if (grid == 65536)
                 throw new NotSupportedException(
-                    $"No window of up to 65,536 px has two sizes of exactly its aspect from {ScaleLimits.Smallest} to "
-                        + $"{ScaleLimits.Largest} of it."
+                    $"No window of up to 65,536 px has {SizesNeeded} sizes of exactly its aspect from "
+                        + $"{ScaleLimits.Smallest} to {ScaleLimits.Largest} of it."
                 );
             grid++;
         }
@@ -157,11 +165,19 @@ public readonly partial struct UpscalingSetting
 
     /// <summary>Whether an output whose width and height have the greatest common divisor <paramref name="divisor"/> has
     /// the active sizes that the setting needs inside its limits (<see cref="Supports"/>).</summary>
-    private bool HasSizes(uint divisor)
+    private bool HasSizes(uint divisor) => SizesInside(divisor) >= SizesNeeded;
+
+    /// <summary>How many active sizes an output needs inside the limits (<see cref="Supports"/>).</summary>
+    private uint SizesNeeded =>
+        this is Fsr3Upscaling { RenderScale: FrameTimeTarget target } && target.MinScale < target.MaxScale
+            ? Math.Max(2, SizesInside(8))
+            : 1;
+
+    /// <summary>How many step counts of an output with <paramref name="divisor"/> steps lie inside the limits.</summary>
+    private uint SizesInside(uint divisor)
     {
         (uint first, uint last) = Steps(divisor);
-        bool choosing = this is Fsr3Upscaling { RenderScale: FrameTimeTarget target } && target.MinScale < target.MaxScale;
-        return first <= last && (!choosing || first < last);
+        return first <= last ? last - first + 1 : 0;
     }
 
     /// <summary>The fewest and the most steps of an output with <paramref name="divisor"/> steps that lie inside the

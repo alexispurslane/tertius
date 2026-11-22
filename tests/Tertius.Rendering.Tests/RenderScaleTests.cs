@@ -86,7 +86,7 @@ public sealed class RenderScaleTests
     [InlineData(1081, 1920, 1080, 1920)]
     [InlineData(1441, 1080, 1440, 1080)]
     [InlineData(361, 641, 360, 640)]
-    [InlineData(1918, 1080, 1920, 1080)] // 959:540 has one size from 0.5 to 0.9, 959 × 540, and a time target needs two
+    [InlineData(1918, 1080, 1920, 1080)] // 959:540 has one size from 0.5 to 0.9, and a time target needs the four eighths
     [InlineData(7, 5, 8, 8)]
     public void AWindowSnapsToTheNearestOutputThatHasActiveSizesAndKeepsOneThatHas(
         int width,
@@ -100,6 +100,36 @@ public sealed class RenderScaleTests
         output.Should().Be(new Extent2D((uint)expectedWidth, (uint)expectedHeight));
         Dynamic.Supports(output).Should().BeTrue();
         Dynamic.SnapOutput(output).Should().Be(output, "a supported output stays as it is");
+    }
+
+    [Theory]
+    [InlineData(1366, 768, 1368, 768)] // 683:384 has only 0.5 and 1
+    [InlineData(1680, 1050, 1680, 1050)] // 210 steps of 8:5
+    [InlineData(1600, 900, 1600, 900)]
+    [InlineData(3440, 1440, 3440, 1440)]
+    [InlineData(1360, 768, 1360, 768)] // 16 steps of 85:48: 9 sizes from 0.5 to 1
+    public void AWindowOfATimeTargetHasAtLeastAsManySizesAsTheEighthsInsideItsLimits(
+        int width,
+        int height,
+        int expectedWidth,
+        int expectedHeight
+    )
+    {
+        UpscalingSetting setting = new Fsr3Upscaling(FrameTimeTarget.Default, 0);
+
+        Extent2D output = setting.SnapOutput(new((uint)width, (uint)height));
+
+        output.Should().Be(new Extent2D((uint)expectedWidth, (uint)expectedHeight));
+    }
+
+    [Fact]
+    public void AFixedScaleDrawsAnOutputWithOneSizeInsideItsLimits()
+    {
+        UpscalingSetting setting = new Fsr3Upscaling(new FixedRenderScale(2f / 3), 0);
+        var output = new Extent2D(1366, 768);
+
+        setting.Supports(output).Should().BeTrue("a headless output cannot change, and half of it lies in the limits");
+        setting.RenderExtent(output, 2f / 3).Should().Be(new Extent2D(683, 384));
     }
 
     [Theory]
