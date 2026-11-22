@@ -309,3 +309,15 @@ sizeramp.py's chart axis is fixed in 726bf338c (the axis reaches at least the th
 **2026-11-22T19:27:54Z**
 
 Disk, 2026-11-22 about 14:35: the acceptance lead deleted only PNG frames of finished, committed takes (the two fixed-scale walk films, the Mac's dynamic walk films, main's fair switch film) and freed about 2.3 GiB; /private/tmp/t0-5tyj holds 2.8 GiB; the disk has 27 GiB free, still under the stop limit of 30 GiB. Kept: Design X's fair switch frames (504 MB, for the video of X beside the experiment XB), the screenshots (670 MB), the runs (764 MB), the ramp's kept frames (127 MB), the jamb takes (about 120 MB), every build and every log.
+
+**2026-11-22T19:29:23Z**
+
+Orders from the orchestrator, 2026-11-22, and what I sent on.
+
+The disk's new limits, for both lines until further word: a rebuild in a worktree or probe folder that already exists may start at 22 GiB free or more, one at a time across the line, and a lead stops under 20 GiB. A new worktree with a full build needs 30 GiB free. The swap of macOS is full (27.4 of 28.7 GB) and takes what is freed; the lab does not cause it.
+
+The cost block: the experiment with the cap at FullRateFrames runs as planned, with a third variant if it is a few scratch lines: the history restarts at fastCap as now and the ray plan gives such a pixel no ray of its own. The user decides between the designs, so both variants' numbers go into one table: the GPU time per draw, the settle after off and on, the boil without the fade, and a side-by-side video where the eye can see a difference.
+
+Sent to the acceptance lead: variant XB (accumulate_spatial.comp: light evidence sets min(antiLagged, FullRateFrames)) and variant XC (accumulate_spatial.comp as on X; screen_trace_plan.comp: the own-ray test reads "historyLengthOf(r, kind) >= 4.0"). My answer (45): XC's scratch line is wider than the design that it stands for, because it takes the own ray from every history of 4 to 7 draws and not only from a light restart; that is accepted for the experiment, and the report says it. The lead checks that a restart at fastCap reads as 4.0 or more in the next draw's plan. The rebuild slot of the line is the acceptance lead's until its last variant is built.
+
+The wobble's residual: the back-face line's stills at a fixed size show a scatter of about 0.2 px with no trend, and that line reads the midpoint's sideways shift as depending on the change of size between two draws. Sent to the combined check's lead: split the rms and the range of the edge distance and of the midpoint by draws whose size changed against draws of one size, before and after the fix.
