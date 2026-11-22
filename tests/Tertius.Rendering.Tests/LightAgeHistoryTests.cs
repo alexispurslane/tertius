@@ -391,6 +391,8 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
             value,
             (renderer, scene) =>
             {
+                // A history longer than FullRateFrames before the dimming: region evidence can cut the reflections to 8 draws
+                // in a still view too, as here at draws 45 and 46, so the warm lengths lie near 26 and not at 64.
                 Draw(renderer, scene, 64);
                 float[] warm = Slow(renderer);
                 SetGlow(renderer, scene, new(3.2f));
@@ -400,7 +402,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 float[] cut = Slow(renderer);
                 Enumerable
                     .Range(Height / 2 * Width, Width * Height / 2)
-                    .Count(pixel => LengthAt(warm, pixel) > 32 && LengthAt(cut, pixel) == SpecularFastCap)
+                    .Count(pixel => LengthAt(warm, pixel) > FullRateFrames && LengthAt(cut, pixel) == SpecularFastCap)
                     .Should()
                     .BeGreaterThan(30, "the blocks of the receivers that reflect the emitter have light evidence");
             }
@@ -859,7 +861,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 [
                     .. Enumerable
                         .Range(Height / 2 * Width, Width * Height / 2)
-                        .Where(pixel => LengthAt(warm, pixel) > 32 && LengthAt(cut, pixel) == SpecularFastCap),
+                        .Where(pixel => LengthAt(warm, pixel) > FullRateFrames && LengthAt(cut, pixel) == SpecularFastCap),
                 ];
                 receivers.Length.Should().BeGreaterThan(30, "the dimming must cut receivers first");
 
@@ -884,6 +886,12 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
 
     /// <summary>The fast cap of the bounce light: the length to which light evidence cuts its histories.</summary>
     private const float DiffuseFastCap = 4;
+
+    /// <summary>
+    /// The length from which a pixel shares its block's ray (sample_age.glsl, FullRateFrames): the length to which region
+    /// evidence cuts a history.
+    /// </summary>
+    private const float FullRateFrames = 8;
 
     /// <summary>The fast cap of the reflections: the length to which light evidence cuts their histories.</summary>
     private const float SpecularFastCap = 4;

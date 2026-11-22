@@ -70,6 +70,24 @@ internal sealed unsafe class TemporalSignal : IDisposable
     /// </summary>
     private const uint GroupSize = 8;
 
+    /// <summary>
+    /// The draws that an anchor's ring keeps for the region's drift test, two windows of 18 draws (region_drift.glsl,
+    /// RegionRingDraws): the layers of <see cref="RegionRing(int)"/>.
+    /// </summary>
+    public const int RegionRingDraws = 36;
+
+    /// <summary>
+    /// The anchors' step in blocks of 8 × 8 pixels, in x and in y (region_drift.glsl, AnchorStepBlocks): the ring holds
+    /// one texel per anchor, every 8th block.
+    /// </summary>
+    public const int AnchorStepBlocks = 8;
+
+    /// <summary>
+    /// The format of a layer of an anchor's ring (region_drift.glsl, regionRing): r the region's light of a draw, g the
+    /// count of valid draws in a row up to it, b 1 where the region's light moved in that draw.
+    /// </summary>
+    public const Format RegionRingFormat = Format.R32G32B32A32Sfloat;
+
     private readonly VulkanDevice device;
     private readonly DeviceAllocator allocator;
     private readonly DescriptorLayouts layouts;
@@ -296,6 +314,13 @@ internal sealed unsafe class TemporalSignal : IDisposable
     public GpuImage? SampleAge(int part) => parts[part].SampleAge;
 
     /// <summary>
+    /// The rings of <paramref name="part"/>'s anchors (<see cref="RegionRingFormat"/>, <see cref="RegionRingDraws"/>
+    /// layers, one texel per anchor), or null without a light age. Only the spatial dispatch reads and writes them: an
+    /// anchor's workgroup writes this draw's layer, and every block reads the layer of the draw before.
+    /// </summary>
+    public GpuImage? RegionRing(int part) => parts[part].Regions is [var ring] ? ring : null;
+
+    /// <summary>
     /// The diagnostic of uncovered surfaces of <paramref name="part"/> under <see cref="HistoryInstrumentation.LightAgeDiagnostic"/>
     /// (<see cref="UncoveredDiagnosticFormat"/>), or null without it. Only the capture tool and the tests read it.
     /// </summary>
@@ -420,6 +445,10 @@ internal sealed unsafe class TemporalSignal : IDisposable
         barriers.Image(images.Slow, ImageUse.StorageCompute);
         foreach (GpuImage trace in images.Traces)
             barriers.Image(trace, ImageUse.StorageCompute);
+        // The rings, which the last draw's spatial dispatch wrote. They join this barrier, so the region's test adds no
+        // barrier of its own.
+        foreach (GpuImage region in images.Regions)
+            barriers.Image(region, ImageUse.StorageCompute);
         if (reflectionDistanceHistory)
         {
             barriers.Image(images.ReflectionGuideScratch, ImageUse.StorageCompute);
@@ -464,10 +493,18 @@ internal sealed unsafe class TemporalSignal : IDisposable
     private static Extent2D BlocksOf(Extent2D extent) =>
         new((extent.Width + GroupSize - 1) / GroupSize, (extent.Height + GroupSize - 1) / GroupSize);
 
+    /// <summary>The anchors of the blocks at <paramref name="extent"/>: the blocks whose coordinates are multiples of <see cref="AnchorStepBlocks"/>.</summary>
+    private static Extent2D AnchorsOf(Extent2D extent)
+    {
+        Extent2D blocks = BlocksOf(extent);
+        const uint step = AnchorStepBlocks;
+        return new((blocks.Width + step - 1) / step, (blocks.Height + step - 1) / step);
+    }
+
     private void Dispatch(FrameContext context, Pipeline pipeline, DescriptorSet set)
     {
         context.BeginComputePass(pipeline: pipeline, layout: layouts.AccumulateLayout, passSet: set);
-        var push = AccumulatePushConstants.Of(Parameters, context.History.Reset);
+        var push = AccumulatePushConstants.Of(Parameters, context.History.Reset, context.History.DrawIndex);
         if (HistoryMode == SpecularHistoryMode.PreciseUncapped)
         {
             push.Cap = float.PositiveInfinity;
@@ -522,6 +559,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
                     ]
                     : [],
                 Ages: CreateAges(extent, part),
+                Regions: KeepsLightAge ? [CreateRegionRing(AnchorsOf(extent), part)] : [],
                 Traces: Instrumentation == HistoryInstrumentation.ControlTrace ? [CreateTrace(extent, part)] : []
             );
             for (int parity = 0; parity < 2; parity++)
@@ -553,6 +591,9 @@ internal sealed unsafe class TemporalSignal : IDisposable
         // The sample age, which the temporal dispatch of both signals reads.
         if (images.SampleAge is { } age)
             layouts.WriteStorageImage(set: set, binding: 11, image: age);
+        // The anchors' rings (region_drift.glsl).
+        if (images.Regions is [var ring])
+            layouts.WriteStorageImage(set: set, binding: 13, image: ring);
         // The diagnostic of uncovered surfaces, which only the specular signal's temporal dispatch writes.
         if (scratch.Instrumentation == HistoryInstrumentation.LightAgeDiagnostic)
             layouts.WriteStorageImage(
@@ -589,6 +630,23 @@ internal sealed unsafe class TemporalSignal : IDisposable
                 ),
             ],
         };
+
+    /// <summary>
+    /// The ring of <paramref name="part"/>'s anchors at <paramref name="anchors"/>, one texel per anchor
+    /// (region_drift.glsl). Its contents need not survive a new size: the draw after it resets, and the spatial dispatch
+    /// reads a ring's draws only after it wrote them since the last reset.
+    /// </summary>
+    private GpuImage CreateRegionRing(Extent2D anchors, int part) =>
+        GpuImage.Create(
+            device: device,
+            allocator: allocator,
+            extent: anchors,
+            format: RegionRingFormat,
+            usage: ImageUsageFlags.StorageBit | ImageUsageFlags.TransferSrcBit,
+            mipLevels: 1,
+            name: $"{Name} region ring {part}",
+            arrayLayers: RegionRingDraws
+        );
 
     /// <summary>The sample age of <paramref name="part"/>, which its producer writes as it writes the sample.</summary>
     private GpuImage CreateSampleAge(Extent2D extent, int part) =>
@@ -661,6 +719,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
         GpuImage[] Fasts,
         GpuImage[] Guides,
         GpuImage[] Ages,
+        GpuImage[] Regions,
         GpuImage[] Traces
     )
     {
@@ -676,7 +735,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
 
         public GpuImage? SampleAge => Ages is [var age, ..] ? age : null;
 
-        public IEnumerable<GpuImage> All => [Sample, Slow, .. Fasts, .. Guides, .. Ages, .. Traces];
+        public IEnumerable<GpuImage> All => [Sample, Slow, .. Fasts, .. Guides, .. Ages, .. Regions, .. Traces];
 
         /// <summary>Whether every image has <paramref name="extent"/>.</summary>
         public bool Fit(Extent2D extent) =>
@@ -685,6 +744,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
             && AllFit(Fasts, extent)
             && AllFit(Guides, extent)
             && AllFit(Ages, extent)
+            && AllFit(Regions, AnchorsOf(extent))
             && AllFit(Traces, extent);
 
         /// <summary>Whether every image of <paramref name="images"/> has <paramref name="extent"/>.</summary>

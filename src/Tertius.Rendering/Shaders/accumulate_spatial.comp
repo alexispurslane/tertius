@@ -4,9 +4,13 @@
 // frame's fast history around the pixel, shortens the length by the clamp's move, and writes the slow history. The
 // workgroup is a block of 8 × 8 pixels, and the block's evidence level, the strongest of its pixels' samples, acts on
 // every pixel of it in this draw: motion evidence drops the box's widening, and light evidence cuts the length to the
-// fast cap and leaves the box (docs/plans/bounce-light-confidence.md, section 8).
+// fast cap and leaves the box (docs/plans/bounce-light-confidence.md, section 8). A signal with a light age also takes the
+// region evidence of its block (region_drift.glsl), which cuts the length to FullRateFrames and leaves the box.
 #extension GL_GOOGLE_include_directive : require
 #include "accumulate.glsl"
+#ifdef TERTIUS_LIGHT_AGE
+#include "region_drift.glsl"
+#endif
 #include "accumulate_reflection_guide.glsl"
 #include "half_store.glsl"
 #include "meter.glsl"
@@ -14,11 +18,13 @@
 // The least luminance by which the clamp divides: the lag's share and the chroma of the widening.
 const float LeastLuminance = 1e-4;
 
-// The evidence levels of a block, ordered by strength (section 8.2). Motion evidence narrows the box for this draw, and
-// light evidence cuts the length to the fast cap.
+// The evidence levels of a block, ordered by how certain the knowledge is (section 8.2). Region evidence cuts the length
+// to FullRateFrames, motion evidence narrows the box for this draw, and light evidence cuts the length to the fast cap.
+// The level lives only in this dispatch's shared value.
 const uint NoEvidence = 0u;
-const uint MotionEvidence = 1u;
-const uint LightEvidence = 2u;
+const uint RegionEvidence = 1u;
+const uint MotionEvidence = 2u;
+const uint LightEvidence = 3u;
 
 #ifdef TERTIUS_LIGHT_AGE
 // The block's evidence level in this draw, which its 64 invocations share.
@@ -35,17 +41,23 @@ uint evidenceOfSample(uint sampleAge)
     return sawMotion(sampleAge) ? MotionEvidence : NoEvidence;
 }
 
-// The evidence level of the workgroup's block: the strongest level of its pixels' samples. Every invocation of the
-// workgroup calls it from main before any branch, so both barriers run in uniform control flow. A maximum does not depend
-// on the order of the invocations, so one machine gives the same level in every run. A sky pixel's age is 0, and a pixel
-// outside the images adds nothing.
+// The evidence level of the workgroup's block: the strongest of its region's level of the draw before and its pixels'
+// samples' levels. An anchor's workgroup first runs its region's test for the blocks of the next draw. Every invocation
+// of the workgroup calls it from main before any branch, and the anchor's branch is uniform in the workgroup, so every
+// barrier runs in uniform control flow. A maximum does not depend on the order of the invocations, so one machine gives
+// the same level in every run. A sky pixel's age is 0, and a pixel outside the images adds nothing.
 uint evidenceOfBlock(ivec2 pixel)
 {
+    ivec2 block = ivec2(gl_WorkGroupID.xy);
+    if (isRegionAnchor(block))
+        updateRegionAnchor(block);
     if (gl_LocalInvocationIndex == 0u)
         blockEvidence = NoEvidence;
     barrier();
     if (insideImages(pixel))
         atomicMax(blockEvidence, evidenceOfSample(imageLoad(sampleAge, pixel).r));
+    if (regionAnchorMovedBefore(block, gl_LocalInvocationIndex))
+        atomicMax(blockEvidence, RegionEvidence);
     barrier();
     return blockEvidence;
 }
@@ -128,8 +140,8 @@ void accumulateAt(ivec2 pixel, uint evidence)
         // The box holds every excursion that the history's own samples explain: at least retainedSigmas retained
         // deviations, in the chroma of the history, which holds the excess (docs/plans/bounce-light-confidence.md,
         // section 7). The reflections' narrow box takes none. Motion evidence drops the widening for this draw, so that
-        // the box measures a change of unknown size. Light evidence keeps it: the cut below already bounds the length,
-        // and a box without its widening would cut the rare bright light that the history holds (section 8.2).
+        // the box measures a change of unknown size. Light and region evidence keep it: the cut below already bounds the
+        // length, and a box without its widening would cut the rare bright light that the history holds (section 8.2).
         vec3 spread = parameters.clampSigmas * sigma;
         if (parameters.retainedSigmas > 0.0 && evidence != MotionEvidence)
         {
@@ -144,11 +156,15 @@ void accumulateAt(ivec2 pixel, uint evidence)
         storeTrace(pixel, 7, vec4(sigma, 0.0));
 #endif
         // Light evidence has a known age, so it bounds the length: the history restarts at the fast window's length.
-        // Motion has no known size, so the narrow box measures it, and the anti-lag shortens the history by the clamp's
-        // move.
-        historyLength = evidence == LightEvidence
-            ? fastCap
-            : max(fastCap, historyLength * (1.0 - min(1.0, lag / parameters.antiLagShare)));
+        // Region evidence states a change too, so it takes no anti-lag either: the history keeps at most FullRateFrames
+        // draws, the shortest length that keeps the block's shared ray. Motion has no known size, so the narrow box
+        // measures it, and the anti-lag shortens the history by the clamp's move.
+        if (evidence == LightEvidence)
+            historyLength = fastCap;
+        else if (evidence == RegionEvidence)
+            historyLength = min(historyLength, FullRateFrames);
+        else
+            historyLength = max(fastCap, historyLength * (1.0 - min(1.0, lag / parameters.antiLagShare)));
         slow = clamped;
     }
 

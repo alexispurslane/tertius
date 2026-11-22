@@ -215,3 +215,48 @@ Both orders of the settlement miss the budget. The fused form for both signals c
 The film's numbers are not a pure cost. The bounce-only side costs more in the film than the side with both signals. The film's light moves, so the reflections' region evidence there changes the work of the passes after it. The deck is the budget's measure.
 
 The record: docs/research/t0-acxm-region-evidence/spike/ holds fused-serial.patch, fused-parallel.patch (with the scratch switch one) and the tables in timing.txt. I stopped there, as the settlement says, and took no film take of the bounce-only form. The src changes stay uncommitted in the worktree.
+
+**2026-11-22T05:19:04Z**
+
+The anchored form: timing and build (remedy lead, 2026-11-21), after the settlement of the second fork. The region's test runs only at anchor blocks, every 8th block in x and in y. Base: the line's head 8ec383c6e. The tables are in docs/research/t0-acxm-region-evidence/spike/timing.txt.
+
+Timing on the deck, GPU frame span against base, 8 paired rounds per side, with the load beside each run:
+
+| Side | Rounds | Deck | Film rect-bay |
+|---|---|---:|---:|
+| anchored, each block reads its anchors in one thread | h1 to h8 | +0.135 (spread 0.114) | −0.070 |
+| anchored, test off | h1 to h8 | +0.010 (spread 0.092) | +0.009 |
+| anchored, the read in 9 threads | k1 to k8 | +0.115 (spread 0.092) | −0.066 |
+| the same, with the scratch switches compiled in | m1 to m8 | +0.061 (spread 0.099) | −0.084 |
+| the same two side by side | n1 to n8 | +0.088 and +0.094 | −0.076 and −0.076 |
+| bounce light only | m1 to m8 | +0.010 (spread 0.146) | +0.153 |
+| every block's read, no anchor update | m1 to m8 | +0.022 (spread 0.133) | +0.024 |
+
+Pooled over the 29 runs of the read in 9 threads whose loads were both under 8: deck +0.091 ms (quartiles +0.056 and +0.123), film −0.078 ms. That fits the budget of +0.10 ms. The queues scatter between +0.06 and +0.12 ms at the same load, so one queue of 8 rounds does not settle a difference of 0.02 ms. The film is cheaper than base because the evidence cuts histories while its light moves.
+
+Why the read runs in 9 threads. In the first anchored build, invocation 0 read up to 9 ring texels one after another, with an early return, while the other 63 invocations waited at the barrier. Every one of the 14,400 workgroups paid that latency. Now invocation k reads candidate k, and the answers merge through the atomicMax that the level already uses. A maximum does not depend on the order. The signature changed for it: regionAnchorMovedBefore(block, candidate) in place of regionLightMovedBefore(block).
+
+What the build differs in from the settlement's sketch:
+- A block on an anchor's row or column lies in the regions of up to 9 anchors, not 4, because a region reaches exactly one step. The read covers all of them.
+- The tap reads sampleImage, surfaceTest and gbufferDistance at each block's tap pixel in the spatial dispatch. So the blockLight image and storeRegionTap are gone, and the temporal dispatch is main's again. The tap skips limitIncomingEstimate: it is a prototype that is off by default (specialization constant 9), and with it off it returns the sample unchanged.
+- The light-age variant covers the spatial dispatch alone again, as before the remedy.
+- The ring is RGBA32F at the anchors' resolution, 36 layers: r the region's light, g the count of valid draws, b the answer. At 1280 × 720 that is 20 × 12 anchors, 138 KB per signal.
+- The older window's sums subtract its first draw, so that the spread keeps its precision when it is small beside the light.
+
+Red and green. The tests ran red with TERTIUS_SPIKE_REGION=off, the scratch switch that runs no region test. Six failed. Five failed for the missing feature: no history was cut to 8 draws, the falling light trailed at 0.647 against 0.5, and no anchor's ring showed a move. The sixth was my own test's count of the layout: a light age adds 2 storage images to the accumulator, the sample age and the ring, not 3. I fixed that test. The tests of absence and of precedence passed red, as they must: a still region, a camera move, the exposure, a moving surface, a block outside every moved anchor, the growth back to the cap, motion above the region and light above the region. Their kill comes from the mutants.
+
+Green: 40 of 41. The trail test's bound was wrong. I took the lag of a box mean of 8 draws, 3.5 draws. A history held at 8 draws blends at the weight 1/9, and a mean of that weight trails a steady fall by 8 draws. The test measured 0.5407, 8.1 draws. Its new statement: the history trails the fall by at most 9 draws.
+
+The scratch switches are out of src. docs/research/t0-acxm-region-evidence/spike/switches.patch puts them back for the takes: TERTIUS_SPIKE_REGION=one (bounce light only), off, and reads.
+
+The full Checked suite after green found 25 failures in Rendering, of two kinds.
+
+1. A bug of the test, fixed: a constant history was cut to 8 draws. Twenty of the failures were constant reflection histories that must grow past 2,048 frames. With samples of exactly one light, the older window's spread is exactly 0, so the tolerance is 0. The newer mean then summed the same 18 values in another order than the older one, so the two means differed in the last bit, and that passed the tolerance. Now every sum of the test subtracts the older window's first draw, so equal draws give a difference of exactly 0. The tests of the precise history pass again.
+
+2. False evidence in a still view, which the design accepts at about 1 % of block draws. A probe read the rings over the 64 still draws of LightAgeHistoryTests: the reflections' region light swings between 0.24 and 0.46 from draw to draw, a spread of about 15 %, with one tap per block. Their test fired at draws 44 and 45, so 2 of the 28 draws that it tested. The bounce light's fired in none. The cut left the reflections near 26 draws at draw 64. Three tests changed for it, each with its reason in a comment:
+- LightAgeHistoryTests.ByDefaultALastingDimmingOfTheEmitterCutsTheReflectionHistoryToTheFastCap and ACutHistoryGrowsBackWithTheAgeOfTheLight: their precondition, a warm history longer than 32 draws, is now longer than FullRateFrames. That keeps their statement: only light evidence cuts such a history to the fast cap. TheCappedPreciseHistoryAlsoFallsToTheFastCap already uses 8.
+- ScreenTraceRenderTests.TheBounceLightOfALitPoolKeepsItsEdgeWithRealRays: the filtered light still rises over 37 pixels, but the unfiltered slow history now rises over 27 and not 31. Region evidence cuts it to 8 draws now and then in that still view, and a shorter history follows the real edge more closely. The bound, which holds the measured width until the user decides (t0-anp3), is now unfiltered + 10.
+
+So the reflections' region test fires falsely in a still view at a rate well above the bounce light's in this scene. That bears on whether the reflections' test earns its 0.08 ms. The bay takes measure the side with the bounce light only beside the side with both.
+
+The full Checked suite after these fixes: every project green. Core 1,207, Simulation 2,007, Physics 1,492 passed (8 skipped), Rendering 3,313 passed (11 skipped) of 3,324, Host 2,072 passed (8 skipped), Unions 59, Style 276, Slop 597.

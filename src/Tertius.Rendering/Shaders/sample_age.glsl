@@ -20,6 +20,11 @@ const uint LightCodeMask = 0x7FFFu;
 // step after k draws, holds it within 5 % by the end (section 8.3).
 const uint RecentLightAge = 7u;
 
+// A pixel traces its own ray of a kind while its history of that kind is shorter than this (docs/plans/temporal-renderer.md,
+// section 6, "The ray budget"). The screen tracer's plan reads it, and so does the spatial dispatch, whose region evidence
+// cuts a history to it: the shortest length that keeps the block's shared ray.
+const float FullRateFrames = 8.0;
+
 // The sample age of a sample whose rays bring the light code `lightCode`, with the motion bit where `motion` holds.
 uint sampleAgeOf(uint lightCode, bool motion)
 {

@@ -139,15 +139,15 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>
     /// The storage images of a signal set: nine, with the light-change age of a precise specular history the signal's
-    /// sample age at binding 11, which the spatial dispatch reads, and at binding 12 the instrumentation's image, the
-    /// uncovered-surface diagnostic or the accumulation trace. The original history refuses the instrumentation (the
-    /// constructor).
+    /// sample age at binding 11 and the anchors' rings at binding 13 (region_drift.glsl), which the spatial dispatch reads,
+    /// and at binding 12 the instrumentation's image, the uncovered-surface diagnostic or the accumulation trace. The
+    /// original history refuses the instrumentation (the constructor).
     /// </summary>
     private uint SignalSetImages =>
-        9u + (HistoryMode.KeepsLightAge ? 1u : 0u) + (Instrumentation == HistoryInstrumentation.None ? 0u : 1u);
+        9u + (HistoryMode.KeepsLightAge ? 2u : 0u) + (Instrumentation == HistoryInstrumentation.None ? 0u : 1u);
 
-    /// <summary>The highest binding that a signal set can hold: 12, the instrumentation's image.</summary>
-    private const uint LastSignalBinding = 12;
+    /// <summary>The highest binding that a signal set can hold: 13, the anchors' rings.</summary>
+    private const uint LastSignalBinding = 13;
 
     /// <summary>The sampled images of a signal set: the last surface history and the last device depth.</summary>
     private const uint SignalSetSampledImages = 2;
@@ -1249,14 +1249,14 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>The layouts of the signal set (<see cref="SignalSet"/>) and the light set (<see cref="LightSet"/>).</summary>
     private (DescriptorSetLayout Signal, DescriptorSetLayout Light) CreateTemporalSetLayouts()
     {
-        // The bindings by number: 0 to 10, 11 with the light age and 12 with an instrumentation.
+        // The bindings by number: 0 to 10, 11 and 13 with the light age, and 12 with an instrumentation.
         Span<DescriptorSetLayoutBinding> signal =
             stackalloc DescriptorSetLayoutBinding[(int)(SignalSetImages + SignalSetSampledImages)];
         int count = 0;
         for (uint binding = 0; binding <= LastSignalBinding; binding++)
             if (
                 binding <= 10
-                || binding == 11 && HistoryMode.KeepsLightAge
+                || binding is 11 or 13 && HistoryMode.KeepsLightAge
                 || binding == 12 && Instrumentation != HistoryInstrumentation.None
             )
                 signal[count++] = binding is 7 or 8

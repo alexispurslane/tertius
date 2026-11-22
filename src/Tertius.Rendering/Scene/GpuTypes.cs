@@ -823,7 +823,13 @@ internal struct AccumulatePushConstants
     /// </summary>
     public float RetainedSigmas;
 
-    public static AccumulatePushConstants Of(SignalParameters parameters, bool reset) =>
+    /// <summary>
+    /// The ring layer of this draw in the region's drift test: the draw's index since the last reset modulo
+    /// <see cref="TemporalSignal.RegionRingDraws"/> (region_drift.glsl).
+    /// </summary>
+    public uint RegionSlot;
+
+    public static AccumulatePushConstants Of(SignalParameters parameters, bool reset, long drawIndex) =>
         new()
         {
             Cap = parameters.Cap,
@@ -835,6 +841,7 @@ internal struct AccumulatePushConstants
             Light = (uint)parameters.Light,
             ReflectedPlaceBelow = parameters.ReflectedPlaceBelow,
             Reset = reset ? 1u : 0u,
+            RegionSlot = (uint)(drawIndex % TemporalSignal.RegionRingDraws),
             RetainedSigmas = parameters.Confidence switch
             {
                 WidenedBox { RetainedSigmas: var sigmas } => sigmas,
