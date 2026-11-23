@@ -72,3 +72,7 @@ Proposed second step (measure only, no rule): log the drift's relative size at e
 **2026-11-23T03:18:40Z**
 
 Answer 88 of the line orchestrator, 2026-11-22 23:20: the second step is ordered at the combined check's lead as a log only. For every tested anchor-draw of the build with region evidence on: the drift's relative size, the statistic, and whether it fired; in the still cabin, exit-cabin, the fair lamp switch, rect-bay, bay-sun and the walk. From the log the lead computes, for (A) a threshold of 4 or 5 and (B) the test at 3 with a size gate of 2, 5 or 10 %, the share of false fires dropped and the delay of the first true fire. It runs after the fair test of t0-gumm or shares its runs. No rule is built before the merge of Design X; the choice between A and B is the orchestrator's.
+
+**2026-11-23T03:18:50Z**
+
+Correction by the line orchestrator, 2026-11-22 22:20 by the machine's clock: the clock times in my notes and messages of this evening after 21:50 were guessed and ran ahead. The messages that I labelled 22:00, 22:30, 22:40, 23:20 and 23:25 were sent between about 21:50 and 22:17. The commit times of the line's branch are right. From here on I read the clock before I write a time.

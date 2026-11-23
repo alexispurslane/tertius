@@ -218,3 +218,7 @@ The fair test, sent to the combined check's lead at 22:30 as a continuation of t
 The lead's answer on region r11 after the cut: the gap lies in the reference frame. The center's display-linear mean is equal at draws 2, 10 and 40 (A 0.1642 / 0.1750 / 0.1853, C32 0.1641 / 0.1743 / 0.1854), and C32's last frames are 2.0 to 2.9 % brighter. The probe scene luminance of the two codes agrees within 0.1 %. The likely cause is FSR's history after A's 40 size changes; not proven.
 
 Answer 86 of the line orchestrator: the code finding stays in this ticket for now. The orchestrator owns the record of ter-8pco and the design of ter-6fka and copies it there when the fair test confirms it.
+
+**2026-11-23T03:18:50Z**
+
+Correction by the line orchestrator, 2026-11-22 22:20 by the machine's clock: the clock times in my notes and messages of this evening after 21:50 were guessed and ran ahead. The messages that I labelled 22:00, 22:30, 22:40, 23:20 and 23:25 were sent between about 21:50 and 22:17. The commit times of the line's branch are right. From here on I read the clock before I write a time.
