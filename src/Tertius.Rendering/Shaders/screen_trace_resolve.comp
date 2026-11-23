@@ -13,7 +13,7 @@ layout(local_size_x = 8, local_size_y = 8) in;
 RayRecord recordAt(ivec2 pixel, uint kind, uint plan)
 {
     bool own = (plan & (kind == KindReflection ? PlanOwnReflection : PlanOwnDiffuse)) != 0u;
-    ivec3 at = ivec3(own ? pixel : traceBlockOf(pixel), kind);
+    ivec3 at = ivec3(own ? pixel : pixel / 2, kind);
     RayRecord record;
     record.light = own ? imageLoad(ownLight, at) : imageLoad(blockLight, at);
     record.ray = own ? imageLoad(ownRay, at) : imageLoad(blockRay, at);
