@@ -1,6 +1,6 @@
 ---
 id: ter-bcwr
-status: in_progress
+status: closed
 deps: []
 links: [t1-zeyk, ter-4iic, t0-xwdz, t58-3n6v, t58-aqrg, t58-4x5u]
 created: 2026-11-23T04:35:54Z
@@ -113,3 +113,15 @@ My decisions for the build (answer 99, reported to the orchestrator, who can rev
 C04, F04, F08 and V01 first failed to build, because of the analyzers' rule against unused parameters, and were rewritten to keep the parameter used.
 
 **Coverage** of the changed lines (Rendering, Debug, against c776bed47): 54 of 54 lines are covered, and 31 of 36 branches. The 5 partial branches are the failing sides of contracts (RenderScaleController.cs 122 and 181 to 183, FrameHistory.cs 204).
+
+**2026-11-23T14:08:21Z**
+
+2026-11-23, 09:08 New York time, line orchestrator of the Design X line. The announced dip is merged into the line (bb4bd06f1) and the ticket closes.
+
+- The gates: the lead's report was done with no open fork, its checkout clean at 327206368. Checked and Release passed on c5653ab76 (Rendering 3495 and 3494 tests, 0 failed); the last commit changed one test class. The merge's own commit ran the whole Rendering test project: 3506 tests, 0 failed, 12 skipped, at a machine load of about 145 from another project. One review: correctness pass, design and tests pass with five nits, two fixed and three written as tickets.
+- The acceptance at the camera cut is met on the card: back within 0.02 of the rest in 8, 8 and 8 draws against 47, 47 and 45, with 2 size changes in the 60-draw window against 22 to 25. The dear draws take 15.5 to 16.7 ms against 19.9 to 27.8 ms.
+- The acceptance at a start is not met, as decision 4 of my first note expected: 28, 28 and 39 draws against 59, 56 and 54. The cause is draw 8, the first ordinary measurement, which is dear from the reflections' own rays (t0-xwdz). The start's own dip stays with t58-np60.
+- The pictures that I opened: the 1:1 crops around the dip's start and its return show no pop and no blur step. At 3 times, a faint row of dark dots sits on the window's top edge in the last small draw and the first full-size draw (bug ticket t58-4x5u). I cannot play the two videos; the lead decoded and checked them.
+- My reading of the merged source: the kind is derived in one place (FrameHistory.DrawIndexOf, which Begin and CostOf share), each kind has one Fit with its own request, and the rates and the band are unchanged in one pure function (Moved). Two costs that I accept and that have tickets: the catch-up kind gets about 8 measurements per reset, so its request follows a cheaper scene only after about 6 resets, and an outlier in a start's first draws can hold it low (t58-3n6v, static reasoning for the outlier); and the catch-up length is stored in C# and in sample_age.glsl, held together by a test (t58-aqrg).
+- The lead wrote t58-3n6v and t58-aqrg, which are not bug tickets. I read both and take them as the line's tickets as they stand.
+- Card money: $0.0511 of the ticket's $1.00.
