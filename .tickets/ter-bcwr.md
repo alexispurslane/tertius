@@ -46,3 +46,7 @@ On the card, after a camera cut and after a start, the render scale is back with
 **2026-11-23T04:35:59Z**
 
 2026-11-22, orchestrator. No build before the Design X line merges into main (its merge ticket t0-iido lives on the line's branch, so this ticket holds no dependency on it) and before run 91 of t0-gumm sets the catch-up length. Related and not linked, because another session holds uncommitted changes to it: ter-5kz6.
+
+**2026-11-23T05:01:01Z**
+
+2026-11-23, orchestrator. The catch-up length is settled at 8 draws: run 91 of t0-gumm (own rays only in draws 3 to 7) keeps 87 to 94 % of the grain gain but only 36 % of the boil gain on narrow surfaces, and with the 36-tap fix of short histories (t0-rs55 on the Design X line) the rays of draws 0 to 2 buy grain again. That fix adds up to 27 texture reads per young pixel in draws 1 and 2, inside the dip of this ticket, so its measured cost belongs in this ticket's comparison.
