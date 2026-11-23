@@ -30,7 +30,8 @@
 
 #include "cube_faces.glsl"
 
-// ShaderConstants.TileCornerMeans: whether tileShadow reads a tile's texels as sixteen corner means, or as nine gathers.
+// ShaderConstants.TileCornerMeans: whether tileLitFraction reads a tile's texels as sixteen corner means, or as nine
+// gathers.
 layout(constant_id = 11) const bool tileCornerMeans = false;
 
 // The comparison of the cascades' map with a receiver at depth `reference`, at `coordinate` in layer `layer`.
@@ -42,7 +43,9 @@ float cascadeComparison(vec2 coordinate, float layer, float reference)
 }
 
 // The bilinear comparisons of the shadow filter along one axis, one texel apart, in the cascades and the tiles. One
-// texel of a straight edge's travel across the filter changes its lit fraction by 1 / FilterTapsPerAxis.
+// texel of a straight edge's travel across the filter changes its lit fraction by 1 / FilterTapsPerAxis. A change of it
+// changes three more places with it: ShadowBias.FilterReachTexels, (FilterTapsPerAxis + 1) / 2, which sizes the biases
+// and the maps' margins; tileLitFraction's reads, written for 4 taps; and CascadeDoubtfulLitFraction in ShadowTests.
 const int FilterTapsPerAxis = 4;
 
 // The lit fraction of the cascade's texels around `coordinate` for a receiver at depth `reference`: the
@@ -274,7 +277,7 @@ struct TileLookup
     vec2 bounds;   // the least (x) and the greatest (y) reversed depth of the window (shadow_bounds.comp)
 };
 
-// The lookup of tileShadow, with the normal offset at the receiver's distance and the casters' slope-scaled bias.
+// The lookup of tileLitFraction, with the normal offset at the receiver's distance and the casters' slope-scaled bias.
 TileLookup tileLookupOf(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float sinTheta)
 {
     // A point light's six views follow the cube faces in layer order (ShadowTiles.AddViews).
@@ -292,7 +295,7 @@ TileLookup tileLookupOf(GpuLight light, vec3 position, vec3 L, float d, vec3 geo
 
     // The filter's 4 × 4 bilinear taps at −1.5 to 1.5 texels, computed exactly: it weighs the 5 × 5 texels from texel `first` by (1 − f, 1, 1, 1, f) along each axis, f the lookup's place within its texel. The hardware's
     // filter at the lookup's own place rounds f to the device's sub-texel precision, which Vulkan lets be as coarse as
-    // 4 bits, so tileShadow applies f itself.
+    // 4 bits, so tileLitFraction applies f itself.
     vec2 corner = uv * size - 2.0;
     t.first = floor(corner);
     t.f = corner - t.first;
@@ -385,7 +388,9 @@ float tileLitFraction(GpuLight light, vec3 position, vec3 L, float d, vec3 geome
 
 // The share of a near light that its atlas tiles let through at a world position, with the arguments of
 // tileLitFraction. The tiles keep the symmetric filter: the share is the lit fraction, so half the blur lies inside the
-// shadow. Whether they take lightOutsideShadow as the cascades do is the open half of t1-gout's remedy.
+// shadow. lightOutsideShadow on the tiles was tried and refused (t1-gout): it made every lamp's shadow sharper and
+// darker, which the user does not accept, and raised the floor's acne by 8/3. The tiles' leak under a caster's edge is
+// small: about 6 pixels down a beam's face below a ceiling lamp of the exit cabin (t1-hdtm).
 float tileShadow(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float sinTheta)
 {
     return tileLitFraction(light, position, L, d, geometricNormal, sinTheta);
