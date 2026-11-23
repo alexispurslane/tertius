@@ -74,3 +74,11 @@ Also from the card's logs: after a light change or a cut, the render scale stays
 5. The clamp's loss stays: the accumulator keeps 0.91 to 0.94 of the received light in bay-sunbeam in every variant, so ter-18hc does not close with this experiment.
 
 Next in ter-pdw8: the surface share. The direct part of the hit light is scaled by the share of recent draws in which the pixel showed this draw's surface, in two forms: with a new small state per pixel, and from the history's length that the pixel already holds (no new state). The lost bounce of surfaces thinner than a pixel is accepted in advance.
+
+**2026-11-23T05:43:52Z**
+
+2026-11-23, orchestrator. Two results of ter-pdw8 on the lamp hall (probe build on 3549d3283, before Design X).
+
+1. The surface share passes on the first still. Form S2': where leavingLightOf writes the hit light, the direct part is scaled by 1 where the reprojection's surface test holds, else by 1 / min(jitter phases, draws since the reset + 1). No new state. At 1072 x 603 (the size that bursts): specks per capture 0 (today 83), largest diffuse sample 9.9 (today 127), level within 0.6 % of today in five regions, no flecks at the wall's foot. In the still 0.012 % of the surface pixels have a share below 1, on jambs and sills only. The form with a new count per pixel failed, and the form that took the share from the history's length ran 1.1 to 1.3 % dark, because other rules shorten that length. Still to run: bay-sunbeam, two cabins and a walk.
+
+2. The anti-lag after the clamp shortens the diffuse history at 8.1 % of a still's pixels (16 % of the lamp hall's middle floor). With that one line off for the diffuse signal, 0.027 % remain. So the clamp's move has two readers that both treat a rare bright sample as a change of the lighting: the clamp loses its light (ter-18hc), and the anti-lag cuts the length. Bug ticket t1-g1jd. Its first step is the same count on main after Design X, by writer, beside the region test's false fires.
