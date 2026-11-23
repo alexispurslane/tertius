@@ -108,6 +108,15 @@ bool holdsHistory(Reprojection r)
     return dot(r.weights, vec4(1.0)) >= LeastHistoryWeight;
 }
 
+// The share of a pixel's fresh light that the pixel sends (ARCHITECTURE.md, "Surface share"): all of it where the
+// reprojection of its surface place holds a history, so the last draw showed this surface there. Elsewhere the part that
+// one draw of the jitter's phases deserves, 1 / min(P, draws since the reset + 1): under the jitter a pixel can show a
+// surface thinner than a pixel in one draw of P.
+float surfaceShare(Reprojection surface)
+{
+    return holdsHistory(surface) ? 1.0 : 1.0 / frame.renderParams.w;
+}
+
 // The texel of tap `tap` of a reprojection.
 ivec2 tapTexel(Reprojection r, uint tap)
 {

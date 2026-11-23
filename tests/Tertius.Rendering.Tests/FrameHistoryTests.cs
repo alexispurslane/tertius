@@ -205,6 +205,44 @@ public sealed class FrameHistoryTests
     }
 
     [Fact]
+    public void TheSurfaceSharesSpreadGrowsByOneInEachDrawAfterTheResetUpToTheJittersPhaseCount()
+    {
+        var history = new FrameHistory(StillRule.Window);
+
+        int[] spreads = [.. Enumerable.Range(0, 11).Select(_ => Draw(history: history, snapshot: Snapshot()).SurfaceShareSpread)];
+
+        spreads.Should().Equal([1, 2, 3, 4, 5, 6, 7, 8, 8, 8, 8], "the jitter has 8 phases where the render size is the output size");
+    }
+
+    [Fact]
+    public void ACameraCutStartsTheSurfaceSharesSpreadAgainAtOne()
+    {
+        var history = new FrameHistory(StillRule.Window);
+        for (int draw = 0; draw < 5; draw++)
+            Draw(history: history, snapshot: Snapshot(cuts: 1));
+
+        FrameHistory.PendingFrame cut = Draw(history: history, snapshot: Snapshot(cuts: 2));
+
+        cut.SurfaceShareSpread.Should().Be(1, "the cut resets every history");
+    }
+
+    [Fact]
+    public void TheSurfaceSharesSpreadStopsAtThePhaseCountOfTheDrawsRenderSize()
+    {
+        var history = new FrameHistory(StillRule.Window);
+        var twoThirds = new Extent2D(853, 480);
+
+        int[] spreads =
+        [
+            .. Enumerable
+                .Range(0, 30)
+                .Select(_ => Draw(history: history, snapshot: Snapshot(), renderSize: twoThirds).SurfaceShareSpread),
+        ];
+
+        spreads.Max().Should().Be(18, "a render width of 853 of 1280 gives 8 · (1280 / 853)² phases");
+    }
+
+    [Fact]
     public void ADrawThatThrowsBeforeDrewDoesNotConsumeItsCut()
     {
         var history = new FrameHistory(StillRule.Window);
