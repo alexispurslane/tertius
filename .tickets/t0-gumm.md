@@ -2,7 +2,7 @@
 id: t0-gumm
 status: in_progress
 deps: []
-links: [ter-4iic, t0-o7gf, t0-zmjx, t58-np60, t0-qvm1]
+links: [ter-4iic, t0-o7gf, t0-zmjx, t58-np60, t0-qvm1, ter-6fka, ter-8pco]
 created: 2026-11-22T21:31:16Z
 type: task
 priority: 1

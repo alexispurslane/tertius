@@ -2,7 +2,7 @@
 id: ter-8pco
 status: open
 deps: []
-links: []
+links: [ter-6fka, t0-gumm]
 created: 2026-11-22T21:13:03Z
 type: task
 priority: 1
