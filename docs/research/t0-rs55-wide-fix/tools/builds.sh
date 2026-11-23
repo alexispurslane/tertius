@@ -12,6 +12,9 @@
 #        scale and history logs, the own-ray log, the catch-up share, short and delay patches and the cap) with
 #        check-real-fix-on-x5.patch in place of scratch-wide-fix.patch, then the first-filmed and frozen patches. Its runs
 #        must equal xwz's runs with TERTIUS_X_WIDE_FIX=1 bit for bit.
+#   m0v, m1v: m0z and m1z with scratch-history-band.patch last (TERTIUS_X_HISTORY_DUMP=<folder>:<from>-<to>: the slow diffuse
+#        history's length of each frame in the range), for the motion take's band of newly seen pixels and its timings.
+#   m2v: m1v with scratch-probe-tap-key.patch last, the cost probe: each tap's surface test stands for its block mates'.
 set -uo pipefail
 T=$(cd "$(dirname "$0")" && pwd); W=$(cd "$T/.." && pwd); D=$(cd "$W/.." && pwd)
 N=$D/t0-gumm-catch-up-spread; V=$D/t0-3vwx-dynamic-scale-films; A=$D/design-x-acceptance-2026-11-22
@@ -24,6 +27,9 @@ for name in "$@"; do
   case $name in
     m0z) args="$MAIN ${MAIN}:tools/renderer-survey/probe.patch $MEASURE" ;;
     m1z) args="${WIDE:-t0-rs55-wide-fix} ${WIDE:-t0-rs55-wide-fix}:tools/renderer-survey/probe.patch $MEASURE" ;;
+    m0v) args="$MAIN ${MAIN}:tools/renderer-survey/probe.patch $MEASURE $W/scratch-history-band.patch" ;;
+    m1v) args="${WIDE:-t0-rs55-wide-fix} ${WIDE:-t0-rs55-wide-fix}:tools/renderer-survey/probe.patch $MEASURE $W/scratch-history-band.patch" ;;
+    m2v) args="${WIDE:-t0-rs55-wide-fix} ${WIDE:-t0-rs55-wide-fix}:tools/renderer-survey/probe.patch $MEASURE $W/scratch-history-band.patch $W/scratch-probe-tap-key.patch" ;;
     xrz) args="$X5 ${X5}:tools/renderer-survey/probe.patch $V/scratch-region-log.patch $V/scratch-dynamic-scale.patch $V/scratch-history-log.patch $N/scratch-ownray-log.patch $N/scratch-catch-up-share.patch $N/scratch-catch-up-short.patch $N/scratch-catch-up-delay.patch $CAP $W/check-real-fix-on-x5.patch $N/scratch-first-filmed.patch $N/scratch-frozen.patch" ;;
     *) echo "no build $name"; exit 1 ;;
   esac

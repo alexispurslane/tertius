@@ -1,0 +1,427 @@
+diff --git a/ARCHITECTURE.md b/ARCHITECTURE.md
+index 112d28f9c..8d2a780a3 100644
+--- a/ARCHITECTURE.md
++++ b/ARCHITECTURE.md
+@@ -1691,7 +1691,7 @@ The same prototype enables input limiting for both diffuse and reflected light.
+ The default accumulation runs two compute dispatches of 8 × 8 per part:
+ 
+ 1. The temporal dispatch (`accumulate_temporal.comp`) reprojects the last frame's slow and fast histories with the bilinear weights of the 2 × 2 texels around the pixel's previous place. Only the taps that pass the surface test count, and a sum of their weights below 0.05 is no history. The histories hold pre-exposed light, so they take the factor 2^(S − S_last) of the exposure's change. A sample that is not finite is no sample, and a pixel with neither takes 0, the closed form. Then the length grows by 1, up to `Cap`. The sample blends into the slow history with the weight 1 / length, and into the fast history with 1 / min(length, `FastCap`). The diffuse signal keeps its retained deviation σr in the alpha of its fast history: the standard deviation of the luminance of the samples that the slow history averages, updated as (1 − w)(σr² + w · step²) with the weight w = 1 / min(length, 32), where the step is the sample's luminance minus the fast history's: the fast history is the mean of the pixel's own samples, while the slow history also holds the light that the diffuse filter moved into it. A step whose size times the fast history's blend weight 1 / min(length, `FastCap`) lies within 1/1536 of the fast history's luminance is the store's rounding to the nearest half float ("Portable Vulkan", "The stores of a history") and counts as 0. So a sample without noise keeps σr at exactly 0 where the fast history's luminance is at least 2^−14, the least normal half float (docs/plans/bounce-light-confidence.md, section 6).
+-2. The spatial dispatch (`accumulate_spatial.comp`) reads the scratch image. A history shorter than `HistoryFixFrames` takes the mean of the 3 × 3 pixels 2^(`HistoryFixFrames` − 1 − ⌊length⌋) apart that show the same surface, each weighted by its length. A history longer than `FastCap` is clamped into mean ± `ClampSigmas` · σ of the fast histories of the 3 × 3 pixels around it. The clamp's move over the mean's luminance shortens the length, to `FastCap` at a move of `AntiLagShare`. The bounce light's box is at least `RetainedSigmas` (2) retained deviations wide, in the chroma of the slow history (`HistoryConfidence`, `WidenedBox`): a narrow box cut the rare bright samples of unchanged light and settled the stills rect-lamps, bay-sunbeam and docking-bay 8 to 23% too dark (`ter-18hc`). A pixel's own rare sample moves the slow history by at most half of σr past `FastCap`, so the widened box holds it (docs/plans/bounce-light-confidence.md, section 7). The reflections keep the narrow box (`NarrowBox`), because their rare bright samples without the clamp showed as twice as many specks. Motion evidence in the pixel's block drops the widening for that draw (below). The dispatch writes the slow history.
++2. The spatial dispatch (`accumulate_spatial.comp`) reads the scratch image. A history shorter than `HistoryFixFrames` takes the mean over 3 × 3 taps 2^(`HistoryFixFrames` − 1 − ⌊length⌋) pixels apart, of the pixels that show the same surface, each weighted by its length. While the taps lie 2 or more pixels apart, each tap reads every pixel of its 2 × 2 block of the screen tracer (`trace_block.glsl`), the pixel's own block too, up to 36 pixels: a young block's pixels trace their own rays, so the block holds four independent samples, and the fix pools every one of them (`t0-rs55`; the first 4 draws of bay-sunbeam's start have about a third less grain than with one pixel per tap). At 1 pixel apart the taps already are the pixel's neighbors, and the fix reads those 3 × 3 pixels. A history longer than `FastCap` is clamped into mean ± `ClampSigmas` · σ of the fast histories of the 3 × 3 pixels around it. The clamp's move over the mean's luminance shortens the length, to `FastCap` at a move of `AntiLagShare`. The bounce light's box is at least `RetainedSigmas` (2) retained deviations wide, in the chroma of the slow history (`HistoryConfidence`, `WidenedBox`): a narrow box cut the rare bright samples of unchanged light and settled the stills rect-lamps, bay-sunbeam and docking-bay 8 to 23% too dark (`ter-18hc`). A pixel's own rare sample moves the slow history by at most half of σr past `FastCap`, so the widened box holds it (docs/plans/bounce-light-confidence.md, section 7). The reflections keep the narrow box (`NarrowBox`), because their rare bright samples without the clamp showed as twice as many specks. Motion evidence in the pixel's block drops the widening for that draw (below). The dispatch writes the slow history.
+ 
+ Evidence of a change comes from what the rays saw, per block of 8 × 8 pixels, one workgroup of the spatial dispatch (docs/plans/bounce-light-confidence.md, section 8, Design X). Each signal's sample age (`Shaders/sample_age.glsl`, R16UI, signal binding 11) holds in bits 0 to 14 the youngest light code of the sample's rays and in bit 15 the sample's motion bit, which the resolve writes. A sample has light evidence where its light code is 1 to 7, a light age below `RecentLightAge` (7): the record counts a change after 4 draws, so the change began less than 11 draws ago, and the fast history holds it within 5 % by then. Else it has motion evidence where its motion bit is set. The spatial dispatch takes the strongest level of its block's samples with an `atomicMax` on a shared `uint` between two barriers, which every invocation reaches from `main` before any branch, also outside the image, so the barriers run in uniform control flow. A maximum does not depend on the invocations' order, and the dispatch uses no subgroup operation. Light evidence cuts the length of every history of the block to at most `FullRateFrames`, 8 draws, in this draw, because a light change has a known age. One rule holds for light and region evidence: each cuts a history to the shortest length that keeps the block's shared ray, after the anti-lag, so it only ever shortens a history. A cut below 8 made every pixel that saw a changed light trace its own rays for about 11 draws: up to 22.9 ms against a settled 15.3 ms on the Mac's fair cabin switch at the scale 2/3, and a fall of the render scale by 0.13 on the card (section 2.2, record of 2026-11-22, `t0-zmjx`). It leaves the box wide: a box without its widening cut the rare bright light of the long history on the first draw of the evidence, also the light that did not change (section 8.2, record of 2026-11-14). Motion evidence drops the widening of the box for every pixel of the block in this draw and leaves the cut to the anti-lag, because motion has no known size and a cut would keep the block at the full ray rate for as long as it moves (open point 1; `evidenceOfSample` is the one place that chooses this). The reflections' box is always narrow, so for them only light evidence acts, a rise as a drop. A block of the bounce light also learns of a change from its region (section 8.7, `Shaders/region_drift.glsl`, `t0-acxm`). Only the bounce light runs this test (`TemporalSignal.TestsRegionDrift`): its light-age variant alone compiles it (`TERTIUS_REGION_DRIFT`), and the reflections keep no ring, because their test fired falsely in still views and brought bright specks into the bay film. The test runs at anchor blocks only, every 8th block in x and in y. An anchor's workgroup, in a branch that depends only on the workgroup's block, sums the taps of the 17 × 17 blocks around it: the luminance of the sample at pixel (4, 4) of each block over the draw's exposure scale, where that pixel shows a surface that does not move on screen and holds a finite sample. The draw is valid where at least half of the taps inside the images count. The anchor keeps its region's light of the last 36 draws in its ring (`regionRing`, RGBA32F, 36 layers, one texel per anchor of the largest render size, signal binding 13), and once 36 valid draws stand in a row at one render size it tests whether the mean of the last 18 differs from the mean of the 18 before by more than 3 standard deviations of the older 18 times sqrt(2 / 18). 18 draws are the jitter's cycle at the render scale 2/3 of every headless run, so that the cycle cancels in each window. A reset or a change of the render size restarts the count, and such a draw reads no answer. The sums run in a fixed order, and each subtracts the older window's first draw, so equal draws give a difference of exactly 0. The block takes region evidence where any of the up to 9 anchors whose regions hold it, among the anchors that this draw's dispatch covers, found a move in the draw before: invocations 0 to 8 each read one candidate's layer of the draw before, which no workgroup writes in this draw, and merge through the same `atomicMax`. The levels are `NoEvidence` 0, `RegionEvidence` 1, `MotionEvidence` 2 and `LightEvidence` 3. Region evidence caps the length that the anti-lag gives at `FullRateFrames` as light evidence does, and it keeps the box's widening. The test of both signals cost about +0.09 ms of the deck's GPU frame span on the Mac; a separate pass cost about +0.27 ms, because each compute dispatch behind a barrier costs about 0.06 to 0.13 ms on MoltenVK whatever work it holds. The temporal dispatch reads no sample age: it cuts nothing before the blend, so every sample takes its normal weight. A signal without a light age, beside the original specular history, compiles without the evidence and keeps the narrow box (`TemporalSignal.ConfidenceOf`). The diffuse signal takes the light-age variant of its spatial dispatch (`ShaderVariant.LightAge`). The signal set's bindings are 0 to 10, 11 and 13 with the light age and 12 with an instrumentation: nine storage images and two sampled images, eleven storage images with the light age, one more with an instrumentation. Every signal shares the layout, and the reflections leave binding 13 unwritten. Design X replaced the statistical block test of 8 × 8 blocks, its block sums, the own-sample mean and the reflections' deviation images, which takes T4 to T6 showed could not see bounce changes at real noise (section 8.1).
+ 
+@@ -2482,7 +2482,7 @@ The snapshot holds one record, so a second planet with air in the same view take
+ 
+ The screen tracer gives every lit pixel its indirect light: reflections and the bounce light of many bounces, from one trace of the screen (docs/plans/temporal-renderer.md, section 6, ticket `ter-gayt`, decisions 40 to 46). It replaced the occlusion passes with their bounce estimate (docs/plans/screen-space-illumination.md), the radiance pyramid and the cone-traced reflections (docs/plans/screen-space-reflections.md). Git holds the sections "Ambient occlusion" and "Screen-space reflections" from before it.
+ 
+-**The model.** Each 2 × 2 block of pixels traces one ray of each kind from a chosen pixel: a reflection ray, drawn from the GGX lobe, and a diffuse ray, drawn from the cosine lobe. A pixel traces its own ray of a kind when its history of that kind is shorter than `FullRateFrames`, 8, or when the block's ray does not fit it: the chosen pixel's plane misses this pixel's center by more than `PlaneFitShare`, 0.1, of the view depth, or their normals differ by more than 25°. Under a precise specular history, the default (`TERTIUS_SPECULAR_HISTORY`, ticket `tiunr-ipmk`), a block's reflection ray fits a pixel only where it also lies inside the pixel's reflection lobe, the lobe fit (ticket `ter-4oow`, `screen_trace_plan.comp`). The two pixels' mirror directions, each its view direction reflected about its lobe normal, must lie less than `LobeFitShare` (0.5) times the reflected lobe's width, 2 atan α, apart. The view counts as well as the normal: one pixel's turn of the view moves the mirror direction by a large part of the 0.004 rad lobe at the roughness floor. So a curved mirror keeps its own rays, a flat mirror at the roughness floor keeps them where the view turns too far, and glossy and rough surfaces share. The test reads the pixel's own roughness alone. `TERTIUS_SPECULAR_HISTORY=original` keeps the rule without the lobe fit as a control. docs/plans/temporal-renderer.md, section 6, "Shared reflection rays by lobe fit", gives the reasons. There is no limit on the rays (decision 43). A ray walks the depth pyramid's two depths. A hit takes the light that leaves the hit pixel, and a miss takes the environment's closed form along the ray. The resolve turns the rays into one diffuse and one specular sample at each lit pixel, and the two indirect signals accumulate the samples (see "The direct light", the accumulator). The diffuse filter then filters the diffuse light (see "The diffuse filter" below). The composite reads the filtered diffuse light and the specular slow history.
++**The model.** Each 2 × 2 block of pixels, which starts at an even column and row (`trace_block.glsl`, the one place that defines it), traces one ray of each kind from a chosen pixel: a reflection ray, drawn from the GGX lobe, and a diffuse ray, drawn from the cosine lobe. A pixel traces its own ray of a kind when its history of that kind is shorter than `FullRateFrames`, 8, or when the block's ray does not fit it: the chosen pixel's plane misses this pixel's center by more than `PlaneFitShare`, 0.1, of the view depth, or their normals differ by more than 25°. Under a precise specular history, the default (`TERTIUS_SPECULAR_HISTORY`, ticket `tiunr-ipmk`), a block's reflection ray fits a pixel only where it also lies inside the pixel's reflection lobe, the lobe fit (ticket `ter-4oow`, `screen_trace_plan.comp`). The two pixels' mirror directions, each its view direction reflected about its lobe normal, must lie less than `LobeFitShare` (0.5) times the reflected lobe's width, 2 atan α, apart. The view counts as well as the normal: one pixel's turn of the view moves the mirror direction by a large part of the 0.004 rad lobe at the roughness floor. So a curved mirror keeps its own rays, a flat mirror at the roughness floor keeps them where the view turns too far, and glossy and rough surfaces share. The test reads the pixel's own roughness alone. `TERTIUS_SPECULAR_HISTORY=original` keeps the rule without the lobe fit as a control. docs/plans/temporal-renderer.md, section 6, "Shared reflection rays by lobe fit", gives the reasons. There is no limit on the rays (decision 43). A ray walks the depth pyramid's two depths. A hit takes the light that leaves the hit pixel, and a miss takes the environment's closed form along the ray. The resolve turns the rays into one diffuse and one specular sample at each lit pixel, and the two indirect signals accumulate the samples (see "The direct light", the accumulator). The diffuse filter then filters the diffuse light (see "The diffuse filter" below). The composite reads the filtered diffuse light and the specular slow history.
+ 
+ **A hit's light.** A hit reads this frame's direct light at the hit pixel q and q's own indirect light of the last frame, so the light of many bounces arrives over the frames (docs/plans/temporal-renderer.md, section 6, "Where a hit's light comes from", design B). For the diffuse kind, the diffuse filter's output stands for the fast history, as the user asked, so a speck does not pass into the next bounce. That output comes from the slow history, so the plan's model predicts design A's longer lag, which the orbit cabin does not show (see "The diffuse filter"). `leavingLightAt` in `screen_trace.glsl` holds the rule:
+ 
+diff --git a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
+index 9a1da8ec0..06e0d7207 100644
+--- a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
++++ b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
+@@ -14,6 +14,7 @@
+ #include "accumulate_reflection_guide.glsl"
+ #include "half_store.glsl"
+ #include "meter.glsl"
++#include "trace_block.glsl"
+ 
+ // The least luminance by which the clamp divides: the lag's share and the chroma of the widening.
+ const float LeastLuminance = 1e-4;
+@@ -68,6 +69,28 @@ uint evidenceOfBlock(ivec2 pixel)
+ }
+ #endif
+ 
++// The sums of the fix of short histories (step 3): the light and the guide of its pixels, each times its length, and
++// the sum of their lengths.
++struct FixSum
++{
++    vec3 light;
++    vec2 guide;
++    float weight;
++};
++
++// Adds the scratch history at `neighbor` to the fix of `pixel`, whose surface key is `key`, where the neighbor lies inside
++// the images, is not the pixel itself and shows its surface.
++void addToFix(inout FixSum fix, ivec2 neighbor, ivec2 pixel, SurfaceKey key)
++{
++    if (neighbor == pixel || !insideImages(neighbor) || !sameSurface(key, surfaceKeyAt(neighbor)))
++        return;
++    vec4 other = imageLoad(scratch, neighbor);
++    fix.light += other.rgb * other.a;
++    fix.weight += other.a;
++    if (reflectionSharingPrototype && parameters.light == SpecularLight)
++        fix.guide += imageLoad(reflectionGuideScratch, neighbor).rg * other.a;
++}
++
+ // Steps 3 to 5 at a pixel inside the images, where `evidence` is its block's evidence level in this draw.
+ void accumulateAt(ivec2 pixel, uint evidence)
+ {
+@@ -98,28 +121,28 @@ void accumulateAt(ivec2 pixel, uint evidence)
+     float tracedBefore = historyLength;
+ #endif
+ 
+-    // Step 3, the fix: a weighted mean over 3 × 3 pixels 2^(HistoryFixFrames − 1 − n) apart, each neighbor weighted by its
+-    // length where it shows the same surface. The pixel's own length is at least 1 after the blend, so the sum is never 0.
++    // Step 3, the fix: a weighted mean over 3 × 3 taps 2^(HistoryFixFrames − 1 − n) pixels apart, each neighbor weighted by
++    // its length where it shows the same surface. The pixel's own length is at least 1 after the blend, so the sum is
++    // never 0. While the taps lie 2 or more pixels apart, each lies in another block of the screen tracer, whose four pixels
++    // hold independent samples while the block is young. So each tap reads every pixel of its block, the pixel's own block
++    // too: the fix pools every sample that was traced around its taps. At 1 pixel apart the taps already are the pixel's
++    // neighbors.
+     if (historyLength < min(parameters.fixFrames, cap))
+     {
+         int spacing = 1 << int(max(parameters.fixFrames - 1.0 - floor(historyLength), 0.0));
+-        vec3 sum = slow * historyLength;
+-        vec2 guideSum = guide * historyLength;
+-        float weights = historyLength;
++        FixSum fix = FixSum(slow * historyLength, guide * historyLength, historyLength);
+         for (int y = -1; y <= 1; y++)
+             for (int x = -1; x <= 1; x++)
+             {
+-                ivec2 neighbor = pixel + spacing * ivec2(x, y);
+-                if (x == 0 && y == 0 || !insideImages(neighbor) || !sameSurface(key, surfaceKeyAt(neighbor)))
+-                    continue;
+-                vec4 other = imageLoad(scratch, neighbor);
+-                sum += other.rgb * other.a;
+-                weights += other.a;
+-                if (reflectionSharingPrototype && parameters.light == SpecularLight)
+-                    guideSum += imageLoad(reflectionGuideScratch, neighbor).rg * other.a;
++                ivec2 tap = pixel + spacing * ivec2(x, y);
++                if (spacing == 1)
++                    addToFix(fix, tap, pixel, key);
++                else
++                    for (uint corner = 0u; corner < TraceBlockPixels; corner++)
++                        addToFix(fix, traceBlockPixel(traceBlockOf(tap), corner), pixel, key);
+             }
+-        slow = sum / weights;
+-        guide = guideSum / weights;
++        slow = fix.light / fix.weight;
++        guide = fix.guide / fix.weight;
+     }
+ 
+     // Step 4, the clamp and the anti-lag, only past the fast cap: until then the slow history holds no more frames than the
+diff --git a/src/Tertius.Rendering/Shaders/screen_trace.glsl b/src/Tertius.Rendering/Shaders/screen_trace.glsl
+index c1aab2adb..332b41588 100644
+--- a/src/Tertius.Rendering/Shaders/screen_trace.glsl
++++ b/src/Tertius.Rendering/Shaders/screen_trace.glsl
+@@ -17,6 +17,7 @@
+ #include "own_rays.glsl"
+ #include "motion.glsl"
+ #include "sample_age.glsl"
++#include "trace_block.glsl"
+ 
+ layout(set = 3, binding = 0) uniform texture2D depthFinest;                    // RG32F: each pixel's center w and back w
+ layout(set = 3, binding = 1) uniform texture2D depthPyramid;                   // RG32F, mip m = level m + 1
+@@ -376,10 +377,9 @@ bool startsKind(TracingPixel p, uint kind)
+ bool chosenPixelOf(ivec2 block, uint kind, out ivec2 chosen, out TracingPixel p)
+ {
+     uint turn = trace.drawIndex + drawOf(block, 0u, TurnDraw[kind]).x;
+-    for (uint k = 0u; k < 4u; k++)
++    for (uint k = 0u; k < TraceBlockPixels; k++)
+     {
+-        uint corner = (turn + k) & 3u;
+-        chosen = 2 * block + ivec2(corner & 1u, corner >> 1);
++        chosen = traceBlockPixel(block, (turn + k) % TraceBlockPixels);
+         if (all(lessThan(vec2(chosen), frame.viewport.xy)) && tracedSurface(chosen))
+         {
+             p = tracingPixelAt(chosen);
+diff --git a/src/Tertius.Rendering/Shaders/screen_trace_plan.comp b/src/Tertius.Rendering/Shaders/screen_trace_plan.comp
+index 84a0dd733..16ed1b3cb 100644
+--- a/src/Tertius.Rendering/Shaders/screen_trace_plan.comp
++++ b/src/Tertius.Rendering/Shaders/screen_trace_plan.comp
+@@ -216,7 +216,7 @@ void main()
+             ivec2 chosen;
+             TracingPixel c;
+             // A pixel that starts the kind gives its block a chosen pixel.
+-            if (!startsKind(p, kind) || !chosenPixelOf(pixel / 2, kind, chosen, c) || all(equal(chosen, pixel)))
++            if (!startsKind(p, kind) || !chosenPixelOf(traceBlockOf(pixel), kind, chosen, c) || all(equal(chosen, pixel)))
+                 continue;
+             if (historyLengthOf(r, kind) >= FullRateFrames && fits(p, c, kind))
+                 continue;
+diff --git a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
+index 6cea9740b..e647bcc1a 100644
+--- a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
++++ b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
+@@ -13,7 +13,7 @@ layout(local_size_x = 8, local_size_y = 8) in;
+ RayRecord recordAt(ivec2 pixel, uint kind, uint plan)
+ {
+     bool own = (plan & (kind == KindReflection ? PlanOwnReflection : PlanOwnDiffuse)) != 0u;
+-    ivec3 at = ivec3(own ? pixel : pixel / 2, kind);
++    ivec3 at = ivec3(own ? pixel : traceBlockOf(pixel), kind);
+     RayRecord record;
+     record.light = own ? imageLoad(ownLight, at) : imageLoad(blockLight, at);
+     record.ray = own ? imageLoad(ownRay, at) : imageLoad(blockRay, at);
+diff --git a/src/Tertius.Rendering/Shaders/trace_block.glsl b/src/Tertius.Rendering/Shaders/trace_block.glsl
+new file mode 100644
+index 000000000..2af537f83
+--- /dev/null
++++ b/src/Tertius.Rendering/Shaders/trace_block.glsl
+@@ -0,0 +1,24 @@
++// The screen tracer's block (docs/plans/temporal-renderer.md, section 6, "The ray budget"): the 2 × 2 pixels that share
++// one ray of each kind, while each pixel of a young block traces a ray of its own. Block (i, j) holds the pixels of columns
++// 2i and 2i + 1 and rows 2j and 2j + 1, so the blocks start at even pixels, and a block at an odd border of the image holds
++// pixels outside it. The tracer (screen_trace.glsl) and the fix of short histories (accumulate_spatial.comp, step 3) read
++// the block from here. The block records on the C# side, ScreenTraceImages, hold one texel per block.
++#ifndef TERTIUS_TRACE_BLOCK_GLSL
++#define TERTIUS_TRACE_BLOCK_GLSL
++
++// The pixels of a block, which traceBlockPixel numbers from 0.
++const uint TraceBlockPixels = 4u;
++
++// The block that holds a pixel. The shift rounds down, so a pixel left of or above the image lies in a block outside it.
++ivec2 traceBlockOf(ivec2 pixel)
++{
++    return pixel >> 1;
++}
++
++// The pixel of a block at its corner: 0 the even column and row, 1 the odd column, 2 the odd row, 3 both odd.
++ivec2 traceBlockPixel(ivec2 block, uint corner)
++{
++    return 2 * block + ivec2(corner & 1u, corner >> 1);
++}
++
++#endif
+diff --git a/tests/Tertius.Rendering.Tests/AccumulatorRenderTests.cs b/tests/Tertius.Rendering.Tests/AccumulatorRenderTests.cs
+index 6ebb67db6..f22b31f52 100644
+--- a/tests/Tertius.Rendering.Tests/AccumulatorRenderTests.cs
++++ b/tests/Tertius.Rendering.Tests/AccumulatorRenderTests.cs
+@@ -131,7 +131,12 @@ public sealed class AccumulatorRenderTests
+             for (int part = 0; part < 2; part++)
+             {
+                 (Vector3 light, float length) = CenterOf(renderer, sample, part);
+-                light.Should().Be(Vector3.One, "one of the nine equally weighted surface samples holds light 9");
++                light
++                    .Should()
++                    .Be(
++                        new Vector3(0.25f),
++                        "one of the 36 equally weighted surface samples of the nine tapped blocks holds light 9"
++                    );
+                 length.Should().Be(1);
+             }
+         }
+@@ -141,6 +146,181 @@ public sealed class AccumulatorRenderTests
+         }
+     }
+ 
++    /// <summary>
++    /// A sample per pixel by its corner of the screen tracer's 2 × 2 block (trace_block.glsl): <paramref name="lights"/>
++    /// [0] at an even column and row, [1] at an odd column and even row, [2] at an even column and odd row, [3] at both odd.
++    /// </summary>
++    private static Func<int, int, Vector4> ByBlockCorner(float[] lights) =>
++        (column, row) => new Vector4(new Vector3(lights[column % 2 + 2 * (row % 2)]), 1);
++
++    /// <summary>The light of the slow history of part 0 at one pixel of an image <paramref name="width"/> wide.</summary>
++    private static Vector3 LightAt(VulkanRenderer renderer, SamplePass sample, int column, int row, int width = Width)
++    {
++        float[] history = HistoryOf(renderer, sample, part: 0);
++        int at = 4 * (row * width + column);
++        return new(history[at], history[at + 1], history[at + 2]);
++    }
++
++    [Fact]
++    public void AShortHistoryOfOneDrawTakesTheMeanOfEveryPixelOfTheBlocksThatItsFixTaps()
++    {
++        // The fix's nine taps lie 4 pixels apart at a length of 1, each in its own block, and each block holds the four
++        // corner lights. Today's taps from the center, an even pixel, would read only the even corner's 1.
++        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
++        try
++        {
++            sample.Samples = ByBlockCorner([1, 2, 4, 8]);
++
++            renderer.Render(scene, 1f);
++
++            LightAt(renderer: renderer, sample: sample, column: Width / 2, row: Height / 2)
++                .Should()
++                .Be(new Vector3(3.75f), "every tapped block holds 1, 2, 4 and 8, of mean 3.75");
++        }
++        finally
++        {
++            Gpu.DisposeAndAssertClean(renderer);
++        }
++    }
++
++    [Fact]
++    public void AShortHistoryOfTwoDrawsWeightsEachPixelOfItsTappedBlocksByItsLength()
++    {
++        // After a dark first draw, the second draw's samples 2, 4 and 8 give the even, the odd-column and the odd-row
++        // corners light 1, 2 and 4 at a length of 2. The corner of odd column and row gets no sample: it keeps the dark
++        // history at a length of 1. The fix's taps lie 2 pixels apart. Each block's length-weighted sum is
++        // 2 · 1 + 2 · 2 + 2 · 4 + 1 · 0 = 14 over a weight of 7.
++        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
++        try
++        {
++            sample.Value = new(x: 0f, y: 0f, z: 0f, w: 1f);
++            renderer.Render(scene, 1f);
++            sample.Samples = ByBlockCorner([2, 4, 8, float.NaN]);
++
++            Continue(renderer, scene, frames: 1);
++
++            LightAt(renderer: renderer, sample: sample, column: Width / 2, row: Height / 2)
++                .Should()
++                .Be(new Vector3(2f), "the blocks' length-weighted mean is 14 / 7; an unweighted mean would be 1.75");
++        }
++        finally
++        {
++            Gpu.DisposeAndAssertClean(renderer);
++        }
++    }
++
++    [Fact]
++    public void TheFixLeavesOutAPixelOfATappedBlockThatShowsAnotherSurface()
++    {
++        // A near wall ends between columns 32 and 33, the even and the odd column of one block. A far wall shows right of
++        // it, at twice the depth. From column 28 the taps lie in columns 24, 28 and 32: the three blocks of column 32 give
++        // only their near corners, 1 and 4. So (6 · 15 + 3 · 5) / (6 · 4 + 3 · 2) = 3.5. With the far corners the mean
++        // would be 3.75. The first draw's jitter is 0 across, so the edge lies half a pixel from each pixel's center.
++        float pixelAtTheNearWall = MathF.Tan(Gpu.Fov / 2) * 19.5f / (Height / 2);
++        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
++            wall: (new Vector3(pixelAtTheNearWall - 30, 0, -20), new Vector3(60, 40, 1))
++        );
++        try
++        {
++            MeshId cube = renderer.CreateMesh(Primitives.Box(new(0.5f)));
++            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.5f));
++            scene.Instances.Add(
++                Gpu.Instance(
++                    mesh: cube,
++                    material: white,
++                    position: new(0, 0, -40),
++                    scale: new(200, 100, 1),
++                    chainDepth: TestChains.CamerasFrame,
++                    entity: 2
++                )
++            );
++            sample.Samples = ByBlockCorner([1, 2, 4, 8]);
++
++            renderer.Render(scene, 1f);
++
++            LightAt(renderer: renderer, sample: sample, column: 28, row: Height / 2)
++                .Should()
++                .Be(new Vector3(3.5f), "the far wall's pixels of the edge's blocks show another surface");
++        }
++        finally
++        {
++            Gpu.DisposeAndAssertClean(renderer);
++        }
++    }
++
++    [Fact]
++    public void AtTheImagesBorderTheFixReadsOnlyThePixelsOfATappedBlockInsideTheImage()
++    {
++        // An image 63 pixels wide ends in the even column 62, so the blocks of column 62 hold one column inside the image
++        // and one outside. From column 58 the taps lie in columns 54, 58 and 62: (6 · 15 + 3 · 5) / (6 · 4 + 3 · 2) = 3.5.
++        const int OddWidth = 63;
++        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(width: OddWidth);
++        try
++        {
++            sample.Samples = ByBlockCorner([1, 2, 4, 8]);
++
++            renderer.Render(scene, 1f);
++
++            LightAt(renderer: renderer, sample: sample, column: 58, row: Height / 2, width: OddWidth)
++                .Should()
++                .Be(new Vector3(3.5f), "the border's blocks give only their corners inside the image, 1 and 4");
++        }
++        finally
++        {
++            Gpu.DisposeAndAssertClean(renderer);
++        }
++    }
++
++    [Fact]
++    public void ATapLeftOfTheImageReadsNoPixelOfTheBlockAtTheImagesEdge()
++    {
++        // From column 3 the taps lie in columns -1, 3 and 7. Column -1 lies in the block of columns -2 and -1, outside the
++        // image, not in the block of columns 0 and 1, which alone holds light. A division of -1 by 2 would round toward 0 and
++        // read that block: 12 of 36 pixels of light 8, 2.67.
++        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
++        try
++        {
++            sample.Samples = (column, row) => new Vector4(new Vector3(column < 2 ? 8 : 0), 1);
++
++            renderer.Render(scene, 1f);
++
++            LightAt(renderer: renderer, sample: sample, column: 3, row: Height / 2)
++                .Should()
++                .Be(Vector3.Zero, "the blocks of columns 2 and 3 and of 6 and 7 hold no light");
++        }
++        finally
++        {
++            Gpu.DisposeAndAssertClean(renderer);
++        }
++    }
++
++    [Fact]
++    public void AShortHistoryOfThreeDrawsKeepsTheFixOverItsThreeByThreeNeighbors()
++    {
++        // At a length of 3 the fix's taps lie 1 pixel apart, so they already read neighboring pixels. After two dark draws,
++        // the third draw's samples 3, 6, 12 and 24 give the corners light 1, 2, 4 and 8. The 3 × 3 pixels around the even
++        // center hold one even corner, two of each one-odd corner and four odd corners: (1 + 4 + 8 + 32) / 9 = 5. The
++        // tapped blocks' 4 × 4 pixels would give 3.75.
++        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
++        try
++        {
++            sample.Value = new(x: 0f, y: 0f, z: 0f, w: 1f);
++            renderer.Render(scene, 1f);
++            Continue(renderer, scene, frames: 1);
++            sample.Samples = ByBlockCorner([3, 6, 12, 24]);
++
++            Continue(renderer, scene, frames: 1);
++
++            LightAt(renderer: renderer, sample: sample, column: Width / 2, row: Height / 2)
++                .Should()
++                .Be(new Vector3(5f), "the fix at a spacing of 1 reads the pixel's eight neighbors");
++        }
++        finally
++        {
++            Gpu.DisposeAndAssertClean(renderer);
++        }
++    }
++
+     [Fact]
+     public void AConstantSampleStaysConstant()
+     {
+@@ -2250,12 +2430,37 @@ public sealed class AccumulatorRenderTests
+                     renderer.Render(scene, 1);
+ 
+                     GuideAt(renderer, sample).Distance.Should().BeApproximately(8, 0.01f);
+-                    GuideAt(renderer, sample).Support.Should().BeApproximately(8f / 9, 0.001f);
++                    GuideAt(renderer, sample)
++                        .Support.Should()
++                        .BeApproximately(
++                            35f / 36,
++                            0.001f,
++                            "the fix pools the 36 pixels of its tapped blocks, and only the center has no hit"
++                        );
+                     CenterOf(renderer, sample, part: 0).Light.Should().Be(Vector3.One);
+                 },
+                 repair: true
+             );
+ 
++        [Fact]
++        public void TheFixWeightsTheGuideOfEachTappedPixelByItsLength() =>
++            WithHistory(
++                (renderer, sample, scene) =>
++                {
++                    // Two draws give every pixel a length of 2, so the fix taps whole blocks 2 pixels apart. Each
++                    // neighbor's guide counts twice, as its light does: a guide summed once per pixel over the summed
++                    // lengths would read about half the hit distance.
++                    sample.Value = new(x: 1, y: 1, z: 1, w: 8);
++                    renderer.Render(scene, 1);
++
++                    Continue(renderer, scene, frames: 1);
++
++                    GuideAt(renderer, sample).Distance.Should().BeApproximately(8, 0.01f);
++                    GuideAt(renderer, sample).Support.Should().BeApproximately(1, 0.001f);
++                },
++                repair: true
++            );
++
+         private static Vector3 LightAfterSequence(bool enabled)
+         {
+             Vector3 result = default;

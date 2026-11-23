@@ -1,0 +1,34 @@
+SCRATCH patch of t0-rs55, never commit to src. It applies on main 86ae0fbc8 and on the wide fix's commit, after the survey's probe patch and scratch-dynamic-scale-step2.patch. TERTIUS_X_HISTORY_DUMP=<folder>:<from>-<to> writes the slow diffuse history's length of each frame <from> to <to>, one byte per pixel at the render size, for the band of newly seen pixels (lengths under 4) of the motion take.
+
+--- a/src/Tertius.Rendering/VulkanRenderer.cs	2026-11-23 01:56:18
++++ b/src/Tertius.Rendering/VulkanRenderer.cs	2026-11-23 01:56:18
+@@ -737,6 +737,29 @@
+         frame.Number = number;
+         // Last, because it advances the frame number that the commits above name.
+         history.Drew(pending);
++        // SCRATCH (t0-rs55, scratch-history-band.patch, never commit to src): with TERTIUS_X_HISTORY_DUMP=<folder>:<from>-<to>,
++        // each frame <from> to <to> writes the slow diffuse history's length that it left (ScreenTraceSignals.Diffuse.Slow(0),
++        // alpha), over its render size, row by row, one byte per pixel (the length, at most 255), to
++        // <folder>/history-<frame>-<width>x<height>.u8. The read waits for the device.
++        if (Environment.GetEnvironmentVariable("TERTIUS_X_HISTORY_DUMP") is { Length: > 0 } probeDump
++            && probeDump.LastIndexOf(':') is int probeColon && probeColon > 0
++            && probeDump[(probeColon + 1)..].Split('-') is [var probeFrom, var probeTo]
++            && number >= long.Parse(probeFrom) && number <= long.Parse(probeTo))
++        {
++            (float[] probeValues, int probeWidth, _) = ReadLevel(image: ScreenTraceSignals.Diffuse.Slow(0), layer: 0, mip: 0);
++            int probeW = (int)pending.RenderSize.Width, probeH = (int)pending.RenderSize.Height;
++            var probeBytes = new byte[probeW * probeH];
++            for (int probeY = 0; probeY < probeH; probeY++)
++                for (int probeX = 0; probeX < probeW; probeX++)
++                    probeBytes[probeY * probeW + probeX] = (byte)Math.Clamp(probeValues[4 * (probeY * probeWidth + probeX) + 3], 0f, 255f);
++            System.IO.File.WriteAllBytes(
++                System.IO.Path.Combine(
++                    System.IO.Directory.CreateDirectory(probeDump[..probeColon]).FullName,
++                    $"history-{number}-{probeW}x{probeH}.u8"
++                ),
++                probeBytes
++            );
++        }
+     }
+ 
+     /// <summary>

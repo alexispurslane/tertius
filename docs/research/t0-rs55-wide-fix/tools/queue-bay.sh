@@ -9,6 +9,8 @@
 #   3. the same with TERTIUS_PROBE_SIGNAL=3: the reflections alone.
 # Every run is measured (fairmeasure.py) and keeps the PNGs of draws 0, 1, 2, 4 and 8. A run starts at 20 GiB of free disk or
 # more (the line orchestrator's limit); the queue stops under 20.
+# SKIP_CHECK=1 leaves out step 1, SIGNALS="all", "reflections" or both chooses the signals of steps 2 and 3, and a run whose
+# folder holds a full size log (200 draws) is kept, not run again.
 T=$(cd "$(dirname "$0")" && pwd); G=$(cd "$T/../../t0-gumm-catch-up-spread/tools" && pwd); R=$(cd "$T/../../../.." && pwd)
 F=/private/tmp/t0-gbgj/gumm-fair
 freegb() { df -Pk / | awk 'NR == 2 {print int($4 / 1048576)}'; }
@@ -34,12 +36,13 @@ if [ "${SKIP_CHECK:-}" != 1 ]; then
   same rs-check-real bay-wide-today
   measure rs-check-real check-real
 fi
-for signal in all reflections; do
+for signal in ${SIGNALS:-all reflections}; do
   for t in 0 1 2; do
     for side in today:m0z wide:m1z; do
       IFS=: read code build <<< "$side"
       name=rs-bay-$signal-$code+$t
       extra=(); [ $signal = reflections ] && extra=(TERTIUS_PROBE_SIGNAL=3)
+      [ "$(cat $F/$name/size-*.txt 2>/dev/null | wc -l)" -ge 200 ] && { echo "$name: done before, kept"; continue; }
       FAIR_TICKS_ADD=$t run $name $build ${extra[@]+"${extra[@]}"}
       measure $name "$signal $code +$t"
     done
