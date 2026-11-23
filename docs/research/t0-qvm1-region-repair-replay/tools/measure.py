@@ -184,6 +184,16 @@ for name, log, process, Ps, (w, h), run, dumps, start in STILLS:
                   ', '.join(f'{d}: {100 * s:.2f} %' for d, s in v['at'].items()) + extra)
         if P == 18 and name != 'cabin, lamps off':
             results['fires'][name] = st['stat'][st['today']].tolist()
+        # The false runs under today's bar in the frozen part: the lengths of the runs of tested draws in a row above 3 a,
+        # each counted at its last draw.
+        r = st['runs']
+        ends = (r > 0) & np.concatenate([r[1:] == 0, np.ones((1, *r.shape[1:]), bool)]) & late[:, None, None]
+        lengths = r[ends]
+        if len(lengths):
+            q = [float(v) for v in np.percentile(lengths, (50, 90, 99))]
+            results['stills'][label]['falseRuns'] = q + [int(lengths.max()), int(len(lengths))]
+            print(f'  false runs under today\'s bar in the frozen part: 50 / 90 / 99 % {q[0]:.0f} / {q[1]:.0f} / {q[2]:.0f} '
+                  f'draws, longest {int(lengths.max())}, {len(lengths)} runs')
         if not has_dumps:
             print(f'  (the surface from the log: {int(surface.sum())} of {surface.size} blocks; the frozen part from draw {start})')
 

@@ -12,12 +12,12 @@ stills = ['exit-cabin', 'lamp hall', 'bay', 'still cabin', 'cabin, lamps off']
 pkeys = {}
 for s in stills:
     for k in d['stills'][s]['rows']:
-        if k[0] == 'C' and k[1:] not in ('1', '2', '4') and k != 'CK3':
+        if k[0] == 'C' and k[1:] not in ('1', '2', '4') and k not in ('CK3', 'CP'):
             pkeys.setdefault('Cp', {})[s] = k
         if k.startswith('EC') and k[2:] not in ('1', '2', '4'):
             pkeys.setdefault('ECp', {})[s] = k
 rows = ['none', 'T', 'E4', 'E8', 'E16', "E'4", "E'8", 'C1', 'C2', 'C4', 'Cp', 'EC1', 'EC2', 'EC4', 'ECp', "E'C1-4",
-        "E'C1-8", 'K6', 'CK3']
+        "E'C1-8", 'K6', 'CK3', 'CP']
 
 
 def cell(row, still):
@@ -56,8 +56,16 @@ print()
 print('| Candidate | bay-sun: anchors\' lag, median / 90 % | rect-bay: anchors\' lag, median / 90 % | Switch, light after '
       'off: +20 / +40 draws | Switch, light after on: +20 / +40 draws |')
 print('|' + '---|' * 5)
-for r in ['none', 'T', 'C1', 'K6', 'CK3', "E'C1-4", "E'C1-8"]:
+for r in ['none', 'T', 'C1', 'K6', 'CK3', 'CP', "E'C1-4", "E'C1-8"]:
     bs, rb, sw = d['lag']['bay-sun'][r], d['lag']['rect-bay'][r], d['switch']['rule'][r]
     print(f"| {r} | {f(bs['anchorMedian'])} / {f(bs['anchorP90'])} | {f(rb['anchorMedian'])} / {f(rb['anchorP90'])} | "
           f"{100 * sw['off']['at20']:.1f} / {100 * sw['off']['at40']:.1f} % | {100 * sw['on']['at20']:.1f} / "
           f"{100 * sw['on']['at40']:.1f} % |")
+
+print()
+print('| Still | False runs under today\'s bar in the frozen part: 50 / 90 / 99 %, longest, runs |')
+print('|---|---|')
+for s_ in stills:
+    q = d['stills'][s_].get('falseRuns')
+    if q:
+        print(f'| {s_} | {q[0]:.0f} / {q[1]:.0f} / {q[2]:.0f} draws, {q[3]}, {q[4]} |')
