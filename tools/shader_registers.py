@@ -5,19 +5,30 @@ register 115, 384 from register 116 (ARCHITECTURE.md, "Key and fill"). direct_ke
 so a change to any file that it includes can cross the step and cost 0.1 ms to 0.4 ms of the direct pass in every view
 (t2-x53j, t1-gout). This tool reads the count before a GPU take does.
 
-Usage, in the dev shell, from the repository root:
+Usage, from the repository root. The count, in the dev shell:
 
     nix develop --command python3 -I tools/shader_registers.py <out folder> [<shader folder>] [<label>]
 
 The shader folder defaults to src/Tertius.Rendering/Shaders. The label names the variant in the output, default "head".
 Each line of the output is "<label> <shader> r<highest register> <instructions> instructions".
 
+The guard, which the pre-commit hook runs with the staged files (inside or outside the dev shell):
+
+    python3 -I tools/shader_registers.py guard <out folder> <staged file>...
+
+It reads the shader folder from git's index, so it judges what the commit holds. It counts each guarded shader whose
+include closure holds a staged file, and prints one of three results per run, each with its exit code: pass (0), with
+the register, the limit and the room, and a warning when the room is under 2 registers; fail (1), with the register,
+the limit and what a register above it costs; and "does not apply" (3), with the reason: no staged file is in a guarded
+closure, or Apple's Metal toolchain or the decoder is absent, as on Linux and the cloud workers. An error of the tool
+itself exits with 2. Outside the dev shell, the guard runs itself again inside it once it knows that it must count.
+
 It needs, besides the dev shell's glslc, spirv-opt and MoltenVKShaderConverter (MoltenVK's own converter):
 
 - Xcode's Metal toolchain with metal and metal-tt (`xcrun -f metal-tt`). The dev shell does not hold them.
 - The applegpu decoder of Dougall Johnson, https://github.com/dougallj/applegpu, at revision
   28dd80468d4a6c94fa4dac34ed488196f5fedc5f, in the folder that the environment variable APPLEGPU names. The dev shell
-  does not hold it. Clone it into an empty folder outside the repository.
+  sets APPLEGPU to the flake's copy (native/applegpu.nix).
 
 It submits no GPU work. The shaders compile as MoltenVK runs them: spirv-opt freezes the specialization constants with
 the tiles' corner means on (constant 11), MoltenVKShaderConverter writes Metal source, metal builds a library and metal-tt
@@ -26,19 +37,55 @@ the fragment's machine code. The highest register is the largest 32-bit register
 runtime may allocate more. The method and its first results are in docs/research/light-pairs/pair/notes.md, "Offline
 native shader evidence".
 """
-from pathlib import Path
+from dataclasses import dataclass
+from pathlib import Path, PurePosixPath
 import json
 import os
 import re
+import shutil
 import struct
 import subprocess
 import sys
+import time
 
-# The shaders of the direct pass whose registers the tool reads: the file and its pipeline's color formats.
+# The exit code of each result of the guard.
+PASS, FAIL, ERROR, NOT_APPLICABLE = 0, 1, 2, 3
+
+# The folder of the shaders, from the repository root: the guard maps a staged path to a shader file with it.
+SHADER_FOLDER = PurePosixPath("src/Tertius.Rendering/Shaders")
+
+# On the M1 a fragment shader keeps 448 threads resident up to register 115, and 384 from register 116
+# (ARCHITECTURE.md, "Key and fill"). One register over the step cost the direct pass 0.36 ms on the deck (ter-8esk) and
+# 0.10 to 0.28 ms in every view (t1-gout).
+STEP = 115
+STEP_COST = ("from register 116 the M1 keeps 384 threads of the shader resident in place of 448, which cost the direct "
+             "pass 0.10 to 0.36 ms of the frame in every view (t2-x53j, t1-gout)")
+
+# The guard warns when a shader has fewer registers of room than this: one more value at the peak crosses the step.
+ROOM_WARNING = 2
+
+
+@dataclass(frozen=True)
+class Guarded:
+    """A shader of the direct pass whose registers the tool reads: the file, its pipeline's color formats, and the
+    highest register that it may reach."""
+    name: str
+    formats: tuple
+    limit: int
+
+
+# Both direct shaders draw the direct pass, so both pay the step's cost.
 SHADERS = [
-    ("direct.frag", ["RGBA16Float", "RGBA16Float"]),
-    ("direct_key_fill.frag", ["RGBA16Float", "RGBA16Float"]),
+    Guarded("direct.frag", ("RGBA16Float", "RGBA16Float"), STEP),
+    Guarded("direct_key_fill.frag", ("RGBA16Float", "RGBA16Float"), STEP),
 ]
+
+
+@dataclass(frozen=True)
+class Verdict:
+    """One result of the guard: its words and its exit code."""
+    text: str
+    exit_code: int
 
 # The specialization constants that MoltenVK runs on the Mac: ShaderConstants.TileCornerMeans on.
 CONSTANTS = "11:true"
@@ -60,6 +107,57 @@ def highest_register(lines):
     count."""
     found = [int(x) for line in lines for x in re.findall(r"(?<![A-Za-z0-9])r(\d+)", line)]
     return max(found, default=-1)
+
+
+INCLUDE = re.compile(r'^[ \t]*#[ \t]*include[ \t]+"([^"]+)"', re.MULTILINE)
+
+
+def include_closure(folder, shader):
+    """The names of `shader` and of every file in `folder` that it includes, through any depth of includes. An
+    include inside a preprocessor branch counts, since a change there can still reach the shader."""
+    closure, pending = set(), [shader]
+    while pending:
+        name = pending.pop()
+        if name in closure:
+            continue
+        closure.add(name)
+        path = folder / name
+        if path.is_file():
+            pending += INCLUDE.findall(path.read_text())
+    return closure
+
+
+def guarded_shaders_touched(staged, folder, shaders):
+    """The names of `shaders` (files of `folder`, the shader folder) whose include closure holds one of the `staged`
+    paths, which are relative to the repository root."""
+    names = {PurePosixPath(p).name for p in staged if PurePosixPath(p).parent == SHADER_FOLDER}
+    return [shader for shader in shaders if include_closure(folder, shader) & names]
+
+
+def verdict_of(shader, register):
+    """The guard's result for `shader` at its highest register `register`: a pass with the room under the limit, and a
+    warning when the room is under ROOM_WARNING, or a fail above the limit."""
+    limit = next(s.limit for s in SHADERS if s.name == shader)
+    if register > limit:
+        return Verdict(f"fail: {shader} is at register {register}, above its limit of {limit}: {STEP_COST}.", FAIL)
+    room = limit - register
+    text = f"pass: {shader} is at register {register}, the limit is {limit}, room {room} register{'s' if room != 1 else ''}"
+    if room < ROOM_WARNING:
+        text += (f". warning: less than {ROOM_WARNING} registers of room, so one more value at the shader's peak can "
+                 f"cross the limit")
+    return Verdict(text + ".", PASS)
+
+
+def applicability(metal_tt, decoder):
+    """None when the count can run, else the guard's "does not apply" result: `metal_tt` is the path of Xcode's
+    metal-tt or None, and `decoder` the applegpu folder or None."""
+    if metal_tt is None:
+        return Verdict("does not apply: Xcode's Metal toolchain (metal-tt) is absent, so the M1's registers cannot be "
+                       "counted on this machine.", NOT_APPLICABLE)
+    if decoder is None:
+        return Verdict("does not apply: the applegpu decoder is absent (APPLEGPU names no folder with applegpu.py; the "
+                       "dev shell sets it).", NOT_APPLICABLE)
+    return None
 
 
 def metal_library(spirv, folder, name):
@@ -141,30 +239,110 @@ def disassemble(applegpu, code):
     return lines
 
 
+def decoder_folder():
+    """The applegpu folder that APPLEGPU names, or None when it holds no decoder."""
+    decoder = os.environ.get("APPLEGPU")
+    return decoder if decoder and (Path(decoder) / "applegpu.py").exists() else None
+
+
+def metal_tt_path():
+    """The path of Xcode's metal-tt, or None where Xcode's Metal toolchain is absent."""
+    if not Path("/usr/bin/xcrun").exists():
+        return None
+    try:
+        return xcrun("-f", "metal-tt") or None
+    except subprocess.CalledProcessError:
+        return None
+
+
+def counter(applegpu, shaders, out):
+    """A function that counts one shader of `shaders` (a folder) into `out` and returns its highest register and its
+    disassembled lines. It compiles the vertex shader once."""
+    out.mkdir(parents=True, exist_ok=True)
+
+    def compile_spirv(name):
+        run("glslc", "--target-env=vulkan1.3", "-O", "-Werror", "-I", shaders, "-o", out / f"{name}.spv",
+            shaders / name)
+
+    compile_spirv("fullscreen.vert")
+    vertex = metal_library(out / "fullscreen.vert.spv", out, "fullscreen.vert")
+
+    def count(shader):
+        compile_spirv(shader.name)
+        fragment = metal_library(out / f"{shader.name}.spv", out, shader.name)
+        archive = native_pipeline(vertex, fragment, list(shader.formats), out, shader.name)
+        lines = disassemble(applegpu, fragment_code(archive))
+        (out / f"{shader.name}.disasm").write_text("\n".join(lines) + "\n")
+        return highest_register(lines), lines
+
+    return count
+
+
+def import_decoder(decoder):
+    sys.path.insert(0, decoder)
+    import applegpu
+    return applegpu
+
+
+def staged_shader_folder(out):
+    """A copy of the shader folder as git's index holds it, under `out`: what the commit will hold."""
+    index = out / "index"
+    shutil.rmtree(index, ignore_errors=True)
+    files = subprocess.run(["git", "ls-files", "-z", "--", str(SHADER_FOLDER)], check=True, capture_output=True,
+                           text=True).stdout.split("\0")
+    subprocess.run(["git", "checkout-index", f"--prefix={index}/", "--", *[f for f in files if f]], check=True)
+    return index / SHADER_FOLDER
+
+
+def guard(argv):
+    """The guard: judges each guarded shader whose include closure holds a staged file. Returns the exit code."""
+    out = Path(argv[0]).resolve()
+    out.mkdir(parents=True, exist_ok=True)
+    folder = staged_shader_folder(out)
+    touched = guarded_shaders_touched(argv[1:], folder, [s.name for s in SHADERS])
+    if not touched:
+        print("register guard: does not apply: no staged file is in the include closure of a guarded shader "
+              f"({', '.join(s.name for s in SHADERS)}).")
+        return NOT_APPLICABLE
+    metal_tt = metal_tt_path()
+    if metal_tt is not None and not os.environ.get("IN_NIX_SHELL"):
+        # The count needs the dev shell's glslc, spirv-opt, MoltenVKShaderConverter and APPLEGPU.
+        os.execvp("nix", ["nix", "develop", "--command", "python3", "-I", __file__, "guard", *argv])
+    absent = applicability(metal_tt, decoder_folder())
+    if absent is not None:
+        print(f"register guard: {absent.text}")
+        return absent.exit_code
+    started = time.monotonic()
+    count = counter(import_decoder(decoder_folder()), folder, out)
+    verdicts = [verdict_of(shader.name, count(shader)[0]) for shader in SHADERS if shader.name in touched]
+    for verdict in verdicts:
+        print(f"register guard: {verdict.text}")
+    print(f"register guard: counted {len(verdicts)} shader(s) in {time.monotonic() - started:.0f} s; the disassembly "
+          f"is in {out}.")
+    return max(v.exit_code for v in verdicts)
+
+
 def main(argv):
     if len(argv) < 2:
         sys.exit(__doc__)
+    if argv[1] == "guard":
+        if len(argv) < 3:
+            sys.exit(__doc__)
+        try:
+            sys.exit(guard(argv[2:]))
+        except Exception as error:  # noqa: BLE001: any failure of the count is an error of the guard, not a pass
+            print(f"register guard: error: {error!r}", file=sys.stderr)
+            sys.exit(ERROR)
     out = Path(argv[1]).resolve()
-    shaders = Path(argv[2] if len(argv) > 2 else "src/Tertius.Rendering/Shaders").resolve()
+    shaders = Path(argv[2] if len(argv) > 2 else str(SHADER_FOLDER)).resolve()
     label = argv[3] if len(argv) > 3 else "head"
-    decoder = os.environ.get("APPLEGPU")
-    if not decoder or not (Path(decoder) / "applegpu.py").exists():
+    decoder = decoder_folder()
+    if decoder is None:
         sys.exit("Set APPLEGPU to a clone of https://github.com/dougallj/applegpu at 28dd80468d4a6c94fa4dac34ed488196f5fedc5f.")
-    sys.path.insert(0, decoder)
-    import applegpu
-
-    out.mkdir(parents=True, exist_ok=True)
-    compile_spirv = lambda name: run("glslc", "--target-env=vulkan1.3", "-O", "-Werror", "-I", shaders,
-                                     "-o", out / f"{name}.spv", shaders / name)
-    compile_spirv("fullscreen.vert")
-    vertex = metal_library(out / "fullscreen.vert.spv", out, "fullscreen.vert")
-    for name, formats in SHADERS:
-        compile_spirv(name)
-        fragment = metal_library(out / f"{name}.spv", out, name)
-        archive = native_pipeline(vertex, fragment, formats, out, name)
-        lines = disassemble(applegpu, fragment_code(archive))
-        (out / f"{name}.disasm").write_text("\n".join(lines) + "\n")
-        print(f"{label} {name} r{highest_register(lines)} {len(lines)} instructions", flush=True)
+    count = counter(import_decoder(decoder), shaders, out)
+    for shader in SHADERS:
+        register, lines = count(shader)
+        print(f"{label} {shader.name} r{register} {len(lines)} instructions", flush=True)
 
 
 if __name__ == "__main__":
