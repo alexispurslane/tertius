@@ -1,3 +1,4 @@
+# The survey's probe patch (tools/renderer-survey/probe.patch of 05a27262d), fitted to 05a27262d by t0-3vwx: the commit changed a comment line in the context of the sample_age.glsl hunk, so the original does not apply there. The changes are the original's.
 diff --git a/src/Tertius.Host/ScriptCommand.Options.cs b/src/Tertius.Host/ScriptCommand.Options.cs
 index fd0cccb..1b779b7 100644
 --- a/src/Tertius.Host/ScriptCommand.Options.cs
@@ -13,7 +14,7 @@ index fd0cccb..1b779b7 100644
              {
                  options.FramesInFlight = count;
 diff --git a/src/Tertius.Rendering/Frame/FrameHistory.cs b/src/Tertius.Rendering/Frame/FrameHistory.cs
-index 7f32127..9b2cf1a 100644
+index b309e4c..2dbd1f2 100644
 --- a/src/Tertius.Rendering/Frame/FrameHistory.cs
 +++ b/src/Tertius.Rendering/Frame/FrameHistory.cs
 @@ -185,7 +185,12 @@ internal sealed class FrameHistory
@@ -365,10 +366,10 @@ index 0000000..5a67ab4
 +    }
 +}
 diff --git a/src/Tertius.Rendering/Scene/SceneBatcher.cs b/src/Tertius.Rendering/Scene/SceneBatcher.cs
-index 9c27327..cbd83cc 100644
+index c44273f..9b4ec79 100644
 --- a/src/Tertius.Rendering/Scene/SceneBatcher.cs
 +++ b/src/Tertius.Rendering/Scene/SceneBatcher.cs
-@@ -158,6 +158,9 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float
+@@ -166,6 +166,9 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float
              faces: facesOfMaps,
              scene: scene
          );
@@ -379,10 +380,10 @@ index 9c27327..cbd83cc 100644
          FitCascadeSets(snapshot, scene);
          CollectFarShadows(scene);
 diff --git a/src/Tertius.Rendering/ShaderConstants.cs b/src/Tertius.Rendering/ShaderConstants.cs
-index 99ad27d..dda9304 100644
+index d488470..8ff0064 100644
 --- a/src/Tertius.Rendering/ShaderConstants.cs
 +++ b/src/Tertius.Rendering/ShaderConstants.cs
-@@ -124,6 +124,10 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
+@@ -134,6 +134,10 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
              (NeighborLimitPrototypeId, VkBool(values.NeighborLimitPrototype)),
              (ReflectionSharingPrototypeId, VkBool(values.ReflectionSharingPrototype)),
              (TileCornerMeansId, VkBool(values.TileCornerMeans)),
@@ -393,7 +394,7 @@ index 99ad27d..dda9304 100644
          ];
          for (int i = 0; i < rows.Length; i++)
          {
-@@ -155,7 +159,7 @@ internal struct SpecializationStorage
+@@ -165,7 +169,7 @@ internal struct SpecializationStorage
      /// The number of constants: one per field of <see cref="ShaderConstants"/>, the subsurface setting's being its taps per
      /// side. <see cref="ShaderConstants.Specialization"/> writes one row per constant, and a row past this count throws.
      /// </summary>
@@ -423,10 +424,10 @@ index b3a035b..387c037 100644
  
  // SignalLight.
 diff --git a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
-index df14a41..2b21024 100644
+index c0ae4cc..c77565c 100644
 --- a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
 +++ b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
-@@ -38,9 +38,16 @@ shared uint blockEvidence;
+@@ -36,9 +36,16 @@ shared uint blockEvidence;
  // lasts (docs/plans/bounce-light-confidence.md, section 8.2, open point 1).
  uint evidenceOfSample(uint sampleAge)
  {
@@ -445,7 +446,7 @@ index df14a41..2b21024 100644
  }
  
  // The evidence level of the workgroup's block: the strongest of its pixels' samples' levels and, for the bounce light, its
-@@ -155,7 +162,8 @@ void accumulateAt(ivec2 pixel, uint evidence)
+@@ -153,7 +160,8 @@ void accumulateAt(ivec2 pixel, uint evidence)
              float deviation = imageLoad(fastHistory, pixel).a;
              spread = max(spread, parameters.retainedSigmas * deviation * slow / max(luminance(slow), LeastLuminance));
          }
@@ -455,7 +456,7 @@ index df14a41..2b21024 100644
          float lag = luminance(abs(slow - clamped)) / max(luminance(mean), LeastLuminance);
  #ifdef TERTIUS_ACCUMULATION_TRACE
          storeTrace(pixel, 5, vec4(slow, 1.0));
-@@ -200,6 +208,10 @@ void main()
+@@ -192,6 +200,10 @@ void main()
      // A signal without a light age has no evidence.
  #ifdef TERTIUS_LIGHT_AGE
      uint evidence = evidenceOfBlock(pixel);
@@ -533,7 +534,7 @@ index b8381fb..1bd4384 100644
  // The relative rounding of the motion target's half floats, which keep 10 bits below their leading bit: twice their
  // largest rounding, so that a still surface's target and its still motion (stillMotionOf) stay inside it.
 diff --git a/src/Tertius.Rendering/Shaders/sample_age.glsl b/src/Tertius.Rendering/Shaders/sample_age.glsl
-index bc0fffb..2623432 100644
+index 87e5663..1b02016 100644
 --- a/src/Tertius.Rendering/Shaders/sample_age.glsl
 +++ b/src/Tertius.Rendering/Shaders/sample_age.glsl
 @@ -12,8 +12,12 @@
@@ -550,7 +551,7 @@ index bc0fffb..2623432 100644
 +const uint ProbeMovingBit = 0x4000u;
  
  // The light ages below which a light change is recent: 0 to 6, the light codes 1 to 7. The record counts a change after
- // it lasts 4 draws, so a recent change began less than 11 draws ago, and the fast history, which keeps (3 / 4)^k of a
+ // it lasts 4 draws, so a recent change began less than 11 draws ago. The fast history keeps (3 / 4)^k of a step after k
 diff --git a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
 index 6cea974..3097733 100644
 --- a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
@@ -599,10 +600,10 @@ index b013dc9..d40cc1d 100644
      if (tonemap.encodeSrgb != 0u)
          ldr = linearToSrgb(ldr);
 diff --git a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
-index a27542c..a06db6f 100644
+index c7395e8..b6ec4be 100644
 --- a/src/Tertius.Rendering/VulkanRenderer.cs
 +++ b/src/Tertius.Rendering/VulkanRenderer.cs
-@@ -498,7 +498,15 @@ public sealed unsafe class VulkanRenderer : IRenderer
+@@ -501,7 +501,15 @@ public sealed unsafe class VulkanRenderer : IRenderer
      public MaterialId CreateMaterial(MaterialDesc material)
      {
          ObjectDisposedException.ThrowIf(disposed, this);
@@ -619,7 +620,7 @@ index a27542c..a06db6f 100644
      }
  
      /// <summary>Requests a new output size. It takes effect at the start of the next <see cref="Render"/>.</summary>
-@@ -619,6 +627,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
+@@ -622,6 +630,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
          device.Vk.ResetFences(device.Device, 1, &fence).Check("vkResetFences");
          output.SubmitAndPresent(frame);
          CommitDrawnFrame(frame: frame, snapshot: snapshot, pending: pending);
@@ -627,7 +628,7 @@ index a27542c..a06db6f 100644
  
          if (sink != null && capture != null)
          {
-@@ -639,6 +648,94 @@ public sealed unsafe class VulkanRenderer : IRenderer
+@@ -642,6 +651,94 @@ public sealed unsafe class VulkanRenderer : IRenderer
          return true;
      }
  

@@ -16,13 +16,14 @@ const uint SampleMotionBit = 0x8000u;
 const uint LightCodeMask = 0x7FFFu;
 
 // The light ages below which a light change is recent: 0 to 6, the light codes 1 to 7. The record counts a change after
-// it lasts 4 draws, so a recent change began less than 11 draws ago, and the fast history, which keeps (3 / 4)^k of a
-// step after k draws, holds it within 5 % by the end (section 8.3).
+// it lasts 4 draws, so a recent change began less than 11 draws ago. The fast history keeps (3 / 4)^k of a step after k
+// draws, so it holds the change within 5 % by the end, while light evidence caps the slow history at FullRateFrames
+// (section 8.3).
 const uint RecentLightAge = 7u;
 
 // A pixel traces its own ray of a kind while its history of that kind is shorter than this (docs/plans/temporal-renderer.md,
-// section 6, "The ray budget"). The screen tracer's plan reads it, and so does the spatial dispatch, whose region evidence
-// cuts a history to it: the shortest length that keeps the block's shared ray.
+// section 6, "The ray budget"). The screen tracer's plan reads it, and so does the spatial dispatch, whose light and region
+// evidence cut a history to it: the shortest length that keeps the block's shared ray.
 const float FullRateFrames = 8.0;
 
 // The sample age of a sample whose rays bring the light code `lightCode`, with the motion bit where `motion` holds.

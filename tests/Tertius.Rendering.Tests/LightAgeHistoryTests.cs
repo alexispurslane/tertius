@@ -386,7 +386,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
     [Theory]
     [InlineData(null)]
     [InlineData("")]
-    public void ByDefaultALastingDimmingOfTheEmitterCutsTheReflectionHistoryToTheFastCap(string? value) =>
+    public void ByDefaultALastingDimmingOfTheEmitterCutsTheReflectionHistoryToFullRateFrames(string? value) =>
         WithRenderer(
             value,
             (renderer, scene) =>
@@ -400,14 +400,14 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 float[] cut = Slow(renderer);
                 Enumerable
                     .Range(Height / 2 * Width, Width * Height / 2)
-                    .Count(pixel => LengthAt(warm, pixel) > 32 && LengthAt(cut, pixel) == SpecularFastCap)
+                    .Count(pixel => LengthAt(warm, pixel) > 32 && LengthAt(cut, pixel) == FullRateFrames)
                     .Should()
                     .BeGreaterThan(30, "the blocks of the receivers that reflect the emitter have light evidence");
             }
         );
 
     [Fact]
-    public void TheCappedPreciseHistoryAlsoFallsToTheFastCap()
+    public void TheCappedPreciseHistoryAlsoFallsToFullRateFrames()
     {
         string? mode = Environment.GetEnvironmentVariable("TERTIUS_SPECULAR_HISTORY");
         Environment.SetEnvironmentVariable("TERTIUS_SPECULAR_HISTORY", "precise-capped");
@@ -426,7 +426,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                     float[] cut = Slow(renderer);
                     Enumerable
                         .Range(Height / 2 * Width, Width * Height / 2)
-                        .Count(pixel => LengthAt(warm, pixel) > 8 && LengthAt(cut, pixel) == SpecularFastCap)
+                        .Count(pixel => LengthAt(warm, pixel) > 8 && LengthAt(cut, pixel) == FullRateFrames)
                         .Should()
                         .BeGreaterThan(
                             30,
@@ -636,20 +636,20 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 bright.Length.Should().BeGreaterThan(30, "the plate reflects the emitter");
                 // No cut runs before the blend, so a bright sample takes its normal weight there, and the block's light
                 // evidence cuts the length after it (docs/plans/bounce-light-confidence.md, section 4). The clamp's
-                // anti-lag in the pending draws shortens a few histories to the fast cap first, but none to the age 0.
+                // anti-lag in the pending draws shortens a few histories toward the fast cap first, but none to the age 0.
                 bright
                     .Should()
                     .OnlyContain(
                         pixel =>
                             LengthBeforeBlendAt(diagnostic, pixel) >= SpecularFastCap
-                            && LengthAt(slow, pixel) == SpecularFastCap,
+                            && LengthAt(slow, pixel) <= FullRateFrames,
                         "the blend keeps the history, and the evidence cuts it after the blend"
                     );
             }
         );
 
     [Fact]
-    public void AfterALastingDimmingTheDiffuseHistoryOfTheReceiversFallsToTheFastCap() =>
+    public void AfterALastingDimmingTheDiffuseHistoryOfTheReceiversFallsToFullRateFrames() =>
         WithRenderer(
             null,
             (renderer, scene) =>
@@ -678,11 +678,10 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                         ),
                 ];
                 cut.Length.Should().BeGreaterThan(0, "the diffuse rays of some pixels hit the dimmed emitter");
-                cut.Should()
-                    .OnlyContain(
-                        pixel => LengthAt(slow, pixel) == DiffuseFastCap,
-                        "the block's light evidence cuts the history to the fast window after the blend"
-                    );
+                ShouldBeCutToFullRateFrames(
+                    [.. cut.Select(pixel => LengthAt(slow, pixel))],
+                    "the block's light evidence cuts the history to FullRateFrames after the blend"
+                );
             }
         );
 
@@ -837,12 +836,12 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
         );
 
     [Fact]
-    public void AReceiverWhoseRayHitsTheDimmedEmitterFallsToTheFastCap() =>
-        AReceiverWhoseRayHitsTheChangedEmitterFallsToTheFastCap(new(3.2f));
+    public void AReceiverWhoseRayHitsTheDimmedEmitterFallsToFullRateFrames() =>
+        AReceiverWhoseRayHitsTheChangedEmitterFallsToFullRateFrames(new(3.2f));
 
     [Fact]
-    public void AReceiverWhoseRayHitsTheBrightenedEmitterFallsToTheFastCap() =>
-        AReceiverWhoseRayHitsTheChangedEmitterFallsToTheFastCap(new(4.8f));
+    public void AReceiverWhoseRayHitsTheBrightenedEmitterFallsToFullRateFrames() =>
+        AReceiverWhoseRayHitsTheChangedEmitterFallsToFullRateFrames(new(4.8f));
 
     [Fact]
     public void ACutHistoryGrowsBackWithTheAgeOfTheLight() =>
@@ -859,7 +858,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 [
                     .. Enumerable
                         .Range(Height / 2 * Width, Width * Height / 2)
-                        .Where(pixel => LengthAt(warm, pixel) > 32 && LengthAt(cut, pixel) == SpecularFastCap),
+                        .Where(pixel => LengthAt(warm, pixel) > 32 && LengthAt(cut, pixel) == FullRateFrames),
                 ];
                 receivers.Length.Should().BeGreaterThan(30, "the dimming must cut receivers first");
 
@@ -871,8 +870,8 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 receivers
                     .Should()
                     .OnlyContain(
-                        pixel => LengthAt(early, pixel) <= SpecularFastCap + 10,
-                        "the history holds no more than the fast window from before the change"
+                        pixel => LengthAt(early, pixel) <= FullRateFrames + 10,
+                        "the history holds no more than FullRateFrames draws from before the change"
                     );
                 receivers.Average(pixel => LengthAt(early, pixel)).Should().BeGreaterThan(4);
                 receivers
@@ -882,11 +881,76 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
             }
         );
 
-    /// <summary>The fast cap of the bounce light: the length to which light evidence cuts its histories.</summary>
-    private const float DiffuseFastCap = 4;
+    [Fact]
+    public void WhileALastingDimmingIsRecentThePlanGivesFewMorePixelsARayOfTheirOwn() =>
+        WithRenderer(
+            null,
+            (renderer, scene) =>
+            {
+                // The plan gives a pixel a ray of its own while its history is shorter than FullRateFrames
+                // (screen_trace_plan.comp). Light evidence cuts a settled history to exactly that length, so a light
+                // change buys no block of own rays in the draws while its age is recent, and the frame costs about what
+                // a still frame costs (ticket t0-zmjx). The count is of own rays, up to two per pixel, one of each kind.
+                // A cut to the fast cap gave 2,161 to 3,059 own rays in each of 10 draws, on 9,216 pixels. The count
+                // before the change is the most of 8 settled draws, since the jitter moves a few pixels across the
+                // threshold of a fit. The dimming also moves the clamp, and the anti-lag shortens a few histories below
+                // FullRateFrames by that move, as it does without evidence: up to 41 more own rays in the take of
+                // 2026-11-22, so the bound is 92 more, 1 % of the pixel count.
+                Draw(renderer, scene, 64);
+                int settled = 0;
+                for (int draw = 0; draw < 8; draw++)
+                {
+                    Draw(renderer, scene, 1);
+                    settled = Math.Max(settled, OwnRays(renderer));
+                }
+                SetGlow(renderer, scene, new(3.2f));
+                Draw(renderer, scene, LightChangeDraws);
 
-    /// <summary>The fast cap of the reflections: the length to which light evidence cuts their histories.</summary>
+                List<int> recent = [];
+                for (int draw = 0; draw < RecentLightAge + 4; draw++)
+                {
+                    Draw(renderer, scene, 1);
+                    recent.Add(OwnRays(renderer));
+                }
+
+                output.WriteLine($"Own rays: {settled} at most when settled, then {string.Join(", ", recent)}.");
+                recent
+                    .Should()
+                    .OnlyContain(
+                        count => count <= settled + Width * Height / 100,
+                        "a light change buys no block of rays of a pixel's own"
+                    );
+            }
+        );
+
+    /// <summary>The light ages of a recent change, 0 to 6 (sample_age.glsl, RecentLightAge).</summary>
+    private const int RecentLightAge = 7;
+
+    /// <summary>
+    /// The rays of their own that the last frame's plan gave the pixels, of both kinds (screen_trace.glsl,
+    /// PlanOwnReflection and PlanOwnDiffuse).
+    /// </summary>
+    private static int OwnRays(VulkanRenderer renderer) =>
+        renderer.ReadImage(renderer.ScreenTraceImages.Plan).Sum(bits => BitOperations.PopCount((uint)bits & 3u));
+
+    /// <summary>The fast cap of the reflections: the fast history's length, and the anti-lag's floor.</summary>
     private const float SpecularFastCap = 4;
+
+    /// <summary>
+    /// The length to which light evidence cuts a settled history of either kind: the shortest that keeps the block's
+    /// shared ray (sample_age.glsl, FullRateFrames).
+    /// </summary>
+    private const float FullRateFrames = 8;
+
+    /// <summary>
+    /// Asserts that light evidence cut <paramref name="lengths"/>, the lengths of settled histories after the evidence, to
+    /// FullRateFrames: none is longer, and the median is FullRateFrames. The anti-lag can take a history further down.
+    /// </summary>
+    private static void ShouldBeCutToFullRateFrames(float[] lengths, string because)
+    {
+        lengths.Should().OnlyContain(length => length <= FullRateFrames, because);
+        lengths.Order().ElementAt(lengths.Length / 2).Should().Be(FullRateFrames, because);
+    }
 
     [Fact]
     public void ALampThatGoesOutCutsTheBounceHistoriesOfTheBlocksThatSeeItsLight() =>
@@ -895,8 +959,8 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
             (renderer, scene) =>
             {
                 // The emitter goes out, and 4 draws later the record counts the change. A block of 8 × 8 pixels whose
-                // diffuse rays bring its light code has light evidence, which cuts every history of the block to the fast
-                // cap, also the histories of the pixels whose own rays missed the emitter in this draw
+                // diffuse rays bring its light code has light evidence, which cuts every history of the block to
+                // FullRateFrames, also the histories of the pixels whose own rays missed the emitter in this draw
                 // (docs/plans/bounce-light-confidence.md, section 8.2).
                 Draw(renderer, scene, 64);
                 SetGlow(renderer, scene, Vector3.Zero);
@@ -920,7 +984,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                     .Where(pixel => seeing.Contains(BlockOf(pixel)))
                     .Select(pixel => LengthAt(slow, pixel))
                     .Should()
-                    .OnlyContain(length => length <= DiffuseFastCap, "light evidence cuts every history of its block");
+                    .OnlyContain(length => length <= FullRateFrames, "light evidence cuts every history of its block");
             }
         );
 
@@ -931,10 +995,9 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
             (renderer, scene) =>
             {
                 // The light code of the change stays recent for the ages 0 to 6 (sample_age.glsl, RecentLightAge), so the
-                // blocks that see the emitter go out are cut to the fast cap for 7 draws. From then on their rays bring an
-                // old code, which is no evidence, and their histories grow by one frame per draw again: 24 draws after the
-                // change, at least 17 draws of growth above the fast cap (docs/plans/bounce-light-confidence.md, section
-                // 8.3).
+                // blocks that see the emitter go out are cut to FullRateFrames for 7 draws. From then on their rays bring
+                // an old code, which is no evidence, and their histories grow by one frame per draw again: 24 draws after
+                // the change, at least 17 draws of growth (docs/plans/bounce-light-confidence.md, section 8.3).
                 Draw(renderer, scene, 64);
                 SetGlow(renderer, scene, Vector3.Zero);
                 Draw(renderer, scene, LightChangeDraws);
@@ -966,7 +1029,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 seeing.Length.Should().BeGreaterThan(10, "the floor's rays see the emitter");
                 lengths[lengths.Length / 2]
                     .Should()
-                    .BeGreaterThanOrEqualTo(2 * DiffuseFastCap, "an old light code cuts nothing");
+                    .BeGreaterThanOrEqualTo(FullRateFrames, "an old light code cuts nothing");
             }
         );
 
@@ -1131,12 +1194,11 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 dim.Length.Should().BeGreaterThan(20, "the bright sky outweighs the dim emitter in these histories");
                 // A cut that only bright rays may make restarts the history from its bright samples: after a lamp goes
                 // out, the reflections jumped up by 72 % and took 128 draws to settle (ter-g3tk). Every such receiver's
-                // block has light evidence, so its history falls to the fast cap after the blend.
-                dim.Should()
-                    .OnlyContain(
-                        pixel => LengthAt(slow, pixel) == SpecularFastCap,
-                        "the light that the ray sees is 0 frames old, however dim the ray is"
-                    );
+                // block has light evidence, so its history falls to FullRateFrames after the blend.
+                ShouldBeCutToFullRateFrames(
+                    [.. dim.Select(pixel => LengthAt(slow, pixel))],
+                    "the light that the ray sees is 0 frames old, however dim the ray is"
+                );
             },
             new(Gray: 4)
         );
@@ -1684,9 +1746,9 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
 
     /// <summary>
     /// The receivers whose ray hits the emitter in the draw that counts its change bring back age 0, which gives their
-    /// blocks light evidence: their histories fall to the fast cap after the blend.
+    /// blocks light evidence: their histories fall to FullRateFrames after the blend.
     /// </summary>
-    private void AReceiverWhoseRayHitsTheChangedEmitterFallsToTheFastCap(Vector3 glow) =>
+    private void AReceiverWhoseRayHitsTheChangedEmitterFallsToFullRateFrames(Vector3 glow) =>
         WithRenderer(
             null,
             (renderer, scene) =>
@@ -1714,12 +1776,10 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                     $"Receivers with a bright ray of age 0 after the glow became {glow.X}: {bright.Length}."
                 );
                 bright.Length.Should().BeGreaterThan(30, "the plate reflects the emitter");
-                bright
-                    .Should()
-                    .OnlyContain(
-                        pixel => LengthAt(after, pixel) == SpecularFastCap,
-                        "the light the ray sees is 0 frames old"
-                    );
+                ShouldBeCutToFullRateFrames(
+                    [.. bright.Select(pixel => LengthAt(after, pixel))],
+                    "the light the ray sees is 0 frames old"
+                );
             }
         );
 

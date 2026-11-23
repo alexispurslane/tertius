@@ -125,6 +125,30 @@ State at 17:13 on 2026-11-22, from the acceptance lead: the commit of its merge 
 
 The cap's commit, 2026-11-22 18:14: 05a27262d on t3/measure-regional-lag-tolerance, parent 64d34b63c (the lead's merge of the line's head; its hook passed: Rendering 3,415 passed, 0 failed; Host 42 of 42). Red run on the present shader: 18 of 205 tests of LightAgeHistoryTests and AccumulatorRenderTests fail, each finding 4 draws where 8 are wanted. The new plan test: at most 85 own rays per draw when settled (plan image 128 x 72 = 9,216 pixels); after a lasting dimming 2,161 to 3,059 with the old cut and 79 to 126 with the cap. Green: the full Checked Rendering suite on exactly this code, 3,416 passed, 0 failed, 10 skipped. The change: one condition for both kinds of evidence, min(antiLagged, FullRateFrames), in accumulate_spatial.comp; comments there and in sample_age.glsl; decision X1's record, sections 8.2 and 8.3, ARCHITECTURE.md. I read the shader diff. Open: 10 mutants, the Release suite, one reviewer, the acceptance takes and the card's scale log. My answer 79: the two films on the final code start now on 05a27262d (main's src is unchanged since ac5f23915); they are taken again only if the mutants or the review change a file under src.
 
+**2026-11-22T23:30:07Z**
+
+The build (acceptance lead, 2026-11-22). Commit 05a27262d on the merge 64d34b63c of the line's head. The form: one condition for both kinds of evidence, `evidence == LightEvidence || evidence == RegionEvidence ? min(antiLagged, FullRateFrames) : antiLagged` (accumulate_spatial.comp:168).
+
+Red on the parent's shader: 18 tests of AccumulatorRenderTests and LightAgeHistoryTests failed, each finding 4 draws where 8 was wanted. The plan test read 85 own rays at most when settled, then 2,161 to 3,059 own rays in each of 10 draws after the dimming. Green: the full Checked Rendering suite, 3,416 passed, 0 failed. The plan test read 79 to 126 own rays, and its bound is the settled count plus 1 % of the pixel count, because the anti-lag shortens a few histories below 8 by the dimming's clamp move, as without evidence.
+
+The mutants (tools/mutate.py, list /private/tmp/t0-5tyj/zmjx/mutants*.json). The first run's Z04 to Z10 failed to build after a Nix garbage collection removed the blue-noise mask, so they ran again in a fresh dev shell.
+
+| id | change | result | killed by |
+|---|---|---|---|
+| Z01 | light evidence leaves the cap | killed | RegionDrift.LightEvidenceCutsASettledBounceHistoryToTheLengthOfTheRegionsCut, AReflectionWithARecentLightCodeIsCutToFullRateFrames |
+| Z02 | region evidence leaves the cap | killed | RegionDrift (3 tests) |
+| Z03 | `\|\|` to `&&` | killed | RegionDrift (3 tests) |
+| Z04 | motion evidence caps too | killed | RegionDrift.UnderMotionEvidenceARegionEvidenceActsAsTheMotionEvidenceAlone |
+| Z05 | min to max | killed | RegionDrift (several) |
+| Z06 | evidence sets 8 and skips the anti-lag | killed | RegionDrift.UnderARegionEvidenceTheAntiLagStillShortensAHistoryBelowTheRegionsCap |
+| Z07 | the old cut to the fast cap | killed | RegionDrift (several) |
+| Z08 | cap at 9 | killed | RegionDrift (several) |
+| Z09 | evidence ignores the anti-lag | killed | RegionDrift.UnderARegionEvidenceTheAntiLagStillShortensAHistoryBelowTheRegionsCap |
+| Z10 | no anti-lag without evidence | survived the evidence classes, killed by the main class | ASampleThatSawMotionNarrowsTheBoxOfItsBlockAndKeepsItsLength, UnderTheNarrowBoxADimmingStepShortensTheHistoryByTheClampsMoveOverHalfTheMeansLight |
+| Z11 | light evidence beside motion takes the narrow box (line 151) | killed | ALightCodeWithTheMotionBitKeepsTheWidenedBoxOfLightEvidence and two others |
+
+The review (one reviewer, claudeAgent claude-opus-5-5 at high effort): correctness pass, fulfillment pass, design fail on one finding. A block with light evidence and motion keeps the wide box and now up to 8 draws of a moving view, and the reason for that order ("a history at FastCap holds no lag") no longer holds. Resolution: the order stays as it was, because the cap did not change it. Section 8.2 records the open point, the test ALightCodeWithTheMotionBitKeepsTheWidenedBoxOfLightEvidence pins the present order (Z11), and tc-tc8c measures a lamp switch during a walk with the composed level (motion's narrow box beside the cap) as its candidate. The four nits are fixed: a stale summary, own rays counted as pixels, the wording of X1's parenthesis, and a sentence on reflections whose cap lies between 4 and 8.
+
 **2026-11-22T23:54:06Z**
 
 The cap's hardening, 2026-11-22 18:54, from the acceptance lead. b543151da: the review's fixes (tests, docs, ticket notes only; nothing under src after 05a27262d); the full Checked Rendering suite passed on it, 3,417 passed, 0 failed. Review: correctness and fulfillment pass; design failed on one finding: a block with light evidence and motion keeps the wide box, as before the cap, but the history now holds up to 8 draws there, so the clamp acts with the wide box, and the old reason for the order (a history at FastCap holds no lag) no longer holds. The lead kept the order, recorded the open point in section 8.2, pinned it with the test ALightCodeWithTheMotionBitKeepsTheWidenedBoxOfLightEvidence and filed tc-tc8c. Mutants: 11 listed, all killed (Z01 to Z10 on line 168, Z11 on the box under light evidence beside motion). ff621092f: the fitted probe patch (tc-w3c0). My answer 80: the fork is not settled before the merge; a wide box under light evidence can keep stale light of a moving surface for at most about 8 draws; tc-tc8c is a follow-up, with the design note that the evidence should be a set of bits, one per kind, each action reading its own bit, in place of a maximum over ordered levels. My answer 81: condition 62 is met by the films' card log on 05a27262d (scale 0.993, no size change); no card job of the lead's own.
@@ -136,3 +160,7 @@ Condition 62 on the merged code, 2026-11-22 20:25, from the acceptance lead: the
 **2026-11-23T02:06:34Z**
 
 The cap's acceptance take on the merged code, 2026-11-22 21:12, from the acceptance lead: build 'fin' of 16d915a67 (main's step 2, the cap, the tc-8142 fix), the fair cabin switch at the fixed 2/3, 1920 x 1080. Draws more than 1 ms above the settled span after off / on: 0 / 0 in both cost runs (largest draw 15.86 / 15.99 ms and 16.16 / 16.16 ms). Settle, slowest region: 82 / 54 (XB: 82 / 55). Settle, whole image: 71 / 34 (XB: 72 / 34). Boil 0 to 60 draws after off, floor / wall / ceiling: 0.25 / 0.26 / 0.27 % (X: 0.26 / 0.29 / 0.32). Settled GPU span: 15.62 ms (load 5 to 9) and 15.69 ms (load 4 to 6), against X's 15.34 ms of the earlier session on older code; not decided, because that number does not separate the cap from main's step 2 or from the session. The lead's plan, which I accept: paired cost rounds of XB's old build and the cap's build in turn, two rounds each at a load under 8, after the table's queue and the deck's timing. The deck's timing against main 3549d3283 is the binding cost check of the merge (allowance +0.30 ms). The lead's variants job script now starts with one discarded warm-up run.
+
+**2026-11-23T05:19:23Z**
+
+The cap on the merged code (16d915a67, with main 3549d3283 and the fix of tc-8142), from the acceptance lead: the fair cabin switch settles in 82 / 54 draws (whole image 71 / 34), 0 draws above the settled span + 1 ms after off and after on, boil 0.25 / 0.26 / 0.27 % in the 60 draws after off, and on the card (job f8b8cba5, 16.67 ms) one render size from draw 83 to the end. Gate suites on the acceptance branch: Checked full on ddee55073, Release full on 8400ec2a0, both 0 failed. Ready for the line's merge.

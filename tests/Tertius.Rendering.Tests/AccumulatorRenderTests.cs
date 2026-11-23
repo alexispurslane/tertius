@@ -250,7 +250,10 @@ public sealed class AccumulatorRenderTests
         // 4 to 0.8, and the clamp moves the slow one to the fast one's mean, 0.8. The lag is 0.15 / 0.8 = 0.1875, a share
         // 0.375 of the anti-lag's 0.5, so the length falls from 16 to 16 · 0.625 = 10. The histories store the half floats
         // nearest 0.95 and 0.8, 0.9502 and 0.7998 (half_store.glsl). So the lag is 0.1880, and the length 9.983, which the
-        // store holds as the nearest half float, 9.984375.
+        // store holds as the nearest half float, 9.984375. No store differed on the card. The box's σ did: its plain
+        // moments of the 9 equal fast histories cancelled to about 1e-4 there, so the clamp stopped two σ above the
+        // mean, and the length read one half-float step higher, 9.9921875. The moments around the pixel's own fast
+        // history give a σ of exactly 0 on every driver (ticket tc-8142).
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(parameters: NarrowParameters);
         try
         {
@@ -275,12 +278,12 @@ public sealed class AccumulatorRenderTests
     }
 
     [Fact]
-    public void ALightChangeThatTheRaysSawRestartsTheHistoryAtTheFastWindowsLength()
+    public void ALightChangeThatTheRaysSawRestartsTheHistoryAtFullRateFrames()
     {
         // The rays saw the light change in this frame (age 0, code 1). The blend gives the doubled sample its normal
-        // weight of 1/16, and the box stays wide and holds the step. Then the light evidence cuts the length to the
-        // fast cap, so each later draw of the evidence blends its sample with the weight 1/5. After the seven draws of
-        // the evidence, the history keeps 15/16 × (4/5)^6 = 0.246 of the old light
+        // weight of 1/16, and the box stays wide and holds the step. Then the light evidence cuts the length to
+        // FullRateFrames, so each later draw of the evidence blends its sample with the weight 1/9. After the seven draws
+        // of the evidence, the history keeps 15/16 × (8/9)^6 = 0.462 of the old light
         // (docs/plans/bounce-light-confidence.md, sections 4 and 8.3).
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
         try
@@ -297,7 +300,7 @@ public sealed class AccumulatorRenderTests
             {
                 (Vector3 light, float length) = CenterOf(renderer, sample, part);
                 light.X.Should().BeApproximately(1.0625f, 1e-3f, "the box holds the step in part {0}", part);
-                length.Should().Be(FastCap, "the light evidence cuts part {0}", part);
+                length.Should().Be(FullRateFrames, "the light evidence cuts part {0}", part);
             }
 
             // The codes 1 to 7 are of a recent light change (sample_age.glsl, RecentLightAge).
@@ -310,8 +313,8 @@ public sealed class AccumulatorRenderTests
             for (int part = 0; part < 2; part++)
             {
                 (Vector3 light, float length) = CenterOf(renderer, sample, part);
-                light.X.Should().BeApproximately(1.7542f, 2e-3f, "part {0} follows at the fast window's pace", part);
-                length.Should().Be(FastCap, "the light evidence still cuts part {0}", part);
+                light.X.Should().BeApproximately(1.5376f, 2e-3f, "part {0} follows at the pace of 9 draws", part);
+                length.Should().Be(FullRateFrames, "the light evidence still cuts part {0}", part);
             }
         }
         finally
@@ -661,9 +664,7 @@ public sealed class AccumulatorRenderTests
 
             Continue(renderer, scene, frames: 1);
 
-            CenterOf(renderer, sample, part: 0)
-                .Length.Should()
-                .Be(9f, "the fourth texel's history of 8 draws goes on");
+            CenterOf(renderer, sample, part: 0).Length.Should().Be(9f, "the fourth texel's history of 8 draws goes on");
         }
         finally
         {
@@ -956,7 +957,9 @@ public sealed class AccumulatorRenderTests
             const int Frames = 320;
             DrawWalkedSamples(renderer: renderer, sample: sample, scene: scene, frames: Frames);
 
-            double exact = Enumerable.Range(0, Width * Height).Average(pixel => ExactDeviation(WalkedLight, pixel, Frames));
+            double exact = Enumerable
+                .Range(0, Width * Height)
+                .Average(pixel => ExactDeviation(WalkedLight, pixel, Frames));
             double retained = RetainedDeviationOf(renderer, sample).Average(deviation => (double)deviation);
             (retained / exact)
                 .Should()
@@ -992,7 +995,9 @@ public sealed class AccumulatorRenderTests
                 Continue(renderer, scene, frames: 1);
             }
 
-            double exact = Enumerable.Range(0, Width * Height).Average(pixel => ExactDeviation(SpreadLight, pixel, Frames));
+            double exact = Enumerable
+                .Range(0, Width * Height)
+                .Average(pixel => ExactDeviation(SpreadLight, pixel, Frames));
             double retained = RetainedDeviationOf(renderer, sample).Average(deviation => (double)deviation);
             (retained / exact)
                 .Should()
@@ -1312,8 +1317,14 @@ public sealed class AccumulatorRenderTests
         return new Vector4(new Vector3(light * (1 + MathF.Sqrt(3) * variation * uniform)), 1);
     }
 
-    /// <summary>The fast cap of the bounce light: the length to which light evidence cuts a history.</summary>
+    /// <summary>The fast cap of the bounce light: the fast history's length, and the anti-lag's floor.</summary>
     private const float FastCap = 4;
+
+    /// <summary>
+    /// The length to which evidence of a change cuts a history: the shortest that keeps the block's shared ray
+    /// (sample_age.glsl, FullRateFrames).
+    /// </summary>
+    private const float FullRateFrames = 8;
 
     /// <summary>
     /// The block of 8 × 8 pixels, one workgroup of the spatial dispatch, that holds the center pixel: columns 32 to 39 and
@@ -1362,7 +1373,7 @@ public sealed class AccumulatorRenderTests
     }
 
     [Fact]
-    public void ARecentLightCodeInABlockCutsEveryContributingHistoryOfItsBlockToTheFastCap()
+    public void ARecentLightCodeInABlockCutsEveryContributingHistoryOfItsBlockToFullRateFrames()
     {
         // One pixel of the center block brings the light code 5, a light that changed 4 draws ago: light evidence for
         // the whole block (docs/plans/bounce-light-confidence.md, section 8.2).
@@ -1382,7 +1393,7 @@ public sealed class AccumulatorRenderTests
                 .Where(InCenterBlock)
                 .Select(pixel => lengths[pixel])
                 .Should()
-                .OnlyContain(length => length == FastCap, "light evidence cuts every history of its block");
+                .OnlyContain(length => length == FullRateFrames, "light evidence cuts every history of its block");
         }
         finally
         {
@@ -1393,9 +1404,8 @@ public sealed class AccumulatorRenderTests
     [Fact]
     public void ARecentLightCodeLeavesTheBoxOfItsBlockWide()
     {
-        // Light evidence bounds the length and nothing else: a history that it cuts to the fast cap holds no more draws
-        // than the fast history, so the box has no lag to find in it, and a box without its widening only cuts the
-        // history's own rare bright samples (section 8.2).
+        // Light evidence bounds the length and nothing else: the cut already bounds the lag that the history can hold,
+        // and a box without its widening only cuts the history's own rare bright samples (section 8.2).
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
         try
         {
@@ -1443,7 +1453,9 @@ public sealed class AccumulatorRenderTests
 
             Continue(renderer, scene, frames: 1);
 
-            LengthsOf(renderer, sample).Should().OnlyContain(length => length == FastCap, "every block has evidence");
+            LengthsOf(renderer, sample)
+                .Should()
+                .OnlyContain(length => length == FullRateFrames, "every block has evidence");
             InteriorLightOf(renderer, sample)
                 .Average()
                 .Should()
@@ -1567,7 +1579,7 @@ public sealed class AccumulatorRenderTests
             lit.Where(pixel => pixel % Width % 8 != 0 || pixel / Width % 8 != 0)
                 .Select(pixel => lengths[pixel])
                 .Should()
-                .OnlyContain(length => length == FastCap, "every block acts on its evidence");
+                .OnlyContain(length => length == FullRateFrames, "every block acts on its evidence");
         }
         finally
         {
@@ -1582,7 +1594,7 @@ public sealed class AccumulatorRenderTests
         // of 0.3, dims from 1 to 0.5. In each block one ray block's rays see the light's age as the tracer gives it: no
         // code for the 4 draws that the record waits, then the ages 0, 1 and on. The widened box alone lets the slow blend
         // drain the step: (31 / 32)^60 ≈ 0.15 of it is left after 60 draws. The block's evidence cuts every history of the
-        // block for 7 draws, after which the step drains at the pace of a short history (section 8.3).
+        // block to FullRateFrames for 7 draws, after which the step drains at the pace of a short history (section 8.3).
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
             parameters: SignalParameters.Diffuse
         );
@@ -1620,10 +1632,7 @@ public sealed class AccumulatorRenderTests
                 .Where(pixel => InRegion(pixel % Width, pixel / Width))
                 .Average(pixel => history[4 * pixel])
                 .Should()
-                .BeLessThanOrEqualTo(
-                    0.5f * 1.05f,
-                    "the blocks' evidence restarts their histories from the fast window"
-                );
+                .BeLessThanOrEqualTo(0.5f * 1.05f, "the blocks' evidence restarts their histories at FullRateFrames");
         }
         finally
         {
@@ -1634,7 +1643,7 @@ public sealed class AccumulatorRenderTests
     [Fact]
     public void ALightCodeWithTheMotionBitStillGivesItsBlockLightEvidence()
     {
-        // The light code 3 with the motion bit: the stronger level wins, so the block's history is cut to the fast cap
+        // The light code 3 with the motion bit: the stronger level wins, so the block's history is cut to FullRateFrames
         // after the blend, as without the bit (docs/plans/bounce-light-confidence.md, section 8.4).
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
         try
@@ -1646,7 +1655,37 @@ public sealed class AccumulatorRenderTests
             sample.AgeCode = TemporalSignal.SampleMotionBit | 3u;
             Continue(renderer, scene, frames: 1);
 
-            CenterOf(renderer, sample, part: 0).Length.Should().Be(FastCap, "light evidence cuts after the blend");
+            CenterOf(renderer, sample, part: 0)
+                .Length.Should()
+                .Be(FullRateFrames, "light evidence cuts after the blend");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ALightCodeWithTheMotionBitKeepsTheWidenedBoxOfLightEvidence()
+    {
+        // Light evidence stands above motion, so a block whose samples bring both keeps the widened box, as light
+        // evidence alone does, and its length falls to FullRateFrames. No take has measured such a block under a moving
+        // view since the cut moved to 8 draws (docs/plans/bounce-light-confidence.md, section 8.2, ticket tc-tc8c).
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
+        try
+        {
+            BlinkThenDrawWithAges(
+                renderer: renderer,
+                sample: sample,
+                scene: scene,
+                codes: (column, row) =>
+                    IsWitness(column, row) ? (ushort)(TemporalSignal.SampleMotionBit | 5u) : (ushort)0
+            );
+
+            BoxNarrowedAt(renderer, sample, Center).Should().BeFalse("light evidence keeps the widening beside motion");
+            CenterOf(renderer, sample, part: 0)
+                .Length.Should()
+                .Be(FullRateFrames, "light evidence caps the length beside motion");
         }
         finally
         {
@@ -1659,7 +1698,7 @@ public sealed class AccumulatorRenderTests
     {
         // A still pixel's sample is 25 times its history's light and brings the light code 1, as a ray that hits a sun
         // strip whose record the jitter keeps young. The blend gives the sample its normal weight, 1 / 16 at the cap of
-        // 16, and only after the blend does the block's light evidence cut the length to the fast cap. A cut before the
+        // 16, and only after the blend does the block's light evidence cut the length to FullRateFrames. A cut before the
         // blend would give exactly this bright sample the weight 1, so the weight would depend on the sample's own value
         // and bias the history up (docs/plans/bounce-light-confidence.md, section 4). The box is wide enough that the
         // clamp moves nothing.
@@ -1684,7 +1723,7 @@ public sealed class AccumulatorRenderTests
 
             (Vector3 after, float cut) = CenterOf(renderer, sample, part: 0);
             after.X.Should().BeApproximately(before.X * (1 + 24f / 16), 1e-3f * after.X, "the sample weighs 1 / 16");
-            cut.Should().Be(FastCap, "the block's light evidence cuts the length after the blend");
+            cut.Should().Be(FullRateFrames, "the block's light evidence cuts the length after the blend");
         }
         finally
         {
@@ -1961,14 +2000,12 @@ public sealed class AccumulatorRenderTests
         }
 
         [Fact]
-        public void ThePrototypesSingleBounceHistoryKeepsNoRegionRing()
-        {
+        public void ThePrototypesSingleBounceHistoryKeepsNoRegionRing() =>
             // The single history's spatial dispatch has no light-age variant, so it runs no region test
             // (TemporalSignal.TestsRegionDrift).
             WithPrototype(enabled: true, light: SignalLight.Diffuse, (_, sample, _) => sample.Signal.RegionRing(0))
                 .Should()
                 .BeNull("the prototype's spatial dispatch runs no region test");
-        }
 
         private static (Vector3 Light, float Length) FrameWithPrototype(
             bool enabled,
@@ -2543,8 +2580,7 @@ public sealed class AccumulatorRenderTests
         private const float Rough = 0.8f;
 
         [Fact]
-        public void TheOriginalSpecularHistoryKeepsTheNarrowBoxWithoutEvidence()
-        {
+        public void TheOriginalSpecularHistoryKeepsTheNarrowBoxWithoutEvidence() =>
             // The original history keeps H13's shaders and storage, which hold no deviation and no light age.
             WithHistory(
                 mode: "original",
@@ -2557,11 +2593,9 @@ public sealed class AccumulatorRenderTests
                     sample.Signal.SampleAge(0).Should().BeNull("the original history has no light age");
                 }
             );
-        }
 
         [Fact]
-        public void BesideTheOriginalSpecularHistoryTheBounceLightKeepsNoRegionRing()
-        {
+        public void BesideTheOriginalSpecularHistoryTheBounceLightKeepsNoRegionRing() =>
             // The region's drift is light evidence, and the original history's layouts hold no ring's binding. So the
             // bounce light, the one signal that runs the region's test, keeps no ring without a light age.
             WithHistory(
@@ -2570,11 +2604,9 @@ public sealed class AccumulatorRenderTests
                 (_, sample, _) =>
                     sample.Signal.RegionRing(0).Should().BeNull("the original history has no light evidence")
             );
-        }
 
         [Fact]
-        public void WithoutALightAgeTheBounceLightKeepsTheNarrowBox()
-        {
+        public void WithoutALightAgeTheBounceLightKeepsTheNarrowBox() =>
             // Beside the original specular history, the samples have no light age, so no evidence could narrow a widened
             // box again. The samples blink between 0 and 2 at every pixel, so the narrow box is the fast history itself,
             // and the clamp moves the slow history there.
@@ -2592,20 +2624,20 @@ public sealed class AccumulatorRenderTests
                     BoxNarrowedAt(renderer, sample, Center).Should().BeTrue("the box holds no retained deviation");
                 }
             );
-        }
 
         [Theory]
         [InlineData(null)]
         [InlineData("precise-capped")]
-        public void AReflectionWithARecentLightCodeIsCutToTheFastCap(string? mode) =>
+        public void AReflectionWithARecentLightCodeIsCutToFullRateFrames(string? mode) =>
             WithHistory(
                 mode,
                 parameters: SignalParameters.Specular(0),
                 (renderer, sample, scene) =>
                 {
                     // The reflected light doubles, and the top left pixel of each block brings the light code 3. The rise
-                    // and a drop are alike: the rays saw the change, so every history of the block restarts from the fast
-                    // window (section 10). The narrow box and the anti-lag alone would keep a fifth of a long history.
+                    // and a drop are alike: the rays saw the change, so every history of the block restarts at
+                    // FullRateFrames (section 10). The narrow box and the anti-lag alone would keep a fifth of a long
+                    // history.
                     sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
                     renderer.Render(scene, 1f);
                     Continue(renderer, scene, frames: 100);
@@ -2621,7 +2653,10 @@ public sealed class AccumulatorRenderTests
                         .Where(pixel => !Witness(pixel))
                         .Select(pixel => lengths[pixel])
                         .Should()
-                        .OnlyContain(length => length == FastCap, "light evidence cuts every reflection of its block");
+                        .OnlyContain(
+                            length => length == FullRateFrames,
+                            "light evidence cuts every reflection of its block"
+                        );
                 }
             );
 
@@ -2664,9 +2699,6 @@ public sealed class AccumulatorRenderTests
     /// </summary>
     public sealed class RegionDrift
     {
-        /// <summary>The length from which a pixel shares its block's ray (sample_age.glsl, FullRateFrames).</summary>
-        private const float FullRateFrames = 8;
-
         /// <summary>The draws of the region's two windows (region_drift.glsl, RegionRingDraws).</summary>
         private const int TwoWindows = TemporalSignal.RegionRingDraws;
 
@@ -2681,8 +2713,8 @@ public sealed class AccumulatorRenderTests
         /// <paramref name="variation"/>. Returns whether region evidence cut a history of part 0 in it: the evidence is a
         /// derived read inside the spatial dispatch, so its one effect shows it. Under region evidence, a history of at least
         /// FullRateFrames draws before the draw ends at exactly FullRateFrames where the anti-lag leaves it at least that
-        /// long. So the detector misses a cut that the anti-lag takes further down. Without evidence the blend lengthens a
-        /// history, light evidence ends it at the fast cap, and the anti-lag ends it at the fast cap or at a length that is
+        /// long. So the detector misses a cut that the anti-lag takes further down. Light evidence ends a history there too.
+        /// Without evidence the blend lengthens a history, and the anti-lag ends it at the fast cap or at a length that is
         /// not whole.
         /// </summary>
         private static bool DrawNoisy(
@@ -2722,7 +2754,13 @@ public sealed class AccumulatorRenderTests
             for (; frame < 100; frame++)
                 DrawNoisy(renderer: renderer, sample: sample, scene: scene, light: 1, frame: frame);
             for (int fallen = 1; fallen <= FallDraws; fallen++, frame++)
-                DrawNoisy(renderer: renderer, sample: sample, scene: scene, light: 1 - 0.5f * fallen / FallDraws, frame: frame);
+                DrawNoisy(
+                    renderer: renderer,
+                    sample: sample,
+                    scene: scene,
+                    light: 1 - 0.5f * fallen / FallDraws,
+                    frame: frame
+                );
             List<int> withEvidence = [];
             for (int stood = 0; stood < standDraws; stood++, frame++)
                 if (DrawNoisy(renderer: renderer, sample: sample, scene: scene, light: 0.5f, frame: frame))
@@ -2744,7 +2782,16 @@ public sealed class AccumulatorRenderTests
                 renderer.Render(scene, 1f);
                 int withEvidence = 0;
                 for (int frame = 0; frame < 400; frame++)
-                    if (DrawNoisy(renderer: renderer, sample: sample, scene: scene, light: 1, frame: frame, variation: 0.3f))
+                    if (
+                        DrawNoisy(
+                            renderer: renderer,
+                            sample: sample,
+                            scene: scene,
+                            light: 1,
+                            frame: frame,
+                            variation: 0.3f
+                        )
+                    )
                         withEvidence++;
 
                 withEvidence.Should().BeLessThanOrEqualTo(12, "noise alone passes the test in few of 400 draws");
@@ -2817,7 +2864,9 @@ public sealed class AccumulatorRenderTests
                 FallThenStand(renderer: renderer, sample: sample, scene: scene, standDraws: 0);
                 sample.AgeCode = TemporalSignal.SampleMotionBit;
 
-                DrawNoisy(renderer: renderer, sample: sample, scene: scene, light: 0.495f, frame: 200).Should().BeFalse("motion evidence acts");
+                DrawNoisy(renderer: renderer, sample: sample, scene: scene, light: 0.495f, frame: 200)
+                    .Should()
+                    .BeFalse("motion evidence acts");
                 LengthsOf(renderer, sample)
                     .Should()
                     .OnlyContain(length => length != FullRateFrames, "the anti-lag sets the length, not the region");
@@ -2837,7 +2886,9 @@ public sealed class AccumulatorRenderTests
             // so the anti-lag leaves the history above the cap, and region evidence holds it at FullRateFrames. Then
             // the light steps from 0.5 to 0.2 in one draw: the slow history blends the step at 1/9 and the fast one at
             // 1/4, so the clamp moves by about 10 % of the light, and the anti-lag takes the history below the cap.
-            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(parameters: NarrowParameters);
+            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+                parameters: NarrowParameters
+            );
             try
             {
                 sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
@@ -2870,22 +2921,25 @@ public sealed class AccumulatorRenderTests
         }
 
         [Fact]
-        public void UnderLightEvidenceARegionEvidenceCutsTheBounceHistoryToTheFastCap()
+        public void LightEvidenceCutsASettledBounceHistoryToTheLengthOfTheRegionsCut()
         {
-            // A ray that saw the light change is the most certain knowledge, so its cut to the fast cap stands above the
-            // region's cut to FullRateFrames.
+            // One rule for both kinds of evidence of a change of unknown size: each cuts a settled history to
+            // FullRateFrames, the shortest length that keeps the block's shared ray (docs/plans/bounce-light-confidence.md,
+            // section 8.2). At the end of the fall the region evidence holds every history at its cut, and then one draw
+            // also brings light evidence, the stronger level.
             (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
                 parameters: SignalParameters.Diffuse
             );
             try
             {
                 FallThenStand(renderer: renderer, sample: sample, scene: scene, standDraws: 0);
+                float[] regionCut = LengthsOf(renderer, sample);
                 sample.AgeCode = 5;
 
                 DrawNoisy(renderer: renderer, sample: sample, scene: scene, light: 0.495f, frame: 200);
                 LengthsOf(renderer, sample)
                     .Should()
-                    .OnlyContain(length => length == FastCap, "light evidence cuts every history to the fast cap");
+                    .Equal(regionCut, "light evidence cuts a settled history to the length of the region's cut");
             }
             finally
             {
@@ -2960,7 +3014,15 @@ public sealed class AccumulatorRenderTests
                     scene.Camera.PreviousPosition = scene.Camera.Position;
                     if (draw < 40)
                         scene.Camera.Position += new Vector3(0.1f, 0, 0);
-                    if (DrawNoisy(renderer: renderer, sample: sample, scene: scene, light: 1 - 0.005f * (draw + 1), frame: frame))
+                    if (
+                        DrawNoisy(
+                            renderer: renderer,
+                            sample: sample,
+                            scene: scene,
+                            light: 1 - 0.005f * (draw + 1),
+                            frame: frame
+                        )
+                    )
                         withEvidence.Add(draw);
                 }
 
@@ -3097,7 +3159,10 @@ public sealed class AccumulatorRenderTests
 
         /// <summary>The history lengths of part 0 of the wide scene in the columns of block <paramref name="column"/>.</summary>
         private static IEnumerable<float> BlockColumnLengths(float[] lengths, int column) =>
-            Enumerable.Range(0, lengths.Length).Where(pixel => pixel % WideWidth / 8 == column).Select(pixel => lengths[pixel]);
+            Enumerable
+                .Range(0, lengths.Length)
+                .Where(pixel => pixel % WideWidth / 8 == column)
+                .Select(pixel => lengths[pixel]);
 
         /// <summary>
         /// Draws 100 frames of noisy samples of mean 1 in the wide scene, then <paramref name="fallDraws"/> frames in which
@@ -3226,8 +3291,10 @@ public sealed class AccumulatorRenderTests
                     afterEach: fallen =>
                     {
                         float[] lengths = WideLengthsOf(renderer, sample);
-                        bool cut = before.Length > 0
-                            && Enumerable.Range(0, lengths.Length)
+                        bool cut =
+                            before.Length > 0
+                            && Enumerable
+                                .Range(0, lengths.Length)
                                 .Any(pixel => before[pixel] >= FullRateFrames && lengths[pixel] == FullRateFrames);
                         before = lengths;
                         if (firstMoved is { } first)
@@ -3286,8 +3353,12 @@ public sealed class AccumulatorRenderTests
                 // The last draw's index since the reset is 3, and the ring's texels are the anchors 0, 8 and 16 of row 0.
                 float[] ring = renderer.ReadImageLayer(sample.Signal.RegionRing(0)!, 3);
                 float[] expected = [.. new[] { 0, 8, 16 }.Select(anchor => TapMeanAround(anchor, LightAt))];
-                (ring[4] / ring[0]).Should().BeApproximately(expected[1] / expected[0], 1e-4f, "anchor 8 holds its own mean");
-                (ring[8] / ring[0]).Should().BeApproximately(expected[2] / expected[0], 1e-4f, "anchor 16 holds its own mean");
+                (ring[4] / ring[0])
+                    .Should()
+                    .BeApproximately(expected[1] / expected[0], 1e-4f, "anchor 8 holds its own mean");
+                (ring[8] / ring[0])
+                    .Should()
+                    .BeApproximately(expected[2] / expected[0], 1e-4f, "anchor 16 holds its own mean");
             }
             finally
             {
@@ -3592,9 +3663,18 @@ public sealed class AccumulatorRenderTests
                 for (; frame < 100 + FallDraws; frame++)
                 {
                     float light = frame < 100 ? 1 : 1 - 0.5f * (frame - 99) / FallDraws;
-                    DrawInTheWindow(renderer: renderer, sample: sample, scene: scene, light: light, frame: frame, overBudget: false);
+                    DrawInTheWindow(
+                        renderer: renderer,
+                        sample: sample,
+                        scene: scene,
+                        light: light,
+                        frame: frame,
+                        overBudget: false
+                    );
                 }
-                renderer.LastScene.Camera.Width.Should().Be(WindowWidth, "the reports kept the render size at its largest");
+                renderer
+                    .LastScene.Camera.Width.Should()
+                    .Be(WindowWidth, "the reports kept the render size at its largest");
                 // A draw whose render size changed reads no answer of the draw before.
                 List<int> changedWithEvidence = [];
                 for (int draw = 0; draw < 40 && renderer.LastScene.Camera.Width > WindowWidth / 2; draw++, frame++)
@@ -3611,12 +3691,25 @@ public sealed class AccumulatorRenderTests
                     if (cut && renderer.LastScene.Camera.Width != widthBefore)
                         changedWithEvidence.Add(draw);
                 }
-                renderer.LastScene.Camera.Width.Should().Be(WindowWidth / 2, "the reports lowered the render size to half");
-                changedWithEvidence.Should().BeEmpty("a draw whose render size changed takes no answer of the draw before");
+                renderer
+                    .LastScene.Camera.Width.Should()
+                    .Be(WindowWidth / 2, "the reports lowered the render size to half");
+                changedWithEvidence
+                    .Should()
+                    .BeEmpty("a draw whose render size changed takes no answer of the draw before");
 
                 List<int> withEvidence = [];
                 for (int draw = 0; draw < TwoWindows + 40; draw++, frame++)
-                    if (DrawInTheWindow(renderer: renderer, sample: sample, scene: scene, light: 0.5f, frame: frame, overBudget: true))
+                    if (
+                        DrawInTheWindow(
+                            renderer: renderer,
+                            sample: sample,
+                            scene: scene,
+                            light: 0.5f,
+                            frame: frame,
+                            overBudget: true
+                        )
+                    )
                         withEvidence.Add(draw);
 
                 renderer.LastScene.Camera.Width.Should().Be(WindowWidth / 2, "the render size stayed at half");

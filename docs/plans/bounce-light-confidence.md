@@ -38,12 +38,14 @@ Ticket `t7-3e22`, under the epic `ter-8hyd` ([renderer-finish.md](renderer-finis
 
 ### 2.2 Design X (Alexis, 2026-11-12, after takes T4 to T6)
 
-1. X1. The evidence of a change comes from what the rays saw, per 8 × 8 block, not from statistics. When any of its bounce or reflection rays reached something that changed in the last few draws, a block gets evidence for that draw. The action on evidence of a changed light stays: the narrow box for that draw and a cut of L to `FastCap`. The wide box (σr, `RetainedSigmas` 2) stays in a still.
+1. X1. The evidence of a change comes from what the rays saw, per 8 × 8 block, not from statistics. When any of its bounce or reflection rays reached something that changed in the last few draws, a block gets evidence for that draw. The action on evidence of a changed light stays: the narrow box for that draw and a cut of L to `FastCap`. The record of 2026-11-14 below drops the narrow box, and the record of 2026-11-22 moves the cut to `FullRateFrames`. The wide box (σr, `RetainedSigmas` 2) stays in a still.
 2. X2. A signal for a moved object joins this merge, so that Design X also covers moved geometry. Section 9 answers the user's question about it.
 3. X3. The sunlit sill's −43 % step at world tick 303 is a sampling fault. It goes to `t0-qwx8`, not to a signal.
 4. X4. The wide box has a price. A film's median lag error can rise by up to about 0.5 % of the light against main (acceptance 9).
 
 Record of 2026-11-14: the action on light evidence in X1 lost its narrow box. Light evidence cuts L to `FastCap` and leaves the box wide. Section 8.2, "Why light evidence leaves the box wide", holds the measurement. The source of the evidence, the block and the cut are as X1 says.
+
+Record of 2026-11-22 (`t0-zmjx`): light evidence cuts L to at most `FullRateFrames`, 8 draws, not to `FastCap`. It takes the branch of region evidence, so one rule holds for both: evidence of a change cuts a history to the shortest length that keeps the block's shared ray. The cause was a cost block. The ray plan gives a pixel its own ray while L < `FullRateFrames`, so the cut to 4 made every pixel that saw a changed light trace its own rays for about 11 draws. On the fair cabin switch at the fixed scale 2/3 on the Mac, 10 to 13 draws cost up to 22.9 ms against a settled 15.3 ms. On the card at a target of 16.67 ms, the render scale fell by 0.13 after each switch. With the cut at 8, no draw lies more than 1 ms above the settled span, and the scale stays at 1 (`t0-5tyj`, docs/research/design-x-acceptance-2026-11-22). The fade pays about 5 draws after the lamps go off and 3 to 4 after they come on. Alexis chose it on 2026-11-22: "8 draws". The own-ray limit of the plan stays at 8 for now, and `t0-o7gf` tests 4 for every young history.
 
 ### 2.3 The region's lag as evidence (Alexis, 2026-11-14, after take T16)
 
@@ -153,7 +155,7 @@ flowchart LR
 - The rays carry what they saw to the sample. The ray plan marks each pixel whose surface moved. A ray takes the light code of its hit and the hit's moved mark. The resolve writes the youngest light code of the sample's rays and the sample's motion into the sample age.
 - Two readers act on the sample age, and each writes its result into the length L or the box.
   - The temporal dispatch reads no light code. The per-pixel cut before the blend (`ter-wkvw`) went on 2026-11-13 ("No cut before the blend" below).
-  - The spatial dispatch forms the evidence level of its block. Light evidence cuts L to `FastCap`. Motion evidence narrows the box for this draw. The anti-lag then shortens L by the clamp's move, as on main.
+  - The spatial dispatch forms the evidence level of its block. Light evidence and region evidence cut L to at most `FullRateFrames`. Motion evidence narrows the box for this draw. The anti-lag shortens L by the clamp's move, as on main.
 - σr is the stored confidence of S. The clamp widens the box by it, and the filter's luminance stop reads it.
 - The design keeps the cause of a change apart from the store of its result. The record and the motion target hold the cause. The sample age carries it for one draw. The block's level lives only in the spatial dispatch's workgroup. The result is a shorter L or a narrower box.
 
@@ -164,13 +166,13 @@ The slow history estimates the expected light of its pixel. It must average only
 - The light-age record already holds that age for the exact light of every pixel. A ray brings back the age of its hit.
 - Motion has no age: it changes what a ray sees in every draw while it lasts. So motion is evidence for exactly the draws in which it happens.
 - The clamp is the per-pixel consistency test. Its box must hold every excursion that S's own samples explain. σr gives that width (section 7). Motion evidence removes the widening, so that the box tests S against the fast histories.
-- Evidence bounds the length. A light change has a known age. The block cuts L to `FastCap` after the blend while the age is recent, because the fast history already holds the change. The pixel's own sample cuts nothing before the blend, so that every sample takes its normal weight.
+- Evidence bounds the length. A light change has a known age. The block cuts L to at most `FullRateFrames` after the blend while the age is recent, the shortest length that keeps the block's shared ray (record of 2026-11-22). The pixel's own sample cuts nothing before the blend, so that every sample takes its normal weight.
 - Motion has no known size. So motion narrows the box, and the box measures the size by the clamp's move.
 
 
 ### No cut before the blend (2026-11-13)
 
-Until 2026-11-13, the temporal dispatch also cut L to the light age of the pixel's own sample before the blend (`ter-wkvw`). Step 10 (`t0-3kyb`) measured why that cut goes. In a still cabin, the jitter sampling fault of `t0-qwx8` keeps the light-age records of sun strips young at about 0.13 % of the pixels. A sample whose ray hits one is about 25 times brighter than the mean. The cut gave exactly that sample the weight 1 / (age + 1) instead of 1 / 32. So the weight depended on the sample's own value: it biased the bounce history up by 6 to 11 % without clamps, and the result depended on the history, as the cabin's plateau of about 4 % after the lamp cycle showed. The block's light evidence acts after this draw's blend, so the sample that brings the code takes its normal weight, and the evidence still cuts L to `FastCap`. Both signals lost the cut. The sample age and its codes stay, because they are Design X's store of evidence. `ABrightSampleWithAYoungLightCodeTakesTheNormalWeightInItsDraw` locks this in.
+Until 2026-11-13, the temporal dispatch also cut L to the light age of the pixel's own sample before the blend (`ter-wkvw`). Step 10 (`t0-3kyb`) measured why that cut goes. In a still cabin, the jitter sampling fault of `t0-qwx8` keeps the light-age records of sun strips young at about 0.13 % of the pixels. A sample whose ray hits one is about 25 times brighter than the mean. The cut gave exactly that sample the weight 1 / (age + 1) instead of 1 / 32. So the weight depended on the sample's own value: it biased the bounce history up by 6 to 11 % without clamps, and the result depended on the history, as the cabin's plateau of about 4 % after the lamp cycle showed. The block's light evidence acts after this draw's blend, so the sample that brings the code takes its normal weight, and the evidence still cuts L (to `FastCap` then, to `FullRateFrames` since 2026-11-22). Both signals lost the cut. The sample age and its codes stay, because they are Design X's store of evidence. `ABrightSampleWithAYoungLightCodeTakesTheNormalWeightInItsDraw` locks this in.
 ## 5. One model for the old and the new
 
 This section compares the design with the software-design skill, section 4, "One model for the old and the new".
@@ -244,7 +246,7 @@ The store's rounding (t8-69v7). σr, S and F are means that feed back: each draw
 | Light-age cut | Only L changes. The next blend weighs σr with 1 / (L + 1), as it weighs S. | σr follows the weights of S. |
 | Young-history repair | The spatial dispatch does not repair σr. | No reader takes σr at those lengths (below). |
 | Clamp | σr does not change. | σr is the spread of samples, and a clamp changes no sample. The anti-lag already turns the move into a shorter L. |
-| Evidence (section 8) | σr does not change. After a cut to `FastCap`, the next blends weigh σr with 1/5, 1/6 and on. | σr measures the spread again within a few draws. |
+| Evidence (section 8) | σr does not change. After a cut to `FullRateFrames`, the next blends weigh σr with 1/9, 1/10 and on. | σr measures the spread again within a few draws. |
 | Filter feedback step | The step carries σr with the light. | Section 7, "The write-back". |
 | Filter steps 2 to 6 | They store no σr. Their output deviation follows main's rule. | Section 7. |
 
@@ -283,7 +285,7 @@ where
 - `slow` = S after the blend and the repair, before the clamp.
 - `LeastLuminance` = 10^−4, the floor that the lag already uses.
 - `spread` = the half width of the box per channel.
-- `clamped` = S after the clamp. The anti-lag then shortens L by the move, unless light evidence cuts L to `FastCap`.
+- `clamped` = S after the clamp. The anti-lag then shortens L by the move, and light or region evidence cuts L to at most `FullRateFrames`.
 
 The widening takes the chroma of S, not of the box's mean. The excess that the widening must hold is part of S. The fast mean can fall to 0 between rare hits on a dark surface. An example is the floor 4.95 m from the glowing panel of `ter-18hc`.
 
@@ -387,14 +389,15 @@ The evidence level of a block is a closed set of four values, ordered by how cer
 | `NoEvidence` (0) | Neither below | The bounce light's wide box. The reflections' narrow box. The anti-lag as on main. |
 | `RegionEvidence` (1) | Not a sample's, and the bounce light's only: an anchor whose region holds the block found that the region's light moved in the draw before (section 8.7) | The anti-lag as without evidence, then L becomes at most `FullRateFrames`, 8. The box keeps its widening. |
 | `MotionEvidence` (2) | The sample saw motion: its pixel moves on screen by at least `LeastMotion`, or one of its rays hit a moved surface | The narrow box for this draw. The anti-lag shortens L by the clamp's move, as on main. |
-| `LightEvidence` (3) | One of its rays hit a recent light change: the sample's youngest light code is 1 to 7 | L becomes `FastCap`. The box keeps its widening. |
+| `LightEvidence` (3) | One of its rays hit a recent light change: the sample's youngest light code is 1 to 7 | The anti-lag as without evidence, then L becomes at most `FullRateFrames`, 8, as for region evidence. The box keeps its widening. |
 
 The reasons for two actions:
 
-- A light change is certain and has an age. So the block bounds the length of S by the fast window's length, as decision X1 asks. Each later draw of the evidence then blends its sample with the weight 1/5.
+- A light change is certain and has an age. So the block bounds the length of S, as decision X1 asks. The bound is `FullRateFrames`, the shortest length that keeps the block's shared ray (record of 2026-11-22). Each later draw of the evidence then blends its sample with the weight 1/9 or more.
 - Motion has no known size. A crowd that walks past a wall changes the wall's bounce light a little. A door that opens changes it a lot. The narrow box measures the size by the clamp's move.
-- A cut to `FastCap` also makes every pixel of the block trace its own rays. The ray plan gives a pixel its own rays while L < `FullRateFrames`, 8. Motion lasts as long as the camera or the object moves. With a cut on motion, every block that sees a walk or a moving crowd keeps the full ray rate the whole time. On the deck's camera cuts, where every pixel traces its own rays, the mean frame span was 21.9 ms (ARCHITECTURE.md, "The screen tracer").
+- A cut below `FullRateFrames` makes every pixel of the block trace its own rays, because the ray plan gives a pixel its own rays while L < `FullRateFrames`, 8. For light evidence that was the cost block of 2026-11-22: 7 draws of the cut and 4 of growth back to 8. So no evidence cuts below `FullRateFrames`. Motion lasts as long as the camera or the object moves. With a cut on motion, every block that sees a walk or a moving crowd keeps the full ray rate the whole time. On the deck's camera cuts, where every pixel traces its own rays, the mean frame span was 21.9 ms (ARCHITECTURE.md, "The screen tracer").
 - So motion evidence narrows the box but does not cut. Open point 1 of section 19 asks the user to choose this for a moved object.
+- Light evidence stands above motion, so a block whose samples bring both keeps the wide box, and its L falls to at most `FullRateFrames`. While the cut was at `FastCap`, the reason was that a history at the fast window's length holds no lag for the box to find (below). With the cut at 8 (record of 2026-11-22), such a block's history holds up to 8 draws of a moving view under the wide box, and that reason no longer holds. No take has measured the case: the takes of `t0-5tyj` ran still switches, and the walk was not taken again. `tc-tc8c` measures a lamp switch during a walk. Its candidate is a block level of two facts, motion's narrow box beside the cap of light or region evidence, in place of the total order. `ALightCodeWithTheMotionBitKeepsTheWidenedBoxOfLightEvidence` pins the present order.
 
 The reflections' box is always narrow. So for them motion evidence changes nothing, and only light evidence acts.
 
@@ -402,7 +405,7 @@ The reflections' box is always narrow. So for them motion evidence changes nothi
 
 Until 2026-11-14, light evidence also dropped the widening of the box. Takes of the orbit cabin's lamp switch measured what that cost (`t0-f8oc`, note of 2026-11-14, bounce light alone, Mac).
 
-- The cut already bounds the length. A history at `FastCap` holds no more draws than the fast history, so the box finds no lag in it. The narrow box acts only on the first draw of the evidence, on the long history.
+- The cut already bounds the length. A history at `FastCap` holds no more draws than the fast history, so the box finds no lag in it. The narrow box acts only on the first draw of the evidence, on the long history. (These takes ran with the cut at `FastCap`. Since 2026-11-22 the cut is at `FullRateFrames`, and the wide box stays: the fair switch's boil in the 60 draws after off did not rise against the cut to 4, `t0-5tyj`.)
 - On that draw the narrow box cuts the rare bright light that the long history holds, as it does in a still (`ter-18hc`). It cannot tell the light that changed from the light that stayed. In the cabin, the sunlit share of the bounce light stays when the lamps switch.
 - So the image moved the wrong way. In the 4 draws after the lamps came on, the whole image fell from 14.7 % below its lamps-on control to 18.5 % below. With the wide box it rose to 13.7 % below. With the jitter off, the same: 18.8 % against 13.5 %.
 - The whole image settled in 20 draws after the lamps went off and 83 after they came on. With the wide box it took 9 and 57. Main took 39 and 48.
@@ -422,10 +425,10 @@ Variants that the takes rejected:
 
 `RecentLightAge` = 7. For the light ages 0 to 6, that is the light codes 1 to 7, a light change is recent.
 
-- When the evidence ends, L grows again from `FastCap`, and S follows at 1/L. The number of recent ages came from the first form of the action, in which the narrow box held S at the fast mean: by the end of the evidence F must hold the change within the settle tolerance of acceptance 5, 5 %.
+- When the evidence ends, L grows again from `FullRateFrames` (from `FastCap` before 2026-11-22), and S follows at 1/L. The number of recent ages came from the first form of the action, in which the narrow box held S at the fast mean: by the end of the evidence F must hold the change within the settle tolerance of acceptance 5, 5 %.
 - F blends with the weight 1/`FastCap` = 1/4. After k draws of the new light it keeps (3/4)^k of a step. (3/4)^11 = 0.042, and (3/4)^10 = 0.056. So F needs 11 draws.
 - The record counts a change after it lasts `LightChangeDraws` = 4 draws, and then sets the age to 0. So at the light age a, F holds a + 4 draws of the new light. The last recent age, 6, gives 11 draws.
-- While the evidence lasts, each draw cuts L to `FastCap`, so S blends each sample with the weight 1/5. The first draw of the evidence blends at the long weight before its cut, and the 6 next draws blend at 1/5. So after the 7 draws S keeps (4/5)^6 = 0.26 of the light that it held at the first cut. After k more draws it keeps 0.26 × 4 / (4 + k) of it: 5 % after 17 more draws, and 1.8 % at 60 draws after the change. The test `ALightChangeThatTheRaysSawRestartsTheHistoryAtTheFastWindowsLength` holds the first two numbers. The takes of 2026-11-14 kept 7: a window of 16 followed the cabin's later bounces better, but section 8.2's table gives its price.
+- While the evidence lasts, each draw cuts L to `FullRateFrames`, so S blends each sample with the weight 1/9. The first draw of the evidence blends at the long weight before its cut, and the 6 next draws blend at 1/9. So after the 7 draws S keeps (8/9)^6 = 0.49 of the light that it held at the first cut. After k more draws the blend alone leaves 0.49 × 8 / (8 + k) of it: 6.5 % at 60 draws after the change, and 5 % after 71 more draws. The clamp drains the rest faster where the step leaves the box. With the cut at `FastCap` the numbers were 0.26, 1.8 % and 17 draws. The test `ALightChangeThatTheRaysSawRestartsTheHistoryAtFullRateFrames` holds the first two numbers. The takes of 2026-11-14 kept 7: a window of 16 followed the cabin's later bounces better, but section 8.2's table gives its price.
 - A block whose rays miss the changed light in one draw gets no light evidence in that draw. Its L then grows by 1, and the next draw with a ray on the change cuts it again. The cut needs no memory across draws, because the record's age counts the time.
 - The existing analogue is FSR's `LightChangeMaskFrames`, 8, which keeps FSR's history to the new light for 8 frames after the record counts a change. The two numbers have separate reasons and stay separate constants.
 
@@ -535,9 +538,8 @@ Five passes each add what only they know. No pass stores a new image. The region
    `main` calls `evidenceOfBlock` before any branch. A signal without a light age compiles without it and passes `NoEvidence`. The action:
 
    ```glsl
-   historyLength = evidence == LightEvidence
-       ? fastCap
-       : max(fastCap, historyLength * (1.0 - min(1.0, lag / parameters.antiLagShare)));
+   float antiLagged = max(fastCap, historyLength * (1.0 - min(1.0, lag / parameters.antiLagShare)));
+   historyLength = evidence == LightEvidence || evidence == RegionEvidence ? min(antiLagged, FullRateFrames) : antiLagged;
    ```
 
    where
@@ -546,8 +548,11 @@ Five passes each add what only they know. No pass stores a new image. The region
    - `fastCap` = the pixel's `FastCap`.
    - `lag` = the clamp's move as a share of the box's mean.
    - `parameters.antiLagShare` = the anti-lag's share.
+   - `FullRateFrames` = 8, the length from which the ray plan lets a pixel share its block's ray, in `sample_age.glsl`.
 
-   The cut acts only inside `if (historyLength > fastCap)`, as the clamp does.
+   The cut acts only inside `if (historyLength > fastCap)`, as the clamp does. It only ever shortens a history. Until 2026-11-22, light evidence set `historyLength = fastCap` (record of 2026-11-22, section 2.2).
+
+   `FastCap` keeps three uses, and none of them is a restart on evidence: the length of the fast history's blend (`accumulate_temporal.comp`), the gate past which the clamp, the anti-lag and the cut act, and the anti-lag's floor.
 
 The block is the spatial dispatch's workgroup, as decision X1 asks. The action covers every contributing pixel of the block. That includes pixels of an unchanged surface inside the block, which get a few noisier draws. A per-pixel rule leaves a speckle of cut and uncut pixels, which shows more than a block of slightly noisier light that the filter smooths.
 
@@ -626,7 +631,7 @@ where
 
 The levels. Section 8.2's table gains one level, `RegionEvidence`, between `NoEvidence` and `MotionEvidence`. The levels are ordered by how certain the knowledge is, and the level lives only in the dispatch's shared value.
 
-- Region evidence caps L at `FullRateFrames`, 8 draws, on top of the anti-lag: `min(antiLagged, FullRateFrames)`, where `antiLagged` is the length that the anti-lag gives without evidence. So region evidence only ever shortens a history. It keeps the box's widening. A measured rule chose this form over the cap alone, `min(L, FullRateFrames)`, on 2026-11-22. In the bay's film, its lag film and its stills, the two forms gave the same images to the last digit, and the film's span differed by +0.012 ms (spread 0.047). The deck rose by +0.044 ms against the line's head (spread 0.105), inside the budget of +0.10 ms. Under the bounce light's widened box, the retained deviation tracks the lag, so near a length of 9 draws the anti-lag cuts below 8 only where the lag exceeds about 0.056 of the mean. So this form keeps one meaning of the anti-lag under every level but the light's, at no measured cost (`docs/research/t0-acxm-region-evidence/README.md`, "The rule for the anti-lag").
+- Region evidence caps L at `FullRateFrames`, 8 draws, on top of the anti-lag: `min(antiLagged, FullRateFrames)`, where `antiLagged` is the length that the anti-lag gives without evidence. So region evidence only ever shortens a history. It keeps the box's widening. A measured rule chose this form over the cap alone, `min(L, FullRateFrames)`, on 2026-11-22. In the bay's film, its lag film and its stills, the two forms gave the same images to the last digit, and the film's span differed by +0.012 ms (spread 0.047). The deck rose by +0.044 ms against the line's head (spread 0.105), inside the budget of +0.10 ms. Under the bounce light's widened box, the retained deviation tracks the lag, so near a length of 9 draws the anti-lag cuts below 8 only where the lag exceeds about 0.056 of the mean. So this form keeps one meaning of the anti-lag under every level, also the light's since 2026-11-22, at no measured cost (`docs/research/t0-acxm-region-evidence/README.md`, "The rule for the anti-lag").
 - 8 draws is the shortest length that keeps the block's shared ray. A cut to 4 draws cost +5.63 ms a frame while a light moves, because 54 % of the pixels then traced their own ray. The cut to 8 cost nothing (`t0-xdck`, `docs/research/t0-xdck-drift-cut-cost/README.md`). `FullRateFrames` lives in `sample_age.glsl`, which the ray plan and the spatial dispatch both include.
 - Motion stands above the region. The narrow box measures the change at the pixel itself, and the region's statistic is the weaker knowledge.
 - A history held at 8 draws blends at the weight 1/9. So under a steady fall of the light it trails the samples by about 8 draws. The test `WhileTheRegionsLightFallsItsBounceHistoryTrailsTheSamplesByAtMostNineDrawsOfTheFall` holds that bound.
@@ -734,7 +739,7 @@ Case (a): the cabin lamps go out. Four draws later the light-age cut restarts th
 
 Design X gives the reflections three things:
 
-1. Light evidence for their blocks. A reflection ray that hits a surface whose light changed carries the light code. For 7 light ages, the block cuts L to `FastCap`. Their box is already narrow.
+1. Light evidence for their blocks. A reflection ray that hits a surface whose light changed carries the light code. For 7 light ages, the block cuts L to at most `FullRateFrames` (to `FastCap` before 2026-11-22). Their box is already narrow. A reflection whose cap lies between `FastCap` and `FullRateFrames` keeps the anti-lag's length under light evidence, and it already traces its own ray, because its L stays below 8.
 2. The pixel's own light-age cut before the blend went on 2026-11-13 (section 4, "No cut before the blend"). The block's light evidence cuts after the blend.
 3. A faster drain of the bounce light. The reflection rays read the hit pixel's bounce light, and the bounce blocks restart from their fast window on the same change.
 
@@ -770,7 +775,7 @@ The camera jitter repeats after 18 draws: FSR 3.1 takes 8 × 1.5² phases at the
 | The branch, wide box, L = 32 | +2.4 % | −0.3 to −0.5 % |
 | Main, narrow box | +8.3 % | −0.8 to −0.9 % |
 
-- A history of 32 draws holds almost two cycles, so its level is steady. A history that light evidence cut to `FastCap` holds none of the bright draw until the next one comes.
+- A history of 32 draws holds almost two cycles, so its level is steady. A history that light evidence cut to `FastCap`, the cut of these takes, holds none of the bright draw until the next one comes.
 - In the cabin's lamp switch, the bright draw falls 2 draws after the switch and then 20 and 38 draws after it. The evidence cuts from 3 to 9 draws after the switch. So r11 reads 19 % below its lamps-off control 15 draws after the lamps go off, and 22 % below its lamps-on control 15 draws after they come on (bounce light alone, wide box).
 - The room's later bounces then rebuild at the long history's pace. r11 is still 7.4 % low 99 draws after the lamps come on. Main is 2.6 % low there, against its own control, which holds 23 % less light.
 - With `TERTIUS_DEBUG_JITTER=none`, no build falls below its control in r11.
@@ -902,7 +907,7 @@ Impossible by construction:
 5. The filter's write-back, the clamp or the hits' blotches count as a change. Evidence never reads S, F or R.
 6. The block's evidence and the pixel's own light-age cut disagree about a light change. Only the block's evidence reads the light code, so no second reader can disagree with it.
 7. A box widens without evidence to narrow it, or without σr. `WidenedBox` exists only beside a light age and only for the diffuse light.
-8. A light change narrows the box but leaves the old light in a long history. That was `ter-18hc`'s lamp-on fault, which stayed 7 % low after 99 draws. Light evidence always cuts to `FastCap`.
+8. A light change narrows the box but leaves the old light in a long history. That was `ter-18hc`'s lamp-on fault, which stayed 7 % low after 99 draws. Light evidence always cuts to at most `FullRateFrames`.
 9. Evidence outlives its cause. Nothing stores evidence across draws: each draw derives it from the record's age and this draw's motion.
 
 Still possible, by name:
@@ -937,7 +942,7 @@ The step numbers are those of section 23.
 | Moved bit and 14-bit light code of a ray record | `recordOf` (13) | Resolve (13). Diagnostic field, narrowed (13) |
 | Sample age: light code and motion bit | Resolve (13). Test fixture `SamplePass` (12) | Spatial block level (12). `tools/Tertius.ReflectionReference` (13) |
 | Block evidence level, derived and never stored | Spatial dispatch (12) | Box and cut in the same workgroup (12) |
-| L after a cut to `FastCap` | Spatial dispatch (12) | Next draw's temporal dispatch. The ray plan, which traces own rays below `FullRateFrames`. The young limit of the variance dispatch. No code change |
+| L after a cut to `FullRateFrames` | Spatial dispatch (12) | Next draw's temporal dispatch. The ray plan, which traces own rays below `FullRateFrames`. The young limit of the variance dispatch. No code change |
 | `HistoryConfidence`, two cases | `SignalParameters` (12). `TemporalSignal.ConfidenceOf` (12) | Push constants (12) |
 | `retainedSigmas` push constant | `AccumulatePushConstants.Of` (2a) | Spatial box (2a) |
 | `ShaderVariant.LightAge` with the spatial dispatch | `HistoryInstrumentation.cs`, `Tertius.Rendering.csproj` (12) | `TemporalSignal.LightAgeShader`. `ShaderVariantTests` (12) |
@@ -990,7 +995,7 @@ Kept from steps 2a to 2c:
 
 New in step 12. The fixture writes each pixel's light code and motion bit into the sample age (`SamplePass.AgeCodes` with the layout of `sample_age.glsl`):
 
-- `ARecentLightCodeInABlockCutsEveryContributingHistoryOfItsBlockToTheFastCap`. Until 2026-11-14 it also stated the narrow box, as `ARecentLightCodeInABlockNarrowsTheBoxAndCutsEveryContributingHistoryOfItsBlockToTheFastCap`.
+- `ARecentLightCodeInABlockCutsEveryContributingHistoryOfItsBlockToFullRateFrames`, named `...ToTheFastCap` until 2026-11-22. Until 2026-11-14 it also stated the narrow box, as `ARecentLightCodeInABlockNarrowsTheBoxAndCutsEveryContributingHistoryOfItsBlockToTheFastCap`.
 - `ARecentLightCodeLeavesTheBoxOfItsBlockWide` and `ALightChangeThatLeavesTheSamplesAsTheyWereTakesNoLightFromTheHistoriesThatItCuts` (2026-11-14, section 8.2). The second one draws one sample in 256 at 257 times the base light. Before the change, one draw of light evidence took the histories' mean from 2.06 to 1.65.
 - `ALightCodeOfSevenOrOlderGivesTheBlockNoEvidence`: the codes 8 and above leave the wide box and L.
 - `ASampleThatSawMotionNarrowsTheBoxOfItsBlockAndKeepsItsLength`: the anti-lag shortens L only by the clamp's move.
@@ -1001,7 +1006,7 @@ New in step 12. The fixture writes each pixel's light code and motion bit into t
 - `ALightChangeAsOldAsTheHistoryOrOlderLeavesTheHistoryAsItIs` returns to its doubling of the light. A doubling without a recent code is no evidence.
 - `TheMotionBitLeavesThePixelsOwnLightAgeCut`: a code with the motion bit set cuts L to its age, as without it.
 - `AfterTheMotionStopsTheNarrowBoxsLossReturnsWithinFivePercentInSixtyDraws`: rare bright samples on a wall that moves for 40 draws and then stops.
-- `AReflectionWithARecentLightCodeIsCutToTheFastCap`, in the uncapped and the capped precise history.
+- `AReflectionWithARecentLightCodeIsCutToFullRateFrames`, in the uncapped and the capped precise history. It was `...ToTheFastCap` until 2026-11-22.
 - `TheReflectionsRefuseAWidenedBox`: the reflections' fast alpha holds the hit distance, so `CreateSignal` refuses a `WidenedBox` for them.
 - `WithoutALightAgeTheBounceLightKeepsTheNarrowBox` and `TheOriginalSpecularHistoryKeepsTheNarrowBoxWithoutEvidence`.
 
@@ -1033,7 +1038,7 @@ Kept from step 2c: the panel at 4.95 m, `TheRetainedDeviationPredictsTheSpreadOf
 
 New in step 14 (the first two landed earlier, in `LightAgeHistoryTests` and `StillPanelForFourHundredDraws`, as section 20's tracer list records):
 
-- `ALampThatGoesOutCutsTheBounceHistoriesOfTheBlocksThatSeeItsLight`: L falls to `FastCap` in those blocks within 4 to 11 draws after the switch, and rises again afterward.
+- `ALampThatGoesOutCutsTheBounceHistoriesOfTheBlocksThatSeeItsLight`: L falls to at most `FullRateFrames` (`FastCap` before 2026-11-22) in those blocks within 4 to 11 draws after the switch, and rises again afterward.
 - `AStillSceneGivesNoEvidenceToEitherSignal`: the panel scene for 300 draws after the histories fill. No block has either level. It replaces `AStillPanelSceneGivesAtMostOneBlockEvidenceInTenThousandBlockDrawsOfEitherSignal`, which step 12 removes.
 - `ABoxThatSlidesPastAWallNarrowsTheWallsBoxWhileItMovesAndNotAfter`.
 
