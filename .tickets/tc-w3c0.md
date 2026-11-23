@@ -1,6 +1,6 @@
 ---
 id: tc-w3c0
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-22T10:24:18Z
@@ -23,3 +23,7 @@ renderer-survey.py probe-build of the line's head builds, and its still rect-lam
 **2026-11-22T11:19:34Z**
 
 Fixed on the line's branch by the acceptance lead of t0-5tyj (2026-11-22), not closed. tools/renderer-survey/probe.patch is now the git diff of probe-acxm.patch applied to the line's head 57b4045ae: the same probe, with drawIndex passed through OfParameters and the probe's push constants after the remedy's. It applies to 57b4045ae with patch -p1 and no fuzz, and the patched tree equals the tree from probe-acxm.patch file for file. Acceptance: renderer-survey.py probe-build of 57b4045ae builds, and its still rect-lamps (image, reference and result) equals the build from probe-acxm.patch byte for byte (specks 0.009645, blotch 0.010206). The patch no longer applies to trees before the remedy (t0-acxm), such as main c4c1f1f2f, which keep their own probe.patch.
+
+**2026-11-23T05:24:41Z**
+
+Closed by the line orchestrator on 2026-11-23: tools/renderer-survey/probe.patch applies to the line's head f47290508 with patch -p1 (dry run, no reject), after the acceptance lead fitted it to the cap in ff621092f and to main's step 2.

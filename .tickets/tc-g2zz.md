@@ -1,6 +1,6 @@
 ---
 id: tc-g2zz
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-22T20:14:43Z
@@ -21,3 +21,9 @@ Two scratch variants remove the block (scratch-light-evidence-cap.patch = XB, sc
 
 The user chooses a design (XB, XC or another). With it, the fair cabin switch at the fixed 2/3 shows no draw more than 1 ms above the settled span after either switch, and its settle and boil are no worse than X's by the record's measures. Red-green tests come with the change.
 
+
+## Notes
+
+**2026-11-23T05:24:41Z**
+
+Closed by the line orchestrator on 2026-11-23: fixed by the cap (t0-zmjx, 05a27262d), merged into the line as f47290508. On the merged code no draw lies more than 1 ms above the settled span after a lamp switch on the Mac, and the card holds one render size through the switch.

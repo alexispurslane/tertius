@@ -1,6 +1,6 @@
 ---
 id: t0-zmjx
-status: in_progress
+status: closed
 deps: []
 links: [ter-4iic, t0-70v1, t0-o7gf, t0-gumm]
 created: 2026-11-22T20:26:05Z
@@ -164,3 +164,7 @@ The cap's acceptance take on the merged code, 2026-11-22 21:12, from the accepta
 **2026-11-23T05:19:23Z**
 
 The cap on the merged code (16d915a67, with main 3549d3283 and the fix of tc-8142), from the acceptance lead: the fair cabin switch settles in 82 / 54 draws (whole image 71 / 34), 0 draws above the settled span + 1 ms after off and after on, boil 0.25 / 0.26 / 0.27 % in the 60 draws after off, and on the card (job f8b8cba5, 16.67 ms) one render size from draw 83 to the end. Gate suites on the acceptance branch: Checked full on ddee55073, Release full on 8400ec2a0, both 0 failed. Ready for the line's merge.
+
+**2026-11-23T05:24:41Z**
+
+Closed by the line orchestrator on 2026-11-23. The acceptance lead's final report (head bf55b37f6, clean checkout, no fork) passed the gates, and its branch is merged into the line as f47290508 (parents f1160cc58 and bf55b37f6; one ticket conflict in t0-zmjx.md, both sides kept; the merge's hook: Rendering 139 tests of the changed classes in Checked, 0 failed). Suites of the lead: Checked full on ddee55073, 11,220 tests, 0 failed, 27 skipped; Release full on 8400ec2a0, 11,208 tests, 0 failed, 27 skipped. Under src and tests the line's head equals 8400ec2a0; ddee55073 differs from it by one added test, which passed in Checked in the lead's hook (12 of 12 in its class). Main's 21 commits after 3549d3283 change no file under src, tests or analyzers. The cap is 05a27262d with its hardening b543151da: 11 mutants killed, one reviewer, the open order of light evidence beside motion in tc-tc8c. On the merged code the fair cabin switch settles in 82 / 54 draws, no draw lies more than 1 ms above the settled span after a switch, and the card holds one render size through the switch (job f8b8cba5). The sixth gate's cost is in t0-iido: 20 % more grain for about 12 draws after the sun comes on in the bounce-lit bay.
