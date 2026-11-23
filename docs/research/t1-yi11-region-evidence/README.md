@@ -170,6 +170,246 @@ Reading: c settles 23 draws later than main after off, 11 more than the repaired
 After on it equals main. In the sheet, d's floor and walls are a little lighter than the others at draws 200 and 260,
 and a, b and c look the same.
 
+## The probe of the region test's two designs
+
+After the four columns, the orchestrator ordered a probe of two designs of the region test, from one scratch build. Nothing
+here goes into src.
+
+### The build and its columns
+
+Build yg is ya plus two switches and a log, each read once at start (`scratch-yg.patch`). The switches ride in the frame
+uniform's `shadowParams.w`: bit 3 region evidence off, bit 4 the rank test, and the gate's length times 256.
+
+- `TERTIUS_X_REGION_GATE=<draws>`, the cause gate. A counted tap brings a cause where `evidenceOfSample` of its sample
+  age is not NoEvidence (a recent light code or the motion bit). The anchor keeps `causeAge` in its ring's `a`: 0 in a
+  draw that is not valid, that does not continue the draw before, or whose region has a counted tap with a cause, else
+  the draw before's plus 1, at most 4,096. The answer is today's test while `causeAge` is under the gate, else no.
+- `TERTIUS_X_REGION_RANK=1`, the signed rank test in place of today's test: the 18 differences between draws of the same
+  jitter phase, `d_i = x(t - i) - x(t - i - 18)`, their signed ranks, and "moved" where `max(V+, V-) >= 166` of 171.
+- Both set: today's test while the gate is open, the rank test while it is closed.
+- `TERTIUS_X_REGION_LOG=<folder>`: each draw appends the anchors' ring layer of that draw to `region-ring.log`. The
+  ring's `a` holds `causeAge + 8192 x` the count of counted taps with a cause. `tools/regionlog.py` reads it.
+
+Build yh is yg plus a fixed turn of the camera, `TERTIUS_X_YAW_DEGREES` and `TERTIUS_X_PITCH_DEGREES`
+(`scratch-yh.patch`), for the turned take only.
+
+| Column | Build | Knobs |
+|---|---|---|
+| b | yg | `TERTIUS_X_DIFFUSE_CAP=128` (draws what ya draws) |
+| d | yg | `TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_OFF=1` |
+| g | yg | `TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_GATE=128` |
+| r | yg | `TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_RANK=1` |
+| g+r | yg | `TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_GATE=36 TERTIUS_X_REGION_RANK=1` |
+| n32, n128 | yg | `TERTIUS_X_DIFFUSE_CAP=32` or `128`, `TERTIUS_X_REGION_OFF=1 TERTIUS_A_NO_CLAMP=1` |
+
+`TERTIUS_A_NO_CLAMP=1` is the survey probe's clamp switch. It sets ClampSigmas to -1 for every signal, the diffuse and the
+specular one.
+
+Checks, measured: yg with no switch draws the same bytes as ya in one frozen bay still (20 of 20 PNGs and the length dump).
+In column g's frozen bay, no anchor-draw holds a cause, after draw 128 or before it, so the stop condition did not fire.
+In rect-bay, column g's log shows causes in 4 to 48 anchors per draw, so the count works.
+
+How to make them again: `bash tools/builds.sh yg yh`, then `bash tools/gtakes.sh <film|log|long|longfull> <column>...`
+for the frozen bay, `bash tools/films.sh <rect-bay|rect-bay-settled|switch|switch-film> <column>...` (columns bl, g, r
+and gr are the probe's; `TURN=90` turns the camera with build yh), and `tools/regionlog.py <folder> <after draw>` for
+the logs. The logs' per-draw summaries are in `logs/`.
+
+### The frozen bay
+
+The answers in draws 301 to 659, measured from the ring logs (20 x 12 anchors). A tested anchor-draw is an anchor with 36
+valid draws in a row. An answer run is an anchor that answers yes after a draw without an answer. A run that acts cuts
+the bounce light's history in its region's blocks.
+
+| Column | Tested anchor-draws | Yes answers | Rate | Answer runs | Runs on the floor's anchors |
+|---|---:|---:|---:|---:|---:|
+| b | 83,647 | 840 | 1.00e-2 | 369 | 21 |
+| d | 83,647 | answers do not act | | 0 that act | 0 |
+| g | 83,647 | 0 | 0 | 0 | 0 |
+| r | 83,647 | 12 | 1.43e-4 | 8 | 0 |
+| g+r | 83,647 | 12 | 1.43e-4 | 8 | 0 |
+
+r's rate is 1.9 times the rank test's level of 7.6e-5. g+r gives r's 12 answers at the same anchors and draws, because
+its gate stays closed. r's 8 runs lie on the right wall's anchors (16 to 18, 0 to 5) and the left wall's (1 to 2, 2 to 10).
+
+The blob, the lengths and the mottle, as in the table above (`bay-numbers-probe.json`):
+
+| Region | b | c | d | g | r | g+r |
+|---|---:|---:|---:|---:|---:|---:|
+| Sunlit patch, blob | 0.0078 | 0.0061 | 0.0025 | 0.0025 | 0.0031 | 0.0031 |
+| Back wall, blob | 0.0092 | 0.0071 | 0.0038 | 0.0038 | 0.0038 | 0.0038 |
+| Floor, blob | 0.0103 | 0.0078 | 0.0041 | 0.0040 | 0.0041 | 0.0041 |
+| Right wall, blob | 0.0055 | 0.0039 | 0.0021 | 0.0021 | 0.0022 | 0.0022 |
+| Mean length at draw 639: floor, back wall, right wall, patch | 99.6, 76.4, 33.7, 96.4 | 106.8, 91.3, 65.4, 99.4 | 128 | 128 | 128 | 128 |
+| Mottle, floor (8-bit gray) | 2.307 | 2.305 | 2.305 | 2.304 | 2.304 | 2.304 |
+
+Pictures: `pictures/bay-<floor|back-wall|right-wall|sunlit-patch>-dif-probe.png` (diffuse alone at 1:1),
+`bay-<floor|back-wall>-full-probe.png` (full picture) and `bay-<region>-dif-residual-probe.png` (residual times 10), each
+b, c, d, g, r and g+r in a 2 x 3 grid.
+
+The frozen film of the floor, d | g over r | g+r, draws 300 to 659, a 1:1 crop of output x 500 to 1460, y 540 to 1080, at
+-4.089 stops: `videos/frozen-floor-dif.mp4` (bounce light alone) and `videos/frozen-floor-full.mp4` (full picture), with
+`pictures/frozen-floor-<dif|full>-sheet.png` at draws 300, 420, 540 and 659.
+
+Reading: g, r and g+r reach d's blob in every region, within 0.0006. Their residual maps look like d's. In the films, the
+four columns show the same even falloff, and I see no patch appear or fade on the floor.
+
+### The level per column and the clamp pair
+
+Each column's long take (1,660 draws, captures at draws 660, 710, ..., 1,610) as a ratio to column a's mean, in the
+region's mean display-linear luminance at -4.089 stops (`tools/level.py`, `level.json`):
+
+| Column | Diffuse: patch | back wall | floor | right wall | Full: patch | back wall | floor | right wall |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| b | 0.9988 | 0.9989 | 0.9986 | 0.9994 | 0.9999 | 0.9990 | 0.9989 | 0.9999 |
+| c | 0.9991 | 0.9980 | 0.9977 | 0.9988 | 1.0000 | 0.9982 | 0.9981 | 0.9996 |
+| d | 1.0026 | 0.9963 | 0.9955 | 0.9977 | 1.0007 | 0.9968 | 0.9962 | 0.9992 |
+| g | 1.0034 | 0.9977 | 0.9963 | 0.9981 | 1.0008 | 0.9981 | 0.9970 | 0.9996 |
+| r | 1.0016 | 0.9964 | 0.9955 | 0.9978 | 1.0005 | 0.9968 | 0.9963 | 0.9993 |
+| g+r | 1.0016 | 0.9964 | 0.9955 | 0.9978 | 1.0005 | 0.9968 | 0.9963 | 0.9993 |
+| n32 | 1.0004 | 0.9994 | 0.9995 | 0.9997 | 1.0024 | 0.9995 | 1.0093 | 1.0399 |
+| n128 | 1.0026 | 0.9963 | 0.9955 | 0.9977 | 1.0023 | 0.9963 | 1.0051 | 1.0380 |
+
+In every take and region, the first and last captures lie within 1 % of the take's mean. The standard deviation of the
+20 capture means is 0.05 % to 0.5 % of the mean. With the clamp off, the diffuse level still moves with the cap.
+Specifically, n128 against n32 is 1.0022 on the sunlit patch, 0.9969 on the back wall, 0.9960 on the floor and 0.9980
+on the right wall. Those shifts are 2 to 5 times the naive 20-capture standard error. By the orchestrator's rule, that
+part stopped there.
+
+In the diffuse signal alone, n128 equals d to 4 digits across all four regions. On draw 1,610, 33,000 8-bit gray pixels
+(72,087 RGB pixels) differ, with a mean absolute difference of 0.016 of an 8-bit gray step. In the full picture,
+`TERTIUS_A_NO_CLAMP=1` also turns the specular clamp off, which brightens the floor and the right wall in both n32 and
+n128. Even there, n128 against n32 stays at 0.9999 on the sunlit patch, 0.9968 on the back wall, 0.9959 on the floor
+and 0.9982 on the right wall.
+
+Comparison with the back-face line's measurement on main (`146464c2b`, `/private/tmp/t1-wl7c/fe63/means-lever.json` and
+`means-bay-full.json`), measured read-only:
+
+- Build and metric: `git diff 5144cbe9a..146464c2b -- src/` is empty. Both lines render at -4.089 stops and 2/3 scale
+  (1280 x 720 in 1920 x 1080), use the same four region boxes and decode 8-bit sRGB PNGs to display-linear Rec. 709
+  luminance. At draw 659 (`c-s19.png` there against `f-000659.png` here), main agrees to 0.00001 in display-linear
+  luminance (back wall 0.19697 against 0.19698, floor 0.14559 against 0.14560). Column d and `lever` agree to 0.00001
+  too (back wall 0.19393 against 0.19394, floor 0.14460 against 0.14459).
+- Cause of the size difference (2.6 % and 2.0 % there against 0.32 % and 0.38 % here): the draw range averaged. The
+  back-face line's `means.py` averaged captures `c-s00` to `c-s19` (draws 32, 65, ..., 659, every 33 draws from draw 0).
+  Each diffuse bounce reads the draw before's filtered diffuse history. A cap of 128 without region evidence therefore
+  slows multi-bounce warm-up from draw 0 by about 4 times. In `lever`, capture `c-s00` (draw 32) is 0.17071 on the back
+  wall (12.2 % below its late mean 0.19454) and 0.13179 on the floor (9.0 % below 0.14482). Captures `c-s00..09` (draws
+  32 to 329) average 0.9458 of main's late mean on the back wall and 0.9558 on the floor. Captures `c-s10..19` (draws
+  362 to 659) average 0.9876 and 0.9895. Draws 32 to 659 pull `lever` down more than `main`: `lever(0..19) / lever(30..99)`
+  is 0.9681 on the back wall and 0.9760 on the floor, against main's 0.9921 and 0.9924. That ratio produces the reported
+  0.9744 (0.974) and 0.9801 (0.980).
+- Late draws on the back-face line's 100-capture reference (`reference-mean.npy`, captures `c-s30..99`, draws 1,022 to
+  3,299): `lever` against `main` in display-linear luminance is 1.0009 on the sunlit patch, 0.9986 (-0.15 %) on the back
+  wall, 0.9965 (-0.35 %) on the floor and 0.9996 (-0.04 %) on the right wall. Captures `c-s90..99` (draws 3,002 to
+  3,299) sit at 1.0009, 0.9993, 0.9992 and 1.0004.
+- Warm-up tail in draws 660 to 1,610: in our long takes, both d and n128 rise from the first 10 captures (draws 660 to
+  1,110) to the last 10 (draws 1,160 to 1,610). Diffuse-alone d / a rises from 0.9950 to 0.9977 on the back wall and
+  from 0.9947 to 0.9963 on the floor. Column n128 / a moves identically (0.9950 to 0.9977, 0.9947 to 0.9963). At draw
+  659 alone (`bay-back-wall-dif.png`), raw crop means in 8-bit gray are a 117.88, b 117.40, c 117.36 and d 117.01, so
+  brightness falls monotonically with each column's effective history length.
+
+Reading: the clamp does not cause the darkening, because n128 matches d to 4 digits in the diffuse signal. Most of the
+back-face line's 2.0 % to 2.6 % darkening comes from slower multi-bounce warm-up in draws 32 to 659 at cap 128 without
+false resets. In settled draws (1,022 to 3,299 there, 660 to 1,610 here), 0.15 % to 0.40 % remains on the back wall and
+floor. That difference shrinks between draws 660 and 1,610 with the clamp off. Because n128 against n32 still moves over
+draws 660 to 1,610 with the clamp off, the orchestrator's stop rule holds until late draws separate any small
+steady-state shift from the warm-up tail.
+
+### rect-bay
+
+As it is, the take cannot test the gate. Its run starts 32 draws before the film, `causeAge` starts at 0, so every gate
+of 128 stays open until film draw 96 whatever the causes. Its films of g, r and g+r are in /private/tmp only.
+
+The settled take (`rect-bay-settled` in yifilm.py) puts 200 frozen draws of the first state before the film. Measured: 380
+draws, every valid anchor's gate closed before the film, causes from film draw 4. The turned take is the same with the
+camera turned 90 degrees left (build yh). At -4.089 stops the sun patch lies on the right wall by the back corner, and
+the turned view (the left wall and the floor) does not hold it at film draws 0, 90 and 179.
+
+The whole picture's mean 8-bit gray (`rbs-curve.json`, `rbst-curve.json`):
+
+| Take | Column | Film draw 30 | 45 | 60 | 75 | 90 | 120 | 150 | 179 |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Settled | a | 219.0 | 210.0 | 196.2 | 178.0 | 155.0 | 110.4 | 88.8 | 78.7 |
+| | b | 219.7 | 211.1 | 197.0 | 178.5 | 155.3 | 110.5 | 88.8 | 78.7 |
+| | g | 220.5 | 215.7 | 208.2 | 197.4 | 183.6 | 155.2 | 137.7 | 125.4 |
+| | r | 220.7 | 217.7 | 208.4 | 190.0 | 163.7 | 113.3 | 89.6 | 80.0 |
+| | g+r | 220.0 | 214.0 | 199.2 | 179.7 | 155.9 | 110.6 | 88.9 | 79.2 |
+| Turned | b | 207.3 | 202.1 | 187.9 | 168.5 | 146.1 | 105.3 | 73.8 | 71.2 |
+| | g | 208.0 | 206.7 | 204.0 | 200.2 | 195.4 | 184.6 | 172.0 | 160.7 |
+| | r | 208.0 | 205.6 | 197.6 | 173.2 | 147.4 | 105.4 | 73.8 | 71.2 |
+| | g+r | 208.0 | 205.6 | 197.6 | 173.2 | 147.4 | 105.4 | 73.8 | 71.2 |
+
+In the settled take, column g's right wall (x 1100 to 1800, y 100 to 800) stays at 159.2 at film draw 179, against a's
+71.4. Its ring log shows 91 of the 234 valid anchors with no cause and a closed gate through the whole 180-draw film.
+Those 91 anchors are all 12 in each of the rightmost 6 columns (14 to 19), plus 8 in column 13, 8 in column 12 and 3 in
+column 11. Across the film, 234 anchors are valid at the start and end, and 233 are valid on every draw. In the turned
+take, no tap of any column brings a cause after the settle. After draw 200 (film draws 1 to 179), b answers at a rate of
+0.605 per tested anchor-draw (0.601 across all 180 film draws), r and g+r at 0.469 (0.467 across all 180) and g never.
+
+- `videos/rect-bay-settled.mp4` (a | b over g | r) and `pictures/rect-bay-settled-sheet.png` (a, b, g, r and g+r at film
+  draws 45, 75, 105 and 150).
+- `videos/rect-bay-turned.mp4` (b | g over r | g+r) and `pictures/rect-bay-turned-sheet.png` (draws 0, 60, 90 and 150).
+
+Reading: g fails both takes. In the settled take, a hard staircase edge along the anchors' blocks splits the lit right
+part from the darkening left part, from film draw 75 to 150. The sun patch lies on the right wall itself, so the right
+wall's rays read surfaces whose direct light does not change. In the turned take, g stays lit. Column r trails b by
+about 5 to 8 draws and shows a blocky patchwork of cut and uncut regions at film draws 60 to 75. Column g+r follows b to
+within 3.1 gray across all 180 draws in the settled take (largest gap 3.06 gray at film draw 48) and equals r in the
+turned one.
+
+### The fair cabin switch
+
+As for columns a to d (`settle-<column>.json`), draws to settle, slowest region / whole picture:
+
+| Column | After off | After on |
+|---|---|---|
+| b | 83 / 72 | 53 / 34 |
+| g | 85 / 74 | 52 / 33 |
+| r | not settled in 200 / 132 | 48 / 31 |
+| g+r | not settled in 200 / 128 | 47 / 31 |
+
+The whole picture against its control:
+
+| Column | Off +40 | +100 | +140 | +199 | On +20 | +40 | +60 | +99 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| g | +0.152 | +0.028 | +0.017 | +0.012 | -0.094 | -0.036 | -0.016 | -0.004 |
+| r | +0.176 | +0.059 | +0.048 | +0.040 | -0.090 | -0.031 | -0.011 | -0.002 |
+| g+r | +0.172 | +0.058 | +0.048 | +0.039 | -0.087 | -0.030 | -0.011 | -0.002 |
+
+Column g's ring log (`logs/sw-g-switch.json`) shows 239 or 240 anchors with a cause within 5 draws of each switch (film
+draws 163 to 169 after off, 363 to 369 after on; median 52 to 62 taps, largest 186 to 204). Every gate therefore opens.
+With its 128-draw gate, g stays open through the settle and follows b (85 / 74 against 83 / 72 after off, 52 / 33
+against 53 / 34 after on).
+
+In g+r (`logs/sw-gr-switch.json`), the 36-draw gate closes between film draws 205 and 210 (45 to 50 draws after off)
+while the bounce light still decays. Once the gate closes, the signed rank test takes over and anchor answers drop from
+229 at film draw 204 to 56 at film draw 217 (against g's 155 at film draw 217). After on, r and g+r follow b (48 / 31
+and 47 / 31). After off, both r and g+r stay 3.9 % to 4.0 % too bright at draw +199, against b's 0.8 % and g's 1.2 %. We
+left out the turned switch because the lamps light nearly every surface in that view, and a view that avoids them needs
+its own camera check and 12 runs.
+
+For the eye, the switch run of columns b, g, r and g+r ran once more without the survey's switch options (bloom on, the
+game's tone curve). That take kept film draws 150 to 459 (310 frames at 4.08 stops):
+
+- `videos/cabin-switch-probe.mp4`: b | g over r | g+r in a 2 x 2 grid, 60 frames a second, H.264 at CRF 12.
+- `pictures/cabin-switch-probe-sheet.png`: b, g, r and g+r at film draws 165, 200, 260 and 380.
+
+Measured on the viewable film frames (`swf-b`, `swf-g`, `swf-r`, `swf-gr`), mean 8-bit gray of the whole picture (and
+lower-half floor, y 540 to 1080):
+
+| Column | Draw 165 (off +5) | Draw 200 (off +40) | Draw 260 (off +100) | Draw 359 (off +199) | Draw 380 (on +20) |
+|---|---:|---:|---:|---:|---:|
+| b | 73.58 (58.09) | 53.11 (42.46) | 47.49 (37.65) | 46.77 (37.00) | 93.88 (99.71) |
+| g | 74.25 (58.28) | 53.27 (42.59) | 47.51 (37.66) | 46.81 (37.02) | 93.47 (99.47) |
+| r | 72.91 (57.20) | 52.93 (42.32) | 47.84 (37.91) | 47.27 (37.39) | 93.30 (99.24) |
+| g+r | 72.90 (57.19) | 52.76 (42.18) | 47.80 (37.87) | 47.24 (37.37) | 93.62 (99.57) |
+
+Reading: in `cabin-switch-probe-sheet.png` and in full-resolution frames at film draws 200 and 260, all four columns
+(b, g, r and g+r) look alike by eye. None shows the visibly lighter floor and walls that column d showed in
+`cabin-switch-sheet.png` at draws 200 and 260. The 3.9 % to 4.0 % residual that r and g+r keep in the linear switch
+series after off is under 0.5 of an 8-bit gray step on the darkened cabin floor and walls (47.24 to 47.27 against b's
+46.77 at draw 359). That difference does not show side by side.
+
 ## Faults found on the way
 
 - The first column d ran as column a. The take loop ran in zsh, which does not split an unquoted variable, so the two
@@ -179,6 +419,10 @@ and a, b and c look the same.
 - The first switch films ran without the survey's probe options (`--bloom off --tone-curve hable`). Column a then
   settled after 197 draws, against main's 81 in t0-qvm1. yifilm.py now passes the options. With them, column a gives
   t0-qvm1's numbers exactly.
+- A first rect-bay take of the probe left every gate open, because its run starts 32 draws before the film (see
+  "rect-bay" in the probe). The settled take fixes that.
+- I overwrote a running bash script in place once (gtakes.sh). The take it ran was stopped and run again. The tools now
+  replace a script by renaming a new file over it.
 - A first blob measure against one shared reference take (cap 512, region evidence off, 1,660 draws) failed. That
   take's own frames brightened the floor by 1.3 % from draw 660 to draw 1,460, and its mean differed from every column's
   still by the same large smooth shape, which leaked into the band. The cause (the early draws in a history of 512, or a

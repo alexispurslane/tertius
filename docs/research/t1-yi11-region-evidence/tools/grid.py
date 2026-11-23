@@ -4,7 +4,7 @@
 # exposure). A side is "label|folder|render size": its folder holds one PNG per draw of one film, in draw order, and the
 # first PNG is draw <first draw>; PREFIX picks the film (default: every PNG). One draw per video frame at 60 frames a
 # second, H.264 yuv420p at CRF 12, no filter but the conversion to yuv420p (BT.709), as t0-qvm1's video.py. FFMPEG names
-# the ffmpeg binary.
+# the ffmpeg binary. CROP="x0,y0,x1,y1" (t1-yi11) crops every frame to that box of output pixels at 1:1 first.
 import os
 import subprocess
 import sys
@@ -18,7 +18,8 @@ prefix = os.environ.get('PREFIX', '')
 sides = [s.split('|') for s in specs]
 files = [sorted(Path(folder).glob(f'{prefix}*.png')) for _, folder, _ in sides]
 count = min(len(f) for f in files)
-width, height = Image.open(files[0][0]).size
+crop = tuple(int(v) for v in os.environ['CROP'].split(',')) if os.environ.get('CROP') else None
+width, height = (crop[2] - crop[0], crop[3] - crop[1]) if crop else Image.open(files[0][0]).size
 BAND = 72
 columns = 2 if len(sides) > 1 else 1
 rows = (len(sides) + 1) // 2
@@ -37,7 +38,8 @@ for k in range(count):
     draw = ImageDraw.Draw(frame)
     for i, (label, _, size) in enumerate(sides):
         x, y = (i % columns) * width, (i // columns) * (height + BAND)
-        frame.paste(Image.open(files[i][k]).convert('RGB'), (x, y + BAND))
+        image = Image.open(files[i][k]).convert('RGB')
+        frame.paste(image.crop(crop) if crop else image, (x, y + BAND))
         draw.text((x + 16, y + 6), label, fill=(255, 255, 255), font=font)
         draw.text((x + 16, y + 38), f'render size {size}, draw {first + k}, {note}', fill=(200, 200, 200), font=font)
     encoder.stdin.write(frame.tobytes())

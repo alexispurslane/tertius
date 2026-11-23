@@ -5,6 +5,10 @@
 #   rect-bay: the survey's motion film rect-bay (180 frames one tick apart, the sunbeam leaves the bay) at the fixed
 #             exposure of main's film in t0-qvm1's takes, -0.35925741 stops, bloom on as the game draws it. It keeps every
 #             frame: m0000-n is draw n.
+#   rect-bay-settled: rect-bay with SETTLE (a knob, default 200) frozen draws of its first state before the film: after
+#             its first tick, SETTLE captures that TERTIUS_X_FROZEN=1 and TERTIUS_X_FIRST_FILMED=1 draw once each with no
+#             step of time, so the histories and the anchors' cause ages settle before the sunbeam leaves. It keeps only
+#             the film's frames.
 #   switch:   the survey's switch case cabin (orbit's person camera after 60 ticks, the lamps z:-12:4 off in film frames
 #             160 to 360) at 4.08 stops. Three runs, as the survey's switch part: the switch (it keeps film frames 150 to
 #             459 under switch/), and the controls with the lamps always off and always on, with the survey's switch
@@ -14,7 +18,8 @@
 #   switch-film: the switch run alone, without the survey's switch options (bloom on, the game's tone curve), for the eye.
 #             With those options the probe's kept PNGs come out as a false-colour pattern (seen on 2026-11-23), while
 #             its measures match t0-qvm1. It keeps film frames 150 to 459.
-# Run it in the dev shell from the checkout's root.
+# A knob TERTIUS_X_REGION_LOG (build yg) goes into each run's own folder in the switch, so that the three runs keep three
+# logs. Run it in the dev shell from the checkout's root.
 import importlib.util
 import json
 import shutil
@@ -36,6 +41,18 @@ if film == 'rect-bay':
     survey.render(out, survey.motion_case(case).film, binary=binary,
                   env={'TERTIUS_PROBE_EXPOSURE': '-0.35925741', **knobs})
     print(f'{out}: {len(list(out.glob("*.png")))} frames')
+elif film == 'rect-bay-settled':
+    case = next(c for c in survey.load_cases()['motion'] if c['name'] == 'rect-bay')
+    script = survey.motion_case(case).film
+    steps = script['steps']
+    at = next(i for i, step in enumerate(steps) if step['do'] == 'run') + 1
+    settle = int(knobs.pop('SETTLE', '200'))
+    script = {**script, 'steps': steps[:at] + [{'do': 'capture', 'name': f'w-{n:06d}'} for n in range(settle)] + steps[at:]}
+    keep = [f'm{k:04d}-000000' for k in range(180)]
+    survey.render(out, script, binary=binary,
+                  env={'TERTIUS_PROBE_EXPOSURE': '-0.35925741', 'TERTIUS_X_FROZEN': '1', 'TERTIUS_X_FIRST_FILMED': '1',
+                       **survey.series_env(out, keep), **knobs})
+    print(f'{out}: {len(list(out.glob("m*.png")))} frames')
 elif film == 'switch':
     case = next(c for c in survey.load_cases()['switches'] if c['name'] == 'cabin')
     series = {}
@@ -43,7 +60,8 @@ elif film == 'switch':
         work = out / label
         keep = [survey.film_frame('f', k) for k in range(150, 460)] if label == 'switch' else []
         survey.render(work, survey.switch_script(case), binary=binary,
-                      env={'TERTIUS_PROBE_EXPOSURE': '4.08', **env, **survey.series_env(work, keep), **knobs},
+                      env={'TERTIUS_PROBE_EXPOSURE': '4.08', **env, **survey.series_env(work, keep), **knobs,
+                           **({'TERTIUS_X_REGION_LOG': str(work)} if 'TERTIUS_X_REGION_LOG' in knobs else {})},
                       extra=survey.PROBE_OPTIONS)
         series[label] = survey.probe_series(work, 'f')
     result = survey.switch_result(case, series)

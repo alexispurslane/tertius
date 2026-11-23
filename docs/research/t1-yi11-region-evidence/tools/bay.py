@@ -39,8 +39,12 @@ OUT = Path(__file__).resolve().parent.parent / 'pictures'
 OUT.mkdir(exist_ok=True)
 columns = sys.argv[1:] or ['a', 'b', 'c', 'd']
 LABELS = {'a': 'a: main, cap 32', 'b': 'b: cap 128, region evidence today', 'c': 'c: cap 128, repaired test',
-          'd': 'd: cap 128, region evidence off', 'e': 'e: cap 64, region evidence off'}
-CAPS = {'a': 32, 'b': 128, 'c': 128, 'd': 128, 'e': 64}
+          'd': 'd: cap 128, region evidence off', 'e': 'e: cap 64, region evidence off',
+          'g': 'g: cap 128, cause gate 128', 'r': 'r: cap 128, signed rank test',
+          'gr': 'g+r: cap 128, gate 36, rank test when closed'}
+CAPS = {'a': 32, 'b': 128, 'c': 128, 'd': 128, 'e': 64, 'g': 128, 'r': 128, 'gr': 128}
+# TAG=<suffix> names the outputs bay-<region>-<kind><suffix>.png and bay-numbers<suffix>.json (the probe's columns).
+TAG = __import__('os').environ.get('TAG', '')
 BOXES = {'sunlit patch': (100, 40, 420, 360), 'back wall': (560, 420, 980, 560), 'floor': (600, 650, 1200, 950),
          'right wall': (1300, 100, 1800, 500)}
 CROPS = {'floor': ('full', 'dif'), 'back wall': ('full', 'dif'), 'right wall': ('dif',), 'sunlit patch': ('dif',)}
@@ -102,7 +106,7 @@ for col in columns:
         rows.append(row)
         print(f"| {col} | {name} | {row['length']:.1f} | {100 * row['atCap']:.1f} % | {100 * row['under96']:.1f} % | "
               f"{row['blobDiffuse']:.4f} | {row['rounding']:.4f} | {row['mottle']:.3f} |")
-(OUT.parent / 'bay-numbers.json').write_text(json.dumps(rows, indent=1))
+(OUT.parent / f'bay-numbers{TAG}.json').write_text(json.dumps(rows, indent=1))
 
 try:
     font = ImageFont.truetype('/System/Library/Fonts/Supplemental/Arial.ttf', 20)
@@ -130,11 +134,11 @@ for region, kinds in CROPS.items():
         suffix = '-dif' if kind == 'dif' else ''
         tiles = [(LABELS[col], Image.open(frames(f'bay-{col}{suffix}')[-1]).convert('RGB').crop((x0, y0, x1, y1)))
                  for col in columns]
-        grid(tiles, w, h).save(OUT / f'bay-{slug}-{kind}.png')
+        grid(tiles, w, h).save(OUT / f'bay-{slug}-{kind}{TAG}.png')
     tiles = []
     for col in columns:
         still, late = residual[col]
         e = (still - late)[y0:y1, x0:x1] / main_full[y0:y1, x0:x1].mean()
         tiles.append((LABELS[col] + ', residual x10',
                       Image.fromarray(np.clip(128 + 1280 * e, 0, 255).astype(np.uint8)).convert('RGB')))
-    grid(tiles, w, h).save(OUT / f'bay-{slug}-dif-residual.png')
+    grid(tiles, w, h).save(OUT / f'bay-{slug}-dif-residual{TAG}.png')
