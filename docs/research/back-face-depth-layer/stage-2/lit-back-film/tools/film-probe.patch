@@ -1,0 +1,207 @@
+diff --color=auto -ruN -x bin -x obj /Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7/src/Tertius.Demo/DemoScenes.LitBlock.cs film-src/src/Tertius.Demo/DemoScenes.LitBlock.cs
+--- /Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7/src/Tertius.Demo/DemoScenes.LitBlock.cs	1969-12-31 19:00:00
++++ film-src/src/Tertius.Demo/DemoScenes.LitBlock.cs	2026-11-22 16:43:04
+@@ -0,0 +1,176 @@
++using System.Numerics;
++using Tertius.Host;
++using Tertius.Simulation;
++
++namespace Tertius.Demo;
++
++// THROWAWAY (never merges), t1-r9vj: the scene of the lit block, for the test of the fade of a blocked ray's light.
++// t2b-xeo7's film adds a camera that walks round the block or turns in place, by world time.
++public static partial class DemoScenes
++{
++    /// <summary>Moves its own view along a path of world time, in its frame's axes: the end pose of each step.</summary>
++    private sealed class LitBlockCameraPath(Func<double, DPose> path) : IComponent
++    {
++        public int Priority => 0;
++
++        public EventMask Wants => EventMask.Of<Tick>();
++
++        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
++            self.MoveKinematic(path(self.TimeAt(self.Tick + 2)));
++    }
++
++    /// <summary>The film's timing in s: rest, move, hold, move back, rest.</summary>
++    private const double FilmRest = 4, FilmMove = 3, FilmHold = 2;
++
++    /// <summary>0 at rest, rising to 1 over the move out, 1 in the hold, falling to 0 over the move back.</summary>
++    private static double FilmPhase(double t)
++    {
++        static double Ease(double x) => x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x);
++        double back = FilmRest + FilmMove + FilmHold;
++        return t < back ? Ease((t - FilmRest) / FilmMove) : 1 - Ease((t - back) / FilmMove);
++    }
++
++    /// <summary>The block's center, at which the walking eye looks.</summary>
++    private static readonly Double3 LitBlockCenter = new(0, 0.8, 0);
++
++    /// <summary>
++    /// The walk: the eye, 1.5 m up, goes round the block by -X on an ellipse about (-1, 0.25), from (0.3, 3.45) in front
++    /// of the dark face to (-1, -3.45) behind the lit face, and back, always looking at the block's center.
++    /// </summary>
++    private static DPose LitBlockWalk(double t)
++    {
++        double angle = (30 - 210 * FilmPhase(t)) * Math.PI / 180;
++        var eye = new Double3(-1 + 2.6 * Math.Sin(angle), 1.5, 0.25 + 3.7 * Math.Cos(angle));
++        return LookingAt(eye, LitBlockCenter);
++    }
++
++    /// <summary>
++    /// The turn: the eye rests at the walk's start, and the look turns from the block's center to the gap behind its +X
++    /// side, (1.6, 0.8, -2.5), and back.
++    /// </summary>
++    private static DPose LitBlockTurn(double t)
++    {
++        var eye = new Double3(0.3, 1.5, 3.45);
++        double u = FilmPhase(t);
++        Double3 target = LitBlockCenter * (1 - u) + new Double3(1.6, 0.8, -2.5) * u;
++        return LookingAt(eye, target);
++    }
++
++    /// <summary>The light gray of every diffuse surface of the lit block's room.</summary>
++    private static readonly Vector4 LitBlockGray = new(x: 0.7f, y: 0.7f, z: 0.7f, w: 1);
++
++    /// <summary>The roughness of the diffuse surfaces of the lit block's room.</summary>
++    private const float LitBlockRough = 0.9f;
++
++    /// <summary>The roughness of the glossy wall beside the lit block, at +X.</summary>
++    private const float LitBlockGlossy = 0.2f;
++
++    /// <summary>
++    /// The lit block: a closed room with one block, lit on one face only, with no sun and no sky. <c>lit-block-front</c>
++    /// lights the block's +Z face, which the camera sees; <c>lit-block-back</c> lights its -Z face, which the camera does
++    /// not see.
++    /// <list type="bullet">
++    /// <item>The room is 8 m wide (x from -6 to 2), 10 m long (z from -4 to 6) and 4 m tall inside. Every slab is 0.2 m
++    /// thick, light gray and diffuse, except the wall at +X, which is light gray and glossy.</item>
++    /// <item>The <c>block</c>, 2.4 m wide, 1.6 m tall and 1.5 m deep, stands on the floor at the origin, 0.8 m from the
++    /// wall at +X.</item>
++    /// <item>The <c>key</c>, a spot lamp of 10 W with an outer half-angle of 30 degrees, 0.8 m above the floor and 1.4 m
++    /// from the lit face, aims straight at that face's center. Its cone ends on the face, so the block's other faces get
++    /// no direct light.</item>
++    /// <item>The <c>floor-lamp</c>, a spot lamp of 10 W aimed straight down from 3.9 m at (-3.5, 1.5), lights the neutral
++    /// floor patch away from the block.</item>
++    /// <item>The view <c>camera</c> stands at (1, 1.5, 4.5), below the block's top, and looks at its +Z face. It stands
++    /// inside the plane of the block's +X face, so that face is hidden, and the gap at +X shows the floor and the wall
++    /// beside and behind the block.</item>
++    /// </list>
++    /// </summary>
++    private static SceneInstance LitBlock(World world, IRenderResources resources, bool litBack, Func<double, DPose>? path = null)
++    {
++        var scene = new SceneInstance();
++        FrameHandle room = world.CreateRootFrame(new(FrameBounds.Sphere(1e4f)));
++        scene.Add("room", room.Entity);
++        (string Name, Double3 Place, Vector3 HalfExtents, float Roughness)[] slabs =
++        [
++            ("floor", new(-2, -0.1, 1), new(4.2f, 0.1f, 5.2f), LitBlockRough),
++            ("ceiling", new(-2, 4.1, 1), new(4.2f, 0.1f, 5.2f), LitBlockRough),
++            ("wall-px", new(2.1, 2, 1), new(0.1f, 2, 5.2f), LitBlockGlossy),
++            ("wall-nx", new(-6.1, 2, 1), new(0.1f, 2, 5.2f), LitBlockRough),
++            ("wall-pz", new(-2, 2, 6.1), new(4, 2, 0.1f), LitBlockRough),
++            ("wall-nz", new(-2, 2, -4.1), new(4, 2, 0.1f), LitBlockRough),
++            ("block", new(0, 0.8, 0), new(1.2f, 0.8f, 0.75f), LitBlockRough),
++        ];
++        foreach ((string name, Double3 place, Vector3 halfExtents, float roughness) in slabs)
++            scene.Add(
++                name,
++                world.Spawn(
++                    new()
++                    {
++                        Frame = room,
++                        Pose = new(place, DQuaternion.Identity),
++                        Render = new RenderData
++                        {
++                            Mesh = resources.CreateMesh(Primitives.Box(halfExtents)),
++                            Material = resources.CreateMaterial(MaterialDesc.Color(LitBlockGray, roughness)),
++                            BoundingRadius = halfExtents.Length(),
++                            Flags = RenderFlags.Visible | RenderFlags.CastsShadow,
++                        },
++                    }
++                )
++            );
++        scene.Add(
++            "key",
++            world.Spawn(
++                SpotLamp(
++                    frame: room,
++                    resources: resources,
++                    pose: litBack
++                        ? LookingAt(new(0, 0.8, -2.15), new(0, 0.8, -0.75))
++                        : LookingAt(new(0, 0.8, 2.15), new(0, 0.8, 0.75)),
++                    light: new SpotLightData(
++                        Offset: new(Vector3.Zero, Quaternion.Identity),
++                        Color: LampColor,
++                        Power: CabinLampPower,
++                        Radius: LampRadius,
++                        CastsShadow: true,
++                        InnerConeAngle: 25 * MathF.PI / 180,
++                        OuterConeAngle: 30 * MathF.PI / 180
++                    )
++                )
++            )
++        );
++        scene.Add(
++            "floor-lamp",
++            world.Spawn(
++                SpotLamp(
++                    frame: room,
++                    resources: resources,
++                    pose: new(new(-3.5, 3.9, 1.5), DQuaternion.FromAxisAngle(Double3.UnitX, -Math.PI / 2)),
++                    light: new SpotLightData(
++                        Offset: new(Vector3.Zero, Quaternion.Identity),
++                        Color: LampColor,
++                        Power: CabinLampPower,
++                        Radius: LampRadius,
++                        CastsShadow: true,
++                        InnerConeAngle: 18 * MathF.PI / 180,
++                        OuterConeAngle: 25 * MathF.PI / 180
++                    )
++                )
++            )
++        );
++        Entity camera = world.Spawn(
++            path is null
++                ? ViewIn(room, LookingAt(new(1, 1.5, 4.5), new(-0.8, 0.7, -1)))
++                : new()
++                {
++                    Frame = room,
++                    Pose = path(0),
++                    Render = new RenderData(),
++                    Components = [new LitBlockCameraPath(path)],
++                }
++        );
++        scene.Add("camera", camera);
++        scene.AddView("camera");
++        world.Camera = camera;
++        return scene;
++    }
++}
+diff --color=auto -ruN -x bin -x obj /Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7/src/Tertius.Demo/DemoScenes.Shadows.cs film-src/src/Tertius.Demo/DemoScenes.Shadows.cs
+--- /Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7/src/Tertius.Demo/DemoScenes.Shadows.cs	2026-11-22 10:14:26
++++ film-src/src/Tertius.Demo/DemoScenes.Shadows.cs	2026-11-22 16:42:12
+@@ -78,6 +78,10 @@
+         [
+             new("spot-box", SpotBox),
+             new("pillar-room", PillarRoom),
++            new("lit-block-front", (world, resources) => LitBlock(world, resources, litBack: false)),
++            new("lit-block-back", (world, resources) => LitBlock(world, resources, litBack: true)),
++            new("lit-block-back-walk", (world, resources) => LitBlock(world, resources, litBack: true, path: LitBlockWalk)),
++            new("lit-block-back-turn", (world, resources) => LitBlock(world, resources, litBack: true, path: LitBlockTurn)),
+             .. HallLampCounts.SelectMany(LampHallScenes),
+             new("lamp-hall-16-hair", LampHallHair),
+             .. StarCounts.Select(stars => new Scene(
+diff --color=auto -ruN -x bin -x obj /Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7/src/Tertius.Rendering/Frame/EnvironmentMap.cs film-src/src/Tertius.Rendering/Frame/EnvironmentMap.cs
+--- /Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7/src/Tertius.Rendering/Frame/EnvironmentMap.cs	2026-11-22 10:14:25
++++ film-src/src/Tertius.Rendering/Frame/EnvironmentMap.cs	2026-11-22 16:42:12
+@@ -250,6 +250,9 @@
+         for (int map = 0; map < faces.Length; map++)
+             if (EnvironmentFaces.RefreshesAll(drawnFor: DrawnFor, served: served, map: map, longStep: longStep))
+                 faces[map] = FaceMask.All;
++        // t2b-xeo7 scratch probe: the faces of each served map per drawn frame.
++        if (System.Environment.GetEnvironmentVariable("TERTIUS_X_FACE_LOG") is { } faceLog)
++            System.IO.File.AppendAllText(faceLog, $"{frame} {string.Join(" ", faces.ToArray().Select(f => ((byte)f).ToString()))}\n");
+         return facesOfMaps.AsMemory(0, served.Length);
+     }
+ 

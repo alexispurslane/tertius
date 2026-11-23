@@ -2,7 +2,7 @@
 id: t0-zmjx
 status: in_progress
 deps: []
-links: [ter-4iic, t0-70v1, t0-o7gf]
+links: [ter-4iic, t0-70v1, t0-o7gf, t0-gumm]
 created: 2026-11-22T20:26:05Z
 type: task
 priority: 1
@@ -113,6 +113,18 @@ My answers: 60, the run-to-run spread is not taken (one candidate); 61, the thre
 
 The orchestrator confirmed on 2026-11-22: the restart at 8 draws is the choice, by point 1 of the rule; answers 59 to 63 stand. The user's own variant got a fair test: 'own rays wait for the evidence' was built as a scratch variant with the plan's exact reach (scratch-plan-waits-for-evidence.patch in the acceptance record) and measured on the card and on the Mac. Its result in one line: the dear draws shrink from 10 to 4, each still costs up to 25 ms on the card (settled 17.6 ms), and the render scale still falls by 0.097 after a switch, where the restart at 8 draws leaves it at 1.000. The ray budget per draw is a candidate in the orchestrator's review of the approach and is not designed on this line now.
 
+**2026-11-22T21:20:55Z**
+
+The acceptance lead's evidence for the choice, 2026-11-22, commit ee71751c7 on t3/measure-regional-lag-tolerance: the video pics/switch-cabin-fair-fixed-23-x-xb-xd.mp4 (Design X | the cap | own rays wait for the evidence; H.264, 3840 x 720, yuv420p, 60 fps, 320 frames by my ffprobe; all panes from first-generation frames) and the card's cost chart pics/cost-switch-card-16ms-x-xb-xd.png in docs/research/design-x-acceptance-2026-11-22. The chart: Design X peaks at about 24.5 ms after each switch and dips to 14 to 15 ms while the scale recovers; the user's variant peaks about 6 draws later at about 25.5 ms; the cap stays flat at about 17.6 ms. Limit: the encode adds boil to each pane about equally (Design X's floor 0.57 % in the video against 0.25 % in the source frames). Reported to the orchestrator. The lead merged the line's head 6692e0bfe into its branch and wrote the cap's tests; the lead's bug ticket for the cost block is tc-g2zz.
+
+**2026-11-22T22:12:07Z**
+
+State at 17:13 on 2026-11-22, from the acceptance lead: the commit of its merge of the line's head failed once in the hook, because the hook's build took the lead's unstaged test edits of the cap; 9 tests of AccumulatorRenderTests failed there, each finding 4 draws where the cap's tests want 8, which the lead counts as the red run of that class on the present shader. The second try's background command ended with a restart of the session, and the lead's turn had ended, so nothing ran from 16:43 to 17:12; I woke the lead. The merge commit runs again with the 2-hour limit and the lead waits on it. Then: the light-age class red, the one-line change, green, the hash to me.
+
+**2026-11-22T23:14:19Z**
+
+The cap's commit, 2026-11-22 18:14: 05a27262d on t3/measure-regional-lag-tolerance, parent 64d34b63c (the lead's merge of the line's head; its hook passed: Rendering 3,415 passed, 0 failed; Host 42 of 42). Red run on the present shader: 18 of 205 tests of LightAgeHistoryTests and AccumulatorRenderTests fail, each finding 4 draws where 8 are wanted. The new plan test: at most 85 own rays per draw when settled (plan image 128 x 72 = 9,216 pixels); after a lasting dimming 2,161 to 3,059 with the old cut and 79 to 126 with the cap. Green: the full Checked Rendering suite on exactly this code, 3,416 passed, 0 failed, 10 skipped. The change: one condition for both kinds of evidence, min(antiLagged, FullRateFrames), in accumulate_spatial.comp; comments there and in sample_age.glsl; decision X1's record, sections 8.2 and 8.3, ARCHITECTURE.md. I read the shader diff. Open: 10 mutants, the Release suite, one reviewer, the acceptance takes and the card's scale log. My answer 79: the two films on the final code start now on 05a27262d (main's src is unchanged since ac5f23915); they are taken again only if the mutants or the review change a file under src.
+
 **2026-11-22T23:30:07Z**
 
 The build (acceptance lead, 2026-11-22). Commit 05a27262d on the merge 64d34b63c of the line's head. The form: one condition for both kinds of evidence, `evidence == LightEvidence || evidence == RegionEvidence ? min(antiLagged, FullRateFrames) : antiLagged` (accumulate_spatial.comp:168).
@@ -136,3 +148,7 @@ The mutants (tools/mutate.py, list /private/tmp/t0-5tyj/zmjx/mutants*.json). The
 | Z11 | light evidence beside motion takes the narrow box (line 151) | killed | ALightCodeWithTheMotionBitKeepsTheWidenedBoxOfLightEvidence and two others |
 
 The review (one reviewer, claudeAgent claude-opus-5-5 at high effort): correctness pass, fulfillment pass, design fail on one finding. A block with light evidence and motion keeps the wide box and now up to 8 draws of a moving view, and the reason for that order ("a history at FastCap holds no lag") no longer holds. Resolution: the order stays as it was, because the cap did not change it. Section 8.2 records the open point, the test ALightCodeWithTheMotionBitKeepsTheWidenedBoxOfLightEvidence pins the present order (Z11), and tc-tc8c measures a lamp switch during a walk with the composed level (motion's narrow box beside the cap) as its candidate. The four nits are fixed: a stale summary, own rays counted as pixels, the wording of X1's parenthesis, and a sentence on reflections whose cap lies between 4 and 8.
+
+**2026-11-22T23:54:06Z**
+
+The cap's hardening, 2026-11-22 18:54, from the acceptance lead. b543151da: the review's fixes (tests, docs, ticket notes only; nothing under src after 05a27262d); the full Checked Rendering suite passed on it, 3,417 passed, 0 failed. Review: correctness and fulfillment pass; design failed on one finding: a block with light evidence and motion keeps the wide box, as before the cap, but the history now holds up to 8 draws there, so the clamp acts with the wide box, and the old reason for the order (a history at FastCap holds no lag) no longer holds. The lead kept the order, recorded the open point in section 8.2, pinned it with the test ALightCodeWithTheMotionBitKeepsTheWidenedBoxOfLightEvidence and filed tc-tc8c. Mutants: 11 listed, all killed (Z01 to Z10 on line 168, Z11 on the box under light evidence beside motion). ff621092f: the fitted probe patch (tc-w3c0). My answer 80: the fork is not settled before the merge; a wide box under light evidence can keep stale light of a moving surface for at most about 8 draws; tc-tc8c is a follow-up, with the design note that the evidence should be a set of bits, one per kind, each action reading its own bit, in place of a maximum over ordered levels. My answer 81: condition 62 is met by the films' card log on 05a27262d (scale 0.993, no size change); no card job of the lead's own.

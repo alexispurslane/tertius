@@ -1,0 +1,53 @@
+== video-switch
+docs/research/t0-3vwx-dynamic-scale-films/pics/switch-M5-X5.mp4 11.1 MB, 320 frames at 60 per second, 3840 x 1080
+pane 1 M5  main ac5f23915: render scale 0.954 to 1.000, 39 size changes in the video's 320 draws
+pane 2 X5  Design X + main ac5f23915: render scale 0.832 to 0.989, 97 size changes in the video's 320 draws
+lamps off, draw 0, against the last frame: M5  main ac5f23915: r11 source -16.58 %, video -16.48 %, largest difference 0.27 %; X5  Design X + main ac5f23915: r11 source -17.09 %, video -16.97 %, largest difference 0.25 %
+lamps off, draw 60, against the last frame: M5  main ac5f23915: r11 source -30.15 %, video -30.05 %, largest difference 0.11 %; X5  Design X + main ac5f23915: r11 source -31.25 %, video -31.13 %, largest difference 0.12 %
+lamps on again, draw 20, against the last frame: M5  main ac5f23915: r11 source -13.99 %, video -13.71 %, largest difference 0.27 %; X5  Design X + main ac5f23915: r11 source -8.36 %, video -8.06 %, largest difference 0.30 %
+
+== measure5-switch-A
+== M5 (/private/tmp/t0-gbgj/macdyn5/pics/s-M5)
+  before off (20 one size / 0 changed): right 0.04359 / -, left 0.04356 / -, grain floor 0.5393 / -, grain wall 0.7197 / -, history mean 29.78 / -, history <8 0.02526 / -
+  off 0-60 (45 one size / 15 changed): right 0.009458 / 0.011, left 0.009206 / 0.0102, grain floor 2.908 / 3.161, grain wall 1.085 / 1.018, history mean 26.39 / 25.56, history <8 0.05097 / 0.05072
+  off 60-200 (138 one size / 2 changed): right 0.003379 / 0.003418, left 0.003364 / 0.003317, grain floor 2.508 / 2.514, grain wall 1.06 / 1.074, history mean 28.37 / 28.25, history <8 0.03744 / 0.0337
+  on 0-100 (78 one size / 22 changed): right 0.03657 / 0.02717, left 0.03711 / 0.02739, grain floor 0.655 / 0.7949, grain wall 0.8788 / 1.045, history mean 30.12 / 29.65, history <8 0.02262 / 0.02042
+== X5 (/private/tmp/t0-gbgj/macdyn5/pics/s-X5)
+  before off (20 one size / 0 changed): right 0.04359 / -, left 0.04361 / -, grain floor 0.5273 / -, grain wall 0.7724 / -, history mean 27.79 / -, history <8 0.01868 / -
+  off 0-60 (16 one size / 44 changed): right 0.01381 / 0.008561, left 0.01388 / 0.00796, grain floor 2.513 / 3.174, grain wall 1.017 / 1.044, history mean 24.55 / 20.85, history <8 0.1229 / 0.196
+  off 60-200 (136 one size / 4 changed): right 0.003641 / 0.004529, left 0.003632 / 0.004254, grain floor 2.334 / 2.569, grain wall 1.013 / 0.9699, history mean 26.96 / 31.4, history <8 0.01868 / 0.0187
+  on 0-100 (51 one size / 49 changed): right 0.03762 / 0.03426, left 0.03761 / 0.03429, grain floor 0.5954 / 0.7703, grain wall 0.8366 / 0.9141, history mean 28.75 / 22.23, history <8 0.05267 / 0.1792
+
+== wobble5-A
+M5: horizontal distance 1183.38 to 1185.06 output px (range 1.69), vertical distance 257.08 to 258.12 (range 1.05)
+  rms of the horizontal distance around its mean 0.265 px, around the prediction 3.192 px (D0 = 1186.32 px); predicted range 1177.76 to 1190.87
+  correlation with render width +0.315, render height +0.307, (h / w) * 16/9 +0.048; render h/w * 16/9 from 0.9928 to 1.0038
+  noise floor: rms of the frame-to-frame change of the horizontal distance between two draws of one size, over sqrt 2: 0.062 px (280 pairs); vertical distance against (h / w) * 16/9: correlation -0.304, rms around its mean 0.192 px
+X5: horizontal distance 1182.94 to 1185.10 output px (range 2.16), vertical distance 257.01 to 258.68 (range 1.67)
+  rms of the horizontal distance around its mean 0.312 px, around the prediction 2.449 px (D0 = 1187.63 px); predicted range 1178.66 to 1192.18
+  correlation with render width +0.613, render height +0.616, (h / w) * 16/9 -0.010; render h/w * 16/9 from 0.9924 to 1.0038
+  noise floor: rms of the frame-to-frame change of the horizontal distance between two draws of one size, over sqrt 2: 0.025 px (222 pairs); vertical distance against (h / w) * 16/9: correlation +0.042, rms around its mean 0.210 px
+docs/research/t0-3vwx-dynamic-scale-films/pics/switch-edges-M5-X5.png (1300, 560)
+
+== levjump5-A
+M5:
+  floor: before off (0/18): rise - against 0.01/0.01, kink - against 0.01/0.00 | off 0-60 (15/44): rise 2.68/1.35 against 2.21/1.01, kink 0.50/0.15 against 0.42/0.13 | off 60-200 (2/137): rise 0.28/0.21 against 0.64/0.16, kink 0.05/0.03 against 0.12/0.03 | on 0-100 (22/76): rise 0.47/0.28 against 0.48/0.16, kink 0.10/0.02 against 0.09/0.01
+  left wall: before off (0/18): rise - against 0.06/0.02, kink - against 0.03/0.01 | off 0-60 (15/44): rise 2.42/1.62 against 2.00/1.15, kink 0.33/0.13 against 0.36/0.09 | off 60-200 (2/137): rise 0.49/0.38 against 0.64/0.21, kink 0.08/0.05 against 0.09/0.02 | on 0-100 (22/76): rise 2.13/1.37 against 2.18/0.61, kink 0.33/0.16 against 0.25/0.08
+  ceiling: before off (0/18): rise - against 0.04/0.01, kink - against 0.02/0.01 | off 0-60 (15/44): rise 3.41/2.07 against 4.53/1.30, kink 0.36/0.15 against 1.30/0.17 | off 60-200 (2/137): rise 0.37/0.30 against 0.68/0.20, kink 0.04/0.03 against 0.13/0.03 | on 0-100 (22/76): rise 2.81/1.22 against 5.09/0.58, kink 0.67/0.11 against 0.96/0.06
+X5:
+  floor: before off (0/18): rise - against 0.02/0.01, kink - against 0.01/0.00 | off 0-60 (44/15): rise 3.33/1.17 against 1.63/0.64, kink 1.00/0.12 against 0.54/0.12 | off 60-200 (4/135): rise 0.49/0.39 against 0.46/0.16, kink 0.10/0.05 against 0.11/0.03 | on 0-100 (49/49): rise 0.87/0.28 against 0.56/0.09, kink 0.29/0.02 against 0.12/0.01
+  left wall: before off (0/18): rise - against 0.06/0.02, kink - against 0.02/0.01 | off 0-60 (44/15): rise 4.28/1.26 against 4.73/0.98, kink 0.95/0.11 against 1.44/0.21 | off 60-200 (4/135): rise 0.42/0.37 against 0.41/0.20, kink 0.03/0.02 against 0.06/0.01 | on 0-100 (49/49): rise 5.94/1.02 against 6.04/0.45, kink 0.72/0.12 against 1.62/0.10
+  ceiling: before off (0/18): rise - against 0.18/0.06, kink - against 0.13/0.05 | off 0-60 (44/15): rise 6.81/1.49 against 6.41/1.33, kink 0.62/0.15 against 1.30/0.19 | off 60-200 (4/135): rise 0.38/0.27 against 0.40/0.18, kink 0.10/0.05 against 0.10/0.03 | on 0-100 (49/49): rise 6.03/0.86 against 6.00/0.52, kink 0.38/0.08 against 0.83/0.09
+
+== boil5-A
+M5: floor: before off 0.02 (0.03), off 0-60 0.19 (0.93) / 0.23 (1.39), off 60-200 0.06 (0.18) / 0.07 (0.24), on 0-100 0.03 (0.13) / 0.06 (0.29) | left wall: before off 0.03 (0.04), off 0-60 0.17 (1.10) / 0.22 (1.57), off 60-200 0.05 (0.21) / 0.08 (0.35), on 0-100 0.12 (0.49) / 0.23 (1.27) | ceiling: before off 0.02 (0.04), off 0-60 0.20 (1.32) / 0.23 (1.82), off 60-200 0.05 (0.21) / 0.07 (0.29), on 0-100 0.10 (0.52) / 0.18 (1.11)
+X5: floor: before off 0.02 (0.03), off 0-60 0.20 (0.81) / 0.18 (1.08), off 60-200 0.06 (0.17) / 0.08 (0.36), on 0-100 0.03 (0.07) / 0.05 (0.26) | left wall: before off 0.02 (0.03), off 0-60 0.48 (1.12) / 0.17 (1.23), off 60-200 0.05 (0.20) / 0.08 (0.36), on 0-100 0.13 (0.30) / 0.16 (0.99) | ceiling: before off 0.07 (0.08), off 0-60 0.55 (1.84) / 0.16 (1.48), off 60-200 0.06 (0.19) / 0.08 (0.32), on 0-100 0.13 (0.44) / 0.12 (0.86)
+
+== dynscale5-X5
+== s-X5: 493 draws in the size log, 493 in the region log, sizes [(1464, 824)] to [(1920, 1080)] (69 different)
+span                       draws  changes  longest  runs>=36         scale   tested    fires
+before the switch        36-192        30      113         1  0.889-0.989    49.2%     1.1%
+200 draws after off     193-392        48      130         1  0.836-0.989    52.9%     2.8%
+100 draws after off     193-292        48       30         0  0.836-0.989    11.7%     9.7%
+100 draws after on      393-492        49       33         0  0.832-0.988    12.1%    15.2%
+

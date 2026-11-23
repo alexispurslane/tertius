@@ -1,0 +1,281 @@
+## The picture runs: jambs, grain and history per span, split by changed and one-size draws (measure5.py)
+$ /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-3vwx-dynamic-scale-films/tools/measure5.py switch X3|/private/tmp/t0-gbgj/macdyn5/pics/s-X3
+== X3 (/private/tmp/t0-gbgj/macdyn5/pics/s-X3)
+  before off (20 one size / 0 changed): right 0.04335 / -, left 0.04338 / -, grain floor 0.5276 / -, grain wall 0.779 / -, history mean 28.34 / -, history <8 0.01886 / -
+  off 0-60 (16 one size / 44 changed): right 0.01979 / 0.01178, left 0.02137 / 0.01375, grain floor 2.831 / 3.651, grain wall 1.956 / 2.75, history mean 22.37 / 17.84, history <8 0.1355 / 0.2283
+  off 60-200 (136 one size / 4 changed): right 0.00498 / 0.009169, left 0.003491 / 0.006839, grain floor 2.403 / 3.067, grain wall 1.199 / 6.147, history mean 28.12 / 28.86, history <8 0.02003 / 0.04139
+  on 0-100 (51 one size / 49 changed): right 0.06039 / 0.04295, left 0.0644 / 0.04337, grain floor 0.6842 / 0.8984, grain wall 2.799 / 2.429, history mean 28.52 / 21.7, history <8 0.05346 / 0.1831
+
+$ /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-3vwx-dynamic-scale-films/tools/measure5.py switch M3|/private/tmp/t0-gbgj/macdyn5/pics/s-M3
+== M3 (/private/tmp/t0-gbgj/macdyn5/pics/s-M3)
+  before off (20 one size / 0 changed): right 0.04242 / -, left 0.04302 / -, grain floor 0.5397 / -, grain wall 0.7263 / -, history mean 29.76 / -, history <8 0.02557 / -
+  off 0-60 (45 one size / 15 changed): right 0.01293 / 0.01443, left 0.01417 / 0.01405, grain floor 3.118 / 3.509, grain wall 1.737 / 2.198, history mean 26.27 / 25.49, history <8 0.05397 / 0.0554
+  off 60-200 (138 one size / 2 changed): right 0.0058 / 0.00944, left 0.005657 / 0.006707, grain floor 2.564 / 2.569, grain wall 6.679 / 5.292, history mean 28.32 / 28.16, history <8 0.03798 / 0.03711
+  on 0-100 (78 one size / 22 changed): right 0.03993 / 0.03373, left 0.03951 / 0.03869, grain floor 0.6907 / 0.9145, grain wall 2.626 / 4.664, history mean 30.04 / 29.48, history <8 0.0237 / 0.02353
+
+$ /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-3vwx-dynamic-scale-films/tools/measure5.py switch L5|/private/tmp/t0-gbgj/macdyn5/pics/l-X5
+== L5 (/private/tmp/t0-gbgj/macdyn5/pics/l-X5)
+  before off (20 one size / 0 changed): right 0.04359 / -, left 0.04361 / -, grain floor 0.5273 / -, grain wall 0.7724 / -, history mean 27.79 / -, history <8 0.01868 / -
+  off 0-60 (16 one size / 44 changed): right 0.04357 / 0.0435, left 0.04366 / 0.04358, grain floor 0.4892 / 0.4591, grain wall 0.7319 / 0.7287, history mean 29.58 / 30.45, history <8 0.01868 / 0.0187
+  off 60-200 (136 one size / 4 changed): right 0.04384 / 0.04386, left 0.0437 / 0.04385, grain floor 0.5312 / 0.5048, grain wall 0.7663 / 0.7108, history mean 28.68 / 31.4, history <8 0.01868 / 0.0187
+  on 0-100 (51 one size / 49 changed): right 0.04391 / 0.044, left 0.04387 / 0.0442, grain floor 0.5176 / 0.4593, grain wall 0.7269 / 0.7122, history mean 30.75 / 30.59, history <8 0.01868 / 0.01869
+
+## The two window edges (wobble.py of the combined check), and their split (wobsplit.py)
+$ /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/tools/wobble.py /private/tmp/t0-gbgj/check5/edges-X3.png X3|/private/tmp/t0-gbgj/macdyn5/pics/s-X3|/private/tmp/t0-gbgj/macdyn5/pics/s-X3/size-193-393.txt
+X3: horizontal distance 1175.52 to 1188.95 output px (range 13.44), vertical distance 257.01 to 258.64 (range 1.63)
+  rms of the horizontal distance around its mean 2.432 px, around the prediction 0.267 px (D0 = 1184.55 px); predicted range 1175.61 to 1189.09
+  correlation with render width -0.103, render height -0.061, (h / w) * 16/9 +0.994; render h/w * 16/9 from 0.9924 to 1.0038
+  noise floor: rms of the frame-to-frame change of the horizontal distance between two draws of one size, over sqrt 2: 0.068 px (222 pairs); vertical distance against (h / w) * 16/9: correlation +0.039, rms around its mean 0.204 px
+/private/tmp/t0-gbgj/check5/edges-X3.png (1300, 300)
+
+$ /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/tools/wobble.py /private/tmp/t0-gbgj/check5/edges-M3.png M3|/private/tmp/t0-gbgj/macdyn5/pics/s-M3|/private/tmp/t0-gbgj/macdyn5/pics/s-M3/size-193-393.txt
+M3: horizontal distance 1175.57 to 1189.02 output px (range 13.45), vertical distance 257.07 to 258.12 (range 1.05)
+  rms of the horizontal distance around its mean 3.132 px, around the prediction 0.245 px (D0 = 1184.45 px); predicted range 1175.90 to 1188.99
+  correlation with render width +0.126, render height +0.371, (h / w) * 16/9 +0.997; render h/w * 16/9 from 0.9928 to 1.0038
+  noise floor: rms of the frame-to-frame change of the horizontal distance between two draws of one size, over sqrt 2: 0.043 px (280 pairs); vertical distance against (h / w) * 16/9: correlation -0.293, rms around its mean 0.187 px
+/private/tmp/t0-gbgj/check5/edges-M3.png (1300, 300)
+
+$ /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/tools/wobble.py /private/tmp/t0-gbgj/check5/edges-L5.png L5|/private/tmp/t0-gbgj/macdyn5/pics/l-X5|/private/tmp/t0-gbgj/macdyn5/pics/l-X5/size-none.txt
+L5: horizontal distance 1184.46 to 1185.02 output px (range 0.56), vertical distance 257.26 to 258.84 (range 1.57)
+  rms of the horizontal distance around its mean 0.128 px, around the prediction 2.388 px (D0 = 1187.77 px); predicted range 1178.80 to 1192.32
+  correlation with render width -0.020, render height -0.006, (h / w) * 16/9 +0.327; render h/w * 16/9 from 0.9924 to 1.0038
+  noise floor: rms of the frame-to-frame change of the horizontal distance between two draws of one size, over sqrt 2: 0.009 px (222 pairs); vertical distance against (h / w) * 16/9: correlation +0.095, rms around its mean 0.293 px
+/private/tmp/t0-gbgj/check5/edges-L5.png (1300, 300)
+
+$ /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/tools/wobsplit.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-3vwx-dynamic-scale-films/sizes/switch-x-16.6667/size-193-393.txt X3|/private/tmp/t0-gbgj/wobdump5/X3.txt|aspect X5|/private/tmp/t0-gbgj/wobdump5/X5.txt|flat L5|/private/tmp/t0-gbgj/wobdump5/L5.txt|flat
+measure | X3 change | X3 one size | X5 change | X5 one size | L5 change | L5 one size
+draws | 97 | 223 | 97 | 223 | 97 | 223
+distance residual rms / range (px of 1920) | 0.368 / 1.53 | 0.208 / 1.29 | 0.465 / 1.92 | 0.213 / 1.78 | 0.096 / 0.39 | 0.139 / 0.51
+midpoint rms / range (px of 1920) | 0.243 / 1.08 | 0.171 / 0.91 | 0.119 / 0.58 | 0.045 / 0.43 | 0.060 / 0.26 | 0.028 / 0.15
+distance residual step mean abs / largest (px of 1920) | 0.241 / 0.94 | 0.034 / 0.77 | 0.057 / 0.90 | 0.014 / 0.29 | 0.013 / 0.14 | 0.007 / 0.10
+midpoint residual step mean abs / largest (px of 1920) | 0.212 / 0.67 | 0.052 / 0.86 | 0.036 / 0.47 | 0.012 / 0.07 | 0.014 / 0.18 | 0.009 / 0.06
+X3:
+  largest step of the distance residual: 0.94 px of 1920 = 0.63 px of 1280, at film frame 365 (changed, scale 0.9876 -> 0.9774)
+  distance residual: correlation with render scale +0.416, render width +0.419, changed draw -0.439
+  distance residual: between-run rms 0.245 px over 98 runs, within-run rms 0.108 px
+  distance residual by draws since a change, mean abs value / mean abs step (draws): 0: 0.281/0.241 (97), 1: 0.235/0.055 (23), 2: 0.254/0.058 (9), 3: 0.242/0.017 (5), 4: 0.186/0.011 (3), 5+: 0.153/0.030 (182)
+  largest step of the midpoint: 0.86 px of 1920 = 0.58 px of 1280, at film frame 162 (one size, scale 0.9892 -> 0.9892)
+  midpoint: correlation with render scale +0.068, render width +0.076, changed draw -0.253
+  midpoint: between-run rms 0.182 px over 98 runs, within-run rms 0.072 px
+  midpoint by draws since a change, mean abs value / mean abs step (draws): 0: 0.187/0.212 (97), 1: 0.172/0.038 (23), 2: 0.204/0.044 (9), 3: 0.191/0.034 (5), 4: 0.161/0.014 (3), 5+: 0.140/0.056 (182)
+X5:
+  largest step of the distance residual: 0.90 px of 1920 = 0.60 px of 1280, at film frame 366 (changed, scale 0.9774 -> 0.9604)
+  distance residual: correlation with render scale +0.610, render width +0.613, changed draw -0.384
+  distance residual: between-run rms 0.306 px over 98 runs, within-run rms 0.060 px
+  distance residual by draws since a change, mean abs value / mean abs step (draws): 0: 0.243/0.057 (97), 1: 0.131/0.022 (23), 2: 0.142/0.056 (9), 3: 0.007/0.011 (5), 4: 0.013/0.005 (3), 5+: 0.173/0.012 (182)
+  largest step of the midpoint: 0.47 px of 1920 = 0.31 px of 1280, at film frame 366 (changed, scale 0.9774 -> 0.9604)
+  midpoint: correlation with render scale -0.081, render width -0.081, changed draw -0.170
+  midpoint: between-run rms 0.074 px over 98 runs, within-run rms 0.015 px
+  midpoint by draws since a change, mean abs value / mean abs step (draws): 0: 0.083/0.036 (97), 1: 0.044/0.012 (23), 2: 0.052/0.021 (9), 3: 0.012/0.012 (5), 4: 0.005/0.006 (3), 5+: 0.016/0.011 (182)
+L5:
+  largest step of the distance residual: 0.14 px of 1920 = 0.09 px of 1280, at film frame 386 (changed, scale 0.8699 -> 0.8755)
+  distance residual: correlation with render scale -0.025, render width -0.020, changed draw -0.022
+  distance residual: between-run rms 0.125 px over 98 runs, within-run rms 0.027 px
+  distance residual by draws since a change, mean abs value / mean abs step (draws): 0: 0.081/0.013 (97), 1: 0.097/0.013 (23), 2: 0.086/0.009 (9), 3: 0.115/0.011 (5), 4: 0.066/0.008 (3), 5+: 0.110/0.006 (182)
+  largest step of the midpoint: 0.18 px of 1920 = 0.12 px of 1280, at film frame 383 (changed, scale 0.8535 -> 0.8588)
+  midpoint: correlation with render scale +0.389, render width +0.388, changed draw -0.464
+  midpoint: between-run rms 0.038 px over 98 runs, within-run rms 0.013 px
+  midpoint by draws since a change, mean abs value / mean abs step (draws): 0: 0.038/0.014 (97), 1: 0.022/0.013 (23), 2: 0.016/0.009 (9), 3: 0.009/0.012 (5), 4: 0.014/0.006 (3), 5+: 0.014/0.009 (182)
+per-size share of the variance (all draws / no change draws), distinct sizes; left-right correlation:
+  X3: 52 sizes; left 0.52 / 0.56, right 0.68 / 0.70, distance 0.46 / 0.46, midpoint 0.68 / 0.71; left-right correlation +0.367 (no change draws +0.515)
+  X5: 52 sizes; left 0.59 / 0.81, right 0.73 / 0.75, distance 0.65 / 0.84, midpoint 0.50 / 0.60; left-right correlation -0.716 (no change draws -0.810)
+  L5: 52 sizes; left 0.82 / 0.87, right 0.53 / 0.75, distance 0.74 / 0.87, midpoint 0.58 / 0.58; left-right correlation -0.438 (no change draws -0.862)
+  alignment X3: size log moved -1 draw: residual rms 3.060 px, on change draws 5.548, on one-size draws 0.215
+  alignment X3: size log moved +0 draw: residual rms 0.267 px, on change draws 0.368, on one-size draws 0.208
+  alignment X3: size log moved +1 draw: residual rms 3.057 px, on change draws 4.799, on one-size draws 1.834
+inside the 60 frames after each lamp switch: changed / one size, rms of the value and mean abs step (draws):
+  X3: distance 0.374/0.241 (90) against 0.366/0.157 (30); midpoint 0.237/0.214 (90) against 0.249/0.219 (30)
+  X5: distance 0.483/0.061 (90) against 0.388/0.054 (30); midpoint 0.124/0.039 (90) against 0.098/0.020 (30)
+  L5: distance 0.093/0.013 (90) against 0.109/0.012 (30); midpoint 0.062/0.014 (90) against 0.024/0.010 (30)
+per edge: correlation with draws since a change and with the render width:
+  X3: left +0.160 / -0.189, right +0.545 / +0.279, distance +0.387 / +0.419, midpoint +0.443 / +0.076
+  X5: left -0.312 / -0.479, right +0.570 / +0.730, distance +0.436 / +0.613, midpoint +0.024 / -0.081
+  L5: left -0.283 / +0.209, right +0.448 / +0.206, distance +0.423 / -0.020, midpoint +0.102 / +0.388
+the distance residual against a straight line in the render scale:
+  X3 distance: slope +0.251 px per 0.1 of scale, scale from 0.832 to 0.989; rms left over 0.267 -> 0.243; changed / one size 0.345 / 0.181, inside the switch windows 0.348 / 0.356
+  X3 midpoint: slope +0.030 px per 0.1 of scale, scale from 0.832 to 0.989; rms left over 0.195 -> 0.195; changed / one size 0.244 / 0.169, inside the switch windows 0.238 / 0.250
+  X5 distance: slope +0.429 px per 0.1 of scale, scale from 0.832 to 0.989; rms left over 0.312 -> 0.247; changed / one size 0.390 / 0.147, inside the switch windows 0.404 / 0.239
+  X5 midpoint: slope -0.014 px per 0.1 of scale, scale from 0.832 to 0.989; rms left over 0.076 -> 0.075; changed / one size 0.119 / 0.044, inside the switch windows 0.124 / 0.093
+  L5 distance: slope -0.007 px per 0.1 of scale, scale from 0.832 to 0.989; rms left over 0.128 -> 0.128; changed / one size 0.095 / 0.139, inside the switch windows 0.092 / 0.109
+  L5 midpoint: slope +0.035 px per 0.1 of scale, scale from 0.832 to 0.989; rms left over 0.040 -> 0.037; changed / one size 0.054 / 0.027, inside the switch windows 0.056 / 0.031
+
+$ /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/tools/wobsplit.py /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-3vwx-dynamic-scale-films/sizes/switch-m-16.6667/size-193-393.txt M3|/private/tmp/t0-gbgj/wobdump5/M3.txt|aspect M5|/private/tmp/t0-gbgj/wobdump5/M5.txt|flat
+measure | M3 change | M3 one size | M5 change | M5 one size
+draws | 39 | 281 | 39 | 281
+distance residual rms / range (px of 1920) | 0.261 / 1.03 | 0.243 / 1.42 | 0.506 / 1.52 | 0.210 / 1.65
+midpoint rms / range (px of 1920) | 0.280 / 1.06 | 0.113 / 0.99 | 0.185 / 0.60 | 0.071 / 0.73
+distance residual step mean abs / largest (px of 1920) | 0.201 / 0.59 | 0.021 / 0.60 | 0.041 / 0.79 | 0.025 / 1.15
+midpoint residual step mean abs / largest (px of 1920) | 0.244 / 0.54 | 0.021 / 0.38 | 0.026 / 0.40 | 0.023 / 0.59
+M3:
+  largest step of the distance residual: 0.60 px of 1920 = 0.40 px of 1280, at film frame 160 (one size, scale 0.9997 -> 0.9997)
+  distance residual: correlation with render scale +0.102, render width +0.057, changed draw -0.111
+  distance residual: between-run rms 0.201 px over 40 runs, within-run rms 0.141 px
+  distance residual by draws since a change, mean abs value / mean abs step (draws): 0: 0.204/0.201 (39), 1: 0.146/0.041 (24), 2: 0.148/0.029 (17), 3: 0.169/0.029 (10), 4: 0.156/0.025 (8), 5+: 0.179/0.018 (221)
+  largest step of the midpoint: 0.54 px of 1920 = 0.36 px of 1280, at film frame 366 (changed, scale 0.9931 -> 0.9889)
+  midpoint: correlation with render scale -0.247, render width -0.251, changed draw +0.275
+  midpoint: between-run rms 0.139 px over 40 runs, within-run rms 0.038 px
+  midpoint by draws since a change, mean abs value / mean abs step (draws): 0: 0.221/0.244 (39), 1: 0.181/0.051 (24), 2: 0.162/0.031 (17), 3: 0.087/0.019 (10), 4: 0.076/0.023 (8), 5+: 0.057/0.017 (221)
+M5:
+  largest step of the distance residual: 1.15 px of 1920 = 0.77 px of 1280, at film frame 166 (one size, scale 0.9997 -> 0.9997)
+  distance residual: correlation with render scale +0.340, render width +0.315, changed draw -0.259
+  distance residual: between-run rms 0.242 px over 40 runs, within-run rms 0.108 px
+  distance residual by draws since a change, mean abs value / mean abs step (draws): 0: 0.314/0.041 (39), 1: 0.220/0.052 (24), 2: 0.223/0.017 (17), 3: 0.233/0.015 (10), 4: 0.270/0.013 (8), 5+: 0.101/0.023 (221)
+  largest step of the midpoint: 0.59 px of 1920 = 0.39 px of 1280, at film frame 166 (one size, scale 0.9997 -> 0.9997)
+  midpoint: correlation with render scale -0.225, render width -0.215, changed draw +0.185
+  midpoint: between-run rms 0.083 px over 40 runs, within-run rms 0.042 px
+  midpoint by draws since a change, mean abs value / mean abs step (draws): 0: 0.106/0.026 (39), 1: 0.045/0.031 (24), 2: 0.056/0.018 (17), 3: 0.062/0.009 (10), 4: 0.069/0.013 (8), 5+: 0.033/0.024 (221)
+per-size share of the variance (all draws / no change draws), distinct sizes; left-right correlation:
+  M3: 18 sizes; left 0.32 / 0.41, right 0.53 / 0.58, distance 0.54 / 0.60, midpoint 0.35 / 0.40; left-right correlation +0.160 (no change draws -0.082)
+  M5: 18 sizes; left 0.46 / 0.62, right 0.27 / 0.35, distance 0.44 / 0.56, midpoint 0.45 / 0.60; left-right correlation -0.511 (no change draws -0.484)
+  alignment M3: size log moved -1 draw: residual rms 2.066 px, on change draws 5.882, on one-size draws 0.243
+  alignment M3: size log moved +0 draw: residual rms 0.245 px, on change draws 0.261, on one-size draws 0.243
+  alignment M3: size log moved +1 draw: residual rms 2.070 px, on change draws 2.815, on one-size draws 1.944
+inside the 60 frames after each lamp switch: changed / one size, rms of the value and mean abs step (draws):
+  M3: distance 0.271/0.206 (35) against 0.209/0.051 (85); midpoint 0.292/0.261 (35) against 0.178/0.042 (85)
+  M5: distance 0.530/0.044 (35) against 0.332/0.055 (85); midpoint 0.195/0.028 (35) against 0.119/0.041 (85)
+per edge: correlation with draws since a change and with the render width:
+  M3: left -0.368 / -0.230, right +0.200 / -0.153, distance +0.437 / +0.057, midpoint -0.108 / -0.251
+  M5: left -0.182 / -0.289, right +0.253 / +0.268, distance +0.225 / +0.315, midpoint -0.099 / -0.215
+the distance residual against a straight line in the render scale:
+  M3 distance: slope +0.252 px per 0.1 of scale, scale from 0.954 to 1.000; rms left over 0.245 -> 0.244; changed / one size 0.263 / 0.241, inside the switch windows 0.272 / 0.214
+  M3 midpoint: slope -0.361 px per 0.1 of scale, scale from 0.954 to 1.000; rms left over 0.144 -> 0.140; changed / one size 0.262 / 0.112, inside the switch windows 0.273 / 0.181
+  M5 distance: slope +0.912 px per 0.1 of scale, scale from 0.954 to 1.000; rms left over 0.265 -> 0.249; changed / one size 0.491 / 0.192, inside the switch windows 0.516 / 0.316
+  M5 midpoint: slope -0.212 px per 0.1 of scale, scale from 0.954 to 1.000; rms left over 0.093 -> 0.091; changed / one size 0.183 / 0.069, inside the switch windows 0.193 / 0.115
+
+## The level's kink at size changes (levjump.py) and the boil without the fade (boilnoise.py)
+$ /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/tools/levjump.py X3|/private/tmp/t0-gbgj/macdyn5/pics/s-X3|/private/tmp/t0-gbgj/macdyn5/pics/s-X3/size-193-393.txt
+X3:
+  floor: before off (0/18): rise - against 0.02/0.01, kink - against 0.01/0.00 | off 0-60 (44/15): rise 3.37/1.50 against 1.19/0.50, kink 0.95/0.21 against 0.72/0.21 | off 60-200 (4/135): rise 0.74/0.52 against 0.24/0.08, kink 0.30/0.19 against 0.31/0.02 | on 0-100 (49/49): rise 1.10/0.30 against 0.42/0.08, kink 0.21/0.10 against 0.20/0.02
+  left wall: before off (0/18): rise - against 0.04/0.01, kink - against 0.02/0.01 | off 0-60 (44/15): rise 4.32/1.62 against 4.81/0.85, kink 1.33/0.59 against 1.67/0.44 | off 60-200 (4/135): rise 1.44/1.28 against 0.24/0.12, kink 0.65/0.59 against 0.60/0.02 | on 0-100 (49/49): rise 6.14/1.14 against 6.21/0.40, kink 0.51/0.14 against 1.65/0.10
+  ceiling: before off (0/18): rise - against 0.17/0.06, kink - against 0.13/0.05 | off 0-60 (44/15): rise 7.15/1.71 against 6.41/1.22, kink 0.73/0.20 against 1.28/0.28 | off 60-200 (4/135): rise 0.71/0.47 against 0.29/0.12, kink 0.26/0.17 against 0.24/0.04 | on 0-100 (49/49): rise 6.45/0.95 against 5.99/0.49, kink 0.54/0.18 against 0.83/0.09
+
+$ /Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/design-x-acceptance-2026-11-22/tools/boilnoise.py X3|/private/tmp/t0-gbgj/macdyn5/pics/s-X3|/private/tmp/t0-gbgj/macdyn5/pics/s-X3/size-193-393.txt
+X3: floor: before off 0.02 (0.02), off 0-60 0.17 (0.67) / 0.30 (1.33), off 60-200 0.05 (0.10) / 0.23 (0.39), on 0-100 0.03 (0.07) / 0.11 (0.29) | left wall: before off 0.02 (0.03), off 0-60 0.49 (0.93) / 0.59 (1.54), off 60-200 0.04 (0.12) / 0.60 (0.83), on 0-100 0.11 (0.25) / 0.25 (1.10) | ceiling: before off 0.07 (0.08), off 0-60 0.55 (1.68) / 0.24 (1.64), off 60-200 0.05 (0.14) / 0.18 (0.40), on 0-100 0.13 (0.42) / 0.22 (0.97)
+
+$ /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/tools/levjump.py M3|/private/tmp/t0-gbgj/macdyn5/pics/s-M3|/private/tmp/t0-gbgj/macdyn5/pics/s-M3/size-193-393.txt
+M3:
+  floor: before off (0/18): rise - against 0.01/0.01, kink - against 0.01/0.00 | off 0-60 (15/44): rise 2.86/1.60 against 2.18/0.93, kink 0.78/0.35 against 0.74/0.15 | off 60-200 (2/137): rise 0.61/0.37 against 0.64/0.16, kink 0.20/0.19 against 0.13/0.03 | on 0-100 (22/76): rise 0.74/0.34 against 0.46/0.14, kink 0.26/0.09 against 0.21/0.02
+  left wall: before off (0/18): rise - against 0.06/0.02, kink - against 0.03/0.01 | off 0-60 (15/44): rise 2.91/1.78 against 1.80/1.10, kink 0.94/0.46 against 0.64/0.13 | off 60-200 (2/137): rise 1.51/1.25 against 0.62/0.20, kink 0.65/0.60 against 0.60/0.02 | on 0-100 (22/76): rise 2.33/1.51 against 2.19/0.57, kink 0.53/0.24 against 0.49/0.10
+  ceiling: before off (0/18): rise - against 0.03/0.01, kink - against 0.02/0.01 | off 0-60 (15/44): rise 3.54/2.24 against 4.52/1.23, kink 0.77/0.34 against 1.30/0.18 | off 60-200 (2/137): rise 0.68/0.43 against 0.69/0.20, kink 0.23/0.12 against 0.22/0.03 | on 0-100 (22/76): rise 2.67/1.28 against 5.08/0.56, kink 0.60/0.20 against 0.93/0.08
+
+$ /Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/design-x-acceptance-2026-11-22/tools/boilnoise.py M3|/private/tmp/t0-gbgj/macdyn5/pics/s-M3|/private/tmp/t0-gbgj/macdyn5/pics/s-M3/size-193-393.txt
+M3: floor: before off 0.02 (0.03), off 0-60 0.19 (0.84) / 0.38 (1.52), off 60-200 0.06 (0.18) / 0.19 (0.37), on 0-100 0.03 (0.12) / 0.12 (0.32) | left wall: before off 0.03 (0.04), off 0-60 0.16 (1.04) / 0.48 (1.68), off 60-200 0.05 (0.21) / 0.60 (0.80), on 0-100 0.12 (0.46) / 0.34 (1.34) | ceiling: before off 0.02 (0.04), off 0-60 0.20 (1.26) / 0.38 (1.91), off 60-200 0.05 (0.21) / 0.17 (0.38), on 0-100 0.10 (0.51) / 0.28 (1.17)
+
+$ /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gbgj-combined-check/tools/levjump.py L5|/private/tmp/t0-gbgj/macdyn5/pics/l-X5|/private/tmp/t0-gbgj/macdyn5/pics/l-X5/size-none.txt
+L5:
+  floor: before off (0/18): rise - against 0.02/0.01, kink - against 0.01/0.00 | off 0-60 (44/15): rise 0.08/0.01 against 0.02/0.01, kink 0.03/0.01 against 0.01/0.00 | off 60-200 (4/135): rise 0.02/0.01 against 0.02/0.01, kink 0.01/0.00 against 0.01/0.00 | on 0-100 (49/49): rise 0.03/0.01 against 0.03/0.01, kink 0.01/0.01 against 0.01/0.00
+  left wall: before off (0/18): rise - against 0.06/0.02, kink - against 0.02/0.01 | off 0-60 (44/15): rise 0.09/0.03 against 0.09/0.02, kink 0.03/0.01 against 0.03/0.01 | off 60-200 (4/135): rise 0.02/0.02 against 0.05/0.01, kink 0.01/0.01 against 0.03/0.01 | on 0-100 (49/49): rise 0.07/0.02 against 0.08/0.02, kink 0.04/0.01 against 0.02/0.01
+  ceiling: before off (0/18): rise - against 0.18/0.06, kink - against 0.13/0.05 | off 0-60 (44/15): rise 0.21/0.05 against 0.18/0.05, kink 0.12/0.04 against 0.13/0.03 | off 60-200 (4/135): rise 0.09/0.06 against 0.17/0.05, kink 0.04/0.03 against 0.13/0.05 | on 0-100 (49/49): rise 0.17/0.04 against 0.21/0.05, kink 0.12/0.03 against 0.13/0.04
+
+$ /Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/design-x-acceptance-2026-11-22/tools/boilnoise.py L5|/private/tmp/t0-gbgj/macdyn5/pics/l-X5|/private/tmp/t0-gbgj/macdyn5/pics/l-X5/size-none.txt
+L5: floor: before off 0.02 (0.03), off 0-60 0.02 (0.02) / 0.02 (0.03), off 60-200 0.02 (0.02) / 0.02 (0.02), on 0-100 0.02 (0.02) / 0.02 (0.03) | left wall: before off 0.02 (0.03), off 0-60 0.02 (0.04) / 0.02 (0.04), off 60-200 0.02 (0.03) / 0.02 (0.02), on 0-100 0.02 (0.03) / 0.02 (0.03) | ceiling: before off 0.07 (0.08), off 0-60 0.08 (0.09) / 0.05 (0.07), off 60-200 0.07 (0.08) / 0.05 (0.06), on 0-100 0.05 (0.06) / 0.05 (0.06)
+
+## The region test per span (dynscale.py)
+$ /Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/design-x-acceptance-2026-11-22/tools/dynscale.py /private/tmp/t0-gbgj/macdyn5/pics/s-X5
+== s-X5: 493 draws in the size log, 493 in the region log, sizes [(1464, 824)] to [(1920, 1080)] (69 different)
+span                       draws  changes  longest  runs>=36         scale   tested    fires
+before the switch        36-192        30      113         1  0.889-0.989    49.2%     1.1%
+200 draws after off     193-392        48      130         1  0.836-0.989    52.9%     2.8%
+100 draws after off     193-292        48       30         0  0.836-0.989    11.7%     9.7%
+100 draws after on      393-492        49       33         0  0.832-0.988    12.1%    15.2%
+
+$ /Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/design-x-acceptance-2026-11-22/tools/dynscale.py /private/tmp/t0-gbgj/macdyn5/pics/s-X3
+== s-X3: 493 draws in the size log, 493 in the region log, sizes [(1464, 824)] to [(1920, 1080)] (69 different)
+span                       draws  changes  longest  runs>=36         scale   tested    fires
+before the switch        36-192        30      113         1  0.889-0.989    48.6%     0.9%
+200 draws after off     193-392        48      130         1  0.836-0.989    52.4%     2.2%
+100 draws after off     193-292        48       30         0  0.836-0.989    11.7%     9.9%
+100 draws after on      393-492        49       33         0  0.832-0.988    12.1%    15.2%
+
+## The survey's switch cabin under the played-back scale: draws to settle per region, each run against its own controls
+== sw-M5
+index settle off settle on lvl60 off lvl60 on share on
+whole        121        54    115.8%    95.6%    1.000
+  r00        143        94    125.8%    89.6%    0.498
+  r01         96         8    109.8%    98.5%    4.102
+  r02        143        94    125.3%    89.6%    0.500
+  r10        132        88    119.6%    91.2%    0.541
+  r11        112        83    111.4%    92.8%    0.881
+  r12        131        88    119.2%    91.2%    0.544
+  r20        131        52    121.6%    96.0%    0.575
+  r21        116        42    114.7%    96.8%    0.783
+  r22        131        52    121.3%    96.0%    0.576
+  size-0-100000000.txt: 493 draws, lines that differ from the card's log: 0
+  size-193-393.txt: 493 draws, lines that differ from the card's log: 0
+  size-none.txt: 493 draws, lines that differ from the card's log: 0
+== sw-X5
+index settle off settle on lvl60 off lvl60 on share on
+whole        141        45    115.5%    96.0%    1.000
+  r00        166      None    127.6%    90.2%    0.491
+  r01        111         5    109.1%    98.7%    4.127
+  r02        163      None    125.6%    90.0%    0.494
+  r10        153        99    119.5%    92.0%    0.533
+  r11        123        83    110.0%    93.8%    0.866
+  r12        148      None    118.1%    91.9%    0.536
+  r20        158        45    123.9%    96.1%    0.581
+  r21        138        30    115.0%    97.0%    0.789
+  r22        156        46    123.1%    96.1%    0.582
+  size-0-100000000.txt: 493 draws, lines that differ from the card's log: 0
+  size-193-393.txt: 493 draws, lines that differ from the card's log: 0
+  size-none.txt: 493 draws, lines that differ from the card's log: 0
+== sw-X5r
+index settle off settle on lvl60 off lvl60 on share on
+whole        141        45    115.5%    96.0%    1.000
+  r00        166      None    127.6%    90.2%    0.491
+  r01        111         5    109.1%    98.7%    4.127
+  r02        163      None    125.6%    90.0%    0.494
+  r10        153        99    119.5%    92.0%    0.533
+  r11        123        83    110.0%    93.8%    0.866
+  r12        148      None    118.1%    91.9%    0.536
+  r20        158        45    123.9%    96.1%    0.581
+  r21        138        30    115.0%    97.0%    0.789
+  r22        156        46    123.1%    96.1%    0.582
+  size-0-100000000.txt: 493 draws, lines that differ from the card's log: 0
+  size-193-393.txt: 493 draws, lines that differ from the card's log: 0
+  size-none.txt: 493 draws, lines that differ from the card's log: 0
+== sw-M3
+index settle off settle on lvl60 off lvl60 on share on
+whole        119        54    115.6%    95.6%    1.000
+  r00        142        93    125.6%    89.7%    0.498
+  r01         95         9    109.7%    98.5%    4.097
+  r02        142        93    125.1%    89.6%    0.500
+  r10        130        87    119.3%    91.3%    0.541
+  r11        110        82    111.2%    92.9%    0.883
+  r12        130        87    119.0%    91.2%    0.544
+  r20        130        52    121.4%    96.0%    0.576
+  r21        114        42    114.5%    96.8%    0.784
+  r22        130        52    121.1%    96.0%    0.576
+  size-0-100000000.txt: 493 draws, lines that differ from the card's log: 0
+  size-193-393.txt: 493 draws, lines that differ from the card's log: 0
+  size-none.txt: 493 draws, lines that differ from the card's log: 0
+== sw-X3
+index settle off settle on lvl60 off lvl60 on share on
+whole        125        36    111.2%    96.9%    1.000
+  r00        158        87    118.7%    92.7%    0.495
+  r01         86         5    106.9%    98.9%    4.109
+  r02        154        87    118.1%    92.7%    0.497
+  r10        142        76    114.2%    93.9%    0.538
+  r11        107        66    108.0%    94.6%    0.875
+  r12        137        76    113.4%    93.9%    0.541
+  r20        141        33    115.7%    97.4%    0.579
+  r21        116        25    110.4%    97.9%    0.787
+  r22        139        34    115.0%    97.4%    0.579
+  size-0-100000000.txt: 493 draws, lines that differ from the card's log: 0
+  size-193-393.txt: 493 draws, lines that differ from the card's log: 0
+  size-none.txt: 493 draws, lines that differ from the card's log: 0
+
+## The survey's walk cabin-walk under the played-back scale
+== wk-M5: slowest region 25 draws, whole image 0 draws, per region [0, 23, 0, 25, 15, 0, 16, 0, 0, 0] failed []
+== wk-X5: slowest region 48 draws, whole image 0 draws, per region [0, 47, 0, 48, 36, 1, 36, 0, 0, 0] failed []
+
+## The walk's history lengths and region test (walklogs.py)
+$ /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-3vwx-dynamic-scale-films/tools/walklogs.py M5|/private/tmp/t0-gbgj/macdyn5/pics/w-M5 X5|/private/tmp/t0-gbgj/macdyn5/pics/w-X5
+== M5 (/private/tmp/t0-gbgj/macdyn5/pics/w-M5)
+  walk, last 60 draws (draws 273-332, 0 size changes): history mean 29.31 draws, share < 8 0.0228, share 0 0.0159
+  stop, draws 0 to 59 after (draws 333-392, 0 size changes): history mean 29.35 draws, share < 8 0.0289, share 0 0.0197
+  stop, draws 60 to 199 after (draws 393-532, 0 size changes): history mean 29.61 draws, share < 8 0.0274, share 0 0.0197
+== X5 (/private/tmp/t0-gbgj/macdyn5/pics/w-X5)
+  walk, last 60 draws (draws 273-332, 0 size changes): history mean 29.34 draws, share < 8 0.0227, share 0 0.0159; region tested 0.0 % of 30600 anchor-draws, fires 0.0 % of tested
+  stop, draws 0 to 59 after (draws 333-392, 0 size changes): history mean 29.51 draws, share < 8 0.0202, share 0 0.0197; region tested 34.7 % of 30600 anchor-draws, fires 1.7 % of tested
+  stop, draws 60 to 199 after (draws 393-532, 0 size changes): history mean 26.99 draws, share < 8 0.0198, share 0 0.0197; region tested 90.4 % of 71400 anchor-draws, fires 1.0 % of tested
+

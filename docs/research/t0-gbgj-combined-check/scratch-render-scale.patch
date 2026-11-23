@@ -1,0 +1,25 @@
+# SCRATCH patch of t0-gbgj, never commit to src. It applies after the survey's probe patch, on M2 and on X2.
+# TERTIUS_X_RENDER_SCALE=<scale> gives a headless run the constant render scale FixedRenderScale(<scale>), in place of the
+# fixed 2/3 that UpscalingSetting.ForHeadless sets. FSR's images are then sized for that scale, and every draw takes it.
+# Unset, the run keeps 2/3. A simpler change than t0-5tyj's scratch-dynamic-scale.patch, whose TERTIUS_X_SIZE_REPLAY
+# plays back a scale per draw under the dynamic scale's allocation.
+--- a/src/Tertius.Rendering/VulkanRenderer.cs
++++ b/src/Tertius.Rendering/VulkanRenderer.cs
+@@ -147,6 +147,17 @@
+         this.device = device;
+         this.headless = headless;
+         upscaling = headless ? options.Upscaling.ForHeadless() : options.Upscaling;
++        // SCRATCH (t0-gbgj, never commit to src): with TERTIUS_X_RENDER_SCALE=<scale>, a headless run keeps the constant
++        // render scale FixedRenderScale(<scale>) in place of the fixed 2/3.
++        if (
++            headless
++            && Environment.GetEnvironmentVariable("TERTIUS_X_RENDER_SCALE") is { Length: > 0 } probeScaleText
++            && upscaling is Fsr3Upscaling probeFsr
++        )
++            upscaling = probeFsr with
++            {
++                RenderScale = new FixedRenderScale(float.Parse(probeScaleText, System.Globalization.CultureInfo.InvariantCulture)),
++            };
+         if (upscaling is Fsr3Upscaling { RenderScale: FrameTimeTarget target })
+             ScaleController = new(target);
+         capturesInFlight = options.CapturesInFlight;

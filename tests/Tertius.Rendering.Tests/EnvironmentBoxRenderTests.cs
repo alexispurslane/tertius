@@ -138,8 +138,9 @@ public sealed class EnvironmentBoxRenderTests
             foreach (
                 (int width, int height, int renderWidth, int renderHeight) in new[]
                 {
-                    (160, 96, fsr ? 104 : 160, fsr ? 64 : 96),
-                    (192, 112, fsr ? 128 : 192, fsr ? 72 : 112),
+                    // 2/3 of a whole number of steps of the output's ratio: 21 of 5 × 3 px and 10 of 12 × 7 px.
+                    (160, 96, fsr ? 105 : 160, fsr ? 63 : 96),
+                    (192, 112, fsr ? 120 : 192, fsr ? 70 : 112),
                 }
             )
             {

@@ -146,7 +146,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     {
         this.device = device;
         this.headless = headless;
-        upscaling = headless ? options.Upscaling.ForHeadless() : options.Upscaling;
+        upscaling = UpscalingOf(options, headless);
         if (upscaling is Fsr3Upscaling { RenderScale: FrameTimeTarget target })
             ScaleController = new(target);
         capturesInFlight = options.CapturesInFlight;
@@ -311,6 +311,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
     /// <summary>Creates a renderer that draws into an offscreen image of <see cref="RendererOptions.Width"/> by
     /// <see cref="RendererOptions.Height"/>.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// An option is out of range, or the upscaling cannot draw the output: it has no size of exactly its aspect inside
+    /// the render scale's limits, such as 1919 × 1079 at the headless 2/3 (ARCHITECTURE.md, "Temporal upscaling and
+    /// render size").
+    /// </exception>
     public static VulkanRenderer CreateHeadless(RendererOptions options) =>
         CreateOffscreen(
             options,
@@ -335,8 +340,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 nameof(options),
                 "A headless renderer needs a positive Width and Height."
             );
-        var device = VulkanDevice.Create(options.Validation, [], null);
         var extent = new Extent2D((uint)options.Width, (uint)options.Height);
+        if (UpscalingOf(options, headless).OutputProblem(extent) is { } problem)
+            throw new ArgumentOutOfRangeException(nameof(options), problem);
+        var device = VulkanDevice.Create(options.Validation, [], null);
         return new(
             options: options,
             device: device,
@@ -380,24 +387,69 @@ public sealed unsafe class VulkanRenderer : IRenderer
             extensions,
             instance => surfaceSource.Create<AllocationCallbacks>(instance.ToHandle(), null).ToSurface()
         );
-        Vector2D<int> framebuffer = window.FramebufferSize;
-        var extent = new Extent2D(
-            (uint)(options.Width > 0 ? options.Width : Math.Max(framebuffer.X, 0)),
-            (uint)(options.Height > 0 ? options.Height : Math.Max(framebuffer.Y, 0))
-        );
+        UpscalingSetting upscaling = options.Upscaling;
+        Extent2D framebuffer = FitWindow(window, upscaling);
+        Extent2D extent =
+            options.Width > 0 && options.Height > 0
+                ? upscaling.SnapOutput(new((uint)options.Width, (uint)options.Height))
+                : framebuffer;
         var renderer = new VulkanRenderer(
             options: options,
             device: device,
-            createOutput: (d, _) => new SwapchainTarget(d, extent, options.VSync),
+            createOutput: (d, _) =>
+                new SwapchainTarget(device: d, extent: extent, vsync: options.VSync, upscaling: upscaling),
             headless: false
         )
         {
             window = window,
         };
-        renderer.onFramebufferResize = size => renderer.Resize(Math.Max(size.X, 0), Math.Max(size.Y, 0));
+        // Fitting the window raises the event again, inside the fit: the fit reads the framebuffer after its own
+        // request, so the nested event has nothing to add.
+        bool fitting = false;
+        renderer.onFramebufferResize = _ =>
+        {
+            if (fitting)
+                return;
+            fitting = true;
+            try
+            {
+                Extent2D fitted = FitWindow(window, upscaling);
+                renderer.Resize((int)fitted.Width, (int)fitted.Height);
+            }
+            finally
+            {
+                fitting = false;
+            }
+        };
         window.FramebufferResize += renderer.onFramebufferResize;
         return renderer;
     }
+
+    /// <summary>
+    /// Asks <paramref name="window"/> for the framebuffer that <paramref name="upscaling"/> snaps its framebuffer to
+    /// (<see cref="UpscalingSetting.SnapOutput"/>), on the window's main thread, and returns the framebuffer that the
+    /// window then has. The request goes through the window's logical size, scaled by the framebuffer's pixels per
+    /// logical pixel, and repeats once for a platform that rounds it. A window that keeps a framebuffer that the setting
+    /// cannot draw stays undrawn until its next resize: the swapchain draws only a size that the setting supports.
+    /// </summary>
+    private static Extent2D FitWindow(IWindow window, UpscalingSetting upscaling)
+    {
+        Extent2D framebuffer = FramebufferOf(window);
+        Extent2D wanted = upscaling.SnapOutput(framebuffer);
+        for (int attempt = 0; attempt < 2 && !framebuffer.Equals(wanted); attempt++)
+        {
+            Vector2D<int> logical = window.Size;
+            window.Size = new(
+                Math.Max(1, (int)Math.Round(logical.X * (double)wanted.Width / framebuffer.Width)),
+                Math.Max(1, (int)Math.Round(logical.Y * (double)wanted.Height / framebuffer.Height))
+            );
+            framebuffer = FramebufferOf(window);
+        }
+        return framebuffer;
+    }
+
+    private static Extent2D FramebufferOf(IWindow window) =>
+        new((uint)Math.Max(window.FramebufferSize.X, 0), (uint)Math.Max(window.FramebufferSize.Y, 0));
 
     private static void CheckOptions(RendererOptions options)
     {
@@ -505,12 +557,19 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>Requests a new output size. It takes effect at the start of the next <see cref="Render"/>.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// A side is negative, or a renderer without a window gets a size that its upscaling cannot draw: an empty one, or
+    /// one without a size of exactly its aspect inside the render scale's limits. A window's swapchain waits instead.
+    /// </exception>
     public void Resize(int width, int height)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(width);
         ArgumentOutOfRangeException.ThrowIfNegative(height);
         if (headless && (width == 0 || height == 0))
             throw new ArgumentOutOfRangeException(nameof(width), "A headless renderer needs a positive size.");
+        // A window's swapchain draws only a size that the setting supports, and its fit snaps the window to one.
+        if (window == null && upscaling.OutputProblem(new((uint)width, (uint)height)) is { } problem)
+            throw new ArgumentOutOfRangeException(nameof(width), problem);
         Interlocked.Exchange(ref pendingResize, ((long)width << 32) | (uint)height);
     }
 
@@ -591,18 +650,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
         MatchTargetsTo(image);
 
-        // The draw's one choke point of the history: its reset, its draw index, its exposure step, its refresh of the map's
-        // faces and the last frame's state. After the acquire, which can change the output size.
-        FrameHistory.PendingFrame pending = history.Begin(
-            snapshot: snapshot,
-            step: step,
-            draw: draw,
-            outputSize: targets.OutputExtent,
-            renderSize: upscaling.RenderExtent(
-                targets.OutputExtent,
-                ScaleController?.Next(FrameNumber) ?? upscaling.LargestScale
-            )
-        );
+        FrameHistory.PendingFrame pending = BeginDraw(snapshot: snapshot, step: step, draw: draw);
         ICaptureSink? sink = takeCapture ? Interlocked.Exchange(ref pendingCapture, null) : null;
         GpuBuffer? capture = sink != null ? CaptureBuffer(slot: frame.Index, extent: image.Extent) : null;
         // After the output gave the frame an image, so a skipped frame leaves the map's frame as it is, and before
@@ -642,6 +690,27 @@ public sealed unsafe class VulkanRenderer : IRenderer
         return true;
     }
 
+    /// <summary>
+    /// The draw's one choke point of the history: its reset, its draw index, its exposure step, its refresh of the map's
+    /// faces and the last frame's state. Its render size is the active size of the output at the requested scale. After
+    /// the acquire, which can change the output size.
+    /// </summary>
+    private FrameHistory.PendingFrame BeginDraw(RenderSnapshot snapshot, float step, int draw) =>
+        history.Begin(
+            snapshot: snapshot,
+            step: step,
+            draw: draw,
+            outputSize: targets.OutputExtent,
+            renderSize: upscaling.RenderExtent(
+                targets.OutputExtent,
+                ScaleController?.RequestedScale ?? upscaling.LargestScale
+            )
+        );
+
+    /// <summary>The upscaling that a renderer draws with: a headless one draws a frame-time target at a fixed 2/3.</summary>
+    private static UpscalingSetting UpscalingOf(RendererOptions options, bool headless) =>
+        headless ? options.Upscaling.ForHeadless() : options.Upscaling;
+
     /// <summary>Resizes the targets to the output's <paramref name="image"/> when the swapchain changed size on its own (out of date).</summary>
     private void MatchTargetsTo(GpuImage image)
     {
@@ -664,6 +733,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         keptPositions?.Drew(releases: releases, frame: number);
         localShadows?.Tiles.Drew();
         Exposure.Drew(frame: number, step: pending.ExposureStep);
+        ScaleController?.Drew(frame: number, realizedScale: pending.RenderSize.Width / (float)pending.OutputSize.Width);
         frame.Number = number;
         // Last, because it advances the frame number that the commits above name.
         history.Drew(pending);
@@ -1012,7 +1082,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         var extent = new Extent2D((uint)(packed >> 32), (uint)packed);
         device.WaitIdle();
         output.Resize(extent);
-        if (output.Extent.Width > 0 && output.Extent.Height > 0)
+        if (upscaling.Supports(output.Extent))
             ResizeTargets(output.Extent);
     }
 
@@ -1933,22 +2003,22 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <summary>
     /// The render-sized images and output-sized post images of <paramref name="options"/>, owned by the renderer.
     /// </summary>
-    private RenderTargets CreateTargets(RendererOptions options)
-    {
-        Extent2D extent = output.Extent.Width > 0 && output.Extent.Height > 0 ? output.Extent : new(1, 1);
-        return Own(
+    private RenderTargets CreateTargets(RendererOptions options) =>
+        // The targets take only an output that the upscaling can draw (UpscalingSetting.Supports). A window whose surface
+        // has another size or none, still fitting or minimized, gets the nearest such size until its first image
+        // (MatchTargetsTo).
+        Own(
             new RenderTargets(
                 device: device,
                 allocator: Allocator,
                 layouts: layouts,
-                extent: extent,
+                extent: upscaling.SnapOutput(new(Math.Max(output.Extent.Width, 1), Math.Max(output.Extent.Height, 1))),
                 glowLevels: GlowLevelsOf(options.Bloom),
                 upscaling: upscaling,
                 depthPyramid: options.ScreenTrace is ScreenTrace,
                 subsurface: options.Subsurface is SeparableSubsurface
             )
         );
-    }
 
     /// <summary>
     /// The images and tile records of key and fill that <paramref name="setting"/> asks for, which the renderer owns, or

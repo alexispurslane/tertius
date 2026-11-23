@@ -1,6 +1,6 @@
 ---
 id: ter-qt72
-status: in_progress
+status: closed
 deps: []
 links: [ter-89xq]
 created: 2026-11-22T16:23:08Z
@@ -287,3 +287,160 @@ The run on the code of this commit (the review fixes): `nix develop --command ba
 | C11 | VulkanRenderer.cs:1319 | the test hook reads another word | killed by FsrReadsThisFramesExposureRatioBeforeAdaptationWritesTheNextFramesExposure |
 
 - Coverage: `dotnet test --project tests/Tertius.Rendering.Tests -c Checked --coverage --coverage-output-format cobertura` with the classes OutputCameraTests, OutputFramingRenderTests, Fsr3HostTests, UpscalingRenderTests and BatcherTests (190 passed), then `python3 tools/coverage/changed-lines.py --base 4298ae7ec`: 15 of 15 changed lines covered, no branches.
+
+## Step 2: exact-ratio sizes, window snapping and realized-scale feedback (2026-11-22, the ticket lead)
+
+Commits: 03762d578 (the build) and the fix commit after the review. Evidence folder: `/Users/alexispurslane/.t3/worktrees/tertius/t3-1f553e45-00934a8d076a004a-evidence/step2/`.
+
+The model. `UpscalingSetting` is the one owner of the size and of the one predicate (decision 6).
+
+- A step is the output divided by the greatest common divisor of its width and height: 16 × 9 px for 1920 × 1080.
+- `RenderExtent` takes the largest whole number of steps at or below the requested scale, clamped to the hard limits (decision 4): (1, 1) without upscaling, (0.5, s) for `FixedRenderScale(s)`, and a `FrameTimeTarget`'s own `MinScale` to `MaxScale`. Both axes take the same step count, so the active size has exactly the output's aspect (decision 2).
+- `Supports` (with its reason, `OutputProblem`) is the predicate. A fixed scale needs one size inside the limits. A frame-time target with a range needs at least as many as the eighths of the output inside its limits, and at least two: five for 0.5 to 1, four for 0.5 to 0.9.
+- `SnapOutput` keeps a supported window as it is, and rounds each axis of another to the nearest multiple of a grid, ties up (decision 3). The grid is the smallest size from 8 px up that is supported as a square: 8 for every fixed scale and for a target with two eighths inside its limits, such as the default.
+- The readers of the predicate: `SwapchainTarget` (no swapchain at an unsupported extent, as when minimized), `VulkanRenderer.ApplyPendingResize`, `CreateTargets` (the nearest supported size until the first image), the headless refusal at creation and at `Resize`, and `RenderExtent`, which throws. None of them repeats the rule.
+- `FitWindow` asks the window for the snapped framebuffer through its logical size, at creation and at each framebuffer event, with a guard against the nested event that its own request raises.
+- `RenderScaleController.Drew` records the realized scale, render width over output width, under the frame number (decision 5). Example: a request of 0.9 at 1920 × 1080 draws 1680 × 945, 0.875.
+
+Red evidence (`step2/red.log`): with stubs that kept the old behavior, 43 of 118 tests failed for the expected reasons:
+- the old sizes, such as 1272 × 712 for 1919 × 1079;
+- no refusal and no snapping;
+- the feedback of the request: the next request after a draw of 0.875 under 20 ms was off by the ratio of 0.9 to 0.875.
+
+The fix stage's red (`step2/fix-red.log`): 1366 × 768 stayed unsnapped, and a window whose surface starts at 1919 × 1079, 7 × 5 or 0 × 0 threw `ArgumentException` in `CreateTargets`.
+
+The audit of the alignment of 8 (decision 2):
+
+| Part | What bounds its work | Needs a multiple of 8? |
+|---|---|---|
+| 32 compute shaders in `src/Tertius.Rendering/Shaders` | Each one compares its invocation with an image size, the active size or a count (`screen_trace_own_rays.comp` loops `entry < count`) | No |
+| Graphics passes from the G-buffer to the exposure | Viewport and scissor of the active rectangle | No |
+| Depth pyramid | Clears inactive pixels and bounds its reads by `frame.viewport` | No |
+| FSR 3.1 | AMD's code takes any render size within its allocation. `Fsr3Upscaler.AllocationSize` pads only the allocation: a longer side of 64 and a shorter side of 2 | No: the padding belongs to the allocation |
+| Native rendering | Already drew odd sizes, such as 159 × 91 | No |
+
+The suites draw at odd exact-ratio sizes, such as 105 × 63, 3 × 2, 1 × 1, 84 × 70 and 1083 × 608, and they pass.
+
+The real window (`step2/probe/`, a hidden Silk.NET window with the real swapchain on the Mac, at one framebuffer pixel per logical pixel, `FrameTimeTarget(16, 0.5, 0.9)`). The probe's source stays outside the branch. All 7 requests passed with 0 validation messages:
+
+| Request | Framebuffer and acquired image | Active size |
+|---|---|---|
+| A window created at 1919 × 1080 | 1920 × 1080 | 1728 × 972 |
+| 1920 × 1080 | 1920 × 1080 | 1520 × 855 |
+| 1921 × 1080 | 1920 × 1080 | 1520 × 855 |
+| 640 × 480 | 640 × 480 | 512 × 384 |
+| 361 × 641 | 360 × 640 | 288 × 512 |
+| 641 × 481 | 640 × 480 | 520 × 390 |
+| 1366 × 768 | 1368 × 768 | 1083 × 608 |
+
+Each active size has exactly the output's ratio. The scale fell below 0.9 because the window measured real GPU timings. The frames at 1920 × 1080 and 360 × 640 show the test box square.
+
+The review (one reviewer, Claude Opus 5.5 at high effort, of the diff of 03762d578, read only): correctness, fulfillment and design changes-required. The resolutions:
+
+- F1, important: a window whose surface starts at a size that the setting cannot draw, or at 0 × 0, threw in `CreateTargets`. Fixed: the targets take `SnapOutput` of the surface's size until the first image. The test `AWindowWhoseSurfaceStartsAtASizeItCannotDrawStartsAndDrawsOnceItHasOne` (1919 × 1079, 7 × 5, and 0 × 0 minimized through the new `TestOutput.Minimized`) was red, then green.
+- F2, important: a window of 1366 × 768 counted as drawable under the default target. Its greatest common divisor 2 gives only 0.5 and 1, so a request of 0.99 drew a quarter of the area. Fixed by the eighths rule above, which the line orchestrator accepted: 1366 × 768 snaps to 1368 × 768 (13 sizes), and 1680 × 1050 (106 sizes) stays. A headless output keeps the rule of one size, because it cannot change: at 2/3, 1366 × 768 draws 683 × 384 (`AFixedScaleDrawsAnOutputWithOneSizeInsideItsLimits`). The report of a window that a platform holds at an undrawable size stays open in t10-yb2s.
+- F3, important: the readers of the predicate. Resolved as decision 6 says: `UpscalingSetting` owns the predicate, and the readers listed above call it and repeat nothing.
+- F4: the docs of `FixedRenderScale`, `CreateHeadless` and `Resize`. Fixed.
+- F5: the controller's summary. Fixed: the largest exact-ratio size at or below the request, or the smallest inside the limits.
+- F6: a false test name. Renamed to `ASmallHeadlessOutputDrawsTheLargestExactRatioSizeAtOrBelowTheDefaultScale`.
+- F7: the repeated headless setting. Fixed: `VulkanRenderer.UpscalingOf`.
+- F8: `AllocationSize` was hard to read. Fixed: named locals, and the reason for the minimum of 2 (AMD's images at half the largest render size need a pixel on each side).
+- F9: the audit table and the full suites. The table is above, and the runs are below.
+- F10, an unverified suspicion that asynchronous framebuffer events at a fractional HiDPI scale could cycle the fit: recorded in t10-yb2s. Linux and HiDPI runtime are deferred under ter-cgif.
+- From the hook: `DrawFrame` and one test were over 60 lines. Fixed with `BeginDraw` and `GlowingPanelOverAMirror`. A trivial postcondition after the guard of `Drew` is gone.
+
+The residual of step 1's film, for this audit: its cause is found, and the question of the previous frame's size and the jitter is closed. Another line's separating take ("Take B" of docs/research/t0-3vwx-dynamic-scale-films/README.md in the worktree t3-52bfcd29, commit ef379409e) played one size log with 97 size changes twice on step 1's code:
+
+| Measure | Through the lamp switch | Lamps held on |
+|---|---|---|
+| Residual of the edge distance on draws whose size changed (px rms) | 0.465 | 0.096 |
+| The same on draws of one size (px rms) | 0.213 | 0.139 |
+| Correlation of the residual with the render scale | +0.610 | -0.025 |
+
+- The residual on changed draws follows the change of the light, not the change of the size. It seemed to follow the size because the controller lowers the scale while the light changes. With a still light, a size change moves the tracked edges less than a draw of one size does.
+- What is left is an offset per render size of 0.16 px rms at most (the other line's ramp of 181 sizes with a still light), from FSR's reconstruction of an edge from another grid of samples.
+- So nothing of the residual is left on these edges for the exact-ratio sizes to remove, beyond that per-size offset. Step 2 rests on the user's decisions of 2026-11-05 and on correctness: square render pixels for every pass, exact-ratio sizes, and the realized feedback. Its film is a check that nothing got worse, not a visible gain, unless its numbers show one.
+
+After step 2 every render size of a 16:9 window has the output's exact ratio, so the jamb leak of t1-gout cannot show through the size.
+
+Step 2's runs:
+
+- Checked, on e60d6c937's code: `nix develop --command bash -c 'bash tools/test-all.sh -c Checked'`, 0 failures in all 8 modules (Rendering 3,377 tests, 10 skipped). The five walk classes of ter-186q ran in it on the merged code with no failure. The hook of 924820e5f ran all of Rendering again: 3,383 tests, 0 failed.
+- Release, on e60d6c937: `bash tools/test-all.sh -c Release`, 0 failures in all 8 modules (Rendering 3,376 tests, 10 skipped).
+- Linux: one cloud CPU job (94ae5781-3f56-4b48-acc9-697e20793c31-u2, 700 s, $0.0154) ran `lavapipe-tests.sh` with CLASS_STEMS "RenderScaleTests UpscalingRenderTests OutputFramingRenderTests OutputCameraTests KeyAndFillRenderTests EnvironmentBoxRenderTests" on Mesa 26.2.4 lavapipe (llvmpipe, LLVM 21.1.8) at e60d6c937: 186 tests, 0 failed, 0 skipped.
+- Mutants: `tools/mutate.py` with 34 listed mutants of the changed lines (`mutants-step2.json`, `mutate-step2/`), then 15 rewritten or still-alive ones after the hardening commit 924820e5f (`mutants-step2b.json`, `mutate-step2b/`). In round 1, 7 mutants failed to build: an analyzer refused an unused value, an unreachable loop or an `int` in a `uint`, and one build lost its Nix store path to the garbage collection. Round 2 rewrote them so that they compile.
+
+| id | place | change | result |
+|---|---|---|---|
+| S01 | UpscalingSetting.RenderExtent | one step above the upper limit | killed by EveryActiveSizeHasExactlyTheOutputsAspectInsideTheScaleLimits |
+| S02 | RenderExtent | always the largest step | round 2 killed by ARequestBelowTheLimitsDrawsTheSmallestSizeInsideThem |
+| S03 | RenderExtent | the height rounds on its own | killed by AFixedScaleDrawsAnOutputWithOneSizeInsideItsLimits |
+| S04 | OutputProblem | a zero height counts as drawable | killed by AMinimizedWindowKeepsItsEmptySize |
+| S05 | SnapOutput | an empty window snaps to the grid | killed by AMinimizedWindowKeepsItsEmptySize |
+| S06 | SnapOutput | the grid starts at 1 px | survived, then killed by the new AWindowOfAFixedScaleSnapsToTheGridOf8SoThatItsScaleIsAnEighth |
+| S07 | SnapOutput | the grid never grows past 8 | survived round 2: its test's snap gave the same size on both grids. The test now snaps 1013 × 1012 to 1020 × 1020 on a grid of 20 px; round 3 below |
+| S08 | ScaleLimits | a fixed scale must be met exactly | killed by AFixedScaleDrawsAnOutputWithOneSizeInsideItsLimits |
+| S09 | ScaleLimits | a fixed scale may be exceeded | round 2 killed by AFixedOutputWithNoActiveSizeInsideTheScaleLimitsIsRefused |
+| S10 | ScaleLimits | a target ignores its own limits | round 2 killed by EveryActiveSizeHasExactlyTheOutputsAspectInsideTheScaleLimits |
+| S11 | SizesNeeded | a time target settles for two sizes | round 2 killed by AWindowOfATimeTargetHasAtLeastAsManySizesAsTheEighthsInsideItsLimits |
+| S12 | SizesNeeded | no floor of two sizes | survived, then killed by the new ATargetWithNoEighthInsideItsLimitsStillNeedsTwoSizes |
+| S13 | Steps | the first step from the floor | survived, then killed by the new ARequestBelowTheLimitsDrawsTheSmallestSizeInsideThem |
+| S14 | Steps | no step down to a first step whose float is the limit | survived, then killed by the new ALowerLimitThatIsTheFloatOfAStepAdmitsThatStep |
+| S15 | Steps | no step up of the first step | survived. Removed with its loop: the ceiling of the exact double product never needs a step up (the comment in Steps) |
+| S16 | StepsAtMost | the ceiling of the request | survived (the step-down loop undid it), then killed once that loop was removed |
+| S17 | StepsAtMost | no step up to a step whose float is the scale | survived, then killed by the new AScaleThatIsTheFloatOfAStepDrawsThatStep |
+| S18 | StepsAtMost | no step down of the largest step | survived. Removed with its loop: the floor of the exact double product never needs a step down |
+| S19 | Divisor | `/` for `%` | timeout: the loop never ends, which the test run's limit catches |
+| S20 | Snapped | snapping rounds down | killed by AWindowOfATimeTargetSnapsRatherThanKeepNativeAsItsOnlyChoice |
+| S21 | Snapped | a narrow axis snaps to 0 | survived, then killed by the new row 3 × 1080 → 8 × 1080 |
+| S22 | RenderScaleController.Drew | NaN passes the guard | killed by ADrawAtAScaleOutsideTheLimitsIsRefused |
+| S23 | Drew | records the request | killed by TheDelayedTimingsOfADrawCountTheScaleThatTheDrawRealized and DelayedGpuFeedbackCountsTheScaleThatWasDrawn |
+| S24 | Fsr3Upscaler.AllocationSize | a shorter side of 1 | killed by FsrPadsOnlyItsAllocationToALongerSideOf64AndAShorterOf2 |
+| S25 | AllocationSize | no minimum height | killed by the same test |
+| S26 | VulkanRenderer.CreateOffscreen | checks the setting before the headless 2/3 | killed by ASmallHeadlessOutputDrawsTheLargestExactRatioSizeAtOrBelowTheDefaultScale |
+| S27 | CreateOffscreen | no check at creation | killed by AHeadlessOutputWithNoActiveSizeInsideTheScaleLimitsIsRefused |
+| S28 | Resize | a headless resize goes unchecked | killed by AHeadlessResizeToAnOutputWithNoActiveSizeInsideTheScaleLimitsIsRefused |
+| S29 | CommitDrawnFrame | records the request | killed by DelayedGpuFeedbackCountsTheScaleThatWasDrawn |
+| S30 | ApplyPendingResize | resizes the targets at any nonzero output | survived. Judgment call: only a window's swapchain reports an undrawable nonzero size after a resize, because every renderer without a window refuses one at `Resize`, and no suite test opens a window |
+| S31 | SizesNeeded | a single-scale target needs the eighths too | round 2 killed by ANativeOnlySettingKeepsEveryWindowSizeAsItIs |
+| S32 | SizesInside | no test of an empty range | survived twice. Equivalent: the first step exceeds the last by at most one, because the ceiling of the lower limit's product is at most one above the floor of the upper one. The code now returns `last + 1 - first`, and the mutant is gone |
+| S33 | CreateTargets | the targets take the surface's size | killed by AWindowWhoseSurfaceStartsAtASizeItCannotDrawStartsAndDrawsOnceItHasOne |
+| S34 | AllocationSize | always pads the width to 64 | round 2 killed by FsrPadsOnlyItsAllocationToALongerSideOf64AndAShorterOf2 |
+
+- Coverage: `dotnet test --project tests/Tertius.Rendering.Tests -c Checked --coverage --coverage-output-format cobertura` with RenderScaleTests, UpscalingRenderTests, OutputFramingRenderTests, OutputCameraTests, KeyAndFillRenderTests and EnvironmentBoxRenderTests (192 passed), then `python3 tools/coverage/changed-lines.py --base ac5f23915`: 87 of 130 changed lines, 59 of 74 branches. What is not covered:
+  - `CreateForWindow`, `FitWindow`, the framebuffer handler and the swapchain gate: 38 lines. Only a real window reaches them, and no suite test opens one. The real-window probe ran them (above).
+  - The report of limits too close for any window: now covered by the new LimitsTooCloseForTwoSizesOfAnyWindowAreReported.
+  - `ScaleLimits`' throw for an FSR setting without a scale source: unreachable, because `CheckOptions` refuses that setting first.
+  - The failing branches of two contracts.
+
+Step 2's film. The lamp hall with the same played-back render scales (size log d16M) as step 1's film, rendered at 74395e38c in a build copy with the scratch edit `scratch-replay2.py`, which never enters src. Every one of its 305 draws had an exact-ratio size. The 240 film frames took 14 sizes, from 992 × 558 to 1200 × 675, with 38 size changes, against step 1's 31 sizes and 72 changes, because a step of 1920 × 1080 is 16 × 9 px. The video: `/Users/alexispurslane/.t3/worktrees/tertius/t3-1f553e45-00934a8d076a004a-evidence/video/lamp-hall-step1-vs-step2.mp4`, step 1 on the left (839bce1b5, from step 1's film) and step 2 on the right, 240 frames at 60 a second, H.264 at CRF 12, 3840 × 1080. The tracked edges (`edges.py`), in output pixels:
+
+| | Step 1 | Step 2 |
+|---|---:|---:|
+| Outer distance (about 1,700 px): sd | 0.489 | 0.562 |
+| Outer distance: range | 2.894 | 1.805 |
+| Its midpoint: sd | 0.245 | 0.184 |
+| Its midpoint: range | 1.931 | 0.996 |
+| Noise floor of the outer distance (same size, frame to frame, / sqrt 2) | 0.165 | 0.080 |
+| Noise floor of its midpoint | 0.083 | 0.040 |
+
+Neither spread reaches the noise floor. The named reason, from step 2's own numbers:
+- The means of the 14 render sizes explain 0.31 of the outer distance's variance and 0.26 of the midpoint's. That is the offset per render size, 0.36 px sd of the size means.
+- The rest is no more on the draws whose size changed (0.51 px rms, 38 draws) than on the draws of one size (0.46 px).
+- It drifts with the film's time: the correlation with the frame index is +0.30. The two edges move against each other (correlation -0.42).
+- So, as Take B found, nothing of it follows a size change. The exact-ratio sizes give no visible gain on these edges and lose nothing measurable. The ranges fell, and the outer distance's sd moved by 0.07 px.
+
+A finding of the film: bright specks on the ceiling near the lamps (`specks.py`, pixels more than 12 of 255 above the median of their 7 × 7 neighbourhood, lamps left out):
+
+| Film | Frames with more than 5 specks | When |
+|---|---:|---|
+| Main before step 1 (ee9dec413) | 191 of 240 | Throughout, a few specks each |
+| Step 1 (839bce1b5) | 4 | |
+| Main with step 1 (ac5f23915), same scales | 4 | |
+| Step 2 (74395e38c) | 42 | Two bursts, film frames 51 to 66 and 75 to 93, with 67 to 216 specks each, at 1072 × 603, 1088 × 612 and 1104 × 621 |
+
+The same three sizes at other times of the film show none, so the bursts belong to a time of the film, not to one size. They are of the speck class that t7-3e22 describes (fine specks near the far lamps in rect-lamps). Which frames that class hits depends on the sample pattern of the render size, and main before step 1 shows it most. One film cannot tell whether exact-ratio sizes make the class more frequent. That needs a comparison of the class over many sizes, and it stays open here.
+
+**2026-11-22T23:52:55Z**
+
+2026-11-22, the line orchestrator. Step 2 is merged into main by fast-forward at 2bef1af1f, with the push hook's cleanup commit 3c5c0329b on top. The gates: the lead's report gives all ten review findings resolved with evidence, full Checked and full Release green on e60d6c937, lavapipe green for the 6 changed classes (186 tests), 34 mutants with a result each, the coverage of the changed lines, the real-window check, the film, ARCHITECTURE.md, and tools/renderer-survey/probe.patch applies on the merged code (I ran git apply --check). One gap against my gate of Release at the final code: the two hardening commits after e60d6c937 changed 20 lines of UpscalingSetting.cs and VulkanRenderer.cs (two loops that never fire removed, one local inlined). Their hooks ran all of Rendering in Checked, 0 failed. Release at the final code runs as the lead's first step after the merge. I read the merged diff once: UpscalingSetting owns the size and the one predicate, the controller records the realized scale, and the swapchain asks the predicate. No finding. Open from the film: step 2's side shows bright ceiling specks in 42 of 240 frames against 4 for step 1 on the same scales. One film cannot tell whether exact-ratio sizes cause it. The lead measures that next, and the result goes into t7-3e22. Step 2's case rests on the user's decision of 2026-11-05 and on correctness: the film shows no visible gain on the measured edges, as Take B predicted.

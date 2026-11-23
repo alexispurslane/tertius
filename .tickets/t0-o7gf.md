@@ -2,7 +2,7 @@
 id: t0-o7gf
 status: open
 deps: [t0-iido]
-links: [ter-4iic, t0-70v1, t0-zmjx]
+links: [ter-4iic, t0-70v1, t0-zmjx, t0-gumm, t58-np60]
 created: 2026-11-22T20:26:25Z
 type: task
 priority: 2
@@ -43,3 +43,7 @@ The decision is the user's, by the bar: no blotches, daubs, bright specks, trail
 **2026-11-22T20:27:22Z**
 
 The user's decision of 2026-11-22 (through the orchestrator): the restart after a light change is '8 draws' for the merge (t0-zmjx); the own-ray limit stays 8 now, and this ticket tests 4 draws for every young history after the merge. My decision on its place: beside ter-4iic under ter-8hyd, as a candidate remedy, because the constant also moves the evidence's restart and the grain of every young history. Links: ter-4iic, t0-70v1, t0-zmjx; t58-np60 is linked when the combined check's branch brings it into the line.
+
+**2026-11-22T21:19:42Z**
+
+From the orchestrator, 2026-11-22, after the review of the indirect lighting's approach (docs/research/lighting-system-review-2026-11-22/README.md on main, 45002452b): no new trust rule of the temporal stack while the ray census (ter-8pco) is open. This ticket stays open and is not started. The review's reading: 0.25 diffuse rays per pixel cannot reach the bar by tuning for rare bright sources, and each trust rule trades lag against noise. The structural step is ter-6fka (a diffuse ray that misses the screen, and a young history, read an estimate that the eye's position does not change); its design P would let FullRateFrames and the own rays of young histories go.
