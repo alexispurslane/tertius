@@ -5,6 +5,7 @@ The record compares Design X with main `c4c1f1f2f`.
 - M is main at `c4c1f1f2f`, with main's survey probe patch. Main has moved on to `a819b10b2` since. M stays `c4c1f1f2f` in this record.
 - X is the line's head `57b4045ae` (branch `t7-3e22-retained-deviation`), with the line's survey probe patch after the fix of `tc-w3c0`. This checkout's later commits change only this record, the probe's lamp switch and tickets. They change nothing under `src` or `tests`.
 - A is X with both history clamps off (`TERTIUS_A_NO_CLAMP=1`). A explains a fault. It is not the bar.
+- The rows that the user's bar rests on ran again on the merged code: MF (main `3549d3283`) against XF (Design X with the cap of `t0-zmjx`, the fix of `tc-8142` and main's step 2, at `16d915a67`). See "The takes on the merged code".
 
 The bar is the user's: "acceptance is by the engine's stills and films. They must look good and show no blotches, daubs, bright specks (fireflies), trail or flicker. A reference explains a fault and is not the bar. A little lost light is acceptable. The bay film's bar is: no worse than main."
 
@@ -34,8 +35,8 @@ Every take ran on this Mac (Apple M1 Max, MoltenVK) under `tools/gpu-lock.sh`, u
 | Walk under the dynamic render scale, 16.67 ms (cloud and Mac) | **Worse by the trail**, as at the fixed scale: 44 against 24 draws on the card | `pics/walk-cabin-dynamic-16ms.mp4`, `pics/walk-cabin-dynamic-16ms-mac.mp4` | `c4c1f1f2f` | `57b4045ae` |
 | The wobble under the dynamic render scale | Equal: an engine fault on both sides, a little larger on X because X's scale moves more | `pics/wobble-switch-dynamic.png` | `c4c1f1f2f` | `57b4045ae` |
 | The cabin's window jambs | Equal: sunlight leaks onto them at some render sizes on both sides | `pics/jamb-*.png`, `pics/ramp-jambs-main-c4c1f1f2f.png` | `c4c1f1f2f` | `57b4045ae` |
-| The frame's GPU span after a lamp switch | **Worse**: a block of about +5 ms over main's top for 10 to 13 draws after each switch, against about +2.5 ms for 7 draws on M. A cost of Design X. The variants XB and XC remove it. | `pics/cost-switch-fair-23.png`, `pics/switch-cabin-fair-fixed-23-x-xb-xc.mp4` | `c4c1f1f2f` | `57b4045ae`, XB and XC as scratch patches on it |
-| The deck's GPU frame span | Cited: +0.254 ms (spread 0.145), within the +0.3 ms of point 13. T17: see "Frame time". | none | `c4c1f1f2f` | `57b4045ae` |
+| The frame's GPU span after a lamp switch | **Worse**: a block of about +5 ms over main's top for 10 to 13 draws after each switch, against about +2.5 ms for 7 draws on M. A cost of Design X. The variants XB and XC remove it, and the cap of XB, built in `t0-zmjx`, leaves no draw more than 1 ms above the settled span on the merged code. | `pics/cost-switch-fair-23.png`, `pics/switch-cabin-fair-fixed-23-x-xb-xc.mp4` | `c4c1f1f2f` | `57b4045ae`, XB and XC as scratch patches on it |
+| The deck's GPU frame span | Cited: +0.254 ms (spread 0.145), within the +0.3 ms of point 13. T17 on the merged code: +0.217 ms (spread 0.113), see "Frame time". | none | `c4c1f1f2f`, T17 `3549d3283` | `57b4045ae`, T17 `bcece06cb` |
 | Screenshots of the real renderer (T19) | Equal: both clean. X's bay walls are a little brighter. | `pics/screenshot-rect-bay.png`, `pics/screenshot-rect-lamps.png` | `c4c1f1f2f` | `57b4045ae` |
 
 ## The takes where X is worse
@@ -63,8 +64,67 @@ The points are those of `docs/plans/bounce-light-confidence.md`, section 22. "Pa
 | 10. The named tests green in Checked and Release | Not taken here | Not taken here | The merge's gate (`t0-iido`). |
 | 11. Climb: band peak at most main's share (required), within 10 % (target) | Within 10 % | Pass, within 10 % | Band peak as a share of the same build's band with the filter off: M 1.012, X 0.984. |
 | 12. Census: no motion evidence, at most 10^−4 light evidence | Not applicable | Pass | rect-lamps, exit-cabin, docking-bay and station-cabin, 329 draws each, 4,737,600 block-draws per signal: 0 motion and 0 light evidence in both signals. |
-| 13. Frame time: at most +0.3 ms on the deck. The span after a switch is recorded | | Pass (cited). The span after a switch is recorded. | Cited: +0.254 ms (spread 0.145), the remedy's paired rounds (`t0-acxm-region-evidence`). T17 of this record: see "Frame time". |
+| 13. Frame time: at most +0.3 ms on the deck. The span after a switch is recorded | | Pass. The span after a switch is recorded. | Cited: +0.254 ms (spread 0.145), the remedy's paired rounds (`t0-acxm-region-evidence`). T17 on the merged code: +0.217 ms (spread 0.113), see "Frame time". |
 | 14. Portability: no validation message on the Mac and on Linux, no new device feature, `-Werror` | Not taken here | Not taken here | T18 did not run. See "What was not measured". |
+
+## The takes on the merged code
+
+After the choice of XB, ticket `t0-zmjx` built the cap (`05a27262d`), ticket `tc-8142` fixed the clamp's σ under NVIDIA's rounding (`6d234dcef`), and the acceptance branch merged the line's head `6f54dd615`, which carries main's step 2 of the wobble's fix (`3549d3283`). The rows that the user's bar rests on ran again on that code. The sides of these takes:
+
+- MF is main `3549d3283` with its own probe patch (build `mfin`).
+- XF is the acceptance branch at `16d915a67` with the survey's probe patch and the scratch patches fitted to step 2 (`scratch-region-log-step2.patch`, `scratch-dynamic-scale-step2.patch`, build `fin`). It is Design X with the cap, the fix of `tc-8142` and main's step 2. The branch's later commits up to `bcece06cb` change no file under `src` or `tests`.
+- AF is XF with both history clamps off (`TERTIUS_A_NO_CLAMP=1`), the reference of the light share and the daub.
+- T17's builds are plain Release demos: `tm2` of main `3549d3283` and `tx2` of `bcece06cb`.
+
+Every Mac take ran on 2026-11-22 between 21:05 and 22:34. The numbers are in `final/` and in `tables.txt`, section 13.
+
+| Scene and take | XF against MF by the bar | MF | XF | The earlier take (M / X) |
+|---|---|---|---|---|
+| The 10 stills of the light share and the cabins | Better: 9 better, 1 equal, none worse | `3549d3283` | `16d915a67` | The survey's 90 stills, 21 worse by the measures |
+| Light share, settled, rect-lamps / bay-sunbeam / docking-bay | Better: XF 97.7 to 100.4 % of AF, MF 81.6 to 102.7 % | `3549d3283` | `16d915a67` | M 81.6 to 102.8 %, X 97.9 to 100.4 % |
+| Daub against AF, same three stills | Better: XF 0.0089 / 0.0229 / 0.0312, MF 0.0119 / 0.0315 / 0.0420, AF 0.0079 / 0.0149 / 0.0216 | `3549d3283` | `16d915a67` | M 0.0117 / 0.0311 / 0.0394, X 0.0088 / 0.0225 / 0.0291 |
+| Films rect-bay and bay-sunbeam | As before: flicker worse by the measure (0.00247 against 0.00190, 0.00522 against 0.00397), blotch and level better in both | `3549d3283` | `16d915a67` | The same verdicts |
+| Switch bay-sun-off | Better: 30 / 22 draws against 49 / 37 | `3549d3283` | `16d915a67` | M 50 / 38, X 24 / 17 |
+| Switch lamp-hall-16 (glow off with the light) | **Worse after off**: 37 / 17 draws against 25 / 17. Both inside the goal of 60. | `3549d3283` | `16d915a67` | M 36 / 25, X 35 / 25, with the glow-stays switch |
+| Switch cabin, fair switch, fixed 2/3 | Better: 82 / 54 draws against 142 / 92 (whole image 71 / 34 against 122 / 53) | `3549d3283` | `16d915a67` | M 143 / 92, X 77 / 51, XB 82 / 55 |
+| The frame's GPU span after the cabin switch, fixed 2/3 | The block is gone: 0 draws more than 1 ms above the settled span after off and after on | | `16d915a67` | X about +5 ms for 10 to 13 draws |
+| Boil of the fair switch, floor / wall / ceiling, 0 to 60 draws after off | Equal to XB within 0.02 points: 0.25 / 0.26 / 0.27 % | | `16d915a67` | X 0.26 / 0.29 / 0.32 %, XB 0.26 / 0.27 / 0.29 % (residual measure) |
+| The card's scale through the switch, 16.67 ms (job `f8b8cba5`) | Holds: one render size, 1808 × 1017, from draw 133 to the end, with no change after off or on. The largest span after the switch is 17.88 ms against an idle mean of 17.59 ms. | | `16d915a67` | X 43 / 41 changes, largest fall 0.133 / 0.138 |
+| T17, the deck's GPU frame span | Pass: +0.217 ms (spread 0.113 ms, 3 paired rounds), within the +0.3 ms of point 13 | `3549d3283` | `bcece06cb` | Cited +0.254 ms |
+| T17, the film rect-bay's GPU frame span | XF faster: −0.143 ms (spread 0.027 ms) | `3549d3283` | `bcece06cb` | Not taken |
+
+The switch lamp-hall-16 changed with the probe's lamp switch. The earlier take kept the lamps' glow on (a change of light of −0.0996), and this take turns it off (−0.2537). So its rows do not compare with the earlier ones. The takes do not split XF's 12 extra draws after off between the cap and Design X. The fair cabin switch shows the cap's own share there: X 77 draws, XB 82, XF 82.
+
+The settled span of the fair cabin switch on the Mac (the mean GPU span over film frames 40 to 159, lamps on) was 15.64 and 15.74 ms on XF, against 15.27 and 15.33 ms for XB in the earlier session. Two paired rounds (`tools/queue-pair.sh`, 22:35 to 22:56, XB and XF in turn at a one-minute load under 8) separate the code from the session:
+
+| Round | XB, the cap on `57b4045ae` | XF, the cap on `16d915a67` | Difference |
+|---|---:|---:|---:|
+| p1 | 15.30 ms | 15.60 ms | +0.30 ms |
+| p2 | 15.48 ms | 15.62 ms | +0.14 ms |
+
+Both sides carry the cap. So the rise of 0.14 to 0.30 ms belongs to the merge's other changes: main's step 2, the line's commits after `57b4045ae`, or the fix of `tc-8142`. These runs do not split it further. T17 compares Design X with main on the same merged code, and its excess on the deck is +0.217 ms, against the +0.254 ms cited before the merge. So the rise is not an excess of Design X over main. In all four paired runs, no draw lies more than 1 ms above the run's settled span after off or after on.
+
+### The cabin ceiling's specks
+
+Main's step 2 counts more lamp-hall film frames with ceiling specks than step 1 (the line orchestrator's note: 42 of 240 frames against 4). The back-face line measures whether that is a real rise. So this take counts the specks of each cabin still in the top third of the view, where the cabin's ceiling is, by the survey's own speck rule (`tools/ceilingspecks.py`). M and X are the survey's earlier takes on `c4c1f1f2f` and `57b4045ae`. MF and XF are the merged code.
+
+| Cabin still | M | MF | X | XF |
+|---|---:|---:|---:|---:|
+| cabin-light-cabin | 12 | 20 | 11 | 13 |
+| box-cabin | 12 | 20 | 11 | 13 |
+| surface-cabin | 13 | 25 | 12 | 14 |
+| docking-cabin | 33 | 26 | 24 | 13 |
+| exit-cabin | 34 | 30 | 35 | 33 |
+| station-cabin | 0 | 0 | 0 | 0 |
+| windows-cabin | 0 | 0 | 0 | 0 |
+
+Main's ceiling counts rise from step 1 to step 2 in three cabins (12 to 20, 12 to 20, 13 to 25) and fall in two (33 to 26, 34 to 30). Design X's counts change by at most 2 in four cabins and fall from 24 to 13 in the docking cabin. In every cabin, XF's count is at most MF's plus 3. The counts come from the saved pictures. Their whole-view rates differ from the run's own by at most 0.019 specks per 10,000 pixels, because the PNG rounds the light.
+
+### Notes on the card's runs
+
+- The card's first run in a job draws slower (`t1-80jd`). The scale check of the merged code rests at 0.944 for that reason, not because of Design X or main's step 2.
+- The variants job `1091056e` (`cloud-variants-16ms/`) ran X, XB and XD in that order with no warm-up run. So its X row is the job's first run, which is slow. The choice of XB stands, because each variant was measured against its own idle span, and XD's peak was 30 to 44 % above its settled span.
+- Every later comparison job needs one discarded warm-up run first. `tools/cloudvideo.sh` now makes one.
 
 ## Measured facts
 
@@ -292,7 +352,16 @@ The video of the choice: `pics/switch-cabin-fair-fixed-23-x-xb-xd.mp4`, panes X,
 Reading: XB and XC remove the block on the Mac. Neither changes the grain or the boil by more than 0.03 points. XB pays with a slower fade (+3 to +5 draws of settle and a visible lag of up to 14 % in the first draws). XC keeps X's settle and fade, and its boil is 0.01 to 0.02 points higher in the 60 draws after off. The user decides between the designs.
 ### Frame time (T17)
 
-T17 PENDING
+T17 ran once, on the merged code (`timing.sh` with `MAIN=tm2 BUILD=tx2 OUT=t17f`, 22:29 to 22:34). Each round ran the deck (`scripts/temporal-upscale-timing.json`) and the film rect-bay on both sides under the exclusive GPU lock, at a one-minute load of 5.0 to 9.3. The order of the sides turned round each round. GPU frame span in ms, main `3549d3283` against `bcece06cb` (Design X with the cap, the fix of `tc-8142` and main's step 2):
+
+| Round | Deck, main | Deck, X | Difference | Film, main | Film, X | Difference |
+|---|---:|---:|---:|---:|---:|---:|
+| t1 | 19.313 | 19.479 | +0.166 | 15.910 | 15.753 | −0.157 |
+| t2 | 19.263 | 19.479 | +0.217 | 15.854 | 15.711 | −0.143 |
+| t3 | 19.208 | 19.486 | +0.278 | 15.839 | 15.709 | −0.130 |
+| Median | | | +0.217 (spread 0.113) | | | −0.143 (spread 0.027) |
+
+The deck passes point 13's +0.3 ms. The GPU clock is unknown in every run, because the calibration tool `gpu-clock` is not built in this checkout. The first queue's rounds ran before the builds existed and measured nothing. Their empty folders were deleted.
 
 ## The remedy under the dynamic render scale
 
@@ -385,11 +454,17 @@ Not measured:
 
 ## Cloud money
 
-$1.6149 of the ticket's $2.00, all through `tools/runpod/gpu_job.py`: the dynamic-scale videos, their sizes and region jobs, one failed first attempt ($0.2784), and the variants' scale logs ($0.0449).
+$1.7421 of the ticket's $2.00, all through `tools/runpod/gpu_job.py`:
+
+- $1.6149 before the merge: the dynamic-scale videos, their sizes and region jobs, one failed first attempt ($0.2784), and the variants' scale logs ($0.0449).
+- $0.1272 for `tc-8142` and the merged code: the red and green card jobs of `tc-8142` (`31ba72a6`, $0.0314, and `a8d320d8`, $0.0660) and the scale check of the merged code (`f8b8cba5`, $0.0298).
 
 ## Files
 
 - `tables.txt`: every measure's output. `tools/measure.sh` prints it from the runs under `/private/tmp/t0-5tyj`.
+- `final/`: the merged code's take of the cap: the fair cabin switch's result (`cabin.json`), its boil (`boil-fair-fin.txt`) and its two cost runs (`cost-fin-s1.txt`, `cost-fin-s2.txt`), and the paired cost runs against XB (`cost-xb-p1.txt`, `cost-fin-p1.txt`, `cost-xb-p2.txt`, `cost-fin-p2.txt`).
+- `cloud-final-16ms/`: the card's render sizes and GPU spans through the switch on the merged code (job `f8b8cba5`).
+- `scratch-region-log-step2.patch`, `scratch-dynamic-scale-step2.patch`: the two logging patches fitted to main's step 2 (`PATCHSET=step2` in `playbuild.sh`, `cloud.sh` and `cloudvideo.sh`). The originals stay for the older code.
 - `scratch-dynamic-scale.patch`, `scratch-region-log.patch`, `scratch-render-scale-t0-gbgj.patch`, `scratch-light-evidence-cap.patch`, `scratch-plan-rate-at-fast-cap.patch`: scratch patches, never committed to `src`.
 - `probe-main-2ffd7e66f-glow.patch`: main's probe patch with the lamp switch that turns the glow off.
 - `tools/`: every script of the takes. Each starts with a comment that says what it does.

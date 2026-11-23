@@ -1,11 +1,14 @@
-# Tool code of t0-5tyj. motiontable.py: the survey's motion part, M beside X, per film, from the runs f-bay-<side> and
-# f<g>-<side> (g 1 to 3) in /private/tmp/t0-5tyj/runs. Per film: flicker and grain flicker (the survey's per-pixel change
+# Tool code of t0-5tyj. motiontable.py [run prefix...]: the survey's motion part, M beside X, per film, from the runs
+# <prefix>-<side> in /private/tmp/t0-5tyj/runs (default f-bay and f1 to f3). SIDES=<M side>,<X side> names the sides
+# (default M,X; the merged code's films are fF with SIDES=MF,XF). Per film: flicker and grain flicker (the survey's per-pixel change
 # against the neighbor frames, low and high frequency; limits 0.006 and 0.05), and the blotch and level of the worst
 # sampled frame (the film's frame against a still of the same state; blotch limit 0.04, level limit 10 %), with each
 # side's sampled frames (middle / end) and failed measures. A measure counts as worse on X where X's value passes M's by
 # more than 10 % and by more than its floor (flicker 0.0001, grain flicker 0.0002, blotch 0.002, level's magnitude 0.002),
 # and better the other way round. Every film with a worse measure needs a sheet of pictures (the record's rule).
 import json
+import os
+import sys
 from pathlib import Path
 
 RUNS = Path('/private/tmp/t0-5tyj/runs')
@@ -14,7 +17,7 @@ FLOORS = {'flicker': 0.0001, 'grainFlicker': 0.0002, 'blotch': 0.002, 'level': 0
 
 def results(side):
     out = {}
-    for run in ['f-bay'] + [f'f{g}' for g in range(1, 4)]:
+    for run in sys.argv[1:] or ['f-bay'] + [f'f{g}' for g in range(1, 4)]:
         for p in sorted((RUNS / f'{run}-{side}' / 'results' / 'motion').glob('*.json')):
             out[p.stem] = json.loads(p.read_text())
     return out
@@ -39,7 +42,7 @@ def num(v, digits):
     return 'n/a' if v is None else f'{v:+.{digits}f}' if digits < 0 else f'{v:.{digits}f}'
 
 
-m, x = results('M'), results('X')
+m, x = (results(side) for side in os.environ.get('SIDES', 'M,X').split(','))
 counts = {}
 print(f"{'film':26s} {'flicker M':>9s} {'X':>8s} {'grain M':>8s} {'X':>8s} {'blotch M':>9s} {'X':>7s} {'level M':>8s} {'X':>8s}  verdict  failed M | X")
 for film in sorted(set(m) | set(x)):

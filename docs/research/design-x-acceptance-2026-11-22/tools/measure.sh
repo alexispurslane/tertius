@@ -85,4 +85,36 @@ section "11. The size ramp of the jambs on main c4c1f1f2f (sizeramp.py, kept as 
 cat "$D/ramp-jambs-main-c4c1f1f2f.txt"
 
 section "12. Frame time, take T17: the deck and the film rect-bay, M (main) against X (build), paired rounds (table.py)"
-if [ -d $B/t17/timing ]; then python3 -I "$T/table.py" $B/t17/timing main build; else echo "T17 did not run"; fi
+if [ -d $B/t17/timing ]; then python3 -I "$T/table.py" $B/t17/timing main build; else echo "T17 did not run on the earlier code: its take on the merged code is section 13h"; fi
+
+section "13. The takes on the merged code (README, 'The takes on the merged code'): MF main 3549d3283, XF the build fin of 16d915a67, AF fin with both clamps off"
+echo "-- 13a. The stills (stilltable.py)"
+SIDES=MF,XF python3 -I "$T/stilltable.py" sF cF
+echo "-- 13b. The light share at a fixed exposure and the daub (as section 2, from the runs e-lamps, e-bay, sF and s-AF)"
+S=$(mktemp -d); mkdir -p "$S/s"
+for side in MF XF AF; do
+  mkdir -p "$S/s/eF-$side/images/still"
+  ln -s "$RUNS/e-lamps-$side"/images/still/* "$RUNS/e-bay-$side"/images/still/* "$S/s/eF-$side/images/still/"
+done
+ln -s "$RUNS/sF-MF" "$S/s/kF-MF"; ln -s "$RUNS/sF-XF" "$S/s/kF-XF"; ln -s "$RUNS/s-AF" "$S/s/kF-AF"
+(cd "$R" && nix develop --command bash -c "cd $S && python3 -I $OLD/light.py eF-AF eF-MF eF-XF eF-AF && \
+  for e in kF eF; do for c in rect-lamps bay-sunbeam docking-bay; do REF=\$e-AF PYTHONPATH=$OLD python3 -P $OLD/daub.py \$e-MF:\$c \$e-XF:\$c \$e-AF:\$c; done; done") 2>&1
+rm -rf "$S"
+echo "-- 13c. The bay films (motiontable.py)"
+SIDES=MF,XF python3 -I "$T/motiontable.py" fF
+echo "-- 13d. The switches (switchtable.py)"
+python3 -I "$T/switchtable.py" MF=$RUNS/wF-MF XF=$RUNS/wF-XF fair-MF=$RUNS/fair-MF fair-XF=$RUNS/fair-FIN
+echo "-- 13e. The boil of XF's fair switch (boilnoise.py at the time of the take; its frames were deleted after it)"
+cat "$D/final/boil-fair-fin.txt"
+echo "-- 13f. The cabin ceiling's specks: the top third of each cabin still (ceilingspecks.py)"
+(cd "$R" && nix develop --command python3 -I "$T/ceilingspecks.py" M=$RUNS/s1-M M=$RUNS/s2-M M=$RUNS/s6-M MF=$RUNS/cF-MF \
+  X=$RUNS/s1-X X=$RUNS/s2-X X=$RUNS/s6-X X=$RUNS/s7-X XF=$RUNS/cF-XF) 2>&1
+echo "-- 13g. The paired cost runs of the cap before (xb) and after (fin) the merge, and fin's own session (costchart.py)"
+C=$B/macdyn/cost; args=()
+for run in xb-s1 xb-s2 fin-s1 fin-s2 xb-p1 fin-p1 xb-p2 fin-p2; do
+  f=$C/cost-$run/time-193-393.txt
+  [ -s "$f" ] && args+=("$run|$f")
+done
+python3 -I "$T/costchart.py" "$(mktemp -d)/cost-pair.png" "${args[@]}"
+echo "-- 13h. T17 on the merged code: main 3549d3283 (main) against bcece06cb (build), paired rounds (table.py)"
+python3 -I "$T/table.py" $B/t17f/timing main build
