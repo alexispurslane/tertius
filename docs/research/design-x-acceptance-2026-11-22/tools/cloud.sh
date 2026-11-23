@@ -45,7 +45,7 @@ sizes|video|regions|variants)
   elif [ $1 = variants ]; then
     shift
     submit "variants-$1" --tree x=$X --run "echo $pack | base64 -d | tar -xz -C x" \
-      --run "PATCHSET=${PATCHSET:-} GLOW=${GLOW:-stays} bash x/$D/tools/cloudvideo.sh variants $*" --output 'out/variants/*/*.txt' --timeout 900
+      --run "PATCHSET=${PATCHSET:-} GLOW=${GLOW:-stays} WARMUP=${WARMUP:-1} bash x/$D/tools/cloudvideo.sh variants $*" --output 'out/variants/*/*.txt' --timeout 900
   elif [ $1 = regions ]; then
     submit "regions-$2" --tree x=$X --tree m=c4c1f1f2f --run "echo $pack | base64 -d | tar -xz -C x" \
       --run "bash x/$D/tools/cloudvideo.sh $*" --output 'out/*-replay/*.txt' --timeout 600

@@ -6,9 +6,10 @@
 # plain Release demo of the line's head, build tx). The order of the sides turns round each round. table.py prints the
 # paired differences: bash m.sh table.py ../t17/timing main build (from $BASE/w).
 T=$(cd "$(dirname "$0")" && pwd); R=$(cd "$T/../../../.." && pwd)
-BASE=${BASE:-/private/tmp/t0-5tyj}; out=$BASE/t17; first=${1:-1}; last=${2:-3}
+# MAIN and BUILD name the builds of the two sides in $BASE (default tm and tx), and OUT the take's folder (default t17).
+BASE=${BASE:-/private/tmp/t0-5tyj}; out=$BASE/${OUT:-t17}; first=${1:-1}; last=${2:-3}
 mkdir -p "$out/bin"
-ln -sfn "$BASE/tm/probe-bin" "$out/bin/main"; ln -sfn "$BASE/tx/probe-bin" "$out/bin/build"
+ln -sfn "$BASE/${MAIN:-tm}/probe-bin" "$out/bin/main"; ln -sfn "$BASE/${BUILD:-tx}/probe-bin" "$out/bin/build"
 [ -f "$out/rect-bay-film.json" ] || (cd "$R" && nix develop --command python3 "$T/filmscript.py" "$out/rect-bay-film.json" rect-bay)
 for r in $(seq "$first" "$last"); do
   if (( r % 2 )); then sides=(main build); else sides=(build main); fi

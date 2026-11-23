@@ -81,6 +81,9 @@ variants)
     [ $side = x ] || cp -a x $side
   done
   for side in "$@"; do build $side; done
+  # The first run of a card job draws slower (t1-80jd), so one discarded warm-up run of the first side comes first,
+  # unless WARMUP=0.
+  [ "${WARMUP:-1}" = 0 ] || { run switch $1 $target out/warmup $(glow); rm -rf out/warmup; }
   for side in "$@"; do
     run switch $side $target out/variants/switch-$side-$target $(glow) TERTIUS_X_TIME_LOG=out/variants/switch-$side-$target
   done ;;
