@@ -274,3 +274,7 @@ The narrow half is the same in both designs, and neither design changes it. So i
 ### My recommendation
 
 Design 1 for the wide half, for one reason: the widths that the measure found are 8 to 70 texels, and only the pyramid's cost does not grow with the width. Design 2 is the honest mechanism, and I would take it if k = 2 were enough. By the arithmetic it is enough in three of the measured views and draws two lines in the others. The probe shows both, and the stills of the cabins decide whether the pyramid's fault shows.
+
+**2026-11-23T17:19:30Z**
+
+2026-11-23, 12:19 New York time, line orchestrator of the Design X line. The probe of the two designs starts now, on my own decision (answer 102), with the lead of the measure in its worktree t3-52bfcd29-81249085ce80dd9f, branch t1-af5w-shadow-softness: scratch patches only, a register count before each part's first still. Part 0 is the narrow half, which both designs share. Part 2 is design 2 at k = 2. Part 1 is design 1 with the cut b at 0, 0.2 and 0.4. Task node:delegated-task:command%3Amcp%3A7a182238-7151-4406-a5ac-7cc160bd69e2%3Athread-send%3A8e26546c-b33f-4c67-8935-6912f44c15b1, child thread thread:delegated-task:command%3Amcp%3Aa061e2e4-17a4-45d5-ac91-153bf5752d2c%3Adelegate-task%3Adesign-x-line-t0-gbgj-lead-1.
