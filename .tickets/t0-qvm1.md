@@ -292,3 +292,55 @@ The model's check: T replays every logged fire exactly, and its block model of t
 **2026-11-23T10:00:52Z**
 
 2026-11-23, 05:03 New York time. The replay's last row, CP (C1's cap with a bar that shrinks while the excursion lasts, B = 3 a / sqrt(1 + (r - 1) / W)), in docs/research/t0-qvm1-region-repair-replay/README.md, "The third take". CP's stills: 9.8 to 16.9 % short blocks (C1 9.0 to 16.0 %), noise 0.036 (C1 0.032), the lamps-off cabin 16.1 % (C1 15.0 %). The switch after off: 76, 96 (C1 80, 98). The anchors' 90th percentile lag: bay-sun 21.8 (C1 23.3, T 17.6), rect-bay 26.5 (C1 26.8, T 18.7, none 32.1). So CP does not buy back rect-bay's tail. The false runs under today's bar end within 4 or 5 draws at the 90th percentile (99th: 9 to 15, longest 18), and rect-bay's true runs are short too, so the shrink stays near 0.9 of the bar where it matters. The replay is done.
+
+**2026-11-23T10:03:27Z**
+
+2026-11-23, 05:03 New York time, line orchestrator. The choice on the shrinking bar, and the design of the build.
+
+**The choice (answer 98, by the orchestrator's rule).** The shrinking bar (CP) does not become the cap's form. The rule asks that it buy back at least half of the cap's loss in the anchors' 90 % lag. It buys back 1.5 of 5.7 draws in bay-sun (23.3 to 21.8, against today's 17.6) and 0.3 of 8.1 draws in rect-bay (26.8 to 26.5, against today's 18.7). Its added noise passes (0.036 in the four stills, 0.046 in the lamps-off cabin, limit 0.06). The cause: the runs above the bar are short, false and true alike (90 % end within 4 or 5 draws), so the bar falls only to about 0.9 of its height where it acts. So the build is the continuous cap at p = 1 as chosen.
+
+**The design of the build: the region's cap.**
+
+Terms, each with one meaning:
+- The region's light: the mean of an anchor's counted taps in one draw, free of the exposure (as today).
+- The drift D: the mean of the newer window of W = 18 draws less the mean of the older window.
+- The older spread s1: the standard deviation of the older window's 18 draws (`olderSpread` in `regionTestOf`).
+- The bar: `DriftSigmas * s1 * sqrt(2 / W)`, today's tolerance, unchanged.
+- The excess u: |D| less the bar.
+- The region's cap n: the longest history, in draws, that the region's light allows. n = (W * s1 / (sqrt(2) * u))^(2/3), and at least `FullRateFrames` (8). Where u is 0 or less, the region gives no cap.
+
+The reason of the formula (decision Y4 wants a reason and no tuned constant): a history of n draws lags a drift of u per window by n * u / W, and its noise is s1 / sqrt(2 n). The cap is the n at which the two are equal. In units of the test's statistic z = |D| / (s1 * sqrt(2 / W)), n = W / (2 (z - 3))^(2/3): z 3.3 gives 25, 3.6 gives 16, 4.0 gives 11, and 4.7 or more gives 8. A history is at most 32 draws long, so a cap above 32 changes nothing.
+
+What causes what:
+- Who decides: the anchor's workgroup, invocation 0, in `updateRegionAnchor`. It owns the test and now also the cap. It writes the answer into its ring's layer of this draw.
+- Where the result is stored: the ring's b channel. Its meaning changes from "1 where the light moved" to the region's cut, 1 / n, and 0 where the region gives no cap. The reciprocal is stored for two reasons. An all-zero texel is a valid "no cap". A block takes the strongest answer of its anchors with a maximum, which does not depend on the order of the invocations (the bits of floats that are not negative order as the floats do, so `atomicMax` on `floatBitsToUint` works).
+- Who reads it: every block, one draw late, through one function of `region_drift.glsl`. The block's cut is the largest cut of the anchors whose regions hold it.
+- What it changes: the spatial dispatch's line of the cap. Sketch: `historyLength = evidence == LightEvidence ? min(antiLagged, FullRateFrames) : evidence == RegionEvidence ? min(antiLagged, regionCap) : antiLagged;` where regionCap = 1 / the block's cut.
+
+Signatures (GLSL, `region_drift.glsl`; the lead can change a name or a detail with a recorded reason):
+- `float regionCutOf(RegionDraw now)` replaces `bool regionTestOf(RegionDraw now)`: the region's cut of this draw, 0 until 2 W valid draws in a row exist and 0 where the drift is at or under the bar.
+- `float regionAnchorCutBefore(ivec2 block, uint candidate)` replaces `bool regionAnchorMovedBefore(ivec2 block, uint candidate)`: the cut that the anchor `candidate` gave in the draw before, 0 for a candidate that does not exist and in a draw that does not continue the draw before.
+
+Settled:
+1. The bar, the two windows of 18, the ring of 36 layers, the taps, the validity rule, the one draw of delay and `regionContinues` do not change.
+2. One store for one fact. The block's region evidence and the block's cut must not be two values that can disagree: derive the level from the cut (a cut above 0), or drop the level and keep the cut.
+3. The order of the levels stays: under motion evidence or light evidence the region's cap does not act, and the anti-lag still shortens a history below the region's cap.
+4. Vulkan portability: no reliance on an infinity or a NaN. Bound the division where u is small and where s1 is 0. With s1 = 0 and D exactly 0 the region gives no cap, as today (the windows' sums subtract the older window's first draw for this). With s1 = 0 and |D| above 0 the cap is 8, today's answer.
+5. The floor of 8 has one owner and one comment with its reason: a shorter history makes every pixel of the block trace its own ray (`screen_trace_plan.comp`).
+6. Determinism: one machine gives the same bits in every run. The sums keep their fixed order.
+
+The readers of the ring's b channel, all of which change with its meaning:
+- `regionAnchorMovedBefore` in `region_drift.glsl`, the only shader reader, called from `evidenceOfBlock` in `accumulate_spatial.comp`.
+- The comment of `TemporalSignal.RegionRingFormat` (`TemporalSignal.cs`) and the ring's comment in `region_drift.glsl`.
+- The tests that read a ring layer with `ReadImageLayer` in `AccumulatorRenderTests` (the region's class).
+- The region log of `docs/research/t0-qvm1-region-off/tools/regionlog.sh` and the tools that read its output, and `docs/research/t0-acxm-region-evidence/tools/mutants.py`. They are records of past takes: change none, but name in the build's record that a new log's b is a cut.
+- `docs/plans/bounce-light-confidence.md`, sections 8.2, 8.7, 18 and 20.
+
+Out of scope: a count gate (the measured next step if the real stills still show the blocks), a measured spread, the pairing by the jitter's cycle, the tap's pooling (one pixel per block), and the restart at a change of the render size (`t4f-71qp`).
+
+Acceptance, by real takes on the built code against main (the replay is not the bar):
+1. The frozen stills (lamp hall, the still cabin at a late draw, the bay, and the lamps-off cabin): the map of the history's length, the share of short histories and the grain.
+2. The fair cabin switch: the settle after off and after on (today 71 and 82 draws; the rule off 189).
+3. rect-bay's film: no worse than main.
+4. Side-by-side videos, today against the build, of one frozen still and of rect-bay, with frames looked at 1:1.
+5. The cost of the spatial dispatch does not rise beyond the noise of the take.
