@@ -13,12 +13,14 @@
 #     job's log, without pictures (cloudvideo.sh regions).
 #   switch: the survey's switch bay-sun-off on M (main c4c1f1f2f) and on X (the line's head), each a probe build of its
 #     own tree with its own probe patch, both run by the head's survey tool, in one job.
+# C names the output folder (default /private/tmp/t0-5tyj/cloud). GPU_JOB=<path> runs another checkout's gpu_job.py
+# (and so its endpoint.json's caps), such as main's. PATCHSET and GLOW go to cloudvideo.sh's variants mode.
 set -uo pipefail
 R=$(cd "$(dirname "$0")/../../../.." && pwd)
-C=/private/tmp/t0-5tyj/cloud; mkdir -p $C
+C=${C:-/private/tmp/t0-5tyj/cloud}; mkdir -p $C
 X=${X:-$(git -C "$R" rev-parse HEAD)}
 submit() { local name=$1; shift
-  (cd "$R" && python3 -I tools/runpod/gpu_job.py submit --agent t0-5tyj "$@" --out "$C/$name") > "$C/$name.log" 2>&1
+  (cd "$R" && python3 -I "${GPU_JOB:-tools/runpod/gpu_job.py}" submit --agent t0-5tyj "$@" --out "$C/$name") > "$C/$name.log" 2>&1
   echo "$(date +%T) exit $? $name: $(tail -1 "$C/$name.log" | cut -c1-200)"; }
 case $1 in
 shard)
@@ -43,7 +45,7 @@ sizes|video|regions|variants)
   elif [ $1 = variants ]; then
     shift
     submit "variants-$1" --tree x=$X --run "echo $pack | base64 -d | tar -xz -C x" \
-      --run "bash x/$D/tools/cloudvideo.sh variants $*" --output 'out/variants/*/*.txt' --timeout 900
+      --run "PATCHSET=${PATCHSET:-} GLOW=${GLOW:-stays} bash x/$D/tools/cloudvideo.sh variants $*" --output 'out/variants/*/*.txt' --timeout 900
   elif [ $1 = regions ]; then
     submit "regions-$2" --tree x=$X --tree m=c4c1f1f2f --run "echo $pack | base64 -d | tar -xz -C x" \
       --run "bash x/$D/tools/cloudvideo.sh $*" --output 'out/*-replay/*.txt' --timeout 600

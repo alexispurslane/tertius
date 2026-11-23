@@ -4,6 +4,8 @@
 # the walk (renderer-survey.py: walk_script of cabin-walk) or the switch (switch_script of the switch cabin, its lamps
 # off from draw 193 to 393). Every run renders at 1920 x 1080 under the dynamic render scale FrameTimeTarget(<target>,
 # 0.5, 1) of the scratch patch ../scratch-dynamic-scale.patch, and logs each draw's render size.
+# PATCHSET=step2 takes the scratch patches fitted to main's step 2 of the wobble fix (../scratch-*-step2.patch) on every
+# side but m. GLOW=off gives the variants mode the films' switch, in which the lamps' glow goes out with their light.
 #
 #   cloudvideo.sh sizes <targets...>: builds both sides. Then, with nothing else running in the job, for each scene, side
 #     and target, it renders the scene's script without pictures (TERTIUS_PROBE_KEEP empty), as the survey's own takes
@@ -48,9 +50,9 @@ variant() { case $1 in xb) echo scratch-light-evidence-cap.patch ;; xc) echo scr
 build() {
   echo "$(date +%T) build $1"
   (cd $1 && patch -p1 --forward -s -i tools/renderer-survey/probe.patch \
-    && { [ $1 = m ] || patch -p1 --forward -s -i ../$D/scratch-region-log.patch; } \
+    && { [ $1 = m ] || patch -p1 --forward -s -i ../$D/scratch-region-log${PATCHSET:+-$PATCHSET}.patch; } \
     && { [ -z "$(variant $1)" ] || patch -p1 --forward -s -i ../$D/$(variant $1); } \
-    && patch -p1 --forward -s -i ../$D/scratch-dynamic-scale.patch \
+    && patch -p1 --forward -s -i ../$D/scratch-dynamic-scale${PATCHSET:+-$PATCHSET}.patch \
     && dotnet build src/Tertius.Demo -c Release -nologo -v:q -p:RunAnalyzers=false -p:TreatWarningsAsErrors=false \
        -o ../out-$1/probe-bin | tail -1)
 }
@@ -63,6 +65,9 @@ run() {
   echo "$(date +%T) $scene $side $target exit $?"
   rm -rf runs-$side series-$side.txt
 }
+# glow: the glow-stays switch of the earlier sizes jobs, unless GLOW=off asks for the films' switch, in which the lamps'
+# glow goes out with their light.
+glow() { [ "${GLOW:-stays}" = off ] || echo TERTIUS_PROBE_LAMP_GLOW=stays; }
 logname() { if [ "$1" = switch ]; then echo size-193-393.txt; else echo size-none.txt; fi; }
 # region <scene> <side> <target>: on X, the environment that writes the region log (scratch-region-log.patch) beside
 # the played-back run's size log. The region test depends on the render sizes and the images only, not on the frame
@@ -77,7 +82,7 @@ variants)
   done
   for side in "$@"; do build $side; done
   for side in "$@"; do
-    run switch $side $target out/variants/switch-$side-$target TERTIUS_PROBE_LAMP_GLOW=stays TERTIUS_X_TIME_LOG=out/variants/switch-$side-$target
+    run switch $side $target out/variants/switch-$side-$target $(glow) TERTIUS_X_TIME_LOG=out/variants/switch-$side-$target
   done ;;
 regions)
   scene=$1; shift

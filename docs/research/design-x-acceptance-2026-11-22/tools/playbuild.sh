@@ -15,6 +15,8 @@
 #      hunks, see below), then ../scratch-dynamic-scale.patch;
 #   mfix: the m tree with ../scratch-render-scale-t0-gbgj.patch (a copy of t0-gbgj's patch: TERTIUS_X_RENDER_SCALE gives
 #      a headless run the constant FixedRenderScale, with the render targets sized for it) in place of the dynamic patch.
+# PATCHSET=step2 takes the scratch patches fitted to main's step 2 of the wobble fix (../scratch-*-step2.patch), and
+# OUT=<name> names the build's folder $BASE/<name>play in place of the side's.
 set -euo pipefail
 side=$1
 R=$(cd "$(dirname "$0")/../../../.." && pwd)
@@ -27,7 +29,7 @@ tree=$B/${side}play-src; rm -rf $tree; mkdir -p $tree
 if [ $side = x ] || [ $side = xb ] || [ $side = xc ] || [ $side = xd ]; then
   git -C $R archive HEAD | tar -x -C $tree
   patch -d $tree -p1 --forward -s -i $R/tools/renderer-survey/probe.patch
-  patch -d $tree -p1 --forward -s -i $D/scratch-region-log.patch
+  patch -d $tree -p1 --forward -s -i $D/scratch-region-log${PATCHSET:+-$PATCHSET}.patch
   case $side in
   xb) patch -d $tree -p1 --forward -s -i $D/scratch-light-evidence-cap.patch ;;
   xc) patch -d $tree -p1 --forward -s -i $D/scratch-plan-rate-at-fast-cap.patch ;;
@@ -45,9 +47,9 @@ fi
 if [ $side = mfix ]; then
   patch -d $tree -p1 --forward -s -i $D/scratch-render-scale-t0-gbgj.patch
 else
-  patch -d $tree -p1 --forward -s -i $D/scratch-dynamic-scale.patch
+  patch -d $tree -p1 --forward -s -i $D/scratch-dynamic-scale${PATCHSET:+-$PATCHSET}.patch
 fi
 cd $R && nix develop --command bash -c "cd $tree && dotnet build src/Tertius.Demo -c Release -nologo -v:q -p:RunAnalyzers=false \
-  -p:TreatWarningsAsErrors=false -o $B/${side}play/probe-bin 2>&1 | tail -3"
+  -p:TreatWarningsAsErrors=false -o $B/${OUT:-$side}play/probe-bin 2>&1 | tail -3"
 rm -rf $tree
-echo "$(date +%T) built $B/${side}play/probe-bin"
+echo "$(date +%T) built $B/${OUT:-$side}play/probe-bin"
