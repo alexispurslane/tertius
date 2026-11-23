@@ -1,0 +1,16 @@
+# SCRATCH patch of t1-g1jd, never commit to src. It applies after the survey's probe patch. The anti-lag after the clamp
+# is skipped for the diffuse signal only (parameters.light != DiffuseLight keeps it), as in t1-g1jd's test build.
+--- a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp	2026-11-23 01:21:40
++++ b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp	2026-11-23 01:21:40
+@@ -176,7 +176,10 @@
+         // and region evidence state a change, so each adds one cap on top of the anti-lag: at most FullRateFrames draws,
+         // the shortest length that keeps the block's shared ray. A shorter restart made every pixel of the block trace
+         // its own rays (section 2.2, record of 2026-11-22). So evidence only ever shortens a history.
+-        float antiLagged = max(fastCap, historyLength * (1.0 - min(1.0, lag / parameters.antiLagShare)));
++        // SCRATCH (t1-g1jd, never commit to src): the anti-lag skipped for the diffuse signal only, so that a diffuse
++        // history is shortened by no clamp's move; region and light evidence still cap it.
++        float antiLagged = parameters.light == DiffuseLight ? historyLength
++            : max(fastCap, historyLength * (1.0 - min(1.0, lag / parameters.antiLagShare)));
+         historyLength = evidence == LightEvidence || evidence == RegionEvidence ? min(antiLagged, FullRateFrames) : antiLagged;
+         slow = clamped;
+     }
