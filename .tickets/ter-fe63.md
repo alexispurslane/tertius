@@ -1,6 +1,6 @@
 ---
 id: ter-fe63
-status: open
+status: in_progress
 deps: []
 links: [ter-12xp, ter-bdoh, t1-nyjl]
 created: 2026-11-22T15:17:24Z
@@ -131,3 +131,111 @@ The model: one draw rule for both kinds of ray. A ray is drawn from the one-samp
 Order of the work: a probe switch first, and the picture before any gate. The nose's ceiling and rect-bay's left wall at draw 130 at 1:1, main beside the mixture, and the largest sample. Then a glossy scene (rect-lamps' floor, the plate) to show that a sharp reflection does not lose its detail or gain noise: a guided draw that the lobe gives almost no density is a wasted ray, so the design says at which roughness the mixture starts and why. Then the frame's time, because every reflection ray of these views qualifies. Only then tests, hardening and review.
 
 Not in this ticket: the diffuse tail on the wall (guided draws on a thin bright sender carry 71 % of the squared sum there). It stays with t1-nyjl.
+
+**2026-11-23T18:45:14Z**
+
+2026-11-23, line orchestrator of the back-face line: the build's detail, after the orchestrator's word above. The surface share's lead builds it after the stills of t1-nyjl, in its worktree t3-2b720d96-b40221aeff8f27f7 on its branch, with main merged first. The review base is main's head at that merge.
+
+### Terms, one name each
+
+- **Lobe draw** of a kind: the draw from the pixel's own lobe. For the diffuse kind it is the cosine draw, for the reflection kind the draw from GGX's visible normals.
+- **Lobe density**: the lobe draw's density per steradian along a direction (`densityOf`).
+- **Guided draw**: the draw that aims at a pixel of the screen in proportion to its guide light (`guidedTargetOf`, `guidedPointOf`). It is the same draw for both kinds.
+- **Guided density** of a ray: the density per steradian with which a guided draw from the ray's start runs along the ray's direction and counts (`guidedDensityOf`). It depends on the start, the direction and the hit pixel, not on the kind.
+- **Guided share** of a ray: the probability that the ray takes the guided draw. It depends on the kind and on the pixel's roughness. 0 means that the kind is not guided at that pixel.
+- **Mixture density**: (1 - guided share) times the lobe density plus the guided share times the guided density.
+
+### What causes what
+
+- `traceFrom` (screen_trace.glsl) is the one choke point of a ray's draw and of its density. Today it guides only where `kind == KindDiffuse`. After the change it asks one function for the ray's guided share, and no other line of it tests the kind for the guiding. The kind supplies its lobe draw and its lobe density, and nothing else.
+- The resolve (screen_trace_resolve.comp) is the reader of the density. This is the part that the model does not show at first. For a block's reflection ray, `weighedRayOf` does not take the record's density: it takes the pixel's own lobe density along the ray (ter-xo83). A guided ray lands where the lobe density is small. So with that rule the weight of a guided ray is the pixel's response over a small lobe density, which is the tail that the mixture is there to cut. The rule becomes: the pixel weighs a block's reflection ray by its own mixture density, which is its own lobe density mixed with the ray's guided density at its own guided share. So the record must give the resolve the ray's guided density.
+- Nothing new decides which pixel is bright. The guide stays today's pyramid of the sent diffuse light. No second pyramid and no second mixture.
+
+### Signatures
+
+screen_trace.glsl:
+
+```glsl
+// The share of the rays of the kind from the pixel that take the guided draw (LightPyramid.GuidedShareOf): 0 where the
+// kind is not guided at the pixel's roughness, where the guiding is off, and while no lit pixel is in view.
+float guidedShareOf(TracingPixel p, uint kind);
+
+// The direction of the kind's lobe draw from the pixel, for the two numbers u.
+vec3 lobeDirection(TracingPixel p, uint kind, vec2 u);
+
+// The density of the one-sample mixture of a lobe draw and the guided draw at the share (LightPyramid.MixtureDensity).
+float mixtureDensity(float share, float lobeDensity, float guidedDensity);
+```
+
+In `traceFrom`:
+
+```glsl
+    float share = guidedShareOf(p, kind);
+    bool guided = share > 0.0 && unitOf(draw.z) < share;
+    ...
+        drawn = lobeDirection(p, kind, u);
+```
+
+where
+- `p` = the pixel that starts the ray, with its normal, its view direction and its alpha (the floored roughness squared).
+- `kind` = `KindReflection` or `KindDiffuse`.
+- `u` = the two random numbers of the lobe draw, each from 0 to below 1. The reflection kind keeps its numbers from the blue-noise mask.
+- `draw.z` = the third word of the ray's direction draw, which already chooses the guided draw of a diffuse ray.
+- `share` = the ray's guided share, from 0 to below 1.
+
+screen_trace_resolve.comp, in `weighedRayOf`, the density of a block's reflection ray becomes:
+
+```glsl
+        float own = mixtureDensity(guidedShareOf(p, kind), reflectionDensity(p, ray.direction), guidedDensity);
+```
+
+where
+- `guidedDensity` = the ray's guided density as its tracer computed it, from the record.
+
+C#, LightPyramid.cs: `GuidedShare` becomes the diffuse kind's share under a name that says so, and the reflection kind gets its share and the two roughness values of its ramp. `MixtureDensity(share, lobeDensity, guidedDensity)` takes the share. `GuidedShareOf` mirrors the GLSL function, so that the tests reach it. The constants have one store, LightPyramid, and reach the shaders through `ScreenTracePushConstants`, as `GuidedShare` does today. No GLSL copy of a constant.
+
+The lead may change these signatures where the code shows a better one, and records the change and its reason.
+
+### My settlements, for the orchestrator to reverse
+
+1. **The reflection kind's guided share is a ramp over the roughness.** It is 0 up to a start roughness and rises linearly to its full value at an end roughness, which is at most the hand-over's start (`ScreenTrace.HandOverStart`, 0.4 by default). Reasons: below the start a guided draw is a wasted ray, because the lobe gives its direction almost no density and the pixel's response there is almost 0, while the lobe's own rays pay 1 / (1 - share) in weight. A ramp shows no edge between two materials, which is the hand-over band's own argument. The lead finds the start, the end and the full share with the census's replay, by reweighting the logged reflection samples per roughness class, before any picture. It reports the three values and their reasons.
+2. **The resolve weighs a block's reflection ray by the pixel's own mixture density.** See "What causes what". In the probe the guided density may travel in a scratch image. For the engine the lead proposes where it is stored (the ray record has no free component today) and tells me what it costs in images and bindings before stage 2.
+3. **A ray with a guided share above 0 walks its drawn direction, as the diffuse kind does.** The guided density is a box function of the direction, and a direction rounded to the record's code can leave its target's box, which loses light. The record still holds the code. The lead states how far the code's rounding moves the resolve's weight at the ramp's start roughness. If it is above 1 %, the lead tells me.
+4. **The reflection ray's guided draw takes random numbers of its own.** With the diffuse ray's numbers, both rays of a pixel aim at the same target in a draw.
+5. **Nothing changes above the hand-over.** A pixel above `MaxRoughness` traces no reflection ray, and its specular sample comes from the diffuse rays, which are guided already.
+6. **The diffuse kind does not change.** With the reflection kind's share at 0, every image is bit-identical to main's. This is a test.
+7. **The known mismatch stays and is reported.** The guide light of a sender is its sent diffuse light, and a reflection ray reads the hit light's reflection layer. The lead reports how far the two differ on the senders of the nose's box.
+
+### Stage 1: a probe switch, and the pictures before any gate
+
+A scratch change, no tests. In this order, and the lead sends me each result the moment it exists:
+
+1. The nose's ceiling box and rect-bay's left wall at draw 130, at 1:1, main beside the mixture, with the capture specks and the largest sample of each. The takes of the speck census, at its exposure.
+2. The specks sparkle, which is a fault over time. So a side-by-side video of the nose's ceiling, main left: real frames at 60 a second, one fixed exposure, H.264 at CRF 12 or lower. The lead looks at frames of it at 1:1 and describes them.
+3. A glossy scene: rect-lamps' floor and the reflection plate, main beside the mixture at 1:1. A sharp reflection keeps its detail and gains no noise. The error against each build's own late mean, per crop.
+4. Each region's mean against main in all of these. The mixture is unbiased, so a mean that moves by more than the noise is a defect of the probe, or the cap `MostRayWeight` cut light before, which the lead then says.
+5. The frame's GPU time, main against the mixture, on the nose's view and on rect-bay, on the Mac at a 1-minute load under 8, with the load in each row. Every reflection ray of these views pays the guided density's 3 x 3 reads.
+
+Then the lead waits for my word. I pass the pictures to the orchestrator.
+
+### Stage 2: only after my word
+
+- Red-green TDD. The tests first: the mixture density at a share, the ramp of the share, the reflection kind's bit-identity at a share of 0, and an energy test of the reflection kind with the mixture on (a furnace or a scene whose mean is known).
+- One fresh reviewer for the whole diff, every finding resolved.
+- Main merged into the branch, every test project in Checked, then in Release. Coverage of the changed lines. The mutants of the changed C# and GLSL through tools/mutate.py, one result each.
+- ARCHITECTURE.md, "Guided diffuse rays", says the one draw rule for both kinds, and docs/plans/back-face-depth-layer.md's decision on the guided rays is updated.
+- The Vulkan rule: nothing that only MoltenVK gives. The six known lavapipe failures (t70-0pr5) are not this ticket's.
+- The final JSON report in the format of the lead's brief.
+
+### Rules
+
+- No cloud money without my word. The Mac only.
+- Disk: `/bin/df -g /` before each build and take. No new build under 22 GiB free, and the lead stops under 20 and tells me.
+- The GPU lock for at most about 20 minutes per take.
+- A fork comes to the line orchestrator first.
+
+### Out of scope
+
+- The diffuse tail on rect-bay's left wall, the guided share of the diffuse kind and the geometry guide (t1-nyjl).
+- The resolve's weight of a diffuse ray.
+- The caps of the temporal stack.
