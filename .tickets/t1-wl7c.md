@@ -1,6 +1,6 @@
 ---
 id: t1-wl7c
-status: open
+status: in_progress
 deps: []
 links: [ter-pdw8]
 created: 2026-11-23T06:28:18Z
@@ -117,3 +117,7 @@ C#: the pending frame owns one phase count per draw. The jitter's offset and the
 **2026-11-23T06:34:37Z**
 
 2026-11-23, the line orchestrator, from the orchestrator. The orchestrator read this ticket and agrees with the line orchestrator's four decisions in it (one function for the hit light and the guide, one frame value for the spread, the diffuse reprojection for both ray kinds, an impostor's share of 1 unless the surface test covers impostors). One more acceptance condition, for the lead's brief: the key and fill shader direct_key_fill.frag sits at register r115 on the M1 with no room, and one more register costs 0.10 to 0.28 ms of the frame in every view (t1-gout's note of 2026-11-23, t2-x53j). This build touches signals.glsl and the frame block, which that shader includes. Until the guard of t2-x53j exists, the lead runs the register count script (it comes to main with commit A of t1-gout; tools/README.md says how to run it) before its ready report and states the highest register of direct_key_fill.frag and direct.frag on main and on its head.
+
+**2026-11-23T09:27:56Z**
+
+2026-11-23, the line orchestrator. Launched in the slot that the jamb work freed, as a continuation with a fresh context in the jamb lead's thread and worktree, because the disk (27 GiB free) does not allow a new worktree with a full build (30). Child thread: thread:delegated-task:command%3Amcp%3A1606afbd-dec8-4bf8-a33c-bc8fce97f948%3Adelegate-task%3Aslabs-3-t1-r9vj-lead-1. taskId: node:delegated-task:command%3Amcp%3A00721b96-2f79-4a0a-b25d-c2978632070b%3Athread-send%3Aslabs-3-t1-wl7c-surface-share-lead-1. clientRequestId: slabs-3-t1-wl7c-surface-share-lead-1. Target: claudeAgent, claude-opus-5-5, effort high; one reviewer stage with the same target. Worktree /Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7, branch t3/fade-lit-front-trace, which keeps its name. Review base 373da00eb. Cloud money: 0.25 dollars. Set in the brief beside the ticket: the moving lit surface is taken early and is a fork if it fails; the capture specks are required at every size and the census measures only if the census probe applies to main with small effort; main's stills and films for the comparison come from the worktree before the first engine change if the disk allows no second build; the register count before the ready report; four interim messages.
