@@ -812,7 +812,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             return new(new WithoutMap());
         Span<long> served = servedChain.AsSpan(0, EnvironmentChain.Maps(snapshot.Chain.Count));
         EnvironmentChain.Serve(snapshot.Chain, served);
-        ReadOnlyMemory<FaceMask> faces = map.FacesFor(frame: FrameNumber, served: served, longStep: everyFace);
+        ReadOnlyMemory<FaceMask> faces = map.FacesFor(frame: FrameNumber, served: served, everyFace: everyFace);
         return new(new WithMap(Faces: faces, Irradiance: map.ReadingsOf(served.Length)));
     }
 

@@ -556,6 +556,89 @@ public sealed class EnvironmentMapsPerFrameTests
         }
     }
 
+    [Fact]
+    public void ACameraCutRefreshesEveryFaceOfEveryMapInItsOwnDraw()
+    {
+        VulkanRenderer renderer = Renderer();
+        try
+        {
+            MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
+            Vector3[] colors = [new(1, 0, 0), new(0, 1, 0), new(0, 0, 1)];
+            MaterialId[] domes = [.. colors.Select(color => EnvironmentScenes.Emissive(renderer, color))];
+            EnvironmentScenes.Still(renderer, DomeScene(plane, domes[0], 2, 1, 0), time: 0);
+            EnvironmentScenes.Still(renderer, DomeScene(plane, domes[1], 2, 1, 0), time: Step);
+
+            // The same three frames, so the chain keeps every map: only the count of camera cuts says that the eye jumped.
+            RenderSnapshot cut = DomeScene(plane, domes[2], 2, 1, 0);
+            cut.CameraCuts++;
+            EnvironmentScenes.Still(renderer, cut, time: 2 * Step);
+
+            for (int map = 0; map < 3; map++)
+                Centers(renderer, map).Should().AllBeEquivalentTo(colors[2], $"the cut's draw redraws map {map}");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AfterACutFromABrightPlaceIntoADarkRoomTheMapHoldsTheRoomInTheCutsDraw()
+    {
+        VulkanRenderer renderer = Renderer();
+        try
+        {
+            MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
+            MaterialId bright = EnvironmentScenes.Emissive(renderer, Vector3.One);
+            var roomRadiance = new Vector3(0, 0, 0.25f);
+            MaterialId room = EnvironmentScenes.Emissive(renderer, roomRadiance);
+            var roomCenter = new Vector3(8, 0, 0);
+
+            // The eye outside the room, inside a bright dome, for two draws; then a cut puts it at the room's center. The
+            // frame stays the same, so the chain keeps its one map.
+            Vector3[] eyes = [Vector3.Zero, Vector3.Zero, roomCenter];
+            for (int draw = 0; draw < eyes.Length; draw++)
+            {
+                RenderSnapshot snapshot = EnvironmentScenes.Dark();
+                TestChains.Of(snapshot, (0, Quaternion.Identity));
+                snapshot.CameraCuts = draw == 2 ? 1 : 0;
+                AddBox(snapshot: snapshot, plane: plane, material: bright, center: -eyes[draw], halfSize: 20);
+                AddBox(snapshot: snapshot, plane: plane, material: room, center: roomCenter - eyes[draw], halfSize: 1);
+                EnvironmentScenes.Still(renderer, snapshot, time: draw * Step);
+            }
+
+            Centers(renderer, map: 0)
+                .Should()
+                .AllBeEquivalentTo(roomRadiance, "a map is captured at the eye, and the cut moved the eye into the room");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// Six squares of <paramref name="material"/> facing inward, the walls of a closed box of half size
+    /// <paramref name="halfSize"/> m around <paramref name="center"/>, relative to the eye, in the camera's frame.
+    /// </summary>
+    private static void AddBox(RenderSnapshot snapshot, MeshId plane, MaterialId material, Vector3 center, float halfSize)
+    {
+        for (int layer = 0; layer < CubeFaces.Count; layer++)
+        {
+            Vector3 forward = CubeFaces.Basis((CubeFace)layer).Forward;
+            snapshot.Instances.Add(
+                EnvironmentScenes.Facing(
+                    plane: plane,
+                    material: material,
+                    center: center + forward * halfSize,
+                    normal: -forward,
+                    halfSize: halfSize * 1.1f,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+        }
+    }
+
     /// <summary>Every level of every face of map <paramref name="map"/>'s specular map, in layer and level order.</summary>
     private static Half[] SpecularLevels(VulkanRenderer renderer, int map)
     {

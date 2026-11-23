@@ -25,8 +25,12 @@ internal static class EnvironmentFaces
 
     /// <summary>
     /// Whether map <paramref name="map"/> draws all six faces: it is not kept from the faces drawn for
-    /// <paramref name="drawnFor"/>, or the draw takes a long step (decision 10).
+    /// <paramref name="drawnFor"/>, or <paramref name="everyFace"/> asks every map for every face (decision 10).
     /// </summary>
-    public static bool RefreshesAll(ReadOnlySpan<long> drawnFor, ReadOnlySpan<long> served, int map, bool longStep) =>
-        !EnvironmentChain.Keeps(drawnFor, served, map) || longStep;
+    /// <param name="everyFace">
+    /// Whether the draw refreshes every face of every map: the first draw of a still or a draw after a camera cut
+    /// (<see cref="FrameHistory.PendingFrame.RefreshesEveryFace"/>).
+    /// </param>
+    public static bool RefreshesAll(ReadOnlySpan<long> drawnFor, ReadOnlySpan<long> served, int map, bool everyFace) =>
+        !EnvironmentChain.Keeps(drawnFor, served, map) || everyFace;
 }

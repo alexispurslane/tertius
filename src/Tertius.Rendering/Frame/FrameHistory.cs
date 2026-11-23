@@ -210,7 +210,8 @@ internal sealed class FrameHistory
     /// <paramref name="snapshot"/> after a clock step of <paramref name="step"/> s, at <paramref name="outputSize"/> and
     /// <paramref name="renderSize"/>, and changes no record. The draw resets when it is the first drawn frame, when the
     /// snapshot's count of camera cuts differs from the drawn frame's, when the output size changed, or when it is the
-    /// first draw of a still. A change of the render size resets nothing.
+    /// first draw of a still. A change of the render size resets nothing. The draw refreshes every face of every map when
+    /// it is the first draw of a still or follows a cut, the resets that move the eye.
     /// </summary>
     /// <param name="draw">The draw of the snapshot, from 0 to <see cref="DrawsOf"/> − 1. The last one is the shown draw.</param>
     /// <returns>The history's one pending state, armed for this draw. The next Begin arms it again.</returns>
@@ -225,7 +226,8 @@ internal sealed class FrameHistory
             DrawIndex: drawIndex,
             ExposureStep: still ? StillExposureStep(step, draw) : step,
             FsrFrameMilliseconds: still ? 1000f / 60 : step * 1000,
-            RefreshesEveryFace: still && draw == 0,
+            // A map is captured at the eye, so the maps must hear of the eye's jump from the same source as the histories.
+            RefreshesEveryFace: (still && draw == 0) || CutsFrom(snapshot),
             DrawnFrames: DrawnFrames,
             RenderSize: renderSize,
             OutputSize: outputSize,
@@ -260,10 +262,16 @@ internal sealed class FrameHistory
     /// </summary>
     private bool Resets(RenderSnapshot snapshot, Extent2D outputSize, bool firstOfAStill) =>
         drawn is not { } last
-        || last.CameraCuts != snapshot.CameraCuts
+        || CutsFrom(snapshot)
         || last.OutputSize.Width != outputSize.Width
         || last.OutputSize.Height != outputSize.Height
         || firstOfAStill;
+
+    /// <summary>
+    /// Whether <paramref name="snapshot"/> cuts the camera since the last drawn frame: its count of camera cuts differs from
+    /// that frame's. A cut moves the eye's place in one step. False before the first drawn frame.
+    /// </summary>
+    private bool CutsFrom(RenderSnapshot snapshot) => drawn is { } last && last.CameraCuts != snapshot.CameraCuts;
 
     /// <summary>Whether a draw after a clock step of <paramref name="step"/> s is a still: the rule of decision 32.</summary>
     private bool IsStill(float step) => rule.Headless && (step == 0 || step >= MeteringStepSeconds);
@@ -334,7 +342,7 @@ internal sealed class FrameHistory
     /// The render size of the last drawn frame, whose images the draw reads, or the draw's own where no frame was drawn.
     /// </param>
     /// <param name="ExposureStep">The step in s by which the draw's adapt step moves the exposure.</param>
-    /// <param name="RefreshesEveryFace">Whether the draw refreshes every face of the environment map.</param>
+    /// <param name="RefreshesEveryFace">Whether the draw refreshes every face of every environment map.</param>
     private readonly record struct Derivation(
         bool Reset,
         long DrawIndex,
@@ -378,7 +386,12 @@ internal sealed class FrameHistory
         /// </summary>
         public float ExposureStep => history.derived.ExposureStep;
 
-        /// <summary>Whether the draw refreshes every face of the environment map: the first draw of a still.</summary>
+        /// <summary>
+        /// Whether the draw refreshes every face of every environment map: the first draw of a still, and a draw after a
+        /// camera cut. A map is captured at the eye, and a cut moves the eye in one step, so a map kept across a cut would
+        /// show the place that the eye left (t58-rcd6). A change of the output size resets the histories but moves no eye,
+        /// so it keeps the maps.
+        /// </summary>
         public bool RefreshesEveryFace => history.derived.RefreshesEveryFace;
 
         /// <summary>

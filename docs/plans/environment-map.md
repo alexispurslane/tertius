@@ -234,8 +234,9 @@ The cases:
 | The same under `AutoExposure` | All six in the metering draw, then F in the shown draw | The metering draw has the long step, so its meter measures the scene lit by a fresh map. The shown draw has a draw step of 0 and draws the same snapshot, so its F faces repeat what the metering draw drew. |
 | A headless still at the tick of the frame before | All six, as after a long step | The clock step is 0, and the still can follow a camera cut that keeps the frame. |
 | A frame of a film, 1 or 2 ticks apart | F | The step is above 0 and below 0.09 s. |
+| A draw after a camera cut, in a film or a window | All six of every map | Amended by t58-rcd6 (2026-11-23): the map is captured at the eye, and a cut moves the eye in one step. `RenderSnapshot.CameraCuts`, which the histories' reset already reads, is the snapshot field that says "cut". `FrameHistory.PendingFrame.RefreshesEveryFace` gives this case and the still's first draw, and `FacesFor`'s parameter `longStep` became `everyFace`. |
 | A frame in a window | F | A window never refreshes for a step, because a refresh makes a slow frame slower still. |
-| A window camera that cuts within one frame | F | The renderer cannot see a cut that keeps the frame. The old faces stay for up to ⌈6 / F⌉ − 1 frames, 83 ms at 60 Hz. A rule for it waits for a snapshot field that says "cut", which no one needs yet. |
+| A window camera that cuts within one frame | All six, by the row of the cut | Before t58-rcd6: F. The old faces stayed for up to ⌈6 / F⌉ − 1 frames, and after a cut from outside a ship's hull into its cabin, the cabin stayed white for about 200 draws (docs/research/cut-white-room). |
 
 ## The prefilter
 
