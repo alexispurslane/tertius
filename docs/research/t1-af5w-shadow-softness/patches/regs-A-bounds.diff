@@ -1,0 +1,51 @@
+diff --color=auto -ru base/shadows.glsl A-bounds/shadows.glsl
+--- base/shadows.glsl	2026-11-23 09:52:10
++++ A-bounds/shadows.glsl	2026-11-23 09:52:10
+@@ -285,6 +285,7 @@
+     vec2 first;
+     vec2 f;
+     vec2 bounds;   // the least (x) and the greatest (y) reversed depth of the window (shadow_bounds.comp)
++    float texel;   // the size of a texel at the receiver, m
+ };
+ 
+ // The lookup of tileLitFraction, with the normal offset at the receiver's distance and the casters' slope-scaled bias.
+@@ -299,6 +300,7 @@
+     // the near plane gets the depth 1, nearest the light, which no clamped caster passes, so the floor changes no result.
+     TileLookup t;
+     t.ndc = clip.xyz / max(clip.w, tile.near);
++    t.texel = tile.texelPerMeter * tile.near / max(t.ndc.z, 1e-30);
+     vec2 uv = t.ndc.xy * 0.5 + 0.5;
+     float size = float(textureSize(shadowAtlas, 0).x);
+     t.layer = float(tile.layer);
+@@ -327,6 +329,13 @@
+     return t.ndc.z < t.bounds.x;
+ }
+ 
++float tileRamp(TileLookup t, GpuLight light, float d, float lit)
++{
++    float caster = d * t.ndc.z / max(t.bounds.y, 1e-30);
++    float width = clamp((d - caster) * 2.0 * light.spotRadius.y / max(caster, 1e-3) / (4.0 * t.texel), 0.25, 1.0);
++    return clamp((lit - 0.5) / width + 0.5, 0.0, 1.0);
++}
++
+ // The lit fraction of a near light's shadow filter at a world position (docs/plans/local-light-shadows.md, "Sampling"):
+ // the one tile of a spot light, or the tile of the cube face of a point light that holds the direction from the light to
+ // the position. The filter's FilterTapsPerAxis × FilterTapsPerAxis PCF taps (the reads below are written for 4), computed
+@@ -372,7 +381,7 @@
+             }
+         }
+         // Each mean stands for four texels, and the weights of the 5 × 5 texels add up to 16.
+-        return means * (4.0 / 16.0);
++        return tileRamp(t, light, d, means * (4.0 / 16.0));
+     }
+ 
+     // Nine gathers of 2 × 2 comparisons read the 5 × 5 texels and one unweighted column and row beyond them.
+@@ -393,7 +402,7 @@
+         }
+         lit += wy[2 * j] * upper + wy[2 * j + 1] * lower;
+     }
+-    return lit * (1.0 / 16.0);
++    return tileRamp(t, light, d, lit * (1.0 / 16.0));
+ }
+ 
+ // The share of a near light that its atlas tiles let through at a world position, with the arguments of
