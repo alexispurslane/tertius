@@ -145,8 +145,8 @@ public sealed class AccumulationTraceTests(ITestOutputHelper output)
                 interior
                     .Should()
                     .OnlyContain(
-                        pixel => OwnTexelWeight(place, weights, pixel) > 0.9999f,
-                        "the place is the texel's center"
+                        pixel => OwnTexelWeight(place, weights, pixel) == 1,
+                        "the place is the texel's center (lastTexelPlace in signals.glsl)"
                     );
             }
         );

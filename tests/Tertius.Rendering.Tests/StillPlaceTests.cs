@@ -99,6 +99,7 @@ public sealed class StillPlaceTests
     [Fact]
     public void EveryStillInteriorPixelReadsItsOwnTexelWithTheWholeWeight() =>
         WithTracedRenderer(
+            Jittered,
             (renderer, scene) =>
             {
                 Draw(renderer, scene, 3);
@@ -122,11 +123,14 @@ public sealed class StillPlaceTests
     [Fact]
     public void AStillPixelAtASilhouetteReadsItsOwnTexelThroughItsOwnTexelsPassBit() =>
         WithTracedRenderer(
+            new NoUpscaling(),
             (renderer, scene) =>
             {
                 // At a silhouette, a neighbor texel of the last image shows another surface and fails the surface test.
                 // The surface test and the reprojection must name the same four texels: a pass bit read for the wrong
-                // texel would zero the own texel's weight, and the pixel would lose its pixel place.
+                // texel would zero the own texel's weight, and the pixel would lose its pixel place. Without jitter a
+                // still pixel's own texel always showed its own surface; under jitter it can show another at a
+                // silhouette, and the pixel then reads its sample place by design (the pixel history rule).
                 Draw(renderer, scene, 3);
 
                 float[] lengths = TraceLayer(renderer, Lengths);
@@ -145,6 +149,7 @@ public sealed class StillPlaceTests
     [Fact]
     public void AStillPixelWhoseHistoryNoCutShortenedHoldsALengthOfExactlyEightAfterEightDraws() =>
         WithTracedRenderer(
+            Jittered,
             (renderer, scene) =>
             {
                 // The anti-lag cuts some young histories from draw 4 on. A neighbor whose history it cut must not pull a
@@ -168,7 +173,10 @@ public sealed class StillPlaceTests
                         .Where(pixel => !cut[pixel] && !silhouette[pixel] && HasFlag(lengths, pixel, PixelPlaceRead)),
                 ];
                 uncut.Length.Should().BeGreaterThan(TracedWidth * TracedHeight / 4);
-                cut.Count(pixel => pixel).Should().BeGreaterThan(0, "the test needs histories that a cut shortened");
+                uncut
+                    .Count(pixel => NextToACut(cut, pixel))
+                    .Should()
+                    .BeGreaterThan(0, "the test needs still pixels next to a history that a cut shortened");
                 uncut.Where(pixel => antiLag[4 * pixel + 1] != FullRateFrames).Should().BeEmpty();
             }
         );
@@ -227,6 +235,20 @@ public sealed class StillPlaceTests
                 return false;
         }
         return true;
+    }
+
+    /// <summary>Whether a pixel of the 3 × 3 pixels around <paramref name="pixel"/>, other than itself, is cut.</summary>
+    private static bool NextToACut(bool[] cut, int pixel)
+    {
+        for (int y = -1; y <= 1; y++)
+        for (int x = -1; x <= 1; x++)
+        {
+            int nx = pixel % TracedWidth + x;
+            int ny = pixel / TracedWidth + y;
+            if ((x != 0 || y != 0) && nx >= 0 && ny >= 0 && nx < TracedWidth && ny < TracedHeight && cut[ny * TracedWidth + nx])
+                return true;
+        }
+        return false;
     }
 
     /// <summary>The pixels whose trace says that they show a surface.</summary>
@@ -291,8 +313,11 @@ public sealed class StillPlaceTests
         }
     }
 
-    /// <summary>Runs <paramref name="action"/> on a renderer of 1280 × 720 with the accumulation trace and <see cref="Scene"/>.</summary>
-    private static void WithTracedRenderer(Action<VulkanRenderer, RenderSnapshot> action)
+    /// <summary>
+    /// Runs <paramref name="action"/> on a renderer of 1280 × 720 with <paramref name="upscaling"/>, the accumulation trace and
+    /// <see cref="Scene"/>.
+    /// </summary>
+    private static void WithTracedRenderer(UpscalingSetting upscaling, Action<VulkanRenderer, RenderSnapshot> action)
     {
         string? previousAgreement = Environment.GetEnvironmentVariable(Agreement);
         Environment.SetEnvironmentVariable(Agreement, "control-trace");
@@ -305,7 +330,7 @@ public sealed class StillPlaceTests
                 cascadedLights: 0,
                 screenTrace: ScreenTrace.Default,
                 warmUpFrames: 0,
-                upscaling: Jittered
+                upscaling: upscaling
             );
             try
             {

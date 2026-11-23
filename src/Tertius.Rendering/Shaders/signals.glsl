@@ -49,8 +49,10 @@ vec3 lastViewRayThrough(vec2 place)
 // The largest distance in texels, along an axis, between a place in the last frame's image and a texel's center at which
 // the place counts as that center (ticket t0-y88b). A place is a share of the image, so a still pixel's place reaches the
 // last image through a reciprocal of this draw's size and a product with the last draw's: the trip lands up to about
-// 2.5e-4 texel off the center at a width of 3840 and about 1e-3 at 16,000. A motion slower than this bound reads the
-// texel it left, so the history of a slow pan trails it by at most this bound times the history's length.
+// 2.5e-4 texel off the center at a width of 3840 and about 1e-3 at 16,000. A motion whose step per draw lies within this
+// bound of a whole number of texels, along an axis, reads whole texels, so the history of a slow pan trails it by up to
+// this bound per draw of the history's length. The precise specular history has no age limit, so there only its clamp
+// ends the trail.
 const float StillPlaceTexels = 1.0 / 256.0;
 
 // A place in the last frame's image, in texels of that image, such that the place of the texel at (i, j) is (i, j): its
