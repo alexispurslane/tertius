@@ -58,3 +58,19 @@ Consequence for the design, my reading until ter-pdw8 and the fair test report: 
 2. After the sun comes on in the bay, catch-up rays buy 20 % less grain for about 12 draws. After the sun goes off they add boil. The line's observation: a ray buys where the samples' variance rises. A budget that spends by variance would cover the start, the cut, a light coming on and the narrow surfaces with one rule. Not a design yet.
 
 Also from the card's logs: after a light change or a cut, the render scale stays under its rest for about 50 draws with today's rule, of which about 8 are the dear draws and the rest is the controller's return at 5 % per draw. So most of the rule's price on the card is the controller's (t1-zeyk, ter-5kz6).
+
+**2026-11-23T04:47:56Z**
+
+2026-11-22, orchestrator. The first results of ter-pdw8 (the back-face line's record follows in docs/research; evidence under the line's evidence worktree, rayend/).
+
+1. A pixel is not a surface. The lamp hall's row 314 shows a sunlit sill's face in 1 jitter phase of 25 and the wall in the others. Today a ray reads the one draw's surface at its full value (162 against a ceiling of 0.22) and the picture gets specks. A mean per pixel over time reads both surfaces at once and puts the sill's light on the wall's pixel, where the floor's rays read it: a measured leak (all 92 bright samples of the floor at the wall's foot hit row 314). So any resolve per pixel leaks, the upscaler's output included. A read that is right is keyed by the surface, not by the pixel.
+
+2. Closed by measurement: the time-resolved read per pixel (the leak above), and the prefiltered read by the ray's footprint (far diffuse hits read cells 32 to 256 px wide; in bay-sunbeam it loses 29 to 55 % of the bounce light and shows a halo).
+
+3. The general mottle needs a far-field store or better sampling, and a resolved read is a remedy of the tail only: in bay-sunbeam the time-resolved read lowers the far hits' variance by a factor of 0.98 to 0.99, which is nothing. The variance is in which far pixel a ray reaches.
+
+4. The guide and the hit must read the same light: 0.906 of the speck samples are guided rays, and a filtered guide with today's hit read makes the ceiling 3.6 times worse.
+
+5. The clamp's loss stays: the accumulator keeps 0.91 to 0.94 of the received light in bay-sunbeam in every variant, so ter-18hc does not close with this experiment.
+
+Next in ter-pdw8: the surface share. The direct part of the hit light is scaled by the share of recent draws in which the pixel showed this draw's surface, in two forms: with a new small state per pixel, and from the history's length that the pixel already holds (no new state). The lost bounce of surfaces thinner than a pixel is accepted in advance.
