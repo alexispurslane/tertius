@@ -1,6 +1,6 @@
 ---
 id: t58-rcd6
-status: in_progress
+status: closed
 deps: []
 links: [ter-6fka, t1-tr17, t10-ogon, t10-ck8w]
 created: 2026-11-22T22:51:40Z
@@ -179,3 +179,7 @@ Film (acceptance 2, cut-exterior.json, exposure 4.08, whole-image mean as 8-bit 
 | C13b | VulkanRenderer.cs:815 | the renderer passes `everyFace && false` | two EnvironmentMapsPerFrameTests |
 
 Logs: t3-1f553e45-00934a8d076a004a-evidence/mutate-rcd6 and mutate-rcd6b (the lists are mutants-rcd6.json and mutants-rcd6b.json there).
+
+**2026-11-23T21:28:39Z**
+
+2026-11-23, line orchestrator: merged into main at 53985e22a and closed. Gates: the lead's report had the status done with no fork; its branch head 0b694c787 exists and every file of this ticket is committed; review 2 passed the logic and its findings F1 to F5 are resolved; the suites passed on the merged code (Checked 11,270 tests, Release 11,257, 0 failed, 27 skipped in each); every changed line and branch is covered; 13 of 13 listed mutants are real kills, each with a finished run in its own test log and no wait for the GPU lock (the lead checked this for the fault of tools/mutate.py that counts a lock timeout as a kill). Main changed only tools/README.md since the lead merged it, so no suite ran again. My reading of the merged diff for function and quality: FrameHistory.Begin stays the one choke point; JumpsTheEye is CutsFrom and KeepsTheFrame, two predicates that the reset and the continued record already needed, so no code outside FrameHistory detects a jump and nothing new is stored; before the first drawn frame both are false, which is right because no map is kept then. No defect found. Results: the film cut-exterior at the fixed exposure has a whole-image mean of 0.883, 0.945 and 0.975 of draw 199's at draws 0, 10 and 50 after the cut, where main is white (65,535) up to draw 10 and still at 65,481 at draw 50; I looked at frames 30 and 70 of the side-by-side video (evidence t3-1f553e45-00934a8d076a004a-evidence/rcd6/video/cut-exterior-main-vs-fix.mp4): main's side is white, the fix's side shows the lit hall. The cut's draw costs 37.0 to 37.6 ms on the Mac against 23.4 to 29.4 ms on main, and the 10 draws after it cost the same within the noise (22.1 to 22.6 against 21.1 to 22.0 ms). A hand-off of the camera's frame (exit-walk, draw 108) costs 23.3 ms on both. The render scale's catch-up request at the next cut moves by 0.008, under the stop of 0.02, so nothing goes to the Design X line. The carrier, for ter-6fka: with every off-screen diffuse ray reading zero, the diffuse history still jumps at the cut's draw (3e-7 to 223, against 84.6 to 309 on main), so the on-screen hits carry about 223 of the 309 and the map's lobe about 86. Residual, by design: a cut to a camera in another frame keeps the ancestor maps whose frame and frame below stay the same (t1-tr17). The stores that still do not hear a cut have their own tickets: t10-ogon (impostors) and t10-ck8w (the exposure).
