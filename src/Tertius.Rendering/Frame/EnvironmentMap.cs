@@ -239,8 +239,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     /// </summary>
     /// <param name="served">The served chain, frame ids root first: from 1 to <see cref="EnvironmentChain.MaxMaps"/> of them.</param>
     /// <param name="everyFace">
-    /// Whether the draw refreshes every face of every map: the first draw of a still or a draw after a camera cut
-    /// (<see cref="FrameHistory.PendingFrame.RefreshesEveryFace"/>), because a map is captured at the eye.
+    /// Whether the draw refreshes every face of every map (<see cref="FrameHistory.PendingFrame.RefreshesEveryFace"/>).
     /// </param>
     /// <exception cref="ArgumentOutOfRangeException">The served chain has no frame or more than the renderer serves.</exception>
     public ReadOnlyMemory<FaceMask> FacesFor(long frame, ReadOnlySpan<long> served, bool everyFace)

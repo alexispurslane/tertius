@@ -568,7 +568,7 @@ public sealed class EnvironmentMapsPerFrameTests
     }
 
     [Fact]
-    public void ACameraCutRefreshesEveryFaceOfEveryMapInItsOwnDraw()
+    public void ACutThatKeepsTheCamerasFrameRefreshesEveryFaceOfEveryMapInItsOwnDraw()
     {
         VulkanRenderer renderer = Renderer();
         try

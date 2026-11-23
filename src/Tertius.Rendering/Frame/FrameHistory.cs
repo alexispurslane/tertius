@@ -279,10 +279,8 @@ internal sealed class FrameHistory
         drawn is { } last && last.Camera.FrameId == snapshot.OriginFrameId;
 
     /// <summary>
-    /// Whether the eye jumped inside the camera's frame since the last drawn frame: a cut that keeps the camera's frame
-    /// (t58-rcd6). Every map is captured at the eye, so such a jump makes every map's content wrong. A cut that changes the
-    /// camera's frame is a hand-off or a switch to a camera elsewhere, and <see cref="EnvironmentChain.Keeps"/> already
-    /// refreshes every map whose frame or frame below changed (decision 9 of docs/plans/environment-maps-per-frame.md).
+    /// Whether the eye jumped inside the camera's frame since the last drawn frame: a cut that keeps the camera's frame.
+    /// Every map is captured at the eye (ARCHITECTURE.md, "The frame history").
     /// </summary>
     private bool JumpsTheEye(RenderSnapshot snapshot) => CutsFrom(snapshot) && KeepsTheFrame(snapshot);
 
@@ -400,11 +398,8 @@ internal sealed class FrameHistory
         public float ExposureStep => history.derived.ExposureStep;
 
         /// <summary>
-        /// Whether the draw refreshes every face of every environment map: the first draw of a still, and a draw after a
-        /// camera cut that keeps the camera's frame. A map is captured at the eye, and such a cut jumps the eye inside the
-        /// frame, so a map kept across it would show the place that the eye left (t58-rcd6). A cut that changes the
-        /// camera's frame leaves the maps to <see cref="EnvironmentChain.Keeps"/>, and a change of the output size resets
-        /// the histories but moves no eye.
+        /// Whether the draw refreshes every face of every environment map: the first draw of a still, or a cut that keeps
+        /// the camera's frame (ARCHITECTURE.md, "The frame history").
         /// </summary>
         public bool RefreshesEveryFace => history.derived.RefreshesEveryFace;
 

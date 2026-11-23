@@ -1277,7 +1277,7 @@ public sealed class EnvironmentFaceTests
             long frame = still == 2 ? thirdFrame : 0;
             TestChains.Of(snapshot, (frame, Quaternion.Identity));
             // A change of the camera's frame counts one more camera cut, as the simulation's snapshot builder counts it.
-            snapshot.CameraCuts = frame;
+            snapshot.CameraCuts = frame == 0 ? 0 : 1;
             EnvironmentScenes.Still(renderer: renderer, snapshot: snapshot, time: times[still]);
         }
 

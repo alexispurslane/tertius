@@ -28,8 +28,7 @@ internal static class EnvironmentFaces
     /// <paramref name="drawnFor"/>, or <paramref name="everyFace"/> asks every map for every face (decision 10).
     /// </summary>
     /// <param name="everyFace">
-    /// Whether the draw refreshes every face of every map: the first draw of a still or a draw after a camera cut
-    /// (<see cref="FrameHistory.PendingFrame.RefreshesEveryFace"/>).
+    /// Whether the draw refreshes every face of every map (<see cref="FrameHistory.PendingFrame.RefreshesEveryFace"/>).
     /// </param>
     public static bool RefreshesAll(ReadOnlySpan<long> drawnFor, ReadOnlySpan<long> served, int map, bool everyFace) =>
         !EnvironmentChain.Keeps(drawnFor, served, map) || everyFace;
