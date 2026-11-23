@@ -145,3 +145,7 @@ C#: the pending frame owns one phase count per draw. The jitter's offset and the
 **2026-11-23T14:21:49Z**
 
 2026-11-23, line orchestrator: the orchestrator let my timing answer stand and settled its fallback: if the Mac stays loaded for about two hours, the card's table and the register count carry the merge, and the Mac take is owed after it as a note in this ticket with its date.
+
+**2026-11-23T15:02:25Z**
+
+2026-11-23, line orchestrator: the timing gate passes. The Mac, 09:27 to 09:47, each run at a 1-minute load under 8 (4.9 to 7.9) and 1,296 MHz, main 373da00eb against head e11b3548b, the median of three alternating rounds: the deck at 1280 x 720 10.803 against 10.772 ms (-0.031), the lamp hall at 1920 x 1080 10.064 against 10.094 ms (+0.030), both inside the noise. The card (RTX 2000 Ada, rect-lamps at 1920 x 1080, 5 runs per side after one discarded warm-up run): 7.117 against 7.151 ms, +0.034 ms, the runs overlap. The one real cost is the light pyramid's finest level, which now builds a reprojection per pixel: +0.014 ms (deck) and +0.020 ms (lamp hall) on the Mac, +0.030 ms on the card. The ray plan is unchanged. Registers r115 and r112, unchanged. The review passes on correctness, fulfillment and design with 6 nits, of which the lead fixes five. Cloud money of this ticket: 0.0701 of 0.25 dollars.
