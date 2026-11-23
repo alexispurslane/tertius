@@ -163,7 +163,7 @@ P is 1/32 (B32, C32) or 1/16 (B16, C16).
 | C32 | 0.085 / 0.086 | 0 / 0 | 1 / 0 | 4, 0.002 / 3, rises | 3 / 11 / 39 / 10 |
 | C' at 1/32 | as C32 | as A | as A | as C32 | as A after a light change, as C32 after a start or a cut |
 | B16 | 0.093 / 0.093 | 2 / 8 | 10 / 11 | 4, 0.003 / 8, 0.006 | 12 / 19 / 52 / 18 |
-| C16 | 0.093 / 0.094 | 3 / 1 | 12 / 8 | 10, 0.011 / 8, 0.006 | 13 / 18 / 48 / waits |
+| C16 | 0.093 / 0.094 | 3 / 1 | 12 / 8 | 10, 0.011 / 8, 0.006 | 13 / 18 / 48 / 22 |
 | None | 0.070 (job 2, one run) | 0 (job 2) | 0 (job 2) | 6, rises (job 2) | not run |
 
 - The card's columns come from job 3 (two runs per code), the last row from job 2. One change of about 0.004 is the card's noise.
@@ -182,12 +182,38 @@ The slowest region's settle in draws, the boil without the fade over draws 1 to 
 | C32 | 139, 0.266, 1.61 | 0.174, 0.88 | as B32 | as B32 |
 | C' at 1/32 | as A | as A | as B32 | as B32 |
 | B16 | 142, 0.290, 2.11 | 0.190, 1.00 | 139, 0.113, 0.89 | 133, 0.112, 0.87 |
-| C16 | 139, 0.265, 1.62 | 0.173, 0.89 | 139, 0.113, 0.89 | waits |
+| C16 | 139, 0.265, 1.62 | 0.173, 0.89 | 139, 0.113, 0.89 | 133, 0.112, 0.87 |
 | None | as A (with the cap) | as A (with the cap) | 139, 0.114, 0.89 | 133, 0.112, 0.87 |
 
 - **The spread between runs with the event moved by 1 and 2 draws** (`tools/queue-mac3.sh`). Today after off: settle 142, 140, 138, and boil 0.276, 0.268, 0.274, so the boil's spread is 0.008. After on: boil 0.177, 0.175, 0.177. At the cut, the three runs give the same numbers to the last digit. B32 after off: settle 142, 139, 137, and boil 0.291, 0.283, 0.287. At the cut, its three runs are equal. The start cannot move.
 - After on, no code's upper and middle regions settle within the 100 draws of the film. The bottom row settles in 77 to 91 draws in today's three runs, and every code lies inside that span.
 - A and C32 differ by at most 0.001 in boil and 0.01 in grain after a light change. A against today: the same settle within the spread, and less grain after off (1.61 against 2.03 to 2.14), because the cap keeps 8 draws of history where today keeps 4.
+
+### The picture under the card's scale
+
+The runs of the final videos (`tools/queue-mac5.sh`) play back each code's own card scale log, the second run of job 3, so the cliff's fall of the scale shows in the picture. Each run's own size log gives the card log's scale on every draw. The measures are as above (`videos-events.txt`):
+
+| Code | Off: settle, boil, grain | On: settle, boil, grain | Start: settle, boil, grain | Cut: settle, boil, grain |
+|---|---|---|---|---|
+| Today | 173, 0.182, 2.24 | none, 0.140, 1.06 | 156, 0.112, 0.87 | 153, 0.105, 0.89 |
+| A, run 2's log | 135, 0.208, 1.97 | none, 0.139, 1.02 | 158, 0.110, 0.87 | 152, 0.104, 0.89 |
+| A, run 1's log | 135, 0.208, 1.97 | 80, 0.152, 1.01 | | |
+| C32 | 140, 0.211, 1.95 | 81, 0.141, 1.03 | 154, 0.111, 1.08 | 132, 0.106, 1.02 |
+
+- **After off**, today settles 38 draws after A and 33 after C32. Its scale changes 90 times in the video. At 2/3, the three settled within 3 draws of each other.
+- **After on**, A's run-2 log has one size change of 0.004 at draw 402, which is the card's noise. With it, A's upper and middle regions do not settle within 100 draws. On run 1's log, which has no size change after on, A settles in 80 draws, as C32 does in 81. So one size change after a light change costs more than 20 draws of settle. The likely cause is `t4f-71qp` (the region's drift test restarts its count at every change of the render size). Not hunted.
+- **At the cut**, C32 settles in 132 draws, and A and today in 152 and 153. A and today fall to a scale of 0.85 and change size 40 and 44 times. C32 holds 0.98.
+- **At the start**, the three settle within 4 draws.
+- **The grain of the first 16 draws** is the cliff's price on the picture: C32 1.08 against 0.87 at the start, and 1.02 against 0.89 at the cut. At 2/3 the difference was 0.03. At draw 2 after the start, C32's floor shows a fine speckle that A and today do not show (`pics/start-draw2-floor.png`: A, today, C32, a crop of 800 × 440 source pixels).
+
+![draw 2 after the start: A, today, C32](pics/start-draw2-floor.png)
+
+**The cut's fade in the videos** (the orchestrator's question). `videos.txt` puts C32's center region (r11) 1.7 to 2.1 % further below its last frame than A's at 2, 10 and 40 draws after the cut. The source frames show where that comes from:
+
+- In the PNGs, the center's mean display-linear luminance is the same at those draws (A, today, C32): 0.1642, 0.1640, 0.1641 at draw 2, 0.1750, 0.1749, 0.1743 at draw 10, and 0.1853, 0.1851, 0.1854 at draw 40. The gap appears later. At draws 80 and 119 after the cut, C32 is 2.9 % and 2.0 % brighter than A (0.1963 against 0.1908, and 0.1996 against 0.1956). So the gap is in the reference frame, the video's last frame.
+- The catch-up rays do not cause it. At 2/3, the probe's scene luminance of the center (`frames.series`) is the same for today, none and C32 within 0.1 % at every draw compared.
+- Under the card's scale, the probe's scene luminance of A and C32 also agrees within 0.1 % at draws 80, 119 and 199 after the cut. The grain at draws 40, 80 and 119 is equal too (rms 1.97 to 2.04 of 255). So the renderer's light is the same, and the difference lies in the shown picture after it.
+- The runs differ only in their scale logs. A falls to 0.85 at draw 144, changes size 40 times, and is back at 0.983 by draw 214. C32 holds 0.985. So the render scale's changes cause the gap, most likely through FSR's history after the size changes. That is not proven.
 
 ### What one catch-up ray per restarted pixel buys
 
@@ -207,7 +233,9 @@ Today's cliff, 8 rays per restarted pixel, buys a little at the start and the cu
 
 ### The recommendation
 
-**The cap and no catch-up ray after a reset.** It is "None" with the cap: A's code, plus a plan that gives no catch-up ray to a history whose cap is 8 draws or more while the draws since the last reset are fewer than 32, as the shape (0, 32, 0) ran it. The smooth reflections, whose cap is under 8 draws, keep today's rule. It passes the card at every event, and it gives the same picture on the Mac as C32. It needs one existing read and no new state. If the eye finds the first draws after a start or a cut too noisy in the videos, C' at 1/32 is the next step. It costs the share and its turn, and still no new read.
+**The cap and no catch-up ray after a reset.** It is "None" with the cap: A's code, plus a plan that gives no catch-up ray to a history whose cap is 8 draws or more while the draws since the last reset are fewer than 32, as the shape (0, 32, 0) ran it. The smooth reflections, whose cap is under 8 draws, keep today's rule. It passes the card at every event, and it gives the same picture on the Mac as C32. It needs one existing read and no new state.
+
+Its price on the picture is the grain of the first draws after a start or a cut, under the card's scale: 1.08 against A's 0.87 at the start, and a fine speckle at draw 2. C' at 1/32 does not remove it, because C32 shows it too. The only way back to A's smooth first draws is the cliff, and the cliff moves the card's scale by 0.14 to 0.24.
 
 ### The production form
 
@@ -231,7 +259,9 @@ The three files `pics/preview-switch-three.mp4`, `pics/preview-start-three.mp4` 
 - The scale is the constant 2/3, so they hide the cliff's price, which is the fallen render scale.
 - In the switch preview, the corner shows the film frame, not the draw. The draw is the film frame + 33.
 
-The final videos are `pics/<event>-final.mp4` (`tools/queue-mac5.sh`, then `tools/videos.py`). Each code plays back its own card scale log, the second run of card job 3. The start has no film of its own on the card, so it plays back the switch film's log from draw 0, the card's start window.
+The final videos are `pics/<event>-final.mp4` (`tools/queue-mac5.sh`, then `tools/videos.py`). They meet the rules: 3840 × 720 (three panes of 1280 × 720), 60 frames a second, one draw per frame, H.264 `yuv420p` at CRF 12, the render scale per pane, a draw counter, and the fixed exposure 4.08. `videos.txt` holds each video's scale range and size changes per pane, and the check of three decoded frames against the source PNGs (every pane within 0.43 %).
+
+The C32 pane also stands for the recommended code, the cap with no catch-up ray (answer 85 of the orchestrator). At the start and the cut the two measure the same at 2/3 to the last digit, and their card logs are close: at the start a fall of 0.070 (none, job 2) against 0.085 and 0.086 (C32, job 3), and at the cut 6 changes that only rise (none) against 4 changes with a fall of 0.002, and 3 that only rise (C32). Each code plays back its own card scale log, the second run of card job 3. The start has no film of its own on the card, so it plays back the switch film's log from draw 0, the card's start window.
 
 ## Check 1: the shape (1, 8, 0) gives today's own-ray counts
 
@@ -262,5 +292,6 @@ The switch film (the fair lamp switch of the cabin, the lamps off at draw 193 an
 - `cut.json`: the cut film, the cabin's person camera (the switch's view) for a still and 100 frames, one frame on the chase camera, then the person camera from draw 134 for 200 frames. At draw 134 the draw index restarts at 0 and the diffuse history mean falls from 25.6 to 0.98 draws. `start.json`: the cabin's person camera filmed from draw 0 for 200 frames.
 - `logs/`: the own-ray logs, and the card's scale and time logs per job (`logs/card-<job>/<film>-<code>/`).
 - `cardscale-<job>.txt`: the output of `tools/cardscale.py` per card job.
-- `tools/` (each script says what it does in its first lines): `builds.sh`, `ownrays.py`, `histmap.py`, `card.sh` and `cardrun.sh` (the card's job), `cardscale.py` (the card's scale per event), `threepane.py` (the three-pane videos).
+- `tools/` (each script says what it does in its first lines): `builds.sh`, `ownrays.py`, `histmap.py`, `card.sh` and `cardrun.sh` (the card's job), `cardscale.py` (the card's scale per event), `threepane.py` (the previews), `macrun.sh` (a Mac run of an event), `queue-mac2.sh`, `queue-mac3.sh`, `queue-mac5.sh` and `queue-mac6.sh` (the Mac's queues), `compact.sh` (packs and measures the finished runs), `events.py` (the settle, boil and grain per event), `spans.py` (the Mac's GPU spans), `videos.py` (the final videos).
+- `videos.txt`: the final videos' scale ranges and frame checks. `videos-events.txt`: the measures of the video runs under the card's scale.
 - The cloud spend of the three card jobs: $0.0542 + $0.0846 + $0.0898 = $0.2286, of the $1.50 allowed.

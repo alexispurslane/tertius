@@ -11,7 +11,8 @@
 # event. 60 frames a second, H.264 yuv420p (BT.709) at CRF 12 or CRF=<value>, no other filter. The exposure is the runs'
 # fixed TERTIUS_PROBE_EXPOSURE=4.08 (macrun.sh). ffmpeg and Pillow come from the dev shell.
 # The check decodes the file back and compares, at three frames, each pane's fade (its middle and bottom 3 x 3 regions'
-# display-linear luminance over that of the video's last frame) with the source PNGs' fade. CHECK_DIR=<folder> saves
+# display-linear luminance over that of the video's last frame; the last pane leaves out its bottom right region, under
+# the counter) with the source PNGs' fade. CHECK_DIR=<folder> saves
 # those three frames as PNGs.
 import glob
 import os
@@ -103,15 +104,17 @@ raw = subprocess.run(['ffmpeg', '-loglevel', 'error', '-i', out, '-vf', 'scale=i
 final = np.frombuffer(raw, np.uint8).reshape(-1, H, N * W, 3)
 assert len(final) == len(names), f'the file has {len(final)} frames, not {len(names)}'
 KEEP = [3, 4, 5, 6, 7, 8]  # the labels cover the top row of regions
+KEEP_LAST = [3, 4, 5, 6, 7]  # and the counter covers the last pane's bottom right region
 last = len(names) - 1
 for i in checks:
     cells = []
     for k, pane in enumerate(panes):
         part = lambda a: a[:, k * W:(k + 1) * W]
+        keep = KEEP_LAST if k == N - 1 else KEEP
         video = linear_regions(part(final[i])) / linear_regions(part(final[last]))
         source = linear_regions(np.asarray(pane.frame(i))) / linear_regions(np.asarray(pane.frame(last)))
         cells.append(f'{pane.label}: r11 source {100 * (source[4] - 1):+.2f} %, video {100 * (video[4] - 1):+.2f} %, '
-                     f'largest difference {100 * np.max(np.abs(video[KEEP] - source[KEEP])):.2f} %')
+                     f'largest difference {100 * np.max(np.abs(video[keep] - source[keep])):.2f} %')
     print(f'{counters[i]}, against the last frame: ' + '; '.join(cells))
     if os.environ.get('CHECK_DIR'):
         Image.fromarray(final[i]).save(f"{os.environ['CHECK_DIR']}/{event}-check-{i:03d}.png")
