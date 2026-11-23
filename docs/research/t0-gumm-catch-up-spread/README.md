@@ -458,6 +458,8 @@ The bay's start at the constant scale 2/3 (`tools/queue-fair7.sh`, `tools/widesu
 - With today's cliff, the 36-tap fix lowers the grain of draws 1 to 4 by 1.23 points (3.94 to 2.71, −31 %), far beyond the bay's spread of 0.08. It halves the grain of draw 0 (12.3 to 6.2) and of draw 1 (6.0 to 2.3). The gain shrinks to 0.1 by draw 8 and is gone from draw 9. The narrow crop's grain of draws 1 to 4 falls from 0.66 to 0.57.
 - It does not lower the boil of draws 1 to 4: 2.254 against 2.289, 0.035 higher, just over the spread of 0.02. Draw 1 boils more (4.23 against 4.72) and draw 2 less (2.99 against 2.65), since the boil compares a draw with its two neighbours. The narrow crop's boil is the same.
 - The control holds: with d3, whose block pixels share one sample in draws 0 to 2, the fix changes nothing beyond the spread (grain 3.880 against 3.883).
+- So the dip of form (b) stays 8 draws, not 5: with the 36-tap fix the rays of draws 0 to 2 buy grain again (2.71 against d3's 3.88 over draws 1 to 4).
+- What the fix leaves open: its GPU cost in the dear draws after a reset, where every pixel is young and the extra reads fall into the cost peak; the reflections, which it was not run on; and a film of motion with newly seen pixels. The line orchestrator writes its ticket, to be built after the merge.
 
 `pics/wide-fix-strip.png` shows the floor and the right wall at draws 1, 2 and 4: today | today with the fix | d3 | d3 with the fix. `pics/wide-fix-chart.png` shows the four measures per draw with none. At the strip's size the fix's gain is hard to see; it is fine grain, not the block-sized blotches of none and d3.
 
