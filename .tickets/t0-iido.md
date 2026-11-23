@@ -37,3 +37,52 @@ For gate 5 the line orchestrator reversed its answer 55 (the walk is not taken a
 **2026-11-22T21:19:42Z**
 
 For section 14 of the review of the approach, reported to the orchestrator on 2026-11-22: the ceiling of rect-lamps after the back-face layer, daub.py's ceiling part at draw 132 and the fixed scale 2/3, automatic exposure / 4.08 stops: main 284025851 0.0114 / 0.0100, Design X merged with it (a7e373197) 0.0090 / 0.0086, both clamps off 0.0083 / 0.0081 (the combined check's tables.txt, lines 46 to 53). On 2026-11-14 the values were 0.0567 on main and 0.0545 with Design X. The whole still's daub did not move with the layer (0.0117 / 0.0102 without it on c4c1f1f2f, 0.0119 / 0.0102 with it), so the fall came before c4c1f1f2f; the cause is not traced. The per-scene table on the final code prints the ceiling's part again.
+
+**2026-11-22T23:52:18Z**
+
+The orchestrator's decisions, 2026-11-22: gate 5 is met (both films on the final code, 05a27262d, with their motion measured; the lamp switch is a clear gain under the dynamic scale). The walk's trail after a stop does not hold the merge: both codes show the trail and Design X's is longer by about 1 point of light for 20 to 40 draws, the whole image settles at once on both, both pass the survey, the user saw the same numbers in the earlier walk film and named Design X 'strictly better', and every other take of the acceptance is better than main; the orchestrator shows the user the video as the one take where Design X loses. Remaining gates: the cap's mutants, Release suite and review; tc-8142; the per-scene table; the full suites on the line's head. When all hold, I tell the orchestrator with the base and head commits of the diff.
+
+**2026-11-23T01:51:07Z**
+
+A fact about the card from the orchestrator, 2026-11-22 (bug t1-80jd on main at fa36fc77d, not proven): the first run of a card job seems to draw about 10 to 18 % slower per full-size draw than the later runs of the same job.
+
+The scale check on the merged code 16d915a67 (job f8b8cba5, one run) was therefore a slow first run. It stands and is stronger: 0 size changes through the lamp switch on a slow run. Its rest at 0.944 is the card, not Design X and not main's step 2.
+
+The run orders behind the two decisions, which I read from the jobs' result files and run scripts:
+- The cost after a light change (job 1091056e, cost-switch-card-16ms-x-xb-xd.png): order x, xb, xd, no warm-up. Design X without a fix was the first run (it rested at 0.956, against 0.993 in an older job). The decision compared the cap (run 2) with "own rays wait for the evidence" (run 3), each against its own idle span; the variant's draws 10 to 13 cost 25.2, 24.1, 25.3 and 22.8 ms against 17.6 ms settled, 30 to 44 % above. The choice of the 8-draw restart does not rest on a first run and stands.
+- The spread of the catch-up rays (jobs d80337b3 and the second, card-scale-shapes1.png and card-scale-shapes2.png): cardrun.sh starts each job with one discarded run of every build (2 and 3 runs), so no measured run was first. The difference between 1/16 and 1/32 is a few size steps (1/16: 3 / 5 / 3 changes in job 1 and 8 / 9 / 4 in job 2; 1/32: 0 / 1 / rises only, one run), which is a thin sample and not a first-run fault. My answer 84: one more job with two runs each of today's cliff, the cap, and 1/16 and 1/32 with and without the cap, before the table of three codes.
+
+From now on every comparison job of the line starts with one discarded warm-up run of the job. The merge's gates do not wait for the rerun.
+
+**2026-11-23T04:16:34Z**
+
+A sixth gate from the orchestrator, 2026-11-22 about 23:15: one take of a light change in the bounce-lit bay (bay-sunbeam with its sun switched, or the nearest light change that its script allows), the cap against today's cliff, the boil and the grain per draw for draws 1 to 15 and the pictures at draws 2 and 8. Reason: the fair test of t0-gumm showed that today's catch-up rays halve the early grain after a reset in the bay, and the cap removes the catch-up rays after a light change. No take tested that case in a bounce-lit scene. If the cap shows the bay's blotches after a light change, the orchestrator wants to know before the merge. Ordered at the combined check's lead at 23:16, before the sweep. The merge's record also says that the fair test did not test this case, and tools/README.md gets the engine fact of the draw index with the merge (written on the line on 2026-11-22).
+
+**2026-11-23T04:25:48Z**
+
+The sixth gate's take, by the combined check's lead, 2026-11-22 about 23:22 by the machine's clock: the cap after a light change in the bounce-lit bay. Pictures in the lead's worktree, not committed at 23:25: docs/research/t0-gumm-catch-up-spread/pics/gate-sun-zoom.png, gate-sun-strip.png, gate-sun-chart.png. The lead commits them with the sweep.
+
+The take: bay-sunbeam's view and state, frozen, at the constant scale 2/3 and the fixed exposure of -4.0; the sun goes off at draw 200 and on at draw 400 of a film of 600 draws (a new scratch patch, scratch-sun-switch.patch, TERTIUS_X_SUN_OFF=<from>-<to>). The cap is the lead's A build (the line's merge 710834cc0 with the acceptance record's scratch-light-evidence-cap.patch, the same rule as 05a27262d); today's cliff is the shape (1, 8, 0) with light evidence restarting at 4 draws. The own-ray log confirms the codes: today traces catch-up rays in draws 4 to 13 after each light change, 2.46 rays per pixel after off and 4.65 after on; the cap traces none.
+
+Measured (slowest region's settle in draws; boil of draws 1 to 8 and grain of draws 1 to 15 in %; then the narrow crop's):
+- Sun off, today: 178; 0.783; 2.58; narrow 0.813, 0.81.
+- Sun off, the cap: 178; 0.600; 2.41; narrow 0.586, 0.53.
+- Sun on, today: 161; 11.860; 7.72; narrow 19.319, 1.30.
+- Sun on, the cap: 162; 10.744; 9.29; narrow 17.833, 1.51.
+The bay's spread between runs from the fair test: grain 0.08, boil of draws 1 to 8 0.02.
+
+The answer: after the sun comes on, the cap shows coarser, block-shaped grain than today's cliff from draw 3 on: 20 % more grain over draws 1 to 15 and 16 % more on the narrow crop. Its boil is not higher. After the sun goes off, the cap is cleaner on every measure. The settle is the same.
+
+The line orchestrator looked at the three pictures. After the sun goes off the two codes look alike. After the sun comes on, at draw 8 the cap's right wall carries coarse bright clumps where today's carries a finer speckle, and both floors carry a soft cloud. The difference is plain in the zoom at full size and small in the strip. It is not the heavy blotching of the fair test's start, where no catch-up ray gave 53 % more grain.
+
+The card column from the logs of jobs 1 to 3: the draws that today's cliff holds the render scale more than 0.02 under its rest after an event: start 60 to 63 (a start without any catch-up ray gives 50 to 54), lamps off 49 to 54, lamps on 49 to 52, cut 41 to 48. The cap, "none" and C32 give 0 after off, on and the cut. So after a light change or a cut, about 40 to 50 draws of the cliff's price are the controller's slow return after the 8 dear draws.
+
+The line orchestrator's reading for the gate: the cap trades 20 % more grain for about 12 draws after a light comes on in a bounce-lit room against a render scale that falls by about 0.15 and stays low for about 50 draws on the card, and it is cleaner after a light goes off. The decision is the orchestrator's.
+
+**2026-11-23T04:27:05Z**
+
+The orchestrator's judgment of the sixth gate, 2026-11-22 about 23:30: the gate passes. The cost for the merge's record: after the sun comes on in the bounce-lit bay the cap has 20 % more grain for about 12 draws than today's cliff (9.29 % against 7.72 % over draws 1 to 15; narrow crop 1.51 % against 1.30 %), and its right wall is somewhat coarser at draw 8; after the sun goes off the cap is the cleaner code (boil of draws 1 to 8 0.600 % against 0.783 %); against that, today's cliff holds the card's render scale more than 0.02 under its rest for 49 to 54 draws after a light change and the cap for 0. Pictures: docs/research/t0-gumm-catch-up-spread/pics/gate-sun-zoom.png and gate-sun-strip.png on the branch t3/combined-renderer-check, committed with the sweep. The rule was measured on the lead's scratch build of the same line (scratch-light-evidence-cap.patch on 710834cc0), not on 05a27262d. The fair test did not test a light change in a bounce-lit scene; this take did. State of the six gates at 23:33: (1) the cap built with red-green tests, met; (2) tc-8142 fixed, met; (3) Checked and Release green on the merged code, running at the acceptance lead; (4) the per-scene table, rows committed by the acceptance lead in ddee55073, not yet reported; (5) the two films under the dynamic render scale, met; (6) the cap after a light change in the bay, met.
+
+**2026-11-23T04:45:30Z**
+
+State of gate 3 from the acceptance lead, 2026-11-22 23:47: the full Checked suite passed on its commit ddee55073, 11,220 tests, 0 failed, 27 skipped; its head 39064630e differs from ddee55073 only in docs, tickets and ARCHITECTURE.md. One test more waits to be committed: it kills the surviving mutant P03 of the variance fix (tc-8142), was green on the fix and red on the mutant, and sits in a scratch copy. Its commit's hook builds Rendering, and the full Release suite builds too, so both wait for 22 GiB of free disk (21 at 23:47; the cause of the fall is the back-face line's raw data, which that line deletes per take). The lead deleted its runs' pictures (1.1 GiB) after it committed tables.txt, and it takes three more rounds of the deck's timing, because the first three ran under a load that rose to 9.3.

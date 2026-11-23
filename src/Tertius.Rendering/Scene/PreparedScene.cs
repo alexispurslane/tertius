@@ -36,7 +36,10 @@ internal struct CameraView
     /// </summary>
     public float Aspect;
 
-    /// <summary>The render size's width in pixels. Width over <see cref="Height"/> can differ from <see cref="Aspect"/>.</summary>
+    /// <summary>
+    /// The render size's width in pixels. Width over <see cref="Height"/> is exactly the output's ratio, of which
+    /// <see cref="Aspect"/> is the float (<see cref="UpscalingSetting.RenderExtent"/>).
+    /// </summary>
     public int Width;
 
     /// <summary>The render size's height in pixels.</summary>

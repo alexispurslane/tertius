@@ -1,0 +1,10 @@
+{
+  "scene": "orbit",
+  "window": { "width": 1800, "height": 1008 },
+  "steps": [
+    { "do": "camera", "entity": "person" },
+    { "do": "run", "ticks": 6340 },
+    { "do": "film", "name": "settle", "frames": 40, "every": 1 },
+    { "do": "capture", "name": "jamb" }
+  ]
+}

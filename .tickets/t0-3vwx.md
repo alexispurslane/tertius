@@ -1,8 +1,8 @@
 ---
 id: t0-3vwx
-status: in_progress
+status: closed
 deps: []
-links: []
+links: [t0-r1ow]
 created: 2026-11-22T19:45:41Z
 type: task
 priority: 2
@@ -119,3 +119,27 @@ The walk: the scale stands still, w-X3 not taken. Slowest region's settle after 
 Under the dynamic scale, each on its own log, X5 without the cap is slower than M5 after off (141 against 121) and faster after on (45 against 54); at the fixed 2/3 X2 was 66 / 30 against 122 / 53. My prediction, reported to the orchestrator: the cap removes the size changes after a switch on the card (scale 1.000 throughout), so the final code settles as at a fixed scale and faster than main; the film on the final code tests it. My answer 71: no log of the evidence level per block now.
 
 The final take is prepared: tools/final.sh <switch|walk> with XF=<Design X commit> and MF=<main commit>. Not covered by its measures: flicker during the walk, what the eye sees at normal speed, more than two window edges. Not checked: that the probe and scratch patches apply on the new commit, and an end-to-end run of the script.
+
+**2026-11-22T23:44:56Z**
+
+The final take's first film, the lamp switch on the final code, from the combined check's lead, 2026-11-22, commit 5e1e94c0f. Video: docs/research/t0-3vwx-dynamic-scale-films/pics/switch-final.mp4 (main 454574bf8, whose src equals ac5f23915, left; Design X with the cap, 05a27262d, right; each on its own card log; 320 draws; H.264, 3840 x 1080, yuv420p, 60 fps, 320 frames, 10.9 MB by my ffprobe).
+
+My prediction holds. The card's scale log of Design X has no size change in the whole switch (0.993 from draw 133 to the end); main changes size 38 times in the film's 320 draws. Settle, off / on: whole image main 121 / 54, Design X 73 / 33 (take B's X5 without the cap: 141 / 45; X2 at the fixed 2/3: 66 / 30); slowest region main 143 / 94, Design X 86 / 53 (X5: 166 / none in 100).
+
+Motion: boil without the fade over 60 draws after off, floor / wall / ceiling: Design X 0.21 / 0.22 / 0.21; main 0.18 / 0.17 / 0.21 on draws of one size and 0.23 / 0.22 / 0.23 on changed draws. After on (100 draws): 0.05 / 0.15 / 0.11 against 0.04 / 0.13 / 0.10. Floor grain 60 draws after off: 3.00 % against 2.90 %. Jambs' mean 60 draws after off, right / left: 0.0103 / 0.0100 against 0.0096 / 0.0094. Edge distance rms: 0.085 px (floor 0.045) against 0.267 px. Mean history length in the 60 draws after off: 8.9 draws against 26.4; share under 8 draws 1.9 % against 5.0 %. The region test runs on 99 % of the anchor-draws after each switch (12 % in take B) and fires on 56 % and 53 % of them in the 100 draws after off and on.
+
+Not covered: the eye's view at normal speed, other edges, a second run of each side. Tool fixes: the probe patch fitted to 05a27262d (a comment line of sample_age.glsl in its context changed); wobsplit.py prints "none" for a run with no size change. Card job $0.0488; the ticket's cloud spend $0.1635.
+
+My reading for the gate: Design X is faster and steadier than main under the dynamic scale, with a little more boil after off than main's draws of one size (the histories stand at about 9 draws while the light changes, against main's 26).
+
+**2026-11-22T23:51:59Z**
+
+The final take's second film, the walk on the final code, from the combined check's lead, 2026-11-22, commit 07c709f53 (the record's README holds both final films). Video: docs/research/t0-3vwx-dynamic-scale-films/pics/walk-final.mp4 (main 454574bf8 left, Design X with the cap 05a27262d right; 260 draws; H.264, 3840 x 1080, yuv420p, 60 fps, 260 frames, 6.1 MB by my ffprobe).
+
+The walk did not change against take A. Center region's light against the last frame at 0 / 20 / 40 draws after the stop: Design X +5.87 / +4.61 / +3.58 % (equal to X5 without the cap to the last digit), main +5.34 / +3.73 / +2.49 %. The survey's settle after the stop, slowest region: Design X 47 draws (take A: 48), main 25; the whole image settles at once on both. Neither side changes size in the video's draws (main 0.956, Design X 0.949). A walk has no light change, so the cap does not act. The region test runs on 34.7 % of the anchor-draws in the first 60 draws after the stop and on 90.4 % after that. Not covered: a flicker measure during the walk, a second run, the eye's view at normal speed. All frames deleted; the videos and logs stay.
+
+My reading, reported to the orchestrator: gate 5 of the merge (t0-iido) is met in form. For gate 4 the walk is the one take in which Design X is measurably behind main (its trail after a stop fades more slowly). Recommendation: no hold of the merge; a fix belongs with the region test's follow-up (t0-qvm1, t4f-71qp), because the test's count restarts under a moving camera as under a moving size.
+
+**2026-11-23T03:17:59Z**
+
+Closed by the line orchestrator on 2026-11-22. The lead's final report (status ready_for_integration, head f3e76efbf, clean checkout, no fork) passed the gates: one reviewer, 14 findings, each fixed or recorded with a reason; no file under src or tests changes, so no suite ran. Merged into the line as 068f04145. The last check: the two final videos meet the rules by ffprobe (3840 x 1080, 60 frames a second, 320 and 260 frames), and the record's numbers are the ones reported on 2026-11-22. Cloud money of the ticket: 0.1635 dollars. Open in the record, by the review: final.sh step 4 does not stop on a failure and does not compare the survey's played-back sizes with the card log. Design X's zero size changes through the switch rest on one card job (d3eebea0); the cap's own scale check on 16d915a67 (job f8b8cba5) gave the same result.

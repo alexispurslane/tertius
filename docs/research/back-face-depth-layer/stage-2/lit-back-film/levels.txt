@@ -1,0 +1,14 @@
+## walk: 840 frames
+top: rest before 0.0170, rest after 0.0170 (-0.1%), frame 780 0.0172, hold mean 0.2012, min 0.0168 at 102, max 0.7150 at 645
+floor: rest before 0.0113, rest after 0.0112 (-0.8%), frame 780 0.0113, hold mean 0.9761, min 0.0110 at 251, max 0.9772 at 519
+right: rest before 0.2660, rest after 0.2680 (+0.8%), frame 780 0.2675, hold mean 0.6570, min 0.0365 at 610, max 0.6595 at 452
+top: within 1 % of the rest before from frame 769 on (the return ends at frame 720)
+floor: within 1 % of the rest before from frame 824 on (the return ends at frame 720)
+right: within 1 % of the rest before from frame None on (the return ends at frame 720)
+## turn: 840 frames
+top: rest before 0.0170, rest after 0.0169 (-0.5%), frame 780 0.0169, hold mean 0.1569, min 0.0157 at 718, max 0.1585 at 493
+floor: rest before 0.0113, rest after 0.0111 (-1.5%), frame 780 0.0110, hold mean 0.0254, min 0.0100 at 719, max 0.0260 at 532
+right: rest before 0.2669, rest after 0.2687 (+0.7%), frame 780 0.2676, hold mean 0.2077, min 0.1526 at 326, max 0.2774 at 0
+top: within 1 % of the rest before from frame 776 on (the return ends at frame 720)
+floor: within 1 % of the rest before from frame 828 on (the return ends at frame 720)
+right: within 1 % of the rest before from frame None on (the return ends at frame 720)

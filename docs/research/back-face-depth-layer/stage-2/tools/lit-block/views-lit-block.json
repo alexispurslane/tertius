@@ -1,0 +1,313 @@
+{
+ "lit-block": {
+  "geometry": {
+   "normal": "/Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7-evidence/ref/geo-normal.npy",
+   "position": "/Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7-evidence/ref/geo-position.npy"
+  },
+  "regions": {
+   "back wall above the block": {
+    "box": [
+     760,
+     60,
+     1390,
+     545
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "z": [
+     -8.6,
+     -8.4
+    ]
+   },
+   "back wall left of the block": {
+    "box": [
+     590,
+     60,
+     760,
+     545
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "z": [
+     -8.6,
+     -8.4
+    ]
+   },
+   "floor behind, left": {
+    "box": [
+     590,
+     520,
+     760,
+     760
+    ],
+    "normal": [
+     0,
+     1,
+     0
+    ],
+    "z": [
+     -8.5,
+     -5.3
+    ]
+   },
+   "floor behind, right gap": {
+    "box": [
+     1300,
+     560,
+     1420,
+     820
+    ],
+    "normal": [
+     0,
+     1,
+     0
+    ],
+    "z": [
+     -8.5,
+     -5.3
+    ]
+   },
+   "glossy wall behind": {
+    "box": [
+     1380,
+     0,
+     1920,
+     1080
+    ],
+    "normal": [
+     -1,
+     0,
+     0
+    ],
+    "z": [
+     -8.5,
+     -5.3
+    ]
+   },
+   "glossy wall beside": {
+    "box": [
+     1380,
+     0,
+     1920,
+     1080
+    ],
+    "normal": [
+     -1,
+     0,
+     0
+    ],
+    "z": [
+     -5.2,
+     -3.8
+    ]
+   },
+   "glossy wall in front": {
+    "box": [
+     1380,
+     0,
+     1920,
+     1080
+    ],
+    "normal": [
+     -1,
+     0,
+     0
+    ],
+    "z": [
+     -3.7,
+     -1.5
+    ]
+   },
+   "block face": {
+    "box": [
+     740,
+     300,
+     1330,
+     820
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "z": [
+     -3.8,
+     -3.7
+    ]
+   },
+   "floor patch": {
+    "box": [
+     0,
+     640,
+     700,
+     1000
+    ],
+    "normal": [
+     0,
+     1,
+     0
+    ],
+    "x": [
+     -5.5,
+     -3.5
+    ],
+    "z": [
+     -4.0,
+     -2.0
+    ]
+   },
+   "-x wall over the patch": {
+    "box": [
+     40,
+     150,
+     560,
+     560
+    ],
+    "normal": [
+     1,
+     0,
+     0
+    ],
+    "z": [
+     -4.5,
+     -1.5
+    ]
+   }
+  },
+  "neutral": "floor patch",
+  "sets": {
+   "front": {
+    "stops": 2.6805701,
+    "columns": "/Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7-evidence/columns/front/pack",
+    "order": [
+     "ten",
+     "layer",
+     "main",
+     "layerfade",
+     "dfront",
+     "dmiss05",
+     "dmiss15",
+     "dblack05",
+     "dblack15"
+    ],
+    "reference": [
+     [
+      [
+       "/Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7-evidence/ref/front-s1.npy",
+       0,
+       0
+      ]
+     ],
+     [
+      [
+       "/Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7-evidence/ref/front-s2.npy",
+       0,
+       0
+      ]
+     ]
+    ]
+   },
+   "back": {
+    "stops": 6.7897105,
+    "columns": "/Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7-evidence/columns/back/pack",
+    "order": [
+     "ten",
+     "layer",
+     "main",
+     "layerfade",
+     "dfront",
+     "dmiss05",
+     "dmiss15",
+     "dblack05",
+     "dblack15"
+    ],
+    "reference": [
+     [
+      [
+       "/Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7-evidence/ref/back-s1.npy",
+       0,
+       0
+      ]
+     ],
+     [
+      [
+       "/Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7-evidence/ref/back-s2.npy",
+       0,
+       0
+      ]
+     ]
+    ],
+    "neutral_from": "front"
+   },
+   "front-b1": {
+    "stops": 2.6805701,
+    "columns": "/Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7-evidence/columns/front/pack",
+    "order": [
+     "ten",
+     "layer",
+     "main",
+     "layerfade",
+     "dfront",
+     "dmiss05",
+     "dmiss15",
+     "dblack05",
+     "dblack15"
+    ],
+    "reference": [
+     [
+      [
+       "/Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7-evidence/ref/front-b1-s1.npy",
+       0,
+       0
+      ]
+     ],
+     [
+      [
+       "/Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7-evidence/ref/front-b1-s2.npy",
+       0,
+       0
+      ]
+     ]
+    ]
+   },
+   "back-b1": {
+    "stops": 6.7897105,
+    "columns": "/Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7-evidence/columns/back/pack",
+    "order": [
+     "ten",
+     "layer",
+     "main",
+     "layerfade",
+     "dfront",
+     "dmiss05",
+     "dmiss15",
+     "dblack05",
+     "dblack15"
+    ],
+    "reference": [
+     [
+      [
+       "/Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7-evidence/ref/back-b1-s1.npy",
+       0,
+       0
+      ]
+     ],
+     [
+      [
+       "/Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7-evidence/ref/back-b1-s2.npy",
+       0,
+       0
+      ]
+     ]
+    ],
+    "neutral_from": "front-b1"
+   }
+  }
+ }
+}

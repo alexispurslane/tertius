@@ -1,0 +1,59 @@
+Only in /Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7/src/Tertius.Core: bin
+Only in /Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7/src/Tertius.Core: obj
+Only in /Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7/src/Tertius.Demo: bin
+Only in /Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7/src/Tertius.Demo: obj
+Only in /Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7/src/Tertius.Host: bin
+Only in /Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7/src/Tertius.Host: obj
+Only in /Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7/src/Tertius.Physics: bin
+Only in /Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7/src/Tertius.Physics: obj
+diff --color=auto -ru /Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7/src/Tertius.Rendering/Passes/ShadowPass.cs src/src/Tertius.Rendering/Passes/ShadowPass.cs
+--- /Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7/src/Tertius.Rendering/Passes/ShadowPass.cs	2026-11-22 10:14:25
++++ src/src/Tertius.Rendering/Passes/ShadowPass.cs	2026-11-22 15:49:37
+@@ -58,7 +58,7 @@
+                 DepthClamp = true,
+                 CullMode = CullModeFlags.None,
+                 // Reversed depth: a negative bias moves casters away from the light.
+-                DepthBiasSlope = -ShadowBias.SlopeBias,
++                DepthBiasSlope = -float.Parse(System.Environment.GetEnvironmentVariable("TERTIUS_X_SLOPE_BIAS") ?? "2.5", System.Globalization.CultureInfo.InvariantCulture), // t1-gout scratch probe
+             }
+         );
+     }
+@@ -325,7 +325,7 @@
+         // One texel of world distance along the light is depthPerUv / size in [0, 1] depth units. The batcher writes the
+         // normal offset, y, in every frame, because the tiles take it too.
+         constants.ShadowParams.X = 1f / map.Size;
+-        constants.ShadowParams.Z = ShadowBias.ConstantBiasTexels * depthPerUv / map.Size;
++        constants.ShadowParams.Z = float.Parse(System.Environment.GetEnvironmentVariable("TERTIUS_X_CONST_BIAS") ?? "0.5", System.Globalization.CultureInfo.InvariantCulture) * depthPerUv / map.Size; // t1-gout scratch probe
+     }
+ 
+     public override void Record(FrameContext context)
+diff --color=auto -ru /Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7/src/Tertius.Rendering/Scene/SceneBatcher.cs src/src/Tertius.Rendering/Scene/SceneBatcher.cs
+--- /Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7/src/Tertius.Rendering/Scene/SceneBatcher.cs	2026-11-22 15:26:52
++++ src/src/Tertius.Rendering/Scene/SceneBatcher.cs	2026-11-22 15:49:37
+@@ -1640,7 +1640,7 @@
+             ),
+             // The normal offset holds for the cascades and the tiles alike, so it is set in every frame, also in one
+             // without cascades. The shadow pass fills in the rest when it draws the cascades.
+-            ShadowParams = new(x: 0f, y: ShadowBias.NormalOffsetTexels, z: 0f, w: 0f),
++            ShadowParams = new(x: 0f, y: float.Parse(System.Environment.GetEnvironmentVariable("TERTIUS_X_NORMAL_OFFSET") ?? "1", System.Globalization.CultureInfo.InvariantCulture), z: 0f, w: System.Environment.GetEnvironmentVariable("TERTIUS_X_SYMMETRIC") == "1" ? 1f : 0f), // t1-gout scratch probe
+             // The shadow pass fills in the cascades when it draws them.
+             Counts = new(
+                 X: (uint)scene.LightCount,
+diff --color=auto -ru /Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7/src/Tertius.Rendering/Shaders/shadows.glsl src/src/Tertius.Rendering/Shaders/shadows.glsl
+--- /Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7/src/Tertius.Rendering/Shaders/shadows.glsl	2026-11-22 10:14:25
++++ src/src/Tertius.Rendering/Shaders/shadows.glsl	2026-11-22 15:49:37
+@@ -75,7 +75,9 @@
+     float reference = clip.z + frame.shadowParams.z;
+     // ShadowMap.Layer: the layers of a set follow those of the sets before it.
+     float layer = float(set * 4u + cascade);
+-    return lightOutsideShadow(filteredCascade(clip.xy * 0.5 + 0.5, layer, reference));
++    float litFraction = filteredCascade(clip.xy * 0.5 + 0.5, layer, reference);
++    // t1-gout scratch probe: w = 1 gives the symmetric filter.
++    return frame.shadowParams.w > 0.5 ? litFraction : lightOutsideShadow(litFraction);
+ }
+ 
+ // How far a world position is beyond the shadow maps: 0 where they shadow it, 1 past their end, and a smooth step over
+Only in /Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7/src/Tertius.Rendering: bin
+Only in /Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7/src/Tertius.Rendering: obj
+Only in /Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7/src/Tertius.Simulation: bin
+Only in /Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7/src/Tertius.Simulation: obj

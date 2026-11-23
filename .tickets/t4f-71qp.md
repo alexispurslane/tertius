@@ -2,7 +2,7 @@
 id: t4f-71qp
 status: open
 deps: []
-links: []
+links: [t0-qvm1]
 created: 2026-11-22T07:58:43Z
 type: task
 priority: 2
@@ -23,3 +23,7 @@ Decision of the user, 2026-11-22, on the remedy under a moving render scale, in 
 **2026-11-22T21:37:23Z**
 
 Evidence from take B of t0-3vwx, 2026-11-22: under the card's size log of a lamp switch, the region's test runs on only 11.7 % and 12.1 % of anchor-draws in the 100 draws after off and after on, because each size change restarts its count. Design X without the cap then settles slower than main after off (141 against 121 draws, whole image) where it was faster at a fixed scale (66 against 122). The combined check's lead's reading, not measured: before the wobble's fix each size change stretched the picture and gave the blocks motion evidence, which made the histories follow the light sooner (settle 125 / 36 before the fix, 141 / 45 after it); a log of the evidence level per block would test it. The cap of t0-zmjx removes the size changes after a switch on the card, so this ticket's case stays for sizes that move for another reason.
+
+**2026-11-22T23:52:00Z**
+
+From the final walk film of t0-3vwx, 2026-11-22: the region test's count also restarts under a moving camera. In the first 60 draws after a stop it runs on 34.7 % of the anchor-draws, then on 90.4 %. In that span Design X's trail fades more slowly than main's (center region +4.61 % against +3.73 % at 20 draws after the stop, slowest region's settle 47 draws against 25). The link between the two is my reading and is not measured.

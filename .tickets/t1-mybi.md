@@ -2,7 +2,7 @@
 id: t1-mybi
 status: open
 deps: []
-links: [ter-13rm]
+links: [ter-13rm, ter-4iic, t2b-d2m6, ter-6fka]
 created: 2026-11-15T13:18:54Z
 type: bug
 priority: 3
