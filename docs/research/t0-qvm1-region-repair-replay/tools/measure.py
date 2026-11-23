@@ -20,7 +20,14 @@
 #     the lag of the model light behind the logged light, the survey's lag(): (still - film) / slope, with the region
 #     mean of the logged x over the draws t - 4 to t + 4 as the still, the model light as the film, and the model light's
 #     slope over t - 5 to t + 5; at bay-sun's survey samples (film frames 60, 120, 180 and 230) and at rect-bay's film
-#     draws 50, 90, 130 and 170, for the whole picture and the 3 x 3 regions; the median and the largest.
+#     draws 50, 90, 130 and 170, for the whole picture and the 3 x 3 regions; the median and the largest. The same per
+#     anchor (the blocks nearest it), every anchor-sample pooled: the median and the 90th percentile.
+#   the switch also: the model light 20 and 40 draws after off and after on, as a share of the settled level (the mean
+#     over the anchors whose settled light the switch changes by more than 10 %).
+#   the cabin with its lamps off (the switch's control g-switch/region-0-100000000, 493 draws): a fifth frozen still, its
+#     frozen part from draw 100 on.
+#   E' (replay.py): per still, the share of the frozen part's tested draws whose update it skipped, and the median of its m
+#     over the frozen part against E's m of the same span.
 #   the still cabin's draws 100 to 299, a weak true drift (part 1), on the log with the rule (r2-main-cabin-full) and on
 #     the log without it (r2-noreg-cabin-full): the caps that each candidate gives at the anchor-draws where today's rule
 #     fires in those draws (10, 50 and 90 %), and per anchor the mean of the model light over draws 100 to 199 and 200 to
@@ -91,24 +98,30 @@ def settle(series, level, start, end):
 
 
 STILLS = [
-    # name, log, process, P values (first one the candidates' P), the run whose dump gives the surface, dump draws
-    ('exit-cabin', R.OLD / 'g-exit' / 'region-none.txt', None, (18,), R.RUNS / 'r2-main-exit-bounce', (630, 890)),
-    ('lamp hall', R.RUNS / 'r2-main-lamp-full' / 'region' / 'region-none.txt', None, (25, 18), R.RUNS / 'r2-main-lamp-full', (630, 890)),
-    ('bay', R.RUNS / 'r2-main-bay-full' / 'region' / 'region-none.txt', None, (18,), R.RUNS / 'r2-main-bay-full', (630, 890)),
-    ('still cabin', R.RUNS / 'r2-main-cabin-full' / 'region' / 'region-none.txt', None, (18,), R.RUNS / 'r2-main-cabin-full', (190, 890)),
+    # name, log, process, P values (the first the candidates' P), render size, the run whose dumps give the surface and
+    # the model check (deleted after the first take), dump draws, the first draw of the frozen part
+    ('exit-cabin', R.OLD / 'g-exit' / 'region-none.txt', None, (18,), (1280, 720), R.RUNS / 'r2-main-exit-bounce', (630, 890), 400),
+    ('lamp hall', R.LOGS / 'r2-main-lamp-full' / 'region-none.txt', None, (25, 18), (1072, 603), R.RUNS / 'r2-main-lamp-full', (630, 890), 400),
+    ('bay', R.LOGS / 'r2-main-bay-full' / 'region-none.txt', None, (18,), (1280, 720), R.RUNS / 'r2-main-bay-full', (630, 890), 400),
+    ('still cabin', R.LOGS / 'r2-main-cabin-full' / 'region-none.txt', None, (18,), (1280, 720), R.RUNS / 'r2-main-cabin-full', (190, 890), 400),
+    # The switch's lamps-off control: 493 draws, so its frozen part starts at draw 100 (its share from 400 is printed too).
+    ('cabin, lamps off', R.OLD / 'g-switch' / 'region-0-100000000.txt', None, (18,), (1280, 720), None, (), 100),
 ]
 results = {'stills': {}, 'switch': {}, 'lag': {}, 'caps': {}, 'fires': {}}
 ORDER = None
 
-for name, log, process, Ps, run, dumps in STILLS:
-    if not Path(log).exists() or not (run / 'dump').exists():
-        print(f'\n== {name}: no log or no dump yet ({log}, {run}), skipped')
-        continue
+for name, log, process, Ps, (w, h), run, dumps, start in STILLS:
     draws, x, g, moved = R.load(log, process)
-    L890, (w, h) = dump(run, 890)
-    surface, _ = blockwise(L890)
     holders, near = R.block_grid(w, h, x.shape[1], x.shape[2])
-    late = draws >= 400
+    has_dumps = run is not None and (run / 'dump').exists()
+    if has_dumps:
+        L890, _ = dump(run, 890)
+        surface, _ = blockwise(L890)
+    else:
+        # The surface from the log: the blocks whose nearest anchor is valid in at least half of the draws.
+        surface = (g.reshape(len(g), -1)[:, near] > 0).mean(0) >= 0.5
+        dumps = ()
+    late = draws >= start
     for P in Ps:
         caps, st = R.candidates(x, g, P, extra_p=(PS[name],) if name in PS else ())
         ORDER = ORDER or list(caps)
@@ -126,8 +139,16 @@ for name, log, process, Ps, run, dumps in STILLS:
             share = short[late].sum((1, 2)) / surface.sum()
             noise = ((np.sqrt(32 / Lm) - 1) * surface)[late].sum((1, 2)) / surface.sum()
             at = {d: float(short[np.searchsorted(draws, d)].sum() / surface.sum()) for d in dumps}
-            row[cand] = {'share': float(share.mean()), 'noise': float(noise.mean()), 'at': at}
-            if cand.startswith('E') and not cand.startswith('EC'):
+            row[cand] = {'share': float(share.mean()), 'noise': float(noise.mean()), 'at': at,
+                         'share400': float((short[draws >= 400].sum((1, 2)) / surface.sum()).mean()) if (draws >= 400).any() else None}
+            if cand.startswith("E'") and not cand.startswith("E'C"):
+                k = int(cand[2:])
+                G = st['gated'][k]
+                frozen = st['tested'] & late[:, None, None]
+                row[cand]['skipped'] = float(G['skipped'][frozen].sum() / max(frozen.sum(), 1))
+                row[cand]['skippedAll'] = float(G['skipped'][st['tested']].sum() / max(st['tested'].sum(), 1))
+                row[cand]['mRatio'] = float(np.median(G['m'][frozen]) / np.median(st['measures'][k][frozen]))
+            if cand.startswith('E') and cand[1:].isdigit():
                 k = int(cand[1:])
                 N = k * (P + R.W)
                 fire = st['tested'] & (cap < 32)
@@ -144,7 +165,7 @@ for name, log, process, Ps, run, dumps in STILLS:
             if cand in ('T', 'none'):
                 pass
         real = {}
-        for d in dumps:
+        for d in (dumps if has_dumps else ()):
             Ld, _ = dump(run, d)
             s, med = blockwise(Ld)
             real[d] = float(((med < 31.5) & surface).sum() / surface.sum())
@@ -154,10 +175,17 @@ for name, log, process, Ps, run, dumps in STILLS:
         print(f"  {'candidate':10s} {'share':>7s} {'noise':>7s}  at the dump draws        E: false rate after the fill, fill")
         for cand, v in row.items():
             extra = f"  {100 * v['false']:.2f} %, {v['fill']} draws" if 'false' in v else ''
+            if 'skipped' in v:
+                extra = (f"  skipped {100 * v['skipped']:.2f} % of the frozen part's tested draws ({100 * v['skippedAll']:.2f} % "
+                         f"of all); median m against E's: {v['mRatio']:.3f}")
+            if v.get('share400') is not None and start != 400:
+                extra += f"  (from draw 400: {100 * v['share400']:.2f} %)"
             print(f"  {cand:10s} {100 * v['share']:6.2f}% {v['noise']:7.4f}  " +
                   ', '.join(f'{d}: {100 * s:.2f} %' for d, s in v['at'].items()) + extra)
-        if P == 18:
+        if P == 18 and name != 'cabin, lamps off':
             results['fires'][name] = st['stat'][st['today']].tolist()
+        if not has_dumps:
+            print(f'  (the surface from the log: {int(surface.sum())} of {surface.size} blocks; the frozen part from draw {start})')
 
 # The fair cabin switch, on the log with the rule and on the log without it.
 on_draws, on_x, on_g, _ = R.load(R.OLD / 'g-switch' / 'region-none.txt')
@@ -209,7 +237,19 @@ for which in ('rule', 'none'):
             grid = [v for k, v in settles.items() if k.startswith('r')]
             anchors = [v for k, v in settles.items() if k.startswith('a')]
             slow = lambda vs: None if None in vs else max(vs, default=0)
+            # The model light 20 and 40 draws after the switch, as a share of the settled level: the mean over the
+            # anchors whose settled light the switch changes by more than 10 %.
+            shares = {}
+            for after in (20, 40):
+                vals = []
+                for pname, mask in parts.items():
+                    if not pname.startswith('a') or pname not in settles:
+                        continue
+                    m = mask & seen & ~np.isnan(level) & ~np.isnan(before)
+                    vals.append(float(y[s0 + after][m].mean() / level[m].mean()))
+                shares[after] = float(np.mean(vals))
             out_row[event] = {'whole': settles.get('whole'), 'region': slow(grid), 'anchor': slow(anchors),
+                              'at20': shares[20], 'at40': shares[40],
                               'anchorMean': float(np.mean([v for v in anchors if v is not None])) if any(v is not None for v in anchors) else None,
                               'anchorUnsettled': sum(v is None for v in anchors), 'anchors': len(anchors)}
         res[cand] = out_row
@@ -217,7 +257,9 @@ for which in ('rule', 'none'):
         print(f"  {cand:8s} off: {f(out_row['off']['whole'])}, {f(out_row['off']['region'])}, {f(out_row['off']['anchor'])}, "
               f"{f(out_row['off']['anchorMean'])} ({out_row['off']['anchorUnsettled']}/{out_row['off']['anchors']} none) | "
               f"on: {f(out_row['on']['whole'])}, {f(out_row['on']['region'])}, {f(out_row['on']['anchor'])}, "
-              f"{f(out_row['on']['anchorMean'])} ({out_row['on']['anchorUnsettled']}/{out_row['on']['anchors']} none)")
+              f"{f(out_row['on']['anchorMean'])} ({out_row['on']['anchorUnsettled']}/{out_row['on']['anchors']} none) | "
+              f"light at +20, +40 after off: {100 * out_row['off']['at20']:.1f}, {100 * out_row['off']['at40']:.1f} %; "
+              f"after on: {100 * out_row['on']['at20']:.1f}, {100 * out_row['on']['at40']:.1f} %")
     results['switch'][which] = res
 
 # bay-sun and rect-bay: the lag of the model light.
@@ -227,16 +269,19 @@ for name, log, process, change, samples in (('bay-sun', R.OLD / 'g-lag' / 'regio
     rows, columns = x.shape[1:]
     holders, near = R.block_grid(1280, 720, rows, columns)
     seen = (g.reshape(len(g), -1)[:, near] > 0).mean(0) >= 0.5
-    parts = regions(near.shape)
+    parts = {**regions(near.shape), **{f'a{a}': m for a, m in anchor_masks(near).items()}}
     caps, st = R.candidates(x, g, 18, extra_p=(PS[name],) if name in PS else ())
     flatx = x.reshape(len(x), -1)[:, near]
-    print(f'\n== {name}: the lag of the model light in draws (median, largest, count)')
+    print(f'\n== {name}: the lag of the model light in draws (median, largest, count over the picture and its 3 x 3 '
+          f'regions; and over the anchors, every anchor-sample pooled: median, 90th percentile, count)')
     res = {}
     for cand, cap in caps.items():
         _, y = R.model(cap, x, g, holders, near)
-        lags = []
+        lags, anchor_lags = [], []
         for pname, mask in parts.items():
             m = mask & seen
+            if not m.any():
+                continue
             film = y[:, m].mean(1)
             logged = flatx[:, m].mean(1)
             for t in samples:
@@ -247,11 +292,15 @@ for name, log, process, change, samples in (('bay-sun', R.OLD / 'g-lag' / 'regio
                 slope = (film[i + 5] - film[i - 5]) / 10
                 if film[i] <= 0 or abs(slope) * 60 / film[i] <= CHANGE:
                     continue
-                lags.append(float((still - film[i]) / slope))
+                (anchor_lags if pname.startswith('a') else lags).append(float((still - film[i]) / slope))
         res[cand] = {'median': float(np.median(lags)) if lags else None, 'largest': float(max(lags)) if lags else None,
-                     'count': len(lags)}
+                     'count': len(lags),
+                     'anchorMedian': float(np.median(anchor_lags)) if anchor_lags else None,
+                     'anchorP90': float(np.percentile(anchor_lags, 90)) if anchor_lags else None,
+                     'anchorCount': len(anchor_lags)}
         f = lambda v: 'n/a' if v is None else f'{v:.1f}'
-        print(f"  {cand:8s} {f(res[cand]['median'])}, {f(res[cand]['largest'])}, {len(lags)}")
+        print(f"  {cand:8s} {f(res[cand]['median'])}, {f(res[cand]['largest'])}, {len(lags)} | anchors: "
+              f"{f(res[cand]['anchorMedian'])}, {f(res[cand]['anchorP90'])}, {len(anchor_lags)}")
     results['lag'][name] = res
     if name == 'rect-bay':
         fires = st['today']
@@ -267,8 +316,7 @@ for name, log, process, change, samples in (('bay-sun', R.OLD / 'g-lag' / 'regio
 # The still cabin's draws 100 to 299: a weak true drift.
 results['drift'] = {}
 for which, build in (('rule', 'r2-main'), ('none', 'r2-noreg')):
-    run = R.RUNS / f'{build}-cabin-full'
-    draws, x, g, moved = R.load(run / 'region' / 'region-none.txt')
+    draws, x, g, moved = R.load(R.LOGS / f'{build}-cabin-full' / 'region-none.txt')
     rows, columns = x.shape[1:]
     holders, near = R.block_grid(1280, 720, rows, columns)
     caps, st = R.candidates(x, g, 18, extra_p=(PS['still cabin'],) if 'still cabin' in PS else ())

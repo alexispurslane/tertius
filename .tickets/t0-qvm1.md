@@ -263,3 +263,20 @@ The model's check: T replays every logged fire exactly, and its block model of t
 - p measured after FSR: median 0.53 (exit-cabin), 1.12 (lamp hall), 0.61 (bay), 1.17 (cabin). So C1 is the continuous cap that the measure supports, and it keeps 9 to 16 % of the blocks short.
 - The pairing at P = 25 in the lamp hall fires at 1.09 % against 0.95 % with today's windows: no visible jitter remainder.
 - The numbers favor K6 among the candidates. It cuts the stills' short blocks about eightfold, keeps the switch within 2 to 6 draws of T and the median lags at T's, and costs about 8 draws of rect-bay's largest lag. Its cost in the cabin's weak drift is most of T's model gain: -1.14 % against T's -0.92 % and no rule's -1.24 %.
+
+**2026-11-23T09:45:00Z**
+
+2026-11-23, 04:45 New York time. The replay's second take (docs/research/t0-qvm1-region-repair-replay/README.md, "The second take"), CPU only on the existing logs. The stills' surface now comes from the logs, and T's shares move by at most 0.17 points against the first take's dump surface.
+
+| Candidate | Short blocks, four stills / lamps off | Noise, four / lamps off | Switch off | bay-sun / rect-bay anchors' lag, 90 % | Switch light +20 after off / on | Cabin drift |
+|---|---|---|---|---|---|---|
+| T | 19.6-32.0 / 29.0 % | 0.113 / 0.127 | 74, 90 | 17.6 / 18.7 | 166.2 / 73.7 % | -0.92 % |
+| C1 | 9.0-16.0 / 15.0 % | 0.032 / 0.041 | 80, 98 | 23.3 / 26.8 | 167.3 / 73.5 % | -1.04 % |
+| CK3 | 4.9-8.7 / 8.8 % | 0.019 / 0.026 | 80, 98 | 25.0 / 27.8 | 168.3 / 73.2 % | -1.09 % |
+| K6 | 2.3-3.6 / 5.5 % | 0.012 / 0.020 | 76, 96 | 26.8 / 29.8 | 171.9 / 72.2 % | -1.14 % |
+| E'C1-8 | 2.7-4.6 / 9.1 % | 0.008 / 0.024 | 84, 104 | 24.0 / 31.3 (median 13.8) | 167.3 / 73.1 % | -1.09 % |
+| none | 0 | 0 | 133, 149 | 34.2 / 32.1 | 212.3 / 56.5 % | -1.24 % |
+
+- E' does not lock: it skips 0.14 to 0.34 % of the frozen tested draws, and its m reaches 0.98 to 0.99 of E's. Only the lamps-off cabin skips about 4 % of all tested draws, mostly while its light settles, and its m stays 11 to 16 % under E's. The gate halves E's motion fault but does not remove it: rect-bay's median lag is 15.1 (E'4) and 10.6 (E'8) against T's 7.2. A slow true drift raises m in its draws under the bar.
+- The lamps-off cabin is the continuous cap's weakest still (C1 15.0 %), and K6 drops most of its false fires once the light settles (0.86 % from draw 400).
+- On the true-change side, C1, CK3 and K6 lie close: the 90th-percentile lags differ by 3 to 3.5 draws, the switch's light 20 draws after off by 4.6 points, and the cabin's drift by 0.10 points. On the still side they differ by 2.7 times in noise. The line's view: CK3, one count over C1, gives the balance, at about half of C1's still cost and within 1 to 2 draws of C1's tails. C1 is the choice if no chosen constant is allowed.
