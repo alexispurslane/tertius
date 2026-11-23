@@ -11,7 +11,7 @@
 #          4.08 stops; the cut's other camera is chase.
 # The events: start (film f, 120 frames: f-n is draw n), cut (film a of 100 frames, one frame x on the other camera, then
 # film b of 120 frames on the first camera; the cut back restarts every history at b-000000, draw 101).
-# It holds the GPU lock in its shared mode: it times nothing.
+# It holds the GPU lock in its shared mode: it times nothing. It refuses to start under 18 GiB of free disk.
 set -uo pipefail
 scene=$1; event=$2; name=$3; shift 3
 T=$(cd "$(dirname "$0")" && pwd); R=$(cd "$T/../../../.." && pwd)
@@ -26,6 +26,8 @@ case $event in
   cut) films="a:100 x:1 b:120" ;;
   *) echo "no event $event"; exit 1 ;;
 esac
+free=$(df -k / | awk 'NR == 2 {printf "%d", $4 / 1048576}')
+if [ "$free" -lt 18 ]; then echo "$(date +%T) $name: only $free GiB free, under the line's stop of 18: no run"; exit 1; fi
 command rm -rf "${out:?}"; mkdir -p $out
 python3 -I - "$world" "$camera" "$other" "$ticks" "$films" > $out/script.json <<'PY'
 import json, sys

@@ -1,11 +1,11 @@
-# SCRATCH patch of t0-xwdz (v3), never commit to src. It applies on c768e1ed8 after tools/renderer-survey/probe.patch and
+# SCRATCH patch of t0-xwdz (v3 with the v4 weights log), never commit to src. It applies on c768e1ed8 after tools/renderer-survey/probe.patch and
 # t0-gumm's scratch-first-filmed.patch and scratch-frozen.patch. With TERTIUS_X_TAIL_LOG=<folder> and
 # TERTIUS_REFLECTION_HISTORY_AGREEMENT=control-trace it logs, per draw, the reflections' history lengths before and after
 # the anti-lag, why a reprojected length falls under 8, the cuts by length, and the own-ray counts (see the comment in
 # the hunk). The v2 logs in logs/v2-* came from the same patch without the v3 counts, cuts.txt and the 7.5 split.
 --- a/src/Tertius.Rendering/VulkanRenderer.cs
 +++ b/src/Tertius.Rendering/VulkanRenderer.cs
-@@ -659,6 +659,108 @@
+@@ -659,6 +659,147 @@
          MatchTargetsTo(image);
  
          FrameHistory.PendingFrame pending = BeginDraw(snapshot: snapshot, step: step, draw: draw);
@@ -24,7 +24,16 @@
 +        // rounding, neighbor, own short; then (v3) the surface pixels with before the anti-lag in [7.99, 8), with before 8 or
 +        // more and after in [7.99, 8), with after below before by any amount, with reprojected below own by any amount;
 +        // then the own-short own rays with own in [7.99, 8) and with own under 7.99; the surface pixels with after in
-+        // [7.5, 8); the own-short own rays with own in [7.5, 7.99); then the own diffuse rays. <folder>/cuts.txt gets
++        // [7.5, 8); the own-short own rays with own in [7.5, 7.99); (where the near-integer lengths come from) the
++        // reprojected length below the least weighted tap, by any amount ("mean low"); the length after the blend above the
++        // reprojected one and below it + 1 ("blend low"); a cut of more than 0 and at most 1e-3 ("tiny cut"); the length
++        // after the blend equal to the reprojected one, above 0 (no sample); the lengths after the anti-lag less than 1e-3
++        // below an integer ("near below"), of them mean low, tiny cut, and neither of these three with the own texel's
++        // length near below too ("inherited"); then the own diffuse rays. <folder>/cuts.txt gets
++        // (v4) <folder>/weights.txt gets "<frame> <draw index>", then the surface pixels by the weight share of the three
++        // taps other than the heaviest (trace layer 1): exactly 0, then [1e-7, 1e-6) or less, [1e-6, 1e-5), [1e-5, 1e-4),
++        // [1e-4, 1e-3), [1e-3, 1e-2) and 1e-2 or more, then the same 7 counts for the pixels whose reprojected length lies
++        // below their own texel's by any amount. <folder>/cuts.txt gets
 +        // "<frame> <draw index>", the counts of the shortened pixels by their length before the cut in [k, k + 1) for k = 0
 +        // to 31 and 32 or more, "|", and the same by their length after it. <folder>/hist.txt gets "<frame> <draw index>" and the
 +        // count of surface pixels whose length after the anti-lag lies in [k, k + 1) for k = 0 to 31, then 32 or more.
@@ -38,7 +47,9 @@
 +            float[] probeT3 = ReadLevel(image: probeTrace, layer: 3, mip: 0).Values;
 +            float[] probeT4 = ReadLevel(image: probeTrace, layer: 4, mip: 0).Values;
 +            float[] probeT5 = ReadLevel(image: probeTrace, layer: 5, mip: 0).Values;
-+            long[] probeCounts = new long[25];
++            float[] probeT1 = ReadLevel(image: probeTrace, layer: 1, mip: 0).Values;
++            long[] probeMinor = new long[14];
++            long[] probeCounts = new long[33];
 +            long[] probeCutFrom = new long[33];
 +            long[] probeCutTo = new long[33];
 +            long[] probeHist = new long[33];
@@ -74,6 +85,31 @@
 +                    probeCounts[19] += probeAfter < probeBefore ? 1 : 0;
 +                    probeCounts[20] += probeReprojected < probeT0[4 * probeP] ? 1 : 0;
 +                    probeCounts[23] += probeAfter >= 7.5f && probeAfter < 8 ? 1 : 0;
++                    float probeOwnLength = probeT0[4 * probeP];
++                    bool probeMeanLow = probeReprojected > 0 && probeReprojected < probeT3[4 * probeP];
++                    bool probeBlendLow = probeBefore > probeReprojected && probeBefore < probeReprojected + 1;
++                    bool probeTinyCut = probeAfter < probeBefore && probeAfter >= probeBefore - 1e-3f;
++                    bool ProbeNearBelow(float probeL) => MathF.Ceiling(probeL) - probeL is > 0 and < 1e-3f;
++                    probeCounts[25] += probeMeanLow ? 1 : 0;
++                    probeCounts[26] += probeBlendLow ? 1 : 0;
++                    probeCounts[27] += probeTinyCut ? 1 : 0;
++                    probeCounts[28] += probeReprojected > 0 && probeBefore == probeReprojected ? 1 : 0;
++                    {
++                        float probeW0 = probeT1[4 * probeP], probeW1 = probeT1[4 * probeP + 1], probeW2 = probeT1[4 * probeP + 2], probeW3 = probeT1[4 * probeP + 3];
++                        float probeSum = probeW0 + probeW1 + probeW2 + probeW3;
++                        float probeMinorShare = probeSum > 0 ? 1 - MathF.Max(MathF.Max(probeW0, probeW1), MathF.Max(probeW2, probeW3)) / probeSum : 0;
++                        int probeBin = probeMinorShare <= 0 ? 0 : Math.Clamp(8 + (int)MathF.Floor(MathF.Log10(probeMinorShare)), 1, 6);
++                        probeMinor[probeBin]++;
++                        if (probeReprojected > 0 && probeReprojected < probeOwnLength)
++                            probeMinor[7 + probeBin]++;
++                    }
++                    if (ProbeNearBelow(probeAfter))
++                    {
++                        probeCounts[29]++;
++                        probeCounts[30] += probeMeanLow ? 1 : 0;
++                        probeCounts[31] += probeTinyCut ? 1 : 0;
++                        probeCounts[32] += !probeMeanLow && !probeTinyCut && !probeBlendLow && ProbeNearBelow(probeOwnLength) ? 1 : 0;
++                    }
 +                    if (probeShortened)
 +                    {
 +                        probeCutFrom[Math.Clamp((int)MathF.Floor(probeBefore), 0, 32)]++;
@@ -101,9 +137,12 @@
 +                $"{FrameNumber - 1} {probeTailLastDrawIndex} {probeSize.Width} {probeSize.Height} {string.Join(' ', probeCounts)} {probeDiffuse}\n"
 +            );
 +            System.IO.File.AppendAllText(
++                System.IO.Path.Combine(probeDir, "weights.txt"),
++                $"{FrameNumber - 1} {probeTailLastDrawIndex} {string.Join(' ', probeMinor)}\n"
++            );
++            System.IO.File.AppendAllText(
 +                System.IO.Path.Combine(probeDir, "cuts.txt"),
-+                $"{FrameNumber - 1} {probeTailLastDrawIndex} {string.Join(' ', probeCutFrom)} | {string.Join(' ', probeCutTo)}
-+"
++                $"{FrameNumber - 1} {probeTailLastDrawIndex} {string.Join(' ', probeCutFrom)} | {string.Join(' ', probeCutTo)}\n"
 +            );
 +            System.IO.File.AppendAllText(
 +                System.IO.Path.Combine(probeDir, "hist.txt"),
@@ -114,7 +153,7 @@
          ICaptureSink? sink = takeCapture ? Interlocked.Exchange(ref pendingCapture, null) : null;
          GpuBuffer? capture = sink != null ? CaptureBuffer(slot: frame.Index, extent: image.Extent) : null;
          // After the output gave the frame an image, so a skipped frame leaves the map's frame as it is, and before
-@@ -1412,6 +1514,9 @@
+@@ -1412,6 +1553,9 @@
  
      /// <summary>The screen tracer's two signals. A test hook.</summary>
      /// <exception cref="InvalidOperationException">The setting is <see cref="NoScreenTrace"/>.</exception>
