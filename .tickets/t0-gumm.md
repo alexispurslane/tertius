@@ -222,3 +222,30 @@ Answer 86 of the line orchestrator: the code finding stays in this ticket for no
 **2026-11-23T03:18:50Z**
 
 Correction by the line orchestrator, 2026-11-22 22:20 by the machine's clock: the clock times in my notes and messages of this evening after 21:50 were guessed and ran ahead. The messages that I labelled 22:00, 22:30, 22:40, 23:20 and 23:25 were sent between about 21:50 and 22:17. The commit times of the line's branch are right. From here on I read the clock before I write a time.
+
+**2026-11-23T04:14:48Z**
+
+Early result 7 of the combined check's lead, 2026-11-22 about 23:10 by the machine's clock: the fair test, on the Mac at the constant scale 2/3, in frozen films. Pictures in the lead's worktree, not committed at 23:15: docs/research/t0-gumm-catch-up-spread/pics/fair-bay-draw2.png, fair-bay-draw8.png, fair-chart.png, fair-cabin-draw2.png. The line orchestrator looked at the bay's two pictures and the chart: at draws 2 and 8 after the start, today's cliff gives a smooth bounce light, and "none" and C32 show blotches over the floor, the back wall and the right wall, with a different spread of the light.
+
+Measured, start (the cut is bit-identical to the start, see below). Slowest region's settle in draws; boil and grain in %:
+- bay-sunbeam, today: settle 164; boil 1-59 0.309; boil 1-8 1.370; grain 0-15 4.44; narrow crop boil 1-8 1.127, grain 0-15 0.77.
+- bay-sunbeam, none: 164; 0.372; 1.801; 6.80; narrow 1.808, 1.10.
+- bay-sunbeam, C32: 164; 0.369; 1.798; 6.66; narrow 1.817, 1.10.
+- cabin with its lamps off, today: 133; 0.318; 1.026; 3.06; narrow 1.391, 2.02.
+- cabin, none: 133; 0.322; 1.069; 3.12; narrow 1.457, 2.13.
+- cabin, C32: 133; 0.320; 1.055; 3.13; narrow 1.411, 2.10.
+- The spread over the start and the starts with the world run 1 and 2 ticks longer: bay settle 5 draws, boil 1-8 up to 0.019, grain up to 0.08, narrow boil 1-8 up to 0.051; cabin 0.011 or less.
+- The bay's grain per span, today against none: draws 0 to 2 7.24 against 6.62; draws 3 to 8 3.34 against 7.31; draws 9 to 15 4.19 against 6.45. The bay's boil of draws 9 to 59: 0.142 against 0.148.
+- The control for early result 6: "none" played back on today's card scale log at the lamp cabin's start gives a grain of 1.00 and a boil of 0.118 (today 0.87, C32 on its own log 1.08). So the rays cause most of that gap, and the render scale the smaller part.
+
+What it says:
+- In a bounce-lit scene the catch-up rays of today's cliff buy a clearly better picture in the first draws: 24 % less boil in draws 1 to 8, 38 % less on the narrow crop, and about half of the grain from draw 3 to draw 15. The settle is the same. The user's view holds there.
+- One ray per restarted pixel (C32) buys nothing: it equals "none" within the spread.
+- In the dark cabin the gain is small (4 % of the boil of draws 1 to 8).
+- The line orchestrator's reading of the code (22:00 note) was right in size, about half, and that the narrow surfaces gain more. It was wrong about where: it said the grain measure would not see the gain, and the grain shows it from draw 3 on. The lead's reading, not measured: the correlated block samples of the first draws enter the history as blotches and stay until the history replaces them.
+
+A fact about the engine, found by the lead: FrameHistory.Begin sets DrawIndex to 0 at every reset, and the noise and the FSR jitter follow the draw index. So every reset draws the same noise sequence, and in a frozen film a cut moved by 1 or 2 draws gives the same pictures to the bit. The spread between runs was taken with the world run 1 and 2 ticks longer.
+
+Answers of the line orchestrator, which the orchestrator can reverse:
+89. Before the card job, a sweep of shapes on the Mac in the bay's start: today (1, 8, 0), none, (0.5, 16, 0), (0.25, 32, 0), (0.125, 32, 0) and one front-loaded shape. Reason: C32 is out, and the open question is the user's own, whether the same number of catch-up rays spread over more draws keeps the picture. Then the card job and the video with the panes today | none | the best middle shape.
+90. No scratch offset on the draw index for a noise-phase spread, and no video of the dark cabin. The bay's differences are far above the spread, and the cabin's small difference decides nothing.
