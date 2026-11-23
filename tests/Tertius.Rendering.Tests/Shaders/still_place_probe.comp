@@ -7,7 +7,8 @@
 // place (screen.glsl, the pixel history rule); g the weight of the own texel and b the weight of the texel to its right for a place 1 / 64 texel right of and
 // below the center; a 1 where a place 1 / 300 texel right of and below the center reads the own texel with the weight 1
 // and the others with 0, else 0. The diffuse sample's r holds the weight of the texel to the right for a place 1 / 200
-// texel right of and below the center. A pixel without a surface holds −1 in every channel.
+// texel right of and below the center, and its g the weight of the texel to the left for a place 1 / 64 texel left of
+// and above the center. A pixel without a surface holds −1 in every channel.
 #extension GL_GOOGLE_include_directive : require
 #include "screen_trace.glsl"
 
@@ -50,8 +51,10 @@ void main()
     Reprojection sixtyFourth = offCenter(pixel, 1.0 / 64.0);
     Reprojection threeHundredth = offCenter(pixel, 1.0 / 300.0);
     Reprojection twoHundredth = offCenter(pixel, 1.0 / 200.0);
+    Reprojection sixtyFourthBack = offCenter(pixel, -1.0 / 64.0);
     float pixelPlaceRead = imageLoad(motionTarget, pixel).w != 0.0 ? readsOnly(still, pixel) : 0.5;
     imageStore(specularSample, pixel, vec4(pixelPlaceRead, weightAt(sixtyFourth, pixel),
         weightAt(sixtyFourth, pixel + ivec2(1, 0)), readsOnly(threeHundredth, pixel)));
-    imageStore(diffuseSample, pixel, vec4(weightAt(twoHundredth, pixel + ivec2(1, 0)), 0.0, 0.0, 0.0));
+    imageStore(diffuseSample, pixel, vec4(weightAt(twoHundredth, pixel + ivec2(1, 0)),
+        weightAt(sixtyFourthBack, pixel - ivec2(1, 0)), 0.0, 0.0));
 }

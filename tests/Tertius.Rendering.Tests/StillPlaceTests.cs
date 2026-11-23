@@ -72,6 +72,19 @@ public sealed class StillPlaceTests
     [Theory]
     [InlineData(1280, 720)]
     [InlineData(3840, 2160)]
+    public void APlaceASixtyFourthOfATexelLeftOfAndAboveACenterKeepsItsBilinearWeights(int width, int height)
+    {
+        (float[] specular, float[] diffuse) = Probe(width, height);
+
+        int[] surface = ProbedSurface(specular);
+        // The snap compares the distance to the center on both sides: a place before the center keeps its weights as one
+        // after it does. The texel to the left takes 63 / 64 · 1 / 64.
+        surface.Should().OnlyContain(pixel => MathF.Abs(diffuse[4 * pixel + 1] - 63f / 4096) < 1e-3f);
+    }
+
+    [Theory]
+    [InlineData(1280, 720)]
+    [InlineData(3840, 2160)]
     public void APlaceAThreeHundredthOfATexelOffACenterReadsThatCenter(int width, int height)
     {
         (float[] specular, _) = Probe(width, height);
