@@ -68,6 +68,8 @@ def metal_library(spirv, folder, name):
     library = folder / f"{name}.metallib"
     run("spirv-opt", "--set-spec-const-default-value", CONSTANTS, "--freeze-spec-const", spirv, "-o", frozen)
     run("MoltenVKShaderConverter", "-si", frozen, "-mo", source, "-mab", "-q")
+    if not any(stage in source.read_text() for stage in ("vertex ", "fragment ", "kernel ")):
+        raise RuntimeError(f"MoltenVKShaderConverter wrote no shader stage for {name}")
     run(xcrun("-f", "metal"), "-isysroot", xcrun("--show-sdk-path"), source, "-o", library)
     return library
 

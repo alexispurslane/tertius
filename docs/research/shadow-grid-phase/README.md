@@ -383,7 +383,8 @@ diagonal beam narrows. There the sun grazes the ceiling, so the lost light spans
 ### The cost
 
 Each take draws 120 frames at 1920 × 1080 under the exclusive GPU lock, with `--video none --in-flight 2 --exposure
-4.08`, in the order main, X, X, main, main, X. Main is a Release build of e5e1d1a85, and commit A one of fb18a44e0. The
+4.08`, in the order main, X, X, main, main, X. Main is a Release build of e5e1d1a85. Commit A as first written is a
+build of fb18a44e0. Commit A as merged is fb18a44e0 with the two-step form, whose shader code is that of fe7b4c95a. The
 cells hold the three medians of the GPU frame span in ms, and the range of the direct light pass's medians. The load is
 the range of the 1-minute load over the takes.
 

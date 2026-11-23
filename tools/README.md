@@ -1146,8 +1146,8 @@ nix develop --command python3 -I tools/test_gpu_trace.py
 
 On Apple's M1 the GPU keeps 448 threads of a fragment shader resident up to register 115, and 384 from register 116.
 `direct_key_fill.frag` sits at register 115 with no room. A change to any file that it includes can cross the step,
-and that cost 0.13 to 0.36 ms of the direct pass in every view twice (ARCHITECTURE.md, "Key and fill"; `t2-x53j`,
-`t1-gout`). `tools/shader_registers.py` reads the highest register and the instruction count of `direct.frag` and
+and it did twice: 0.36 ms of the direct pass on the deck (`ter-8esk`), and 0.13 to 0.28 ms in every view (`t1-gout`;
+ARCHITECTURE.md, "Key and fill"; `t2-x53j`). `tools/shader_registers.py` reads the highest register and the instruction count of `direct.frag` and
 `direct_key_fill.frag` from an offline compile for the M1, with no GPU work. Until `t2-x53j` adds a guard, a lead that
 changes a file that `direct_key_fill.frag` includes runs it before the ready report.
 

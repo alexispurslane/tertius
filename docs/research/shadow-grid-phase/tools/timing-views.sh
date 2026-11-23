@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Timing of main (e5e1d1a85) against commit A (fb18a44e0) in one view: three takes each, in the order main A A main
-# main A, 120 frames at 1920 x 1080 and the default render scale, --video none, --in-flight 2, exposure 4.08, under the
-# caller's exclusive GPU lock. Usage: views.sh <name> <script.json> [extra demo flags...]. Prints each take's frame span,
-# its direct light pass median and the 1-minute load.
+# Timing of main (e5e1d1a85, bin-main) against commit A (fb18a44e0 as bin-A; with the two-step form, the copy made as
+# bin-A3 used this script with A renamed) in one view: three takes each, in the order main A A main main A, 120 frames
+# at 1920 x 1080 and the default render scale, --video none, --in-flight 2, exposure 4.08, under the caller's exclusive
+# GPU lock. Usage: timing-views.sh <name> <script.json> [extra demo flags...]. Prints each take's frame span, its direct
+# light pass median and the 1-minute load.
 R=/Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7
 name=$1; script=$2; shift 2
 O=$R-evidence/step3/timing-views/$name; mkdir -p $O
