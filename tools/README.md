@@ -1145,36 +1145,67 @@ nix develop --command python3 -I tools/test_gpu_trace.py
 ## The registers of the direct shaders
 
 On Apple's M1 the GPU keeps 448 threads of a fragment shader resident up to register 115, and 384 from register 116.
-`direct_key_fill.frag` sits at register 115 with no room. A change to any file that it includes can cross the step,
+`direct_key_fill.frag` sits at register 115 with no room, and no form of its source can make room: Apple's scheduler,
+not the source, sets the peak, and it fills any register that the source frees (docs/research/t2-x53j-register-room).
+A change to any file that it includes can cross the step,
 and it did twice: 0.36 ms of the direct pass on the deck (`ter-8esk`), and 0.13 to 0.28 ms in every view (`t1-gout`;
-ARCHITECTURE.md, "Key and fill"; `t2-x53j`). `tools/shader_registers.py` reads the highest register and the instruction count of `direct.frag` and
-`direct_key_fill.frag` from an offline compile for the M1, with no GPU work. Until `t2-x53j` adds a guard, a lead that
-changes a file that `direct_key_fill.frag` includes runs it before the ready report.
+ARCHITECTURE.md, "Key and fill"; `t2-x53j`). `tools/shader_registers.py` reads the highest register and the instruction
+count of `direct.frag` and `direct_key_fill.frag` from an offline compile for the M1, with no GPU work, and its guard
+checks them on every commit.
 
-It needs two things that the dev shell does not hold:
+### The guard
 
-- Xcode's Metal toolchain with `metal` and `metal-tt`. The tool calls `/usr/bin/xcrun` without the dev shell's
-  `SDKROOT` and `DEVELOPER_DIR`, because those point it at Nix's SDK and its older `metal`.
-- The applegpu decoder of Dougall Johnson at revision 28dd80468d4a6c94fa4dac34ed488196f5fedc5f. Clone it into an
-  empty folder outside the repository, and name that folder in `APPLEGPU`:
+The pre-commit hook passes every staged path to the guard:
 
 ```bash
-git clone https://github.com/dougallj/applegpu.git /private/tmp/applegpu
-git -C /private/tmp/applegpu checkout 28dd80468d4a6c94fa4dac34ed488196f5fedc5f
+python3 -I tools/shader_registers.py guard <out folder> <staged path>...
 ```
+
+The tool owns everything that the guard knows. Its table `SHADERS` names each guarded shader with its limit, 115 for
+both direct shaders, the M1's step. It computes each guarded shader's include closure from the `#include` lines of the
+shader folder as git's index holds it, so it judges what the commit holds, and a change to any file of a closure,
+through any depth of includes, asks for a count. A staged path outside every closure asks for none, and the guard
+compiles nothing. It prints one result per shader that it counts, each in words with its own exit code (the run's code
+is the worst of them):
+
+| Result | Exit code | What it prints | The commit |
+|---|---|---|---|
+| pass | 0 | The register, the limit and the room. A warning when the room is under 2 registers, because one more value at the shader's peak then crosses the limit. For `direct_key_fill.frag`, at register 115 with no room, the warning says that this is the known state since `t2-x53j`, not a new fault. | goes on |
+| fail | 1 | The register, the limit, and what a register above it costs: 384 resident threads in place of 448, 0.10 to 0.36 ms of the direct pass in every view. | stops |
+| does not apply | 3 | The reason: no staged file is in a guarded shader's include closure; or Xcode's Metal toolchain (`metal-tt`) is absent, as on Linux and on the cloud workers; or the decoder is absent. Never a pass. | goes on |
+
+An error of the tool itself, such as a shader that does not compile, exits with 2. The hook lets a commit go on only on a
+pass or "does not apply", so an error, or any other exit such as a missing `python3`, stops the commit too, because then
+no count passed. The hook passes a renamed file as its old and its new path, so renaming an included file asks for a
+count. Besides the include closures, the tool's `COUNT_INPUTS` name the files that change every guarded shader's code:
+the tool itself, the flake's lock, and the dev shell's MoltenVK (`native/moltenvk*`), whose SPIRV-Cross writes the Metal
+source for the count and for the game. A staged one asks for a count of every guarded shader. Xcode's `metal-tt` lies
+outside the repository, so an update of Xcode can move a register with no commit; a count after such an update shows it. When the guard must count and runs outside the dev shell, it runs
+itself again inside it, since the count needs the dev shell's tools. A count of both shaders takes 8 to 14 seconds on
+the M1 Max. The out folder of the hook's guard is `register-guard` in the worktree's git folder, and it keeps each
+counted shader's Metal source and disassembly (`<shader>.disasm`). `git commit --no-verify` skips the guard with the rest
+of the hook.
+
+### The count
+
+The count needs, besides the dev shell's `glslc`, `spirv-opt` and `MoltenVKShaderConverter`:
+
+- Xcode's Metal toolchain with `metal` and `metal-tt`, which cannot come from Nix. The tool calls `/usr/bin/xcrun`
+  without the dev shell's `SDKROOT` and `DEVELOPER_DIR`, because those point it at Nix's SDK and its older `metal`.
+- The applegpu decoder of Dougall Johnson at revision 28dd80468d4a6c94fa4dac34ed488196f5fedc5f. The flake fetches it
+  with its hash (`native/applegpu.nix`), and the Mac's dev shell names it in `APPLEGPU`.
 
 Run it in the dev shell, from the repository root, with an out folder, and optionally another shader folder and a label:
 
 ```bash
-APPLEGPU=/private/tmp/applegpu nix develop --command python3 -I tools/shader_registers.py /private/tmp/regs
-APPLEGPU=/private/tmp/applegpu nix develop --command python3 -I tools/shader_registers.py /private/tmp/regs-main <main's src/Tertius.Rendering/Shaders> main
+nix develop --command python3 -I tools/shader_registers.py /private/tmp/regs
+nix develop --command python3 -I tools/shader_registers.py /private/tmp/regs-main <main's src/Tertius.Rendering/Shaders> main
 ```
 
 Each line reads `<label> <shader> r<highest register> <instructions> instructions`, for example
-`head direct_key_fill.frag r115 23022 instructions`. Compare the register with 115 for `direct_key_fill.frag`. A value of
-116 or more costs the direct pass about a tenth of its time on the Mac, whatever the scene. `direct.frag` reached 112 on
-2026-11-23. The instruction count only explains a change. The out folder keeps each shader's Metal source and
-disassembly (`<shader>.disasm`), and a diff of two disassemblies shows what a change added.
+`head direct_key_fill.frag r115 23022 instructions`. A value of 116 or more costs the direct pass about a tenth of its
+time on the Mac, whatever the scene. The instruction count only explains a change. The out folder keeps each shader's
+Metal source and disassembly (`<shader>.disasm`), and a diff of two disassemblies shows what a change added.
 
 The shaders compile as MoltenVK runs them: `spirv-opt` freezes the specialization constants with the tiles' corner means
 on, `MoltenVKShaderConverter` writes the Metal source, and `metal-tt` compiles a render pipeline for `applegpu_g13s`
@@ -1182,8 +1213,9 @@ with two RGBA16Float attachments. The highest register is the largest register i
 driver can allocate more at run time, so a timed take stays the final word. The method's first results are in
 docs/research/light-pairs/pair/notes.md, "Offline native shader evidence".
 
-`tools/test_shader_registers.py` tests the count from disassembled lines and the refusals, with the standard library
-only, and needs neither the toolchain nor the decoder:
+`tools/test_shader_registers.py` tests the count from disassembled lines, the include closure, the choice of the
+shaders to count, the three results and their exit codes, and the refusals, with the standard library only. It needs
+neither the toolchain nor the decoder:
 
 ```bash
 nix develop --command python3 -I tools/test_shader_registers.py
@@ -1507,7 +1539,7 @@ The folder `.githooks/` holds three git hooks. At its start, the dev shell sets 
 
 ### Before a commit
 
-The pre-commit hook runs on every commit that stages C# files or projects. A commit with no such file, such as a ticket note, skips it. The hook changes no file in the working tree. It does four things:
+The pre-commit hook runs on every commit. Its first step, the register guard of the direct shaders, runs on every commit and needs only git and a `python3`: it passes every staged path to `tools/shader_registers.py guard`, and every result but a pass and "does not apply" stops the commit ("The registers of the direct shaders" above). The other steps run on every commit that stages C# files or projects. A commit with no such file, such as a ticket note, skips them. The hook changes no file in the working tree. Those steps do four things:
 
 1. It builds the projects that the commit changes and the test projects that test them, incrementally. The build runs every analyzer, and an error stops the commit.
 2. It runs the tests of the changed code in Checked, one process per test project, in parallel. A failed test stops the commit, after the length part of the commit report (step 4). The hook skips a test project that has a test record for the staged code ("The test record" below).

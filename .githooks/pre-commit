@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Runs on every commit that stages C# files or projects (see tools/README.md, "Git hooks"):
+# Runs on every commit. Step 0, the register guard of the direct shaders, runs first on every commit; steps 1 to 4 run on
+# every commit that stages C# files or projects (see tools/README.md, "Git hooks"):
 #   1. An incremental build of the projects that the commit changes and of the test projects that test them. The
 #      build runs every analyzer, and an error stops the commit. The hook leaves out a project whose last successful
 #      Checked build was of exactly the staged code, as the stamp next to its output says (tools/code-tree.sh).
@@ -20,6 +21,25 @@ set -euo pipefail
 
 root=$(git rev-parse --show-toplevel)
 cd "$root"
+
+# 0. The register guard of the direct shaders (tools/README.md, "The registers of the direct shaders"). It runs on every
+#    commit, before the C# steps, and gets every staged path, a renamed file as its old and its new path: the tool knows
+#    which files can change a guarded shader's registers, and it counts only when one of them is staged. Only a pass
+#    (exit 0) and "does not apply" (exit 3) let the commit go on. A fail (1), an error of the tool (2) and any other exit,
+#    such as a missing python3 or a signal, stop it, because then no count passed. The run of the hook again inside the
+#    dev shell below does not repeat it.
+if [[ -z "${TERTIUS_REGISTER_GUARD_DONE:-}" ]]; then
+    staged=()
+    while IFS= read -r f; do staged+=("$f"); done < <(git diff --cached --name-only --no-renames --diff-filter=ACMD)
+    guard=0
+    python3 -I tools/shader_registers.py guard "$(git rev-parse --absolute-git-dir)/register-guard" \
+        ${staged[@]+"${staged[@]}"} || guard=$?
+    if [[ $guard -ne 0 && $guard -ne 3 ]]; then
+        echo "pre-commit: the register guard stops the commit." >&2
+        exit 1
+    fi
+    export TERTIUS_REGISTER_GUARD_DONE=1
+fi
 
 files=()
 while IFS= read -r f; do files+=("$f"); done < <(git diff --cached --name-only --diff-filter=ACMR -- '*.cs' '*.csproj')
