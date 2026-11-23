@@ -90,8 +90,74 @@ The image means here differ from the ticket's series (29,614 at a-000099 there, 
 
 ## Open questions
 
-- The closed form reads 0 at every draw after the cut, in both runs, and 0.70 outside. So the closed form is not what carries the stale light into the cabin's pixels. The log does not show which term reads map 2 at draw 0. The candidate is the diffuse ray that leaves the screen: it reads `environmentLobe(p.s.map, direction, 0.5)` (screen_trace.glsl, line 457), the radiance cube, not the irradiance. This was not tested.
+- The closed form reads 0 at every draw after the cut, in both runs, and 0.70 outside. So the closed form is not what carries the stale light into the cabin's pixels. The log does not show which term reads map 2 at draw 0. The candidate is the diffuse ray that leaves the screen: it reads `environmentLobe(p.s.map, direction, 0.5)` (screen_trace.glsl, line 457), the radiance cube, not the irradiance. The fix's carrier step tested it: the misses carry about 86 of the 309, and
+  the rays that hit on screen carry the rest ("The fix: the takes of t58-rcd6").
 - Map 0's irradiance reads 0 at every draw in all three runs, while its faces refresh in turn. Not explained.
+
+## The fix: the takes of t58-rcd6
+
+The fix refreshes every face of every map in the draw of a cut that keeps the camera's frame (way C, ARCHITECTURE.md,
+"The frame history"). Every take ran headless at 1920 x 1080 with the exposure fixed at 4.08 stops, on the Mac, with
+Release binaries of main 8ef2812e8 and of the fix 3a8d5e9d4, each with the frame-time probe (`tools/fix-run.sh`). A
+timed take starts only at a 1-minute load below 8, and its row gives that load. `tools/fixsum.py` makes the tables.
+
+**The film** (cut-exterior.json, 2/3 render scale, the whole image's mean as above) at draws 0, 10, 50 and 199 after
+the cut:
+
+| Build | Draw 0 | Draw 10 | Draw 50 | Draw 199 |
+|---|---:|---:|---:|---:|
+| main | 65,535 | 65,535 | 65,481 | 43,597 |
+| fix | 23,587 | 25,228 | 26,042 | 26,701 |
+
+The fix's draws 0, 10 and 50 are 0.883, 0.945 and 0.975 of its draw 199. At most 0.45 % of a fix frame's pixels
+saturate: the lamps. The film of the first build (every map at every cut) and the film of way C are identical in all
+301 frames, because this cut keeps the camera's frame.
+
+**The cut's draw** (cut-exterior.json, the cut is draw 133, GPU span in ms):
+
+| Build | Load | Cut's draw | Faces + prefilter in it | Mean of the 10 draws after it |
+|---|---|---:|---:|---:|
+| main | 5.95 | 23.42 | 0.56 | 21.27 |
+| main | 6.28 | 29.39 | 0.65 | 21.96 |
+| main | 6.53 | 23.75 | 0.58 | 21.12 |
+| fix | 7.00 | 37.00 | 5.10 | 22.57 |
+| fix | 6.38 | 37.55 | 6.09 | 22.11 |
+| fix | 4.76 | 37.19 | 6.05 | 22.27 |
+
+The refresh adds about 12 ms to the cut's draw. The 10 draws after it cost the same within the spread.
+
+**A hand-off of the camera's frame** (exit-walk.json: the exit demo with the camera on the person, whose frame hands
+over from the shuttle to the station at draw 108 of the film):
+
+| Build | Load | Hand-off draw | Its span (ms) | Its faces + prefilter (ms) | Mean span of the 5 draws before (ms) |
+|---|---|---:|---:|---:|---:|
+| main | 6.38 | 108 | 23.15 | 3.11 | 17.94 |
+| main | 4.63 | 108 | 23.34 | 3.22 | 17.87 |
+| fix | 5.60 | 108 | 23.33 | 3.23 | 17.93 |
+| fix | 4.58 | 108 | 23.38 | 3.28 | 17.96 |
+
+A hand-off costs the same on both. The doorway scene has one frame, and the orbit ship's airlock walk stays in the
+ship's frame for its whole film (dumps every 10 draws), so neither hands anything over. Their takes are in the evidence
+folder (doorway-r*, airlock-r*) and measure no hand-off.
+
+**The render scale** (cut-twice.json: a still, film a, a cut to the person, film b, a cut back, film c; the dynamic
+render scale FrameTimeTarget(16.7 ms, 0.5, 1), `tools/apply-scale.py`): the catch-up request at each cut's draw.
+
+| Build | Load | Cut 1 (draw 133) | Cut 2 (draw 233) | Ordinary request at draw 232 |
+|---|---|---:|---:|---:|
+| main | 3.33 | 0.8834 | 0.6007 | 0.6446 |
+| main | 5.52 | 0.8832 | 0.5983 | 0.6411 |
+| fix | 3.61 | 0.8817 | 0.5910 | 0.6570 |
+| fix | 5.67 | 0.8836 | 0.5922 | 0.6576 |
+
+The catch-up request at cut 2 moves by 0.008, from 0.5995 to 0.5916 (means of two runs).
+
+**The carrier** (the first open question above): in main's cut-exterior take, with the diffuse ray that leaves the
+screen reading zero in place of `environmentLobe` (screen_trace.glsl, line 457, in the diagnosis copy), the diffuse
+history still jumps at the cut's draw: from 3.1e-7 to 223, where main jumps from 84.6 to 309. The hit light at that
+draw is 364.6 in both runs. So the rays that hit on screen carry about 223 of the 309, and the off-screen misses carry
+the other 86 (`exterior-carrier.jsonl` in the evidence folder; `exterior-carrier-stale-binary` is a run whose build
+had failed, and it repeats main).
 
 ## Files
 
@@ -99,5 +165,7 @@ The image means here differ from the ticket's series (29,614 at a-000099 there, 
 - tools/run-cut.sh: one run.
 - tools/means.py: the log joined with the image means. For cut.json, give the films' capture order `still,a,x,b`, because the names sort x last.
 - tools/chart.py: the chart.
+- tools/fix-run.sh, tools/fixsum.py, tools/apply-scale.py, cut-twice.json, exit-walk.json: the fix's takes and their tables.
 - pics/: the chart (SVG and PNG) and the three stills.
+- The evidence folder `t3-1f553e45-00934a8d076a004a-evidence/rcd6/` holds the fix's takes (film-main, film-fix, timing-r*, exit-r*, scale-r*) and the side-by-side video `video/cut-exterior-main-vs-fix.mp4`.
 - The evidence folder `t3-1f553e45-00934a8d076a004a-evidence/cut/` holds the means of every drawn frame (exterior-main.jsonl, exterior-variant.jsonl, cabin-main.jsonl), every PNG, both films, and the copies of the pics.

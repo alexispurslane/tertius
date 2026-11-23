@@ -148,3 +148,34 @@ Red first, on the code before each change:
 The stores that depend on the eye's place, and how each hears of a cut: ARCHITECTURE.md, "The frame history", the table after the pending state. The two that do not hear it are their own tickets: t10-ogon (impostor captures) and t10-ck8w (the exposure); neither has this fix's one-line cause. The residual of the maps (a cut to a camera in another frame keeps the ancestor maps whose frames stay; their error is the eye's jump inside the subtree that they leave out, the kind of error of a face in turn) is stated there too.
 
 Film (acceptance 2, cut-exterior.json, exposure 4.08, whole-image mean as 8-bit mean x 257) at draws 0 / 10 / 50 / 199 after the cut: main 65,535 / 65,535 / 65,481 / 43,597; fix 23,587 / 25,228 / 26,042 / 26,701 (0.883, 0.945, 0.975 of draw 199). No frame of the fix is white: at most 0.45 % of its pixels saturate, the lamps. The film's cut keeps the camera's frame, so A and C give it alike. Video: t3-1f553e45-00934a8d076a004a-evidence/rcd6/video/cut-exterior-main-vs-fix.mp4.
+
+**2026-11-23T21:25:11Z**
+
+2026-11-23, lead: the gates and the takes of way C (head after the merge of main d2f94134d: 63bdb5038 and the record commit after it). docs/research/cut-white-room/README.md, "The fix: the takes of t58-rcd6", holds every table.
+
+- Review 2 (fresh reviewer, way C): the logic passes. F1 to F4 (comments that still named every cut, comments over the word limits, one test name, one helper that sent the frame id as the cut count) are fixed in 9558dfe88. F5: t1-tr17 is in links after the merge of main.
+- Acceptance 2, the film: unchanged from the note above. The film of C is bit-identical to the film of the first build in all 301 frames, because its cut keeps the camera's frame.
+- Acceptance 3, the cost (cut-exterior.json, the Mac, load at the start 4.8 to 7.0): the cut's draw costs 37.0, 37.6 and 37.2 ms on the fix against 23.4, 29.4 and 23.8 ms on main. Faces + prefilter in it: 5.1 to 6.1 ms against 0.56 to 0.65 ms. The mean of the 10 draws after it: 22.1 to 22.6 ms on the fix, 21.1 to 22.0 ms on main.
+- The hand-off row (exit-walk.json: the exit demo with the camera on the person, whose frame hands over from the shuttle to the station at draw 108): 23.15 and 23.34 ms on main (loads 6.38, 4.63), 23.33 and 23.38 ms on the fix (loads 5.60, 4.58). Faces + prefilter 3.11 to 3.28 ms on both. The doorway scene has one frame and the orbit airlock walk stays in the ship's frame, so neither hands anything over.
+- Acceptance 4, the render scale (cut-twice.json, FrameTimeTarget(16.7 ms, 0.5, 1)): the catch-up request at cut 2 is 0.6007 and 0.5983 on main, 0.5910 and 0.5922 on the fix. It moves by 0.008, under 0.02. At cut 1 it is 0.8834, 0.8832, 0.8817 and 0.8836.
+- Acceptance 5, the carrier (for ter-6fka): with the diffuse ray that leaves the screen reading zero in place of environmentLobe (screen_trace.glsl line 457, the diagnosis copy of main e7d4970fe), the diffuse history at the cut's draw still jumps, from 3.1e-7 to 223. On main it jumps from 84.6 to 309. The hit light at that draw is 364.6 in both. So the rays that hit on screen carry about 223 of the 309, and the off-screen misses about 86. The jump does not go.
+- Acceptance 6: main d2f94134d merged (63bdb5038; one conflict, this ticket's links and notes, both kept). Checked: 11,270 tests, 0 failed, 27 skipped. Release: 11,257 tests, 0 failed, 27 skipped. Coverage of this ticket's changed lines in src: every line and branch covered (the tool's one uncovered line and one partial branch against 8ef2812e8 are main's t1-wl7c lines, outside the filtered classes).
+- Mutants (tools/mutate.py, 13 rows): 13 of 13 killed, each by a test run that finished with failed tests (each mutant's test log: no wait for the GPU lock, no timeout). The first run built 7 (C03, C04, C06, C07, C08, C09, C11: killed). The other 6 failed to build, because the style analyzer rejects a method or a parameter that the mutant leaves unused (IDE0052, IDE0060), so I wrote them again with the same meaning and ran them (C01b, C02b, C05b, C10b, C12b, C13b: killed). A first try at 16:07 stopped at its baseline, whose test host waited for the GPU lock past 120 s; no mutant ran in it.
+
+| Id | Place | Change | Killed by |
+|---|---|---|---|
+| C01b | FrameHistory.cs:230 | `JumpsTheEye(snapshot)` → `(JumpsTheEye(snapshot) && false)`: no refresh at an eye jump (main) | FrameHistoryTests.ACutThatKeepsTheCamerasFrameRefreshesEveryFaceOfTheMaps, two EnvironmentMapsPerFrameTests |
+| C02b | FrameHistory.cs:230 | `(CutsFrom(snapshot) \|\| JumpsTheEye(snapshot))`: every cut refreshes (A) | AHandOffOfTheCamerasFrameResetsTheHistoriesButLeavesTheMapsToTheChain, WhenTheCameraEntersAChildTheMapsOutsideKeepTheirFaces |
+| C03 | FrameHistory.cs:230 | the still's first draw removed | two StillRuleTests |
+| C04 | FrameHistory.cs:236 | Continued across a frame change | ADrawInAnotherFrameOfTheCameraContinuesNoPreviousCameraOrPlacement |
+| C05b | FrameHistory.cs:265 | a cut resets no history | three FrameHistoryTests |
+| C06 | FrameHistory.cs:275 | `!=` → `==` in CutsFrom | FrameHistoryTests and StillRuleTests |
+| C07 | FrameHistory.cs:279 | `==` → `!=` in KeepsTheFrame | FrameHistoryTests and BatcherMotionTests |
+| C08 | FrameHistory.cs:285 | `&&` → `\|\|` in JumpsTheEye | ADrawThatContinuesTheLastOneKeepsTheMaps, two StillRuleTests |
+| C09 | FrameHistory.cs:285 | JumpsTheEye = CutsFrom (A) | AHandOffOfTheCamerasFrameResetsTheHistoriesButLeavesTheMapsToTheChain, WhenTheCameraEntersAChildTheMapsOutsideKeepTheirFaces |
+| C10b | EnvironmentFaces.cs:34 | `\|\| (everyFace && false)` | ADrawThatRefreshesEveryFaceRefreshesEveryMap, two EnvironmentMapsPerFrameTests |
+| C11 | EnvironmentFaces.cs:34 | `\|\|` → `&&` | EnvironmentFacesTests and EnvironmentMapPlumbingTests |
+| C12b | EnvironmentMap.cs:254 | FacesFor passes `everyFace && false` | two EnvironmentMapsPerFrameTests |
+| C13b | VulkanRenderer.cs:815 | the renderer passes `everyFace && false` | two EnvironmentMapsPerFrameTests |
+
+Logs: t3-1f553e45-00934a8d076a004a-evidence/mutate-rcd6 and mutate-rcd6b (the lists are mutants-rcd6.json and mutants-rcd6b.json there).

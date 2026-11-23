@@ -1,0 +1,47 @@
+{
+ "scene": "orbit",
+ "window": {
+  "width": 1920,
+  "height": 1080
+ },
+ "steps": [
+  {
+   "do": "camera",
+   "entity": "chase"
+  },
+  {
+   "do": "run",
+   "ticks": 60
+  },
+  {
+   "do": "capture",
+   "name": "still"
+  },
+  {
+   "do": "film",
+   "name": "a",
+   "frames": 100,
+   "every": 1
+  },
+  {
+   "do": "camera",
+   "entity": "person"
+  },
+  {
+   "do": "film",
+   "name": "b",
+   "frames": 100,
+   "every": 1
+  },
+  {
+   "do": "camera",
+   "entity": "chase"
+  },
+  {
+   "do": "film",
+   "name": "c",
+   "frames": 100,
+   "every": 1
+  }
+ ]
+}
