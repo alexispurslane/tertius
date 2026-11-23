@@ -2,7 +2,7 @@
 id: t0-xwdz
 status: in_progress
 deps: []
-links: [ter-bcwr, ter-4iic, t58-np60]
+links: [ter-bcwr, ter-4iic, t58-np60, t0-y88b]
 created: 2026-11-23T12:08:20Z
 type: task
 priority: 2
@@ -50,3 +50,7 @@ Step 1, the v2 log (record docs/research/t0-xwdz-reflection-tail/, line head c76
 **2026-11-23T17:52:08Z**
 
 Step 1 finished with the v3 and v4 logs (record docs/research/t0-xwdz-reflection-tail/). Draw 8's own reflection rays by the own texel's length after draw 7: cabin 37.4 % in [7.99, 8), 13.8 % in [7.5, 7.99), 43.5 % under 7.5, 3.4 % a weighted tap under 8, 1.9 % the lobe fit (bay: 34.1, 7.5, 54.5, 2.6, 1.3 %). The near-8 lengths are a rounding defect of the reprojected place: in a still frame the place lies a float rounding off its own texel, so the other three taps take weights of 1e-7 to 1e-3, and next to a neighbor that a real cut shortened the length falls less than 1e-3 under its schedule (97.8 % of the near-below lengths in the cabin, 98.7 % in the bay). The mean, the blend and the 32-bit store do not round, tiny cuts give 1.4 % at most. The tail's cuts in draws 9 to 12 mostly start from on-schedule histories and end at every length from 4 up, 20 to 64 % under 8. In the bay about 15,000 pixels per draw are cut from [5, 6) back to the fast cap. First change proposed: make a still frame's reprojection read its own texel with weight 1 (37.4 % and 34.1 % of draw 8's own rays). The young-history cuts and the tail's cuts are for step 2.
+
+**2026-11-23T17:54:22Z**
+
+2026-11-23, 12:54 New York time, line orchestrator of the Design X line: step 1 is finished and its record is on the line (docs/research/t0-xwdz-reflection-tail, merge 8b8ef76d0). Draw 8's own reflection rays split three ways by the own texel's length after draw 7 (cabin 176,403 / bay 224,864): 37.4 % / 34.1 % from lengths in [7.99, 8), which a rounding of a still frame's reprojected place makes; 13.8 % / 7.5 % from [7.5, 7.99); 43.5 % / 54.5 % from under 7.5, the anti-lag's partial cuts of draws 4 to 7. The tail after draw 9 is the anti-lag's cuts of histories on schedule, 8 to 12 % of the pixels per draw, of which 45 to 20 % (cabin) and 64 to 40 % (bay) end under 8; in the bay about 15,000 pixels per draw go from [5, 6) back to [4, 5) and never reach 8. My decision (answer 103, as the orchestrator allowed for a rounding defect): the rounding is its own bug, t0-y88b, fixed at the one place that makes a reprojection's weights, and it is built first. The design of the rest (the partial cuts and the tail) follows in this ticket after that fix, because the fix changes the counts that the design starts from.
