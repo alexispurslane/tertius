@@ -1145,7 +1145,9 @@ nix develop --command python3 -I tools/test_gpu_trace.py
 ## The registers of the direct shaders
 
 On Apple's M1 the GPU keeps 448 threads of a fragment shader resident up to register 115, and 384 from register 116.
-`direct_key_fill.frag` sits at register 115 with no room. A change to any file that it includes can cross the step,
+`direct_key_fill.frag` sits at register 115 with no room, and no form of its source can make room: Apple's scheduler,
+not the source, sets the peak, and it fills any register that the source frees (docs/research/t2-x53j-register-room).
+A change to any file that it includes can cross the step,
 and it did twice: 0.36 ms of the direct pass on the deck (`ter-8esk`), and 0.13 to 0.28 ms in every view (`t1-gout`;
 ARCHITECTURE.md, "Key and fill"; `t2-x53j`). `tools/shader_registers.py` reads the highest register and the instruction
 count of `direct.frag` and `direct_key_fill.frag` from an offline compile for the M1, with no GPU work, and its guard
@@ -1167,7 +1169,7 @@ compiles nothing. It prints one result per shader that it counts, each in words 
 
 | Result | Exit code | What it prints | The commit |
 |---|---|---|---|
-| pass | 0 | The register, the limit and the room. A warning when the room is under 2 registers, because one more value at the shader's peak then crosses the limit. | goes on |
+| pass | 0 | The register, the limit and the room. A warning when the room is under 2 registers, because one more value at the shader's peak then crosses the limit. For `direct_key_fill.frag`, at register 115 with no room, the warning says that this is the known state since `t2-x53j`, not a new fault. | goes on |
 | fail | 1 | The register, the limit, and what a register above it costs: 384 resident threads in place of 448, 0.10 to 0.36 ms of the direct pass in every view. | stops |
 | does not apply | 3 | The reason: no staged file is in a guarded shader's include closure; or Xcode's Metal toolchain (`metal-tt`) is absent, as on Linux and on the cloud workers; or the decoder is absent. Never a pass. | goes on |
 
