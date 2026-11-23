@@ -1,0 +1,763 @@
+diff --git a/src/Tertius.Rendering/Frame/ShadowAtlas.cs b/src/Tertius.Rendering/Frame/ShadowAtlas.cs
+index 367b12e6a..827ad4cf2 100644
+--- a/src/Tertius.Rendering/Frame/ShadowAtlas.cs
++++ b/src/Tertius.Rendering/Frame/ShadowAtlas.cs
+@@ -20,7 +20,7 @@ internal sealed unsafe class ShadowAtlas : IDisposable
+     /// The format of <see cref="Bounds"/>: R the least reversed depth of a window, the farthest from the light, and G its
+     /// greatest, the nearest.
+     /// </summary>
+-    public const Format BoundsFormat = Format.R32G32Sfloat;
++    public const Format BoundsFormat = Format.R32G32B32A32Sfloat; // PROBE t1-af5w part 1: the moments and the levels
+ 
+     /// <summary>The binding of the frame's tile views (<see cref="GpuShadowTile"/>) in the frame set, partially bound.</summary>
+     public const uint TileViewsBinding = 15;
+@@ -66,7 +66,7 @@ internal sealed unsafe class ShadowAtlas : IDisposable
+             Bounds = GpuImage.Create(
+                 device: device,
+                 allocator: allocator,
+-                extent: new((uint)BoundsSize, (uint)BoundsSize),
++                extent: new((uint)(BoundsSize * 3 / 2), (uint)BoundsSize),
+                 format: BoundsFormat,
+                 usage: ImageUsageFlags.StorageBit | ImageUsageFlags.SampledBit | ImageUsageFlags.TransferSrcBit,
+                 mipLevels: 1,
+diff --git a/src/Tertius.Rendering/Passes/LocalShadowPass.cs b/src/Tertius.Rendering/Passes/LocalShadowPass.cs
+index 0a1dda796..c0389ef5c 100644
+--- a/src/Tertius.Rendering/Passes/LocalShadowPass.cs
++++ b/src/Tertius.Rendering/Passes/LocalShadowPass.cs
+@@ -187,15 +187,30 @@ internal sealed unsafe class LocalShadowPass : RenderPass
+             dynamicOffsetCount: 0,
+             pDynamicOffsets: null
+         );
+-        uint groups = ((uint)atlas.BoundsSize + BoundsGroupSize - 1) / BoundsGroupSize;
+         PreparedScene scene = context.Scene;
+-        List<TileCommands> drawn = scene.DrawnTiles;
+-        for (int first = 0; first < drawn.Count; first += ShadowBoundsPushConstants.MaxLayers)
++        // PROBE t1-af5w part 1 (scratch): with the pyramid on, level 0 and levels 1 to 4 of every tile view of the
++        // frame, every frame (no cache), the warp c of exponential moments in bits 20 and up, the level in bits 16 to 19.
++        var layers = new List<uint>();
++        if (ProbePyramid >= 1f)
+         {
+-            int count = Math.Min(ShadowBoundsPushConstants.MaxLayers, drawn.Count - first);
++            for (int view = 0; view < scene.ShadowTileCount; view++)
++                layers.Add(scene.ShadowTiles[view].Layer);
++        }
++        else
++        {
++            foreach (TileCommands tile in scene.DrawnTiles)
++                layers.Add(scene.ShadowTiles[tile.View].Layer);
++        }
++        uint warp = ProbePyramid >= 2f ? (uint)MathF.Floor(ProbePyramid) : 0u;
++        int levels = ProbePyramid >= 1f ? 5 : 1;
++        for (int level = 0; level < levels; level++)
++        for (int first = 0; first < layers.Count; first += ShadowBoundsPushConstants.MaxLayers)
++        {
++            uint groups = ((uint)(atlas.BoundsSize >> level) + BoundsGroupSize - 1) / BoundsGroupSize;
++            int count = Math.Min(ShadowBoundsPushConstants.MaxLayers, layers.Count - first);
+             var push = new ShadowBoundsPushConstants();
+             for (int i = 0; i < count; i++)
+-                push.Layers[i] = scene.ShadowTiles[drawn[first + i].View].Layer;
++                push.Layers[i] = layers[first + i] | ((uint)level << 16) | (warp << 20);
+             barriers.Image(atlas.Bounds, ImageUse.StorageCompute);
+             barriers.Flush(vk, commandBuffer);
+             vk.CmdPushConstants(
+@@ -215,6 +230,16 @@ internal sealed unsafe class LocalShadowPass : RenderPass
+         }
+     }
+ 
++    /// <summary>PROBE t1-af5w part 1: TERTIUS_X_PYRAMID, 0 off, 1 plain moments, c >= 2 exponential moments with that c;
++    /// its fraction is the cut b of the lookup.</summary>
++    internal static readonly float ProbePyramid = float.TryParse(
++        Environment.GetEnvironmentVariable("TERTIUS_X_PYRAMID"),
++        System.Globalization.CultureInfo.InvariantCulture,
++        out float pyramid
++    )
++        ? pyramid
++        : 0f;
++
+     public override void Dispose()
+     {
+         device.Vk.DestroyPipeline(device.Device, pipeline, null);
+diff --git a/src/Tertius.Rendering/Resources/GeometryStore.cs b/src/Tertius.Rendering/Resources/GeometryStore.cs
+index 8749a8ed0..1fd8442a7 100644
+--- a/src/Tertius.Rendering/Resources/GeometryStore.cs
++++ b/src/Tertius.Rendering/Resources/GeometryStore.cs
+@@ -179,6 +179,8 @@ internal sealed unsafe class GeometryStore : IDisposable
+             MemoryMarshal
+                 .AsBytes(data.Indices.AsSpan())
+                 .CopyTo(new(indexStage.Pointer + indexCursor * sizeof(uint), data.Indices.Length * sizeof(uint)));
++            // THROWAWAY (t1-g4p1): the scene export's CPU copy.
++            SceneExport.KeepMesh(staged.Vertices, data.Indices, deforms[mesh] is not null);
+             meshes.Add(
+                 new(
+                     FirstIndex: (uint)(IndexCount + indexCursor),
+diff --git a/src/Tertius.Rendering/Resources/MaterialStore.cs b/src/Tertius.Rendering/Resources/MaterialStore.cs
+index d3d7be64c..584525bc4 100644
+--- a/src/Tertius.Rendering/Resources/MaterialStore.cs
++++ b/src/Tertius.Rendering/Resources/MaterialStore.cs
+@@ -184,6 +184,8 @@ internal sealed unsafe class MaterialStore : IDisposable
+     private void Stage(Span<GpuMaterial> staged, ref int cursor, MaterialDesc desc)
+     {
+         staged[cursor++] = ToGpu(desc);
++        // THROWAWAY (t1-g4p1): the scene export's CPU copy.
++        SceneExport.KeepMaterial(staged[cursor - 1]);
+         infos.Add(new(Alpha: desc.Alpha, TwoSided: DrawsBothSides(desc.Model)));
+     }
+ 
+diff --git a/src/Tertius.Rendering/Scene/SceneBatcher.cs b/src/Tertius.Rendering/Scene/SceneBatcher.cs
+index c44273fba..32296c381 100644
+--- a/src/Tertius.Rendering/Scene/SceneBatcher.cs
++++ b/src/Tertius.Rendering/Scene/SceneBatcher.cs
+@@ -33,6 +33,9 @@ internal readonly record struct MeshInfo(
+ /// <param name="depthRangeScale">How many times deeper than wide each cascade box is, <see cref="ShadowMap.DepthRangeScale"/>.</param>
+ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float depthRangeScale)
+ {
++    // PROBE t1-af5w part 0 (scratch): the tiles' least ramp in texels from TERTIUS_X_TILE_LEAST_RAMP; 0 keeps main.
++    static readonly float ProbeTileLeastRamp = float.TryParse(System.Environment.GetEnvironmentVariable("TERTIUS_X_TILE_LEAST_RAMP"), System.Globalization.CultureInfo.InvariantCulture, out var least) ? least : 0f;
++
+     private const float DefaultVerticalFov = MathF.PI / 3f;
+ 
+     /// <summary>
+@@ -1118,6 +1121,9 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float
+             );
+             if (!Reaches(faces: faces, axes: scene.MapAxes, light: prepared))
+                 continue;
++            // THROWAWAY (ter-kh4g, stage 2, t1-g4p1): the control without the sun drops every light beyond 10^9 m.
++            if (prepared.Distance > 1e9 && Environment.GetEnvironmentVariable("TERTIUS_NO_SUN") == "1")
++                continue;
+             if (i == sun)
+                 scene.AirSunLight = scene.LightCount;
+             scene.AddLight() = prepared;
+@@ -1640,7 +1646,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float
+             ),
+             // The normal offset holds for the cascades and the tiles alike, so it is set in every frame, also in one
+             // without cascades. The shadow pass fills in the rest when it draws the cascades.
+-            ShadowParams = new(x: 0f, y: ShadowBias.NormalOffsetTexels, z: 0f, w: 0f),
++            ShadowParams = new(x: 0f, y: ShadowBias.NormalOffsetTexels, z: 0f, w: ProbeTileLeastRamp),
+             // The shadow pass fills in the cascades when it draws them.
+             Counts = new(
+                 X: (uint)scene.LightCount,
+diff --git a/src/Tertius.Rendering/Shaders/shadow_bounds.comp b/src/Tertius.Rendering/Shaders/shadow_bounds.comp
+index 421fec9d8..188c2b85a 100644
+--- a/src/Tertius.Rendering/Shaders/shadow_bounds.comp
++++ b/src/Tertius.Rendering/Shaders/shadow_bounds.comp
+@@ -14,7 +14,11 @@ const int GroupSide = 8;
+ layout(local_size_x = GroupSide, local_size_y = GroupSide) in;
+ 
+ layout(set = 0, binding = 0) uniform texture2DArray atlas;                // D32: one tile per layer, reversed depth
+-layout(set = 0, binding = 1, rg32f) uniform writeonly image2DArray bounds; // half the tile's side: r least, g greatest
++// PROBE t1-af5w part 1 (scratch): RGBA32F, (1.5 x half the tile's side) x (half the tile's side). Level 0 at x < B: r least,
++// g greatest of the 6 x 6 window, b and a the mean and the mean square of the 2 x 2 texels' reversed depth (or of
++// exp(c z) with c > 0). Levels 1 to 4 packed at x >= B: level L at (B, B - (2B >> L)), (B >> L)^2 texels, each the least,
++// the greatest and the means of the 2 x 2 texels of level L - 1.
++layout(set = 0, binding = 1, rgba32f) uniform image2DArray bounds;
+ 
+ // ShadowBoundsPushConstants.MaxLayers: the drawn tiles of one dispatch.
+ const int MaxLayers = 32;
+@@ -33,9 +37,32 @@ const int SharedSide = 2 * (GroupSide - 1) + WindowTexels;
+ 
+ shared float depths[SharedSide * SharedSide];
+ 
++ivec2 levelOrigin(int level, int side)
++{
++    return level == 0 ? ivec2(0) : ivec2(side, side - ((2 * side) >> level));
++}
++
+ void main()
+ {
+-    int layer = int(push.layers[gl_WorkGroupID.z]);
++    uint packed = push.layers[gl_WorkGroupID.z];
++    int layer = int(packed & 0xFFFFu);
++    int level = int((packed >> 16) & 0xFu);
++    float warp = float(packed >> 20);
++    int side = imageSize(bounds).y;
++    if (level > 0)
++    {
++        ivec2 at = ivec2(gl_GlobalInvocationID.xy);
++        if (any(greaterThanEqual(at, ivec2(side >> level))))
++            return;
++        ivec2 from = levelOrigin(level - 1, side) + 2 * at;
++        vec4 a = imageLoad(bounds, ivec3(from, layer));
++        vec4 b = imageLoad(bounds, ivec3(from + ivec2(1, 0), layer));
++        vec4 c = imageLoad(bounds, ivec3(from + ivec2(0, 1), layer));
++        vec4 d = imageLoad(bounds, ivec3(from + ivec2(1, 1), layer));
++        vec4 v = vec4(min(min(a.r, b.r), min(c.r, d.r)), max(max(a.g, b.g), max(c.g, d.g)), 0.25 * (a.ba + b.ba + c.ba + d.ba));
++        imageStore(bounds, ivec3(levelOrigin(level, side) + at, layer), v);
++        return;
++    }
+     int last = textureSize(atlas, 0).x - 1;
+     // Each atlas texel that the workgroup's windows cover is fetched once.
+     ivec2 origin = 2 * ivec2(gl_WorkGroupID.xy) * GroupSide;
+@@ -47,7 +74,7 @@ void main()
+     barrier();
+ 
+     ivec2 texel = ivec2(gl_GlobalInvocationID.xy);
+-    if (any(greaterThanEqual(texel, imageSize(bounds).xy)))
++    if (any(greaterThanEqual(texel, ivec2(side))))
+         return;
+     ivec2 first = 2 * ivec2(gl_LocalInvocationID.xy);
+     float least = 1.0, most = 0.0;
+@@ -60,5 +87,13 @@ void main()
+             most = max(most, depth);
+         }
+     }
+-    imageStore(bounds, ivec3(texel, layer), vec4(least, most, 0.0, 0.0));
++    vec2 moments = vec2(0.0);
++    for (int y = 0; y < 2; y++)
++        for (int x = 0; x < 2; x++)
++        {
++            float z = depths[(first.y + y) * SharedSide + first.x + x];
++            float m = warp > 0.0 ? exp(warp * z) : z;
++            moments += vec2(m, m * m);
++        }
++    imageStore(bounds, ivec3(texel, layer), vec4(least, most, 0.25 * moments));
+ }
+diff --git a/src/Tertius.Rendering/Shaders/shadows.glsl b/src/Tertius.Rendering/Shaders/shadows.glsl
+index 15fb50630..4744378a0 100644
+--- a/src/Tertius.Rendering/Shaders/shadows.glsl
++++ b/src/Tertius.Rendering/Shaders/shadows.glsl
+@@ -276,6 +276,61 @@ float farShadowVisibility(vec3 position, vec3 L, float angularRadius, uvec3 rang
+     return visibility;
+ }
+ 
++#ifndef TERTIUS_PROBE_TRUST
++#define TERTIUS_PROBE_TRUST 1
++#endif
++
++// PROBE t1-af5w part 0 (scratch, never merged): the side in m of the square with the emitter's projected area, as a
++// caster in the direction -L from the light sees it. A rect: sqrt(area x |cos|) about its axis. A tube: its projected
++// capsule. A point or a spot: 2 R.
++float probeEmitterSide(GpuLight light, vec3 L)
++{
++    uint kind = uint(light.intensityKind.w + 0.5);
++    float r = light.spotRadius.y;
++    if (kind == 3u)
++    {
++        vec3 a = light.directionCosOuter.xyz, b = light.halfHeight.xyz;
++        vec3 n = cross(a, b);
++        return sqrt(4.0 * abs(dot(n, L)));
++    }
++    if (kind == 2u)
++    {
++        vec3 a = light.directionCosOuter.xyz;
++        float across = length(cross(a, L));
++        return sqrt(4.0 * r * across + 3.14159265 * r * r);
++    }
++    return 2.0 * r;
++}
++
++// PROBE t1-af5w: the true width and the gap in texels at the receiver, from a caster of reversed depth boundsY.
++vec2 probeTrueAndGap(GpuLight light, GpuShadowTile tile, float ndcZ, float boundsY, vec3 L, float d)
++{
++    float caster = d * ndcZ / max(boundsY, 1e-30);
++    float gapTexels = (d - caster) * max(ndcZ, 1e-30) / (tile.texelPerMeter * tile.near);
++    return vec2(gapTexels * probeEmitterSide(light, L) / max(caster, 1e-3), gapTexels);
++}
++
++// PROBE t1-af5w part 0: the footprint's width in tile texels, from the least ramp `least` to 4. The bounds texel is
++// fetched again after the taps (tileLookupOf), so nothing new is held across them. The gap is from bounds.y, the
++// window's caster nearest the light. The trusted gap is the gap minus the own-plane span (3 texels x tan θ) minus the
++// depth bias (0.5 texels constant + 2.5 texels x tan θ slope). w is 4 where the trusted gap is 0 or less, and it fades to
++// the true width over one own-plane span.
++float probeFootprintTexels(GpuLight light, GpuShadowTile tile, float ndcZ, float boundsY, vec3 L, float d,
++    float sinTheta, float least)
++{
++    // In texels at the receiver: the gap, and the true width.
++    float caster = d * ndcZ / max(boundsY, 1e-30);
++    float gapTexels = (d - caster) * max(ndcZ, 1e-30) / (tile.texelPerMeter * tile.near);
++    float trueTexels = gapTexels * probeEmitterSide(light, L) / max(caster, 1e-3);
++    // The trust rule (stills build: on when the least ramp is given positive, off when negative): w = 4 where the
++    // trusted gap (the gap less the own-plane span of 3 tan θ texels and the bias of 0.5 + 2.5 tan θ texels) is 0 or
++    // less, falling linearly to 0 over one own-plane span; the true width where it is larger. As one line in the gap:
++    // 4 - 4 (gap - 0.5 - 5.5 tan θ) / (3 tan θ), with tan θ at least 1/12.
++    float tanTheta = max(sinTheta * inversesqrt(max(1.0 - sinTheta * sinTheta, 1e-6)), 1.0 / 12.0);
++    float untrusted = least > 0.0 ? 4.0 - (gapTexels - 0.5 - 5.5 * tanTheta) * (4.0 / 3.0) / tanTheta : 0.0;
++    return clamp(max(trueTexels, untrusted), abs(least), 4.0);
++}
++
+ // Where a lookup of a near light's atlas tile falls (tileLookupOf): its reversed depth, its tile's layer, the filter's first
+ // texel and its place within it, and the bounds of the window that holds the filter's 5 × 5 texels.
+ struct TileLookup
+@@ -285,6 +340,7 @@ struct TileLookup
+     vec2 first;
+     vec2 f;
+     vec2 bounds;   // the least (x) and the greatest (y) reversed depth of the window (shadow_bounds.comp)
++    float rampScale; // PROBE t1-af5w part 0: 4 / w, the remap's slope; 1 keeps main
+ };
+ 
+ // The lookup of tileLitFraction, with the normal offset at the receiver's distance and the casters' slope-scaled bias.
+@@ -315,9 +371,11 @@ TileLookup tileLookupOf(GpuLight light, vec3 position, vec3 L, float d, vec3 geo
+     // lookup, every comparison fails and the filter gives 0; at the greatest or above, none does, every one passes and it
+     // gives 1. So the bounds decide those pixels with the filter's own result. The clamp comes before the conversion to
+     // int, which is undefined for a float out of range; the filter's texels clamp to the tile's edge as the bounds' do.
+-    vec2 lastWindow = vec2(textureSize(shadowBounds, 0).xy - 1);
++    vec2 lastWindow = vec2(textureSize(shadowBounds, 0).yy - 1); // PROBE part 1: level 0 is the left square
+     ivec2 window = ivec2(clamp(floor(corner * 0.5), vec2(0.0), lastWindow));
+     t.bounds = texelFetch(shadowBounds, ivec3(window, int(tile.layer)), 0).rg;
++    float least = frame.shadowParams.w;
++    t.rampScale = least != 0.0 ? 4.0 / probeFootprintTexels(light, tile, t.ndc.z, t.bounds.y, L, d, sinTheta, least) : 1.0;
+     return t;
+ }
+ 
+@@ -339,9 +397,14 @@ bool fullyShadowed(TileLookup t)
+ // (VulkanRenderer.HeldValuesCost). Nine gathers are the fewest reads. Each returns four comparisons, so the shader holds
+ // 36 values until the weights reduce them. Sixteen corner means are more reads of one value each. A driver that prices
+ // each read runs the gathers faster, and one that prices the held values runs the means faster (t2-gfq5).
++float tileLitFractionOf(TileLookup t);
+ float tileLitFraction(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float sinTheta)
+ {
+-    TileLookup t = tileLookupOf(light, position, L, d, geometricNormal, sinTheta);
++    return tileLitFractionOf(tileLookupOf(light, position, L, d, geometricNormal, sinTheta));
++}
++// PROBE t1-af5w: today's filter from a given lookup.
++float tileLitFractionOf(TileLookup t)
++{
+     vec3 ndc = t.ndc;
+     vec2 first = t.first;
+     vec2 f = t.f;
+@@ -372,7 +435,10 @@ float tileLitFraction(GpuLight light, vec3 position, vec3 L, float d, vec3 geome
+             }
+         }
+         // Each mean stands for four texels, and the weights of the 5 × 5 texels add up to 16.
+-        return means * (4.0 / 16.0);
++        float litMeans = means * (4.0 / 16.0);
++        if (frame.renderParams.w < 0.0) // PROBE debug: w / 4 at the edge pixels, 0 elsewhere
++            return litMeans > 0.0 && litMeans < 1.0 ? 1.0 / t.rampScale : 0.0;
++        return clamp(0.5 + (litMeans - 0.5) * t.rampScale, 0.0, 1.0);
+     }
+ 
+     // Nine gathers of 2 × 2 comparisons read the 5 × 5 texels and one unweighted column and row beyond them.
+@@ -393,7 +459,10 @@ float tileLitFraction(GpuLight light, vec3 position, vec3 L, float d, vec3 geome
+         }
+         lit += wy[2 * j] * upper + wy[2 * j + 1] * lower;
+     }
+-    return lit * (1.0 / 16.0);
++    lit *= 1.0 / 16.0;
++    if (frame.renderParams.w < 0.0) // PROBE debug: w / 4 at the edge pixels, 0 elsewhere
++        return lit > 0.0 && lit < 1.0 ? 1.0 / t.rampScale : 0.0;
++    return clamp(0.5 + (lit - 0.5) * t.rampScale, 0.0, 1.0);
+ }
+ 
+ // The share of a near light that its atlas tiles let through at a world position, with the arguments of
+@@ -401,8 +470,384 @@ float tileLitFraction(GpuLight light, vec3 position, vec3 L, float d, vec3 geome
+ // shadow. lightOutsideShadow on the tiles was tried and refused (t1-gout): it made every lamp's shadow sharper and
+ // darker, which the user does not accept, and raised the floor's acne by 8/3. The tiles' leak under a caster's edge is
+ // small: about 6 pixels down a beam's face below a ceiling lamp of the exit cabin (t1-hdtm).
++// PROBE t1-af5w part 1 (scratch): design 1, the pyramid. The bounds image holds level 0 (the left square, B x B) and
++// levels 1 to 4 packed to its right (shadow_bounds.comp): rg the least and the greatest reversed depth, ba the moments.
++ivec2 probeLevelOrigin(int level, int side)
++{
++    return level == 0 ? ivec2(0) : ivec2(side, side - ((2 * side) >> level));
++}
++
++// The greatest reversed depth (the caster nearest the light) of the 2 x 2 texels of `level` around tile place uv: a
++// square of 2^(level + 2) tile texels.
++float probeNearest(int level, vec2 uv, int layer)
++{
++    int side = textureSize(shadowBounds, 0).y;
++    int n = side >> level;
++    ivec2 origin = probeLevelOrigin(level, side);
++    ivec2 at = ivec2(floor(uv * float(n) - 0.5));
++    float nearest = 0.0;
++    for (int y = 0; y < 2; y++)
++        for (int x = 0; x < 2; x++)
++            nearest = max(nearest, texelFetch(shadowBounds,
++                ivec3(origin + clamp(at + ivec2(x, y), ivec2(0), ivec2(n - 1)), layer), 0).g);
++    return nearest;
++}
++
++// The moments of `level` at tile place uv, filtered bilinearly inside the level.
++vec2 probeMomentsAt(int level, vec2 uv, float layer)
++{
++    ivec2 size = textureSize(shadowBounds, 0).xy;
++    float n = float(size.y >> level);
++    vec2 p = vec2(probeLevelOrigin(level, size.y)) + clamp(uv * n, vec2(0.5), vec2(n - 0.5));
++    return textureGrad(sampler2DArray(shadowBounds, materialSampler), vec3(p / vec2(size), layer), vec2(0.0), vec2(0.0)).ba;
++}
++
++// The width w in tile texels of a lookup's footprint from a caster of reversed depth `caster`: the true width, but 4 or
++// more where the caster's gap is not trusted (the narrow half's rule, trust on).
++float probeWideTexels(GpuLight light, GpuShadowTile tile, TileLookup t, float caster, vec3 L, float d, float sinTheta)
++{
++    // The trust rule gives at most 4 (part 0), and widths up to 4 take today's filter, so only the true width decides
++    // the wide path. (Before 13:30 this returned the untrusted term unclamped, which passed 4 at gaps under
++    // 0.5 + 5.5 tan θ texels and sent contact pixels to the wide path.)
++    return probeTrueAndGap(light, tile, t.ndc.z, caster, L, d).x;
++}
++
++// The greatest reversed depth of `level` at tile place uv, filtered bilinearly inside the level: a smooth estimate of the
++// nearest caster, not a bound (width form 1).
++float probeNearestSmooth(int level, vec2 uv, float layer)
++{
++    ivec2 size = textureSize(shadowBounds, 0).xy;
++    float n = float(size.y >> level);
++    vec2 p = vec2(probeLevelOrigin(level, size.y)) + clamp(uv * n, vec2(0.5), vec2(n - 0.5));
++    return textureGrad(sampler2DArray(shadowBounds, materialSampler), vec3(p / vec2(size), layer), vec2(0.0), vec2(0.0)).g;
++}
++
++// The least reversed depth (the texel farthest from the light) of the 2 x 2 texels of `level` around tile place uv.
++float probeLeast(int level, vec2 uv, int layer)
++{
++    int side = textureSize(shadowBounds, 0).y;
++    int n = side >> level;
++    ivec2 origin = probeLevelOrigin(level, side);
++    ivec2 at = ivec2(floor(uv * float(n) - 0.5));
++    float least = 1.0;
++    for (int y = 0; y < 2; y++)
++        for (int x = 0; x < 2; x++)
++            least = min(least, texelFetch(shadowBounds,
++                ivec3(origin + clamp(at + ivec2(x, y), ivec2(0), ivec2(n - 1)), layer), 0).r);
++    return least;
++}
++
++// Cap 8: the lit share of a box of w texels, 4 to 8, by 64 corner means with the sliding weights (1 - f, 1, ..., 1, f)
++// over 9 x 9 texels, the form of tileLitFraction's sixteen corner means. The nested box of 4 texels (corners 2 to 5,
++// today's filter) comes from the same reads, and the share is the blend of the two boxes by (w - 4) / 4, so it is
++// today's share at w = 4.
++float probeCap8(TileLookup t, float w)
++{
++    float size = float(textureSize(shadowAtlas, 0).x);
++    vec2 corner = (t.ndc.xy * 0.5 + 0.5) * size - 4.0;
++    vec2 first = floor(corner);
++    vec2 f = corner - first;
++    float box8 = 0.0, box4 = 0.0;
++    for (int y = 0; y < 8; y++)
++    {
++        float wy = (y & 1) == 0 ? 1.0 - f.y : f.y;
++        for (int x = 0; x < 8; x++)
++        {
++            float wx = (x & 1) == 0 ? 1.0 - f.x : f.x;
++            vec2 at = (first + vec2(float(x) + 1.0, float(y) + 1.0)) / size;
++            float m = wx * wy * textureGrad(sampler2DArrayShadow(shadowAtlas, shadowSampler),
++                vec4(at, t.layer, t.ndc.z), vec2(0.0), vec2(0.0));
++            box8 += m;
++            if (x >= 2 && x <= 5 && y >= 2 && y <= 5)
++                box4 += m;
++        }
++    }
++    return mix(box4 * (4.0 / 16.0), box8 * (4.0 / 64.0), clamp((w - 4.0) / 4.0, 0.0, 1.0));
++}
++
++// Cap 8 by 25 gathers of 2 x 2 comparisons over 10 x 10 texels from the cap's first texel, with the weights applied by
++// hand, the form of tileLitFraction's nine gathers: the 8-box weighs texels 0 to 8 by (1 - f, 1, ..., 1, f), and the
++// nested 4-box weighs texels 2 to 6 by (1 - f, 1, 1, 1, f).
++float probeCap8Gathers(TileLookup t, float w, float w0)
++{
++    float size = float(textureSize(shadowAtlas, 0).x);
++    vec2 corner = (t.ndc.xy * 0.5 + 0.5) * size - 4.0;
++    vec2 first = floor(corner);
++    vec2 f = corner - first;
++    float box8 = 0.0, box4 = 0.0;
++    for (int j = 0; j < 5; j++)
++    {
++        float up8 = 0.0, low8 = 0.0, up4 = 0.0, low4 = 0.0;
++        for (int i = 0; i < 5; i++)
++        {
++            vec2 at = (first + vec2(float(2 * i) + 1.0, float(2 * j) + 1.0)) / size;
++            vec4 g = textureGather(sampler2DArrayShadow(shadowAtlas, shadowSampler), vec3(at, t.layer), t.ndc.z);
++            int a = 2 * i, b = 2 * i + 1;
++            float a8 = a == 0 ? 1.0 - f.x : 1.0;
++            float b8 = b == 9 ? 0.0 : 1.0;
++            float a4 = a == 2 ? 1.0 - f.x : a == 4 ? 1.0 : a == 6 ? f.x : 0.0;
++            float b4 = b == 3 || b == 5 ? 1.0 : 0.0;
++            if (a == 8) a8 = f.x;
++            up8 += a8 * g.w + b8 * g.z;
++            low8 += a8 * g.x + b8 * g.y;
++            up4 += a4 * g.w + b4 * g.z;
++            low4 += a4 * g.x + b4 * g.y;
++        }
++        int a = 2 * j, b = 2 * j + 1;
++        float a8 = a == 0 ? 1.0 - f.y : a == 8 ? f.y : 1.0;
++        float b8 = b == 9 ? 0.0 : 1.0;
++        float a4 = a == 2 ? 1.0 - f.y : a == 4 ? 1.0 : a == 6 ? f.y : 0.0;
++        float b4 = b == 3 || b == 5 ? 1.0 : 0.0;
++        box8 += a8 * up8 + b8 * low8;
++        box4 += a4 * up4 + b4 * low4;
++    }
++    return mix(box4 * (1.0 / 16.0), box8 * (1.0 / 64.0), clamp((w - w0) / (8.0 - w0), 0.0, 1.0));
++}
++
++// The least (x) and the greatest (y) reversed depth of the 10 x 10 tile texels from the lookup's cap-8 first texel: four
++// level-0 windows (6 x 6 texels each) at a stride of 2 windows, which hold the cap's 9 x 9 texels.
++vec2 probeCap8Bounds(TileLookup t)
++{
++    float size = float(textureSize(shadowAtlas, 0).x);
++    int last = textureSize(shadowBounds, 0).y - 1;
++    ivec2 k = ivec2(floor(((t.ndc.xy * 0.5 + 0.5) * size - 4.0) * 0.5));
++    vec2 bounds = vec2(1.0, 0.0);
++    for (int y = 0; y < 2; y++)
++        for (int x = 0; x < 2; x++)
++        {
++            vec2 b = texelFetch(shadowBounds, ivec3(clamp(k + 2 * ivec2(x, y), ivec2(0), ivec2(last)), int(t.layer)), 0).rg;
++            bounds = vec2(min(bounds.x, b.x), max(bounds.y, b.y));
++        }
++    return bounds;
++}
++
++// The plain moments' lit share of a receiver at reversed depth r, with the moments m.
++float probeChebyshev(vec2 m, float r)
++{
++    float variance = max(m.y - m.x * m.x, 1e-6 * r * r);
++    return r >= m.x ? 1.0 : variance / (variance + (m.x - r) * (m.x - r));
++}
++
++// frame.renderParams.w = 1000 form + 100 debug + mode. form: 0 the nearest caster by two fetches of the least-and-greatest
++// levels, 1 the same filtered bilinearly, 2 the blockers' mean from the moments at the 64-texel search footprint
++// (variance soft shadows: (m - p r) / (1 - p), plain moments only). debug: 0 none, 1 the bleed against an 8 x 8 PCF of
++// the same footprint times 8, 2 that PCF in place of the moments, 3 w / 64, 4 one. mode: integer part 1 plain moments,
++// c >= 2 exponential moments of exp(c z); fraction the cut b.
++float probePyramidShare(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float sinTheta,
++    out bool decided)
++{
++    float v = frame.renderParams.w;
++    float form = floor(v / 1000.0);
++    v -= 1000.0 * form;
++    float debug = floor(v / 100.0);
++    float mode = v - 100.0 * debug;
++    float outside = debug == 1.0 || debug == 3.0 || debug == 4.0 || debug == 5.0 ? 0.0 : 1.0;
++    TileLookup t = tileLookupOf(light, position, L, d, geometricNormal, sinTheta);
++    uint view = light.shadow.y + (light.shadow.z > 1u ? cubeFaceOf(-L) : 0u);
++    GpuShadowTile tile = shadowTiles[view];
++    vec2 uv = t.ndc.xy * 0.5 + 0.5;
++    int layer = int(t.layer);
++    decided = true;
++    float r = t.ndc.z;
++    if (floor(mode) == 90.0 || floor(mode) == 92.0 || floor(mode) == 93.0)
++    {
++        // 14:25: modes 92 and 93 carry the entry width w0 = 4 + 10 x fract(mode); the blend from the box of 4 to the box
++        // of 8 runs over w0 to 8. Mode 93 replaces the reads by one value (the floor of the wide half's cost).
++        bool gathers = floor(mode) != 90.0;
++        float w0 = gathers ? 4.0 + floor(fract(mode) * 10.0 + 0.5) : 4.0;
++        // Cap 8 with the cuts of 13:23. (c) The width first, from one bilinear read of level 1's nearest caster (8 tile
++        // texels per window), and today's filter where it is 4 texels or less. (a) Then the exact bounds of the cap's own
++        // 9 x 9 texels skip the reads where every texel agrees.
++        float w = probeTrueAndGap(light, tile, r, max(probeNearestSmooth(1, uv, t.layer), r), L, d).x;
++        if (w <= w0)
++        {
++            decided = false;
++            return 0.0;
++        }
++        vec2 bounds = probeCap8Bounds(t);
++        if (r >= bounds.y)
++            return outside;
++        if (r < bounds.x)
++            return 0.0;
++        if (debug == 3.0)
++            return min(w, 8.0) / 64.0;
++        if (debug == 5.0)
++        {
++            // The pixels that take the reads; fract(mode) x 10 - 1 picks one light kind (0 point, 1 spot, 2 tube, 3
++            // rect), and 0 takes every kind.
++            float pick = gathers ? 0.0 : floor(fract(mode) * 10.0 + 0.5);
++            // 5 the rects over 0.5 m² (the 1.2 m panels), 6 the rects up to 0.5 m² (the 0.15 x 0.5 m panels).
++            float area = 4.0 * length(cross(light.directionCosOuter.xyz, light.halfHeight.xyz));
++            if (pick >= 5.0)
++                return light.intensityKind.w == RectKind && (pick == 5.0) == (area > 0.5) ? 1.0 : 0.0;
++            return pick == 0.0 || abs(light.intensityKind.w - (pick - 1.0)) < 0.5 ? 1.0 : 0.0;
++        }
++        if (floor(mode) == 93.0)
++            return clamp((w - w0) / (8.0 - w0), 0.0, 1.0) * 0.5 + 0.25;
++        return gathers ? probeCap8Gathers(t, w, w0) : probeCap8(t, w);
++    }
++    float caster;
++    if (form == 2.0)
++    {
++        // The blockers' mean depth from the moments of the 64-texel search footprint (level 4).
++        vec2 m = probeMomentsAt(4, uv, t.layer);
++        float p = probeChebyshev(m, r);
++        if (p >= 0.999)
++            return outside;
++        caster = (m.x - p * r) / (1.0 - p);
++    }
++    else
++    {
++        // The skip uses the exact bound; form 1 takes the width from the bilinear estimate.
++        caster = probeNearest(4, uv, layer);
++        if (r >= caster)
++            return outside;
++        if (form == 1.0)
++            caster = max(probeNearestSmooth(4, uv, t.layer), r);
++    }
++    float w = min(probeWideTexels(light, tile, t, caster, L, d, sinTheta), 64.0);
++    if (w <= 4.0)
++    {
++        decided = false;
++        return 0.0;
++    }
++    if (form != 2.0)
++    {
++        // Once more within the footprint of that width.
++        int refine = clamp(int(ceil(log2(w))) - 2, 0, 4);
++        float nearer = probeNearest(refine, uv, layer);
++        if (r >= nearer)
++            return outside;
++        if (form == 1.0)
++            nearer = max(probeNearestSmooth(refine, uv, t.layer), r);
++        w = probeWideTexels(light, tile, t, nearer, L, d, sinTheta);
++    }
++    w = clamp(w, 4.0, 64.0);
++    if (floor(mode) == 90.0 || floor(mode) == 91.0)
++    {
++        // The taps: cap 8 (mode 90) or cap 16 (91). The exact bounds of level 2 (2 x 2 texels of 8 tile texels) skip
++        // the reads where every texel of the footprint agrees.
++        w = min(w, floor(mode) == 90.0 ? 8.0 : 16.0);
++        if (r >= probeNearest(2, uv, layer))
++            return outside;
++        if (r < probeLeast(2, uv, layer))
++            return debug == 5.0 ? 0.0 : 0.0;
++        if (debug == 3.0)
++            return w / 64.0;
++        if (debug == 4.0 || debug == 5.0)
++            return 1.0;
++        if (floor(mode) == 90.0)
++            return probeCap8(t, w);
++        float size = float(textureSize(shadowAtlas, 0).x);
++        float sum = 0.0;
++        for (int y = 0; y < 8; y++)
++            for (int x2 = 0; x2 < 8; x2++)
++            {
++                vec2 at = uv + (vec2(float(x2), float(y)) - 3.5) * (w / 8.0) / size;
++                sum += texture(sampler2DArrayShadow(shadowAtlas, shadowSampler), vec4(at, t.layer, r));
++            }
++        return sum / 64.0;
++    }
++    if (debug == 3.0)
++        return w / 64.0;
++    if (debug == 4.0)
++        return 1.0;
++    float level = clamp(log2(w / 4.0), 0.0, 4.0);
++    int below = int(floor(level));
++    vec2 m = mix(probeMomentsAt(below, uv, t.layer), probeMomentsAt(min(below + 1, 4), uv, t.layer), level - float(below));
++    float warp = floor(mode);
++    float cut = fract(mode);
++    float x = warp >= 2.0 ? exp(warp * r) : r;
++    float least = warp >= 2.0 ? x * warp * 1e-3 * r : 1e-3 * r;
++    float variance = max(m.y - m.x * m.x, least * least);
++    float share = x >= m.x ? 1.0 : variance / (variance + (m.x - x) * (m.x - x));
++    share = clamp((share - cut) / (1.0 - cut), 0.0, 1.0);
++    if (debug == 1.0 || debug == 2.0)
++    {
++        float size = float(textureSize(shadowAtlas, 0).x);
++        float reference = 0.0;
++        for (int y = 0; y < 8; y++)
++            for (int x2 = 0; x2 < 8; x2++)
++            {
++                vec2 at = uv + (vec2(float(x2), float(y)) - 3.5) * (w / 8.0) / size;
++                reference += texture(sampler2DArrayShadow(shadowAtlas, shadowSampler), vec4(at, t.layer, r));
++            }
++        return debug == 2.0 ? reference / 64.0 : 8.0 * max(share - reference / 64.0, 0.0);
++    }
++    return share;
++}
++
++#ifndef TERTIUS_PROBE_SHARED_LOOKUP
++#define TERTIUS_PROBE_SHARED_LOOKUP 0
++#endif
++
++// PROBE t1-af5w, 15:05: the lean wide half. One gather of level 1's nearest casters (G) rejects first: level-1 texels k
++// and k + 1 hold tile texels 4k to 4k + 11, which hold the cap's 9 x 9 texels from floor(s - 4) for k = floor(that / 4).
++// Where no caster is nearer the light than the receiver, the share is 1 with no width. Then the width, with the
++// emitter's side as one value per light (sqrt of its area, no cosine toward the caster), and today's filter where it is
++// 4 texels or less. Then one gather of the least depths (R) rejects the fully shadowed footprint. reads false replaces
++// the 25 gathers by one value (the floor).
++float probeLeanShare(GpuLight light, vec3 L, float d, TileLookup t, bool reads, out bool decided)
++{
++    decided = true;
++    float r = t.ndc.z;
++    ivec2 size = textureSize(shadowBounds, 0).xy;
++    float n = float(size.y >> 1);
++    float atlas = float(textureSize(shadowAtlas, 0).x);
++    vec2 s = (t.ndc.xy * 0.5 + 0.5) * atlas;
++    vec2 k = clamp(floor(floor(s - 4.0) * 0.25), vec2(0.0), vec2(n - 2.0));
++    vec2 at = (vec2(float(size.y), 0.0) + k + 1.0) / vec2(size);
++    vec4 nearest = textureGather(sampler2DArray(shadowBounds, materialSampler), vec3(at, t.layer), 1);
++    if (r >= max(max(nearest.x, nearest.y), max(nearest.z, nearest.w)))
++        return 1.0;
++    uint view = light.shadow.y + (light.shadow.z > 1u ? cubeFaceOf(-L) : 0u);
++    float texelAtNear = shadowTiles[view].texelPerMeter * shadowTiles[view].near;
++    float side = light.intensityKind.w == RectKind
++        ? sqrt(4.0 * length(cross(light.directionCosOuter.xyz, light.halfHeight.xyz)))
++        : 2.0 * light.spotRadius.y;
++    float caster = max(probeNearestSmooth(1, s / atlas, t.layer), r);
++    float casterDistance = d * r / max(caster, 1e-30);
++    float w = (d - casterDistance) * r / texelAtNear * side / max(casterDistance, 1e-3);
++    if (w <= 4.0)
++    {
++        decided = false;
++        return 0.0;
++    }
++    vec4 least = textureGather(sampler2DArray(shadowBounds, materialSampler), vec3(at, t.layer), 0);
++    if (r < min(min(least.x, least.y), min(least.z, least.w)))
++        return 0.0;
++    if (!reads)
++        return clamp((w - 4.0) / 4.0, 0.0, 1.0) * 0.5 + 0.25;
++    return probeCap8Gathers(t, w, 4.0);
++}
++
+ float tileShadow(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float sinTheta)
+ {
++    float leanMode = mod(frame.renderParams.w, 100.0);
++    if (frame.renderParams.w >= 1.0 && leanMode >= 94.0)
++    {
++        // Mode 94 the lean floor, 95 the lean form with the 25 gathers at w0 = 4.
++        bool decided;
++#if TERTIUS_PROBE_SHARED_LOOKUP
++        TileLookup t = tileLookupOf(light, position, L, d, geometricNormal, sinTheta);
++        float share = probeLeanShare(light, L, d, t, leanMode >= 95.0, decided);
++        return decided ? share : tileLitFractionOf(t);
++#else
++        float share = probeLeanShare(light, L, d, tileLookupOf(light, position, L, d, geometricNormal, sinTheta),
++            leanMode >= 95.0, decided);
++        return decided ? share : tileLitFraction(light, position, L, d, geometricNormal, sinTheta);
++#endif
++    }
++    if (frame.renderParams.w >= 1.0)
++    {
++        bool decided;
++        float share = probePyramidShare(light, position, L, d, geometricNormal, sinTheta, decided);
++        if (decided)
++            return share;
++        float debug = floor(mod(frame.renderParams.w, 1000.0) / 100.0);
++        if (debug == 1.0 || debug == 3.0 || debug == 4.0 || debug == 5.0)
++            return 0.0;
++    }
+     return tileLitFraction(light, position, L, d, geometricNormal, sinTheta);
+ }
+ 
+diff --git a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
+index 5860997e9..d45ec1fe7 100644
+--- a/src/Tertius.Rendering/VulkanRenderer.cs
++++ b/src/Tertius.Rendering/VulkanRenderer.cs
+@@ -951,7 +951,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
+             upscaling is Fsr3Upscaling
+                 ? MathF.Log2(pending.RenderSize.Width / (float)targets.OutputExtent.Width) - 1
+                 : 0;
+-        LastScene.Constants.RenderParams = new(x: bias, y: jitter.X, z: jitter.Y, w: 0);
++        LastScene.Constants.RenderParams = new(x: bias, y: jitter.X, z: jitter.Y, w: LocalShadowPass.ProbePyramid);
+         Vector2 previousJitter = Vector2.Zero;
+         if (jitters && !pending.Reset)
+         {
+@@ -1988,6 +1988,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
+             for (int i = 0; i < pixels.Length; i += 4)
+                 (pixels[i], pixels[i + 2]) = (pixels[i + 2], pixels[i]);
+         sink.Take(new(pixels, width, height));
++        // THROWAWAY (t1-af5w part 1, from ter-kh4g stage 2): the scene export at its chosen capture.
++        SceneExport.Captured(LastScene, materials.Infos);
+     }
+ 
+     /// <summary>The one context of the renderer's life, which holds what every frame shares (see <see cref="SetContext"/>).</summary>
+diff --git a/tests/Tertius.Rendering.Tests/LocalShadowRenderTests.cs b/tests/Tertius.Rendering.Tests/LocalShadowRenderTests.cs
+index fd87c38f9..a37e27e85 100644
+--- a/tests/Tertius.Rendering.Tests/LocalShadowRenderTests.cs
++++ b/tests/Tertius.Rendering.Tests/LocalShadowRenderTests.cs
+@@ -757,6 +757,11 @@ public sealed class LocalShadowRenderTests
+             // In the reference the floor casts nothing, so its lit pixels cannot have acne; with self-shadowing they must
+             // come out the same.
+             (int lit, int differing) = CountChangedLitPixels(reference: reference, image: image);
++            // PROBE t1-af5w part 0 (scratch): the counts per least ramp.
++            System.IO.File.AppendAllText(
++                "/private/tmp/t0-gbgj/acne.txt",
++                $"{System.Environment.GetEnvironmentVariable("TERTIUS_X_TILE_LEAST_RAMP") ?? "main"} {angleDegrees} {distance} {turnDegrees} differing {differing} of {lit}\n"
++            );
+             lit.Should().BeGreaterThan(Width * Height / 20, "the spot light lights a large patch of the floor");
+             differing.Should().BeLessThanOrEqualTo(lit / 1000, "a lit floor that casts shadows must not shadow itself");
+         }

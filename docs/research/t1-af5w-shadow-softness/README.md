@@ -280,3 +280,340 @@ so the numbers above leave it out of any design. Ticket `t58-7645` holds it.
 - `patches/regs-*.diff`: the register variants of item 3, on the shaders of 39238b763.
 
 The takes are in `/private/tmp/t0-gbgj/edge-take1` and `/private/tmp/t0-gbgj/edge-take2`.
+
+## Part 0 of the probe: the narrow half
+
+The design note "Two designs" in t1-af5w defines the narrow half: the share is `clamp(0.5 + (lit - 0.5) * 4 / w, 0, 1)`,
+with w the footprint's width in tile texels. w is the true width from the gap of `TileLookup.bounds.y`, clamped to the
+least ramp and 4. The trust rule keeps w at 4 where the trusted gap is 0 or less. The trusted gap is the gap less the
+own-plane span (3 tan θ texels) and the depth bias (0.5 + 2.5 tan θ texels). Between 0 and one span, w fades to the true
+width. The emitter's size is the side of the square with its projected area as the caster sees it.
+
+### The register counts
+
+From `tools/shader_registers.py` on the M1, on main 72426c219 (main: `direct.frag` r112, `direct_key_fill.frag` r115).
+The variants are `patches/part0-regs-*.diff`.
+
+| Form | `direct.frag` | `direct_key_fill.frag` |
+|---|---|---|
+| A second `tileLookupOf` after the taps (`part0-regs-refetch.diff`), trust off or on | r127 | r127 |
+| 4 / w computed in `tileLookupOf` as one float of `TileLookup`, trust off (`v11` form) | r115 | r115 |
+| The same, trust on, as the note's fade or as one line in the gap (`v10`) | r115 | r117 |
+| Trust on, tan θ from `dot(geometricNormal, L)` after the bounds fetch (`v14`) | r114 | r117 |
+| Trust on in `tileShadow`, with the true width and the gap as two floats out of the lookup (`v15`) | r116 | r116 |
+| The same, both packed as two halves in one uint (`v16`) | r116 | r116 |
+
+A hard switch in place of the fade, a constant emitter side, tan θ = sin θ, a constant tan θ, and sin θ folded into two
+constants before the fetch all give r117. A rule with no sin θ gives r115, and the same rule with one multiply by sin θ
+gives r117. So the cost is the live range of the receiver's angle across the bounds fetch.
+
+### The acne
+
+`ALitFloorUnderASpotLightHasNoAcne`, differing pixels, from `patches/part0-acne-counts.patch` (the test writes its
+counts):
+
+| Case | main | Trust on, least 1, 1.5 and 2 | Trust off, least 1.5 |
+|---|---|---|---|
+| 4 m, 60°, a turn of 45° | 4 of 25,784 | 4 | 0 |
+| 12 m, 60°, a turn of 45° | 2 of 135,815 | 2 | 0 |
+| The other three cases | 0 | 0 | 0 |
+
+### The stills
+
+One binary of `patches/part0-narrow-half.patch` draws every column: `TERTIUS_X_TILE_LEAST_RAMP` unset draws main, a
+positive value is the least ramp with trust on, and a negative value is the least ramp with trust off.
+`tools/fixedstills.sh` renders each view at the fixed exposure of capture a in `exposure/<view>.json`.
+`tools/compare.py` makes the sheets in `pics/part0/`: 1:1 crops at 3 times, nearest, with the columns main, trust on at
+1, 1.5 and 2, and trust off at 1.5.
+
+- `beam-face.png`: with trust on, every least ramp equals main, and t1-hdtm's leak stays. With trust off, the lit patch
+  ends at the beam's edge, and most of the leak is gone.
+- `deck-far.png`: exit-deck's lamp 15 with a far caster does not change in any column.
+- `niche.png`, `cabin-contact.png`, `hall-foot.png`, `hall-pillar.png`, `hall-floor.png`: no visible change, and no
+  texel staircase at a least ramp of 1.
+- `deck-window-frame.png`: one of the places with the most change, a thin lit strip on a frame edge.
+- `deck-frame-trust-off.png` (main, trust on 1.5, trust off 1.5): trust off adds a soft darker band across the frame's
+  face, a sharper self-shadow in grazing light.
+
+The share of each frame's pixels that differ from main by more than 4 of 255:
+
+| View | Trust on, 1 | Trust on, 1.5 | Trust on, 2 | Trust off, 1.5 |
+|---|---|---|---|---|
+| exit-deck | 0.24 % | 0.18 % | 0.12 % | 0.43 % |
+| exit-cabin at 0.96 | 0.09 % | 0.08 % | 0.07 % | 0.17 % |
+| rect-lamps | 0.02 % | 0.02 % | 0.01 % | 0.02 % |
+| lamp-hall-16 | 0.00 % | 0.00 % | 0.00 % | 0.01 % |
+| cabin-light-cabin | 0.00 % | 0.00 % | 0.00 % | 0.00 % |
+
+The changes lie on thin lines where walls and frames meet the floor. The edges that the measure found too soft are
+mostly receivers within one own-plane span of their caster, so the trust rule keeps today's width at them, and the
+remap rarely acts.
+
+## Part 1 of the probe: the wide half
+
+`patches/part1-pyramid.patch` (on main 72426c219, with the back-face line's export files for the reference) holds every
+form below. One binary draws all of them under `TERTIUS_X_PYRAMID = 1000 form + 100 debug + mode`:
+
+- form: 0 the nearest caster by fetches of the bounds levels, 1 the same filtered bilinearly, 2 the blockers' mean from
+  the moments (dropped: w saturates at 64 texels).
+- debug: 1 the bleed against an 8 × 8 PCF of the same footprint, 2 that PCF in place of the moments, 3 w / 64, 4 one,
+  5 one where cap 8 takes its reads (with the cuts, the fraction of the mode picks a light kind: 0.1 to 0.4 point, spot,
+  tube, rect; 0.5 the rects over 0.5 m², 0.6 the rects up to 0.5 m²).
+- mode: 1 plain moments (fraction: the cut b), c ≥ 2 exponential moments of exp(c z), 90 cap 8 (64 corner means), 91 cap
+  16 (the 8 × 8 PCF at min(w, 16)), and from 13:23 92: cap 8 by 25 gathers. With the cuts (below), modes 90 and 92
+  take their own path.
+
+The bounds image becomes RGBA32F, 384 × 256 per layer: level 0 (the window bounds and the moments of 2 × 2 texels) and
+levels 1 to 4 packed beside it. `LocalShadowPass` writes them for every tile view in every frame.
+
+### What the stills show
+
+The sheets are in `pics/part1/`. The reference is Blender Cycles on an export of exit-deck's capture a, with the
+back-face line's `cycles_scene.py`: direct light only (`REF_MAX_BOUNCES=0`), no sun, Earth black, 2,048 samples.
+
+- The moments (plain, b up to 0.4, and exponential at c = 40) let light through at the deck's wall base, and they draw
+  hard stripes and steps on the cabin's floor (`cap-cabin-floor.png`).
+- Form 0's width is constant over each coarse bounds texel, and deck-far's hard patch follows it (`width-deck-far.png`).
+  Form 1's width is smooth.
+- The 8 × 8 PCF at form 1's full width washes the floors out as much as the moments do. So that wash-out is the width.
+- The reference's lamp shadows on the deck are broad and soft (`ref-deck-far.png`, `ref-deck-floor.png`). Cap 8 and cap
+  16 have its shape, and main's edges are too sharp. At the wall base the reference has a black contact band with sharp
+  edges, which every column draws as a soft grey band in the full image (`ref-deck-wall-base.png`). The engine's direct
+  light alone draws that band black and sharp (below, "Direct light against the reference"), so the grey is the
+  engine's indirect light, not the shadow filter.
+
+### Registers and time
+
+| Form | `direct.frag` | `direct_key_fill.frag` |
+|---|---|---|
+| Moments, form 0, no debug code | r116 | r116 |
+| Moments, form 1, no debug code | r116 | r116 |
+| Cap 8, form 1 | r127 | r127 |
+| Cap 8 with its 64 reads replaced by one value | r116 | r119 |
+
+The direct pass's median GPU time over the 3 captures of one still, on a loaded machine (load 8 to 11), in ms:
+
+| Column | exit-deck (render scale 2/3) | exit-cabin (0.96) |
+|---|---|---|
+| main | 4.02 | 7.45 |
+| moments, form 1 | 4.73 | 8.79 |
+| 8 × 8 PCF at form 1's w | 5.69 | 11.05 |
+| cap 8 | 6.20 | 11.94 |
+| cap 16 | 6.03 | 11.88 |
+
+Cap 8 takes its 64 reads for at least one lamp at 92.5 % of exit-deck's pixels and 99.6 % of exit-cabin's.
+
+These first times are from the earlier stills, at a load of 8 to 11. Their main is the probe with the switch off: the
+probe binary without `TERTIUS_X_PYRAMID`, whose shader still holds the probe's paths and runs at the probe's register
+count (r127, 384 resident threads against main's 448). So they understate every cost against the clean main. The
+timed takes with the cuts are below, and each table there names its main.
+
+### The cuts of 13:23 and two read forms
+
+The orchestrator ordered two cuts, which change no result:
+
+1. (c) The width first. One bilinear read of level 1's nearest caster (8 tile texels per window) gives w. Where w is 4
+   texels or less, today's filter runs unchanged.
+2. (a) The cap's own bounds. Four level-0 windows at a stride of 2 hold the cap's 9 × 9 texels exactly. Where every
+   texel agrees, the share is 0 or 1 with no reads.
+
+Only the rest takes the 64 reads. This replaces 16 fetches of levels 4, the refined level and 2 with 1 bilinear read and
+4 fetches. Mode 90 reads the 9 × 9 texels by 64 corner means, mode 92 by 25 gathers with the weights applied by hand
+(today's two forms, `tileCornerMeans`). The M1 runs the corner means for today's box of 4, because
+`VulkanRenderer.HeldValuesCost` is true on MoltenVK: there a shader pays for the values that it holds at once, and the
+nine gathers hold 36 comparisons.
+
+The cut found a bug of the earlier wide path. Its width took the trust rule's untrusted term without the clamp at 4, so
+gaps under 0.5 + 5.5 tan θ texels sent contact pixels to the wide path. Only the true width decides now. The stills of
+cap 8 and cap 16 before 13:30 hold the bug at contact edges.
+
+The cut forms look like cap 8 before the cuts, and the means look like the gathers (`cut-deck-far.png`,
+`cut-deck-floor.png`, `cut-deck-wall-base.png`, `cut-cabin-floor.png`).
+
+The share of pixels where at least one lamp takes the 64 reads, from the debug 5 stills against stills with every tile
+share 0:
+
+| View | Before the cuts | With the cuts | 1.2 m rect panels | 0.15 × 0.5 m rect panels |
+|---|---|---|---|---|
+| exit-deck | 92.5 % | 26.3 % | 19.6 % | 4.3 % |
+| exit-cabin@0.96 | 99.6 % | 77.0 % | 76.1 % | 4.5 % |
+
+Both views hold rect lamps only. lamp-hall-16's shadowed lamps are 0.05 m spheres, and they take the reads at 3.7 % of
+its pixels.
+
+### What holds the registers
+
+The counts are of `tools/shader_registers.py`, offline for the M1, with the debug code compiled out and the mode fixed.
+Main is r112 / r115.
+
+| Variant | `direct.frag` | `direct_key_fill.frag` |
+|---|---|---|
+| Cut cap 8, 64 corner means | r124 | r126 |
+| Cut cap 8, 25 gathers | r115 | r117 |
+| Cut, reads replaced by one value | r116 | r118 |
+| … and no bounds of the cap's texels | r114 | r117 |
+| … and the emitter's side a constant | r114 | r117 |
+| … and w a constant | r115 | r117 |
+| … and w without its level-1 read | r115 | r117 |
+| The probe's own lookup only (it returns right after `tileLookupOf`) | r115 | r117 |
+| The probe's path returns before its lookup | r115 | r115 |
+| Gathers, one lookup shared by both paths | r116 | r118 |
+| Means, one lookup shared by both paths | r119 | r122 |
+| Gathers, only the tile's `texelPerMeter` and `near` loaded | no change | no change |
+
+- In key and fill the wall is the second lookup. Where w ≤ 4 the probe falls back to `tileLitFraction`, which runs
+  `tileLookupOf` again. That lookup alone brings key and fill from r115 to r117. The width adds at most one register.
+  Its largest part is the emitter's side, about 2,100 instructions.
+- The 64 corner means add about 8 registers. The 25 gathers add none over the lookup.
+- A lookup shared by both paths does not help the gathers. Its values then stay live across the whole wide path for the
+  fallback, while a second lookup computes them again after the wide path's values are dead. So the best count of the
+  wide half in key and fill is r117, two over the step at r115.
+- Near variants move by one register either way, so a single register is within the noise of the allocator.
+
+### Direct light against the reference
+
+`bins/direct` is the probe build with the composite's test switch `TERTIUS_DIRECT_LIGHT_ONLY`. It writes the direct
+diffuse and specular light and the emission, with no ambient light and no sky. It ran with `TERTIUS_NO_SUN=1` at
+exit-deck's fixed exposure (`direct-deck-wall-base.png`, `direct-deck-far.png`).
+
+- At the wall base the engine's direct light is black in main, in trust off at 1.5 and in cut cap 8, as in the
+  reference. The band's edges and place match the reference's. So the contact shadow lets no light through, and the
+  narrow half has no case there.
+- At the far caster, main's band has hard edges. The reference's band is broad and soft, and cut cap 8 is close to it.
+
+The engine's direct light against the Cycles direct light, the mean over the same crop:
+
+| Crop | Main | Trust off 1.5 | Cut cap 8 | Main's full image |
+|---|---|---|---|---|
+| Wall base (900, 520, 150 px) | 1.00 | 1.00 | 1.00 | 1.87 |
+| Far caster (1180, 690, 150 px) | 1.05 | 1.05 | 1.05 | 1.50 |
+| 330 px square at 500, 520 | 1.01 | 1.01 | 1.01 | 1.54 |
+
+So the export and the reference agree, and the earlier ratio of 1.86 was the engine's indirect light.
+
+### Time
+
+`tools/fixedtimes.sh` and `tools/fixedtimes-held.sh` take the times: each run holds the GPU lock alone, at the views'
+fixed exposure, and the columns are interleaved per repetition. A value is the median over a run's 3 captures, then the
+median over the repetitions, in ms, with the spread as ± half the range. On MoltenVK a pass's time can hold part of the
+next pass's work, so the tables give sums of neighbouring passes: key and fill + direct light + light pyramid (direct),
+and transparent + FSR 3.1 (transparent). The machine's load was 3 to 27 from other leads' CPU work. The GPU was the
+take's alone.
+
+#### The cuts, the read forms and the floor, against the probe with the switch off
+
+These takes ran in the probe binary, and their main is the probe with the switch off (r127, RGBA32F bounds). The
+deltas are against that main, so they understate the cost against the clean main (next section).
+
+| View | Column | Direct | Transparent | Frame span |
+|---|---|---|---|---|
+| exit-deck | the probe with the switch off | 4.30 | 4.15 | 20.16 |
+| | cut cap 8, 64 means | 5.02 (+0.72) | 4.65 (+0.50) | 21.25 (+1.10) |
+| | cut cap 8, 25 gathers | 4.95 (+0.65) | 4.65 (+0.50) | 21.22 (+1.06) |
+| exit-cabin | the probe with the switch off | 8.14 | 8.43 | 41.89 |
+| | cut cap 8, 64 means | 9.89 (+1.75) | 9.34 (+0.91) | 44.81 (+2.91) |
+| | cut cap 8, 25 gathers | 9.43 (+1.28) | 8.83 (+0.40) | 44.11 (+2.22) |
+
+A second take, in the binary with the run-time w0 (bins/p1w), with the reads of the cut gathers replaced by one value
+(the floor):
+
+| View | Column | Direct | Transparent | Frame span |
+|---|---|---|---|---|
+| exit-deck | the probe with the switch off | 4.55 | 4.43 | 20.47 |
+| | cut cap 8, 25 gathers | 5.21 (+0.65) | 4.79 (+0.35) | 21.55 (+1.08) |
+| | the floor | 5.03 (+0.47) | 4.76 (+0.32) | 21.53 (+1.06) |
+| exit-cabin | the probe with the switch off | 8.63 | 9.57 | 42.75 |
+| | cut cap 8, 25 gathers | 9.84 (+1.21) | 9.73 (+0.16) | 45.42 (+2.66) |
+| | the floor | 9.38 (+0.75) | 10.49 (+0.92) | 44.55 (+1.80) |
+
+The two takes' mains differ by 0.25 to 0.5 ms. They ran in different binaries, an hour apart.
+
+One run of a third take compares the probe with the switch off against the clean main (bins/main, built from the
+branch base): direct 4.49 against 3.58 in exit-deck (+0.91) and 8.58 against 6.84 in exit-cabin (+1.74). So a probe
+binary charges a lean build about 1 to 1.7 ms that it would not pay. The lean round therefore uses lean-only builds.
+
+#### The entry width w0
+
+The wide path is entered where w > w0, and the blend from the box of 4 to the box of 8 runs over w0 to 8. The share of
+pixels where at least one lamp takes the reads:
+
+| View | w0 = 4 | 5 | 6 | 7 |
+|---|---|---|---|---|
+| exit-deck | 26.3 % | 22.2 % | 19.8 % | 17.9 % |
+| exit-cabin@0.96 | 77.0 % | 71.7 % | 64.2 % | 57.3 % |
+
+The picture search chose w0 = 6 (`w0-6-7-deck-far.png`, `w0-6-7-deck-floor.png`, `w0-deck-far.png`,
+`w0-deck-floor.png`). At w0 = 7 the short blend draws a light line along the far caster's band edge. Over that crop:
+
+| | main | w0 = 4 | 5 | 6 | 7 | Cycles |
+|---|---|---|---|---|---|---|
+| Steepest step across the band's left edge, levels per px | 2.2 | 1.3 | 1.3 | 1.6 | 2.5 | 0.5 |
+| Largest difference from w0 = 4, levels | 14 | 0 | 3 | 4 | 6 | – |
+
+The entry width saves too little to matter, because the 1.2 m panels' true widths lie far above 7 texels over most of
+the exit cabin's floor.
+
+#### The lean round, against the clean main
+
+The lean form keeps cap 8's picture with less work:
+
+1. One textureGather of level 1's nearest casters rejects first. Level-1 texels k and k + 1 hold tile texels 4k to
+   4k + 11, which hold the cap's 9 × 9 texels from floor(s − 4) for k = floor(floor(s − 4) / 4). Where no caster is
+   nearer the light than the receiver, the share is 1, with no width.
+2. The width takes the emitter's side as one value per light: sqrt(4 |a × b|) for a rect, 2R otherwise, with no cosine
+   toward the caster. Today's filter runs where w ≤ 4.
+3. One gather of the least depths rejects the fully shadowed footprint. Then come the 25 gathers at w0 = 4, or one value
+   for the floor.
+
+The cosine's loss does not show: against cut cap 8, the direct-only far-caster crop differs by 0.13 levels on average
+and at most 5, and the whole exit-deck image at most 6 (`lean-deck-far.png`, `lean-cabin-floor.png`).
+
+The lean-only builds hold only the lean path (`patches/part1-lean-only-build.md`). A lean-only still equals the probe's
+lean mode within 3 levels. Their registers (direct.frag / direct_key_fill.frag):
+
+| Lean form | Registers |
+|---|---|
+| Shared lookup, 25 gathers | r116 / r119 |
+| Shared lookup, floor | r115 / r118 |
+| Separate lookups, 25 gathers | r127 / r127 |
+| Separate lookups, floor | r117 / r119 |
+
+The take ran under one exclusive hold (`tools/fixedtimes-held.sh`, decision 111): it waited 66 s for the lock and held
+it 3.8 minutes, at a load of 3.5 to 6.7 (`held.log` has the load before each run). Main is the clean main (bins/main,
+built from the branch base). Repetition 1's main and lean shared with gathers ran before the hold, in single runs, at
+loads up to 18; main's exit-cabin value of that repetition, 6.80, lies between repetitions 2 and 3 (6.82 and 6.77), so
+it stays in the median.
+
+| View | Column | Direct | Transparent | Frame span |
+|---|---|---|---|---|
+| exit-deck | the clean main | 3.60 | 3.99 | 19.24 |
+| | lean floor, shared lookup | 4.42 (+0.82) | 4.46 (+0.47) | 20.56 (+1.32) |
+| | lean, shared lookup, 25 gathers | 4.54 (+0.94) | 4.38 (+0.39) | 20.53 (+1.30) |
+| | lean, separate lookups, 25 gathers | 4.90 (+1.29) | 4.37 (+0.38) | 20.97 (+1.73) |
+| exit-cabin | the clean main | 6.79 | 7.80 | 39.81 |
+| | lean floor, shared lookup | 8.21 (+1.41) | 8.94 (+1.14) | 42.34 (+2.53) |
+| | lean, shared lookup, 25 gathers | 8.69 (+1.89) | 9.52 (+1.72) | 42.88 (+3.07) |
+| | lean, separate lookups, 25 gathers | 9.39 (+2.59) | 9.63 (+1.82) | 43.78 (+3.97) |
+
+The shared lookup is the faster form. The line's rule asked for the lean form with its reads under about 0.5 ms of the
+direct pass in exit-cabin against the clean main. It costs 1.89 ms, and its floor alone costs 1.41 ms. So no entry rule
+and no cheaper read can bring the wide half under the rule, and the ticket closes with this record. The lamps' far
+edges stay as they are. The reference picture of what they should be is `ref-deck-far.png` and `direct-deck-far.png`.
+
+## The per-tile data that the probe writes and reads
+
+For an engine design with one owner of a tile's contents and their freshness:
+
+- The tile's depth layer in the atlas: written by `LocalShadowPass` when the tile is drawn, read by every lookup. A
+  caster's move, or the light's, makes it stale.
+- Level 0 of the bounds image (the least and greatest reversed depth of each 6 × 6 window): written by
+  `shadow_bounds.comp` right after the tile's draw, read first by every lookup (today's skip, and the lean form's cap
+  window in the probe's cut). It is stale exactly when the tile's depth is, and main already writes it only for the
+  drawn tiles.
+- Levels 1 to 4 of the bounds image, and the moments in its B and A channels (the probe's packed pyramid): written by
+  the same dispatch, level by level. The lean form needs level 1 only. The probe wrote them for every tile view in every
+  frame; a lean build writes them with level 0, for the drawn tiles only. Same staleness as level 0.
+- Per light (`GpuLight`): the emitter's extent and axis (`directionCosOuter`, `halfHeight`, `spotRadius`), from which
+  the width takes the emitter's side. Stale when the light changes shape; a build would store the side as one value.
+- Per tile view (`GpuShadowTile`): `texelPerMeter` and `near`, from which the width takes the texel's size. Stale when
+  the tile's projection changes, which also redraws the tile.

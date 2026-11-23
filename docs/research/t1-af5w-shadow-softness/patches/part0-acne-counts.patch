@@ -1,0 +1,16 @@
+diff --git a/tests/Tertius.Rendering.Tests/LocalShadowRenderTests.cs b/tests/Tertius.Rendering.Tests/LocalShadowRenderTests.cs
+index fd87c38f9..a37e27e85 100644
+--- a/tests/Tertius.Rendering.Tests/LocalShadowRenderTests.cs
++++ b/tests/Tertius.Rendering.Tests/LocalShadowRenderTests.cs
+@@ -757,6 +757,11 @@ public sealed class LocalShadowRenderTests
+             // In the reference the floor casts nothing, so its lit pixels cannot have acne; with self-shadowing they must
+             // come out the same.
+             (int lit, int differing) = CountChangedLitPixels(reference: reference, image: image);
++            // PROBE t1-af5w part 0 (scratch): the counts per least ramp.
++            System.IO.File.AppendAllText(
++                "/private/tmp/t0-gbgj/acne.txt",
++                $"{System.Environment.GetEnvironmentVariable("TERTIUS_X_TILE_LEAST_RAMP") ?? "main"} {angleDegrees} {distance} {turnDegrees} differing {differing} of {lit}\n"
++            );
+             lit.Should().BeGreaterThan(Width * Height / 20, "the spot light lights a large patch of the floor");
+             differing.Should().BeLessThanOrEqualTo(lit / 1000, "a lit floor that casts shadows must not shadow itself");
+         }
