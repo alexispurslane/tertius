@@ -1,6 +1,6 @@
 ---
 id: t0-3vwx
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-22T19:45:41Z
@@ -139,3 +139,7 @@ The final take's second film, the walk on the final code, from the combined chec
 The walk did not change against take A. Center region's light against the last frame at 0 / 20 / 40 draws after the stop: Design X +5.87 / +4.61 / +3.58 % (equal to X5 without the cap to the last digit), main +5.34 / +3.73 / +2.49 %. The survey's settle after the stop, slowest region: Design X 47 draws (take A: 48), main 25; the whole image settles at once on both. Neither side changes size in the video's draws (main 0.956, Design X 0.949). A walk has no light change, so the cap does not act. The region test runs on 34.7 % of the anchor-draws in the first 60 draws after the stop and on 90.4 % after that. Not covered: a flicker measure during the walk, a second run, the eye's view at normal speed. All frames deleted; the videos and logs stay.
 
 My reading, reported to the orchestrator: gate 5 of the merge (t0-iido) is met in form. For gate 4 the walk is the one take in which Design X is measurably behind main (its trail after a stop fades more slowly). Recommendation: no hold of the merge; a fix belongs with the region test's follow-up (t0-qvm1, t4f-71qp), because the test's count restarts under a moving camera as under a moving size.
+
+**2026-11-23T03:17:59Z**
+
+Closed by the line orchestrator on 2026-11-22. The lead's final report (status ready_for_integration, head f3e76efbf, clean checkout, no fork) passed the gates: one reviewer, 14 findings, each fixed or recorded with a reason; no file under src or tests changes, so no suite ran. Merged into the line as 068f04145. The last check: the two final videos meet the rules by ffprobe (3840 x 1080, 60 frames a second, 320 and 260 frames), and the record's numbers are the ones reported on 2026-11-22. Cloud money of the ticket: 0.1635 dollars. Open in the record, by the review: final.sh step 4 does not stop on a failure and does not compare the survey's played-back sizes with the card log. Design X's zero size changes through the switch rest on one card job (d3eebea0); the cap's own scale check on 16d915a67 (job f8b8cba5) gave the same result.
