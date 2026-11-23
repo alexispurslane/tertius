@@ -91,6 +91,8 @@ for spec in sys.argv[1:]:
             span.setdefault(int(line.split()[0]), float(line.split()[1]))
     for w, at, end, lev, pre in windows(event, k):
         series = lambda d, r: rows[name_of(event, k, d)][r]
+        # The switch film has 460 frames whatever k is, so a moved event's last window ends at the film's last frame.
+        end = next((d for d in range(at, end) if name_of(event, k, d) not in rows), end)
         counts, names = [], []
         for r in range(10):
             level = np.mean([series(d, r) for d in lev])
@@ -115,7 +117,7 @@ for spec in sys.argv[1:]:
                 boil[c].append(100 * np.abs(b[c][0] - (a[c][0] + n[c][0]) / 2).mean() / b[c][0].mean())
         gr = [np.mean([grain(crop_blocks(d)[c][1]) for c in GRAIN]) for d in range(at, at + 16)]
         bm = {c: np.mean(v) for c, v in boil.items()}
-        line = (f'{label} {w}: settle whole {fmt(whole)}, slowest region {fmt(slowest)} ('
+        line = (f'{label} {w}' + (f' (settle window {end - at} draws)' if end - at not in (100, 180) else '') + f': settle whole {fmt(whole)}, slowest region {fmt(slowest)} ('
                 + ' '.join(f'{n} {fmt(c)}' for n, c in zip(names[1:], regions)) + '); '
                 f'boil 1-59 {np.mean(list(bm.values())):.3f} % (' + ', '.join(f'{c} {v:.3f}' for c, v in bm.items()) +
                 f'); grain 0-15 {np.mean(gr):.2f} %')
