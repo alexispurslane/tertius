@@ -1,0 +1,55 @@
+--- gathers/shadows.glsl	2026-11-23 13:30:08
++++ shared-gathers/shadows.glsl	2026-11-23 13:51:36
+@@ -397,9 +397,13 @@
+ // (VulkanRenderer.HeldValuesCost). Nine gathers are the fewest reads. Each returns four comparisons, so the shader holds
+ // 36 values until the weights reduce them. Sixteen corner means are more reads of one value each. A driver that prices
+ // each read runs the gathers faster, and one that prices the held values runs the means faster (t2-gfq5).
++float tileLitFractionOf(TileLookup t);
+ float tileLitFraction(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float sinTheta)
+ {
+-    TileLookup t = tileLookupOf(light, position, L, d, geometricNormal, sinTheta);
++    return tileLitFractionOf(tileLookupOf(light, position, L, d, geometricNormal, sinTheta));
++}
++float tileLitFractionOf(TileLookup t)
++{
+     vec3 ndc = t.ndc;
+     vec2 first = t.first;
+     vec2 f = t.f;
+@@ -629,7 +633,7 @@
+ // the same footprint times 8, 2 that PCF in place of the moments, 3 w / 64, 4 one. mode: integer part 1 plain moments,
+ // c >= 2 exponential moments of exp(c z); fraction the cut b.
+ float probePyramidShare(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float sinTheta,
+-    out bool decided)
++    TileLookup t, out bool decided)
+ {
+     float v = frame.renderParams.w;
+     float form = 1.0;
+@@ -637,7 +641,6 @@
+     float debug = 0.0;
+     float mode = 92.0;
+     float outside = debug == 1.0 || debug == 3.0 || debug == 4.0 || debug == 5.0 ? 0.0 : 1.0;
+-    TileLookup t = tileLookupOf(light, position, L, d, geometricNormal, sinTheta);
+     uint view = light.shadow.y + (light.shadow.z > 1u ? cubeFaceOf(-L) : 0u);
+     GpuShadowTile tile = shadowTiles[view];
+     vec2 uv = t.ndc.xy * 0.5 + 0.5;
+@@ -764,17 +767,18 @@
+ 
+ float tileShadow(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float sinTheta)
+ {
++    TileLookup t = tileLookupOf(light, position, L, d, geometricNormal, sinTheta);
+     if (frame.renderParams.w >= 1.0)
+     {
+         bool decided;
+-        float share = probePyramidShare(light, position, L, d, geometricNormal, sinTheta, decided);
++        float share = probePyramidShare(light, position, L, d, geometricNormal, sinTheta, t, decided);
+         if (decided)
+             return share;
+         float debug = 0.0;
+         if (debug == 1.0 || debug == 3.0 || debug == 4.0 || debug == 5.0)
+             return 0.0;
+     }
+-    return tileLitFraction(light, position, L, d, geometricNormal, sinTheta);
++    return tileLitFractionOf(t);
+ }
+ 
+ #endif
