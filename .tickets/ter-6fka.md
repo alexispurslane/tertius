@@ -2,7 +2,7 @@
 id: ter-6fka
 status: open
 deps: [ter-8pco, ter-9t54, ter-yglw, t2b-xeo7, ter-pdw8]
-links: [ter-4iic, t2b-d2m6, t1-mybi, ter-13rm, ter-8pco, t0-gumm]
+links: [ter-4iic, t2b-d2m6, t1-mybi, ter-13rm, ter-8pco, t0-gumm, t58-rcd6]
 created: 2026-11-22T21:13:03Z
 type: feature
 priority: 1
