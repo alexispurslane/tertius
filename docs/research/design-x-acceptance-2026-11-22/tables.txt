@@ -623,12 +623,18 @@ deck: round, main ms, build ms, difference, clocks, loads
   t1  19.313  19.479  +0.166  unknown / unknown  4.95 / 5.30
   t2  19.263  19.479  +0.217  unknown / unknown  7.96 / 7.18
   t3  19.208  19.486  +0.278  unknown / unknown  9.29 / 7.11
-  median difference +0.217 ms, spread 0.113 ms, n 3
+  t4  19.340  19.523  +0.183  unknown / unknown  7.88 / 8.47
+  t5  19.283  19.506  +0.223  unknown / unknown  5.03 / 4.46
+  t6  19.262  19.467  +0.206  unknown / unknown  7.56 / 8.61
+  median difference +0.211 ms, spread 0.113 ms, n 6
 film: round, main ms, build ms, difference, clocks, loads
   t1  15.910  15.753  -0.157  unknown / unknown  5.32 / 6.00
   t2  15.854  15.711  -0.143  unknown / unknown  7.61 / 8.57
   t3  15.839  15.709  -0.130  unknown / unknown  7.73 / 6.06
-  median difference -0.143 ms, spread 0.027 ms, n 3
+  t4  15.969  15.840  -0.129  unknown / unknown  7.45 / 8.13
+  t5  15.892  15.733  -0.159  unknown / unknown  4.67 / 7.18
+  t6  15.866  15.679  -0.186  unknown / unknown  6.95 / 7.96
+  median difference -0.150 ms, spread 0.057 ms, n 6
 -- 13i. The card's render sizes and GPU spans through the fair switch on the merged code, job f8b8cba5 (dynscale.py, costchart.py)
 == cloud-final-16ms: 493 draws in the size log, 0 in the region log, sizes [(992, 558)] to [(1920, 1080)] (48 different)
 span                       draws  changes  longest  runs>=36         scale   tested    fires

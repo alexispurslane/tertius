@@ -36,7 +36,7 @@ Every take ran on this Mac (Apple M1 Max, MoltenVK) under `tools/gpu-lock.sh`, u
 | The wobble under the dynamic render scale | Equal: an engine fault on both sides, a little larger on X because X's scale moves more | `pics/wobble-switch-dynamic.png` | `c4c1f1f2f` | `57b4045ae` |
 | The cabin's window jambs | Equal: sunlight leaks onto them at some render sizes on both sides | `pics/jamb-*.png`, `pics/ramp-jambs-main-c4c1f1f2f.png` | `c4c1f1f2f` | `57b4045ae` |
 | The frame's GPU span after a lamp switch | **Worse**: a block of about +5 ms over main's top for 10 to 13 draws after each switch, against about +2.5 ms for 7 draws on M. A cost of Design X. The variants XB and XC remove it, and the cap of XB, built in `t0-zmjx`, leaves no draw more than 1 ms above the settled span on the merged code. | `pics/cost-switch-fair-23.png`, `pics/switch-cabin-fair-fixed-23-x-xb-xc.mp4` | `c4c1f1f2f` | `57b4045ae`, XB and XC as scratch patches on it |
-| The deck's GPU frame span | Cited: +0.254 ms (spread 0.145), within the +0.3 ms of point 13. T17 on the merged code: +0.217 ms (spread 0.113), see "Frame time". | none | `c4c1f1f2f`, T17 `3549d3283` | `57b4045ae`, T17 `bcece06cb` |
+| The deck's GPU frame span | Cited: +0.254 ms (spread 0.145), within the +0.3 ms of point 13. T17 on the merged code: +0.211 ms (spread 0.113, 6 rounds), see "Frame time". | none | `c4c1f1f2f`, T17 `3549d3283` | `57b4045ae`, T17 `bcece06cb` |
 | Screenshots of the real renderer (T19) | Equal: both clean. X's bay walls are a little brighter. | `pics/screenshot-rect-bay.png`, `pics/screenshot-rect-lamps.png` | `c4c1f1f2f` | `57b4045ae` |
 
 ## The takes where X is worse
@@ -65,7 +65,7 @@ The points are those of `docs/plans/bounce-light-confidence.md`, section 22. "Pa
 | 10. The named tests green in Checked and Release | Not taken here | Not taken here | The merge's gate (`t0-iido`). |
 | 11. Climb: band peak at most main's share (required), within 10 % (target) | Within 10 % | Pass, within 10 % | Band peak as a share of the same build's band with the filter off: M 1.012, X 0.984. |
 | 12. Census: no motion evidence, at most 10^−4 light evidence | Not applicable | Pass | rect-lamps, exit-cabin, docking-bay and station-cabin, 329 draws each, 4,737,600 block-draws per signal: 0 motion and 0 light evidence in both signals. |
-| 13. Frame time: at most +0.3 ms on the deck. The span after a switch is recorded | | Pass. The span after a switch is recorded. | Cited: +0.254 ms (spread 0.145), the remedy's paired rounds (`t0-acxm-region-evidence`). T17 on the merged code: +0.217 ms (spread 0.113), see "Frame time". |
+| 13. Frame time: at most +0.3 ms on the deck. The span after a switch is recorded | | Pass. The span after a switch is recorded. | Cited: +0.254 ms (spread 0.145), the remedy's paired rounds (`t0-acxm-region-evidence`). T17 on the merged code: +0.211 ms (spread 0.113, 6 rounds), see "Frame time". |
 | 14. Portability: no validation message on the Mac and on Linux, no new device feature, `-Werror` | Not taken here | Partly taken | T18 ran in part: shard 1 of 6 of the Checked Rendering tests on the card (Linux, RTX 2000 Ada), on the line's head `0e441286d`. One test failed, a narrow-box dimming test (ticket `tc-8142`). Its fix (`6d234dcef`) passed `AccumulatorRenderTests` with its nested classes on the card (144 tests, job `a8d320d8`). The other five shards, the validation messages and the Linux switch did not run. See "What was not measured". |
 
 ## The takes on the merged code
@@ -91,8 +91,8 @@ Every Mac take ran on 2026-11-22 between 21:05 and 22:56. The numbers are in `fi
 | The frame's GPU span after the cabin switch, fixed 2/3 | The block is gone: 0 draws more than 1 ms above the settled span after off and after on | | `16d915a67` | X about +5 ms for 10 to 13 draws |
 | Boil of the fair switch, floor / wall / ceiling, 0 to 60 draws after off | Equal to XB within 0.02 points: 0.25 / 0.26 / 0.27 % | | `16d915a67` | X 0.26 / 0.29 / 0.32 %, XB 0.26 / 0.27 / 0.29 % (residual measure) |
 | The card's scale through the switch, 16.67 ms (job `f8b8cba5`) | Holds: one render size, 1808 × 1017, from draw 83 to the end, with no change after off or on. The settled span (film frames 40 to 159, as on the Mac) is 17.55 ms. The peak in the 100 draws after off is 17.88 ms and after on 18.10 ms, and no draw lies more than 1 ms above the settled span. | | `16d915a67` | X 43 / 41 changes, largest fall 0.133 / 0.138 |
-| T17, the deck's GPU frame span | Pass: +0.217 ms (spread 0.113 ms, 3 paired rounds), within the +0.3 ms of point 13 | `3549d3283` | `bcece06cb` | Cited +0.254 ms |
-| T17, the film rect-bay's GPU frame span | XF faster: −0.143 ms (spread 0.027 ms) | `3549d3283` | `bcece06cb` | Not taken |
+| T17, the deck's GPU frame span | Pass: +0.211 ms (spread 0.113 ms, 6 paired rounds), within the +0.3 ms of point 13 | `3549d3283` | `bcece06cb` | Cited +0.254 ms |
+| T17, the film rect-bay's GPU frame span | XF faster: −0.150 ms (spread 0.057 ms) | `3549d3283` | `bcece06cb` | Not taken |
 
 The switch lamp-hall-16 changed with the probe's lamp switch. The earlier take kept the lamps' glow on (a change of light of −0.0996), and this take turns it off (−0.2537). So its rows do not compare with the earlier ones. The takes do not split XF's 12 extra draws after off between the cap and Design X. The fair cabin switch shows the cap's own share there: X 77 draws, XB 82, XF 82.
 
@@ -103,7 +103,7 @@ The settled span of the fair cabin switch on the Mac (the mean GPU span over fil
 | p1 | 15.30 ms | 15.60 ms | +0.30 ms |
 | p2 | 15.48 ms | 15.62 ms | +0.14 ms |
 
-Both sides carry the cap. So the rise of 0.14 to 0.30 ms belongs to the merge's other changes: main's commits from `c4c1f1f2f` to `3549d3283` (the back-face depth layer, the stored inverse depth, steps 1 and 2 of the wobble's fix), the line's commits after `57b4045ae`, or the fix of `tc-8142`. These runs do not split it further, and no MF run of the fair cabin switch's cost exists. T17 compares Design X with main on the same merged code, on the deck and the film rect-bay, not on the cabin switch. Its excess on the deck, +0.217 ms, is within the noise of the +0.254 ms cited before the merge. So Design X's excess over main on the deck did not grow measurably after the merge. The rise on the cabin switch stays unattributed. In all four paired runs, no draw lies more than 1 ms above the run's settled span after off or after on.
+Both sides carry the cap. So the rise of 0.14 to 0.30 ms belongs to the merge's other changes: main's commits from `c4c1f1f2f` to `3549d3283` (the back-face depth layer, the stored inverse depth, steps 1 and 2 of the wobble's fix), the line's commits after `57b4045ae`, or the fix of `tc-8142`. These runs do not split it further, and no MF run of the fair cabin switch's cost exists. T17 compares Design X with main on the same merged code, on the deck and the film rect-bay, not on the cabin switch. Its excess on the deck, +0.211 ms, is within the noise of the +0.254 ms cited before the merge. So Design X's excess over main on the deck did not grow measurably after the merge. The rise on the cabin switch stays unattributed. In all four paired runs, no draw lies more than 1 ms above the run's settled span after off or after on.
 
 ### The cabin ceiling's specks
 
@@ -353,16 +353,19 @@ The video of the choice: `pics/switch-cabin-fair-fixed-23-x-xb-xd.mp4`, panes X,
 Reading: XB and XC remove the block on the Mac. Neither changes the grain or the boil by more than 0.03 points. XB pays with a slower fade (+3 to +5 draws of settle and a visible lag of up to 14 % in the first draws). XC keeps X's settle and fade, and its boil is 0.01 to 0.02 points higher in the 60 draws after off. The user decides between the designs.
 ### Frame time (T17)
 
-T17 ran once, on the merged code (`timing.sh` with `MAIN=tm2 BUILD=tx2 OUT=t17f`, 22:29 to 22:34). Each round ran the deck (`scripts/temporal-upscale-timing.json`) and the film rect-bay on both sides under the exclusive GPU lock, at a one-minute load of 5.0 to 9.3. The order of the sides turned round each round. GPU frame span in ms, main `3549d3283` against `bcece06cb` (Design X with the cap, the fix of `tc-8142` and main's step 2):
+T17 ran on the merged code (`timing.sh` with `MAIN=tm2 BUILD=tx2 OUT=t17f`), rounds t1 to t3 from 22:29 to 22:34 and rounds t4 to t6 from 23:44 to 23:54. Each round ran the deck (`scripts/temporal-upscale-timing.json`) and the film rect-bay on both sides under the exclusive GPU lock, at one-minute loads of 4.5 to 9.3. The order of the sides turned round each round. GPU frame span in ms, main `3549d3283` against `bcece06cb` (Design X with the cap, the fix of `tc-8142` and main's step 2):
 
 | Round | Deck, main | Deck, X | Difference | Film, main | Film, X | Difference |
 |---|---:|---:|---:|---:|---:|---:|
 | t1 | 19.313 | 19.479 | +0.166 | 15.910 | 15.753 | −0.157 |
 | t2 | 19.263 | 19.479 | +0.217 | 15.854 | 15.711 | −0.143 |
 | t3 | 19.208 | 19.486 | +0.278 | 15.839 | 15.709 | −0.130 |
-| Median | | | +0.217 (spread 0.113) | | | −0.143 (spread 0.027) |
+| t4 | 19.340 | 19.523 | +0.183 | 15.969 | 15.840 | −0.129 |
+| t5 | 19.283 | 19.506 | +0.223 | 15.892 | 15.733 | −0.159 |
+| t6 | 19.262 | 19.467 | +0.206 | 15.866 | 15.679 | −0.186 |
+| Median | | | +0.211 (spread 0.113) | | | −0.150 (spread 0.057) |
 
-The deck passes point 13's +0.3 ms. Each round got the lock at a one-minute load under 8, as this record's rule asks, but the load rose to 9.3 during round t3, so these rounds do not keep the rule's load to their end. Round t3 has both the highest load and the largest deck difference. The GPU clock is unknown in every run, because the calibration tool `gpu-clock` is not built in this checkout. The first queue's rounds ran before the builds existed and measured nothing. Their empty folders were deleted.
+The deck passes point 13's +0.3 ms. Each round got the lock at a one-minute load under 8, as this record's rule asks, but the load rose to 9.3 during round t3, which has the largest deck difference. Rounds t4 to t6 ran after the reviewer found this. Round t5 ran at the lowest load, 4.5 to 5.0, and gives +0.223 ms, so the median does not rest on the loaded round. The GPU clock is unknown in every run, because the calibration tool `gpu-clock` is not built in this checkout. The first queue's rounds ran before the builds existed and measured nothing. Their empty folders were deleted.
 
 ## The remedy under the dynamic render scale
 
