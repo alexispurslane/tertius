@@ -2,7 +2,7 @@
 id: t0-3vwx
 status: closed
 deps: []
-links: []
+links: [t0-r1ow]
 created: 2026-11-22T19:45:41Z
 type: task
 priority: 2
