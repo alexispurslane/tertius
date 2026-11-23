@@ -2,7 +2,7 @@
 id: ter-pdw8
 status: closed
 deps: []
-links: [t1-g1jd]
+links: [t1-g1jd, t1-wl7c]
 created: 2026-11-23T02:54:52Z
 type: task
 priority: 1
