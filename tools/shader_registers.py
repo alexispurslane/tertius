@@ -70,12 +70,20 @@ STEP_COST = ("from register 116 the M1 keeps 384 threads of the shader resident 
 # The guard warns when a shader has fewer registers of room than this: one more value at the peak crosses the step.
 ROOM_WARNING = 2
 
+# The files, from the repository root, that change every guarded shader's code without being in an include closure: this
+# tool's own compile settings and the dev shell's MoltenVK, whose SPIRV-Cross writes the Metal source both for the count
+# and for the game (native/moltenvk.nix and its patches), and the flake's lock, which pins glslc, spirv-opt and MoltenVK.
+# A staged path among them, or one that starts with native/moltenvk, asks for a count of every guarded shader. Xcode's
+# metal-tt lies outside the repository, so no commit can change it.
+COUNT_INPUTS = ("tools/shader_registers.py", "flake.lock")
+COUNT_INPUT_PREFIX = "native/moltenvk"
+
 
 @dataclass(frozen=True)
 class Guarded:
     """A shader of the direct pass whose registers the tool reads: the file, its pipeline's color formats, the highest
-    register that it may reach, and, when its lack of room is known and accepted, the words that say so in the guard's
-    warning."""
+    register that it may reach, and, when its lack of room at that limit is known and accepted, the words that say so in
+    the guard's warning."""
     name: str
     formats: tuple
     limit: int
@@ -139,16 +147,18 @@ def include_closure(folder, shader):
 
 def guarded_shaders_touched(staged, folder, shaders):
     """The names of `shaders` (files of `folder`, the shader folder) whose include closure holds one of the `staged`
-    paths, which are relative to the repository root."""
+    paths, which are relative to the repository root. A staged input of the count itself asks for all of them."""
+    if any(p in COUNT_INPUTS or p.startswith(COUNT_INPUT_PREFIX) for p in staged):
+        return list(shaders)
     names = {PurePosixPath(p).name for p in staged if PurePosixPath(p).parent == SHADER_FOLDER}
     return [shader for shader in shaders if include_closure(folder, shader) & names]
 
 
-def verdict_of(shader, register):
-    """The guard's result for `shader` at its highest register `register`: a pass with the room under the limit, and a
-    warning when the room is under ROOM_WARNING, or a fail above the limit."""
-    guarded = next(s for s in SHADERS if s.name == shader)
-    limit = guarded.limit
+def verdict_of(guarded, register):
+    """The guard's result for the Guarded shader `guarded` at its highest register `register`: a pass with the room
+    under the limit, and a warning when the room is under ROOM_WARNING, or a fail above the limit. The warning names the
+    shader's known lack of room only at the register of that known state, the limit."""
+    shader, limit = guarded.name, guarded.limit
     if register > limit:
         return Verdict(f"fail: {shader} is at register {register}, above its limit of {limit}: {STEP_COST}.", FAIL)
     room = limit - register
@@ -156,8 +166,8 @@ def verdict_of(shader, register):
     if room < ROOM_WARNING:
         text += (f". warning: less than {ROOM_WARNING} registers of room, so one more value at the shader's peak can "
                  f"cross the limit")
-        if guarded.known_low_room:
-            text += f"; this is {guarded.known_low_room}"
+        if guarded.known_low_room and register == limit:
+            text += f". This is {guarded.known_low_room}"
     return Verdict(text + ".", PASS)
 
 
@@ -168,7 +178,7 @@ def applicability(metal_tt, decoder):
         return Verdict("does not apply: Xcode's Metal toolchain (metal-tt) is absent, so the M1's registers cannot be "
                        "counted on this machine.", NOT_APPLICABLE)
     if decoder is None:
-        return Verdict("does not apply: the applegpu decoder is absent (APPLEGPU names no folder with applegpu.py; the "
+        return Verdict("does not apply: the applegpu decoder is absent (APPLEGPU names no folder with applegpu.py, and the "
                        "dev shell sets it).", NOT_APPLICABLE)
     return None
 
@@ -327,10 +337,10 @@ def guard(argv):
         return absent.exit_code
     started = time.monotonic()
     count = counter(import_decoder(decoder_folder()), folder, out)
-    verdicts = [verdict_of(shader.name, count(shader)[0]) for shader in SHADERS if shader.name in touched]
+    verdicts = [verdict_of(shader, count(shader)[0]) for shader in SHADERS if shader.name in touched]
     for verdict in verdicts:
         print(f"register guard: {verdict.text}")
-    print(f"register guard: counted {len(verdicts)} shader(s) in {time.monotonic() - started:.0f} s; the disassembly "
+    print(f"register guard: counted {len(verdicts)} shader(s) in {time.monotonic() - started:.0f} s. The disassembly "
           f"is in {out}.")
     return max(v.exit_code for v in verdicts)
 

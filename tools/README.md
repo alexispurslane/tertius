@@ -1165,7 +1165,8 @@ The tool owns everything that the guard knows. Its table `SHADERS` names each gu
 both direct shaders, the M1's step. It computes each guarded shader's include closure from the `#include` lines of the
 shader folder as git's index holds it, so it judges what the commit holds, and a change to any file of a closure,
 through any depth of includes, asks for a count. A staged path outside every closure asks for none, and the guard
-compiles nothing. It prints one result per shader that it counts, each in words with its own exit code:
+compiles nothing. It prints one result per shader that it counts, each in words with its own exit code (the run's code
+is the worst of them):
 
 | Result | Exit code | What it prints | The commit |
 |---|---|---|---|
@@ -1173,8 +1174,13 @@ compiles nothing. It prints one result per shader that it counts, each in words 
 | fail | 1 | The register, the limit, and what a register above it costs: 384 resident threads in place of 448, 0.10 to 0.36 ms of the direct pass in every view. | stops |
 | does not apply | 3 | The reason: no staged file is in a guarded shader's include closure; or Xcode's Metal toolchain (`metal-tt`) is absent, as on Linux and on the cloud workers; or the decoder is absent. Never a pass. | goes on |
 
-An error of the tool itself, such as a shader that does not compile, exits with 2, and the hook stops the commit too,
-because the guard cannot say that the count passes. When the guard must count and runs outside the dev shell, it runs
+An error of the tool itself, such as a shader that does not compile, exits with 2. The hook lets a commit go on only on a
+pass or "does not apply", so an error, or any other exit such as a missing `python3`, stops the commit too, because then
+no count passed. The hook passes a renamed file as its old and its new path, so renaming an included file asks for a
+count. Besides the include closures, the tool's `COUNT_INPUTS` name the files that change every guarded shader's code:
+the tool itself, the flake's lock, and the dev shell's MoltenVK (`native/moltenvk*`), whose SPIRV-Cross writes the Metal
+source for the count and for the game. A staged one asks for a count of every guarded shader. Xcode's `metal-tt` lies
+outside the repository, so an update of Xcode can move a register with no commit; a count after such an update shows it. When the guard must count and runs outside the dev shell, it runs
 itself again inside it, since the count needs the dev shell's tools. A count of both shaders takes 8 to 14 seconds on
 the M1 Max. The out folder of the hook's guard is `register-guard` in the worktree's git folder, and it keeps each
 counted shader's Metal source and disassembly (`<shader>.disasm`). `git commit --no-verify` skips the guard with the rest
@@ -1533,7 +1539,7 @@ The folder `.githooks/` holds three git hooks. At its start, the dev shell sets 
 
 ### Before a commit
 
-The pre-commit hook runs on every commit. Its first step, the register guard of the direct shaders, runs on every commit and needs only git and a `python3`: it passes every staged path to `tools/shader_registers.py guard`, and a fail or an error of the guard stops the commit ("The registers of the direct shaders" below). The other steps run on every commit that stages C# files or projects. A commit with no such file, such as a ticket note, skips them. The hook changes no file in the working tree. Those steps do four things:
+The pre-commit hook runs on every commit. Its first step, the register guard of the direct shaders, runs on every commit and needs only git and a `python3`: it passes every staged path to `tools/shader_registers.py guard`, and every result but a pass and "does not apply" stops the commit ("The registers of the direct shaders" above). The other steps run on every commit that stages C# files or projects. A commit with no such file, such as a ticket note, skips them. The hook changes no file in the working tree. Those steps do four things:
 
 1. It builds the projects that the commit changes and the test projects that test them, incrementally. The build runs every analyzer, and an error stops the commit.
 2. It runs the tests of the changed code in Checked, one process per test project, in parallel. A failed test stops the commit, after the length part of the commit report (step 4). The hook skips a test project that has a test record for the staged code ("The test record" below).

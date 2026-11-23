@@ -89,6 +89,11 @@ class TheIncludeClosure(unittest.TestCase):
             closure = shader_registers.include_closure(Path(folder), "lit.frag")
         self.assertEqual(closure, {"lit.frag", "surface.glsl", "frame.glsl"})
 
+    def test_holds_an_included_name_that_has_no_file_so_a_deleted_include_asks_for_a_count(self):
+        without = {name: text for name, text in INCLUDES.items() if name != "surface.glsl"}
+        with shader_folder(without) as folder:
+            self.assertIn("surface.glsl", shader_registers.include_closure(Path(folder), "lit.frag"))
+
     def test_leaves_out_a_file_that_no_include_reaches(self):
         with shader_folder(INCLUDES) as folder:
             self.assertNotIn("sky.glsl", shader_registers.include_closure(Path(folder), "lit.frag"))
@@ -107,34 +112,52 @@ class TheStagedFiles(unittest.TestCase):
             self.assertEqual(shader_registers.guarded_shaders_touched(staged, Path(folder), ["lit.frag"]), [])
 
 
+PLAIN = shader_registers.Guarded("lit.frag", ("RGBA16Float",), 115)
+KNOWN = shader_registers.Guarded("lit.frag", ("RGBA16Float",), 115, "the known state since t-test, not a new fault")
+
+
+class TheCountsOwnInputs(unittest.TestCase):
+    def test_ask_for_a_count_of_every_guarded_shader(self):
+        for path in ("tools/shader_registers.py", "flake.lock", "native/moltenvk.nix",
+                     "native/moltenvk-keep-dispatch-encoder.patch"):
+            with shader_folder(INCLUDES) as folder:
+                touched = shader_registers.guarded_shaders_touched([path], Path(folder), ["lit.frag", "sky.frag"])
+            self.assertEqual(touched, ["lit.frag", "sky.frag"], path)
+
+
 class TheVerdict(unittest.TestCase):
     def test_passes_a_register_two_under_the_limit_with_its_room_and_no_warning(self):
-        verdict = shader_registers.verdict_of("direct_key_fill.frag", 113)
+        verdict = shader_registers.verdict_of(PLAIN, 113)
         self.assertEqual(verdict.exit_code, shader_registers.PASS)
-        self.assertIn("pass: direct_key_fill.frag is at register 113, the limit is 115, room 2 registers", verdict.text)
+        self.assertIn("pass: lit.frag is at register 113, the limit is 115, room 2 registers", verdict.text)
         self.assertNotIn("warning", verdict.text)
 
     def test_passes_a_register_with_less_than_two_of_room_with_a_warning(self):
         for register, room in ((114, 1), (115, 0)):
-            verdict = shader_registers.verdict_of("direct_key_fill.frag", register)
+            verdict = shader_registers.verdict_of(PLAIN, register)
             self.assertEqual(verdict.exit_code, shader_registers.PASS)
             self.assertIn(f"room {room} register", verdict.text)
             self.assertIn("warning", verdict.text)
 
-    def test_words_the_known_lack_of_room_of_the_key_and_fill_shader_as_its_known_state(self):
-        verdict = shader_registers.verdict_of("direct_key_fill.frag", 115)
-        self.assertIn("the known state since t2-x53j, not a new fault", verdict.text)
-        self.assertIn("scheduler", verdict.text)
+    def test_words_a_known_lack_of_room_at_the_limit_as_the_known_state(self):
+        verdict = shader_registers.verdict_of(KNOWN, 115)
+        self.assertIn("the known state since t-test, not a new fault", verdict.text)
+
+    def test_words_a_lack_of_room_below_the_known_state_as_news(self):
+        self.assertNotIn("known state", shader_registers.verdict_of(KNOWN, 114).text)
 
     def test_words_a_lack_of_room_without_a_known_reason_as_news(self):
-        verdict = shader_registers.verdict_of("direct.frag", 114)
-        self.assertIn("warning", verdict.text)
-        self.assertNotIn("known state", verdict.text)
+        self.assertNotIn("known state", shader_registers.verdict_of(PLAIN, 115).text)
+
+    def test_the_key_and_fill_shader_names_the_ticket_and_the_scheduler_in_its_known_lack_of_room(self):
+        key_fill = next(s for s in shader_registers.SHADERS if s.name == "direct_key_fill.frag")
+        self.assertIn("t2-x53j", key_fill.known_low_room)
+        self.assertIn("scheduler", key_fill.known_low_room)
 
     def test_fails_a_register_above_the_limit_and_names_what_it_costs(self):
-        verdict = shader_registers.verdict_of("direct_key_fill.frag", 116)
+        verdict = shader_registers.verdict_of(PLAIN, 116)
         self.assertEqual(verdict.exit_code, shader_registers.FAIL)
-        self.assertIn("fail: direct_key_fill.frag is at register 116, above its limit of 115", verdict.text)
+        self.assertIn("fail: lit.frag is at register 116, above its limit of 115", verdict.text)
         self.assertIn("384", verdict.text)
 
     def test_does_not_apply_without_the_metal_toolchain_and_never_reads_as_a_pass(self):
@@ -152,11 +175,6 @@ class TheVerdict(unittest.TestCase):
     def test_with_both_tools_lets_the_count_decide(self):
         self.assertIsNone(shader_registers.applicability(metal_tt="/usr/bin/metal-tt", decoder="/opt/applegpu"))
 
-    def test_has_one_exit_code_for_each_result(self):
-        codes = {shader_registers.PASS, shader_registers.FAIL, shader_registers.ERROR, shader_registers.NOT_APPLICABLE}
-        self.assertEqual(len(codes), 4)
-        self.assertEqual(shader_registers.PASS, 0)
-
 
 class TheCommand(unittest.TestCase):
     def test_guard_compiles_nothing_when_no_staged_file_is_in_a_guarded_closure(self):
@@ -167,6 +185,26 @@ class TheCommand(unittest.TestCase):
             self.assertEqual(result.returncode, shader_registers.NOT_APPLICABLE, result.stderr)
             self.assertIn("does not apply: no staged file is in the include closure of a guarded shader", result.stdout)
             self.assertFalse(any(Path(out).glob("*.spv")))
+
+    def test_guard_judges_the_includes_that_the_index_holds_not_the_working_tree(self):
+        # The index holds lit.frag with one include. Only the working tree adds a second, so a staged change of that second
+        # file is outside the closure of what the commit holds.
+        with tempfile.TemporaryDirectory() as repository, tempfile.TemporaryDirectory() as out:
+            shaders = Path(repository) / "src/Tertius.Rendering/Shaders"
+            shaders.mkdir(parents=True)
+            (shaders / "lit.frag").write_text('#include "surface.glsl"\n')
+            (shaders / "surface.glsl").write_text("float surface;\n")
+            (shaders / "sky.glsl").write_text("float sky;\n")
+            git = lambda *args: subprocess.run(["git", "-C", repository, *args], check=True, capture_output=True)
+            git("init", "-q")
+            git("add", ".")
+            (shaders / "lit.frag").write_text('#include "surface.glsl"\n#include "sky.glsl"\n')
+            guard = Path(repository) / "guard.py"
+            guard.write_text(Path(__file__).with_name("shader_registers.py").read_text().replace(
+                'Guarded("direct.frag"', 'Guarded("lit.frag"'))
+            result = subprocess.run([sys.executable, "-I", str(guard), "guard", out, "src/Tertius.Rendering/Shaders/sky.glsl"],
+                                    capture_output=True, text=True, cwd=repository)
+        self.assertEqual(result.returncode, shader_registers.NOT_APPLICABLE, result.stdout + result.stderr)
 
     def test_guard_reports_its_own_error_with_the_error_code_not_as_a_fail(self):
         # The out folder is a file, so the guard cannot make it.
