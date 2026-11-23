@@ -1,0 +1,41 @@
+{
+ "scene": "earth-system",
+ "window": {
+  "width": 1920,
+  "height": 1080
+ },
+ "steps": [
+  {
+   "do": "camera",
+   "entity": "sun-near"
+  },
+  {
+   "do": "camera",
+   "entity": "sun-from-earth"
+  },
+  {
+   "do": "camera",
+   "entity": "earth-moon"
+  },
+  {
+   "do": "camera",
+   "entity": "station-view"
+  },
+  {
+   "do": "camera",
+   "entity": "pad-view"
+  },
+  {
+   "do": "capture",
+   "name": "a"
+  },
+  {
+   "do": "capture",
+   "name": "b"
+  },
+  {
+   "do": "capture",
+   "name": "c"
+  }
+ ]
+}

@@ -2,7 +2,7 @@
 id: t1-af5w
 status: in_progress
 deps: [t8-rjno]
-links: []
+links: [t58-7645]
 created: 2026-11-15T16:12:21Z
 type: task
 priority: 4
@@ -153,3 +153,7 @@ The orchestrator's points (2026-11-23): 1. The sun gets no design of its own unl
 One fact for candidate three, from key_fill.glsl: a tile of 16 pixels lists up to 16 lights (TileEntries), and each pixel looks up a shadow for each listed light. So a blur of the lights' shares in screen space needs a share per listed light per pixel, not one image.
 
 The lead now adds four counts to the measure: the sun's possible gain at contact, the lamps whose emitter is wide enough to matter with the cost of one more tile and one more lookup, what separates a self-shadowed receiver from a true contact edge, and which fields of GpuLight hold an emitter's extent.
+
+**2026-11-23T17:00:55Z**
+
+Step 1's measure (no engine change) is on the branch t1-af5w-shadow-softness: docs/research/t1-af5w-shadow-softness/README.md. It gives, per view and light, the gap, the true width and the rendered width; the GpuLight fields that hold the emitter's extent; how well TileLookup.bounds.y gives the gap (within 20 % of the blockers' mean at 88 % of the lamps' edge pixels); the register counts of three candidates; stills and 1:1 crops; and the line orchestrator's four additions. The sun's least ramp after design L is not measured, so its gain at contact is at most about 3 cm. No reading separates a self-shadow from a contact edge at gaps under 5 cm. The far cascades' ramp in mars-day is ticket t58-7645.
