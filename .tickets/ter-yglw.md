@@ -1,6 +1,6 @@
 ---
 id: ter-yglw
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-11-22T21:13:04Z
@@ -28,3 +28,7 @@ GPU time per face on the Mac and on the RTX 2000 Ada at both sizes, at least two
 **2026-11-23T02:56:25Z**
 
 2026-11-22, the line orchestrator. Paused a few minutes after its launch: the orchestrator put ter-pdw8 ahead of it on the same lead. It follows after ter-pdw8 with the same brief.
+
+**2026-11-23T06:21:09Z**
+
+2026-11-23, the line orchestrator. Started again after ter-pdw8 closed, as a new continuation of the same lead, from main's head after Design X (65a24d189). Child thread: thread:delegated-task:command%3Amcp%3A49b05ffc-1378-4e84-92ef-b16c94dc7acb%3Adelegate-task%3Aslabs-4-ter-qt72-lead-1. taskId: node:delegated-task:command%3Amcp%3A971cdc95-fc79-4b4a-85b5-3a44eebfa7a8%3Athread-send%3Aslabs-4-continue-ter-yglw-face-cost-2. clientRequestId: slabs-4-continue-ter-yglw-face-cost-2. Target: claudeAgent, claude-opus-5-5, effort high. Worktree /Users/alexispurslane/.t3/worktrees/tertius/t3-1f553e45-00934a8d076a004a, branch t3/fix-projection-aspect-wobble. The brief's definitions are unchanged: the face cost, the cull by a bounding sphere below one texel, and the four variants. Added: the count of objects that the cull removes, the cost per draw of 216 faces within 60 draws per variant on both machines, and the part of a face's cost that does not shrink with its size. The probe never enters src; with the disk under 30 GiB free it is an uncommitted change in the lead's worktree, reverted before the final report. Cloud money: 0.20 dollars.
