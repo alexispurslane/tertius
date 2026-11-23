@@ -58,7 +58,13 @@ edit('src/Tertius.Rendering/Scene/SceneBatcher.cs',
                 probeCulled++;
                 continue;
             }
-            int mask = DepthRanges.OpaqueMask(Vector3.Dot(instance.Position, basis.Forward), instance.Radius);
+            if (FaceProbe.LeavesOut(instance.Mesh, instance.Map, map))
+                continue;
+            int mask = FaceProbe.Reach(
+                DepthRanges.OpaqueMask(Vector3.Dot(instance.Position, basis.Forward), instance.Radius),
+                instance.Position,
+                instance.Radius
+            );
             probeKept++;
             probeTriangles += meshes[instance.Mesh].IndexCount / 3 * BitOperations.PopCount((uint)mask);
 """)
@@ -93,6 +99,43 @@ edit('src/Tertius.Host/ScriptCommand.cs',
 """,
      """                    readings.Add(renderer.LastFrameStats);
                     FrameTimeProbe.Write(renderer.LastFrameStats); // PROBE (ter-yglw)
+""")
+# t1-6tn2: the parts of a face's work (FaceProbe.cs, TERTIUS_PROBE_FACE_PARTS).
+edit('src/Tertius.Rendering/Passes/EnvironmentPrefilterPass.cs',
+     """        for (int dispatch = 0; dispatch < PrefilterLevels.Dispatches(map.Levels); dispatch++)
+            DispatchLevels(""",
+     """        for (int dispatch = 0; dispatch < (FaceProbe.SkipsSpecular(count) ? 0 : PrefilterLevels.Dispatches(map.Levels)); dispatch++) // PROBE (t1-6tn2)
+            DispatchLevels(""")
+edit('src/Tertius.Rendering/Scene/SceneBatcher.cs',
+     """        ReadOnlySpan<PreparedInstance> instances = scene.PlacedSpan;
+        for (int map = 0; map < faces.Length; map++)
+""",
+     """        ReadOnlySpan<PreparedInstance> instances = FaceProbe.ForFaces(scene.PlacedSpan); // PROBE (t1-6tn2)
+        for (int map = 0; map < faces.Length; map++)
+""")
+edit('src/Tertius.Rendering/VulkanRenderer.cs',
+     """        return uploads.AddMesh(mesh);
+""",
+     """        MeshId id = uploads.AddMesh(mesh);
+        FaceProbe.MeshCreated(id, mesh, uploads.AddMesh); // PROBE (t1-6tn2)
+        return id;
+""")
+edit('src/Tertius.Rendering/Passes/EnvironmentPrefilterPass.cs',
+     """        if (anyDrawn)
+        {
+            RecordMips(""",
+     """        if (anyDrawn && !FaceProbe.SkipsPrefilter(scene.EnvironmentFaces.Count, scene.MapCount)) // PROBE (t1-6tn2)
+        {
+            RecordMips(""")
+edit('src/Tertius.Rendering/Passes/EnvironmentPrefilterPass.cs',
+     """        vk.CmdDispatch(
+            commandBuffer: commandBuffer,
+            groupCountX: count * IrradianceCube.WorkgroupsPerFace,
+""",
+     """        if (!FaceProbe.SkipsIrradiance(count)) // PROBE (t1-6tn2)
+        vk.CmdDispatch(
+            commandBuffer: commandBuffer,
+            groupCountX: count * IrradianceCube.WorkgroupsPerFace,
 """)
 shutil.copy(os.path.join(here, 'FaceProbe.cs'), os.path.join(root, 'src/Tertius.Rendering/Scene/FaceProbe.cs'))
 shutil.copy(os.path.join(here, 'FrameTimeProbe.cs'), os.path.join(root, 'src/Tertius.Host/FrameTimeProbe.cs'))
