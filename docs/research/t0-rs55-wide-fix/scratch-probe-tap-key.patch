@@ -1,0 +1,28 @@
+SCRATCH patch of t0-rs55, never commit to src: a cost probe, not a fix. It applies on the wide fix's commit b63a96f67. The fix of short histories tests each tap's surface once and lets the answer stand for the tap's three block mates, so it reads 9 surface keys in place of up to 36 and the same 36 scratch texels: the split of the wide fix's extra cost between the reads of the scratch image and the surface tests (builds.sh, m2v). Its pictures are wrong where a block holds two surfaces.
+
+--- a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp	2026-11-23 01:56:33
++++ b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp	2026-11-23 01:56:33
+@@ -138,8 +138,22 @@
+                 if (spacing == 1)
+                     addToFix(fix, tap, pixel, key);
+                 else
++                {
++                    // SCRATCH (t0-rs55, scratch-probe-tap-key.patch): the tap's surface test stands for its block mates' (a
++                    // cost probe only; wrong where a block holds two surfaces).
++                    bool tapSame = insideImages(tap) && sameSurface(key, surfaceKeyAt(tap));
+                     for (uint corner = 0u; corner < TraceBlockPixels; corner++)
+-                        addToFix(fix, traceBlockPixel(traceBlockOf(tap), corner), pixel, key);
++                    {
++                        ivec2 neighbor = traceBlockPixel(traceBlockOf(tap), corner);
++                        if (!tapSame || neighbor == pixel || !insideImages(neighbor))
++                            continue;
++                        vec4 other = imageLoad(scratch, neighbor);
++                        fix.light += other.rgb * other.a;
++                        fix.weight += other.a;
++                        if (reflectionSharingPrototype && parameters.light == SpecularLight)
++                            fix.guide += imageLoad(reflectionGuideScratch, neighbor).rg * other.a;
++                    }
++                }
+             }
+         slow = fix.light / fix.weight;
+         guide = fix.guide / fix.weight;
