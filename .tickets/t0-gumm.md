@@ -145,3 +145,18 @@ My reading: 1/32 for 32 draws is 1 catch-up ray per restarted pixel, against 8 t
 **2026-11-23T01:51:07Z**
 
 The card's first-run fact (t1-80jd), 2026-11-22: no measured run of the two card jobs was first in its job, because cardrun.sh discards one run of every build at the start. Ordered (my answer 84): one more job with two runs each of today's cliff, the cap, and 1/16 and 1/32 with and without the cap, on the lamp switch and the cut, because the difference between 1/16 and 1/32 is a few size steps and '1/32 holds' rests on one run. If the two runs of 1/32 differ as much as 1/16 differs from 1/32, the table names the range and not one value. The spread's decision waits for this job.
+
+**2026-11-23T02:05:08Z**
+
+Early result 5 from the combined check's lead, 2026-11-22 (pics/card-scale-shapes3-zoom.png). Card job 3 (shapes3, $0.0898; one discarded run of every build, then each code once, then each code again); the ticket's cloud spend $0.2286. Scale changes and largest fall, run 1 / run 2, off; on; cut:
+- Today (1, 8, 0): 54, 0.151 / 53, 0.156; 53, 0.154 / 53, 0.154; 56, 0.139 / 56, 0.144.
+- A, the cap: 0 / 0; 0 / 1, 0.004; 56, 0.141 / 56, 0.140.
+- B16: 2, 0.009 / 8, 0.013; 10, 0.009 / 11, 0.013; 4, 0.003 / 8, 0.006.
+- B32: 0 / 0; 4, 0.013 / 1, 0.004; 3, rises only / 3, rises only.
+- C16: 3, 0.010 / 1, 0.005; 12, 0.013 / 8, 0.009; 10, 0.011 / 8, 0.006.
+- C32: 0 / 0; 1, 0.004 / 0; 4, 0.002 / 3, rises only.
+One change of about 0.004 is the card's noise (the cap's run 2 after on; C32's run 1 in the idle span). The card tells 1/16 from 1/32: every run of 1/16 moves the scale after off and no run of 1/32 does; the one overlap is B32's run 1 after on. So 1/32 stands; B32 sits at the limit and C32 stays inside the noise.
+
+The films' size jobs (t0-3vwx, commit 6ae9b670c) had no warm-up; both ran walk m (the job's first run), walk x, switch m, switch x. Main's walk rested at 1.000 in take A and 0.956 in the final take, first in both, so the order alone does not explain it. The verdicts compare spans inside one run and stand.
+
+The lead's three-pane videos (pics/switch-three.mp4, start-three.mp4, cut-three.mp4, commit a56713d0b) are 2880 x 540 at 30 fps by my ffprobe and do not meet the line's video rules. Sent back: 60 fps, one draw per frame, 1280 x 720 per pane at least, each code on its own card scale log, panes A | today's cliff | the best spread shape. Not passed up. The disk has 21 GiB free, under the floor of 22; the region take waits.
