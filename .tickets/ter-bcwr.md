@@ -1,6 +1,6 @@
 ---
 id: ter-bcwr
-status: open
+status: in_progress
 deps: []
 links: [t1-zeyk, ter-4iic]
 created: 2026-11-23T04:35:54Z
@@ -50,3 +50,13 @@ On the card, after a camera cut and after a start, the render scale is back with
 **2026-11-23T05:01:01Z**
 
 2026-11-23, orchestrator. The catch-up length is settled at 8 draws: run 91 of t0-gumm (own rays only in draws 3 to 7) keeps 87 to 94 % of the grain gain but only 36 % of the boil gain on narrow surfaces, and with the 36-tap fix of short histories (t0-rs55 on the Design X line) the rays of draws 0 to 2 buy grain again. That fix adds up to 27 texture reads per young pixel in draws 1 and 2, inside the dip of this ticket, so its measured cost belongs in this ticket's comparison.
+
+**2026-11-23T10:45:48Z**
+
+2026-11-23, 05:45 New York time, line orchestrator of the Design X line. The ticket starts on the line's freed slot (the register guard t2-x53j is merged). Its lead is the lead of the catch-up ray experiment and of the wide fix, in its worktree t3-52bfcd29-81249085ce80dd9f, branch ter-bcwr-announced-dip from 852556185. Both conditions of the first note hold: Design X is on main, and the catch-up length is 8 draws.
+
+My decisions for the build (answer 99, reported to the orchestrator, who can reverse them):
+1. The build is design 1, two fitted models, the orchestrator's lean. Design 2 is built only if design 1 fails its acceptance, because its factor is a tuned constant that depends on the scene and the card.
+2. The wide fix (t0-rs55) was not merged, so its cost is not in this ticket's comparison.
+3. The acceptance's "after a start" and the design's "the first reset of a run has no catch-up model yet and behaves as today" disagree. The camera cut after a fitted model is the case that the acceptance holds the build to. The lead measures the start too and reports it. A seed for the first reset is a fork, not a part of this build.
+4. Card money for this ticket: at most $1.00, through tools/runpod/gpu_job.py only. The line then stands at no more than $3.55 of $5.00.
