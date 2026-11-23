@@ -294,4 +294,5 @@ The switch film (the fair lamp switch of the cabin, the lamps off at draw 193 an
 - `cardscale-<job>.txt`: the output of `tools/cardscale.py` per card job.
 - `tools/` (each script says what it does in its first lines): `builds.sh`, `ownrays.py`, `histmap.py`, `card.sh` and `cardrun.sh` (the card's job), `cardscale.py` (the card's scale per event), `threepane.py` (the previews), `macrun.sh` (a Mac run of an event), `queue-mac2.sh`, `queue-mac3.sh`, `queue-mac5.sh` and `queue-mac6.sh` (the Mac's queues), `compact.sh` (packs and measures the finished runs), `events.py` (the settle, boil and grain per event), `spans.py` (the Mac's GPU spans), `videos.py` (the final videos).
 - `videos.txt`: the final videos' scale ranges and frame checks. `videos-events.txt`: the measures of the video runs under the card's scale.
+- Commit `6b1e3deb9`, tagged `t0-3vwx`, also added `scratch-no-region-evidence.patch` and changed `tools/builds.sh` here, for the region take of `t0-qvm1`.
 - The cloud spend of the three card jobs: $0.0542 + $0.0846 + $0.0898 = $0.2286, of the $1.50 allowed.

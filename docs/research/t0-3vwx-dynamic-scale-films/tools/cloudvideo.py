@@ -5,7 +5,9 @@
 # go off at frame 160, 200 draws off, and 100 draws after they come on at 360). The encoding is H.264 yuv420p (BT.709),
 # scaled with Lanczos to 1280 x 720. A job returns at most 8 MB in base64, about 6 MB of files, and one side's frames at
 # 1920 x 1080 take 13 to 24 MB even at CRF 6. So the side is encoded at CRF 8, and again at CRF 9, 10, 12 and 14 until it
-# fits in BUDGET bytes. The means: per frame, the display-linear luminance of the 3 x 3 regions of the full-size source
+# fits in BUDGET bytes, and the last try is kept even if it does not fit. CRF 14 breaks the line's video rule (CRF 12 or
+# lower), so a side encoded above CRF 12 serves a preview only. The final films do not use this script: sidevideo.py of
+# the acceptance record made them from the Mac's frames. The means: per frame, the display-linear luminance of the 3 x 3 regions of the full-size source
 # frame, so that the Mac can check the composed video against the source.
 import json
 import os
