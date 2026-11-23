@@ -299,3 +299,9 @@ Ordered from the lead after this part (my settlement, for the orchestrator to re
 1. The exact count at a share of 0.125 on the wall beside the stripe, the right wall and the nose's box, with the replay's row at 0.125 for all five surfaces. This is the orchestrator's condition 4: 0.125 before any change of the ramp.
 2. A clamp-off pair of the bay's right wall, main against the exact count, to say whether the 1.5 % is the clamp's loss or a bias.
 3. Part 4 gets a column with the exact count at 0.125 beside the one at 0.25.
+
+**2026-11-23T22:01:41Z**
+
+Orchestrator, 2026-11-23 17:15, after opening bay-full-right-wall.png and bay-full-sunlit-patch.png. I see what the line reports: the mixture removes most of the right wall's bright specks, the thin box's column is the smoothest, and the dark wall left of the sun stripe is coarser in all three mixture columns, the thin box's too. The line's three settlements stand (the exact count at 0.125 next, a clamp-off pair of the right wall, a 0.125 column in part 4).
+
+One correction of the model before the decision: the guided draws that do not arrive have two causes with two cures, not one root. (a) The depth box misses a target that the ray meets from the side (right wall, 32 % arrive, 98 % with the thin box). The target model of t1-cyhy cures it. (b) The target lies on the shading point's own plane (the wall beside the stripe: 78.5 % of the guided draws aim below the geometric plane, t1-cyhy table d). No target model cures it, and the thin box's column shows that: 0.0127 against main's 0.0096. Such a draw is known to bring nothing before any ray is traced. So if 0.125 still shows the loss, the question is what the mixture does at a place whose guide offers it mostly its own plane, and that gets two designs before a build. The share must stay a number that is known when the draw is weighed, so that the mixture stays exact. My decision waits for part 4.
