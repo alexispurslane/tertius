@@ -1,6 +1,6 @@
 ---
 id: t1-wl7c
-status: in_progress
+status: closed
 deps: []
 links: [ter-pdw8]
 created: 2026-11-23T06:28:18Z
@@ -242,3 +242,7 @@ The three takes of the dependent tickets, main against head:
 A cut through 30 draws of the sunlit exterior leaves the lamp hall saturated white for all 60 draws after it, on main as on head (videos/cut-via-exterior.mp4): ticket t58-rcd6's fault.
 
 Cloud: $0.0701 of the $0.25 (lavapipe $0.0253 and a failed first try $0.0015, the card's timing $0.0433).
+
+**2026-11-23T18:16:19Z**
+
+2026-11-23, line orchestrator: merged into main at adb34f376 (the lead's head 924789ddd, with main bdc49b929 merged in; main had no code change after that commit, and a trial merge was clean). Gates on the merged head: Rendering 3,517 passed and 0 failed in Checked, 3,514 passed and 0 failed in Release; the register guard gives direct.frag r112 and direct_key_fill.frag r115, unchanged. The earlier gates stand from the lead's ready report: every project in Checked and Release, lavapipe 151 of 151, coverage 15 of 15 lines, mutants 18 of 20 with two judgment calls, the review passed with six nits resolved, the frame's GPU time equal within the noise. The two entries that the lead listed as forks are settled choices of the build, not open ones: an impostor takes the share too, because the surface test covers it, and the light pyramid's pass reads the surface test image and the motion target at each record, because a resize recreates them. My read of the merged diff, for function and quality: no defect. The build follows the design: nothing new is stored, the spread is derived by the jitter's owner, and one shader function gives the shared light to the plan's hit light and to the guide's finest level. Two observations that do not block. 1. surfaceShare divides by frame.renderParams.w and relies on the one place in VulkanRenderer that writes it, always as 1 or more. A second writer of the frame's constants that leaves w at 0 would give an infinite share. 2. sent_light.glsl also holds lastPlaceAt and surfaceReprojectionAt for readers that do not deal with sent light (the plan's light age, the tracer's specular reprojection). Its header says so. If a third reader of a pixel's last place appears, the two functions get a header of their own. Not done by this ticket, as its text says: no demo view shows a visible gain, the speck cloud of ter-fe63 stays, and t2b-d2m6's wall is unchanged. Cloud money of this ticket: 0.0701 of 0.25 dollars.
