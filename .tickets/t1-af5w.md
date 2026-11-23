@@ -1,8 +1,8 @@
 ---
 id: t1-af5w
-status: in_progress
+status: closed
 deps: [t8-rjno]
-links: [t58-7645]
+links: [t58-7645, t0-t2oq]
 created: 2026-11-15T16:12:21Z
 type: task
 priority: 4
@@ -336,3 +336,7 @@ My verdict: form 4 can draw thick casters at any width for a fixed count of read
 **2026-11-23T21:13:49Z**
 
 Decision 111 (the line orchestrator, 2026-11-23, 16:13): the GPU lock between the line's two leads. Measured from the lean take's lock logs in /private/tmp/t0-gbgj/p1o: 4 of 24 runs done between 15:30 and 16:10; each run holds the lock about 15 s and waited 66 s, 192 s, 1016 s and 1134 s behind the reflection line's films, which hold the lock in the shared mode. The take's exclusive ticket in the queue also kept the mutants of the still place's fix (t0-y88b) out, because the queue is first come, first served and a test host that could share with a film waits behind an older exclusive ticket. Decided: the lean take leaves the queue until the mutants are done or 16:55 at the latest; then its 20 runs that remain go under one exclusive hold (one gpu-lock.sh call around the interleaved script, about 6 to 8 minutes, uptime logged before each run). The run main/1/exit-cabin@0.96 started at a load of 15.30, and the lead judges it against repetitions 2 and 3.
+
+**2026-11-23T21:39:17Z**
+
+2026-11-23, 16:39 New York time, line orchestrator: the lean round's result and the close. One exclusive hold of the GPU lock (waited 66 s, held 3.8 minutes, load 3.5 to 6.7), 3 repetitions, sums of key and fill + direct light + light pyramid in ms against the clean main. exit-deck: main 3.60, lean floor with a shared lookup 4.42 (+0.82), lean with the 25 gathers 4.54 (+0.94), lean with separate lookups 4.90 (+1.29). exit-cabin: main 6.79, lean floor 8.21 (+1.41), lean with the 25 gathers 8.69 (+1.89), separate lookups 9.39 (+2.59). The run main/1 of exit-cabin at a load of 15 to 18 gave 6.80, between repetitions 2 and 3 (6.82, 6.77), and stays in the median. Decision 110's rule asked for under about 0.5 ms in exit-cabin, so the wide half gets no build ticket. The record is merged into the line (b836520b0, docs/research/t1-af5w-shadow-softness). The lamps' far edges stay as they are, and t0-t2oq holds that open fault with what was tried and when the question reopens. The narrow half has no case: in direct light only, the wall base's contact band is black and sharp like the reference. The sun gets no design (mars-day's far cascades are t58-7645). The ticket closes with its record and the reference pictures pics/part1/ref-deck-far.png and direct-deck-far.png.
