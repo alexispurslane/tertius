@@ -5,7 +5,7 @@ deps: [t8-rjno]
 links: []
 created: 2026-11-15T16:12:21Z
 type: task
-priority: 2
+priority: 4
 assignee: Alexis Purslane
 tags: [rendering, shadows]
 ---
@@ -121,3 +121,7 @@ What both share: the rule that no blur puts light inside the shadow, the blocker
 **2026-11-22T20:52:59Z**
 
 2026-11-22, the line orchestrator, from the orchestrator. This step no longer waits for the user: the user handed the design choices to the orchestrator on 2026-11-22. The line orchestrator sends the two options with a recommendation when a slot is free, and the orchestrator decides.
+
+**2026-11-23T09:56:54Z**
+
+2026-11-23, the line orchestrator, with the orchestrator's agreement of the same day. Neither design of the note of 2026-11-21 is built. Three reasons. 1. The sun's true half-penumbra is the gap times 0.00467, which is narrower than today's ramp for every gap under about 31 m. So in a room design A can only sharpen edges, and the orchestrator ruled on 2026-11-23 that sharper lamp shadows are not acceptable (t1-gout, no commit B); the user's first reaction to step 1 was that shadows must not all become hard-edged. 2. Design B gives soft edges in rooms only with a sun larger than the real one, which is a look, and it costs one image at the render size with a reader in every pass that shades with the sun. The key and fill shader has no register left on the M1 (t2-x53j). 3. Design L of t1-gout changed the ramp on 2026-11-23: it is 1.5 texels wide and starts half a texel past the map's edge. Any measure of the least ramp that hides the texel grid must start again from there. The ticket's first step, when a slot has nothing else ready: one count over the demo's views of the share of shadow-edge pixels whose caster is more than 31 m from its receiver. If no view has such edges, the ticket closes as not needed. If one does, that view becomes the ticket's test. Priority lowered from 2 to 4.
