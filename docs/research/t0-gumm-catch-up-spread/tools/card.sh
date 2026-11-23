@@ -6,6 +6,7 @@
 # the acceptance record's scratch-light-evidence-cap.patch (read by its path) into x, as a base64 tar. Outputs land in
 # /private/tmp/t0-gbgj/cloud-gumm/<job name>, the log beside it. GPU_JOB=<path> runs another checkout's gpu_job.py (and
 # so its endpoint.json's caps) from this worktree, such as main's after a change of the daily cap.
+# RUNS=<n> runs every code n times (cardrun.sh).
 # Example: bash card.sh shapes1 16.6667 1,8,0 0.25,32,0 0.125,32,0 0.0625,32,0 cap
 set -uo pipefail
 R=$(cd "$(dirname "$0")/../../../.." && pwd)
@@ -20,5 +21,5 @@ cp "$R/$V"/scratch-region-log.patch "$R/$V"/scratch-dynamic-scale.patch "$R/$V"/
 cp "$A"/scratch-light-evidence-cap.patch $stage/$D/
 pack=$(COPYFILE_DISABLE=1 tar -czf - -C $stage docs | base64 | tr -d '\n'); rm -rf $stage
 (cd "$R" && python3 -I "${GPU_JOB:-tools/runpod/gpu_job.py}" submit --agent t0-gumm --tree x=$X --run "echo $pack | base64 -d | tar -xz -C x" \
-  --run "bash x/$D/tools/cardrun.sh $*" --output 'out/card/*/*.txt' --timeout 1200 --out "$C/$name") > "$C/$name.log" 2>&1
+  --run "RUNS=${RUNS:-1} bash x/$D/tools/cardrun.sh $*" --output 'out/card/*/*.txt' --timeout 1200 --out "$C/$name") > "$C/$name.log" 2>&1
 echo "$(date +%T) exit $? $name: $(tail -1 "$C/$name.log" | cut -c1-300)"

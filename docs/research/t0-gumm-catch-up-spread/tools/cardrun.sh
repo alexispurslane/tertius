@@ -7,7 +7,7 @@
 # "cap+<shape>", the shape with the cap (the share's patch, then the cap's). The builds carry X5's probe patch and t0-3vwx's region,
 # dynamic-scale and history-log patches, and this record's own-ray log; the logs that wait for the device are off here.
 # First one warm-up run of each build (the first run of a binary on a worker costs 230 to 239 ms at draw 0, t58-phgr),
-# whose logs are dropped. Then for each code two runs without pictures at 1920 x 1080 under the dynamic render scale
+# whose logs are dropped. The warm-up also covers t1-80jd: the first run of a job may draw 10 to 18 % slower per draw. Then for each code two runs without pictures at 1920 x 1080 under the dynamic render scale
 # FrameTimeTarget(<target>, 0.5, 1), each logging its render size and its time per draw (TERTIUS_X_SIZE_LOG,
 # TERTIUS_X_TIME_LOG) into out/card/<event>-<code>/:
 #   switch: the survey's switch "cabin" (switch_script), the fair lamp switch (the glow goes off with the light), lamps
@@ -50,11 +50,17 @@ run() {  # run <build> <event> <log folder> [environment...]
   rm -rf runs series.txt
 }
 run xg switch out/warm-xg; run xb switch out/warm-xb; run xc switch out/warm-xc; rm -rf out/warm-*
-for code in "$@"; do
-  for event in switch cut; do
-    if [ $code = cap ]; then run xb $event out/card/$event-cap
-    elif [[ $code == cap+* ]]; then shape=${code#cap+}; run xc $event out/card/$event-$code "TERTIUS_X_CATCHUP=${shape//,/ }"
-    else run xg $event out/card/$event-$code "TERTIUS_X_CATCHUP=${code//,/ }"; fi
+# RUNS=<n> (default 1) runs every code n times, in rounds (each code once, then each code again), into
+# out/card/<event>-<code>-r<round> when n > 1.
+runs=${RUNS:-1}
+for ((r = 1; r <= runs; r++)); do
+  sfx=; [ $runs -gt 1 ] && sfx=-r$r
+  for code in "$@"; do
+    for event in switch cut; do
+      if [ $code = cap ]; then run xb $event out/card/$event-cap$sfx
+      elif [[ $code == cap+* ]]; then shape=${code#cap+}; run xc $event out/card/$event-$code$sfx "TERTIUS_X_CATCHUP=${shape//,/ }"
+      else run xg $event out/card/$event-$code$sfx "TERTIUS_X_CATCHUP=${code//,/ }"; fi
+    done
   done
 done
 ls -R out/card | head -50
