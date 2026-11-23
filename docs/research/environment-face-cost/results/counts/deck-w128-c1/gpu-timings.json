@@ -1,0 +1,233 @@
+{
+  "device": "Apple M1 Max",
+  "width": 1280,
+  "height": 720,
+  "frame": {
+    "frames": 40,
+    "meanMs": 15.990373975000002,
+    "medianMs": 17.4957085,
+    "p95Ms": 20.725125
+  },
+  "passes": [
+    {
+      "pass": "deformation",
+      "frames": 40,
+      "meanMs": 0.030299,
+      "medianMs": 0.017146,
+      "p95Ms": 0.050375
+    },
+    {
+      "pass": "shadow maps",
+      "frames": 40,
+      "meanMs": 0.44117397500000005,
+      "medianMs": 0.1762915,
+      "p95Ms": 1.425459
+    },
+    {
+      "pass": "local shadows",
+      "frames": 40,
+      "meanMs": 1.1067968500000003,
+      "medianMs": 0.6679999999999999,
+      "p95Ms": 2.616458
+    },
+    {
+      "pass": "environment faces",
+      "frames": 40,
+      "meanMs": 0.3228375,
+      "medianMs": 0.3163125,
+      "p95Ms": 0.647542
+    },
+    {
+      "pass": "environment prefilter",
+      "frames": 40,
+      "meanMs": 0.7864739499999999,
+      "medianMs": 0.3368545,
+      "p95Ms": 3.162041
+    },
+    {
+      "pass": "G-buffer",
+      "frames": 40,
+      "meanMs": 0.258281325,
+      "medianMs": 0.172208,
+      "p95Ms": 0.64425
+    },
+    {
+      "pass": "back faces",
+      "frames": 40,
+      "meanMs": 0.08687599999999998,
+      "medianMs": 0.10639599999999999,
+      "p95Ms": 0.142333
+    },
+    {
+      "pass": "surface test",
+      "frames": 40,
+      "meanMs": 0.14997500000000002,
+      "medianMs": 0.098583,
+      "p95Ms": 0.513834
+    },
+    {
+      "pass": "depth pyramid",
+      "frames": 40,
+      "meanMs": 0.313664575,
+      "medianMs": 0.184896,
+      "p95Ms": 0.456875
+    },
+    {
+      "pass": "key and fill",
+      "frames": 40,
+      "meanMs": 0.34500937499999995,
+      "medianMs": 0.1472295,
+      "p95Ms": 1.236625
+    },
+    {
+      "pass": "direct light",
+      "frames": 40,
+      "meanMs": 1.7176208249999998,
+      "medianMs": 1.714771,
+      "p95Ms": 3.093583
+    },
+    {
+      "pass": "light pyramid",
+      "frames": 40,
+      "meanMs": 0.08591984999999999,
+      "medianMs": 0.0717915,
+      "p95Ms": 0.213459
+    },
+    {
+      "pass": "ray plan",
+      "frames": 40,
+      "meanMs": 0.9455239750000001,
+      "medianMs": 0.769021,
+      "p95Ms": 1.502083
+    },
+    {
+      "pass": "reflection rays",
+      "frames": 40,
+      "meanMs": 1.2377498999999996,
+      "medianMs": 1.3132294999999998,
+      "p95Ms": 1.889333
+    },
+    {
+      "pass": "diffuse rays",
+      "frames": 40,
+      "meanMs": 0.33953440000000007,
+      "medianMs": 0.025084000000000002,
+      "p95Ms": 1.196042
+    },
+    {
+      "pass": "screen trace resolve",
+      "frames": 40,
+      "meanMs": 0.359288575,
+      "medianMs": 0.24627100000000002,
+      "p95Ms": 0.728958
+    },
+    {
+      "pass": "accumulate indirect diffuse",
+      "frames": 40,
+      "meanMs": 0.4558656499999999,
+      "medianMs": 0.31656249999999997,
+      "p95Ms": 1.155125
+    },
+    {
+      "pass": "filter indirect diffuse",
+      "frames": 40,
+      "meanMs": 1.608610375,
+      "medianMs": 1.6549375,
+      "p95Ms": 2.377291
+    },
+    {
+      "pass": "accumulate indirect specular",
+      "frames": 40,
+      "meanMs": 0.61887395,
+      "medianMs": 0.4014375,
+      "p95Ms": 1.901625
+    },
+    {
+      "pass": "composite",
+      "frames": 40,
+      "meanMs": 0.12106465000000002,
+      "medianMs": 0.0224995,
+      "p95Ms": 0.395084
+    },
+    {
+      "pass": "scatter rows",
+      "frames": 40,
+      "meanMs": 0.11450307499999998,
+      "medianMs": 0.042354,
+      "p95Ms": 0.364708
+    },
+    {
+      "pass": "scatter columns",
+      "frames": 40,
+      "meanMs": 0.627949925,
+      "medianMs": 0.0373955,
+      "p95Ms": 2.7535
+    },
+    {
+      "pass": "haze",
+      "frames": 40,
+      "meanMs": 0.354404175,
+      "medianMs": 0.195854,
+      "p95Ms": 0.775125
+    },
+    {
+      "pass": "transparent",
+      "frames": 40,
+      "meanMs": 0.9891469749999999,
+      "medianMs": 0.8202085,
+      "p95Ms": 3.378541
+    },
+    {
+      "pass": "exposure",
+      "frames": 40,
+      "meanMs": 0.203127,
+      "medianMs": 0.0255415,
+      "p95Ms": 0.741875
+    },
+    {
+      "pass": "FSR 3.1",
+      "frames": 40,
+      "meanMs": 1.5637041999999999,
+      "medianMs": 0.973708,
+      "p95Ms": 3.623
+    },
+    {
+      "pass": "exposure adapt",
+      "frames": 40,
+      "meanMs": 0.200174975,
+      "medianMs": 0.081479,
+      "p95Ms": 0.599125
+    },
+    {
+      "pass": "bloom",
+      "frames": 40,
+      "meanMs": 0.24798440000000005,
+      "medianMs": 0.14729199999999998,
+      "p95Ms": 1.056291
+    },
+    {
+      "pass": "tone map",
+      "frames": 40,
+      "meanMs": 0.28325825,
+      "medianMs": 0.095125,
+      "p95Ms": 1.754792
+    },
+    {
+      "pass": "outlines",
+      "frames": 40,
+      "meanMs": 0.039601125,
+      "medianMs": 0.0279375,
+      "p95Ms": 0.089792
+    },
+    {
+      "pass": "capture",
+      "frames": 40,
+      "meanMs": 0.035080175000000005,
+      "medianMs": 0.0257295,
+      "p95Ms": 0.098959
+    }
+  ],
+  "stampsLatchLate": true,
+  "runs": [],
+  "warning": "On MoltenVK a pass\u0027s GPU time can hold part of the next pass\u0027s work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass\u0027s own time from a trace (tools/README.md, \u0022GPU trace\u0022)."
+}

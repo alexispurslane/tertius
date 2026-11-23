@@ -1,0 +1,36 @@
+timed-start
+timed-end
+out/r1-w128-c1/gpu-timings.json
+GPU deformation: mean 0.000 ms, median 0.000 ms, p95 0.000 ms over 240 frames
+GPU shadow maps: mean 0.120 ms, median 0.121 ms, p95 0.128 ms over 240 frames
+GPU local shadows: mean 0.188 ms, median 0.184 ms, p95 0.212 ms over 240 frames
+GPU environment faces: mean 0.050 ms, median 0.004 ms, p95 0.143 ms over 240 frames
+GPU environment prefilter: mean 0.046 ms, median 0.045 ms, p95 0.088 ms over 240 frames
+GPU G-buffer: mean 0.158 ms, median 0.155 ms, p95 0.176 ms over 240 frames
+GPU back faces: mean 0.037 ms, median 0.036 ms, p95 0.044 ms over 240 frames
+GPU surface test: mean 0.052 ms, median 0.051 ms, p95 0.055 ms over 240 frames
+GPU depth pyramid: mean 0.105 ms, median 0.104 ms, p95 0.120 ms over 240 frames
+GPU key and fill: mean 0.072 ms, median 0.071 ms, p95 0.078 ms over 240 frames
+GPU direct light: mean 0.745 ms, median 0.732 ms, p95 0.836 ms over 240 frames
+GPU light pyramid: mean 0.030 ms, median 0.030 ms, p95 0.033 ms over 240 frames
+GPU ray plan: mean 0.206 ms, median 0.205 ms, p95 0.217 ms over 240 frames
+GPU reflection rays: mean 0.282 ms, median 0.279 ms, p95 0.316 ms over 240 frames
+GPU diffuse rays: mean 0.261 ms, median 0.258 ms, p95 0.295 ms over 240 frames
+GPU screen trace resolve: mean 0.055 ms, median 0.054 ms, p95 0.059 ms over 240 frames
+GPU accumulate indirect diffuse: mean 0.139 ms, median 0.139 ms, p95 0.151 ms over 240 frames
+GPU filter indirect diffuse: mean 0.500 ms, median 0.495 ms, p95 0.561 ms over 240 frames
+GPU accumulate indirect specular: mean 0.253 ms, median 0.251 ms, p95 0.276 ms over 240 frames
+GPU composite: mean 0.037 ms, median 0.037 ms, p95 0.038 ms over 240 frames
+GPU scatter rows: mean 0.013 ms, median 0.013 ms, p95 0.014 ms over 240 frames
+GPU scatter columns: mean 0.010 ms, median 0.009 ms, p95 0.010 ms over 240 frames
+GPU haze: mean 0.000 ms, median 0.000 ms, p95 0.000 ms over 240 frames
+GPU transparent: mean 0.299 ms, median 0.291 ms, p95 0.333 ms over 240 frames
+GPU exposure: mean 0.010 ms, median 0.010 ms, p95 0.010 ms over 240 frames
+GPU FSR 3.1: mean 0.445 ms, median 0.441 ms, p95 0.494 ms over 240 frames
+GPU exposure adapt: mean 0.003 ms, median 0.003 ms, p95 0.004 ms over 240 frames
+GPU bloom: mean 0.104 ms, median 0.103 ms, p95 0.118 ms over 240 frames
+GPU tone map: mean 0.056 ms, median 0.055 ms, p95 0.063 ms over 240 frames
+GPU outlines: mean 0.000 ms, median 0.000 ms, p95 0.000 ms over 240 frames
+GPU capture: mean 1.231 ms, median 1.279 ms, p95 1.299 ms over 240 frames
+GPU frame span: mean 5.508 ms, median 5.477 ms, p95 5.819 ms over 240 frames
+out/r1-w128-c1/exposure.json

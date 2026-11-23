@@ -1,6 +1,6 @@
-# Tool code of ter-yglw: the face cost of one timed run of tools/time.sh. The run draws one in-turn face in every even
-# drawn frame and none in the odd frames (TERTIUS_PROBE_FACE_EVERY=2), so each face frame has two neighbours that are
-# the same frame without a face. Per timed frame (frames.log, FrameTimeProbe.cs) and its faces (faces.log, FaceProbe.cs):
+# Tool code of ter-yglw: the face cost of one timed run of tools/time.sh. The run draws in-turn faces in every n-th
+# drawn frame and none in the others (TERTIUS_PROBE_FACE_EVERY=n). With n = 2 each face frame has two neighbours that
+# are the same frame without a face. With n >= 4 the window is the face frame and the three frames after it (below). Per timed frame (frames.log, FrameTimeProbe.cs) and its faces (faces.log, FaceProbe.cs):
 #   pair difference = the face frame's value minus the mean of its two neighbours' values, for
 #     span     the frame's GPU span (first stamp to last), the measure that MoltenVK's late stamps leave valid
 #     faces    the pass "environment faces" (the face's surfaces and its light)

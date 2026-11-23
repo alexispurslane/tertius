@@ -1,0 +1,9 @@
+uptime-start:  02:47:02  up 58 days 14:21,  1 user,  load average: 6.12, 5.47, 5.03
+waited: 1146s
+frequencies_mhz=388.8,486.0,648.0,777.6,972.0,1296.0
+sample t=0.102 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+Cannot start the headless renderer for the captures of /private/tmp/ter-yglw/deck-240.json: vkCreateInstance failed: ErrorIncompatibleDriver
+sample t=0.204 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+run seconds=0.204 active_ms=0.0 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+GPU clock over the timed span: unknown (the log has no timed-start and timed-end lines around a timed span)
+uptime-end:  02:47:03  up 58 days 14:21,  1 user,  load average: 6.12, 5.47, 5.03
