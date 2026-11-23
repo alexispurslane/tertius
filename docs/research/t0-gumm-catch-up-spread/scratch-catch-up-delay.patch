@@ -1,0 +1,16 @@
+SCRATCH patch of t0-gumm, never commit to src. It applies after scratch-catch-up-short.patch. A negative fall -k in TERTIUS_X_CATCHUP makes a delayed flat shape: a young pixel's share is 0 in the draws 0 to k - 1 after the reset and the peak from draw k until the shape's end. For the line orchestrator's test of 2026-11-22, 23:35: (1, 8, -3, 0) traces at full rate in draws 3 to 7 only. A shape with a fall of 0 or more is unchanged.
+
+diff --git a/src/Tertius.Rendering/Shaders/screen_trace_plan.comp b/src/Tertius.Rendering/Shaders/screen_trace_plan.comp
+--- a/src/Tertius.Rendering/Shaders/screen_trace_plan.comp
++++ b/src/Tertius.Rendering/Shaders/screen_trace_plan.comp
+@@ -233,6 +233,10 @@
+     float end = min(trace.catchUpEnd, cap);
+     if (historyLength >= end)
+         return 0.0;
++    // SCRATCH (t0-gumm, scratch-catch-up-delay.patch): a negative fall -k is a delayed flat shape, share 0 in the
++    // draws 0 to k - 1 after the reset and the peak from draw k on.
++    if (trace.catchUpFall < 0.0)
++        return float(trace.drawIndex) >= -trace.catchUpFall ? trace.catchUpPeak : 0.0;
+     return trace.catchUpPeak * (trace.catchUpFall == 0.0 ? 1.0 : pow(1.0 - historyLength / end, trace.catchUpFall));
+ }
+ 

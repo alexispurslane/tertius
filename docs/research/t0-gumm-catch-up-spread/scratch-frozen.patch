@@ -1,0 +1,34 @@
+# SCRATCH patch of t0-gumm, never commit to src. With TERTIUS_X_FROZEN=1 a capture right after a capture (a step of 0 s) is no still: it draws once and keeps every history, so that a run of capture steps films a fixed state of the world (the sun and the station's turn held) one draw at a time. It applies after scratch-first-filmed.patch. Without the variable nothing changes.
+diff --git a/src/Tertius.Rendering/Frame/FrameHistory.cs b/src/Tertius.Rendering/Frame/FrameHistory.cs
+index 27bd734..ffdab05 100644
+--- a/src/Tertius.Rendering/Frame/FrameHistory.cs
++++ b/src/Tertius.Rendering/Frame/FrameHistory.cs
+@@ -195,7 +195,7 @@ internal sealed class FrameHistory
+             Reset: reset,
+             DrawIndex: reset ? 0 : lastDrawIndex + 1,
+             ExposureStep: still ? StillExposureStep(step, draw) : step,
+-            FsrFrameMilliseconds: still || !float.IsFinite(step) ? 1000f / 60 : step * 1000,
++            FsrFrameMilliseconds: still || !float.IsFinite(step) || step == 0 ? 1000f / 60 : step * 1000,
+             RefreshesEveryFace: still && draw == 0,
+             DrawnFrames: DrawnFrames,
+             RenderSize: renderSize,
+@@ -224,13 +224,18 @@ internal sealed class FrameHistory
+         || firstOfAStill;
+ 
+     /// <summary>Whether a draw after a clock step of <paramref name="step"/> s is a still: the rule of decision 32.</summary>
+-    private bool IsStill(float step) => rule.Headless && (step == 0 || step >= MeteringStepSeconds) && !(drawn is null && ProbeFirstFilmed);
++    private bool IsStill(float step) => rule.Headless && (step == 0 || step >= MeteringStepSeconds) && !(drawn is null && ProbeFirstFilmed) && !(step == 0 && ProbeFrozen);
+ 
+     // SCRATCH (t0-gumm, never commit to src): with TERTIUS_X_FIRST_FILMED=1, the first drawn frame of a headless run is
+     // no still: it resets every history as before, but draws once, as a window's first frame does, so that a film shows
+     // each draw of a start.
+     private static readonly bool ProbeFirstFilmed = Environment.GetEnvironmentVariable("TERTIUS_X_FIRST_FILMED") == "1";
+ 
++    // SCRATCH (t0-gumm, never commit to src): with TERTIUS_X_FROZEN=1, a capture after no step of time (a capture right
++    // after a capture) is no still: it draws once and keeps every history, as a window that keeps drawing a frozen world
++    // does. A run of captures then films a fixed state of the world one draw at a time.
++    private static readonly bool ProbeFrozen = Environment.GetEnvironmentVariable("TERTIUS_X_FROZEN") == "1";
++
+     /// <summary>
+     /// The exposure step of draw <paramref name="draw"/> of a still after <paramref name="step"/> s (section 10, "The still
+     /// rule"): each warm-up draw adapts by its share of the step, or by an endless step after a step of 0 or an endless one,
