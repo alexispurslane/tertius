@@ -344,3 +344,17 @@ Acceptance, by real takes on the built code against main (the replay is not the 
 3. rect-bay's film: no worse than main.
 4. Side-by-side videos, today against the build, of one frozen still and of rect-bay, with frames looked at 1:1.
 5. The cost of the spatial dispatch does not rise beyond the noise of the take.
+
+**2026-11-23T16:50:43Z**
+
+2026-11-23, 11:50 New York time, line orchestrator. The region's cap is not merged (answer 101, reported to the orchestrator, who can reverse it). The real takes on the built code (branch t0-qvm1-region-cap, d7fae25b7 to 1b1e30401, against main 76a4fbfeb) decide, as the orchestrator set:
+
+- Measured, the frozen stills at draw 890: the histories under 31.5 draws go from 21.27 to 8.32 % (lamp hall), 17.85 to 10.08 % (still cabin), 38.64 to 19.44 % (bay) and 18.05 to 8.73 % (cabin, lamps off). The grain falls by 4 to 12 %.
+- Measured, the frozen bay at 1:1 in two patches where main holds 14 and 15 draws and the cap 32: no visible difference, in the crop and in the film of draws 420 to 659. Stretched twenty times the cap's blurred error is a little lower (1.09 against 1.20 %), and its flicker is 19 % lower (0.00046 against 0.00057). I opened the crops and see no difference either.
+- Measured, rect-bay's film: worse than main. Level against the still at the middle and the end +1.236 / +0.198 against +1.094 / +0.156; blotch 0.264 / 0.178 against 0.233 / 0.142. At 1:1 the left wall stays visibly lighter at draws 130 and 179 while the sunbeam leaves. Its bar is "no worse than main".
+- Measured, the fair cabin switch: the slowest region / the whole image settle in 93 / 76 draws after off against 81 / 71, and in 55 / 34 after on against 54 / 34.
+- Measured, the cabin from draw 0 to 300: the cap trails the settle by 0.2 to 0.75 points for about 30 draws. It does not show at 1:1.
+- Measured, the accumulate pass: about 0.04 ms more in eight rounds, beyond the noise. A guard on the shared atomic did not change it; the cause is not found.
+- Measured, the bay's late blotch: 0.0235 to 0.0214, against the daub's bar of 0.0089. Its map covers the whole image on both builds and does not follow the grid of the short patches.
+
+My reading: the cap does what its design says, and the replay predicted both directions. But its gain shows only in measures, it costs rect-bay a visible lag and the frame 0.04 ms. So today's rule stays, by the rule that kept the wide fix out. The code stays as a patch in the record docs/research/t0-qvm1-region-cap-takes. The count gate (CK3) is not built: it would shrink an effect that does not show. For the home ticket t7-3e22 this closes one suspect: the region test's false fires are not the cause of the bay's daub.
