@@ -241,15 +241,18 @@ up to half a texel inside a caster's real edge, so on the real edge the 4 × 4 f
 The share is 0 up to half a texel past the map's edge and rises to 1 over the next 1.5 texels. A lit area loses 1.25
 texels at each edge on average, a quarter texel more than under D = 1/2.
 
-The build is two commits, one per decision. Commit A holds the cascades, which the orchestrator confirmed, and splits
-`tileLitFraction` from `tileShadow`, which still returns the raw lit fraction. Commit B, the tiles' one line
-`lightOutsideShadow(tileLitFraction(...))`, waits for the orchestrator's decision on the tiles' stills.
+The build was planned as two commits, one per decision. Commit A holds the cascades, which the orchestrator confirmed,
+and splits `tileLitFraction` from `tileShadow`, which returns the raw lit fraction. Commit B, the tiles' one line
+`lightOutsideShadow(tileLitFraction(...))`, was refused on the tiles' stills ("The tiles keep the symmetric filter"
+below), so commit A ships alone.
 
 Terms of this section:
 
 - **Main**: `/private/tmp/t1-gout/bin`, main d1e0349b8 with the toggles of section 2 off. Main's `src` is the same at
   deba5bdfd.
-- **The fix**: `/private/tmp/t1-gout/tilesraw-bin`, commit A's code, built from this branch.
+- **The fix**: `/private/tmp/t1-gout/tilesraw-bin`, commit A's code on the base deba5bdfd, built from this branch.
+  Every still, ramp and window measure of this section ran on that base. The timing ran on exact commits instead
+  ("The cost").
 - **Jamb light** and **leak**: as in section 1, a jamb crop above 0.08.
 
 ### The tests, red and green
@@ -377,6 +380,56 @@ darkens, and its edge stays soft.
 `remedy/box-cabin.png`: box-cabin at half size, and at 1:1 by the ceiling near the camera. The narrow lit band beside the
 diagonal beam narrows. There the sun grazes the ceiling, so the lost light spans many pixels.
 
+### The cost
+
+Each take draws 120 frames at 1920 × 1080 under the exclusive GPU lock, with `--video none --in-flight 2 --exposure
+4.08`, in the order main, X, X, main, main, X. Main is a Release build of e5e1d1a85, and commit A one of fb18a44e0. The
+cells hold the three medians of the GPU frame span in ms, and the range of the direct light pass's medians. The load is
+the range of the 1-minute load over the takes.
+
+| View | Main | Commit A as first written | Commit A as merged | Load |
+|---|---|---|---|---|
+| Orbit cabin, sunlit (tick 6340) | 15.035, 15.022, 15.034; direct 1.546 to 1.554 | 15.293, 15.302, 15.305; direct 1.740 to 1.750 | 15.026, 15.020, 15.024; direct 1.532 to 1.547 | 3.8 to 9.4 |
+| Bay, sunlit (demo-surface, bay-camera, tick 300) | 15.900, 15.879, 15.877; direct 2.501 to 2.505 | 16.195, 16.204, 16.209; direct 2.789 to 2.796 | 15.886, 15.896, 15.868; direct 2.497 to 2.503 | 4.0 to 9.0 |
+| Lamp hall 16, no sun and no sky (tick 10) | 10.216, 10.228, 10.239; direct 1.189 to 1.192 | 10.364, 10.380, 10.372; direct 1.335 to 1.337 | 10.240, 10.215, 10.218; direct 1.195 to 1.199 | 4.1 to 8.2 |
+
+Main's cells are those of the take beside the merged form. The take beside the first form gave main the same medians
+within 0.09 ms.
+
+The first form cost the direct light pass 0.13 to 0.28 ms in every view, also in the lamp hall, where no cascade lookup
+runs and the picture does not change. So the picture did not cause the cost. Two checks found the cause:
+
+- With D set back to 1/2 and nothing else changed, commit A costs what main costs: the hall's medians are 10.217,
+  10.232 and 10.222 ms, and the cabin's 15.028, 15.067 and 15.040 ms.
+- An offline compile of the direct shaders for the M1 gives the highest register of each: `tools/shader_registers.py`
+  (tools/README.md, "The registers of the direct shaders"), made from the scripts of t2-vsqh.
+
+| Variant | `direct_key_fill.frag` | Its instructions | `direct.frag` |
+|---|---|---|---|
+| Main | r115 | 22,974 | r112 |
+| Commit A, first form | r116 | 23,022 | r113 |
+| Commit A with D = 1/2 | r115 | 22,974 | r112 |
+| Commit A, merged form | r115 | 23,022 | r112 |
+
+Main's rule compiles to one instruction with inline factors, `fmadd32.sat r, r, 0.125, -1.0`. The slope 8/3 of D = 5/8
+has no inline encoding, so the first form loaded two constants, 1/6 and −5/3, into registers at each of the shader's 24
+cascade lookups. That raised the key and fill shader to register 116, where Apple's GPU keeps 384 resident threads
+instead of 448 (ARCHITECTURE.md, "Key and fill"). A division turned into a multiplication, one fused multiply-add with
+folded constants and a multiplied filter mean all compile to r116. The merged form computes the rule in two steps,
+clamp(2 f − 2 D, 0, 1), then times 1/2 / (1 − D), clamped. The first step's factors are inline. The form equals the
+rule for every f in [0, 1], because 2 (f − D) is at most 3/4. In float32 the two forms differ by at most 6.0 × 10⁻⁸,
+one step of the format below 1, at f = 0.8125: a computation over 2²² + 1 evenly spaced values of f and every lit
+fraction c / 4096 of the 16 taps. The shader still has no register to spare (`t2-x53j`).
+
+The ramp ran again on the merged form, on the base e5e1d1a85, at both ticks
+([remedy/ramp-A2-t6380.txt](remedy/ramp-A2-t6380.txt), [remedy/ramp-A2-t100.txt](remedy/ramp-A2-t100.txt)). Its
+largest jamb share is 0.0442 at both ticks, as under the first form, and no window differs from the first form's ramp
+by more than 0.0009. The first form's ramp ran on the base deba5bdfd, whose render-scale code differs. The four tests
+of the sun's share pass on the merged form.
+
+With every light pair (`--key-lights off`), the first form changed the cabin's direct pass by 0.009 ms only, since
+`direct.frag` stays far from its step.
+
 ### The step where two cascades meet
 
 The step of `TheEdgeOfAShadowDoesNotStepWhereTwoCascadesMeet`, in meters on the ground, with a and b the finer and the
@@ -424,6 +477,21 @@ The changed pixels are about 2.3 % darker. A difference at a gain of 30 shows th
 under both. The rule multiplies the shortfall of the diagonal slope (ARCHITECTURE.md, "Shadow bias", the fourth limit) by
 1 / (1 − 5/8) = 8/3 against the raw lit fraction.
 
+### The tiles keep the symmetric filter
+
+The tiles' stills compare commit A's raw lit fraction with commit B's line, at render scales 2/3 and 0.96, with the
+automatic exposure of commit A held for both builds (`tools/tilestills.sh`). The cases are spot-box, lamp-hall-4-spot,
+lamp-hall-16-spot, rect-lamps, exit-cabin, exit-deck, cabin-light-cabin, surface-cabin and station-cabin. Three lamp
+halls and station-cabin did not change, and the two sunlit cabins changed in 43 pixels by at most 10 of 255. Commit B
+changed every lamp's shadow that the stills show: sharper and darker edges on the cabin floor (up to 194 of 255,
+[remedy/tiles-cabin-floor.png](remedy/tiles-cabin-floor.png), main on the left, 2×), on the deck and at the spot lamp's
+box. The user does not accept hard-edged shadows, so the orchestrator refused commit B on 2026-11-23.
+
+Main shows one small leak of a lamp's light under a caster's edge. In exit-cabin (demo-exit.json, frame 200, 1920 ×
+1080, render scale 0.96, crop x 1100 to 1260 and y 90 to 240), a ceiling lamp's light runs about 6 pixels down a black
+beam's face below its top edge, and about 2.5 pixels under commit B
+([remedy/tiles-beam-face.png](remedy/tiles-beam-face.png), main on the left, 4×). `t1-hdtm` holds it.
+
 ### Sub-texel precision
 
 The cascades' taps are hardware bilinear comparisons, which round the sub-texel place to the device's precision. Vulkan
@@ -460,5 +528,9 @@ bits, where the error is at most 1/1024.
 - Step 3: [tools/ramp.sh](tools/ramp.sh) with [tools/take.sh](tools/take.sh) (`SCALE` sets the render scale), then
   [tools/rampchart.py](tools/rampchart.py) and [tools/openings.py](tools/openings.py); [tools/stills.py](tools/stills.py)
   `prepare`, [tools/stills.sh](tools/stills.sh) once per build and `stills.py compare`; [tools/pair.py](tools/pair.py) for
-  each pair of stills. The evidence:
+  each pair of stills; [tools/tilestills.sh](tools/tilestills.sh) for the tiles' stills;
+  [tools/timing-views.sh](tools/timing-views.sh) with [tools/timing-cabin.json](tools/timing-cabin.json),
+  [tools/timing-bay.json](tools/timing-bay.json) and [tools/timing-hall.json](tools/timing-hall.json) for the cost,
+  under the exclusive GPU lock; `tools/shader_registers.py` at the repository root for the registers of a form of
+  `lightOutsideShadow`, run on a copy of the shader folder with that form. The evidence:
   `/Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7-evidence/step3/`.
