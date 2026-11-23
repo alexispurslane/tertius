@@ -1,0 +1,92 @@
+
+== exit-cabin (still): 213120 tested anchor-draws, 1927 fires; 213120 in still draws, 1927 false fires there
+  false fires (1927): d 10% 0.0933 25% 0.1135 50% 0.1397 75% 0.1734 90% 0.2087 99% 0.3249 | stat 10% 3.05 25% 3.14 50% 3.33 75% 3.68 90% 4.10 99% 5.31
+  today: keeps 1927 of 1927 false fires (0.0 % dropped)
+  A4   : keeps 249 of 1927 false fires (87.1 % dropped)
+  A5   : keeps 39 of 1927 false fires (98.0 % dropped)
+  B2%  : keeps 1927 of 1927 false fires (0.0 % dropped)
+  B5%  : keeps 1927 of 1927 false fires (0.0 % dropped)
+  B10% : keeps 1643 of 1927 false fires (14.7 % dropped)
+  B2 alone: in the stills 58.33 % of the tested anchor-draws cut (n* under 32), mean n* 23.39; today: 0.90 % cut to 8, mean 31.78
+  B2 after the test: in the stills 0.90 % of the tested anchor-draws cut (n* under 32), mean n* 31.79; today: 0.90 % cut to 8, mean 31.78
+  B2 after the test over the false fires: mean n* 8.4, cut to 8: 75.7 %
+
+== rect-bay (film:0): 41008 tested anchor-draws, 28685 fires; 0 in still draws, 0 false fires there
+  false: none
+  true change fires (55): d 10% 0.0896 25% 0.1118 50% 0.1487 75% 0.2303 90% 0.3496 99% 0.4415 | stat 10% 3.08 25% 3.16 50% 3.55 75% 3.89 90% 4.31 99% 4.79
+  today: keeps 0 of 0 false fires (0.0 % dropped); change: first fire 36 draws, anchors 25, extra delay median 0 largest 0, never 0 (0.0 %)
+  A4   : keeps 0 of 0 false fires (0.0 % dropped); change: first fire 36 draws, anchors 25, extra delay median 2 largest 3, never 16 (64.0 %)
+  A5   : keeps 0 of 0 false fires (0.0 % dropped); change: first fire none draws, anchors 25, extra delay median nan largest nan, never 25 (100.0 %)
+  B2%  : keeps 0 of 0 false fires (0.0 % dropped); change: first fire 36 draws, anchors 25, extra delay median 0 largest 0, never 0 (0.0 %)
+  B5%  : keeps 0 of 0 false fires (0.0 % dropped); change: first fire 36 draws, anchors 25, extra delay median 0 largest 0, never 0 (0.0 %)
+  B10% : keeps 0 of 0 false fires (0.0 % dropped); change: first fire 36 draws, anchors 25, extra delay median 0 largest 0, never 3 (12.0 %)
+  the film's fires from its change on (28685): today keeps 100.0 %, A4 keeps 72.9 %, A5 keeps 46.3 %, B2% keeps 100.0 %, B5% keeps 100.0 %, B10% keeps 99.3 %
+  B2 alone, change: n* first reaches 8 after 36 draws; smallest n* per draw: 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 8 8 8 8
+  B2 after the test, change: n* first reaches 8 after 36 draws; smallest n* per draw: 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 8 8 8 8
+
+== bay-sun (film:33): 55221 tested anchor-draws, 33519 fires; 0 in still draws, 0 false fires there
+  false: none
+  true change fires (6073): d 10% 0.1556 25% 0.2724 50% 0.6109 75% 1.1947 90% 1.6957 99% 4.0397 | stat 10% 4.45 25% 7.28 50% 12.46 75% 17.94 90% 23.90 99% 37.62
+  today: keeps 0 of 0 false fires (0.0 % dropped); change: first fire 3 draws, anchors 233, extra delay median 0 largest 0, never 0 (0.0 %)
+  A4   : keeps 0 of 0 false fires (0.0 % dropped); change: first fire 3 draws, anchors 233, extra delay median 1 largest 27, never 0 (0.0 %)
+  A5   : keeps 0 of 0 false fires (0.0 % dropped); change: first fire 4 draws, anchors 233, extra delay median 3 largest 31, never 2 (0.9 %)
+  B2%  : keeps 0 of 0 false fires (0.0 % dropped); change: first fire 3 draws, anchors 233, extra delay median 0 largest 0, never 0 (0.0 %)
+  B5%  : keeps 0 of 0 false fires (0.0 % dropped); change: first fire 3 draws, anchors 233, extra delay median 0 largest 2, never 0 (0.0 %)
+  B10% : keeps 0 of 0 false fires (0.0 % dropped); change: first fire 3 draws, anchors 233, extra delay median 0 largest 15, never 0 (0.0 %)
+  the film's fires from its change on (33519): today keeps 100.0 %, A4 keeps 86.2 %, A5 keeps 74.4 %, B2% keeps 100.0 %, B5% keeps 100.0 %, B10% keeps 99.2 %
+  B2 alone, change: n* first reaches 8 after 3 draws; smallest n* per draw: 32 32 32 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8
+  B2 after the test, change: n* first reaches 8 after 3 draws; smallest n* per draw: 32 32 32 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8
+
+== switch (switch): 108766 tested anchor-draws, 26910 fires; 29512 in still draws, 532 false fires there
+  false fires (532): d 10% 0.0307 25% 0.0376 50% 0.0477 75% 0.0669 90% 0.0929 99% 0.1297 | stat 10% 3.06 25% 3.16 50% 3.39 75% 3.82 90% 4.44 99% 5.26
+  true off fires (8104): d 10% 0.0976 25% 0.1533 50% 0.2585 75% 0.3428 90% 0.4009 99% 0.4947 | stat 10% 4.17 25% 5.43 50% 6.93 75% 9.09 90% 14.82 99% 30.84
+  true on fires (8453): d 10% 0.1247 25% 0.2102 50% 0.3960 75% 0.6665 90% 0.8879 99% 1.4283 | stat 10% 4.62 25% 6.04 50% 8.62 75% 13.36 90% 23.28 99% 66.16
+  today: keeps 532 of 532 false fires (0.0 % dropped); off: first fire 0 draws, anchors 238, extra delay median 0 largest 0, never 0 (0.0 %); on: first fire 0 draws, anchors 238, extra delay median 0 largest 0, never 0 (0.0 %)
+  A4   : keeps 99 of 532 false fires (81.4 % dropped); off: first fire 0 draws, anchors 238, extra delay median 1 largest 13, never 0 (0.0 %); on: first fire 0 draws, anchors 238, extra delay median 1 largest 6, never 0 (0.0 %)
+  A5   : keeps 14 of 532 false fires (97.4 % dropped); off: first fire 1 draws, anchors 238, extra delay median 3 largest 14, never 0 (0.0 %); on: first fire 0 draws, anchors 238, extra delay median 2 largest 8, never 0 (0.0 %)
+  B2%  : keeps 531 of 532 false fires (0.2 % dropped); off: first fire 0 draws, anchors 238, extra delay median 0 largest 0, never 0 (0.0 %); on: first fire 0 draws, anchors 238, extra delay median 0 largest 0, never 0 (0.0 %)
+  B5%  : keeps 238 of 532 false fires (55.3 % dropped); off: first fire 0 draws, anchors 238, extra delay median 0 largest 11, never 0 (0.0 %); on: first fire 0 draws, anchors 238, extra delay median 0 largest 4, never 0 (0.0 %)
+  B10% : keeps 35 of 532 false fires (93.4 % dropped); off: first fire 2 draws, anchors 238, extra delay median 3 largest 15, never 0 (0.0 %); on: first fire 0 draws, anchors 238, extra delay median 1 largest 12, never 0 (0.0 %)
+  B2 alone: in the stills 21.30 % of the tested anchor-draws cut (n* under 32), mean n* 29.91; today: 1.80 % cut to 8, mean 31.57
+  B2 after the test: in the stills 1.72 % of the tested anchor-draws cut (n* under 32), mean n* 31.77; today: 1.80 % cut to 8, mean 31.57
+  B2 after the test over the false fires: mean n* 19.1, cut to 8: 3.0 %
+  B2 alone, off: n* first reaches 8 after 3 draws; smallest n* per draw: 13 11 9 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8
+  B2 after the test, off: n* first reaches 8 after 3 draws; smallest n* per draw: 16 11 9 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8
+  B2 alone, on: n* first reaches 8 after 0 draws; smallest n* per draw: 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8
+  B2 after the test, on: n* first reaches 8 after 0 draws; smallest n* per draw: 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8 8
+
+== cabin-on (still): 108766 tested anchor-draws, 1526 fires; 108766 in still draws, 1526 false fires there
+  false fires (1526): d 10% 0.0307 25% 0.0366 50% 0.0465 75% 0.0673 90% 0.1028 99% 0.1529 | stat 10% 3.06 25% 3.17 50% 3.43 75% 3.88 90% 4.70 99% 13.48
+  today: keeps 1526 of 1526 false fires (0.0 % dropped)
+  A4   : keeps 327 of 1526 false fires (78.6 % dropped)
+  A5   : keeps 113 of 1526 false fires (92.6 % dropped)
+  B2%  : keeps 1525 of 1526 false fires (0.1 % dropped)
+  B5%  : keeps 648 of 1526 false fires (57.5 % dropped)
+  B10% : keeps 167 of 1526 false fires (89.1 % dropped)
+  B2 alone: in the stills 18.87 % of the tested anchor-draws cut (n* under 32), mean n* 30.19; today: 1.40 % cut to 8, mean 31.66
+  B2 after the test: in the stills 1.34 % of the tested anchor-draws cut (n* under 32), mean n* 31.82; today: 1.40 % cut to 8, mean 31.66
+  B2 after the test over the false fires: mean n* 19.2, cut to 8: 7.3 %
+
+== cabin-off (still): 108766 tested anchor-draws, 5226 fires; 108766 in still draws, 5226 false fires there
+  false fires (5226): d 10% 0.0475 25% 0.0576 50% 0.0721 75% 0.0924 90% 0.1212 99% 0.2355 | stat 10% 3.12 25% 3.30 50% 3.71 75% 4.38 90% 5.32 99% 10.85
+  today: keeps 5226 of 5226 false fires (0.0 % dropped)
+  A4   : keeps 1960 of 5226 false fires (62.5 % dropped)
+  A5   : keeps 688 of 5226 false fires (86.8 % dropped)
+  B2%  : keeps 5226 of 5226 false fires (0.0 % dropped)
+  B5%  : keeps 4551 of 5226 false fires (12.9 % dropped)
+  B10% : keeps 1010 of 5226 false fires (80.7 % dropped)
+  B2 alone: in the stills 34.03 % of the tested anchor-draws cut (n* under 32), mean n* 27.72; today: 4.80 % cut to 8, mean 30.85
+  B2 after the test: in the stills 4.80 % of the tested anchor-draws cut (n* under 32), mean n* 31.10; today: 4.80 % cut to 8, mean 30.85
+  B2 after the test over the false fires: mean n* 13.2, cut to 8: 13.2 %
+
+== walk (walk): 116172 tested anchor-draws, 1291 fires; 0 in still draws, 0 false fires there
+  the walk: 1291 fires, first at draw 126; d quantiles 10% 0.0310 25% 0.0366 50% 0.0450 75% 0.0658 90% 0.0930 99% 0.1204
+  false: none
+  today: keeps 0 of 0 false fires (0.0 % dropped)
+  A4   : keeps 0 of 0 false fires (0.0 % dropped)
+  A5   : keeps 0 of 0 false fires (0.0 % dropped)
+  B2%  : keeps 0 of 0 false fires (0.0 % dropped)
+  B5%  : keeps 0 of 0 false fires (0.0 % dropped)
+  B10% : keeps 0 of 0 false fires (0.0 % dropped)
+
+== pooled false fires: today keeps 9211 of 9211 (0.0 % dropped); A4 keeps 2635 of 9211 (71.4 % dropped); A5 keeps 854 of 9211 (90.7 % dropped); B2% keeps 9209 of 9211 (0.0 % dropped); B5% keeps 7364 of 9211 (20.1 % dropped); B10% keeps 2855 of 9211 (69.0 % dropped)

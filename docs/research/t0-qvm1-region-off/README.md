@@ -98,3 +98,72 @@ The survey's take of the fair lamp switch (`switch cabin`) at the constant scale
 | The stills, where every fire is false | Nothing | About half of exit-cabin's daub gap to the truth (0.0020 of 0.0041), three quarters on its walls; 20.8 % of the still cabin's pixels hold 8 to 31.5 draws, against 0 % |
 
 So the rule must stay: without it the switch and the bay trail. Its cost is the false fires in still scenes, which shorten histories and leave about half of the daub gap in exit-cabin. A repaired rule, as `t0-qvm1` asks, keeps the true fires of the switch and the bay and drops the false fires of the stills.
+
+## The second step: a log of the drift test's fires, no rule
+
+The line orchestrator's order of 2026-11-22: per tested anchor-draw, the drift's relative size and the test's statistic, and whether it fired, for fires in stills against fires after a real change, and candidate repairs measured on that log. No rule is built.
+
+Terms:
+
+- A tested anchor-draw is one anchor in one draw where the anchor's region has 36 valid draws in a row, so the test runs.
+- d = |the mean light of the newer 18 draws − the mean of the older 18| / the older mean. It is the drift's relative size.
+- stat = the same difference / (the older window's standard deviation × √(2/18)). The test fires where stat > 3.
+- A false fire is a fire in a still: exit-cabin, the still cabin with its lamps on (cabin-on) or off (cabin-off) through the film (the switch's two controls), and the switch film's draws 69 to 192.
+- A true fire is a fire in the 40 draws from a real change: the switch's off (draw 193) and on (393), bay-sun's light change (the lag film from draw 33), and rect-bay's motion film from draw 0.
+
+The runs are Mac runs on `xfd` (Design X `05a27262d` with region evidence) at the constant render scale 2/3, through t0-gbgj's `take.sh`, with t0-3vwx's region log (`tools/regionlog.sh`). The survey's motion and lag runs write several processes into one log: rect-bay's third process is its film (the first two are its exposure and reference stills), and bay-sun's first process is its film (33 still draws, then the film). The walk's log is the earlier take's w-QD. `tools/regionstat.py` recomputes the test offline from the log. Its answer agrees with the GPU's at every one of the 851 425 tested anchor-draws. `tools/regionrules.py` computes the rest. Its output is `logs/region-rules.txt`. The four runs' region logs are in `logs/g-*/`: the draw lines (`region-*.txt`) and the floats, gzipped (`region-*.f32.gz`; unpack them beside the `.txt` before `regionstat.py` reads them).
+
+### The two distributions
+
+Quantiles of the fires (10, 50 and 90 %):
+
+| Scene | Kind | Fires | d 10 % | d 50 % | d 90 % | stat 10 % | stat 50 % | stat 90 % |
+|---|---|---|---|---|---|---|---|---|
+| exit-cabin | false | 1927 | 0.093 | 0.140 | 0.209 | 3.05 | 3.33 | 4.10 |
+| cabin-on | false | 1526 | 0.031 | 0.047 | 0.103 | 3.06 | 3.43 | 4.70 |
+| cabin-off | false | 5226 | 0.048 | 0.072 | 0.121 | 3.12 | 3.71 | 5.32 |
+| switch, draws 69–192 | false | 532 | 0.031 | 0.048 | 0.093 | 3.06 | 3.39 | 4.44 |
+| switch off | true | 8104 | 0.098 | 0.259 | 0.401 | 4.17 | 6.93 | 14.82 |
+| switch on | true | 8453 | 0.125 | 0.396 | 0.888 | 4.62 | 8.62 | 23.28 |
+| bay-sun | true | 6073 | 0.156 | 0.611 | 1.696 | 4.45 | 12.46 | 23.90 |
+| rect-bay | true | 55 | 0.090 | 0.149 | 0.350 | 3.08 | 3.55 | 4.31 |
+
+`pics/region-fires-quantiles.png` shows the cumulative share of each kind of fire against d and against stat, on log scales, with the threshold of 3 marked. The thick lines are true fires.
+
+### The candidate rules
+
+The share of the false fires that each rule drops, and the delay of the first true fire (the earliest anchor) after each real change, in draws, with the median and largest extra delay of an anchor's first fire against today's rule:
+
+| Rule | exit-cabin | cabin-on | cabin-off | switch 69–192 | All false fires | Switch off: first, extra median / largest | Switch on | bay-sun | rect-bay film's fires kept |
+|---|---|---|---|---|---|---|---|---|---|
+| today: stat > 3 | 0 % | 0 % | 0 % | 0 % | 0 % | 0, 0 / 0 | 0, 0 / 0 | 3, 0 / 0 | 100 % |
+| A4: stat > 4 | 87.1 % | 78.6 % | 62.5 % | 81.4 % | 71.4 % | 0, 1 / 13 | 0, 1 / 6 | 3, 1 / 27 | 72.9 % |
+| A5: stat > 5 | 98.0 % | 92.6 % | 86.8 % | 97.4 % | 90.7 % | 1, 3 / 14 | 0, 2 / 8 | 4, 3 / 31 (2 anchors never) | 46.3 % |
+| B2%: stat > 3, d ≥ 2 % | 0 % | 0.1 % | 0 % | 0.2 % | 0.0 % | 0, 0 / 0 | 0, 0 / 0 | 3, 0 / 0 | 100 % |
+| B5%: stat > 3, d ≥ 5 % | 0 % | 57.5 % | 12.9 % | 55.3 % | 20.1 % | 0, 0 / 11 | 0, 0 / 4 | 3, 0 / 2 | 100 % |
+| B10%: stat > 3, d ≥ 10 % | 14.7 % | 89.1 % | 80.7 % | 93.4 % | 69.0 % | 2, 3 / 15 | 0, 1 / 12 | 3, 0 / 15 | 99.3 % |
+
+rect-bay's film moves all through, so every fire from its change on counts as true. Its anchors become testable only at draw 36, so its 40-draw window holds only 55 fires, and the last column counts all 28 685 fires of the film. The switch's settle of 71/82 draws (the whole image and the slowest region after off) was measured with today's rule. A rule whose first fire comes at the same draw and whose extra delay is a few draws can keep it, but this log does not measure a settle.
+
+### Design B2: the cut in the action
+
+n*(d) = 18 × 5 % / d, kept between 8 and 32 draws: the history length that a fire cuts to. A drift under 2.8 % cuts nothing. "Alone" computes n* at every tested anchor-draw. "After the test" computes it only where stat > 3, and 32 elsewhere. Today cuts to 8 at every fire.
+
+| Scene | B2 alone: share cut, mean n* | B2 after the test: share cut, mean n* | Today: share cut to 8, mean | B2 after the test over the false fires: mean n*, share cut to 8 |
+|---|---|---|---|---|
+| exit-cabin | 58.33 %, 23.39 | 0.90 %, 31.79 | 0.90 %, 31.78 | 8.4, 75.7 % |
+| cabin-on | 18.87 %, 30.19 | 1.34 %, 31.82 | 1.40 %, 31.66 | 19.2, 7.3 % |
+| cabin-off | 34.03 %, 27.72 | 4.80 %, 31.10 | 4.80 %, 30.85 | 13.2, 13.2 % |
+| switch 69–192 | 21.30 %, 29.91 | 1.72 %, 31.77 | 1.80 %, 31.57 | 19.1, 3.0 % |
+
+After a real change, B2 after the test reaches n* = 8 at some anchor after 3 draws at the switch's off, 0 at its on, 3 in bay-sun, and 36 in rect-bay (its first tested draw), as today's rule does. `pics/region-b2-nstar.png` shows the smallest n* over the anchors per draw for the first 40 draws after each change.
+
+Where the log disagrees with B2's derivation: the derivation reads a drift under 2.8 % as noise and a larger one as real. In the stills, d passes 2.8 % at 19 to 58 % of the tested anchor-draws, so B2 alone would cut in every still scene far more often than today (0.9 to 4.8 %). In exit-cabin, the false fires' d has a median of 14 %, because its anchors are dim and their light scatters. So B2 after the test cuts three quarters of them to 8, as today does. In the cabin and the switch's still part, B2 after the test cuts the false fires to about 13 to 19 draws in place of 8, and keeps every true fire's cut to 8.
+
+### What the log says
+
+Neither rule separates the two kinds of fire in every scene.
+
+- The size gate (B) fails on exit-cabin: its false fires are as large in d as the true fires of rect-bay. B5% drops none of them, and B10% drops 15 %.
+- The higher threshold (A) drops most false fires: A4 drops 71 %, A5 91 %. It keeps the switch and bay-sun's first fires within 0 to 4 draws, but it loses rect-bay's weak true fires: A4 keeps 73 % of them, A5 46 %. rect-bay's true fires have a statistic of 3.1 to 4.3 at 10 to 90 %, the same as the false fires.
+- B2 after the test changes nothing at the first fires. In the cabin and the switch it makes the false fires cut less deeply, about 13 to 19 draws in place of 8, but it does not do so in exit-cabin.
