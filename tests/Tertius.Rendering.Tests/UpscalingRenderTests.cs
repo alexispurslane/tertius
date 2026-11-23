@@ -1190,6 +1190,9 @@ public sealed class UpscalingRenderTests
                 ToneCurve = ToneCurve.Hable,
                 Upscaling = new Fsr3Upscaling(new FixedRenderScale(0.5f), 0),
                 WarmUpFrames = 0,
+                // The test compares each output pixel's code with the reconstruction's to within 1.5 codes, and the
+                // dither moves a code by one.
+                OutputDither = false,
             }
         );
         try

@@ -106,6 +106,7 @@ internal sealed class RenderTargets : IDisposable
     /// True under <see cref="SeparableSubsurface"/>, whose columns pass writes the HDR target and which reads the diffuse
     /// image.
     /// </param>
+    /// <param name="blueNoise">The blue-noise mask (BrdfTableImages.BlueNoise), which the post set holds for the output's dither.</param>
     public RenderTargets(
         VulkanDevice device,
         DeviceAllocator allocator,
@@ -114,7 +115,8 @@ internal sealed class RenderTargets : IDisposable
         int glowLevels,
         UpscalingSetting upscaling,
         bool depthPyramid,
-        bool subsurface
+        bool subsurface,
+        GpuImage blueNoise
     )
     {
         if (depthPyramid)
@@ -135,6 +137,8 @@ internal sealed class RenderTargets : IDisposable
 
         GBufferSet = layouts.AllocateGBufferSet();
         PostSet = layouts.AllocatePostSet();
+        // The mask never changes, so its binding is written once, as the frame set's is.
+        layouts.WriteImage(set: PostSet, binding: DescriptorLayouts.PostMaskBinding, arrayElement: 0, image: blueNoise);
         MeterSet = layouts.AllocateMeterSet();
 
         Glow = new GpuImage[glowLevels];

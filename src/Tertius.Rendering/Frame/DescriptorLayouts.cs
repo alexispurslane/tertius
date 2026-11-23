@@ -194,6 +194,13 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>The binding of the frame set that holds the reflection rays' blue-noise mask (screen_trace.glsl, blueNoiseMask).</summary>
     public const uint BlueNoiseBinding = 20;
 
+    /// <summary>
+    /// The binding of the post set that holds the blue-noise mask for the output's dither (tonemap.glsl, blueNoiseMask). The
+    /// frame set's binding of the mask is for the compute stage only, because the fragment stages of the scene layouts
+    /// already see 17 sampled images.
+    /// </summary>
+    public const uint PostMaskBinding = 3;
+
     /// <summary>The binding of this frame's kept positions in the deform set.</summary>
     public const uint DeformKeptPositionsBinding = 5;
 
@@ -267,7 +274,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         TextureSet = CreateTextureSetLayout();
         ShadowSampler = CreateShadowSampler();
         GBufferSet = CreateGBufferSetLayout(ShadowSampler);
-        PostSet = CreateImagesLayout(images: 2, sampler: LinearClampSampler, name: "post set");
+        PostSet = CreatePostSetLayout(LinearClampSampler);
         GlowSourceSet = CreateImagesLayout(images: 1, sampler: LinearClampSampler, name: "glow source set");
         AtlasSampler = CreateTrilinearClampSampler("impostor atlas sampler");
         AtlasSet = CreateImagesLayout(images: 2, sampler: AtlasSampler, name: "impostor atlas set");
@@ -765,6 +772,22 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         );
 
     /// <summary>
+    /// The tone map's set: the HDR image (binding 0), bloom level 0 (1), <paramref name="sampler"/> as the immutable
+    /// sampler (2), and the blue-noise mask (<see cref="PostMaskBinding"/>), all for the fragment stage.
+    /// </summary>
+    private DescriptorSetLayout CreatePostSetLayout(Sampler sampler) =>
+        CreateLayout(
+            bindings:
+            [
+                Image(binding: 0, stages: ShaderStageFlags.FragmentBit),
+                Image(binding: 1, stages: ShaderStageFlags.FragmentBit),
+                ImmutableSampler(binding: 2, stages: ShaderStageFlags.FragmentBit, sampler: &sampler),
+                Image(binding: PostMaskBinding, stages: ShaderStageFlags.FragmentBit),
+            ],
+            name: "post set"
+        );
+
+    /// <summary>
     /// A layout of <paramref name="images"/> sampled images for the fragment stage, at bindings 0 on, and
     /// <paramref name="sampler"/> as the immutable sampler of the binding after them.
     /// </summary>
@@ -984,14 +1007,14 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             // Three per frame set (the material sampler and the immutable linear clamp and environment samplers), the
             // immutable samplers of the G-buffer, atlas, post and prefilter sets, and one per glow source set.
             new(DescriptorType.Sampler, 3 * frames + 4 + glowSourceSets),
-            // 20 for the G-buffer, post and atlas sets, seven per frame set for the three tables, the blue-noise mask, the
+            // 21 for the G-buffer, post and atlas sets, seven per frame set for the three tables, the blue-noise mask, the
             // specular map, the irradiance cube and the distance cube, one per glow source set, two for the meter set, one
             // per pyramid level set, one for each pyramid's tail set, one for the prefilter set, one for the shadow bounds
             // set, two for each surface test set, two for each signal set, four for each screen tracer set, one for the
             // face surface set and four for the key fill tiles set.
             new(
                 DescriptorType.SampledImage,
-                20
+                21
                     + 1
                     + 4
                     + 7 * frames

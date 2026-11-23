@@ -34,7 +34,7 @@ public sealed class ToneCurveTests
     /// The linear color that Stephen Hill's ACES fitted curve gives a linear HDR color: into ACES AP1 with the RRT's
     /// saturation, the rational fit of the RRT and ODT, and back to linear sRGB, clamped to [0, 1].
     /// </summary>
-    private static Vector3 AcesFitted(Vector3 color)
+    internal static Vector3 AcesFitted(Vector3 color)
     {
         // Row-major, as Hill's HLSL writes them.
         double[,] input =
@@ -70,7 +70,7 @@ public sealed class ToneCurveTests
     }
 
     /// <summary>The sRGB encoding of a linear channel in [0, 1].</summary>
-    private static float Encoded(double linear) =>
+    internal static float Encoded(double linear) =>
         (float)(linear <= 0.0031308 ? linear * 12.92 : 1.055 * Math.Pow(linear, 1 / 2.4) - 0.055);
 
     private static Vector3 Encoded(Vector3 linear) => new(Encoded(linear.X), Encoded(linear.Y), Encoded(linear.Z));

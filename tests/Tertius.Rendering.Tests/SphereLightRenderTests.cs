@@ -197,7 +197,8 @@ public sealed class SphereLightRenderTests
         var disc = MirrorDisc.Of(light: light, tilt: 0);
         Double3 plateau = disc.Plateau;
 
-        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        // The disc's center must show its code to within one code, which the dither moves by one.
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height, outputDither: false);
         try
         {
             Capture image = RenderMirror(

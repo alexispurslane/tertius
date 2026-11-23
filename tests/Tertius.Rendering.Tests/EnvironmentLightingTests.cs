@@ -1027,6 +1027,9 @@ public sealed class EnvironmentLightingTests
                     EnvironmentMap = SmallMap,
                     // The map's closed form, which a ray's miss also takes, with no noise of the tracer's samples.
                     ScreenTrace = new NoScreenTrace(),
+                    // The star tests read single pixels and their deviations from their neighbours' mean, down to 2 %
+                    // of a dark pixel, which the dither's one code passes.
+                    OutputDither = false,
                 }
             );
 

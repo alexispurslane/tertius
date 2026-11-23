@@ -44,10 +44,11 @@ internal static class ExposureScenes
 
     /// <summary>
     /// A validating headless renderer with one frame in flight, so each frame that is not captured reports the exposure of
-    /// the frame before. A captured frame reports its own.
+    /// the frame before. A captured frame reports its own. The output's dither is off: the exposure tests compare one
+    /// pixel's code from frame to frame and count the pixels of one exact color, and the dither moves a code by one.
     /// </summary>
     public static VulkanRenderer Renderer(ExposureSetting exposure) =>
-        Gpu.Headless(width: Width, height: Height, framesInFlight: 1, exposure: exposure);
+        Gpu.Headless(width: Width, height: Height, framesInFlight: 1, exposure: exposure, outputDither: false);
 
     /// <summary>The snapshot with the sun shining from behind the camera, with no instance.</summary>
     public static RenderSnapshot Sunlit() => Gpu.Snapshot(Vector3.UnitZ);

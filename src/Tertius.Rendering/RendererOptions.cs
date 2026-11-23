@@ -79,6 +79,13 @@ public sealed class RendererOptions
     public ToneCurve ToneCurve { get; set; } = ToneCurve.AcesFitted;
 
     /// <summary>
+    /// Whether the tone map dithers an 8-bit output: it moves each pixel's encoded color by a triangular offset of at most
+    /// one code before the target rounds it, so that a smooth dark gradient shows no contour steps (ARCHITECTURE.md, "Tone
+    /// mapping"). On by default. A test that reads the exact codes of a flat color turns it off.
+    /// </summary>
+    public bool OutputDither { get; set; } = true;
+
+    /// <summary>
     /// The glow around light brighter than white after the exposure, or <see cref="NoBloom"/>. On by default. The bloom
     /// images take about a third of the HDR image's memory (ARCHITECTURE.md, "Bloom").
     /// </summary>
