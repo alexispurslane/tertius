@@ -1,6 +1,6 @@
 ---
 id: t0-qvm1
-status: open
+status: closed
 deps: []
 links: [t0-gumm, t4f-71qp]
 created: 2026-11-22T11:13:56Z
