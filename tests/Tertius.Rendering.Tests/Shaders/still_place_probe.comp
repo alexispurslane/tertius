@@ -1,0 +1,57 @@
+#version 460
+// The reprojection of a still pixel's last place and of places a fraction of a texel off its center (signals.glsl,
+// reprojectionOf), at each pixel that shows a surface, for StillPlaceTests. The frame must be still and keep its render
+// size, so that a pixel's own texel center in the last image is its center in this one. The specular sample holds:
+// r 1 where the place that lastPlaceAt gives reads the pixel's own texel with the weight 1 and the other taps with 0,
+// else 0, and 0.5 where the surface test marked no pixel place, so that lastPlaceAt gives the jitter-corrected sample
+// place (screen.glsl, the pixel history rule); g the weight of the own texel and b the weight of the texel to its right for a place 1 / 64 texel right of and
+// below the center; a 1 where a place 1 / 300 texel right of and below the center reads the own texel with the weight 1
+// and the others with 0, else 0. The diffuse sample's r holds the weight of the texel to the right for a place 1 / 200
+// texel right of and below the center. A pixel without a surface holds −1 in every channel.
+#extension GL_GOOGLE_include_directive : require
+#include "screen_trace.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+// The weight of the tap of `r` at `texel`, 0 where no tap lies there.
+float weightAt(Reprojection r, ivec2 texel)
+{
+    for (uint tap = 0u; tap < 4u; tap++)
+        if (all(equal(tapTexel(r, tap), texel)))
+            return r.weights[tap];
+    return 0.0;
+}
+
+// 1 where `r` gives `texel` the weight 1 and every other tap the weight 0, else 0.
+float readsOnly(Reprojection r, ivec2 texel)
+{
+    float own = weightAt(r, texel);
+    return own == 1.0 && dot(r.weights, vec4(1.0)) == 1.0 ? 1.0 : 0.0;
+}
+
+// The reprojection of the place `offset` texels right of and below the pixel's center, with every tap passing.
+Reprojection offCenter(ivec2 pixel, float offset)
+{
+    return reprojectionOf(pixelPlace(vec2(pixel) + 0.5 + vec2(offset), vec2(0.0)), 0xFu);
+}
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
+        return;
+    if (texelFetch(gbufferDistance, pixel, 0).r <= 0.0)
+    {
+        imageStore(specularSample, pixel, vec4(-1.0));
+        imageStore(diffuseSample, pixel, vec4(-1.0));
+        return;
+    }
+    Reprojection still = reprojectionOf(lastPlaceAt(pixel), 0xFu);
+    Reprojection sixtyFourth = offCenter(pixel, 1.0 / 64.0);
+    Reprojection threeHundredth = offCenter(pixel, 1.0 / 300.0);
+    Reprojection twoHundredth = offCenter(pixel, 1.0 / 200.0);
+    float pixelPlaceRead = imageLoad(motionTarget, pixel).w != 0.0 ? readsOnly(still, pixel) : 0.5;
+    imageStore(specularSample, pixel, vec4(pixelPlaceRead, weightAt(sixtyFourth, pixel),
+        weightAt(sixtyFourth, pixel + ivec2(1, 0)), readsOnly(threeHundredth, pixel)));
+    imageStore(diffuseSample, pixel, vec4(weightAt(twoHundredth, pixel + ivec2(1, 0)), 0.0, 0.0, 0.0));
+}

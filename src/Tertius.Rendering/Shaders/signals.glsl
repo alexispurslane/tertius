@@ -46,6 +46,24 @@ vec3 lastViewRayThrough(vec2 place)
     return frame.previousCameraForward.xyz + ndc.x * frame.previousCameraRight.xyz - ndc.y * frame.previousCameraUp.xyz;
 }
 
+// The largest distance in texels, along an axis, between a place in the last frame's image and a texel's center at which
+// the place counts as that center (ticket t0-y88b). A place is a share of the image, so a still pixel's place reaches the
+// last image through a reciprocal of this draw's size and a product with the last draw's: the trip lands up to about
+// 2.5e-4 texel off the center at a width of 3840 and about 1e-3 at 16,000. A motion slower than this bound reads the
+// texel it left, so the history of a slow pan trails it by at most this bound times the history's length.
+const float StillPlaceTexels = 1.0 / 256.0;
+
+// A place in the last frame's image, in texels of that image, such that the place of the texel at (i, j) is (i, j): its
+// floor is the first of its 2 × 2 taps. Along each axis, a place within StillPlaceTexels of a texel's center is that
+// center, so that a still pixel reads its own texel alone. Every reader that names the taps of a place takes them from
+// here, so that the surface test's pass bits and the reprojection's weights name the same four texels.
+vec2 lastTexelPlace(vec2 place)
+{
+    vec2 texelPlace = place * frame.previousViewport.xy - 0.5;
+    vec2 center = round(texelPlace);
+    return mix(texelPlace, center, lessThan(abs(texelPlace - center), vec2(StillPlaceTexels)));
+}
+
 // The pass bits of the 2 × 2 texels of the last surface history around a place in the last frame's image (section 8,
 // "The surface test"): bit i for tap i of the surface test, bit 4 + i of the specular test. Tap 0 is the texel at the
 // top left of the place, tap 1 the one right of it, taps 2 and 3 the row below. lastPoint is the pixel's point in the last
@@ -55,7 +73,7 @@ uint surfaceTaps(texture2D lastSurfaceHistory, texture2D lastDeviceDepth, vec2 p
     float roughness)
 {
     ivec2 size = ivec2(frame.previousViewport.xy);
-    ivec2 first = ivec2(floor(place * frame.previousViewport.xy - 0.5));
+    ivec2 first = ivec2(floor(lastTexelPlace(place)));
     float bound = PlaneShare * dot(lastPoint, frame.previousCameraForward.xyz);
     uint bits = 0u;
     for (uint tap = 0u; tap < 4u; tap++)
@@ -93,7 +111,7 @@ struct Reprojection
 // The reprojection of a place through the pass bits of its taps: bit i for tap i.
 Reprojection reprojectionOf(vec2 place, uint bits)
 {
-    vec2 texelPlace = place * frame.previousViewport.xy - 0.5;
+    vec2 texelPlace = lastTexelPlace(place);
     Reprojection r;
     r.first = ivec2(floor(texelPlace));
     vec2 f = texelPlace - vec2(r.first);

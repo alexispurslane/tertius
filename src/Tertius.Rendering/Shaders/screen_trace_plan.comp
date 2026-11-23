@@ -18,11 +18,6 @@ layout(local_size_x = 8, local_size_y = 8) in;
 // another pre-exposure.
 const float LightChangeShare = 0.02;
 
-// The least weight of a tap other than the nearest whose last light the record's footprint takes in: the rounding of a
-// still frame's pixel place gives its other taps weights near 0, which must not widen the band of the pixel's own light
-// to its neighbors'.
-const float LeastFootprintWeight = 1.0 / 64.0;
-
 // The exact light at the pixel, the light that has no noise in a still scene: the luminance of the demodulated direct
 // diffuse light and of the glow that the pixel sends, with the pre-exposure undone, so that an exposure change is no light
 // change. It leaves out the direct specular light, which moves with the eye, and every history, which holds noisy bounced
@@ -65,9 +60,8 @@ bool insideChangedLastArea(ivec2 center)
 // area of the last records (insideChangedLastArea).
 // Until then the record keeps its last light at the pixel's surface point, the taps' weighted mean, and counts the draws,
 // and a light back inside the range drops the count. The record takes a light inside the range only near the last lights
-// of its footprint, the nearest tap and the taps of weight LeastFootprintWeight or more: a light that only a neighbor's
-// explains, as at an edge under jitter, would carry a pending change of the neighbors into their ranges. Otherwise the
-// age grows by a frame.
+// of its footprint, the taps of a weight above 0: a light that only a neighbor's explains, as at an edge under jitter,
+// would carry a pending change of the neighbors into their ranges. Otherwise the age grows by a frame.
 // A light that the record never saw change keeps no evidence, but counts the frames that showed it: its value falls by one.
 vec2 lightAgeOf(ivec2 pixel)
 {
@@ -99,10 +93,10 @@ vec2 lightAgeOf(ivec2 pixel)
             most = max(most, neighbor);
         }
     // The last light at the pixel's surface point, the weighted mean of the last records at the taps, and the range of
-    // the footprint: at a still frame's pixel place both are the center's own light, up to the rounding of the place. Under motion over a
-    // steep light, the light leaves the band around any one last light every draw, and the record would keep a last light
-    // from which the pixel's light drifts until it leaves the 3 × 3 range (ticket tb-8zew). The center passes the defense
-    // above, so the sum of the weights is more than 0.
+    // the footprint: at a still frame's pixel place both are the center's own light, because lastTexelPlace (signals.glsl)
+    // gives that place the center's texel alone. Under motion over a steep light, the light leaves the band around any one
+    // last light every draw, and the record would keep a last light from which the pixel's light drifts until it leaves
+    // the 3 × 3 range (ticket tb-8zew). The center passes the defense above, so the sum of the weights is more than 0.
     float lastLight = 0.0;
     float weightSum = 0.0;
     float footprintLeast = lastRecord.r;
@@ -116,11 +110,8 @@ vec2 lightAgeOf(ivec2 pixel)
             continue;
         lastLight += r.weights[tap] * recorded;
         weightSum += r.weights[tap];
-        if (r.weights[tap] >= LeastFootprintWeight)
-        {
-            footprintLeast = min(footprintLeast, recorded);
-            footprintMost = max(footprintMost, recorded);
-        }
+        footprintLeast = min(footprintLeast, recorded);
+        footprintMost = max(footprintMost, recorded);
     }
     lastLight /= weightSum;
     float age = ageOfRecord(lastRecord.g);

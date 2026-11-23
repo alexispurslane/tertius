@@ -154,7 +154,7 @@ Reprojection historyPlaceOf(ivec2 pixel, float roughness, bool hasSample, float 
     Reprojection surface = reprojectionOf(surfacePlace, surfaceBits);
 #ifdef TERTIUS_ACCUMULATION_TRACE
     tracedPlace = holdsHistory(surface) ? TracedSurfaceHolds : 0u;
-    tracedTexelPlace = surfacePlace * frame.previousViewport.xy - 0.5;
+    tracedTexelPlace = lastTexelPlace(surfacePlace);
     tracedPixelPlaces = motion.w != 0.0 ? TracedPixelPlaceRead : 0u;
 #endif
     if (!tryReflected || parameters.reset != 0u)
@@ -185,7 +185,7 @@ Reprojection historyPlaceOf(ivec2 pixel, float roughness, bool hasSample, float 
     {
 #ifdef TERTIUS_ACCUMULATION_TRACE
         tracedPlace |= TracedReflectedWon;
-        tracedTexelPlace = reflectedPlace * frame.previousViewport.xy - 0.5;
+        tracedTexelPlace = lastTexelPlace(reflectedPlace);
 #endif
         return reflected;
     }
@@ -196,7 +196,7 @@ Reprojection historyPlaceOf(ivec2 pixel, float roughness, bool hasSample, float 
     if (reflectedOff < surfaceOff)
     {
         tracedPlace |= TracedReflectedWon;
-        tracedTexelPlace = reflectedPlace * frame.previousViewport.xy - 0.5;
+        tracedTexelPlace = lastTexelPlace(reflectedPlace);
     }
 #endif
     return reflectedOff < surfaceOff ? reflected : surface;

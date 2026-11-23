@@ -157,23 +157,21 @@ public sealed class PixelHistoryTests(ITestOutputHelper output)
         );
 
     [Fact]
-    public void AStillPixelUnderFsrJitterWhoseReflectedPlaceWinsReadsItsOwnTexel() =>
+    public void AStillPixelUnderFsrJitterKeepsItsSurfacePlaceOverItsReflectedPlace() =>
         WithRenderer(
             upscaling: Jittered,
             action: (renderer, scene) =>
             {
+                // In a still frame both places are the pixel's own texel exactly (ticket t0-y88b), so both read the same
+                // fast history, and the choice keeps the surface place on the tie. Before the still place was exact, the
+                // rounding of the two places let the reflected place win at random pixels.
                 Draw(renderer, scene, 17);
 
                 float[] lengths = TraceLayer(renderer, Lengths);
-                float[] place = TraceLayer(renderer, Place);
-                int[] won = [.. InteriorPixels(renderer).Where(pixel => HasFlag(lengths, pixel, ReflectedWon))];
-                output.WriteLine($"{won.Length} interior pixels take the reflected place.");
-                won.Length.Should().BeGreaterThan(10, "the test needs pixels whose reflected place wins");
-                won.Should()
-                    .OnlyContain(
-                        pixel => MathF.Abs(place[4 * pixel]) < 1e-4f && MathF.Abs(place[4 * pixel + 1]) < 1e-4f,
-                        "the reflected place follows the same rule"
-                    );
+                int[] tried = [.. InteriorPixels(renderer).Where(pixel => HasFlag(lengths, pixel, ReflectedTried))];
+                output.WriteLine($"{tried.Length} interior pixels try the reflected place.");
+                tried.Length.Should().BeGreaterThan(10, "the test needs pixels that try the reflected place");
+                tried.Where(pixel => HasFlag(lengths, pixel, ReflectedWon)).Should().BeEmpty();
             }
         );
 
