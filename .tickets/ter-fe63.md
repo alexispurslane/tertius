@@ -417,3 +417,25 @@ What it means: four surfaces of one roughness, 0.38, have their best share at th
 **4. The wall beside the stripe: the real draws cost about three times the replay.** The replay at 0.25 gives +19 % in variance, which is +9 % in deviation (between 0.157, within 4.365), and the guided draws carry 10.0 % of its second moment (5.1 % at 0.125). Measured: the fast deviation rises 26 % with the exact count and 31 % with the coin, and the still's grain 30 % and 39 %. The real takes of hold 5b give the two means of w squared and say where the replay falls short. Open until then.
 
 The lead deleted 12.0 GB of its own scratch (captures and census sums whose tables are committed or sent) and kept every named picture, every build's reference mean and the four raw logs (2.8 GB). Disk 40 GiB free after the hold.
+
+**2026-11-23T22:51:33Z**
+
+2026-11-23, line orchestrator of the back-face line: stage 1, hold 4, the film of rect-lamps' glossy floor. The surface share's lead took it.
+
+Take: frames 120 to 359 at 3.83 stops, one fixed exposure, guided share 0.25 with the ramp from 0.1 to 0.38. Files in the lead's evidence folder `t3-2b720d96-b40221aeff8f27f7-evidence/fe63/`: `lamps-floor-film-main-coin-exact.mp4` (main, coin, exact count from left to right; H.264 at CRF 12, 240 real frames at 60 a second, checked with ffprobe) and `lamps-floor-frames-240-242.png` (three frames of each at 1:1).
+
+Measures in gray levels of the 8-bit output:
+
+| Measure | Main | Coin | Exact count |
+|---|---|---|---|
+| Deviation over time per pixel | 0.384 | 0.643 | 0.499 |
+| Change from frame to frame, RMS | 0.179 | 0.237 | 0.207 |
+| Amplitude at a period of 4 frames | 0.0026 | 0.0026 | 0.0023 |
+| Largest other component | 0.11 | 0.11 | 0.12 |
+
+What I see in the frame sheet: the coin's column has the coarsest grain and it changes from frame to frame. The exact count's grain is between the coin's and main's.
+
+What it means:
+- The exact count has no beat at its window of 4 frames. Its amplitude there is at main's level. With the nose's film this answers the orchestrator's condition 1 for the pattern in time.
+- At 0.25 both mixtures flicker more than main on this floor: the coin 1.67 times and the exact count 1.30 times in the deviation over time. The still's grain said the same (0.0055 / 0.0087 / 0.0068). The excess of the exact count is 0.115 of a gray level, so I do not expect to see it, but it is a loss in the number and no gain stands against it on this floor.
+- The floor's best share in the replay is 0. So the floor does not decide between 0.25 and 0.125. It asks for a share that depends on the place.
