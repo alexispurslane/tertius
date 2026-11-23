@@ -12,7 +12,7 @@
 # 452), the cut (cut film, CUT to CUT + 59, CUT 134 by default; job shapes1 ran the old cut film,
 # whose cut is at draw 133: CUT=133), and the idle span (switch, 133 to 192: lamps on, settled, nothing changes), which is
 # the bar: an event's block moves the scale when its changes or its fall exceed the idle span's.
-# The chart: the scale per draw in the four event windows, one line per code (CODES="<code> ...": only those, at most six).
+# The chart: the scale per draw in the four event windows, one line per code (CODES="<code> ...": only those, at most six; LO=<scale>: the chart's lowest scale, 0.5 by default).
 import os
 import sys
 from pathlib import Path
@@ -60,16 +60,16 @@ if len(sys.argv) > 2:
     events = ['start', 'off', 'on', 'cut']
     pw = (W - L - 60) // 4
     colours = [(30, 30, 30), (220, 60, 60), (40, 110, 200), (40, 160, 80), (200, 140, 20), (140, 60, 180)]
-    lo = 0.5
+    lo = float(os.environ.get('LO', '0.5'))
     for i, w in enumerate(events):
         film, at = WINDOWS[w]
         x0 = L + i * (pw + 20)
         x = lambda k: x0 + (k + 5) / (N + 5) * pw
-        y = lambda v: 30 + (1 - (v - lo) / (1 - lo)) * (H - 90)
-        for g in (0.5, 0.6, 0.7, 0.8, 0.9, 1.0):
+        y = lambda v: 30 + (1 - (max(v, lo) - lo) / (1 - lo)) * (H - 90)  # a scale under LO sits on the bottom line
+        for g in [lo + (1 - lo) * k / 5 for k in range(6)]:
             d.line([(x0, y(g)), (x0 + pw, y(g))], fill=(225, 225, 225))
             if i == 0:
-                d.text((6, y(g) - 6), f'{g:.1f}', fill='black')
+                d.text((6, y(g) - 6), f'{g:.2f}', fill='black')
         d.line([(x(0), 30), (x(0), H - 60)], fill=(180, 180, 180))
         for j, c in enumerate(codes):
             scale, _ = data[(film, c)]

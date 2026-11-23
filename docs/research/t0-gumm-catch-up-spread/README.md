@@ -114,6 +114,30 @@ The bar is the idle span, draws 133 to 192 of the switch film (lamps on, nothing
 - **C'** gives the cap's flat scale after a light change, because no history counts as young then. After the start and the cut it runs C's code. C' therefore needs no Mac run of its own.
 - (0, 32, 0) still traces today's own rays for the reflections whose cap is under 8 draws (smooth surfaces), so "no catch-up ray" holds for the diffuse rays and the rough reflections.
 
+## The card, job 3: two runs of each code, 1/16 against 1/32
+
+![the card's render scale, job 3, from 0.95 to 1](pics/card-scale-shapes3-zoom.png)
+
+`pics/card-scale-shapes3-zoom.png`: the render scale per draw, as job 1's chart, but from 0.95 to 1 (a scale under 0.95 sits on the bottom line). Black A's second run, red and blue B32's two runs, green C32's first run, orange and violet B16's two runs. `pics/card-scale-shapes3.png` shows today, A, B32 and B16 from 0.5 to 1. Job `card.sh shapes3` with `RUNS=2`, $0.0898: one warm-up run of each build, then each code once, then each code again (run 1 and run 2). Logs in `logs/card-shapes3/`, the table in `cardscale-shapes3.txt`.
+
+The warm-up runs also cover the fact `t1-80jd` (the first run of a card job may draw 10 to 18 % slower; not proven): no compared run is the first run of the job. Jobs 1 and 2 had the same warm-up.
+
+| Code | Off: changes, fall (run 1 / run 2) | On: changes, fall | Cut: changes, fall | Idle: changes |
+|---|---|---|---|---|
+| Today (1, 8, 0) | 54, 0.151 / 53, 0.156 | 53, 0.154 / 53, 0.154 | 56, 0.139 / 56, 0.144 | 0 / 0 |
+| A: the cap | 0, 0 / 0, 0 | 0, 0 / 1, 0.004 | 56, 0.141 / 56, 0.140 | 0 / 0 |
+| B16: (0.0625, 32, 0) | 2, 0.009 / 8, 0.013 | 10, 0.009 / 11, 0.013 | 4, 0.003 / 8, 0.006 | 0 / 0 |
+| B32: (0.03125, 32, 0) | 0, 0 / 0, 0 | 4, 0.013 / 1, 0.004 | 3, rises only / 3, rises only | 0 / 0 |
+| C16: the cap with (0.0625, 32, 0) | 3, 0.010 / 1, 0.005 | 12, 0.013 / 8, 0.009 | 10, 0.011 / 8, 0.006 | 0 / 0 |
+| C32: the cap with (0.03125, 32, 0) | 0, 0 / 0, 0 | 1, 0.004 / 0, 0 | 4, 0.002 / 3, rises only | 1 / 0 |
+
+The start, for the record (changes, fall, run 1 / run 2): today 57, 0.233 / 57, 0.238; A 57, 0.235 / 57, 0.238; B16 36, 0.093 / 32, 0.093; B32 32, 0.086 / 31, 0.087; C16 33, 0.093 / 34, 0.094; C32 31, 0.085 / 31, 0.086.
+
+- **The card's noise.** A traces no catch-up ray after a light change, yet its second run changes the scale once by 0.004 after on, and C32's first run changes it once in the idle span. So one change of about 0.004 is the card's noise.
+- **The spread between two runs of one code** (changes, then the largest fall): B32 differs by 0 and 0 after off, 3 and 0.009 after on, 0 and 0 at the cut. B16 differs by 6 and 0.004 after off, 1 and 0.004 after on, 4 and 0.003 at the cut. C32 differs by at most 1 and 0.004 in each window.
+- **1/16 against 1/32.** After off, every run of 1/16 changes the scale (1 to 8 changes, falls 0.005 to 0.013), and no run of 1/32 does. After on, every run of 1/16 changes it 8 to 12 times, and every run of 1/32 0 to 4 times. At the cut, every run of 1/16 falls 0.003 to 0.011, and the runs of 1/32 rise or fall 0.002 at most. The one overlap is B32's first run after on: its fall of 0.013 (in 4 changes) is as large as 1/16's. **So the card tells 1/16 from 1/32**: the two runs of 1/32 do not differ as much as 1/16 differs from 1/32. The answer of job 2 stands: 1/32 is the largest peak share that leaves the card's scale within its noise. B32 sits at that limit, because one of its four light-change windows came out above the noise. C32 sits inside it in each of its windows.
+- The idle levels of the runs lie between 0.981 and 0.989. Each window's fall counts from its own run's level before the event.
+
 ## Check 1: the shape (1, 8, 0) gives today's own-ray counts
 
 The switch film (the fair lamp switch of the cabin, the lamps off at draw 193 and on at 393), at the constant render scale 2/3 (1280 × 720) through the replay path, on the Mac (`check1.txt`, `tools/ownrays.py`, logs in `logs/`):
@@ -143,4 +167,5 @@ The switch film (the fair lamp switch of the cabin, the lamps off at draw 193 an
 - `cut.json`: the cut film, the cabin's person camera (the switch's view) for a still and 100 frames, one frame on the chase camera, then the person camera from draw 134 for 200 frames. At draw 134 the draw index restarts at 0 and the diffuse history mean falls from 25.6 to 0.98 draws. `start.json`: the cabin's person camera filmed from draw 0 for 200 frames.
 - `logs/`: the own-ray logs, and the card's scale and time logs per job (`logs/card-<job>/<film>-<code>/`).
 - `cardscale-<job>.txt`: the output of `tools/cardscale.py` per card job.
-- `tools/` (each script says what it does in its first lines): `builds.sh`, `ownrays.py`, `histmap.py`, `card.sh` and `cardrun.sh` (the card's job), `cardscale.py` (the card's scale per event).
+- `tools/` (each script says what it does in its first lines): `builds.sh`, `ownrays.py`, `histmap.py`, `card.sh` and `cardrun.sh` (the card's job), `cardscale.py` (the card's scale per event), `threepane.py` (the three-pane videos).
+- The cloud spend of the three card jobs: $0.0542 + $0.0846 + $0.0898 = $0.2286, of the $1.50 allowed.
