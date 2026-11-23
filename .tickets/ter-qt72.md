@@ -468,3 +468,7 @@ The span over the square of the realized scale is rough arithmetic: it treats th
 Reading:
 1. The low rest of step 2's r1 and of Design X's run is variation between runs of the card. Both draw more slowly per render pixel (18.69 and 19.83 ms) than the other three runs (16.80 to 16.93 ms). A likely cause, not a proven one: the first run of a card job draws slower. Step 2's slow run was its job's first run, and Design X's slow run was the only run of its job. Ticket t1-80jd holds that bug. Later card jobs that compare two codes start with one discarded warm-up run of the script, and their record says so.
 2. Step 2 costs half a step at the top of the range. With a request just below 1, the size is 119 of 120 exact-ratio steps (0.9917), against 239 of 240 of the old 8 px grid (0.9958). The controller's request does not fall toward the realized scale (0.9580 on all 60 rest draws of r1), so no feedback holds it lower. The request that rests a hair below 1 has its own ticket, t1-zeyk.
+
+**2026-11-23T01:57:46Z**
+
+2026-11-22, the line orchestrator, from the orchestrator. The last open point of this ticket is closed: step 2 stays. Five scale logs on each code count 84 frames with specks of 1,200 before step 2 and 124 with it, and single films range from 0 to 62, so the count shows no rise. Step 2 changed which render sizes a log visits. The specks are a fault of both codes and go on in t7-3e22. No ramp of constant scales for the frequency.
