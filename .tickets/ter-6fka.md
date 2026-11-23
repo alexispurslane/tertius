@@ -48,3 +48,13 @@ Decided after the experiments. At least: the film of t2b-xeo7 shows no visible c
 3. Who reads an own ray's sample (the Design X line's code read, t0-gumm, line commit 127633a4d): every pixel takes exactly one sample per draw, its own ray's or its block's, with the same weight 1 / length. An own ray gives its pixel no extra sample. It makes the 4 pixels of a block independent, and only the wavelet filter's pool (up to 63 pixels along each axis) sees that. So a ray reaches the picture only through the pool: a young history on an open surface is served by the filter, and a ray buys most where the pool is small (narrow surfaces, corners, jambs) or where the block's ray does not fit. A ray budget per draw must spend by pool size and fit, not by history length. The fair test in bounce-lit scenes is ordered at the Design X line and is not yet measured.
 
 Consequence for the design, my reading until ter-pdw8 and the fair test report: the first change of this step is what a ray's end reads (hits and misses alike read a filtered light). The capture points and the senders then serve the misses and the young histories on top of that, and are chosen after the record of ter-pdw8.
+
+**2026-11-23T04:26:36Z**
+
+2026-11-22, orchestrator. Two more facts for the ray budget, from the Design X line's fair test and gate take (t0-gumm, docs/research/t0-gumm-catch-up-spread on the line).
+
+1. In the bounce-lit bay at a start, today's catch-up rays (one own ray per young pixel per draw for 8 draws) give 24 % less boil in draws 1 to 8 and less than half the grain in draws 3 to 8 than no catch-up rays, and the gain lasts past draw 8. One ray per restarted pixel spread over 32 draws equals none. So an early ray buys more than a late one, and removing the young-history ray rule is refuted. This corrects my reading in the note above for bounce-lit scenes: the filter's pool does not serve a young history there.
+
+2. After the sun comes on in the bay, catch-up rays buy 20 % less grain for about 12 draws. After the sun goes off they add boil. The line's observation: a ray buys where the samples' variance rises. A budget that spends by variance would cover the start, the cut, a light coming on and the narrow surfaces with one rule. Not a design yet.
+
+Also from the card's logs: after a light change or a cut, the render scale stays under its rest for about 50 draws with today's rule, of which about 8 are the dear draws and the rest is the controller's return at 5 % per draw. So most of the rule's price on the card is the controller's (t1-zeyk, ter-5kz6).
