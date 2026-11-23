@@ -167,3 +167,54 @@ Neither rule separates the two kinds of fire in every scene.
 - The size gate (B) fails on exit-cabin: its false fires are as large in d as the true fires of rect-bay. B5% drops none of them, and B10% drops 15 %.
 - The higher threshold (A) drops most false fires: A4 drops 71 %, A5 91 %. It keeps the switch and bay-sun's first fires within 0 to 4 draws, but it loses rect-bay's weak true fires: A4 keeps 73 % of them, A5 46 %. rect-bay's true fires have a statistic of 3.1 to 4.3 at 10 to 90 %, the same as the false fires.
 - B2 after the test changes nothing at the first fires. In the cabin and the switch it makes the false fires cut less deeply, about 13 to 19 draws in place of 8, but it does not do so in exit-cabin.
+
+### Three checks on the logs: where the stills' false rate comes from
+
+The line orchestrator's order of 2026-11-22, 23:44 (`tools/regionmore.py`, its output in `logs/region-more.txt`). The test's nominal false rate is 0.8 %: the share of draws over 3 for a statistic of 17 degrees of freedom. The rule's switch film without region evidence is the first step's `map-xfn` run (build `xfn`), the same film as `map-xfd` and `g-switch`. `map-xfd` and `g-switch` give the same log to the digit.
+
+Terms:
+
+- The independence ratio of an anchor = the standard deviation of the means of every 18-draw window over the still, over (the standard deviation of the single draws / √18). It is 1 for independent draws, and above 1 where a region's light wanders slowly. The test's noise estimate then is too small by that ratio.
+- Kk is a fire only where the draw and the k − 1 draws before it at the anchor all have stat > 3.
+
+| Scene | Fires per tested anchor-draw | Independence ratio 10 / 50 / 90 % | False rate with the noise estimate × the anchor's ratio | AR(1)-corrected test's false rate |
+|---|---|---|---|---|
+| exit-cabin | 0.90 % | 0.89 / 0.98 / 1.08 | 0.94 % | 0.72 % |
+| cabin-on | 1.40 % | 1.08 / 1.43 / 2.08 | 0.23 % | 1.11 % |
+| cabin-off | 4.80 % | 1.50 / 2.25 / 2.72 | 0.24 % | 3.69 % |
+| switch, draws 69–192, with region evidence | 1.80 % | 0.87 / 1.27 / 1.83 | 0.52 % | 1.42 % |
+| the same without region evidence (`xfn`) | 1.65 % | 0.85 / 1.25 / 1.83 | 0.54 % | 1.31 % |
+| rect-bay's film, from its change on | 69.95 % | | | |
+| bay-sun's film, from its change on | 60.70 % | | | |
+
+- The rule's own action: without region evidence, the switch's still part fires at 1.65 % of its tested anchor-draws, against 1.80 % with it, and its independence ratio is the same (median 1.25 against 1.27). So a fire's shortened histories raise the false rate only a little. The loop is not the main cause.
+- The estimator: the stills' draws are correlated. The ratio's median is 1.43 in the cabin with its lamps on and 2.25 with them off, and the false rate rises with it. Multiplied by each anchor's own ratio, the noise estimate brings the cabin with its lamps off from 4.8 % to 0.24 %, and with its lamps on from 1.40 % to 0.23 %. In exit-cabin the draws are independent (median 0.98), and its rate of 0.90 % is the nominal one. So the false rate above the nominal is a property of the estimator. The ratio there is an oracle, measured over the whole run.
+- A correction from the state that the test already holds does not suffice. The lag-1 autocorrelation of the older window's 18 draws, as an AR(1) factor sqrt((1 + ρ)/(1 − ρ)), brings the cabin with its lamps off only from 4.8 to 3.7 %. The light wanders over longer spans than one draw, and 18 draws estimate ρ poorly.
+- So a repaired test would compare the drift with the measured spread of this anchor's own 18-draw window means over a longer span. The cheapest state for it is two running values per anchor, an exponential average of the window means and of their squares, updated once per 18 draws. At the largest render size (1920 × 1080, 510 anchors) that is 1,020 values in place of today's 36 ring layers × 510 anchors. It needs several windows after a reset before it means anything, so the test would need a rule for that time. A ring long enough to hold the span (for example 8 windows, 144 layers) would cost 4 times today's ring. Not built.
+- rect-bay's weak fires are mostly true: its film fires at 70 % of its tested anchor-draws, against 0.9 to 4.8 % in the stills.
+
+Runs of consecutive firing draws at one anchor (50 / 90 / 99 %, largest):
+
+| Scene | Kind | Runs | 50 % | 90 % | 99 % | Largest |
+|---|---|---|---|---|---|---|
+| exit-cabin | false | 902 | 1 | 4 | 10 | 13 |
+| cabin-on | false | 568 | 2 | 6 | 15 | 18 |
+| cabin-off | false | 1075 | 2 | 13 | 28 | 50 |
+| switch, draws 69–192 | false | 201 | 2 | 6 | 11 | 15 |
+| switch off | true | 254 | 51 | 68 | 74 | 76 |
+| switch on | true | 241 | 47 | 60 | 69 | 74 |
+| bay-sun | true | 269 | 116 | 149 | 167 | 170 |
+| rect-bay's film | true | 1069 | 5 | 114 | 148 | 154 |
+
+The third candidate beside A and B, Kk:
+
+| Rule | exit-cabin dropped | cabin-on | cabin-off | switch 69–192 | Switch off / on: first fire | bay-sun: first fire | rect-bay film's fires kept |
+|---|---|---|---|---|---|---|---|
+| today | 0 % | 0 % | 0 % | 0 % | 0 / 0 | 3 | 100 % |
+| K3 | 68.7 % | 57.3 % | 33.2 % | 58.8 % | 0 / 2 | 5 | 93.5 % |
+| K6 | 92.2 % | 83.6 % | 55.9 % | 85.9 % | 5 / 5 | 8 | 87.2 % |
+| K9 | 98.4 % | 92.7 % | 69.1 % | 95.9 % | 8 / 8 | 11 | 82.3 % |
+
+True fires persist for tens of draws, and false fires mostly for 1 or 2. So Kk keeps rect-bay's fires better than A (K6 keeps 87 % where A4 keeps 73 %), at a fixed delay of k − 1 draws. The cabin with its lamps off holds its false fires longest, because its light wanders most (its ratio is the largest), so Kk drops the fewest of them there.
+
+The line orchestrator's decision (2026-11-22): neither A nor B is chosen, and no repair of the region test is built until the back-face line's experiment on what a ray's end reads has reported and the structural step's first change is set. Both change the noise that the test sees.
