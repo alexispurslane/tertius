@@ -239,3 +239,7 @@ Then the lead waits for my word. I pass the pictures to the orchestrator.
 - The diffuse tail on rect-bay's left wall, the guided share of the diffuse kind and the geometry guide (t1-nyjl).
 - The resolve's weight of a diffuse ray.
 - The caps of the temporal stack.
+
+**2026-11-23T18:57:36Z**
+
+2026-11-23, line orchestrator: stage 1 has its word, after the separated stills of t1-nyjl. The bay's grain is this ticket's carrier too: the bay's walls have a roughness of 0.38 and the specular signal carries the grain of the right wall and of the wall beside the sunlit stripe (grain 0.0193 of the full picture's mean on the right wall, from a signal that is 5.9 % of its light). Three additions to the build detail above: (1) the bay's right wall and sunlit patch join stage 1's pictures, as the full picture and as the specular signal alone, main beside the mixture at 1:1, with the grain / blob table against a reference of each mode; (2) the share's ramp must be at its full value at or below a roughness of 0.38; (3) the nose comes first, because 88 % of its guided draws arrive, while in the bay 1.4 to 32 % arrive (t1-cyhy). The bay's first mixture pictures are labeled as taken with today's arrival, and the lead builds no scratch fix of the target point on its own. The lead takes t1-cyhy's four log tables before stage 1.
