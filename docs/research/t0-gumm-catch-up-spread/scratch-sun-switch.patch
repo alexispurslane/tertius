@@ -1,0 +1,33 @@
+SCRATCH patch of t0-gumm, never commit to src. It applies after the survey's probe.patch. TERTIUS_X_SUN_OFF="<from>-<to>" turns the sun (every light whose reach is at least 10^6 m) off in those draws, for the light change in the bay (the line orchestrator's gate of 2026-11-22, 23:25).
+
+diff --git a/src/Tertius.Rendering/Scene/ProbeLampSwitch.cs b/src/Tertius.Rendering/Scene/ProbeLampSwitch.cs
+--- a/src/Tertius.Rendering/Scene/ProbeLampSwitch.cs
++++ b/src/Tertius.Rendering/Scene/ProbeLampSwitch.cs
+@@ -25,6 +25,14 @@
+     private static readonly string[] Selection = (Environment.GetEnvironmentVariable("TERTIUS_PROBE_LAMP_SEL") ?? "all").Split(':');
+     private static readonly bool SunOff = Environment.GetEnvironmentVariable("TERTIUS_PROBE_SUN") == "off";
+ 
++    // SCRATCH (t0-gumm, never commit to src): TERTIUS_X_SUN_OFF="<from>-<to>[,...]" turns off every light whose reach is
++    // at least 10^6 m (the sun) in the draws from <from> to <to> - 1, counted as TERTIUS_PROBE_LAMP_OFF counts them.
++    private static readonly (int From, int To)[] SunRanges = (Environment.GetEnvironmentVariable("TERTIUS_X_SUN_OFF") ?? "")
++        .Split(',', StringSplitOptions.RemoveEmptyEntries)
++        .Select(r => r.Split('-'))
++        .Select(r => (int.Parse(r[0]), int.Parse(r[1])))
++        .ToArray();
++
+     private static readonly string Glow = Environment.GetEnvironmentVariable("TERTIUS_PROBE_LAMP_GLOW") switch
+     {
+         null or "" or "off" => "off",
+@@ -107,8 +115,11 @@
+     /// </summary>
+     public static void Darken(ReadOnlySpan<PreparedLight> lights, Span<GpuLight> rows)
+     {
++        bool sunOff = SunOff || SunRanges.Any(r => draw >= r.From && draw < r.To);
++        if (SunRanges.Any(r => r.From == draw || r.To == draw))
++            Console.Error.WriteLine($"PROBE draw {draw}: the sun {(sunOff ? "off" : "on")}");
+         for (int i = 0; i < rows.Length; i++)
+-            if ((SunOff && rows[i].PositionReach.W >= 1e6f) || Lamps.Contains(lights[i].Entity))
++            if ((sunOff && rows[i].PositionReach.W >= 1e6f) || Lamps.Contains(lights[i].Entity))
+                 rows[i].IntensityKind = new Vector4(0, 0, 0, rows[i].IntensityKind.W);
+     }
+ }

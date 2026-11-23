@@ -18,6 +18,10 @@
 #       with TERTIUS_X_FIRST_FILMED=1 the first drawn frame draws once, so the start's every draw is a film frame.
 #   xgz, xcz: xg and xc with scratch-first-filmed.patch and scratch-frozen.patch last, for the fair test's frozen films
 #       (fairrun.sh): with TERTIUS_X_FROZEN=1 a capture right after a capture draws once and keeps every history.
+#   xkz: xcz with scratch-catch-up-short.patch after the share's patch: a shape whose end is under 8 draws keeps its share
+#       for the first 8 draws after a reset instead of falling back to today's cliff (the sweep's c3, queue-fair4.sh).
+#   xgy, xby: xg (today's cliff) and xb (A, the cap) with scratch-first-filmed.patch, scratch-frozen.patch and
+#       scratch-sun-switch.patch last, for the gate's sun switch in the bay (fairrun.sh's event sun: TERTIUS_X_SUN_OFF).
 set -uo pipefail
 T=$(cd "$(dirname "$0")" && pwd); N=$(cd "$T/.." && pwd); V=$(cd "$N/../t0-3vwx-dynamic-scale-films" && pwd)
 B=$(cd "$N/../t0-gbgj-combined-check/tools" && pwd)
@@ -27,12 +31,14 @@ CAP=/Users/alexispurslane/.t3/worktrees/tertius/t3-c3911144/docs/research/design
 for name in ${@:-xt xg}; do
   first=; [[ $name == x?s ]] && first=$N/scratch-first-filmed.patch
   [[ $name == x?z ]] && first="$N/scratch-first-filmed.patch $N/scratch-frozen.patch"
-  case ${name%[sz]} in
+  [[ $name == x?y ]] && first="$N/scratch-first-filmed.patch $N/scratch-frozen.patch $N/scratch-sun-switch.patch"
+  case ${name%[szy]} in
     xt) args="$X5 ${X5}:tools/renderer-survey/probe.patch $V/scratch-region-log.patch $V/scratch-dynamic-scale.patch $V/scratch-history-log.patch $N/scratch-ownray-log.patch $N/scratch-history-dump.patch" ;;
     xg) args="$X5 ${X5}:tools/renderer-survey/probe.patch $V/scratch-region-log.patch $V/scratch-dynamic-scale.patch $V/scratch-history-log.patch $N/scratch-ownray-log.patch $N/scratch-catch-up-share.patch" ;;
     xfd) args="$XF $V/probe-05a27262d.patch $V/scratch-region-log.patch $V/scratch-dynamic-scale.patch $V/scratch-history-log.patch $N/scratch-ownray-log.patch $N/scratch-history-dump.patch" ;;
     xfn) args="$XF $V/probe-05a27262d.patch $V/scratch-region-log.patch $V/scratch-dynamic-scale.patch $V/scratch-history-log.patch $N/scratch-ownray-log.patch $N/scratch-history-dump.patch $N/scratch-no-region-evidence.patch" ;;
     xb) args="$X5 ${X5}:tools/renderer-survey/probe.patch $V/scratch-region-log.patch $V/scratch-dynamic-scale.patch $V/scratch-history-log.patch $N/scratch-ownray-log.patch $CAP" ;;
+    xk) args="$X5 ${X5}:tools/renderer-survey/probe.patch $V/scratch-region-log.patch $V/scratch-dynamic-scale.patch $V/scratch-history-log.patch $N/scratch-ownray-log.patch $N/scratch-catch-up-share.patch $N/scratch-catch-up-short.patch $CAP" ;;
     xc) args="$X5 ${X5}:tools/renderer-survey/probe.patch $V/scratch-region-log.patch $V/scratch-dynamic-scale.patch $V/scratch-history-log.patch $N/scratch-ownray-log.patch $N/scratch-catch-up-share.patch $CAP" ;;
     *) echo "no build $name"; exit 1 ;;
   esac

@@ -1,0 +1,16 @@
+SCRATCH patch of t0-gumm, never commit to src. It applies after scratch-catch-up-share.patch. A shape whose end is under FullRateFrames (8) gave today's cliff: a pixel that stops being young falls back to today's rule, an own ray in every draw while its history is under 8 draws, so (1, 3, 0) traced exactly today's rays. Here a history stays young until max(end, FullRateFrames) draws after its reset, so the shape's share (0 from its end on) rules the first 8 draws too. A shape whose end is 8 or more is unchanged. With the light clocks on (the shape's fourth value 1, the default), the same holds for the light ages.
+
+diff --git a/src/Tertius.Rendering/Shaders/screen_trace_plan.comp b/src/Tertius.Rendering/Shaders/screen_trace_plan.comp
+--- a/src/Tertius.Rendering/Shaders/screen_trace_plan.comp
++++ b/src/Tertius.Rendering/Shaders/screen_trace_plan.comp
+@@ -260,7 +260,9 @@
+ // histories that light evidence restarts where only the bounced light changed.
+ bool youngHistory(float lightAge, uint blockCode)
+ {
+-    float end = trace.catchUpEnd;
++    // SCRATCH (t0-gumm): young until max(end, FullRateFrames), so a shape that ends before 8 draws does not fall back
++    // to today's cliff (scratch-catch-up-short.patch).
++    float end = max(trace.catchUpEnd, float(FullRateFrames));
+     return float(trace.drawIndex) < end
+         || (trace.catchUpLight != 0.0 && ((lightAge >= 0.0 && lightAge < end) || (blockCode != 0u && float(blockCode) < end)));
+ }

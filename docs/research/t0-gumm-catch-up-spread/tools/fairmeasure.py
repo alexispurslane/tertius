@@ -7,6 +7,8 @@
 #     6 x 6 px for the narrow one), per draw k the mean over the blocks of |b[k] - (b[k-1] + b[k+1]) / 2| in % of the
 #     crop's mean. A fade that is linear over three draws gives zero;
 #   - the grain: per crop, the rms of the luminance minus its 5 x 5 box mean, over the crop's mean, in %.
+# The events: start, cut[+k] (fairrun.sh), and off and on (fairsun.sh: the sun off at draw 200 and on at 400; each event's
+# settled level is the mean of the 20 frames before the next event or the film's end).
 # Per run it prints the slowest region's settle, the boil over draws 1 to 59 after the event (the mean of the broad
 # crops), the grain over draws 0 to 15 (the mean of the two grain crops), and the narrow crop's boil 1 to 59 and grain
 # 0 to 15. It writes <run folder>/fair.json with the per-draw values: the grain of draws 0 to 15 and the boil of draws 1
@@ -32,7 +34,7 @@ GRAIN = ('floor', 'wall')
 
 
 def name_of(event, k, d):
-    if event == 'start':
+    if event in ('start', 'off', 'on'):
         return f'f-{d:06d}'
     if d < 100 + k:
         return f'a-{d:06d}'
@@ -74,8 +76,12 @@ for spec in sys.argv[1:]:
     for line in open(folder / 'frames.series'):
         n, *v = line.split()
         rows[n] = [float(x) for x in v]
-    at = 0 if event == 'start' else 101 + k
-    last = max(d for d in range(0, 400 + k) if name_of(event, k, d) in rows)
+    if event in ('off', 'on'):  # fairsun.sh: the sun goes off at draw 200 and on at 400 of a 600-draw film
+        at = 200 if event == 'off' else 400
+        last = at + 199
+    else:
+        at = 0 if event == 'start' else 101 + k
+        last = max(d for d in range(0, 400 + k) if name_of(event, k, d) in rows)
     end, lev = min(at + 180, last + 1), range(last - 19, last + 1)
     counts = []
     for r in range(10):

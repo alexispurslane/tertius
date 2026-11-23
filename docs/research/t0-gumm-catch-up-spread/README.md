@@ -358,7 +358,93 @@ In the cabin, today's grain 3–8 is 3.19 against none's 3.53, and its grain 9�
 - In the bay, today's code beats none by much more than the spread. The boil of draws 1 to 8 is 1.37 against 1.80 (−24 %), the narrow crop's boil of draws 1 to 8 is 1.13 against 1.81 (−38 %), and the grain of draws 0 to 15 is 4.44 against 6.80.
 - In the cabin with its lamps off, the difference goes the same way but is small: the boil of draws 1 to 8 is 1.026 against 1.069 (−4 %). It is above the spread of the world, but the spread of the noise phase is unknown.
 
-The line orchestrator's reading of the code: a catch-up ray gives no extra sample. It only makes the pixel's sample independent of its block mates, so any gain shows in the boil of draws 1 to 8 and on narrow surfaces. The data agrees on the boil: in the bay, all of today's boil gain is in draws 1 to 8, and draws 9 to 59 boil alike. It agrees on narrow surfaces: the relative gain on the narrow crop (−38 %) is larger than on the broad crops (−24 %). The grain goes further than the reading. Today's grain gain in the bay starts at draw 3 and lasts through draw 15, and in draws 0 to 2 today has more fine grain than none. My reading, not measured: the correlated block samples of draws 1 to 8 enter the history as blotches and stay there until the history replaces them.
+The line orchestrator's reading of the code: a catch-up ray gives no extra sample. It only makes the pixel's sample independent of its block mates, so any gain shows in the boil of draws 1 to 8 and on narrow surfaces. The data agrees on the boil: in the bay, all of today's boil gain is in draws 1 to 8, and draws 9 to 59 boil alike. It agrees on narrow surfaces: the relative gain on the narrow crop (−38 %) is larger than on the broad crops (−24 %). The grain goes further than the reading. Today's grain gain in the bay starts at draw 3 and lasts through draw 15, and in draws 0 to 2 today has more fine grain than none. My reading, not measured: the correlated block samples of draws 1 to 8 enter the history as blotches and stay there until the history replaces them. The sweep below contradicts this reading: the grain of a draw follows the own rays traced in that draw and the few before it.
+
+## The gate: the cap after a light change in the bounce-lit bay
+
+The line orchestrator's gate of the merge (2026-11-22, 23:25): does the cap show blotches after a light change in a bounce-lit scene that today's cliff does not show? It passed (the line orchestrator, 23:32).
+
+- The scene and the event: bay-sunbeam's view and state (demo-surface, bay-camera, 420 ticks), frozen, at the constant render scale 2/3 and the fixed exposure of -4.0 stops. The sun goes off at draw 200 and on again at draw 400 of a 600-draw film (`tools/fairsun.sh`). The bay start settles by draw 164, so each event starts on a settled picture, with 200 draws between the events. The probe could turn the sun off only for a whole run, so `scratch-sun-switch.patch` adds `TERTIUS_X_SUN_OFF=<from>-<to>` on the probe's count of draws. `frames.series` confirms the switch at draws 200 and 400.
+- The codes: the cap is the A build of this record: X5, the tree of the line's merge `710834cc0`, with the acceptance record's `scratch-light-evidence-cap.patch` (build `xby`). It is not the final code `05a27262d`. Today's cliff is `xg` with the shape (1, 8, 0) (build `xgy`). Both builds carry the first-filmed, frozen and sun-switch patches.
+- The own-ray logs confirm the codes. Today traces catch-up rays in draws 4 to 13 after each light change, since the light evidence arrives at draw 4. Its peak is 33 % of the pixels after off and 50 % after on, and its total is 2.5 and 4.7 rays per pixel. The cap traces none.
+
+| Event | Code | Settle | Boil 1–8 | Grain 1–15 | Narrow boil 1–8 | Narrow grain 1–15 | Catch-up rays per pixel |
+|---|---|---|---|---|---|---|---|
+| sun off | today | 178 | 0.783 | 2.58 | 0.813 | 0.81 | 2.46 |
+| sun off | cap | 178 | 0.600 | 2.41 | 0.586 | 0.53 | 0.00 |
+| sun on | today | 161 | 11.860 | 7.72 | 19.319 | 1.30 | 4.65 |
+| sun on | cap | 162 | 10.744 | 9.29 | 17.833 | 1.51 | 0.00 |
+
+The cap's cost: 20 % more grain for about 12 draws after the sun comes on (grain 1–15: 9.29 against 7.72 %, narrow 1.51 against 1.30 %), coarse and block-shaped on the right wall (`pics/gate-sun-zoom.png`, the floor and the right wall at full size at draws 4 and 8 after the sun comes on). Its boil is not higher. After the sun goes off, the cap is cleaner on every measure, since today's catch-up rays add boil there. `pics/gate-sun-strip.png` shows draws 2 and 8 after each event (cap above, today below). `pics/gate-sun-chart.png` shows the measures per draw. The settle is the same. The boil after the sun comes on is high for both codes because the bounce fades in over several draws, and a fade that is not linear over three draws counts as boil. The tools: `tools/fairsun.sh`, `tools/queue-sun.sh`, `tools/gatesum.py`.
+
+A reading of the line orchestrator, not measured as a rule: the catch-up rays helped where the new light is brighter and rarer than the old (the start, the sun coming on), and hurt where it is darker (the sun going off). A ray buys where the samples' variance rises. The logs of this record hold no cheap number for the samples' variance per region: the region log holds region means, and the own-ray logs hold counts.
+
+### The fault that both codes share
+
+After the sun comes on, both codes show a soft cloud on the floor and speckle on the upper right wall in the first draws. That is not the cap's fault. It belongs with the start's blotches (the fair test): the first draws of a bounce-lit room after any large change. The design chosen for the catch-up rays must improve it, not only hold it. No shape of the sweep below makes the start better than today's cliff.
+
+## The sweep: what a catch-up ray buys at which draw
+
+The line orchestrator's question (2026-11-22, 23:20): can the catch-up rays be spread over more draws and keep the picture? The bay's start as in the fair test, for shapes (peak, end, fall) with the cap and on the reset's clock only (the shape's fourth value 0). Each run also writes the own-ray log (`tools/queue-fair3.sh`, `tools/queue-fair4.sh`, `tools/queue-fair5.sh`, `tools/sweep.py`).
+
+The first run of c3 (1, 3, 0) gave today's cliff bit for bit. On `scratch-catch-up-share.patch`, a pixel that is no longer young falls back to today's rule: an own ray in every draw while its history is under 8 draws. So a shape whose end is under 8 changed nothing at a start. `scratch-catch-up-short.patch` keeps a reset pixel young until max(end, 8) draws after the reset, with the shape's share of 0 after its end (build `xkz`). h16 on `xkz` gives h16's pictures on `xcz` bit for bit, since a shape whose end is 8 or more is unchanged.
+
+The catch-up rays per pixel are the own diffuse rays above the settled level, summed over draws 0 to 59, divided by the render size's pixels. About 28 % of the pixels never trace an own ray at the start, so today's total is 5.8 and not 8.
+
+| Shape | Peak share of pixels | Catch-up rays per pixel | Boil 1–8 | Grain 3–8 | Grain 9–15 | Narrow boil 1–8 | Narrow grain 3–8 | Narrow grain 9–15 |
+|---|---|---|---|---|---|---|---|---|
+| today (1, 8, 0) | 72 % | 5.79 | 1.370 | 3.34 | 4.19 | 1.127 | 0.61 | 0.74 |
+| h16 (0.5, 16, 0) | 36 % | 5.78 | 1.471 | 4.62 | 4.57 | 1.360 | 0.82 | 0.73 |
+| f32 (0.5, 32, 1) | 36 % | 5.97 | 1.494 | 5.09 | 5.13 | 1.397 | 0.93 | 0.81 |
+| q32 (0.25, 32, 0) | 19 % | 5.78 | 1.622 | 5.89 | 5.47 | 1.635 | 1.05 | 0.86 |
+| e32 (0.125, 32, 0) | 10 % | 2.89 | 1.716 | 6.62 | 5.94 | 1.705 | 1.12 | 0.92 |
+| c3 (1, 3, 0) | 72 % | 2.18 | 1.638 | 7.18 | 6.28 | 1.316 | 1.04 | 0.88 |
+| none (0, 32, 0) | 0 | 0 | 1.801 | 7.31 | 6.45 | 1.808 | 1.12 | 0.96 |
+
+What one catch-up ray per pixel buys against none (the drop of the measure divided by the rays per pixel):
+
+| Shape | Grain 3–8 per ray | Boil 1–8 per ray |
+|---|---|---|
+| today | 0.69 | 0.074 |
+| h16 | 0.47 | 0.057 |
+| f32 | 0.37 | 0.051 |
+| q32 | 0.25 | 0.031 |
+| e32 | 0.24 | 0.029 |
+| c3 | 0.02 | 0.075 |
+
+`pics/sweep-strip.png` shows the floor and the right wall at draws 2 and 8, today | none | h16 | q32 | e32 | f32 | c3. `pics/sweep-chart.png` shows the measures per draw and the share of pixels that trace an own diffuse ray in each draw.
+
+What the sweep shows:
+
+- No shape spreads the same rays over more draws and keeps the picture. At today's total, half the peak (h16) keeps about two thirds of today's grain gain and three quarters of its boil gain. A quarter of the peak (q32) keeps about a third.
+- The grain of a draw follows the share of own rays traced in that draw and the few draws before it. c3's grain jumps to none's at draw 3, the draw its rays stop. Today's grain rises from 3.3 toward 4.2 after its rays stop at draw 8. So a ray buys grain in the draws around the one it is traced in. This contradicts my earlier reading (the fair test) that the early blotches stay in the history, which predicted that an early ray buys more than a late one.
+- The boil of draws 1 to 8 differs. c3's rays in draws 0 to 2 buy it at today's rate per ray, and on the narrow crop they buy 72 % of today's gain.
+
+## Two designs for the cost of the catch-up rays
+
+The line orchestrator chooses between them:
+
+1. The spread: a budget in rays over time. The catch-up rays of a reset or a light change are spread over more draws at a lower peak, so no draw is dear. The sweep shows the price: the picture loses a third of today's gain at half the peak and two thirds at a quarter.
+2. A known dip: a budget in pixels. The renderer tells the controller which draws trace the catch-up rays, the controller gives those draws a lower render scale, and it returns to the rest at once after them. The picture stays today's.
+
+The forms that the line orchestrator compares (2026-11-22, 23:32):
+
+- (a) the short full-rate shape c3 with the controller as it is: it fails on the picture (grain 3–8 7.18 against none's 7.31). No card log exists for it.
+- (b) today's 8 draws with a known dip: the estimate below.
+- (c) both together: it fails on the picture, as (a).
+
+The card's slow return today (`tools/cardreturn.py` on the logs of jobs 1 to 3): the draws from the event to the last draw at which today's cliff holds the render scale more than 0.02 under its rest. The rest is the median of the settled draws before the event, or the median of the last 40 draws after it. Both give about the same counts: the start 60 to 63, the lamps off 49 to 54, the lamps on 49 to 52, and the cut 41 to 48 (job 1's old exterior cut 36 to 48). After off, on and the cut, "none", C32 and the cap give 0 draws under. At the start, "none" gives 50 and C32 with the cap 53 to 54: the start dips about 50 draws without any catch-up ray.
+
+The estimate of (b), not a measure (`tools/knowndip.py` on today's logs of jobs 2 and 3). The dear draws are the draws that trace catch-up rays in the Mac's own-ray logs of the same code and films: the start 0 to 7, the lamps off 197 to 206, on 397 to 406, and the cut 133 to 141 (the frame on the chase camera at 133 is a cut too). A dear draw d gets min(rest, scale[d] · sqrt(16.67 ms / span[d])), the scale at which its logged span would fit the target if the cost grew with the pixels. Every other draw keeps the rest.
+
+| Event | Logged: draws under the rest − 0.02 | Logged: lowest scale | Estimate (b): draws under | Estimate (b): lowest scale | Picture (Mac) |
+|---|---|---|---|---|---|
+| start | 59 to 62 | 0.762 to 0.768 | 8 | 0.779 to 0.789 | today's |
+| lamps off | 46 to 49 | 0.828 to 0.839 | 10 | 0.759 to 0.786 | today's |
+| lamps on | 46 to 47 | 0.825 to 0.838 | 10 | 0.760 to 0.789 | today's |
+| cut | 41 to 44 | 0.841 to 0.853 | 8 | 0.752 to 0.777 | today's |
+
+The estimate leaves out the part of a draw's cost that does not grow with the pixels, so the real dip must be deeper. It also leaves out the start's own dip of about 50 draws, FSR's history across two sudden changes of the scale, and the controller's dead band. So (b) trades about 40 to 50 draws at about 0.83 to 0.85 for 8 to 10 draws at about 0.75 to 0.79.
 
 ## Files
 
@@ -372,4 +458,5 @@ The line orchestrator's reading of the code: a catch-up ray gives no extra sampl
 - `videos.txt`: the final videos' scale ranges and frame checks. `videos-events.txt`: the measures of the video runs under the card's scale.
 - Commit `6b1e3deb9`, tagged `t0-3vwx`, also added `scratch-no-region-evidence.patch` and changed `tools/builds.sh` here, for the region take of `t0-qvm1`.
 - `scratch-frozen.patch`: the frozen films of the fair test (`TERTIUS_X_FROZEN=1`). `tools/fairrun.sh` (a Mac run of the fair test), `tools/fairmeasure.py` (its measures), `tools/queue-fair.sh` (the bay's start and cut, stopped before its cut+1 and cut+2 runs) and `tools/queue-fair2.sh` (the cabin, the spread runs, then `t0-qvm1`'s region log), `tools/fairsum.py` (the table and `pics/fair-chart.png`), `tools/fairpics.py` (`pics/fair-*.png`).
+- `scratch-sun-switch.patch` (the gate's sun switch), `scratch-catch-up-short.patch` (a shape that ends before 8 draws keeps its share). `tools/fairsun.sh`, `tools/queue-sun.sh` and `tools/gatesum.py` (the gate, `pics/gate-sun-*.png`); `tools/queue-fair3.sh`, `tools/queue-fair4.sh`, `tools/queue-fair5.sh` and `tools/sweep.py` (the sweep, `pics/sweep-*.png`); `tools/cardreturn.py` (the card's slow return) and `tools/knowndip.py` (the estimate of form (b)).
 - The cloud spend of the three card jobs: $0.0542 + $0.0846 + $0.0898 = $0.2286, of the $1.50 allowed.
