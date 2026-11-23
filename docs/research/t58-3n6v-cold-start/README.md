@@ -83,12 +83,33 @@ warm, at 1808 × 1017 cold and 1904 × 1071 warm. FSR 3.1 runs at the output siz
 warm. Accumulate indirect diffuse takes 0.89 ms cold and 0.75 ms warm. Draws 580 to 602 show the same. This is
 t1-80jd, and draw 0 does not cause it.
 
+## The fix: the first draw is no measurement (t0-ygp1)
+
+The controller now takes no measurement from the first draw that it recorded, in either kind (t0-ygp1, commit
+3e3cc076f). Job `ygp1` repeats the cold check on that commit: 130 s of execution, $0.0319, the same script and the
+same order, cold run first with no warm-up. The card was at P8 and 210 MHz before the cold run again, and draw 0 cost
+334.0 ms cold against 28.8 ms warm.
+
+| Cut | Cold request | Warm request | Gap |
+|---|---|---|---|
+| 1 (draw 151) | 0.766 | 0.781 | 0.015 |
+| 2 (draw 302) | 0.779 | 0.795 | 0.017 |
+| 3 (draw 453) | 0.792 | 0.808 | 0.016 |
+
+The catch-up request is within 0.02 of the warm run's at every cut, against gaps of 0.152 to 0.232 before the fix. The
+start's catch-up draws fall to 0.771 by draw 7, against 0.788 warm. The rest of the gap is the cold process's slower
+drawing (t1-80jd): its ordinary request still rests at 0.948 against 0.992 warm at the run's end.
+
+![the requested scale and the span per draw after the fix](cold-scale-fix.png)
+
+`cold-scale-fix.png`: the same chart as `cold-scale.png`, of job `ygp1`.
+
 ## Tools
 
-- `tools/submit.sh`, `tools/cold.sh`, `tools/cold.json`: the card job.
+- `tools/submit.sh [job name] [commit]`, `tools/cold.sh`, `tools/cold.json`: the card job.
 - `pass-log.patch`: the scratch pass log (`TERTIUS_X_PASS_LOG`), one line per draw with each pass's GPU time. Never
   commit it to src. t0-xwdz can use it too.
 - `tools/coldsum.py <out/card>`: the tables of the requests, sizes and spans around each event.
-- `tools/coldchart.py <out/card> <png>`: the chart.
+- `tools/coldchart.py <out/card> <png> [label]`: the chart.
 
-The logs are in `/private/tmp/t0-gbgj/cloud-bcwr/cold1`.
+The logs are in `/private/tmp/t0-gbgj/cloud-bcwr/cold1` and `/private/tmp/t0-gbgj/cloud-bcwr/ygp1`.

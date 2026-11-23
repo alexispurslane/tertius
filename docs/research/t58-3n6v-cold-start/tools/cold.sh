@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Tool code of t58-3n6v (the cold start check). One job on a fresh card, in the job's folder, which holds the tree main
-# (2e8fdaed2), inside the dev shell. It builds main's Release demo with main's tools/renderer-survey/probe.patch, the
-# ter-bcwr record's scratch-takes-build.patch (size, time, first-filmed) and pass-log.patch (each pass's GPU time per
-# draw). Then the first GPU run of the job is the cold run: no warm-up before it. Then a warm run of the same script.
+# (the commit that submit.sh names), inside the dev shell. It builds the tree's Release demo with its
+# tools/renderer-survey/probe.patch, the ter-bcwr record's scratch-takes-build.patch (size, time, first-filmed) and
+# pass-log.patch (each pass's GPU time per draw). Then the first GPU run of the job is the cold run: no warm-up before
+# it. Then a warm run of the same script.
 # Script cold.json: the cabin's person camera filmed from draw 0 (TERTIUS_X_FIRST_FILMED=1) for 150 frames, then three
 # times: one frame on the chase camera and 150 frames on the person camera. Logs go to out/card/<cold|warm>/.
 set -uo pipefail
