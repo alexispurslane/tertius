@@ -36,3 +36,15 @@ Decided after the experiments. At least: the film of t2b-xeo7 shows no visible c
 **2026-11-22T22:09:05Z**
 
 2026-11-22, orchestrator: the film of t2b-xeo7 is on main (docs/research/back-face-depth-layer/stage-2/lit-back-film/). A floor point behind the block that no lamp reaches reads 0.078 at rest, 0.507 while the eye sees the lit face (6.5 times), and 0.081 after the walk back, dark again within about 40 draws. A turn of the camera with the eye at rest moves it by at most 8 %. So the eye-bound class is a visible change over time by the user's bar, not accepted lost light. The review's first condition for the step holds. Open: the ray census (ter-8pco) and the face cost (ter-yglw).
+
+**2026-11-23T02:55:55Z**
+
+2026-11-22, orchestrator. Three facts that shape this step's design, each with its record.
+
+1. The ray census (ter-8pco, docs/research/ray-census/README.md): far hits (2 m or more) and misses carry 76 to 100 % of the diffuse samples' variance in every region of five stills. The review's condition for 'no far-field store helps' (under about 10 %) fails everywhere. No cap bound a sample. The accumulator keeps up to 12 % less light than it receives.
+
+2. The class behind three speck faults (ter-fe63, the lamp hall, the jamb leak's opening): a ray's end reads one pixel of one draw. hitLightOf is a plain imageLoad of the hit light, and leavingLightOf fills it from this draw's jittered direct light plus the last draw's history. A sunlit sill thinner than a pixel enters at 162 in 1 draw of 25 against a ceiling of 0.22. The owner is what the rays read, not which rays are traced and not a trust rule on the samples. The experiment ter-pdw8 measures a time-resolved read and a prefiltered read against today's.
+
+3. Who reads an own ray's sample (the Design X line's code read, t0-gumm, line commit 127633a4d): every pixel takes exactly one sample per draw, its own ray's or its block's, with the same weight 1 / length. An own ray gives its pixel no extra sample. It makes the 4 pixels of a block independent, and only the wavelet filter's pool (up to 63 pixels along each axis) sees that. So a ray reaches the picture only through the pool: a young history on an open surface is served by the filter, and a ray buys most where the pool is small (narrow surfaces, corners, jambs) or where the block's ray does not fit. A ray budget per draw must spend by pool size and fit, not by history length. The fair test in bounce-lit scenes is ordered at the Design X line and is not yet measured.
+
+Consequence for the design, my reading until ter-pdw8 and the fair test report: the first change of this step is what a ray's end reads (hits and misses alike read a filtered light). The capture points and the senders then serve the misses and the young histories on top of that, and are chosen after the record of ter-pdw8.
