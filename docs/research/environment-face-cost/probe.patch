@@ -1,3 +1,41 @@
+diff --git a/src/Tertius.Host/FrameTimeProbe.cs b/src/Tertius.Host/FrameTimeProbe.cs
+new file mode 100644
+index 000000000..fdfd59e81
+--- /dev/null
++++ b/src/Tertius.Host/FrameTimeProbe.cs
+@@ -0,0 +1,32 @@
++// PROBE (ter-yglw, never commit to src): writes each finished frame's GPU span and pass times.
++using System.Globalization;
++using Tertius.Rendering;
++
++namespace Tertius.Host;
++
++/// <summary>
++/// With TERTIUS_PROBE_FRAME_TIMES=path, one line per finished frame whose GPU work the renderer timed, once per frame
++/// number: the frame number, its GPU span in ms, then "pass=ms" for each pass in recording order, with the pass's
++/// spaces written as underscores.
++/// </summary>
++internal static class FrameTimeProbe
++{
++    private static readonly StreamWriter? Log = Environment.GetEnvironmentVariable("TERTIUS_PROBE_FRAME_TIMES") is
++    { Length: > 0 } path
++        ? new StreamWriter(path) { AutoFlush = true }
++        : null;
++
++    private static long last = -1;
++
++    public static void Write(RenderStats stats)
++    {
++        if (Log is null || stats.GpuTimings is not { } timings || timings.Frame <= last)
++            return;
++        last = timings.Frame;
++        var line = new System.Text.StringBuilder();
++        line.Append(CultureInfo.InvariantCulture, $"{timings.Frame} {timings.SpanMilliseconds:F5}");
++        foreach (PassTiming pass in timings.Passes.Span)
++            line.Append(CultureInfo.InvariantCulture, $" {pass.Pass.Replace(' ', '_')}={pass.Milliseconds:F5}");
++        Log.WriteLine(line.ToString());
++    }
++}
 diff --git a/src/Tertius.Host/ScriptCommand.cs b/src/Tertius.Host/ScriptCommand.cs
 index 0adf92ba5..48665ed8b 100644
 --- a/src/Tertius.Host/ScriptCommand.cs
@@ -91,89 +129,6 @@ index a290302ae..a1a60d4b2 100644
              DispatchLevels(
                  vk: vk,
                  commandBuffer: commandBuffer,
-diff --git a/src/Tertius.Rendering/Scene/SceneBatcher.cs b/src/Tertius.Rendering/Scene/SceneBatcher.cs
-index c44273fba..dfc42766b 100644
---- a/src/Tertius.Rendering/Scene/SceneBatcher.cs
-+++ b/src/Tertius.Rendering/Scene/SceneBatcher.cs
-@@ -657,7 +657,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float
-     {
-         if (!faces.ContainsAnyExcept(FaceMask.None))
-             return;
--        ReadOnlySpan<PreparedInstance> instances = scene.PlacedSpan;
-+        ReadOnlySpan<PreparedInstance> instances = FaceProbe.ForFaces(scene.PlacedSpan); // PROBE (t1-6tn2)
-         for (int map = 0; map < faces.Length; map++)
-         for (int layer = 0; layer < CubeFaces.Count; layer++)
-         {
-@@ -685,6 +685,8 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float
-     )
-     {
-         int opaqueCount = 0;
-+        int probeKept = 0, probeCulled = 0; // PROBE (ter-yglw)
-+        long probeTriangles = 0;
-         for (int i = 0; i < instances.Length; i++)
-         {
-             ref readonly PreparedInstance instance = ref instances[i];
-@@ -694,7 +696,20 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float
-                 || CubeFaces.Culls(basis, instance.Position, instance.Radius)
-             )
-                 continue;
--            int mask = DepthRanges.OpaqueMask(Vector3.Dot(instance.Position, basis.Forward), instance.Radius);
-+            if (FaceProbe.CullsSmall(instance.Position, instance.Radius))
-+            {
-+                probeCulled++;
-+                continue;
-+            }
-+            if (FaceProbe.LeavesOut(instance.Mesh, instance.Map, map))
-+                continue;
-+            int mask = FaceProbe.Reach(
-+                DepthRanges.OpaqueMask(Vector3.Dot(instance.Position, basis.Forward), instance.Radius),
-+                instance.Position,
-+                instance.Radius
-+            );
-+            probeKept++;
-+            probeTriangles += meshes[instance.Mesh].IndexCount / 3 * BitOperations.PopCount((uint)mask);
-             AppendOpaque(
-                 count: ref opaqueCount,
-                 mask: mask,
-@@ -724,6 +739,14 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float
-                 Near: faceRanges[DepthRanges.Near].Sided
-             )
-         );
-+        FaceProbe.Face(
-+            map,
-+            (int)face,
-+            faceRanges[DepthRanges.Far].Count + faceRanges[DepthRanges.Middle].Count + faceRanges[DepthRanges.Near].Count,
-+            probeTriangles,
-+            probeKept,
-+            probeCulled
-+        );
-     }
- 
-     /// <summary>
-diff --git a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
-index 97123d8f9..d5efa8159 100644
---- a/src/Tertius.Rendering/VulkanRenderer.cs
-+++ b/src/Tertius.Rendering/VulkanRenderer.cs
-@@ -526,7 +526,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
-     public MeshId CreateMesh(MeshData mesh)
-     {
-         ObjectDisposedException.ThrowIf(disposed, this);
--        return uploads.AddMesh(mesh);
-+        MeshId id = uploads.AddMesh(mesh);
-+        FaceProbe.MeshCreated(id, mesh, uploads.AddMesh); // PROBE (t1-6tn2)
-+        return id;
-     }
- 
-     /// <summary>
-@@ -2577,6 +2579,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
-         if (disposed)
-             return;
-         disposed = true;
-+        if (environmentMap is not null) // PROBE (ter-yglw): the face dump
-+            FaceProbe.Dump(this, environmentMap.DrawnFor.Length);
-         if (window != null && onFramebufferResize != null)
-             window.FramebufferResize -= onFramebufferResize;
-         // Not checked: even after a device loss everything must still be destroyed.
 diff --git a/src/Tertius.Rendering/Scene/FaceProbe.cs b/src/Tertius.Rendering/Scene/FaceProbe.cs
 new file mode 100644
 index 000000000..7657f590b
@@ -399,41 +354,86 @@ index 000000000..7657f590b
 +            line += FormattableString.Invariant($" {map}:{face}:{commands}:{triangles}:{kept}:{culled}");
 +    }
 +}
-diff --git a/src/Tertius.Host/FrameTimeProbe.cs b/src/Tertius.Host/FrameTimeProbe.cs
-new file mode 100644
-index 000000000..fdfd59e81
---- /dev/null
-+++ b/src/Tertius.Host/FrameTimeProbe.cs
-@@ -0,0 +1,32 @@
-+// PROBE (ter-yglw, never commit to src): writes each finished frame's GPU span and pass times.
-+using System.Globalization;
-+using Tertius.Rendering;
-+
-+namespace Tertius.Host;
-+
-+/// <summary>
-+/// With TERTIUS_PROBE_FRAME_TIMES=path, one line per finished frame whose GPU work the renderer timed, once per frame
-+/// number: the frame number, its GPU span in ms, then "pass=ms" for each pass in recording order, with the pass's
-+/// spaces written as underscores.
-+/// </summary>
-+internal static class FrameTimeProbe
-+{
-+    private static readonly StreamWriter? Log = Environment.GetEnvironmentVariable("TERTIUS_PROBE_FRAME_TIMES") is
-+    { Length: > 0 } path
-+        ? new StreamWriter(path) { AutoFlush = true }
-+        : null;
-+
-+    private static long last = -1;
-+
-+    public static void Write(RenderStats stats)
-+    {
-+        if (Log is null || stats.GpuTimings is not { } timings || timings.Frame <= last)
-+            return;
-+        last = timings.Frame;
-+        var line = new System.Text.StringBuilder();
-+        line.Append(CultureInfo.InvariantCulture, $"{timings.Frame} {timings.SpanMilliseconds:F5}");
-+        foreach (PassTiming pass in timings.Passes.Span)
-+            line.Append(CultureInfo.InvariantCulture, $" {pass.Pass.Replace(' ', '_')}={pass.Milliseconds:F5}");
-+        Log.WriteLine(line.ToString());
-+    }
-+}
+diff --git a/src/Tertius.Rendering/Scene/SceneBatcher.cs b/src/Tertius.Rendering/Scene/SceneBatcher.cs
+index c44273fba..dfc42766b 100644
+--- a/src/Tertius.Rendering/Scene/SceneBatcher.cs
++++ b/src/Tertius.Rendering/Scene/SceneBatcher.cs
+@@ -657,7 +657,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float
+     {
+         if (!faces.ContainsAnyExcept(FaceMask.None))
+             return;
+-        ReadOnlySpan<PreparedInstance> instances = scene.PlacedSpan;
++        ReadOnlySpan<PreparedInstance> instances = FaceProbe.ForFaces(scene.PlacedSpan); // PROBE (t1-6tn2)
+         for (int map = 0; map < faces.Length; map++)
+         for (int layer = 0; layer < CubeFaces.Count; layer++)
+         {
+@@ -685,6 +685,8 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float
+     )
+     {
+         int opaqueCount = 0;
++        int probeKept = 0, probeCulled = 0; // PROBE (ter-yglw)
++        long probeTriangles = 0;
+         for (int i = 0; i < instances.Length; i++)
+         {
+             ref readonly PreparedInstance instance = ref instances[i];
+@@ -694,7 +696,20 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float
+                 || CubeFaces.Culls(basis, instance.Position, instance.Radius)
+             )
+                 continue;
+-            int mask = DepthRanges.OpaqueMask(Vector3.Dot(instance.Position, basis.Forward), instance.Radius);
++            if (FaceProbe.CullsSmall(instance.Position, instance.Radius))
++            {
++                probeCulled++;
++                continue;
++            }
++            if (FaceProbe.LeavesOut(instance.Mesh, instance.Map, map))
++                continue;
++            int mask = FaceProbe.Reach(
++                DepthRanges.OpaqueMask(Vector3.Dot(instance.Position, basis.Forward), instance.Radius),
++                instance.Position,
++                instance.Radius
++            );
++            probeKept++;
++            probeTriangles += meshes[instance.Mesh].IndexCount / 3 * BitOperations.PopCount((uint)mask);
+             AppendOpaque(
+                 count: ref opaqueCount,
+                 mask: mask,
+@@ -724,6 +739,14 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float
+                 Near: faceRanges[DepthRanges.Near].Sided
+             )
+         );
++        FaceProbe.Face(
++            map,
++            (int)face,
++            faceRanges[DepthRanges.Far].Count + faceRanges[DepthRanges.Middle].Count + faceRanges[DepthRanges.Near].Count,
++            probeTriangles,
++            probeKept,
++            probeCulled
++        );
+     }
+ 
+     /// <summary>
+diff --git a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
+index 97123d8f9..d5efa8159 100644
+--- a/src/Tertius.Rendering/VulkanRenderer.cs
++++ b/src/Tertius.Rendering/VulkanRenderer.cs
+@@ -526,7 +526,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
+     public MeshId CreateMesh(MeshData mesh)
+     {
+         ObjectDisposedException.ThrowIf(disposed, this);
+-        return uploads.AddMesh(mesh);
++        MeshId id = uploads.AddMesh(mesh);
++        FaceProbe.MeshCreated(id, mesh, uploads.AddMesh); // PROBE (t1-6tn2)
++        return id;
+     }
+ 
+     /// <summary>
+@@ -2577,6 +2579,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
+         if (disposed)
+             return;
+         disposed = true;
++        if (environmentMap is not null) // PROBE (ter-yglw): the face dump
++            FaceProbe.Dump(this, environmentMap.DrawnFor.Length);
+         if (window != null && onFramebufferResize != null)
+             window.FramebufferResize -= onFramebufferResize;
+         // Not checked: even after a device loss everything must still be destroyed.

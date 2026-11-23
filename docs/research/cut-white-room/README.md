@@ -43,6 +43,7 @@ Map 2 is the map of the camera's frame, the ship's interior. It draws the ship a
 1. Draw 0: the histories reset. The diffuse history jumps from 84.6 to 309, so the rays of the reset draw read the stale exterior light.
 2. Draws 5 to 10: map 2's six faces refresh in turn. Its irradiance falls from 29.14 to 8.10.
 3. Draws 23 to 27: map 2's faces refresh again. Its irradiance falls to 0.00603, its true value, and stays there.
+   Two rounds are needed because of the prefilter. `EnvironmentPrefilterPass` writes the irradiance and the specular levels of only the drawn faces. Its class comment says: "each face's filters are a pure function of the six faces as they were stored at its last turn". An irradiance texel gathers light over a hemisphere, and a hemisphere spans several faces. So in the first round, the face in turn is convolved while the faces after it still hold the exterior. Only the second round sees six fresh faces. The log fits this: map 2's irradiance falls face by face in draws 5 to 10 (28.03, 26.92, 26.84, 16.93, 12.75, 8.10), and again in draws 23 to 27 (4.96, 1.82, 1.65, 0.0080, 0.0060). It stays at 0.0060 when the last face, −Z, refreshes at draw 28. The variant draws all six faces and then prefilters them, so one draw gives the true irradiance.
 4. Draws 27 to 199: the map is fresh, but the light stays in a loop. A diffuse ray reads the hit light of the surface that it hits. The hit light of that surface reads the diffuse history (`leavingLightOf`). The history accumulates those rays. In the closed cabin this loop loses about 3.4 % of its light per draw: the history's ratio from one draw to the next is 0.963 to 0.968 from draw 30 to draw 199. Between draws 10 and 30 the ratio is 0.981, because map 2 still holds 8.10 and feeds the loop.
 
 At draw 199 the diffuse history is 0.405, 2.9 times its settled value of 0.138. At 0.966 per draw it needs about 30 more draws to come within 10 % of the settled value.
@@ -91,7 +92,6 @@ The image means here differ from the ticket's series (29,614 at a-000099 there, 
 
 - The closed form reads 0 at every draw after the cut, in both runs, and 0.70 outside. So the closed form is not what carries the stale light into the cabin's pixels. The log does not show which term reads map 2 at draw 0. The candidate is the diffuse ray that leaves the screen: it reads `environmentLobe(p.s.map, direction, 0.5)` (screen_trace.glsl, line 457), the radiance cube, not the irradiance. This was not tested.
 - Map 0's irradiance reads 0 at every draw in all three runs, while its faces refresh in turn. Not explained.
-- In main, map 2 needed two rounds of its faces (draws 5 to 10, then 23 to 27) to reach its true irradiance. In the variant one draw of all six faces reached it at once. A face's light pass reads no ambient light from the maps (environment_face_light.frag, line 13), so the stale map does not light the new faces. Not explained.
 
 ## Files
 
