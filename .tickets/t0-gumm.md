@@ -261,3 +261,34 @@ The sixth gate's take of the merge (the cap after a light change in the bounce-l
 **2026-11-23T04:27:05Z**
 
 The orchestrator's answer on the gate's take, 2026-11-22 about 23:30, for this ticket. (1) The fault that both codes share after the sun comes on, a soft cloud on the floor and speckle on the upper right wall in the first draws, is not the cap's. It belongs with the start's blotches: the first draws of a bounce-lit room after any large change. The chosen design for the cost must improve it, not only hold it. (2) The card column has weight: after a light change or a cut, 40 to 50 of the about 50 draws under the rest are the controller's return and about 8 are the dear draws, so the price of today's cliff on the card is mostly the controller's. The decision after the sweep is between three forms: (a) the short full-rate shape, if 3 draws keep the picture, with the controller as it is; (b) today's 8 draws with a known dip, where the renderer tells the controller the dear draws ahead and the scale returns at once after them; (c) both. For (b) and (c) the lead estimates from the card logs, with the return after the last dear draw replaced by an immediate return, marked as an estimate. (3) The line orchestrator's observation, which the orchestrator copies to ter-6fka: the catch-up rays helped where the new light is brighter and rarer than the old (the start, the sun coming on) and hurt where it is darker (the sun going off). A ray buys where the samples' variance rises. A budget that spends by variance would cover the start, the cut, the sun coming on and the narrow surfaces with one rule and would spend nothing after the sun goes off. Not a design yet. All sent to the lead at 23:32.
+
+**2026-11-23T04:34:19Z**
+
+The sweep of shapes, by the combined check's lead, 2026-11-22 about 23:30 by the machine's clock: bay-sunbeam's start on the Mac at the constant scale 2/3, every shape with the cap and on the reset's clock. Pictures in the lead's worktree, committed next by the lead: docs/research/t0-gumm-catch-up-spread/pics/sweep-strip.png and sweep-chart.png. The line orchestrator looked at both: at draw 2 today's cliff is smooth and every other shape is blotched, most of all "none" and the full rate for 3 draws; at draw 8 the differences are small at the strip's size.
+
+Measured. Shape (PeakShare, EndFrames, Fall): peak share of pixels that trace an own diffuse ray; catch-up rays per pixel (own diffuse rays above the settled level over draws 0 to 59, over the render size's pixels); boil of draws 1 to 8; grain of draws 3 to 8; grain of draws 9 to 15; narrow crop's boil 1 to 8 and grain 3 to 8, all in %:
+- today (1, 8, 0): 72 %; 5.79; 1.370; 3.34; 4.19; 1.127; 0.61.
+- h16 (0.5, 16, 0): 36 %; 5.78; 1.471; 4.62; 4.57; 1.360; 0.82.
+- f32 (0.5, 32, 1): 36 %; 5.97; 1.494; 5.09; 5.13; 1.397; 0.93.
+- q32 (0.25, 32, 0): 19 %; 5.78; 1.622; 5.89; 5.47; 1.635; 1.05.
+- e32 (0.125, 32, 0): 10 %; 2.89; 1.716; 6.62; 5.94; 1.705; 1.12.
+- c3 (1, 3, 0): 72 %; 2.18; 1.638; 7.18; 6.28; 1.316; 1.04.
+- none (0, 32, 0): 0; 0; 1.801; 7.31; 6.45; 1.808; 1.12.
+About 28 % of the pixels never trace an own ray, so today's total is 5.8 and not 8.
+
+A fault in the scratch patch, found and fixed by the lead: a pixel that is no longer young fell back to today's rule, so (1, 3, 0) first gave today's cliff bit for bit. scratch-catch-up-short.patch keeps a reset pixel young until max(end, 8) draws. A shape whose end is 8 or more is unchanged (h16 checked bit for bit), so the earlier shapes stand.
+
+What it shows:
+- The user's question, answered: no shape spreads the same rays over more draws and keeps the picture. At today's total, half the peak keeps about two thirds of today's grain gain and three quarters of its boil gain; a quarter of the peak keeps about a third. No shape makes the start better than today's cliff.
+- Form (a), full rate for 3 draws, fails on the picture: grain of draws 3 to 8 7.18 against none's 7.31. Form (c) fails with it.
+- The lead's reading (early blotches stay in the history, so an early ray buys more) is contradicted for the grain: the rays of draws 0 to 2 buy almost none.
+- The line orchestrator's reading, to be tested: in draws 0 to 2 the history is shorter than HistoryFixFrames, so the fix replaces it with the mean of taps 4 and 2 pixels apart, one pixel per block, and an own ray's independence is lost. From a length of 4 on the pixel keeps its own samples with the weight 1 / length, so the rays of draws 3 to 7 make the lasting gain: today's grain stays at 4.19 against 6.45 through draw 15 although its rays stop at draw 8. The grain ratio of none to today in draws 3 to 8 is 2.2, about the root of 4, the ratio of independent samples per block. So in the bay the early grain is limited by the ray count.
+
+Form (b), today's 8 draws with a known dip of the render scale: an estimate from today's card logs of jobs 2 and 3 (tools/knowndip.py), not a measure. The dear draws take the scale at which their logged span fits 16.67 ms, and every other draw keeps the rest. Logged draws under the rest by more than 0.02 and the lowest scale, then the estimate's:
+- start: 59 to 62 draws, 0.762 to 0.768; estimate 8 draws, 0.779 to 0.789.
+- lamps off: 46 to 49, 0.828 to 0.839; estimate 10, 0.759 to 0.786.
+- lamps on: 46 to 47, 0.825 to 0.838; estimate 10, 0.760 to 0.789.
+- cut: 41 to 44, 0.841 to 0.853; estimate 8, 0.752 to 0.777.
+The estimate leaves out the part of a draw's cost that does not grow with the pixels (so the real dip is deeper), the start's own dip of about 50 draws, FSR's history across two sudden changes of the scale, and the controller's dead band.
+
+Answer 91 of the line orchestrator: one run more on the Mac after the region log's report, the delayed shape (share 0 in draws 0 to 2, share 1 in draws 3 to 7). The model predicts today's grain from draw 3 on with about 3.6 catch-up rays per pixel and 5 dear draws, and less of today's boil gain. The lead's next steps stand: commit, delete the raw frames of committed takes, the card job of the bay's start for today, none and h16, and the video.
