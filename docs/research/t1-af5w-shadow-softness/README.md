@@ -617,3 +617,40 @@ For an engine design with one owner of a tile's contents and their freshness:
   the width takes the emitter's side. Stale when the light changes shape; a build would store the side as one value.
 - Per tile view (`GpuShadowTile`): `texelPerMeter` and `near`, from which the width takes the texel's size. Stale when
   the tile's projection changes, which also redraws the tile.
+
+## The card's take (t0-t2oq)
+
+The Mac's lean form cost 1.41 to 1.89 ms of the direct pass in exit-cabin against the clean main. The probe binary with
+its switch off was itself 0.9 to 1.7 ms slower than the clean main, so much of that can be the M1's step of resident
+threads at its register limit, which a desktop card does not have. One card job tells the two apart.
+
+The job ran through `tools/runpod/gpu_job.py` on an NVIDIA RTX 2000 Ada Generation, driver 595.112.07 (`card/card.csv`),
+on 2026-11-23 at 16:42 New York time. It had two trees:
+
+- `main`: the clean main, `72426c219`, the commit of the Mac take's clean main.
+- `lean`: `bf1a02a06` on scratch branch `t0-t2oq-lean-tree`: `72426c219` with `patches/part1-pyramid.patch` and the
+  lean-only edits (`patches/part1-lean-only-build.md`): the lean form with the shared lookup and the 25 gathers, the
+  build named `only-lean-shr` on the Mac. It runs with `TERTIUS_X_PYRAMID=1095`.
+
+`tools/card-take.sh` built both trees in Release with the analyzers off (the lean tree's scratch export file does not
+pass them; they change no code). For each view, it ran one discarded warm-up per side, then 5 rounds with the order of
+the sides alternating. The views and fixed exposures are the Mac take's: exit-deck at 0.7238405 stops and the headless
+render scale of 2/3, and exit-cabin at −0.44716394 stops and the render scale 0.96, at 1920 × 1080 with `--video none`.
+`card/runs.json` holds every run.
+
+Each value is the median over the 5 runs of each run's median over its 3 captures, in ms, with the range of the 5 runs.
+Direct is key and fill + direct light + light pyramid. Main is the clean main.
+
+| View | Sum | The clean main | The lean form | The difference |
+|---|---|---|---|---|
+| exit-deck | direct | 1.916 (1.898–1.916) | 2.171 (2.169–2.179) | +0.255 |
+| | transparent + FSR 3.1 | 1.661 (1.651–1.671) | 1.766 (1.759–1.768) | +0.105 |
+| | frame span | 12.083 (12.030–12.155) | 12.488 (12.418–12.499) | +0.405 |
+| exit-cabin | direct | 3.622 (3.619–3.666) | 4.210 (4.201–4.232) | +0.588 |
+| | transparent + FSR 3.1 | 3.935 (3.927–3.974) | 4.346 (4.339–4.367) | +0.411 |
+| | frame span | 23.232 (23.180–23.408) | 24.307 (24.255–24.387) | +1.075 |
+
+In exit-cabin on the card, the lean form costs 0.59 ms of the direct pass, just above the line's 0.5 ms, against
+1.89 ms on the M1. As a share of the direct pass it is +16 % on the card and +28 % on the M1.
+
+The job executed for 285 s, which the queue script counted as $0.0567 (Runpod's bill of the hour settles later).

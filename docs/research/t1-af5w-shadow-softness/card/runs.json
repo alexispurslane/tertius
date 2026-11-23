@@ -1,0 +1,110 @@
+{
+ "exit-deck/main": [
+  {
+   "direct": 1.8983,
+   "transparent": 1.6506,
+   "frame": 12.0299
+  },
+  {
+   "direct": 1.9156,
+   "transparent": 1.6612,
+   "frame": 12.0826
+  },
+  {
+   "direct": 1.9124,
+   "transparent": 1.6635,
+   "frame": 12.0457
+  },
+  {
+   "direct": 1.9162,
+   "transparent": 1.6711,
+   "frame": 12.1555
+  },
+  {
+   "direct": 1.9156,
+   "transparent": 1.661,
+   "frame": 12.1332
+  }
+ ],
+ "exit-deck/lean": [
+  {
+   "direct": 2.1689,
+   "transparent": 1.7592,
+   "frame": 12.4383
+  },
+  {
+   "direct": 2.179,
+   "transparent": 1.7679,
+   "frame": 12.4916
+  },
+  {
+   "direct": 2.1706,
+   "transparent": 1.7628,
+   "frame": 12.4176
+  },
+  {
+   "direct": 2.1722,
+   "transparent": 1.7669,
+   "frame": 12.488
+  },
+  {
+   "direct": 2.1701,
+   "transparent": 1.766,
+   "frame": 12.499
+  }
+ ],
+ "exit-cabin/main": [
+  {
+   "direct": 3.6221,
+   "transparent": 3.9346,
+   "frame": 23.1796
+  },
+  {
+   "direct": 3.6188,
+   "transparent": 3.9271,
+   "frame": 23.1808
+  },
+  {
+   "direct": 3.6222,
+   "transparent": 3.9345,
+   "frame": 23.2477
+  },
+  {
+   "direct": 3.6279,
+   "transparent": 3.9374,
+   "frame": 23.2317
+  },
+  {
+   "direct": 3.6665,
+   "transparent": 3.9737,
+   "frame": 23.4078
+  }
+ ],
+ "exit-cabin/lean": [
+  {
+   "direct": 4.2104,
+   "transparent": 4.3387,
+   "frame": 24.2643
+  },
+  {
+   "direct": 4.2099,
+   "transparent": 4.3438,
+   "frame": 24.3069
+  },
+  {
+   "direct": 4.2011,
+   "transparent": 4.3459,
+   "frame": 24.2547
+  },
+  {
+   "direct": 4.2084,
+   "transparent": 4.3493,
+   "frame": 24.3192
+  },
+  {
+   "direct": 4.2316,
+   "transparent": 4.3667,
+   "frame": 24.3873
+  }
+ ]
+}
