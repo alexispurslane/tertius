@@ -1,0 +1,118 @@
+diff -ruN s1/direct.frag s1-d1/direct.frag
+--- s1/direct.frag	2026-11-23 17:04:32
++++ s1-d1/direct.frag	2026-11-23 17:07:07
+@@ -5,6 +5,7 @@
+ // light and no emission: the composite adds both.
+ #extension GL_GOOGLE_include_directive : require
+ #define VISIBILITY_FIRST
++#define VISIBILITY_IMAGE
+ #include "frame.glsl"
+ #include "gbuffer_surface.glsl"
+ #include "temporal.glsl"
+@@ -27,7 +28,6 @@
+     }
+ 
+     ShadingInput s = materialAt(pixel);
+-    fillVisibilities(s.position, s.geometricNormal);
+     vec3 V = -normalize(s.position);
+     SurfaceLobes lobes = lobesOf(s, V);
+     DirectTerms direct = directLight(s, lobes, V, ShadowMapsMainView, MainView);
+diff -ruN s1/direct_key_fill.frag s1-d1/direct_key_fill.frag
+--- s1/direct_key_fill.frag	2026-11-23 17:04:32
++++ s1-d1/direct_key_fill.frag	2026-11-23 17:07:07
+@@ -3,6 +3,7 @@
+ // lit pixel from its tile's key lights and fill (key_fill_light.glsl) in place of every light of the list.
+ #extension GL_GOOGLE_include_directive : require
+ #define VISIBILITY_FIRST
++#define VISIBILITY_IMAGE
+ #include "frame.glsl"
+ #include "gbuffer_surface.glsl"
+ #include "temporal.glsl"
+@@ -24,7 +25,6 @@
+     }
+ 
+     ShadingInput s = materialAt(pixel);
+-    fillVisibilities(s.position, s.geometricNormal);
+     vec3 V = -normalize(s.position);
+     SurfaceLobes lobes = lobesOf(s, V);
+     DirectTerms direct = keyFillLight(s, lobes, V, pixel);
+diff -ruN s1/lighting.glsl s1-d1/lighting.glsl
+--- s1/lighting.glsl	2026-11-23 17:04:32
++++ s1-d1/lighting.glsl	2026-11-23 17:07:50
+@@ -646,7 +646,12 @@
+ // pixel, before the response loops, in the order of the light list. The size: ShadowAtlas.Tiles lamps, plus
+ // MaxCascadedLights cascade sets, plus as many far-shadows-only lights.
+ const uint MaxShadowedLights = 72u;
++#ifdef VISIBILITY_IMAGE
++// SCRATCH t0-t2oq, design 1: the visibility pass's image, layer n for the n-th shadowed light of the main view.
++layout(set = 3, binding = 0) uniform texture2DArray lightVisibilityImage;
++#else
+ float shadowedVisibility[MaxShadowedLights];
++#endif
+ 
+ // The share of `light` that its shadows let through at `position` in the main view, where the light can reach it:
+ // lightPath's direction, distance, turned geometric normal and angle, made here, so no caller holds them. 0 outside the
+@@ -669,6 +674,7 @@
+     return lightVisibility(light, position, L, d, shadowNormal, sinTheta, ShadowMapsMainView);
+ }
+ 
++#ifndef VISIBILITY_IMAGE
+ // Fills shadowedVisibility for the surface point at `position` with the geometric normal `geometricNormal`.
+ void fillVisibilities(vec3 position, vec3 geometricNormal)
+ {
+@@ -682,11 +688,20 @@
+     }
+ }
+ 
++#endif
++#ifdef VISIBILITY_COMPUTE
++float seenAt(uint i, uint slot) { return 1.0; } // unused in the pass
++#else
+ // The visibility of light i in a response loop, from its place `slot` among the shadowed lights of the main view.
+ float seenAt(uint i, uint slot)
+ {
++#ifdef VISIBILITY_IMAGE
++    return lights[i].shadow.x == NoSlot ? 1.0 : texelFetch(lightVisibilityImage, ivec3(ivec2(gl_FragCoord.xy), int(slot)), 0).r;
++#else
+     return lights[i].shadow.x == NoSlot ? 1.0 : slot < MaxShadowedLights ? shadowedVisibility[slot] : 0.0;
++#endif
+ }
++#endif
+ #endif
+ 
+ // MaterialSample.TubeTerms per unit of the tube's scalar irradiance: c_diff / π · (N · cosine), and the specular
+diff -ruN s1/visibility.comp s1-d1/visibility.comp
+--- s1/visibility.comp	1969-12-31 19:00:00
++++ s1-d1/visibility.comp	2026-11-23 17:07:42
+@@ -0,0 +1,31 @@
++#version 460
++// SCRATCH t0-t2oq, design 1: the visibility pass. One invocation per pixel; layer n of the image holds the visibility of
++// the n-th shadowed light of the main view.
++#extension GL_GOOGLE_include_directive : require
++#define VISIBILITY_FIRST
++#define VISIBILITY_IMAGE
++#define VISIBILITY_COMPUTE
++#include "frame.glsl"
++#include "gbuffer_surface.glsl"
++#include "lighting.glsl"
++
++layout(local_size_x = 8, local_size_y = 8) in;
++layout(set = 3, binding = 1, r8) uniform writeonly image2DArray visibilityOut;
++
++void main()
++{
++    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
++    if (any(greaterThanEqual(pixel, ivec2(frame.viewport.xy))))
++        return;
++    if (texelFetch(gbufferDistance, pixel, 0).r <= 0.0 || texelFetch(gbufferBaseColor, pixel, 0).a == 0.0)
++        return;
++    ShadingInput s = materialAt(pixel);
++    uint n = 0u;
++    for (uint i = 0u; i < frame.counts.x; i++)
++    {
++        if (!viewKeeps(MainView, lights[i]) || lights[i].shadow.x == NoSlot)
++            continue;
++        imageStore(visibilityOut, ivec3(pixel, int(n)), vec4(visibilityOf(lights[i], s.position, s.geometricNormal)));
++        n++;
++    }
++}

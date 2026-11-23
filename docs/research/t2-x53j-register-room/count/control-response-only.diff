@@ -1,0 +1,73 @@
+diff -ru s1/direct.frag s1-resonly/direct.frag
+--- s1/direct.frag	2026-11-23 17:04:32
++++ s1-resonly/direct.frag	2026-11-23 17:05:46
+@@ -5,6 +5,7 @@
+ // light and no emission: the composite adds both.
+ #extension GL_GOOGLE_include_directive : require
+ #define VISIBILITY_FIRST
++#define RESPONSE_ONLY
+ #include "frame.glsl"
+ #include "gbuffer_surface.glsl"
+ #include "temporal.glsl"
+@@ -27,7 +28,17 @@
+     }
+ 
+     ShadingInput s = materialAt(pixel);
++#ifndef RESPONSE_ONLY
+     fillVisibilities(s.position, s.geometricNormal);
++#endif
++#ifdef VISIBILITY_ONLY
++    float total = 0.0;
++    for (uint k = 0u; k < frame.counts.x && k < MaxShadowedLights; k++)
++        total += shadowedVisibility[k];
++    outDiffuse = vec4(total);
++    outSpecular = vec4(0.0);
++    return;
++#endif
+     vec3 V = -normalize(s.position);
+     SurfaceLobes lobes = lobesOf(s, V);
+     DirectTerms direct = directLight(s, lobes, V, ShadowMapsMainView, MainView);
+diff -ru s1/direct_key_fill.frag s1-resonly/direct_key_fill.frag
+--- s1/direct_key_fill.frag	2026-11-23 17:04:32
++++ s1-resonly/direct_key_fill.frag	2026-11-23 17:05:46
+@@ -3,6 +3,7 @@
+ // lit pixel from its tile's key lights and fill (key_fill_light.glsl) in place of every light of the list.
+ #extension GL_GOOGLE_include_directive : require
+ #define VISIBILITY_FIRST
++#define RESPONSE_ONLY
+ #include "frame.glsl"
+ #include "gbuffer_surface.glsl"
+ #include "temporal.glsl"
+@@ -24,7 +25,17 @@
+     }
+ 
+     ShadingInput s = materialAt(pixel);
++#ifndef RESPONSE_ONLY
+     fillVisibilities(s.position, s.geometricNormal);
++#endif
++#ifdef VISIBILITY_ONLY
++    float total = 0.0;
++    for (uint k = 0u; k < frame.counts.x && k < MaxShadowedLights; k++)
++        total += shadowedVisibility[k];
++    outDiffuse = vec4(total);
++    outSpecular = vec4(0.0);
++    return;
++#endif
+     vec3 V = -normalize(s.position);
+     SurfaceLobes lobes = lobesOf(s, V);
+     DirectTerms direct = keyFillLight(s, lobes, V, pixel);
+diff -ru s1/lighting.glsl s1-resonly/lighting.glsl
+--- s1/lighting.glsl	2026-11-23 17:04:32
++++ s1-resonly/lighting.glsl	2026-11-23 17:05:46
+@@ -685,7 +685,11 @@
+ // The visibility of light i in a response loop, from its place `slot` among the shadowed lights of the main view.
+ float seenAt(uint i, uint slot)
+ {
++#ifdef RESPONSE_ONLY
++    return 1.0;
++#else
+     return lights[i].shadow.x == NoSlot ? 1.0 : slot < MaxShadowedLights ? shadowedVisibility[slot] : 0.0;
++#endif
+ }
+ #endif
+ 
