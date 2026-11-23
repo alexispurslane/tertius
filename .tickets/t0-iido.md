@@ -41,3 +41,15 @@ For section 14 of the review of the approach, reported to the orchestrator on 20
 **2026-11-22T23:52:18Z**
 
 The orchestrator's decisions, 2026-11-22: gate 5 is met (both films on the final code, 05a27262d, with their motion measured; the lamp switch is a clear gain under the dynamic scale). The walk's trail after a stop does not hold the merge: both codes show the trail and Design X's is longer by about 1 point of light for 20 to 40 draws, the whole image settles at once on both, both pass the survey, the user saw the same numbers in the earlier walk film and named Design X 'strictly better', and every other take of the acceptance is better than main; the orchestrator shows the user the video as the one take where Design X loses. Remaining gates: the cap's mutants, Release suite and review; tc-8142; the per-scene table; the full suites on the line's head. When all hold, I tell the orchestrator with the base and head commits of the diff.
+
+**2026-11-23T01:51:07Z**
+
+A fact about the card from the orchestrator, 2026-11-22 (bug t1-80jd on main at fa36fc77d, not proven): the first run of a card job seems to draw about 10 to 18 % slower per full-size draw than the later runs of the same job.
+
+The scale check on the merged code 16d915a67 (job f8b8cba5, one run) was therefore a slow first run. It stands and is stronger: 0 size changes through the lamp switch on a slow run. Its rest at 0.944 is the card, not Design X and not main's step 2.
+
+The run orders behind the two decisions, which I read from the jobs' result files and run scripts:
+- The cost after a light change (job 1091056e, cost-switch-card-16ms-x-xb-xd.png): order x, xb, xd, no warm-up. Design X without a fix was the first run (it rested at 0.956, against 0.993 in an older job). The decision compared the cap (run 2) with "own rays wait for the evidence" (run 3), each against its own idle span; the variant's draws 10 to 13 cost 25.2, 24.1, 25.3 and 22.8 ms against 17.6 ms settled, 30 to 44 % above. The choice of the 8-draw restart does not rest on a first run and stands.
+- The spread of the catch-up rays (jobs d80337b3 and the second, card-scale-shapes1.png and card-scale-shapes2.png): cardrun.sh starts each job with one discarded run of every build (2 and 3 runs), so no measured run was first. The difference between 1/16 and 1/32 is a few size steps (1/16: 3 / 5 / 3 changes in job 1 and 8 / 9 / 4 in job 2; 1/32: 0 / 1 / rises only, one run), which is a thin sample and not a first-run fault. My answer 84: one more job with two runs each of today's cliff, the cap, and 1/16 and 1/32 with and without the cap, before the table of three codes.
+
+From now on every comparison job of the line starts with one discarded warm-up run of the job. The merge's gates do not wait for the rerun.

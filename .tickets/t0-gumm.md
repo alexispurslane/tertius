@@ -141,3 +141,7 @@ The start in two parts (largest fall, scale lost over 60 draws): without catch-u
 A new film for the camera cut: person camera, one frame on the chase camera, the person camera again; at draw 134 the mean history length falls from 25.6 to 0.98 draws. The old cut film (bright exterior, then the cabin) stayed saturated white for over 100 draws; the lead files that as a bug.
 
 My reading: 1/32 for 32 draws is 1 catch-up ray per restarted pixel, against 8 to 11 today and none with the cap; this card allows no more. The Mac's measures must show whether that one ray buys anything against the cap alone. The share is a cost budget; a production form could take it from the controller's headroom (noted, not built).
+
+**2026-11-23T01:51:07Z**
+
+The card's first-run fact (t1-80jd), 2026-11-22: no measured run of the two card jobs was first in its job, because cardrun.sh discards one run of every build at the start. Ordered (my answer 84): one more job with two runs each of today's cliff, the cap, and 1/16 and 1/32 with and without the cap, on the lamp switch and the cut, because the difference between 1/16 and 1/32 is a few size steps and '1/32 holds' rests on one run. If the two runs of 1/32 differ as much as 1/16 differs from 1/32, the table names the range and not one value. The spread's decision waits for this job.
