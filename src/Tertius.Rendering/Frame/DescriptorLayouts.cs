@@ -1005,12 +1005,12 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                     + SignalSetSampledImages * SignalSets
                     + (ScreenTraceSampledImages + ScreenTraceLightImages) * ScreenTraceSets
             ),
-            // One per pyramid level set, each tail set's mips, four per environment levels set, three for the scatter set,
+            // Three per pyramid level set, each tail set's mips, four per environment levels set, three for the scatter set,
             // one for the shadow bounds set, four per surface test set, SignalSetImages per signal set, six for the light
             // set, sixteen per screen tracer set with the hit light, plus ScreenTraceAgeImages, and four per filter set.
             new(
                 DescriptorType.StorageImage,
-                PyramidLevelSets
+                3 * PyramidLevelSets
                     + Pyramids * PyramidTail.Mips
                     + 4 * EnvironmentLevelsSets
                     + 3
@@ -1114,10 +1114,15 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>The layouts of the pyramid level set and the pyramid tail set, whose bindings the compute stage reads.</summary>
     private (DescriptorSetLayout Level, DescriptorSetLayout PyramidTail) CreatePyramidSetLayouts()
     {
+        // Bindings 2 and 3, the surface test image and the motion target, serve the light pyramid's finest level alone, which
+        // sends each pixel's light by its surface share (light_pyramid_finest.comp). One layout keeps one pipeline layout for
+        // every pyramid dispatch, and the other sets leave both bindings unwritten, which no other shader reads.
         Span<DescriptorSetLayoutBinding> level =
         [
             Image(binding: 0, stages: ShaderStageFlags.ComputeBit),
             StorageImage(binding: 1),
+            StorageImage(binding: 2),
+            StorageImage(binding: 3),
         ];
         Span<DescriptorSetLayoutBinding> tail =
         [

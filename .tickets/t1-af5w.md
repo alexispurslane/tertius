@@ -157,3 +157,178 @@ The lead now adds four counts to the measure: the sun's possible gain at contact
 **2026-11-23T17:00:55Z**
 
 Step 1's measure (no engine change) is on the branch t1-af5w-shadow-softness: docs/research/t1-af5w-shadow-softness/README.md. It gives, per view and light, the gap, the true width and the rendered width; the GpuLight fields that hold the emitter's extent; how well TileLookup.bounds.y gives the gap (within 20 % of the blockers' mean at 88 % of the lamps' edge pixels); the register counts of three candidates; stills and 1:1 crops; and the line orchestrator's four additions. The sun's least ramp after design L is not measured, so its gain at contact is at most about 3 cm. No reading separates a self-shadow from a contact edge at gaps under 5 cm. The far cascades' ramp in mars-day is ticket t58-7645.
+
+**2026-11-23T17:17:45Z**
+
+## Two designs (the line orchestrator of the Design X line, 2026-11-23, 12:17 New York time). No build before the orchestrator's choice.
+
+The measure is docs/research/t1-af5w-shadow-softness/README.md. This note uses its terms: the gap, the light's angular size, the true width, the rendered width. Three more terms:
+
+- **The footprint** is the square on a lamp's tile, centered on the lookup, whose lit share the lamp's share at the receiver is. Its width is in tile texels. Today it is 4 texels wide for every lamp and every gap.
+- **The own-plane span** is the depth in m, toward the light, that the receiver's own plane covers inside the bounds window. It is 3 texels times the size of a texel at the receiver times tan θ, with θ the angle between the receiver's normal and the direction to the light.
+- **The trusted gap** is the gap minus the own-plane span minus the depth bias. A caster with a trusted gap above 0 lies nearer the light than any point of the receiver's own plane inside the window can lie.
+
+### What the measure decides before any design
+
+1. **The sun gets no design.** Its edge at contact can narrow by at most about 3 cm (0.088 m to 0.058 m), and by nothing if the least ramp after design L is 1.5 texels. Variant C (the cascades' ramp width from a uniform) costs no register, so the sun can follow later at no cost if a still asks for it. The far cascades of mars-day are ticket t58-7645.
+2. **The lamps need both halves.** By pixel count the too-soft edges are the larger group: 23 to 98 % of a lamp class's edge pixels are more than 2 times too soft, and near casters are 10 to 200 times too soft. The too-sharp edges are the panels with far casters: the 1.2 m panels are 6 to 13 times too sharp where the gap is 8 to 11 m, and the 0.15 x 0.5 m panels 2.6 to 4.3 times.
+3. **A wide edge is beyond the taps.** A true width of 0.5 to 2.2 m is 8 to 70 tile texels. A footprint of 30 to 70 texels holds 900 to 4,900 texels, against the 25 that today's nine gathers read.
+4. **t1-hdtm is not this ticket's test.** On the beam's face the window's only caster is the face itself, at sin θ 0.98. Its own-plane span is 3 x 0.024 m x 4.9 = 0.35 m, and the gap reads 0.078 m. So no gap rule may sharpen there, and the leak keeps its own ticket. This corrects fact 2 of the back-face line's note of 2026-11-23.
+
+### The narrow half, shared by both designs
+
+One model: a lamp's share is the lit share of a footprint whose width is the true width, but at least the least ramp that hides the texel grid. Up to 4 texels, a remap of today's 16 taps gives that share for a straight edge, with no new read:
+
+```glsl
+// w: the footprint's width in texels, from the least ramp to 4. lit: tileLitFraction's result.
+float share = clamp(0.5 + (lit - 0.5) * 4.0 / w, 0.0, 1.0);
+```
+
+- **The ramp stays centered on the map's edge.** It ends at the lit fractions 0.5 - w / 8 and 0.5 + w / 8. So for w under 4 the ramp has a dead band at both ends. Acne that fails up to (4 - w) / 8 of the taps gives the share 1, where today it darkens the pixel. The refused rule of t1-gout ended its ramp at the lit fraction 1, which is why it raised the acne by 8/3. The light inside the shadow reaches w / 2 texels, where today it reaches 2.
+- **How the design knows that the caster is not the receiver's own surface** (the orchestrator's point 3): w follows the true width only where the trusted gap is above 0. Where it is 0 or less, w is 4 and the share is today's. Between a trusted gap of 0 and one own-plane span, w fades from 4 to the true width, so no seam shows. The measure found no separator at gaps under 5 cm, and this rule needs none: under the own-plane span it does not sharpen.
+- **What this costs in the image, to be seen in the probe:** a contact edge keeps today's width for about one ramp's length around the point of contact, and it is sharp beyond that. A receiver in grazing light never sharpens.
+- **The gap** comes from `TileLookup.bounds.y`, with no new read: the caster's distance is `d * ndc.z / bounds.y`. It is within 20 % of the blockers' mean at 88 % of the lamps' edge pixels, and where it differs it is the larger one, so the edge is the softer one.
+- **The emitter's size as the caster sees it** is the side of the square with the emitter's projected area: the square root of the area times the cosine between the emitter's axis and the direction to the caster, for a rect; 2 R for a sphere. `GpuLight` holds all of it. (My choice. The measure used the largest width.)
+- **The least ramp of a tile is not known.** The probe takes 1, 1.5 and 2 texels.
+- **Registers:** variant A is this remap without the trust rule, and it puts `direct_key_fill.frag` at r116, 1 over. It holds `bounds.y` and the texel's size across the taps. The first thing to try is to fetch the bounds texel again after the taps, so that nothing new is held across them.
+
+### The wide half: the three candidates against the situation that each was made for
+
+The sources are named from memory. The designer of the chosen one reads its paper before the build.
+
+| Candidate | Made for | Ours | Verdict |
+|---|---|---|---|
+| Several views across the emitter, shares averaged | Accumulated hard shadows (Haeberli and Akeley 1990; Heckbert and Herf 1997): tens to hundreds of points per emitter, for still scenes or textures made ahead. The count of points gives the quality | k points per axis draw k copies of an edge, the true width / k apart, each as wide as the rendered width. They merge only where the true width / k is at most the rendered width. The 1.2 m panels with far casters need k of 6 to 13 per axis, 36 to 169 points of 6 tiles each. With k = 2, the widest that the atlas and the lookups can pay, an edge of 2 m is two lines 1 m apart | Right where the true width is under about 0.5 m. Steps beyond |
+| A prefiltered tile (variance shadow maps, Donnelly and Lauritzen 2006; variable widths by Lauritzen 2007 and by Yang and others 2010) | One light, one map of 1024 x 1024, a width of up to hundreds of texels at a cost that does not grow with the width. Scenes of a few casters over a ground | Up to 8 lamps of 6 cached tiles. Widths of 8 to 70 texels, which no count of taps reaches. Its fault is light where two casters at different depths overlap inside the footprint, and our cabins have such casters | Applies. The only candidate whose cost does not grow with the width. The fault's case is common here, so the cabins' stills decide |
+| A screen-space blur of the key light's share (Gumbau and others 2010; MohammadBagher and others 2010) | One key light in a deferred renderer, widths of tens of pixels | Each pixel looks up a shadow for up to 16 listed lights, so it needs one share image per light. A width of 2 m at 5 m is about 400 pixels | Does not apply |
+
+A fourth idea, coarser copies of the depth tile read with today's taps, fails on thin casters. A coarse texel holds one depth, so a rail 5 cm wide is either lost or as dark as a wall, and its far shadow must be a faint band.
+
+### Design 1: a pyramid of the tile gives the wide footprint
+
+The footprint keeps one model for every width: the lit share of a square of the true width. Up to 4 texels the taps and the remap give it. Above 4 texels one filtered read of a pyramid gives it.
+
+- **Stores, owned by `ShadowAtlas`:** a second array image, `Moments`, RG32F at half the tile's size with 5 levels (256 down to 16). A texel holds the mean and the mean square of the casters' distance from the light, as a share of the light's reach. The bounds image gets the same 5 levels, each the least and greatest of the level below. 64 tiles cost 45 MB of moments and 11 MB of bounds levels. RG32F with a linear filter is a required feature on every desktop driver and on lavapipe.
+- **Writes, in `LocalShadowPass`, after a tile's draw and beside `shadow_bounds.comp`:** level 0 of the moments from the tile's depth, then 4 levels of the moments (the mean) and of the bounds (the least and the greatest). A cached tile keeps all of it, so a still scene pays nothing.
+- **The lookup:**
+
+```glsl
+float tileShadow(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float sinTheta)
+{
+    TileLookup t = tileLookupOf(light, position, L, d, geometricNormal, sinTheta);
+    // The footprint's width in texels: the true width from the nearest caster inside the emitter's
+    // reach on the tile (one read of a bounds level), and 4 where the gap is not trusted.
+    float w = footprintTexels(t, light, d, sinTheta);
+    if (w <= 4.0)
+        return rampOf(tileLitFraction(t), w);            // the narrow half
+    return pyramidShare(t, d / light.reach, w);          // one filtered read of Moments at level log2(w / 4)
+}
+```
+
+- **What it must know:** the gap. It takes the caster nearest the light inside the window, so where two casters overlap in depth it draws the softer edge.
+- **Where it goes wrong:** the share from two moments is exact for one caster over one receiver plane. With a third depth inside the footprint it lets light through. The usual cut of the low shares, clamp((share - b) / (1 - b)), trades that light for darker edges. The probe picks b from the cabins' stills, or shows that no b is clean.
+- **Cost:** a lit pixel near a wide caster takes 1 more bounds read. A wide edge pixel takes 1 filtered read in place of 9 gathers.
+
+### Design 2: the emitter gets several views
+
+A lamp's share is the mean of the shares from k points of its emitter. The geometry makes the width.
+
+- **Stores:** a wide emitter gets k sets of tile views, one per point. `AtlasTiles(First, Count)` holds k x 6 views. The points are the centers of k equal parts of the emitter: 2 x 2 for a 1.2 m panel, 2 along the long axis for a 0.15 x 0.5 m panel, 1 for a sphere of 0.05 m.
+- **Writes:** `ShadowTiles.Update` grants a wide light k x 6 layers, and its rank counts them. Each point's views are drawn and cached as today's.
+- **The lookup:**
+
+```glsl
+float share = 0.0;
+for (uint point = 0u; point < points; point++)
+{
+    // The direction and the distance to this point of the emitter, in place of its center.
+    vec4 toPoint = emitterPoint(light, point, position);
+    share += tileShadowOf(light, point, position, toPoint.xyz, toPoint.w, geometricNormal, sinTheta);
+}
+return share / float(points);
+```
+
+- **What it must know:** nothing about the gap in the wide half. Casters that overlap in depth are right, and a panel of 0.15 x 0.5 m gets its two different widths.
+- **Where it goes wrong:** steps, by the table above. With k = 2 it is smooth for the 1.2 m panels of exit-cabin (true width 0.21 m at the median), exit-deck (0.07 m) and rect-lamps (0.38 m), and it draws two lines for the far casters of the cabins and the pads (1.3 to 2.2 m).
+- **Cost:** exit-cabin's 8 lamps go from 48 tiles to 144, and the atlas holds 64. 144 tiles are 144 MB of atlas and 72 MB of bounds. A panel's lookups are 4 times today's, a small panel's 2 times: about 3 times the lamps' lookups in exit-cabin. A moving caster redraws up to 4 times the tiles.
+
+### The two designs side by side
+
+| | What makes a wide edge wide | What it must know | Where it goes wrong | New memory | Reads at a wide edge pixel | Widths that it draws smoothly |
+|---|---|---|---|---|---|---|
+| Design 1, the pyramid | One filtered read of a prefiltered tile | The gap, from the bounds | Light through casters that overlap in depth | 56 MB | 1 in place of 9 gathers | Any, up to about 64 texels |
+| Design 2, the views | The mean of k real views | Nothing | Steps where the true width is above k times the rendered width | 120 MB for exit-cabin at k = 2 (216 MB against today's 96 MB) | 4 times 9 gathers | Up to about 0.5 m at k = 2 |
+
+Both share:
+
+- The narrow half above: the remap, the trusted gap, the least ramp.
+- The sun and design L stay as they are. No noise in the direct light, and no path trace.
+- The register limit of r115 in `direct_key_fill.frag`. Each design's lookup gets a register count before its first still.
+- The texts that carry the corrected reading: the comment above `tileShadow`, the paragraph "The lit side of a cascade's edge" in ARCHITECTURE.md, and t1-hdtm's text.
+- The tests: the acne counts of `ALitFloorUnderASpotLightHasNoAcne` at 4 m and 12 m do not rise, and one new behavior test: under one lamp, the edge of a caster that touches its receiver is narrower than the edge of a caster 2 m away.
+
+### The order of the work
+
+The narrow half is the same in both designs, and neither design changes it. So it is probed first, and it can merge first if its stills are clean. The wide half follows on the orchestrator's choice.
+
+### My recommendation
+
+Design 1 for the wide half, for one reason: the widths that the measure found are 8 to 70 texels, and only the pyramid's cost does not grow with the width. Design 2 is the honest mechanism, and I would take it if k = 2 were enough. By the arithmetic it is enough in three of the measured views and draws two lines in the others. The probe shows both, and the stills of the cabins decide whether the pyramid's fault shows.
+
+**2026-11-23T17:19:30Z**
+
+2026-11-23, 12:19 New York time, line orchestrator of the Design X line. The probe of the two designs starts now, on my own decision (answer 102), with the lead of the measure in its worktree t3-52bfcd29-81249085ce80dd9f, branch t1-af5w-shadow-softness: scratch patches only, a register count before each part's first still. Part 0 is the narrow half, which both designs share. Part 2 is design 2 at k = 2. Part 1 is design 1 with the cut b at 0, 0.2 and 0.4. Task node:delegated-task:command%3Amcp%3A7a182238-7151-4406-a5ac-7cc160bd69e2%3Athread-send%3A8e26546c-b33f-4c67-8935-6912f44c15b1, child thread thread:delegated-task:command%3Amcp%3Aa061e2e4-17a4-45d5-ac91-153bf5752d2c%3Adelegate-task%3Adesign-x-line-t0-gbgj-lead-1.
+
+**2026-11-23T17:21:46Z**
+
+2026-11-23, 12:21 New York time, line orchestrator of the Design X line: the orchestrator's answer to the two designs. 1. Its lean for the views across the emitter is withdrawn: at k = 2 an edge of 1 to 2 m is two lines about 1 m apart, a visible fault, and where k = 2 is enough the pyramid serves too. Design 2 can win only if design 1 bleeds visibly. 2. The probe's order: the narrow half, then design 1's pyramid, then design 2 only if design 1's light through overlapping casters shows in a cabin still at 1:1. 3. Design 1's deciding take is a cabin view with casters that overlap in depth, at 1:1, main beside the probe. If it bleeds, the lead tries the known reductions in the same probe (a floor on the lit share after the moment test, or exponential moments) with their cost in registers and in ms. 4. The sun gets no design in this ticket. 5. The narrow half is a first merge on its own if it fits r115; if not, the fork goes to the orchestrator with its cost. To try first: 4.0 / w out of the lookup that already yields the bounds. 6. The stills for the user at the end: a near and a far caster of a lamp, main beside the build, frozen world, settled exposure, 1:1. Answer 102 stands with this order. Sent to the lead at 12:21.
+
+**2026-11-23T17:39:30Z**
+
+2026-11-23, 12:39 New York time, line orchestrator of the Design X line: part 0 of the probe, the narrow half. Registers of direct_key_fill.frag (limit r115): 4 / w as one float out of tileLookupOf without the trust rule r115; with the trust rule r117 (the angle from dot(geometricNormal, L) after the fetch r117, the rule in tileShadow from two floats r116, the two packed in one uint r116). The cause is one more value that lives across the bounds fetch. Stills (the lead's pics/part0): with the trust rule on, every view equals main within 0.24 % of the pixels (exit deck, least ramp 1), and the beam face of t1-hdtm does not change. With the rule off at 1.5 texels, 0.43 % of the exit deck's pixels change, the lit patch on the beam face ends about at the beam's edge, and a frame in grazing light gets a slightly darker soft band. The acne test: main 4 of 25,784 at 4 m and 2 of 135,815 at 12 m; rule on 4 and 2; rule off 0 and 0. No texel staircase at a least ramp of 1. The niche of rect-lamps does not change in any column, also with the rule off: the cause is asked of the lead. My reading: the narrow half is clean and shows close to nothing, so the visible softness has to come from the wide half. The fork went to the orchestrator: the rule on (ruled out by me: r117 for a picture that equals main), the rule off at r115 (breaks the orchestrator's rule of point 3; open risk: crawl in grazing light), or no narrow half now (my recommendation, and the rule off only after a film of a slow camera move over grazing surfaces).
+
+**2026-11-23T17:42:18Z**
+
+2026-11-23, 12:42 New York time, line orchestrator of the Design X line: the orchestrator decided part 0's fork. No narrow half now. The trust rule on is out: r117 and 0.10 to 0.36 ms for a picture that equals main. The trust rule off waits for a film of a slow camera move over the exit deck's frame and a floor in grazing light, main beside the rule off; if nothing crawls it merges as its own small change, with the leak ticket's still (t1-hdtm) as its evidence. The softness that the user asked for comes from the wide half, so the pyramid's scratch probe is the work now, and its deciding take is the cabin view with casters that overlap in depth. In the pyramid's lookup, widths of 4 texels or less use today's ramp. For the engine design: the far-field store's writer becomes the lights' shadow views with a color beside the depth (ter-6fka, main 7de78028f), which the back-face line probes. Two probes add data to a shadow tile, and neither merges yet. The pyramid's engine design must name the one owner of a tile's contents and freshness, so that a second attachment has a place to go. Disk rule from the orchestrator until the disk recovers: no new worktree and no full build under 22 GiB free; an incremental build that adds under 0.5 GiB may run down to 18 GiB; under 18 GiB every lead stops.
+
+**2026-11-23T18:03:28Z**
+
+2026-11-23, 13:03 New York time, line orchestrator of the Design X line: part 1 of the probe, the pyramid (the lead's pics/part1). 1. The first stills showed three faults: hard four-sided patches at lamp 15's far caster, light through the shadow at the exit deck's wall base, and a wash-out of the floor's bands. 2. The hard patches were my lookup's fault: the width came from one read of a coarse level of the bounds and was constant over a coarse texel of 32 tile texels. A bilinear read of that level (width form 1) gives a smooth width, and the same footprint drawn by a brute-force filter of 8 x 8 comparisons is smooth and clean. The blockers' mean from the moments (form 2) fails: the width saturates at 64 texels. 3. The wash-out is the width, not the moments: the brute-force filter at the same footprint washes out as much. The footprint's width under form 1 is 3.8 / 5.7 / 10.8 texels (10th / 50th / 90th percentile) at the far caster, 3.6 / 11.1 / 13.3 on the deck's floor, 4.7 / 6.7 / 8.3 on the cabin's floor; the measure's true width at the far caster is 14.6 texels. 4. The moments fail: they light the wall base's dark band where the brute-force filter keeps it, and they are brighter than that filter at the same footprint. The cut b up to 0.4 and exponential moments at c = 40 clean neither. Registers r116 in both direct shaders. 5. An error of my design's premise: I ruled out direct taps for widths of 30 to 70 texels, which holds only for the few far casters of the cabins and pads; on the deck and the cabin floor the footprints are 4 to 18 texels. My decisions (answers 105 and 106): no more work on the moments; the views stay out; a third form is probed, the footprint by direct taps with a cap (cap 8: a box of 8 texels by 64 corner means, with the box of 4 from the same reads; cap 16: the brute-force filter, for the picture only), with its register count, the direct pass's time and the share of pixels that take the 64 reads; and a reference crop by the back-face line's Cycles export decides whether the wash-out is the right look.
+
+**2026-11-23T18:22:56Z**
+
+2026-11-23, 13:22 New York time, line orchestrator of the Design X line: the reference and the capped taps (the lead's pics/part1/ref-*.png and cap-cabin-floor.png). The reference is the back-face line's Cycles export of exit-deck, 2,048 samples; the take with direct light only and no sun answers the edge question (the take with all bounces is 3.1 times as bright as the engine and nearly flat; the engine's image is 1.86 times the direct reference's mean). At lamp 15's far caster the truth is one broad dark band where main's is, with much softer edges; cap 8 and cap 16 have its shape. On the floor under the glass frames the truth is broad soft gradients; cap 16 is the closest, then cap 8. At the wall base the direct reference's band is black with sharp edges, a contact shadow under a ledge, and every engine column draws a soft grey band: a contact case, not a wide one. The moments also draw hard stripes and steps on the cabin's floor. Cap 8 as probed: r127 in both direct shaders (the width logic alone r116 and r119), and 92.5 % of exit-deck's pixels and 99.6 % of exit-cabin's take the 64 reads, because the skip reads bounds of 16 texels. My decisions (answers 107 and 108): the lead builds two cuts before the timing (each lamp skips by its own window; only the lamps whose footprint can pass 4 texels enter the wide path) and diagnoses what holds the registers in the width logic; and it checks the wall base like for like, the engine's direct light only beside the direct reference, for main and for the trust rule off.
+
+**2026-11-23T18:54:09Z**
+
+2026-11-23, 13:54 New York time, line orchestrator of the Design X line: the cuts of cap 8, the registers and the like-for-like check (the lead's sheets in /private/tmp/t0-gbgj/p1c/sheets, to be committed with the timing). 1. The cuts: per lamp and pixel, first the width from one bilinear read of level 1's nearest caster (w of 4 or less runs today's filter unchanged), then the exact least and greatest depth of the cap's own 9 x 9 texels from four level-0 windows, and only the rest takes the wide reads. The share of pixels where at least one lamp takes them falls from 92.5 % to 26.3 % in exit-deck and from 99.6 % to 77.0 % in exit-cabin; the 1.2 m panels hold it (19.6 % and 76.1 %), the 0.15 x 0.5 m panels 4.3 % and 4.5 %, lamp-hall-16's spheres 3.7 %. A probe bug was fixed on the way: the width took the trust rule's untrusted term without the clamp at 4 and sent contact pixels to the wide path. 2. Registers (direct.frag / direct_key_fill.frag, main r112 / r115): cut cap 8 by 64 corner means r124 / r126; by 25 gathers r115 / r117; with one shared lookup r119 / r122 and r116 / r118. The wall in key and fill is the second run of tileLookupOf (r117 with nothing else), the 64 means are a wall of their own (+8), the 25 gathers are none, and the width logic adds at most 1. So the best count of the wide half is r117, two over. The M1 runs today's box of 4 as 16 corner means, because MoltenVK prices held values (0.37 ms faster than nine gathers in the deck; on NVIDIA the gathers were 0.8 ms faster). 3. Like for like, direct light only and no sun, engine against the Cycles direct reference: the engine's direct light is black at the wall base in every column, with edges as sharp as the reference's, so the contact shadow does not leak, and the grey band of the full image is the engine's indirect light. The trust rule off changes that band only slightly, so this check gives the narrow half no case. The mean brightness agrees: engine over reference 1.00 at the wall base, 1.05 at the far caster, 1.01 over a square of 330 pixels. At the far caster main's band has hard edges, the reference's is broad and soft, and cut cap 8 lies close to the reference. I opened direct-deck-far.png and direct-deck-wall-base.png and read them the same way.
+
+**2026-11-23T19:24:54Z**
+
+2026-11-23, 14:24 New York time, line orchestrator of the Design X line: the timing of the cut cap 8 (the GPU lock held alone, medians of interleaved repetitions, ms). The sum of key and fill, the direct light and the light pyramid: exit-deck at scale 2/3, main 4.30, 64 means +0.75, 25 gathers +0.70; exit-cabin at 0.96, main 8.14, means +1.75, gathers +1.31. The transparent pass and FSR 3.1: +0.39 to +0.81. The frame span: exit-deck +1.09 (gathers), exit-cabin +2.36. The repetitions agree within 0.05 ms in the direct sums. The gathers are cheaper than the means in the direct pass, also on the M1. The cost follows the share of pixels that enter the wide path (exit-cabin's 1.2 m panels: 76 %). The fork went to the orchestrator: no wide half; the capped taps as probed; or the capped taps with a later entry w0 (the wide path starts at a footprint of w0 texels, the blend to the box of 8 runs over w0 to 8). My decision (answer 109): before the film the lead takes the floor of the wide path (its reads replaced by one value, against main) and the share of pixels over w0 = 4, 5, 6 and 7, and times the largest w0 whose direct-only crops still look like cap 8 beside the reference. If the floor alone is about 0.5 ms, I recommend no wide half.
+
+**2026-11-23T19:27:37Z**
+
+2026-11-23, 14:27 New York time, line orchestrator of the Design X line: the orchestrator's answer to the fork, and my argument on its form 4. No build.
+
+The orchestrator: answer 109 stands, and form 2 (the capped taps as probed) is out at 1.1 to 2.4 ms per frame. It adds form 4 to attack by argument: today's 16 comparisons read from a coarser level of the tile's depth. Each tile gets a chain of point-sampled depth levels. The footprint's width picks the level (4 texels reads level 0, 8 reads level 1, 16 reads level 2), and a blend of two neighboring levels makes the width continuous. If form 4 survives the argument, its probe comes before form 3's film. If form 3's floor is about 0.5 ms and form 4 fails, the orchestrator takes form 1 and the lamps' far edges stay sharp for now.
+
+My argument, with the numbers that the probe gave. A level's texel is 2 or 4 tile texels wide.
+
+1. What it costs. The timing found that the cost is the share of pixels that enter the wide path (77 % of exit-cabin's pixels), times the reads per entered pixel. Form 4 does not change the share. Per entered pixel it reads two levels for a continuous width: 32 corner means against cap 8's 64, or 18 gathers against cap 8's 25. By the measured cabin numbers (+1.75 ms for 64 means, +1.31 ms for 25 gathers) that is about +0.9 ms, on top of the same floor of the width logic. One level without a blend is 16 means or 9 gathers, about +0.45 ms, but then the width jumps where the footprint changes level, and the probe already showed such a border as a hard line (the border at w = 4 in width-deck-far.png). A remap inside one level does not close the jump: at the border the two levels place the same edge up to half a coarse texel apart, a quarter of the ramp.
+   So form 4 with a blend saves about 30 % of form 3's reads. Its real gain is another one: a width above 8 texels costs no more than a width of 8.
+2. Thin casters, the fault that decides. A level's texel holds one depth for 4 or 16 tile texels. If it keeps the nearest caster, a caster t texels thick becomes about t + 2^L - 1 texels thick: a rail of 1 texel is drawn 2 times too heavy at level 1 and 4 times at level 2, as a broad dark band where the truth is a faint one. If it keeps a fixed one of the four, a rail that runs nearly along the grid is hit for a run of texels and missed for the next run, so its soft shadow is dashed, or it is lost. The lamps' tiles follow the cube's faces and the station's frames and rails follow the same axes, so the nearly aligned case is the common one. The exit deck's floor under the glass frames, the view that the user would be shown, is this case. The true comparisons of form 3 do not have this fault, because every tile texel counts once.
+3. The bias. The normal offset and the casters' slope bias must grow with the level's texel, 2 and 4 times. A lookup that enters the wide path because of a far caster also reads the near casters of its window at the coarse level, so their contact shadows detach by 2 to 4 times today's offset. Form 3 has the same class of error only in the width, not in the bias.
+4. A moving caster. The ratio of the filter to the level's texel is today's ratio, so the crawl is hidden to the same share of the ramp. Its steps are 2 to 4 times larger on the floor and slower. Only a film can decide this.
+5. Registers. Not counted. One lookup with a level may fit where the taps' second lookup did not. The blend of two levels reads two levels' bounds and depths, which is again two lookups' worth of live values.
+6. The cache. A level is one compute dispatch per level for a redrawn tile, beside shadow_bounds.comp, and nothing for a cached tile. Levels 1 and 2 add 31 % to the atlas, 20 MB for 64 tiles. They sit beside the far-field probe's color as one more image that LocalShadowPass writes right after a tile's draw, so they share the tile's record in ShadowTiles and need no freshness of their own.
+
+My verdict: form 4 can draw thick casters at any width for a fixed count of reads, but it does not attack the cost that the timing found, and it draws thin casters wrong in the deck's own test view, in either way of keeping a depth. I do not recommend its probe before form 3's two numbers. It becomes the better form only if two things hold: form 3 with a later entry w0 misses the budget by less than about 30 %, and a still of the deck's frames at level 2 shows that the thin casters' fault is not visible. One hybrid stays possible if the widths above 8 texels are wanted later: form 3's box of 8 for a width up to 8, and the same box read from level 1 for a width of 8 to 16, where a thin caster's true shadow is very faint.
+
+**2026-11-23T19:58:43Z**
+
+2026-11-23, 14:58 New York time, line orchestrator of the Design X line: the entry width and the floor. The share of pixels where at least one lamp takes the wide reads, at w0 = 4 / 5 / 6 / 7: exit-deck 26.3 / 22.2 / 19.8 / 17.9 %, exit-cabin 77.0 / 71.7 / 64.2 / 57.3 %. So a later entry saves little: the 1.2 m panels' true widths are far above 7 texels on most of the cabin's floor. By the picture the lead chose w0 = 6; at w0 = 7 the short blend draws a light line along the band's edge (steepest step in levels per pixel: main 2.2, w0 = 4 1.3, w0 = 6 1.6, w0 = 7 2.5, the reference 0.5). The floor, the wide path with its reads replaced by one value, over the probe binary's main in the sum of key and fill, direct light and light pyramid: exit-deck +0.48 ms of the gathers' +0.67, exit-cabin +0.78 of +1.23. So the reads cost about 0.2 to 0.45 ms, and the width, the cap's bounds and the second lookup cost the rest, for every lamp lookup. A flaw that the lead found: every main column so far ran in the probe binary with the probe switched off, at the probe's register count, so every delta is against a main that is slower than the true main by the occupancy step (0.10 to 0.36 ms); a clean main is built and the next take has both. Form 4 shares this floor, so the floor decides both forms. My decision (answer 110): one more round only, the lean floor (a reject by one read before any width, the emitter's side as one value per light, one shared lookup) alone and with the 25 gathers, against the clean main. Under about 0.5 ms in exit-cabin, the wide half gets a build ticket with form 3; otherwise I recommend form 1 and the ticket closes with its record.
+
+**2026-11-23T19:59:53Z**
+
+2026-11-23, 14:59 New York time, line orchestrator of the Design X line: the orchestrator's answer. Form 4 is out: it shares the floor, and the floor is the larger part. Answer 110 stands with its rule: the lean floor with the 25 gathers under about 0.5 ms in exit-cabin against the clean main gives form 3 a build ticket; otherwise form 1 closes this ticket with its record and the reference picture. One round. The trust-off film is skipped: the like-for-like check gave the narrow half no case, and the shrinking of the lamp's leak on the beam face belongs to t1-hdtm when that ticket gets a slot. Every timing table of a probe names its main as the clean main or as the probe with the switch off; tools/README.md, 'The main of a probe's timing table', now holds that rule (commit 94e808582).

@@ -1224,6 +1224,21 @@ neither the toolchain nor the decoder:
 nix develop --command python3 -I tools/test_shader_registers.py
 ```
 
+### The main of a probe's timing table
+
+A probe that adds a path to a direct shader behind a run-time switch moves that shader's register count, also while the
+switch is off, because the compiled shader holds both paths. If the count crosses the step, the probe binary with its
+switch off runs the direct pass in the lower step of resident threads, 0.10 to 0.36 ms slower than main. A timing table
+that takes this binary as its main then shows every delta too small by that step (t1-af5w, 2026-11-23).
+
+So a probe's timing take has two rules:
+
+- Build a clean main from the probe's base commit, and take it in the same interleaved repetitions as the probe's
+  columns.
+- Name the main of every timing table: "the clean main" or "the probe with the switch off". A table with both shows the
+  step itself.
+
+
 ## The renderer survey
 
 `tools/renderer-survey.py` measures every scene of `scripts/*.json` against the goal of epic `ter-8hyd`: frame time, specks and blotches in stills, flicker in motion, and the draws until the light settles after a change. Ticket `ter-6k3k` wrote it, and `docs/plans/renderer-finish.md` holds its first results, the reasons for its thresholds and the ranked failures. Each later ticket of the epic runs it again and compares its table with that baseline.

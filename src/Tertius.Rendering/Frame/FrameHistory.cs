@@ -419,14 +419,22 @@ internal sealed class FrameHistory
         public Extent2D OutputSize => history.derived.OutputSize;
 
         public float FsrFrameMilliseconds => history.derived.FsrFrameMilliseconds;
-        public Vector2 Jitter
-        {
-            get
-            {
-                int phases = Fsr3Upscaler.JitterPhaseCount(RenderSize.Width, history.derived.OutputSize.Width);
-                return Fsr3Upscaler.JitterOffset((int)(DrawIndex % phases), phases);
-            }
-        }
+
+        /// <summary>
+        /// The jitter's offset of this draw, in render pixels, when the draw jitters: phase <see cref="DrawIndex"/> of
+        /// <see cref="JitterPhases"/>.
+        /// </summary>
+        public Vector2 Jitter => Fsr3Upscaler.JitterOffset((int)(DrawIndex % JitterPhases), JitterPhases);
+
+        /// <summary>
+        /// The surface share's spread (ARCHITECTURE.md, "Surface share"): min(P, <see cref="DrawIndex"/> + 1), where P is
+        /// <see cref="JitterPhases"/>. A pixel that shows a surface for the first time sends 1 / spread of its fresh light.
+        /// It holds for a draw that jitters. A draw without jitter takes 1.
+        /// </summary>
+        public int SurfaceShareSpread => (int)Math.Min(JitterPhases, DrawIndex + 1);
+
+        /// <summary>The phase count P of the jitter at this draw's render width and output width.</summary>
+        private int JitterPhases => Fsr3Upscaler.JitterPhaseCount(RenderSize.Width, OutputSize.Width);
 
         /// <summary>
         /// The render size of the last drawn frame, whose images this draw reads, also after a change of the camera's frame;
