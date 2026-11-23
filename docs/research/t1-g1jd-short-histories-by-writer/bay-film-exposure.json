@@ -1,0 +1,1202 @@
+[
+  {
+    "frame": 0,
+    "capture": "bay-000000",
+    "stops": 0.15931994
+  },
+  {
+    "frame": 1,
+    "capture": "bay-000001",
+    "stops": 0.15931994
+  },
+  {
+    "frame": 2,
+    "capture": "bay-000002",
+    "stops": 0.15929826
+  },
+  {
+    "frame": 3,
+    "capture": "bay-000003",
+    "stops": 0.15927224
+  },
+  {
+    "frame": 4,
+    "capture": "bay-000004",
+    "stops": 0.1592434
+  },
+  {
+    "frame": 5,
+    "capture": "bay-000005",
+    "stops": 0.15921326
+  },
+  {
+    "frame": 6,
+    "capture": "bay-000006",
+    "stops": 0.15917613
+  },
+  {
+    "frame": 7,
+    "capture": "bay-000007",
+    "stops": 0.15914454
+  },
+  {
+    "frame": 8,
+    "capture": "bay-000008",
+    "stops": 0.15910488
+  },
+  {
+    "frame": 9,
+    "capture": "bay-000009",
+    "stops": 0.15907276
+  },
+  {
+    "frame": 10,
+    "capture": "bay-000010",
+    "stops": 0.15905493
+  },
+  {
+    "frame": 11,
+    "capture": "bay-000011",
+    "stops": 0.15904751
+  },
+  {
+    "frame": 12,
+    "capture": "bay-000012",
+    "stops": 0.15904461
+  },
+  {
+    "frame": 13,
+    "capture": "bay-000013",
+    "stops": 0.1590512
+  },
+  {
+    "frame": 14,
+    "capture": "bay-000014",
+    "stops": 0.15906258
+  },
+  {
+    "frame": 15,
+    "capture": "bay-000015",
+    "stops": 0.15908222
+  },
+  {
+    "frame": 16,
+    "capture": "bay-000016",
+    "stops": 0.15910873
+  },
+  {
+    "frame": 17,
+    "capture": "bay-000017",
+    "stops": 0.15914528
+  },
+  {
+    "frame": 18,
+    "capture": "bay-000018",
+    "stops": 0.15918757
+  },
+  {
+    "frame": 19,
+    "capture": "bay-000019",
+    "stops": 0.15923652
+  },
+  {
+    "frame": 20,
+    "capture": "bay-000020",
+    "stops": 0.15928905
+  },
+  {
+    "frame": 21,
+    "capture": "bay-000021",
+    "stops": 0.15934707
+  },
+  {
+    "frame": 22,
+    "capture": "bay-000022",
+    "stops": 0.15941535
+  },
+  {
+    "frame": 23,
+    "capture": "bay-000023",
+    "stops": 0.1594926
+  },
+  {
+    "frame": 24,
+    "capture": "bay-000024",
+    "stops": 0.15957695
+  },
+  {
+    "frame": 25,
+    "capture": "bay-000025",
+    "stops": 0.15967797
+  },
+  {
+    "frame": 26,
+    "capture": "bay-000026",
+    "stops": 0.1597956
+  },
+  {
+    "frame": 27,
+    "capture": "bay-000027",
+    "stops": 0.15993138
+  },
+  {
+    "frame": 28,
+    "capture": "bay-000028",
+    "stops": 0.16008781
+  },
+  {
+    "frame": 29,
+    "capture": "bay-000029",
+    "stops": 0.16026217
+  },
+  {
+    "frame": 30,
+    "capture": "bay-000030",
+    "stops": 0.16045277
+  },
+  {
+    "frame": 31,
+    "capture": "bay-000031",
+    "stops": 0.1606644
+  },
+  {
+    "frame": 32,
+    "capture": "bay-000032",
+    "stops": 0.16089328
+  },
+  {
+    "frame": 33,
+    "capture": "bay-000033",
+    "stops": 0.16113694
+  },
+  {
+    "frame": 34,
+    "capture": "bay-000034",
+    "stops": 0.16139661
+  },
+  {
+    "frame": 35,
+    "capture": "bay-000035",
+    "stops": 0.16167182
+  },
+  {
+    "frame": 36,
+    "capture": "bay-000036",
+    "stops": 0.16195963
+  },
+  {
+    "frame": 37,
+    "capture": "bay-000037",
+    "stops": 0.16225912
+  },
+  {
+    "frame": 38,
+    "capture": "bay-000038",
+    "stops": 0.16256498
+  },
+  {
+    "frame": 39,
+    "capture": "bay-000039",
+    "stops": 0.16287874
+  },
+  {
+    "frame": 40,
+    "capture": "bay-000040",
+    "stops": 0.16320345
+  },
+  {
+    "frame": 41,
+    "capture": "bay-000041",
+    "stops": 0.16353948
+  },
+  {
+    "frame": 42,
+    "capture": "bay-000042",
+    "stops": 0.16388486
+  },
+  {
+    "frame": 43,
+    "capture": "bay-000043",
+    "stops": 0.16424204
+  },
+  {
+    "frame": 44,
+    "capture": "bay-000044",
+    "stops": 0.16460635
+  },
+  {
+    "frame": 45,
+    "capture": "bay-000045",
+    "stops": 0.1649795
+  },
+  {
+    "frame": 46,
+    "capture": "bay-000046",
+    "stops": 0.16536091
+  },
+  {
+    "frame": 47,
+    "capture": "bay-000047",
+    "stops": 0.1657494
+  },
+  {
+    "frame": 48,
+    "capture": "bay-000048",
+    "stops": 0.16614325
+  },
+  {
+    "frame": 49,
+    "capture": "bay-000049",
+    "stops": 0.16654658
+  },
+  {
+    "frame": 50,
+    "capture": "bay-000050",
+    "stops": 0.1669563
+  },
+  {
+    "frame": 51,
+    "capture": "bay-000051",
+    "stops": 0.16737337
+  },
+  {
+    "frame": 52,
+    "capture": "bay-000052",
+    "stops": 0.1677963
+  },
+  {
+    "frame": 53,
+    "capture": "bay-000053",
+    "stops": 0.16822639
+  },
+  {
+    "frame": 54,
+    "capture": "bay-000054",
+    "stops": 0.1686582
+  },
+  {
+    "frame": 55,
+    "capture": "bay-000055",
+    "stops": 0.16909468
+  },
+  {
+    "frame": 56,
+    "capture": "bay-000056",
+    "stops": 0.16953035
+  },
+  {
+    "frame": 57,
+    "capture": "bay-000057",
+    "stops": 0.16996755
+  },
+  {
+    "frame": 58,
+    "capture": "bay-000058",
+    "stops": 0.17040575
+  },
+  {
+    "frame": 59,
+    "capture": "bay-000059",
+    "stops": 0.1708428
+  },
+  {
+    "frame": 60,
+    "capture": "bay-000060",
+    "stops": 0.1712786
+  },
+  {
+    "frame": 61,
+    "capture": "bay-000061",
+    "stops": 0.17171472
+  },
+  {
+    "frame": 62,
+    "capture": "bay-000062",
+    "stops": 0.17214662
+  },
+  {
+    "frame": 63,
+    "capture": "bay-000063",
+    "stops": 0.17257778
+  },
+  {
+    "frame": 64,
+    "capture": "bay-000064",
+    "stops": 0.17300761
+  },
+  {
+    "frame": 65,
+    "capture": "bay-000065",
+    "stops": 0.17343785
+  },
+  {
+    "frame": 66,
+    "capture": "bay-000066",
+    "stops": 0.1738662
+  },
+  {
+    "frame": 67,
+    "capture": "bay-000067",
+    "stops": 0.1742964
+  },
+  {
+    "frame": 68,
+    "capture": "bay-000068",
+    "stops": 0.17472208
+  },
+  {
+    "frame": 69,
+    "capture": "bay-000069",
+    "stops": 0.17514792
+  },
+  {
+    "frame": 70,
+    "capture": "bay-000070",
+    "stops": 0.17557462
+  },
+  {
+    "frame": 71,
+    "capture": "bay-000071",
+    "stops": 0.17599788
+  },
+  {
+    "frame": 72,
+    "capture": "bay-000072",
+    "stops": 0.17641532
+  },
+  {
+    "frame": 73,
+    "capture": "bay-000073",
+    "stops": 0.17683126
+  },
+  {
+    "frame": 74,
+    "capture": "bay-000074",
+    "stops": 0.17724116
+  },
+  {
+    "frame": 75,
+    "capture": "bay-000075",
+    "stops": 0.17764564
+  },
+  {
+    "frame": 76,
+    "capture": "bay-000076",
+    "stops": 0.1780483
+  },
+  {
+    "frame": 77,
+    "capture": "bay-000077",
+    "stops": 0.17844865
+  },
+  {
+    "frame": 78,
+    "capture": "bay-000078",
+    "stops": 0.17884491
+  },
+  {
+    "frame": 79,
+    "capture": "bay-000079",
+    "stops": 0.1792407
+  },
+  {
+    "frame": 80,
+    "capture": "bay-000080",
+    "stops": 0.1796306
+  },
+  {
+    "frame": 81,
+    "capture": "bay-000081",
+    "stops": 0.18001598
+  },
+  {
+    "frame": 82,
+    "capture": "bay-000082",
+    "stops": 0.1803995
+  },
+  {
+    "frame": 83,
+    "capture": "bay-000083",
+    "stops": 0.18077984
+  },
+  {
+    "frame": 84,
+    "capture": "bay-000084",
+    "stops": 0.18115331
+  },
+  {
+    "frame": 85,
+    "capture": "bay-000085",
+    "stops": 0.18152423
+  },
+  {
+    "frame": 86,
+    "capture": "bay-000086",
+    "stops": 0.18188901
+  },
+  {
+    "frame": 87,
+    "capture": "bay-000087",
+    "stops": 0.18225193
+  },
+  {
+    "frame": 88,
+    "capture": "bay-000088",
+    "stops": 0.18261012
+  },
+  {
+    "frame": 89,
+    "capture": "bay-000089",
+    "stops": 0.18296222
+  },
+  {
+    "frame": 90,
+    "capture": "bay-000090",
+    "stops": 0.18330863
+  },
+  {
+    "frame": 91,
+    "capture": "bay-000091",
+    "stops": 0.18364468
+  },
+  {
+    "frame": 92,
+    "capture": "bay-000092",
+    "stops": 0.18396972
+  },
+  {
+    "frame": 93,
+    "capture": "bay-000093",
+    "stops": 0.18428192
+  },
+  {
+    "frame": 94,
+    "capture": "bay-000094",
+    "stops": 0.18458347
+  },
+  {
+    "frame": 95,
+    "capture": "bay-000095",
+    "stops": 0.18487471
+  },
+  {
+    "frame": 96,
+    "capture": "bay-000096",
+    "stops": 0.18515088
+  },
+  {
+    "frame": 97,
+    "capture": "bay-000097",
+    "stops": 0.18541905
+  },
+  {
+    "frame": 98,
+    "capture": "bay-000098",
+    "stops": 0.18567976
+  },
+  {
+    "frame": 99,
+    "capture": "bay-000099",
+    "stops": 0.18592867
+  },
+  {
+    "frame": 100,
+    "capture": "bay-000100",
+    "stops": 0.18616949
+  },
+  {
+    "frame": 101,
+    "capture": "bay-000101",
+    "stops": 0.18640427
+  },
+  {
+    "frame": 102,
+    "capture": "bay-000102",
+    "stops": 0.18663591
+  },
+  {
+    "frame": 103,
+    "capture": "bay-000103",
+    "stops": 0.18686566
+  },
+  {
+    "frame": 104,
+    "capture": "bay-000104",
+    "stops": 0.18708883
+  },
+  {
+    "frame": 105,
+    "capture": "bay-000105",
+    "stops": 0.1873035
+  },
+  {
+    "frame": 106,
+    "capture": "bay-000106",
+    "stops": 0.18751296
+  },
+  {
+    "frame": 107,
+    "capture": "bay-000107",
+    "stops": 0.18771468
+  },
+  {
+    "frame": 108,
+    "capture": "bay-000108",
+    "stops": 0.18790984
+  },
+  {
+    "frame": 109,
+    "capture": "bay-000109",
+    "stops": 0.18808919
+  },
+  {
+    "frame": 110,
+    "capture": "bay-000110",
+    "stops": 0.18825641
+  },
+  {
+    "frame": 111,
+    "capture": "bay-000111",
+    "stops": 0.18840843
+  },
+  {
+    "frame": 112,
+    "capture": "bay-000112",
+    "stops": 0.18854563
+  },
+  {
+    "frame": 113,
+    "capture": "bay-000113",
+    "stops": 0.18866882
+  },
+  {
+    "frame": 114,
+    "capture": "bay-000114",
+    "stops": 0.18877296
+  },
+  {
+    "frame": 115,
+    "capture": "bay-000115",
+    "stops": 0.18885946
+  },
+  {
+    "frame": 116,
+    "capture": "bay-000116",
+    "stops": 0.18892694
+  },
+  {
+    "frame": 117,
+    "capture": "bay-000117",
+    "stops": 0.1889771
+  },
+  {
+    "frame": 118,
+    "capture": "bay-000118",
+    "stops": 0.18901022
+  },
+  {
+    "frame": 119,
+    "capture": "bay-000119",
+    "stops": 0.18902051
+  },
+  {
+    "frame": 120,
+    "capture": "bay-000120",
+    "stops": 0.1889623
+  },
+  {
+    "frame": 121,
+    "capture": "bay-000121",
+    "stops": 0.18879339
+  },
+  {
+    "frame": 122,
+    "capture": "bay-000122",
+    "stops": 0.18849796
+  },
+  {
+    "frame": 123,
+    "capture": "bay-000123",
+    "stops": 0.18804827
+  },
+  {
+    "frame": 124,
+    "capture": "bay-000124",
+    "stops": 0.1873417
+  },
+  {
+    "frame": 125,
+    "capture": "bay-000125",
+    "stops": 0.18635674
+  },
+  {
+    "frame": 126,
+    "capture": "bay-000126",
+    "stops": 0.1850869
+  },
+  {
+    "frame": 127,
+    "capture": "bay-000127",
+    "stops": 0.18356055
+  },
+  {
+    "frame": 128,
+    "capture": "bay-000128",
+    "stops": 0.1817401
+  },
+  {
+    "frame": 129,
+    "capture": "bay-000129",
+    "stops": 0.17964773
+  },
+  {
+    "frame": 130,
+    "capture": "bay-000130",
+    "stops": 0.17723669
+  },
+  {
+    "frame": 131,
+    "capture": "bay-000131",
+    "stops": 0.1744795
+  },
+  {
+    "frame": 132,
+    "capture": "bay-000132",
+    "stops": 0.17138311
+  },
+  {
+    "frame": 133,
+    "capture": "bay-000133",
+    "stops": 0.16794865
+  },
+  {
+    "frame": 134,
+    "capture": "bay-000134",
+    "stops": 0.1641745
+  },
+  {
+    "frame": 135,
+    "capture": "bay-000135",
+    "stops": 0.16005377
+  },
+  {
+    "frame": 136,
+    "capture": "bay-000136",
+    "stops": 0.15553688
+  },
+  {
+    "frame": 137,
+    "capture": "bay-000137",
+    "stops": 0.15063275
+  },
+  {
+    "frame": 138,
+    "capture": "bay-000138",
+    "stops": 0.14526835
+  },
+  {
+    "frame": 139,
+    "capture": "bay-000139",
+    "stops": 0.13943966
+  },
+  {
+    "frame": 140,
+    "capture": "bay-000140",
+    "stops": 0.13317224
+  },
+  {
+    "frame": 141,
+    "capture": "bay-000141",
+    "stops": 0.12642872
+  },
+  {
+    "frame": 142,
+    "capture": "bay-000142",
+    "stops": 0.11923616
+  },
+  {
+    "frame": 143,
+    "capture": "bay-000143",
+    "stops": 0.111594774
+  },
+  {
+    "frame": 144,
+    "capture": "bay-000144",
+    "stops": 0.10347883
+  },
+  {
+    "frame": 145,
+    "capture": "bay-000145",
+    "stops": 0.09485622
+  },
+  {
+    "frame": 146,
+    "capture": "bay-000146",
+    "stops": 0.0857052
+  },
+  {
+    "frame": 147,
+    "capture": "bay-000147",
+    "stops": 0.07603753
+  },
+  {
+    "frame": 148,
+    "capture": "bay-000148",
+    "stops": 0.06583022
+  },
+  {
+    "frame": 149,
+    "capture": "bay-000149",
+    "stops": 0.055064004
+  },
+  {
+    "frame": 150,
+    "capture": "bay-000150",
+    "stops": 0.04376932
+  },
+  {
+    "frame": 151,
+    "capture": "bay-000151",
+    "stops": 0.031915918
+  },
+  {
+    "frame": 152,
+    "capture": "bay-000152",
+    "stops": 0.019558078
+  },
+  {
+    "frame": 153,
+    "capture": "bay-000153",
+    "stops": 0.0066950894
+  },
+  {
+    "frame": 154,
+    "capture": "bay-000154",
+    "stops": -0.006662043
+  },
+  {
+    "frame": 155,
+    "capture": "bay-000155",
+    "stops": -0.02055838
+  },
+  {
+    "frame": 156,
+    "capture": "bay-000156",
+    "stops": -0.03498021
+  },
+  {
+    "frame": 157,
+    "capture": "bay-000157",
+    "stops": -0.04991021
+  },
+  {
+    "frame": 158,
+    "capture": "bay-000158",
+    "stops": -0.06534372
+  },
+  {
+    "frame": 159,
+    "capture": "bay-000159",
+    "stops": -0.08125693
+  },
+  {
+    "frame": 160,
+    "capture": "bay-000160",
+    "stops": -0.09766855
+  },
+  {
+    "frame": 161,
+    "capture": "bay-000161",
+    "stops": -0.11456395
+  },
+  {
+    "frame": 162,
+    "capture": "bay-000162",
+    "stops": -0.13185513
+  },
+  {
+    "frame": 163,
+    "capture": "bay-000163",
+    "stops": -0.14961922
+  },
+  {
+    "frame": 164,
+    "capture": "bay-000164",
+    "stops": -0.1678571
+  },
+  {
+    "frame": 165,
+    "capture": "bay-000165",
+    "stops": -0.18658257
+  },
+  {
+    "frame": 166,
+    "capture": "bay-000166",
+    "stops": -0.20572034
+  },
+  {
+    "frame": 167,
+    "capture": "bay-000167",
+    "stops": -0.22525537
+  },
+  {
+    "frame": 168,
+    "capture": "bay-000168",
+    "stops": -0.24525796
+  },
+  {
+    "frame": 169,
+    "capture": "bay-000169",
+    "stops": -0.26565322
+  },
+  {
+    "frame": 170,
+    "capture": "bay-000170",
+    "stops": -0.28640336
+  },
+  {
+    "frame": 171,
+    "capture": "bay-000171",
+    "stops": -0.30751184
+  },
+  {
+    "frame": 172,
+    "capture": "bay-000172",
+    "stops": -0.32899868
+  },
+  {
+    "frame": 173,
+    "capture": "bay-000173",
+    "stops": -0.35083815
+  },
+  {
+    "frame": 174,
+    "capture": "bay-000174",
+    "stops": -0.37301052
+  },
+  {
+    "frame": 175,
+    "capture": "bay-000175",
+    "stops": -0.39553174
+  },
+  {
+    "frame": 176,
+    "capture": "bay-000176",
+    "stops": -0.41837233
+  },
+  {
+    "frame": 177,
+    "capture": "bay-000177",
+    "stops": -0.44152027
+  },
+  {
+    "frame": 178,
+    "capture": "bay-000178",
+    "stops": -0.4649463
+  },
+  {
+    "frame": 179,
+    "capture": "bay-000179",
+    "stops": -0.48869175
+  },
+  {
+    "frame": 180,
+    "capture": "bay-000180",
+    "stops": -0.5127781
+  },
+  {
+    "frame": 181,
+    "capture": "bay-000181",
+    "stops": -0.5372007
+  },
+  {
+    "frame": 182,
+    "capture": "bay-000182",
+    "stops": -0.56192327
+  },
+  {
+    "frame": 183,
+    "capture": "bay-000183",
+    "stops": -0.5869519
+  },
+  {
+    "frame": 184,
+    "capture": "bay-000184",
+    "stops": -0.61227375
+  },
+  {
+    "frame": 185,
+    "capture": "bay-000185",
+    "stops": -0.6378518
+  },
+  {
+    "frame": 186,
+    "capture": "bay-000186",
+    "stops": -0.66368884
+  },
+  {
+    "frame": 187,
+    "capture": "bay-000187",
+    "stops": -0.6897612
+  },
+  {
+    "frame": 188,
+    "capture": "bay-000188",
+    "stops": -0.71607655
+  },
+  {
+    "frame": 189,
+    "capture": "bay-000189",
+    "stops": -0.7426161
+  },
+  {
+    "frame": 190,
+    "capture": "bay-000190",
+    "stops": -0.7693655
+  },
+  {
+    "frame": 191,
+    "capture": "bay-000191",
+    "stops": -0.79632765
+  },
+  {
+    "frame": 192,
+    "capture": "bay-000192",
+    "stops": -0.82349575
+  },
+  {
+    "frame": 193,
+    "capture": "bay-000193",
+    "stops": -0.85091853
+  },
+  {
+    "frame": 194,
+    "capture": "bay-000194",
+    "stops": -0.8785528
+  },
+  {
+    "frame": 195,
+    "capture": "bay-000195",
+    "stops": -0.9063674
+  },
+  {
+    "frame": 196,
+    "capture": "bay-000196",
+    "stops": -0.9343858
+  },
+  {
+    "frame": 197,
+    "capture": "bay-000197",
+    "stops": -0.96257526
+  },
+  {
+    "frame": 198,
+    "capture": "bay-000198",
+    "stops": -0.9908682
+  },
+  {
+    "frame": 199,
+    "capture": "bay-000199",
+    "stops": -1.0193673
+  },
+  {
+    "frame": 200,
+    "capture": "bay-000200",
+    "stops": -1.0480031
+  },
+  {
+    "frame": 201,
+    "capture": "bay-000201",
+    "stops": -1.0767694
+  },
+  {
+    "frame": 202,
+    "capture": "bay-000202",
+    "stops": -1.1056879
+  },
+  {
+    "frame": 203,
+    "capture": "bay-000203",
+    "stops": -1.1347252
+  },
+  {
+    "frame": 204,
+    "capture": "bay-000204",
+    "stops": -1.1638789
+  },
+  {
+    "frame": 205,
+    "capture": "bay-000205",
+    "stops": -1.1931739
+  },
+  {
+    "frame": 206,
+    "capture": "bay-000206",
+    "stops": -1.222592
+  },
+  {
+    "frame": 207,
+    "capture": "bay-000207",
+    "stops": -1.2521199
+  },
+  {
+    "frame": 208,
+    "capture": "bay-000208",
+    "stops": -1.2817516
+  },
+  {
+    "frame": 209,
+    "capture": "bay-000209",
+    "stops": -1.3114907
+  },
+  {
+    "frame": 210,
+    "capture": "bay-000210",
+    "stops": -1.3412975
+  },
+  {
+    "frame": 211,
+    "capture": "bay-000211",
+    "stops": -1.3712142
+  },
+  {
+    "frame": 212,
+    "capture": "bay-000212",
+    "stops": -1.4011809
+  },
+  {
+    "frame": 213,
+    "capture": "bay-000213",
+    "stops": -1.4312245
+  },
+  {
+    "frame": 214,
+    "capture": "bay-000214",
+    "stops": -1.4612916
+  },
+  {
+    "frame": 215,
+    "capture": "bay-000215",
+    "stops": -1.4913871
+  },
+  {
+    "frame": 216,
+    "capture": "bay-000216",
+    "stops": -1.5215185
+  },
+  {
+    "frame": 217,
+    "capture": "bay-000217",
+    "stops": -1.5516706
+  },
+  {
+    "frame": 218,
+    "capture": "bay-000218",
+    "stops": -1.5818169
+  },
+  {
+    "frame": 219,
+    "capture": "bay-000219",
+    "stops": -1.6119802
+  },
+  {
+    "frame": 220,
+    "capture": "bay-000220",
+    "stops": -1.642176
+  },
+  {
+    "frame": 221,
+    "capture": "bay-000221",
+    "stops": -1.6723678
+  },
+  {
+    "frame": 222,
+    "capture": "bay-000222",
+    "stops": -1.70254
+  },
+  {
+    "frame": 223,
+    "capture": "bay-000223",
+    "stops": -1.7327317
+  },
+  {
+    "frame": 224,
+    "capture": "bay-000224",
+    "stops": -1.762921
+  },
+  {
+    "frame": 225,
+    "capture": "bay-000225",
+    "stops": -1.7930566
+  },
+  {
+    "frame": 226,
+    "capture": "bay-000226",
+    "stops": -1.8231347
+  },
+  {
+    "frame": 227,
+    "capture": "bay-000227",
+    "stops": -1.853202
+  },
+  {
+    "frame": 228,
+    "capture": "bay-000228",
+    "stops": -1.8831961
+  },
+  {
+    "frame": 229,
+    "capture": "bay-000229",
+    "stops": -1.913139
+  },
+  {
+    "frame": 230,
+    "capture": "bay-000230",
+    "stops": -1.9429837
+  },
+  {
+    "frame": 231,
+    "capture": "bay-000231",
+    "stops": -1.9727517
+  },
+  {
+    "frame": 232,
+    "capture": "bay-000232",
+    "stops": -2.0024695
+  },
+  {
+    "frame": 233,
+    "capture": "bay-000233",
+    "stops": -2.03212
+  },
+  {
+    "frame": 234,
+    "capture": "bay-000234",
+    "stops": -2.0617049
+  },
+  {
+    "frame": 235,
+    "capture": "bay-000235",
+    "stops": -2.0911663
+  },
+  {
+    "frame": 236,
+    "capture": "bay-000236",
+    "stops": -2.1205125
+  },
+  {
+    "frame": 237,
+    "capture": "bay-000237",
+    "stops": -2.1497397
+  },
+  {
+    "frame": 238,
+    "capture": "bay-000238",
+    "stops": -2.178816
+  },
+  {
+    "frame": 239,
+    "capture": "bay-000239",
+    "stops": -2.207727
+  }
+]

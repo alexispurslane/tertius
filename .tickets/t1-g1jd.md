@@ -37,3 +37,18 @@ No fix is designed, and none is built without the orchestrator's word. First ste
 
 Evidence: the share maps sh1072-share2-map.png (8.1 %) and sh1072-share2-map-no-antilag-s2prime.png in /Users/alexispurslane/.t3/worktrees/tertius/t3-1f553e45-00934a8d076a004a-evidence/rayend/pics/; the record of ter-pdw8 under docs/research/ takes them over.
 
+
+## Step 1 done: the count by writer on main after Design X (2026-11-23)
+Record: docs/research/t1-g1jd-short-histories-by-writer/README.md. Main ae4364022 with the probe, four builds (main, region evidence off, the diffuse anti-lag off, both off), frozen stills with the history kept through 28 captures, two runs each. Shares of the surface pixels (L above 0):
+
+| View, dump draw | Main: 8 to 23 | Main: under 31.5 | Region evidence alone | Anti-lag alone | Overlap | Neither |
+|---|---|---|---|---|---|---|
+| Lamp hall 1072 x 603, 630 | 9.56 % | 10.95 % | 10.93 % | 0 | 0 | 0.03 % |
+| Still cabin 2/3, 190 | 16.56 % | 21.13 % | 21.10 % | 0 | 0 | 0.04 % |
+| Bay 2/3, 630 | 19.42 % | 29.33 % | 29.33 % | 0 | 0 | 0 |
+
+- On main, the short histories come from region evidence: whole region blocks whose drift test fires in a frozen world. The anti-lag shortens none at the dump draw: its map equals main's bit for bit in the lamp hall and the bay, and differs at 2 pixels by 0.03 draws at most in the cabin. Its captures still differ from main's, so it moves the light at other draws.
+- The title of this ticket held on base 3549d3283. It does not hold on main.
+- Each build's two runs are equal bit for bit in every view (spread 0).
+- Grain (blotch score) with region evidence off: lamp hall 0.0053 to 0.0049, bay 0.0217 to 0.0190, cabin 0.0065 to 0.0112 (not explained). With the anti-lag off, the bay's specks rose from 0.0248 to 0.0297.
+- Not measured: the reflections' history (needs a new dump patch).
