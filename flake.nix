@@ -53,6 +53,8 @@
           # The Mac's patched MoltenVK (native/moltenvk.nix). Only the Mac's parts below read it, so a Linux shell
           # never builds it.
           moltenvk = pkgs.callPackage ./native/moltenvk.nix { };
+          # The decoder of Apple's GPU code, for the register guard of the direct shaders (native/applegpu.nix).
+          applegpu = pkgs.callPackage ./native/applegpu.nix { };
           vulkanLibs = [
             pkgs.vulkan-loader
           ]
@@ -149,6 +151,9 @@
           # NVIDIA's.
           // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
             VK_ICD_FILENAMES = "${moltenvk}/share/vulkan/icd.d/MoltenVK_icd.json";
+            # The decoder that tools/shader_registers.py reads the M1's registers with. Only the Mac has the Metal
+            # toolchain that the count also needs, so a Linux shell leaves it out, and the guard says it does not apply.
+            APPLEGPU = "${applegpu}";
             TERTIUS_STOCK_MOLTENVK_ICD = "${pkgs.moltenvk}/share/vulkan/icd.d/MoltenVK_icd.json";
           };
         in

@@ -1,0 +1,10 @@
+uptime-start:  04:29:22  up 58 days 16:03,  1 user,  load average: 5.01, 5.00, 4.95
+waited: 13s
+mode: shared, with up to 3 shared runs at once
+timed-start
+timed-end
+/private/tmp/ter-yglw/counts/cabin-w32-c0/gpu-timings.json
+On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, "GPU trace").
+GPU frame span: mean 11.690 ms, median 11.566 ms, p95 12.273 ms over 40 frames
+/private/tmp/ter-yglw/counts/cabin-w32-c0/exposure.json
+uptime-end:  04:29:29  up 58 days 16:03,  1 user,  load average: 4.85, 4.97, 4.94

@@ -1,8 +1,8 @@
 ---
 id: ter-yglw
-status: in_progress
+status: closed
 deps: []
-links: []
+links: [t1-6tn2]
 created: 2026-11-22T21:13:04Z
 type: task
 priority: 2
@@ -32,3 +32,11 @@ GPU time per face on the Mac and on the RTX 2000 Ada at both sizes, at least two
 **2026-11-23T06:21:09Z**
 
 2026-11-23, the line orchestrator. Started again after ter-pdw8 closed, as a new continuation of the same lead, from main's head after Design X (65a24d189). Child thread: thread:delegated-task:command%3Amcp%3A49b05ffc-1378-4e84-92ef-b16c94dc7acb%3Adelegate-task%3Aslabs-4-ter-qt72-lead-1. taskId: node:delegated-task:command%3Amcp%3A971cdc95-fc79-4b4a-85b5-3a44eebfa7a8%3Athread-send%3Aslabs-4-continue-ter-yglw-face-cost-2. clientRequestId: slabs-4-continue-ter-yglw-face-cost-2. Target: claudeAgent, claude-opus-5-5, effort high. Worktree /Users/alexispurslane/.t3/worktrees/tertius/t3-1f553e45-00934a8d076a004a, branch t3/fix-projection-aspect-wobble. The brief's definitions are unchanged: the face cost, the cull by a bounding sphere below one texel, and the four variants. Added: the count of objects that the cull removes, the cost per draw of 216 faces within 60 draws per variant on both machines, and the part of a face's cost that does not shrink with its size. The probe never enters src; with the disk under 30 GiB free it is an uncommitted change in the lead's worktree, reverted before the final report. Cloud money: 0.20 dollars.
+
+**2026-11-23T09:48:06Z**
+
+2026-11-23, the ticket lead. Result (record: docs/research/environment-face-cost/README.md; main 65a24d189, after Design X). Face cost = the GPU span that one face's refresh adds to a draw (passes environment faces + environment prefilter). Mac, one face per pass, 3 runs each at loads 2.9 to 6.3: 128 no cull 0.722 ms, 128 cull 0.704, 32 no cull 0.546, 32 cull 0.566; a face every 4th draw gives 0.640 (128) and 0.521 (32 cull), so the Mac range is 0.64 to 0.72 and 0.52 to 0.57. 216 faces in 60 draws: 1.88 to 2.04 ms per draw at 32 with the cull. Card (RTX 2000 Ada): 0.178, 0.191, 0.141, 0.143 ms; 0.51 ms per draw at 32. Six faces in one pass: Mac 0.35 to 0.38 ms per face at 32 cull (1.27 to 1.37 ms per draw), card 0.085 ms (0.31 ms per draw). 98 % of a face's cost at 32 does not shrink with its size: the face pass draws about 145,000 triangles per face (mostly the Earth's 65,536-triangle sphere, up to 3 depth ranges), and the prefilter's irradiance convolution and dispatches are fixed. The cull leaves out 26 of 104 instances at 32 on the deck but 312 of 867,804 triangles; its effect is inside the run spread. Against the bound of 0.2 ms per face (0.72 ms per draw) every variant fails, so design P does not fit as sketched. Note: the brief's 1.5 ms per draw equals 0.42 ms per face, and only six faces per pass at 32 with the cull passes that. Cloud: $0.079 in 3 jobs.
+
+**2026-11-23T09:49:57Z**
+
+2026-11-23, the line orchestrator. Merged the lead's record (b41769cd4, merge commit 79d2b5899, docs/research/environment-face-cost/) and read it once. No engine code changed; the probe is in the record as probe.patch. Result against the ticket's reading: design P does not fit as sketched. One face costs 0.52 to 0.57 ms on the Mac at 32 with the cull (0.64 to 0.72 ms at 128), against the bound of about 0.2 ms; 216 faces within 60 draws cost 1.88 to 2.04 ms per draw. Six faces in one pass at 32 with the cull cost 0.35 to 0.38 ms per face, 1.27 to 1.37 ms per draw. The card: 0.14 ms per face at 32, 0.085 ms in a batch of six. 98 % of a face's cost at 32 does not shrink with its size. The ticket's reading holds two bounds that disagree, as the lead found: 0.2 ms per face times 216/60 is 0.72 ms per draw, and 1.5 ms per draw is 0.42 ms per face. The lighting review has both too (section 12: line 508 estimates 0.35 to 0.40 ms per face and about 1.5 ms at 4 faces per draw; line 602 names 0.2 ms). The orchestrator decides which bound it meant. Today's frame pays the same face cost in every draw; that finding is ticket t1-6tn2. Cloud money: 0.079 dollars in 3 jobs. Two Mac runs failed at their start with vkCreateInstance ErrorIncompatibleDriver and a run one minute later started; the jamb lead saw the same fault once on the same night.

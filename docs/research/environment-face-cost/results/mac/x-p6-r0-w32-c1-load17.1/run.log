@@ -1,0 +1,125 @@
+uptime-start:  04:34:58  up 58 days 16:09,  1 user,  load average: 17.12, 7.36, 5.72
+waited: 59s
+frequencies_mhz=388.8,486.0,648.0,777.6,972.0,1296.0
+sample t=0.121 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.234 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.342 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.449 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.561 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.676 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.787 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.889 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=1.000 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=1.116 active=0.172 mhz=643.2 states=0.019,0.000,0.981,0.000,0.000,0.000
+sample t=1.218 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=1.329 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=1.441 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=1.553 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=1.668 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=1.779 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=1.904 active=0.053 mhz=642.0 states=0.023,0.000,0.977,0.000,0.000,0.000
+sample t=2.008 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=2.120 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=2.231 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=2.339 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=2.451 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=2.560 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=2.671 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=2.782 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=2.893 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=3.007 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=3.122 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=3.237 active=0.172 mhz=643.2 states=0.019,0.000,0.981,0.000,0.000,0.000
+sample t=3.345 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=3.457 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=3.568 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=3.679 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=3.788 active=0.031 mhz=636.2 states=0.046,0.000,0.954,0.000,0.000,0.000
+sample t=3.899 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=4.014 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=4.131 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=4.238 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=4.349 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=4.459 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=4.564 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=4.672 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=4.776 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=4.887 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=4.995 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=5.096 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=5.205 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=5.315 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=5.422 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=5.532 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=5.638 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=5.745 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=5.847 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=5.951 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=6.062 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=6.173 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=6.273 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=6.383 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=6.494 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=6.605 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=6.715 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=6.823 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=6.929 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=7.031 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=7.134 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=7.244 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=7.352 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=7.453 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=7.558 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=7.669 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=7.779 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=7.890 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=7.996 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=8.105 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=8.213 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=8.317 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=8.427 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=8.538 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=8.641 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=8.751 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=8.871 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=8.982 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=9.093 active=0.101 mhz=641.5 states=0.025,0.000,0.975,0.000,0.000,0.000
+sample t=9.202 active=1.000 mhz=1127.5 states=0.000,0.000,0.202,0.000,0.116,0.682
+sample t=9.313 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=9.423 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+timed-start
+sample t=9.524 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=9.633 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=9.736 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=9.847 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=9.958 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=10.064 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=10.174 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=10.285 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=10.396 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=10.502 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=10.604 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=10.714 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=10.822 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=10.923 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=11.025 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=11.135 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=11.241 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=11.343 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=11.454 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=11.556 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=11.658 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=11.763 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=11.870 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=11.975 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=12.084 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+timed-end
+/private/tmp/ter-yglw/mac6/p6-r0-w32-c1/gpu-timings.json
+On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, "GPU trace").
+GPU frame span: mean 11.177 ms, median 11.034 ms, p95 11.941 ms over 240 frames
+/private/tmp/ter-yglw/mac6/p6-r0-w32-c1/exposure.json
+sample t=12.191 active=0.754 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=12.302 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+run seconds=12.302 active_ms=3133.4 mhz=1277.4 states=0.000,0.000,0.026,0.000,0.004,0.969
+GPU clock over the timed span: 1296.0 MHz (p10 1296.0, p90 1296.0 MHz, 25 samples)
+uptime-end:  04:35:10  up 58 days 16:09,  1 user,  load average: 20.48, 8.66, 6.22

@@ -1,0 +1,51 @@
+uptime-start:  04:40:49  up 58 days 16:15,  1 user,  load average: 4.50, 7.44, 6.55
+waited: 0s
+frequencies_mhz=388.8,486.0,648.0,777.6,972.0,1296.0
+sample t=0.109 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.219 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.330 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.440 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.551 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.662 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.767 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.874 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.985 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=1.103 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=1.214 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=1.317 active=0.292 mhz=646.1 states=0.007,0.000,0.993,0.000,0.000,0.000
+sample t=1.428 active=1.000 mhz=1251.6 states=0.000,0.000,0.012,0.000,0.113,0.875
+sample t=1.539 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=1.647 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+timed-start
+sample t=1.750 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=1.855 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=1.963 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.073 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.184 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.295 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.400 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.501 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.612 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.722 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.833 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.943 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.054 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.159 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.270 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.375 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.481 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.592 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.703 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.813 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.919 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=4.030 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+timed-end
+sample t=4.133 active=0.996 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+/private/tmp/ter-yglw/mac4-1/r1-w128-c0/gpu-timings.json
+On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, "GPU trace").
+GPU frame span: mean 10.260 ms, median 10.125 ms, p95 10.912 ms over 240 frames
+/private/tmp/ter-yglw/mac4-1/r1-w128-c0/exposure.json
+sample t=4.242 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+run seconds=4.242 active_ms=2845.9 mhz=1287.4 states=0.000,0.000,0.011,0.000,0.004,0.985
+GPU clock over the timed span: 1296.0 MHz (p10 1296.0, p90 1296.0 MHz, 22 samples)
+uptime-end:  04:40:54  up 58 days 16:15,  1 user,  load average: 4.30, 7.35, 6.53

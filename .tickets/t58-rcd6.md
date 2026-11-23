@@ -1,8 +1,8 @@
 ---
 id: t58-rcd6
-status: open
+status: in_progress
 deps: []
-links: []
+links: [ter-6fka]
 created: 2026-11-22T22:51:40Z
 type: bug
 priority: 2
@@ -31,3 +31,17 @@ Picture: docs/research/t0-gumm-catch-up-spread/pics/cut-exterior-white.png: a-00
 
 To see it: run cut-exterior.json headless with TERTIUS_PROBE_EXPOSURE=4.08 and TERTIUS_PROBE_SERIES=<file>, and read the series of film b.
 
+
+## Notes
+
+**2026-11-23T14:17:05Z**
+
+2026-11-23, line orchestrator of the back-face line: the fault repeats in the surface share's takes (t1-wl7c), on main 373da00eb and on the share's head e11b3548b alike, so the share neither causes nor changes it. Two takes of the orbit scene at one fixed exposure, in plain Release copies. 1. Person camera, 30 draws of the chase camera on the sunlit exterior, person camera again: the lamp hall stays saturated white for all 60 draws after the cut (videos/cut-via-exterior.mp4 and cut-via-exterior-c-000048-sbs.png, draw 48 after the cut). 2. The same with one draw of the chase camera: no saturation, and 3 capture specks in the first draw after the cut, then 0, on both builds (videos/cut.mp4). So the fault needs more than 1 draw on the exterior and has all it needs after 30. That bounds what holds the light: something that gathers over 2 to 30 draws, not the cut's first draw. Folder: /Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7-evidence/surface-share/videos/.
+
+**2026-11-23T14:19:50Z**
+
+2026-11-23, orchestrator: this is a visible fault by the user's bar (a white room for one to two seconds after a cut from outside), so it gets a diagnosis now, and I link it to the structural step ter-6fka. My hypothesis, to test and not to assume: the state that the cut does not empty is the eye's environment map. It refreshes one face per draw, which fits the back-face line's bound (nothing after 1 exterior draw, everything after 30). After the cut every history is empty, so leavingLightOf and the young histories read the closed form, and the closed form reads the map, which still holds the sunlit exterior. That light enters the diffuse histories. The bounce loop then feeds on itself (a ray's hit reads the hit pixel's history), and in a pale room its gain per round is high, which fits a decay over about 150 draws where the map itself is fresh after 6. The test, a log and no fix: per draw from 5 draws before the cut to 200 after it, the mean of the eye's map's irradiance, of the closed form's light, of the diffuse history and of the hit light, in the cut-via-exterior take. Then one scratch variant that refreshes all six faces of the eye's map in the reset draw, before any pass reads it: does the white frame go? If the hypothesis holds, the class is 'light that depends on where the eye was', the same class as t2b-xeo7, and the far-field store per semantic frame removes it by construction, because a frame's capture points do not follow the eye. A refresh of all six faces at a reset is then the direct fix that the batch of the face pass (t1-6tn2's probe) makes cheap.
+
+**2026-11-23T14:21:49Z**
+
+2026-11-23, line orchestrator of the back-face line: the diagnosis is launched, by the orchestrator's order of this day. It goes to the lead of the face cost split (t1-6tn2), because that lead holds the environment map's probe and because a log needs no quiet machine: it fills the time in which that lead's timing rows wait for a load below 8. Thread thread:delegated-task:command%3Amcp%3A49b05ffc-1378-4e84-92ef-b16c94dc7acb%3Adelegate-task%3Aslabs-4-ter-qt72-lead-1, worktree t3-1f553e45-00934a8d076a004a, clientRequestId back-face-6tn2-rcd6-diagnosis. The work: the orchestrator's log (per draw from 5 before the cut to 200 after it: each map's frame, refreshed face and mean irradiance, the means of the closed form's light, the diffuse history and the hit light, and the whole image's mean) on this ticket's own script cut-exterior.json, and one scratch variant that refreshes all six faces of every map that the eye's view reads in the cut's reset draw. One check that I added, which can speak against the hypothesis: if the map takes one exterior face per draw, then the one chase draw of cut.json puts the exterior into one face of six, and the map's irradiance must show it, yet that take shows no light (293 against 302). The lead logs that take too: which face of which map the chase draw refreshes, and what the irradiance does. If the variant does not remove the white room, the lead reports which logged mean stays high and builds nothing more. No fix is designed here. The record goes to docs/research/cut-white-room/README.md on the lead's branch.

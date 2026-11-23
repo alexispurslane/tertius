@@ -5,6 +5,22 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
+/// The cost kind of a draw, which the render scale's controller fits a cost model to and requests a scale for
+/// (ter-bcwr). The frame history derives it from the draw index since the last reset (<see cref="FrameHistory.CostOf"/>).
+/// </summary>
+internal enum DrawCost
+{
+    /// <summary>A draw whose histories are old enough to share the block's rays.</summary>
+    Ordinary,
+
+    /// <summary>
+    /// One of the first <see cref="FrameHistory.CatchUpDraws"/> draws after a reset: its young histories trace an own ray
+    /// at nearly every pixel, so it costs more per unit of render area.
+    /// </summary>
+    CatchUp,
+}
+
+/// <summary>
 /// The identity of an instance from frame to frame: its entity and its render part
 /// (docs/plans/temporal-renderer.md, "The key of an object").
 /// </summary>
@@ -173,6 +189,23 @@ internal sealed class FrameHistory
     public int DrawsOf(float step) => IsStill(step) ? rule.WarmUpDraws + 1 : 1;
 
     /// <summary>
+    /// The catch-up draws after a reset: the plan traces an own ray at a pixel while its history is shorter than
+    /// FullRateFrames (sample_age.glsl), and draw <c>i</c> after a reset reads histories <c>i</c> draws long.
+    /// </summary>
+    public const int CatchUpDraws = 8;
+
+    /// <summary>
+    /// The cost kind of draw <paramref name="draw"/> of <paramref name="snapshot"/> after a clock step of
+    /// <paramref name="step"/> s at <paramref name="outputSize"/>, before its <see cref="Begin"/>: the kind that the
+    /// Begin of the same draw derives. It changes no record.
+    /// </summary>
+    public DrawCost CostOf(RenderSnapshot snapshot, float step, int draw, Extent2D outputSize)
+    {
+        Contract.Requires(draw >= 0 && draw < DrawsOf(step));
+        return CostAt(DrawIndexOf(snapshot: snapshot, step: step, draw: draw, outputSize: outputSize));
+    }
+
+    /// <summary>
     /// The one choke point of the resets and the still rule: derives the pending state of draw <paramref name="draw"/> of
     /// <paramref name="snapshot"/> after a clock step of <paramref name="step"/> s, at <paramref name="outputSize"/> and
     /// <paramref name="renderSize"/>, and changes no record. The draw resets when it is the first drawn frame, when the
@@ -185,10 +218,11 @@ internal sealed class FrameHistory
     {
         Contract.Requires(draw >= 0 && draw < DrawsOf(step));
         bool still = IsStill(step);
-        bool reset = Resets(snapshot: snapshot, outputSize: outputSize, firstOfAStill: still && draw == 0);
+        long drawIndex = DrawIndexOf(snapshot: snapshot, step: step, draw: draw, outputSize: outputSize);
         derived = new(
-            Reset: reset,
-            DrawIndex: reset ? 0 : lastDrawIndex + 1,
+            // Only a reset gives the index 0: a continued draw's index is at least 1.
+            Reset: drawIndex == 0,
+            DrawIndex: drawIndex,
             ExposureStep: still ? StillExposureStep(step, draw) : step,
             FsrFrameMilliseconds: still ? 1000f / 60 : step * 1000,
             RefreshesEveryFace: still && draw == 0,
@@ -206,6 +240,19 @@ internal sealed class FrameHistory
         armed = true;
         return pending;
     }
+
+    /// <summary>
+    /// The index since the last reset of draw <paramref name="draw"/> of <paramref name="snapshot"/> after a clock step of
+    /// <paramref name="step"/> s at <paramref name="outputSize"/>: 0 for a draw that resets, else one past the last
+    /// drawn frame's.
+    /// </summary>
+    private long DrawIndexOf(RenderSnapshot snapshot, float step, int draw, Extent2D outputSize) =>
+        Resets(snapshot: snapshot, outputSize: outputSize, firstOfAStill: IsStill(step) && draw == 0)
+            ? 0
+            : lastDrawIndex + 1;
+
+    /// <summary>The cost kind of the draw with the index <paramref name="drawIndex"/> since the last reset.</summary>
+    private static DrawCost CostAt(long drawIndex) => drawIndex < CatchUpDraws ? DrawCost.CatchUp : DrawCost.Ordinary;
 
     /// <summary>
     /// Whether a draw of <paramref name="snapshot"/> at <paramref name="outputSize"/> resets every history: the first drawn
@@ -321,6 +368,9 @@ internal sealed class FrameHistory
 
         /// <summary>The draw's index among the drawn frames since the last reset: 0 for a draw that resets.</summary>
         public long DrawIndex => history.derived.DrawIndex;
+
+        /// <summary>The draw's cost kind: a catch-up draw while its draw index is under <see cref="CatchUpDraws"/>.</summary>
+        public DrawCost Cost => CostAt(DrawIndex);
 
         /// <summary>
         /// The step in s by which the draw's adapt step moves the exposure: the clock step, or for a draw of a still its share

@@ -1,0 +1,40 @@
+# Scratch patch of t58-3n6v (never commit to src): with TERTIUS_X_PASS_LOG=<folder>, each collect appends each pass's GPU
+# time of that frame to <folder>/passes.txt. It applies after tools/renderer-survey/probe.patch and the ter-bcwr record's
+# scratch-takes-build.patch.
+--- a/src/Tertius.Rendering/VulkanRenderer.cs	2026-11-23 09:17:05
++++ b/src/Tertius.Rendering/VulkanRenderer.cs	2026-11-23 09:17:18
+@@ -917,6 +917,8 @@
+     /// releases it waited for, its GPU timings, its exposure and its irradiance. A slot collected twice changes nothing
+     /// the second time.
+     /// </summary>
++    private long? probePassStart;
++
+     private void Collect(FrameResources frame)
+     {
+         // A fence also covers every earlier submission, so all frames up to this slot's last one are done.
+@@ -960,6 +962,25 @@
+                     System.Globalization.CultureInfo.InvariantCulture,
+                     $"{probeTimings.Frame} {probeTimings.SpanMilliseconds:R} {probeBefore:R} {probeAtSize:R} {probeOutput:R}\n"
+                 )
++            );
++        }
++        // SCRATCH (t58-3n6v, never commit to src): with TERTIUS_X_PASS_LOG=<folder>, each collect appends one line
++        // "<frame number> <wall ms since the first collect> <pass>=<ms> ...", tab-separated, to <folder>/passes.txt: each
++        // pass's GPU time of that frame, so that a dear draw's cost can be split by pass.
++        if (
++            timer.Latest is { } probePassTimings
++            && Environment.GetEnvironmentVariable("TERTIUS_X_PASS_LOG") is { Length: > 0 } probePassFolder
++        )
++        {
++            probePassStart ??= System.Diagnostics.Stopwatch.GetTimestamp();
++            var probeLine = new System.Text.StringBuilder();
++            probeLine.Append(System.Globalization.CultureInfo.InvariantCulture, $"{probePassTimings.Frame}\t{System.Diagnostics.Stopwatch.GetElapsedTime(probePassStart.Value).TotalMilliseconds:F1}");
++            foreach (PassTiming probePass in probePassTimings.Passes.Span)
++                probeLine.Append(System.Globalization.CultureInfo.InvariantCulture, $"\t{probePass.Pass}={probePass.Milliseconds:F4}");
++            probeLine.Append('\n');
++            System.IO.File.AppendAllText(
++                System.IO.Path.Combine(System.IO.Directory.CreateDirectory(probePassFolder).FullName, "passes.txt"),
++                probeLine.ToString()
+             );
+         }
+         Exposure.Collect(frame.Index, frame.Number);

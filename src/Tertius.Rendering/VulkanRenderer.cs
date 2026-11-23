@@ -692,20 +692,23 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
     /// <summary>
     /// The draw's one choke point of the history: its reset, its draw index, its exposure step, its refresh of the map's
-    /// faces and the last frame's state. Its render size is the active size of the output at the requested scale. After
-    /// the acquire, which can change the output size.
+    /// faces and the last frame's state. Its render size is the active size of the output at the scale that the
+    /// controller requests for the draw's cost kind. After the acquire, which can change the output size.
     /// </summary>
-    private FrameHistory.PendingFrame BeginDraw(RenderSnapshot snapshot, float step, int draw) =>
-        history.Begin(
+    private FrameHistory.PendingFrame BeginDraw(RenderSnapshot snapshot, float step, int draw)
+    {
+        DrawCost cost = history.CostOf(snapshot: snapshot, step: step, draw: draw, outputSize: targets.OutputExtent);
+        return history.Begin(
             snapshot: snapshot,
             step: step,
             draw: draw,
             outputSize: targets.OutputExtent,
             renderSize: upscaling.RenderExtent(
                 targets.OutputExtent,
-                ScaleController?.RequestedScale ?? upscaling.LargestScale
+                ScaleController?.RequestedScaleFor(cost) ?? upscaling.LargestScale
             )
         );
+    }
 
     /// <summary>The upscaling that a renderer draws with: a headless one draws a frame-time target at a fixed 2/3.</summary>
     private static UpscalingSetting UpscalingOf(RendererOptions options, bool headless) =>
@@ -733,7 +736,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
         keptPositions?.Drew(releases: releases, frame: number);
         localShadows?.Tiles.Drew();
         Exposure.Drew(frame: number, step: pending.ExposureStep);
-        ScaleController?.Drew(frame: number, realizedScale: pending.RenderSize.Width / (float)pending.OutputSize.Width);
+        ScaleController?.Drew(
+            frame: number,
+            realizedScale: pending.RenderSize.Width / (float)pending.OutputSize.Width,
+            cost: pending.Cost
+        );
         frame.Number = number;
         // Last, because it advances the frame number that the commits above name.
         history.Drew(pending);

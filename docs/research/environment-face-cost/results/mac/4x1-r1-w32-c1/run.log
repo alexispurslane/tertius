@@ -1,0 +1,51 @@
+uptime-start:  04:40:54  up 58 days 16:15,  1 user,  load average: 4.30, 7.35, 6.53
+waited: 0s
+frequencies_mhz=388.8,486.0,648.0,777.6,972.0,1296.0
+sample t=0.105 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.207 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.318 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.424 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.535 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.641 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.751 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.862 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.972 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=1.107 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=1.210 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=1.321 active=0.182 mhz=644.3 states=0.014,0.000,0.986,0.000,0.000,0.000
+sample t=1.431 active=1.000 mhz=1158.7 states=0.000,0.000,0.155,0.000,0.114,0.731
+sample t=1.541 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=1.652 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+timed-start
+sample t=1.753 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=1.857 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=1.968 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.079 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.185 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.295 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.399 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.510 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.620 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.727 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.833 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.943 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.054 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.165 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.270 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.381 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.488 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.598 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.700 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.810 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.915 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=4.023 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+timed-end
+sample t=4.133 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+/private/tmp/ter-yglw/mac4-1/r1-w32-c1/gpu-timings.json
+On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, "GPU trace").
+GPU frame span: mean 10.212 ms, median 10.111 ms, p95 10.723 ms over 240 frames
+/private/tmp/ter-yglw/mac4-1/r1-w32-c1/exposure.json
+sample t=4.244 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+run seconds=4.244 active_ms=2833.0 mhz=1286.0 states=0.000,0.000,0.013,0.000,0.004,0.982
+GPU clock over the timed span: 1296.0 MHz (p10 1296.0, p90 1296.0 MHz, 22 samples)
+uptime-end:  04:40:58  up 58 days 16:15,  1 user,  load average: 4.30, 7.35, 6.53

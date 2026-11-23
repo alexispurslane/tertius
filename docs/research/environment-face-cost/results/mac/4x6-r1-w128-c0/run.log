@@ -1,0 +1,52 @@
+uptime-start:  04:40:29  up 58 days 16:14,  1 user,  load average: 5.07, 7.75, 6.64
+waited: 0s
+frequencies_mhz=388.8,486.0,648.0,777.6,972.0,1296.0
+sample t=0.105 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.216 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.327 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.437 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.544 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.648 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.757 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.867 active=0.044 mhz=632.7 states=0.059,0.000,0.941,0.000,0.000,0.000
+sample t=0.970 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=1.088 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=1.198 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=1.306 active=0.256 mhz=645.9 states=0.008,0.000,0.992,0.000,0.000,0.000
+sample t=1.412 active=1.000 mhz=1227.7 states=0.000,0.000,0.046,0.000,0.120,0.835
+sample t=1.522 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=1.625 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+timed-start
+sample t=1.736 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=1.846 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=1.956 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.066 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.172 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.283 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.394 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.498 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.607 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.718 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.828 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.939 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.044 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.152 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.262 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.370 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.472 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.575 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.677 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.787 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.898 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=4.004 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=4.115 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=4.216 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+timed-end
+/private/tmp/ter-yglw/mac4-6/r1-w128-c0/gpu-timings.json
+On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, "GPU trace").
+GPU frame span: mean 10.836 ms, median 10.374 ms, p95 12.797 ms over 240 frames
+/private/tmp/ter-yglw/mac4-6/r1-w128-c0/exposure.json
+sample t=4.322 active=0.566 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+run seconds=4.322 active_ms=3002.3 mhz=1286.5 states=0.000,0.000,0.012,0.000,0.004,0.983
+GPU clock over the timed span: 1296.0 MHz (p10 1296.0, p90 1296.0 MHz, 24 samples)
+uptime-end:  04:40:34  up 58 days 16:14,  1 user,  load average: 4.74, 7.64, 6.61
