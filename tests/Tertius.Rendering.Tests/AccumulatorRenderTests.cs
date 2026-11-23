@@ -250,7 +250,10 @@ public sealed class AccumulatorRenderTests
         // 4 to 0.8, and the clamp moves the slow one to the fast one's mean, 0.8. The lag is 0.15 / 0.8 = 0.1875, a share
         // 0.375 of the anti-lag's 0.5, so the length falls from 16 to 16 · 0.625 = 10. The histories store the half floats
         // nearest 0.95 and 0.8, 0.9502 and 0.7998 (half_store.glsl). So the lag is 0.1880, and the length 9.983, which the
-        // store holds as the nearest half float, 9.984375.
+        // store holds as the nearest half float, 9.984375. No store differed on the card. The box's σ did: its plain
+        // moments of the 9 equal fast histories cancelled to about 1e-4 there, so the clamp stopped two σ above the
+        // mean, and the length read one half-float step higher, 9.9921875. The moments around the pixel's own fast
+        // history give a σ of exactly 0 on every driver (ticket tc-8142).
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(parameters: NarrowParameters);
         try
         {
