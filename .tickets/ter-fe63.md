@@ -364,3 +364,56 @@ What I see: main's floor is smooth around the lamps' long reflections. The coin 
 So 0.25 does not pass on the floor with the coin, and with the exact count it is at the edge. The replay predicted both rows (within 0.525 against main's 0.391 for the exact count, 0.834 in total for the coin). The cause is t1-d9k3: 54 % of this floor's reflection light comes from the lamps, which the guide does not hold, so here the guided draw is mostly a tax. The lead takes the floor's exact count at 0.125 in its hold 5. The floor's film is its own hold.
 
 Mirror plate: the three stills are identical to the byte. The plate's floored roughness is 0.05, below the ramp's start of 0.1, so its guided share is 0. The plate's bar is met by the ramp, and a share of 0 leaves main's picture unchanged.
+
+**2026-11-23T22:39:22Z**
+
+2026-11-23, line orchestrator of the back-face line: stage 1, hold 3: the clamp-off takes, the fast history, and the replay at six guided shares. The surface share's lead took it.
+
+**1. The probe's mixture has no bias. The clamp cuts main's specular light.** Frozen bay, specular signal alone, -4.089 stops, with the clamp off (and with it the anti-lag and every evidence cut). Each region's mean over 20 captures, against main:
+
+| Region | Exact count, 0.25 | Thin box | Main's own halves (captures 10 to 14 over 15 to 19) |
+|---|---|---|---|
+| Wall beside the sun stripe | 0.995 | 0.994 | 0.996 |
+| Back wall | 0.998 | 0.985 | 0.986 |
+| Floor | 0.993 | 0.988 | 0.997 |
+| Right wall | 0.995 | 0.996 | 1.000 |
+
+All agree within main's own noise of 0.5 to 1.5 %. So the +9 % and +18 % of part 2 are the clamp. Capture 19, the specular signal with the clamp on over the same with the clamp off:
+
+| Region | Main | Exact count | Thin box |
+|---|---|---|---|
+| Right wall | 0.81 | 0.88 | 0.94 |
+| Floor | 0.80 | 0.86 | 0.92 |
+| Back wall | 1.03 | 1.05 | 1.08 |
+| Wall beside the sun stripe | 0.99 | 0.99 | 1.00 |
+
+Main's clamp cuts 19 to 20 % of the specular light on the bay's right wall and floor. The mixture loses 12 to 14 %, and the thin box 6 to 8 %. This is the specular signal's case of ter-18hc (the slow history's clamp cuts rare bright samples). In the full picture it is 1.5 to 2.6 % of the right wall's light. A draw rule with fewer rare bright samples loses less in the clamp, so the mixture makes the picture more correct there. The build's energy test measures with the clamp off, as settled.
+
+**2. The fast history of 4 draws and the clamp's moves**, from the trace over draws 600 to 615. The fast deviation is the per-pixel deviation over the draws over its mean. A clamp move is a pixel and draw whose clamp moved the slow history.
+
+| Region | Main | Coin, 0.25 | Exact, 0.25 (window 4) | Exact, 0.125 (window 8) |
+|---|---|---|---|---|
+| Wall beside the stripe: fast deviation | 0.335 | 0.440 | 0.422 | 0.378 |
+| Wall beside the stripe: clamp moves | 7.8 % | 7.4 % | 7.3 % | 7.4 % |
+| Right wall: fast deviation | 0.594 | 0.559 | 0.559 | 0.604 |
+| Right wall: clamp moves | 9.4 % | 7.4 % | 7.4 % | 8.2 % |
+
+The exact count's pattern does not make the clamp move more often at a window of 4. At a window of 8 the right wall's clamp moves a little more often (8.2 % against 7.4 %) and the right wall's gain is gone (0.604 against main's 0.594). On the wall beside the stripe, 0.125 halves the loss. The anti-lag acts only on a clamp move, so the same counts answer for it. This is the answer to the orchestrator's condition 2 for the fast history, the clamp and the anti-lag.
+
+**3. The replay at six guided shares.** One draw's relative variance (variance over the squared mean), from the logs at share 0, draws 240 to 280, which repeat the earlier numbers to every digit:
+
+| Surface (floored roughness) | 0 | 1/32 | 1/16 | 1/8 | 1/4 | 1/2 | Least at |
+|---|---|---|---|---|---|---|---|
+| Nose's box (0.38) | 7.15 | 3.97 | 3.03 | 2.13 | 1.41 | 1.14 | 1/2 (0.75 gives 1.91) |
+| Bay's right wall (0.38) | 5.76 | 5.19 | 4.83 | 4.31 | 3.66 | 2.92 | 0.75 or above (2.53) |
+| Wall beside the stripe (0.38) | 3.67 | 3.75 | 3.84 | 4.04 | 4.52 | 6.05 | 0 |
+| rect-lamps' floor (0.38) | 0.391 | 0.434 | 0.480 | 0.581 | 0.834 | 1.711 | 0 |
+| Mirror plate (0.05) | 0.084 | 0.119 | 0.156 | 0.239 | 0.445 | 1.168 | 0 |
+
+The replay cannot see a guided reflection draw that misses its target, so the real best share is at or below the replay's.
+
+What it means: four surfaces of one roughness, 0.38, have their best share at the two ends, 0 for two of them and 1/2 or above for the other two. So no fixed share and no ramp over the roughness serves them all. A share of 0.125 keeps under half of the nose's gain (2.13 against 1.41, from 7.15) and still costs the floor (0.581 against 0.391). The share must depend on the place.
+
+**4. The wall beside the stripe: the real draws cost about three times the replay.** The replay at 0.25 gives +19 % in variance, which is +9 % in deviation (between 0.157, within 4.365), and the guided draws carry 10.0 % of its second moment (5.1 % at 0.125). Measured: the fast deviation rises 26 % with the exact count and 31 % with the coin, and the still's grain 30 % and 39 %. The real takes of hold 5b give the two means of w squared and say where the replay falls short. Open until then.
+
+The lead deleted 12.0 GB of its own scratch (captures and census sums whose tables are committed or sent) and kept every named picture, every build's reference mean and the four raw logs (2.8 GB). Disk 40 GiB free after the hold.
