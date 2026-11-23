@@ -1,6 +1,6 @@
 ---
 id: t0-xvfx
-status: open
+status: in_progress
 deps: []
 links: [t2-x53j]
 created: 2026-11-23T10:47:50Z

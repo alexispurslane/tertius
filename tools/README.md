@@ -1172,9 +1172,12 @@ is the worst of them):
 |---|---|---|---|
 | pass | 0 | The register, the limit and the room. A warning when the room is under 2 registers, because one more value at the shader's peak then crosses the limit. For `direct_key_fill.frag`, at register 115 with no room, the warning says that this is the known state since `t2-x53j`, not a new fault. | goes on |
 | fail | 1 | The register, the limit, and what a register above it costs: 384 resident threads in place of 448, 0.10 to 0.36 ms of the direct pass in every view. | stops |
-| does not apply | 3 | The reason: no staged file is in a guarded shader's include closure; or Xcode's Metal toolchain (`metal-tt`) is absent, as on Linux and on the cloud workers; or the decoder is absent. Never a pass. | goes on |
+| does not apply | 3 | The reason: no staged file is in a guarded shader's include closure, or Xcode's Metal toolchain (`metal-tt`) is absent, as on Linux and on the cloud workers. Never a pass. | goes on |
 
-An error of the tool itself, such as a shader that does not compile, exits with 2. The hook lets a commit go on only on a
+An error of the tool itself, such as a shader that does not compile, exits with 2. An absent decoder beside `metal-tt` is
+such an error, not a "does not apply": the count applies on that machine, and the guard runs inside the dev shell there,
+so a dev shell without `APPLEGPU` was entered before the flake set it. Its words ask for the dev shell to be entered
+again (`nix develop`) (t0-xvfx). The hook lets a commit go on only on a
 pass or "does not apply", so an error, or any other exit such as a missing `python3`, stops the commit too, because then
 no count passed. The hook passes a renamed file as its old and its new path, so renaming an included file asks for a
 count. Besides the include closures, the tool's `COUNT_INPUTS` name the files that change every guarded shader's code:

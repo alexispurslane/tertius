@@ -167,10 +167,19 @@ class TheVerdict(unittest.TestCase):
         self.assertIn("metal-tt", verdict.text)
         self.assertNotIn("pass", verdict.text)
 
-    def test_does_not_apply_without_the_decoder(self):
+    def test_without_the_decoder_beside_the_metal_toolchain_stops_the_commit_and_asks_for_a_new_dev_shell(self):
+        # metal-tt is there, so the count applies, and a dev shell without APPLEGPU was entered before the guard's merge.
         verdict = shader_registers.applicability(metal_tt="/usr/bin/metal-tt", decoder=None)
-        self.assertEqual(verdict.exit_code, shader_registers.NOT_APPLICABLE)
+        self.assertEqual(verdict.exit_code, shader_registers.ERROR)
+        self.assertTrue(verdict.text.startswith("error:"))
         self.assertIn("APPLEGPU", verdict.text)
+        self.assertIn("enter the dev shell again (nix develop)", verdict.text)
+        self.assertNotIn("does not apply", verdict.text)
+
+    def test_without_the_metal_toolchain_does_not_apply_also_without_the_decoder(self):
+        verdict = shader_registers.applicability(metal_tt=None, decoder=None)
+        self.assertEqual(verdict.exit_code, shader_registers.NOT_APPLICABLE)
+        self.assertIn("metal-tt", verdict.text)
 
     def test_with_both_tools_lets_the_count_decide(self):
         self.assertIsNone(shader_registers.applicability(metal_tt="/usr/bin/metal-tt", decoder="/opt/applegpu"))

@@ -20,8 +20,9 @@ It reads the shader folder from git's index, so it judges what the commit holds.
 include closure holds a staged file, and prints one of three results per run, each with its exit code: pass (0), with
 the register, the limit and the room, and a warning when the room is under 2 registers; fail (1), with the register,
 the limit and what a register above it costs; and "does not apply" (3), with the reason: no staged file is in a guarded
-closure, or Apple's Metal toolchain or the decoder is absent, as on Linux and the cloud workers. An error of the tool
-itself exits with 2. Outside the dev shell, the guard runs itself again inside it once it knows that it must count.
+closure, or Apple's Metal toolchain is absent, as on Linux and the cloud workers. An error of the tool itself exits with
+2, and so does an absent decoder beside the Metal toolchain: the count applies there, so the guard asks for a dev shell
+entered again. Outside the dev shell, the guard runs itself again inside it once it knows that it must count.
 
 It needs, besides the dev shell's glslc, spirv-opt and MoltenVKShaderConverter (MoltenVK's own converter):
 
@@ -172,14 +173,17 @@ def verdict_of(guarded, register):
 
 
 def applicability(metal_tt, decoder):
-    """None when the count can run, else the guard's "does not apply" result: `metal_tt` is the path of Xcode's
-    metal-tt or None, and `decoder` the applegpu folder or None."""
+    """None when the count can run, else the guard's result without a count: `metal_tt` is the path of Xcode's metal-tt
+    or None, and `decoder` the applegpu folder or None. Without metal-tt the count does not apply. With metal-tt the
+    count applies, so an absent decoder is an error, never a "does not apply": the guard runs inside the dev shell there,
+    and a dev shell without APPLEGPU is one that was entered before the flake set it (t0-xvfx)."""
     if metal_tt is None:
         return Verdict("does not apply: Xcode's Metal toolchain (metal-tt) is absent, so the M1's registers cannot be "
                        "counted on this machine.", NOT_APPLICABLE)
     if decoder is None:
-        return Verdict("does not apply: the applegpu decoder is absent (APPLEGPU names no folder with applegpu.py, and the "
-                       "dev shell sets it).", NOT_APPLICABLE)
+        return Verdict("error: the applegpu decoder is absent (APPLEGPU names no folder with applegpu.py), so the "
+                       "registers cannot be counted although metal-tt is present. This dev shell was entered before the "
+                       "flake set APPLEGPU: enter the dev shell again (nix develop) and commit again.", ERROR)
     return None
 
 
@@ -333,7 +337,7 @@ def guard(argv):
         os.execvp("nix", ["nix", "develop", "--command", "python3", "-I", __file__, "guard", *argv])
     absent = applicability(metal_tt, decoder_folder())
     if absent is not None:
-        print(f"register guard: {absent.text}")
+        print(f"register guard: {absent.text}", file=sys.stderr if absent.exit_code == ERROR else sys.stdout)
         return absent.exit_code
     started = time.monotonic()
     count = counter(import_decoder(decoder_folder()), folder, out)
