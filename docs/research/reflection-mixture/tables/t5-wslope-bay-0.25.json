@@ -1,0 +1,23 @@
+{
+ "patch": {
+  "lobe draws": 686313,
+  "guided draws": 229607,
+  "mean w^2, lobe, over mean^2": 11.801881235389128,
+  "mean w^2, guided, over mean^2": 3.943677185745126,
+  "slope (lobe - guided), over mean^2": 7.8582040496440015
+ },
+ "right": {
+  "lobe draws": 1337172,
+  "guided draws": 446388,
+  "mean w^2, lobe, over mean^2": 6.363222411329879,
+  "mean w^2, guided, over mean^2": 13.558553761515384,
+  "slope (lobe - guided), over mean^2": -7.195331350185506
+ },
+ "floor": {
+  "lobe draws": 1199583,
+  "guided draws": 400417,
+  "mean w^2, lobe, over mean^2": 9.026246403551648,
+  "mean w^2, guided, over mean^2": 8.819444425727847,
+  "slope (lobe - guided), over mean^2": 0.20680197782380097
+ }
+}

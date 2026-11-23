@@ -1,0 +1,16 @@
+{
+ "floor": {
+  "pixel-draws that start a reflection ray": 2428800,
+  "guided share of them": 0.1250769927536232,
+  "classes, share of guided draws": {
+   "own plane": 0.8290841938595134,
+   "box miss": 0.12603896809277554,
+   "blocked": 0.0022054926642680562,
+   "arrives and counts": 0.042671345383443006
+  },
+  "share of the reflection part second moment": {
+   "arriving guided draws": 0.005076637292045048,
+   "lobe draws": 0.994923362707955
+  }
+ }
+}

@@ -1,0 +1,78 @@
+{
+ "sunlit patch": {
+  "guided draws that arrive": 0.013867473641232558,
+  "arriving guided draws with X > 0": 1.0,
+  "non-arriving guided draws with X > 0 (must be 0)": 0,
+  "share 0.25": {
+   "arrival share of the guided variance": 0.8448355373723541,
+   "spread share of the guided variance": 0.15516446262764594,
+   "check: (arrival + spread) / guided variance": 1.0,
+   "s * arrival, factor against today": 0.2259504668537637,
+   "s * spread, factor against today": 0.041498589037664735
+  },
+  "share 0.5": {
+   "arrival share of the guided variance": 0.7648335859128226,
+   "spread share of the guided variance": 0.23516641408717728,
+   "check: (arrival + spread) / guided variance": 0.9999999999999999,
+   "s * arrival, factor against today": 0.34448651516456164,
+   "s * spread, factor against today": 0.10592063419384393
+  }
+ },
+ "back wall below the slot": {
+  "guided draws that arrive": 0.14844741855606164,
+  "arriving guided draws with X > 0": 1.0,
+  "non-arriving guided draws with X > 0 (must be 0)": 0,
+  "share 0.25": {
+   "arrival share of the guided variance": 0.8600563285566754,
+   "spread share of the guided variance": 0.13994367144332448,
+   "check: (arrival + spread) / guided variance": 1.0,
+   "s * arrival, factor against today": 0.5325189987257233,
+   "s * spread, factor against today": 0.08664858488985575
+  },
+  "share 0.5": {
+   "arrival share of the guided variance": 0.8164049831903283,
+   "spread share of the guided variance": 0.18359501680967164,
+   "check: (arrival + spread) / guided variance": 1.0,
+   "s * arrival, factor against today": 0.4133175521168201,
+   "s * spread, factor against today": 0.09294779489474199
+  }
+ },
+ "floor": {
+  "guided draws that arrive": 0.11595864839068383,
+  "arriving guided draws with X > 0": 1.0,
+  "non-arriving guided draws with X > 0 (must be 0)": 0,
+  "share 0.25": {
+   "arrival share of the guided variance": 0.8653385731586969,
+   "spread share of the guided variance": 0.13466142684130303,
+   "check: (arrival + spread) / guided variance": 1.0,
+   "s * arrival, factor against today": 0.44810855982503783,
+   "s * spread, factor against today": 0.06973332741377118
+  },
+  "share 0.5": {
+   "arrival share of the guided variance": 0.8080696345251228,
+   "spread share of the guided variance": 0.191930365474877,
+   "check: (arrival + spread) / guided variance": 1.0000000000000002,
+   "s * arrival, factor against today": 0.37197156243010593,
+   "s * spread, factor against today": 0.08834961106467819
+  }
+ },
+ "right wall": {
+  "guided draws that arrive": 0.32362856088617137,
+  "arriving guided draws with X > 0": 1.0,
+  "non-arriving guided draws with X > 0 (must be 0)": 0,
+  "share 0.25": {
+   "arrival share of the guided variance": 0.8415686012361803,
+   "spread share of the guided variance": 0.15843139876381962,
+   "check: (arrival + spread) / guided variance": 1.0,
+   "s * arrival, factor against today": 0.5549882680691806,
+   "s * spread, factor against today": 0.10448057054238138
+  },
+  "share 0.5": {
+   "arrival share of the guided variance": 0.8351287254470674,
+   "spread share of the guided variance": 0.1648712745529327,
+   "check: (arrival + spread) / guided variance": 1.0,
+   "s * arrival, factor against today": 0.34739210168994566,
+   "s * spread, factor against today": 0.06858221592675126
+  }
+ }
+}

@@ -1,0 +1,22 @@
+{
+ "sunlit patch": {
+  "arrive": 0.013867473641232558,
+  "hit another pixel": 0.15643800203927014,
+  "hit nothing (below the plane, or the walk ended)": 0.8296945243194973
+ },
+ "back wall below the slot": {
+  "arrive": 0.14844741855606164,
+  "hit another pixel": 0.6277358423945999,
+  "hit nothing (below the plane, or the walk ended)": 0.22381673904933844
+ },
+ "floor": {
+  "arrive": 0.11595864839068383,
+  "hit another pixel": 0.5950142545415451,
+  "hit nothing (below the plane, or the walk ended)": 0.28902709706777113
+ },
+ "right wall": {
+  "arrive": 0.32362856088617137,
+  "hit another pixel": 0.6672589241000355,
+  "hit nothing (below the plane, or the walk ended)": 0.009112515013793187
+ }
+}

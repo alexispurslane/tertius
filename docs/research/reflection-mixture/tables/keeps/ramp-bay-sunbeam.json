@@ -1,0 +1,98 @@
+{
+ "patch": {
+  "draws": 40,
+  "classes": {
+   "0.38-0.40": {
+    "pixels": 45796,
+    "s 0.0": {
+     "variance factor": 1.0,
+     "above 16x mean per draw": 45.425,
+     "relative variance": 3.666062852309699
+    },
+    "s 0.03125": {
+     "variance factor": 1.0227981876386527,
+     "above 16x mean per draw": 48.675,
+     "relative variance": 3.7496424411117495
+    },
+    "s 0.0625": {
+     "variance factor": 1.0472701898026224,
+     "above 16x mean per draw": 49.775,
+     "relative variance": 3.839358339166722
+    },
+    "s 0.1": {
+     "variance factor": 1.078892473256187,
+     "above 16x mean per draw": 51.125,
+     "relative variance": 3.955287617841043
+    },
+    "s 0.125": {
+     "variance factor": 1.1014032886589884,
+     "above 16x mean per draw": 52.2,
+     "relative variance": 4.037813681964454
+    },
+    "s 0.25": {
+     "variance factor": 1.2336513368391546,
+     "above 16x mean per draw": 59.525,
+     "relative variance": 4.5226433386882245
+    },
+    "s 0.5": {
+     "variance factor": 1.6502020024876385,
+     "above 16x mean per draw": 123.45,
+     "relative variance": 6.049744260127009
+    },
+    "s 0.75": {
+     "variance factor": 2.6061024767845837,
+     "above 16x mean per draw": 735.425,
+     "relative variance": 9.554135479452261
+    }
+   }
+  }
+ },
+ "right": {
+  "draws": 40,
+  "classes": {
+   "0.38-0.40": {
+    "pixels": 89178,
+    "s 0.0": {
+     "variance factor": 1.0,
+     "above 16x mean per draw": 827.3,
+     "relative variance": 5.759594791525207
+    },
+    "s 0.03125": {
+     "variance factor": 0.9017008568718172,
+     "above 16x mean per draw": 447.35,
+     "relative variance": 5.193431558752734
+    },
+    "s 0.0625": {
+     "variance factor": 0.8378705633216915,
+     "above 16x mean per draw": 286.9,
+     "relative variance": 4.825794932479906
+    },
+    "s 0.1": {
+     "variance factor": 0.7801769419130742,
+     "above 16x mean per draw": 192.625,
+     "relative variance": 4.493503051110606
+    },
+    "s 0.125": {
+     "variance factor": 0.7486007212094822,
+     "above 16x mean per draw": 153.325,
+     "relative variance": 4.311636814810147
+    },
+    "s 0.25": {
+     "variance factor": 0.6349588217003583,
+     "above 16x mean per draw": 65.025,
+     "relative variance": 3.6571055222983664
+    },
+    "s 0.5": {
+     "variance factor": 0.5064388312760111,
+     "above 16x mean per draw": 29.1,
+     "relative variance": 2.9168824548434262
+    },
+    "s 0.75": {
+     "variance factor": 0.43875769776369233,
+     "above 16x mean per draw": 134.625,
+     "relative variance": 2.5270665507813534
+    }
+   }
+  }
+ }
+}

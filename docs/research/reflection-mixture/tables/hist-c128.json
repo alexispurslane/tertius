@@ -1,0 +1,90 @@
+{
+ "sunlit patch": {
+  "pixels": 45796,
+  "mean L": 96.2574234008789,
+  "share under 3/4 of the cap": 0.34758494191632455,
+  "bins": {
+   "0-16": 0.0,
+   "16-32": 0.07332518123853611,
+   "32-64": 0.27423792470958164,
+   "64-96": 2.1835968206830292e-05,
+   "96-127.5": 0.06714560223600315,
+   "at the cap": 0.5852694558476723
+  },
+  "short share": 0.41473054415232774,
+  "short and lengthened with region off": 1.0,
+  "mean L with region off": 128.0,
+  "short and lengthened with antilag off": 0.0,
+  "mean L with antilag off": 96.2574234008789,
+  "short and lengthened with light off": 0.0,
+  "mean L with light off": 96.2574234008789,
+  "short and lengthened with all off": 1.0,
+  "mean L with all off": 128.0
+ },
+ "back wall below the slot": {
+  "pixels": 26040,
+  "mean L": 76.4405517578125,
+  "share under 3/4 of the cap": 0.5035714285714286,
+  "bins": {
+   "0-16": 0.0,
+   "16-32": 0.14193548387096774,
+   "32-64": 0.36163594470046084,
+   "64-96": 0.0,
+   "96-127.5": 0.29642857142857143,
+   "at the cap": 0.2
+  },
+  "short share": 0.8,
+  "short and lengthened with region off": 1.0,
+  "mean L with region off": 128.0,
+  "short and lengthened with antilag off": 0.0,
+  "mean L with antilag off": 76.4405517578125,
+  "short and lengthened with light off": 0.0,
+  "mean L with light off": 76.4405517578125,
+  "short and lengthened with all off": 1.0,
+  "mean L with all off": 128.0
+ },
+ "floor": {
+  "pixels": 80000,
+  "mean L": 99.5530776977539,
+  "share under 3/4 of the cap": 0.2321,
+  "bins": {
+   "0-16": 0.0,
+   "16-32": 0.1479,
+   "32-64": 0.075,
+   "64-96": 0.0092,
+   "96-127.5": 0.2223125,
+   "at the cap": 0.5455875
+  },
+  "short share": 0.4544125,
+  "short and lengthened with region off": 1.0,
+  "mean L with region off": 128.0,
+  "short and lengthened with antilag off": 0.0,
+  "mean L with antilag off": 99.5530776977539,
+  "short and lengthened with light off": 0.0,
+  "mean L with light off": 99.5530776977539,
+  "short and lengthened with all off": 1.0,
+  "mean L with all off": 128.0
+ },
+ "right wall": {
+  "pixels": 89178,
+  "mean L": 33.57220458984375,
+  "share under 3/4 of the cap": 0.9045504496624728,
+  "bins": {
+   "0-16": 0.37287223306196593,
+   "16-32": 0.31756711296508106,
+   "32-64": 0.13492116889815875,
+   "64-96": 0.07918993473726704,
+   "96-127.5": 0.0,
+   "at the cap": 0.0954495503375272
+  },
+  "short share": 0.9045504496624728,
+  "short and lengthened with region off": 1.0,
+  "mean L with region off": 128.0,
+  "short and lengthened with antilag off": 0.0,
+  "mean L with antilag off": 33.57220458984375,
+  "short and lengthened with light off": 0.0,
+  "mean L with light off": 33.57220458984375,
+  "short and lengthened with all off": 1.0,
+  "mean L with all off": 128.0
+ }
+}

@@ -1,0 +1,44 @@
+{
+ "patch": {
+  "pixel-draws that start a reflection ray": 915920,
+  "guided share of them": 0.2506845576032841,
+  "classes, share of guided draws": {
+   "own plane": 0.7845536068151232,
+   "box miss": 0.19837809822871255,
+   "blocked": 0.002547831729868863,
+   "arrives and counts": 0.014520463226295365
+  },
+  "share of the reflection part second moment": {
+   "arriving guided draws": 0.10055165935711835,
+   "lobe draws": 0.8994483406428815
+  }
+ },
+ "right": {
+  "pixel-draws that start a reflection ray": 1783560,
+  "guided share of them": 0.25027921684720444,
+  "classes, share of guided draws": {
+   "own plane": 0.00836043979676873,
+   "box miss": 0.6661671012661631,
+   "blocked": 2.9122646666129018e-05,
+   "arrives and counts": 0.32544333629040206
+  },
+  "share of the reflection part second moment": {
+   "arriving guided draws": 0.41565378340603376,
+   "lobe draws": 0.5843462165939665
+  }
+ },
+ "floor": {
+  "pixel-draws that start a reflection ray": 1600000,
+  "guided share of them": 0.250260625,
+  "classes, share of guided draws": {
+   "own plane": 0.01254442243960671,
+   "box miss": 0.859351625929968,
+   "blocked": 0.00038959384841302943,
+   "arrives and counts": 0.12771435778201226
+  },
+  "share of the reflection part second moment": {
+   "arriving guided draws": 0.24593700360409207,
+   "lobe draws": 0.7540629963959081
+  }
+ }
+}

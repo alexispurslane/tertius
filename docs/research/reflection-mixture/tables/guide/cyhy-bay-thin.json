@@ -1,0 +1,250 @@
+{
+ "patch": {
+  "(a) arriving share by depth share u": {
+   "0.00-0.25": [
+    0.11280455648138382,
+    113772
+   ],
+   "0.25-0.50": [
+    0.06560933577108466,
+    114313
+   ],
+   "0.50-0.75": [
+    0.031967858967365426,
+    115491
+   ],
+   "0.75-1.00": [
+    0.011455295446782796,
+    114183
+   ]
+  },
+  "(a) all guided draws arriving": 0.05534353229537813,
+  "(b) guided draws that hit another pixel: off-line distance": {
+   "count": 45662,
+   "p50/p90/p99": [
+    0.207275390625,
+    0.912109375,
+    2.71484375
+   ],
+   "share over 1.5 widths": 0.04182909202400245
+  },
+  "(b) guided draws that arrive: off-line distance": {
+   "count": 25334,
+   "p50/p90/p99": [
+    0.46630859375,
+    1.4931640625,
+    3.314453125
+   ],
+   "share over 1.5 widths": 0.09883950422357306
+  },
+  "(c) cosine draws that hit: off-line distance": {
+   "count": 627788,
+   "p50/p90/p99": [
+    0.113525390625,
+    1.1748046875,
+    4.63671875
+   ],
+   "share over 1.5 widths": 0.08059249300719351
+  },
+  "(d) guided: shares of all its draws": {
+   "hit": 0.1550947114092787,
+   "below the plane": 0.7855902341625178,
+   "out of steps": 0.059315054428203486,
+   "end, passed behind nothing": 0.0,
+   "end, passed behind a slab or a back face": 0.0
+  },
+  "(d) cosine: shares of all its draws": {
+   "hit": 0.4568784518525473,
+   "below the plane": 0.0,
+   "out of steps": 0.01950903913233645,
+   "end, passed behind nothing": 0.5232791953312796,
+   "end, passed behind a slab or a back face": 0.0003333136838366879
+  }
+ },
+ "back": {
+  "(a) arriving share by depth share u": {
+   "0.00-0.25": [
+    0.7275949675201193,
+    65733
+   ],
+   "0.25-0.50": [
+    0.6973312450095203,
+    65124
+   ],
+   "0.50-0.75": [
+    0.5703516440004264,
+    65663
+   ],
+   "0.75-1.00": [
+    0.2898161092590601,
+    65093
+   ]
+  },
+  "(a) all guided draws arriving": 0.5716688390867426,
+  "(b) guided draws that hit another pixel: off-line distance": {
+   "count": 57841,
+   "p50/p90/p99": [
+    0.67431640625,
+    1.9296875,
+    3.278515577316284
+   ],
+   "share over 1.5 widths": 0.19567434864542452
+  },
+  "(b) guided draws that arrive: off-line distance": {
+   "count": 149556,
+   "p50/p90/p99": [
+    1.5078125,
+    3.125,
+    4.375
+   ],
+   "share over 1.5 widths": 0.5022733959185857
+  },
+  "(c) cosine draws that hit: off-line distance": {
+   "count": 517330,
+   "p50/p90/p99": [
+    0.4638671875,
+    1.923828125,
+    5.780117034912109
+   ],
+   "share over 1.5 widths": 0.13280884541781843
+  },
+  "(d) guided: shares of all its draws": {
+   "hit": 0.7927625920730239,
+   "below the plane": 0.0038147951363273233,
+   "out of steps": 0.20342261279064877,
+   "end, passed behind nothing": 0.0,
+   "end, passed behind a slab or a back face": 0.0
+  },
+  "(d) cosine: shares of all its draws": {
+   "hit": 0.6632546439876562,
+   "below the plane": 0.0,
+   "out of steps": 0.06778702721968444,
+   "end, passed behind nothing": 0.26890448174136233,
+   "end, passed behind a slab or a back face": 5.38470512970088e-05
+  }
+ },
+ "floor": {
+  "(a) arriving share by depth share u": {
+   "0.00-0.25": [
+    0.649966868135178,
+    199204
+   ],
+   "0.25-0.50": [
+    0.4542163522262777,
+    201098
+   ],
+   "0.50-0.75": [
+    0.4034615631940563,
+    202163
+   ],
+   "0.75-1.00": [
+    0.2578230814764279,
+    199346
+   ]
+  },
+  "(a) all guided draws arriving": 0.44122492707134225,
+  "(b) guided draws that hit another pixel: off-line distance": {
+   "count": 208079,
+   "p50/p90/p99": [
+    0.91650390625,
+    2.615234375,
+    3.916015625
+   ],
+   "share over 1.5 widths": 0.3255157896760365
+  },
+  "(b) guided draws that arrive: off-line distance": {
+   "count": 353779,
+   "p50/p90/p99": [
+    1.6884765625,
+    3.109375,
+    4.4375
+   ],
+   "share over 1.5 widths": 0.560525073562874
+  },
+  "(c) cosine draws that hit: off-line distance": {
+   "count": 1143936,
+   "p50/p90/p99": [
+    0.292724609375,
+    2.7890625,
+    5.6953125
+   ],
+   "share over 1.5 widths": 0.20594858453619783
+  },
+  "(d) guided: shares of all its draws": {
+   "hit": 0.7007362084082159,
+   "below the plane": 0.012330836069846885,
+   "out of steps": 0.2869329555219372,
+   "end, passed behind nothing": 0.0,
+   "end, passed behind a slab or a back face": 0.0
+  },
+  "(d) cosine: shares of all its draws": {
+   "hit": 0.476999936201859,
+   "below the plane": 0.0,
+   "out of steps": 0.0340377676655176,
+   "end, passed behind nothing": 0.48596503444891126,
+   "end, passed behind a slab or a back face": 0.002997261683712168
+  }
+ },
+ "right": {
+  "(a) arriving share by depth share u": {
+   "0.00-0.25": [
+    0.9893276222014253,
+    222256
+   ],
+   "0.25-0.50": [
+    0.9828835290953106,
+    223060
+   ],
+   "0.50-0.75": [
+    0.98073347381842,
+    225884
+   ],
+   "0.75-1.00": [
+    0.9676583005907038,
+    224478
+   ]
+  },
+  "(a) all guided draws arriving": 0.9801245536900538,
+  "(b) guided draws that hit another pixel: off-line distance": {
+   "count": 9654,
+   "p50/p90/p99": [
+    0.11004638671875,
+    0.620800793170929,
+    1.4765625
+   ],
+   "share over 1.5 widths": 0.009115392583385125
+  },
+  "(b) guided draws that arrive: off-line distance": {
+   "count": 877876,
+   "p50/p90/p99": [
+    1.396484375,
+    3.263671875,
+    4.234375
+   ],
+   "share over 1.5 widths": 0.47145382719199525
+  },
+  "(c) cosine draws that hit: off-line distance": {
+   "count": 916756,
+   "p50/p90/p99": [
+    0.4248046875,
+    2.828125,
+    4.68359375
+   ],
+   "share over 1.5 widths": 0.24810963876974898
+  },
+  "(d) guided: shares of all its draws": {
+   "hit": 0.9909029807587102,
+   "below the plane": 0.008208307003186413,
+   "out of steps": 0.0008797804568159539,
+   "end, passed behind nothing": 4.4658906437358064e-06,
+   "end, passed behind a slab or a back face": 4.4658906437358064e-06
+  },
+  "(d) cosine: shares of all its draws": {
+   "hit": 0.343168970166674,
+   "below the plane": 0.0,
+   "out of steps": 0.01732921770339764,
+   "end, passed behind nothing": 0.6392757170097647,
+   "end, passed behind a slab or a back face": 0.00022609512016356708
+  }
+ }
+}

@@ -1,0 +1,22 @@
+{
+ "sunlit patch": {
+  "today/cosine": 0.9971475222499033,
+  "thin/cosine": 0.9889868447355692,
+  "cosine half/half": 1.0031928264381311
+ },
+ "back wall below the slot": {
+  "today/cosine": 0.9986722491091594,
+  "thin/cosine": 0.9972585280466977,
+  "cosine half/half": 0.9976431832085387
+ },
+ "floor": {
+  "today/cosine": 0.998738548996483,
+  "thin/cosine": 0.9991003315148719,
+  "cosine half/half": 0.9979243834297593
+ },
+ "right wall": {
+  "today/cosine": 0.9980294056107634,
+  "thin/cosine": 0.9983290583005278,
+  "cosine half/half": 1.000477794323594
+ }
+}

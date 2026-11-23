@@ -1,0 +1,18 @@
+{
+ "sunlit patch": {
+  "std of one sample over the mean": 4.844677830329851,
+  "mean X": 0.22513240965681244
+ },
+ "back wall below the slot": {
+  "std of one sample over the mean": 2.6099946650932893,
+  "mean X": 0.3214726524832549
+ },
+ "floor": {
+  "std of one sample over the mean": 3.499298918905445,
+  "mean X": 0.2551357527897557
+ },
+ "right wall": {
+  "std of one sample over the mean": 2.637040644675987,
+  "mean X": 0.2916961689242892
+ }
+}

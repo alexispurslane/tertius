@@ -1,0 +1,14 @@
+{
+ "exact-0.125": {
+  "capture specks median": 257.5,
+  "largest": 2666,
+  "largest diffuse sample": 66.65342712402344,
+  "largest specular sample": 155.62002563476562,
+  "specular samples above B per draw": 6713.4675,
+  "diffuse samples above B per draw": 61.5975,
+  "mean specular sample": 2.1278181076049805,
+  "mean diffuse sample": 0.2645568251609802,
+  "box mean, 20 captures": 0.319746274983425,
+  "B": 3.8886351585388184
+ }
+}

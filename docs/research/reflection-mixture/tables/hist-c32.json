@@ -1,0 +1,86 @@
+{
+ "sunlit patch": {
+  "pixels": 45796,
+  "mean L": 31.09062957763672,
+  "share under 3/4 of the cap": 0.07332518123853611,
+  "bins": {
+   "0-8": 0.0,
+   "8-16": 0.0,
+   "16-24": 0.07332518123853611,
+   "24-31.5": 2.1835968206830292e-05,
+   "at the cap": 0.926652982793257
+  },
+  "short share": 0.07334701720674294,
+  "short and lengthened with region off": 1.0,
+  "mean L with region off": 32.0,
+  "short and lengthened with antilag off": 0.0,
+  "mean L with antilag off": 31.09062957763672,
+  "short and lengthened with light off": 0.0,
+  "mean L with light off": 31.09062957763672,
+  "short and lengthened with all off": 1.0,
+  "mean L with all off": 32.0
+ },
+ "back wall below the slot": {
+  "pixels": 26040,
+  "mean L": 30.580644607543945,
+  "share under 3/4 of the cap": 0.14193548387096774,
+  "bins": {
+   "0-8": 0.0,
+   "8-16": 0.0,
+   "16-24": 0.14193548387096774,
+   "24-31.5": 0.0,
+   "at the cap": 0.8580645161290322
+  },
+  "short share": 0.14193548387096774,
+  "short and lengthened with region off": 1.0,
+  "mean L with region off": 32.0,
+  "short and lengthened with antilag off": 0.0,
+  "mean L with antilag off": 30.580644607543945,
+  "short and lengthened with light off": 0.0,
+  "mean L with light off": 30.580644607543945,
+  "short and lengthened with all off": 1.0,
+  "mean L with all off": 32.0
+ },
+ "floor": {
+  "pixels": 80000,
+  "mean L": 30.96470069885254,
+  "share under 3/4 of the cap": 0.0,
+  "bins": {
+   "0-8": 0.0,
+   "8-16": 0.0,
+   "16-24": 0.0,
+   "24-31.5": 0.1479,
+   "at the cap": 0.8521
+  },
+  "short share": 0.1479,
+  "short and lengthened with region off": 1.0,
+  "mean L with region off": 32.0,
+  "short and lengthened with antilag off": 0.0,
+  "mean L with antilag off": 30.96470069885254,
+  "short and lengthened with light off": 0.0,
+  "mean L with light off": 30.96470069885254,
+  "short and lengthened with all off": 1.0,
+  "mean L with all off": 32.0
+ },
+ "right wall": {
+  "pixels": 89178,
+  "mean L": 19.657224655151367,
+  "share under 3/4 of the cap": 0.690439346027047,
+  "bins": {
+   "0-8": 0.0,
+   "8-16": 0.37287223306196593,
+   "16-24": 0.31756711296508106,
+   "24-31.5": 0.0,
+   "at the cap": 0.30956065397295296
+  },
+  "short share": 0.690439346027047,
+  "short and lengthened with region off": 1.0,
+  "mean L with region off": 32.0,
+  "short and lengthened with antilag off": 0.0,
+  "mean L with antilag off": 19.657224655151367,
+  "short and lengthened with light off": 0.0,
+  "mean L with light off": 19.657224655151367,
+  "short and lengthened with all off": 1.0,
+  "mean L with all off": 32.0
+ }
+}
