@@ -439,3 +439,53 @@ What it means:
 - The exact count has no beat at its window of 4 frames. Its amplitude there is at main's level. With the nose's film this answers the orchestrator's condition 1 for the pattern in time.
 - At 0.25 both mixtures flicker more than main on this floor: the coin 1.67 times and the exact count 1.30 times in the deviation over time. The still's grain said the same (0.0055 / 0.0087 / 0.0068). The excess of the exact count is 0.115 of a gray level, so I do not expect to see it, but it is a loss in the number and no gain stands against it on this floor.
 - The floor's best share in the replay is 0. So the floor does not decide between 0.25 and 0.125. It asks for a share that depends on the place.
+
+**2026-11-23T23:04:57Z**
+
+2026-11-23, line orchestrator of the back-face line: stage 1, holds 5 and 5b: the exact count at a guided share of 0.125, the guided draws by cause, and the slope of the second moment in the share. The surface share's lead took them.
+
+**1. Stills at 0.125.** Capture 19 against each build's own late mean, in units of main's full mean, grain / blob. Pictures at 1:1 in the lead's evidence folder `t3-2b720d96-b40221aeff8f27f7-evidence/fe63/`, columns main, coin 0.25, exact 0.25, exact 0.125: `bay-125-sunlit-patch.png`, `bay-125-right-wall.png`, `nose-box-1x-125.png`, `lamps-floor-125.png`.
+
+| Region | Main | Coin 0.25 | Exact 0.25 | Exact 0.125 | Coin 0.25, thin box |
+|---|---|---|---|---|---|
+| Bay, wall beside the stripe | 0.0096 / 0.0072 | 0.0133 / 0.0090 | 0.0125 / 0.0084 | 0.0108 / 0.0077 | 0.0127 / 0.0084 |
+| Bay, right wall | 0.0331 / 0.0212 | 0.0308 / 0.0175 | 0.0303 / 0.0175 | 0.0316 / 0.0187 | 0.0220 / 0.0121 |
+| Bay, back wall | 0.0055 / 0.0095 | 0.0059 / 0.0094 | 0.0055 / 0.0095 | 0.0054 / 0.0095 | 0.0058 / 0.0101 |
+| Bay, floor | 0.0099 / 0.0114 | 0.0102 / 0.0114 | 0.0099 / 0.0112 | 0.0097 / 0.0113 | 0.0091 / 0.0099 |
+| rect-lamps' floor | 0.0055 / 0.0026 | 0.0087 / 0.0052 | 0.0068 / 0.0037 | 0.0061 / 0.0031 | not taken |
+
+Nose's box, capture specks (median): main 3,719.5, coin 0.25 128, exact 0.25 101, exact 0.125 257.5 (largest 2,666).
+
+Means over 20 captures against main at 0.125: bay 0.9995, 1.0007, 1.002, 1.0098 (wall beside the stripe, back wall, floor, right wall) and rect-lamps' floor 0.9999. They are taken against main's recorded means, because main's early captures were deleted with the census sums.
+
+What I see: on the wall beside the stripe the 0.125 column lies between main's and 0.25's. The right wall's four columns are close. On the nose 0.125 shows scattered white specks again, far fewer than main's. On rect-lamps' floor I cannot tell 0.125 from main.
+
+So 0.125 halves the loss (wall beside the stripe +12 % grain against +31 %, rect-lamps' floor +13 % against +25 %) and halves the gain (nose 257.5 specks against 101, right wall's blob 0.0187 against 0.0175). It is a compromise and no answer.
+
+**2. The reflection kind's guided draws by cause**, in percent of the guided draws. The classes are the same at 0.25 within 0.5 points.
+
+| Region | Own plane | Box miss | Blocked | Arrives and counts | Arriving draws' share of the second moment, 0.125 / 0.25 |
+|---|---|---|---|---|---|
+| Bay, wall beside the stripe | 78.6 % | 19.7 % | 0.2 % | 1.5 % | 5.6 % / 10.1 % |
+| Bay, right wall | 0.8 % | 67.0 % | 0.002 % | 32.2 % | 26 % / 42 % |
+| Bay, floor | 1.3 % | 85.9 % | 0.04 % | 12.8 % | 19 % / 25 % |
+| Nose's box | 1.0 % | 10.8 % | 0.7 % | 87.5 % | 45 % / 50 % |
+| rect-lamps' floor | 82.9 % | 12.6 % | 0.2 % | 4.3 % | 0.5 % / 0.9 % |
+
+New: rect-lamps' floor is an own-plane case too. 82.9 % of its guided draws aim below the floor's own plane, because the guide's brightest targets are the lit spots on the same floor. So both surfaces that lose under the mixture lose for cause (b), and t1-d9k3 (the guide does not hold the lamps) is the smaller part there: of the draws above the plane, a quarter arrive, and they carry under 1 % of the moment. Blocked draws are nowhere above 0.7 %.
+
+**3. The slope of the second moment in the share**, at 0.25, from the real draws (20 draws). w is the reflection sample as the mixture weighs it, uncapped. Two estimates of the same slope: the density estimate is the mean over all draws of w squared times (lobe density minus guided density) over the mixture density. The split estimate is the lobe draws' mean of w squared minus the guided draws' mean. Both over the region's squared mean.
+
+| Region | Lobe draws' mean of w squared, 0.25 / 0.125 | Guided draws' mean, 0.25 / 0.125 | Slope: density estimate / split estimate |
+|---|---|---|---|
+| Nose's box | 2.58 / 3.11 | 7.74 / 18.16 | -1.77 / -5.16 |
+| Bay, wall beside the stripe | 11.80 / 9.71 | 3.94 / 4.04 | +7.32 / +7.86 |
+| Bay, right wall | 6.36 / 7.89 | 13.56 / 19.46 | -4.21 / -7.20 |
+| Bay, floor | 9.03 / 8.55 | 8.82 / 14.34 | +2.40 / +0.21 |
+| rect-lamps' floor | 2.44 / 1.81 | 0.069 / 0.065 | +2.37 / +2.37 |
+
+A negative slope says that a larger share lowers the variance. The sign is the same in both estimates in every region, and it is the sign of the replay's best share (nose and right wall up, wall beside the stripe and rect-lamps' floor down, bay floor nearly flat). The density estimate uses every draw and has less noise in the heavy-tailed regions: it lies between the replay's secants on both sides of 0.25 everywhere, and the split estimate does not. A share that follows the draws takes the density estimate as its signal: one number per draw, from densities that the tracer already computes.
+
+**4. The replay's limit.** Away from a take's own share, the replays of different takes disagree in the heavy-tailed regions. At share 0 the nose's box gives 7.15 from the lobe take, 2.32 from the 0.25 take and 3.46 from the 0.125 take, and the right wall 5.76, 4.12 and 4.64. The wall beside the stripe and rect-lamps' floor agree within 12 % and 3 %. The least share is the same from every take. The bay's floor is flat from 0 to 1/4 (4.66 to 5.29). The lead suspects that a guided draw that misses its box, recorded with a guided density of 0, breaks the replay's weights. Not checked. The real stills decide, not the replay.
+
+Disk: 27 GiB free after hold 5. The lead then deleted the four raw logs (2.76 GB, their tables are kept) and its finished films' frames (4.49 GB), 19.2 GB in all today. 41 GiB free after that.
