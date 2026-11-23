@@ -31,3 +31,9 @@ Picture: docs/research/t0-gumm-catch-up-spread/pics/cut-exterior-white.png: a-00
 
 To see it: run cut-exterior.json headless with TERTIUS_PROBE_EXPOSURE=4.08 and TERTIUS_PROBE_SERIES=<file>, and read the series of film b.
 
+
+## Notes
+
+**2026-11-23T14:17:05Z**
+
+2026-11-23, line orchestrator of the back-face line: the fault repeats in the surface share's takes (t1-wl7c), on main 373da00eb and on the share's head e11b3548b alike, so the share neither causes nor changes it. Two takes of the orbit scene at one fixed exposure, in plain Release copies. 1. Person camera, 30 draws of the chase camera on the sunlit exterior, person camera again: the lamp hall stays saturated white for all 60 draws after the cut (videos/cut-via-exterior.mp4 and cut-via-exterior-c-000048-sbs.png, draw 48 after the cut). 2. The same with one draw of the chase camera: no saturation, and 3 capture specks in the first draw after the cut, then 0, on both builds (videos/cut.mp4). So the fault needs more than 1 draw on the exterior and has all it needs after 30. That bounds what holds the light: something that gathers over 2 to 30 draws, not the cut's first draw. Folder: /Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7-evidence/surface-share/videos/.
