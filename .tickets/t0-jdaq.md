@@ -1,6 +1,6 @@
 ---
 id: t0-jdaq
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-13T01:01:07Z
@@ -19,3 +19,7 @@ Design: docs/plans/bounce-light-confidence.md (Design A with Design X's evidence
 **2026-11-13T01:30:45Z**
 
 Built in 1190adce1: Shaders/sample_age.glsl (SampleMotionBit bit 15, LightCodeMask bits 0-14, RecentLightAge 7, LeastMotion 1/32 px, sampleAgeOf, lightCodeOf, sawMotion, recentLightCode) and TemporalSignal.SampleMotionBit/LightCodeMask for the C# readers. No test of its own: the include has no reader until steps 12 and 13, whose GPU tests write ages through the C# layout and read the shaders' cut and box, so a drift fails them. Compiled with -Werror against a scratch shader; full Checked suite green (10,865 passed).
+
+**2026-11-23T05:57:58Z**
+
+2026-11-23, the line orchestrator: this step's work is on main with the merge of Design X (merged head 0688b36c6, t0-iido). Closed with the merge.

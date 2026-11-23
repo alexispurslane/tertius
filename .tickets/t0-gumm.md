@@ -1,6 +1,6 @@
 ---
 id: t0-gumm
-status: in_progress
+status: closed
 deps: []
 links: [ter-4iic, t0-o7gf, t0-zmjx, t58-np60, t0-qvm1, ter-6fka, ter-8pco, t0-rs55]
 created: 2026-11-22T21:31:16Z
@@ -304,3 +304,13 @@ Early numbers from the combined check's lead, 2026-11-22 23:40 by the machine's 
 **2026-11-23T05:00:26Z**
 
 The delayed shape and the 36-tap fix, by the combined check's lead (its commit 0ac88f31f, 2026-11-22 23:58; pictures pics/wide-fix-chart.png and pics/wide-fix-strip.png; the bay's video pics/bay-start-final.mp4 in d1e42e12e). Bay-sunbeam's start, Mac, constant scale 2/3. All three bit-for-bit checks pass (the delay patch against h16, the wide-fix patch with its switch off against today's cliff and against the delayed shape; 200 frames.series rows each). (1) The delayed shape d3, full rate in draws 3 to 7 only: grain of draws 3 to 8 3.85 % (today 3.34, none 7.31), 87 % of the gain; grain of draws 9 to 15 4.33 (4.19, 6.45), 94 %; boil of draws 1 to 8 keeps 64 % of the broad gain and 36 % of the narrow crop's. So the rays of draws 3 to 7 make most of the lasting grain gain, not all of it, and the early rays buy boil. (2) The 36-tap fix with today's cliff: grain of draws 1 to 4 2.71 % against 3.94 %, 31 % less (spread 0.08); per draw 6.2 against 12.3 at draw 0, 2.3 against 6.0 at draw 1, 2.8 against 3.4 at draw 2, equal from draw 9. Boil of draws 1 to 4 2.289 against 2.254, 0.035 higher (spread 0.02). Narrow grain of draws 1 to 4 0.57 against 0.66. (3) The control holds: the delayed shape with the fix gives grain 3.883 against 3.880 and boil 2.574 against 2.573. So the first draws of a bounce-lit room can be better than today's at no ray, which no shape of the sweep reached. With the fix the rays of draws 0 to 2 buy grain again (2.71 against 3.88 over draws 1 to 4), so the known dip stays 8 draws long. The line orchestrator looked at the chart and the strip: the chart's line of today with the fix lies under today's from draw 0 to about draw 8; in the strip the gain is hard to see at that size. New ticket t0-rs55 holds the fix's design; it is built after the merge. The lead's last steps: one reviewer of the records of t0-gumm and t0-qvm1, one merge of the line, the final JSON for t0-gumm.
+
+**2026-11-23T05:57:57Z**
+
+2026-11-23, 00:57 New York time, the line orchestrator. The experiment is finished and its record is merged (112e4e1cc on the line, from the lead's branch t3/combined-renderer-check at 609a35c75). One reviewer read the records of this ticket and of t0-qvm1, and the lead fixed all 20 findings (1450cdc69, 693bdaceb). Cloud money: $0.2721 of $1.50.
+
+The result, in the record docs/research/t0-gumm-catch-up-spread/README.md:
+- No spread of the catch-up rays keeps the picture. In bay-sunbeam's start, half the peak (0.5, 16, 0) keeps about two thirds of today's grain gain, and a quarter of the peak about one third. So today's cliff (1, 8, 0) stays at a start and a cut. "none", the removal of the cliff, the share 1/32 with the cap, and the forms (a) and (c) are out.
+- The cap stays: light evidence cuts a history to at most FullRateFrames (05a27262d, t0-zmjx). It passed the sixth gate in the bay.
+- The cost of the dear draws goes to the render scale: ter-bcwr, the announced dip of 8 draws.
+- The fix of short histories reads one pixel per 2 x 2 block at spacings 4 and 2. A fix that reads all four lowers the grain of draws 1 to 4 by 31 % with no ray: t0-rs55, the next build.

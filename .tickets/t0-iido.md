@@ -1,6 +1,6 @@
 ---
 id: t0-iido
-status: open
+status: closed
 deps: [t0-5tyj, t0-3vwx, t0-zmjx]
 links: []
 created: 2026-11-12T13:56:24Z
@@ -90,3 +90,18 @@ State of gate 3 from the acceptance lead, 2026-11-22 23:47: the full Checked sui
 **2026-11-23T05:25:20Z**
 
 State of the six gates, 2026-11-23 00:26 by the machine's clock, on the line's head ae3d9ed2e (the acceptance branch bf55b37f6 merged as f47290508). (1) The cap built with red-green tests: met, 05a27262d and b543151da, 11 mutants killed. (2) tc-8142 fixed: met, 6d234dcef, green on the card (job a8d320d8), the last surviving mutant killed by 8400ec2a0. (3) Checked and Release green on the merged code: Release full on 8400ec2a0, 11,208 tests, 0 failed, 27 skipped; Checked full on ddee55073, 11,220 tests, 0 failed, 27 skipped. Under src and tests the line's head equals 8400ec2a0, and ddee55073 differs from it by one added test whose class passed in Checked (12 of 12). One full Checked run on the final tree is ordered at the acceptance lead to remove that caveat. (4) The per-scene table on the merged code against main 3549d3283: stills 9 better, 1 equal, 0 worse; light share 97.7 to 100.4 % of the clamps-off reference against 81.6 to 102.7 %; daub lower in all three stills; fair cabin switch 82 / 54 draws against 142 / 92; bay-sun-off 30 / 22 against 49 / 37; the deck's GPU span +0.211 ms over six rounds. Worse by a measure: lamp-hall-16 after off, 37 draws against 25, inside the goal of 60; the flicker measure of the films rect-bay and bay-sunbeam, 0.00247 against 0.00190 and 0.00522 against 0.00397, with blotch and level better; the walk's trail after the stop. The orchestrator judges this gate. (5) The two films under the dynamic render scale on the final code: met, t0-3vwx. (6) The cap after a light change in the bounce-lit bay: met, with its cost recorded above. The diff to read: base 3549d3283 (main at the line's last merge of it; main's 21 later commits change nothing under src, tests or analyzers), head ae3d9ed2e; under src, tests and analyzers 49 files, 6,187 insertions and 1,213 deletions. A test merge of the line with main c720e14d2 (git merge-tree, no checkout touched) conflicts only in three ticket files: t7-3e22.md, ter-4iic.md and ter-6fka.md. Still to come on the line, docs and tickets only: the merge of the combined check's branch with the records of t0-gumm and t0-qvm1, which holds the gate's two pictures.
+
+**2026-11-23T05:57:57Z**
+
+2026-11-23, 00:57 New York time, the line orchestrator. Design X is on main. The merged head is 0688b36c6, pushed to GitHub and to the knot.
+
+How it merged, by the orchestrator's procedure:
+1. In the line's worktree, main c720e14d2 merged into the line as 8454ffb15. Three tickets had notes from both sides (t7-3e22, ter-4iic, ter-6fka), and each keeps both. Main moved by four ticket commits during the test run, so a second merge of main f0fc7984c followed as 0688b36c6, without a conflict.
+2. In the main checkout, only `git merge --ff-only t7-3e22-retained-deviation` ran. None of the local changes of other sessions there lies on a file of the line's diff.
+3. `git push origin main` reached both URLs at the first try.
+
+The condition: the full Checked run on the final code. The acceptance lead ran `tools/test-all.sh -c Checked` on bf55b37f6: 11,221 tests, 0 failed, 27 skipped (Core 1207, Simulation 2007, Physics 1500 with 8 skipped, Rendering 3486 with 11 skipped, Host 2089 with 8 skipped, Unions 59, Style 276, Slop 597). The merged head differs from bf55b37f6 under src, tests and analyzers in no file, and under tools in two lines of tools/README.md. The Release run is the earlier one on 8400ec2a0: 11,208 tests, 0 failed, 27 skipped. No Release run exists on the last code state, which adds the test that kills P03 and the docs.
+
+What the record of this merge must say, as the orchestrator ordered: the fair test of the catch-up rays did not test a light change in a bounce-lit scene, and the cap's cost after a light change in the bay (the sixth gate) was measured on a scratch build of the same rule on 710834cc0, not on the merged shader.
+
+The state of the home ticket t7-3e22 after this merge is in its own note of the same time.

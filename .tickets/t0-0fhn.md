@@ -1,6 +1,6 @@
 ---
 id: t0-0fhn
-status: in_progress
+status: closed
 deps: [t0-jdaq]
 links: []
 created: 2026-11-13T01:01:07Z
@@ -27,3 +27,7 @@ Design change from t0-3kyb (coordinator, 2026-11-13): the per-pixel light-age cu
 **2026-11-14T14:23:09Z**
 
 Committed the removal of the cut before the blend: the light-age variant covers the spatial dispatch alone (HistoryShaderTests theory renamed ...OfTheSpatialDispatchAlone, red first with the temporal dispatch still listed); stale doc comments in TemporalSignal, DescriptorLayouts and section 8.4 now say only the spatial dispatch reads the sample age. Full Checked green: 10,897 passed (Rendering 3,186).
+
+**2026-11-23T05:57:58Z**
+
+2026-11-23, the line orchestrator: this step's work is on main with the merge of Design X (merged head 0688b36c6, t0-iido). Closed with the merge.

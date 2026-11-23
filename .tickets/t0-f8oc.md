@@ -1,6 +1,6 @@
 ---
 id: t0-f8oc
-status: in_progress
+status: closed
 deps: [t0-3kyb, t0-d3vd, t0-e8rh]
 links: []
 created: 2026-11-13T01:01:07Z
@@ -41,3 +41,7 @@ Finding 3, the pace: the clamps-off reference itself is 5.8 % low 60 draws after
 
 Other variants (bounce alone, slowest off/on, whole off/on): narrow box on the first evidence draw only 83/none, 7/72; length bounded by the change's age plus 4 draws with one narrow draw 62/none, 8/88; restart from the pixel's own fast history 105/none, 66/50 (r11 flashes +46 %); RecentLightAge 16 with cut only 93/36, 64/18 (the evidence then holds the jitter's bright draw at a length of 4: +12 % flash 20 draws after the lamps go off); RecentLightAge 28 80/99, 46/18.
 Full image, slowest off/on and whole off/on: branch 92/none, 10/54; cut only 66/none (r11 ends -6.0 %), 12/27; main 75/52, 36/24. bay-sun-off: branch 35/12, cut only 36/13. lamp-hall-16: 36/25 both. Lag error medians equal to 0.001 in the three lag films.
+
+**2026-11-23T05:57:58Z**
+
+2026-11-23, the line orchestrator: this step's work is on main with the merge of Design X (merged head 0688b36c6, t0-iido). Closed with the merge.

@@ -1,6 +1,6 @@
 ---
 id: t0-f7zv
-status: open
+status: closed
 deps: [t0-anp3]
 links: []
 created: 2026-11-12T13:56:23Z
@@ -76,3 +76,7 @@ Workbench: 8 jobs that counted, $0.38 at their logged cost; 7 earlier jobs (one 
 **2026-11-13T01:01:22Z**
 
 2026-11-12: T1a, T1b and T2a stand for Design X unchanged (the wide box and the carry stay). T2b moves to take T15 of step 17 (t0-5tyj). This ticket closes at the merge with the other built steps.
+
+**2026-11-23T05:57:58Z**
+
+2026-11-23, the line orchestrator: this step's work is on main with the merge of Design X (merged head 0688b36c6, t0-iido). Closed with the merge.

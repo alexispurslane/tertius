@@ -1,6 +1,6 @@
 ---
 id: t0-aiim
-status: in_progress
+status: closed
 deps: [t0-jdaq]
 links: []
 created: 2026-11-13T01:01:07Z
@@ -23,3 +23,7 @@ Built: the plan writes a moved mark into the hit light's alpha (movedSurfaceAt: 
 **2026-11-13T03:42:23Z**
 
 Fix after the Linux Release shards: the half rounding of the still motion gave exactly 0 on the Mac but not on the RTX 2000 Ada (the rounded still motion kept lengths near 1e-6 px). The rounding went; UnderAStillCameraAStillSurfaceLiesAtAStillPointsPlaceUpToTheFloatsRounding bounds the distance at 1e-5 px with no moved mark (measured 1e-6 on the Mac, 2.1e-6 on Linux).
+
+**2026-11-23T05:57:58Z**
+
+2026-11-23, the line orchestrator: this step's work is on main with the merge of Design X (merged head 0688b36c6, t0-iido). Closed with the merge.

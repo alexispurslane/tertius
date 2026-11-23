@@ -1,6 +1,6 @@
 ---
 id: t0-q6jl
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-12T13:56:23Z
@@ -20,3 +20,7 @@ Design: docs/plans/bounce-light-confidence.md, section 22. Branch t7-3e22-retain
 
 2026-11-12, step 2b built. The variance dispatch marks the young estimate with a negative sign. The feedback step outputs kept·|σp| + Σ share·|σq| to step 2 and stores kept·max(σp, 0) + Σ share·max(σq, 0) into this draw's fast history alpha where its own length is at least YoungFrames (moved to diffuse_filter.glsl). Steps 2 to 6 keep the squared rule. DiffuseFilter has one wavelet set per parity and dispatch: Sets = 14. Every wavelet dispatch gets a barrier on the fast history, because the validation layers count each bound dispatch as a writer (a WAW hazard otherwise).
 Tests (DiffuseFilterRenderTests): TheFeedbackStepStoresTheDeviationOfTheLightThatItMoves (red: 0), AYoungHistoryKeepsItsOwnRetainedDeviation (0.943), TheFilteredDeviationIsThatOfAMeanOfItsTaps now between 0.375^5 and 0.5^5 of the stored deviation (red 0.0050, green 0.0129; the plain kernel's 0.375^5 is a lower bound, because stops keep weight with the pixel).
+
+**2026-11-23T05:57:58Z**
+
+2026-11-23, the line orchestrator: this step's work is on main with the merge of Design X (merged head 0688b36c6, t0-iido). Closed with the merge.
