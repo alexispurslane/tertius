@@ -105,3 +105,7 @@ The condition: the full Checked run on the final code. The acceptance lead ran `
 What the record of this merge must say, as the orchestrator ordered: the fair test of the catch-up rays did not test a light change in a bounce-lit scene, and the cap's cost after a light change in the bay (the sixth gate) was measured on a scratch build of the same rule on 710834cc0, not on the merged shader.
 
 The state of the home ticket t7-3e22 after this merge is in its own note of the same time.
+
+**2026-11-23T06:01:43Z**
+
+2026-11-23, 01:06 New York time, the line orchestrator. Correction of my closing note, found by the orchestrator and checked by me: 'git diff 8400ec2a0 HEAD -- src tests analyzers' and 'git diff bf55b37f6 HEAD -- src tests analyzers' are both empty on main. So the Release run on 8400ec2a0 (11,208 tests, 0 failed, 27 skipped) and the Checked run on bf55b37f6 (11,221 tests, 0 failed, 27 skipped) both ran on main's final code. My sentence 'No Release run exists on the last code state' was wrong.
