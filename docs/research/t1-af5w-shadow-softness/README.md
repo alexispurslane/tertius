@@ -348,3 +348,53 @@ The share of each frame's pixels that differ from main by more than 4 of 255:
 The changes lie on thin lines where walls and frames meet the floor. The edges that the measure found too soft are
 mostly receivers within one own-plane span of their caster, so the trust rule keeps today's width at them, and the
 remap rarely acts.
+
+## Part 1 of the probe: the wide half (in progress)
+
+`patches/part1-pyramid.patch` (on main 72426c219, with the back-face line's export files for the reference) holds every
+form below. One binary draws all of them under `TERTIUS_X_PYRAMID = 1000 form + 100 debug + mode`:
+
+- form: 0 the nearest caster by fetches of the bounds levels, 1 the same filtered bilinearly, 2 the blockers' mean from
+  the moments (dropped: w saturates at 64 texels).
+- debug: 1 the bleed against an 8 × 8 PCF of the same footprint, 2 that PCF in place of the moments, 3 w / 64, 4 one,
+  5 one where cap 8 takes its reads.
+- mode: 1 plain moments (fraction: the cut b), c ≥ 2 exponential moments of exp(c z), 90 cap 8 (64 corner means), 91 cap
+  16 (the 8 × 8 PCF at min(w, 16)).
+
+The bounds image becomes RGBA32F, 384 × 256 per layer: level 0 (the window bounds and the moments of 2 × 2 texels) and
+levels 1 to 4 packed beside it. `LocalShadowPass` writes them for every tile view in every frame.
+
+### What the stills show
+
+The sheets are in `pics/part1/`. The reference is Blender Cycles on an export of exit-deck's capture a, with the
+back-face line's `cycles_scene.py`: direct light only (`REF_MAX_BOUNCES=0`), no sun, Earth black, 2,048 samples.
+
+- The moments (plain, b up to 0.4, and exponential at c = 40) let light through at the deck's wall base, and they draw
+  hard stripes and steps on the cabin's floor (`cap-cabin-floor.png`).
+- Form 0's width is constant over each coarse bounds texel, and deck-far's hard patch follows it (`width-deck-far.png`).
+  Form 1's width is smooth.
+- The 8 × 8 PCF at form 1's full width washes the floors out as much as the moments do. So that wash-out is the width.
+- The reference's lamp shadows on the deck are broad and soft (`ref-deck-far.png`, `ref-deck-floor.png`). Cap 8 and cap
+  16 have its shape, and main's edges are too sharp. At the wall base the reference has a black contact band with sharp
+  edges, which every column draws as a soft grey band (`ref-deck-wall-base.png`).
+
+### Registers and time
+
+| Form | `direct.frag` | `direct_key_fill.frag` |
+|---|---|---|
+| Moments, form 0, no debug code | r116 | r116 |
+| Moments, form 1, no debug code | r116 | r116 |
+| Cap 8, form 1 | r127 | r127 |
+| Cap 8 with its 64 reads replaced by one value | r116 | r119 |
+
+The direct pass's median GPU time over the 3 captures of one still, on a loaded machine (load 8 to 11), in ms:
+
+| Column | exit-deck (render scale 2/3) | exit-cabin (0.96) |
+|---|---|---|
+| main | 4.02 | 7.45 |
+| moments, form 1 | 4.73 | 8.79 |
+| 8 × 8 PCF at form 1's w | 5.69 | 11.05 |
+| cap 8 | 6.20 | 11.94 |
+| cap 16 | 6.03 | 11.88 |
+
+Cap 8 takes its 64 reads for at least one lamp at 92.5 % of exit-deck's pixels and 99.6 % of exit-cabin's.
