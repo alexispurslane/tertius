@@ -111,3 +111,9 @@ C#: the pending frame owns one phase count per draw. The jitter's offset and the
 - The anti-lag's short histories (t1-g1jd) and the clamp's lost light (ter-18hc).
 - A per-pixel resolve or a prefilter of the hit light. The record closes V1, V2 and V3.
 
+
+## Notes
+
+**2026-11-23T06:34:37Z**
+
+2026-11-23, the line orchestrator, from the orchestrator. The orchestrator read this ticket and agrees with the line orchestrator's four decisions in it (one function for the hit light and the guide, one frame value for the spread, the diffuse reprojection for both ray kinds, an impostor's share of 1 unless the surface test covers impostors). One more acceptance condition, for the lead's brief: the key and fill shader direct_key_fill.frag sits at register r115 on the M1 with no room, and one more register costs 0.10 to 0.28 ms of the frame in every view (t1-gout's note of 2026-11-23, t2-x53j). This build touches signals.glsl and the frame block, which that shader includes. Until the guard of t2-x53j exists, the lead runs the register count script (it comes to main with commit A of t1-gout; tools/README.md says how to run it) before its ready report and states the highest register of direct_key_fill.frag and direct.frag on main and on its head.
