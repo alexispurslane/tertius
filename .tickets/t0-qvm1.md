@@ -80,3 +80,32 @@ Correction by the line orchestrator, 2026-11-22 22:20 by the machine's clock: th
 **2026-11-23T03:19:29Z**
 
 The orchestrator's answer of 2026-11-22, about 22:18: the rule stays, and removal is off the table. The reading of the false fires as the test's nominal rate and the model are accepted. Answer 88 stands. Its lean before the table is repair B, the size gate, because it uses the quantity that the action needs and that the anchor already holds; a higher threshold (A) delays every true fire and still acts on a change that the history could follow. The log must show for B, at each gate, the delay of the first true fire in the lamp switch and in the bay's lag film and the share of the stills' false fires that pass. If a gate of 5 % keeps the switch's 71 / 82 draws and drops most false fires, B is chosen. The orchestrator also names design B2: the gate in the action and not in the test, so that a history is cut only to the length that can follow the measured change, and the rule has no threshold of its own. The line orchestrator's form of B2 for the log (a derivation, not measured): a history of length n behind a light that drifts by the share d between two windows of 18 draws lags it by about d n / 18, so the longest history that stays within the settle band b = 5 % has n = 18 b / d, kept between FullRateFrames (8) and the cap (32). A drift under 2.8 % then cuts nothing. The bright speckle on the bay's left wall and floor, in the still as in the film with the rule, is not this rule's; it fits the ray census's class and waits for ter-pdw8. Nothing is recorded against it on this line.
+
+**2026-11-23T04:45:30Z**
+
+The second step, done by the combined check's lead on 2026-11-22 (its commit 626581572, 23:43; record docs/research/t0-qvm1-region-off/README.md, "The second step"; pictures pics/region-fires-quantiles.png and pics/region-b2-nstar.png). Mac runs of the cap's commit 05a27262d with region evidence at the constant scale 2/3: exit-cabin, rect-bay, bay-sun, the fair lamp switch and its two still controls, and the earlier walk log. The lead's offline test agrees with the GPU's answer at all 851,425 tested anchor-draws.
+
+Terms: d is the drift's relative size, |mean of the newer 18 draws - mean of the older 18| over the older mean. The statistic is that difference over (the older window's standard deviation times the root of 2 / 18); the test fires above 3.
+
+The fires' quantiles (10, 50, 90 %), d then the statistic:
+- false, exit-cabin (1,927 fires): 0.093, 0.140, 0.209; 3.05, 3.33, 4.10.
+- false, cabin with lamps on (1,526): 0.031, 0.047, 0.103; 3.06, 3.43, 4.70.
+- false, cabin with lamps off (5,226): 0.048, 0.072, 0.121; 3.12, 3.71, 5.32.
+- false, the switch's still draws 69 to 192 (532): 0.031, 0.048, 0.093; 3.06, 3.39, 4.44.
+- true, switch off (8,104): 0.098, 0.259, 0.401; 4.17, 6.93, 14.82.
+- true, switch on (8,453): 0.125, 0.396, 0.888; 4.62, 8.62, 23.28.
+- true, bay-sun (6,073): 0.156, 0.611, 1.696; 4.45, 12.46, 23.90.
+- true, rect-bay's first 40 draws (55): 0.090, 0.149, 0.350; 3.08, 3.55, 4.31.
+
+The candidate rules: share of all false fires dropped; exit-cabin's; the switch's off: first fire's delay and an anchor's extra delay, median / largest; bay-sun's; the share of rect-bay's film fires kept:
+- A4, the statistic above 4: 71.4 %; 87.1 %; 0, 1 / 13; 3, 1 / 27; 72.9 %.
+- A5: 90.7 %; 98.0 %; 1, 3 / 14; 4, 3 / 31 with 2 anchors that never fire; 46.3 %.
+- B5 %, the test at 3 and d at least 5 %: 20.1 %; 0 %; 0, 0 / 11; 3, 0 / 2; 100 %.
+- B10 %: 69.0 %; 14.7 %; 2, 3 / 15; 3, 0 / 15; 99.3 %.
+- B2 (cut to the length 18 x 5 % / d between 8 and 32) after the test: the first true fires as today; the cabin's and the switch's false fires cut to 13 to 19 draws in place of 8; exit-cabin's still cut to 8 at 75.7 %. B2 without the test would cut at 19 to 58 % of the stills' tested anchor-draws, against today's 0.9 to 4.8 %, so the derivation's reading of a drift under 2.8 % as the only noise is wrong.
+
+The plain answer: neither a higher threshold nor a size gate separates the two kinds of fire in every scene. The size gate fails on exit-cabin, whose dim anchors give false fires as large in d as rect-bay's true ones. The higher threshold loses rect-bay's weak true fires, whose statistic is that of the false fires. By the orchestrator's own test (a gate of 5 % must drop most false fires), B is not chosen. The log measures no settle, so the switch's 71 / 82 draws under a changed rule are not proven either way.
+
+The line orchestrator's reading: the share of tested anchor-draws that fire in a still is 0.9 % in exit-cabin, near the test's nominal 0.8 %, and 4.8 % in the cabin with its lamps off, six times nominal. The test assumes independent draws. Two causes can raise the rate, and both can be checked on the logs: the region's light wanders slowly in a bounce-lit room, so the noise of an 18-draw mean is larger than the per-draw deviation over the root of 18; and the rule may feed itself, because a false fire shortens histories, the rays then read noisier light, and the region wanders more.
+
+Answer 93 of the line orchestrator: three numbers more from the logs, CPU only, ordered at 23:45: (1) the share of fires per still with the rule and without it (the first step's build without the rule logged its fires); (2) per anchor in each still, the deviation of the 18-draw means against the per-draw deviation over the root of 18; (3) the run lengths of consecutive fires, false against true, and a candidate that fires only at the k-th consecutive draw above 3, for k = 3, 6, 9, on the same table; also the share of fires in rect-bay's film. No rule is built. The design of the repair waits for these and is the orchestrator's choice.
