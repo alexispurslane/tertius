@@ -1,0 +1,32 @@
+{
+ "scene": "demo-exit",
+ "window": {
+  "width": 1280,
+  "height": 720
+ },
+ "steps": [
+  {
+   "do": "camera",
+   "entity": "person"
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "entity",
+    "id": "person"
+   },
+   "event": "LeaveShip",
+   "payload": null
+  },
+  {
+   "do": "run",
+   "ticks": 1440
+  },
+  {
+   "do": "film",
+   "name": "w",
+   "frames": 120,
+   "every": 1
+  }
+ ]
+}

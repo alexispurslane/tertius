@@ -57,7 +57,7 @@ Settled by this design:
 
 8. Maps are indexed root first. Map 0 belongs to the outermost served frame and map M − 1 to the camera's frame. An object's map is M − 1 − min(depth, M − 1). Reason: when the camera enters a child frame or leaves for its parent, the chain changes at its camera end, and every map above the change keeps its index, so it can keep its faces (decision 9). Indexed from the camera, every map's index moves by one at such a change.
 9. Each map lies in the axes of its own frame. The camera's frame's map lies in the camera's frame's axes, as today's map does. A face of map i looks along R_i times the face's axis of Vulkan's cube table. A reader turns its direction into the map's axes before it samples. With this, a change of the camera's frame keeps every map whose frame and frame below did not change, and the rule is exact. Reason: decision 5 asks for a cheaper exact rule. In the camera's axes, which today's single map uses, a change of the camera's frame turns every map's axes, so every face of every map is wrong. Two more gains follow. A turn of the camera's frame, such as a ship that rolls, no longer ages the maps of its ancestors, because what is at rest in an ancestor stays at rest in its map. And an ancestor's irradiance does not change when the ship turns, so the impostors outside are not recaptured for it. The cost is two quaternion rotations per lit pixel (see "Cost").
-10. A refresh is a decision per map. Map i draws all six faces when it is not kept or the draw has a long step. Otherwise it draws its slots in turn. Today's `RefreshesAll` is the case M = 1. Reason: decision 5, and the cost of the cases below.
+10. A refresh is a decision per map. Map i draws all six faces when it is not kept or the draw refreshes every face: the first draw of a still, or a camera cut that keeps the camera's frame (amended by t58-rcd6, 2026-11-23: every map is captured at the eye, and such a cut jumps the eye inside the frame, so a map kept across it showed the place that the eye left; `FrameHistory.PendingFrame.RefreshesEveryFace` gives both causes. A cut that changes the camera's frame, as a hand-off at a doorway, goes through `Keeps` as before, so it costs what this decision gives. A change of the output size, which moves no eye, keeps the maps). Otherwise it draws its slots in turn. Today's `RefreshesAll` is the case M = 1. Reason: decision 5, and the cost of the cases below.
 
     | Change | Today's rule, applied to every map | This rule |
     |---|---|---|
@@ -125,7 +125,7 @@ All the maps share the face budget F, slot by slot. A map is prefiltered when on
 | `EnvironmentMap.FrameId`, the camera frame of the faces | `EnvironmentMap`'s "drawn for", the served chain of the faces |
 | `FacesFor` returns one `FaceMask` | `FacesFor` returns a `FaceMask` for each served map, and grows the images when the chain is longer than ever before |
 | `InTurn(frame, F)` over 6 faces | `InTurn(frame, F, faces)` over 6M slots |
-| `RefreshesAll(mapFrameId, originFrameId, longStep)` | `RefreshesAll(drawnFor, served, map, longStep)`, through `EnvironmentChain.Keeps` |
+| `RefreshesAll(mapFrameId, originFrameId, longStep)` | `RefreshesAll(drawnFor, served, map, everyFace)`, through `EnvironmentChain.Keeps` (the parameter `longStep` became `everyFace` in t58-rcd6) |
 | The faces' axes are `CubeFaces.Basis(face)` | `CubeFaces.Basis(face, axes)`, turned by the map's axes. `View`, `ViewProjection` and `Culls` take a `FaceBasis` |
 | A face draws every opaque instance | A face of map i draws the opaque instances whose map is at most i |
 | A face keeps every light of the frame's list | A face of map i keeps the lights whose map is at most i |
@@ -268,17 +268,17 @@ The other kinds:
 
 ## Which faces a frame draws
 
-`EnvironmentMap.FacesFor(frame, served, longStep)` runs where today's does: in `DrawFrame`, after the output gives the frame an image and before batching.
+`EnvironmentMap.FacesFor(frame, served, everyFace)` runs where today's does: in `DrawFrame`, after the output gives the frame an image and before batching.
 
 ```csharp
-public ReadOnlySpan<FaceMask> FacesFor(long frame, ReadOnlySpan<long> served, bool longStep)
+public ReadOnlySpan<FaceMask> FacesFor(long frame, ReadOnlySpan<long> served, bool everyFace)
 {
     if (served.Length > Capacity)
         Grow(served.Length);   // waits for the device; the new images hold nothing, so "drawn for" empties
     Span<FaceMask> faces = facesOfMaps.AsSpan(0, served.Length);
     EnvironmentFaces.InTurn(frame, Setting.FacesPerFrame, faces);
     for (int map = 0; map < faces.Length; map++)
-        if (EnvironmentFaces.RefreshesAll(DrawnFor, served, map, longStep))
+        if (EnvironmentFaces.RefreshesAll(DrawnFor, served, map, everyFace))
             faces[map] = FaceMask.All;
     return faces;
 }
@@ -297,7 +297,8 @@ where
 - `Capacity` = the maps that the images hold.
 - `facesOfMaps` = an array of 42 `FaceMask`, reused, so a frame allocates nothing.
 - `InTurn` = clears `faces`, then sets the slots (frame · F + k) mod 6M for k from 0 to F − 1 (decision 11).
-- `RefreshesAll` = `!EnvironmentChain.Keeps(drawnFor, served, map) || longStep` (decision 10).
+- `everyFace` = whether the draw refreshes every face of every map: the first draw of a still or a camera cut that keeps the camera's frame (`FrameHistory.PendingFrame.RefreshesEveryFace`).
+- `RefreshesAll` = `!EnvironmentChain.Keeps(drawnFor, served, map) || everyFace` (decision 10).
 - `DrawnFor` = the served chain of the stored faces, empty before the first submitted frame and after a growth.
 - `Drew` = what `DrawFrame` calls after `SubmitAndPresent`, with the frame's slot.
 - `readbackMaps` = for each frame slot, the served maps of its last submitted frame, which its readback buffer holds and `Collect` reads.
@@ -590,7 +591,7 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. Ea
 - `OneFacePerFrameVisitsEveryFaceOfOneMapBeforeTheNextMap`
 - `AtOneFacePerFrameEveryFaceOfFourMapsIsDrawnOnceInTwentyFourFrames`
 - `FourFacesPerFrameCanFallInTwoMaps`
-- `AMapThatIsNotKeptRefreshesEveryFace`, `ALongStepRefreshesEveryMap`, `AKeptMapWithoutALongStepDrawsItsFacesInTurn`, which replace today's four tests of `RefreshesAll`. `EnvironmentChainTests` holds what "a map with no frame" and "a change of the camera's frame" become.
+- `AMapThatIsNotKeptRefreshesEveryFace`, `ADrawThatRefreshesEveryFaceRefreshesEveryMap`, `AKeptMapDrawsItsFacesInTurnInADrawThatRefreshesNoFace` (the last two renamed in t58-rcd6), which replace today's four tests of `RefreshesAll`. `EnvironmentChainTests` holds what "a map with no frame" and "a change of the camera's frame" become.
 
 `MapCodeTests` (new):
 
@@ -670,7 +671,7 @@ The existing tests:
 - The map images never shrink. A camera that once rode a chain of five keeps five maps' memory.
 - A chain longer than ever before waits for the device once, at the frame of the growth.
 - More than 42 frames on a chain merge their outermost frames into map 0 (decision 19). No scene comes near it.
-- As today, a window camera that cuts within one frame mixes old and new faces until each is drawn again: up to ⌈6M / F⌉ − 1 frames now.
+- A camera cut that keeps the camera's frame refreshes every map in its own draw, in a window as in a film (t58-rcd6). Before, it mixed old and new faces until each was drawn again: up to ⌈6M / F⌉ − 1 frames. A cut that changes the camera's frame refreshes what decision 9 gives.
 
 ## Compared with a design from scratch
 

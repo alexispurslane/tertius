@@ -166,6 +166,81 @@ public sealed class FrameHistoryTests
     }
 
     [Fact]
+    public void ACutThatKeepsTheCamerasFrameRefreshesEveryFaceOfTheMaps()
+    {
+        var history = new FrameHistory(StillRule.Window);
+        Draw(history: history, snapshot: Snapshot(cuts: 1, frameId: 7));
+
+        FrameHistory.PendingFrame pending = history.Begin(
+            step: FrameHistoryTesting.FilmStep,
+            draw: 0,
+            snapshot: Snapshot(cuts: 2, frameId: 7),
+            outputSize: Output,
+            renderSize: Output
+        );
+
+        pending
+            .RefreshesEveryFace.Should()
+            .BeTrue("the eye jumped inside the camera's frame, and every map is captured at the eye");
+    }
+
+    [Fact]
+    public void AHandOffOfTheCamerasFrameResetsTheHistoriesButLeavesTheMapsToTheChain()
+    {
+        // The simulation counts one more cut when the camera's frame changes, as it does at a doorway.
+        var history = new FrameHistory(StillRule.Window);
+        Draw(history: history, snapshot: Snapshot(cuts: 1, frameId: 7));
+
+        FrameHistory.PendingFrame pending = history.Begin(
+            step: FrameHistoryTesting.FilmStep,
+            draw: 0,
+            snapshot: Snapshot(cuts: 2, frameId: 8),
+            outputSize: Output,
+            renderSize: Output
+        );
+
+        pending.Reset.Should().BeTrue();
+        pending
+            .RefreshesEveryFace.Should()
+            .BeFalse("the chain's Keeps refreshes the maps whose frames changed, and a doorway hides no extra cost");
+    }
+
+    [Fact]
+    public void ADrawAtAnotherOutputSizeResetsTheHistoriesButKeepsTheMaps()
+    {
+        var history = new FrameHistory(StillRule.Window);
+        Draw(history: history, snapshot: Snapshot());
+
+        FrameHistory.PendingFrame pending = history.Begin(
+            step: FrameHistoryTesting.FilmStep,
+            draw: 0,
+            snapshot: Snapshot(),
+            outputSize: new(1920, 1080),
+            renderSize: new(1920, 1080)
+        );
+
+        pending.Reset.Should().BeTrue();
+        pending.RefreshesEveryFace.Should().BeFalse("a new output size does not move the eye, so the maps stay right");
+    }
+
+    [Fact]
+    public void ADrawThatContinuesTheLastOneKeepsTheMaps()
+    {
+        var history = new FrameHistory(StillRule.Window);
+        Draw(history: history, snapshot: Snapshot());
+
+        FrameHistory.PendingFrame pending = history.Begin(
+            step: FrameHistoryTesting.FilmStep,
+            draw: 0,
+            snapshot: Snapshot(),
+            outputSize: Output,
+            renderSize: Output
+        );
+
+        pending.RefreshesEveryFace.Should().BeFalse();
+    }
+
+    [Fact]
     public void AfterTheCamerasFrameChangesThePreviousRenderSizeIsStillTheLastDrawnFramesSize()
     {
         // A change of the camera's frame resets nothing, so the next draw still reads the images that the last draw wrote,

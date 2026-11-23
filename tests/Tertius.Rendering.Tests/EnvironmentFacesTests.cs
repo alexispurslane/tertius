@@ -110,10 +110,10 @@ public sealed class EnvironmentFacesTests
 
     [Fact]
     public void AMapThatIsNotKeptRefreshesEveryFace() =>
-        EnvironmentFaces.RefreshesAll(drawnFor: [10, 11], served: [10, 12], map: 1, longStep: false).Should().BeTrue();
+        EnvironmentFaces.RefreshesAll(drawnFor: [10, 11], served: [10, 12], map: 1, everyFace: false).Should().BeTrue();
 
     [Fact]
-    public void ALongStepRefreshesEveryMap()
+    public void ADrawThatRefreshesEveryFaceRefreshesEveryMap()
     {
         long[] chain = [10, 11, 12];
 
@@ -121,14 +121,14 @@ public sealed class EnvironmentFacesTests
         [
             .. Enumerable
                 .Range(0, chain.Length)
-                .Select(map => EnvironmentFaces.RefreshesAll(drawnFor: chain, served: chain, map: map, longStep: true)),
+                .Select(map => EnvironmentFaces.RefreshesAll(drawnFor: chain, served: chain, map: map, everyFace: true)),
         ];
 
         refreshed.Should().AllBeEquivalentTo(true);
     }
 
     [Fact]
-    public void AKeptMapWithoutALongStepDrawsItsFacesInTurn()
+    public void AKeptMapDrawsItsFacesInTurnInADrawThatRefreshesNoFace()
     {
         long[] chain = [10, 11, 12];
 
@@ -137,7 +137,7 @@ public sealed class EnvironmentFacesTests
             .. Enumerable
                 .Range(0, chain.Length)
                 .Select(map =>
-                    EnvironmentFaces.RefreshesAll(drawnFor: chain, served: chain, map: map, longStep: false)
+                    EnvironmentFaces.RefreshesAll(drawnFor: chain, served: chain, map: map, everyFace: false)
                 ),
         ];
 
