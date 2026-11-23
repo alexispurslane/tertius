@@ -1,0 +1,104 @@
+{
+ "bay-back-wall": {
+  "still": "/private/tmp/t0-gbgj/dither/bay/a.png",
+  "x": 580,
+  "y": 430,
+  "w": 380,
+  "h": 65,
+  "bytesEqual": true,
+  "codeRange": {
+   "R": [
+    102,
+    146
+   ],
+   "G": [
+    102,
+    146
+   ],
+   "B": [
+    105,
+    149
+   ]
+  },
+  "steepestDirection": [
+   -0.227,
+   -0.974
+  ],
+  "meanSlopeCodesPerPx": 0.2501,
+  "runsG": {
+   "count": 1791,
+   "least": 1,
+   "median": 3.0,
+   "greatest": 13,
+   "shareOfOnePx": 0.255
+  }
+ },
+ "cabin-left-wall": {
+  "still": "/private/tmp/t0-gbgj/dither/cabin/a.png",
+  "x": 0,
+  "y": 230,
+  "w": 400,
+  "h": 250,
+  "bytesEqual": true,
+  "codeRange": {
+   "R": [
+    83,
+    106
+   ],
+   "G": [
+    77,
+    99
+   ],
+   "B": [
+    72,
+    93
+   ]
+  },
+  "steepestDirection": [
+   0.259,
+   0.966
+  ],
+  "meanSlopeCodesPerPx": 0.0605,
+  "runsG": {
+   "count": 3053,
+   "least": 1,
+   "median": 4.0,
+   "greatest": 120,
+   "shareOfOnePx": 0.246
+  }
+ },
+ "auto-cabin-left-wall": {
+  "still": "/private/tmp/t0-gbgj/dither/auto-cabin/a.png",
+  "x": 0,
+  "y": 230,
+  "w": 400,
+  "h": 250,
+  "bytesEqual": true,
+  "codeRange": {
+   "R": [
+    76,
+    98
+   ],
+   "G": [
+    70,
+    91
+   ],
+   "B": [
+    66,
+    85
+   ]
+  },
+  "steepestDirection": [
+   0.255,
+   0.967
+  ],
+  "meanSlopeCodesPerPx": 0.0574,
+  "runsG": {
+   "count": 3072,
+   "least": 1,
+   "median": 4.0,
+   "greatest": 107,
+   "shareOfOnePx": 0.263
+  }
+ }
+}
