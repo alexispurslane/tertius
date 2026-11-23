@@ -36,3 +36,17 @@ Video: `pics/walk-rule-on-off.mp4`, with region evidence left and without it rig
 
 - The rule-on run gives the final film's numbers to the digit.
 - Without region evidence the trail after the stop is a little shorter, not longer: 0.32 to 0.35 points less light at each point. The region test starts only about 36 draws after the stop, so it cannot shorten this trail; the false fires before the walk leave shorter histories, which is the only difference the rule makes here. (Not measured: the history lengths at the stop.)
+- The survey's settle after the stop, slowest region: 47 draws with region evidence (the final film: 47) and 53 without it (main: 25). Without it the whole image settles in 3 draws rather than 0, and the slow regions are the same ones (`r01` 50, `r10` 53, `r11` 39, `r20` 39, against 47, 47, 35, 36). So region evidence buys about 6 draws of the walk's settle and costs 0.3 points of its trail.
+
+## The lamp switch
+
+The survey's take of the fair lamp switch (`switch cabin`) at the constant scale 2/3, `sw-QD` with region evidence and `sw-QN` without it (`tools/queue.sh`, the survey's `regions.py` in `queue.txt`). "Settle" is the draws until the light stays within 5 % of its settled level, in the 200 draws after off and the 100 after on. "Level at 60" is the light 60 draws after the event against the settled level.
+
+| Code | Off: whole, slowest region | On: whole, slowest region | Level at 60 after off | Level at 60 after on |
+|---|---|---|---|---|
+| With region evidence | 71, 82 | 34, 54 | 107.0 % | 98.2 % |
+| Without region evidence | 189, none in 200 | 68, none in 100 | 122.5 % | 94.4 % |
+
+- Without region evidence, the light trails the switch. 60 draws after off, the image is still 22.5 % too bright (the upper corners 139.6 % and 138.0 %), and only the lamp's own region and the middle column settle within 200 draws (`r01` 146, `r11` 171, `r21` 177). After on, only the bottom row settles within 100 draws (46 to 64).
+- With region evidence, every region settles after off within 82 draws and after on within 54.
+- So region evidence buys the switch's settle: about 120 draws of the whole image's settle after off, and every region's settle after both events. This is the case that the rule exists for. A light change that the block's own rays do not see (the corners, which the lamp lights only through bounce light) reaches those histories only through the region.
