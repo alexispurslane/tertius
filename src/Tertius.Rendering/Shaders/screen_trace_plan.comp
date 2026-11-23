@@ -216,7 +216,7 @@ void main()
             ivec2 chosen;
             TracingPixel c;
             // A pixel that starts the kind gives its block a chosen pixel.
-            if (!startsKind(p, kind) || !chosenPixelOf(pixel / 2, kind, chosen, c) || all(equal(chosen, pixel)))
+            if (!startsKind(p, kind) || !chosenPixelOf(traceBlockOf(pixel), kind, chosen, c) || all(equal(chosen, pixel)))
                 continue;
             if (historyLengthOf(r, kind) >= FullRateFrames && fits(p, c, kind))
                 continue;

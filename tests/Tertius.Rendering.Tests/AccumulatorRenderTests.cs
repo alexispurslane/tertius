@@ -131,9 +131,189 @@ public sealed class AccumulatorRenderTests
             for (int part = 0; part < 2; part++)
             {
                 (Vector3 light, float length) = CenterOf(renderer, sample, part);
-                light.Should().Be(Vector3.One, "one of the nine equally weighted surface samples holds light 9");
+                light
+                    .Should()
+                    .Be(
+                        new Vector3(0.25f),
+                        "one of the 36 equally weighted surface samples of the nine tapped blocks holds light 9"
+                    );
                 length.Should().Be(1);
             }
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// A sample per pixel by its corner of the screen tracer's 2 × 2 block (trace_block.glsl): <paramref name="lights"/>
+    /// [0] at an even column and row, [1] at an odd column and even row, [2] at an even column and odd row, [3] at both odd.
+    /// </summary>
+    private static Func<int, int, Vector4> ByBlockCorner(float[] lights) =>
+        (column, row) => new Vector4(new Vector3(lights[column % 2 + 2 * (row % 2)]), 1);
+
+    /// <summary>The light of the slow history of part 0 at one pixel of an image <paramref name="width"/> wide.</summary>
+    private static Vector3 LightAt(VulkanRenderer renderer, SamplePass sample, int column, int row, int width = Width)
+    {
+        float[] history = HistoryOf(renderer, sample, part: 0);
+        int at = 4 * (row * width + column);
+        return new(history[at], history[at + 1], history[at + 2]);
+    }
+
+    [Fact]
+    public void AShortHistoryOfOneDrawTakesTheMeanOfEveryPixelOfTheBlocksThatItsFixTaps()
+    {
+        // The fix's nine taps lie 4 pixels apart at a length of 1, each in its own block, and each block holds the four
+        // corner lights. Today's taps from the center, an even pixel, would read only the even corner's 1.
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
+        try
+        {
+            sample.Samples = ByBlockCorner([1, 2, 4, 8]);
+
+            renderer.Render(scene, 1f);
+
+            LightAt(renderer: renderer, sample: sample, column: Width / 2, row: Height / 2)
+                .Should()
+                .Be(new Vector3(3.75f), "every tapped block holds 1, 2, 4 and 8, of mean 3.75");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AShortHistoryOfTwoDrawsWeightsEachPixelOfItsTappedBlocksByItsLength()
+    {
+        // After a dark first draw, the second draw's samples 2, 4 and 8 give the even, the odd-column and the odd-row
+        // corners light 1, 2 and 4 at a length of 2. The corner of odd column and row gets no sample: it keeps the dark
+        // history at a length of 1. The fix's taps lie 2 pixels apart. Each block's length-weighted sum is
+        // 2 · 1 + 2 · 2 + 2 · 4 + 1 · 0 = 14 over a weight of 7.
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
+        try
+        {
+            sample.Value = new(x: 0f, y: 0f, z: 0f, w: 1f);
+            renderer.Render(scene, 1f);
+            sample.Samples = ByBlockCorner([2, 4, 8, float.NaN]);
+
+            Continue(renderer, scene, frames: 1);
+
+            LightAt(renderer: renderer, sample: sample, column: Width / 2, row: Height / 2)
+                .Should()
+                .Be(new Vector3(2f), "the blocks' length-weighted mean is 14 / 7; an unweighted mean would be 1.75");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void TheFixLeavesOutAPixelOfATappedBlockThatShowsAnotherSurface()
+    {
+        // A near wall ends between columns 32 and 33, the even and the odd column of one block. A far wall shows right of
+        // it, at twice the depth. From column 28 the taps lie in columns 24, 28 and 32: the three blocks of column 32 give
+        // only their near corners, 1 and 4. So (6 · 15 + 3 · 5) / (6 · 4 + 3 · 2) = 3.5. With the far corners the mean
+        // would be 3.75. The first draw's jitter is 0 across, so the edge lies half a pixel from each pixel's center.
+        float pixelAtTheNearWall = MathF.Tan(Gpu.Fov / 2) * 19.5f / (Height / 2);
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+            wall: (new Vector3(pixelAtTheNearWall - 30, 0, -20), new Vector3(60, 40, 1))
+        );
+        try
+        {
+            MeshId cube = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.5f));
+            scene.Instances.Add(
+                Gpu.Instance(
+                    mesh: cube,
+                    material: white,
+                    position: new(0, 0, -40),
+                    scale: new(200, 100, 1),
+                    chainDepth: TestChains.CamerasFrame,
+                    entity: 2
+                )
+            );
+            sample.Samples = ByBlockCorner([1, 2, 4, 8]);
+
+            renderer.Render(scene, 1f);
+
+            LightAt(renderer: renderer, sample: sample, column: 28, row: Height / 2)
+                .Should()
+                .Be(new Vector3(3.5f), "the far wall's pixels of the edge's blocks show another surface");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AtTheImagesBorderTheFixReadsOnlyThePixelsOfATappedBlockInsideTheImage()
+    {
+        // An image 63 pixels wide ends in the even column 62, so the blocks of column 62 hold one column inside the image
+        // and one outside. From column 58 the taps lie in columns 54, 58 and 62: (6 · 15 + 3 · 5) / (6 · 4 + 3 · 2) = 3.5.
+        const int OddWidth = 63;
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(width: OddWidth);
+        try
+        {
+            sample.Samples = ByBlockCorner([1, 2, 4, 8]);
+
+            renderer.Render(scene, 1f);
+
+            LightAt(renderer: renderer, sample: sample, column: 58, row: Height / 2, width: OddWidth)
+                .Should()
+                .Be(new Vector3(3.5f), "the border's blocks give only their corners inside the image, 1 and 4");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ATapLeftOfTheImageReadsNoPixelOfTheBlockAtTheImagesEdge()
+    {
+        // From column 3 the taps lie in columns -1, 3 and 7. Column -1 lies in the block of columns -2 and -1, outside the
+        // image, not in the block of columns 0 and 1, which alone holds light. A division of -1 by 2 would round toward 0 and
+        // read that block: 12 of 36 pixels of light 8, 2.67.
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
+        try
+        {
+            sample.Samples = (column, row) => new Vector4(new Vector3(column < 2 ? 8 : 0), 1);
+
+            renderer.Render(scene, 1f);
+
+            LightAt(renderer: renderer, sample: sample, column: 3, row: Height / 2)
+                .Should()
+                .Be(Vector3.Zero, "the blocks of columns 2 and 3 and of 6 and 7 hold no light");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AShortHistoryOfThreeDrawsKeepsTheFixOverItsThreeByThreeNeighbors()
+    {
+        // At a length of 3 the fix's taps lie 1 pixel apart, so they already read neighboring pixels. After two dark draws,
+        // the third draw's samples 3, 6, 12 and 24 give the corners light 1, 2, 4 and 8. The 3 × 3 pixels around the even
+        // center hold one even corner, two of each one-odd corner and four odd corners: (1 + 4 + 8 + 32) / 9 = 5. The
+        // tapped blocks' 4 × 4 pixels would give 3.75.
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
+        try
+        {
+            sample.Value = new(x: 0f, y: 0f, z: 0f, w: 1f);
+            renderer.Render(scene, 1f);
+            Continue(renderer, scene, frames: 1);
+            sample.Samples = ByBlockCorner([3, 6, 12, 24]);
+
+            Continue(renderer, scene, frames: 1);
+
+            LightAt(renderer: renderer, sample: sample, column: Width / 2, row: Height / 2)
+                .Should()
+                .Be(new Vector3(5f), "the fix at a spacing of 1 reads the pixel's eight neighbors");
         }
         finally
         {
@@ -2250,7 +2430,13 @@ public sealed class AccumulatorRenderTests
                     renderer.Render(scene, 1);
 
                     GuideAt(renderer, sample).Distance.Should().BeApproximately(8, 0.01f);
-                    GuideAt(renderer, sample).Support.Should().BeApproximately(8f / 9, 0.001f);
+                    GuideAt(renderer, sample)
+                        .Support.Should()
+                        .BeApproximately(
+                            35f / 36,
+                            0.001f,
+                            "the fix pools the 36 pixels of its tapped blocks, and only the center has no hit"
+                        );
                     CenterOf(renderer, sample, part: 0).Light.Should().Be(Vector3.One);
                 },
                 repair: true

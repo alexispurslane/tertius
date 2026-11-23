@@ -17,6 +17,7 @@
 #include "own_rays.glsl"
 #include "motion.glsl"
 #include "sample_age.glsl"
+#include "trace_block.glsl"
 
 layout(set = 3, binding = 0) uniform texture2D depthFinest;                    // RG32F: each pixel's center w and back w
 layout(set = 3, binding = 1) uniform texture2D depthPyramid;                   // RG32F, mip m = level m + 1
@@ -376,10 +377,9 @@ bool startsKind(TracingPixel p, uint kind)
 bool chosenPixelOf(ivec2 block, uint kind, out ivec2 chosen, out TracingPixel p)
 {
     uint turn = trace.drawIndex + drawOf(block, 0u, TurnDraw[kind]).x;
-    for (uint k = 0u; k < 4u; k++)
+    for (uint k = 0u; k < TraceBlockPixels; k++)
     {
-        uint corner = (turn + k) & 3u;
-        chosen = 2 * block + ivec2(corner & 1u, corner >> 1);
+        chosen = traceBlockPixel(block, (turn + k) % TraceBlockPixels);
         if (all(lessThan(vec2(chosen), frame.viewport.xy)) && tracedSurface(chosen))
         {
             p = tracingPixelAt(chosen);

@@ -14,6 +14,7 @@
 #include "accumulate_reflection_guide.glsl"
 #include "half_store.glsl"
 #include "meter.glsl"
+#include "trace_block.glsl"
 
 // The least luminance by which the clamp divides: the lag's share and the chroma of the widening.
 const float LeastLuminance = 1e-4;
@@ -68,6 +69,28 @@ uint evidenceOfBlock(ivec2 pixel)
 }
 #endif
 
+// The sums of the fix of short histories (step 3): the light and the guide of its pixels, each times its length, and
+// the sum of their lengths.
+struct FixSum
+{
+    vec3 light;
+    vec2 guide;
+    float weight;
+};
+
+// Adds the scratch history at `neighbor` to the fix of `pixel`, whose surface key is `key`, where the neighbor lies inside
+// the images, is not the pixel itself and shows its surface.
+void addToFix(inout FixSum fix, ivec2 neighbor, ivec2 pixel, SurfaceKey key)
+{
+    if (neighbor == pixel || !insideImages(neighbor) || !sameSurface(key, surfaceKeyAt(neighbor)))
+        return;
+    vec4 other = imageLoad(scratch, neighbor);
+    fix.light += other.rgb * other.a;
+    fix.weight += other.a;
+    if (reflectionSharingPrototype && parameters.light == SpecularLight)
+        fix.guide += imageLoad(reflectionGuideScratch, neighbor).rg * other.a;
+}
+
 // Steps 3 to 5 at a pixel inside the images, where `evidence` is its block's evidence level in this draw.
 void accumulateAt(ivec2 pixel, uint evidence)
 {
@@ -98,28 +121,28 @@ void accumulateAt(ivec2 pixel, uint evidence)
     float tracedBefore = historyLength;
 #endif
 
-    // Step 3, the fix: a weighted mean over 3 × 3 pixels 2^(HistoryFixFrames − 1 − n) apart, each neighbor weighted by its
-    // length where it shows the same surface. The pixel's own length is at least 1 after the blend, so the sum is never 0.
+    // Step 3, the fix: a weighted mean over 3 × 3 taps 2^(HistoryFixFrames − 1 − n) pixels apart, each neighbor weighted by
+    // its length where it shows the same surface. The pixel's own length is at least 1 after the blend, so the sum is
+    // never 0. While the taps lie 2 or more pixels apart, each lies in another block of the screen tracer, whose four pixels
+    // hold independent samples while the block is young. So each tap reads every pixel of its block, the pixel's own block
+    // too: the fix pools every sample that was traced around its taps. At 1 pixel apart the taps already are the pixel's
+    // neighbors.
     if (historyLength < min(parameters.fixFrames, cap))
     {
         int spacing = 1 << int(max(parameters.fixFrames - 1.0 - floor(historyLength), 0.0));
-        vec3 sum = slow * historyLength;
-        vec2 guideSum = guide * historyLength;
-        float weights = historyLength;
+        FixSum fix = FixSum(slow * historyLength, guide * historyLength, historyLength);
         for (int y = -1; y <= 1; y++)
             for (int x = -1; x <= 1; x++)
             {
-                ivec2 neighbor = pixel + spacing * ivec2(x, y);
-                if (x == 0 && y == 0 || !insideImages(neighbor) || !sameSurface(key, surfaceKeyAt(neighbor)))
-                    continue;
-                vec4 other = imageLoad(scratch, neighbor);
-                sum += other.rgb * other.a;
-                weights += other.a;
-                if (reflectionSharingPrototype && parameters.light == SpecularLight)
-                    guideSum += imageLoad(reflectionGuideScratch, neighbor).rg * other.a;
+                ivec2 tap = pixel + spacing * ivec2(x, y);
+                if (spacing == 1)
+                    addToFix(fix, tap, pixel, key);
+                else
+                    for (uint corner = 0u; corner < TraceBlockPixels; corner++)
+                        addToFix(fix, traceBlockPixel(traceBlockOf(tap), corner), pixel, key);
             }
-        slow = sum / weights;
-        guide = guideSum / weights;
+        slow = fix.light / fix.weight;
+        guide = fix.guide / fix.weight;
     }
 
     // Step 4, the clamp and the anti-lag, only past the fast cap: until then the slow history holds no more frames than the
