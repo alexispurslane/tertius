@@ -2,7 +2,7 @@
 id: ter-pdw8
 status: open
 deps: []
-links: []
+links: [t1-g1jd]
 created: 2026-11-23T02:54:52Z
 type: task
 priority: 1
@@ -77,3 +77,7 @@ A record under docs/research/ with the table of the six measures per variant, st
 **2026-11-23T05:40:19Z**
 
 2026-11-23, the line orchestrator, from the orchestrator. S1 is closed with this reason: the row shows a surface that is not sky in 43 % of the draws, so a count of 'the pixel showed a surface' is not a count of 'the pixel showed this surface'. S2' is accepted: share = 1 where the surface test holds, else 1 / min(phases, draws since the reset + 1). The surface test is the witness of a new surface; the history's length was a second witness that other rules also shorten. If S2' is within 1 % and clean on the lamp hall at both sizes, it is the candidate for groups 2 to 4. One more measure for S2', in the still and in the walk: the share of pixels with a share below 1 per draw and where they lie (they should lie on silhouettes and thin things only, because a pixel that the jitter flips between two surfaces fails the test at every flip). The short histories get one take with the accumulation trace (TERTIUS_ACCUMULATION_TRACE: the slow history before the clamp, the mean and the lag at layers 5 and 6, the length before and after at layer 4). The orchestrator's candidate is the anti-lag after the clamp, historyLength = max(fastCap, historyLength * (1.0 - min(1.0, lag / parameters.antiLagShare))), the only writer that shortens a diffuse history in a still on base 3549d3283: a rare bright sample moves the fast histories' box, the clamp moves the slow history, and the anti-lag shortens it. That would be one root with the kept-share loss of ter-18hc and with the specks' tail. The take reports, for the pixels with a length below 32, the share whose last shortening was the anti-lag and the lag's size at that draw; the line orchestrator then writes the ticket and links ter-18hc. Order: S2' on the lamp hall, the trace take, groups 2 to 4, the record.
+
+**2026-11-23T05:42:37Z**
+
+2026-11-23, interim 4. S2' passes the rule on the lamp hall. At 1072 x 603: bias against V0 -0.2 to -0.6 % in the five regions; capture specks median 0, largest 4 (V0 83, 180); mean specks 0 diffuse and 1 reflection (V0 67, 648); largest sample 9.9 diffuse, 25.1 reflection; ceiling grain 0.0049 and boil 0.0056 (V0 0.0063, 0.0068); wall foot grain 0.0066 (V0 0.0067), no bright sample. At 1040 x 585: bias -0.0 % in all regions, capture specks median 0, largest 18 (V0 0, 17). All 79 pixels of row 314 fail the surface test in draw 631, so S2' gives them 1/25 as S2 did. In the still, 74 of 634,438 surface pixels (0.012 %) have a share below 1; they hold back 0.002 % of the hit light and lie on the windows' jambs and sills only. S2' is the candidate for groups 2 to 4. The short histories: the accumulation trace exists only for the specular signal, so the lead spent the one take on a direct test, a build copy with the anti-lag skipped for the diffuse signal; the short histories fell from 51,304 (8.1 %) to 174 (0.027 %). The anti-lag after the clamp is the writer; ticket t1-g1jd holds it and links ter-18hc. To state in the record: the definition of the far-hit variance factor (read by the line orchestrator as V0's far-hit variance over the variant's, x2.11 on the ceiling at 1072).
