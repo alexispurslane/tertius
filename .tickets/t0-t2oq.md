@@ -86,3 +86,105 @@ The card's take (2026-11-23, recorded by the line orchestrator at 16:49 New York
 **2026-11-23T21:51:21Z**
 
 The orchestrator's decision on the card's take (2026-11-23, recorded by the line orchestrator at 16:51 New York time; reversible by the user). The card says two things, and both are taken. (a) The register step is a shared cause: about 0.8 ms of the lean form's 1.89 ms on the M1, it blocks three features, and it makes every probe build of the direct shader 0.9 to 1.7 ms slower. So the direct shader's register budget gets its own design, written by the line orchestrator as a note here: two designs in the compact form (a table of where they differ, what each costs on the M1, what it must not cost on a desktop card), with a recommendation. No lead and no build before the orchestrator picks. The model that both designs are held to: the direct shader keeps one job per function body that the compiler sees, and the fix must not be machinery that only the Mac needs and that the Linux path pays for. A design that only shuffles registers inside the same body and returns to 114 of 115 is not a design. (b) The form's own work is also too much: 0.59 ms on the card and about 1.09 ms on the M1 without the step. The rule bends to about 0.6 ms in the exit cabin on the M1 after the register work. The lever is the count of gathers: after the dither's build, the shadow lead searches the 25 gathers by halves in the probe binary for the least count at which the lamp crops beside the Cycles reference show no change that a viewer sees. Differences between counts are valid in the probe binary, because every count sits above the step. One take of at most 20 minutes, with pictures of the least count and the one below it beside 25. Money: one more card job of the take's size (0.057 USD) is allowed without asking; more needs the user's word.
+
+**2026-11-23T21:55:14Z**
+
+## The direct shader's register budget: two designs (the line orchestrator of the Design X line, 2026-11-23, 16:55 New York time). No lead and no build before the orchestrator picks.
+
+### Terms
+
+- **The direct shader** is direct_key_fill.frag, with direct.frag beside it. Metal compiles each as one function body, because it inlines every call.
+- **A light's visibility at a pixel** is the share of the light that its shadows let through at the pixel's surface point, from 0 to 1 (`pathVisibility`, lighting.glsl). The sun's comes from the cascade filter and the far shadows, a lamp's from the tile filter.
+- **A light's response at a pixel** is what the surface sends to the eye per unit of the light's irradiance: the fill response, and the full response by the key share (`fillResponse`, `pathLight`).
+- **A shadowed light** is a light of the main view whose shadow slot is not `NoSlot`.
+- **The room** is 115 minus a shader's highest register on the M1.
+
+### The cause, as a model
+
+The direct shader does two jobs for each light inside one loop body: the light's visibility and the light's response. So at the shadow filter's reads the body holds both jobs' values at once: the filter's coordinates and results (about 30 registers) and the response's inputs, which it needs after the lookup (the surface, the lobes, the eye's direction, the light's path, the sums, and about 30 hoisted invariants). Apple's scheduler then spends any register that the source frees on more shadow reads in flight (t2-x53j). A filter that grows, or a value that must live across the lookup, crosses the step.
+
+The loop body is written out 12 times in direct_key_fill.frag (3 shapes, fiber or surface, tinted or not), and each copy holds both filters. That is most of its 23,022 instructions.
+
+The visibility needs little: the light, the surface point, and the geometric normal. It needs no lobe, no eye direction and no sum. So the two jobs can part, and the only question is where a visibility lives between the code that computes it and the code that reads it.
+
+### Design 1: the visibility in its own pass
+
+A compute pass before the direct pass writes each pixel's visibility of each shadowed light into an image. The direct shader reads it and holds no shadow filter.
+
+```glsl
+// visibility.comp, one invocation per pixel: layer `n` is the n-th shadowed light of the main view.
+imageStore(lightVisibility, ivec3(pixel, n), vec4(visibilityOf(lights[i], position, geometricNormal)));
+
+// key_fill_light.glsl, in the response loop:
+float visibility = shadowed ? texelFetch(lightVisibility, ivec3(pixel, n), 0).r : 1.0;
+```
+
+where
+
+- `lightVisibility` = an R8 image array at the render size, one layer per shadowed light of the main view.
+- `n` = the light's place among the shadowed lights of the main view, counted along the light list.
+- `visibilityOf(light, position, geometricNormal)` = the light's visibility at the surface point `position` whose geometric normal is `geometricNormal`: today's `lightVisibility` with the direction, the distance and the angle made inside it.
+- `shadowed` = whether the light is a shadowed light.
+
+One owner: the pass writes the image, and the direct shader only reads it. The count of layers needs a cap, which `ShadowTiles` enforces when it grants tiles.
+
+### Design 2: the visibility first, in the same shader
+
+The direct shader runs one loop over the shadowed lights before its response loops. That loop computes each visibility into a local array. The response loops read the array and hold no shadow filter. No pass and no image.
+
+```glsl
+// Before the response loops, once for all shapes and for fiber and surface alike:
+float visibility[MainViewShadowedLights];
+uint n = 0u;
+for (uint i = 0u; i < frame.counts.x; i++)
+    if (viewKeeps(MainView, lights[i]) && lights[i].shadow.x != NoSlot)
+        visibility[n++] = takesAny(lights[i], s) ? visibilityOf(lights[i], s.position, s.geometricNormal) : 0.0;
+
+// In each response loop, in place of pathVisibility:
+float seen = shadowed ? visibility[n++] : 1.0;
+```
+
+where
+
+- `MainViewShadowedLights` = the most shadowed lights of the main view, a constant that C# and GLSL share and that `ShadowTiles` enforces.
+- `n` = as in design 1. Each loop counts it again along the light list, so no light stores it.
+- `takesAny(light, s)` = whether the surface point is inside the light's reach and cone: the cheap tests of `lightIrradiance`, so that a pixel outside a spot's cone pays no lookup.
+- `seen` = the light's visibility at the pixel.
+
+### The two designs side by side
+
+| | Where a visibility lives between its writer and its reader | New resources | Cost on a desktop card | The M1's registers | What a later reader gets |
+|---|---|---|---|---|---|
+| Design 1, a pass | An image layer per shadowed light | One compute pass, one R8 image array (0.9 MB per layer at 1280 x 720, 8.3 MB at 3840 x 2160), a cap on the layers | One more pass over the G-buffer, one store and one fetch per shadowed light and pixel, the light's reach tests twice. It must stay under about 0.1 ms at 1080p, and a card take says whether it does | Two bodies, so the split is certain. My estimate for the direct shader: about 80 live registers at its peak | Any pass can read the image. A visibility at another rate than the pixels' becomes possible |
+| Design 2, a loop | A local array of the fragment | None. A cap on the array | The reach tests twice for the shadowed lights. Nothing else | One body with two loops. My estimate: about 78 live registers in the visibility loop and about 97 in a response loop, if the 16 values stay in registers. Not certain: Metal can keep the array on the stack, and it can hoist the response's invariants above the first loop | Nothing. The visibility dies with the fragment |
+
+Both share:
+
+- The two jobs part. A response loop holds no shadow read, and the filter's code appears once in place of 12 times.
+- One function, `visibilityOf`, makes the direction, the distance, the turned geometric normal and the angle from the light and the surface point. No caller hands them in, so no caller holds them across the lookup.
+- A cap on the shadowed lights of the main view, enforced where `ShadowTiles` grants tiles. The atlas's 64 tiles allow 64 spot lamps today, so the cap is a new limit. Exit-cabin has 8 lamps.
+- The picture changes by float rounding at most: each light's sum is still visibility times response.
+- The forward shaders (the transparent pass, the puffs, the environment faces, the hit light) keep their own lookups.
+- The first step of either is a count, not a build: the changed shaders in a scratch copy of the shader folder through `tools/shader_registers.py`, 10 seconds per count on the Mac, with no GPU work. The count says how much room the design gives before anyone builds it. The register guard then gets the new shaders and their limits.
+- Neither is machinery for the Mac alone in its form: a renderer that parts visibility from response is the usual deferred layout. (From memory, not read again: engines that collect the sun's shadow into a screen image before shading. Their situation is one sun. Ours is a sun and up to about 10 shadowed lamps, so design 1's memory grows with the lamps, where theirs does not.)
+
+Not known, and the count answers each in seconds:
+
+1. The direct shader's highest register without its filters.
+2. Whether Metal keeps design 2's array in registers, and what a stack array does to the count of resident threads.
+3. The highest register of design 1's compute shader, and whether a compute shader has the same step.
+
+### The forks
+
+1. **Where the visibility lives**: an image that a pass writes (design 1), or a local array (design 2).
+2. **The cap on the shadowed lights of the main view**: 16, or another number. Both designs need one. Today the limit is the atlas's tiles.
+
+### My recommendation
+
+Design 2, with the count as its gate, and design 1 if the count shows under about 8 registers of room.
+
+- Design 2 costs the Linux path nothing and adds no resource whose lifetime someone must own. A visibility has one reader today, so an image for later readers is generality for a caller that does not exist.
+- Design 1 holds the orchestrator's model to the letter: one job per body that the compiler sees. Design 2 holds it per loop, inside one body, and the scheduler's finding of t2-x53j is the reason to doubt a split inside one body. The count is cheap enough to settle that doubt before the choice binds anyone.
+- If a second reader appears (a visibility at half rate, or the transparent pass), design 2 becomes design 1 by moving its loop into a pass. `visibilityOf` and the cap stay.
+
+For the wide half's rule after this work (about 0.6 ms in the exit cabin on the M1): the gather search runs apart from this design, and its count of gathers goes into `visibilityOf`, wherever that function runs.
