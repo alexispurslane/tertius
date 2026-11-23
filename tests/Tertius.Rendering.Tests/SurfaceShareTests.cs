@@ -76,10 +76,36 @@ public sealed class SurfaceShareTests
     [Fact]
     public void ASurfaceInTheDrawThatFirstShowsItSendsItsShareOfItsDirectDiffuseLight()
     {
-        float[] jittered = HitLightOfASunlitPanelInItsFirstDraw("always", metallic: 0, layer: 1);
-        float[] still = HitLightOfASunlitPanelInItsFirstDraw("none", metallic: 0, layer: 1);
+        float[] jittered = LightOfASunlitPanel(jitter: "always", metallic: 0, drawsShowingIt: 1, read: DiffuseHitLight);
+        float[] still = LightOfASunlitPanel(jitter: "none", metallic: 0, drawsShowingIt: 1, read: DiffuseHitLight);
 
-        AssertThirdOf(jittered, still);
+        AssertShareOf(jittered: jittered, still: still, share: 1f / 3, channels: 4);
+    }
+
+    /// <summary>
+    /// The guide aims by the same share of the direct diffuse light as the hit light: in the sunlit panel's first draw, its
+    /// guide light is a third of the guide light of the same draw without jitter.
+    /// </summary>
+    [Fact]
+    public void TheGuideSharesTheDirectDiffuseLightOfASurfaceInTheDrawThatFirstShowsIt()
+    {
+        float[] jittered = LightOfASunlitPanel(jitter: "always", metallic: 0, drawsShowingIt: 1, read: GuideLight);
+        float[] still = LightOfASunlitPanel(jitter: "none", metallic: 0, drawsShowingIt: 1, read: GuideLight);
+
+        AssertShareOf(jittered: jittered, still: still, share: 1f / 3, channels: 1);
+    }
+
+    /// <summary>
+    /// In its second draw the sunlit panel passes the surface test, so it sends all of its direct diffuse light, as the same
+    /// draw without jitter does. The black wall sends no bounce to the panel, so its history holds no light in either run.
+    /// </summary>
+    [Fact]
+    public void ASurfaceSendsAllOfItsDirectDiffuseLightFromItsSecondDraw()
+    {
+        float[] jittered = LightOfASunlitPanel(jitter: "always", metallic: 0, drawsShowingIt: 2, read: DiffuseHitLight);
+        float[] still = LightOfASunlitPanel(jitter: "none", metallic: 0, drawsShowingIt: 2, read: DiffuseHitLight);
+
+        AssertShareOf(jittered: jittered, still: still, share: 1, channels: 4);
     }
 
     /// <summary>
@@ -89,31 +115,56 @@ public sealed class SurfaceShareTests
     [Fact]
     public void ASurfaceInTheDrawThatFirstShowsItSendsItsShareOfItsDirectSpecularLightTowardAReflectionRay()
     {
-        float[] jittered = HitLightOfASunlitPanelInItsFirstDraw("always", metallic: 1, layer: 0);
-        float[] still = HitLightOfASunlitPanelInItsFirstDraw("none", metallic: 1, layer: 0);
+        float[] jittered = LightOfASunlitPanel(
+            jitter: "always",
+            metallic: 1,
+            drawsShowingIt: 1,
+            read: ReflectionHitLight
+        );
+        float[] still = LightOfASunlitPanel(jitter: "none", metallic: 1, drawsShowingIt: 1, read: ReflectionHitLight);
 
-        AssertThirdOf(jittered, still);
+        AssertShareOf(jittered: jittered, still: still, share: 1f / 3, channels: 4);
     }
 
-    /// <summary>Each pixel inside the panel holds a third of its light without jitter, which is above 0.01.</summary>
-    private static void AssertThirdOf(float[] jittered, float[] still)
+    /// <summary>
+    /// Each pixel inside the panel holds <paramref name="share"/> of its light without jitter, which is above 0.01, in an
+    /// image of <paramref name="channels"/> floats per pixel, whose first channel the test compares.
+    /// </summary>
+    private static void AssertShareOf(float[] jittered, float[] still, float share, int channels)
     {
         int compared = 0;
         foreach ((int x, int y) in InsideThePanel(PanelCenter))
         {
-            int at = 4 * (y * Width + x);
+            int at = channels * (y * Width + x);
             still[at].Should().BeGreaterThan(0.01f, "the sun lights the panel at ({0}, {1})", x, y);
-            jittered[at].Should().BeApproximately(still[at] / 3, 0.01f * still[at], "pixel ({0}, {1})", x, y);
+            jittered[at].Should().BeApproximately(share * still[at], 0.01f * still[at], "pixel ({0}, {1})", x, y);
             compared++;
         }
         compared.Should().BeGreaterThan(30, "the panel covers about 13 by 9 pixels");
     }
 
+    /// <summary>The hit light's diffuse layer: four floats per pixel.</summary>
+    private static float[] DiffuseHitLight(VulkanRenderer renderer) =>
+        renderer.ReadImageLayer(renderer.ScreenTraceImages.HitLight, 1);
+
+    /// <summary>The hit light's reflection layer: four floats per pixel.</summary>
+    private static float[] ReflectionHitLight(VulkanRenderer renderer) =>
+        renderer.ReadImageLayer(renderer.ScreenTraceImages.HitLight, 0);
+
+    /// <summary>The guide's finest level: one float per pixel, the luminance of the light that the guide aims by.</summary>
+    private static float[] GuideLight(VulkanRenderer renderer) => renderer.ReadLightPyramidLevel(0).Lights;
+
     /// <summary>
-    /// The hit light's layer <paramref name="layer"/> after a white panel of roughness 0.5 and <paramref name="metallic"/> joins a sunlit wall in draw 2, under TERTIUS_DEBUG_JITTER at <paramref name="jitter"/>,
-    /// with no ambient light.
+    /// What <paramref name="read"/> gives after a white panel of roughness 0.5 and <paramref name="metallic"/> joins a black
+    /// wall in the sun in draw 2 and shows in <paramref name="drawsShowingIt"/> draws, under TERTIUS_DEBUG_JITTER at
+    /// <paramref name="jitter"/>, with no ambient light.
     /// </summary>
-    private static float[] HitLightOfASunlitPanelInItsFirstDraw(string jitter, float metallic, int layer)
+    private static float[] LightOfASunlitPanel(
+        string jitter,
+        float metallic,
+        int drawsShowingIt,
+        Func<VulkanRenderer, float[]> read
+    )
     {
         float[] light = [];
         WithJitter(
@@ -134,7 +185,9 @@ public sealed class SurfaceShareTests
                     scene.Instances.Add(
                         Block(
                             box: box,
-                            material: renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 1f)),
+                            material: renderer.CreateMaterial(
+                                MaterialDesc.Color(new(x: 0, y: 0, z: 0, w: 1), roughness: 1f)
+                            ),
                             center: new(0, 0, -8.5f),
                             size: new(30, 20, 1)
                         )
@@ -144,7 +197,11 @@ public sealed class SurfaceShareTests
                         Gpu.Instance(
                             mesh: box,
                             material: renderer.CreateMaterial(
-                                new(BaseColor: Vector4.One, Roughness: 0.5f, Model: new StandardShading(Metallic: metallic))
+                                new(
+                                    BaseColor: Vector4.One,
+                                    Roughness: 0.5f,
+                                    Model: new StandardShading(Metallic: metallic)
+                                )
                             ),
                             position: PanelCenter,
                             scale: PanelSize,
@@ -153,8 +210,8 @@ public sealed class SurfaceShareTests
                             chainDepth: TestChains.CamerasFrame
                         )
                     );
-                    Draw(renderer, scene, draws: 1);
-                    light = renderer.ReadImageLayer(renderer.ScreenTraceImages.HitLight, layer);
+                    Draw(renderer, scene, draws: drawsShowingIt);
+                    light = read(renderer);
                 }
                 finally
                 {
@@ -182,7 +239,11 @@ public sealed class SurfaceShareTests
                     foreach ((int x, int y) in InsideThePanel(PanelCenter))
                         guide[y * Width + x]
                             .Should()
-                            .BeApproximately(PanelGlow / 3, 1e-3f * PanelGlow, "the gray glow's luminance, in the third draw");
+                            .BeApproximately(
+                                PanelGlow / 3,
+                                1e-3f * PanelGlow,
+                                "the gray glow's luminance, in the third draw"
+                            );
                 }
                 finally
                 {
@@ -309,7 +370,9 @@ public sealed class SurfaceShareTests
                     for (int x = center.X - 2; x <= center.X + 2; x++)
                     {
                         int at = 4 * (y * width + x);
-                        first[at].Should().BeApproximately(second[at] / 4, 0.02f * second[at], "pixel ({0}, {1})", x, y);
+                        first[at]
+                            .Should()
+                            .BeApproximately(second[at] / 4, 0.02f * second[at], "pixel ({0}, {1})", x, y);
                         compared++;
                     }
                     compared.Should().Be(25);
@@ -322,8 +385,9 @@ public sealed class SurfaceShareTests
         );
 
     /// <summary>
-    /// The panel slides sideways by about one pixel per draw, from its last position to its new one. Its motion carries each inner pixel's surface to the
-    /// pixel's last place, so the surface test holds there and the moving panel keeps all of its glow.
+    /// The panel slides sideways by about one pixel per draw, from its last position to its new one. Its motion carries
+    /// each inner pixel's surface to the pixel's last place, so the surface test holds there and the moving panel keeps
+    /// all of its glow.
     /// </summary>
     [Fact]
     public void AMovingSurfaceSendsAllOfItsGlowInsideItsEdges() =>
@@ -348,7 +412,8 @@ public sealed class SurfaceShareTests
                     }
 
                     foreach (float sent in HitLightOfThePanel(renderer, center))
-                        sent.Should().BeApproximately(PanelGlow, 1e-3f * PanelGlow, "the moving panel holds its history");
+                        sent.Should()
+                            .BeApproximately(PanelGlow, 1e-3f * PanelGlow, "the moving panel holds its history");
                 }
                 finally
                 {
@@ -391,9 +456,7 @@ public sealed class SurfaceShareTests
                     }
 
                     stripDraws.Should().Be(6, "the row shows the strip in one phase of 8");
-                    largest
-                        .Should()
-                        .BeLessThan(2 * fullLight / Phases, "the strip's full light is {0}", fullLight);
+                    largest.Should().BeLessThan(2 * fullLight / Phases, "the strip's full light is {0}", fullLight);
                 }
                 finally
                 {
@@ -434,17 +497,21 @@ public sealed class SurfaceShareTests
     /// The strip's center: on the place in <see cref="StripRow"/> where the first jitter phase's sample lies, so that the
     /// row shows it in that phase alone.
     /// </summary>
-    private static Vector3 StripCenter => new(0, HeightOfRow(StripRow + 0.5f + Fsr3Upscaler.JitterOffset(0, Phases).Y), -StripDistance);
+    private static Vector3 StripCenter =>
+        new(0, HeightOfRow(StripRow + 0.5f + Fsr3Upscaler.JitterOffset(0, Phases).Y), -StripDistance);
 
-    /// <summary>The height at <see cref="StripDistance"/> of the place <paramref name="row"/> pixels from the view's top.</summary>
+    /// <summary>
+    /// The height at <see cref="StripDistance"/> of the place <paramref name="row"/> pixels from the view's top.
+    /// </summary>
     private static float HeightOfRow(float row) => (1 - 2 * row / Height) * MathF.Tan(Gpu.Fov / 2) * StripDistance;
 
     /// <summary>The height and depth in m of a strip <paramref name="pixels"/> tall on screen.</summary>
     private static float StripHeight(float pixels) => HeightOfRow(0) - HeightOfRow(pixels);
 
     /// <summary>
-    /// The strip under the ceiling: a white strip 6 m wide and <paramref name="pixels"/> tall and deep on screen at <see cref="StripCenter"/>, under a sun
-    /// of 30 behind the eye and 17° up, which lights its front and its top; and a white ceiling 1.2 m above the eye from
+    /// The strip under the ceiling: a white strip 6 m wide and <paramref name="pixels"/> tall and deep on screen at
+    /// <see cref="StripCenter"/>, under a sun of 30 behind the eye and 17° up, which lights its front and its top; and a
+    /// white ceiling 1.2 m above the eye from
     /// 2 m to 9 m ahead, whose underside the sun does not light. No floor: the sky lies behind and below the strip.
     /// </summary>
     private static (VulkanRenderer Renderer, RenderSnapshot Scene) StripUnderACeiling(float pixels)
@@ -458,7 +525,14 @@ public sealed class SurfaceShareTests
         RenderSnapshot scene = Gpu.Snapshot(Vector3.Normalize(new(0, 0.3f, 1)), starIrradiance: 30);
         MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
         MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 1f));
-        scene.Instances.Add(Block(box: box, material: white, center: StripCenter, size: new(6, StripHeight(pixels), StripHeight(pixels))));
+        scene.Instances.Add(
+            Block(
+                box: box,
+                material: white,
+                center: StripCenter,
+                size: new(6, StripHeight(pixels), StripHeight(pixels))
+            )
+        );
         scene.Instances.Add(Block(box: box, material: white, center: new(0, 1.25f, -5.5f), size: new(20, 0.1f, 7)));
         return (renderer, scene);
     }
@@ -527,7 +601,9 @@ public sealed class SurfaceShareTests
         foreach ((int x, int y) in InsideThePanel(center ?? PanelCenter))
         {
             int at = 4 * (y * Width + x);
-            reflection[at].Should().BeApproximately(diffuse[at], 1e-3f * PanelGlow, "the black panel sends its glow alone");
+            reflection[at]
+                .Should()
+                .BeApproximately(diffuse[at], 1e-3f * PanelGlow, "the black panel sends its glow alone");
             sent.Add(diffuse[at]);
         }
         sent.Count.Should().BeGreaterThan(30, "the panel covers about 13 by 9 pixels");
@@ -547,7 +623,9 @@ public sealed class SurfaceShareTests
         }
     }
 
-    /// <summary>Runs <paramref name="test"/> with TERTIUS_DEBUG_JITTER at <paramref name="setting"/>, read when the renderer is made.</summary>
+    /// <summary>
+    /// Runs <paramref name="test"/> with TERTIUS_DEBUG_JITTER at <paramref name="setting"/>, read when the renderer is made.
+    /// </summary>
     private static void WithJitter(string setting, Action test)
     {
         string? previous = Environment.GetEnvironmentVariable(JitterSwitch);

@@ -398,7 +398,10 @@ internal sealed class FrameHistory
 
         public float FsrFrameMilliseconds => history.derived.FsrFrameMilliseconds;
 
-        /// <summary>The jitter's offset of this draw, in render pixels, when the draw jitters: phase <see cref="DrawIndex"/> of <see cref="JitterPhases"/>.</summary>
+        /// <summary>
+        /// The jitter's offset of this draw, in render pixels, when the draw jitters: phase <see cref="DrawIndex"/> of
+        /// <see cref="JitterPhases"/>.
+        /// </summary>
         public Vector2 Jitter => Fsr3Upscaler.JitterOffset((int)(DrawIndex % JitterPhases), JitterPhases);
 
         /// <summary>

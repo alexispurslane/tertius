@@ -1,7 +1,9 @@
 // The fresh light that a pixel sends toward a diffuse ray (ARCHITECTURE.md, "Surface share"): the light that this draw
 // computed for the pixel's surface before any history, times the pixel's surface share. Its two readers include it, the
 // plan's hit light (screen_trace.glsl, leavingLightOf) and the guide's finest level (light_pyramid_finest.comp), so that
-// the guide aims by the light that a hit reads. Needs frame.glsl, gbuffer_surface.glsl and signals.glsl, and the
+// the guide aims by the light that a hit reads. The share needs the pixel's surface reprojection, so this file also gives
+// it to every reader of a pixel's last place: lastPlaceAt and surfaceReprojectionAt, which the plan's light age and the
+// tracer's specular reprojection call too. Needs frame.glsl, gbuffer_surface.glsl and signals.glsl, and the
 // includer's two storage images of the surface test pass: surfaceTest, the pass bits (r16ui), and motionTarget, the
 // G-buffer's motion target (rgba16f).
 #ifndef TERTIUS_SENT_LIGHT_GLSL

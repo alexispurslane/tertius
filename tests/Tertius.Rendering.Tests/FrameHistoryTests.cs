@@ -211,9 +211,17 @@ public sealed class FrameHistoryTests
     {
         var history = new FrameHistory(StillRule.Window);
 
-        int[] spreads = [.. Enumerable.Range(0, 11).Select(_ => Draw(history: history, snapshot: Snapshot()).SurfaceShareSpread)];
+        int[] spreads =
+        [
+            .. Enumerable.Range(0, 11).Select(_ => Draw(history: history, snapshot: Snapshot()).SurfaceShareSpread),
+        ];
 
-        spreads.Should().Equal([1, 2, 3, 4, 5, 6, 7, 8, 8, 8, 8], "the jitter has 8 phases where the render size is the output size");
+        spreads
+            .Should()
+            .Equal(
+                [1, 2, 3, 4, 5, 6, 7, 8, 8, 8, 8],
+                "the jitter has 8 phases where the render size is the output size"
+            );
     }
 
     [Fact]

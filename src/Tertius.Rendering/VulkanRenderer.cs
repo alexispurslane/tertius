@@ -951,7 +951,12 @@ public sealed unsafe class VulkanRenderer : IRenderer
             upscaling is Fsr3Upscaling
                 ? MathF.Log2(pending.RenderSize.Width / (float)targets.OutputExtent.Width) - 1
                 : 0;
-        LastScene.Constants.RenderParams = new(x: bias, y: jitter.X, z: jitter.Y, w: jitters ? pending.SurfaceShareSpread : 1);
+        LastScene.Constants.RenderParams = new(
+            x: bias,
+            y: jitter.X,
+            z: jitter.Y,
+            w: jitters ? pending.SurfaceShareSpread : 1
+        );
         Vector2 previousJitter = Vector2.Zero;
         if (jitters && !pending.Reset)
         {
@@ -2397,12 +2402,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         if (images.Guided)
             Graph.Add(
                 FrameGraph.Stage.ScreenTrace,
-                new LightPyramidPass(
-                    device: device,
-                    shaders: shaders,
-                    layouts: layouts,
-                    images: images
-                )
+                new LightPyramidPass(device: device, shaders: shaders, layouts: layouts, images: images)
             );
         AddRayPasses(shaders: shaders, trace: trace, images: images);
         Graph.Add(FrameGraph.Stage.ScreenTrace, new AccumulatePass(diffuse));

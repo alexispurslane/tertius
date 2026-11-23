@@ -255,7 +255,10 @@ public sealed class UpscalingRenderTests
             renderer.LastScene.Camera.Height.Should().Be(91);
             renderer
                 .LastScene.Constants.RenderParams.Should()
-                .Be(new Vector4(x: 0, y: 0, z: 0, w: 1), "no mip bias and no jitter, and a draw without jitter has a spread of 1");
+                .Be(
+                    new Vector4(x: 0, y: 0, z: 0, w: 1),
+                    "no mip bias and no jitter, and a draw without jitter has a spread of 1"
+                );
             renderer.LastScene.Constants.PreviousJitter.Should().Be(Vector4.Zero);
         }
         finally
