@@ -65,3 +65,7 @@ Cancelled by the user on 2026-11-02, to take stock of the rendering work. The ha
 
 Closed on 2026-11-03 at the user's request, without its work merged: it belongs to the pre-temporal renderer, and epic ter-89xq, the temporal renderer, supersedes it. Its notes and any branch or worktree stay for reference.
 Carry forward: a reflection ray that misses the screen reads the environment map, and that map still has the parallax error of a capture at the eye. The corrected read (branch ter-s6zr-corrected-read at 570fdbbf8, built and reviewed, hardening unfinished) reads the map where the ray ends, through the distance cube. The temporal design can take it as its miss read.
+
+**2026-11-23T02:08:01Z**
+
+The capture folders captures/y8z0, captures/s6zr and captures/nw4a (untracked, about 6 GiB together) were deleted from the main checkout on 2026-11-22 to free disk space, with the approval of the user. The paths in the notes above that point into them no longer resolve. The numbers and the text of the notes stand.

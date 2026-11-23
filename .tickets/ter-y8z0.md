@@ -220,3 +220,7 @@ The review's findings and gaps, and how the fix stage resolved each (fix stage, 
 **2026-11-02T00:49:49Z**
 
 Merged into main on 2026-11-01 (orchestrator). The diagnosis changed only this ticket file, so tools/test-all.sh did not run on the merge: the code is main's, which passed it at the ter-kn1d merge. The captures, probes and sheets are copied to the main checkout's captures/y8z0/ (git-ignored, 1.1 GB). Follow-up: ter-eqtb narrows to artifact 1 (the stair steps), and ter-f3g2 probes the soft rough reflections (artifacts 2, 3 and 5) for the user's design choice.
+
+**2026-11-23T02:08:01Z**
+
+The capture folders captures/y8z0, captures/s6zr and captures/nw4a (untracked, about 6 GiB together) were deleted from the main checkout on 2026-11-22 to free disk space, with the approval of the user. The paths in the notes above that point into them no longer resolve. The numbers and the text of the notes stand.

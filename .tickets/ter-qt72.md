@@ -444,3 +444,31 @@ The same three sizes at other times of the film show none, so the bursts belong 
 **2026-11-22T23:52:55Z**
 
 2026-11-22, the line orchestrator. Step 2 is merged into main by fast-forward at 2bef1af1f, with the push hook's cleanup commit 3c5c0329b on top. The gates: the lead's report gives all ten review findings resolved with evidence, full Checked and full Release green on e60d6c937, lavapipe green for the 6 changed classes (186 tests), 34 mutants with a result each, the coverage of the changed lines, the real-window check, the film, ARCHITECTURE.md, and tools/renderer-survey/probe.patch applies on the merged code (I ran git apply --check). One gap against my gate of Release at the final code: the two hardening commits after e60d6c937 changed 20 lines of UpscalingSetting.cs and VulkanRenderer.cs (two loops that never fire removed, one local inlined). Their hooks ran all of Rendering in Checked, 0 failed. Release at the final code runs as the lead's first step after the merge. I read the merged diff once: UpscalingSetting owns the size and the one predicate, the controller records the realized scale, and the swapchain asks the predicate. No finding. Open from the film: step 2's side shows bright ceiling specks in 42 of 240 frames against 4 for step 1 on the same scales. One film cannot tell whether exact-ratio sizes cause it. The lead measures that next, and the result goes into t7-3e22. Step 2's case rests on the user's decision of 2026-11-05 and on correctness: the film shows no visible gain on the measured edges, as Take B predicted.
+
+**2026-11-23T00:36:42Z**
+
+2026-11-22, the line orchestrator. The gap of step 2's gates is closed: the lead ran the Rendering test project in Release on 3549d3283, whose engine code is main 998165d42 with the cleanup commit. 3,384 tests, 3,373 passed, 0 failed, 11 skipped, 35 minutes. Log: /Users/alexispurslane/.t3/worktrees/tertius/t3-1f553e45-00934a8d076a004a-evidence/release-final/rendering-release.log.
+
+**2026-11-23T01:53:46Z**
+
+2026-11-22, the wobble fix's lead: does step 2 make the render scale rest lower on the card? The orchestrator's answer: variation between runs of the card, plus half a step of the coarser grid at the top of the range. No change to step 2.
+
+The card job 60e80117-9049-4114-be10-c9c21f653acd-u1 (188 s, $0.0414) ran the Design X acceptance's take of the 1808 x 1017 run (t0-5tyj's job f8b8cba5, cloudvideo.sh variants with PATCHSET=step2 GLOW=off): the survey's switch "cabin" (lamps z:-12:4 off at draws 193 to 393, their glow goes out with them), 4.08 stops, FrameTimeTarget(16.6667, 0.5, 1), no pictures. Each side has probe.patch and that record's scratch dynamic scale patch fitted to its code, unchanged. The job ran the four runs in this order: step 2 r1, old r1, step 2 r2, old r2 (its log: 01:36:53, 01:37:06, 01:37:18, 01:37:31). The table gives draws 133 to 192, the rest before the switch.
+
+| Run | Rest size | Requested scale | Realized scale | GPU span median | Span / realized scale squared (rough) | Size changes in 493 draws |
+|---|---|---|---|---|---|---|
+| 3549d3283 r1 (first run of the job) | 1824 x 1026 | 0.9580 | 0.9500 | 16.87 ms | 18.69 ms | 68 |
+| 3549d3283 r2 | 1904 x 1071 | 0.9993 to 0.99996 | 0.9917 | 16.63 ms | 16.91 ms | 53 |
+| ac5f23915 r1 | 1912 x 1072 | 0.9993 to 0.99997 | 0.9958 | 16.66 ms | 16.80 ms | 91 |
+| ac5f23915 r2 | 1912 x 1072 | 0.9993 to 0.99997 | 0.9958 | 16.79 ms | 16.93 ms | 98 |
+| Design X f8b8cba5 on 16d915a67 (the only run of its job) | 1808 x 1017 | 0.9439 | 0.9417 | 17.58 ms | 19.83 ms | 55 |
+
+The span over the square of the realized scale is rough arithmetic: it treats the whole span as cost per render pixel and ignores the fixed cost of the output passes. In no run is the request exactly 1.0 after the first two draws. The highest request after draw 1 is 0.99997 (old), 0.99996 (step 2 r2), 0.958 (step 2 r1) and 0.946 (Design X). Size and time logs: t3-1f553e45-00934a8d076a004a-evidence/cardscale/result, the job in cardscale/job, the table from cardscale/rest.py.
+
+Reading:
+1. The low rest of step 2's r1 and of Design X's run is variation between runs of the card. Both draw more slowly per render pixel (18.69 and 19.83 ms) than the other three runs (16.80 to 16.93 ms). A likely cause, not a proven one: the first run of a card job draws slower. Step 2's slow run was its job's first run, and Design X's slow run was the only run of its job. Ticket t1-80jd holds that bug. Later card jobs that compare two codes start with one discarded warm-up run of the script, and their record says so.
+2. Step 2 costs half a step at the top of the range. With a request just below 1, the size is 119 of 120 exact-ratio steps (0.9917), against 239 of 240 of the old 8 px grid (0.9958). The controller's request does not fall toward the realized scale (0.9580 on all 60 rest draws of r1), so no feedback holds it lower. The request that rests a hair below 1 has its own ticket, t1-zeyk.
+
+**2026-11-23T01:57:46Z**
+
+2026-11-22, the line orchestrator, from the orchestrator. The last open point of this ticket is closed: step 2 stays. Five scale logs on each code count 84 frames with specks of 1,200 before step 2 and 124 with it, and single films range from 0 to 62, so the count shows no rise. Step 2 changed which render sizes a log visits. The specks are a fault of both codes and go on in t7-3e22. No ramp of constant scales for the frequency.

@@ -242,6 +242,29 @@ The lead finds every other copy of the rule (a C# reference of the lookup in the
 - Checked and Release, lavapipe for the changed shadow classes, mutants and coverage of the changed lines, one reviewer, and ARCHITECTURE.md's shadow section.
 - Each changed reference image is reviewed as CLAUDE.md says.
 
+### A stated limit of the rule: receivers that a caster covers only partly (the orchestrator accepted it on 2026-11-22)
+
+The rule trades light under partly covered receivers for no leak at a rounded edge. The quarter texel of lost light holds at a straight edge of a wide caster. A thin caster, or a narrow lit band between two casters, loses more, because the share falls faster with the lit fraction: a lit fraction of 0.7 gives a share of 0.2 under design L, where it gave 0.4.
+
+The table below is the line orchestrator's arithmetic, not a measurement. It holds for a straight strip along the texel grid. The 4 bilinear comparisons per axis act as a box of 4 texels over the map's texels, so the lit fraction is the uncovered share of that box. "n" is the number of texels across the strip that hold the caster. "Shadow weight" is the light that the shadow removes, summed across it, over the light that the caster truly blocks (n texels of full light).
+
+| Caster width n (texels) | Share under its middle, today | The same, design L | Shadow weight, today | Shadow weight, design L |
+|---:|---:|---:|---:|---:|
+| 0.5 | 0.75 | 0.67 | 2 | 2.67 |
+| 1 | 0.5 | 0.33 | 2 | 2.67 |
+| 1.5 | 0.25 | 0 | 2 | 2.67 |
+| 2 | 0 | 0 | 2 | 2.25 |
+| 4 | 0 | 0 | 1.5 | 1.63 |
+| n of 4 or more | 0 | 0 | 1 + 2 / n | 1 + 2.5 / n |
+
+- A caster narrower than 1.5 texels of its cascade casts 8/3 of its true shadow, against 2 today. It is fully dark under its middle from 1.5 texels on, against 2 today.
+- A lit band of m texels between two casters shows light at its middle only when m is above 2.5 (today 2). At m = 3 it shows a third of the sun there, against a half today. From m = 4 on its middle is fully lit under both rules.
+- The cascades' texels at 16:9 are 0.058 m, 0.126 m, 0.320 m and 2.309 m. So the limit reaches hair, struts and thin slots near the camera, and whole objects of a few meters in the farthest cascade.
+
+The orchestrator's reasons: the hair shadow of `hair-bent-cards` was a blob at this texel size on main too, and the fix makes it larger and darker while its edge stays soft. The seam's step keeps the same soft form and stays under its derived bound (2.564 m against 2.812 m). Both are lost light inside the user's rule (narrower lit strips are fine, hard-edged shadows everywhere are not). The user can reverse this. The pictures: /Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7-evidence/step3/stills/hair-bent-cards.png, stills/box-cabin-pair.png and seam/seam-zoom.png.
+
+The comment of `lightOutsideShadow` states the limit in one sentence, so that a reader of the function finds it.
+
 ## The rules that bind the designs
 
 - The user's rule for the sun's shadow: lost sunlight and narrower lit strips are fine. Hard-edged shadows everywhere are not.
@@ -292,3 +315,7 @@ Step 1 done: docs/research/shadow-grid-phase/README.md, scripts/jamb-grid-phase.
 **2026-11-22T23:15:29Z**
 
 2026-11-22, the line orchestrator. The lead's first numbers of step 3 and my three answers, for the orchestrator to reverse. Numbers: the four tests are green with a sun share of 0.000 at every place (aligned, 45 degrees, 17 degrees, a spot lamp's tile), and no angle needs more than 5/8. Two tests fail on measured facts. (a) ALitFloorUnderASpotLightHasNoAcne at 60 degrees with a 45 degree turn: with the tiles on design L, 634 of 25,784 pixels differ at 4 m (main 4) and 5,505 of 135,815 at 12 m (main 2), about 2.3 percent darker, largest 8/255. Main's tiles already hold the same ring pattern, and the rule's slope 1 / (1 - 5/8) = 2.67 amplifies it. ShadowBias.SlopeBias documents the shortfall on a slope diagonal to the grid. (b) TheEdgeOfAShadowDoesNotStepWhereTwoCascadesMeet: the step at seam 2 grows from 1.982 m to 2.564 m against a bound of 2.346 m, with texels of 0.259 m and 1.865 m. Answers: 1. The build splits into two commits. Commit A holds the cascades' part, with tileShadow returning tileLitFraction so that the tiles behave as on main, and it merges on its own gates. Commit B holds the tiles' one line and its test changes, after the orchestrator's decision. 2. The step at the far seam is the accepted lost light of a quarter texel, seen where two texel sizes meet. The test's bound is derived from the rule (the half-share crossing lies 2 D texels outside the map's edge), not loosened by a number, and a still of seam 2 goes to the orchestrator. 3. No bias changes in this ticket. The tiles' acne is evidence for the tiles' decision, shown at the scene's own exposure. A bias fix for the diagonal slope becomes its own ticket if the tiles go on design L.
+
+**2026-11-23T02:32:23Z**
+
+2026-11-22, the line orchestrator, from the orchestrator. The sun's evidence of commit A is accepted, and commit A goes on, on its gates: the timing at a quiet load, Checked, the review, then Release before the merge. The orchestrator looked at the openings sheet, the ramp chart, the seam at 6x, the box-cabin pair, the hair crop and the bay pair at 0.96, and accepted both look changes: the seam's step and the darker, larger shadows of thin casters and narrow lit bands. The section 'A stated limit of the rule' holds the bound and the reasons. The numbers of the evidence: at 20 window shapes across the three teeth, main leaks at 1 of 20 at tick 100 and at 8 of 20 at tick 6380, and the fix at none (largest jamb light 0.044 against 0.172). Of 75 survey stills, 18 are identical and 57 changed with no new speck, leak, line or band by the lead's read. The stills walk and airlock-door lose a fault of main. The sun's acne does not rise. Commit B, the tiles, stays the orchestrator's decision on stills. Its lean: the tiles keep the symmetric filter unless the stills show a leak that the user would see.

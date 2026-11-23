@@ -1,0 +1,89 @@
+{
+ "render": [
+  1840,
+  1035
+ ],
+ "rect_render": [
+  718,
+  0,
+  1121,
+  316
+ ],
+ "samples_per_draw": 127348,
+ "draws": 400,
+ "stops": [
+  -1.6641452312469482,
+  -1.6406311988830566
+ ],
+ "diffuse_brightest": {
+  "samples": 50939,
+  "per_draw": 127.3475,
+  "threshold": 4.851336479187012,
+  "max": 60.76940155029297,
+  "share_of_all_light": 0.02329978346824646,
+  "count_share": {
+   "miss": 0.0,
+   "near": 0.0,
+   "far": 1.0
+  },
+  "light_share": {
+   "miss": 0.0,
+   "near": 0.0,
+   "far": 1.0
+  },
+  "hit_distance_m": [
+   11.313708498984761,
+   32.0
+  ],
+  "hit_distance_median_m": 22.627416997969522,
+  "after_caps_mean": 6.812877178192139,
+  "before_caps_mean": 6.812877178192139,
+  "capped_share": 0.0
+ },
+ "diffuse_all": {
+  "count_share": {
+   "miss": 0.15125418145553915,
+   "near": 0.0038579522253981216,
+   "far": 0.8448878663190628
+  },
+  "mean": 0.29239973425865173,
+  "capped_share": 0.0
+ },
+ "reflection_brightest": {
+  "samples": 50939,
+  "per_draw": 127.3475,
+  "threshold": 95.91763305664062,
+  "max": 1063.3609619140625,
+  "share_of_all_light": 0.0641748234629631,
+  "count_share": {
+   "miss": 0.0,
+   "near": 0.0,
+   "far": 1.0
+  },
+  "light_share": {
+   "miss": 0.0,
+   "near": 0.0,
+   "far": 1.0
+  },
+  "hit_distance_m": [
+   17.125,
+   31.109375
+  ],
+  "hit_distance_median_m": 27.34375
+ },
+ "reflection_all": {
+  "count_share": {
+   "miss": 0.07647220608097496,
+   "near": 0.01228843405471621,
+   "far": 0.9112393598643088
+  },
+  "mean": 2.658737897872925
+ },
+ "mean_specks_x": 509,
+ "mean_max_over_median_x": 1.604852557182312,
+ "mean_specks_xs": 8055,
+ "mean_max_over_median_xs": 4.395618438720703,
+ "capture_specks": {
+  "c-s19": 4678
+ }
+}

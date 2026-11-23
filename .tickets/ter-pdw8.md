@@ -1,0 +1,71 @@
+---
+id: ter-pdw8
+status: open
+deps: []
+links: []
+created: 2026-11-23T02:54:52Z
+type: task
+priority: 1
+assignee: Alexis Purslane
+parent: ter-8hyd
+tags: [rendering, temporal, experiment]
+---
+# What a ray's end reads: one pixel of one draw against a resolved and a prefiltered light, measured on the census's stills
+
+An experiment for the structural step ter-6fka, in the ray census's probe build (docs/research/ray-census). It changes no engine code on main.
+
+The class. The ray census (ter-8pco) and the lamp hall's specks (ter-fe63) give one class for three faults (the lamp hall's specks, ter-fe63's speck cloud, the specks around the jamb leak's opening) and for the bounce light's noise in general: a ray's end reads one pixel of one draw. In code, hitLightOf (screen_trace.glsl) is imageLoad(hitLight, ivec3(q, kind)), and leavingLightOf fills it from this draw's direct light at q (imageLoad(directDiffuseLight, q)) plus the last draw's history. This draw's direct light is jittered and not resolved. So a source thinner than a pixel enters at its full value in one jitter phase (the sill: 162 in 1 draw of 25 against a ceiling of 0.22), and a far hit is a point sample of a solid angle that covers many pixels. Far hits and misses carry 76 to 100 % of the diffuse samples' variance in every census region. No cap bound these samples, and the accumulator keeps up to 12 % less light than it receives.
+
+The question. How much of the far hits' variance, of the tail, and of the accumulator's loss goes away when the ray's end reads a filtered light, and what bias does each filter add?
+
+## Design
+
+Systems view. One box owns 'the light that leaves a hit toward a ray': today the plan's hit light image, written by leavingLightOf and read by hitLightOf. The experiment changes only what that box answers. It changes no ray, no density, no clamp, no evidence rule and no accumulator.
+
+Variants (each a build switch of the probe build):
+- V0: today. This draw's direct light plus the last draw's history, at the hit pixel.
+- V1, resolved in time by reuse: the hit's light is the last draw's shown image before tone mapping (the upscaler's output, which is already resolved over the jitter phases), read at the hit point's reprojected place, pre-exposed like the hit light. No new history image and no new trust rule: the upscaler already owns that resolve. Costs to name: one draw of lag, the old eye's specular part in the light, and the upscaler's own faults (t3-5jws) entering the bounce.
+- V2, prefiltered in space: the hit light gets a mip chain (plain 2 x 2 means of the hit light, in the probe build only), and a hit reads the level whose cell matches the ray's footprint at the hit: level = log2 of (hit distance times the square root of the ray's solid angle, in pixels), where the solid angle is 1 / (rays per pixel's hemisphere times the ray's density). State the formula that the lead uses. Costs to name: light that bleeds across a silhouette in a coarse cell.
+- V3: V1 and V2 together (a mip chain of the last shown image).
+If V1's source is not reachable in the probe build without engine work, the lead says so and substitutes a per-pixel mean of the direct light over one jitter period on the stills, marked as a stand-in.
+
+Stills: the census's five stills at 2/3 and 0.9584, and the lamp hall at 1072 x 603 (bursts) and 1040 x 585 (clean). Same settle and count as the census (240 and 400 draws), clamps on.
+
+Measures per variant and region:
+1. The variance of the diffuse samples and of the rough reflection samples, and each class's share (miss, near hit, far hit), as in the census.
+2. The brightest 0.1 % of the samples: value, class, distance.
+3. The mean against V0's 400-draw mean and against the path trace of the still where one exists. This is the bias.
+4. The share of the received light that the accumulator keeps (the census's 1.00 to 1.12 ratio).
+5. Speck pixels in the lamp hall, at both sizes.
+6. The shown picture with the unchanged denoiser: daub, boil and grain by the survey's measures, and crops at 1:1 beside the reference at three silhouettes per still (a dark object before a bright wall, a bright object before a dark wall, a window's edge), because V2's bias lives there.
+
+Decision rule (the orchestrator applies it): a variant goes into ter-6fka's design if it removes the specks at every size, lowers the far hits' variance by a factor that the picture shows (boil or grain down by more than the spread between runs), and adds no leak or halo that a crop shows at 1:1. If V1 and V2 both pass, the one with less new state wins. If neither lowers the far hits' variance of bay-sunbeam (all far hits at 2.8 to 11 m on one sunlit patch), that scene's noise is visibility sampling of a small bright source, and the record says that a far-field store or more guided rays must carry it.
+
+Out of scope: any engine change on main, any new trust rule, the capture points and the senders of ter-6fka (they follow from this record), and coverage in the direct light pass (remedy 2 of the back-face line's report, held as the alternative if V1 fails).
+
+## Acceptance Criteria
+
+A record under docs/research/ with the table of the six measures per variant, still and region, the crops, the formula of V2's level, the cost of each variant in passes and images, and a plain statement per variant: removes the specks or not, lowers the far hits' variance by what factor, adds which bias. The spread between two runs of V0 is in the table. The lead opened every crop and describes it.
+
+
+## Notes
+
+**2026-11-23T02:56:25Z**
+
+2026-11-22, the line orchestrator. Launched on the census's lead by a steer of its running continuation, ahead of ter-yglw, as the orchestrator ordered. Child thread: thread:delegated-task:command%3Amcp%3A49b05ffc-1378-4e84-92ef-b16c94dc7acb%3Adelegate-task%3Aslabs-4-ter-qt72-lead-1. taskId: node:delegated-task:command%3Amcp%3A4b9f2319-04a8-41d4-bf6b-a728beb5e565%3Athread-send%3Aslabs-4-continue-ter-yglw-face-cost. clientRequestId of the steer: census-lead-ter-pdw8-before-ter-yglw. Target: claudeAgent, claude-opus-5-5, effort high. Worktree /Users/alexispurslane/.t3/worktrees/tertius/t3-1f553e45-00934a8d076a004a, branch t3/fix-projection-aspect-wobble. No reviewer stage. Answers of mine in the brief, for the orchestrator to reverse: 1. The first still is the lamp hall at 1072 x 603 through all four variants, with 1040 x 585 beside it, then bay-sunbeam, then the rest. 2. The second run of V0 for the spread shifts its settling by a number of draws that is not a multiple of the jitter's phase count, because a plain repeat on this Mac is bitwise equal. 3. The record states V2's formula with its units and the solid angle that it takes for a guided ray and for a rough reflection ray. The lead reports after the first still, and the orchestrator decides on that table whether the other stills run as planned. The lead also reports the guided share of the speck samples against the guided share of all samples, and says per variant whether the accumulator's ratio reaches 1.00 (ter-18hc).
+
+**2026-11-23T04:00:46Z**
+
+2026-11-22, the line orchestrator. The first still (the lamp hall at 1072 x 603, with 1040 x 585) is through V0 to V3. V1 is a stand-in: a running mean of the hit light with weight 1/64, because the upscaler's output cannot be read at a hit without engine work. Result: V1 and V3 remove the specks at both sizes (largest diffuse sample 127 on V0, 10.1 on V1, 0.447 on V3), and V2 does not. The far hits' variance falls by 1.2 to 1.8 (V1), 1.0 to 1.95 (V2) and 1.2 to 3.0 (V3), and the shown picture's grain and boil stay inside the spread of V0's two pictures. Every variant darkens the light (V1 7 to 10 percent, V2 0 to 8, V3 10 to 23) and adds fine flecks on the sill's upper edge. Guided rays are 0.25 of all diffuse samples and 0.906 of V0's samples above 5, so the guide must read the same filtered light as the hit. No variant passes the decision rule yet. An answer of mine, for the orchestrator to reverse: bay-sunbeam finishes, and then the lead answers two cause questions on the lamp hall before the other four stills. 1. Where the light goes: the stand-in's mean with the read off against V0's mean hit light, a map of the loss, and V2 with means over the covered pixels only. 2. Whether the flecks are V0's lost light coming back or light on pixels that the sill cannot light: the accumulator's kept share around the sill per variant, and the class and the hit surface of the fleck pixels' brightest samples. Pictures: /Users/alexispurslane/.t3/worktrees/tertius/t3-1f553e45-00934a8d076a004a-evidence/rayend/pics/.
+
+**2026-11-23T04:02:32Z**
+
+2026-11-22, the line orchestrator, from the orchestrator. Decisions on the first still: the other four stills wait for the two cause answers, and bay-sunbeam finishes first. Accepted as a result: what a ray's end reads owns the specks, and the guide is part of the fault (written into ter-fe63). The working reading that bay-sunbeam tests: a temporal resolve at the hit pixel cannot lower the variance of which far pixel a ray reaches. No build ticket for the real V1 yet. Three hypotheses to test: 1. The stand-in's darkening is its own settling. The mean sits inside the bounce's feedback loop, whose time constant is about 64 / (1 - g) draws for a loop gain g. Tests: start the mean from V0's settled hit light, or settle for 1,500 draws, or apply the mean to the direct part only. The later stills run with the mean on the direct part only as V1, because the history part is already resolved over time. 2. V2's darkening is the dilution of cells that touch a pixel which reads 0. The mean over the covered pixels only tests it. 3. The flecks are true light that V0 throws away: the fast history's clamp cuts V0's rare 162 near the sill, and the variants deliver about 6.5 in every draw. The kept share around the sill per variant and the hit surface of the fleck pixels' brightest samples decide it. If it is true light, the lead tries the guide on the same filtered light as the hit. Two more measures: a path trace of the view if it is cheap, and a histogram per region of the mip level that the far hits read under V2.
+
+**2026-11-23T04:46:41Z**
+
+2026-11-22, the line orchestrator. The two cause answers and bay-sunbeam, from the lead's second interim. 1. The darkening was the old stand-in's fault: its bias of 7.2 to 8.8 percent falls to 6.0 to 7.0 after 1,240 settling draws, to 0.2 to 0.6 with a mean weight of 1/8, and to 0.5 to 0.8 with the mean on the direct part only (stand-in c). The half float image loses an update of 1/64 of a small change, and the bounce loop compounds it. 2. The flecks are a leak. The accumulator's kept share at the wall's foot is 0.988 on V0 and 1.001 on V1, so V0 loses no light there. All 92 bright diffuse samples and 99.9 percent of the 1,314 bright reflection samples of that floor hit render row 314 at 0.8 to 1.7 m. Row 314 shows the sill's sunlit face in one jitter phase of 25 and the wall in the others, and the floor's rays hit the wall. A mean per pixel puts the sill's light on the wall's pixel. Any resolve per pixel does this. 3. The filtered guide improves V1 a little (ceiling factor 1.77 against 1.62) and does not remove the flecks. The guide alone with V0's read is 3.6 times worse on the ceiling. 4. V2's far diffuse hits read levels 5 to 8 (cells 32 to 256 px), and in bay-sunbeam V2 loses 29 to 55 percent of the bounce light and shows a halo. 5. Bay-sunbeam: V1's far-hit variance factor is 0.98 to 0.99. So the general mottle needs a far-field store or better sampling, and a resolved read is a remedy of the tail only. The accumulator's kept share in bay is 0.91 to 0.94 in every variant, so ter-18hc does not close here. No variant passes the decision rule. Answers of mine, for the orchestrator to reverse: the four remaining stills wait for its decision, and the lead writes the record's sections for the two stills meanwhile. My recommendation to it: drop V2 and V3, run V0 and V1 with and without the filtered guide on two cabins at 2/3, and test one more variant on the lamp hall, a read keyed by the surface (this draw's direct light times the share of the recent draws in which the pixel showed that surface).
+
+**2026-11-23T04:49:01Z**
+
+2026-11-22, the line orchestrator, from the orchestrator. Decisions on the two cause answers: 'a pixel is not a surface' is the result of this experiment. V1's real build is closed, because the upscaler's output also holds one value per pixel for two surfaces. V2 and V3 are closed, because a cell of 32 to 256 px mixes surfaces that the receiver cannot see. The sentence for ter-6fka is accepted: the general mottle needs a far-field store or better sampling, and a resolved read is a remedy of the tail only. The rest of the experiment tests the surface share against V0: a ray's end reads this draw's direct light of the surface that this draw shows, times the share of the recent draws in which the pixel showed that surface, applied where leavingLightOf writes the hit light. S1 takes the share from a new small state per pixel. S2 takes it from the history that the pixel already holds: share = min(1, (length + 1) / phases), with the divisor at most the draws since the reset plus 1. S2's premise is checked first at row 314 in the burst draw. Takes: the lamp hall at both sizes with V0, S1 and S2; bay-sunbeam, cabin-light-cabin and exit-cabin at 2/3 with V0 and the candidate; one short film of the walk. The rule: the share goes into ter-6fka's design as its first change if it removes the specks at every size, adds no leak that a crop shows at 1:1, keeps every region's mean within 1 percent outside the thin surfaces, and shows no fade or darkening in the walk. The lost bounce of surfaces thinner than a pixel is accepted in advance. Order on the lead: this rest, the record, then ter-yglw.

@@ -1,0 +1,261 @@
+{
+ "case": "rect-lamps",
+ "render": [
+  1840,
+  1035
+ ],
+ "draws": [
+  240,
+  640
+ ],
+ "stops": [
+  3.8184115886688232,
+  3.8219492435455322
+ ],
+ "regions": [
+  {
+   "name": "ceiling right of the lamps",
+   "light": "No direct light: the ceiling panels send their light down. Bounce light from the floor and the walls that the panels light.",
+   "rect_output": [
+    1040,
+    60,
+    1500,
+    300
+   ],
+   "rect_render": [
+    996,
+    57,
+    1437,
+    287
+   ],
+   "after_caps": {
+    "pixels": 101430,
+    "mean_luminance": 0.19533779670521312,
+    "mean_variance": 0.015201073426693622,
+    "count_share": {
+     "miss": 0.3338622448979592,
+     "near": 0.02190860692102928,
+     "far": 0.6442291481810115
+    },
+    "mean_share": {
+     "miss": 0.1093793144501922,
+     "near": 0.02052857411629774,
+     "far": 0.8700921114335098
+    },
+    "variance_share": {
+     "miss": 0.02373155503429047,
+     "near": 0.003965127179595841,
+     "far": 0.9723033177861136
+    }
+   },
+   "before_caps": {
+    "pixels": 101430,
+    "mean_luminance": 0.19533779670521312,
+    "mean_variance": 0.015201073426693622,
+    "count_share": {
+     "miss": 0.3338622448979592,
+     "near": 0.02190860692102928,
+     "far": 0.6442291481810115
+    },
+    "mean_share": {
+     "miss": 0.1093793144501922,
+     "near": 0.02052857411629774,
+     "far": 0.8700921114335098
+    },
+    "variance_share": {
+     "miss": 0.02373155503429047,
+     "near": 0.003965127179595841,
+     "far": 0.9723033177861136
+    }
+   },
+   "check": {
+    "census_mean": 0.19533779670521312,
+    "slow_history_mean": 0.19614870846271515,
+    "ratio": 0.9958658317770358
+   }
+  },
+  {
+   "name": "floor in the middle",
+   "light": "Direct light of the ceiling panels; bounce light from the walls and the ceiling.",
+   "rect_output": [
+    700,
+    700,
+    1220,
+    1000
+   ],
+   "rect_render": [
+    670,
+    670,
+    1169,
+    958
+   ],
+   "after_caps": {
+    "pixels": 143712,
+    "mean_luminance": 0.045688921705786784,
+    "mean_variance": 0.004595031897862841,
+    "count_share": {
+     "miss": 0.8053803788131819,
+     "near": 0.0,
+     "far": 0.19461962118681808
+    },
+    "mean_share": {
+     "miss": 0.2860450160422457,
+     "near": 0.0,
+     "far": 0.7139549839577545
+    },
+    "variance_share": {
+     "miss": -0.013209187063164611,
+     "near": 0.0,
+     "far": 1.0132091870631648
+    }
+   },
+   "before_caps": {
+    "pixels": 143712,
+    "mean_luminance": 0.045688921705786784,
+    "mean_variance": 0.004595031897862841,
+    "count_share": {
+     "miss": 0.8053803788131819,
+     "near": 0.0,
+     "far": 0.19461962118681808
+    },
+    "mean_share": {
+     "miss": 0.2860450160422457,
+     "near": 0.0,
+     "far": 0.7139549839577545
+    },
+    "variance_share": {
+     "miss": -0.013209187063164611,
+     "near": 0.0,
+     "far": 1.0132091870631648
+    }
+   },
+   "check": {
+    "census_mean": 0.045688921705786784,
+    "slow_history_mean": 0.04413183778524399,
+    "ratio": 1.0352825533375687
+   }
+  },
+  {
+   "name": "left wall above the windows",
+   "light": "Direct light of the ceiling panels at a grazing angle; bounce light from the floor.",
+   "rect_output": [
+    200,
+    300,
+    500,
+    470
+   ],
+   "rect_render": [
+    191,
+    287,
+    479,
+    450
+   ],
+   "after_caps": {
+    "pixels": 46944,
+    "mean_luminance": 0.15412300048292032,
+    "mean_variance": 0.012717970604936684,
+    "count_share": {
+     "miss": 0.4033325877641445,
+     "near": 0.010284860685071574,
+     "far": 0.5863825515507839
+    },
+    "mean_share": {
+     "miss": 0.10621987835675492,
+     "near": 0.012358722383090317,
+     "far": 0.8814213992601547
+    },
+    "variance_share": {
+     "miss": -0.039356276052795874,
+     "near": 0.0031942582530341897,
+     "far": 1.036162017799762
+    }
+   },
+   "before_caps": {
+    "pixels": 46944,
+    "mean_luminance": 0.15412300048292032,
+    "mean_variance": 0.012717970604936684,
+    "count_share": {
+     "miss": 0.4033325877641445,
+     "near": 0.010284860685071574,
+     "far": 0.5863825515507839
+    },
+    "mean_share": {
+     "miss": 0.10621987835675492,
+     "near": 0.012358722383090317,
+     "far": 0.8814213992601547
+    },
+    "variance_share": {
+     "miss": -0.039356276052795874,
+     "near": 0.0031942582530341897,
+     "far": 1.036162017799762
+    }
+   },
+   "check": {
+    "census_mean": 0.15412300048292032,
+    "slow_history_mean": 0.15441976487636566,
+    "ratio": 0.9980781968313257
+   }
+  },
+  {
+   "name": "far end wall",
+   "light": "Direct light of the far panels; bounce light from the floor and the side walls.",
+   "rect_output": [
+    760,
+    430,
+    1160,
+    510
+   ],
+   "rect_render": [
+    728,
+    412,
+    1111,
+    488
+   ],
+   "after_caps": {
+    "pixels": 29108,
+    "mean_luminance": 0.1792236098734014,
+    "mean_variance": 0.01429074130587648,
+    "count_share": {
+     "miss": 0.3072628658787962,
+     "near": 0.03743257867252989,
+     "far": 0.6553045554486739
+    },
+    "mean_share": {
+     "miss": 0.04251953705840747,
+     "near": 0.04121695423724776,
+     "far": 0.9162635087043447
+    },
+    "variance_share": {
+     "miss": -0.02754879050956646,
+     "near": 0.013227380606087366,
+     "far": 1.0143214099034792
+    }
+   },
+   "before_caps": {
+    "pixels": 29108,
+    "mean_luminance": 0.1792236098734014,
+    "mean_variance": 0.01429074130587648,
+    "count_share": {
+     "miss": 0.3072628658787962,
+     "near": 0.03743257867252989,
+     "far": 0.6553045554486739
+    },
+    "mean_share": {
+     "miss": 0.04251953705840747,
+     "near": 0.04121695423724776,
+     "far": 0.9162635087043447
+    },
+    "variance_share": {
+     "miss": -0.02754879050956646,
+     "near": 0.013227380606087366,
+     "far": 1.0143214099034792
+    }
+   },
+   "check": {
+    "census_mean": 0.1792236098734014,
+    "slow_history_mean": 0.17968447506427765,
+    "ratio": 0.9974351418467768
+   }
+  }
+ ]
+}

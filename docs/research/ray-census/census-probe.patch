@@ -1,0 +1,641 @@
+diff --git a/src/Tertius.Host/ScriptCommand.Options.cs b/src/Tertius.Host/ScriptCommand.Options.cs
+index fd0cccbc4..1b779b7d3 100644
+--- a/src/Tertius.Host/ScriptCommand.Options.cs
++++ b/src/Tertius.Host/ScriptCommand.Options.cs
+@@ -118,6 +118,9 @@ public static partial class ScriptCommand
+                 options.Subsurface = new NoSubsurface();
+             if (PassTimestampsOff)
+                 options.PassTimestamps = false;
++            // PROBE (tools/renderer-survey): a fixed exposure in stops from TERTIUS_PROBE_EXPOSURE.
++            if (Environment.GetEnvironmentVariable("TERTIUS_PROBE_EXPOSURE") is { Length: > 0 } probeStops)
++                options.Exposure = new FixedExposure(float.Parse(probeStops, System.Globalization.CultureInfo.InvariantCulture));
+             if (FramesInFlight is { } count)
+             {
+                 options.FramesInFlight = count;
+diff --git a/src/Tertius.Rendering/Frame/FrameHistory.cs b/src/Tertius.Rendering/Frame/FrameHistory.cs
+index 6bfef958f..2967500d7 100644
+--- a/src/Tertius.Rendering/Frame/FrameHistory.cs
++++ b/src/Tertius.Rendering/Frame/FrameHistory.cs
+@@ -185,7 +185,12 @@ internal sealed class FrameHistory
+     {
+         Contract.Requires(draw >= 0 && draw < DrawsOf(step));
+         bool still = IsStill(step);
+-        bool reset = Resets(snapshot: snapshot, outputSize: outputSize, firstOfAStill: still && draw == 0);
++        // PROBE (tools/renderer-survey): with TERTIUS_PROBE_STILL_CONTINUES=1, a still of an unchanged state (a step of 0 s,
++        // a capture right after a drawn frame) keeps the history of the draws before it, as a window keeps drawing an
++        // unchanged view. A still after a step of time, a camera cut, a new output size and the first drawn frame still
++        // reset.
++        bool continues = step == 0f && Environment.GetEnvironmentVariable("TERTIUS_PROBE_STILL_CONTINUES") == "1";
++        bool reset = Resets(snapshot: snapshot, outputSize: outputSize, firstOfAStill: still && draw == 0 && !continues);
+         derived = new(
+             Reset: reset,
+             DrawIndex: reset ? 0 : lastDrawIndex + 1,
+diff --git a/src/Tertius.Rendering/Frame/FrameResources.cs b/src/Tertius.Rendering/Frame/FrameResources.cs
+index e8fc33710..8dff62f33 100644
+--- a/src/Tertius.Rendering/Frame/FrameResources.cs
++++ b/src/Tertius.Rendering/Frame/FrameResources.cs
+@@ -248,6 +248,8 @@ internal sealed unsafe class FrameResources : IDisposable
+             Array.Resize(ref gpuLights, Math.Max(scene.LightCount, gpuLights.Length * 2));
+         for (int i = 0; i < scene.LightCount; i++)
+             gpuLights[i] = GpuLight.From(scene.Lights[i]);
++        // PROBE (tools/renderer-survey): the lamps of the survey's switch, which the batcher decided for this draw.
++        ProbeLampSwitch.Darken(scene.LightSpan, gpuLights.AsSpan(0, scene.LightCount));
+         return gpuLights.AsSpan(0, scene.LightCount);
+     }
+ 
+diff --git a/src/Tertius.Rendering/PngCaptureSink.cs b/src/Tertius.Rendering/PngCaptureSink.cs
+index 9e4fc4c58..8797aea8e 100644
+--- a/src/Tertius.Rendering/PngCaptureSink.cs
++++ b/src/Tertius.Rendering/PngCaptureSink.cs
+@@ -19,8 +19,74 @@ public sealed class PngCaptureSink : ICaptureSink
+         this.path = path;
+     }
+ 
++    // PROBE (tools/renderer-survey, never commit to src): with TERTIUS_PROBE_SERIES=<file>, each capture appends one line
++    // to the file: its name, then the mean scene luminance of the whole image and of each cell of a 3 x 3 grid, by rows.
++    // It decodes the probe's 24-bit log2 luminance as probe_luminance and region_means of tools/renderer-survey.py do.
++    // It writes the PNG only for the names in TERTIUS_PROBE_KEEP, a comma-separated list, so that a film of every draw
++    // pays no PNG encoding (ticket ter-d7qy).
++    private static readonly string? ProbeSeries =
++        Environment.GetEnvironmentVariable("TERTIUS_PROBE_SERIES") is { Length: > 0 } series ? series : null;
++    private static readonly HashSet<string> ProbeKeep =
++        [.. (Environment.GetEnvironmentVariable("TERTIUS_PROBE_KEEP") ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries)];
++
++    // exp2(q / 16777215 * 40 - 24) of a 24-bit code q is the product of a table entry for its high 12 bits and one for
++    // its low 12 bits. It differs from the direct exp2 by at most 4e-16 of its value, and it makes the means of a
++    // 1920 x 1080 capture about 12 times faster than one exp2 per pixel.
++    private static readonly double[] ProbeHigh = [.. Enumerable.Range(0, 4096).Select(k => double.Exp2(k * 4096 / 16777215.0 * 40.0 - 24.0))];
++    private static readonly double[] ProbeLow = [.. Enumerable.Range(0, 4096).Select(k => double.Exp2(k / 16777215.0 * 40.0))];
++
++    private static unsafe double[] ProbeMeans(in CapturedImage image)
++    {
++        const int grid = 3;
++        int width = image.Width;
++        int height = image.Height;
++        var sums = new double[grid * grid];
++        fixed (byte* start = image.Rgba)
++        {
++            nint pixels = (nint)start;
++            Parallel.For(0, grid * grid, cell =>
++            {
++                int row = cell / grid;
++                int column = cell % grid;
++                double sum = 0.0;
++                for (int y = row * height / grid; y < (row + 1) * height / grid; y++)
++                    for (int x = column * width / grid; x < (column + 1) * width / grid; x++)
++                    {
++                        byte* pixel = (byte*)pixels + ((long)y * width + x) * 4;
++                        int q = (pixel[0] << 16) | (pixel[1] << 8) | pixel[2];
++                        if (q != 0)
++                            sum += ProbeHigh[q >> 12] * ProbeLow[q & 4095];
++                    }
++                sums[cell] = sum;
++            });
++        }
++        var means = new double[1 + grid * grid];
++        double total = 0.0;
++        for (int cell = 0; cell < grid * grid; cell++)
++        {
++            int row = cell / grid;
++            int column = cell % grid;
++            long pixels = (long)((row + 1) * height / grid - row * height / grid)
++                * ((column + 1) * width / grid - column * width / grid);
++            means[1 + cell] = sums[cell] / pixels;
++            total += sums[cell];
++        }
++        means[0] = total / ((double)width * height);
++        return means;
++    }
++
+     public void Take(in CapturedImage image)
+     {
++        if (ProbeSeries is not null)
++        {
++            string name = Path.GetFileNameWithoutExtension(path);
++            var line = new System.Text.StringBuilder(name);
++            foreach (double mean in ProbeMeans(image))
++                line.Append(' ').Append(mean.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
++            File.AppendAllText(ProbeSeries, line.Append('\n').ToString());
++            if (!ProbeKeep.Contains(name))
++                return;
++        }
+         // A copy: the pixels belong to the renderer's readback buffer, and the alpha byte of each pixel has no defined value.
+         byte[] rgba = image.Rgba.ToArray();
+         for (int i = 3; i < rgba.Length; i += 4)
+diff --git a/src/Tertius.Rendering/Scene/ProbeLampSwitch.cs b/src/Tertius.Rendering/Scene/ProbeLampSwitch.cs
+new file mode 100644
+index 000000000..5a67ab4af
+--- /dev/null
++++ b/src/Tertius.Rendering/Scene/ProbeLampSwitch.cs
+@@ -0,0 +1,114 @@
++using System.Collections.Concurrent;
++using System.Numerics;
++
++namespace Tertius.Rendering;
++
++/// <summary>
++/// PROBE (tools/renderer-survey, never commit to src): the survey's lamp switch. TERTIUS_PROBE_LAMP_OFF="a-b,c-d" turns
++/// the selected lamps off in the draws a &lt;= draw &lt; b, counted from 0 over every draw of the run.
++/// TERTIUS_PROBE_LAMP_SEL = all, or x:lo:hi, y:lo:hi or z:lo:hi, selects the local lights whose camera-relative position
++/// lies in that range on that axis. A lamp is the entity of a selected light. Its light shines 0 on the GPU light rows.
++/// With TERTIUS_PROBE_LAMP_GLOW=off, the default, its instances also draw with a twin of their material that has no
++/// emission, in every view, so that its panel goes dark and comes back with its light, as a game can switch a lamp.
++/// TERTIUS_PROBE_LAMP_GLOW=stays keeps the panel's glow, the switch of the survey before 2026-11-22, which no game state
++/// makes. TERTIUS_PROBE_SUN=off turns off every light whose reach is at least 10^6 m. The batcher decides the lamps once
++/// per draw (<see cref="Decide"/>), and the light rows of the same draw take them (<see cref="Darken"/>).
++/// </summary>
++internal static class ProbeLampSwitch
++{
++    private static readonly (int From, int To)[] Ranges = (Environment.GetEnvironmentVariable("TERTIUS_PROBE_LAMP_OFF") ?? "")
++        .Split(',', StringSplitOptions.RemoveEmptyEntries)
++        .Select(r => r.Split('-'))
++        .Select(r => (int.Parse(r[0]), int.Parse(r[1])))
++        .ToArray();
++
++    private static readonly string[] Selection = (Environment.GetEnvironmentVariable("TERTIUS_PROBE_LAMP_SEL") ?? "all").Split(':');
++    private static readonly bool SunOff = Environment.GetEnvironmentVariable("TERTIUS_PROBE_SUN") == "off";
++
++    private static readonly string Glow = Environment.GetEnvironmentVariable("TERTIUS_PROBE_LAMP_GLOW") switch
++    {
++        null or "" or "off" => "off",
++        "stays" => "stays",
++        var other => throw new InvalidOperationException($"TERTIUS_PROBE_LAMP_GLOW: no case {other}"),
++    };
++
++    /// <summary>Whether the switch darkens the lamps' panels: some draws turn lamps off, and their glow goes off too.</summary>
++    public static bool DarkensGlow => Ranges.Length > 0 && Glow == "off";
++
++    // The twin slot of each material slot that glows, from VulkanRenderer.CreateMaterial, which other threads call.
++    private static readonly ConcurrentDictionary<uint, uint> Twins = new();
++
++    // The lamps of the draw that Decide decided last, and that draw.
++    private static readonly HashSet<Entity> Lamps = [];
++    private static int draw = -1;
++
++    /// <summary>Records <paramref name="twin"/>, the slot of the copy of the material in <paramref name="slot"/> that has no emission.</summary>
++    public static void AddTwin(uint slot, uint twin) => Twins[slot] = twin;
++
++    /// <summary>
++    /// Counts the next draw and decides its lamps from <paramref name="scene"/>'s lights. With the glow off, it gives each
++    /// placed and visible instance of a lamp the twin of its material, when the twin is among the
++    /// <paramref name="materialCount"/> slots on the GPU. The batcher calls it once per draw, after it collects the lights
++    /// and before any view takes the placed or the visible instances.
++    /// </summary>
++    public static void Decide(PreparedScene scene, int materialCount)
++    {
++        draw++;
++        Lamps.Clear();
++        bool off = false;
++        foreach ((int from, int to) in Ranges)
++            off |= draw >= from && draw < to;
++        if (!off)
++            return;
++        foreach (ref readonly PreparedLight light in scene.LightSpan)
++        {
++            Vector3 p = light.Position;
++            bool chosen = Selection[0] switch
++            {
++                "x" => p.X >= float.Parse(Selection[1]) && p.X <= float.Parse(Selection[2]),
++                "y" => p.Y >= float.Parse(Selection[1]) && p.Y <= float.Parse(Selection[2]),
++                "z" => p.Z >= float.Parse(Selection[1]) && p.Z <= float.Parse(Selection[2]),
++                _ => true,
++            };
++            if (chosen && light.Reach > 0 && light.Reach < 1e6f)
++                Lamps.Add(light.Entity);
++        }
++
++        int lights = 0;
++        foreach (ref readonly PreparedLight light in scene.LightSpan)
++            lights += Lamps.Contains(light.Entity) ? 1 : 0;
++        int panels = 0;
++        if (DarkensGlow)
++        {
++            for (int i = 0; i < scene.PlacedCount; i++)
++                panels += DarkenPanel(ref scene.Placed[i], materialCount) ? 1 : 0;
++            foreach (ref PreparedInstance visible in scene.VisibleSpan)
++                DarkenPanel(ref visible, materialCount);
++        }
++
++        if (Ranges.Any(r => r.From == draw))
++            Console.Error.WriteLine(
++                $"PROBE draw {draw}: {lights} of {scene.LightCount} lights off, {panels} of {scene.PlacedCount} placed instances dark (glow {Glow})"
++            );
++    }
++
++    /// <summary>Gives a lamp's instance the twin of its material. True when it took the twin.</summary>
++    private static bool DarkenPanel(ref PreparedInstance instance, int materialCount)
++    {
++        if (!Lamps.Contains(instance.Entity) || !Twins.TryGetValue(instance.Material, out uint twin) || twin >= materialCount)
++            return false;
++        instance.Material = twin;
++        return true;
++    }
++
++    /// <summary>
++    /// Turns off, in <paramref name="rows"/>, the GPU form of <paramref name="lights"/>, the lights of the lamps of the
++    /// draw that <see cref="Decide"/> decided last, and with TERTIUS_PROBE_SUN=off every light whose reach is at least 10^6 m.
++    /// </summary>
++    public static void Darken(ReadOnlySpan<PreparedLight> lights, Span<GpuLight> rows)
++    {
++        for (int i = 0; i < rows.Length; i++)
++            if ((SunOff && rows[i].PositionReach.W >= 1e6f) || Lamps.Contains(lights[i].Entity))
++                rows[i].IntensityKind = new Vector4(0, 0, 0, rows[i].IntensityKind.W);
++    }
++}
+diff --git a/src/Tertius.Rendering/Scene/RayCensus.cs b/src/Tertius.Rendering/Scene/RayCensus.cs
+new file mode 100644
+index 000000000..7270a37f9
+--- /dev/null
++++ b/src/Tertius.Rendering/Scene/RayCensus.cs
+@@ -0,0 +1,203 @@
++using System.Globalization;
++
++namespace Tertius.Rendering;
++
++/// <summary>
++/// PROBE (ter-8pco, the ray census, never commit to src). With TERTIUS_PROBE_CENSUS=&lt;prefix&gt;, the renderer reads
++/// the diffuse sample image back after each draw whose index, counted from 0 over every draw of the run, lies in
++/// TERTIUS_PROBE_CENSUS_DRAWS="a-b" (a &lt;= draw &lt; b), and keeps running sums per render pixel in double. The resolve
++/// of the probe (screen_trace_resolve.comp) writes the sample's class into its alpha, which no pass reads for the
++/// diffuse signal: -1 for a pixel without a traced surface, else bin + log2(r) / 16. Bin 0 is a miss (the record's hit
++/// distance is 0); a hit at distance d takes bin clamp(floor(2 log2 d) + 21, 1, 63), so bins 1 to 22 lie below 2 m
++/// (class 1, a near hit) and bins 23 to 63 at or beyond it (class 2, a far hit); class 0 is a miss. r &gt;= 1 is the
++/// pre-cap sample's luminance over the sample's (log2 r capped at 15). X is the sample's luminance (Rec. 709 weights),
++/// as the accumulator receives it; Xpre = X * r is the sample before the caps of MostRayWeight and MaxRadiance.
++/// At draw b - 1 it writes &lt;prefix&gt;.sums (float64 arrays, each width * height, row by row from the top: n,
++/// sum X, sum X^2, then per class sum X_c, sum X_c * X, count; then the same for Xpre), &lt;prefix&gt;.json (sizes, the
++/// draws, the exposure stops per counted draw, and the luminance of the slow diffuse history at the last draw, a
++/// separate float32 file &lt;prefix&gt;.slow), and for each rectangle of TERTIUS_PROBE_CENSUS_KEEP
++/// ("x0,y0,x1,y1;..." in render pixels, x1 and y1 exclusive) every sample as float32 X, float32 Xpre, byte bin, then
++/// the pixel's reflection sample as float32 luminance and float32 hit distance (0 for a miss), in
++/// &lt;prefix&gt;.keep&lt;k&gt;, row by row and draw by draw; the json gives the samples per draw of each rectangle.
++/// </summary>
++internal static class RayCensus
++{
++    private static readonly string? Prefix =
++        Environment.GetEnvironmentVariable("TERTIUS_PROBE_CENSUS") is { Length: > 0 } prefix ? prefix : null;
++
++    private static readonly (int First, int End) Draws = ParseDraws(
++        Environment.GetEnvironmentVariable("TERTIUS_PROBE_CENSUS_DRAWS") ?? "240-640"
++    );
++
++    private static readonly (int X0, int Y0, int X1, int Y1)[] Keeps = ParseKeeps(
++        Environment.GetEnvironmentVariable("TERTIUS_PROBE_CENSUS_KEEP") ?? ""
++    );
++
++    private static readonly HashSet<int> DumpAt =
++    [
++        .. (Environment.GetEnvironmentVariable("TERTIUS_PROBE_CENSUS_DUMP_AT") ?? "")
++            .Split(',', StringSplitOptions.RemoveEmptyEntries)
++            .Select(v => int.Parse(v, CultureInfo.InvariantCulture)),
++    ];
++
++    private static int draw;
++    private static int width;
++    private static int height;
++    private static double[][]? sums; // 12 arrays for X, then 12 for Xpre
++    private static readonly List<float> Stops = [];
++    private static BinaryWriter[]? keepWriters;
++    private static uint[] viewport = [];
++    private static readonly List<int> KeepCounts = [];
++
++    public static bool On => Prefix is not null;
++
++    private static (int, int) ParseDraws(string text)
++    {
++        string[] parts = text.Split('-');
++        return (int.Parse(parts[0], CultureInfo.InvariantCulture), int.Parse(parts[1], CultureInfo.InvariantCulture));
++    }
++
++    private static (int, int, int, int)[] ParseKeeps(string text) =>
++        [
++            .. text.Split(';', StringSplitOptions.RemoveEmptyEntries)
++                .Select(rect => rect.Split(',').Select(v => int.Parse(v, CultureInfo.InvariantCulture)).ToArray())
++                .Select(v => (v[0], v[1], v[2], v[3])),
++        ];
++
++    /// <summary>Called after each submitted draw.</summary>
++    public static void Observe(VulkanRenderer renderer, float? stops, uint renderWidth, uint renderHeight)
++    {
++        if (Prefix is null)
++            return;
++        int index = draw++;
++        if (index < Draws.First || index >= Draws.End)
++            return;
++        GpuImage image = renderer.ScreenTraceSignals.Diffuse.Sample(0);
++        float[] values = renderer.ReadImage(image);
++        if (sums is null)
++        {
++            width = (int)image.Extent.Width;
++            height = (int)image.Extent.Height;
++            sums = [.. Enumerable.Range(0, 24).Select(_ => new double[width * height])];
++            keepWriters = [.. Keeps.Select((_, k) => new BinaryWriter(File.Create($"{Prefix}.keep{k}")))];
++        }
++        Stops.Add(stops ?? float.NaN);
++        viewport = [renderWidth, renderHeight];
++        double[][] s = sums;
++        Parallel.For(0, height, row =>
++        {
++            for (int column = 0; column < width; column++)
++            {
++                int pixel = row * width + column;
++                float a = values[4 * pixel + 3];
++                if (!(a >= 0f))
++                    continue;
++                int bin = (int)a;
++                int kind = bin == 0 ? 0 : bin <= 22 ? 1 : 2;
++                double ratio = double.Exp2((a - bin) * 16f);
++                double x =
++                    0.2126 * values[4 * pixel] + 0.7152 * values[4 * pixel + 1] + 0.0722 * values[4 * pixel + 2];
++                Add(s, 0, pixel, kind, x);
++                Add(s, 12, pixel, kind, x * ratio);
++            }
++        });
++        float[] specular = Keeps.Length > 0 ? renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Sample(0)) : [];
++        for (int k = 0; k < Keeps.Length; k++)
++        {
++            (int x0, int y0, int x1, int y1) = Keeps[k];
++            BinaryWriter writer = keepWriters![k];
++            int count = 0;
++            for (int row = y0; row < y1; row++)
++            for (int column = x0; column < x1; column++)
++            {
++                int pixel = row * width + column;
++                float a = values[4 * pixel + 3];
++                if (!(a >= 0f))
++                    continue;
++                int bin = (int)a;
++                float x = 0.2126f * values[4 * pixel] + 0.7152f * values[4 * pixel + 1] + 0.0722f * values[4 * pixel + 2];
++                writer.Write(x);
++                writer.Write((float)(x * double.Exp2((a - bin) * 16f)));
++                writer.Write((byte)bin);
++                writer.Write(0.2126f * specular[4 * pixel] + 0.7152f * specular[4 * pixel + 1] + 0.0722f * specular[4 * pixel + 2]);
++                writer.Write(specular[4 * pixel + 3]);
++                count++;
++            }
++            KeepCounts.Add(count);
++        }
++        if (DumpAt.Contains(index))
++            DumpImages(renderer, $".d{index}");
++        if (index == Draws.End - 1)
++            Write(renderer);
++    }
++
++    private static void Add(double[][] s, int at, int pixel, int kind, double x)
++    {
++        s[at][pixel] += 1;
++        s[at + 1][pixel] += x;
++        s[at + 2][pixel] += x * x;
++        s[at + 3 + 3 * kind][pixel] += x;
++        s[at + 4 + 3 * kind][pixel] += x * x;
++        s[at + 5 + 3 * kind][pixel] += 1;
++    }
++
++    // The images that this draw's rays read: the hit light's two layers (the light that leaves each pixel toward a ray of
++    // the kind, which the plan writes from this draw's direct light and the last draw's histories), levels 0 to 2 of the
++    // light pyramid that the guided diffuse rays aim by, and this draw's diffuse and reflection samples (rgba: light and,
++    // in alpha, the census code or the hit distance), as float32 files <prefix><suffix>.<name>.f32 with their sizes in
++    // <prefix><suffix>.dump.json. RayCensus writes them at the last counted draw with TERTIUS_PROBE_CENSUS_DUMP=1, and at
++    // each draw listed in TERTIUS_PROBE_CENSUS_DUMP_AT with the suffix ".d<draw>".
++    private static void DumpImages(VulkanRenderer renderer, string suffix)
++    {
++        ScreenTraceImages images = renderer.ScreenTraceImages;
++        var sizes = new Dictionary<string, int[]>();
++        void Dump(string name, (float[] Values, int Width, int Height) level)
++        {
++            using var writer = new BinaryWriter(File.Create($"{Prefix}{suffix}.{name}.f32"));
++            foreach (float value in level.Values)
++                writer.Write(value);
++            sizes[name] = [level.Width, level.Height, level.Values.Length / (level.Width * level.Height)];
++        }
++        Dump("hit-reflection", renderer.CensusReadLevel(images.HitLight, 0, 0));
++        Dump("hit-diffuse", renderer.CensusReadLevel(images.HitLight, 1, 0));
++        Dump("pyramid-0", renderer.CensusReadLevel(images.LightPyramidImages.Finest, 0, 0));
++        Dump("pyramid-1", renderer.CensusReadLevel(images.LightPyramidImages.Image, 0, 0));
++        Dump("pyramid-2", renderer.CensusReadLevel(images.LightPyramidImages.Image, 0, 1));
++        Dump("sample-diffuse", renderer.CensusReadLevel(renderer.ScreenTraceSignals.Diffuse.Sample(0), 0, 0));
++        Dump("sample-reflection", renderer.CensusReadLevel(renderer.ScreenTraceSignals.Specular.Sample(0), 0, 0));
++        File.WriteAllText($"{Prefix}{suffix}.dump.json", System.Text.Json.JsonSerializer.Serialize(sizes));
++    }
++
++    private static void Write(VulkanRenderer renderer)
++    {
++        using (var writer = new BinaryWriter(File.Create($"{Prefix}.sums")))
++            foreach (double[] array in sums!)
++                foreach (double value in array)
++                    writer.Write(value);
++        foreach (BinaryWriter keep in keepWriters!)
++            keep.Dispose();
++        if (Environment.GetEnvironmentVariable("TERTIUS_PROBE_CENSUS_DUMP") == "1")
++            DumpImages(renderer, "");
++        float[] slow = renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.Slow(0));
++        using (var writer = new BinaryWriter(File.Create($"{Prefix}.slow")))
++            for (int pixel = 0; pixel < width * height; pixel++)
++                writer.Write(0.2126f * slow[4 * pixel] + 0.7152f * slow[4 * pixel + 1] + 0.0722f * slow[4 * pixel + 2]);
++        File.WriteAllText(
++            $"{Prefix}.json",
++            System.Text.Json.JsonSerializer.Serialize(
++                new
++                {
++                    Width = width,
++                    Height = height,
++                    Viewport = viewport,
++                    DrawFirst = Draws.First,
++                    DrawEnd = Draws.End,
++                    Keeps = Keeps.Select(k => new[] { k.X0, k.Y0, k.X1, k.Y1 }),
++                    Stops = Stops.Select(v => float.IsNaN(v) ? (double?)null : v),
++                    Encoding = "bins",
++                    KeepCounts,
++                }
++            )
++        );
++    }
++}
+diff --git a/src/Tertius.Rendering/Scene/SceneBatcher.cs b/src/Tertius.Rendering/Scene/SceneBatcher.cs
+index c44273fba..9b4ec796c 100644
+--- a/src/Tertius.Rendering/Scene/SceneBatcher.cs
++++ b/src/Tertius.Rendering/Scene/SceneBatcher.cs
+@@ -166,6 +166,9 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float
+             faces: facesOfMaps,
+             scene: scene
+         );
++        // PROBE (tools/renderer-survey): the lamps of the survey's switch, from the lights, before any view takes the
++        // placed or the visible instances, whose lamps then draw with the twins of their materials.
++        ProbeLampSwitch.Decide(scene, materials.Length);
+         // After the lights, which take the cascade sets, and before the far shadows, which follow what each set draws.
+         FitCascadeSets(snapshot, scene);
+         CollectFarShadows(scene);
+diff --git a/src/Tertius.Rendering/ShaderConstants.cs b/src/Tertius.Rendering/ShaderConstants.cs
+index d488470fe..e55fd5cfc 100644
+--- a/src/Tertius.Rendering/ShaderConstants.cs
++++ b/src/Tertius.Rendering/ShaderConstants.cs
+@@ -134,6 +134,8 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
+             (NeighborLimitPrototypeId, VkBool(values.NeighborLimitPrototype)),
+             (ReflectionSharingPrototypeId, VkBool(values.ReflectionSharingPrototype)),
+             (TileCornerMeansId, VkBool(values.TileCornerMeans)),
++            // PROBE (tools/renderer-survey): probeSignal of composite_pass.glsl.
++            (12u, uint.TryParse(Environment.GetEnvironmentVariable("TERTIUS_PROBE_SIGNAL"), out uint probeSignal) ? probeSignal : 0u),
+         ];
+         for (int i = 0; i < rows.Length; i++)
+         {
+@@ -165,7 +167,7 @@ internal struct SpecializationStorage
+     /// The number of constants: one per field of <see cref="ShaderConstants"/>, the subsurface setting's being its taps per
+     /// side. <see cref="ShaderConstants.Specialization"/> writes one row per constant, and a row past this count throws.
+     /// </summary>
+-    public const int Count = 12;
++    public const int Count = 13;
+ 
+     public SpecializationValues Data;
+     public SpecializationEntries Entries;
+diff --git a/src/Tertius.Rendering/Shaders/composite_pass.glsl b/src/Tertius.Rendering/Shaders/composite_pass.glsl
+index 72511023e..4a4419414 100644
+--- a/src/Tertius.Rendering/Shaders/composite_pass.glsl
++++ b/src/Tertius.Rendering/Shaders/composite_pass.glsl
+@@ -27,6 +27,11 @@ layout(set = 3, binding = 3, SPECULAR_HISTORY_FORMAT) uniform readonly image2D i
+ 
+ layout(location = 0) in vec3 inRay;
+ layout(location = 0) out vec4 outColor;
++
++// PROBE (tools/renderer-survey): TERTIUS_PROBE_SIGNAL shows one light signal alone. 0 all, 1 the direct light with the
++// emission, the sky and an impostor's baked light, 2 the bounce light (indirect diffuse), 3 the reflections (indirect
++// specular).
++layout(constant_id = 12) const int probeSignal = 0;
+ #ifdef SCATTER_OUTPUT
+ // The diffuse image: the pass writes every one of its pixels.
+ layout(location = 1) out vec4 outDiffuse;
+@@ -50,7 +55,9 @@ void main()
+ #ifdef TERTIUS_DIRECT_LIGHT_ONLY
+         outColor = vec4(0.0);
+ #else
+-        outColor = vec4(preExposed(skyRadiance(direction) + starRadiance(direction)), 1.0);
++        // PROBE: the sky and the stars count as direct light, so that the four renders add up.
++        outColor = probeSignal >= 2 ? vec4(0.0, 0.0, 0.0, 1.0)
++            : vec4(preExposed(skyRadiance(direction) + starRadiance(direction)), 1.0);
+ #endif
+         writeDiffuse(vec4(0.0));
+         return;
+@@ -64,7 +71,7 @@ void main()
+ #ifdef TERTIUS_DIRECT_DIFFUSE_ONLY
+         outColor = vec4(0.0);
+ #else
+-        outColor = vec4(emissive, 1.0);
++        outColor = vec4(probeSignal <= 1 ? emissive : vec3(0.0), 1.0);
+ #endif
+         writeDiffuse(vec4(0.0));
+         return;
+@@ -92,6 +99,15 @@ void main()
+         indirectSpecular = reflectionSharedAt(pixel, indirectSpecular);
+     // Each part is finite and at most a few times MaxRadiance, so the sum is finite, and the cap keeps the surfaces' share
+     // (docs/plans/screen-space-illumination.md, "The cap at MaxRadiance").
++    if (probeSignal != 0)
++    {
++        // PROBE: each signal alone, and its share of D for the skin scatter, so that the three signals add up.
++        directDiffuse *= float(probeSignal == 1);
++        directSpecular *= float(probeSignal == 1);
++        emissive *= float(probeSignal == 1);
++        indirectDiffuse *= float(probeSignal == 2);
++        indirectSpecular *= float(probeSignal == 3);
++    }
+     outColor = vec4(
+         min(directDiffuse + directSpecular + indirectDiffuse + indirectSpecular + emissive, vec3(MaxRadiance)), 1.0);
+     // D, at most MaxRadiance, and the mask, which marks the skin pixels that alone the scatter passes spread.
+diff --git a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
+index 4dd6f9346..b906925b2 100644
+--- a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
++++ b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
+@@ -77,7 +77,8 @@ void main()
+     if (!tracedSurface(pixel))
+     {
+         // The sky and the impostors: no signal, and the composite reads none there.
+-        imageStore(diffuseSample, pixel, vec4(0.0));
++        // PROBE (ter-8pco): -1 in alpha marks a pixel without a traced surface for the census.
++        imageStore(diffuseSample, pixel, vec4(0.0, 0.0, 0.0, -1.0));
+         imageStore(specularSample, pixel, vec4(0.0));
+ #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+         imageStore(specularSampleAge, pixel, uvec4(0u));
+@@ -96,7 +97,19 @@ void main()
+     WeighedRay diffuseRay = weighedRayOf(p, diffuse, KindDiffuse, plan);
+     vec3 diffuseLight = diffuseRay.brings ? diffuse.light.rgb * diffuseWeightOf(p, diffuseRay) : vec3(0.0);
+     // Capped as the specular sample is: a light at MaxRadiance times a weight of up to 4 passes the largest half float.
+-    imageStore(diffuseSample, pixel, vec4(min(diffuseLight, vec3(MaxRadiance)), 1.0));
++    // PROBE (ter-8pco, the ray census): alpha holds the sample's hit-distance bin plus a sixteenth of log2 of its
++    // pre-cap luminance over its luminance (capped at 15). Bin 0 is a miss (the record's hit distance is 0); a hit at
++    // distance d takes bin clamp(floor(2 log2 d) + 21, 1, 63), half an octave wide, so that 2 m is an edge: bins up to 22
++    // lie below 2 m and bins from 23 at or beyond it. No pass reads the diffuse sample's alpha, so the image's rgb and
++    // the frame are unchanged.
++    float censusDistance = diffuse.light.a;
++    float censusBin = censusDistance <= 0.0 ? 0.0 : clamp(floor(2.0 * log2(censusDistance)) + 21.0, 1.0, 63.0);
++    vec3 censusLuminance = vec3(0.2126, 0.7152, 0.0722);
++    float censusRawWeight = max(dot(p.normal, diffuseRay.direction), 0.0) / max(PI * diffuseRay.density, LeastRayCosine);
++    float censusCapped = dot(min(diffuseLight, vec3(MaxRadiance)), censusLuminance);
++    float censusRaw = diffuseRay.brings ? dot(diffuse.light.rgb, censusLuminance) * censusRawWeight : 0.0;
++    float censusRatio = censusCapped > 0.0 && censusRaw > censusCapped ? min(log2(censusRaw / censusCapped), 15.0) : 0.0;
++    imageStore(diffuseSample, pixel, vec4(min(diffuseLight, vec3(MaxRadiance)), censusBin + censusRatio / 16.0));
+ 
+     // The share of the diffuse ray's estimate in the specular sample: 0 below the hand-over band, 1 above it.
+     float handOver = clamp((sqrt(p.alpha) - trace.handOverStart) / (trace.maxRoughness - trace.handOverStart), 0.0, 1.0);
+diff --git a/src/Tertius.Rendering/Shaders/tonemap.glsl b/src/Tertius.Rendering/Shaders/tonemap.glsl
+index b013dc9f9..d40cc1df3 100644
+--- a/src/Tertius.Rendering/Shaders/tonemap.glsl
++++ b/src/Tertius.Rendering/Shaders/tonemap.glsl
+@@ -67,6 +67,18 @@ void main()
+ #endif
+     // The passes that wrote the HDR image pre-exposed it, so the curve takes it as it is.
+     vec3 hdr = max(light, vec3(0.0));
++    if (tonemap.toneCurve != toneCurveAcesFitted)
++    {
++        // PROBE (tools/renderer-survey): log2 luminance in 24 bits over 2^-24 to 2^16, each byte written as the linear
++        // value whose sRGB code it is.
++        float y = dot(hdr, vec3(0.2126, 0.7152, 0.0722));
++        float v = y > 0.0 ? clamp((log2(y) + 24.0) / 40.0, 0.0, 1.0) : 0.0;
++        uint q = uint(v * 16777215.0 + 0.5);
++        vec3 bytes = vec3(float(q >> 16u), float((q >> 8u) & 255u), float(q & 255u)) / 255.0;
++        vec3 lin = mix(bytes / 12.92, pow((bytes + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), bytes));
++        outColor = vec4(tonemap.encodeSrgb != 0u ? bytes : lin, 1.0);
++        return;
++    }
+     vec3 ldr = tonemap.toneCurve == toneCurveAcesFitted ? acesFitted(hdr) : hable(hdr);
+     if (tonemap.encodeSrgb != 0u)
+         ldr = linearToSrgb(ldr);
+diff --git a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
+index 07550b1d1..d87447933 100644
+--- a/src/Tertius.Rendering/VulkanRenderer.cs
++++ b/src/Tertius.Rendering/VulkanRenderer.cs
+@@ -553,7 +553,15 @@ public sealed unsafe class VulkanRenderer : IRenderer
+     public MaterialId CreateMaterial(MaterialDesc material)
+     {
+         ObjectDisposedException.ThrowIf(disposed, this);
+-        return uploads.AddMaterial(material);
++        MaterialId id = uploads.AddMaterial(material);
++        // PROBE (tools/renderer-survey): the twin of a glowing material, the same with no emission, for the lamps that the
++        // survey's switch turns off (ProbeLampSwitch).
++        if (ProbeLampSwitch.DarkensGlow && material.Emissive != default)
++            ProbeLampSwitch.AddTwin(
++                MaterialStore.Slot(id),
++                MaterialStore.Slot(uploads.AddMaterial(material with { Emissive = default }))
++            );
++        return id;
+     }
+ 
+     /// <summary>Requests a new output size. It takes effect at the start of the next <see cref="Render"/>.</summary>
+@@ -670,6 +678,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
+         device.Vk.ResetFences(device.Device, 1, &fence).Check("vkResetFences");
+         output.SubmitAndPresent(frame);
+         CommitDrawnFrame(frame: frame, snapshot: snapshot, pending: pending);
++        // PROBE (ter-8pco, never commit to src): the ray census reads this draw's diffuse samples back.
++        if (RayCensus.On)
++            RayCensus.Observe(this, Exposure.Latest?.Stops, pending.RenderSize.Width, pending.RenderSize.Height);
+ 
+         if (sink != null && capture != null)
+         {
+@@ -1724,6 +1735,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
+     /// Copies one mip of one layer of a color image of floats, of 16-bit signed normalized integers or of 8-bit unsigned
+     /// integers to the CPU, as floats, channel by channel, row by row from the top, with the mip's size.
+     /// </summary>
++    // PROBE (ter-8pco, never commit to src): the census's read of any level of any layer.
++    internal (float[] Values, int Width, int Height) CensusReadLevel(GpuImage image, int layer, int mip) =>
++        ReadLevel(image: image, layer: layer, mip: mip);
++
+     private (float[] Values, int Width, int Height) ReadLevel(GpuImage image, int layer, int mip)
+     {
+         (int channels, StoredChannel stored) = image.Format switch

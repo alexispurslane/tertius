@@ -10,6 +10,8 @@ A code reader (Codex GPT-6.1 SOL, reasoning effort high) wrote this report on 20
 
 The timings all come from 2026-11-02, on the Apple M1 Max at 1920 x 1080:
 
+The folder `captures/nw4a` was untracked and was deleted on 2026-11-22 to free disk space. The sources D and T below name files in it that no longer exist. Their numbers in this document stand.
+
 - D: demo-exit, deck camera, 120 frames. `captures/nw4a/timing-cost/deck-r7-cmain2/time-deck/gpu-timings.json:1`. `captures/nw4a/README.txt:55` names the control build.
 - S: the main baseline of the Metal trace spike, demo-exit antispinward camera, 120 frames. `docs/research/metal-trace-spike.md:234`. Its raw captures are gone.
 - T: the newest kept main trace, pbr-spheres low camera. `captures/nw4a/profile/pbrlow-cmain/passes.md:1`. It records actual GPU work, but it started under heavy machine load.

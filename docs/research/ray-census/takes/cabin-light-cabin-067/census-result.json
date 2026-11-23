@@ -1,0 +1,200 @@
+{
+ "case": "cabin-light-cabin",
+ "render": [
+  1280,
+  720
+ ],
+ "draws": [
+  240,
+  640
+ ],
+ "stops": [
+  -7.815502166748047,
+  -7.808813571929932
+ ],
+ "regions": [
+  {
+   "name": "floor with sun stripes",
+   "light": "Direct sunlight through the side and roof windows on the stripes, no direct light in the shadows between them; bounce light from the sunlit floor, walls and frame; the sky through the windows.",
+   "rect_output": [
+    700,
+    600,
+    1300,
+    950
+   ],
+   "rect_render": [
+    466,
+    400,
+    866,
+    633
+   ],
+   "after_caps": {
+    "pixels": 93200,
+    "mean_luminance": 0.09508512536013979,
+    "mean_variance": 0.054067251430748524,
+    "count_share": {
+     "miss": 0.8073951984978541,
+     "near": 0.04654149678111588,
+     "far": 0.14606330472103005
+    },
+    "mean_share": {
+     "miss": 0.27356963190144024,
+     "near": 0.14662421461599381,
+     "far": 0.5798061534825659
+    },
+    "variance_share": {
+     "miss": 0.021555854013504638,
+     "near": 0.17488076325971808,
+     "far": 0.8035633827267773
+    }
+   },
+   "before_caps": {
+    "pixels": 93200,
+    "mean_luminance": 0.09508512641302086,
+    "mean_variance": 0.05406725152683877,
+    "count_share": {
+     "miss": 0.8073951984978541,
+     "near": 0.04654149678111588,
+     "far": 0.14606330472103005
+    },
+    "mean_share": {
+     "miss": 0.2735696399452303,
+     "near": 0.14662421299241854,
+     "far": 0.5798061470623511
+    },
+    "variance_share": {
+     "miss": 0.021555857073746038,
+     "near": 0.17488076270621036,
+     "far": 0.8035633802200436
+    }
+   },
+   "check": {
+    "census_mean": 0.09508512536013979,
+    "slow_history_mean": 0.08795798569917679,
+    "ratio": 1.0810289094766037
+   }
+  },
+  {
+   "name": "floor beside the right wall, mostly in shade",
+   "light": "No direct light in most of it (dark in the direct-light still); one sun stripe crosses its lower left corner. Bounce light from the sunlit floor stripes and the right wall; the sky through the windows.",
+   "rect_output": [
+    1500,
+    800,
+    1800,
+    1000
+   ],
+   "rect_render": [
+    1000,
+    533,
+    1200,
+    666
+   ],
+   "after_caps": {
+    "pixels": 26600,
+    "mean_luminance": 0.08716569674432796,
+    "mean_variance": 0.043466400920016156,
+    "count_share": {
+     "miss": 0.732274060150376,
+     "near": 0.1856033834586466,
+     "far": 0.08212255639097744
+    },
+    "mean_share": {
+     "miss": 0.2817919015615725,
+     "near": 0.3015238427260348,
+     "far": 0.4166842557123928
+    },
+    "variance_share": {
+     "miss": 0.027989875949059266,
+     "near": 0.23949671889602037,
+     "far": 0.7325134051549202
+    }
+   },
+   "before_caps": {
+    "pixels": 26600,
+    "mean_luminance": 0.08716569774147682,
+    "mean_variance": 0.04346640102031615,
+    "count_share": {
+     "miss": 0.732274060150376,
+     "near": 0.1856033834586466,
+     "far": 0.08212255639097744
+    },
+    "mean_share": {
+     "miss": 0.28179190977765317,
+     "near": 0.30152383927669435,
+     "far": 0.41668425094565253
+    },
+    "variance_share": {
+     "miss": 0.027989879620970024,
+     "near": 0.23949671774412648,
+     "far": 0.7325134026349034
+    }
+   },
+   "check": {
+    "census_mean": 0.08716569674432796,
+    "slow_history_mean": 0.0803653672337532,
+    "ratio": 1.084617662366864
+   }
+  },
+  {
+   "name": "sunlit roof beams",
+   "light": "Direct sunlight through the roof windows; bounce light from the floor and the walls; the sky.",
+   "rect_output": [
+    800,
+    120,
+    1300,
+    200
+   ],
+   "rect_render": [
+    533,
+    80,
+    866,
+    133
+   ],
+   "after_caps": {
+    "pixels": 13738,
+    "mean_luminance": 0.033580676231755625,
+    "mean_variance": 0.010958100665244159,
+    "count_share": {
+     "miss": 0.9198088241716836,
+     "near": 0.016994003270405057,
+     "far": 0.06319717255791127
+    },
+    "mean_share": {
+     "miss": 0.36107981401781525,
+     "near": 0.08863844608074721,
+     "far": 0.5502817399014377
+    },
+    "variance_share": {
+     "miss": 0.07129831496291146,
+     "near": 0.09713669054696684,
+     "far": 0.8315649944901217
+    }
+   },
+   "before_caps": {
+    "pixels": 13738,
+    "mean_luminance": 0.03358067670919243,
+    "mean_variance": 0.01095810072695862,
+    "count_share": {
+     "miss": 0.9198088241716836,
+     "near": 0.016994003270405057,
+     "far": 0.06319717255791127
+    },
+    "mean_share": {
+     "miss": 0.36107982321292603,
+     "near": 0.08863844480509439,
+     "far": 0.5502817319819796
+    },
+    "variance_share": {
+     "miss": 0.07129832187685459,
+     "near": 0.09713668987944536,
+     "far": 0.8315649882437001
+    }
+   },
+   "check": {
+    "census_mean": 0.033580676231755625,
+    "slow_history_mean": 0.0301227830350399,
+    "ratio": 1.1147932842955903
+   }
+  }
+ ]
+}

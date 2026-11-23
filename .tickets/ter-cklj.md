@@ -24,3 +24,7 @@ To decide: a probe of the elliptical footprint on mirror-balls balls against the
 **2026-11-03T12:35:12Z**
 
 Closed on 2026-11-03 at the user's request, without its work merged: it belongs to the pre-temporal renderer (spatial reuse, the 12 ms performance push, or the old reflection and bounce pipeline), and epic ter-89xq, the temporal renderer, supersedes it. Its notes and any branch or worktree stay for reference.
+
+**2026-11-23T02:08:01Z**
+
+The capture folders captures/y8z0, captures/s6zr and captures/nw4a (untracked, about 6 GiB together) were deleted from the main checkout on 2026-11-22 to free disk space, with the approval of the user. The paths in the notes above that point into them no longer resolve. The numbers and the text of the notes stand.
