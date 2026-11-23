@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Numerics;
+using System.Text.RegularExpressions;
 using Silk.NET.Vulkan;
 
 namespace Tertius.Rendering.Tests;
@@ -264,7 +266,15 @@ public sealed class FrameHistoryTests
             Path.Combine(Gpu.RepositoryRoot, "src", "Tertius.Rendering", "Shaders", "sample_age.glsl")
         );
 
-        sampleAge.Should().Contain($"const float FullRateFrames = {FrameHistory.CatchUpDraws}.0;");
+        Match length = Regex.Match(
+            sampleAge,
+            @"const\s+float\s+FullRateFrames\s*=\s*([0-9.]+)"
+        );
+
+        length.Success.Should().BeTrue("sample_age.glsl declares the plan's own-ray length (t58-aqrg: one store)");
+        float.Parse(length.Groups[1].Value, CultureInfo.InvariantCulture)
+            .Should()
+            .Be(FrameHistory.CatchUpDraws);
     }
 
     [Fact]

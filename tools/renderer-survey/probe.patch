@@ -1,4 +1,4 @@
-# The survey's probe patch (tools/renderer-survey/probe.patch of 05a27262d), fitted to 05a27262d by t0-3vwx: the commit changed a comment line in the context of the sample_age.glsl hunk, so the original does not apply there. The changes are the original's.
+# The survey's probe patch (tools/renderer-survey/probe.patch of 05a27262d), fitted to 05a27262d by t0-3vwx: the commit changed a comment line in the context of the sample_age.glsl hunk, so the original does not apply there. Its FrameHistory.cs hunk was fitted again by ter-bcwr: the still rule of TERTIUS_PROBE_STILL_CONTINUES now lives in DrawIndexOf, the one draw-index rule of Begin and CostOf. The changes are the original's.
 diff --git a/src/Tertius.Host/ScriptCommand.Options.cs b/src/Tertius.Host/ScriptCommand.Options.cs
 index fd0cccb..1b779b7 100644
 --- a/src/Tertius.Host/ScriptCommand.Options.cs

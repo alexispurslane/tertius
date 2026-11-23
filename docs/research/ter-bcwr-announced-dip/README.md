@@ -112,8 +112,10 @@ two draws late, gives the requests of one reset in a scene of another cost (per 
   ordinary request stays where it was (`ADearCatchUpDrawAfterACheapCatchUpFitDoesNotMoveTheOrdinaryRequest`).
 - A cheap view after a dear fit: the catch-up draws stay small without need, as draw 133 does, and climb only at a
   twentieth of the gap.
-- The model's weight of 0.2 needs about 10 to 15 measurements to follow a new scene, which is 2 to 3 resets with 6
-  measurements each. The cheap case recovers more slowly, because the request rises at a twentieth of the gap.
+- The model's weight of 0.2 needs about 10 to 15 measurements to follow a new scene, which is 2 to 3 resets with 6 to 8
+  measurements each. The request of the cheap case recovers more slowly, because it rises at a twentieth of the gap: one
+  reset closes about 34 % of the gap, so it needs about 6 resets. t58-3n6v holds this and the case of an outlier in a
+  start's first draws.
 
 ## The pictures
 
@@ -139,7 +141,7 @@ same, and the boil and the settle are lower.
   At the return, no frame shows a pop or a blur step.
 - `pics/cut-edges-x3.png`: the window's edges at 3 ×. In draws 141 and 142, the last small draw and the first full-size
   draw, the build's top edge shows a faint row of dark dots that today's frames do not show. At 1:1 it is near
-  invisible, and draw 143 is clean again.
+  invisible, and draw 143 is clean again. t58-4x5u holds it.
 - The region means of `frames.series` rise smoothly through the return: the whole image moves by 0.07 from draw 141 to
   draw 142, and the left wall and the floor keep their slope.
 
