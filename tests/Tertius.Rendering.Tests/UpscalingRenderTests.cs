@@ -14,13 +14,16 @@ public sealed class UpscalingRenderTests
         VulkanRenderer renderer = WindowRenderer(width: 96, height: 80, target: new(16, 0.5f, 0.9f));
         try
         {
-            renderer.Render(BoxScene(renderer), 1);
+            // The run's first draw is no measurement (t0-ygp1), so the measured draw is the second.
+            RenderSnapshot scene = BoxScene(renderer);
+            renderer.Render(scene, 1);
+            renderer.Render(scene, 1);
             renderer.LastScene.Camera.Width.Should().Be(84);
             renderer.LastScene.Camera.Height.Should().Be(70);
 
             renderer.ScaleController!.Measure(
                 new(
-                    0,
+                    1,
                     new PassTiming[]
                     {
                         new("G-buffer", 20) { Stage = FrameGraph.Stage.GBuffer },
@@ -31,7 +34,8 @@ public sealed class UpscalingRenderTests
             );
 
             // 20 ms at 0.875 is 20 / 0.875² ms per unit area, so the budget of 14.4 ms wants 0.875 * sqrt(14.4 / 20),
-            // and a shrink moves a quarter of the way there. Frame 0 reset every history, so it was a catch-up draw.
+            // and a shrink moves a quarter of the way there. Frame 1 is the second draw after the reset of frame 0, so it
+            // was a catch-up draw.
             float wanted = 0.875f * MathF.Sqrt(14.4f / 20);
             renderer
                 .ScaleController.RequestedScaleFor(DrawCost.CatchUp)
@@ -386,11 +390,12 @@ public sealed class UpscalingRenderTests
                     widths.Add(renderer.LastScene.Camera.Width);
                 }
 
-                widths[..^1]
+                widths[0].Should().Be(160, "the run's first draw is no measurement, so draw 1 has no fitted model");
+                widths[1..^1]
                     .Should()
                     .OnlyContain(
                         width => width < 160,
-                        "draws 1 to 7 are catch-up draws, drawn at the fallen catch-up scale"
+                        "draws 2 to 7 are catch-up draws, drawn at the catch-up scale that draw 1's timings lowered"
                     );
                 widths[^1].Should().Be(160, "draw 8 is an ordinary draw, and no ordinary draw was measured");
             }

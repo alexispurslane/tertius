@@ -1,0 +1,106 @@
+[
+ {
+  "id": "Y01",
+  "file": "src/Tertius.Rendering/Upscaling/RenderScaleController.cs",
+  "line": 41,
+  "original": "private long firstDrawn = -1;",
+  "replacement": "private long firstDrawn = 0;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "DrawCostScaleTests",
+   "RenderScaleTests"
+  ],
+  "note": "the first draw taken as frame 0 before any draw"
+ },
+ {
+  "id": "Y02",
+  "file": "src/Tertius.Rendering/Upscaling/RenderScaleController.cs",
+  "line": 90,
+  "original": "if (firstDrawn < 0)",
+  "replacement": "if (true)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "DrawCostScaleTests",
+   "RenderScaleTests"
+  ],
+  "note": "every draw becomes the first draw"
+ },
+ {
+  "id": "Y03",
+  "file": "src/Tertius.Rendering/Upscaling/RenderScaleController.cs",
+  "line": 90,
+  "original": "if (firstDrawn < 0)",
+  "replacement": "if (firstDrawn <= 0)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "DrawCostScaleTests",
+   "RenderScaleTests"
+  ],
+  "note": "a first draw of frame 0 is replaced by the next draw"
+ },
+ {
+  "id": "Y04",
+  "file": "src/Tertius.Rendering/Upscaling/RenderScaleController.cs",
+  "line": 91,
+  "original": "firstDrawn = frame;",
+  "replacement": "firstDrawn = 0;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "DrawCostScaleTests",
+   "RenderScaleTests"
+  ],
+  "note": "the first draw is always frame 0"
+ },
+ {
+  "id": "Y05",
+  "file": "src/Tertius.Rendering/Upscaling/RenderScaleController.cs",
+  "line": 105,
+  "original": "if (timings.Frame == firstDrawn)",
+  "replacement": "if (timings.Frame <= firstDrawn)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "DrawCostScaleTests",
+   "RenderScaleTests"
+  ],
+  "note": "frames before the first draw skipped too"
+ },
+ {
+  "id": "Y06",
+  "file": "src/Tertius.Rendering/Upscaling/RenderScaleController.cs",
+  "line": 105,
+  "original": "if (timings.Frame == firstDrawn)",
+  "replacement": "if (timings.Frame != firstDrawn)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "DrawCostScaleTests",
+   "RenderScaleTests"
+  ],
+  "note": "only the first draw measured"
+ },
+ {
+  "id": "Y07",
+  "file": "src/Tertius.Rendering/Upscaling/RenderScaleController.cs",
+  "line": 105,
+  "original": "if (timings.Frame == firstDrawn)",
+  "replacement": "if (timings.Frame == firstDrawn - 1_000_000_000)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "DrawCostScaleTests",
+   "RenderScaleTests"
+  ],
+  "note": "the rule removed"
+ },
+ {
+  "id": "Y08",
+  "file": "src/Tertius.Rendering/Upscaling/RenderScaleController.cs",
+  "line": 200,
+  "original": "Contract.Invariant(firstDrawn >= 0 && measured > firstDrawn);",
+  "replacement": "Contract.Invariant(true);",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "DrawCostScaleTests",
+   "RenderScaleTests"
+  ],
+  "note": "the invariant of the new fact removed"
+ }
+]

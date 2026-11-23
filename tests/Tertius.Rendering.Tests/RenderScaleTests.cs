@@ -21,6 +21,18 @@ internal static class RenderScaleTesting
     }
 
     /// <summary>
+    /// A controller whose first draw, frame 0, is recorded and measured at a dear cost. The run's first draw is no
+    /// measurement (t0-ygp1), so a test whose subject is a measurement draws its frames from 1 after it.
+    /// </summary>
+    public static RenderScaleController AfterItsFirstDraw(FrameTimeTarget target)
+    {
+        var controller = new RenderScaleController(target);
+        float scale = controller.Next(frame: 0);
+        controller.Measure(Timings(frame: 0, scale: scale, renderCost: 1000));
+        return controller;
+    }
+
+    /// <summary>
     /// The timings of a frame drawn at <paramref name="scale"/>: 3.2 ms of fixed work, of which 3 ms before the output,
     /// <paramref name="renderCost"/> ms per unit of render area at the render size, and <paramref name="outputWait"/> ms
     /// of wait in the output.
@@ -285,12 +297,12 @@ public sealed class RenderScaleTests
     [Fact]
     public void TheDelayedTimingsOfADrawCountTheScaleThatTheDrawRealized()
     {
-        var controller = new RenderScaleController(new(16, 0.5f, 0.9f));
+        RenderScaleController controller = AfterItsFirstDraw(new(16, 0.5f, 0.9f));
         controller.RequestedScaleFor(DrawCost.Ordinary).Should().Be(0.9f);
 
         // The exact-ratio size realized 0.875 of the requested 0.9: 1680 × 945 of a 1920 × 1080 output.
-        controller.Drew(frame: 0, realizedScale: 0.875f, cost: DrawCost.Ordinary);
-        controller.Measure(Timings(frame: 0, scale: 0.875f, renderCost: 40, outputWait: 0));
+        controller.Drew(frame: 1, realizedScale: 0.875f, cost: DrawCost.Ordinary);
+        controller.Measure(Timings(frame: 1, scale: 0.875f, renderCost: 40, outputWait: 0));
 
         // The fixed work is 3 ms and the work at the render size 40 ms per unit area, so 14.4 ms wants
         // sqrt(11.4 / 40), and a shrink moves a quarter of the way there.
@@ -440,48 +452,49 @@ public sealed class RenderScaleTests
     [Fact]
     public void ARepeatedMeasurementOfAFinishedFrameDoesNotMoveTheScaleAgain()
     {
-        var controller = new RenderScaleController(FrameTimeTarget.Default);
-        controller.Next(0);
-        GpuTimings timings = Timings(frame: 0, scale: 1, renderCost: 24, outputWait: 0);
+        RenderScaleController controller = AfterItsFirstDraw(FrameTimeTarget.Default);
+        controller.Next(1);
+        GpuTimings timings = Timings(frame: 1, scale: 1, renderCost: 24, outputWait: 0);
         controller.Measure(timings);
-        float afterFirst = controller.Next(1);
+        float afterFirst = controller.Next(2);
+        afterFirst.Should().BeLessThan(1, "the measurement moved the request");
 
         controller.Measure(timings);
 
-        controller.Next(2).Should().Be(afterFirst);
+        controller.Next(3).Should().Be(afterFirst);
         controller.AssertInvariants();
     }
 
     [Fact]
     public void AStaleMeasurementCannotUseTheScaleOfANewerFrameInTheSameSlot()
     {
-        var controller = new RenderScaleController(FrameTimeTarget.Default);
-        for (long frame = 0; frame <= 16; frame++)
+        RenderScaleController controller = AfterItsFirstDraw(FrameTimeTarget.Default);
+        for (long frame = 1; frame <= 17; frame++)
             controller.Next(frame);
 
-        controller.Measure(Timings(frame: 0, scale: 1, renderCost: 100, outputWait: 0));
+        controller.Measure(Timings(frame: 1, scale: 1, renderCost: 100, outputWait: 0));
 
-        controller.Next(17).Should().Be(1);
+        controller.Next(18).Should().Be(1);
         controller.AssertInvariants();
     }
 
     [Fact]
     public void DelayingTheSamePerAreaLoadDoesNotChangeTheScaleResponse()
     {
-        var immediate = new RenderScaleController(FrameTimeTarget.Default);
-        var delayed = new RenderScaleController(FrameTimeTarget.Default);
-        immediate.Next(0);
-        delayed.Next(0);
+        RenderScaleController immediate = AfterItsFirstDraw(FrameTimeTarget.Default);
+        RenderScaleController delayed = AfterItsFirstDraw(FrameTimeTarget.Default);
+        immediate.Next(1);
         delayed.Next(1);
-        GpuTimings first = Timings(frame: 0, scale: 1, renderCost: 24, outputWait: 0);
+        delayed.Next(2);
+        GpuTimings first = Timings(frame: 1, scale: 1, renderCost: 24, outputWait: 0);
         immediate.Measure(first);
         delayed.Measure(first);
-        float immediateScale = immediate.Next(1);
+        float immediateScale = immediate.Next(2);
 
-        immediate.Measure(Timings(frame: 1, scale: immediateScale, renderCost: 24, outputWait: 0));
-        delayed.Measure(Timings(frame: 1, scale: 1, renderCost: 24, outputWait: 0));
+        immediate.Measure(Timings(frame: 2, scale: immediateScale, renderCost: 24, outputWait: 0));
+        delayed.Measure(Timings(frame: 2, scale: 1, renderCost: 24, outputWait: 0));
 
-        delayed.Next(2).Should().BeApproximately(immediate.Next(2), 0.000001f);
+        delayed.Next(3).Should().BeApproximately(immediate.Next(3), 0.000001f);
         delayed.AssertInvariants();
     }
 
@@ -492,51 +505,51 @@ public sealed class RenderScaleTests
     [InlineData(-1)]
     public void AnInvalidGpuCostDoesNotInfluenceThisOrLaterMeasurements(double milliseconds)
     {
-        var controller = new RenderScaleController(FrameTimeTarget.Default);
-        var reference = new RenderScaleController(FrameTimeTarget.Default);
-        controller.Next(0);
-        PassTiming[] invalid = Timings(frame: 0, scale: 1, renderCost: 24, outputWait: 0).Passes.ToArray();
+        RenderScaleController controller = AfterItsFirstDraw(FrameTimeTarget.Default);
+        RenderScaleController reference = AfterItsFirstDraw(FrameTimeTarget.Default);
+        controller.Next(1);
+        PassTiming[] invalid = Timings(frame: 1, scale: 1, renderCost: 24, outputWait: 0).Passes.ToArray();
         invalid[1] = invalid[1] with { Milliseconds = milliseconds };
 
-        controller.Measure(new(0, invalid, 0));
+        controller.Measure(new(1, invalid, 0));
 
-        controller.Next(1).Should().Be(1);
-        reference.Next(1);
-        GpuTimings valid = Timings(frame: 1, scale: 1, renderCost: 24, outputWait: 0);
+        controller.Next(2).Should().Be(1);
+        reference.Next(2);
+        GpuTimings valid = Timings(frame: 2, scale: 1, renderCost: 24, outputWait: 0);
         controller.Measure(valid);
         reference.Measure(valid);
-        controller.Next(2).Should().Be(reference.Next(2));
+        controller.Next(3).Should().Be(reference.Next(3));
         controller.AssertInvariants();
     }
 
     [Fact]
     public void AnIncompletePassSpanDoesNotInfluenceLaterMeasurements()
     {
-        var controller = new RenderScaleController(FrameTimeTarget.Default);
-        controller.Next(0);
-        PassTiming[] incomplete = Timings(frame: 0, scale: 1, renderCost: 100, outputWait: 0).Passes.ToArray()[..^1];
+        RenderScaleController controller = AfterItsFirstDraw(FrameTimeTarget.Default);
+        controller.Next(1);
+        PassTiming[] incomplete = Timings(frame: 1, scale: 1, renderCost: 100, outputWait: 0).Passes.ToArray()[..^1];
 
-        controller.Measure(new(0, incomplete, 103));
+        controller.Measure(new(1, incomplete, 103));
 
-        controller.Next(1).Should().Be(1);
+        controller.Next(2).Should().Be(1);
         controller.AssertInvariants();
     }
 
     [Fact]
     public void AFrameWithoutScalingWorkDoesNotContaminateTheCostModel()
     {
-        var controller = new RenderScaleController(FrameTimeTarget.Default);
-        var reference = new RenderScaleController(FrameTimeTarget.Default);
-        controller.Next(0);
-        controller.Measure(Timings(frame: 0, scale: 1, renderCost: 0, outputWait: 0));
-        controller.Next(1).Should().Be(1);
-        reference.Next(1);
-        GpuTimings valid = Timings(frame: 1, scale: 1, renderCost: 24, outputWait: 0);
+        RenderScaleController controller = AfterItsFirstDraw(FrameTimeTarget.Default);
+        RenderScaleController reference = AfterItsFirstDraw(FrameTimeTarget.Default);
+        controller.Next(1);
+        controller.Measure(Timings(frame: 1, scale: 1, renderCost: 0, outputWait: 0));
+        controller.Next(2).Should().Be(1);
+        reference.Next(2);
+        GpuTimings valid = Timings(frame: 2, scale: 1, renderCost: 24, outputWait: 0);
 
         controller.Measure(valid);
         reference.Measure(valid);
 
-        controller.Next(2).Should().Be(reference.Next(2));
+        controller.Next(3).Should().Be(reference.Next(3));
         controller.AssertInvariants();
     }
 
