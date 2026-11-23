@@ -355,6 +355,52 @@ public sealed class UpscalingRenderTests
         }
     }
 
+    /// <summary>
+    /// The window's render size in the catch-up draws after a reset and in the draw after them (ter-bcwr): a class of
+    /// its own, so that a mutant run can take it alone.
+    /// </summary>
+    [Collection(GpuCollection.Name)]
+    public sealed class CatchUpDraws
+    {
+        [Fact]
+        public void AWindowDrawsTheCatchUpDrawsAtTheCatchUpScaleAndTheDrawAfterThemAtTheOrdinaryScale()
+        {
+            VulkanRenderer renderer = WindowRenderer();
+            try
+            {
+                RenderSnapshot scene = BoxScene(renderer);
+                renderer.Render(scene, 1);
+                var widths = new List<int>();
+
+                // Each draw after the start reports a G-buffer far over the budget for the draw before it, a catch-up
+                // draw.
+                for (int draw = 1; draw <= FrameHistory.CatchUpDraws; draw++)
+                {
+                    DriveScale(
+                        renderer: renderer,
+                        scene: scene,
+                        frames: 1,
+                        renderMilliseconds: 100,
+                        fixedMilliseconds: 1
+                    );
+                    widths.Add(renderer.LastScene.Camera.Width);
+                }
+
+                widths[..^1]
+                    .Should()
+                    .OnlyContain(
+                        width => width < 160,
+                        "draws 1 to 7 are catch-up draws, drawn at the fallen catch-up scale"
+                    );
+                widths[^1].Should().Be(160, "draw 8 is an ordinary draw, and no ordinary draw was measured");
+            }
+            finally
+            {
+                Gpu.DisposeAndAssertClean(renderer);
+            }
+        }
+    }
+
     [Fact]
     public void WindowResolutionChangesKeepTheImagesAndHistoryWhileClearingInactiveDepth()
     {

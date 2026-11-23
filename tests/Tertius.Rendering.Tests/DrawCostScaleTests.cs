@@ -118,6 +118,30 @@ public sealed class DrawCostScaleTests
     }
 
     [Fact]
+    public void ADearCatchUpDrawAfterACheapCatchUpFitDoesNotMoveTheOrdinaryRequest()
+    {
+        var controller = new RenderScaleController(FrameTimeTarget.Default);
+        long frame = 0;
+        // A reset in a cheap view, whose catch-up draws fit the budget at the full scale, then ordinary draws that settle.
+        for (; frame < 8; frame++)
+            controller.Measure(Timings(frame: frame, scale: controller.Next(frame, DrawCost.CatchUp), renderCost: 12));
+        for (; frame < 60; frame++)
+            controller.Measure(
+                Timings(frame: frame, scale: controller.Next(frame, DrawCost.Ordinary), renderCost: OrdinaryCost)
+            );
+        float ordinary = controller.RequestedScaleFor(DrawCost.Ordinary);
+
+        // A reset in a dear view.
+        for (; frame < 68; frame++)
+            controller.Measure(
+                Timings(frame: frame, scale: controller.Next(frame, DrawCost.CatchUp), renderCost: 3 * CatchUpCost)
+            );
+
+        controller.RequestedScaleFor(DrawCost.Ordinary).Should().Be(ordinary);
+        controller.AssertInvariants();
+    }
+
+    [Fact]
     public void ALaterResetAsksForTheFittedCatchUpScaleInItsFirstDraw()
     {
         Run run = RunWithACut();

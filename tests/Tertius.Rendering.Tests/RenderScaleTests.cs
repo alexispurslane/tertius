@@ -418,6 +418,23 @@ public sealed class RenderScaleTests
     }
 
     [Fact]
+    public void ARequestBelowTheLargestScaleWhoseCostLiesInsideTheBandStaysExactlyWhereItIs()
+    {
+        var controller = new RenderScaleController(FrameTimeTarget.Default);
+        long frame = 0;
+        for (; frame < 60; frame++)
+            controller.Measure(Timings(frame: frame, scale: controller.Next(frame), renderCost: 20));
+        float settled = controller.RequestedScaleFor(DrawCost.Ordinary);
+
+        // A slightly lighter load, whose cost at the request's area, about 3 ms + 19.96 ms × scale², stays within 3 % of
+        // the budget, although the scale that it wants lies a little higher.
+        controller.Measure(Timings(frame: frame, scale: controller.Next(frame), renderCost: 19.8));
+
+        settled.Should().BeLessThan(0.9f, "the load holds the request well below the largest scale");
+        controller.RequestedScaleFor(DrawCost.Ordinary).Should().Be(settled);
+    }
+
+    [Fact]
     public void ARepeatedMeasurementOfAFinishedFrameDoesNotMoveTheScaleAgain()
     {
         var controller = new RenderScaleController(FrameTimeTarget.Default);
