@@ -50,7 +50,7 @@ From the orchestrator, 2026-11-22, after the review of the indirect lighting's a
 
 **2026-11-23T06:01:43Z**
 
-2026-11-23, 01:06 New York time, the line orchestrator. Closed with the answer no: the shortest history length that keeps a block's shared ray stays 8 draws. The orchestrator allowed the close on the sweep of the catch-up ray experiment (t0-gumm, docs/research/t0-gumm-catch-up-spread/README.md, "The sweep").
+2026-11-23, 01:01 New York time, the line orchestrator. Closed with the answer no: the shortest history length that keeps a block's shared ray stays 8 draws. The orchestrator allowed the close on the sweep of the catch-up ray experiment (t0-gumm, docs/research/t0-gumm-catch-up-spread/README.md, "The sweep").
 
 The ticket's model is one constant with two readers, so one case that fails the bar decides it. That case is the start of a bounce-lit room, bay-sunbeam at the constant scale 2/3:
 
