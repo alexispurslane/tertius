@@ -87,6 +87,7 @@ cat "$D/ramp-jambs-main-c4c1f1f2f.txt"
 section "12. Frame time, take T17: the deck and the film rect-bay, M (main) against X (build), paired rounds (table.py)"
 if [ -d $B/t17/timing ]; then python3 -I "$T/table.py" $B/t17/timing main build; else echo "T17 did not run on the earlier code: its take on the merged code is section 13h"; fi
 
+PNG=$(mktemp -d)/chart.png  # costchart.py always draws a chart; section 13 prints only its numbers
 section "13. The takes on the merged code (README, 'The takes on the merged code'): MF main 3549d3283, XF the build fin of 16d915a67, AF fin with both clamps off"
 echo "-- 13a. The stills (stilltable.py)"
 SIDES=MF,XF python3 -I "$T/stilltable.py" sF cF
@@ -115,6 +116,10 @@ for run in xb-s1 xb-s2 fin-s1 fin-s2 xb-p1 fin-p1 xb-p2 fin-p2; do
   f=$C/cost-$run/time-193-393.txt
   [ -s "$f" ] && args+=("$run|$f")
 done
-python3 -I "$T/costchart.py" "$(mktemp -d)/cost-pair.png" "${args[@]}"
+python3 -I "$T/costchart.py" "$PNG" "${args[@]}" 2>&1 | grep -v "^$PNG"
 echo "-- 13h. T17 on the merged code: main 3549d3283 (main) against bcece06cb (build), paired rounds (table.py)"
 python3 -I "$T/table.py" $B/t17f/timing main build
+echo "-- 13i. The card's render sizes and GPU spans through the fair switch on the merged code, job f8b8cba5 (dynscale.py, costchart.py)"
+python3 -I "$T/dynscale.py" "$D/cloud-final-16ms" 2>&1
+TITLE="The card, 16.67 ms, the merged code" python3 -I "$T/costchart.py" "$PNG" "XF card|$D/cloud-final-16ms/time-193-393.txt" 2>&1 | grep -v "^$PNG"
+rm -rf "$(dirname "$PNG")"

@@ -3340,6 +3340,8 @@ The precise specular history stores 32-bit floats, so `slowHistoryValue` gives i
 
 Only the two plain stores round the same way on both drivers, toward zero. The blend and `packHalf2x16` differ. `nearestHalf` relies on none of them: it gives a half float before the store, and every path keeps a half float exactly.
 
+The spread of a set of samples. A variance from plain moments, E[x²] − E[x]², cancels to a few ulps of the mean's square where all samples are equal, and that remainder depends on the driver's arithmetic: NVIDIA's left a σ of about 1e-4 of the light, and the clamp's box then stopped above the mean (ticket `tc-8142`). So each shader that measures a spread takes it around one of its own samples: the offsets of equal samples are exactly 0, and so is the spread. Three places do this: the clamp's box in `accumulate_spatial.comp` (around the pixel's own fast history), the young variance in `diffuse_filter_variance.comp` (around the pixel's luminance) and the region test's older window in `region_drift.glsl`. Ticket `tc-l0jm` makes one function of them.
+
 | Input from the CPU | What the renderer does with it |
 |---|---|
 | A radiance or a fraction | Reads it into its range, as above |

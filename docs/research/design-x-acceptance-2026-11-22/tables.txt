@@ -496,7 +496,7 @@ T17 did not run on the earlier code: its take on the merged code is section 13h
 
 == 13. The takes on the merged code (README, 'The takes on the merged code'): MF main 3549d3283, XF the build fin of 16d915a67, AF fin with both clamps off
 -- 13a. The stills (stilltable.py)
-case                        specks M        X  blotch M        X   level M         X  verdict per measure  failed M | X
+case                       specks MF       XF blotch MF       XF  level MF        XF  verdict per measure  failed MF | XF
 bay-sunbeam                   0.1437   0.1536    0.0345   0.0294   +0.0008   -0.0004  blotch:better        - | -
 box-cabin                     0.1823   0.1429    0.0205   0.0160   -0.0005   -0.0004  specks:better blotch:better - | -
 cabin-light-cabin             0.1823   0.1429    0.0205   0.0160   -0.0005   -0.0004  specks:better blotch:better - | -
@@ -537,13 +537,13 @@ eF-MF      docking-bay  daub 0.0428  broad 0.1126  smooth share 0.75  walls 0.04
 eF-XF      docking-bay  daub 0.0301  broad 0.0563  smooth share 0.75  walls 0.0309  floor 0.0247
 eF-AF      docking-bay  daub 0.0209  broad 0.0284  smooth share 0.75  walls 0.0208  floor 0.0219
 -- 13c. The bay films (motiontable.py)
-film                       flicker M        X  grain M        X  blotch M       X  level M        X  verdict  failed M | X
+film                       flicker MF       XF grain MF       XF blotch MF      XF level MF       XF  verdict  failed MF | XF
 bay-sunbeam                  0.00397  0.00522  0.00951  0.00991     0.336   0.206   -0.599   -0.375  flicker:worse blotch:better level:better  motion blotches,motion level | motion blotches,motion level
-    M samples: middle blotch 0.336 level -0.599, end blotch 0.243 level -0.160
-    X samples: middle blotch 0.206 level -0.375, end blotch 0.129 level -0.067
+    MF samples: middle blotch 0.336 level -0.599, end blotch 0.243 level -0.160
+    XF samples: middle blotch 0.206 level -0.375, end blotch 0.129 level -0.067
 rect-bay                     0.00190  0.00247  0.00580  0.00637     0.259   0.232   +1.349   +1.089  flicker:worse blotch:better level:better  motion blotches,motion level | motion blotches,motion level
-    M samples: middle blotch 0.259 level +1.349, end blotch 0.168 level +0.241
-    X samples: middle blotch 0.232 level +1.089, end blotch 0.140 level +0.151
+    MF samples: middle blotch 0.259 level +1.349, end blotch 0.168 level +0.241
+    XF samples: middle blotch 0.232 level +1.089, end blotch 0.140 level +0.151
 films by their worst measure: {'worse': 2}
 -- 13d. The switches (switchtable.py)
 case           run          off    on  off whole  on whole   change  failed
@@ -555,7 +555,6 @@ cabin          fair-MF      142    92        122        53  -0.7287  settle
 cabin          fair-XF       82    54         71        34  -0.7279  settle
 -- 13e. The boil of XF's fair switch (boilnoise.py at the time of the take; its frames were deleted after it)
 FIN: floor: before off 0.02 (0.03), off 0-60 0.25 (1.33), off 60-200 0.06 (0.13), on 0-100 0.05 (0.21) | left wall: before off 0.02 (0.03), off 0-60 0.26 (1.55), off 60-200 0.04 (0.10), on 0-100 0.19 (0.80) | ceiling: before off 0.04 (0.05), off 0-60 0.27 (1.82), off 60-200 0.07 (0.14), on 0-100 0.13 (0.76)
-exit 0
 -- 13f. The cabin ceiling's specks: the top third of each cabin still (ceilingspecks.py)
 case                 run           whole  top third  per 10k (saved)  per 10k (run)
 cabin-light-cabin    M                31         12           0.1529         0.1628
@@ -619,7 +618,6 @@ xb-p1 mean of rounds: settled on 15.30 ms, off 0-59 15.22 ms, off 100-199 15.13 
 fin-p1 mean of rounds: settled on 15.60 ms, off 0-59 15.58 ms, off 100-199 15.52 ms, on 0-59 15.69 ms
 xb-p2 mean of rounds: settled on 15.48 ms, off 0-59 15.32 ms, off 100-199 15.20 ms, on 0-59 15.42 ms
 fin-p2 mean of rounds: settled on 15.62 ms, off 0-59 15.62 ms, off 100-199 15.52 ms, on 0-59 15.68 ms
-/var/folders/_5/rvlgtdt90glbmz2x79dmv02w0000gn/T/tmp.lsFJSIkss1/cost-pair.png (1300, 560)
 -- 13h. T17 on the merged code: main 3549d3283 (main) against bcece06cb (build), paired rounds (table.py)
 deck: round, main ms, build ms, difference, clocks, loads
   t1  19.313  19.479  +0.166  unknown / unknown  4.95 / 5.30
@@ -631,3 +629,14 @@ film: round, main ms, build ms, difference, clocks, loads
   t2  15.854  15.711  -0.143  unknown / unknown  7.61 / 8.57
   t3  15.839  15.709  -0.130  unknown / unknown  7.73 / 6.06
   median difference -0.143 ms, spread 0.027 ms, n 3
+-- 13i. The card's render sizes and GPU spans through the fair switch on the merged code, job f8b8cba5 (dynscale.py, costchart.py)
+== cloud-final-16ms: 493 draws in the size log, 0 in the region log, sizes [(992, 558)] to [(1920, 1080)] (48 different)
+span                       draws  changes  longest  runs>=36         scale   tested    fires
+before the switch        36-192        23      110         1  0.756-0.944      n/a      n/a
+200 draws after off     193-392         0      200         1  0.944-0.946      n/a      n/a
+100 draws after off     193-292         0      100         1  0.944-0.945      n/a      n/a
+100 draws after on      393-492         0      100         1  0.946-0.946      n/a      n/a
+XF card: settled on 17.55 ms, off 0-59 17.62 ms, off 100-199 17.52 ms, on 0-59 17.68 ms
+    after off: peak 17.88 ms, 0 draws above settled + 1 ms
+    after on: peak 18.10 ms, 0 draws above settled + 1 ms
+XF mean of rounds: settled on 17.55 ms, off 0-59 17.62 ms, off 100-199 17.52 ms, on 0-59 17.68 ms

@@ -42,12 +42,13 @@ def num(v, digits):
     return 'n/a' if v is None else f'{v:+.{digits}f}' if digits < 0 else f'{v:.{digits}f}'
 
 
-m, x = (results(side) for side in os.environ.get('SIDES', 'M,X').split(','))
+M, X = os.environ.get('SIDES', 'M,X').split(',')
+m, x = results(M), results(X)
 counts = {}
-print(f"{'film':26s} {'flicker M':>9s} {'X':>8s} {'grain M':>8s} {'X':>8s} {'blotch M':>9s} {'X':>7s} {'level M':>8s} {'X':>8s}  verdict  failed M | X")
+print(f"{'film':26s} {'flicker ' + M:>9s} {X:>8s} {'grain ' + M:>8s} {X:>8s} {'blotch ' + M:>9s} {X:>7s} {'level ' + M:>8s} {X:>8s}  verdict  failed {M} | {X}")
 for film in sorted(set(m) | set(x)):
     if film not in m or film not in x:
-        print(f'{film:26s} missing on {"M" if film not in m else "X"}')
+        print(f'{film:26s} missing on {M if film not in m else X}')
         continue
     a, b = m[film], x[film]
     verdicts = {k: compare(k, value(a, k), value(b, k)) for k in FLOORS}
@@ -58,7 +59,7 @@ for film in sorted(set(m) | set(x)):
     bl = lambda r: 'n/a' if r.get('blotch') is None else f"{r['blotch']:.3f}"
     print(f"{film:26s} {num(a['flicker'], 5):>9s} {num(b['flicker'], 5):>8s} {num(a['grainFlicker'], 5):>8s} {num(b['grainFlicker'], 5):>8s} "
           f"{bl(a):>9s} {bl(b):>7s} {lv(a):>8s} {lv(b):>8s}  {marks}  {','.join(a['failed']) or '-'} | {','.join(b['failed']) or '-'}")
-    for side, r in (('M', a), ('X', b)):
+    for side, r in ((M, a), (X, b)):
         s = r.get('samples') or {}
         print(f"    {side} samples: " + ', '.join(f"{k} blotch {bl(v)} level {lv(v)}" for k, v in s.items()))
 print('films by their worst measure:', counts)

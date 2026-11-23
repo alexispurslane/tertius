@@ -1,11 +1,13 @@
 # Tool code of t0-5tyj. stilltable.py [run group...]: the survey's still part, M beside X, per case, from the runs
-# s<g>-M and s<g>-X in /private/tmp/t0-5tyj/runs. A group that is not a digit names the runs' whole prefix (cF gives
-# cF-<side>), and SIDES=<M side>,<X side> names the sides (default M,X; the merged code's takes are SIDES=MF,XF) (default groups 1 to 7; group 7 holds only X's retakes, which pair with group 6's M by case name). Per case: specks (bright single-pixel groups
-# per 10,000 visible pixels, beyond the reference's; one speck in a 1920 x 1080 view is 0.0048), blotch (the survey's
-# score against the build's own long reference; limit 0.04) and level (the still against its long reference, minus 1),
-# and the survey's failed measures of each side. A measure counts as worse on X where X's value passes M's by more than
-# 10 % and by more than its floor: one speck (0.0049) for specks, 0.001 for blotch, 0.002 for the level's magnitude. The
-# same rule the other way counts as better. Every case with a worse measure needs a sheet of pictures (the record's rule).
+# s<g>-M and s<g>-X in /private/tmp/t0-5tyj/runs (default groups 1 to 7; group 7 holds only X's retakes, which pair with
+# group 6's M by case name). A group that is not a digit names the runs' whole prefix (cF gives cF-<side>), and
+# SIDES=<M side>,<X side> names the sides (default M,X; the merged code's takes are SIDES=MF,XF). Per case: specks
+# (bright single-pixel groups per 10,000 visible pixels, beyond the reference's; one speck in a 1920 x 1080 view is
+# 0.0048), blotch (the survey's score against the build's own long reference; limit 0.04) and level (the still against
+# its long reference, minus 1), and the survey's failed measures of each side. A measure counts as worse on X where X's
+# value passes M's by more than 10 % and by more than its floor: one speck (0.0049) for specks, 0.001 for blotch, 0.002
+# for the level's magnitude. The same rule the other way counts as better. Every case with a worse measure needs a sheet
+# of pictures (the record's rule).
 import json
 import os
 import sys
@@ -39,12 +41,13 @@ def number(v, spec):
     return f'{"n/a":>{spec.lstrip("+").split(".")[0]}s}' if v is None else format(v, spec)
 
 
-m, x = (results(side) for side in os.environ.get('SIDES', 'M,X').split(','))
+M, X = os.environ.get('SIDES', 'M,X').split(',')
+m, x = results(M), results(X)
 counts = {}
-print(f"{'case':26s} {'specks M':>9s} {'X':>8s} {'blotch M':>9s} {'X':>8s} {'level M':>9s} {'X':>9s}  verdict per measure  failed M | X")
+print(f"{'case':26s} {'specks ' + M:>9s} {X:>8s} {'blotch ' + M:>9s} {X:>8s} {'level ' + M:>9s} {X:>9s}  verdict per measure  failed {M} | {X}")
 for case in sorted(set(m) | set(x)):
     if case not in m or case not in x:
-        print(f'{case:26s} missing on {"M" if case not in m else "X"}')
+        print(f'{case:26s} missing on {M if case not in m else X}')
         continue
     a, b = m[case], x[case]
     verdicts = {k: compare(k, a[k], b[k]) for k in FLOORS}
