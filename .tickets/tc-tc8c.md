@@ -23,3 +23,13 @@ The candidate, if the take shows a fault: a block level of two facts in place of
 - A decision recorded in section 8.2: keep the total order with a measured reason, or build the composed level with tests first.
 - ALightCodeWithTheMotionBitKeepsTheWidenedBoxOfLightEvidence follows the decision.
 
+
+## Notes
+
+**2026-11-22T23:54:04Z**
+
+Line orchestrator's answer 80 (2026-11-22): not before the merge of t7-3e22. Under light evidence a history now holds at most 8 draws, so a wide box there keeps stale light of a moving view for at most about 8 draws, against 4 before. No take shows a fault from it, and a change of the box under two kinds of evidence needs its own measurement.
+
+The form to measure (the orchestrator's design note). The block's evidence is a maximum over ordered levels today, so the stronger kind hides the weaker one. The two actions are independent: region and light evidence act on the history's length, and motion evidence acts on the box. A set of bits, one per kind, with each action reading its own bit, is the one model that covers every pair of kinds, and the hidden pair has no place to happen. The dispatch then combines the block's bits with an atomicOr in place of the atomicMax. This is the "composed level" of the description in general form. Do not build it before the take.
+
+Which motion the motion bit means (checked in the code on 05a27262d): both kinds. The resolve sets it from `moves || moved` (screen_trace_resolve.comp:106 and 157). `moved` is a ray's hit on a moved surface. `moves` is movesOnScreenAt(pixel): the pixel's own surface point moves on screen by at least LeastMotion, 1/32 pixel, and motion.glsl says "the camera's moves count as well as the surface's". So every block of a walk has motion evidence, and the take is a lamp switch during a walk. A lamp switch beside a moving object in a still view is the second case.
