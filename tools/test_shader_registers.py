@@ -158,6 +158,15 @@ class TheCommand(unittest.TestCase):
             self.assertIn("does not apply: no staged file is in the include closure of a guarded shader", result.stdout)
             self.assertFalse(any(Path(out).glob("*.spv")))
 
+    def test_guard_reports_its_own_error_with_the_error_code_not_as_a_fail(self):
+        # The out folder is a file, so the guard cannot make it.
+        with tempfile.NamedTemporaryFile() as taken:
+            result = subprocess.run([sys.executable, "-I", str(Path(__file__).with_name("shader_registers.py")),
+                                     "guard", taken.name, "src/Tertius.Rendering/Shaders/key_fill.glsl"],
+                                    capture_output=True, text=True, cwd=Path(__file__).parent.parent)
+        self.assertEqual(result.returncode, shader_registers.ERROR, result.stderr)
+        self.assertIn("register guard: error:", result.stderr)
+
     def test_refuses_to_run_without_the_decoder(self):
         env = {k: v for k, v in os.environ.items() if k != "APPLEGPU"}
         result = subprocess.run([sys.executable, "-I", str(Path(__file__).with_name("shader_registers.py")), "/tmp/x"],
