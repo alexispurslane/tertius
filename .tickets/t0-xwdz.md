@@ -166,3 +166,7 @@ The orchestrator's answer to the two designs (2026-11-23, 16:19 New York time, r
 **2026-11-23T21:35:39Z**
 
 2026-11-23, 16:35 New York time, line orchestrator: the probe of step 2 starts (answer 112). Lead: the still place's lead, request design-x-line-t0-xlcu-lead-1, run ordinal 133, worktree t3-c3911144, branch t0-xwdz-tail-probe from the line's head 77d71a6de (the still place's fix is in it). Three switches in one probe build: F (design 1 for the reflections), Fd (the same floor for the bounce light), A (design 2's picture in a frozen take). Takes: own rays per draw 4 to 20 and at 100, films of draws 0 to 20, settled stills of the cabin, the bay, rect-lamps' glossy floor and the mirror plate, pans of 1 texel per draw, and the settled GPU frame span under one hold of the lock. Money 0. Nothing merges.
+
+**2026-11-23T21:47:59Z**
+
+2026-11-23, 16:47 New York time, line orchestrator: the probe of step 2 waits. Its lead takes the region evidence ticket t1-yi11 first, on the orchestrator's order of 16:50 and my choice of the lead (answer 113). The probe's brief stands and resumes after t1-yi11's pictures.
