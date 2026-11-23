@@ -10,73 +10,103 @@ assignee: Alexis Purslane
 parent: ter-6fka
 tags: [rendering, probe]
 ---
-# A picture probe of the far-field store: does a grid of lean cubes, read by the diffuse rays, make the frozen bay cleaner at 1:1
+# A picture probe of the lights' views as the far-field store: a ray walk in the lights' depth images, read by the diffuse rays
 
-A probe build with pictures, not for merge. The orchestrator ordered it on 2026-11-23 (ter-6fka's note of 17:19Z, main 66643b5ae) and gave its model. This ticket adds the build's detail. The cost question of the store is closed (t1-6tn2: 216 lean faces of 16 in 60 draws cost 0.35 ms per draw on the Mac with the range skip). The open question is whether the store changes the picture. Four changes of the history rules in a row gained in measures and not in pictures, so pictures at 1:1 decide here, before any engine design.
+A probe build with pictures, not for merge. The orchestrator ordered it on 2026-11-23 and changed its model on the same day by the user's word (ter-6fka's notes of 17:19Z and 17:40Z, main 7de78028f): the store is the lights' own shadow views, not a grid of capture points. This text replaces the ticket's first text, which described the grid. The cost question of a grid is closed (t1-6tn2). The open question is whether the store changes the picture, and pictures at 1:1 decide before any engine design.
 
-## What the probe is
+## The model
 
 Terms, one name each:
-- **Field**: the far-field store of one interior frame: a regular grid of points, 2 m apart, in that frame's own axes. A point's place never depends on the eye.
-- **Point**: one grid place. It holds a radiance cube of 16 x 16 texels per face and, per texel, the distance to the surface that the texel sees.
-- **Lean face**: the face of t1-6tn2's record (section 10.2): the frame's own objects only, lit by the face's light pass with the shadow views, no prefilter. A texel that sees no own object is an **empty texel**.
-- **Field read**: `fieldRadiance(frame, position, direction)`, the light that arrives at `position` from `direction` according to the field.
-- **Near field**: what a diffuse ray's screen walk finds within 2 m of its start.
-- **Far end**: the place 2 m along a diffuse ray from its start, where the near field ends.
+- **View**: one depth image that the renderer draws from a place: a tile of a near light, a cascade of the sun, or the eye's depth image. Each view sees only the first surface along each of its lines of sight.
+- **Seen side** of a view: the space between the view's place and its stored depth. It is known to be empty, because the view saw through it.
+- **Hidden side** of a view: the space behind its stored depth. The view knows nothing about it: it can be solid, or empty and in shadow.
+- **Surface texel**: a texel of a light's view. In the probe it holds, beside its depth, the surface's diffuse color and its normal.
+- **Event**: a place where a ray meets a view's stored surface. A **front event** is a ray that passes from the seen side to the hidden side through a surface texel's plane, from the side of its normal. A **back event** is a ray that passes from the hidden side to the seen side through that plane, from behind.
+- **Jump**: a place where a ray changes sides between two surface texels of different depth without meeting either texel's plane. It is the side of a shadow, not a surface.
+- **Surface point**: what a front event gives: a position, a normal and a diffuse color.
+- **First bounce** of a surface point: its diffuse color times the direct light of every light at that point, with no history.
+- **Unlit surface**: a surface that no light's view holds. No light lights it directly, so it has no first bounce, but it still blocks rays.
 - **Frozen take**: a still of a frozen world with a settled exposure, at one fixed exposure value for every build compared.
 
 What causes what:
-- The field's owner refreshes the points. In the probe it may refresh every face of every point in every draw, because cost is not the question. Nothing in the field reads the eye's place.
-- The screen tracer's diffuse ray is the only reader in the variants V1 and V2. The reflection rays, the closed form and the main view's shading stay as they are.
-- The frame's map of today stays, and an empty texel falls back to it: an empty texel reads the parent frame's map along its direction (`environmentLobe` of the map one nearer the root), at write time or at read time, as the lead finds simpler.
+- A light's shadow pass writes the light's views, as today. In the probe it also writes each surface texel's diffuse color and normal. Who causes the light decides where the store exists: a view covers exactly the surfaces that its light reaches. No grid, no points and no placement.
+- A diffuse ray of the screen tracer is the only reader. The reflection rays, the closed form and the main view's shading stay as they are.
+- One function turns a surface point into light, for a hit from any view. One rule picks the hit: the nearest event over all views.
 
-## Signatures
+## The reader
 
-One reader, in a header of its own that the screen tracer includes:
+Along a ray, in each light's view:
+1. A front event is a hit on a surface that this light lights. The ray takes the surface point there.
+2. A back event means that the ray would come out of a lit surface from behind, so an opaque body lies on its way. The ray ends dark.
+3. A jump is the side of a shadow. The walk goes on.
+
+The ray takes the nearest event over all views.
 
 ```glsl
-// The light that arrives at `position` from `direction` according to the field of `frame`: the 8 points around the
-// position, each read along `direction`, weighted by its trilinear weight and by whether the point sees the position.
-// a is the sum of the weights before the division: 0 where no point sees the position, and the caller then keeps today's
-// miss light.
-vec4 fieldRadiance(uint frame, vec3 position, vec3 direction);
+// A ray's nearest event in the lights' views between the distances `from` and `to` along it: a front event with its
+// surface point, a back event, or none.
+ViewEvent nearestViewEvent(vec3 origin, vec3 direction, float from, float to);
+
+// The first bounce of a surface point: its diffuse color times the direct light of every light there, through the
+// existing shadow lookups, pre-exposed.
+vec3 firstBounceOf(SurfacePoint point);
 ```
 
 where
-- `frame` = the index of the interior frame whose field is read, as the pixel's map index gives it today (`p.s.map`).
-- `position` = a place in the shader's world space, in m. The reader moves it into the frame's own axes.
-- `direction` = a unit direction in the same space, pointing away from `position` toward the light's source.
-- A point **sees** the position when the distance from the point to the position is at most the distance that the point stores along that line, plus a bias that the lead chooses and states (start with 0.2 m plus one texel's width at that distance).
+- `origin`, `direction` = the ray's start and unit direction in the shader's world space, in m.
+- `from`, `to` = the part of the ray that the walk covers, in m from the start.
+- `ViewEvent` = the event's kind (front, back, none), its distance along the ray and, for a front event, its `SurfacePoint`.
+- `SurfacePoint` = a position, a normal and a diffuse color.
 
-The lead may change the signature where the code shows a better one, and records the change and its reason.
+The lead may change these signatures where the code shows a better one, and records the change and its reason.
 
-The three variants of who reads it, each one switch of the probe:
-- **V1, misses only**: `missLightOf` reads `fieldRadiance(frame, p.origin, direction)` for a diffuse ray, in place of `environmentLobe(p.s.map, direction, 0.5)`. The position is the ray's start.
-- **V2, misses and far ends**: as V1, and a diffuse ray whose hit lies more than 2 m from its start takes `fieldRadiance(frame, p.origin + 2.0 * direction, direction)` in place of the hit's light. A miss reads at the same far end. This is a choice after the walk, by the hit's distance, so the walk itself does not change, and I expect no extra build cost over V1. A ray's density stays as the walk gave it. If a guided ray makes this ambiguous, the lead also takes V2 with the guided share at 0 and says which it shows.
-- **V3, the young history**: V2, and `leavingLightOf` starts a pixel without a history from the field in place of the closed form. It needs the field's light over a hemisphere, for which the lead may read a coarse mip of the point's cube along the normal, and states which. V3 is built only in stage 2.
+## My settlements of the open points, for the orchestrator to reverse
 
-The bounce variant: the lean face's light pass adds the field's own light at each texel (the field read at the texel's surface, over its hemisphere, as in V3), so each refresh adds one bounce. Stage 2 only.
+(a) **What a hit reads: the surface point, shaded by every light.** The writer stores the diffuse color and the normal, not a color already multiplied by one light's irradiance. Then a hit is a surface point like any other, and `firstBounceOf` shades it with every light through the existing shadow lookups (one tap per light is enough in the probe). This is the orchestrator's lean. If the loop over the lights is too hard to reach from the tracer in the probe, the lead takes the finding view's light alone, and says so.
 
-## Storage, for the probe only
+(b) **What a ray with no event reads: today's miss light, unchanged.** This point is larger than a double count, and it is the store's main limit. See "What the store cannot know", point 1. A second switch, **dark unlit**, tests the other answer: a ray with no event reads the frame's map only where the map's stored distance along the ray's direction says that the direction leaves the frame's own surfaces, and reads 0 elsewhere.
 
-The probe is not for merge and runs on the Mac. So it may use what is fastest to build, for example more layers in the maps' cube array than the 42 maps that the engine's rule allows (the Mac allows 2,048 layers), or a plain 2D atlas with a tile per face. The engine's storage is a later design. The record states what the probe used and what would not hold on a desktop Linux driver.
+(c) **A crossing at the stored depth against a jump: the texel's plane decides.** A ray meets a surface texel when it crosses the plane through the texel's stored position with the texel's normal, inside the texel's footprint. The side of the normal gives front or back. A change of sides that meets no texel's plane is a jump. Where the test is in doubt (a plane nearly edge-on to the ray, or a footprint on a texel's border), the walk takes the answer that loses light and cannot leak: a doubtful crossing from the hidden side to the seen side is a back event, so the ray ends dark. The lead reports the share of rays that end by a doubtful crossing. If the normal cannot be written in the probe's shadow pass, the lead takes the plane from the depth's differences toward the nearer neighbor and says so.
 
-## Stage 1: two pictures, then stop
+(d) **The eye's depth image is one more view.** A screen hit is an event like any other: it has a place, and it blocks the ray. So V2 does not throw a far screen hit away. See the variants below. Without this, a ray would pass through an unlit wall that is on screen and that no light sees.
 
-1. Build the field for the bay (the scene of scripts/rect-bay.json) with the lean face, 16 per face, all points refreshed. Report the grid's size, the count of points, how many points lie inside solid geometry, and what such a point does to a read.
-2. One check before any picture: which lights the lean face's light pass keeps at a point, and whether the sun's cascades cover a point outside the main view. A lamp that the main view culls must still light the field, or the field cannot show what t2b-xeo7 needs. State what the pass does today.
-3. A sanity picture of the field itself: the cubes of three points (one in the open bay, one near a wall, one inside geometry if there is one), as face strips at a fixed exposure.
-4. Frozen takes of the bay, main, V1 and V2, at one fixed exposure, 1920 x 1080 at the render scale that the lab's frozen bay takes use. Crops at 1:1 of the regions where main's mottle shows (the lead takes the crops of the last bay sheet of the lab, docs/research/t0-qvm1-region-cap-takes, and of the ray end record), main beside V1 beside V2, and the daub measure of each against the bar of about 0.010 (the lab's tool, docs/research/frame-time-sweep-2026-11-11/tools/daub.py).
-5. Send me the two pictures (V1 and V2 beside main at 1:1) the moment they exist, with the daub numbers and one sentence each on what you see. Then wait for my word. Stage 2 runs only if one of the two shows a gain.
+## The variants
+
+- **V1, misses only**: a diffuse ray that the screen walk loses goes on through the lights' views, `nearestViewEvent` from the place where the screen walk lost it, or from a small bias past the ray's start if the walk does not give that place. A front event reads `firstBounceOf`. A back event reads 0. No event reads today's miss light (settlement b).
+- **V2, the near field ends at 2 m**: as V1, and a screen hit farther than 2 m from the ray's start keeps its place but reads only its first bounce, the fresh light that the hit pixel sends (`sentDiffuseLight`, without the histories). So every read past 2 m is a first bounce without history noise, from whichever view found the surface. If a guided ray makes this ambiguous, the lead also takes V2 with the guided share at 0.
+
+## What the store cannot know (by argument, to be measured)
+
+1. **Unlit surfaces.** The store holds only the surfaces that some light lights. A ray toward an unlit surface finds no event, and nothing in the lights' views says whether it left the frame or hit that surface. Unlit surfaces are common: the lamp hall's ceiling is lit by bounce alone, because its lamps shine down. So a ray with no event must not read the far light of the parent frame: in the cabin that light is about 4,800 times the room's (t58-rcd6), and it would enter through every unlit surface. With settlement b the unlit surfaces keep today's read of the eye's map, so their light still depends on the eye's place.
+2. **A body that no view sees** (off the screen and in every light's shadow) does not stop a ray. A ray can pass through it and then meet a lit surface. The leak takes measure it.
+3. **One bounce.** A read past the near field carries the first bounce only. In a pale closed room the later bounces are a large part of the light, so V2 will be darker than main there. The path trace gives the level.
+4. **No average.** A hit reads one point of a surface. A small bright patch stays a rare bright sample. So the prediction for the speck boxes changes: this reader does not remove the specks that rare far hits carry. See "A second reader" below.
+5. **The sun's cascades follow the eye.** They cover the eye's view, so a sunlit surface behind the eye is in no view, and the sun's part of the store depends on the eye's place. The lead reports which sunlit surfaces of each take the cascades hold. A sun view fit to the frame's own objects would not follow the eye. It is not part of this probe.
+6. **A lamp that the main view culls** needs its views all the same, or the store has a hole (`viewKeeps` in lighting.glsl keeps a light for the main view by `inMainView`). The lead states which lights have views in each take, before any picture.
+
+## A second reader, for stage 2 only
+
+The store also lists the bright senders: each light's view holds exactly the surfaces that send its first bounce. A reader can pick a sender by its light, as the guide picks a bright pixel on the screen, and test with the same walk whether the sender is visible from the shaded point: any event before the sender blocks it. That is E2's reader (ter-9t54) with the visibility test that it lacked, and it is the form that removes rare bright samples. It needs a pyramid of each view's light. It is not built in stage 1.
+
+## Stage 1: three results, then stop
+
+1. Before any picture: the list of lights with views in the bay and in the lit-block room, the size of each view, and which sunlit surfaces the cascades hold (points 5 and 6).
+2. A sanity picture: for two lights, the view's depth, diffuse color and normal side by side.
+3. Frozen takes of the bay (scripts/rect-bay.json) for main, V1 and V2, at one fixed exposure, at the render scale that the lab's frozen bay takes use. Crops at 1:1 of the regions where main's mottle shows (the crops of docs/research/t0-qvm1-region-cap-takes and of the ray end record), main beside V1 beside V2, with the daub measure of each (docs/research/frame-time-sweep-2026-11-11/tools/daub.py) against the bar of about 0.010, and each region's mean against main.
+4. The floor point of the lit-block film (t2b-xeo7): P = (1.95, 0, -1) behind the block reads 0.078 at rest and 0.507 on main while the eye sees the lit face. Two frozen takes with V1, one at rest and one at the walk's hold. This is the claim that only this store makes: the block's lit face is in its lamp's view wherever the eye is, so the point must read the same in both, within about 10 %.
+5. Send me the bay's crops and the floor point's two numbers the moment they exist, with one sentence each on what you see. Then wait for my word.
+
+Also reported from stage 1: the depth reads per ray, the count of views that a ray walks, the share of rays by their end (front event, back event, doubtful crossing, no event), and the walk's GPU cost per draw at a load under 8.
 
 ## Stage 2: only after my word
 
 - The frozen rect-lamps (scripts/rect-lamps.json) at 1:1 against main.
-- The lit-block film of t2b-xeo7: the floor point P = (1.95, 0, -1) behind the block reads 0.078 at rest and 0.507 on main while the eye sees the lit face. With the field it must hold still within about 10 %. A side-by-side video, main left, real frames at 60 a second, one fixed exposure, H.264 at CRF 12 or lower.
-- A leak take: a lit room behind a wall thinner than the grid's 2 m. Does its light show on the dark side?
-- The two speck boxes of ter-fe63 (the nose's ceiling box, and rect-bay's left wall at draw 130): capture specks and the largest sample, main against V2. The orchestrator's prediction: V2 removes the specks that far hits carry and keeps those of hits within 2 m.
-- The bounce variant and V3, each as a frozen bay crop beside V2.
-- The reader's GPU cost per draw (the diffuse rays' pass, main against V2, at a load under 8), and the settle time in draws after a lamp switch.
+- The lit-block film as a side-by-side video, main left, real frames at 60 a second, one fixed exposure, H.264 at CRF 12 or lower.
+- Two leak takes, with the path trace tool for the level: a lit room behind a wall, and a dark room around a corner whose walls no light sees.
+- The two speck boxes of ter-fe63 (the nose's ceiling box, and rect-bay's left wall at draw 130): capture specks and the largest sample, main against V2.
+- The switch dark unlit (settlement b) as a frozen bay crop beside V1.
+- The second reader, if the orchestrator orders it.
+- The settle time in draws after a lamp switch.
 
 ## How the result is read (the orchestrator's rule)
 
@@ -84,22 +114,26 @@ The store goes to an engine design only if the frozen bay is visibly cleaner at 
 
 ## Rules of the build
 
-- A scratch change in the lead's worktree, kept as `probe.patch` in the record docs/research/far-field-probe/. Nothing of the probe enters src on the branch. The record, its pictures and its tools are committed.
+- A scratch change in the lead's worktree, kept as `probe.patch` in the record docs/research/light-view-probe/. Nothing of the probe enters src on the branch. The record, its pictures and its tools are committed.
 - No test suite, no review and no mutants: nothing merges but the record. The code says in a comment that it is probe code.
+- The probe may use what only the Mac allows. The record states what would not hold on a desktop Linux driver.
 - No cloud money. The Mac only.
-- Disk: check `/bin/df -g /` before each build. A rebuild in the existing worktree needs 22 GiB free, and the lead stops under 20.
+- Disk, the orchestrator's rule of 2026-11-23: no full build under 22 GiB free; an incremental build in the existing worktree that adds under 0.5 GiB may run down to 18 GiB; under 18 GiB the lead stops and says so. Check `/bin/df -g /` before each build and take.
 - The GPU lock for at most about 20 minutes per take. A timing row needs a 1-minute load under 8 at the lock. The pictures need no quiet machine.
 - A fork comes to the line orchestrator first.
 
 ## Out of scope
 
-- Any engine design of the store: its storage, its refresh schedule, its owner in C#.
-- The range skip in the engine (its own ticket) and the prefilter per round.
+- Any engine design of the store: the views' new attachments, a sun view fit to a frame, a cache of later bounces.
 - The reflection rays and the main view's ambient light.
-
+- A grid of capture points and the lean cubes (dropped by the user's word; t1-6tn2's record keeps the lean face's cost).
 
 ## Notes
 
 **2026-11-23T17:22:57Z**
 
 2026-11-23, line orchestrator: the order. This probe goes to the lead of the face cost split, because it holds the lean face. That lead first builds the fix of t58-rcd6 and closes t1-6tn2's record. So this ticket is ready by its dependencies and waits for that lead. My settlements in the text above, for the orchestrator to reverse: (1) V1 reads the field at the ray's start, the same substitution as today's map read; (2) V2 is a choice after the walk by the hit's distance, so the walk does not change, and it costs no more to build than V1; (3) an empty texel reads the parent frame's map; (4) the probe may use more cube layers than the engine's 42 maps or a 2D atlas, because it runs on the Mac only and does not merge; (5) V3 and the bounce variant are stage 2.
+
+**2026-11-23T17:46:20Z**
+
+2026-11-23, line orchestrator: the ticket's text above is rewritten to the lights' views as the store, by the orchestrator's note of 17:40Z after the user's objection to a grid of capture points. The first text described a grid of lean cubes with the variants V1 to V3 and a bounce variant, and my note above lists the settlements that belonged to it. They no longer apply. The settlements of the new text are in its section 'My settlements of the open points': (a) a hit is a surface point shaded by every light; (b) a ray with no event reads today's miss light, with a switch that tests the map's distance; (c) the texel's plane tells a crossing from a jump, and a doubtful crossing ends the ray dark; (d) the eye's depth image is one more view, so V2 keeps a far screen hit's place. Stage 1 gained the lit-block floor point, because that is the claim that only this store makes. The order is as before: the face cost lead builds the fix of t58-rcd6, closes t1-6tn2's record, and then takes this probe.
