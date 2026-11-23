@@ -1,8 +1,8 @@
 ---
 id: ter-pdw8
-status: open
+status: closed
 deps: []
-links: [t1-g1jd]
+links: [t1-g1jd, t1-wl7c]
 created: 2026-11-23T02:54:52Z
 type: task
 priority: 1
@@ -81,3 +81,11 @@ A record under docs/research/ with the table of the six measures per variant, st
 **2026-11-23T05:42:37Z**
 
 2026-11-23, interim 4. S2' passes the rule on the lamp hall. At 1072 x 603: bias against V0 -0.2 to -0.6 % in the five regions; capture specks median 0, largest 4 (V0 83, 180); mean specks 0 diffuse and 1 reflection (V0 67, 648); largest sample 9.9 diffuse, 25.1 reflection; ceiling grain 0.0049 and boil 0.0056 (V0 0.0063, 0.0068); wall foot grain 0.0066 (V0 0.0067), no bright sample. At 1040 x 585: bias -0.0 % in all regions, capture specks median 0, largest 18 (V0 0, 17). All 79 pixels of row 314 fail the surface test in draw 631, so S2' gives them 1/25 as S2 did. In the still, 74 of 634,438 surface pixels (0.012 %) have a share below 1; they hold back 0.002 % of the hit light and lie on the windows' jambs and sills only. S2' is the candidate for groups 2 to 4. The short histories: the accumulation trace exists only for the specular signal, so the lead spent the one take on a direct test, a build copy with the anti-lag skipped for the diffuse signal; the short histories fell from 51,304 (8.1 %) to 174 (0.027 %). The anti-lag after the clamp is the writer; ticket t1-g1jd holds it and links ter-18hc. To state in the record: the definition of the far-hit variance factor (read by the line orchestrator as V0's far-hit variance over the variant's, x2.11 on the ceiling at 1072).
+
+**2026-11-23T06:07:19Z**
+
+2026-11-23, the lead. The record is docs/research/ray-end-reads/README.md. All its numbers are on 3549d3283, before Design X. Result: the surface share S2' passes the orchestrator's rule on every still and film that it ran. S2' counts a pixel's direct part in full where the diffuse history's surface test holds a history, and with 1/P (P = the jitter's phase count) where it does not. The guide reads the same value. (1) Specks: capture specks largest 4 at 1072 x 603 (V0 180), 18 at 1040 (V0 17). (2) No leak or halo in 19 crops (lamp hall at both sizes, bay at 2/3, three silhouettes each in cabin-light-cabin and exit-cabin). (3) Bias: -0.6 to 0.0 % in all 21 regions. The far-hit variance factor is x1.00 to x1.01 except the lamp hall's ceiling at 1072 (x2.11, the specks' samples). (4) Films: the survey's cabin-walk and the exit-cabin motion film. Every region is within 0.21 % of V0 in every frame, and the settle draws are equal. A V0 repeat is bitwise equal. A newly seen surface loses 1 - 1/P of one draw's direct light under S2', against (P - 1)/2 draws under S2 (computed). Share maps: 74 pixels below 1 in the lamp hall still, 94 in walk draw 228, all on window jambs and edges. Closed with numbers in the record: V1 (stand-in (c), and the real V1 for the same reason: one value per pixel for two surfaces leaks at the far wall's foot), V2 and V3 (cells of 32 to 256 px mix surfaces; bay loses 29 to 55 % of the bounce light), S1 (share 0.43 on the sill row), S2 (-1.1 to -1.3 %). The half-float trap is recorded. Short histories: ticket t1-g1jd. The cost of S2': no image and no state, one multiply where leavingLightOf adds the direct part. Its final check on main's new head is a later order.
+
+**2026-11-23T06:17:37Z**
+
+2026-11-23, the line orchestrator. Merged the lead's record (bb45a191e, docs/research/ray-end-reads/) and read it once. One correction: section 8.4 now defines lag as the shader does, luminance(abs(slow - clamped)) / max(luminance(mean), 1e-4). The experiment is closed: V1, V2, V3, S1 and S2 fail, and the surface share S2' passes the rule on every still and both films. Not covered, for the build's ticket: every number is on 3549d3283, before Design X; S2' ran at 1072 x 603, 1040 x 585 and 2/3, not at 0.96 and not in the second window shape; the films were judged by region means over a 3 x 3 grid and not by a look at 1:1 frames; an engine build of S2' needs the orchestrator's word (ter-fe63).

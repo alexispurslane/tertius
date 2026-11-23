@@ -1,0 +1,32 @@
+{
+ "draw 631": {
+  "bright_pixels": 79,
+  "rows_render": [
+   314
+  ],
+  "columns_render": [
+   496,
+   574
+  ],
+  "hit_light_median": 161.61952499999998,
+  "holds_history_share": 0.0,
+  "history_length_median": 0.0,
+  "history_length_p10_p90": [
+   0.0,
+   0.0
+  ],
+  "share_s1_median": 0.4345703125,
+  "share_s2_median": 0.03997802734375,
+  "s1_q_median": 0.4345703125,
+  "same_pixels_in_other_draw": {
+   "hit_light_median": 0.0,
+   "holds_history_share": 0.012658227848101266,
+   "history_length_median": 0.0,
+   "share_s1_median": 0.57373046875,
+   "share_s2_median": 0.03997802734375
+  }
+ },
+ "draw 630": {
+  "bright_pixels": 0
+ }
+}

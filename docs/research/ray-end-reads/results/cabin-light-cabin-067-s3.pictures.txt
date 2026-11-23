@@ -1,0 +1,18 @@
+floor with sun stripes
+  v0                 grain 0.0213 daub 0.0232 boil 0.0117 level +0.0000
+  v1                 grain 0.0214 daub 0.0234 boil 0.0117 level -0.0006
+  v0 second picture  grain 0.0217 daub 0.0243 boil 0.0117 level +0.0000
+  v0 boil first half grain 0.0196 daub 0.0214 boil 0.0107 level -0.0000
+  v0 boil second half grain 0.0253 daub 0.0278 boil 0.0106 level +0.0000
+floor beside the right wall, mostly in shade
+  v0                 grain 0.0158 daub 0.0332 boil 0.0238 level +0.0000
+  v1                 grain 0.0158 daub 0.0334 boil 0.0239 level -0.0020
+  v0 second picture  grain 0.0166 daub 0.0329 boil 0.0238 level +0.0000
+  v0 boil first half grain 0.0150 daub 0.0303 boil 0.0215 level +0.0006
+  v0 boil second half grain 0.0181 daub 0.0403 boil 0.0222 level -0.0006
+sunlit roof beams
+  v0                 grain 0.0161 daub 0.0086 boil 0.0044 level +0.0000
+  v1                 grain 0.0157 daub 0.0086 boil 0.0041 level -0.0000
+  v0 second picture  grain 0.0215 daub 0.0126 boil 0.0044 level +0.0000
+  v0 boil first half grain 0.0151 daub 0.0082 boil 0.0043 level +0.0001
+  v0 boil second half grain 0.0181 daub 0.0094 boil 0.0042 level -0.0001

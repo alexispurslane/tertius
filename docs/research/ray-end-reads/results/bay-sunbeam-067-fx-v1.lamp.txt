@@ -1,0 +1,115 @@
+error (ignored): SQLite database '/Users/alexispurslane/.cache/nix/eval-cache-v6/a0f59b883dea2c972c16ee630476b83c8c38cb09677df54c49bc07c329d84a8b.sqlite' is busy
+{
+ "render": [
+  1280,
+  720
+ ],
+ "rect_render": [
+  66,
+  26,
+  280,
+  240
+ ],
+ "samples_per_draw": 45796,
+ "draws": 400,
+ "stops": [
+  -4.089000225067139,
+  -4.089000225067139
+ ],
+ "diffuse_brightest": {
+  "samples": 18318,
+  "per_draw": 45.795,
+  "threshold": 15.843439102172852,
+  "max": 20.452335357666016,
+  "share_of_all_light": 0.07797394692897797,
+  "count_share": {
+   "miss": 0.0,
+   "near": 0.0,
+   "far": 1.0
+  },
+  "light_share": {
+   "miss": 0.0,
+   "near": 0.0,
+   "far": 1.0
+  },
+  "hit_distance_m": [
+   2.8284271247461903,
+   11.313708498984761
+  ],
+  "hit_distance_median_m": 2.8284271247461903,
+  "after_caps_mean": 16.8031005859375,
+  "before_caps_mean": 16.8031005859375,
+  "capped_share": 0.0
+ },
+ "guided_share": {
+  "all": 0.2500313892042973,
+  "brightest_0.1pct": 0.1579320886559668,
+  "above_5": 0.3541602559056527,
+  "above_5_count": 139739
+ },
+ "diffuse_all": {
+  "count_share": {
+   "miss": 0.6531525679098611,
+   "near": 0.04965035155908813,
+   "far": 0.29719708053105076
+  },
+  "mean": 0.2154916226863861,
+  "capped_share": 0.0
+ },
+ "reflection_brightest": {
+  "samples": 18318,
+  "per_draw": 45.795,
+  "threshold": 17.056005477905273,
+  "max": 17.66318702697754,
+  "share_of_all_light": 0.0197142343968153,
+  "count_share": {
+   "miss": 0.0,
+   "near": 0.0,
+   "far": 1.0
+  },
+  "light_share": {
+   "miss": 0.0,
+   "near": 0.0,
+   "far": 1.0
+  },
+  "hit_distance_m": [
+   3.1015625,
+   8.2734375
+  ],
+  "hit_distance_median_m": 5.08984375
+ },
+ "reflection_all": {
+  "count_share": {
+   "miss": 0.33714592977552627,
+   "near": 0.07550872346929863,
+   "far": 0.5873453467551751
+  },
+  "mean": 0.8710365295410156
+ },
+ "mean_specks_x": 1310,
+ "mean_max_over_median_x": 2.8266890048980713,
+ "mean_specks_xs": 281,
+ "mean_max_over_median_xs": 2.6528732776641846,
+ "capture_specks": {
+  "c-s00": 177,
+  "c-s01": 129,
+  "c-s02": 143,
+  "c-s03": 166,
+  "c-s04": 227,
+  "c-s05": 203,
+  "c-s06": 147,
+  "c-s07": 224,
+  "c-s08": 139,
+  "c-s09": 222,
+  "c-s10": 145,
+  "c-s11": 261,
+  "c-s12": 162,
+  "c-s13": 231,
+  "c-s14": 123,
+  "c-s15": 211,
+  "c-s16": 153,
+  "c-s17": 287,
+  "c-s18": 151,
+  "c-s19": 220
+ }
+}

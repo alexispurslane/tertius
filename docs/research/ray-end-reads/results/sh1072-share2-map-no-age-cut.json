@@ -1,0 +1,47 @@
+{
+ "whole frame": {
+  "surface_pixels": 634438,
+  "share_below_1": 0.0808652697347889,
+  "direct_held_back_over_hit_light": 0.017418326456108885,
+  "history_length_median": 32.0
+ },
+ "below 1, whole frame": {
+  "pixels": 51304,
+  "fail_surface_test": 0.001442382660221453,
+  "length_of_holders_p10_p50_p90": [
+   8.375,
+   17.890625,
+   23.0
+  ]
+ },
+ "ceiling around the near lamps": {
+  "surface_pixels": 24976,
+  "share_below_1": 0.014413837283792441,
+  "direct_held_back_over_hit_light": 1.9199452570550554e-07,
+  "history_length_median": 32.0
+ },
+ "floor in the middle": {
+  "surface_pixels": 65520,
+  "share_below_1": 0.1626984126984127,
+  "direct_held_back_over_hit_light": 0.03962943769747681,
+  "history_length_median": 32.0
+ },
+ "left wall above the windows": {
+  "surface_pixels": 21280,
+  "share_below_1": 0.0225093984962406,
+  "direct_held_back_over_hit_light": 0.0007285162124895901,
+  "history_length_median": 32.0
+ },
+ "far end wall beside the window": {
+  "surface_pixels": 5226,
+  "share_below_1": 0.017030233448143896,
+  "direct_held_back_over_hit_light": 0.00036671893567661907,
+  "history_length_median": 32.0
+ },
+ "floor at the foot of the far wall": {
+  "surface_pixels": 774,
+  "share_below_1": 0.046511627906976744,
+  "direct_held_back_over_hit_light": 0.0037678862601677166,
+  "history_length_median": 32.0
+ }
+}

@@ -1,0 +1,278 @@
+{
+ "rect-lamps": [
+  {
+   "name": "ceiling right of the lamps",
+   "rect": [
+    1040,
+    60,
+    1500,
+    300
+   ],
+   "keep": null,
+   "light": "No direct light: the ceiling panels send their light down. Bounce light from the floor and the walls that the panels light."
+  },
+  {
+   "name": "floor in the middle",
+   "rect": [
+    700,
+    700,
+    1220,
+    1000
+   ],
+   "keep": null,
+   "light": "Direct light of the ceiling panels; bounce light from the walls and the ceiling."
+  },
+  {
+   "name": "left wall above the windows",
+   "rect": [
+    200,
+    300,
+    500,
+    470
+   ],
+   "keep": null,
+   "light": "Direct light of the ceiling panels at a grazing angle; bounce light from the floor."
+  },
+  {
+   "name": "far end wall",
+   "rect": [
+    760,
+    430,
+    1160,
+    510
+   ],
+   "keep": null,
+   "light": "Direct light of the far panels; bounce light from the floor and the side walls."
+  }
+ ],
+ "sunlit-nose": [
+  {
+   "name": "ceiling cloud box of ter-fe63",
+   "rect": [
+    750,
+    0,
+    1170,
+    330
+   ],
+   "keep": 0,
+   "light": "No direct light (ter-fe63): neither the sun nor a panel lights the ceiling. Bounce light from the sunlit floor patch and sill at the nose, and from the floor that the panels light."
+  },
+  {
+   "name": "sunlit floor before the nose wall",
+   "rect": [
+    760,
+    585,
+    1160,
+    640
+   ],
+   "keep": null,
+   "light": "Direct sunlight through the nose window, and the far panels; bounce light from the nose wall and the side walls."
+  },
+  {
+   "name": "near floor",
+   "rect": [
+    600,
+    800,
+    1300,
+    1050
+   ],
+   "keep": null,
+   "light": "Direct light of the ceiling panels; bounce light from the walls, the ceiling and, far away, the sunlit patch."
+  },
+  {
+   "name": "left wall",
+   "rect": [
+    200,
+    250,
+    500,
+    450
+   ],
+   "keep": null,
+   "light": "Direct light of the ceiling panels at a grazing angle; bounce light from the floor, with the sunlit patch far down the hall."
+  }
+ ],
+ "cabin-light-cabin": [
+  {
+   "name": "floor with sun stripes",
+   "rect": [
+    700,
+    600,
+    1300,
+    950
+   ],
+   "keep": null,
+   "light": "Direct sunlight through the side and roof windows on the stripes, no direct light in the shadows between them; bounce light from the sunlit floor, walls and frame; the sky through the windows."
+  },
+  {
+   "name": "floor beside the right wall, mostly in shade",
+   "rect": [
+    1500,
+    800,
+    1800,
+    1000
+   ],
+   "keep": null,
+   "light": "No direct light in most of it (dark in the direct-light still); one sun stripe crosses its lower left corner. Bounce light from the sunlit floor stripes and the right wall; the sky through the windows."
+  },
+  {
+   "name": "sunlit roof beams",
+   "rect": [
+    800,
+    120,
+    1300,
+    200
+   ],
+   "keep": null,
+   "light": "Direct sunlight through the roof windows; bounce light from the floor and the walls; the sky."
+  }
+ ],
+ "exit-cabin": [
+  {
+   "name": "floor in the middle",
+   "rect": [
+    700,
+    650,
+    1300,
+    950
+   ],
+   "keep": null,
+   "light": "Direct light of the four pillar lamps and the two ceiling lamps, with the frame's shadows; bounce light from the walls and the frame; the blue light outside the windows."
+  },
+  {
+   "name": "right wall below the windows",
+   "rect": [
+    1250,
+    600,
+    1370,
+    690
+   ],
+   "keep": null,
+   "light": "Direct light of the right pillar lamps; bounce light from the floor; the blue light outside the windows above it."
+  },
+  {
+   "name": "ceiling between the beams",
+   "rect": [
+    1300,
+    40,
+    1700,
+    110
+   ],
+   "keep": null,
+   "light": "Direct light of the two ceiling lamps; bounce light from the floor and the walls."
+  },
+  {
+   "name": "side of the tilted blue crate",
+   "rect": [
+    1070,
+    540,
+    1140,
+    640
+   ],
+   "keep": null,
+   "light": "Direct light of the right pillar lamps; bounce light from the floor."
+  }
+ ],
+ "bay-sunbeam": [
+  {
+   "name": "sunlit patch at the upper left",
+   "rect": [
+    100,
+    40,
+    420,
+    360
+   ],
+   "keep": 0,
+   "light": "Direct sunlight through the slot (the bright patch of the direct-light still) and the left bay lamp below it; bounce light from the back wall and the floor."
+  },
+  {
+   "name": "back wall below the slot",
+   "rect": [
+    560,
+    420,
+    980,
+    560
+   ],
+   "keep": null,
+   "light": "Weak direct light of the two bay lamps; bounce light from the sunlit patch and the floor; space through the slot above."
+  },
+  {
+   "name": "floor",
+   "rect": [
+    600,
+    650,
+    1200,
+    950
+   ],
+   "keep": null,
+   "light": "Weak direct light of the bay lamps; bounce light from the sunlit patch and the walls."
+  },
+  {
+   "name": "right wall",
+   "rect": [
+    1300,
+    100,
+    1800,
+    500
+   ],
+   "keep": null,
+   "light": "Direct light of the right bay lamp near it; bounce light from the sunlit patch across the bay and from the floor."
+  }
+ ],
+ "rect-lamps-f62": [
+  {
+   "name": "ceiling around the near lamps",
+   "rect": [
+    643,
+    200,
+    1043,
+    400
+   ],
+   "light": "bounce from the floor and walls; the near rect lamps face down",
+   "keep": 0
+  },
+  {
+   "name": "floor in the middle",
+   "rect": [
+    600,
+    700,
+    1300,
+    1000
+   ],
+   "light": "the rect lamps directly",
+   "keep": null
+  },
+  {
+   "name": "left wall above the windows",
+   "rect": [
+    200,
+    300,
+    600,
+    470
+   ],
+   "light": "the rect lamps at a grazing angle",
+   "keep": null
+  },
+  {
+   "name": "far end wall beside the window",
+   "rect": [
+    760,
+    420,
+    880,
+    560
+   ],
+   "light": "the rect lamps; the sunlit sill below the window",
+   "keep": null
+  },
+  {
+   "name": "floor at the foot of the far wall",
+   "rect": [
+    885,
+    577,
+    1040,
+    594
+   ],
+   "keep": 1,
+   "light": "Direct light of the far panels; bounce light from the far wall and, in the burst phase, from the sunlit sill row of the window above (render row 314 at 1072 x 603). Where V1, V2 and V3 show flecks."
+  }
+ ]
+}

@@ -1,0 +1,114 @@
+{
+ "render": [
+  1280,
+  720
+ ],
+ "rect_render": [
+  66,
+  26,
+  280,
+  240
+ ],
+ "samples_per_draw": 45796,
+ "draws": 400,
+ "stops": [
+  -4.272975444793701,
+  -3.9281134605407715
+ ],
+ "diffuse_brightest": {
+  "samples": 18318,
+  "per_draw": 45.795,
+  "threshold": 16.083934783935547,
+  "max": 24.017091751098633,
+  "share_of_all_light": 0.07974573224782944,
+  "count_share": {
+   "miss": 0.0,
+   "near": 0.0,
+   "far": 1.0
+  },
+  "light_share": {
+   "miss": 0.0,
+   "near": 0.0,
+   "far": 1.0
+  },
+  "hit_distance_m": [
+   2.8284271247461903,
+   11.313708498984761
+  ],
+  "hit_distance_median_m": 2.8284271247461903,
+  "after_caps_mean": 17.316036224365234,
+  "before_caps_mean": 17.316036224365234,
+  "capped_share": 0.0
+ },
+ "guided_share": {
+  "all": 0.2500169228753603,
+  "brightest_0.1pct": 0.17529206245223278,
+  "above_5": 0.35447710574980185,
+  "above_5_count": 140057
+ },
+ "diffuse_all": {
+  "count_share": {
+   "miss": 0.653140940256791,
+   "near": 0.04965744824875535,
+   "far": 0.2972016114944537
+  },
+  "mean": 0.21713586151599884,
+  "capped_share": 0.0
+ },
+ "reflection_brightest": {
+  "samples": 18318,
+  "per_draw": 45.795,
+  "threshold": 18.917699813842773,
+  "max": 21.0125789642334,
+  "share_of_all_light": 0.022191502153873444,
+  "count_share": {
+   "miss": 0.0,
+   "near": 0.0,
+   "far": 1.0
+  },
+  "light_share": {
+   "miss": 0.0,
+   "near": 0.0,
+   "far": 1.0
+  },
+  "hit_distance_m": [
+   3.0390625,
+   8.5078125
+  ],
+  "hit_distance_median_m": 4.95703125
+ },
+ "reflection_all": {
+  "count_share": {
+   "miss": 0.33714440125775175,
+   "near": 0.0755070311817626,
+   "far": 0.5873485675604856
+  },
+  "mean": 0.878176748752594
+ },
+ "mean_specks_x": 1344,
+ "mean_max_over_median_x": 2.839003562927246,
+ "mean_specks_xs": 265,
+ "mean_max_over_median_xs": 2.7238521575927734,
+ "capture_specks": {
+  "c-s00": 786,
+  "c-s01": 962,
+  "c-s02": 940,
+  "c-s03": 579,
+  "c-s04": 230,
+  "c-s05": 885,
+  "c-s06": 464,
+  "c-s07": 533,
+  "c-s08": 188,
+  "c-s09": 156,
+  "c-s10": 113,
+  "c-s11": 195,
+  "c-s12": 138,
+  "c-s13": 227,
+  "c-s14": 149,
+  "c-s15": 224,
+  "c-s16": 158,
+  "c-s17": 292,
+  "c-s18": 172,
+  "c-s19": 229
+ }
+}

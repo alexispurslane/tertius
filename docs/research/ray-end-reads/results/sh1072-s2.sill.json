@@ -1,0 +1,79 @@
+{
+ "samples": 309600,
+ "keep_rect_render_px": [
+  494,
+  322,
+  580,
+  331
+ ],
+ "diffuse": {
+  "mean": 0.18979233503341675,
+  "bright_count": 0,
+  "bright_share_of_light": 0.0,
+  "sill_row_hits_per_draw_p10_p50_p90": [
+   0.0,
+   4.0,
+   11.100000000000023
+  ],
+  "draws_with_sill_row_hits": 347,
+  "sill_row_hit_mean_by_draw_top5": {
+   "243": [
+    4,
+    0.374
+   ],
+   "70": [
+    2,
+    0.374
+   ],
+   "110": [
+    2,
+    0.372
+   ],
+   "360": [
+    1,
+    0.372
+   ],
+   "185": [
+    1,
+    0.372
+   ]
+  },
+  "sill_row_hit_mean_median_draw": 0.3323841094970703,
+  "share_of_light_from_sill_rows": 0.011547655798494816
+ },
+ "reflection": {
+  "mean": 0.1988527923822403,
+  "bright_count": 0,
+  "bright_share_of_light": 0.0,
+  "sill_row_hits_per_draw_p10_p50_p90": [
+   23.900000000000006,
+   37.0,
+   55.10000000000002
+  ],
+  "draws_with_sill_row_hits": 400,
+  "sill_row_hit_mean_by_draw_top5": {
+   "90": [
+    37,
+    0.523
+   ],
+   "272": [
+    17,
+    0.522
+   ],
+   "246": [
+    25,
+    0.517
+   ],
+   "199": [
+    34,
+    0.516
+   ],
+   "219": [
+    38,
+    0.516
+   ]
+  },
+  "sill_row_hit_mean_median_draw": 0.42144808101193343,
+  "share_of_light_from_sill_rows": 0.104276143014431
+ }
+}

@@ -1,0 +1,24 @@
+floor in the middle
+  v0                 grain 0.0120 daub 0.0132 boil 0.0090 level +0.0000
+  v1                 grain 0.0120 daub 0.0133 boil 0.0089 level -0.0003
+  v0 second picture  grain 0.0118 daub 0.0126 boil 0.0090 level +0.0000
+  v0 boil first half grain 0.0112 daub 0.0114 boil 0.0079 level +0.0010
+  v0 boil second half grain 0.0140 daub 0.0160 boil 0.0083 level -0.0010
+right wall below the windows
+  v0                 grain 0.0100 daub 0.0234 boil 0.0148 level +0.0000
+  v1                 grain 0.0099 daub 0.0235 boil 0.0149 level -0.0004
+  v0 second picture  grain 0.0104 daub 0.0220 boil 0.0148 level +0.0000
+  v0 boil first half grain 0.0091 daub 0.0166 boil 0.0118 level +0.0030
+  v0 boil second half grain 0.0116 daub 0.0318 boil 0.0142 level -0.0030
+ceiling between the beams
+  v0                 grain 0.0266 daub 0.0263 boil 0.0176 level +0.0000
+  v1                 grain 0.0268 daub 0.0263 boil 0.0176 level -0.0002
+  v0 second picture  grain 0.0323 daub 0.0346 boil 0.0176 level +0.0000
+  v0 boil first half grain 0.0256 daub 0.0257 boil 0.0156 level -0.0011
+  v0 boil second half grain 0.0292 daub 0.0300 boil 0.0161 level +0.0011
+side of the tilted blue crate
+  v0                 grain 0.0152 daub 0.0363 boil 0.0177 level +0.0000
+  v1                 grain 0.0152 daub 0.0357 boil 0.0175 level -0.0010
+  v0 second picture  grain 0.0157 daub 0.0294 boil 0.0177 level +0.0000
+  v0 boil first half grain 0.0144 daub 0.0336 boil 0.0169 level -0.0036
+  v0 boil second half grain 0.0175 daub 0.0390 boil 0.0164 level +0.0036
