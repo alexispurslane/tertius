@@ -14,23 +14,28 @@ index fd0cccb..1b779b7 100644
              {
                  options.FramesInFlight = count;
 diff --git a/src/Tertius.Rendering/Frame/FrameHistory.cs b/src/Tertius.Rendering/Frame/FrameHistory.cs
-index b309e4c..2dbd1f2 100644
 --- a/src/Tertius.Rendering/Frame/FrameHistory.cs
 +++ b/src/Tertius.Rendering/Frame/FrameHistory.cs
-@@ -185,7 +185,12 @@ internal sealed class FrameHistory
-     {
-         Contract.Requires(draw >= 0 && draw < DrawsOf(step));
-         bool still = IsStill(step);
--        bool reset = Resets(snapshot: snapshot, outputSize: outputSize, firstOfAStill: still && draw == 0);
+@@ -246,10 +246,17 @@
+     /// <paramref name="step"/> s at <paramref name="outputSize"/>: 0 for a draw that resets, else one past the last
+     /// drawn frame's.
+     /// </summary>
+-    private long DrawIndexOf(RenderSnapshot snapshot, float step, int draw, Extent2D outputSize) =>
+-        Resets(snapshot: snapshot, outputSize: outputSize, firstOfAStill: IsStill(step) && draw == 0)
++    private long DrawIndexOf(RenderSnapshot snapshot, float step, int draw, Extent2D outputSize)
++    {
 +        // PROBE (tools/renderer-survey): with TERTIUS_PROBE_STILL_CONTINUES=1, a still of an unchanged state (a step of 0 s,
 +        // a capture right after a drawn frame) keeps the history of the draws before it, as a window keeps drawing an
 +        // unchanged view. A still after a step of time, a camera cut, a new output size and the first drawn frame still
 +        // reset.
 +        bool continues = step == 0f && Environment.GetEnvironmentVariable("TERTIUS_PROBE_STILL_CONTINUES") == "1";
-+        bool reset = Resets(snapshot: snapshot, outputSize: outputSize, firstOfAStill: still && draw == 0 && !continues);
-         derived = new(
-             Reset: reset,
-             DrawIndex: reset ? 0 : lastDrawIndex + 1,
++        return Resets(snapshot: snapshot, outputSize: outputSize, firstOfAStill: IsStill(step) && draw == 0 && !continues)
+             ? 0
+             : lastDrawIndex + 1;
++    }
+ 
+     /// <summary>The cost kind of the draw with the index <paramref name="drawIndex"/> since the last reset.</summary>
+     private static DrawCost CostAt(long drawIndex) => drawIndex < CatchUpDraws ? DrawCost.CatchUp : DrawCost.Ordinary;
 diff --git a/src/Tertius.Rendering/Frame/FrameResources.cs b/src/Tertius.Rendering/Frame/FrameResources.cs
 index e8fc337..8dff62f 100644
 --- a/src/Tertius.Rendering/Frame/FrameResources.cs

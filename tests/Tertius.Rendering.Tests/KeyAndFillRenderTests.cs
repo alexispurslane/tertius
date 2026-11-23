@@ -578,12 +578,13 @@ public sealed class KeyAndFillRenderTests
     /// <summary>
     /// Renders <paramref name="scene"/> until the render scale is at its least value, a half: each frame reports a
     /// G-buffer far over the frame's budget. The request closes a quarter of its gap per frame, and 20 frames bring it
-    /// within 1/64 of a half, the step of the 320 × 192 window.
+    /// within 1/64 of a half, the step of the 320 × 192 window. They follow the catch-up draws after the start, whose
+    /// timings move only the catch-up request.
     /// </summary>
     private static void RenderUntilTheRenderScaleIsAHalf(VulkanRenderer renderer, RenderSnapshot scene)
     {
         renderer.Render(scene, 1f);
-        for (int frame = 0; frame < 20; frame++)
+        for (int frame = 0; frame < FrameHistory.CatchUpDraws + 20; frame++)
         {
             renderer.ScaleController!.Measure(
                 new(

@@ -205,6 +205,69 @@ public sealed class FrameHistoryTests
     }
 
     [Fact]
+    public void TheDrawsOfTheCatchUpLengthAfterAResetAreCatchUpDraws()
+    {
+        var history = new FrameHistory(StillRule.Window);
+        var costs = new List<DrawCost>();
+
+        for (int draw = 0; draw < FrameHistory.CatchUpDraws; draw++)
+            costs.Add(Draw(history: history, snapshot: Snapshot()).Cost);
+
+        costs.Should().AllBeEquivalentTo(DrawCost.CatchUp, "their young histories trace an own ray at nearly every pixel");
+    }
+
+    [Fact]
+    public void TheDrawAfterTheCatchUpLengthIsAnOrdinaryDraw()
+    {
+        var history = new FrameHistory(StillRule.Window);
+        for (int draw = 0; draw < FrameHistory.CatchUpDraws; draw++)
+            Draw(history: history, snapshot: Snapshot());
+
+        Draw(history: history, snapshot: Snapshot()).Cost.Should().Be(DrawCost.Ordinary);
+    }
+
+    [Fact]
+    public void ACameraCutMakesTheNextDrawACatchUpDrawAgain()
+    {
+        var history = new FrameHistory(StillRule.Window);
+        for (int draw = 0; draw < 20; draw++)
+            Draw(history: history, snapshot: Snapshot(cuts: 1));
+
+        Draw(history: history, snapshot: Snapshot(cuts: 2)).Cost.Should().Be(DrawCost.CatchUp);
+    }
+
+    [Fact]
+    public void TheCostOfTheNextDrawIsTheCostThatItsBeginDerives()
+    {
+        var history = new FrameHistory(StillRule.Window);
+        var told = new List<DrawCost>();
+        var derived = new List<DrawCost>();
+        // A start, a cut at draw 12 and a change of the output size at draw 30.
+        for (int draw = 0; draw < 40; draw++)
+        {
+            RenderSnapshot snapshot = Snapshot(cuts: draw < 12 ? 1 : 2);
+            Extent2D output = draw < 30 ? Output : new(1920, 1080);
+            told.Add(
+                history.CostOf(snapshot: snapshot, step: FrameHistoryTesting.FilmStep, draw: 0, outputSize: output)
+            );
+            derived.Add(Draw(history: history, snapshot: snapshot, output: output).Cost);
+        }
+
+        told.Should().Equal(derived);
+        told.Count(cost => cost == DrawCost.CatchUp).Should().Be(3 * FrameHistory.CatchUpDraws);
+    }
+
+    [Fact]
+    public void TheCatchUpLengthIsTheHistoryLengthBelowWhichThePlanTracesAnOwnRay()
+    {
+        string sampleAge = File.ReadAllText(
+            Path.Combine(Gpu.RepositoryRoot, "src", "Tertius.Rendering", "Shaders", "sample_age.glsl")
+        );
+
+        sampleAge.Should().Contain($"const float FullRateFrames = {FrameHistory.CatchUpDraws}.0;");
+    }
+
+    [Fact]
     public void ADrawThatThrowsBeforeDrewDoesNotConsumeItsCut()
     {
         var history = new FrameHistory(StillRule.Window);
