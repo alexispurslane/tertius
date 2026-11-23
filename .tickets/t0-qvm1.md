@@ -2,7 +2,7 @@
 id: t0-qvm1
 status: closed
 deps: []
-links: [t0-gumm, t4f-71qp]
+links: [t0-gumm, t4f-71qp, t1-yi11, t1-nyjl, t1-g1jd]
 created: 2026-11-22T11:13:56Z
 type: task
 priority: 2

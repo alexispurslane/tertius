@@ -2,7 +2,7 @@
 id: t1-nyjl
 status: in_progress
 deps: []
-links: [ter-fe63, t7-3e22, t1-cyhy, t1-m0p7]
+links: [ter-fe63, t7-3e22, t1-cyhy, t1-m0p7, t1-yi11, t1-g1jd, t0-qvm1]
 created: 2026-11-23T17:55:13Z
 type: task
 priority: 1
@@ -124,3 +124,7 @@ The thin-box diffuse take (t1-cyhy), diffuse alone at 0.25: the right wall's blo
 **2026-11-23T20:07:08Z**
 
 2026-11-23, line orchestrator, on the orchestrator's word: the cut histories are now the lead for the diffuse blobs, and the history lengths per region move up, right after the nose's pictures of ter-fe63. In a frozen world every rule that shortens a history fires falsely. The table: per region of the frozen bay, the share of pixels by history length at a cap of 32 and of 128, and for the short ones the writer (the clamp's anti-lag, the region drift test, the surface test, light evidence). The Design X line counted the whole bay by writer on main today (t1-g1jd, step 1, docs/research/t1-g1jd-short-histories-by-writer/): 29.33 % of the surface pixels under 31.5 draws at draw 630, all from region evidence, none from the anti-lag, and the blotch score falls from 0.0217 to 0.0190 with region evidence off. The lead reuses that record's patches and tools. If one writer explains the gap between an effective history of about 25 to 83 draws and the cap of 128, that writer is the next ticket for the blobs. The orchestrator also took my recommendation on one bounce: it is the model of the store, not of the screen.
+
+**2026-11-23T21:42:19Z**
+
+2026-11-23, line orchestrator: the history lengths by writer are in, and one writer explains the gap: region evidence, the drift test that fires falsely in a frozen world. With it off every pixel of the bay's four regions is at the cap, at 32 and at 128; the anti-lag, light evidence and the surface test shorten nothing there. The cost, diffuse alone, blob of capture 19 at a cap of 128, region evidence on against off: patch 0.0089 to 0.0026, back wall 0.0075 to 0.0040, floor 0.0093 to 0.0041, right wall 0.0063 to 0.0022 (the rows at a cap of 32 were 0.0088, 0.0096, 0.0108, 0.0065). With it off the blobs' lifetime is a plain history of 128. So with region evidence off a cap of 128 cuts the diffuse blobs 2 to 3.4 times, as independent noise through a longer history predicts, and with it on the false firings undo the cap. Full tables in the new ticket t1-yi11, which holds the finding for the orchestrator's decision. Ordered from the lead: crops at 1:1 of the diffuse signal at cap 32, cap 128 and cap 128 with region evidence off, from captures that exist; and after 17:05, in four parts under 20 minutes, the bay's and rect-lamps' floor's columns of ter-fe63 and the bay's full picture at a cap of 128 with region evidence off, alone and with the reflection mixture's exact count on top.

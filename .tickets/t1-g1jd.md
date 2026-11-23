@@ -2,7 +2,7 @@
 id: t1-g1jd
 status: open
 deps: []
-links: [ter-18hc, ter-pdw8]
+links: [ter-18hc, ter-pdw8, t1-yi11, t1-nyjl, t0-qvm1]
 created: 2026-11-23T05:42:37Z
 type: bug
 priority: 2
