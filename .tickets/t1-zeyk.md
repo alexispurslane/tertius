@@ -2,7 +2,7 @@
 id: t1-zeyk
 status: open
 deps: []
-links: [ter-5kz6]
+links: [ter-5kz6, ter-4iic, ter-bcwr]
 created: 2026-11-23T01:47:50Z
 type: task
 priority: 2
