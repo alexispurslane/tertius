@@ -204,7 +204,7 @@ The runs of the final videos (`tools/queue-mac5.sh`) play back each code's own c
 - **After on**, A's run-2 log has one size change of 0.004 at draw 402, which is the card's noise. With it, A's upper and middle regions do not settle within 100 draws. On run 1's log, which has no size change after on, A settles in 80 draws, as C32 does in 81. So one size change after a light change costs more than 20 draws of settle. The likely cause is `t4f-71qp` (the region's drift test restarts its count at every change of the render size). Not hunted.
 - **At the cut**, C32 settles in 132 draws, and A and today in 152 and 153. A and today fall to a scale of 0.85 and change size 40 and 44 times. C32 holds 0.98.
 - **At the start**, the three settle within 4 draws.
-- **The grain of the first 16 draws** is the cliff's price on the picture: C32 1.08 against 0.87 at the start, and 1.02 against 0.89 at the cut. At 2/3 the difference was 0.03. At draw 2 after the start, C32's floor shows a fine speckle that A and today do not show (`pics/start-draw2-floor.png`: A, today, C32, a crop of 800 × 440 source pixels).
+- **The grain of the first 16 draws** is the cliff's price on the picture: C32 1.08 against 0.87 at the start, and 1.02 against 0.89 at the cut. At 2/3 the difference was 0.03. At draw 2 after the start, C32's floor shows a fine speckle that A and today do not show (`pics/start-draw2-floor.png`: A, today, C32, a crop of 800 × 440 source pixels; the render scale at draw 2 is 0.929 (1776 × 1000) for A, 0.929 (1776 × 1000) for today and 0.969 (1856 × 1040) for C32).
 
 ![draw 2 after the start: A, today, C32](pics/start-draw2-floor.png)
 
