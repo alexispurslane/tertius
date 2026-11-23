@@ -431,6 +431,12 @@ of the sun's share pass on the merged form.
 With every light pair (`--key-lights off`), the first form changed the cabin's direct pass by 0.009 ms only, since
 `direct.frag` stays far from its step.
 
+After the merge of main at 0e32f1767, which brought Design X, the merged head 5f83efe3d runs as main does. In the orbit
+cabin, main's medians are 15.264, 15.262 and 15.256 ms against 15.237, 15.258 and 15.252 ms, with the direct pass at
+1.549 to 1.551 ms against 1.543 to 1.550 ms. In the lamp hall, main's are 10.019, 9.996 and 10.030 ms against 10.031,
+10.015 and 10.013 ms, with the direct pass at 1.191 to 1.199 ms against 1.190 to 1.199 ms. The 1-minute load was 3.7 to
+5.7. `tools/shader_registers.py` reads r112 for `direct.frag` and r115 for `direct_key_fill.frag` on both.
+
 ### The step where two cascades meet
 
 The step of `TheEdgeOfAShadowDoesNotStepWhereTwoCascadesMeet`, in meters on the ground, with a and b the finer and the
