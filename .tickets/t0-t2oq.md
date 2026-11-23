@@ -2,7 +2,7 @@
 id: t0-t2oq
 status: open
 deps: []
-links: [t1-af5w]
+links: [t1-af5w, t0-gg8m]
 created: 2026-11-23T21:39:17Z
 type: bug
 priority: 3
@@ -196,3 +196,7 @@ The orchestrator's pick for the register budget (2026-11-23 17:00 by its clock, 
 **2026-11-23T22:09:49Z**
 
 The register count (2026-11-23, recorded by the line orchestrator at 17:09 New York time; the lead's record goes to docs/research/t2-x53j-register-room/README.md on the branch t0-t2oq-register-count). Offline compiles for the M1 at the line's head ba0858bf5; a count shows the compiler's choice, not a time. direct.frag / direct_key_fill.frag: the head r112 / r115 (22,455 / 23,022 instructions); the three blocked features and the lean form with no split r117 / r119; design 2, the split alone with an array of 72, r104 / r108 (9,431 / 10,002 instructions); design 2 with everything in it (S1) at 72 or 32, r104 / r108, room 7 in key and fill; S1 at 16, r118 / r122; S1 at 4, r106 / r110; the visibility loop alone r55; the response loops alone r100 / r104; design 1's direct shader with one texelFetch per shadowed light r103 / r107, room 8; design 1's compute shader r53. At 32 and 72 Metal keeps the array on the stack (1 stack store, 12 stack loads), at 16 and 4 in registers. The loops are not fused: the visibility loop peaks at 81 live registers, a response loop at 107. 72 is the atlas's 64 tiles, 4 cascade sets and 4 lights with far shadows only, which have no bound today. My reading: the split works, and my estimate of 18 to 35 registers of room was wrong, because the response and not the filter holds most of the registers. Design 2 misses the gate of 8 by one register and design 1 passes by none, a difference that the shadow softness record calls the allocator's noise. Design 1's image without a cap is 72 layers, 66 MB at 1280 x 720 and about 600 MB at 3840 x 2160. Asked of the orchestrator: design 2 on the stack at room 7 (my recommendation), or design 1 as its rule says.
+
+**2026-11-23T22:12:07Z**
+
+The orchestrator's answer to the count (2026-11-23 17:15 by its clock, recorded by the line orchestrator at 17:12 New York time): option 1, design 2, the local array on the stack, sized 72. Its gate of 8 was a guess made before the count, and 7 against 8 is inside the allocator's noise. What decides: a shadow filter feature now lands in a body of r53 to r55 and costs the direct shader no register, and design 2 adds no pass and no image, where design 1's image without a cap is 149 MB at 1080p. Answer 114 stands. The build ticket is t0-gg8m, with the orchestrator's five conditions in it. Order on the shadow lead: the dither's build, the gather search on bf1a02a06, then the split. The soft shadows' own build comes after the split is on main and the search has its count, as one more ticket. What stays exposed: the response's 12 written-out loop bodies hold the peak at r104 to r108, so growth of the response is the next thing that can fall off the step. No work on that now.
