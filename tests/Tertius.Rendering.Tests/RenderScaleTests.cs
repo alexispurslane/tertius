@@ -295,7 +295,10 @@ public sealed class RenderScaleTests
         // The fixed work is 3 ms and the work at the render size 40 ms per unit area, so 14.4 ms wants
         // sqrt(11.4 / 40), and a shrink moves a quarter of the way there.
         double wanted = Math.Sqrt(11.4 / 40);
-        controller.RequestedScaleFor(DrawCost.Ordinary).Should().BeApproximately((float)(0.9 + 0.25 * (wanted - 0.9)), 1e-6f);
+        controller
+            .RequestedScaleFor(DrawCost.Ordinary)
+            .Should()
+            .BeApproximately((float)(0.9 + 0.25 * (wanted - 0.9)), 1e-6f);
     }
 
     [Fact]

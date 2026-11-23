@@ -223,7 +223,12 @@ public sealed class DrawCostScaleTests
                 controller.Measure(inFlight.Dequeue());
             controller.AssertInvariants();
         }
-        return new(Scales: scales, Cut: cut, OrdinaryBeforeCut: beforeCut.Ordinary, CatchUpBeforeCut: beforeCut.CatchUp);
+        return new(
+            Scales: scales,
+            Cut: cut,
+            OrdinaryBeforeCut: beforeCut.Ordinary,
+            CatchUpBeforeCut: beforeCut.CatchUp
+        );
     }
 
     private static RenderSnapshot Snapshot(long cuts)

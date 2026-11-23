@@ -20,7 +20,9 @@ namespace Tertius.Rendering;
 internal sealed class RenderScaleController
 {
     private readonly FrameTimeTarget target;
-    private readonly (long Frame, float Scale, DrawCost Cost)?[] drawn = new (long Frame, float Scale, DrawCost Cost)?[8];
+    private readonly (long Frame, float Scale, DrawCost Cost)?[] drawn = new (long Frame, float Scale, DrawCost Cost)?[
+        8
+    ];
 
     // Each cost kind's fitted model and request, at the kind's index; none before the kind's first measurement.
     private readonly Fit?[] fits = new Fit?[Enum.GetValues<DrawCost>().Length];

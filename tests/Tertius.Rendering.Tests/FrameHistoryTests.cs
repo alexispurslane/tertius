@@ -215,7 +215,9 @@ public sealed class FrameHistoryTests
         for (int draw = 0; draw < FrameHistory.CatchUpDraws; draw++)
             costs.Add(Draw(history: history, snapshot: Snapshot()).Cost);
 
-        costs.Should().AllBeEquivalentTo(DrawCost.CatchUp, "their young histories trace an own ray at nearly every pixel");
+        costs
+            .Should()
+            .AllBeEquivalentTo(DrawCost.CatchUp, "their young histories trace an own ray at nearly every pixel");
     }
 
     [Fact]
@@ -266,15 +268,10 @@ public sealed class FrameHistoryTests
             Path.Combine(Gpu.RepositoryRoot, "src", "Tertius.Rendering", "Shaders", "sample_age.glsl")
         );
 
-        Match length = Regex.Match(
-            sampleAge,
-            @"const\s+float\s+FullRateFrames\s*=\s*([0-9.]+)"
-        );
+        Match length = Regex.Match(sampleAge, @"const\s+float\s+FullRateFrames\s*=\s*([0-9.]+)");
 
         length.Success.Should().BeTrue("sample_age.glsl declares the plan's own-ray length (t58-aqrg: one store)");
-        float.Parse(length.Groups[1].Value, CultureInfo.InvariantCulture)
-            .Should()
-            .Be(FrameHistory.CatchUpDraws);
+        float.Parse(length.Groups[1].Value, CultureInfo.InvariantCulture).Should().Be(FrameHistory.CatchUpDraws);
     }
 
     [Fact]
