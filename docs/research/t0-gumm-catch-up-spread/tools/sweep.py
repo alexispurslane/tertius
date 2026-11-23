@@ -1,5 +1,5 @@
 # Tool code of t0-gumm. sweep.py <out prefix> [fair folder]: the sweep of catch-up shapes at the bay's start
-# (queue-fair3.sh, and c3 (1, 3, 0) by queue-fair4.sh), from fairmeasure.py's fair.json files and the own-ray logs (scratch-ownray-log.patch, per draw
+# (queue-fair3.sh; c3 (1, 3, 0) by queue-fair5.sh; d3 (1, 8, -3), full rate in draws 3 to 7 only, by queue-fair6.sh), from fairmeasure.py's fair.json files and the own-ray logs (scratch-ownray-log.patch, per draw
 # "<frame> <draw index> <w> <h> <reflection own rays> <..2> <diffuse own rays> <..2>"). Per shape it prints:
 #   - the boil of draws 1 to 8 (the mean of the broad crops), the grain of draws 3 to 8 and 9 to 15 (the mean of the floor
 #     and the wall), and the same three on the narrow crop;
@@ -23,7 +23,8 @@ SHAPES = [('today', 'today (1, 8, 0)', 'bay-start-today', 'bay-own-today', (30, 
           ('q32', 'q32 (0.25, 32, 0)', 'bay-start-q32', 'bay-start-q32', (40, 160, 80)),
           ('e32', 'e32 (0.125, 32, 0)', 'bay-start-e32', 'bay-start-e32', (200, 140, 20)),
           ('f32', 'f32 (0.5, 32, 1)', 'bay-start-f32', 'bay-start-f32', (140, 60, 180)),
-          ('c3', 'c3 (1, 3, 0)', 'bay-start-c3', 'bay-start-c3', (0, 160, 160))]
+          ('c3', 'c3 (1, 3, 0)', 'bay-start-c3', 'bay-start-c3', (0, 160, 160)),
+          ('d3', 'd3 (1, 8, -3)', 'bay-start-d3', 'bay-start-d3', (150, 110, 60))]
 GRAIN = ('floor', 'wall')
 CROP = (500, 100, 1860, 1060)
 rows = []
