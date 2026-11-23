@@ -2,7 +2,7 @@
 id: t58-rcd6
 status: in_progress
 deps: []
-links: [ter-6fka]
+links: [ter-6fka, t10-ogon, t10-ck8w]
 created: 2026-11-22T22:51:40Z
 type: bug
 priority: 2
@@ -130,3 +130,17 @@ where
 - A change of the render scale's controller.
 
 Cloud money: up to 0.10 dollars for this ticket, only through tools/runpod/gpu_job.py, and only if the render scale's check needs the card.
+
+**2026-11-23T17:54:01Z**
+
+2026-11-23, lead (t1-6tn2's lead): the build, in progress on t3/fix-projection-aspect-wobble (review base 8ef2812e8, a merge of main bdc49b929).
+
+The model, as settled by the line on 2026-11-23 (fork C): the count of camera cuts holds two causes, an eye jump and a hand-off of the camera's frame. FrameHistory.Begin derives RefreshesEveryFace from the still's first draw and from JumpsTheEye = CutsFrom (the reset's predicate) && KeepsTheFrame (the frame comparison of the continued record). A cut that changes the camera's frame goes through EnvironmentChain.Keeps, as decision 9 says, so a doorway costs what it cost on main. The first commit (93d2c5847) refreshed every map at every cut, a hand-off included; the reviewer found that, and C replaces it.
+
+Red first, on the code before each change:
+- Against main (8ef2812e8): ADrawAfterACameraCutRefreshesEveryFaceOfTheMaps (now ACutThatKeepsTheCamerasFrameRefreshesEveryFaceOfTheMaps) found False; ACameraCutRefreshesEveryFaceOfEveryMapInItsOwnDraw found map 0's faces 0, 1, 3, 4, 5 of the frames before; AfterACutFromABrightPlaceIntoADarkRoomTheMapHoldsTheRoomInTheCutsDraw found <1, 1, 1> on faces 1, 3, 4, 5.
+- Against 93d2c5847 (every cut refreshes): AHandOffOfTheCamerasFrameResetsTheHistoriesButLeavesTheMapsToTheChain found True; WhenTheCameraEntersAChildTheMapsOutsideKeepTheirFaces, with the cut count that the simulation sends at a frame change, found the root's face +X <0, 0, 1> where decision 9 keeps <1, 0, 0>.
+
+The stores that depend on the eye's place, and how each hears of a cut: ARCHITECTURE.md, "The frame history", the table after the pending state. The two that do not hear it are their own tickets: t10-ogon (impostor captures) and t10-ck8w (the exposure); neither has this fix's one-line cause. The residual of the maps (a cut to a camera in another frame keeps the ancestor maps whose frames stay; their error is the eye's jump inside the subtree that they leave out, the kind of error of a face in turn) is stated there too.
+
+Film (acceptance 2, cut-exterior.json, exposure 4.08, whole-image mean as 8-bit mean x 257) at draws 0 / 10 / 50 / 199 after the cut: main 65,535 / 65,535 / 65,481 / 43,597; fix 23,587 / 25,228 / 26,042 / 26,701 (0.883, 0.945, 0.975 of draw 199). No frame of the fix is white: at most 0.45 % of its pixels saturate, the lamps. The film's cut keeps the camera's frame, so A and C give it alike. Video: t3-1f553e45-00934a8d076a004a-evidence/rcd6/video/cut-exterior-main-vs-fix.mp4.

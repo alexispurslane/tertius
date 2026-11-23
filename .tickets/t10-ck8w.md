@@ -2,7 +2,7 @@
 id: t10-ck8w
 status: open
 deps: []
-links: []
+links: [t58-rcd6, t10-ogon]
 created: 2026-11-23T17:21:52Z
 type: bug
 priority: 3

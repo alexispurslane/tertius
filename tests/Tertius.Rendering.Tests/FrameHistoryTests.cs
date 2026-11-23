@@ -166,20 +166,43 @@ public sealed class FrameHistoryTests
     }
 
     [Fact]
-    public void ADrawAfterACameraCutRefreshesEveryFaceOfTheMaps()
+    public void ACutThatKeepsTheCamerasFrameRefreshesEveryFaceOfTheMaps()
     {
         var history = new FrameHistory(StillRule.Window);
-        Draw(history: history, snapshot: Snapshot(cuts: 1));
+        Draw(history: history, snapshot: Snapshot(cuts: 1, frameId: 7));
 
         FrameHistory.PendingFrame pending = history.Begin(
             step: FrameHistoryTesting.FilmStep,
             draw: 0,
-            snapshot: Snapshot(cuts: 2),
+            snapshot: Snapshot(cuts: 2, frameId: 7),
             outputSize: Output,
             renderSize: Output
         );
 
-        pending.RefreshesEveryFace.Should().BeTrue("a cut moves the eye in one step, and every map is captured at the eye");
+        pending
+            .RefreshesEveryFace.Should()
+            .BeTrue("the eye jumped inside the camera's frame, and every map is captured at the eye");
+    }
+
+    [Fact]
+    public void AHandOffOfTheCamerasFrameResetsTheHistoriesButLeavesTheMapsToTheChain()
+    {
+        // The simulation counts one more cut when the camera's frame changes, as it does at a doorway.
+        var history = new FrameHistory(StillRule.Window);
+        Draw(history: history, snapshot: Snapshot(cuts: 1, frameId: 7));
+
+        FrameHistory.PendingFrame pending = history.Begin(
+            step: FrameHistoryTesting.FilmStep,
+            draw: 0,
+            snapshot: Snapshot(cuts: 2, frameId: 8),
+            outputSize: Output,
+            renderSize: Output
+        );
+
+        pending.Reset.Should().BeTrue();
+        pending
+            .RefreshesEveryFace.Should()
+            .BeFalse("the chain's Keeps refreshes the maps whose frames changed, and a doorway hides no extra cost");
     }
 
     [Fact]

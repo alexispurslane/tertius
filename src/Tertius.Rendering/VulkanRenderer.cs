@@ -691,7 +691,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
-    /// The draw's one choke point of the history: its reset, its draw index, its exposure step, its refresh of the map's
+    /// The draw's one choke point of the history: its reset, its draw index, its exposure step, its refresh of the maps'
     /// faces and the last frame's state. Its render size is the active size of the output at the scale that the
     /// controller requests for the draw's cost kind. After the acquire, which can change the output size.
     /// </summary>

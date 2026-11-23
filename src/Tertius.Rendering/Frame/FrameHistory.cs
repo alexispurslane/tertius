@@ -121,7 +121,7 @@ internal readonly record struct DrawnFrame(
 /// The record of the last drawn frame, and the rules that relate each draw to it (docs/plans/temporal-renderer.md, "The
 /// frame history"). DrawsOf gives the draws of a snapshot at a clock step: 1, or for a headless still also its warm-up
 /// draws. Begin derives one draw's pending state: whether it resets every history, its draw index since the last reset,
-/// its exposure step, whether it refreshes every face of the map, the parity of the images that alternate, and the record
+/// its exposure step, whether it refreshes every face of every map, the parity of the images that alternate, and the record
 /// relative to this draw's eye. The batch writes the draw's camera and placements into the pending state.
 /// Drew commits it after the submission. A draw that throws before Drew leaves the record, the count of drawn frames and
 /// so every parity as they were. No other owner keeps a copy of these values.
@@ -211,7 +211,7 @@ internal sealed class FrameHistory
     /// <paramref name="renderSize"/>, and changes no record. The draw resets when it is the first drawn frame, when the
     /// snapshot's count of camera cuts differs from the drawn frame's, when the output size changed, or when it is the
     /// first draw of a still. A change of the render size resets nothing. The draw refreshes every face of every map when
-    /// it is the first draw of a still or follows a cut, the resets that move the eye.
+    /// it is the first draw of a still or the eye jumped inside the camera's frame (<see cref="JumpsTheEye"/>).
     /// </summary>
     /// <param name="draw">The draw of the snapshot, from 0 to <see cref="DrawsOf"/> − 1. The last one is the shown draw.</param>
     /// <returns>The history's one pending state, armed for this draw. The next Begin arms it again.</returns>
@@ -227,13 +227,13 @@ internal sealed class FrameHistory
             ExposureStep: still ? StillExposureStep(step, draw) : step,
             FsrFrameMilliseconds: still ? 1000f / 60 : step * 1000,
             // A map is captured at the eye, so the maps must hear of the eye's jump from the same source as the histories.
-            RefreshesEveryFace: (still && draw == 0) || CutsFrom(snapshot),
+            RefreshesEveryFace: (still && draw == 0) || JumpsTheEye(snapshot),
             DrawnFrames: DrawnFrames,
             RenderSize: renderSize,
             OutputSize: outputSize,
             CameraCuts: snapshot.CameraCuts,
             // A position in another frame's axes means nothing in this one's, so the record then serves no motion.
-            Continued: drawn is { } record && record.Camera.FrameId == snapshot.OriginFrameId ? record : null,
+            Continued: KeepsTheFrame(snapshot) ? drawn : null,
             // The images keep the size at which the last draw wrote them, in whichever frame its camera was.
             PreviousRenderSize: drawn?.RenderSize ?? renderSize
         );
@@ -269,9 +269,22 @@ internal sealed class FrameHistory
 
     /// <summary>
     /// Whether <paramref name="snapshot"/> cuts the camera since the last drawn frame: its count of camera cuts differs from
-    /// that frame's. A cut moves the eye's place in one step. False before the first drawn frame.
+    /// that frame's. The count holds two causes: the eye jumped, or the camera's frame changed hands while the eye moved on
+    /// smoothly. False before the first drawn frame.
     /// </summary>
     private bool CutsFrom(RenderSnapshot snapshot) => drawn is { } last && last.CameraCuts != snapshot.CameraCuts;
+
+    /// <summary>Whether the camera of <paramref name="snapshot"/> is in the frame of the last drawn frame's camera.</summary>
+    private bool KeepsTheFrame(RenderSnapshot snapshot) =>
+        drawn is { } last && last.Camera.FrameId == snapshot.OriginFrameId;
+
+    /// <summary>
+    /// Whether the eye jumped inside the camera's frame since the last drawn frame: a cut that keeps the camera's frame
+    /// (t58-rcd6). Every map is captured at the eye, so such a jump makes every map's content wrong. A cut that changes the
+    /// camera's frame is a hand-off or a switch to a camera elsewhere, and <see cref="EnvironmentChain.Keeps"/> already
+    /// refreshes every map whose frame or frame below changed (decision 9 of docs/plans/environment-maps-per-frame.md).
+    /// </summary>
+    private bool JumpsTheEye(RenderSnapshot snapshot) => CutsFrom(snapshot) && KeepsTheFrame(snapshot);
 
     /// <summary>Whether a draw after a clock step of <paramref name="step"/> s is a still: the rule of decision 32.</summary>
     private bool IsStill(float step) => rule.Headless && (step == 0 || step >= MeteringStepSeconds);
@@ -388,9 +401,10 @@ internal sealed class FrameHistory
 
         /// <summary>
         /// Whether the draw refreshes every face of every environment map: the first draw of a still, and a draw after a
-        /// camera cut. A map is captured at the eye, and a cut moves the eye in one step, so a map kept across a cut would
-        /// show the place that the eye left (t58-rcd6). A change of the output size resets the histories but moves no eye,
-        /// so it keeps the maps.
+        /// camera cut that keeps the camera's frame. A map is captured at the eye, and such a cut jumps the eye inside the
+        /// frame, so a map kept across it would show the place that the eye left (t58-rcd6). A cut that changes the
+        /// camera's frame leaves the maps to <see cref="EnvironmentChain.Keeps"/>, and a change of the output size resets
+        /// the histories but moves no eye.
         /// </summary>
         public bool RefreshesEveryFace => history.derived.RefreshesEveryFace;
 

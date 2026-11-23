@@ -57,7 +57,7 @@ Settled by this design:
 
 8. Maps are indexed root first. Map 0 belongs to the outermost served frame and map M − 1 to the camera's frame. An object's map is M − 1 − min(depth, M − 1). Reason: when the camera enters a child frame or leaves for its parent, the chain changes at its camera end, and every map above the change keeps its index, so it can keep its faces (decision 9). Indexed from the camera, every map's index moves by one at such a change.
 9. Each map lies in the axes of its own frame. The camera's frame's map lies in the camera's frame's axes, as today's map does. A face of map i looks along R_i times the face's axis of Vulkan's cube table. A reader turns its direction into the map's axes before it samples. With this, a change of the camera's frame keeps every map whose frame and frame below did not change, and the rule is exact. Reason: decision 5 asks for a cheaper exact rule. In the camera's axes, which today's single map uses, a change of the camera's frame turns every map's axes, so every face of every map is wrong. Two more gains follow. A turn of the camera's frame, such as a ship that rolls, no longer ages the maps of its ancestors, because what is at rest in an ancestor stays at rest in its map. And an ancestor's irradiance does not change when the ship turns, so the impostors outside are not recaptured for it. The cost is two quaternion rotations per lit pixel (see "Cost").
-10. A refresh is a decision per map. Map i draws all six faces when it is not kept or the draw refreshes every face: the first draw of a still, or a draw after a camera cut (amended by t58-rcd6, 2026-11-23: every map is captured at the eye, and a cut moves the eye in one step, so a map kept across a cut showed the place that the eye left; `FrameHistory.PendingFrame.RefreshesEveryFace` gives both causes, and a change of the output size, which moves no eye, keeps the maps). Otherwise it draws its slots in turn. Today's `RefreshesAll` is the case M = 1. Reason: decision 5, and the cost of the cases below.
+10. A refresh is a decision per map. Map i draws all six faces when it is not kept or the draw refreshes every face: the first draw of a still, or a camera cut that keeps the camera's frame (amended by t58-rcd6, 2026-11-23: every map is captured at the eye, and such a cut jumps the eye inside the frame, so a map kept across it showed the place that the eye left; `FrameHistory.PendingFrame.RefreshesEveryFace` gives both causes. A cut that changes the camera's frame, as a hand-off at a doorway, goes through `Keeps` as before, so it costs what this decision gives. A change of the output size, which moves no eye, keeps the maps). Otherwise it draws its slots in turn. Today's `RefreshesAll` is the case M = 1. Reason: decision 5, and the cost of the cases below.
 
     | Change | Today's rule, applied to every map | This rule |
     |---|---|---|
@@ -297,7 +297,7 @@ where
 - `Capacity` = the maps that the images hold.
 - `facesOfMaps` = an array of 42 `FaceMask`, reused, so a frame allocates nothing.
 - `InTurn` = clears `faces`, then sets the slots (frame · F + k) mod 6M for k from 0 to F − 1 (decision 11).
-- `everyFace` = whether the draw refreshes every face of every map: the first draw of a still or a draw after a camera cut (`FrameHistory.PendingFrame.RefreshesEveryFace`).
+- `everyFace` = whether the draw refreshes every face of every map: the first draw of a still or a camera cut that keeps the camera's frame (`FrameHistory.PendingFrame.RefreshesEveryFace`).
 - `RefreshesAll` = `!EnvironmentChain.Keeps(drawnFor, served, map) || everyFace` (decision 10).
 - `DrawnFor` = the served chain of the stored faces, empty before the first submitted frame and after a growth.
 - `Drew` = what `DrawFrame` calls after `SubmitAndPresent`, with the frame's slot.
@@ -671,7 +671,7 @@ The existing tests:
 - The map images never shrink. A camera that once rode a chain of five keeps five maps' memory.
 - A chain longer than ever before waits for the device once, at the frame of the growth.
 - More than 42 frames on a chain merge their outermost frames into map 0 (decision 19). No scene comes near it.
-- As today, a window camera that cuts within one frame mixes old and new faces until each is drawn again: up to ⌈6M / F⌉ − 1 frames now.
+- A camera cut that keeps the camera's frame refreshes every map in its own draw, in a window as in a film (t58-rcd6). Before, it mixed old and new faces until each was drawn again: up to ⌈6M / F⌉ − 1 frames. A cut that changes the camera's frame refreshes what decision 9 gives.
 
 ## Compared with a design from scratch
 
