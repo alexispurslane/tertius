@@ -2,7 +2,7 @@
 id: t58-phgr
 status: open
 deps: []
-links: [t58-np60]
+links: [t58-np60, t0-ygp1]
 created: 2026-11-22T20:09:17Z
 type: bug
 priority: 3

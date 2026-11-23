@@ -1,6 +1,6 @@
 ---
 id: t0-qvm1
-status: open
+status: closed
 deps: []
 links: [t0-gumm, t4f-71qp]
 created: 2026-11-22T11:13:56Z
@@ -263,3 +263,102 @@ The model's check: T replays every logged fire exactly, and its block model of t
 - p measured after FSR: median 0.53 (exit-cabin), 1.12 (lamp hall), 0.61 (bay), 1.17 (cabin). So C1 is the continuous cap that the measure supports, and it keeps 9 to 16 % of the blocks short.
 - The pairing at P = 25 in the lamp hall fires at 1.09 % against 0.95 % with today's windows: no visible jitter remainder.
 - The numbers favor K6 among the candidates. It cuts the stills' short blocks about eightfold, keeps the switch within 2 to 6 draws of T and the median lags at T's, and costs about 8 draws of rect-bay's largest lag. Its cost in the cabin's weak drift is most of T's model gain: -1.14 % against T's -0.92 % and no rule's -1.24 %.
+
+**2026-11-23T09:55:03Z**
+
+2026-11-23, orchestrator: I read the replay's table (docs/research/t0-qvm1-region-repair-replay/README.md) and opened its picture. Point 2 is settled: the response is the continuous cap at p = 1 (C1). Reasons: it cuts the frozen stills' added noise 3.6 times (0.114 to 0.032), it keeps the switch within 6 and 8 draws of today's settle and the median lags within 0.7 draws, it keeps 62 % of the weak drift's gain, and it has no chosen constant. The measured p (0.53 to 1.17) supports p = 1. The pairing by the jitter's cycle leaves the design: it costs 14 ring layers and shows no gain in the lamp hall at 1072 x 603. Point 1 (the noise model) and a count gate before the cap wait for the added rows: the second form of the measured spread, the lamps-off cabin as a fifth still, the hybrid, and the 90th percentile of the lags. My rule for an addition: it joins C1 only if it lowers the added noise of a still where C1 alone stays visibly noisy (the lamps-off cabin is the candidate) and costs the switch and the weak drift no more than a few draws. Otherwise C1 is built alone, because the simpler rule wins at an equal look.
+
+**2026-11-23T09:45:00Z**
+
+2026-11-23, 04:45 New York time. The replay's second take (docs/research/t0-qvm1-region-repair-replay/README.md, "The second take"), CPU only on the existing logs. The stills' surface now comes from the logs, and T's shares move by at most 0.17 points against the first take's dump surface.
+
+| Candidate | Short blocks, four stills / lamps off | Noise, four / lamps off | Switch off | bay-sun / rect-bay anchors' lag, 90 % | Switch light +20 after off / on | Cabin drift |
+|---|---|---|---|---|---|---|
+| T | 19.6-32.0 / 29.0 % | 0.113 / 0.127 | 74, 90 | 17.6 / 18.7 | 166.2 / 73.7 % | -0.92 % |
+| C1 | 9.0-16.0 / 15.0 % | 0.032 / 0.041 | 80, 98 | 23.3 / 26.8 | 167.3 / 73.5 % | -1.04 % |
+| CK3 | 4.9-8.7 / 8.8 % | 0.019 / 0.026 | 80, 98 | 25.0 / 27.8 | 168.3 / 73.2 % | -1.09 % |
+| K6 | 2.3-3.6 / 5.5 % | 0.012 / 0.020 | 76, 96 | 26.8 / 29.8 | 171.9 / 72.2 % | -1.14 % |
+| E'C1-8 | 2.7-4.6 / 9.1 % | 0.008 / 0.024 | 84, 104 | 24.0 / 31.3 (median 13.8) | 167.3 / 73.1 % | -1.09 % |
+| none | 0 | 0 | 133, 149 | 34.2 / 32.1 | 212.3 / 56.5 % | -1.24 % |
+
+- E' does not lock: it skips 0.14 to 0.34 % of the frozen tested draws, and its m reaches 0.98 to 0.99 of E's. Only the lamps-off cabin skips about 4 % of all tested draws, mostly while its light settles, and its m stays 11 to 16 % under E's. The gate halves E's motion fault but does not remove it: rect-bay's median lag is 15.1 (E'4) and 10.6 (E'8) against T's 7.2. A slow true drift raises m in its draws under the bar.
+- The lamps-off cabin is the continuous cap's weakest still (C1 15.0 %), and K6 drops most of its false fires once the light settles (0.86 % from draw 400).
+- On the true-change side, C1, CK3 and K6 lie close: the 90th-percentile lags differ by 3 to 3.5 draws, the switch's light 20 draws after off by 4.6 points, and the cabin's drift by 0.10 points. On the still side they differ by 2.7 times in noise. The line's view: CK3, one count over C1, gives the balance, at about half of C1's still cost and within 1 to 2 draws of C1's tails. C1 is the choice if no chosen constant is allowed.
+
+**2026-11-23T09:59:06Z**
+
+2026-11-23, orchestrator: I read the replay's added rows. Point 1 is settled: the noise model stays today's assumed spread, because both forms of the measured spread cost rect-bay's true drift 3 to 14 draws of median lag. The count gate (CK3) does not join now: no still is shown to stay visibly noisy under the cap alone (0.041 of added noise in the worst still). So the build is the continuous cap at p = 1, with today's assumed spread, two windows of 18 and the ring of 36. One row is still out: the line's variant in which the bar in use shrinks while an excursion lasts, B = 3 a / sqrt(1 + (r - 1) / W). I gave the line the choice by this rule, so that the build does not wait for me: the variant becomes the cap's form if it buys back at least half of the cap's loss in the anchors' 90 % lag (bay-sun 17.6 to 23.3, rect-bay 18.7 to 26.8) and keeps the added noise of every frozen still at or under 0.06. Otherwise the cap is built as chosen. The build starts on the acceptance lead's slot after that row. Its real takes decide, not the replay: the frozen stills' length maps and grain, the fair cabin switch's settle, rect-bay's film, and a side-by-side video of a still and of rect-bay, today against the build.
+
+**2026-11-23T10:00:52Z**
+
+2026-11-23, 05:03 New York time. The replay's last row, CP (C1's cap with a bar that shrinks while the excursion lasts, B = 3 a / sqrt(1 + (r - 1) / W)), in docs/research/t0-qvm1-region-repair-replay/README.md, "The third take". CP's stills: 9.8 to 16.9 % short blocks (C1 9.0 to 16.0 %), noise 0.036 (C1 0.032), the lamps-off cabin 16.1 % (C1 15.0 %). The switch after off: 76, 96 (C1 80, 98). The anchors' 90th percentile lag: bay-sun 21.8 (C1 23.3, T 17.6), rect-bay 26.5 (C1 26.8, T 18.7, none 32.1). So CP does not buy back rect-bay's tail. The false runs under today's bar end within 4 or 5 draws at the 90th percentile (99th: 9 to 15, longest 18), and rect-bay's true runs are short too, so the shrink stays near 0.9 of the bar where it matters. The replay is done.
+
+**2026-11-23T10:03:27Z**
+
+2026-11-23, 05:03 New York time, line orchestrator. The choice on the shrinking bar, and the design of the build.
+
+**The choice (answer 98, by the orchestrator's rule).** The shrinking bar (CP) does not become the cap's form. The rule asks that it buy back at least half of the cap's loss in the anchors' 90 % lag. It buys back 1.5 of 5.7 draws in bay-sun (23.3 to 21.8, against today's 17.6) and 0.3 of 8.1 draws in rect-bay (26.8 to 26.5, against today's 18.7). Its added noise passes (0.036 in the four stills, 0.046 in the lamps-off cabin, limit 0.06). The cause: the runs above the bar are short, false and true alike (90 % end within 4 or 5 draws), so the bar falls only to about 0.9 of its height where it acts. So the build is the continuous cap at p = 1 as chosen.
+
+**The design of the build: the region's cap.**
+
+Terms, each with one meaning:
+- The region's light: the mean of an anchor's counted taps in one draw, free of the exposure (as today).
+- The drift D: the mean of the newer window of W = 18 draws less the mean of the older window.
+- The older spread s1: the standard deviation of the older window's 18 draws (`olderSpread` in `regionTestOf`).
+- The bar: `DriftSigmas * s1 * sqrt(2 / W)`, today's tolerance, unchanged.
+- The excess u: |D| less the bar.
+- The region's cap n: the longest history, in draws, that the region's light allows. n = (W * s1 / (sqrt(2) * u))^(2/3), and at least `FullRateFrames` (8). Where u is 0 or less, the region gives no cap.
+
+The reason of the formula (decision Y4 wants a reason and no tuned constant): a history of n draws lags a drift of u per window by n * u / W, and its noise is s1 / sqrt(2 n). The cap is the n at which the two are equal. In units of the test's statistic z = |D| / (s1 * sqrt(2 / W)), n = W / (2 (z - 3))^(2/3): z 3.3 gives 25, 3.6 gives 16, 4.0 gives 11, and 4.7 or more gives 8. A history is at most 32 draws long, so a cap above 32 changes nothing.
+
+What causes what:
+- Who decides: the anchor's workgroup, invocation 0, in `updateRegionAnchor`. It owns the test and now also the cap. It writes the answer into its ring's layer of this draw.
+- Where the result is stored: the ring's b channel. Its meaning changes from "1 where the light moved" to the region's cut, 1 / n, and 0 where the region gives no cap. The reciprocal is stored for two reasons. An all-zero texel is a valid "no cap". A block takes the strongest answer of its anchors with a maximum, which does not depend on the order of the invocations (the bits of floats that are not negative order as the floats do, so `atomicMax` on `floatBitsToUint` works).
+- Who reads it: every block, one draw late, through one function of `region_drift.glsl`. The block's cut is the largest cut of the anchors whose regions hold it.
+- What it changes: the spatial dispatch's line of the cap. Sketch: `historyLength = evidence == LightEvidence ? min(antiLagged, FullRateFrames) : evidence == RegionEvidence ? min(antiLagged, regionCap) : antiLagged;` where regionCap = 1 / the block's cut.
+
+Signatures (GLSL, `region_drift.glsl`; the lead can change a name or a detail with a recorded reason):
+- `float regionCutOf(RegionDraw now)` replaces `bool regionTestOf(RegionDraw now)`: the region's cut of this draw, 0 until 2 W valid draws in a row exist and 0 where the drift is at or under the bar.
+- `float regionAnchorCutBefore(ivec2 block, uint candidate)` replaces `bool regionAnchorMovedBefore(ivec2 block, uint candidate)`: the cut that the anchor `candidate` gave in the draw before, 0 for a candidate that does not exist and in a draw that does not continue the draw before.
+
+Settled:
+1. The bar, the two windows of 18, the ring of 36 layers, the taps, the validity rule, the one draw of delay and `regionContinues` do not change.
+2. One store for one fact. The block's region evidence and the block's cut must not be two values that can disagree: derive the level from the cut (a cut above 0), or drop the level and keep the cut.
+3. The order of the levels stays: under motion evidence or light evidence the region's cap does not act, and the anti-lag still shortens a history below the region's cap.
+4. Vulkan portability: no reliance on an infinity or a NaN. Bound the division where u is small and where s1 is 0. With s1 = 0 and D exactly 0 the region gives no cap, as today (the windows' sums subtract the older window's first draw for this). With s1 = 0 and |D| above 0 the cap is 8, today's answer.
+5. The floor of 8 has one owner and one comment with its reason: a shorter history makes every pixel of the block trace its own ray (`screen_trace_plan.comp`).
+6. Determinism: one machine gives the same bits in every run. The sums keep their fixed order.
+
+The readers of the ring's b channel, all of which change with its meaning:
+- `regionAnchorMovedBefore` in `region_drift.glsl`, the only shader reader, called from `evidenceOfBlock` in `accumulate_spatial.comp`.
+- The comment of `TemporalSignal.RegionRingFormat` (`TemporalSignal.cs`) and the ring's comment in `region_drift.glsl`.
+- The tests that read a ring layer with `ReadImageLayer` in `AccumulatorRenderTests` (the region's class).
+- The region log of `docs/research/t0-qvm1-region-off/tools/regionlog.sh` and the tools that read its output, and `docs/research/t0-acxm-region-evidence/tools/mutants.py`. They are records of past takes: change none, but name in the build's record that a new log's b is a cut.
+- `docs/plans/bounce-light-confidence.md`, sections 8.2, 8.7, 18 and 20.
+
+Out of scope: a count gate (the measured next step if the real stills still show the blocks), a measured spread, the pairing by the jitter's cycle, the tap's pooling (one pixel per block), and the restart at a change of the render size (`t4f-71qp`).
+
+Acceptance, by real takes on the built code against main (the replay is not the bar):
+1. The frozen stills (lamp hall, the still cabin at a late draw, the bay, and the lamps-off cabin): the map of the history's length, the share of short histories and the grain.
+2. The fair cabin switch: the settle after off and after on (today 71 and 82 draws; the rule off 189).
+3. rect-bay's film: no worse than main.
+4. Side-by-side videos, today against the build, of one frozen still and of rect-bay, with frames looked at 1:1.
+5. The cost of the spatial dispatch does not rise beyond the noise of the take.
+
+**2026-11-23T16:50:43Z**
+
+2026-11-23, 11:50 New York time, line orchestrator. The region's cap is not merged (answer 101, reported to the orchestrator, who can reverse it). The real takes on the built code (branch t0-qvm1-region-cap, d7fae25b7 to 1b1e30401, against main 76a4fbfeb) decide, as the orchestrator set:
+
+- Measured, the frozen stills at draw 890: the histories under 31.5 draws go from 21.27 to 8.32 % (lamp hall), 17.85 to 10.08 % (still cabin), 38.64 to 19.44 % (bay) and 18.05 to 8.73 % (cabin, lamps off). The grain falls by 4 to 12 %.
+- Measured, the frozen bay at 1:1 in two patches where main holds 14 and 15 draws and the cap 32: no visible difference, in the crop and in the film of draws 420 to 659. Stretched twenty times the cap's blurred error is a little lower (1.09 against 1.20 %), and its flicker is 19 % lower (0.00046 against 0.00057). I opened the crops and see no difference either.
+- Measured, rect-bay's film: worse than main. Level against the still at the middle and the end +1.236 / +0.198 against +1.094 / +0.156; blotch 0.264 / 0.178 against 0.233 / 0.142. At 1:1 the left wall stays visibly lighter at draws 130 and 179 while the sunbeam leaves. Its bar is "no worse than main".
+- Measured, the fair cabin switch: the slowest region / the whole image settle in 93 / 76 draws after off against 81 / 71, and in 55 / 34 after on against 54 / 34.
+- Measured, the cabin from draw 0 to 300: the cap trails the settle by 0.2 to 0.75 points for about 30 draws. It does not show at 1:1.
+- Measured, the accumulate pass: about 0.04 ms more in eight rounds, beyond the noise. A guard on the shared atomic did not change it; the cause is not found.
+- Measured, the bay's late blotch: 0.0235 to 0.0214, against the daub's bar of 0.0089. Its map covers the whole image on both builds and does not follow the grid of the short patches.
+
+My reading: the cap does what its design says, and the replay predicted both directions. But its gain shows only in measures, it costs rect-bay a visible lag and the frame 0.04 ms. So today's rule stays, by the rule that kept the wide fix out. The code stays as a patch in the record docs/research/t0-qvm1-region-cap-takes. The count gate (CK3) is not built: it would shrink an effect that does not show. For the home ticket t7-3e22 this closes one suspect: the region test's false fires are not the cause of the bay's daub.
+
+**2026-11-23T17:13:29Z**
+
+2026-11-23, 12:13 New York time, ticket lead. The region's cap was built and taken, and it is not merged (the line orchestrator's decision, which the orchestrator confirmed). The code stays on the branch t0-qvm1-region-cap (d7fae25b7, d42c8cdf3, 1b1e30401), unmerged, and as docs/research/t0-qvm1-region-cap-takes/region-cap.patch, which applies to 76a4fbfeb. The takes, against main's code 76a4fbfeb (the record's README): in the frozen stills the short histories halve and the grain falls by 4 to 12 %, but 1:1 crops and the frozen bay's video show no visible difference. The fair cabin switch settles 12 draws later after off. The film rect-bay is worse than main: its left wall stays visibly lighter while the sunbeam leaves. The bounce light's accumulate pass costs about 0.04 ms more, and an A/B with the evidence's action dropped shows that the code costs it, not the different history lengths; which part of the code is not explained. The measured next step that stays open is the count gate (the replay's CK3: the cap only from the third tested draw in a row above the bar). The takes give no reason to build it: the cap alone already shows no visible gain, and a gate would shrink an effect that does not show.

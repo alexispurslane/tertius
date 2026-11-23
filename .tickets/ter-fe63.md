@@ -1,7 +1,7 @@
 ---
 id: ter-fe63
 status: open
-deps: [t1-wl7c]
+deps: []
 links: [ter-12xp, ter-bdoh]
 created: 2026-11-22T15:17:24Z
 type: bug
@@ -101,3 +101,15 @@ A remedy in the engine. The specks on the deck's walls (ter-12xp) and the sparkl
 **2026-11-23T06:28:25Z**
 
 2026-11-23, the line orchestrator. The orchestrator accepted the surface share S2' of the ray end experiment (ter-pdw8) for an engine build. The build is t1-wl7c, and this ticket depends on it. It covers the part of this ticket's specks that comes from a lit surface thinner than a pixel (the lamp hall's sill row). It does not cover real hits on a wide sunlit patch, which this ticket's census counted at 83.4 % of the cloud's light in the orbit view. After t1-wl7c merges, one take of this ticket's scene shows how much of the cloud stays, and the orchestrator then closes or keeps this ticket.
+
+**2026-11-23T13:37:41Z**
+
+2026-11-23, the line orchestrator. One take of this ticket's scene on main 373da00eb against the surface share's head e11b3548b (t1-wl7c), before that build's merge: the sunlit nose at 1920 x 1080, render scale 2/3, -1.7507 stops, 20 captures. Capture specks, median (largest): main 3735.5 (11890), head 3736.5 (13102). At 1:1 the ceiling cloud is as dense on head as on main. In the ceiling box over 400 draws the largest reflection sample falls from 1072 to 161, and the brightest samples' share of the box's light from 9.0 % to 4.7 %. So the surface share cuts the tail of single bright draws and leaves the cloud: this ticket stays open after t1-wl7c. The lead's hypothesis: most of the cloud is not light of one draw. A census classification of the cloud's samples on that ceiling box follows after t1-wl7c's gates (kind, hit or miss, density and weight, the hit pixel's surface share, its fresh and history parts against its neighbors', the hit surface). Picture: the lead's evidence folder, surface-share/three/nose-ceiling-1x-main-head.png.
+
+**2026-11-23T13:39:35Z**
+
+2026-11-23, orchestrator: the surface share (t1-wl7c) leaves this cloud as dense as on main. I opened the 1:1 crop of the sunlit nose's ceiling, main against the share's head: both hold the cloud. The share cuts only the tail of single draws (largest reflection sample 1072 to 161). So this ticket no longer depends on a fix after the hit. My hypothesis, to test before any design: the cause lies before the hit, in how the ray's direction is drawn. screen_trace.glsl:746 reads 'bool guiding = kind == KindDiffuse && trace.guidedShare > 0.0 && guideTotal() > 0.0;'. So only a diffuse ray takes a guided draw with the one-sample mixture density (mixtureDensity, line 703). A reflection ray is drawn from its lobe alone. On the rough ceiling about 1 % of the lobe's draws reach the sunlit floor patch or the sill (this ticket's census), and each carries about 100 times the mean, so a history of 32 draws cannot average them. That is the case that a mixture of a lobe draw and a light draw exists for: a wide lobe and a small bright source. The diffuse rays of the same ceiling pixels aim at the same patch through the guide. The test, by one census of the nose's ceiling box and no build: (1) the diffuse signal's samples in that box, largest sample and speck count, against the reflection's. If the diffuse signal is clean there, the guide is the difference. (2) For each bright reflection sample: its lobe density, and the guided density that guidedDensityOf gives for its direction and hit pixel. From these, the weight that the sample would have under the mixture at today's guided share, and the tail of the box's samples under that weight. (3) The roughness of the box's pixels and the share of reflection rays in the frame at that roughness or above, for the cost. If the replayed tail falls to the diffuse signal's level, the remedy to design is the guided mixture for rough reflection rays, as one model for both ray kinds. If not, the stage model of this ticket stands.
+
+**2026-11-23T16:52:24Z**
+
+Orchestrator, 2026-11-23: a second box for the census. rect-bay's left wall while the sunbeam leaves shows a dense field of bright specks at 1:1, on main and on the region cap's build alike (the Design X line's sheet rect-bay-leftwall.png in docs/research/t0-qvm1-region-cap-takes/pics, draws 60, 90, 130, 179; worktree t3-c3911144 until the record is on main). The specks are faint at draw 60 while the wall is bright, dense at draws 90 and 130 while the wall darkens and the sun patch elsewhere is still bright, and fewer at draw 179. That fits rare bright samples that show against a darker wall, the same suspect as on the nose's ceiling. So the census replays the mixture's weight in this box too, at draw 130, and says by ray kind (diffuse, reflection) which samples carry the tail. If the two boxes have the same carrier, one fix serves both.

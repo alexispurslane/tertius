@@ -16,7 +16,12 @@
 #   E<k>  b = max(a, m) with N = k * (P + W), |D| > 3 b gives 8;
 #   C<p>  u = |D| - 3 a, cap n = (p * W * s1 / (sqrt(2) * u)) ^ (2/3) between 8 and 32, 32 where u <= 0;
 #   EC<p> u = |D| - 3 b with E's b at N = 8 * (P + W), the same cap;
-#   K6    |D| > 3 a at this tested draw and the 5 tested draws before it in a row gives 8.
+#   K6    |D| > 3 a at this tested draw and the 5 tested draws before it in a row gives 8;
+#   E'<k> E with the gated update: m2 changes only at tested draws whose |D| is at or under the bar of the draw before;
+#   E'C1-<k> the continuous cap at p = 1 with u = |D| - 3 b and E'<k>'s b;
+#   CK3   the continuous cap at p = 1 (C1's), only from the 3rd tested draw in a row above the bar on;
+#   CP    C1's cap with a bar that shrinks while the excursion lasts: r = the tested draws in a row up to this one above
+#         3 a, B = 3 a / sqrt(1 + (r - 1) / W), u = |D| - B where r >= 1 (no cap at r = 0).
 # The model history of a render block (8 x 8 pixels): its length L grows by 1 per draw to 32 from 1 at the run's first draw,
 # and takes the smallest cap of the block's anchors of the draw before (the anchors whose 17 x 17 region holds the block,
 # up to 9). Its light y follows the logged light of the block's nearest anchor: y = y + (x - y) / L, at the anchor's valid
@@ -90,22 +95,28 @@ def statistics(x, g, P):
     return tested, D, s1, s1 * math.sqrt(2 / W)
 
 
-def measured(tested, D, a, N):
-    """E's spread in use b and its measured spread m per draw and anchor (m after this draw's update)."""
+def measured(tested, D, a, N, gated=False):
+    """E's spread in use b and its measured spread m per draw and anchor (m after this draw's update), and where the
+    update skipped a tested draw. gated (E'): the update runs only at tested draws whose |D| is at or under the bar of
+    the anchor's tested draw before (3 b; 3 a at its first tested draw), so that a draw above the bar is no sample of the
+    noise and changes nothing."""
     m2 = np.zeros(D.shape[1:])
     before = np.full(D.shape[1:], np.nan)
     b = np.zeros_like(D)
     m = np.zeros_like(D)
+    skipped = np.zeros(D.shape, bool)
     for t in range(len(D)):
         on = tested[t]
         m2 = np.where(on, m2, 0.0)
         before = np.where(on, before, np.nan)
         b[t] = np.where(on, np.maximum(a[t], np.sqrt(m2)), 0.0)
         clip = np.where(np.isnan(before), a[t], before)
-        m2 = np.where(on, m2 + (np.minimum(D[t] ** 2, 9 * clip ** 2) - m2) / N, m2)
+        update = on & (np.abs(D[t]) <= 3 * clip) if gated else on
+        skipped[t] = on & ~update
+        m2 = np.where(update, m2 + (np.minimum(D[t] ** 2, 9 * clip ** 2) - m2) / N, m2)
         before = np.where(on, b[t], before)
         m[t] = np.sqrt(m2)
-    return b, m
+    return b, m, skipped
 
 
 def continuous(D, s1, spread, p):
@@ -121,11 +132,16 @@ def candidates(x, g, P, ps=(1, 2, 4), extra_p=()):
     stat = np.where(a > 0, np.abs(D) / np.where(a > 0, a, 1), np.where(np.abs(D) > 0, np.inf, 0))
     today = tested & (stat > 3)
     caps = {'none': np.full_like(x, FULL), 'T': np.where(today, FLOOR, FULL)}
-    spans, measures = {}, {}
+    spans, measures, gated = {}, {}, {}
     for k in (4, 8, 16):
-        b, m = measured(tested, D, a, k * (P + W))
+        b, m, _ = measured(tested, D, a, k * (P + W))
         spans[k], measures[k] = b, m
         caps[f'E{k}'] = np.where(tested & (np.abs(D) > 3 * b), FLOOR, FULL)
+    for k in (4, 8):
+        b, m, skipped = measured(tested, D, a, k * (P + W), gated=True)
+        gated[k] = dict(b=b, m=m, skipped=skipped)
+        caps[f"E'{k}"] = np.where(tested & (np.abs(D) > 3 * b), FLOOR, FULL)
+        caps[f"E'C1-{k}"] = np.where(tested, continuous(D, s1, b, 1), FULL)
     for p in (*ps, *extra_p):
         caps[f'C{p:g}'] = np.where(tested, continuous(D, s1, a, p), FULL)
         caps[f'EC{p:g}'] = np.where(tested, continuous(D, s1, spans[8], p), FULL)
@@ -135,7 +151,27 @@ def candidates(x, g, P, ps=(1, 2, 4), extra_p=()):
         run = np.where(today[t], run + 1, 0)
         k6[t] = run >= 6
     caps['K6'] = np.where(k6, FLOOR, FULL)
-    return caps, dict(tested=tested, D=D, s1=s1, a=a, stat=stat, today=today, spans=spans, measures=measures)
+    # CK3: the continuous cap at p = 1, from the 3rd tested draw in a row above the bar on, with that draw's cap.
+    runs = _runs(today)
+    caps['CK3'] = np.where(runs >= 3, continuous(D, s1, a, 1), FULL)
+    # CP: the bar in use shrinks while the excursion lasts, B = 3 a / sqrt(1 + (r - 1) / W) with r the tested draws in a
+    # row above 3 a; u = |D| - B where r >= 1, and C1's cap of u. At r = 1 it is C1.
+    shrunk = 3 * a / np.sqrt(1 + np.maximum(runs - 1, 0) / W)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        n = (W * s1 / (math.sqrt(2) * (np.abs(D) - shrunk))) ** (2 / 3)
+    caps['CP'] = np.where(runs >= 1, np.clip(np.nan_to_num(n, nan=FLOOR), FLOOR, FULL), FULL)
+    return caps, dict(tested=tested, D=D, s1=s1, a=a, stat=stat, today=today, spans=spans, measures=measures,
+                      gated=gated, runs=runs)
+
+
+def _runs(today):
+    """Per draw and anchor: how many tested draws in a row up to this one are above the bar."""
+    run = np.zeros(today.shape[1:])
+    out = np.zeros(today.shape)
+    for t in range(len(today)):
+        run = np.where(today[t], run + 1, 0)
+        out[t] = run
+    return out
 
 
 def block_grid(width, height, rows, columns):

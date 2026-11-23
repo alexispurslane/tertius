@@ -1,0 +1,25 @@
+diff --color=auto -ru base/shadows.glsl C-rampparam/shadows.glsl
+--- base/shadows.glsl	2026-11-23 09:52:10
++++ C-rampparam/shadows.glsl	2026-11-23 09:52:10
+@@ -88,10 +88,10 @@
+ // of direct_key_fill.frag. That raised the shader from register 115 to 116, where the M1 keeps 384 resident threads
+ // instead of 448, and cost 0.13 ms to 0.28 ms of the direct pass in every view, with sun or without (t1-gout, "The
+ // cost"; t2-x53j).
+-float lightOutsideShadow(float litFraction)
++float lightOutsideShadow(float litFraction, float width)
+ {
+     float twice = clamp(2.0 * litFraction - 2.0 * DoubtfulLitFraction, 0.0, 1.0);
+-    return clamp(twice * (0.5 / (1.0 - DoubtfulLitFraction)), 0.0, 1.0);
++    return clamp(twice * (0.5 / ((1.0 - DoubtfulLitFraction) * width)), 0.0, 1.0);
+ }
+ 
+ // The sun's share from one cascade of one cascade set at a world position, with geometricNormal and sinTheta as in
+@@ -104,7 +104,7 @@
+     float reference = clip.z + frame.shadowParams.z;
+     // ShadowMap.Layer: the layers of a set follow those of the sets before it.
+     float layer = float(set * 4u + cascade);
+-    return lightOutsideShadow(filteredCascade(clip.xy * 0.5 + 0.5, layer, reference));
++    return lightOutsideShadow(filteredCascade(clip.xy * 0.5 + 0.5, layer, reference), frame.shadowParams.w);
+ }
+ 
+ // How far a world position is beyond the shadow maps: 0 where they shadow it, 1 past their end, and a smooth step over

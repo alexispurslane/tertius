@@ -1,0 +1,29 @@
+{
+ "scene": "demo-surface",
+ "steps": [
+  {
+   "do": "camera",
+   "entity": "bay-camera"
+  },
+  {
+   "do": "run",
+   "ticks": 420
+  },
+  {
+   "do": "capture",
+   "name": "a"
+  },
+  {
+   "do": "capture",
+   "name": "b"
+  },
+  {
+   "do": "capture",
+   "name": "c"
+  }
+ ],
+ "window": {
+  "width": 1920,
+  "height": 1080
+ }
+}

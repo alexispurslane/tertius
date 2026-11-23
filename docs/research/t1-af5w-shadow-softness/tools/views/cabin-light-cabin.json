@@ -1,0 +1,29 @@
+{
+ "scene": "demo-surface",
+ "window": {
+  "width": 1920,
+  "height": 1080
+ },
+ "steps": [
+  {
+   "do": "run",
+   "ticks": 1000
+  },
+  {
+   "do": "camera",
+   "entity": "cabin-camera"
+  },
+  {
+   "do": "capture",
+   "name": "a"
+  },
+  {
+   "do": "capture",
+   "name": "b"
+  },
+  {
+   "do": "capture",
+   "name": "c"
+  }
+ ]
+}

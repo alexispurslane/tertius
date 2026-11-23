@@ -25,6 +25,10 @@ The candidates:
 | C1, C2, C4, Cp | u = \|D\| - 3 a | n = (p * W * s1 / (sqrt(2) * u)) ^ (2/3), kept between 8 and 32, 32 where u <= 0; p = 1, 2, 4, or the still's measured median p |
 | EC1, EC2, EC4, ECp | u = \|D\| - 3 b, with E8's b | the same continuous cap |
 | K6 | \|D\| > 3 a at this tested draw and at the 5 tested draws before it | the cliff |
+| E'4, E'8 | as E, but m2 changes only at tested draws whose \|D\| is at or under the bar of the anchor's tested draw before (3 b; 3 a at its first) | the cliff |
+| E'C1-4, E'C1-8 | u = \|D\| - 3 b, with E'4's or E'8's b | the continuous cap at p = 1 |
+| CK3 | u = \|D\| - 3 a, from the 3rd tested draw in a row above the bar on | the continuous cap at p = 1, with that draw's cap |
+| CP | u = \|D\| - B where r >= 1, with r = the tested draws in a row up to this one above 3 a and B = 3 a / sqrt(1 + (r - 1) / W) | the continuous cap at p = 1 (C1 at r = 1) |
 
 The model history of a render block (8 x 8 pixels) has a length L and a light y:
 
@@ -76,26 +80,47 @@ The false fires sit between 3 and 4.5. Under the continuous cap at p = 1, a fire
 
 ### The table
 
-The short blocks are the share of the surface blocks whose model history is under 31.5 draws, as a mean over draws 400 to the end. The lamp hall's candidates pair at P = 25. The added noise is the mean over the surface blocks of sqrt(32 / L) - 1. The settles are in draws after the switch, on the log with the rule. The lags are in draws. The cabin's drift is the model light against the end level, over draws 100 to 199 and 200 to 299, on the log with the rule.
+The short blocks are the share of the surface blocks whose model history is under 31.5 draws, as a mean over the still's frozen part: draws 400 to the end, and draws 100 to the end for the cabin with its lamps off. That log has only 493 draws, and from draw 400 its shares are in `replay.txt`. The lamp hall's candidates pair at P = 25. The added noise is the mean over the surface blocks of sqrt(32 / L) - 1. The settles are in draws after the switch, on the log with the rule. The lags are in draws. The cabin's drift is the model light against the end level, over draws 100 to 199 and 200 to 299, on the log with the rule.
 
-| Candidate | Short blocks: exit-cabin / lamp hall / bay / still cabin | Added noise, mean of the four | Switch off: whole, slowest region | Switch on: whole, slowest region | bay-sun lag: median, largest | rect-bay lag: median, largest | Cabin drift, model light 100-199 / 200-299 |
+The table comes from the third take. Its surface, as in the second take, is the blocks whose nearest anchor is valid in at least half of the draws. The first take took the surface from the history dumps, which were deleted after it. T's short blocks move by at most 0.17 points between the two surfaces: lamp hall 19.57 % against 19.71 %, bay 31.95 % against 32.12 %, still cabin 23.36 % against 23.33 %, exit-cabin unchanged. The first take's output, with the model check against the dumps, is the first part of `replay.txt`.
+
+| Candidate | Short blocks: exit-cabin / lamp hall / bay / still cabin / cabin, lamps off | Added noise, mean of the first four / lamps off | Switch off: whole, slowest region | Switch on: whole, slowest region | bay-sun lag: median, largest | rect-bay lag: median, largest | Cabin drift, model light 100-199 / 200-299 |
 |---|---|---|---|---|---|---|---|
-| none | 0.0 % / 0.0 % / 0.0 % / 0.0 % | 0.0000 | 133, 149 | none, none | 30.8, 33.2 | 31.2, 34.6 | -1.24 % / -0.25 % |
-| T | 27.5 % / 19.7 % / 32.1 % / 23.3 % | 0.1135 | 74, 90 | 51, 59 | 7.2, 26.3 | 7.2, 27.0 | -0.92 % / -0.26 % |
-| E4 | 5.6 % / 4.6 % / 6.6 % / 5.7 % | 0.0223 | 101, 110 | 67, 76 | 7.4, 31.3 | 29.1, 31.6 | -1.03 % / -0.23 % |
-| E8 | 10.2 % / 7.5 % / 11.7 % / 9.9 % | 0.0398 | 96, 105 | 58, 69 | 7.2, 32.2 | 21.3, 31.7 | -0.94 % / -0.23 % |
-| E16 | 18.7 % / 14.0 % / 22.2 % / 15.8 % | 0.0749 | 91, 104 | 52, 60 | 7.2, 26.7 | 18.2, 31.8 | -0.92 % / -0.23 % |
-| C1 | 12.9 % / 9.1 % / 16.0 % / 10.5 % | 0.0317 | 80, 98 | 52, 59 | 7.5, 22.5 | 7.9, 31.0 | -1.04 % / -0.25 % |
-| C2 | 7.0 % / 4.4 % / 9.5 % / 5.7 % | 0.0129 | 86, 104 | 55, 63 | 8.3, 26.1 | 10.5, 32.5 | -1.16 % / -0.24 % |
-| C4 | 2.5 % / 1.2 % / 3.6 % / 1.9 % | 0.0035 | 97, 111 | 60, 69 | 11.8, 33.1 | 15.9, 34.2 | -1.20 % / -0.24 % |
-| Cp | 17.9 % / 8.3 % / 20.5 % / 9.4 % | 0.0413 | | | | | |
-| EC1 | 3.3 % / 2.2 % / 4.0 % / 3.1 % | 0.0065 | 101, 110 | 64, 73 | 7.5, 31.4 | 28.4, 31.6 | -1.10 % / -0.25 % |
-| EC2 | 1.3 % / 0.7 % / 1.6 % / 1.3 % | 0.0020 | 104, 116 | 70, 76 | 8.6, 31.2 | 30.0, 32.5 | -1.17 % / -0.24 % |
-| EC4 | 0.2 % / 0.1 % / 0.3 % / 0.4 % | 0.0006 | 110, 122 | 76, 83 | 12.1, 33.1 | 30.9, 34.2 | -1.20 % / -0.25 % |
-| ECp | 5.5 % / 1.9 % / 5.9 % / 2.7 % | 0.0097 | | | | | |
-| K6 | 2.6 % / 2.9 % / 3.7 % / 2.3 % | 0.0117 | 76, 96 | 52, 59 | 7.2, 29.1 | 7.3, 34.6 | -1.14 % / -0.24 % |
+| none | 0.0 % / 0.0 % / 0.0 % / 0.0 % / 0.0 % | 0.0000 / 0.0000 | 133, 149 | none, none | 30.8, 33.2 | 31.2, 34.6 | -1.24 % / -0.25 % |
+| T | 27.5 % / 19.6 % / 32.0 % / 23.4 % / 29.0 % | 0.1132 / 0.1267 | 74, 90 | 51, 59 | 7.2, 26.3 | 7.2, 27.0 | -0.92 % / -0.26 % |
+| E4 | 5.6 % / 4.5 % / 6.6 % / 5.7 % / 4.8 % | 0.0222 / 0.0173 | 101, 110 | 67, 76 | 7.4, 31.3 | 29.1, 31.6 | -1.03 % / -0.23 % |
+| E8 | 10.2 % / 7.4 % / 11.7 % / 9.8 % / 13.1 % | 0.0396 / 0.0509 | 96, 105 | 58, 69 | 7.2, 32.2 | 21.3, 31.7 | -0.94 % / -0.23 % |
+| E16 | 18.7 % / 13.8 % / 22.0 % / 15.8 % / 22.3 % | 0.0747 / 0.0942 | 91, 104 | 52, 60 | 7.2, 26.7 | 18.2, 31.8 | -0.92 % / -0.23 % |
+| E'4 | 6.1 % / 4.8 % / 7.3 % / 6.5 % / 10.3 % | 0.0250 / 0.0406 | 77, 99 | 51, 59 | 7.2, 29.4 | 15.1, 31.7 | -1.01 % / -0.26 % |
+| E'8 | 10.7 % / 8.0 % / 12.9 % / 10.9 % / 19.9 % | 0.0438 / 0.0831 | 76, 97 | 51, 59 | 7.2, 26.3 | 10.6, 31.0 | -0.94 % / -0.22 % |
+| C1 | 12.9 % / 9.0 % / 16.0 % / 10.5 % / 15.0 % | 0.0316 / 0.0405 | 80, 98 | 52, 59 | 7.5, 22.5 | 7.9, 31.0 | -1.04 % / -0.25 % |
+| C2 | 7.0 % / 4.4 % / 9.4 % / 5.8 % / 8.8 % | 0.0129 / 0.0181 | 86, 104 | 55, 63 | 8.3, 26.1 | 10.5, 32.5 | -1.16 % / -0.24 % |
+| C4 | 2.5 % / 1.2 % / 3.6 % / 1.9 % / 3.5 % | 0.0035 / 0.0063 | 97, 111 | 60, 69 | 11.8, 33.1 | 15.9, 34.2 | -1.20 % / -0.24 % |
+| Cp | 17.9 % / 8.2 % / 20.4 % / 9.5 % /  | 0.0412 |  |  |  |  |  |
+| EC1 | 3.3 % / 2.1 % / 4.0 % / 3.1 % / 5.3 % | 0.0065 / 0.0131 | 101, 110 | 64, 73 | 7.5, 31.4 | 28.4, 31.6 | -1.10 % / -0.25 % |
+| EC2 | 1.3 % / 0.7 % / 1.6 % / 1.3 % / 2.9 % | 0.0020 / 0.0062 | 104, 116 | 70, 76 | 8.6, 31.2 | 30.0, 32.5 | -1.17 % / -0.24 % |
+| EC4 | 0.2 % / 0.1 % / 0.3 % / 0.4 % / 1.0 % | 0.0006 / 0.0032 | 110, 122 | 76, 83 | 12.1, 33.1 | 30.9, 34.2 | -1.20 % / -0.25 % |
+| ECp | 5.5 % / 1.9 % / 5.8 % / 2.7 % /  | 0.0097 |  |  |  |  |  |
+| E'C1-4 | 1.7 % / 1.1 % / 2.4 % / 1.9 % / 4.9 % | 0.0041 / 0.0126 | 87, 105 | 52, 60 | 7.5, 31.5 | 21.0, 31.9 | -1.13 % / -0.23 % |
+| E'C1-8 | 4.0 % / 2.7 % / 4.6 % / 3.6 % / 9.1 % | 0.0081 / 0.0236 | 84, 104 | 52, 59 | 7.5, 23.0 | 14.3, 31.7 | -1.09 % / -0.25 % |
+| K6 | 2.6 % / 2.8 % / 3.6 % / 2.3 % / 5.5 % | 0.0116 / 0.0195 | 76, 96 | 52, 59 | 7.2, 29.1 | 7.3, 34.6 | -1.14 % / -0.24 % |
+| CK3 | 6.8 % / 4.9 % / 8.7 % / 5.6 % / 8.8 % | 0.0190 / 0.0260 | 80, 98 | 52, 59 | 7.5, 21.3 | 7.9, 32.1 | -1.09 % / -0.25 % |
+| CP | 13.8 % / 9.8 % / 16.9 % / 11.2 % / 16.1 % | 0.0360 / 0.0461 | 76, 96 | 51, 59 | 7.2, 14.8 | 7.3, 30.5 | -1.04 % / -0.25 % |
 
-Cp and ECp use each still's own median p, and only the stills have a measured p.
+Cp and ECp use each still's own median p, and only the first four stills have a measured p.
+
+The tails, for the choice between C1 and K6. The anchors' lag pools every anchor and sample, where an anchor's light is the mean of the blocks nearest it. The switch's light is the model light 20 and 40 draws after the event, as a share of the settled level, as a mean over the anchors whose settled light the switch changes by more than 10 %. Above 100 % after off, and under 100 % after on, is light that trails the switch.
+
+| Candidate | bay-sun: anchors' lag, median / 90 % | rect-bay: anchors' lag, median / 90 % | Switch, light after off: +20 / +40 draws | Switch, light after on: +20 / +40 draws |
+|---|---|---|---|---|
+| none | 30.8 / 34.2 | 31.2 / 32.1 | 212.3 / 169.0 % | 56.5 / 73.2 % |
+| T | 7.7 / 17.6 | 7.3 / 18.7 | 166.2 / 120.8 % | 73.7 / 91.8 % |
+| C1 | 8.1 / 23.3 | 7.6 / 26.8 | 167.3 / 121.1 % | 73.5 / 91.8 % |
+| K6 | 7.9 / 26.8 | 7.4 / 29.8 | 171.9 / 121.2 % | 72.2 / 91.7 % |
+| CK3 | 8.1 / 25.0 | 7.6 / 27.8 | 168.3 / 121.1 % | 73.2 / 91.7 % |
+| CP | 7.9 / 21.8 | 7.4 / 26.5 | 167.2 / 120.8 % | 73.5 / 91.8 % |
+| E'C1-4 | 8.1 / 25.6 | 19.7 / 31.4 | 167.6 / 121.1 % | 72.9 / 91.7 % |
+| E'C1-8 | 8.1 / 24.0 | 13.8 / 31.3 | 167.3 / 121.1 % | 73.1 / 91.7 % |
 
 ### The model's check
 
@@ -156,6 +181,57 @@ The cabin's drift, the median model light against the end level:
 
 In draws 100 to 199, T's model light is 0.32 points closer to the end than no rule. C1 keeps 0.20 of those points, K6 0.10 and C2 0.08. Most of the rule's gain in the logged light (-0.54 % against -1.44 %) comes through the rays, which read the cut histories, and the replay cannot model that.
 
+### The second take: E', the cabin with its lamps off, CK3
+
+The line orchestrator's additions of 2026-11-23.
+
+**E' and its lock check.** E's update let a sustained true drift raise m: `min(D * D, 9 * b * b)` admits up to 9 times the spread's square in every draw. E' skips every tested draw above the bar of the draw before. A rule that skips samples can lock, with a small m that keeps more draws above the bar. The check is the share of the frozen part's tested draws that E' skips, and its median m over the frozen part against E's m of the same span:
+
+| Still | E'4: skipped (frozen part / all), m against E4's | E'8: skipped, m against E8's |
+|---|---|---|
+| exit-cabin | 0.14 % / 0.29 %, 0.994 | 0.26 % / 0.45 %, 0.988 |
+| lamp hall (P = 25) | 0.14 % / 0.52 %, 0.991 | 0.25 % / 0.70 %, 0.980 |
+| bay | 0.20 % / 0.44 %, 0.987 | 0.34 % / 0.63 %, 0.987 |
+| still cabin | 0.17 % / 0.57 %, 0.990 | 0.29 % / 0.75 %, 0.978 |
+| cabin, lamps off | 0.33 % / 3.93 %, 0.891 | 0.63 % / 4.42 %, 0.841 |
+
+- E' does not lock. It skips under 0.7 % of the frozen draws, and its m reaches 0.98 to 0.99 of E's in the four stills.
+- In the cabin with its lamps off, E' skips about 4 % of all tested draws, mostly before draw 100 while the light still settles. Its m stays 11 to 16 % under E's there, and E'8 keeps 19.9 % of the blocks short, against E8's 13.1 %.
+- The gate repairs part of E's motion fault: rect-bay's median lag falls from 29.1 to 15.1 draws (span 4) and from 21.3 to 10.6 (span 8). That is still above T's 7.2. A slow true drift spends many draws under the bar, and those draws still raise m.
+- E'C1 is the best still candidate in the table: 1.1 to 2.4 % short blocks with span 4. But it loses rect-bay: median lag 21.0 (span 4) and 14.3 (span 8).
+
+**The cabin with its lamps off**, the still whose light wanders most:
+
+- T keeps 29.0 % of its blocks short.
+- C1 keeps 15.0 %, C2 8.8 %, K6 5.5 % and CK3 8.8 %.
+- From draw 400 on, K6 keeps 0.86 % and C1 12.1 %.
+- So the continuous cap alone is weakest here, as the note predicted. K6's count over time drops most of these false fires once the light has settled.
+
+**CK3**, the continuous cap at p = 1 from the 3rd tested draw in a row above the bar:
+
+- It halves C1's still cost: 4.9 to 8.7 % short blocks, noise 0.019 against C1's 0.032.
+- It keeps C1's switch settle (80, 98 after off) and its median lags.
+- Its tails lie between C1's and K6's: an anchors' 90th percentile lag of 25.0 draws in bay-sun and 27.8 in rect-bay.
+- In the cabin's weak drift it gives -1.09 %, against C1's -1.04 % and K6's -1.14 %.
+
+### The third take: CP, a bar that shrinks while the excursion lasts
+
+The line orchestrator's last row. A weak drift that lasts gets the same shallow cap from C1 in every draw, because the whole bar is taken off each time. CP takes off a bar that shrinks with the run r of tested draws above 3 a: B = 3 a / sqrt(1 + (r - 1) / W). At r = 1 it is C1.
+
+The false runs under today's bar in each still's frozen part, as runs of tested draws in a row above 3 a at one anchor:
+
+| Still | False runs under today's bar in the frozen part: 50 / 90 / 99 %, longest, runs |
+|---|---|
+| exit-cabin | 1 / 4 / 10 draws, 10, 514 |
+| lamp hall | 2 / 5 / 11 draws, 13, 264 |
+| bay | 1 / 5 / 11 draws, 14, 593 |
+| still cabin | 1 / 5 / 9 draws, 18, 402 |
+| cabin, lamps off | 1 / 5 / 15 draws, 18, 375 |
+
+- CP does not buy back rect-bay's tail. The anchors' 90th percentile lag is 26.5 draws, against C1's 26.8, T's 18.7 and no rule's 32.1. Its median lags equal T's, its bay-sun 90th percentile falls to 21.8 against C1's 23.3, and the switch settles as K6 does (76 and 96 after off).
+- CP costs the four stills 0.7 to 0.9 points of short blocks against C1, and the lamps-off cabin 1.1 points: 16.1 % against C1's 15.0 %. Its added noise is 0.036 against C1's 0.032.
+- The shrink is small in the runs that occur: the false runs end within 4 or 5 draws at the 90th percentile, and at r = 5 the bar falls only to 0.90 of 3 a. rect-bay's true runs are short too: their median is 5 draws in the run table of `../t0-qvm1-region-off/README.md`, so its weak drift reaches the floor rarely.
+
 ## p, measured
 
 From `tools/pmeasure.py`. Its output is `p.json`.
@@ -200,6 +276,6 @@ Two values exist. Neither is built into a cap.
 
 - `scratch-history-dump.patch`, `scratch-no-region-evidence.patch`, `scratch-region-log.patch`: the scratch patches.
 - `tools/`: builds.sh, still.py, queue.sh, replay.py, cabin.py, measure.py, pmeasure.py, chart.py, table.py.
-- `logs/`: the region logs of the new runs and of the switch, gzipped (`replay.py` reads a `.f32.gz` beside its `.txt`). `measure.py`, `cabin.py` and `pmeasure.py` also read the runs' history dumps and captures in `/private/tmp/t0-5tyj/r2/runs/`. Those were deleted after this commit, so a rerun needs `queue.sh` first.
-- `cabin.txt`, `replay.txt`, `replay.json`, `p.json`, `table.md`: the outputs.
+- `logs/`: the region logs of the new runs and of the switch, gzipped (`replay.py` reads a `.f32.gz` beside its `.txt`). The second take of `measure.py` reads only these logs and those of `../t0-qvm1-region-off/logs/`. The first take's surface and model check, `cabin.py` and `pmeasure.py` also read the runs' history dumps and captures in `/private/tmp/t0-5tyj/r2/runs/`. Those were deleted after the first commit, so those parts need `queue.sh` first.
+- `cabin.txt`, `replay.txt` (the first, second and third takes), `replay.json` and `table.md` (the third take), `p.json`: the outputs.
 - `pics/cap-against-statistic.png`: the chart.
