@@ -189,6 +189,19 @@ Video: `pics/walk-final.mp4`, main left and Design X right, 260 draws (the last 
 - So the cap changed neither the trail nor the settle after the stop. A walk has no light change, so light evidence does not act there, and the trail is the region test's slow start after the stop (34.7 % of the anchor-draws tested in the first 60 draws after it).
 - No flicker measure of the walk exists in this record's tools.
 
+### The run order of the card's size jobs
+
+Neither size job had a warm-up run. Take A's job `f434f616` and the final's job `d3eebea0` ran in the same order: main's build, Design X's build, then main's walk (the job's first run), Design X's walk, main's switch, Design X's switch and the replay check. So the first-run fact `t1-80jd` (the first run of a card job may draw 10 to 18 % slower) touches main's walk in both jobs, and the switch logs are the second runs of their binaries. The most common scale after draw 173 of each log:
+
+| Log | Take A `f434f616` | Final `d3eebea0` |
+|---|---|---|
+| Main's walk (the job's first run) | 1.000 | 0.956 |
+| Design X's walk | 0.948 | 0.949 |
+| Main's switch | 0.993 | 0.999 |
+| Design X's switch | 0.988 | 0.993 |
+
+Main's walk was the first run in both jobs, so the run order alone does not explain why it rests at 0.956 in the final and at 1.000 in take A. A difference between the two workers can. The films' verdicts compare spans inside one run (the settle and the trail after an event, under that run's own scale log), so they stand.
+
 ### What the final films do not cover
 
 - The eye's view at normal speed.
