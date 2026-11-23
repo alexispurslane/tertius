@@ -1,6 +1,6 @@
 ---
 id: t0-xwdz
-status: open
+status: in_progress
 deps: []
 links: [ter-bcwr, ter-4iic, t58-np60]
 created: 2026-11-23T12:08:20Z
@@ -34,3 +34,7 @@ The record holds the per-draw log and names the cause with its evidence. If a ch
 **2026-11-23T14:13:53Z**
 
 2026-11-23, 09:13 New York time, line orchestrator. Step 1 did not start: no brief went out. The line's free slot goes to the shadow softness ticket t1-af5w, which the orchestrator gave to the line at priority 1 on the user's word. This ticket is open again and waits for a slot.
+
+**2026-11-23T16:52:05Z**
+
+2026-11-23, 11:52 New York time, line orchestrator. Step 1 starts: the lead of the region's cap (worktree t3-c3911144) takes it after its record of the cap, on a branch t0-xwdz-reflection-tail from the line's head. It logs the reflections' history length in draws 4 to 12 after a camera cut and after a start: the share of pixels under FullRateFrames and the share that the anti-lag shortened in each draw. On the Mac, money 0, a scratch probe that does not merge. It brings a verdict on the inferred cause and no design.
