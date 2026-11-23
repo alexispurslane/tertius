@@ -196,19 +196,27 @@ internal sealed class RenderScaleController
         Contract.Invariant(firstDrawn >= -1);
         foreach (Fit? kind in fits)
             if (kind is { } fit)
-            {
-                Contract.Invariant(firstDrawn >= 0 && measured > firstDrawn);
-                Contract.Invariant(fit.Request >= target.MinScale && fit.Request <= target.MaxScale);
-                Contract.Invariant(double.IsFinite(fit.Fixed) && fit.Fixed >= 0);
-                Contract.Invariant(double.IsFinite(fit.PerArea) && fit.PerArea > 0);
-            }
+                AssertFitInvariants(fit);
         for (int slot = 0; slot < drawn.Length; slot++)
             if (drawn[slot] is { } frame)
-            {
-                Contract.Invariant(frame.Frame >= 0 && frame.Frame % drawn.Length == slot);
-                Contract.Invariant(frame.Scale >= target.MinScale && frame.Scale <= target.MaxScale);
-                Contract.Invariant(Enum.IsDefined(frame.Cost));
-            }
+                AssertDrawnInvariants(slot, frame);
+    }
+
+    // A fitted kind: measured after the first recorded draw, with its request in range and a finite, positive model.
+    private void AssertFitInvariants(Fit fit)
+    {
+        Contract.Invariant(firstDrawn >= 0 && measured > firstDrawn);
+        Contract.Invariant(fit.Request >= target.MinScale && fit.Request <= target.MaxScale);
+        Contract.Invariant(double.IsFinite(fit.Fixed) && fit.Fixed >= 0);
+        Contract.Invariant(double.IsFinite(fit.PerArea) && fit.PerArea > 0);
+    }
+
+    // A recorded draw: in its frame number's slot, with a scale in range and a defined kind.
+    private void AssertDrawnInvariants(int slot, (long Frame, float Scale, DrawCost Cost) frame)
+    {
+        Contract.Invariant(frame.Frame >= 0 && frame.Frame % drawn.Length == slot);
+        Contract.Invariant(frame.Scale >= target.MinScale && frame.Scale <= target.MaxScale);
+        Contract.Invariant(Enum.IsDefined(frame.Cost));
     }
 
     /// <summary>
