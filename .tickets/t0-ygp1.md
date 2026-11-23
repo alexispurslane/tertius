@@ -1,6 +1,6 @@
 ---
 id: t0-ygp1
-status: in_progress
+status: closed
 deps: []
 links: [t58-3n6v, t58-phgr]
 created: 2026-11-23T14:27:27Z
@@ -41,3 +41,7 @@ Mutants (tools/mutate.py, docs/research/t0-ygp1/mutants.json):
 | Y06 | 105 | == to != | killed | ADearCatchUpDraw..., ALaterResetAsks..., TheFirstRecordedDraw... |
 | Y07 | 105 | the rule removed (never equal) | killed | ALaterResetAsks..., AnIncompletePassSpan..., TheFirstRecordedDraw... |
 | Y08 | 200 | the new invariant removed | survived | Judgment: only a second defect can reach the state that it checks, and no test can drive a valid controller there. |
+
+**2026-11-23T16:47:18Z**
+
+2026-11-23, 11:47 New York time, line orchestrator of the Design X line. The fix is merged into the line and the ticket closes. The gates: the lead's branch was clean at f10346c0e; Checked and Release passed (Rendering 3,499 and 3,498 tests, 0 failed); the merge's own commit ran the whole Rendering project again. 8 mutants: 6 killed, Y05 equivalent, Y08 a judgment (the invariant's check). The card, job ygp1 on 3e3cc076f, cold first with no warm-up: the catch-up request at the three cuts is 0.766, 0.779 and 0.792 against 0.781, 0.795 and 0.808 warm, all within 0.02 (before the fix: 0.538 against 0.770 at the first cut). Draw 0 cost 334.0 ms cold against 28.8 ms warm. I opened the chart docs/research/t58-3n6v-cold-start/cold-scale-fix.png: the cold run follows the warm run at each cut. I read the source diff: the rule lives in the controller, which keeps its first recorded draw's frame number, and the documentation names the measured reason and what is left out on purpose (a draw from rest later in a run). What remains is not this bug: the cold process's ordinary request rests at 0.948 against 0.992 (t1-80jd), and the catch-up kind's slow follow of a cheaper scene (t58-3n6v).
