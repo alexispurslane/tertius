@@ -1142,6 +1142,53 @@ nix develop --command python3 -I tools/gpu-trace.py report <folder>/run.trace <f
 nix develop --command python3 -I tools/test_gpu_trace.py
 ```
 
+## The registers of the direct shaders
+
+On Apple's M1 the GPU keeps 448 threads of a fragment shader resident up to register 115, and 384 from register 116.
+`direct_key_fill.frag` sits at register 115 with no room. A change to any file that it includes can cross the step,
+and it did twice: 0.36 ms of the direct pass on the deck (`ter-8esk`), and 0.13 to 0.28 ms in every view (`t1-gout`;
+ARCHITECTURE.md, "Key and fill"; `t2-x53j`). `tools/shader_registers.py` reads the highest register and the instruction count of `direct.frag` and
+`direct_key_fill.frag` from an offline compile for the M1, with no GPU work. Until `t2-x53j` adds a guard, a lead that
+changes a file that `direct_key_fill.frag` includes runs it before the ready report.
+
+It needs two things that the dev shell does not hold:
+
+- Xcode's Metal toolchain with `metal` and `metal-tt`. The tool calls `/usr/bin/xcrun` without the dev shell's
+  `SDKROOT` and `DEVELOPER_DIR`, because those point it at Nix's SDK and its older `metal`.
+- The applegpu decoder of Dougall Johnson at revision 28dd80468d4a6c94fa4dac34ed488196f5fedc5f. Clone it into an
+  empty folder outside the repository, and name that folder in `APPLEGPU`:
+
+```bash
+git clone https://github.com/dougallj/applegpu.git /private/tmp/applegpu
+git -C /private/tmp/applegpu checkout 28dd80468d4a6c94fa4dac34ed488196f5fedc5f
+```
+
+Run it in the dev shell, from the repository root, with an out folder, and optionally another shader folder and a label:
+
+```bash
+APPLEGPU=/private/tmp/applegpu nix develop --command python3 -I tools/shader_registers.py /private/tmp/regs
+APPLEGPU=/private/tmp/applegpu nix develop --command python3 -I tools/shader_registers.py /private/tmp/regs-main <main's src/Tertius.Rendering/Shaders> main
+```
+
+Each line reads `<label> <shader> r<highest register> <instructions> instructions`, for example
+`head direct_key_fill.frag r115 23022 instructions`. Compare the register with 115 for `direct_key_fill.frag`. A value of
+116 or more costs the direct pass about a tenth of its time on the Mac, whatever the scene. `direct.frag` reached 112 on
+2026-11-23. The instruction count only explains a change. The out folder keeps each shader's Metal source and
+disassembly (`<shader>.disasm`), and a diff of two disassemblies shows what a change added.
+
+The shaders compile as MoltenVK runs them: `spirv-opt` freezes the specialization constants with the tiles' corner means
+on, `MoltenVKShaderConverter` writes the Metal source, and `metal-tt` compiles a render pipeline for `applegpu_g13s`
+with two RGBA16Float attachments. The highest register is the largest register index that an instruction names; the
+driver can allocate more at run time, so a timed take stays the final word. The method's first results are in
+docs/research/light-pairs/pair/notes.md, "Offline native shader evidence".
+
+`tools/test_shader_registers.py` tests the count from disassembled lines and the refusals, with the standard library
+only, and needs neither the toolchain nor the decoder:
+
+```bash
+nix develop --command python3 -I tools/test_shader_registers.py
+```
+
 ## The renderer survey
 
 `tools/renderer-survey.py` measures every scene of `scripts/*.json` against the goal of epic `ter-8hyd`: frame time, specks and blotches in stills, flicker in motion, and the draws until the light settles after a change. Ticket `ter-6k3k` wrote it, and `docs/plans/renderer-finish.md` holds its first results, the reasons for its thresholds and the ranked failures. Each later ticket of the epic runs it again and compares its table with that baseline.

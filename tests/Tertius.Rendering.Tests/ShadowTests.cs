@@ -1379,7 +1379,9 @@ public sealed class ShadowTests
     // ---- The jamb under a roof's edge ------------------------------------------------------------------------------
     // A side face of a wall ends right under the edge of a roof, as the jamb of a ship's window ends at the hull's outer
     // face (t1-gout). The sun stands 20 degrees from straight above, toward the face, so the light's x axis is the world's
-    // x and the roof's edge runs along the texel grid. The edge stands at a chosen place within its texel.
+    // x and the roof's edge runs along the texel grid. The edge stands at a chosen place within its texel. A turn of the
+    // whole scene about the sun's direction, through the foot of the edge on the face, turns the edge against the grid and
+    // keeps every ray to the sun, so each point keeps its depth inside the roof's shadow.
 
     /// <summary>The sun of the jamb under a roof's edge: 20 degrees from straight above, toward +Z.</summary>
     private static readonly Vector3 JambSun = new(
@@ -1388,12 +1390,47 @@ public sealed class ShadowTests
         MathF.Sin(20f * MathF.PI / 180f)
     );
 
+    /// <summary>The heights on the jamb's face where the tests read the sun, which spread along the roof's edge.</summary>
+    private static readonly float[] JambHeights = [.. Enumerable.Range(0, 11).Select(i => (i - 5) * 0.05f)];
+
+    /// <summary>
+    /// A place of the jamb's scene: <paramref name="point"/> turned by <paramref name="turn"/> about the sun's direction
+    /// through the foot of the roof's edge on the face, (<paramref name="edgeX"/>, 0, −1).
+    /// </summary>
+    private static Vector3 OnTheTurnedJamb(Vector3 point, float edgeX, Quaternion turn)
+    {
+        var foot = new Vector3(edgeX, 0, -1f);
+        return foot + Vector3.Transform(point - foot, turn);
+    }
+
     /// <summary>
     /// The jamb's scene, with no ambient light: a block that does not cast, whose face lies 1 m before the camera and ends
     /// at x = <paramref name="edgeX"/>. With <paramref name="roof"/>, a slab that only casts covers x below
-    /// <paramref name="edgeX"/>, 0.8 m to 1 m up, and hides the whole face from the sun.
+    /// <paramref name="edgeX"/>, 0.8 m to 1 m up, and hides the whole face from the sun. Both turn by
+    /// <paramref name="turn"/> (<see cref="OnTheTurnedJamb"/>).
     /// </summary>
-    private static RenderSnapshot JambUnderARoofScene(Kit kit, float edgeX, bool roof)
+    private static RenderSnapshot JambUnderARoofScene(Kit kit, float edgeX, bool roof, Quaternion turn) =>
+        JambUnderACasterScene(
+            kit: kit,
+            edgeX: edgeX,
+            casterCenter: roof
+                ? OnTheTurnedJamb(point: new(edgeX - 1.5f, 0.9f, -1f), edgeX: edgeX, turn: turn)
+                : new(-60f, 0, -40f),
+            casterSize: new(3f, 0.2f, 4f),
+            turn: turn
+        );
+
+    /// <summary>
+    /// The jamb's scene of <see cref="JambUnderARoofScene"/> with a slab that only casts at
+    /// <paramref name="casterCenter"/>, of <paramref name="casterSize"/>, turned by <paramref name="turn"/>.
+    /// </summary>
+    private static RenderSnapshot JambUnderACasterScene(
+        Kit kit,
+        float edgeX,
+        Vector3 casterCenter,
+        Vector3 casterSize,
+        Quaternion turn
+    )
     {
         RenderSnapshot snapshot = Gpu.Snapshot(JambSun);
         snapshot.Ambient.Intensity = 0;
@@ -1401,8 +1438,9 @@ public sealed class ShadowTests
             Gpu.Instance(
                 mesh: kit.Box,
                 material: kit.White,
-                position: new(edgeX - 0.25f, 0, -1.05f),
+                position: OnTheTurnedJamb(point: new(edgeX - 0.25f, 0, -1.05f), edgeX: edgeX, turn: turn),
                 scale: new(0.5f, 0.6f, 0.1f),
+                rotation: turn,
                 chainDepth: TestChains.CamerasFrame
             )
         );
@@ -1410,8 +1448,9 @@ public sealed class ShadowTests
             Gpu.Instance(
                 mesh: kit.Box,
                 material: kit.White,
-                position: roof ? new(edgeX - 1.5f, 0.9f, -1f) : new(-60f, 0, -40f),
-                scale: new(3f, 0.2f, 4f),
+                position: casterCenter,
+                scale: casterSize,
+                rotation: turn,
                 chainDepth: TestChains.CamerasFrame
             ) with
             {
@@ -1423,32 +1462,96 @@ public sealed class ShadowTests
 
     /// <summary>
     /// The share of the sun on the jamb's face at each of <paramref name="insides"/>, in texels of the first cascade inside
-    /// the roof's edge at <paramref name="edgeX"/>, at three heights each: the green channel with the roof over without it.
+    /// the roof's edge at <paramref name="edgeX"/>, at each of <see cref="JambHeights"/>, with the scene turned by
+    /// <paramref name="turn"/>: the green channel with the roof over the green channel without it.
     /// </summary>
-    private static float[] SunSharesOnTheJamb(VulkanRenderer renderer, Kit kit, float edgeX, float[] insides)
+    private static float[] SunSharesOnTheJamb(
+        VulkanRenderer renderer,
+        Kit kit,
+        float edgeX,
+        float[] insides,
+        Quaternion turn
+    )
     {
-        var shares = new List<float>();
         float texel = Gpu.FirstCascadeTexel(width: RoofWidth, height: RoofHeight);
-        renderer.Render(JambUnderARoofScene(kit: kit, edgeX: edgeX, roof: false), 1f);
-        float[] lit = renderer.ReadHdr();
-        renderer.Render(JambUnderARoofScene(kit: kit, edgeX: edgeX, roof: true), 1f);
-        float[] shadowed = renderer.ReadHdr();
-        foreach (float inside in insides)
-        foreach (float height in (float[])[-0.15f, 0f, 0.15f])
-        {
-            Vector2 pixel = Gpu.Project(
-                point: new(edgeX - inside * texel, height, -1f),
-                width: RoofWidth,
-                height: RoofHeight
-            );
-            int green = ((int)pixel.Y * RoofWidth + (int)pixel.X) * 4 + 1;
-            lit[green]
-                .Should()
-                .BeGreaterThan(0, "the sun lights the jamb {0} texels inside the edge without the roof", inside);
-            shares.Add(shadowed[green] / lit[green]);
-        }
+        Vector3[] points =
+        [
+            .. insides.SelectMany(inside =>
+                JambHeights.Select(height =>
+                    OnTheTurnedJamb(point: new(edgeX - inside * texel, height, -1f), edgeX: edgeX, turn: turn)
+                )
+            ),
+        ];
+        return SunSharesOnTheJamb(
+            renderer: renderer,
+            open: JambUnderARoofScene(kit: kit, edgeX: edgeX, roof: false, turn: turn),
+            covered: JambUnderARoofScene(kit: kit, edgeX: edgeX, roof: true, turn: turn),
+            points: points
+        );
+    }
 
-        return [.. shares];
+    /// <summary>
+    /// The share of the sun on the jamb's face at each of <paramref name="points"/>: the green channel of
+    /// <paramref name="covered"/> over the green channel of <paramref name="open"/>, the same scene without its caster.
+    /// </summary>
+    private static float[] SunSharesOnTheJamb(
+        VulkanRenderer renderer,
+        RenderSnapshot open,
+        RenderSnapshot covered,
+        Vector3[] points
+    )
+    {
+        renderer.Render(open, 1f);
+        float[] lit = renderer.ReadHdr();
+        renderer.Render(covered, 1f);
+        float[] shadowed = renderer.ReadHdr();
+        return
+        [
+            .. points.Select(point =>
+            {
+                Vector2 pixel = Gpu.Project(point: point, width: RoofWidth, height: RoofHeight);
+                int green = ((int)pixel.Y * RoofWidth + (int)pixel.X) * 4 + 1;
+                lit[green].Should().BeGreaterThan(0, "the sun lights the jamb at {0} without the caster", point);
+                return shadowed[green] / lit[green];
+            }),
+        ];
+    }
+
+    /// <summary>
+    /// The largest share of the sun on the jamb 0.1 to 0.4 texels inside the roof's edge, at each of ten places of the edge
+    /// within its texel, from x = 5 texels to 5.9, with the scene turned by <paramref name="turnDegrees"/> about the sun.
+    /// </summary>
+    private static (float Most, string Shares) MostSunUnderTheRoofsEdge(float turnDegrees)
+    {
+        VulkanRenderer renderer = Gpu.Headless(width: RoofWidth, height: RoofHeight);
+        try
+        {
+            var kit = Kit.Create(renderer);
+            float texel = Gpu.FirstCascadeTexel(width: RoofWidth, height: RoofHeight);
+            var turn = Quaternion.CreateFromAxisAngle(Vector3.Normalize(JambSun), turnDegrees * MathF.PI / 180f);
+            var shares = new List<string>();
+            float most = 0;
+            // The grid passes through the camera, the origin of its frame, so x = (5 + place) texels puts the edge's foot
+            // at that place within its texel.
+            foreach (float place in Enumerable.Range(0, 10).Select(i => i * 0.1f))
+            {
+                float[] atPlace = SunSharesOnTheJamb(
+                    renderer: renderer,
+                    kit: kit,
+                    edgeX: (5 + place) * texel,
+                    insides: [0.1f, 0.25f, 0.4f],
+                    turn: turn
+                );
+                most = MathF.Max(most, atPlace.Max());
+                shares.Add($"{place:F1}: {atPlace.Max():F3}");
+            }
+
+            return (most, string.Join("; ", shares));
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
     }
 
     /// <summary>
@@ -1456,37 +1559,84 @@ public sealed class ShadowTests
     /// its texel. The map's edge lay up to half a texel inside the roof's, and the strip between them took up to a quarter
     /// of the sun: the line on the cabin's window jambs at 1800 × 1008 (t1-gout).
     /// </summary>
-    [Fact(
-        Skip = "The map's edge lies up to half a texel inside a roof's edge and lets the sun onto the jamb under it; skipped until t1-gout fixes it."
-    )]
+    [Fact]
     public void AWallsSideFaceUnderARoofsEdgeTakesNoSunlightWhereverTheEdgeStandsWithinItsTexel()
+    {
+        (float most, string shares) = MostSunUnderTheRoofsEdge(turnDegrees: 0);
+
+        most.Should()
+            .BeLessThan(
+                0.02f,
+                "the roof hides the sun from the jamb under it at every place of its edge ({0})",
+                shares
+            );
+    }
+
+    /// <summary>
+    /// A wall's side face under a roof's edge at an angle to the texel grid takes no sunlight up to that edge. Along such
+    /// an edge the map's staircase lies inside the real edge by up to half a texel at 45 degrees, as along the grid, and
+    /// by less at other angles (t1-gout).
+    /// </summary>
+    [Theory]
+    [InlineData(45f)]
+    [InlineData(17f)]
+    public void AWallsSideFaceUnderARoofsEdgeAtAnAngleToTheTexelGridTakesNoSunlight(float turnDegrees)
+    {
+        (float most, string shares) = MostSunUnderTheRoofsEdge(turnDegrees: turnDegrees);
+
+        most.Should()
+            .BeLessThan(
+                0.02f,
+                "the roof hides the sun from the jamb under its edge at {0} degrees to the grid ({1})",
+                turnDegrees,
+                shares
+            );
+    }
+
+    /// <summary>
+    /// A strip one texel wide along the texel grid lets a third of the sun through under its middle: the limit of the
+    /// lit side's rule for a caster that covers the filter only partly (t1-gout, "A stated limit of the rule"). The 4
+    /// comparisons per axis see the strip's one texel in 4, so the lookup is lit by 3/4, and the share rises from the lit
+    /// fraction 5/8 to 1 over the last 3/8. Under a rule that starts at one half the share was a half. The strip spans
+    /// x = 4 to 5 texels, on texel borders, so it holds exactly the one texel whose center lies at 4.5 texels. The light's
+    /// x axis is the world's x, so the normal offset, along the face's normal +Z, moves no lookup across the strip.
+    /// </summary>
+    [Fact]
+    public void AStripOneTexelWideLetsAThirdOfTheSunThroughUnderItsMiddle()
     {
         VulkanRenderer renderer = Gpu.Headless(width: RoofWidth, height: RoofHeight);
         try
         {
             var kit = Kit.Create(renderer);
             float texel = Gpu.FirstCascadeTexel(width: RoofWidth, height: RoofHeight);
-            var shares = new List<string>();
-            float most = 0;
-            // The grid passes through the camera, the origin of its frame, so x = (5 + place) texels puts the edge at
-            // that place within its texel.
-            foreach (float place in Enumerable.Range(0, 10).Select(i => i * 0.1f))
-            {
-                float[] atPlace = SunSharesOnTheJamb(
-                    renderer: renderer,
+            float middle = 4.5f * texel,
+                edgeX = middle + 0.25f;
+            RenderSnapshot Scene(Vector3 casterCenter) =>
+                JambUnderACasterScene(
                     kit: kit,
-                    edgeX: (5 + place) * texel,
-                    insides: [0.1f, 0.25f, 0.4f]
+                    edgeX: edgeX,
+                    casterCenter: casterCenter,
+                    casterSize: new(texel, 0.2f, 4f),
+                    turn: Quaternion.Identity
                 );
-                most = MathF.Max(most, atPlace.Max());
-                shares.Add($"{place:F1}: {atPlace.Max():F3}");
-            }
+            float[] shares = SunSharesOnTheJamb(
+                renderer: renderer,
+                open: Scene(casterCenter: new(-60f, 0, -40f)),
+                covered: Scene(casterCenter: new(middle, 0.9f, -1f)),
+                points: [.. JambHeights.Select(height => new Vector3(middle, height, -1f))]
+            );
 
-            most.Should()
-                .BeLessThan(
-                    0.02f,
-                    "the roof hides the sun from the jamb under it at every place of its edge ({0})",
-                    string.Join("; ", shares)
+            shares
+                .Should()
+                .AllSatisfy(share =>
+                    share
+                        .Should()
+                        .BeApproximately(
+                            1f / 3f,
+                            0.03f,
+                            "the filter sees the strip in one texel of 4 ({0})",
+                            string.Join("; ", shares.Select(value => value.ToString("F3")))
+                        )
                 );
         }
         finally
@@ -1661,10 +1811,24 @@ public sealed class ShadowTests
     }
 
     /// <summary>
-    /// The wall's shadow on the ground has its outer edge at the same place on both sides of each seam between two
-    /// cascades: where the sun's share crosses one half, it moves by less than a texel of the coarser cascade and a pixel's
-    /// width on the ground. Each side's place comes from one cascade alone: the near side ends before the seam's blend band,
-    /// and the far side lies past the seam.
+    /// The lit fraction of the cascades' filter at which the sun's share starts to rise, DoubtfulLitFraction in
+    /// shadows.glsl: one half, plus the half texel by which the map's edge can lie inside a caster's, at the 4 taps' change
+    /// of a quarter per texel.
+    /// </summary>
+    private const float CascadeDoubtfulLitFraction = 0.5f + 0.5f / 4f;
+
+    /// <summary>
+    /// The wall's shadow on the ground has its outer edge at nearly the same place on both sides of each seam between two
+    /// cascades. Each side's place comes from one cascade alone: the near side ends before the seam's blend band, and the
+    /// far side lies past the seam. A lookup u texels past the map's edge is lit by 1/2 + u / 4, so the sun's share,
+    /// which rises from the lit fraction D to 1, crosses one half 2 D texels past the map's edge, in each cascade's own
+    /// texels. So the place where the share crosses one half moves by about 2 D (b − a) between a finer texel a and a
+    /// coarser texel b, plus the rounding of the two maps' edges, up to (a + b) / 2. Texels map to the ground only
+    /// roughly: the low sun stretches them along its direction, and the normal offset moves the lookup back. The
+    /// bound, 2 D b and a pixel's width on the ground, is the bound of one coarser texel under D = 1/2, grown with the
+    /// rule. It holds at this scene's phase of the grids, not at every phase: at seam 2 (a = 0.259 m, b = 1.865 m) the
+    /// step was 1.982 m under D = 1/2 against 2.346 m, and is 2.564 m under D = 5/8 against 2.812 m, a margin of
+    /// 0.248 m, while the worst rounding could add up to 1.062 m (t1-gout).
     /// </summary>
     [Fact]
     public void TheEdgeOfAShadowDoesNotStepWhereTwoCascadesMeet()
@@ -1696,7 +1860,7 @@ public sealed class ShadowTests
                     .Abs(far - near)
                     .Should()
                     .BeLessThan(
-                        coarser + pixel,
+                        2f * CascadeDoubtfulLitFraction * coarser + pixel,
                         "the edge keeps its place across seam {0}: {1:F3} m before it and {2:F3} m past it, texel {3:F3} m",
                         seam,
                         near,

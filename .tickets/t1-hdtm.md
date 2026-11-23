@@ -29,3 +29,9 @@ The lead's crops, main left and commit B right: exit-cabin-beam4x.png (this leak
 ## Open
 No fix is designed. A fix must keep the lamps' soft shadow edges. Directions that nobody measured: a tile's resolution at this distance, and a caster's coverage rule in the tile pass. Lost light at the edge is acceptable, a hard edge is not.
 
+
+## Notes
+
+**2026-11-23T08:09:47Z**
+
+The still, from t1-gout step 3: scripts/demo-exit.json at frame 200 (the survey case exit-cabin), 1920 x 1080, render scale 0.96, with the automatic exposure of commit A's build held for both builds (-0.4470315 stops; docs/research/shadow-grid-phase/tools/tilestills.sh). The crop is x 1100 to 1260, y 90 to 240 of the 1920 x 1080 frame, a ceiling lamp over the black beam. On main the lamp's light runs about 6 px down the beam's face below its top edge; with the tiles' lit-side rule (lightOutsideShadow(tileLitFraction(...)), refused) about 2.5 px. Both are read from the 1:1 crop, not measured by a script. The images: docs/research/shadow-grid-phase/remedy/tiles-beam-face.png (main on the left, 4x) and tiles-cabin-floor.png. LocalShadowRenderTests.AWallsSideFaceUnderARoofsEdgeTakesNoLightFromASpotLampsTile is this leak's red test, skipped: the symmetric filter gives a face 0.386 of the lamp 0.25 texel inside a roof's edge, 0.318 at 0.5 texel and 0.197 at 1 texel.

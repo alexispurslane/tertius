@@ -114,7 +114,7 @@ internal sealed unsafe class ShadowAtlas : IDisposable
 
     /// <summary>
     /// Declares that the next pass samples the tiles in <paramref name="use"/>: the atlas and its bounds, which every tile
-    /// lookup reads first (tileShadow in Shaders/shadows.glsl).
+    /// lookup reads first (tileLitFraction in Shaders/shadows.glsl).
     /// </summary>
     public void DeclareSampled(BarrierBatch barriers, ImageUse use)
     {

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Tool code (t1-gout). take.sh <bin> <label> <W>x<H> <tick> [demo flags...]: the window test's view (scene orbit, camera
-# person, the lamps on) in a window of W x H at the render scale 1 and 4.08 stops, with the kept frame at <tick>: the run
+# person, the lamps on) in a window of W x H at the render scale $SCALE (default 1) and 4.08 stops, with the kept frame at <tick>: the run
 # goes to <tick> - 40, takes the still, then a film of 40 draws, one tick each. Environment variables pass through, such
 # as the scratch probe's TERTIUS_X_* toggles (scratch-toggles.patch). It keeps the film's last frame and the still, under
 # $EV/<label>-<W>x<H>-t<tick>, prints the jamb crops of wintest.py, and writes the opening at 2x beside the folder.
@@ -19,7 +19,7 @@ json.dump({'scene': 'orbit', 'window': {'width': w, 'height': h}, 'steps': [{'do
 PY
 for try in 1 2 3; do
   nix develop "$R" --command bash "${GPU_LOCK:-/Users/alexispurslane/Development/tertius/tools/gpu-lock.sh}" --shared "$out/lock.log" "$bin" \
-    --script "$out/script.json" --headless --out "$out/frames" --size "$size" --render-scale 1 --exposure 4.08 "$@" \
+    --script "$out/script.json" --headless --out "$out/frames" --size "$size" --render-scale "${SCALE:-1}" --exposure 4.08 "$@" \
     > "$out/run.log" 2>&1 && break
   grep -q ErrorIncompatibleDriver "$out/run.log" || break
 done
