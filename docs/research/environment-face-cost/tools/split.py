@@ -12,12 +12,17 @@
 #   the rest of the prefilter       (today - prefilter-off) - (today - irr-off)
 #   what is left                    earth-off+prefilter-off
 #   interaction                     today - (Earth + prefilter + left): what the separate savings do not add up to
-# Usage: python3 -I split.py [--map 1] <label>=<jsonl> ...
+#   --passes        the face cost is the mean over the maps of 'environment faces' + 'environment prefilter', a sum of
+#                   neighbouring passes, which MoltenVK's late stamps leave valid; it leaves out what a face adds to other passes
+# Usage: python3 -I split.py [--map 1 | --passes] <label>=<jsonl> ...
 import json, re, sys
 from collections import defaultdict
 
 args = sys.argv[1:]
 map_only = None
+passes = args[:1] == ['--passes']
+if passes:
+    args = args[1:]
 if args[:1] == ['--map']:
     map_only, args = f'map {args[1]}', args[2:]
 NAME = re.compile(r'^(?:\dx\d-)?r(\d+)-w(\d+)-c(\d)(?:-(.+))?$')
@@ -28,6 +33,8 @@ def mean(v):
 
 
 def cost(row):
+    if passes:
+        return mean([row[m]['both'][0] for m in ('map 0', 'map 1')])
     return row[map_only]['span'][0] if map_only else row['face_cost_span_ms'][0]
 
 

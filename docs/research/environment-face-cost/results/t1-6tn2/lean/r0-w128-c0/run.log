@@ -1,0 +1,56 @@
+uptime-start:  07:00:56  up 58 days 18:35,  1 user,  load average: 4.67, 5.21, 4.80
+waited: 0s
+frequencies_mhz=388.8,486.0,648.0,777.6,972.0,1296.0
+sample t=0.112 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.221 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.324 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.435 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.546 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.647 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.758 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.861 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.964 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=1.068 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=1.199 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=1.310 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=1.417 active=0.053 mhz=640.8 states=0.028,0.000,0.972,0.000,0.000,0.000
+sample t=1.521 active=0.934 mhz=1089.9 states=0.001,0.000,0.251,0.000,0.130,0.617
+sample t=1.631 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=1.742 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+timed-start
+sample t=1.860 active=0.764 mhz=1294.2 states=0.002,0.000,0.000,0.000,0.000,0.998
+sample t=1.973 active=0.612 mhz=1290.1 states=0.007,0.000,0.000,0.000,0.000,0.993
+sample t=2.086 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.200 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.317 active=0.936 mhz=1294.7 states=0.001,0.000,0.000,0.000,0.000,0.999
+sample t=2.427 active=0.652 mhz=1279.6 states=0.011,0.000,0.000,0.000,0.019,0.970
+sample t=2.530 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.635 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.741 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.842 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=2.953 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.066 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.177 active=0.804 mhz=1291.4 states=0.005,0.000,0.000,0.000,0.000,0.995
+sample t=3.287 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.398 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.499 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.606 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.712 active=0.992 mhz=1294.6 states=0.002,0.000,0.000,0.000,0.000,0.998
+sample t=3.839 active=0.940 mhz=1294.8 states=0.001,0.000,0.000,0.000,0.000,0.999
+sample t=3.956 active=0.879 mhz=1293.0 states=0.003,0.000,0.000,0.000,0.000,0.997
+sample t=4.067 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=4.173 active=0.946 mhz=1294.9 states=0.001,0.000,0.000,0.000,0.000,0.999
+sample t=4.282 active=0.992 mhz=1294.9 states=0.001,0.000,0.000,0.000,0.000,0.999
+sample t=4.393 active=0.768 mhz=1290.3 states=0.006,0.000,0.000,0.000,0.000,0.994
+sample t=4.508 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=4.619 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=4.730 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+timed-end
+/private/tmp/t1-6tn2/lean/r0-w128-c0/gpu-timings.json
+On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, "GPU trace").
+GPU frame span: mean 11.316 ms, median 10.518 ms, p95 13.617 ms over 240 frames
+/private/tmp/t1-6tn2/lean/r0-w128-c0/exposure.json
+sample t=4.836 active=0.557 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+run seconds=4.836 active_ms=3176.5 mhz=1287.4 states=0.001,0.000,0.009,0.000,0.004,0.985
+GPU clock over the timed span: 1294.7 MHz (p10 1290.3, p90 1296.0 MHz, 27 samples)
+uptime-end:  07:01:01  up 58 days 18:35,  1 user,  load average: 5.49, 5.37, 4.86
