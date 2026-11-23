@@ -233,13 +233,16 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     /// The one choke point of the maps' automatic machinery (docs/plans/environment-maps-per-frame.md, "Which faces a frame
     /// draws", decision 26): grows the images when the served chain is longer than ever before, then returns the faces that
     /// drawn frame <paramref name="frame"/> draws of each served map. A map draws every face when it is not kept from
-    /// <see cref="DrawnFor"/> or the draw takes a long step, and its slots in turn otherwise. Apart from a growth, which
-    /// empties <see cref="DrawnFor"/> because the new images hold no face, it changes no state: <see cref="Drew"/> stores
-    /// the served chain once the frame is submitted.
+    /// <see cref="DrawnFor"/> or the draw refreshes every face, and its slots in turn otherwise. Apart from a growth,
+    /// which empties <see cref="DrawnFor"/> because the new images hold no face, it changes no state: <see cref="Drew"/>
+    /// stores the served chain once the frame is submitted.
     /// </summary>
     /// <param name="served">The served chain, frame ids root first: from 1 to <see cref="EnvironmentChain.MaxMaps"/> of them.</param>
+    /// <param name="everyFace">
+    /// Whether the draw refreshes every face of every map (<see cref="FrameHistory.PendingFrame.RefreshesEveryFace"/>).
+    /// </param>
     /// <exception cref="ArgumentOutOfRangeException">The served chain has no frame or more than the renderer serves.</exception>
-    public ReadOnlyMemory<FaceMask> FacesFor(long frame, ReadOnlySpan<long> served, bool longStep)
+    public ReadOnlyMemory<FaceMask> FacesFor(long frame, ReadOnlySpan<long> served, bool everyFace)
     {
         ArgumentOutOfRangeException.ThrowIfZero(served.Length, nameof(served));
         ArgumentOutOfRangeException.ThrowIfGreaterThan(served.Length, EnvironmentChain.MaxMaps, nameof(served));
@@ -248,7 +251,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
         Span<FaceMask> faces = facesOfMaps.AsSpan(0, served.Length);
         EnvironmentFaces.InTurn(frame, Setting.FacesPerFrame, faces);
         for (int map = 0; map < faces.Length; map++)
-            if (EnvironmentFaces.RefreshesAll(drawnFor: DrawnFor, served: served, map: map, longStep: longStep))
+            if (EnvironmentFaces.RefreshesAll(drawnFor: DrawnFor, served: served, map: map, everyFace: everyFace))
                 faces[map] = FaceMask.All;
         return facesOfMaps.AsMemory(0, served.Length);
     }

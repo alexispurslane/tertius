@@ -1,0 +1,60 @@
+uptime-start:  06:55:14  up 58 days 18:29,  1 user,  load average: 3.88, 3.93, 4.09
+waited: 1s
+frequencies_mhz=388.8,486.0,648.0,777.6,972.0,1296.0
+sample t=0.123 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.239 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.348 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.458 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.569 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.682 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.792 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.893 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=0.995 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=1.112 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=1.222 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=1.329 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=1.454 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=1.557 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=1.672 active=0.000 mhz=0.0 states=0.000,0.000,0.000,0.000,0.000,0.000
+sample t=1.783 active=0.290 mhz=658.3 states=0.008,0.000,0.954,0.000,0.038,0.000
+sample t=1.894 active=1.000 mhz=1262.7 states=0.000,0.000,0.000,0.000,0.103,0.897
+sample t=2.007 active=0.684 mhz=1292.5 states=0.004,0.000,0.000,0.000,0.000,0.996
+sample t=2.120 active=0.480 mhz=1290.0 states=0.007,0.000,0.000,0.000,0.000,0.993
+sample t=2.235 active=0.975 mhz=1294.9 states=0.001,0.000,0.000,0.000,0.000,0.999
+timed-start
+sample t=2.347 active=0.994 mhz=1294.9 states=0.001,0.000,0.000,0.000,0.000,0.999
+sample t=2.460 active=0.956 mhz=1293.9 states=0.002,0.000,0.000,0.000,0.000,0.998
+sample t=2.565 active=0.945 mhz=1294.7 states=0.001,0.000,0.000,0.000,0.000,0.999
+sample t=2.679 active=0.957 mhz=1293.8 states=0.002,0.000,0.000,0.000,0.000,0.998
+sample t=2.790 active=0.934 mhz=1293.4 states=0.003,0.000,0.000,0.000,0.000,0.997
+sample t=2.893 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.002 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.104 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.214 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.320 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=3.440 active=0.858 mhz=1294.4 states=0.002,0.000,0.000,0.000,0.000,0.998
+sample t=3.555 active=0.810 mhz=1294.3 states=0.002,0.000,0.000,0.000,0.000,0.998
+sample t=3.657 active=0.837 mhz=1292.5 states=0.004,0.000,0.000,0.000,0.000,0.996
+sample t=3.762 active=0.808 mhz=1292.6 states=0.004,0.000,0.000,0.000,0.000,0.996
+sample t=3.872 active=0.968 mhz=1293.3 states=0.003,0.000,0.000,0.000,0.000,0.997
+sample t=3.985 active=0.748 mhz=1290.5 states=0.006,0.000,0.000,0.000,0.000,0.994
+sample t=4.097 active=0.749 mhz=1292.0 states=0.004,0.000,0.000,0.000,0.000,0.996
+sample t=4.206 active=0.943 mhz=1293.7 states=0.003,0.000,0.000,0.000,0.000,0.997
+sample t=4.310 active=1.000 mhz=1296.0 states=0.000,0.000,0.000,0.000,0.000,1.000
+sample t=4.423 active=0.561 mhz=1291.7 states=0.005,0.000,0.000,0.000,0.000,0.995
+sample t=4.535 active=0.777 mhz=1290.7 states=0.006,0.000,0.000,0.000,0.000,0.994
+sample t=4.645 active=0.980 mhz=1294.8 states=0.001,0.000,0.000,0.000,0.000,0.999
+sample t=4.758 active=0.865 mhz=1294.8 states=0.001,0.000,0.000,0.000,0.000,0.999
+sample t=4.869 active=0.801 mhz=1292.9 states=0.003,0.000,0.000,0.000,0.000,0.997
+sample t=4.975 active=0.980 mhz=1293.6 states=0.003,0.000,0.000,0.000,0.000,0.997
+sample t=5.088 active=0.939 mhz=1293.4 states=0.003,0.000,0.000,0.000,0.000,0.997
+sample t=5.199 active=0.822 mhz=1292.6 states=0.004,0.000,0.000,0.000,0.000,0.996
+timed-end
+/private/tmp/t1-6tn2/mac2/r2-w128-c0-earth-reach/gpu-timings.json
+On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, "GPU trace").
+GPU frame span: mean 10.661 ms, median 10.655 ms, p95 11.370 ms over 240 frames
+/private/tmp/t1-6tn2/mac2/r2-w128-c0-earth-reach/exposure.json
+sample t=5.310 active=0.409 mhz=1292.3 states=0.004,0.000,0.000,0.000,0.000,0.996
+run seconds=5.310 active_ms=3088.0 mhz=1286.2 states=0.002,0.000,0.010,0.000,0.004,0.984
+GPU clock over the timed span: 1294.0 MHz (p10 1291.7, p90 1296.0 MHz, 27 samples)
+uptime-end:  06:55:19  up 58 days 18:29,  1 user,  load average: 8.37, 4.86, 4.42

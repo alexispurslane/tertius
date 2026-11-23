@@ -1,0 +1,10 @@
+uptime-start:  04:56:21  up 58 days 16:30,  1 user,  load average: 5.70, 5.42, 5.79
+waited: 0s
+mode: shared, with up to 3 shared runs at once
+timed-start
+timed-end
+/private/tmp/t1-6tn2/counts/deck-w128-c0-earth-off/gpu-timings.json
+On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, "GPU trace").
+GPU frame span: mean 11.089 ms, median 11.017 ms, p95 11.673 ms over 40 frames
+/private/tmp/t1-6tn2/counts/deck-w128-c0-earth-off/exposure.json
+uptime-end:  04:56:24  up 58 days 16:30,  1 user,  load average: 5.70, 5.42, 5.79

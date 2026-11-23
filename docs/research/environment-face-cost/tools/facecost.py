@@ -57,7 +57,8 @@ def run(path):
         else:
             d = {k: (row[k] + frames[f + 1][k] - frames[f + 2][k] - frames[f + 3][k]) / per
                  for k in ('span', 'faces', 'prefilt', 'both')}
-        diffs.setdefault(m, []).append((d, drawn[0]))
+        # The counts of the face frame: the mean over its drawn faces (t1-6tn2; before, the first face's alone).
+        diffs.setdefault(m, []).append((d, tuple(sum(x[i] for x in drawn) / len(drawn) for i in range(6))))
     empty = [r for f, r in frames.items() if not faces.get(f)]
     log = (path / 'run.log').read_text()
     load = re.search(r'uptime-start:.*load averages?: ([\d.]+)', log)

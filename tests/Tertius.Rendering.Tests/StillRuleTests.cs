@@ -23,9 +23,10 @@ public sealed class StillRuleTests
     private static FrameHistory Headless(int warmUpDraws = 32) =>
         new(new StillRule(Headless: true, WarmUpDraws: warmUpDraws));
 
-    private static RenderSnapshot Snapshot()
+    /// <summary>A snapshot whose count of camera cuts is <paramref name="cuts"/>.</summary>
+    private static RenderSnapshot Snapshot(long cuts = 1)
     {
-        var snapshot = new RenderSnapshot { CameraCuts = 1 };
+        var snapshot = new RenderSnapshot { CameraCuts = cuts };
         snapshot.Chain.Add(new(FrameId: 7, Rotation: Quaternion.Identity, PreviousRotation: Quaternion.Identity));
         return snapshot;
     }
@@ -40,23 +41,30 @@ public sealed class StillRuleTests
             RootRotation: Quaternion.Identity
         );
 
-    /// <summary>Begins draw <paramref name="draw"/> of a snapshot at <paramref name="step"/>, without committing it.</summary>
-    private static FrameHistory.PendingFrame Begin(FrameHistory history, float step, int draw) =>
-        history.Begin(snapshot: Snapshot(), step: step, draw: draw, outputSize: Output, renderSize: Output);
+    /// <summary>
+    /// Begins draw <paramref name="draw"/> of a snapshot of <paramref name="cuts"/> camera cuts at <paramref name="step"/>,
+    /// without committing it.
+    /// </summary>
+    private static FrameHistory.PendingFrame Begin(FrameHistory history, float step, int draw, long cuts) =>
+        history.Begin(snapshot: Snapshot(cuts), step: step, draw: draw, outputSize: Output, renderSize: Output);
 
-    /// <summary>Begins and commits every draw of a snapshot at <paramref name="step"/>, and gives each one's pending state as it began.</summary>
+    /// <summary>
+    /// Begins and commits every draw of a snapshot of <paramref name="cuts"/> camera cuts at <paramref name="step"/>, and
+    /// gives each one's pending state as it began.
+    /// </summary>
     private static (bool Reset, long DrawIndex, float ExposureStep, bool RefreshesEveryFace)[] DrawAll(
         FrameHistory history,
-        float step
+        float step,
+        long cuts = 1
     )
     {
         int draws = history.DrawsOf(step);
         var seen = new (bool Reset, long DrawIndex, float ExposureStep, bool RefreshesEveryFace)[draws];
         for (int draw = 0; draw < draws; draw++)
         {
-            FrameHistory.PendingFrame pending = Begin(history, step, draw);
+            FrameHistory.PendingFrame pending = Begin(history: history, step: step, draw: draw, cuts: cuts);
             seen[draw] = (pending.Reset, pending.DrawIndex, pending.ExposureStep, pending.RefreshesEveryFace);
-            pending.Write(CameraOf(Snapshot()));
+            pending.Write(CameraOf(Snapshot(cuts)));
             history.Drew(pending);
         }
 
@@ -141,6 +149,21 @@ public sealed class StillRuleTests
             .Select(d => d.RefreshesEveryFace)
             .Should()
             .Equal(true, false, false, false);
+
+    [Fact]
+    public void AStillAfterACameraCutRefreshesTheMapsOnlyInItsFirstDraw()
+    {
+        FrameHistory history = Headless(warmUpDraws: 3);
+        DrawAll(history, step: FrameHistoryTesting.FilmStep, cuts: 1);
+
+        DrawAll(history, step: 1f, cuts: 2)
+            .Select(d => d.RefreshesEveryFace)
+            .Should()
+            .Equal(
+                [true, false, false, false],
+                "the first draw commits the new count of cuts, so its warm-up draws and its shown draw continue it"
+            );
+    }
 
     [Fact]
     public void AStillUnderAFixedExposureAndNoTemporalHistoryTakesNoWarmUpDraw() =>

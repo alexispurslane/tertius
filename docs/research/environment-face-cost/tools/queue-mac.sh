@@ -7,12 +7,15 @@ set -uo pipefail
 root=$1; script=$2; rounds=$3; max=${4:-8}
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # VARIANTS (env) replaces the four variants, for example "32:1 128:0"; other TERTIUS_PROBE_ settings pass through.
+# A variant can name parts of a face's work as size:cull:parts (t1-6tn2), for example 128:0:earth-off+prefilter-off: the
+# run gets TERTIUS_PROBE_FACE_PARTS=parts and the name suffix -parts.
 read -r -a variants <<< "${VARIANTS:-128:0 128:1 32:0 32:1}"
 nv=${#variants[@]}
 for ((r = 0; r < rounds; r++)); do
   for ((k = 0; k < nv; k++)); do
-    v=${variants[$(((k + r) % nv))]}; size=${v%%:*}; cull=${v#*:}
-    name="r$r-w$size-c$cull"
+    v=${variants[$(((k + r) % nv))]}; size=${v%%:*}; rest=${v#*:}; cull=${rest%%:*}
+    parts=$([[ "$rest" == *:* ]] && echo "${rest#*:}")
+    name="r$r-w$size-c$cull${parts:+-$parts}"
     [[ -f "$root/$name/gpu-timings.json" ]] && continue
     while :; do
       load=$(uptime | sed -E 's/.*load averages?: ([0-9.]+).*/\1/')
@@ -21,7 +24,7 @@ for ((r = 0; r < rounds; r++)); do
     done
     free=$(/bin/df -g / | awk 'NR==2{print $4}'); [[ "$free" -lt 20 ]] && { echo "disk $free GiB: stop"; exit 2; }
     echo "$(date +%H:%M) $name load $load"
-    bash "$here/time.sh" "$root/$name" "$script" "$size" "$cull" --size 1280x720 --in-flight 2 | tail -2
+    TERTIUS_PROBE_FACE_PARTS="$parts" bash "$here/time.sh" "$root/$name" "$script" "$size" "$cull" --size 1280x720 --in-flight 2 | tail -2
     # The load that counts is the one when the run took the lock (run.log's uptime-start), after its wait. A run that
     # took it at <max load> or more, or that failed, moves aside as x-<name>-<n> and runs again, at most 4 times.
     started=$(sed -nE 's/^uptime-start:.*load averages?: ([0-9.]+).*/\1/p' "$root/$name/run.log")

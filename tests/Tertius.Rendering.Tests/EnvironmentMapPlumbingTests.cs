@@ -115,7 +115,7 @@ public sealed class EnvironmentMapPlumbingTests
         using var plumbing = new Plumbing();
         using EnvironmentMap map = SmallMap(plumbing);
 
-        map.FacesFor(frame: 0, served: Served(EnvironmentChain.MaxMaps), longStep: false);
+        map.FacesFor(frame: 0, served: Served(EnvironmentChain.MaxMaps), everyFace: false);
 
         map.Capacity.Should().Be(EnvironmentChain.MaxMaps);
         (CubeFaces.Count * map.Capacity)
@@ -130,7 +130,7 @@ public sealed class EnvironmentMapPlumbingTests
         using EnvironmentMap map = SmallMap(plumbing);
         int live = plumbing.Allocator.LiveAllocations;
 
-        map.FacesFor(frame: 0, served: Served(3), longStep: false);
+        map.FacesFor(frame: 0, served: Served(3), everyFace: false);
 
         map.Capacity.Should().Be(3);
         plumbing.Allocator.LiveAllocations.Should().Be(live, "the grown images replace the old ones");
@@ -142,9 +142,9 @@ public sealed class EnvironmentMapPlumbingTests
         using var plumbing = new Plumbing();
         using EnvironmentMap map = SmallMap(plumbing);
         // The first frame chooses its faces, then throws before its submission, so it records no drawn frame.
-        map.FacesFor(frame: 0, served: Served(1), longStep: false);
+        map.FacesFor(frame: 0, served: Served(1), everyFace: false);
 
-        map.FacesFor(frame: 1, served: Served(1), longStep: false)
+        map.FacesFor(frame: 1, served: Served(1), everyFace: false)
             .ToArray()
             .Should()
             .Equal(
@@ -158,12 +158,12 @@ public sealed class EnvironmentMapPlumbingTests
     {
         using var plumbing = new Plumbing();
         using EnvironmentMap map = SmallMap(plumbing);
-        map.FacesFor(frame: 0, served: Served(3), longStep: false);
+        map.FacesFor(frame: 0, served: Served(3), everyFace: false);
         map.Drew(served: Served(3), slot: 0);
         // The camera enters a child: the frame grows the maps to four, then throws before its submission.
-        map.FacesFor(frame: 1, served: Served(4), longStep: false);
+        map.FacesFor(frame: 1, served: Served(4), everyFace: false);
 
-        map.FacesFor(frame: 1, served: Served(4), longStep: false)
+        map.FacesFor(frame: 1, served: Served(4), everyFace: false)
             .ToArray()
             .Should()
             .Equal(
@@ -177,12 +177,12 @@ public sealed class EnvironmentMapPlumbingTests
     {
         using var plumbing = new Plumbing();
         using EnvironmentMap map = SmallMap(plumbing);
-        map.FacesFor(frame: 0, served: Served(2), longStep: false);
+        map.FacesFor(frame: 0, served: Served(2), everyFace: false);
         map.Drew(served: Served(2), slot: 0);
 
         var inTurn = new FaceMask[2];
         EnvironmentFaces.InTurn(frame: 1, facesPerFrame: 1, faces: inTurn);
-        map.FacesFor(frame: 1, served: Served(2), longStep: false)
+        map.FacesFor(frame: 1, served: Served(2), everyFace: false)
             .ToArray()
             .Should()
             .Equal(inTurn, "the submitted frame drew every face of both maps for this chain");
@@ -194,10 +194,10 @@ public sealed class EnvironmentMapPlumbingTests
         using var plumbing = new Plumbing();
         using EnvironmentMap map = SmallMap(plumbing);
         // Frame 0 serves one map in slot 0 and is submitted.
-        map.FacesFor(frame: 0, served: Served(1), longStep: false);
+        map.FacesFor(frame: 0, served: Served(1), everyFace: false);
         map.Drew(served: Served(1), slot: 0);
         // Frame 2, in slot 0 again, serves two maps and records its readback copy, then throws before its submission.
-        map.FacesFor(frame: 2, served: Served(2), longStep: false);
+        map.FacesFor(frame: 2, served: Served(2), everyFace: false);
         using (var recording = new Recording(plumbing.Device))
             map.RecordReadback(commandBuffer: recording.CommandBuffer, barriers: new(), slot: 0, maps: 2);
 
@@ -214,13 +214,13 @@ public sealed class EnvironmentMapPlumbingTests
     {
         using var plumbing = new Plumbing();
         using EnvironmentMap map = SmallMap(plumbing);
-        map.FacesFor(frame: 0, served: Served(1), longStep: false);
+        map.FacesFor(frame: 0, served: Served(1), everyFace: false);
         map.Drew(served: Served(1), slot: 0);
         int live = plumbing.Allocator.LiveAllocations;
         // The new radiance maps fit, and the new distance cubes do not.
         plumbing.Allocator.AllocationsBeforeFailure = 1;
 
-        Action grow = () => map.FacesFor(frame: 1, served: Served(3), longStep: false);
+        Action grow = () => map.FacesFor(frame: 1, served: Served(3), everyFace: false);
 
         grow.Should().Throw<VulkanException>("the device has no memory for the second cube array");
         plumbing.Allocator.AllocationsBeforeFailure = null;
