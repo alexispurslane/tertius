@@ -1,0 +1,28 @@
+# SCRATCH patch of t0-gumm, never commit to src. With TERTIUS_X_FIRST_FILMED=1 the first drawn frame of a headless run is no still: it resets every history, but draws once, as a window's first frame does (FrameHistory.IsStill), so that start.json films each draw of a start. Without the variable nothing changes.
+diff --git a/src/Tertius.Rendering/Frame/FrameHistory.cs b/src/Tertius.Rendering/Frame/FrameHistory.cs
+index 2dbd1f2..27bd734 100644
+--- a/src/Tertius.Rendering/Frame/FrameHistory.cs
++++ b/src/Tertius.Rendering/Frame/FrameHistory.cs
+@@ -195,7 +195,7 @@ internal sealed class FrameHistory
+             Reset: reset,
+             DrawIndex: reset ? 0 : lastDrawIndex + 1,
+             ExposureStep: still ? StillExposureStep(step, draw) : step,
+-            FsrFrameMilliseconds: still ? 1000f / 60 : step * 1000,
++            FsrFrameMilliseconds: still || !float.IsFinite(step) ? 1000f / 60 : step * 1000,
+             RefreshesEveryFace: still && draw == 0,
+             DrawnFrames: DrawnFrames,
+             RenderSize: renderSize,
+@@ -224,7 +224,12 @@ internal sealed class FrameHistory
+         || firstOfAStill;
+ 
+     /// <summary>Whether a draw after a clock step of <paramref name="step"/> s is a still: the rule of decision 32.</summary>
+-    private bool IsStill(float step) => rule.Headless && (step == 0 || step >= MeteringStepSeconds);
++    private bool IsStill(float step) => rule.Headless && (step == 0 || step >= MeteringStepSeconds) && !(drawn is null && ProbeFirstFilmed);
++
++    // SCRATCH (t0-gumm, never commit to src): with TERTIUS_X_FIRST_FILMED=1, the first drawn frame of a headless run is
++    // no still: it resets every history as before, but draws once, as a window's first frame does, so that a film shows
++    // each draw of a start.
++    private static readonly bool ProbeFirstFilmed = Environment.GetEnvironmentVariable("TERTIUS_X_FIRST_FILMED") == "1";
+ 
+     /// <summary>
+     /// The exposure step of draw <paramref name="draw"/> of a still after <paramref name="step"/> s (section 10, "The still

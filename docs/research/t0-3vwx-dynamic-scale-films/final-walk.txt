@@ -1,0 +1,23 @@
+# final.sh walk: Design X 05a27262d9c336ffcc2aed64f7e877565af1bb84, main ac5f23915d12947a2effc8c5b8b53444ddacc489, 2026-11-22 18:49
+w-MF: 69 render sizes, scale 0.9558295 0.9558295 in the film's window
+w-XF: 69 render sizes, scale 0.94875705 0.94875705 in the film's window
+$ /Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-3vwx-dynamic-scale-films/tools/walklogs.py MF|/private/tmp/t0-gbgj/macdyn5/pics/w-MF XF|/private/tmp/t0-gbgj/macdyn5/pics/w-XF
+== MF (/private/tmp/t0-gbgj/macdyn5/pics/w-MF)
+  walk, last 60 draws (draws 273-332, 0 size changes): history mean 29.31 draws, share < 8 0.0228, share 0 0.0159
+  stop, draws 0 to 59 after (draws 333-392, 0 size changes): history mean 29.36 draws, share < 8 0.0289, share 0 0.0197
+  stop, draws 60 to 199 after (draws 393-532, 0 size changes): history mean 29.62 draws, share < 8 0.0274, share 0 0.0197
+== XF (/private/tmp/t0-gbgj/macdyn5/pics/w-XF)
+  walk, last 60 draws (draws 273-332, 0 size changes): history mean 29.34 draws, share < 8 0.0227, share 0 0.0159; region tested 0.0 % of 30600 anchor-draws, fires 0.0 % of tested
+  stop, draws 0 to 59 after (draws 333-392, 0 size changes): history mean 29.51 draws, share < 8 0.0202, share 0 0.0197; region tested 34.7 % of 30600 anchor-draws, fires 1.7 % of tested
+  stop, draws 60 to 199 after (draws 393-532, 0 size changes): history mean 26.99 draws, share < 8 0.0198, share 0 0.0197; region tested 90.4 % of 71400 anchor-draws, fires 1.0 % of tested
+
+== the survey's wk-MF
+slowest region 25 whole 0 per region [0, 23, 0, 25, 15, 0, 16, 0, 0, 0] failed []
+== the survey's wk-XF
+slowest region 47 whole 0 per region [0, 47, 0, 47, 35, 1, 36, 0, 0, 0] failed []
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-3vwx-dynamic-scale-films/pics/walk-final.mp4 6.1 MB, 260 frames at 60 per second, 3840 x 1080
+pane 1 main ac5f23915: render scale 0.956 to 0.956, 0 size changes in the video's 260 draws
+pane 2 Design X 05a27262d: render scale 0.949 to 0.949, 0 size changes in the video's 260 draws
+draws after the stop: 0, against the last frame: main ac5f23915: r11 source +5.34 %, video +5.40 %, largest difference 0.13 %; Design X 05a27262d: r11 source +5.87 %, video +5.92 %, largest difference 0.16 %
+draws after the stop: 20, against the last frame: main ac5f23915: r11 source +3.73 %, video +3.84 %, largest difference 0.25 %; Design X 05a27262d: r11 source +4.61 %, video +4.73 %, largest difference 0.28 %
+draws after the stop: 40, against the last frame: main ac5f23915: r11 source +2.49 %, video +2.61 %, largest difference 0.22 %; Design X 05a27262d: r11 source +3.58 %, video +3.71 %, largest difference 0.28 %

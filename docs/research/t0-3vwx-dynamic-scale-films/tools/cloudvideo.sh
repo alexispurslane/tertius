@@ -42,7 +42,8 @@ PY
 lamps() { if [ "$1" = switch ]; then echo TERTIUS_PROBE_LAMP_SEL=z:-12:4 TERTIUS_PROBE_LAMP_OFF=193-393; else echo TERTIUS_X_NONE=1; fi; }
 build() {
   echo "$(date +%T) build $1"
-  (cd $1 && patch -p1 --forward -s -i tools/renderer-survey/probe.patch \
+  local probe=tools/renderer-survey/probe.patch; [ $1 = x ] && [ -f $D/probe-x.patch ] && probe=../$D/probe-x.patch
+  (cd $1 && patch -p1 --forward -s -i $probe \
     && { [ $1 = m ] || patch -p1 --forward -s -i ../$D/scratch-region-log.patch; } \
     && patch -p1 --forward -s -i ../$D/scratch-dynamic-scale.patch \
     && { [ -z "${PASSLOG:-}" ] || patch -p1 --forward -s -i ../$D/scratch-pass-log.patch; } \

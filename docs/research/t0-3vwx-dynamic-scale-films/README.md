@@ -7,7 +7,7 @@ The user's order of 2026-11-22: videos of the walk and the lamp switch "under no
 | Name | Code | In this record |
 |---|---|---|
 | M5 | main `ac5f23915`: the back-face layer, the walk's fix and step 1 of the wobble's fix | take A, left side; the control of take B |
-| X5 | the line's merge `710834cc0`: Design X (`260ead7eb`) merged with main `ac5f23915`, tree `e232080f`. Design X here has no cap on the cost block after a light change. A cap waits for the user's choice of variant | take A, right side; take B, "after" |
+| X5 | the line's merge `710834cc0`: Design X (`260ead7eb`) merged with main `ac5f23915`, tree `e232080f`. Design X here is without the cap: light evidence restarts a history at 4 draws, under `FullRateFrames`, so the plan traces catch-up rays after a light change. The cap waits for the user's choice of variant | take A, right side; take B, "after" |
 | X3 | the combined check's merge `bcca31e95` (Design X with main `a819b10b2`), before the wobble's fix | take B, "before" |
 | M3 | main `a819b10b2`, before the wobble's fix | take B's control, the switch only |
 
@@ -145,13 +145,90 @@ What take B does not cover: the eye's view of the remaining edge motion at norma
 
 The numbers: `start.txt`. The logs: `times/` (each run's size, time and gzipped per-pass log). The tools: `tools/timeslog.py` and `tools/startchart.py`. The per-pass line is `scratch-pass-log.patch`, 4 lines inside the time log's loop.
 
+## The final films: Design X with the cap (`05a27262d`) against main
+
+The merge gate's take, on the final code: Design X `05a27262d` (the acceptance lead's commit: light evidence takes region evidence's branch, `min(antiLagged, FullRateFrames)`, the cap of `t0-zmjx`) against main `454574bf8`, whose `src` equals `ac5f23915`. The builds, the outputs and the video labels name main by `ac5f23915`, the commit that was built. Each side plays back its own card scale log at 16.67 ms (one new card job for both films). `tools/final.sh switch` and `tools/final.sh walk`; the outputs are `final-switch.txt` and `final-walk.txt`, the card's logs `sizes-final/`.
+
+`git apply --check` on `05a27262d`: the survey's probe patch fails in `sample_age.glsl`, where the commit changed a comment line inside the hunk's context. `probe-05a27262d.patch` is the original with that context fitted, and `builds.sh` and `cloudvideo.sh` take it for that commit. The record's scratch patches apply unchanged, on both sides.
+
+### Terms of this section
+
+- The card: the cloud queue's RTX 2000 Ada at 1920 × 1080, with the dynamic render scale aiming at 16.67 ms. A card scale log lists the render scale of every draw, and the Mac plays it back.
+- `FullRateFrames`: 8 draws. While a pixel's history is shorter, the ray plan gives it a ray of its own in every draw (a catch-up ray), which costs GPU time. A cut of the history length below 8 draws therefore raises the frame's cost, and the controller answers with a lower render scale.
+- Light evidence: a block's evidence that the light at its samples changed. It restarts the block's histories. Without the cap it restarts them at 4 draws; with the cap it restarts them at `min(antiLagged, FullRateFrames)`, that is at most 8 draws, as region evidence does. So with the cap a light change makes no catch-up rays.
+- Region evidence: the evidence of the region's drift test, which compares a region's light with its recent past at anchor pixels. A fire caps the region's histories at 8 draws.
+- `antiLagged`: the history length after the anti-lag's own cut.
+- An anchor-draw: one anchor of the region test in one draw.
+- The boil without the fade: per 16 × 16 block, the mean of |b[k] − (b[k − 1] + b[k + 1]) / 2| as a share of the crop's light, so that a steady fade does not count (`boilnoise.py` of the acceptance record).
+- Regions `r00` to `r22`: the survey's 3 × 3 grid, row 0 at the top. The slowest region is the one that settles last.
+
+### The switch
+
+Video: `pics/switch-final.mp4`, main left and Design X right, 320 draws (20 before off, on at draw 220).
+
+The line orchestrator's prediction: with the cap, the card's scale log has no size change after a switch, so Design X settles as at a fixed scale and faster than main after off and after on. **The numbers confirm it.**
+
+- The card's scale: Design X holds 0.993 from draw 92 to the end, with 0 size changes. Main changes size 38 times in the film's 320 draws (17 in the 60 draws after off, 17 in the 60 after on, 19 in the 100 after on).
+- The survey's settle under the card's sizes:
+
+| Settle draws, after off / after on | Whole image | Slowest region |
+|---|---|---|
+| Main `ac5f23915` | 121 / 54 | 143 / 94 |
+| Design X `05a27262d` | 73 / 33 | 86 / 53 |
+| Take B's X5 | 141 / 45 | 166 / not in 100 |
+| X2 at a fixed 2/3 (`t0-gbgj` take 2c, older code) | 66 / 30 | not measured |
+
+| Measure, from the frames | Design X | Main, draws of one size | Main, changed draws |
+|---|---|---|---|
+| Boil without the fade, 60 draws after off, % (floor / wall / ceiling) | 0.21 / 0.22 / 0.21 | 0.18 / 0.17 / 0.21 | 0.23 / 0.22 / 0.23 |
+| Boil without the fade, 100 draws after on, % | 0.05 / 0.15 / 0.11 | 0.04 / 0.13 / 0.10 | 0.06 / 0.22 / 0.18 |
+| Jamb means, 60 draws after off (right / left) | 0.0103 / 0.0100 | 0.0096 / 0.0094 | 0.0104 / 0.0096 |
+| Floor grain, 60 draws after off, % | 3.00 | 2.90 | 3.13 |
+| Slow diffuse history mean, 60 draws after off | 8.9 draws | 26.4 draws | 25.6 draws |
+| Edge distance rms around its mean | 0.085 px (noise floor 0.045) | 0.267 px over all draws (noise floor 0.057) | |
+
+- The region test now runs on 99 % of the anchor-draws in the 200 draws after off and the 100 after on (take B: about 12 %). It fires on 56 % of them in the 100 draws after off and on 53 % after on.
+- Design X boils a little more than main's draws of one size after off, and about as much as main's changed draws.
+
+### The walk
+
+Video: `pics/walk-final.mp4`, main left and Design X right, 260 draws (the last 60 of the walk and 200 after the stop).
+
+- Neither side changes size in the video's draws (main 0.956, Design X 0.949). Design X's walk draws at 1816 × 1024 render pixels in both jobs (scale 0.94841 in take A, 0.94876 here), so its two takes are at the same render size.
+- The center region's light after the stop, against the last frame, at 0, 20 and 40 draws: Design X +5.87 / +4.61 / +3.58 %, the same as take A's X5 to the last digit. Main +5.34 / +3.73 / +2.49 %.
+- The survey's settle after the stop, slowest region: Design X 47 draws (take A's X5: 48), main 25. The slow regions are again the upper corners and the middle row's sides (`r00` and `r02` 47, `r10` 35, `r12` 36).
+- So the cap changed neither the trail nor the settle after the stop. A walk has no light change, so light evidence does not act there. My reading, not measured: the trail is the region test's slow start after the stop (34.7 % of the anchor-draws tested in the first 60 draws after it).
+- No flicker measure of the walk exists in this record's tools.
+
+### The run order of the card's size jobs
+
+Neither size job had a warm-up run. Take A's job `f434f616` and the final's job `d3eebea0` ran in the same order: main's build, Design X's build, then main's walk (the job's first run), Design X's walk, main's switch, Design X's switch and the replay check. So the first-run fact `t1-80jd` (the first run of a card job may draw 10 to 18 % slower) touches main's walk in both jobs, and the switch logs are the second runs of their binaries. The most common scale after draw 173 of each log:
+
+| Log | Take A `f434f616` | Final `d3eebea0` |
+|---|---|---|
+| Main's walk (the job's first run) | 1.000 | 0.956 |
+| Design X's walk | 0.948 | 0.949 |
+| Main's switch | 0.993 | 0.999 |
+| Design X's switch | 0.988 | 0.993 |
+
+Main's walk was the first run in both jobs, so the run order alone does not explain why it rests at 0.956 in the final and at 1.000 in take A. A difference between the two workers can. Each settle and trail compares spans inside one run, under that run's own scale log, so those comparisons stand. Design X's zero size changes after the switch come from one card job (`d3eebea0`), and a second job could differ, as main's walk did (see "A second run of each side" below). The walk's comparison of the cap with take A crosses two jobs, but Design X draws at the same render size in both.
+
+### What the final films do not cover
+
+- The eye's view at normal speed.
+- Edges other than the two tracked window edges.
+- A second run of each side: the takes ran once.
+- A flicker measure of the walk.
+- `tools/final.sh` does not stop on a failed survey run in step 4 (t0-gbgj's `take.sh` exits 0), and it does not compare the survey run's played-back size log with the card's log. The Mac's picture runs are compared (`queue-a.sh`), the survey's runs are not. Step 4 also has no disk check.
+
 ## The cloud spend
 
 | Job | What | Execution | Counted |
 |---|---|---|---|
 | `f434f616` | the size logs: walk and switch, M5 and X5, 16.67 ms, and the replay check | 241 s | $0.0498 |
 | `89e20008` | the time and per-pass logs: two runs per scene and code | 335 s | $0.0649 |
-| | this take so far | | $0.1147 |
+| `d3eebea0` | the final films' size logs: walk and switch, main and Design X `05a27262d` | 235 s | $0.0488 |
+| | this record so far | | $0.1635 |
 
 Take B ran on the Mac only and used no cloud job.
 
@@ -164,5 +241,5 @@ Take B ran on the Mac only and used no cloud job.
 - `start.txt`: the start's measures.
 - `scratch-*.patch`: the scratch patches. `scratch-dynamic-scale.patch` and `scratch-region-log.patch` are the acceptance record's of `726bf338c`, unchanged. `scratch-history-log.patch` (31 lines) logs the slow diffuse history's length per draw. `scratch-pass-log.patch` logs each pass's GPU time.
 - `tools/` (each script says what it does in its first lines): `cloud.sh`, `cloudvideo.sh`, `cloudvideo.py` and `macdyn.sh` (copies of the acceptance record's `726bf338c`, with their changes named in their heads); `builds.sh`, `queue-a.sh`, `queue-b.sh`, `measure5.py`, `walklogs.py`, `takeB.sh`, `framesheet.py`, `timeslog.py`, `startchart.py`.
-- The final take (`tools/final.sh <switch|walk>`, with `XF` the Design X commit and `MF` the main commit): one command per film builds both codes, logs the card's sizes (one cloud job for both films, about $0.05), runs the played-back pictures and the survey's takes, writes the measures to `final-<film>.txt`, and makes the video `pics/<film>-final.mp4`. `cloud.sh` takes `M` and `C`, `builds.sh` the builds `xf` and `mf`, `queue-a.sh` the runs `s-XF`, `w-XF`, `s-MF` and `w-MF` from `SIZES`, and `macdyn.sh` the survey's tree `SURVEY_TREE`. It has not run end to end yet.
+- The final take (`tools/final.sh <switch|walk>`, with `XF` the Design X commit and `MF` the main commit): one command per film builds both codes, logs the card's sizes (one cloud job for both films, about $0.05), runs the played-back pictures and the survey's takes, writes the measures to `final-<film>.txt`, and makes the video `pics/<film>-final.mp4`. `cloud.sh` takes `M` and `C`, `builds.sh` the builds `xf` and `mf`, `queue-a.sh` the runs `s-XF`, `w-XF`, `s-MF` and `w-MF` from `SIZES`, and `macdyn.sh` the survey's tree `SURVEY_TREE`. `FROM=4` starts at the survey's takes, `FROM=5` at the measures. `GPU_JOB` names another checkout's `gpu_job.py`. `probe-<commit>.patch` is a probe patch fitted to that commit.
 - Tools of other records that this record runs by their paths: `sidevideo.py`, `boilnoise.py` and `dynscale.py` of the acceptance record (`726bf338c`); `wobble.py`, `wobsplit.py`, `levjump.py`, `regions.py` (through `m.sh`) and `take.sh` of the combined check (`docs/research/t0-gbgj-combined-check/tools`).

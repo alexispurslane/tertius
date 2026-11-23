@@ -36,6 +36,8 @@ def load(path, model):
 
 def stats(v, sel):
     x = v[sel]
+    if x.size == 0:
+        return 'none'  # t0-3vwx: a run with no size change has no draw in the "change" column
     return f'{np.sqrt(np.mean(x ** 2)):.3f} / {x.max() - x.min():.2f}'
 
 
@@ -61,7 +63,7 @@ for name, key in (('distance residual step mean abs / largest (px of 1920)', 're
     for _, s, sel in cols:
         st = steps(s[key])
         x = st[sel & ~np.isnan(st)]
-        row.append(f'{x.mean():.3f} / {x.max():.2f}')
+        row.append('none' if x.size == 0 else f'{x.mean():.3f} / {x.max():.2f}')
     print(f'{name} | ' + ' | '.join(row))
 for label, s in sides:
     print(f'\n{label}:')

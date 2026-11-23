@@ -1,0 +1,53 @@
+# queue.sh, 2026-11-22 19:52
+19:52:03 pictures w-QD
+19:56:07 exit 0 260 pictures
+19:56:07 pictures w-QN
+20:16:00 exit 0 260 pictures
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-qvm1-region-off/pics/walk-rule-on-off.mp4 5.9 MB, 260 frames at 60 per second, 3840 x 1080
+pane 1 with region evidence: render scale 0.949 to 0.949, 0 size changes in the video's 260 draws
+pane 2 without region evidence: render scale 0.949 to 0.949, 0 size changes in the video's 260 draws
+draws after the stop: 0, against the last frame: with region evidence: r11 source +5.87 %, video +5.93 %, largest difference 0.17 %; without region evidence: r11 source +5.52 %, video +5.54 %, largest difference 0.12 %
+draws after the stop: 20, against the last frame: with region evidence: r11 source +4.61 %, video +4.74 %, largest difference 0.30 %; without region evidence: r11 source +4.27 %, video +4.37 %, largest difference 0.25 %
+draws after the stop: 40, against the last frame: with region evidence: r11 source +3.58 %, video +3.72 %, largest difference 0.28 %; without region evidence: r11 source +3.26 %, video +3.36 %, largest difference 0.22 %
+# queue.sh, 2026-11-22 20:17
+# queue.sh, 2026-11-22 20:19
+20:19:35 start wk-QD xfd walk cabin-walk TERTIUS_X_FRAME_TIME_TARGET=16.6667 TERTIUS_X_SIZE_REPLAY=/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-3vwx-dynamic-scale-films/sizes-final/walk-x-16.6667/size-none.txt TERTIUS_X_SIZE_LOG=/private/tmp/t0-gbgj/runs/wk-QD/sizes (load { 8.65 7.69 6.69 })
+20:28:05 end wk-QD exit 0 walk cabin-walk ...
+walk cabin-walk: {"scene": "orbit", "settleDraws": 47, "settleDrawsWhole": 0, "window": 200, "failed": []}
+wk-QD slowest region 47 whole 0 per region [0, 47, 0, 47, 35, 1, 36, 0, 0, 0]
+# queue.sh, 2026-11-22 21:08
+21:08:14 kept wk-QD
+wk-QD slowest region 47 whole 0 per region [0, 47, 0, 47, 35, 1, 36, 0, 0, 0]
+21:08:14 start wk-QN xfn walk cabin-walk TERTIUS_X_FRAME_TIME_TARGET=16.6667 TERTIUS_X_SIZE_REPLAY=/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-3vwx-dynamic-scale-films/sizes-final/walk-x-16.6667/size-none.txt TERTIUS_X_SIZE_LOG=/private/tmp/t0-gbgj/runs/wk-QN/sizes (load { 12.80 8.42 6.81 })
+21:24:09 end wk-QN exit 0 walk cabin-walk ...
+walk cabin-walk: {"scene": "orbit", "settleDraws": 53, "settleDrawsWhole": 3, "window": 200, "failed": []}
+wk-QN slowest region 53 whole 3 per region [3, 50, 0, 53, 39, 1, 39, 0, 0, 0]
+21:24:09 start sw-QD xfd switch cabin TERTIUS_X_FRAME_TIME_TARGET=16.6667 TERTIUS_X_SIZE_REPLAY=/private/tmp/t0-gbgj/replay-0.6667.txt TERTIUS_X_SIZE_LOG=/private/tmp/t0-gbgj/runs/sw-QD/sizes (load { 3.79 4.48 5.70 })
+21:27:15 end sw-QD exit 0 switch cabin ...
+switch cabin: {"scene": "orbit", "offDraws": 82, "onDraws": 54, "offWindow": 200, "onWindow": 100, "offDrawsWhole": 71, "onDrawsWhole": 34, "change": -0.7278784662184183, "failed": ["settle"]}
+index settle off settle on lvl60 off lvl60 on share on
+whole         71        34    107.0%    98.2%    1.000
+  r00         82        54    109.9%    96.1%    0.498
+  r01         56         4    104.3%    99.5%    4.084
+  r02         80        53    109.9%    96.1%    0.501
+  r10         77        51    108.3%    96.4%    0.542
+  r11         68        49    106.0%    96.4%    0.871
+  r12         76        51    108.0%    96.5%    0.544
+  r20         81        34    109.6%    98.4%    0.584
+  r21         72        28    107.1%    98.6%    0.791
+  r22         80        34    109.5%    98.4%    0.584
+21:27:18 start sw-QN xfn switch cabin TERTIUS_X_FRAME_TIME_TARGET=16.6667 TERTIUS_X_SIZE_REPLAY=/private/tmp/t0-gbgj/replay-0.6667.txt TERTIUS_X_SIZE_LOG=/private/tmp/t0-gbgj/runs/sw-QN/sizes (load { 7.11 5.79 5.99 })
+21:30:02 end sw-QN exit 0 switch cabin ...
+switch cabin: {"scene": "orbit", "offDraws": null, "onDraws": null, "offWindow": 200, "onWindow": 100, "offDrawsWhole": 189, "onDrawsWhole": 68, "change": -0.7287845160327244, "failed": ["settle"]}
+index settle off settle on lvl60 off lvl60 on share on
+whole        189        68    122.5%    94.4%    1.000
+  r00       None      None    139.6%    86.0%    0.496
+  r01        146         4    113.5%    98.2%    4.099
+  r02       None      None    138.0%    85.9%    0.498
+  r10       None      None    127.4%    88.9%    0.538
+  r11        171      None    114.5%    91.9%    0.864
+  r12       None      None    126.3%    88.8%    0.541
+  r20       None        63    133.4%    94.8%    0.585
+  r21        177        46    121.3%    96.0%    0.793
+  r22       None        64    132.7%    94.7%    0.585
+21:30:05 queue.sh done

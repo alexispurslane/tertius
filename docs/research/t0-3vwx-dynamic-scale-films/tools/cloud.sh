@@ -19,9 +19,10 @@ R=$(cd "$(dirname "$0")/../../../.." && pwd)
 C=${C:-/private/tmp/t0-gbgj/cloud5}; mkdir -p $C
 X=${X:-4851ba7db147563e5b8a94856710dd5c37efe2d6}
 # t0-3vwx: M names main's side (default ac5f23915) and C the output folder (default cloud5), for the final take.
+# GPU_JOB=<path> runs another checkout's gpu_job.py (and so its endpoint.json's caps), such as main's.
 M=${M:-ac5f23915}
 submit() { local name=$1; shift
-  (cd "$R" && python3 -I tools/runpod/gpu_job.py submit --agent t0-3vwx "$@" --out "$C/$name") > "$C/$name.log" 2>&1
+  (cd "$R" && python3 -I "${GPU_JOB:-tools/runpod/gpu_job.py}" submit --agent t0-3vwx "$@" --out "$C/$name") > "$C/$name.log" 2>&1
   echo "$(date +%T) exit $? $name: $(tail -1 "$C/$name.log" | cut -c1-200)"; }
 case $1 in
 shard)
@@ -37,6 +38,8 @@ sizes|video|regions|times)
   D=docs/research/t0-3vwx-dynamic-scale-films
   stage=$(mktemp -d); mkdir -p $stage/$D/tools
   cp "$R/$D"/scratch-*.patch $stage/$D/; cp "$R/$D"/tools/cloudvideo.* $stage/$D/tools/
+  # t0-3vwx, final take: a probe patch fitted to X (probe-<first 9 digits of X>.patch) goes along as probe-x.patch.
+  [ -f "$R/$D/probe-${X:0:9}.patch" ] && cp "$R/$D/probe-${X:0:9}.patch" $stage/$D/probe-x.patch
   [ -d $C/sizes/out/sizes ] && cp -r $C/sizes/out/sizes $stage/$D/
   pack=$(COPYFILE_DISABLE=1 tar -czf - -C $stage docs | base64 | tr -d '\n'); rm -rf $stage
   if [ $1 = times ]; then
