@@ -1,6 +1,6 @@
 ---
 id: ter-8pco
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-11-22T21:13:03Z
@@ -32,3 +32,7 @@ A table per still and region, the probe patch committed as evidence, no engine c
 **2026-11-23T01:56:31Z**
 
 2026-11-22, the line orchestrator. One addition to the census, for the cause of the ceiling specks of t7-3e22, which five films showed on main before and after step 2 of ter-qt72 at some render sizes only. After the ticket's stills, the lead takes the lamp hall on main at a size that bursts (1072 x 603) and at the nearest size that does not. For the ceiling around the near lamps it reports the classes of the brightest 0.1 percent of the diffuse samples (miss, near hit, far hit), their hit distances, their light before and after the clamps, and their count per draw. The question is which samples make the specks and what differs between the two sizes. If the diffuse samples are clean and the picture has specks, the record says so, because the cause is then in the reflection samples or in the upscaler. Two takes, no engine change. The result is its own section of the census's record and a note in t7-3e22.
+
+**2026-11-23T02:50:17Z**
+
+2026-11-22, the lead. The census is done. Record: docs/research/ray-census/README.md, with the probe patch (census-probe.patch, the survey's probe and the census edits against 3549d3283), the tools, each take's results, maps and regions. Five stills (rect-lamps as the control, bay-sunbeam, cabin-light-cabin, exit-cabin, and sunlit-nose for ter-fe63) at render scales 2/3 and 0.9584, 240 settling draws and 400 counted draws, clamps on. Result: far hits (2 m or more) carry 73 to 104 percent of the variance in every region but exit-cabin's wall below its windows, where misses carry 87 percent. Near hits carry at most 24 percent (cabin-light-cabin's shaded floor). Misses plus far hits carry 76 to 100 percent, so the review's condition 'under about 10 percent' fails in every region. The caps never bound a sample. The two scales agree within 0.02. The census mean is 1.00 to 1.12 times the slow history (ter-18hc is the suspect; not tested). The bay's sunlit patch: its brightest 0.1 percent are all far hits at 2.8 to 11 m, uncapped. Probe check: with the unpatched resolve, the per-pixel sums of X and X squared of rect-lamps at 2/3 are bitwise equal to the census's. The lamp-hall part for t7-3e22 is section 7 of the record. No engine change.
