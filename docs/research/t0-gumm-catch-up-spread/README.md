@@ -138,6 +138,90 @@ The start, for the record (changes, fall, run 1 / run 2): today 57, 0.233 / 57, 
 - **1/16 against 1/32.** After off, every run of 1/16 changes the scale (1 to 8 changes, falls 0.005 to 0.013), and no run of 1/32 does. After on, every run of 1/16 changes it 8 to 12 times, and every run of 1/32 0 to 4 times. At the cut, every run of 1/16 falls 0.003 to 0.011, and the runs of 1/32 rise or fall 0.002 at most. The one overlap is B32's first run after on: its fall of 0.013 (in 4 changes) is as large as 1/16's. **So the card tells 1/16 from 1/32**: the two runs of 1/32 do not differ as much as 1/16 differs from 1/32. The answer of job 2 stands: 1/32 is the largest peak share that leaves the card's scale within its noise. B32 sits at that limit, because one of its four light-change windows came out above the noise. C32 sits inside it in each of its windows.
 - The idle levels of the runs lie between 0.981 and 0.989. Each window's fall counts from its own run's level before the event.
 
+## The three codes: the table, the rule and the recommendation
+
+**The base.** Every code here is built on X5, the line's merge `710834cc0` (tree `e232080f`). A and C add the cap as the acceptance record's `scratch-light-evidence-cap.patch`, the same rule as the production commit `05a27262d`. Main's step 2 of the wobble fix (`3549d3283`, merged to the line as `6f54dd615`, line head `aeed1895b`) came after this base, and no code here has it.
+
+**The codes.**
+
+- Today: X5's cliff, (1, 8, 0), with light evidence restarting a history at 4 draws.
+- A: the cap. Light evidence restarts a history at 8 draws, so no history is young after a light change, and the plan keeps today's cliff after a start or a cut.
+- B: the share (P, 32, 0) with the restart at 4 draws, and all three clocks in the young test.
+- C: the cap and the share (P, 32, 0), with all three clocks.
+- C': the cap and the share, with only the reset's clock (`drawIndex < End`, the fourth shape value 0). After a light change it runs A's code path, and after a start or a cut C's. So it needs no run of its own.
+- None: (0, 32, 0), no catch-up ray at all after a reset (the Mac's start and cut, `tools/queue-mac6.sh`). With the cap, after a light change it runs A's code path.
+
+P is 1/32 (B32, C32) or 1/16 (B16, C16).
+
+### The cost
+
+| Code | Card, start: largest fall (run 1 / 2) | Card, off: changes | Card, on: changes | Card, cut: changes, fall | Mac, extra GPU ms over 60 draws: off / on / start / cut |
+|---|---|---|---|---|---|
+| Today | 0.233 / 0.238 | 54 / 53 | 53 / 53 | 56, 0.139 / 56, 0.144 | 79 / 75 / 91 / 78 |
+| A | 0.235 / 0.238 | 0 / 0 | 0 / 1 | 56, 0.141 / 56, 0.140 | 2 / 9 / as today / as today |
+| B32 | 0.086 / 0.087 | 0 / 0 | 4 / 1 | 3, rises / 3, rises | 6 / 12 / 42 / 8 |
+| C32 | 0.085 / 0.086 | 0 / 0 | 1 / 0 | 4, 0.002 / 3, rises | 3 / 11 / 39 / 10 |
+| C' at 1/32 | as C32 | as A | as A | as C32 | as A after a light change, as C32 after a start or a cut |
+| B16 | 0.093 / 0.093 | 2 / 8 | 10 / 11 | 4, 0.003 / 8, 0.006 | 12 / 19 / 52 / 18 |
+| C16 | 0.093 / 0.094 | 3 / 1 | 12 / 8 | 10, 0.011 / 8, 0.006 | 13 / 18 / 48 / waits |
+| None | 0.070 (job 2, one run) | 0 (job 2) | 0 (job 2) | 6, rises (job 2) | not run |
+
+- The card's columns come from job 3 (two runs per code), the last row from job 2. One change of about 0.004 is the card's noise.
+- The start falls by about 0.070 for every code, also with no catch-up ray. That part is the dear first draws of `t58-np60`, so rule 1 counts only the catch-up rays' part above it.
+- The Mac's GPU spans (`tools/spans.py`, timing runs with the GPU lock held alone, at 2/3) are noisy under load. A runs today's code at a start and a cut, but its timing runs gave 217 and 177 ms. So those two cells say "as today".
+
+### The picture on the Mac, at the constant scale 2/3
+
+The slowest region's settle in draws, the boil without the fade over draws 1 to 59 in %, and the grain over draws 0 to 15 in % (`tools/events.py`):
+
+| Code | Off: settle, boil, grain | On: boil, grain | Start: settle, boil, grain | Cut: settle, boil, grain |
+|---|---|---|---|---|
+| Today | 142, 0.276, 2.14 | 0.177, 1.01 | 139, 0.109, 0.86 | 134, 0.106, 0.88 |
+| A | 139, 0.267, 1.61 | 0.174, 0.89 | as today | as today |
+| B32 | 142, 0.291, 2.11 | 0.191, 1.00 | 139, 0.114, 0.89 | 133, 0.112, 0.87 |
+| C32 | 139, 0.266, 1.61 | 0.174, 0.88 | as B32 | as B32 |
+| C' at 1/32 | as A | as A | as B32 | as B32 |
+| B16 | 142, 0.290, 2.11 | 0.190, 1.00 | 139, 0.113, 0.89 | 133, 0.112, 0.87 |
+| C16 | 139, 0.265, 1.62 | 0.173, 0.89 | 139, 0.113, 0.89 | waits |
+| None | as A (with the cap) | as A (with the cap) | 139, 0.114, 0.89 | 133, 0.112, 0.87 |
+
+- **The spread between runs with the event moved by 1 and 2 draws** (`tools/queue-mac3.sh`). Today after off: settle 142, 140, 138, and boil 0.276, 0.268, 0.274, so the boil's spread is 0.008. After on: boil 0.177, 0.175, 0.177. At the cut, the three runs give the same numbers to the last digit. B32 after off: settle 142, 139, 137, and boil 0.291, 0.283, 0.287. At the cut, its three runs are equal. The start cannot move.
+- After on, no code's upper and middle regions settle within the 100 draws of the film. The bottom row settles in 77 to 91 draws in today's three runs, and every code lies inside that span.
+- A and C32 differ by at most 0.001 in boil and 0.01 in grain after a light change. A against today: the same settle within the spread, and less grain after off (1.61 against 2.03 to 2.14), because the cap keeps 8 draws of history where today keeps 4.
+
+### What one catch-up ray per restarted pixel buys
+
+A share of 1/32 for 32 draws gives one catch-up ray per restarted pixel. **It buys nothing that the measures see.**
+
+- After a light change, C32 measures as A, which traces none.
+- At the start and the cut, B32 and C32 measure as "none" to the last digit.
+- B against today: B boils more than today after off (0.283 to 0.291 against 0.268 to 0.276) and after on (0.188 to 0.191 against 0.175 to 0.177), by 0.013 to 0.015 at each matched shift of the event, more than the spread of 0.008. Its settle is the same within the spread. So B buys back today's cost, but not today's picture after a light change.
+
+Today's cliff, 8 rays per restarted pixel, buys a little at the start and the cut: a boil of 0.109 against 0.114 at the start and 0.106 against 0.112 at the cut. That is about 5 % less, and more than the spread, which is zero at the cut. The settle is the same at the start, and 1 draw slower at the cut. Its price is the card's fall: 0.14 at the cut, and 0.24 at the start, of which about 0.16 is the cliff's.
+
+### The rule
+
+1. **No cost peak that moves the card's scale.** Today fails at every event. A fails at the start and the cut (falls of 0.24 and 0.14). B16 and C16 fail after off, after on and at the cut. B32 sits at the limit: one window of four after a light change is above the noise. C32, C' at 1/32 and None pass.
+2. **Then the faster settle, unless its boil is higher by more than the spread.** C32, C' at 1/32 and None measure the same at every event: the same settle, and boil and grain within 0.001 and 0.01. (B32 settles as they do but boils 0.014 to 0.025 more after a light change, so it would lose here too.)
+3. **Then the smaller reach and less code.** None needs no catch-up machinery after a reset: the plan skips the cliff while the draws since the reset are under End (`drawIndex < 32` in the scratch). C' needs the share and its turn but only the reset's clock. C32 needs all three clocks, with a new read and two barriers.
+
+### The recommendation
+
+**The cap and no catch-up ray after a reset.** It is "None" with the cap: A's code, plus a plan that gives no catch-up ray to a history whose cap is 8 draws or more while the draws since the last reset are fewer than 32, as the shape (0, 32, 0) ran it. The smooth reflections, whose cap is under 8 draws, keep today's rule. It passes the card at every event, and it gives the same picture on the Mac as C32. It needs one existing read and no new state. If the eye finds the first draws after a start or a cut too noisy in the videos, C' at 1/32 is the next step. It costs the share and its turn, and still no new read.
+
+### The production form
+
+- **Reads that exist in the plan today:** the draw index since the last reset (`trace.drawIndex`, in the push constants), and the pixel's own light-age record (`lightAgeOf`, from the last draw's `lastLightAge`). None and C' need only the draw index. A C or B form also needs the light-age record, which exists.
+- **A new read:** the block's youngest light code (C and B only). The plan would read the last draw's sample-age images (`specularSampleAge`, `diffuseSampleAge`, today `writeonly`) and reduce them over its 8 × 8 workgroup in shared memory, with two `barrier()` calls that every invocation reaches before any return. That also needs a memory barrier from the last draw's tracer writes to this read. The scratch form ran only on MoltenVK. It was not checked on Linux.
+- **Restarts that no clock sees:** region evidence (the drift test's real and false fires cap a region's histories at 8 draws), the anti-lag's cut of a history, and a disocclusion (a surface newly in view while the camera moves). A history that is not young keeps today's rule, so these restarts still get today's cliff of own rays while their history is under 8 draws. With the cap, light evidence restarts at 8 draws, so a light change gives none.
+- **The share is a cost budget.** A faster card or a higher frame time target fits a larger share, and a production form could take the share from the controller's headroom. Not built.
+
+### Parity
+
+- **The column split:** within each draw parity, even and odd columns get catch-up rays within 0.33 % of each other. So the column parity does not follow the draw parity (`t2-8foa`).
+- **The draw-parity excess:** in the light-change windows only, the odd draws take about 2.3 % more catch-up rays than the even draws. At a start, the four counts lie within 0.34 % of a quarter.
+- **The light code's clock:** the excess shows only where the light clocks decide youngness. The block's light code comes from the last draw's samples, whose block-ray pixels move with the draw parity. That may cause it. Not hunted.
+
 ## The videos
 
 The three files `pics/preview-switch-three.mp4`, `pics/preview-start-three.mp4` and `pics/preview-cut-three.mp4` (A | today | C32) are previews only. They do not follow the line's video rules:
