@@ -1,0 +1,283 @@
+{
+ "case": "rect-lamps-f62",
+ "render": [
+  1040,
+  585
+ ],
+ "draws": [
+  240,
+  640
+ ],
+ "stops": [
+  4.079999923706055,
+  4.079999923706055
+ ],
+ "regions": [
+  {
+   "name": "ceiling around the near lamps",
+   "light": "bounce from the floor and walls; the near rect lamps face down",
+   "rect_output": [
+    643,
+    200,
+    1043,
+    400
+   ],
+   "rect_render": [
+    348,
+    108,
+    564,
+    216
+   ],
+   "after_caps": {
+    "pixels": 23328,
+    "mean_luminance": 0.20188566577603642,
+    "mean_variance": 0.021504987421271743,
+    "count_share": {
+     "miss": 0.26013117283950615,
+     "near": 0.01219596622085048,
+     "far": 0.7276728609396433
+    },
+    "mean_share": {
+     "miss": 0.0462131258991427,
+     "near": 0.01165007464427999,
+     "far": 0.9421367994565774
+    },
+    "variance_share": {
+     "miss": 0.012023600891570336,
+     "near": 0.0026016313661248883,
+     "far": 0.9853747677423048
+    }
+   },
+   "before_caps": {
+    "pixels": 23328,
+    "mean_luminance": 0.20188566577603642,
+    "mean_variance": 0.021504987421271743,
+    "count_share": {
+     "miss": 0.26013117283950615,
+     "near": 0.01219596622085048,
+     "far": 0.7276728609396433
+    },
+    "mean_share": {
+     "miss": 0.0462131258991427,
+     "near": 0.01165007464427999,
+     "far": 0.9421367994565774
+    },
+    "variance_share": {
+     "miss": 0.012023600891570336,
+     "near": 0.0026016313661248883,
+     "far": 0.9853747677423048
+    }
+   },
+   "check": {
+    "census_mean": 0.20188566577603642,
+    "slow_history_mean": 0.20318180322647095,
+    "ratio": 0.993620799550687
+   },
+   "brightest_0.1pct_x": {
+    "samples": 9331,
+    "of": 9331200,
+    "threshold": 0.4186539947986603,
+    "share_of_their_light": {
+     "miss": 0.0,
+     "near": 0.0,
+     "far": 1.0
+    },
+    "share_of_all_light_in_rect": 0.0020794712472707033
+   },
+   "brightest_0.1pct_pre": {
+    "samples": 9331,
+    "of": 9331200,
+    "threshold": 0.4186539947986603,
+    "share_of_their_light": {
+     "miss": 0.0,
+     "near": 0.0,
+     "far": 1.0
+    },
+    "share_of_all_light_in_rect": 0.0020794712472707033
+   }
+  },
+  {
+   "name": "floor in the middle",
+   "light": "the rect lamps directly",
+   "rect_output": [
+    600,
+    700,
+    1300,
+    1000
+   ],
+   "rect_render": [
+    325,
+    379,
+    704,
+    541
+   ],
+   "after_caps": {
+    "pixels": 61398,
+    "mean_luminance": 0.027463871066093097,
+    "mean_variance": 0.0016653785393677338,
+    "count_share": {
+     "miss": 0.7995477051369752,
+     "near": 0.0,
+     "far": 0.20045229486302485
+    },
+    "mean_share": {
+     "miss": 0.5703098457197571,
+     "near": 0.0,
+     "far": 0.429690154280243
+    },
+    "variance_share": {
+     "miss": 0.20094279925760436,
+     "near": 0.0,
+     "far": 0.7990572007423955
+    }
+   },
+   "before_caps": {
+    "pixels": 61398,
+    "mean_luminance": 0.027463871066093097,
+    "mean_variance": 0.0016653785393677338,
+    "count_share": {
+     "miss": 0.7995477051369752,
+     "near": 0.0,
+     "far": 0.20045229486302485
+    },
+    "mean_share": {
+     "miss": 0.5703098457197571,
+     "near": 0.0,
+     "far": 0.429690154280243
+    },
+    "variance_share": {
+     "miss": 0.20094279925760436,
+     "near": 0.0,
+     "far": 0.7990572007423955
+    }
+   },
+   "check": {
+    "census_mean": 0.027463871066093097,
+    "slow_history_mean": 0.02659236080944538,
+    "ratio": 1.0327729554699094
+   }
+  },
+  {
+   "name": "left wall above the windows",
+   "light": "the rect lamps at a grazing angle",
+   "rect_output": [
+    200,
+    300,
+    600,
+    470
+   ],
+   "rect_render": [
+    108,
+    162,
+    325,
+    254
+   ],
+   "after_caps": {
+    "pixels": 19964,
+    "mean_luminance": 0.1422550608461298,
+    "mean_variance": 0.01231891065232894,
+    "count_share": {
+     "miss": 0.358559156481667,
+     "near": 0.03150884091364456,
+     "far": 0.6099320026046885
+    },
+    "mean_share": {
+     "miss": 0.10856520175237687,
+     "near": 0.038661329615012084,
+     "far": 0.852773468632611
+    },
+    "variance_share": {
+     "miss": 0.006640494593162452,
+     "near": 0.009927075904950325,
+     "far": 0.9834324295018871
+    }
+   },
+   "before_caps": {
+    "pixels": 19964,
+    "mean_luminance": 0.1422550608461298,
+    "mean_variance": 0.01231891065232894,
+    "count_share": {
+     "miss": 0.358559156481667,
+     "near": 0.03150884091364456,
+     "far": 0.6099320026046885
+    },
+    "mean_share": {
+     "miss": 0.10856520175237687,
+     "near": 0.038661329615012084,
+     "far": 0.852773468632611
+    },
+    "variance_share": {
+     "miss": 0.006640494593162452,
+     "near": 0.009927075904950325,
+     "far": 0.9834324295018871
+    }
+   },
+   "check": {
+    "census_mean": 0.1422550608461298,
+    "slow_history_mean": 0.14274612069129944,
+    "ratio": 0.9965599075982485
+   }
+  },
+  {
+   "name": "far end wall beside the window",
+   "light": "the rect lamps; the sunlit sill below the window",
+   "rect_output": [
+    760,
+    420,
+    880,
+    560
+   ],
+   "rect_render": [
+    411,
+    227,
+    476,
+    303
+   ],
+   "after_caps": {
+    "pixels": 4940,
+    "mean_luminance": 0.16168730735279851,
+    "mean_variance": 0.011941654751686343,
+    "count_share": {
+     "miss": 0.29559716599190283,
+     "near": 0.05455516194331984,
+     "far": 0.6498476720647773
+    },
+    "mean_share": {
+     "miss": 0.04641738501519528,
+     "near": 0.06479843868093689,
+     "far": 0.8887841763038679
+    },
+    "variance_share": {
+     "miss": -0.00886590257599293,
+     "near": 0.03916563032885768,
+     "far": 0.9697002722471353
+    }
+   },
+   "before_caps": {
+    "pixels": 4940,
+    "mean_luminance": 0.16168730735279851,
+    "mean_variance": 0.011941654751686343,
+    "count_share": {
+     "miss": 0.29559716599190283,
+     "near": 0.05455516194331984,
+     "far": 0.6498476720647773
+    },
+    "mean_share": {
+     "miss": 0.04641738501519528,
+     "near": 0.06479843868093689,
+     "far": 0.8887841763038679
+    },
+    "variance_share": {
+     "miss": -0.00886590257599293,
+     "near": 0.03916563032885768,
+     "far": 0.9697002722471353
+    }
+   },
+   "check": {
+    "census_mean": 0.16168730735279851,
+    "slow_history_mean": 0.1627989560365677,
+    "ratio": 0.9931716473444739
+   }
+  }
+ ]
+}

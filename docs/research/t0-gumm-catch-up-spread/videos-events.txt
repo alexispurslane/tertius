@@ -1,0 +1,14 @@
+v-switch-A off: settle whole 0, slowest region 135 (r00 122 r01 0 r02 121 r10 135 r12 135 r20 107 r21 102 r22 107); boil 1-59 0.208 % (floor 0.195, wall 0.219, ceiling 0.209); grain 0-15 1.97 %
+v-switch-A on: settle whole 0, slowest region none (r00 none r01 0 r02 none r10 none r12 none r20 96 r21 89 r22 96); boil 1-59 0.139 % (floor 0.049, wall 0.210, ceiling 0.157); grain 0-15 1.02 %
+v-switch-today off: settle whole 0, slowest region 173 (r00 170 r01 0 r02 168 r10 166 r12 173 r20 163 r21 157 r22 161); boil 1-59 0.182 % (floor 0.171, wall 0.192, ceiling 0.184); grain 0-15 2.24 %
+v-switch-today on: settle whole 0, slowest region none (r00 none r01 0 r02 none r10 none r12 none r20 none r21 none r22 none); boil 1-59 0.140 % (floor 0.049, wall 0.206, ceiling 0.166); grain 0-15 1.06 %
+v-switch-C32 off: settle whole 0, slowest region 140 (r00 129 r01 0 r02 121 r10 140 r12 129 r20 107 r21 102 r22 107); boil 1-59 0.211 % (floor 0.195, wall 0.216, ceiling 0.221); grain 0-15 1.95 %
+v-switch-C32 on: settle whole 0, slowest region 81 (r00 81 r01 0 r02 79 r10 80 r12 79 r20 72 r21 69 r22 74); boil 1-59 0.141 % (floor 0.057, wall 0.211, ceiling 0.155); grain 0-15 1.03 %
+v-start-A start: settle whole 0, slowest region 158 (r00 155 r01 0 r02 158 r10 156 r11 41 r12 155 r20 113 r21 105 r22 105); boil 1-59 0.110 % (floor 0.033, wall 0.095, ceiling 0.201); grain 0-15 0.87 %
+v-start-today start: settle whole 0, slowest region 156 (r00 156 r01 0 r02 153 r10 154 r11 41 r12 155 r20 109 r21 101 r22 103); boil 1-59 0.112 % (floor 0.033, wall 0.097, ceiling 0.206); grain 0-15 0.87 %
+v-start-C32 start: settle whole 0, slowest region 154 (r00 153 r01 0 r02 154 r10 151 r11 5 r12 153 r20 116 r21 107 r22 110); boil 1-59 0.111 % (floor 0.036, wall 0.107, ceiling 0.191); grain 0-15 1.08 %
+v-cut-A cut: settle whole 0, slowest region 152 (r00 151 r01 0 r02 152 r10 151 r11 24 r12 151 r20 115 r21 107 r22 112); boil 1-59 0.104 % (floor 0.030, wall 0.091, ceiling 0.191); grain 0-15 0.89 %
+v-cut-today cut: settle whole 0, slowest region 153 (r00 152 r01 0 r02 153 r10 151 r11 4 r12 151 r20 116 r21 109 r22 113); boil 1-59 0.105 % (floor 0.030, wall 0.091, ceiling 0.194); grain 0-15 0.89 %
+v-cut-C32 cut: settle whole 0, slowest region 132 (r00 127 r01 0 r02 124 r10 119 r11 10 r12 132 r20 94 r21 85 r22 95); boil 1-59 0.106 % (floor 0.031, wall 0.101, ceiling 0.188); grain 0-15 1.02 %
+v-switch-A1 off: settle whole 0, slowest region 135 (r00 121 r01 0 r02 121 r10 135 r12 135 r20 107 r21 102 r22 107); boil 1-59 0.208 % (floor 0.195, wall 0.219, ceiling 0.209); grain 0-15 1.97 %
+v-switch-A1 on: settle whole 0, slowest region 80 (r00 80 r01 0 r02 78 r10 78 r12 78 r20 70 r21 68 r22 73); boil 1-59 0.152 % (floor 0.058, wall 0.212, ceiling 0.188); grain 0-15 1.01 %

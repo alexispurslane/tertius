@@ -1,0 +1,17 @@
+# Scratch patch of t0-5tyj, experiment XB (never commit to src): on the line's head 57b4045ae, light evidence cuts a
+# history to min(anti-lag, FullRateFrames) as region evidence does, in place of fastCap. Apply on top of probe.patch,
+# scratch-region-log.patch and scratch-dynamic-scale.patch (playbuild.sh xb).
+--- a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
++++ b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
+@@ -168,8 +168,10 @@
+         // most FullRateFrames draws, the shortest length that keeps the block's shared ray. So it only ever shortens a
+         // history.
+         float antiLagged = max(fastCap, historyLength * (1.0 - min(1.0, lag / parameters.antiLagShare)));
++        // SCRATCH (t0-5tyj, experiment XB, never commit to src): light evidence takes the region evidence's cap, at most
++        // FullRateFrames draws, in place of the fast cap, so that a light change keeps the block's shared ray.
+         if (evidence == LightEvidence)
+-            historyLength = fastCap;
++            historyLength = min(antiLagged, FullRateFrames);
+         else if (evidence == RegionEvidence)
+             historyLength = min(antiLagged, FullRateFrames);
+         else

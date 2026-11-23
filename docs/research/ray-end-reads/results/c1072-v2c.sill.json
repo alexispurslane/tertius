@@ -1,0 +1,121 @@
+{
+ "samples": 309600,
+ "keep_rect_render_px": [
+  494,
+  322,
+  580,
+  331
+ ],
+ "diffuse": {
+  "mean": 0.20856133103370667,
+  "bright_count": 169,
+  "bright_share_of_light": 0.0787753239274025,
+  "largest": 107.93970489501953,
+  "guided_share_all": 0.2509043927648579,
+  "guided_share_bright": 0.023668639053254437,
+  "hit_distance_m_p10_p50_p90": [
+   0.59,
+   4.76,
+   9.51
+  ],
+  "bright_with_hit_pixel": 169,
+  "top_hit_rows_share_of_bright_light": {
+   "315": 0.634,
+   "316": 0.088,
+   "318": 0.043,
+   "319": 0.036,
+   "313": 0.027,
+   "292": 0.024
+  },
+  "share_of_bright_light_from_sill_rows": 0.7495011687278748,
+  "sill_row_hit_columns_p10_p90": [
+   516,
+   575
+  ],
+  "sill_row_hits_per_draw_p10_p50_p90": [
+   0.0,
+   4.0,
+   12.0
+  ],
+  "draws_with_sill_row_hits": 348,
+  "sill_row_hit_mean_by_draw_top5": {
+   "341": [
+    13,
+    52.174
+   ],
+   "166": [
+    11,
+    49.268
+   ],
+   "266": [
+    7,
+    46.355
+   ],
+   "191": [
+    13,
+    38.952
+   ],
+   "41": [
+    7,
+    36.076
+   ]
+  },
+  "sill_row_hit_mean_median_draw": 0.3341863751411438,
+  "share_of_light_from_sill_rows": 0.06985283643007278
+ },
+ "reflection": {
+  "mean": 0.287600040435791,
+  "bright_count": 344,
+  "bright_share_of_light": 0.2973726689815521,
+  "largest": 162.4679412841797,
+  "hit_distance_m_p10_p50_p90": [
+   0.63,
+   5.13,
+   8.83
+  ],
+  "bright_with_hit_pixel": 344,
+  "top_hit_rows_share_of_bright_light": {
+   "315": 0.86,
+   "317": 0.054,
+   "318": 0.028,
+   "313": 0.022,
+   "319": 0.015,
+   "316": 0.011
+  },
+  "share_of_bright_light_from_sill_rows": 0.8929063081741333,
+  "sill_row_hit_columns_p10_p90": [
+   510,
+   568
+  ],
+  "sill_row_hits_per_draw_p10_p50_p90": [
+   23.0,
+   38.0,
+   55.0
+  ],
+  "draws_with_sill_row_hits": 400,
+  "sill_row_hit_mean_by_draw_top5": {
+   "341": [
+    37,
+    81.187
+   ],
+   "266": [
+    35,
+    75.735
+   ],
+   "116": [
+    46,
+    63.786
+   ],
+   "191": [
+    30,
+    53.357
+   ],
+   "41": [
+    30,
+    50.782
+   ]
+  },
+  "sill_row_hit_mean_median_draw": 0.4270939145769391,
+  "share_of_light_from_sill_rows": 0.3370369076728821
+ }
+}

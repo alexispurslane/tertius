@@ -1,0 +1,21 @@
+pics/cut-final.mp4 2.1 MB, 141 frames at 60 per second, 3840 x 720
+A: the cap (merges): render scale 0.847 to 0.987, 40 size changes in the video's 141 draws
+today's cliff, restart at 4: render scale 0.841 to 0.985, 44 size changes in the video's 141 draws
+C32: the cap, spread 1/32: render scale 0.981 to 0.985, 1 size changes in the video's 141 draws
+draws since the cut: 2, against the last frame: A: the cap (merges): r11 source -16.06 %, video -15.80 %, largest difference 0.26 %; today's cliff, restart at 4: r11 source -16.06 %, video -15.76 %, largest difference 0.29 %; C32: the cap, spread 1/32: r11 source -17.77 %, video -17.52 %, largest difference 0.25 %
+draws since the cut: 10, against the last frame: A: the cap (merges): r11 source -10.55 %, video -10.13 %, largest difference 0.41 %; today's cliff, restart at 4: r11 source -10.46 %, video -10.04 %, largest difference 0.43 %; C32: the cap, spread 1/32: r11 source -12.65 %, video -12.27 %, largest difference 0.38 %
+draws since the cut: 40, against the last frame: A: the cap (merges): r11 source -5.26 %, video -5.16 %, largest difference 0.10 %; today's cliff, restart at 4: r11 source -5.29 %, video -5.17 %, largest difference 0.12 %; C32: the cap, spread 1/32: r11 source -7.12 %, video -7.04 %, largest difference 0.08 %
+pics/start-final.mp4 2.0 MB, 120 frames at 60 per second, 3840 x 720
+A: the cap (merges): render scale 0.762 to 1.000, 64 size changes in the video's 120 draws
+today's cliff, restart at 4: render scale 0.762 to 1.000, 62 size changes in the video's 120 draws
+C32: the cap, spread 1/32: render scale 0.914 to 1.000, 27 size changes in the video's 120 draws
+draws since the start: 2, against the last frame: A: the cap (merges): r11 source -16.28 %, video -15.98 %, largest difference 0.30 %; today's cliff, restart at 4: r11 source -16.28 %, video -16.04 %, largest difference 0.24 %; C32: the cap, spread 1/32: r11 source -16.36 %, video -16.07 %, largest difference 0.30 %
+draws since the start: 10, against the last frame: A: the cap (merges): r11 source -10.29 %, video -9.94 %, largest difference 0.35 %; today's cliff, restart at 4: r11 source -10.29 %, video -9.98 %, largest difference 0.32 %; C32: the cap, spread 1/32: r11 source -10.55 %, video -10.24 %, largest difference 0.31 %
+draws since the start: 40, against the last frame: A: the cap (merges): r11 source -4.98 %, video -4.71 %, largest difference 0.27 %; today's cliff, restart at 4: r11 source -4.95 %, video -4.71 %, largest difference 0.23 %; C32: the cap, spread 1/32: r11 source -5.23 %, video -4.94 %, largest difference 0.29 %
+pics/switch-final.mp4 5.5 MB, 320 frames at 60 per second, 3840 x 720
+A: the cap (merges): render scale 0.984 to 0.988, 1 size changes in the video's 320 draws
+today's cliff, restart at 4: render scale 0.825 to 0.984, 90 size changes in the video's 320 draws
+C32: the cap, spread 1/32: render scale 0.983 to 0.983, 0 size changes in the video's 320 draws
+lamps off, draw 20, against the last frame: A: the cap (merges): r11 source -26.45 %, video -26.37 %, largest difference 0.16 %; today's cliff, restart at 4: r11 source -25.71 %, video -25.65 %, largest difference 0.16 %; C32: the cap, spread 1/32: r11 source -27.44 %, video -27.39 %, largest difference 0.17 %
+lamps off, draw 80, against the last frame: A: the cap (merges): r11 source -39.11 %, video -38.98 %, largest difference 0.13 %; today's cliff, restart at 4: r11 source -32.94 %, video -32.77 %, largest difference 0.17 %; C32: the cap, spread 1/32: r11 source -40.02 %, video -39.91 %, largest difference 0.11 %
+lamps on again, draw 20, against the last frame: A: the cap (merges): r11 source -14.43 %, video -14.27 %, largest difference 0.16 %; today's cliff, restart at 4: r11 source -8.45 %, video -8.24 %, largest difference 0.21 %; C32: the cap, spread 1/32: r11 source -14.37 %, video -14.25 %, largest difference 0.12 %

@@ -41,11 +41,13 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 Draw(renderer, scene, 16);
                 int surface = renderer.ReadDistance().Count(distance => distance > 0);
                 long resets = 0;
+                long marks = 0;
                 for (int frame = 0; frame < 64; frame++)
                 {
                     Draw(renderer, scene, 1);
                     float[] record = renderer.ReadLightAge();
                     resets += Enumerable.Range(0, Width * Height).Count(pixel => AgeAt(record, pixel) == 0);
+                    marks += MovedMarks(renderer).Count(mark => mark != 0);
                 }
 
                 output.WriteLine(
@@ -57,6 +59,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                         0,
                         "the jitter and the temporal shadow filter move an edge pixel's light for fewer than four draws"
                     );
+                marks.Should().Be(0, "the jitter moves no surface");
             },
             new(Upscaling: new Fsr3Upscaling(new FixedRenderScale(1), 0), CascadedLights: 1)
         );
@@ -383,7 +386,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
     [Theory]
     [InlineData(null)]
     [InlineData("")]
-    public void ByDefaultALastingDimmingOfTheEmitterShortensTheReflectionHistoryToTheLightsAge(string? value) =>
+    public void ByDefaultALastingDimmingOfTheEmitterCutsTheReflectionHistoryToFullRateFrames(string? value) =>
         WithRenderer(
             value,
             (renderer, scene) =>
@@ -397,14 +400,14 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 float[] cut = Slow(renderer);
                 Enumerable
                     .Range(Height / 2 * Width, Width * Height / 2)
-                    .Count(pixel => LengthAt(warm, pixel) > 32 && LengthAt(cut, pixel) <= 1)
+                    .Count(pixel => LengthAt(warm, pixel) > 32 && LengthAt(cut, pixel) == FullRateFrames)
                     .Should()
-                    .BeGreaterThan(30, "the receivers that reflect the emitter keep only the frame since the change");
+                    .BeGreaterThan(30, "the blocks of the receivers that reflect the emitter have light evidence");
             }
         );
 
     [Fact]
-    public void TheCappedPreciseHistoryAlsoShortensToTheLightsAge()
+    public void TheCappedPreciseHistoryAlsoFallsToFullRateFrames()
     {
         string? mode = Environment.GetEnvironmentVariable("TERTIUS_SPECULAR_HISTORY");
         Environment.SetEnvironmentVariable("TERTIUS_SPECULAR_HISTORY", "precise-capped");
@@ -423,7 +426,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                     float[] cut = Slow(renderer);
                     Enumerable
                         .Range(Height / 2 * Width, Width * Height / 2)
-                        .Count(pixel => LengthAt(warm, pixel) > 8 && LengthAt(cut, pixel) <= 1)
+                        .Count(pixel => LengthAt(warm, pixel) > 8 && LengthAt(cut, pixel) == FullRateFrames)
                         .Should()
                         .BeGreaterThan(
                             30,
@@ -444,16 +447,23 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
             null,
             (renderer, scene) =>
             {
+                // The first draw shows every instance as new, with no last place, which is motion evidence. So the count
+                // starts at the second draw.
                 AddSunAndOccluder(renderer, scene);
+                Draw(renderer, scene, 1);
                 long aged = 0;
 
-                for (int frame = 0; frame < 32; frame++)
+                for (int frame = 1; frame < 32; frame++)
                 {
                     Draw(renderer, scene, 1);
                     aged += SampleAges(renderer).Count(age => age != 0);
+                    aged += renderer
+                        .ReadImage(renderer.ScreenTraceSignals.Diffuse.SampleAge(0)!)
+                        .Count(age => age != 0);
                 }
 
-                aged.Should().Be(0, "no light changes, so every ray brings no evidence and no history is cut");
+                aged.Should()
+                    .Be(0, "no light changes and nothing moves, so no ray brings evidence and no history is cut");
             },
             new(CascadedLights: 1)
         );
@@ -598,7 +608,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
         );
 
     [Fact]
-    public void AfterALastingDimmingTheReceiversBlendTakesNoOldLight() =>
+    public void AfterALastingDimmingTheReceiversBlendKeepsItsLengthAndTheBlockCutsItAfter() =>
         WithRenderer(
             "light-age-diagnostic",
             (renderer, scene) =>
@@ -612,6 +622,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 float[] sample = renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Sample(0));
                 float[] ages = SampleAges(renderer);
                 float[] diagnostic = UncoveredDiagnostic(renderer);
+                float[] slow = Slow(renderer);
                 int[] bright =
                 [
                     .. Enumerable
@@ -623,12 +634,54 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                         ),
                 ];
                 bright.Length.Should().BeGreaterThan(30, "the plate reflects the emitter");
+                // No cut runs before the blend, so a bright sample takes its normal weight there, and the block's light
+                // evidence cuts the length after it (docs/plans/bounce-light-confidence.md, section 4). The clamp's
+                // anti-lag in the pending draws shortens a few histories toward the fast cap first, but none to the age 0.
                 bright
                     .Should()
                     .OnlyContain(
-                        pixel => LengthBeforeBlendAt(diagnostic, pixel) == 0,
-                        "the pending draws blended the new light into the old, so the commit keeps none of it"
+                        pixel =>
+                            LengthBeforeBlendAt(diagnostic, pixel) >= SpecularFastCap
+                            && LengthAt(slow, pixel) <= FullRateFrames,
+                        "the blend keeps the history, and the evidence cuts it after the blend"
                     );
+            }
+        );
+
+    [Fact]
+    public void AfterALastingDimmingTheDiffuseHistoryOfTheReceiversFallsToFullRateFrames() =>
+        WithRenderer(
+            null,
+            (renderer, scene) =>
+            {
+                Draw(renderer, scene, 64);
+                TemporalSignal diffuse = renderer.ScreenTraceSignals.Diffuse;
+                float[] warm = renderer.ReadImage(diffuse.Slow(0));
+                SetGlow(renderer, scene, new(3.2f));
+
+                Draw(renderer, scene, LightChangeDraws);
+
+                float[] sample = renderer.ReadImage(diffuse.Sample(0));
+                float[] ages = renderer.ReadImage(
+                    diffuse.SampleAge(0)
+                        ?? throw new InvalidOperationException("The precise history keeps the light age.")
+                );
+                float[] slow = renderer.ReadImage(diffuse.Slow(0));
+                int[] cut =
+                [
+                    .. Enumerable
+                        .Range(0, Width * Height)
+                        .Where(pixel =>
+                            ages[pixel] == 1
+                            && LengthAt(warm, pixel) > 8
+                            && Luminance(sample, pixel) >= 0.3f * Luminance(warm, pixel)
+                        ),
+                ];
+                cut.Length.Should().BeGreaterThan(0, "the diffuse rays of some pixels hit the dimmed emitter");
+                ShouldBeCutToFullRateFrames(
+                    [.. cut.Select(pixel => LengthAt(slow, pixel))],
+                    "the block's light evidence cuts the history to FullRateFrames after the blend"
+                );
             }
         );
 
@@ -783,12 +836,12 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
         );
 
     [Fact]
-    public void AReceiverWhoseRayHitsTheDimmedEmitterKeepsOnlyTheFramesSinceTheChange() =>
-        AReceiverWhoseRayHitsTheChangedEmitterKeepsOnlyTheFramesSinceTheChange(new(3.2f));
+    public void AReceiverWhoseRayHitsTheDimmedEmitterFallsToFullRateFrames() =>
+        AReceiverWhoseRayHitsTheChangedEmitterFallsToFullRateFrames(new(3.2f));
 
     [Fact]
-    public void AReceiverWhoseRayHitsTheBrightenedEmitterKeepsOnlyTheFramesSinceTheChange() =>
-        AReceiverWhoseRayHitsTheChangedEmitterKeepsOnlyTheFramesSinceTheChange(new(4.8f));
+    public void AReceiverWhoseRayHitsTheBrightenedEmitterFallsToFullRateFrames() =>
+        AReceiverWhoseRayHitsTheChangedEmitterFallsToFullRateFrames(new(4.8f));
 
     [Fact]
     public void ACutHistoryGrowsBackWithTheAgeOfTheLight() =>
@@ -805,7 +858,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 [
                     .. Enumerable
                         .Range(Height / 2 * Width, Width * Height / 2)
-                        .Where(pixel => LengthAt(warm, pixel) > 32 && LengthAt(cut, pixel) <= 1),
+                        .Where(pixel => LengthAt(warm, pixel) > 32 && LengthAt(cut, pixel) == FullRateFrames),
                 ];
                 receivers.Length.Should().BeGreaterThan(30, "the dimming must cut receivers first");
 
@@ -817,14 +870,200 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 receivers
                     .Should()
                     .OnlyContain(
-                        pixel => LengthAt(early, pixel) <= 12,
-                        "the history holds no frame from before the change"
+                        pixel => LengthAt(early, pixel) <= FullRateFrames + 10,
+                        "the history holds no more than FullRateFrames draws from before the change"
                     );
                 receivers.Average(pixel => LengthAt(early, pixel)).Should().BeGreaterThan(4);
                 receivers
                     .Average(pixel => LengthAt(late, pixel))
                     .Should()
                     .BeGreaterThan(20, "the age of the light grows, so the length grows back with it");
+            }
+        );
+
+    [Fact]
+    public void WhileALastingDimmingIsRecentThePlanGivesFewMorePixelsARayOfTheirOwn() =>
+        WithRenderer(
+            null,
+            (renderer, scene) =>
+            {
+                // The plan gives a pixel a ray of its own while its history is shorter than FullRateFrames
+                // (screen_trace_plan.comp). Light evidence cuts a settled history to exactly that length, so a light
+                // change buys no block of own rays in the draws while its age is recent, and the frame costs about what
+                // a still frame costs (ticket t0-zmjx). The count is of own rays, up to two per pixel, one of each kind.
+                // A cut to the fast cap gave 2,161 to 3,059 own rays in each of 10 draws, on 9,216 pixels. The count
+                // before the change is the most of 8 settled draws, since the jitter moves a few pixels across the
+                // threshold of a fit. The dimming also moves the clamp, and the anti-lag shortens a few histories below
+                // FullRateFrames by that move, as it does without evidence: up to 41 more own rays in the take of
+                // 2026-11-22, so the bound is 92 more, 1 % of the pixel count.
+                Draw(renderer, scene, 64);
+                int settled = 0;
+                for (int draw = 0; draw < 8; draw++)
+                {
+                    Draw(renderer, scene, 1);
+                    settled = Math.Max(settled, OwnRays(renderer));
+                }
+                SetGlow(renderer, scene, new(3.2f));
+                Draw(renderer, scene, LightChangeDraws);
+
+                List<int> recent = [];
+                for (int draw = 0; draw < RecentLightAge + 4; draw++)
+                {
+                    Draw(renderer, scene, 1);
+                    recent.Add(OwnRays(renderer));
+                }
+
+                output.WriteLine($"Own rays: {settled} at most when settled, then {string.Join(", ", recent)}.");
+                recent
+                    .Should()
+                    .OnlyContain(
+                        count => count <= settled + Width * Height / 100,
+                        "a light change buys no block of rays of a pixel's own"
+                    );
+            }
+        );
+
+    /// <summary>The light ages of a recent change, 0 to 6 (sample_age.glsl, RecentLightAge).</summary>
+    private const int RecentLightAge = 7;
+
+    /// <summary>
+    /// The rays of their own that the last frame's plan gave the pixels, of both kinds (screen_trace.glsl,
+    /// PlanOwnReflection and PlanOwnDiffuse).
+    /// </summary>
+    private static int OwnRays(VulkanRenderer renderer) =>
+        renderer.ReadImage(renderer.ScreenTraceImages.Plan).Sum(bits => BitOperations.PopCount((uint)bits & 3u));
+
+    /// <summary>The fast cap of the reflections: the fast history's length, and the anti-lag's floor.</summary>
+    private const float SpecularFastCap = 4;
+
+    /// <summary>
+    /// The length to which light evidence cuts a settled history of either kind: the shortest that keeps the block's
+    /// shared ray (sample_age.glsl, FullRateFrames).
+    /// </summary>
+    private const float FullRateFrames = 8;
+
+    /// <summary>
+    /// Asserts that light evidence cut <paramref name="lengths"/>, the lengths of settled histories after the evidence, to
+    /// FullRateFrames: none is longer, and the median is FullRateFrames. The anti-lag can take a history further down.
+    /// </summary>
+    private static void ShouldBeCutToFullRateFrames(float[] lengths, string because)
+    {
+        lengths.Should().OnlyContain(length => length <= FullRateFrames, because);
+        lengths.Order().ElementAt(lengths.Length / 2).Should().Be(FullRateFrames, because);
+    }
+
+    [Fact]
+    public void ALampThatGoesOutCutsTheBounceHistoriesOfTheBlocksThatSeeItsLight() =>
+        WithRenderer(
+            null,
+            (renderer, scene) =>
+            {
+                // The emitter goes out, and 4 draws later the record counts the change. A block of 8 × 8 pixels whose
+                // diffuse rays bring its light code has light evidence, which cuts every history of the block to
+                // FullRateFrames, also the histories of the pixels whose own rays missed the emitter in this draw
+                // (docs/plans/bounce-light-confidence.md, section 8.2).
+                Draw(renderer, scene, 64);
+                SetGlow(renderer, scene, Vector3.Zero);
+
+                Draw(renderer, scene, LightChangeDraws);
+
+                float[] codes = DiffuseLightCodes(renderer);
+                float[] slow = renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.Slow(0));
+                int[] seeing =
+                [
+                    .. Enumerable
+                        .Range(0, Width * Height)
+                        .Where(pixel => codes[pixel] is >= 1 and <= 7)
+                        .Select(BlockOf)
+                        .Distinct(),
+                ];
+                output.WriteLine($"Blocks whose diffuse rays saw the lamp go out: {seeing.Length}.");
+                seeing.Length.Should().BeGreaterThan(10, "the floor's rays see the emitter");
+                Enumerable
+                    .Range(0, Width * Height)
+                    .Where(pixel => seeing.Contains(BlockOf(pixel)))
+                    .Select(pixel => LengthAt(slow, pixel))
+                    .Should()
+                    .OnlyContain(length => length <= FullRateFrames, "light evidence cuts every history of its block");
+            }
+        );
+
+    [Fact]
+    public void OnceTheCodeOfALampThatWentOutIsNoLongerRecentTheCutBounceHistoriesGrowAgain() =>
+        WithRenderer(
+            null,
+            (renderer, scene) =>
+            {
+                // The light code of the change stays recent for the ages 0 to 6 (sample_age.glsl, RecentLightAge), so the
+                // blocks that see the emitter go out are cut to FullRateFrames for 7 draws. From then on their rays bring
+                // an old code, which is no evidence, and their histories grow by one frame per draw again: 24 draws after
+                // the change, at least 17 draws of growth (docs/plans/bounce-light-confidence.md, section 8.3).
+                Draw(renderer, scene, 64);
+                SetGlow(renderer, scene, Vector3.Zero);
+                Draw(renderer, scene, LightChangeDraws);
+                float[] codes = DiffuseLightCodes(renderer);
+                int[] seeing =
+                [
+                    .. Enumerable
+                        .Range(0, Width * Height)
+                        .Where(pixel => codes[pixel] is >= 1 and <= 7)
+                        .Select(BlockOf)
+                        .Distinct(),
+                ];
+
+                Draw(renderer, scene, 24);
+
+                float[] slow = renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.Slow(0));
+                float[] lengths =
+                [
+                    .. Enumerable
+                        .Range(0, Width * Height)
+                        .Where(pixel => seeing.Contains(BlockOf(pixel)) && LengthAt(slow, pixel) > 0)
+                        .Select(pixel => LengthAt(slow, pixel))
+                        .Order(),
+                ];
+                output.WriteLine(
+                    $"Blocks that saw the lamp go out: {seeing.Length}; their lengths 24 draws later: "
+                        + $"{lengths[0]} least, {lengths[lengths.Length / 2]} median."
+                );
+                seeing.Length.Should().BeGreaterThan(10, "the floor's rays see the emitter");
+                lengths[lengths.Length / 2]
+                    .Should()
+                    .BeGreaterThanOrEqualTo(FullRateFrames, "an old light code cuts nothing");
+            }
+        );
+
+    [Fact]
+    public void AfterALampGoesOutTheBounceLightSettlesWithinFivePercentInSixtyDraws() =>
+        WithRenderer(
+            null,
+            (renderer, scene) =>
+            {
+                // The settle tolerance of the epic: 60 draws after the emitter goes out, the floor's bounce light keeps at
+                // most 5 % of the step to where it settles, the mean of draws 200 to 231 (docs/plans/bounce-light-confidence.md,
+                // section 22, point 5). The floor's bounce light comes almost all from the emitter. The widened box alone
+                // would drain the old light at 1 / 32 per draw.
+                Draw(renderer, scene, 64);
+                float before = FloorBounceLight(renderer);
+                SetGlow(renderer, scene, Vector3.Zero);
+
+                Draw(renderer, scene, 60);
+                float early = FloorBounceLight(renderer);
+                Draw(renderer, scene, 140);
+                float settled = 0;
+                for (int draw = 0; draw < 32; draw++)
+                {
+                    Draw(renderer, scene, 1);
+                    settled += FloorBounceLight(renderer) / 32;
+                }
+
+                output.WriteLine(
+                    $"Floor bounce light: {before:F4} lit, {early:F4} after 60 draws, {settled:F4} settled."
+                );
+                (before - settled).Should().BePositive("the emitter lit the floor");
+                (early - settled)
+                    .Should()
+                    .BeLessThanOrEqualTo(0.05f * (before - settled), "the bounce light settles within 60 draws");
             }
         );
 
@@ -937,7 +1176,8 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 float[] sample = renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Sample(0));
                 float[] ages = SampleAges(renderer);
                 float[] diagnostic = UncoveredDiagnostic(renderer);
-                // The receivers whose history is still long just before the cut: the slow history's clamp after the
+                float[] slow = Slow(renderer);
+                // The receivers whose history is still long just before the blend: the slow history's clamp after the
                 // blend of the change draws shortens a few others to 4 to 6 frames first.
                 int[] dim =
                 [
@@ -953,15 +1193,199 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 output.WriteLine($"Receivers with a dim ray of age 0: {dim.Length}.");
                 dim.Length.Should().BeGreaterThan(20, "the bright sky outweighs the dim emitter in these histories");
                 // A cut that only bright rays may make restarts the history from its bright samples: after a lamp goes
-                // out, the reflections jumped up by 72 % and took 128 draws to settle (ter-g3tk). The cut alone, from
-                // the diagnostic: every such receiver keeps only the frames since the change.
-                dim.Should()
-                    .OnlyContain(
-                        pixel => LengthBeforeBlendAt(diagnostic, pixel) == 0,
-                        "the light that the ray sees is 0 frames old, however dim the ray is"
-                    );
+                // out, the reflections jumped up by 72 % and took 128 draws to settle (ter-g3tk). Every such receiver's
+                // block has light evidence, so its history falls to FullRateFrames after the blend.
+                ShouldBeCutToFullRateFrames(
+                    [.. dim.Select(pixel => LengthAt(slow, pixel))],
+                    "the light that the ray sees is 0 frames old, however dim the ray is"
+                );
             },
             new(Gray: 4)
+        );
+
+    [Fact]
+    public void ARayThatHitsAMovingObjectCarriesItsMovedMark() =>
+        WithRenderer(
+            null,
+            (renderer, scene) =>
+            {
+                // The emitter slides sideways by 2 cm per draw, about half a pixel at 5 m, and the camera stands still. So
+                // the floor's pixels do not move, and a floor sample's motion bit comes only from a ray that hit the
+                // emitter, whose pixels the plan marked as moved (docs/plans/bounce-light-confidence.md, section 8.4).
+                Draw(renderer, scene, 32);
+
+                for (int draw = 0; draw < 4; draw++)
+                {
+                    Slide(scene, instance: 1, new Vector3(0.02f, 0, 0));
+                    Draw(renderer, scene, 1);
+                }
+
+                float[] ages = SampleAges(renderer);
+                int moved = Enumerable
+                    .Range(Height / 2 * Width, Width * Height / 2)
+                    .Count(pixel => SawMotion(ages[pixel]));
+                output.WriteLine($"Floor samples whose rays hit the moving emitter: {moved}.");
+                moved.Should().BeGreaterThan(30, "the plate reflects the moving emitter");
+            }
+        );
+
+    [Fact]
+    public void ARayThatHitsAStillSurfaceWhileTheCameraMovesCarriesNoMovedMark() =>
+        WithRenderer(
+            null,
+            (renderer, scene) =>
+            {
+                // The camera walks toward the emitter and the scene stands still. The plan compares each pixel's motion
+                // target with the motion of a still point at its surface point, by the motion target's own rule, so the two
+                // agree up to the rounding of the target's half floats, and no surface carries a moved mark.
+                Draw(renderer, scene, 16);
+                long marked = 0;
+
+                for (int draw = 0; draw < 16; draw++)
+                {
+                    Step(scene);
+                    Draw(renderer, scene, 1);
+                    marked += MovedMarks(renderer).Count(mark => mark != 0);
+                }
+
+                marked.Should().Be(0, "a still surface moves only with the camera");
+            }
+        );
+
+    [Fact]
+    public void UnderAStillCameraAStillSurfaceLiesAtAStillPointsPlaceUpToTheFloatsRounding() =>
+        WithRenderer(
+            null,
+            (renderer, scene) =>
+            {
+                // Both frames' matrices agree, so the motion target and the still motion take one rule to the same
+                // places, up to the last bits of the floats: at most 2.1 * 10^-6 pixels on the RTX 2000 Ada and 10^-6 on
+                // the Mac, four orders below LeastMotion (docs/plans/bounce-light-confidence.md, section 8.4).
+                Draw(renderer, scene, 16);
+                var probe = ScreenTraceProbe.On(renderer, "moved_surface_probe.comp");
+                Draw(renderer, scene, 1);
+
+                float[] apart = probe.Read();
+                int[] hittable = HittablePixels(apart);
+                hittable.Length.Should().BeGreaterThan(Width * Height / 2, "the floor and the emitter fill the view");
+                hittable.Should().OnlyContain(pixel => apart[4 * pixel] <= 1e-5f, "both places are the same point's");
+                // The depth ratios lie near 1, where a half float steps by 2^-11. The Vulkan spec lets the target's store
+                // round toward 0 or to the nearest half, so the two can differ by one step, half the moved test's bound.
+                hittable
+                    .Should()
+                    .OnlyContain(pixel => apart[4 * pixel + 1] <= 1f / 2048 && apart[4 * pixel + 2] == 0);
+            }
+        );
+
+    [Fact]
+    public void UnderASidewaysCameraAStillSurfaceLiesFarInsideTheLeastMotionOfAStillPoint() =>
+        WithRenderer(
+            null,
+            (renderer, scene) =>
+            {
+                // The camera moves sideways by 4 cm per draw, so every surface moves on screen by about 0.1 pixel or
+                // more. A still surface's motion target and its still motion differ by the rounding alone: far below
+                // LeastMotion, 1/32 pixel, at every pixel.
+                Draw(renderer, scene, 16);
+                var probe = ScreenTraceProbe.On(renderer, "moved_surface_probe.comp");
+                scene.Camera.PreviousPosition = scene.Camera.Position;
+                scene.Camera.Position += new Vector3(0.04f, 0, 0);
+                Draw(renderer, scene, 1);
+
+                float[] apart = probe.Read();
+                int[] hittable = HittablePixels(apart);
+                hittable.Length.Should().BeGreaterThan(Width * Height / 2, "the floor and the emitter fill the view");
+                float most = hittable.Max(pixel => apart[4 * pixel]);
+                output.WriteLine($"The largest distance from a still point's place: {most} pixels.");
+                hittable.Should().OnlyContain(pixel => apart[4 * pixel + 3] > 0.05f, "the camera moved every pixel");
+                hittable.Should().OnlyContain(pixel => apart[4 * pixel] < 1f / 128 && apart[4 * pixel + 2] == 0);
+            }
+        );
+
+    [Fact]
+    public void TheMovedMarkFallsOnAMovingBlockAndNotOnAStillEmitterWhoseLightChanges() =>
+        WithRenderer(
+            null,
+            (renderer, scene) =>
+            {
+                // The emitter dims in place while a white block slides along the floor. The emitter's exact light changes,
+                // so its record counts a change 4 draws later, while its surface stays where it was: a changed light is
+                // light evidence, not motion (docs/plans/bounce-light-confidence.md, section 9, causes 1 and 3). Only the
+                // block's own pixels carry the moved mark.
+                scene.Instances.Add(Occluder(renderer));
+                Draw(renderer, scene, 32);
+                SetGlow(renderer, scene, new(3.2f));
+
+                for (int draw = 0; draw < LightChangeDraws; draw++)
+                {
+                    Slide(scene, instance: scene.Instances.Count - 1, new Vector3(0.1f, 0, 0));
+                    Draw(renderer, scene, 1);
+                }
+
+                float[] record = renderer.ReadLightAge();
+                float[] marks = MovedMarks(renderer);
+                int[] changed = [.. Enumerable.Range(0, Width * Height).Where(pixel => AgeAt(record, pixel) == 0)];
+                output.WriteLine(
+                    $"Pixels whose light changed: {changed.Length}; marked pixels: {marks.Count(mark => mark != 0)}."
+                );
+                changed.Length.Should().BeGreaterThan(30, "the emitter's light changed");
+                changed.Should().OnlyContain(pixel => marks[pixel] == 0, "the emitter stands still");
+                marks.Count(mark => mark != 0).Should().BeGreaterThan(10, "the block's own pixels moved");
+            }
+        );
+
+    [Fact]
+    public void ThePixelsOwnMotionSetsTheMotionBitOfItsSamples() =>
+        WithRenderer(
+            null,
+            (renderer, scene) =>
+            {
+                // The camera moves sideways by 4 cm per draw, so every surface pixel moves on screen by more than LeastMotion,
+                // 1/32 pixel per draw: the farthest floor, about 50 m away, moves by about 0.1 pixel. The camera's moves
+                // change what the rays see, so every sample of both signals saw motion.
+                Draw(renderer, scene, 16);
+
+                for (int draw = 0; draw < 4; draw++)
+                {
+                    scene.Camera.PreviousPosition = scene.Camera.Position;
+                    scene.Camera.Position += new Vector3(0.04f, 0, 0);
+                    Draw(renderer, scene, 1);
+                }
+
+                float[] distance = renderer.ReadDistance();
+                int[] surface = [.. Enumerable.Range(0, Width * Height).Where(pixel => distance[pixel] > 0)];
+                surface.Length.Should().BeGreaterThan(Width * Height / 2);
+                float[] specular = SampleAges(renderer);
+                float[] diffuse = renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.SampleAge(0)!);
+                surface.Should().OnlyContain(pixel => SawMotion(specular[pixel]) && SawMotion(diffuse[pixel]));
+            }
+        );
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("light-age-diagnostic")]
+    public void TheMovedMarkLeavesTheLightCodeOfTheRecordAsItWas(string? value) =>
+        WithRenderer(
+            value,
+            (renderer, scene) =>
+            {
+                // The emitter dims while it slides, so a ray that hits it brings both its light code, 1 four draws after
+                // the dimming, and its moved mark. The mark sits in bit 15 of the record above the light code, which
+                // narrowed to 14 bits, and under the diagnostic above its narrowed field (section 8.5).
+                Draw(renderer, scene, 32);
+                SetGlow(renderer, scene, new(3.2f));
+
+                for (int draw = 0; draw < LightChangeDraws; draw++)
+                {
+                    Slide(scene, instance: 1, new Vector3(0.02f, 0, 0));
+                    Draw(renderer, scene, 1);
+                }
+
+                SampleAges(renderer)
+                    .Count(age => age == (TemporalSignal.SampleMotionBit | 1))
+                    .Should()
+                    .BeGreaterThan(30, "rays that hit the dimmed, moving emitter bring its age 0 and its mark");
+            }
         );
 
     [Fact]
@@ -1026,6 +1450,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                     Draw(renderer, scene, 4);
 
                     renderer.ScreenTraceSignals.Specular.SampleAge(0).Should().BeNull("its shaders are H13's");
+                    renderer.ScreenTraceSignals.Diffuse.SampleAge(0).Should().BeNull("no record gives the rays an age");
                     renderer.ScreenTraceImages.LightAge(0).Should().BeNull();
                     Gpu.AssertClean(renderer);
                 }
@@ -1184,14 +1609,15 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 scene.Instances[^1] = occluder;
                 long aged = 0;
 
+                // The occluder's move is motion evidence, the samples' motion bit, so the count reads the light codes alone.
                 Draw(renderer, scene, 1);
-                aged += SampleAges(renderer).Count(age => age != 0);
+                aged += SampleAges(renderer).Count(age => LightCodeOf(age) != 0);
                 occluder.PreviousPosition = occluder.Position;
                 scene.Instances[^1] = occluder;
                 for (int frame = 0; frame < 8; frame++)
                 {
                     Draw(renderer, scene, 1);
-                    aged += SampleAges(renderer).Count(age => age != 0);
+                    aged += SampleAges(renderer).Count(age => LightCodeOf(age) != 0);
                 }
 
                 aged.Should().Be(0, "a surface whose light was never seen to change gives a receiver no evidence");
@@ -1319,10 +1745,10 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
     ];
 
     /// <summary>
-    /// The receivers whose ray hits the emitter in the draw that counts its change bring back age 0 and keep a history of
-    /// one frame.
+    /// The receivers whose ray hits the emitter in the draw that counts its change bring back age 0, which gives their
+    /// blocks light evidence: their histories fall to FullRateFrames after the blend.
     /// </summary>
-    private void AReceiverWhoseRayHitsTheChangedEmitterKeepsOnlyTheFramesSinceTheChange(Vector3 glow) =>
+    private void AReceiverWhoseRayHitsTheChangedEmitterFallsToFullRateFrames(Vector3 glow) =>
         WithRenderer(
             null,
             (renderer, scene) =>
@@ -1350,9 +1776,10 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                     $"Receivers with a bright ray of age 0 after the glow became {glow.X}: {bright.Length}."
                 );
                 bright.Length.Should().BeGreaterThan(30, "the plate reflects the emitter");
-                bright
-                    .Should()
-                    .OnlyContain(pixel => LengthAt(after, pixel) <= 1, "the light the ray sees is 0 frames old");
+                ShouldBeCutToFullRateFrames(
+                    [.. bright.Select(pixel => LengthAt(after, pixel))],
+                    "the light the ray sees is 0 frames old"
+                );
             }
         );
 
@@ -1486,6 +1913,10 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
     }
 
     /// <summary>One draw's step of the walks: the camera moves 4 cm toward the emitter.</summary>
+    /// <summary>The pixels that a walk can hit in the output of moved_surface_probe.comp.</summary>
+    private static int[] HittablePixels(float[] probe) =>
+        [.. Enumerable.Range(0, Width * Height).Where(pixel => probe[4 * pixel] >= 0)];
+
     private static void Step(RenderSnapshot scene)
     {
         scene.Camera.PreviousPosition = scene.Camera.Position;
@@ -1548,6 +1979,52 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
             renderer.ScreenTraceSignals.Specular.SampleAge(0)
                 ?? throw new InvalidOperationException("The original specular history keeps no light age.")
         );
+
+    /// <summary>The light code of the diffuse sample's age per pixel: 0 for no light age, else the age plus 1.</summary>
+    private static float[] DiffuseLightCodes(VulkanRenderer renderer) =>
+        [
+            .. renderer
+                .ReadImage(
+                    renderer.ScreenTraceSignals.Diffuse.SampleAge(0)
+                        ?? throw new InvalidOperationException("The original specular history keeps no light age.")
+                )
+                .Select(age => (float)((int)age & TemporalSignal.LightCodeMask)),
+        ];
+
+    /// <summary>The light code of a sample age, read as a float, without its motion bit (sample_age.glsl).</summary>
+    private static int LightCodeOf(float age) => (int)age & TemporalSignal.LightCodeMask;
+
+    /// <summary>Whether a sample age, read as a float, holds the motion bit (sample_age.glsl).</summary>
+    private static bool SawMotion(float age) => ((int)age & TemporalSignal.SampleMotionBit) != 0;
+
+    /// <summary>
+    /// The moved mark of each pixel, the alpha of the hit light's first layer: 1 where the plan found that the pixel's
+    /// surface moved since the last draw, else 0.
+    /// </summary>
+    private static float[] MovedMarks(VulkanRenderer renderer)
+    {
+        float[] light = renderer.ReadImageLayer(image: renderer.ScreenTraceImages.HitLight, layer: 0);
+        return [.. Enumerable.Range(0, Width * Height).Select(pixel => light[4 * pixel + 3])];
+    }
+
+    /// <summary>Moves the scene's instance <paramref name="instance"/> by <paramref name="step"/> in this draw.</summary>
+    private static void Slide(RenderSnapshot scene, int instance, Vector3 step)
+    {
+        RenderInstance moved = scene.Instances[instance];
+        moved.PreviousPosition = moved.Position;
+        moved.Position += step;
+        scene.Instances[instance] = moved;
+    }
+
+    /// <summary>The block of 8 × 8 pixels, one workgroup of the accumulation, that holds the pixel.</summary>
+    private static int BlockOf(int pixel) => pixel / Width / 8 * (Width / 8) + pixel % Width / 8;
+
+    /// <summary>The mean luminance of the diffuse slow history over the floor, the image's lower half.</summary>
+    private static float FloorBounceLight(VulkanRenderer renderer)
+    {
+        float[] slow = renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.Slow(0));
+        return (float)Enumerable.Range(Height / 2 * Width, Width * Height / 2).Average(pixel => Luminance(slow, pixel));
+    }
 
     /// <summary>
     /// The frames on screen of a pixel whose light the record never saw change, from its first frame at 0: the record

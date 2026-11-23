@@ -1,0 +1,13 @@
+diff -ru a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
+--- a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
++++ b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
+@@ -170,7 +170,8 @@
+         if (evidence == LightEvidence)
+             historyLength = fastCap;
+         else if (evidence == RegionEvidence)
+-            historyLength = min(antiLagged, FullRateFrames);
++            // SCRATCH (t0-acxm, the settled form): region evidence takes no anti-lag, only the cap at FullRateFrames.
++            historyLength = min(historyLength, FullRateFrames);
+         else
+             historyLength = antiLagged;
+         slow = clamped;

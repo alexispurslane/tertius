@@ -1,0 +1,147 @@
+{
+ "render": [
+  1040,
+  585
+ ],
+ "lamp_box_render_px": [
+  506,
+  166,
+  534,
+  175
+ ],
+ "lamp_pixels": 249,
+ "lamp_fills_box": false,
+ "lamp_box_in_output_px": [
+  934.15,
+  306.46,
+  985.85,
+  323.08
+ ],
+ "hit-reflection": {
+  "ceiling": 0.26889919433593745,
+  "lamp_own": 0.03659186401367187,
+  "inside_max": 0.06194339599609375,
+  "border_cells": 0,
+  "border_max": null,
+  "ring_max": 0.28852124023437503,
+  "ring_median": 0.2699541015625,
+  "outside_edge_line_mean_over_ceiling": {
+   "top": 0.9696,
+   "bottom": 1.0356,
+   "left": 0.9955,
+   "right": 1.0134,
+   "top_2": 0.97,
+   "bottom_2": 1.0212,
+   "left_2": 0.9933,
+   "right_2": 1.0121
+  },
+  "outside_edge_line_max_over_ceiling": {
+   "top": 1.0085,
+   "bottom": 1.073,
+   "left": 1.0351,
+   "right": 1.0555,
+   "top_2": 1.0175,
+   "bottom_2": 1.0988,
+   "left_2": 1.0344,
+   "right_2": 1.0555
+  },
+  "ring_max_over_ceiling": 1.0729717541433896,
+  "border_max_over_ceiling": null
+ },
+ "hit-diffuse": {
+  "ceiling": 0.22173129882812498,
+  "lamp_own": 0.0,
+  "inside_max": 0.0,
+  "border_cells": 0,
+  "border_max": null,
+  "ring_max": 0.22580222167968747,
+  "ring_median": 0.22193186035156248,
+  "outside_edge_line_mean_over_ceiling": {
+   "top": 0.997,
+   "bottom": 1.0055,
+   "left": 0.9999,
+   "right": 1.0031,
+   "top_2": 0.9964,
+   "bottom_2": 1.0048,
+   "left_2": 1.0,
+   "right_2": 1.0032
+  },
+  "outside_edge_line_max_over_ceiling": {
+   "top": 0.9989,
+   "bottom": 1.0122,
+   "left": 1.0026,
+   "right": 1.0059,
+   "top_2": 0.9985,
+   "bottom_2": 1.0113,
+   "left_2": 1.0026,
+   "right_2": 1.0055
+  },
+  "ring_max_over_ceiling": 1.0183597122872494,
+  "border_max_over_ceiling": null
+ },
+ "pyramid-0": {
+  "ceiling": 0.0,
+  "lamp_own": 0.0,
+  "inside_max": 0.0,
+  "border_cells": 0,
+  "border_max": null,
+  "ring_max": 0.0,
+  "ring_median": 0.0,
+  "outside_edge_line_mean_over_ceiling": {
+   "top": NaN,
+   "bottom": NaN,
+   "left": NaN,
+   "right": NaN,
+   "top_2": NaN,
+   "bottom_2": NaN,
+   "left_2": NaN,
+   "right_2": NaN
+  },
+  "outside_edge_line_max_over_ceiling": {
+   "top": NaN,
+   "bottom": NaN,
+   "left": NaN,
+   "right": NaN,
+   "top_2": NaN,
+   "bottom_2": NaN,
+   "left_2": NaN,
+   "right_2": NaN
+  },
+  "ring_max_over_ceiling": null,
+  "border_max_over_ceiling": null
+ },
+ "pyramid-1": {
+  "ceiling": 0.0,
+  "lamp_own": 0.0,
+  "inside_max": 0.0,
+  "border_cells": 15,
+  "border_max": 0.0,
+  "ring_max": 0.0,
+  "ring_median": 0.0,
+  "lamp_edges_on_cell_boundary": {
+   "left": true,
+   "top": true,
+   "right": true,
+   "bottom": false
+  },
+  "ring_max_over_ceiling": null,
+  "border_max_over_ceiling": null
+ },
+ "pyramid-2": {
+  "ceiling": 0.0,
+  "lamp_own": 0.0,
+  "inside_max": 0.0,
+  "border_cells": 18,
+  "border_max": 0.0,
+  "ring_max": 0.0,
+  "ring_median": 0.0,
+  "lamp_edges_on_cell_boundary": {
+   "left": false,
+   "top": false,
+   "right": false,
+   "bottom": false
+  },
+  "ring_max_over_ceiling": null,
+  "border_max_over_ceiling": null
+ }
+}

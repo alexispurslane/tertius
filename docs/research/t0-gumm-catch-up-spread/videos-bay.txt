@@ -1,0 +1,8 @@
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-gumm-catch-up-spread/pics/bay-start-final.mp4 5.1 MB, 120 frames at 60 per second, 3840 x 720
+today (1, 8, 0): render scale 0.773 to 1.000, 53 size changes in the video's 120 draws
+none (0, 32, 0): render scale 0.917 to 1.000, 29 size changes in the video's 120 draws
+h16 (0.5, 16, 0): render scale 0.834 to 1.000, 47 size changes in the video's 120 draws
+draws since the start: 2, against the last frame: today (1, 8, 0): r11 source -30.57 %, video -30.62 %, largest difference 0.24 %; none (0, 32, 0): r11 source -29.98 %, video -30.00 %, largest difference 0.22 %; h16 (0.5, 16, 0): r11 source -30.27 %, video -30.31 %, largest difference 0.22 %
+draws since the start: 10, against the last frame: today (1, 8, 0): r11 source -14.61 %, video -14.62 %, largest difference 0.16 %; none (0, 32, 0): r11 source -14.56 %, video -14.52 %, largest difference 0.18 %; h16 (0.5, 16, 0): r11 source -14.83 %, video -14.79 %, largest difference 0.26 %
+draws since the start: 40, against the last frame: today (1, 8, 0): r11 source -5.15 %, video -5.17 %, largest difference 0.11 %; none (0, 32, 0): r11 source -5.83 %, video -5.88 %, largest difference 0.11 %; h16 (0.5, 16, 0): r11 source -5.47 %, video -5.50 %, largest difference 0.10 %
+23:44:00 queue-video-bay.sh done

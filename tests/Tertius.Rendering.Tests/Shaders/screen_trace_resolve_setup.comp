@@ -14,7 +14,7 @@ void main()
         return;
     // A precise history's ray also carries its hit's light age: none here.
 #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
-    RayRecord record = recordOf(TracedRay(vec3(0.0, 0.0, 1.0), 0.00001, vec3(32256.0), 1.0, true, NoLightAge));
+    RayRecord record = recordOf(TracedRay(vec3(0.0, 0.0, 1.0), 0.00001, vec3(32256.0), 1.0, true, NoLightAge, false));
 #else
     RayRecord record = recordOf(TracedRay(vec3(0.0, 0.0, 1.0), 0.00001, vec3(32256.0), 1.0, true));
 #endif

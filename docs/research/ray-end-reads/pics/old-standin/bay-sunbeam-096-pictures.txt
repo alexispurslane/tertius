@@ -1,0 +1,32 @@
+sunlit patch at the upper left
+  v0                 grain 0.0296 daub 0.0274 boil 0.0123 level +0.0000
+  v1                 grain 0.0300 daub 0.0342 boil 0.0276 level +0.0078
+  v2                 grain 0.0395 daub 0.0311 boil 0.0132 level +0.2032
+  v3                 grain 0.0417 daub 0.0337 boil 0.0195 level +0.2119
+  v0 second picture  grain 0.0278 daub 0.0251 boil 0.0123 level +0.0000
+  v0 boil first half grain 0.0281 daub 0.0259 boil 0.0115 level +0.0005
+  v0 boil second half grain 0.0334 daub 0.0306 boil 0.0114 level -0.0005
+back wall below the slot
+  v0                 grain 0.0075 daub 0.0369 boil 0.0253 level +0.0000
+  v1                 grain 0.0080 daub 0.0375 boil 0.0287 level -0.0041
+  v2                 grain 0.0067 daub 0.0317 boil 0.0206 level -0.2451
+  v3                 grain 0.0071 daub 0.0339 boil 0.0240 level -0.2418
+  v0 second picture  grain 0.0073 daub 0.0357 boil 0.0253 level +0.0000
+  v0 boil first half grain 0.0071 daub 0.0315 boil 0.0233 level -0.0007
+  v0 boil second half grain 0.0086 daub 0.0458 boil 0.0228 level +0.0007
+floor
+  v0                 grain 0.0292 daub 0.0400 boil 0.0274 level +0.0000
+  v1                 grain 0.0311 daub 0.0416 boil 0.0305 level +0.0020
+  v2                 grain 0.0185 daub 0.0284 boil 0.0199 level +0.0314
+  v3                 grain 0.0193 daub 0.0297 boil 0.0208 level +0.0285
+  v0 second picture  grain 0.0273 daub 0.0345 boil 0.0274 level +0.0000
+  v0 boil first half grain 0.0270 daub 0.0364 boil 0.0252 level -0.0015
+  v0 boil second half grain 0.0341 daub 0.0466 boil 0.0249 level +0.0015
+right wall
+  v0                 grain 0.0403 daub 0.0334 boil 0.0218 level +0.0000
+  v1                 grain 0.0405 daub 0.0347 boil 0.0247 level +0.0127
+  v2                 grain 0.0226 daub 0.0220 boil 0.0151 level +0.0417
+  v3                 grain 0.0232 daub 0.0223 boil 0.0158 level +0.0685
+  v0 second picture  grain 0.0387 daub 0.0313 boil 0.0218 level +0.0000
+  v0 boil first half grain 0.0380 daub 0.0313 boil 0.0199 level -0.0003
+  v0 boil second half grain 0.0460 daub 0.0381 boil 0.0205 level +0.0003

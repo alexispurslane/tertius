@@ -1,0 +1,121 @@
+{
+ "samples": 309600,
+ "keep_rect_render_px": [
+  494,
+  322,
+  580,
+  331
+ ],
+ "diffuse": {
+  "mean": 0.1940569281578064,
+  "bright_count": 155,
+  "bright_share_of_light": 0.008812224492430687,
+  "largest": 5.285763740539551,
+  "guided_share_all": 0.2508107235142119,
+  "guided_share_bright": 0.0,
+  "hit_distance_m_p10_p50_p90": [
+   0.59,
+   0.84,
+   1.68
+  ],
+  "bright_with_hit_pixel": 155,
+  "top_hit_rows_share_of_bright_light": {
+   "315": 0.781,
+   "316": 0.068,
+   "314": 0.064,
+   "318": 0.034,
+   "317": 0.027,
+   "319": 0.026
+  },
+  "share_of_bright_light_from_sill_rows": 0.91315758228302,
+  "sill_row_hit_columns_p10_p90": [
+   505,
+   564
+  ],
+  "sill_row_hits_per_draw_p10_p50_p90": [
+   0.0,
+   4.0,
+   12.0
+  ],
+  "draws_with_sill_row_hits": 348,
+  "sill_row_hit_mean_by_draw_top5": {
+   "70": [
+    2,
+    3.434
+   ],
+   "200": [
+    8,
+    3.298
+   ],
+   "295": [
+    3,
+    2.918
+   ],
+   "341": [
+    13,
+    2.716
+   ],
+   "11": [
+    3,
+    2.71
+   ]
+  },
+  "sill_row_hit_mean_median_draw": 0.3595172166824341,
+  "share_of_light_from_sill_rows": 0.026094481348991394
+ },
+ "reflection": {
+  "mean": 0.25242069363594055,
+  "bright_count": 2474,
+  "bright_share_of_light": 0.19315972924232483,
+  "largest": 14.115708351135254,
+  "hit_distance_m_p10_p50_p90": [
+   1.12,
+   4.08,
+   7.98
+  ],
+  "bright_with_hit_pixel": 2474,
+  "top_hit_rows_share_of_bright_light": {
+   "315": 0.53,
+   "314": 0.446,
+   "317": 0.006,
+   "316": 0.006,
+   "312": 0.005,
+   "313": 0.005
+  },
+  "share_of_bright_light_from_sill_rows": 0.9914412498474121,
+  "sill_row_hit_columns_p10_p90": [
+   502,
+   568
+  ],
+  "sill_row_hits_per_draw_p10_p50_p90": [
+   23.0,
+   37.0,
+   55.0
+  ],
+  "draws_with_sill_row_hits": 400,
+  "sill_row_hit_mean_by_draw_top5": {
+   "398": [
+    52,
+    5.237
+   ],
+   "167": [
+    45,
+    4.916
+   ],
+   "292": [
+    63,
+    4.33
+   ],
+   "92": [
+    52,
+    4.328
+   ],
+   "341": [
+    39,
+    4.285
+   ]
+  },
+  "sill_row_hit_mean_median_draw": 0.5233669122060141,
+  "share_of_light_from_sill_rows": 0.2762119174003601
+ }
+}

@@ -1,0 +1,45 @@
+---
+id: t0-4fth
+status: closed
+deps: [t0-ylwm, t0-f7zv, t0-jpwf, t0-9a9e, t0-y4qv]
+links: []
+created: 2026-11-12T13:56:24Z
+type: task
+priority: 1
+assignee: Alexis Purslane
+parent: t7-3e22
+---
+# Takes T3 to T10 of Design A, the block test's constants and the screenshots
+
+Design: docs/plans/bounce-light-confidence.md, section 22. Branch t7-3e22-retained-deviation. Step 7.
+
+
+## Notes
+
+**2026-11-12T14:01:07Z**
+
+Orchestrator, 2026-11-12: measure on the GPU workbench (tools/runpod/WORKBENCH.md on main): cost A/B against main with ab_run.sh, and the quality A/B (stills, films, daub scores computed inside the job, a job returns at most 8 MB), several variants in parallel jobs. Compare only inside one job. The Mac's GPU lock is kept for one confirmation take of the final candidate before the merge and for Apple-compiler questions.
+
+**2026-11-12T15:45:31Z**
+
+Budget, orchestrator 2026-11-12: Design A's remaining measurement series (from step 3 on) gets $3 in total on the GPU workbench. Spent before the budget: 15 jobs, $1.26 logged ($0.38 of execution; the rest worst-case counts of cancelled or failed jobs). Rules: --timeout close to the need, no cancels of running jobs, several variants per job where they share a build (one job per still view, variants as env knobs on one binary).
+
+**2026-11-12T15:57:12Z**
+
+Rule from Alexis via the orchestrator, 2026-11-12: judge mottle and specks with numbers and pictures. Number-only survey cases (stand, climb) are for sweeps and the light's fall over time. Every keep-or-drop decision of a variant, and the final report, also needs full-resolution crops beside the true reference (a long run with the history clamps off), not only beside main: look at the crops first, write what you see, then read the scores, and name the score at which the mottle stops being visible (the daub limit of about 0.010 from the blind test). Put still captures in the same job as the numbers when that costs little. Crops for Alexis: rect-lamps' ceiling band, the far lamps' specks, and the cabin, deck and plate before and after.
+
+**2026-11-12T19:00:12Z**
+
+Take T3 started early (job filter-ab, $0.0437, rect-lamps to draw 924, action off, filter on and off). Result: the filter's write-back into S causes the false block evidence of bounce light (2.1e-2 against 1.9e-4 per block-draw; D's deviation ratio 1.4 against 1.0). Design change in section 8: compare F with the own-sample mean R. New step ticket t0-y4qv blocks this one. Spent so far under the $3 budget: $0.0342 (step 6 smoke) + $0.0437 (filter-ab) = $0.078.
+
+**2026-11-12T20:47:21Z**
+
+Take T3 with R (job t3-own, $0.0704): bay-sunbeam, docking-bay and station-cabin pass at the step-4 constants (deviation ratio about 1.0); rect-lamps does not (1.8e-2 bounce, 4.6e-3 reflections). Cause: hits read the filtered light's slow blotches, so the samples share a slow wave of up to about 21 % of the light. Sweep: BlockSigmas 5, BlockNoiseScale 1.5, TailStreams 2000, ChangeShare 1/4 bounce, 1/20 reflections pass all four stills (worst 3.4e-5). Takes T4-T6 (job t456) compare these constants with the step-4 constants and main. Spent: $0.078 + $0.0704 = $0.148 of $3.
+
+**2026-11-13T00:21:15Z**
+
+Takes T4-T6, 2026-11-12. Workbench (build 732297072, calibrated constants: BlockSigmas 5, NoiseScale 1.5, TailStreams 2000, floors 1/4 and 1/20): cabin switch off 119 / on not settled in 100 (main on the Mac: 74 / 55); bay-sun-off 51 / 11 (main 47 / 35); lamp-hall-16 36 / 25 (main 36 / 24). Step-4 constants, cabin: 95 / not settled. Mac, cabin by signal: Design A bounce 119 / not settled, reflections 142 / not settled; main bounce 60 / 65; Design A bounce with RetainedSigmas 0 (narrow box) 75 / 95, whole image stays about 4 % low after the lamps come on. Lag films, Mac, three start ticks: lamp-hall-16-moving equal to main within noise; lamp-hall-64-spot-moving median lag error 0.0143-0.0159 against main 0.0087-0.0107 in all three runs; narrow box 0.0108-0.0128; floor 1/8 identical to 1/4 (the test never fired). Cause found: the tail rule needs n >= TailStreams x NoiseScale^2 x kappa^2 x CV^2 streams; with the measured bounce CV of about 2.5 (cabin about 57) and at most 784 streams in a 7x7 window, the calibrated test can fire only where CV <= 1.3 and never in the cabin. The calibration reached zero false evidence by silencing the test. Without evidence, the wide box follows a change only at 1/32 per draw. Design fork goes to the user. Spending: $2.14 of $4.50.
+
+**2026-11-13T01:01:22Z**
+
+2026-11-12: closed. Takes T3 to T6 are done and recorded above; they led to Design X. Takes T7 to T10 are replaced by T12 to T19 of the rewritten design (steps 16 t0-f8oc and 17 t0-5tyj).

@@ -1,0 +1,17 @@
+# Tool code of t0-5tyj. switchtable.py <label=run folder>...: the survey's switch results of each run, one row per case
+# and run. offDraws / onDraws: the draws until the slowest changed region of the 3 x 3 grid settles after the lamps or
+# the sun turn off / on (within offWindow / onWindow draws). offDrawsWhole / onDrawsWhole: the same for the whole image.
+# change: the whole image's change of light at the switch. failed: the survey's failed measures.
+import json
+import sys
+from pathlib import Path
+
+print(f"{'case':14s} {'run':10s} {'off':>5s} {'on':>5s} {'off whole':>10s} {'on whole':>9s} {'change':>8s}  failed")
+for arg in sys.argv[1:]:
+    label, folder = arg.split('=', 1)
+    for p in sorted(Path(folder, 'results', 'switch').glob('*.json')):
+        r = json.loads(p.read_text())
+        # A region that does not settle within its window has no draw count: "none".
+        d = {k: 'none' if r[k] is None else str(r[k]) for k in ('offDraws', 'onDraws', 'offDrawsWhole', 'onDrawsWhole')}
+        print(f"{p.stem:14s} {label:10s} {d['offDraws']:>5s} {d['onDraws']:>5s} {d['offDrawsWhole']:>10s} {d['onDrawsWhole']:>9s} "
+              f"{r['change']:+8.4f}  {','.join(r['failed']) or '-'}")

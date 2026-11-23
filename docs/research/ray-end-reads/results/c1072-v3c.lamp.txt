@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-1f553e45-00934a8d076a004a-evidence/rayend/lamp.py", line 25, in <module>
+    assert len(set(counts)) == 1, 'the rectangle changed its surface pixels between draws'
+           ^^^^^^^^^^^^^^^^^^^^^
+AssertionError: the rectangle changed its surface pixels between draws

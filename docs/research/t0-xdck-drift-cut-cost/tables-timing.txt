@@ -1,0 +1,181 @@
+# Timing of the film rect-bay (timing-table.py). Rounds r1 and r3 ran M X Xt D4 D8 D4s C4, r2 and r4 the reverse. After the
+# review, r5 ran M X Xt Xtc D4c D8c and r6 the reverse, then r7 ran M X Xt Xtc Xtn and r8 the reverse, on the probe with
+# TERTIUS_X_DRIFT_CENTERS. Each round held one exclusive hold of the GPU lock, each side alone. The load at each side's start
+# is at the end.
+
+## Each run
+
+run        clock MHz  median    mean  highest plan..rays plan..accum
+r1-M          1292.1  16.084  16.163   22.343      4.582       9.265
+r1-X          1296.0  16.590  16.640   18.179      4.799       9.739
+r1-Xt         1294.8  28.483  28.554   31.368      4.832      21.661
+r1-D4         1295.9  34.502  33.802   36.862     10.333      27.538
+r1-D8         1293.9  28.630  28.682   34.142      4.687      21.755
+r1-D4s        1295.8  28.053  28.036   28.611      4.226      21.187
+r1-C4         1296.0  20.651  20.646   21.587      8.638      13.730
+r2-M          1296.0  16.018  16.028   16.553      4.572       9.189
+r2-X          1296.0  16.526  16.589   17.947      4.804       9.728
+r2-Xt         1296.0  28.217  28.252   29.752      4.793      21.352
+r2-D4         1296.0  33.836  33.100   35.054     10.225      26.923
+r2-D8         1296.0  28.064  28.121   29.520      4.623      21.189
+r2-D4s        1296.0  27.597  27.575   28.003      4.176      20.723
+r2-C4         1296.0  20.275  20.283   20.748      8.508      13.478
+r3-M          1296.0  15.961  15.965   16.459      4.557       9.137
+r3-X          1296.0  16.493  16.544   17.960      4.794       9.693
+r3-Xt         1296.0  28.233  28.264   29.834      4.791      21.346
+r3-D4         1296.0  33.786  33.090   35.187     10.193      26.879
+r3-D8         1296.0  28.047  28.111   29.533      4.614      21.178
+r3-D4s        1296.0  27.630  27.602   28.025      4.176      20.747
+r3-C4         1296.0  20.355  20.356   20.800      8.521      13.505
+r4-M          1296.0  16.074  16.068   16.538      4.566       9.216
+r4-X          1296.0  16.569  16.636   18.118      4.812       9.733
+r4-Xt         1296.0  28.265  28.300   29.720      4.806      21.391
+r4-D4         1296.0  33.904  33.131   35.167     10.245      26.966
+r4-D8         1296.0  28.137  28.196   29.543      4.626      21.213
+r4-D4s        1296.0  27.683  27.659   28.322      4.186      20.771
+r4-C4         1296.0  20.391  20.395   20.839      8.535      13.540
+r5-M          1296.0  15.999  16.016   16.497      4.575       9.184
+r5-X          1296.0  16.505  16.558   17.983      4.791       9.699
+r5-Xt         1296.0  28.284  28.315   29.690      4.803      21.394
+r5-Xtc        1296.0  24.553  24.580   26.056      4.808      17.659
+r5-D4c        1296.0  30.198  29.415   31.330     10.259      23.246
+r5-D8c        1296.0  24.384  24.458   25.865      4.631      17.484
+r6-M          1296.0  16.051  16.058   16.615      4.576       9.200
+r6-X          1296.0  16.562  16.625   18.062      4.800       9.731
+r6-Xt         1296.0  28.292  28.321   29.844      4.801      21.394
+r6-Xtc        1296.0  24.536  24.567   26.006      4.806      17.638
+r6-D4c        1296.0  30.148  29.374   31.370     10.232      23.215
+r6-D8c        1296.0  24.332  24.393   25.690      4.621      17.455
+r7-M          1296.0  15.961  15.980   16.712      4.554       9.158
+r7-X          1296.0  16.512  16.550   17.986      4.791       9.697
+r7-Xt         1296.0  28.254  28.319   29.933      4.798      21.362
+r7-Xtc        1296.0  24.506  24.540   26.061      4.800      17.620
+r7-Xtn        1296.0  16.550  16.621   18.045      4.795       9.816
+r8-M          1296.0  16.128  16.932   32.734      4.612       9.272
+r8-X          1296.0  16.627  17.491   34.941      4.796       9.788
+r8-Xt         1296.0  28.385  29.954   63.771      4.805      21.468
+r8-Xtc        1296.0  24.566  24.619   26.114      4.800      17.651
+r8-Xtn        1296.0  16.521  16.571   17.861      4.786       9.704
+
+## Per side over the rounds: median of the runs' medians (spread = highest minus lowest run median)
+
+side  runs         frame span  highest         plan..rays        plan..accum
+M        8     16.035 (0.168)   32.734      4.573 (0.058)      9.195 (0.134)
+X        8     16.544 (0.134)   34.941      4.798 (0.021)      9.730 (0.095)
+Xt       8     28.275 (0.265)   63.771      4.802 (0.041)     21.392 (0.315)
+D4       4     33.870 (0.716)   36.862     10.235 (0.140)     26.944 (0.659)
+D8       4     28.101 (0.584)   34.142      4.625 (0.072)     21.201 (0.578)
+D4s      4     27.656 (0.456)   28.611      4.181 (0.050)     20.759 (0.464)
+C4       4     20.373 (0.375)   21.587      8.528 (0.131)     13.523 (0.252)
+Xtc      4     24.545 (0.059)   26.114      4.803 (0.008)     17.644 (0.039)
+D4c      2     30.173 (0.050)   31.370     10.245 (0.027)     23.231 (0.032)
+D8c      2     24.358 (0.052)   25.865      4.626 (0.010)     17.469 (0.029)
+Xtn      2     16.535 (0.030)   18.045      4.791 (0.009)      9.760 (0.112)
+
+## Paired differences against M, X, Xt and Xtc, ms: median over the rounds (spread), n rounds
+## (Xt: the drift test runs at every pixel but does not act. Xtc: the same at the blocks' center pixels only)
+
+X    - M : frame span  +0.507 (0.056), plan..rays  +0.228 (0.062), plan..accum  +0.524 (0.083), n 8
+Xt   - M : frame span +12.265 (0.208), plan..rays  +0.231 (0.056), plan..accum +12.200 (0.233), n 8
+D4   - M : frame span +17.828 (0.602), plan..rays  +5.666 (0.115), plan..accum +17.746 (0.539), n 4
+D8   - M : frame span +12.075 (0.501), plan..rays  +0.059 (0.053), plan..accum +12.020 (0.493), n 4
+D4s  - M : frame span +11.639 (0.390), plan..rays  -0.380 (0.040), plan..accum +11.583 (0.388), n 4
+C4   - M : frame span  +4.355 (0.310), plan..rays  +3.967 (0.120), plan..accum  +4.346 (0.176), n 4
+Xtc  - M : frame span  +8.515 (0.116), plan..rays  +0.232 (0.058), plan..accum  +8.450 (0.095), n 4
+D4c  - M : frame span +14.148 (0.102), plan..rays  +5.670 (0.028), plan..accum +14.038 (0.048), n 2
+D8c  - M : frame span  +8.333 (0.104), plan..rays  +0.051 (0.011), plan..accum  +8.277 (0.045), n 2
+Xtn  - M : frame span  +0.491 (0.197), plan..rays  +0.208 (0.068), plan..accum  +0.545 (0.226), n 2
+M    - X : frame span  -0.507 (0.056), plan..rays  -0.228 (0.062), plan..accum  -0.524 (0.083), n 8
+Xt   - X : frame span +11.741 (0.201), plan..rays  +0.004 (0.044), plan..accum +11.664 (0.298), n 8
+D4   - X : frame span +17.322 (0.619), plan..rays  +5.427 (0.135), plan..accum +17.214 (0.614), n 4
+D8   - X : frame span +11.561 (0.503), plan..rays  -0.180 (0.073), plan..accum +11.483 (0.556), n 4
+D4s  - X : frame span +11.125 (0.392), plan..rays  -0.622 (0.055), plan..accum +11.046 (0.453), n 4
+C4   - X : frame span  +3.842 (0.311), plan..rays  +3.725 (0.136), plan..accum  +3.810 (0.242), n 4
+Xtc  - X : frame span  +7.985 (0.109), plan..rays  +0.007 (0.013), plan..accum  +7.915 (0.097), n 4
+D4c  - X : frame span +13.639 (0.106), plan..rays  +5.450 (0.036), plan..accum +13.516 (0.064), n 2
+D8c  - X : frame span  +7.824 (0.108), plan..rays  -0.170 (0.019), plan..accum  +7.755 (0.061), n 2
+Xtn  - X : frame span  -0.034 (0.145), plan..rays  -0.003 (0.014), plan..accum  +0.017 (0.203), n 2
+M    - Xt: frame span -12.265 (0.208), plan..rays  -0.231 (0.056), plan..accum -12.200 (0.233), n 8
+X    - Xt: frame span -11.741 (0.201), plan..rays  -0.004 (0.044), plan..accum -11.664 (0.298), n 8
+D4   - Xt: frame span  +5.628 (0.467), plan..rays  +5.436 (0.099), plan..accum  +5.573 (0.344), n 4
+D8   - Xt: frame span  -0.141 (0.334), plan..rays  -0.173 (0.034), plan..accum  -0.166 (0.272), n 4
+D4s  - Xt: frame span  -0.593 (0.190), plan..rays  -0.615 (0.015), plan..accum  -0.609 (0.155), n 4
+C4   - Xt: frame span  -7.876 (0.110), plan..rays  +3.730 (0.092), plan..accum  -7.862 (0.090), n 4
+Xtc  - Xt: frame span  -3.752 (0.088), plan..rays  +0.003 (0.010), plan..accum  -3.749 (0.081), n 4
+D4c  - Xt: frame span  +1.885 (0.058), plan..rays  +5.443 (0.025), plan..accum  +1.836 (0.032), n 2
+D8c  - Xt: frame span  -3.930 (0.060), plan..rays  -0.176 (0.007), plan..accum  -3.925 (0.029), n 2
+Xtn  - Xt: frame span -11.784 (0.161), plan..rays  -0.011 (0.016), plan..accum -11.655 (0.218), n 2
+M    - Xtc: frame span  -8.515 (0.116), plan..rays  -0.232 (0.058), plan..accum  -8.450 (0.095), n 4
+X    - Xtc: frame span  -7.985 (0.109), plan..rays  -0.007 (0.013), plan..accum  -7.915 (0.097), n 4
+Xt   - Xtc: frame span  +3.752 (0.088), plan..rays  -0.003 (0.010), plan..accum  +3.749 (0.081), n 4
+D4c  - Xtc: frame span  +5.628 (0.033), plan..rays  +5.438 (0.026), plan..accum  +5.582 (0.010), n 2
+D8c  - Xtc: frame span  -0.187 (0.035), plan..rays  -0.181 (0.009), plan..accum  -0.179 (0.007), n 2
+Xtn  - Xtc: frame span  -8.001 (0.089), plan..rays  -0.009 (0.010), plan..accum  -7.876 (0.143), n 2
+
+## Rounds 2 to 7 alone (timing-table.py r2 r3 r4 r5 r6 r7): round 1 ran at a load of 10 to 56, and round 8 had single spikes
+
+## Per side over the rounds: median of the runs' medians (spread = highest minus lowest run median)
+
+side  runs         frame span  highest         plan..rays        plan..accum
+M        6     16.009 (0.114)   16.712      4.569 (0.022)      9.187 (0.079)
+X        6     16.519 (0.076)   18.118      4.797 (0.021)      9.713 (0.040)
+Xt       6     28.260 (0.075)   29.933      4.799 (0.014)     21.376 (0.048)
+D4       3     33.836 (0.117)   35.187     10.225 (0.052)     26.923 (0.087)
+D8       3     28.064 (0.091)   29.543      4.623 (0.012)     21.189 (0.035)
+D4s      3     27.630 (0.085)   28.322      4.176 (0.009)     20.747 (0.049)
+C4       3     20.355 (0.116)   20.839      8.521 (0.028)     13.505 (0.063)
+Xtc      3     24.536 (0.047)   26.061      4.806 (0.008)     17.638 (0.039)
+D4c      2     30.173 (0.050)   31.370     10.245 (0.027)     23.231 (0.032)
+D8c      2     24.358 (0.052)   25.865      4.626 (0.010)     17.469 (0.029)
+Xtn      1     16.550 (0.000)   18.045      4.795 (0.000)      9.816 (0.000)
+
+## Paired differences against M, X, Xt and Xtc, ms: median over the rounds (spread), n rounds
+## (Xt: the drift test runs at every pixel but does not act. Xtc: the same at the blocks' center pixels only)
+
+X    - M : frame span  +0.509 (0.056), plan..rays  +0.235 (0.030), plan..accum  +0.535 (0.041), n 6
+Xt   - M : frame span +12.257 (0.102), plan..rays  +0.231 (0.024), plan..accum +12.199 (0.047), n 6
+D4   - M : frame span +17.826 (0.012), plan..rays  +5.653 (0.043), plan..accum +17.741 (0.016), n 3
+D8   - M : frame span +12.063 (0.041), plan..rays  +0.057 (0.009), plan..accum +11.999 (0.043), n 3
+D4s  - M : frame span +11.609 (0.090), plan..rays  -0.381 (0.015), plan..accum +11.556 (0.076), n 3
+C4   - M : frame span  +4.317 (0.137), plan..rays  +3.964 (0.034), plan..accum  +4.324 (0.080), n 3
+Xtc  - M : frame span  +8.545 (0.069), plan..rays  +0.233 (0.016), plan..accum  +8.463 (0.037), n 3
+D4c  - M : frame span +14.148 (0.102), plan..rays  +5.670 (0.028), plan..accum +14.038 (0.048), n 2
+D8c  - M : frame span  +8.333 (0.104), plan..rays  +0.051 (0.011), plan..accum  +8.277 (0.045), n 2
+Xtn  - M : frame span  +0.589 (0.000), plan..rays  +0.242 (0.000), plan..accum  +0.658 (0.000), n 1
+M    - X : frame span  -0.509 (0.056), plan..rays  -0.235 (0.030), plan..accum  -0.535 (0.041), n 6
+Xt   - X : frame span +11.735 (0.087), plan..rays  -0.001 (0.024), plan..accum +11.661 (0.071), n 6
+D4   - X : frame span +17.310 (0.041), plan..rays  +5.421 (0.034), plan..accum +17.195 (0.047), n 3
+D8   - X : frame span +11.554 (0.031), plan..rays  -0.181 (0.006), plan..accum +11.480 (0.024), n 3
+D4s  - X : frame span +11.114 (0.065), plan..rays  -0.626 (0.010), plan..accum +11.039 (0.059), n 3
+C4   - X : frame span  +3.822 (0.112), plan..rays  +3.723 (0.024), plan..accum  +3.807 (0.062), n 3
+Xtc  - X : frame span  +7.995 (0.073), plan..rays  +0.009 (0.010), plan..accum  +7.923 (0.054), n 3
+D4c  - X : frame span +13.639 (0.106), plan..rays  +5.450 (0.036), plan..accum +13.516 (0.064), n 2
+D8c  - X : frame span  +7.824 (0.108), plan..rays  -0.170 (0.019), plan..accum  +7.755 (0.061), n 2
+Xtn  - X : frame span  +0.038 (0.000), plan..rays  +0.004 (0.000), plan..accum  +0.119 (0.000), n 1
+M    - Xt: frame span -12.257 (0.102), plan..rays  -0.231 (0.024), plan..accum -12.199 (0.047), n 6
+X    - Xt: frame span -11.735 (0.087), plan..rays  +0.001 (0.024), plan..accum -11.661 (0.071), n 6
+D4   - Xt: frame span  +5.618 (0.085), plan..rays  +5.432 (0.037), plan..accum  +5.571 (0.043), n 3
+D8   - Xt: frame span  -0.154 (0.059), plan..rays  -0.177 (0.010), plan..accum  -0.168 (0.014), n 3
+D4s  - Xt: frame span  -0.604 (0.038), plan..rays  -0.616 (0.005), plan..accum  -0.619 (0.030), n 3
+C4   - Xt: frame span  -7.879 (0.068), plan..rays  +3.730 (0.015), plan..accum  -7.850 (0.033), n 3
+Xtc  - Xt: frame span  -3.748 (0.025), plan..rays  +0.004 (0.004), plan..accum  -3.741 (0.022), n 3
+D4c  - Xt: frame span  +1.885 (0.058), plan..rays  +5.443 (0.025), plan..accum  +1.836 (0.032), n 2
+D8c  - Xt: frame span  -3.930 (0.060), plan..rays  -0.176 (0.007), plan..accum  -3.925 (0.029), n 2
+Xtn  - Xt: frame span -11.704 (0.000), plan..rays  -0.003 (0.000), plan..accum -11.546 (0.000), n 1
+M    - Xtc: frame span  -8.545 (0.069), plan..rays  -0.233 (0.016), plan..accum  -8.463 (0.037), n 3
+X    - Xtc: frame span  -7.995 (0.073), plan..rays  -0.009 (0.010), plan..accum  -7.923 (0.054), n 3
+Xt   - Xtc: frame span  +3.748 (0.025), plan..rays  -0.004 (0.004), plan..accum  +3.741 (0.022), n 3
+D4c  - Xtc: frame span  +5.628 (0.033), plan..rays  +5.438 (0.026), plan..accum  +5.582 (0.010), n 2
+D8c  - Xtc: frame span  -0.187 (0.035), plan..rays  -0.181 (0.009), plan..accum  -0.179 (0.007), n 2
+Xtn  - Xtc: frame span  -7.956 (0.000), plan..rays  -0.004 (0.000), plan..accum  -7.804 (0.000), n 1
+
+## Load average (1 minute) at each side's start
+
+r1: M 9.98, X 24.47, Xt 39.66, D4 39.92, D8 49.42, D4s 55.45, C4 55.63, 
+r2: C4 3.65, D4s 4.86, D8 4.11, D4 4.02, Xt 3.64, X 3.51, M 4.83, 
+r3: M 2.53, X 4.21, Xt 3.87, D4 3.64, D8 3.54, D4s 3.49, C4 3.48, 
+r4: C4 5.00, D4s 5.42, D8 4.90, D4 4.54, Xt 4.58, X 4.03, M 3.87, 
+r5: M 3.34, X 2.88, Xt 2.67, Xtc 2.48, D4c 2.24, D8c 2.06, 
+r6: D8c 2.61, D4c 2.17, Xtc 2.69, Xt 2.48, X 3.01, M 2.77, 
+r7: M 3.07, X 2.60, Xt 4.25, Xtc 4.07, Xtn 3.75, 
+r8: Xtn 3.31, Xtc 3.16, Xt 2.91, X 2.77, M 2.49, 

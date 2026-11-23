@@ -4,8 +4,10 @@ ter-8hyd: frame time, specks and blotches in stills, flicker in motion, and the 
 
 Usage, inside the dev shell from the repository root:
     python3 -I tools/renderer-survey.py probe-build <out>
-    python3 -I tools/renderer-survey.py run <out> [--parts timing,still,motion,switch,lag,walk] [--only NAME ...]
+    python3 -I tools/renderer-survey.py run <out> [--parts timing,still,motion,switch,lag,walk,stand,climb] [--only NAME ...]
     python3 -I tools/renderer-survey.py trace <out> [--slowest 5]
+    python3 -I tools/renderer-survey.py run <out> --parts census-still,census-film --only rect-lamps rigs-crowd [--skip 1]
+    python3 -I tools/renderer-survey.py census <census folder> [--skip 1] [--write <json>]
     python3 -I tools/renderer-survey.py report <out>
     python3 -I tools/renderer-survey.py sheet <out>
 
@@ -13,9 +15,11 @@ tools/renderer-survey/cases.json lists the cases. "run" builds the Release demo,
 <out>/scripts, renders it headless under the GPU lock (tools/gpu-lock.sh), measures the images, deletes them but for
 the few that it keeps, and writes one result file per case into <out>/results/<part>/<name>.json. A case whose result
 file exists does not run again, so a stopped run goes on where it stopped; delete the file to run the case again.
-"report" prints the tables and the verdicts. "sheet" writes <out>/contact-sheet.png. "trace" records a GPU trace of the
-slowest views (tools/gpu-trace.sh). "probe-build" builds the lamp switch probe, which the parts switch, lag and walk
-need: a copy of HEAD with tools/renderer-survey/probe.patch, in <out>/probe-bin. The probe never enters src.
+The census parts run only when --parts names them: each renders a case with the probe's evidence census, and the command
+"census" reduces a kept census folder (tools/README.md, "The evidence census"). "report" prints the tables and
+the verdicts. "sheet" writes <out>/contact-sheet.png. "trace" records a GPU trace of the
+slowest views (tools/gpu-trace.sh). "probe-build" builds the probe, which every part but timing needs: a copy of HEAD
+with tools/renderer-survey/probe.patch, in <out>/probe-bin. The probe never enters src.
 
 Every render runs at the budget's configuration: --size 1920x1080, so FSR 3.1 renders at 1280 x 720 (the headless
 render scale of 2/3), from the Release build.
@@ -102,7 +106,12 @@ FLICKER_LIMIT = 0.006
 GRAIN_FLICKER_LIMIT = 0.05
 
 # Each part of the survey and the list of tools/renderer-survey/cases.json whose cases it runs.
-PARTS = {"timing": "stills", "still": "stills", "motion": "motion", "switch": "switches", "lag": "lags", "walk": "walks"}
+PARTS = {"timing": "stills", "still": "stills", "motion": "motion", "switch": "switches", "lag": "lags", "walk": "walks",
+         "stand": "stands", "climb": "climbs"}
+# The parts that run only when --parts names them, and the lists of cases.json whose cases they take: the evidence census
+# of Design X (take T12) of a still view to draw 300, a motion film, a lamp switch, a lag film and a walk.
+NAMED_PARTS = {"census-still": ("stills",), "census-film": ("motion",), "census-switch": ("switches",),
+               "census-lag": ("lags",), "census-walk": ("walks",)}
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -356,6 +365,50 @@ def walk_settle(after: list, control: list) -> list:
             for r in range(len(after[0]))]
 
 
+# The stand film of ticket ter-g3tk (/private/tmp/g3tk/run_dgate.sh): the walk's view without the walk, one light signal
+# alone, a still and then one film frame every tick, against the film's own end level. In the orbit cabin, the sun turns
+# against the ship at world ticks 300 to 306, and the bounce light that its sunlit sill strips give falls by 35 to 40 %
+# (docs/plans/bounce-light-confidence.md, section 10). The case's settle counts from its settleTick.
+
+
+def stand_script(case: dict) -> dict:
+    """The still, the film of case["film"] frames, and case["end"] continued stills right after the film's last frame."""
+    return scene_script(case["scene"], case["camera"], case["ticks"], [
+        {"do": "capture", "name": "still"},
+        {"do": "film", "name": "f", "frames": case["film"], "every": 1},
+        *captures("end", case["end"]),
+    ])
+
+
+def stand_frame(case: dict, tick: int) -> int:
+    """The stand film's frame that shows world tick `tick`: frame k shows tick case["ticks"] + k + 1."""
+    return tick - case["ticks"] - 1
+
+
+# The climb test of ticket ter-g3tk (/private/tmp/g3tk/look/seeds.json): continued stills of fixed states of the world,
+# one light signal alone, with the diffuse filter and without it. At a fixed state, the bounce light of the cabin's
+# far-ceiling band climbed to about 1.6 times its light without the filter over about 200 draws (section 10 of the
+# design). Each state's first still comes STILL_TICKS or more after the last drawn frame, so it starts a new history.
+
+
+def climb_script(case: dict) -> dict:
+    """For each world tick of case["states"], case["stills"] continued stills t<tick>-s00 ..."""
+    steps = []
+    done = 0
+    for tick in case["states"]:
+        steps += run_step(tick - done)
+        steps += captures(f"t{tick}", case["stills"])
+        done = tick
+    return scene_script(case["scene"], case["camera"], 0, steps)
+
+
+def climb_runs(case: dict, exposure: str) -> dict:
+    """The two probe runs of a climb case and their environments. The filtered run keeps the renderer's kernel, which
+    TERTIUS_DIFFUSE_FILTER selects (tools/README.md, "The diffuse filter's switch"); the other turns the filter off."""
+    common = {"TERTIUS_PROBE_EXPOSURE": exposure, "TERTIUS_PROBE_SIGNAL": SIGNALS[case["signal"]], **STILL_CONTINUES}
+    return {"filtered": common, "unfiltered": {**common, "TERTIUS_DIFFUSE_FILTER": "off"}}
+
+
 # ---------------------------------------------------------------------------------------------------------------------
 # Measures. NumPy and SciPy load on first use, so that the script functions above need neither.
 
@@ -521,6 +574,82 @@ def lag(film, still, slope) -> float | None:
     return (still - film) / slope
 
 
+# The names of the entries of a row of region_means: the whole image, then the cells r<row><column> of the grid. r11 is
+# the centre cell, which holds the orbit cabin's far-ceiling band in the walk's view (ticket ter-g3tk).
+REGION_NAMES = ["whole"] + [f"r{r}{c}" for r in range(GRID) for c in range(GRID)]
+
+
+def region_index(name: str) -> int:
+    return REGION_NAMES.index(name)
+
+
+def mean_rows(rows: list) -> list:
+    """The mean of rows of region means, region by region."""
+    return [sum(row[r] for row in rows) / len(rows) for r in range(len(rows[0]))]
+
+
+# The stand film's excess is the mean of each window of this many film draws (ticket ter-g3tk's tables of the stand).
+STAND_WINDOW = 40
+
+
+def stand_result(case: dict, film: list, end: list) -> dict:
+    """The stand film's measures, from the region means of its film frames and of its end stills. A region's end level is
+    the mean of the last half of the end stills, as /private/tmp/g3tk/walk_split.py took it. A window's excess is its
+    mean light over the end level, less 1. A settle counts the draws until a region stays within SETTLE_TOLERANCE of its
+    end level, from the film's first frame and from the frame that shows case["settleTick"]. The verdict reads the
+    settle of case["region"] after that tick: acceptance 7 of docs/plans/bounce-light-confidence.md names r11, because
+    r10 and r12 wander by about 5 % with the sampling fault of ticket ter-g3tk."""
+    level = mean_rows(end[len(end) // 2:])
+    excess = []
+    for first in range(0, len(film), STAND_WINDOW):
+        window = mean_rows(film[first:first + STAND_WINDOW])
+        excess.append([window[r] / level[r] - 1 if level[r] > 0 else None for r in range(len(level))])
+
+    def settles(first):
+        return [settle_draws([row[r] for row in film], [level[r]] * len(film), first, len(film))
+                for r in range(len(level))]
+
+    start = stand_frame(case, case["settleTick"])
+    after = settles(start)
+    result = {"scene": case["scene"], "signal": case["signal"], "region": case["region"], "firstTick": case["ticks"] + 1,
+              "settleTick": case["settleTick"], "settleFrame": start, "settleWindow": len(film) - start,
+              "window": STAND_WINDOW, "end": level, "excess": excess, "settleDraws": settles(0),
+              "settleDrawsAfterTick": after, "bandSettleDraws": after[region_index(case["region"])],
+              "film": film, "endStills": end}
+    result["failed"] = settle_verdict(result["bandSettleDraws"])
+    return result
+
+
+# The climb's yardstick is the band's light with the filter off, the mean of the unfiltered stills from this one on: from
+# draw 198, after the filter-off light reaches its plateau by about draw 132 (t0-f7zv, take T2a).
+CLIMB_PLATEAU_FIRST = 5
+# The target of acceptance 11 of docs/plans/bounce-light-confidence.md: the band's peak lies within this share of its
+# light with the filter off.
+CLIMB_LIMIT = 0.10
+
+
+def climb_result(case: dict, runs: dict) -> dict:
+    """The climb's measures, from the region means of the stills of each state, runs[label][f"t{tick}"], for the labels of
+    climb_runs. Each region's peak share is its largest light over a state's filtered stills, divided by its plateau: the
+    mean of the state's unfiltered stills from CLIMB_PLATEAU_FIRST on. The last share takes the last filtered still. The
+    verdict reads the band region's largest peak share over the states. Main's clamp loses part of the band's light, so
+    the share, and not the band's light, compares a build with another (section 10 of the design)."""
+    band = region_index(case["region"])
+    plateau, peak, last = {}, {}, {}
+    for tick in case["states"]:
+        state = f"t{tick}"
+        filtered = runs["filtered"][state]
+        plateau[state] = mean_rows(runs["unfiltered"][state][CLIMB_PLATEAU_FIRST:])
+        peak[state] = [max(row[r] for row in filtered) / p if p > 0 else None for r, p in enumerate(plateau[state])]
+        last[state] = [filtered[-1][r] / p if p > 0 else None for r, p in enumerate(plateau[state])]
+    shares = [peak[state][band] for state in peak]
+    result = {"scene": case["scene"], "signal": case["signal"], "region": case["region"], "states": case["states"],
+              "draws": [still_draws(True, k) for k in range(case["stills"])], "plateau": plateau, "peakShare": peak,
+              "lastShare": last, "bandPeakShare": None if None in shares else max(shares), **runs}
+    result["failed"] = climb_verdict(result["bandPeakShare"])
+    return result
+
+
 # ---------------------------------------------------------------------------------------------------------------------
 # Verdicts
 
@@ -572,6 +701,14 @@ def settle_verdict(draws: int | None) -> list:
     return ["settle"] if draws is None or draws > SETTLE_GOAL else []
 
 
+def climb_verdict(share: float | None) -> list:
+    """A climb fails when the band's peak exceeds its light with the filter off by more than CLIMB_LIMIT. A band without
+    light when the filter is off gives no share, so the case measured nothing."""
+    if share is None:
+        return [NOT_MEASURED]
+    return ["climb"] if share > 1 + CLIMB_LIMIT else []
+
+
 # A lag case fails when the median magnitude of the film's error against the still of the same state, over the regions
 # whose light changes, exceeds this share. A history that lags SETTLE_GOAL draws behind a light that changes by
 # REGION_CHANGE in SETTLE_GOAL draws errs by about REGION_CHANGE, so this is the error of the goal's lag at the
@@ -595,6 +732,79 @@ def lag_verdict(result: dict) -> list:
     error = lag_error(result)
     if error is not None and error > LAG_ERROR_LIMIT:
         failed.append("lag error")
+    return failed
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# The evidence census (docs/plans/bounce-light-confidence.md, section 21, take T12). The probe's TERTIUS_X_CENSUS appends,
+# for every draw and each part of each signal with a light age, the blocks of 8 x 8 pixels at each evidence level as the
+# spatial dispatch acts on them, and the blocks and the pixels with a sample of each cause, whatever TERTIUS_X_CAUSES
+# lets act. These functions reduce it to shares of block-draws for each signal, its parts pooled.
+
+# The draws after a reset that the shares leave out: the reset draw shows every instance as new, with no last place, so
+# every block of it has motion evidence (ARCHITECTURE.md, the light age).
+CENSUS_SKIP = 1
+# Acceptance 12 of the design: in a still, no block-draw has motion evidence, and at most 1e-4 of the block-draws of each
+# signal have light evidence. Light evidence in a still comes only from a false light change of the record, such as the
+# young records of the sun strips that the jitter keeps (ticket t0-qwx8).
+CENSUS_LIGHT_LIMIT = 1e-4
+# The draw that a census still reaches: the T12 stills run to draw 300.
+CENSUS_STILL_DRAWS = 300
+CENSUS_LEVELS = ("none", "motion", "light")
+# The causes of the census: a recent light code, a ray's hit on a moved surface, and the pixel's own motion on screen.
+CENSUS_CAUSES = ("light", "moved", "moving")
+
+
+def census(folder: Path, skip: int = CENSUS_SKIP) -> dict:
+    """The shares of the census in folder for each signal: of its block-draws, those at each level and those with a
+    sample of each cause, and of its pixel-draws, those with each cause. A block-draw is a block of the image in one
+    draw of one part. A draw whose index since the last reset is below skip counts in none. evidenceDraws lists each
+    counted draw with evidence: [draw, blocks at motion, blocks at light]."""
+    header = json.loads((folder / "header.json").read_text())
+    blocks = header["blocksWide"] * header["blocksHigh"]
+    pixels = header["width"] * header["height"]
+    signals = {}
+    for line in (folder / "census.txt").read_text().splitlines():
+        draw, index, _, light, part, *counts = line.split()
+        if int(index) < skip:
+            continue
+        levels, causes, cause_pixels = [int(c) for c in counts[0:3]], counts[3:6], counts[6:9]
+        s = signals.setdefault(light, {"light": light, "parts": set(), "draws": set(), "levels": [0, 0, 0],
+                                       "causes": [0, 0, 0], "pixels": [0, 0, 0], "evidence": {}})
+        s["parts"].add(part)
+        s["draws"].add(draw)
+        for k in range(3):
+            s["levels"][k] += levels[k]
+            s["causes"][k] += int(causes[k])
+            s["pixels"][k] += int(cause_pixels[k])
+        if levels[1] or levels[2]:
+            motion, light_blocks = s["evidence"].get(int(draw), (0, 0))
+            s["evidence"][int(draw)] = (motion + levels[1], light_blocks + levels[2])
+    result = []
+    for s in signals.values():
+        block_draws = blocks * len(s["parts"]) * len(s["draws"])
+        pixel_draws = pixels * len(s["parts"]) * len(s["draws"])
+        share = lambda count, total: count / total if total else None
+        result.append({
+            "light": s["light"], "parts": len(s["parts"]), "draws": len(s["draws"]), "blockDraws": block_draws,
+            "levels": dict(zip(CENSUS_LEVELS, s["levels"])),
+            "levelShares": {name: share(count, block_draws) for name, count in zip(CENSUS_LEVELS, s["levels"])},
+            "causes": {name: {"blockDraws": s["causes"][k], "share": share(s["causes"][k], block_draws),
+                              "pixelDraws": s["pixels"][k], "pixelShare": share(s["pixels"][k], pixel_draws)}
+                       for k, name in enumerate(CENSUS_CAUSES)},
+            "evidenceDraws": [[draw, *counts] for draw, counts in sorted(s["evidence"].items())]})
+    return {"skip": skip, "probe": {k: v for k, v in header.items() if k not in ("width", "height")}, "signals": result}
+
+
+def census_verdict(result: dict) -> list:
+    """Acceptance 12 for each signal of a still: no motion evidence, and light evidence in at most CENSUS_LIGHT_LIMIT of
+    its block-draws."""
+    failed = []
+    for signal in result["signals"]:
+        if signal["levels"]["motion"] > 0:
+            failed.append(f"{signal['light']} motion")
+        if signal["levelShares"]["light"] is not None and signal["levelShares"]["light"] > CENSUS_LIGHT_LIMIT:
+            failed.append(f"{signal['light']} light")
     return failed
 
 
@@ -896,20 +1106,45 @@ def probe_series(work: Path, film: str) -> list:
 SWITCH_KEPT = (SWITCH_OFF - 1, SWITCH_OFF + 8, SWITCH_ON - 1, SWITCH_ON + 8)
 
 
+def probe_stills(work: Path, prefix: str) -> list:
+    """The region means of the stills <prefix>-s00, <prefix>-s01 and on of a run into work, in still order."""
+    rows = probe_rows(work)
+    stem = prefix + "-s"
+    names = sorted(name for name in rows if name.startswith(stem) and name[len(stem):].isdigit())
+    return [rows[name] for name in names]
+
+
+# The environment variable that limits a call of run_switch to some of a case's runs, by label, comma-separated, such
+# as "switch" or "off,on". One switch run is 460 film frames, so the three runs of a case do not fit in one workbench
+# job of 840 s. Each run's series is kept in <out>/series/switch/<case>-<label>.json, and a run whose series is kept does
+# not render again. The call that finds all three series measures them; one that does not returns None.
+SWITCH_RUNS = "TERTIUS_SURVEY_SWITCH_RUNS"
+
+
 def run_switch(out: Path, case: dict, args):
-    binary = probe_binary(out)
     series = {}
+    wanted = os.environ.get(SWITCH_RUNS)
     for label, env in switch_runs(case).items():
+        kept = out / "series" / "switch" / f"{case['name']}-{label}.json"
+        if kept.exists():
+            series[label] = json.loads(kept.read_text())
+            continue
+        if wanted and label not in wanted.split(","):
+            continue
         work = out / "work" / "switch" / f"{case['name']}-{label}"
-        kept = SWITCH_KEPT if label == "switch" else ()
-        render(work, switch_script(case), binary=binary,
+        shown = SWITCH_KEPT if label == "switch" else ()
+        render(work, switch_script(case), binary=probe_binary(out),
                env={"TERTIUS_PROBE_EXPOSURE": args.exposure, **env,
-                    **series_env(work, [film_frame("f", k) for k in kept])},
+                    **series_env(work, [film_frame("f", k) for k in shown])},
                extra=PROBE_OPTIONS)
         series[label] = probe_series(work, "f")
-        for k in kept:
+        kept.parent.mkdir(parents=True, exist_ok=True)
+        kept.write_text(json.dumps(series[label]))
+        for k in shown:
             keep_png(work / f"{film_frame('f', k)}.png", out / "images" / "switch" / f"{case['name']}-{k:03d}.png")
         shutil.rmtree(work)
+    if len(series) < len(switch_runs(case)):
+        return None
     result = switch_result(case, series)
     save(out, "switch", case["name"], result)
     return result
@@ -991,6 +1226,123 @@ def run_walk(out: Path, case: dict, args):
     return result
 
 
+
+def probe_exposure(case: dict, args) -> str:
+    """The probe's fixed exposure in stops: the case's own, or the run's --exposure."""
+    return case.get("exposure", args.exposure)
+
+
+def run_stand(out: Path, case: dict, args):
+    work = out / "work" / "stand" / case["name"]
+    env = {"TERTIUS_PROBE_EXPOSURE": probe_exposure(case, args), "TERTIUS_PROBE_SIGNAL": SIGNALS[case["signal"]],
+           **STILL_CONTINUES}
+    render(work, stand_script(case), binary=probe_binary(out), env={**env, **series_env(work)}, extra=PROBE_OPTIONS)
+    film = probe_series(work, "f")
+    end = probe_stills(work, "end")
+    shutil.rmtree(work)
+    result = stand_result(case, film, end)
+    save(out, "stand", case["name"], result)
+    return result
+
+
+def run_climb(out: Path, case: dict, args):
+    """The climb's two probe runs, one after the other: four 1920 x 1080 renders at once ran out of memory on the
+    workbench's 16 GB card (t0-f7zv)."""
+    runs = {}
+    for label, env in climb_runs(case, probe_exposure(case, args)).items():
+        work = out / "work" / "climb" / f"{case['name']}-{label}"
+        render(work, climb_script(case), binary=probe_binary(out), env={**env, **series_env(work)}, extra=PROBE_OPTIONS)
+        runs[label] = {f"t{tick}": probe_stills(work, f"t{tick}") for tick in case["states"]}
+        shutil.rmtree(work)
+    result = climb_result(case, runs)
+    save(out, "climb", case["name"], result)
+    return result
+
+
+def census_still_script(case: dict) -> tuple[dict, bool]:
+    """The still view of a case with continued stills v-s00 ... to CENSUS_STILL_DRAWS, as the still part's long still
+    starts. Returns the script and whether its first capture is a still."""
+    script, frame = source_of(case)
+    _, first_is_still = views_script(script, {frame: []})
+    count = 1
+    while still_draws(first_is_still, count - 1) < CENSUS_STILL_DRAWS:
+        count += 1
+    built, still = views_script(script, {frame: captures("v", count)})
+    return built, still[frame]
+
+
+def run_census(out: Path, part: str, case: dict, script: dict, env: dict, extra, verdict, skip: int) -> dict:
+    """Renders script with the probe's evidence census and the probe's series in place of PNGs, and saves the census's
+    shares. The census stays in <out>/census/<part>/<name> for the census command. The result keeps the probe's knobs
+    that the environment sets (TERTIUS_X_ and TERTIUS_A_), so that a run per knob setting goes to an output folder of its
+    own."""
+    work = out / "work" / part / case["name"]
+    folder = work / "census"
+    log = render(work, script, binary=probe_binary(out), env={**env, **series_env(work), "TERTIUS_X_CENSUS": str(folder)},
+                 extra=extra)
+    knobs = {k: v for k, v in sorted({**os.environ, **env}.items())
+             if k.startswith(("TERTIUS_X_", "TERTIUS_A_")) and k != "TERTIUS_X_CENSUS"}
+    result = {"script": label_of(case), "scene": scene_name(case), "knobs": knobs, **census(folder, skip=skip)}
+    result["failed"] = verdict(result)
+    kept = out / "census" / part / case["name"]
+    if kept.exists():
+        shutil.rmtree(kept)
+    kept.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(folder), str(kept))
+    shutil.rmtree(work)
+    log.unlink(missing_ok=True)
+    save(out, part, case["name"], result)
+    return result
+
+
+def run_census_still(out: Path, case: dict, args):
+    """A still view to draw 300 whose history goes on through its captures, as in the still part, with the verdict of
+    acceptance 12."""
+    script, _ = census_still_script(case)
+    return run_census(out, "census-still", case, script, STILL_CONTINUES, NO_BLOOM, census_verdict, args.skip)
+
+
+def no_verdict(result: dict) -> list:
+    """A film's census is a measure without a verdict: motion gives evidence by design."""
+    return []
+
+
+def run_census_film(out: Path, case: dict, args):
+    """The film of a motion case, without its stills, at the auto exposure."""
+    return run_census(out, "census-film", case, motion_case(case).film, {}, NO_BLOOM, no_verdict, args.skip)
+
+
+def run_census_switch(out: Path, case: dict, args):
+    """The run of a switch case whose lamps go off and on again."""
+    env = {"TERTIUS_PROBE_EXPOSURE": args.exposure, **switch_runs(case)["switch"]}
+    return run_census(out, "census-switch", case, switch_script(case), env, PROBE_OPTIONS, no_verdict, args.skip)
+
+
+def run_census_lag(out: Path, case: dict, args):
+    """The film of a lag case's moving lights."""
+    film, _ = lag_scripts(case)
+    env = {"TERTIUS_PROBE_EXPOSURE": args.exposure}
+    return run_census(out, "census-lag", case, film, env, PROBE_OPTIONS, no_verdict, args.skip)
+
+
+def run_census_walk(out: Path, case: dict, args):
+    """The walk of a walk case, without its control."""
+    env = {"TERTIUS_PROBE_EXPOSURE": args.exposure}
+    return run_census(out, "census-walk", case, walk_script(case), env, PROBE_OPTIONS, no_verdict, args.skip)
+
+
+def cases_of(cases: dict, part: str) -> list:
+    """The cases of a part: its list of cases.json, or for a part of NAMED_PARTS the views of its lists, the first case
+    of each name."""
+    if part in PARTS:
+        return cases[PARTS[part]]
+    chosen = {}
+    for name in NAMED_PARTS[part]:
+        for case in cases[name]:
+            chosen.setdefault(case["name"], case)
+    return list(chosen.values())
+
+
 def run_chunks(args) -> int:
     """Runs the pending cases in chunks of args.chunk, each under one take of the GPU lock, so that a chunk waits once
     for the other users of the lock and not once per render."""
@@ -1001,14 +1353,15 @@ def run_chunks(args) -> int:
                        check=True, stdout=subprocess.DEVNULL)
     code = 0
     for part in args.parts.split(","):
-        pending = [c["name"] for c in cases[PARTS[part]] if (not args.only or c["name"] in args.only)
+        pending = [c["name"] for c in cases_of(cases, part) if (not args.only or c["name"] in args.only)
                    and not done(out, part, c["name"])]
         for first in range(0, len(pending), args.chunk):
             chunk = pending[first:first + args.chunk]
             log = out / "logs" / f"{part}-{chunk[0]}.lock.log"
             log.parent.mkdir(parents=True, exist_ok=True)
             command = [sys.executable, "-I", str(Path(__file__).resolve()), "run", str(out), "--parts", part, "--no-build",
-                       "--chunk", "0", "--exposure", args.exposure, "--only", *chunk]
+                       "--chunk", "0", "--exposure", args.exposure, "--skip", str(getattr(args, "skip", CENSUS_SKIP)),
+                       "--only", *chunk]
             if args.clock_bin:
                 command += ["--clock-bin", str(args.clock_bin)]
             result = subprocess.run([*gpu_lock(log, part == "timing"), "env", f"{HOLDS_LOCK}=1", *command],
@@ -1030,11 +1383,13 @@ def run(args):
         subprocess.run(["dotnet", "build", "src/Tertius.Demo", "-c", "Release", "-v", "quiet", "-nologo"], cwd=ROOT,
                        check=True, stdout=subprocess.DEVNULL)
     runners = {"timing": run_timing, "still": run_still, "motion": run_motion, "switch": run_switch, "lag": run_lag,
-               "walk": run_walk}
+               "walk": run_walk, "stand": run_stand, "climb": run_climb, "census-still": run_census_still,
+               "census-film": run_census_film, "census-switch": run_census_switch, "census-lag": run_census_lag,
+               "census-walk": run_census_walk}
     failures = 0
     for part in parts:
         runner = runners[part]
-        for case in cases[PARTS[part]]:
+        for case in cases_of(cases, part):
             if args.only and case["name"] not in args.only:
                 continue
             if done(out, part, case["name"]):
@@ -1042,6 +1397,9 @@ def run(args):
             print(f"{part} {case['name']} ...", flush=True)
             try:
                 result = runner(out, case, args)
+                if result is None:
+                    print(f"{part} {case['name']}: some runs kept, not measured yet", flush=True)
+                    continue
                 print(f"{part} {case['name']}: " + json.dumps({k: v for k, v in result.items()
                                                                 if not isinstance(v, (list, dict)) or k == "failed"}),
                       flush=True)
@@ -1379,7 +1737,43 @@ def report(args):
         window = r.get("window", len(r["after"]))
         lines.append(f"| {name} | walk stop | {settle_text(r['settleDraws'], window)} "
                      f"| {settle_text(r['settleDrawsWhole'], window)} | {'fail' if settle_verdict(r['settleDraws']) else 'pass'} |")
+    for name, r in results(out, "stand").items():
+        window = r["settleWindow"]
+        lines.append(f"| {name} {r['region']} after tick {r['settleTick']} | stand "
+                     f"| {settle_text(r['bandSettleDraws'], window)} | {settle_text(r['settleDrawsAfterTick'][0], window)} "
+                     f"| {'fail' if r['failed'] else 'pass'} |")
+    lines += ["", "| Climb | Band | State | Peak share | Last share | Verdict |", "|---|---|---|---:|---:|---|"]
+    for name, r in results(out, "climb").items():
+        band = region_index(r["region"])
+        verdict = "fail: " + ", ".join(r["failed"]) if r["failed"] else "pass"
+        for tick in r["states"]:
+            state = f"t{tick}"
+            lines.append(f"| {name} | {r['region']} | {state} | {cell(r['peakShare'][state][band], 3)} "
+                         f"| {cell(r['lastShare'][state][band], 3)} | {verdict} |")
+    census_rows = [(name, part.removeprefix("census-"), r) for part in NAMED_PARTS for name, r in results(out, part).items()]
+    if census_rows:
+        lines += ["", "| Census | Kind | Signal | Block-draws | Light level | Motion level | Light cause | Moved cause "
+                  "| Moving cause | Light pixels | Verdict |", "|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|"]
+    for name, kind, r in census_rows:
+        verdict = "fail: " + ", ".join(r["failed"]) if r["failed"] else "pass"
+        for s in r["signals"]:
+            rate = lambda value: f"{value:.1e}" if value is not None else "n/a"
+            causes = s["causes"]
+            lines.append(f"| {name} | {kind} | {s['light']} | {s['blockDraws']} | {rate(s['levelShares']['light'])} "
+                         f"| {rate(s['levelShares']['motion'])} | {rate(causes['light']['share'])} "
+                         f"| {rate(causes['moved']['share'])} | {rate(causes['moving']['share'])} "
+                         f"| {rate(causes['light']['pixelShare'])} | {verdict} |")
     print("\n".join(lines))
+    return 0
+
+
+def census_command(args):
+    result = census(Path(args.folder), skip=args.skip)
+    text = json.dumps(result, indent=1)
+    if args.write:
+        Path(args.write).write_text(text)
+    else:
+        print(text)
     return 0
 
 
@@ -1426,6 +1820,12 @@ def main(argv=None) -> int:
                    help="cases per take of the GPU lock; 0 runs in this process, each render taking the lock itself")
     p.add_argument("--exposure", default="4.08", help="the probe's fixed exposure in stops")
     p.add_argument("--clock-bin", default=os.environ.get("GPU_CALIBRATION_BIN"))
+    p.add_argument("--skip", type=int, default=CENSUS_SKIP,
+                   help="census: the draws after a reset that the shares leave out")
+    p = sub.add_parser("census", help="the shares of take T12 for a census folder of the probe")
+    p.add_argument("folder")
+    p.add_argument("--skip", type=int, default=CENSUS_SKIP, help="the draws after a reset that the shares leave out")
+    p.add_argument("--write", help="the JSON file to write; without it the numbers go to the standard output")
     p = sub.add_parser("trace")
     p.add_argument("out")
     p.add_argument("--slowest", type=int, default=5, help="how many views, slowest by median frame span")
@@ -1441,7 +1841,7 @@ def main(argv=None) -> int:
         sub.add_parser(name).add_argument("out")
     args = parser.parse_args(argv)
     return {"probe-build": probe_build, "run": run, "trace": trace, "report": report, "sheet": sheet, "split": split,
-            "split-report": split_report}[args.command](args)
+            "split-report": split_report, "census": census_command}[args.command](args)
 
 
 if __name__ == "__main__":

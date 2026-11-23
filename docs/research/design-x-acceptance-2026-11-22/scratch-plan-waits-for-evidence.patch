@@ -1,0 +1,78 @@
+# Scratch patch of t0-5tyj, experiment XD (never commit to src): on the line's head 57b4045ae, the ray plan gives a pixel
+# no ray of its own while light evidence holds its block's histories at fastCap. It derives this draw's evidence from
+# the last draw's sample ages (a last light code c with c + 1 still recent), reduced over the plan's 8 x 8 workgroup,
+# which is the spatial dispatch's block. accumulate_spatial.comp stays as on X. Apply on top of probe.patch,
+# scratch-region-log.patch and scratch-dynamic-scale.patch (playbuild.sh xd).
+--- a/src/Tertius.Rendering/Shaders/screen_trace.glsl
++++ b/src/Tertius.Rendering/Shaders/screen_trace.glsl
+@@ -70,14 +70,14 @@
+ layout(set = 3, binding = 19, rg32f) uniform readonly image2D lastLightAge;
+ layout(set = 3, binding = 20, rg32f) uniform image2D lightAge;
+ // The two samples' ages (TemporalSignal.SampleAge), which the resolve writes: the youngest light code of their rays
+-// (ageCodeOf) and their motion bit (sample_age.glsl).
+-layout(set = 3, binding = 21, r16ui) uniform writeonly uimage2D specularSampleAge;
++// (ageCodeOf) and their motion bit (sample_age.glsl). SCRATCH (t0-5tyj, experiment XD): the plan reads the last draw's.
++layout(set = 3, binding = 21, r16ui) uniform uimage2D specularSampleAge;
+ // FSR 3.1's transparency and composition mask (ScreenTraceImages.LightChangeMask), which the resolve writes from this
+ // frame's records (lightChangeMaskAt): where the direct light changed, FSR's history keeps to this frame's light (ticket
+ // t1-4hij).
+ layout(set = 3, binding = 22, r8) uniform writeonly image2D lightChangeMask;
+ // The diffuse sample's age (TemporalSignal.SampleAge), which the resolve writes as the specular sample's.
+-layout(set = 3, binding = 23, r16ui) uniform writeonly uimage2D diffuseSampleAge;
++layout(set = 3, binding = 23, r16ui) uniform uimage2D diffuseSampleAge;
+ 
+ // The age of a pixel whose light the record never saw change, in the frame that first shows it: no evidence. Each later
+ // frame that shows it unchanged lowers it by one, down to −(MostLightAge + 1).
+--- a/src/Tertius.Rendering/Shaders/screen_trace_plan.comp
++++ b/src/Tertius.Rendering/Shaders/screen_trace_plan.comp
+@@ -192,9 +192,38 @@
+     return fit;
+ }
+ 
++#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
++// SCRATCH (t0-5tyj, experiment XD, never commit to src): own rays wait while light evidence holds the block's histories.
++// The spatial dispatch cuts every history of an 8 x 8 block with light evidence to fastCap, so such a history cannot grow
++// and its own rays buy nothing. This draw's evidence is not known yet, so the plan derives it from the last draw's sample
++// ages (the same blocks: both dispatches run 8 x 8 workgroups over the pixels): a light code ages by one per draw, so a
++// last code c that is still recent as c + 1 is this draw's light evidence. Bit 1 holds the reflection, bit 2 the diffuse.
++// A real build keeps the predicate in sample_age.glsl beside recentLightCode.
++shared uint heldKinds;
++
++bool lightEvidencePending(uint lastSampleAge)
++{
++    uint lastCode = lightCodeOf(lastSampleAge);
++    return lastCode != 0u && recentLightCode(lastCode + 1u);
++}
++#endif
++
+ void main()
+ {
+     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
++#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
++    if (gl_LocalInvocationIndex == 0u)
++        heldKinds = 0u;
++    barrier();
++    if (all(lessThan(vec2(pixel), frame.viewport.xy)))
++    {
++        uint held = (lightEvidencePending(imageLoad(specularSampleAge, pixel).r) ? 1u : 0u)
++            | (lightEvidencePending(imageLoad(diffuseSampleAge, pixel).r) ? 2u : 0u);
++        if (held != 0u)
++            atomicOr(heldKinds, held);
++    }
++    barrier();
++#endif
+     if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
+         return;
+ #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+@@ -217,6 +246,11 @@
+                 continue;
+             if (historyLengthOf(r, kind) >= FullRateFrames && fits(p, c, kind))
+                 continue;
++#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
++            // SCRATCH (experiment XD): under light evidence the pixel takes its block's ray, if that ray fits it.
++            if ((heldKinds & (kind == KindReflection ? 1u : 2u)) != 0u && fits(p, c, kind))
++                continue;
++#endif
+             if (kind == KindReflection)
+             {
+                 plan |= PlanOwnReflection;

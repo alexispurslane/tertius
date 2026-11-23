@@ -1,0 +1,21 @@
+# Scratch patch of t0-5tyj, experiment XC (never commit to src): on the line's head 57b4045ae, the ray plan gives a pixel
+# no ray of its own once its history holds fastCap (4) draws, in place of FullRateFrames (8). accumulate_spatial.comp
+# stays as on X (light evidence restarts a history at fastCap). Wider than the design it stands for: it takes the own
+# ray from every history of 4 to 7 draws, also from one that the anti-lag shortened. Apply on top of probe.patch,
+# scratch-region-log.patch and scratch-dynamic-scale.patch (playbuild.sh xc).
+--- a/src/Tertius.Rendering/Shaders/screen_trace_plan.comp
++++ b/src/Tertius.Rendering/Shaders/screen_trace_plan.comp
+@@ -215,7 +215,12 @@
+             // A pixel that starts the kind gives its block a chosen pixel.
+             if (!startsKind(p, kind) || !chosenPixelOf(pixel / 2, kind, chosen, c) || all(equal(chosen, pixel)))
+                 continue;
+-            if (historyLengthOf(r, kind) >= FullRateFrames && fits(p, c, kind))
++            // SCRATCH (t0-5tyj, experiment XC, never commit to src): a history of fastCap (4) draws or more shares its
++            // block's ray, so that a light restart at fastCap traces no ray of its own. The read length is a weighted
++            // mean of four taps, which can round a stored 4.0 to just under it, so the test is >= 3.5. A stored length
++            // is never between 3 and 4 (a new history counts whole draws, and the anti-lag never cuts below fastCap), so
++            // a read length there comes only from that rounding or from taps of different lengths across an edge.
++            if (historyLengthOf(r, kind) >= 3.5 && fits(p, c, kind))
+                 continue;
+             if (kind == KindReflection)
+             {

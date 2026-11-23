@@ -1,18 +1,76 @@
 #version 460
-// The spatial dispatch of an accumulation (docs/plans/temporal-renderer.md, section 8, steps 3 to 5): one invocation per
-// pixel fixes a short history from its neighbors in the scratch image, clamps the slow history into the box of this
-// frame's fast history around the pixel, shortens the length by the clamp's move, and writes the slow history.
+// The spatial dispatch of an accumulation (docs/plans/temporal-renderer.md, section 8, steps 3 to 5): one invocation
+// per pixel fixes a short history from its neighbors in the scratch image, clamps the slow history into the box of this
+// frame's fast history around the pixel, shortens the length by the clamp's move, and writes the slow history. The
+// workgroup is a block of 8 × 8 pixels, and the block's evidence level, the strongest of its pixels' samples, acts on
+// every pixel of it in this draw: motion evidence drops the box's widening, and light evidence cuts the length to at most
+// FullRateFrames and leaves the box (docs/plans/bounce-light-confidence.md, section 8). The bounce light also takes the
+// region evidence of its block (region_drift.glsl, TERTIUS_REGION_DRIFT), which cuts the length in the same way.
 #extension GL_GOOGLE_include_directive : require
 #include "accumulate.glsl"
+#ifdef TERTIUS_REGION_DRIFT
+#include "region_drift.glsl"
+#endif
 #include "accumulate_reflection_guide.glsl"
 #include "half_store.glsl"
 #include "meter.glsl"
 
-void main()
+// The least luminance by which the clamp divides: the lag's share and the chroma of the widening.
+const float LeastLuminance = 1e-4;
+
+// The evidence levels of a block, ordered by how certain the knowledge is (section 8.2). Region and light evidence cap the
+// anti-lag's length at FullRateFrames, and motion evidence narrows the box for this draw.
+// The level lives only in this dispatch's shared value.
+const uint NoEvidence = 0u;
+const uint RegionEvidence = 1u;
+const uint MotionEvidence = 2u;
+const uint LightEvidence = 3u;
+
+#ifdef TERTIUS_LIGHT_AGE
+// The block's evidence level in this draw, which its 64 invocations share.
+shared uint blockEvidence;
+
+// The evidence level of one sample, from its age (sample_age.glsl): light evidence where one of its rays saw a recent
+// light change, motion evidence where it saw motion. This is the one place that chooses the action of motion: a moved
+// object narrows the box and does not cut, because a cut makes the pixels trace their own rays for as long as the motion
+// lasts (docs/plans/bounce-light-confidence.md, section 8.2, open point 1).
+uint evidenceOfSample(uint sampleAge)
 {
-    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
-    if (!insideImages(pixel))
-        return;
+    if (recentLightCode(lightCodeOf(sampleAge)))
+        return LightEvidence;
+    return sawMotion(sampleAge) ? MotionEvidence : NoEvidence;
+}
+
+// The evidence level of the workgroup's block: the strongest of its pixels' samples' levels and, for the bounce light, its
+// region's level of the draw before. An anchor's workgroup of the bounce light first runs its region's test for the
+// blocks of the next draw. Every invocation of the workgroup calls it from main before any branch, and the anchor's
+// branch is uniform in the workgroup, so every barrier runs in uniform control flow. A maximum does not depend on the
+// order of the invocations, so one machine gives the same level in every run. A sky pixel's age is 0, and a pixel outside
+// the images adds nothing.
+uint evidenceOfBlock(ivec2 pixel)
+{
+#ifdef TERTIUS_REGION_DRIFT
+    ivec2 block = ivec2(gl_WorkGroupID.xy);
+    if (isRegionAnchor(block))
+        updateRegionAnchor(block);
+#endif
+    if (gl_LocalInvocationIndex == 0u)
+        blockEvidence = NoEvidence;
+    barrier();
+    if (insideImages(pixel))
+        atomicMax(blockEvidence, evidenceOfSample(imageLoad(sampleAge, pixel).r));
+#ifdef TERTIUS_REGION_DRIFT
+    if (regionAnchorMovedBefore(block, gl_LocalInvocationIndex))
+        atomicMax(blockEvidence, RegionEvidence);
+#endif
+    barrier();
+    return blockEvidence;
+}
+#endif
+
+// Steps 3 to 5 at a pixel inside the images, where `evidence` is its block's evidence level in this draw.
+void accumulateAt(ivec2 pixel, uint evidence)
+{
     vec4 scratched = imageLoad(scratch, pixel);
     vec2 guide = vec2(0.0);
     if (reflectionSharingPrototype && parameters.light == SpecularLight)
@@ -68,6 +126,10 @@ void main()
     // fast history, so it has no lag to remove.
     if (historyLength > fastCap)
     {
+        // The moments are taken around the pixel's own fast history. Equal neighbors then give offsets of exactly 0, so
+        // a flat box has a σ of exactly 0 under any driver's rounding. The plain moments cancel to a few ulps of the
+        // mean's square there, and NVIDIA's arithmetic left a σ of about 1e-4 of the light (ticket tc-8142).
+        vec4 own = imageLoad(fastHistory, pixel);
         vec3 moments = vec3(0.0);
         vec3 squares = vec3(0.0);
         float count = 0.0;
@@ -77,23 +139,37 @@ void main()
                 ivec2 neighbor = pixel + ivec2(x, y);
                 if (!(x == 0 && y == 0) && (!insideImages(neighbor) || !sameSurface(key, surfaceKeyAt(neighbor))))
                     continue;
-                vec3 fast = imageLoad(fastHistory, neighbor).rgb;
-                moments += fast;
-                squares += fast * fast;
+                vec3 offset = imageLoad(fastHistory, neighbor).rgb - own.rgb;
+                moments += offset;
+                squares += offset * offset;
                 count += 1.0;
             }
-        vec3 mean = moments / count;
-        vec3 sigma = sqrt(max(squares / count - mean * mean, vec3(0.0)));
-        vec3 low = mean - parameters.clampSigmas * sigma;
-        vec3 high = mean + parameters.clampSigmas * sigma;
-        vec3 clamped = clamp(slow, low, high);
-        float lag = luminance(abs(slow - clamped)) / max(luminance(mean), 1e-4);
+        vec3 meanOffset = moments / count;
+        vec3 mean = own.rgb + meanOffset;
+        vec3 sigma = sqrt(max(squares / count - meanOffset * meanOffset, vec3(0.0)));
+        // The box holds every excursion that the history's own samples explain: at least retainedSigmas retained
+        // deviations, in the chroma of the history, which holds the excess (docs/plans/bounce-light-confidence.md,
+        // section 7). The reflections' narrow box takes none. Motion evidence drops the widening for this draw, so that
+        // the box measures a change of unknown size. Light and region evidence keep it: the cut below already bounds the
+        // length, and a box without its widening would cut the rare bright light that the history holds (section 8.2).
+        vec3 spread = parameters.clampSigmas * sigma;
+        if (parameters.retainedSigmas > 0.0 && evidence != MotionEvidence)
+        {
+            spread = max(spread, parameters.retainedSigmas * own.a * slow / max(luminance(slow), LeastLuminance));
+        }
+        vec3 clamped = clamp(slow, mean - spread, mean + spread);
+        float lag = luminance(abs(slow - clamped)) / max(luminance(mean), LeastLuminance);
 #ifdef TERTIUS_ACCUMULATION_TRACE
         storeTrace(pixel, 5, vec4(slow, 1.0));
         storeTrace(pixel, 6, vec4(mean, lag));
         storeTrace(pixel, 7, vec4(sigma, 0.0));
 #endif
-        historyLength = max(fastCap, historyLength * (1.0 - min(1.0, lag / parameters.antiLagShare)));
+        // The anti-lag shortens the history by the clamp's move: motion has no known size, so the box measures it. Light
+        // and region evidence state a change, so each adds one cap on top of the anti-lag: at most FullRateFrames draws,
+        // the shortest length that keeps the block's shared ray. A shorter restart made every pixel of the block trace
+        // its own rays (section 2.2, record of 2026-11-22). So evidence only ever shortens a history.
+        float antiLagged = max(fastCap, historyLength * (1.0 - min(1.0, lag / parameters.antiLagShare)));
+        historyLength = evidence == LightEvidence || evidence == RegionEvidence ? min(antiLagged, FullRateFrames) : antiLagged;
         slow = clamped;
     }
 
@@ -112,4 +188,17 @@ void main()
     imageStore(slowHistory, pixel, slowHistoryValue(vec4(slow, historyLength)));
     if (reflectionSharingPrototype && parameters.light == SpecularLight)
         imageStore(reflectionGuide, pixel, vec4(nearestHalf(guide), 0.0, 0.0));
+}
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    // A signal without a light age has no evidence.
+#ifdef TERTIUS_LIGHT_AGE
+    uint evidence = evidenceOfBlock(pixel);
+#else
+    uint evidence = NoEvidence;
+#endif
+    if (insideImages(pixel))
+        accumulateAt(pixel, evidence);
 }

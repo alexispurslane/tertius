@@ -1,0 +1,147 @@
+{
+ "render": [
+  1072,
+  603
+ ],
+ "lamp_box_render_px": [
+  521,
+  171,
+  550,
+  180
+ ],
+ "lamp_pixels": 260,
+ "lamp_fills_box": false,
+ "lamp_box_in_output_px": [
+  933.13,
+  306.27,
+  985.07,
+  322.39
+ ],
+ "hit-reflection": {
+  "ceiling": 0.2708699462890625,
+  "lamp_own": 0.03160228576660156,
+  "inside_max": 0.05359889526367187,
+  "border_cells": 0,
+  "border_max": null,
+  "ring_max": 0.28832998046874997,
+  "ring_median": 0.26835998535156247,
+  "outside_edge_line_mean_over_ceiling": {
+   "top": 0.9902,
+   "bottom": 0.9993,
+   "left": 1.0251,
+   "right": 0.9795,
+   "top_2": 1.0128,
+   "bottom_2": 1.0025,
+   "left_2": 1.0254,
+   "right_2": 0.9759
+  },
+  "outside_edge_line_max_over_ceiling": {
+   "top": 1.0607,
+   "bottom": 1.0487,
+   "left": 1.0645,
+   "right": 1.0,
+   "top_2": 1.0712,
+   "bottom_2": 1.0522,
+   "left_2": 1.0819,
+   "right_2": 1.0
+  },
+  "ring_max_over_ceiling": 1.0644591045218974,
+  "border_max_over_ceiling": null
+ },
+ "hit-diffuse": {
+  "ceiling": 0.22404182128906247,
+  "lamp_own": 0.0,
+  "inside_max": 0.0,
+  "border_cells": 0,
+  "border_max": null,
+  "ring_max": 0.22668315429687497,
+  "ring_median": 0.2243904052734375,
+  "outside_edge_line_mean_over_ceiling": {
+   "top": 0.9993,
+   "bottom": 1.0057,
+   "left": 1.0083,
+   "right": 0.9969,
+   "top_2": 1.0012,
+   "bottom_2": 1.0086,
+   "left_2": 1.0085,
+   "right_2": 0.9934
+  },
+  "outside_edge_line_max_over_ceiling": {
+   "top": 1.0024,
+   "bottom": 1.0097,
+   "left": 1.0122,
+   "right": 1.0104,
+   "top_2": 1.0035,
+   "bottom_2": 1.0123,
+   "left_2": 1.0118,
+   "right_2": 0.9954
+  },
+  "ring_max_over_ceiling": 1.011789464094762,
+  "border_max_over_ceiling": null
+ },
+ "pyramid-0": {
+  "ceiling": 0.0,
+  "lamp_own": 0.0,
+  "inside_max": 0.0,
+  "border_cells": 0,
+  "border_max": null,
+  "ring_max": 0.0,
+  "ring_median": 0.0,
+  "outside_edge_line_mean_over_ceiling": {
+   "top": NaN,
+   "bottom": NaN,
+   "left": NaN,
+   "right": NaN,
+   "top_2": NaN,
+   "bottom_2": NaN,
+   "left_2": NaN,
+   "right_2": NaN
+  },
+  "outside_edge_line_max_over_ceiling": {
+   "top": NaN,
+   "bottom": NaN,
+   "left": NaN,
+   "right": NaN,
+   "top_2": NaN,
+   "bottom_2": NaN,
+   "left_2": NaN,
+   "right_2": NaN
+  },
+  "ring_max_over_ceiling": null,
+  "border_max_over_ceiling": null
+ },
+ "pyramid-1": {
+  "ceiling": 0.0,
+  "lamp_own": 0.0,
+  "inside_max": 0.0,
+  "border_cells": 19,
+  "border_max": 0.0,
+  "ring_max": 0.0,
+  "ring_median": 0.0,
+  "lamp_edges_on_cell_boundary": {
+   "left": false,
+   "top": false,
+   "right": true,
+   "bottom": true
+  },
+  "ring_max_over_ceiling": null,
+  "border_max_over_ceiling": null
+ },
+ "pyramid-2": {
+  "ceiling": 0.0,
+  "lamp_own": 0.0,
+  "inside_max": 0.0,
+  "border_cells": 12,
+  "border_max": 0.0,
+  "ring_max": 0.0,
+  "ring_median": 0.0,
+  "lamp_edges_on_cell_boundary": {
+   "left": false,
+   "top": false,
+   "right": false,
+   "bottom": true
+  },
+  "ring_max_over_ceiling": null,
+  "border_max_over_ceiling": null
+ }
+}

@@ -1,0 +1,2 @@
+Design X (X5), draw 190, lamps on, 2/3: mean 28.35 draws; under 8: 1.9 %, 8 to 16: 9.7 %, 16 to 24: 6.6 %, 24 to 31.5: 4.5 %, 31.5 or more: 77.4 %
+docs/research/t0-gumm-catch-up-spread/pics/history-map-cabin.png (2570, 772)

@@ -1,0 +1,283 @@
+{
+ "case": "bay-sunbeam",
+ "render": [
+  1840,
+  1035
+ ],
+ "draws": [
+  240,
+  640
+ ],
+ "stops": [
+  -4.040999889373779,
+  -4.040999889373779
+ ],
+ "regions": [
+  {
+   "name": "sunlit patch at the upper left",
+   "light": "Direct sunlight through the slot (the bright patch of the direct-light still) and the left bay lamp below it; bounce light from the back wall and the floor.",
+   "rect_output": [
+    100,
+    40,
+    420,
+    360
+   ],
+   "rect_render": [
+    95,
+    38,
+    402,
+    345
+   ],
+   "after_caps": {
+    "pixels": 94249,
+    "mean_luminance": 0.2145254164914495,
+    "mean_variance": 1.3261596969503338,
+    "count_share": {
+     "miss": 0.6574497076892063,
+     "near": 0.04931696888030642,
+     "far": 0.2932333234304873
+    },
+    "mean_share": {
+     "miss": 0.007532613832191005,
+     "near": 0.061599261660134075,
+     "far": 0.9308681245076751
+    },
+    "variance_share": {
+     "miss": -0.00014378032520096382,
+     "near": -0.00029290329010639573,
+     "far": 1.0004366836153074
+    }
+   },
+   "before_caps": {
+    "pixels": 94249,
+    "mean_luminance": 0.2145254164914495,
+    "mean_variance": 1.3261596969503338,
+    "count_share": {
+     "miss": 0.6574497076892063,
+     "near": 0.04931696888030642,
+     "far": 0.2932333234304873
+    },
+    "mean_share": {
+     "miss": 0.007532613832191005,
+     "near": 0.061599261660134075,
+     "far": 0.9308681245076751
+    },
+    "variance_share": {
+     "miss": -0.00014378032520096382,
+     "near": -0.00029290329010639573,
+     "far": 1.0004366836153074
+    }
+   },
+   "check": {
+    "census_mean": 0.2145254164914495,
+    "slow_history_mean": 0.19905655086040497,
+    "ratio": 1.0777109096092625
+   },
+   "brightest_0.1pct_x": {
+    "samples": 37699,
+    "of": 37699600,
+    "threshold": 17.462318420410156,
+    "share_of_their_light": {
+     "miss": 0.0,
+     "near": 0.0,
+     "far": 1.0
+    },
+    "share_of_all_light_in_rect": 0.08512536436319351
+   },
+   "brightest_0.1pct_pre": {
+    "samples": 37699,
+    "of": 37699600,
+    "threshold": 17.462318420410156,
+    "share_of_their_light": {
+     "miss": 0.0,
+     "near": 0.0,
+     "far": 1.0
+    },
+    "share_of_all_light_in_rect": 0.08512536436319351
+   }
+  },
+  {
+   "name": "back wall below the slot",
+   "light": "Weak direct light of the two bay lamps; bounce light from the sunlit patch and the floor; space through the slot above.",
+   "rect_output": [
+    560,
+    420,
+    980,
+    560
+   ],
+   "rect_render": [
+    536,
+    402,
+    939,
+    536
+   ],
+   "after_caps": {
+    "pixels": 54002,
+    "mean_luminance": 0.292414333921883,
+    "mean_variance": 0.9075854357874573,
+    "count_share": {
+     "miss": 0.49029211881041446,
+     "near": 0.07175942557683049,
+     "far": 0.4379484556127551
+    },
+    "mean_share": {
+     "miss": 0.0010192828006266629,
+     "near": 0.07428767883340787,
+     "far": 0.9246930383659654
+    },
+    "variance_share": {
+     "miss": -9.694395818125397e-05,
+     "near": 0.0013203233025955326,
+     "far": 0.9987766206555857
+    }
+   },
+   "before_caps": {
+    "pixels": 54002,
+    "mean_luminance": 0.292414333921883,
+    "mean_variance": 0.9075854357874573,
+    "count_share": {
+     "miss": 0.49029211881041446,
+     "near": 0.07175942557683049,
+     "far": 0.4379484556127551
+    },
+    "mean_share": {
+     "miss": 0.0010192828006266629,
+     "near": 0.07428767883340787,
+     "far": 0.9246930383659654
+    },
+    "variance_share": {
+     "miss": -9.694395818125397e-05,
+     "near": 0.0013203233025955326,
+     "far": 0.9987766206555857
+    }
+   },
+   "check": {
+    "census_mean": 0.292414333921883,
+    "slow_history_mean": 0.2658865749835968,
+    "ratio": 1.0997709603800896
+   }
+  },
+  {
+   "name": "floor",
+   "light": "Weak direct light of the bay lamps; bounce light from the sunlit patch and the walls.",
+   "rect_output": [
+    600,
+    650,
+    1200,
+    950
+   ],
+   "rect_render": [
+    575,
+    622,
+    1150,
+    910
+   ],
+   "after_caps": {
+    "pixels": 165600,
+    "mean_luminance": 0.24586469081188655,
+    "mean_variance": 1.0042954222528198,
+    "count_share": {
+     "miss": 0.6296364885265701,
+     "near": 0.005955027173913044,
+     "far": 0.3644084842995169
+    },
+    "mean_share": {
+     "miss": 0.006252861259016326,
+     "near": 0.004704495889863993,
+     "far": 0.9890426428511198
+    },
+    "variance_share": {
+     "miss": -0.0003247165547929547,
+     "near": 6.47860400219693e-05,
+     "far": 1.000259930514771
+    }
+   },
+   "before_caps": {
+    "pixels": 165600,
+    "mean_luminance": 0.24586469081188655,
+    "mean_variance": 1.0042954222528198,
+    "count_share": {
+     "miss": 0.6296364885265701,
+     "near": 0.005955027173913044,
+     "far": 0.3644084842995169
+    },
+    "mean_share": {
+     "miss": 0.006252861259016326,
+     "near": 0.004704495889863993,
+     "far": 0.9890426428511198
+    },
+    "variance_share": {
+     "miss": -0.0003247165547929547,
+     "near": 6.47860400219693e-05,
+     "far": 1.000259930514771
+    }
+   },
+   "check": {
+    "census_mean": 0.24586469081188655,
+    "slow_history_mean": 0.22575554251670837,
+    "ratio": 1.0890748819320344
+   }
+  },
+  {
+   "name": "right wall",
+   "light": "Direct light of the right bay lamp near it; bounce light from the sunlit patch across the bay and from the floor.",
+   "rect_output": [
+    1300,
+    100,
+    1800,
+    500
+   ],
+   "rect_render": [
+    1245,
+    95,
+    1725,
+    479
+   ],
+   "after_caps": {
+    "pixels": 184320,
+    "mean_luminance": 0.2963746920152782,
+    "mean_variance": 0.8883747675543948,
+    "count_share": {
+     "miss": 0.6893334689670139,
+     "near": 0.0,
+     "far": 0.31066653103298614
+    },
+    "mean_share": {
+     "miss": 0.017180416475971978,
+     "near": 0.0,
+     "far": 0.982819583524028
+    },
+    "variance_share": {
+     "miss": -0.0011377277430729804,
+     "near": 0.0,
+     "far": 1.0011377277430729
+    }
+   },
+   "before_caps": {
+    "pixels": 184320,
+    "mean_luminance": 0.2963746920152782,
+    "mean_variance": 0.8883747675543948,
+    "count_share": {
+     "miss": 0.6893334689670139,
+     "near": 0.0,
+     "far": 0.31066653103298614
+    },
+    "mean_share": {
+     "miss": 0.017180416475971978,
+     "near": 0.0,
+     "far": 0.982819583524028
+    },
+    "variance_share": {
+     "miss": -0.0011377277430729804,
+     "near": 0.0,
+     "far": 1.0011377277430729
+    }
+   },
+   "check": {
+    "census_mean": 0.2963746920152782,
+    "slow_history_mean": 0.27545225620269775,
+    "ratio": 1.0759566688652724
+   }
+  }
+ ]
+}

@@ -1,0 +1,55 @@
+# SCRATCH patch of t0-gumm, never commit to src. It applies after X5's probe patch (tools/renderer-survey/probe.patch of e232080f) and t0-3vwx's scratch-region-log.patch, scratch-dynamic-scale.patch and scratch-history-log.patch. TERTIUS_X_OWNRAY_LOG=<folder> logs the own-ray lists per draw: their counts, and of them those in even columns and in even rows.
+diff --git a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
+index a640ab2..5248654 100644
+--- a/src/Tertius.Rendering/VulkanRenderer.cs
++++ b/src/Tertius.Rendering/VulkanRenderer.cs
+@@ -645,6 +645,32 @@ public sealed unsafe class VulkanRenderer : IRenderer
+                 )
+             );
+         }
++        // SCRATCH (t0-gumm, never commit to src): with TERTIUS_X_OWNRAY_LOG=<folder>, each draw first reads the own-ray lists
++        // that the draw before it wrote, and appends "<that draw's frame number> <its draw index> <width> <height>
++        // <reflection own rays> <of them in even columns> <in even rows> <diffuse own rays> <in even columns> <in even
++        // rows>" to <folder>/ownrays-<TERTIUS_PROBE_LAMP_OFF, or "none">.txt. The read waits for the device.
++        if (Environment.GetEnvironmentVariable("TERTIUS_X_OWNRAY_LOG") is { Length: > 0 } probeRayFolder && probeLastSize.Width > 0)
++        {
++            var probeCells = new System.Text.StringBuilder();
++            foreach (GpuBuffer probeList in ScreenTraceImages.OwnRays)
++            {
++                (int X, int Y)[] probePixels = OwnRayList.Pixels(ReadBufferWords(probeList));
++                int probeEvenX = 0, probeEvenY = 0;
++                foreach ((int probeX, int probeY) in probePixels)
++                {
++                    probeEvenX += (probeX & 1) == 0 ? 1 : 0;
++                    probeEvenY += (probeY & 1) == 0 ? 1 : 0;
++                }
++                probeCells.Append($" {probePixels.Length} {probeEvenX} {probeEvenY}");
++            }
++            System.IO.File.AppendAllText(
++                System.IO.Path.Combine(
++                    System.IO.Directory.CreateDirectory(probeRayFolder).FullName,
++                    $"ownrays-{(Environment.GetEnvironmentVariable("TERTIUS_PROBE_LAMP_OFF") is { Length: > 0 } probeRayOff ? probeRayOff : "none")}.txt"
++                ),
++                $"{FrameNumber - 1} {probeLastDrawIndex} {probeLastSize.Width} {probeLastSize.Height}{probeCells}\n"
++            );
++        }
+         float probeScale =
+             Environment.GetEnvironmentVariable("TERTIUS_X_SIZE_REPLAY") is { Length: > 0 } probeReplay
+                 ? float.Parse(
+@@ -663,6 +689,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
+             outputSize: targets.OutputExtent,
+             renderSize: probeRenderSize
+         );
++        probeLastDrawIndex = pending.DrawIndex;
+         // SCRATCH (t0-5tyj, never commit to src): with TERTIUS_X_SIZE_LOG=<folder>, each draw appends one line
+         // "<frame number> <render width> <render height> <render scale>" to <folder>/size-<TERTIUS_PROBE_LAMP_OFF, or
+         // "none">.txt, the names of the region log's files.
+@@ -1490,6 +1517,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
+     /// <exception cref="InvalidOperationException">The setting is <see cref="NoScreenTrace"/>.</exception>
+     // SCRATCH (t0-3vwx, never commit to src): the render size of the last draw, for TERTIUS_X_HISTORY_LOG.
+     private Extent2D probeLastSize;
++    // SCRATCH (t0-gumm, never commit to src): the draw index of the last draw, for TERTIUS_X_OWNRAY_LOG.
++    private long probeLastDrawIndex;
+ 
+     internal (TemporalSignal Diffuse, TemporalSignal Specular) ScreenTraceSignals =>
+         screenTrace is { } tracer

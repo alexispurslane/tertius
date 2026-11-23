@@ -1,0 +1,1794 @@
+diff --git a/src/Tertius.Host/ScriptCommand.Options.cs b/src/Tertius.Host/ScriptCommand.Options.cs
+index fd0cccbc4..1b779b7d3 100644
+--- a/src/Tertius.Host/ScriptCommand.Options.cs
++++ b/src/Tertius.Host/ScriptCommand.Options.cs
+@@ -118,6 +118,9 @@ public static partial class ScriptCommand
+                 options.Subsurface = new NoSubsurface();
+             if (PassTimestampsOff)
+                 options.PassTimestamps = false;
++            // PROBE (tools/renderer-survey): a fixed exposure in stops from TERTIUS_PROBE_EXPOSURE.
++            if (Environment.GetEnvironmentVariable("TERTIUS_PROBE_EXPOSURE") is { Length: > 0 } probeStops)
++                options.Exposure = new FixedExposure(float.Parse(probeStops, System.Globalization.CultureInfo.InvariantCulture));
+             if (FramesInFlight is { } count)
+             {
+                 options.FramesInFlight = count;
+diff --git a/src/Tertius.Host/Scripting/GpuTimingSummary.cs b/src/Tertius.Host/Scripting/GpuTimingSummary.cs
+index f5afa03b8..ec98d3ff6 100644
+--- a/src/Tertius.Host/Scripting/GpuTimingSummary.cs
++++ b/src/Tertius.Host/Scripting/GpuTimingSummary.cs
+@@ -74,6 +74,10 @@ internal sealed class GpuTimingSummary
+     {
+         if (spans.Count == 0)
+             return null;
++        // SCRATCH (t0-xdck): TERTIUS_X_SPAN_DUMP=<file> writes each frame's number and GPU span in ms, one line each,
++        // when the run reports, after the timed loop.
++        if (Environment.GetEnvironmentVariable("TERTIUS_X_SPAN_DUMP") is { Length: > 0 } dump)
++            File.WriteAllLines(dump, spans.Select(span => FormattableString.Invariant($"{span.Frame} {span.Milliseconds:F4}")));
+         return Statistics(spans.Select(span => span.Milliseconds));
+     }
+ 
+@@ -150,6 +154,9 @@ internal sealed class GpuTimingSummary
+                 && sample.Order <= lastSamples[sample.FrameIndex].Order
+             )
+                 sums[sample.FrameIndex] += sample.Milliseconds;
++        // SCRATCH (t0-xdck): the run's per-frame sums beside the span dump, in <dump>.<first>..<last>.
++        if (Environment.GetEnvironmentVariable("TERTIUS_X_SPAN_DUMP") is { Length: > 0 } dump)
++            File.WriteAllLines($"{dump}.{first}..{last}", sums.Select(sum => FormattableString.Invariant($"{sum:F4}")));
+         return Statistics(sums);
+     }
+ 
+diff --git a/src/Tertius.Rendering/Frame/DescriptorLayouts.cs b/src/Tertius.Rendering/Frame/DescriptorLayouts.cs
+index bb7155c8a..d5f77f2de 100644
+--- a/src/Tertius.Rendering/Frame/DescriptorLayouts.cs
++++ b/src/Tertius.Rendering/Frame/DescriptorLayouts.cs
+@@ -144,10 +144,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+     /// constructor).
+     /// </summary>
+     private uint SignalSetImages =>
+-        9u + (HistoryMode.KeepsLightAge ? 1u : 0u) + (Instrumentation == HistoryInstrumentation.None ? 0u : 1u);
++        9u + (HistoryMode.KeepsLightAge ? 2u : 0u) + (Instrumentation == HistoryInstrumentation.None ? 0u : 1u);
+ 
+     /// <summary>The highest binding that a signal set can hold: 12, the instrumentation's image.</summary>
+-    private const uint LastSignalBinding = 12;
++    private const uint LastSignalBinding = 13;
+ 
+     /// <summary>The sampled images of a signal set: the last surface history and the last device depth.</summary>
+     private const uint SignalSetSampledImages = 2;
+@@ -1258,6 +1258,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+                 binding <= 10
+                 || binding == 11 && HistoryMode.KeepsLightAge
+                 || binding == 12 && Instrumentation != HistoryInstrumentation.None
++                // SCRATCH (t0-mzhr): the regional test's window ring.
++                || binding == 13 && HistoryMode.KeepsLightAge
+             )
+                 signal[count++] = binding is 7 or 8
+                     ? Image(binding: binding, stages: ShaderStageFlags.ComputeBit)
+diff --git a/src/Tertius.Rendering/Frame/DiffuseFilter.cs b/src/Tertius.Rendering/Frame/DiffuseFilter.cs
+index 253e08614..336d009c3 100644
+--- a/src/Tertius.Rendering/Frame/DiffuseFilter.cs
++++ b/src/Tertius.Rendering/Frame/DiffuseFilter.cs
+@@ -190,6 +190,8 @@ internal sealed unsafe class DiffuseFilter : IDisposable
+             Name = $"diffuse filter {name}",
+             Shader = shader,
+             Layout = layouts.DiffuseFilterLayout,
++            // SCRATCH (t8-69v7, ported by t0-ion0): the constants, so that constant 22 reaches the filter.
++            Constants = new ShaderConstants(EnvironmentMap: false),
+         }.Create(device, shaders);
+ 
+     private void Dispatch(FrameContext context, Pipeline pipeline, DescriptorSet set, DiffuseFilterPushConstants push)
+diff --git a/src/Tertius.Rendering/Frame/FrameHistory.cs b/src/Tertius.Rendering/Frame/FrameHistory.cs
+index b4ceb4b4c..2db2c1907 100644
+--- a/src/Tertius.Rendering/Frame/FrameHistory.cs
++++ b/src/Tertius.Rendering/Frame/FrameHistory.cs
+@@ -185,7 +185,12 @@ internal sealed class FrameHistory
+     {
+         Contract.Requires(draw >= 0 && draw < DrawsOf(step));
+         bool still = IsStill(step);
+-        bool reset = Resets(snapshot: snapshot, outputSize: outputSize, firstOfAStill: still && draw == 0);
++        // PROBE (tools/renderer-survey): with TERTIUS_PROBE_STILL_CONTINUES=1, a still of an unchanged state (a step of 0 s,
++        // a capture right after a drawn frame) keeps the history of the draws before it, as a window keeps drawing an
++        // unchanged view. A still after a step of time, a camera cut, a new output size and the first drawn frame still
++        // reset.
++        bool continues = step == 0f && Environment.GetEnvironmentVariable("TERTIUS_PROBE_STILL_CONTINUES") == "1";
++        bool reset = Resets(snapshot: snapshot, outputSize: outputSize, firstOfAStill: still && draw == 0 && !continues);
+         derived = new(
+             Reset: reset,
+             DrawIndex: reset ? 0 : lastDrawIndex + 1,
+@@ -341,7 +346,9 @@ internal sealed class FrameHistory
+         {
+             get
+             {
+-                int phases = Fsr3Upscaler.JitterPhaseCount(RenderSize.Width, history.derived.OutputSize.Width);
++                int phases = AccumulatePushConstants.ProbeX.JitterPeriod(
++                    Fsr3Upscaler.JitterPhaseCount(RenderSize.Width, history.derived.OutputSize.Width)
++                );
+                 return Fsr3Upscaler.JitterOffset((int)(DrawIndex % phases), phases);
+             }
+         }
+diff --git a/src/Tertius.Rendering/Frame/FrameResources.cs b/src/Tertius.Rendering/Frame/FrameResources.cs
+index e8fc33710..ce6d9de26 100644
+--- a/src/Tertius.Rendering/Frame/FrameResources.cs
++++ b/src/Tertius.Rendering/Frame/FrameResources.cs
+@@ -248,9 +248,56 @@ internal sealed unsafe class FrameResources : IDisposable
+             Array.Resize(ref gpuLights, Math.Max(scene.LightCount, gpuLights.Length * 2));
+         for (int i = 0; i < scene.LightCount; i++)
+             gpuLights[i] = GpuLight.From(scene.Lights[i]);
++        ProbeLamps(gpuLights.AsSpan(0, scene.LightCount));
+         return gpuLights.AsSpan(0, scene.LightCount);
+     }
+ 
++    // PROBE (tools/renderer-survey, never commit to src): TERTIUS_PROBE_LAMP_OFF="a-b,c-d" turns the selected local lights
++    // off in the draws a <= draw < b, counted from 0 over every draw of the run. TERTIUS_PROBE_LAMP_SEL = all, or
++    // x:lo:hi, y:lo:hi or z:lo:hi, selects the local lights whose world position lies in that range on that axis.
++    // TERTIUS_PROBE_SUN=off turns off every light whose reach is at least 10^6 m.
++    private static int probeDraw;
++    private static readonly (int From, int To)[] ProbeRanges = (Environment.GetEnvironmentVariable("TERTIUS_PROBE_LAMP_OFF") ?? "")
++        .Split(',', StringSplitOptions.RemoveEmptyEntries)
++        .Select(r => r.Split('-'))
++        .Select(r => (int.Parse(r[0]), int.Parse(r[1])))
++        .ToArray();
++    private static readonly string[] ProbeSelect = (Environment.GetEnvironmentVariable("TERTIUS_PROBE_LAMP_SEL") ?? "all").Split(':');
++    private static readonly bool ProbeSunOff = Environment.GetEnvironmentVariable("TERTIUS_PROBE_SUN") == "off";
++
++    private static void ProbeLamps(Span<GpuLight> lights)
++    {
++        int draw = probeDraw++;
++        if (ProbeSunOff)
++            for (int i = 0; i < lights.Length; i++)
++                if (lights[i].PositionReach.W >= 1e6f)
++                    lights[i].IntensityKind = new Vector4(0, 0, 0, lights[i].IntensityKind.W);
++        bool off = false;
++        foreach ((int from, int to) in ProbeRanges)
++            off |= draw >= from && draw < to;
++        if (!off)
++            return;
++        int count = 0;
++        for (int i = 0; i < lights.Length; i++)
++        {
++            Vector4 p = lights[i].PositionReach;
++            bool chosen = ProbeSelect[0] switch
++            {
++                "x" => p.X >= float.Parse(ProbeSelect[1]) && p.X <= float.Parse(ProbeSelect[2]),
++                "y" => p.Y >= float.Parse(ProbeSelect[1]) && p.Y <= float.Parse(ProbeSelect[2]),
++                "z" => p.Z >= float.Parse(ProbeSelect[1]) && p.Z <= float.Parse(ProbeSelect[2]),
++                _ => true,
++            };
++            if (chosen && p.W > 0 && p.W < 1e6f)
++            {
++                lights[i].IntensityKind = new Vector4(0, 0, 0, lights[i].IntensityKind.W);
++                count++;
++            }
++        }
++        if (ProbeRanges.Any(r => r.From == draw))
++            Console.Error.WriteLine($"PROBE draw {draw}: {count} of {lights.Length} lights off");
++    }
++
+     /// <summary>A storage buffer of this frame that the CPU rewrites each frame, named after the frame and <paramref name="contents"/>.</summary>
+     private HostArray<T> StorageArray<T>(DeviceAllocator allocator, string contents, int capacity)
+         where T : unmanaged =>
+diff --git a/src/Tertius.Rendering/Frame/TemporalSignal.cs b/src/Tertius.Rendering/Frame/TemporalSignal.cs
+index 915c07915..d91509ea1 100644
+--- a/src/Tertius.Rendering/Frame/TemporalSignal.cs
++++ b/src/Tertius.Rendering/Frame/TemporalSignal.cs
+@@ -189,14 +189,12 @@ internal sealed unsafe class TemporalSignal : IDisposable
+             Name = $"accumulate {Name} {kind}",
+             Shader = HistoryShader($"accumulate_{kind}.comp"),
+             Layout = layouts.AccumulateLayout,
+-            Constants =
+-                limitIncoming || reflectionDistanceHistory
+-                    ? new ShaderConstants(EnvironmentMap: false)
+-                    {
+-                        NeighborLimitPrototype = limitIncoming,
+-                        ReflectionSharingPrototype = reflectionDistanceHistory,
+-                    }
+-                    : null,
++            // SCRATCH (t0-y46f): always the constants, so that the scratch constants 16 and 17 reach the accumulation.
++            Constants = new ShaderConstants(EnvironmentMap: false)
++            {
++                NeighborLimitPrototype = limitIncoming,
++                ReflectionSharingPrototype = reflectionDistanceHistory,
++            },
+         }.Create(device, shaders);
+ 
+     /// <summary>The signal's name in the images' names and the passes' names, such as "indirect diffuse".</summary>
+@@ -281,6 +279,9 @@ internal sealed unsafe class TemporalSignal : IDisposable
+     /// </summary>
+     public GpuImage Slow(int part) => parts[part].Slow;
+ 
++    /// <summary>SCRATCH (t0-xlcu): the window ring of <paramref name="part"/>, null where the signal keeps none.</summary>
++    internal GpuImage? RegionWindow(int part) => parts[part].Windows is [var window] ? window : null;
++
+     /// <summary>
+     /// The fast history of <paramref name="part"/> that the frame of <paramref name="parity"/> writes: rgb the light, a the
+     /// specular signal's hit distance or the diffuse signal's deviation of its samples' luminance (<see cref="DiffuseFilter"/>).
+@@ -389,6 +390,8 @@ internal sealed unsafe class TemporalSignal : IDisposable
+             barriers.Image(age, ImageUse.StorageCompute);
+         foreach (GpuImage trace in images.Traces)
+             barriers.Image(trace, ImageUse.StorageCompute);
++        foreach (GpuImage window in images.Windows)
++            barriers.Image(window, ImageUse.StorageCompute);
+         barriers.Image(images.Slow, ImageUse.StorageCompute);
+         if (!singleDiffuseHistory)
+         {
+@@ -420,6 +423,8 @@ internal sealed unsafe class TemporalSignal : IDisposable
+         barriers.Image(images.Slow, ImageUse.StorageCompute);
+         foreach (GpuImage trace in images.Traces)
+             barriers.Image(trace, ImageUse.StorageCompute);
++        foreach (GpuImage window in images.Windows)
++            barriers.Image(window, ImageUse.StorageCompute);
+         if (reflectionDistanceHistory)
+         {
+             barriers.Image(images.ReflectionGuideScratch, ImageUse.StorageCompute);
+@@ -468,6 +473,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
+     {
+         context.BeginComputePass(pipeline: pipeline, layout: layouts.AccumulateLayout, passSet: set);
+         var push = AccumulatePushConstants.Of(Parameters, context.History.Reset);
++        push.ProbeDraw = (uint)context.History.DrawIndex;
+         if (HistoryMode == SpecularHistoryMode.PreciseUncapped)
+         {
+             push.Cap = float.PositiveInfinity;
+@@ -522,7 +528,8 @@ internal sealed unsafe class TemporalSignal : IDisposable
+                     ]
+                     : [],
+                 Ages: CreateAges(extent, part),
+-                Traces: Instrumentation == HistoryInstrumentation.ControlTrace ? [CreateTrace(extent, part)] : []
++                Traces: Instrumentation == HistoryInstrumentation.ControlTrace ? [CreateTrace(extent, part)] : [],
++                Windows: KeepsLightAge ? [CreateRegionWindow(extent, part)] : []
+             );
+             for (int parity = 0; parity < 2; parity++)
+                 WriteSignalSet(set: sets[part, parity], images: parts[part], part: part, parity: parity);
+@@ -553,6 +560,9 @@ internal sealed unsafe class TemporalSignal : IDisposable
+         // The sample age, which the temporal dispatch of both signals reads.
+         if (images.SampleAge is { } age)
+             layouts.WriteStorageImage(set: set, binding: 11, image: age);
++        // SCRATCH (t0-mzhr): the regional test's window ring.
++        if (images.Windows is [var window])
++            layouts.WriteStorageImage(set: set, binding: 13, image: window);
+         // The diagnostic of uncovered surfaces, which only the specular signal's temporal dispatch writes.
+         if (scratch.Instrumentation == HistoryInstrumentation.LightAgeDiagnostic)
+             layouts.WriteStorageImage(
+@@ -599,6 +609,24 @@ internal sealed unsafe class TemporalSignal : IDisposable
+             format: SampleAgeFormat
+         );
+ 
++    /// <summary>
++    /// SCRATCH (t0-mzhr): the regional test's window ring of <paramref name="part"/>, R32F with
++    /// TERTIUS_X_REGION_WINDOW layers plus one for the mean (accumulate.glsl, regionWindow). At least two layers, so that
++    /// its view is an array.
++    /// </summary>
++    private GpuImage CreateRegionWindow(Extent2D extent, int part) =>
++        GpuImage.Create(
++            device: device,
++            allocator: allocator,
++            extent: extent,
++            format: Format.R32Sfloat,
++            // SCRATCH (t0-xlcu): transfer source for the count's readback, and the layers of the second ring and the count.
++            usage: ImageUsageFlags.StorageBit | ImageUsageFlags.TransferSrcBit,
++            mipLevels: 1,
++            name: $"{Name} region window {part}",
++            arrayLayers: Math.Max(2u, AccumulatePushConstants.ProbeX.RegionWindowLayers)
++        );
++
+     /// <summary>The accumulation trace of <paramref name="part"/> (<see cref="TraceLayers"/>).</summary>
+     private GpuImage CreateTrace(Extent2D extent, int part) =>
+         GpuImage.Create(
+@@ -661,7 +689,8 @@ internal sealed unsafe class TemporalSignal : IDisposable
+         GpuImage[] Fasts,
+         GpuImage[] Guides,
+         GpuImage[] Ages,
+-        GpuImage[] Traces
++        GpuImage[] Traces,
++        GpuImage[] Windows
+     )
+     {
+         /// <summary>The fast history that the frame of <paramref name="parity"/> writes.</summary>
+@@ -676,7 +705,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
+ 
+         public GpuImage? SampleAge => Ages is [var age, ..] ? age : null;
+ 
+-        public IEnumerable<GpuImage> All => [Sample, Slow, .. Fasts, .. Guides, .. Ages, .. Traces];
++        public IEnumerable<GpuImage> All => [Sample, Slow, .. Fasts, .. Guides, .. Ages, .. Traces, .. Windows];
+ 
+         /// <summary>Whether every image has <paramref name="extent"/>.</summary>
+         public bool Fit(Extent2D extent) =>
+@@ -685,7 +714,8 @@ internal sealed unsafe class TemporalSignal : IDisposable
+             && AllFit(Fasts, extent)
+             && AllFit(Guides, extent)
+             && AllFit(Ages, extent)
+-            && AllFit(Traces, extent);
++            && AllFit(Traces, extent)
++            && AllFit(Windows, extent);
+ 
+         /// <summary>Whether every image of <paramref name="images"/> has <paramref name="extent"/>.</summary>
+         private static bool AllFit(GpuImage[] images, Extent2D extent)
+diff --git a/src/Tertius.Rendering/PngCaptureSink.cs b/src/Tertius.Rendering/PngCaptureSink.cs
+index 9e4fc4c58..8797aea8e 100644
+--- a/src/Tertius.Rendering/PngCaptureSink.cs
++++ b/src/Tertius.Rendering/PngCaptureSink.cs
+@@ -19,8 +19,74 @@ public sealed class PngCaptureSink : ICaptureSink
+         this.path = path;
+     }
+ 
++    // PROBE (tools/renderer-survey, never commit to src): with TERTIUS_PROBE_SERIES=<file>, each capture appends one line
++    // to the file: its name, then the mean scene luminance of the whole image and of each cell of a 3 x 3 grid, by rows.
++    // It decodes the probe's 24-bit log2 luminance as probe_luminance and region_means of tools/renderer-survey.py do.
++    // It writes the PNG only for the names in TERTIUS_PROBE_KEEP, a comma-separated list, so that a film of every draw
++    // pays no PNG encoding (ticket ter-d7qy).
++    private static readonly string? ProbeSeries =
++        Environment.GetEnvironmentVariable("TERTIUS_PROBE_SERIES") is { Length: > 0 } series ? series : null;
++    private static readonly HashSet<string> ProbeKeep =
++        [.. (Environment.GetEnvironmentVariable("TERTIUS_PROBE_KEEP") ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries)];
++
++    // exp2(q / 16777215 * 40 - 24) of a 24-bit code q is the product of a table entry for its high 12 bits and one for
++    // its low 12 bits. It differs from the direct exp2 by at most 4e-16 of its value, and it makes the means of a
++    // 1920 x 1080 capture about 12 times faster than one exp2 per pixel.
++    private static readonly double[] ProbeHigh = [.. Enumerable.Range(0, 4096).Select(k => double.Exp2(k * 4096 / 16777215.0 * 40.0 - 24.0))];
++    private static readonly double[] ProbeLow = [.. Enumerable.Range(0, 4096).Select(k => double.Exp2(k / 16777215.0 * 40.0))];
++
++    private static unsafe double[] ProbeMeans(in CapturedImage image)
++    {
++        const int grid = 3;
++        int width = image.Width;
++        int height = image.Height;
++        var sums = new double[grid * grid];
++        fixed (byte* start = image.Rgba)
++        {
++            nint pixels = (nint)start;
++            Parallel.For(0, grid * grid, cell =>
++            {
++                int row = cell / grid;
++                int column = cell % grid;
++                double sum = 0.0;
++                for (int y = row * height / grid; y < (row + 1) * height / grid; y++)
++                    for (int x = column * width / grid; x < (column + 1) * width / grid; x++)
++                    {
++                        byte* pixel = (byte*)pixels + ((long)y * width + x) * 4;
++                        int q = (pixel[0] << 16) | (pixel[1] << 8) | pixel[2];
++                        if (q != 0)
++                            sum += ProbeHigh[q >> 12] * ProbeLow[q & 4095];
++                    }
++                sums[cell] = sum;
++            });
++        }
++        var means = new double[1 + grid * grid];
++        double total = 0.0;
++        for (int cell = 0; cell < grid * grid; cell++)
++        {
++            int row = cell / grid;
++            int column = cell % grid;
++            long pixels = (long)((row + 1) * height / grid - row * height / grid)
++                * ((column + 1) * width / grid - column * width / grid);
++            means[1 + cell] = sums[cell] / pixels;
++            total += sums[cell];
++        }
++        means[0] = total / ((double)width * height);
++        return means;
++    }
++
+     public void Take(in CapturedImage image)
+     {
++        if (ProbeSeries is not null)
++        {
++            string name = Path.GetFileNameWithoutExtension(path);
++            var line = new System.Text.StringBuilder(name);
++            foreach (double mean in ProbeMeans(image))
++                line.Append(' ').Append(mean.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
++            File.AppendAllText(ProbeSeries, line.Append('\n').ToString());
++            if (!ProbeKeep.Contains(name))
++                return;
++        }
+         // A copy: the pixels belong to the renderer's readback buffer, and the alpha byte of each pixel has no defined value.
+         byte[] rgba = image.Rgba.ToArray();
+         for (int i = 3; i < rgba.Length; i += 4)
+diff --git a/src/Tertius.Rendering/Scene/GpuTypes.cs b/src/Tertius.Rendering/Scene/GpuTypes.cs
+index bc36b6ff2..88ec26344 100644
+--- a/src/Tertius.Rendering/Scene/GpuTypes.cs
++++ b/src/Tertius.Rendering/Scene/GpuTypes.cs
+@@ -823,7 +823,208 @@ internal struct AccumulatePushConstants
+     /// </summary>
+     public float RetainedSigmas;
+ 
++    // PROBE (tools/renderer-survey, never commit to src): the knobs of docs/plans/bounce-light-confidence.md (section 21),
++    // read once from the environment (ProbeX). A knob that is not set keeps the build's value. TERTIUS_A_RETAINED_SIGMAS
++    // sets the widening of a widened box. TERTIUS_A_NO_CLAMP=1, for the truth, turns both signals' clamps off (a negative
++    // ClampSigmas, which accumulate_spatial.comp reads as "no clamp", so the anti-lag sees no move either) and the
++    // evidence's action with them. The other knobs reach evidenceOfSample of accumulate_spatial.comp through these push
++    // constants.
++    public uint ProbeMotionCuts;
++    public uint ProbeMovedCuts;
++    public uint ProbeCauses;
++    public uint ProbeEvidenceAction;
++    public uint ProbeRecentLightAge;
++
++    // SCRATCH (t0-mzhr): the draw index since the last reset (FrameHistory), which picks the layer of the regional test's
++    // window ring; TERTIUS_X_REGION_WINDOW, the regional test's fast estimate (4: the fast histories, else an exact box
++    // mean over that many draws); TERTIUS_X_CUT_LENGTH, the length to which light evidence cuts a history (0: the fast cap).
++    public uint ProbeDraw;
++    public uint ProbeRegionWindow;
++    public float ProbeCutLength;
++
++    private static float? ProbeKnob(string name) =>
++        float.TryParse(
++            Environment.GetEnvironmentVariable(name),
++            System.Globalization.NumberStyles.Float,
++            System.Globalization.CultureInfo.InvariantCulture,
++            out float value
++        )
++            ? value
++            : null;
++
++    private static readonly float? ProbeRetainedSigmas = ProbeKnob("TERTIUS_A_RETAINED_SIGMAS");
++    private static readonly bool ProbeNoClamp = Environment.GetEnvironmentVariable("TERTIUS_A_NO_CLAMP") == "1";
++
++    /// <summary>
++    /// PROBE: Design X's evidence knobs (docs/plans/bounce-light-confidence.md, section 21) and the rule of
++    /// evidenceOfSample under them, which the census repeats on the CPU. The probe's resolve writes a sample's moved mark in
++    /// bit 15 of its age and the pixel's own motion in bit 14, which no light code reaches (MostCodedAge 16,382), so that
++    /// the census and TERTIUS_X_CAUSES tell the two causes of motion apart.
++    /// </summary>
++    internal static class ProbeX
++    {
++        public const uint LightCause = 1u;
++        public const uint MovedCause = 2u;
++        public const uint MovingCause = 4u;
++        public const uint MovedBit = 0x8000u;
++        public const uint MovingBit = 0x4000u;
++        public const uint LightCodeMask = 0x3FFFu;
++        public const uint NoEvidence = 0u;
++        public const uint MotionEvidence = 1u;
++        public const uint LightEvidence = 2u;
++
++        // TERTIUS_X_CAUSES: the causes that give evidence, a comma-separated list of light, moved (a ray's hit moved) and
++        // moving (the pixel's own surface moves on screen). Unset: all three.
++        public static readonly uint Causes = Environment.GetEnvironmentVariable("TERTIUS_X_CAUSES") is { } list
++            ? list.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
++                .Aggregate(0u, (mask, cause) => mask | cause switch
++                {
++                    "light" => LightCause,
++                    "moved" => MovedCause,
++                    "moving" => MovingCause,
++                    _ => throw new InvalidOperationException($"TERTIUS_X_CAUSES: no cause {cause}"),
++                })
++            : LightCause | MovedCause | MovingCause;
++
++        // TERTIUS_X_MOVED_ACTION=cut, open point 1's alternative for the moved mark: it gives light evidence.
++        public static readonly bool MovedCuts = Environment.GetEnvironmentVariable("TERTIUS_X_MOVED_ACTION") == "cut";
++
++        // TERTIUS_A_MOTION_CUTS=1, open point 1's alternative for both causes of motion: they give light evidence.
++        public static readonly bool MotionCuts = Environment.GetEnvironmentVariable("TERTIUS_A_MOTION_CUTS") == "1";
++
++        // TERTIUS_X_EVIDENCE_ACTION=0: the census counts the levels, and the spatial dispatch drops their action.
++        public static readonly bool Acts = Environment.GetEnvironmentVariable("TERTIUS_X_EVIDENCE_ACTION") != "0";
++
++        // TERTIUS_X_RECENT_LIGHT_AGE: RecentLightAge of sample_age.glsl, 7 there.
++        public static readonly uint RecentLightAge =
++            uint.TryParse(Environment.GetEnvironmentVariable("TERTIUS_X_RECENT_LIGHT_AGE"), out uint age) ? age : 7u;
++
++        // TERTIUS_X_LEAST_MOTION: LeastMotion of sample_age.glsl in pixels per draw, 1/32 there. Specialization
++        // constant 13 of the screen tracer's shaders.
++        public static readonly float LeastMotion = ProbeKnob("TERTIUS_X_LEAST_MOTION") ?? 1f / 32f;
++
++        // SCRATCH (t0-mzhr): TERTIUS_X_REGION_WINDOW, the draws of the regional test's box window, 4 (the fast histories)
++        // when unset. The window ring holds this many layers plus one for the mean (TemporalSignal).
++        public static readonly uint RegionWindow =
++            uint.TryParse(Environment.GetEnvironmentVariable("TERTIUS_X_REGION_WINDOW"), out uint window) && window > 0
++                ? window
++                : 4u;
++
++        // SCRATCH (t0-xlcu): TERTIUS_X_REGION_RULE, the regional test's tolerance: 0 TERTIUS_X_REGION_TOL, 1 the region's
++        // measured spread (T1), 2 the stored spread (T2), 3 T1 with the spread of the successive differences (T3). TERTIUS_X_REGION_ACT=0: the test computes and does not act.
++        // TERTIUS_X_REGION_COUNT=<folder>: the count of the test's quantities (VulkanRenderer.ProbeRegionCount).
++        public static readonly uint RegionRule =
++            uint.TryParse(Environment.GetEnvironmentVariable("TERTIUS_X_REGION_RULE"), out uint rule) && rule <= 3u ? rule : 0u;
++        public static readonly bool RegionActs = Environment.GetEnvironmentVariable("TERTIUS_X_REGION_ACT") != "0";
++        public static readonly string? RegionCountFolder =
++            Environment.GetEnvironmentVariable("TERTIUS_X_REGION_COUNT") is { Length: > 0 } countFolder ? countFolder : null;
++
++        /// <summary>Whether the dispatch takes the derived rules' path, which holds the second ring and the count (accumulate_spatial.comp, regionSpreadPath).</summary>
++        public static bool RegionSpreadPath => RegionRule != 0u || !RegionActs || RegionCountFolder != null;
++
++        // SCRATCH (t0-ion0): the region's drift as light evidence (accumulate_spatial.comp, driftAt). TERTIUS_X_DRIFT, the
++        // radius in ray blocks (0 off); TERTIUS_X_DRIFT_RULE, 0 Q0, 1 Q1 or 2 Q2; TERTIUS_X_DRIFT_ACT=0, no evidence;
++        // TERTIUS_X_DRIFT_COUNT=<folder>, the count (VulkanRenderer.ProbeRegionCount); TERTIUS_X_DRIFT_TOL, Q0's
++        // tolerance in percent, 10 when unset.
++        public static readonly uint DriftRadius =
++            uint.TryParse(Environment.GetEnvironmentVariable("TERTIUS_X_DRIFT"), out uint driftRadius) ? driftRadius : 0u;
++        public static readonly uint DriftRule =
++            uint.TryParse(Environment.GetEnvironmentVariable("TERTIUS_X_DRIFT_RULE"), out uint driftRule) && driftRule <= 2u ? driftRule : 0u;
++        public static readonly bool DriftActs = Environment.GetEnvironmentVariable("TERTIUS_X_DRIFT_ACT") != "0";
++        public static readonly string? DriftCountFolder =
++            Environment.GetEnvironmentVariable("TERTIUS_X_DRIFT_COUNT") is { Length: > 0 } driftFolder ? driftFolder : null;
++        public static readonly float DriftTolerance = (ProbeKnob("TERTIUS_X_DRIFT_TOL") ?? 10f) / 100f;
++        // TERTIUS_X_DRIFT_SIGMAS: the standard deviations of Q1's and Q2's tolerances, 2 when unset (Q1 at 3 is Q3).
++        public static readonly float DriftSigmas = ProbeKnob("TERTIUS_X_DRIFT_SIGMAS") ?? 2f;
++        // SCRATCH (t0-xdck): TERTIUS_X_DRIFT_CUT, the length to which the drift test's evidence alone cuts a history, 0 (the
++        // fast cap) when unset.
++        public static readonly float DriftCut = ProbeKnob("TERTIUS_X_DRIFT_CUT") ?? 0f;
++
++        /// <summary>
++        /// The layers of the window ring: the ring and its mean, then under <see cref="RegionSpreadPath"/> the second ring
++        /// and the count's five. Under <see cref="DriftRadius"/> the drift ring of 2 windows and its count's eight follow,
++        /// after the layers of the second ring and its count, which the drift test leaves unused.
++        /// </summary>
++        public static uint RegionWindowLayers => DriftRadius > 0u
++            ? 2u * RegionWindow + 6u + 2u * RegionWindow + 8u
++            : RegionWindow + 1u + (RegionSpreadPath ? RegionWindow + 5u : 0u);
++
++        // SCRATCH (t0-mzhr): TERTIUS_X_CUT_LENGTH, the length to which light evidence cuts a history, 0 (the fast cap)
++        // when unset.
++        public static readonly float CutLength = ProbeKnob("TERTIUS_X_CUT_LENGTH") ?? 0f;
++
++        // SCRATCH (t0-mzhr): TERTIUS_X_LONG_JITTER=1, the camera jitter takes the Halton sequence over a period of
++        // 2^10 x 3^6 draws (docs/plans/sub-pixel-strips.md, section 5.1). FSR keeps its phase count.
++        public static readonly bool LongJitter = Environment.GetEnvironmentVariable("TERTIUS_X_LONG_JITTER") == "1";
++        public const int LongJitterPeriod = 1024 * 729;
++
++        /// <summary>The period of the camera jitter: AMD's <paramref name="phases"/>, or the long period.</summary>
++        public static int JitterPeriod(int phases) => LongJitter ? LongJitterPeriod : phases;
++
++        /// <summary>The causes that a sample age holds, before TERTIUS_X_CAUSES: LightCause, MovedCause and MovingCause.</summary>
++        public static uint CausesOf(uint sampleAge)
++        {
++            uint code = sampleAge & LightCodeMask;
++            return (code != 0u && code - 1u < RecentLightAge ? LightCause : 0u)
++                | ((sampleAge & MovedBit) != 0u ? MovedCause : 0u)
++                | ((sampleAge & MovingBit) != 0u ? MovingCause : 0u);
++        }
++
++        /// <summary>The evidence level of a sample with <paramref name="causes"/>, as evidenceOfSample gives it.</summary>
++        public static uint LevelOf(uint causes)
++        {
++            uint counted = causes & Causes;
++            uint cutting = LightCause | (MovedCuts || MotionCuts ? MovedCause : 0u) | (MotionCuts ? MovingCause : 0u);
++            if ((counted & cutting) != 0u)
++                return LightEvidence;
++            return counted != 0u ? MotionEvidence : NoEvidence;
++        }
++    }
++
+     public static AccumulatePushConstants Of(SignalParameters parameters, bool reset) =>
++        Probe(OfParameters(parameters, reset));
++
++    private static AccumulatePushConstants Probe(AccumulatePushConstants c)
++    {
++        if (c.RetainedSigmas > 0 && ProbeRetainedSigmas is { } sigmas)
++            c.RetainedSigmas = sigmas;
++        if (ProbeNoClamp)
++            c.ClampSigmas = -1;
++        c.ProbeMotionCuts = ProbeX.MotionCuts ? 1u : 0u;
++        c.ProbeMovedCuts = ProbeX.MovedCuts ? 1u : 0u;
++        c.ProbeCauses = ProbeX.Causes;
++        // SCRATCH (dark settle, t0-5tyj): TERTIUS_X_LIGHT_ACTION picks what light evidence does. Unset: narrow the box and cut
++        // the length (1). cut: cut the length, keep the wide box (2). narrow: narrow the box, no cut (3). restart: keep the
++        // wide box, cut the length and take the pixel's own fast history as the slow history (4).
++        c.ProbeEvidenceAction = !ProbeX.Acts ? 0u : Environment.GetEnvironmentVariable("TERTIUS_X_LIGHT_ACTION") switch
++        {
++            "cut" => 2u,
++            "narrow" => 3u,
++            "restart" => 4u,
++            // wide box, cut to 8 draws (no own rays); no clamp at all but the cut to the fast cap; narrow box, cut to 8.
++            "cut8" => 5u,
++            "noclamp-cut" => 6u,
++            "narrow-cut8" => 7u,
++            // first: narrow only where the history is longer than the fast cap plus this draw, cut each evidence draw.
++            // age: the length is at most the change's age plus 4 draws, and the box narrows only on the draw that cuts.
++            "first" => 8u,
++            "age" => 9u,
++            // agewide: the length is at most the change's age plus 4 draws, and the box stays wide.
++            "agewide" => 10u,
++            null or "" => 1u,
++            var other => throw new InvalidOperationException($"TERTIUS_X_LIGHT_ACTION: no action {other}"),
++        };
++        // SCRATCH: TERTIUS_X_DILATE, the radius in blocks over which light evidence spreads, in the bits above 8.
++        c.ProbeRecentLightAge = ProbeX.RecentLightAge
++            | ((uint.TryParse(Environment.GetEnvironmentVariable("TERTIUS_X_DILATE"), out uint radius) ? radius : 0u) << 8)
++            | ((uint.TryParse(Environment.GetEnvironmentVariable("TERTIUS_X_REGION"), out uint region) ? region : 0u) << 16)
++            | ((uint.TryParse(Environment.GetEnvironmentVariable("TERTIUS_X_REGION_TOL"), out uint tol) ? tol : 10u) << 24);
++        c.ProbeRegionWindow = ProbeX.RegionWindow;
++        c.ProbeCutLength = ProbeX.CutLength;
++        return c;
++    }
++
++    private static AccumulatePushConstants OfParameters(SignalParameters parameters, bool reset) =>
+         new()
+         {
+             Cap = parameters.Cap,
+diff --git a/src/Tertius.Rendering/Scene/SceneBatcher.cs b/src/Tertius.Rendering/Scene/SceneBatcher.cs
+index 9c273273e..e800db30f 100644
+--- a/src/Tertius.Rendering/Scene/SceneBatcher.cs
++++ b/src/Tertius.Rendering/Scene/SceneBatcher.cs
+@@ -1077,6 +1077,10 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float
+             );
+             if (!Reaches(faces: faces, axes: scene.MapAxes, light: prepared))
+                 continue;
++            // SCRATCH (t0-ion0, the strips check): TERTIUS_NO_SUN=1 drops every light beyond 10^9 m, as the probe of
++            // ter-kh4g's stage 2 (t1-g4p1) does.
++            if (prepared.Distance > 1e9 && Environment.GetEnvironmentVariable("TERTIUS_NO_SUN") == "1")
++                continue;
+             if (i == sun)
+                 scene.AirSunLight = scene.LightCount;
+             scene.AddLight() = prepared;
+diff --git a/src/Tertius.Rendering/ShaderConstants.cs b/src/Tertius.Rendering/ShaderConstants.cs
+index 99ad27d6f..3a6966f05 100644
+--- a/src/Tertius.Rendering/ShaderConstants.cs
++++ b/src/Tertius.Rendering/ShaderConstants.cs
+@@ -124,6 +124,35 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
+             (NeighborLimitPrototypeId, VkBool(values.NeighborLimitPrototype)),
+             (ReflectionSharingPrototypeId, VkBool(values.ReflectionSharingPrototype)),
+             (TileCornerMeansId, VkBool(values.TileCornerMeans)),
++            // PROBE (tools/renderer-survey): probeSignal of composite_pass.glsl.
++            (12u, uint.TryParse(Environment.GetEnvironmentVariable("TERTIUS_PROBE_SIGNAL"), out uint probeSignal) ? probeSignal : 0u),
++            // PROBE: LeastMotion of sample_age.glsl (TERTIUS_X_LEAST_MOTION).
++            (13u, BitConverter.SingleToUInt32Bits(AccumulatePushConstants.ProbeX.LeastMotion)),
++            // SCRATCH: FullRateFrames of screen_trace.glsl (TERTIUS_X_FULL_RATE).
++            (14u, BitConverter.SingleToUInt32Bits(float.TryParse(Environment.GetEnvironmentVariable("TERTIUS_X_FULL_RATE"), out float fullRate) ? fullRate : 8f)),
++            // SCRATCH (t0-y46f): MostRayWeight of screen_trace.glsl (TERTIUS_X_MOST_WEIGHT).
++            (15u, BitConverter.SingleToUInt32Bits(float.TryParse(Environment.GetEnvironmentVariable("TERTIUS_X_MOST_WEIGHT"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float mostWeight) ? mostWeight : 4f)),
++            // SCRATCH (t0-y46f): probeWindowAll of accumulate.glsl (TERTIUS_X_WINDOW_ALL=1).
++            (16u, VkBool(Environment.GetEnvironmentVariable("TERTIUS_X_WINDOW_ALL") == "1")),
++            // SCRATCH (t0-y46f): ProbeDiffuseCap of accumulate_spatial.comp (TERTIUS_X_DIFFUSE_CAP).
++            (17u, BitConverter.SingleToUInt32Bits(float.TryParse(Environment.GetEnvironmentVariable("TERTIUS_X_DIFFUSE_CAP"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float diffuseCap) ? diffuseCap : 0f)),
++            // SCRATCH (t0-xlcu): ProbeRegionRule, ProbeRegionActs and ProbeRegionCount of accumulate_spatial.comp.
++            (18u, AccumulatePushConstants.ProbeX.RegionRule),
++            (19u, VkBool(AccumulatePushConstants.ProbeX.RegionActs)),
++            (20u, VkBool(AccumulatePushConstants.ProbeX.RegionCountFolder != null)),
++            // SCRATCH (t8-69v7, ported by t0-ion0): probeHalfNearest of temporal.glsl (TERTIUS_X_HALF_NEAREST=1).
++            (22u, VkBool(Environment.GetEnvironmentVariable("TERTIUS_X_HALF_NEAREST") == "1")),
++            // SCRATCH (t0-ion0): the drift test of accumulate_spatial.comp.
++            (23u, AccumulatePushConstants.ProbeX.DriftRadius),
++            (24u, AccumulatePushConstants.ProbeX.DriftRule),
++            (25u, VkBool(AccumulatePushConstants.ProbeX.DriftActs)),
++            (26u, VkBool(AccumulatePushConstants.ProbeX.DriftCountFolder != null)),
++            (27u, BitConverter.SingleToUInt32Bits(AccumulatePushConstants.ProbeX.DriftTolerance)),
++            (28u, BitConverter.SingleToUInt32Bits(AccumulatePushConstants.ProbeX.DriftSigmas)),
++            // SCRATCH (t0-xdck): the drift test's own cut length (accumulate_spatial.comp, ProbeDriftCut).
++            (29u, BitConverter.SingleToUInt32Bits(AccumulatePushConstants.ProbeX.DriftCut)),
++            // SCRATCH (t0-xdck): ProbeDriftCenters of accumulate.glsl (TERTIUS_X_DRIFT_CENTERS, 0, 1 or 2).
++            (30u, uint.TryParse(Environment.GetEnvironmentVariable("TERTIUS_X_DRIFT_CENTERS"), out uint centers) ? centers : 0u),
+         ];
+         for (int i = 0; i < rows.Length; i++)
+         {
+@@ -155,7 +184,7 @@ internal struct SpecializationStorage
+     /// The number of constants: one per field of <see cref="ShaderConstants"/>, the subsurface setting's being its taps per
+     /// side. <see cref="ShaderConstants.Specialization"/> writes one row per constant, and a row past this count throws.
+     /// </summary>
+-    public const int Count = 11;
++    public const int Count = 29; // SCRATCH (t0-xlcu, t0-ion0, t0-xdck): 17 plus constants 18 to 20 and 22 to 30
+ 
+     public SpecializationValues Data;
+     public SpecializationEntries Entries;
+diff --git a/src/Tertius.Rendering/Shaders/accumulate.glsl b/src/Tertius.Rendering/Shaders/accumulate.glsl
+index e3f70de95..cea399d89 100644
+--- a/src/Tertius.Rendering/Shaders/accumulate.glsl
++++ b/src/Tertius.Rendering/Shaders/accumulate.glsl
+@@ -29,7 +29,27 @@ layout(set = 3, binding = 8) uniform texture2D lastDeviceDepth;               //
+ // rays and its motion bit. The temporal dispatch cuts the history to the light code's age, and the spatial dispatch forms
+ // its block's evidence from both (docs/plans/bounce-light-confidence.md, section 8.4).
+ layout(set = 3, binding = 11, r16ui) uniform readonly uimage2D sampleAge;
++// SCRATCH (t0-mzhr, TERTIUS_X_REGION_WINDOW): the regional test's window ring. Layer k < window holds the luminance of the
++// pixel's sample of draw k mod window, divided by the exposure scale; layer `window` holds the exact mean of the last
++// min(draws since reset, window) of them, in this draw's exposure scale. The temporal dispatch writes both at its own
++// pixel, and the spatial dispatch reads the mean at its taps.
+ #endif
++// SCRATCH (t0-y46f): declared outside TERTIUS_LIGHT_AGE, so that the diffuse signal's temporal dispatch, which has no
++// light-age variant (HistoryInstrumentation.cs, ShaderVariant.LightAge), can write it under TERTIUS_X_WINDOW_ALL. The
++// signal layout holds binding 13 for every signal whenever the renderer's history mode keeps the light age.
++layout(set = 3, binding = 13, r32f) uniform image2DArray regionWindow;
++// SCRATCH (t0-y46f): TERTIUS_X_WINDOW_ALL, specialization constant 16.
++layout(constant_id = 16) const bool probeWindowAll = false;
++// SCRATCH (t0-xdck): TERTIUS_X_DRIFT_CENTERS. 1 runs the drift test and writes the window ring only at the blocks' center
++// pixels, local pixel (4, 4) of each 8 x 8 group. The test's taps lie 8 pixels apart, so a center's taps are centers too,
++// and only the centers' test gives block evidence. 2 runs the test and writes the ring at no pixel, for the cost of the
++// test's code alone: it keeps the code in the shaders but gives no evidence. 0 (unset) runs both at every pixel.
++// Specialization constant 30.
++layout(constant_id = 30) const int ProbeDriftCenters = 0;
++bool probeDriftCenter(ivec2 pixel)
++{
++    return ProbeDriftCenters == 1 && all(equal(pixel & 7, ivec2(4)));
++}
+ 
+ #ifdef TERTIUS_ACCUMULATION_TRACE
+ // The accumulation trace (ticket tiunr-4b2g, TemporalSignal.AccumulationTrace), which only the capture tool and the tests
+@@ -65,6 +85,20 @@ layout(push_constant, std430) uniform AccumulatePush
+     float reflectedPlaceBelow;   // the roughness below which the reflected place competes, with its distance test, 0 for none
+     uint reset;          // 1 in a frame that resets every history
+     float retainedSigmas;  // the clamp box's least half width in retained deviations, 0 for the narrow box
++    // PROBE (tools/renderer-survey): Design X's knobs (AccumulatePushConstants.ProbeX). 1 where both causes of motion cut
++    // as light evidence does (TERTIUS_A_MOTION_CUTS), 1 where the moved mark cuts (TERTIUS_X_MOVED_ACTION=cut), the causes
++    // that give evidence (TERTIUS_X_CAUSES: 1 light, 2 moved, 4 moving), 0 where evidence does not act
++    // (TERTIUS_X_EVIDENCE_ACTION=0), and RecentLightAge (TERTIUS_X_RECENT_LIGHT_AGE).
++    uint probeMotionCuts;
++    uint probeMovedCuts;
++    uint probeCauses;
++    uint probeEvidenceAction;
++    uint probeRecentLightAge;
++    // SCRATCH (t0-mzhr): the draw index since the last reset, TERTIUS_X_REGION_WINDOW and TERTIUS_X_CUT_LENGTH
++    // (AccumulatePushConstants).
++    uint probeDraw;
++    uint probeRegionWindow;
++    float probeCutLength;
+ } parameters;
+ 
+ // SignalLight.
+diff --git a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
+index b129db792..e8e820d56 100644
+--- a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
++++ b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
+@@ -10,6 +10,9 @@
+ #include "accumulate_reflection_guide.glsl"
+ #include "meter.glsl"
+ 
++// SCRATCH (t0-y46f): TERTIUS_X_DIFFUSE_CAP, specialization constant 17.
++layout(constant_id = 17) const float ProbeDiffuseCap = 0.0;
++
+ // The least luminance by which the clamp divides: the lag's share and the chroma of the widening.
+ const float LeastLuminance = 1e-4;
+ 
+@@ -22,6 +25,11 @@ const uint LightEvidence = 2u;
+ #ifdef TERTIUS_LIGHT_AGE
+ // The block's evidence level in this draw, which its 64 invocations share.
+ shared uint blockEvidence;
++// SCRATCH: the youngest recent light code of the block's samples, 0xFFFF for none.
++shared uint blockCode;
++// SCRATCH (t0-ion0): the drift rules that fire at the block's center pixel in this draw, bit 0 Q0, bit 1 Q1 and bit 2
++// Q2 (driftBitsOf).
++shared uint blockDrift;
+ 
+ // The evidence level of one sample, from its age (sample_age.glsl): light evidence where one of its rays saw a recent
+ // light change, motion evidence where it saw motion. This is the one place that chooses the action of motion: a moved
+@@ -29,31 +37,227 @@ shared uint blockEvidence;
+ // lasts (docs/plans/bounce-light-confidence.md, section 8.2, open point 1).
+ uint evidenceOfSample(uint sampleAge)
+ {
+-    if (recentLightCode(lightCodeOf(sampleAge)))
++    // PROBE (tools/renderer-survey): the rule of AccumulatePushConstants.ProbeX.LevelOf. The probe's resolve writes the
++    // moved mark in SampleMotionBit and the pixel's own motion in ProbeMovingBit.
++    uint code = lightCodeOf(sampleAge);
++    bool light = (parameters.probeCauses & 1u) != 0u && code != 0u && code - 1u < (parameters.probeRecentLightAge & 0xFFu);
++    bool moved = (parameters.probeCauses & 2u) != 0u && (sampleAge & SampleMotionBit) != 0u;
++    bool moving = (parameters.probeCauses & 4u) != 0u && (sampleAge & ProbeMovingBit) != 0u;
++    if (light || (moved && (parameters.probeMovedCuts != 0u || parameters.probeMotionCuts != 0u))
++        || (moving && parameters.probeMotionCuts != 0u))
+         return LightEvidence;
+-    return sawMotion(sampleAge) ? MotionEvidence : NoEvidence;
++    return moved || moving ? MotionEvidence : NoEvidence;
+ }
+ 
+ // The evidence level of the workgroup's block: the strongest level of its pixels' samples. Every invocation of the
+ // workgroup calls it from main before any branch, so both barriers run in uniform control flow. A maximum does not depend
+ // on the order of the invocations, so one machine gives the same level in every run. A sky pixel's age is 0, and a pixel
+ // outside the images adds nothing.
+-uint evidenceOfBlock(ivec2 pixel)
++uint evidenceOfBlock(ivec2 pixel, uint driftBits)
+ {
+     if (gl_LocalInvocationIndex == 0u)
++    {
+         blockEvidence = NoEvidence;
++        blockCode = 0xFFFFu;
++        blockDrift = 0u;
++    }
+     barrier();
+     if (insideImages(pixel))
+-        atomicMax(blockEvidence, evidenceOfSample(imageLoad(sampleAge, pixel).r));
++    {
++        uint age = imageLoad(sampleAge, pixel).r;
++        atomicMax(blockEvidence, evidenceOfSample(age));
++        uint code = lightCodeOf(age);
++        if (code != 0u && code - 1u < (parameters.probeRecentLightAge & 0xFFu))
++            atomicMin(blockCode, code);
++        // SCRATCH (t0-ion0): the drift rules of the block's center pixel; the others pass 0.
++        atomicOr(blockDrift, driftBits);
++        // SCRATCH (TERTIUS_X_DILATE): the light evidence of the blocks within `radius` blocks counts for this block too.
++        // Each invocation reads its own place in every neighbor block, so the workgroup reads all their pixels.
++        int radius = int((parameters.probeRecentLightAge >> 8) & 0xFFu);
++        for (int by = -radius; by <= radius; by++)
++            for (int bx = -radius; bx <= radius; bx++)
++            {
++                ivec2 neighbor = pixel + 8 * ivec2(bx, by);
++                if ((bx != 0 || by != 0) && insideImages(neighbor)
++                    && evidenceOfSample(imageLoad(sampleAge, neighbor).r) == LightEvidence)
++                    atomicMax(blockEvidence, LightEvidence);
++            }
++    }
+     barrier();
+     return blockEvidence;
+ }
+ #endif
+ 
++#ifdef TERTIUS_LIGHT_AGE
++// SCRATCH (t0-xlcu): TERTIUS_X_REGION_RULE (0 the tolerance TERTIUS_X_REGION_TOL, 1 the region's measured spread T1, 2
++// the stored spread T2, 3 T1 with the spread of the successive differences, T3), TERTIUS_X_REGION_ACT=0 (the test computes but does not shorten) and TERTIUS_X_REGION_COUNT (the
++// spatial dispatch writes the test's quantities into the window ring's last five layers), specialization constants 18
++// to 20. The derived rules act on the bounce light only: the reflections keep the tolerance of rule 0, because their fast
++// history's alpha holds the hit distance, not a retained deviation.
++layout(constant_id = 18) const int ProbeRegionRule = 0;
++layout(constant_id = 19) const bool ProbeRegionActs = true;
++layout(constant_id = 20) const bool ProbeRegionCount = false;
++
++// The standard deviations of the derived tolerances, as many as the clamp's box takes (ClampSigmas, RetainedSigmas).
++const float RegionSigmas = 2.0;
++
++// Whether the dispatch takes the path of the derived rules, which also holds the second ring. With every switch of this
++// ticket unset, the dispatch keeps the test of t0-mzhr as it was, so the control repeats it.
++bool regionSpreadPath()
++{
++    return ProbeRegionRule != 0 || !ProbeRegionActs || ProbeRegionCount;
++}
++
++// The regional test's radius in ray blocks (TERTIUS_X_REGION), 0 for no test.
++int regionRadius()
++{
++    return int((parameters.probeRecentLightAge >> 16) & 0xFFu);
++}
++
++// The second ring at `pixel`: layer window + 1 + k holds F, the sum over the taps of the first ring's layer k, the
++// region's light in the single draw k mod window, divided by that draw's exposure scale. Writes this draw's layer and
++// returns two spreads of F over the last min(draws since reset, window) draws, in this draw's exposure scale, 0 for one
++// draw: x the standard deviation with the divisor filled - 1, y the spread of the successive differences,
++// sqrt(sum of (F(t) - F(t - 1))^2 / (2 (filled - 1))) (von Neumann). A step of F within the window adds one term to y but
++// raises x by about half the step. Every pixel inside the images writes it in every draw, also a sky pixel,
++// so that a tap's ring never holds an old draw.
++vec2 storeRegionDraw(ivec2 pixel)
++{
++    int region = regionRadius();
++    uint window = parameters.probeRegionWindow;
++    if (region == 0 || window == 4u)
++        return vec2(0.0);
++    uint current = parameters.probeDraw % window;
++    float draw = 0.0;
++    for (int by = -region; by <= region; by++)
++        for (int bx = -region; bx <= region; bx++)
++        {
++            ivec2 tap = pixel + 8 * ivec2(bx, by);
++            if (insideImages(tap))
++                draw += imageLoad(regionWindow, ivec3(tap, int(current))).r;
++        }
++    imageStore(regionWindow, ivec3(pixel, int(window + 1u + current)), vec4(draw));
++    uint filled = min(parameters.probeDraw + 1u, window);
++    if (filled < 2u)
++        return vec2(0.0);
++    // The other layers come from memory and this draw's from the register, so no read depends on a write of the same
++    // invocation.
++    float sum = draw;
++    for (uint k = 0u; k < filled; k++)
++        if (k != current)
++            sum += imageLoad(regionWindow, ivec3(pixel, int(window + 1u + k))).r;
++    float mean = sum / float(filled);
++    float squares = (draw - mean) * (draw - mean);
++    for (uint k = 0u; k < filled; k++)
++        if (k != current)
++        {
++            float other = imageLoad(regionWindow, ivec3(pixel, int(window + 1u + k))).r - mean;
++            squares += other * other;
++        }
++    // The successive differences, from this draw back over the filled - 1 pairs of consecutive draws in the window.
++    float steps = 0.0;
++    float later = draw;
++    for (uint back = 1u; back < filled; back++)
++    {
++        uint k = (parameters.probeDraw - back) % window;
++        float earlier = imageLoad(regionWindow, ivec3(pixel, int(window + 1u + k))).r;
++        steps += (later - earlier) * (later - earlier);
++        later = earlier;
++    }
++    float scale = exp2(clamp(exposureStops, -64.0, 64.0));
++    return scale * vec2(sqrt(squares / float(filled - 1u)), sqrt(steps / (2.0 * float(filled - 1u))));
++}
++
++// The quantities of the regional test at a surface pixel: the lag |S - R| / R and the tolerances T1, T2 and T3.
++struct RegionTest
++{
++    float lag;
++    float spreadTolerance;
++    float storedTolerance;
++    float stepTolerance;
++};
++
++// The regional test at `pixel` (ticket t0-xlcu, "The quantities"), where `spread` is storeRegionDraw's two spreads. S is the slow
++// sum, R the fast sum over the taps. n is the mean slow length over the taps with a surface, and a tap with a surface
++// adds its retained deviation sr(q) to T2.
++RegionTest regionTestAt(ivec2 pixel, vec2 spread)
++{
++    int region = regionRadius();
++    uint window = parameters.probeRegionWindow;
++    float slowSum = 0.0;
++    float fastSum = 0.0;
++    float lengths = 0.0;
++    float surfaces = 0.0;
++    float storedVariance = 0.0;
++    for (int by = -region; by <= region; by++)
++        for (int bx = -region; bx <= region; bx++)
++        {
++            ivec2 tap = pixel + 8 * ivec2(bx, by);
++            if (!insideImages(tap))
++                continue;
++            vec4 slowTap = imageLoad(scratch, tap);
++            slowSum += luminance(slowTap.rgb);
++            fastSum += window == 4u ? luminance(imageLoad(fastHistory, tap).rgb)
++                : imageLoad(regionWindow, ivec3(tap, int(window))).r;
++            if (slowTap.a >= 1.0)
++            {
++                lengths += slowTap.a;
++                surfaces += 1.0;
++                float deviation = parameters.light == DiffuseLight ? imageLoad(fastHistory, tap).a : 0.0;
++                storedVariance += deviation * deviation * (1.0 / float(window) + 1.0 / (2.0 * slowTap.a - 1.0));
++            }
++        }
++    float fast = max(fastSum, LeastLuminance);
++    float n = surfaces > 0.0 ? lengths / surfaces : 1.0;
++    RegionTest test;
++    test.lag = abs(slowSum - fastSum) / fast;
++    float weights = sqrt(1.0 / float(window) + 1.0 / (2.0 * n - 1.0));
++    test.spreadTolerance = RegionSigmas * spread.x / fast * weights;
++    test.stepTolerance = RegionSigmas * spread.y / fast * weights;
++    test.storedTolerance = RegionSigmas * sqrt(storedVariance) / fast;
++    return test;
++}
++
++// The tolerance that TERTIUS_X_REGION_RULE chooses for `test`.
++float regionTolerance(RegionTest test)
++{
++    float tolerance = float(parameters.probeRecentLightAge >> 24) / 100.0;
++    if (parameters.light != DiffuseLight)
++        return tolerance;
++    return ProbeRegionRule == 1 ? test.spreadTolerance
++        : ProbeRegionRule == 2 ? test.storedTolerance
++        : ProbeRegionRule == 3 ? test.stepTolerance
++        : tolerance;
++}
++
++// TERTIUS_X_REGION_COUNT: the test's quantities at `pixel` in the ring's layers 2 window + 1 to 2 window + 5: the lag,
++// T1, T2, T3 and 1 where the test acts on the pixel (its length above the fast cap), 2 where it does not, 0 for the sky.
++void storeRegionCount(ivec2 pixel, RegionTest test, float tested)
++{
++    int first = int(2u * parameters.probeRegionWindow + 1u);
++    imageStore(regionWindow, ivec3(pixel, first), vec4(test.lag));
++    imageStore(regionWindow, ivec3(pixel, first + 1), vec4(test.spreadTolerance));
++    imageStore(regionWindow, ivec3(pixel, first + 2), vec4(test.storedTolerance));
++    imageStore(regionWindow, ivec3(pixel, first + 3), vec4(test.stepTolerance));
++    imageStore(regionWindow, ivec3(pixel, first + 4), vec4(tested));
++}
++#endif
++
+ // Steps 3 to 5 at a pixel inside the images, where `evidence` is its block's evidence level in this draw.
++// SCRATCH (t0-xdck): TERTIUS_X_DRIFT_CUT, the length to which the drift test's evidence alone cuts a history, in place of
++// the fast cap; 0 (unset) keeps the fast cap. Light evidence of a ray keeps its cut to the fast cap. At 8, FullRateFrames
++// of the ray plan, a history cut by the drift test alone keeps the block's shared ray. Specialization constant 29.
++layout(constant_id = 29) const float ProbeDriftCut = 0.0;
++// SCRATCH (t0-xdck): whether this invocation's light evidence comes from the drift test alone, not from a ray (main).
++bool probeDriftOnly = false;
++
+ void accumulateAt(ivec2 pixel, uint evidence)
+ {
+     vec4 scratched = imageLoad(scratch, pixel);
++#ifdef TERTIUS_LIGHT_AGE
++    // SCRATCH (t0-xlcu): the second ring, at every pixel inside the images.
++    vec2 regionSpread = regionSpreadPath() ? storeRegionDraw(pixel) : vec2(0.0);
++#endif
+     vec2 guide = vec2(0.0);
+     if (reflectionSharingPrototype && parameters.light == SpecularLight)
+         guide = imageLoad(reflectionGuideScratch, pixel).rg;
+@@ -62,6 +266,11 @@ void accumulateAt(ivec2 pixel, uint evidence)
+         imageStore(slowHistory, pixel, vec4(0.0));
+         if (reflectionSharingPrototype && parameters.light == SpecularLight)
+             imageStore(reflectionGuide, pixel, vec4(0.0));
++#ifdef TERTIUS_LIGHT_AGE
++        // SCRATCH (t0-xlcu): a sky pixel counts as 0 in every layer of the count.
++        if (ProbeRegionCount && regionRadius() > 0)
++            storeRegionCount(pixel, RegionTest(0.0, 0.0, 0.0, 0.0), 0.0);
++#endif
+ #ifdef TERTIUS_ACCUMULATION_TRACE
+         for (int layer = 4; layer < 8; layer++)
+             storeTrace(pixel, layer, vec4(0.0));
+@@ -104,6 +313,18 @@ void accumulateAt(ivec2 pixel, uint evidence)
+         guide = guideSum / weights;
+     }
+ 
++#ifdef TERTIUS_LIGHT_AGE
++    // SCRATCH (t0-xlcu): the regional test's quantities at every surface pixel, from the slow histories before this
++    // dispatch, so that the count also holds the pixels that the test does not act on.
++    RegionTest regionTest = RegionTest(0.0, 0.0, 0.0, 0.0);
++    if (regionSpreadPath() && regionRadius() > 0)
++    {
++        regionTest = regionTestAt(pixel, regionSpread);
++        if (ProbeRegionCount)
++            storeRegionCount(pixel, regionTest, historyLength > fastCap ? 1.0 : 2.0);
++    }
++#endif
++
+     // Step 4, the clamp and the anti-lag, only past the fast cap: until then the slow history holds no more frames than the
+     // fast history, so it has no lag to remove.
+     if (historyLength > fastCap)
+@@ -129,12 +350,39 @@ void accumulateAt(ivec2 pixel, uint evidence)
+         // section 7). The reflections' narrow box takes none, and either level of evidence drops the widening for this
+         // draw.
+         vec3 spread = parameters.clampSigmas * sigma;
+-        if (parameters.retainedSigmas > 0.0 && evidence == NoEvidence)
++        // SCRATCH: TERTIUS_X_LIGHT_ACTION (GpuTypes.cs).
++        bool lightActs = evidence == LightEvidence;
++        uint act = parameters.probeEvidenceAction;
++        bool keepsWide = lightActs && (act == 2u || act == 4u || act == 5u || act == 6u);
++        float cutLength = act == 5u || act == 7u ? max(fastCap, 8.0) : fastCap;
++        // SCRATCH (t0-mzhr, TERTIUS_X_CUT_LENGTH): the length to which light evidence cuts, in place of the fast cap.
++        if (parameters.probeCutLength > 0.0 && !(act == 5u || act == 7u))
++            cutLength = parameters.probeCutLength;
++        if (act == 8u)
++            keepsWide = lightActs && historyLength <= fastCap + 1.0;
++        // SCRATCH (t0-xdck): the drift test's own cut length.
++        if (probeDriftOnly && ProbeDriftCut > 0.0)
++            cutLength = max(fastCap, ProbeDriftCut);
++#ifdef TERTIUS_LIGHT_AGE
++        if (act == 9u)
++        {
++            cutLength = max(fastCap, float(blockCode) + 3.0);
++            keepsWide = lightActs && historyLength <= cutLength + 1.0;
++        }
++        if (act == 10u)
++        {
++            cutLength = max(fastCap, float(blockCode) + 3.0);
++            keepsWide = lightActs;
++        }
++#endif
++        bool lightCuts = lightActs && parameters.probeEvidenceAction != 3u;
++        if (parameters.retainedSigmas > 0.0 && (evidence == NoEvidence || keepsWide))
+         {
+             float deviation = imageLoad(fastHistory, pixel).a;
+             spread = max(spread, parameters.retainedSigmas * deviation * slow / max(luminance(slow), LeastLuminance));
+         }
+-        vec3 clamped = clamp(slow, mean - spread, mean + spread);
++        // PROBE (tools/renderer-survey): a negative clampSigmas is TERTIUS_A_NO_CLAMP, no clamp and so no anti-lag move.
++        vec3 clamped = parameters.clampSigmas < 0.0 || act == 6u ? slow : clamp(slow, mean - spread, mean + spread);
+         float lag = luminance(abs(slow - clamped)) / max(luminance(mean), LeastLuminance);
+ #ifdef TERTIUS_ACCUMULATION_TRACE
+         storeTrace(pixel, 5, vec4(slow, 1.0));
+@@ -143,10 +391,52 @@ void accumulateAt(ivec2 pixel, uint evidence)
+ #endif
+         // Light evidence restarts the history from the fast window, which already holds the change. Motion has no known
+         // size, so the narrow box measures it, and the anti-lag shortens the history by the clamp's move.
+-        historyLength = evidence == LightEvidence
+-            ? fastCap
++        historyLength = lightCuts
++            ? min(historyLength, cutLength)
+             : max(fastCap, historyLength * (1.0 - min(1.0, lag / parameters.antiLagShare)));
+         slow = clamped;
++        if (lightActs && parameters.probeEvidenceAction == 4u)
++            slow = imageLoad(fastHistory, pixel).rgb;
++        // SCRATCH (TERTIUS_X_REGION, TERTIUS_X_REGION_TOL): the regional lag. The means of the slow history before this
++        // dispatch (the scratch image) and of the fast history over one tap per ray block within `region` blocks, on any
++        // surface. Where the slow mean stands away from the fast mean by more than the tolerance, the anti-lag shortens
++        // the history by the excess.
++        int region = int((parameters.probeRecentLightAge >> 16) & 0xFFu);
++#ifdef TERTIUS_LIGHT_AGE
++        // SCRATCH (t0-xlcu): the derived rules and the test without action.
++        if (region > 0 && regionSpreadPath())
++        {
++            float regionLag = max(regionTest.lag - regionTolerance(regionTest), 0.0);
++            if (ProbeRegionActs)
++                historyLength = max(fastCap, historyLength * (1.0 - min(1.0, regionLag / parameters.antiLagShare)));
++        }
++        else
++#endif
++        if (region > 0)
++        {
++            float tolerance = float(parameters.probeRecentLightAge >> 24) / 100.0;
++            float slowSum = 0.0;
++            float fastSum = 0.0;
++            for (int by = -region; by <= region; by++)
++                for (int bx = -region; bx <= region; bx++)
++                {
++                    ivec2 tap = pixel + 8 * ivec2(bx, by);
++                    if (!insideImages(tap))
++                        continue;
++                    slowSum += luminance(imageLoad(scratch, tap).rgb);
++#ifdef TERTIUS_LIGHT_AGE
++                    // SCRATCH (t0-mzhr, TERTIUS_X_REGION_WINDOW): another window than 4 takes the exact box mean of the
++                    // tap's samples over the last `window` draws (accumulate_temporal.comp, storeRegionWindow).
++                    uint window = parameters.probeRegionWindow;
++                    fastSum += window == 4u ? luminance(imageLoad(fastHistory, tap).rgb)
++                        : imageLoad(regionWindow, ivec3(tap, int(window))).r;
++#else
++                    fastSum += luminance(imageLoad(fastHistory, tap).rgb);
++#endif
++                }
++            float regionLag = max(abs(slowSum - fastSum) / max(fastSum, LeastLuminance) - tolerance, 0.0);
++            historyLength = max(fastCap, historyLength * (1.0 - min(1.0, regionLag / parameters.antiLagShare)));
++        }
+     }
+ 
+ #ifdef TERTIUS_ACCUMULATION_TRACE
+@@ -159,18 +449,170 @@ void accumulateAt(ivec2 pixel, uint evidence)
+     storeTrace(pixel, 4, vec4(tracedBefore, historyLength, 0.0, 0.0));
+ #endif
+ 
++    // SCRATCH (t0-y46f, TERTIUS_X_DIFFUSE_CAP): the diffuse history's length at most this many draws, at every pixel and
++    // without any test. 0 leaves the length as it is.
++    if (ProbeDiffuseCap > 0.0 && parameters.light == DiffuseLight)
++        historyLength = min(historyLength, ProbeDiffuseCap);
++
++    // SCRATCH (t8-69v7, ported by t0-ion0; TERTIUS_X_HALF_NEAREST): the diffuse history rounded to the nearest half float.
++    if (probeHalfNearest && parameters.light == DiffuseLight)
++        slow = nearestHalf(slow);
++
+     // Step 5.
+     imageStore(slowHistory, pixel, vec4(slow, historyLength));
+     if (reflectionSharingPrototype && parameters.light == SpecularLight)
+         imageStore(reflectionGuide, pixel, vec4(guide, 0.0, 0.0));
+ }
+ 
++#ifdef TERTIUS_LIGHT_AGE
++// SCRATCH (t0-ion0): the region's drift as light evidence. TERTIUS_X_DRIFT=<radius in ray blocks> turns it on,
++// TERTIUS_X_DRIFT_RULE chooses Q0 (0, drift above TERTIUS_X_DRIFT_TOL percent), Q1 (1, drift above
++// TERTIUS_X_DRIFT_SIGMAS standard deviations of the difference of two 18-draw means, from the older window's spread) or
++// Q2 (2, the mean of the last m differences at equal jitter phase above its own tolerance, for m = 3, 6 or 18,
++// DriftTest), TERTIUS_X_DRIFT_ACT=0 computes
++// without giving evidence, and TERTIUS_X_DRIFT_COUNT writes the count. Specialization constants 23 to 28. It reads the
++// window ring of TERTIUS_X_REGION_WINDOW, so it needs that switch and TERTIUS_X_WINDOW_ALL=1 for the bounce light.
++layout(constant_id = 23) const int ProbeDriftRadius = 0;
++layout(constant_id = 24) const int ProbeDriftRule = 0;
++layout(constant_id = 25) const bool ProbeDriftActs = true;
++layout(constant_id = 26) const bool ProbeDriftCount = false;
++layout(constant_id = 27) const float ProbeDriftTolerance = 0.10;
++// TERTIUS_X_DRIFT_SIGMAS: the standard deviations of Q1's and Q2's tolerances, 2 when unset (Q1 at 3 is Q3).
++// Specialization constant 28.
++layout(constant_id = 28) const float ProbeDriftSigmas = 2.0;
++
++// The first layer of the drift ring in the window ring: after the ring, its mean, the second ring and the count of
++// t0-xlcu. The drift ring holds 2 window layers, and the drift count 8 layers after it.
++int driftBase()
++{
++    return int(2u * parameters.probeRegionWindow + 6u);
++}
++
++// The drift test at `pixel`: drift = |Rnew - Rold| / Rold, and Q1's tolerance s (dold / Rold) sqrt(2 / window), with s =
++// ProbeDriftSigmas. phase3 and phase6 = |the mean of the last m differences F(t - k) - F(t - k - window)| / Rold for
++// m = 3 and 6. Each difference pairs two draws at the same jitter phase. With m = window the mean is Rnew - Rold, so
++// drift is Q2's third length. Q2's tolerance for m is s (dold / Rold) sqrt(2 / m), Q1's tolerance times
++// sqrt(window / m).
++// valid is false until the ring holds 2 window draws since the last reset.
++struct DriftTest
++{
++    float drift;
++    float tolerance;
++    float phase3;
++    float phase6;
++    bool valid;
++};
++
++// Writes this draw's F, the sum of the taps' samples of this draw divided by its exposure scale, into the drift ring
++// at layer driftBase() + draw mod 2 window, and tests the newer window (this draw and the window - 1 before it) against
++// the older window (the window draws before those). The exposure scale cancels in both ratios. This draw's F comes
++// from the register and the others from memory, so no read depends on a write of the same invocation.
++DriftTest driftAt(ivec2 pixel)
++{
++    uint window = parameters.probeRegionWindow;
++    uint span = 2u * window;
++    int base = driftBase();
++    int sampleLayer = int(parameters.probeDraw % window);
++    float draw = 0.0;
++    for (int by = -ProbeDriftRadius; by <= ProbeDriftRadius; by++)
++        for (int bx = -ProbeDriftRadius; bx <= ProbeDriftRadius; bx++)
++        {
++            ivec2 tap = pixel + 8 * ivec2(bx, by);
++            if (insideImages(tap))
++                draw += imageLoad(regionWindow, ivec3(tap, sampleLayer)).r;
++        }
++    imageStore(regionWindow, ivec3(pixel, base + int(parameters.probeDraw % span)), vec4(draw));
++    DriftTest test = DriftTest(0.0, 0.0, 0.0, 0.0, false);
++    if (parameters.probeDraw + 1u < span)
++        return test;
++    float newer = draw;
++    for (uint back = 1u; back < window; back++)
++        newer += imageLoad(regionWindow, ivec3(pixel, base + int((parameters.probeDraw - back) % span))).r;
++    float older = 0.0;
++    for (uint back = window; back < span; back++)
++        older += imageLoad(regionWindow, ivec3(pixel, base + int((parameters.probeDraw - back) % span))).r;
++    float olderMean = older / float(window);
++    float squares = 0.0;
++    for (uint back = window; back < span; back++)
++    {
++        float other = imageLoad(regionWindow, ivec3(pixel, base + int((parameters.probeDraw - back) % span))).r - olderMean;
++        squares += other * other;
++    }
++    float olderSpread = sqrt(squares / float(window - 1u));
++    float divisor = max(olderMean, LeastLuminance);
++    test.drift = abs(newer / float(window) - olderMean) / divisor;
++    test.tolerance = ProbeDriftSigmas * olderSpread / divisor * sqrt(2.0 / float(window));
++    float differences = 0.0;
++    for (uint back = 0u; back < 6u; back++)
++    {
++        float now = back == 0u ? draw : imageLoad(regionWindow, ivec3(pixel, base + int((parameters.probeDraw - back) % span))).r;
++        differences += now - imageLoad(regionWindow, ivec3(pixel, base + int((parameters.probeDraw - back - window) % span))).r;
++        if (back == 2u)
++            test.phase3 = abs(differences / 3.0) / divisor;
++    }
++    test.phase6 = abs(differences / 6.0) / divisor;
++    test.valid = true;
++    return test;
++}
++
++// The rules that fire for `test`: bit 0 Q0, bit 1 Q1, bit 2 Q2 (any of its three lengths).
++uint driftBitsOf(DriftTest test)
++{
++    if (!test.valid)
++        return 0u;
++    float ratio = float(parameters.probeRegionWindow);
++    bool q2 = test.drift > test.tolerance || test.phase3 > test.tolerance * sqrt(ratio / 3.0)
++        || test.phase6 > test.tolerance * sqrt(ratio / 6.0);
++    return (test.drift > ProbeDriftTolerance ? 1u : 0u) | (test.drift > test.tolerance ? 2u : 0u) | (q2 ? 4u : 0u);
++}
++
++// TERTIUS_X_DRIFT_COUNT: at `pixel`, in the 8 layers after the drift ring: the drift, Q1's tolerance, whether Q0 and
++// whether Q1 fires at the block's center pixel (the block's evidence under that rule), 1 for a surface pixel with a
++// valid test, else 0, then phase3, phase6, and whether Q2 fires at the block's center pixel.
++void storeDriftCount(ivec2 pixel, DriftTest test, uint blockBits)
++{
++    int first = driftBase() + int(2u * parameters.probeRegionWindow);
++    bool counted = test.valid && texelFetch(gbufferDistance, pixel, 0).r > 0.0;
++    imageStore(regionWindow, ivec3(pixel, first), vec4(test.drift));
++    imageStore(regionWindow, ivec3(pixel, first + 1), vec4(test.tolerance));
++    imageStore(regionWindow, ivec3(pixel, first + 2), vec4(float(blockBits & 1u)));
++    imageStore(regionWindow, ivec3(pixel, first + 3), vec4(float((blockBits >> 1) & 1u)));
++    imageStore(regionWindow, ivec3(pixel, first + 4), vec4(counted ? 1.0 : 0.0));
++    imageStore(regionWindow, ivec3(pixel, first + 5), vec4(test.phase3));
++    imageStore(regionWindow, ivec3(pixel, first + 6), vec4(test.phase6));
++    imageStore(regionWindow, ivec3(pixel, first + 7), vec4(float((blockBits >> 2) & 1u)));
++}
++#endif
++
+ void main()
+ {
+     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+     // A signal without a light age has no evidence.
+ #ifdef TERTIUS_LIGHT_AGE
+-    uint evidence = evidenceOfBlock(pixel);
++    // SCRATCH (t0-ion0): the drift test before the block's evidence, which takes its rules' bits.
++    DriftTest drift = DriftTest(0.0, 0.0, 0.0, 0.0, false);
++    // SCRATCH (t0-xdck): TERTIUS_X_DRIFT_CENTERS, the test at the block's center pixel alone.
++    if (ProbeDriftRadius > 0 && insideImages(pixel) && (ProbeDriftCenters == 0 || probeDriftCenter(pixel)))
++        drift = driftAt(pixel);
++    // One test per block, at its center pixel (local pixel (4, 4)). Each pixel of a block reads another set of 289 tap
++    // pixels, so the tests of a block's 64 pixels are close to independent, and a block that took evidence from any of
++    // them had it in 76 % of the lamp hall's still draws under Q1 where a single pixel had it in 10 % (step 1's count).
++    bool blockCenter = all(equal(gl_LocalInvocationID.xy, uvec2(4u)));
++    uint evidence = evidenceOfBlock(pixel, blockCenter ? driftBitsOf(drift) : 0u);
++    // After the barrier of evidenceOfBlock, so every pixel of the block reads the same bits.
++    uint driftBits = blockDrift;
++    if (ProbeDriftRadius > 0 && ProbeDriftActs && (driftBits & (1u << uint(ProbeDriftRule))) != 0u)
++    {
++        // SCRATCH (t0-xdck): the evidence is the drift test's alone where no ray of the block gave light evidence.
++        probeDriftOnly = evidence < LightEvidence;
++        evidence = max(evidence, LightEvidence);
++    }
++    if (ProbeDriftCount && ProbeDriftRadius > 0 && insideImages(pixel))
++        storeDriftCount(pixel, drift, driftBits);
++    // PROBE (tools/renderer-survey): TERTIUS_A_NO_CLAMP, the truth, and TERTIUS_X_EVIDENCE_ACTION=0 drop the evidence's
++    // action.
++    if (parameters.clampSigmas < 0.0 || parameters.probeEvidenceAction == 0u)
++        evidence = NoEvidence;
+ #else
+     uint evidence = NoEvidence;
+ #endif
+diff --git a/src/Tertius.Rendering/Shaders/accumulate_temporal.comp b/src/Tertius.Rendering/Shaders/accumulate_temporal.comp
+index 69c906b30..050665e25 100644
+--- a/src/Tertius.Rendering/Shaders/accumulate_temporal.comp
++++ b/src/Tertius.Rendering/Shaders/accumulate_temporal.comp
+@@ -232,6 +232,31 @@ vec4 tracedPlaceWeights(ivec2 pixel)
+ }
+ #endif
+ 
++// SCRATCH (t0-y46f): outside TERTIUS_LIGHT_AGE, see probeWindowAll (accumulate.glsl).
++// SCRATCH (t0-mzhr, TERTIUS_X_REGION_WINDOW): writes the luminance of the pixel's sample of this draw into the window ring
++// (accumulate.glsl, regionWindow), and the exact mean of the ring's last min(draws since reset, window) layers into layer
++// `window`. The ring holds each luminance divided by its draw's exposure scale, so the mean is a box mean of the scene
++// light in this draw's scale. The sum takes this draw's value from the register, not from the layer that it just wrote.
++void storeRegionWindow(ivec2 pixel, float sampleLuminance)
++{
++    uint window = parameters.probeRegionWindow;
++    if (window == 4u)
++        return;
++    // SCRATCH (t0-xdck): only the drift test's center pixels read the ring.
++    if (ProbeDriftCenters != 0 && !probeDriftCenter(pixel))
++        return;
++    float scale = exp2(clamp(exposureStops, -64.0, 64.0));
++    uint current = parameters.probeDraw % window;
++    float value = sampleLuminance / scale;
++    imageStore(regionWindow, ivec3(pixel, int(current)), vec4(value));
++    uint filled = min(parameters.probeDraw + 1u, window);
++    float sum = value;
++    for (uint k = 0u; k < filled; k++)
++        if (k != current)
++            sum += imageLoad(regionWindow, ivec3(pixel, int(k))).r;
++    imageStore(regionWindow, ivec3(pixel, int(window)), vec4(scale * sum / float(filled)));
++}
++
+ void main()
+ {
+     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+@@ -248,6 +273,12 @@ void main()
+         for (int layer = 0; layer < 4; layer++)
+             storeTrace(pixel, layer, vec4(0.0));
+         storeTrace(pixel, 8, vec4(0.0));
++#endif
++#ifdef TERTIUS_LIGHT_AGE
++        storeRegionWindow(pixel, 0.0);
++#else
++        if (probeWindowAll)
++            storeRegionWindow(pixel, 0.0);
+ #endif
+         return;
+     }
+@@ -361,6 +392,20 @@ void main()
+         float fastLength = min(historyLength, fastCapOf(cap));
+         fast = fastLength <= 1.0 ? sampled : fast + (sampled - fast) / fastLength;
+     }
++#ifdef TERTIUS_LIGHT_AGE
++    // SCRATCH (t0-mzhr): the sample that the histories took, or the fast history where the pixel took none.
++    storeRegionWindow(pixel, hasSample ? luminance(sampled) : luminance(fast));
++#else
++    // SCRATCH (t0-y46f, TERTIUS_X_WINDOW_ALL): the same window for a signal without the light-age variant.
++    if (probeWindowAll)
++        storeRegionWindow(pixel, hasSample ? luminance(sampled) : luminance(fast));
++#endif
++    // SCRATCH (t8-69v7, ported by t0-ion0; TERTIUS_X_HALF_NEAREST): the diffuse histories rounded to the nearest half float.
++    if (probeHalfNearest && parameters.light == DiffuseLight)
++    {
++        slow.rgb = nearestHalf(slow.rgb);
++        fast = nearestHalf(fast);
++    }
+     imageStore(scratch, pixel, vec4(slow.rgb, historyLength));
+     imageStore(fastHistory, pixel, vec4(fast, parameters.light == SpecularLight ? hitDistance : deviation));
+     if (reflectionSharingPrototype && parameters.light == SpecularLight)
+diff --git a/src/Tertius.Rendering/Shaders/composite_pass.glsl b/src/Tertius.Rendering/Shaders/composite_pass.glsl
+index 72511023e..4a4419414 100644
+--- a/src/Tertius.Rendering/Shaders/composite_pass.glsl
++++ b/src/Tertius.Rendering/Shaders/composite_pass.glsl
+@@ -27,6 +27,11 @@ layout(set = 3, binding = 3, SPECULAR_HISTORY_FORMAT) uniform readonly image2D i
+ 
+ layout(location = 0) in vec3 inRay;
+ layout(location = 0) out vec4 outColor;
++
++// PROBE (tools/renderer-survey): TERTIUS_PROBE_SIGNAL shows one light signal alone. 0 all, 1 the direct light with the
++// emission, the sky and an impostor's baked light, 2 the bounce light (indirect diffuse), 3 the reflections (indirect
++// specular).
++layout(constant_id = 12) const int probeSignal = 0;
+ #ifdef SCATTER_OUTPUT
+ // The diffuse image: the pass writes every one of its pixels.
+ layout(location = 1) out vec4 outDiffuse;
+@@ -50,7 +55,9 @@ void main()
+ #ifdef TERTIUS_DIRECT_LIGHT_ONLY
+         outColor = vec4(0.0);
+ #else
+-        outColor = vec4(preExposed(skyRadiance(direction) + starRadiance(direction)), 1.0);
++        // PROBE: the sky and the stars count as direct light, so that the four renders add up.
++        outColor = probeSignal >= 2 ? vec4(0.0, 0.0, 0.0, 1.0)
++            : vec4(preExposed(skyRadiance(direction) + starRadiance(direction)), 1.0);
+ #endif
+         writeDiffuse(vec4(0.0));
+         return;
+@@ -64,7 +71,7 @@ void main()
+ #ifdef TERTIUS_DIRECT_DIFFUSE_ONLY
+         outColor = vec4(0.0);
+ #else
+-        outColor = vec4(emissive, 1.0);
++        outColor = vec4(probeSignal <= 1 ? emissive : vec3(0.0), 1.0);
+ #endif
+         writeDiffuse(vec4(0.0));
+         return;
+@@ -92,6 +99,15 @@ void main()
+         indirectSpecular = reflectionSharedAt(pixel, indirectSpecular);
+     // Each part is finite and at most a few times MaxRadiance, so the sum is finite, and the cap keeps the surfaces' share
+     // (docs/plans/screen-space-illumination.md, "The cap at MaxRadiance").
++    if (probeSignal != 0)
++    {
++        // PROBE: each signal alone, and its share of D for the skin scatter, so that the three signals add up.
++        directDiffuse *= float(probeSignal == 1);
++        directSpecular *= float(probeSignal == 1);
++        emissive *= float(probeSignal == 1);
++        indirectDiffuse *= float(probeSignal == 2);
++        indirectSpecular *= float(probeSignal == 3);
++    }
+     outColor = vec4(
+         min(directDiffuse + directSpecular + indirectDiffuse + indirectSpecular + emissive, vec3(MaxRadiance)), 1.0);
+     // D, at most MaxRadiance, and the mask, which marks the skin pixels that alone the scatter passes spread.
+diff --git a/src/Tertius.Rendering/Shaders/diffuse_filter_wavelet.glsl b/src/Tertius.Rendering/Shaders/diffuse_filter_wavelet.glsl
+index 1362601b6..c41015732 100644
+--- a/src/Tertius.Rendering/Shaders/diffuse_filter_wavelet.glsl
++++ b/src/Tertius.Rendering/Shaders/diffuse_filter_wavelet.glsl
+@@ -78,7 +78,8 @@ void main()
+     float deviation = min(kept * abs(centerLight.a) + deviationSum, MaxRadiance);
+     imageStore(filterOutput, pixel, vec4(filtered, deviation));
+     vec4 slow = imageLoad(slowHistory, pixel);
+-    imageStore(slowHistory, pixel, vec4(filtered, slow.a));
++    // SCRATCH (t8-69v7, ported by t0-ion0; TERTIUS_X_HALF_NEAREST): the fed-back light rounded to the nearest half float.
++    imageStore(slowHistory, pixel, vec4(probeHalfNearest ? nearestHalf(filtered) : filtered, slow.a));
+     if (slow.a >= YoungFrames)
+     {
+         float carried = min(kept * max(centerLight.a, 0.0) + carriedSum, MaxRadiance);
+diff --git a/src/Tertius.Rendering/Shaders/sample_age.glsl b/src/Tertius.Rendering/Shaders/sample_age.glsl
+index cd2d9449d..587b99260 100644
+--- a/src/Tertius.Rendering/Shaders/sample_age.glsl
++++ b/src/Tertius.Rendering/Shaders/sample_age.glsl
+@@ -12,8 +12,12 @@
+ // The sample's motion bit.
+ const uint SampleMotionBit = 0x8000u;
+ 
+-// The bits of the youngest light code.
+-const uint LightCodeMask = 0x7FFFu;
++// The bits of the youngest light code. PROBE (tools/renderer-survey): bits 0 to 13, which hold every code up to
++// MostCodedAge + 1, so that bit 14 can hold the pixel's own motion (ProbeMovingBit).
++const uint LightCodeMask = 0x3FFFu;
++
++// PROBE: the pixel's own motion on screen, apart from the moved mark of the sample's rays in SampleMotionBit.
++const uint ProbeMovingBit = 0x4000u;
+ 
+ // The light ages below which a light change is recent: 0 to 6, the light codes 1 to 7. The record counts a change after
+ // it lasts 4 draws, so a recent change began less than 11 draws ago, and the fast history, which keeps (3 / 4)^k of a
+@@ -21,7 +25,8 @@ const uint LightCodeMask = 0x7FFFu;
+ const uint RecentLightAge = 7u;
+ 
+ // The least motion on screen that counts, in pixels per draw: the gate's threshold of ter-18hc.
+-const float LeastMotion = 1.0 / 32.0;
++// PROBE: specialization constant 13, TERTIUS_X_LEAST_MOTION (ShaderConstants).
++layout(constant_id = 13) const float LeastMotion = 0.03125;
+ 
+ // The sample age of a sample whose rays bring the light code `lightCode`, with the motion bit where `motion` holds.
+ uint sampleAgeOf(uint lightCode, bool motion)
+diff --git a/src/Tertius.Rendering/Shaders/screen_trace.glsl b/src/Tertius.Rendering/Shaders/screen_trace.glsl
+index 9a5d94525..02a1ab242 100644
+--- a/src/Tertius.Rendering/Shaders/screen_trace.glsl
++++ b/src/Tertius.Rendering/Shaders/screen_trace.glsl
+@@ -251,10 +251,12 @@ const uint PlanOwnDiffuse = 2u;
+ 
+ 
+ // A pixel traces its own ray of a kind while its history of that kind is shorter than this (section 6, "The ray budget").
+-const float FullRateFrames = 8.0;
++// SCRATCH: specialization constant 14, TERTIUS_X_FULL_RATE.
++layout(constant_id = 14) const float FullRateFrames = 8.0;
+ 
+ // The largest weight of a ray at a pixel, which trades a small bias for no fireflies (section 6, "The resolve").
+-const float MostRayWeight = 4.0;
++// SCRATCH (t0-y46f): specialization constant 15, TERTIUS_X_MOST_WEIGHT.
++layout(constant_id = 15) const float MostRayWeight = 4.0;
+ 
+ // The least cosine of a block ray at its chosen pixel, 2^-14, by which the resolve divides.
+ const float LeastRayCosine = 0.00006103515625;
+diff --git a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
+index 321c4bebe..4c850c2bf 100644
+--- a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
++++ b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
+@@ -112,7 +112,8 @@ void main()
+     bool moves = movesOnScreen(pixel);
+     uint diffuseCode = diffuseRay.brings ? ageCodeOfRecord(diffuse.ray) : 0u;
+     bool diffuseMoved = diffuseRay.brings && movedHitOfRecord(diffuse.ray);
+-    imageStore(diffuseSampleAge, pixel, uvec4(sampleAgeOf(diffuseCode, moves || diffuseMoved)));
++    // PROBE (tools/renderer-survey): the pixel's own motion in its own bit, apart from the moved mark.
++    imageStore(diffuseSampleAge, pixel, uvec4(sampleAgeOf(diffuseCode, diffuseMoved) | (moves ? ProbeMovingBit : 0u)));
+ #endif
+ 
+     // The share of the diffuse ray's estimate in the specular sample: 0 below the hand-over band, 1 above it.
+@@ -163,7 +164,8 @@ void main()
+     }
+     imageStore(specularSample, pixel, vec4(min(specularLight, vec3(MaxRadiance)), hitDistance));
+ #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+-    imageStore(specularSampleAge, pixel, uvec4(sampleAgeOf(ageCode, moves || moved)));
++    // PROBE (tools/renderer-survey): the pixel's own motion in its own bit, apart from the moved mark.
++    imageStore(specularSampleAge, pixel, uvec4(sampleAgeOf(ageCode, moved) | (moves ? ProbeMovingBit : 0u)));
+ #endif
+ #ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
+     imageStore(uncoveredDiagnostic, pixel, vec4(float(seenCode) - 1.0, 0.0, 0.0, 0.0));
+diff --git a/src/Tertius.Rendering/Shaders/temporal.glsl b/src/Tertius.Rendering/Shaders/temporal.glsl
+index f467fbd7c..1e5c0e450 100644
+--- a/src/Tertius.Rendering/Shaders/temporal.glsl
++++ b/src/Tertius.Rendering/Shaders/temporal.glsl
+@@ -4,6 +4,29 @@
+ #ifndef TERTIUS_TEMPORAL_GLSL
+ #define TERTIUS_TEMPORAL_GLSL
+ 
++// SCRATCH (t8-69v7, ported by t0-ion0; TERTIUS_X_HALF_NEAREST=1, specialization constant 22): store the diffuse histories
++// rounded to the nearest half float. The Vulkan spec lets an implementation round a float to a half float either to the
++// nearest or toward zero. This rounds to the nearest itself, so that the store keeps the value exactly.
++layout(constant_id = 22) const bool probeHalfNearest = false;
++
++float nearestHalf(float x)
++{
++    float h = unpackHalf2x16(packHalf2x16(vec2(x, 0.0))).x;
++    float size = abs(h);
++    if (isinf(size) || isnan(size))
++        return h;
++    // The spacing of the half floats at h: 2^(e - 10) for a normal half, 2^-24 below the least normal one.
++    float spacing = size >= 6.103515625e-05 ? exp2(floor(log2(size)) - 10.0) : exp2(-24.0);
++    float other = h + (abs(x) > size ? sign(x) : -sign(x)) * spacing;
++    return abs(x - other) < abs(x - h) ? other : h;
++}
++
++vec3 nearestHalf(vec3 v)
++{
++    return vec3(nearestHalf(v.x), nearestHalf(v.y), nearestHalf(v.z));
++}
++
++
+ #include "frame.glsl"
+ #include "gbuffer_inputs.glsl"
+ #include "lighting.glsl"
+diff --git a/src/Tertius.Rendering/Shaders/tonemap.glsl b/src/Tertius.Rendering/Shaders/tonemap.glsl
+index b013dc9f9..d40cc1df3 100644
+--- a/src/Tertius.Rendering/Shaders/tonemap.glsl
++++ b/src/Tertius.Rendering/Shaders/tonemap.glsl
+@@ -67,6 +67,18 @@ void main()
+ #endif
+     // The passes that wrote the HDR image pre-exposed it, so the curve takes it as it is.
+     vec3 hdr = max(light, vec3(0.0));
++    if (tonemap.toneCurve != toneCurveAcesFitted)
++    {
++        // PROBE (tools/renderer-survey): log2 luminance in 24 bits over 2^-24 to 2^16, each byte written as the linear
++        // value whose sRGB code it is.
++        float y = dot(hdr, vec3(0.2126, 0.7152, 0.0722));
++        float v = y > 0.0 ? clamp((log2(y) + 24.0) / 40.0, 0.0, 1.0) : 0.0;
++        uint q = uint(v * 16777215.0 + 0.5);
++        vec3 bytes = vec3(float(q >> 16u), float((q >> 8u) & 255u), float(q & 255u)) / 255.0;
++        vec3 lin = mix(bytes / 12.92, pow((bytes + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), bytes));
++        outColor = vec4(tonemap.encodeSrgb != 0u ? bytes : lin, 1.0);
++        return;
++    }
+     vec3 ldr = tonemap.toneCurve == toneCurveAcesFitted ? acesFitted(hdr) : hable(hdr);
+     if (tonemap.encodeSrgb != 0u)
+         ldr = linearToSrgb(ldr);
+diff --git a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
+index 8409e824a..b459fbded 100644
+--- a/src/Tertius.Rendering/VulkanRenderer.cs
++++ b/src/Tertius.Rendering/VulkanRenderer.cs
+@@ -619,6 +619,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
+         device.Vk.ResetFences(device.Device, 1, &fence).Check("vkResetFences");
+         output.SubmitAndPresent(frame);
+         CommitDrawnFrame(frame: frame, snapshot: snapshot, pending: pending);
++        ProbeCensus();
++        ProbeLengths();
++        ProbeRegionCount();
+ 
+         if (sink != null && capture != null)
+         {
+@@ -639,6 +642,233 @@ public sealed unsafe class VulkanRenderer : IRenderer
+         return true;
+     }
+ 
++    // PROBE (tools/renderer-survey, never commit to src): the evidence census of docs/plans/bounce-light-confidence.md
++    // (section 21). With TERTIUS_X_CENSUS=<folder>, each draw reads back the sample age of each part of each signal that
++    // has one, and appends to <folder>/census.txt one line per signal and part:
++    // "<draw> <draw index since the last reset> <1 if the draw reset, else 0> <light> <part>", then the blocks of 8 x 8
++    // pixels at each level as evidenceOfSample gives it under the knobs (none, motion, light), then the blocks with a
++    // sample of each cause, whatever TERTIUS_X_CAUSES says (light: a recent light code; moved: a ray hit a moved surface;
++    // moving: the pixel's own surface moves on screen), then the pixels with each cause. Draws count from 0 over the run.
++    // With TERTIUS_X_CENSUS_EVERY=<k>, every k-th draw also appends the map of the blocks to <folder>/<light>-<part>.u8,
++    // one byte per block, row by row from the top: bits 0 and 1 the level, bit 2 a light cause, bit 3 a moved cause and
++    // bit 4 a moving cause, and the draw to <folder>/maps.txt. <folder>/header.json, written at the first draw, holds the
++    // grid and the knobs. Each readback waits for the device, so a census run draws slower than a plain one.
++    // tools/renderer-survey.py census reads the folder.
++    private static readonly string? ProbeCensusFolder =
++        Environment.GetEnvironmentVariable("TERTIUS_X_CENSUS") is { Length: > 0 } folder ? folder : null;
++    private static readonly int ProbeCensusEvery =
++        int.TryParse(Environment.GetEnvironmentVariable("TERTIUS_X_CENSUS_EVERY"), out int every) && every > 0 ? every : 0;
++    private long probeCensusDraw;
++
++    private void ProbeCensus()
++    {
++        if (ProbeCensusFolder is not { } folder || screenTrace is not { } tracer)
++            return;
++        long draw = probeCensusDraw++;
++        const int block = 8;
++        var inv = System.Globalization.CultureInfo.InvariantCulture;
++        System.IO.Directory.CreateDirectory(folder);
++        (long drawIndex, bool reset) = LastDraw;
++        var lines = new System.Text.StringBuilder();
++        foreach ((string light, TemporalSignal signal) in new[] { ("diffuse", tracer.Diffuse), ("specular", tracer.Specular) })
++            for (int part = 0; part < signal.Parts; part++)
++            {
++                if (signal.SampleAge(part) is not { } image)
++                    continue;
++                int width = (int)image.Extent.Width;
++                int height = (int)image.Extent.Height;
++                int wide = (width + block - 1) / block;
++                int high = (height + block - 1) / block;
++                string header = System.IO.Path.Combine(folder, "header.json");
++                if (!System.IO.File.Exists(header))
++                    System.IO.File.WriteAllText(
++                        header,
++                        string.Create(
++                            inv,
++                            $"{{\"width\": {width}, \"height\": {height}, \"block\": {block}, \"blocksWide\": {wide}, \"blocksHigh\": {high}, \"every\": {ProbeCensusEvery}, \"causes\": {AccumulatePushConstants.ProbeX.Causes}, \"movedCuts\": {(AccumulatePushConstants.ProbeX.MovedCuts ? "true" : "false")}, \"motionCuts\": {(AccumulatePushConstants.ProbeX.MotionCuts ? "true" : "false")}, \"acts\": {(AccumulatePushConstants.ProbeX.Acts ? "true" : "false")}, \"recentLightAge\": {AccumulatePushConstants.ProbeX.RecentLightAge}, \"leastMotion\": {AccumulatePushConstants.ProbeX.LeastMotion:R}}}\n"
++                        )
++                    );
++                float[] ages = ReadImage(image);
++                var map = new byte[wide * high];
++                var pixels = new long[3];
++                for (int y = 0; y < height; y++)
++                    for (int x = 0; x < width; x++)
++                    {
++                        uint causes = AccumulatePushConstants.ProbeX.CausesOf((uint)ages[y * width + x]);
++                        int cell = y / block * wide + x / block;
++                        uint level = Math.Max(map[cell] & 3u, AccumulatePushConstants.ProbeX.LevelOf(causes));
++                        map[cell] = (byte)((map[cell] & ~3) | (int)level | (int)(causes << 2));
++                        for (int cause = 0; cause < 3; cause++)
++                            pixels[cause] += (causes >> cause) & 1u;
++                    }
++                var levels = new long[3];
++                var blocks = new long[3];
++                foreach (byte cell in map)
++                {
++                    levels[cell & 3]++;
++                    for (int cause = 0; cause < 3; cause++)
++                        blocks[cause] += (cell >> (2 + cause)) & 1;
++                }
++                lines.Append(
++                    string.Create(
++                        inv,
++                        $"{draw} {drawIndex} {(reset ? 1 : 0)} {light} {part} {levels[0]} {levels[1]} {levels[2]} {blocks[0]} {blocks[1]} {blocks[2]} {pixels[0]} {pixels[1]} {pixels[2]}\n"
++                    )
++                );
++                if (ProbeCensusEvery > 0 && draw % ProbeCensusEvery == 0)
++                {
++                    using var stream = new System.IO.FileStream(
++                        System.IO.Path.Combine(folder, $"{light}-{part}.u8"),
++                        System.IO.FileMode.Append,
++                        System.IO.FileAccess.Write
++                    );
++                    stream.Write(map);
++                }
++            }
++        System.IO.File.AppendAllText(System.IO.Path.Combine(folder, "census.txt"), lines.ToString());
++        if (ProbeCensusEvery > 0 && draw % ProbeCensusEvery == 0)
++            System.IO.File.AppendAllText(System.IO.Path.Combine(folder, "maps.txt"), string.Create(inv, $"{draw}\n"));
++    }
++
++    // SCRATCH (t0-y46f, never commit to src): the count of history lengths. With TERTIUS_X_LENGTHS=<folder>, each draw
++    // whose index since the last reset is at least TERTIUS_X_LENGTHS_FROM (default 297, the first draw of the survey
++    // still's long mean) reads back the slow history of each screen-tracer signal (its alpha, the length in draws) and
++    // adds it to two sums per pixel: the length, and 1 where the length is below TERTIUS_X_LENGTHS_BELOW (8 by default,
++    // FullRateFrames of the ray plan). With TERTIUS_X_LENGTHS_EVERY=<k>, only every k-th such draw counts. After each counted draw it writes <folder>/<light>.f32: width x height pairs of float32, row by
++    // row from the top, the mean length and the share of the draws below that length, and appends
++    // "<draw index> <light>" to <folder>/draws.txt. Each readback waits for the device.
++    private static readonly string? ProbeLengthsFolder =
++        Environment.GetEnvironmentVariable("TERTIUS_X_LENGTHS") is { Length: > 0 } lengthsFolder ? lengthsFolder : null;
++    private static readonly long ProbeLengthsFrom =
++        long.TryParse(Environment.GetEnvironmentVariable("TERTIUS_X_LENGTHS_FROM"), out long from) ? from : 297;
++    private static readonly long ProbeLengthsEvery =
++        long.TryParse(Environment.GetEnvironmentVariable("TERTIUS_X_LENGTHS_EVERY"), out long lengthsEvery) && lengthsEvery > 0 ? lengthsEvery : 1;
++    private static readonly float ProbeLengthsFullRate =
++        float.TryParse(Environment.GetEnvironmentVariable("TERTIUS_X_LENGTHS_BELOW"), System.Globalization.NumberStyles.Float,
++            System.Globalization.CultureInfo.InvariantCulture, out float below) ? below : 8f;
++    private readonly Dictionary<string, (double[] Length, double[] Below, int Draws)> probeLengths = [];
++
++    private void ProbeLengths()
++    {
++        if (ProbeLengthsFolder is not { } folder || screenTrace is not { } tracer)
++            return;
++        (long drawIndex, _) = LastDraw;
++        if (drawIndex < ProbeLengthsFrom || (drawIndex - ProbeLengthsFrom) % ProbeLengthsEvery != 0)
++            return;
++        System.IO.Directory.CreateDirectory(folder);
++        foreach ((string light, TemporalSignal signal) in new[] { ("diffuse", tracer.Diffuse), ("specular", tracer.Specular) })
++        {
++            GpuImage image = signal.Slow(0);
++            int count = (int)(image.Extent.Width * image.Extent.Height);
++            float[] values = ReadImage(image);
++            if (!probeLengths.TryGetValue(light, out var sums) || sums.Length.Length != count)
++                sums = (new double[count], new double[count], 0);
++            for (int i = 0; i < count; i++)
++            {
++                float length = values[4 * i + 3];
++                sums.Length[i] += length;
++                sums.Below[i] += length < ProbeLengthsFullRate ? 1.0 : 0.0;
++            }
++            sums = (sums.Length, sums.Below, sums.Draws + 1);
++            probeLengths[light] = sums;
++            var bytes = new byte[count * 8];
++            for (int i = 0; i < count; i++)
++            {
++                BitConverter.TryWriteBytes(bytes.AsSpan(8 * i), (float)(sums.Length[i] / sums.Draws));
++                BitConverter.TryWriteBytes(bytes.AsSpan(8 * i + 4), (float)(sums.Below[i] / sums.Draws));
++            }
++            System.IO.File.WriteAllBytes(System.IO.Path.Combine(folder, $"{light}.f32"), bytes);
++            System.IO.File.AppendAllText(
++                System.IO.Path.Combine(folder, "draws.txt"),
++                string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{drawIndex} {light} {image.Extent.Width} {image.Extent.Height} {sums.Draws}\n")
++            );
++        }
++    }
++
++    // SCRATCH (t0-xdck): TERTIUS_X_OWN_COUNT=<folder>, the own-ray count (ProbeRegionCount).
++    private static readonly string? ProbeOwnCountFolder =
++        Environment.GetEnvironmentVariable("TERTIUS_X_OWN_COUNT") is { Length: > 0 } ownFolder ? ownFolder : null;
++
++    // SCRATCH (t0-xlcu, never commit to src): the count of the regional test. With TERTIUS_X_REGION_COUNT=<folder>, each
++    // draw of the run whose number n (counted from 0 over every draw of the run, as TERTIUS_PROBE_LAMP_OFF counts) lies in
++    // TERTIUS_X_REGION_COUNT_FROM <= n <= TERTIUS_X_REGION_COUNT_TO, and for which (n - from) is a multiple of
++    // TERTIUS_X_REGION_COUNT_EVERY, reads back the window ring's five count layers of each screen-tracer signal
++    // (accumulate_spatial.comp, storeRegionCount). It appends every second render pixel of every second row (the even
++    // ones) to <folder>/<process id>/<light>.f16: per pixel the lag, T1, T2, T3 and the flag as five halves. It appends
++    // "<n> <draw index since reset> <light> <width> <height>" to draws.txt there, and the command line to command.txt.
++    // t0-ion0: TERTIUS_X_DRIFT_COUNT=<folder> does the same for the drift test's eight count layers, in the same draws.
++    private static readonly long ProbeCountFrom =
++        long.TryParse(Environment.GetEnvironmentVariable("TERTIUS_X_REGION_COUNT_FROM"), out long countFrom) ? countFrom : 100;
++    private static readonly long ProbeCountTo =
++        long.TryParse(Environment.GetEnvironmentVariable("TERTIUS_X_REGION_COUNT_TO"), out long countTo) ? countTo : 300;
++    private static readonly long ProbeCountEvery =
++        long.TryParse(Environment.GetEnvironmentVariable("TERTIUS_X_REGION_COUNT_EVERY"), out long countEvery) && countEvery > 0 ? countEvery : 1;
++
++    private void ProbeRegionCount()
++    {
++        uint window = AccumulatePushConstants.ProbeX.RegionWindow;
++        if (AccumulatePushConstants.ProbeX.RegionCountFolder is { } regionRoot)
++            ProbeCountLayers(regionRoot, (int)(2 * window + 1), 5);
++        // SCRATCH (t0-ion0): TERTIUS_X_DRIFT_COUNT, the eight layers after the drift ring (accumulate_spatial.comp,
++        // storeDriftCount): the drift, Q1's tolerance, the block's Q0 and Q1 evidence, the counted flag, Q2's phase3 and
++        // phase6, and the block's Q2 evidence.
++        if (AccumulatePushConstants.ProbeX.DriftCountFolder is { } driftRoot)
++            ProbeCountLayers(driftRoot, (int)(4 * window + 6), 8);
++        // SCRATCH (t0-xdck): TERTIUS_X_OWN_COUNT=<folder>, the own-ray count of every draw. Each process appends to
++        // <folder>/<process id>.txt one line per draw: the draw's number, the pixels that traced their own reflection ray
++        // and their own diffuse ray (the counts of the own-ray lists), and the width and height of the tracer's images.
++        // It waits for the device after every draw, so a timing take never sets it.
++        if (ProbeOwnCountFolder is { } ownRoot && screenTrace is not null)
++        {
++            (int reflection, int diffuse) = ReadOwnRayCounts();
++            var extent = ScreenTraceImages.OwnRay.Extent;
++            System.IO.Directory.CreateDirectory(ownRoot);
++            string file = System.IO.Path.Combine(ownRoot, Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture) + ".txt");
++            if (!System.IO.File.Exists(file))
++                System.IO.File.WriteAllText(file, "# " + Environment.CommandLine.Replace('\n', ' ') + "\n");
++            System.IO.File.AppendAllText(file, string.Create(System.Globalization.CultureInfo.InvariantCulture,
++                $"{FrameNumber - 1} {reflection} {diffuse} {extent.Width} {extent.Height}\n"));
++        }
++    }
++
++    /// <summary>SCRATCH (t0-xlcu, t0-ion0): appends <paramref name="layers"/> layers of each signal's window ring from <paramref name="first"/> to <paramref name="root"/>, as ProbeRegionCount's comment says.</summary>
++    private void ProbeCountLayers(string root, int first, int layers)
++    {
++        if (screenTrace is not { } tracer)
++            return;
++        long number = FrameNumber - 1;
++        if (number < ProbeCountFrom || number > ProbeCountTo || (number - ProbeCountFrom) % ProbeCountEvery != 0)
++            return;
++        (long drawIndex, _) = LastDraw;
++        string folder = System.IO.Path.Combine(root, Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
++        if (!System.IO.Directory.Exists(folder))
++        {
++            System.IO.Directory.CreateDirectory(folder);
++            System.IO.File.WriteAllText(System.IO.Path.Combine(folder, "command.txt"), Environment.CommandLine + "\n");
++        }
++        foreach ((string light, TemporalSignal signal) in new[] { ("diffuse", tracer.Diffuse), ("specular", tracer.Specular) })
++        {
++            if (signal.RegionWindow(0) is not { } window)
++                continue;
++            int width = (int)window.Extent.Width, height = (int)window.Extent.Height;
++            int w = (width + 1) / 2, h = (height + 1) / 2;
++            var halves = new Half[w * h * layers];
++            for (int layer = 0; layer < layers; layer++)
++            {
++                float[] values = ReadImageLayer(window, first + layer);
++                for (int y = 0; y < h; y++)
++                    for (int x = 0; x < w; x++)
++                        halves[layers * (y * w + x) + layer] = (Half)values[2 * y * width + 2 * x];
++            }
++            using (var stream = new System.IO.FileStream(System.IO.Path.Combine(folder, $"{light}.f16"), System.IO.FileMode.Append))
++                stream.Write(System.Runtime.InteropServices.MemoryMarshal.AsBytes(halves.AsSpan()));
++            System.IO.File.AppendAllText(
++                System.IO.Path.Combine(folder, "draws.txt"),
++                string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{number} {drawIndex} {light} {w} {h}\n")
++            );
++        }
++    }
++
+     /// <summary>Resizes the targets to the output's <paramref name="image"/> when the swapchain changed size on its own (out of date).</summary>
+     private void MatchTargetsTo(GpuImage image)
+     {
+@@ -877,7 +1107,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
+         Vector2 previousJitter = Vector2.Zero;
+         if (jitters && !pending.Reset)
+         {
+-            int phases = Fsr3Upscaler.JitterPhaseCount(pending.PreviousRenderSize.Width, targets.OutputExtent.Width);
++            int phases = AccumulatePushConstants.ProbeX.JitterPeriod(
++                Fsr3Upscaler.JitterPhaseCount(pending.PreviousRenderSize.Width, targets.OutputExtent.Width)
++            );
+             previousJitter =
+                 debugJitter == DebugJitter.Held
+                     ? jitter

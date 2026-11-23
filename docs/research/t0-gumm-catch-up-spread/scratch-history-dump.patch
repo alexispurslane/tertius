@@ -1,0 +1,34 @@
+# SCRATCH patch of t0-gumm, never commit to src. It applies after scratch-ownray-log.patch (and with or without scratch-catch-up-share.patch). TERTIUS_X_HISTORY_DUMP=<folder>:<frame> writes the slow diffuse history's length that frame left, as float32, for the map of the settled history lengths.
+diff --git a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
+index 5248654..6516c66 100644
+--- a/src/Tertius.Rendering/VulkanRenderer.cs
++++ b/src/Tertius.Rendering/VulkanRenderer.cs
+@@ -645,6 +645,28 @@ public sealed unsafe class VulkanRenderer : IRenderer
+                 )
+             );
+         }
++        // SCRATCH (t0-gumm, never commit to src): with TERTIUS_X_HISTORY_DUMP=<folder>:<frame>, the draw after frame <frame>
++        // writes the slow diffuse history's length that frame left (ScreenTraceSignals.Diffuse.Slow(0), alpha), over its
++        // render size, row by row as float32, to <folder>/history-<frame>-<width>x<height>.f32. The read waits for the device.
++        if (Environment.GetEnvironmentVariable("TERTIUS_X_HISTORY_DUMP") is { Length: > 0 } probeDump
++            && probeDump.LastIndexOf(':') is int probeColon && probeColon > 0
++            && long.Parse(probeDump[(probeColon + 1)..]) == FrameNumber - 1 && probeLastSize.Width > 0)
++        {
++            (float[] probeDumpValues, int probeDumpWidth, _) = ReadLevel(image: ScreenTraceSignals.Diffuse.Slow(0), layer: 0, mip: 0);
++            var probeLengths = new float[probeLastSize.Width * probeLastSize.Height];
++            for (int probeY = 0; probeY < probeLastSize.Height; probeY++)
++                for (int probeX = 0; probeX < probeLastSize.Width; probeX++)
++                    probeLengths[probeY * probeLastSize.Width + probeX] = probeDumpValues[4 * (probeY * probeDumpWidth + probeX) + 3];
++            byte[] probeBytes = new byte[probeLengths.Length * sizeof(float)];
++            System.Buffer.BlockCopy(probeLengths, 0, probeBytes, 0, probeBytes.Length);
++            System.IO.File.WriteAllBytes(
++                System.IO.Path.Combine(
++                    System.IO.Directory.CreateDirectory(probeDump[..probeColon]).FullName,
++                    $"history-{FrameNumber - 1}-{probeLastSize.Width}x{probeLastSize.Height}.f32"
++                ),
++                probeBytes
++            );
++        }
+         // SCRATCH (t0-gumm, never commit to src): with TERTIUS_X_OWNRAY_LOG=<folder>, each draw first reads the own-ray lists
+         // that the draw before it wrote, and appends "<that draw's frame number> <its draw index> <width> <height>
+         // <reflection own rays> <of them in even columns> <in even rows> <diffuse own rays> <in even columns> <in even

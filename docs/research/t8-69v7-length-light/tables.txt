@@ -1,0 +1,115 @@
+# Control runs: the second build at its defaults against the first (equal long means)
+a2 equals a
+c4-2 equals c4
+a-plain equals a
+
+# Light in scene light, each against the same variant with no cap (32 draws)
+$ scenelight.py a a c4 c8 c16
+rect-lamps   a                ceiling shown   97.8% settled  100.0%   walls shown   95.5% settled  100.0%   whole image  100.0%
+rect-lamps   c4               ceiling shown  102.0% settled  102.3%   walls shown  105.2% settled  105.0%   whole image  101.9%
+rect-lamps   c8               ceiling shown  101.3% settled  102.1%   walls shown  103.3% settled  104.4%   whole image  101.8%
+rect-lamps   c16              ceiling shown   99.9% settled  101.4%   walls shown  100.1% settled  102.9%   whole image  101.2%
+
+$ scenelight.py a-nof a-nof c4-nof c8-nof c16-nof
+rect-lamps   a-nof            ceiling shown   99.6% settled  100.0%   walls shown   98.2% settled  100.0%   whole image  100.0%
+rect-lamps   c4-nof           ceiling shown   94.6% settled   94.8%   walls shown   89.2% settled   89.8%   whole image   84.9%
+rect-lamps   c8-nof           ceiling shown   98.1% settled   98.1%   walls shown   96.0% settled   96.2%   whole image   94.6%
+rect-lamps   c16-nof          ceiling shown   99.1% settled   99.3%   walls shown   97.8% settled   98.6%   whole image   97.7%
+
+$ scenelight.py a-sb a-sb c4-sb
+rect-lamps   a-sb             ceiling shown   99.8% settled  100.0%   walls shown  100.0% settled  100.0%   whole image  100.0%
+rect-lamps   c4-sb            ceiling shown  100.4% settled  100.7%   walls shown  101.0% settled  101.1%   whole image  100.1%
+
+$ scenelight.py a-nof-sb a-nof-sb c4-nof-sb
+rect-lamps   a-nof-sb         ceiling shown   99.9% settled  100.0%   walls shown  100.2% settled  100.0%   whole image  100.0%
+rect-lamps   c4-nof-sb        ceiling shown   98.5% settled   98.5%   walls shown   94.7% settled   94.6%   whole image   83.3%
+
+$ scenelight.py a-hn a-hn c4-hn c8-hn c16-hn
+rect-lamps   a-hn             ceiling shown   97.1% settled  100.0%   walls shown   94.0% settled  100.0%   whole image  100.0%
+rect-lamps   c4-hn            ceiling shown   99.7% settled  100.0%   walls shown  100.3% settled  100.1%   whole image   99.7%
+rect-lamps   c8-hn            ceiling shown   99.3% settled  100.1%   walls shown   99.1% settled  100.2%   whole image  100.0%
+rect-lamps   c16-hn           ceiling shown   98.5% settled  100.1%   walls shown   97.1% settled  100.2%   whole image  100.1%
+
+$ scenelight.py a-nof-hn a-nof-hn c4-nof-hn
+rect-lamps   a-nof-hn         ceiling shown   99.5% settled  100.0%   walls shown   98.1% settled  100.0%   whole image  100.0%
+rect-lamps   c4-nof-hn        ceiling shown   94.3% settled   94.5%   walls shown   88.5% settled   89.1%   whole image   84.5%
+
+$ scenelight.py a-nat a-nat c4-nat
+rect-lamps   a-nat            ceiling shown   98.1% settled  100.0%   walls shown   95.7% settled  100.0%   whole image  100.0%
+rect-lamps   c4-nat           ceiling shown  102.2% settled  102.2%   walls shown  105.3% settled  104.9%   whole image  101.9%
+
+$ scenelight.py a-nof-nat a-nof-nat c4-nof-nat c8-nof-nat c16-nof-nat
+rect-lamps   a-nof-nat        ceiling shown  100.0% settled  100.0%   walls shown   99.4% settled  100.0%   whole image  100.0%
+rect-lamps   c4-nof-nat       ceiling shown  100.8% settled  100.4%   walls shown  101.6% settled  100.9%   whole image  100.1%
+rect-lamps   c8-nof-nat       ceiling shown  100.7% settled  100.1%   walls shown  101.7% settled  100.5%   whole image  100.3%
+rect-lamps   c16-nof-nat      ceiling shown  100.4% settled  100.1%   walls shown  100.8% settled  100.4%   whole image  100.2%
+
+$ scenelight.py a-nof-nat-hn a-nof-nat-hn c4-nof-nat-hn
+rect-lamps   a-nof-nat-hn     ceiling shown  100.0% settled  100.0%   walls shown   99.4% settled  100.0%   whole image  100.0%
+rect-lamps   c4-nof-nat-hn    ceiling shown  100.6% settled  100.2%   walls shown  100.8% settled  100.2%   whole image   99.7%
+
+$ scenelight.py a-nof-b a-nof-b c4-nof-b
+rect-lamps   a-nof-b          ceiling shown   99.4% settled  100.0%   walls shown   98.3% settled  100.0%   whole image  100.0%
+rect-lamps   c4-nof-b         ceiling shown   80.9% settled   80.7%   walls shown   87.6% settled   88.0%   whole image   66.7%
+
+$ scenelight.py a-nof-r a-nof-r c4-nof-r
+rect-lamps   a-nof-r          ceiling shown   95.1% settled  100.0%   walls shown   94.9% settled  100.0%   whole image  100.0%
+rect-lamps   c4-nof-r         ceiling shown   95.1% settled  100.0%   walls shown   95.3% settled  100.1%   whole image   99.9%
+
+# What the nearest-half store and FSR change in the reference itself
+$ scenelight.py a a-hn a-nat
+rect-lamps   a-hn             ceiling shown   99.8% settled  102.7%   walls shown   99.4% settled  105.8%   whole image  102.6%
+rect-lamps   a-nat            ceiling shown   98.2% settled  100.2%   walls shown   95.9% settled  100.2%   whole image  102.9%
+
+$ scenelight.py a-nof a-nof-hn
+rect-lamps   a-nof-hn         ceiling shown  100.0% settled  100.4%   walls shown   99.2% settled  101.1%   whole image  100.6%
+
+$ scenelight.py a-nof-nat a-nof-nat-hn
+rect-lamps   a-nof-nat-hn     ceiling shown  100.3% settled  100.3%   walls shown  100.5% settled  101.1%   whole image  100.6%
+
+# Stage means of the diffuse signal, each against the same variant with no cap
+$ stages.py a a c4 c8 c16
+a                  (90 draws) ceiling sample  100.0% slow  100.0% shown  100.0%   walls sample  100.0% slow  100.0% shown  100.0%
+c4                 (90 draws) ceiling sample  102.3% slow  104.0% shown  103.8%   walls sample  103.7% slow  105.8% shown  105.8%
+c8                 (90 draws) ceiling sample  101.8% slow  103.4% shown  103.3%   walls sample  103.3% slow  105.0% shown  105.0%
+c16                (90 draws) ceiling sample  101.2% slow  102.2% shown  102.2%   walls sample  102.1% slow  103.3% shown  103.3%
+
+$ stages.py a-sb a-sb c4-sb
+a-sb               (90 draws) ceiling sample  100.0% slow  100.0% shown  100.0%   walls sample  100.0% slow  100.0% shown  100.0%
+c4-sb              (90 draws) ceiling sample  100.6% slow  102.1% shown  102.0%   walls sample  100.3% slow  102.0% shown  102.0%
+
+$ stages.py a-nof a-nof c4-nof
+a-nof              (90 draws) ceiling sample  100.0% slow  100.0% shown  100.0%   walls sample  100.0% slow  100.0% shown  100.0%
+c4-nof             (90 draws) ceiling sample  101.5% slow  102.2% shown  102.2%   walls sample  100.1% slow  101.2% shown  101.2%
+
+$ stages.py a-hn a-hn c4-hn c8-hn c16-hn
+a-hn               (90 draws) ceiling sample  100.0% slow  100.0% shown  100.0%   walls sample  100.0% slow  100.0% shown  100.0%
+c4-hn              (90 draws) ceiling sample  100.1% slow  100.0% shown   99.8%   walls sample   99.8% slow   99.9% shown   99.9%
+c8-hn              (90 draws) ceiling sample  100.0% slow  100.0% shown  100.0%   walls sample  100.0% slow  100.0% shown  100.0%
+c16-hn             (90 draws) ceiling sample  100.0% slow  100.1% shown  100.0%   walls sample  100.0% slow  100.1% shown  100.1%
+
+# Each variant's slow history and shown light against its own samples
+$ own.py a c4 c8 c16 a-sb c4-sb a-nof c4-nof a-nof-sb c4-nof-sb a-hn c4-hn c8-hn c16-hn a-nof-hn c4-nof-hn a-nat c4-nat a-nof-nat c4-nof-nat a-nof-nat-hn c4-nof-nat-hn
+a                  ceiling slow/sample   98.1% shown/sample   98.7%   walls slow/sample   97.7% shown/sample   97.4%
+c4                 ceiling slow/sample   99.7% shown/sample   99.9%   walls slow/sample   99.6% shown/sample   99.3%
+c8                 ceiling slow/sample   99.6% shown/sample  100.0%   walls slow/sample   99.4% shown/sample   99.0%
+c16                ceiling slow/sample   99.1% shown/sample   99.5%   walls slow/sample   98.8% shown/sample   98.5%
+a-sb               ceiling slow/sample   98.7% shown/sample   98.5%   walls slow/sample   98.0% shown/sample   97.6%
+c4-sb              ceiling slow/sample  100.3% shown/sample   99.9%   walls slow/sample   99.6% shown/sample   99.2%
+a-nof              ceiling slow/sample   99.0% shown/sample   99.0%   walls slow/sample   98.8% shown/sample   98.8%
+c4-nof             ceiling slow/sample  100.0% shown/sample  100.0%   walls slow/sample   99.9% shown/sample   99.9%
+a-nof-sb           ceiling slow/sample   99.5% shown/sample   99.5%   walls slow/sample   98.9% shown/sample   98.9%
+c4-nof-sb          ceiling slow/sample  100.0% shown/sample  100.0%   walls slow/sample   99.8% shown/sample   99.8%
+a-hn               ceiling slow/sample  100.2% shown/sample  100.7%   walls slow/sample   99.9% shown/sample   99.6%
+c4-hn              ceiling slow/sample  100.1% shown/sample  100.2%   walls slow/sample  100.0% shown/sample   99.6%
+c8-hn              ceiling slow/sample  100.2% shown/sample  100.6%   walls slow/sample  100.0% shown/sample   99.6%
+c16-hn             ceiling slow/sample  100.2% shown/sample  100.7%   walls slow/sample  100.0% shown/sample   99.6%
+a-nof-hn           ceiling slow/sample  100.1% shown/sample  100.1%   walls slow/sample   99.9% shown/sample   99.9%
+c4-nof-hn          ceiling slow/sample  100.2% shown/sample  100.2%   walls slow/sample  100.1% shown/sample  100.1%
+a-nat              ceiling slow/sample   98.1% shown/sample   98.6%   walls slow/sample   97.7% shown/sample   97.4%
+c4-nat             ceiling slow/sample   99.7% shown/sample   99.9%   walls slow/sample   99.6% shown/sample   99.3%
+a-nof-nat          ceiling slow/sample   99.4% shown/sample   99.4%   walls slow/sample   99.0% shown/sample   99.0%
+c4-nof-nat         ceiling slow/sample   99.8% shown/sample   99.8%   walls slow/sample   99.9% shown/sample   99.9%
+a-nof-nat-hn       ceiling slow/sample  100.5% shown/sample  100.5%   walls slow/sample  100.1% shown/sample  100.1%
+c4-nof-nat-hn      ceiling slow/sample   99.9% shown/sample   99.9%   walls slow/sample  100.1% shown/sample  100.1%
+

@@ -1,0 +1,9 @@
+# The window test's results (wintest.sh): side, window width and height, aspect error, right and left jamb means, the crop boxes scaled to the window, and the sizes that the run logged.
+M3 1800 1008 +0.4464% 0.0977 0.0582  right box (1656, 462, 1691, 546) left box (109, 467, 140, 541)  sizes logged: 1800 1008;
+M3 1920 1080 +0.0000% 0.0436 0.0435  right box (1770, 495, 1808, 585) left box (113, 500, 146, 580)  sizes logged: 1920 1080;
+M3 1784 1008 -0.4464% 0.0437 0.0437  right box (1648, 462, 1683, 546) left box (101, 467, 132, 541)  sizes logged: 1784 1008;
+M3 1792 1008 +0.0000% 0.0438 0.0433  right box (1652, 462, 1687, 546) left box (105, 467, 136, 541)  sizes logged: 1792 1008;
+M3 1808 1008 +0.8929% 0.0435 0.0431  right box (1660, 462, 1695, 546) left box (113, 467, 144, 541)  sizes logged: 1808 1008;
+M3 1816 1008 +1.3393% 0.0510 0.0591  right box (1664, 462, 1699, 546) left box (117, 467, 148, 541)  sizes logged: 1816 1008;
+W 1800 1008 +0.4464% 0.0977 0.0582  right box (1656, 462, 1691, 546) left box (109, 467, 140, 541)  sizes logged: 1800 1008;
+W 1920 1080 +0.0000% 0.0436 0.0435  right box (1770, 495, 1808, 585) left box (113, 500, 146, 580)  sizes logged: 1920 1080;

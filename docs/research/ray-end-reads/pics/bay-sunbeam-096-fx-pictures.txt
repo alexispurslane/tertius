@@ -1,0 +1,24 @@
+sunlit patch at the upper left
+  v0                 grain 0.0297 daub 0.0277 boil 0.0122 level +0.0000
+  v1                 grain 0.0296 daub 0.0282 boil 0.0122 level -0.0006
+  v0 second picture  grain 0.0277 daub 0.0250 boil 0.0122 level +0.0000
+  v0 boil first half grain 0.0281 daub 0.0263 boil 0.0115 level +0.0003
+  v0 boil second half grain 0.0334 daub 0.0308 boil 0.0113 level -0.0003
+back wall below the slot
+  v0                 grain 0.0075 daub 0.0369 boil 0.0253 level +0.0000
+  v1                 grain 0.0075 daub 0.0364 boil 0.0253 level -0.0031
+  v0 second picture  grain 0.0072 daub 0.0349 boil 0.0253 level +0.0000
+  v0 boil first half grain 0.0071 daub 0.0321 boil 0.0235 level -0.0013
+  v0 boil second half grain 0.0085 daub 0.0459 boil 0.0226 level +0.0013
+floor
+  v0                 grain 0.0294 daub 0.0402 boil 0.0275 level +0.0000
+  v1                 grain 0.0292 daub 0.0397 boil 0.0273 level -0.0030
+  v0 second picture  grain 0.0274 daub 0.0339 boil 0.0275 level +0.0000
+  v0 boil first half grain 0.0271 daub 0.0365 boil 0.0253 level -0.0016
+  v0 boil second half grain 0.0343 daub 0.0475 boil 0.0250 level +0.0016
+right wall
+  v0                 grain 0.0403 daub 0.0333 boil 0.0218 level +0.0000
+  v1                 grain 0.0401 daub 0.0336 boil 0.0218 level -0.0026
+  v0 second picture  grain 0.0385 daub 0.0312 boil 0.0218 level +0.0000
+  v0 boil first half grain 0.0380 daub 0.0313 boil 0.0199 level -0.0006
+  v0 boil second half grain 0.0461 daub 0.0379 boil 0.0206 level +0.0006

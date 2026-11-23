@@ -1,0 +1,23 @@
+#version 460
+// The light code and the moved mark that a precise history's ray record keeps for the hit ages 16,381, 16,382, 16,383
+// and 40,000, in the columns 0 to 3 of each four, without the mark, and in the columns 4 to 7 with it: r the record's
+// light code (ageCodeOfRecord) minus 16,000, which a half float sample holds exactly, g 1 where the record carries the moved mark (movedHitOfRecord), else 0.
+#extension GL_GOOGLE_include_directive : require
+#include "screen_trace.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
+        return;
+    vec4 value = vec4(0.0);
+#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+    const float ages[4] = float[4](16381.0, 16382.0, 16383.0, 40000.0);
+    bool moved = (pixel.x & 4) != 0;
+    RayRecord record = recordOf(TracedRay(vec3(0.0, 0.0, 1.0), 1.0, vec3(1.0), 1.0, true, ages[pixel.x & 3], moved));
+    value = vec4(float(ageCodeOfRecord(record.ray)) - 16000.0, movedHitOfRecord(record.ray) ? 1.0 : 0.0, 0.0, 1.0);
+#endif
+    imageStore(specularSample, pixel, value);
+}

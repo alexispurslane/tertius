@@ -17,8 +17,7 @@ layout(local_size_x = 8, local_size_y = 8) in;
 // DiffuseFilterPushConstants.
 layout(push_constant, std430) uniform FilterPush
 {
-    int step;       // the distance between the kernel's taps, in pixels: 2^i in step i
-    uint feedback;  // 1 in the step whose light the slow history takes, else 0
+    int step;  // the distance between the kernel's taps, in pixels: 2^i in step i
 } parameters;
 
 // The normal stop's power of the cosine between the normals: the paper's 128.
@@ -31,6 +30,10 @@ const float LuminanceDeviations = 4.0;
 // The least deviation of the luminance stop, so that two equal luminances without noise weigh 1, and two that differ
 // weigh 0.
 const float LeastDeviation = 1e-10;
+
+// The length below which a history estimates its deviation from its neighbors: the paper's four frames. The variance
+// dispatch marks such a young estimate with a negative sign.
+const float YoungFrames = 4.0;
 
 // Whether a pixel lies inside the images.
 bool insideFilter(ivec2 pixel)
@@ -56,7 +59,8 @@ struct FilterTap
     float variance;
 };
 
-// The tap of a pixel whose input is `light`: rgb the light, a the deviation of its luminance.
+// The tap of a pixel whose input is `light`: rgb the light, a the deviation of its luminance, negative for a young
+// estimate.
 FilterTap filterTapAt(ivec2 pixel, vec4 light)
 {
     FilterTap tap;

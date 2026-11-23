@@ -817,7 +817,19 @@ internal struct AccumulatePushConstants
     /// <summary>1 in a frame that resets every history, where no reprojection holds one; 0 otherwise.</summary>
     public uint Reset;
 
-    public static AccumulatePushConstants Of(SignalParameters parameters, bool reset) =>
+    /// <summary>
+    /// The clamp box's least half width in retained deviations (<see cref="WidenedBox.RetainedSigmas"/>), 0 for the
+    /// narrow box.
+    /// </summary>
+    public float RetainedSigmas;
+
+    /// <summary>
+    /// The ring layer of this draw in the region's drift test: the draw's index since the last reset modulo
+    /// <see cref="TemporalSignal.RegionRingDraws"/> (region_drift.glsl).
+    /// </summary>
+    public uint RegionSlot;
+
+    public static AccumulatePushConstants Of(SignalParameters parameters, bool reset, long drawIndex) =>
         new()
         {
             Cap = parameters.Cap,
@@ -829,6 +841,13 @@ internal struct AccumulatePushConstants
             Light = (uint)parameters.Light,
             ReflectedPlaceBelow = parameters.ReflectedPlaceBelow,
             Reset = reset ? 1u : 0u,
+            RegionSlot = (uint)(drawIndex % TemporalSignal.RegionRingDraws),
+            RetainedSigmas = parameters.Confidence switch
+            {
+                WidenedBox { RetainedSigmas: var sigmas } => sigmas,
+                NarrowBox => 0,
+                null => throw new ArgumentException("A signal's parameters need confidence rules.", nameof(parameters)),
+            },
         };
 }
 
@@ -840,9 +859,6 @@ internal struct DiffuseFilterPushConstants
 {
     /// <summary>The distance between the kernel's taps, in pixels: 2^i in dispatch i.</summary>
     public int Step;
-
-    /// <summary>1 in the dispatch whose light the slow history takes (<see cref="DiffuseFilter.FeedbackDispatch"/>), else 0.</summary>
-    public uint Feedback;
 }
 
 /// <summary>The push constants of the screen tracer's four passes, screen_trace.glsl (<see cref="ScreenTraceKernel"/>).</summary>

@@ -1,0 +1,1010 @@
+diff --git a/src/Tertius.Rendering/Frame/DescriptorLayouts.cs b/src/Tertius.Rendering/Frame/DescriptorLayouts.cs
+index bb7155c8a..5c54e69a7 100644
+--- a/src/Tertius.Rendering/Frame/DescriptorLayouts.cs
++++ b/src/Tertius.Rendering/Frame/DescriptorLayouts.cs
+@@ -139,15 +139,15 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+ 
+     /// <summary>
+     /// The storage images of a signal set: nine, with the light-change age of a precise specular history the signal's
+-    /// sample age at binding 11, which the spatial dispatch reads, and at binding 12 the instrumentation's image, the
+-    /// uncovered-surface diagnostic or the accumulation trace. The original history refuses the instrumentation (the
+-    /// constructor).
++    /// sample age at binding 11, which the spatial dispatch reads, and the region's taps and rings at bindings 13 and 14
++    /// (region_drift.glsl), and at binding 12 the instrumentation's image, the uncovered-surface diagnostic or the
++    /// accumulation trace. The original history refuses the instrumentation (the constructor).
+     /// </summary>
+     private uint SignalSetImages =>
+-        9u + (HistoryMode.KeepsLightAge ? 1u : 0u) + (Instrumentation == HistoryInstrumentation.None ? 0u : 1u);
++        9u + (HistoryMode.KeepsLightAge ? 3u : 0u) + (Instrumentation == HistoryInstrumentation.None ? 0u : 1u);
+ 
+-    /// <summary>The highest binding that a signal set can hold: 12, the instrumentation's image.</summary>
+-    private const uint LastSignalBinding = 12;
++    /// <summary>The highest binding that a signal set can hold: 14, the region's rings.</summary>
++    private const uint LastSignalBinding = 14;
+ 
+     /// <summary>The sampled images of a signal set: the last surface history and the last device depth.</summary>
+     private const uint SignalSetSampledImages = 2;
+@@ -1249,14 +1249,14 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
+     /// <summary>The layouts of the signal set (<see cref="SignalSet"/>) and the light set (<see cref="LightSet"/>).</summary>
+     private (DescriptorSetLayout Signal, DescriptorSetLayout Light) CreateTemporalSetLayouts()
+     {
+-        // The bindings by number: 0 to 10, 11 with the light age and 12 with an instrumentation.
++        // The bindings by number: 0 to 10, 11, 13 and 14 with the light age, and 12 with an instrumentation.
+         Span<DescriptorSetLayoutBinding> signal =
+             stackalloc DescriptorSetLayoutBinding[(int)(SignalSetImages + SignalSetSampledImages)];
+         int count = 0;
+         for (uint binding = 0; binding <= LastSignalBinding; binding++)
+             if (
+                 binding <= 10
+-                || binding == 11 && HistoryMode.KeepsLightAge
++                || binding is 11 or >= 13 && HistoryMode.KeepsLightAge
+                 || binding == 12 && Instrumentation != HistoryInstrumentation.None
+             )
+                 signal[count++] = binding is 7 or 8
+diff --git a/src/Tertius.Rendering/Frame/HistoryInstrumentation.cs b/src/Tertius.Rendering/Frame/HistoryInstrumentation.cs
+index 7a03f1542..97975fc8d 100644
+--- a/src/Tertius.Rendering/Frame/HistoryInstrumentation.cs
++++ b/src/Tertius.Rendering/Frame/HistoryInstrumentation.cs
+@@ -32,12 +32,16 @@ internal readonly record struct ShaderVariant(string Suffix, string[] Shaders)
+     public const string PreciseSuffix = "_precise";
+ 
+     /// <summary>
+-    /// The LightAgeShader items of Tertius.Rendering.csproj (ticket ter-wkvw): the spatial dispatch of a half-precision
+-    /// history whose samples have a light age, the diffuse signal's beside a precise specular history. It acts on its
+-    /// block's evidence, as the precise variants do (docs/plans/bounce-light-confidence.md, section 8.4). The temporal
+-    /// dispatch reads no light age: no cut runs before the blend (section 4).
++    /// The LightAgeShader items of Tertius.Rendering.csproj (ticket ter-wkvw): both dispatches of a half-precision history
++    /// whose samples have a light age, the diffuse signal's beside a precise specular history, as the precise variants
++    /// have them. The temporal dispatch stores its blocks' taps for the region's drift (ticket t0-acxm), and the
++    /// spatial dispatch tests the drift and acts on its block's evidence (docs/plans/bounce-light-confidence.md, sections 8.4 and 8.6). No cut
++    /// runs before the blend (section 4).
+     /// </summary>
+-    public static readonly ShaderVariant LightAge = new(Suffix: "_lightage", Shaders: ["accumulate_spatial.comp"]);
++    public static readonly ShaderVariant LightAge = new(
++        Suffix: "_lightage",
++        Shaders: ["accumulate_temporal.comp", "accumulate_spatial.comp"]
++    );
+ 
+     /// <summary>The file name of <paramref name="shader"/>'s variant, such as composite_precise.frag.</summary>
+     public static string Of(string shader, string suffix) =>
+diff --git a/src/Tertius.Rendering/Frame/TemporalSignal.cs b/src/Tertius.Rendering/Frame/TemporalSignal.cs
+index 915c07915..7c3d982b7 100644
+--- a/src/Tertius.Rendering/Frame/TemporalSignal.cs
++++ b/src/Tertius.Rendering/Frame/TemporalSignal.cs
+@@ -70,6 +70,24 @@ internal sealed unsafe class TemporalSignal : IDisposable
+     /// </summary>
+     private const uint GroupSize = 8;
+ 
++    /// <summary>
++    /// The draws that a block's ring keeps for the region's drift test, two windows of 18 draws (region_drift.glsl,
++    /// RegionRingDraws): the layers of <see cref="RegionRing(int)"/>.
++    /// </summary>
++    public const int RegionRingDraws = 36;
++
++    /// <summary>
++    /// The format of a block's tap (region_drift.glsl, blockLight): r the luminance of the tap pixel's sample over the
++    /// draw's exposure scale, g 1 where the tap counts, else 0.
++    /// </summary>
++    public const Format BlockLightFormat = Format.R32G32Sfloat;
++
++    /// <summary>
++    /// The format of a layer of a block's ring (region_drift.glsl, regionRing): r the region's light of a draw, g the
++    /// count of valid draws in a row up to it.
++    /// </summary>
++    public const Format RegionRingFormat = Format.R32G32Sfloat;
++
+     private readonly VulkanDevice device;
+     private readonly DeviceAllocator allocator;
+     private readonly DescriptorLayouts layouts;
+@@ -295,6 +313,18 @@ internal sealed unsafe class TemporalSignal : IDisposable
+     /// </summary>
+     public GpuImage? SampleAge(int part) => parts[part].SampleAge;
+ 
++    /// <summary>
++    /// The taps of <paramref name="part"/>'s blocks of this draw (<see cref="BlockLightFormat"/>), one texel per block of
++    /// 8 × 8 pixels, or null without a light age. The temporal dispatch writes them, and the spatial dispatch reads them.
++    /// </summary>
++    public GpuImage? BlockLight(int part) => parts[part].Regions is [var light, _] ? light : null;
++
++    /// <summary>
++    /// The rings of <paramref name="part"/>'s blocks (<see cref="RegionRingFormat"/>, <see cref="RegionRingDraws"/> layers),
++    /// or null without a light age. Only the spatial dispatch reads and writes them, each block's in the block's workgroup.
++    /// </summary>
++    public GpuImage? RegionRing(int part) => parts[part].Regions is [_, var ring] ? ring : null;
++
+     /// <summary>
+     /// The diagnostic of uncovered surfaces of <paramref name="part"/> under <see cref="HistoryInstrumentation.LightAgeDiagnostic"/>
+     /// (<see cref="UncoveredDiagnosticFormat"/>), or null without it. Only the capture tool and the tests read it.
+@@ -389,6 +419,9 @@ internal sealed unsafe class TemporalSignal : IDisposable
+             barriers.Image(age, ImageUse.StorageCompute);
+         foreach (GpuImage trace in images.Traces)
+             barriers.Image(trace, ImageUse.StorageCompute);
++        // Discarded: the spatial dispatch reads only the taps that this dispatch writes.
++        if (images.Regions is [var light, _])
++            barriers.Image(light, ImageUse.StorageCompute, discard: true);
+         barriers.Image(images.Slow, ImageUse.StorageCompute);
+         if (!singleDiffuseHistory)
+         {
+@@ -420,6 +453,10 @@ internal sealed unsafe class TemporalSignal : IDisposable
+         barriers.Image(images.Slow, ImageUse.StorageCompute);
+         foreach (GpuImage trace in images.Traces)
+             barriers.Image(trace, ImageUse.StorageCompute);
++        // The taps that the temporal dispatch wrote, and the rings that the last draw's spatial dispatch wrote. They join
++        // this barrier, so the region's test adds no barrier of its own.
++        foreach (GpuImage region in images.Regions)
++            barriers.Image(region, ImageUse.StorageCompute);
+         if (reflectionDistanceHistory)
+         {
+             barriers.Image(images.ReflectionGuideScratch, ImageUse.StorageCompute);
+@@ -467,7 +504,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
+     private void Dispatch(FrameContext context, Pipeline pipeline, DescriptorSet set)
+     {
+         context.BeginComputePass(pipeline: pipeline, layout: layouts.AccumulateLayout, passSet: set);
+-        var push = AccumulatePushConstants.Of(Parameters, context.History.Reset);
++        var push = AccumulatePushConstants.Of(Parameters, context.History.Reset, context.History.DrawIndex);
+         if (HistoryMode == SpecularHistoryMode.PreciseUncapped)
+         {
+             push.Cap = float.PositiveInfinity;
+@@ -522,6 +559,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
+                     ]
+                     : [],
+                 Ages: CreateAges(extent, part),
++                Regions: KeepsLightAge ? CreateRegions(BlocksOf(extent), part) : [],
+                 Traces: Instrumentation == HistoryInstrumentation.ControlTrace ? [CreateTrace(extent, part)] : []
+             );
+             for (int parity = 0; parity < 2; parity++)
+@@ -553,6 +591,12 @@ internal sealed unsafe class TemporalSignal : IDisposable
+         // The sample age, which the temporal dispatch of both signals reads.
+         if (images.SampleAge is { } age)
+             layouts.WriteStorageImage(set: set, binding: 11, image: age);
++        // The region's taps and rings (region_drift.glsl).
++        if (images.Regions is [var light, var ring])
++        {
++            layouts.WriteStorageImage(set: set, binding: 13, image: light);
++            layouts.WriteStorageImage(set: set, binding: 14, image: ring);
++        }
+         // The diagnostic of uncovered surfaces, which only the specular signal's temporal dispatch writes.
+         if (scratch.Instrumentation == HistoryInstrumentation.LightAgeDiagnostic)
+             layouts.WriteStorageImage(
+@@ -590,6 +634,26 @@ internal sealed unsafe class TemporalSignal : IDisposable
+             ],
+         };
+ 
++    /// <summary>
++    /// The region's images of <paramref name="part"/> at <paramref name="blocks"/>, one texel per block: the taps and the
++    /// rings (region_drift.glsl). A ring's contents need not survive a new size: the draw after it resets, and the
++    /// spatial dispatch reads a ring's draws only after it wrote them since the last reset.
++    /// </summary>
++    private GpuImage[] CreateRegions(Extent2D blocks, int part) =>
++    [
++        CreateImage(extent: blocks, imageName: $"{Name} block light {part}", extraUsage: 0, format: BlockLightFormat),
++        GpuImage.Create(
++            device: device,
++            allocator: allocator,
++            extent: blocks,
++            format: RegionRingFormat,
++            usage: ImageUsageFlags.StorageBit | ImageUsageFlags.TransferSrcBit,
++            mipLevels: 1,
++            name: $"{Name} region ring {part}",
++            arrayLayers: RegionRingDraws
++        ),
++    ];
++
+     /// <summary>The sample age of <paramref name="part"/>, which its producer writes as it writes the sample.</summary>
+     private GpuImage CreateSampleAge(Extent2D extent, int part) =>
+         CreateImage(
+@@ -661,6 +725,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
+         GpuImage[] Fasts,
+         GpuImage[] Guides,
+         GpuImage[] Ages,
++        GpuImage[] Regions,
+         GpuImage[] Traces
+     )
+     {
+@@ -676,7 +741,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
+ 
+         public GpuImage? SampleAge => Ages is [var age, ..] ? age : null;
+ 
+-        public IEnumerable<GpuImage> All => [Sample, Slow, .. Fasts, .. Guides, .. Ages, .. Traces];
++        public IEnumerable<GpuImage> All => [Sample, Slow, .. Fasts, .. Guides, .. Ages, .. Regions, .. Traces];
+ 
+         /// <summary>Whether every image has <paramref name="extent"/>.</summary>
+         public bool Fit(Extent2D extent) =>
+@@ -685,6 +750,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
+             && AllFit(Fasts, extent)
+             && AllFit(Guides, extent)
+             && AllFit(Ages, extent)
++            && AllFit(Regions, BlocksOf(extent))
+             && AllFit(Traces, extent);
+ 
+         /// <summary>Whether every image of <paramref name="images"/> has <paramref name="extent"/>.</summary>
+diff --git a/src/Tertius.Rendering/Scene/GpuTypes.cs b/src/Tertius.Rendering/Scene/GpuTypes.cs
+index 7cd31f3df..7fd8cf08b 100644
+--- a/src/Tertius.Rendering/Scene/GpuTypes.cs
++++ b/src/Tertius.Rendering/Scene/GpuTypes.cs
+@@ -823,7 +823,13 @@ internal struct AccumulatePushConstants
+     /// </summary>
+     public float RetainedSigmas;
+ 
+-    public static AccumulatePushConstants Of(SignalParameters parameters, bool reset) =>
++    /// <summary>
++    /// The ring layer of this draw in the region's drift test: the draw's index since the last reset modulo
++    /// <see cref="TemporalSignal.RegionRingDraws"/> (region_drift.glsl).
++    /// </summary>
++    public uint RegionSlot;
++
++    public static AccumulatePushConstants Of(SignalParameters parameters, bool reset, long drawIndex) =>
+         new()
+         {
+             Cap = parameters.Cap,
+@@ -835,6 +841,7 @@ internal struct AccumulatePushConstants
+             Light = (uint)parameters.Light,
+             ReflectedPlaceBelow = parameters.ReflectedPlaceBelow,
+             Reset = reset ? 1u : 0u,
++            RegionSlot = (uint)(drawIndex % TemporalSignal.RegionRingDraws),
+             RetainedSigmas = parameters.Confidence switch
+             {
+                 WidenedBox { RetainedSigmas: var sigmas } => sigmas,
+diff --git a/src/Tertius.Rendering/Shaders/accumulate.glsl b/src/Tertius.Rendering/Shaders/accumulate.glsl
+index f9bf68579..b3a035bcc 100644
+--- a/src/Tertius.Rendering/Shaders/accumulate.glsl
++++ b/src/Tertius.Rendering/Shaders/accumulate.glsl
+@@ -65,6 +65,7 @@ layout(push_constant, std430) uniform AccumulatePush
+     float reflectedPlaceBelow;   // the roughness below which the reflected place competes, with its distance test, 0 for none
+     uint reset;          // 1 in a frame that resets every history
+     float retainedSigmas;  // the clamp box's least half width in retained deviations, 0 for the narrow box
++    uint regionSlot;     // the ring layer of this draw: its index since the last reset modulo RegionRingDraws (region_drift.glsl)
+ } parameters;
+ 
+ // SignalLight.
+diff --git a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
+index b25980c42..973f6e05f 100644
+--- a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
++++ b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
+@@ -4,9 +4,14 @@
+ // frame's fast history around the pixel, shortens the length by the clamp's move, and writes the slow history. The
+ // workgroup is a block of 8 × 8 pixels, and the block's evidence level, the strongest of its pixels' samples, acts on
+ // every pixel of it in this draw: motion evidence drops the box's widening, and light evidence cuts the length to the
+-// fast cap and leaves the box (docs/plans/bounce-light-confidence.md, section 8).
++// fast cap and leaves the box (docs/plans/bounce-light-confidence.md, section 8). A signal with a light age also takes the
++// region evidence of its block (region_drift.glsl), which cuts the length to FullRateFrames and leaves the box.
+ #extension GL_GOOGLE_include_directive : require
+ #include "accumulate.glsl"
++#ifdef TERTIUS_LIGHT_AGE
++#define TERTIUS_REGION_DRIFT_TEST
++#include "region_drift.glsl"
++#endif
+ #include "accumulate_reflection_guide.glsl"
+ #include "half_store.glsl"
+ #include "meter.glsl"
+@@ -14,11 +19,13 @@
+ // The least luminance by which the clamp divides: the lag's share and the chroma of the widening.
+ const float LeastLuminance = 1e-4;
+ 
+-// The evidence levels of a block, ordered by strength (section 8.2). Motion evidence narrows the box for this draw, and
+-// light evidence cuts the length to the fast cap.
++// The evidence levels of a block, ordered by how certain the knowledge is (section 8.2). Region evidence cuts the length
++// to FullRateFrames, motion evidence narrows the box for this draw, and light evidence cuts the length to the fast cap.
++// The level lives only in this dispatch's shared value.
+ const uint NoEvidence = 0u;
+-const uint MotionEvidence = 1u;
+-const uint LightEvidence = 2u;
++const uint RegionEvidence = 1u;
++const uint MotionEvidence = 2u;
++const uint LightEvidence = 3u;
+ 
+ #ifdef TERTIUS_LIGHT_AGE
+ // The block's evidence level in this draw, which its 64 invocations share.
+@@ -35,14 +42,15 @@ uint evidenceOfSample(uint sampleAge)
+     return sawMotion(sampleAge) ? MotionEvidence : NoEvidence;
+ }
+ 
+-// The evidence level of the workgroup's block: the strongest level of its pixels' samples. Every invocation of the
+-// workgroup calls it from main before any branch, so both barriers run in uniform control flow. A maximum does not depend
+-// on the order of the invocations, so one machine gives the same level in every run. A sky pixel's age is 0, and a pixel
+-// outside the images adds nothing.
++// The evidence level of the workgroup's block: the strongest of its region's level and its pixels' samples' levels. Every
++// invocation of the workgroup calls it from main before any branch, so every barrier runs in uniform control flow. A
++// maximum does not depend on the order of the invocations, so one machine gives the same level in every run. A sky
++// pixel's age is 0, and a pixel outside the images adds nothing.
+ uint evidenceOfBlock(ivec2 pixel)
+ {
++    bool regionMoved = regionLightMoved();
+     if (gl_LocalInvocationIndex == 0u)
+-        blockEvidence = NoEvidence;
++        blockEvidence = regionMoved ? RegionEvidence : NoEvidence;
+     barrier();
+     if (insideImages(pixel))
+         atomicMax(blockEvidence, evidenceOfSample(imageLoad(sampleAge, pixel).r));
+@@ -144,11 +152,15 @@ void accumulateAt(ivec2 pixel, uint evidence)
+         storeTrace(pixel, 7, vec4(sigma, 0.0));
+ #endif
+         // Light evidence has a known age, so it bounds the length: the history restarts at the fast window's length.
+-        // Motion has no known size, so the narrow box measures it, and the anti-lag shortens the history by the clamp's
+-        // move.
+-        historyLength = evidence == LightEvidence
+-            ? fastCap
+-            : max(fastCap, historyLength * (1.0 - min(1.0, lag / parameters.antiLagShare)));
++        // Region evidence states a change too, so it takes no anti-lag either: the history keeps at most FullRateFrames
++        // draws, the shortest length that keeps the block's shared ray. Motion has no known size, so the narrow box
++        // measures it, and the anti-lag shortens the history by the clamp's move.
++        if (evidence == LightEvidence)
++            historyLength = fastCap;
++        else if (evidence == RegionEvidence)
++            historyLength = min(historyLength, FullRateFrames);
++        else
++            historyLength = max(fastCap, historyLength * (1.0 - min(1.0, lag / parameters.antiLagShare)));
+         slow = clamped;
+     }
+ 
+diff --git a/src/Tertius.Rendering/Shaders/accumulate_temporal.comp b/src/Tertius.Rendering/Shaders/accumulate_temporal.comp
+index 34b41212a..2fe17f0a9 100644
+--- a/src/Tertius.Rendering/Shaders/accumulate_temporal.comp
++++ b/src/Tertius.Rendering/Shaders/accumulate_temporal.comp
+@@ -17,6 +17,9 @@
+ #include "meter.glsl"
+ #include "motion.glsl"
+ #include "neighbor_limit_prototype.glsl"
++#ifdef TERTIUS_LIGHT_AGE
++#include "region_drift.glsl"
++#endif
+ 
+ // The draws of the retained deviation's window: the bounce cap. A half-float store cannot follow a weight below about
+ // 2^−11, so an uncapped history takes this window too.
+@@ -239,6 +242,17 @@ vec4 tracedPlaceWeights(ivec2 pixel)
+ }
+ #endif
+ 
++// Stores the block's tap where `pixel` is its block's tap (region_drift.glsl): the luminance of `sampled` over the draw's
++// exposure scale, so that a change of the exposure alone leaves it, and whether it counts.
++void storeRegionTap(ivec2 pixel, vec3 sampled, bool counts)
++{
++#ifdef TERTIUS_LIGHT_AGE
++    if (isRegionTap(pixel))
++        imageStore(blockLight, blockOf(pixel), vec4(counts ? luminance(sampled) / exposureScale() : 0.0, counts ? 1.0 : 0.0,
++            0.0, 0.0));
++#endif
++}
++
+ void main()
+ {
+     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+@@ -247,6 +261,7 @@ void main()
+     if (texelFetch(gbufferDistance, pixel, 0).r <= 0.0)
+     {
+         // The sky: no signal, and no reader reads it.
++        storeRegionTap(pixel, vec3(0.0), false);
+         imageStore(scratch, pixel, vec4(0.0));
+         imageStore(fastHistory, pixel, vec4(0.0));
+         if (reflectionSharingPrototype && parameters.light == SpecularLight)
+@@ -262,6 +277,8 @@ void main()
+     vec4 sample4 = imageLoad(sampleImage, pixel);
+     vec3 sampled = limitIncomingEstimate(pixel, sample4.rgb);
+     bool hasSample = finiteSample(sampled);
++    // A tap whose surface moves on screen shows another surface point in each draw, so it does not count.
++    storeRegionTap(pixel, sampled, hasSample && (imageLoad(surfaceTest, pixel).r & SurfaceMovesOnScreen) == 0u);
+     // The specular signal's sample holds its hit distance in alpha, 0 for a miss.
+     float hitDistance = parameters.light == SpecularLight && hasSample && !isnan(sample4.a) ? sample4.a : 0.0;
+     float roughness = roughnessAt(pixel);
+diff --git a/src/Tertius.Rendering/Shaders/region_drift.glsl b/src/Tertius.Rendering/Shaders/region_drift.glsl
+new file mode 100644
+index 000000000..26c419631
+--- /dev/null
++++ b/src/Tertius.Rendering/Shaders/region_drift.glsl
+@@ -0,0 +1,149 @@
++// The region's drift (docs/plans/bounce-light-confidence.md, section 8.6; ticket t0-acxm): the second source of a block's
++// light evidence. The temporal dispatch stores one tap per block of 8 × 8 pixels. The spatial dispatch, whose workgroup is
++// one block, sums its region's taps, keeps the block's ring of its region's light and tests whether that light moved
++// (regionLightMoved). The ring's layout and the test live only here: the spatial dispatch takes the answer. The two
++// images are a signal's with a light age (TemporalSignal), at block resolution. Needs accumulate.glsl.
++#ifndef TERTIUS_REGION_DRIFT_GLSL
++#define TERTIUS_REGION_DRIFT_GLSL
++
++// The draws of each of the test's two windows, W: the jitter's 18 phases under FSR at the render scale 1.5, so that a
++// cycle of the jitter cancels in each window.
++const uint RegionWindowDraws = 18u;
++
++// The draws that a block's ring keeps: the newer and the older window.
++const uint RegionRingDraws = 2u * RegionWindowDraws;
++
++// The region of a block: the blocks up to this far in x and in y, 17 × 17 blocks.
++const int RegionRadiusBlocks = 8;
++
++// The side of a region, in blocks.
++const int RegionSide = 2 * RegionRadiusBlocks + 1;
++
++// The tolerance of the test, in standard deviations of the older window's spread of the region's light.
++const float DriftSigmas = 3.0;
++
++// The pixel of a block whose sample is the block's tap, in the block's own pixels.
++const ivec2 RegionTapPixel = ivec2(4);
++
++// Each block's tap of this draw (TemporalSignal.BlockLightFormat): r the luminance of the tap pixel's sample over the
++// draw's exposure scale, g 1 where the tap counts, else 0. A tap counts where its pixel shows a surface that does not move
++// on screen, and holds a finite sample.
++layout(set = 3, binding = 13, rg32f) uniform image2D blockLight;
++
++// Each block's ring (TemporalSignal.RegionRingFormat): layer k holds the draw whose regionSlot is k, r the region's light
++// of that draw, g the count of valid draws in a row up to it, at most RegionRingDraws, 0 for a draw that is not valid.
++// Only the workgroup of the block reads and writes it.
++layout(set = 3, binding = 14, rg32f) uniform image2DArray regionRing;
++
++// The block of a pixel.
++ivec2 blockOf(ivec2 pixel)
++{
++    return pixel / 8;
++}
++
++// Whether a pixel is its block's tap.
++bool isRegionTap(ivec2 pixel)
++{
++    return all(equal(pixel & 7, RegionTapPixel));
++}
++
++// Whether the tap of `block` lies inside the images.
++bool tapInsideImages(ivec2 block)
++{
++    return insideImages(8 * block + RegionTapPixel);
++}
++
++#ifdef TERTIUS_REGION_DRIFT_TEST
++// One draw of a block's ring.
++struct RegionDraw
++{
++    float light;        // the region's light of the draw: the mean of its counted taps
++    float validDraws;   // the count of valid draws in a row up to the draw, at most RegionRingDraws, 0 if it is not valid
++};
++
++// Each invocation's share of the region's sums (regionLightMoved): x the counted light, y the counted taps, z the taps
++// inside the images.
++shared vec3 regionShares[64];
++
++// The block's ring, layer by layer, as the draw before left it.
++shared vec2 regionRingBefore[RegionRingDraws];
++
++// Whether the block's region light moved in this draw, which invocation 0 decides.
++shared bool regionMoved;
++
++// The region's light of this draw from its `sums`: the mean of its counted taps. The draw is valid where at least half of
++// the region's taps inside the images count, so that the mean is of mostly the same surfaces from draw to draw: a camera
++// move makes every tap move, so the count restarts. `validDrawsBefore` is the count of the draw before.
++RegionDraw regionDrawOf(vec3 sums, float validDrawsBefore)
++{
++    bool valid = sums.y > 0.0 && 2.0 * sums.y >= sums.z;
++    return RegionDraw(valid ? sums.x / sums.y : 0.0, valid ? min(validDrawsBefore + 1.0, float(RegionRingDraws)) : 0.0);
++}
++
++// The ring's light of the draw `back` draws before this one, 1 to RegionRingDraws − 1.
++float regionLightBefore(uint back)
++{
++    return regionRingBefore[(parameters.regionSlot + RegionRingDraws - back) % RegionRingDraws].r;
++}
++
++// Whether the region's light moved, from this draw `now` and the ring's draws before it: whether the mean of the newer
++// window (this draw and the W − 1 before it) differs from the mean of the older window (the W draws before those) by more
++// than DriftSigmas standard deviations of the older window's spread, times sqrt(2 / W), the spread of a difference of two
++// means of W draws. False until 2 W valid draws in a row exist. The older window's spread is a measured quantity: a step
++// inside the newer window does not raise it.
++bool regionTestOf(RegionDraw now)
++{
++    if (now.validDraws < float(RegionRingDraws))
++        return false;
++    float newer = now.light;
++    for (uint back = 1u; back < RegionWindowDraws; back++)
++        newer += regionLightBefore(back);
++    float olderSum = 0.0;
++    for (uint back = RegionWindowDraws; back < RegionRingDraws; back++)
++        olderSum += regionLightBefore(back);
++    float window = float(RegionWindowDraws);
++    float olderMean = olderSum / window;
++    float squares = 0.0;
++    for (uint back = RegionWindowDraws; back < RegionRingDraws; back++)
++        squares += (regionLightBefore(back) - olderMean) * (regionLightBefore(back) - olderMean);
++    float olderSpread = sqrt(squares / (window - 1.0));
++    return abs(newer / window - olderMean) > DriftSigmas * olderSpread * sqrt(2.0 / window);
++}
++
++// Whether the region light of the workgroup's block moved in this draw. It also writes this draw into the block's ring.
++// Every invocation of the workgroup calls it from main before any branch, so its two barriers run in uniform control
++// flow. Each invocation sums its own taps of the 17 × 17 into its own slot, and invocation 0 adds the slots in index
++// order, so one machine gives the same bits in every run.
++bool regionLightMoved()
++{
++    ivec2 block = ivec2(gl_WorkGroupID.xy);
++    uint index = gl_LocalInvocationIndex;
++    vec3 share = vec3(0.0);
++    for (uint tap = index; tap < uint(RegionSide * RegionSide); tap += 64u)
++    {
++        ivec2 other = block + ivec2(int(tap) % RegionSide, int(tap) / RegionSide) - RegionRadiusBlocks;
++        if (!tapInsideImages(other))
++            continue;
++        vec2 light = imageLoad(blockLight, other).rg;
++        share += vec3(light.r * light.g, light.g, 1.0);
++    }
++    regionShares[index] = share;
++    if (index < RegionRingDraws)
++        regionRingBefore[index] = imageLoad(regionRing, ivec3(block, int(index))).rg;
++    barrier();
++    if (index == 0u)
++    {
++        vec3 sums = vec3(0.0);
++        for (uint slot = 0u; slot < 64u; slot++)
++            sums += regionShares[slot];
++        float before = parameters.reset != 0u ? 0.0 : regionRingBefore[(parameters.regionSlot + RegionRingDraws - 1u) % RegionRingDraws].g;
++        RegionDraw now = regionDrawOf(sums, before);
++        regionMoved = regionTestOf(now);
++        imageStore(regionRing, ivec3(block, int(parameters.regionSlot)), vec4(now.light, now.validDraws, 0.0, 0.0));
++    }
++    barrier();
++    return regionMoved;
++}
++#endif
++
++#endif
+diff --git a/src/Tertius.Rendering/Shaders/sample_age.glsl b/src/Tertius.Rendering/Shaders/sample_age.glsl
+index 38e80a842..bc0fffb27 100644
+--- a/src/Tertius.Rendering/Shaders/sample_age.glsl
++++ b/src/Tertius.Rendering/Shaders/sample_age.glsl
+@@ -20,6 +20,11 @@ const uint LightCodeMask = 0x7FFFu;
+ // step after k draws, holds it within 5 % by the end (section 8.3).
+ const uint RecentLightAge = 7u;
+ 
++// A pixel traces its own ray of a kind while its history of that kind is shorter than this (docs/plans/temporal-renderer.md,
++// section 6, "The ray budget"). The screen tracer's plan reads it, and so does the spatial dispatch, whose region evidence
++// cuts a history to it: the shortest length that keeps the block's shared ray.
++const float FullRateFrames = 8.0;
++
+ // The sample age of a sample whose rays bring the light code `lightCode`, with the motion bit where `motion` holds.
+ uint sampleAgeOf(uint lightCode, bool motion)
+ {
+diff --git a/src/Tertius.Rendering/Shaders/screen_trace.glsl b/src/Tertius.Rendering/Shaders/screen_trace.glsl
+index 6f40f9c91..2f75c757e 100644
+--- a/src/Tertius.Rendering/Shaders/screen_trace.glsl
++++ b/src/Tertius.Rendering/Shaders/screen_trace.glsl
+@@ -249,10 +249,6 @@ const uint KindDiffuse = 1u;
+ const uint PlanOwnReflection = 1u;
+ const uint PlanOwnDiffuse = 2u;
+ 
+-
+-// A pixel traces its own ray of a kind while its history of that kind is shorter than this (section 6, "The ray budget").
+-const float FullRateFrames = 8.0;
+-
+ // The largest weight of a ray at a pixel, which trades a small bias for no fireflies (section 6, "The resolve").
+ const float MostRayWeight = 4.0;
+ 
+diff --git a/src/Tertius.Rendering/Tertius.Rendering.csproj b/src/Tertius.Rendering/Tertius.Rendering.csproj
+index 83a79b674..efd0d81ba 100644
+--- a/src/Tertius.Rendering/Tertius.Rendering.csproj
++++ b/src/Tertius.Rendering/Tertius.Rendering.csproj
+@@ -50,11 +50,12 @@
+     <AccumulationTraceShader Include="Shaders/accumulate_temporal.comp;Shaders/accumulate_spatial.comp" />
+     <!-- HistoryInstrumentationSelection lists the shaders of the two items above, and ShaderVariantTests checks the
+          list against the embedded shaders. -->
+-    <!-- The light-age variant (ticket ter-wkvw): the diffuse signal's spatial dispatch beside a precise specular history,
+-         which keeps its half-precision history and acts on its blocks' evidence. The temporal dispatch reads no light
+-         age. ShaderVariant.LightAge lists it. TERTIUS_LIGHT_AGE marks every build whose dispatches read the light age:
++    <!-- The light-age variant (ticket ter-wkvw): the diffuse signal's dispatches beside a precise specular history, which
++         keep its half-precision history. The temporal dispatch stores its blocks' taps for the region's drift (ticket
++         t0-acxm), and the spatial dispatch tests the drift and acts on its blocks' evidence. ShaderVariant.LightAge
++         lists it. TERTIUS_LIGHT_AGE marks every build whose dispatches read the light age:
+          this variant and every variant of a precise history. -->
+-    <LightAgeShader Include="Shaders/accumulate_spatial.comp" />
++    <LightAgeShader Include="Shaders/accumulate_temporal.comp;Shaders/accumulate_spatial.comp" />
+     <GlslInclude Include="Shaders/*.glsl" />
+     <None Include="@(GlslShader);@(GlslInclude)" />
+   </ItemGroup>
+diff --git a/tests/Tertius.Rendering.Tests/AccumulatorRenderTests.cs b/tests/Tertius.Rendering.Tests/AccumulatorRenderTests.cs
+index dfd45fd5f..5dab6842b 100644
+--- a/tests/Tertius.Rendering.Tests/AccumulatorRenderTests.cs
++++ b/tests/Tertius.Rendering.Tests/AccumulatorRenderTests.cs
+@@ -2469,6 +2469,21 @@ public sealed class AccumulatorRenderTests
+             );
+         }
+ 
++        [Fact]
++        public void TheOriginalSpecularHistoryKeepsNoRegionRingsAndStoresNoTaps()
++        {
++            // The region's drift is light evidence, so a signal without a light age has no ring and no tap store.
++            WithHistory(
++                mode: "original",
++                parameters: SignalParameters.Specular(0),
++                (_, sample, _) =>
++                {
++                    sample.Signal.RegionRing(0).Should().BeNull("the original history has no light evidence");
++                    sample.Signal.BlockLight(0).Should().BeNull("nothing reads a tap without a ring");
++                }
++            );
++        }
++
+         [Fact]
+         public void WithoutALightAgeTheBounceLightKeepsTheNarrowBox()
+         {
+@@ -2552,4 +2567,358 @@ public sealed class AccumulatorRenderTests
+             }
+         }
+     }
++
++    /// <summary>
++    /// The region's drift (region_drift.glsl, docs/plans/bounce-light-confidence.md, section 8.6): a block whose region's
++    /// light moves gets region evidence, which cuts its bounce history to at most FullRateFrames. Its runs of hundreds of
++    /// draws run beside the rest of the class (tests/STYLE.md, "Long tests").
++    /// </summary>
++    public sealed class RegionDrift
++    {
++        /// <summary>The length from which a pixel shares its block's ray (sample_age.glsl, FullRateFrames).</summary>
++        private const float FullRateFrames = 8;
++
++        /// <summary>The draws of the region's two windows (region_drift.glsl, RegionRingDraws).</summary>
++        private const int TwoWindows = TemporalSignal.RegionRingDraws;
++
++        /// <summary>The coefficient of variation of the samples' noise in a region whose light moves.</summary>
++        private const float Variation = 0.1f;
++
++        /// <summary>The draws of the steady fall of <see cref="FallThenStand"/>, from 1 to 0.5.</summary>
++        private const int FallDraws = 100;
++
++        /// <summary>
++        /// Draws one frame whose samples have the mean <paramref name="light"/> and the coefficient of variation
++        /// <paramref name="variation"/>. Returns whether region evidence cut a history of part 0 in it: the evidence is a
++        /// derived read inside the spatial dispatch, so its one effect shows it. A history of at least FullRateFrames draws
++        /// before the draw ends it at exactly FullRateFrames under region evidence. Without evidence the blend lengthens it,
++        /// light evidence ends it at the fast cap, and the anti-lag ends it at the fast cap or at a length that is not whole.
++        /// </summary>
++        private static bool DrawNoisy(
++            VulkanRenderer renderer,
++            SamplePass sample,
++            RenderSnapshot scene,
++            float light,
++            int frame,
++            float variation = Variation
++        )
++        {
++            float[] before = LengthsOf(renderer, sample);
++            sample.Samples = (column, row) =>
++                NoisySample(light: light, variation: variation, column: column, row: row, frame: frame);
++            Continue(renderer, scene, frames: 1);
++            float[] after = LengthsOf(renderer, sample);
++            return Enumerable
++                .Range(0, after.Length)
++                .Any(pixel => before[pixel] >= FullRateFrames && after[pixel] == FullRateFrames);
++        }
++
++        /// <summary>
++        /// Draws 100 frames of noisy samples of mean 1, then <see cref="FallDraws"/> frames whose mean falls steadily to
++        /// 0.5, then <paramref name="standDraws"/> frames at 0.5. Returns the frames after the fall in which any block had
++        /// region evidence.
++        /// </summary>
++        private static List<int> FallThenStand(
++            VulkanRenderer renderer,
++            SamplePass sample,
++            RenderSnapshot scene,
++            int standDraws
++        )
++        {
++            sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
++            renderer.Render(scene, 1f);
++            int frame = 0;
++            for (; frame < 100; frame++)
++                DrawNoisy(renderer, sample, scene, light: 1, frame: frame);
++            for (int fallen = 1; fallen <= FallDraws; fallen++, frame++)
++                DrawNoisy(renderer, sample, scene, light: 1 - 0.5f * fallen / FallDraws, frame: frame);
++            List<int> withEvidence = [];
++            for (int stood = 0; stood < standDraws; stood++, frame++)
++                if (DrawNoisy(renderer, sample, scene, light: 0.5f, frame: frame))
++                    withEvidence.Add(stood);
++            return withEvidence;
++        }
++
++        [Fact]
++        public void AStillRegionOfNoisySamplesGivesRegionEvidenceInFewOfItsDraws()
++        {
++            // The test's tolerance is 3 standard deviations of the older window's own spread, so noise alone passes it
++            // rarely: about 1 % of a clean still's block draws in the takes of t0-ion0.
++            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
++                parameters: SignalParameters.Diffuse
++            );
++            try
++            {
++                sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
++                renderer.Render(scene, 1f);
++                int withEvidence = 0;
++                for (int frame = 0; frame < 400; frame++)
++                    if (DrawNoisy(renderer, sample, scene, light: 1, frame: frame, variation: 0.3f))
++                        withEvidence++;
++
++                withEvidence.Should().BeLessThanOrEqualTo(12, "noise alone passes the test in few of 400 draws");
++            }
++            finally
++            {
++                Gpu.DisposeAndAssertClean(renderer);
++            }
++        }
++
++        [Fact]
++        public void WhileTheRegionsLightFallsItsBounceHistoryFollowsTheSamplesWithinSixPercent()
++        {
++            // The trail's bound. A history of 32 draws trails a steady fall by 15.5 draws of it, 15.5 % of the light at the
++            // end of a fall from 1 to 0.5 in 100 draws, and the widened box holds the noisy samples' spread. Region evidence
++            // holds the history at 8 draws, which trail by 3.5 draws: 3.5 % (docs/plans/bounce-light-confidence.md,
++            // section 8.6).
++            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
++                parameters: SignalParameters.Diffuse
++            );
++            try
++            {
++                FallThenStand(renderer: renderer, sample: sample, scene: scene, standDraws: 0);
++
++                InteriorLightOf(renderer, sample)
++                    .Average()
++                    .Should()
++                    .BeApproximately(0.5f, 0.03f, "the history follows the samples' recent mean");
++            }
++            finally
++            {
++                Gpu.DisposeAndAssertClean(renderer);
++            }
++        }
++
++        [Fact]
++        public void ARegionEvidenceAloneCutsTheBounceHistoryToFullRateFrames()
++        {
++            // At the end of the fall the region evidence has acted for many draws: each blend adds a draw, and the cut
++            // takes the history back to FullRateFrames, the shortest length that keeps the block's shared ray.
++            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
++                parameters: SignalParameters.Diffuse
++            );
++            try
++            {
++                FallThenStand(renderer: renderer, sample: sample, scene: scene, standDraws: 0);
++
++                LengthsOf(renderer, sample)
++                    .Should()
++                    .OnlyContain(length => length == FullRateFrames, "region evidence cuts every history to 8 draws");
++            }
++            finally
++            {
++                Gpu.DisposeAndAssertClean(renderer);
++            }
++        }
++
++        [Fact]
++        public void UnderMotionEvidenceARegionEvidenceActsAsTheMotionEvidenceAlone()
++        {
++            // Motion stands above the region: the narrow box measures the change at the pixel itself, and the anti-lag
++            // shortens the history by the clamp's move, not to FullRateFrames (section 8.2). The camera stands still, so
++            // the region's taps still count, and the region's light keeps falling in the last draw.
++            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
++                parameters: SignalParameters.Diffuse
++            );
++            try
++            {
++                FallThenStand(renderer: renderer, sample: sample, scene: scene, standDraws: 0);
++                sample.AgeCode = TemporalSignal.SampleMotionBit;
++
++                DrawNoisy(renderer, sample, scene, light: 0.495f, frame: 200).Should().BeFalse("motion evidence acts");
++                LengthsOf(renderer, sample)
++                    .Should()
++                    .OnlyContain(length => length != FullRateFrames, "the anti-lag sets the length, not the region");
++            }
++            finally
++            {
++                Gpu.DisposeAndAssertClean(renderer);
++            }
++        }
++
++        [Fact]
++        public void UnderLightEvidenceARegionEvidenceCutsTheBounceHistoryToTheFastCap()
++        {
++            // A ray that saw the light change is the most certain knowledge, so its cut to the fast cap stands above the
++            // region's cut to FullRateFrames.
++            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
++                parameters: SignalParameters.Diffuse
++            );
++            try
++            {
++                FallThenStand(renderer: renderer, sample: sample, scene: scene, standDraws: 0);
++                sample.AgeCode = 5;
++
++                DrawNoisy(renderer, sample, scene, light: 0.495f, frame: 200);
++                LengthsOf(renderer, sample)
++                    .Should()
++                    .OnlyContain(length => length == FastCap, "light evidence cuts every history to the fast cap");
++            }
++            finally
++            {
++                Gpu.DisposeAndAssertClean(renderer);
++            }
++        }
++
++        [Fact]
++        public void AfterTheRegionsLightStandsStillItsEvidenceEndsWithinTwoWindows()
++        {
++            // Once both windows hold only still draws, their means agree within the noise.
++            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
++                parameters: SignalParameters.Diffuse
++            );
++            try
++            {
++                List<int> withEvidence = FallThenStand(
++                    renderer: renderer,
++                    sample: sample,
++                    scene: scene,
++                    standDraws: TwoWindows + 40
++                );
++
++                withEvidence.Should().NotBeEmpty("the fall's end still lies in the newer window");
++                withEvidence.Should().OnlyContain(stood => stood < TwoWindows, "the evidence ends within two windows");
++            }
++            finally
++            {
++                Gpu.DisposeAndAssertClean(renderer);
++            }
++        }
++
++        [Fact]
++        public void AfterTheRegionsEvidenceEndsTheBounceHistoryGrowsBackToItsCap()
++        {
++            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
++                parameters: SignalParameters.Diffuse
++            );
++            try
++            {
++                FallThenStand(renderer: renderer, sample: sample, scene: scene, standDraws: TwoWindows + 40);
++
++                LengthsOf(renderer, sample)
++                    .Should()
++                    .OnlyContain(length => length == 32, "no evidence cuts the history after the light stood still");
++            }
++            finally
++            {
++                Gpu.DisposeAndAssertClean(renderer);
++            }
++        }
++
++        [Fact]
++        public void ACameraMoveGivesNoRegionEvidenceDuringItOrForTwoWindowsAfterIt()
++        {
++            // Every tap's surface moves on screen during the move, so no draw is valid, and the count of valid draws
++            // starts again after it. The light falls all the while, which a still camera's region counts as a move
++            // (ARegionEvidenceAloneCutsTheBounceHistoryToFullRateFrames).
++            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
++                parameters: SignalParameters.Diffuse
++            );
++            try
++            {
++                sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
++                renderer.Render(scene, 1f);
++                int frame = 0;
++                for (; frame < 100; frame++)
++                    DrawNoisy(renderer, sample, scene, light: 1, frame: frame);
++                List<int> withEvidence = [];
++                for (int draw = 0; draw < 40 + TwoWindows; draw++, frame++)
++                {
++                    scene.Camera.PreviousPosition = scene.Camera.Position;
++                    if (draw < 40)
++                        scene.Camera.Position += new Vector3(0.1f, 0, 0);
++                    if (DrawNoisy(renderer, sample, scene, light: 1 - 0.005f * (draw + 1), frame: frame))
++                        withEvidence.Add(draw);
++                }
++
++                withEvidence.Should().BeEmpty("no draw of the move counts, and the count starts again after it");
++            }
++            finally
++            {
++                Gpu.DisposeAndAssertClean(renderer);
++            }
++        }
++
++        [Fact]
++        public void AChangeOfTheExposureAloneGivesNoRegionEvidence()
++        {
++            // The samples hold the same scene light, pre-exposed at the exposure that each frame uses, while a bright
++            // star moves the exposure. The tap divides by the draw's exposure scale, so the region's light stays.
++            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
++                parameters: SignalParameters.Diffuse,
++                exposure: AutoExposure.Default
++            );
++            try
++            {
++                int frame = 0;
++                bool ExposeAndContinue() =>
++                    DrawNoisy(
++                        renderer,
++                        sample,
++                        scene,
++                        light: 0.05f * MathF.Pow(2, renderer.ReadExposureStops().Stops),
++                        frame: frame++
++                    );
++
++                sample.Value = new(x: 0.05f, y: 0.05f, z: 0.05f, w: 1f);
++                renderer.Render(scene, 1f);
++                for (int draw = 0; draw < 100; draw++)
++                    ExposeAndContinue();
++                float before = renderer.ReadExposureStops().Stops;
++                Gpu.Star(snapshot: scene, irradiance: 64 * Gpu.StarIrradiance(scene));
++                List<int> withEvidence = [];
++                for (int draw = 0; draw < 80; draw++)
++                    if (ExposeAndContinue())
++                        withEvidence.Add(draw);
++
++                renderer.ReadExposureStops().Stops.Should().BeLessThan(before - 0.5f, "the star moved the exposure");
++                withEvidence.Should().BeEmpty("the scene's light did not change");
++            }
++            finally
++            {
++                Gpu.DisposeAndAssertClean(renderer);
++            }
++        }
++
++        [Fact]
++        public void TheTapOfABlockOnASurfaceThatMovesOnScreenDoesNotCount()
++        {
++            // A box moves across the still wall. A moving surface shows another surface point in each draw, so its tap
++            // would carry that point's light into the region's light.
++            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
++                parameters: SignalParameters.Diffuse
++            );
++            try
++            {
++                MeshId cube = renderer.CreateMesh(Primitives.Box(new(0.5f)));
++                MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.5f));
++                Vector3 place = new(0, 0, -10);
++                RenderInstance Box(Vector3 position) =>
++                    Gpu.Instance(
++                        mesh: cube,
++                        material: white,
++                        position: position,
++                        scale: new(4, 4, 1),
++                        chainDepth: TestChains.CamerasFrame,
++                        entity: 2
++                    );
++                scene.Instances.Add(Box(place));
++                sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
++                renderer.Render(scene, 1f);
++                place += new Vector3(0.05f, 0, 0);
++                scene.Instances[^1] = Box(place);
++                Continue(renderer, scene, frames: 1);
++
++                float[] taps = renderer.ReadImage(sample.Signal.BlockLight(0)!);
++                int blocksInARow = (Width + 7) / 8;
++                int boxBlock = Height / 2 / 8 * blocksInARow + Width / 2 / 8;
++                taps[2 * boxBlock + 1].Should().Be(0, "the box's tap moves on screen");
++                taps[1].Should().Be(1, "the corner block's tap shows the still wall");
++            }
++            finally
++            {
++                Gpu.DisposeAndAssertClean(renderer);
++            }
++        }
++    }
+ }
+diff --git a/tests/Tertius.Rendering.Tests/DescriptorLayoutsTests.cs b/tests/Tertius.Rendering.Tests/DescriptorLayoutsTests.cs
+index 1736d1fbe..7546546d5 100644
+--- a/tests/Tertius.Rendering.Tests/DescriptorLayoutsTests.cs
++++ b/tests/Tertius.Rendering.Tests/DescriptorLayoutsTests.cs
+@@ -222,12 +222,12 @@ public sealed class DescriptorLayoutsTests
+ 
+     /// <summary>
+     /// The light-change age of a precise specular history adds five storage images to the screen tracer's compute stage,
+-    /// the two light-age records, the two samples' ages and FSR's light-change mask, and one to the accumulator's, the
+-    /// sample age of its signal, which both of its dispatches read. The original history keeps H13's shaders, which have
+-    /// no light age.
++    /// the two light-age records, the two samples' ages and FSR's light-change mask, and three to the accumulator's: the
++    /// sample age of its signal, and the region's taps and rings (region_drift.glsl). The original history keeps H13's
++    /// shaders, which have no light age.
+     /// </summary>
+     [Fact]
+-    public void APreciseHistoryAddsTheLightAgesFiveStorageImagesToTheScreenTracerAndOneToTheAccumulator()
++    public void APreciseHistoryAddsTheLightAgesFiveStorageImagesToTheScreenTracerAndThreeToTheAccumulator()
+     {
+         using var device = VulkanDevice.Create(validation: true, surfaceExtensions: [], createSurface: null);
+         using var original = new DescriptorLayouts(
+@@ -245,7 +245,7 @@ public sealed class DescriptorLayoutsTests
+         layouts
+             .DescriptorsOf(layouts.AccumulateLayout)
+             .StorageImages.Compute.Should()
+-            .Be(original.DescriptorsOf(original.AccumulateLayout).StorageImages.Compute + 1);
++            .Be(original.DescriptorsOf(original.AccumulateLayout).StorageImages.Compute + 3);
+     }
+ 
+     [Fact]

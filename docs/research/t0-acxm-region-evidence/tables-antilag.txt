@@ -1,0 +1,59 @@
+## Film rect-bay: the survey's middle and last frame
+
+$ films.py s/t-M-rb/results/motion/rect-bay.json s/t-L-rb/results/motion/rect-bay.json s/t-R-rb/results/motion/rect-bay.json s/t-S-rb/results/motion/rect-bay.json
+variant                          level mid/last  blotch mid/last
+t-M-rb                           +1.17 / +0.53   0.238 / 0.231
+t-L-rb                           +2.11 / +2.27   0.372 / 0.502
+t-R-rb                           +0.85 / +0.29   0.187 / 0.162
+t-S-rb                           +0.85 / +0.29   0.187 / 0.162
+
+$ filmspecks.py t-M-rb t-L-rb t-R-rb t-S-rb
+variant      specks middle / last
+t-M-rb         0.18 /   0.89
+t-L-rb         0.15 /   0.09
+t-R-rb         0.22 /   0.27
+t-S-rb         0.22 /   0.27
+
+$ flicker (results/motion/rect-bay.json)
+t-M-rb       flicker 0.00204 grain 0.00638
+t-L-rb       flicker 0.00098 grain 0.00487
+t-R-rb       flicker 0.00273 grain 0.00709
+t-S-rb       flicker 0.00273 grain 0.00709
+
+## Lag film bay-sun: median lag in draws / median lag error
+
+$ lags.py s/t-M-lag s/t-L-lag s/t-R-lag s/t-S-lag
+variant                                     bay-sun        lamp-hall-16-moving   lamp-hall-64-spot-moving
+t-M-lag                              28.28 / 0.2699                  not taken                  not taken
+t-L-lag                              40.58 / 0.3540                  not taken                  not taken
+t-R-lag                              13.96 / 0.1502                  not taken                  not taken
+t-S-lag                              13.96 / 0.1502                  not taken                  not taken
+
+## Still bay-sunbeam: specks, blotch, daub against t-A-s
+
+$ stills.py bay-sunbeam t-A-s t-M-s t-L-s t-R-s
+t-A-s          bay-sunbeam  specks   0.15  blotch 0.0315
+t-M-s          bay-sunbeam  specks   0.14  blotch 0.0342
+t-L-s          bay-sunbeam  specks   0.14  blotch 0.0301
+t-R-s          bay-sunbeam  specks   0.14  blotch 0.0294
+
+$ REF=t-A-s daub.py ...
+t-A-s      bay-sunbeam  daub 0.0148  broad 0.0329  smooth share 0.89  walls 0.0135  floor 0.0202
+t-M-s      bay-sunbeam  daub 0.0311  broad 0.0583  smooth share 0.89  walls 0.0292  floor 0.0369
+t-L-s      bay-sunbeam  daub 0.0207  broad 0.0365  smooth share 0.89  walls 0.0202  floor 0.0225
+t-R-s      bay-sunbeam  daub 0.0225  broad 0.0374  smooth share 0.89  walls 0.0217  floor 0.0249
+
+## Still exit-cabin: specks, blotch, daub against t-A-s
+
+$ stills.py exit-cabin t-A-s t-M-s t-L-s t-R-s
+t-A-s          exit-cabin   specks   0.14  blotch 0.0147
+t-M-s          exit-cabin   specks   0.24  blotch 0.0201
+t-L-s          exit-cabin   specks   0.20  blotch 0.0153
+t-R-s          exit-cabin   specks   0.24  blotch 0.0176
+
+$ REF=t-A-s daub.py ...
+t-A-s      exit-cabin   daub 0.0128  broad 0.0109  smooth share 0.59
+t-M-s      exit-cabin   daub 0.0273  broad 0.0519  smooth share 0.59
+t-L-s      exit-cabin   daub 0.0150  broad 0.0135  smooth share 0.59
+t-R-s      exit-cabin   daub 0.0166  broad 0.0140  smooth share 0.59
+

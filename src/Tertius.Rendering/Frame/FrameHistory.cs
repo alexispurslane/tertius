@@ -197,7 +197,9 @@ internal sealed class FrameHistory
             OutputSize: outputSize,
             CameraCuts: snapshot.CameraCuts,
             // A position in another frame's axes means nothing in this one's, so the record then serves no motion.
-            Continued: drawn is { } record && record.Camera.FrameId == snapshot.OriginFrameId ? record : null
+            Continued: drawn is { } record && record.Camera.FrameId == snapshot.OriginFrameId ? record : null,
+            // The images keep the size at which the last draw wrote them, in whichever frame its camera was.
+            PreviousRenderSize: drawn?.RenderSize ?? renderSize
         );
         pendingCamera = null;
         pendingPlacements.Clear();
@@ -281,6 +283,9 @@ internal sealed class FrameHistory
     /// <summary>What <see cref="Begin"/> derived for the pending draw.</summary>
     /// <param name="DrawnFrames">The frames drawn before the draw, which stays the draw's own after <see cref="Drew"/>.</param>
     /// <param name="Continued">The drawn frame that the draw continues, or null where it continues none.</param>
+    /// <param name="PreviousRenderSize">
+    /// The render size of the last drawn frame, whose images the draw reads, or the draw's own where no frame was drawn.
+    /// </param>
     /// <param name="ExposureStep">The step in s by which the draw's adapt step moves the exposure.</param>
     /// <param name="RefreshesEveryFace">Whether the draw refreshes every face of the environment map.</param>
     private readonly record struct Derivation(
@@ -293,7 +298,8 @@ internal sealed class FrameHistory
         Extent2D RenderSize,
         Extent2D OutputSize,
         long CameraCuts,
-        DrawnFrame? Continued
+        DrawnFrame? Continued,
+        Extent2D PreviousRenderSize
     );
 
     /// <summary>
@@ -350,8 +356,11 @@ internal sealed class FrameHistory
             }
         }
 
-        /// <summary>The render size of the last drawn frame that this draw continues, or this draw's own where it continues none.</summary>
-        public Extent2D PreviousRenderSize => history.derived.Continued?.RenderSize ?? RenderSize;
+        /// <summary>
+        /// The render size of the last drawn frame, whose images this draw reads, also after a change of the camera's frame;
+        /// this draw's own where no frame was drawn.
+        /// </summary>
+        public Extent2D PreviousRenderSize => history.derived.PreviousRenderSize;
 
         /// <summary>
         /// The placement history that this draw joins: the last drawn frame's placed instances, keys rising, or none when

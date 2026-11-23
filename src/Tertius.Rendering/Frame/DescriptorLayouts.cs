@@ -59,7 +59,8 @@ namespace Tertius.Rendering;
 /// rewritten on resize.</description></item>
 /// <item><term>signal</term><description>set 3 of <see cref="AccumulateLayout"/>: one part of a signal's images, the
 /// surface test image and the motion target, as storage images for the compute stage, and the last surface history and
-/// the last device depth as sampled images (<see cref="TemporalSignal"/>). One per part and parity, rewritten on
+/// the last device depth as sampled images (<see cref="TemporalSignal"/>). Its bindings are numbered: 0 to 10, 11, the
+/// sample age, with the light age, and 12 with an instrumentation. One per part and parity, rewritten on
 /// resize.</description></item>
 /// <item><term>screen trace</term><description>set 3 of <see cref="ScreenTraceLayout"/>: the depth pyramid's finest
 /// level and its bounds as sampled images, the tracer's inputs and outputs as storage images, the own-ray list of each
@@ -108,8 +109,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// </summary>
     private const uint ScreenTraceLightImages = 2;
 
-    /// <summary>The first binding of the light pyramid in a screen tracer set, after the light age's bindings 19 to 23.</summary>
-    public const uint ScreenTraceLightBinding = 24;
+    /// <summary>
+    /// The first binding of the light pyramid in a screen tracer set, after the light age's bindings 19 to 23 and its
+    /// diagnostic's binding 24.
+    /// </summary>
+    public const uint ScreenTraceLightBinding = 25;
 
     /// <summary>The storage images of the hit light in a screen tracer set: one (<see cref="ScreenTraceImages.HitLight"/>).</summary>
     private const uint ScreenTraceHitLightImages = 1;
@@ -119,11 +123,12 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>
     /// The storage images that the light-change age of a precise specular history adds to a screen tracer set after its
-    /// lists, at bindings 19 to 22: the last and this frame's light-age records, the specular sample's age and FSR's
-    /// light-change mask, and at binding 23 the uncovered-surface diagnostic (<see cref="HistoryInstrumentation.LightAgeDiagnostic"/>).
+    /// lists, at bindings 19 to 23: the last and this frame's light-age records, the specular sample's age, FSR's
+    /// light-change mask and the diffuse sample's age, and at binding 24 the uncovered-surface diagnostic
+    /// (<see cref="HistoryInstrumentation.LightAgeDiagnostic"/>).
     /// </summary>
     private uint ScreenTraceAgeImages =>
-        (HistoryMode.KeepsLightAge ? 4u : 0u)
+        (HistoryMode.KeepsLightAge ? 5u : 0u)
         + (Instrumentation == HistoryInstrumentation.LightAgeDiagnostic ? 1u : 0u);
 
     /// <summary>
@@ -133,12 +138,16 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     private const uint SignalSets = 8;
 
     /// <summary>
-    /// The storage images of a signal set: nine, with the light-change age of a precise specular history the sample age at
-    /// binding 11, and at binding 12 the instrumentation's image, the uncovered-surface diagnostic or the accumulation
-    /// trace. The original history refuses the instrumentation (the constructor).
+    /// The storage images of a signal set: nine, with the light-change age of a precise specular history the signal's
+    /// sample age at binding 11 and the anchors' rings at binding 13 (region_drift.glsl), which the spatial dispatch reads,
+    /// and at binding 12 the instrumentation's image, the uncovered-surface diagnostic or the accumulation trace. The
+    /// original history refuses the instrumentation (the constructor).
     /// </summary>
     private uint SignalSetImages =>
-        9u + (HistoryMode.KeepsLightAge ? 1u : 0u) + (Instrumentation == HistoryInstrumentation.None ? 0u : 1u);
+        9u + (HistoryMode.KeepsLightAge ? 2u : 0u) + (Instrumentation == HistoryInstrumentation.None ? 0u : 1u);
+
+    /// <summary>The highest binding that a signal set can hold: 13, the anchors' rings.</summary>
+    private const uint LastSignalBinding = 13;
 
     /// <summary>The sampled images of a signal set: the last surface history and the last device depth.</summary>
     private const uint SignalSetSampledImages = 2;
@@ -224,8 +233,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <param name="glowLevels">The bloom levels, 0 without bloom: the pool holds one glow source set more than that.</param>
     /// <param name="historyMode">
-    /// The renderer's specular history: the light-change age of a precise history adds the light-age records and the
-    /// sample age to the screen tracer set, and the sample age to every signal set.
+    /// The renderer's specular history: the light-change age of a precise history adds the light-age records and the two
+    /// samples' ages to the screen tracer set, and the signal's sample age to every signal set.
     /// </param>
     /// <param name="instrumentation">The renderer's instrumentation of the specular history, which adds its images.</param>
     /// <exception cref="ArgumentException">
@@ -1242,15 +1251,27 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     {
         Span<DescriptorSetLayoutBinding> signal =
             stackalloc DescriptorSetLayoutBinding[(int)(SignalSetImages + SignalSetSampledImages)];
-        for (uint binding = 0; binding < SignalSetImages + SignalSetSampledImages; binding++)
-            signal[(int)binding] = binding is 7 or 8
-                ? Image(binding: binding, stages: ShaderStageFlags.ComputeBit)
-                : StorageImage(binding);
+        int count = 0;
+        for (uint binding = 0; binding <= LastSignalBinding; binding++)
+            if (SignalSetHolds(binding))
+                signal[count++] = binding is 7 or 8
+                    ? Image(binding: binding, stages: ShaderStageFlags.ComputeBit)
+                    : StorageImage(binding);
         Span<DescriptorSetLayoutBinding> light = stackalloc DescriptorSetLayoutBinding[(int)LightSetImages];
         for (uint binding = 0; binding < LightSetImages; binding++)
             light[(int)binding] = StorageImage(binding: binding, stages: ShaderStageFlags.FragmentBit);
         return (CreateLayout(bindings: signal, name: "signal set"), CreateLayout(bindings: light, name: "light set"));
     }
+
+    /// <summary>
+    /// Whether this layout's signal set holds <paramref name="binding"/>: 0 to 10 always, 11 and 13 with the light age (the
+    /// sample age and the anchors' rings), and 12 with an instrumentation. Every signal shares the layout, and only the
+    /// bounce light writes and reads binding 13 (TemporalSignal.TestsRegionDrift).
+    /// </summary>
+    private bool SignalSetHolds(uint binding) =>
+        binding <= 10
+        || binding is 11 or 13 && HistoryMode.KeepsLightAge
+        || binding == 12 && Instrumentation != HistoryInstrumentation.None;
 
     /// <summary>The layout of the filter set: <see cref="FilterSetImages"/> storage images for the compute stage.</summary>
     private DescriptorSetLayout CreateFilterSetLayout()

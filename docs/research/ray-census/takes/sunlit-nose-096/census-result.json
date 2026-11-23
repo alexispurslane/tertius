@@ -1,0 +1,283 @@
+{
+ "case": "sunlit-nose",
+ "render": [
+  1840,
+  1035
+ ],
+ "draws": [
+  240,
+  640
+ ],
+ "stops": [
+  -1.6641452312469482,
+  -1.6406311988830566
+ ],
+ "regions": [
+  {
+   "name": "ceiling cloud box of ter-fe63",
+   "light": "No direct light (ter-fe63): neither the sun nor a panel lights the ceiling. Bounce light from the sunlit floor patch and sill at the nose, and from the floor that the panels light.",
+   "rect_output": [
+    750,
+    0,
+    1170,
+    330
+   ],
+   "rect_render": [
+    718,
+    0,
+    1121,
+    316
+   ],
+   "after_caps": {
+    "pixels": 127348,
+    "mean_luminance": 0.2923995344054107,
+    "mean_variance": 0.14033426708738747,
+    "count_share": {
+     "miss": 0.15125418145553915,
+     "near": 0.0038579522253981216,
+     "far": 0.8448878663190628
+    },
+    "mean_share": {
+     "miss": 0.0016813875856559908,
+     "near": 0.001169401373480788,
+     "far": 0.9971492110408631
+    },
+    "variance_share": {
+     "miss": -0.0007489021035059562,
+     "near": 0.0006392678664308362,
+     "far": 1.0001096342370748
+    }
+   },
+   "before_caps": {
+    "pixels": 127348,
+    "mean_luminance": 0.2923995344054107,
+    "mean_variance": 0.14033426708738747,
+    "count_share": {
+     "miss": 0.15125418145553915,
+     "near": 0.0038579522253981216,
+     "far": 0.8448878663190628
+    },
+    "mean_share": {
+     "miss": 0.0016813875856559908,
+     "near": 0.001169401373480788,
+     "far": 0.9971492110408631
+    },
+    "variance_share": {
+     "miss": -0.0007489021035059562,
+     "near": 0.0006392678664308362,
+     "far": 1.0001096342370748
+    }
+   },
+   "check": {
+    "census_mean": 0.2923995344054107,
+    "slow_history_mean": 0.28285571932792664,
+    "ratio": 1.033740930182216
+   },
+   "brightest_0.1pct_x": {
+    "samples": 50939,
+    "of": 50939200,
+    "threshold": 4.851336479187012,
+    "share_of_their_light": {
+     "miss": 0.0,
+     "near": 0.0,
+     "far": 1.0
+    },
+    "share_of_all_light_in_rect": 0.02329978346824646
+   },
+   "brightest_0.1pct_pre": {
+    "samples": 50939,
+    "of": 50939200,
+    "threshold": 4.851336479187012,
+    "share_of_their_light": {
+     "miss": 0.0,
+     "near": 0.0,
+     "far": 1.0
+    },
+    "share_of_all_light_in_rect": 0.02329978346824646
+   }
+  },
+  {
+   "name": "sunlit floor before the nose wall",
+   "light": "Direct sunlight through the nose window, and the far panels; bounce light from the nose wall and the side walls.",
+   "rect_output": [
+    760,
+    585,
+    1160,
+    640
+   ],
+   "rect_render": [
+    728,
+    560,
+    1111,
+    613
+   ],
+   "after_caps": {
+    "pixels": 20299,
+    "mean_luminance": 0.7320266074189057,
+    "mean_variance": 0.7833756125405706,
+    "count_share": {
+     "miss": 0.3059426572737573,
+     "near": 0.0,
+     "far": 0.6940573427262426
+    },
+    "mean_share": {
+     "miss": 9.357855871643056e-05,
+     "near": 0.0,
+     "far": 0.9999064214412838
+    },
+    "variance_share": {
+     "miss": -5.383530544262006e-05,
+     "near": 0.0,
+     "far": 1.0000538353054427
+    }
+   },
+   "before_caps": {
+    "pixels": 20299,
+    "mean_luminance": 0.7320266074189057,
+    "mean_variance": 0.7833756125405706,
+    "count_share": {
+     "miss": 0.3059426572737573,
+     "near": 0.0,
+     "far": 0.6940573427262426
+    },
+    "mean_share": {
+     "miss": 9.357855871643056e-05,
+     "near": 0.0,
+     "far": 0.9999064214412838
+    },
+    "variance_share": {
+     "miss": -5.383530544262006e-05,
+     "near": 0.0,
+     "far": 1.0000538353054427
+    }
+   },
+   "check": {
+    "census_mean": 0.7320266074189057,
+    "slow_history_mean": 0.7197976112365723,
+    "ratio": 1.0169894925899028
+   }
+  },
+  {
+   "name": "near floor",
+   "light": "Direct light of the ceiling panels; bounce light from the walls, the ceiling and, far away, the sunlit patch.",
+   "rect_output": [
+    600,
+    800,
+    1300,
+    1050
+   ],
+   "rect_render": [
+    575,
+    766,
+    1245,
+    1006
+   ],
+   "after_caps": {
+    "pixels": 160800,
+    "mean_luminance": 0.046189248964771744,
+    "mean_variance": 0.05300533514151846,
+    "count_share": {
+     "miss": 0.8620174595771144,
+     "near": 0.0,
+     "far": 0.13798254042288557
+    },
+    "mean_share": {
+     "miss": 0.0068071532573980515,
+     "near": 0.0,
+     "far": 0.993192846742602
+    },
+    "variance_share": {
+     "miss": -0.0002665210130538236,
+     "near": 0.0,
+     "far": 1.0002665210130537
+    }
+   },
+   "before_caps": {
+    "pixels": 160800,
+    "mean_luminance": 0.046189248964771744,
+    "mean_variance": 0.05300533514151846,
+    "count_share": {
+     "miss": 0.8620174595771144,
+     "near": 0.0,
+     "far": 0.13798254042288557
+    },
+    "mean_share": {
+     "miss": 0.0068071532573980515,
+     "near": 0.0,
+     "far": 0.993192846742602
+    },
+    "variance_share": {
+     "miss": -0.0002665210130538236,
+     "near": 0.0,
+     "far": 1.0002665210130537
+    }
+   },
+   "check": {
+    "census_mean": 0.046189248964771744,
+    "slow_history_mean": 0.04273208975791931,
+    "ratio": 1.0809031158185223
+   }
+  },
+  {
+   "name": "left wall",
+   "light": "Direct light of the ceiling panels at a grazing angle; bounce light from the floor, with the sunlit patch far down the hall.",
+   "rect_output": [
+    200,
+    250,
+    500,
+    450
+   ],
+   "rect_render": [
+    191,
+    239,
+    479,
+    431
+   ],
+   "after_caps": {
+    "pixels": 55296,
+    "mean_luminance": 0.267950501479415,
+    "mean_variance": 0.22332487569840043,
+    "count_share": {
+     "miss": 0.3632992892795139,
+     "near": 0.041227620442708335,
+     "far": 0.5954730902777777
+    },
+    "mean_share": {
+     "miss": 0.001431463844848436,
+     "near": 0.04409073494867605,
+     "far": 0.9544778012064754
+    },
+    "variance_share": {
+     "miss": -0.0004346918442851587,
+     "near": -0.0008741383784012709,
+     "far": 1.0013088302226862
+    }
+   },
+   "before_caps": {
+    "pixels": 55296,
+    "mean_luminance": 0.267950501479415,
+    "mean_variance": 0.22332487569840043,
+    "count_share": {
+     "miss": 0.3632992892795139,
+     "near": 0.041227620442708335,
+     "far": 0.5954730902777777
+    },
+    "mean_share": {
+     "miss": 0.001431463844848436,
+     "near": 0.04409073494867605,
+     "far": 0.9544778012064754
+    },
+    "variance_share": {
+     "miss": -0.0004346918442851587,
+     "near": -0.0008741383784012709,
+     "far": 1.0013088302226862
+    }
+   },
+   "check": {
+    "census_mean": 0.267950501479415,
+    "slow_history_mean": 0.2539270222187042,
+    "ratio": 1.0552264155983861
+   }
+  }
+ ]
+}

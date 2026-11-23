@@ -1,0 +1,67 @@
+== exit-cabin (still): 924 draws, 240 anchors
+  1. still draws: 1927 fires of 213120 tested anchor-draws (0.90 %)
+  2. independence ratio over 240 anchors: 10% 0.89 50% 0.98 90% 1.08
+  4. the still's false rate with the noise estimate times the anchor's ratio: 0.94 % (today 0.90 %)
+  5. the AR(1)-corrected test: still false rate 0.72 %;
+  3. runs of fires, still: 902 runs, 50% 1.00 90% 4.00 99% 9.99, largest 13
+  3. K3: drops 68.7 % of the still's fires;
+  3. K6: drops 92.2 % of the still's fires;
+  3. K9: drops 98.4 % of the still's fires;
+== cabin-on (still): 493 draws, 240 anchors
+  1. still draws: 1526 fires of 108766 tested anchor-draws (1.40 %)
+  2. independence ratio over 238 anchors: 10% 1.08 50% 1.43 90% 2.08
+  4. the still's false rate with the noise estimate times the anchor's ratio: 0.23 % (today 1.40 %)
+  5. the AR(1)-corrected test: still false rate 1.11 %;
+  3. runs of fires, still: 568 runs, 50% 2.00 90% 6.00 99% 15.00, largest 18
+  3. K3: drops 57.3 % of the still's fires;
+  3. K6: drops 83.6 % of the still's fires;
+  3. K9: drops 92.7 % of the still's fires;
+== cabin-off (still): 493 draws, 240 anchors
+  1. still draws: 5226 fires of 108766 tested anchor-draws (4.80 %)
+  2. independence ratio over 238 anchors: 10% 1.50 50% 2.25 90% 2.72
+  4. the still's false rate with the noise estimate times the anchor's ratio: 0.24 % (today 4.80 %)
+  5. the AR(1)-corrected test: still false rate 3.69 %;
+  3. runs of fires, still: 1075 runs, 50% 2.00 90% 13.00 99% 28.26, largest 50
+  3. K3: drops 33.2 % of the still's fires;
+  3. K6: drops 55.9 % of the still's fires;
+  3. K9: drops 69.1 % of the still's fires;
+== switch (switch): 493 draws, 240 anchors
+  1. still draws: 532 fires of 29512 tested anchor-draws (1.80 %)
+  2. independence ratio over 238 anchors: 10% 0.87 50% 1.27 90% 1.83
+  4. the still's false rate with the noise estimate times the anchor's ratio: 0.52 % (today 1.80 %)
+  5. the AR(1)-corrected test: still false rate 1.42 %; off: first fire 0 draws; on: first fire 0 draws;
+  3. runs of fires, still: 201 runs, 50% 2.00 90% 6.00 99% 11.00, largest 15
+  3. runs of fires, off: 254 runs, 50% 51.00 90% 67.70 99% 74.47, largest 76
+  3. runs of fires, on: 241 runs, 50% 47.00 90% 60.00 99% 68.60, largest 74
+  3. K3: drops 58.8 % of the still's fires; off: first fire 0 draws; on: first fire 2 draws;
+  3. K6: drops 85.9 % of the still's fires; off: first fire 5 draws; on: first fire 5 draws;
+  3. K9: drops 95.9 % of the still's fires; off: first fire 8 draws; on: first fire 8 draws;
+== rect-bay (film:0): 212 draws, 240 anchors
+  1. the film from its change on: 28685 fires of 41008 tested anchor-draws (69.95 %)
+  5. the AR(1)-corrected test: change: first fire 36 draws; keeps 74.1 % of the film's fires;
+  3. runs of fires, change: 27 runs, 50% 2.00 90% 4.00 99% 4.74, largest 5
+  3. runs of fires, film: 1069 runs, 50% 5.00 90% 114.00 99% 148.32, largest 154
+  3. K3: change: first fire 38 draws; keeps 93.5 % of the film's fires;
+  3. K6: change: first fire none in 40 draws; keeps 87.2 % of the film's fires;
+  3. K9: change: first fire none in 40 draws; keeps 82.3 % of the film's fires;
+== bay-sun (film:33): 273 draws, 240 anchors
+  1. still draws: 0 fires of 0 tested anchor-draws (0.00 %)
+  1. the film from its change on: 33519 fires of 55221 tested anchor-draws (60.70 %)
+  4. the still's false rate with the noise estimate times the anchor's ratio: 0.00 % (today 0.00 %)
+  5. the AR(1)-corrected test: still false rate 0.00 %; change: first fire 3 draws; keeps 92.6 % of the film's fires;
+  3. runs of fires, change: 269 runs, 50% 116.00 90% 149.20 99% 167.00, largest 170
+  3. runs of fires, film: 1057 runs, 50% 5.00 90% 123.40 99% 160.44, largest 170
+  3. K3: change: first fire 5 draws; keeps 94.5 % of the film's fires;
+  3. K6: change: first fire 8 draws; keeps 89.0 % of the film's fires;
+  3. K9: change: first fire 11 draws; keeps 84.7 % of the film's fires;
+== switch-xfn (switch): 493 draws, 510 anchors
+  1. still draws: 487 fires of 29512 tested anchor-draws (1.65 %)
+  2. independence ratio over 238 anchors: 10% 0.85 50% 1.25 90% 1.83
+  4. the still's false rate with the noise estimate times the anchor's ratio: 0.54 % (today 1.65 %)
+  5. the AR(1)-corrected test: still false rate 1.31 %; off: first fire 0 draws; on: first fire 0 draws;
+  3. runs of fires, still: 191 runs, 50% 2.00 90% 5.00 99% 11.10, largest 13
+  3. runs of fires, off: 276 runs, 50% 39.00 90% 51.00 99% 68.50, largest 75
+  3. runs of fires, on: 256 runs, 50% 41.00 90% 47.50 99% 59.00, largest 65
+  3. K3: drops 61.0 % of the still's fires; off: first fire 0 draws; on: first fire 2 draws;
+  3. K6: drops 89.5 % of the still's fires; off: first fire 5 draws; on: first fire 5 draws;
+  3. K9: drops 96.9 % of the still's fires; off: first fire 8 draws; on: first fire 8 draws;
