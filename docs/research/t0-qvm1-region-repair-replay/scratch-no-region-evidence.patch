@@ -1,0 +1,16 @@
+# SCRATCH patch of t0-gumm for the take of t0-qvm1, never commit to src. The region's drift test still runs (and its log still lists the fires), but region evidence caps no history: Design X without region evidence.
+diff --git a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
+index 2b21024..1723a04 100644
+--- a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
++++ b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
+@@ -69,7 +69,9 @@ uint evidenceOfBlock(ivec2 pixel)
+     if (insideImages(pixel))
+         atomicMax(blockEvidence, evidenceOfSample(imageLoad(sampleAge, pixel).r));
+ #ifdef TERTIUS_REGION_DRIFT
+-    if (regionAnchorMovedBefore(block, gl_LocalInvocationIndex))
++    // SCRATCH (t0-gumm for t0-qvm1, never commit to src): the region's drift test still runs and logs its fires, but its
++    // evidence caps no history: Design X without region evidence.
++    if (false && regionAnchorMovedBefore(block, gl_LocalInvocationIndex))
+         atomicMax(blockEvidence, RegionEvidence);
+ #endif
+     barrier();

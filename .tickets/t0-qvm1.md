@@ -137,3 +137,129 @@ The orchestrator's answer on the three checks, 2026-11-23 shortly after midnight
 **2026-11-23T05:27:38Z**
 
 A design finding from the orchestrator's read of the merge's diff, 2026-11-23, for this design note. RegionWindowDraws is 18 because that is the jitter's phase count at the render scale 2/3, so that a jitter cycle cancels in each window. The render scale is dynamic: the back-face line measured 25 phases at 1072 x 603 and 27 at 1040 x 585. At any scale but 2/3 a window does not hold a whole number of jitter cycles, so its mean carries the jitter's remainder, and the test sees it as wander. Every measure of the false rate so far ran at the constant scale 2/3, the one scale where the window fits. So two conditions join the repair: (1) the design (E or K) names what the window is under a moving render scale; (2) the log of the false rate is taken at one other scale before a design is chosen.
+
+**2026-11-23T08:38:26Z**
+
+2026-11-23, orchestrator: the hold on this repair's design ends. Its two conditions hold (ter-pdw8 is closed, and the surface share t1-wl7c is accepted as the first change of ter-6fka), and the count of short histories by writer (docs/research/t1-g1jd-short-histories-by-writer/) shows that on main the region's drift test writes 10.93 % (lamp hall), 21.10 % (still cabin) and 29.33 % (bay) of a frozen still's short diffuse histories, in whole blocks. I opened the bay's and the cabin's sheets: main and the anti-lag-off build show the same square blocks of 8 to 31.5 draws, and both builds with the region evidence off show one flat full length. The Design X line writes two designs into this ticket and builds nothing before my word. My direction for the two designs, reversible: they differ on two points, and I choose a side on each. Point 1, the noise model: the assumed spread of today against the measured spread of the anchor's own window means (design E). Point 2, the response: today's cliff (any fire cuts the region to FullRateFrames = 8) against a continuous response, where the region's cap follows the size of the measured drift against the measured noise, from 32 at the bar down to 8 at a drift as large as a lamp switch's. My prior is the continuous response, because the line's own log shows that false fires and rect-bay's weak true fires overlap in size, so no detector separates them. Under a continuous response a weak fire, true or false, costs a little length, and a weak true drift needs only a little. Counting over time (design K) stays a fallback, because it adds delay to every true fire. Both designs state what the window is under a moving render scale (RegionWindowDraws = 18 equals the jitter's phase count only at scale 2/3, and regionContinues restarts the test at each size change). Test of both before any build: a replay on the logged region means, with the false fire share of the three frozen stills, the settle draws of the fair cabin switch (today 71 and 82 against 189 without the rule) and rect-bay's weak true fires. Open first: the still cabin's grain rises from 0.0065 to 0.0112 with the rule off, and its dump draw 190 is early in the run, so its fires can be true. The line repeats that count at a late draw before it uses the cabin as a frozen case.
+
+**2026-11-23T08:43:47Z**
+
+2026-11-23, 03:43 New York time, the line orchestrator. The two designs of the repair, for the orchestrator to combine. Nothing is built. The replay at the end decides with numbers.
+
+## Terms, one name each
+
+- x(t) = the region's light of draw t at one anchor: the mean of the counted taps of its 17 x 17 blocks (as today).
+- W = 18 draws, the length of each of the test's two windows (RegionWindowDraws).
+- P = the jitter's phase count at the draw's render size (Fsr3Upscaler.JitterPhaseCount): 18 at the scale 2/3, 25 at 1072 x 603, 32 at the lowest scale 0.5.
+- drift D(t) = the mean of the newer window less the mean of the older window, in light units.
+- s1(t) = the standard deviation of the older window's W draws, in light units: the scatter of the region's light from draw to draw.
+- assumed spread a(t) = s1(t) * sqrt(2 / W): the spread of D if the draws are independent. This is today's noise model.
+- measured spread m(t) = the root of a running mean of D squared over the anchor's tested draws: the spread of D as this anchor really shows it.
+- bar = 3 times the spread in use (DriftSigmas). Today a drift above the bar is a fire.
+- cap c(t) = the longest history length that the anchor allows the blocks of its region in the next draw, 8 to 32 draws. 32 means no evidence. Today a fire gives 8.
+
+## The model of the cost and of the gain
+
+A still picture pays for every draw in which the test lets a noise excursion shorten a history: the share of the picture under the full length is about the false rate per anchor-draw times the draws of regrowth. Today that is 0.8 to 4.8 % times 24 draws, and the count on main measures 10.9 % (lamp hall), 21.1 % (still cabin) and 29.3 % (bay). A moving light gains from every draw in which a history is no longer than the light's drift allows. So the rule has two parts with two questions. The detector asks: how much of the drift can the noise not explain? The response asks: which history length does that much drift allow? Each design repairs one of the two parts.
+
+## Design 1: repair the detector (the measured spread, design E), keep the cliff
+
+The fault it removes: the assumed spread is too small where the region's light wanders from draw to draw (independence ratio up to 2.7 in the lamps-off cabin), so the bar is too low there.
+
+- New stock: one value per anchor, m squared. It lives in the ring's free fourth channel of the draw's layer, written by the anchor's workgroup with the draw. No new image.
+- The update, at every tested draw: m2 = m2 + (min(D * D, 9 * b * b) - m2) / N, where b is the spread in use of the draw before. The min keeps a true change from raising the spread without bound, and the update never stops, so the value cannot lock.
+- The spread in use: b = max(a, m). The bar can only rise against today's. After a reset, a stop of the camera or a change of the render size, m starts at 0 and the test is today's until m has grown.
+- N, the span of the running mean in draws: the replay tries 4, 8 and 16 times (P + W), which is 144, 288 and 576 draws at the scale 2/3. The reason for its size: D of two draws is independent only when they lie P + W draws apart, so the span holds N / (P + W) independent values. The choice is the shortest span whose false rate in the independent still (exit-cabin) stays at the nominal 0.8 %.
+- The response stays: a drift above the bar caps the region at FullRateFrames, 8 draws.
+
+The test line, as a sketch (not built):
+
+    float spread = max(olderSpread * sqrt(2.0 / window), sqrt(measuredSquare));
+    bool moved = abs(drift) > DriftSigmas * spread;
+
+What it cannot do: in a region with independent draws (exit-cabin, ratio 0.98) the measured spread equals the assumed one. The false rate stays at the nominal 0.8 % there, and 0.8 % times 24 draws is still a fifth of the picture. A bar of 3 with a cliff of 24 draws has that cost by its own arithmetic.
+
+## Design 2: repair the response (a cap that follows the drift), keep the assumed spread
+
+The fault it removes: any drift above the bar costs the same 24 draws, also a drift that is 5 % above it. The log shows that false fires and rect-bay's weak true fires have the same size (statistic 3.05 to 4.10 against 3.08 to 4.31, 10th to 90th percentile), so no detector separates them. The response can treat them alike and still be right for both.
+
+The shape and its reason. Take the part of the drift that the noise cannot explain, u = |D| - bar. A history of length n behind a light that moves by u in W draws lags it by n * u / W. The same history holds noise of s1 / sqrt(2 n), in the region's own light. The cap is the length at which the two are equal:
+
+    n * u / W = s1 / sqrt(2 n)   gives   n = (W * s1 / (sqrt(2) * u)) ^ (2/3)
+
+kept between FullRateFrames (8) and the full length (32). No constant is tuned: W and DriftSigmas are today's. With the assumed spread, in units of the statistic z = |D| / a, the same line reads n = W / (2 (z - 3)) ^ (2/3):
+
+| Statistic z | 3.0 | 3.2 | 3.3 | 3.6 | 4.0 | 4.7 | 7 (a lamp switch's median) |
+|---|---|---|---|---|---|---|---|
+| Cap in draws | 32 | 32 | 24 | 16 | 11 | 8 | 8 |
+
+So the cap is continuous at the bar: 32 there, 8 from a statistic of 4.7 on. A median false fire of the stills (3.3 to 3.7) costs 8 to 17 draws of regrowth in place of 24, and a fire under 3.2 costs none. The switch's fires (median 6.9 and 8.6) reach the floor. rect-bay's weak fires (3.1 to 4.3) get caps of 32 to 10.
+
+- No new stock. The ring's answer channel holds the cap in place of a bit.
+- The payload changes: a block takes the smallest cap of the anchors whose regions hold it (a minimum does not depend on the order). The evidence level RegionEvidence stays, and the spatial dispatch reads the cap where it reads FullRateFrames today:
+
+    historyLength = evidence == LightEvidence ? min(antiLagged, FullRateFrames) : evidence == RegionEvidence ? min(antiLagged, regionCap) : antiLagged;
+
+- The ray plan is not touched: a cap of 8 or more never gives a pixel its own ray, as today.
+
+What it cannot do: where the light wanders (lamps-off cabin), the assumed spread is 2.25 times too small, so the false fires' statistic is high (median 3.7, 90th percentile 5.3) and the cap still falls to 8 to 14 draws there.
+
+One open point of the shape, named and not hidden: the noise side uses the region mean's scatter s1. A pixel of the picture after the diffuse filter can be noisier than the region's mean by a factor p, which scales every cap by p ^ (2/3). The design takes p = 1 (the anchor's own units). The replay shows the table for p = 2 and 4 too. A form that reads each pixel's own retained deviation in place of s1 is possible and is left out until the replay says that p matters.
+
+## The two points where the designs differ
+
+| Point | Design 1 | Design 2 |
+|---|---|---|
+| The noise model | The measured spread of the anchor's own drift, never under the assumed one | The assumed spread, as today |
+| The response | The cliff: any fire caps the region at 8 draws | The cap follows the drift that the noise cannot explain, 32 at the bar to 8 |
+| New stock | One value per anchor in the ring's free channel | None |
+| Weak where | Regions with independent draws: the nominal 0.8 % stays | Regions whose light wanders: the bar stays too low |
+| After a reset or a stop | Today's test until the span has filled | Full from the first tested draw |
+| Delay of a true fire | None | About 2 draws more until the floor at a lamp switch (the statistic must pass 4.7, not 3) |
+
+The two repairs act on different parts and on different stills, so both together are a coherent third choice: the measured spread in the detector and the continuous cap in the response. My recommendation is both, if the replay confirms the arithmetic above. Counting over time (design K, fire at the 6th draw in a row) stays in the replay as the fallback row.
+
+## What both designs share
+
+1. The window under a moving render scale. The window stays W = 18 draws: its length sets the noise of a mean. What follows the render scale is the distance between the two windows: each draw of the newer window is compared with the draw P draws before it, which has the same jitter phase.
+
+    D(t) = (1 / W) * sum over i from 0 to W - 1 of ( x(t - i) - x(t - i - P) )
+
+   At the scale 2/3, P = W and this is today's test to the bit. At any other scale the jitter cancels in every pair, where today's two windows of 18 leave a remainder of the jitter. The older window is the W draws from t - P - W + 1 to t - P. The ring grows from 36 to at most 32 + 18 = 50 layers (P is at most 32, because the lowest render scale is 0.5), and P comes to the dispatch as a parameter beside regionSlot. The test runs after P + W valid draws in a row.
+2. A change of the render size restarts the count, as today (regionContinues): the taps' scene points and the jitter's cycle both change. Under a scale that changes in most draws the test does not run. The card's log of the cabin switch on the merged code holds one render size from draw 83 to the end, so the test runs when it is needed there. t4f-71qp keeps the measure of how often the windowed game's size changes. A ring that continues across a size change is left out until that measure asks for it.
+3. The tap, the region, the anchors, the validity rule, the one-draw delay of the answer and the fixed order of the sums stay. Only the bounce light runs the test.
+4. The slower trail after the walk's stop (fault 3 of this ticket) is not repaired here. The take with the rule off shows 53 draws against 47 with it, so the rule is not its cause.
+
+## The replay that decides, before any build
+
+On the logged region lights x(t) per anchor and draw, CPU only. The candidates: T (today), E (design 1) with its three spans, C (design 2) with p = 1, 2 and 4, EC (both), and K6. Each with the pairing at the distance P of its log.
+
+- The stills (every excursion is false): exit-cabin, the bay, the lamp hall at 1072 x 603 (P = 25, the one other scale that the orchestrator asked for) and the cabin, once its late draws are checked. Measures: the share of blocks whose model history is under 31.5 draws, to compare with the count's 10.9, 21.1 and 29.3 %; and the mean of sqrt(32 / length) - 1 over the blocks, the noise that the short histories add. For the lamp hall also today's two windows of 18 against the pairing at 25, which measures the jitter's remainder.
+- The fair cabin switch: the settle of a model history per anchor that follows the logged light under the candidate's caps. Its length grows by 1 per draw to 32 and takes the cap of the draw before; settle is the first draw from which it stays within 5 % of the end level. The model is calibrated on the two measured cases: today 71 and 82 draws, the rule off 189 and none in 200.
+- bay-sun and rect-bay: the model history's lag behind the logged light (today's lag film: median 13.8 draws with the rule, 42.9 without), and the caps that rect-bay's weak fires get.
+
+A limit of the replay, known before it runs: the logged light comes from a run under today's rule, and the rays read the histories that the rule cut. The logs of the build without the rule exist for the switch, so the replay runs on both and gives the bracket.
+
+First, by the orchestrator's order: the still cabin's dump draw 190 is early, and its grain rises from 0.0065 to 0.0112 with the rule off. So the count is repeated at a late draw, and the cabin's region log shows whether its light still moves at draw 190. If it does, the cabin is a case of a weak true drift and not a frozen still.
+
+**2026-11-23T09:37:11Z**
+
+2026-11-23, 04:37 New York time. The replay of the repair's candidates is done: docs/research/t0-qvm1-region-repair-replay/README.md, on main 165a964e7 for every new run. Nothing is built.
+
+Part 1: the still cabin is a weak true drift at draw 190 (its region light rises 0.5 % with the rule and 1.4 % without it in draws 100 to 199) and frozen from about draw 400. On main it still holds 17.85 % short histories at draw 890, at a fire rate of 0.76 %. So each still's frozen part is its draws from 400 to the end.
+
+The model's check: T replays every logged fire exactly, and its block model of the length matches the real dumps to 0.13 points or better (lamp hall 10.94 against 10.96 %, cabin 21.05 against 21.18 %, bay and exit-cabin exact). On the switch's log with the rule it settles within 3 to 17 draws of the measured settles. It cannot reproduce the no-rule side, because the logged light itself ends 4 to 6 % off the controls. Its lags are about half the picture's. So the settles and the lags compare candidates against T only.
+
+| Candidate | Short blocks, four stills | Noise | Switch off (whole, slowest) | bay-sun lag | rect-bay lag |
+|---|---|---|---|---|---|
+| T | 19.7 to 32.1 % | 0.114 | 74, 90 | 7.2, 26.3 | 7.2, 27.0 |
+| E8 | 7.5 to 11.7 % | 0.040 | 96, 105 | 7.2, 32.2 | 21.3, 31.7 |
+| C1 | 9.1 to 16.0 % | 0.032 | 80, 98 | 7.5, 22.5 | 7.9, 31.0 |
+| C2 | 4.4 to 9.5 % | 0.013 | 86, 104 | 8.3, 26.1 | 10.5, 32.5 |
+| EC1 | 2.2 to 4.0 % | 0.007 | 101, 110 | 7.5, 31.4 | 28.4, 31.6 |
+| K6 | 2.3 to 3.7 % | 0.012 | 76, 96 | 7.2, 29.1 | 7.3, 34.6 |
+
+- E and EC lose rect-bay: a sustained drift raises the measured spread, so the bar rises over the motion (median lag 18 to 31 draws against T's 7.2).
+- p measured after FSR: median 0.53 (exit-cabin), 1.12 (lamp hall), 0.61 (bay), 1.17 (cabin). So C1 is the continuous cap that the measure supports, and it keeps 9 to 16 % of the blocks short.
+- The pairing at P = 25 in the lamp hall fires at 1.09 % against 0.95 % with today's windows: no visible jitter remainder.
+- The numbers favor K6 among the candidates. It cuts the stills' short blocks about eightfold, keeps the switch within 2 to 6 draws of T and the median lags at T's, and costs about 8 draws of rect-bay's largest lag. Its cost in the cabin's weak drift is most of T's model gain: -1.14 % against T's -0.92 % and no rule's -1.24 %.

@@ -1,0 +1,68 @@
+# SCRATCH patch of t0-3vwx, fitted to main 165a964e7 after the survey's probe patch and the history dump patch for the replay of
+# t0-qvm1, never commit to src: the region log, TERTIUS_X_REGION_LOG=<folder>.
+--- a/src/Tertius.Rendering/VulkanRenderer.cs
++++ b/src/Tertius.Rendering/VulkanRenderer.cs
+@@ -703,6 +703,7 @@
+         output.SubmitAndPresent(frame);
+         CommitDrawnFrame(frame: frame, snapshot: snapshot, pending: pending);
+         ProbeCensus();
++        ProbeRegion();
+ 
+         if (sink != null && capture != null)
+         {
+@@ -722,7 +723,55 @@
+         );
+         return true;
+     }
++
++    // SCRATCH (t0-9fo0, never commit to src): the region's test count. With TERTIUS_X_REGION_LOG=<folder>, each draw reads
++    // back the layer of the bounce light's anchor ring that this draw wrote (region_drift.glsl: layer = draw index since
++    // the last reset modulo 36) and appends one line to <folder>/region-<TERTIUS_PROBE_LAMP_OFF, or "none">.txt:
++    // "<draw since the process start> <draw index since the last reset> <anchors> <anchors with 36 valid draws in a row>
++    // <anchors whose test found that the region's light moved> <anchors in a row of the ring>". It also appends the draw's
++    // whole layer to <folder>/region-<same name>.f32: per anchor, row by row, three little-endian floats, the region's
++    // light, the count of valid draws and the moved answer (r, g and b of the ring). Each readback waits for the device.
++    private static readonly string? ProbeRegionFolder =
++        Environment.GetEnvironmentVariable("TERTIUS_X_REGION_LOG") is { Length: > 0 } regionFolder ? regionFolder : null;
++    private long probeRegionDraw;
+ 
++    private void ProbeRegion()
++    {
++        if (ProbeRegionFolder is not { } folder || screenTrace is not { } tracer)
++            return;
++        long draw = probeRegionDraw++;
++        if (tracer.Diffuse.RegionRing(0) is not { } ring)
++            return;
++        (long drawIndex, bool _) = LastDraw;
++        int layer = (int)(drawIndex % TemporalSignal.RegionRingDraws);
++        float[] texels = ReadImageLayer(ring, layer);
++        int anchors = (int)(ring.Extent.Width * ring.Extent.Height);
++        int valid = 0;
++        int moved = 0;
++        for (int anchor = 0; anchor < anchors; anchor++)
++        {
++            if (texels[4 * anchor + 1] >= TemporalSignal.RegionRingDraws)
++                valid++;
++            if (texels[4 * anchor + 2] != 0)
++                moved++;
++        }
++        System.IO.Directory.CreateDirectory(folder);
++        string name = Environment.GetEnvironmentVariable("TERTIUS_PROBE_LAMP_OFF") is { Length: > 0 } off ? off : "none";
++        System.IO.File.AppendAllText(
++            System.IO.Path.Combine(folder, $"region-{name}.txt"),
++            string.Create(
++                System.Globalization.CultureInfo.InvariantCulture,
++                $"{draw} {drawIndex} {anchors} {valid} {moved} {ring.Extent.Width}\n"
++            )
++        );
++        var layerBytes = new byte[3 * sizeof(float) * anchors];
++        for (int anchor = 0; anchor < anchors; anchor++)
++            for (int channel = 0; channel < 3; channel++)
++                BitConverter.TryWriteBytes(layerBytes.AsSpan(4 * (3 * anchor + channel)), texels[4 * anchor + channel]);
++        using (var stream = new System.IO.FileStream(System.IO.Path.Combine(folder, $"region-{name}.f32"), System.IO.FileMode.Append))
++            stream.Write(layerBytes);
++    }
++
+     /// <summary>
+     /// The draw's one choke point of the history: its reset, its draw index, its exposure step, its refresh of the map's
+     /// faces and the last frame's state. Its render size is the active size of the output at the requested scale. After

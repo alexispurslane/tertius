@@ -1,7 +1,7 @@
 ---
 id: ter-fe63
 status: open
-deps: []
+deps: [t1-wl7c]
 links: [ter-12xp, ter-bdoh]
 created: 2026-11-22T15:17:24Z
 type: bug
@@ -97,3 +97,7 @@ A remedy in the engine. The specks on the deck's walls (ter-12xp) and the sparkl
 **2026-11-23T04:02:32Z**
 
 2026-11-22, the line orchestrator. A result that the orchestrator accepted on 2026-11-22, from the first still of ter-pdw8 (the lamp hall at 1072 x 603): what a ray's end reads owns the specks, and the guide is part of the fault. Measured: with a resolved read at the hit (a stand-in, a running mean of the hit light), the largest diffuse sample on the ceiling falls from 127 to 10.1, the largest rough reflection sample from 272 to 12.9, the speck pixels in the mean from 67 and 648 to 4 and 52, and the shown captures are clean (specks per capture: median 0, most 7, against 83 and 180). With the resolved read and a footprint mip together, the largest samples are 0.447 and 1.13 and no speck remains. Guided rays are 0.25 of all diffuse samples and 0.906 of today's samples above 5: the guide reads the light pyramid, whose finest level holds the sill's row of 162 in the burst draws, so it aims rays at the row, and the hit then reads the row unfiltered. So a remedy must give the guide the same filtered light as the hit. Open in ter-pdw8, and no remedy is built before it is answered: every variant darkens the light by 7 to 23 percent and adds fine flecks on the sill's upper edge. The pictures: /Users/alexispurslane/.t3/worktrees/tertius/t3-1f553e45-00934a8d076a004a-evidence/rayend/pics/ (lamp1072-crop-ceiling.png, lamp1072-ceiling-lamp-2x.png, lamp1072-sill-row-2x.png).
+
+**2026-11-23T06:28:25Z**
+
+2026-11-23, the line orchestrator. The orchestrator accepted the surface share S2' of the ray end experiment (ter-pdw8) for an engine build. The build is t1-wl7c, and this ticket depends on it. It covers the part of this ticket's specks that comes from a lit surface thinner than a pixel (the lamp hall's sill row). It does not cover real hits on a wide sunlit patch, which this ticket's census counted at 83.4 % of the cloud's light in the orbit view. After t1-wl7c merges, one take of this ticket's scene shows how much of the cloud stays, and the orchestrator then closes or keeps this ticket.

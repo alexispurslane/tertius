@@ -1,0 +1,1293 @@
+{
+ "scene": "orbit",
+ "window": {
+  "width": 1920,
+  "height": 1080
+ },
+ "steps": [
+  {
+   "do": "camera",
+   "entity": "person"
+  },
+  {
+   "do": "run",
+   "ticks": 60
+  },
+  {
+   "do": "capture",
+   "name": "still"
+  },
+  {
+   "do": "film",
+   "name": "f",
+   "frames": 60,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g000",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g001",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g002",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g003",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g004",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g005",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g006",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g007",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g008",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g009",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g010",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g011",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g012",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g013",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g014",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g015",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g016",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g017",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g018",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g019",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g020",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g021",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g022",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g023",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g024",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g025",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g026",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g027",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g028",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g029",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g030",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g031",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g032",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g033",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g034",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g035",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g036",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g037",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g038",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g039",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g040",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g041",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g042",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g043",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g044",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g045",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g046",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g047",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g048",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g049",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g050",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g051",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g052",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g053",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g054",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g055",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g056",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g057",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g058",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     10,
+     0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "g059",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "film",
+   "name": "h",
+   "frames": 180,
+   "every": 1
+  }
+ ]
+}

@@ -455,14 +455,16 @@ public sealed class EnvironmentFaceTests
             float shadowed = EnvironmentScenes.Texel(face: behind, size: Size, x: 10, y: 21).X;
             float lit = EnvironmentScenes.Texel(face: behind, size: Size, x: 21, y: 21).X;
             // The ground at (−10, −10, 24.6): deep in the far shadow of the box's bounding sphere, which the cascades
-            // replace, but short of the box's own shadow, which begins at z = 25. The filter of the map's shadow edge,
-            // 0.4 m away, still darkens it by about a quarter.
+            // replace, but short of the box's own shadow, which begins at z = 25. Its lookup lies about 1.1 texels past
+            // the map's shadow edge, so the filter is lit by about 0.77, and the lit side's rule, which rises from 5/8,
+            // gives it 0.40 of the sun (0.55 under a rule that rose from one half, t1-gout). The far shadow would leave
+            // it under a tenth, as on the box's far side.
             float besideTheShadow = EnvironmentScenes.Texel(face: behind, size: Size, x: 9, y: 22).X;
             lit.Should().BeGreaterThan(0.2f, "the sun lights the ground beside the box");
             shadowed.Should().BeLessThan(0.1f * lit, "the box shadows the ground on its far side from the sun");
             besideTheShadow
                 .Should()
-                .BeGreaterThan(0.5f * lit, "a face takes the sun's shadow from the cascade that holds the point");
+                .BeGreaterThan(0.3f * lit, "a face takes the sun's shadow from the cascade that holds the point");
         }
         finally
         {
