@@ -267,3 +267,35 @@ Conditions and my settlements for each. (1) The pattern's phase is spread over t
 **2026-11-23T21:32:18Z**
 
 2026-11-23, line orchestrator: the nose's film, the clamp-off pair and rect-bay's left wall (full share 0.25, ramp 0.1 to 0.38; coin = the mixture with the coin, exact = the mixture with the window-hashed exact count). I looked at wall-d130-main-coin-exact.png and nose-film-frames-240-242.png in t3-2b720d96-b40221aeff8f27f7-evidence/fe63/: main shows single bright specks, new in every frame; the coin and the exact count show an even fine grain and no specks, and I see no difference between the two. (1) The clamp-off pair proves the shown mean. The box's shown mean over 20 captures at -1.7507 stops, clamp on / clamp off (with the clamp off, the anti-lag and every evidence cut are off too): main 0.3012 / 0.3156; coin 0.3231 / 0.3161; exact 0.3234 / not taken. With the clamp off, main and the mixture agree within 0.16 %: the mixture is unbiased, and main loses 4.6 % of the box's light in the clamp. With the clamp on, the mixture's picture is 2.2 % above the clamp-off value, so the clamp moves the mixture's light up a little; the build's energy test measures with the clamp off. Capture specks with the clamp off: main 997 (largest 18,164), coin 37.5 (3,426). (2) The nose's film: nose-film-main-coin-exact.mp4, the ceiling box at 1:1, main / coin / exact, 240 real frames at 60 a second (frames 120 to 359 of the orbit from tick 277003), -1.7507 stops, H.264 CRF 12. The film's box in gray 0 to 255, main / coin / exact: per-pixel temporal deviation 4.01 / 2.26 / 2.16; frame-to-frame RMS change 1.06 / 0.52 / 0.51; the box mean's period-4 amplitude 0.0012 / 0.0002 / 0.0003 against a largest other component of 0.23 / 0.19 / 0.18; box mean 146.2 / 151.2 / 151.3. The exact count makes no beat of period 4. Its gain over the coin in the shown film is small: 4.5 % less temporal deviation, where the within table predicted about 19 % in deviation; the temporal stack passes only part of it. Capture specks of the exact count's still: median 101 (largest 1,617) against the coin's 128 (2,142). (3) rect-bay's left wall at draw 130 (-0.359 stops), main / coin / exact: capture specks 4,208 / 688 / 726; reflection samples, largest / 99.9th percentile / mean: 96.2 / 76.0 / 1.041, 111.1 / 33.3 / 1.016, 91.1 / 31.5 / 1.045; the brightest 1 % of the samples carry 0.280 / 0.195 / 0.192 of the light; the diffuse samples are identical to every digit in all three (largest 102.6, mean 0.4647), so the reflection mixture leaves the diffuse kind as it was. The wall keeps 688 capture specks: its second carrier, guided diffuse draws at a thin sunlit jamb (ter-fe63's census), is not this ticket's. Still to come in stage 1: the bay's and rect-lamps' floor's columns (the bar for the floor and the plate is no visible loss), the frame's time.
+
+**2026-11-23T21:58:50Z**
+
+2026-11-23, line orchestrator of the back-face line: stage 1, part 1, the frozen bay's full picture under the reflection mixture. The surface share's lead took it.
+
+Take: the frozen bay at a render scale of 2/3 and -4.089 stops, capture 19. Guided share of the reflection kind 0.25, with the ramp from a roughness of 0.1 to 0.38. Each build against its own late mean of captures 30 to 99. Pictures at 1:1, in the lead's evidence folder `t3-2b720d96-b40221aeff8f27f7-evidence/fe63/`: `bay-full-right-wall.png` and `bay-full-sunlit-patch.png`. The columns are main, the coin, the exact count, and the coin with the scratch thin box of t1-cyhy.
+
+Each cell is the deviation of all scales / the grain / the blob, in units of main's full mean:
+
+| Region | Main | Coin | Exact count | Coin, thin box |
+|---|---|---|---|---|
+| Wall beside the sun stripe | 0.0149 / 0.0096 / 0.0072 | 0.0203 / 0.0133 / 0.0090 | 0.0191 / 0.0125 / 0.0084 | 0.0193 / 0.0127 / 0.0084 |
+| Back wall below the slot | 0.0150 / 0.0055 / 0.0095 | 0.0152 / 0.0059 / 0.0094 | 0.0149 / 0.0055 / 0.0095 | 0.0136 / 0.0058 / 0.0101 |
+| Floor | 0.0195 / 0.0099 / 0.0114 | 0.0198 / 0.0102 / 0.0114 | 0.0194 / 0.0099 / 0.0112 | 0.0181 / 0.0091 / 0.0099 |
+| Right wall | 0.0502 / 0.0331 / 0.0212 | 0.0457 / 0.0308 / 0.0175 | 0.0455 / 0.0303 / 0.0175 | 0.0322 / 0.0220 / 0.0121 |
+
+Each region's mean over the 20 captures, against main: coin -0.14 %, +0.08 %, +0.27 %, +1.47 %. Exact count -0.17 %, +0.06 %, +0.26 %, +1.52 %. Thin box -0.20 %, -0.48 %, +0.49 %, +2.61 %.
+
+What I see in the pictures:
+- Right wall: main's top half has fine bright specks. The coin and the exact count remove most of them and leave a soft mottle of a few pixels. The thin box's column is the smoothest of the four.
+- Wall beside the sun stripe: a visible loss. The dark wall left of the stripe is coarser in all three mixture columns than in main. The grain rises 39 % with the coin and 30 % with the exact count.
+- Back wall and floor: no difference.
+
+What it means:
+- The loss beside the stripe is the guided draw's tax where the guide is useless. From that wall, 78.5 % of the guided draws aim below the wall's own plane and 1.4 % arrive (t1-cyhy). A wasted share of 0.25 costs 1 / (1 - 0.25) in variance under the exact count, which is 15 % in deviation. The measured 30 % is above that, so the draws that arrive add variance of their own there.
+- The right wall is the reverse case: the thin box turns an arrival of 32 % into 98 % and cuts the grain by 34 % where today's box cuts 8 %. On the bay, the arrival (t1-cyhy) is a larger lever than the mixture alone.
+- The right wall's mean rises by 1.5 to 2.6 %. On the nose the same sign was light that main loses in the clamp. No clamp-off pair exists here yet, so this is open.
+
+Ordered from the lead after this part (my settlement, for the orchestrator to reverse):
+1. The exact count at a share of 0.125 on the wall beside the stripe, the right wall and the nose's box, with the replay's row at 0.125 for all five surfaces. This is the orchestrator's condition 4: 0.125 before any change of the ramp.
+2. A clamp-off pair of the bay's right wall, main against the exact count, to say whether the 1.5 % is the clamp's loss or a bias.
+3. Part 4 gets a column with the exact count at 0.125 beside the one at 0.25.
