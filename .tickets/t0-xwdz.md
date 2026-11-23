@@ -54,3 +54,107 @@ Step 1 finished with the v3 and v4 logs (record docs/research/t0-xwdz-reflection
 **2026-11-23T17:54:22Z**
 
 2026-11-23, 12:54 New York time, line orchestrator of the Design X line: step 1 is finished and its record is on the line (docs/research/t0-xwdz-reflection-tail, merge 8b8ef76d0). Draw 8's own reflection rays split three ways by the own texel's length after draw 7 (cabin 176,403 / bay 224,864): 37.4 % / 34.1 % from lengths in [7.99, 8), which a rounding of a still frame's reprojected place makes; 13.8 % / 7.5 % from [7.5, 7.99); 43.5 % / 54.5 % from under 7.5, the anti-lag's partial cuts of draws 4 to 7. The tail after draw 9 is the anti-lag's cuts of histories on schedule, 8 to 12 % of the pixels per draw, of which 45 to 20 % (cabin) and 64 to 40 % (bay) end under 8; in the bay about 15,000 pixels per draw go from [5, 6) back to [4, 5) and never reach 8. My decision (answer 103, as the orchestrator allowed for a rounding defect): the rounding is its own bug, t0-y88b, fixed at the one place that makes a reprojection's weights, and it is built first. The design of the rest (the partial cuts and the tail) follows in this ticket after that fix, because the fix changes the counts that the design starts from.
+
+**2026-11-23T21:18:36Z**
+
+## Step 2: two designs for the rest (the line orchestrator of the Design X line, 2026-11-23, 16:18 New York time). No build before the probe's pictures.
+
+The rounding defect has its own fix (t0-y88b). After it, draw 8 still traces 106,254 own reflection rays in the cabin and 142,056 in the bay (docs/research/t0-y88b-still-place/README.md). This note is about those, and about the tail.
+
+### Terms
+
+- **The length** is a pixel's history length of one signal, in draws: the alpha of the slow history. It is the weight of the stored mean against one new sample, so the next sample enters with the weight 1 / (length + 1).
+- **A cut** is the anti-lag's shortening of the length in one draw (accumulate_spatial.comp, step 4).
+- **A new history** is one that began fewer than `FullRateFrames` (8) draws ago: after a reset, or where the pixel came onto the screen.
+- **The plan** is screen_trace_plan.comp. It gives a pixel its own ray of a kind while the length that it reads is under 8.
+
+### What the logs say, read again
+
+1. The plan's test asks one question of the length: is this history new? The length answers another question after a cut: how much does the stored mean count against a new sample? The two agree until the first cut and never after it. This is the cause of every own ray in this ticket that the rounding did not make.
+2. The cuts are not a matter of young histories alone. In a frozen world, where nothing changes, the anti-lag cuts 5.5 % of the cabin's surface pixels in draw 8 and 11.7 % in draw 12 (bay: 7.6 % and 11.9 %). In draw 12, 76 % of them start from histories that are on schedule. 20 to 64 % of the cuts end under 8.
+3. So a still frame pays for own reflection rays in every draw: 36,855 in the cabin and 62,369 in the bay at draw 12 (4.1 % and 7.0 % of the surface pixels, measured before the fix of the still place). In the bay, about 15,000 pixels go from [5, 6) back to [4, 5) in every draw and never reach 8.
+4. Why the box cuts in a frozen world (my reading of the code, not measured): the reflections' box is 1.5 standard deviations of the 3 x 3 fast histories, with no widening for the history's own noise. A single noisy value lies outside such a box at roughly one pixel in eight. The narrow box is wanted: it is the reflections' filter against bright specks (SignalParameters.Specular). So the clamp stays, and the question is only what a cut does to the length and to the rays.
+5. The code already decided this question twice for a known change. Light and region evidence cut a history to `FullRateFrames` and no lower, "the shortest length that keeps the block's shared ray", because a shorter restart made every pixel of the block trace its own rays. Motion evidence narrows the box and does not cut, for the same reason. Only the clamp's own cut still goes under 8.
+
+### Design 1: no shortening ends under `FullRateFrames`
+
+One rule for every shortening of a history: it ends at 8 or above, and a new history is not shortened. Then a length under 8 has one meaning, a new history, which is the meaning that the plan reads. No new state.
+
+```glsl
+float restart = min(historyLength, FullRateFrames);
+float antiLagged = max(restart, historyLength * (1.0 - min(1.0, lag / parameters.antiLagShare)));
+historyLength = evidence == LightEvidence || evidence == RegionEvidence ? min(antiLagged, FullRateFrames) : antiLagged;
+slow = clamped;
+```
+
+where
+
+- `historyLength` = the length before this draw's cut, in draws, with this draw's sample counted.
+- `FullRateFrames` = 8 draws: under it the plan gives the pixel its own ray.
+- `restart` = the least length that this draw's cut can leave: the length itself for a new history, and 8 for every other.
+- `lag` = how far the clamp moved the slow history's light, as a share of the luminance of the mean of the 3 x 3 fast histories.
+- `parameters.antiLagShare` = the lag at which the cut is complete: 0.25 for the reflections and 0.5 for the bounce light.
+- `antiLagged` = the length after the cut.
+- `evidence` = the evidence level of the pixel's block of 8 x 8 pixels in this draw.
+- `clamped` = the slow history's light inside the box. It does not change in this design.
+
+The fast cap leaves the floor, because `restart` is never under it where the clamp runs. A pixel whose cap is under 8 (a roughness under about 0.19) is never cut. It traces its own ray in every draw today, and it still does.
+
+### Design 2: an age beside the length
+
+The length keeps its meaning and its cuts down to the fast cap of 4. A second value per pixel and signal, the age, counts the draws since the history began, up to 8. A cut does not change it. The plan reads the age.
+
+```glsl
+// screen_trace_plan.comp
+if (historyAgeOf(r, kind) >= FullRateFrames && fits(p, c, kind))
+    continue;
+```
+
+where
+
+- `historyAgeOf(r, kind)` = the draws since the pixel's history of `kind` began, read at the pixel's place in the last frame through the same taps and weights as the length.
+- `fits(p, c, kind)` = whether the block's ray fits the pixel (for a reflection, the lobe fit).
+
+The age needs a channel in each signal's history, a reset with the length, and a rule for its reprojection (the mean of the taps that pass, like the length).
+
+### The two designs side by side
+
+| | What a length under 8 means | The next sample's weight after a full cut | New state | What the anti-lag still does |
+|---|---|---|---|---|
+| Design 1, one floor | A new history, and nothing else | 1/9 at most (today up to 1/5) | None | Clamps the light into the box in the same draw, and shortens a long history to 8 at the least |
+| Design 2, an age | A new history or a cut one. The age tells them apart | Up to 1/5, as today | One channel per signal, written by the accumulator and read by the plan | All that it does today |
+
+Both share:
+
+- A cut buys no own ray. Draw 8's own reflection rays fall to the two small groups that are not cuts: the lobe fit, and a tap of a newer neighbor in the footprint (together 5.3 % of the cabin's 176,403 and 3.9 % of the bay's 224,864 before the fix of the still place).
+- The own rays that a still frame pays for in every draw go too (point 3 above). So the level of draw 12 falls as well, and the acceptance compares with today's draw 12.
+- The clamp of the light does not change. Light, region and motion evidence do not change. `FullRateFrames` and the fast cap keep their values.
+- Under a moving camera, a reflection that lags is still clamped in the same draw, but it no longer gets its own ray. This is the picture that must be seen: a pan over a glossy floor.
+- The rule sits in the one dispatch of both signals. Whether the bounce light follows is the second fork below.
+
+### The forks
+
+1. **The weight after a cut.** Design 1 lets a cut history take its next samples at 1/9 at most. Design 2 keeps 1/5 and pays one channel per signal and a second store that can disagree with the length.
+2. **The bounce light.** One rule for both signals, or the reflections alone. The bounce light's own rays at draw 8 are few (2,306 of 678,000 in the ticket's first log), so the rays are no reason. The picture is: with one rule, a bounce pixel that the anti-lag cuts keeps 8 draws in place of 4 to 8. This touches what t1-g1jd holds.
+
+### My recommendation
+
+Design 1, for the reason of point 5: the code already holds this rule for light and region evidence, with the reason written beside it. Design 1 makes it the rule of every shortening and removes the one path that disagrees. For the bounce light, one rule if the stills agree.
+
+### The probe before the choice (answer 112)
+
+A scratch probe, on the Mac, money 0, nothing that merges. The lead of the still place's fix takes it after its merge, in its worktree, on a branch from the line's head with that fix in it. Three switches in one probe build:
+
+- `F`: design 1 for the reflections.
+- `Fd`: design 1 for the bounce light too.
+- `A`: design 2's picture in a frozen take. The plan reads the frame's count of draws since the reset in place of a per-pixel age. In a frozen take after a reset both are the same number at every pixel, so the stand-in is exact there and only there.
+
+Takes, each for the probe with all switches off, `F`, `F` with `Fd`, and `A`:
+
+1. The fair cabin and bay, frozen, after a cut: the own rays of each kind per draw 4 to 20 and at draw 100, with t0-xwdz's tail log.
+2. The same takes' films of draws 0 to 20, side by side, by the video rules. A dither or a slow shutter is not wanted: real frames, one fixed exposure.
+3. Settled stills of the cabin, the bay and rect-lamps' glossy floor (frozen world, settled exposure): the mottle strength on the flat areas, 1:1 crops at the reflections, and a count of bright specks.
+4. A pan of about 1 texel per draw over the bay's floor and over rect-lamps' glossy floor (not for `A`, whose stand-in does not hold there): a side-by-side film, and the own rays per draw.
+5. The GPU frame span in the settled still, the switch off against `F`, on a quiet machine, under one hold of the GPU lock. The table names its main as the probe with the switch off.
+
+The lead brings the tables and the pictures, and no choice.
