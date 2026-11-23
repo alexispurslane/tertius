@@ -2,7 +2,7 @@
 id: ter-fe63
 status: open
 deps: []
-links: [ter-12xp, ter-bdoh]
+links: [ter-12xp, ter-bdoh, t1-nyjl]
 created: 2026-11-22T15:17:24Z
 type: bug
 priority: 1

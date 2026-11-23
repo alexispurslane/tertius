@@ -2,7 +2,7 @@
 id: t58-rcd6
 status: in_progress
 deps: []
-links: [ter-6fka]
+links: [ter-6fka, t1-tr17]
 created: 2026-11-22T22:51:40Z
 type: bug
 priority: 2
