@@ -1,0 +1,32 @@
+# SCRATCH patch of t0-y88b, never commit to src. It applies on main 496e3affc after tools/renderer-survey/probe.patch, t0-gumm's
+# scratch-first-filmed.patch and scratch-frozen.patch and t0-xwdz's scratch-tail-log.patch. TERTIUS_X_YAW_TEXELS=<d> turns the
+# camera by d texels of the render width per draw (see the comment in the hunk).
+--- a/src/Tertius.Rendering/Scene/SceneBatcher.cs
++++ b/src/Tertius.Rendering/Scene/SceneBatcher.cs
+@@ -226,6 +226,9 @@
+     /// render size rounded on each axis on its own never stretches the picture. <paramref name="renderSize"/> gives only
+     /// the pixel counts (ter-qt72).
+     /// </summary>
++    // SCRATCH (t0-y88b, never commit to src): the draws so far, for TERTIUS_X_YAW_TEXELS.
++    private static long probeYawDraws;
++
+     private static CameraView InterpolateCamera(
+         RenderSnapshot snapshot,
+         float alpha,
+@@ -240,6 +243,16 @@
+             : DefaultVerticalFov;
+         float aspect = (float)Math.Max(outputSize.Width, 1) / Math.Max(outputSize.Height, 1);
+         float tanY = MathF.Tan(fov * 0.5f);
++        // SCRATCH (t0-y88b, never commit to src): with TERTIUS_X_YAW_TEXELS=<d>, the camera turns about its own up axis by
++        // d texels of the render width per draw at the image's center, from the first draw of the run on: draw n turns it
++        // by n times the angle. A frozen film then shows a slow pan of d texels per draw.
++        if (float.TryParse(Environment.GetEnvironmentVariable("TERTIUS_X_YAW_TEXELS"), System.Globalization.NumberStyles.Float,
++                System.Globalization.CultureInfo.InvariantCulture, out float probeYawTexels))
++        {
++            float probeAngle = 2f * MathF.Atan(tanY * aspect / Math.Max(renderSize.Width, 1) * probeYawTexels);
++            rotation *= Quaternion.CreateFromAxisAngle(Vector3.UnitY, probeYawDraws * probeAngle);
++            probeYawDraws++;
++        }
+         return new()
+         {
+             Rotation = rotation,

@@ -1,0 +1,199 @@
+[
+ {
+  "id": "S01",
+  "file": "src/Tertius.Rendering/Shaders/signals.glsl",
+  "line": 56,
+  "original": "1.0 / 256.0",
+  "replacement": "0.0",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "StillPlaceTests",
+   "PixelHistoryTests"
+  ],
+  "note": "no snap"
+ },
+ {
+  "id": "S02",
+  "file": "src/Tertius.Rendering/Shaders/signals.glsl",
+  "line": 56,
+  "original": "1.0 / 256.0",
+  "replacement": "1.0 / 32.0",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "StillPlaceTests"
+  ],
+  "note": "bound 1/32 texel"
+ },
+ {
+  "id": "S03",
+  "file": "src/Tertius.Rendering/Shaders/signals.glsl",
+  "line": 56,
+  "original": "1.0 / 256.0",
+  "replacement": "1.0 / 150.0",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "StillPlaceTests"
+  ],
+  "note": "bound 1/150 texel"
+ },
+ {
+  "id": "S04",
+  "file": "src/Tertius.Rendering/Shaders/signals.glsl",
+  "line": 56,
+  "original": "1.0 / 256.0",
+  "replacement": "1.0 / 400.0",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "StillPlaceTests"
+  ],
+  "note": "bound 1/400 texel"
+ },
+ {
+  "id": "S05",
+  "file": "src/Tertius.Rendering/Shaders/signals.glsl",
+  "line": 65,
+  "original": "round(texelPlace)",
+  "replacement": "floor(texelPlace)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "StillPlaceTests"
+  ],
+  "note": "center by floor"
+ },
+ {
+  "id": "S06",
+  "file": "src/Tertius.Rendering/Shaders/signals.glsl",
+  "line": 66,
+  "original": "lessThan(",
+  "replacement": "greaterThan(",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "StillPlaceTests"
+  ],
+  "note": "snap the far places"
+ },
+ {
+  "id": "S07",
+  "file": "src/Tertius.Rendering/Shaders/signals.glsl",
+  "line": 66,
+  "original": "mix(texelPlace, center,",
+  "replacement": "mix(center, texelPlace,",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "StillPlaceTests"
+  ],
+  "note": "mix swapped"
+ },
+ {
+  "id": "S08",
+  "file": "src/Tertius.Rendering/Shaders/signals.glsl",
+  "line": 66,
+  "original": "abs(texelPlace - center)",
+  "replacement": "(texelPlace - center)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "StillPlaceTests",
+   "PixelHistoryTests"
+  ],
+  "note": "no abs: every place under a center snaps"
+ },
+ {
+  "id": "S09",
+  "file": "src/Tertius.Rendering/Shaders/signals.glsl",
+  "line": 66,
+  "original": "vec2(StillPlaceTexels)",
+  "replacement": "vec2(StillPlaceTexels, 0.0)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "StillPlaceTests"
+  ],
+  "note": "no snap along y"
+ },
+ {
+  "id": "S10",
+  "file": "src/Tertius.Rendering/Shaders/signals.glsl",
+  "line": 78,
+  "original": "floor(lastTexelPlace(place))",
+  "replacement": "floor(place * frame.previousViewport.xy - 0.5)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "StillPlaceTests"
+  ],
+  "note": "surface taps without the snap"
+ },
+ {
+  "id": "S11",
+  "file": "src/Tertius.Rendering/Shaders/signals.glsl",
+  "line": 116,
+  "original": "lastTexelPlace(place)",
+  "replacement": "place * frame.previousViewport.xy - 0.5",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "StillPlaceTests"
+  ],
+  "note": "reprojection without the snap"
+ },
+ {
+  "id": "S12",
+  "file": "src/Tertius.Rendering/Shaders/accumulate_temporal.comp",
+  "line": 157,
+  "original": "lastTexelPlace(surfacePlace)",
+  "replacement": "surfacePlace * frame.previousViewport.xy - 0.5",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "StillPlaceTests",
+   "PlaceTraceTests"
+  ],
+  "note": "trace's surface place without the snap"
+ },
+ {
+  "id": "S13",
+  "file": "src/Tertius.Rendering/Shaders/accumulate_temporal.comp",
+  "line": 188,
+  "original": "lastTexelPlace(reflectedPlace)",
+  "replacement": "reflectedPlace * frame.previousViewport.xy - 0.5",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "PixelHistoryTests",
+   "PlaceTraceTests"
+  ],
+  "note": "trace's reflected place without the snap"
+ },
+ {
+  "id": "S14",
+  "file": "src/Tertius.Rendering/Shaders/accumulate_temporal.comp",
+  "line": 199,
+  "original": "lastTexelPlace(reflectedPlace)",
+  "replacement": "reflectedPlace * frame.previousViewport.xy - 0.5",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "PixelHistoryTests",
+   "PlaceTraceTests"
+  ],
+  "note": "trace's kept reflected place without the snap"
+ },
+ {
+  "id": "S15",
+  "file": "src/Tertius.Rendering/Shaders/screen_trace_plan.comp",
+  "line": 27,
+  "original": "1.0 / 64.0",
+  "replacement": "0.0",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightAgeHistoryTests"
+  ],
+  "note": "the footprint floor at 0"
+ },
+ {
+  "id": "S16",
+  "file": "src/Tertius.Rendering/Shaders/screen_trace.glsl",
+  "line": 478,
+  "original": "vec2(pixel) + 0.5",
+  "replacement": "vec2(pixel) + 1.0",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "StillPlaceTests"
+  ],
+  "note": "t1-slb9: lastPlaceAt half a pixel off"
+ }
+]
