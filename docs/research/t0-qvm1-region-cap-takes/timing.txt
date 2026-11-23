@@ -1,0 +1,45 @@
+# timing.py 4 (tc = d42c8cdf3, every invocation runs the cut's atomic)
+round 0 tm bay: pass mean 0.7063 median 0.7044, frame median 15.328 ms, load 6.4
+round 0 tc bay: pass mean 0.7396 median 0.7375, frame median 15.337 ms, load 2.2
+round 0 tm cabin: pass mean 0.7219 median 0.7158, frame median 15.366 ms, load 10.8
+round 0 tc cabin: pass mean 0.7599 median 0.7598, frame median 15.398 ms, load 7.0
+round 1 tc bay: pass mean 0.7678 median 0.7394, frame median 15.377 ms, load 8.0
+round 1 tm bay: pass mean 0.7000 median 0.6962, frame median 15.276 ms, load 8.4
+round 1 tc cabin: pass mean 0.7616 median 0.7612, frame median 15.386 ms, load 7.2
+round 1 tm cabin: pass mean 0.7332 median 0.7304, frame median 15.462 ms, load 3.2
+round 2 tm bay: pass mean 0.6985 median 0.7016, frame median 15.312 ms, load 7.8
+round 2 tc bay: pass mean 0.7524 median 0.7468, frame median 15.446 ms, load 4.1
+round 2 tm cabin: pass mean 0.7338 median 0.7315, frame median 15.454 ms, load 13.6
+round 2 tc cabin: pass mean 0.7729 median 0.7673, frame median 15.426 ms, load 11.8
+round 3 tc bay: pass mean 0.7412 median 0.7399, frame median 15.367 ms, load 7.1
+round 3 tm bay: pass mean 0.6999 median 0.6989, frame median 15.294 ms, load 8.5
+round 3 tc cabin: pass mean 0.7676 median 0.7671, frame median 15.440 ms, load 7.3
+round 3 tm cabin: pass mean 0.7313 median 0.7311, frame median 15.412 ms, load 7.1
+
+# timing.py 4 4 (tc = 1b1e30401, the atomic only for a cut above 0)
+round 4 tm bay: pass mean 0.7054 median 0.7023, frame median 15.323 ms, load 7.5
+round 4 tc bay: pass mean 0.7404 median 0.7371, frame median 15.339 ms, load 7.8
+round 4 tm cabin: pass mean 0.7128 median 0.7121, frame median 15.386 ms, load 5.4
+round 4 tc cabin: pass mean 0.7627 median 0.7619, frame median 15.396 ms, load 5.3
+round 5 tc bay: pass mean 0.7417 median 0.7412, frame median 15.338 ms, load 6.7
+round 5 tm bay: pass mean 0.7057 median 0.7023, frame median 15.329 ms, load 7.4
+round 5 tc cabin: pass mean 0.7591 median 0.7583, frame median 15.384 ms, load 9.7
+round 5 tm cabin: pass mean 0.7247 median 0.7239, frame median 15.330 ms, load 9.1
+round 6 tm bay: pass mean 0.7053 median 0.7036, frame median 15.286 ms, load 7.5
+round 6 tc bay: pass mean 0.6874 median 0.7097, frame median 15.477 ms, load 7.5
+round 6 tm cabin: pass mean 0.7297 median 0.7139, frame median 15.396 ms, load 15.1
+round 6 tc cabin: pass mean 0.7946 median 0.7591, frame median 15.468 ms, load 4.7
+round 7 tc bay: pass mean 0.7417 median 0.7421, frame median 15.382 ms, load 4.1
+round 7 tm bay: pass mean 0.7910 median 0.7108, frame median 15.480 ms, load 6.4
+round 7 tc cabin: pass mean 0.7601 median 0.7592, frame median 15.387 ms, load 12.3
+round 7 tm cabin: pass mean 0.7262 median 0.7252, frame median 15.345 ms, load 25.3
+
+# TIMING_BUILDS="pm pc" TIMING_ENV=TERTIUS_X_EVIDENCE_ACTION=0 timing.py 2 8 (the probe builds of 76a4fbfeb and d42c8cdf3, the evidence's action dropped on both)
+round 8 pm bay: pass mean 0.7153 median 0.7101, frame median 15.366 ms, load 6.7
+round 8 pc bay: pass mean 0.7624 median 0.7592, frame median 15.544 ms, load 5.2
+round 8 pm cabin: pass mean 0.8213 median 0.7224, frame median 15.552 ms, load 17.0
+round 8 pc cabin: pass mean 0.7885 median 0.7692, frame median 15.534 ms, load 14.2
+round 9 pc bay: pass mean 0.7453 median 0.7461, frame median 15.415 ms, load 7.2
+round 9 pm bay: pass mean 0.7170 median 0.7127, frame median 15.398 ms, load 4.8
+round 9 pc cabin: pass mean 0.7740 median 0.7729, frame median 15.466 ms, load 4.4
+round 9 pm cabin: pass mean 0.7687 median 0.6903, frame median 15.492 ms, load 4.9

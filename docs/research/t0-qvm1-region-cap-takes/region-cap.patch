@@ -1,0 +1,758 @@
+diff --git a/src/Tertius.Rendering/Frame/TemporalSignal.cs b/src/Tertius.Rendering/Frame/TemporalSignal.cs
+index 9efd735d4..91b169411 100644
+--- a/src/Tertius.Rendering/Frame/TemporalSignal.cs
++++ b/src/Tertius.Rendering/Frame/TemporalSignal.cs
+@@ -84,7 +84,8 @@ internal sealed unsafe class TemporalSignal : IDisposable
+ 
+     /// <summary>
+     /// The format of a layer of an anchor's ring (region_drift.glsl, regionRing): r the region's light of a draw, g the
+-    /// count of valid draws in a row up to it, b 1 where the region's light moved in that draw.
++    /// count of valid draws in a row up to it, b the test's cut of that draw (region_drift.glsl, regionCutOf): 1 over the
++    /// longest history length that the region's drift allows, at most 1 / 8, and 0 where the drift allows any length.
+     /// </summary>
+     public const Format RegionRingFormat = Format.R32G32B32A32Sfloat;
+ 
+diff --git a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
+index 9a1da8ec0..b7ed8826c 100644
+--- a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
++++ b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
+@@ -5,7 +5,8 @@
+ // workgroup is a block of 8 × 8 pixels, and the block's evidence level, the strongest of its pixels' samples, acts on
+ // every pixel of it in this draw: motion evidence drops the box's widening, and light evidence cuts the length to at most
+ // FullRateFrames and leaves the box (docs/plans/bounce-light-confidence.md, section 8). The bounce light also takes the
+-// region evidence of its block (region_drift.glsl, TERTIUS_REGION_DRIFT), which cuts the length in the same way.
++// region evidence of its block (region_drift.glsl, TERTIUS_REGION_DRIFT), which cuts the length to the region's cap, from
++// FullRateFrames up, and leaves the box.
+ #extension GL_GOOGLE_include_directive : require
+ #include "accumulate.glsl"
+ #ifdef TERTIUS_REGION_DRIFT
+@@ -18,18 +19,31 @@
+ // The least luminance by which the clamp divides: the lag's share and the chroma of the widening.
+ const float LeastLuminance = 1e-4;
+ 
+-// The evidence levels of a block, ordered by how certain the knowledge is (section 8.2). Region and light evidence cap the
+-// anti-lag's length at FullRateFrames, and motion evidence narrows the box for this draw.
++// The evidence levels of a block, ordered by how certain the knowledge is (section 8.2). Light evidence caps the anti-lag's
++// length at FullRateFrames, region evidence at the region's cap, and motion evidence narrows the box for this draw.
+ // The level lives only in this dispatch's shared value.
+ const uint NoEvidence = 0u;
+ const uint RegionEvidence = 1u;
+ const uint MotionEvidence = 2u;
+ const uint LightEvidence = 3u;
+ 
++// A block's evidence in this draw: its level, and its region's cut, the largest cut of the anchors whose regions hold it
++// (region_drift.glsl, regionAnchorCutBefore), 0 where none caps it. The cut is the one store of the region's answer: the
++// level is RegionEvidence where the cut is above 0 and no sample of the block brings a stronger level.
++struct BlockEvidence
++{
++    uint level;
++    float regionCut;
++};
++
+ #ifdef TERTIUS_LIGHT_AGE
+-// The block's evidence level in this draw, which its 64 invocations share.
++// The block's evidence level from its samples in this draw, which its 64 invocations share.
+ shared uint blockEvidence;
+ 
++// The bits of the block's region cut in this draw. A cut is never negative, and the bits of floats that are not negative
++// order as the floats do, so a maximum of the bits is the largest cut.
++shared uint blockRegionCut;
++
+ // The evidence level of one sample, from its age (sample_age.glsl): light evidence where one of its rays saw a recent
+ // light change, motion evidence where it saw motion. This is the one place that chooses the action of motion: a moved
+ // object narrows the box and does not cut, because a cut makes the pixels trace their own rays for as long as the motion
+@@ -41,13 +55,13 @@ uint evidenceOfSample(uint sampleAge)
+     return sawMotion(sampleAge) ? MotionEvidence : NoEvidence;
+ }
+ 
+-// The evidence level of the workgroup's block: the strongest of its pixels' samples' levels and, for the bounce light, its
+-// region's level of the draw before. An anchor's workgroup of the bounce light first runs its region's test for the
++// The evidence of the workgroup's block: the strongest of its pixels' samples' levels and, for the bounce light, its
++// region's cut of the draw before. An anchor's workgroup of the bounce light first runs its region's test for the
+ // blocks of the next draw. Every invocation of the workgroup calls it from main before any branch, and the anchor's
+ // branch is uniform in the workgroup, so every barrier runs in uniform control flow. A maximum does not depend on the
+-// order of the invocations, so one machine gives the same level in every run. A sky pixel's age is 0, and a pixel outside
++// order of the invocations, so one machine gives the same evidence in every run. A sky pixel's age is 0, and a pixel outside
+ // the images adds nothing.
+-uint evidenceOfBlock(ivec2 pixel)
++BlockEvidence evidenceOfBlock(ivec2 pixel)
+ {
+ #ifdef TERTIUS_REGION_DRIFT
+     ivec2 block = ivec2(gl_WorkGroupID.xy);
+@@ -55,21 +69,40 @@ uint evidenceOfBlock(ivec2 pixel)
+         updateRegionAnchor(block);
+ #endif
+     if (gl_LocalInvocationIndex == 0u)
++    {
+         blockEvidence = NoEvidence;
++        blockRegionCut = 0u;
++    }
+     barrier();
+     if (insideImages(pixel))
+         atomicMax(blockEvidence, evidenceOfSample(imageLoad(sampleAge, pixel).r));
+ #ifdef TERTIUS_REGION_DRIFT
+-    if (regionAnchorMovedBefore(block, gl_LocalInvocationIndex))
+-        atomicMax(blockEvidence, RegionEvidence);
++    // Only a cut above 0 changes the maximum, so the other invocations skip the shared atomic.
++    float regionCut = regionAnchorCutBefore(block, gl_LocalInvocationIndex);
++    if (regionCut > 0.0)
++        atomicMax(blockRegionCut, floatBitsToUint(regionCut));
+ #endif
+     barrier();
+-    return blockEvidence;
++    float blockCut = uintBitsToFloat(blockRegionCut);
++    return BlockEvidence(max(blockEvidence, blockCut > 0.0 ? RegionEvidence : NoEvidence), blockCut);
+ }
+ #endif
+ 
+-// Steps 3 to 5 at a pixel inside the images, where `evidence` is its block's evidence level in this draw.
+-void accumulateAt(ivec2 pixel, uint evidence)
++// The length that a block's `evidence` leaves of the anti-lag's length `antiLagged`. Light and region evidence state a
++// change, so each adds one cap on top of the anti-lag: light evidence a cap of FullRateFrames, and region evidence the
++// region's cap, 1 over its cut, from FullRateFrames up (region_drift.glsl, regionCutOf). So evidence only ever shortens a
++// history. The region's cap acts only where it is shorter than the length, so no division by a cut near 0 runs.
++float evidenceCappedLength(float antiLagged, BlockEvidence evidence)
++{
++    if (evidence.level == LightEvidence)
++        return min(antiLagged, FullRateFrames);
++    if (evidence.level == RegionEvidence && antiLagged * evidence.regionCut > 1.0)
++        return 1.0 / evidence.regionCut;
++    return antiLagged;
++}
++
++// Steps 3 to 5 at a pixel inside the images, where `evidence` is its block's evidence in this draw.
++void accumulateAt(ivec2 pixel, BlockEvidence evidence)
+ {
+     vec4 scratched = imageLoad(scratch, pixel);
+     vec2 guide = vec2(0.0);
+@@ -153,7 +186,7 @@ void accumulateAt(ivec2 pixel, uint evidence)
+         // the box measures a change of unknown size. Light and region evidence keep it: the cut below already bounds the
+         // length, and a box without its widening would cut the rare bright light that the history holds (section 8.2).
+         vec3 spread = parameters.clampSigmas * sigma;
+-        if (parameters.retainedSigmas > 0.0 && evidence != MotionEvidence)
++        if (parameters.retainedSigmas > 0.0 && evidence.level != MotionEvidence)
+         {
+             spread = max(spread, parameters.retainedSigmas * own.a * slow / max(luminance(slow), LeastLuminance));
+         }
+@@ -164,12 +197,9 @@ void accumulateAt(ivec2 pixel, uint evidence)
+         storeTrace(pixel, 6, vec4(mean, lag));
+         storeTrace(pixel, 7, vec4(sigma, 0.0));
+ #endif
+-        // The anti-lag shortens the history by the clamp's move: motion has no known size, so the box measures it. Light
+-        // and region evidence state a change, so each adds one cap on top of the anti-lag: at most FullRateFrames draws,
+-        // the shortest length that keeps the block's shared ray. A shorter restart made every pixel of the block trace
+-        // its own rays (section 2.2, record of 2026-11-22). So evidence only ever shortens a history.
++        // The anti-lag shortens the history by the clamp's move: motion has no known size, so the box measures it.
+         float antiLagged = max(fastCap, historyLength * (1.0 - min(1.0, lag / parameters.antiLagShare)));
+-        historyLength = evidence == LightEvidence || evidence == RegionEvidence ? min(antiLagged, FullRateFrames) : antiLagged;
++        historyLength = evidenceCappedLength(antiLagged, evidence);
+         slow = clamped;
+     }
+ 
+@@ -195,9 +225,9 @@ void main()
+     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+     // A signal without a light age has no evidence.
+ #ifdef TERTIUS_LIGHT_AGE
+-    uint evidence = evidenceOfBlock(pixel);
++    BlockEvidence evidence = evidenceOfBlock(pixel);
+ #else
+-    uint evidence = NoEvidence;
++    BlockEvidence evidence = BlockEvidence(NoEvidence, 0.0);
+ #endif
+     if (insideImages(pixel))
+         accumulateAt(pixel, evidence);
+diff --git a/src/Tertius.Rendering/Shaders/region_drift.glsl b/src/Tertius.Rendering/Shaders/region_drift.glsl
+index 3386bf207..1a3e4f18a 100644
+--- a/src/Tertius.Rendering/Shaders/region_drift.glsl
++++ b/src/Tertius.Rendering/Shaders/region_drift.glsl
+@@ -2,8 +2,8 @@
+ // light evidence. The test runs at anchor blocks only, every AnchorStepBlocks-th block in x and in y: the regions of two
+ // neighbor blocks share 272 of their 289 taps, so their answers are nearly one answer. An anchor's workgroup of the
+ // spatial dispatch sums the taps of its region, keeps the anchor's ring of its region's light and tests whether that light
+-// moved (updateRegionAnchor). Every block then takes the answers of the draw before from the anchors whose regions hold
+-// it (regionAnchorMovedBefore). The tap's layout, the ring's layout, the validity rule and the test live only here: the
++// moved, and by how much (updateRegionAnchor). Every block then takes the answers of the draw before from the anchors
++// whose regions hold it (regionAnchorCutBefore). The tap's layout, the ring's layout, the validity rule and the test live only here: the
+ // spatial dispatch calls the two functions. Only the bounce light runs the test and keeps a ring
+ // (TemporalSignal.TestsRegionDrift). Needs accumulate.glsl.
+ #ifndef TERTIUS_REGION_DRIFT_GLSL
+@@ -36,8 +36,9 @@ const ivec2 RegionTapPixel = ivec2(4);
+ 
+ // Each anchor's ring (TemporalSignal.RegionRingFormat), one texel per anchor: layer k holds the draw whose regionSlot is
+ // k, r the region's light of that draw, g the count of valid draws in a row up to it, at most RegionRingDraws, 0 for a
+-// draw that is not valid, and b 1 where the test found that the region's light moved in that draw, else 0. Only the
+-// anchor's workgroup writes it, and only into this draw's layer.
++// draw that is not valid, and b the test's cut of that draw (regionCutOf): 1 over the longest history length that the
++// region's drift allows, 0 where it allows any length. Only the anchor's workgroup writes it, and only into this draw's
++// layer.
+ layout(set = 3, binding = 13, rgba32f) uniform image2DArray regionRing;
+ 
+ // Whether a block is an anchor.
+@@ -78,22 +79,22 @@ ivec2 lastRegionAnchor()
+ // its own invocation.
+ const uint RegionCandidates = 9u;
+ 
+-// Whether the anchor `candidate` (0 to RegionCandidates − 1, row by row) of the anchors around `block` holds the block in
+-// its region and saw its region's light move in the draw before. False for a candidate that does not exist: one outside
+-// the images, or one whose region does not reach the block. A block has region evidence where any candidate says yes, so
+-// the caller merges the 9 answers with a maximum, which does not depend on their order. The answer acts one draw late, so
+-// that no block reads a layer that a workgroup writes in this draw: the windows are 18 draws long, so one draw does not
++// The cut of the draw before (regionCutOf) of the anchor `candidate` (0 to RegionCandidates − 1, row by row) of the
++// anchors around `block`, where that anchor holds the block in its region. 0 for a candidate that does not exist: one
++// outside the images, or one whose region does not reach the block. A block takes the shortest cap of its anchors, so the
++// caller merges the 9 cuts with a maximum, which does not depend on their order. The answer acts one draw late, so that
++// no block reads a layer that a workgroup writes in this draw: the windows are 18 draws long, so one draw does not
+ // matter. A draw that does not continue the draw before (regionContinues) reads no answer.
+-bool regionAnchorMovedBefore(ivec2 block, uint candidate)
++float regionAnchorCutBefore(ivec2 block, uint candidate)
+ {
+     if (!regionContinues() || candidate >= RegionCandidates)
+-        return false;
++        return 0.0;
+     ivec2 first = max((block - RegionRadiusBlocks + AnchorStepBlocks - 1) / AnchorStepBlocks, ivec2(0));
+     ivec2 anchor = first + ivec2(int(candidate % 3u), int(candidate / 3u));
+     ivec2 last = min((block + RegionRadiusBlocks) / AnchorStepBlocks, lastRegionAnchor());
+     if (any(greaterThan(anchor, last)))
+-        return false;
+-    return imageLoad(regionRing, ivec3(anchor, layerBefore())).b != 0.0;
++        return 0.0;
++    return imageLoad(regionRing, ivec3(anchor, layerBefore())).b;
+ }
+ 
+ // One draw of an anchor's ring.
+@@ -167,15 +168,22 @@ float regionOlderFirst()
+     return regionLightBefore(RegionRingDraws - 1u);
+ }
+ 
+-// Whether the region's light moved, from this draw `now` and the second step's parts: whether the mean of the newer window
+-// (this draw and the W − 1 before it) differs from the mean of the older window (the W draws before those) by more than
+-// DriftSigmas standard deviations of the older window's spread, times sqrt(2 / W), the spread of a difference of two
+-// means of W draws. False until 2 W valid draws in a row exist. The older window's spread is a measured quantity: a step
+-// inside the newer window does not raise it.
+-bool regionTestOf(RegionDraw now)
++// The cut of the region's drift, from this draw `now` and the second step's parts: 1 over the longest history length n
++// that the drift allows, at most 1 / FullRateFrames, and 0 where the drift allows any length. The drift D is the mean of
++// the newer window (this draw and the W − 1 before it) less the mean of the older window (the W draws before those). The
++// bar is DriftSigmas standard deviations of the older window's spread s1, times sqrt(2 / W), the spread of a difference
++// of two means of W draws. Only the excess u = |D| − bar is a change that the noise does not explain, so a drift at or
++// under the bar gives 0. Above it, n = (W s1 / (√2 u))^(2/3): a history of n draws lags a drift of u per window by
++// n u / W, and its noise is s1 / sqrt(2 n), and n is the length at which the two are equal
++// (docs/plans/bounce-light-confidence.md, section 8.7). So a drift just
++// above the bar, as a still's noise gives it, leaves a long history, and a drift far above it cuts to FullRateFrames. 0
++// until 2 W valid draws in a row exist. The older window's spread is a measured quantity: a step inside the newer window
++// does not raise it. Where s1 is 0, a drift of 0 gives 0 and any other drift the cut of FullRateFrames, with no division
++// by 0 on either path.
++float regionCutOf(RegionDraw now)
+ {
+     if (now.validDraws < float(RegionRingDraws))
+-        return false;
++        return 0.0;
+     float newer = now.light - regionOlderFirst();
+     vec2 older = vec2(0.0);
+     for (uint part = 0u; part < RegionWindowAdders; part++)
+@@ -185,7 +193,14 @@ bool regionTestOf(RegionDraw now)
+     }
+     float window = float(RegionWindowDraws);
+     float olderSpread = sqrt(max(older.y - older.x * older.x / window, 0.0) / (window - 1.0));
+-    return abs(newer - older.x) / window > DriftSigmas * olderSpread * sqrt(2.0 / window);
++    float excess = abs(newer - older.x) / window - DriftSigmas * olderSpread * sqrt(2.0 / window);
++    if (excess <= 0.0)
++        return 0.0;
++    // n ≤ FullRateFrames where W s1 ≤ FullRateFrames^(3/2) √2 u. Past this test W s1 > 0, so the ratio is finite.
++    float scaledExcess = sqrt(2.0) * excess;
++    if (window * olderSpread <= pow(FullRateFrames, 1.5) * scaledExcess)
++        return 1.0 / FullRateFrames;
++    return pow(scaledExcess / (window * olderSpread), 2.0 / 3.0);
+ }
+ 
+ // The anchor's workgroup: sums the taps of its region, and writes this draw and the test's answer into its ring. Its
+@@ -241,8 +256,7 @@ void updateRegionAnchor(ivec2 anchorBlock)
+             sums += regionParts[part];
+         float before = regionContinues() ? regionRingBefore[layerBefore()].g : 0.0;
+         RegionDraw now = regionDrawOf(sums, before);
+-        bool moved = regionTestOf(now);
+-        imageStore(regionRing, ivec3(texel, int(parameters.regionSlot)), vec4(now.light, now.validDraws, moved ? 1.0 : 0.0, 0.0));
++        imageStore(regionRing, ivec3(texel, int(parameters.regionSlot)), vec4(now.light, now.validDraws, regionCutOf(now), 0.0));
+     }
+ }
+ 
+diff --git a/src/Tertius.Rendering/Shaders/sample_age.glsl b/src/Tertius.Rendering/Shaders/sample_age.glsl
+index 87e5663c7..df1a98333 100644
+--- a/src/Tertius.Rendering/Shaders/sample_age.glsl
++++ b/src/Tertius.Rendering/Shaders/sample_age.glsl
+@@ -22,8 +22,10 @@ const uint LightCodeMask = 0x7FFFu;
+ const uint RecentLightAge = 7u;
+ 
+ // A pixel traces its own ray of a kind while its history of that kind is shorter than this (docs/plans/temporal-renderer.md,
+-// section 6, "The ray budget"). The screen tracer's plan reads it, and so does the spatial dispatch, whose light and region
+-// evidence cut a history to it: the shortest length that keeps the block's shared ray.
++// section 6, "The ray budget"). The screen tracer's plan reads it, and so does the spatial dispatch, whose light evidence
++// cuts a history to it, and whose region evidence cuts a history to it at the shortest: the shortest length that keeps the
++// block's shared ray. A shorter restart made every pixel of the block trace its own rays
++// (docs/plans/bounce-light-confidence.md, section 2.2, record of 2026-11-22).
+ const float FullRateFrames = 8.0;
+ 
+ // The sample age of a sample whose rays bring the light code `lightCode`, with the motion bit where `motion` holds.
+diff --git a/tests/Tertius.Rendering.Tests/AccumulatorRenderTests.cs b/tests/Tertius.Rendering.Tests/AccumulatorRenderTests.cs
+index 6ebb67db6..3e7f1f879 100644
+--- a/tests/Tertius.Rendering.Tests/AccumulatorRenderTests.cs
++++ b/tests/Tertius.Rendering.Tests/AccumulatorRenderTests.cs
+@@ -2693,9 +2693,10 @@ public sealed class AccumulatorRenderTests
+ 
+     /// <summary>
+     /// The region's drift (region_drift.glsl, docs/plans/bounce-light-confidence.md, section 8.7): an anchor block whose
+-    /// region's light moves gives every block of its region region evidence in the next draw, which cuts the block's bounce
+-    /// history to at most FullRateFrames. The scene of 64 × 36 pixels has one anchor, block 0, whose region holds every
+-    /// block. Its runs of hundreds of draws run beside the rest of the class (tests/STYLE.md, "Long tests").
++    /// region's light moves past the bar gives every block of its region region evidence in the next draw, which caps the
++    /// block's bounce history at the region's cap: FullRateFrames for a drift far above the bar, and longer for a drift
++    /// near it. The scene of 64 × 36 pixels has one anchor, block 0, whose region holds every block. Its runs of hundreds
++    /// of draws run beside the rest of the class (tests/STYLE.md, "Long tests").
+     /// </summary>
+     public sealed class RegionDrift
+     {
+@@ -2710,10 +2711,12 @@ public sealed class AccumulatorRenderTests
+ 
+         /// <summary>
+         /// Draws one frame whose samples have the mean <paramref name="light"/> and the coefficient of variation
+-        /// <paramref name="variation"/>. Returns whether region evidence cut a history of part 0 in it: the evidence is a
+-        /// derived read inside the spatial dispatch, so its one effect shows it. Under region evidence, a history of at least
+-        /// FullRateFrames draws before the draw ends at exactly FullRateFrames where the anti-lag leaves it at least that
+-        /// long. So the detector misses a cut that the anti-lag takes further down. Light evidence ends a history there too.
++        /// <paramref name="variation"/>. Returns whether region evidence cut a history of part 0 to FullRateFrames in it,
++        /// the cap of a drift far above the bar: the evidence is a derived read inside the spatial dispatch, so its one
++        /// effect shows it. Under such evidence, a history of at least FullRateFrames draws before the draw ends at exactly
++        /// FullRateFrames where the anti-lag leaves it at least that long. So the detector misses a cut that the anti-lag
++        /// takes further down, and a longer cap of a drift just above the bar. Light evidence ends a history at
++        /// FullRateFrames too.
+         /// Without evidence the blend lengthens a history, and the anti-lag ends it at the fast cap or at a length that is
+         /// not whole.
+         /// </summary>
+@@ -2769,10 +2772,11 @@ public sealed class AccumulatorRenderTests
+         }
+ 
+         [Fact]
+-        public void AStillRegionOfNoisySamplesGivesRegionEvidenceInFewOfItsDraws()
++        public void AStillRegionOfNoisySamplesCutsToFullRateFramesInFewOfItsDraws()
+         {
+             // The test's tolerance is 3 standard deviations of the older window's own spread, so noise alone passes it
+-            // rarely: about 1 % of a clean still's block draws in the takes of t0-ion0.
++            // rarely: about 1 % of a clean still's block draws in the takes of t0-ion0. A pass far enough above the bar
++            // for the cap of FullRateFrames, 4.7 standard deviations, is rarer still.
+             (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+                 parameters: SignalParameters.Diffuse
+             );
+@@ -2794,7 +2798,7 @@ public sealed class AccumulatorRenderTests
+                     )
+                         withEvidence++;
+ 
+-                withEvidence.Should().BeLessThanOrEqualTo(12, "noise alone passes the test in few of 400 draws");
++                withEvidence.Should().BeLessThanOrEqualTo(12, "noise alone cuts to the floor in few of 400 draws");
+             }
+             finally
+             {
+@@ -2829,7 +2833,7 @@ public sealed class AccumulatorRenderTests
+         }
+ 
+         [Fact]
+-        public void ARegionEvidenceAloneCutsTheBounceHistoryToFullRateFrames()
++        public void ASteadyFallFarAboveTheBarCutsTheBounceHistoryToFullRateFrames()
+         {
+             // At the end of the fall the region evidence has acted for many draws: each blend adds a draw, and the cut
+             // takes the history back to FullRateFrames, the shortest length that keeps the block's shared ray.
+@@ -2850,6 +2854,259 @@ public sealed class AccumulatorRenderTests
+             }
+         }
+ 
++        /// <summary>
++        /// The diffuse signal's set with an anti-lag that does not act: only a clamp's move of 1000 times the light would
++        /// take the length to the fast cap. So the region's cap alone sets the lengths in the tests of the cap.
++        /// </summary>
++        private static readonly SignalParameters WithoutAntiLag = SignalParameters.Diffuse with { AntiLagShare = 1000 };
++
++        /// <summary>The draws of each of the test's two windows, W (region_drift.glsl, RegionWindowDraws).</summary>
++        private const int Window = TwoWindows / 2;
++
++        /// <summary>
++        /// The half swing of the light in <see cref="SwingThenStep"/>: the samples alternate between 1 + Swing and
++        /// 1 − Swing from draw to draw. So the swing cancels in the mean of each window of 18 draws, and the older window's
++        /// spread is Swing · sqrt(18 / 17). Both lights are half floats exactly, as the sample image stores them.
++        /// </summary>
++        private const float Swing = 0.125f;
++
++        /// <summary>The draw of the step in <see cref="SwingThenStep"/>, its index since the reset.</summary>
++        private const int StepDraw = 60;
++
++        /// <summary>The first draw whose newer window holds only stepped draws, and whose older window none.</summary>
++        private const int FullStepDraw = StepDraw + Window - 1;
++
++        /// <summary>The draw that takes the test's answer of <see cref="FullStepDraw"/>.</summary>
++        private const int CapDraw = FullStepDraw + 1;
++
++        /// <summary>
++        /// The step of the light whose drift is <paramref name="statistic"/> standard deviations of the difference of two
++        /// windows' means under <see cref="Swing"/>: that standard deviation is Swing · sqrt(18 / 17) · sqrt(2 / 18). The
++        /// step is a whole number of 1/1024, the half floats' spacing from 1 to 2, so that the stepped lights are half
++        /// floats exactly. That moves the statistic by at most 0.012.
++        /// </summary>
++        private static float StepOfStatistic(float statistic) =>
++            MathF.Round(statistic * Swing * MathF.Sqrt(2f / (Window - 1)) * 1024) / 1024;
++
++        /// <summary>
++        /// The design's cap for a drift of <paramref name="statistic"/> standard deviations, 3 of which the bar holds:
++        /// W / (2 (statistic − 3))^(2/3) draws, at least FullRateFrames (docs/plans/bounce-light-confidence.md, section 8.7).
++        /// </summary>
++        private static float CapOfStatistic(float statistic) =>
++            MathF.Max(FullRateFrames, Window / MathF.Pow(2 * (statistic - 3), 2f / 3));
++
++        /// <summary>
++        /// Draws the first frame and then the frames up to the index <paramref name="last"/> since the reset. Each pixel's
++        /// sample is 1 + <paramref name="swing"/> at an even draw and 1 − <paramref name="swing"/> at an odd one, plus,
++        /// from <see cref="StepDraw"/> on, the step that <paramref name="stepAt"/> gives the pixel's column.
++        /// </summary>
++        private static void SwingThenStep(
++            VulkanRenderer renderer,
++            SamplePass sample,
++            RenderSnapshot scene,
++            Func<int, float> stepAt,
++            int last = CapDraw,
++            float swing = Swing
++        )
++        {
++            for (int draw = 0; draw <= last; draw++)
++            {
++                int drawn = draw;
++                float swung = 1 + (drawn % 2 == 0 ? swing : -swing);
++                sample.Samples = (column, _) =>
++                    new Vector4(new Vector3(swung + (drawn >= StepDraw ? stepAt(column) : 0)), 1);
++                if (draw == 0)
++                    renderer.Render(scene, 1f);
++                else
++                    Continue(renderer, scene, frames: 1);
++            }
++        }
++
++        /// <summary>
++        /// The history lengths of part 0 in the draw that takes the test's answer of a step of the whole view whose drift is
++        /// <paramref name="statistic"/> standard deviations.
++        /// </summary>
++        private static float[] LengthsAfterAStepOf(float statistic)
++        {
++            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
++                parameters: WithoutAntiLag
++            );
++            try
++            {
++                SwingThenStep(
++                    renderer: renderer,
++                    sample: sample,
++                    scene: scene,
++                    stepAt: _ => StepOfStatistic(statistic)
++                );
++                return LengthsOf(renderer, sample);
++            }
++            finally
++            {
++                Gpu.DisposeAndAssertClean(renderer);
++            }
++        }
++
++        [Fact]
++        public void ADriftJustAboveTheBarLeavesTheRegionsHistoriesLong()
++        {
++            // The stills' case: a drift of 3.3 standard deviations, just past the bar of 3, is the size that noise and a
++            // slow settle give a frozen scene. Its excess over the bar is a tenth of the bar, so the lag that a history of
++            // about 25 draws keeps stays within the noise (docs/plans/bounce-light-confidence.md, section 8.7).
++            LengthsAfterAStepOf(statistic: 3.3f)
++                .Should()
++                .OnlyContain(length => length > 3 * FullRateFrames, "the cap of a drift just above the bar is long");
++        }
++
++        [Fact]
++        public void ADriftFarAboveTheBarCutsTheRegionsHistoriesToFullRateFrames()
++        {
++            // The switch's case: a drift of 6 standard deviations asks for a history shorter than FullRateFrames, the
++            // floor that keeps the block's shared ray.
++            LengthsAfterAStepOf(statistic: 6f)
++                .Should()
++                .OnlyContain(length => length == FullRateFrames, "the cap of a large drift is the floor");
++        }
++
++        [Fact]
++        public void AGreaterExcessOverTheBarGivesTheRegionsHistoriesAShorterCap()
++        {
++            // Between the stills and the switch: 3.6 standard deviations give a cap of about 16 draws, 4 give about 11.
++            float[] smaller = LengthsAfterAStepOf(statistic: 3.6f);
++            float[] greater = LengthsAfterAStepOf(statistic: 4f);
++
++            greater.Should().OnlyContain(length => length > FullRateFrames, "a drift of 4 stays above the floor");
++            greater.Max().Should().BeLessThan(smaller.Min(), "a greater excess over the bar gives a shorter cap");
++        }
++
++        [Fact]
++        public void AnAnchorsRingHoldsTheCutOfItsRegionsDrift()
++        {
++            // The ring's b holds the answer as a cut, 1 over the cap: ((√2 u) / (W s1))^(2/3), where s1 is the older
++            // window's spread and u the drift's excess over the bar, 3 s1 sqrt(2 / W). The test computes it from the
++            // ring's own lights, so it holds for the light that the taps gave, whatever the exposure's scale.
++            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
++                parameters: WithoutAntiLag
++            );
++            try
++            {
++                SwingThenStep(
++                    renderer: renderer,
++                    sample: sample,
++                    scene: scene,
++                    stepAt: _ => StepOfStatistic(4f),
++                    last: FullStepDraw
++                );
++
++                // Anchor 0's texel is the first of each layer, and the layer of a draw is its index modulo 36.
++                double LightOf(int draw) =>
++                    renderer.ReadImageLayer(sample.Signal.RegionRing(0)!, draw % TemporalSignal.RegionRingDraws)[0];
++                double[] older = [.. Enumerable.Range(FullStepDraw - TwoWindows + 1, Window).Select(LightOf)];
++                double[] newer = [.. Enumerable.Range(FullStepDraw - Window + 1, Window).Select(LightOf)];
++                double drift = newer.Average() - older.Average();
++                double spread = Math.Sqrt(older.Sum(x => (x - older.Average()) * (x - older.Average())) / (Window - 1));
++                double excess = Math.Abs(drift) - 3 * spread * Math.Sqrt(2.0 / Window);
++                double cut = Math.Pow(Math.Sqrt(2) * excess / (Window * spread), 2.0 / 3);
++                float[] ring = renderer.ReadImageLayer(
++                    sample.Signal.RegionRing(0)!,
++                    FullStepDraw % TemporalSignal.RegionRingDraws
++                );
++
++                cut.Should().BeInRange(1.0 / 32, 1.0 / FullRateFrames, "the step's cap lies between the floor and 32");
++                ring[2].Should().BeApproximately((float)cut, 1e-3f * (float)cut, "the ring holds the formula's cut");
++            }
++            finally
++            {
++                Gpu.DisposeAndAssertClean(renderer);
++            }
++        }
++
++        [Fact]
++        public void ABlockInTheRegionsOfTwoAnchorsTakesTheShorterOfTheirCaps()
++        {
++            // Block 12 lies in the regions of anchors 8 and 16. The light of the blocks 0 to 7 steps far above anchor 8's
++            // bar: they are 8 of its region's 17 columns. The light of the blocks 17 to 23 steps 3.6 standard deviations
++            // above anchor 16's: they are 7 of its 16 columns. Block 20 lies only in anchor 16's region.
++            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
++                parameters: WithoutAntiLag,
++                wall: (new(0, 0, -20), new(400, 40, 1)),
++                width: WideWidth
++            );
++            try
++            {
++                static float StepAt(int column)
++                {
++                    if (column < FallingColumns)
++                        return StepOfStatistic(8f * 17 / 8);
++                    if (column >= FirstRightFallingColumn)
++                        return StepOfStatistic(3.6f * 16 / 7);
++                    return 0;
++                }
++                SwingThenStep(renderer: renderer, sample: sample, scene: scene, stepAt: StepAt);
++                float[] lengths = WideLengthsOf(renderer, sample);
++
++                BlockColumnLengths(lengths, column: 20)
++                    .Should()
++                    .OnlyContain(
++                        length => Math.Abs(length - CapOfStatistic(3.6f)) < 0.5f,
++                        "anchor 16 alone caps block 20 at about 16 draws"
++                    );
++                BlockColumnLengths(lengths, column: 12)
++                    .Should()
++                    .OnlyContain(length => length == FullRateFrames, "anchor 8's cap is the shorter");
++            }
++            finally
++            {
++                Gpu.DisposeAndAssertClean(renderer);
++            }
++        }
++
++        [Fact]
++        public void ARegionOfExactlyEqualLightGivesNoCap()
++        {
++            // The older window's spread is exactly 0, and so is the drift: the excess over the bar is 0, so no cap, and no
++            // division by the spread gives an infinity or a NaN (the Vulkan rule of CLAUDE.md).
++            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
++                parameters: WithoutAntiLag
++            );
++            try
++            {
++                SwingThenStep(renderer: renderer, sample: sample, scene: scene, stepAt: _ => 0, swing: 0);
++
++                float[] ring = renderer.ReadImageLayer(
++                    sample.Signal.RegionRing(0)!,
++                    CapDraw % TemporalSignal.RegionRingDraws
++                );
++                ring[2].Should().Be(0, "a light that does not change gives no cut");
++                LengthsOf(renderer, sample).Should().OnlyContain(length => length == 32, "no cap acts");
++            }
++            finally
++            {
++                Gpu.DisposeAndAssertClean(renderer);
++            }
++        }
++
++        [Fact]
++        public void AStepInARegionOfExactlyEqualLightCutsItsHistoriesToFullRateFrames()
++        {
++            // The older window's spread is exactly 0, so any step is infinitely far above the bar.
++            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
++                parameters: WithoutAntiLag
++            );
++            try
++            {
++                SwingThenStep(renderer: renderer, sample: sample, scene: scene, stepAt: _ => 1f / 64, swing: 0);
++
++                LengthsOf(renderer, sample)
++                    .Should()
++                    .OnlyContain(length => length == FullRateFrames, "a step without spread takes the floor");
++            }
++            finally
++            {
++                Gpu.DisposeAndAssertClean(renderer);
++            }
++        }
++
+         [Fact]
+         public void UnderMotionEvidenceARegionEvidenceActsAsTheMotionEvidenceAlone()
+         {
+@@ -2997,7 +3254,7 @@ public sealed class AccumulatorRenderTests
+         {
+             // Every tap's surface moves on screen during the move, so no draw is valid, and the count of valid draws
+             // starts again after it. The light falls all the while, which a still camera's region counts as a move
+-            // (ARegionEvidenceAloneCutsTheBounceHistoryToFullRateFrames).
++            // (ASteadyFallFarAboveTheBarCutsTheBounceHistoryToFullRateFrames).
+             (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+                 parameters: SignalParameters.Diffuse
+             );
+@@ -3081,7 +3338,7 @@ public sealed class AccumulatorRenderTests
+             // A box in front of the wall fills the view and moves slowly to the side, by about 1/16 pixel a draw, while
+             // its light falls as in FallThenStand. A moving surface shows another surface point in each draw, so its taps
+             // do not count. No draw is then valid, and no draw's evidence cuts a history. Counted, the box's falling light
+-            // would cut every history to FullRateFrames (ARegionEvidenceAloneCutsTheBounceHistoryToFullRateFrames). The
++            // would cut every history to FullRateFrames (ASteadyFallFarAboveTheBarCutsTheBounceHistoryToFullRateFrames). The
+             // samples carry no motion bit, so no motion evidence hides a cut.
+             (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+                 parameters: SignalParameters.Diffuse
+@@ -3275,48 +3532,33 @@ public sealed class AccumulatorRenderTests
+         public void TheRegionEvidenceActsInTheDrawAfterTheAnchorsTest()
+         {
+             // The anchor's workgroup writes its answer into this draw's ring layer, and every block reads the layer of the
+-            // draw before. So the first draw whose test finds the move cuts no history, and the draw after it does.
+-            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = AccumulatingWide();
++            // draw before. Without a spread, the bar is 0, so the step's first draw is far above it, and the test of that
++            // draw gives the cut of FullRateFrames. That draw cuts no history, and the draw after it does.
++            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
++                parameters: WithoutAntiLag
++            );
+             try
+             {
+-                int? firstMoved = null;
+-                bool cutInFirst = false;
+-                bool cutAfterFirst = false;
+-                float[] before = [];
+-                FallInTheLeftThird(
++                SwingThenStep(
+                     renderer: renderer,
+                     sample: sample,
+                     scene: scene,
+-                    fallDraws: FallDraws,
+-                    afterEach: fallen =>
+-                    {
+-                        float[] lengths = WideLengthsOf(renderer, sample);
+-                        bool cut =
+-                            before.Length > 0
+-                            && Enumerable
+-                                .Range(0, lengths.Length)
+-                                .Any(pixel => before[pixel] >= FullRateFrames && lengths[pixel] == FullRateFrames);
+-                        before = lengths;
+-                        if (firstMoved is { } first)
+-                        {
+-                            if (fallen == first + 1)
+-                                cutAfterFirst = cut;
+-                            return;
+-                        }
+-                        // The draw's index since the reset is 100 + fallen + 1, its ring layer that index modulo 36.
+-                        int layer = (100 + fallen + 1) % TemporalSignal.RegionRingDraws;
+-                        float[] ring = renderer.ReadImageLayer(sample.Signal.RegionRing(0)!, layer);
+-                        if (ring[2] != 0)
+-                        {
+-                            firstMoved = fallen;
+-                            cutInFirst = cut;
+-                        }
+-                    }
++                    stepAt: _ => 1f / 64,
++                    last: StepDraw,
++                    swing: 0
+                 );
++                float[] ring = renderer.ReadImageLayer(
++                    sample.Signal.RegionRing(0)!,
++                    StepDraw % TemporalSignal.RegionRingDraws
++                );
++                float[] inTheTestsDraw = LengthsOf(renderer, sample);
++                Continue(renderer, scene, frames: 1);
+ 
+-                firstMoved.Should().NotBeNull("anchor 0's region light falls");
+-                cutInFirst.Should().BeFalse("the test's own draw reads the answers of the draw before");
+-                cutAfterFirst.Should().BeTrue("the next draw takes the answer");
++                ring[2].Should().Be(1 / FullRateFrames, "the step's first draw lies far above a bar of 0");
++                inTheTestsDraw.Should().OnlyContain(length => length == 32, "the test's draw reads the draw before");
++                LengthsOf(renderer, sample)
++                    .Should()
++                    .OnlyContain(length => length == FullRateFrames, "the next draw takes the answer");
+             }
+             finally
+             {
+diff --git a/tools/renderer-survey/probe.patch b/tools/renderer-survey/probe.patch
+index 7e3044ab4..515791afb 100644
+--- a/tools/renderer-survey/probe.patch
++++ b/tools/renderer-survey/probe.patch
+@@ -427,7 +427,7 @@ diff --git a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp b/src/Tertius
+ index c0ae4cc..c77565c 100644
+ --- a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
+ +++ b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
+-@@ -36,9 +36,16 @@ shared uint blockEvidence;
++@@ -50,9 +50,16 @@
+  // lasts (docs/plans/bounce-light-confidence.md, section 8.2, open point 1).
+  uint evidenceOfSample(uint sampleAge)
+  {
+@@ -445,10 +445,10 @@ index c0ae4cc..c77565c 100644
+ +    return moved || moving ? MotionEvidence : NoEvidence;
+  }
+  
+- // The evidence level of the workgroup's block: the strongest of its pixels' samples' levels and, for the bounce light, its
+-@@ -153,7 +160,8 @@ void accumulateAt(ivec2 pixel, uint evidence)
+-             float deviation = imageLoad(fastHistory, pixel).a;
+-             spread = max(spread, parameters.retainedSigmas * deviation * slow / max(luminance(slow), LeastLuminance));
++ // The evidence of the workgroup's block: the strongest of its pixels' samples' levels and, for the bounce light, its
++@@ -187,7 +194,8 @@
++         {
++             spread = max(spread, parameters.retainedSigmas * own.a * slow / max(luminance(slow), LeastLuminance));
+          }
+ -        vec3 clamped = clamp(slow, mean - spread, mean + spread);
+ +        // PROBE (tools/renderer-survey): a negative clampSigmas is TERTIUS_A_NO_CLAMP, no clamp and so no anti-lag move.
+@@ -456,16 +456,16 @@ index c0ae4cc..c77565c 100644
+          float lag = luminance(abs(slow - clamped)) / max(luminance(mean), LeastLuminance);
+  #ifdef TERTIUS_ACCUMULATION_TRACE
+          storeTrace(pixel, 5, vec4(slow, 1.0));
+-@@ -192,6 +200,10 @@ void main()
++@@ -223,6 +231,10 @@
+      // A signal without a light age has no evidence.
+  #ifdef TERTIUS_LIGHT_AGE
+-     uint evidence = evidenceOfBlock(pixel);
++     BlockEvidence evidence = evidenceOfBlock(pixel);
+ +    // PROBE (tools/renderer-survey): TERTIUS_A_NO_CLAMP, the truth, and TERTIUS_X_EVIDENCE_ACTION=0 drop the evidence's
+ +    // action.
+ +    if (parameters.clampSigmas < 0.0 || parameters.probeEvidenceAction == 0u)
+-+        evidence = NoEvidence;
+++        evidence = BlockEvidence(NoEvidence, 0.0);
+  #else
+-     uint evidence = NoEvidence;
++     BlockEvidence evidence = BlockEvidence(NoEvidence, 0.0);
+  #endif
+ diff --git a/src/Tertius.Rendering/Shaders/composite_pass.glsl b/src/Tertius.Rendering/Shaders/composite_pass.glsl
+ index 7251102..4a44194 100644
