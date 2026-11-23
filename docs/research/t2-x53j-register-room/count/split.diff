@@ -1,0 +1,168 @@
+diff -ru s1-nosplit/direct.frag s1/direct.frag
+--- s1-nosplit/direct.frag	2026-11-23 17:04:32
++++ s1/direct.frag	2026-11-23 17:04:32
+@@ -4,6 +4,7 @@
+ // them, each divided by its material factor and pre-exposed (RenderTargets.DirectDiffuse and DirectSpecular). No ambient
+ // light and no emission: the composite adds both.
+ #extension GL_GOOGLE_include_directive : require
++#define VISIBILITY_FIRST
+ #include "frame.glsl"
+ #include "gbuffer_surface.glsl"
+ #include "temporal.glsl"
+@@ -26,6 +27,7 @@
+     }
+ 
+     ShadingInput s = materialAt(pixel);
++    fillVisibilities(s.position, s.geometricNormal);
+     vec3 V = -normalize(s.position);
+     SurfaceLobes lobes = lobesOf(s, V);
+     DirectTerms direct = directLight(s, lobes, V, ShadowMapsMainView, MainView);
+diff -ru s1-nosplit/direct_key_fill.frag s1/direct_key_fill.frag
+--- s1-nosplit/direct_key_fill.frag	2026-11-23 17:04:32
++++ s1/direct_key_fill.frag	2026-11-23 17:04:32
+@@ -2,6 +2,7 @@
+ // The direct pass under key and fill (docs/plans/light-pairs.md, "Key and fill"): direct.frag with the light of each
+ // lit pixel from its tile's key lights and fill (key_fill_light.glsl) in place of every light of the list.
+ #extension GL_GOOGLE_include_directive : require
++#define VISIBILITY_FIRST
+ #include "frame.glsl"
+ #include "gbuffer_surface.glsl"
+ #include "temporal.glsl"
+@@ -23,6 +24,7 @@
+     }
+ 
+     ShadingInput s = materialAt(pixel);
++    fillVisibilities(s.position, s.geometricNormal);
+     vec3 V = -normalize(s.position);
+     SurfaceLobes lobes = lobesOf(s, V);
+     DirectTerms direct = keyFillLight(s, lobes, V, pixel);
+diff -ru s1-nosplit/key_fill_light.glsl s1/key_fill_light.glsl
+--- s1-nosplit/key_fill_light.glsl	2026-11-23 17:04:32
++++ s1/key_fill_light.glsl	2026-11-23 17:04:32
+@@ -99,10 +99,23 @@
+ {
+     if ((frame.counts.w & shape) == 0u)
+         return;
++#ifdef VISIBILITY_FIRST
++    uint n = 0u;
++#endif
+     for (uint i = 0u; i < frame.counts.x; i++)
+     {
++#ifdef VISIBILITY_FIRST
++        if (!viewKeeps(MainView, lights[i]))
++            continue;
++        uint slot = n;
++        if (lights[i].shadow.x != NoSlot)
++            n++;
++        if (shapeOf(lights[i]) != shape)
++            continue;
++#else
+         if (!viewKeeps(MainView, lights[i]) || shapeOf(lights[i]) != shape)
+             continue;
++#endif
+         if (i == tileWords[at])
+         {
+             // Before any test of the light, so that the list stays in step with the light list.
+@@ -111,7 +124,11 @@
+         LightPath p;
+         if (!lightPath(i, fiber, tinted, shape, s, p))
+             continue;
++#ifdef VISIBILITY_FIRST
++        float visibility = seenAt(i, slot);
++#else
+         float visibility = pathVisibility(i, p, s.position, ShadowMapsMainView);
++#endif
+         if (visibility <= 0.0)
+             continue;
+         // Only now, so that no key share is held across the shadow lookup: the light is a key light when the entry
+diff -ru s1-nosplit/lighting.glsl s1/lighting.glsl
+--- s1-nosplit/lighting.glsl	2026-11-23 17:04:32
++++ s1/lighting.glsl	2026-11-23 17:04:32
+@@ -640,6 +640,55 @@
+     return lightVisibility(lights[index], position, p.L, p.d, p.shadowNormal, p.sinTheta, shadowMaps);
+ }
+ 
++
++#ifdef VISIBILITY_FIRST
++// SCRATCH t0-t2oq (design 2 of the register budget): the visibility of every shadowed light of the main view at the
++// pixel, before the response loops, in the order of the light list. The size: ShadowAtlas.Tiles lamps, plus
++// MaxCascadedLights cascade sets, plus as many far-shadows-only lights.
++const uint MaxShadowedLights = 72u;
++float shadowedVisibility[MaxShadowedLights];
++
++// The share of `light` that its shadows let through at `position` in the main view, where the light can reach it:
++// lightPath's direction, distance, turned geometric normal and angle, made here, so no caller holds them. 0 outside the
++// light's reach and a spot's cone, where its response is 0.
++float visibilityOf(GpuLight light, vec3 position, vec3 geometricNormal)
++{
++    vec3 toCenter = light.positionReach.xyz - position;
++    float distanceSq = dot(toCenter, toCenter);
++    float reach = light.positionReach.w;
++    if (distanceSq >= reach * reach)
++        return 0.0;
++    float inverseDistance = inversesqrt(max(distanceSq, 1e-8));
++    vec3 L = toCenter * inverseDistance;
++    float d = distanceSq * inverseDistance;
++    if (light.intensityKind.w == SpotKind && dot(-L, light.directionCosOuter.xyz) <= light.directionCosOuter.w)
++        return 0.0;
++    float geometricNdotL = dot(geometricNormal, L);
++    vec3 shadowNormal = geometricNdotL < 0.0 ? -geometricNormal : geometricNormal;
++    float sinTheta = sqrt(max(1.0 - geometricNdotL * geometricNdotL, 0.0));
++    return lightVisibility(light, position, L, d, shadowNormal, sinTheta, ShadowMapsMainView);
++}
++
++// Fills shadowedVisibility for the surface point at `position` with the geometric normal `geometricNormal`.
++void fillVisibilities(vec3 position, vec3 geometricNormal)
++{
++    uint n = 0u;
++    for (uint i = 0u; i < frame.counts.x && n < MaxShadowedLights; i++)
++    {
++        if (!viewKeeps(MainView, lights[i]) || lights[i].shadow.x == NoSlot)
++            continue;
++        shadowedVisibility[n] = visibilityOf(lights[i], position, geometricNormal);
++        n++;
++    }
++}
++
++// The visibility of light i in a response loop, from its place `slot` among the shadowed lights of the main view.
++float seenAt(uint i, uint slot)
++{
++    return lights[i].shadow.x == NoSlot ? 1.0 : slot < MaxShadowedLights ? shadowedVisibility[slot] : 0.0;
++}
++#endif
++
+ // MaterialSample.TubeTerms per unit of the tube's scalar irradiance: c_diff / π · (N · cosine), and the specular
+ // response toward the representative point (ARCHITECTURE.md, "Tube lights"). Nothing where the cosine points below the
+ // shading normal. A fiber shades the tube as a point light along its cosine, dimmed by the cosine's length.
+@@ -770,14 +819,31 @@
+     // frame.counts.w holds the shapes of the list: without a light of this shape, its loop would only skip every light.
+     if ((frame.counts.w & shape) == 0u)
+         return;
++#ifdef VISIBILITY_FIRST
++    uint n = 0u;
++#endif
+     for (uint i = 0u; i < frame.counts.x; i++)
+     {
++#ifdef VISIBILITY_FIRST
++        if (!viewKeeps(view, lights[i]))
++            continue;
++        uint slot = n;
++        if (lights[i].shadow.x != NoSlot)
++            n++;
++        if (shapeOf(lights[i]) != shape)
++            continue;
++#else
+         if (!viewKeeps(view, lights[i]) || shapeOf(lights[i]) != shape)
+             continue;
++#endif
+         LightPath p;
+         if (!lightPath(i, fiber, tinted, shape, s, p))
+             continue;
++#ifdef VISIBILITY_FIRST
++        float visibility = seenAt(i, slot);
++#else
+         float visibility = pathVisibility(i, p, s.position, shadowMaps);
++#endif
+         if (visibility > 0.0)
+         {
+             DirectTerms terms = pathLight(i, fiber, shape, s, lobes, V, p);
