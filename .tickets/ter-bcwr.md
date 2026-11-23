@@ -2,7 +2,7 @@
 id: ter-bcwr
 status: in_progress
 deps: []
-links: [t1-zeyk, ter-4iic]
+links: [t1-zeyk, ter-4iic, t0-xwdz]
 created: 2026-11-23T04:35:54Z
 type: feature
 priority: 2
