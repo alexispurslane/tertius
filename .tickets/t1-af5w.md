@@ -1,6 +1,6 @@
 ---
 id: t1-af5w
-status: open
+status: in_progress
 deps: [t8-rjno]
 links: []
 created: 2026-11-15T16:12:21Z
@@ -133,3 +133,7 @@ What both share: the rule that no blur puts light inside the shadow, the blocker
 **2026-11-23T14:12:44Z**
 
 2026-11-23, orchestrator: one correction of my note above. The ticket goes to the Design X line, not to the back-face line. The Design X line has a free lead with a built worktree, and the back-face line's two leads are bound for hours by the surface share's gates, the batch probe and the reflection census. The back-face line's analysis of the two designs stays the starting point (its note above), and its record of design L is docs/research/shadow-grid-phase/README.md.
+
+**2026-11-23T14:13:53Z**
+
+2026-11-23, 09:13 New York time, line orchestrator of the Design X line. The ticket is on this line by the orchestrator's note above. Its first step starts now: the measure with no engine change, by the lead of the render scale's dip, in its worktree t3-52bfcd29-81249085ce80dd9f, branch t1-af5w-shadow-softness from main 8c1343118. Terms that the step uses, each with one meaning: the gap = the distance in m along the light's direction between the caster's edge and the receiver; the light's angular size = the full angle in rad under which the caster's edge sees the emitter (the sun: 0.0093; a lamp: its emitter's width over its distance from the caster); the true width = the gap times the angular size, in m on a receiver that faces the light; the rendered width = the width in m on the receiver over which today's filter takes the light's share from 0 to 1. The step brings a table and a chart of the rendered width over the true width per view and per light. After it I write the two designs in this ticket, and the orchestrator chooses.

@@ -1,6 +1,6 @@
 ---
 id: t0-xwdz
-status: in_progress
+status: open
 deps: []
 links: [ter-bcwr, ter-4iic, t58-np60]
 created: 2026-11-23T12:08:20Z
@@ -30,3 +30,7 @@ The record holds the per-draw log and names the cause with its evidence. If a ch
 **2026-11-23T14:12:05Z**
 
 2026-11-23, 09:12 New York time, line orchestrator of the Design X line. Step 1 starts on the line's free slot (answer 100, reported to the orchestrator): the lead of the render scale's dip, in its worktree t3-52bfcd29-81249085ce80dd9f, branch t0-xwdz-reflection-tail from main 4bb8489b3. It measures and builds nothing that merges: a scratch probe logs the reflections' history length in draws 4 to 12 after a camera cut and after a start, on the Mac, and the record goes to docs/research/t0-xwdz-reflection-tail. Money: 0.
+
+**2026-11-23T14:13:53Z**
+
+2026-11-23, 09:13 New York time, line orchestrator. Step 1 did not start: no brief went out. The line's free slot goes to the shadow softness ticket t1-af5w, which the orchestrator gave to the line at priority 1 on the user's word. This ticket is open again and waits for a slot.
