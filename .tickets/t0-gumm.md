@@ -160,3 +160,34 @@ One change of about 0.004 is the card's noise (the cap's run 2 after on; C32's r
 The films' size jobs (t0-3vwx, commit 6ae9b670c) had no warm-up; both ran walk m (the job's first run), walk x, switch m, switch x. Main's walk rested at 1.000 in take A and 0.956 in the final take, first in both, so the order alone does not explain it. The verdicts compare spans inside one run and stand.
 
 The lead's three-pane videos (pics/switch-three.mp4, start-three.mp4, cut-three.mp4, commit a56713d0b) are 2880 x 540 at 30 fps by my ffprobe and do not meet the line's video rules. Sent back: 60 fps, one draw per frame, 1280 x 720 per pane at least, each code on its own card scale log, panes A | today's cliff | the best spread shape. Not passed up. The disk has 21 GiB free, under the floor of 22; the region take waits.
+
+**2026-11-23T02:49:50Z**
+
+The three-code table from the combined check's lead, 2026-11-22 (its commit 9106577d7, docs/research/t0-gumm-catch-up-spread/README.md, "The three codes: the table, the rule and the recommendation"). Read by the line orchestrator. Every code is built on the line's merge 710834cc0, without main's step 2.
+
+Card job 3, scale changes run 1 / run 2 (and the largest fall where it is above the noise of one change of about 0.004). Start is the largest fall only:
+- Today's cliff: start 0.233 / 0.238; off 54 / 53; on 53 / 53; cut 56, 0.139 / 56, 0.144.
+- A, the cap (what merges): start 0.235 / 0.238; off 0 / 0; on 0 / 1; cut 56, 0.141 / 56, 0.140.
+- B32: start 0.086 / 0.087; off 0 / 0; on 4 / 1; cut 3 / 3, rises only.
+- C32: start 0.085 / 0.086; off 0 / 0; on 1 / 0; cut 4, 0.002 / 3, rises only.
+- B16 and C16 move the scale after off, after on and at the cut in every run.
+- No catch-up ray after a reset (job 2, one run): start 0.070; off 0; on 0; cut 6, rises only.
+About 0.070 of every start's fall is the dear first draws of t58-np60, not the catch-up rays.
+
+The Mac at the constant scale 2/3 (slowest region's settle in draws, boil over draws 1 to 59 in %, grain over draws 0 to 15 in %):
+- Off: today 142, 0.276, 2.14; A 139, 0.267, 1.61; B32 142, 0.291, 2.11; C32 139, 0.266, 1.61.
+- Start: today 139, 0.109, 0.86; B32, C32 and "none" 139, 0.114, 0.89.
+- Cut: today 134, 0.106, 0.88; B32, C32 and "none" 133, 0.112, 0.87.
+- The spread between runs with the event moved by 1 and 2 draws: boil 0.008 after off, zero at the cut.
+
+What the catch-up rays buy, measured: one ray per restarted pixel (the share 1/32 over 32 draws) buys nothing that the measures see. C32 measures as A after a light change, and as "none" at the start and the cut. Today's 8 rays per restarted pixel buy about 5 % less boil at the start and the cut (0.109 against 0.114, 0.106 against 0.112) and no faster settle. Their price on the card is a fall of the render scale of about 0.16 at the start and 0.14 at the cut.
+
+The orchestrator's rule applied: (1) today, A at the start and the cut, B16 and C16 fail; B32 sits at the limit; C32, C' (the share on the reset's clock only) and "none" pass. (2) C32, C' and "none" measure the same picture. (3) "None" is the least code: the plan gives no own ray to a young history whose cap is 8 draws or more while fewer than 32 draws passed since the last reset. It reads only trace.drawIndex, which the plan has. C and B need a new read of the last draw's sample-age images with two barrier() calls, checked only on MoltenVK.
+
+The lead's recommendation, which the line orchestrator shares: the cap merges as it is, and "no catch-up ray in the first 32 draws after a reset" is the fix of ter-4iic after the merge, with tests first. If the eye finds the first draws after a start or a cut too noisy in the videos, C' at 1/32 is the next step. The decision is the orchestrator's.
+
+The final videos, checked by the line orchestrator with ffprobe and by frames: pics/cut-final.mp4 (141 frames), pics/start-final.mp4 (120 frames), pics/switch-final.mp4 (320 frames), each 3840 x 720 (three panes of 1280 x 720: A | today's cliff | C32), 60 frames a second, H.264, yuv420p, CRF 12, one draw per frame, each code on its own card scale log (run 2 of job 3), labels, the render scale per pane, a draw counter. They meet the rules. The cut's video is in 9106577d7; the start's and the switch's were not committed at 21:50.
+
+Open at 21:55, asked of the lead: region r11 after the cut is 1.7 to 2.1 % further from its last frame in C32's pane than in A's pane at 2, 10 and 40 draws (videos.txt), where the table at 2/3 says the same picture. The lead says which causes it: the render scale, the catch-up rays or the reference frame.
+
+Answer 85 of the line orchestrator: the videos keep the C32 pane and get no fourth pane for "none". The two codes measure the same at the start and the cut at 2/3, and their card logs are close (start fall 0.070 against 0.085).
