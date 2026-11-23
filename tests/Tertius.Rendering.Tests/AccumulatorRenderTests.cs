@@ -2442,6 +2442,25 @@ public sealed class AccumulatorRenderTests
                 repair: true
             );
 
+        [Fact]
+        public void TheFixWeightsTheGuideOfEachTappedPixelByItsLength() =>
+            WithHistory(
+                (renderer, sample, scene) =>
+                {
+                    // Two draws give every pixel a length of 2, so the fix taps whole blocks 2 pixels apart. Each
+                    // neighbor's guide counts twice, as its light does: a guide summed once per pixel over the summed
+                    // lengths would read about half the hit distance.
+                    sample.Value = new(x: 1, y: 1, z: 1, w: 8);
+                    renderer.Render(scene, 1);
+
+                    Continue(renderer, scene, frames: 1);
+
+                    GuideAt(renderer, sample).Distance.Should().BeApproximately(8, 0.01f);
+                    GuideAt(renderer, sample).Support.Should().BeApproximately(1, 0.001f);
+                },
+                repair: true
+            );
+
         private static Vector3 LightAfterSequence(bool enabled)
         {
             Vector3 result = default;
