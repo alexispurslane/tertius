@@ -12,7 +12,7 @@ root=$1
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 for view in deck cabin; do
   for v in ${VARIANTS:-128:0 128:1 32:0 32:1}; do
-    size=${v%%:*}; rest=${v#*:}; cull=${rest%%:*}; parts=$([[ "$rest" == *:* ]] && echo "${rest#*:}")
+    size=${v%%:*}; rest=${v#*:}; cull=${rest%%:*}; parts=""; [[ "$rest" == *:* ]] && parts=${rest#*:}
     out="$root/$view-w$size-c$cull${parts:+-$parts}"
     mkdir -p "$out"
     env TERTIUS_PROBE_FACE_PARTS="$parts" TERTIUS_PROBE_FACE_SIZE="$size" TERTIUS_PROBE_FACE_CULL="$cull" TERTIUS_PROBE_FACE_LOG="$out/faces.log" \

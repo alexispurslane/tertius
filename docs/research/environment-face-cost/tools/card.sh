@@ -46,7 +46,7 @@ for ((s = 0; s < ${#sets[@]}; s += 2)); do
     for ((r = 0; r < rounds; r++)); do
         for ((k = 0; k < nv; k++)); do
             v=${variants[$(((k + r) % nv))]}; size=${v%%:*}; rest=${v#*:}; cull=${rest%%:*}
-            parts=$([[ "$rest" == *:* ]] && echo "${rest#*:}")
+            parts=""; [[ "$rest" == *:* ]] && parts=${rest#*:}
             run "${prefix}r$r-w$size-c$cull${parts:+-$parts}" "$size" "$cull" "$every" "$faces" "$parts"
         done
     done
