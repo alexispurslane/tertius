@@ -305,3 +305,42 @@ Ordered from the lead after this part (my settlement, for the orchestrator to re
 Orchestrator, 2026-11-23 17:15, after opening bay-full-right-wall.png and bay-full-sunlit-patch.png. I see what the line reports: the mixture removes most of the right wall's bright specks, the thin box's column is the smoothest, and the dark wall left of the sun stripe is coarser in all three mixture columns, the thin box's too. The line's three settlements stand (the exact count at 0.125 next, a clamp-off pair of the right wall, a 0.125 column in part 4).
 
 One correction of the model before the decision: the guided draws that do not arrive have two causes with two cures, not one root. (a) The depth box misses a target that the ray meets from the side (right wall, 32 % arrive, 98 % with the thin box). The target model of t1-cyhy cures it. (b) The target lies on the shading point's own plane (the wall beside the stripe: 78.5 % of the guided draws aim below the geometric plane, t1-cyhy table d). No target model cures it, and the thin box's column shows that: 0.0127 against main's 0.0096. Such a draw is known to bring nothing before any ray is traced. So if 0.125 still shows the loss, the question is what the mixture does at a place whose guide offers it mostly its own plane, and that gets two designs before a build. The share must stay a number that is known when the draw is weighed, so that the mixture stays exact. My decision waits for part 4.
+
+**2026-11-23T22:10:04Z**
+
+2026-11-23, line orchestrator of the back-face line: stage 1, part 2, the frozen bay's specular signal alone. The surface share's lead took it.
+
+Take: as part 1, with the composite showing the specular signal alone. Each build against its own late mean of this mode. Pictures at 1:1, in the lead's evidence folder `t3-2b720d96-b40221aeff8f27f7-evidence/fe63/`: `bay-spec-right-wall.png` and `bay-spec-sunlit-patch.png`. The columns are main, the coin, the exact count, and the coin with the scratch thin box, at a guided share of 0.25.
+
+Each cell is the deviation of all scales / the grain / the blob, in units of main's full mean:
+
+| Region | Main | Coin | Exact count | Coin, thin box |
+|---|---|---|---|---|
+| Wall beside the sun stripe | 0.0150 / 0.0099 / 0.0064 | 0.0229 / 0.0150 / 0.0093 | 0.0198 / 0.0132 / 0.0080 | 0.0220 / 0.0143 / 0.0091 |
+| Back wall | 0.0007 / 0.0005 / 0.0002 | 0.0009 / 0.0006 / 0.0003 | 0.0006 / 0.0005 / 0.0002 | 0.0009 / 0.0006 / 0.0003 |
+| Floor | 0.0034 / 0.0026 / 0.0011 | 0.0035 / 0.0027 / 0.0012 | 0.0035 / 0.0026 / 0.0012 | 0.0031 / 0.0023 / 0.0010 |
+| Right wall | 0.0293 / 0.0193 / 0.0125 | 0.0290 / 0.0196 / 0.0110 | 0.0289 / 0.0194 / 0.0112 | 0.0212 / 0.0144 / 0.0080 |
+
+The specular signal's mean per region over 20 captures, against main:
+
+| Region | Coin | Exact count | Thin box |
+|---|---|---|---|
+| Wall beside the sun stripe | -0.7 % | -1.3 % | +0.1 % |
+| Back wall | +4.1 % | +1.4 % | +3.6 % |
+| Floor | +7.2 % | +6.1 % | +13.6 % |
+| Right wall | +8.9 % | +9.2 % | +17.9 % |
+
+What I see in the pictures:
+- Right wall: main has sparse bright specks on a dark ground. The coin and the exact count show a denser, even grain and a brighter glow. The thin box's column is the smoothest and the brightest.
+- Wall beside the sun stripe: coarser in all three mixture columns, a mottle of several pixels. Part 1's loss is in the specular signal.
+
+What it means:
+- On the right wall the mixture at today's arrival changes the grain's kind, not its strength: 0.0193 against 0.0196 and 0.0194. The picture has no specks, but the number does not fall. The thin box cuts the grain by 25 % and the blob by 36 %.
+- The exact count pays on the wall beside the stripe: +33 % grain against the coin's +52 %.
+- The means are the open point. The right wall's specular signal is 9 % brighter under the mixture and 18 % brighter under the thin box. An unbiased mixture cannot move a mean. So either main's clamp cuts that light (on the nose it cut 4.6 %), or the probe has a bias. A clamp that cuts 9 to 18 % of a wall's specular light is itself a finding: main is then that much too dark there.
+
+Ordered: the lead's hold 3 takes the clamp-off pair in the specular signal alone for main, the exact count and the thin box. If the three means differ by more than the noise, the lead stops before part 4 and tells me.
+
+The probe was rebuilt before part 3 with two dumps: the specular trace's layers 3 and 6 per draw (the fast history's luminance and the clamp's move), and the reflection ray's cause record (guided or not, the walk's end, counts, the hit's depth over the target's).
+
+For part 3: the mirror plate has a roughness of 0.05, below the ramp's start of 0.1. Its guided share is 0, so its pictures must equal main's to the bit.
