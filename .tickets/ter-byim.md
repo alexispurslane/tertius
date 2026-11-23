@@ -37,3 +37,7 @@ The face branch set the count of sets to 12 by hand, in its merge commit a82ed9a
 The reason is a spare set. Eleven sets exist once per renderer, and each has one call that allocates it: the G-buffer, post, atlas, face surface, meter, exposure, prefilter, scatter, shadow bounds, key fill tiles and light sets. So the constant of 12 holds one set more than a renderer takes. Main had the same spare before both merges: a constant of 10 for nine such sets.
 
 So the 11 that git kept was enough by this count, and the 12 keeps the spare of the base. A count that comes from the set layouts settles whether that spare has a reason.
+
+**2026-11-23T17:11:52Z**
+
+2026-11-23, t1-wl7c's ticket lead. One more pool size that no test holds: t1-wl7c's mutant C05 gave the pyramid level sets one storage image per set in place of three (DescriptorLayouts.cs, the pool of the light pyramid's level sets). It passed every test on MoltenVK and 44 of 44 Rendering tests on lavapipe (Mesa 26.2.4), because neither driver enforces a pool's size per descriptor type; RADV does. The count is right by hand: the level set held one storage image, and t1-wl7c's bindings 2 and 3 (the surface test and the motion target) add two. A test of this class needs a check of each pool's sizes against its layouts' bindings, which is this ticket's work.

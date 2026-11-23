@@ -1,6 +1,6 @@
 ---
 id: t1-wl7c
-status: in_progress
+status: closed
 deps: []
 links: [ter-pdw8]
 created: 2026-11-23T06:28:18Z
@@ -149,3 +149,100 @@ C#: the pending frame owns one phase count per draw. The jitter's offset and the
 **2026-11-23T15:02:25Z**
 
 2026-11-23, line orchestrator: the timing gate passes. The Mac, 09:27 to 09:47, each run at a 1-minute load under 8 (4.9 to 7.9) and 1,296 MHz, main 373da00eb against head e11b3548b, the median of three alternating rounds: the deck at 1280 x 720 10.803 against 10.772 ms (-0.031), the lamp hall at 1920 x 1080 10.064 against 10.094 ms (+0.030), both inside the noise. The card (RTX 2000 Ada, rect-lamps at 1920 x 1080, 5 runs per side after one discarded warm-up run): 7.117 against 7.151 ms, +0.034 ms, the runs overlap. The one real cost is the light pyramid's finest level, which now builds a reprojection per pixel: +0.014 ms (deck) and +0.020 ms (lamp hall) on the Mac, +0.030 ms on the card. The ray plan is unchanged. Registers r115 and r112, unchanged. The review passes on correctness, fulfillment and design with 6 nits, of which the lead fixes five. Cloud money of this ticket: 0.0701 of 0.25 dollars.
+
+**2026-11-23T17:11:45Z**
+
+2026-11-23, the ticket lead. The build, its gates and its takes. Branch t3/fade-lit-front-trace: the engine commit e11b3548b on main 373da00eb, one ARCHITECTURE.md correction 37f3b70a8, the merge of main b57ae6b5a cedb113b6, and the review's resolution 9a36dfd8c. Evidence: /Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7-evidence/surface-share/.
+
+**The build.** `sentDiffuseLight(q, directDiffuse, surface)` in the new header `sent_light.glsl` takes the direct diffuse light times the diffuse factor as a value, not the factor, because the two readers bind the direct light differently (an image in the tracer, a texture in the pyramid). The header also holds `lastPlaceAt`, `surfaceReprojectionAt` and `glowAt`, which moved there from screen_trace.glsl unchanged. `surfaceShare` is in signals.glsl. `FrameHistory.PendingFrame.SurfaceShareSpread` gives min(P, DrawIndex + 1) from the same phase count as `Jitter`, and the renderer writes it into `renderParams.w`, or 1 without jitter. The light pyramid's finest level reads the surface test and the motion target at bindings 2 and 3 of the shared pyramid level layout. The other level sets leave them unwritten, which Vulkan allows for bindings that no shader of the set uses statically. The pool holds three storage images per pyramid level set. VulkanRenderer.cs's previous jitter is left as it was.
+
+**Decision 5.** The surface test (`surface_test.comp`) tests every pixel that is not sky, impostors included. So an impostor takes the share too: `impostorLightAt` sends its glow times its share. The test `AnImpostorInTheDrawThatFirstShowsItSendsOnePartInTheSpreadOfItsGlow` holds it.
+
+**A bug found and fixed in the build.** The first version gave LightPyramidPass the surface test image once at construction. A resize recreates that image, so the pass put a barrier on a destroyed image, and the Rendering test host crashed (exit 139) at `PyramidRenderTests.ThePyramidFollowsAResize`. The pass now reads `images.SurfaceTest` and `images.Motion` at each record. That existing test is the red test of the fault.
+
+**Tests.** Twelve SurfaceShareTests (fifteen cases with the theory's four) and three FrameHistoryTests. The first run on main 373da00eb gave eight red for the right reason; five guards pass on main, because main sends everything. The direct diffuse, the direct specular and the impostor tests are red on main too: main sends their full light, and the mutants S05, S08 and S11, which put main's unshared form back, fail them. The review added two: the guide shares the direct diffuse light, and a surface sends all of its direct diffuse light from its second draw. Each went red on a mutant that only it catches (M1, the guide's direct light unshared: killed only by the guide test; M2, the direct light shared in every draw: killed by the second-draw test and the strip test). Lavapipe (Mesa 26.2.4, llvmpipe, cloud CPU job, $0.0253): 151 of 151 on head e11b3548b in seven classes, 89 of 89 on main.
+
+**Suites.** Full Checked on the head merged with main b57ae6b5a: 11,230 tests, 0 failed (Rendering 3,511, Host 2,081, Simulation 2,007, Physics 1,492, Core 1,207, Slop 597, Style 276, Unions 59). After the review's fixes, the pre-commit hook ran Rendering in Checked again: 3,524 tests, 0 failed. Full Release on the head 9a36dfd8c: 11,219 tests, 0 failed (Rendering 3,512, Host 2,081, Simulation 2,026, Physics 1,493, Core 1,175, Slop 597, Style 276, Unions 59), one configuration at a time after the Checked run. No reference image changed, so no snapshot needed a review.
+
+**Registers.** The register guard at the merge commit: direct.frag at r112 (limit 115, room 3), direct_key_fill.frag at r115 (limit 115, room 0, the known state since t2-x53j). The direct shaders include only frame.glsl, where only a comment changed.
+
+**Timing.** The frame is equal within the noise on both machines. The light pyramid's finest level costs more, because it now reads the surface test and the motion target and builds a reprojection per pixel. The ray plan's cost does not change, because it already built that reprojection.
+
+| Machine, view | Main | Head | Change | Light pyramid pass |
+|---|---|---|---|---|
+| Mac M1 Max, deck-120 1280 x 720, in-flight 2, 3 runs each, load 4.9 to 7.9, 1,296 MHz | 10.803 ms | 10.772 ms | -0.031 ms | 0.059 to 0.072 ms |
+| Mac, lamp hall (timing-hall.json) 1920 x 1080, 3 runs each, load 6.4 to 7.9 | 10.064 ms | 10.094 ms | +0.030 ms | 0.080 to 0.100 ms |
+| RTX 2000 Ada, rect-lamps 1920 x 1080, 5 runs each after a warm-up | 7.117 ms | 7.151 ms | +0.034 ms, runs overlap | 0.057 to 0.087 ms |
+
+**The review** (one reviewer, opus at high effort): correctness pass, fulfillment pass, design pass with six nits.
+- N1, the header of sent_light.glsl, which also gives the surface reprojection: fixed.
+- N2, the shared pyramid level layout's two bindings that only the finest set uses: accepted as written; the reason is beside the layout.
+- N3, no test of the guide's direct light or of the second draw's direct light: two tests added.
+- N4, two wordings of ARCHITECTURE.md: fixed.
+- N5, the red runs of three tests: recorded above.
+- N6, long lines: CSharpier and four doc comments wrapped by hand.
+
+**Mutants (tools/mutate.py), 20 rows: 18 killed, 2 judgment calls.** The sent_light.glsl lines are those of 9a36dfd8c, whose header is two lines longer. Coverage of the changed C# lines: 15 of 15, branches 2 of 2 (the review's fix changed only tests, comments and line breaks).
+
+| Id | Place | Change | Result |
+|---|---|---|---|
+| S01 | signals.glsl:117 | share always 1 | killed |
+| S02 | signals.glsl:117 | share never 1 | killed |
+| S03 | signals.glsl:117 | spread one less | killed |
+| S04 | sent_light.glsl:35 | glow unshared | killed |
+| S05 | sent_light.glsl:35 | direct light unshared | killed (third run) |
+| S06 | sent_light.glsl:21 | specular pass bits | killed (third run) |
+| S07 | sent_light.glsl:15 | place half a pixel off | survived: judgment call |
+| S08 | screen_trace.glsl:526 | direct specular unshared | killed |
+| S09 | screen_trace.glsl:534 | impostor glow unshared | killed |
+| S10 | light_pyramid_finest.comp:35 | guide unshared | killed |
+| S11 | screen_trace_plan.comp:237 | plan stores impostor glow unshared | killed (fourth run) |
+| S12 | screen_trace.glsl:522 | hit diffuse unshared | killed |
+| C01 | FrameHistory.cs:359 | no cap at P | killed |
+| C02 | FrameHistory.cs:359 | spread P from the reset | killed |
+| C03 | VulkanRenderer.cs:947 | spread without jitter | killed |
+| C04 | VulkanRenderer.cs:947 | spread always 1 | killed |
+| C05 | DescriptorLayouts.cs:1013 | pool without the new bindings | survived: judgment call |
+| C06 | LightPyramidPass.cs:46 | no barrier on the surface test | killed |
+| C07 | ScreenTraceImages.cs:252 | guide reads the wrong motion image | killed |
+| C08 | FrameHistory.cs:362 | phases of the output width | killed |
+
+S05, S06, S07 and S11 first ended in timeouts that proved nothing: each mutant's test host waited for the GPU test lock behind other agents' exclusive timing runs and ran no test. The last run held one shared take of the lock around all of tools/mutate.py, so each mutant's tests joined it.
+
+S07, the judgment call: `lastPlaceAt` moved unchanged from screen_trace.glsl, so this is a gap of code from before this ticket. The closest tests are HitLightImageTests' history reprojections and SurfaceShareTests' newly shown panel and strip. They miss it because in each of their scenes all four taps of a pixel's last place agree (all pass on a held surface, all fail on a new one), so a place shifted by half a pixel spreads the weight over taps with the same pass bits. A test needs a pixel whose taps disagree, such as the inner corner of a surface that the last draw showed only on one side.
+
+C05, the judgment call: a pool with one storage image per pyramid level set in place of three passes on MoltenVK and on lavapipe (the c05 tree: 44 of 44), because neither enforces a pool's size of a type, and RADV does. It belongs to ter-byim's class: the pool sizes are kept by hand, and only their per-frame part has a test. I checked the count by hand: the level set had one storage image, and bindings 2 and 3 add two.
+
+**The takes (census probe copies of main and head, fixed exposure, the record's tools).**
+
+The ticket's view no longer shows the speck class on main. The jamb leak's fix (t1-gout) darkened the sill face that made it. rect-lamps-f62 at 1072 x 603, 4.08 stops:
+
+| Build | Capture specks, median (largest) | Largest diffuse ceiling sample |
+|---|---|---|
+| main 165a964e7, before t1-gout | 82.5 (193) | 127 |
+| 165a964e7 with the share | 0 (4) | 9.9 |
+| main 373da00eb | 0 (0) | 0.577 |
+| head e11b3548b | 0 (0) | 0.577 |
+
+Capture specks, sum over 20 captures, main / head: 1072 x 603 0 / 0; 1040 x 585 2 / 3; scale 0.96 19 / 19; window 1800 x 1008 at 0.5956 130 / 122; window 1800 x 1008 at 0.96 44 / 42. Under the dynamic scale (one size log of main at a 16.667 ms target, about 0.62 of the window at a load of 75 to 237 from another project, replayed in both): window 1920 x 1080 median 0 (largest 1) / 0 (1); window 1800 x 1008 2 (8) / 2 (5).
+
+The "specks" at the window of 1800 x 1008 are not ray specks. They are 19 fixed pixels over 12 captures, the same on main and head, at the edges of window openings: the far window's right jamb face, a lit column one pixel wide beside the dark pane, and two corners at the top right. The counter's 7 x 7 median rule flags them. At 1920 x 1080 the same edge falls below the counter's row 500. A speck count at that window counts them.
+
+Every region's mean is within 0.08 % of main: the lamp hall at four sizes and two windows, cabin-light-cabin and exit-cabin, and the bay's captures within 0.015 %. The record's 19 crops show no leak; main and head look the same at 1:1. Where the share acts most on today's main: the cabin-light cabin's roof beams (8,087 pixels differ by more than 4 of 255, 134 by more than 12, largest 43), and an eye sees no difference there at 3x.
+
+The moving lit surface (drop-box, P = 18): the falling box keeps a share of 1 in every draw; only the floor that its top edge uncovered, at most 0.107 % of the pixels, falls to 1/18. Frames 0 to 20 equal main bit for bit, and every region stays within 0.001 % of main.
+
+The three takes of the dependent tickets, main against head:
+- ter-fe63's sunlit nose (1920 x 1080 at 2/3, -1.7507 stops): capture specks 3735.5 (11890) / 3736.5 (13102). The largest reflection sample of the ceiling box falls from 1072 to 161, and the brightest samples' share of the box's light from 9.0 % to 4.7 %, but the cloud is as dense at 1:1.
+- t2b-d2m6's glossy wall (lit-block-front, frame 239): the same trapezoid, largest pixel difference 3 of 255, wall over floor 0.5935 on both.
+- The jamb opening (jamb-grid-phase, 1800 x 1008, scale 1, 4.08 stops): jamb light 0.0425 / 0.0413 on both, no line, no dots.
+
+**Videos** (main left, 60 fps, CRF 12, one fixed exposure each, in videos/): the lamp hall (240 draws at 0.5584, 4.08 stops), the cut (person, one draw of the chase camera, person again: 3 capture specks in the first draw after the cut on both and 0 in the next 24), the walk (cabin-walk at a fixed 2/3, 4.08 stops: the walk script's films f, g, h) and the exit cabin's motion film (2/3, -0.3957 stops). Each looks the same on both sides at 1:1.
+
+A cut through 30 draws of the sunlit exterior leaves the lamp hall saturated white for all 60 draws after it, on main as on head (videos/cut-via-exterior.mp4): ticket t58-rcd6's fault.
+
+Cloud: $0.0701 of the $0.25 (lavapipe $0.0253 and a failed first try $0.0015, the card's timing $0.0433).
+
+**2026-11-23T18:16:19Z**
+
+2026-11-23, line orchestrator: merged into main at adb34f376 (the lead's head 924789ddd, with main bdc49b929 merged in; main had no code change after that commit, and a trial merge was clean). Gates on the merged head: Rendering 3,517 passed and 0 failed in Checked, 3,514 passed and 0 failed in Release; the register guard gives direct.frag r112 and direct_key_fill.frag r115, unchanged. The earlier gates stand from the lead's ready report: every project in Checked and Release, lavapipe 151 of 151, coverage 15 of 15 lines, mutants 18 of 20 with two judgment calls, the review passed with six nits resolved, the frame's GPU time equal within the noise. The two entries that the lead listed as forks are settled choices of the build, not open ones: an impostor takes the share too, because the surface test covers it, and the light pyramid's pass reads the surface test image and the motion target at each record, because a resize recreates them. My read of the merged diff, for function and quality: no defect. The build follows the design: nothing new is stored, the spread is derived by the jitter's owner, and one shader function gives the shared light to the plan's hit light and to the guide's finest level. Two observations that do not block. 1. surfaceShare divides by frame.renderParams.w and relies on the one place in VulkanRenderer that writes it, always as 1 or more. A second writer of the frame's constants that leaves w at 0 would give an infinite share. 2. sent_light.glsl also holds lastPlaceAt and surfaceReprojectionAt for readers that do not deal with sent light (the plan's light age, the tracer's specular reprojection). Its header says so. If a third reader of a pixel's last place appears, the two functions get a header of their own. Not done by this ticket, as its text says: no demo view shows a visible gain, the speck cloud of ter-fe63 stays, and t2b-d2m6's wall is unchanged. Cloud money of this ticket: 0.0701 of 0.25 dollars.
