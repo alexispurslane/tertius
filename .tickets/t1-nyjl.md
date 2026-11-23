@@ -2,7 +2,7 @@
 id: t1-nyjl
 status: in_progress
 deps: []
-links: [ter-fe63, t7-3e22]
+links: [ter-fe63, t7-3e22, t1-cyhy]
 created: 2026-11-23T17:55:13Z
 type: task
 priority: 1
@@ -94,3 +94,7 @@ One more set of stills from the same takes, because the census says that the cou
 2. **The caps.** A blotch from independent noise keeps its size at a cap of 64 and of 128 and loses amplitude, about 1.41 times per doubling. A blotch that keeps its amplitude is a correlated error.
 
 Ordered from the lead with the cap stills: the half width at half maximum of the radial autocorrelation of the still's relative difference from its late mean, per region and per cap, in output and in render pixels, and the relative deviation of one diffuse sample per region.
+
+**2026-11-23T18:47:35Z**
+
+2026-11-23, line orchestrator: the stills of the guided share exist, and they show nothing. Frozen bay (bay-sunbeam, 2/3 = 1280 x 720, -4.089 stops fixed, capture 19 of 20 captures of 33 draws) at the shares 0.25, 0.5 and 0.75; crops at 1:1 in the lead's evidence folder t3-2b720d96-b40221aeff8f27f7-evidence/guide/ (bay-sunlit-patch.png, bay-back-wall-below-the-slot.png, bay-floor.png, zoom-floor-left.png, bay-right-wall.png, zoom-right-wall-top.png, nose-box-0.25-0.5.png, daub.txt). I looked at them: the three shares look the same in every crop. The daub against an independent reference (the mean of captures 30 to 99 of a 100-capture take at 0.25), daub / broad, at 0.25, 0.5, 0.75: whole image 0.0207 / 0.0126, 0.0209 / 0.0121, 0.0216 / 0.0134; sunlit patch 0.0281 / 0.0062, 0.0278 / 0.0074, 0.0284 / 0.0077; back wall 0.0132 / 0.0152, 0.0161 / 0.0058, 0.0151 / 0.0095; floor 0.0233 / 0.0128, 0.0270 / 0.0221, 0.0205 / 0.0174; right wall 0.0318 / 0.0126, 0.0318 / 0.0132, 0.0315 / 0.0080. Region means against main stay within 1 %. So a variance of one diffuse sample that is 1.3 to 2.5 times lower does not move the daub. The nose's ceiling box at 0.25 beside 0.5: the cloud looks the same; capture specks 3,719.5 against 3,752.5 (median), largest 13,095 against 13,068; the measured variance of one diffuse sample rises 1.65 times (predicted 1.68); the cloud is the reflection signal. The lead's suspect, which I take as the next step before the cap stills: the bay's walls and floor have a roughness of 0.38, below MaxRoughness of 0.5, so every pixel traces an unguided reflection ray, and the specular signal has no spatial filter. What the crops show on the right wall's top and the floor's lower left is a grain of 1 to 3 pixels, which a signal without a spatial filter leaves, not the diffuse filter's blobs. Ordered: the frozen bay at 0.25 with the diffuse signal alone and the specular signal alone, each with its daub against a reference of its own mode, and the diffuse signal alone at 0.75; then the cap stills in the full picture and the cap of 128 in the diffuse mode. Also from the lead: the take with an exact count of guided draws had run before my message; its factor of one sample's variance is 1.00, which says nothing, because an exact count changes only the variance of a pixel's mean. The arrival split is its own finding and its own ticket (t1-cyhy): 1.4 to 32.4 % of the bay's guided draws arrive, and arrival carries 84 to 87 % of the guided draws' variance.
