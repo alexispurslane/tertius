@@ -1,0 +1,120 @@
+frozen bay, bounce alone, model cap 128, draws 400 to 923, 14032 surface blocks
+    none      blocks under 3/4 of the cap   0.00 %, added noise 0.0000, mean length  128.0, cuts per tested anchor-draw: all 0.000 %, busiest anchor 0.00 %
+    T         blocks under 3/4 of the cap  69.64 %, added noise 0.8165, mean length   64.9, cuts per tested anchor-draw: all 1.134 %, busiest anchor 5.74 %
+    C1        blocks under 3/4 of the cap  59.34 %, added noise 0.4798, mean length   79.5, cuts per tested anchor-draw: all 1.080 %, busiest anchor 5.74 %
+    K6        blocks under 3/4 of the cap  11.22 %, added noise 0.1066, mean length  118.5, cuts per tested anchor-draw: all 0.132 %, busiest anchor 1.80 %
+    CK3       blocks under 3/4 of the cap  32.23 %, added noise 0.2618, mean length  101.7, cuts per tested anchor-draw: all 0.412 %, busiest anchor 3.49 %
+    T4        blocks under 3/4 of the cap  22.25 %, added noise 0.2116, mean length  109.1, cuts per tested anchor-draw: all 0.182 %, busiest anchor 2.25 %
+    C1 at 4   blocks under 3/4 of the cap  17.23 %, added noise 0.1246, mean length  114.4, cuts per tested anchor-draw: all 0.174 %, busiest anchor 2.25 %
+    T5        blocks under 3/4 of the cap   6.04 %, added noise 0.0557, mean length  122.9, cuts per tested anchor-draw: all 0.045 %, busiest anchor 1.13 %
+    C1 at 5   blocks under 3/4 of the cap   4.84 %, added noise 0.0356, mean length  124.1, cuts per tested anchor-draw: all 0.044 %, busiest anchor 1.13 %
+    K3        blocks under 3/4 of the cap  35.98 %, added noise 0.3616, mean length   97.0, cuts per tested anchor-draw: all 0.421 %, busiest anchor 3.49 %
+    K12       blocks under 3/4 of the cap   1.30 %, added noise 0.0121, mean length  126.9, cuts per tested anchor-draw: all 0.008 %, busiest anchor 0.45 %
+    CK6       blocks under 3/4 of the cap  10.43 %, added noise 0.0867, mean length  119.4, cuts per tested anchor-draw: all 0.130 %, busiest anchor 1.80 %
+    CK12      blocks under 3/4 of the cap   0.74 %, added noise 0.0068, mean length  127.4, cuts per tested anchor-draw: all 0.008 %, busiest anchor 0.45 %
+    S17       blocks under 3/4 of the cap   3.91 %, added noise 0.0320, mean length  124.8, cuts per tested anchor-draw: all 0.014 %, busiest anchor 0.45 %
+    S17 drift blocks under 3/4 of the cap   3.91 %, added noise 0.0320, mean length  124.8, cuts per tested anchor-draw: all 0.014 %, busiest anchor 0.45 %
+    S18       blocks under 3/4 of the cap   0.14 %, added noise 0.0007, mean length  127.9, cuts per tested anchor-draw: all 0.000 %, busiest anchor 0.11 %
+    S18 drift blocks under 3/4 of the cap   0.14 %, added noise 0.0007, mean length  127.9, cuts per tested anchor-draw: all 0.000 %, busiest anchor 0.11 %
+    R0.0001   blocks under 3/4 of the cap   3.08 %, added noise 0.0238, mean length  125.5, cuts per tested anchor-draw: all 0.012 %, busiest anchor 0.34 %
+    R0.0001 drift blocks under 3/4 of the cap   3.08 %, added noise 0.0238, mean length  125.5, cuts per tested anchor-draw: all 0.012 %, busiest anchor 0.34 %
+frozen exit-cabin, bounce alone, model cap 128, draws 400 to 923, 14400 surface blocks
+    none      blocks under 3/4 of the cap   0.00 %, added noise 0.0000, mean length  128.0, cuts per tested anchor-draw: all 0.000 %, busiest anchor 0.00 %
+    T         blocks under 3/4 of the cap  66.89 %, added noise 0.7270, mean length   69.0, cuts per tested anchor-draw: all 0.905 %, busiest anchor 3.72 %
+    C1        blocks under 3/4 of the cap  55.79 %, added noise 0.4181, mean length   83.5, cuts per tested anchor-draw: all 0.856 %, busiest anchor 3.72 %
+    K6        blocks under 3/4 of the cap   8.85 %, added noise 0.0787, mean length  120.6, cuts per tested anchor-draw: all 0.071 %, busiest anchor 1.13 %
+    CK3       blocks under 3/4 of the cap  27.77 %, added noise 0.2152, mean length  105.7, cuts per tested anchor-draw: all 0.274 %, busiest anchor 2.03 %
+    T4        blocks under 3/4 of the cap  17.56 %, added noise 0.1550, mean length  113.4, cuts per tested anchor-draw: all 0.116 %, busiest anchor 1.46 %
+    C1 at 4   blocks under 3/4 of the cap  14.13 %, added noise 0.0954, mean length  117.0, cuts per tested anchor-draw: all 0.109 %, busiest anchor 1.46 %
+    T5        blocks under 3/4 of the cap   4.46 %, added noise 0.0389, mean length  124.3, cuts per tested anchor-draw: all 0.018 %, busiest anchor 0.45 %
+    C1 at 5   blocks under 3/4 of the cap   3.03 %, added noise 0.0208, mean length  125.6, cuts per tested anchor-draw: all 0.018 %, busiest anchor 0.45 %
+    K3        blocks under 3/4 of the cap  30.38 %, added noise 0.2836, mean length  102.4, cuts per tested anchor-draw: all 0.283 %, busiest anchor 2.03 %
+    K12       blocks under 3/4 of the cap   0.00 %, added noise 0.0000, mean length  128.0, cuts per tested anchor-draw: all 0.001 %, busiest anchor 0.23 %
+    CK6       blocks under 3/4 of the cap   7.95 %, added noise 0.0617, mean length  121.6, cuts per tested anchor-draw: all 0.069 %, busiest anchor 1.13 %
+    CK12      blocks under 3/4 of the cap   0.00 %, added noise 0.0000, mean length  128.0, cuts per tested anchor-draw: all 0.001 %, busiest anchor 0.23 %
+    S17       blocks under 3/4 of the cap   4.30 %, added noise 0.0358, mean length  124.5, cuts per tested anchor-draw: all 0.022 %, busiest anchor 0.79 %
+    S17 drift blocks under 3/4 of the cap   4.29 %, added noise 0.0357, mean length  124.5, cuts per tested anchor-draw: all 0.022 %, busiest anchor 0.79 %
+    S18       blocks under 3/4 of the cap   0.52 %, added noise 0.0045, mean length  127.6, cuts per tested anchor-draw: all 0.002 %, busiest anchor 0.45 %
+    S18 drift blocks under 3/4 of the cap   0.52 %, added noise 0.0045, mean length  127.6, cuts per tested anchor-draw: all 0.002 %, busiest anchor 0.45 %
+    R0.0001   blocks under 3/4 of the cap   3.06 %, added noise 0.0240, mean length  125.5, cuts per tested anchor-draw: all 0.013 %, busiest anchor 0.45 %
+    R0.0001 drift blocks under 3/4 of the cap   3.06 %, added noise 0.0240, mean length  125.5, cuts per tested anchor-draw: all 0.013 %, busiest anchor 0.45 %
+frozen still cabin, bounce alone, model cap 128, draws 400 to 923, 14320 surface blocks
+    none      blocks under 3/4 of the cap   0.00 %, added noise 0.0000, mean length  128.0, cuts per tested anchor-draw: all 0.000 %, busiest anchor 0.00 %
+    T         blocks under 3/4 of the cap  58.08 %, added noise 0.6173, mean length   77.0, cuts per tested anchor-draw: all 1.070 %, busiest anchor 4.39 %
+    C1        blocks under 3/4 of the cap  46.34 %, added noise 0.3456, mean length   91.0, cuts per tested anchor-draw: all 1.006 %, busiest anchor 4.17 %
+    K6        blocks under 3/4 of the cap   7.73 %, added noise 0.0690, mean length  121.5, cuts per tested anchor-draw: all 0.165 %, busiest anchor 1.80 %
+    CK3       blocks under 3/4 of the cap  23.11 %, added noise 0.1793, mean length  109.3, cuts per tested anchor-draw: all 0.429 %, busiest anchor 2.82 %
+    T4        blocks under 3/4 of the cap  12.23 %, added noise 0.1114, mean length  117.7, cuts per tested anchor-draw: all 0.220 %, busiest anchor 2.25 %
+    C1 at 4   blocks under 3/4 of the cap   9.19 %, added noise 0.0668, mean length  120.7, cuts per tested anchor-draw: all 0.215 %, busiest anchor 2.25 %
+    T5        blocks under 3/4 of the cap   3.32 %, added noise 0.0310, mean length  125.2, cuts per tested anchor-draw: all 0.093 %, busiest anchor 2.03 %
+    C1 at 5   blocks under 3/4 of the cap   2.73 %, added noise 0.0213, mean length  125.8, cuts per tested anchor-draw: all 0.092 %, busiest anchor 2.03 %
+    K3        blocks under 3/4 of the cap  25.94 %, added noise 0.2482, mean length  105.8, cuts per tested anchor-draw: all 0.436 %, busiest anchor 2.82 %
+    K12       blocks under 3/4 of the cap   0.78 %, added noise 0.0076, mean length  127.3, cuts per tested anchor-draw: all 0.038 %, busiest anchor 0.79 %
+    CK6       blocks under 3/4 of the cap   6.95 %, added noise 0.0529, mean length  122.4, cuts per tested anchor-draw: all 0.161 %, busiest anchor 1.80 %
+    CK12      blocks under 3/4 of the cap   0.78 %, added noise 0.0076, mean length  127.3, cuts per tested anchor-draw: all 0.038 %, busiest anchor 0.79 %
+    S17       blocks under 3/4 of the cap   1.94 %, added noise 0.0158, mean length  126.4, cuts per tested anchor-draw: all 0.019 %, busiest anchor 0.45 %
+    S17 drift blocks under 3/4 of the cap   1.94 %, added noise 0.0158, mean length  126.4, cuts per tested anchor-draw: all 0.019 %, busiest anchor 0.45 %
+    S18       blocks under 3/4 of the cap   0.00 %, added noise 0.0000, mean length  128.0, cuts per tested anchor-draw: all 0.000 %, busiest anchor 0.00 %
+    S18 drift blocks under 3/4 of the cap   0.00 %, added noise 0.0000, mean length  128.0, cuts per tested anchor-draw: all 0.000 %, busiest anchor 0.00 %
+    R0.0001   blocks under 3/4 of the cap   1.31 %, added noise 0.0105, mean length  126.9, cuts per tested anchor-draw: all 0.010 %, busiest anchor 0.79 %
+    R0.0001 drift blocks under 3/4 of the cap   1.31 %, added noise 0.0105, mean length  126.9, cuts per tested anchor-draw: all 0.010 %, busiest anchor 0.79 %
+rect-bay film (g-bay, process 3), model cap 128, draws 36 to 211, 14032 surface blocks
+    none      blocks under 3/4 of the cap  33.52 %, added noise 0.1579, mean length  104.2, cuts per tested anchor-draw: all 0.000 %, busiest anchor 0.00 %, model light off the smoothed log by 366.50 % (mean), 747.59 % (90 %)
+    T         blocks under 3/4 of the cap 100.00 %, added noise 2.6961, mean length   12.4, cuts per tested anchor-draw: all 67.910 %, busiest anchor 90.91 %, model light off the smoothed log by 15.78 % (mean), 25.76 % (90 %)
+    C1        blocks under 3/4 of the cap 100.00 %, added noise 2.4787, mean length   14.6, cuts per tested anchor-draw: all 67.505 %, busiest anchor 90.34 %, model light off the smoothed log by 18.50 % (mean), 30.81 % (90 %)
+    K6        blocks under 3/4 of the cap  99.96 %, added noise 2.4763, mean length   17.1, cuts per tested anchor-draw: all 59.209 %, busiest anchor 84.66 %, model light off the smoothed log by 18.31 % (mean), 30.95 % (90 %)
+    CK3       blocks under 3/4 of the cap  99.98 %, added noise 2.4403, mean length   15.8, cuts per tested anchor-draw: all 63.314 %, busiest anchor 87.50 %, model light off the smoothed log by 18.98 % (mean), 31.87 % (90 %)
+    T4        blocks under 3/4 of the cap  99.94 %, added noise 2.4750, mean length   16.0, cuts per tested anchor-draw: all 49.491 %, busiest anchor 87.50 %, model light off the smoothed log by 18.72 % (mean), 31.05 % (90 %)
+    C1 at 4   blocks under 3/4 of the cap  99.89 %, added noise 2.1810, mean length   19.1, cuts per tested anchor-draw: all 48.942 %, busiest anchor 86.93 %, model light off the smoothed log by 25.83 % (mean), 45.43 % (90 %)
+    T5        blocks under 3/4 of the cap  99.44 %, added noise 2.1645, mean length   21.9, cuts per tested anchor-draw: all 31.413 %, busiest anchor 84.09 %, model light off the smoothed log by 28.23 % (mean), 48.90 % (90 %)
+    C1 at 5   blocks under 3/4 of the cap  99.37 %, added noise 1.8238, mean length   25.5, cuts per tested anchor-draw: all 30.997 %, busiest anchor 84.09 %, model light off the smoothed log by 43.24 % (mean), 80.62 % (90 %)
+    K3        blocks under 3/4 of the cap  99.98 %, added noise 2.5840, mean length   14.7, cuts per tested anchor-draw: all 63.492 %, busiest anchor 87.50 %, model light off the smoothed log by 16.85 % (mean), 27.68 % (90 %)
+    K12       blocks under 3/4 of the cap  99.75 %, added noise 2.3235, mean length   20.6, cuts per tested anchor-draw: all 53.040 %, busiest anchor 81.25 %, model light off the smoothed log by 22.15 % (mean), 41.16 % (90 %)
+    CK6       blocks under 3/4 of the cap  99.96 %, added noise 2.3580, mean length   18.0, cuts per tested anchor-draw: all 59.065 %, busiest anchor 84.66 %, model light off the smoothed log by 20.40 % (mean), 35.34 % (90 %)
+    CK12      blocks under 3/4 of the cap  99.74 %, added noise 2.2196, mean length   21.6, cuts per tested anchor-draw: all 52.931 %, busiest anchor 81.25 %, model light off the smoothed log by 24.56 % (mean), 45.99 % (90 %)
+    S17       blocks under 3/4 of the cap  99.94 %, added noise 2.3743, mean length   18.7, cuts per tested anchor-draw: all 48.968 %, busiest anchor 84.09 %, model light off the smoothed log by 19.96 % (mean), 34.55 % (90 %)
+    S17 drift blocks under 3/4 of the cap  99.94 %, added noise 2.3739, mean length   18.7, cuts per tested anchor-draw: all 48.968 %, busiest anchor 84.09 %, model light off the smoothed log by 19.96 % (mean), 34.55 % (90 %)
+    S18       blocks under 3/4 of the cap  99.28 %, added noise 2.0865, mean length   24.0, cuts per tested anchor-draw: all 32.931 %, busiest anchor 77.84 %, model light off the smoothed log by 28.62 % (mean), 52.01 % (90 %)
+    S18 drift blocks under 3/4 of the cap  99.28 %, added noise 2.0864, mean length   24.0, cuts per tested anchor-draw: all 32.931 %, busiest anchor 77.84 %, model light off the smoothed log by 28.62 % (mean), 52.01 % (90 %)
+    R0.0001   blocks under 3/4 of the cap  99.93 %, added noise 2.3774, mean length   18.6, cuts per tested anchor-draw: all 50.291 %, busiest anchor 84.09 %, model light off the smoothed log by 19.78 % (mean), 34.65 % (90 %)
+    R0.0001 drift blocks under 3/4 of the cap  99.93 %, added noise 2.3771, mean length   18.6, cuts per tested anchor-draw: all 50.291 %, busiest anchor 84.09 %, model light off the smoothed log by 19.78 % (mean), 34.65 % (90 %)
+bay-sun film (g-lag, process 1), model cap 128, draws 33 to 272, 14032 surface blocks
+    none      blocks under 3/4 of the cap  25.83 %, added noise 0.1272, mean length  109.4, cuts per tested anchor-draw: all 0.000 %, busiest anchor 0.00 %, model light off the smoothed log by 55.88 % (mean), 72.25 % (90 %)
+    T         blocks under 3/4 of the cap  99.99 %, added noise 2.5453, mean length   13.8, cuts per tested anchor-draw: all 58.929 %, busiest anchor 92.41 %, model light off the smoothed log by 11.24 % (mean), 22.91 % (90 %)
+    C1        blocks under 3/4 of the cap  99.96 %, added noise 2.3527, mean length   16.5, cuts per tested anchor-draw: all 58.720 %, busiest anchor 91.14 %, model light off the smoothed log by 11.70 % (mean), 23.24 % (90 %)
+    K6        blocks under 3/4 of the cap  99.57 %, added noise 2.2910, mean length   19.6, cuts per tested anchor-draw: all 52.470 %, busiest anchor 81.86 %, model light off the smoothed log by 12.00 % (mean), 24.15 % (90 %)
+    CK3       blocks under 3/4 of the cap  99.79 %, added noise 2.2979, mean length   18.3, cuts per tested anchor-draw: all 55.633 %, busiest anchor 87.76 %, model light off the smoothed log by 11.86 % (mean), 23.49 % (90 %)
+    T4        blocks under 3/4 of the cap  99.60 %, added noise 2.3246, mean length   18.6, cuts per tested anchor-draw: all 50.793 %, busiest anchor 77.22 %, model light off the smoothed log by 11.76 % (mean), 23.34 % (90 %)
+    C1 at 4   blocks under 3/4 of the cap  99.15 %, added noise 2.1576, mean length   21.3, cuts per tested anchor-draw: all 50.580 %, busiest anchor 77.22 %, model light off the smoothed log by 12.37 % (mean), 23.72 % (90 %)
+    T5        blocks under 3/4 of the cap  98.32 %, added noise 2.1402, mean length   23.1, cuts per tested anchor-draw: all 43.866 %, busiest anchor 70.04 %, model light off the smoothed log by 12.40 % (mean), 23.83 % (90 %)
+    C1 at 5   blocks under 3/4 of the cap  97.42 %, added noise 1.9952, mean length   25.6, cuts per tested anchor-draw: all 43.717 %, busiest anchor 70.04 %, model light off the smoothed log by 13.19 % (mean), 24.21 % (90 %)
+    K3        blocks under 3/4 of the cap  99.93 %, added noise 2.4161, mean length   16.6, cuts per tested anchor-draw: all 55.693 %, busiest anchor 88.19 %, model light off the smoothed log by 11.56 % (mean), 23.34 % (90 %)
+    K12       blocks under 3/4 of the cap  99.13 %, added noise 2.1439, mean length   22.8, cuts per tested anchor-draw: all 47.627 %, busiest anchor 71.73 %, model light off the smoothed log by 12.87 % (mean), 26.03 % (90 %)
+    CK6       blocks under 3/4 of the cap  99.25 %, added noise 2.2078, mean length   20.9, cuts per tested anchor-draw: all 52.426 %, busiest anchor 81.43 %, model light off the smoothed log by 12.25 % (mean), 24.23 % (90 %)
+    CK12      blocks under 3/4 of the cap  98.78 %, added noise 2.0712, mean length   24.2, cuts per tested anchor-draw: all 47.591 %, busiest anchor 71.31 %, model light off the smoothed log by 13.11 % (mean), 26.07 % (90 %)
+    S17       blocks under 3/4 of the cap  97.06 %, added noise 1.9856, mean length   26.8, cuts per tested anchor-draw: all 37.020 %, busiest anchor 65.40 %, model light off the smoothed log by 13.45 % (mean), 25.68 % (90 %)
+    S17 drift blocks under 3/4 of the cap  97.06 %, added noise 1.9856, mean length   26.8, cuts per tested anchor-draw: all 37.020 %, busiest anchor 65.40 %, model light off the smoothed log by 13.45 % (mean), 25.68 % (90 %)
+    S18       blocks under 3/4 of the cap  91.55 %, added noise 1.6764, mean length   35.8, cuts per tested anchor-draw: all 26.071 %, busiest anchor 59.92 %, model light off the smoothed log by 16.17 % (mean), 29.70 % (90 %)
+    S18 drift blocks under 3/4 of the cap  91.55 %, added noise 1.6764, mean length   35.8, cuts per tested anchor-draw: all 26.071 %, busiest anchor 59.92 %, model light off the smoothed log by 16.17 % (mean), 29.70 % (90 %)
+    R0.0001   blocks under 3/4 of the cap  97.49 %, added noise 1.9811, mean length   26.6, cuts per tested anchor-draw: all 37.815 %, busiest anchor 66.24 %, model light off the smoothed log by 13.48 % (mean), 25.67 % (90 %)
+    R0.0001 drift blocks under 3/4 of the cap  97.49 %, added noise 1.9811, mean length   26.6, cuts per tested anchor-draw: all 37.815 %, busiest anchor 66.24 %, model light off the smoothed log by 13.48 % (mean), 25.67 % (90 %)
+fair cabin switch, with the rule, model cap 128, draws 150 to 492, 14320 surface blocks
+    none      blocks under 3/4 of the cap   0.00 %, added noise 0.0000, mean length  128.0, cuts per tested anchor-draw: all 0.000 %, busiest anchor 0.00 %, model light off the smoothed log by 44.84 % (mean), 98.95 % (90 %)
+    T         blocks under 3/4 of the cap  93.70 %, added noise 1.8237, mean length   30.6, cuts per tested anchor-draw: all 11.546 %, busiest anchor 34.79 %, model light off the smoothed log by 4.77 % (mean), 14.62 % (90 %)
+    C1        blocks under 3/4 of the cap  90.38 %, added noise 1.5232, mean length   38.4, cuts per tested anchor-draw: all 11.463 %, busiest anchor 34.35 %, model light off the smoothed log by 5.10 % (mean), 15.14 % (90 %)
+    K6        blocks under 3/4 of the cap  74.69 %, added noise 1.3789, mean length   52.3, cuts per tested anchor-draw: all 9.564 %, busiest anchor 29.10 %, model light off the smoothed log by 5.92 % (mean), 17.71 % (90 %)
+    CK3       blocks under 3/4 of the cap  81.41 %, added noise 1.4063, mean length   47.0, cuts per tested anchor-draw: all 10.469 %, busiest anchor 31.73 %, model light off the smoothed log by 5.40 % (mean), 15.86 % (90 %)
+    T4        blocks under 3/4 of the cap  78.02 %, added noise 1.4178, mean length   49.3, cuts per tested anchor-draw: all 9.023 %, busiest anchor 28.88 %, model light off the smoothed log by 5.19 % (mean), 15.21 % (90 %)
+    C1 at 4   blocks under 3/4 of the cap  75.40 %, added noise 1.2459, mean length   53.7, cuts per tested anchor-draw: all 8.969 %, busiest anchor 28.88 %, model light off the smoothed log by 5.63 % (mean), 15.61 % (90 %)
+    T5        blocks under 3/4 of the cap  69.93 %, added noise 1.2190, mean length   58.1, cuts per tested anchor-draw: all 6.971 %, busiest anchor 22.32 %, model light off the smoothed log by 5.65 % (mean), 15.60 % (90 %)
+    C1 at 5   blocks under 3/4 of the cap  67.55 %, added noise 1.0770, mean length   61.9, cuts per tested anchor-draw: all 6.930 %, busiest anchor 22.32 %, model light off the smoothed log by 6.24 % (mean), 16.14 % (90 %)
+    K3        blocks under 3/4 of the cap  84.03 %, added noise 1.5560, mean length   42.8, cuts per tested anchor-draw: all 10.498 %, busiest anchor 31.73 %, model light off the smoothed log by 5.23 % (mean), 15.82 % (90 %)
+    K12       blocks under 3/4 of the cap  65.37 %, added noise 1.1973, mean length   61.7, cuts per tested anchor-draw: all 8.116 %, busiest anchor 25.38 %, model light off the smoothed log by 7.40 % (mean), 22.61 % (90 %)
+    CK6       blocks under 3/4 of the cap  72.80 %, added noise 1.2721, mean length   55.4, cuts per tested anchor-draw: all 9.540 %, busiest anchor 29.10 %, model light off the smoothed log by 6.07 % (mean), 17.64 % (90 %)
+    CK12      blocks under 3/4 of the cap  64.12 %, added noise 1.1123, mean length   63.9, cuts per tested anchor-draw: all 8.095 %, busiest anchor 25.38 %, model light off the smoothed log by 7.56 % (mean), 22.59 % (90 %)
+    S17       blocks under 3/4 of the cap  66.43 %, added noise 1.1454, mean length   61.9, cuts per tested anchor-draw: all 6.864 %, busiest anchor 23.63 %, model light off the smoothed log by 7.15 % (mean), 21.19 % (90 %)
+    S17 drift blocks under 3/4 of the cap  66.42 %, added noise 1.1452, mean length   61.9, cuts per tested anchor-draw: all 6.864 %, busiest anchor 23.63 %, model light off the smoothed log by 7.15 % (mean), 21.19 % (90 %)
+    S18       blocks under 3/4 of the cap  60.59 %, added noise 0.9724, mean length   69.0, cuts per tested anchor-draw: all 5.072 %, busiest anchor 19.26 %, model light off the smoothed log by 8.08 % (mean), 23.43 % (90 %)
+    S18 drift blocks under 3/4 of the cap  60.59 %, added noise 0.9724, mean length   69.0, cuts per tested anchor-draw: all 5.072 %, busiest anchor 19.26 %, model light off the smoothed log by 8.08 % (mean), 23.43 % (90 %)
+    R0.0001   blocks under 3/4 of the cap  65.43 %, added noise 1.1492, mean length   62.4, cuts per tested anchor-draw: all 7.215 %, busiest anchor 23.41 %, model light off the smoothed log by 7.08 % (mean), 20.92 % (90 %)
+    R0.0001 drift blocks under 3/4 of the cap  65.43 %, added noise 1.1491, mean length   62.4, cuts per tested anchor-draw: all 7.215 %, busiest anchor 23.41 %, model light off the smoothed log by 7.09 % (mean), 20.92 % (90 %)
