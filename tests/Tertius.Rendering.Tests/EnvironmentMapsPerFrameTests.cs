@@ -620,7 +620,10 @@ public sealed class EnvironmentMapsPerFrameTests
 
             Centers(renderer, map: 0)
                 .Should()
-                .AllBeEquivalentTo(roomRadiance, "a map is captured at the eye, and the cut moved the eye into the room");
+                .AllBeEquivalentTo(
+                    roomRadiance,
+                    "a map is captured at the eye, and the cut moved the eye into the room"
+                );
             // The light that the cabin read after the white room's cut was the prefiltered irradiance. The room fills every
             // direction, so every irradiance texel of every level is the room's own radiance, within a half float's step
             // and a driver's rounding (AUniformMapGivesACubeOfItsOwnRadiance).
@@ -646,7 +649,13 @@ public sealed class EnvironmentMapsPerFrameTests
     /// Six squares of <paramref name="material"/> facing inward, the walls of a closed box of half size
     /// <paramref name="halfSize"/> m around <paramref name="center"/>, relative to the eye, in the camera's frame.
     /// </summary>
-    private static void AddBox(RenderSnapshot snapshot, MeshId plane, MaterialId material, Vector3 center, float halfSize)
+    private static void AddBox(
+        RenderSnapshot snapshot,
+        MeshId plane,
+        MaterialId material,
+        Vector3 center,
+        float halfSize
+    )
     {
         for (int layer = 0; layer < CubeFaces.Count; layer++)
         {

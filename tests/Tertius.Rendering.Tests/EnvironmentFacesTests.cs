@@ -121,7 +121,9 @@ public sealed class EnvironmentFacesTests
         [
             .. Enumerable
                 .Range(0, chain.Length)
-                .Select(map => EnvironmentFaces.RefreshesAll(drawnFor: chain, served: chain, map: map, everyFace: true)),
+                .Select(map =>
+                    EnvironmentFaces.RefreshesAll(drawnFor: chain, served: chain, map: map, everyFace: true)
+                ),
         ];
 
         refreshed.Should().AllBeEquivalentTo(true);
