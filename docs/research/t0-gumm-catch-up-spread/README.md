@@ -138,6 +138,17 @@ The start, for the record (changes, fall, run 1 / run 2): today 57, 0.233 / 57, 
 - **1/16 against 1/32.** After off, every run of 1/16 changes the scale (1 to 8 changes, falls 0.005 to 0.013), and no run of 1/32 does. After on, every run of 1/16 changes it 8 to 12 times, and every run of 1/32 0 to 4 times. At the cut, every run of 1/16 falls 0.003 to 0.011, and the runs of 1/32 rise or fall 0.002 at most. The one overlap is B32's first run after on: its fall of 0.013 (in 4 changes) is as large as 1/16's. **So the card tells 1/16 from 1/32**: the two runs of 1/32 do not differ as much as 1/16 differs from 1/32. The answer of job 2 stands: 1/32 is the largest peak share that leaves the card's scale within its noise. B32 sits at that limit, because one of its four light-change windows came out above the noise. C32 sits inside it in each of its windows.
 - The idle levels of the runs lie between 0.981 and 0.989. Each window's fall counts from its own run's level before the event.
 
+## The videos
+
+The three files `pics/preview-switch-three.mp4`, `pics/preview-start-three.mp4` and `pics/preview-cut-three.mp4` (A | today | C32) are previews only. They do not follow the line's video rules:
+
+- They run at 30 frames a second and show only the pictures that the measure runs kept, so draws are skipped.
+- Each pane is 960 × 540.
+- The scale is the constant 2/3, so they hide the cliff's price, which is the fallen render scale.
+- In the switch preview, the corner shows the film frame, not the draw. The draw is the film frame + 33.
+
+The final videos are `pics/<event>-final.mp4` (`tools/queue-mac5.sh`, then `tools/videos.py`). Each code plays back its own card scale log, the second run of card job 3. The start has no film of its own on the card, so it plays back the switch film's log from draw 0, the card's start window.
+
 ## Check 1: the shape (1, 8, 0) gives today's own-ray counts
 
 The switch film (the fair lamp switch of the cabin, the lamps off at draw 193 and on at 393), at the constant render scale 2/3 (1280 × 720) through the replay path, on the Mac (`check1.txt`, `tools/ownrays.py`, logs in `logs/`):

@@ -17,6 +17,11 @@
 # keeps the PNGs of 20 draws before each event to 61 after it, and of the last 20 frames of start and cut (their settled
 # level). It holds the GPU lock in its shared mode. TIMING=1 instead keeps no PNG and holds the lock alone, and writes the
 # time log (time-*.txt: "<frame> <GPU span ms> ..." per collected frame) into <name>/.
+# REPLAY=<size log> plays back that log's scales (a card log of cardrun.sh, "<draw> <width> <height> <scale>" per draw,
+# draw for draw; its last scale holds for 5 more draws) in place of the constant 2/3, and the run checks that its own size
+# log gives the same scale on every draw. VIDEO=1 keeps every draw of the video window instead: the switch's film frames
+# f 140 to 459 (draws 173 to 492), the start's f 0 to 119 (draws 0 to 119), the cut's a 80 to 99, x and b 0 to 119
+# (draws 113 to 253).
 set -uo pipefail
 build=$1; event=$2; name=$3; shift 3
 N=$(cd "$(dirname "$0")/.." && pwd); R=$(cd "$N/../../.." && pwd)
@@ -34,8 +39,21 @@ case ${event%+*} in
        keep="$(f a $((80 + k)) $((99 + k)))x-000000,$(f b 0 61)$(f b 180 199)" ;;
   *) echo "no event $event"; exit 1 ;;
 esac
+if [ "${VIDEO:-}" = 1 ]; then
+  case ${event%+*} in
+    switch) keep="$(f f $((140 + k)) $((459 + k)))" ;;
+    start) keep="$(f f 0 119)" ;;
+    cut) keep="$(f a $((80 + k)) $((99 + k)))x-000000,$(f b 0 119)" ;;
+  esac
+fi
 rm -rf $out; mkdir -p $out
-for ((d = 0; d < draws + 5; d++)); do echo "$d 0 0 0.6667"; done > $out/replay.txt
+if [ -n "${REPLAY:-}" ]; then
+  head -n $draws "$REPLAY" > $out/replay.txt
+  last=$(tail -1 $out/replay.txt | awk '{print $4}')
+  for ((d = $(wc -l < $out/replay.txt); d < draws + 5; d++)); do echo "$d 0 0 $last"; done >> $out/replay.txt
+else
+  for ((d = 0; d < draws + 5; d++)); do echo "$d 0 0 0.6667"; done > $out/replay.txt
+fi
 lock=(--shared); logs=(TERTIUS_X_HISTORY_LOG=$out TERTIUS_X_OWNRAY_LOG=$out TERTIUS_PROBE_KEEP=${keep%,})
 [ "${TIMING:-}" = 1 ] && { lock=(); logs=(TERTIUS_X_TIME_LOG=$out TERTIUS_PROBE_KEEP=); }
 echo "$(date +%T) $name: $build $event $*, disk $(df -Pk / | awk 'NR == 2 {printf "%.1f", $4 / 1048576}') GiB"
@@ -45,3 +63,7 @@ env "${lamps[@]}" TERTIUS_PROBE_EXPOSURE=4.08 TERTIUS_X_FRAME_TIME_TARGET=16.666
   nix develop --command bash tools/gpu-lock.sh ${lock[@]+"${lock[@]}"} $out/lock.log $B/bins/$build/probe-bin/Tertius.Demo \
   --script $script --headless --out $out --size 1920x1080 > $out/run.log 2>&1
 echo "$(date +%T) $name exit $? $(wc -l < $out/size-*.txt 2>/dev/null) draws, $(ls $out/*.png 2>/dev/null | wc -l) pictures"
+if [ -n "${REPLAY:-}" ]; then
+  echo "$(date +%T) $name replay check: $(awk 'NR == FNR {want[$1] = $4; next} {n++; d = $4 - want[$1]; if (d > 1e-4 || d < -1e-4) bad++}
+    END {printf "%d draws, %d with another scale than the log", n, bad}' $out/replay.txt $out/size-*.txt)"
+fi
