@@ -1,0 +1,79 @@
+{
+ "samples": 302400,
+ "keep_rect_render_px": [
+  479,
+  312,
+  563,
+  321
+ ],
+ "diffuse": {
+  "mean": 0.1843828707933426,
+  "bright_count": 0,
+  "bright_share_of_light": 0.0,
+  "sill_row_hits_per_draw_p10_p50_p90": [
+   28.0,
+   55.0,
+   76.0
+  ],
+  "draws_with_sill_row_hits": 400,
+  "sill_row_hit_mean_by_draw_top5": {
+   "56": [
+    56,
+    0.354
+   ],
+   "83": [
+    54,
+    0.35
+   ],
+   "2": [
+    72,
+    0.349
+   ],
+   "293": [
+    46,
+    0.349
+   ],
+   "326": [
+    72,
+    0.347
+   ]
+  },
+  "sill_row_hit_mean_median_draw": 0.32502504758992296,
+  "share_of_light_from_sill_rows": 0.12279582768678665
+ },
+ "reflection": {
+  "mean": 0.19727589190006256,
+  "bright_count": 0,
+  "bright_share_of_light": 0.0,
+  "sill_row_hits_per_draw_p10_p50_p90": [
+   44.0,
+   85.0,
+   104.0
+  ],
+  "draws_with_sill_row_hits": 400,
+  "sill_row_hit_mean_by_draw_top5": {
+   "343": [
+    42,
+    0.317
+   ],
+   "37": [
+    43,
+    0.316
+   ],
+   "205": [
+    43,
+    0.315
+   ],
+   "217": [
+    51,
+    0.314
+   ],
+   "43": [
+    49,
+    0.314
+   ]
+  },
+  "sill_row_hit_mean_median_draw": 0.29379603266716003,
+  "share_of_light_from_sill_rows": 0.15140795707702637
+ }
+}

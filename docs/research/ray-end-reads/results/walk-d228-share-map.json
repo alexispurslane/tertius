@@ -1,0 +1,80 @@
+{
+ "whole frame": {
+  "surface_pixels": 909244,
+  "share_below_1": 0.016027600951999683,
+  "direct_held_back_over_hit_light": 0.0027443435816741943,
+  "history_length_median": 32.0
+ },
+ "below 1, whole frame": {
+  "pixels": 14573,
+  "fail_surface_test": 0.006450284773210746,
+  "length_of_holders_p10_p50_p90": [
+   8.390625,
+   13.75,
+   16.46875
+  ]
+ },
+ "grid 0,0": {
+  "surface_pixels": 102240,
+  "share_below_1": 0.0007531298904538341,
+  "direct_held_back_over_hit_light": 1.7887166390136468e-05,
+  "history_length_median": 32.0
+ },
+ "grid 0,1": {
+  "surface_pixels": 102480,
+  "share_below_1": 0.000156128024980484,
+  "direct_held_back_over_hit_light": 0.0,
+  "history_length_median": 32.0
+ },
+ "grid 0,2": {
+  "surface_pixels": 102480,
+  "share_below_1": 0.000663544106167057,
+  "direct_held_back_over_hit_light": 1.2280206167217954e-05,
+  "history_length_median": 32.0
+ },
+ "grid 1,0": {
+  "surface_pixels": 97706,
+  "share_below_1": 0.004656827625734346,
+  "direct_held_back_over_hit_light": 0.0004110569880081048,
+  "history_length_median": 32.0
+ },
+ "grid 1,1": {
+  "surface_pixels": 99374,
+  "share_below_1": 0.0036629299414333728,
+  "direct_held_back_over_hit_light": 0.0005527819340075779,
+  "history_length_median": 32.0
+ },
+ "grid 1,2": {
+  "surface_pixels": 97764,
+  "share_below_1": 0.004224458901026963,
+  "direct_held_back_over_hit_light": 0.0005159265556260623,
+  "history_length_median": 32.0
+ },
+ "grid 2,0": {
+  "surface_pixels": 102240,
+  "share_below_1": 0.04273278560250391,
+  "direct_held_back_over_hit_light": 0.007079875110595299,
+  "history_length_median": 31.3125
+ },
+ "grid 2,1": {
+  "surface_pixels": 102480,
+  "share_below_1": 0.03988095238095238,
+  "direct_held_back_over_hit_light": 0.007001587228455215,
+  "history_length_median": 31.46875
+ },
+ "grid 2,2": {
+  "surface_pixels": 102480,
+  "share_below_1": 0.0460967993754879,
+  "direct_held_back_over_hit_light": 0.008011276089049743,
+  "history_length_median": 31.265625
+ }
+}
+{
+ "S2' (surface test alone)": {
+  "surface_pixels": 909244,
+  "share_below_1": 0.00010338259037178139,
+  "pixels_below_1": 94,
+  "direct_held_back_over_hit_light": 2.081381986770825e-05,
+  "on_a_depth_edge": 0.6595744680851063
+ }
+}

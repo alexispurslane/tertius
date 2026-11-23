@@ -1,0 +1,32 @@
+{
+ "samples": 309600,
+ "keep_rect_render_px": [
+  494,
+  322,
+  580,
+  331
+ ],
+ "diffuse": {
+  "mean": 0.19226263463497162,
+  "bright_count": 0,
+  "bright_share_of_light": 0.0
+ },
+ "reflection": {
+  "mean": 0.20132525265216827,
+  "bright_count": 3,
+  "bright_share_of_light": 0.00025175075279548764,
+  "largest": 6.832399368286133,
+  "hit_distance_m_p10_p50_p90": [
+   11.1,
+   13.3,
+   13.3
+  ],
+  "bright_with_hit_pixel": 3,
+  "top_hit_rows_share_of_bright_light": {
+   "202": 0.871,
+   "214": 0.129
+  },
+  "share_of_bright_light_from_sill_rows": 0.0,
+  "sill_row_hit_columns_p10_p90": null
+ }
+}

@@ -1,0 +1,261 @@
+{
+ "case": "exit-cabin",
+ "render": [
+  1280,
+  720
+ ],
+ "draws": [
+  240,
+  640
+ ],
+ "stops": [
+  -0.3970000147819519,
+  -0.3970000147819519
+ ],
+ "regions": [
+  {
+   "name": "floor in the middle",
+   "light": "Direct light of the four pillar lamps and the two ceiling lamps, with the frame's shadows; bounce light from the walls and the frame; the blue light outside the windows.",
+   "rect_output": [
+    700,
+    650,
+    1300,
+    950
+   ],
+   "rect_render": [
+    466,
+    433,
+    866,
+    633
+   ],
+   "after_caps": {
+    "pixels": 80000,
+    "mean_luminance": 0.07493249125316528,
+    "mean_variance": 0.02752235279450755,
+    "count_share": {
+     "miss": 0.758826375,
+     "near": 0.0519445625,
+     "far": 0.1892290625
+    },
+    "mean_share": {
+     "miss": 0.23848962677660912,
+     "near": 0.1083142729545668,
+     "far": 0.653196100268824
+    },
+    "variance_share": {
+     "miss": -0.024035989429389282,
+     "near": 0.08288733494656941,
+     "far": 0.9411486544828198
+    }
+   },
+   "before_caps": {
+    "pixels": 80000,
+    "mean_luminance": 0.07493249125316528,
+    "mean_variance": 0.02752235279450755,
+    "count_share": {
+     "miss": 0.758826375,
+     "near": 0.0519445625,
+     "far": 0.1892290625
+    },
+    "mean_share": {
+     "miss": 0.23848962677660912,
+     "near": 0.1083142729545668,
+     "far": 0.653196100268824
+    },
+    "variance_share": {
+     "miss": -0.024035989429389282,
+     "near": 0.08288733494656941,
+     "far": 0.9411486544828198
+    }
+   },
+   "check": {
+    "census_mean": 0.07493249125316528,
+    "slow_history_mean": 0.06867795437574387,
+    "ratio": 1.0910705179598423
+   }
+  },
+  {
+   "name": "right wall below the windows",
+   "light": "Direct light of the right pillar lamps; bounce light from the floor; the blue light outside the windows above it.",
+   "rect_output": [
+    1250,
+    600,
+    1370,
+    690
+   ],
+   "rect_render": [
+    833,
+    400,
+    913,
+    460
+   ],
+   "after_caps": {
+    "pixels": 4800,
+    "mean_luminance": 0.1470529827215284,
+    "mean_variance": 0.2640883175640126,
+    "count_share": {
+     "miss": 0.6105098958333334,
+     "near": 0.265815625,
+     "far": 0.12367447916666667
+    },
+    "mean_share": {
+     "miss": 0.5020242801965997,
+     "near": 0.2200820589861605,
+     "far": 0.27789366081723976
+    },
+    "variance_share": {
+     "miss": 0.8696952733305441,
+     "near": 0.0051828741055807,
+     "far": 0.12512185256387542
+    }
+   },
+   "before_caps": {
+    "pixels": 4800,
+    "mean_luminance": 0.1470529827215284,
+    "mean_variance": 0.2640883175640126,
+    "count_share": {
+     "miss": 0.6105098958333334,
+     "near": 0.265815625,
+     "far": 0.12367447916666667
+    },
+    "mean_share": {
+     "miss": 0.5020242801965997,
+     "near": 0.2200820589861605,
+     "far": 0.27789366081723976
+    },
+    "variance_share": {
+     "miss": 0.8696952733305441,
+     "near": 0.0051828741055807,
+     "far": 0.12512185256387542
+    }
+   },
+   "check": {
+    "census_mean": 0.1470529827215284,
+    "slow_history_mean": 0.13867726922035217,
+    "ratio": 1.0603971620458401
+   }
+  },
+  {
+   "name": "ceiling between the beams",
+   "light": "Direct light of the two ceiling lamps; bounce light from the floor and the walls.",
+   "rect_output": [
+    1300,
+    40,
+    1700,
+    110
+   ],
+   "rect_render": [
+    866,
+    26,
+    1133,
+    73
+   ],
+   "after_caps": {
+    "pixels": 12549,
+    "mean_luminance": 0.07223270132315868,
+    "mean_variance": 0.020314136953872068,
+    "count_share": {
+     "miss": 0.8354930671766675,
+     "near": 0.008422185034664117,
+     "far": 0.15608474778866843
+    },
+    "mean_share": {
+     "miss": 0.39247234084776744,
+     "near": 0.042509234880968125,
+     "far": 0.5650184242712643
+    },
+    "variance_share": {
+     "miss": 0.022208106750950467,
+     "near": 0.04023252517502996,
+     "far": 0.9375593680740195
+    }
+   },
+   "before_caps": {
+    "pixels": 12549,
+    "mean_luminance": 0.07223270132315868,
+    "mean_variance": 0.020314136953872068,
+    "count_share": {
+     "miss": 0.8354930671766675,
+     "near": 0.008422185034664117,
+     "far": 0.15608474778866843
+    },
+    "mean_share": {
+     "miss": 0.39247234084776744,
+     "near": 0.042509234880968125,
+     "far": 0.5650184242712643
+    },
+    "variance_share": {
+     "miss": 0.022208106750950467,
+     "near": 0.04023252517502996,
+     "far": 0.9375593680740195
+    }
+   },
+   "check": {
+    "census_mean": 0.07223270132315868,
+    "slow_history_mean": 0.06681658327579498,
+    "ratio": 1.0810594882561997
+   }
+  },
+  {
+   "name": "side of the tilted blue crate",
+   "light": "Direct light of the right pillar lamps; bounce light from the floor.",
+   "rect_output": [
+    1070,
+    540,
+    1140,
+    640
+   ],
+   "rect_render": [
+    713,
+    360,
+    760,
+    426
+   ],
+   "after_caps": {
+    "pixels": 3102,
+    "mean_luminance": 0.08228135507235783,
+    "mean_variance": 0.01895748909811269,
+    "count_share": {
+     "miss": 0.6182358156028369,
+     "near": 0.18609526112185687,
+     "far": 0.19566892327530624
+    },
+    "mean_share": {
+     "miss": 0.13553507215142044,
+     "near": 0.3269918799720698,
+     "far": 0.5374730478765097
+    },
+    "variance_share": {
+     "miss": -0.02786172169641228,
+     "near": 0.09675727196305411,
+     "far": 0.9311044497333582
+    }
+   },
+   "before_caps": {
+    "pixels": 3102,
+    "mean_luminance": 0.08228136753617932,
+    "mean_variance": 0.018957491027836153,
+    "count_share": {
+     "miss": 0.6182358156028369,
+     "near": 0.18609526112185687,
+     "far": 0.19566892327530624
+    },
+    "mean_share": {
+     "miss": 0.135535203098886,
+     "near": 0.326991830439976,
+     "far": 0.5374729664611381
+    },
+    "variance_share": {
+     "miss": -0.027861585138622712,
+     "near": 0.09675724414402202,
+     "far": 0.9311043409946007
+    }
+   },
+   "check": {
+    "census_mean": 0.08228135507235783,
+    "slow_history_mean": 0.07946117967367172,
+    "ratio": 1.0354912349686716
+   }
+  }
+ ]
+}

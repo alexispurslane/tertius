@@ -1,0 +1,102 @@
+[
+  {
+    "frame": 0,
+    "capture": "c-s00",
+    "stops": -4.0502853
+  },
+  {
+    "frame": 1,
+    "capture": "c-s01",
+    "stops": -4.0440083
+  },
+  {
+    "frame": 2,
+    "capture": "c-s02",
+    "stops": -4.0413146
+  },
+  {
+    "frame": 3,
+    "capture": "c-s03",
+    "stops": -4.0415
+  },
+  {
+    "frame": 4,
+    "capture": "c-s04",
+    "stops": -4.039656
+  },
+  {
+    "frame": 5,
+    "capture": "c-s05",
+    "stops": -4.038682
+  },
+  {
+    "frame": 6,
+    "capture": "c-s06",
+    "stops": -4.0414114
+  },
+  {
+    "frame": 7,
+    "capture": "c-s07",
+    "stops": -4.040353
+  },
+  {
+    "frame": 8,
+    "capture": "c-s08",
+    "stops": -4.04239
+  },
+  {
+    "frame": 9,
+    "capture": "c-s09",
+    "stops": -4.0417004
+  },
+  {
+    "frame": 10,
+    "capture": "c-s10",
+    "stops": -4.0375333
+  },
+  {
+    "frame": 11,
+    "capture": "c-s11",
+    "stops": -4.041552
+  },
+  {
+    "frame": 12,
+    "capture": "c-s12",
+    "stops": -4.0387983
+  },
+  {
+    "frame": 13,
+    "capture": "c-s13",
+    "stops": -4.0425363
+  },
+  {
+    "frame": 14,
+    "capture": "c-s14",
+    "stops": -4.040342
+  },
+  {
+    "frame": 15,
+    "capture": "c-s15",
+    "stops": -4.0408664
+  },
+  {
+    "frame": 16,
+    "capture": "c-s16",
+    "stops": -4.0417085
+  },
+  {
+    "frame": 17,
+    "capture": "c-s17",
+    "stops": -4.0419664
+  },
+  {
+    "frame": 18,
+    "capture": "c-s18",
+    "stops": -4.040863
+  },
+  {
+    "frame": 19,
+    "capture": "c-s19",
+    "stops": -4.0433316
+  }
+]

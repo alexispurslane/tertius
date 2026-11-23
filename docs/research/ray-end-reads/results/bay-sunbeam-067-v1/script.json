@@ -1,0 +1,97 @@
+{
+ "scene": "demo-surface",
+ "window": {
+  "width": 1920,
+  "height": 1080
+ },
+ "steps": [
+  {
+   "do": "camera",
+   "entity": "bay-camera"
+  },
+  {
+   "do": "run",
+   "ticks": 420
+  },
+  {
+   "do": "capture",
+   "name": "c-s00"
+  },
+  {
+   "do": "capture",
+   "name": "c-s01"
+  },
+  {
+   "do": "capture",
+   "name": "c-s02"
+  },
+  {
+   "do": "capture",
+   "name": "c-s03"
+  },
+  {
+   "do": "capture",
+   "name": "c-s04"
+  },
+  {
+   "do": "capture",
+   "name": "c-s05"
+  },
+  {
+   "do": "capture",
+   "name": "c-s06"
+  },
+  {
+   "do": "capture",
+   "name": "c-s07"
+  },
+  {
+   "do": "capture",
+   "name": "c-s08"
+  },
+  {
+   "do": "capture",
+   "name": "c-s09"
+  },
+  {
+   "do": "capture",
+   "name": "c-s10"
+  },
+  {
+   "do": "capture",
+   "name": "c-s11"
+  },
+  {
+   "do": "capture",
+   "name": "c-s12"
+  },
+  {
+   "do": "capture",
+   "name": "c-s13"
+  },
+  {
+   "do": "capture",
+   "name": "c-s14"
+  },
+  {
+   "do": "capture",
+   "name": "c-s15"
+  },
+  {
+   "do": "capture",
+   "name": "c-s16"
+  },
+  {
+   "do": "capture",
+   "name": "c-s17"
+  },
+  {
+   "do": "capture",
+   "name": "c-s18"
+  },
+  {
+   "do": "capture",
+   "name": "c-s19"
+  }
+ ]
+}

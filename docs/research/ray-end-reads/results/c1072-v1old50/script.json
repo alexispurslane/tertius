@@ -1,0 +1,217 @@
+{
+ "scene": "orbit",
+ "window": {
+  "width": 1280,
+  "height": 720
+ },
+ "steps": [
+  {
+   "do": "camera",
+   "entity": "person"
+  },
+  {
+   "do": "run",
+   "ticks": 63
+  },
+  {
+   "do": "capture",
+   "name": "c-s00"
+  },
+  {
+   "do": "capture",
+   "name": "c-s01"
+  },
+  {
+   "do": "capture",
+   "name": "c-s02"
+  },
+  {
+   "do": "capture",
+   "name": "c-s03"
+  },
+  {
+   "do": "capture",
+   "name": "c-s04"
+  },
+  {
+   "do": "capture",
+   "name": "c-s05"
+  },
+  {
+   "do": "capture",
+   "name": "c-s06"
+  },
+  {
+   "do": "capture",
+   "name": "c-s07"
+  },
+  {
+   "do": "capture",
+   "name": "c-s08"
+  },
+  {
+   "do": "capture",
+   "name": "c-s09"
+  },
+  {
+   "do": "capture",
+   "name": "c-s10"
+  },
+  {
+   "do": "capture",
+   "name": "c-s11"
+  },
+  {
+   "do": "capture",
+   "name": "c-s12"
+  },
+  {
+   "do": "capture",
+   "name": "c-s13"
+  },
+  {
+   "do": "capture",
+   "name": "c-s14"
+  },
+  {
+   "do": "capture",
+   "name": "c-s15"
+  },
+  {
+   "do": "capture",
+   "name": "c-s16"
+  },
+  {
+   "do": "capture",
+   "name": "c-s17"
+  },
+  {
+   "do": "capture",
+   "name": "c-s18"
+  },
+  {
+   "do": "capture",
+   "name": "c-s19"
+  },
+  {
+   "do": "capture",
+   "name": "c-s20"
+  },
+  {
+   "do": "capture",
+   "name": "c-s21"
+  },
+  {
+   "do": "capture",
+   "name": "c-s22"
+  },
+  {
+   "do": "capture",
+   "name": "c-s23"
+  },
+  {
+   "do": "capture",
+   "name": "c-s24"
+  },
+  {
+   "do": "capture",
+   "name": "c-s25"
+  },
+  {
+   "do": "capture",
+   "name": "c-s26"
+  },
+  {
+   "do": "capture",
+   "name": "c-s27"
+  },
+  {
+   "do": "capture",
+   "name": "c-s28"
+  },
+  {
+   "do": "capture",
+   "name": "c-s29"
+  },
+  {
+   "do": "capture",
+   "name": "c-s30"
+  },
+  {
+   "do": "capture",
+   "name": "c-s31"
+  },
+  {
+   "do": "capture",
+   "name": "c-s32"
+  },
+  {
+   "do": "capture",
+   "name": "c-s33"
+  },
+  {
+   "do": "capture",
+   "name": "c-s34"
+  },
+  {
+   "do": "capture",
+   "name": "c-s35"
+  },
+  {
+   "do": "capture",
+   "name": "c-s36"
+  },
+  {
+   "do": "capture",
+   "name": "c-s37"
+  },
+  {
+   "do": "capture",
+   "name": "c-s38"
+  },
+  {
+   "do": "capture",
+   "name": "c-s39"
+  },
+  {
+   "do": "capture",
+   "name": "c-s40"
+  },
+  {
+   "do": "capture",
+   "name": "c-s41"
+  },
+  {
+   "do": "capture",
+   "name": "c-s42"
+  },
+  {
+   "do": "capture",
+   "name": "c-s43"
+  },
+  {
+   "do": "capture",
+   "name": "c-s44"
+  },
+  {
+   "do": "capture",
+   "name": "c-s45"
+  },
+  {
+   "do": "capture",
+   "name": "c-s46"
+  },
+  {
+   "do": "capture",
+   "name": "c-s47"
+  },
+  {
+   "do": "capture",
+   "name": "c-s48"
+  },
+  {
+   "do": "capture",
+   "name": "c-s49"
+  }
+ ]
+}

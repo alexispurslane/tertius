@@ -1,0 +1,41 @@
+#version 460
+// PROBE (ter-pdw8, never commit to src): one level of the hit light's mip atlas. Level k (trace.drawIndex carries k,
+// from 1) of each of the hit light's four layers is the plain 2 x 2 mean of level k - 1 over the children that hold a
+// traced surface: rgb is the mean light of the covered children, alpha the mean of their coverage (1 for a pixel that a
+// walk can hit, 0 for the sky). Level 0 is the hit light itself; level k lies at (B, top of k) of the same image, where B
+// is the render allocation's width (probeAtlasOf in screen_trace.glsl).
+#extension GL_GOOGLE_include_directive : require
+#include "screen_trace.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main()
+{
+    int level = int(trace.drawIndex);
+    ivec2 cell = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(cell, probeLevelSize(level))))
+        return;
+    ivec2 children = probeLevelSize(level - 1);
+    for (int layer = 0; layer < 4; layer++)
+    {
+        vec3 light = vec3(0.0);
+        float covered = 0.0;
+        float count = 0.0;
+        for (int j = 0; j < 2; j++)
+            for (int i = 0; i < 2; i++)
+            {
+                ivec2 child = 2 * cell + ivec2(i, j);
+                if (any(greaterThanEqual(child, children)))
+                    continue;
+                vec4 value = imageLoad(hitLight, ivec3(probeAtlasOf(level - 1, child), layer));
+                light += value.rgb * value.a;
+                covered += value.a;
+                count += 1.0;
+            }
+        imageStore(
+            hitLight,
+            ivec3(probeAtlasOf(level, cell), layer),
+            vec4(covered > 0.0 ? light / covered : vec3(0.0), covered / max(count, 1.0))
+        );
+    }
+}
