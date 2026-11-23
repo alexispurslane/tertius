@@ -19,7 +19,9 @@
 #   K6    |D| > 3 a at this tested draw and the 5 tested draws before it in a row gives 8;
 #   E'<k> E with the gated update: m2 changes only at tested draws whose |D| is at or under the bar of the draw before;
 #   E'C1-<k> the continuous cap at p = 1 with u = |D| - 3 b and E'<k>'s b;
-#   CK3   the continuous cap at p = 1 (C1's), only from the 3rd tested draw in a row above the bar on.
+#   CK3   the continuous cap at p = 1 (C1's), only from the 3rd tested draw in a row above the bar on;
+#   CP    C1's cap with a bar that shrinks while the excursion lasts: r = the tested draws in a row up to this one above
+#         3 a, B = 3 a / sqrt(1 + (r - 1) / W), u = |D| - B where r >= 1 (no cap at r = 0).
 # The model history of a render block (8 x 8 pixels): its length L grows by 1 per draw to 32 from 1 at the run's first draw,
 # and takes the smallest cap of the block's anchors of the draw before (the anchors whose 17 x 17 region holds the block,
 # up to 9). Its light y follows the logged light of the block's nearest anchor: y = y + (x - y) / L, at the anchor's valid
@@ -150,9 +152,16 @@ def candidates(x, g, P, ps=(1, 2, 4), extra_p=()):
         k6[t] = run >= 6
     caps['K6'] = np.where(k6, FLOOR, FULL)
     # CK3: the continuous cap at p = 1, from the 3rd tested draw in a row above the bar on, with that draw's cap.
-    caps['CK3'] = np.where(_runs(today) >= 3, continuous(D, s1, a, 1), FULL)
+    runs = _runs(today)
+    caps['CK3'] = np.where(runs >= 3, continuous(D, s1, a, 1), FULL)
+    # CP: the bar in use shrinks while the excursion lasts, B = 3 a / sqrt(1 + (r - 1) / W) with r the tested draws in a
+    # row above 3 a; u = |D| - B where r >= 1, and C1's cap of u. At r = 1 it is C1.
+    shrunk = 3 * a / np.sqrt(1 + np.maximum(runs - 1, 0) / W)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        n = (W * s1 / (math.sqrt(2) * (np.abs(D) - shrunk))) ** (2 / 3)
+    caps['CP'] = np.where(runs >= 1, np.clip(np.nan_to_num(n, nan=FLOOR), FLOOR, FULL), FULL)
     return caps, dict(tested=tested, D=D, s1=s1, a=a, stat=stat, today=today, spans=spans, measures=measures,
-                      gated=gated)
+                      gated=gated, runs=runs)
 
 
 def _runs(today):
