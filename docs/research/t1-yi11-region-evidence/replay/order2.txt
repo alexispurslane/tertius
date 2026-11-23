@@ -1,0 +1,18 @@
+bay, bounce alone
+  above 3     logged  1382; 40 shuffled orders of the whole picture: median 1101, least 870, most 1290; shuffles at or above the logged count: 0 of 40
+  above 4     logged   216; 40 shuffled orders of the whole picture: median 149, least 97, most 231; shuffles at or above the logged count: 2 of 40
+  above 5     logged    56; 40 shuffled orders of the whole picture: median 25, least 8, most 55; shuffles at or above the logged count: 0 of 40
+  above 6     logged    19; 40 shuffled orders of the whole picture: median 5, least 0, most 18; shuffles at or above the logged count: 0 of 40
+  signed rank logged     8; 40 shuffled orders of the whole picture: median 10, least 1, most 22; shuffles at or above the logged count: 29 of 40
+exit-cabin, bounce alone
+  above 3     logged  1120; 40 shuffled orders of the whole picture: median 1141, least 909, most 1373; shuffles at or above the logged count: 22 of 40
+  above 4     logged   157; 40 shuffled orders of the whole picture: median 158, least 118, most 239; shuffles at or above the logged count: 21 of 40
+  above 5     logged    29; 40 shuffled orders of the whole picture: median 26, least 6, most 50; shuffles at or above the logged count: 14 of 40
+  above 6     logged     4; 40 shuffled orders of the whole picture: median 4, least 0, most 12; shuffles at or above the logged count: 20 of 40
+  signed rank logged    19; 40 shuffled orders of the whole picture: median 8, least 1, most 18; shuffles at or above the logged count: 0 of 40
+still cabin, bounce alone
+  above 3     logged   919; 40 shuffled orders of the whole picture: median 1040, least 934, most 1274; shuffles at or above the logged count: 40 of 40
+  above 4     logged   154; 40 shuffled orders of the whole picture: median 177, least 107, most 229; shuffles at or above the logged count: 35 of 40
+  above 5     logged    85; 40 shuffled orders of the whole picture: median 80, least 6, most 100; shuffles at or above the logged count: 14 of 40
+  above 6     logged    61; 40 shuffled orders of the whole picture: median 67, least 0, most 79; shuffles at or above the logged count: 26 of 40
+  signed rank logged     4; 40 shuffled orders of the whole picture: median 8, least 1, most 19; shuffles at or above the logged count: 37 of 40

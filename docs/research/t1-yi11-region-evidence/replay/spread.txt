@@ -1,0 +1,12 @@
+bay, bounce alone: 233 anchors, 524 draws
+  autocorrelation of the size of the deviation, median over the anchors / mean of the top tenth at lag 1: 1: -0.004 / +0.070, 2: -0.004 / +0.000, 5: +0.001 / -0.001, 9: +0.002 / +0.002, 18: -0.005 / -0.003, 36: +0.001 / +0.007, 72: +0.001 / -0.005,
+  size of log(newer spread / older spread): logged median 0.171, 90 % 0.428, 99 % 0.709; shuffled 0.174, 0.434, 0.700
+  correlation over the draws between the yes answers of the 30 draws before (mean 77.5) and the mean size of the deviation: -0.029
+exit-cabin, bounce alone: 240 anchors, 524 draws
+  autocorrelation of the size of the deviation, median over the anchors / mean of the top tenth at lag 1: 1: -0.001 / +0.063, 2: -0.007 / -0.012, 5: -0.003 / -0.011, 9: -0.004 / -0.006, 18: +0.002 / +0.008, 36: -0.008 / -0.003, 72: -0.002 / -0.005,
+  size of log(newer spread / older spread): logged median 0.169, 90 % 0.423, 99 % 0.691; shuffled 0.173, 0.428, 0.697
+  correlation over the draws between the yes answers of the 30 draws before (mean 62.2) and the mean size of the deviation: -0.038
+still cabin, bounce alone: 238 anchors, 524 draws
+  autocorrelation of the size of the deviation, median over the anchors / mean of the top tenth at lag 1: 1: -0.001 / +0.072, 2: -0.002 / +0.007, 5: -0.011 / -0.001, 9: -0.003 / -0.008, 18: -0.002 / -0.007, 36: +0.001 / -0.008, 72: +0.004 / -0.017,
+  size of log(newer spread / older spread): logged median 0.167, 90 % 0.412, 99 % 0.681; shuffled 0.167, 0.410, 0.668
+  correlation over the draws between the yes answers of the 30 draws before (mean 53.6) and the mean size of the deviation: +0.068
