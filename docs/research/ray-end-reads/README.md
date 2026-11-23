@@ -415,7 +415,8 @@ where
 
 - `historyLength` = the diffuse history's length at the pixel, in draws.
 - `fastCap` = the fast history's cap, 4 draws.
-- `lag` = how far the history's mean lies outside the clamp's box, in units of the box.
+- `lag` = `luminance(abs(slow - clamped)) / max(luminance(mean), 1e-4)`: the luminance of the clamp's move of the slow
+  history, over the luminance of the mean of the 3 × 3 fast histories.
 - `parameters.antiLagShare` = 0.5.
 
 That line ran only for the specular signal. The pixels with S2's share below 1 then fell from 51,304 to 174, and on the
