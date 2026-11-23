@@ -238,6 +238,48 @@ public sealed class AccumulationTraceTests(ITestOutputHelper output)
         );
 
     [Fact]
+    public void WhereTheBoxTakesAllNineFastHistoriesItsSpreadIsTheirSpreadAroundTheirMean() =>
+        WithRenderer(
+            Jittered,
+            (renderer, scene) =>
+            {
+                Draw(renderer, scene, 40);
+
+                // The box takes its moments around the pixel's own fast history (ticket tc-8142). Its spread is still
+                // the spread around the nine values' mean: a spread around the pixel's own value would be wider
+                // wherever the pixel differs from its neighbors. A box leaves out a neighbor of another surface (the
+                // block's edge) or of a view depth more than 10 % away (the floor near the horizon), so the test takes
+                // the boxes whose nine pixels share the pixel's normal and lie within 5 % of its distance.
+                float[] fast = renderer.ReadImage(
+                    renderer.ScreenTraceSignals.Specular.Fast(part: 0, parity: (int)(renderer.DrawnFrames & 1) ^ 1)
+                );
+                float[] mean = TraceLayer(renderer, Mean);
+                float[] deviation = TraceLayer(renderer, Deviation);
+                float[] normals = renderer.ReadNormals();
+                float[] distance = renderer.ReadDistance();
+                int[] boxes =
+                [
+                    .. InteriorPixels(renderer)
+                        .Intersect(ClampedPixels(renderer))
+                        .Where(pixel => AllNineInTheBox(normals: normals, distance: distance, pixel: pixel)),
+                ];
+                boxes.Length.Should().BeGreaterThan(Width * Height / 8);
+                boxes
+                    .Should()
+                    .OnlyContain(
+                        pixel =>
+                            Enumerable
+                                .Range(0, 3)
+                                .All(channel =>
+                                    Close(mean[4 * pixel + channel], NineAround(fast, pixel, channel).Average())
+                                    && Close(deviation[4 * pixel + channel], SpreadOf(NineAround(fast, pixel, channel)))
+                                ),
+                        "the box's mean and spread are those of the nine values, and the spread is around their mean"
+                    );
+            }
+        );
+
+    [Fact]
     public void TheLagIsTheClampsMoveAsAShareOfTheMeansLuminance() =>
         WithRenderer(
             Jittered,
@@ -320,6 +362,41 @@ public sealed class AccumulationTraceTests(ITestOutputHelper output)
                 return weights[4 * pixel + tap];
         return 0;
     }
+
+    /// <summary>
+    /// Whether the clamp's box surely takes all nine pixels around <paramref name="pixel"/>: they share its shading
+    /// normal, and each distance lies within 5 % of its own, well inside the box's 10 % of view depth (temporal.glsl,
+    /// sameSurface), since the view ray's length changes by far less between neighbors.
+    /// </summary>
+    private static bool AllNineInTheBox(float[] normals, float[] distance, int pixel) =>
+        Enumerable
+            .Range(-1, 3)
+            .SelectMany(y => Enumerable.Range(-1, 3).Select(x => pixel + y * Width + x))
+            .All(neighbor =>
+                normals[4 * neighbor] == normals[4 * pixel]
+                && normals[4 * neighbor + 1] == normals[4 * pixel + 1]
+                && MathF.Abs(distance[neighbor] - distance[pixel]) <= 0.05f * distance[pixel]
+            );
+
+    /// <summary>Whether a traced value matches an exact one within the GPU's single-float arithmetic.</summary>
+    private static bool Close(float traced, double exact) => Math.Abs(traced - exact) <= 1e-4 * (1 + Math.Abs(exact));
+
+    /// <summary>The population spread of <paramref name="values"/> around their mean.</summary>
+    private static double SpreadOf(double[] values)
+    {
+        double average = values.Average();
+        return Math.Sqrt(values.Average(value => (value - average) * (value - average)));
+    }
+
+    /// <summary>The <paramref name="channel"/> of the 3 × 3 pixels around <paramref name="pixel"/> in an RGBA image.</summary>
+    private static double[] NineAround(float[] rgba, int pixel, int channel) =>
+        [
+            .. Enumerable
+                .Range(-1, 3)
+                .SelectMany(y =>
+                    Enumerable.Range(-1, 3).Select(x => (double)rgba[4 * (pixel + y * Width + x) + channel])
+                ),
+        ];
 
     private static bool HasFlag(float[] layer, int pixel, int flag) => ((int)layer[4 * pixel + 3] & flag) != 0;
 
