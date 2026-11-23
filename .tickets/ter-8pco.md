@@ -1,6 +1,6 @@
 ---
 id: ter-8pco
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-22T21:13:03Z
@@ -36,3 +36,7 @@ A table per still and region, the probe patch committed as evidence, no engine c
 **2026-11-23T02:50:17Z**
 
 2026-11-22, the lead. The census is done. Record: docs/research/ray-census/README.md, with the probe patch (census-probe.patch, the survey's probe and the census edits against 3549d3283), the tools, each take's results, maps and regions. Five stills (rect-lamps as the control, bay-sunbeam, cabin-light-cabin, exit-cabin, and sunlit-nose for ter-fe63) at render scales 2/3 and 0.9584, 240 settling draws and 400 counted draws, clamps on. Result: far hits (2 m or more) carry 73 to 104 percent of the variance in every region but exit-cabin's wall below its windows, where misses carry 87 percent. Near hits carry at most 24 percent (cabin-light-cabin's shaded floor). Misses plus far hits carry 76 to 100 percent, so the review's condition 'under about 10 percent' fails in every region. The caps never bound a sample. The two scales agree within 0.02. The census mean is 1.00 to 1.12 times the slow history (ter-18hc is the suspect; not tested). The bay's sunlit patch: its brightest 0.1 percent are all far hits at 2.8 to 11 m, uncapped. Probe check: with the unpatched resolve, the per-pixel sums of X and X squared of rect-lamps at 2/3 are bitwise equal to the census's. The lamp-hall part for t7-3e22 is section 7 of the record. No engine change.
+
+**2026-11-23T02:52:02Z**
+
+2026-11-22, the line orchestrator. The census is merged into main by fast-forward at 0ed87f9e6, and I read the record docs/research/ray-census/README.md and looked at its pictures. No engine change merged. The result against the ticket's reading: far hits carry 73 to 104 percent of the bounce light's variance in every region but one, and misses carry 87 percent on exit-cabin's wall below its windows. Misses plus far hits carry 76 to 100 percent, so the condition 'under about 10 percent' fails in every region, and a far-field store can ease the mottle as far as the classes say. The census does not say how much of the far hits' variance a store removes. The caps never bound a sample. The probe's sums are bitwise equal to the unpatched renderer's. The sunlit ceiling of bay-sunbeam: the brightest 0.1 percent of its samples are all far hits at 2.8 to 11 m. The lamp hall part named the specks' source: a sunlit window sill thinner than a pixel, which one jitter phase of 25 draws as a row of direct light 162 against 0.22 on the ceiling. That is ter-fe63's mechanism, and its evidence moved there.
