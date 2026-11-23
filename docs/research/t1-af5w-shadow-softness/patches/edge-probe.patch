@@ -1,0 +1,177 @@
+--- a/src/Tertius.Rendering/Shaders/direct_key_fill.frag	2026-11-23 09:16:04
++++ b/src/Tertius.Rendering/Shaders/direct_key_fill.frag	2026-11-23 09:25:31
+@@ -2,6 +2,8 @@
+ // The direct pass under key and fill (docs/plans/light-pairs.md, "Key and fill"): direct.frag with the light of each
+ // lit pixel from its tile's key lights and fill (key_fill_light.glsl) in place of every light of the list.
+ #extension GL_GOOGLE_include_directive : require
++// SCRATCH (t1-af5w): the shadow-edge probe (lighting.glsl).
++#define TERTIUS_EDGE_PROBE
+ #include "frame.glsl"
+ #include "gbuffer_surface.glsl"
+ #include "temporal.glsl"
+@@ -30,4 +32,6 @@
+     float k = exposureScale();
+     outDiffuse = vec4(demodulated(direct.diffuse, factors.diffuse, k), 1.0);
+     outSpecular = vec4(demodulated(direct.specular, factors.specular, k), 1.0);
++    outDiffuse = probeEdgeA;
++    outSpecular = probeEdgeB;
+ }
+--- a/src/Tertius.Rendering/Shaders/lighting.glsl	2026-11-23 09:16:04
++++ b/src/Tertius.Rendering/Shaders/lighting.glsl	2026-11-23 09:25:31
+@@ -634,9 +634,112 @@
+     return true;
+ }
+ 
++#ifdef TERTIUS_EDGE_PROBE
++// SCRATCH (t1-af5w, never commit to src): the shadow-edge probe. At the first light of a pixel whose rendered ramp holds
++// the pixel (today's share strictly between 0 and 1), it records:
++//   probeEdgeA = (the gap from the mean of the blockers in the filter's 5 x 5 texels, m; the gap from the window's nearest
++//                 caster: TileLookup.bounds.y for a tile, the largest blocker depth for a cascade, m; the rendered width
++//                 on a receiver that faces the light, m; the light's index + 1, negative for a cascade set)
++//   probeEdgeB = (today's share; the caster's distance from the light in m for a tile, the cascade for the sun; the
++//                 emitter's largest width in m for a lamp, the sun's full angle in rad; the emitter's least width in m for a
++//                 lamp, the lit fraction for the sun)
++vec4 probeEdgeA = vec4(0.0);
++vec4 probeEdgeB = vec4(0.0);
++
++void probeShadowEdge(uint index, GpuLight light, LightPath p, vec3 position)
++{
++    uint slot = light.shadow.x;
++    if (slot == NoSlot || slot == FarShadowsOnlySlot)
++        return;
++    if (slot == AtlasTilesSlot)
++    {
++        TileLookup t = tileLookupOf(light, position, p.L, p.d, p.shadowNormal, p.sinTheta);
++        float lit = tileLitFraction(light, position, p.L, p.d, p.shadowNormal, p.sinTheta);
++        if (lit <= 0.0 || lit >= 1.0)
++            return;
++        ivec2 size = textureSize(shadowAtlas, 0).xy;
++        float sum = 0.0, n = 0.0;
++        for (int y = 0; y < 5; y++)
++            for (int x = 0; x < 5; x++)
++            {
++                ivec2 c = clamp(ivec2(t.first) + ivec2(x, y), ivec2(0), size - 1);
++                float z = texelFetch(shadowAtlas, ivec3(c, int(t.layer)), 0).r;
++                if (z > t.ndc.z)
++                {
++                    sum += z;
++                    n += 1.0;
++                }
++            }
++        if (n == 0.0)
++            return;
++        // Reversed depth with an infinite far plane: the depth is near / (the view depth), and distances along one ray from
++        // the light scale with the view depth.
++        float caster = p.d * t.ndc.z / (sum / n);
++        float nearest = p.d * t.ndc.z / max(t.bounds.y, 1e-30);
++        uint view = light.shadow.y + (light.shadow.z > 1u ? cubeFaceOf(-p.L) : 0u);
++        GpuShadowTile tile = shadowTiles[view];
++        float rendered = 4.0 * tile.texelPerMeter * (tile.near / max(t.ndc.z, 1e-30));
++        float kind = light.intensityKind.w;
++        float r = light.spotRadius.y;
++        float a = length(light.directionCosOuter.xyz), b = length(light.halfHeight.xyz);
++        vec2 widths = kind == RectKind ? vec2(2.0 * max(a, b), 2.0 * min(a, b))
++            : kind == TubeKind ? vec2(2.0 * (a + r), 2.0 * r) : vec2(2.0 * r);
++        probeEdgeA = vec4(p.d - caster, p.d - nearest, rendered, float(index) + 1.0);
++        probeEdgeB = vec4(lit, caster, widths);
++        return;
++    }
++    uint count = frame.counts.z;
++    if (count == 0u)
++        return;
++    float depth = dot(position, frame.cameraForward.xyz);
++    uint cascade = 0u;
++    while (cascade < count && depth >= frame.shadowSplits[cascade])
++        cascade++;
++    if (cascade == count)
++        return;
++    uint set = light.shadow.y;
++    float texel = frame.shadowTexel[cascade];
++    vec3 lookup = position + p.shadowNormal * (frame.shadowParams.y * texel * p.sinTheta);
++    mat4 m = frame.cascadeSets[set].viewProj[cascade];
++    vec4 clip = m * vec4(lookup, 1.0);
++    float reference = clip.z + frame.shadowParams.z;
++    float layer = float(set * 4u + cascade);
++    vec2 uv = clip.xy * 0.5 + 0.5;
++    float lit = filteredCascade(uv, layer, reference);
++    float share = lightOutsideShadow(lit);
++    if (share <= 0.0 || share >= 1.0)
++        return;
++    ivec2 size = textureSize(shadowCascades, 0).xy;
++    ivec2 first = ivec2(floor(uv * vec2(size))) - 2;
++    float sum = 0.0, n = 0.0, nearest = 0.0;
++    for (int y = 0; y < 5; y++)
++        for (int x = 0; x < 5; x++)
++        {
++            ivec2 c = clamp(first + ivec2(x, y), ivec2(0), size - 1);
++            float z = texelFetch(shadowCascades, ivec3(c, int(layer)), 0).r;
++            if (z > reference)
++            {
++                sum += z;
++                n += 1.0;
++                nearest = max(nearest, z);
++            }
++        }
++    if (n == 0.0)
++        return;
++    // An orthographic box: z changes by |row 2| per meter along the light.
++    float perMeter = length(vec3(m[0][2], m[1][2], m[2][2]));
++    probeEdgeA = vec4((sum / n - clip.z) / perMeter, (nearest - clip.z) / perMeter, 1.5 * texel, -(float(index) + 1.0));
++    probeEdgeB = vec4(share, float(cascade), 2.0 * asin(lightSineAt(light, p.d)), lit);
++}
++#endif
++
+ // The share of light `index` that its shadows let through at a point, along the path that lightPath gave there.
+ float pathVisibility(uint index, LightPath p, vec3 position, uint shadowMaps)
+ {
++#ifdef TERTIUS_EDGE_PROBE
++    if (probeEdgeA.w == 0.0 && shadowMaps == ShadowMapsMainView)
++        probeShadowEdge(index, lights[index], p, position);
++#endif
+     return lightVisibility(lights[index], position, p.L, p.d, p.shadowNormal, p.sinTheta, shadowMaps);
+ }
+ 
+--- a/src/Tertius.Rendering/VulkanRenderer.cs	2026-11-23 09:25:31
++++ b/src/Tertius.Rendering/VulkanRenderer.cs	2026-11-23 09:25:39
+@@ -693,6 +693,7 @@
+         output.SubmitAndPresent(frame);
+         CommitDrawnFrame(frame: frame, snapshot: snapshot, pending: pending);
+         ProbeCensus();
++        ProbeEdges();
+ 
+         if (sink != null && capture != null)
+         {
+@@ -778,6 +779,33 @@
+     private static readonly int ProbeCensusEvery =
+         int.TryParse(Environment.GetEnvironmentVariable("TERTIUS_X_CENSUS_EVERY"), out int every) && every > 0 ? every : 0;
+     private long probeCensusDraw;
++
++    // SCRATCH (t1-af5w, never commit to src): with TERTIUS_X_EDGE_PROBE=<folder>, each draw reads back the direct
++    // pass's two images, which the shadow-edge probe of lighting.glsl fills, and overwrites <folder>/edge-a.f32 and
++    // edge-b.f32 (RGBA float32, row by row from the top) and <folder>/edge.txt ("<width> <height> <draw>"). So after a
++    // still the files hold its last draw. The probe build's picture is not a picture of the light.
++    private static readonly string? ProbeEdgeFolder =
++        Environment.GetEnvironmentVariable("TERTIUS_X_EDGE_PROBE") is { Length: > 0 } edgeFolder ? edgeFolder : null;
++    private long probeEdgeDraw;
++
++    private void ProbeEdges()
++    {
++        if (ProbeEdgeFolder is not { } folder)
++            return;
++        System.IO.Directory.CreateDirectory(folder);
++        foreach ((string name, GpuImage image) in new[] { ("a", targets.DirectDiffuse), ("b", targets.DirectSpecular) })
++        {
++            float[] values = ReadImage(image);
++            System.IO.File.WriteAllBytes(
++                System.IO.Path.Combine(folder, $"edge-{name}.f32"),
++                System.Runtime.InteropServices.MemoryMarshal.AsBytes(values.AsSpan()).ToArray()
++            );
++        }
++        System.IO.File.WriteAllText(
++            System.IO.Path.Combine(folder, "edge.txt"),
++            $"{targets.DirectDiffuse.Extent.Width} {targets.DirectDiffuse.Extent.Height} {probeEdgeDraw++}\n"
++        );
++    }
+ 
+     private void ProbeCensus()
+     {

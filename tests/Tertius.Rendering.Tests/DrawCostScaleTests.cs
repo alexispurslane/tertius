@@ -18,14 +18,65 @@ public sealed class DrawCostScaleTests
     private const double OrdinaryCost = 20;
     private const double CatchUpCost = 40;
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void TheRunsFirstDrawFitsNoModelAndMovesNoRequestInEitherKind(bool catchUp)
+    {
+        DrawCost cost = catchUp ? DrawCost.CatchUp : DrawCost.Ordinary;
+        var controller = new RenderScaleController(FrameTimeTarget.Default);
+        float scale = controller.Next(frame: 0, cost: cost);
+
+        // The GPU began the run's first draw at its idle clock: 229 ms against 29 ms warm on the card (t0-ygp1).
+        controller.Measure(Timings(frame: 0, scale: scale, renderCost: 8 * CatchUpCost));
+
+        controller.RequestedScaleFor(DrawCost.Ordinary).Should().Be(1);
+        controller.RequestedScaleFor(DrawCost.CatchUp).Should().Be(1);
+        controller.AssertInvariants();
+    }
+
+    [Fact]
+    public void TheFirstRecordedDrawIsNoMeasurementWhateverItsFrameNumber()
+    {
+        // A renderer can make its controller after its first frames, so the first recorded draw need not be frame 0.
+        var controller = new RenderScaleController(FrameTimeTarget.Default);
+        float first = controller.Next(frame: 5, cost: DrawCost.CatchUp);
+        controller.Measure(Timings(frame: 5, scale: first, renderCost: 8 * CatchUpCost));
+        float second = controller.Next(frame: 6, cost: DrawCost.CatchUp);
+
+        second.Should().Be(1, "draw 5 fitted no model");
+        controller.Measure(Timings(frame: 6, scale: second, renderCost: CatchUpCost));
+        controller.RequestedScaleFor(DrawCost.CatchUp).Should().BeLessThan(1, "draw 6 is the first fit");
+        controller.AssertInvariants();
+    }
+
+    [Fact]
+    public void TheSecondRecordedDrawIsTheFirstFit()
+    {
+        var controller = new RenderScaleController(FrameTimeTarget.Default);
+        float first = controller.Next(frame: 0, cost: DrawCost.CatchUp);
+        controller.Measure(Timings(frame: 0, scale: first, renderCost: 8 * CatchUpCost));
+        float second = controller.Next(frame: 1, cost: DrawCost.CatchUp);
+
+        controller.Measure(Timings(frame: 1, scale: second, renderCost: CatchUpCost));
+
+        double wanted = Math.Sqrt(12 / CatchUpCost);
+        controller
+            .RequestedScaleFor(DrawCost.CatchUp)
+            .Should()
+            .BeApproximately((float)(1 + 0.25 * (wanted - 1)), 1e-6f, "the model is the second draw's cost alone");
+        controller.AssertInvariants();
+    }
+
     [Fact]
     public void ACatchUpDrawsMeasurementDoesNotMoveTheOrdinaryRequest()
     {
-        var controller = new RenderScaleController(FrameTimeTarget.Default);
-        float scale = controller.Next(frame: 0, cost: DrawCost.CatchUp);
+        RenderScaleController controller = AfterItsFirstDraw(FrameTimeTarget.Default);
+        float scale = controller.Next(frame: 1, cost: DrawCost.CatchUp);
 
-        controller.Measure(Timings(frame: 0, scale: scale, renderCost: CatchUpCost));
+        controller.Measure(Timings(frame: 1, scale: scale, renderCost: CatchUpCost));
 
+        controller.RequestedScaleFor(DrawCost.CatchUp).Should().BeLessThan(1, "the catch-up draw was measured");
         controller.RequestedScaleFor(DrawCost.Ordinary).Should().Be(1, "only the catch-up model saw the dear draw");
         controller.AssertInvariants();
     }
@@ -33,10 +84,10 @@ public sealed class DrawCostScaleTests
     [Fact]
     public void ACatchUpDrawsMeasurementMovesTheCatchUpRequestTowardItsBudget()
     {
-        var controller = new RenderScaleController(FrameTimeTarget.Default);
-        float scale = controller.Next(frame: 0, cost: DrawCost.CatchUp);
+        RenderScaleController controller = AfterItsFirstDraw(FrameTimeTarget.Default);
+        float scale = controller.Next(frame: 1, cost: DrawCost.CatchUp);
 
-        controller.Measure(Timings(frame: 0, scale: scale, renderCost: CatchUpCost));
+        controller.Measure(Timings(frame: 1, scale: scale, renderCost: CatchUpCost));
 
         double wanted = Math.Sqrt(12 / CatchUpCost);
         controller
@@ -48,13 +99,14 @@ public sealed class DrawCostScaleTests
     [Fact]
     public void AnOrdinaryDrawsMeasurementDoesNotMoveTheCatchUpRequest()
     {
-        var controller = new RenderScaleController(FrameTimeTarget.Default);
-        float dear = controller.Next(frame: 0, cost: DrawCost.CatchUp);
-        controller.Measure(Timings(frame: 0, scale: dear, renderCost: CatchUpCost));
+        RenderScaleController controller = AfterItsFirstDraw(FrameTimeTarget.Default);
+        float dear = controller.Next(frame: 1, cost: DrawCost.CatchUp);
+        controller.Measure(Timings(frame: 1, scale: dear, renderCost: CatchUpCost));
         float catchUp = controller.RequestedScaleFor(DrawCost.CatchUp);
-        float ordinary = controller.Next(frame: 1, cost: DrawCost.Ordinary);
+        catchUp.Should().BeLessThan(1, "the catch-up draw was measured");
+        float ordinary = controller.Next(frame: 2, cost: DrawCost.Ordinary);
 
-        controller.Measure(Timings(frame: 1, scale: ordinary, renderCost: 100));
+        controller.Measure(Timings(frame: 2, scale: ordinary, renderCost: 100));
 
         controller.RequestedScaleFor(DrawCost.CatchUp).Should().Be(catchUp);
         controller.AssertInvariants();

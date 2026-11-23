@@ -1,0 +1,140 @@
+--- a/src/Tertius.Rendering/Frame/FrameResources.cs	2026-11-23 09:55:13
++++ b/src/Tertius.Rendering/Frame/FrameResources.cs	2026-11-23 09:55:27
+@@ -250,6 +250,23 @@
+             gpuLights[i] = GpuLight.From(scene.Lights[i]);
+         // PROBE (tools/renderer-survey): the lamps of the survey's switch, which the batcher decided for this draw.
+         ProbeLampSwitch.Darken(scene.LightSpan, gpuLights.AsSpan(0, scene.LightCount));
++        // SCRATCH (t1-af5w, never commit to src): with TERTIUS_X_EDGE_PROBE=<folder>, each frame overwrites
++        // <folder>/lights.txt: per light "<index> <kind> <radius m> <|half width or segment| m> <|half height| m> <slot>
++        // <first tile view or set> <tile views> <x> <y> <z> <reach m>", the GPU form's fields.
++        if (Environment.GetEnvironmentVariable("TERTIUS_X_EDGE_PROBE") is { Length: > 0 } probeFolder)
++        {
++            var probeLines = new System.Text.StringBuilder();
++            for (int i = 0; i < scene.LightCount; i++)
++            {
++                GpuLight l = gpuLights[i];
++                probeLines.Append(
++                    System.Globalization.CultureInfo.InvariantCulture,
++                    $"{i} {l.IntensityKind.W} {l.SpotRadius.Y} {new System.Numerics.Vector3(l.DirectionCosOuter.X, l.DirectionCosOuter.Y, l.DirectionCosOuter.Z).Length()} {new System.Numerics.Vector3(l.HalfHeight.X, l.HalfHeight.Y, l.HalfHeight.Z).Length()} {l.Shadow.X} {l.Shadow.Y} {l.Shadow.Z} {l.PositionReach.X} {l.PositionReach.Y} {l.PositionReach.Z} {l.PositionReach.W}\n"
++                );
++            }
++            System.IO.Directory.CreateDirectory(probeFolder);
++            System.IO.File.WriteAllText(System.IO.Path.Combine(probeFolder, "lights.txt"), probeLines.ToString());
++        }
+         return gpuLights.AsSpan(0, scene.LightCount);
+     }
+ 
+--- a/src/Tertius.Rendering/Shaders/direct_key_fill.frag	2026-11-23 09:55:13
++++ b/src/Tertius.Rendering/Shaders/direct_key_fill.frag	2026-11-23 09:55:14
+@@ -3,7 +3,7 @@
+ // lit pixel from its tile's key lights and fill (key_fill_light.glsl) in place of every light of the list.
+ #extension GL_GOOGLE_include_directive : require
+ // SCRATCH (t1-af5w): the shadow-edge probe (lighting.glsl).
+-#define TERTIUS_EDGE_PROBE
++#define TERTIUS_EDGE_PROBE 2
+ #include "frame.glsl"
+ #include "gbuffer_surface.glsl"
+ #include "temporal.glsl"
+@@ -33,5 +33,5 @@
+     outDiffuse = vec4(demodulated(direct.diffuse, factors.diffuse, k), 1.0);
+     outSpecular = vec4(demodulated(direct.specular, factors.specular, k), 1.0);
+     outDiffuse = probeEdgeA;
+-    outSpecular = probeEdgeB;
++    outSpecular = vec4(float(probeMask[0]), float(probeMask[1]), float(probeMask[2]), float(probeMask[3]));
+ }
+--- a/src/Tertius.Rendering/Shaders/lighting.glsl	2026-11-23 09:55:13
++++ b/src/Tertius.Rendering/Shaders/lighting.glsl	2026-11-23 09:55:14
+@@ -645,6 +645,17 @@
+ //                 lamp, the lit fraction for the sun)
+ vec4 probeEdgeA = vec4(0.0);
+ vec4 probeEdgeB = vec4(0.0);
++#if TERTIUS_EDGE_PROBE == 2
++// Probe v2: the lights with a shadow lookup at the pixel, 11 bits per channel (fp16 holds integers to 2048 exactly).
++uint probeMask[4] = uint[4](0u, 0u, 0u, 0u);
++// The mean distance in m of the blocking texels, unprojected with their depths, from the receiver's own plane.
++float probePlaneResidual(mat4 viewProj, ivec2 c, ivec2 size, float z, vec3 position, vec3 normal)
++{
++    vec2 ndcxy = (vec2(c) + 0.5) / vec2(size) * 2.0 - 1.0;
++    vec4 q = inverse(viewProj) * vec4(ndcxy, z, 1.0);
++    return abs(dot(q.xyz / q.w - position, normal));
++}
++#endif
+ 
+ void probeShadowEdge(uint index, GpuLight light, LightPath p, vec3 position)
+ {
+@@ -658,7 +669,7 @@
+         if (lit <= 0.0 || lit >= 1.0)
+             return;
+         ivec2 size = textureSize(shadowAtlas, 0).xy;
+-        float sum = 0.0, n = 0.0;
++        float sum = 0.0, n = 0.0, resid = 0.0;
+         for (int y = 0; y < 5; y++)
+             for (int x = 0; x < 5; x++)
+             {
+@@ -668,6 +679,10 @@
+                 {
+                     sum += z;
+                     n += 1.0;
++#if TERTIUS_EDGE_PROBE == 2
++                    resid += probePlaneResidual(shadowTiles[light.shadow.y + (light.shadow.z > 1u ? cubeFaceOf(-p.L) : 0u)].viewProj,
++                        c, size, z, position, p.shadowNormal);
++#endif
+                 }
+             }
+         if (n == 0.0)
+@@ -686,6 +701,10 @@
+             : kind == TubeKind ? vec2(2.0 * (a + r), 2.0 * r) : vec2(2.0 * r);
+         probeEdgeA = vec4(p.d - caster, p.d - nearest, rendered, float(index) + 1.0);
+         probeEdgeB = vec4(lit, caster, widths);
++#if TERTIUS_EDGE_PROBE == 2
++        float farthest = p.d * t.ndc.z / max(t.bounds.x, 1e-30);
++        probeEdgeA = vec4(resid / n, p.sinTheta, min(farthest - nearest, 60000.0), float(index) + 1.0);
++#endif
+         return;
+     }
+     uint count = frame.counts.z;
+@@ -711,17 +730,21 @@
+         return;
+     ivec2 size = textureSize(shadowCascades, 0).xy;
+     ivec2 first = ivec2(floor(uv * vec2(size))) - 2;
+-    float sum = 0.0, n = 0.0, nearest = 0.0;
++    float sum = 0.0, n = 0.0, nearest = 0.0, resid = 0.0, least = 1.0;
+     for (int y = 0; y < 5; y++)
+         for (int x = 0; x < 5; x++)
+         {
+             ivec2 c = clamp(first + ivec2(x, y), ivec2(0), size - 1);
+             float z = texelFetch(shadowCascades, ivec3(c, int(layer)), 0).r;
++            least = min(least, z);
+             if (z > reference)
+             {
+                 sum += z;
+                 n += 1.0;
+                 nearest = max(nearest, z);
++#if TERTIUS_EDGE_PROBE == 2
++                resid += probePlaneResidual(m, c, size, z, position, p.shadowNormal);
++#endif
+             }
+         }
+     if (n == 0.0)
+@@ -730,6 +753,9 @@
+     float perMeter = length(vec3(m[0][2], m[1][2], m[2][2]));
+     probeEdgeA = vec4((sum / n - clip.z) / perMeter, (nearest - clip.z) / perMeter, 1.5 * texel, -(float(index) + 1.0));
+     probeEdgeB = vec4(share, float(cascade), 2.0 * asin(lightSineAt(light, p.d)), lit);
++#if TERTIUS_EDGE_PROBE == 2
++    probeEdgeA = vec4(resid / n, p.sinTheta, (nearest - least) / perMeter, -(float(index) + 1.0));
++#endif
+ }
+ #endif
+ 
+@@ -737,6 +763,11 @@
+ float pathVisibility(uint index, LightPath p, vec3 position, uint shadowMaps)
+ {
+ #ifdef TERTIUS_EDGE_PROBE
++#if TERTIUS_EDGE_PROBE == 2
++    if (shadowMaps == ShadowMapsMainView && lights[index].shadow.x != NoSlot && lights[index].shadow.x != FarShadowsOnlySlot
++        && index < 44u)
++        probeMask[index / 11u] |= 1u << (index % 11u);
++#endif
+     if (probeEdgeA.w == 0.0 && shadowMaps == ShadowMapsMainView)
+         probeShadowEdge(index, lights[index], p, position);
+ #endif
