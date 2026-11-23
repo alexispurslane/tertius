@@ -79,9 +79,18 @@ const float DoubtfulLitFraction = 0.5 + 0.5 / float(FilterTapsPerAxis);
 // area loses 1.25 texels at each edge, a quarter texel more than a rule that starts at one half. The rule trades light
 // under partly covered receivers for no leak at a rounded edge, so a caster narrower than 1.5 texels casts 8/3 of its
 // true shadow (t1-gout, "A stated limit of the rule"). One bilinear comparison showed a crawling staircase.
+//
+// The rule is clamp((litFraction - D) / (1 - D), 0, 1). The code writes it in two steps only for the cost on Apple's M1,
+// and the two steps give the same share to within 6e-8 for every litFraction in [0, 1]. The first step,
+// 2 litFraction - 2 D, has factors that the M1 encodes in the instruction, and its clamp at 1 never binds, because
+// litFraction - D is at most 1 - D = 3/8. The rule in one step needs two constants in registers at each of the 24 lookups
+// of direct_key_fill.frag. That raised the shader from register 115 to 116, where the M1 keeps 384 resident threads
+// instead of 448, and cost 0.13 ms to 0.28 ms of the direct pass in every view, with sun or without (t1-gout, "The
+// cost"; t2-x53j).
 float lightOutsideShadow(float litFraction)
 {
-    return clamp((litFraction - DoubtfulLitFraction) / (1.0 - DoubtfulLitFraction), 0.0, 1.0);
+    float twice = clamp(2.0 * litFraction - 2.0 * DoubtfulLitFraction, 0.0, 1.0);
+    return clamp(twice * (0.5 / (1.0 - DoubtfulLitFraction)), 0.0, 1.0);
 }
 
 // The sun's share from one cascade of one cascade set at a world position, with geometricNormal and sinTheta as in

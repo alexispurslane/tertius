@@ -1542,8 +1542,8 @@ public sealed class LocalShadowRenderTests
     /// 0.197 at 1 texel.
     /// </summary>
     [Fact(
-        Skip = "The tiles keep the symmetric filter until the orchestrator decides the tiles' half of t1-gout's remedy "
-            + "on the pictures; tileShadow taking lightOutsideShadow turns this test green."
+        Skip = "The tiles keep the symmetric filter (t1-gout): the lit-side rule hardened every lamp's shadow. The leak "
+            + "that this test pins is t1-hdtm, whose fix turns it green."
     )]
     public void AWallsSideFaceUnderARoofsEdgeTakesNoLightFromASpotLampsTile()
     {
