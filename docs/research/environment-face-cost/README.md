@@ -355,6 +355,8 @@ what is left. Then it measures a lean field face, the face that a field point of
 - **The lean field face does not fit 0.7 ms per draw on the Mac by the span**: 216 faces in 60 draws cost 1.11 ms per
   draw at 16 and 1.48 ms at 32 (section 10.6). By the pass sum they cost 0.57 and 0.96 ms. On the card they cost 0.16
   to 0.17 ms per draw.
+- **With the empty depth ranges skipped, the lean field face fits at 16**: 0.35 ms per draw by the span, and 0.63 ms at
+  32 (section 10.6, "Skipping the empty depth ranges"). The skip saves nothing for today's face.
 
 ### 10.2 Terms
 
@@ -401,10 +403,12 @@ what is left. Then it measures a lean field face, the face that a field point of
 3. **`ranges-skip` is exact**: the dumped faces with and without it are bit-identical, 12 on the deck and 18 in the cabin
    (`tools/counts.sh`, compared with `cmp`).
 4. **The Mac**: `tools/queue-mac.sh`, 3 rounds of each variant, a run set aside at a load of 8 or more at the lock. The
-   split runs at a spacing of 2 (`results/t1-6tn2/mac2-facecost.jsonl`) and at a spacing of 4 (`mac4-facecost.jsonl`),
-   the lean faces at 6 faces per pass and a spacing of 4 (`lean-facecost.jsonl`). Every take ran in a dev shell with a
-   garbage collection root (`nix develop --profile <evidence folder>/nix/dev-profile`), whose closure holds MoltenVK
-   (section 4.1). 1,288 to 1,296 MHz in every kept run.
+   split runs at a spacing of 2 (`results/t1-6tn2/mac2-facecost.jsonl`), the lean faces at 6 faces per pass and a
+   spacing of 4 (`lean-facecost.jsonl`), and the range skip in a later session (`mac2b-facecost.jsonl`,
+   `lean2-facecost.jsonl`). The split at a spacing of 4 was not completed (end of section 10.4). Every take ran in a
+   dev shell with a garbage collection root (`nix develop --profile <evidence folder>/nix/dev-profile`), whose closure
+   holds MoltenVK (section 4.1). 1,288 to 1,296 MHz in every kept run of the split and the first lean runs, and 1,275 to
+   1,296 MHz in the range-skip runs.
 5. **The card**: one job (f3fbc2c3, 197 s, $0.043) with a discarded warm-up run: the split at a spacing of 2 and the lean
    faces at 6 per pass and a spacing of 4, 2 rounds each (`card-facecost.jsonl`). SM clock 2,130 to 2,460 MHz while
    busy (mean 2,363). The card's runs at a spacing of 4 in section 7.2 showed no difference from a spacing of 2, so the
@@ -465,7 +469,9 @@ and the single passes are shown for their trend):
 - **The prefilter** costs the same per map on both maps: 0.34 ms on the Mac and 0.08 ms on the card. The irradiance
   convolution is half of it on both machines.
 
-SPACING4_SECTION
+The split at a spacing of 4 was not completed. Two of its runs were kept (round 0 of today's face and of `earth-off`,
+`results/t1-6tn2/mac4/`) and four were set aside at a load of 8.4 to 19.9. The line dropped the rest: the spacing of 2
+and the card settle the split, and quiet time on the Mac is scarce. No table uses these runs.
 
 ### 10.5 The faces' triangles per variant
 
@@ -524,7 +530,39 @@ The same runs by the pass sum (Mac) and the empty faces of the root map:
 - **The irradiance adds 0.01 to 0.09 ms per face on the Mac** and 0.006 to 0.017 ms on the card, in today's form.
 - **On the card** the lean face costs 0.045 to 0.047 ms, and an empty face 0.003 to 0.005 ms.
 
-RANGES_SKIP_SECTION
+#### Skipping the empty depth ranges
+
+`ranges-skip` on the Mac, in a session after the runs above: today's face at a spacing of 2
+(`results/t1-6tn2/mac2b-facecost.jsonl`), and the lean face at 6 faces per pass and a spacing of 4, without and with the
+skip (`lean2-facecost.jsonl`). Each session has its own baseline, so the two tables do not mix with the tables above.
+Two runs were set aside at a load of 8 or more.
+
+Today's face, both maps:
+
+| Parts | Runs | Load at the lock | Span per run (ms) | Span, mean (ms) | Passes, mean (ms) |
+|---|---:|---|---|---:|---:|
+| none | 3 | 4.1, 5.3, 7.4 | 0.737, 0.742, 0.734 | 0.738 | 0.626 |
+| ranges-skip | 3 | 5.9, 7.8, 3.3 | 0.755, 0.715, 0.727 | 0.732 | 0.620 |
+| earth-reach+ranges-skip | 3 | 4.9, 5.4, 6.7 | 0.484, 0.711, 0.718 | 0.638 | 0.621 |
+
+The mean of `earth-reach+ranges-skip` holds one outlier, 0.484 ms. Without it the mean is 0.715 ms.
+
+The lean face (`own+earth-off+prefilter-off`), the ship's map (map 1), and the empty face of the root map (map 0):
+
+| Face | Parts | Load at the lock | Ship's map: span (ms) | Ship's map: passes (ms) | 216 faces in 60 draws by the span (ms per draw) | Empty face: span (ms) | Empty face: passes (ms) |
+|---:|---|---|---:|---:|---:|---:|---:|
+| 32 | lean | 3.7, 7.2, 7.3 | 0.411 | 0.269 | 1.48 | 0.286 | 0.116 |
+| 32 | lean + `ranges-skip` | 4.8, 4.8, 7.0 | 0.175 | 0.209 | 0.63 | 0.028 | 0.053 |
+| 16 | lean | 4.4, 4.2, 7.3 | 0.299 | 0.160 | 1.08 | 0.280 | 0.097 |
+| 16 | lean + `ranges-skip` | 4.9, 6.9, 7.6 | 0.097 | 0.106 | 0.35 | 0.037 | 0.049 |
+
+- **For today's face the skip saves nothing measurable**: 0.006 ms by the span and by the passes. Today's face has draws
+  in every range, because the Earth's bounding sphere reaches the near range.
+- **For the lean face the skip removes most of the fixed cost on the Mac.** An empty face falls from 0.28 ms to 0.03
+  to 0.04 ms by the span. The lean face at 16 falls from 0.299 to 0.097 ms, and 216 faces in 60 draws then cost 0.35 ms
+  per draw. At 32 they cost 0.63 ms per draw.
+- The 0.19 ms between an empty face's span and its passes in section 10.6 disappears with the skip. So that cost came
+  from the empty renderings.
 
 ### 10.7 The pictures
 
@@ -553,8 +591,12 @@ The levers for today's face, at most, on the Mac by the span and by the passes, 
   rule 4).
 - The face pass's own structure (the renderings and flushes per face) is the floor of every variant on the Mac,
   including the lean field face. A design that wants many faces per draw on the Mac has to lower the renderings per face.
-  RANGES_SKIP_READING
+- Skipping the empty depth ranges is that lowering for the lean field face: at 16 it brings 216 faces in 60 draws to
+  0.35 ms per draw by the span, inside the bound of 0.7 ms (section 10.6, "Skipping the empty depth ranges"). It saves
+  nothing for today's face.
 - This record designs no fix.
+- A probe of several faces in one batch of tiles was planned and dropped by the line's decision, unmeasured: the range
+  skip settled the store's cost question. Its code is not in `probe.patch` or in `tools/`.
 
 ### 10.9 Files of section 10
 
@@ -562,7 +604,8 @@ The levers for today's face, at most, on the Mac by the span and by the passes, 
 - `tools/`: `FaceProbe.cs` and `apply-face.py` with the switches of section 10.2; `split.py`; the runners take a variant as
   `size:cull:parts`.
 - `tables/t1-6tn2-counts.md`.
-- `results/t1-6tn2/`: `mac2-facecost.jsonl`, `mac4-facecost.jsonl`, `lean-facecost.jsonl`, `card-facecost.jsonl`, and per
-  run the face log, the frame log, the run log and `gpu-timings.json` (`mac2/`, `mac4/`, `lean/`, `card/`, `counts/`), and
-  the card's clocks.
+- `results/t1-6tn2/`: `mac2-facecost.jsonl`, `lean-facecost.jsonl`, `card-facecost.jsonl`, `mac2b-facecost.jsonl` and
+  `lean2-facecost.jsonl`, and per run the face log, the frame log, the run log and `gpu-timings.json` (`mac2/`, `lean/`,
+  `card/`, `counts/`, `mac2b/`, `lean2/`, and the kept and set-aside runs at a spacing of 4 in `mac4/`), and the card's
+  clocks.
 - `pics/deck-map0-earth-coarse.png`, `pics/deck-map1-lean.png`.
