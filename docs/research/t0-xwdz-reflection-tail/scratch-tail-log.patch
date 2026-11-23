@@ -1,0 +1,126 @@
+# SCRATCH patch of t0-xwdz (v3), never commit to src. It applies on c768e1ed8 after tools/renderer-survey/probe.patch and
+# t0-gumm's scratch-first-filmed.patch and scratch-frozen.patch. With TERTIUS_X_TAIL_LOG=<folder> and
+# TERTIUS_REFLECTION_HISTORY_AGREEMENT=control-trace it logs, per draw, the reflections' history lengths before and after
+# the anti-lag, why a reprojected length falls under 8, the cuts by length, and the own-ray counts (see the comment in
+# the hunk). The v2 logs in logs/v2-* came from the same patch without the v3 counts, cuts.txt and the 7.5 split.
+--- a/src/Tertius.Rendering/VulkanRenderer.cs
++++ b/src/Tertius.Rendering/VulkanRenderer.cs
+@@ -659,6 +659,108 @@
+         MatchTargetsTo(image);
+ 
+         FrameHistory.PendingFrame pending = BeginDraw(snapshot: snapshot, step: step, draw: draw);
++        // SCRATCH (t0-xwdz, never commit to src): with TERTIUS_X_TAIL_LOG=<folder> and the control trace
++        // (TERTIUS_REFLECTION_HISTORY_AGREEMENT=control-trace), each draw first reads what the draw before it left in the
++        // specular accumulation trace (TemporalSignal.TraceLayers: layer 0 x = the length the last draw accepted at the
++        // pixel's own texel, "own"; y = the length after the reprojection, "reprojected"; w = flags, bit 9 "shows a
++        // surface"; layer 3 x = the least length of the taps that hold weight; layer 4 x and y = the length before and
++        // after the anti-lag; layer 5 w = 1 where the clamp ran) and in the reflections' own-ray list, over the render size
++        // of that draw. It appends to <folder>/tail.txt one line: "<frame> <draw index> <width> <height>", then the counts
++        // of surface pixels: all; reprojected under 8; before the anti-lag under 8; after it under 8; the clamp ran;
++        // shortened (after below before by more than 1e-3); shortened from under 8; shortened to the fast cap 4 or less;
++        // after under draw index + 1 - 0.01 ("behind"); reprojected under 8 with own 8 or more and every weighted tap 8 or
++        // more ("rounding"); reprojected under 8 with own 8 or more and a weighted tap under 8 ("neighbor"); reprojected
++        // under 8 with own under 8 ("own short"); then the own reflection rays: all; of them reprojected 8 or more,
++        // rounding, neighbor, own short; then (v3) the surface pixels with before the anti-lag in [7.99, 8), with before 8 or
++        // more and after in [7.99, 8), with after below before by any amount, with reprojected below own by any amount;
++        // then the own-short own rays with own in [7.99, 8) and with own under 7.99; the surface pixels with after in
++        // [7.5, 8); the own-short own rays with own in [7.5, 7.99); then the own diffuse rays. <folder>/cuts.txt gets
++        // "<frame> <draw index>", the counts of the shortened pixels by their length before the cut in [k, k + 1) for k = 0
++        // to 31 and 32 or more, "|", and the same by their length after it. <folder>/hist.txt gets "<frame> <draw index>" and the
++        // count of surface pixels whose length after the anti-lag lies in [k, k + 1) for k = 0 to 31, then 32 or more.
++        // The reads wait for the device.
++        if (Environment.GetEnvironmentVariable("TERTIUS_X_TAIL_LOG") is { Length: > 0 } probeTailFolder
++            && FrameNumber > 0
++            && ScreenTraceSignals.Specular.AccumulationTrace(0) is { } probeTrace)
++        {
++            Extent2D probeSize = pending.PreviousRenderSize;
++            (float[] probeT0, int probeWidth, _) = ReadLevel(image: probeTrace, layer: 0, mip: 0);
++            float[] probeT3 = ReadLevel(image: probeTrace, layer: 3, mip: 0).Values;
++            float[] probeT4 = ReadLevel(image: probeTrace, layer: 4, mip: 0).Values;
++            float[] probeT5 = ReadLevel(image: probeTrace, layer: 5, mip: 0).Values;
++            long[] probeCounts = new long[25];
++            long[] probeCutFrom = new long[33];
++            long[] probeCutTo = new long[33];
++            long[] probeHist = new long[33];
++            int ProbeClass(int probeP) =>
++                probeT0[4 * probeP + 1] >= 8 ? 0
++                : probeT0[4 * probeP] < 8 ? 3
++                : probeT3[4 * probeP] >= 8 ? 1
++                : 2;
++            for (int probeY = 0; probeY < probeSize.Height; probeY++)
++                for (int probeX = 0; probeX < probeSize.Width; probeX++)
++                {
++                    int probeP = probeY * probeWidth + probeX;
++                    if ((((int)probeT0[4 * probeP + 3]) & (1 << 9)) == 0)
++                        continue;
++                    float probeReprojected = probeT0[4 * probeP + 1];
++                    float probeBefore = probeT4[4 * probeP];
++                    float probeAfter = probeT4[4 * probeP + 1];
++                    bool probeShortened = probeAfter < probeBefore - 1e-3f;
++                    probeCounts[0]++;
++                    probeCounts[1] += probeReprojected < 8 ? 1 : 0;
++                    probeCounts[2] += probeBefore < 8 ? 1 : 0;
++                    probeCounts[3] += probeAfter < 8 ? 1 : 0;
++                    probeCounts[4] += probeT5[4 * probeP + 3] == 1f ? 1 : 0;
++                    probeCounts[5] += probeShortened ? 1 : 0;
++                    probeCounts[6] += probeShortened && probeBefore < 8 ? 1 : 0;
++                    probeCounts[7] += probeShortened && probeAfter <= 4.001f ? 1 : 0;
++                    probeCounts[8] += probeAfter < probeTailLastDrawIndex + 1 - 0.01f ? 1 : 0;
++                    int probeClass = ProbeClass(probeP);
++                    if (probeClass > 0)
++                        probeCounts[8 + probeClass]++;
++                    probeCounts[17] += probeBefore >= 7.99f && probeBefore < 8 ? 1 : 0;
++                    probeCounts[18] += probeBefore >= 8 && probeAfter >= 7.99f && probeAfter < 8 ? 1 : 0;
++                    probeCounts[19] += probeAfter < probeBefore ? 1 : 0;
++                    probeCounts[20] += probeReprojected < probeT0[4 * probeP] ? 1 : 0;
++                    probeCounts[23] += probeAfter >= 7.5f && probeAfter < 8 ? 1 : 0;
++                    if (probeShortened)
++                    {
++                        probeCutFrom[Math.Clamp((int)MathF.Floor(probeBefore), 0, 32)]++;
++                        probeCutTo[Math.Clamp((int)MathF.Floor(probeAfter), 0, 32)]++;
++                    }
++                    probeHist[Math.Clamp((int)MathF.Floor(probeAfter), 0, 32)]++;
++                }
++            GpuBuffer[] probeLists = ScreenTraceImages.OwnRays;
++            (int X, int Y)[] probeOwn = OwnRayList.Pixels(ReadBufferWords(probeLists[0]));
++            probeCounts[12] = probeOwn.Length;
++            foreach ((int probeX, int probeY) in probeOwn)
++            {
++                int probeQ = probeY * probeWidth + probeX;
++                probeCounts[13 + ProbeClass(probeQ)]++;
++                if (ProbeClass(probeQ) == 3)
++                {
++                    probeCounts[probeT0[4 * probeQ] >= 7.99f ? 21 : 22]++;
++                    probeCounts[24] += probeT0[4 * probeQ] >= 7.5f && probeT0[4 * probeQ] < 7.99f ? 1 : 0;
++                }
++            }
++            int probeDiffuse = OwnRayList.Pixels(ReadBufferWords(probeLists[1])).Length;
++            string probeDir = System.IO.Directory.CreateDirectory(probeTailFolder).FullName;
++            System.IO.File.AppendAllText(
++                System.IO.Path.Combine(probeDir, "tail.txt"),
++                $"{FrameNumber - 1} {probeTailLastDrawIndex} {probeSize.Width} {probeSize.Height} {string.Join(' ', probeCounts)} {probeDiffuse}\n"
++            );
++            System.IO.File.AppendAllText(
++                System.IO.Path.Combine(probeDir, "cuts.txt"),
++                $"{FrameNumber - 1} {probeTailLastDrawIndex} {string.Join(' ', probeCutFrom)} | {string.Join(' ', probeCutTo)}
++"
++            );
++            System.IO.File.AppendAllText(
++                System.IO.Path.Combine(probeDir, "hist.txt"),
++                $"{FrameNumber - 1} {probeTailLastDrawIndex} {string.Join(' ', probeHist)}\n"
++            );
++        }
++        probeTailLastDrawIndex = pending.DrawIndex;
+         ICaptureSink? sink = takeCapture ? Interlocked.Exchange(ref pendingCapture, null) : null;
+         GpuBuffer? capture = sink != null ? CaptureBuffer(slot: frame.Index, extent: image.Extent) : null;
+         // After the output gave the frame an image, so a skipped frame leaves the map's frame as it is, and before
+@@ -1412,6 +1514,9 @@
+ 
+     /// <summary>The screen tracer's two signals. A test hook.</summary>
+     /// <exception cref="InvalidOperationException">The setting is <see cref="NoScreenTrace"/>.</exception>
++    // SCRATCH (t0-xwdz, never commit to src): the draw index of the last draw, for TERTIUS_X_TAIL_LOG.
++    private long probeTailLastDrawIndex;
++
+     internal (TemporalSignal Diffuse, TemporalSignal Specular) ScreenTraceSignals =>
+         screenTrace is { } tracer
+             ? (tracer.Diffuse, tracer.Specular)
