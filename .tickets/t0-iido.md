@@ -57,3 +57,24 @@ From now on every comparison job of the line starts with one discarded warm-up r
 **2026-11-23T04:16:34Z**
 
 A sixth gate from the orchestrator, 2026-11-22 about 23:15: one take of a light change in the bounce-lit bay (bay-sunbeam with its sun switched, or the nearest light change that its script allows), the cap against today's cliff, the boil and the grain per draw for draws 1 to 15 and the pictures at draws 2 and 8. Reason: the fair test of t0-gumm showed that today's catch-up rays halve the early grain after a reset in the bay, and the cap removes the catch-up rays after a light change. No take tested that case in a bounce-lit scene. If the cap shows the bay's blotches after a light change, the orchestrator wants to know before the merge. Ordered at the combined check's lead at 23:16, before the sweep. The merge's record also says that the fair test did not test this case, and tools/README.md gets the engine fact of the draw index with the merge (written on the line on 2026-11-22).
+
+**2026-11-23T04:25:48Z**
+
+The sixth gate's take, by the combined check's lead, 2026-11-22 about 23:22 by the machine's clock: the cap after a light change in the bounce-lit bay. Pictures in the lead's worktree, not committed at 23:25: docs/research/t0-gumm-catch-up-spread/pics/gate-sun-zoom.png, gate-sun-strip.png, gate-sun-chart.png. The lead commits them with the sweep.
+
+The take: bay-sunbeam's view and state, frozen, at the constant scale 2/3 and the fixed exposure of -4.0; the sun goes off at draw 200 and on at draw 400 of a film of 600 draws (a new scratch patch, scratch-sun-switch.patch, TERTIUS_X_SUN_OFF=<from>-<to>). The cap is the lead's A build (the line's merge 710834cc0 with the acceptance record's scratch-light-evidence-cap.patch, the same rule as 05a27262d); today's cliff is the shape (1, 8, 0) with light evidence restarting at 4 draws. The own-ray log confirms the codes: today traces catch-up rays in draws 4 to 13 after each light change, 2.46 rays per pixel after off and 4.65 after on; the cap traces none.
+
+Measured (slowest region's settle in draws; boil of draws 1 to 8 and grain of draws 1 to 15 in %; then the narrow crop's):
+- Sun off, today: 178; 0.783; 2.58; narrow 0.813, 0.81.
+- Sun off, the cap: 178; 0.600; 2.41; narrow 0.586, 0.53.
+- Sun on, today: 161; 11.860; 7.72; narrow 19.319, 1.30.
+- Sun on, the cap: 162; 10.744; 9.29; narrow 17.833, 1.51.
+The bay's spread between runs from the fair test: grain 0.08, boil of draws 1 to 8 0.02.
+
+The answer: after the sun comes on, the cap shows coarser, block-shaped grain than today's cliff from draw 3 on: 20 % more grain over draws 1 to 15 and 16 % more on the narrow crop. Its boil is not higher. After the sun goes off, the cap is cleaner on every measure. The settle is the same.
+
+The line orchestrator looked at the three pictures. After the sun goes off the two codes look alike. After the sun comes on, at draw 8 the cap's right wall carries coarse bright clumps where today's carries a finer speckle, and both floors carry a soft cloud. The difference is plain in the zoom at full size and small in the strip. It is not the heavy blotching of the fair test's start, where no catch-up ray gave 53 % more grain.
+
+The card column from the logs of jobs 1 to 3: the draws that today's cliff holds the render scale more than 0.02 under its rest after an event: start 60 to 63 (a start without any catch-up ray gives 50 to 54), lamps off 49 to 54, lamps on 49 to 52, cut 41 to 48. The cap, "none" and C32 give 0 after off, on and the cut. So after a light change or a cut, about 40 to 50 draws of the cliff's price are the controller's slow return after the 8 dear draws.
+
+The line orchestrator's reading for the gate: the cap trades 20 % more grain for about 12 draws after a light comes on in a bounce-lit room against a render scale that falls by about 0.15 and stays low for about 50 draws on the card, and it is cleaner after a light goes off. The decision is the orchestrator's.
