@@ -241,3 +241,25 @@ On the logged region lights x(t) per anchor and draw, CPU only. The candidates: 
 A limit of the replay, known before it runs: the logged light comes from a run under today's rule, and the rays read the histories that the rule cut. The logs of the build without the rule exist for the switch, so the replay runs on both and gives the bracket.
 
 First, by the orchestrator's order: the still cabin's dump draw 190 is early, and its grain rises from 0.0065 to 0.0112 with the rule off. So the count is repeated at a late draw, and the cabin's region log shows whether its light still moves at draw 190. If it does, the cabin is a case of a weak true drift and not a frozen still.
+
+**2026-11-23T09:37:11Z**
+
+2026-11-23, 04:37 New York time. The replay of the repair's candidates is done: docs/research/t0-qvm1-region-repair-replay/README.md, on main 165a964e7 for every new run. Nothing is built.
+
+Part 1: the still cabin is a weak true drift at draw 190 (its region light rises 0.5 % with the rule and 1.4 % without it in draws 100 to 199) and frozen from about draw 400. On main it still holds 17.85 % short histories at draw 890, at a fire rate of 0.76 %. So each still's frozen part is its draws from 400 to the end.
+
+The model's check: T replays every logged fire exactly, and its block model of the length matches the real dumps to 0.13 points or better (lamp hall 10.94 against 10.96 %, cabin 21.05 against 21.18 %, bay and exit-cabin exact). On the switch's log with the rule it settles within 3 to 17 draws of the measured settles. It cannot reproduce the no-rule side, because the logged light itself ends 4 to 6 % off the controls. Its lags are about half the picture's. So the settles and the lags compare candidates against T only.
+
+| Candidate | Short blocks, four stills | Noise | Switch off (whole, slowest) | bay-sun lag | rect-bay lag |
+|---|---|---|---|---|---|
+| T | 19.7 to 32.1 % | 0.114 | 74, 90 | 7.2, 26.3 | 7.2, 27.0 |
+| E8 | 7.5 to 11.7 % | 0.040 | 96, 105 | 7.2, 32.2 | 21.3, 31.7 |
+| C1 | 9.1 to 16.0 % | 0.032 | 80, 98 | 7.5, 22.5 | 7.9, 31.0 |
+| C2 | 4.4 to 9.5 % | 0.013 | 86, 104 | 8.3, 26.1 | 10.5, 32.5 |
+| EC1 | 2.2 to 4.0 % | 0.007 | 101, 110 | 7.5, 31.4 | 28.4, 31.6 |
+| K6 | 2.3 to 3.7 % | 0.012 | 76, 96 | 7.2, 29.1 | 7.3, 34.6 |
+
+- E and EC lose rect-bay: a sustained drift raises the measured spread, so the bar rises over the motion (median lag 18 to 31 draws against T's 7.2).
+- p measured after FSR: median 0.53 (exit-cabin), 1.12 (lamp hall), 0.61 (bay), 1.17 (cabin). So C1 is the continuous cap that the measure supports, and it keeps 9 to 16 % of the blocks short.
+- The pairing at P = 25 in the lamp hall fires at 1.09 % against 0.95 % with today's windows: no visible jitter remainder.
+- The numbers favor K6 among the candidates. It cuts the stills' short blocks about eightfold, keeps the switch within 2 to 6 draws of T and the median lags at T's, and costs about 8 draws of rect-bay's largest lag. Its cost in the cabin's weak drift is most of T's model gain: -1.14 % against T's -0.92 % and no rule's -1.24 %.
