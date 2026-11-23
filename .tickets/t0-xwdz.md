@@ -1,6 +1,6 @@
 ---
 id: t0-xwdz
-status: open
+status: in_progress
 deps: []
 links: [ter-bcwr, ter-4iic, t58-np60]
 created: 2026-11-23T12:08:20Z
@@ -24,3 +24,9 @@ Step 1, measure and build nothing: log the reflections' history length per draw 
 
 The record holds the per-draw log and names the cause with its evidence. If a change follows: after a cut and after a start, the reflections' own rays in draw 8 fall to the level of draw 12, the picture of the first 20 draws is not worse than today's in a side-by-side video, and at a start the render scale's ordinary request is not lowered by draw 8.
 
+
+## Notes
+
+**2026-11-23T14:12:05Z**
+
+2026-11-23, 09:12 New York time, line orchestrator of the Design X line. Step 1 starts on the line's free slot (answer 100, reported to the orchestrator): the lead of the render scale's dip, in its worktree t3-52bfcd29-81249085ce80dd9f, branch t0-xwdz-reflection-tail from main 4bb8489b3. It measures and builds nothing that merges: a scratch probe logs the reflections' history length in draws 4 to 12 after a camera cut and after a start, on the Mac, and the record goes to docs/research/t0-xwdz-reflection-tail. Money: 0.
