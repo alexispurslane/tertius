@@ -1547,92 +1547,109 @@ public sealed class LocalShadowRenderTests
     )]
     public void AWallsSideFaceUnderARoofsEdgeTakesNoLightFromASpotLampsTile()
     {
-        const int width = 1280,
-            height = 720;
-        VulkanRenderer renderer = Gpu.Headless(width: width, height: height, localShadows: LocalShadowAtlas.Default);
+        VulkanRenderer renderer = Gpu.Headless(
+            width: RoofWidth,
+            height: RoofHeight,
+            localShadows: LocalShadowAtlas.Default
+        );
         try
         {
             var kit = Kit.Create(renderer);
-            var lamp = new Vector3(1f, 5f, 2f);
-            var turn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 17f * MathF.PI / 180f);
-            Vector3 edgeNormal = Vector3.Transform(Vector3.UnitX, turn);
-            // The face lies at z = −1, so the edge's plane meets it on the vertical line x = edgeX.
-            float edgeX = lamp.X - edgeNormal.Z * (-1f - lamp.Z) / edgeNormal.X;
-            // A texel of the tile across the view's axis, in radians from the lamp: the cone of 0.6 rad spans the tile less
-            // its margins.
-            float texelAngle = 2 * MathF.Tan(0.6f) / (LocalShadowAtlas.Default.TileSize - 2 * ShadowTiles.MarginTexels);
-            RenderSnapshot Scene(bool withRoof)
-            {
-                RenderSnapshot snapshot = Dark();
-                snapshot.Instances.Add(
-                    Gpu.Instance(
-                        mesh: kit.Box,
-                        material: kit.White,
-                        position: new(edgeX - 0.3f, 0, -1.05f),
-                        scale: new(0.6f, 0.6f, 0.1f),
-                        chainDepth: TestChains.CamerasFrame
-                    )
-                );
-                snapshot.Lights.Add(
-                    ShadowingSpot(
-                        position: lamp,
-                        direction: Vector3.Normalize(new Vector3(edgeX, 0, -1f) - lamp),
-                        intensity: 300
-                    )
-                );
-                // The roof covers the side of the edge's plane away from its normal, from 0.8 m to 1 m up.
-                Vector3 roofCenter =
-                    new Vector3(lamp.X, 0.9f, lamp.Z) + Vector3.Transform(new Vector3(-1.5f, 0, -1f), turn);
-                snapshot.Instances.Add(
-                    kit.Caster(
-                        center: withRoof ? roofCenter : new(-60f, 0, -40f),
-                        size: new(3, 0.2f, 4),
-                        rotation: turn
-                    )
-                );
-                return snapshot;
-            }
-
-            renderer.Render(Scene(withRoof: false), 1f);
+            renderer.Render(SpotLampUnderARoofScene(kit: kit, withRoof: false), 1f);
             float[] lit = renderer.ReadHdr();
-            renderer.Render(Scene(withRoof: true), 1f);
+            renderer.Render(SpotLampUnderARoofScene(kit: kit, withRoof: true), 1f);
             float[] shadowed = renderer.ReadHdr();
-            var shares = new List<string>();
-            float most = 0;
-            foreach (float inside in (float[])[0.25f, 0.5f, 1f])
-            {
-                float atInside = 0;
-                foreach (float y in Enumerable.Range(0, 21).Select(i => (i - 10) * 0.025f))
-                {
-                    var onEdge = new Vector3(edgeX, y, -1f);
-                    float x = edgeX - inside * texelAngle * Vector3.Distance(lamp, onEdge) / edgeNormal.X;
-                    Vector2 pixel = Gpu.Project(point: new(x, y, -1f), width: width, height: height);
-                    int green = ((int)pixel.Y * width + (int)pixel.X) * 4 + 1;
-                    lit[green]
-                        .Should()
-                        .BeGreaterThan(
-                            0,
-                            "the lamp lights the face {0} texels inside the edge without the roof",
-                            inside
-                        );
-                    atInside = MathF.Max(atInside, shadowed[green] / lit[green]);
-                }
 
-                most = MathF.Max(most, atInside);
-                shares.Add($"{inside} texels inside: {atInside:F3}");
-            }
+            (float most, string shares) = MostLampLightInsideTheRoofsEdge(lit: lit, shadowed: shadowed);
 
-            most.Should()
-                .BeLessThan(
-                    0.02f,
-                    "the roof hides the lamp from the face under its edge ({0})",
-                    string.Join("; ", shares)
-                );
+            most.Should().BeLessThan(0.02f, "the roof hides the lamp from the face under its edge ({0})", shares);
         }
         finally
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
+    }
+
+    /// <summary>The size of the images of <see cref="SpotLampUnderARoofScene"/>.</summary>
+    private const int RoofWidth = 1280,
+        RoofHeight = 720;
+
+    /// <summary>The spot lamp over the face of <see cref="SpotLampUnderARoofScene"/>: 5 m up and 2 m behind the face.</summary>
+    private static readonly Vector3 RoofLamp = new(1f, 5f, 2f);
+
+    /// <summary>The turn of the roof's edge from the face's normal about the vertical, 17 degrees.</summary>
+    private static readonly Quaternion RoofTurn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 17f * MathF.PI / 180f);
+
+    /// <summary>The normal of the vertical plane through the lamp that holds the roof's edge.</summary>
+    private static Vector3 RoofEdgeNormal => Vector3.Transform(Vector3.UnitX, RoofTurn);
+
+    /// <summary>The x where the edge's plane meets the face at z = −1, on a vertical line.</summary>
+    private static float RoofEdgeX => RoofLamp.X - RoofEdgeNormal.Z * (-1f - RoofLamp.Z) / RoofEdgeNormal.X;
+
+    /// <summary>
+    /// The scene of <see cref="AWallsSideFaceUnderARoofsEdgeTakesNoLightFromASpotLampsTile"/>: a face at z = −1 that ends at
+    /// <see cref="RoofEdgeX"/>, lit by a shadowing spot lamp at <see cref="RoofLamp"/>. With <paramref name="withRoof"/>,
+    /// a slab that only casts covers the side of the edge's plane away from its normal, from 0.8 m to 1 m up.
+    /// </summary>
+    private static RenderSnapshot SpotLampUnderARoofScene(Kit kit, bool withRoof)
+    {
+        RenderSnapshot snapshot = Dark();
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: kit.Box,
+                material: kit.White,
+                position: new(RoofEdgeX - 0.3f, 0, -1.05f),
+                scale: new(0.6f, 0.6f, 0.1f),
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        snapshot.Lights.Add(
+            ShadowingSpot(
+                position: RoofLamp,
+                direction: Vector3.Normalize(new Vector3(RoofEdgeX, 0, -1f) - RoofLamp),
+                intensity: 300
+            )
+        );
+        Vector3 roofCenter =
+            new Vector3(RoofLamp.X, 0.9f, RoofLamp.Z) + Vector3.Transform(new Vector3(-1.5f, 0, -1f), RoofTurn);
+        snapshot.Instances.Add(
+            kit.Caster(center: withRoof ? roofCenter : new(-60f, 0, -40f), size: new(3, 0.2f, 4), rotation: RoofTurn)
+        );
+        return snapshot;
+    }
+
+    /// <summary>
+    /// The largest share of the lamp on the face 0.25, 0.5 and 1 texel of the tile inside the roof's edge, at 21 heights,
+    /// from the HDR images <paramref name="lit"/> without the roof and <paramref name="shadowed"/> with it, and each
+    /// depth's largest share as text.
+    /// </summary>
+    private static (float Most, string Shares) MostLampLightInsideTheRoofsEdge(float[] lit, float[] shadowed)
+    {
+        // A texel of the tile across the view's axis, in radians from the lamp: the cone of 0.6 rad spans the tile less
+        // its margins.
+        float texelAngle = 2 * MathF.Tan(0.6f) / (LocalShadowAtlas.Default.TileSize - 2 * ShadowTiles.MarginTexels);
+        var shares = new List<string>();
+        float most = 0;
+        foreach (float inside in (float[])[0.25f, 0.5f, 1f])
+        {
+            float atInside = 0;
+            foreach (float y in Enumerable.Range(0, 21).Select(i => (i - 10) * 0.025f))
+            {
+                var onEdge = new Vector3(RoofEdgeX, y, -1f);
+                float x = RoofEdgeX - inside * texelAngle * Vector3.Distance(RoofLamp, onEdge) / RoofEdgeNormal.X;
+                Vector2 pixel = Gpu.Project(point: new(x, y, -1f), width: RoofWidth, height: RoofHeight);
+                int green = ((int)pixel.Y * RoofWidth + (int)pixel.X) * 4 + 1;
+                lit[green]
+                    .Should()
+                    .BeGreaterThan(0, "the lamp lights the face {0} texels inside the edge without the roof", inside);
+                atInside = MathF.Max(atInside, shadowed[green] / lit[green]);
+            }
+
+            most = MathF.Max(most, atInside);
+            shares.Add($"{inside} texels inside: {atInside:F3}");
+        }
+
+        return (most, string.Join("; ", shares));
     }
 
     /// <summary>The meshes and materials of the tests' scenes.</summary>
