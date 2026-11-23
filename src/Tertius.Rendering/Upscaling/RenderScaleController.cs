@@ -10,12 +10,21 @@ namespace Tertius.Rendering;
 /// once (ter-bcwr). A kind without a fitted model asks for the scale of the kind before it: a catch-up draw asks for the
 /// ordinary scale, as at the first reset of a run, and an ordinary draw for the target's largest scale. Missing timings
 /// leave the scales unchanged (docs/plans/temporal-renderer.md, section 4).
+///
+/// A measurement is the cost of the scene at the drawn area with the GPU at its working speed. The first draw that Drew
+/// recorded in the controller's life is no such measurement, so Measure fits no model from it and moves no request, in
+/// either kind: the GPU begins the run's first draw from rest, at its idle clock. On the RTX 2000 Ada that draw cost
+/// 229 ms against 29 ms in a warm run, every pass 8 to 30 times dearer, and as the catch-up kind's first model it held
+/// the catch-up draws of the next three cuts at 0.54 to 0.65 against 0.77 to 0.81 (t0-ygp1). Left out on purpose: a
+/// draw from rest later in a run, after a hidden window or a pause. No take shows that case. If one does, the same rule
+/// extends to it.
 /// </summary>
 /// <remarks>
 /// Invariants, checked on demand by AssertInvariants: each kind's request stays in the target's range, and its fitted
 /// costs are finite and nonnegative, with positive cost per render area. Each recorded frame occupies its frame-number
 /// slot, with a scale in the target's range and a defined cost kind. The last accepted measurement is -1 before any
-/// measurement, then a nonnegative frame number.
+/// measurement, then a nonnegative frame number. The first recorded draw is -1 before any draw, then a nonnegative frame
+/// number, and a kind has a fitted model only after a measurement of a later draw than it.
 /// </remarks>
 internal sealed class RenderScaleController
 {
@@ -27,6 +36,9 @@ internal sealed class RenderScaleController
     // Each cost kind's fitted model and request, at the kind's index; none before the kind's first measurement.
     private readonly Fit?[] fits = new Fit?[Enum.GetValues<DrawCost>().Length];
     private long measured = -1;
+
+    // The frame number of the first draw that Drew recorded, whose timings are no measurement; -1 before it.
+    private long firstDrawn = -1;
 
     /// <summary>
     /// The parts of a frame that the controller weighs: the fixed work before and after the render size, the work at the
@@ -75,18 +87,22 @@ internal sealed class RenderScaleController
                 $"A draw realized the scale {realizedScale}, outside {target.MinScale} to {target.MaxScale}."
             );
         drawn[frame % drawn.Length] = (frame, realizedScale, cost);
+        if (firstDrawn < 0)
+            firstDrawn = frame;
     }
 
     /// <summary>
     /// Consumes the timings of a finished frame: fits the cost model of the frame's kind, and moves that kind's request
-    /// toward the scale that fits the budget under the model. A frame that was not recorded, was measured before, or has
-    /// timings without a valid span changes nothing.
+    /// toward the scale that fits the budget under the model. A frame that was not recorded, was measured before, has
+    /// timings without a valid span, or is the first recorded draw, which the GPU began from rest, changes nothing.
     /// </summary>
     public void Measure(GpuTimings timings)
     {
         if (timings.Frame <= measured || timings.Frame < 0)
             return;
         if (drawn[timings.Frame % drawn.Length] is not { } frame || frame.Frame != timings.Frame)
+            return;
+        if (timings.Frame == firstDrawn)
             return;
         if (Costs(timings.Passes.Span) is not { } costs)
             return;
@@ -177,20 +193,30 @@ internal sealed class RenderScaleController
     internal void AssertInvariants()
     {
         Contract.Invariant(measured >= -1);
+        Contract.Invariant(firstDrawn >= -1);
         foreach (Fit? kind in fits)
             if (kind is { } fit)
-            {
-                Contract.Invariant(fit.Request >= target.MinScale && fit.Request <= target.MaxScale);
-                Contract.Invariant(double.IsFinite(fit.Fixed) && fit.Fixed >= 0);
-                Contract.Invariant(double.IsFinite(fit.PerArea) && fit.PerArea > 0);
-            }
+                AssertFitInvariants(fit);
         for (int slot = 0; slot < drawn.Length; slot++)
             if (drawn[slot] is { } frame)
-            {
-                Contract.Invariant(frame.Frame >= 0 && frame.Frame % drawn.Length == slot);
-                Contract.Invariant(frame.Scale >= target.MinScale && frame.Scale <= target.MaxScale);
-                Contract.Invariant(Enum.IsDefined(frame.Cost));
-            }
+                AssertDrawnInvariants(slot, frame);
+    }
+
+    // A fitted kind: measured after the first recorded draw, with its request in range and a finite, positive model.
+    private void AssertFitInvariants(Fit fit)
+    {
+        Contract.Invariant(firstDrawn >= 0 && measured > firstDrawn);
+        Contract.Invariant(fit.Request >= target.MinScale && fit.Request <= target.MaxScale);
+        Contract.Invariant(double.IsFinite(fit.Fixed) && fit.Fixed >= 0);
+        Contract.Invariant(double.IsFinite(fit.PerArea) && fit.PerArea > 0);
+    }
+
+    // A recorded draw: in its frame number's slot, with a scale in range and a defined kind.
+    private void AssertDrawnInvariants(int slot, (long Frame, float Scale, DrawCost Cost) frame)
+    {
+        Contract.Invariant(frame.Frame >= 0 && frame.Frame % drawn.Length == slot);
+        Contract.Invariant(frame.Scale >= target.MinScale && frame.Scale <= target.MaxScale);
+        Contract.Invariant(Enum.IsDefined(frame.Cost));
     }
 
     /// <summary>

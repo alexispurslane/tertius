@@ -1,6 +1,6 @@
 ---
 id: t0-ygp1
-status: open
+status: in_progress
 deps: []
 links: [t58-3n6v, t58-phgr]
 created: 2026-11-23T14:27:27Z
@@ -22,3 +22,22 @@ Design A, chosen by the orchestrator on 2026-11-23 over a median of a kind's fir
 
 A test, red first, pins that the timings of the controller's first recorded draw fit no model and move no request, in either kind, and a second test pins that the second recorded draw is the first fit. On the card, one cold job (the first GPU run of the job, no warm-up, a start and three cuts, then a warm run): after the cold start the catch-up request at the first cut is within 0.02 of the warm run's. Checked and Release pass. ARCHITECTURE.md states the rule where it describes the render scale's controller.
 
+
+## Notes
+
+**2026-11-23T14:48:03Z**
+
+2026-11-23, lead. Built on branch t0-ygp1-first-draw-no-measurement. RenderScaleController keeps the frame number of the first draw that Drew recorded (firstDrawn, -1 before it), and Measure returns for that frame, so no model is fitted from it and no request moves, in either kind. The controller is the right place: it is where a measurement becomes a model, and the renderer and the history do not need to know. AssertInvariants adds: a kind has a fit only after a measurement of a later draw than the first (measured > firstDrawn >= 0). Red first: TheRunsFirstDrawFitsNoModelAndMovesNoRequestInEitherKind (both kinds, 0.875 against 1 before the change) and TheSecondRecordedDrawIsTheFirstFit (0.781 against 0.887). Hardening: TheFirstRecordedDrawIsNoMeasurementWhateverItsFrameNumber (first draw at frame 5). The rule applied to the old tests: a test whose subject is a measurement of the first recorded draw now gets one draw before it (RenderScaleTesting.AfterItsFirstDraw, a dear first draw at frame 0) and draws its frames from 1: seven tests of RenderScaleTests and three of DrawCostScaleTests. The GPU tests: DelayedGpuFeedbackCountsTheScaleThatWasDrawn measures the second draw; CatchUpDraws.AWindowDrawsTheCatchUpDraws... now expects draw 1 at the full size and draws 2 to 7 small. The loops that start at frame 0 measure the ordinary kind after 8 catch-up draws, so they did not change.
+
+Mutants (tools/mutate.py, docs/research/t0-ygp1/mutants.json):
+
+| id | line | change | result | answer |
+|---|---|---|---|---|
+| Y01 | 41 | firstDrawn starts at 0 | killed | TheFirstRecordedDrawIsNoMeasurementWhateverItsFrameNumber |
+| Y02 | 90 | every draw becomes the first | killed | ALaterResetAsksForTheFittedCatchUpScaleInItsFirstDraw, ARepeatedMeasurement..., TheFirstRecordedDraw... |
+| Y03 | 90 | < 0 to <= 0 | killed | ALaterResetAsks..., AnOrdinaryDrawsMeasurement..., ARepeatedMeasurement... |
+| Y04 | 91 | firstDrawn = 0 | killed | TheFirstRecordedDraw... |
+| Y05 | 105 | == to <= | survived | Equivalent: a frame before the first recorded draw was never recorded, so the slot check returns first. |
+| Y06 | 105 | == to != | killed | ADearCatchUpDraw..., ALaterResetAsks..., TheFirstRecordedDraw... |
+| Y07 | 105 | the rule removed (never equal) | killed | ALaterResetAsks..., AnIncompletePassSpan..., TheFirstRecordedDraw... |
+| Y08 | 200 | the new invariant removed | survived | Judgment: only a second defect can reach the state that it checks, and no test can drive a valid controller there. |
