@@ -2,7 +2,7 @@
 id: ter-bcwr
 status: in_progress
 deps: []
-links: [t1-zeyk, ter-4iic, t0-xwdz]
+links: [t1-zeyk, ter-4iic, t0-xwdz, t58-3n6v, t58-aqrg, t58-4x5u]
 created: 2026-11-23T04:35:54Z
 type: feature
 priority: 2
@@ -60,3 +60,56 @@ My decisions for the build (answer 99, reported to the orchestrator, who can rev
 2. The wide fix (t0-rs55) was not merged, so its cost is not in this ticket's comparison.
 3. The acceptance's "after a start" and the design's "the first reset of a run has no catch-up model yet and behaves as today" disagree. The camera cut after a fitted model is the case that the acceptance holds the build to. The lead measures the start too and reports it. A seed for the first reset is a fork, not a part of this build.
 4. Card money for this ticket: at most $1.00, through tools/runpod/gpu_job.py only. The line then stands at no more than $3.55 of $5.00.
+
+**2026-11-23T13:10:57Z**
+
+2026-11-23, lead of ter-bcwr (branch ter-bcwr-announced-dip). The build is design 1: two fitted cost models, one per cost kind of a draw (DrawCost). The record is docs/research/ter-bcwr-announced-dip/README.md.
+
+**Result on the card** (job cut1, $0.0511, 3 rounds, today c776bed47 against the build 2cd409b7a, FrameTimeTarget(16.67, 0.5, 1)):
+
+| Event | Code | Back within 0.02 of the rest (draws) | Size changes in the 60-draw window / in the run |
+|---|---|---|---|
+| cut | today | 47, 47, 45 | 22 to 25 / 57 to 61 |
+| cut | build | 8, 8, 8 | 2 / 23 to 24 |
+| start | today | 59, 56, 54 | 30 to 32 / 32 to 34 |
+| start | build | 28, 28, 39 | 15 to 21 / 15 to 22 |
+
+- The cut meets the acceptance (8 ≤ 12, fewer size changes). The dip's draws 0 to 7 cost 15.5 to 16.7 ms on the GPU, against 19.9 to 27.8 ms today.
+- The start does not meet 12 draws, and by decision 4 it need not: the first reset has no catch-up model. Draw 8 is its first ordinary measurement and is still dear (t0-xwdz), so the ordinary request falls once to 0.92 to 0.96. That is the start's own dip, t58-np60.
+- Film measures under each code's own scale log, from t0-gumm's events.py:
+  - cut: the slowest region settles in 137 draws (today 156); the boil is 0.095 % (today 0.107 %); the grain is 0.92 % (today 0.91 %);
+  - start: the slowest region settles in 151 draws (today 156); the boil is 0.100 % (today 0.107 %); the grain is 0.91 % (today 0.89 %).
+- The videos (pics/*-today-vs-build.mp4) show no pop at the return. The region means rise smoothly from draw 141 to 143.
+- At 3 ×, the window's top edge shows a faint row of dark dots in draws 141 and 142 that today does not show. It is near invisible at 1:1 and gone at draw 143.
+
+**Mutants** (tools/mutate.py, docs/research/ter-bcwr-announced-dip/mutants.json; 23 rows: 20 killed, 1 timeout, 2 survived with a judgment):
+
+| id | change | result |
+|---|---|---|
+| C01 | every kind reads the ordinary fit | killed |
+| C02 | a kind without a fit asks for the largest scale | killed |
+| C03 | the fallback's kind test inverted | timeout (endless recursion): killed |
+| C04 | Drew forgets the kind | killed |
+| C05 | the blend starts from the ordinary fit | killed |
+| C06 | the move starts from the ordinary request | killed |
+| C07 | the fit goes to the ordinary kind | killed |
+| C08 | the band's cost is linear in the scale | killed by the new ARequestBelowTheLargestScaleWhoseCostLiesInsideTheBandStaysExactlyWhereItIs (survived first) |
+| C09 | inside the band the request jumps to the largest | killed |
+| C10 | the down and up rates swapped | killed |
+| C11 | the kind's invariant removed | survived. Judgment: a contract check of a state that no call can produce, because the renderer passes the pending draw's kind. Tests check behavior, not contracts. |
+| C12 | the request's invariant removed | survived. Judgment: Moved clamps every request into the limits, so no call reaches the state. The check only guards against a later bug. |
+| F01 | the catch-up kind one draw longer | killed |
+| F02 | the catch-up kind one draw shorter | killed |
+| F03 | the length is FullRateFrames + 1 | killed |
+| F04 | CostOf ignores the reset | killed |
+| F05 | a draw of index 1 resets too | killed |
+| F06 | a reset draw gets index 1 | killed |
+| F07 | the pending kind one draw ahead | killed |
+| F08 | a still's first draw no longer resets | killed |
+| V01 | every draw asks for the ordinary scale | killed by the new GPU test UpscalingRenderTests+CatchUpDraws |
+| V02 | the renderer records every draw as ordinary | killed |
+| V03 | every draw asks for the catch-up scale | killed |
+
+C04, F04, F08 and V01 first failed to build, because of the analyzers' rule against unused parameters, and were rewritten to keep the parameter used.
+
+**Coverage** of the changed lines (Rendering, Debug, against c776bed47): 54 of 54 lines are covered, and 31 of 36 branches. The 5 partial branches are the failing sides of contracts (RenderScaleController.cs 122 and 181 to 183, FrameHistory.cs 204).

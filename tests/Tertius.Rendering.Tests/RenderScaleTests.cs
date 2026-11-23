@@ -1,4 +1,5 @@
 using Silk.NET.Vulkan;
+using static Tertius.Rendering.Tests.RenderScaleTesting;
 
 namespace Tertius.Rendering.Tests;
 
@@ -7,14 +8,37 @@ internal static class RenderScaleTesting
 {
     extension(RenderScaleController controller)
     {
-        /// <summary>Records a draw of <paramref name="frame"/> at the requested scale and returns that scale.</summary>
-        public float Next(long frame)
+        /// <summary>
+        /// Records a draw of <paramref name="frame"/> of the cost kind <paramref name="cost"/> at the scale that the
+        /// controller requests for that kind, and returns that scale.
+        /// </summary>
+        public float Next(long frame, DrawCost cost = DrawCost.Ordinary)
         {
-            float scale = controller.RequestedScale;
-            controller.Drew(frame: frame, realizedScale: scale);
+            float scale = controller.RequestedScaleFor(cost);
+            controller.Drew(frame: frame, realizedScale: scale, cost: cost);
             return scale;
         }
     }
+
+    /// <summary>
+    /// The timings of a frame drawn at <paramref name="scale"/>: 3.2 ms of fixed work, of which 3 ms before the output,
+    /// <paramref name="renderCost"/> ms per unit of render area at the render size, and <paramref name="outputWait"/> ms
+    /// of wait in the output.
+    /// </summary>
+    public static GpuTimings Timings(long frame, float scale, double renderCost, double outputWait = 0) =>
+        new(
+            frame,
+            new PassTiming[]
+            {
+                new("deformation", 1) { Stage = FrameGraph.Stage.Deformation },
+                new("G-buffer", renderCost * scale * scale) { Stage = FrameGraph.Stage.GBuffer },
+                new("exposure", 0) { Stage = FrameGraph.Stage.Exposure },
+                new("FSR 3.1", 1.5) { Stage = FrameGraph.Stage.Upscale },
+                new("bloom", 0.5) { Stage = FrameGraph.Stage.Bloom },
+                new("tone map", 0.2 + outputWait) { Stage = FrameGraph.Stage.ToneMap },
+            },
+            3.2 + renderCost * scale * scale + outputWait
+        );
 }
 
 /// <summary>The active rectangle and the delayed GPU-time feedback of dynamic resolution.</summary>
@@ -262,16 +286,16 @@ public sealed class RenderScaleTests
     public void TheDelayedTimingsOfADrawCountTheScaleThatTheDrawRealized()
     {
         var controller = new RenderScaleController(new(16, 0.5f, 0.9f));
-        controller.RequestedScale.Should().Be(0.9f);
+        controller.RequestedScaleFor(DrawCost.Ordinary).Should().Be(0.9f);
 
         // The exact-ratio size realized 0.875 of the requested 0.9: 1680 × 945 of a 1920 × 1080 output.
-        controller.Drew(frame: 0, realizedScale: 0.875f);
+        controller.Drew(frame: 0, realizedScale: 0.875f, cost: DrawCost.Ordinary);
         controller.Measure(Timings(frame: 0, scale: 0.875f, renderCost: 40, outputWait: 0));
 
         // The fixed work is 3 ms and the work at the render size 40 ms per unit area, so 14.4 ms wants
         // sqrt(11.4 / 40), and a shrink moves a quarter of the way there.
         double wanted = Math.Sqrt(11.4 / 40);
-        controller.RequestedScale.Should().BeApproximately((float)(0.9 + 0.25 * (wanted - 0.9)), 1e-6f);
+        controller.RequestedScaleFor(DrawCost.Ordinary).Should().BeApproximately((float)(0.9 + 0.25 * (wanted - 0.9)), 1e-6f);
     }
 
     [Fact]
@@ -391,6 +415,23 @@ public sealed class RenderScaleTests
             controller.Measure(Timings(frame: frame, scale: scale, renderCost: 12.2, outputWait: 0));
         }
         controller.Next(20).Should().Be(1);
+    }
+
+    [Fact]
+    public void ARequestBelowTheLargestScaleWhoseCostLiesInsideTheBandStaysExactlyWhereItIs()
+    {
+        var controller = new RenderScaleController(FrameTimeTarget.Default);
+        long frame = 0;
+        for (; frame < 60; frame++)
+            controller.Measure(Timings(frame: frame, scale: controller.Next(frame), renderCost: 20));
+        float settled = controller.RequestedScaleFor(DrawCost.Ordinary);
+
+        // A slightly lighter load, whose cost at the request's area, about 3 ms + 19.96 ms × scale², stays within 3 % of
+        // the budget, although the scale that it wants lies a little higher.
+        controller.Measure(Timings(frame: frame, scale: controller.Next(frame), renderCost: 19.8));
+
+        settled.Should().BeLessThan(0.9f, "the load holds the request well below the largest scale");
+        controller.RequestedScaleFor(DrawCost.Ordinary).Should().Be(settled);
     }
 
     [Fact]
@@ -535,7 +576,7 @@ public sealed class RenderScaleTests
     {
         var controller = new RenderScaleController(new(16, 0.5f, 0.9f));
 
-        Action record = () => controller.Drew(frame: 0, realizedScale: realized);
+        Action record = () => controller.Drew(frame: 0, realizedScale: realized, cost: DrawCost.Ordinary);
 
         record.Should().Throw<ArgumentOutOfRangeException>();
         controller.AssertInvariants();
@@ -580,19 +621,4 @@ public sealed class RenderScaleTests
             .CostGroupOf(Enum.Parse<FrameGraph.Stage>(stage))
             .Should()
             .Be(Enum.Parse<RenderScaleController.CostGroup>(group));
-
-    private static GpuTimings Timings(long frame, float scale, double renderCost, double outputWait) =>
-        new(
-            frame,
-            new PassTiming[]
-            {
-                new("deformation", 1) { Stage = FrameGraph.Stage.Deformation },
-                new("G-buffer", renderCost * scale * scale) { Stage = FrameGraph.Stage.GBuffer },
-                new("exposure", 0) { Stage = FrameGraph.Stage.Exposure },
-                new("FSR 3.1", 1.5) { Stage = FrameGraph.Stage.Upscale },
-                new("bloom", 0.5) { Stage = FrameGraph.Stage.Bloom },
-                new("tone map", 0.2 + outputWait) { Stage = FrameGraph.Stage.ToneMap },
-            },
-            3.2 + renderCost * scale * scale + outputWait
-        );
 }
