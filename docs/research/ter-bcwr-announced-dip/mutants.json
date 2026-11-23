@@ -1,0 +1,300 @@
+[
+ {
+  "id": "C01",
+  "file": "src/Tertius.Rendering/Upscaling/RenderScaleController.cs",
+  "line": 54,
+  "original": "if (fits[(int)next] is { } fit)",
+  "replacement": "if (fits[(int)DrawCost.Ordinary] is { } fit)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "DrawCostScaleTests",
+   "RenderScaleTests"
+  ],
+  "note": "every kind reads the ordinary fit"
+ },
+ {
+  "id": "C02",
+  "file": "src/Tertius.Rendering/Upscaling/RenderScaleController.cs",
+  "line": 56,
+  "original": "next == DrawCost.CatchUp ? RequestedScaleFor(DrawCost.Ordinary) : target.MaxScale",
+  "replacement": "target.MaxScale",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "DrawCostScaleTests",
+   "RenderScaleTests"
+  ],
+  "note": "a kind without a fit asks for the largest scale"
+ },
+ {
+  "id": "C03",
+  "file": "src/Tertius.Rendering/Upscaling/RenderScaleController.cs",
+  "line": 56,
+  "original": "next == DrawCost.CatchUp ?",
+  "replacement": "next == DrawCost.Ordinary ?",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "DrawCostScaleTests",
+   "RenderScaleTests"
+  ],
+  "note": "the fallback's kind test inverted"
+ },
+ {
+  "id": "C04",
+  "file": "src/Tertius.Rendering/Upscaling/RenderScaleController.cs",
+  "line": 75,
+  "original": "(frame, realizedScale, cost)",
+  "replacement": "(frame, realizedScale, (DrawCost)((int)cost * 0))",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "DrawCostScaleTests",
+   "RenderScaleTests"
+  ],
+  "note": "Drew forgets the kind"
+ },
+ {
+  "id": "C05",
+  "file": "src/Tertius.Rendering/Upscaling/RenderScaleController.cs",
+  "line": 92,
+  "original": "fits[(int)frame.Cost] is { } previous",
+  "replacement": "fits[(int)DrawCost.Ordinary] is { } previous",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "DrawCostScaleTests",
+   "RenderScaleTests"
+  ],
+  "note": "the blend starts from the ordinary fit"
+ },
+ {
+  "id": "C06",
+  "file": "src/Tertius.Rendering/Upscaling/RenderScaleController.cs",
+  "line": 98,
+  "original": "RequestedScaleFor(frame.Cost)",
+  "replacement": "RequestedScaleFor(DrawCost.Ordinary)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "DrawCostScaleTests",
+   "RenderScaleTests"
+  ],
+  "note": "the move starts from the ordinary request"
+ },
+ {
+  "id": "C07",
+  "file": "src/Tertius.Rendering/Upscaling/RenderScaleController.cs",
+  "line": 100,
+  "original": "fits[(int)frame.Cost] = new(",
+  "replacement": "fits[(int)DrawCost.Ordinary] = new(",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "DrawCostScaleTests",
+   "RenderScaleTests"
+  ],
+  "note": "the fit goes to the ordinary kind"
+ },
+ {
+  "id": "C08",
+  "file": "src/Tertius.Rendering/Upscaling/RenderScaleController.cs",
+  "line": 115,
+  "original": "renderTime * request * request",
+  "replacement": "renderTime * request",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "DrawCostScaleTests",
+   "RenderScaleTests"
+  ],
+  "note": "the current cost is linear in the scale"
+ },
+ {
+  "id": "C09",
+  "file": "src/Tertius.Rendering/Upscaling/RenderScaleController.cs",
+  "line": 117,
+  "original": "return request;",
+  "replacement": "return target.MaxScale;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "DrawCostScaleTests",
+   "RenderScaleTests"
+  ],
+  "note": "inside the band the request jumps to the largest"
+ },
+ {
+  "id": "C10",
+  "file": "src/Tertius.Rendering/Upscaling/RenderScaleController.cs",
+  "line": 120,
+  "original": "wanted < request ? 0.25 : 0.05",
+  "replacement": "wanted < request ? 0.05 : 0.25",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "DrawCostScaleTests",
+   "RenderScaleTests"
+  ],
+  "note": "the down and up rates swapped"
+ },
+ {
+  "id": "C11",
+  "file": "src/Tertius.Rendering/Upscaling/RenderScaleController.cs",
+  "line": 190,
+  "original": "Contract.Invariant(Enum.IsDefined(frame.Cost));",
+  "replacement": "",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "DrawCostScaleTests",
+   "RenderScaleTests"
+  ],
+  "note": "the kind's invariant removed"
+ },
+ {
+  "id": "C12",
+  "file": "src/Tertius.Rendering/Upscaling/RenderScaleController.cs",
+  "line": 181,
+  "original": "Contract.Invariant(fit.Request >= target.MinScale && fit.Request <= target.MaxScale);",
+  "replacement": "",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "DrawCostScaleTests",
+   "RenderScaleTests"
+  ],
+  "note": "the request's invariant removed"
+ },
+ {
+  "id": "F01",
+  "file": "src/Tertius.Rendering/Frame/FrameHistory.cs",
+  "line": 255,
+  "original": "drawIndex < CatchUpDraws",
+  "replacement": "drawIndex <= CatchUpDraws",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "FrameHistoryTests",
+   "DrawCostScaleTests",
+   "StillRuleTests"
+  ],
+  "note": "the catch-up kind one draw longer"
+ },
+ {
+  "id": "F02",
+  "file": "src/Tertius.Rendering/Frame/FrameHistory.cs",
+  "line": 255,
+  "original": "drawIndex < CatchUpDraws",
+  "replacement": "drawIndex < CatchUpDraws - 1",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "FrameHistoryTests",
+   "DrawCostScaleTests",
+   "StillRuleTests"
+  ],
+  "note": "the catch-up kind one draw shorter"
+ },
+ {
+  "id": "F03",
+  "file": "src/Tertius.Rendering/Frame/FrameHistory.cs",
+  "line": 195,
+  "original": "public const int CatchUpDraws = 8;",
+  "replacement": "public const int CatchUpDraws = 9;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "FrameHistoryTests",
+   "DrawCostScaleTests",
+   "StillRuleTests"
+  ],
+  "note": "the length is FullRateFrames + 1"
+ },
+ {
+  "id": "F04",
+  "file": "src/Tertius.Rendering/Frame/FrameHistory.cs",
+  "line": 205,
+  "original": "return CostAt(DrawIndexOf(snapshot: snapshot, step: step, draw: draw, outputSize: outputSize));",
+  "replacement": "return CostAt(DrawIndexOf(snapshot: snapshot, step: step, draw: draw, outputSize: outputSize) * 0 + lastDrawIndex + 1);",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "FrameHistoryTests",
+   "DrawCostScaleTests",
+   "StillRuleTests"
+  ],
+  "note": "CostOf ignores the reset"
+ },
+ {
+  "id": "F05",
+  "file": "src/Tertius.Rendering/Frame/FrameHistory.cs",
+  "line": 224,
+  "original": "Reset: drawIndex == 0,",
+  "replacement": "Reset: drawIndex <= 1,",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "FrameHistoryTests",
+   "DrawCostScaleTests",
+   "StillRuleTests"
+  ],
+  "note": "a draw of index 1 resets too"
+ },
+ {
+  "id": "F06",
+  "file": "src/Tertius.Rendering/Frame/FrameHistory.cs",
+  "line": 251,
+  "original": "? 0",
+  "replacement": "? 1",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "FrameHistoryTests",
+   "DrawCostScaleTests",
+   "StillRuleTests"
+  ],
+  "note": "a reset draw gets index 1"
+ },
+ {
+  "id": "F07",
+  "file": "src/Tertius.Rendering/Frame/FrameHistory.cs",
+  "line": 373,
+  "original": "public DrawCost Cost => CostAt(DrawIndex);",
+  "replacement": "public DrawCost Cost => CostAt(DrawIndex + 1);",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "FrameHistoryTests",
+   "DrawCostScaleTests",
+   "StillRuleTests"
+  ],
+  "note": "the pending kind one draw ahead"
+ },
+ {
+  "id": "F08",
+  "file": "src/Tertius.Rendering/Frame/FrameHistory.cs",
+  "line": 250,
+  "original": "firstOfAStill: IsStill(step) && draw == 0",
+  "replacement": "firstOfAStill: IsStill(step) && draw < 0",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "FrameHistoryTests",
+   "DrawCostScaleTests",
+   "StillRuleTests"
+  ],
+  "note": "a still's first draw no longer resets"
+ },
+ {
+  "id": "V01",
+  "file": "src/Tertius.Rendering/VulkanRenderer.cs",
+  "line": 708,
+  "original": "ScaleController?.RequestedScaleFor(cost)",
+  "replacement": "ScaleController?.RequestedScaleFor(cost == DrawCost.CatchUp ? DrawCost.Ordinary : cost)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*UpscalingRenderTests+CatchUpDraws",
+  "note": "every draw asks for the ordinary scale"
+ },
+ {
+  "id": "V02",
+  "file": "src/Tertius.Rendering/VulkanRenderer.cs",
+  "line": 742,
+  "original": "cost: pending.Cost",
+  "replacement": "cost: DrawCost.Ordinary",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*UpscalingRenderTests+CatchUpDraws",
+  "note": "the renderer records every draw as ordinary"
+ },
+ {
+  "id": "V03",
+  "file": "src/Tertius.Rendering/VulkanRenderer.cs",
+  "line": 700,
+  "original": "DrawCost cost = history.CostOf(snapshot: snapshot, step: step, draw: draw, outputSize: targets.OutputExtent);",
+  "replacement": "DrawCost cost = DrawCost.CatchUp;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "*UpscalingRenderTests+CatchUpDraws",
+  "note": "every draw asks for the catch-up scale"
+ }
+]
