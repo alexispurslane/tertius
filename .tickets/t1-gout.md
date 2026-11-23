@@ -1,6 +1,6 @@
 ---
 id: t1-gout
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-22T19:25:27Z
@@ -354,3 +354,7 @@ Step 3 after the review, the cost fork and the merge (the lead, 2026-11-23).
 - Mutants of tools/mutate.py on shadows.glsl, in a plain copy of HEAD 246d9db94 under a shared GPU take: 13 of 13 killed (D = 1/2, 9/16 and 3/4; the first step from 1/2; the first clamp at 1/2; slopes 2 and 16/3; the share capped at 0.9; the taps' center, rows, columns and mean; the raw lit fraction at the call site). No C# line of src changed but comments, so coverage has no line to cover; tools/test_shader_registers.py covers the new tool's count.
 - Lavapipe on fb18a44e0: branch 115 tests, 0 failed, 1 skipped; main 111, 0 failed; $0.0264 plus $0.0015 for a failed first submit. On the merged head 5f83efe3d: branch 115 tests, 0 failed, 1 skipped (the red test of t1-hdtm); main 111, 0 failed; $0.0248. The step spent $0.0527 of its $0.20.
 - Merged main at 0e32f1767 in 5f83efe3d. Full Checked on the merged state: every module green (Rendering 3,479 passed, 11 skipped). The timing pair on the merged head equals main's in the cabin and the hall, and the registers read r112 and r115 on both. Full Release on the merged head: every module green (Rendering 3,478 passed, 11 skipped).
+
+**2026-11-23T09:24:55Z**
+
+2026-11-23, the line orchestrator. Merged step 3 (branch t3/fade-lit-front-trace at f72b01214, merge commit c689ac9f0) and read the diff once. The gates: the lead's report is ready_for_integration with a clean checkout; the review and its re-review pass with C1, Q1 to Q5 and F1 to F6 resolved; full Checked and full Release are green on the head merged with main after Design X (Rendering 3,479 and 3,478 passed, 11 skipped); lavapipe 115 tests, 0 failed; 13 of 13 mutants of shadows.glsl killed; the frame's time and the registers equal main's (direct_key_fill.frag r115, direct.frag r112). Main moved by ticket and docs commits only after the lead's merge, so the merged code equals the lead's tested head. Read: one rule in lightOutsideShadow with D computed from FilterTapsPerAxis, the two-step form explained as a cost detail of one GPU, the tiles' decision in tileShadow's comment. One sentence of ARCHITECTURE.md corrected. Two remarks, no defect: tileShadow is a pass-through to tileLitFraction and stays as the one place of the tiles' share rule (t1-hdtm's fix lands there); a device with 4 bits of sub-texel precision can add up to 1/64 to the lit fraction on the real edge, a share of 0.042, which the record states and the desktop Linux drivers (8 bits) do not reach. Closed: the jamb leak's cause, design L in the cascades, no commit B. The tiles' leak is t1-hdtm.
