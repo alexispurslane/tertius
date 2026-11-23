@@ -101,6 +101,16 @@ edit('src/Tertius.Host/ScriptCommand.cs',
                     FrameTimeProbe.Write(renderer.LastFrameStats); // PROBE (ter-yglw)
 """)
 # t1-6tn2: the parts of a face's work (FaceProbe.cs, TERTIUS_PROBE_FACE_PARTS).
+edit('src/Tertius.Rendering/Passes/EnvironmentFacePass.cs',
+     """        for (int range = DepthRanges.Far; range <= DepthRanges.Near; range++)
+        {
+            map.FaceSurface.DrawnBy(barriers: context.Barriers, attachments: record, anew: range == DepthRanges.Far);""",
+     """        int first = FaceProbe.FirstRange(draw); // PROBE (t1-6tn2): ranges-skip
+        for (int range = first; range <= DepthRanges.Near; range++)
+        {
+            if (range != first && FaceProbe.SkipsRange(draw, range))
+                continue;
+            map.FaceSurface.DrawnBy(barriers: context.Barriers, attachments: record, anew: range == first);""")
 edit('src/Tertius.Rendering/Passes/EnvironmentPrefilterPass.cs',
      """        for (int dispatch = 0; dispatch < PrefilterLevels.Dispatches(map.Levels); dispatch++)
             DispatchLevels(""",

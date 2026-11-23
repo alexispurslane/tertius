@@ -32,6 +32,9 @@ namespace Tertius.Rendering;
 /// design P would (the lean field face). A texel that sees none of them stays empty.</item>
 /// <item>specular-off: the prefilter skips the specular levels' dispatches of a map with fewer than six drawn faces.
 /// The radiance mips, the irradiance convolution and its downsample still run.</item>
+/// <item>ranges-skip: a face's surfaces begin at its first depth range that has draws (the near range when none has),
+/// which clears the surface record, and skip the empty ranges after it. Exact: an empty range draws nothing, and the
+/// clear moves to the first drawn range.</item>
 /// <item>irr-off: the prefilter skips the irradiance convolution's dispatch of a map with fewer than six drawn faces.
 /// The irradiance downsample still runs.</item>
 /// <item>prefilter-off: the prefilter pass records nothing in a frame that draws fewer than six faces per served map.
@@ -85,6 +88,21 @@ internal static class FaceProbe
     private static readonly bool PrefilterOff = Parts.Contains("prefilter-off");
     private static readonly bool OwnOnly = Parts.Contains("own");
     private static readonly bool SpecularOff = Parts.Contains("specular-off");
+    private static readonly bool RangesSkip = Parts.Contains("ranges-skip");
+
+    /// <summary>The first depth range that a face records: the far range, or under ranges-skip its first with draws.</summary>
+    public static int FirstRange(in EnvironmentFaceDraw draw)
+    {
+        if (!RangesSkip)
+            return DepthRanges.Far;
+        for (int range = DepthRanges.Far; range < DepthRanges.Near; range++)
+            if (draw[range].Count > 0)
+                return range;
+        return DepthRanges.Near;
+    }
+
+    /// <summary>Whether a face skips depth range <paramref name="range"/> after its first (ranges-skip, an empty range).</summary>
+    public static bool SkipsRange(in EnvironmentFaceDraw draw, int range) => RangesSkip && draw[range].Count == 0;
 
     /// <summary>The Earth's mesh indices, each with its coarse mesh's index under earth-coarse (else itself).</summary>
     private static readonly Dictionary<int, int> Earths = [];
