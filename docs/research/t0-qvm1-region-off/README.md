@@ -23,3 +23,16 @@ Both are the final code, the cap's commit `05a27262d` (Design X, light evidence 
 - With the rule, region-sized rectangles on the ceiling, the walls and the floor hold shorter histories: the region test's false fires cap a region at 8 draws, and its histories regrow.
 - Without the rule, every pixel except the window openings (which show space and hold no history) reaches the cap.
 - The rule-on numbers equal X5's map of `t0-gumm` to the digit: the cap of `05a27262d` does not act in a still.
+
+## The walk's stop
+
+Video: `pics/walk-rule-on-off.mp4`, with region evidence left and without it right, 260 draws (the walk's last 60 and the 200 after the stop). Both codes play back the card's walk log of Design X `05a27262d` from `t0-3vwx`'s final take (scale 0.949 on every draw of the video), so the numbers stand beside that film's. `tools/queue.sh`, its output in `queue.txt`.
+
+| The center region's light after the stop, against the last frame | 0 draws | 20 draws | 40 draws |
+|---|---|---|---|
+| Design X with region evidence | +5.87 % | +4.61 % | +3.58 % |
+| Design X without region evidence | +5.52 % | +4.27 % | +3.26 % |
+| Main `454574bf8` (`t0-3vwx`'s final film) | +5.34 % | +3.73 % | +2.49 % |
+
+- The rule-on run gives the final film's numbers to the digit.
+- Without region evidence the trail after the stop is a little shorter, not longer: 0.32 to 0.35 points less light at each point. The region test starts only about 36 draws after the stop, so it cannot shorten this trail; the false fires before the walk leave shorter histories, which is the only difference the rule makes here. (Not measured: the history lengths at the stop.)

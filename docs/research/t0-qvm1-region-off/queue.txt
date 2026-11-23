@@ -1,0 +1,14 @@
+# queue.sh, 2026-11-22 19:52
+19:52:03 pictures w-QD
+19:56:07 exit 0 260 pictures
+19:56:07 pictures w-QN
+20:16:00 exit 0 260 pictures
+/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-qvm1-region-off/pics/walk-rule-on-off.mp4 5.9 MB, 260 frames at 60 per second, 3840 x 1080
+pane 1 with region evidence: render scale 0.949 to 0.949, 0 size changes in the video's 260 draws
+pane 2 without region evidence: render scale 0.949 to 0.949, 0 size changes in the video's 260 draws
+draws after the stop: 0, against the last frame: with region evidence: r11 source +5.87 %, video +5.93 %, largest difference 0.17 %; without region evidence: r11 source +5.52 %, video +5.54 %, largest difference 0.12 %
+draws after the stop: 20, against the last frame: with region evidence: r11 source +4.61 %, video +4.74 %, largest difference 0.30 %; without region evidence: r11 source +4.27 %, video +4.37 %, largest difference 0.25 %
+draws after the stop: 40, against the last frame: with region evidence: r11 source +3.58 %, video +3.72 %, largest difference 0.28 %; without region evidence: r11 source +3.26 %, video +3.36 %, largest difference 0.22 %
+# queue.sh, 2026-11-22 20:17
+# queue.sh, 2026-11-22 20:19
+20:19:35 start wk-QD xfd walk cabin-walk TERTIUS_X_FRAME_TIME_TARGET=16.6667 TERTIUS_X_SIZE_REPLAY=/Users/alexispurslane/.t3/worktrees/tertius/t3-52bfcd29-81249085ce80dd9f/docs/research/t0-3vwx-dynamic-scale-films/sizes-final/walk-x-16.6667/size-none.txt TERTIUS_X_SIZE_LOG=/private/tmp/t0-gbgj/runs/wk-QD/sizes (load { 8.65 7.69 6.69 })
