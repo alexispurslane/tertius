@@ -344,3 +344,23 @@ Ordered: the lead's hold 3 takes the clamp-off pair in the specular signal alone
 The probe was rebuilt before part 3 with two dumps: the specular trace's layers 3 and 6 per draw (the fast history's luminance and the clamp's move), and the reflection ray's cause record (guided or not, the walk's end, counts, the hit's depth over the target's).
 
 For part 3: the mirror plate has a roughness of 0.05, below the ramp's start of 0.1. Its guided share is 0, so its pictures must equal main's to the bit.
+
+**2026-11-23T22:28:26Z**
+
+2026-11-23, line orchestrator of the back-face line: stage 1, part 3, rect-lamps' glossy floor and the mirror plate. The surface share's lead took it.
+
+Take: rect-lamps' floor (f62) at a render scale of 2/3 and 3.83 stops, and the mirror plate at 0.73 stops, capture 19, guided share 0.25. Columns: main, the coin, the exact count. Each build against its own late mean. Pictures at 1:1, in the lead's evidence folder `t3-2b720d96-b40221aeff8f27f7-evidence/fe63/`: `lamps-floor-main-coin-exact.png` and `plate-main-coin-exact.png`.
+
+rect-lamps' floor, the output's box (600, 620) to (1320, 1000), in units of main's mean:
+
+| Build | All / grain / blob | Mean against main |
+|---|---|---|
+| Main | 0.0073 / 0.0055 / 0.0026 | |
+| Coin | 0.0130 / 0.0087 / 0.0052 | +0.05 % |
+| Exact count | 0.0096 / 0.0068 / 0.0037 | -0.09 % |
+
+What I see: main's floor is smooth around the lamps' long reflections. The coin has a faint mottle over the floor, clearest in the upper half. In the exact count I can hardly tell the floor from main's at 1:1 and at two times. The lead sees a fainter mottle there too. The numbers say that it exists: the grain rises 24 % and the blob 1.4 times (coin: 58 % and 2.0 times). The means do not move, so the floor has no clamp loss.
+
+So 0.25 does not pass on the floor with the coin, and with the exact count it is at the edge. The replay predicted both rows (within 0.525 against main's 0.391 for the exact count, 0.834 in total for the coin). The cause is t1-d9k3: 54 % of this floor's reflection light comes from the lamps, which the guide does not hold, so here the guided draw is mostly a tax. The lead takes the floor's exact count at 0.125 in its hold 5. The floor's film is its own hold.
+
+Mirror plate: the three stills are identical to the byte. The plate's floored roughness is 0.05, below the ramp's start of 0.1, so its guided share is 0. The plate's bar is met by the ramp, and a share of 0 leaves main's picture unchanged.
