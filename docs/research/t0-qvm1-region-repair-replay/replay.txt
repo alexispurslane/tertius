@@ -1,0 +1,189 @@
+
+== exit-cabin: 924 draws, 213120 tested anchor-draws, T fires at 0.90 %
+  T at P = W = 18 against the logged answer: 213120 of 213120 tested anchor-draws agree, 0 draws disagree in all
+  real short blocks (dump): draw 630 26.64 %, draw 890 15.87 %
+  candidate    share   noise  at the dump draws        E: false rate after the fill, fill
+  none         0.00%  0.0000  630: 0.00 %, 890: 0.00 %
+  T           27.47%  0.1199  630: 26.64 %, 890: 15.87 %
+  E4           5.65%  0.0222  630: 7.90 %, 890: 2.01 %  0.16 %, 287 draws
+  E8          10.24%  0.0408  630: 12.97 %, 890: 0.00 %  0.29 %, 361 draws
+  E16         18.74%  0.0790  630: 20.41 %, 890: 5.90 %  0.39 %, 499 draws
+  C1          12.86%  0.0335  630: 18.47 %, 890: 4.01 %
+  EC1          3.32%  0.0065  630: 4.01 %, 890: 0.00 %
+  C2           7.04%  0.0135  630: 14.02 %, 890: 4.01 %
+  EC2          1.32%  0.0017  630: 2.01 %, 890: 0.00 %
+  C4           2.53%  0.0035  630: 7.35 %, 890: 0.00 %
+  EC4          0.22%  0.0001  630: 0.00 %, 890: 0.00 %
+  C0.53       17.94%  0.0572  630: 21.97 %, 890: 4.01 %
+  EC0.53       5.47%  0.0144  630: 9.91 %, 890: 0.00 %
+  K6           2.57%  0.0107  630: 4.01 %, 890: 0.00 %
+
+== lamp hall: 924 draws, 149770 tested anchor-draws, T fires at 1.09 %
+  real short blocks (dump): draw 630 10.96 %, draw 890 21.16 %
+  candidate    share   noise  at the dump draws        E: false rate after the fill, fill
+  none         0.00%  0.0000  630: 0.00 %, 890: 0.00 %
+  T           19.71%  0.0890  630: 7.19 %, 890: 33.00 %
+  E4           4.58%  0.0181  630: 0.00 %, 890: 7.03 %  0.10 %, 120 draws
+  E8           7.52%  0.0311  630: 0.00 %, 890: 7.03 %  0.21 %, 276 draws
+  E16         13.95%  0.0594  630: 4.40 %, 890: 17.32 %  0.50 %, 459 draws
+  C1           9.06%  0.0216  630: 4.40 %, 890: 11.10 %
+  EC1          2.15%  0.0041  630: 0.00 %, 890: 0.00 %
+  C2           4.42%  0.0074  630: 1.52 %, 890: 5.85 %
+  EC2          0.69%  0.0011  630: 0.00 %, 890: 0.00 %
+  C4           1.25%  0.0014  630: 0.00 %, 890: 1.52 %
+  EC4          0.14%  0.0003  630: 0.00 %, 890: 0.00 %
+  C1.12        8.28%  0.0187  630: 1.52 %, 890: 8.22 %
+  EC1.12       1.89%  0.0034  630: 0.00 %, 890: 0.00 %
+  K6           2.85%  0.0114  630: 0.00 %, 890: 0.00 %
+
+== lamp hall, P = 18: 924 draws, 150960 tested anchor-draws, T fires at 0.95 %
+  T at P = W = 18 against the logged answer: 150960 of 150960 tested anchor-draws agree, 0 draws disagree in all
+  real short blocks (dump): draw 630 10.96 %, draw 890 21.16 %
+  candidate    share   noise  at the dump draws        E: false rate after the fill, fill
+  none         0.00%  0.0000  630: 0.00 %, 890: 0.00 %
+  T           23.96%  0.1045  630: 10.94 %, 890: 21.16 %
+  E4           5.49%  0.0208  630: 2.40 %, 890: 6.07 %  0.11 %, 161 draws
+  E8           9.29%  0.0371  630: 2.40 %, 890: 8.71 %  0.20 %, 281 draws
+  E16         17.25%  0.0720  630: 10.94 %, 890: 12.77 %  0.41 %, 453 draws
+  C1          11.08%  0.0269  630: 4.64 %, 890: 8.22 %
+  EC1          2.32%  0.0042  630: 0.00 %, 890: 4.13 %
+  C2           5.62%  0.0094  630: 3.92 %, 890: 6.77 %
+  EC2          0.78%  0.0011  630: 0.00 %, 890: 1.25 %
+  C4           1.64%  0.0017  630: 3.92 %, 890: 2.88 %
+  EC4          0.17%  0.0001  630: 0.00 %, 890: 0.00 %
+  C1.12       10.18%  0.0233  630: 3.92 %, 890: 8.22 %
+  EC1.12       2.00%  0.0034  630: 0.00 %, 890: 4.13 %
+  K6           1.24%  0.0053  630: 0.00 %, 890: 1.25 %
+
+== bay: 924 draws, 206904 tested anchor-draws, T fires at 1.17 %
+  T at P = W = 18 against the logged answer: 206904 of 206904 tested anchor-draws agree, 0 draws disagree in all
+  real short blocks (dump): draw 630 29.31 %, draw 890 37.61 %
+  candidate    share   noise  at the dump draws        E: false rate after the fill, fill
+  none         0.00%  0.0000  630: 0.00 %, 890: 0.00 %
+  T           32.12%  0.1451  630: 29.31 %, 890: 37.61 %
+  E4           6.65%  0.0267  630: 7.43 %, 890: 3.17 %  0.20 %, 228 draws
+  E8          11.73%  0.0478  630: 8.41 %, 890: 6.09 %  0.30 %, 400 draws
+  E16         22.18%  0.0953  630: 14.95 %, 890: 14.92 %  0.51 %, 497 draws
+  C1          16.05%  0.0445  630: 10.88 %, 890: 19.20 %
+  EC1          4.01%  0.0082  630: 3.29 %, 890: 3.17 %
+  C2           9.50%  0.0193  630: 7.32 %, 890: 14.08 %
+  EC2          1.63%  0.0022  630: 0.00 %, 890: 1.10 %
+  C4           3.62%  0.0054  630: 3.10 %, 890: 5.06 %
+  EC4          0.30%  0.0002  630: 0.00 %, 890: 1.10 %
+  C0.61       20.54%  0.0664  630: 17.20 %, 890: 25.15 %
+  EC0.61       5.85%  0.0152  630: 3.29 %, 890: 3.17 %
+  K6           3.67%  0.0156  630: 2.19 %, 890: 6.21 %
+
+== still cabin: 924 draws, 211344 tested anchor-draws, T fires at 1.08 %
+  T at P = W = 18 against the logged answer: 211344 of 211344 tested anchor-draws agree, 0 draws disagree in all
+  real short blocks (dump): draw 190 21.18 %, draw 890 17.79 %
+  candidate    share   noise  at the dump draws        E: false rate after the fill, fill
+  none         0.00%  0.0000  190: 0.00 %, 890: 0.00 %
+  T           23.33%  0.1000  190: 21.05 %, 890: 17.79 %
+  E4           5.75%  0.0223  190: 7.31 %, 890: 5.15 %  0.19 %, 165 draws
+  E8           9.86%  0.0396  190: 16.23 %, 890: 7.07 %  0.26 %, 404 draws
+  E16         15.80%  0.0660  190: 21.05 %, 890: 11.82 %  0.43 %, 481 draws
+  C1          10.47%  0.0271  190: 11.18 %, 890: 10.05 %
+  EC1          3.10%  0.0071  190: 5.03 %, 890: 0.00 %
+  C2           5.75%  0.0113  190: 4.95 %, 890: 7.06 %
+  EC2          1.30%  0.0032  190: 2.04 %, 890: 0.00 %
+  C4           1.89%  0.0036  190: 2.04 %, 890: 3.05 %
+  EC4          0.43%  0.0017  190: 2.04 %, 890: 0.00 %
+  C1.17        9.41%  0.0229  190: 11.18 %, 890: 10.05 %
+  EC1.17       2.67%  0.0059  190: 5.03 %, 890: 0.00 %
+  K6           2.28%  0.0090  190: 0.00 %, 890: 3.05 %
+
+== the switch with the rule: T against the logged answer: 108766 of 108766 agree
+
+== the fair cabin switch, the log with the rule: settle in draws (off: whole, slowest region, slowest anchor, mean over the anchors | on: the same)
+  none     off: 133, 149, none, 140.5 (1/238 none) | on: none, none, none, 95.8 (149/238 none)
+  T        off: 74, 90, 196, 91.9 (0/238 none) | on: 51, 59, 90, 54.8 (0/238 none)
+  E4       off: 101, 110, 196, 110.3 (0/238 none) | on: 67, 76, 93, 65.0 (0/238 none)
+  E8       off: 96, 105, 196, 104.9 (0/238 none) | on: 58, 69, 93, 57.8 (0/238 none)
+  E16      off: 91, 104, 196, 99.7 (0/238 none) | on: 52, 60, 85, 54.5 (0/238 none)
+  C1       off: 80, 98, 196, 91.3 (0/238 none) | on: 52, 59, 85, 54.7 (0/238 none)
+  EC1      off: 101, 110, 196, 109.4 (0/238 none) | on: 64, 73, 93, 63.0 (0/238 none)
+  C2       off: 86, 104, 196, 96.3 (0/238 none) | on: 55, 63, 93, 56.4 (0/238 none)
+  EC2      off: 104, 116, 196, 113.0 (0/238 none) | on: 70, 76, 93, 67.5 (0/238 none)
+  C4       off: 97, 111, 196, 107.1 (0/238 none) | on: 60, 69, 94, 62.1 (0/238 none)
+  EC4      off: 110, 122, 196, 117.8 (0/238 none) | on: 76, 83, 94, 73.4 (0/238 none)
+  K6       off: 76, 96, 196, 89.7 (0/238 none) | on: 52, 59, 85, 54.4 (0/238 none)
+
+== the fair cabin switch, the log without the rule: settle in draws (off: whole, slowest region, slowest anchor, mean over the anchors | on: the same)
+  none     off: none, none, none, 191.9 (199/238 none) | on: none, none, none, none (238/238 none)
+  T        off: none, none, none, 185.9 (138/238 none) | on: none, none, none, 89.5 (191/238 none)
+  E4       off: none, none, none, 190.9 (185/238 none) | on: none, none, none, 92.3 (229/238 none)
+  E8       off: none, none, none, 190.9 (185/238 none) | on: none, none, none, 92.0 (225/238 none)
+  E16      off: none, none, none, 190.7 (185/238 none) | on: none, none, none, 91.8 (225/238 none)
+  C1       off: none, none, none, 189.4 (157/238 none) | on: none, none, none, 91.6 (207/238 none)
+  EC1      off: none, none, none, 191.0 (185/238 none) | on: none, none, none, 90.1 (230/238 none)
+  C2       off: none, none, none, 189.7 (177/238 none) | on: none, none, none, 93.3 (215/238 none)
+  EC2      off: none, none, none, 191.1 (185/238 none) | on: none, none, none, 90.8 (232/238 none)
+  C4       off: none, none, none, 190.9 (183/238 none) | on: none, none, none, 90.9 (230/238 none)
+  EC4      off: none, none, none, 191.0 (186/238 none) | on: none, none, none, 87.0 (235/238 none)
+  K6       off: none, none, none, 189.7 (171/238 none) | on: none, none, none, 89.1 (211/238 none)
+
+== bay-sun: the lag of the model light in draws (median, largest, count)
+  none     30.8, 33.2, 35
+  T        7.2, 26.3, 32
+  E4       7.4, 31.3, 30
+  E8       7.2, 32.2, 30
+  E16      7.2, 26.7, 31
+  C1       7.5, 22.5, 30
+  EC1      7.5, 31.4, 31
+  C2       8.3, 26.1, 30
+  EC2      8.6, 31.2, 32
+  C4       11.8, 33.1, 33
+  EC4      12.1, 33.1, 33
+  K6       7.2, 29.1, 31
+
+== rect-bay: the lag of the model light in draws (median, largest, count)
+  none     31.2, 34.6, 37
+  T        7.2, 27.0, 37
+  E4       29.1, 31.6, 37
+  E8       21.3, 31.7, 37
+  E16      18.2, 31.8, 37
+  C1       7.9, 31.0, 37
+  EC1      28.4, 31.6, 37
+  C2       10.5, 32.5, 37
+  EC2      30.0, 32.5, 37
+  C4       15.9, 34.2, 37
+  EC4      30.9, 34.2, 37
+  K6       7.3, 34.6, 37
+  the caps of rect-bay's fires under T (10, 50, 90 %): C1: 8.0, 8.0, 21.3; EC1: 8.0, 32.0, 32.0; C2: 8.0, 11.9, 32.0; EC2: 12.0, 32.0, 32.0; C4: 11.3, 18.9, 32.0; EC4: 19.0, 32.0, 32.0
+
+== the still cabin, draws 100 to 299, the log with the rule: 534 fires of today's rule; caps at them (10, 50, 90 %); the model light against the end, draws 100 to 199 and 200 to 299 (median over the anchors)
+  the logged light: -0.54 %, -0.11 %
+  none     caps 32.0, 32.0, 32.0; light -1.24 %, -0.25 %
+  T        caps 8.0, 8.0, 8.0; light -0.92 %, -0.26 %
+  E4       caps 8.0, 32.0, 32.0; light -1.03 %, -0.23 %
+  E8       caps 8.0, 8.0, 32.0; light -0.94 %, -0.23 %
+  E16      caps 8.0, 8.0, 8.0; light -0.92 %, -0.23 %
+  C1       caps 8.0, 19.3, 32.0; light -1.04 %, -0.25 %
+  EC1      caps 8.0, 24.0, 32.0; light -1.10 %, -0.25 %
+  C2       caps 8.0, 30.6, 32.0; light -1.16 %, -0.24 %
+  EC2      caps 8.0, 32.0, 32.0; light -1.17 %, -0.24 %
+  C4       caps 9.7, 32.0, 32.0; light -1.20 %, -0.24 %
+  EC4      caps 9.8, 32.0, 32.0; light -1.20 %, -0.25 %
+  C1.17    caps 8.0, 21.4, 32.0; light -1.06 %, -0.25 %
+  EC1.17   caps 8.0, 26.7, 32.0; light -1.12 %, -0.25 %
+  K6       caps 8.0, 32.0, 32.0; light -1.14 %, -0.24 %
+
+== the still cabin, draws 100 to 299, the log without the rule: 567 fires of today's rule; caps at them (10, 50, 90 %); the model light against the end, draws 100 to 199 and 200 to 299 (median over the anchors)
+  the logged light: -1.44 %, -0.57 %
+  none     caps 32.0, 32.0, 32.0; light -2.30 %, -0.83 %
+  T        caps 8.0, 8.0, 8.0; light -2.04 %, -0.77 %
+  E4       caps 8.0, 8.0, 32.0; light -2.08 %, -0.77 %
+  E8       caps 8.0, 8.0, 32.0; light -2.04 %, -0.77 %
+  E16      caps 8.0, 8.0, 8.0; light -2.04 %, -0.77 %
+  C1       caps 8.0, 20.0, 32.0; light -2.16 %, -0.80 %
+  EC1      caps 8.0, 23.0, 32.0; light -2.16 %, -0.78 %
+  C2       caps 8.0, 31.7, 32.0; light -2.25 %, -0.81 %
+  EC2      caps 8.0, 32.0, 32.0; light -2.25 %, -0.81 %
+  C4       caps 9.7, 32.0, 32.0; light -2.29 %, -0.83 %
+  EC4      caps 9.7, 32.0, 32.0; light -2.29 %, -0.83 %
+  C1.17    caps 8.0, 22.2, 32.0; light -2.19 %, -0.81 %
+  EC1.17   caps 8.0, 25.5, 32.0; light -2.19 %, -0.78 %
+  K6       caps 8.0, 32.0, 32.0; light -2.31 %, -0.80 %
+
+wrote /private/tmp/t0-5tyj/r2/out/replay.json

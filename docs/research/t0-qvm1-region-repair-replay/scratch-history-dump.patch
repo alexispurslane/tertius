@@ -1,0 +1,36 @@
+# SCRATCH patch of t1-g1jd, never commit to src, fitted from t0-gumm's scratch-history-dump.patch to main ae4364022 after the
+# survey's probe patch. TERTIUS_X_HISTORY_DUMP=<folder>:<draw>[,<draw>...] writes the slow diffuse history's length that
+# each listed draw left, as float32 over the render size, for the map of the settled history lengths.
+--- a/src/Tertius.Rendering/VulkanRenderer.cs	2026-11-23 01:21:40
++++ b/src/Tertius.Rendering/VulkanRenderer.cs	2026-11-23 01:21:40
+@@ -659,6 +659,30 @@
+         MatchTargetsTo(image);
+ 
+         FrameHistory.PendingFrame pending = BeginDraw(snapshot: snapshot, step: step, draw: draw);
++        // SCRATCH (t1-g1jd, never commit to src): with TERTIUS_X_HISTORY_DUMP=<folder>:<draw>[,<draw>...], the draw after
++        // each listed draw writes the slow diffuse history's length that the listed draw left (ScreenTraceSignals.Diffuse.Slow(0),
++        // alpha) over its render size, row by row as float32, to <folder>/history-<draw>-<width>x<height>.f32. A draw is
++        // the renderer's frame number, counted from 0. The read waits for the device.
++        if (Environment.GetEnvironmentVariable("TERTIUS_X_HISTORY_DUMP") is { Length: > 0 } probeDump
++            && probeDump.LastIndexOf(':') is int probeColon && probeColon > 0
++            && probeDump[(probeColon + 1)..].Split(',').Select(long.Parse).Contains(FrameNumber - 1))
++        {
++            Extent2D probeSize = pending.PreviousRenderSize;
++            (float[] probeValues, int probeWidth, _) = ReadLevel(image: ScreenTraceSignals.Diffuse.Slow(0), layer: 0, mip: 0);
++            var probeLengths = new float[probeSize.Width * probeSize.Height];
++            for (int probeY = 0; probeY < probeSize.Height; probeY++)
++                for (int probeX = 0; probeX < probeSize.Width; probeX++)
++                    probeLengths[probeY * probeSize.Width + probeX] = probeValues[4 * (probeY * probeWidth + probeX) + 3];
++            byte[] probeBytes = new byte[probeLengths.Length * sizeof(float)];
++            System.Buffer.BlockCopy(probeLengths, 0, probeBytes, 0, probeBytes.Length);
++            System.IO.File.WriteAllBytes(
++                System.IO.Path.Combine(
++                    System.IO.Directory.CreateDirectory(probeDump[..probeColon]).FullName,
++                    $"history-{FrameNumber - 1}-{probeSize.Width}x{probeSize.Height}.f32"
++                ),
++                probeBytes
++            );
++        }
+         ICaptureSink? sink = takeCapture ? Interlocked.Exchange(ref pendingCapture, null) : null;
+         GpuBuffer? capture = sink != null ? CaptureBuffer(slot: frame.Index, extent: image.Extent) : null;
+         // After the output gave the frame an image, so a skipped frame leaves the map's frame as it is, and before
