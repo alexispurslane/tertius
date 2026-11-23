@@ -1,0 +1,93 @@
+--- /private/tmp/t0-gbgj/regs-p0/main/shadows.glsl	2026-11-23 12:19:30
++++ /private/tmp/t0-gbgj/regs-p0/v15/shadows.glsl	2026-11-23 12:28:47
+@@ -274,6 +274,44 @@
+         visibility *= 1.0 - weight * discCoverage(lightRadius, occluderRadius, separation);
+     }
+     return visibility;
++}
++
++#ifndef TERTIUS_PROBE_TRUST
++#define TERTIUS_PROBE_TRUST 1
++#endif
++
++// PROBE t1-af5w part 0 (scratch, never merged): the side in m of the square with the emitter's projected area, as a
++// caster in the direction -L from the light sees it. A rect: sqrt(area x |cos|) about its axis. A tube: its projected
++// capsule. A point or a spot: 2 R.
++float probeEmitterSide(GpuLight light, vec3 L)
++{
++    uint kind = uint(light.intensityKind.w + 0.5);
++    float r = light.spotRadius.y;
++    if (kind == 3u)
++    {
++        vec3 a = light.directionCosOuter.xyz, b = light.halfHeight.xyz;
++        vec3 n = cross(a, b);
++        return sqrt(4.0 * abs(dot(n, L)));
++    }
++    if (kind == 2u)
++    {
++        vec3 a = light.directionCosOuter.xyz;
++        float across = length(cross(a, L));
++        return sqrt(4.0 * r * across + 3.14159265 * r * r);
++    }
++    return 2.0 * r;
++}
++
++// PROBE t1-af5w part 0: the footprint's width in tile texels, from the least ramp `least` to 4. The bounds texel is
++// fetched again after the taps (tileLookupOf), so nothing new is held across them. The gap is from bounds.y, the
++// window's caster nearest the light. The trusted gap is the gap minus the own-plane span (3 texels x tan θ) minus the
++// depth bias (0.5 texels constant + 2.5 texels x tan θ slope). w is 4 where the trusted gap is 0 or less, and it fades to
++// the true width over one own-plane span.
++vec2 probeTrueAndGap(GpuLight light, GpuShadowTile tile, float ndcZ, float boundsY, vec3 L, float d)
++{
++    float caster = d * ndcZ / max(boundsY, 1e-30);
++    float gapTexels = (d - caster) * max(ndcZ, 1e-30) / (tile.texelPerMeter * tile.near);
++    return vec2(gapTexels * probeEmitterSide(light, L) / max(caster, 1e-3), gapTexels);
+ }
+ 
+ // Where a lookup of a near light's atlas tile falls (tileLookupOf): its reversed depth, its tile's layer, the filter's first
+@@ -285,6 +323,7 @@
+     vec2 first;
+     vec2 f;
+     vec2 bounds;   // the least (x) and the greatest (y) reversed depth of the window (shadow_bounds.comp)
++    vec2 trueAndGap; // PROBE: the true width and the gap, in texels
+ };
+ 
+ // The lookup of tileLitFraction, with the normal offset at the receiver's distance and the casters' slope-scaled bias.
+@@ -318,6 +357,8 @@
+     vec2 lastWindow = vec2(textureSize(shadowBounds, 0).xy - 1);
+     ivec2 window = ivec2(clamp(floor(corner * 0.5), vec2(0.0), lastWindow));
+     t.bounds = texelFetch(shadowBounds, ivec3(window, int(tile.layer)), 0).rg;
++    float least = frame.shadowParams.w;
++    t.trueAndGap = probeTrueAndGap(light, tile, t.ndc.z, t.bounds.y, L, d);
+     return t;
+ }
+ 
+@@ -339,9 +380,10 @@
+ // (VulkanRenderer.HeldValuesCost). Nine gathers are the fewest reads. Each returns four comparisons, so the shader holds
+ // 36 values until the weights reduce them. Sixteen corner means are more reads of one value each. A driver that prices
+ // each read runs the gathers faster, and one that prices the held values runs the means faster (t2-gfq5).
+-float tileLitFraction(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float sinTheta)
++float tileLitFraction(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float sinTheta, out vec2 trueAndGap)
+ {
+     TileLookup t = tileLookupOf(light, position, L, d, geometricNormal, sinTheta);
++    trueAndGap = t.trueAndGap;
+     vec3 ndc = t.ndc;
+     vec2 first = t.first;
+     vec2 f = t.f;
+@@ -403,7 +445,15 @@
+ // small: about 6 pixels down a beam's face below a ceiling lamp of the exit cabin (t1-hdtm).
+ float tileShadow(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float sinTheta)
+ {
+-    return tileLitFraction(light, position, L, d, geometricNormal, sinTheta);
++    vec2 trueAndGap;
++    float lit = tileLitFraction(light, position, L, d, geometricNormal, sinTheta, trueAndGap);
++    float least = frame.shadowParams.w;
++    if (least == 0.0)
++        return lit;
++    float tanTheta = max(sinTheta * inversesqrt(max(1.0 - sinTheta * sinTheta, 1e-6)), 1.0 / 12.0);
++    float untrusted = 4.0 - (trueAndGap.y - 0.5 - 5.5 * tanTheta) * (4.0 / 3.0) / tanTheta;
++    float w = clamp(max(trueAndGap.x, untrusted), least, 4.0);
++    return clamp(0.5 + (lit - 0.5) * 4.0 / w, 0.0, 1.0);
+ }
+ 
+ #endif

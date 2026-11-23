@@ -280,3 +280,71 @@ so the numbers above leave it out of any design. Ticket `t58-7645` holds it.
 - `patches/regs-*.diff`: the register variants of item 3, on the shaders of 39238b763.
 
 The takes are in `/private/tmp/t0-gbgj/edge-take1` and `/private/tmp/t0-gbgj/edge-take2`.
+
+## Part 0 of the probe: the narrow half
+
+The design note "Two designs" in t1-af5w defines the narrow half: the share is `clamp(0.5 + (lit - 0.5) * 4 / w, 0, 1)`,
+with w the footprint's width in tile texels. w is the true width from the gap of `TileLookup.bounds.y`, clamped to the
+least ramp and 4. The trust rule keeps w at 4 where the trusted gap is 0 or less. The trusted gap is the gap less the
+own-plane span (3 tan θ texels) and the depth bias (0.5 + 2.5 tan θ texels). Between 0 and one span, w fades to the true
+width. The emitter's size is the side of the square with its projected area as the caster sees it.
+
+### The register counts
+
+From `tools/shader_registers.py` on the M1, on main 72426c219 (main: `direct.frag` r112, `direct_key_fill.frag` r115).
+The variants are `patches/part0-regs-*.diff`.
+
+| Form | `direct.frag` | `direct_key_fill.frag` |
+|---|---|---|
+| A second `tileLookupOf` after the taps (`part0-regs-refetch.diff`), trust off or on | r127 | r127 |
+| 4 / w computed in `tileLookupOf` as one float of `TileLookup`, trust off (`v11` form) | r115 | r115 |
+| The same, trust on, as the note's fade or as one line in the gap (`v10`) | r115 | r117 |
+| Trust on, tan θ from `dot(geometricNormal, L)` after the bounds fetch (`v14`) | r114 | r117 |
+| Trust on in `tileShadow`, with the true width and the gap as two floats out of the lookup (`v15`) | r116 | r116 |
+| The same, both packed as two halves in one uint (`v16`) | r116 | r116 |
+
+A hard switch in place of the fade, a constant emitter side, tan θ = sin θ, a constant tan θ, and sin θ folded into two
+constants before the fetch all give r117. A rule with no sin θ gives r115, and the same rule with one multiply by sin θ
+gives r117. So the cost is the live range of the receiver's angle across the bounds fetch.
+
+### The acne
+
+`ALitFloorUnderASpotLightHasNoAcne`, differing pixels, from `patches/part0-acne-counts.patch` (the test writes its
+counts):
+
+| Case | main | Trust on, least 1, 1.5 and 2 | Trust off, least 1.5 |
+|---|---|---|---|
+| 4 m, 60°, a turn of 45° | 4 of 25,784 | 4 | 0 |
+| 12 m, 60°, a turn of 45° | 2 of 135,815 | 2 | 0 |
+| The other three cases | 0 | 0 | 0 |
+
+### The stills
+
+One binary of `patches/part0-narrow-half.patch` draws every column: `TERTIUS_X_TILE_LEAST_RAMP` unset draws main, a
+positive value is the least ramp with trust on, and a negative value is the least ramp with trust off.
+`tools/fixedstills.sh` renders each view at the fixed exposure of capture a in `exposure/<view>.json`.
+`tools/compare.py` makes the sheets in `pics/part0/`: 1:1 crops at 3 times, nearest, with the columns main, trust on at
+1, 1.5 and 2, and trust off at 1.5.
+
+- `beam-face.png`: with trust on, every least ramp equals main, and t1-hdtm's leak stays. With trust off, the lit patch
+  ends at the beam's edge, and most of the leak is gone.
+- `deck-far.png`: exit-deck's lamp 15 with a far caster does not change in any column.
+- `niche.png`, `cabin-contact.png`, `hall-foot.png`, `hall-pillar.png`, `hall-floor.png`: no visible change, and no
+  texel staircase at a least ramp of 1.
+- `deck-window-frame.png`: one of the places with the most change, a thin lit strip on a frame edge.
+- `deck-frame-trust-off.png` (main, trust on 1.5, trust off 1.5): trust off adds a soft darker band across the frame's
+  face, a sharper self-shadow in grazing light.
+
+The share of each frame's pixels that differ from main by more than 4 of 255:
+
+| View | Trust on, 1 | Trust on, 1.5 | Trust on, 2 | Trust off, 1.5 |
+|---|---|---|---|---|
+| exit-deck | 0.24 % | 0.18 % | 0.12 % | 0.43 % |
+| exit-cabin at 0.96 | 0.09 % | 0.08 % | 0.07 % | 0.17 % |
+| rect-lamps | 0.02 % | 0.02 % | 0.01 % | 0.02 % |
+| lamp-hall-16 | 0.00 % | 0.00 % | 0.00 % | 0.01 % |
+| cabin-light-cabin | 0.00 % | 0.00 % | 0.00 % | 0.00 % |
+
+The changes lie on thin lines where walls and frames meet the floor. The edges that the measure found too soft are
+mostly receivers within one own-plane span of their caster, so the trust rule keeps today's width at them, and the
+remap rarely acts.

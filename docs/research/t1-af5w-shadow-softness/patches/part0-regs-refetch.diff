@@ -1,0 +1,72 @@
+--- /private/tmp/t0-gbgj/regs-p0/main/shadows.glsl	2026-11-23 12:19:30
++++ /private/tmp/t0-gbgj/regs-p0/shadows-refetch.glsl	2026-11-23 12:22:22
+@@ -401,9 +401,68 @@
+ // shadow. lightOutsideShadow on the tiles was tried and refused (t1-gout): it made every lamp's shadow sharper and
+ // darker, which the user does not accept, and raised the floor's acne by 8/3. The tiles' leak under a caster's edge is
+ // small: about 6 pixels down a beam's face below a ceiling lamp of the exit cabin (t1-hdtm).
++#ifndef TERTIUS_PROBE_TRUST
++#define TERTIUS_PROBE_TRUST 1
++#endif
++
++// PROBE t1-af5w part 0 (scratch, never merged): the side in m of the square with the emitter's projected area, as a
++// caster in the direction -L from the light sees it. A rect: sqrt(area x |cos|) about its axis. A tube: its projected
++// capsule. A point or a spot: 2 R.
++float probeEmitterSide(GpuLight light, vec3 L)
++{
++    uint kind = uint(light.intensityKind.w + 0.5);
++    float r = light.spotRadius.y;
++    if (kind == 3u)
++    {
++        vec3 a = light.directionCosOuter.xyz, b = light.halfHeight.xyz;
++        vec3 n = cross(a, b);
++        return sqrt(4.0 * abs(dot(n, L)));
++    }
++    if (kind == 2u)
++    {
++        vec3 a = light.directionCosOuter.xyz;
++        float across = length(cross(a, L));
++        return sqrt(4.0 * r * across + 3.14159265 * r * r);
++    }
++    return 2.0 * r;
++}
++
++// PROBE t1-af5w part 0: the footprint's width in tile texels, from the least ramp `least` to 4. The bounds texel is
++// fetched again after the taps (tileLookupOf), so nothing new is held across them. The gap is from bounds.y, the
++// window's caster nearest the light. The trusted gap is the gap minus the own-plane span (3 texels x tan θ) minus the
++// depth bias (0.5 texels constant + 2.5 texels x tan θ slope). w is 4 where the trusted gap is 0 or less, and it fades to
++// the true width over one own-plane span.
++float probeFootprintTexels(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float sinTheta,
++    float least)
++{
++    TileLookup t = tileLookupOf(light, position, L, d, geometricNormal, sinTheta);
++    uint view = light.shadow.y + (light.shadow.z > 1u ? cubeFaceOf(-L) : 0u);
++    GpuShadowTile tile = shadowTiles[view];
++    float texel = tile.texelPerMeter * tile.near / max(t.ndc.z, 1e-30);
++    float caster = d * t.ndc.z / max(t.bounds.y, 1e-30);
++    float gap = d - caster;
++    float trueTexels = gap * probeEmitterSide(light, L) / max(caster, 1e-3) / texel;
++    float target = clamp(trueTexels, least, 4.0);
++#if TERTIUS_PROBE_TRUST
++    float cosTheta = sqrt(max(1.0 - sinTheta * sinTheta, 1e-6));
++    float tanTheta = min(sinTheta / cosTheta, 1e3);
++    float span = 3.0 * texel * tanTheta;
++    float trusted = gap - span - texel * (0.5 + 2.5 * tanTheta);
++    float fade = clamp(trusted / max(span, 0.25 * texel), 0.0, 1.0);
++    return mix(4.0, target, fade);
++#else
++    return target;
++#endif
++}
++
+ float tileShadow(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float sinTheta)
+ {
+-    return tileLitFraction(light, position, L, d, geometricNormal, sinTheta);
++    float lit = tileLitFraction(light, position, L, d, geometricNormal, sinTheta);
++    float least = frame.shadowParams.w;
++    if (least <= 0.0 || lit <= 0.0 || lit >= 1.0)
++        return lit;
++    float w = probeFootprintTexels(light, position, L, d, geometricNormal, sinTheta, least);
++    return clamp(0.5 + (lit - 0.5) * 4.0 / w, 0.0, 1.0);
+ }
+ 
+ #endif

@@ -1,0 +1,116 @@
+diff --git a/src/Tertius.Rendering/Scene/SceneBatcher.cs b/src/Tertius.Rendering/Scene/SceneBatcher.cs
+index c44273fba..6f9d6cb3c 100644
+--- a/src/Tertius.Rendering/Scene/SceneBatcher.cs
++++ b/src/Tertius.Rendering/Scene/SceneBatcher.cs
+@@ -33,6 +33,9 @@ internal readonly record struct MeshInfo(
+ /// <param name="depthRangeScale">How many times deeper than wide each cascade box is, <see cref="ShadowMap.DepthRangeScale"/>.</param>
+ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float depthRangeScale)
+ {
++    // PROBE t1-af5w part 0 (scratch): the tiles' least ramp in texels from TERTIUS_X_TILE_LEAST_RAMP; 0 keeps main.
++    static readonly float ProbeTileLeastRamp = float.TryParse(System.Environment.GetEnvironmentVariable("TERTIUS_X_TILE_LEAST_RAMP"), System.Globalization.CultureInfo.InvariantCulture, out var least) ? least : 0f;
++
+     private const float DefaultVerticalFov = MathF.PI / 3f;
+ 
+     /// <summary>
+@@ -1640,7 +1643,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float
+             ),
+             // The normal offset holds for the cascades and the tiles alike, so it is set in every frame, also in one
+             // without cascades. The shadow pass fills in the rest when it draws the cascades.
+-            ShadowParams = new(x: 0f, y: ShadowBias.NormalOffsetTexels, z: 0f, w: 0f),
++            ShadowParams = new(x: 0f, y: ShadowBias.NormalOffsetTexels, z: 0f, w: ProbeTileLeastRamp),
+             // The shadow pass fills in the cascades when it draws them.
+             Counts = new(
+                 X: (uint)scene.LightCount,
+diff --git a/src/Tertius.Rendering/Shaders/shadows.glsl b/src/Tertius.Rendering/Shaders/shadows.glsl
+index 15fb50630..1adb32ed0 100644
+--- a/src/Tertius.Rendering/Shaders/shadows.glsl
++++ b/src/Tertius.Rendering/Shaders/shadows.glsl
+@@ -276,6 +276,53 @@ float farShadowVisibility(vec3 position, vec3 L, float angularRadius, uvec3 rang
+     return visibility;
+ }
+ 
++#ifndef TERTIUS_PROBE_TRUST
++#define TERTIUS_PROBE_TRUST 1
++#endif
++
++// PROBE t1-af5w part 0 (scratch, never merged): the side in m of the square with the emitter's projected area, as a
++// caster in the direction -L from the light sees it. A rect: sqrt(area x |cos|) about its axis. A tube: its projected
++// capsule. A point or a spot: 2 R.
++float probeEmitterSide(GpuLight light, vec3 L)
++{
++    uint kind = uint(light.intensityKind.w + 0.5);
++    float r = light.spotRadius.y;
++    if (kind == 3u)
++    {
++        vec3 a = light.directionCosOuter.xyz, b = light.halfHeight.xyz;
++        vec3 n = cross(a, b);
++        return sqrt(4.0 * abs(dot(n, L)));
++    }
++    if (kind == 2u)
++    {
++        vec3 a = light.directionCosOuter.xyz;
++        float across = length(cross(a, L));
++        return sqrt(4.0 * r * across + 3.14159265 * r * r);
++    }
++    return 2.0 * r;
++}
++
++// PROBE t1-af5w part 0: the footprint's width in tile texels, from the least ramp `least` to 4. The bounds texel is
++// fetched again after the taps (tileLookupOf), so nothing new is held across them. The gap is from bounds.y, the
++// window's caster nearest the light. The trusted gap is the gap minus the own-plane span (3 texels x tan θ) minus the
++// depth bias (0.5 texels constant + 2.5 texels x tan θ slope). w is 4 where the trusted gap is 0 or less, and it fades to
++// the true width over one own-plane span.
++float probeFootprintTexels(GpuLight light, GpuShadowTile tile, float ndcZ, float boundsY, vec3 L, float d,
++    float sinTheta, float least)
++{
++    // In texels at the receiver: the gap, and the true width.
++    float caster = d * ndcZ / max(boundsY, 1e-30);
++    float gapTexels = (d - caster) * max(ndcZ, 1e-30) / (tile.texelPerMeter * tile.near);
++    float trueTexels = gapTexels * probeEmitterSide(light, L) / max(caster, 1e-3);
++    // The trust rule (stills build: on when the least ramp is given positive, off when negative): w = 4 where the
++    // trusted gap (the gap less the own-plane span of 3 tan θ texels and the bias of 0.5 + 2.5 tan θ texels) is 0 or
++    // less, falling linearly to 0 over one own-plane span; the true width where it is larger. As one line in the gap:
++    // 4 - 4 (gap - 0.5 - 5.5 tan θ) / (3 tan θ), with tan θ at least 1/12.
++    float tanTheta = max(sinTheta * inversesqrt(max(1.0 - sinTheta * sinTheta, 1e-6)), 1.0 / 12.0);
++    float untrusted = least > 0.0 ? 4.0 - (gapTexels - 0.5 - 5.5 * tanTheta) * (4.0 / 3.0) / tanTheta : 0.0;
++    return clamp(max(trueTexels, untrusted), abs(least), 4.0);
++}
++
+ // Where a lookup of a near light's atlas tile falls (tileLookupOf): its reversed depth, its tile's layer, the filter's first
+ // texel and its place within it, and the bounds of the window that holds the filter's 5 × 5 texels.
+ struct TileLookup
+@@ -285,6 +332,7 @@ struct TileLookup
+     vec2 first;
+     vec2 f;
+     vec2 bounds;   // the least (x) and the greatest (y) reversed depth of the window (shadow_bounds.comp)
++    float rampScale; // PROBE t1-af5w part 0: 4 / w, the remap's slope; 1 keeps main
+ };
+ 
+ // The lookup of tileLitFraction, with the normal offset at the receiver's distance and the casters' slope-scaled bias.
+@@ -318,6 +366,8 @@ TileLookup tileLookupOf(GpuLight light, vec3 position, vec3 L, float d, vec3 geo
+     vec2 lastWindow = vec2(textureSize(shadowBounds, 0).xy - 1);
+     ivec2 window = ivec2(clamp(floor(corner * 0.5), vec2(0.0), lastWindow));
+     t.bounds = texelFetch(shadowBounds, ivec3(window, int(tile.layer)), 0).rg;
++    float least = frame.shadowParams.w;
++    t.rampScale = least != 0.0 ? 4.0 / probeFootprintTexels(light, tile, t.ndc.z, t.bounds.y, L, d, sinTheta, least) : 1.0;
+     return t;
+ }
+ 
+@@ -372,7 +422,7 @@ float tileLitFraction(GpuLight light, vec3 position, vec3 L, float d, vec3 geome
+             }
+         }
+         // Each mean stands for four texels, and the weights of the 5 × 5 texels add up to 16.
+-        return means * (4.0 / 16.0);
++        return clamp(0.5 + (means * (4.0 / 16.0) - 0.5) * t.rampScale, 0.0, 1.0);
+     }
+ 
+     // Nine gathers of 2 × 2 comparisons read the 5 × 5 texels and one unweighted column and row beyond them.
+@@ -393,7 +443,7 @@ float tileLitFraction(GpuLight light, vec3 position, vec3 L, float d, vec3 geome
+         }
+         lit += wy[2 * j] * upper + wy[2 * j + 1] * lower;
+     }
+-    return lit * (1.0 / 16.0);
++    return clamp(0.5 + (lit * (1.0 / 16.0) - 0.5) * t.rampScale, 0.0, 1.0);
+ }
+ 
+ // The share of a near light that its atlas tiles let through at a world position, with the arguments of
