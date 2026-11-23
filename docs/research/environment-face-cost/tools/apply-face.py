@@ -16,7 +16,7 @@ def edit(rel, old, new):
 
 edit('src/Tertius.Rendering/EnvironmentMapSetting.cs',
      'public static SceneEnvironmentMap Default => new(FaceSize: 128, FacesPerFrame: 1);',
-     'public static SceneEnvironmentMap Default => new(FaceSize: FaceProbe.Size, FacesPerFrame: 1); // PROBE (ter-yglw)')
+     'public static SceneEnvironmentMap Default => new(FaceSize: FaceProbe.Size, FacesPerFrame: FaceProbe.PerFrame); // PROBE (ter-yglw)')
 edit('src/Tertius.Rendering/Frame/EnvironmentMap.cs',
      """        EnvironmentFaces.InTurn(frame, Setting.FacesPerFrame, faces);
 """,

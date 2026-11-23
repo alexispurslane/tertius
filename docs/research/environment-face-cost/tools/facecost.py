@@ -7,7 +7,8 @@
 #     prefilt  the pass "environment prefilter" (downsample, specular prefilter, irradiance of the drawn face)
 #     both     faces + prefilter, a sum of neighbouring passes
 #   face cost = the mean pair difference of the span over the face frames, with its standard error (sd / sqrt(n)).
-# It keeps only face frames that drew exactly one face and whose two neighbours drew none (a refresh of all faces, as
+# Pair differences are per face: divided by the faces of the face frame. It keeps only face frames that drew that count of
+# faces, all of one map, and whose two neighbours drew none (a refresh of all faces, as
 # after a cut, leaves out its frame and its neighbours). It splits the face frames by map, because map 0 (the root
 # frame's map) and map 1 differ in what they draw, and gives the counts of each map's faces: kept instances, instances
 # that only the size cull left out, draw commands and triangles (summed over the face's depth ranges).
@@ -31,22 +32,38 @@ def run(path):
         frames[int(parts[0])] = {'span': float(parts[1]), 'faces': passes.get('environment_faces', 0.0),
                                  'prefilt': passes.get('environment_prefilter', 0.0)}
         frames[int(parts[0])]['both'] = frames[int(parts[0])]['faces'] + frames[int(parts[0])]['prefilt']
+    # The faces that a face frame draws: 1, or TERTIUS_PROBE_FACES_PER_FRAME, the most common count. Each pair difference
+    # is divided by it, so the face cost is per face.
+    counts = [len(v) for v in faces.values() if v]
+    per = max(set(counts), key=counts.count)
+    # The spacing n of the face frames (TERTIUS_PROBE_FACE_EVERY). With n = 2 the pair difference takes the two
+    # neighbours. With n >= 4 it is (face frame + the frame after it) - (the two frames after those), because with two
+    # frames in flight a face frame's work can spill into the start of the next frame (it did with 6 faces per frame:
+    # the next frame's G-buffer pass grew from 0.16 to 0.8-1.4 ms), and the two frames after it are clean.
+    marked = sorted(f for f, v in faces.items() if v)
+    gaps = [b - a for a, b in zip(marked, marked[1:])]
+    spacing = max(set(gaps), key=gaps.count) if gaps else 2
     diffs = {}
     for f, row in frames.items():
         drawn = faces.get(f, [])
-        if len(drawn) != 1 or f - 1 not in frames or f + 1 not in frames:
+        if len(drawn) != per or len({d[0] for d in drawn}) != 1:
             continue
-        if faces.get(f - 1) or faces.get(f + 1):
+        window = (f - 1, f + 1) if spacing < 4 else (f + 1, f + 2, f + 3)
+        if any(g not in frames or faces.get(g) for g in window):
             continue
         m = drawn[0][0]
-        d = {k: row[k] - (frames[f - 1][k] + frames[f + 1][k]) / 2 for k in ('span', 'faces', 'prefilt', 'both')}
+        if spacing < 4:
+            d = {k: (row[k] - (frames[f - 1][k] + frames[f + 1][k]) / 2) / per for k in ('span', 'faces', 'prefilt', 'both')}
+        else:
+            d = {k: (row[k] + frames[f + 1][k] - frames[f + 2][k] - frames[f + 3][k]) / per
+                 for k in ('span', 'faces', 'prefilt', 'both')}
         diffs.setdefault(m, []).append((d, drawn[0]))
     empty = [r for f, r in frames.items() if not faces.get(f)]
     log = (path / 'run.log').read_text()
     load = re.search(r'uptime-start:.*load averages?: ([\d.]+)', log)
     timings = json.loads((path / 'gpu-timings.json').read_text())
     clock = timings.get('gpuClock', {})
-    out = {'run': path.name, 'load_1min': float(load.group(1)) if load else None,
+    out = {'run': path.name, 'faces_per_face_frame': per, 'spacing': spacing, 'load_1min': float(load.group(1)) if load else None,
            'clock_mhz': clock.get('meanMhz', clock.get('mhz')) if isinstance(clock, dict) else clock,
            'frames': len(frames), 'span_mean_ms': round(sum(r['span'] for r in frames.values()) / len(frames), 4),
            'empty_frame_passes_ms': {k: round(sum(r[k] for r in empty) / max(len(empty), 1), 4)
