@@ -121,6 +121,16 @@ class TheVerdict(unittest.TestCase):
             self.assertIn(f"room {room} register", verdict.text)
             self.assertIn("warning", verdict.text)
 
+    def test_words_the_known_lack_of_room_of_the_key_and_fill_shader_as_its_known_state(self):
+        verdict = shader_registers.verdict_of("direct_key_fill.frag", 115)
+        self.assertIn("the known state since t2-x53j, not a new fault", verdict.text)
+        self.assertIn("scheduler", verdict.text)
+
+    def test_words_a_lack_of_room_without_a_known_reason_as_news(self):
+        verdict = shader_registers.verdict_of("direct.frag", 114)
+        self.assertIn("warning", verdict.text)
+        self.assertNotIn("known state", verdict.text)
+
     def test_fails_a_register_above_the_limit_and_names_what_it_costs(self):
         verdict = shader_registers.verdict_of("direct_key_fill.frag", 116)
         self.assertEqual(verdict.exit_code, shader_registers.FAIL)

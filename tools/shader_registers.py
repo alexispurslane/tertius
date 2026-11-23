@@ -57,6 +57,12 @@ SHADER_FOLDER = PurePosixPath("src/Tertius.Rendering/Shaders")
 # On the M1 a fragment shader keeps 448 threads resident up to register 115, and 384 from register 116
 # (ARCHITECTURE.md, "Key and fill"). One register over the step cost the direct pass 0.36 ms on the deck (ter-8esk) and
 # 0.10 to 0.28 ms in every view (t1-gout).
+#
+# The source does not set a shader's highest register: Apple's scheduler does (t2-x53j). The peak of
+# direct_key_fill.frag is the shadow filters' reads in flight inside the light loop, and a form of the source that freed
+# 6 registers of the loop's state raised the peak from 111 to 112 live registers and the shader to 116, because the
+# scheduler spent the freed registers on more reads in flight. Twelve forms that keep the picture found no room
+# (docs/research/t2-x53j-register-room). So the guard holds the limit and does not ask for room.
 STEP = 115
 STEP_COST = ("from register 116 the M1 keeps 384 threads of the shader resident in place of 448, which cost the direct "
              "pass 0.10 to 0.36 ms of the frame in every view (t2-x53j, t1-gout)")
@@ -67,17 +73,21 @@ ROOM_WARNING = 2
 
 @dataclass(frozen=True)
 class Guarded:
-    """A shader of the direct pass whose registers the tool reads: the file, its pipeline's color formats, and the
-    highest register that it may reach."""
+    """A shader of the direct pass whose registers the tool reads: the file, its pipeline's color formats, the highest
+    register that it may reach, and, when its lack of room is known and accepted, the words that say so in the guard's
+    warning."""
     name: str
     formats: tuple
     limit: int
+    known_low_room: str = ""
 
 
 # Both direct shaders draw the direct pass, so both pay the step's cost.
 SHADERS = [
     Guarded("direct.frag", ("RGBA16Float", "RGBA16Float"), STEP),
-    Guarded("direct_key_fill.frag", ("RGBA16Float", "RGBA16Float"), STEP),
+    Guarded("direct_key_fill.frag", ("RGBA16Float", "RGBA16Float"), STEP,
+            "the known state since t2-x53j, not a new fault: Apple's scheduler fills any register that the source "
+            "frees, so no form of the source holds room"),
 ]
 
 
@@ -137,7 +147,8 @@ def guarded_shaders_touched(staged, folder, shaders):
 def verdict_of(shader, register):
     """The guard's result for `shader` at its highest register `register`: a pass with the room under the limit, and a
     warning when the room is under ROOM_WARNING, or a fail above the limit."""
-    limit = next(s.limit for s in SHADERS if s.name == shader)
+    guarded = next(s for s in SHADERS if s.name == shader)
+    limit = guarded.limit
     if register > limit:
         return Verdict(f"fail: {shader} is at register {register}, above its limit of {limit}: {STEP_COST}.", FAIL)
     room = limit - register
@@ -145,6 +156,8 @@ def verdict_of(shader, register):
     if room < ROOM_WARNING:
         text += (f". warning: less than {ROOM_WARNING} registers of room, so one more value at the shader's peak can "
                  f"cross the limit")
+        if guarded.known_low_room:
+            text += f"; this is {guarded.known_low_room}"
     return Verdict(text + ".", PASS)
 
 
