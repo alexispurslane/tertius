@@ -18,6 +18,9 @@
 # b 180 to 199, and writes frames.series (the region means of every frame) and the size log. It holds the GPU lock in its
 # shared mode. The extra VAR=value words go into its environment, such as TERTIUS_X_CATCHUP="0 32 0". FAIR_TICKS_ADD=n runs
 # the world n ticks more before the frozen film (queue-fair2.sh's spread: what a later event changes in a live world).
+# REPLAY=<size log> plays back that card log's scales (cardfair.sh's "<draw> <width> <height> <scale>"; draws past its end
+# keep its last scale) in place of the constant 2/3, and checks the run's size log against it draw for draw (1e-4).
+# VIDEO=1 keeps every draw of the start's first 120 draws (f 0 to 119) instead, for videos.py.
 set -uo pipefail
 build=$1; scene=$2; event=$3; name=$4; shift 4
 N=$(cd "$(dirname "$0")/.." && pwd); R=$(cd "$N/../../.." && pwd)
@@ -49,7 +52,14 @@ for film in films.split():
     steps += [{"do": "capture", "name": f"{name}-{n:06d}"} for n in range(int(frames))]
 json.dump({"scene": world, "window": {"width": 1920, "height": 1080}, "steps": steps}, sys.stdout, indent=1)
 PY
-for ((d = 0; d < draws + 5; d++)); do echo "$d 0 0 0.6667"; done > $out/replay.txt
+[ "${VIDEO:-}" = 1 ] && keep="$(f f 0 119)"
+if [ -n "${REPLAY:-}" ]; then
+  head -n $draws "$REPLAY" > $out/replay.txt
+  last=$(tail -1 $out/replay.txt | awk '{print $4}')
+  for ((d = $(wc -l < $out/replay.txt); d < draws + 5; d++)); do echo "$d 0 0 $last"; done >> $out/replay.txt
+else
+  for ((d = 0; d < draws + 5; d++)); do echo "$d 0 0 0.6667"; done > $out/replay.txt
+fi
 echo "$(date +%T) $name: $build $scene $event $*, disk $(df -Pk / | awk 'NR == 2 {printf "%.1f", $4 / 1048576}') GiB"
 cd "$R"
 env "${light[@]}" TERTIUS_PROBE_EXPOSURE=$exposure TERTIUS_X_FRAME_TIME_TARGET=16.6667 TERTIUS_X_SIZE_REPLAY=$out/replay.txt \
@@ -58,3 +68,7 @@ env "${light[@]}" TERTIUS_PROBE_EXPOSURE=$exposure TERTIUS_X_FRAME_TIME_TARGET=1
   nix develop --command bash tools/gpu-lock.sh --shared $out/lock.log $B/bins/$build/probe-bin/Tertius.Demo \
   --script $out/script.json --headless --out $out --size 1920x1080 > $out/run.log 2>&1
 echo "$(date +%T) $name exit $? $(wc -l < $out/size-*.txt 2>/dev/null) draws, $(ls $out/*.png 2>/dev/null | wc -l) pictures"
+if [ -n "${REPLAY:-}" ]; then
+  echo "$(date +%T) $name replay check: $(awk 'NR == FNR {want[$1] = $4; next} {n++; d = $4 - want[$1]; if (d > 1e-4 || d < -1e-4) bad++}
+    END {printf "%d draws, %d with another scale than the log", n, bad}' $out/replay.txt $out/size-*.txt)"
+fi

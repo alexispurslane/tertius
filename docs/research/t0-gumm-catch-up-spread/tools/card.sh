@@ -6,7 +6,8 @@
 # the acceptance record's scratch-light-evidence-cap.patch (read by its path) into x, as a base64 tar. Outputs land in
 # /private/tmp/t0-gbgj/cloud-gumm/<job name>, the log beside it. GPU_JOB=<path> runs another checkout's gpu_job.py (and
 # so its endpoint.json's caps) from this worktree, such as main's after a change of the daily cap.
-# RUNS=<n> runs every code n times (cardrun.sh).
+# RUNS=<n> runs every code n times (cardrun.sh). CARDRUN=<script> runs another job script of tools/ in place of cardrun.sh,
+# such as cardfair.sh (the fair test's bay start); its codes follow that script's head.
 # Example: bash card.sh shapes1 16.6667 1,8,0 0.25,32,0 0.125,32,0 0.0625,32,0 cap
 set -uo pipefail
 R=$(cd "$(dirname "$0")/../../../.." && pwd)
@@ -16,10 +17,10 @@ C=/private/tmp/t0-gbgj/cloud-gumm; mkdir -p $C
 X=4851ba7db147563e5b8a94856710dd5c37efe2d6
 name=$1; shift
 stage=$(mktemp -d); mkdir -p $stage/$D/tools $stage/$V
-cp "$R/$D"/scratch-*.patch "$R/$D"/cut.json $stage/$D/; cp "$R/$D"/tools/cardrun.sh $stage/$D/tools/
+cp "$R/$D"/scratch-*.patch "$R/$D"/cut.json $stage/$D/; cp "$R/$D"/tools/${CARDRUN:-cardrun.sh} $stage/$D/tools/
 cp "$R/$V"/scratch-region-log.patch "$R/$V"/scratch-dynamic-scale.patch "$R/$V"/scratch-history-log.patch $stage/$V/
 cp "$A"/scratch-light-evidence-cap.patch $stage/$D/
 pack=$(COPYFILE_DISABLE=1 tar -czf - -C $stage docs | base64 | tr -d '\n'); rm -rf $stage
 (cd "$R" && python3 -I "${GPU_JOB:-tools/runpod/gpu_job.py}" submit --agent t0-gumm --tree x=$X --run "echo $pack | base64 -d | tar -xz -C x" \
-  --run "RUNS=${RUNS:-1} bash x/$D/tools/cardrun.sh $*" --output 'out/card/*/*.txt' --timeout 1200 --out "$C/$name") > "$C/$name.log" 2>&1
+  --run "RUNS=${RUNS:-1} bash x/$D/tools/${CARDRUN:-cardrun.sh} $*" --output 'out/card/*/*.txt' --timeout 1200 --out "$C/$name") > "$C/$name.log" 2>&1
 echo "$(date +%T) exit $? $name: $(tail -1 "$C/$name.log" | cut -c1-300)"

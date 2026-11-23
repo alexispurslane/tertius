@@ -1,0 +1,76 @@
+SCRATCH patch of t0-gumm, never commit to src. It applies after scratch-frozen.patch (the build chain of xdz). TERTIUS_X_WIDE_FIX=1 makes the fix of short histories (accumulate_spatial.comp, step 3) read every pixel of each tapped 2 x 2 block, the own block's other three pixels too, while its spacing is 2 or more: up to 36 reads in place of 9, and no ray. At a spacing of 1 the fix stays today's 3 x 3. Without the variable the fix is today's (the line orchestrator's variant of 2026-11-22, 23:40).
+
+diff --git a/src/Tertius.Rendering/Scene/GpuTypes.cs b/src/Tertius.Rendering/Scene/GpuTypes.cs
+--- a/src/Tertius.Rendering/Scene/GpuTypes.cs
++++ b/src/Tertius.Rendering/Scene/GpuTypes.cs
+@@ -841,6 +841,12 @@
+     public uint ProbeEvidenceAction;
+     public uint ProbeRecentLightAge;
+ 
++    // SCRATCH (t0-gumm, scratch-wide-fix.patch, never commit to src): 1 makes the fix of short histories read every pixel of
++    // each tapped 2 x 2 block while its spacing is 2 or more (accumulate_spatial.comp, step 3), TERTIUS_X_WIDE_FIX=1.
++    public uint ProbeWideFix;
++
++    private static readonly uint ProbeWideFixOn = Environment.GetEnvironmentVariable("TERTIUS_X_WIDE_FIX") == "1" ? 1u : 0u;
++
+     private static float? ProbeKnob(string name) =>
+         float.TryParse(
+             Environment.GetEnvironmentVariable(name),
+@@ -936,6 +942,7 @@
+         c.ProbeCauses = ProbeX.Causes;
+         c.ProbeEvidenceAction = ProbeX.Acts ? 1u : 0u;
+         c.ProbeRecentLightAge = ProbeX.RecentLightAge;
++        c.ProbeWideFix = ProbeWideFixOn;
+         return c;
+     }
+ 
+diff --git a/src/Tertius.Rendering/Shaders/accumulate.glsl b/src/Tertius.Rendering/Shaders/accumulate.glsl
+--- a/src/Tertius.Rendering/Shaders/accumulate.glsl
++++ b/src/Tertius.Rendering/Shaders/accumulate.glsl
+@@ -75,6 +75,7 @@
+     uint probeCauses;
+     uint probeEvidenceAction;
+     uint probeRecentLightAge;
++    uint probeWideFix;   // SCRATCH (t0-gumm): 1 reads every pixel of each tapped 2 x 2 block in the fix (TERTIUS_X_WIDE_FIX)
+ } parameters;
+ 
+ // SignalLight.
+diff --git a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
+--- a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
++++ b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
+@@ -115,18 +115,25 @@
+         vec3 sum = slow * historyLength;
+         vec2 guideSum = guide * historyLength;
+         float weights = historyLength;
++        // SCRATCH (t0-gumm, scratch-wide-fix.patch): with parameters.probeWideFix and a spacing of 2 or more, each tap
++        // reads every pixel of its 2 x 2 block (the own block's other three pixels too), up to 36 reads in place of 9.
++        // At a spacing of 1 the taps already lie in neighbouring pixels, and the fix stays today's 3 x 3.
++        int side = parameters.probeWideFix != 0u && spacing >= 2 ? 2 : 1;
+         for (int y = -1; y <= 1; y++)
+             for (int x = -1; x <= 1; x++)
+-            {
+-                ivec2 neighbor = pixel + spacing * ivec2(x, y);
+-                if (x == 0 && y == 0 || !insideImages(neighbor) || !sameSurface(key, surfaceKeyAt(neighbor)))
+-                    continue;
+-                vec4 other = imageLoad(scratch, neighbor);
+-                sum += other.rgb * other.a;
+-                weights += other.a;
+-                if (reflectionSharingPrototype && parameters.light == SpecularLight)
+-                    guideSum += imageLoad(reflectionGuideScratch, neighbor).rg * other.a;
+-            }
++                for (int by = 0; by < side; by++)
++                    for (int bx = 0; bx < side; bx++)
++                    {
++                        ivec2 tap = pixel + spacing * ivec2(x, y);
++                        ivec2 neighbor = side == 2 ? (tap & ivec2(~1)) + ivec2(bx, by) : tap;
++                        if (neighbor == pixel || !insideImages(neighbor) || !sameSurface(key, surfaceKeyAt(neighbor)))
++                            continue;
++                        vec4 other = imageLoad(scratch, neighbor);
++                        sum += other.rgb * other.a;
++                        weights += other.a;
++                        if (reflectionSharingPrototype && parameters.light == SpecularLight)
++                            guideSum += imageLoad(reflectionGuideScratch, neighbor).rg * other.a;
++                    }
+         slow = sum / weights;
+         guide = guideSum / weights;
+     }
