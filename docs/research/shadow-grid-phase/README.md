@@ -233,6 +233,203 @@ So the tiles hold a stronger member of the class: up to 0.625 of the light at a 
 inside it. A tile's grid is fixed to its light's frustum, so its phase moves only when a lamp or a caster moves, never with
 the camera or the window. I did not search any scene for it.
 
+## 8. The remedy (step 3, design L)
+
+Design L moves the start of the lit side's ramp from the lit fraction 1/2 to `DoubtfulLitFraction` D. The map's edge lies
+up to half a texel inside a caster's real edge, so on the real edge the 4 × 4 filter is lit by up to 1/2 + (1/2)/4 = 5/8.
+`shadows.glsl` computes D from `FilterTapsPerAxis`, and `lightOutsideShadow` becomes clamp((f − D) / (1 − D), 0, 1).
+The share is 0 up to half a texel past the map's edge and rises to 1 over the next 1.5 texels. A lit area loses 1.25
+texels at each edge on average, a quarter texel more than under D = 1/2.
+
+The build is two commits, one per decision. Commit A holds the cascades, which the orchestrator confirmed, and splits
+`tileLitFraction` from `tileShadow`, which still returns the raw lit fraction. Commit B, the tiles' one line
+`lightOutsideShadow(tileLitFraction(...))`, waits for the orchestrator's decision on the tiles' stills.
+
+Terms of this section:
+
+- **Main**: `/private/tmp/t1-gout/bin`, main d1e0349b8 with the toggles of section 2 off. Main's `src` is the same at
+  deba5bdfd.
+- **The fix**: `/private/tmp/t1-gout/tilesraw-bin`, commit A's code, built from this branch.
+- **Jamb light** and **leak**: as in section 1, a jamb crop above 0.08.
+
+### The tests, red and green
+
+Each red number was measured before the shader changed. Each green number is the same test under commit A. The share is
+the sun's (or the lamp's) green HDR ratio with the roof over the ratio without it, at the test's points inside the
+roof's edge. The tests ask for less than 0.02.
+
+| Test | Red: largest share | Green |
+|---|---|---|
+| Aligned with the grid, ten places of the edge in its texel | 0.197 at place 0.5; 0.000 at 0.0, 0.1 and 0.6 to 0.9 | 0.000 at every place |
+| 45° to the grid, ten places | 0.187 at place 0.9; 0.000 at 0.0 to 0.5 | 0.000 at every place |
+| 17° to the grid, ten places | 0.038 at place 0.9 | 0.000 at every place |
+| A spot lamp's tile, 17° to the grid | 0.386 at 0.25 texel inside, 0.318 at 0.5, 0.197 at 1 | 0.000 at all three (commit B's line only) |
+
+No test at an angle measured a lit fraction above 5/8 on the real edge, so D stays computed. The tile test is committed
+skipped in commit A, with the tiles' decision as its reason.
+
+Three tests of the old rule changed, and one reference image:
+
+- `TheEdgeOfAShadowDoesNotStepWhereTwoCascadesMeet` takes the bound 2D b and a pixel ("The step where two cascades
+  meet" below).
+- `EnvironmentFaceTests.AFaceShowsTheSunsMapShadowBehindTheCamera` reads a ground point about 1.1 texels past the map's
+  shadow edge. Its lit fraction is 1/2 + 1.1/4 ≈ 0.77, so its share was 0.548 under D = 1/2, and is 0.399 under D = 5/8,
+  as the model gives. The test asked for more than a half, and its comment said a quarter darker. It now asks for more than
+  0.3: the far shadow, which the test tells apart from the cascade's, would leave under a tenth.
+- `LitPuffsAreBrightInTheSunDimInTheShadowOfABoxAndWarmUnderALamp` differed from `puffs-lit.png` in 192 pixels (largest
+  FLIP 0.287, mean 0.00075). I opened the reference, the actual image and the FLIP heat map. At full size they look the
+  same. At 4x, the heat map marks the short darker dashes along the slab's front face, which is the known limit of a face
+  under 2 texels, now 8/3 of the loss in place of 2. It also marks the outline of the slab's shadow on the ground: the
+  slanted left edge and the right end lie a little farther out, by the quarter texel. I approved the new image.
+
+### The ramp across the three teeth
+
+[tools/ramp.sh](tools/ramp.sh) runs [tools/take.sh](tools/take.sh) at 20 windows at the render scale 2/3, the headless
+default. The gap model of section 1 chose them from the 181 sizes: one or two per level of the model's gap across the
+teeth at −0.34 % and +0.45 %, the one aspect of the tooth at +1.25 % (1800 × 1000), and 16:9. The tables are
+[remedy/ramp-main-t100.txt](remedy/ramp-main-t100.txt), [remedy/ramp-main-t6380.txt](remedy/ramp-main-t6380.txt),
+[remedy/ramp-A-t100.txt](remedy/ramp-A-t100.txt) and [remedy/ramp-A-t6380.txt](remedy/ramp-A-t6380.txt).
+
+| Build | Tick | Windows that leak | Largest jamb light |
+|---|---:|---:|---:|
+| Main | 100 | 1 of 20 | 0.086 |
+| Main | 6380 | 8 of 20, in all three teeth | 0.172 |
+| The fix | 100 | 0 of 20 | 0.044 |
+| The fix | 6380 | 0 of 20 | 0.044 |
+
+![the ramp](remedy/ramp-chart.png)
+
+`remedy/ramp-chart.png`: the larger jamb crop per window against the window's aspect error. Circles are main, squares the
+fix. Light colors are tick 100 and dark colors tick 6380. The grey line is 0.08.
+
+### The window of 1800 × 1008 at three render scales
+
+[remedy/window.txt](remedy/window.txt) and the ramp's rows at 2/3:
+
+| Render scale | Tick | Main, right / left jamb | The fix, right / left jamb |
+|---|---:|---|---|
+| 2/3 | 100 | 0.050 / 0.052 | 0.044 / 0.044 |
+| 2/3 | 6380 | 0.134 / 0.128 | 0.044 / 0.044 |
+| 0.96 | 100 | 0.080 / 0.084 | 0.043 / 0.043 |
+| 0.96 | 6380 | 0.136 / 0.154 | 0.043 / 0.043 |
+| 1 | 100 | 0.098 / 0.058 | 0.044 / 0.043 |
+| 1 | 6380 | 0.193 / 0.161 | 0.044 / 0.043 |
+
+![the openings](remedy/openings.png)
+
+`remedy/openings.png`: the near right opening at 2x, main above the fix at each tick, the three render scales left to
+right. Main shows the line at the jamb's outer end, a mottle on the jamb face and glints along the sill and the lintel.
+The fix shows a plain grey jamb in every tile, with no line and no glints.
+
+### bay-sunbeam at 16:9
+
+The survey's view `bay-sunbeam`: scene `demo-surface`, camera `bay-camera`, 420 ticks, 1920 × 1080. Main's automatic
+exposure is −4.09 stops, and both builds render at that fixed exposure, at the render scales 2/3 and 0.96.
+
+![bay-sunbeam](remedy/bay-sunbeam.png)
+
+`remedy/bay-sunbeam.png`: render scale 2/3, main left and the fix right, and below at 1:1 the box where the two differ
+most: main, the fix, and their difference at a gain of 8. The difference is a thin dark line along the sunbeam's lower
+edge, the quarter texel of lost light. Elsewhere it is the bounce light's noise. At 0.96 the box and the difference are the
+same (`bay-s0.96.png` in the evidence folder).
+
+### The survey's stills
+
+[tools/stills.py](tools/stills.py) and [tools/stills.sh](tools/stills.sh) render the survey's still cases on main and
+on the fix. Each case renders at 1920 × 1080, the render scale 2/3, the automatic exposure and no bloom. Each script is cut
+after the last frame that a case names. The 75 cases whose frame lies within the first 600 frames ran. Seven cases
+did not run, because each names a frame of a long film past frame 600, and the run would draw every frame of the film up
+to it: docking-bay (frame 3400) and docking-cabin (3950) of demo-docking, exit-chute (1200), exit-floor (2500) and
+exit-stack (2900) of demo-exit, orbit-umbra (1401), and danube-hold (16800) of blue-danube.
+A still is deterministic on one machine: main against main gives 0 changed pixels in stars-1, hair-bent-cards, rigs and
+lamp-hall-4. [remedy/stills-compare.txt](remedy/stills-compare.txt) has each case's count of pixels whose luminance
+changed by more than 1 % of the frame's 99th percentile.
+
+- Eighteen stills are identical: the twelve lamp-hall stills, spot-box, pillar-room, rect-lights, orbit-chase,
+  orbit-far, spin-standing, spin-ring, mars-edge, deep-yard, deck-cuts, exit-cabin and exit-deck.
+- Fifty-seven stills change. I looked at each one's 1:1 box of largest change. Each change is of one of four kinds:
+  - The outline of a sun shadow grows by the quarter texel of lost light.
+  - A soft shadow of a coarse cascade or of a thin caster grows and darkens, by the rule's factor 8/3 on partial
+    losses. The widest are the ceiling near the camera in box-cabin and cabin-light-cabin, the patches of
+    cabin-light-canopy, and the hair shadows of hair-bent-cards, skin-hair and skin-hair-fringed.
+  - The automatic exposure moves: doorway-inside by +0.074 stops and yard-end by −0.074 stops.
+  - The bounce light's noise changes.
+- No still shows a new speck, leak, line or band. Two lose a fault of main. walk loses the specks and the light on the
+  cabin's jamb, and airlock-door loses a bright streak in the window's recess.
+
+### The cost under partly covered receivers
+
+The quarter texel holds at a straight edge of a wide caster. A receiver that a caster covers only partly loses more,
+because the share falls faster with the lit fraction f: f = 0.7 gives a share of 0.4 under D = 1/2 and 0.2 under D = 5/8.
+Under the middle of a strip of n texels along the grid, the 4 comparisons per axis see n texels in 4, so the share is
+1 − n/2 under D = 1/2 and 1 − 2n/3 under D = 5/8. A caster narrower than 1.5 texels casts 8/3 of its true shadow,
+against 2. The section "A stated limit of the rule" of `.tickets/t1-gout.md` has the table by width. My integration of
+the same box model gives the same rows. `ShadowTests.AStripOneTexelWideLetsAThirdOfTheSunThroughUnderItsMiddle` measures
+the strip of one texel: 0.333 at all 11 heights under D = 5/8, and 0.500 under D = 1/2.
+
+![the hair's shadow](remedy/hair-bent-cards.png)
+
+`remedy/hair-bent-cards.png`: the shadow of the hair cards at 1:1: main, the fix and the difference ×8. The blob grows and
+darkens, and its edge stays soft.
+
+![the ceiling of box-cabin](remedy/box-cabin.png)
+
+`remedy/box-cabin.png`: box-cabin at half size, and at 1:1 by the ceiling near the camera. The narrow lit band beside the
+diagonal beam narrows. There the sun grazes the ceiling, so the lost light spans many pixels.
+
+### The step where two cascades meet
+
+The step of `TheEdgeOfAShadowDoesNotStepWhereTwoCascadesMeet`, in meters on the ground, with a and b the finer and the
+coarser texel ([remedy/seam-old.txt](remedy/seam-old.txt), [remedy/seam-L.txt](remedy/seam-L.txt)):
+
+| Seam | a (m) | b (m) | 2D (b − a), D = 1/2 | Step, D = 1/2 | 2D (b − a), D = 5/8 | Step, D = 5/8 | (a + b) / 2 |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 0 | 0.047 | 0.102 | 0.055 | 0.038 | 0.069 | 0.051 | 0.075 |
+| 1 | 0.102 | 0.259 | 0.157 | 0.129 | 0.196 | 0.145 | 0.181 |
+| 2 | 0.259 | 1.865 | 1.606 | 1.982 | 2.008 | 2.564 | 1.062 |
+
+The share crosses one half 2D texels past each map's edge. So the step is 2D (b − a), plus the rounding of the two maps'
+edges, which (a + b) / 2 bounds. Every measured step lies within that sum. The test bounds the step by 2D b and a pixel,
+which is its old bound of one coarser texel at D = 1/2: 2.346 m at seam 2 under D = 1/2 and 2.812 m under D = 5/8.
+
+![the scene of the seam test](remedy/seam-pair.png)
+
+`remedy/seam-pair.png`: the test's scene at 960 × 540, main (D = 1/2) left and D = 5/8 right, and below at 1:1 the box
+where they differ most. `remedy/seam-zoom.png`: the shadow's edge at seam 2 at 6x. In both, the coarser cascade's shadow
+juts out past the finer one's at the seam, a soft step of about 10 pixels. Under D = 5/8 the edge on both sides lies a
+little farther out, and the step has the same form.
+
+### The acne
+
+The sun's `LitGroundHasNoAcne` counts the lit pixels that change by more than 2.5 levels of 255 when the ground casts
+shadows. Its limit is 396 or 397 pixels per view ([remedy/sunacne-old.txt](remedy/sunacne-old.txt),
+[remedy/sunacne-L.txt](remedy/sunacne-L.txt)):
+
+| Sun, turn | Changed pixels, D = 1/2 / D = 5/8 | Largest change, D = 1/2 / D = 5/8 |
+|---|---|---|
+| 20°, 0° | 0 / 0 | 0 / 0 |
+| 8°, 0° | 0 / 0 | 0 / 0 |
+| 20°, 45° | 0 / 0 | 1.93 / 2.00 of 255 |
+| 8°, 45° | 0 / 0 | 1.72 / 2.00 of 255 |
+
+The tiles' `ALitFloorUnderASpotLightHasNoAcne` at 60° with the slope at 45° to the grid shows what commit B's line would
+cost. Its limit is a thousandth of the lit pixels:
+
+| Lamp's distance | The raw lit fraction (main, commit A) | Commit B's line |
+|---|---|---|
+| 4 m | 4 of 25,784 pixels, at most 3 of 255 | 634 pixels, at most 8 of 255 |
+| 12 m | 2 of 135,815 pixels, at most 3 of 255 | 5,505 pixels, at most 7 of 255 |
+
+The changed pixels are about 2.3 % darker. A difference at a gain of 30 shows the same fine rings over the whole floor
+under both. The rule multiplies the shortfall of the diagonal slope (ARCHITECTURE.md, "Shadow bias", the fourth limit) by
+1 / (1 − 5/8) = 8/3 against the raw lit fraction.
+
+### Sub-texel precision
+
+The cascades' taps are hardware bilinear comparisons, which round the sub-texel place to the device's precision. Vulkan
+allows 4 bits, which could add up to 1/64 to the lit fraction on the real edge. NVIDIA, RADV, ANV and lavapipe give 8
+bits, where the error is at most 1/1024.
+
 ## The cascades at 16:9
 
 | Cascade | View depth | Texel |
@@ -260,3 +457,8 @@ the camera or the window. I did not search any scene for it.
   [tools/wintest.py](tools/wintest.py), copied from t0-gbgj, for the crops.
 - The evidence: `/Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7-evidence/gout/`, each take's
   kept frame and its opening at 2x.
+- Step 3: [tools/ramp.sh](tools/ramp.sh) with [tools/take.sh](tools/take.sh) (`SCALE` sets the render scale), then
+  [tools/rampchart.py](tools/rampchart.py) and [tools/openings.py](tools/openings.py); [tools/stills.py](tools/stills.py)
+  `prepare`, [tools/stills.sh](tools/stills.sh) once per build and `stills.py compare`; [tools/pair.py](tools/pair.py) for
+  each pair of stills. The evidence:
+  `/Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7-evidence/step3/`.

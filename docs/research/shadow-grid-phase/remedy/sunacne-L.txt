@@ -1,0 +1,8 @@
+sun 20 turn 45 view low ground 397440 differing 0 limit 397 max 2.00/255
+sun 20 turn 45 view high ground 396288 differing 0 limit 396 max 2.00/255
+sun 8 turn 0 view low ground 397440 differing 0 limit 397 max 0.00/255
+sun 8 turn 0 view high ground 396288 differing 0 limit 396 max 0.00/255
+sun 8 turn 45 view low ground 397440 differing 0 limit 397 max 2.00/255
+sun 8 turn 45 view high ground 396288 differing 0 limit 396 max 2.00/255
+sun 20 turn 0 view low ground 397440 differing 0 limit 397 max 0.00/255
+sun 20 turn 0 view high ground 396288 differing 0 limit 396 max 0.00/255
