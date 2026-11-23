@@ -240,13 +240,16 @@ internal sealed class ScreenTraceImages : IDisposable
             : null;
         for (int parity = 0; parity < Sets.Length; parity++)
             WriteSet(parity);
-        // The light pyramid's finest level reads this frame's direct diffuse light.
+        // The light pyramid's finest level reads this frame's direct diffuse light, and the surface test image and the motion
+        // target, which give each pixel's surface share.
         layouts.WriteImage(
             set: LightPyramidImages.FinestSet,
             binding: 0,
             view: targets.DirectDiffuse.View,
             layout: ImageLayout.General
         );
+        layouts.WriteStorageImage(set: LightPyramidImages.FinestSet, binding: 2, image: surfaces.Test);
+        layouts.WriteStorageImage(set: LightPyramidImages.FinestSet, binding: 3, image: targets.Motion);
     }
 
     /// <summary>Writes the set of <paramref name="parity"/> in the bindings of screen_trace.glsl.</summary>

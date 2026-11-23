@@ -54,6 +54,7 @@ layout(set = 3, binding = 26) uniform texture2D lightLevels;    // R32F
 // leaves each pixel that a walk can hit toward a ray of the kind (leavingLightOf), and a the pixel's moved mark, 1 where
 // its surface moved since the last draw (movedSurfaceAt), else 0. The plan writes it, and a hit reads both.
 layout(set = 3, binding = 27, rgba16f) uniform image2DArray hitLight;
+#include "sent_light.glsl"
 
 // A record's w: bit 0 whether its ray traced. A ray below its pixel's geometric plane, and a block that no pixel starts,
 // trace nothing. With a precise specular history, bits 1 to 14 hold the hit's light code (RecordCodeBits) and bit 15 its
@@ -472,12 +473,6 @@ vec3 lastLightOf(Reprojection r, uint kind)
     return exposed(light, historyRatio(exposureStops, previousStops));
 }
 
-// The pixel's place in the last frame's image, from its motion.
-vec2 lastPlaceAt(ivec2 pixel)
-{
-    return readPlace(vec2(pixel) + 0.5, imageLoad(motionTarget, pixel));
-}
-
 // Whether the pixel's surface moved since the last draw, as the surface test pass found it (signals.glsl, SurfaceMoved).
 bool movedSurfaceAt(ivec2 pixel)
 {
@@ -507,23 +502,16 @@ struct SignalReprojections
 
 SignalReprojections reprojectionsAt(ivec2 pixel)
 {
-    uint bits = imageLoad(surfaceTest, pixel).r;
-    vec2 place = lastPlaceAt(pixel);
-    return SignalReprojections(
-        reprojectionOf(place, surfacePassBits(bits)), reprojectionOf(place, specularPassBits(bits)));
-}
-
-// The glow that the pixel sends: its emission, or 0 where its entity holds a light.
-vec3 glowAt(ivec2 pixel)
-{
-    return glowSent(texelFetch(gbufferEmissive, pixel, 0).rgb, lightMarkOfWord(texelFetch(gbufferShading, pixel, 0).b));
+    return SignalReprojections(surfaceReprojectionAt(pixel),
+        reprojectionOf(lastPlaceAt(pixel), specularPassBits(imageLoad(surfaceTest, pixel).r)));
 }
 
 // The light that leaves the pixel q of a traced surface toward a ray of each kind (section 6, "Where a hit's light comes
-// from"), from q's material s, its view direction V and its reprojections r: this frame's direct light and the last
-// frame's light of both signals at q's place, times q's material factors, and the glow that q sends. A diffuse ray leaves
-// out q's specular part. Where q fails the surface test, and so in a reset frame, a history is the environment's closed
-// form at q. The plan writes it into the hit light image (ticket ter-67y3), and a hit reads it there (traceFrom).
+// from"), from q's material s, its view direction V and its reprojections r: the fresh light that q sends
+// (sent_light.glsl), this frame's direct light and glow times q's surface share, and the last frame's light of both
+// signals at q's place, each times q's material factors. A diffuse ray leaves out q's specular part. Where q fails the
+// surface test, and so in a reset frame, a history is the environment's closed form at q. The plan writes it into the hit
+// light image (ticket ter-67y3), and a hit reads it there (traceFrom).
 LeavingLight leavingLightOf(ivec2 q, ShadingInput s, vec3 V, SignalReprojections r)
 {
     MaterialFactors factors = materialFactors(s, lobesOf(s, V));
@@ -531,18 +519,27 @@ LeavingLight leavingLightOf(ivec2 q, ShadingInput s, vec3 V, SignalReprojections
     if (!holdsHistory(r.diffuse) || !holdsHistory(r.specular))
         closedLight = closedForm(withAmbientFootprint(s, q), V);
     vec3 diffuseHistory = holdsHistory(r.diffuse) ? lastLightOf(r.diffuse, KindDiffuse) : closedLight.diffuse;
-    vec3 light = factors.diffuse * (imageLoad(directDiffuseLight, q).rgb + diffuseHistory) + glowAt(q);
+    vec3 light = sentDiffuseLight(q, factors.diffuse * imageLoad(directDiffuseLight, q).rgb, r.diffuse)
+        + factors.diffuse * diffuseHistory;
     vec3 specularHistory = holdsHistory(r.specular) ? lastLightOf(r.specular, KindReflection) : closedLight.specular;
-    vec3 reflection = light + factors.specular * (imageLoad(directSpecularLight, q).rgb + specularHistory);
+    vec3 reflection = light
+        + factors.specular * (surfaceShare(r.diffuse) * imageLoad(directSpecularLight, q).rgb + specularHistory);
     return LeavingLight(min(reflection, vec3(MaxRadiance)), min(light, vec3(MaxRadiance)));
 }
 
-// The light that leaves the pixel q toward a ray of each kind (leavingLightOf). An impostor's light is its emission,
-// which holds its ambient light.
+// The light that leaves the pixel q of an impostor toward a ray of either kind: the glow that it sends, times its
+// surface share (sent_light.glsl). An impostor's glow holds all of its light.
+LeavingLight impostorLightAt(ivec2 q)
+{
+    vec3 glow = sentDiffuseLight(q, vec3(0.0), surfaceReprojectionAt(q));
+    return LeavingLight(glow, glow);
+}
+
+// The light that leaves the pixel q toward a ray of each kind: leavingLightOf, or impostorLightAt for an impostor.
 LeavingLight leavingLightAt(ivec2 q)
 {
     if (texelFetch(gbufferBaseColor, q, 0).a == 0.0)
-        return LeavingLight(glowAt(q), glowAt(q));
+        return impostorLightAt(q);
     return leavingLightOf(q, materialAt(q), -normalize(viewRayThrough(vec2(q) + 0.5)), reprojectionsAt(q));
 }
 
