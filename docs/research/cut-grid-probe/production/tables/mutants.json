@@ -1,0 +1,236 @@
+[
+ {
+  "id": "G01",
+  "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+  "line": 51,
+  "original": "parameters.light != SpecularLight || ",
+  "replacement": "",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "*ShortHistoryFixRenderTests*",
+   "AccumulatePushConstantsTests"
+  ],
+  "note": "diffuse turns too"
+ },
+ {
+  "id": "G02",
+  "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+  "line": 51,
+  "original": "spacing != 4 && spacing != 2)",
+  "replacement": "spacing != 4)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "*ShortHistoryFixRenderTests*",
+   "AccumulatePushConstantsTests"
+  ],
+  "note": "spacing 2 keeps the square"
+ },
+ {
+  "id": "G03",
+  "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+  "line": 51,
+  "original": "spacing != 4 && spacing != 2)",
+  "replacement": "spacing != 4 && spacing != 2 && spacing != 1)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "*ShortHistoryFixRenderTests*",
+   "AccumulatePushConstantsTests"
+  ],
+  "note": "spacing 1 takes a spacing-4 turn"
+ },
+ {
+  "id": "G04",
+  "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+  "line": 53,
+  "original": "parameters.drawIndex + StencilBlueNoisePhase",
+  "replacement": "parameters.drawIndex",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "*ShortHistoryFixRenderTests*",
+   "AccumulatePushConstantsTests"
+  ],
+  "note": "no phase: the rays' and the dither's frame"
+ },
+ {
+  "id": "G05",
+  "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+  "line": 43,
+  "original": "BlueNoiseFrames / 2u",
+  "replacement": "BlueNoiseFrames / 4u",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "*ShortHistoryFixRenderTests*",
+   "AccumulatePushConstantsTests"
+  ],
+  "note": "a quarter period's phase"
+ },
+ {
+  "id": "G06",
+  "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+  "line": 55,
+  "original": "TurnedSquares2[byte >> 6u]",
+  "replacement": "TurnedSquares2[byte >> 7u]",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "*ShortHistoryFixRenderTests*",
+   "AccumulatePushConstantsTests"
+  ],
+  "note": "spacing 2 takes 2 turns"
+ },
+ {
+  "id": "G07",
+  "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+  "line": 56,
+  "original": "uint turn = byte >> 5u;",
+  "replacement": "uint turn = byte >> 6u;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "*ShortHistoryFixRenderTests*",
+   "AccumulatePushConstantsTests"
+  ],
+  "note": "spacing 4 takes 4 turns"
+ },
+ {
+  "id": "G08",
+  "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+  "line": 53,
+  "original": "StencilBlueNoisePhase).r;",
+  "replacement": "StencilBlueNoisePhase).g;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "*ShortHistoryFixRenderTests*",
+   "AccumulatePushConstantsTests"
+  ],
+  "note": "the angle byte for the radial byte"
+ },
+ {
+  "id": "G09",
+  "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+  "line": 34,
+  "original": "0xD5534F14u",
+  "replacement": "0xD5534F15u",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "*ShortHistoryFixRenderTests*",
+   "AccumulatePushConstantsTests"
+  ],
+  "note": "u.x of the 11.25-degree turn 5 for 4"
+ },
+ {
+  "id": "G10",
+  "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+  "line": 57,
+  "original": "turn < 4u ? TurnedSquares4First[turn] : TurnedSquares4Second[turn - 4u]",
+  "replacement": "turn < 4u ? TurnedSquares4Second[turn] : TurnedSquares4First[turn - 4u]",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "*ShortHistoryFixRenderTests*",
+   "AccumulatePushConstantsTests"
+  ],
+  "note": "the two halves of the spacing-4 words swapped"
+ },
+ {
+  "id": "G11",
+  "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+  "line": 67,
+  "original": "x == y ? 4u : 6u",
+  "replacement": "x == y ? 6u : 4u",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "*ShortHistoryFixRenderTests*",
+   "AccumulatePushConstantsTests"
+  ],
+  "note": "u + v and u - v swapped"
+ },
+ {
+  "id": "G12",
+  "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+  "line": 68,
+  "original": "int side = x == 0 ? y : x;",
+  "replacement": "int side = x == 0 ? x : x;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "*ShortHistoryFixRenderTests*",
+   "AccumulatePushConstantsTests"
+  ],
+  "note": "the v taps become the center"
+ },
+ {
+  "id": "G13",
+  "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+  "line": 69,
+  "original": "int(turn << (24u - 4u * place))",
+  "replacement": "int(turn << (28u - 4u * place))",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "*ShortHistoryFixRenderTests*",
+   "AccumulatePushConstantsTests"
+  ],
+  "note": "y read as x"
+ },
+ {
+  "id": "G14",
+  "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+  "line": 69,
+  "original": "))) >> 28;",
+  "replacement": ")))>> 27;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "*ShortHistoryFixRenderTests*",
+   "AccumulatePushConstantsTests"
+  ],
+  "note": "numbers read 2 times too big"
+ },
+ {
+  "id": "G15",
+  "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+  "line": 64,
+  "original": "    if (turn == AxisAligned)\n        return spacing * ivec2(x, y);\n",
+  "replacement": "",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "*ShortHistoryFixRenderTests*",
+   "AccumulatePushConstantsTests"
+  ],
+  "note": "the axis-aligned square read from word 0, all zero"
+ },
+ {
+  "id": "G16",
+  "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+  "line": 167,
+  "original": " || !sameSurface(key, surfaceKeyAt(neighbor)))",
+  "replacement": ")",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "*ShortHistoryFixRenderTests*",
+   "AccumulatePushConstantsTests"
+  ],
+  "note": "the fix ignores the surface test"
+ },
+ {
+  "id": "G17",
+  "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+  "line": 167,
+  "original": "!insideImages(neighbor) || ",
+  "replacement": "",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "*ShortHistoryFixRenderTests*",
+   "AccumulatePushConstantsTests"
+  ],
+  "note": "the fix reads outside the image"
+ },
+ {
+  "id": "C01",
+  "file": "src/Tertius.Rendering/Scene/GpuTypes.cs",
+  "line": 858,
+  "original": "DrawIndex = unchecked((uint)drawIndex),",
+  "replacement": "DrawIndex = 0,",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "*ShortHistoryFixRenderTests*",
+   "AccumulatePushConstantsTests"
+  ],
+  "note": "no draw index"
+ }
+]

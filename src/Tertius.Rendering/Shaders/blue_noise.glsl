@@ -3,7 +3,9 @@
 // The spatiotemporal blue-noise mask (BlueNoiseMask, ARCHITECTURE.md, "Randomness and determinism"): BlueNoiseFrames
 // frames of BlueNoiseSide² cells, frame t in tile (t % 8, t / 8), each texel a radial number and an angle in bytes. The
 // including shader declares the mask as `utexture2D blueNoiseMask` at its own binding before it includes this file: the
-// screen tracer's kernels in the frame set, and the tone map in the post set.
+// screen tracer's kernels and the accumulator's spatial dispatch in the frame set, and the tone map in the post set. The
+// spatial dispatch reads the frame half a period ahead of the draw's, so that its bytes differ from the rays' and the
+// dither's at the same pixel.
 
 const uint BlueNoiseSide = 128u;
 const uint BlueNoiseFrames = 64u;

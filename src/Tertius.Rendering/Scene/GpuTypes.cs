@@ -835,6 +835,13 @@ internal struct AccumulatePushConstants
     /// </summary>
     public uint RegionSlot;
 
+    /// <summary>
+    /// The draw's index since the last reset (<see cref="FrameHistory.PendingFrame.DrawIndex"/>) modulo 2^32: the frame of
+    /// the blue-noise mask from which the specular short-history fix chooses each pixel's turned square
+    /// (accumulate_spatial.comp, step 3).
+    /// </summary>
+    public uint DrawIndex;
+
     public static AccumulatePushConstants Of(SignalParameters parameters, bool reset, long drawIndex) =>
         new()
         {
@@ -848,6 +855,7 @@ internal struct AccumulatePushConstants
             ReflectedPlaceBelow = parameters.ReflectedPlaceBelow,
             Reset = reset ? 1u : 0u,
             RegionSlot = (uint)(drawIndex % TemporalSignal.RegionRingDraws),
+            DrawIndex = unchecked((uint)drawIndex),
             RetainedSigmas = parameters.Confidence switch
             {
                 WidenedBox { RetainedSigmas: var sigmas } => sigmas,

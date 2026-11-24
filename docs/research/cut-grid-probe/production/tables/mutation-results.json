@@ -1,0 +1,322 @@
+{
+ "note": "tools/mutate.py over mutants.json; G16 failed to compile in the first run (one closing parenthesis too many) and ran again with the corrected replacement after the edge test was strengthened",
+ "rows": [
+  {
+   "id": "G01",
+   "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+   "line": 51,
+   "change": "diffuse turns too",
+   "result": "killed",
+   "killed_by": [
+    "ShortHistoryFixRenderTests.TheDiffuseShortHistorySpreadsEachBrightSampleOverTheAxisAlignedSquare(zeroDraws: 1)",
+    "ShortHistoryFixRenderTests.TheDiffuseShortHistorySpreadsEachBrightSampleOverTheAxisAlignedSquare(zeroDraws: 0)"
+   ],
+   "seconds": 22.798550124280155,
+   "original": "parameters.light != SpecularLight || ",
+   "replacement": "",
+   "classes": [
+    "*ShortHistoryFixRenderTests*",
+    "AccumulatePushConstantsTests"
+   ]
+  },
+  {
+   "id": "G02",
+   "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+   "line": 51,
+   "change": "spacing 2 keeps the square",
+   "result": "killed",
+   "killed_by": [
+    "ShortHistoryFixRenderTests.AtSpacingTwoTheSpecularFixTakesOneOfFourTurnsFromTheMask",
+    "ShortHistoryFixRenderTests.ASpecularShortHistorySpreadsMostOfABrightSampleOffTheSquaresLattice(zeroDraws: 1, spacing: 2)"
+   ],
+   "seconds": 33.92924783285707,
+   "original": "spacing != 4 && spacing != 2)",
+   "replacement": "spacing != 4)",
+   "classes": [
+    "*ShortHistoryFixRenderTests*",
+    "AccumulatePushConstantsTests"
+   ]
+  },
+  {
+   "id": "G03",
+   "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+   "line": 51,
+   "change": "spacing 1 takes a spacing-4 turn",
+   "result": "killed",
+   "killed_by": [
+    "ShortHistoryFixRenderTests.ASpecularBrightSampleReachesNoFartherThanTheSpacingAndAHalf(zeroDraws: 2, spacing: 1)",
+    "ShortHistoryFixRenderTests.AtSpacingOneTheSpecularShortHistoryKeepsTheSquare"
+   ],
+   "seconds": 23.278206542134285,
+   "original": "spacing != 4 && spacing != 2)",
+   "replacement": "spacing != 4 && spacing != 2 && spacing != 1)",
+   "classes": [
+    "*ShortHistoryFixRenderTests*",
+    "AccumulatePushConstantsTests"
+   ]
+  },
+  {
+   "id": "G04",
+   "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+   "line": 53,
+   "change": "no phase: the rays' and the dither's frame",
+   "result": "killed",
+   "killed_by": [
+    "ShortHistoryFixRenderTests.AtSpacingTwoTheSpecularFixTakesOneOfFourTurnsFromTheMask",
+    "ShortHistoryFixRenderTests.TheSpecularFixTakesEachPixelsTurnFromTheMaskFrameHalfAPeriodAheadOfTheDraw"
+   ],
+   "seconds": 23.434294457547367,
+   "original": "parameters.drawIndex + StencilBlueNoisePhase",
+   "replacement": "parameters.drawIndex",
+   "classes": [
+    "*ShortHistoryFixRenderTests*",
+    "AccumulatePushConstantsTests"
+   ]
+  },
+  {
+   "id": "G05",
+   "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+   "line": 43,
+   "change": "a quarter period's phase",
+   "result": "killed",
+   "killed_by": [
+    "ShortHistoryFixRenderTests.AtSpacingTwoTheSpecularFixTakesOneOfFourTurnsFromTheMask",
+    "ShortHistoryFixRenderTests.TheSpecularFixTakesEachPixelsTurnFromTheMaskFrameHalfAPeriodAheadOfTheDraw"
+   ],
+   "seconds": 24.5529199577868,
+   "original": "BlueNoiseFrames / 2u",
+   "replacement": "BlueNoiseFrames / 4u",
+   "classes": [
+    "*ShortHistoryFixRenderTests*",
+    "AccumulatePushConstantsTests"
+   ]
+  },
+  {
+   "id": "G06",
+   "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+   "line": 55,
+   "change": "spacing 2 takes 2 turns",
+   "result": "killed",
+   "killed_by": [
+    "ShortHistoryFixRenderTests.AtSpacingTwoTheSpecularFixTakesOneOfFourTurnsFromTheMask"
+   ],
+   "seconds": 23.440138874575496,
+   "original": "TurnedSquares2[byte >> 6u]",
+   "replacement": "TurnedSquares2[byte >> 7u]",
+   "classes": [
+    "*ShortHistoryFixRenderTests*",
+    "AccumulatePushConstantsTests"
+   ]
+  },
+  {
+   "id": "G07",
+   "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+   "line": 56,
+   "change": "spacing 4 takes 4 turns",
+   "result": "killed",
+   "killed_by": [
+    "ShortHistoryFixRenderTests.TheSpecularFixTakesEachPixelsTurnFromTheMaskFrameHalfAPeriodAheadOfTheDraw"
+   ],
+   "seconds": 24.360734708607197,
+   "original": "uint turn = byte >> 5u;",
+   "replacement": "uint turn = byte >> 6u;",
+   "classes": [
+    "*ShortHistoryFixRenderTests*",
+    "AccumulatePushConstantsTests"
+   ]
+  },
+  {
+   "id": "G08",
+   "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+   "line": 53,
+   "change": "the angle byte for the radial byte",
+   "result": "killed",
+   "killed_by": [
+    "ShortHistoryFixRenderTests.AtSpacingTwoTheSpecularFixTakesOneOfFourTurnsFromTheMask",
+    "ShortHistoryFixRenderTests.TheSpecularFixTakesEachPixelsTurnFromTheMaskFrameHalfAPeriodAheadOfTheDraw"
+   ],
+   "seconds": 26.002012792043388,
+   "original": "StencilBlueNoisePhase).r;",
+   "replacement": "StencilBlueNoisePhase).g;",
+   "classes": [
+    "*ShortHistoryFixRenderTests*",
+    "AccumulatePushConstantsTests"
+   ]
+  },
+  {
+   "id": "G09",
+   "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+   "line": 34,
+   "change": "u.x of the 11.25-degree turn 5 for 4",
+   "result": "killed",
+   "killed_by": [
+    "ShortHistoryFixRenderTests.TheSpecularFixTakesEachPixelsTurnFromTheMaskFrameHalfAPeriodAheadOfTheDraw"
+   ],
+   "seconds": 23.153121040202677,
+   "original": "0xD5534F14u",
+   "replacement": "0xD5534F15u",
+   "classes": [
+    "*ShortHistoryFixRenderTests*",
+    "AccumulatePushConstantsTests"
+   ]
+  },
+  {
+   "id": "G10",
+   "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+   "line": 57,
+   "change": "the two halves of the spacing-4 words swapped",
+   "result": "killed",
+   "killed_by": [
+    "ShortHistoryFixRenderTests.TheSpecularFixTakesEachPixelsTurnFromTheMaskFrameHalfAPeriodAheadOfTheDraw"
+   ],
+   "seconds": 24.86395045928657,
+   "original": "turn < 4u ? TurnedSquares4First[turn] : TurnedSquares4Second[turn - 4u]",
+   "replacement": "turn < 4u ? TurnedSquares4Second[turn] : TurnedSquares4First[turn - 4u]",
+   "classes": [
+    "*ShortHistoryFixRenderTests*",
+    "AccumulatePushConstantsTests"
+   ]
+  },
+  {
+   "id": "G11",
+   "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+   "line": 67,
+   "change": "u + v and u - v swapped",
+   "result": "survived",
+   "killed_by": [],
+   "seconds": 25.149480500258505,
+   "original": "x == y ? 4u : 6u",
+   "replacement": "x == y ? 6u : 4u",
+   "classes": [
+    "*ShortHistoryFixRenderTests*",
+    "AccumulatePushConstantsTests"
+   ]
+  },
+  {
+   "id": "G12",
+   "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+   "line": 68,
+   "change": "the v taps become the center",
+   "result": "killed",
+   "killed_by": [
+    "ShortHistoryFixRenderTests.AtSpacingTwoTheSpecularFixTakesOneOfFourTurnsFromTheMask",
+    "ShortHistoryFixRenderTests.TheSpecularFixTakesEachPixelsTurnFromTheMaskFrameHalfAPeriodAheadOfTheDraw"
+   ],
+   "seconds": 22.89437708351761,
+   "original": "int side = x == 0 ? y : x;",
+   "replacement": "int side = x == 0 ? x : x;",
+   "classes": [
+    "*ShortHistoryFixRenderTests*",
+    "AccumulatePushConstantsTests"
+   ]
+  },
+  {
+   "id": "G13",
+   "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+   "line": 69,
+   "change": "y read as x",
+   "result": "killed",
+   "killed_by": [
+    "ShortHistoryFixRenderTests.AtSpacingTwoTheSpecularFixTakesOneOfFourTurnsFromTheMask",
+    "ShortHistoryFixRenderTests.TheSpecularFixTakesEachPixelsTurnFromTheMaskFrameHalfAPeriodAheadOfTheDraw"
+   ],
+   "seconds": 31.14283158443868,
+   "original": "int(turn << (24u - 4u * place))",
+   "replacement": "int(turn << (28u - 4u * place))",
+   "classes": [
+    "*ShortHistoryFixRenderTests*",
+    "AccumulatePushConstantsTests"
+   ]
+  },
+  {
+   "id": "G14",
+   "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+   "line": 69,
+   "change": "numbers read 2 times too big",
+   "result": "killed",
+   "killed_by": [
+    "ShortHistoryFixRenderTests.AtSpacingTwoTheSpecularFixTakesOneOfFourTurnsFromTheMask",
+    "ShortHistoryFixRenderTests.TheSpecularFixTakesEachPixelsTurnFromTheMaskFrameHalfAPeriodAheadOfTheDraw",
+    "ShortHistoryFixRenderTests.ASpecularBrightSampleReachesNoFartherThanTheSpacingAndAHalf(zeroDraws: 0, spacing: 4)"
+   ],
+   "seconds": 23.467727083712816,
+   "original": "))) >> 28;",
+   "replacement": ")))>> 27;",
+   "classes": [
+    "*ShortHistoryFixRenderTests*",
+    "AccumulatePushConstantsTests"
+   ]
+  },
+  {
+   "id": "G15",
+   "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+   "line": 64,
+   "change": "the axis-aligned square read from word 0, all zero",
+   "result": "killed",
+   "killed_by": [
+    "ShortHistoryFixRenderTests.TheDiffuseShortHistorySpreadsEachBrightSampleOverTheAxisAlignedSquare(zeroDraws: 1)",
+    "ShortHistoryFixRenderTests.TheDiffuseShortHistorySpreadsEachBrightSampleOverTheAxisAlignedSquare(zeroDraws: 0)",
+    "ShortHistoryFixRenderTests.TheDiffuseShortHistorySpreadsEachBrightSampleOverTheAxisAlignedSquare(zeroDraws: 2)"
+   ],
+   "seconds": 22.73517324961722,
+   "original": "    if (turn == AxisAligned)\n        return spacing * ivec2(x, y);\n",
+   "replacement": "",
+   "classes": [
+    "*ShortHistoryFixRenderTests*",
+    "AccumulatePushConstantsTests"
+   ]
+  },
+  {
+   "id": "G16",
+   "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+   "line": 167,
+   "change": "the fix ignores the surface test",
+   "result": "killed",
+   "killed_by": [
+    "ShortHistoryFixRenderTests.ASpecularBrightSampleSendsNoLightAcrossADepthEdge(zeroDraws: 1)",
+    "ShortHistoryFixRenderTests.ASpecularBrightSampleSendsNoLightAcrossADepthEdge(zeroDraws: 0)"
+   ],
+   "seconds": 24.442009792663157,
+   "original": " || !sameSurface(key, surfaceKeyAt(neighbor)))",
+   "replacement": ")",
+   "classes": [
+    "*ShortHistoryFixRenderTests*",
+    "AccumulatePushConstantsTests"
+   ]
+  },
+  {
+   "id": "G17",
+   "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+   "line": 167,
+   "change": "the fix reads outside the image",
+   "result": "survived",
+   "killed_by": [],
+   "seconds": 25.112836417742074,
+   "original": "!insideImages(neighbor) || ",
+   "replacement": "",
+   "classes": [
+    "*ShortHistoryFixRenderTests*",
+    "AccumulatePushConstantsTests"
+   ]
+  },
+  {
+   "id": "C01",
+   "file": "src/Tertius.Rendering/Scene/GpuTypes.cs",
+   "line": 858,
+   "change": "no draw index",
+   "result": "killed",
+   "killed_by": [
+    "AccumulatePushConstantsTests.ThePushConstantsCarryTheDrawIndexModuloTwoToTheThirtyTwoAndItsRingLayer(drawIndex: 37)",
+    "AccumulatePushConstantsTests.ThePushConstantsCarryTheDrawIndexModuloTwoToTheThirtyTwoAndItsRingLayer(drawIndex: 2147483652)",
+    "AccumulatePushConstantsTests.ThePushConstantsCarryTheDrawIndexModuloTwoToTheThirtyTwoAndItsRingLayer(drawIndex: 4294967298)"
+   ],
+   "seconds": 23.36413629259914,
+   "original": "DrawIndex = unchecked((uint)drawIndex),",
+   "replacement": "DrawIndex = 0,",
+   "classes": [
+    "*ShortHistoryFixRenderTests*",
+    "AccumulatePushConstantsTests"
+   ]
+  }
+ ]
+}

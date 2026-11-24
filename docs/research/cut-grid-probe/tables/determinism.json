@@ -1,0 +1,47 @@
+{
+ "nose-main vs nose-baseline": {
+  "frames": 126,
+  "identical_frames": 126,
+  "d0_sha256": "de32620c3e215d4fd100bd0651f2da6bba3dc9fee149161cf831ac0c6165c451",
+  "d29_sha256": "49035298329a479862c4c272d502ea65104c8c07b489e5aa31bd55a518bc67af",
+  "d64_sha256": "bc44ac92ec581a4849c768191d2d94bc7f124d74cf4ce96e1e393308d8c5884d"
+ },
+ "nose-a vs nose-a-2": {
+  "frames": 126,
+  "identical_frames": 126,
+  "d0_sha256": "3741309139d84f57b002f8f103918bdc60c173e598b63ef9273aa226c1b7a297",
+  "d29_sha256": "229a4763d9770fd32b5f32ee0662e3f389f30b1946e329515238be3fc026c9bb",
+  "d64_sha256": "8af6a735ea0558699457f32c4c0dbab0bc26dadcf661530837ce639347aa6e35"
+ },
+ "nose-b vs nose-b-2": {
+  "frames": 126,
+  "identical_frames": 126,
+  "d0_sha256": "9bd541b00ab80eabe900200dd4564104d79ff0d767a1a45af6756aa42b333b0b",
+  "d29_sha256": "88df32e24912439b9156afb5e074252c68511117857c0a555a3f72772f713177",
+  "d64_sha256": "7bdc2c4a44219727db59ef27fc9ee96cb917967832795752e57920e1fc109f74"
+ },
+ "nose-off": {
+  "d0_sha256": "faf481e038f3eaf87a40f074fadcf6079565921ff10dc3bade455efaa9c17101",
+  "d29_sha256": "2079950268f63c5a80ed5f88468802b44b9f34b451d25a42aa8a182ac1a4a1fc"
+ },
+ "nose-off-spec": {
+  "d0_sha256": "825eb02b4c1e24b2012fef7e4c4111498bfcc7c7c24d5daa3a5723918195b093",
+  "d29_sha256": "85a9aa553f98d7783f7967a4e124ddd89a824bc78ffba83583e58e09d82b08d6"
+ },
+ "nose-off-diff": {
+  "d0_sha256": "2f7798640de9d369e9dfcb028d0717bb4ebf90301567a5884b5fada71a597e87",
+  "d29_sha256": "8a3d321b7cf255a949410c13ba117f5cdd12c64df7088c4e96270f9c2433ac2b"
+ },
+ "lamps-baseline": {
+  "d0_sha256": "1bc376de889e23782708e23d8557fec2dde573acbdf85fc8796b33735625f527",
+  "d29_sha256": "91b0b04f16b2a95893ade6b81b7d47aedf952c1e645971bc39ebdfa120ccdd9f"
+ },
+ "lamps-a": {
+  "d0_sha256": "1cf1020e7ef4e46360fd268fa12070729ac76c56dedc0a293d2b1fe94792b4d1",
+  "d29_sha256": "bfc4d8a70df36db7559507e9520a71bacdbe902feeccd1eec08cae694eb8d867"
+ },
+ "lamps-b": {
+  "d0_sha256": "262821da77e6cb9772177f44dc35daef7534f180d946ba05c107d94d67ae81ca",
+  "d29_sha256": "cf524e6d11098ac97b2eb939a24da1d6765b481debb850f10dcccf9c7ca08dbc"
+ }
+}

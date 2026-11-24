@@ -1,0 +1,106 @@
+{
+ "baseline": {
+  "d0": {
+   "band_1_6_mean": 112.47,
+   "band_7_18_mean": 111.6,
+   "band_1_6_above_150": 912,
+   "lamp_mean": 177.01
+  },
+  "d1": {
+   "band_1_6_mean": 112.47,
+   "band_7_18_mean": 112.29,
+   "band_1_6_above_150": 908,
+   "lamp_mean": 177.01
+  },
+  "d2": {
+   "band_1_6_mean": 101.44,
+   "band_7_18_mean": 114.91,
+   "band_1_6_above_150": 788,
+   "lamp_mean": 176.92
+  },
+  "d3": {
+   "band_1_6_mean": 105.29,
+   "band_7_18_mean": 115.52,
+   "band_1_6_above_150": 779,
+   "lamp_mean": 177.0
+  }
+ },
+ "A": {
+  "d0": {
+   "band_1_6_mean": 112.45,
+   "band_7_18_mean": 111.48,
+   "band_1_6_above_150": 912,
+   "lamp_mean": 176.99
+  },
+  "d1": {
+   "band_1_6_mean": 112.44,
+   "band_7_18_mean": 112.14,
+   "band_1_6_above_150": 908,
+   "lamp_mean": 177.0
+  },
+  "d2": {
+   "band_1_6_mean": 101.36,
+   "band_7_18_mean": 114.89,
+   "band_1_6_above_150": 787,
+   "lamp_mean": 176.91
+  },
+  "d3": {
+   "band_1_6_mean": 105.25,
+   "band_7_18_mean": 115.55,
+   "band_1_6_above_150": 779,
+   "lamp_mean": 177.0
+  }
+ },
+ "B": {
+  "d0": {
+   "band_1_6_mean": 112.38,
+   "band_7_18_mean": 111.82,
+   "band_1_6_above_150": 912,
+   "lamp_mean": 177.0
+  },
+  "d1": {
+   "band_1_6_mean": 112.39,
+   "band_7_18_mean": 112.44,
+   "band_1_6_above_150": 907,
+   "lamp_mean": 177.01
+  },
+  "d2": {
+   "band_1_6_mean": 101.29,
+   "band_7_18_mean": 114.82,
+   "band_1_6_above_150": 788,
+   "lamp_mean": 176.92
+  },
+  "d3": {
+   "band_1_6_mean": 105.24,
+   "band_7_18_mean": 115.46,
+   "band_1_6_above_150": 779,
+   "lamp_mean": 177.01
+  }
+ },
+ "off": {
+  "d0": {
+   "band_1_6_mean": 111.78,
+   "band_7_18_mean": 110.08,
+   "band_1_6_above_150": 912,
+   "lamp_mean": 177.0
+  },
+  "d1": {
+   "band_1_6_mean": 111.78,
+   "band_7_18_mean": 110.25,
+   "band_1_6_above_150": 907,
+   "lamp_mean": 177.01
+  },
+  "d2": {
+   "band_1_6_mean": 100.41,
+   "band_7_18_mean": 111.44,
+   "band_1_6_above_150": 790,
+   "lamp_mean": 176.9
+  },
+  "d3": {
+   "band_1_6_mean": 104.43,
+   "band_7_18_mean": 113.02,
+   "band_1_6_above_150": 779,
+   "lamp_mean": 176.99
+  }
+ }
+}

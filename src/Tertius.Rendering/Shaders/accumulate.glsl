@@ -66,6 +66,7 @@ layout(push_constant, std430) uniform AccumulatePush
     uint reset;          // 1 in a frame that resets every history
     float retainedSigmas;  // the clamp box's least half width in retained deviations, 0 for the narrow box
     uint regionSlot;     // the ring layer of this draw: its index since the last reset modulo RegionRingDraws (region_drift.glsl)
+    uint drawIndex;      // the draw's index since the last reset modulo 2^32: the blue-noise frame of the fix's turned squares
 } parameters;
 
 // SignalLight.

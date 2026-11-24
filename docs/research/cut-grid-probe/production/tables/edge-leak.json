@@ -1,0 +1,54 @@
+{
+ "main": {
+  "d0": {
+   "band_1_6_mean": 112.47,
+   "band_7_18_mean": 111.6,
+   "band_1_6_above_150": 912,
+   "lamp_mean": 177.01
+  },
+  "d1": {
+   "band_1_6_mean": 112.47,
+   "band_7_18_mean": 112.29,
+   "band_1_6_above_150": 908,
+   "lamp_mean": 177.01
+  },
+  "d2": {
+   "band_1_6_mean": 101.44,
+   "band_7_18_mean": 114.91,
+   "band_1_6_above_150": 788,
+   "lamp_mean": 176.92
+  },
+  "d3": {
+   "band_1_6_mean": 105.29,
+   "band_7_18_mean": 115.52,
+   "band_1_6_above_150": 779,
+   "lamp_mean": 177.0
+  }
+ },
+ "production": {
+  "d0": {
+   "band_1_6_mean": 112.53,
+   "band_7_18_mean": 111.28,
+   "band_1_6_above_150": 911,
+   "lamp_mean": 176.99
+  },
+  "d1": {
+   "band_1_6_mean": 112.41,
+   "band_7_18_mean": 111.96,
+   "band_1_6_above_150": 907,
+   "lamp_mean": 177.0
+  },
+  "d2": {
+   "band_1_6_mean": 101.38,
+   "band_7_18_mean": 114.55,
+   "band_1_6_above_150": 788,
+   "lamp_mean": 176.91
+  },
+  "d3": {
+   "band_1_6_mean": 105.27,
+   "band_7_18_mean": 115.26,
+   "band_1_6_above_150": 779,
+   "lamp_mean": 177.01
+  }
+ }
+}
