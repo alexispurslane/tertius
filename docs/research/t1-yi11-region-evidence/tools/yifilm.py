@@ -18,6 +18,8 @@
 #   switch-film: the switch run alone, without the survey's switch options (bloom on, the game's tone curve), for the eye.
 #             With those options the probe's kept PNGs come out as a false-colour pattern (seen on 2026-11-23), while
 #             its measures match t0-qvm1. It keeps film frames 150 to 459.
+#   walk-switch, walk-off: the cabin's lamps switch off while the person walks, and its control with the lamps always off
+#             (see the branch below).
 # A knob TERTIUS_X_REGION_LOG (build yg) goes into each run's own folder in the switch, so that the three runs keep three
 # logs. Run it in the dev shell from the checkout's root.
 import importlib.util
@@ -76,6 +78,28 @@ elif film == 'switch-film':
     keep = [survey.film_frame('f', k) for k in range(150, 460)]
     survey.render(out, survey.switch_script(case), binary=binary,
                   env={'TERTIUS_PROBE_EXPOSURE': '4.08', **env, **survey.series_env(out, keep), **knobs})
+    print(f'{out}: {len(list(out.glob("*.png")))} frames')
+elif film in ('walk-switch', 'walk-off'):
+    # The cabin's lamps z:-12:4 switch off while the person walks (camera moving), then the person stands. orbit's
+    # person camera after 60 ticks, the still (33 draws), film f: 160 frames standing (every gate of the old reset closes
+    # after 128 draws), film g: 120 frames walking (key W), the lamps off from walk frame 60 (draw 33 + 160 + 60 = 253)
+    # to the end, film h: 200 frames standing. walk-off is the control with the lamps off from draw 0. At 4.08 stops,
+    # bloom on and the game's tone curve (as switch-film). It keeps walk frames 50 to 119 and stand frames 0 to 159.
+    case = next(c for c in survey.load_cases()['walks'] if c['name'] == 'cabin-walk')
+    script = survey.scene_script(case['scene'], case['camera'], case['ticks'], [
+        {'do': 'capture', 'name': 'still'},
+        {'do': 'film', 'name': 'f', 'frames': 160, 'every': 1},
+        survey.walk_key(case, 'keyDown'),
+        {'do': 'film', 'name': 'g', 'frames': 120, 'every': 1},
+        survey.walk_key(case, 'keyUp'),
+        {'do': 'film', 'name': 'h', 'frames': 200, 'every': 1},
+    ])
+    off = f'{survey.STILL_DRAWS + 160 + 60}-100000000' if film == 'walk-switch' else '0-100000000'
+    keep = [survey.film_frame('g', k) for k in range(50, 120)] + [survey.film_frame('h', k) for k in range(160)]
+    survey.render(out, script, binary=binary,
+                  env={'TERTIUS_PROBE_EXPOSURE': '4.08', 'TERTIUS_PROBE_LAMP_SEL': 'z:-12:4', 'TERTIUS_PROBE_LAMP_OFF': off,
+                       **survey.series_env(out, keep), **knobs})
+    (out / 'script.json').write_text(json.dumps(script))
     print(f'{out}: {len(list(out.glob("*.png")))} frames')
 else:
     sys.exit(f'no film {film}')
