@@ -243,11 +243,27 @@ The cost of B is one texel fetch of the mask per pixel in the three draws after 
 3. B spreads one bright sample's energy unevenly (0.33 to 1.67 in the GPU test, mean 1). A keeps it within 0.89 to 1.22 but leaves a crosshatch. The real cut shows fewer specks with B (16,974 against 18,716 at d0) and the same shimmer.
 4. At spacing 2 the turned squares are 12 % wider or 4 % narrower than the square, because few integer offsets exist so close to the center. A production change could keep the square at spacing 2. The record did not test that split, so its effect on the grid at d1 is not known.
 
+## Stage 2: production
+
+The parent approved candidate B with two changes: only the specular signal turns its squares, and the mask frame is half a period ahead of the draw, `(drawIndex + 32) mod 64`. The diffuse signal and spacing 1 keep the axis-aligned square. [production/README.md](production/README.md) holds the full record. In short:
+
+- The grid: on the nose cut, the autocorrelation at lag 6 falls from 0.637 to 0.001 at d0. It falls from 0.402 to 0.009 at d1 and from 0.112 to 0.014 at d2.
+- The image: the linear luminance, the specks, the shimmer, the lamp edge, the block seams and the glossy floor's grain stay as on main. The floor's grain at d0 falls from 0.02221 to 0.01998.
+- Repeatability: two production runs give the same 126 frames, byte for byte.
+- GPU cost: a cut draw costs 0.081 to 0.096 ms more, near main's own run-to-run spread of 0.092 ms. The first production shader read the turns from constant arrays with a run-time index. On Metal it cost about 14 ms more per cut draw and 7 ms more per steady draw. The final shader packs the turns into `uvec4` words, and its frames are byte-identical to the first shader's.
+- Tests: 11 behavior tests on the real accumulator and one push-constant test. Mutation testing killed 16 of 18 mutants. G11 is an equivalent mutant, and G17 (no bounds check) is a judgment call.
+
+Answers to the open points of stage 1:
+
+1. Item 3: the uneven energy of one bright sample stays. The mean over the mask's places and phases is 1 within 0.04 in the GPU test.
+2. Item 4: production turns the squares at spacing 2 too. The lag 6 at d1 falls from 0.402 to 0.009.
+
 ## Files
 
 - [probe.patch](probe.patch): the probe over `e9e0dc043`. `git apply --check` passes on a clean checkout. It touches `FixStencilProbe.cs` (new), `GpuTypes.cs`, `accumulate.glsl`, `accumulate_spatial.comp` and `tests/Tertius.Rendering.Tests/CutGridProbeTests.cs` (new).
 - `tools/`: `take.sh` and `batch.sh` (the takes under the shared GPU lock, with a disk floor), `extract.py` (crops and hashes of each lossless film, after which the film is deleted), `roi.py` (the grid measure), `roi_anchor.py` (the measure on ter-fe63's strip), `analyze.py` (tables, strips and films), `seams.py`, `edges.py`, `zoom.py`, `impulse_sheet.py` (reads the GPU test's dumps), `impulse_model.py` (the CPU copy of step 3) and `stencil_search.py`. The tools name their scratch folder `/private/tmp/t1-3er4`.
 - `tables/`: `phase1-roi.json`, `anchor-roi-production-strip.txt`, `nose-summary.json`, `lamps-summary.json`, `impulse-gpu.json`, `impulse-model.json`, `seam-profile.json`, `edge-leak.json` and `determinism.json`.
 - `pics/`: the strips, zooms, impulse sheets and films named above.
+- `production/`: the stage 2 record of the production build against main.
 
 To repeat a take: apply the patch, build `src/Tertius.Demo` in Release, and run `tools/batch.sh real-cut-nose -1.7507 "nose-b:probe-bin:TERTIUS_PROBE_FIX_STENCIL=b"` in the dev shell. To repeat the impulse test: `TERTIUS_PROBE_DUMP=<folder> dotnet test tests/Tertius.Rendering.Tests -c Checked --filter FullyQualifiedName~CutGridProbeTests`, then `tools/impulse_sheet.py <folder> <out>`.

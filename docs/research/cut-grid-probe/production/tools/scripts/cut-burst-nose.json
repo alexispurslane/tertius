@@ -1,0 +1,177 @@
+{
+ "scene": "orbit",
+ "window": {
+  "width": 1920,
+  "height": 1080
+ },
+ "steps": [
+  {
+   "do": "camera",
+   "entity": "person"
+  },
+  {
+   "do": "run",
+   "ticks": 277003
+  },
+  {
+   "do": "camera",
+   "entity": "far"
+  },
+  {
+   "do": "film",
+   "name": "far0",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "camera",
+   "entity": "person"
+  },
+  {
+   "do": "film",
+   "name": "post0",
+   "frames": 4,
+   "every": 1
+  },
+  {
+   "do": "camera",
+   "entity": "far"
+  },
+  {
+   "do": "film",
+   "name": "far1",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "camera",
+   "entity": "person"
+  },
+  {
+   "do": "film",
+   "name": "post1",
+   "frames": 4,
+   "every": 1
+  },
+  {
+   "do": "camera",
+   "entity": "far"
+  },
+  {
+   "do": "film",
+   "name": "far2",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "camera",
+   "entity": "person"
+  },
+  {
+   "do": "film",
+   "name": "post2",
+   "frames": 4,
+   "every": 1
+  },
+  {
+   "do": "camera",
+   "entity": "far"
+  },
+  {
+   "do": "film",
+   "name": "far3",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "camera",
+   "entity": "person"
+  },
+  {
+   "do": "film",
+   "name": "post3",
+   "frames": 4,
+   "every": 1
+  },
+  {
+   "do": "camera",
+   "entity": "far"
+  },
+  {
+   "do": "film",
+   "name": "far4",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "camera",
+   "entity": "person"
+  },
+  {
+   "do": "film",
+   "name": "post4",
+   "frames": 4,
+   "every": 1
+  },
+  {
+   "do": "camera",
+   "entity": "far"
+  },
+  {
+   "do": "film",
+   "name": "far5",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "camera",
+   "entity": "person"
+  },
+  {
+   "do": "film",
+   "name": "post5",
+   "frames": 4,
+   "every": 1
+  },
+  {
+   "do": "camera",
+   "entity": "far"
+  },
+  {
+   "do": "film",
+   "name": "far6",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "camera",
+   "entity": "person"
+  },
+  {
+   "do": "film",
+   "name": "post6",
+   "frames": 4,
+   "every": 1
+  },
+  {
+   "do": "camera",
+   "entity": "far"
+  },
+  {
+   "do": "film",
+   "name": "far7",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "camera",
+   "entity": "person"
+  },
+  {
+   "do": "film",
+   "name": "post7",
+   "frames": 4,
+   "every": 1
+  }
+ ]
+}

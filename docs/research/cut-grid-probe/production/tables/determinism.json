@@ -1,0 +1,35 @@
+{
+ "nose-prod vs nose-prod-2": {
+  "frames": 126,
+  "identical_frames": 126
+ },
+ "nose-prod vs nose-prod-packed": {
+  "frames": 126,
+  "identical_frames": 126
+ },
+ "lamps-prod vs lamps-prod-packed": {
+  "frames": 126,
+  "identical_frames": 126
+ },
+ "nose-main": {
+  "d0_sha256": "de32620c3e215d4fd100bd0651f2da6bba3dc9fee149161cf831ac0c6165c451",
+  "d29_sha256": "49035298329a479862c4c272d502ea65104c8c07b489e5aa31bd55a518bc67af",
+  "d64_sha256": "bc44ac92ec581a4849c768191d2d94bc7f124d74cf4ce96e1e393308d8c5884d"
+ },
+ "nose-prod": {
+  "d0_sha256": "55680b78ad00ff1efb183020ecff4f57bbc6efffe1612e0f7d10c8ebbd5e2233",
+  "d29_sha256": "6e4b9ff9d455f6c9fa7b9f01d038eab365fb43c0b5523002d57b4f15668ed7e8",
+  "d64_sha256": "76b21640e09eef563288f996803318eb32611d02204eefc2b4599e25a9b1d2e2"
+ },
+ "lamps-main": {
+  "d0_sha256": "1bc376de889e23782708e23d8557fec2dde573acbdf85fc8796b33735625f527",
+  "d29_sha256": "91b0b04f16b2a95893ade6b81b7d47aedf952c1e645971bc39ebdfa120ccdd9f",
+  "d64_sha256": "b3876277c6e13d9caa8d452737f2e7b7d9e1ba4f73ace28bd936aa4dacd42d05"
+ },
+ "lamps-prod": {
+  "d0_sha256": "389e47557fa6441780ec73a0f109edda92ff63a02d3f8baa899d5d5f3e3f31d9",
+  "d29_sha256": "c45f4279bd89dc58e77cddb6e71d9331c728f5057fb7ad4fe0e0839f237bacd4",
+  "d64_sha256": "f415d0345f430ea9190f238b9b22c1c0fdf87389fce85dd71bfc9dfb5c804ebc"
+ },
+ "note": "nose-prod and nose-prod-2 ran the first production shader (constant arrays); nose-prod-packed and lamps-prod-packed ran the final shader (packed words). nose-main matches the stage 1 main take byte for byte."
+}

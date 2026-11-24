@@ -1,0 +1,151 @@
+{
+ "final": {
+  "cut-lamps-main-a": {
+   "frame_median_ms": 28.0127,
+   "frame_mean_ms": 24.1558,
+   "accumulate_specular_to_composite_median_ms": 1.329,
+   "frames": 40
+  },
+  "cut-lamps-main-b": {
+   "frame_median_ms": 27.99,
+   "frame_mean_ms": 24.1706,
+   "accumulate_specular_to_composite_median_ms": 1.3282,
+   "frames": 40
+  },
+  "cut-lamps-prod-a": {
+   "frame_median_ms": 28.0969,
+   "frame_mean_ms": 24.2357,
+   "accumulate_specular_to_composite_median_ms": 1.3458,
+   "frames": 40
+  },
+  "cut-lamps-prod-b": {
+   "frame_median_ms": 28.0684,
+   "frame_mean_ms": 24.2233,
+   "accumulate_specular_to_composite_median_ms": 1.3414,
+   "frames": 40
+  },
+  "cut-nose-main-a": {
+   "frame_median_ms": 26.9402,
+   "frame_mean_ms": 24.0599,
+   "accumulate_specular_to_composite_median_ms": 1.3188,
+   "frames": 40
+  },
+  "cut-nose-main-b": {
+   "frame_median_ms": 26.8481,
+   "frame_mean_ms": 23.7028,
+   "accumulate_specular_to_composite_median_ms": 1.2948,
+   "frames": 40
+  },
+  "cut-nose-prod-a": {
+   "frame_median_ms": 26.9965,
+   "frame_mean_ms": 23.7348,
+   "accumulate_specular_to_composite_median_ms": 1.1556,
+   "frames": 40
+  },
+  "cut-nose-prod-b": {
+   "frame_median_ms": 26.9831,
+   "frame_mean_ms": 23.7722,
+   "accumulate_specular_to_composite_median_ms": 1.1554,
+   "frames": 40
+  },
+  "steady-lamps-main": {
+   "frame_median_ms": 15.9879,
+   "frame_mean_ms": 16.0517,
+   "accumulate_specular_to_composite_median_ms": 1.6159,
+   "frames": 40
+  },
+  "steady-lamps-prod": {
+   "frame_median_ms": 16.0743,
+   "frame_mean_ms": 16.0981,
+   "accumulate_specular_to_composite_median_ms": 1.6411,
+   "frames": 40
+  },
+  "steady-nose-main": {
+   "frame_median_ms": 16.055,
+   "frame_mean_ms": 16.0843,
+   "accumulate_specular_to_composite_median_ms": 1.621,
+   "frames": 40
+  },
+  "steady-nose-prod": {
+   "frame_median_ms": 16.065,
+   "frame_mean_ms": 16.1115,
+   "accumulate_specular_to_composite_median_ms": 1.6526,
+   "frames": 40
+  }
+ },
+ "regressed_first_hold": {
+  "cut-lamps-main-a": {
+   "frame_median_ms": 28.0189,
+   "frame_mean_ms": 24.1611,
+   "accumulate_specular_to_composite_median_ms": 1.3369,
+   "frames": 40
+  },
+  "cut-lamps-main-b": {
+   "frame_median_ms": 28.0357,
+   "frame_mean_ms": 24.194,
+   "accumulate_specular_to_composite_median_ms": 1.3337,
+   "frames": 40
+  },
+  "cut-lamps-prod-a": {
+   "frame_median_ms": 41.723,
+   "frame_mean_ms": 35.3512,
+   "accumulate_specular_to_composite_median_ms": 6.6401,
+   "frames": 40
+  },
+  "cut-lamps-prod-b": {
+   "frame_median_ms": 41.8321,
+   "frame_mean_ms": 35.4066,
+   "accumulate_specular_to_composite_median_ms": 6.6792,
+   "frames": 40
+  },
+  "cut-nose-main-a": {
+   "frame_median_ms": 26.8248,
+   "frame_mean_ms": 23.6747,
+   "accumulate_specular_to_composite_median_ms": 0.7855,
+   "frames": 40
+  },
+  "cut-nose-main-b": {
+   "frame_median_ms": 26.9251,
+   "frame_mean_ms": 23.7229,
+   "accumulate_specular_to_composite_median_ms": 1.1194,
+   "frames": 40
+  },
+  "cut-nose-prod-a": {
+   "frame_median_ms": 40.774,
+   "frame_mean_ms": 34.8019,
+   "accumulate_specular_to_composite_median_ms": 6.6177,
+   "frames": 40
+  },
+  "cut-nose-prod-b": {
+   "frame_median_ms": 40.8728,
+   "frame_mean_ms": 34.8646,
+   "accumulate_specular_to_composite_median_ms": 6.6134,
+   "frames": 40
+  },
+  "steady-lamps-main": {
+   "frame_median_ms": 16.0458,
+   "frame_mean_ms": 16.0794,
+   "accumulate_specular_to_composite_median_ms": 1.6122,
+   "frames": 40
+  },
+  "steady-lamps-prod": {
+   "frame_median_ms": 22.9946,
+   "frame_mean_ms": 23.0389,
+   "accumulate_specular_to_composite_median_ms": 5.0009,
+   "frames": 40
+  },
+  "steady-nose-main": {
+   "frame_median_ms": 16.0944,
+   "frame_mean_ms": 16.1409,
+   "accumulate_specular_to_composite_median_ms": 1.6281,
+   "frames": 40
+  },
+  "steady-nose-prod": {
+   "frame_median_ms": 23.0594,
+   "frame_mean_ms": 23.0864,
+   "accumulate_specular_to_composite_median_ms": 5.0227,
+   "frames": 40
+  }
+ },
+ "method": "One exclusive tools/gpu-lock.sh hold per build, 1920x1080, render scale 0.6667, two frames in flight, pass timestamps on, --gpu-run 'accumulate indirect specular..composite' (MoltenVK stamps latch late, so a single pass's time is not valid; the run of two neighbouring passes is). cut-burst-*: 8 cuts, each filming the far camera's first draw and the person camera's first 4 draws (every timed draw runs the short-history fix). steady-*: 40 draws from a start; the median is a settled draw. Order main, prod, prod, main for the cut bursts and prod, main for the steady runs; each run waited for a 1-minute load under 8 (up to 60 s)."
+}
