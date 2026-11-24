@@ -41,8 +41,12 @@ columns = sys.argv[1:] or ['a', 'b', 'c', 'd']
 LABELS = {'a': 'a: main, cap 32', 'b': 'b: cap 128, region evidence today', 'c': 'c: cap 128, repaired test',
           'd': 'd: cap 128, region evidence off', 'e': 'e: cap 64, region evidence off',
           'g': 'g: cap 128, cause gate 128', 'r': 'r: cap 128, signed rank test',
-          'gr': 'g+r: cap 128, gate 36, rank test when closed'}
-CAPS = {'a': 32, 'b': 128, 'c': 128, 'd': 128, 'e': 64, 'g': 128, 'r': 128, 'gr': 128}
+          'gr': 'g+r: cap 128, gate 36, rank test when closed',
+          'g128r': 'g128+r: cap 128, gate 128, rank test when closed'}
+CAPS = {'a': 32, 'b': 128, 'c': 128, 'd': 128, 'e': 64, 'g': 128, 'r': 128, 'gr': 128, 'g128r': 128}
+# SP="c1,c2" reads those columns' stills and dump from their sparse takes bay-<column>-sp and bay-<column>-sp-dif
+# (gtakes.sh sparse), whose last kept draw is 659 and whose dump is at draw 639 too.
+SPARSE = set(filter(None, __import__('os').environ.get('SP', '').split(',')))
 # TAG=<suffix> names the outputs bay-<region>-<kind><suffix>.png and bay-numbers<suffix>.json (the probe's columns).
 TAG = __import__('os').environ.get('TAG', '')
 BOXES = {'sunlit patch': (100, 40, 420, 360), 'back wall': (560, 420, 980, 560), 'floor': (600, 650, 1200, 950),
@@ -51,8 +55,14 @@ CROPS = {'floor': ('full', 'dif'), 'back wall': ('full', 'dif'), 'right wall': (
 W = np.array([0.2126, 0.7152, 0.0722])
 
 
+def run_of(run):
+    """bay-<column>[-dif] as its sparse take bay-<column>-sp[-dif] where SP names the column."""
+    col = run[4:].removesuffix('-dif')
+    return run.replace(f'bay-{col}', f'bay-{col}-sp') if col in SPARSE else run
+
+
 def frames(run):
-    return sorted((R / run).glob('f-*.png'))
+    return sorted((R / run_of(run)).glob('f-*.png'))
 
 
 def rgb(path):
@@ -61,7 +71,7 @@ def rgb(path):
 
 
 def lengths(run):
-    path = next((R / run).glob('diffuse-length-*.f32'))
+    path = next((R / run_of(run)).glob('diffuse-length-*.f32'))
     w, h = map(int, path.stem.split('-')[-1].split('x'))
     small = np.fromfile(path, np.float32).reshape(h, w)
     ys, xs = np.mgrid[0:1080, 0:1920]

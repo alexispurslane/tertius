@@ -8,7 +8,8 @@
 # columns' knobs (TERTIUS_X_DIFFUSE_CAP, TERTIUS_X_REGION_OFF) and TERTIUS_PROBE_SIGNAL=2 for the diffuse signal alone.
 # DRAWS=<n> (default 660) and EVERY=<k> (default 1) change the take: it keeps every k-th draw of the last 20 * k draws
 # and dumps at the draw before the first kept one. KEEP_FROM=<n> keeps every draw from n instead (a frozen film), and
-# the dump stays at draw draws - 21. Bloom stays on, as the game draws it. It holds the GPU lock in its shared mode and refuses to start under 20 GiB free.
+# the dump stays at draw draws - 21. KEEP_LIST=<n,m,...> keeps only those draws (sparse, to save disk), with the
+# dump at draw draws - 21 too. Bloom stays on, as the game draws it. It holds the GPU lock in its shared mode and refuses to start under 20 GiB free.
 set -uo pipefail
 build=$1; name=$2; shift 2
 T=$(cd "$(dirname "$0")" && pwd); R=$(cd "$T/../../../.." && pwd)
@@ -24,6 +25,8 @@ steps += [{"do": "capture", "name": f"f-{n:06d}"} for n in range(int(sys.argv[1]
 json.dump({"scene": "demo-surface", "window": {"width": 1920, "height": 1080}, "steps": steps}, sys.stdout, indent=1)
 PY
 keep=$(seq -f 'f-%06g' ${KEEP_FROM:-$first} $([ -n "${KEEP_FROM:-}" ] && echo 1 || echo $every) $((draws - 1)) | paste -sd, -)
+[ -n "${KEEP_LIST:-}" ] && keep=$(echo "$KEEP_LIST" | tr ',' '\n' | xargs printf 'f-%06d\n' | paste -sd, -)
+[ -n "${KEEP_LIST:-}" ] && first=$((draws - 20))
 echo "$(date +%T) $name: $build $*, disk $(df -Pk / | awk 'NR == 2 {printf "%.1f", $4 / 1048576}') GiB, load $(sysctl -n vm.loadavg | awk '{print $2}')"
 cd "$R"
 env TERTIUS_PROBE_EXPOSURE=-4.089 TERTIUS_PROBE_KEEP=$keep TERTIUS_PROBE_SERIES=$out/frames.series \

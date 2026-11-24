@@ -440,3 +440,260 @@ series after off is under 0.5 of an 8-bit gray step on the darkened cabin floor 
   take's own frames brightened the floor by 1.3 % from draw 660 to draw 1,460, and its mean differed from every column's
   still by the same large smooth shape, which leaked into the band. The cause (the early draws in a history of 512, or a
   slow settle of the bounce light) is not measured. The table above uses each column's own late mean, as the ticket does.
+
+## Validation of the selected combined rule (g128+r)
+
+The parent's decision of 2026-11-23, 19:11 selected the combined rule with a gate of 128 draws: column g128+r, build yg,
+`TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_GATE=128 TERTIUS_X_REGION_RANK=1`. While an anchor's cause age is under 128
+draws, today's test answers. After that, the signed rank test answers. The takes above ran g+r only with a gate of 36
+draws (here called g36+r, folder suffix `gr`). This section runs the 128-draw rule in the four scenes and compares it with
+b and g36+r. Nothing in `src/` or `tests/` changed. The tools and folders use the column name `g128r`.
+
+Two facts frame every scene:
+
+- A start or a reset sets every anchor's cause age to 0. So under g128+r the gate is open from draw 0 to draw 127 and today's
+  test answers in draws 36 to 127, as in column b. Under g36+r the gate closes at draw 36.
+- After the last cause, g128+r keeps today's test for 128 draws, where g36+r keeps it for 36 draws.
+
+### How to make them again
+
+From the checkout's root, with bash:
+
+1. `bash tools/films.sh rect-bay-settled g128r`, `TURN=90 bash tools/films.sh rect-bay-settled g128r`,
+   `KEEP=none bash tools/films.sh switch g128r` and `bash tools/films.sh switch-film g128r` (paths under
+   `docs/research/t1-yi11-region-evidence/`). `KEEP=none` keeps no frame of the switch run, whose false-colour PNGs fill
+   2 GiB.
+2. The frozen bay with sparse captures (`KEEP_LIST`, a list of draws): `KEEP_LIST=<list> bash tools/gtakes.sh sparse g128r`,
+   then `KEEP_LIST=24,32,36,40,48,56,64,72,80,88,96,104,112,120,127,136,152,168,200,240,300,639,659 bash tools/gtakes.sh
+   sparse b gr`, and `bash tools/gtakes.sh long g128r` and `longfull g128r`. g128+r's list is the same early draws, the
+   draws run - 1, + 2, + 6, + 12 and + 24 of its nine answer runs, and draws 400, 500, 600, 639 and 659.
+3. `python3 -I tools/regionlog.py <folder> <after draw>` for each log; `tools/g128r.py <settled|turned|switch>` (curves,
+   tiles, flicker, 1:1 crops with `CROPS`, `CROPBOX`, `CROPTAG` and `CROPCOLS`); `tools/switchratio.py b g r gr g128r`;
+   `WALL=1 RUNS=<draw:x:y,...> tools/baycold.py`; `SP=g128r TAG=-g128r tools/bay.py b d gr g128r`; `tools/level.py a b c d
+   g r gr n32 n128 g128r`. Run the Python tools in the dev shell.
+
+The sparse reruns of b and g36+r match the earlier takes byte for byte (stills at draws 300, 639 and 659, the ring logs
+and the length dumps). So the earlier frames of draws 300 to 659 serve as g36+r's frames there.
+
+Measures used below:
+
+- Tile difference: the largest difference of a 96 x 96 output tile's mean 8-bit gray between two columns at one draw.
+  96 output pixels are the anchors' spacing. A staircase along the anchors' blocks shows as a large tile difference.
+- Flicker: the largest |m(k + 1) - 2 m(k) + m(k - 1)| of a box's or a tile's mean 8-bit gray over the film's draws k.
+  A smooth decay gives a small value.
+- Patch (cold start): the band from 3 to 36 px of a still minus column d's late mean (bay-d-long, draws 660 to 1,610),
+  as a standard deviation over the region, in units of main's full mean there. It is bay.py's blob against one shared
+  reference, so the columns compare at each draw.
+
+### Settled rect-bay
+
+Files: `g128r-settled.json`, `logs/rbs-g128r.json`, `rbs-curve.json` (g128r added; the old columns are unchanged),
+`videos/rect-bay-settled-g128r.mp4` (a | b over g36+r | g128+r), `pictures/rect-bay-settled-g128r-sheet.png` (a, b,
+g36+r and g128+r at film draws 45, 63, 75, 105 and 150), `pictures/rect-bay-settled-g128r-crops.png` (1:1, the right
+wall's anchor boundary, output x 960 to 1600, y 100 to 580, a, b, g36+r, g128+r and g at film draws 48, 75, 105 and 150)
+and `pictures/rect-bay-settled-g128r-crops-floor.png` (1:1, the floor's lower right, x 1120 to 1920, y 680 to 1080, at
+film draws 55, 63 and 75).
+
+Measured, mean 8-bit gray (film draw k is log draw 200 + k):
+
+| Box | Column | 30 | 45 | 60 | 75 | 90 | 120 | 150 | 179 |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Whole | b | 219.7 | 211.1 | 197.0 | 178.5 | 155.3 | 110.5 | 88.8 | 78.7 |
+| | g36+r | 220.0 | 214.0 | 199.2 | 179.7 | 155.9 | 110.6 | 88.9 | 79.2 |
+| | g128+r | 220.4 | 214.3 | 199.3 | 179.7 | 155.9 | 110.6 | 88.8 | 78.8 |
+| | g | 220.5 | 215.7 | 208.2 | 197.4 | 183.6 | 155.2 | 137.7 | 125.4 |
+| Right wall (x 1100 to 1800, y 100 to 800) | b | 214.1 | 203.5 | 186.0 | 164.5 | 139.7 | 97.6 | 79.1 | 71.4 |
+| | g36+r | 214.5 | 209.3 | 189.2 | 166.1 | 140.5 | 97.7 | 79.1 | 71.9 |
+| | g128+r | 215.4 | 209.9 | 189.4 | 166.1 | 140.5 | 97.7 | 79.1 | 71.6 |
+| | g | 215.4 | 213.3 | 209.1 | 203.2 | 196.5 | 182.5 | 170.3 | 159.2 |
+
+- Whole picture: g128+r minus b is at most +3.33 gray (film draw 48). g128+r minus g36+r is within 0.81 gray in every box.
+- Tiles: g128+r minus b is at most +20.93 gray, at film draw 63, in the floor's tile at x 1344, y 960. 39 draws (film
+  draws 37 to 75) have a tile over 8 gray. g36+r gives +21.57 gray at the same tile and draw, and 40 draws. g gives
+  +111.47 gray (draw 161). g128+r minus g36+r is at most 8.35 gray.
+- Flicker: the same in a, b, g36+r and g128+r (whole 0.24 to 0.25 gray, largest tile 10.38 to 10.43 gray at film draw
+  114, where the sunbeam's edge passes).
+- Ring log: in the 200 frozen draws before the film, g128+r answers 314 times in log draws 36 to 127 (b also answers 314
+  times) and 0 times in log draws 128 to 199. g36+r answers 5 and 0 times. From film draw 30 to 179, 144 to 149 of 240
+  anchors have an open gate under g128+r, against 11 to 147 under g36+r. Yes answers over the film: b 28,408, g36+r 24,884,
+  g128+r 26,284, g 15,948.
+
+Reading:
+
+- g128+r shows no staircase. g's staircase edge shows at film draws 75 to 150 in the crops, and the same boxes under
+  g128+r follow b and g36+r.
+- The floor's lower right shows a faint lighter block with straight edges at film draws 55 and 63 under g128+r. It is
+  weaker than g36+r's block at the same place, and gone at draw 75. b shows none. At sheet scale (400 px per pane) I do
+  not see it.
+- I see no flicker in the video beyond the sunbeam's own edge.
+
+### Turned rect-bay
+
+Files: `g128r-turned.json`, `logs/rbst-g128r.json`, `rbst-curve.json` (g128r added; the old columns are unchanged),
+`videos/rect-bay-turned-g128r.mp4` (b | g36+r over g128+r | g), `pictures/rect-bay-turned-g128r-sheet.png` (film draws
+0, 60, 75, 90 and 150) and `pictures/rect-bay-turned-g128r-crops.png` (1:1, x 960 to 1920, y 480 to 1080, b, g36+r and
+g128+r at film draws 60, 70, 80 and 90).
+
+Measured:
+
+- No anchor has a cause after draw 200, as for g36+r. Yes answers per tested anchor-draw after draw 200: 0.469, as for
+  g36+r.
+- g128+r's frames are not byte-identical to g36+r's, because their histories differ after the frozen draws 36 to 127.
+  The largest channel difference is 12 codes, and the largest mean absolute difference of a frame is 0.18 codes.
+  The largest tile difference between them is 0.45 gray. The box curves agree to 0.1 gray.
+- Against b, the largest tile difference is +25.62 gray at film draw 80 (tile x 1824, y 864), with 55 draws over 8 gray
+  (film draws 39 to 94). g36+r gives +25.57 gray and the same 55 draws.
+
+Reading: g128+r equals g36+r in the turned take, as expected with no cause. Both show a soft blocky patchwork of lighter
+rectangles on the wall ahead and the floor at film draws 60 to 80. I see it at sheet scale, and clearly at 1:1. It is
+gone by film draw 90. b shows none. This is the rank test's later answer in regions whose cause no ray sees (the sun
+patch is behind the camera).
+
+### The fair cabin switch
+
+Files: `settle-g128r.json`, `switch-ratio.json` (b, g, r, gr and g128r), `logs/sw-g128r-switch.json`, `-off.json`,
+`-on.json`, `logs/swf-g128r.json`, `g128r-switch.json`, `videos/cabin-switch-g128r.mp4` (a | b over g36+r | g128+r,
+film draws 150 to 459), `pictures/cabin-switch-g128r-sheet.png` (film draws 165, 200, 230, 260, 295, 380 and 420) and
+`pictures/cabin-switch-g128r-crops.png` (1:1, x 480 to 1440, y 480 to 1080, b, g36+r and g128+r at film draws 210, 250,
+290, 410 and 440). All three runs of the settle count ran for g128+r. The control runs depend on the column's rule, so I
+reused none.
+
+Measured, draws to settle, slowest changed region / whole picture:
+
+| Column | After off | After on |
+|---|---|---|
+| b | 83 / 72 | 53 / 34 |
+| g36+r | not settled in 200 / 128 | 47 / 31 |
+| g128+r | 85 / 74 | 52 / 33 |
+
+The whole picture against its control, switch / control - 1:
+
+| Column | Off +40 | +45 | +70 | +100 | +135 | +199 | On +20 | +40 | +60 | +99 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| b | +0.147 | +0.121 | +0.053 | +0.026 | +0.016 | +0.008 | -0.093 | -0.037 | -0.017 | -0.006 |
+| g36+r | +0.172 | +0.146 | +0.081 | +0.058 | +0.048 | +0.039 | -0.087 | -0.030 | -0.011 | -0.002 |
+| g128+r | +0.152 | +0.125 | +0.055 | +0.028 | +0.017 | +0.012 | -0.094 | -0.036 | -0.016 | -0.004 |
+
+The interval after each cause leaves the rays (causes at film draws 163 to 169 and 363 to 369):
+
+- After off, g36+r's gates close at film draws 205 to 210. g128+r's stay open (240 anchors) to film draw 296, and close
+  by draw 304. In film draws 205 to 295, today's test answers 4,335 times under g128+r and 1,935 times under g36+r. In
+  draws 296 to 359 g128+r answers 8 times, g36+r 0 times.
+- After on, g128+r's gates stay open through film draw 459. In film draws 405 to 459 g128+r answers 3,045 times, g36+r
+  843 times.
+- The largest |switch / control - 1| in film draws 205 to 295: whole 0.125 (g128+r), 0.146 (g36+r), 0.121 (b); any
+  changed region 0.195, 0.238 and 0.187. In draws 405 to 459: whole 0.030, 0.023 and 0.030.
+- Viewable film, mean 8-bit gray of the whole picture (lower half): draw 230: b 48.72 (38.72), g36+r 48.71 (38.71),
+  g128+r 48.77 (38.76). Draw 295: 47.05 (37.23), 47.48 (37.57), 47.06 (37.23). Draw 359: 46.77 (37.00), 47.24 (37.37),
+  46.81 (37.02). Draw 420: 103.18 (106.49), 103.07 (106.42), 103.13 (106.45).
+- Flicker inside film draws 205 to 295: the largest tile value is 1.51 (b), 1.49 (g36+r) and 1.50 (g128+r) gray. Inside
+  405 to 459: 1.37, 1.36 and 1.38.
+- In both the switch film and the settle count's switch run, g128+r's answers equal g's on every draw. The viewable
+  film's 310 frames of g128+r are byte-identical to g's. The gate stays open while the light still moves, and after it
+  closes the rank test answers no on every draw, where g answers no by rule.
+
+Reading: the 128-draw gate removes g36+r's fault after off. g128+r settles like b. In the sheet, the crops and the video
+I see no blotch, false cut or flicker in film draws 205 to 295 or 405 to 459, in any of the three columns.
+
+### The frozen bay from the start
+
+Files: `baycold.json`, `logs/bay-g128r.json` (the sparse take's log, draws 0 to 659), `logs/bay-g128r-long-dif.json`,
+`bay-numbers-g128r.json`, `level.json` (g128r added; the old columns are unchanged), `pictures/bay-cold-<floor|back-wall>-
+<dif|full>.png` and `pictures/bay-cold-<floor|back-wall>-dif-residual.png` (1:1, b, g36+r and g128+r at draws 40, 64, 96,
+127, 152, 200, 300 and 659), and `pictures/bay-<region>-<kind>-g128r.png` (bay.py's crops at draw 659 and the residuals
+of the long takes, b, d, g36+r and g128+r).
+
+Measured, the ring logs (draws 0 to 659, the diffuse take; the full take's log gives the same counts after draw 300):
+
+| Draws | b: yes / tested | g36+r | g128+r |
+|---|---:|---:|---:|
+| 36 to 127 | 358 / 21,436 | 3 / 21,436 | 358 / 21,436 |
+| 128 to 300 | 482 / 40,309 | 6 / 40,309 | 6 / 40,309 |
+| 301 to 659 | 840 / 83,647 | 12 / 83,647 | 14 / 83,647 |
+
+No anchor-draw of g128+r holds a cause in draws 0 to 659 or in the long take's draws 660 to 1,659. At draw 127 all
+240 of its gates are open. At draw 128, 7 remain open, and 234 anchors are valid.
+
+Measured, the patch on the diffuse signal alone, floor / back wall:
+
+| Draw | b | g36+r | g128+r |
+|---:|---|---|---|
+| 40 | 0.0135 / 0.0166 | 0.0136 / 0.0164 | 0.0135 / 0.0166 |
+| 96 | 0.0150 / 0.0173 | 0.0078 / 0.0101 | 0.0150 / 0.0173 |
+| 127 | 0.0141 / 0.0122 | 0.0071 / 0.0088 | 0.0141 / 0.0122 |
+| 136 | 0.0151 / 0.0135 | 0.0070 / 0.0086 | 0.0151 / 0.0126 |
+| 168 | 0.0101 / 0.0110 | 0.0058 / 0.0078 | 0.0089 / 0.0101 |
+| 200 | 0.0086 / 0.0131 | 0.0054 / 0.0072 | 0.0071 / 0.0084 |
+| 240 | 0.0071 / 0.0126 | 0.0050 / 0.0073 | 0.0060 / 0.0077 |
+| 300 | 0.0082 / 0.0110 | 0.0049 / 0.0056 | 0.0052 / 0.0055 |
+| 659 | 0.0085 / 0.0066 | 0.0038 / 0.0034 | 0.0038 / 0.0033 |
+
+- In draws 36 to 127, g128+r's patch equals b's at every kept draw, because both run today's test. The full picture
+  gives the same order (floor at draw 127: b 0.0141, g36+r 0.0083, g128+r 0.0141).
+- In draws 128 to 300, g128+r's patch falls from b's to g36+r's. It is within 0.0003 of g36+r's on the floor and the
+  back wall at draw 300.
+- The level, diffuse alone, floor against d's late mean: draw 127, b 0.9808, g36+r 0.9534, g128+r 0.9808; draw 300,
+  0.9973, 0.9775 and 0.9915. The cuts of draws 36 to 127 make g128+r's bounce light warm up faster than g36+r's.
+- Settled (the long take, draws 660 to 1,610, and draw 659): mean length 128.0 in all four regions at draw 639, all at
+  the cap. Blob: sunlit patch 0.0031, back wall 0.0038, floor 0.0040, right wall 0.0022 (g36+r: 0.0031, 0.0038, 0.0041,
+  0.0022; d: 0.0025, 0.0038, 0.0041, 0.0021). Mottle on the floor 2.304, as g36+r.
+
+Reading:
+
+- Draws 64 to 127: on the floor and the back wall, diffuse alone, g128+r shows b's soft patches at 1:1 (a lighter
+  patch in the floor's middle at draw 96, faint soft vertical bands on the back wall at draws 64 and 96). g36+r is
+  smoother. In the full picture the specular grain covers most of the difference, and I see it only side by side.
+- Draws 136 to 200: the patches fade. At draw 152 a faint patch remains on the back wall's lower right. By draw 300
+  g128+r looks like g36+r in the stills and in the residuals.
+- Settled: g128+r's crops and residual maps at draw 659 look like g36+r's and d's.
+
+### The signed rank test's runs in the frozen bay
+
+The ticket flagged a slow part of the bay's region light (variance ratio 1.074 at 18 draws and 1.103 at 36 draws).
+It gave r and g36+r 12 yes answers in 8 runs in 83,647 tested anchor-draws of draws 301 to 659 (1.43e-4, 1.9 times the
+level of 7.6e-5).
+
+Measured for g128+r:
+
+- Draws 301 to 659: 14 yes answers in 9 runs in 83,647 tested anchor-draws, 1.67e-4, 2.2 times the level. 8 runs are
+  g36+r's runs at the same draw and anchor: 333 (18, 4), 335 (2, 10), 360 (18, 5), 376 (17, 0), 395 (1, 2), 415 (16, 4),
+  433 (17, 3) and 558 (2, 10). The ninth is new, at draw 416, anchor (10, 11), the floor's bottom edge.
+- Draws 661 to 1,659 (the long take): 23 yes answers in 14 runs in 232,767 tested anchor-draws, 9.88e-5, 1.3 times the
+  level.
+- The patch of g128+r's diffuse still minus d's still of the same draw, in a 288 x 288 crop around the run's anchor,
+  before the run and 6 draws after it: 333: 0.0023 to 0.0051; 335: 0.0066 to 0.0063; 360: 0.0046 to 0.0059; 376: 0.0009
+  to 0.0037; 395: 0.0010 to 0.0011; 415: 0.0016 to 0.0053; 416: 0.0016 to 0.0061; 433: 0.0034 to 0.0044; 558: 0.0051 to
+  0.0045. Pictures: `pictures/bay-wall-runs-g128r-dif.png` (per run, the diffuse still and the diffuse still minus d's
+  times 10, at the run's draw - 1, + 2, + 6, + 12 and + 24) and `pictures/bay-wall-runs-g128r-full.png` (the full
+  picture at the same draws).
+
+Reading, kept apart from the numbers:
+
+- In the residual times 10, six runs (333, 360, 376, 415, 416, 433) make a soft patch appear 4 to 6 draws after the run.
+  It lasts past draw + 24. Runs 335, 395 and 558 leave nothing that I see.
+- In the plain diffuse stills I see no patch at the wall runs, side by side over the five draws. In the full picture
+  the walls' specular grain covers everything.
+- The new floor run at draw 416 makes a faint unevenness at the floor's bottom edge at draws 422 to 440, diffuse alone
+  and in the full picture. I see it only when I compare the frames side by side.
+
+### The darkening residual
+
+Measured (`level.json`, draws 660 to 1,610): g128+r against column a, diffuse alone, sunlit patch 1.0023, back wall
+0.9977, floor 0.9963, right wall 0.9982. Full picture: 1.0006, 0.9981, 0.9970, 0.9996. These lie inside the band of
+the earlier columns (d: 0.9963 and 0.9955 on the back wall and the floor, diffuse alone).
+
+The cause of this -0.15 % to -0.40 % shift is unresolved. This record does not claim zero bias. By the parent's
+decision of 19:11, the residual is acceptable for the visual experiment.
+
+### The ticket's stop conditions and open points
+
+| Point on t1-yi11 | Status, from the takes above |
+|---|---|
+| The cause gate's condition (17:58): no tap brings a cause in the frozen bay after the start | Holds for g128+r: 0 anchor-draws with a cause in draws 0 to 1,659. |
+| The rule of the pick (17:58) | The parent picked g+r (rule 2). g alone fails the settled and turned takes (above). |
+| Fork 4, the gate's length | 128 draws. It fixes g36+r's unsettled cabin switch after off (85 / 74 against b's 83 / 72). Its cost is the cold start (draws 36 to 127 act as b, patches fade by draw 300). |
+| The darkening and the clamp-off pair (18:16 stop rule) | Unresolved, -0.23 % back wall and -0.37 % floor for g128+r, diffuse alone. Accepted by the parent for the experiment. No claim of zero bias. |
+| The slow part of the bay's light (the logged against the shuffled order) | Its source is still not measured. Effect on g128+r: 1.67e-4 in draws 301 to 659, 9.88e-5 in draws 661 to 1,659. Visible only in the residual times 10, except one faint floor run. |
+| Bar: no soft patch at 1:1 on the floor and the back wall of the frozen bay | Settled (draw 300 on): passes, like d. Cold start (draws 64 to about 200): b's patches, diffuse alone. |
+| Bar: no lag that a viewer sees beside main in the light change films | Settled rect-bay: a faint lighter block on the floor at film draws 55 to 63, weaker than g36+r's. Turned rect-bay: a blocky patchwork at film draws 60 to 80, as g36+r. Cabin switch: passes. |
+| Not known 4: a live scene | Not measured. Every scene here is a frozen still, two films and one switch. |
