@@ -185,6 +185,8 @@ prod less base, per round (ms):
 
 ## Files
 
+- [`hardening.md`](hardening.md): the full suites, lavapipe, the coverage of the changed C# lines and the listed
+  mutants with the triage of their survivors.
 - [`metrics.json`](metrics.json): every number above, per take (`bay`, `bayauto`, `walk`, `turned`, `switch`, `cut`,
   `timing`).
 - The pictures: `bay-floor-dif.png`, `walk-floor.png`, `turned-rect-bay-1to1.png`, `cabin-switch.png`,
