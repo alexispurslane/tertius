@@ -5,7 +5,8 @@
 #   turned:  the same turned 90 degrees left (rbst-<column>), columns bl gr g128r g;
 #   switch:  the viewable cabin switch (swf-<column>, film draws 150 to 459), columns b gr g128r g.
 # The units: the mean 8-bit gray of the kept PNGs (1920 x 1080 output, drawn at 1280 x 720). The tiles are the anchors'
-# spacing in output pixels: an anchor every 8 blocks of 8 render pixels, 64 render pixels, 96 output pixels.
+# spacing in output pixels: an anchor every 8 blocks of 8 render pixels, 64 render pixels, 96 output pixels. Tile metrics
+# cover the 11 x 20 full 96 x 96 output tiles (y = 0 to 1055, omitting the partial bottom 24 px of anchor row 11).
 # For each column it writes into <record>/g128r-<film>.json:
 #   - curves: per draw, the mean gray of the film's boxes;
 #   - tiles: per draw, the largest difference of a 96 x 96 tile's mean gray between g128r and each other column (a
@@ -17,7 +18,8 @@
 #     same for the largest tile, and for the switch the same inside the windows after each cause leaves the rays (film
 #     draws 205 to 295 and 405 to 459), where the switch's own steps do not count;
 #   - log: per draw, from each column's region-summary.json (regionlog.py), the anchors that answer yes and the anchors
-#     whose gate is open (cause age under 36 or under 128).
+#     whose gate is open (cause age under 36 or under 128). Omitted (empty dict) for switch, whose logs are read via
+#     regionlog.py directly.
 # With CROPS="d1,d2,..." it writes pictures/<name>-g128r-crops.png: 1:1 crops of the box CROPBOX="x0,y0,x1,y1" for each
 # column and draw, the columns side by side, one row per draw. CROPTAG=<suffix> adds a suffix to that name, and
 # CROPCOLS="c1,c2,..." picks its columns (default: all). Run it in the dev shell.
@@ -61,7 +63,7 @@ def grays(col):
 
 def tiles(g):
     h, w = g.shape
-    return g[:h - h % TILE, :w].reshape(h // TILE, TILE, w // TILE, TILE).mean(axis=(1, 3))
+    return g[:h - h % TILE, :w - w % TILE].reshape(h // TILE, TILE, w // TILE, TILE).mean(axis=(1, 3))
 
 
 frames = {col: grays(col) for col in columns}
@@ -72,27 +74,29 @@ for col in columns:
     out['curves'][col] = {name: [float(g[y0:y1, x0:x1].mean()) for g in frames[col][:count]]
                           for name, (x0, y0, x1, y1) in spec['boxes'].items()}
 tile_series = {col: np.array([tiles(g) for g in frames[col][:count]]) for col in columns}
-for col in columns:
-    if col == 'g128r':
-        continue
-    diff = tile_series['g128r'] - tile_series[col]
-    per_draw = np.abs(diff).reshape(count, -1).max(axis=1)
-    k = int(per_draw.argmax())
-    ty, tx = np.unravel_index(np.abs(diff[k]).argmax(), diff[k].shape)
-    out['tiles'][col] = {'perDraw': [float(v) for v in per_draw], 'largest': float(diff[k, ty, tx]),
-                         'draw': first + k, 'tile': [int(tx) * TILE, int(ty) * TILE]}
+if 'g128r' in tile_series:
+    for col in columns:
+        if col == 'g128r':
+            continue
+        diff = tile_series['g128r'] - tile_series[col]
+        per_draw = np.abs(diff).reshape(count, -1).max(axis=1)
+        k = int(per_draw.argmax())
+        ty, tx = np.unravel_index(np.abs(diff[k]).argmax(), diff[k].shape)
+        out['tiles'][col] = {'perDraw': [float(v) for v in per_draw], 'largest': float(diff[k, ty, tx]),
+                             'draw': first + k, 'tile': [int(tx) * TILE, int(ty) * TILE]}
 bcol = 'bl' if 'bl' in columns else 'b'
 out['tilesAgainstB'] = {}
-for col in columns:
-    if col == bcol:
-        continue
-    diff = tile_series[col] - tile_series[bcol]
-    per_draw = np.abs(diff).reshape(count, -1).max(axis=1)
-    k = int(per_draw.argmax())
-    ty, tx = np.unravel_index(np.abs(diff[k]).argmax(), diff[k].shape)
-    out['tilesAgainstB'][col] = {'perDraw': [float(v) for v in per_draw], 'largest': float(diff[k, ty, tx]),
-                                 'draw': first + k, 'tile': [int(tx) * TILE, int(ty) * TILE],
-                                 'drawsOver4': int((per_draw > 4).sum()), 'drawsOver8': int((per_draw > 8).sum())}
+if bcol in tile_series:
+    for col in columns:
+        if col == bcol:
+            continue
+        diff = tile_series[col] - tile_series[bcol]
+        per_draw = np.abs(diff).reshape(count, -1).max(axis=1)
+        k = int(per_draw.argmax())
+        ty, tx = np.unravel_index(np.abs(diff[k]).argmax(), diff[k].shape)
+        out['tilesAgainstB'][col] = {'perDraw': [float(v) for v in per_draw], 'largest': float(diff[k, ty, tx]),
+                                     'draw': first + k, 'tile': [int(tx) * TILE, int(ty) * TILE],
+                                     'drawsOver4': int((per_draw > 4).sum()), 'drawsOver8': int((per_draw > 8).sum())}
 for col in columns:
     entry = {}
     for name, series in out['curves'][col].items():

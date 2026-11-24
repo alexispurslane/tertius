@@ -38,11 +38,11 @@ R = Path('/private/tmp/t1-yi11/runs')
 OUT = Path(__file__).resolve().parent.parent / 'pictures'
 OUT.mkdir(exist_ok=True)
 columns = sys.argv[1:] or ['a', 'b', 'c', 'd']
-LABELS = {'a': 'a: main, cap 32', 'b': 'b: cap 128, region evidence today', 'c': 'c: cap 128, repaired test',
-          'd': 'd: cap 128, region evidence off', 'e': 'e: cap 64, region evidence off',
-          'g': 'g: cap 128, cause gate 128', 'r': 'r: cap 128, signed rank test',
-          'gr': 'g+r: cap 128, gate 36, rank test when closed',
-          'g128r': 'g128+r: cap 128, gate 128, rank test when closed'}
+LABELS = {'a': 'a: main, cap 32', 'b': 'b: cap 128, today', 'c': 'c: cap 128, repaired test',
+          'd': 'd: cap 128, region off', 'e': 'e: cap 64, region off',
+          'g': 'g: cap 128, gate 128', 'r': 'r: cap 128, rank',
+          'gr': 'g36+r: gate 36, rank',
+          'g128r': 'g128+r: gate 128, rank'}
 CAPS = {'a': 32, 'b': 128, 'c': 128, 'd': 128, 'e': 64, 'g': 128, 'r': 128, 'gr': 128, 'g128r': 128}
 # SP="c1,c2" reads those columns' stills and dump from their sparse takes bay-<column>-sp and bay-<column>-sp-dif
 # (gtakes.sh sparse), whose last kept draw is 659 and whose dump is at draw 639 too.
@@ -118,10 +118,15 @@ for col in columns:
               f"{row['blobDiffuse']:.4f} | {row['rounding']:.4f} | {row['mottle']:.3f} |")
 (OUT.parent / f'bay-numbers{TAG}.json').write_text(json.dumps(rows, indent=1))
 
-try:
-    font = ImageFont.truetype('/System/Library/Fonts/Supplemental/Arial.ttf', 20)
-except OSError:
-    font = ImageFont.load_default()
+def font_for(draw, labels, max_w):
+    for size in (18, 16, 14, 12, 10):
+        try:
+            f = ImageFont.truetype('/System/Library/Fonts/Supplemental/Arial.ttf', size)
+        except OSError:
+            return ImageFont.load_default()
+        if all(draw.textlength(label, font=f) <= max_w for label in labels):
+            return f
+    return f
 
 
 def grid(tiles, w, h):
@@ -129,10 +134,11 @@ def grid(tiles, w, h):
     rows_n = (len(tiles) + 1) // 2
     sheet = Image.new('RGB', (2 * w + 8, rows_n * (h + 38) - 8), (16, 16, 16))
     draw = ImageDraw.Draw(sheet)
+    f = font_for(draw, [label for label, _ in tiles], w - 12)
     for i, (label, tile) in enumerate(tiles):
         x, y = (i % 2) * (w + 8), (i // 2) * (h + 38)
         sheet.paste(tile, (x, y + 30))
-        draw.text((x + 6, y + 4), label, fill=(255, 255, 255), font=font)
+        draw.text((x + 6, y + 6), label, fill=(255, 255, 255), font=f)
     return sheet
 
 
