@@ -1,0 +1,36 @@
+{
+ "note": "the guess was written before the key was read",
+ "guess": {
+  "guess: the brighter pane (hxc) is": [
+   "right",
+   "right",
+   "right",
+   "right"
+  ],
+  "confidence": "none: every right pane looks a little lighter, which is the pane-position bias found before"
+ },
+ "key": [
+  {
+   "standFrame": 40,
+   "left": "ws-hxk",
+   "right": "ws-hxo"
+  },
+  {
+   "standFrame": 80,
+   "left": "ws-hxk",
+   "right": "ws-hxo"
+  },
+  {
+   "standFrame": 100,
+   "left": "ws-hxk",
+   "right": "ws-hxo"
+  },
+  {
+   "standFrame": 130,
+   "left": "ws-hxk",
+   "right": "ws-hxo"
+  }
+ ],
+ "correct": 0,
+ "rows": 4
+}
