@@ -718,6 +718,12 @@ internal struct ToneMapPushConstants
 
     /// <summary>The factor of the summed bloom levels, <see cref="Bloom.Strength"/>. Unread without bloom.</summary>
     public float GlowStrength;
+
+    /// <summary>The frame's draw index, which picks the output dither's frame of the blue-noise mask.</summary>
+    public uint DrawIndex;
+
+    /// <summary>One code of the output's encoding as a share of 1 (<see cref="ToneMapPass.DitherCodeOf"/>), or 0 for no dither.</summary>
+    public float Code;
 }
 
 /// <summary>The push constants of the bloom pass (Shaders/bloom_*.frag). Only its first draw reads them.</summary>

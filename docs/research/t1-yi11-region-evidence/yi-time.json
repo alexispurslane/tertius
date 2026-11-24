@@ -1,0 +1,153 @@
+{
+ "takes": [
+  {
+   "take": "01-yhb",
+   "column": "yhb",
+   "frames": 660,
+   "frameMedianMs": 16.4773125,
+   "frameMeanMs": 17.564072724242436,
+   "accumulatePlusFilterMedianMs": 4.5063125,
+   "accumulateMedianMs": 0.729646
+  },
+  {
+   "take": "02-b",
+   "column": "b",
+   "frames": 660,
+   "frameMedianMs": 16.376604,
+   "frameMeanMs": 16.551512324242427,
+   "accumulatePlusFilterMedianMs": 4.449291499999999,
+   "accumulateMedianMs": 0.7711665
+  },
+  {
+   "take": "03-g128r",
+   "column": "g128r",
+   "frames": 660,
+   "frameMedianMs": 15.9420625,
+   "frameMeanMs": 16.172313348484835,
+   "accumulatePlusFilterMedianMs": 4.4273335,
+   "accumulateMedianMs": 0.7665
+  },
+  {
+   "take": "04-w36",
+   "column": "w36",
+   "frames": 660,
+   "frameMedianMs": 16.1346665,
+   "frameMeanMs": 16.986040213636354,
+   "accumulatePlusFilterMedianMs": 4.4635415,
+   "accumulateMedianMs": 0.778
+  },
+  {
+   "take": "05-hyst",
+   "column": "hyst",
+   "frames": 660,
+   "frameMedianMs": 16.4480835,
+   "frameMeanMs": 16.665716378787874,
+   "accumulatePlusFilterMedianMs": 4.471354,
+   "accumulateMedianMs": 0.7802290000000001
+  },
+  {
+   "take": "06-hyst",
+   "column": "hyst",
+   "frames": 660,
+   "frameMedianMs": 16.049854500000002,
+   "frameMeanMs": 16.28446447121212,
+   "accumulatePlusFilterMedianMs": 4.452563,
+   "accumulateMedianMs": 0.7735624999999999
+  },
+  {
+   "take": "07-w36",
+   "column": "w36",
+   "frames": 660,
+   "frameMedianMs": 16.215874999999997,
+   "frameMeanMs": 16.99718308333332,
+   "accumulatePlusFilterMedianMs": 4.4731255,
+   "accumulateMedianMs": 0.777396
+  },
+  {
+   "take": "08-g128r",
+   "column": "g128r",
+   "frames": 660,
+   "frameMedianMs": 16.287478999999998,
+   "frameMeanMs": 16.447929140909082,
+   "accumulatePlusFilterMedianMs": 4.4514795,
+   "accumulateMedianMs": 0.771646
+  },
+  {
+   "take": "09-b",
+   "column": "b",
+   "frames": 660,
+   "frameMedianMs": 15.980812499999999,
+   "frameMeanMs": 16.18185493333334,
+   "accumulatePlusFilterMedianMs": 4.4389585,
+   "accumulateMedianMs": 0.7671875
+  },
+  {
+   "take": "10-yhb",
+   "column": "yhb",
+   "frames": 660,
+   "frameMedianMs": 16.019521,
+   "frameMeanMs": 16.737365275757586,
+   "accumulatePlusFilterMedianMs": 4.402563000000001,
+   "accumulateMedianMs": 0.7230835
+  }
+ ],
+ "columns": {
+  "yhb": {
+   "frameMedianMs": 16.24841675,
+   "frameMeanMs": 17.15071900000001,
+   "accumulatePlusFilterMedianMs": 4.45443775,
+   "accumulateMedianMs": 0.72636475,
+   "takes": 2
+  },
+  "b": {
+   "frameMedianMs": 16.17870825,
+   "frameMeanMs": 16.366683628787882,
+   "accumulatePlusFilterMedianMs": 4.444125,
+   "accumulateMedianMs": 0.769177,
+   "takes": 2
+  },
+  "g128r": {
+   "frameMedianMs": 16.114770749999998,
+   "frameMeanMs": 16.31012124469696,
+   "accumulatePlusFilterMedianMs": 4.4394065,
+   "accumulateMedianMs": 0.769073,
+   "takes": 2
+  },
+  "w36": {
+   "frameMedianMs": 16.17527075,
+   "frameMeanMs": 16.991611648484835,
+   "accumulatePlusFilterMedianMs": 4.4683335,
+   "accumulateMedianMs": 0.777698,
+   "takes": 2
+  },
+  "hyst": {
+   "frameMedianMs": 16.248969000000002,
+   "frameMeanMs": 16.475090424999998,
+   "accumulatePlusFilterMedianMs": 4.4619585,
+   "accumulateMedianMs": 0.77689575,
+   "takes": 2
+  }
+ },
+ "log": [
+  "10:04:08 /private/tmp/t1-yi11/runs/time-yj2/01-yhb: yh TERTIUS_X_DIFFUSE_CAP=128, load 4.30",
+  "10:04:31 /private/tmp/t1-yi11/runs/time-yj2/01-yhb exit 0, load 8.79, 0 pictures",
+  "10:07:31 /private/tmp/t1-yi11/runs/time-yj2/02-b: yj TERTIUS_X_DIFFUSE_CAP=128, load 7.29",
+  "10:07:52 /private/tmp/t1-yi11/runs/time-yj2/02-b exit 0, load 7.44, 0 pictures",
+  "10:07:52 /private/tmp/t1-yi11/runs/time-yj2/03-g128r: yj TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_GATE=128 TERTIUS_X_REGION_RANK=1, load 7.44",
+  "10:08:33 /private/tmp/t1-yi11/runs/time-yj2/03-g128r exit 0, load 5.85, 0 pictures",
+  "10:08:33 /private/tmp/t1-yi11/runs/time-yj2/04-w36: yj TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_GATE=128 TERTIUS_X_REGION_CLOSED=w36, load 5.85",
+  "10:08:48 /private/tmp/t1-yi11/runs/time-yj2/04-w36 exit 0, load 6.33, 0 pictures",
+  "10:08:49 /private/tmp/t1-yi11/runs/time-yj2/05-hyst: yj TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_GATE=128 TERTIUS_X_REGION_CLOSED=hyst, load 6.33",
+  "10:09:03 /private/tmp/t1-yi11/runs/time-yj2/05-hyst exit 0, load 5.80, 0 pictures",
+  "10:09:03 /private/tmp/t1-yi11/runs/time-yj2/06-hyst: yj TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_GATE=128 TERTIUS_X_REGION_CLOSED=hyst, load 5.80",
+  "10:09:44 /private/tmp/t1-yi11/runs/time-yj2/06-hyst exit 0, load 5.03, 0 pictures",
+  "10:09:44 /private/tmp/t1-yi11/runs/time-yj2/07-w36: yj TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_GATE=128 TERTIUS_X_REGION_CLOSED=w36, load 5.03",
+  "10:10:00 /private/tmp/t1-yi11/runs/time-yj2/07-w36 exit 0, load 5.56, 0 pictures",
+  "10:10:00 /private/tmp/t1-yi11/runs/time-yj2/08-g128r: yj TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_GATE=128 TERTIUS_X_REGION_RANK=1, load 5.56",
+  "10:10:14 /private/tmp/t1-yi11/runs/time-yj2/08-g128r exit 0, load 5.02, 0 pictures",
+  "10:10:14 /private/tmp/t1-yi11/runs/time-yj2/09-b: yj TERTIUS_X_DIFFUSE_CAP=128, load 5.02",
+  "10:10:55 /private/tmp/t1-yi11/runs/time-yj2/09-b exit 0, load 5.99, 0 pictures",
+  "10:10:55 /private/tmp/t1-yi11/runs/time-yj2/10-yhb: yh TERTIUS_X_DIFFUSE_CAP=128, load 5.99",
+  "10:11:10 /private/tmp/t1-yi11/runs/time-yj2/10-yhb exit 0, load 6.59, 0 pictures"
+ ]
+}

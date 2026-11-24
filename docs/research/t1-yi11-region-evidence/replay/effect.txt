@@ -1,0 +1,77 @@
+signed rank bars at 1e-3, 1e-4, 1e-5: [14, 5, 0] of 171
+bay, bounce alone: 122325 tested anchor-draws from draw 400; median autocorrelation of x at lags 1, 2, 9, 18, 36, 72: +0.003, +0.001, +0.004, -0.009, +0.002, +0.004
+  fires per tested anchor-draw, logged order / shuffled order of each anchor's draws:
+    T3         1.130 % /   0.815 %
+    T4         0.177 % /   0.085 %
+    T5         0.046 % /   0.014 %
+    T6         0.016 % /   0.001 %
+    T8         0.002 % /   0.000 %
+    S16        0.149 % /   0.134 %
+    S17        0.012 % /   0.016 %
+    S18        0.000 % /   0.000 %
+    R0.001     0.094 % /   0.078 %
+    R0.0001    0.007 % /   0.004 %
+    R1e-05     0.000 % /   0.000 %
+exit-cabin, bounce alone: 126000 tested anchor-draws from draw 400; median autocorrelation of x at lags 1, 2, 9, 18, 36, 72: -0.009, +0.001, -0.007, -0.008, -0.003, -0.011
+  fires per tested anchor-draw, logged order / shuffled order of each anchor's draws:
+    T3         0.889 % /   0.926 %
+    T4         0.125 % /   0.130 %
+    T5         0.023 % /   0.019 %
+    T6         0.003 % /   0.009 %
+    T8         0.000 % /   0.002 %
+    S16        0.141 % /   0.172 %
+    S17        0.024 % /   0.026 %
+    S18        0.004 % /   0.002 %
+    R0.001     0.077 % /   0.097 %
+    R0.0001    0.015 % /   0.013 %
+    R1e-05     0.004 % /   0.002 %
+still cabin, bounce alone: 124950 tested anchor-draws from draw 400; median autocorrelation of x at lags 1, 2, 9, 18, 36, 72: +0.001, -0.002, -0.003, +0.006, +0.007, -0.005
+  fires per tested anchor-draw, logged order / shuffled order of each anchor's draws:
+    T3         0.735 % /   0.888 %
+    T4         0.123 % /   0.170 %
+    T5         0.068 % /   0.075 %
+    T6         0.049 % /   0.044 %
+    T8         0.017 % /   0.015 %
+    S16        0.114 % /   0.141 %
+    S17        0.008 % /   0.027 %
+    S18        0.000 % /   0.000 %
+    R0.001     0.076 % /   0.099 %
+    R0.0001    0.003 % /   0.011 %
+    R1e-05     0.000 % /   0.000 %
+still cabin, region evidence off, full: 124950 tested anchor-draws from draw 400; median autocorrelation of x at lags 1, 2, 9, 18, 36, 72: +0.002, -0.002, -0.003, +0.006, +0.007, -0.005
+  fires per tested anchor-draw, logged order / shuffled order of each anchor's draws:
+    T3         0.731 % /   0.889 %
+    T4         0.123 % /   0.169 %
+    T5         0.068 % /   0.075 %
+    T6         0.049 % /   0.043 %
+    T8         0.018 % /   0.015 %
+    S16        0.110 % /   0.140 %
+    S17        0.006 % /   0.028 %
+    S18        0.000 % /   0.000 %
+    R0.001     0.078 % /   0.102 %
+    R0.0001    0.002 % /   0.011 %
+    R1e-05     0.000 % /   0.000 %
+rect-bay film (g-bay, process 3): 41008 tested anchor-draws, draws 0 to 211
+    T3       fires  69.95 % of the tested anchor-draws; of the 233 anchors that today's test fires at, 233 fire; their first fire comes 0 draws later (median), 0 (90 %)
+    T4       fires  50.98 % of the tested anchor-draws; of the 233 anchors that today's test fires at, 233 fire; their first fire comes 6 draws later (median), 36 (90 %)
+    T5       fires  32.36 % of the tested anchor-draws; of the 233 anchors that today's test fires at, 233 fire; their first fire comes 22 draws later (median), 64 (90 %)
+    T6       fires  17.22 % of the tested anchor-draws; of the 233 anchors that today's test fires at, 211 fire; their first fire comes 34 draws later (median), 77 (90 %)
+    T8       fires   2.22 % of the tested anchor-draws; of the 233 anchors that today's test fires at, 110 fire; their first fire comes 44 draws later (median), 87 (90 %)
+    S16      fires  63.04 % of the tested anchor-draws; of the 233 anchors that today's test fires at, 233 fire; their first fire comes 6 draws later (median), 31 (90 %)
+    S17      fires  50.44 % of the tested anchor-draws; of the 233 anchors that today's test fires at, 233 fire; their first fire comes 14 draws later (median), 45 (90 %)
+    S18      fires  33.92 % of the tested anchor-draws; of the 233 anchors that today's test fires at, 229 fire; their first fire comes 30 draws later (median), 63 (90 %)
+    R0.001   fires  65.68 % of the tested anchor-draws; of the 233 anchors that today's test fires at, 233 fire; their first fire comes 4 draws later (median), 30 (90 %)
+    R0.0001  fires  51.80 % of the tested anchor-draws; of the 233 anchors that today's test fires at, 233 fire; their first fire comes 12 draws later (median), 44 (90 %)
+    R1e-05   fires  33.92 % of the tested anchor-draws; of the 233 anchors that today's test fires at, 229 fire; their first fire comes 30 draws later (median), 63 (90 %)
+bay-sun film (g-lag, process 1): 55221 tested anchor-draws, draws 0 to 272
+    T3       fires  60.70 % of the tested anchor-draws; of the 233 anchors that today's test fires at, 233 fire; their first fire comes 0 draws later (median), 0 (90 %)
+    T4       fires  52.32 % of the tested anchor-draws; of the 233 anchors that today's test fires at, 233 fire; their first fire comes 1 draws later (median), 4 (90 %)
+    T5       fires  45.18 % of the tested anchor-draws; of the 233 anchors that today's test fires at, 233 fire; their first fire comes 3 draws later (median), 6 (90 %)
+    T6       fires  38.54 % of the tested anchor-draws; of the 233 anchors that today's test fires at, 233 fire; their first fire comes 4 draws later (median), 9 (90 %)
+    T8       fires  27.04 % of the tested anchor-draws; of the 233 anchors that today's test fires at, 233 fire; their first fire comes 6 draws later (median), 13 (90 %)
+    S16      fires  46.69 % of the tested anchor-draws; of the 233 anchors that today's test fires at, 233 fire; their first fire comes 7 draws later (median), 12 (90 %)
+    S17      fires  38.13 % of the tested anchor-draws; of the 233 anchors that today's test fires at, 232 fire; their first fire comes 10 draws later (median), 15 (90 %)
+    S18      fires  26.85 % of the tested anchor-draws; of the 233 anchors that today's test fires at, 229 fire; their first fire comes 13 draws later (median), 22 (90 %)
+    R0.001   fires  49.27 % of the tested anchor-draws; of the 233 anchors that today's test fires at, 233 fire; their first fire comes 6 draws later (median), 10 (90 %)
+    R0.0001  fires  38.95 % of the tested anchor-draws; of the 233 anchors that today's test fires at, 232 fire; their first fire comes 9 draws later (median), 14 (90 %)
+    R1e-05   fires  26.85 % of the tested anchor-draws; of the 233 anchors that today's test fires at, 229 fire; their first fire comes 13 draws later (median), 22 (90 %)

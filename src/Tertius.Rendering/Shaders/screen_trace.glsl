@@ -296,28 +296,9 @@ const uint TurnPhaseDraw = 0x5243u;
 // as a miss (docs/plans/back-face-depth-layer.md, decision 7).
 const float TargetDepthShare = 0.05;
 
-// The reflection rays' blue-noise mask (BlueNoiseMask): BlueNoiseFrames frames of BlueNoiseSide² cells, frame t in tile
-// (t % 8, t / 8), each texel a radial number and an angle in bytes.
+// The reflection rays' blue-noise mask (BlueNoiseMask), which blue_noise.glsl reads.
 layout(set = 0, binding = 20) uniform utexture2D blueNoiseMask;
-const uint BlueNoiseSide = 128u;
-const uint BlueNoiseFrames = 64u;
-const uint BlueNoiseTilesAcross = 8u;
-// The constant of pcg3d's third value for the mask's shift in each period, "SH".
-const uint ShiftDraw = 0x5348u;
-
-// Jarzynski and Olano 2020, "Hash Functions for GPU Rendering": three 32-bit words from three.
-uvec3 pcg3d(uvec3 v)
-{
-    v = v * 1664525u + 1013904223u;
-    v.x += v.y * v.z;
-    v.y += v.z * v.x;
-    v.z += v.x * v.y;
-    v ^= v >> 16u;
-    v.x += v.y * v.z;
-    v.y += v.z * v.x;
-    v.z += v.x * v.y;
-    return v;
-}
+#include "blue_noise.glsl"
 
 // The draw of a pixel or a block: pcg3d of its packed position, the draw index and a constant per kind and use.
 uvec3 drawOf(ivec2 position, uint drawIndex, uint constant)
@@ -329,17 +310,6 @@ uvec3 drawOf(ivec2 position, uint drawIndex, uint constant)
 float unitOf(uint word)
 {
     return float(word >> 8) * (1.0 / 16777216.0);
-}
-
-// The mask's two bytes, a radial number and an angle, for a cell at a draw: the draw's frame of the period, at the cell
-// moved by the period's own toroidal shift, so that a still pixel's long mean averages new values in each period.
-uvec2 blueNoiseBytesOf(ivec2 cell, uint drawIndex)
-{
-    uint maskFrame = drawIndex & (BlueNoiseFrames - 1u);
-    uvec2 shift = pcg3d(uvec3(drawIndex / BlueNoiseFrames, 0u, ShiftDraw)).xy;
-    uvec2 inFrame = (uvec2(cell) + shift) & (BlueNoiseSide - 1u);
-    uvec2 tile = uvec2(maskFrame % BlueNoiseTilesAcross, maskFrame / BlueNoiseTilesAcross);
-    return texelFetch(blueNoiseMask, ivec2(tile * BlueNoiseSide + inFrame), 0).rg;
 }
 
 // The two numbers of a reflection ray's GGX draw, (angle, radial), from the mask: each byte picks a step of 1/256, and

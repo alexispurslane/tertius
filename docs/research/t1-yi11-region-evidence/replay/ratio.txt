@@ -1,0 +1,21 @@
+bay, bounce alone
+  clipped   windows of  6 draws: 1.010; 40 shuffled orders: median 1.002, least 0.976, most 1.038
+  clipped   windows of 18 draws: 1.074; 40 shuffled orders: median 1.003, least 0.951, most 1.051
+  clipped   windows of 36 draws: 1.103; 40 shuffled orders: median 1.007, least 0.941, most 1.081
+  as logged windows of  6 draws: 1.011; 40 shuffled orders: median 0.996, least 0.961, most 1.024
+  as logged windows of 18 draws: 1.074; 40 shuffled orders: median 1.006, least 0.936, most 1.067
+  as logged windows of 36 draws: 1.102; 40 shuffled orders: median 0.988, least 0.932, most 1.107
+exit-cabin, bounce alone
+  clipped   windows of  6 draws: 0.980; 40 shuffled orders: median 1.004, least 0.976, most 1.039
+  clipped   windows of 18 draws: 0.990; 40 shuffled orders: median 1.008, least 0.940, most 1.078
+  clipped   windows of 36 draws: 0.941; 40 shuffled orders: median 0.999, least 0.915, most 1.115
+  as logged windows of  6 draws: 0.980; 40 shuffled orders: median 1.000, least 0.970, most 1.023
+  as logged windows of 18 draws: 0.991; 40 shuffled orders: median 1.002, least 0.967, most 1.051
+  as logged windows of 36 draws: 0.941; 40 shuffled orders: median 1.007, least 0.900, most 1.075
+still cabin, bounce alone
+  clipped   windows of  6 draws: 1.004; 40 shuffled orders: median 1.000, least 0.953, most 1.039
+  clipped   windows of 18 draws: 1.002; 40 shuffled orders: median 1.002, least 0.951, most 1.069
+  clipped   windows of 36 draws: 1.057; 40 shuffled orders: median 0.992, least 0.897, most 1.067
+  as logged windows of  6 draws: 1.003; 40 shuffled orders: median 0.999, least 0.975, most 1.039
+  as logged windows of 18 draws: 1.002; 40 shuffled orders: median 0.988, least 0.933, most 1.062
+  as logged windows of 36 draws: 1.052; 40 shuffled orders: median 0.987, least 0.921, most 1.078
