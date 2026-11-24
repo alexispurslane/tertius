@@ -106,9 +106,14 @@ public sealed class ReflectionShareRenderTests
 
                     before
                         .Should()
-                        .Contain(share => share < GuidedShares.ReflectionCeiling / 2, "the floor's shares fell before the cut");
+                        .Contain(
+                            share => share < GuidedShares.ReflectionCeiling / 2,
+                            "the floor's shares fell before the cut"
+                        );
                     (_, List<string> mismatched) = CompareShares(renderer, last: null);
-                    mismatched.Should().BeEmpty("the draw after the cut starts from the ceiling, not from the shares before it");
+                    mismatched
+                        .Should()
+                        .BeEmpty("the draw after the cut starts from the ceiling, not from the shares before it");
                 }
                 finally
                 {
@@ -152,8 +157,12 @@ public sealed class ReflectionShareRenderTests
                             mismatched.Add($"({x}, {y}): {drawn} against {expected}");
                         compared++;
                     }
-                    mismatched.Should().BeEmpty("the glossy floor's ramp allows the full share, so its tiles' shares rule");
-                    last.Distinct().Should().HaveCount(7, "the probe gives the tiles seven shares from 0 to 6/7 of the ceiling");
+                    mismatched
+                        .Should()
+                        .BeEmpty("the glossy floor's ramp allows the full share, so its tiles' shares rule");
+                    last.Distinct()
+                        .Should()
+                        .HaveCount(7, "the probe gives the tiles seven shares from 0 to 6/7 of the ceiling");
                     compared.Should().BeGreaterThan(500);
                 }
                 finally
@@ -243,7 +252,9 @@ public sealed class ReflectionShareRenderTests
                     }
                     mismatched.Should().BeEmpty();
                     compared.Should().BeGreaterThan(500);
-                    capped.Should().BeGreaterThan(100, "the odd rows' light of 10^14 passes the cap of a sample's weight");
+                    capped
+                        .Should()
+                        .BeGreaterThan(100, "the odd rows' light of 10^14 passes the cap of a sample's weight");
                 }
                 finally
                 {
@@ -282,7 +293,9 @@ public sealed class ReflectionShareRenderTests
                         if (guide[at] > 0)
                             found++;
                     }
-                    found.Should().BePositive("a lobe ray that hits the panel finds its guided density at a share of 0");
+                    found
+                        .Should()
+                        .BePositive("a lobe ray that hits the panel finds its guided density at a share of 0");
                     slope.Should().BeNegative("the guided draws would find the panel more often than the lobe does");
                 }
                 finally
@@ -299,7 +312,12 @@ public sealed class ReflectionShareRenderTests
         float[] lobe = WithSwitch("off", () => GrayFloorSpecularSample());
 
         lobe.Should().Contain(value => value > 0, "the sky lights the floor's reflections");
-        guided.Should().Equal(lobe, "the ambient sky sends no direct light, so the guide is empty and no ray takes the guided draw");
+        guided
+            .Should()
+            .Equal(
+                lobe,
+                "the ambient sky sends no direct light, so the guide is empty and no ray takes the guided draw"
+            );
     }
 
     [Fact]
@@ -392,7 +410,10 @@ public sealed class ReflectionShareRenderTests
         int floorStart = 4 * Width * (wallBottom + 2);
         guided[floorStart..]
             .Should()
-            .Equal(lobe[floorStart..], "a roughness below the ramp's start gives a share of 0, and the lobe draws as without guiding");
+            .Equal(
+                lobe[floorStart..],
+                "a roughness below the ramp's start gives a share of 0, and the lobe draws as without guiding"
+            );
     }
 
     [Fact]
@@ -412,7 +433,11 @@ public sealed class ReflectionShareRenderTests
     {
         float[] turns = GuidedTurns();
 
-        Enumerable.Range(0, Width * Height).Select(pixel => turns[4 * pixel + channel]).Should().OnlyContain(v => v == 1, reason);
+        Enumerable
+            .Range(0, Width * Height)
+            .Select(pixel => turns[4 * pixel + channel])
+            .Should()
+            .OnlyContain(v => v == 1, reason);
     }
 
     [Fact]
@@ -426,7 +451,9 @@ public sealed class ReflectionShareRenderTests
             float guided = 0;
             for (int cell = 0; cell < 4; cell++)
                 guided += turns[4 * ((y + (cell >> 1)) * Width + x + (cell & 1)) + 3];
-            guided.Should().Be(1, "the group at ({0}, {1}) holds one cell of each slot, so the frame has no beat", x, y);
+            guided
+                .Should()
+                .Be(1, "the group at ({0}, {1}) holds one cell of each slot, so the frame has no beat", x, y);
         }
     }
 
@@ -458,7 +485,10 @@ public sealed class ReflectionShareRenderTests
                 .BeApproximately(lobeMean, Math.Max(4 * error, 0.03 * lobeMean), $"the standard error is {error}");
             guidedVariance
                 .Should()
-                .BeLessThan(0.7 * lobeVariance, $"the guided rays find the panel in most frames ({guidedMean}, {lobeMean})");
+                .BeLessThan(
+                    0.7 * lobeVariance,
+                    $"the guided rays find the panel in most frames ({guidedMean}, {lobeMean})"
+                );
         }
     }
 
@@ -509,8 +539,12 @@ public sealed class ReflectionShareRenderTests
     private static float[] DrawnShares(VulkanRenderer renderer)
     {
         float[] guide = renderer.ReadImage(renderer.ScreenTraceImages.BlockGuide);
-        return [.. Enumerable.Range(BlocksWide * (BlocksHigh / 2 + 2), BlocksWide * (BlocksHigh - BlocksHigh / 2 - 2))
-            .Select(block => guide[4 * block + 3])];
+        return
+        [
+            .. Enumerable
+                .Range(BlocksWide * (BlocksHigh / 2 + 2), BlocksWide * (BlocksHigh - BlocksHigh / 2 - 2))
+                .Select(block => guide[4 * block + 3]),
+        ];
     }
 
     /// <summary>The mean luminance of the sunlit floor's specular samples over its first <paramref name="frames"/> frames.</summary>

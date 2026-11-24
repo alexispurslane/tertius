@@ -10,7 +10,10 @@ public sealed class GuidedSharesTests
 {
     [Fact]
     public void TheMixtureDensityWeighsTheLobeDensityAndTheGuidedDensityByTheShare() =>
-        GuidedShares.MixtureDensity(share: 0.25f, lobeDensity: 2, guidedDensity: 10).Should().Be(0.75f * 2 + 0.25f * 10);
+        GuidedShares
+            .MixtureDensity(share: 0.25f, lobeDensity: 2, guidedDensity: 10)
+            .Should()
+            .Be(0.75f * 2 + 0.25f * 10);
 
     [Fact]
     public void AtAShareOfZeroTheMixtureDensityIsTheLobeDensity() =>
@@ -58,12 +61,20 @@ public sealed class GuidedSharesTests
         GuidedShares
             .ReflectionShareOf(0.38f, tileShare: GuidedShares.ReflectionCeiling)
             .Should()
-            .Be(GuidedShares.ReflectionCeiling, "stage 1 measured its gains and losses on surfaces of a roughness of 0.38");
+            .Be(
+                GuidedShares.ReflectionCeiling,
+                "stage 1 measured its gains and losses on surfaces of a roughness of 0.38"
+            );
 
     [Fact]
     public void TheEvidenceOfASampleIsItsSquaredWeightAndTheSlopeOfItsSecondMomentInTheShare()
     {
-        (float slope, float moment) = GuidedShares.EvidenceOf(weight: 3, share: 0.25f, lobeDensity: 2, guidedDensity: 10);
+        (float slope, float moment) = GuidedShares.EvidenceOf(
+            weight: 3,
+            share: 0.25f,
+            lobeDensity: 2,
+            guidedDensity: 10
+        );
 
         moment.Should().Be(9);
         slope.Should().BeApproximately(9f * (2 - 10) / (0.75f * 2 + 0.25f * 10), 1e-5f);
@@ -78,10 +89,7 @@ public sealed class GuidedSharesTests
 
     [Fact]
     public void ASampleThatTheGuideMissesAsksForASmallerShare() =>
-        GuidedShares
-            .EvidenceOf(weight: 1, share: 0.25f, lobeDensity: 1, guidedDensity: 0)
-            .Slope.Should()
-            .BePositive();
+        GuidedShares.EvidenceOf(weight: 1, share: 0.25f, lobeDensity: 1, guidedDensity: 0).Slope.Should().BePositive();
 
     [Fact]
     public void BelowTheGuardTheEvidenceWeighsBySquaredWeightOverTheMixtureAtTheGuard()

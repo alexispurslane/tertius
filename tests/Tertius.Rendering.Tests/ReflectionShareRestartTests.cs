@@ -62,7 +62,11 @@ public sealed class ReflectionShareRestartTests
         return snapshot;
     }
 
-    private static FrameHistory.PendingFrame Begin(FrameHistory history, RenderSnapshot snapshot, Extent2D renderSize) =>
+    private static FrameHistory.PendingFrame Begin(
+        FrameHistory history,
+        RenderSnapshot snapshot,
+        Extent2D renderSize
+    ) =>
         history.Begin(
             step: FrameHistoryTesting.FilmStep,
             draw: 0,
