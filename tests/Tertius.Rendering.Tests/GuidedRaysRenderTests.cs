@@ -632,19 +632,14 @@ public sealed class GuidedRaysRenderTests
             Vector3 direction = OctahedralNormal.Decode(
                 new(records[record] * (2 / 65535f) - 1, records[record + 1] * (2 / 65535f) - 1)
             );
-            Vector3 origin = OriginOf(
-                camera: camera,
-                jitter: jitter,
-                pixel: start,
-                distance: distances[pixel],
-                normals: normals
-            );
             float guidedDensity = GuidedDensityOf(
                 light: light,
                 depth: depth,
                 camera: camera,
                 jitter: jitter,
-                origin: origin,
+                start: start,
+                distance: distances[pixel],
+                normals: normals,
                 direction: direction,
                 hitDistance: hitDistance
             );
@@ -666,20 +661,24 @@ public sealed class GuidedRaysRenderTests
     }
 
     /// <summary>
-    /// The C# copy's guided density of a diffuse ray from <paramref name="origin"/> along <paramref name="direction"/> that
-    /// hit at <paramref name="hitDistance"/>. The hit distance runs from the origin to the hit pixel's center on its
-    /// surface, not along the ray, so a few points project into a neighbor of the hit pixel, whose 3 × 3 pixels differ.
+    /// The C# copy's guided density of a diffuse ray from the pixel <paramref name="start"/> at
+    /// <paramref name="distance"/> along <paramref name="direction"/> that hit at <paramref name="hitDistance"/>. The hit
+    /// distance runs from the origin to the hit pixel's center on its surface, not along the ray, so a few points project
+    /// into a neighbor of the hit pixel, whose 3 × 3 pixels differ.
     /// </summary>
     private static float GuidedDensityOf(
         LightPyramid light,
         DepthPyramid depth,
         CameraView camera,
         Vector2 jitter,
-        Vector3 origin,
+        (int X, int Y) start,
+        float distance,
+        float[] normals,
         Vector3 direction,
         float hitDistance
     )
     {
+        Vector3 origin = OriginOf(camera: camera, jitter: jitter, pixel: start, distance: distance, normals: normals);
         Vector2 place = camera.PixelOf(origin + direction * hitDistance) - jitter;
         return light.GuidedDensity(
             camera: camera,
