@@ -1,0 +1,293 @@
+diff --git a/src/Tertius.Rendering/Frame/FixStencilProbe.cs b/src/Tertius.Rendering/Frame/FixStencilProbe.cs
+new file mode 100644
+index 000000000..90483067a
+--- /dev/null
++++ b/src/Tertius.Rendering/Frame/FixStencilProbe.cs
+@@ -0,0 +1,39 @@
++namespace Tertius.Rendering;
++
++/// <summary>
++/// Probe code of t1-3er4 (docs/research/cut-grid-probe): the stencil of the short-history fix, step 3 of
++/// accumulate_spatial.comp. TERTIUS_PROBE_FIX_STENCIL selects it: baseline (unset), off (no fix), a (one of four
++/// orientations of the 3 × 3 square per block of 8 × 8 pixels) or b (one of eight orientations per pixel, from the
++/// blue-noise mask). TERTIUS_PROBE_FIX_LIGHT limits it to one signal: all (unset), diffuse or specular.
++/// </summary>
++internal static class FixStencilProbe
++{
++    /// <summary>The tests' choice, which wins over the variables when it is set.</summary>
++    public static uint? Override { get; set; }
++
++    private static readonly uint FromEnvironment = Environment.GetEnvironmentVariable("TERTIUS_PROBE_FIX_STENCIL") switch
++    {
++        null or "" or "baseline" => 0u,
++        "off" => 1u,
++        "a" => 2u,
++        "b" => 3u,
++        var value => throw new ArgumentException($"Unknown TERTIUS_PROBE_FIX_STENCIL value '{value}'."),
++    };
++
++    private static readonly string Light = Environment.GetEnvironmentVariable("TERTIUS_PROBE_FIX_LIGHT") ?? "all";
++
++    /// <summary>The stencil mode of the signal whose light is <paramref name="light"/>: 0 baseline, 1 off, 2 A, 3 B.</summary>
++    public static uint ModeFor(SignalLight light)
++    {
++        if (Override is { } chosen)
++            return chosen;
++        bool applies = Light switch
++        {
++            "all" or "" => true,
++            "diffuse" => light == SignalLight.Diffuse,
++            "specular" => light == SignalLight.Specular,
++            _ => throw new ArgumentException($"Unknown TERTIUS_PROBE_FIX_LIGHT value '{Light}'."),
++        };
++        return applies ? FromEnvironment : 0u;
++    }
++}
+diff --git a/src/Tertius.Rendering/Scene/GpuTypes.cs b/src/Tertius.Rendering/Scene/GpuTypes.cs
+index e6dbaa2be..dcfe10da8 100644
+--- a/src/Tertius.Rendering/Scene/GpuTypes.cs
++++ b/src/Tertius.Rendering/Scene/GpuTypes.cs
+@@ -835,6 +835,12 @@ internal struct AccumulatePushConstants
+     /// </summary>
+     public uint RegionSlot;
+ 
++    /// <summary>Probe code of t1-3er4: the fix's stencil mode (<see cref="FixStencilProbe"/>).</summary>
++    public uint ProbeFixStencil;
++
++    /// <summary>Probe code of t1-3er4: the draw's index since the last reset.</summary>
++    public uint ProbeDrawIndex;
++
+     public static AccumulatePushConstants Of(SignalParameters parameters, bool reset, long drawIndex) =>
+         new()
+         {
+@@ -848,6 +854,8 @@ internal struct AccumulatePushConstants
+             ReflectedPlaceBelow = parameters.ReflectedPlaceBelow,
+             Reset = reset ? 1u : 0u,
+             RegionSlot = (uint)(drawIndex % TemporalSignal.RegionRingDraws),
++            ProbeFixStencil = FixStencilProbe.ModeFor(parameters.Light),
++            ProbeDrawIndex = (uint)drawIndex,
+             RetainedSigmas = parameters.Confidence switch
+             {
+                 WidenedBox { RetainedSigmas: var sigmas } => sigmas,
+diff --git a/src/Tertius.Rendering/Shaders/accumulate.glsl b/src/Tertius.Rendering/Shaders/accumulate.glsl
+index b3a035bcc..a43c70549 100644
+--- a/src/Tertius.Rendering/Shaders/accumulate.glsl
++++ b/src/Tertius.Rendering/Shaders/accumulate.glsl
+@@ -66,6 +66,8 @@ layout(push_constant, std430) uniform AccumulatePush
+     uint reset;          // 1 in a frame that resets every history
+     float retainedSigmas;  // the clamp box's least half width in retained deviations, 0 for the narrow box
+     uint regionSlot;     // the ring layer of this draw: its index since the last reset modulo RegionRingDraws (region_drift.glsl)
++    uint probeFixStencil;  // probe code of t1-3er4: 0 baseline, 1 no fix, 2 stencil A, 3 stencil B
++    uint probeDrawIndex;   // probe code of t1-3er4: the draw's index since the last reset
+ } parameters;
+ 
+ // SignalLight.
+diff --git a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
+index 9a1da8ec0..30ad1a612 100644
+--- a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
++++ b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
+@@ -15,6 +15,77 @@
+ #include "half_store.glsl"
+ #include "meter.glsl"
+ 
++// Probe code of t1-3er4 (docs/research/cut-grid-probe): the blue-noise mask of the frame set, for stencil B's choice.
++layout(set = 0, binding = 20) uniform utexture2D blueNoiseMask;
++#include "blue_noise.glsl"
++
++// Probe code of t1-3er4: the fix's stencils. Each row holds the four representatives d of the pairs ±d of one orientation
++// of the 3 × 3 square: u, v, u + v and u − v, with u = spacing × (cos θ, sin θ) and v = u turned by 90 degrees, each
++// rounded to whole pixels. The first row of each table is today's axis-aligned square. Spacing 4: θ = 0, 11.25, 22.5,
++// 33.75, 45, 56.25, 67.5 and 78.75 degrees. Spacing 2: θ = 0, 26.57, 45 and −26.57 degrees. Spacing 1 keeps the square.
++const ivec2 Spacing4Stencils[32] = ivec2[](
++    ivec2(4, 0), ivec2(0, 4), ivec2(4, 4), ivec2(4, -4),
++    ivec2(4, 1), ivec2(-1, 4), ivec2(3, 5), ivec2(5, -3),
++    ivec2(4, 2), ivec2(-2, 4), ivec2(2, 5), ivec2(5, -2),
++    ivec2(3, 2), ivec2(-2, 3), ivec2(1, 6), ivec2(6, -1),
++    ivec2(3, 3), ivec2(-3, 3), ivec2(0, 6), ivec2(6, 0),
++    ivec2(2, 3), ivec2(-3, 2), ivec2(-1, 6), ivec2(6, 1),
++    ivec2(2, 4), ivec2(-4, 2), ivec2(-2, 5), ivec2(5, 2),
++    ivec2(1, 4), ivec2(-4, 1), ivec2(-3, 5), ivec2(5, 3));
++const ivec2 Spacing2Stencils[16] = ivec2[](
++    ivec2(2, 0), ivec2(0, 2), ivec2(2, 2), ivec2(2, -2),
++    ivec2(2, 1), ivec2(-1, 2), ivec2(1, 3), ivec2(3, -1),
++    ivec2(1, 1), ivec2(-1, 1), ivec2(0, 3), ivec2(3, 0),
++    ivec2(2, -1), ivec2(1, 2), ivec2(3, 1), ivec2(1, -3));
++const uint ProbeBaseline = 0u;
++const uint ProbeOff = 1u;
++const uint ProbeStencilA = 2u;
++const uint ProbeStencilB = 3u;
++
++// The row of the stencil table that `pixel` takes at `spacing` under the probe's mode: row 0 for the baseline and at
++// spacing 1. Stencil A takes one of the rows 0, 2, 4, 6 at spacing 4 (0, 22.5, 45, 67.5 degrees) and one of the four
++// rows at spacing 2, the same for every pixel of a block of 8 × 8, from a hash of the block and the draw. Stencil B takes
++// one of the eight rows at spacing 4 or of the four at spacing 2 per pixel, from the mask's radial byte at the pixel and
++// the draw.
++int probeStencilRow(ivec2 pixel, int spacing)
++{
++    if (spacing == 1 || parameters.probeFixStencil == ProbeBaseline)
++        return 0;
++    if (parameters.probeFixStencil == ProbeStencilA)
++    {
++        uint pick = pcg3d(uvec3(uvec2(pixel) >> 3u, parameters.probeDrawIndex ^ 0x41u)).x >> 30u;
++        return spacing == 4 ? int(pick * 2u) : int(pick);
++    }
++    uint byte = blueNoiseBytesOf(pixel, parameters.probeDrawIndex).r;
++    return spacing == 4 ? int(byte >> 5u) : int(byte >> 6u);
++}
++
++// The neighbor offset of the square's tap (x, y), x and y in −1 to 1, in row `row` at `spacing`: (±1, 0) takes ±u, (0, ±1)
++// takes ±v, (1, 1) and (−1, −1) take ±(u + v), and (1, −1) and (−1, 1) take ±(u − v). Row 0 gives spacing × (x, y), so
++// the baseline reads the same taps in the same order as main.
++ivec2 probeTapOffset(int row, int x, int y, int spacing)
++{
++    int base = row * 4;
++    ivec2 u, v, sum, difference;
++    if (spacing == 4)
++    {
++        u = Spacing4Stencils[base]; v = Spacing4Stencils[base + 1];
++        sum = Spacing4Stencils[base + 2]; difference = Spacing4Stencils[base + 3];
++    }
++    else if (spacing == 2)
++    {
++        u = Spacing2Stencils[base]; v = Spacing2Stencils[base + 1];
++        sum = Spacing2Stencils[base + 2]; difference = Spacing2Stencils[base + 3];
++    }
++    else
++        return spacing * ivec2(x, y);
++    if (y == 0)
++        return x * u;
++    if (x == 0)
++        return y * v;
++    return x == y ? x * sum : x * difference;
++}
++
+ // The least luminance by which the clamp divides: the lag's share and the chroma of the widening.
+ const float LeastLuminance = 1e-4;
+ 
+@@ -100,16 +171,17 @@ void accumulateAt(ivec2 pixel, uint evidence)
+ 
+     // Step 3, the fix: a weighted mean over 3 × 3 pixels 2^(HistoryFixFrames − 1 − n) apart, each neighbor weighted by its
+     // length where it shows the same surface. The pixel's own length is at least 1 after the blend, so the sum is never 0.
+-    if (historyLength < min(parameters.fixFrames, cap))
++    if (historyLength < min(parameters.fixFrames, cap) && parameters.probeFixStencil != ProbeOff)
+     {
+         int spacing = 1 << int(max(parameters.fixFrames - 1.0 - floor(historyLength), 0.0));
+         vec3 sum = slow * historyLength;
+         vec2 guideSum = guide * historyLength;
+         float weights = historyLength;
++        int row = probeStencilRow(pixel, spacing);
+         for (int y = -1; y <= 1; y++)
+             for (int x = -1; x <= 1; x++)
+             {
+-                ivec2 neighbor = pixel + spacing * ivec2(x, y);
++                ivec2 neighbor = pixel + probeTapOffset(row, x, y, spacing);
+                 if (x == 0 && y == 0 || !insideImages(neighbor) || !sameSurface(key, surfaceKeyAt(neighbor)))
+                     continue;
+                 vec4 other = imageLoad(scratch, neighbor);
+diff --git a/tests/Tertius.Rendering.Tests/CutGridProbeTests.cs b/tests/Tertius.Rendering.Tests/CutGridProbeTests.cs
+new file mode 100644
+index 000000000..3733b4d46
+--- /dev/null
++++ b/tests/Tertius.Rendering.Tests/CutGridProbeTests.cs
+@@ -0,0 +1,101 @@
++using System.Numerics;
++using Tertius.Testing;
++
++namespace Tertius.Rendering.Tests;
++
++/// <summary>
++/// Probe code of t1-3er4 (docs/research/cut-grid-probe): the impulse response of the short-history fix, step 3 of
++/// accumulate_spatial.comp, under each stencil mode. A wall fills the view of 256 × 128 pixels. The test signal's samples
++/// are 0 except for 50 single bright samples of light 81, one in each cell of 24 × 24 pixels, at a place in the cell that
++/// moves against the blocks of 8 × 8. The dump holds the slow history of part 0, RGBA as float32, row by row.
++/// TERTIUS_PROBE_DUMP names the folder of the dumps. Without it the test does nothing.
++/// </summary>
++[Collection(GpuCollection.Name)]
++public sealed class CutGridProbeTests
++{
++    private const int Width = 256,
++        Height = 128,
++        Cell = 24;
++
++    private const float Bright = 81f;
++
++    private static readonly SignalParameters Parameters = SignalParameters.Diffuse with { Cap = 16, SmoothCap = 16 };
++
++    /// <summary>Whether (column, row) holds one of the bright samples.</summary>
++    public static bool IsImpulse(int column, int row)
++    {
++        int i = column / Cell,
++            j = row / Cell;
++        if (i >= Width / Cell || j >= Height / Cell)
++            return false;
++        int jitter = (i * 3 + j * 5) % 8;
++        return column == i * Cell + 8 + jitter && row == j * Cell + 8 + (i * 5 + j * 3) % 8;
++    }
++
++    [Fact]
++    public void DumpsTheImpulseResponses()
++    {
++        string? folder = Environment.GetEnvironmentVariable("TERTIUS_PROBE_DUMP");
++        if (folder is null)
++            return;
++        Directory.CreateDirectory(folder);
++        try
++        {
++            foreach ((string name, uint mode) in new[] { ("baseline", 0u), ("a", 2u), ("b", 3u), ("off", 1u) })
++            {
++                FixStencilProbe.Override = mode;
++                // The impulse in draw n alone, after n draws of zeros: spacing 4, 2 and 1.
++                for (int n = 0; n < 3; n++)
++                    Run(folder: folder, tag: $"{name}-stage{n}", impulseDraw: n, draws: n + 1);
++                // The impulse in draw 0 and zeros after it, read after each of draws 0 to 5.
++                Run(folder: folder, tag: $"{name}-evolution", impulseDraw: 0, draws: 6);
++            }
++        }
++        finally
++        {
++            FixStencilProbe.Override = null;
++        }
++    }
++
++    private static void Run(string folder, string tag, int impulseDraw, int draws)
++    {
++        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
++        try
++        {
++            MeshId cube = renderer.CreateMesh(Primitives.Box(new(0.5f)));
++            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.5f));
++            RenderSnapshot scene = Gpu.Snapshot(new(0.3f, 1f, 0.4f));
++            scene.Instances.Add(
++                Gpu.Instance(
++                    mesh: cube,
++                    material: white,
++                    position: new(0, 0, -20),
++                    scale: new(80, 60, 1),
++                    chainDepth: TestChains.CamerasFrame,
++                    entity: 1
++                )
++            );
++            var sample = new SamplePass(renderer.CreateSignal(parameters: Parameters, name: "probe", parts: 2), renderer.Allocator);
++            renderer.Graph.Add(FrameGraph.Stage.DirectLight, sample);
++            renderer.Graph.Add(FrameGraph.Stage.DirectLight, new AccumulatePass(sample.Signal));
++            for (int draw = 0; draw < draws; draw++)
++            {
++                bool impulses = draw == impulseDraw;
++                sample.Samples = (column, row) =>
++                    new Vector4(new Vector3(impulses && IsImpulse(column, row) ? Bright : 0f), 1f);
++                scene.Time += 1.0 / 60.0;
++                renderer.Render(scene, 1f);
++                if (draws > impulseDraw + 1 || draw == draws - 1)
++                {
++                    float[] history = renderer.ReadImage(sample.Signal.Slow(0));
++                    using var file = File.Create(Path.Combine(folder, $"{tag}-draw{draw}.f32"));
++                    file.Write(System.Runtime.InteropServices.MemoryMarshal.AsBytes(history.AsSpan()));
++                }
++            }
++        }
++        finally
++        {
++            Gpu.DisposeAndAssertClean(renderer);
++        }
++    }
++}
