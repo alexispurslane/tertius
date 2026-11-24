@@ -496,7 +496,8 @@ public sealed class BrdfRenderTests
     [Fact]
     public void AMetallicRoughnessMapHasGltfsLayoutWithRoughnessInGreenAndMetallicInBlue()
     {
-        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        // The test asks the map's pixel and the plain material's pixel for the same code, which the dither moves by one.
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height, outputDither: false);
         try
         {
             MeshId square = renderer.CreateMesh(Primitives.Plane(0.3f));

@@ -50,7 +50,8 @@ internal static class Gpu
     /// the renderer's default. The deformation is on unless asked for, the renderer's default. The skin scatter is off
     /// unless asked for, because the zero case of the setting is off (docs/plans/skin-and-hair.md, decision 29). The
     /// direct pass shades every light pair in full unless asked for, the zero case of the setting, so that a test's
-    /// pixels hold the exact light; the key and fill tests ask for key and fill.
+    /// pixels hold the exact light; the key and fill tests ask for key and fill. The output's dither is on unless asked
+    /// for, the renderer's default; a test that reads a pixel's exact code turns it off.
     /// </summary>
     public static VulkanRenderer Headless(
         int width = 640,
@@ -69,7 +70,8 @@ internal static class Gpu
         ScreenTraceSetting screenTrace = default,
         int warmUpFrames = RendererOptions.DefaultWarmUpFrames,
         bool passTimestamps = true,
-        LightPairSetting lightPairs = default
+        LightPairSetting lightPairs = default,
+        bool outputDither = true
     ) =>
         VulkanRenderer.CreateHeadless(
             new()
@@ -93,6 +95,7 @@ internal static class Gpu
                 WarmUpFrames = warmUpFrames,
                 PassTimestamps = passTimestamps,
                 LightPairs = lightPairs,
+                OutputDither = outputDither,
             }
         );
 

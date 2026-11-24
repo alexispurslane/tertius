@@ -2,6 +2,9 @@
 // defines BLOOM and adds the summed bloom levels, so that a renderer without bloom runs the shader that never reads them.
 
 layout(set = 0, binding = 0) uniform texture2D hdrImage;
+// The blue-noise mask of the output's dither (DescriptorLayouts.PostMaskBinding).
+layout(set = 0, binding = 3) uniform utexture2D blueNoiseMask;
+#include "blue_noise.glsl"
 #ifdef BLOOM
 #include "tent.glsl"
 layout(set = 0, binding = 1) uniform texture2D glowImage;   // bloom level 0, which holds every level summed
@@ -13,6 +16,8 @@ layout(push_constant, std430) uniform TonemapPush
     uint encodeSrgb;   // 1 when the output format is UNORM and the shader must apply the sRGB curve itself
     uint toneCurve;    // the ToneCurve enum: 0 ACES fitted, 1 Hable
     float glowStrength; // the bloom's strength; unread without bloom
+    uint drawIndex;    // the frame's draw index, which picks the dither's frame of the blue-noise mask
+    float code;        // one code of the output's encoding, as a share of 1: 1/255 at 8 bits; 0 turns the dither off
 } tonemap;
 
 const uint toneCurveAcesFitted = 0u;
@@ -58,6 +63,20 @@ vec3 hable(vec3 color)
     return clamp(hableF(exposureBias * color) / hableF(vec3(white)), 0.0, 1.0);
 }
 
+// The encoded color with the output's dither: a triangular offset of at most one code up or down, the same for the three
+// channels, from the blue-noise mask at the pixel and the draw. Its size is `code` in the middle and falls to 0 over the
+// last code at each end, so it is 0 at an encoded value of 0 and of 1: black stays black and white stays white. Each
+// offset is as likely as its negative, so a region's mean code is the unrounded value (ARCHITECTURE.md, "Tone mapping").
+vec3 dithered(vec3 encoded, ivec2 pixel, uint drawIndex, float code)
+{
+    // The mask's radial byte as a number in (0, 1), uniform over the pixels of a frame.
+    float u = (float(blueNoiseBytesOf(pixel, drawIndex).x) + 0.5) * (1.0 / 256.0);
+    // The inverse of the triangular distribution on [-1, 1]: the sum of two uniform numbers, from one.
+    float offset = u < 0.5 ? sqrt(2.0 * u) - 1.0 : 1.0 - sqrt(2.0 - 2.0 * u);
+    vec3 size = clamp(min(encoded, 1.0 - encoded), 0.0, code);
+    return encoded + offset * size;
+}
+
 void main()
 {
     vec3 light = texelFetch(hdrImage, ivec2(gl_FragCoord.xy), 0).rgb;
@@ -68,7 +87,8 @@ void main()
     // The passes that wrote the HDR image pre-exposed it, so the curve takes it as it is.
     vec3 hdr = max(light, vec3(0.0));
     vec3 ldr = tonemap.toneCurve == toneCurveAcesFitted ? acesFitted(hdr) : hable(hdr);
-    if (tonemap.encodeSrgb != 0u)
-        ldr = linearToSrgb(ldr);
-    outColor = vec4(ldr, 1.0);
+    // The dither works on the encoded value, whose codes the target rounds. An sRGB target encodes what the shader writes,
+    // so the shader takes the dithered value back through the inverse curve.
+    vec3 encoded = dithered(linearToSrgb(ldr), ivec2(gl_FragCoord.xy), tonemap.drawIndex, tonemap.code);
+    outColor = vec4(tonemap.encodeSrgb != 0u ? encoded : srgbToLinear(encoded), 1.0);
 }

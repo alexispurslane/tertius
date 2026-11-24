@@ -2028,7 +2028,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 glowLevels: GlowLevelsOf(options.Bloom),
                 upscaling: upscaling,
                 depthPyramid: options.ScreenTrace is ScreenTrace,
-                subsurface: options.Subsurface is SeparableSubsurface
+                subsurface: options.Subsurface is SeparableSubsurface,
+                blueNoise: BrdfTableImages.BlueNoise
             )
         );
 
@@ -2539,7 +2540,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 layouts: layouts,
                 outputFormat: output.Format,
                 curve: options.ToneCurve,
-                bloom: options.Bloom
+                bloom: options.Bloom,
+                dither: options.OutputDither
             )
         );
         Graph.Add(
