@@ -588,9 +588,9 @@ The model. Only the bounce light runs it (see "Which signal runs the test" below
 - The tap. Each ray block of 8 × 8 pixels has one tap pixel, (4, 4) of the block. The tap is the luminance of that pixel's sample over the draw's exposure scale, so that a change of the exposure alone does not move it. A tap counts where its pixel shows a surface, holds a finite sample and its surface does not move on screen (`SurfaceMovesOnScreen`). A moving surface shows another surface point in each draw.
 - The anchors. The test runs at anchor blocks only: every 8th block in x and in y. The regions of two neighbor blocks share 272 of their 289 taps, so their answers are nearly one answer.
 - The region's light of a draw at an anchor. It is the mean of the counted taps of the 17 × 17 blocks around the anchor. A draw is valid where at least half of the region's taps inside the images count. A camera move makes every tap move, so its draws are not valid, and the count of valid draws restarts. A reset restarts it too, and so does a change of the render size: the scene points under the taps move, and the anchors that the dispatch covers change (`regionContinues`).
-- The ring. Each anchor keeps the region's light of its last 36 draws, the count of valid draws in a row, and the test's answer: `regionRing`, an RGBA32F array of 36 layers with one texel per anchor. Layer k holds the draw whose index modulo 36 is k. The ring has the size of the largest render size. At 1280 × 720 that is 20 × 12 anchors, 138 KB.
-- The test. It runs when the count of valid draws reaches 36. Rnew is the mean of the last 18 draws, and Rold the mean of the 18 before. dold is the standard deviation of those older 18. If |Rnew − Rold| > 3 · dold · sqrt(2 / 18), the region's light moved. The tolerance is a measured quantity, as Y4 asks: the spread of the region's own light in the older window, times the spread of a difference of two means of 18 draws. So a step inside the newer window does not raise it. 3 · sqrt(2 / 18) is exactly 1, so the test reads |Rnew − Rold| > dold. 18 draws are the jitter's 18 phases under FSR at the render scale 2/3, the scale of every headless run, so that a cycle of the jitter cancels in each window. At another render scale the cycle has another length, 8 / scale² phases, and a window of 18 draws does not cancel it.
-- The answer. A block has region evidence where any anchor whose region holds it found a move in the draw before. A block lies in the regions of 4 anchors, or of up to 9 on the anchors' own rows and columns, because a region reaches exactly one step. Only the anchors that this draw's dispatch covers count (`lastRegionAnchor`): the ring's texels beyond them hold the answers of a larger render size. A draw that does not continue the draw before reads no answer. The answer acts one draw late, so that no block reads a layer that a workgroup writes in this draw. The windows are 18 draws long, so one draw does not matter.
+- The ring. Each anchor keeps the region's light of its last 36 draws, the count of valid draws in a row, the test's signed answer and its change gate (see "The change gate" below): `regionRing`, an RGBA32F array of 36 layers with one texel per anchor. Layer k holds the draw whose index modulo 36 is k. The ring has the size of the largest render size. At 1280 × 720 that is 20 × 12 anchors, 138 KB.
+- The test. It runs when the count of valid draws reaches 36. This is the open gate's test since `t1-yi11`. A closed gate runs a stricter test (see "The change gate" below). Rnew is the mean of the last 18 draws, and Rold the mean of the 18 before. dold is the standard deviation of those older 18. If |Rnew − Rold| > 3 · dold · sqrt(2 / 18), the region's light moved. The tolerance is a measured quantity, as Y4 asks: the spread of the region's own light in the older window, times the spread of a difference of two means of 18 draws. So a step inside the newer window does not raise it. 3 · sqrt(2 / 18) is exactly 1, so the test reads |Rnew − Rold| > dold. 18 draws are the jitter's 18 phases under FSR at the render scale 2/3, the scale of every headless run, so that a cycle of the jitter cancels in each window. At another render scale the cycle has another length, 8 / scale² phases, and a window of 18 draws does not cancel it.
+- The answer. A block has region evidence where any anchor whose region holds it found a move in the draw before, up or down. A block lies in the regions of 4 anchors, or of up to 9 on the anchors' own rows and columns, because a region reaches exactly one step. Only the anchors that this draw's dispatch covers count (`lastRegionAnchor`): the ring's texels beyond them hold the answers of a larger render size. A draw that does not continue the draw before reads no answer. The answer acts one draw late, so that no block reads a layer that a workgroup writes in this draw. The windows are 18 draws long, so one draw does not matter.
 
 Where it runs. The anchor's workgroup of the spatial dispatch does the whole test, and every block's workgroup reads the answers. `evidenceOfBlock` of `accumulate_spatial.comp` calls both:
 
@@ -677,6 +677,84 @@ Only the bounce light. `TemporalSignal.TestsRegionDrift` names the rule, the lig
 
 In a still view a test can fire now and then, because the region's light of one tap per block has a spread. A false fire cuts a history to 8 draws, which keeps the shared ray and loses little. A probe read the rings over the 64 still draws of `LightAgeHistoryTests`. The reflections' region light there swings between 0.24 and 0.46 from draw to draw, a spread of about 15 %. Their test fired at draws 44 and 45, 2 of the 28 draws that it tested, about 7 %. The bounce light's fired in none. That is one reason why only the bounce light runs the test.
 
+#### The change gate and the closed gate's test (`t1-yi11`)
+
+At a cap of 32 the false cuts cost little, because a history of 16 to 24 draws is not far from one of 32. At a cap of 128 they undid most of the cap's gain: in the frozen bay, with the test above alone, 0.7 to 1.1 % of the tested anchor-draws answered, and the blobs of the bounce light stayed as large as at a cap of 32 (`t1-yi11`, `docs/research/t1-yi11-region-evidence/README.md`). So the bounce light's cap is now 128 draws (`SignalParameters.Diffuse`, `Cap` and `SmoothCap`), and a change gate chooses the test.
+
+The model. A region's light changes only after a cause: a light changed, a surface moved, or the view moved. While a cause is recent the gate is open, and the test above answers. A frozen view has no cause, so the gate is closed, and a stricter test answers. The terms:
+
+- An observed cause is a counted tap whose sample brings light or motion evidence: `evidenceOfSample(...) != NoEvidence`.
+- The gate is one number per anchor in the ring's fourth channel, `a`. −1 (`RegionGateUnestablished`) is an anchor whose view is not yet established, with the gate closed. 0 to 127 is an established anchor with the gate open. 128 (`RegionCauseWindowDraws`) is an established anchor with the gate closed.
+- An anchor is established once it saw a cause, or once it had `FullRateFrames` (8) valid draws in a row since its draws started. Before that, no pixel's history is longer than 8 draws, so no history holds stale light.
+
+The gate after a draw (`regionGateAfter`):
+
+| The draw continues the draw before | Gate before | A cause in the draw | Valid draws in a row | Gate after |
+|---|---|---|---|---|
+| any | any | yes | any | 0: open for 128 draws |
+| no (a reset or a new render size) | ignored | no | 0 or 1 | −1: unestablished |
+| yes | −1 | no | under 8 | −1: unestablished |
+| yes | −1 | no | 8 or more | 128: established and closed |
+| yes | 0 to 128 | no | 0 (not valid, as in a move) | 0: open, held while the move lasts |
+| yes | 0 to 128 | no | 1 or more | the gate before plus 1, at most 128 |
+
+So a start, a headless still's first draw, a camera cut, a new output size and a new render size begin closed, and their missing draws never count as a move. A move that makes an established view's draws invalid holds the gate at 0, and after the move the gate stays open for 128 valid draws. The open test runs from the 36th of them on. 128 draws are the cap: a history that a cut shortened needs up to the cap's draws to grow back, and the later bounces settle in that time.
+
+The answer, once 36 valid draws stand in a row (`regionAnswerOf`):
+
+- The open gate (0 to 127): the test above, with the sign of the move (`regionTestSignOf`).
+- The closed gate (−1 or 128): Welch's t of the two windows, t = (Rnew − Rold) / sqrt((s_new² + s_old²) / 18), where s_new and s_old are the windows' own standard deviations (`welchT18Of`). The anchor answers sign(t) where |t| ≥ 5 (`WelchSeedBar`). Where 2.6 ≤ |t| < 5 (`WelchConfirmBar`), it answers sign(t) only where the anchor itself or one of its 8 neighbors answered with the same sign in the draw before (`regionClosedDecisionOf`). Else it answers 0.
+
+```glsl
+float regionClosedDecisionOf(ivec2 texel, float t18)
+{
+    float size = abs(t18);
+    if (size >= WelchSeedBar)
+        return sign(t18);
+    if (size < WelchConfirmBar)
+        return 0.0;
+    float direction = sign(t18);
+    ivec2 last = lastRegionAnchor();
+    for (int dy = -1; dy <= 1; dy++)
+        for (int dx = -1; dx <= 1; dx++)
+        {
+            ivec2 anchor = clamp(texel + ivec2(dx, dy), ivec2(0), last);
+            if (direction * imageLoad(regionRing, ivec3(anchor, layerBefore())).b > 0.0)
+                return direction;
+        }
+    return 0.0;
+}
+```
+
+where
+
+- `texel` = the anchor's ring texel. `t18` = this draw's Welch's t of the anchor's two windows.
+- `WelchSeedBar` = 5, the bar at which a change answers alone. `WelchConfirmBar` = 2.6, the bar at which a change answers beside a same-sign answer.
+- `direction` = the sign of t, 1 for a rise and −1 for a fall.
+- `lastRegionAnchor()` = the last anchor that this draw's dispatch covers. The clamp keeps every read inside those anchors, so a texel that holds the answers of a larger render size never counts.
+- `layerBefore()` = the ring layer of the draw before, which every workgroup finished in the dispatch before.
+- `imageLoad(...).b` = the signed answer of that anchor in the draw before: 1, −1 or 0, from either gate's test.
+
+Why these rules:
+
+- Both spreads count. One bright draw raises the spread of its own window with the mean, so k bright draws move t by at most sqrt(k (W − 1) / (W − k)), 1.00 for one draw and 1.46 for two. The open gate's test divides by the older window's spread alone, so one bright draw in the newer window can pass any bar.
+- A weak change answers only beside an answer of the same sign. A real change of light covers many anchors, so it passes the confirm bar in neighbors and spreads one anchor a draw. A false answer stays alone, and it does not grow into a patch. An answer of the other sign, or one of two draws before, confirms nothing.
+- The ring keeps the sign, so an open anchor's answer, at a lamp that a ray sees, also confirms a closed neighbor's weaker change, where no ray sees the cause.
+- Where both spreads are 0, a difference of the means counts as a seed, and no difference gives t = 0. No division by 0 happens.
+- The bars come from a replay of the logged region lights of the frozen bay and the still cabin, 316,414 and 139,468 anchor-draws (`docs/research/t1-yi11-region-evidence/README.md`). They are measured on correlated draws, not a guaranteed false rate.
+
+What the gate cannot see: a change whose cause no ray of the region sees and that stays under the seed bar, such as a wall that only a sunlit patch behind the camera lights. Such a change answers where it passes the seed bar, or where a neighbor answers, and it follows late elsewhere. The turned `rect-bay` take checks that case.
+
+The production check of 2026-11-24 (`docs/research/t1-yi11-region-evidence/production/README.md`) compared this code with the review base in the real renderer:
+
+- Frozen bay: 24 answers in 378,392 tested anchor-draws, none in the first 300 draws, against 3,961 before. The settled blob of the bounce light alone is 2.4 to 3.0 times lower.
+- Turned `rect-bay`: no anchor rectangles at 1:1. The whole frame lags by at most 2.7 gray levels (of 255) in film draws 33 to 45, and by 0.3 at draw 60.
+- Walk with a lamp switch: the switched light's excess drains at the cap's pace after the walk, 1.41 gray levels at stand frame 156 against 0.50.
+- True camera cut: the frames after the cut do not depend on the camera before it.
+- Cost: "accumulate indirect diffuse" plus "filter indirect diffuse" take 0.036 ms more per draw (median of 6 paired rounds on the Mac).
+
+What the user decided (2026-11-24): the signed neighbor rule, the cap of 128, the gate's start closed, the reopening after a move, and the small settled brightness residual and the known transient costs that the takes measured. The cap's own costs: the bounce light's feedback filter spreads a stable edge under noise once a draw that a history keeps, so `AStableEdgeOfLightUnderNoiseKeepsItsWidth` measures a 10 to 90 % rise of 25 pixels at a cap of 128, against 16 at 32. A loss of light that the narrow box cut during a move drains at 1 / 128 a draw: a loss of 23 % lies within 5 % after 195 draws, against 48 at a cap of 32.
+
 #### Left out on purpose
 
 - A smooth share between the anchors. A block takes the whole cut where any of its anchors moved, and none where none moved. If a film shows that grid as an edge, a daub or a flicker, the share is the next step. The orchestrator decided not to build it before a film asks for it.
@@ -688,7 +766,8 @@ In a still view a test can fire now and then, because the region's light of one 
 - The two barriers of `updateRegionAnchor` run in uniform control flow, because the branch depends only on the workgroup's block.
 - Every sum runs in a fixed order, and the merge of the answers is a maximum. So one machine gives the same bits in every run.
 - No subgroup operation, and no new device feature: RGBA32F storage images are core.
-- `finiteSample` keeps a non-finite sample out of the sums, and the test divides only by the window's constant size.
+- `finiteSample` keeps a non-finite sample out of the sums. The open test divides only by the window's constant size, and Welch's t divides only by a spread above 0.
+- The closed test reads its neighbors' answers only from the layer of the draw before, which every workgroup finished in the dispatch before, and only inside the anchors of this draw's dispatch.
 
 ## 9. Every cause of a changed ray, and its signal
 

@@ -8,9 +8,6 @@
 // region evidence of its block (region_drift.glsl, TERTIUS_REGION_DRIFT), which cuts the length in the same way.
 #extension GL_GOOGLE_include_directive : require
 #include "accumulate.glsl"
-#ifdef TERTIUS_REGION_DRIFT
-#include "region_drift.glsl"
-#endif
 #include "accumulate_reflection_guide.glsl"
 #include "half_store.glsl"
 #include "meter.glsl"
@@ -40,6 +37,11 @@ uint evidenceOfSample(uint sampleAge)
         return LightEvidence;
     return sawMotion(sampleAge) ? MotionEvidence : NoEvidence;
 }
+
+// The region's drift reads evidenceOfSample as its taps' cause, so it follows it.
+#ifdef TERTIUS_REGION_DRIFT
+#include "region_drift.glsl"
+#endif
 
 // The evidence level of the workgroup's block: the strongest of its pixels' samples' levels and, for the bounce light, its
 // region's level of the draw before. An anchor's workgroup of the bounce light first runs its region's test for the

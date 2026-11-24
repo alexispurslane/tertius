@@ -49,13 +49,14 @@ internal readonly record struct SignalParameters(
     public const float RoughRoughness = 0.7f;
 
     /// <summary>
-    /// The diffuse signal's set: a cap of 32 frames at every roughness, and a box widened by two retained deviations
-    /// where its block has no motion evidence (docs/plans/bounce-light-confidence.md, section 7).
+    /// The diffuse signal's set: a cap of 128 frames at every roughness, and a box widened by two retained deviations
+    /// where its block has no motion evidence (docs/plans/bounce-light-confidence.md, section 7). The region's change gate
+    /// keeps a frozen view's false cuts rare, so a long history keeps its gain (t1-yi11, section 8.7).
     /// </summary>
     public static SignalParameters Diffuse =>
         new(
-            Cap: 32,
-            SmoothCap: 32,
+            Cap: 128,
+            SmoothCap: 128,
             FastCap: 4,
             HistoryFixFrames: 4,
             ClampSigmas: 2,

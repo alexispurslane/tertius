@@ -12,7 +12,7 @@ namespace Tertius.Rendering.Tests;
 /// so each frame continues the last one.
 /// </summary>
 [Collection(GpuCollection.Name)]
-public sealed class AccumulatorRenderTests
+public sealed partial class AccumulatorRenderTests
 {
     private const int Width = 64,
         Height = 36;
@@ -36,18 +36,20 @@ public sealed class AccumulatorRenderTests
 
     /// <summary>
     /// The renderer with the test signal and its producer and accumulation after the direct pass, under
-    /// <paramref name="exposure"/>, the fixed exposure of the tests without it, at <paramref name="width"/> × Height pixels.
-    /// The wall fills the view, unless <paramref name="wall"/> gives its center and size: then the sky shows around it.
+    /// <paramref name="exposure"/>, the fixed exposure of the tests without it, at <paramref name="width"/> ×
+    /// <paramref name="height"/> pixels. The wall fills the view, unless <paramref name="wall"/> gives its center and size:
+    /// then the sky shows around it.
     /// </summary>
     private static (VulkanRenderer Renderer, SamplePass Sample, RenderSnapshot Scene) Accumulating(
         ExposureSetting exposure = default,
         SignalParameters? parameters = null,
         float roughness = 0.5f,
         (Vector3 Center, Vector3 Size)? wall = null,
-        int width = Width
+        int width = Width,
+        int height = Height
     ) =>
         AccumulatingOn(
-            renderer: Gpu.Headless(width: width, height: Height, exposure: exposure),
+            renderer: Gpu.Headless(width: width, height: height, exposure: exposure),
             parameters: parameters,
             roughness: roughness,
             wall: wall
@@ -1065,10 +1067,12 @@ public sealed class AccumulatorRenderTests
     [Fact]
     public void ASingleBrightRayBlockSampleFadesFromTheSlowHistoryAtTheSlowBlendsPace()
     {
-        // The bounce light's cap of 32 takes the sample of 100 with the weight 1 / 32, so its four pixels hold an excess
-        // of 4 · 100 / 32 = 12.5 at its draw, and each later draw keeps 31 / 32 of it, as long as no clamp cuts it. A dark
-        // wall, so that a store into a half float, the nearest one (half_store.glsl), moves at most 2^−11 of the excess,
-        // not of a bright wall's light: the temporal and the spatial dispatch each store the history once a draw.
+        // The wall's histories first grow to the bounce light's cap. The cap takes the sample of 100 with the weight
+        // 1 / cap, so its four pixels hold an excess of 4 · 100 / cap at its draw, and each later draw keeps
+        // (cap − 1) / cap of it, as long as no clamp cuts it. A dark wall, so that a store into a half float, the nearest
+        // one (half_store.glsl), moves at most 2^−11 of the excess, not of a bright wall's light: the temporal and the
+        // spatial dispatch each store the history once a draw.
+        int cap = SignalParameters.Diffuse.Cap;
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
             parameters: SignalParameters.Diffuse
         );
@@ -1076,7 +1080,7 @@ public sealed class AccumulatorRenderTests
         {
             sample.Value = new(x: 0, y: 0, z: 0, w: 1);
             renderer.Render(scene, 1f);
-            Continue(renderer, scene, frames: 40);
+            Continue(renderer, scene, frames: cap + 8);
             sample.Samples = (column, row) => new Vector4(new Vector3(InCenterRayBlock(column, row) ? 100 : 0), 1);
             Continue(renderer, scene, frames: 1);
             sample.Samples = null;
@@ -1090,7 +1094,7 @@ public sealed class AccumulatorRenderTests
                     .Range(0, Width * Height)
                     .Where(pixel => InCenterRayBlock(pixel % Width, pixel / Width))
                     .Sum(pixel => history[4 * pixel]);
-                float expected = 12.5f * MathF.Pow(31f / 32, draw);
+                float expected = 400f / cap * MathF.Pow((cap - 1f) / cap, draw);
                 float rounding = 2 * (draw + 1) * MathF.Pow(2, -10);
                 excess
                     .Should()
@@ -1766,11 +1770,14 @@ public sealed class AccumulatorRenderTests
     }
 
     [Fact]
-    public void AfterTheMotionStopsTheNarrowBoxsLossReturnsWithinFivePercentInSixtyDraws()
+    public void AfterTheMotionStopsTheNarrowBoxsLossReturnsWithinFivePercentAtTheSlowBlendsPace()
     {
         // Rare bright samples on a wall, whose mean is 2. While the wall moves for 40 draws, motion evidence narrows the box,
         // which cuts the rare samples and loses light. After the wall stops, the widened box holds them again, and the loss
-        // drains at the slow blend: a loss of 23 % lies within 5 % after 47 draws (section 16).
+        // drains at the slow blend, (cap − 1) / cap a draw: a loss of 23 % lies within 5 % after 48 draws at a cap of 32
+        // and after 195 at a cap of 128 (section 16). The test waits that long and 10 % more.
+        int cap = SignalParameters.Diffuse.Cap;
+        int drain = (int)(1.1 * Math.Log(0.05 / 0.23) / Math.Log((cap - 1.0) / cap));
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
             parameters: SignalParameters.Diffuse
         );
@@ -1793,7 +1800,7 @@ public sealed class AccumulatorRenderTests
             sample.AgeCode = 0;
             scene.Camera.PreviousPosition = scene.Camera.Position;
 
-            for (int still = 0; still < 60; still++, frame++)
+            for (int still = 0; still < drain; still++, frame++)
                 Continue(renderer, scene, frames: 1);
 
             InteriorLightOf(renderer, sample)
@@ -2697,7 +2704,7 @@ public sealed class AccumulatorRenderTests
     /// history to at most FullRateFrames. The scene of 64 × 36 pixels has one anchor, block 0, whose region holds every
     /// block. Its runs of hundreds of draws run beside the rest of the class (tests/STYLE.md, "Long tests").
     /// </summary>
-    public sealed class RegionDrift
+    public sealed partial class RegionDrift
     {
         /// <summary>The draws of the region's two windows (region_drift.glsl, RegionRingDraws).</summary>
         private const int TwoWindows = TemporalSignal.RegionRingDraws;
@@ -2975,16 +2982,26 @@ public sealed class AccumulatorRenderTests
         [Fact]
         public void AfterTheRegionsEvidenceEndsTheBounceHistoryGrowsBackToItsCap()
         {
+            // The evidence ends within two windows of the stand (AfterTheRegionsLightStandsStillItsEvidenceEndsWithin
+            // TwoWindows), and a history cut to FullRateFrames then grows by one draw in each draw to the cap.
             (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
                 parameters: SignalParameters.Diffuse
             );
             try
             {
-                FallThenStand(renderer: renderer, sample: sample, scene: scene, standDraws: TwoWindows + 40);
+                FallThenStand(
+                    renderer: renderer,
+                    sample: sample,
+                    scene: scene,
+                    standDraws: TwoWindows + SignalParameters.Diffuse.Cap
+                );
 
                 LengthsOf(renderer, sample)
                     .Should()
-                    .OnlyContain(length => length == 32, "no evidence cuts the history after the light stood still");
+                    .OnlyContain(
+                        length => length == SignalParameters.Diffuse.Cap,
+                        "no evidence cuts the history after the light stood still"
+                    );
             }
             finally
             {
@@ -3263,7 +3280,10 @@ public sealed class AccumulatorRenderTests
 
                 BlockColumnLengths(WideLengthsOf(renderer, sample), column: 20)
                     .Should()
-                    .OnlyContain(length => length == 32, "no anchor whose region holds block 20 saw its light move");
+                    .OnlyContain(
+                        length => length == SignalParameters.Diffuse.Cap,
+                        "no anchor whose region holds block 20 saw its light move"
+                    );
             }
             finally
             {
@@ -3275,7 +3295,9 @@ public sealed class AccumulatorRenderTests
         public void TheRegionEvidenceActsInTheDrawAfterTheAnchorsTest()
         {
             // The anchor's workgroup writes its answer into this draw's ring layer, and every block reads the layer of the
-            // draw before. So the first draw whose test finds the move cuts no history, and the draw after it does.
+            // draw before. So the first draw in which any anchor's test finds the move cuts no history, and the draw after
+            // it does. The anchors' answers differ in time: the closed gate's neighbor rule makes one anchor's answer
+            // confirm its neighbors' weaker changes in the next draw.
             (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = AccumulatingWide();
             try
             {
@@ -3306,7 +3328,7 @@ public sealed class AccumulatorRenderTests
                         // The draw's index since the reset is 100 + fallen + 1, its ring layer that index modulo 36.
                         int layer = (100 + fallen + 1) % TemporalSignal.RegionRingDraws;
                         float[] ring = renderer.ReadImageLayer(sample.Signal.RegionRing(0)!, layer);
-                        if (ring[2] != 0)
+                        if (Enumerable.Range(0, ring.Length / 4).Any(texel => ring[4 * texel + 2] != 0))
                         {
                             firstMoved = fallen;
                             cutInFirst = cut;
@@ -3314,7 +3336,7 @@ public sealed class AccumulatorRenderTests
                     }
                 );
 
-                firstMoved.Should().NotBeNull("anchor 0's region light falls");
+                firstMoved.Should().NotBeNull("the left third's light falls");
                 cutInFirst.Should().BeFalse("the test's own draw reads the answers of the draw before");
                 cutAfterFirst.Should().BeTrue("the next draw takes the answer");
             }
@@ -3398,7 +3420,10 @@ public sealed class AccumulatorRenderTests
 
                 BlockColumnLengths(WideLengthsOf(renderer, sample), column: 7)
                     .Should()
-                    .OnlyContain(length => length == 32, "no anchor whose region holds block 7 saw its light move");
+                    .OnlyContain(
+                        length => length == SignalParameters.Diffuse.Cap,
+                        "no anchor whose region holds block 7 saw its light move"
+                    );
             }
             finally
             {

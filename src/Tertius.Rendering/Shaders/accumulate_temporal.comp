@@ -18,8 +18,9 @@
 #include "motion.glsl"
 #include "neighbor_limit_prototype.glsl"
 
-// The draws of the retained deviation's window: the bounce cap. A half-float store cannot follow a weight below about
-// 2^−11, so an uncapped history takes this window too.
+// The draws of the retained deviation's window: 32, the bounce light's cap before t1-yi11. A half-float store cannot
+// follow a weight below about 2^−11, so the bounce light's cap of 128 (SignalParameters.Diffuse) and an uncapped
+// history take this window too.
 const float DeviationFrames = 32.0;
 
 // The share of the fast history's luminance F within which a sample's weighted step is the store's rounding, not noise.
