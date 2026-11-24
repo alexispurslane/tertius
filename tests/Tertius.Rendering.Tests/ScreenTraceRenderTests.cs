@@ -495,6 +495,25 @@ public sealed class ScreenTraceRenderTests
             }
         }
 
+        /// <summary>
+        /// A gray scene with a rough white floor and a glowing panel of 6 × 3 m, 4.95 m beyond <paramref name="receiver"/>
+        /// on the floor, which takes rare bright rays from it.
+        /// </summary>
+        private static RenderSnapshot FloorBeforeAGlowingPanel(VulkanRenderer renderer, Vector3 receiver)
+        {
+            RenderSnapshot scene = Gray(0.2f);
+            scene.Instances.Add(Floor(renderer, WhiteFloor(roughness: 1)));
+            scene.Instances.Add(
+                Block(
+                    box: renderer.CreateMesh(Primitives.Box(new(0.5f))),
+                    material: Glow(renderer, new(2)),
+                    center: new(0, 0, receiver.Z - 4.95f - 0.05f),
+                    size: new(6, 3, 0.1f)
+                )
+            );
+            return scene;
+        }
+
         [Fact]
         public void TheRetainedDeviationPredictsTheSpreadOfTheSlowHistory()
         {
@@ -513,16 +532,7 @@ public sealed class ScreenTraceRenderTests
             VulkanRenderer renderer = TracingWithoutTheFilter();
             try
             {
-                RenderSnapshot scene = Gray(0.2f);
-                scene.Instances.Add(Floor(renderer, WhiteFloor(roughness: 1)));
-                scene.Instances.Add(
-                    Block(
-                        box: renderer.CreateMesh(Primitives.Box(new(0.5f))),
-                        material: Glow(renderer, new(2)),
-                        center: new(0, 0, receiver.Z - 4.95f - 0.05f),
-                        size: new(6, 3, 0.1f)
-                    )
-                );
+                RenderSnapshot scene = FloorBeforeAGlowingPanel(renderer, receiver);
                 Draw(renderer, scene, frames: apart);
                 (int X, int Y) pixel = PixelOf(receiver);
                 var region = new Region(Left: pixel.X - 40, Right: pixel.X + 40, Top: pixel.Y - 1, Bottom: pixel.Y + 1);
