@@ -660,6 +660,9 @@ public sealed class DiffuseFilterRenderTests(ITestOutputHelper output)
         sample.Samples = null;
     }
 
+    /// <summary>The spacing of half floats at <paramref name="value"/>: the most that one store's rounding moves it.</summary>
+    private static float HalfStep(float value) => MathF.Pow(2, MathF.Floor(MathF.Log2(value)) - 10);
+
     [Fact]
     public void ASingleBrightRayBlockSampleNeverGrowsMoreConspicuousOverThe32DrawsAfterIt()
     {
@@ -667,7 +670,8 @@ public sealed class DiffuseFilterRenderTests(ITestOutputHelper output)
         // again: the peak grew 42 times in the CPU model (docs/plans/bounce-light-confidence.md, section 7). Carried
         // with the light, the deviation lets the peak rise a little in the first draws and then only fall. At a cap of
         // 32 the peak fell to 0.36 of its first value in 32 draws, the slow blend's (31 / 32)^32. At a cap of 128 it
-        // rises by 0.3 %, stays for 5 draws, and then falls by about 0.6 % a draw, near the slow blend's 1 / 128.
+        // rises by 0.3 %, stays for 5 draws, and then falls by about 0.6 % a draw, near the slow blend's 1 / 128. While
+        // it stays, lavapipe's peak moves up and down by one half float step (t1-yi11's lavapipe run).
         (VulkanRenderer renderer, SamplePass sample, DiffuseFilter filter, RenderSnapshot scene) =
             FilteringBounceLight();
         try
@@ -686,9 +690,13 @@ public sealed class DiffuseFilterRenderTests(ITestOutputHelper output)
             float most = peaks.Max();
             output.WriteLine($"Peak excess: {first} at the sample's draw, {most} at most, {peaks[^1]} after 32 draws.");
             most.Should().BeLessThanOrEqualTo(1.05f * first, "the filter only spreads the excess");
-            peaks.Skip(peaks.IndexOf(most))
-                .Should()
-                .BeInDescendingOrder("after its highest draw the peak only falls");
+            for (int draw = peaks.IndexOf(most) + 1; draw < peaks.Count; draw++)
+                peaks[draw]
+                    .Should()
+                    .BeLessThanOrEqualTo(
+                        peaks[draw - 1] + HalfStep(peaks[draw - 1]),
+                        "after its highest draw the peak only falls, apart from the rounding of its half float store"
+                    );
             peaks[^1].Should().BeLessThan(first, "the slow blend and the filter shrink the excess");
         }
         finally
