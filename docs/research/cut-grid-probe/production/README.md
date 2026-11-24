@@ -86,7 +86,7 @@ The first production shader read the turns from constant arrays. The final shade
 
 `tools/timing.sh` times main against production in one exclusive hold of the GPU lock. Each run waits for a 1-minute load under 8, for 60 s at most. The size is 1920 × 1080, the render scale 0.6667, with two frames in flight and pass timestamps on.
 
-- The cut bursts (`tools/scripts/cut-burst-*.json`) repeat 8 cuts. Each films the far camera's first draw and the person camera's first 4 draws, so every timed draw runs the fix. The order is main, production, production, main.
+- The cut bursts (`tools/scripts/cut-burst-*.json`) repeat 8 cuts. Each films the far camera's first draw and the person camera's first 4 draws, d0 to d3. The person camera's d3 has histories of 4 draws and no fix, so the fix runs in 32 of the 40 timed draws. The order is main, production, production, main.
 - The steady runs (`tools/scripts/steady-*.json`) film 40 draws from a start. Their median is a settled draw. The order is production, main.
 
 A single pass's time is not valid on MoltenVK, because its timestamps latch late. The run of neighboring passes from `accumulate indirect specular` to `composite` is valid. The table gives medians in ms.

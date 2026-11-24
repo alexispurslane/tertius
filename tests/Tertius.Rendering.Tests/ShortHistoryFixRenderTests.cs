@@ -333,8 +333,8 @@ public sealed class ShortHistoryFixRenderTests
         }
 
         energies.Should().OnlyContain(e => double.IsFinite(e) && e > 0);
-        // Over the 1,024 bright samples, one sample's light spreads with a deviation of about 0.29, so the mean's deviation
-        // is about 0.009: the bound is about 4 deviations.
+        // Over the 672 bright samples, one sample's light spreads with a deviation of about 0.29, so the mean's deviation
+        // is about 0.011: the bound is about 3.6 deviations.
         energies.Average().Should().BeApproximately(1.0, 0.04, "the mask's bytes are uniform over its cells and frames");
     }
 

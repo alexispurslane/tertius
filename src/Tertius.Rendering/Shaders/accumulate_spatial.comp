@@ -27,7 +27,7 @@ const float LeastLuminance = 1e-4;
 // = u turned by 90 degrees, each rounded to whole pixels: their x and y as signed 4-bit numbers, u.x in bits 0 to 3, u.y
 // in bits 4 to 7, and so on to (u − v).y in bits 28 to 31. So each turn's 8 taps are 4 symmetric pairs, and no tap lies
 // more than 1.5 spacings from the center along an axis. Word 0 is the axis-aligned square. Spacing 4 turns by 0, 11.25,
-// 22.5, 33.75, 45, 56.25, 67.5 and 78.75 degrees, whose RMS radius is 2 % above the square's on average. Spacing 2 turns
+// 22.5, 33.75, 45, 56.25, 67.5 and 78.75 degrees, whose RMS radius is 2.3 % above the square's on average and up to 6.1 % above it at 45 degrees. Spacing 2 turns
 // by 0, 26.57, 45 and −26.57 degrees, 5 % above it: whole pixels allow few turns so near the center. The words sit in
 // vectors, which a shader indexes without memory: a constant array that a shader indexes at run time costs every
 // invocation of the dispatch on Metal, also where the fix does not run (docs/research/cut-grid-probe, "GPU cost").

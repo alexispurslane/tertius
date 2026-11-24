@@ -253,6 +253,10 @@ The parent approved candidate B with two changes: only the specular signal turns
 - GPU cost: a cut draw costs 0.081 to 0.096 ms more, near main's own run-to-run spread of 0.092 ms. The first production shader read the turns from constant arrays with a run-time index. On Metal it cost about 14 ms more per cut draw and 7 ms more per steady draw. The final shader packs the turns into `uvec4` words, and its frames are byte-identical to the first shader's.
 - Tests: 11 behavior tests on the real accumulator and one push-constant test. Mutation testing killed 16 of 18 mutants. G11 is an equivalent mutant, and G17 (no bounds check) is a judgment call.
 
+One fresh-context reviewer (Claude Opus 5.5, high effort) read `e9e0dc043..dfe58f7c8` and the record, and ran nothing. It passed correctness, ticket fulfillment and code quality. It decoded the 12 packed words by computation and found 9 distinct taps in 4 symmetric pairs for each turn, within the footprint limits. It checked the push-constant layout (12 fields, 48 bytes), the frame set's binding 20 for compute, and the draw index's reset on a cut. Its four findings were text only: a stale comment on the mask's binding, a wrong sample count in a test comment, a claim that every timed cut draw runs the fix, and the radius below. A later commit corrects all four.
+
+A correction to stage 1: at spacing 4, the RMS radius of the turned squares is 2.3 % above the square's on average, not within 2 %. One turn, 45°, is 6.1 % above it. At spacing 2 the mean is 4.8 % above it.
+
 Answers to the open points of stage 1:
 
 1. Item 3: the uneven energy of one bright sample stays. The mean over the mask's places and phases is 1 within 0.04 in the GPU test.

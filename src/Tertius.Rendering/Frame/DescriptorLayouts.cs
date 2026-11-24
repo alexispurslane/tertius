@@ -1427,8 +1427,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             StorageBuffer(binding: KeptPositionsBinding, stages: ShaderStageFlags.VertexBit),
             // The LTC table of the rectangle lights, which every pass that shades lights reads beside the other tables.
             Image(binding: LtcTableBinding, stages: shading),
-            // The reflection rays' blue-noise mask, which only the screen tracer reads, so the fragment stages do not count
-            // it against maxPerStageDescriptorSampledImages.
+            // The blue-noise mask, which only compute shaders read (the screen tracer and the accumulator's spatial
+            // dispatch), so the fragment stages do not count it against maxPerStageDescriptorSampledImages.
             Image(binding: BlueNoiseBinding, stages: ShaderStageFlags.ComputeBit),
         ];
         Span<DescriptorBindingFlags> flags = stackalloc DescriptorBindingFlags[frame.Length];
