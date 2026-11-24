@@ -1,5 +1,4 @@
 using System.Numerics;
-using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -175,8 +174,8 @@ public sealed partial class AccumulatorRenderTests
 
             /// <summary>Noisy samples of the light 1 in <paramref name="draw"/>, as the still regions of RegionDrift.</summary>
             private static DrawPlan Still(int draw) =>
-                new((column, row) =>
-                    NoisySample(light: 1, variation: Variation, column: column, row: row, frame: draw)
+                new(
+                    (column, row) => NoisySample(light: 1, variation: Variation, column: column, row: row, frame: draw)
                 );
 
             [Fact]
@@ -477,7 +476,12 @@ public sealed partial class AccumulatorRenderTests
                 for (int x = 0; x < blocks; x++)
                 for (int y = 0; y < blocks; y++)
                 {
-                    float[] alongY = [.. Enumerable.Range(0, GridAnchors).Select(anchor => LightOfBlock(y, [moves[anchor, 0], moves[anchor, 1], moves[anchor, 2]]))];
+                    float[] alongY =
+                    [
+                        .. Enumerable
+                            .Range(0, GridAnchors)
+                            .Select(anchor => LightOfBlock(y, [moves[anchor, 0], moves[anchor, 1], moves[anchor, 2]])),
+                    ];
                     light[x, y] = LightOfBlock(x, alongY);
                 }
                 float noisy = DesignedBase + AlternatingNoise(draw);
@@ -517,13 +521,23 @@ public sealed partial class AccumulatorRenderTests
 
             /// <summary>The draws of a run in which anchor (<paramref name="x"/>, <paramref name="y"/>) answered.</summary>
             private static int[] AnsweredDraws(List<RingDraw[]> rings, int x, int y) =>
-                [.. AnchorOf(rings, x, y).Select((draw, at) => (draw.Answer, at)).Where(draw => draw.Answer != 0).Select(draw => draw.at)];
+                [
+                    .. AnchorOf(rings, x, y)
+                        .Select((draw, at) => (draw.Answer, at))
+                        .Where(draw => draw.Answer != 0)
+                        .Select(draw => draw.at),
+                ];
 
             /// <summary>Welch's t of anchor (<paramref name="x"/>, <paramref name="y"/>) in each tested draw of a run, 0 before.</summary>
             private static double[] WelchOfAnchor(List<RingDraw[]> rings, int x, int y)
             {
                 float[] lights = [.. AnchorOf(rings, x, y).Select(draw => draw.Light)];
-                return [.. Enumerable.Range(0, lights.Length).Select(draw => draw < TemporalSignal.RegionRingDraws - 1 ? 0 : WelchOf(lights, draw))];
+                return
+                [
+                    .. Enumerable
+                        .Range(0, lights.Length)
+                        .Select(draw => draw < TemporalSignal.RegionRingDraws - 1 ? 0 : WelchOf(lights, draw)),
+                ];
             }
 
             [Fact]
@@ -546,7 +560,8 @@ public sealed partial class AccumulatorRenderTests
             {
                 List<RingDraw[]> rings = RunGrid([new(X: 1, Y: 1, Size: -2.5f)]);
 
-                rings.Should()
+                rings
+                    .Should()
                     .OnlyContain(
                         ring => ring.Where((_, texel) => texel != 1 * GridAnchors + 1).All(draw => draw.Answer == 0),
                         "the other anchors' light stays"
@@ -561,10 +576,16 @@ public sealed partial class AccumulatorRenderTests
                 double[] t = WelchOfAnchor(rings, 1, 1);
                 int first = Array.FindIndex(t, value => Math.Abs(value) >= SeedBar);
                 int last = Array.FindLastIndex(t, value => Math.Abs(value) >= ConfirmBar);
-                t.Skip(first).Take(last - first + 1).Should().Contain(value => value < SeedBar, "the change falls below the seed bar");
+                t.Skip(first)
+                    .Take(last - first + 1)
+                    .Should()
+                    .Contain(value => value < SeedBar, "the change falls below the seed bar");
                 AnsweredDraws(rings, 1, 1)
                     .Should()
-                    .Equal(Enumerable.Range(first, last - first + 1), "each answer confirms the next draw's weak change");
+                    .Equal(
+                        Enumerable.Range(first, last - first + 1),
+                        "each answer confirms the next draw's weak change"
+                    );
             }
 
             [Fact]
@@ -580,9 +601,11 @@ public sealed partial class AccumulatorRenderTests
             public void AWeakAnswerPassesOnToTheNextWeakNeighbor()
             {
                 // Anchor (2, 0) is no neighbor of (0, 0): it takes the answer of (1, 0), one draw after (1, 0) took (0, 0)'s.
-                List<RingDraw[]> rings = RunGrid(
-                    [new(X: 0, Y: 0, Size: 2.5f), new(X: 1, Y: 0, Size: 1.5f), new(X: 2, Y: 0, Size: 1.5f)]
-                );
+                List<RingDraw[]> rings = RunGrid([
+                    new(X: 0, Y: 0, Size: 2.5f),
+                    new(X: 1, Y: 0, Size: 1.5f),
+                    new(X: 2, Y: 0, Size: 1.5f),
+                ]);
 
                 AnsweredDraws(rings, 2, 0).First().Should().Be(AnsweredDraws(rings, 0, 0).First() + 2);
             }
@@ -602,7 +625,9 @@ public sealed partial class AccumulatorRenderTests
                 List<RingDraw[]> rings = RunGrid([new(X: 0, Y: 0, Size: 2.5f), new(X: 1, Y: 0, Size: -1.5f)]);
 
                 AnsweredDraws(rings, 0, 0).Should().NotBeEmpty();
-                AnswersOf(rings, 1, 0).Should().OnlyContain(answer => answer == 0, "the neighbor's change has the other sign");
+                AnswersOf(rings, 1, 0)
+                    .Should()
+                    .OnlyContain(answer => answer == 0, "the neighbor's change has the other sign");
             }
 
             [Fact]
@@ -618,7 +643,9 @@ public sealed partial class AccumulatorRenderTests
                 double[] weak = WelchOfAnchor(rings, 1, 0);
                 Math.Abs(weak[lastAnswer + 1]).Should().BeLessThan(ConfirmBar);
                 Math.Abs(weak[lastAnswer + 2]).Should().BeGreaterThanOrEqualTo(ConfirmBar);
-                AnswersOf(rings, 1, 0).Should().OnlyContain(answer => answer == 0, "only the draw before's answers confirm");
+                AnswersOf(rings, 1, 0)
+                    .Should()
+                    .OnlyContain(answer => answer == 0, "only the draw before's answers confirm");
             }
 
             [Fact]
@@ -634,7 +661,10 @@ public sealed partial class AccumulatorRenderTests
                 int opened = AnsweredDraws(rings, 2, 2).First();
                 rings[opened][2 * GridAnchors + 2].Gate.Should().Be(0, "the cause holds the gate open");
                 rings[opened][1 * GridAnchors + 1].Gate.Should().Be(TemporalSignal.RegionCauseWindowDraws);
-                WelchOfAnchor(rings, 2, 2).Max(Math.Abs).Should().BeLessThan(SeedBar, "no seed answers (2, 2)'s change");
+                WelchOfAnchor(rings, 2, 2)
+                    .Max(Math.Abs)
+                    .Should()
+                    .BeLessThan(SeedBar, "no seed answers (2, 2)'s change");
                 AnswerOfAnchor(rings: rings, x: 2, y: 2, draw: opened).Should().Be(-1);
                 AnsweredDraws(rings, 1, 1).First().Should().Be(opened + 1);
                 AnswerOfAnchor(rings: rings, x: 1, y: 1, draw: opened + 1).Should().Be(-1);
@@ -664,11 +694,25 @@ public sealed partial class AccumulatorRenderTests
                             overBudget: false
                         );
                     for (int draw = 0; draw < 40 && renderer.LastScene.Camera.Width > WindowWidth / 2; draw++, frame++)
-                        DrawInTheWindow(renderer: renderer, sample: sample, scene: scene, light: 0.5f, frame: frame, overBudget: true);
+                        DrawInTheWindow(
+                            renderer: renderer,
+                            sample: sample,
+                            scene: scene,
+                            light: 0.5f,
+                            frame: frame,
+                            overBudget: true
+                        );
                     List<RingDraw[]> rings = [];
                     for (int draw = 0; draw < 110; draw++, frame++)
                     {
-                        float[] blockLight = [.. Enumerable.Range(0, WindowWidth / 8).Select(block => LightOfBlock(block, [0, 0, draw >= Start ? 1.5f * DesignedSpread : 0]))];
+                        float[] blockLight =
+                        [
+                            .. Enumerable
+                                .Range(0, WindowWidth / 8)
+                                .Select(block =>
+                                    LightOfBlock(block, [0, 0, draw >= Start ? 1.5f * DesignedSpread : 0])
+                                ),
+                        ];
                         float light = DesignedBase + AlternatingNoise(frame);
                         sample.Samples = (column, _) => new Vector4(new Vector3(light + blockLight[column / 8]), 1);
                         Continue(renderer, scene, frames: 1);
@@ -679,9 +723,28 @@ public sealed partial class AccumulatorRenderTests
                     renderer.LastScene.Camera.Width.Should().Be(WindowWidth / 2, "the render size stayed at half");
                     const int WindowAnchors = WindowWidth / 64;
                     float[] lights = [.. rings.Select(ring => ring[2].Light)];
-                    int[] staleBefore = [.. Enumerable.Range(TemporalSignal.RegionRingDraws, rings.Count - TemporalSignal.RegionRingDraws).Where(draw => Math.Abs(WelchOf(lights, draw)) >= ConfirmBar && (rings[draw - 1][3].Answer != 0 || rings[draw - 1][WindowAnchors + 2].Answer != 0 || rings[draw - 1][WindowAnchors + 3].Answer != 0))];
-                    staleBefore.Should().NotBeEmpty("anchor 2's weak change meets a stale answer beyond the last anchor");
-                    rings.Should().OnlyContain(ring => ring.Take(3).All(draw => draw.Answer == 0), "no anchor inside the half size answered");
+                    int[] staleBefore =
+                    [
+                        .. Enumerable
+                            .Range(TemporalSignal.RegionRingDraws, rings.Count - TemporalSignal.RegionRingDraws)
+                            .Where(draw =>
+                                Math.Abs(WelchOf(lights, draw)) >= ConfirmBar
+                                && (
+                                    rings[draw - 1][3].Answer != 0
+                                    || rings[draw - 1][WindowAnchors + 2].Answer != 0
+                                    || rings[draw - 1][WindowAnchors + 3].Answer != 0
+                                )
+                            ),
+                    ];
+                    staleBefore
+                        .Should()
+                        .NotBeEmpty("anchor 2's weak change meets a stale answer beyond the last anchor");
+                    rings
+                        .Should()
+                        .OnlyContain(
+                            ring => ring.Take(3).All(draw => draw.Answer == 0),
+                            "no anchor inside the half size answered"
+                        );
                 }
                 finally
                 {
@@ -696,12 +759,17 @@ public sealed partial class AccumulatorRenderTests
             [Fact]
             public void TheCornerAnchorsTakeTheAnswerOfTheirDiagonalNeighbor()
             {
-                List<RingDraw[]> rings = RunGrid(
-                    [new(X: 1, Y: 1, Size: 2.5f), new(X: 0, Y: 0, Size: 1.5f), new(X: 2, Y: 2, Size: 1.5f)]
-                );
+                List<RingDraw[]> rings = RunGrid([
+                    new(X: 1, Y: 1, Size: 2.5f),
+                    new(X: 0, Y: 0, Size: 1.5f),
+                    new(X: 2, Y: 2, Size: 1.5f),
+                ]);
 
                 int seeded = AnsweredDraws(rings, 1, 1).First();
-                AnsweredDraws(rings, 0, 0).First().Should().Be(seeded + 1, "the first anchor reads only anchors inside");
+                AnsweredDraws(rings, 0, 0)
+                    .First()
+                    .Should()
+                    .Be(seeded + 1, "the first anchor reads only anchors inside");
                 AnsweredDraws(rings, 2, 2).First().Should().Be(seeded + 1, "the last anchor reads only anchors inside");
             }
         }
