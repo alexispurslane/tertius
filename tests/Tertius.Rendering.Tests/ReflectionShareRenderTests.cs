@@ -293,6 +293,16 @@ public sealed class ReflectionShareRenderTests
         );
 
     [Fact]
+    public void WithoutALitPixelInViewAGlossyFloorsReflectionsAreThoseOfItsLobeAlone()
+    {
+        float[] guided = WithSwitch(null, () => GrayFloorSpecularSample());
+        float[] lobe = WithSwitch("off", () => GrayFloorSpecularSample());
+
+        lobe.Should().Contain(value => value > 0, "the sky lights the floor's reflections");
+        guided.Should().Equal(lobe, "the ambient sky sends no direct light, so the guide is empty and no ray takes the guided draw");
+    }
+
+    [Fact]
     public void ASunlitFloorsReflectionOfTheSkyKeepsItsMeanAtTheCeilingsShare()
     {
         double guided = WithSwitch(null, () => FloorSpecularMean(frames: 4));
@@ -523,6 +533,29 @@ public sealed class ReflectionShareRenderTests
                 }
             }
             return sum / count;
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>The specular sample of the first frame of a glossy metal floor under an ambient gray sky alone.</summary>
+    private static float[] GrayFloorSpecularSample()
+    {
+        VulkanRenderer renderer = Gpu.Headless(
+            width: Width,
+            height: Height,
+            screenTrace: ScreenTrace.Default,
+            warmUpFrames: 0
+        );
+        try
+        {
+            RenderSnapshot scene = Gray(0.5f);
+            scene.Instances.Add(Floor(renderer, Mirror(Glossy)));
+            scene.Time += Tick;
+            renderer.Render(scene, 1f);
+            return renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Sample(0));
         }
         finally
         {

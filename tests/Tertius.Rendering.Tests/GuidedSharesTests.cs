@@ -164,6 +164,13 @@ public sealed class GuidedSharesTests
             .Be(0.2f, "no tile lies beyond the edge to blend with");
 
     [Fact]
+    public void ABlockInTheLastTileOfTheImageReadsNoTileBeyondIt() =>
+        GuidedShares
+            .TileShareAt(shares: [0.2f], imageWide: 1, tilesWide: 1, tilesHigh: 1, blockX: 7, blockY: 7)
+            .Should()
+            .Be(0.2f, "the tile past the last one lies outside the image");
+
+    [Fact]
     public void ABlockReadsOnlyTheTilesThatTheRenderSizeCovers() =>
         GuidedShares
             .TileShareAt(
