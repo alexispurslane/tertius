@@ -1134,3 +1134,145 @@ Limits:
   stand frame 159), but it also differs from the three closed-reset columns in its test, so it is no such control.
 - The timing comes from the scratch build, whose own paths hide the variants' read difference.
 - The frozen bay's level gap of the earlier section (-0.15 % to -0.40 %) is not studied here.
+
+## The reset in the walk: closed against open (build yk)
+
+The parent's order of 2026-11-24 asked one question: does the reset policy cause the light that stays after the walk's
+lamp switch? This section holds the hyst rule fixed and changes only the gate age that a reset or a draw that is not
+valid sets.
+
+### The two arms
+
+Build yk is yj plus one knob value (`scratch-yk.patch`, header and `SceneBatcher.cs`). Both arms run in the yk binary
+with the cap of 128, the gate of 128 draws after a counted cause, 36 valid draws before a test, and the hyst rule of
+the section above (seed at |t18| >= 5.0, same-sign confirmation at |t18| >= 2.6 from the previous draw's signed answers).
+
+| Arm | Knob | Gate age (causeAge) after a draw that does not continue the draw before | after a draw that is not valid |
+|---|---|---|---|
+| hxc (yj's hx) | `TERTIUS_X_REGION_CLOSED=hyst` | 4096 (closed) | the draw before's plus 1 (keeps counting) |
+| hxo | `TERTIUS_X_REGION_CLOSED=hyst-open` | 0 (open for up to 128 draws) | 0 (open for up to 128 draws) |
+
+The hxo column is yg's reset, which g128+r used. In both arms a counted cause sets 0. In both arms, a draw that does
+not continue clears the valid-draw count and reads no earlier answer (`regionContinues()`). A draw that is not valid
+restarts the valid-draw count in both arms. While the gate is open, both arms answer with today's test and store its
+sign. While it is closed, both arms answer with the hyst rule.
+
+Scenes: `yifilm.py walk-switch` (lamps z:-12:4 off from walk frame 60, log draw 253) and `walk-off` (lamps off from
+draw 0), at 4.08 stops. Each arm has its own lamps-off run. b is today's test (`ws-byi`, `wo-byi`). Stand frame h k is
+log draw 313 + k.
+
+### Checks
+
+- Same build: yk's hxc equals yj's hx in the walk (`ws-hxk` against `ws-hx`), and yk's b equals yi's b in both the
+  walk and the lamps-off walk (`ws-bk`, `wo-bk` against `ws-byi`, `wo-byi`). Each pair: 234 of 234 files byte for byte
+  (230 kept frames, `region-ring.log`, `region-t.log`, `exposure.json`, `script.json`). So the earlier b and hx takes
+  serve unchanged (`yi-reset-check.json`).
+- Inputs: `script.json` and `exposure.json` are the same in hxc, hxo and b, for each scene. The kept frame names are the
+  same. The renderer has no random seed: its noise follows the draw index.
+- Where the arms diverge (`yi-reset-gate.json`, from both ring logs):
+  1. Draw 0, the start, does not continue a draw before. hxc stores causeAge 4096 and hxo stores 0, at all 240
+     anchors. This is the only draw in either take that does not continue the draw before.
+  2. The first answers differ at draw 36, the first draw with 36 valid draws: hxo's open gates answer with today's
+     test, and hxc's closed gates do not. The light (ring r) first differs at draw 39. So the two arms already differ
+     before the lamp switch, through the cold start: 730 answers in hxo against 123 in hxc before walk frame 60.
+  3. The walk makes every anchor not valid in every draw from walk frame 2 to stand frame 1. The same 28,324
+     anchor-draws while walking are not valid in both arms. From stand frame 2, two anchors stay not valid.
+  4. hxo: at stand frame 0, all 240 gates are open, and all 240 were opened by a draw that is not valid. At stand frames
+     40 to 128, 232 gates are open because a draw was not valid, and 8 are open because of a counted cause. At stand
+     frame 159, 2 gates are open.
+  5. hxc: up to 14 gates are open, opened only by counted causes (14 anchor-draws while walking, 8 while standing).
+- So the reset path that the order names, history made not valid by the camera's movement, runs in this take. It is
+  what opens hxo's gates after the stop.
+
+Answers after the stop (stand frames 0 to 159), all from the logs:
+
+| Arm | Answers + / - | With the gate open / closed | Stand frames with an answer |
+|---|---|---|---|
+| hxc | 0 / 36 | 2 / 34 | 41 to 83 |
+| hxo | 23 / 320 | 343 / 0 | 37 to 128 |
+
+Neither arm answers while walking, because no anchor has 36 valid draws. In the lamps-off walk, hxo answers 182 times
+after the stop (50 positive, 132 negative), and hxc does not answer.
+
+### The light after the switch
+
+Mean gray (0 to 255, sRGB PNG) of the whole frame, per stand frame. "On" is the lamp-switch walk, "off" the lamps-off
+walk of the same arm.
+
+| Measure | 0 | 40 | 60 | 80 | 100 | 130 | 159 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| b on - b off | +5.11 | +3.67 | +3.07 | +2.56 | +2.16 | +1.67 | +1.34 |
+| hxc on - hxc off | +5.02 | +3.61 | +3.15 | +2.88 | +2.62 | +2.34 | +2.14 |
+| hxo on - hxo off | +5.15 | +3.70 | +3.08 | +2.53 | +2.13 | +1.63 | +1.39 |
+| gap: hxc on - b on | -0.09 | -0.06 | +0.18 | +0.49 | +0.68 | +1.01 | +1.17 |
+| removed by the open reset: hxc on - hxo on | -0.13 | -0.09 | +0.16 | +0.51 | +0.71 | +1.04 | +1.10 |
+| left: hxo on - b on | +0.04 | +0.03 | +0.01 | -0.02 | -0.03 | -0.04 | +0.07 |
+| control change: hxc off - b off | +0.00 | +0.00 | +0.10 | +0.17 | +0.23 | +0.34 | +0.37 |
+| control change: hxo off - b off | +0.00 | +0.00 | +0.00 | +0.00 | +0.00 | +0.00 | +0.02 |
+
+- The control changes with the reset: in the lamps-off walk, hxc ends 0.37 gray above b. hxo stays within 0.02 of b.
+  The closed reset so keeps old light after this walk also without a lamp switch. The table therefore also gives the
+  paired on minus off differences.
+- Before the stop, the arms differ in the other direction: at walk frame 55 (before the switch), hxc on is 0.52 gray
+  under hxo on and 0.46 under b on. This comes from the cold start (item 2 above). It falls to -0.09 by stand frame 40.
+- Share of the gap that the open reset removes, on the mean of stand frames 40 to 159:
+
+  | Box | Gap (hxc - b), gray | Removed (hxc - hxo), gray | Share | Paired gap | Paired removed | Paired share |
+  |---|---:|---:|---:|---:|---:|---:|
+  | whole | 0.644 | 0.653 | 101 % | 0.423 | 0.438 | 103 % |
+  | floor (y 600 to 1080) | 0.467 | 0.469 | 100 % | 0.314 | 0.319 | 102 % |
+  | walls and ceiling (y 0 to 600) | 0.786 | 0.801 | 102 % | 0.511 | 0.534 | 104 % |
+
+- At the pixel scale (Gaussian sigma 8 px), the 99th percentile of hxc - hxo is +0.17, +2.26, +2.70 and +2.75 gray at
+  stand frames 40, 80, 100 and 159. hxo - b is not zero locally: its 1st and 99th percentiles are -1.11 / +0.06 at
+  stand frame 80 and -0.72 / +1.21 at stand frame 159.
+
+Reading: in this walk, the open reset removes all of hxc's lag against b, within the measure's precision (100 % to
+104 % of the mean gap). The logs give the path: the walk makes every anchor not valid; under hxo those draws open every
+gate for 128 draws; from stand frame 37 (36 valid draws after the stop) to 128, today's test answers 343 times, mostly
+with negative cuts, and the old light leaves as fast as in b. Under hxc the gates stay closed, and the hyst rule answers
+36 times. This take does not separate the start reset from the walk's reset: both arms differ from draw 0. The logs
+show that hxo's answers after the stop come from gates opened by the walk's draws that are not valid, and the whole-frame difference between the arms is −0.09 gray at stand frame 40.
+
+### Measurable against visible
+
+- Measurable: the gap of 1.17 gray at stand frame 159 (whole frame) and its removal, the control's 0.37 gray, and the
+  local differences above.
+- Not visible to me at 1:1. Blind test: `pictures/walk-reset-blind.png` shows hxc and hxo at stand frames 40, 80, 100
+  and 130 (output x 960 to 1920, y 0 to 540), one row each, in an order drawn at random. I wrote my guess before I read
+  the key. I named the right pane brighter in all four rows, with no confidence. The key put hxc on the left in all
+  four rows, so I was wrong in all four. That is the pane-position bias of the first take. Guess and key are in
+  `yi-reset-blind.json`.
+- Seams: `pictures/walk-reset-seams-h040.png`, `-h080.png` and `-h100.png` show b's frame with output x 1440 onward
+  from hxo (top row) and hxc (bottom row). I see no seam in any of them.
+- Pane-swapped pairs: `pictures/walk-reset-1to1-hxo-hxc.png` and `-hxc-hxo.png` (stand frames 40, 80 and 100, rows).
+- Where the difference lies: `pictures/walk-reset-hxc-minus-hxo-x20-h100.png` and `-h159.png` (Gaussian sigma 8 px,
+  times 20 on 128, whole frame at half size). It shows soft region-sized patches, brighter in hxc on the walls and the
+  ceiling.
+- Film: `videos/walk-reset-yk.mp4`, b | b lamps off over hxo | hxc, stand frames 0 to 159, 1:1 crop of output x 960
+  to 1920, y 0 to 540, 60 frames a second.
+
+### How to make them again
+
+From the checkout's root, with bash:
+
+1. `bash docs/research/t1-yi11-region-evidence/tools/builds.sh yk`
+2. `for f in walk-switch walk-off; do bash docs/research/t1-yi11-region-evidence/tools/films.sh $f hxk hxo bk; done`
+3. In the dev shell: `python3 -I docs/research/t1-yi11-region-evidence/tools/yireset.py check`, then `gate`, `walk`
+   and `look <a scratch folder for the blind key>`.
+4. The film: `CROP=960,0,1920,540 PREFIX=h- python3 -I tools/grid.py videos/walk-reset-yk.mp4 313 '<note>'` with
+   the sides `ws-byi`, `wo-byi`, `ws-hxo` and `ws-hxk` (labels as in the film).
+
+### Limits
+
+- One take per arm and scene, on one machine. No sweep: the gate, the bars and the cap stay as above.
+- One scene. The share holds for this walk, where the walk makes every anchor not valid for 120 draws. A shorter or
+  partial movement can differ.
+- The start reset and the walk's reset are not separated. The arms differ from draw 0, and before the stop hxc is
+  darker than hxo by up to 0.52 gray. The logs, not a separate arm, tie the post-stop answers to the walk's draws.
+- The open reset also brings back what the closed reset was for: today's test answers in every gate for 128 draws
+  after any start or walk. This record does not measure that cost here. The frozen bay's cold start and the turned
+  rect-bay of the earlier sections hold the earlier evidence of it (g128+r).
+- No timing was run, as the order said.
+
+This record does not decide the integration or the ticket. It leaves both to the parent.

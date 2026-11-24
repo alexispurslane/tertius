@@ -9,12 +9,13 @@
 # hyst (the two closed-gate tests, with the closed reset and a gate of 128 draws), and the films walk-switch and
 # walk-off (yifilm.py); with TURN, yi keeps its own build, since it holds yh's turn. Build yj (scratch-yj.patch) adds
 # byj, g128ryj, w36yj and pairyj (yi's columns drawn by yj, for the check) and hx (the replay's signed hysteresis); yj
-# keeps its own build with TURN too. Run it with bash from the checkout's root: zsh does not split the knobs.
+# keeps its own build with TURN too. Build yk (scratch-yk.patch) adds bk and hxk (b and hx drawn by yk, for the check)
+# and hxo (hx's rule with the open reset of yg: TERTIUS_X_REGION_CLOSED=hyst-open). Run it with bash from the checkout's root: zsh does not split the knobs.
 set -uo pipefail
 Y=$(cd "$(dirname "$0")" && pwd); film=$1; shift
 declare -A build=([a]=ya [b]=ya [c]=yc [d]=ya [e]=ya [g]=yg [r]=yg [gr]=yg [g128r]=yg [bl]=yg
                   [byi]=yi [g128ryi]=yi [w36]=yi [hyst]=yi
-                  [byj]=yj [g128ryj]=yj [w36yj]=yj [pairyj]=yj [hx]=yj)
+                  [byj]=yj [g128ryj]=yj [w36yj]=yj [pairyj]=yj [hx]=yj [bk]=yk [hxk]=yk [hxo]=yk)
 declare -A knobs=([a]="" [b]="TERTIUS_X_DIFFUSE_CAP=128" [c]="TERTIUS_X_DIFFUSE_CAP=128"
                   [d]="TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_OFF=1" [e]="TERTIUS_X_DIFFUSE_CAP=64 TERTIUS_X_REGION_OFF=1"
                   [g]="TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_GATE=128" [r]="TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_RANK=1"
@@ -28,7 +29,10 @@ declare -A knobs=([a]="" [b]="TERTIUS_X_DIFFUSE_CAP=128" [c]="TERTIUS_X_DIFFUSE_
                   [g128ryj]="TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_GATE=128 TERTIUS_X_REGION_RANK=1"
                   [w36yj]="TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_GATE=128 TERTIUS_X_REGION_CLOSED=w36"
                   [pairyj]="TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_GATE=128 TERTIUS_X_REGION_CLOSED=pair"
-                  [hx]="TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_GATE=128 TERTIUS_X_REGION_CLOSED=hyst")
+                  [hx]="TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_GATE=128 TERTIUS_X_REGION_CLOSED=hyst"
+                  [bk]="TERTIUS_X_DIFFUSE_CAP=128"
+                  [hxk]="TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_GATE=128 TERTIUS_X_REGION_CLOSED=hyst"
+                  [hxo]="TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_GATE=128 TERTIUS_X_REGION_CLOSED=hyst-open")
 for col in "$@"; do
   prefix=rb; [ "$film" = switch ] && prefix=sw; [ "$film" = switch-film ] && prefix=swf
   [ "$film" = rect-bay-settled ] && prefix=rbs
@@ -36,7 +40,7 @@ for col in "$@"; do
   echo "$(date +%T) $film $col: ${build[$col]} ${knobs[$col]}, load $(sysctl -n vm.loadavg | awk '{print $2}')"
   # shellcheck disable=SC2086
   b=${build[$col]}; folder=$prefix-$col; turn=""
-  [ -n "${TURN:-}" ] && { [ "$b" = yi ] || [ "$b" = yj ] || b=yh; folder=${prefix}t-$col; turn="TERTIUS_X_YAW_DEGREES=$TURN"; }
+  [ -n "${TURN:-}" ] && { [ "$b" = yi ] || [ "$b" = yj ] || [ "$b" = yk ] || b=yh; folder=${prefix}t-$col; turn="TERTIUS_X_YAW_DEGREES=$TURN"; }
   log=""; [ "$b" != ya ] && [ "$b" != yc ] && log="TERTIUS_X_REGION_LOG=/private/tmp/t1-yi11/films/$folder"
   extra=""; [ "$film" = switch ] && [ -n "${KEEP:-}" ] && extra="KEEP=$KEEP"
   nix develop --command python3 -I "$Y/yifilm.py" "$b" "$folder" "$film" ${knobs[$col]} $turn $log $extra 2>&1 | grep -v SQLite | tail -1 | cut -c1-400
