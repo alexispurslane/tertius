@@ -205,7 +205,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>The binding of the frame set that holds the LTC table of the rectangle lights (brdf.glsl, ltcTable).</summary>
     public const uint LtcTableBinding = 19;
 
-    /// <summary>The binding of the frame set that holds the reflection rays' blue-noise mask (screen_trace.glsl, blueNoiseMask).</summary>
+    /// <summary>
+    /// The binding of the frame set that holds the blue-noise mask for the compute stage: the reflection rays'
+    /// (screen_trace.glsl) and the specular short-history fix's turns (accumulate_spatial.comp), each as blueNoiseMask.
+    /// </summary>
     public const uint BlueNoiseBinding = 20;
 
     /// <summary>

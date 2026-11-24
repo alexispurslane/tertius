@@ -15,8 +15,60 @@
 #include "half_store.glsl"
 #include "meter.glsl"
 
+// The blue-noise mask of the frame set (BlueNoiseMask), from which the specular fix chooses each pixel's turned square.
+layout(set = 0, binding = 20) uniform utexture2D blueNoiseMask;
+#include "blue_noise.glsl"
+
 // The least luminance by which the clamp divides: the lag's share and the chroma of the widening.
 const float LeastLuminance = 1e-4;
+
+// The specular fix's turned squares at spacings 4 and 2 (ticket t1-3er4, docs/research/cut-grid-probe). Each word holds
+// the representatives u, v, u + v and u − v of one turn θ of the 3 × 3 square, with u = spacing × (cos θ, sin θ) and v
+// = u turned by 90 degrees, each rounded to whole pixels: their x and y as signed 4-bit numbers, u.x in bits 0 to 3, u.y
+// in bits 4 to 7, and so on to (u − v).y in bits 28 to 31. So each turn's 8 taps are 4 symmetric pairs, and no tap lies
+// more than 1.5 spacings from the center along an axis. Word 0 is the axis-aligned square. Spacing 4 turns by 0, 11.25,
+// 22.5, 33.75, 45, 56.25, 67.5 and 78.75 degrees, whose RMS radius is 2 % above the square's on average. Spacing 2 turns
+// by 0, 26.57, 45 and −26.57 degrees, 5 % above it: whole pixels allow few turns so near the center. The words sit in
+// vectors, which a shader indexes without memory: a constant array that a shader indexes at run time costs every
+// invocation of the dispatch on Metal, also where the fix does not run (docs/research/cut-grid-probe, "GPU cost").
+const uvec4 TurnedSquares4First = uvec4(0xC4444004u, 0xD5534F14u, 0xE5524E24u, 0xF6613E23u);
+const uvec4 TurnedSquares4Second = uvec4(0x06603D33u, 0x166F2D32u, 0x255E2C42u, 0x355D1C41u);
+const uvec4 TurnedSquares2 = uvec4(0xE2222002u, 0xF3312F12u, 0x03301F11u, 0xD11321F2u);
+
+// The axis-aligned square's word: no turn.
+const uint AxisAligned = 0u;
+
+// The frames by which the fix's mask frame runs ahead of the draw's: half the mask's period, so that the fix never reads
+// the frame from which the reflection rays (screen_trace.glsl) and the output's dither (tonemap.glsl) take their numbers.
+const uint StencilBlueNoisePhase = BlueNoiseFrames / 2u;
+
+// The turn of the fix's square at `pixel` and `spacing`. A specular pixel at spacing 4 or 2 takes one of the turned
+// squares, by the mask's radial byte at the pixel. Neighbors take unrelated turns, so a pixel and its neighbor one spacing
+// away share few taps, and one bright sample spreads into no regular lattice. Every other pixel keeps the axis-aligned
+// square.
+uint fixTurnAt(ivec2 pixel, int spacing)
+{
+    if (parameters.light != SpecularLight || spacing != 4 && spacing != 2)
+        return AxisAligned;
+    uint byte = blueNoiseBytesOf(pixel, parameters.drawIndex + StencilBlueNoisePhase).r;
+    if (spacing == 2)
+        return TurnedSquares2[byte >> 6u];
+    uint turn = byte >> 5u;
+    return turn < 4u ? TurnedSquares4First[turn] : TurnedSquares4Second[turn - 4u];
+}
+
+// The offset of the square's tap (x, y), x and y in −1 to 1, under `turn` at `spacing`: ±u at (±1, 0), ±v at (0, ±1),
+// ±(u + v) at (1, 1) and (−1, −1), and ±(u − v) at (1, −1) and (−1, 1). The axis-aligned square gives spacing × (x, y).
+ivec2 fixTapOffset(uint turn, int spacing, int x, int y)
+{
+    if (turn == AxisAligned)
+        return spacing * ivec2(x, y);
+    // The representative's place in the word, in 4-bit numbers, and the side of its pair that the tap takes.
+    uint place = y == 0 ? 0u : x == 0 ? 2u : x == y ? 4u : 6u;
+    int side = x == 0 ? y : x;
+    ivec2 representative = ivec2(int(turn << (28u - 4u * place)), int(turn << (24u - 4u * place))) >> 28;
+    return side * representative;
+}
 
 // The evidence levels of a block, ordered by how certain the knowledge is (section 8.2). Region and light evidence cap the
 // anti-lag's length at FullRateFrames, and motion evidence narrows the box for this draw.
@@ -98,18 +150,20 @@ void accumulateAt(ivec2 pixel, uint evidence)
     float tracedBefore = historyLength;
 #endif
 
-    // Step 3, the fix: a weighted mean over 3 × 3 pixels 2^(HistoryFixFrames − 1 − n) apart, each neighbor weighted by its
-    // length where it shows the same surface. The pixel's own length is at least 1 after the blend, so the sum is never 0.
+    // Step 3, the fix: a weighted mean over a 3 × 3 square of pixels 2^(HistoryFixFrames − 1 − n) apart, each neighbor
+    // weighted by its length where it shows the same surface. The specular light turns the square per pixel at spacings 4
+    // and 2 (fixTurnAt). The pixel's own length is at least 1 after the blend, so the sum is never 0.
     if (historyLength < min(parameters.fixFrames, cap))
     {
         int spacing = 1 << int(max(parameters.fixFrames - 1.0 - floor(historyLength), 0.0));
+        uint turn = fixTurnAt(pixel, spacing);
         vec3 sum = slow * historyLength;
         vec2 guideSum = guide * historyLength;
         float weights = historyLength;
         for (int y = -1; y <= 1; y++)
             for (int x = -1; x <= 1; x++)
             {
-                ivec2 neighbor = pixel + spacing * ivec2(x, y);
+                ivec2 neighbor = pixel + fixTapOffset(turn, spacing, x, y);
                 if (x == 0 && y == 0 || !insideImages(neighbor) || !sameSurface(key, surfaceKeyAt(neighbor)))
                     continue;
                 vec4 other = imageLoad(scratch, neighbor);
