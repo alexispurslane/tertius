@@ -13,8 +13,8 @@ namespace Tertius.Rendering;
 /// ramp over the roughness caps each pixel's share, so that a sharp lobe takes no guided draw.
 /// </para>
 /// The values are the one store of these constants, which reach the shaders through <see cref="ScreenTracePushConstants"/>.
-/// The methods are the C# copies of mixtureDensity, guidedShareOf and shareEvidenceOf in screen_trace.glsl, and of
-/// screen_trace_share.comp, for the tests.
+/// The methods are the C# copies of mixtureDensity, guidedShareOf, tileShareAt and shareEvidenceOf in screen_trace.glsl,
+/// and of screen_trace_share.comp, for the tests.
 /// </summary>
 internal static class GuidedShares
 {
@@ -70,6 +70,36 @@ internal static class GuidedShares
     /// </summary>
     public static float ReflectionShareOf(float roughness, float tileShare) =>
         MathF.Min(ReflectionCeiling * Math.Clamp((roughness - RampStart) / (RampEnd - RampStart), 0, 1), tileShare);
+
+    /// <summary>
+    /// The share of the tiles around the block (<paramref name="blockX"/>, <paramref name="blockY"/>) from
+    /// <paramref name="shares"/>, row by row, of which the render size covers <paramref name="tilesWide"/> ×
+    /// <paramref name="tilesHigh"/> tiles: bilinear between the tiles' centers, clamped to those tiles.
+    /// </summary>
+    /// <param name="shares">The tiles' shares, <paramref name="imageWide"/> to a row.</param>
+    /// <param name="imageWide">The tiles in a row of the share image, at least <paramref name="tilesWide"/>.</param>
+    public static float TileShareAt(
+        ReadOnlySpan<float> shares,
+        int imageWide,
+        int tilesWide,
+        int tilesHigh,
+        int blockX,
+        int blockY
+    )
+    {
+        float tile = ScreenTraceImages.TileBlocks;
+        float x = Math.Clamp((blockX + 0.5f) / tile, 0.5f, tilesWide - 0.5f) - 0.5f,
+            y = Math.Clamp((blockY + 0.5f) / tile, 0.5f, tilesHigh - 0.5f) - 0.5f;
+        int lowX = (int)x,
+            lowY = (int)y,
+            highX = Math.Min(lowX + 1, tilesWide - 1),
+            highY = Math.Min(lowY + 1, tilesHigh - 1);
+        float fx = x - lowX,
+            fy = y - lowY;
+        float top = float.Lerp(shares[lowY * imageWide + lowX], shares[lowY * imageWide + highX], fx);
+        float bottom = float.Lerp(shares[highY * imageWide + lowX], shares[highY * imageWide + highX], fx);
+        return float.Lerp(top, bottom, fy);
+    }
 
     /// <summary>
     /// The evidence of one reflection sample for its tile's share: its squared weight, and the derivative of that squared

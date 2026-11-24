@@ -118,6 +118,196 @@ public sealed class ReflectionShareRenderTests
         );
 
     [Fact]
+    public void EachBlockReflectionRayIsDrawnAtTheBilinearShareOfTheTilesAroundItsBlock() =>
+        WithSwitch(
+            null,
+            () =>
+            {
+                (VulkanRenderer renderer, RenderSnapshot scene) = PanelOverFloor(Glossy);
+                try
+                {
+                    ScreenTraceProbe.On(renderer, "patterned_shares_probe.comp");
+                    for (int frame = 0; frame < 2; frame++)
+                    {
+                        scene.Time += Tick;
+                        renderer.Render(scene, 1f);
+                    }
+                    float[] guide = renderer.ReadImage(renderer.ScreenTraceImages.BlockGuide);
+                    float[] last = renderer.ReadImage(renderer.ScreenTraceImages.ReflectionShare);
+
+                    var mismatched = new List<string>();
+                    int compared = 0;
+                    foreach ((int x, int y) in FloorBlocks())
+                    {
+                        float drawn = guide[4 * (y * BlocksWide + x) + 3];
+                        float expected = GuidedShares.TileShareAt(
+                            shares: last,
+                            imageWide: TilesWide,
+                            tilesWide: TilesWide,
+                            tilesHigh: TilesHigh,
+                            blockX: x,
+                            blockY: y
+                        );
+                        if (Math.Abs(drawn - expected) > 1e-6f)
+                            mismatched.Add($"({x}, {y}): {drawn} against {expected}");
+                        compared++;
+                    }
+                    mismatched.Should().BeEmpty("the glossy floor's ramp allows the full share, so its tiles' shares rule");
+                    last.Distinct().Should().HaveCount(7, "the probe gives the tiles seven shares from 0 to 6/7 of the ceiling");
+                    compared.Should().BeGreaterThan(500);
+                }
+                finally
+                {
+                    Gpu.DisposeAndAssertClean(renderer);
+                }
+            }
+        );
+
+    [Fact]
+    public void TheFirstDrawAfterACameraCutDrawsItsReflectionRaysAtTheCeiling() =>
+        WithSwitch(
+            null,
+            () =>
+            {
+                (VulkanRenderer renderer, RenderSnapshot scene) = SunlitFloorAlone();
+                try
+                {
+                    for (int frame = 0; frame < 24; frame++)
+                    {
+                        scene.Time += Tick;
+                        renderer.Render(scene, 1f);
+                    }
+                    float[] before = DrawnShares(renderer);
+                    scene.CameraCuts++;
+                    scene.Time += Tick;
+                    renderer.Render(scene, 1f);
+                    float[] after = DrawnShares(renderer);
+
+                    before
+                        .Count(share => share < GuidedShares.ReflectionCeiling / 2)
+                        .Should()
+                        .BeGreaterThan(before.Length / 2, "the floor's shares fell before the cut");
+                    after
+                        .Should()
+                        .OnlyContain(
+                            share => share == GuidedShares.ReflectionCeiling,
+                            "the shares restart before the first trace after the cut, not after it"
+                        );
+                }
+                finally
+                {
+                    Gpu.DisposeAndAssertClean(renderer);
+                }
+            }
+        );
+
+    [Fact]
+    public void TheEvidenceOfAReflectionSampleIsThatOfTheCopyAtEveryShareAndWeight() =>
+        WithSwitch(
+            null,
+            () =>
+            {
+                (VulkanRenderer renderer, RenderSnapshot scene) = PanelOverFloor(Glossy);
+                try
+                {
+                    ScreenTraceProbe.On(renderer, "share_evidence_probe.comp");
+                    scene.Time += Tick;
+                    renderer.Render(scene, 1f);
+                    float[] guide = renderer.ReadImage(renderer.ScreenTraceImages.BlockGuide);
+
+                    float[] factors = [0, 0.5f, 4],
+                        shares = [0, 1f / 32, 0.125f, 0.25f];
+                    var mismatched = new List<string>();
+                    int compared = 0,
+                        capped = 0;
+                    foreach ((int x, int y) in FloorBlocks())
+                    {
+                        int at = 4 * (y * BlocksWide + x);
+                        (float weight, float lobe) = (guide[at + 2], guide[at + 3]);
+                        if (!(weight > 0))
+                            continue;
+                        (float slope, float moment) = GuidedShares.EvidenceOf(
+                            weight: weight,
+                            share: shares[x / 3 % 4],
+                            lobeDensity: lobe,
+                            guidedDensity: factors[x % 3] * lobe
+                        );
+                        if (
+                            Math.Abs(guide[at] - slope) > 1e-5f * Math.Abs(slope) + 1e-30f
+                            || Math.Abs(guide[at + 1] - moment) > 1e-5f * moment
+                        )
+                            mismatched.Add($"({x}, {y}): ({guide[at]}, {guide[at + 1]}) against ({slope}, {moment})");
+                        compared++;
+                        if (weight > GuidedShares.MostEvidenceWeight)
+                            capped++;
+                    }
+                    mismatched.Should().BeEmpty();
+                    compared.Should().BeGreaterThan(500);
+                    capped.Should().BeGreaterThan(100, "the odd rows' light of 10^14 passes the cap of a sample's weight");
+                }
+                finally
+                {
+                    Gpu.DisposeAndAssertClean(renderer);
+                }
+            }
+        );
+
+    [Fact]
+    public void ATileAtAShareOfZeroStillFindsTheGuidedDensityThatRaisesItWhereTheGuideFindsTheLight() =>
+        WithSwitch(
+            null,
+            () =>
+            {
+                (VulkanRenderer renderer, RenderSnapshot scene) = PanelOverFloor(Glossy);
+                try
+                {
+                    ScreenTraceProbe.On(renderer, "zero_shares_probe.comp");
+                    for (int frame = 0; frame < 2; frame++)
+                    {
+                        scene.Time += Tick;
+                        renderer.Render(scene, 1f);
+                    }
+                    float[] guide = renderer.ReadImage(renderer.ScreenTraceImages.BlockGuide);
+
+                    (int mirrorX, int mirrorY) = MirrorPixel(PanelCenter, Width, Height);
+                    (int tileX, int tileY) = (mirrorX / 16, mirrorY / 16);
+                    float slope = 0;
+                    int found = 0;
+                    for (int y = 8 * tileY; y < Math.Min(8 * tileY + 8, BlocksHigh); y++)
+                    for (int x = 8 * tileX; x < Math.Min(8 * tileX + 8, BlocksWide); x++)
+                    {
+                        int at = 4 * (y * BlocksWide + x);
+                        guide[at + 3].Should().Be(0, "the probe set every share to 0 before this draw");
+                        slope += guide[at + 1];
+                        if (guide[at] > 0)
+                            found++;
+                    }
+                    found.Should().BePositive("a lobe ray that hits the panel finds its guided density at a share of 0");
+                    slope.Should().BeNegative("the guided draws would find the panel more often than the lobe does");
+                }
+                finally
+                {
+                    Gpu.DisposeAndAssertClean(renderer);
+                }
+            }
+        );
+
+    [Fact]
+    public void ASunlitFloorsReflectionOfTheSkyKeepsItsMeanAtTheCeilingsShare()
+    {
+        double guided = WithSwitch(null, () => FloorSpecularMean(frames: 4));
+        double lobe = WithSwitch("off", () => FloorSpecularMean(frames: 4));
+
+        guided
+            .Should()
+            .BeApproximately(
+                lobe,
+                0.02 * lobe,
+                "a miss counts with the mixture density, so its lobe draws carry the light that its guided draws miss"
+            );
+    }
+
+    [Fact]
     public void OnASunlitFloorWhoseGuideHoldsOnlyItsOwnPlaneTheFloorsSharesFallToZero() =>
         WithSwitch(
             null,
@@ -294,6 +484,50 @@ public sealed class ReflectionShareRenderTests
                 moved++;
         }
         return (moved, mismatched);
+    }
+
+    /// <summary>The blocks of the floor below the wall, from two rows below the wall's foot.</summary>
+    private static IEnumerable<(int X, int Y)> FloorBlocks()
+    {
+        (_, int wallBottom) = PixelOf(new(PanelCenter.X, FloorHeight, -7), Width, Height);
+        for (int y = wallBottom / 2 + 2; y < BlocksHigh; y++)
+        for (int x = 0; x < BlocksWide; x++)
+            yield return (x, y);
+    }
+
+    /// <summary>The share at which each block below the horizon drew its reflection ray in the last frame.</summary>
+    private static float[] DrawnShares(VulkanRenderer renderer)
+    {
+        float[] guide = renderer.ReadImage(renderer.ScreenTraceImages.BlockGuide);
+        return [.. Enumerable.Range(BlocksWide * (BlocksHigh / 2 + 2), BlocksWide * (BlocksHigh - BlocksHigh / 2 - 2))
+            .Select(block => guide[4 * block + 3])];
+    }
+
+    /// <summary>The mean luminance of the sunlit floor's specular samples over its first <paramref name="frames"/> frames.</summary>
+    private static double FloorSpecularMean(int frames)
+    {
+        (VulkanRenderer renderer, RenderSnapshot scene) = SunlitFloorAlone();
+        try
+        {
+            double sum = 0;
+            int count = 0;
+            for (int frame = 0; frame < frames; frame++)
+            {
+                scene.Time += Tick;
+                renderer.Render(scene, 1f);
+                float[] sample = renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Sample(0));
+                for (int pixel = Width * (Height / 2 + 4); pixel < Width * Height; pixel++)
+                {
+                    sum += 0.2126 * sample[4 * pixel] + 0.7152 * sample[4 * pixel + 1] + 0.0722 * sample[4 * pixel + 2];
+                    count++;
+                }
+            }
+            return sum / count;
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
     }
 
     /// <summary>The specular sample of the first frame of the panel over a floor of <paramref name="roughness"/>.</summary>

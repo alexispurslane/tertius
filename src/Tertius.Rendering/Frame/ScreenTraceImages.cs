@@ -76,7 +76,7 @@ internal sealed class ScreenTraceImages : IDisposable
     /// <param name="diffuse">The diffuse signal, of one part, whose sample the resolve writes.</param>
     /// <param name="specular">The specular signal, of one part.</param>
     /// <param name="filter">The diffuse signal's filter, or null with the filter off (<see cref="DiffuseFilter.Selected"/>).</param>
-    /// <param name="guided">Whether a share of the diffuse rays aims at bright pixels (<see cref="LightPyramidPass.SwitchedOn"/>).</param>
+    /// <param name="guided">Whether a share of the rays of both kinds aims at bright pixels (<see cref="LightPyramidPass.SwitchedOn"/>).</param>
     public ScreenTraceImages(
         VulkanDevice device,
         DeviceAllocator allocator,
@@ -139,29 +139,32 @@ internal sealed class ScreenTraceImages : IDisposable
 
     /// <summary>
     /// The reflection share of each tile of <see cref="TileBlocks"/> × <see cref="TileBlocks"/> blocks
-    /// (<see cref="GuidedShares"/>): the share of the tile's reflection rays that take the guided draw. The tracer and the
-    /// resolve read it bilinearly at a pixel's block, and the share pass moves it after the resolve from this draw's
-    /// evidence. Its content is the share after the last drawn frame, and it is undefined before the first: a draw at which
-    /// the shares restart (<see cref="SharesRestart"/>) reads the ceiling in its place.
+    /// (<see cref="GuidedShares"/>), over the tiles of the largest render size: the share of the tile's reflection rays that
+    /// take the guided draw. The tracer reads it bilinearly at a pixel's block, and the share pass moves it after the
+    /// resolve from this draw's evidence. Its content is the share after the last drawn frame, and it is undefined before
+    /// the first: a draw at which the shares restart (<see cref="SharesRestart"/>) reads the ceiling in its place.
     /// </summary>
     public GpuImage ReflectionShare { get; private set; }
 
     /// <summary>
     /// The guide of each block's reflection ray, which the block pass writes while <see cref="Guided"/>: x the ray's guided
-    /// density along its direction, which the resolve mixes into each pixel's own density, and y and z its evidence for its
-    /// tile's share, the slope and the squared weight of <see cref="GuidedShares.EvidenceOf"/>.
+    /// density along its direction, y and z its evidence for its tile's share, the slope and the squared weight of
+    /// <see cref="GuidedShares.EvidenceOf"/>, and w the share that drew it. The resolve weighs the ray at each pixel of the
+    /// block by the mixture at that share of the pixel's lobe density and the ray's guided density.
     /// </summary>
     public GpuImage BlockGuide { get; private set; }
 
     /// <summary>
     /// Whether every tile's reflection share restarts at <see cref="GuidedShares.ReflectionCeiling"/> before
     /// <paramref name="frame"/>'s rays: when the draw resets every history, as at a camera cut, the first drawn frame and a
-    /// still, and when the render size changes, which moves every tile over other pixels. From the ceiling, a share falls
-    /// where the guided draws bring little within about 30 draws, and the specks that a lobe alone gives on a rough surface
-    /// near a small bright sender do not show in the first draws after the cut (ter-fe63).
+    /// still. From the ceiling, a share falls where the guided draws bring little within about 30 draws, and the specks
+    /// that a lobe alone gives on a rough surface near a small bright sender do not show in the first draws after the cut
+    /// (ter-fe63). A new render size keeps the shares, as a moving camera does: each tile then covers a few percent other
+    /// pixels, and the dynamic render scale changes the size often, so a restart there would bring back the grain of a
+    /// restart on every surface whose share had fallen. The share pass writes the ceiling at a restart into every tile of
+    /// the largest render size, so that a larger size reads no share from before it.
     /// </summary>
-    public static bool SharesRestart(FrameHistory.PendingFrame frame) =>
-        frame.Reset || !frame.RenderSize.Equals(frame.PreviousRenderSize);
+    public static bool SharesRestart(FrameHistory.PendingFrame frame) => frame.Reset;
 
     /// <summary>The light-age records, one per parity, with a precise specular history: none with the original.</summary>
     private GpuImage[] lightAges = [];

@@ -1,8 +1,16 @@
 // The setup of ResolveSharedReflectionTests: every pixel of a block takes one reflection ray along the mirror direction of
-// the block's first pixel, with a light of 1 and a hit 1 m away. The includer defines OwnRays and RecordedDensityScale.
-// With OwnRays, every pixel traces that ray as its own, recorded with the pixel's own density. Without it, the block holds
-// the ray, recorded with its first pixel's density times RecordedDensityScale, and every pixel shares it.
+// the block's first pixel, with a light of 1 and a hit 1 m away. The includer defines OwnRays and RecordedDensityScale, and
+// may define GuideShare, the guided share at which the block's ray was drawn, 0 by default. The ray's guided density is
+// GuidedDensityScale times its first pixel's lobe density. With OwnRays, every pixel traces that ray as its own, recorded
+// with the pixel's own mixture density at GuideShare. Without it, the block holds the ray, recorded with its first
+// pixel's density times RecordedDensityScale, and its guide holds the guided density and GuideShare, and every pixel
+// shares it.
 #include "screen_trace.glsl"
+
+#ifndef GuideShare
+#define GuideShare 0.0
+#endif
+const float GuidedDensityScale = 3.0;
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
@@ -28,8 +36,10 @@ void main()
     }
     TracingPixel c = tracingPixelAt(first);
     vec3 direction = directionOfCode(directionCodeOf(reflect(-c.V, c.normal)));
+    float guided = GuidedDensityScale * reflectionDensity(c, direction);
 #if OwnRays
-    RayRecord record = sharedReflection(direction, reflectionDensity(tracingPixelAt(pixel), direction));
+    float own = reflectionDensity(tracingPixelAt(pixel), direction);
+    RayRecord record = sharedReflection(direction, mixtureDensity(GuideShare, own, guided));
     imageStore(ownLight, ivec3(pixel, KindReflection), record.light);
     imageStore(ownRay, ivec3(pixel, KindReflection), record.ray);
     imageStore(rayPlan, pixel, uvec4(PlanOwnReflection));
@@ -39,6 +49,7 @@ void main()
         RayRecord record = sharedReflection(direction, reflectionDensity(c, direction) * RecordedDensityScale);
         imageStore(blockLight, ivec3(pixel / 2, KindReflection), record.light);
         imageStore(blockRay, ivec3(pixel / 2, KindReflection), record.ray);
+        imageStore(blockGuide, pixel / 2, vec4(guided, 0.0, 0.0, GuideShare));
     }
     imageStore(rayPlan, pixel, uvec4(0u));
 #endif

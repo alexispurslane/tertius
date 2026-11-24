@@ -5,7 +5,7 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// When every tile's reflection share restarts at the ceiling (<see cref="ScreenTraceImages.SharesRestart"/>): at each
-/// draw that resets every history, and at a new render size, whose tiles cover other pixels. No GPU needed.
+/// draw that resets every history, and not at a new render size. No GPU needed.
 /// </summary>
 public sealed class ReflectionShareRestartTests
 {
@@ -38,7 +38,7 @@ public sealed class ReflectionShareRestartTests
     }
 
     [Fact]
-    public void ANewRenderSizeRestartsTheSharesThoughTheHistoriesContinue()
+    public void ANewRenderSizeKeepsTheSharesAsTheHistoriesDo()
     {
         var history = new FrameHistory(StillRule.Window);
         Draw(history, Snapshot(cuts: 1), Output);
@@ -46,7 +46,13 @@ public sealed class ReflectionShareRestartTests
         FrameHistory.PendingFrame pending = Begin(history, Snapshot(cuts: 1), new(1152, 648));
 
         pending.Reset.Should().BeFalse("the histories reproject across render sizes");
-        ScreenTraceImages.SharesRestart(pending).Should().BeTrue("each tile now covers other pixels");
+        ScreenTraceImages
+            .SharesRestart(pending)
+            .Should()
+            .BeFalse(
+                "the dynamic render scale changes the size often, and a restart would bring back the grain of a restart "
+                    + "on every surface whose share had fallen"
+            );
     }
 
     private static RenderSnapshot Snapshot(long cuts)

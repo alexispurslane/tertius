@@ -1,0 +1,14 @@
+#version 460
+// Sets every tile's reflection share to 0 after the share pass, so that the next draw's rays draw at a share of 0
+// (ReflectionShareRenderTests).
+#extension GL_GOOGLE_include_directive : require
+#include "screen_trace.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main()
+{
+    ivec2 tile = ivec2(gl_GlobalInvocationID.xy);
+    if (all(lessThan(tile, imageSize(reflectionShare))))
+        imageStore(reflectionShare, tile, vec4(0.0));
+}

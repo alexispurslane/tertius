@@ -4,7 +4,8 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The resolve's weight of a block's reflection ray at a pixel that shares it: the pixel's own density along the ray, not
-/// the density that the tracing pixel recorded (ticket ter-xo83).
+/// the density that the tracing pixel recorded (ticket ter-xo83), and for a guided ray the pixel's own mixture at the share
+/// that drew the ray (ter-fe63).
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class ResolveSharedReflectionTests
@@ -33,6 +34,30 @@ public sealed class ResolveSharedReflectionTests
                         0.005f * own[at + channel],
                         "the shared ray counts with the pixel's own density, which the own ray records to 1/256 stop"
                     );
+            compared++;
+        }
+        compared.Should().BeGreaterThan(50_000, "the floor fills the lower half of the image");
+    }
+
+    [Fact]
+    public void APixelWeighsAGuidedBlockRayByItsOwnMixtureAtTheShareThatDrewTheRay()
+    {
+        float[] own = SpecularSamples("shared_reflection_setup_own_guided.comp");
+        float[] shared = SpecularSamples("shared_reflection_setup_guided.comp");
+
+        int compared = 0;
+        for (int at = 0; at < own.Length; at += 4)
+        {
+            if (own[at] <= 0)
+                continue;
+            shared[at]
+                .Should()
+                .BeApproximately(
+                    own[at],
+                    0.005f * own[at],
+                    "the block's ray was drawn at a share of 1/8, which the pixel's mixture takes from the block guide, "
+                        + "though the pixel's own share is 0 in this unlit scene"
+                );
             compared++;
         }
         compared.Should().BeGreaterThan(50_000, "the floor fills the lower half of the image");

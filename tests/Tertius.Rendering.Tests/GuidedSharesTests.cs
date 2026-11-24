@@ -2,8 +2,9 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The rules of the guided shares (ARCHITECTURE.md, "Guided rays", <see cref="GuidedShares"/>): the one-sample mixture
-/// density, the reflection kind's share of a pixel from its roughness and its tile's share, the evidence of one reflection
-/// sample for its tile, and the tile's step from one draw to the next. The GPU tests compare the shaders with these copies.
+/// density, the reflection kind's share of a pixel from its roughness and its tile's share, the evidence of one
+/// reflection sample for its tile, the tile's step from one draw to the next, and a block's bilinear read of the tiles.
+/// The GPU tests compare the shaders with these copies.
 /// </summary>
 public sealed class GuidedSharesTests
 {
@@ -143,4 +144,36 @@ public sealed class GuidedSharesTests
             .NextShare(share: 0.125f, slopeSum: 0, momentSum: 0)
             .Should()
             .Be(0.125f, "a tile that no rough reflection ray hit anything from learns nothing");
+
+    [Fact]
+    public void ABlockTakesTheSharesOfTheTwoTilesAroundItByItsDistanceToTheirCenters() =>
+        GuidedShares
+            .TileShareAt(shares: [0, 0.16f], imageWide: 2, tilesWide: 2, tilesHigh: 1, blockX: 8, blockY: 0)
+            .Should()
+            .BeApproximately(
+                0.09f,
+                1e-7f,
+                "block 8's center lies 9 / 16 of a tile past the first tile's center toward the second's"
+            );
+
+    [Fact]
+    public void ABlockNearTheEdgeTakesTheShareOfTheEdgesTile() =>
+        GuidedShares
+            .TileShareAt(shares: [0.2f, 0], imageWide: 2, tilesWide: 2, tilesHigh: 1, blockX: 0, blockY: 0)
+            .Should()
+            .Be(0.2f, "no tile lies beyond the edge to blend with");
+
+    [Fact]
+    public void ABlockReadsOnlyTheTilesThatTheRenderSizeCovers() =>
+        GuidedShares
+            .TileShareAt(
+                shares: [0.1f, 0.25f, 0.25f, 0.25f],
+                imageWide: 2,
+                tilesWide: 1,
+                tilesHigh: 1,
+                blockX: 7,
+                blockY: 7
+            )
+            .Should()
+            .Be(0.1f, "the image's other tiles hold shares of a larger render size");
 }

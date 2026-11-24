@@ -54,7 +54,11 @@ internal sealed unsafe class ScreenTraceKernel : IDisposable
             }
         );
 
-    public void Record(FrameContext context, uint side)
+    /// <summary>
+    /// Records the kernel's dispatch: one invocation per square of <paramref name="side"/> pixels of
+    /// <paramref name="extent"/>, the render size by default.
+    /// </summary>
+    public void Record(FrameContext context, uint side, Extent2D? extent = null)
     {
         context.BeginComputePass(
             pipeline: pipeline,
@@ -70,9 +74,9 @@ internal sealed unsafe class ScreenTraceKernel : IDisposable
             size: (uint)sizeof(ScreenTracePushConstants),
             pValues: &push
         );
-        Extent2D extent = context.Extent;
-        uint width = (extent.Width + side - 1) / side,
-            height = (extent.Height + side - 1) / side;
+        Extent2D covered = extent ?? context.Extent;
+        uint width = (covered.Width + side - 1) / side,
+            height = (covered.Height + side - 1) / side;
         context.Vk.CmdDispatch(
             commandBuffer: context.CommandBuffer,
             groupCountX: (width + GroupSize - 1) / GroupSize,
@@ -234,8 +238,8 @@ internal sealed class ScreenTraceResolvePass(ScreenTraceKernel kernel, ScreenTra
         ScreenTraceKernel.DeclareSurfaces(context);
         foreach (GpuImage image in images.Records)
             context.Barriers.Image(image, ImageUse.StorageCompute);
-        // A block's reflection ray counts with each pixel's own mixture density, from its tile's share and the block's guide.
-        context.Barriers.Image(images.ReflectionShare, ImageUse.StorageCompute);
+        // A block's reflection ray counts with each pixel's own mixture density at the share that drew it, from the block's
+        // guide.
         context.Barriers.Image(images.BlockGuide, ImageUse.StorageCompute);
         context.Barriers.Image(images.Diffuse.Sample(0), ImageUse.StorageCompute, discard: true);
         context.Barriers.Image(images.Specular.Sample(0), ImageUse.StorageCompute, discard: true);
@@ -258,7 +262,8 @@ internal sealed class ScreenTraceResolvePass(ScreenTraceKernel kernel, ScreenTra
 /// <summary>
 /// The reflection share's pass, screen_trace_share.comp (<see cref="GuidedShares"/>), while the rays are guided: after
 /// the resolve, each tile of <see cref="ScreenTraceImages.TileBlocks"/> × <see cref="ScreenTraceImages.TileBlocks"/>
-/// blocks moves its share one step from the evidence of this draw's block reflection rays.
+/// blocks moves its share one step from the evidence of this draw's block reflection rays. Its dispatch covers every
+/// tile of the image, so that a restart reaches the tiles of the largest render size too.
 /// </summary>
 internal sealed class ScreenTraceSharePass(ScreenTraceKernel kernel, ScreenTraceImages images) : RenderPass
 {
@@ -268,7 +273,7 @@ internal sealed class ScreenTraceSharePass(ScreenTraceKernel kernel, ScreenTrace
     {
         context.Barriers.Image(images.BlockGuide, ImageUse.StorageCompute);
         context.Barriers.Image(images.ReflectionShare, ImageUse.StorageCompute);
-        kernel.Record(context, side: 2 * ScreenTraceImages.TileBlocks);
+        kernel.Record(context, side: 1, extent: images.ReflectionShare.Extent);
     }
 
     public override void Dispose() => kernel.Dispose();

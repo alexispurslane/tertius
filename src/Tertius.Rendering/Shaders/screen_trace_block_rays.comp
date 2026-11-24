@@ -21,14 +21,15 @@ void main()
     ivec2 chosen;
     TracingPixel p;
     RayRecord record = noRay();
-    // The ray's guided density and its evidence for its tile's share: 0 for a block that no pixel starts.
+    // The ray's guided density, its evidence for its tile's share and the share that drew it: 0 for a block that no pixel
+    // starts.
     vec4 guide = vec4(0.0);
     if (chosenPixelOf(block, rayKind, chosen, p))
     {
         TracedRay ray = traceFrom(chosen, block, p, rayKind);
         record = recordOf(ray);
         if (rayKind == KindReflection)
-            guide = vec4(ray.guidedDensity, shareEvidenceOf(p, ray), 0.0);
+            guide = vec4(ray.guidedDensity, shareEvidenceOf(p, ray), ray.share);
     }
     if (rayKind == KindReflection && trace.reflectionCeiling > 0.0)
         imageStore(blockGuide, block, guide);

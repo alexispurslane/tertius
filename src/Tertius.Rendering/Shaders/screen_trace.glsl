@@ -56,13 +56,17 @@ layout(set = 3, binding = 26) uniform texture2D lightLevels;    // R32F
 // leaves each pixel that a walk can hit toward a ray of the kind (leavingLightOf), and a the pixel's moved mark, 1 where
 // its surface moved since the last draw (movedSurfaceAt), else 0. The plan writes it, and a hit reads both.
 layout(set = 3, binding = 27, rgba16f) uniform image2DArray hitLight;
-// The reflection share of each tile of 8 × 8 blocks (ScreenTraceImages.ReflectionShare, GuidedShares): the share of the
-// tile's reflection rays that take the guided draw, after the last drawn frame. The tracer and the resolve read it at a
-// pixel's block (tileShareAt), and the share pass moves it after the resolve.
+// The reflection share of each tile of TileBlocks × TileBlocks blocks (ScreenTraceImages.ReflectionShare, GuidedShares):
+// the share of the tile's reflection rays that take the guided draw, after the last drawn frame. The tracer reads it at a
+// pixel's block (tileShareAt), and the share pass moves it after the resolve. It covers the tiles of the largest render
+// size.
 layout(set = 3, binding = 28, r32f) uniform image2D reflectionShare;
 // The guide of each block's reflection ray (ScreenTraceImages.BlockGuide), which the block pass writes while the rays are
-// guided: x its guided density along its direction, and y, z its evidence for its tile's share (shareEvidenceOf).
+// guided: x its guided density along its direction, y and z its evidence for its tile's share (shareEvidenceOf), and w
+// the share at which it was drawn. The resolve weighs the ray at each pixel of the block by that share's mixture.
 layout(set = 3, binding = 29, rgba32f) uniform image2D blockGuide;
+// The blocks along each side of a tile of the reflection share (ScreenTraceImages.TileBlocks).
+const int TileBlocks = 8;
 #include "sent_light.glsl"
 
 // A record's w: bit 0 whether its ray traced. A ray below its pixel's geometric plane, and a block that no pixel starts,
@@ -736,14 +740,15 @@ float reflectionRampOf(TracingPixel p)
 }
 
 // The reflection share of the tiles around the pixel's block, bilinear between the tiles' centers and clamped to the
-// tiles that the render size covers: the ceiling while the shares restart. A block's four pixels read the same share. A
-// block's center lies k / 8 of a tile from a tile's center, so the weights are exact.
+// tiles that the render size covers: the ceiling while the shares restart (GuidedShares.TileShareAt). A block's four
+// pixels read the same share. A block's center lies an odd multiple of 1 / 16 of a tile from a tile's center, so the
+// weights are exact.
 float tileShareAt(ivec2 pixel)
 {
     if (trace.sharesRestart != 0u)
         return trace.reflectionCeiling;
-    ivec2 tiles = (ivec2(frame.viewport.xy) + 15) / 16;
-    vec2 place = clamp((vec2(pixel / 2) + 0.5) / 8.0, vec2(0.5), vec2(tiles) - 0.5) - 0.5;
+    ivec2 tiles = ((ivec2(frame.viewport.xy) + 1) / 2 + TileBlocks - 1) / TileBlocks;
+    vec2 place = clamp((vec2(pixel / 2) + 0.5) / float(TileBlocks), vec2(0.5), vec2(tiles) - 0.5) - 0.5;
     ivec2 low = ivec2(place);
     ivec2 high = min(low + 1, tiles - 1);
     vec2 f = place - vec2(low);
@@ -752,15 +757,22 @@ float tileShareAt(ivec2 pixel)
     return mix(top, bottom, f.y);
 }
 
+// Whether the pixel's reflection rays take part in the guiding: its roughness lies above the ramp's start, the guiding is
+// on, and a lit pixel is in view. Only then can a ray take the guided draw, or find the guided density that its tile's
+// evidence needs.
+bool guidesReflectionsOf(TracingPixel p)
+{
+    return reflectionRampOf(p) > 0.0 && guideTotal() > 0.0;
+}
+
 // The share of the rays of the kind from the pixel that take the guided draw (GuidedShares): the diffuse share, and for a
 // reflection ray its tile's share capped by its roughness's ramp. 0 with the guiding off and while no lit pixel is in
 // view, and the light pyramid is then not read.
 float guidedShareOf(TracingPixel p, uint kind, ivec2 pixel)
 {
-    float most = kind == KindDiffuse ? trace.diffuseShare : reflectionRampOf(p);
-    if (most <= 0.0 || guideTotal() <= 0.0)
-        return 0.0;
-    return kind == KindDiffuse ? most : min(most, tileShareAt(pixel));
+    if (kind == KindReflection)
+        return guidesReflectionsOf(p) ? min(reflectionRampOf(p), tileShareAt(pixel)) : 0.0;
+    return trace.diffuseShare > 0.0 && guideTotal() > 0.0 ? trace.diffuseShare : 0.0;
 }
 
 // Whether the reflection ray of the cell takes the guided draw in the draw, at the share: on a fixed pattern in time, an
@@ -836,7 +848,7 @@ TracedRay traceFrom(ivec2 pixel, ivec2 cell, TracingPixel p, uint kind)
     bool guided = share > 0.0 && takesGuidedDraw(kind, cell, draw, share);
     // A rough reflection ray finds its guided density at a share of 0 too: its tile's evidence needs it, so that a tile at
     // 0 can rise again.
-    bool findsGuidedDensity = share > 0.0 || kind == KindReflection && reflectionRampOf(p) > 0.0 && guideTotal() > 0.0;
+    bool findsGuidedDensity = share > 0.0 || kind == KindReflection && guidesReflectionsOf(p);
     ivec2 target = ivec2(-1);
     vec3 drawn;
     if (guided)
@@ -934,17 +946,17 @@ vec3 uncappedSpecularWeightOf(TracingPixel p, SurfaceLobes lobes, MaterialFactor
 // The evidence of a block's reflection ray from the pixel for its tile's share (GuidedShares.EvidenceOf): x the slope in
 // the share of the mean of w², w² (l − g) / q, and y the moment w². w is the luminance that the ray adds to the pixel's
 // specular sample before the cap of a ray's weight, at most mostEvidenceWeight; l, g and q are its lobe, guided and
-// mixture densities, q at the share max(share, shareGuard). Zero where the ray brings no light, where the pixel's ramp is
-// 0, above the hand-over band and while no lit pixel is in view. The sums of a tile stay finite: |l − g| / q is at most
-// 1 / shareGuard, and w² at most mostEvidenceWeight².
+// mixture densities, q at the share max(share, shareGuard). Zero where the ray brings no light, where the pixel's
+// reflection rays take no part in the guiding (guidesReflectionsOf), and at the top of the hand-over band, above which no
+// pixel traces a reflection ray. The sums of a tile stay finite: |l − g| / q is at most 1 / shareGuard, and w² at most
+// mostEvidenceWeight².
 vec2 shareEvidenceOf(TracingPixel p, TracedRay ray)
 {
-    float handOver = handOverOf(p);
-    if (!ray.traced || ray.density <= 0.0 || handOver >= 1.0 || reflectionRampOf(p) <= 0.0 || guideTotal() <= 0.0)
+    if (!ray.traced || ray.density <= 0.0 || !guidesReflectionsOf(p))
         return vec2(0.0);
     SurfaceLobes lobes = lobesOf(p.s, p.V);
     vec3 weight = uncappedSpecularWeightOf(p, lobes, materialFactors(p.s, lobes), ray.direction, ray.density);
-    float w = luminance((1.0 - handOver) * ray.light * weight);
+    float w = luminance((1.0 - handOverOf(p)) * ray.light * weight);
     if (!(w > 0.0))
         return vec2(0.0);
     w = min(w, trace.mostEvidenceWeight);
