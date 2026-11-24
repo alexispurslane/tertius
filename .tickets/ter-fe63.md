@@ -538,3 +538,35 @@ Parent completed user-approved Tier 1A cleanup (51.61 GiB free, no further delet
 - Forward cut (settled aft -> sunlit nose, -1.7507 stops, detector g - median7(g) > 12): d0 / d1 / d2 / d5 / d10 / d15 / d29 / d0..d29 median / d60 counted specks: unpatched main 26,342 / 24,190 / 14,008 / 11,705 / 10,821 / 10,692 / 13,610 / 11,755 / 8,681; reset-off 26,337 / 24,446 / 13,687 / 11,323 / 11,605 / 9,338 / 3,517 / 9,816 / 787 (share 0.0059 -> 0.1956); reset-on 19,910 / 10,716 / 3,438 / 5,742 / 6,133 / 4,694 / 2,123 / 4,351 (-55.7 % vs off, -63.0 % vs main) / 731 (share 0.2500 -> 0.2083). Visually on real-cut-nose-strip-1x.png: d0 shows a coarse 2x2 block-ray pattern on all builds; unpatched main and reset-off flash stark white square firefly blotches across the dark outer ceiling over d0..d10; reset-on suppresses those outer blotches from d0 and fills the cone evenly by d1..d2 while leaving fine short-history grain inside the cone over d5..d29.
 - Reverse cut (settled aft -> rect-lamps glossy floor, 3.83 stops, floor box residual grain RMS): reset-off matches unpatched main to 4-5 decimals on every draw (d0 0.01226, d5 0.00866, d10 0.00937, d29 0.00669, d60 0.00580). Reset-on (share 0.2398 -> 0.0000 by d29) adds transient grain: d0 0.01951 (+59.1 %, visibly stronger 2x2 dither grid at 1:1), d5 0.01132 (+30.7 %), d10 0.01178 (+25.7 %), d15 0.01045 (+21.5 %), d29 0.00743 (+11.1 %), d60 0.00580; d0..d14 frame-to-frame RMS 0.5084 vs 0.4345 (+17.0 %), d15..d29 0.2522 vs 0.2392 (+5.4 %); subtle at 1:1 after d0, clearly visible at 16x, no mottle or brightness shift.
 - README wording fixed (exact speck detector vs visible flashes, +0.336 ms whole-scene rect-lamps delta clarification, fixed-cost acceptance explicitly OPEN requiring clean-vs-unpatched-main timing). Stage 2 production and merge remain held awaiting parent decision.
+
+**2026-11-24T14:40:25Z**
+
+2026-11-24, stage 2 lead (branch t3/adaptive-reflection-ray-guiding, base main 56feef7d5): the production build of Design 1 at Config B is commit e07bf0655. It has a ceiling of 0.25, a step of 1/128, a guard of 1/16, a most ratio of 2 and a ramp from 0.1 to 0.38. Every tile restarts at the ceiling when the frame resets its histories (a camera cut, the first draw, a still) and when the render size changes. Three changes from the probe, each for Vulkan on Linux:
+- The share image is R32F, not RG16F, because Vulkan leaves the rounding of a half-float store to the driver.
+- The bilinear read is done by hand, because the linear filtering of R32F is optional.
+- The sums have no isnan check, because their bounds keep them finite.
+
+The record is docs/research/reflection-mixture-adaptive/production/README.md, against unpatched main, in Release, at 1920 x 1080 and a render scale of 0.6667, with a fixed exposure:
+- Mirror plate still: byte for byte main's.
+- Settled nose specks (median, frames 120 to 359): 3,496 on main against 144.
+- Camera cut onto the nose, specks d0 to d29 (median): 11,674 against 4,322. At d0 they are 26,342 against 19,910, the same as the probe's reset-on.
+- Pan: 3,822 against 164. Walk: 1,073 against 7.
+- Two runs of the walk give the same 240 frames.
+- Camera cut onto rect-lamps' glossy floor: the floor's grain is 1.59 times main's at d0, 1.26 times at d10, 1.11 times at d29 and 1.00 times at d64. This is the accepted transient grain, the same as the probe's reset-on.
+- Settled rect-lamps floor: the same as main.
+
+GPU time, under the exclusive lock, with two counterbalanced rounds per view and a load under 8:
+- Nose: 14.798 against 15.592 ms (+0.794 ms, +5.4 %).
+- Bay: 14.802 against 15.725 ms (+0.923 ms, +6.2 %).
+- rect-lamps: 14.846 against 15.501 ms (+0.655 ms, +4.4 %).
+
+This is about 0.3 ms more than stage 1's table, but it is no new regression. A clocked run on the nose, at 1296 MHz in every run, gave:
+
+| Build | Frame |
+|---|---|
+| Unpatched main | 14.82 ms |
+| The probe build with the probe off | 15.47 ms |
+| The probe at Config B | 15.94 ms |
+| Production | 15.61 ms |
+
+Stage 1 measured against its probe-off build, whose scaffolding costs 0.65 ms. Production is 0.33 ms cheaper than the probe.
