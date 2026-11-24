@@ -1,6 +1,6 @@
 ---
 id: ter-fe63
-status: in_progress
+status: closed
 deps: []
 links: [ter-12xp, ter-bdoh, t1-nyjl, t1-d9k3, t1-gjnl]
 created: 2026-11-22T15:17:24Z
@@ -647,3 +647,7 @@ Coverage, from a full Debug run of tests/Tertius.Rendering.Tests with --coverage
 Full suites on the branch, through tools/test-all.sh in the dev shell, before the merge of main:
 - Checked (before 945f36790, whose hook then ran its 2 classes, 41 passed): Rendering 3593, Core 1207, Simulation 2007, Physics 1500, Host 2089, Unions 59, Style 276, Slop 597; 0 failed.
 - Release at 945f36790: Core 1175, Simulation 2026, Physics 1493 (8 skipped), Rendering 3583 (11 skipped), Host 2081 (8 skipped), Unions 59, Style 276, Slop 597; 0 failed.
+
+**2026-11-24T18:04:10Z**
+
+Production reflection guiding merged into main at b48c260f3, including output dithering. The merged renderer passed full Checked and Release at c8ea4ce41. Guiding restarts at a 0.25 share on the first trace after a history reset. Accepted the measured 0.673 to 0.944 ms per-frame cost against pre-dither main 56feef7d5 and the transient grain on a cut onto the glossy floor. Follow-up tf3-g3rs tracks the cost.
