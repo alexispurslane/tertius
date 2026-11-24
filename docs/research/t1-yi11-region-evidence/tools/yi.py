@@ -1,7 +1,8 @@
 # Tool code of t1-yi11. yi.py <bay|turned|walk|look>: the numbers and pictures of the comparison of the two closed-gate tests
-# of build yi (scratch-yi.patch, 2026-11-24): w36 (Welch's t of two windows of 36 draws, |t| >= 4.1) and hyst (Welch's t
-# of two windows of 18 draws, a same-direction neighbor pair at 5.0 and 2.6), each with the closed reset and a gate of
-# 128 draws after a real cause, against the controls b (today's test) and g128r (the rejected rule: gate 128, the rank
+# (2026-11-24): w36 (build yi, Welch's t of two windows of 36 draws, |t| >= 4.1) and hyst (build yj, column hx: the
+# replay's signed hysteresis of Welch's t of two windows of 18 draws, 5.0 and 2.6), each with the closed reset and a gate
+# of 128 draws after a real cause. Column "pair" is build yi's first reading of hyst (a same-direction neighbor pair, its
+# folders named *-hyst), which is not the specified rule; it stays for the record. All against against the controls b (today's test) and g128r (the rejected rule: gate 128, the rank
 # test while closed, the old reset that opens every gate). Build yi draws b's and g128r's bytes (README), so the old takes
 # of yg and yh serve as controls where they exist.
 #
@@ -35,7 +36,8 @@ PIC = REC / 'pictures'
 TILE = 96
 W = np.array([0.2126, 0.7152, 0.0722])
 LABELS = {'b': 'b: today\'s test', 'bl': 'b: today\'s test', 'byi': 'b: today\'s test', 'g128r': 'g128+r (rejected)',
-          'g128ryi': 'g128+r (rejected)', 'w36': 'w36: Welch W36, closed reset', 'hyst': 'hyst: Welch W18 pair, closed reset',
+          'g128ryi': 'g128+r (rejected)', 'w36': 'w36: Welch W36, closed reset', 'hyst': 'pair: earlier pair rule, not the spec',
+          'hx': 'hyst: replay rule, closed reset',
           'gr': 'g36+r', 'control': 'control: lamps off from start'}
 try:
     font = ImageFont.truetype('/System/Library/Fonts/Supplemental/Arial.ttf', 18)
@@ -145,12 +147,13 @@ part = sys.argv[1]
 if part == 'turned':
     # rect-bay-settled turned 90 degrees left (films.sh TURN=90): 200 frozen draws, then the 180-draw film in which the
     # sunbeam leaves the bay behind the camera. No ray of the view sees the cause, so every gate is closed in the film.
-    cols = {'bl': F / 'rbst-bl', 'g128ryi': F / 'rbst-g128ryi', 'w36': F / 'rbst-w36', 'hyst': F / 'rbst-hyst'}
+    cols = {'bl': F / 'rbst-bl', 'g128ryi': F / 'rbst-g128ryi', 'w36': F / 'rbst-w36', 'hyst': F / 'rbst-hyst',
+            'hx': F / 'rbst-hx'}
     names = [f'm{k:04d}-000000' for k in range(180)]
     boxes = {'whole': (0, 0, 1920, 1080), 'wall ahead': (0, 0, 1920, 500), 'floor': (0, 700, 1920, 1080)}
     out = film_compare(cols, names, 'bl', boxes)
     out['log'] = {c: {d - 200: r for d, r in log_rows(f).items() if d >= 200} for c, f in cols.items()}
-    for c in ('g128ryi', 'w36', 'hyst'):
+    for c in ('g128ryi', 'w36', 'hyst', 'hx'):
         rows = out['log'][c]
         out.setdefault('answersInFilm', {})[c] = sum(r['answers'] for r in rows.values())
         first = [k for k, r in sorted(rows.items()) if r['answers'] > 0]
@@ -168,7 +171,7 @@ if part == 'turned':
               + ', '.join(f"{out['gridStep'][c]['boundary'][k]:.2f}/{out['gridStep'][c]['mid'][k]:.2f}" for k in (60, 70, 80, 90)))
     print('answers in film', out['answersInFilm'], 'first answer', out['firstAnswer'], 'open gates', out['openInFilm'])
     print('flicker', json.dumps(out['flicker']))
-    crops({'bl': cols['bl'], 'g128ryi': cols['g128ryi'], 'w36': cols['w36'], 'hyst': cols['hyst']},
+    crops({'bl': cols['bl'], 'g128ryi': cols['g128ryi'], 'w36': cols['w36'], 'hx': cols['hx'], 'hyst': cols['hyst']},
           [f'm{k:04d}-000000' for k in (60, 70, 80, 90)], (960, 480, 1920, 1080), PIC / 'rect-bay-turned-yi-crops.png')
     sheet([[(f'{LABELS[c]}, film draw {k}', Image.open(cols[c] / f'm{k:04d}-000000.png').convert('RGB'))
             for c in cols] for k in (0, 60, 75, 90, 150)], PIC / 'rect-bay-turned-yi-sheet.png', scale=400 / 1920)
@@ -176,7 +179,7 @@ if part == 'turned':
 elif part == 'walk':
     # The cabin's lamps switch off at walk frame 60 while the person walks (yifilm.py walk-switch); the walk stops at
     # walk frame 120 = stand frame h 0 (log draw 33 + 160 + 120 = 313). The control: the same walk, lamps off from draw 0.
-    cols = {'byi': F / 'ws-byi', 'g128ryi': F / 'ws-g128ryi', 'w36': F / 'ws-w36', 'hyst': F / 'ws-hyst',
+    cols = {'byi': F / 'ws-byi', 'g128ryi': F / 'ws-g128ryi', 'w36': F / 'ws-w36', 'hx': F / 'ws-hx', 'hyst': F / 'ws-hyst',
             'control': F / 'wo-byi'}
     names = [f'g-{k:06d}' for k in range(50, 120)] + [f'h-{k:06d}' for k in range(160)]
     boxes = {'whole': (0, 0, 1920, 1080), 'floor': (0, 600, 1920, 1080), 'walls and ceiling': (0, 0, 1920, 600)}
@@ -228,7 +231,7 @@ elif part == 'bay':
     main_full = np.mean([linear(p) for p in sorted((R / 'bay-a').glob('f-*.png'))], axis=0)
     ref = {k: np.mean([linear(p) for p in sorted((R / f'bay-d-long{s}').glob('f-*.png'))], axis=0)
            for k, s in (('dif', '-dif'), ('full', ''))}
-    cols = ['b', 'g128r', 'w36', 'hyst']
+    cols = ['b', 'g128r', 'w36', 'hx', 'hyst']
     out = {'answers': {}, 'runs': {}, 'patch': {}, 'level': {}, 'long': {}}
     for c in cols:
         log = read_log(R / f'bay-{c}-sp-dif')
@@ -266,7 +269,7 @@ elif part == 'bay':
     # The runs after draw 300 of w36 and hyst against d's still of the same draw, in a 288 x 288 crop around the anchor.
     out['runPatch'] = {}
     rows_dif, rows_full = [], []
-    for c in ('w36', 'hyst'):
+    for c in ('w36', 'hx', 'hyst'):
         for d, x, y in out['runs'][c]:
             if d < 301:
                 continue
@@ -297,7 +300,7 @@ elif part == 'bay':
     (REC / 'yi-bay.json').write_text(json.dumps(out))
     print('answers', json.dumps(out['answers']))
     print('long', json.dumps(out['long']))
-    print('runs', {c: out['runs'][c] for c in ('w36', 'hyst')})
+    print('runs', {c: out['runs'][c] for c in ('w36', 'hx', 'hyst')})
     print('run patches', json.dumps(out['runPatch']))
     for kind in ('dif', 'full'):
         print(f'\n{kind}: patch floor / back wall; level floor / back wall')
@@ -315,10 +318,12 @@ elif part == 'bay':
 elif part == 'look':
     # The unlabeled 1:1 pictures of the reading. The turned take's floor (output x 0 to 960, y 600 to 1080) at film draws
     # 57, 65 and 75, one row per draw: rect-bay-turned-yi-1to1-b-w36.png (b left, w36 right) and
-    # rect-bay-turned-yi-1to1-hyst-g128r.png (hyst left, g128+r right). The walk's stand frame 100: seams (output x 960
-    # to 1920, y 0 to 540 of b's frame with the part from x 1440 replaced by g128+r, w36 and hyst, one row each), and
+    # rect-bay-turned-yi-1to1-pair-g128r.png (pair left, g128+r right) and rect-bay-turned-yi-1to1-b-hyst.png (b left,
+    # hyst (hx) right). The walk's stand frame 100: seams (output x 960 to 1920, y 0 to 540 of b's frame with the part
+    # from x 1440 replaced by g128+r, w36, hyst (hx) and pair, one row each), and
     # w36 minus b (Gaussian sigma 8 px) times 20 on 128 of the whole frame at half size.
-    for pair, name in ((('rbst-bl', 'rbst-w36'), 'b-w36'), (('rbst-hyst', 'rbst-g128ryi'), 'hyst-g128r')):
+    for pair, name in ((('rbst-bl', 'rbst-w36'), 'b-w36'), (('rbst-hyst', 'rbst-g128ryi'), 'pair-g128r'),
+                       (('rbst-bl', 'rbst-hx'), 'b-hyst')):
         out = Image.new('RGB', (1926, 3 * 486))
         for i, k in enumerate((57, 65, 75)):
             for j, c in enumerate(pair):
@@ -326,11 +331,11 @@ elif part == 'look':
                           (j * 966, i * 486))
         out.save(PIC / f'rect-bay-turned-yi-1to1-{name}.png')
     rows = []
-    for c in ('ws-g128ryi', 'ws-w36', 'ws-hyst'):
+    for c in ('ws-g128ryi', 'ws-w36', 'ws-hx', 'ws-hyst'):
         a = Image.open(F / 'ws-byi' / 'h-000100.png').convert('RGB')
         a.paste(Image.open(F / c / 'h-000100.png').convert('RGB').crop((1440, 0, 1920, 1080)), (1440, 0))
         rows.append(a.crop((960, 0, 1920, 540)))
-    out = Image.new('RGB', (960, 3 * 560))
+    out = Image.new('RGB', (960, len(rows) * 560))
     for i, r in enumerate(rows):
         out.paste(r, (0, i * 560))
     out.save(PIC / 'walk-switch-yi-seams.png')
