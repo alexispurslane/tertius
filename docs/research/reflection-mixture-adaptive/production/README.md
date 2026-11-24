@@ -10,7 +10,7 @@ Stage 2 builds Design 1 of stage 1 (`../README.md`) into the engine at Config B:
 | Most ratio | 2 |
 | Roughness ramp | 0.1 to 0.38 |
 
-Every tile restarts at the ceiling when the frame resets its histories or when the render size changes. ARCHITECTURE.md, "The reflection kind's share", describes the design. This record compares the production branch with unpatched main `56feef7d5` on the Mac M1 Max.
+Every tile restarts at the ceiling when the frame resets its histories, and keeps its share at a new render size. ARCHITECTURE.md, "The reflection kind's share", describes the design. This record compares the production branch at commit `945f36790`, after the fixes of the stage 2 review, with unpatched main `56feef7d5` on the Mac M1 Max. The takes before the fixes (`afa41ef57`) gave the same numbers within 2 specks and 0.03 ms.
 
 Both builds are Release builds. Every take ran at `1920 x 1080`, render scale `0.6667` (`1280 x 720`), with a fixed exposure from the CLI's `--exposure`. The untimed takes ran under `tools/gpu-lock.sh --shared` and filmed losslessly (`--video`, 60 fps). The films in `pics/` are H.264 CRF 12, `yuv420p`, 60 fps, with main on the left and the branch on the right. `tables/takes-summary.json` holds every number below, and `tables/timing.json` holds every timed run.
 
@@ -33,7 +33,7 @@ The measures are those of stage 1:
 | rect-lamps glossy floor box, flicker, frames 120 to 359 | 0.1369 | 0.1369 |
 | Camera cut onto the nose, specks d0 to d29, median | 11,674 | 4,322 |
 | Camera cut onto the nose, specks d30 to d64, median | 10,259 | 981 |
-| Slow pan, specks of the moving frames, median | 3,822 | 164 |
+| Slow pan, specks of the moving frames, median | 3,822 | 162 |
 | Walk, specks of the moving frames, median | 1,073 | 7 |
 
 Stage 1's probe gave the same numbers within a few percent:
@@ -56,19 +56,19 @@ Flicker of the floor box: main 0.435 and branch 0.509 over d0 to d14, main 0.239
 
 ### Determinism
 
-Two runs of the walk on the same binary gave the same 240 frames (ffmpeg `framemd5`).
+Two runs of the walk on the same binary gave the same 240 frames (ffmpeg `framemd5`). The takes ran at a fixed render scale, where no render size changes.
 
 ## GPU time
 
-Under one exclusive GPU lock, with a 1-minute load under 8 before each run, 300 frames, two frames in flight and pass timestamps off. Each view ran two rounds of main, branch, branch, main, and the second round started with the branch.
+Under one exclusive GPU lock, with a 1-minute load under 8 before each run, 300 frames, two frames in flight and pass timestamps off. Each view ran two rounds of main, branch, branch, main, and the second round started with the branch. Every run held the GPU clock at 1296 MHz.
 
 | View | Main median (ms) | Branch median (ms) | Change |
 |---|---:|---:|---:|
-| Sunlit nose (`orbit`, person, tick 277003, -1.7507 stops) | 14.798 | 15.592 | +0.794 ms (+5.37 %) |
-| Bay (`demo-surface`, bay-camera, -4.089 stops) | 14.802 | 15.725 | +0.923 ms (+6.24 %) |
-| rect-lamps (`orbit`, person, tick 0, 3.83 stops) | 14.846 | 15.501 | +0.655 ms (+4.41 %) |
+| Sunlit nose (`orbit`, person, tick 277003, -1.7507 stops) | 14.809 | 15.626 | +0.817 ms (+5.52 %) |
+| Bay (`demo-surface`, bay-camera, -4.089 stops) | 14.798 | 15.742 | +0.944 ms (+6.38 %) |
+| rect-lamps (`orbit`, person, tick 0, 3.83 stops) | 14.821 | 15.494 | +0.673 ms (+4.54 %) |
 
-The main checkout had no GPU clock built, so these rows have no clock. A second set of runs on the nose recorded the clock with stage 1's `gpu-clock` (`tools/probe_compare.sh`). Every run held 1296 MHz.
+A separate set of runs on the nose compared the branch before the review fixes with stage 1's probe (`tools/probe_compare.sh`), all at 1296 MHz:
 
 | Build (nose) | Round 0 median (ms) | Round 1 median (ms) |
 |---|---:|---:|
@@ -77,7 +77,7 @@ The main checkout had no GPU clock built, so these rows have no clock. A second 
 | Stage 1 probe at Config B | 15.906 | 15.967 |
 | Production branch | 15.575 | 15.638 |
 
-So production costs 0.33 ms less than the probe. Stage 1 reported +0.34 to +0.52 ms because it measured against its probe build with the probe off. That build costs 0.65 ms more than main.
+So production costs 0.33 ms less than the probe. Stage 1 reported +0.34 to +0.52 ms because it measured against its probe build with the probe off. That build costs 0.65 ms more than main. The feature itself costs 0.67 to 0.94 ms against main, and 0.67 ms of it on rect-lamps, whose floor's share settles at 0. So most of the cost does not depend on the share. The parent orchestrator accepted the cost under the user's delegation of 2026-11-24. Ticket `tf3-g3rs` places it per pass and looks for a cheaper path at a share of 0.
 
 ## Pictures
 

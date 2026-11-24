@@ -570,3 +570,80 @@ This is about 0.3 ms more than stage 1's table, but it is no new regression. A c
 | Production | 15.61 ms |
 
 Stage 1 measured against its probe-off build, whose scaffolding costs 0.65 ms. Production is 0.33 ms cheaper than the probe.
+
+**2026-11-24T17:16:30Z**
+
+2026-11-24, stage 2 lead: the stage 2 review and its fixes (commits 8e7bcc272 and 945f36790), and the hardening.
+
+The review ran on the Anthropic fallback (claude-opus-5-5, effort high), because Antigravity had no quota left. Its findings and their answers:
+
+| Finding | Answer |
+|---|---|
+| B1: the resolve weighed a block's guided ray at the pixel's own share, not at the share that drew it | Fixed. The block guide's w holds the drawing share, and the resolve mixes the pixel's own lobe density at that share. Test: ResolveSharedReflectionTests.APixelWeighsAGuidedBlockRayByItsOwnMixtureAtTheShareThatDrewTheRay. |
+| B2: a restart at a new render size threw away the shares while the histories went on | Fixed. The shares restart only when the frame resets its histories. A restart writes the ceiling into every tile of the image, which covers the largest render size. |
+| B3: a comment called the step an odd multiple of 1/16 wrongly | Fixed. |
+| F1: the GPU cost of 0.67 to 0.94 ms has no acceptance | Recorded in the README and ARCHITECTURE.md. The parent accepted it under the user's delegation of 2026-11-24. Ticket tf3-g3rs looks for a cheaper path at a share of 0. |
+| F2: the known limit of a block that straddles two tiles | Gone with B1. |
+| F3: R32G32B32A32_SFLOAT missing from the device format table | Added. |
+| T1: no test of the first draw after a cut | ReflectionShareRenderTests.TheFirstDrawAfterACameraCutDrawsItsReflectionRaysAtTheCeiling. |
+| T2: no test of the evidence or of a tile at 0 | TheEvidenceOfAReflectionSampleIsThatOfTheCopyAtEveryShareAndWeight, ATileAtAShareOfZeroStillFindsTheGuidedDensityThatRaisesItWhereTheGuideFindsTheLight. |
+| Q1: the tile size 8 written in three places | One constant, TileBlocks. |
+| Q2: the guiding condition written in three places | One function, guidesReflectionsOf. |
+
+The retakes on 945f36790 match the takes before the fixes within 2 specks and 0.03 ms (production README). The pan's median is 162 specks, not 164.
+
+Mutation testing, with tools/mutate.py over three lists (Rendering has no Stryker run):
+
+| id | place | change | result | killed by or answer |
+|---|---|---|---|---|
+| S01 | screen_trace_share.comp:18 | a tile without moment drops to 0 | killed | ReflectionShareRenderTests.AfterTheFirstDrawEachTilesShareIsOneStepFromTheCeilingByItsBlocksEvidence, ReflectionShareRenderTests.EachLaterDrawMovesEveryTilesShareOneStepFromItsLastShare |
+| S02 | screen_trace_share.comp:19 | upper ratio cap 1 | killed | ReflectionShareRenderTests.ACameraCutRestartsEveryTilesShareAtTheCeiling |
+| S03 | screen_trace_share.comp:20 | step up the slope | killed | ReflectionShareRenderTests.OnASunlitFloorWhoseGuideHoldsOnlyItsOwnPlaneTheFloorsSharesFallToZero, ReflectionShareRenderTests.AfterTheFirstDrawEachTilesShareIsOneStepFromTheCeilingByItsBlocksEvidence |
+| S04 | screen_trace_share.comp:29 | share pass ignores the restart | killed | ReflectionShareRenderTests.AfterTheFirstDrawEachTilesShareIsOneStepFromTheCeilingByItsBlocksEvidence, ReflectionShareRenderTests.ACameraCutRestartsEveryTilesShareAtTheCeiling |
+| S05 | screen_trace_share.comp:31 | tile sums skip its last row and column | killed | ReflectionShareRenderTests.AfterTheFirstDrawEachTilesShareIsOneStepFromTheCeilingByItsBlocksEvidence, ReflectionShareRenderTests.ACameraCutRestartsEveryTilesShareAtTheCeiling |
+| S06 | screen_trace_share.comp:34 | slope from the guided density | killed | ReflectionShareRenderTests.OnASunlitFloorWhoseGuideHoldsOnlyItsOwnPlaneTheFloorsSharesFallToZero, ReflectionShareRenderTests.AfterTheFirstDrawEachTilesShareIsOneStepFromTheCeilingByItsBlocksEvidence |
+| S07 | screen_trace.glsl:743 | rays ignore the restart | killed | ReflectionShareRenderTests.AfterTheFirstDrawEachTilesShareIsOneStepFromTheCeilingByItsBlocksEvidence, ReflectionShareRenderTests.EachLaterDrawMovesEveryTilesShareOneStepFromItsLastShare |
+| S08 | screen_trace.glsl:751 | bilinear place at the wrong tile scale | killed | ReflectionShareRenderTests.EachBlockReflectionRayIsDrawnAtTheBilinearShareOfTheTilesAroundItsBlock |
+| S09 | screen_trace.glsl:735 | ramp starts at roughness 0 | killed | ReflectionShareRenderTests.ASmoothFloorsReflectionsAreThoseOfItsLobeAlone |
+| S10 | screen_trace.glsl:774 | pixel share ignores its tile | killed | ReflectionShareRenderTests.EachBlockReflectionRayIsDrawnAtTheBilinearShareOfTheTilesAroundItsBlock, ReflectionShareRenderTests.ATileAtAShareOfZeroStillFindsTheGuidedDensityThatRaisesItWhereTheGuideFindsTheLight |
+| S11 | screen_trace.glsl:760 | no roughness ramp | killed | ReflectionShareRenderTests.ASmoothFloorsReflectionsAreThoseOfItsLobeAlone |
+| S12 | screen_trace.glsl:781 | Van der Corput scaled by 1/2 | killed | ReflectionShareRenderTests.AReflectionCellTakesTheGuidedDrawOnAnExactCount(channel: 1, reason: "a share of 1/8 gives each cell exactly one guided "···) |
+| S13 | screen_trace.glsl:779 | no hashed turn of the Bayer slot | killed | ReflectionShareRenderTests.AfterTheFirstDrawEachTilesShareIsOneStepFromTheCeilingByItsBlocksEvidence |
+| S14 | screen_trace.glsl:851 | no guided density at share 0 | killed | ReflectionShareRenderTests.ATileAtAShareOfZeroStillFindsTheGuidedDensityThatRaisesItWhereTheGuideFindsTheLight |
+| S15 | screen_trace.glsl:868 | guided reflection ray walks the code direction | survived | judgment call: a guided ray that walked its 16-bit coded direction loses light only for draws within about 10^-4 rad of a target box edge, below every test tolerance; the code keeps the drawn direction because the guided density is a box function |
+| S16 | screen_trace.glsl:897 | miss counts with the lobe density | killed | ReflectionShareRenderTests.ASunlitFloorsReflectionOfTheSkyKeepsItsMeanAtTheCeilingsShare |
+| S17 | screen_trace.glsl:894 | hit counts with the lobe density | killed | GuidedRaysRenderTests.AGuidedBlocksDiffuseDensityHoldsTheCosineShareAndTheGuidedDensityOfItsHit, GuidedRaysRenderTests.OnAJitteredFrameEachHitsDiffuseDensityIsTheCopysMixtureOfTheCosineAndTheGuidedDensity |
+| S18 | screen_trace.glsl:943 | evidence above the hand-over band | removed | the check was dead: no pixel above the hand-over band traces a reflection ray, and at its top the weight (1 - handOver) is 0, so 8e7bcc272 deleted it |
+| S19 | screen_trace.glsl:962 | no cap of the evidence weight | killed | ReflectionShareRenderTests.TheEvidenceOfAReflectionSampleIsThatOfTheCopyAtEveryShareAndWeight |
+| S20 | screen_trace.glsl:964 | no guard on the evidence mixture | killed | ReflectionShareRenderTests.TheEvidenceOfAReflectionSampleIsThatOfTheCopyAtEveryShareAndWeight |
+| S21 | screen_trace.glsl:953 | slope sign flipped | killed | ReflectionShareRenderTests.OnASunlitFloorWhoseGuideHoldsOnlyItsOwnPlaneTheFloorsSharesFallToZero, ReflectionShareRenderTests.ACameraCutRestartsEveryTilesShareAtTheCeiling |
+| S22 | screen_trace_block_rays.comp:31 | block guide drops the guided density | killed | ReflectionShareRenderTests+PanelsReflectionOverManyFrames.AGlossyFloorsReflectionOfAGlowingPanelKeepsItsMeanAndLosesNoiseWithTheGuidedReflectionRays |
+| S23 | screen_trace_resolve.comp:48 | block ray weighed with the lobe density | killed | ReflectionShareRenderTests+PanelsReflectionOverManyFrames.AGlossyFloorsReflectionOfAGlowingPanelKeepsItsMeanAndLosesNoiseWithTheGuidedReflectionRays |
+| C01 | GuidedShares.cs:105 | C# step up the slope | killed | GuidedSharesTests.ATilesShareStopsAtTheCeiling, GuidedSharesTests.ATilesStepIsAtMostTheStepTimesTheMostRatio |
+| C02 | GuidedShares.cs:102 | C# no-moment guard at 0 | killed | GuidedSharesTests.ATileWithoutEvidenceKeepsItsShare |
+| C03 | GuidedShares.cs:91 | C# no guard | killed | GuidedSharesTests.BelowTheGuardTheEvidenceWeighsBySquaredWeightOverTheMixtureAtTheGuard |
+| C04 | GuidedShares.cs:89 | C# no weight cap | killed | GuidedSharesTests.AWeightAbove10To12CountsAs10To12 |
+| C05 | GuidedShares.cs:72 | C# ramp from 0 | killed | GuidedSharesTests.TheReflectionShareRisesLinearlyOverTheRamp, GuidedSharesTests.TheRampCapsATilesShareOnASmootherSurface |
+| C06 | ScreenTraceImages.cs:164 | no restart on a reset | killed | ReflectionShareRestartTests.ACameraCutRestartsTheShares, ReflectionShareRestartTests.TheFirstDrawRestartsTheShares |
+| C07 | ScreenTraceImages.cs:164 | no restart on a new render size | killed | ReflectionShareRestartTests.ANewRenderSizeRestartsTheSharesThoughTheHistoriesContinue; killed in the first run; 8e7bcc272 then changed the rule on purpose (no restart at a new render size), and C12 pins the new rule |
+| C08 | GpuTypes.cs:923 | reflection guiding stays on with the guiding off | survived | judgment call: reachable only through the debug switch TERTIUS_GUIDED_RAYS=off, where the light pyramid is never written, so the mutant reads an undefined image and no test can pin a deterministic difference |
+| S24 | screen_trace.glsl:765 | guiding without a lit pixel in view | killed | ReflectionShareRenderTests.WithoutALitPixelInViewAGlossyFloorsReflectionsAreThoseOfItsLobeAlone |
+| S25 | screen_trace.glsl:750 | one tile too many in the render size | killed | ReflectionShareRenderTests.EachBlockReflectionRayIsDrawnAtTheBilinearShareOfTheTilesAroundItsBlock |
+| S26 | screen_trace_block_rays.comp:32 | block guide drops the drawing share | killed | ReflectionShareRenderTests.EachBlockReflectionRayIsDrawnAtTheBilinearShareOfTheTilesAroundItsBlock, ReflectionShareRenderTests.TheFirstDrawAfterACameraCutDrawsItsReflectionRaysAtTheCeiling |
+| S27 | screen_trace_resolve.comp:48 | resolve mixes at the ceiling | killed | ResolveSharedReflectionTests.APixelWeighsAGuidedBlockRayByItsOwnMixtureAtTheShareThatDrewTheRay |
+| S28 | screen_trace_resolve.comp:137 | resolve ignores the block guide | killed | ResolveSharedReflectionTests.APixelWeighsAGuidedBlockRayByItsOwnMixtureAtTheShareThatDrewTheRay, ReflectionShareRenderTests.ASunlitFloorsReflectionOfTheSkyKeepsItsMeanAtTheCeilingsShare |
+| S29 | screen_trace_share.comp:34 | restart leaves the tiles outside the render size | survived | judgment call: no headless renderer draws below its largest render size, so no tile lies outside the render size in a test; the write keeps a later, larger size from reading shares from before the restart |
+| S30 | screen_trace_share.comp:38 | share pass ignores the restart | killed | ReflectionShareRenderTests.AfterTheFirstDrawEachTilesShareIsOneStepFromTheCeilingByItsBlocksEvidence, ReflectionShareRenderTests.ACameraCutRestartsEveryTilesShareAtTheCeiling |
+| C09 | GuidedShares.cs:91 | C# bilinear scale | killed | GuidedSharesTests.ABlockTakesTheSharesOfTheTwoTilesAroundItByItsDistanceToTheirCenters |
+| C10 | GuidedShares.cs:95 | C# no clamp of the high tile | killed | GuidedSharesTests.ABlockInTheLastTileOfTheImageReadsNoTileBeyondIt |
+| C11 | GuidedShares.cs:91 | C# clamp past the covered tiles | survived | equivalent: with the high tile clamped to the covered tiles, a place past the last center blends the last tile with itself, so the wider clamp gives the same share |
+| C12 | ScreenTraceImages.cs:167 | restart at a new render size | killed | ReflectionShareRestartTests.ANewRenderSizeKeepsTheSharesAsTheHistoriesDo |
+| C13 | ScreenTracePass.cs:276 | share pass covers only the render size's tiles | survived | judgment call: as S29, the share pass covers the same tiles as the render size in every headless renderer |
+
+43 mutants: killed 37, removed 1, survived 5. Runs: tools/mutate.py over three lists (31, 20 and 2 rows); a row shows its last run.
+
+Coverage, from a full Debug run of tests/Tertius.Rendering.Tests with --coverage, by tools/coverage/changed-lines.py against 56feef7d5: changed C# lines 104/104 (100 %), changed branches 13/16. The three partial branches are ScreenTraceImages.cs:364, 369 and 374, the UnreachableException guards of WriteLightAges, which the refactor moved out of WriteSet unchanged. That run had one failure, EnvironmentLightingTests.ACurvedMirrorCutByTheScreensEdgeShowsTheStarsMeanInItsFirstAndLastColumnsAndRows, which passed three times alone and in both full suites. Its mirrors sit below the ramp, so it is ticket tf3-t9wo, not this change. The GLSL is covered by the mutation table.
+
+Full suites on the branch, through tools/test-all.sh in the dev shell, before the merge of main:
+- Checked (before 945f36790, whose hook then ran its 2 classes, 41 passed): Rendering 3593, Core 1207, Simulation 2007, Physics 1500, Host 2089, Unions 59, Style 276, Slop 597; 0 failed.
+- Release at 945f36790: Core 1175, Simulation 2026, Physics 1493 (8 skipped), Rendering 3583 (11 skipped), Host 2081 (8 skipped), Unions 59, Style 276, Slop 597; 0 failed.
