@@ -1,0 +1,1 @@
+{"scene": "orbit", "window": {"width": 1920, "height": 1080}, "steps": [{"do": "camera", "entity": "person"}, {"do": "film", "name": "t", "frames": 300, "every": 1}]}

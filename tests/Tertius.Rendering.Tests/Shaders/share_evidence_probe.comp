@@ -1,0 +1,47 @@
+#version 460
+// The evidence of a reflection sample for its tile's share (shareEvidenceOf in screen_trace.glsl) at each block's first
+// pixel, into the block guide: x the slope, y the moment, z the sample's weight w before the cap, 0 where the pixel's
+// reflection rays take no part in the guiding, and w the ray's lobe density l. The ray runs along the pixel's mirror
+// direction with a light of 1 in even block rows and 10^14 in odd ones, a guided density of 0, 1/2 or 4 times l by the
+// block's column modulo 3, and a share of 0, 1/32, 1/8 or 1/4 by its column divided by 3, modulo 4
+// (ReflectionShareRenderTests).
+#extension GL_GOOGLE_include_directive : require
+#include "screen_trace.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+const float GuidedFactors[3] = float[3](0.0, 0.5, 4.0);
+const float Shares[4] = float[4](0.0, 1.0 / 32.0, 0.125, 0.25);
+
+void main()
+{
+    ivec2 block = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 pixel = 2 * block;
+    if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
+        return;
+    if (!tracedSurface(pixel))
+    {
+        imageStore(blockGuide, block, vec4(0.0));
+        return;
+    }
+    TracingPixel p = tracingPixelAt(pixel);
+    vec3 direction = directionOfCode(directionCodeOf(reflect(-p.V, p.normal)));
+    float lobe = reflectionDensity(p, direction);
+    float guided = GuidedFactors[block.x % 3] * lobe;
+    float share = Shares[(block.x / 3) % 4];
+    vec3 light = vec3((block.y & 1) == 0 ? 1.0 : 1e14);
+    float density = mixtureDensity(share, lobe, guided);
+#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+    TracedRay ray = TracedRay(direction, density, lobe, guided, share, light, 1.0, true, NoLightAge, false);
+#else
+    TracedRay ray = TracedRay(direction, density, lobe, guided, share, light, 1.0, true);
+#endif
+    float w = 0.0;
+    if (guidesReflectionsOf(p))
+    {
+        SurfaceLobes lobes = lobesOf(p.s, p.V);
+        vec3 weight = uncappedSpecularWeightOf(p, lobes, materialFactors(p.s, lobes), direction, density);
+        w = luminance((1.0 - handOverOf(p)) * light * weight);
+    }
+    imageStore(blockGuide, block, vec4(shareEvidenceOf(p, ray), w, lobe));
+}

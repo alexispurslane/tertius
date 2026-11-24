@@ -1,0 +1,50 @@
+{
+ "floor": {
+  "draws": 40,
+  "classes": {
+   "0.38-0.40": {
+    "pixels": 121440,
+    "s 0.0": {
+     "variance factor": 1.0,
+     "above 16x mean per draw": 0.0,
+     "relative variance": 0.3914885757298507
+    },
+    "s 0.03125": {
+     "variance factor": 1.1088507597447335,
+     "above 16x mean per draw": 0.0,
+     "relative variance": 0.43410240462942856
+    },
+    "s 0.0625": {
+     "variance factor": 1.2253496596435745,
+     "above 16x mean per draw": 0.0,
+     "relative variance": 0.4797103930249203
+    },
+    "s 0.1": {
+     "variance factor": 1.3760820289810232,
+     "above 16x mean per draw": 0.0,
+     "relative variance": 0.5387203936132239
+    },
+    "s 0.125": {
+     "variance factor": 1.4838166574025229,
+     "above 16x mean per draw": 0.0,
+     "relative variance": 0.5808972698507415
+    },
+    "s 0.25": {
+     "variance factor": 2.1297730613771813,
+     "above 16x mean per draw": 0.0,
+     "relative variance": 0.8337818224263566
+    },
+    "s 0.5": {
+     "variance factor": 4.371047944422597,
+     "above 16x mean per draw": 0.0,
+     "relative variance": 1.711215334208894
+    },
+    "s 0.75": {
+     "variance factor": 10.919251446284647,
+     "above 16x mean per draw": 0.0,
+     "relative variance": 4.274762196742089
+    }
+   }
+  }
+ }
+}

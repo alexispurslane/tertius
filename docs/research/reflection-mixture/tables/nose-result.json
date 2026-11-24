@@ -1,0 +1,26 @@
+{
+ "main": {
+  "capture specks median": 3719.5,
+  "largest": 13095,
+  "largest diffuse sample": 66.65342712402344,
+  "largest specular sample": 160.87904357910156,
+  "specular samples above B per draw": 4357.9,
+  "diffuse samples above B per draw": 61.5975,
+  "mean specular sample": 2.134509563446045,
+  "mean diffuse sample": 0.2645568251609802,
+  "box mean, 20 captures": 0.30121019939404103,
+  "B": 3.8886351585388184
+ },
+ "mix-0.25": {
+  "capture specks median": 128.0,
+  "largest": 2142,
+  "largest diffuse sample": 66.65342712402344,
+  "largest specular sample": 174.7720947265625,
+  "specular samples above B per draw": 7777.0825,
+  "diffuse samples above B per draw": 61.5975,
+  "mean specular sample": 2.1294963359832764,
+  "mean diffuse sample": 0.2645568251609802,
+  "box mean, 20 captures": 0.32310449751712444,
+  "B": 3.8886351585388184
+ }
+}

@@ -3,10 +3,10 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The light pyramid pass, under <see cref="ScreenTrace"/> with the guided rays on (ARCHITECTURE.md, "Guided diffuse
-/// rays"): the finest level, each pixel's guide light from this frame's direct light and its surface share, then levels 1
-/// to L of its sums, one dispatch per level below the tail and one for the tail. It runs after the direct pass and the
-/// surface test, whose images it reads, and before the rays, which read it.
+/// The light pyramid pass, under <see cref="ScreenTrace"/> with the guided rays on (ARCHITECTURE.md, "Guided rays"): the
+/// finest level, each pixel's guide light from this frame's direct light and its surface share, then levels 1 to L of its
+/// sums, one dispatch per level below the tail and one for the tail. It runs after the direct pass and the surface test,
+/// whose images it reads, and before the rays, which read it.
 /// </summary>
 internal sealed class LightPyramidPass(
     VulkanDevice device,
@@ -26,8 +26,8 @@ internal sealed class LightPyramidPass(
     public override string Name => "light pyramid";
 
     /// <summary>
-    /// Whether the debug switch TERTIUS_GUIDED_RAYS turns the guided diffuse rays on: unset, empty and "on" turn them on,
-    /// "off" turns them off, so that every diffuse ray comes from the cosine lobe, as before the guided rays.
+    /// Whether the debug switch TERTIUS_GUIDED_RAYS turns the guided rays of both kinds on: unset, empty and "on" turn them
+    /// on, "off" turns them off, so that every ray comes from its lobe, as before the guided rays.
     /// </summary>
     /// <exception cref="ArgumentException">The variable holds another value.</exception>
     public static bool SwitchedOn() =>

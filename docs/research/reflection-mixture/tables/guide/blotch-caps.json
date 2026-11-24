@@ -1,0 +1,188 @@
+{
+ "full cap32": {
+  "sunlit patch": {
+   "rel std": 0.038478748621097944,
+   "half width (output px)": 1.9542644832992935,
+   "half width (render px)": 1.3028429888661957,
+   "slow part: lag where it falls to half of lag 2 (output px)": 4.0,
+   "autocorrelation at lags 1,2,4,8,16,32,64": [
+    0.7289884728440256,
+    0.4890251536054051,
+    0.20658989745202383,
+    0.09774828128492097,
+    0.04127483439127671,
+    0.004966527758369267,
+    -0.005715135879480208
+   ]
+  },
+  "back wall below the slot": {
+   "rel std": 0.015349550318391258,
+   "half width (output px)": 20.896084364291134,
+   "half width (render px)": 13.930722909527423,
+   "slow part: lag where it falls to half of lag 2 (output px)": 26.0,
+   "autocorrelation at lags 1,2,4,8,16,32,64": [
+    0.8769925394229228,
+    0.8434543685608239,
+    0.8022616431271552,
+    0.7403237420235852,
+    0.5922040114647776,
+    0.3181356903282326,
+    0.09162714979791248
+   ]
+  },
+  "floor": {
+   "rel std": 0.032821759639284596,
+   "half width (output px)": 1.9340207287640632,
+   "half width (render px)": 1.2893471525093754,
+   "slow part: lag where it falls to half of lag 2 (output px)": 9.0,
+   "autocorrelation at lags 1,2,4,8,16,32,64": [
+    0.6994438860142778,
+    0.4859112738653048,
+    0.30337995304250204,
+    0.24542574685182672,
+    0.1964235519991817,
+    0.10329229143419745,
+    -0.004335677449909105
+   ]
+  },
+  "right wall": {
+   "rel std": 0.04882385814125801,
+   "half width (output px)": 1.7683562088043483,
+   "half width (render px)": 1.178904139202899,
+   "slow part: lag where it falls to half of lag 2 (output px)": 4.0,
+   "autocorrelation at lags 1,2,4,8,16,32,64": [
+    0.6863341008309944,
+    0.44382405315278023,
+    0.18906994269138794,
+    0.0939428205927733,
+    0.051372273540528,
+    0.030426409007586072,
+    0.008565733658084081
+   ]
+  }
+ },
+ "full cap64": {
+  "sunlit patch": {
+   "rel std": 0.038418107742280695,
+   "half width (output px)": 1.9470167276401544,
+   "half width (render px)": 1.298011151760103,
+   "slow part: lag where it falls to half of lag 2 (output px)": 4.0,
+   "autocorrelation at lags 1,2,4,8,16,32,64": [
+    0.7270955054663175,
+    0.4872945612610227,
+    0.2040045998098915,
+    0.09238779979714846,
+    0.03778489409555833,
+    0.004344996159688471,
+    -0.007260439015708745
+   ]
+  },
+  "back wall below the slot": {
+   "rel std": 0.013576600390165288,
+   "half width (output px)": 22.649800809960848,
+   "half width (render px)": 15.099867206640566,
+   "slow part: lag where it falls to half of lag 2 (output px)": 29.0,
+   "autocorrelation at lags 1,2,4,8,16,32,64": [
+    0.8543416979950913,
+    0.8193244797421132,
+    0.7815039823121712,
+    0.7322084165798716,
+    0.6085233279827864,
+    0.3609835253484766,
+    0.11782359907631947
+   ]
+  },
+  "floor": {
+   "rel std": 0.03448183781338107,
+   "half width (output px)": 2.1406208068461132,
+   "half width (render px)": 1.4270805378974087,
+   "slow part: lag where it falls to half of lag 2 (output px)": 9.0,
+   "autocorrelation at lags 1,2,4,8,16,32,64": [
+    0.7148856163921344,
+    0.5156685181452462,
+    0.3399382556556995,
+    0.26002113328163046,
+    0.1732865385459479,
+    0.06982261586510978,
+    -0.012749651664710078
+   ]
+  },
+  "right wall": {
+   "rel std": 0.04856771787103268,
+   "half width (output px)": 1.7629133746801346,
+   "half width (render px)": 1.1752755831200898,
+   "slow part: lag where it falls to half of lag 2 (output px)": 4.0,
+   "autocorrelation at lags 1,2,4,8,16,32,64": [
+    0.6850434837837105,
+    0.44249499803813896,
+    0.1852655551653864,
+    0.0891318243372007,
+    0.04625161504722898,
+    0.026435898736428855,
+    0.005318276619800904
+   ]
+  }
+ },
+ "full cap128": {
+  "sunlit patch": {
+   "rel std": 0.03816022859506263,
+   "half width (output px)": 1.9320326738769278,
+   "half width (render px)": 1.2880217825846185,
+   "slow part: lag where it falls to half of lag 2 (output px)": 4.0,
+   "autocorrelation at lags 1,2,4,8,16,32,64": [
+    0.7258475056769988,
+    0.4835303509172277,
+    0.19743049357887918,
+    0.09021531356412421,
+    0.03507986225824119,
+    0.00334346520677577,
+    -0.006694442796507871
+   ]
+  },
+  "back wall below the slot": {
+   "rel std": 0.014560459774786523,
+   "half width (output px)": 30.556168251600674,
+   "half width (render px)": 20.37077883440045,
+   "slow part: lag where it falls to half of lag 2 (output px)": 37.0,
+   "autocorrelation at lags 1,2,4,8,16,32,64": [
+    0.8803467247348151,
+    0.8513837873484369,
+    0.8214894594018753,
+    0.7836241387707824,
+    0.6899527865490861,
+    0.4815542844590333,
+    0.19812392790990388
+   ]
+  },
+  "floor": {
+   "rel std": 0.04201207045142702,
+   "half width (output px)": 3.1296236030729583,
+   "half width (render px)": 2.0864157353819723,
+   "slow part: lag where it falls to half of lag 2 (output px)": 8.0,
+   "autocorrelation at lags 1,2,4,8,16,32,64": [
+    0.7692193698864831,
+    0.6090147300666284,
+    0.43737171637537214,
+    0.29838096146818927,
+    0.14511018085618124,
+    0.03130136873866552,
+    -0.01152625748066605
+   ]
+  },
+  "right wall": {
+   "rel std": 0.04852381775019876,
+   "half width (output px)": 1.7620446895515354,
+   "half width (render px)": 1.1746964597010237,
+   "slow part: lag where it falls to half of lag 2 (output px)": 4.0,
+   "autocorrelation at lags 1,2,4,8,16,32,64": [
+    0.6850477231406923,
+    0.44221718357011514,
+    0.18553399456439554,
+    0.09092707326358712,
+    0.04697193741754694,
+    0.02689946392170195,
+    0.004208559768176004
+   ]
+  }
+ }
+}

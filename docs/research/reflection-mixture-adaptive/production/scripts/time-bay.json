@@ -1,0 +1,1 @@
+{"scene": "demo-surface", "window": {"width": 1920, "height": 1080}, "steps": [{"do": "camera", "entity": "bay-camera"}, {"do": "film", "name": "t", "frames": 300, "every": 1}]}

@@ -1,0 +1,6 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#define OwnRays 0
+#define RecordedDensityScale 1.0
+#define GuideShare 0.125
+#include "shared_reflection_setup.glsl"

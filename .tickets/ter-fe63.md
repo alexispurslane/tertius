@@ -1,8 +1,8 @@
 ---
 id: ter-fe63
-status: in_progress
+status: closed
 deps: []
-links: [ter-12xp, ter-bdoh, t1-nyjl, t1-d9k3]
+links: [ter-12xp, ter-bdoh, t1-nyjl, t1-d9k3, t1-gjnl]
 created: 2026-11-22T15:17:24Z
 type: bug
 priority: 1
@@ -501,3 +501,153 @@ Orchestrator's pick for the reflection kind's guided share, 2026-11-23 18:25 (re
 - Design 2 (no guide mass below the pixel's plane) waits in a ticket: by the replay it adds at most 5.5 % in deviation on one surface and costs about 120 reads per traced reflection ray. The target model of t1-cyhy and t1-d9k3 become improvements of the guide that the share rewards by itself.
 - Start value: the ramp's share. Floor 0, where the picture equals main's to the byte. Ceiling 0.25 first, 0.5 as a probe column.
 - Next is one more probe of stage 1, a scratch switch, no build: the five surfaces at 1:1, the share image as a picture and over time (it must settle and not breathe), a pan and a walk across surfaces with opposite shares, the draws to settle after a cut, the films of the nose and rect-lamps' floor, the frame's GPU time, and two runs that agree to the bit. Bar: no loss that a viewer sees on rect-lamps' floor and the wall beside the stripe, the nose without specks from the first draw after a cut, the mirror plate to the byte.
+
+**2026-11-23T23:46:30Z**
+
+2026-11-23, replacement back-face line orchestrator (Gemini 4 Neon XHigh). Merged stage 1 record 5c01a17b8 into ter-kh4g-back-face-depth-layer (commit 626aac83e; docs/research/guide-census/, docs/research/reflection-mixture/, and .tickets/t1-nyjl.md; zero src/ changes). Created deferred Design 2 ticket t1-gjnl as ordered in the 18:25 design pick. Launched replacement ticket lead for Design 1 Stage 1 probe on Gemini 4 Neon High (exact target providerInstanceId=antigravity, model=gemini-4-neon, options={thought_level:high}, isolation=shared) in existing worktree /Users/alexispurslane/.t3/worktrees/tertius/t3-2b720d96-b40221aeff8f27f7 (branch t3/fade-lit-front-trace, HEAD 5c01a17b8): clientRequestId neon-nov23-ter-fe63-lead-1, taskId node:delegated-task:command%3Amcp%3A3c0a322b-8440-4956-87c2-563575318fca%3Adelegate-task%3Aneon-nov23-ter-fe63-lead-1, childThreadId thread:delegated-task:command%3Amcp%3A3c0a322b-8440-4956-87c2-563575318fca%3Adelegate-task%3Aneon-nov23-ter-fe63-lead-1. Scope stays Stage 1 scratch probe (not production); disk 26 GiB free, zsh cloud, shared GPU lock, announce exclusive lock first.
+
+**2026-11-24T00:11:00Z**
+
+2026-11-23 19:11, line orchestrator: Design 1 Stage 1 probe built in /private/tmp/t1-wl7c/probe-head (RG16F 80x45 tile share image, 8x8 ray cells, linearClamp read, ShareStep=1/128, ShareGuard=1/16, MaxRatio=2.0, windowed Bayer + Van der Corput guidedTurn, census gated behind probeCensus). Hold 1 ceiling 0.25 results: (1) mirror plate byte-identical to main (sha256 d290f1a8...); (2) frozen bay (capture 19 vs own 100-cap ref, all/grain/blob): sunlit patch 0.0149/0.0095/0.0072 vs main 0.0149/0.0096/0.0072 (mean 0.99995, settled share 0.0034, std_med 0.0000, 32 draws), back wall 0.0149/0.0054/0.0095 (share 0.0343), floor 0.0194/0.0096/0.0112 (share 0.1319), right wall 0.0453/0.0303/0.0173 vs main 0.0502/0.0331/0.0212 (mean 1.01522, share 0.2499, std_med 0.0001, 0 draws); (3) sunlit nose ceiling box: capture specks median 166.5 (max 1,719 at c0, 129 at c19) vs main 3,719.5 (13,095), mean specular 2.1302 vs main 2.1345 (-0.20 %, unbiased), box mean 0.3233, settled share 0.1881 (cone 0.25, outer corners 0.02..0.15, 38 draws); (4) rect-lamps floor (provisional vs main ref): 0.00729/0.00546/0.00263 matching main to 5 decimals (98.5 % pixels bit-identical, max diff 2/255, mean 0.999997, 100 % of 480 tiles at 0 in 26 draws, std_med 0.0). Resumed after parent freed 4 invalid kqii folders (23.11 GiB free) for lamps own ref, ceiling 0.5 + window-2 clamp check, crops, share strips, motion pan/walk films, tile-border check, determinism, and exclusive GPU timing.
+
+**2026-11-24T11:46:00Z**
+
+2026-11-24 06:46, replacement back-face line orchestrator (Gemini 4 Neon XHigh). Complete Hold 1 results (ceilings 0.25 and 0.50, own 100-capture rect-lamps references, and window-2 fast-history clamp traces) verified from read-only output and visual check of all six c-s19.png renders under /private/tmp/t1-wl7c/fe63-d1/:
+- Mirror plate (0.73 stops, roughness 0.05): byte-identical to main at both 0.25 and 0.50 (247,406 B, sha256 d290f1a857f8e0494dcf2ca4b34cf3b80753f6cbd5210c6b4da10131e90fcaca).
+- Sunlit nose ceiling box (-1.7507 stops, 750,0,1170,330, 400 draws): Design 1 0.50 capture specks median 127.0 (c0 1,466, c1 444, c19 118), largest specular 198.33, mean specular 2.1272 (-0.34 % vs main), box mean 0.3244 (1.0769x main), settled share mean 0.2797 (6.7 % at ceiling, 0 % at zero, tile std median 0.0177 / p95 0.0248, settles in 55 draws).
+- Frozen bay (-4.089 stops, capture 19 vs own 100-capture ref, all / grain / blob): Design 1 0.50 sunlit patch 0.0149 / 0.0096 / 0.0072 (mean 0.99982, share 0.0073, 89.0 % at 0, 58 draws), back wall 0.0150 / 0.0055 / 0.0095 (share 0.0354, 63 draws), floor 0.0193 / 0.0096 / 0.0111 (share 0.1759, 76 draws), right wall 0.0437 / 0.0291 / 0.0166 (mean 1.02040, share 0.4938, 87.7 % at ceiling, std median 0.00009, 0 draws). Independent repeat bay captures matched to the byte on both ceilings (0.25 sha256 7773fdc6..., 0.50 sha256 88909888...).
+- rect-lamps glossy floor (3.83 stops, own 100-capture refs, all / grain / blob): main 0.007294 / 0.005457 / 0.002634; Design 1 0.25 0.007292 / 0.005456 / 0.002633 (mean 0.999997, 98.5 % identical, 100 % at 0 in 26 draws); Design 1 0.50 0.007290 / 0.005453 / 0.002634 (mean 0.999969, 98.2 % identical, 100 % at 0 in 45 draws).
+- Window-2 clamp trace (draws 600 to 615, fast deviation / clamp move share / mean lag): sunlit patch main 0.335 / 7.76 % / 0.0075, D1 0.25 0.334 / 7.74 % / 0.0076, D1 0.50 0.335 / 7.75 % / 0.0075; right wall main 0.594 / 9.40 % / 0.0138, D1 0.25 0.561 / 7.44 % / 0.0114, D1 0.50 0.496 / 6.91 % / 0.0099 (zero clamp fighting).
+Parent completed user-approved Tier 1A cleanup (51.61 GiB free, no further deletions authorized). Resuming original ter-fe63 lead thread (Neon High) in t3-2b720d96-b40221aeff8f27f7 to finish remaining Stage 1 deliverables (1:1 crop sheets, share visuals and stretched tile-border check, slow pan and walk films across opposite-share surfaces, nose and rect-lamps floor 60 fps films, bit-exact film share-image determinism pair, serialized exclusive GPU timing after t1-kqii, and Stage 1 record commit under docs/research/reflection-mixture-adaptive/ with src/ clean; no production merge).
+
+**2026-11-24T12:41:00Z**
+
+2026-11-24 07:41, replacement back-face line orchestrator (Gemini 4 Neon XHigh). Design 1 Stage 1 probe complete, verified, and merged into ter-kh4g-back-face-depth-layer (commit b21fd6f1f from t3/fade-lit-front-trace; ONLY docs/research/reflection-mixture-adaptive/ added, 46 files, zero src/ changes; git apply --check on probe.patch passed cleanly against 5c01a17b8; all 15 still/plot sheets visually verified).
+- Step 1 (1:1 crops, share maps, settling strips, stretched tile-border check): zero visible 24-pixel tile boundaries across 0 <-> 0.25 or 0 <-> 0.50 transitions (bay border dx/dy gradient ratios: main 1.069/1.212, D1 0.25 1.070/1.219, D1 0.50 1.079/1.203).
+- Step 2 (60 fps H.264 CRF 12 films, motion, cuts, determinism): sunlit nose RMS drops 53.9 % (0.25) / 56.9 % (0.50) and temporal std drops 47.4 % / 50.5 % with zero period-4/2 beats; rect-lamps floor matches main (RMS 0.13687 main vs 0.13691 / 0.13690; std 0.34577 vs 0.34579 / 0.34577); slow pan specks median drops 3,763 -> 149 (0.25) / 130 (0.50); walk specks median drops 1,063 -> 7 / 1; two independent walk-hall runs produced bit-identical w-000179.png (sha256 ab9a9225...) and d.shares.f32 across all 240 draws (sha256 68c61000..., matching --video run). Camera cut finding: 180-deg cut from settled share-0 aft view without tile reset climbs back to 90 % in 16 draws (0.25) / 30 draws (0.50), causing a brief ~12-frame speck burst (16,535 at post-cut draw 5); Stage 2 must reset the tile share image to ceiling on camera cuts so cuts match draw-0 startup behavior.
+- Step 3 (exclusive GPU lock, 4m52s hold, locked 1296.0 MHz on all 27 runs, 1-min load 2.41..5.39, --pass-timestamps off counterbalanced mean vs probe-off main): sunlit nose 15.493 -> 15.958 ms (+0.465 ms, +3.00 % at 0.25) / 15.992 ms (+0.499 ms, +3.22 % at 0.50); rect-bay 15.552 -> 16.074 ms (+0.522 ms, +3.36 %) / 16.123 ms (+0.572 ms, +3.68 %); rect-lamps floor (share-0 read cost) 15.492 -> 15.827 ms (+0.336 ms, +2.17 %) / 15.855 ms (+0.363 ms, +2.34 %). Stage 2 will re-time clean engine build against unpatched main binary.
+- Recommendation passed to parent for Stage 2 authorization: ceiling 0.25 default (or 0.50 optional) with camera-cut reset to ceiling. Ticket remains open (in_progress) awaiting parent/user Stage 2 go-ahead; no production edits started.
+
+**2026-11-24T12:45:00Z**
+
+2026-11-24 07:45, replacement back-face line orchestrator (Gemini 4 Neon XHigh). Parent Stage 1 ruling: promising motion result, not an all-bars pass; Stage 2 production and merge remain held. Parent authorized one targeted scratch follow-up at ceiling 0.25 only (no new parameter sweep): on a real camera-cut temporal invalidation (FrameHistory PendingFrame.Reset == true), initialize the tile share image to the roughness-limited starting ceiling (0.25, capped per pixel by the roughness ramp) before the new view's first trace. Compare the same settled-aft-to-nose 180-deg real camera cut across unpatched main, Design 1 0.25 reset-off, and Design 1 0.25 reset-on (first draw and first 30 draws, normal-exposure 60 fps film, counts separated from what visibly flashes at 1:1, not cold startup), plus a reverse real camera cut onto the rect-lamps glossy floor to measure any new transient grain from reset-on. Also fix README wording so counted specks (e.g. 1,776) are never called zero/speck-free, +0.336 ms is recorded as the whole-scene delta on a view whose floor has zero share (not an isolated per-floor cost), and fixed-cost acceptance stays explicitly open until a clean engine build is timed against unpatched main. Continued original ter-fe63 lead thread (Neon High) in t3-2b720d96-b40221aeff8f27f7 under --shared GPU lock, >= 20 GiB floor, zero deletions, and zero src/ commits.
+
+**2026-11-24T13:02:00Z**
+
+2026-11-24 08:02, replacement back-face line orchestrator (Gemini 4 Neon XHigh). Merged ceiling-0.25 real camera-cut follow-up commit b20f012f6 from t3/fade-lit-front-trace into ter-kh4g-back-face-depth-layer (ONLY docs/research/reflection-mixture-adaptive/ changed, zero src/ edits, probe.patch verified via git apply --check, all 4 new visual sheets inspected directly, zero deletions, 45.8 GiB free). Real camera-cut event verification (CameraCuts++ -> context.History.Reset == true, DrawsOf == 1, zero warm-up draws, pre-cut shares 0.000) compared a clean rebuilt unpatched main binary (5c01a17b8) against D1 0.25 reset-off and reset-on:
+- Forward cut (settled aft -> sunlit nose, -1.7507 stops, detector g - median7(g) > 12): d0 / d1 / d2 / d5 / d10 / d15 / d29 / d0..d29 median / d60 counted specks: unpatched main 26,342 / 24,190 / 14,008 / 11,705 / 10,821 / 10,692 / 13,610 / 11,755 / 8,681; reset-off 26,337 / 24,446 / 13,687 / 11,323 / 11,605 / 9,338 / 3,517 / 9,816 / 787 (share 0.0059 -> 0.1956); reset-on 19,910 / 10,716 / 3,438 / 5,742 / 6,133 / 4,694 / 2,123 / 4,351 (-55.7 % vs off, -63.0 % vs main) / 731 (share 0.2500 -> 0.2083). Visually on real-cut-nose-strip-1x.png: d0 shows a coarse 2x2 block-ray pattern on all builds; unpatched main and reset-off flash stark white square firefly blotches across the dark outer ceiling over d0..d10; reset-on suppresses those outer blotches from d0 and fills the cone evenly by d1..d2 while leaving fine short-history grain inside the cone over d5..d29.
+- Reverse cut (settled aft -> rect-lamps glossy floor, 3.83 stops, floor box residual grain RMS): reset-off matches unpatched main to 4-5 decimals on every draw (d0 0.01226, d5 0.00866, d10 0.00937, d29 0.00669, d60 0.00580). Reset-on (share 0.2398 -> 0.0000 by d29) adds transient grain: d0 0.01951 (+59.1 %, visibly stronger 2x2 dither grid at 1:1), d5 0.01132 (+30.7 %), d10 0.01178 (+25.7 %), d15 0.01045 (+21.5 %), d29 0.00743 (+11.1 %), d60 0.00580; d0..d14 frame-to-frame RMS 0.5084 vs 0.4345 (+17.0 %), d15..d29 0.2522 vs 0.2392 (+5.4 %); subtle at 1:1 after d0, clearly visible at 16x, no mottle or brightness shift.
+- README wording fixed (exact speck detector vs visible flashes, +0.336 ms whole-scene rect-lamps delta clarification, fixed-cost acceptance explicitly OPEN requiring clean-vs-unpatched-main timing). Stage 2 production and merge remain held awaiting parent decision.
+
+**2026-11-24T14:40:25Z**
+
+2026-11-24, stage 2 lead (branch t3/adaptive-reflection-ray-guiding, base main 56feef7d5): the production build of Design 1 at Config B is commit e07bf0655. It has a ceiling of 0.25, a step of 1/128, a guard of 1/16, a most ratio of 2 and a ramp from 0.1 to 0.38. Every tile restarts at the ceiling when the frame resets its histories (a camera cut, the first draw, a still) and when the render size changes. Three changes from the probe, each for Vulkan on Linux:
+- The share image is R32F, not RG16F, because Vulkan leaves the rounding of a half-float store to the driver.
+- The bilinear read is done by hand, because the linear filtering of R32F is optional.
+- The sums have no isnan check, because their bounds keep them finite.
+
+The record is docs/research/reflection-mixture-adaptive/production/README.md, against unpatched main, in Release, at 1920 x 1080 and a render scale of 0.6667, with a fixed exposure:
+- Mirror plate still: byte for byte main's.
+- Settled nose specks (median, frames 120 to 359): 3,496 on main against 144.
+- Camera cut onto the nose, specks d0 to d29 (median): 11,674 against 4,322. At d0 they are 26,342 against 19,910, the same as the probe's reset-on.
+- Pan: 3,822 against 164. Walk: 1,073 against 7.
+- Two runs of the walk give the same 240 frames.
+- Camera cut onto rect-lamps' glossy floor: the floor's grain is 1.59 times main's at d0, 1.26 times at d10, 1.11 times at d29 and 1.00 times at d64. This is the accepted transient grain, the same as the probe's reset-on.
+- Settled rect-lamps floor: the same as main.
+
+GPU time, under the exclusive lock, with two counterbalanced rounds per view and a load under 8:
+- Nose: 14.798 against 15.592 ms (+0.794 ms, +5.4 %).
+- Bay: 14.802 against 15.725 ms (+0.923 ms, +6.2 %).
+- rect-lamps: 14.846 against 15.501 ms (+0.655 ms, +4.4 %).
+
+This is about 0.3 ms more than stage 1's table, but it is no new regression. A clocked run on the nose, at 1296 MHz in every run, gave:
+
+| Build | Frame |
+|---|---|
+| Unpatched main | 14.82 ms |
+| The probe build with the probe off | 15.47 ms |
+| The probe at Config B | 15.94 ms |
+| Production | 15.61 ms |
+
+Stage 1 measured against its probe-off build, whose scaffolding costs 0.65 ms. Production is 0.33 ms cheaper than the probe.
+
+**2026-11-24T17:16:30Z**
+
+2026-11-24, stage 2 lead: the stage 2 review and its fixes (commits 8e7bcc272 and 945f36790), and the hardening.
+
+The review ran on the Anthropic fallback (claude-opus-5-5, effort high), because Antigravity had no quota left. Its findings and their answers:
+
+| Finding | Answer |
+|---|---|
+| B1: the resolve weighed a block's guided ray at the pixel's own share, not at the share that drew it | Fixed. The block guide's w holds the drawing share, and the resolve mixes the pixel's own lobe density at that share. Test: ResolveSharedReflectionTests.APixelWeighsAGuidedBlockRayByItsOwnMixtureAtTheShareThatDrewTheRay. |
+| B2: a restart at a new render size threw away the shares while the histories went on | Fixed. The shares restart only when the frame resets its histories. A restart writes the ceiling into every tile of the image, which covers the largest render size. |
+| B3: a comment called the step an odd multiple of 1/16 wrongly | Fixed. |
+| F1: the GPU cost of 0.67 to 0.94 ms has no acceptance | Recorded in the README and ARCHITECTURE.md. The parent accepted it under the user's delegation of 2026-11-24. Ticket tf3-g3rs looks for a cheaper path at a share of 0. |
+| F2: the known limit of a block that straddles two tiles | Gone with B1. |
+| F3: R32G32B32A32_SFLOAT missing from the device format table | Added. |
+| T1: no test of the first draw after a cut | ReflectionShareRenderTests.TheFirstDrawAfterACameraCutDrawsItsReflectionRaysAtTheCeiling. |
+| T2: no test of the evidence or of a tile at 0 | TheEvidenceOfAReflectionSampleIsThatOfTheCopyAtEveryShareAndWeight, ATileAtAShareOfZeroStillFindsTheGuidedDensityThatRaisesItWhereTheGuideFindsTheLight. |
+| Q1: the tile size 8 written in three places | One constant, TileBlocks. |
+| Q2: the guiding condition written in three places | One function, guidesReflectionsOf. |
+
+The retakes on 945f36790 match the takes before the fixes within 2 specks and 0.03 ms (production README). The pan's median is 162 specks, not 164.
+
+Mutation testing, with tools/mutate.py over three lists (Rendering has no Stryker run):
+
+| id | place | change | result | killed by or answer |
+|---|---|---|---|---|
+| S01 | screen_trace_share.comp:18 | a tile without moment drops to 0 | killed | ReflectionShareRenderTests.AfterTheFirstDrawEachTilesShareIsOneStepFromTheCeilingByItsBlocksEvidence, ReflectionShareRenderTests.EachLaterDrawMovesEveryTilesShareOneStepFromItsLastShare |
+| S02 | screen_trace_share.comp:19 | upper ratio cap 1 | killed | ReflectionShareRenderTests.ACameraCutRestartsEveryTilesShareAtTheCeiling |
+| S03 | screen_trace_share.comp:20 | step up the slope | killed | ReflectionShareRenderTests.OnASunlitFloorWhoseGuideHoldsOnlyItsOwnPlaneTheFloorsSharesFallToZero, ReflectionShareRenderTests.AfterTheFirstDrawEachTilesShareIsOneStepFromTheCeilingByItsBlocksEvidence |
+| S04 | screen_trace_share.comp:29 | share pass ignores the restart | killed | ReflectionShareRenderTests.AfterTheFirstDrawEachTilesShareIsOneStepFromTheCeilingByItsBlocksEvidence, ReflectionShareRenderTests.ACameraCutRestartsEveryTilesShareAtTheCeiling |
+| S05 | screen_trace_share.comp:31 | tile sums skip its last row and column | killed | ReflectionShareRenderTests.AfterTheFirstDrawEachTilesShareIsOneStepFromTheCeilingByItsBlocksEvidence, ReflectionShareRenderTests.ACameraCutRestartsEveryTilesShareAtTheCeiling |
+| S06 | screen_trace_share.comp:34 | slope from the guided density | killed | ReflectionShareRenderTests.OnASunlitFloorWhoseGuideHoldsOnlyItsOwnPlaneTheFloorsSharesFallToZero, ReflectionShareRenderTests.AfterTheFirstDrawEachTilesShareIsOneStepFromTheCeilingByItsBlocksEvidence |
+| S07 | screen_trace.glsl:743 | rays ignore the restart | killed | ReflectionShareRenderTests.AfterTheFirstDrawEachTilesShareIsOneStepFromTheCeilingByItsBlocksEvidence, ReflectionShareRenderTests.EachLaterDrawMovesEveryTilesShareOneStepFromItsLastShare |
+| S08 | screen_trace.glsl:751 | bilinear place at the wrong tile scale | killed | ReflectionShareRenderTests.EachBlockReflectionRayIsDrawnAtTheBilinearShareOfTheTilesAroundItsBlock |
+| S09 | screen_trace.glsl:735 | ramp starts at roughness 0 | killed | ReflectionShareRenderTests.ASmoothFloorsReflectionsAreThoseOfItsLobeAlone |
+| S10 | screen_trace.glsl:774 | pixel share ignores its tile | killed | ReflectionShareRenderTests.EachBlockReflectionRayIsDrawnAtTheBilinearShareOfTheTilesAroundItsBlock, ReflectionShareRenderTests.ATileAtAShareOfZeroStillFindsTheGuidedDensityThatRaisesItWhereTheGuideFindsTheLight |
+| S11 | screen_trace.glsl:760 | no roughness ramp | killed | ReflectionShareRenderTests.ASmoothFloorsReflectionsAreThoseOfItsLobeAlone |
+| S12 | screen_trace.glsl:781 | Van der Corput scaled by 1/2 | killed | ReflectionShareRenderTests.AReflectionCellTakesTheGuidedDrawOnAnExactCount(channel: 1, reason: "a share of 1/8 gives each cell exactly one guided "···) |
+| S13 | screen_trace.glsl:779 | no hashed turn of the Bayer slot | killed | ReflectionShareRenderTests.AfterTheFirstDrawEachTilesShareIsOneStepFromTheCeilingByItsBlocksEvidence |
+| S14 | screen_trace.glsl:851 | no guided density at share 0 | killed | ReflectionShareRenderTests.ATileAtAShareOfZeroStillFindsTheGuidedDensityThatRaisesItWhereTheGuideFindsTheLight |
+| S15 | screen_trace.glsl:868 | guided reflection ray walks the code direction | survived | judgment call: a guided ray that walked its 16-bit coded direction loses light only for draws within about 10^-4 rad of a target box edge, below every test tolerance; the code keeps the drawn direction because the guided density is a box function |
+| S16 | screen_trace.glsl:897 | miss counts with the lobe density | killed | ReflectionShareRenderTests.ASunlitFloorsReflectionOfTheSkyKeepsItsMeanAtTheCeilingsShare |
+| S17 | screen_trace.glsl:894 | hit counts with the lobe density | killed | GuidedRaysRenderTests.AGuidedBlocksDiffuseDensityHoldsTheCosineShareAndTheGuidedDensityOfItsHit, GuidedRaysRenderTests.OnAJitteredFrameEachHitsDiffuseDensityIsTheCopysMixtureOfTheCosineAndTheGuidedDensity |
+| S18 | screen_trace.glsl:943 | evidence above the hand-over band | removed | the check was dead: no pixel above the hand-over band traces a reflection ray, and at its top the weight (1 - handOver) is 0, so 8e7bcc272 deleted it |
+| S19 | screen_trace.glsl:962 | no cap of the evidence weight | killed | ReflectionShareRenderTests.TheEvidenceOfAReflectionSampleIsThatOfTheCopyAtEveryShareAndWeight |
+| S20 | screen_trace.glsl:964 | no guard on the evidence mixture | killed | ReflectionShareRenderTests.TheEvidenceOfAReflectionSampleIsThatOfTheCopyAtEveryShareAndWeight |
+| S21 | screen_trace.glsl:953 | slope sign flipped | killed | ReflectionShareRenderTests.OnASunlitFloorWhoseGuideHoldsOnlyItsOwnPlaneTheFloorsSharesFallToZero, ReflectionShareRenderTests.ACameraCutRestartsEveryTilesShareAtTheCeiling |
+| S22 | screen_trace_block_rays.comp:31 | block guide drops the guided density | killed | ReflectionShareRenderTests+PanelsReflectionOverManyFrames.AGlossyFloorsReflectionOfAGlowingPanelKeepsItsMeanAndLosesNoiseWithTheGuidedReflectionRays |
+| S23 | screen_trace_resolve.comp:48 | block ray weighed with the lobe density | killed | ReflectionShareRenderTests+PanelsReflectionOverManyFrames.AGlossyFloorsReflectionOfAGlowingPanelKeepsItsMeanAndLosesNoiseWithTheGuidedReflectionRays |
+| C01 | GuidedShares.cs:105 | C# step up the slope | killed | GuidedSharesTests.ATilesShareStopsAtTheCeiling, GuidedSharesTests.ATilesStepIsAtMostTheStepTimesTheMostRatio |
+| C02 | GuidedShares.cs:102 | C# no-moment guard at 0 | killed | GuidedSharesTests.ATileWithoutEvidenceKeepsItsShare |
+| C03 | GuidedShares.cs:91 | C# no guard | killed | GuidedSharesTests.BelowTheGuardTheEvidenceWeighsBySquaredWeightOverTheMixtureAtTheGuard |
+| C04 | GuidedShares.cs:89 | C# no weight cap | killed | GuidedSharesTests.AWeightAbove10To12CountsAs10To12 |
+| C05 | GuidedShares.cs:72 | C# ramp from 0 | killed | GuidedSharesTests.TheReflectionShareRisesLinearlyOverTheRamp, GuidedSharesTests.TheRampCapsATilesShareOnASmootherSurface |
+| C06 | ScreenTraceImages.cs:164 | no restart on a reset | killed | ReflectionShareRestartTests.ACameraCutRestartsTheShares, ReflectionShareRestartTests.TheFirstDrawRestartsTheShares |
+| C07 | ScreenTraceImages.cs:164 | no restart on a new render size | killed | ReflectionShareRestartTests.ANewRenderSizeRestartsTheSharesThoughTheHistoriesContinue; killed in the first run; 8e7bcc272 then changed the rule on purpose (no restart at a new render size), and C12 pins the new rule |
+| C08 | GpuTypes.cs:923 | reflection guiding stays on with the guiding off | survived | judgment call: reachable only through the debug switch TERTIUS_GUIDED_RAYS=off, where the light pyramid is never written, so the mutant reads an undefined image and no test can pin a deterministic difference |
+| S24 | screen_trace.glsl:765 | guiding without a lit pixel in view | killed | ReflectionShareRenderTests.WithoutALitPixelInViewAGlossyFloorsReflectionsAreThoseOfItsLobeAlone |
+| S25 | screen_trace.glsl:750 | one tile too many in the render size | killed | ReflectionShareRenderTests.EachBlockReflectionRayIsDrawnAtTheBilinearShareOfTheTilesAroundItsBlock |
+| S26 | screen_trace_block_rays.comp:32 | block guide drops the drawing share | killed | ReflectionShareRenderTests.EachBlockReflectionRayIsDrawnAtTheBilinearShareOfTheTilesAroundItsBlock, ReflectionShareRenderTests.TheFirstDrawAfterACameraCutDrawsItsReflectionRaysAtTheCeiling |
+| S27 | screen_trace_resolve.comp:48 | resolve mixes at the ceiling | killed | ResolveSharedReflectionTests.APixelWeighsAGuidedBlockRayByItsOwnMixtureAtTheShareThatDrewTheRay |
+| S28 | screen_trace_resolve.comp:137 | resolve ignores the block guide | killed | ResolveSharedReflectionTests.APixelWeighsAGuidedBlockRayByItsOwnMixtureAtTheShareThatDrewTheRay, ReflectionShareRenderTests.ASunlitFloorsReflectionOfTheSkyKeepsItsMeanAtTheCeilingsShare |
+| S29 | screen_trace_share.comp:34 | restart leaves the tiles outside the render size | survived | judgment call: no headless renderer draws below its largest render size, so no tile lies outside the render size in a test; the write keeps a later, larger size from reading shares from before the restart |
+| S30 | screen_trace_share.comp:38 | share pass ignores the restart | killed | ReflectionShareRenderTests.AfterTheFirstDrawEachTilesShareIsOneStepFromTheCeilingByItsBlocksEvidence, ReflectionShareRenderTests.ACameraCutRestartsEveryTilesShareAtTheCeiling |
+| C09 | GuidedShares.cs:91 | C# bilinear scale | killed | GuidedSharesTests.ABlockTakesTheSharesOfTheTwoTilesAroundItByItsDistanceToTheirCenters |
+| C10 | GuidedShares.cs:95 | C# no clamp of the high tile | killed | GuidedSharesTests.ABlockInTheLastTileOfTheImageReadsNoTileBeyondIt |
+| C11 | GuidedShares.cs:91 | C# clamp past the covered tiles | survived | equivalent: with the high tile clamped to the covered tiles, a place past the last center blends the last tile with itself, so the wider clamp gives the same share |
+| C12 | ScreenTraceImages.cs:167 | restart at a new render size | killed | ReflectionShareRestartTests.ANewRenderSizeKeepsTheSharesAsTheHistoriesDo |
+| C13 | ScreenTracePass.cs:276 | share pass covers only the render size's tiles | survived | judgment call: as S29, the share pass covers the same tiles as the render size in every headless renderer |
+
+43 mutants: killed 37, removed 1, survived 5. Runs: tools/mutate.py over three lists (31, 20 and 2 rows); a row shows its last run.
+
+Coverage, from a full Debug run of tests/Tertius.Rendering.Tests with --coverage, by tools/coverage/changed-lines.py against 56feef7d5: changed C# lines 104/104 (100 %), changed branches 13/16. The three partial branches are ScreenTraceImages.cs:364, 369 and 374, the UnreachableException guards of WriteLightAges, which the refactor moved out of WriteSet unchanged. That run had one failure, EnvironmentLightingTests.ACurvedMirrorCutByTheScreensEdgeShowsTheStarsMeanInItsFirstAndLastColumnsAndRows, which passed three times alone and in both full suites. Its mirrors sit below the ramp, so it is ticket tf3-t9wo, not this change. The GLSL is covered by the mutation table.
+
+Full suites on the branch, through tools/test-all.sh in the dev shell, before the merge of main:
+- Checked (before 945f36790, whose hook then ran its 2 classes, 41 passed): Rendering 3593, Core 1207, Simulation 2007, Physics 1500, Host 2089, Unions 59, Style 276, Slop 597; 0 failed.
+- Release at 945f36790: Core 1175, Simulation 2026, Physics 1493 (8 skipped), Rendering 3583 (11 skipped), Host 2081 (8 skipped), Unions 59, Style 276, Slop 597; 0 failed.
+
+**2026-11-24T18:04:10Z**
+
+Production reflection guiding merged into main at b48c260f3, including output dithering. The merged renderer passed full Checked and Release at c8ea4ce41. Guiding restarts at a 0.25 share on the first trace after a history reset. Accepted the measured 0.673 to 0.944 ms per-frame cost against pre-dither main 56feef7d5 and the transient grain on a cut onto the glossy floor. Follow-up tf3-g3rs tracks the cost.

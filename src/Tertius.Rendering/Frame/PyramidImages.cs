@@ -6,7 +6,7 @@ namespace Tertius.Rendering;
 /// <summary>
 /// A pyramid of the screen tracer and its sets: the finest level, one value of the pyramid's format per pixel, and levels
 /// 1 to L, each cell from the up to four cells under it. The depth pyramid holds slabs
-/// (docs/plans/back-face-depth-layer.md), the light pyramid sums (ARCHITECTURE.md, "Guided diffuse rays"). The images
+/// (docs/plans/back-face-depth-layer.md), the light pyramid sums (ARCHITECTURE.md, "Guided rays"). The images
 /// stay in General.
 /// </summary>
 /// <remarks>

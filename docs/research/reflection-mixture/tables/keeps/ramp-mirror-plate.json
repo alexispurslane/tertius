@@ -1,0 +1,50 @@
+{
+ "plate": {
+  "draws": 39,
+  "classes": {
+   "0.04-0.06": {
+    "pixels": 54289,
+    "s 0.0": {
+     "variance factor": 1.0,
+     "above 16x mean per draw": 0.10256410256410256,
+     "relative variance": 0.08379968062734103
+    },
+    "s 0.03125": {
+     "variance factor": 1.4172006355932347,
+     "above 16x mean per draw": 0.10256410256410256,
+     "relative variance": 0.11876096064757778
+    },
+    "s 0.0625": {
+     "variance factor": 1.8622146468926861,
+     "above 16x mean per draw": 0.10256410256410256,
+     "relative variance": 0.15605299266916373
+    },
+    "s 0.1": {
+     "variance factor": 2.43702441148781,
+     "above 16x mean per draw": 0.20512820512820512,
+     "relative variance": 0.2042218673637122
+    },
+    "s 0.125": {
+     "variance factor": 2.847602814770042,
+     "above 16x mean per draw": 0.20512820512820512,
+     "relative variance": 0.23862820643124683
+    },
+    "s 0.25": {
+     "variance factor": 5.3110732344634295,
+     "above 16x mean per draw": 0.20512820512820512,
+     "relative variance": 0.4450662408364545
+    },
+    "s 0.5": {
+     "variance factor": 13.933219703390296,
+     "above 16x mean per draw": 0.20512820512820512,
+     "relative variance": 1.167599361254682
+    },
+    "s 0.75": {
+     "variance factor": 39.79965911017089,
+     "above 16x mean per draw": 0.8205128205128205,
+     "relative variance": 3.3351987225093644
+    }
+   }
+  }
+ }
+}

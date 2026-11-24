@@ -1,0 +1,9 @@
+{
+ "floor": {
+  "lobe draws": 2125013,
+  "guided draws": 303787,
+  "mean w^2, lobe, over mean^2": 1.8100373338050202,
+  "mean w^2, guided, over mean^2": 0.06460504681066391,
+  "slope (lobe - guided), over mean^2": 1.7454322869943562
+ }
+}

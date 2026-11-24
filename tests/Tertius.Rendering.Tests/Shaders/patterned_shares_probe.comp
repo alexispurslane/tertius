@@ -1,0 +1,14 @@
+#version 460
+// Sets every tile's reflection share to a pattern after the share pass, so that the next draw's rays read shares that
+// differ from tile to tile: the ceiling times the fraction of (3 x + 5 y) / 7 (ReflectionShareRenderTests).
+#extension GL_GOOGLE_include_directive : require
+#include "screen_trace.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main()
+{
+    ivec2 tile = ivec2(gl_GlobalInvocationID.xy);
+    if (all(lessThan(tile, imageSize(reflectionShare))))
+        imageStore(reflectionShare, tile, vec4(trace.reflectionCeiling * float((3 * tile.x + 5 * tile.y) % 7) / 7.0));
+}

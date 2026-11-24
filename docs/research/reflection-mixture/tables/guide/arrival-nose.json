@@ -1,0 +1,21 @@
+{
+ "nose-ceiling-box": {
+  "guided draws that arrive": 0.8778636971712082,
+  "arriving guided draws with X > 0": 1.0,
+  "non-arriving guided draws with X > 0 (must be 0)": 0,
+  "share 0.25": {
+   "arrival share of the guided variance": 0.1251917132818818,
+   "spread share of the guided variance": 0.8748082867181183,
+   "check: (arrival + spread) / guided variance": 1.0000000000000002,
+   "s * arrival, factor against today": 0.014266753995934082,
+   "s * spread, factor against today": 0.09969249795400165
+  },
+  "share 0.5": {
+   "arrival share of the guided variance": 0.048884608311720555,
+   "spread share of the guided variance": 0.9511153916882794,
+   "check: (arrival + spread) / guided variance": 1.0,
+   "s * arrival, factor against today": 0.007938797775513517,
+   "s * spread, factor against today": 0.15445992136508999
+  }
+ }
+}

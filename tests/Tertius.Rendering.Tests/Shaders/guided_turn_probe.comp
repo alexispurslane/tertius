@@ -1,0 +1,43 @@
+#version 460
+// The reflection ray's turn of the guided draw (guidedTurn in screen_trace.glsl) at each pixel as a cell, over the draws
+// 0 to 63, into the specular sample: x 1 where every window of 4 draws holds exactly one guided draw at a share of 1/4,
+// y 1 where every pair of windows holds exactly one at 1/8, z 1 where every window holds exactly two at 1/2, and w 1
+// where the cell takes the guided draw in draw 6 at 1/4.
+#extension GL_GOOGLE_include_directive : require
+#include "screen_trace.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main()
+{
+    ivec2 cell = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(vec2(cell), frame.viewport.xy)))
+        return;
+    bool quarters = true;
+    bool eighths = true;
+    bool halves = true;
+    for (uint window = 0u; window < 16u; window++)
+    {
+        uint quarter = 0u;
+        uint half_ = 0u;
+        for (uint draw = 4u * window; draw < 4u * window + 4u; draw++)
+        {
+            quarter += guidedTurn(cell, draw, 0.25) ? 1u : 0u;
+            half_ += guidedTurn(cell, draw, 0.5) ? 1u : 0u;
+        }
+        quarters = quarters && quarter == 1u;
+        halves = halves && half_ == 2u;
+        if ((window & 1u) == 0u)
+        {
+            uint eighth = 0u;
+            for (uint draw = 4u * window; draw < 4u * window + 8u; draw++)
+                eighth += guidedTurn(cell, draw, 0.125) ? 1u : 0u;
+            eighths = eighths && eighth == 1u;
+        }
+    }
+    imageStore(
+        specularSample,
+        cell,
+        vec4(quarters ? 1.0 : 0.0, eighths ? 1.0 : 0.0, halves ? 1.0 : 0.0, guidedTurn(cell, 6u, 0.25) ? 1.0 : 0.0)
+    );
+}

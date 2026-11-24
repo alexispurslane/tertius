@@ -1,0 +1,50 @@
+{
+ "main": {
+  "sunlit patch": {
+   "fast history relative deviation": 0.3350269316487719,
+   "clamp moves, share of pixel-draws": 0.0775722770547646,
+   "mean lag": 0.00753804249688983
+  },
+  "right wall": {
+   "fast history relative deviation": 0.5944144290982317,
+   "clamp moves, share of pixel-draws": 0.09404856018300478,
+   "mean lag": 0.013763860799372196
+  }
+ },
+ "coin": {
+  "sunlit patch": {
+   "fast history relative deviation": 0.4404754581011682,
+   "clamp moves, share of pixel-draws": 0.07377281858677613,
+   "mean lag": 0.009665358811616898
+  },
+  "right wall": {
+   "fast history relative deviation": 0.5592302332891553,
+   "clamp moves, share of pixel-draws": 0.07438914306219023,
+   "mean lag": 0.011261498555541039
+  }
+ },
+ "exact-0.25": {
+  "sunlit patch": {
+   "fast history relative deviation": 0.4222190803145979,
+   "clamp moves, share of pixel-draws": 0.0733347344746266,
+   "mean lag": 0.009120266884565353
+  },
+  "right wall": {
+   "fast history relative deviation": 0.5585206048638072,
+   "clamp moves, share of pixel-draws": 0.07378571508668057,
+   "mean lag": 0.011329198256134987
+  }
+ },
+ "exact-0.125": {
+  "sunlit patch": {
+   "fast history relative deviation": 0.3775675653946076,
+   "clamp moves, share of pixel-draws": 0.07395433007249541,
+   "mean lag": 0.008229970000684261
+  },
+  "right wall": {
+   "fast history relative deviation": 0.6035059151367533,
+   "clamp moves, share of pixel-draws": 0.08207181143331314,
+   "mean lag": 0.012649615295231342
+  }
+ }
+}

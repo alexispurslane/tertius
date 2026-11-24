@@ -59,6 +59,7 @@ internal static class HistoryInstrumentationSelection
             "screen_trace_own_rays.comp",
             "screen_trace_plan.comp",
             "screen_trace_resolve.comp",
+            "screen_trace_share.comp",
         ]
     );
 

@@ -1,0 +1,9 @@
+{
+ "nose": {
+  "lobe draws": 1078313,
+  "guided draws": 153687,
+  "mean w^2, lobe, over mean^2": 3.1052359789061703,
+  "mean w^2, guided, over mean^2": 18.159916321774627,
+  "slope (lobe - guided), over mean^2": -15.054680342868458
+ }
+}

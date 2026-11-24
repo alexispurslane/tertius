@@ -1,0 +1,77 @@
+{
+ "scene": "orbit",
+ "window": {
+  "width": 1920,
+  "height": 1080
+ },
+ "steps": [
+  {
+   "do": "camera",
+   "entity": "person"
+  },
+  {
+   "do": "run",
+   "ticks": 277003
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     1256.637,
+     0.0
+    ]
+   }
+  },
+  {
+   "do": "film",
+   "name": "aft",
+   "frames": 60,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     -1256.637,
+     0.0
+    ]
+   }
+  },
+  {
+   "do": "run",
+   "ticks": 2
+  },
+  {
+   "do": "camera",
+   "entity": "far"
+  },
+  {
+   "do": "film",
+   "name": "far1",
+   "frames": 1,
+   "every": 1
+  },
+  {
+   "do": "camera",
+   "entity": "person"
+  },
+  {
+   "do": "film",
+   "name": "post",
+   "frames": 65,
+   "every": 1
+  }
+ ]
+}

@@ -1,6 +1,7 @@
 #version 460
 // The block rays of one kind of the screen tracer (docs/plans/temporal-renderer.md, section 6): each 2 × 2 block's ray from
-// its chosen pixel, with the ray's setup, its walk and its light in one invocation (decision 40), into the block's record.
+// its chosen pixel, with the ray's setup, its walk and its light in one invocation (decision 40), into the block's record,
+// and while the rays are guided each reflection ray's guide (ScreenTraceImages.BlockGuide).
 // screen_trace_own_rays.comp traces the listed pixels' own rays. The two stay separate shaders, so that neither pipeline
 // binds the other's records and the own dispatch needs no barrier after the block dispatch.
 #extension GL_GOOGLE_include_directive : require
@@ -19,7 +20,19 @@ void main()
         return;
     ivec2 chosen;
     TracingPixel p;
-    RayRecord record = chosenPixelOf(block, rayKind, chosen, p) ? recordOf(traceFrom(chosen, block, p, rayKind)) : noRay();
+    RayRecord record = noRay();
+    // The ray's guided density, its evidence for its tile's share and the share that drew it: 0 for a block that no pixel
+    // starts.
+    vec4 guide = vec4(0.0);
+    if (chosenPixelOf(block, rayKind, chosen, p))
+    {
+        TracedRay ray = traceFrom(chosen, block, p, rayKind);
+        record = recordOf(ray);
+        if (rayKind == KindReflection)
+            guide = vec4(ray.guidedDensity, shareEvidenceOf(p, ray), ray.share);
+    }
+    if (rayKind == KindReflection && trace.reflectionCeiling > 0.0)
+        imageStore(blockGuide, block, guide);
     imageStore(blockLight, ivec3(block, rayKind), record.light);
     imageStore(blockRay, ivec3(block, rayKind), record.ray);
 }

@@ -1,0 +1,14 @@
+{
+ "d1_025": {
+  "sunlit patch": {
+   "fast history relative deviation": 0.3344558886654939,
+   "clamp moves, share of pixel-draws": 0.07741260153725216,
+   "mean lag": 0.007554883137345314
+  },
+  "right wall": {
+   "fast history relative deviation": 0.5611485602778464,
+   "clamp moves, share of pixel-draws": 0.0743814337616901,
+   "mean lag": 0.011391551233828068
+  }
+ }
+}

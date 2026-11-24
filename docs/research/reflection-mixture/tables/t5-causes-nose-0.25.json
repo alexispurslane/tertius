@@ -1,0 +1,16 @@
+{
+ "nose": {
+  "pixel-draws that start a reflection ray": 1232000,
+  "guided share of them": 0.25001055194805194,
+  "classes, share of guided draws": {
+   "own plane": 0.009321035151113752,
+   "box miss": 0.10657017723277913,
+   "blocked": 0.006879579757997228,
+   "arrives and counts": 0.8772292078581099
+  },
+  "share of the reflection part second moment": {
+   "arriving guided draws": 0.4998280539993697,
+   "lobe draws": 0.5001719460006303
+  }
+ }
+}

@@ -109,12 +109,7 @@ public sealed class OutputDitherTests
             Wall(renderer, new(BaseColor: new(x: 0.5f, y: 0.5f, z: 0.5f, w: 1), Roughness: 1, Reflectance: 0))
         );
         snapshot.Lights.Add(
-            Gpu.Lamp(
-                position: new(0, 0, 12),
-                color: Vector3.One,
-                intensity: 120,
-                chainDepth: TestChains.CamerasFrame
-            )
+            Gpu.Lamp(position: new(0, 0, 12), color: Vector3.One, intensity: 120, chainDepth: TestChains.CamerasFrame)
         );
         return Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "dark ramp");
     }
@@ -163,7 +158,9 @@ public sealed class OutputDitherTests
         double center = MeanCode(image: image, x0: Width / 2 - 16, y0: Height / 2 - 16, width: 32, height: 32);
         double edge = MeanCode(image: image, x0: 0, y0: Height / 2 - 16, width: 32, height: 32);
         center.Should().BeInRange(20, 60, "the ramp must be dark, where the sRGB steps are widest in light");
-        (center - edge).Should().BeGreaterThan(2.5, "the ramp must cross several codes between the edge and the center");
+        (center - edge)
+            .Should()
+            .BeGreaterThan(2.5, "the ramp must cross several codes between the edge and the center");
 
         int longest = 0;
         for (int y = Height / 2 - 40; y < Height / 2 + 40; y += 4)
@@ -308,9 +305,7 @@ public sealed class OutputDitherTests
         for (int i = 1; i < first.Rgba.Length; i += 4)
             if (first.Rgba[i] != second.Rgba[i])
                 differing++;
-        differing
-            .Should()
-            .BeGreaterThan(Width * Height / 4, "each draw reads its own frame of the blue-noise mask");
+        differing.Should().BeGreaterThan(Width * Height / 4, "each draw reads its own frame of the blue-noise mask");
     }
 
     // A test that reads exact codes turns the dither off: a flat value then shows one code at every pixel, the target's
@@ -345,8 +340,5 @@ public sealed class OutputDitherTests
     [InlineData(Format.A2B10G10R10UnormPack32)]
     [InlineData(Format.R16G16B16A16Sfloat)]
     public void AFormatWiderThanEightBitsGetsNoOutputDither(Format format) =>
-        ToneMapPass
-            .DitherCodeOf(format)
-            .Should()
-            .Be(0f, "only the 8-bit output formats take the 1/255 output dither");
+        ToneMapPass.DitherCodeOf(format).Should().Be(0f, "only the 8-bit output formats take the 1/255 output dither");
 }

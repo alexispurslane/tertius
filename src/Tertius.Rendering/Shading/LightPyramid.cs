@@ -4,14 +4,11 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// The light pyramid on the CPU: the C# copy of the light_pyramid shaders and of the guided draw in screen_trace.glsl
-/// (ARCHITECTURE.md, "Guided diffuse rays"). Level 0 holds each pixel's guide light, and each cell of level k the sum of
+/// (ARCHITECTURE.md, "Guided rays"). Level 0 holds each pixel's guide light, and each cell of level k the sum of
 /// the up to four cells under it, at the sizes of <see cref="DepthPyramid.LevelSize"/>.
 /// </summary>
 internal sealed class LightPyramid
 {
-    /// <summary>The share of the diffuse rays that aim at a pixel drawn from the pyramid: g of the mixture density.</summary>
-    public const float GuidedShare = 0.25f;
-
     /// <summary>The end of a chord that no side of the slab ends. Not infinity, as in the shader.</summary>
     private const float NoEnd = 1e30f;
 
@@ -223,10 +220,6 @@ internal sealed class LightPyramid
                 jitter: jitter
             ) > 0;
     }
-
-    /// <summary>The density of the one-sample mixture: the cosine draw's density and the guided draw's, by their shares.</summary>
-    public static float MixtureDensity(float cosineDensity, float guidedDensity) =>
-        (1 - GuidedShare) * cosineDensity + GuidedShare * guidedDensity;
 
     /// <summary>The distances t from Start to End along a ray inside a slab.</summary>
     private readonly record struct Chord(float Start, float End)

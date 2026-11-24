@@ -1,7 +1,8 @@
 // The screen tracer (docs/plans/temporal-renderer.md, section 6): the one owner of which pixels start a ray of each kind,
 // of a ray's start, its direction and density, its random numbers, its hit point, the light of a hit and of a miss, and
-// the block records. Its four kernels include it: screen_trace_plan.comp, screen_trace_block_rays.comp and
-// screen_trace_own_rays.comp (each of both kinds, by a specialization constant) and screen_trace_resolve.comp. Set 3 is
+// the block records. Its five kernels include it: screen_trace_plan.comp, screen_trace_block_rays.comp and
+// screen_trace_own_rays.comp (each of both kinds, by a specialization constant), screen_trace_resolve.comp and
+// screen_trace_share.comp. Set 3 is
 // the tracer set (DescriptorLayouts.ScreenTraceSet, ScreenTraceImages): every image holds the render size, the block
 // records a quarter of it, and each stays in the General layout.
 #ifndef TERTIUS_SCREEN_TRACE_GLSL
@@ -17,6 +18,7 @@
 #include "own_rays.glsl"
 #include "motion.glsl"
 #include "sample_age.glsl"
+#include "meter.glsl"
 
 layout(set = 3, binding = 0) uniform texture2D depthFinest;                    // RG32F: each pixel's center w and back w
 layout(set = 3, binding = 1) uniform texture2D depthPyramid;                   // RG32F, mip m = level m + 1
@@ -46,7 +48,7 @@ layout(set = 3, binding = 15, rgba16f) uniform writeonly image2D diffuseSample;
 layout(set = 3, binding = 16, rgba16f) uniform writeonly image2D specularSample;
 OWN_RAY_LIST(3, 17, reflectionOwnRays);
 OWN_RAY_LIST(3, 18, diffuseOwnRays);
-// The light pyramid (ARCHITECTURE.md, "Guided diffuse rays", light_pyramid.glsl): each pixel's guide light, and the sums
+// The light pyramid (ARCHITECTURE.md, "Guided rays", light_pyramid.glsl): each pixel's guide light, and the sums
 // of levels 1 to L, mip m level m + 1, whose padding holds no light. Bindings 19 to 24 are the light age's.
 layout(set = 3, binding = 25) uniform texture2D lightFinest;    // R32F
 layout(set = 3, binding = 26) uniform texture2D lightLevels;    // R32F
@@ -54,6 +56,17 @@ layout(set = 3, binding = 26) uniform texture2D lightLevels;    // R32F
 // leaves each pixel that a walk can hit toward a ray of the kind (leavingLightOf), and a the pixel's moved mark, 1 where
 // its surface moved since the last draw (movedSurfaceAt), else 0. The plan writes it, and a hit reads both.
 layout(set = 3, binding = 27, rgba16f) uniform image2DArray hitLight;
+// The reflection share of each tile of TileBlocks × TileBlocks blocks (ScreenTraceImages.ReflectionShare, GuidedShares):
+// the share of the tile's reflection rays that take the guided draw, after the last drawn frame. The tracer reads it at a
+// pixel's block (tileShareAt), and the share pass moves it after the resolve. It covers the tiles of the largest render
+// size.
+layout(set = 3, binding = 28, r32f) uniform image2D reflectionShare;
+// The guide of each block's reflection ray (ScreenTraceImages.BlockGuide), which the block pass writes while the rays are
+// guided: x its guided density along its direction, y and z its evidence for its tile's share (shareEvidenceOf), and w
+// the share at which it was drawn. The resolve weighs the ray at each pixel of the block by that share's mixture.
+layout(set = 3, binding = 29, rgba32f) uniform image2D blockGuide;
+// The blocks along each side of a tile of the reflection share (ScreenTraceImages.TileBlocks).
+const int TileBlocks = 8;
 #include "sent_light.glsl"
 
 // A record's w: bit 0 whether its ray traced. A ray below its pixel's geometric plane, and a block that no pixel starts,
@@ -238,7 +251,15 @@ layout(push_constant, std430) uniform ScreenTracePush
     float handOverStart;     // MaxRoughness − HandOverWidth: from it, the specular sample blends in the diffuse rays
     uint reflectionSteps;    // the caps of decision 41
     uint diffuseSteps;
-    float guidedShare;       // LightPyramid.GuidedShare, or 0 with the guiding off (TERTIUS_GUIDED_RAYS)
+    float diffuseShare;      // GuidedShares.Diffuse, or 0 with the guiding off (TERTIUS_GUIDED_RAYS)
+    float reflectionCeiling; // GuidedShares.ReflectionCeiling, or 0 with the guiding off
+    float rampStart;         // GuidedShares.RampStart and RampEnd, roughnesses
+    float rampEnd;
+    float shareStep;         // GuidedShares.Step, Guard, MostRatio and MostEvidenceWeight
+    float shareGuard;
+    float shareMostRatio;
+    float mostEvidenceWeight;
+    uint sharesRestart;      // 1 when every tile's share restarts at the ceiling before this draw (ScreenTraceImages.SharesRestart)
 } trace;
 
 // The two ray kinds, which index the record layers and the constants of the draws.
@@ -262,6 +283,13 @@ const uint TurnDraw[2] = uint[2](0x5254u, 0x4454u);        // the block's turn
 // The guided draw: the descent's levels, three per draw from "GD" on, and the target's place in its slab, "GT".
 const uint GuideDraw = 0x4744u;
 const uint TargetDraw = 0x4754u;
+// A reflection ray's guided draw adds this salt to both constants, so that a pixel's two rays do not aim at the same
+// target in a draw.
+const uint ReflectionGuideSalt = 0x0100u;
+// A reflection ray's turn of the guided draw (guidedTurn): a hash per group of 2 × 2 cells and window of 4 draws, "RP",
+// and a phase per cell, "RC".
+const uint TurnWindowDraw = 0x5250u;
+const uint TurnPhaseDraw = 0x5243u;
 
 // The depth of the box that a guided diffuse ray aims at, as a share of the target's depth
 // (LightPyramid.TargetDepthShare). It is no thickness: a guided ray that the walk rejects behind a thin surface counts
@@ -535,8 +563,9 @@ float guideTotal()
 }
 
 // The pixel at which a guided ray from `pixel` aims, each pixel in proportion to its guide light: from the top, each level
-// takes a child in proportion to its light (LightPyramid.Drawn). The total must be above 0.
-ivec2 guidedTargetOf(ivec2 pixel)
+// takes a child in proportion to its light (LightPyramid.Drawn). The total must be above 0. `salt` is 0 for a diffuse ray
+// and ReflectionGuideSalt for a reflection ray.
+ivec2 guidedTargetOf(ivec2 pixel, uint salt)
 {
     int top = textureQueryLevels(lightLevels);
     ivec2 cell = ivec2(0);
@@ -546,7 +575,7 @@ ivec2 guidedTargetOf(ivec2 pixel)
     {
         int index = top - level;
         if (index % 3 == 0)
-            draw = drawOf(pixel, trace.drawIndex, GuideDraw + uint(index / 3));
+            draw = drawOf(pixel, trace.drawIndex, GuideDraw + salt + uint(index / 3));
         float unit = unitOf(draw[index % 3]);
         float lights[4];
         float total = 0.0;
@@ -573,10 +602,10 @@ ivec2 guidedTargetOf(ivec2 pixel)
 }
 
 // The point at which a guided ray from `pixel` aims in its target pixel: a uniform point of the target's box, its volume
-// from its center's depth to TargetDepthShare behind it (LightPyramid.TargetOf).
-vec3 guidedPointOf(ivec2 pixel, ivec2 target)
+// from its center's depth to TargetDepthShare behind it (LightPyramid.TargetOf), with the salt of guidedTargetOf.
+vec3 guidedPointOf(ivec2 pixel, ivec2 target, uint salt)
 {
-    uvec3 draw = drawOf(pixel, trace.drawIndex, TargetDraw);
+    uvec3 draw = drawOf(pixel, trace.drawIndex, TargetDraw + salt);
     vec2 place = vec2(target) + vec2(unitOf(draw.x), unitOf(draw.y));
     return viewRayThrough(place) * ((1.0 + TargetDepthShare * unitOf(draw.z)) / texelFetch(depthFinest, target, 0).r);
 }
@@ -649,7 +678,7 @@ float pixelDensityOf(vec3 origin, vec3 direction, ivec2 q)
 // The density per steradian with which a guided ray from `origin` runs along `direction` and counts, and whether one that
 // aims at `target` counts: it counts when the walk hits a pixel of the 3 × 3 around its target, and it crosses the
 // target's box. So the density sums pixelDensityOf over the 3 × 3 pixels around the hit, in rows from the top, over the
-// screen's guide light, which must be above 0 (ARCHITECTURE.md, "Guided diffuse rays", LightPyramid.GuidedDensity and
+// screen's guide light, which must be above 0 (ARCHITECTURE.md, "Guided rays", LightPyramid.GuidedDensity and
 // Counts).
 float guidedDensityOf(vec3 origin, vec3 direction, ivec2 hit, ivec2 target, out bool counts)
 {
@@ -666,10 +695,82 @@ float guidedDensityOf(vec3 origin, vec3 direction, ivec2 hit, ivec2 target, out 
     return density / guideTotal();
 }
 
-// The density of the one-sample mixture of the cosine draw and the guided draw (LightPyramid.MixtureDensity).
-float mixtureDensity(float cosineDensity, float guidedDensity)
+// The density of the one-sample mixture of a lobe draw and the guided draw at the share (GuidedShares.MixtureDensity).
+float mixtureDensity(float share, float lobeDensity, float guidedDensity)
 {
-    return (1.0 - trace.guidedShare) * cosineDensity + trace.guidedShare * guidedDensity;
+    return (1.0 - share) * lobeDensity + share * guidedDensity;
+}
+
+// The reflection share that the pixel's roughness allows: 0 up to rampStart, rising linearly to the ceiling at rampEnd
+// (GuidedShares.ReflectionShareOf). A sharp lobe gives a guided direction almost no density, so its guided draw would
+// waste the ray.
+float reflectionRampOf(TracingPixel p)
+{
+    return trace.reflectionCeiling * clamp((sqrt(p.alpha) - trace.rampStart) / (trace.rampEnd - trace.rampStart), 0.0, 1.0);
+}
+
+// The reflection share of the tiles around the pixel's block, bilinear between the tiles' centers and clamped to the
+// tiles that the render size covers: the ceiling while the shares restart (GuidedShares.TileShareAt). A block's four
+// pixels read the same share. A block's center lies an odd multiple of 1 / 16 of a tile from a tile's center, so the
+// weights are exact.
+float tileShareAt(ivec2 pixel)
+{
+    if (trace.sharesRestart != 0u)
+        return trace.reflectionCeiling;
+    ivec2 tiles = ((ivec2(frame.viewport.xy) + 1) / 2 + TileBlocks - 1) / TileBlocks;
+    vec2 place = clamp((vec2(pixel / 2) + 0.5) / float(TileBlocks), vec2(0.5), vec2(tiles) - 0.5) - 0.5;
+    ivec2 low = ivec2(place);
+    ivec2 high = min(low + 1, tiles - 1);
+    vec2 f = place - vec2(low);
+    float top = mix(imageLoad(reflectionShare, low).r, imageLoad(reflectionShare, ivec2(high.x, low.y)).r, f.x);
+    float bottom = mix(imageLoad(reflectionShare, ivec2(low.x, high.y)).r, imageLoad(reflectionShare, high).r, f.x);
+    return mix(top, bottom, f.y);
+}
+
+// Whether the pixel's reflection rays take part in the guiding: its roughness lies above the ramp's start, the guiding is
+// on, and a lit pixel is in view. Only then can a ray take the guided draw, or find the guided density that its tile's
+// evidence needs.
+bool guidesReflectionsOf(TracingPixel p)
+{
+    return reflectionRampOf(p) > 0.0 && guideTotal() > 0.0;
+}
+
+// The share of the rays of the kind from the pixel that take the guided draw (GuidedShares): the diffuse share, and for a
+// reflection ray its tile's share capped by its roughness's ramp. 0 with the guiding off and while no lit pixel is in
+// view, and the light pyramid is then not read.
+float guidedShareOf(TracingPixel p, uint kind, ivec2 pixel)
+{
+    if (kind == KindReflection)
+        return guidesReflectionsOf(p) ? min(reflectionRampOf(p), tileShareAt(pixel)) : 0.0;
+    return trace.diffuseShare > 0.0 && guideTotal() > 0.0 ? trace.diffuseShare : 0.0;
+}
+
+// Whether the reflection ray of the cell takes the guided draw in the draw, at the share: on a fixed pattern in time, an
+// exact count where a coin is random. Where the guided draws bring nothing, a coin adds s / (1 − s) of the squared mean to
+// the variance, and an exact count only the factor 1 / (1 − s) (ter-fe63). Within each window of 4 draws, the 2 × 2 cells
+// of a group take the four slots of a Bayer pattern, turned by a hash of the group and the window: each slot holds a
+// quarter of the cells, so the frame has no beat, and a block's guided ray does not keep to one pixel of the block, whose
+// chosen pixel turns with a period of 4 (chosenPixelOf). Across the windows, a Van der Corput sequence shifted by a hash
+// per cell places the share's fraction of the slot: the count stays exact within one at any share, and a change of the
+// share moves no cell's phase.
+bool guidedTurn(ivec2 cell, uint drawIndex, float share)
+{
+    const uint bayer[4] = uint[4](0u, 3u, 1u, 2u);
+    uint window = drawIndex >> 2;
+    uint turn = drawOf(cell >> 1, window, TurnWindowDraw).x;
+    uint slot = ((drawIndex & 3u) + bayer[(cell.x & 1) + 2 * (cell.y & 1)] + (turn & 3u)) & 3u;
+    uint order = ((slot & 1u) << 1) | (slot >> 1);
+    float sequence = float(bitfieldReverse(window) >> 8) * (1.0 / 16777216.0);
+    float phase = unitOf(drawOf(cell, 0u, TurnPhaseDraw).x);
+    return (float(order) + min(fract(sequence + phase), 0.99999994)) * 0.25 < share;
+}
+
+// Whether the ray of the kind takes the guided draw at the share, which must be above 0: a diffuse ray by a coin, the
+// draw's third word, and a reflection ray by its turn (guidedTurn). The diffuse kind keeps its coin: the guide census
+// gives its exact count at most 1.17 times less variance (ter-fe63).
+bool takesGuidedDraw(uint kind, ivec2 cell, uvec3 draw, float share)
+{
+    return kind == KindDiffuse ? unitOf(draw.z) < share : guidedTurn(cell, trace.drawIndex, share);
 }
 
 // The 16-bit units of a unit direction's octahedral code.
@@ -687,7 +788,10 @@ vec3 directionOfCode(uvec2 code)
 struct TracedRay
 {
     vec3 direction;
-    float density;
+    float density;        // the mixture density at the ray's share, which is the lobe density at a share of 0
+    float lobeDensity;    // the density of the kind's lobe draw along the direction
+    float guidedDensity;  // the guided density along the direction, for a ray that finds it (traceFrom), else 0
+    float share;          // the ray's guided share (guidedShareOf)
     vec3 light;       // the hit's light faded into the miss's, pre-exposed; 0 for a ray that traced nothing
     float distance;   // from the ray's start to the hit, in m; 0 for a miss
     bool traced;      // false for a direction below the pixel's geometric plane, which brings no light
@@ -708,26 +812,34 @@ TracedRay traceFrom(ivec2 pixel, ivec2 cell, TracingPixel p, uint kind)
     // determinism").
     vec2 u = kind == KindReflection ? reflectionNumbersOf(cell, trace.drawIndex, draw)
                                     : vec2(unitOf(draw.x), unitOf(draw.y));
-    // A diffuse ray takes the guided draw by the draw's third word, while a lit pixel is in view (ARCHITECTURE.md,
-    // "Guided diffuse rays").
-    bool guiding = kind == KindDiffuse && trace.guidedShare > 0.0 && guideTotal() > 0.0;
-    bool guided = guiding && unitOf(draw.z) < trace.guidedShare;
+    // One draw rule for both kinds (ARCHITECTURE.md, "Guided rays"): while a lit pixel is in view, a ray takes the guided
+    // draw at its kind's share, or else its lobe draw, and it counts with the mixture's density.
+    float share = guidedShareOf(p, kind, pixel);
+    bool guided = share > 0.0 && takesGuidedDraw(kind, cell, draw, share);
+    // A rough reflection ray finds its guided density at a share of 0 too: its tile's evidence needs it, so that a tile at
+    // 0 can rise again.
+    bool findsGuidedDensity = share > 0.0 || kind == KindReflection && guidesReflectionsOf(p);
     ivec2 target = ivec2(-1);
     vec3 drawn;
     if (guided)
     {
-        target = guidedTargetOf(pixel);
-        drawn = normalize(guidedPointOf(pixel, target) - p.origin);
+        uint salt = kind == KindReflection ? ReflectionGuideSalt : 0u;
+        target = guidedTargetOf(pixel, salt);
+        drawn = normalize(guidedPointOf(pixel, target, salt) - p.origin);
     }
     else
         drawn = kind == KindReflection ? reflectionDirection(p, u) : diffuseDirection(p, u);
-    // The record holds the direction's code, and the resolve weighs the ray by the code's direction. So a reflection ray
-    // walks that direction, and its density is that direction's: at the roughness floor, the rounding of the code alone
-    // moves D(h) by several percent. A diffuse ray walks its drawn direction: the guided density is a box function of
-    // the direction, and a rounded direction near a box's edge would count where its draw did not land, which loses
-    // light. Its cosine density and weight are smooth, so the code's rounding moves them by far less than a percent.
-    result.direction = kind == KindReflection ? directionOfCode(directionCodeOf(drawn)) : drawn;
-    result.density = densityOf(p, kind, result.direction);
+    // The record holds the direction's code, and the resolve weighs the ray by the code's direction. So an unguided
+    // reflection ray walks that direction, and its density is that direction's: at the roughness floor, the rounding of
+    // the code alone moves D(h) by several percent. A ray of a share above 0 walks its drawn direction: the guided density
+    // is a box function of the direction, and a rounded direction near a box's edge would count where its draw did not
+    // land, which loses light. Its lobe density and weight are smooth at the ramp's roughnesses, so the code's rounding
+    // moves them by far less than a percent.
+    result.direction = kind == KindReflection && share <= 0.0 ? directionOfCode(directionCodeOf(drawn)) : drawn;
+    result.lobeDensity = densityOf(p, kind, result.direction);
+    result.density = result.lobeDensity;
+    result.guidedDensity = 0.0;
+    result.share = share;
     result.light = vec3(0.0);
     result.distance = 0.0;
     result.traced = dot(result.direction, p.s.geometricNormal) > 0.0;
@@ -752,16 +864,16 @@ TracedRay traceFrom(ivec2 pixel, ivec2 cell, TracingPixel p, uint kind)
     {
         // A miss has no guided density. A guided ray counts only where it hits a pixel near its target, so a miss brings
         // nothing.
-        if (guiding)
-            result.density = mixtureDensity(result.density, 0.0);
+        result.density = mixtureDensity(share, result.lobeDensity, 0.0);
         if (guided)
             result.light = vec3(0.0);
         return result;
     }
-    if (guiding)
+    if (findsGuidedDensity)
     {
         bool counts;
-        result.density = mixtureDensity(result.density, guidedDensityOf(p.origin, result.direction, hitPixel, target, counts));
+        result.guidedDensity = guidedDensityOf(p.origin, result.direction, hitPixel, target, counts);
+        result.density = mixtureDensity(share, result.lobeDensity, result.guidedDensity);
         if (guided && !counts)
         {
             result.light = vec3(0.0);
@@ -782,6 +894,45 @@ TracedRay traceFrom(ivec2 pixel, ivec2 cell, TracingPixel p, uint kind)
     }
 #endif
     return result;
+}
+
+// The share of the diffuse ray's estimate in the pixel's specular sample: 0 below the hand-over band, 1 above it
+// (docs/plans/temporal-renderer.md, "Rough reflections reuse the diffuse rays").
+float handOverOf(TracingPixel p)
+{
+    return clamp((sqrt(p.alpha) - trace.handOverStart) / (trace.maxRoughness - trace.handOverStart), 0.0, 1.0);
+}
+
+// The weight of a ray's light in the pixel's specular sample before the cap MostRayWeight: the pixel's f_s(ω) cos θ along
+// the direction over the ray's density, divided by the specular factor (Stachowiak 2015). For the pixel's own reflection
+// ray it is F(v·h) G2 / (G1 E), whose mean over the lobe is 1.
+vec3 uncappedSpecularWeightOf(TracingPixel p, SurfaceLobes lobes, MaterialFactors factors, vec3 direction, float density)
+{
+    vec3 response = p.s.model == ShadingHair ? hairResponse(p.s, lobes, p.V, direction).specular
+        : specularResponse(lobes, p.s.normal, p.V, direction, 0.0);
+    return response / (density * max(factors.specular, vec3(LeastFactor)));
+}
+
+// The evidence of a block's reflection ray from the pixel for its tile's share (GuidedShares.EvidenceOf): x the slope in
+// the share of the mean of w², w² (l − g) / q, and y the moment w². w is the luminance that the ray adds to the pixel's
+// specular sample before the cap of a ray's weight, at most mostEvidenceWeight; l, g and q are its lobe, guided and
+// mixture densities, q at the share max(share, shareGuard). Zero where the ray brings no light, where the pixel's
+// reflection rays take no part in the guiding (guidesReflectionsOf), and at the top of the hand-over band, above which no
+// pixel traces a reflection ray. The sums of a tile stay finite: |l − g| / q is at most 1 / shareGuard, and w² at most
+// mostEvidenceWeight².
+vec2 shareEvidenceOf(TracingPixel p, TracedRay ray)
+{
+    if (!ray.traced || ray.density <= 0.0 || !guidesReflectionsOf(p))
+        return vec2(0.0);
+    SurfaceLobes lobes = lobesOf(p.s, p.V);
+    vec3 weight = uncappedSpecularWeightOf(p, lobes, materialFactors(p.s, lobes), ray.direction, ray.density);
+    float w = luminance((1.0 - handOverOf(p)) * ray.light * weight);
+    if (!(w > 0.0))
+        return vec2(0.0);
+    w = min(w, trace.mostEvidenceWeight);
+    float moment = w * w;
+    float mixture = mixtureDensity(max(ray.share, trace.shareGuard), ray.lobeDensity, ray.guidedDensity);
+    return vec2(moment * (ray.lobeDensity - ray.guidedDensity) / mixture, moment);
 }
 
 // The half bits of log2 of a density: a reflection ray's density passes 65,504, the largest half float, at the roughness

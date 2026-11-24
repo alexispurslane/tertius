@@ -1,0 +1,22 @@
+{
+ "sunlit patch": {
+  "corr of B_k with the quantization band": 0.0013468418070487146,
+  "std of B_k": 0.029352770792361368,
+  "std of the quantization band": 0.0006716254576968417
+ },
+ "back wall below the slot": {
+  "corr of B_k with the quantization band": 0.00042004349486139334,
+  "std of B_k": 0.011313168303960404,
+  "std of the quantization band": 0.0005593028380943748
+ },
+ "floor": {
+  "corr of B_k with the quantization band": -0.0005187650909566782,
+  "std of B_k": 0.012566547495279698,
+  "std of the quantization band": 0.0006796865244685227
+ },
+ "right wall": {
+  "corr of B_k with the quantization band": 7.774421827866521e-05,
+  "std of B_k": 0.006811403338374952,
+  "std of the quantization band": 0.0007644648861836711
+ }
+}

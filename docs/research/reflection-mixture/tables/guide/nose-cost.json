@@ -1,0 +1,20 @@
+{
+ "nose-0.25": {
+  "capture specks median": 3719.5,
+  "capture specks largest": 13095,
+  "capture specks of captures 4 to 19 median": 3681.5,
+  "largest diffuse sample": 66.65342712402344,
+  "box mean X": 0.2645567976844047,
+  "pooled per-sample variance": 6219.437784985171
+ },
+ "nose-0.5": {
+  "capture specks median": 3752.5,
+  "capture specks largest": 13068,
+  "capture specks of captures 4 to 19 median": 3698.0,
+  "largest diffuse sample": 89.76555633544922,
+  "box mean X": 0.2634630073682737,
+  "pooled per-sample variance": 10272.962487809404
+ },
+ "variance factor 0.5 / 0.25": 1.6517509850504755,
+ "mean ratio 0.5 / 0.25": 0.9958655747056789
+}

@@ -1,0 +1,16 @@
+3	trace-coin
+3	trace-exact
+3	trace-exact125
+2	trace-main
+921	keeps-bay-sunbeam
+472	keeps-mirror-plate
+846	keeps-rect-lamps-f62
+516	keeps-sunlit-nose
+979	film-coin
+936	film-exact
+884	film-main
+659	lfilm-coin
+565	lfilm-exact
+464	lfilm-main
+deleted 2026-11-23 17:59: the four replay logs keeps-* after their tables (copied to tables-keeps/), the nose films film-* and the floor films lfilm-* after their videos and flicker tables
+deleted 2026-11-23 18:16: the fast-history trace dumps trace-* (11 MB) after fasttrace.json

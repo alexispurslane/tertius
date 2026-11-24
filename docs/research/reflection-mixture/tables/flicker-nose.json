@@ -1,0 +1,26 @@
+{
+ "main": {
+  "frame-to-frame RMS change": 1.0622579531547385,
+  "mean temporal std per pixel": 4.0061530959461855,
+  "box mean gray": 146.19583543771043,
+  "std of the box mean over frames": 0.19910761594201662,
+  "period-4 amplitude of the box mean": 0.0012497376548434862,
+  "largest other amplitude": 0.23046124606326315
+ },
+ "coin": {
+  "frame-to-frame RMS change": 0.5209795833354338,
+  "mean temporal std per pixel": 2.259524040158078,
+  "box mean gray": 151.2403892195767,
+  "std of the box mean over frames": 0.1553902519444087,
+  "period-4 amplitude of the box mean": 0.00015550085379124252,
+  "largest other amplitude": 0.1948044002178447
+ },
+ "exact": {
+  "frame-to-frame RMS change": 0.5106227852855606,
+  "mean temporal std per pixel": 2.157525600652811,
+  "box mean gray": 151.28612493987492,
+  "std of the box mean over frames": 0.1499916651570703,
+  "period-4 amplitude of the box mean": 0.0003066339869033568,
+  "largest other amplitude": 0.1812596526183626
+ }
+}

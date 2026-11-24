@@ -1,0 +1,45 @@
+#version 460
+// The reflection share's pass of the screen tracer (ARCHITECTURE.md, "Guided rays", GuidedShares): one invocation per tile
+// of TileBlocks × TileBlocks blocks moves the tile's share one step down the slope of the second moment of its reflection
+// samples, from the evidence that this draw's block rays left in the block guide, so the next draw's rays read the new
+// share. The sums run over the tile's blocks in rows from the top, so every run of a draw gives the same share
+// (ARCHITECTURE.md, "Randomness and determinism"). The dispatch covers the image's tiles, those of the largest render size:
+// at a restart, the tiles outside this draw's render size take the ceiling too, so that a later, larger render size reads
+// no share from before the restart.
+#extension GL_GOOGLE_include_directive : require
+#include "screen_trace.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+// The tile's share after a draw whose samples summed to the slope and the moment: one step down the slope, by the ratio of
+// the two sums capped at shareMostRatio, kept between 0 and the ceiling. A tile without moment keeps its share
+// (GuidedShares.NextShare).
+float nextShare(float share, float slopeSum, float momentSum)
+{
+    if (!(momentSum > 0.0))
+        return share;
+    float ratio = clamp(slopeSum / momentSum, -trace.shareMostRatio, trace.shareMostRatio);
+    return clamp(share - trace.shareStep * ratio, 0.0, trace.reflectionCeiling);
+}
+
+void main()
+{
+    ivec2 tile = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(tile, imageSize(reflectionShare))))
+        return;
+    bool restarts = trace.sharesRestart != 0u;
+    ivec2 blocks = (ivec2(frame.viewport.xy) + 1) / 2;
+    if (any(greaterThanEqual(tile, (blocks + TileBlocks - 1) / TileBlocks)))
+    {
+        if (restarts)
+            imageStore(reflectionShare, tile, vec4(trace.reflectionCeiling, 0.0, 0.0, 0.0));
+        return;
+    }
+    float share = restarts ? trace.reflectionCeiling : imageLoad(reflectionShare, tile).r;
+    vec2 sums = vec2(0.0);
+    ivec2 end = min((tile + 1) * TileBlocks, blocks);
+    for (int y = tile.y * TileBlocks; y < end.y; y++)
+        for (int x = tile.x * TileBlocks; x < end.x; x++)
+            sums += imageLoad(blockGuide, ivec2(x, y)).yz;
+    imageStore(reflectionShare, tile, vec4(nextShare(share, sums.x, sums.y), 0.0, 0.0, 0.0));
+}

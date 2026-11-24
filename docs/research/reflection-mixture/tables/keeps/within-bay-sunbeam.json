@@ -1,0 +1,88 @@
+{
+ "patch": {
+  "pixels": 45796,
+  "s 0.0": {
+   "total": 3.666062852309699,
+   "between": 0.0,
+   "within": 3.666062852309699,
+   "guided share of the second moment": 0.0,
+   "mC / mean": 1.0,
+   "mG / mean": null
+  },
+  "s 0.1": {
+   "total": 3.955287617841043,
+   "between": 0.054312289124908576,
+   "within": 3.9009753287161346,
+   "guided share of the second moment": 0.0416008428731489,
+   "mC / mean": 1.087929808375822,
+   "mG / mean": 0.20863172461760243
+  },
+  "s 0.125": {
+   "total": 4.037813681964454,
+   "between": 0.06944297150314055,
+   "within": 3.9683707104613135,
+   "guided share of the second moment": 0.05144146925098898,
+   "mC / mean": 1.1130468381348178,
+   "mG / mean": 0.20867213305627486
+  },
+  "s 0.25": {
+   "total": 4.5226433386882245,
+   "between": 0.15718200095310955,
+   "within": 4.365461337735115,
+   "guided share of the second moment": 0.0997183097624066,
+   "mC / mean": 1.262734893361078,
+   "mG / mean": 0.21179531991676553
+  },
+  "s 0.5": {
+   "total": 6.049744260127009,
+   "between": 0.4296559064928864,
+   "within": 5.620088353634122,
+   "guided share of the second moment": 0.20086504461883856,
+   "mC / mean": 1.7696594765947946,
+   "mG / mean": 0.23034052340520533
+  }
+ },
+ "right": {
+  "pixels": 89178,
+  "s 0.0": {
+   "total": 5.759594791525207,
+   "between": 0.0,
+   "within": 5.759594791525207,
+   "guided share of the second moment": 0.0,
+   "mC / mean": 1.0,
+   "mG / mean": null
+  },
+  "s 0.1": {
+   "total": 4.493503051110606,
+   "between": 0.1974248430455697,
+   "within": 4.296078208065036,
+   "guided share of the second moment": 0.22788981683185108,
+   "mC / mean": 0.8619363771013001,
+   "mG / mean": 2.242572606088298
+  },
+  "s 0.125": {
+   "total": 4.311636814810147,
+   "between": 0.19365618276407176,
+   "within": 4.117980632046076,
+   "guided share of the second moment": 0.26485673006811833,
+   "mC / mean": 0.8450036704981194,
+   "mG / mean": 2.084974306513163
+  },
+  "s 0.25": {
+   "total": 3.6571055222983664,
+   "between": 0.15354529080222482,
+   "within": 3.503560231496142,
+   "guided share of the second moment": 0.4154952099317864,
+   "mC / mean": 0.7974246802888248,
+   "mG / mean": 1.6077259591335258
+  },
+  "s 0.5": {
+   "total": 2.9168824548434262,
+   "between": 0.0714374315613087,
+   "within": 2.845445023282118,
+   "guided share of the second moment": 0.6363964391154948,
+   "mC / mean": 0.8213223102235835,
+   "mG / mean": 1.1786776897764164
+  }
+ }
+}
