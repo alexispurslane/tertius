@@ -77,6 +77,14 @@ internal sealed unsafe class TemporalSignal : IDisposable
     public const int RegionRingDraws = 36;
 
     /// <summary>
+    /// The draws for which an anchor's change gate stays open after an observed cause or after a move that invalidated
+    /// its established view (region_drift.glsl, RegionCauseWindowDraws). It equals the bounce light's cap
+    /// (<see cref="SignalParameters.Diffuse"/>): a history that a cut shortened needs up to the cap's draws to grow back,
+    /// and the later bounces settle in that time.
+    /// </summary>
+    public const int RegionCauseWindowDraws = 128;
+
+    /// <summary>
     /// The anchors' step in blocks of 8 × 8 pixels, in x and in y (region_drift.glsl, AnchorStepBlocks): the ring holds
     /// one texel per anchor, every 8th block.
     /// </summary>
@@ -84,7 +92,9 @@ internal sealed unsafe class TemporalSignal : IDisposable
 
     /// <summary>
     /// The format of a layer of an anchor's ring (region_drift.glsl, regionRing): r the region's light of a draw, g the
-    /// count of valid draws in a row up to it, b 1 where the region's light moved in that draw.
+    /// count of valid draws in a row up to it, b the signed answer of that draw (1 or −1 where the region's light moved
+    /// up or down, else 0), and a the change gate after it: −1 for an anchor whose view is not yet established, 0 to
+    /// <see cref="RegionCauseWindowDraws"/> − 1 for an open gate, <see cref="RegionCauseWindowDraws"/> for a closed one.
     /// </summary>
     public const Format RegionRingFormat = Format.R32G32B32A32Sfloat;
 

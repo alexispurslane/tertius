@@ -500,11 +500,15 @@ public sealed class ScreenTraceRenderTests
         {
             // The floor 4.95 m before the glowing panel of AGlowingPanelBesideAFloorPixelTakesItsShareOfThePixelsDiffuseLight
             // takes rare bright rays. An exponential mean of the weight w over independent samples of the deviation σ
-            // deviates by σ √(w / (2 − w)) from their expected value. The runs lie 64 draws apart, after which the slow
-            // history keeps (31 / 32)^64 ≈ 0.13 of its light, so they are nearly independent. The scene is gray, so the red
-            // channel is the luminance. A result outside is a finding for the design, not a bound to loosen.
+            // deviates by σ √(w / (2 − w)) from their expected value. A history at the bounce light's cap blends at
+            // w = 1 / cap. The runs lie so many draws apart that the slow history keeps at most 0.13 of its light, so they
+            // are nearly independent: 64 draws at a cap of 32, 260 at 128. The scene is gray, so the red channel is the
+            // luminance. A result outside is a finding for the design, not a bound to loosen. At a cap of 32 the ratio was
+            // 0.945. A cap of 128 with the weight 1 / 32 and runs 64 draws apart gave 0.49, the cap's √(32 / 128).
             const int runs = 16;
-            const float weight = 1f / 32;
+            int cap = SignalParameters.Diffuse.Cap;
+            float weight = 1f / cap;
+            int apart = (int)Math.Ceiling(Math.Log(0.13) / Math.Log(1 - weight));
             var receiver = new Vector3(0, FloorHeight, -7);
             VulkanRenderer renderer = TracingWithoutTheFilter();
             try
@@ -519,7 +523,7 @@ public sealed class ScreenTraceRenderTests
                         size: new(6, 3, 0.1f)
                     )
                 );
-                Draw(renderer, scene, frames: 64);
+                Draw(renderer, scene, frames: apart);
                 (int X, int Y) pixel = PixelOf(receiver);
                 var region = new Region(Left: pixel.X - 40, Right: pixel.X + 40, Top: pixel.Y - 1, Bottom: pixel.Y + 1);
                 int columns = region.Right - region.Left + 1;
@@ -530,7 +534,7 @@ public sealed class ScreenTraceRenderTests
 
                 for (int run = 0; run < runs; run++)
                 {
-                    Draw(renderer, scene, frames: 64);
+                    Draw(renderer, scene, frames: apart);
                     float[] slow = renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.Slow(0));
                     float[] fast = renderer.ReadImage(
                         renderer.ScreenTraceSignals.Diffuse.Fast(part: 0, parity: (int)(renderer.DrawnFrames & 1) ^ 1)
