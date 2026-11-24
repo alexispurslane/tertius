@@ -885,22 +885,22 @@ internal struct ScreenTracePushConstants
     /// <summary>The largest share of a tile's reflection rays, <see cref="GuidedShares.ReflectionCeiling"/>, or 0 with the guiding off.</summary>
     public float ReflectionCeiling;
 
-    /// <summary><see cref="GuidedShares.RampStart"/>.</summary>
+    /// <summary>The roughness up to which a pixel takes no guided reflection ray (<see cref="GuidedShares.RampStart"/>).</summary>
     public float RampStart;
 
-    /// <summary><see cref="GuidedShares.RampEnd"/>.</summary>
+    /// <summary>The roughness from which a pixel's reflection share is its tile's share (<see cref="GuidedShares.RampEnd"/>).</summary>
     public float RampEnd;
 
-    /// <summary><see cref="GuidedShares.Step"/>.</summary>
+    /// <summary>The move of a tile's share per draw at a ratio of 1 of its slope to its moment (<see cref="GuidedShares.Step"/>).</summary>
     public float ShareStep;
 
-    /// <summary><see cref="GuidedShares.Guard"/>.</summary>
+    /// <summary>The least share at which a sample's evidence weighs it (<see cref="GuidedShares.Guard"/>).</summary>
     public float ShareGuard;
 
-    /// <summary><see cref="GuidedShares.MostRatio"/>.</summary>
+    /// <summary>The largest ratio of a tile's summed slope to its summed moment that one draw acts on (<see cref="GuidedShares.MostRatio"/>).</summary>
     public float ShareMostRatio;
 
-    /// <summary><see cref="GuidedShares.MostEvidenceWeight"/>.</summary>
+    /// <summary>The largest weight of one reflection sample in its evidence (<see cref="GuidedShares.MostEvidenceWeight"/>).</summary>
     public float MostEvidenceWeight;
 
     /// <summary>1 when every tile's reflection share restarts at the ceiling before this draw (<see cref="ScreenTraceImages.SharesRestart"/>), else 0.</summary>

@@ -639,16 +639,14 @@ public sealed class GuidedRaysRenderTests
                 distance: distances[pixel],
                 normals: normals
             );
-            // The hit distance runs from the origin to the hit pixel's center on its surface, not along the ray, so a few
-            // points project into a neighbor of the hit pixel, whose 3 × 3 pixels differ.
-            Vector2 place = camera.PixelOf(origin + direction * hitDistance) - jitter;
-            float guidedDensity = light.GuidedDensity(
-                camera: camera,
+            float guidedDensity = GuidedDensityOf(
+                light: light,
                 depth: depth,
+                camera: camera,
+                jitter: jitter,
                 origin: origin,
                 direction: direction,
-                hit: ((int)MathF.Floor(place.X), (int)MathF.Floor(place.Y)),
-                jitter: jitter
+                hitDistance: hitDistance
             );
             Vector3 normal = OctahedralNormal.Decode(new(normals[4 * pixel], normals[4 * pixel + 1]));
             double expected = GuidedShares.MixtureDensity(
@@ -665,6 +663,32 @@ public sealed class GuidedRaysRenderTests
         }
         mismatched.Count.Should().BeLessThan(compared / 20, string.Join("; ", mismatched));
         return (compared, guided);
+    }
+
+    /// <summary>
+    /// The C# copy's guided density of a diffuse ray from <paramref name="origin"/> along <paramref name="direction"/> that
+    /// hit at <paramref name="hitDistance"/>. The hit distance runs from the origin to the hit pixel's center on its
+    /// surface, not along the ray, so a few points project into a neighbor of the hit pixel, whose 3 × 3 pixels differ.
+    /// </summary>
+    private static float GuidedDensityOf(
+        LightPyramid light,
+        DepthPyramid depth,
+        CameraView camera,
+        Vector2 jitter,
+        Vector3 origin,
+        Vector3 direction,
+        float hitDistance
+    )
+    {
+        Vector2 place = camera.PixelOf(origin + direction * hitDistance) - jitter;
+        return light.GuidedDensity(
+            camera: camera,
+            depth: depth,
+            origin: origin,
+            direction: direction,
+            hit: ((int)MathF.Floor(place.X), (int)MathF.Floor(place.Y)),
+            jitter: jitter
+        );
     }
 
     /// <summary>A C# depth pyramid over the center w of each pixel of the last frame's finest level on the GPU, as

@@ -338,34 +338,41 @@ internal sealed class ScreenTraceImages : IDisposable
                 type: DescriptorType.StorageBuffer,
                 buffer: OwnRays[kind]
             );
-        // The light-change age after the lists: the last frame's record, this frame's, the specular sample's age, FSR's
-        // light-change mask and the diffuse sample's age.
-        if (lightAges.Length != 0)
-        {
-            layouts.WriteStorageImage(set: set, binding: 19, image: lightAges[1 - parity]);
-            layouts.WriteStorageImage(set: set, binding: 20, image: lightAges[parity]);
-            layouts.WriteStorageImage(
-                set: set,
-                binding: 21,
-                image: Specular.SampleAge(0) ?? throw new UnreachableException("The light age makes the sample age.")
-            );
-            layouts.WriteStorageImage(
-                set: set,
-                binding: 22,
-                image: LightChangeMask ?? throw new UnreachableException("The light age makes the light-change mask.")
-            );
-            layouts.WriteStorageImage(
-                set: set,
-                binding: 23,
-                image: Diffuse.SampleAge(0) ?? throw new UnreachableException("The light age makes the sample age.")
-            );
-        }
+        WriteLightAges(set, parity);
         // The diagnostic of uncovered surfaces, whose first channel the resolve writes.
         if (Specular.UncoveredDiagnostic(0) is { } diagnostic)
             layouts.WriteStorageImage(set: set, binding: 24, image: diagnostic);
         layouts.WriteStorageImage(set: set, binding: DescriptorLayouts.ScreenTraceHitLightBinding, image: HitLight);
         layouts.WriteStorageImage(set: set, binding: DescriptorLayouts.ScreenTraceShareBinding, image: ReflectionShare);
         layouts.WriteStorageImage(set: set, binding: DescriptorLayouts.ScreenTraceBlockGuideBinding, image: BlockGuide);
+    }
+
+    /// <summary>
+    /// Writes the light-change age's images of <paramref name="parity"/> after the lists, when the frame keeps the age:
+    /// the last frame's record, this frame's, the specular sample's age, FSR's light-change mask and the diffuse sample's
+    /// age.
+    /// </summary>
+    private void WriteLightAges(DescriptorSet set, int parity)
+    {
+        if (lightAges.Length == 0)
+            return;
+        layouts.WriteStorageImage(set: set, binding: 19, image: lightAges[1 - parity]);
+        layouts.WriteStorageImage(set: set, binding: 20, image: lightAges[parity]);
+        layouts.WriteStorageImage(
+            set: set,
+            binding: 21,
+            image: Specular.SampleAge(0) ?? throw new UnreachableException("The light age makes the sample age.")
+        );
+        layouts.WriteStorageImage(
+            set: set,
+            binding: 22,
+            image: LightChangeMask ?? throw new UnreachableException("The light age makes the light-change mask.")
+        );
+        layouts.WriteStorageImage(
+            set: set,
+            binding: 23,
+            image: Diffuse.SampleAge(0) ?? throw new UnreachableException("The light age makes the sample age.")
+        );
     }
 
     /// <summary>Writes the sampled images of <paramref name="set"/>: the depth pyramid at bindings 0 and 1, and the light
