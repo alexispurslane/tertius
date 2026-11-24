@@ -37,9 +37,9 @@ exclusive lock).
 |---|---|---|
 | Frozen bay, -4.089 stops, settled (draws 640 to 659) | Blob 1.05 to 2.4 times lower in all four regions | Better |
 | Frozen bay, diffuse signal alone, settled | Blob 2.4 to 3.0 times lower in all four regions | Better |
-| Frozen bay, automatic exposure, settled | Blob 1.05 to 2.2 times lower in all four regions | Better |
+| Frozen bay, automatic exposure, settled | Blob 1.05 to 2.3 times lower in all four regions | Better |
 | Frozen bay, false answers | 24 answers in 378,392 tested anchor-draws, none in draws 0 to 300 (base: 3,961, 851 of them in draws 0 to 300) | Better |
-| Frozen bay, warm-up | The diffuse signal's sunlit patch has a larger blob at draw 48 (0.070 against 0.037), smaller from draw 152 on | Known cost |
+| Frozen bay, warm-up | The diffuse signal's sunlit patch has a larger blob at draw 48 (0.070 against 0.037), and a smaller one from draw 200 on (0.019 against 0.028) | Known cost |
 | Walk with lamp switch | Same pictures. The switched light's excess drains slower after the walk: 1.41 against 0.50 gray at stand frame 156 | Known cost |
 | Turned rect-bay | No anchor rectangles at 1:1. Largest 96 px tile difference 7.1 gray. Lag of at most 2.7 gray of the whole frame in film draws 33 to 45, gone by draw 60 | Known cost |
 | Fair cabin switch | Settle: off 84 and on 49 draws (base 81 and 54). Both fail the survey's settle bar of 60, as before | Same |
@@ -69,7 +69,8 @@ The level of each region at draw 659 (display-linear luminance) differs from bas
 difference is the back wall of the diffuse signal: 0.1812 against 0.1841, 1.6 % darker.
 
 The warm-up is slower at cap 128. The diffuse signal's sunlit patch has a blob of 0.0695 at draw 48 (base 0.0368) and
-0.0131 at draw 300 (base 0.0346). The full image at draw 48: 0.0156 against 0.0104.
+0.0131 at draw 300 (base 0.0346). It is still a little larger at draw 152 (0.0281 against 0.0272), and smaller from
+draw 200 on (0.0187 against 0.0276). The full image at draw 48: 0.0156 against 0.0104.
 
 Answers of the region ring, from draw 36 to 1,659 (240 anchors):
 

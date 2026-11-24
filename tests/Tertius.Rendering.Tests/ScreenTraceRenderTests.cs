@@ -521,7 +521,7 @@ public sealed class ScreenTraceRenderTests
             // takes rare bright rays. An exponential mean of the weight w over independent samples of the deviation σ
             // deviates by σ √(w / (2 − w)) from their expected value. A history at the bounce light's cap blends at
             // w = 1 / cap. The runs lie so many draws apart that the slow history keeps at most 0.13 of its light, so they
-            // are nearly independent: 64 draws at a cap of 32, 260 at 128. The scene is gray, so the red channel is the
+            // are nearly independent: 65 draws at a cap of 32, 261 at 128. The scene is gray, so the red channel is the
             // luminance. A result outside is a finding for the design, not a bound to loosen. At a cap of 32 the ratio was
             // 0.945. A cap of 128 with the weight 1 / 32 and runs 64 draws apart gave 0.49, the cap's √(32 / 128).
             const int runs = 16;

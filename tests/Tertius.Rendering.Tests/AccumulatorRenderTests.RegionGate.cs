@@ -28,15 +28,15 @@ public sealed partial class AccumulatorRenderTests
         /// <summary>The size of the designed noise, which alternates its sign from draw to draw.</summary>
         private const float DesignedSpread = 0.02f;
 
+        /// <summary>A light code of a sample age that brings light evidence: a light that changed 4 draws ago.</summary>
+        private const uint RecentLightCode = 5;
+
         /// <summary>
         /// The designed noise of <paramref name="draw"/>: +<see cref="DesignedSpread"/> in an even draw, −DesignedSpread in
         /// an odd one. Each window of 18 draws holds 9 of each, so the two windows' means are equal, and each window's
         /// spread is DesignedSpread · √(18 / 17).
         /// </summary>
         private static float AlternatingNoise(int draw) => draw % 2 == 0 ? DesignedSpread : -DesignedSpread;
-
-        /// <summary>A light code of a sample age that brings light evidence: a light that changed 4 draws ago.</summary>
-        private const uint RecentLightCode = 5;
 
         /// <summary>
         /// One draw of an anchor's ring (region_drift.glsl, regionRing): the region's light, the count of valid draws in a
@@ -370,8 +370,8 @@ public sealed partial class AccumulatorRenderTests
             [Fact]
             public void WhileTheGateIsOpenAChangeBelowTheSeedBarGetsASignedAnswer()
             {
-                // A step of 1.2 times the noise moves the newer window's mean past the older window's spread, today's test
-                // of the open gate, while Welch's t stays below the seed bar.
+                // A step of 1.2 times the noise moves the newer window's mean past the older window's spread, the open
+                // gate's test, while Welch's t stays below the seed bar.
                 List<RingDraw> ring = RunOneAnchor(
                     draws: 90,
                     planOf: draw => DesignedStep(draw, size: -1.2f, cause: true)
@@ -625,7 +625,7 @@ public sealed partial class AccumulatorRenderTests
             public void AnOpenGatesSignedAnswerConfirmsTheWeakChangeOfAClosedNeighbor()
             {
                 // A recent light code at the tap of block (20, 20) holds the gate of anchor (2, 2) open: no other anchor's
-                // region holds that block. Its weak change gets today's test's answer, which anchor (1, 1) then takes.
+                // region holds that block. Its weak change gets the open gate's answer, which anchor (1, 1) then takes.
                 List<RingDraw[]> rings = RunGrid(
                     [new(X: 2, Y: 2, Size: -1.2f), new(X: 1, Y: 1, Size: -1.5f)],
                     ages: (column, row) => (ushort)(column == 8 * 20 + 4 && row == 8 * 20 + 4 ? RecentLightCode : 0)

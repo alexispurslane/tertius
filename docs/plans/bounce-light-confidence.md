@@ -737,7 +737,7 @@ where
 
 Why these rules:
 
-- Both spreads count. One bright draw raises the spread of its own window with the mean, so k bright draws move t by at most sqrt(k (W − 1) / (W − k)), 1.00 for one draw and 1.46 for two. Today's statistic divides by the older window's spread alone, so one bright draw in the newer window can pass any bar.
+- Both spreads count. One bright draw raises the spread of its own window with the mean, so k bright draws move t by at most sqrt(k (W − 1) / (W − k)), 1.00 for one draw and 1.46 for two. The open gate's test divides by the older window's spread alone, so one bright draw in the newer window can pass any bar.
 - A weak change answers only beside an answer of the same sign. A real change of light covers many anchors, so it passes the confirm bar in neighbors and spreads one anchor a draw. A false answer stays alone, and it does not grow into a patch. An answer of the other sign, or one of two draws before, confirms nothing.
 - The ring keeps the sign, so an open anchor's answer, at a lamp that a ray sees, also confirms a closed neighbor's weaker change, where no ray sees the cause.
 - Where both spreads are 0, a difference of the means counts as a seed, and no difference gives t = 0. No division by 0 happens.

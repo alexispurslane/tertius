@@ -9,7 +9,7 @@
 // accumulate_spatial.comp, which includes this file right after them.
 //
 // The change gate (ticket t1-yi11) chooses the test. A region's light changes after a cause: a light changed, a surface
-// moved, or the view moved. While a cause is recent the gate is open, and today's test answers (regionTestSignOf). A
+// moved, or the view moved. While a cause is recent the gate is open, and the open gate's test answers (regionTestSignOf). A
 // frozen view has no cause, so the gate is closed, and a stricter test answers (regionClosedDecisionOf): Welch's t of
 // the two windows must pass a high bar, or a lower bar beside a neighbor anchor whose answer of the draw before has the
 // same sign. Its false answers then stay rare and do not grow into patches.
