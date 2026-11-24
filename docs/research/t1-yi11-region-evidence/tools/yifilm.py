@@ -14,7 +14,7 @@
 #             459 under switch/), and the controls with the lamps always off and always on, with the survey's switch
 #             options (survey.PROBE_OPTIONS: bloom off, the Hable tone curve). It writes settle.json, the
 #             survey's switch_result: the settle in draws of the slowest changed region and of the whole image, after off
-#             and after on.
+#             and after on. A knob KEEP=none keeps no frame of the switch run (its false-colour PNGs fill 2 GiB).
 #   switch-film: the switch run alone, without the survey's switch options (bloom on, the game's tone curve), for the eye.
 #             With those options the probe's kept PNGs come out as a false-colour pattern (seen on 2026-11-23), while
 #             its measures match t0-qvm1. It keeps film frames 150 to 459.
@@ -33,6 +33,7 @@ spec.loader.exec_module(survey)
 
 build, name, film, *pairs = sys.argv[1:]
 knobs = dict(p.split('=', 1) for p in pairs)
+keep_switch = knobs.pop('KEEP', 'all') != 'none'
 out = Path('/private/tmp/t1-yi11/films') / name
 binary = Path('/private/tmp/t1-yi11') / build / 'probe-bin' / 'Tertius.Demo'
 shutil.rmtree(out, ignore_errors=True)
@@ -58,7 +59,7 @@ elif film == 'switch':
     series = {}
     for label, env in survey.switch_runs(case).items():
         work = out / label
-        keep = [survey.film_frame('f', k) for k in range(150, 460)] if label == 'switch' else []
+        keep = [survey.film_frame('f', k) for k in range(150, 460)] if label == 'switch' and keep_switch else []
         survey.render(work, survey.switch_script(case), binary=binary,
                       env={'TERTIUS_PROBE_EXPOSURE': '4.08', **env, **survey.series_env(work, keep), **knobs,
                            **({'TERTIUS_X_REGION_LOG': str(work)} if 'TERTIUS_X_REGION_LOG' in knobs else {})},
