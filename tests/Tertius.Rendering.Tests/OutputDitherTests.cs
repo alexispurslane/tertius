@@ -17,6 +17,13 @@ public sealed class OutputDitherTests
     private const int Width = 640;
     private const int Height = 360;
 
+    /// <summary>
+    /// The longest run of one code that the dither may leave along a row of the dark ramp. The triangular dither keeps a
+    /// pixel at a whole code with a chance of 3/4, so runs of 20 to 30 pixels remain where the ramp sits on a whole code:
+    /// 22 and 26 on the Mac's GPU, of a median of 1. Without the dither the ramp shows runs of about 300 pixels.
+    /// </summary>
+    private const int LongestDitheredRun = 40;
+
     /// <summary>The two kinds of 8-bit output: the sRGB format that encodes on its write, and UNORM, which the shader encodes for.</summary>
     public enum Target
     {
@@ -163,13 +170,6 @@ public sealed class OutputDitherTests
             longest = Math.Max(longest, LongestRun(image: image, y: y, from: 8, to: Width - 8));
         longest.Should().BeLessThanOrEqualTo(LongestDitheredRun, "a dithered ramp shows no band of one code");
     }
-
-    /// <summary>
-    /// The longest run of one code that the dither may leave along a row of the dark ramp. The triangular dither keeps a
-    /// pixel at a whole code with a chance of 3/4, so runs of 20 to 30 pixels remain where the ramp sits on a whole code:
-    /// 22 and 26 on the Mac's GPU, of a median of 1. Without the dither the ramp shows runs of about 300 pixels.
-    /// </summary>
-    private const int LongestDitheredRun = 40;
 
     // The bar of the contour step: across the ramp, the mean code of a window of 8 columns by 80 rows follows its two
     // neighbours to within 0.1 code. Without the dither, a window beside a step of one code sits up to half a code off the

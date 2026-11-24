@@ -25,8 +25,10 @@ namespace Tertius.Rendering;
 /// (binding 7, partially bound), empty without <see cref="KeyAndFill"/>. Binding 9 is free. One.</description></item>
 /// <item><term>set 3, impostor atlas</term><description>the impostor atlas's color and depth-offset arrays and their
 /// sampler (immutable), for the billboards in the G-buffer pass. One, written once.</description></item>
-/// <item><term>post</term><description>the HDR image for tone mapping, and the summed bloom levels (binding 1) with the
-/// linear clamp sampler (binding 2, immutable), which only the tone map with bloom reads. One, rewritten on resize.</description></item>
+/// <item><term>post</term><description>the HDR image for tone mapping, the summed bloom levels (binding 1) with the
+/// linear clamp sampler (binding 2, immutable), which only the tone map with bloom reads, and the blue-noise mask for
+/// the output's dither (binding 3, <see cref="PostMaskBinding"/>, written once). One; bindings 0 and 1 are rewritten on
+/// resize.</description></item>
 /// <item><term>glow source</term><description>the image that one draw of the bloom pass reads, with the linear clamp
 /// sampler (binding 1, immutable): one for the HDR image and one per bloom level. Rewritten on resize.</description></item>
 /// <item><term>meter</term><description>the HDR image and the G-buffer distance for the exposure's meter. One, rewritten on

@@ -205,7 +205,7 @@ internal sealed class RenderTargets : IDisposable
     /// <summary>Set 2: the G-buffer, for the passes that shade surfaces.</summary>
     public DescriptorSet GBufferSet { get; }
 
-    /// <summary>The HDR image for tone mapping.</summary>
+    /// <summary>The HDR image, bloom level 0, sampler, and blue-noise mask for tone mapping.</summary>
     public DescriptorSet PostSet { get; }
 
     /// <summary>The HDR image and the distance, for the exposure's meter.</summary>

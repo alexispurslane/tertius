@@ -66,7 +66,7 @@ internal sealed class BrdfTableImages : IDisposable
     /// <summary>R16G16B16A16_SFLOAT, the LTC's inverse matrix over √(1 − μ) across and r down.</summary>
     public GpuImage Ltc { get; }
 
-    /// <summary>R8G8_UINT, the reflection rays' blue-noise mask: the radial number and the angle of each texel.</summary>
+    /// <summary>R8G8_UINT, the blue-noise mask for the screen tracer and the output's dither: the radial number and the angle of each texel.</summary>
     public GpuImage BlueNoise { get; }
 
     /// <summary>Records the copies of the tables and the mask on the first call, and nothing after it.</summary>
