@@ -47,6 +47,8 @@ internal sealed class ScreenTraceProbe(VulkanRenderer renderer, string shader) :
         foreach (GpuImage image in renderer.ScreenTraceImages.Records)
             context.Barriers.Image(image, ImageUse.StorageCompute);
         context.Barriers.Image(renderer.ScreenTraceImages.HitLight, ImageUse.StorageCompute);
+        context.Barriers.Image(renderer.ScreenTraceImages.ReflectionShare, ImageUse.StorageCompute);
+        context.Barriers.Image(renderer.ScreenTraceImages.BlockGuide, ImageUse.StorageCompute);
         context.Barriers.Image(renderer.ScreenTraceSignals.Diffuse.Sample(0), ImageUse.StorageCompute);
         context.Barriers.Image(renderer.ScreenTraceSignals.Specular.Sample(0), ImageUse.StorageCompute);
         // A probe of the resolve writes FSR's mask from the records around each pixel, as the resolve does.

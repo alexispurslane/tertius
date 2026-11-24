@@ -173,7 +173,7 @@ The fade is one line of `traceFrom`, and the entry share stays in the walk's res
 
 `ThicknessShare` leaves the walk and the pyramid. Its two other readers keep their values under names of their own, because neither is a thickness:
 
-- `TargetDepthShare` in `screen_trace.glsl` is the depth of the box that a guided diffuse ray aims at. It stays 0.05. A guided ray that the walk rejects behind a thin surface counts as a miss, so the estimate stays unbiased.
+- `TargetDepthShare` in `screen_trace.glsl` is the depth of the box that a guided ray aims at. It stays 0.05. A guided ray that the walk rejects behind a thin surface counts as a miss, so the estimate stays unbiased. Since ticket `ter-fe63`, a rough reflection ray takes the same guided draw at a share that its tile learns, and the same box and the same rule hold for it (ARCHITECTURE.md, "Guided rays").
 - The plane tolerance of `screen_trace_plan.comp` stays 0.1, as `PlaneFitShare`.
 
 The C# copies change with the shaders: `CellBounds`, `DepthPyramid` and `ScreenRay.Walk`.

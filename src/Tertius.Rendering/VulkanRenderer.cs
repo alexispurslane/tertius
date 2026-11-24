@@ -2413,8 +2413,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
-    /// The tracer's four passes in <see cref="FrameGraph.Stage.ScreenTrace"/>: the ray plan, the reflection rays, the
-    /// diffuse rays and the resolve.
+    /// The tracer's passes in <see cref="FrameGraph.Stage.ScreenTrace"/>: the ray plan, the reflection rays, the diffuse
+    /// rays and the resolve, and while the rays are guided the reflection share.
     /// </summary>
     private void AddRayPasses(ShaderLibrary shaders, ScreenTrace trace, ScreenTraceImages images)
     {
@@ -2457,6 +2457,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
             FrameGraph.Stage.ScreenTrace,
             new ScreenTraceResolvePass(Kernel("screen trace resolve", "screen_trace_resolve.comp"), images)
         );
+        if (images.Guided)
+            Graph.Add(
+                FrameGraph.Stage.ScreenTrace,
+                new ScreenTraceSharePass(Kernel("reflection share", "screen_trace_share.comp"), images)
+            );
     }
 
     /// <summary>The bloom levels that <paramref name="bloom"/> builds: 0 for <see cref="NoBloom"/>.</summary>

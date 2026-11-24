@@ -61,7 +61,7 @@ internal sealed unsafe class ScreenTraceKernel : IDisposable
             layout: layouts.ScreenTraceLayout,
             passSet: images.Sets[context.History.Parity]
         );
-        var push = ScreenTracePushConstants.Of(setting, context.History.DrawIndex, images.Guided);
+        var push = ScreenTracePushConstants.Of(setting, context.History, images.Guided);
         context.Vk.CmdPushConstants(
             commandBuffer: context.CommandBuffer,
             layout: layouts.ScreenTraceLayout,
@@ -211,6 +211,11 @@ internal sealed class ScreenTraceRaysPass(
         // A hit reads the age that the plan wrote at its pixel.
         if (images.LightAge(context.History.Parity) is { } lightAge)
             barriers.Image(lightAge, ImageUse.StorageCompute);
+        // A reflection ray reads its tile's share, and its block writes the block's guide. Only the reflection kind uses
+        // them, but the diffuse kind's pipeline is the same shader, which the validation layers' hazard tracking sees
+        // using both.
+        barriers.Image(images.ReflectionShare, ImageUse.StorageCompute);
+        barriers.Image(images.BlockGuide, ImageUse.StorageCompute, discard: kind == 0);
     }
 
     public override void Dispose()
@@ -229,6 +234,9 @@ internal sealed class ScreenTraceResolvePass(ScreenTraceKernel kernel, ScreenTra
         ScreenTraceKernel.DeclareSurfaces(context);
         foreach (GpuImage image in images.Records)
             context.Barriers.Image(image, ImageUse.StorageCompute);
+        // A block's reflection ray counts with each pixel's own mixture density, from its tile's share and the block's guide.
+        context.Barriers.Image(images.ReflectionShare, ImageUse.StorageCompute);
+        context.Barriers.Image(images.BlockGuide, ImageUse.StorageCompute);
         context.Barriers.Image(images.Diffuse.Sample(0), ImageUse.StorageCompute, discard: true);
         context.Barriers.Image(images.Specular.Sample(0), ImageUse.StorageCompute, discard: true);
         foreach (TemporalSignal signal in (TemporalSignal[])[images.Diffuse, images.Specular])
@@ -242,6 +250,25 @@ internal sealed class ScreenTraceResolvePass(ScreenTraceKernel kernel, ScreenTra
         if (images.LightChangeMask is { } mask)
             context.Barriers.Image(mask, ImageUse.StorageCompute, discard: true);
         kernel.Record(context, side: 1);
+    }
+
+    public override void Dispose() => kernel.Dispose();
+}
+
+/// <summary>
+/// The reflection share's pass, screen_trace_share.comp (<see cref="GuidedShares"/>), while the rays are guided: after
+/// the resolve, each tile of <see cref="ScreenTraceImages.TileBlocks"/> × <see cref="ScreenTraceImages.TileBlocks"/>
+/// blocks moves its share one step from the evidence of this draw's block reflection rays.
+/// </summary>
+internal sealed class ScreenTraceSharePass(ScreenTraceKernel kernel, ScreenTraceImages images) : RenderPass
+{
+    public override string Name => kernel.Name;
+
+    public override void Record(FrameContext context)
+    {
+        context.Barriers.Image(images.BlockGuide, ImageUse.StorageCompute);
+        context.Barriers.Image(images.ReflectionShare, ImageUse.StorageCompute);
+        kernel.Record(context, side: 2 * ScreenTraceImages.TileBlocks);
     }
 
     public override void Dispose() => kernel.Dispose();

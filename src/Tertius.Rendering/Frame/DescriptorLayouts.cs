@@ -64,8 +64,8 @@ namespace Tertius.Rendering;
 /// resize.</description></item>
 /// <item><term>screen trace</term><description>set 3 of <see cref="ScreenTraceLayout"/>: the depth pyramid's finest
 /// level and its bounds as sampled images, the tracer's inputs and outputs as storage images, the own-ray list of each
-/// kind, and the light pyramid's finest level and sums as sampled images (<see cref="ScreenTraceImages"/>). One per parity
-/// of the drawn frames, rewritten on resize.</description></item>
+/// kind, the light pyramid's finest level and sums as sampled images, and the reflection share and the block guide as
+/// storage images (<see cref="ScreenTraceImages"/>). One per parity of the drawn frames, rewritten on resize.</description></item>
 /// <item><term>filter</term><description>set 3 of <see cref="DiffuseFilterLayout"/>: the input and the output of one
 /// dispatch of the diffuse filter, the diffuse slow history and this frame's diffuse fast history, as storage images for
 /// the compute stage (<see cref="DiffuseFilter"/>). One per dispatch and parity, rewritten on resize.</description></item>
@@ -120,6 +120,18 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>The binding of the hit light in a screen tracer set, a storage image after the light pyramid's two.</summary>
     public const uint ScreenTraceHitLightBinding = ScreenTraceLightBinding + ScreenTraceLightImages;
+
+    /// <summary>
+    /// The storage images of the reflection share in a screen tracer set, after the hit light: the share of each tile
+    /// (<see cref="ScreenTraceImages.ReflectionShare"/>) and the block guide (<see cref="ScreenTraceImages.BlockGuide"/>).
+    /// </summary>
+    private const uint ScreenTraceShareImages = 2;
+
+    /// <summary>The binding of the reflection share in a screen tracer set, a storage image after the hit light.</summary>
+    public const uint ScreenTraceShareBinding = ScreenTraceHitLightBinding + ScreenTraceHitLightImages;
+
+    /// <summary>The binding of the block guide, a storage image after the reflection share.</summary>
+    public const uint ScreenTraceBlockGuideBinding = ScreenTraceShareBinding + 1;
 
     /// <summary>
     /// The storage images that the light-change age of a precise specular history adds to a screen tracer set after its
@@ -1007,7 +1019,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             ),
             // Three per pyramid level set, each tail set's mips, four per environment levels set, three for the scatter set,
             // one for the shadow bounds set, four per surface test set, SignalSetImages per signal set, six for the light
-            // set, sixteen per screen tracer set with the hit light, plus ScreenTraceAgeImages, and four per filter set.
+            // set, eighteen per screen tracer set with the hit light and the reflection share's two, plus
+            // ScreenTraceAgeImages, and four per filter set.
             new(
                 DescriptorType.StorageImage,
                 3 * PyramidLevelSets
@@ -1018,7 +1031,12 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                     + 4 * SurfaceTestSets
                     + SignalSetImages * SignalSets
                     + LightSetImages
-                    + (ScreenTraceStorageImages + ScreenTraceAgeImages + ScreenTraceHitLightImages) * ScreenTraceSets
+                    + (
+                        ScreenTraceStorageImages
+                        + ScreenTraceAgeImages
+                        + ScreenTraceHitLightImages
+                        + ScreenTraceShareImages
+                    ) * ScreenTraceSets
                     + FilterSetImages * FilterSets
             ),
         ];
@@ -1227,7 +1245,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         int beforeLight = (int)(lists + ScreenTraceStorageBuffers + ScreenTraceAgeImages);
         Span<DescriptorSetLayoutBinding> bindings =
             stackalloc DescriptorSetLayoutBinding[
-                beforeLight + (int)(ScreenTraceLightImages + ScreenTraceHitLightImages)
+                beforeLight + (int)(ScreenTraceLightImages + ScreenTraceHitLightImages + ScreenTraceShareImages)
             ];
         for (uint binding = 0; binding < ScreenTraceSampledImages; binding++)
             bindings[(int)binding] = Image(binding: binding, stages: ShaderStageFlags.ComputeBit);
@@ -1247,7 +1265,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 binding: ScreenTraceLightBinding + image,
                 stages: ShaderStageFlags.ComputeBit
             );
-        bindings[^1] = StorageImage(ScreenTraceHitLightBinding);
+        bindings[^3] = StorageImage(ScreenTraceHitLightBinding);
+        bindings[^2] = StorageImage(ScreenTraceShareBinding);
+        bindings[^1] = StorageImage(ScreenTraceBlockGuideBinding);
         return CreateLayout(bindings: bindings, name: "screen trace set");
     }
 

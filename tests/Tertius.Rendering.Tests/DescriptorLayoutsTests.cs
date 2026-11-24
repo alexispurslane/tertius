@@ -198,7 +198,7 @@ public sealed class DescriptorLayoutsTests
     /// ARCHITECTURE.md, "Required device features", states.
     /// </summary>
     [Fact]
-    public void TheLayoutsNeedOfAStageTenStorageBuffersTwentyOneStorageImagesAndSeventeenSampledImages()
+    public void TheLayoutsNeedOfAStageTenStorageBuffersTwentyThreeStorageImagesAndSeventeenSampledImages()
     {
         using var device = VulkanDevice.Create(validation: true, surfaceExtensions: [], createSurface: null);
         using var layouts = new DescriptorLayouts(device: device, framesInFlight: 2, glowLevels: 0);
@@ -214,7 +214,10 @@ public sealed class DescriptorLayoutsTests
         all.Max(counts => counts.StorageBuffers.Most).Should().Be(10, "the frame set's vertex stage sees ten");
         all.Max(counts => counts.StorageImages.Most)
             .Should()
-            .Be(21, "the screen tracer's compute stage sees fifteen, the light-change age's five and the hit light");
+            .Be(
+                23,
+                "the screen tracer's compute stage sees fifteen, the light-change age's five, the hit light, the reflection share and the block guide"
+            );
         all.Max(counts => counts.SampledImages.Most)
             .Should()
             .Be(17, "the impostor layout's fragment stage sees seventeen");

@@ -243,7 +243,7 @@ public sealed class GpuTimingTests
             string[] passes = [.. renderer.LastFrameStats.GpuTimings!.Value.Passes.ToArray().Select(pass => pass.Pass)];
             passes
                 .SkipWhile(pass => pass != "G-buffer")
-                .Take(14)
+                .Take(15)
                 .Should()
                 .Equal(
                     [
@@ -257,12 +257,14 @@ public sealed class GpuTimingTests
                         "reflection rays",
                         "diffuse rays",
                         "screen trace resolve",
+                        "reflection share",
                         "accumulate indirect diffuse",
                         "filter indirect diffuse",
                         "accumulate indirect specular",
                         "composite",
                     ],
                     "the back-face pass reads the G-buffer's distance, the light pyramid sums the direct light, the rays read the pyramids and the direct light, the "
+                        + "reflection share reads the block guides after the resolve read the share, the "
                         + "accumulations read the resolve's samples, the filter reads the diffuse histories, and the "
                         + "composite reads the filtered light and the slow specular history"
                 );

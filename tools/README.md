@@ -1445,7 +1445,7 @@ The auto exposure meters each run's own image, so the two runs can take differen
 
 ## The guided rays' switch
 
-The environment variable `TERTIUS_GUIDED_RAYS` turns the guided diffuse rays on or off (ARCHITECTURE.md, "Guided diffuse rays"). The renderer reads it once, when it is made. Unset, empty and `on` keep the guiding. With `off`, the renderer records no "light pyramid" pass, and every diffuse ray takes the cosine draw, as before ticket `ter-05wb`. The light pyramid's images stay, because the tracer's sets bind them. Any other value stops the renderer with an `ArgumentException`.
+The environment variable `TERTIUS_GUIDED_RAYS` turns the guided rays of both kinds on or off (ARCHITECTURE.md, "Guided rays"). The renderer reads it once, when it is made. Unset, empty and `on` keep the guiding. With `off`, the renderer records no "light pyramid" pass and no "reflection share" pass, every diffuse ray takes the cosine draw, as before ticket `ter-05wb`, and every reflection ray its lobe draw, as before ticket `ter-fe63`. The light pyramid's images and the reflection share's stay, because the tracer's sets bind them. Any other value stops the renderer with an `ArgumentException`.
 
 To compare the two, render the same script twice into two folders:
 

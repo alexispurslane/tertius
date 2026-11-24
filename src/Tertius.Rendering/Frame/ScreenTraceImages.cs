@@ -51,6 +51,20 @@ internal sealed class ScreenTraceImages : IDisposable
     /// <summary>The two ray kinds, which are the layers of the record images: 0 reflection rays, 1 diffuse rays.</summary>
     public const int Kinds = 2;
 
+    /// <summary>
+    /// The format of the reflection share: one share per tile, from 0 to <see cref="GuidedShares.ReflectionCeiling"/>. A
+    /// 32-bit float holds the share pass's result exactly. A half float would round it, and Vulkan leaves the rounding
+    /// mode of that conversion to the driver: toward zero, every small step would round down, and a tile's share would
+    /// drift toward 0 on one driver and not on another. Stage 1's probe stored halves (ter-fe63).
+    /// </summary>
+    public const Format ReflectionShareFormat = Format.R32Sfloat;
+
+    /// <summary>The format of the block guide: x a block's guided density, y and z its evidence, w unused.</summary>
+    public const Format BlockGuideFormat = Format.R32G32B32A32Sfloat;
+
+    /// <summary>The blocks across a tile of the reflection share, and down it: a tile covers 16 × 16 render pixels.</summary>
+    public const int TileBlocks = 8;
+
     private readonly VulkanDevice device;
     private readonly DeviceAllocator allocator;
     private readonly DescriptorLayouts layouts;
@@ -123,6 +137,32 @@ internal sealed class ScreenTraceImages : IDisposable
     /// </summary>
     public GpuImage HitLight { get; private set; }
 
+    /// <summary>
+    /// The reflection share of each tile of <see cref="TileBlocks"/> × <see cref="TileBlocks"/> blocks
+    /// (<see cref="GuidedShares"/>): the share of the tile's reflection rays that take the guided draw. The tracer and the
+    /// resolve read it bilinearly at a pixel's block, and the share pass moves it after the resolve from this draw's
+    /// evidence. Its content is the share after the last drawn frame, and it is undefined before the first: a draw at which
+    /// the shares restart (<see cref="SharesRestart"/>) reads the ceiling in its place.
+    /// </summary>
+    public GpuImage ReflectionShare { get; private set; }
+
+    /// <summary>
+    /// The guide of each block's reflection ray, which the block pass writes while <see cref="Guided"/>: x the ray's guided
+    /// density along its direction, which the resolve mixes into each pixel's own density, and y and z its evidence for its
+    /// tile's share, the slope and the squared weight of <see cref="GuidedShares.EvidenceOf"/>.
+    /// </summary>
+    public GpuImage BlockGuide { get; private set; }
+
+    /// <summary>
+    /// Whether every tile's reflection share restarts at <see cref="GuidedShares.ReflectionCeiling"/> before
+    /// <paramref name="frame"/>'s rays: when the draw resets every history, as at a camera cut, the first drawn frame and a
+    /// still, and when the render size changes, which moves every tile over other pixels. From the ceiling, a share falls
+    /// where the guided draws bring little within about 30 draws, and the specks that a lobe alone gives on a rough surface
+    /// near a small bright sender do not show in the first draws after the cut (ter-fe63).
+    /// </summary>
+    public static bool SharesRestart(FrameHistory.PendingFrame frame) =>
+        frame.Reset || !frame.RenderSize.Equals(frame.PreviousRenderSize);
+
     /// <summary>The light-age records, one per parity, with a precise specular history: none with the original.</summary>
     private GpuImage[] lightAges = [];
 
@@ -165,8 +205,8 @@ internal sealed class ScreenTraceImages : IDisposable
     public DiffuseFilter? Filter { get; }
 
     /// <summary>
-    /// Whether <see cref="LightPyramid.GuidedShare"/> of the diffuse rays aim at pixels drawn from the light pyramid, or
-    /// every diffuse ray comes from the cosine lobe (ARCHITECTURE.md, "Guided diffuse rays").
+    /// Whether a share of the rays of each kind aims at pixels drawn from the light pyramid (<see cref="GuidedShares"/>),
+    /// or every ray comes from its kind's lobe (ARCHITECTURE.md, "Guided rays").
     /// </summary>
     public bool Guided { get; }
 
@@ -207,7 +247,9 @@ internal sealed class ScreenTraceImages : IDisposable
         nameof(BlockRay),
         nameof(OwnLight),
         nameof(OwnRay),
-        nameof(HitLight)
+        nameof(HitLight),
+        nameof(ReflectionShare),
+        nameof(BlockGuide)
     )]
     private void Create()
     {
@@ -220,6 +262,13 @@ internal sealed class ScreenTraceImages : IDisposable
         OwnLight = CreateImage(extent: extent, format: LightFormat, layers: Kinds, name: "screen trace own light");
         OwnRay = CreateImage(extent: extent, format: RayFormat, layers: Kinds, name: "screen trace own rays");
         HitLight = CreateImage(extent: extent, format: HitLightFormat, layers: Kinds, name: "screen trace hit light");
+        ReflectionShare = CreateImage(
+            extent: new((blocks.Width + TileBlocks - 1) / TileBlocks, (blocks.Height + TileBlocks - 1) / TileBlocks),
+            format: ReflectionShareFormat,
+            layers: 1,
+            name: "screen trace reflection share"
+        );
+        BlockGuide = CreateImage(extent: blocks, format: BlockGuideFormat, layers: 1, name: "screen trace block guide");
 
         OwnRays = [CreateOwnRayList(extent, "reflection"), CreateOwnRayList(extent, "diffuse")];
         lightAges = Specular.KeepsLightAge
@@ -315,6 +364,8 @@ internal sealed class ScreenTraceImages : IDisposable
         if (Specular.UncoveredDiagnostic(0) is { } diagnostic)
             layouts.WriteStorageImage(set: set, binding: 24, image: diagnostic);
         layouts.WriteStorageImage(set: set, binding: DescriptorLayouts.ScreenTraceHitLightBinding, image: HitLight);
+        layouts.WriteStorageImage(set: set, binding: DescriptorLayouts.ScreenTraceShareBinding, image: ReflectionShare);
+        layouts.WriteStorageImage(set: set, binding: DescriptorLayouts.ScreenTraceBlockGuideBinding, image: BlockGuide);
     }
 
     /// <summary>Writes the sampled images of <paramref name="set"/>: the depth pyramid at bindings 0 and 1, and the light
@@ -373,7 +424,7 @@ internal sealed class ScreenTraceImages : IDisposable
     /// <summary>Destroys the images and the lists, which <see cref="Resize"/> makes again. The device must be idle.</summary>
     public void Dispose()
     {
-        foreach (GpuImage image in (GpuImage[])[.. Records, HitLight, .. lightAges])
+        foreach (GpuImage image in (GpuImage[])[.. Records, HitLight, ReflectionShare, BlockGuide, .. lightAges])
             image.Dispose();
         lightAges = [];
         LightPyramidImages.Dispose();

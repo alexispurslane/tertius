@@ -861,7 +861,10 @@ internal struct DiffuseFilterPushConstants
     public int Step;
 }
 
-/// <summary>The push constants of the screen tracer's four passes, screen_trace.glsl (<see cref="ScreenTraceKernel"/>).</summary>
+/// <summary>
+/// The push constants of the screen tracer's five passes, screen_trace.glsl (<see cref="ScreenTraceKernel"/>): its four
+/// passes and the reflection share's (<see cref="ScreenTraceSharePass"/>).
+/// </summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct ScreenTracePushConstants
 {
@@ -876,23 +879,55 @@ internal struct ScreenTracePushConstants
     public uint ReflectionSteps;
     public uint DiffuseSteps;
 
-    /// <summary>The share of the diffuse rays that the guided draw gives: <see cref="LightPyramid.GuidedShare"/>, or 0 with the guiding off.</summary>
-    public float GuidedShare;
+    /// <summary>The share of the diffuse rays that the guided draw gives: <see cref="GuidedShares.Diffuse"/>, or 0 with the guiding off.</summary>
+    public float DiffuseShare;
+
+    /// <summary>The largest share of a tile's reflection rays, <see cref="GuidedShares.ReflectionCeiling"/>, or 0 with the guiding off.</summary>
+    public float ReflectionCeiling;
+
+    /// <summary><see cref="GuidedShares.RampStart"/>.</summary>
+    public float RampStart;
+
+    /// <summary><see cref="GuidedShares.RampEnd"/>.</summary>
+    public float RampEnd;
+
+    /// <summary><see cref="GuidedShares.Step"/>.</summary>
+    public float ShareStep;
+
+    /// <summary><see cref="GuidedShares.Guard"/>.</summary>
+    public float ShareGuard;
+
+    /// <summary><see cref="GuidedShares.MostRatio"/>.</summary>
+    public float ShareMostRatio;
+
+    /// <summary><see cref="GuidedShares.MostEvidenceWeight"/>.</summary>
+    public float MostEvidenceWeight;
+
+    /// <summary>1 when every tile's reflection share restarts at the ceiling before this draw (<see cref="ScreenTraceImages.SharesRestart"/>), else 0.</summary>
+    public uint SharesRestart;
 
     /// <summary>
-    /// The push constants of a draw of index <paramref name="drawIndex"/> under <paramref name="trace"/>, with the
-    /// guided diffuse rays when <paramref name="guided"/>. The index wraps at 2^32 draws, more than two years at 60
-    /// frames per second, which changes only the random numbers.
+    /// The push constants of <paramref name="frame"/> under <paramref name="trace"/>, with the guided rays when
+    /// <paramref name="guided"/>. The draw index wraps at 2^32 draws, more than two years at 60 frames per second, which
+    /// changes only the random numbers.
     /// </summary>
-    public static ScreenTracePushConstants Of(ScreenTrace trace, long drawIndex, bool guided) =>
+    public static ScreenTracePushConstants Of(ScreenTrace trace, FrameHistory.PendingFrame frame, bool guided) =>
         new()
         {
-            DrawIndex = unchecked((uint)drawIndex),
+            DrawIndex = unchecked((uint)frame.DrawIndex),
             MaxRoughness = trace.MaxRoughness,
             HandOverStart = trace.HandOverStart,
             ReflectionSteps = (uint)trace.ReflectionSteps,
             DiffuseSteps = (uint)trace.DiffuseSteps,
-            GuidedShare = guided ? LightPyramid.GuidedShare : 0,
+            DiffuseShare = guided ? GuidedShares.Diffuse : 0,
+            ReflectionCeiling = guided ? GuidedShares.ReflectionCeiling : 0,
+            RampStart = GuidedShares.RampStart,
+            RampEnd = GuidedShares.RampEnd,
+            ShareStep = GuidedShares.Step,
+            ShareGuard = GuidedShares.Guard,
+            ShareMostRatio = GuidedShares.MostRatio,
+            MostEvidenceWeight = GuidedShares.MostEvidenceWeight,
+            SharesRestart = ScreenTraceImages.SharesRestart(frame) ? 1u : 0u,
         };
 }
 

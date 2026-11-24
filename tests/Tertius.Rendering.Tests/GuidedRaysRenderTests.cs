@@ -4,7 +4,7 @@ using static Tertius.Rendering.Tests.ReflectionTesting;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The guided diffuse rays on the GPU (ARCHITECTURE.md, "Guided diffuse rays"): the light pyramid's levels, the mixture
+/// The guided diffuse rays on the GPU (ARCHITECTURE.md, "Guided rays"): the light pyramid's levels, the mixture
 /// density in the ray records, and a floor's bounce light from a small glowing patch, with the guiding on and off through
 /// the debug switch TERTIUS_GUIDED_RAYS (<see cref="LightPyramidPass.SwitchedOn"/>). The camera of
 /// <see cref="Gpu.Snapshot"/> stands still, and each frame steps one tick.
@@ -564,7 +564,7 @@ public sealed class GuidedRaysRenderTests
         float[] records = renderer.ReadImageLayer(renderer.ScreenTraceImages.BlockRay, 1);
         float[] normals = renderer.ReadNormals();
         float[] distances = renderer.ReadDistance();
-        float share = renderer.ScreenTraceImages.Guided ? LightPyramid.GuidedShare : 0;
+        float share = renderer.ScreenTraceImages.Guided ? GuidedShares.Diffuse : 0;
         int compared = 0,
             above = 0,
             below = 0;
@@ -651,7 +651,8 @@ public sealed class GuidedRaysRenderTests
                 jitter: jitter
             );
             Vector3 normal = OctahedralNormal.Decode(new(normals[4 * pixel], normals[4 * pixel + 1]));
-            double expected = LightPyramid.MixtureDensity(
+            double expected = GuidedShares.MixtureDensity(
+                GuidedShares.Diffuse,
                 MathF.Max(Vector3.Dot(normal, direction), 0) / MathF.PI,
                 guidedDensity
             );
