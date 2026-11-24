@@ -712,3 +712,425 @@ decision of 19:11, the residual is acceptable for the visual experiment.
 | Bar: no soft patch at 1:1 on the floor and the back wall of the frozen bay | Settled (draw 300 on): passes, like d. Cold start (draws 64 to about 200): b's patches, diffuse alone. |
 | Bar: no lag that a viewer sees beside main in the light change films | Settled rect-bay: a faint lighter block on the floor at film draws 55 to 63, weaker than g36+r's. Turned rect-bay: a blocky patchwork at film draws 60 to 80, as g36+r. Cabin switch: passes. |
 | Not known 4: a live scene | Not measured. Every scene here is a frozen still, two films and one switch. |
+
+## Comparison of two closed-gate tests, first take: w36 and the pair rule (build yi)
+
+Correction (2026-11-24, later the same day): the second column of this first take is NOT the specified hyst rule. It
+ran a pair rule that I read from a one-line summary: it tests the neighbors' raw t, needs a neighbor even for a strong
+seed, ignores the anchor's own earlier answer, and cannot pass through a confirmed weak anchor. This section calls it
+"pair". Its folders and its tool column keep the old name `hyst` (`bay-hyst-*`, `rbst-hyst`, `ws-hyst`; knob
+`TERTIUS_X_REGION_CLOSED=hyst` in build yi, `pair` in build yj). The specified rule is column hx of build yj, in the
+section "The specified hyst rule (build yj, column hx)" below, which also replaces this section's verdict. The w36
+column and the controls of this section stand: build yj reproduces them byte for byte.
+
+On 2026-11-24 the parent ordered one scratch comparison after the hold on g128+r. g128+r was held because turned
+rect-bay shows lighter rectangles that b does not show. The two candidates change only what answers while the gate is
+closed, and both use the same new reset. Nothing in `src/` or `tests/` changed.
+
+### The build and its columns
+
+Build yi is yh plus the changes in the header of `scratch-yi.patch`:
+
+- The ring keeps 72 draws in place of 36. Today's test and the rank test still read the newest 36. Two more layers
+  hold each anchor's Welch statistics, by the parity of the draw's slot.
+- `TERTIUS_X_REGION_CLOSED=w36` or `hyst` sets the closed reset and the closed test together.
+- Closed reset, the same for both: a draw that does not continue the draw before (a reset or a new size) sets the cause
+  age to 4,096, so the gate is closed. A draw that is not valid keeps counting from the draw before. Only a counted tap
+  with a cause sets 0. The old reset set 0, an open gate, in both cases.
+- w36: Welch's t of the newest 36 draws against the 36 before them, `(m_new - m_old) / sqrt((s_new^2 + s_old^2) / 36)`.
+  The anchor answers yes where |t| >= 4.1. It tests only after 72 valid draws in a row, with no fallback to 18 draws.
+- pair (yi's knob `hyst`): Welch's t of two windows of 18 draws. A same-direction pair of neighbor anchors (of the 8 around) makes this
+  anchor answer yes: one of them at |t| >= 5.0 and the other at s t >= 2.6, with s the sign of the first. The
+  neighbor's t is that of the draw before, because workgroups of one dispatch do not see each other's writes. A lone
+  anchor at 5.0 does not answer.
+- Both: a gate of 128 draws after a real cause (today's test while it is open) and a cap of 128.
+
+I did not find the replay code that proposed the two candidates. The pair rule above was my reading of "W = 18
+same-direction neighbor confirmation (seed |t_18| >= 5.0, confirm s t_18 >= 2.6)". It is wrong: see the correction
+above.
+
+| Column | Build | Knobs |
+|---|---|---|
+| byi, g128ryi | yi | b's and g128r's knobs |
+| w36 | yi | `TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_GATE=128 TERTIUS_X_REGION_CLOSED=w36` |
+| pair (tool column `hyst`) | yi | `TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_GATE=128 TERTIUS_X_REGION_CLOSED=hyst` |
+
+Checks, measured: yi with b's knobs and with g128r's knobs draws the same bytes as yg in the frozen bay (stills 127, 300
+and 659 and the length dump, diffuse alone). In turned rect-bay, yi's g128+r frames equal yh's seven kept frames byte
+for byte. The ring logs differ only in the valid-draw count, which now goes to 72. So the old takes of b and g128+r
+serve as same-build controls. A second w36 take gave the same ring log byte for byte.
+
+### How to make them again
+
+From the checkout's root, with bash (tool column `hyst` is the pair rule):
+
+1. `bash docs/research/t1-yi11-region-evidence/tools/builds.sh yi`
+2. Frozen bay: `KEEP_LIST=$(cat tools/keep-yi.txt) bash tools/gtakes.sh sparse w36 hyst` and
+   `bash tools/gtakes.sh long w36 hyst`. `tools/keep-yi.txt` is the cold-start list of the g128+r section plus draws
+   run - 1, + 2, + 6, + 12 and + 24 of each answer run, found in a first take with the cold-start list alone.
+3. Turned rect-bay: `TURN=90 bash tools/films.sh rect-bay-settled g128ryi w36 hyst` (b is the old `rbst-bl`).
+4. The walk: `bash tools/films.sh walk-switch byi g128ryi w36 hyst` and `bash tools/films.sh walk-off byi`.
+5. `python3 -I tools/yi.py <turned|walk|bay|look>` in the dev shell, and the two films with `tools/grid.py` (`CROP`,
+   `PREFIX=h` for the walk).
+
+### The new scene: a lamp switch while the camera moves
+
+`walk-switch` (yifilm.py): orbit's person camera after 60 ticks, the still, 160 standing frames, then 120 walking frames
+(key W), then 200 standing frames. The cabin lamps `z:-12:4` go off at walk frame 60 and stay off. The control
+`walk-off` holds them off from draw 0 with the same walk. Fixed 4.08 stops, bloom on, the game's tone curve. It keeps
+walk frames 50 to 119 and stand frames 0 to 159. During the walk every tap moves on screen, so no region is valid and no
+ray brings a counted cause. When the walk stops, the old reset leaves every gate open (cause age 0 from each draw that
+was not valid). Under the closed reset a gate opens only where a counted tap brings a cause after the stop: 22
+anchor-draws hold one, and up to 14 gates are open (14 at stand frame 40, 8 at frame 100).
+
+The change shows in the controls. In b the floor box (y 600 to 1080) falls from 117.8 gray at walk frame 55 to 73.2 at
+walk frame 65, and the near floor goes dark in `walk-switch-yi-sheet.png`.
+
+### Turned rect-bay
+
+Files: `yi-turned.json`, `videos/rect-bay-turned-yi.mp4` (first take: b | g128+r over w36 | pair, film draws 30 to 110; the file now shows hyst (hx) in place of pair, 1:1 crop of
+output x 0 to 960, y 540 to 1080), `pictures/rect-bay-turned-yi-sheet.png`, `rect-bay-turned-yi-crops.png` (1:1, x 960
+to 1920, y 480 to 1080, film draws 60, 70, 80 and 90), and `rect-bay-turned-yi-1to1-b-w36.png` and
+`-pair-g128r.png` (renamed from `-hyst-g128r.png`; unlabeled, left column then right column, rows film draws 57, 65 and 75, output x 0 to 960, y 600
+to 1080).
+
+Measured, mean gray of the wall ahead (y 0 to 500) / the floor (y 700 to 1080):
+
+| Column | Film draw 45 | 60 | 75 | 90 |
+|---|---|---|---|---|
+| b | 203.5 / 199.6 | 190.2 / 184.6 | 171.6 / 164.5 | 149.5 / 141.7 |
+| g128+r | 206.9 / 203.2 | 198.4 / 196.5 | 175.2 / 171.1 | 150.6 / 143.6 |
+| w36 | 207.2 / 203.1 | 192.0 / 185.8 | 172.2 / 164.8 | 149.6 / 141.8 |
+| pair | 206.0 / 202.7 | 194.6 / 194.7 | 173.3 / 168.9 | 150.0 / 142.9 |
+
+| Column | Largest tile difference against b | Draws over 4 gray | Over 8 gray | Yes answers in the film | First answer |
+|---|---|---:|---:|---:|---:|
+| g128+r | +25.62 at draw 80, tile x 1824, y 864 | 69 | 55 | 20,151 | draw 28 |
+| w36 | +13.35 at draw 57, tile x 96, y 960 | 39 | 18 | 31,031 | draw 36 |
+| pair | +21.41 at draw 65, tile x 480, y 864 | 57 | 39 | 23,599 | draw 32 |
+
+b answers 25,980 times. No gate opens in the film for any column. g128+r's row repeats the earlier record's numbers. The
+grid step measure in `yi.py` (the step of column minus b across the anchors' tile lines, against lines between them) does
+not separate the columns: 0.30 to 0.47 gray at both kinds of line. I do not use it.
+
+Reading:
+
+- b is smooth at 1:1. g128+r shows its blocky patchwork at film draws 57 to 80, as before.
+- w36 shows faint lighter blocks with straight edges on the floor at film draws 57 to 65, at the bottom left and along a
+  vertical line near output x 300. I see them only at 1:1 and only when I look for them. They are gone by draw 75.
+- pair shows soft blocks with straight edges at draws 57 to 65, a darker block at the upper left and a lighter one in
+  the middle of the crop. They are weaker than g128+r's and clearer than w36's.
+
+### The walk
+
+Files: `yi-walk.json`, `videos/walk-switch-yi.mp4` (first take: b | g128+r over w36 | pair; the file now shows hyst (hx) in place of pair; stand frames 0 to 159, 1:1 crop of
+output x 960 to 1920, y 0 to 540), `pictures/walk-switch-yi-sheet.png`, `walk-switch-yi-crops.png`,
+`walk-switch-yi-seams.png` (b's frame at stand frame 100 with output x 1440 onward from g128+r, w36, hyst (hx, added later) and pair, one row
+each, crop x 960 to 1920, y 0 to 540) and `walk-switch-yi-w36-minus-b-x20.png` (w36 minus b at stand frame 100,
+Gaussian sigma 8 px, times 20 on 128, half size).
+
+Measured, the whole picture's mean gray minus the control's, by stand frame (frame 0 is the first draw after the walk):
+
+| Column | 0 | 40 | 80 | 100 | 130 | 159 |
+|---|---:|---:|---:|---:|---:|---:|
+| b | +5.11 | +3.67 | +2.56 | +2.16 | +1.67 | +1.33 |
+| g128+r | +5.15 | +3.70 | +2.53 | +2.13 | +1.63 | +1.40 |
+| w36 | +5.05 | +3.64 | +3.22 | +3.07 | +2.84 | +2.57 |
+| pair | +4.98 | +3.59 | +3.07 | +2.89 | +2.74 | +2.56 |
+
+- Ring logs after the stop: b answers 457 times and g128+r 345 times, both first at stand frame 37. w36 answers 38
+  times (first at frame 49) and pair 10 times (first at frame 41). 22 anchor-draws hold a counted cause. g128+r has 238
+  open gates from frame 1, and w36 and pair have at most 14.
+- Column minus b, Gaussian sigma 8 px, 99th percentile over the frame: w36 +3.26, +3.21 and +3.08 gray at stand frames
+  80, 100 and 159, pair +2.07, +2.44 and +2.81. g128+r stays within +0.10 to frame 130.
+- At stand frame 159, w36's whole-picture excess (+2.57) equals b's at about frame 80. So w36 trails b by about 38
+  draws at frame 100 and by about 77 at frame 159. The difference image shows the excess on the ceiling and the walls,
+  in blocks of the anchors' regions where b cut and w36 did not.
+
+Reading: w36 and pair show no blocks of their own in the walk. They keep the old light longer, on the ceiling and the
+walls, after b's cuts. In the seam picture I see no seam at x 1440 for any column. Side by side, the right-hand pane
+looks lighter to me whatever it holds, even g128+r beside b, which measure within 0.15 gray. So I do not claim that a
+viewer sees this lag. The lag goes with fewer cuts after the stop: b answers 457 times, w36 38 and pair 10, and the
+closed reset opens at most 14 of 238 gates where the old reset opens all of them. No take isolates the cause: no column
+has the closed reset with today's test, so this record does not say how much of the lag the reset alone makes.
+
+### The frozen bay
+
+Files: `yi-bay.json`, `pictures/bay-cold-yi-<floor|back-wall>-<dif|full>.png` (1:1; first take b, g128+r, w36 and pair; now also hyst (hx); at draws 40,
+72, 96, 127, 168, 240, 300 and 659), `bay-runs-yi-dif.png` and `bay-runs-yi-full.png` (each run after draw 300: 288 x
+288 crops around its anchor at draws - 1, + 2, + 6, + 12 and + 24, diffuse still and still minus d's still of the same
+draw times 10, and the full picture).
+
+Measured, yes answers / tested anchor-draws (36 valid draws in a row, 72 for w36):
+
+| Draws | b | g128+r | w36 | pair |
+|---|---|---|---|---|
+| 0 to 127 | 358 / 21,436 | 358 / 21,436 | 6 / 13,048 | 0 / 21,436 |
+| 128 to 300 | 482 / 40,309 | 6 / 40,309 | 4 / 40,309 | 0 / 40,309 |
+| 301 to 659 | 840 / 83,647 | 14 / 83,647 | 10 / 83,647 | 8 / 83,647 |
+| 661 to 1,659 (long take) | | 23 in 14 runs / 232,767 | 6 in 6 runs / 232,767 | 4 in 4 runs / 232,767 |
+
+- No anchor-draw of w36 or pair holds a cause.
+- w36's runs: draws 72 (two anchors), 90, 157, 215, 222, 395, 397, 464, 469, 485, 489, 658 and 659. Those before draw
+  300 fall in the bounce light's warm-up: the level table below shows the light still rising there.
+- pair's one event: draws 406 and 407 at the four neighbor anchors (11, 3), (11, 4), (12, 3) and (12, 4), output x
+  1056 to 1152, y 288 to 384, the wall with the small dark window. The pair rule cuts all four together.
+- The runs' patch against d's still of the same draw rises from 0.0003 to 0.0006 at draw - 1 to 0.004 to 0.010 at draws
+  + 6 to + 24, for w36 and for pair. In the residual times 10 they leave soft patches with straight edges. In the plain
+  diffuse and full stills I see nothing at the runs.
+
+Measured, the cold start, diffuse alone, patch floor / back wall and level floor / back wall (against d's late mean):
+
+| Draw | b and g128+r: patch | level | w36: patch | level | pair: patch | level |
+|---:|---|---|---|---|---|---|
+| 72 | 0.0121 / 0.0146 | 0.954 / 0.953 | 0.0093 / 0.0123 | 0.939 / 0.922 | 0.0093 / 0.0123 | 0.939 / 0.922 |
+| 96 | 0.0150 / 0.0173 | 0.972 / 0.977 | 0.0079 / 0.0100 | 0.946 / 0.932 | 0.0079 / 0.0101 | 0.946 / 0.932 |
+| 127 | 0.0141 / 0.0122 | 0.981 / 0.985 | 0.0072 / 0.0088 | 0.954 / 0.943 | 0.0072 / 0.0087 | 0.953 / 0.942 |
+| 200 | b 0.0086 / 0.0131, g128+r 0.0071 / 0.0084 | 0.993 / 1.005, 0.987 / 0.994 | 0.0053 / 0.0071 | 0.967 / 0.960 | 0.0054 / 0.0071 | 0.966 / 0.959 |
+| 300 | b 0.0082 / 0.0110, g128+r 0.0052 / 0.0055 | 0.997 / 1.002, 0.991 / 0.994 | 0.0049 / 0.0056 | 0.978 / 0.972 | 0.0049 / 0.0056 | 0.977 / 0.971 |
+| 659 | b 0.0085 / 0.0066, g128+r 0.0038 / 0.0033 | 1.005 / 1.003, 1.001 / 1.002 | 0.0038 / 0.0034 | 0.998 / 0.997 | 0.0038 / 0.0034 | 0.998 / 0.997 |
+
+Reading: from the start, w36 and pair show the even falloff that d showed, without b's soft blotches at draws 72 to 127.
+They warm up slower. At draw 127 the floor and the back wall are 4.6 % and 5.7 % under d's late mean, against b's 1.9 %
+and 1.5 %, and at draw 300 they are 2.2 % and 2.8 % under, against g128+r's 0.9 % and 0.6 %. In the sheets their floor's
+left side is visibly darker than b's from draw 96 to draw 240.
+
+### Verdict and cost of the first take (superseded by the hx section below)
+
+Neither candidate passes the bar that held g128+r: no straight-edged patch at 1:1 that b does not show.
+
+- w36 comes closest. Its turned blocks are faint and short (film draws 57 to 65), and its settled frozen bay answers 6
+  times in 232,767 anchor-draws, against g128+r's 23. It keeps the closed reset's costs: the slower warm-up from a cold
+  start and the longer light after the walk.
+- pair's turned blocks are clearer, and its one frozen-bay event cuts four regions at once.
+
+So that take had no timing. The read counts per variant are in the hx section below. The counts that stood here mixed
+the scratch build's paths with the variants' own paths.
+
+Limits:
+
+- One scene per question, one take each, on one machine. Thresholds come from the replay, unchanged, with no sweep.
+- The pair rule was a wrong reading of the brief (see the correction at the top of this section).
+- The walk's lag is measured, but my eye could not judge it, because pane position biases the brightness I see.
+- The walk scene has one take per column and no column that separates the closed reset from the closed test.
+- The frozen bay's level gap of the earlier section (-0.15 % to -0.40 %) is not studied here.
+
+## The specified hyst rule (build yj, column hx)
+
+The parent's correction of 2026-11-24 gave the second column's exact rule, from the Design X line's replay report of
+00:17. This section runs that rule as column hx, in the same build as w36 and the controls. It replaces the verdict of
+the first take.
+
+### The rule and the build
+
+Build yj is yi plus the changes in the header of `scratch-yj.patch`. With `TERTIUS_X_REGION_CLOSED=hyst`, a closed-gate
+anchor answers by `probeHystDecisionOf`:
+
+- An anchor is tested after 36 valid draws in a row (arming). An untested anchor does not answer.
+- |t18| >= 5.0 fires with the sign of t18, alone.
+- Else |t18| >= 2.6 fires with the sign of t18 only if the anchor itself or one of its 8 neighbors inside the anchors
+  fired with the same sign in the draw before.
+- "Fired in the draw before" is the signed answer in the ring's b of `layerBefore()`. In hyst mode b holds 1 or -1
+  whatever answered: this rule, or today's test while the gate is open (its sign is that of the newer window's mean
+  minus the older one's). Every reader of b asks only b != 0, so a negative answer cuts as a positive one does.
+- A draw that does not continue the draw before (a reset or a new size) reads no earlier answer.
+- A weak anchor that fired can so make a weak neighbor fire one draw later.
+
+The thresholds, the closed reset, the gate of 128 draws after a real cause and the cap of 128 are the ones of w36. The
+earlier pair rule stays in yj as `TERTIUS_X_REGION_CLOSED=pair`, only to reproduce the first take.
+
+### Checks
+
+1. The rule through the shader: `TERTIUS_X_HYST_TRACE=1` takes t18, the gate and today's signed answer from a fixed
+   table at slots 40 to 46 (`probeTraceOf`), in a 60-draw frozen run (slot = draw there). `tools/hysttrace.py` holds its
+   own copy of the table and the rule. It compares every anchor's logged answer on the whole 20 x 12 grid at all 60
+   draws. Measured: 16 nonzero answers and 0 differences. Its cases, each with the expected and the logged answer equal:
+
+   | Case | Draw, anchor | Answer |
+   |---|---|---:|
+   | isolated + strong seed (+5.5) | 40, (2, 2) | +1 |
+   | isolated - strong seeds (-6.0, -5.2) | 40, (10, 5); 43, (15, 8) | -1, -1 |
+   | self persistence: +3.0 after its own + answer | 41, (2, 2) | +1 |
+   | same-sign weak hops from a seed, then from confirmed weak anchors | 41 to 44, (3..6, 2) | +1 each |
+   | weak + with no fired neighbor; weak + two draws after the neighbor fired | 44, (8, 2); 46, (7, 2) | 0, 0 |
+   | weak - hops from a - seed | 41, (11, 5); 42, (12, 5) | -1, -1 |
+   | weak + beside a - seed (opposite sign); -2.0 beside a - seed (under the bar) | 41, (9, 5); 41, (10, 6) | 0, 0 |
+   | open gate, today's test answers - / no answer | 40, (5, 9); 40, (8, 9) | -1, 0 |
+   | weak - seeded by the open gate's - answer; weak + beside it; weak + beside an open gate without answer | 41, (6, 9); (4, 9); (9, 9) | -1, 0, 0 |
+   | diagonal weak hops at the first and the last anchor (no read outside the anchors) | 41, (1, 1); (18, 10) | +1, -1 |
+
+2. The rule on the real takes: `hysttrace.py check` recomputes every closed-gate anchor-draw of the four hx takes from
+   the logged t18 (`region-t.log`) and the logged signed answers of the draw before. Measured: 769,320 closed-gate
+   anchor-draws, 0 differences. Among them: 15,771 - seeds and 11,852 - weak firings in turned rect-bay, 11 seeds and
+   146 weak firings in the walk, 5 seeds and 28 weak firings in the two frozen-bay takes. The walk's 1,800 open-gate
+   anchor-draws all hold -1, 0 or 1 (2 answers, both -1).
+3. yj reproduces yi: in the frozen bay (stills 127, 300 and 659, the length dump, `region-ring.log` and `region-t.log`)
+   for b, g128+r, w36 and the pair rule; in the walk (all 230 kept frames and both logs) for g128+r and w36; in turned
+   rect-bay (all 180 frames and both logs) for w36. All byte for byte. So the first take's w36 and control takes serve
+   here.
+4. A second hx frozen-bay take gave the same ring log byte for byte.
+
+Not checked: a reset in the middle of a take. The trace's first draw is a reset with an empty ring, and no take here
+resets later. The rule reads no earlier answer on such a draw by its code (`regionContinues()`), not by a measurement.
+
+### How to make them again
+
+From the checkout's root, with bash:
+
+1. `bash docs/research/t1-yi11-region-evidence/tools/builds.sh yj`
+2. Trace: `DRAWS=60 KEEP_LIST=59 bash tools/bayrun.sh yj bay-hx-trace TERTIUS_X_DIFFUSE_CAP=128
+   TERTIUS_X_REGION_GATE=128 TERTIUS_X_REGION_CLOSED=hyst TERTIUS_X_HYST_TRACE=1 TERTIUS_PROBE_SIGNAL=2
+   TERTIUS_X_REGION_LOG=/private/tmp/t1-yi11/runs/bay-hx-trace`, then `python3 -I tools/hysttrace.py
+   /private/tmp/t1-yi11/runs/bay-hx-trace` in the dev shell.
+3. The equivalence takes: `KEEP_LIST=127,300,659 bash tools/gtakes.sh sparse-dif byj g128ryj w36yj pairyj`,
+   `bash tools/films.sh walk-switch g128ryj w36yj` and `TURN=90 bash tools/films.sh rect-bay-settled w36yj`, compared
+   with `cmp` against the yi folders.
+4. hx: `KEEP_LIST=$(cat tools/keep-yi.txt) bash tools/gtakes.sh sparse hx`, `bash tools/gtakes.sh long hx`,
+   `TURN=90 bash tools/films.sh rect-bay-settled hx` and `bash tools/films.sh walk-switch hx`. Then
+   `python3 -I tools/hysttrace.py check <the four folders>` and `python3 -I tools/yi.py <turned|walk|bay|look>`.
+5. Timing: `bash tools/yitime.sh /private/tmp/t1-yi11/runs/time-yj2`, then `python3 -I tools/yitime.py
+   /private/tmp/t1-yi11/runs/time-yj2` in the dev shell.
+
+### Turned rect-bay
+
+Measured, mean gray of the wall ahead / the floor, and the tile difference against b:
+
+| Column | Film draw 45 | 60 | 75 | 90 | Largest tile difference against b | Draws over 4 / 8 gray |
+|---|---|---|---|---|---|---|
+| b | 203.5 / 199.6 | 190.2 / 184.6 | 171.6 / 164.5 | 149.5 / 141.7 | | |
+| g128+r | 206.9 / 203.2 | 198.4 / 196.5 | 175.2 / 171.1 | 150.6 / 143.6 | +25.62 at draw 80 | 69 / 55 |
+| w36 | 207.2 / 203.1 | 192.0 / 185.8 | 172.2 / 164.8 | 149.6 / 141.8 | +13.35 at draw 57 | 39 / 18 |
+| hyst (hx) | 204.6 / 201.4 | 190.3 / 184.5 | 171.6 / 164.4 | 149.5 / 141.7 | -7.02 at draw 54, tile x 960, y 0 | 29 / 0 |
+| pair (first take) | 206.0 / 202.7 | 194.6 / 194.7 | 173.3 / 168.9 | 150.0 / 142.9 | +21.41 at draw 65 | 57 / 39 |
+
+hx answers 27,623 times in the film, every answer -1 (the light falls), first at film draw 32. No gate opens.
+
+Pictures: `rect-bay-turned-yi-crops.png` and `-sheet.png` (now with hx), `rect-bay-turned-yi-1to1-b-hyst.png` (b left,
+hx right, output x 0 to 960, y 600 to 1080, film draws 57, 65 and 75), and the video `rect-bay-turned-yi.mp4`.
+
+Reading: at 1:1 on the floor at film draws 57 to 75, hx is as smooth as b. I see none of the straight-edged blocks of
+g128+r, pair or w36. At its largest tile difference (the wall ahead at the top, film draw 54) I looked at x 480 to 1440,
+y 0 to 480, at draws 48, 54 and 60: both b and hx show the same faint soft unevenness of the change, and hx adds no
+edge that b lacks.
+
+### The walk
+
+Measured, the whole picture minus the control, by stand frame:
+
+| Column | 0 | 40 | 80 | 100 | 130 | 159 |
+|---|---:|---:|---:|---:|---:|---:|
+| b | +5.11 | +3.67 | +2.56 | +2.16 | +1.67 | +1.33 |
+| w36 | +5.05 | +3.64 | +3.22 | +3.07 | +2.84 | +2.57 |
+| hyst (hx) | +5.02 | +3.61 | +3.05 | +2.84 | +2.68 | +2.50 |
+
+- After the stop hx answers 36 times (first at stand frame 41), against b's 457. Its gates: up to 14 open, as w36.
+- hx minus b, Gaussian sigma 8 px, 99th percentile: +0.20, +2.04, +2.42 and +2.81 gray at stand frames 40, 80, 100
+  and 159.
+- The seam picture `walk-switch-yi-seams.png` now has an hx row. I see no seam in any row.
+
+Reading: hx keeps the old light on the ceiling and the walls as long as w36 and pair do, 2 to 3 gray above b from
+stand frame 80. My eye could not judge this lag (see the first take's reading). The same limit holds: no take
+separates the closed reset from the closed test.
+
+### The frozen bay
+
+| Draws | yes answers / tested anchor-draws (36 valid draws in a row) |
+|---|---|
+| 0 to 127 | 0 / 21,436 |
+| 128 to 300 | 0 / 40,309 |
+| 301 to 659 | 10 / 83,647: one event, the pair's four anchors (11, 3), (11, 4), (12, 3) and (12, 4) at draws 406 and 407; pair gave 8 answers at the same event |
+| 661 to 1,659 | 14 / 232,767 in 5 runs: two events, anchors (0, 6), (0, 7) and (1, 7) from draw 882, and (13, 3) and (13, 4) from draw 1,313 |
+
+Against the other columns in draws 661 to 1,659: g128+r 23 answers in 14 runs, w36 6 in 6, pair 4 in 4.
+
+- Patch of the event at draw 406, against d's still of the same draw: 0 at draw - 1, then 0.006 to 0.007 at draws + 6
+  to + 24, as pair's (`bay-runs-yi-dif.png`, `-full.png`, now with hx rows). In the residual times 10 the patch is
+  soft with straight edges. In the plain diffuse and full stills I see nothing.
+- Cold start: hx's patch and level equal w36's and pair's to 0.0001 and 0.001 at every kept draw (`yi-bay.json`):
+  floor / back wall level 0.953 / 0.942 at draw 127, 0.977 / 0.971 at draw 300, 0.998 / 0.997 at draw 659. hx makes no
+  answer before draw 301, so its cold start shows the closed reset's slower warm-up alone, as the sheets do.
+
+### Timing
+
+`tools/yitime.sh` ran the frozen bay (660 draws, 1920 x 1080 at the render scale 2/3) once per column in the order
+yh-b, b, g128+r, w36, hx, then in the reverse order, each take under the GPU lock's exclusive mode. Each take started at
+a 1-minute load under 8 (4.30 to 7.44 at the starts, `yi-time.json` holds the log). yh-b is build yh with the cap of 128:
+today's test without yj's 72-layer ring and Welch statistics. The other four columns are build yj. Measured, the mean of
+the two takes, in ms per draw:
+
+| Column | Frame span, median | Frame span, mean | accumulate + filter indirect diffuse, median |
+|---|---:|---:|---:|
+| yh-b | 16.248 | 17.151 | 4.454 |
+| b | 16.179 | 16.367 | 4.444 |
+| g128+r | 16.115 | 16.310 | 4.439 |
+| w36 | 16.175 | 16.992 | 4.468 |
+| hx | 16.249 | 16.475 | 4.462 |
+
+- The two takes of one column differ by up to 0.46 ms in the frame span's median (yh-b: 16.477 and 16.020) and by up
+  to 0.10 ms in the pair sum (yh-b: 4.506 and 4.403).
+- The columns' means differ by at most 0.13 ms in the frame span's median and 0.03 ms in the pair sum.
+
+Reading: no column differs from another by more than the spread between the two takes of one column. These takes
+cannot resolve a cost of the decision path. The region test runs in "accumulate indirect diffuse"; MoltenVK's time of
+that pass alone is not valid, so the table gives the sum with its neighbor.
+
+Limits of this measure: all yj columns run the scratch build's paths (a 72-layer load and two stores per anchor per
+draw, see below), so yj's columns differ only in the decision path. yh-b against yj-b is the only measure of the scratch
+overhead, and it too is inside the spread. Two takes per column, on one machine, with other agents' work at a low load.
+
+### Read cost per variant
+
+Unit: RGBA32F texel loads and stores of `regionRing` per draw, 16 B per texel, at 1280 x 720 (240 anchors). These are
+the loads of the region test of each variant as production would build it. The blocks' later reads of the answers (up
+to 9 per block) are the same in every variant and are not counted.
+
+| Variant | Loads per anchor per draw | Stores per anchor per draw | Loads per draw (240 anchors) |
+|---|---:|---:|---:|
+| b (today's test) | 36 | 1 | 8,640 (about 138 KB) |
+| g128+r | 36 | 1 | 8,640 (about 138 KB) |
+| w36 | 72 (a ring of 72 layers) | 1 | 17,280 (about 276 KB) |
+| hx | 36, plus up to 9 for a closed-gate tested anchor with 2.6 <= \|t18\| < 5.0 | 1 | 8,640 plus the extra below |
+
+hx's extra loads read b of `layerBefore()` at the anchor and its neighbors inside the anchors. The loop stops at the
+first neighbor that fired with the same sign. Measured anchor-draws in that band, per draw (`hysttrace.py check`): about
+3.4 in the frozen bay (5,705 in 1,660 draws), about 33.9 in turned rect-bay (12,900 in 380 draws) and about 3.4 in the
+walk (1,723 in 513 draws). So at most about 31, 305 and 31 extra loads per draw.
+
+The scratch build yj itself makes 72 loads and 2 stores per anchor per draw in every column (the ring and the stat log),
+and its pair mode adds up to 8 stat loads. These are the scratch build's paths, not a variant's cost, and they are why
+the timing above cannot show the variants' difference in reads.
+
+### Verdict of the comparison
+
+The bar is the one that held g128+r: no straight-edged patch at 1:1 in motion that b does not show.
+
+| Column | Turned rect-bay: largest tile difference against b, draws over 8 gray | Frozen bay, draws 661 to 1,659: answers in runs | Walk, stand frame 159, minus the control | Passes the turned bar |
+|---|---|---|---:|---|
+| b | 0 (the reference) | not counted here | +1.33 | the reference |
+| g128+r | +25.62, 55 | 23 in 14 | +1.41 | no |
+| pair (first take) | +21.41, 39 | 4 in 4 | +2.56 | no |
+| w36 | +13.35, 18 | 6 in 6 | +2.57 | no (faint blocks at draws 57 to 65) |
+| hx | -7.02, 0 | 14 in 5 (2 events) | +2.50 | yes |
+
+- hx passes the turned bar: at 1:1 it is smooth like b on the floor and the wall ahead, and all its 27,623 answers there
+  are negative cuts that follow the light's fall.
+- In the settled frozen bay hx has 2 false events in 232,767 tested anchor-draws. Each patch reaches 0.006 to 0.007 of
+  the diffuse and shows only in the residual times 10.
+- The closed reset's costs stay with hx, as with w36: the slower warm-up from a cold start, and the old light that stays
+  2 to 3 gray above b after the walk's lamp switch. That lag is measured, but my eye could not judge it.
+- The timing cannot resolve a cost; the read cost of hx is about b's plus a few hundred loads per draw at most.
+
+This record does not decide the integration or the ticket. It leaves both to the parent.
+
+Limits:
+
+- One take per column per scene, on one machine. Thresholds come from the replay, unchanged, with no sweep.
+- The rule's source is the parent's text from the Design X line's report of 00:17. I did not find the replay's code, so
+  the checks prove the shader matches that text, not that it matches the replay.
+- A reset in the middle of a take is not exercised (see Checks).
+- The walk has no column with the closed reset and today's test, so no take separates the closed reset's effect from
+  the closed test's. The walk's gate counts (22 anchor-draws with a counted cause, up to 14 gates open) describe the
+  takes; they do not give a cause of the lag. g128+r, which has no closed reset, stays near b (+1.41 against +1.33 at
+  stand frame 159), but it also differs from the three closed-reset columns in its test, so it is no such control.
+- The timing comes from the scratch build, whose own paths hide the variants' read difference.
+- The frozen bay's level gap of the earlier section (-0.15 % to -0.40 %) is not studied here.

@@ -7,6 +7,10 @@
 #   gr: yg, cap 128, both, TERTIUS_X_REGION_GATE=36 TERTIUS_X_REGION_RANK=1 (today's test while the gate is open, the rank
 #       test while it is closed);
 #   g128r: yg, cap 128, both with a gate of 128 draws, TERTIUS_X_REGION_GATE=128 TERTIUS_X_REGION_RANK=1 (the selected rule);
+#   byi, g128ryi: b and g128r drawn by build yi (scratch-yi.patch); w36, hyst: yi, cap 128, gate 128, the closed reset
+#       and the closed-gate test TERTIUS_X_REGION_CLOSED=w36 or hyst (2026-11-24);
+#   byj, g128ryj, w36yj, pairyj: b, g128r, w36 and the earlier pair rule (yi's hyst) drawn by build yj, to check that yj
+#       reproduces yi; hx: yj, the replay's signed hysteresis (TERTIUS_X_REGION_CLOSED=hyst in yj);
 #   n32, n128: yg, cap 32 or 128, region evidence off and the probe's clamp off (TERTIUS_A_NO_CLAMP=1: ClampSigmas -1 for
 #       every signal, the diffuse and the specular one).
 # The kinds: film (bay-<column>, the full picture, and bay-<column>-dif, the diffuse signal alone, 660 draws, every draw
@@ -18,7 +22,9 @@
 set -uo pipefail
 Y=$(cd "$(dirname "$0")" && pwd); kind=$1; shift
 R=/private/tmp/t1-yi11/runs
-declare -A build=([a]=yg [b]=yg [c]=yc [d]=yg [g]=yg [r]=yg [gr]=yg [g128r]=yg [n32]=yg [n128]=yg)
+declare -A build=([a]=yg [b]=yg [c]=yc [d]=yg [g]=yg [r]=yg [gr]=yg [g128r]=yg [n32]=yg [n128]=yg
+                  [byi]=yi [g128ryi]=yi [w36]=yi [hyst]=yi
+                  [byj]=yj [g128ryj]=yj [w36yj]=yj [pairyj]=yj [hx]=yj)
 declare -A knobs=([a]="TERTIUS_X_DIFFUSE_CAP=32" [b]="TERTIUS_X_DIFFUSE_CAP=128" [c]="TERTIUS_X_DIFFUSE_CAP=128"
                   [d]="TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_OFF=1"
                   [g]="TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_GATE=128"
@@ -26,10 +32,19 @@ declare -A knobs=([a]="TERTIUS_X_DIFFUSE_CAP=32" [b]="TERTIUS_X_DIFFUSE_CAP=128"
                   [gr]="TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_GATE=36 TERTIUS_X_REGION_RANK=1"
                   [g128r]="TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_GATE=128 TERTIUS_X_REGION_RANK=1"
                   [n32]="TERTIUS_X_DIFFUSE_CAP=32 TERTIUS_X_REGION_OFF=1 TERTIUS_A_NO_CLAMP=1"
-                  [n128]="TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_OFF=1 TERTIUS_A_NO_CLAMP=1")
+                  [n128]="TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_OFF=1 TERTIUS_A_NO_CLAMP=1"
+                  [byi]="TERTIUS_X_DIFFUSE_CAP=128"
+                  [g128ryi]="TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_GATE=128 TERTIUS_X_REGION_RANK=1"
+                  [w36]="TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_GATE=128 TERTIUS_X_REGION_CLOSED=w36"
+                  [hyst]="TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_GATE=128 TERTIUS_X_REGION_CLOSED=hyst"
+                  [byj]="TERTIUS_X_DIFFUSE_CAP=128"
+                  [g128ryj]="TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_GATE=128 TERTIUS_X_REGION_RANK=1"
+                  [w36yj]="TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_GATE=128 TERTIUS_X_REGION_CLOSED=w36"
+                  [pairyj]="TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_GATE=128 TERTIUS_X_REGION_CLOSED=pair"
+                  [hx]="TERTIUS_X_DIFFUSE_CAP=128 TERTIUS_X_REGION_GATE=128 TERTIUS_X_REGION_CLOSED=hyst")
 for col in "$@"; do
   b=${build[$col]}
-  log() { [ "$b" = yg ] && echo "TERTIUS_X_REGION_LOG=$R/$1"; }
+  log() { [ "$b" = yg ] || [ "$b" = yi ] || [ "$b" = yj ] && echo "TERTIUS_X_REGION_LOG=$R/$1"; }
   # shellcheck disable=SC2086
   case $kind in
     film)
