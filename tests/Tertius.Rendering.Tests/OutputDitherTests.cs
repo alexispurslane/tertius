@@ -1,4 +1,5 @@
 using System.Numerics;
+using Silk.NET.Vulkan;
 using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
@@ -23,6 +24,10 @@ public sealed class OutputDitherTests
         Unorm,
     }
 
+    /// <summary>
+    /// A renderer of <paramref name="target"/>. With the dither on, it keeps the renderer's default, so that these tests
+    /// also pin that the default dithers.
+    /// </summary>
     private static VulkanRenderer Renderer(Target target, bool dither = true)
     {
         var options = new RendererOptions
@@ -39,8 +44,9 @@ public sealed class OutputDitherTests
             LocalShadows = default,
             LightPairs = default,
             Subsurface = default,
-            OutputDither = dither,
         };
+        if (!dither)
+            options.OutputDither = false;
         return target == Target.Srgb
             ? VulkanRenderer.CreateHeadless(options)
             : VulkanRenderer.CreateOffscreen(
@@ -190,8 +196,11 @@ public sealed class OutputDitherTests
     // An emission of 1/16, exact in half floats, shows 38.571 codes through ACES fitted and the sRGB curve. Without the
     // dither every pixel shows one code, 0.43 or 0.57 codes off. With it, the mean over 256 × 256 pixels is the unrounded
     // value, to within the target's own conversion: the UNORM target takes the shader's encoding, and the sRGB target
-    // converts in hardware, which the Vulkan specification lets differ from the exact curve. On the Mac's GPU it converts
-    // 38.571 codes to 38, about 0.07 code low, and the dithered mean is 38.511.
+    // converts in hardware or the driver, whose linear-to-sRGB transfer approximation the Vulkan specification leaves
+    // bounded only loosely (framebuffer.adoc, fundamentals.adoc). Apple M1 Max converts 38.571 codes about 0.07 code low
+    // (dithered mean 38.511). Mesa 26.2.4 llvmpipe (lp_bld_format_srgb.c) uses a rational-polynomial approximation with up
+    // to +/-0.17 code error across the curve (+0.112 at 38.571, dithered mean 38.6825), so sRGB allows 0.2 code while still
+    // rejecting an undithered target (0.43 to 0.57 code off).
     [Theory]
     [InlineData(Target.Srgb)]
     [InlineData(Target.Unorm)]
@@ -207,9 +216,23 @@ public sealed class OutputDitherTests
         mean.Should()
             .BeApproximately(
                 expected,
-                target == Target.Unorm ? 0.03 : 0.1,
+                target == Target.Unorm ? 0.03 : 0.2,
                 "the dither's offsets average to 0, so the rounding loses nothing on average"
             );
+    }
+
+    // The dither moves a value by at most one code before the rounding: a flat value of 38.571 codes shows 38, 39 or 40
+    // at every pixel. The UNORM target takes the shader's own encoding, so its codes hold no conversion error of the
+    // sRGB target's hardware.
+    [Fact]
+    public void ADitheredFlatValueStaysWithinOneCodeOfItsUnroundedValue()
+    {
+        VulkanRenderer renderer = Renderer(Target.Unorm);
+        Capture image = FlatView(renderer, radiance: 1 / 16f);
+        Gpu.DisposeAndAssertClean(renderer);
+
+        for (int i = 1; i < image.Rgba.Length; i += 4)
+            ((int)image.Rgba[i]).Should().BeInRange(38, 40, "a value of 38.571 codes moves by at most one code");
     }
 
     // The dither's size falls to 0 at an encoded value of 0, so black stays black: no pixel of an unlit view rises to code 1.
@@ -306,4 +329,24 @@ public sealed class OutputDitherTests
         for (int i = 1; i < image.Rgba.Length; i += 4)
             image.Rgba[i].Should().Be(first, "no dither moves pixel {0}", i / 4);
     }
+
+    [Theory]
+    [InlineData(Format.R8G8B8A8Srgb)]
+    [InlineData(Format.B8G8R8A8Srgb)]
+    [InlineData(Format.R8G8B8A8Unorm)]
+    [InlineData(Format.B8G8R8A8Unorm)]
+    public void EachEightBitOutputFormatGetsADitherCodeOfOneOver255(Format format) =>
+        ToneMapPass
+            .DitherCodeOf(format)
+            .Should()
+            .Be(1 / 255f, "an 8-bit output format stores 256 codes from 0 to 1, one code per 1/255");
+
+    [Theory]
+    [InlineData(Format.A2B10G10R10UnormPack32)]
+    [InlineData(Format.R16G16B16A16Sfloat)]
+    public void AFormatWiderThanEightBitsGetsNoOutputDither(Format format) =>
+        ToneMapPass
+            .DitherCodeOf(format)
+            .Should()
+            .Be(0f, "only the 8-bit output formats take the 1/255 output dither");
 }
