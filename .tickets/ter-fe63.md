@@ -344,3 +344,160 @@ Ordered: the lead's hold 3 takes the clamp-off pair in the specular signal alone
 The probe was rebuilt before part 3 with two dumps: the specular trace's layers 3 and 6 per draw (the fast history's luminance and the clamp's move), and the reflection ray's cause record (guided or not, the walk's end, counts, the hit's depth over the target's).
 
 For part 3: the mirror plate has a roughness of 0.05, below the ramp's start of 0.1. Its guided share is 0, so its pictures must equal main's to the bit.
+
+**2026-11-23T22:28:26Z**
+
+2026-11-23, line orchestrator of the back-face line: stage 1, part 3, rect-lamps' glossy floor and the mirror plate. The surface share's lead took it.
+
+Take: rect-lamps' floor (f62) at a render scale of 2/3 and 3.83 stops, and the mirror plate at 0.73 stops, capture 19, guided share 0.25. Columns: main, the coin, the exact count. Each build against its own late mean. Pictures at 1:1, in the lead's evidence folder `t3-2b720d96-b40221aeff8f27f7-evidence/fe63/`: `lamps-floor-main-coin-exact.png` and `plate-main-coin-exact.png`.
+
+rect-lamps' floor, the output's box (600, 620) to (1320, 1000), in units of main's mean:
+
+| Build | All / grain / blob | Mean against main |
+|---|---|---|
+| Main | 0.0073 / 0.0055 / 0.0026 | |
+| Coin | 0.0130 / 0.0087 / 0.0052 | +0.05 % |
+| Exact count | 0.0096 / 0.0068 / 0.0037 | -0.09 % |
+
+What I see: main's floor is smooth around the lamps' long reflections. The coin has a faint mottle over the floor, clearest in the upper half. In the exact count I can hardly tell the floor from main's at 1:1 and at two times. The lead sees a fainter mottle there too. The numbers say that it exists: the grain rises 24 % and the blob 1.4 times (coin: 58 % and 2.0 times). The means do not move, so the floor has no clamp loss.
+
+So 0.25 does not pass on the floor with the coin, and with the exact count it is at the edge. The replay predicted both rows (within 0.525 against main's 0.391 for the exact count, 0.834 in total for the coin). The cause is t1-d9k3: 54 % of this floor's reflection light comes from the lamps, which the guide does not hold, so here the guided draw is mostly a tax. The lead takes the floor's exact count at 0.125 in its hold 5. The floor's film is its own hold.
+
+Mirror plate: the three stills are identical to the byte. The plate's floored roughness is 0.05, below the ramp's start of 0.1, so its guided share is 0. The plate's bar is met by the ramp, and a share of 0 leaves main's picture unchanged.
+
+**2026-11-23T22:39:22Z**
+
+2026-11-23, line orchestrator of the back-face line: stage 1, hold 3: the clamp-off takes, the fast history, and the replay at six guided shares. The surface share's lead took it.
+
+**1. The probe's mixture has no bias. The clamp cuts main's specular light.** Frozen bay, specular signal alone, -4.089 stops, with the clamp off (and with it the anti-lag and every evidence cut). Each region's mean over 20 captures, against main:
+
+| Region | Exact count, 0.25 | Thin box | Main's own halves (captures 10 to 14 over 15 to 19) |
+|---|---|---|---|
+| Wall beside the sun stripe | 0.995 | 0.994 | 0.996 |
+| Back wall | 0.998 | 0.985 | 0.986 |
+| Floor | 0.993 | 0.988 | 0.997 |
+| Right wall | 0.995 | 0.996 | 1.000 |
+
+All agree within main's own noise of 0.5 to 1.5 %. So the +9 % and +18 % of part 2 are the clamp. Capture 19, the specular signal with the clamp on over the same with the clamp off:
+
+| Region | Main | Exact count | Thin box |
+|---|---|---|---|
+| Right wall | 0.81 | 0.88 | 0.94 |
+| Floor | 0.80 | 0.86 | 0.92 |
+| Back wall | 1.03 | 1.05 | 1.08 |
+| Wall beside the sun stripe | 0.99 | 0.99 | 1.00 |
+
+Main's clamp cuts 19 to 20 % of the specular light on the bay's right wall and floor. The mixture loses 12 to 14 %, and the thin box 6 to 8 %. This is the specular signal's case of ter-18hc (the slow history's clamp cuts rare bright samples). In the full picture it is 1.5 to 2.6 % of the right wall's light. A draw rule with fewer rare bright samples loses less in the clamp, so the mixture makes the picture more correct there. The build's energy test measures with the clamp off, as settled.
+
+**2. The fast history of 4 draws and the clamp's moves**, from the trace over draws 600 to 615. The fast deviation is the per-pixel deviation over the draws over its mean. A clamp move is a pixel and draw whose clamp moved the slow history.
+
+| Region | Main | Coin, 0.25 | Exact, 0.25 (window 4) | Exact, 0.125 (window 8) |
+|---|---|---|---|---|
+| Wall beside the stripe: fast deviation | 0.335 | 0.440 | 0.422 | 0.378 |
+| Wall beside the stripe: clamp moves | 7.8 % | 7.4 % | 7.3 % | 7.4 % |
+| Right wall: fast deviation | 0.594 | 0.559 | 0.559 | 0.604 |
+| Right wall: clamp moves | 9.4 % | 7.4 % | 7.4 % | 8.2 % |
+
+The exact count's pattern does not make the clamp move more often at a window of 4. At a window of 8 the right wall's clamp moves a little more often (8.2 % against 7.4 %) and the right wall's gain is gone (0.604 against main's 0.594). On the wall beside the stripe, 0.125 halves the loss. The anti-lag acts only on a clamp move, so the same counts answer for it. This is the answer to the orchestrator's condition 2 for the fast history, the clamp and the anti-lag.
+
+**3. The replay at six guided shares.** One draw's relative variance (variance over the squared mean), from the logs at share 0, draws 240 to 280, which repeat the earlier numbers to every digit:
+
+| Surface (floored roughness) | 0 | 1/32 | 1/16 | 1/8 | 1/4 | 1/2 | Least at |
+|---|---|---|---|---|---|---|---|
+| Nose's box (0.38) | 7.15 | 3.97 | 3.03 | 2.13 | 1.41 | 1.14 | 1/2 (0.75 gives 1.91) |
+| Bay's right wall (0.38) | 5.76 | 5.19 | 4.83 | 4.31 | 3.66 | 2.92 | 0.75 or above (2.53) |
+| Wall beside the stripe (0.38) | 3.67 | 3.75 | 3.84 | 4.04 | 4.52 | 6.05 | 0 |
+| rect-lamps' floor (0.38) | 0.391 | 0.434 | 0.480 | 0.581 | 0.834 | 1.711 | 0 |
+| Mirror plate (0.05) | 0.084 | 0.119 | 0.156 | 0.239 | 0.445 | 1.168 | 0 |
+
+The replay cannot see a guided reflection draw that misses its target, so the real best share is at or below the replay's.
+
+What it means: four surfaces of one roughness, 0.38, have their best share at the two ends, 0 for two of them and 1/2 or above for the other two. So no fixed share and no ramp over the roughness serves them all. A share of 0.125 keeps under half of the nose's gain (2.13 against 1.41, from 7.15) and still costs the floor (0.581 against 0.391). The share must depend on the place.
+
+**4. The wall beside the stripe: the real draws cost about three times the replay.** The replay at 0.25 gives +19 % in variance, which is +9 % in deviation (between 0.157, within 4.365), and the guided draws carry 10.0 % of its second moment (5.1 % at 0.125). Measured: the fast deviation rises 26 % with the exact count and 31 % with the coin, and the still's grain 30 % and 39 %. The real takes of hold 5b give the two means of w squared and say where the replay falls short. Open until then.
+
+The lead deleted 12.0 GB of its own scratch (captures and census sums whose tables are committed or sent) and kept every named picture, every build's reference mean and the four raw logs (2.8 GB). Disk 40 GiB free after the hold.
+
+**2026-11-23T22:51:33Z**
+
+2026-11-23, line orchestrator of the back-face line: stage 1, hold 4, the film of rect-lamps' glossy floor. The surface share's lead took it.
+
+Take: frames 120 to 359 at 3.83 stops, one fixed exposure, guided share 0.25 with the ramp from 0.1 to 0.38. Files in the lead's evidence folder `t3-2b720d96-b40221aeff8f27f7-evidence/fe63/`: `lamps-floor-film-main-coin-exact.mp4` (main, coin, exact count from left to right; H.264 at CRF 12, 240 real frames at 60 a second, checked with ffprobe) and `lamps-floor-frames-240-242.png` (three frames of each at 1:1).
+
+Measures in gray levels of the 8-bit output:
+
+| Measure | Main | Coin | Exact count |
+|---|---|---|---|
+| Deviation over time per pixel | 0.384 | 0.643 | 0.499 |
+| Change from frame to frame, RMS | 0.179 | 0.237 | 0.207 |
+| Amplitude at a period of 4 frames | 0.0026 | 0.0026 | 0.0023 |
+| Largest other component | 0.11 | 0.11 | 0.12 |
+
+What I see in the frame sheet: the coin's column has the coarsest grain and it changes from frame to frame. The exact count's grain is between the coin's and main's.
+
+What it means:
+- The exact count has no beat at its window of 4 frames. Its amplitude there is at main's level. With the nose's film this answers the orchestrator's condition 1 for the pattern in time.
+- At 0.25 both mixtures flicker more than main on this floor: the coin 1.67 times and the exact count 1.30 times in the deviation over time. The still's grain said the same (0.0055 / 0.0087 / 0.0068). The excess of the exact count is 0.115 of a gray level, so I do not expect to see it, but it is a loss in the number and no gain stands against it on this floor.
+- The floor's best share in the replay is 0. So the floor does not decide between 0.25 and 0.125. It asks for a share that depends on the place.
+
+**2026-11-23T23:04:57Z**
+
+2026-11-23, line orchestrator of the back-face line: stage 1, holds 5 and 5b: the exact count at a guided share of 0.125, the guided draws by cause, and the slope of the second moment in the share. The surface share's lead took them.
+
+**1. Stills at 0.125.** Capture 19 against each build's own late mean, in units of main's full mean, grain / blob. Pictures at 1:1 in the lead's evidence folder `t3-2b720d96-b40221aeff8f27f7-evidence/fe63/`, columns main, coin 0.25, exact 0.25, exact 0.125: `bay-125-sunlit-patch.png`, `bay-125-right-wall.png`, `nose-box-1x-125.png`, `lamps-floor-125.png`.
+
+| Region | Main | Coin 0.25 | Exact 0.25 | Exact 0.125 | Coin 0.25, thin box |
+|---|---|---|---|---|---|
+| Bay, wall beside the stripe | 0.0096 / 0.0072 | 0.0133 / 0.0090 | 0.0125 / 0.0084 | 0.0108 / 0.0077 | 0.0127 / 0.0084 |
+| Bay, right wall | 0.0331 / 0.0212 | 0.0308 / 0.0175 | 0.0303 / 0.0175 | 0.0316 / 0.0187 | 0.0220 / 0.0121 |
+| Bay, back wall | 0.0055 / 0.0095 | 0.0059 / 0.0094 | 0.0055 / 0.0095 | 0.0054 / 0.0095 | 0.0058 / 0.0101 |
+| Bay, floor | 0.0099 / 0.0114 | 0.0102 / 0.0114 | 0.0099 / 0.0112 | 0.0097 / 0.0113 | 0.0091 / 0.0099 |
+| rect-lamps' floor | 0.0055 / 0.0026 | 0.0087 / 0.0052 | 0.0068 / 0.0037 | 0.0061 / 0.0031 | not taken |
+
+Nose's box, capture specks (median): main 3,719.5, coin 0.25 128, exact 0.25 101, exact 0.125 257.5 (largest 2,666).
+
+Means over 20 captures against main at 0.125: bay 0.9995, 1.0007, 1.002, 1.0098 (wall beside the stripe, back wall, floor, right wall) and rect-lamps' floor 0.9999. They are taken against main's recorded means, because main's early captures were deleted with the census sums.
+
+What I see: on the wall beside the stripe the 0.125 column lies between main's and 0.25's. The right wall's four columns are close. On the nose 0.125 shows scattered white specks again, far fewer than main's. On rect-lamps' floor I cannot tell 0.125 from main.
+
+So 0.125 halves the loss (wall beside the stripe +12 % grain against +31 %, rect-lamps' floor +13 % against +25 %) and halves the gain (nose 257.5 specks against 101, right wall's blob 0.0187 against 0.0175). It is a compromise and no answer.
+
+**2. The reflection kind's guided draws by cause**, in percent of the guided draws. The classes are the same at 0.25 within 0.5 points.
+
+| Region | Own plane | Box miss | Blocked | Arrives and counts | Arriving draws' share of the second moment, 0.125 / 0.25 |
+|---|---|---|---|---|---|
+| Bay, wall beside the stripe | 78.6 % | 19.7 % | 0.2 % | 1.5 % | 5.6 % / 10.1 % |
+| Bay, right wall | 0.8 % | 67.0 % | 0.002 % | 32.2 % | 26 % / 42 % |
+| Bay, floor | 1.3 % | 85.9 % | 0.04 % | 12.8 % | 19 % / 25 % |
+| Nose's box | 1.0 % | 10.8 % | 0.7 % | 87.5 % | 45 % / 50 % |
+| rect-lamps' floor | 82.9 % | 12.6 % | 0.2 % | 4.3 % | 0.5 % / 0.9 % |
+
+New: rect-lamps' floor is an own-plane case too. 82.9 % of its guided draws aim below the floor's own plane, because the guide's brightest targets are the lit spots on the same floor. So both surfaces that lose under the mixture lose for cause (b), and t1-d9k3 (the guide does not hold the lamps) is the smaller part there: of the draws above the plane, a quarter arrive, and they carry under 1 % of the moment. Blocked draws are nowhere above 0.7 %.
+
+**3. The slope of the second moment in the share**, at 0.25, from the real draws (20 draws). w is the reflection sample as the mixture weighs it, uncapped. Two estimates of the same slope: the density estimate is the mean over all draws of w squared times (lobe density minus guided density) over the mixture density. The split estimate is the lobe draws' mean of w squared minus the guided draws' mean. Both over the region's squared mean.
+
+| Region | Lobe draws' mean of w squared, 0.25 / 0.125 | Guided draws' mean, 0.25 / 0.125 | Slope: density estimate / split estimate |
+|---|---|---|---|
+| Nose's box | 2.58 / 3.11 | 7.74 / 18.16 | -1.77 / -5.16 |
+| Bay, wall beside the stripe | 11.80 / 9.71 | 3.94 / 4.04 | +7.32 / +7.86 |
+| Bay, right wall | 6.36 / 7.89 | 13.56 / 19.46 | -4.21 / -7.20 |
+| Bay, floor | 9.03 / 8.55 | 8.82 / 14.34 | +2.40 / +0.21 |
+| rect-lamps' floor | 2.44 / 1.81 | 0.069 / 0.065 | +2.37 / +2.37 |
+
+A negative slope says that a larger share lowers the variance. The sign is the same in both estimates in every region, and it is the sign of the replay's best share (nose and right wall up, wall beside the stripe and rect-lamps' floor down, bay floor nearly flat). The density estimate uses every draw and has less noise in the heavy-tailed regions: it lies between the replay's secants on both sides of 0.25 everywhere, and the split estimate does not. A share that follows the draws takes the density estimate as its signal: one number per draw, from densities that the tracer already computes.
+
+**4. The replay's limit.** Away from a take's own share, the replays of different takes disagree in the heavy-tailed regions. At share 0 the nose's box gives 7.15 from the lobe take, 2.32 from the 0.25 take and 3.46 from the 0.125 take, and the right wall 5.76, 4.12 and 4.64. The wall beside the stripe and rect-lamps' floor agree within 12 % and 3 %. The least share is the same from every take. The bay's floor is flat from 0 to 1/4 (4.66 to 5.29). The lead suspects that a guided draw that misses its box, recorded with a guided density of 0, breaks the replay's weights. Not checked. The real stills decide, not the replay.
+
+Disk: 27 GiB free after hold 5. The lead then deleted the four raw logs (2.76 GB, their tables are kept) and its finished films' frames (4.49 GB), 19.2 GB in all today. 41 GiB free after that.
+
+**2026-11-23T23:14:28Z**
+
+2026-11-23, line orchestrator of the back-face line: stage 1, part 4 (the bay with region evidence off, the diffuse cap at 128 and the exact count on top) is recorded in t1-nyjl, with its table and pictures. For this ticket: the mixture's effect is the same with that setting as without it. The right wall's blob falls from 0.0203 to 0.0168 at a guided share of 0.25, and the wall beside the stripe's grain rises 34 % at 0.25 and 13 % at 0.125. This was stage 1's last hold. Not taken: the frame's GPU time. I moved it to the probe of the share that follows the draws, if the orchestrator picks that design, because that probe has the same reads per ray and one pass more.
+
+**2026-11-23T23:16:37Z**
+
+Orchestrator's pick for the reflection kind's guided share, 2026-11-23 18:25 (reversible by the user). Stage 1 showed that no fixed share serves surfaces of one roughness: the nose's box and the bay's right wall get better with every step of the share, and the wall beside the stripe and rect-lamps' floor get worse. Four of five guided draws on both losing surfaces aim at the pixel's own plane.
+- The mechanism is the line's design 1: the guided share of a tile of ray cells follows the slope of the second moment (the mean over all draws of w^2 (l - g) / q), stored in one small image that the screen tracer owns and one share pass writes. The share comes from earlier draws, so the mixture's density stays exact. It covers every cause of a guided draw that brings little.
+- Design 2 (no guide mass below the pixel's plane) waits in a ticket: by the replay it adds at most 5.5 % in deviation on one surface and costs about 120 reads per traced reflection ray. The target model of t1-cyhy and t1-d9k3 become improvements of the guide that the share rewards by itself.
+- Start value: the ramp's share. Floor 0, where the picture equals main's to the byte. Ceiling 0.25 first, 0.5 as a probe column.
+- Next is one more probe of stage 1, a scratch switch, no build: the five surfaces at 1:1, the share image as a picture and over time (it must settle and not breathe), a pan and a walk across surfaces with opposite shares, the draws to settle after a cut, the films of the nose and rect-lamps' floor, the frame's GPU time, and two runs that agree to the bit. Bar: no loss that a viewer sees on rect-lamps' floor and the wall beside the stripe, the nose without specks from the first draw after a cut, the mirror plate to the byte.

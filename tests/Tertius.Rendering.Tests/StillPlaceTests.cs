@@ -123,13 +123,16 @@ public sealed class StillPlaceTests
                 bool[] silhouette = Silhouettes(renderer);
                 int[] interior =
                 [
-                    .. TracedSurface(lengths).Where(pixel => !silhouette[pixel] && HasFlag(lengths, pixel, PixelPlaceRead)),
+                    .. TracedSurface(lengths)
+                        .Where(pixel => !silhouette[pixel] && HasFlag(lengths, pixel, PixelPlaceRead)),
                 ];
                 interior.Length.Should().BeGreaterThan(TracedWidth * TracedHeight / 4);
                 interior
                     .Where(pixel => !ReadsOnlyItsOwnTexel(place, weights, pixel))
                     .Should()
-                    .BeEmpty("the reprojection of a still pixel's place gives its own texel the weight 1 and the others 0");
+                    .BeEmpty(
+                        "the reprojection of a still pixel's place gives its own texel the weight 1 and the others 0"
+                    );
             }
         );
 
@@ -258,7 +261,14 @@ public sealed class StillPlaceTests
         {
             int nx = pixel % TracedWidth + x;
             int ny = pixel / TracedWidth + y;
-            if ((x != 0 || y != 0) && nx >= 0 && ny >= 0 && nx < TracedWidth && ny < TracedHeight && cut[ny * TracedWidth + nx])
+            if (
+                (x != 0 || y != 0)
+                && nx >= 0
+                && ny >= 0
+                && nx < TracedWidth
+                && ny < TracedHeight
+                && cut[ny * TracedWidth + nx]
+            )
                 return true;
         }
         return false;

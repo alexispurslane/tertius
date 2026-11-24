@@ -128,3 +128,32 @@ The thin-box diffuse take (t1-cyhy), diffuse alone at 0.25: the right wall's blo
 **2026-11-23T21:42:19Z**
 
 2026-11-23, line orchestrator: the history lengths by writer are in, and one writer explains the gap: region evidence, the drift test that fires falsely in a frozen world. With it off every pixel of the bay's four regions is at the cap, at 32 and at 128; the anti-lag, light evidence and the surface test shorten nothing there. The cost, diffuse alone, blob of capture 19 at a cap of 128, region evidence on against off: patch 0.0089 to 0.0026, back wall 0.0075 to 0.0040, floor 0.0093 to 0.0041, right wall 0.0063 to 0.0022 (the rows at a cap of 32 were 0.0088, 0.0096, 0.0108, 0.0065). With it off the blobs' lifetime is a plain history of 128. So with region evidence off a cap of 128 cuts the diffuse blobs 2 to 3.4 times, as independent noise through a longer history predicts, and with it on the false firings undo the cap. Full tables in the new ticket t1-yi11, which holds the finding for the orchestrator's decision. Ordered from the lead: crops at 1:1 of the diffuse signal at cap 32, cap 128 and cap 128 with region evidence off, from captures that exist; and after 17:05, in four parts under 20 minutes, the bay's and rect-lamps' floor's columns of ter-fe63 and the bay's full picture at a cap of 128 with region evidence off, alone and with the reflection mixture's exact count on top.
+
+**2026-11-23T23:14:28Z**
+
+2026-11-23, line orchestrator of the back-face line: the bay with both remedies together (ter-fe63 stage 1, part 4). The surface share's lead took it.
+
+The lever is t1-yi11's scratch setting: region evidence off and the diffuse history's cap at 128. The exact count is ter-fe63's reflection mixture with today's arrival. Frozen bay at -4.089 stops, capture 19 against each build's own late mean, in units of main's full mean, grain / blob. Pictures at 1:1 in the lead's evidence folder `t3-2b720d96-b40221aeff8f27f7-evidence/fe63/lever4/`, columns main, lever, lever with the exact count at 0.25, lever with the exact count at 0.125: `bay-back-wall-below-the-slot.png`, `bay-floor.png`, `bay-sunlit-patch.png`, `bay-right-wall.png`.
+
+| Region | Main | Lever | Lever + exact 0.25 | Lever + exact 0.125 | Exact 0.125 without the lever |
+|---|---|---|---|---|---|
+| Wall beside the sun stripe | 0.0096 / 0.0072 | 0.0089 / 0.0054 | 0.0119 / 0.0070 | 0.0101 / 0.0062 | 0.0108 / 0.0077 |
+| Back wall below the slot | 0.0055 / 0.0095 | 0.0049 / 0.0040 | 0.0049 / 0.0039 | 0.0049 / 0.0040 | 0.0054 / 0.0095 |
+| Floor | 0.0099 / 0.0114 | 0.0098 / 0.0056 | 0.0094 / 0.0057 | 0.0093 / 0.0056 | 0.0097 / 0.0113 |
+| Right wall | 0.0331 / 0.0212 | 0.0329 / 0.0203 | 0.0301 / 0.0168 | 0.0313 / 0.0179 | 0.0316 / 0.0187 |
+
+Means over 20 captures against main's recorded means:
+
+| Build | Wall beside the stripe | Back wall | Floor | Right wall |
+|---|---|---|---|---|
+| Lever | 0.997 | 0.974 | 0.980 | 0.991 |
+| Lever + exact 0.25 | 0.996 | 0.975 | 0.983 | 1.006 |
+| Lever + exact 0.125 | 0.997 | 0.975 | 0.982 | 1.000 |
+
+What I see in the pictures: on the floor main has a mottle of large soft blotches and the three lever columns are smooth. On the back wall the difference is the same and fainter. On the wall beside the stripe the 0.25 column is coarser than the lever alone, and the 0.125 column is close to it. On the right wall the mixture's columns are a little smoother at the top right. The floor's lower left corner has fine specks in every column, main's too.
+
+What it means:
+- The two remedies act on different parts and add. The lever cuts the diffuse blob 2.4 times on the back wall and 2.0 times on the floor. It leaves the right wall (4 %), whose blob is the specular signal's, and there the mixture cuts it (0.0203 to 0.0168).
+- Neither cleans the right wall's grain, 0.0301 against main's 0.0331. That needs the guided draws to arrive (t1-cyhy): the thin box alone gave 0.0220.
+- The mixture's loss on the wall beside the stripe is the same with the lever as without it.
+- New: the lever darkens the back wall by 2.6 % and the floor by 2.0 %. The lead suspects the clamp on a longer history. Not measured: no clamp-off take of the lever exists. This goes to the Design X line with t1-yi11, through the orchestrator.

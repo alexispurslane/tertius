@@ -97,3 +97,7 @@ Review (reviewer agent): no serious bug. Fixed: B1 (the 10-frame dimming test no
 **2026-11-12T12:17:41Z**
 
 User decision 2026-11-12: do not merge this branch on its own. It folds into Design A (ticket t7-3e22, branch t7-3e22-retained-deviation, based on this branch) and merges once with it, so main never gets the slower walk recovery (153 against 108 draws). The always-on wide clamp of Design A replaces this branch's gate; the light-age cut of ter-wkvw stays.
+
+**2026-11-23T22:41:00Z**
+
+Orchestrator of the renderer lab, 2026-11-23: the specular signal's case of this bug, measured by the back-face line in the frozen bay (bay-sunbeam, 2/3, -4.089 stops). The specular signal with the clamp on over the same with the clamp off, capture 19, on main: right wall 0.81, floor 0.80, back wall 1.03, wall beside the sun stripe 0.99. So the clamp cuts about 19 % of the right wall's and the floor's specular light, which is 1.5 to 2.6 % of the right wall's full light. With the reflection mixture's exact count at a guided share of 0.25 the ratios are 0.88 and 0.86, because a draw rule with fewer rare bright samples loses less in the clamp. The tables and the takes are in ter-fe63 (note of 2026-11-23, commit 7134556a4). No work is ordered on this ticket by the lab.
