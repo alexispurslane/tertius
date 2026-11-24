@@ -196,7 +196,7 @@ diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/Frame/FrameResources.c
  
 diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/Frame/ScreenTraceImages.cs b/src/Tertius.Rendering/Frame/ScreenTraceImages.cs
 --- a/src/Tertius.Rendering/Frame/ScreenTraceImages.cs	2026-11-23 07:24:39
-+++ b/src/Tertius.Rendering/Frame/ScreenTraceImages.cs	2026-11-23 18:53:48
++++ b/src/Tertius.Rendering/Frame/ScreenTraceImages.cs	2026-11-24 07:48:47
 @@ -51,6 +51,12 @@
      /// <summary>The two ray kinds, which are the layers of the record images: 0 reflection rays, 1 diffuse rays.</summary>
      public const int Kinds = 2;
@@ -210,7 +210,7 @@ diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/Frame/ScreenTraceImage
      private readonly VulkanDevice device;
      private readonly DeviceAllocator allocator;
      private readonly DescriptorLayouts layouts;
-@@ -123,6 +129,15 @@
+@@ -123,6 +129,20 @@
      /// </summary>
      public GpuImage HitLight { get; private set; }
  
@@ -218,15 +218,20 @@ diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/Frame/ScreenTraceImage
 +    public GpuImage GuidedShare { get; private set; }
 +    public GpuImage ReflectionGuided { get; private set; }
 +
-+    public bool ShareNeedsReset(Extent2D extent) =>
-+        lastShareExtent.Width != extent.Width || lastShareExtent.Height != extent.Height;
++    private static readonly bool ShareResetOnCut =
++        Environment.GetEnvironmentVariable("TERTIUS_PROBE_SHARE_RESET_ON_CUT") == "1";
++
++    public bool ShareNeedsReset(Extent2D extent, bool historyReset) =>
++        lastShareExtent.Width != extent.Width
++        || lastShareExtent.Height != extent.Height
++        || (ShareResetOnCut && historyReset);
 +
 +    public void MarkShareUpdated(Extent2D extent) => lastShareExtent = extent;
 +
      /// <summary>The light-age records, one per parity, with a precise specular history: none with the original.</summary>
      private GpuImage[] lightAges = [];
  
-@@ -207,19 +222,42 @@
+@@ -207,19 +227,42 @@
          nameof(BlockRay),
          nameof(OwnLight),
          nameof(OwnRay),
@@ -271,7 +276,7 @@ diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/Frame/ScreenTraceImage
  
          OwnRays = [CreateOwnRayList(extent, "reflection"), CreateOwnRayList(extent, "diffuse")];
          lightAges = Specular.KeepsLightAge
-@@ -315,6 +353,14 @@
+@@ -315,6 +358,14 @@
          if (Specular.UncoveredDiagnostic(0) is { } diagnostic)
              layouts.WriteStorageImage(set: set, binding: 24, image: diagnostic);
          layouts.WriteStorageImage(set: set, binding: DescriptorLayouts.ScreenTraceHitLightBinding, image: HitLight);
@@ -286,7 +291,7 @@ diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/Frame/ScreenTraceImage
      }
  
      /// <summary>Writes the sampled images of <paramref name="set"/>: the depth pyramid at bindings 0 and 1, and the light
-@@ -373,7 +419,7 @@
+@@ -373,7 +424,7 @@
      /// <summary>Destroys the images and the lists, which <see cref="Resize"/> makes again. The device must be idle.</summary>
      public void Dispose()
      {
@@ -318,7 +323,7 @@ diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/Frame/SignalParameters
              ClampSigmas: 2,
 diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/Passes/ScreenTracePass.cs b/src/Tertius.Rendering/Passes/ScreenTracePass.cs
 --- a/src/Tertius.Rendering/Passes/ScreenTracePass.cs	2026-11-23 03:08:49
-+++ b/src/Tertius.Rendering/Passes/ScreenTracePass.cs	2026-11-23 18:57:22
++++ b/src/Tertius.Rendering/Passes/ScreenTracePass.cs	2026-11-24 07:48:51
 @@ -61,7 +61,12 @@
              layout: layouts.ScreenTraceLayout,
              passSet: images.Sets[context.History.Parity]
@@ -328,7 +333,7 @@ diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/Passes/ScreenTracePass
 +            trace: setting,
 +            drawIndex: context.History.DrawIndex,
 +            guided: images.Guided,
-+            shareReset: images.ShareNeedsReset(context.Extent)
++            shareReset: images.ShareNeedsReset(context.Extent, context.History.Reset)
 +        );
          context.Vk.CmdPushConstants(
              commandBuffer: context.CommandBuffer,
@@ -343,7 +348,7 @@ diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/Passes/ScreenTracePass
 +            barriers.Image(
 +                images.GuidedShare,
 +                ImageUse.SampledComputeGeneral,
-+                discard: images.ShareNeedsReset(context.Extent)
++                discard: images.ShareNeedsReset(context.Extent, context.History.Reset)
 +            );
 +            barriers.Image(images.ReflectionGuided, ImageUse.StorageCompute, discard: true);
 +        }
@@ -385,7 +390,7 @@ diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/Passes/ScreenTracePass
 +        context.Barriers.Image(
 +            images.GuidedShare,
 +            ImageUse.StorageCompute,
-+            discard: images.ShareNeedsReset(context.Extent)
++            discard: images.ShareNeedsReset(context.Extent, context.History.Reset)
 +        );
 +        kernel.Record(context, side: 16);
 +        images.MarkShareUpdated(context.Extent);
@@ -688,8 +693,8 @@ diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/Scene/ProbeLampSwitch.
 +}
 diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/Scene/RayCensus.cs b/src/Tertius.Rendering/Scene/RayCensus.cs
 --- a/src/Tertius.Rendering/Scene/RayCensus.cs	1969-12-31 19:00:00
-+++ b/src/Tertius.Rendering/Scene/RayCensus.cs	2026-11-23 18:54:24
-@@ -0,0 +1,270 @@
++++ b/src/Tertius.Rendering/Scene/RayCensus.cs	2026-11-24 07:48:56
+@@ -0,0 +1,286 @@
 +using System.Globalization;
 +
 +namespace Tertius.Rendering;
@@ -773,7 +778,14 @@ diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/Scene/RayCensus.cs b/s
 +    private static bool shareMetaWritten;
 +
 +    /// <summary>PROBE (ter-fe63, Design 1): appends the reflection tile share (channel R) per draw when TERTIUS_PROBE_SHARE_DUMP is set.</summary>
-+    public static void ObserveShare(VulkanRenderer renderer)
++    public static void ObserveShare(
++        VulkanRenderer renderer,
++        bool historyReset,
++        int drawsOf,
++        long drawIndex,
++        long cameraCuts,
++        bool takeCapture
++    )
 +    {
 +        if (ShareDumpPrefix is null)
 +            return;
@@ -786,8 +798,17 @@ diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/Scene/RayCensus.cs b/s
 +            File.WriteAllText($"{ShareDumpPrefix}.shares.meta", $"{w} {h} {ShareDumpDraws.First}\n");
 +            if (File.Exists($"{ShareDumpPrefix}.shares.f32"))
 +                File.Delete($"{ShareDumpPrefix}.shares.f32");
++            File.WriteAllText(
++                $"{ShareDumpPrefix}.shares.events.tsv",
++                "draw\thistoryReset\tdrawsOf\tdrawIndex\tcameraCuts\ttakeCapture\tresetOnCut\n"
++            );
 +            shareMetaWritten = true;
 +        }
++        bool resetOnCut = Environment.GetEnvironmentVariable("TERTIUS_PROBE_SHARE_RESET_ON_CUT") == "1";
++        File.AppendAllText(
++            $"{ShareDumpPrefix}.shares.events.tsv",
++            $"{index}\t{(historyReset ? 1 : 0)}\t{drawsOf}\t{drawIndex}\t{cameraCuts}\t{(takeCapture ? 1 : 0)}\t{(resetOnCut ? 1 : 0)}\n"
++        );
 +        using var stream = new FileStream($"{ShareDumpPrefix}.shares.f32", FileMode.Append, FileAccess.Write);
 +        using var writer = new BinaryWriter(stream);
 +        int count = w * h;
@@ -2034,7 +2055,7 @@ diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/Upscaling/RenderScaleC
  }
 diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
 --- a/src/Tertius.Rendering/VulkanRenderer.cs	2026-11-23 10:30:17
-+++ b/src/Tertius.Rendering/VulkanRenderer.cs	2026-11-23 18:54:23
++++ b/src/Tertius.Rendering/VulkanRenderer.cs	2026-11-24 07:48:54
 @@ -147,6 +147,20 @@
          this.device = device;
          this.headless = headless;
@@ -2073,7 +2094,25 @@ diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/VulkanRenderer.cs b/sr
      }
  
      /// <summary>Requests a new output size. It takes effect at the start of the next <see cref="Render"/>.</summary>
-@@ -670,6 +692,11 @@
+@@ -625,7 +647,7 @@
+         // (docs/plans/temporal-renderer.md, "The still rule"). Only the shown draw takes the capture.
+         int draws = history.DrawsOf(step);
+         for (int draw = 0; draw < draws; draw++)
+-            if (!DrawFrame(snapshot: snapshot, alpha: alpha, step: step, draw: draw, takeCapture: draw == draws - 1))
++            if (!DrawFrame(snapshot: snapshot, alpha: alpha, step: step, draw: draw, drawsOf: draws, takeCapture: draw == draws - 1))
+                 return;
+         clock = next;
+     }
+@@ -635,7 +657,7 @@
+     /// waits for its slot, derives its pending state, records and submits it, and hands over the capture when
+     /// <paramref name="takeCapture"/> and one is asked for. Returns false when the output skipped the frame.
+     /// </summary>
+-    private bool DrawFrame(RenderSnapshot snapshot, float alpha, float step, int draw, bool takeCapture)
++    private bool DrawFrame(RenderSnapshot snapshot, float alpha, float step, int draw, int drawsOf, bool takeCapture)
+     {
+         FrameResources frame = frames[FrameNumber % frames.Length];
+         Fence fence = frame.Fence;
+@@ -670,6 +692,18 @@
          device.Vk.ResetFences(device.Device, 1, &fence).Check("vkResetFences");
          output.SubmitAndPresent(frame);
          CommitDrawnFrame(frame: frame, snapshot: snapshot, pending: pending);
@@ -2081,11 +2120,18 @@ diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/VulkanRenderer.cs b/sr
 +        if (RayCensus.On)
 +            RayCensus.Observe(this, Exposure.Latest?.Stops, pending.RenderSize.Width, pending.RenderSize.Height);
 +        // PROBE (ter-fe63, Design 1): optional lightweight dump of the 80 x 45 tile share image.
-+        RayCensus.ObserveShare(this);
++        RayCensus.ObserveShare(
++            renderer: this,
++            historyReset: pending.Reset,
++            drawsOf: drawsOf,
++            drawIndex: pending.DrawIndex,
++            cameraCuts: snapshot.CameraCuts,
++            takeCapture: takeCapture
++        );
  
          if (sink != null && capture != null)
          {
-@@ -692,21 +719,44 @@
+@@ -692,21 +726,44 @@
  
      /// <summary>
      /// The draw's one choke point of the history: its reset, its draw index, its exposure step, its refresh of the map's
@@ -2137,7 +2183,7 @@ diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/VulkanRenderer.cs b/sr
          );
      }
  
-@@ -736,11 +786,7 @@
+@@ -736,11 +793,7 @@
          keptPositions?.Drew(releases: releases, frame: number);
          localShadows?.Tiles.Drew();
          Exposure.Drew(frame: number, step: pending.ExposureStep);
@@ -2150,7 +2196,7 @@ diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/VulkanRenderer.cs b/sr
          frame.Number = number;
          // Last, because it advances the frame number that the commits above name.
          history.Drew(pending);
-@@ -789,6 +835,44 @@
+@@ -789,6 +842,44 @@
          timer.Collect(frame.Index, frame.Number);
          if (timer.Latest is { } timings)
              ScaleController?.Measure(timings);
@@ -2195,7 +2241,7 @@ diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/VulkanRenderer.cs b/sr
          Exposure.Collect(frame.Index, frame.Number);
          environmentMap?.Collect(frame.Index, frame.Number);
          frame.Staging.Reset();
-@@ -951,12 +1035,7 @@
+@@ -951,12 +1042,7 @@
              upscaling is Fsr3Upscaling
                  ? MathF.Log2(pending.RenderSize.Width / (float)targets.OutputExtent.Width) - 1
                  : 0;
@@ -2209,7 +2255,7 @@ diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/VulkanRenderer.cs b/sr
          Vector2 previousJitter = Vector2.Zero;
          if (jitters && !pending.Reset)
          {
-@@ -1744,11 +1823,16 @@
+@@ -1744,11 +1830,16 @@
      /// Copies one mip of one layer of a color image of floats, of 16-bit signed normalized integers or of 8-bit unsigned
      /// integers to the CPU, as floats, channel by channel, row by row from the top, with the mip's size.
      /// </summary>
@@ -2226,7 +2272,7 @@ diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/VulkanRenderer.cs b/sr
              Format.R16G16B16A16Sfloat => (4, StoredChannel.Half),
              Format.R32Sfloat => (1, StoredChannel.Float),
              Format.R32G32Sfloat => (2, StoredChannel.Float),
-@@ -2402,7 +2486,12 @@
+@@ -2402,7 +2493,12 @@
          if (images.Guided)
              Graph.Add(
                  FrameGraph.Stage.ScreenTrace,
@@ -2240,7 +2286,7 @@ diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/VulkanRenderer.cs b/sr
              );
          AddRayPasses(shaders: shaders, trace: trace, images: images);
          Graph.Add(FrameGraph.Stage.ScreenTrace, new AccumulatePass(diffuse));
-@@ -2457,6 +2546,11 @@
+@@ -2457,6 +2553,11 @@
              FrameGraph.Stage.ScreenTrace,
              new ScreenTraceResolvePass(Kernel("screen trace resolve", "screen_trace_resolve.comp"), images)
          );

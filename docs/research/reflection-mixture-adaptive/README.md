@@ -1,19 +1,20 @@
 # Adaptive per-tile guided share for rough reflection rays, stage 1 (ter-fe63)
 
-This record holds the stage 1 probe of Design 1 for ter-fe63: an adaptive per-tile guided share for rough reflection rays. It changes no engine code in `src/`. The prior stage 1 fixed-share record stays untouched under `docs/research/reflection-mixture/`.
+This record holds the stage 1 probe of Design 1 for ter-fe63: an adaptive per-tile guided share for rough reflection rays. It changes no engine code in `src/`. The prior stage 1 fixed-share record stays untouched under `docs/research/reflection-mixture/`. Stage 2 production and merge remain held pending fixed-cost acceptance against an unpatched `main` binary.
 
 ## Terms and method
 
 - **Tile share image**: an `R16G16Sfloat` texture with one texel per `8 x 8` ray-block tile (`80 x 45` texels at the `1280 x 720` render size, `24 x 24` output pixels at `1920 x 1080`). Channel R stores the reflection guided share. Channel G stays empty for a later diffuse pass.
-- **Ceiling** (`s_max`): the maximum allowed reflection guided share. This record tests `0.25` and `0.50`.
+- **Ceiling** (`s_max`): the maximum allowed reflection guided share. Hold 1 to Step 3 test `0.25` and `0.50`. Section 5 tests `0.25` only.
 - **Ramp**: the per-pixel roughness cap `clamp((sqrt(alpha) - 0.1) / (0.38 - 0.1), 0, 1)`, where `alpha` is the floored roughness. Smooth surfaces with `sqrt(alpha) <= 0.1` receive a share of `0` and skip guided-density evaluation.
 - **Pixel share**: `min(ramp, tileShareBilinear)`, where `tileShareBilinear` reads the tile share image with bilinear filtering at block center `(vec2(pixel / 2) + 0.5) / 8`, clamped to the active tile bounds. When no lit pixel is in view, pixel share is `0`.
 - **Guided turn (`guidedTurn`)**: a deterministic low-discrepancy schedule over 4-draw windows. Each block's cell takes a hashed 2x2 Bayer phase inside the 4-draw window and a Cranley-Patterson shifted Van der Corput rank across windows. This breaks any lock with `chosenPixelOf`'s period-4 rotation and avoids `n * ds/dn` phase drift when the share changes.
 - **Slope estimator**: in `screen_trace_block_rays.comp`, every rough reflection ray evaluates `q_g` once on a hit whenever `guiding || evalSlope`. Cells with `ramp > 0` evaluate `q_g` even at share `0` so the tile can climb again. Set `s_eval = max(s, ShareGuard)` and `q_eval = (1 - s_eval) * q_l + s_eval * q_g`. Each ray records `slope = w^2 * (q_l - q_g) / q_eval` and `moment = w^2`, where `w` is the mixture-weighted sample luminance capped at `1e12` against float32 overflow. Above `ShareGuard`, `slope` equals the exact derivative `dM/ds` of the second moment. Below `ShareGuard`, it equals the exact secant `(M(s_eval) - M(s)) / (s_eval - s)`.
 - **Tile update pass (`screen_trace_share.comp`)**: one thread per tile sums `slope` and `moment` over the tile's `8 x 8` reflection blocks in fixed row-major order. When `momentSum > 0` and finite, it updates `share = clamp(share - ShareStep * clamp(slopeSum / momentSum, -MaxRatio, MaxRatio), 0, s_max)`.
 - **Tuned parameters (Config B)**: `ShareStep = 1/128` (`0.0078125`), `ShareGuard = 1/16` (`0.0625`), `MaxRatio = 2.0`. Compared with `ShareStep = 1/64`, `1/128` halved settled per-tile temporal standard deviation on interior flat-slope tiles (`0.0377` to `0.0166` on the bay back wall, `0.0306` to `0.0195` on the bay floor, and `0.0143` to `0.0091` on the nose box).
-- **Initialization**: the probe sets every tile to `s_max` on image creation or render-size change. It does not reset tiles on a camera cut.
-- **Grain and blob**: the two spatial bands of capture 19's residual against each build's own 100-capture reference (mean of captures 30 to 99), in units of main's full-picture region mean (`guide/parts.py`). Grain covers 1 to 3 output pixels. Blob covers about 6 to 70 output pixels.
+- **Initialization and camera-cut reset toggle**: on image creation or render-size change, every tile starts at `s_max` before draw 0 traces. With `TERTIUS_PROBE_SHARE_RESET_ON_CUT=1`, any draw where `context.History.Reset == true` (real camera-cut invalidation from `FrameHistory.PendingFrame.Reset`) also sets `probeShareReset = 1` before `screen_trace_block_rays.comp`, `screen_trace_own_rays.comp`, `screen_trace_resolve.comp`, and `screen_trace_share.comp`. Without that toggle (`0`, default), camera cuts inherit the prior view's tile share.
+- **Counted specks**: pixels in `[0:500, 480:1880]` where 0 to 255 luma exceeds a 7x7 median filter by more than `12` gray levels (`g - median_filter(g, size=7) > 12`), outside a 13x13 dilation of ceiling lamps (`g > 200`). This detector counts both stark isolated fireflies and fine high-contrast grain during short history windows. A nonzero count does not by itself mean stark firefly flashes.
+- **Grain and blob**: the two spatial bands of a frame's residual against each build's 100-capture reference (mean of captures 30 to 99), in units of main's full-picture region mean (`guide/parts.py`). Grain covers 1 to 3 output pixels. Blob covers about 6 to 70 output pixels.
 
 ## The probe
 
@@ -27,7 +28,8 @@ This record holds the stage 1 probe of Design 1 for ter-fe63: an adaptive per-ti
 | `TERTIUS_PROBE_SHARE_STEP` | Step size per draw (default `0.015625`, takes use `0.0078125`). |
 | `TERTIUS_PROBE_SHARE_GUARD` | Floor `s_eval` in slope evaluation (default and takes: `0.0625`). |
 | `TERTIUS_PROBE_SHARE_MAX_RATIO` | Clamp on `slopeSum / momentSum` (default `4.0`, takes use `2.0`). |
-| `TERTIUS_PROBE_SHARE_DUMP=<prefix>` | Writes `<prefix>.shares.meta` and `<prefix>.shares.f32` for draws in `TERTIUS_PROBE_SHARE_DUMP_DRAWS`. |
+| `TERTIUS_PROBE_SHARE_RESET_ON_CUT` | `1` resets tile share to `s_max` before draw 0 whenever `context.History.Reset == true`. `0` keeps the prior share. |
+| `TERTIUS_PROBE_SHARE_DUMP=<prefix>` | Writes `<prefix>.shares.meta`, `.shares.f32`, and `.shares.events.tsv` for draws in `TERTIUS_PROBE_SHARE_DUMP_DRAWS`. |
 
 ## 1. Hold 1: five surfaces at 1:1, share settling, and clamp checks
 
@@ -63,7 +65,7 @@ Pictures at 1:1: `pics/bay-d1-sunlit-patch.png`, `pics/bay-d1-right-wall.png`, `
 
 Census keep covers draws 240 to 639 (65-byte records, `B = 3.8886`).
 
-| Build | Capture specks median (max) | Specks c0 / c1 / c19 | Mean specular sample | Box mean (20 captures) |
+| Build | Counted specks median (max) | Specks c0 / c1 / c19 | Mean specular sample | Box mean (20 captures) |
 |---|---|---|---|---|
 | Main | `3,719.5 (13,095)` | | `2.1345` | `0.3012` |
 | Stage 1 exact 0.25 | `101 (1,617)` | | | `0.3234` |
@@ -115,11 +117,11 @@ The baseline ratio above `1.0` in `main` is the 3-pixel upscaler rhythm from the
 ### Visual reading of Hold 1 pictures
 
 - On `bay-d1-sunlit-patch.png` and `lamps-floor-d1.png`, Design 1 at both ceilings looks the same as `main`, while Stage 1 fixed `exact 0.25` is visibly grainier.
-- On `nose-box-1x-d1.png` and `bay-d1-right-wall.png`, Design 1 removes the bright fireflies seen in `main`. Ceiling `0.50` looks slightly cleaner than `0.25` on the upper right wall and inside the nose ceiling cone.
+- On `nose-box-1x-d1.png` and `bay-d1-right-wall.png`, Design 1 suppresses the stark isolated bright fireflies seen in `main` (counted specks fall from `3,719.5` to `166.5` at `0.25` and `127.0` at `0.50`). Ceiling `0.50` looks slightly cleaner than `0.25` on the upper right wall and inside the nose ceiling cone.
 - On `tile-border-check.png`, neither the stretched crops nor the 12x grain residuals show any 24-pixel tile grid across `0 <-> 0.25` or `0 <-> 0.50` borders.
 - On `share-settling-plots.png`, region means stay flat after draw 60. The single dashed center tile on the flat-slope bay floor wanders slightly wider at `0.50` (`std 0.0269`) than at `0.25` (`std 0.0195`).
 
-## 2. Step 2: 60 fps films, motion, camera cuts, and bit-exact determinism
+## 2. Step 2: 60 fps films, motion, `mouseMove` flick, and bit-exact determinism
 
 All Step 2 films ran at `1920 x 1080`, render scale `2/3` (`1280 x 720`), 60 fps, fixed exposure. Each run captured losslessly through `--video` (`libx264rgb -qp 0`) under `tools/gpu-lock.sh --shared`. All committed `.mp4` files are H.264 CRF 12 `yuv420p` at 60 fps, verified with `ffprobe` (`tables/step2-summary.json`).
 
@@ -140,7 +142,7 @@ Neither ceiling produces a period-4 or period-2 beat on either film. Films: `pic
 
 `pan-hall.json` settles 60 frames at `-35 deg` yaw and `+6 deg` pitch, then pans right `+70 deg` over 240 frames (`17.5 deg/s`). The high-share sunlit ceiling cone sweeps across screen tiles between share-0 walls and floor. `walk-hall.json` settles 60 frames, then moves forward (`W`) for 180 frames under the sunlit cone over the share-0 floor.
 
-Specks in `[0:500, 480:1880]` across the moving frames:
+Counted specks in `[0:500, 480:1880]` across the moving frames:
 
 | Motion film | Main median (p95 / max) | Design 1 0.25 median (p95 / max) | Design 1 0.50 median (p95 / max) |
 |---|---|---|---|
@@ -149,12 +151,12 @@ Specks in `[0:500, 480:1880]` across the moving frames:
 
 Films: `pics/pan-hall-main-vs-d1-025.mp4`, `pics/pan-hall-d1-025-vs-050.mp4`, `pics/walk-hall-main-vs-d1-025.mp4`.
 
-### Cut settling: two regimes (`pics/cut-settling-plot.png`, `pics/cut-hall-main-vs-d1-025.mp4`)
+### Cold startup (`nose-film.json`) and 180-degree `mouseMove` flick (`cut-hall.json`)
 
-1. **Initial share equal to ceiling (`nose-film.json`, draws 0 to 119)**: when tile share starts at `s_max`, the nose is speck-free from draw 0. Draw 0 specks are `13,451` (`main`), `1,776` (`D1 0.25`), and `1,507` (`D1 0.50`). First-30-frame medians are `10,462.5` (`main`), `995.0` (`D1 0.25`), and `683.0` (`D1 0.50`). Settled medians (frames 120 to 359) are `3,500.5` (`main`), `146.0` (`D1 0.25`), and `121.0` (`D1 0.50`).
-2. **180-degree camera cut from settled share-0 aft view (`cut-hall.json`, no tile reset on cut)**: the camera settles 60 frames aft so every ceiling tile reaches `0.000`. It then cuts 180 degrees to the sunlit nose on film frame 61 (share draw 93, after 32 warm-up draws). Because the probe does not reset tile share on a camera cut, ceiling-box share starts at `0.000`. It climbs to 50 % / 90 % of its settled value in `9 / 16` draws (`0.27 s`) at `0.25` and `13 / 30` draws (`0.50 s`) at `0.50`. That climb causes a short speck burst after the cut. At post-cut draws `0 / 5 / 15 / 30 / 60`, specks are `9,771 / 15,583 / 14,473 / 15,582 / 9,917` on `main`, `9,764 / 16,535 / 12,784 / 4,527 / 980` on `D1 0.25`, and `9,764 / 16,536 / 12,784 / 4,420 / 841` on `D1 0.50`.
+1. **Cold startup with initial share equal to ceiling (`nose-film.json`, frames 0 to 119 after 32 initial still warm-up draws)**: counted specks start far below `main`, though nonzero fine grain remains early. Frame 0 counted specks are `13,451` (`main`), `1,776` (`D1 0.25`), and `1,507` (`D1 0.50`). First-30-frame medians are `10,462.5` (`main`), `995.0` (`D1 0.25`), and `683.0` (`D1 0.50`). Settled medians (frames 120 to 359) are `3,500.5` (`main`), `146.0` (`D1 0.25`), and `121.0` (`D1 0.50`). Because `nose-film.json` includes 32 warm-up draws before frame 0, it is a cold startup check, not a camera-cut check.
+2. **180-degree `mouseMove` flick (`cut-hall.json`, same `person` camera, `context.History.Reset == false`)**: `cut-hall.json` rotates `person` by `180 deg` through `mouseMove` on the same camera. `RenderSnapshot.CameraCuts` does not increment, and temporal history does not reset. Ceiling-box share starts at `0.000` on frame 61 (share draw 93) and climbs to 50 % / 90 % of its settled value in `9 / 16` draws (`0.27 s`) at `0.25` and `13 / 30` draws (`0.50 s`) at `0.50`. Counted specks at post-flick draws `0 / 5 / 15 / 30 / 60` are `9,771 / 15,583 / 14,473 / 15,582 / 9,917` on `main`, `9,764 / 16,535 / 12,784 / 4,527 / 980` on `D1 0.25`, and `9,764 / 16,536 / 12,784 / 4,420 / 841` on `D1 0.50`. Section 5 tests real `context.History.Reset == true` camera cuts (`DrawsOf == 1`) with `reset-off` vs `reset-on` against unpatched `main`.
 
-Stage 2 action: reset the tile share image to `s_max` whenever the renderer resets temporal history on a camera cut. That gives cut frames the draw-0 behavior of regime 1 instead of the 16-draw climb of regime 2.
+Visuals: `pics/cut-settling-plot.png`, `pics/cut-hall-main-vs-d1-025.mp4`.
 
 ### Bit-exact determinism
 
@@ -165,20 +167,19 @@ Two independent runs of `walk-hall.json` (`det-walk-r1` and `det-walk-r2`, Desig
 
 ### Visual reading of Step 2 films and frames
 
-- On the pan and walk contact frames, the bright tile-share cone tracks the sunlit ceiling smoothly across tiles as the camera turns or moves. The floor stays at `0`. No tile seams, block edges, or breathing appear.
-- On the 180-degree cut frames, the share cone lights up on post-cut frame 0 (frame 61) and reaches ceiling share by frame 78 (17 draws later). The short firefly burst clears cleanly.
+- On the pan and walk frames, the bright tile-share cone tracks the sunlit ceiling smoothly across tiles as the camera turns or moves. The floor stays at `0`. No tile seams, block edges, or breathing appear.
 
 ## 3. Step 3: exclusive-lock GPU frame time
 
 All timing runs executed under one exclusive `tools/gpu-lock.sh` hold (`waited: 55s`, total hold `4 min 52 s`). Each run rendered 300 frames at `1920 x 1080`, render scale `2/3` (`1280 x 720`), `--in-flight 2`, `--video none`, with `probeCensus` off and share dump off. Every run locked at `1296.0 MHz` (`p10 = 1296.0`, `p90 = 1296.0 MHz`). 1-minute load stayed between `2.41` and `5.39` (well below `8.0`). Full raw rows are in `tables/step3-timing.json`.
 
-**Baseline note (commit `94e808582`)**: the `main` rows below ran the compiled probe binary (`/private/tmp/t1-wl7c/probe-head`) with `TERTIUS_PROBE_ADAPTIVE_SHARE` off (`ScreenTraceSharePass` omitted, `HitLight` 2 layers, `probeCensus` specialized to `false`). Because uniform branches for the probe switches remain in the ray shader, Stage 2 must re-time its clean engine implementation against an unpatched `main` binary.
+**Baseline and acceptance status (commit `94e808582`)**: the `main` rows below ran the compiled probe binary (`/private/tmp/t1-wl7c/probe-head`) with `TERTIUS_PROBE_ADAPTIVE_SHARE` off (`ScreenTraceSharePass` omitted, `HitLight` 2 layers, `probeCensus` specialized to `false`). Uniform probe branches still exist in that shader. **Fixed-cost acceptance remains OPEN.** Stage 2 must time a clean engine build against an unpatched `main` binary before any shipping decision.
 
 ### Counterbalanced `--pass-timestamps off` frame spans (two rounds per scene, averaged)
 
 Round 0 order: `main`, `D1 0.25`, `D1 0.50`. Round 1 order: `D1 0.50`, `D1 0.25`, `main`.
 
-| Scene | Build | r0 mean (ms) | r1 mean (ms) | Pooled mean (ms) | Delta vs main | Clock (MHz) | 1-min load (r0 / r1) |
+| Scene | Build | r0 mean (ms) | r1 mean (ms) | Pooled mean (ms) | Delta vs probe-off main | Clock (MHz) | 1-min load (r0 / r1) |
 |---|---|---|---|---|---|---|---|
 | Sunlit nose | Main (probe off) | `15.482` | `15.505` | `15.493` | | `1296.0` | `5.14 -> 5.39` / `4.51 -> 4.30` |
 | Sunlit nose | Design 1 (0.25) | `15.965` | `15.951` | `15.958` | `+0.465 ms (+3.00 %)` | `1296.0` | `5.39 -> 4.79` / `4.39 -> 4.51` |
@@ -186,9 +187,9 @@ Round 0 order: `main`, `D1 0.25`, `D1 0.50`. Round 1 order: `D1 0.50`, `D1 0.25`
 | `rect-bay` | Main (probe off) | `15.554` | `15.549` | `15.552` | | `1296.0` | `3.32 -> 3.37` / `3.44 -> 3.17` |
 | `rect-bay` | Design 1 (0.25) | `16.078` | `16.070` | `16.074` | `+0.522 ms (+3.36 %)` | `1296.0` | `3.37 -> 3.34` / `3.39 -> 3.44` |
 | `rect-bay` | Design 1 (0.50) | `16.118` | `16.128` | `16.123` | `+0.572 ms (+3.68 %)` | `1296.0` | `3.34 -> 3.47` / `3.47 -> 3.39` |
-| `rect-lamps` floor | Main (probe off) | `15.495` | `15.489` | `15.492` | | `1296.0` | `2.59 -> 3.02` / `2.41 -> 3.99` |
-| `rect-lamps` floor | Design 1 (0.25) | `15.827` | `15.828` | `15.827` | `+0.336 ms (+2.17 %)` | `1296.0` | `3.02 -> 2.86` / `2.54 -> 2.41` |
-| `rect-lamps` floor | Design 1 (0.50) | `15.848` | `15.862` | `15.855` | `+0.363 ms (+2.34 %)` | `1296.0` | `2.86 -> 2.50` / `2.50 -> 2.54` |
+| `rect-lamps` (floor share 0) | Main (probe off) | `15.495` | `15.489` | `15.492` | | `1296.0` | `2.59 -> 3.02` / `2.41 -> 3.99` |
+| `rect-lamps` (floor share 0) | Design 1 (0.25) | `15.827` | `15.828` | `15.827` | `+0.336 ms (+2.17 %)` | `1296.0` | `3.02 -> 2.86` / `2.54 -> 2.41` |
+| `rect-lamps` (floor share 0) | Design 1 (0.50) | `15.848` | `15.862` | `15.855` | `+0.363 ms (+2.34 %)` | `1296.0` | `2.86 -> 2.50` / `2.50 -> 2.54` |
 
 ### Round 2 with pass timestamps on (`--gpu-run "ray plan..accumulate indirect diffuse"`)
 
@@ -196,19 +197,19 @@ Round 0 order: `main`, `D1 0.25`, `D1 0.50`. Round 1 order: `D1 0.50`, `D1 0.25`
 |---|---|---|---|---|
 | Sunlit nose | `15.865 / 5.664` | `16.322 / 6.130` (`+0.466` range) | `16.368 / 6.162` (`+0.498` range) | `4.30` / `4.30 -> 3.89` / `3.89 -> 3.32` |
 | `rect-bay` | `15.833 / 5.787` | `16.405 / 8.436` (see note) | `16.462 / 8.489` (see note) | `3.17 -> 3.14` / `3.14 -> 2.97` / `2.97 -> 2.59` |
-| `rect-lamps` floor | `15.860 / 5.953` | `16.158 / 5.979` (`+0.027` range) | `16.183 / 6.010` (`+0.058` range) | `3.99 -> 3.83` / `3.83 -> 3.68` / `3.68 -> 3.42` |
+| `rect-lamps` | `15.860 / 5.953` | `16.158 / 5.979` (`+0.027` range) | `16.183 / 6.010` (`+0.058` range) | `3.99 -> 3.83` / `3.83 -> 3.68` / `3.68 -> 3.42` |
 
 Note on `rect-bay` Round 2 range: MoltenVK latches pass timestamps late. In `main`, `accumulate indirect diffuse` reports `0.648 ms` and spills about `2.1 ms` into `filter indirect diffuse` (`3.730 ms`). The `guided share` pass shifts that latch boundary so `accumulate indirect diffuse` reports `2.744 ms` and `filter indirect diffuse` drops to `0.015 ms`. The full span from `ray plan` through `accumulate indirect specular` totals `9.568 ms` (`main`) against `10.092 ms` (`D1 0.25`, delta `+0.524 ms`). That agrees with the `--pass-timestamps off` full frame delta (`+0.522 ms`).
 
 ### Cost reading
 
-- On `rect-lamps`, all 480 floor tiles settle to share `0.000`, and Design 1 costs `+0.336 ms` (`0.25`) to `+0.363 ms` (`0.50`). That is the fixed floor of the tile-share read, the share-0 `guidedDensityOf` slope check on rough hits, and `screen_trace_share.comp`.
-- On `sunlit-nose` and `rect-bay`, active guided rays add another `+0.13` to `+0.21 ms`. Total delta is `+0.465` to `+0.522 ms` at ceiling `0.25` and `+0.499` to `+0.572 ms` at ceiling `0.50`.
-- Raising the ceiling from `0.25` to `0.50` adds `+0.027` to `+0.050 ms` across all three scenes.
+- On `rect-lamps`, `+0.336 ms` (`0.25`) to `+0.363 ms` (`0.50`) is the whole-scene frame delta on a view whose floor has zero share, not an isolated per-floor cost. That whole-scene delta covers the tile-share reads, the share-0 `guidedDensityOf` slope checks on rough hits across the view, and `screen_trace_share.comp`.
+- On `sunlit-nose` and `rect-bay`, active guided rays add another `+0.13` to `+0.21 ms`. Total whole-scene delta is `+0.465` to `+0.522 ms` at ceiling `0.25` and `+0.499` to `+0.572 ms` at ceiling `0.50`.
+- A ceiling of `0.50` adds `+0.027` to `+0.050 ms` over `0.25` across all three scenes.
 
-## 4. Ceiling recommendation: `0.25` vs `0.50`
+## 4. Ceiling comparison: `0.25` vs `0.50`
 
-Both ceilings pass every acceptance bar. Neither loses grain or blobs on `rect-lamps` floor or `bay` sunlit patch. Both match `mirror-plate` byte-for-byte, show zero tile-border seams, zero clamp fighting, zero temporal beats, and bit-exact determinism.
+Both ceilings avoid grain or blob loss on settled `rect-lamps` floor and `bay` sunlit patch. They match `mirror-plate` byte-for-byte, show zero tile-border seams, zero clamp fighting, zero temporal beats, and bit-exact determinism.
 
 | Aspect | Ceiling `0.25` | Ceiling `0.50` |
 |---|---|---|
@@ -217,20 +218,84 @@ Both ceilings pass every acceptance bar. Neither loses grain or blobs on `rect-l
 | `sunlit-nose` settled specks / film temporal std | `146` specks / `2.100` std | `121` specks / `1.973` std |
 | Settling time on share-0 surfaces (`lamps` / `patch`) | `26` / `32` draws | `45` / `58` draws |
 | Single-tile late std on flat-slope `bay` floor | `0.0195` mean (`0.0162` med) | `0.0269` mean (`0.0269` med) |
-| Post-cut climb without reset (90 % settled) | `16` draws (`0.27 s`) | `30` draws (`0.50 s`) |
 | Frame GPU time delta vs probe-off main | `+0.336` to `+0.522 ms` | `+0.363` to `+0.572 ms` |
 
-**Recommendation for Stage 2**: start with ceiling **`0.25`** as the default, with the tile share reset to the ceiling on camera cuts.
-
-Reasons:
+Ceiling `0.25` is the recommended Stage 1 choice:
 
 1. Ceiling `0.25` captures `96 %` of the nose speck reduction and `94 %` of the temporal-std reduction. It also settles almost twice as fast on share-0 surfaces (`26` vs `45` draws on `rect-lamps`, `32` vs `58` draws on the bay patch).
 2. Ceiling `0.25` keeps flat-slope interior tiles tighter (`0.0195` vs `0.0269` mean temporal std on the bay floor) and saves `0.03` to `0.05 ms` of frame GPU time.
-3. Ceiling `0.50` stays a clean future option if Stage 2 wants the extra `4 %` grain cut on the bay right wall (`0.0291` vs `0.0303`). Window-2 fast history shows zero clamp fighting at `0.50` (`6.91 %` clamp moves vs `7.44 %` at `0.25` and `9.40 %` on `main`).
+3. Ceiling `0.50` stays a clean option if a later stage wants the extra `4 %` grain cut on the bay right wall (`0.0291` vs `0.0303`). Window-2 fast history shows zero clamp fighting at `0.50` (`6.91 %` clamp moves vs `7.44 %` at `0.25` and `9.40 %` on `main`).
+
+## 5. Follow-up: real `context.History.Reset` camera cuts at ceiling `0.25`
+
+Unlike Step 2's `cut-hall.json` (`mouseMove` flick on one camera, where `context.History.Reset` stayed `false`), this follow-up tests **real camera cuts** that increment `RenderSnapshot.CameraCuts` and fire `context.History.Reset == true` with `DrawsOf == 1` (zero warm-up draws at the cut).
+
+All runs compare an **unpatched clean `main` binary** (rebuilt from clean `src/` at `5c01a17b8`, zero warnings, zero probe edits) against the updated probe binary at ceiling `0.25` with `TERTIUS_PROBE_SHARE_RESET_ON_CUT=0` (`reset-off`) and `TERTIUS_PROBE_SHARE_RESET_ON_CUT=1` (`reset-on`). All three builds run the exact same scripts at `1920 x 1080`, render scale `2/3`, 60 fps, with CLI `--exposure`.
+
+Script structure (`tables/real-cut-nose.json`, `tables/real-cut-lamps.json`):
+
+1. Settle `person` 180 degrees aft for 60 frames (`aft-000000..000059`). All ceiling and floor tiles reach `0.000`.
+2. Post `mouseMove [-1256.637, 0]` and advance 2 sim ticks (`run: 2`, no render).
+3. Render 1 frame on camera `far` (`far1`, `step = 0.050 s < 0.09 s`, `DrawsOf == 1`).
+4. Cut back to `person` for 65 post-cut frames (`post-000000..000064` = `d0..d64`, `step = 0.0167 s`, `DrawsOf == 1`).
+
+Event logs (`d.shares.events.tsv`) confirm on film frame 61 (`d0`, draw 93) for both cuts: `historyReset = 1`, `drawsOf = 1`, `drawIndex = 0`, `cameraCuts = 3`. Pre-cut ceiling-box and floor-box shares on `aft-000059` and `far1` equal `0.000000` under `reset-off`. All numbers live in `tables/real-cuts-summary.json`.
+
+### Forward real cut: settled aft view to sunlit nose (`-1.7507` stops)
+
+Counted specks (`g - median_filter(g, size=7) > 12` in 0 to 255 luma outside lamp mask on `[0:500, 480:1880]`) and ceiling-box tile share (`750,0,1170,330`):
+
+| Build | d0 | d1 | d2 | d5 | d10 | d15 | d29 | d0..d29 median (max) | d60 |
+|---|---|---|---|---|---|---|---|---|---|
+| Unpatched `main` specks | `26,342` | `24,190` | `14,008` | `11,705` | `10,821` | `10,692` | `13,610` | `11,755 (26,342)` | `8,681` |
+| D1 `0.25` `reset-off` specks | `26,337` | `24,446` | `13,687` | `11,323` | `11,605` | `9,338` | `3,517` | `9,816 (26,337)` | `787` |
+| D1 `0.25` `reset-on` specks | `19,910` | `10,716` | `3,438` | `5,742` | `6,133` | `4,694` | `2,123` | `4,351 (19,910)` | `731` |
+| D1 `0.25` `reset-off` box share | `0.0059` | `0.0127` | `0.0212` | `0.0494` | `0.1049` | `0.1591` | `0.1956` | | `0.1945` |
+| D1 `0.25` `reset-on` box share | `0.2500` | `0.2494` | `0.2478` | `0.2433` | `0.2341` | `0.2257` | `0.2083` | | `0.1958` |
+
+On `d0`, `reset-on` traced from `0.250` before the draw (and stored `0.2500` after `d0`), while `reset-off` traced from `0.000` (and stored `0.0059` after `d0`). Over `d0..d29`, `reset-on` cuts the median counted specks by `55.7 %` against `reset-off` and `63.0 %` against unpatched `main`. By `d60`, both `reset-off` (`787`) and `reset-on` (`731`) converge together.
+
+Film and strip: `pics/real-cut-nose-main-off-on.mp4` (`1936 x 388`, 60 fps, H.264 CRF 12, `ffprobe` verified), `pics/real-cut-nose-strip-1x.png`, `pics/real-cut-plots.png`.
+
+### Reverse real cut: settled aft view to `rect-lamps` glossy floor (`3.83` stops)
+
+Floor box (`600,620,1320,1000`) residual grain RMS against `daub-lamps-main` reference (in units of main's floor mean) and floor tile share:
+
+| Build | d0 | d1 | d2 | d5 | d10 | d15 | d25 | d29 | d60 |
+|---|---|---|---|---|---|---|---|---|---|
+| Unpatched `main` grain | `0.01226` | `0.00741` | `0.00556` | `0.00866` | `0.00937` | `0.00860` | `0.00711` | `0.00669` | `0.00580` |
+| D1 `0.25` `reset-off` grain | `0.01226` | `0.00741` | `0.00556` | `0.00866` | `0.00937` | `0.00861` | `0.00711` | `0.00669` | `0.00580` |
+| D1 `0.25` `reset-on` grain | `0.01951` | `0.01061` | `0.00704` | `0.01132` | `0.01178` | `0.01045` | `0.00809` | `0.00743` | `0.00580` |
+| D1 `0.25` `reset-off` share | `0.0000` | `0.0000` | `0.0000` | `0.0000` | `0.0000` | `0.0000` | `0.0000` | `0.0000` | `0.0000` |
+| D1 `0.25` `reset-on` share | `0.2398` | `0.2300` | `0.2202` | `0.1916` | `0.1459` | `0.1028` | `0.0220` | `0.0000` | `0.0000` |
+
+Temporal stability on the glossy floor box (`600,620,1320,1000`, 0 to 255 gray):
+
+| Window | Build | Frame-to-frame RMS | Mean temporal std / px | Mean grain | Mean high-pass RMS |
+|---|---|---|---|---|---|
+| `d0..d14` | Unpatched `main` | `0.4345` | `0.5577` | `0.00870` | `0.00870` |
+| `d0..d14` | D1 `0.25` `reset-off` | `0.4345` | `0.5577` | `0.00870` | `0.00871` |
+| `d0..d14` | D1 `0.25` `reset-on` | `0.5084` (`+17.0 %`) | `0.6322` (`+13.4 %`) | `0.01137` (`+30.6 %`) | `0.01137` |
+| `d15..d29` | Unpatched `main` | `0.2392` | `0.3466` | `0.00755` | `0.00755` |
+| `d15..d29` | D1 `0.25` `reset-off` | `0.2392` | `0.3466` | `0.00755` | `0.00755` |
+| `d15..d29` | D1 `0.25` `reset-on` | `0.2522` (`+5.4 %`) | `0.3653` (`+5.4 %`) | `0.00878` (`+16.3 %`) | `0.00878` |
+| `d0..d29` | Unpatched `main` | `0.3485` | `0.8129` | `0.00812` | `0.00813` |
+| `d0..d29` | D1 `0.25` `reset-off` | `0.3485` | `0.8129` | `0.00812` | `0.00813` |
+| `d0..d29` | D1 `0.25` `reset-on` | `0.3985` (`+14.3 %`) | `0.8525` (`+4.9 %`) | `0.01007` (`+24.0 %`) | `0.01008` |
+| `d30..d64` | Unpatched `main` | `0.1853` | `0.4241` | `0.00605` | `0.00607` |
+| `d30..d64` | D1 `0.25` `reset-on` | `0.1871` (`+1.0 %`) | `0.4296` (`+1.3 %`) | `0.00623` (`+3.0 %`) | `0.00625` |
+
+Film and strips: `pics/real-cut-lamps-main-off-on.mp4` (`2176 x 408`, 60 fps, H.264 CRF 12, `ffprobe` verified), `pics/real-cut-lamps-strip-1x.png`, `pics/real-cut-lamps-residual-16x.png`, `pics/real-cut-plots.png`.
+
+### Visual reading and trade-off of `reset-on` vs `reset-off`
+
+- **Forward cut (`pics/real-cut-nose-strip-1x.png`)**: on `d0` (1-spp fresh history), every build shows a coarse 2x2 block-ray grid pattern. That grid accounts for most of the `19,910` counted pixels on `reset-on`. Visually, `unpatched main` and `reset-off` flash stark white square firefly blotches across the dark outer ceiling from `d0` through `d10`. `reset-off` starts to catch up around `d15..d29`. Under `reset-on`, those outer white firefly squares drop sharply from `d0`, and the sunlit cone fills in evenly by `d1..d2`. Fine bright grain stays visible inside the cone across `d5..d29` while temporal history is short (`2,123` counted pixels at `d29`, `731` at `d60`). It does not flash with the coarse blotches of `main` and `reset-off`.
+- **Reverse cut (`pics/real-cut-lamps-strip-1x.png`, `pics/real-cut-lamps-residual-16x.png`)**: `reset-off` matches `unpatched main` to 4 to 5 decimals across every draw. Under `reset-on`, `d0` shows a visibly stronger 2x2 dither grid at 1:1 (`+59.1 %` grain RMS, `0.01951` vs `0.01226`). From `d2` through `d29` at normal exposure (`3.83` stops), the added fine grain (`+30.7 %` at `d5`, `+25.7 %` at `d10`, `+21.5 %` at `d15`, `+17.0 %` frame-to-frame RMS over `d0..d14`) is subtle at 1:1. It shows clearly in the 16x residual strip and fades away by `d25..d29` with no mottle or brightness shift.
+- **Open trade-offs before Stage 2**: `reset-on` trades a ~`0.4 s` subtle transient fine-grain penalty on cuts onto share-0 glossy floors to remove a ~`0.25 s` stark firefly-blotch burst on cuts onto firefly-prone views. Fixed-cost acceptance remains open until Stage 2 times a clean engine build against an unpatched `main` binary.
 
 ## Files
 
 - `probe.patch`: complete probe diff from `5c01a17b8` (`src/`) to `/private/tmp/t1-wl7c/probe-head/src/`.
-- `tables/`: `hold1-summary.json`, `step2-summary.json`, `step3-timing.json`, `parts-bay-d1.json`, `parts-lamps-d1.json`, `fasttrace-d1-025.json`, `fasttrace-d1-050.json`, and the motion/cut scripts (`pan-hall.json`, `walk-hall.json`, `cut-hall.json`).
-- `tools/`: `share_analyze.py`, `hold1_surfaces.sh`, `hold1_finish.sh`, `hold1_analyze.py`, `make_motion_scripts.py`, `step2_batchA.sh`, `step2_batchB.sh`, `step2_analyze.py`, `step3_timing.sh`.
-- `pics/`: the seven 1:1 crop sheets, share maps, settle plots, share strips, stretched tile-border check, cut-settle plot, and eight 60 fps H.264 CRF 12 films.
+- `tables/`: `hold1-summary.json`, `step2-summary.json`, `step3-timing.json`, `real-cuts-summary.json`, `parts-bay-d1.json`, `parts-lamps-d1.json`, `fasttrace-d1-025.json`, `fasttrace-d1-050.json`, and all motion/cut scripts (`pan-hall.json`, `walk-hall.json`, `cut-hall.json`, `real-cut-nose.json`, `real-cut-lamps.json`).
+- `tools/`: `share_analyze.py`, `hold1_surfaces.sh`, `hold1_finish.sh`, `hold1_analyze.py`, `make_motion_scripts.py`, `step2_batchA.sh`, `step2_batchB.sh`, `step2_analyze.py`, `step3_timing.sh`, `make_real_cut_scripts.py`, `run_real_cuts.sh`, `analyze_real_cuts.py`.
+- `pics/`: Hold 1 1:1 crop sheets, share maps, settle plots, share strips, stretched tile-border check, cut-settle plot, and eight Step 1/2 CRF 12 films. Also holds the Section 5 real-cut 1:1 strips (`real-cut-nose-strip-1x.png`, `real-cut-lamps-strip-1x.png`, `real-cut-lamps-residual-16x.png`), plots (`real-cut-plots.png`), and two 60 fps CRF 12 films (`real-cut-nose-main-off-on.mp4`, `real-cut-lamps-main-off-on.mp4`).
