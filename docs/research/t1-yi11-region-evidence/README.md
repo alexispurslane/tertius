@@ -30,19 +30,26 @@ orchestrator's order, because column d lags at any cap.
 ## How to make the takes again
 
 All raw data lives in /private/tmp/t1-yi11 and is deleted after the analysis. Run these from the checkout's root, with
-bash (zsh passes a column's two knobs as one word: see "Faults found on the way").
+bash (zsh passes a column's two knobs as one word: see "Faults found on the way"). Every tool below lives under
+`docs/research/t1-yi11-region-evidence/tools/`.
 
-1. `bash tools/builds.sh ya yc` builds the two probe builds into /private/tmp/t1-yi11/{ya,yc}/probe-bin.
-2. The frozen bay, per column, with the column's knobs: `bash tools/bayrun.sh <build> bay-<column> <knobs>`, the same with
-   `TERTIUS_PROBE_SIGNAL=2` as `bay-<column>-dif`, and `DRAWS=1660 EVERY=50 bash tools/bayrun.sh <build>
-   bay-<column>-long-dif <knobs> TERTIUS_PROBE_SIGNAL=2`.
-3. `nix develop --command python3 -I tools/bay.py` prints the bay's table, writes `bay-numbers.json` and the bay pictures.
-4. The films: `bash tools/films.sh rect-bay a b c d`, `bash tools/films.sh switch a b c d` (the settle counts) and
-   `bash tools/films.sh switch-film a b c d` (the pictures).
-5. `nix develop --command python3 -I tools/rbcurve.py` prints rect-bay's brightness per draw and writes
-   `rect-bay-curve.json`.
-6. `python3 -I tools/grid.py <out.mp4> <first draw> <note> "<label>|<folder>|1280 x 720"...` makes a film in a 2 x 2 grid,
-   and `tools/sheet.py <out.png> <draws> <note> "<label>|<folder>|<first draw>"...` a frame sheet.
+1. `bash docs/research/t1-yi11-region-evidence/tools/builds.sh ya yc` builds the two probe builds into
+   /private/tmp/t1-yi11/{ya,yc}/probe-bin.
+2. The frozen bay, per column, with the column's knobs:
+   `bash docs/research/t1-yi11-region-evidence/tools/bayrun.sh <build> bay-<column> <knobs>`, the same with
+   `TERTIUS_PROBE_SIGNAL=2` as `bay-<column>-dif`, and `DRAWS=1660 EVERY=50 bash
+   docs/research/t1-yi11-region-evidence/tools/bayrun.sh <build> bay-<column>-long-dif <knobs> TERTIUS_PROBE_SIGNAL=2`.
+3. `nix develop --command python3 -I docs/research/t1-yi11-region-evidence/tools/bay.py` prints the bay's table, writes
+   `bay-numbers.json` and writes the bay pictures.
+4. The films: `bash docs/research/t1-yi11-region-evidence/tools/films.sh rect-bay a b c d`,
+   `bash docs/research/t1-yi11-region-evidence/tools/films.sh switch a b c d` (the settle counts) and
+   `bash docs/research/t1-yi11-region-evidence/tools/films.sh switch-film a b c d` (the pictures).
+5. `nix develop --command python3 -I docs/research/t1-yi11-region-evidence/tools/rbcurve.py` prints rect-bay's brightness
+   per draw and writes `rect-bay-curve.json`.
+6. `python3 -I docs/research/t1-yi11-region-evidence/tools/grid.py <out.mp4> <first draw> <note> "<label>|<folder>|1280 x 720"...`
+   makes a film in a 2 x 2 grid, and
+   `python3 -I docs/research/t1-yi11-region-evidence/tools/sheet.py <out.png> <draws> <note> "<label>|<folder>|<first draw>"...`
+   makes a frame sheet.
 
 All takes are 1920 x 1080 at the headless render scale of 2/3 (1280 x 720), each holding the GPU lock in its shared mode.
 
@@ -209,10 +216,13 @@ Checks, measured: yg with no switch draws the same bytes as ya in one frozen bay
 In column g's frozen bay, no anchor-draw holds a cause, after draw 128 or before it, so the stop condition did not fire.
 In rect-bay, column g's log shows causes in 4 to 48 anchors per draw, so the count works.
 
-How to make them again: `bash tools/builds.sh yg yh`, then `bash tools/gtakes.sh <film|log|long|longfull> <column>...`
-for the frozen bay, `bash tools/films.sh <rect-bay|rect-bay-settled|switch|switch-film> <column>...` (columns bl, g, r
-and gr are the probe's; `TURN=90` turns the camera with build yh), and `tools/regionlog.py <folder> <after draw>` for
-the logs. The logs' per-draw summaries are in `logs/`.
+How to make them again from the checkout's root: run `bash docs/research/t1-yi11-region-evidence/tools/builds.sh yg yh`,
+then `bash docs/research/t1-yi11-region-evidence/tools/gtakes.sh <film|log|long|longfull> <column>...` for the frozen
+bay. For the light-change films, run
+`bash docs/research/t1-yi11-region-evidence/tools/films.sh <rect-bay|rect-bay-settled|switch|switch-film> <column>...`
+for columns bl, g, r and gr (add `TURN=90` to turn the camera with build yh). Run
+`python3 -I docs/research/t1-yi11-region-evidence/tools/regionlog.py <folder> <after draw>` for the logs. Their per-draw
+summaries live in `logs/`.
 
 ### The frozen bay
 
@@ -287,33 +297,36 @@ Comparison with the back-face line's measurement on main (`146464c2b`, `/private
 - Build and metric: `git diff 5144cbe9a..146464c2b -- src/` is empty. Both lines render at -4.089 stops and 2/3 scale
   (1280 x 720 in 1920 x 1080), use the same four region boxes and decode 8-bit sRGB PNGs to display-linear Rec. 709
   luminance. At draw 659 (`c-s19.png` there against `f-000659.png` here), main agrees to 0.00001 in display-linear
-  luminance (back wall 0.19697 against 0.19698, floor 0.14559 against 0.14560). Column d and `lever` agree to 0.00001
-  too (back wall 0.19393 against 0.19394, floor 0.14460 against 0.14459).
+  luminance (back wall 0.19697 against 0.19698, floor 0.14559 against 0.14560). `lever` and column d agree to 0.00001
+  too (back wall 0.19394 against 0.19393, floor 0.14459 against 0.14460).
 - Cause of the size difference (2.6 % and 2.0 % there against 0.32 % and 0.38 % here): the draw range averaged. The
   back-face line's `means.py` averaged captures `c-s00` to `c-s19` (draws 32, 65, ..., 659, every 33 draws from draw 0).
-  Each diffuse bounce reads the draw before's filtered diffuse history. A cap of 128 without region evidence therefore
-  slows multi-bounce warm-up from draw 0 by about 4 times. In `lever`, capture `c-s00` (draw 32) is 0.17071 on the back
-  wall (12.2 % below its late mean 0.19454) and 0.13179 on the floor (9.0 % below 0.14482). Captures `c-s00..09` (draws
-  32 to 329) average 0.9458 of main's late mean on the back wall and 0.9558 on the floor. Captures `c-s10..19` (draws
-  362 to 659) average 0.9876 and 0.9895. Draws 32 to 659 pull `lever` down more than `main`: `lever(0..19) / lever(30..99)`
-  is 0.9681 on the back wall and 0.9760 on the floor, against main's 0.9921 and 0.9924. That ratio produces the reported
-  0.9744 (0.974) and 0.9801 (0.980).
+  Each diffuse bounce reads the draw before's filtered diffuse history, so a cap of 128 without region evidence slows
+  multi-bounce warm-up from draw 0 by about 4 times.
+- Warm-up numbers in `lever`: capture `c-s00` (draw 32) is 0.17071 on the back wall (12.2 % below its late mean 0.19454)
+  and 0.13179 on the floor (9.0 % below 0.14482). Captures `c-s00..09` (draws 32 to 329) average 0.9458 of main's late
+  mean on the back wall and 0.9558 on the floor, and captures `c-s10..19` (draws 362 to 659) average 0.9876 and 0.9895.
+  Draws 32 to 659 pull `lever` down more than `main`: `lever(0..19) / lever(30..99)` is 0.9681 on the back wall and
+  0.9760 on the floor, against main's 0.9921 and 0.9924. That ratio gives the reported 0.9744 (0.974) and 0.9801
+  (0.980).
 - Late draws on the back-face line's 100-capture reference (`reference-mean.npy`, captures `c-s30..99`, draws 1,022 to
-  3,299): `lever` against `main` in display-linear luminance is 1.0009 on the sunlit patch, 0.9986 (-0.15 %) on the back
+  3,299): `lever` against `main` in display-linear luminance is 1.0009 on the sunlit patch, 0.9985 (-0.15 %) on the back
   wall, 0.9965 (-0.35 %) on the floor and 0.9996 (-0.04 %) on the right wall. Captures `c-s90..99` (draws 3,002 to
-  3,299) sit at 1.0009, 0.9993, 0.9992 and 1.0004.
-- Warm-up tail in draws 660 to 1,610: in our long takes, both d and n128 rise from the first 10 captures (draws 660 to
-  1,110) to the last 10 (draws 1,160 to 1,610). Diffuse-alone d / a rises from 0.9950 to 0.9977 on the back wall and
-  from 0.9947 to 0.9963 on the floor. Column n128 / a moves identically (0.9950 to 0.9977, 0.9947 to 0.9963). At draw
-  659 alone (`bay-back-wall-dif.png`), raw crop means in 8-bit gray are a 117.88, b 117.40, c 117.36 and d 117.01, so
-  brightness falls monotonically with each column's effective history length.
+  3,299) of `lever-ref`, divided by `main`'s 70-capture `reference-mean.npy` (`c-s30..99`), sit at 1.0009, 0.9993,
+  0.9992 and 1.0004.
+- Draws 660 to 1,610 in our long takes (diffuse alone): between the first 10 captures (draws 660 to 1,110) and the last
+  10 (draws 1,160 to 1,610), both d and n128 drop slightly on the back wall (0.18189 to 0.18162, -0.15 %) and the floor
+  (0.13183 to 0.13162, -0.16 %). The ratios d / a and n128 / a move from 0.9949 to 0.9977 on the back wall and from
+  0.9947 to 0.9963 on the floor only because the noisier cap-32 baseline a drops more over those draws (-0.43 % back
+  wall, -0.31 % floor; n32 drops -0.58 % and -0.37 %). At draw 659 alone (`bay-back-wall-dif.png`), raw crop means in
+  8-bit gray are a 117.88, b 117.40, c 117.36 and d 117.01.
 
 Reading: the clamp does not cause the darkening, because n128 matches d to 4 digits in the diffuse signal. Most of the
 back-face line's 2.0 % to 2.6 % darkening comes from slower multi-bounce warm-up in draws 32 to 659 at cap 128 without
-false resets. In settled draws (1,022 to 3,299 there, 660 to 1,610 here), 0.15 % to 0.40 % remains on the back wall and
-floor. That difference shrinks between draws 660 and 1,610 with the clamp off. Because n128 against n32 still moves over
-draws 660 to 1,610 with the clamp off, the orchestrator's stop rule holds until late draws separate any small
-steady-state shift from the warm-up tail.
+false resets. Draws 660 to 1,610 show no monotonic warm-up rise in d or n128, and a 0.15 % to 0.40 % gap remains on the
+back wall and floor in settled draws (1,022 to 3,299 there, 660 to 1,610 here). Because n128 against n32 still differs
+by -0.31 % on the back wall and -0.40 % on the floor with the clamp off, the cause of that small residual shift stays
+open and the orchestrator's stop rule holds.
 
 ### rect-bay
 
@@ -377,9 +390,9 @@ The whole picture against its control:
 | g+r | +0.172 | +0.058 | +0.048 | +0.039 | -0.087 | -0.030 | -0.011 | -0.002 |
 
 Column g's ring log (`logs/sw-g-switch.json`) shows 239 or 240 anchors with a cause within 5 draws of each switch (film
-draws 163 to 169 after off, 363 to 369 after on; median 52 to 62 taps, largest 186 to 204). Every gate therefore opens.
-With its 128-draw gate, g stays open through the settle and follows b (85 / 74 against 83 / 72 after off, 52 / 33
-against 53 / 34 after on).
+draws 163 to 169 after off, 363 to 369 after on). Those anchors carry a median of 52 to 62.5 taps and a largest count
+of 186 to 204 taps, so every gate opens. With its 128-draw gate, g stays open through the settle and follows b (85 / 74
+against 83 / 72 after off, 52 / 33 against 53 / 34 after on).
 
 In g+r (`logs/sw-gr-switch.json`), the 36-draw gate closes between film draws 205 and 210 (45 to 50 draws after off)
 while the bounce light still decays. Once the gate closes, the signed rank test takes over and anchor answers drop from
