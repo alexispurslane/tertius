@@ -14,7 +14,7 @@ public sealed class AccumulatePushConstantsTests
     [InlineData(uint.MaxValue + 3L)]
     public void ThePushConstantsCarryTheDrawIndexModuloTwoToTheThirtyTwoAndItsRingLayer(long drawIndex)
     {
-        AccumulatePushConstants push = AccumulatePushConstants.Of(
+        var push = AccumulatePushConstants.Of(
             parameters: SignalParameters.Specular(0.4f),
             reset: drawIndex == 0,
             drawIndex: drawIndex

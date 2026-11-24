@@ -47,7 +47,7 @@ public sealed class ShortHistoryFixRenderTests
     /// 131, and 0 elsewhere. Every near-wall pixel up to 6 columns left of the edge has taps in the stripe.
     /// </summary>
     private static readonly Func<int, int, Vector4> BrightStripeRightOfTheEdge = (column, _) =>
-        new(new Vector3(column >= Width / 2 && column < Width / 2 + 4 ? Bright : 0f), 1f);
+        new(new Vector3(column is >= (Width / 2) and < (Width / 2 + 4) ? Bright : 0f), 1f);
 
     /// <summary>
     /// A renderer that accumulates the test signal of <paramref name="parameters"/> on a wall of roughness
@@ -88,7 +88,10 @@ public sealed class ShortHistoryFixRenderTests
                     entity: 2
                 )
             );
-        var sample = new SamplePass(renderer.CreateSignal(parameters: parameters, name: "test", parts: 2), renderer.Allocator);
+        var sample = new SamplePass(
+            renderer.CreateSignal(parameters: parameters, name: "test", parts: 2),
+            renderer.Allocator
+        );
         renderer.Graph.Add(FrameGraph.Stage.DirectLight, sample);
         renderer.Graph.Add(FrameGraph.Stage.DirectLight, new AccumulatePass(sample.Signal));
         return (renderer, sample, scene);
@@ -136,12 +139,12 @@ public sealed class ShortHistoryFixRenderTests
         (int column, int row) = BrightPlace(i, j, shift);
         var receivers = new List<(Tap Offset, float Light)>();
         for (int y = j * Cell; y < (j + 1) * Cell; y++)
-            for (int x = i * Cell; x < (i + 1) * Cell; x++)
-            {
-                float light = history[4 * (y * Width + x)];
-                if (light != 0f)
-                    receivers.Add((Offset: new Tap(X: x - column, Y: y - row), Light: light));
-            }
+        for (int x = i * Cell; x < (i + 1) * Cell; x++)
+        {
+            float light = history[4 * (y * Width + x)];
+            if (light != 0f)
+                receivers.Add((Offset: new Tap(X: x - column, Y: y - row), Light: light));
+        }
         return receivers;
     }
 
@@ -152,8 +155,8 @@ public sealed class ShortHistoryFixRenderTests
     private static IEnumerable<(int I, int J)> Cells()
     {
         for (int j = 1; j < Height / Cell - 1; j++)
-            for (int i = 1; i < Width / Cell - 1; i++)
-                yield return (i, j);
+        for (int i = 1; i < Width / Cell - 1; i++)
+            yield return (i, j);
     }
 
     /// <summary>Whether <paramref name="offset"/> is a tap of the axis-aligned square at <paramref name="spacing"/>.</summary>
@@ -169,14 +172,14 @@ public sealed class ShortHistoryFixRenderTests
         int others = 0,
             off = 0;
         foreach ((int i, int j) in Cells())
-            foreach ((Tap offset, _) in ReceiversOf(history: history, i: i, j: j, shift: shift))
-            {
-                if (offset == default)
-                    continue;
-                others++;
-                if (!OnTheSquare(offset, spacing))
-                    off++;
-            }
+        foreach ((Tap offset, _) in ReceiversOf(history: history, i: i, j: j, shift: shift))
+        {
+            if (offset == default)
+                continue;
+            others++;
+            if (!OnTheSquare(offset, spacing))
+                off++;
+        }
         return (double)off / others;
     }
 
@@ -280,10 +283,10 @@ public sealed class ShortHistoryFixRenderTests
         float[] history = FixedBrightSamples(Specular, zeroDraws, nearLeftHalf: true);
 
         for (int row = 0; row < Height; row++)
-            for (int column = 0; column < Width / 2 - 1; column++)
-                history[4 * (row * Width + column)]
-                    .Should()
-                    .Be(0f, "pixel ({0}, {1}) shows the near wall, which held no bright sample", column, row);
+        for (int column = 0; column < Width / 2 - 1; column++)
+            history[4 * (row * Width + column)]
+                .Should()
+                .Be(0f, "pixel ({0}, {1}) shows the near wall, which held no bright sample", column, row);
     }
 
     /// <summary>
@@ -293,7 +296,10 @@ public sealed class ShortHistoryFixRenderTests
     /// </summary>
     private static List<float[]> ContinuouslyShortHistories(int draws, bool moving)
     {
-        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(parameters: Specular, roughness: 0.38f);
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+            parameters: Specular,
+            roughness: 0.38f
+        );
         try
         {
             MaterialId rough = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.8f));
@@ -327,7 +333,9 @@ public sealed class ShortHistoryFixRenderTests
         {
             float[] history = histories[draw];
             for (int pixel = 0; pixel < Width * Height; pixel++)
-                history[4 * pixel + 3].Should().Be(1f, "the change of roughness in draw {0} rejects every history", draw);
+                history[4 * pixel + 3]
+                    .Should()
+                    .Be(1f, "the change of roughness in draw {0} rejects every history", draw);
             foreach ((int i, int j) in Cells())
                 energies.Add(ReceiversOf(history: history, i: i, j: j, shift: draw).Sum(r => (double)r.Light) / Bright);
         }
@@ -335,7 +343,10 @@ public sealed class ShortHistoryFixRenderTests
         energies.Should().OnlyContain(e => double.IsFinite(e) && e > 0);
         // Over the 672 bright samples, one sample's light spreads with a deviation of about 0.29, so the mean's deviation
         // is about 0.011: the bound is about 3.6 deviations.
-        energies.Average().Should().BeApproximately(1.0, 0.04, "the mask's bytes are uniform over its cells and frames");
+        energies
+            .Average()
+            .Should()
+            .BeApproximately(1.0, 0.04, "the mask's bytes are uniform over its cells and frames");
     }
 
     [Fact]
@@ -351,11 +362,18 @@ public sealed class ShortHistoryFixRenderTests
                     !ReceiversOf(history: histories[draw], i: cell.I, j: cell.J)
                         .Select(r => r.Offset)
                         .ToHashSet()
-                        .SetEquals(ReceiversOf(history: histories[draw - 1], i: cell.I, j: cell.J).Select(r => r.Offset))
+                        .SetEquals(
+                            ReceiversOf(history: histories[draw - 1], i: cell.I, j: cell.J).Select(r => r.Offset)
+                        )
                 );
             changed
                 .Should()
-                .BeGreaterThan(Cells().Count() / 2, "draw {0} reads another frame of the mask than draw {1}", draw, draw - 1);
+                .BeGreaterThan(
+                    Cells().Count() / 2,
+                    "draw {0} reads another frame of the mask than draw {1}",
+                    draw,
+                    draw - 1
+                );
         }
     }
 
@@ -422,14 +440,14 @@ public sealed class ShortHistoryFixRenderTests
         (int column, int row) = BrightPlace(i, j);
         var receivers = new HashSet<Tap>();
         for (int y = j * Cell; y < (j + 1) * Cell; y++)
-            for (int x = i * Cell; x < (i + 1) * Cell; x++)
-            {
-                byte radial = RadialByte(column: x, row: y, frame: unchecked(drawIndex + BlueNoiseMask.Frames / 2));
-                Tap[] square = spacing == 4 ? TurnedSquares4[radial >> 5] : TurnedSquares2[radial >> 6];
-                var source = new Tap(X: column - x, Y: row - y);
-                if (source == default || square.Any(d => d == source || new Tap(X: -d.X, Y: -d.Y) == source))
-                    receivers.Add(source with { X = -source.X, Y = -source.Y });
-            }
+        for (int x = i * Cell; x < (i + 1) * Cell; x++)
+        {
+            byte radial = RadialByte(column: x, row: y, frame: unchecked(drawIndex + BlueNoiseMask.Frames / 2));
+            Tap[] square = spacing == 4 ? TurnedSquares4[radial >> 5] : TurnedSquares2[radial >> 6];
+            var source = new Tap(X: column - x, Y: row - y);
+            if (source == default || square.Any(d => d == source || new Tap(X: -d.X, Y: -d.Y) == source))
+                receivers.Add(source with { X = -source.X, Y = -source.Y });
+        }
         return receivers;
     }
 
@@ -441,17 +459,17 @@ public sealed class ShortHistoryFixRenderTests
         List<float[]> histories = ContinuouslyShortHistories(draws: 34, moving: false);
 
         foreach (int draw in new[] { 0, 31, 32, 33 })
-            foreach ((int i, int j) in Cells())
-                ReceiversOf(history: histories[draw], i: i, j: j)
-                    .Select(r => r.Offset)
-                    .Should()
-                    .BeEquivalentTo(
-                        ExpectedReceivers(i: i, j: j, spacing: 4, drawIndex: (uint)draw),
-                        "cell ({0}, {1}) in draw {2}",
-                        i,
-                        j,
-                        draw
-                    );
+        foreach ((int i, int j) in Cells())
+            ReceiversOf(history: histories[draw], i: i, j: j)
+                .Select(r => r.Offset)
+                .Should()
+                .BeEquivalentTo(
+                    ExpectedReceivers(i: i, j: j, spacing: 4, drawIndex: (uint)draw),
+                    "cell ({0}, {1}) in draw {2}",
+                    i,
+                    j,
+                    draw
+                );
     }
 
     [Fact]
