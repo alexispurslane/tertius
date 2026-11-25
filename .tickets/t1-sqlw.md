@@ -7,7 +7,6 @@ created: 2026-11-22T13:48:00Z
 type: bug
 priority: 3
 assignee: Alexis Purslane
-parent: ter-8hyd
 tags: [tooling]
 ---
 # No suite builds Tertius.Benchmarks: a change that breaks the benchmark project shows only in the pre-push hook of main

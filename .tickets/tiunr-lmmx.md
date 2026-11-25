@@ -1,6 +1,6 @@
 ---
 id: tiunr-lmmx
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-06T21:33:40Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: tiunr-9b7v
 ---
 # Compare 16 same-data reflection reconstruction hypotheses
+
+**2026-11-25 · Research archived.** Preserve the candidate and its controls in the reflection-reconstruction study. Reconsider it only if the signal isolated on the filmed berth matches this experiment (ter-xzj7).
 
 User-authorized parallel medium-effort isolated-worktree campaign. Compare actual renderer noise, visible-plate reference accuracy and reflection width using frozen current inputs and existing center references. First wave 16 distinct literature-backed hypotheses. Conditional second wave up to 4 evidence-derived hypotheses, not a parameter sweep. No source/history/ray/material change, reference integration, production acceptance, commits or merges.
 

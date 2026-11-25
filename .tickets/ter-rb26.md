@@ -1,6 +1,6 @@
 ---
 id: ter-rb26
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-18T14:08:42Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 tags: [demo, video]
 ---
 # Blue Danube demo: one unbroken run from a launch terminal to a spinning station's wheel
+
+**2026-11-25 · Delivered.** The complete release film on d392c3ae4 covers launch, orbit, the hub landing and the ride to the rim. Both edited MP4s decoded through the closing card.
 
 Design doc: docs/plans/blue-danube-demo.md. A long demo video from one scripted run with the real renderer, camera following one character capsule: surface terminal and boarding, launch to orbit and weightlessness, approach to a spinning station, spin match and docking in the axial slot, exit and chute to the wheel. Gray-box meshes, title cards and music added after. Only engine changes need the user's approval (user, 2026-10-18).
 

@@ -1,6 +1,6 @@
 ---
 id: ter-gi1v
-status: open
+status: closed
 deps: [ter-sfsb]
 links: [ter-hek6]
 created: 2026-11-10T13:25:05Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: ter-8hyd
 ---
 # The lobe fit's shared reflection rays show a grain on glossy floors seen at a low angle
+
+**2026-11-25 · Superseded by ter-xzj7.** Use the old observations as controls after isolating which pass produces the filmed berth grain. A result on the old test scene alone would not settle the film defect.
 
 Ticket ter-4oow shares a block's reflection ray with each pixel whose reflection lobe holds it. On a flat glossy or rough floor every pixel shares, so the reflection takes one ray per 2 x 2 block. The rough reflection plate's temporal noise rose from 5.53 to 14.02 W/(m² sr), and the smooth plate's from 1.00 to 2.85. The grain shows at normal viewing distance in the still reflections-low (clearly) and reflections-front (faintly), in the floor's reflections of the red box and the blue ball. Images: /private/tmp/ter-4oow/decision/reflections-low-crop.png and reflections-low-side.png. Alexis accepted it on 2026-11-10 for the deck's 7 ms.
 

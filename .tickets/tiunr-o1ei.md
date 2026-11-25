@@ -1,6 +1,6 @@
 ---
 id: tiunr-o1ei
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-06T19:48:30Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: tiunr-9b7v
 ---
 # Retain validated hit-distance support with reflected-light history
+
+**2026-11-25 · Research archived.** Preserve the candidate and its controls in the reflection-reconstruction study. Reconsider it only if the signal isolated on the filmed berth matches this experiment (ter-xzj7).
 
 User selected temporal distance-history guidance after the latest-ray footprint experiment. Keep raw ray hit/miss data and all old controls immutable. Track distance moment and valid-hit support through exactly the accepted light-history reprojection/blending and existing short-history repair, with camera-cut/surface rejection. Derive representative hit distance and support for the unchanged footprint, without changing rays, sources, material, existing light RGB histories or brightness capping. Focused behavior reds/greens, then two matched smooth/rough sharing captures and retained-reference accuracy/noise views. No reference integration, control recapture, commits, children or workflows.
 

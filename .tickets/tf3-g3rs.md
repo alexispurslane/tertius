@@ -1,6 +1,6 @@
 ---
 id: tf3-g3rs
-status: open
+status: closed
 deps: [ter-fe63]
 links: []
 created: 2026-11-24T16:15:50Z
@@ -11,6 +11,8 @@ parent: ter-8hyd
 tags: [rendering]
 ---
 # The adaptive reflection share costs 0.67 to 0.94 ms of GPU frame time, most of it where the share is 0: place it per pass and cut the share-0 work
+
+**2026-11-25 · Superseded by ter-xzj7.** Use the old observations as controls after isolating which pass produces the filmed berth grain. A result on the old test scene alone would not settle the film defect.
 
 Found by the stage 2 review of ter-fe63 (finding F1), 2026-11-24.
 

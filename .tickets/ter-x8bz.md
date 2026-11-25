@@ -1,6 +1,6 @@
 ---
 id: ter-x8bz
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-04T21:27:50Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: ter-89xq
 ---
 # A ray's hit misses the passes after the composite: no haze along the ray, no skin scatter
+
+**2026-11-25 · Retired.** The second-cut review does not require this feature or project to reproduce the three priority defects. Keep the design as a reference.
 
 Found in ter-gayt, part 6 (2026-11-04). A ray's hit takes this frame's direct light and the hit's indirect history (docs/plans/temporal-renderer.md, "Where a hit's light comes from", design B). Two passes run after the composite, so a hit does not see their result:
 

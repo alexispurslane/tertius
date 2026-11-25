@@ -1,6 +1,6 @@
 ---
 id: tiunr-lj7t
-status: in_progress
+status: closed
 deps: []
 links: [tiunr-vkzo]
 created: 2026-11-06T23:27:42Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: tiunr-lmmx
 ---
 # H18: raw-guide control for H13
+
+**2026-11-25 · Research archived.** Preserve the candidate and its controls in the reflection-reconstruction study. Reconsider it only if the signal isolated on the filmed berth matches this experiment (ter-xzj7).
 
 Matched causal control for measured H13: preserve exact neighborhood, admissions, weights, affine moments, regularization and final support blend; replace only each geometry-safe3x3 smoothed guide with the corresponding raw admitted outgoing value. Determine whether guide smoothing, rather than affine fitting alone, causes H13 tradeoff. Same frozen metrics and bounded capture contract; no tuning or promotion.
 

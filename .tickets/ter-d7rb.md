@@ -1,6 +1,6 @@
 ---
 id: ter-d7rb
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-25T15:32:04Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 tags: [rendering, later]
 ---
 # Read a 5 x 5 x 5 block of star cells for the reflected stars
+
+**2026-11-25 · Retired.** The second-cut review does not require this feature or project to reproduce the three priority defects. Keep the design as a reference.
 
 Single stars in a flat mirror up to about roughness 0.12 instead of 0.058 to 0.082, at 4.6 times the cost per smooth pixel.
 

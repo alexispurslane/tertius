@@ -1,6 +1,6 @@
 ---
 id: ter-442t
-status: open
+status: closed
 deps: []
 links: [ter-89xq, ter-jnyk]
 created: 2026-11-03T17:14:10Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 tags: [rendering, temporal, testing, later]
 ---
 # Cycles ground-truth references for the renderer
+
+**2026-11-25 · Retired.** The second-cut review does not require this feature or project to reproduce the three priority defects. Keep the design as a reference.
 
 Much later work (user, 2026-11-03). Nothing waits for this ticket, and it does not gate the screen tracer (ter-gayt) or any other ticket of the temporal renderer epic (ter-89xq).
 

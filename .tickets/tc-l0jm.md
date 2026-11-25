@@ -1,6 +1,6 @@
 ---
 id: tc-l0jm
-status: open
+status: closed
 deps: [tc-8142]
 links: []
 created: 2026-11-23T00:19:38Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: t7-3e22
 ---
 # One shared GLSL function for the variance around a pivot value: the clamp's box and the filter's young-history variance
+
+**2026-11-25 · Superseded by ter-xzj7.** Use the old observations as controls after isolating which pass produces the filmed berth grain. A result on the old test scene alone would not settle the film defect.
 
 Since tc-8142 (2026-11-22) two shaders take a variance around a pivot value, so that equal inputs give a variance of exactly 0 under any driver's rounding:
 - accumulate_spatial.comp, the clamp's box: the moments of the 3 x 3 fast histories around the pixel's own fast history (vec3). Before tc-8142 it took the plain moments, and on the cloud card (NVIDIA, Linux) they cancelled to a σ of about 1e-4 of the light over 9 equal values, which moved a test's length by one half-float step.

@@ -1,6 +1,6 @@
 ---
 id: t0-gg8m
-status: open
+status: closed
 deps: []
 links: [t0-t2oq]
 created: 2026-11-23T22:12:07Z
@@ -11,6 +11,8 @@ parent: ter-8hyd
 tags: [rendering, shadows, performance]
 ---
 # Split the light loop: one loop makes every shadowed light's visibility before the response loops, so a shadow filter costs the direct shader no register
+
+**2026-11-25 · Retired.** This optimization was scoped to an earlier GPU workload. Reopen against a named film segment if its pass dominates a repeatable GPU timing there.
 
 The direct shaders compute a light's visibility and its response in one loop body, written out 12 times. At the shadow filter's reads the body holds the filter's values and everything that the response needs afterwards. direct_key_fill.frag sits at register 115 on Apple's M1, the last register before the GPU keeps 384 threads resident in place of 448. Three features wait behind that step: the sun's lit-side rule in one step (t1-gout), the narrow half of the lamps' shadows, and the wide half (t0-t2oq). Every probe build of the direct shader runs 0.9 to 1.7 ms slower for it. The count of 2026-11-23 shows that with the visibility loop split off and all three features in it, direct.frag stands at r104 and direct_key_fill.frag at r108, and that the visibility loop alone needs r55.
 

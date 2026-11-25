@@ -1,6 +1,6 @@
 ---
 id: t1-bv8p
-status: open
+status: closed
 deps: []
 links: [t1-6tn2, t1-0q20]
 created: 2026-11-23T21:31:06Z
@@ -11,6 +11,8 @@ parent: ter-8hyd
 tags: [rendering, environment]
 ---
 # Prefilter an environment map once per round of its faces: measure whether the prefilter's fixed part, 55 % of today's face on the Mac, falls
+
+**2026-11-25 · Retired.** This optimization was scoped to an earlier GPU workload. Reopen against a named film segment if its pass dominates a repeatable GPU timing there.
 
 Written by the line orchestrator of the back-face line on 2026-11-23, from the split of the environment face's cost (t1-6tn2, docs/research/environment-face-cost/README.md, section 10). No build is ordered. The first step is a measurement.
 

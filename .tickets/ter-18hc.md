@@ -1,6 +1,6 @@
 ---
 id: ter-18hc
-status: in_progress
+status: closed
 deps: []
 links: [tiunr-wk29, tiunr-nxtr, ter-9371, td-hjn6, ter-wkvw, t1-g1jd]
 created: 2026-11-04T20:48:47Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: ter-89xq
 ---
 # The slow history's clamp cuts rare bright samples: a small glowing share reads low
+
+**2026-11-25 · Superseded by ter-xzj7.** Use the old observations as controls after isolating which pass produces the filmed berth grain. A result on the old test scene alone would not settle the film defect.
 
 Found in ter-gayt, part 5. A floor row in front of a glowing panel (glow 2, sky 0.2, 160 frames) reads these panel shares in the diffuse slow history, against the form factor:
 

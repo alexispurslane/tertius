@@ -1,6 +1,6 @@
 ---
 id: tiunr-lzl4
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-06T12:27:32Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: tiunr-9b7v
 ---
 # Offline reference metrics: light loss, edges and temporal variation
+
+**2026-11-25 · Research archived.** Preserve the candidate and its controls in the reflection-reconstruction study. Reconsider it only if the signal isolated on the filmed berth matches this experiment (ter-xzj7).
 
 Implement the confirmed seven-part descriptive metric specification in the existing reflection reference tool. Reuse sealed native captures and reference levels/shifts; no new renderer draws or light integration. Parent owns inspection/integration/closure.
 

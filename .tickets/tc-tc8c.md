@@ -1,6 +1,6 @@
 ---
 id: tc-tc8c
-status: open
+status: closed
 deps: [t0-zmjx]
 links: []
 created: 2026-11-22T23:26:54Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: t7-3e22
 ---
 # A block with light evidence and motion keeps the wide box and 8 draws of a moving view: measure a lamp switch during a walk
+
+**2026-11-25 · Superseded by ter-xzj7.** Use the old observations as controls after isolating which pass produces the filmed berth grain. A result on the old test scene alone would not settle the film defect.
 
 Since t0-zmjx (2026-11-22, commit 05a27262d) light evidence cuts a block's histories to at most FullRateFrames, 8 draws, in place of the fast cap of 4. The evidence levels are a total order, and the block takes the strongest: LightEvidence (3) stands above MotionEvidence (2). So a block whose samples bring a recent light code and the motion bit keeps the widened box, and its histories hold up to 8 draws. Motion includes the camera's own motion, so every lamp switch during a walk makes such blocks.
 

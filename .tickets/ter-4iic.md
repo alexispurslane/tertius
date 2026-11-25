@@ -1,6 +1,6 @@
 ---
 id: ter-4iic
-status: open
+status: closed
 deps: []
 links: [t0-70v1, t0-o7gf, t0-zmjx, t0-gumm, t58-np60, t2b-d2m6, ter-6fka, t1-mybi, ter-13rm, t0-rs55, t1-zeyk, ter-bcwr, t0-xwdz]
 created: 2026-11-10T09:38:12Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: ter-8hyd
 ---
 # Young histories after a start or a camera cut trace a ray at every pixel, so the deck's 95th percentile is 32.7 ms against a 24.5 ms median
+
+**2026-11-25 · Retired.** This optimization was scoped to an earlier GPU workload. Reopen against a named film segment if its pass dominates a repeatable GPU timing there.
 
 Step 11 of /private/tmp/tertius-report-20261109/proposal.md. Deck trace with shared reflection rays at a lobe share of 0.5 (/private/tmp/ter-4oow/trace-lobe-0.5/passes.md, 152 frames, 1291 MHz): frame span median 24.50 ms, p95 32.70 ms; reflection rays median 2.65 ms, p95 9.52 ms; diffuse rays median 0.91 ms, p95 3.28 ms. The likely cause is the first draws, where every history is under FullRateFrames = 8 draws and keeps its own rays. Not yet shown: which frames make the p95, whether the survey's p95 counts them, and what one camera cut costs (view deck-cuts).
 

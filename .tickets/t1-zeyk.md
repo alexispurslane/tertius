@@ -1,6 +1,6 @@
 ---
 id: t1-zeyk
-status: open
+status: closed
 deps: []
 links: [ter-5kz6, ter-4iic, ter-bcwr]
 created: 2026-11-23T01:47:50Z
@@ -11,6 +11,8 @@ parent: ter-8hyd
 tags: [rendering, render-scale]
 ---
 # The render scale's request never arrives at a target above it, so the size rests one grid step below the native size
+
+**2026-11-25 · Retired.** The film used a fixed render scale. The window presentation case tracked by t10-yb2s is the starting point for a future adaptive-scale reproduction.
 
 No build now. The orchestrator ordered this ticket on 2026-11-22 as a record of the fault and of the two designs to compare.
 

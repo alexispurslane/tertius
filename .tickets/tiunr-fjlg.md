@@ -1,6 +1,6 @@
 ---
 id: tiunr-fjlg
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-06T15:06:48Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: tiunr-9b7v
 ---
 # Prototype reflection sharing without incoming capping
+
+**2026-11-25 · Research archived.** Preserve the candidate and its controls in the reflection-reconstruction study. Reconsider it only if the signal isolated on the filmed berth matches this experiment (ter-xzj7).
 
 User-selected Design A: bounded output-only reflection sharing, meaningful GPU red-green, preserve source/history and material factors, two matched smooth/rough captures, noise and fixed-reference metrics plus actual frames. No default-policy acceptance.
 

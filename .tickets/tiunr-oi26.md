@@ -1,6 +1,6 @@
 ---
 id: tiunr-oi26
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-07T01:32:21Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: tiunr-lmmx
 ---
 # Require local executable entry and actual-engine admission before Design A captures
+
+**2026-11-25 · Research archived.** Preserve the candidate and its controls in the reflection-reconstruction study. Reconsider it only if the signal isolated on the filmed berth matches this experiment (ter-xzj7).
 
 Parent verified Design A final182/182 focused greens but both native attempts loaded H13 engine234c4a27 rather than intended candidate dbc04d91. Frozen tool entry is a symlink resolving into H13, so dotnet selected that application directory. This repeats an explicitly documented harness hazard. Preserve failed runs and counts; candidate quality is unmeasured. Any fresh continuation must physically copy the unchanged tool entry and verify actual loaded engine identity before spending capture attempts. Existing counts Rendering1/tool0/tests3,captures2,metrics1 remain consumed. No algorithm retuning, rebuild or capture is authorized by this tracking ticket alone.
 

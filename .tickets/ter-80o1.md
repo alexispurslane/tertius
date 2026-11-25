@@ -1,6 +1,6 @@
 ---
 id: ter-80o1
-status: open
+status: closed
 deps: [ter-vcfa, ter-s7c6, ter-odli]
 links: []
 created: 2026-11-03T00:07:59Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 tags: [rendering, lights, reflections]
 ---
 # Panel lights: a lamp's light takes the shape of its glowing surface, so reflections show lamps at their true size and brightness
+
+**2026-11-25 · Delivered.** The demo now derives the cabin and bay lamp panels from rectangle lights. See PanelLight and LampPanelMaterial in the station and shuttle scenes.
 
 The user's choice (2026-11-02): panel lights, after FSR (ter-htg7) and the performance epic (ter-pq5y). Rejected: keep sphere lights and make each lamp's glow a globe the size of its light (no engine cost, but no lamp can be a flat panel); and running this before the performance work (then the budget work would measure the final lights). The design doc goes in docs/plans/panel-lights.md, written by the first child ticket.
 

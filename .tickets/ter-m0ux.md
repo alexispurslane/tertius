@@ -1,6 +1,6 @@
 ---
 id: ter-m0ux
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-26T17:23:43Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: ter-kge6
 ---
 # Exported materials are all double-sided
+
+**2026-11-25 · Retired.** The fitted shuttle chooses sidedness per surface, including opaque hull backs and its separate cabin liner. A global exporter change needs a failing asset of its own.
 
 Every material that the build tool exports has doubleSided true, because Blender writes doubleSided for every material without backface culling, and no model script turns culling on. Closed meshes (skin, suits, hulls) then draw their back faces too. Found on the crew member and the astronaut (ter-1qce). Decide the rule: culling on by default in export.write_glb or in the model library, and double-sided only where a material asks for it (hair cards, eyebrows, eyelashes, thin sheets).
 

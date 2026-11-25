@@ -1,6 +1,6 @@
 ---
 id: t0-xwdz
-status: in_progress
+status: closed
 deps: []
 links: [ter-bcwr, ter-4iic, t58-np60, t0-y88b]
 created: 2026-11-23T12:08:20Z
@@ -11,6 +11,8 @@ parent: ter-8hyd
 tags: [rendering, temporal]
 ---
 # After a reset, 23 to 50 % of the pixels still trace their own reflection ray in draw 8, and the tail lasts to about draw 12
+
+**2026-11-25 · Retired.** This optimization was scoped to an earlier GPU workload. Reopen against a named film segment if its pass dominates a repeatable GPU timing there.
 
 Found by the lead of the announced dip of the render scale (ter-bcwr) on 2026-11-23, in the own-ray logs of the catch-up ray experiment (/private/tmp/t0-gbgj/gumm-mac/{cut,start}-today/ownrays-none.txt, 1280 x 720, today's code). Reflection / diffuse own rays per draw after a reset: draws 0 to 7 about 678,000 / 678,000 (every pixel); draw 8: 154,400 / 2,306 after a camera cut and 335,822 / 32,997 after a start; draw 9: 43,798 / 1,991 (cut); draw 12: 15,711 / 1,988 (cut). So the bounce light's own rays end at draw 8 as designed, and the reflections' do not: 23 % (cut) to 50 % (start) of the pixels still trace their own reflection ray in draw 8. On the card draw 8 costs 1.9 to 3.6 ms more than draw 9 for it (15.9 to 16.5 ms per unit of area against 12.8 to 13.4). At a start, draw 8 is the first ordinary measurement of the render scale's controller, and it alone lowers the ordinary request to 0.92 to 0.96, which takes 28 to 39 draws to return (part of the start's own dip, t58-np60).
 

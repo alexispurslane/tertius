@@ -7,7 +7,6 @@ created: 2026-11-12T11:05:42Z
 type: task
 priority: 3
 assignee: Alexis Purslane
-parent: ter-8hyd
 ---
 # A packaged Mac build carries the patched MoltenVK and names its two patches in the notices
 

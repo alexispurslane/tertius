@@ -1,6 +1,6 @@
 ---
 id: ter-g25a
-status: open
+status: closed
 deps: [ter-b2da]
 links: []
 created: 2026-11-01T13:09:14Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 tags: [rendering, performance, tools]
 ---
 # gpu-trace: delete the recording that xctrace leaves in the temporary folder after each run
+
+**2026-11-25 · Retired.** The old take, trace or survey workflow is off the critical path for the three film reproductions. Retain its failure report if that specific tool is used again.
 
 Found on 2026-11-01. Each xctrace record leaves a file $TMPDIR/instruments*.ktrace of 4 to 10 GB (on this Mac /var/folders/_5/.../T/), and xctrace never deletes it. Over the share tickets' traces, 244 GB of these files filled the disk (ENOSPC), and all four share builders stopped. The user approved deleting them all and asked for this ticket. tools/gpu-trace.sh must leave no recording behind: run xctrace with TMPDIR set to a folder inside $out and delete that folder after the report, also when the run fails (a trap). Delete run.trace after the report too, unless --keep asks to keep it; the briefs now tell builders to delete it by hand.
 

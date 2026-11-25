@@ -1,6 +1,6 @@
 ---
 id: ter-7l43
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-25T15:32:04Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 tags: [rendering, later]
 ---
 # Add the stars' light to the diffuse term through the irradiance buffer
+
+**2026-11-25 · Retired.** The second-cut review does not require this feature or project to reproduce the three priority defects. Keep the design as a reference.
 
 The stars add about 6e-4 of diffuse light in open space, through the w components of the irradiance buffer.
 

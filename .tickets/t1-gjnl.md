@@ -1,6 +1,6 @@
 ---
 id: t1-gjnl
-status: open
+status: closed
 deps: []
 links: [ter-fe63]
 created: 2026-11-23T23:46:30Z
@@ -11,6 +11,8 @@ parent: ter-8hyd
 tags: [rendering]
 ---
 # No reflection guide mass below the shading pixel's plane (ter-fe63 design 2)
+
+**2026-11-25 · Retired.** Preserve the temporal lighting measurements. Choose any change to sampling, weighting or history only after isolating the source of the pattern on the new deck (ter-xzj7).
 
 Deferred alternative (Design 2) from the 2026-11-23 comparison for ter-fe63's guided reflection share. Held in reserve by orchestrator decision (56feef7d5, 2026-11-23 18:25): do not start unless a surface under Design 1 (per-tile adaptive guided share) shows a visible loss that the adaptive share cannot remove.
 

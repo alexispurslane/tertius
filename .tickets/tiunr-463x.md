@@ -1,6 +1,6 @@
 ---
 id: tiunr-463x
-status: in_progress
+status: closed
 deps: [tiunr-k2wn, tiunr-d3la]
 links: []
 created: 2026-11-07T00:56:38Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: tiunr-lmmx
 ---
 # Design B: guide existing reflection reconstruction with temporal variance
+
+**2026-11-25 · Research archived.** Preserve the candidate and its controls in the reflection-reconstruction study. Reconsider it only if the signal isolated on the filmed berth matches this experiment (ter-xzj7).
 
 Starting from the exact integrated H13 commit, add per-pixel temporal first/second moments of the accepted raw sample stream to the existing temporal owner. Use measured temporal fluctuation to guide reconstruction; do not add a parallel radiance accumulator or rays. H07 spatial residuals are not this statistic. Return actual frames, separate means and noise/error observables. No automatic promotion.
 

@@ -1,6 +1,6 @@
 ---
 id: t7cem-d5f9
-status: open
+status: closed
 deps: [ter-7tnv]
 links: []
 created: 2026-11-05T19:20:23Z
@@ -11,6 +11,8 @@ parent: ter-89xq
 tags: [rendering, environment-map]
 ---
 # Remove unused environment-distance producers after automatic box projection
+
+**2026-11-25 · Retired.** Defer the internal cleanup. The new film work has no dependency on this representation or its removal.
 
 Automatic semantic-frame box projection in ter-7tnv removes every production distance-cube reader. The old distance cube is still allocated, written by environment faces, downsampled and bound. Removing that producer crosses image allocation, attachment formats, passes, prefilter sets, layouts and producer tests, so it must not delay the cheap reader replacement.
 

@@ -1,6 +1,6 @@
 ---
 id: ter-13rm
-status: open
+status: closed
 deps: [ter-vges, ter-gayt]
 links: [t1-mybi, ter-4iic, t2b-d2m6, ter-6fka]
 created: 2026-11-03T12:30:05Z
@@ -11,6 +11,8 @@ parent: ter-89xq
 tags: [rendering, temporal]
 ---
 # World-space radiance cache fed from the screen
+
+**2026-11-25 · Retired.** The second-cut review does not require this feature or project to reproduce the three priority defects. Keep the design as a reference.
 
 The user's choice of 2026-11-03: a later step of the temporal renderer. Visible surfaces write their light into a sparse world-space cache each frame, and a screen ray that misses reads the cache before the environment map, so that light behind the camera stays known for a while. It needs a design of its own.
 

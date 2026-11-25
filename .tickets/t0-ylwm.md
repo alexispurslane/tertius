@@ -1,6 +1,6 @@
 ---
 id: t0-ylwm
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-12T13:56:23Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: t7-3e22
 ---
 # Bring the stand film and the climb test into the survey
+
+**2026-11-25 · Superseded by ter-xzj7.** Use the old observations as controls after isolating which pass produces the filmed berth grain. A result on the old test scene alone would not settle the film defect.
 
 Design: docs/plans/bounce-light-confidence.md, section 22. Branch t7-3e22-retained-deviation. Step 1.
 

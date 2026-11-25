@@ -11,6 +11,8 @@ tags: [rendering, portability]
 ---
 # Derive each descriptor pool's sizes from its set layouts, and refuse a set past a type's size
 
+**Second-cut review, 2026-11-25.** The overlapping schema proposal ter-c4eb is archived here. Exercise a descriptor type that exhausts before the pool reaches its set limit on a driver that checks per-type counts.
+
 Found on 2026-11-04 by the review of ter-cikj. DescriptorLayouts.CreatePools keeps maxSets and six per-type descriptor counts of the shared pool as separate hand-kept sums of one list of sets, and its comments list those sets again for each type. ter-cikj made each pool refuse a set past its maxSets itself, because the spec says an allocation past maxSets or past a type's size 'may fail' (vkAllocateDescriptorSets). The per-type half is still left to the driver: on 2026-11-04 both MoltenVK and KosmicKrisp gave EnvironmentMapPlumbingTests 61 prefilter sets, more than the shared pool's size of samplers. So a miscounted type size passes on both Mac drivers and can fail on a driver that counts types.
 
 Scope: derive maxSets and the size of each descriptor type of each pool from one list of (set layout, count), read from the bindings of the layouts. Let Allocate refuse a set past a type's size from the same ledger, so that every driver refuses at the same point. Design it twice first: this changes how CreatePools is written.

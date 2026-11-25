@@ -1,6 +1,6 @@
 ---
 id: t2b-d2m6
-status: open
+status: closed
 deps: []
 links: [ter-4iic, ter-6fka, t1-mybi, ter-13rm]
 created: 2026-11-22T20:08:08Z
@@ -11,6 +11,8 @@ parent: ter-8hyd
 tags: [rendering]
 ---
 # A glossy wall beside a spot-lit block shows a bright patch that the path trace lacks: the environment map at the eye holds the lit spot
+
+**2026-11-25 · Retired.** Preserve the radiometric comparison. Use the old reference if the unexposed lighting in the cabin or berth proves incorrect after exposure and bloom are isolated.
 
 Found by t1-r9vj (docs/research/back-face-depth-layer/stage-2/fade-lit-front.md), on main 906d1c260 and in every column of the probe.
 

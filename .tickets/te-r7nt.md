@@ -1,6 +1,6 @@
 ---
 id: te-r7nt
-status: open
+status: closed
 deps: []
 links: [ter-2zga]
 created: 2026-11-12T07:34:16Z
@@ -11,6 +11,8 @@ parent: ter-8hyd
 tags: [rendering, performance]
 ---
 # The depth and light pyramids in fewer dispatches: build only if the user rejects the patched MoltenVK
+
+**2026-11-25 · Retired.** The deck sweep recorded no gain with the patched MoltenVK. The condition for this dispatch rewrite does not apply to the film.
 
 The second half of ter-nstr (sweep row 4, addendum A6 proposal 7). On stock MoltenVK 1.4.2 each pyramid builds its levels in 7 dispatches behind barriers, 7 Metal encoders each, and fewer dispatches save an estimated 0.10 to 0.15 ms on the deck. With the sweep's patched MoltenVK (proposal 1), which keeps a compute encoder open across compute-only barriers, the patch already keeps all 13 barriers of the two pyramids in one encoder, so this saves about 0 ms. It waits for the user's decision on the patched MoltenVK, and it is worth building only if the user rejects the patch.
 

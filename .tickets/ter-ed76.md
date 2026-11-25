@@ -1,6 +1,6 @@
 ---
 id: ter-ed76
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-26T21:23:47Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 tags: [rendering, performance, tools]
 ---
 # Make xctrace counter traces of 120 frames reliable, or document the limit
+
+**2026-11-25 · Retired.** The old take, trace or survey workflow is off the critical path for the three film reproductions. Retain its failure report if that specific tool is used again.
 
 Found in ter-izsu (2026-10-26): tools/gpu-trace.sh with the GPU counters on 120 frames of demo-exit's deck kept only 3 of the 120 frames, or hung while xctrace saved the trace. A trace of 21 frames worked and gave the limiters. Traces with --no-counters of 120 frames work. Find the cause (trace size, the counter instrument's buffer, the shader timeline that it records too) and either fix the script, for example by tracing counters in shorter windows and merging them, or document the largest window that works in tools/README.md, 'GPU trace'.
 

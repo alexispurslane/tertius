@@ -7,7 +7,6 @@ created: 2026-11-09T00:32:01Z
 type: task
 priority: 2
 assignee: Alexis Purslane
-parent: ter-icn3
 ---
 # Keep the mutants outside the spans out of Stryker's compiled assembly
 

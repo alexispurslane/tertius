@@ -1,6 +1,6 @@
 ---
 id: ter-enp7
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-25T15:32:04Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 tags: [rendering, later]
 ---
 # Mark a camera cut in the environment map's snapshot
+
+**2026-11-25 · Retired.** Check the actual cabin camera cuts in ter-fl8r first. A camera-history or metering change needs a matched contribution at the affected frames.
 
 A snapshot field that marks a camera cut, so that the map refreshes all its faces on a cut.
 

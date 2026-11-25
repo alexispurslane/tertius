@@ -1,6 +1,6 @@
 ---
 id: ter-odli
-status: open
+status: closed
 deps: [ter-s7c6, ter-7tnv, ter-rgg9]
 links: []
 created: 2026-11-03T14:53:48Z
@@ -11,6 +11,8 @@ parent: ter-89xq
 tags: [rendering, performance]
 ---
 # The budget and the defaults of the temporal renderer
+
+**2026-11-25 · Superseded by ter-buzm.** The whole-film Linux measurements now anchor the review. Preserve the earlier performance target and synthetic-scene numbers as comparison data.
 
 Build ticket 6 of epic ter-89xq. Design: docs/plans/temporal-renderer.md, section 11. Acceptance: section 14, item 6. If the frame exceeds 15.0 ms at the controller's scale, it asks the user what to cut before any default changes.
 

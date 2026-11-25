@@ -1,6 +1,6 @@
 ---
 id: tiunr-m0uo
-status: in_progress
+status: closed
 deps: [tiunr-k2wn, tiunr-oi26]
 links: []
 created: 2026-11-07T00:56:38Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: tiunr-lmmx
 ---
 # Design A: distribute reflection ray samples across pixels and frames
+
+**2026-11-25 · Research archived.** Preserve the candidate and its controls in the reflection-reconstruction study. Reconsider it only if the signal isolated on the filmed berth matches this experiment (ter-xzj7).
 
 Starting from the exact integrated H13 commit, change only reflection sample distribution at the same configured ray budget. Study spatiotemporal blue-noise applicability. Keep H13 reconstruction, material response, history policy and footprint fixed. Return actual renderer frames, separate means, noise/error observables and provenance. No automatic promotion.
 

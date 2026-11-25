@@ -1,6 +1,6 @@
 ---
 id: ter-gyfe
-status: open
+status: closed
 deps: []
 links: [ter-cikj]
 created: 2026-11-04T02:25:08Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 tags: [rendering, portability, upstream]
 ---
 # On KosmicKrisp the stores of a varying share of the reflections' own-ray workgroups do not land
+
+**2026-11-25 · Retired.** Archive the KosmicKrisp driver observation. The release film used the NVIDIA Vulkan driver; retain the original evidence for future work on that driver.
 
 
 Found on 2026-11-03 by ter-cikj. `CaptureSinkTests.ABgraOutputHandsItsSinkThePixelsOfAnRgbaOutputInRgbaOrder` fails on KosmicKrisp (Mesa 26.2.4) because of it, in the Checked and the Release suite. The failure is not about the BGRA order: two renderers with the RGBA output differ too.

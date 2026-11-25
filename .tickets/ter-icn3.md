@@ -1,6 +1,6 @@
 ---
 id: ter-icn3
-status: open
+status: closed
 deps: [ter-gayt]
 links: []
 created: 2026-11-05T12:22:53Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: ter-89xq
 ---
 # Temporal renderer: finish rough-paint image quality and long-motion acceptance
+
+**2026-11-25 · Superseded by ter-xzj7.** Use the second-cut berth floor and its reflected image for rough-surface acceptance. Preserve the historical controls and long-motion findings.
 
 Track the unfinished image-quality acceptance separately from the approved receiving-surface history correction A. The actual roughness-0.38 demo paint retains strong grain, and an identifiable reflected lamp or corridor is not established. Existing fixed-exposure before/after evidence and manifest: /private/tmp/gayt-history-a/manifest.md. Existing noise diagnosis: /private/tmp/gayt-history-diagnosis/report.md. Continue the already-running diagnosis without choosing or implementing another algorithm before the user settles its design. Do not treat merging A as proof that this quality criterion passed.
 

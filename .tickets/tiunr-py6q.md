@@ -1,6 +1,6 @@
 ---
 id: tiunr-py6q
-status: open
+status: closed
 deps: [tiunr-4b2g]
 links: [tiunr-ax4c, tiunr-7haj]
 created: 2026-11-07T17:27:51Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: tiunr-463x
 ---
 # Keep reflected-light change evidence relevant to the long history
+
+**2026-11-25 · Research archived.** Preserve the candidate and its controls in the reflection-reconstruction study. Reconsider it only if the signal isolated on the filmed berth matches this experiment (ter-xzj7).
 
 Follow-up from paired-ray experiment tiunr-ax4c. On a 20% dimming change after 1024 warm-up draws, matching reference rays shorten history at 2117/12486 plate pixels on the change draw, and at zero plate pixels on the following 179 measured draws. The reference record renews every draw. Both matching evaluations then see the new light while the long radiance average still contains old illumination. Dimming reaches persistent 90% adjustment in 118 updates, versus more than 180 without the check. Static rough and smooth measured output is unchanged. Investigate how evidence can remain relevant to contributors retained in the long history without treating independent ray directions as a scene change. This ticket records the limitation only. No next design, implementation, or automatic acceptance is authorized.
 

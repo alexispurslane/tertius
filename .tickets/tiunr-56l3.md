@@ -1,6 +1,6 @@
 ---
 id: tiunr-56l3
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-06T21:50:58Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: tiunr-lmmx
 ---
 # Correct stale compiler metadata in experiment bootstrap
+
+**2026-11-25 · Research archived.** Preserve the candidate and its controls in the reflection-reconstruction study. Reconsider it only if the signal isolated on the filmed berth matches this experiment (ter-xzj7).
 
 The supplied Release cache omitted Physics/Simulation reference folders and preserved a pre-prototype Rendering reference assembly, despite frozen runtime347de containing the required API. Preserve failed H02 attempt. Package exact existing implementation bytes for compiler metadata and verify one affected-test build/runtime centrally before siblings resume. No dependency compilation or algorithm result implied.
 

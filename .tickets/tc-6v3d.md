@@ -1,6 +1,6 @@
 ---
 id: tc-6v3d
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-22T14:15:24Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: ter-8hyd
 ---
 # The edge of a moving sun patch is saw-toothed in a film and smooth in a still, on main too
+
+**2026-11-25 · Retired.** The historical light or shadow edge remains documented. The film review has no matching priority shot that would justify changing the lighting model or shadow budget.
 
 Found by the acceptance takes of Design X (t0-5tyj, 2026-11-22), on main c4c1f1f2f and on the line's head 57b4045ae alike. In the survey's film bay-sunbeam (demo-surface, bay-camera, from world tick 300, the sun's patch moves), the left edge of the sun's patch on the left wall (the bright slit at the top left of the view) is ragged in the film's middle frame and smooth in the still of the same state.
 

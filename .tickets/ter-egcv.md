@@ -1,6 +1,6 @@
 ---
 id: ter-egcv
-status: open
+status: closed
 deps: [ter-4xw0]
 links: []
 created: 2026-11-01T01:45:25Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 tags: [rendering, tests]
 ---
 # Render test: the local shadow pass ranks shadow tile holders with the scene's camera
+
+**2026-11-25 · Retired.** The historical light or shadow edge remains documented. The film review has no matching priority shot that would justify changing the lighting model or shadow budget.
 
 Found by the orchestrator's hand mutations of ter-4xw0 (2026-10-31). Mutant w14 changes LocalShadowPass's call of ShadowTiles.Update from 'camera: scene.Camera' to 'camera: default', and every test still passes. The ShadowTiles and SpotLampView tests call Update with the camera of their own PreparedScene, so no test covers the pass's wiring.
 

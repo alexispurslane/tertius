@@ -1,6 +1,6 @@
 ---
 id: tiunr-d3la
-status: in_progress
+status: closed
 deps: [tiunr-pzhn]
 links: []
 created: 2026-11-07T01:26:41Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: tiunr-lmmx
 ---
 # Fix disabled temporal-statistics image format bindings in Design B candidate
+
+**2026-11-25 · Research archived.** Preserve the candidate and its controls in the reflection-reconstruction study. Reconsider it only if the signal isolated on the filmed berth matches this experiment (ter-xzj7).
 
 Parent inspected stopped Design B evidence. Candidate GLSL declares RGBA32F storage at signal11/12 and composite6, but disabled paths bind RGBA16F histories/DirectSpecular. All64 failed candidate cases include Vulkan FormatMismatch-ImageView; default-off validation is broken. Keep current H13 baseline untouched. Fix only in B worktree after a fresh explicit bounded continuation; consumed counts remain Rendering3/tool1/tests2, captures0,metrics0. Reproduce preserved validation failure, keep format validation on, then prove off-path validity and actual statistics-to-probe consumption before captures. No automatic retry or allocation.
 

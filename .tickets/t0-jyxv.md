@@ -1,6 +1,6 @@
 ---
 id: t0-jyxv
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-15T08:36:14Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: t7-3e22
 ---
 # The rest of Design X's frame cost on the deck: the reflection rays pass +0.06 ms and the accumulation's evidence read +0.03 ms against main
+
+**2026-11-25 · Superseded by ter-xzj7.** Use the old observations as controls after isolating which pass produces the filmed berth grain. A result on the old test scene alone would not settle the film defect.
 
 Found by the frame time cuts (t0-89zi). After those cuts the deck's frame span stands +0.200 ms above main ab54c785e, inside the limit of 0.30 ms. Two passes hold most of the rest in every GPU trace (gpu-trace.sh --no-counters, TERTIUS_DIFFUSE_FILTER=on, scripts/temporal-upscale-timing.json, median busy ms, main then the branch): reflection rays 1.427 -> 1.489, and accumulate indirect diffuse 0.535 -> 0.562. The per-pass spread is about 0.01 ms. Not needed for the merge. Build it only if the frame budget asks for it.
 

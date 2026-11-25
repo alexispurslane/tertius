@@ -1,6 +1,6 @@
 ---
 id: t0-vg3w
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-23T05:27:38Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: ter-8hyd
 ---
 # The settled GPU span of the fair cabin switch is 0.14 to 0.30 ms higher on main 3549d3283 with Design X than on the line before the merge: which of main's changes costs it
+
+**2026-11-25 · Retired.** This optimization was scoped to an earlier GPU workload. Reopen against a named film segment if its pass dominates a repeatable GPU timing there.
 
 Found by the acceptance lead of t0-5tyj on 2026-11-22 (docs/research/design-x-acceptance-2026-11-22/README.md, 'The takes on the merged code'), not hunted. The orchestrator ordered this ticket with the merge of Design X so that the rise is not lost.
 

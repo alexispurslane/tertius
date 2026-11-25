@@ -1,6 +1,6 @@
 ---
 id: tf3-lsmy
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-24T18:02:56Z
@@ -11,6 +11,8 @@ parent: ter-8hyd
 tags: [rendering]
 ---
 # The terminal of demo-surface shows white grain on its ceiling and left wall in the headless capture, on main as on ter-fe63's branch
+
+**2026-11-25 · Superseded by ter-xzj7.** Use the old observations as controls after isolating which pass produces the filmed berth grain. A result on the old test scene alone would not settle the film defect.
 
 Seen in ter-fe63's normal-entry check, 2026-11-24: scripts/demo-surface.json headless at 1280 x 720, capture 'terminal' (284 ticks after the switch to terminal-camera), automatic exposure.
 

@@ -1,6 +1,6 @@
 ---
 id: t2-kibe
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-14T15:44:35Z
@@ -11,6 +11,8 @@ parent: ter-8hyd
 tags: [rendering, lights]
 ---
 # Key and fill: a cheap specular fill, so that the fill lamps keep their soft specular light (the hall is 2.5 % darker without it)
+
+**2026-11-25 · Retired.** Keep the light, particle or impostor behavior documented. No matching defect was isolated on the three priority shots.
 
 Found in t2-vsqh (ARCHITECTURE.md, 'Key and fill', 'The known bias'). The fill response of a lamp is its diffuse light only. So a pixel loses the specular light of each lamp by the lamp's fill share. A sharp highlight is not lost, because a lamp with one is a key lamp there. What is lost is the sum of the soft specular light of the many lamps that are fill.
 

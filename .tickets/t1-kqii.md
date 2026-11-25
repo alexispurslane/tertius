@@ -1,6 +1,6 @@
 ---
 id: t1-kqii
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-23T17:22:43Z
@@ -11,6 +11,8 @@ parent: ter-6fka
 tags: [rendering, probe]
 ---
 # A picture probe of the lights' views as the far-field store: a ray walk in the lights' depth images, read by the diffuse rays
+
+**2026-11-25 · Retired.** The light-view walk proposal estimates 416 depth reads per bay ray. The new queue has no measured need for that cost.
 
 A probe build with pictures, not for merge. The orchestrator ordered it on 2026-11-23 and changed its model on the same day by the user's word (ter-6fka's notes of 17:19Z and 17:40Z, main 7de78028f): the store is the lights' own shadow views, not a grid of capture points. This text replaces the ticket's first text, which described the grid. The cost question of a grid is closed (t1-6tn2). The open question is whether the store changes the picture, and pictures at 1:1 decide before any engine design.
 

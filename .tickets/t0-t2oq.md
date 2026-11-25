@@ -1,6 +1,6 @@
 ---
 id: t0-t2oq
-status: open
+status: closed
 deps: []
 links: [t1-af5w, t0-gg8m]
 created: 2026-11-23T21:39:17Z
@@ -11,6 +11,8 @@ parent: ter-8hyd
 tags: [rendering, shadows]
 ---
 # A lamp's shadow edge of a far caster is 2.6 to 13 times too sharp: the fixed ramp of 4 tile texels, and no form of a wider read fits the direct pass's cost
+
+**2026-11-25 · Retired.** The historical light or shadow edge remains documented. The film review has no matching priority shot that would justify changing the lighting model or shadow budget.
 
 Soft lamp shadows by the caster's distance are blocked by two costs, the register step of the direct shader on Apple's GPU and the form's 25 gathers, and each has its own work (the orchestrator's decision of 2026-11-23, after the card's take).
 

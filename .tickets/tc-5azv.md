@@ -7,7 +7,6 @@ created: 2026-11-23T21:14:09Z
 type: bug
 priority: 2
 assignee: Alexis Purslane
-parent: ter-8hyd
 tags: [tools, testing, mutation]
 ---
 # tools/mutate.py counts the test host's wait for the GPU lock inside its 120 s timeout, and its table reads that timeout as a kill, so a mutant that never ran can be reported killed

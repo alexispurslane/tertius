@@ -1,6 +1,6 @@
 ---
 id: tiunr-9b7v
-status: in_progress
+status: closed
 deps: [ter-gayt]
 links: []
 created: 2026-11-05T16:19:55Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: ter-icn3
 ---
 # Research Unity-guided diffuse and reflected-light noise reconstruction
+
+**2026-11-25 · Research archived.** Preserve the candidate and its controls in the reflection-reconstruction study. Reconsider it only if the signal isolated on the filmed berth matches this experiment (ter-xzj7).
 
 User-requested direct discussion in an isolated worktree. Investigate bright-ray suppression, the source of hit radiance and indirect feedback, and temporal-then-spatial filtering. Record confirmed Unity behavior, failed Design B evidence, hypotheses, discriminating experiments, FSR/dynamic-resolution boundaries, and user decisions. No implementation algorithm is selected by this ticket.
 

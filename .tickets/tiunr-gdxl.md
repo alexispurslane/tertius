@@ -1,6 +1,6 @@
 ---
 id: tiunr-gdxl
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-07T20:19:37Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: ter-89xq
 ---
 # The signal scratch allocates a second part that no renderer signal uses
+
+**2026-11-25 · Retired.** Defer the internal cleanup. The new film work has no dependency on this representation or its removal.
 
 
 ## Notes

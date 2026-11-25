@@ -1,6 +1,6 @@
 ---
 id: t58-i3sn
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-22T17:47:37Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: ter-8hyd
 ---
 # At a render scale of 0.956 (1832 x 1032, 0.146 % off 16:9) the cabin shows bright specks on the ceiling, a bright line and dots at the openings' edges, and grain on the floor's sides
+
+**2026-11-25 · Retired.** The film used a fixed render scale. The window presentation case tracked by t10-yb2s is the starting point for a future adaptive-scale reproduction.
 
 Found by the combined check t0-gbgj (record docs/research/t0-gbgj-combined-check, take 2b). Both sides carry the back-face layer: M2 is main 284025851, X2 is the merged head a7e373197 (Design X on the layer).
 

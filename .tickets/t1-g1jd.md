@@ -1,6 +1,6 @@
 ---
 id: t1-g1jd
-status: open
+status: closed
 deps: []
 links: [ter-18hc, ter-pdw8, t1-yi11, t1-nyjl, t0-qvm1]
 created: 2026-11-23T05:42:37Z
@@ -11,6 +11,8 @@ parent: ter-8hyd
 tags: [rendering, temporal, diffuse]
 ---
 # The anti-lag after the clamp shortens the diffuse history at 8 % of a still's pixels, so they never reach the full length
+
+**2026-11-25 · Retired.** Preserve the temporal lighting measurements. Choose any change to sampling, weighting or history only after isolating the source of the pattern on the new deck (ter-xzj7).
 
 Found in the ray end experiment (ter-pdw8, take group 1 and interim 4, base 3549d3283, before Design X). In a still of the lamp hall at 1072 x 603, draw 630, 51,304 of 634,438 surface pixels (8.1 %) hold a diffuse history of 8 to 23 draws (median 18) against the frame's median of 32, the cap. Only 0.14 % of them fail the surface test. They are scattered at random over every open surface, densest on the near floor (16 % of the middle floor), and not on silhouettes.
 

@@ -1,6 +1,6 @@
 ---
 id: t0-r1ow
-status: open
+status: closed
 deps: []
 links: [t0-3vwx]
 created: 2026-11-23T03:19:21Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: ter-8hyd
 ---
 # The films' take script goes on after a failed survey run: final.sh step 4 checks no exit code, no played-back size log and no disk space
+
+**2026-11-25 · Retired.** The old take, trace or survey workflow is off the critical path for the three film reproductions. Retain its failure report if that specific tool is used again.
 
 Found by the reviewer of t0-3vwx on 2026-11-22 (finding S9), recorded and not fixed.
 

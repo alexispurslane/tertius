@@ -1,6 +1,6 @@
 ---
 id: tiunr-pan2
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-06T13:50:20Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: tiunr-9b7v
 ---
 # Isolate neighbor cap with selected history unchanged
+
+**2026-11-25 · Research archived.** Preserve the candidate and its controls in the reflection-reconstruction study. Reconsider it only if the signal isolated on the filmed berth matches this experiment (ter-xzj7).
 
 User-approved narrow experiment: keep median prototype's selected single diffuse history; disable only incoming neighbor cap. Two new smooth/rough native captures, same64+32draw budget and original crop. Compare old OFF/ON and reference using frozen metric definitions; include temporal noise and actual fixed single-frame previews. Preserve all originals; no default policy change, light integration or fitted gain.
 

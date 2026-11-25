@@ -1,6 +1,6 @@
 ---
 id: tz-frma
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-14T15:23:37Z
@@ -11,6 +11,8 @@ parent: ter-8hyd
 tags: [rendering, performance]
 ---
 # A list of the lamps that reach an environment face: count them on the deck first (below 0.2 ms)
+
+**2026-11-25 · Retired.** This optimization was scoped to an earlier GPU workload. Reopen against a named film segment if its pass dominates a repeatable GPU timing there.
 
 Found by the frame-time sweep (docs/research/frame-time-sweep-2026-11-11/addendum.md, section A14). It was the first idea of ticket t2-zcr4, which built another cut.
 

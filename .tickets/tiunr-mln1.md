@@ -1,6 +1,6 @@
 ---
 id: tiunr-mln1
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-06T18:33:09Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: tiunr-9b7v
 ---
 # Set reflection-sharing footprint from roughness and ray-hit distance
+
+**2026-11-25 · Research archived.** Preserve the candidate and its controls in the reflection-reconstruction study. Reconsider it only if the signal isolated on the filmed berth matches this experiment (ter-xzj7).
 
 User selected hypothesis H1: determine sharing footprint from roughness and hit distance, with roughness taking priority. Preserve all frozen 3x3/5x5 controls, original reference, source/material/history behavior and measurement workflow. Initial source inspection: screen_trace.glsl retains ray-origin-to-hit distance in meters; screen_trace_resolve.comp stores it in specularSample alpha; accumulate_temporal.comp copies it to current fast-history alpha. Slow-history alpha is history length. CompositePass currently binds only direct and slow-history images. Proposed minimal transport is a read-only binding of existing Specular.Sample(0), with no new retained distance image or trace. Shared 2x2 rays supply donor-ray distance, not an exact per-receiver distance; rough-signal handover and zero/miss semantics need explicit treatment. No new heavy command has started. Settle roughness-first bounded adjustment versus projected-cone footprint before implementation; retain actual output/noise/reference metrics for later validation.
 

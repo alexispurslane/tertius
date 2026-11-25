@@ -1,6 +1,6 @@
 ---
 id: t2-supl
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-12T20:23:21Z
@@ -11,6 +11,8 @@ parent: ter-8hyd
 tags: [rendering, exposure]
 ---
 # The automatic exposure has several stable values in a scene with a large even surface: 0.037 stops apart in rigs
+
+**2026-11-25 · Retired.** Check the actual cabin camera cuts in ter-fl8r first. A camera-history or metering change needs a matched contribution at the affected frames.
 
 Found by the frame-time sweep on 2026-11-12 (docs/research/frame-time-sweep-2026-11-11/addendum.md, section A13).
 

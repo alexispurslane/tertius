@@ -1,6 +1,6 @@
 ---
 id: ter-8nhf
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-10T13:33:54Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: ter-8hyd
 ---
 # A block that mixes two roughnesses shares reflection rays whose capped weights darken the reflection
+
+**2026-11-25 · Superseded by ter-xzj7.** Use the old observations as controls after isolating which pass produces the filmed berth grain. A result on the old test scene alone would not settle the film defect.
 
 Found by the review of ter-4oow, by static reasoning; not reproduced. The lobe fit (screen_trace_plan.comp, insideLobe) compares the two pixels' mirror directions against p's lobe width alone. At a block that holds two roughnesses, p can take the ray of a chosen pixel c whose lobe is much wider (a smooth p, about 0.004 rad, takes a rough c's ray drawn over about 0.3 rad) or much narrower. The resolve's weight f_p / pdf_c (screen_trace_resolve.comp, specularWeightOf) is then about 0 for most rays and is cut to MostRayWeight 4 for the rare large ones, so p's specular sample is biased dark, and the uncapped history keeps the bias. Expected look: a dark seam in reflections along material edges, such as polished tile beside grout, and dimmed reflections on surfaces with a fine roughness texture. The survey scenes and the plate have one roughness per surface and cannot show it. Under the original rule a rough pixel could take a smooth pixel's ray too; a smooth pixel could not.
 

@@ -7,7 +7,6 @@ created: 2026-11-04T22:34:09Z
 type: bug
 priority: 2
 assignee: Alexis Purslane
-parent: ter-89xq
 ---
 # The accumulator's finiteSample relies on isnan and isinf, which a driver may fold to false without SignedZeroInfNanPreserve
 

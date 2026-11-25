@@ -1,6 +1,6 @@
 ---
 id: tiunr-ipmk
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-07T13:50:51Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: tiunr-463x
 ---
 # Measure uncapped specular history with static and changing-reflection video controls
+
+**2026-11-25 · Research archived.** Preserve the candidate and its controls in the reflection-reconstruction study. Reconsider it only if the signal isolated on the filmed berth matches this experiment (ter-xzj7).
 
 User-authorized experiment: remove only slow specular history age limit; retain fast history, rejection and clamping. Compare static noise/accuracy and response after long warm-up to a moving reflected object and changed emitter. Deliver two short side-by-side videos of real native renderer frames, with capped controls and honest metrics. No integration or acceptance implied.
 

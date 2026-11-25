@@ -1,6 +1,6 @@
 ---
 id: ter-2o8j
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-25T15:32:04Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 tags: [rendering, later]
 ---
 # Cull small objects in the environment map's faces
+
+**2026-11-25 · Retired.** This optimization was scoped to an earlier GPU workload. Reopen against a named film segment if its pass dominates a repeatable GPU timing there.
 
 Less work in the face pass.
 

@@ -1,6 +1,6 @@
 ---
 id: ter-rtxu
-status: open
+status: closed
 deps: [ter-tanj, ter-sglu, ter-odli]
 links: []
 created: 2026-10-11T13:52:12Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 tags: [rendering, tests]
 ---
 # Renderer snapshot tests
+
+**2026-11-25 · Retired.** The second-cut review does not require this feature or project to reproduce the three priority defects. Keep the design as a reference.
 
 Design: docs/plans/renderer-snapshot-tests.md.
 

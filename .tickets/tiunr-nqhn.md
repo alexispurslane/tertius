@@ -1,6 +1,6 @@
 ---
 id: tiunr-nqhn
-status: in_progress
+status: closed
 deps: []
 links: [tiunr-vkzo]
 created: 2026-11-06T23:27:42Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: tiunr-lmmx
 ---
 # H17: normalized constant-fit control for H13
+
+**2026-11-25 · Research archived.** Preserve the candidate and its controls in the reflection-reconstruction study. Reconsider it only if the signal isolated on the filmed berth matches this experiment (ter-xzj7).
 
 Matched causal control for measured H13: preserve its exact receiver admissions, 5x5 support, weights and final support blend, replace only its guide-affine prediction with normalized weighted outgoing mean. Determine whether H13 width/noise benefit needs the guide-dependent term. Same native captures and frozen noise/reference metrics, no tuning or promotion.
 

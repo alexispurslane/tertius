@@ -1,6 +1,6 @@
 ---
 id: ter-sfsb
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-10T13:25:05Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: ter-8hyd
 ---
 # The reflection plate test measures no ray noise since the plate's emitter holds a tube light
+
+**2026-11-25 · Superseded by ter-xzj7.** Use the old observations as controls after isolating which pass produces the filmed berth grain. A result on the old test scene alone would not settle the film defect.
 
 Since commit 972d42f16 (2026-11-08, ticket tiunr-5jqs), the emitter of tools/Tertius.ReflectionReference's plate scene holds a tube light. An entity that holds a light sends no glow to traced rays, so the plate's reflection of the emitter comes from the tube light's analytic direct specular, which has no noise. On main the plate's reflected-light file stays near zero (at most 0.14 against 1,029 on 2026-11-07), and the temporal noise of both plates reads 0.001 W/(m² sr). So the test of 2026-11-07 (docs/plans/reflection-reconstruction-campaign.md:545 to 640) no longer measures the noise of the reflection rays, and a change to the ray plan cannot be judged by it. Found by ticket ter-4oow.
 

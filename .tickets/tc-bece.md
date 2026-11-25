@@ -1,6 +1,6 @@
 ---
 id: tc-bece
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-22T16:31:25Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: ter-8hyd
 ---
 # After a lamp switch darkens part of the cabin, the floor, walls and ceiling show grain and boiling light for about 60 draws, on main and on Design X
+
+**2026-11-25 · Superseded by ter-xzj7.** Use the old observations as controls after isolating which pass produces the filmed berth grain. A result on the old test scene alone would not settle the film defect.
 
 The survey's switch "cabin" (scene orbit, camera person, `TERTIUS_PROBE_LAMP_SEL=z:-12:4`, lamps off at draw 193) turns
 off 2 of the scene's 6 lights: the near overhead lamp and, probably, the lamp about 2 m behind the eye. The middle and

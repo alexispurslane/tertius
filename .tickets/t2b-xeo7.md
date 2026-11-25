@@ -1,6 +1,6 @@
 ---
 id: t2b-xeo7
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-22T20:08:08Z
@@ -11,6 +11,8 @@ parent: ter-8hyd
 tags: [rendering]
 ---
 # A lamp that lights only faces the camera does not see sends no bounce: behind the block, the lit-back room is 9 to 71 times darker than the path trace
+
+**2026-11-25 · Retired.** Preserve the radiometric comparison. Use the old reference if the unexposed lighting in the cabin or berth proves incorrect after exposure and bloom are isolated.
 
 Found by t1-r9vj (docs/research/back-face-depth-layer/stage-2/fade-lit-front.md), on main 906d1c260 and in every column of the probe. Lost light, which the user's bar accepts in a small amount; here it is most of the room's light. The user decides whether it is a bug.
 

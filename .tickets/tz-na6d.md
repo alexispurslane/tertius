@@ -1,6 +1,6 @@
 ---
 id: tz-na6d
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-14T14:14:55Z
@@ -11,6 +11,8 @@ parent: ter-8hyd
 tags: [rendering, moltenvk, portability]
 ---
 # A depth clear in the middle of a rendering loses the surfaces drawn before it on the Mac (vkCmdClearAttachments under MoltenVK)
+
+**2026-11-25 · Retired.** The experimental mid-render clear lost earlier surfaces on the Mac. Keep the separate renderings used by the shipped path.
 
 Found by the frame-time sweep on 2026-11-13, in take 18 of the environment face ticket (`t2-zcr4`).
 

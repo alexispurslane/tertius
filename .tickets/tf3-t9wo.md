@@ -1,6 +1,6 @@
 ---
 id: tf3-t9wo
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-24T17:16:21Z
@@ -11,6 +11,8 @@ parent: ter-8hyd
 tags: [rendering, flaky]
 ---
 # The curved-mirror edge test failed once in a full Debug coverage run of Rendering and passed three times alone
+
+**2026-11-25 · Retired.** This test or host failure was reported under load or in an isolated run. Keep its log. A repeat on the current build with the GPU reserved warrants a new regression ticket.
 
 Found during ter-fe63's coverage run, 2026-11-24, on branch t3/adaptive-reflection-ray-guiding at 945f36790.
 

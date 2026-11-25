@@ -1,6 +1,6 @@
 ---
 id: ter-89xq
-status: in_progress
+status: closed
 deps: []
 links: [ter-442t]
 created: 2026-11-03T01:57:54Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 tags: [rendering, temporal]
 ---
 # Temporal renderer: temporal lighting, FSR 3.1 and dynamic resolution
+
+**2026-11-25 · Superseded by ter-buzm.** FSR and temporal lighting shipped. The second-cut plan replaces the remaining umbrella, including experiments and proposals that never shipped.
 
 The user's decision of 2026-11-02: the renderer moves from spatial reuse to temporal reuse. Decision 8 of docs/plans/rendering-performance.md (no temporal accumulation, no TAA, no temporal upscaling) no longer holds. FSR 3.1 is the one TAA and upscaler, with dynamic resolution from the start. No sunk cost: rewrite what a rewrite improves, but a rewrite is not a goal in itself.
 

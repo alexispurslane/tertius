@@ -1,6 +1,6 @@
 ---
 id: ter-hek6
-status: open
+status: closed
 deps: [ter-hxhl]
 links: [ter-gi1v]
 created: 2026-11-11T18:40:24Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: ter-8hyd
 ---
 # Halve the rough reflection rays of heavy views by interleaving blocks in space, not by skipping whole draws
+
+**2026-11-25 · Retired.** This optimization was scoped to an earlier GPU workload. Reopen against a named film segment if its pass dominates a repeatable GPU timing there.
 
 One candidate for the heavy views (proposal section 2.3, design A) is a reflection ray per block in every second draw on rough surfaces, about 1.3 ms on the deck by estimate. Alexis asked on 2026-11-11 to spread the skip in space instead: in each draw, about half of the blocks trace their ray and the other half do not, and the halves swap in the next draw. Every draw then brings new rays into every neighborhood, so the lobe fit's sharing and the history see fresh samples nearby in each draw. A skip of whole draws instead stalls every pixel's reflection in the same draw, makes the noise pulse at half the frame rate and doubles the delay of every reflection change at once.
 

@@ -1,6 +1,6 @@
 ---
 id: t1-nyjl
-status: in_progress
+status: closed
 deps: []
 links: [ter-fe63, t7-3e22, t1-cyhy, t1-m0p7, t1-yi11, t1-g1jd, t0-qvm1]
 created: 2026-11-23T17:55:13Z
@@ -11,6 +11,8 @@ parent: ter-8hyd
 tags: [rendering, experiment]
 ---
 # Guide census: would another guided share, or a guide that weighs a sender's distance and angle, cut the bay's far-hit variance
+
+**2026-11-25 · Retired.** The measured variant darkened the back wall by 2.6% and the floor by 2.0%. It has no acceptance case on the new berth.
 
 A measurement, no engine change. The orchestrator ordered it on 2026-11-23 as the third part of the speck census (ter-fe63), for the blotches of the bay (t7-3e22's daub) as much as for the specks. The surface share's lead runs it after the census's first two parts, with the same probe.
 

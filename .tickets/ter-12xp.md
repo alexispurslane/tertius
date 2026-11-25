@@ -1,6 +1,6 @@
 ---
 id: ter-12xp
-status: open
+status: closed
 deps: []
 links: [tiunr-nxtr, tiunr-5qf3, tiunr-5jqs, ter-9371, ter-bdoh, ter-fe63]
 created: 2026-11-04T22:46:40Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: ter-89xq
 ---
 # Single bright pixels on the deck's walls in a still under the screen tracer
+
+**2026-11-25 · Superseded by ter-xzj7.** Use the old observations as controls after isolating which pass produces the filmed berth grain. A result on the old test scene alone would not settle the film defect.
 
 A headless still of demo-exit's deck at 1280 x 720 under ScreenTrace.Default, after 32 warm-up draws, shows isolated white pixels over the walls, beside the expected fine grain. The same still under --screen-trace off is smooth. Found during ter-gayt's screenshots (2026-11-04, /private/tmp/gayt-part8/shots, not kept). Find which rays bring them, such as a block ray at a weight near 4 that hits the bright lamp, and whether the slow history's clamp should hold them, and fix the cause.
 

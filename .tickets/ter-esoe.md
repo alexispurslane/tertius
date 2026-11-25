@@ -1,6 +1,6 @@
 ---
 id: ter-esoe
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-25T15:32:04Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 tags: [rendering, later]
 ---
 # Define the star field by each star's light, the same at every resolution
+
+**2026-11-25 · Retired.** The second-cut review does not require this feature or project to reproduce the three priority defects. Keep the design as a reference.
 
 Stars whose light does not fall with the resolution, with one evaluation for the sky and the reflections.
 

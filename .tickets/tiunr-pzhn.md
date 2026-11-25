@@ -1,6 +1,6 @@
 ---
 id: tiunr-pzhn
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-07T02:21:43Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: tiunr-lmmx
 ---
 # Resolve B optional-statistic GPU ordering and resize lifetime failures
+
+**2026-11-25 · Research archived.** Preserve the candidate and its controls in the reflection-reconstruction study. Reconsider it only if the signal isolated on the filmed berth matches this experiment (ter-xzj7).
 
 Parent verified the stopped B repair:109/148 focused passes,39 failures.37 report SYNC-HAZARD-READ-AFTER-WRITE in the synthetic pulse/probe fallback-image path;2 report invalid or destroyed image views at signal binding4 during resize. The format mismatch no longer appears; actual embedded-probe variance consumption and accepted-sample statistic cases pass. Retain estimator/default-off semantics, validation and Vulkan portability. Reproduce each GPU resource fault, then fix ordering and lifetime before full focused green and actual-loaded capture admission. No quality inference from this invalid runtime. Evidence C/B-h13-binding-repair-v2; parent receipt C/parent-inspections/B-h13-binding-repair-v2. This tracking ticket authorizes no new build, retry, capture, agent or reservation.
 

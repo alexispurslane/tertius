@@ -1,6 +1,6 @@
 ---
 id: t1-cyhy
-status: in_progress
+status: closed
 deps: []
 links: [t1-nyjl]
 created: 2026-11-23T18:47:35Z
@@ -11,6 +11,8 @@ parent: ter-8hyd
 tags: [rendering, screen-trace]
 ---
 # Most guided diffuse draws do not arrive at their target: 1.4 to 32 % arrive in the bay, and the rest bring nothing
+
+**2026-11-25 · Retired.** The bay census already records that only 1.4–32% of guided diffuse samples reached the target. Preserve this limit when considering the method again.
 
 A finding of the guide census (t1-nyjl), 2026-11-23, measured by the surface share's lead from the census's log of bay-sunbeam (2/3, 240 settling and 400 counted draws). No work is ordered yet: the stills of the separated signals (t1-nyjl) decide first whether the diffuse signal's variance shows in the bay's picture at all.
 

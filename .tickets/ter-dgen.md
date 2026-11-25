@@ -1,6 +1,6 @@
 ---
 id: ter-dgen
-status: open
+status: closed
 deps: []
 links: [ter-wwu7, ter-cikj]
 created: 2026-11-04T02:25:08Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 tags: [rendering, portability, upstream]
 ---
 # KosmicKrisp writes a timestamp at the start of its Metal compute encoder, and 0 from the fifth stamp in one encoder
+
+**2026-11-25 · Retired.** Archive the KosmicKrisp driver observation. The release film used the NVIDIA Vulkan driver; retain the original evidence for future work on that driver.
 
 
 Found on 2026-11-03 by ter-cikj. This is the cause of ter-wwu7. It is a defect of KosmicKrisp (Mesa 26.2.4), not of the renderer: the renderer's stamps follow the spec, and MoltenVK gives sane values for the same commands.

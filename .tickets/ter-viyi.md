@@ -1,6 +1,6 @@
 ---
 id: ter-viyi
-status: open
+status: closed
 deps: [ter-mu7k]
 links: []
 created: 2026-10-11T17:33:21Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 tags: [host, rendering]
 ---
 # Encode captured images off the render thread, so a capture in the window does not freeze it
+
+**2026-11-25 · Retired.** The second-cut review does not require this feature or project to reproduce the three priority defects. Keep the design as a reference.
 
 A capture step in the window pauses the simulation while the render thread draws the tick and saves the PNG. Measured on the drop-box scene at 1280 by 720: 109 to 154 ms per capture, mostly PNG encoding in VulkanRenderer.SaveCapture, which runs inside Render. The window's pacing slips after the stall (ter-mu7k), so the motion goes on smoothly, but the window freezes for that time at each capture.
 

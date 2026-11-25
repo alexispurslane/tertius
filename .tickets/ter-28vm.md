@@ -1,6 +1,6 @@
 ---
 id: ter-28vm
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-18T16:21:33Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 tags: [rendering]
 ---
 # Decide whether an invisible entity casts a shadow
+
+**2026-11-25 · Retired.** Keep the light, particle or impostor behavior documented. No matching defect was isolated on the three priority shots.
 
 Found by the ARCHITECTURE.md drift check (ter-foin, 2026-10-18). The two halves of the renderer disagree. RenderSnapshotBuilder.cs:311-317 skips instances without the Visible flag, and RenderSnapshotTests.AnEntityWithAMeshButWithoutTheVisibleFlagDrawsNothing pins that. But RenderFlags.CastsShadow and ShadowPass.cs:103 say that an invisible caster still casts. ARCHITECTURE.md now says what happens today: an entity without Visible casts no shadow. Decide the rule, then make both halves and the doc agree.
 

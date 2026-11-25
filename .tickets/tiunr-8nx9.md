@@ -1,6 +1,6 @@
 ---
 id: tiunr-8nx9
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-06T15:58:55Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: tiunr-9b7v
 ---
 # Widen reflection sharing with continuous receiver-surface checks
+
+**2026-11-25 · Research archived.** Preserve the candidate and its controls in the reflection-reconstruction study. Reconsider it only if the signal isolated on the filmed berth matches this experiment (ter-xzj7).
 
 Follow-up requested after the inspected 3x3 sharing prototype. Compare a wider single-pass neighborhood with repeated local passes before implementation. Strengthen receiver continuity checks across intervening pixels, preserve symmetric nonnegative light exchange and exact material/source/history controls, and retain actual single-frame output, temporal noise and fixed-reference observables. No reflected-object identity guarantee follows from receiver continuity. No heavy command has started. Existing cumulative evidence is 163580 KiB of the approved 163840 KiB; any new build/capture/report evidence needs a larger explicit retention bound, without deleting old evidence.
 

@@ -1,6 +1,6 @@
 ---
 id: ter-6fka
-status: open
+status: closed
 deps: [ter-8pco, ter-9t54, ter-yglw, t2b-xeo7, ter-pdw8]
 links: [ter-4iic, t2b-d2m6, t1-mybi, ter-13rm, ter-8pco, t0-gumm, t58-rcd6]
 created: 2026-11-22T21:13:03Z
@@ -11,6 +11,8 @@ parent: ter-8hyd
 tags: [rendering, temporal]
 ---
 # Off-screen bounce light that the eye's position does not change: what a diffuse miss reads and what a young history starts from
+
+**2026-11-25 · Retired.** The screen-miss and off-screen radiance experiments remain references. A new lighting store needs evidence that missing light explains an accepted shot.
 
 The structural step that the lighting system review recommends (docs/research/lighting-system-review-2026-11-22/README.md, sections 10 to 13). Today a diffuse ray that misses the screen reads the eye's environment map (missLightOf), and a young history starts from a closed form and buys its own rays. Both then depend on where the eye is. This ticket replaces their source with an estimate that the eye's position does not change, kept per semantic frame, written by rasterized views: capture points per semantic frame (design P) or senders from the lights' shadow views (design S, the user's proposal of 2026-11-22).
 

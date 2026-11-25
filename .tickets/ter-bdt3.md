@@ -1,6 +1,6 @@
 ---
 id: ter-bdt3
-status: open
+status: closed
 deps: [ter-4xw0]
 links: []
 created: 2026-11-01T01:23:33Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 tags: [rendering, shadows]
 ---
 # Shadow tiles: keep a holder in the light list while sqrt(2) times its reach meets the view (design B of ter-4xw0)
+
+**2026-11-25 · Retired.** The historical light or shadow edge remains documented. The film review has no matching priority shot that would justify changing the lighting model or shadow budget.
 
 Trigger: start this ticket only if a scene shows a point lamp's shadows that pop at the view's edge. Until then it waits, by the project's rule to leave out a feature that is not needed yet.
 

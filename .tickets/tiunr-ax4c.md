@@ -1,6 +1,6 @@
 ---
 id: tiunr-ax4c
-status: in_progress
+status: closed
 deps: []
 links: [tiunr-py6q]
 created: 2026-11-07T14:59:34Z
@@ -10,6 +10,8 @@ assignee: Alexis Purslane
 parent: tiunr-463x
 ---
 # Resolve slow adaptation of long reflection history to small illumination changes
+
+**2026-11-25 · Research archived.** Preserve the candidate and its controls in the reflection-reconstruction study. Reconsider it only if the signal isolated on the filmed berth matches this experiment (ter-xzj7).
 
 Measured follow-up from tiunr-ipmk. On November 7, 2026 the user selected Design B: recheck a reference reflection ray and use changed hit/light as evidence for history rejection. In the uncapped-history experiment, a 20% rough-emitter dimming change fails to complete 90% of adjustment in 180 updates after 1,024 warm-up draws, while the matched capped control takes 19. Preserve static-noise gains and establish response to subtle source changes without confusing surface validity with reflected-illumination validity. Evidence: /private/tmp/tertius-uncapped-history-20261107/report.md. Keep precision/ray-allocation control separate from original H13 and retain failed observations.
 

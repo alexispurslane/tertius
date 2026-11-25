@@ -1,6 +1,6 @@
 ---
 id: t1-hdtm
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-23T05:39:44Z
@@ -11,6 +11,8 @@ parent: ter-8hyd
 tags: [rendering, shadows, local-lights]
 ---
 # A lamp's light runs about 6 px down the face of the exit cabin's beam, below the beam's top edge
+
+**2026-11-25 · Retired.** The historical light or shadow edge remains documented. The film review has no matching priority shot that would justify changing the lighting model or shadow budget.
 
 In the survey still exit-cabin, a lamp above the exit cabin's black beam lights the beam's face for about 6 px (at 1:1) below the beam's top edge. The top edge shades that face, so the light there is a leak. It is the lamps' form of the jamb leak of t1-gout: a shadow tile's texel holds a caster only where the caster covers the texel's center, so the tile's edge lies up to half a texel inside the real edge, and the symmetric 4 x 4 filter puts half of its blur on the shaded side.
 
