@@ -18,6 +18,8 @@ Keep the station orbit and docking port on axis. Size the inhabited floor at 2,0
 
 The normal Blue Danube sequence launches, docks and reaches the usable rim. Real renderer captures show the ring, fitted shuttle, character and furnished spaces. Verify actual rim gravity/rate, clearances, credits and normal entry from a fresh checkout.
 
+The models reach the scenes through a reusable slice of the asset pipeline's model design (docs/plans/asset-pipeline.md, "Models: nodes and pieces"), not through Blue Danube code (user, 2026-11-24). The engine has a `ModelId`, `ModelDesc` of mesh and material parts with local offsets, `IRenderResources.CreateModel` and `RenderData.Model`. One entity draws one rigid model piece with all its parts through the normal scene paths: snapshot, culling, shadows, motion and impostors. A library resolves a package model reference and reads its GLB, apart from placement. It caches the uploaded handles per render-resource owner, so a repeated placement shares them. It knows no Blue Danube, Pioneer or curated file names. Procedural mesh and material callers keep working. A separate moving visual, such as the walking passenger's body, uses the existing attachments. At least two different assets (a ship and furniture) go through the same API, with repeated placement, several materials, local part transforms under a moving and turning parent, and normal culling and lifetime. The Runpod acceptance run uses this path. ARCHITECTURE.md and this ticket state which subset of the asset-pipeline design exists and which does not.
+
 
 ## Notes
 
