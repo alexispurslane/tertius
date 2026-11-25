@@ -165,7 +165,10 @@ public sealed class ShuttleTests : IDisposable
                 .Should()
                 .BeGreaterThan(1 - 1e-9, $"{pane.Id} is unturned, so its mesh lies in its hole");
             world.GetRender(entity).Flags.Should().Be(RenderFlags.Visible, pane.Id);
-            resources.Materials[world.GetRender(entity).Material].Alpha.Should().Be(new AlphaMode(new GlassAlpha()));
+            MaterialDesc glass = resources.Materials[world.GetRender(entity).Material];
+            glass.Alpha.Should().Be(new AlphaMode(new GlassAlpha()));
+            glass.BaseColor.W.Should().Be(0, "a clear canopy transmits sunlight without diffuse scattering");
+            glass.Reflectance.Should().BeGreaterThan(0, "the coating still reflects light");
             world.GetBody(entity).Should().BeNull(pane.Id);
         }
     }

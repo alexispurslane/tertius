@@ -161,7 +161,7 @@ public static partial class DemoScenes
                         Pose = DPose.Identity,
                         Render = new RenderData
                         {
-                            Mesh = resources.CreateMesh(Primitives.Sphere((float)(EarthRadius - 1), 256, 128)),
+                            Mesh = resources.CreateMesh(Primitives.Sphere(EarthMeshRadius, 256, 128)),
                             Material = resources.CreateMaterial(
                                 new(
                                     BaseColor: Vector4.One,
