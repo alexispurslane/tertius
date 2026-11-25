@@ -131,6 +131,7 @@ public sealed class OutputCameraTests(ITestOutputHelper output)
                 highestStops: Batchers.HighestStops,
                 meshes: [],
                 materials: [],
+                models: [],
                 environment: default,
                 region: DeformRegion.None,
                 frame: frame,
