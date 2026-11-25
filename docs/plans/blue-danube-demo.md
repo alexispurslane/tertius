@@ -3037,13 +3037,16 @@ The sections today, as `BlueDanube.Sections` lists them. The frames of each film
 | `closing` | `bow-camera` | 8 | The autopilot is in `Brake` |
 | `brake` | `port-window-camera` | 1 | The autopilot is in `Glide` |
 | `turn` | `window-camera` | 1 | The nose is within 2 degrees of the direction to the station |
-| `glide` | `chase-camera` | 6 | The shuttle is within 700 m of the station's center |
-| `glide-window` | `window-camera` | 4 | Within 400 m |
-| `glide-rim` | `rim-camera` | 4 | Within 200 m |
+| `ring-approach` | `far-camera` | 6 | The shuttle is within 900 m of the hold point. The whole ring in sunlight from 7 km out, with the habitat's lit windows ("The fit to the art") |
+| `glide` | `chase-camera` | 6 | The shuttle is within 550 m of the hold point |
+| `glide-window` | `window-camera` | 4 | Within 250 m of the hold point |
+| `glide-rim` | `rim-camera` | 4 | Within 50 m of the hold point |
 | `arrival` | `cockpit-camera` | 4 | 3 s after the autopilot is in `Hold` |
 | `hold` | `rim-camera` | 1 | After 3 s |
 | `hold-chase` | `chase-camera` | 1 | After 2 s. The person through the starboard glass, with the station ahead |
 | `dock` | `chase-camera` | 2 | It posts `Dock` to the shuttle. The docking autopilot is in `SpinUp` |
+| `far` | `far-camera` | 2 | 8 s into the spin-up |
+| `gallery` | `gallery-camera` | 2 | 13 s into the spin-up. The habitat's lit galleries from 12 m off the ring's +Y face ("The fit to the art") |
 | `spin-up` | `chase-camera` | 2 | 20 s into the spin-up |
 | `spin-match` | `hold-camera` | 2 | The docking autopilot is in `Entry` |
 | `entry` | `window-camera` | 4 | The nose is within 10 m of the slot's outer face |
@@ -3052,10 +3055,15 @@ The sections today, as `BlueDanube.Sections` lists them. The frames of each film
 | `landing` | `bay-camera` | 1 | 2 s after the docking autopilot is in `Docked` |
 | `docked` | `cabin-camera` | 1 | After 3 s |
 | `unbelt` | `cabin-camera` | 1 | It posts `LeaveShip` to the person. The person's center is within 0.5 m of the doorway's inner face |
-| `deck` | `deck-camera` | 1 | 1.5 s after the exit component is in `Sliding` |
-| `chute-top` | `spoke-camera` | 1 | The person's center is 10 m below the deck |
-| `chute` | `slide-camera` | 2 | The person's center is 10 m above the ceiling |
-| `brake-run` | `wheel-camera` | 1 | 1 s after the exit component is in `Strolling` |
+| `sill` | `sill-camera` | 1 | The person's center is past the hull's starboard side. The feet across the hatch's sill, from the side in the porch |
+| `parked` | `docked-camera` | 1 | The person is 2 m down the stair's ramp along the axis. The docked shuttle at three quarters from behind, with the person beside it |
+| `work` | `work-camera` | 1 | The person is 10 m down the ramp. The bay's work area, with the person on the ramp beyond it |
+| `deck` | `deck-camera` | 1 | 3 s after the exit component is in `Riding` |
+| `shaft` | `shaft-camera` | 1 | The person's center is 30 m below the deck |
+| `ride-side` | `ride-side-camera` | 8 | 2 s after the lift is within 0.1 m/s of its cruise. The soles and the lift's floor from the side |
+| `ride` | `ride-camera` | 8 | The person's center is 100 m above the wheel's ceiling |
+| `foot` | `wheel-camera` | 1 | 2 s after the exit component is in `Strolling` |
+| `wheel-terminal` | `wheel-terminal-camera` | 1 | After 3 s. The passenger terminal antispinward of the lift's foot, as the stroll starts |
 | `floor` | `follow-camera` | 1 | 2 s after the exit component is in `Arrived` |
 | `stack` | `stack-camera` | 1 | It posts `PlayWithBoxes` to the person. 2 s after the play leaves `Shoving` |
 | `spinward` | `spinward-camera` | 1 | The play takes the second box |
@@ -4596,6 +4604,76 @@ Each fault is pinned by a test so that a change shows.
 ### Tests
 
 `StationLayoutTests` checks the invariants on the demo's layout and on the moved one. `LiftProfileTests` checks the profile as pure math. `LiftStateTests` checks the lift's table. `DisembarkTests` runs the exit on a real World and checks the ride, the stand on the lift, the hand-off, the weight and the step off. `StationExitGeometryTests` casts rays at the lift, the deck, the ceiling's opening and the railings.
+
+
+## The fit to the art
+
+Ticket ter-9wwx fits the physical station and shuttle to the Blue Danube art at one uniform scale for each model (2026-11-24). The art draws the outside, and the gray box keeps every body. Without the converted art, every scene builds as the gray box, and no test needs the art (`BlueDanubeArtSceneTests` builds the scenes from a content root of tiny models instead). The numbers of "The kilometre wheel" that this fit changes are listed here.
+
+### The shuttle
+
+- The Lunar Shuttle's model draws at the scale 1.6, with its origin 1 m aft of the tram's middle (`Shuttle.ArtScale`, `Shuttle.ArtPlace`). The hull's box is the model's bounds at that scale and place: 13.84 m wide, 9.27 m tall and 29.09 m long, from (-6.92, -4.90, -15.02) to (6.92, 4.37, 14.07) in the shuttle's axes (`Shuttle.Hull`). Its bottom is the plane of the model's wheels. The physics hull is that box, of one density, so the center of mass lies at the box's middle, (0, -0.27, -0.48).
+- The tram stays inside as the cabin, with its seat, its glass and its hatch. With the art, the hull's render row draws only the tram's inside (`Shuttle.HullRender`), and the model draws the outside.
+- The hatch opens into the porch, a passage of two walls and a roof from the tram's side out to the hull's starboard face. Its floor is the walkway, one sharp prism from the cabin's threshold ramp through the hatch to a lip 3 cm thick, which reaches 0.6 m beyond the hull's face, over a 0.3 m gap and the edge of a boarding stair's landing. The landing lies 3.5 cm under the lip. The walkway is one piece, and the tram's doorway is cut 1.5 cm deeper than the hatch (`Shuttle.Doorway`), because a character that walks onto the edge of a flush piece of the interior's compound rises 1.3 cm (t88-8wpd).
+- The model's two side nozzles lie at (±4.56, 0, 13.70). The main engine and its plume stay on the line of thrust through the center of mass, at the box's tail.
+- The rendezvous and the ascent steer on the velocity of the center of mass, v + ω × R c (`Navigation.CenterOfMassVelocity`). With the origin's velocity, the burn's last seconds turned the nose toward the velocity to gain, the origin swept the other way, and the loop spun the hull at 0.146 rad/s. The docking keeps the origin's velocity, because its hold and landing tolerances are for the origin, and in the turning frame the center of mass sweeps 0.04 m/s against its tolerance of 0.02 m/s.
+
+### The station
+
+- The station's model draws at its own size with its origin 14.6 m along the axis (`DemoStation.ArtPose`). Its ring's outer face reaches 2,027 m from the axis and its habitat galleries 269.4 m along it, inside the layout's visible hull of 2,028.1 m and 269.4 m.
+- The deck stands on the art core's flat face, 102.2 m from the axis: 0.501 m/s² of spin gravity. The bubble is 3,000 m across the axis and 400 m along it, and the hold point lies 430 m out on the axis, 30 m beyond the bubble. The shuttle's bubble is an ellipsoid round its origin, with radii of 15.4, 12.0 and 29.5 m along its axes, which holds its whole box. The station's frame takes the shuttle 417.2 m from the station's center.
+- With the art, the hub's walls draw only their faces toward the bay, in painted steel (`station-bay-walls`). The deck, the cradle rail and the shaft keep the dark steel of the gray box.
+
+### The parked pose and the way out
+
+- The hull parks with its port side on the cradle rail at z = -10.92 m and its wheels on the deck: its origin at (-97.30, 21.43, -4.0). The landing point of the move out lies under the parked origin, not pressed into the rail: a slanted move out caught the rail's top edge.
+- The lift stands 3.8 m spinward of the axis's plane, in the lane of the hatch's stair, 4.36 m from the parked nose along the axis.
+- In the deck's weak gravity, a stair is a long fall, so the deck's stair is a ramp of 10 degrees, 18 m long, down along -Y. A person walks from the hatch over the lip onto the landing, down the ramp and 2.23 m along the deck onto the lift.
+- The lift writes its pose in the station's axes in every tick, at the top and at the foot as in the ride (`Lift`). The docking ship's bubble takes the lift in as the hull moves out to the deck, and a lift that held still in that frame rode 9 m off its top with the hull.
+
+### The props
+
+`StationProps` places the art's props, as drawn models with no body, since nothing touches them. Each kind has a reach, which the converted models' footprints lie within (the street seating 2.3 m, the cargo pod 1.8 m, the cart 1.0 m, a sconce 0.7 m), and each prop keeps its reach and 0.5 m clear of the person's way, the parked hull and the lift.
+
+- The bay's work area on the deck, spinward of the ramp: two cargo pods, the storage cart, a toolbox, a stool and a thermos, with two caged sconces on the bay's spinward wall.
+- The passenger terminal on the wheel's floor, antispinward of the lift's foot: two benches of the street seating facing the lift, two stools, and a steel post with two caged sconces. The stroll and the coda lie spinward of the lift.
+- Each sconce carries a household bulb of 2.5 W without shadows. Each placement of a model shares its model's id.
+
+The passenger's model is the drawn body: scaled to the capsule's height, 1.8 m, with its feet on the capsule's bottom and its footprint centered under the person. The step's bob and the heading turn it as they turned the box. It shows its own front, so it has no visor.
+
+### The cameras
+
+Every earlier camera keeps its name, and every earlier section keeps its name and its place. The moved parts re-aim the rim, bay and hold cameras. The new cameras and their sections:
+
+| Camera | Where | Section |
+|---|---|---|
+| `far-camera` | 7 km out, unchanged | `ring-approach`, the whole ring in sunlight before the glide |
+| `gallery-camera` | 12 m off the ring's +Y face, 1,945 m from the axis at θ = 15 degrees, looking along the ring | `gallery`, after `far` in the spin-up |
+| `sill-camera` | In the porch against its aft wall, 0.4 m outside the tram's side and 0.35 m above the walkway, looking forward across the way out | `sill`, the feet across the sill from the side |
+| `docked-camera` | 3 m above the deck, 1 m inside the bay's +Y end, 15 m spinward | `parked`, the hull at three quarters from behind, and the person over the lip and on the ramp |
+| `work-camera` | 1.2 m above the deck in the bay's spinward corner | `work`, the work area |
+| `ride-side-camera` | On the lift, beside its floor, looking across it | `ride-side`, the soles and the floor as the lift reaches its cruise |
+| `wheel-terminal-camera` | 1.7 m above the wheel's floor, 9 m spinward of the lift's spoke | `wheel-terminal`, the terminal as the stroll starts |
+
+The gray box spawns the same cameras, so the scripts are the same with and without the art.
+
+### Measured
+
+On a real World, 2026-11-24:
+
+| Quantity | Value |
+|---|---|
+| The docking from the order to `Docked` | 387 s: 30 s waiting for the roll, 30 s of spin-up, 216 s of entry, 111 s of move out and landing |
+| Felt gravity at the parked seat | 0.482 m/s², leaning 1.7 degrees |
+| Spin gravity at the parked center of mass | 0.479 m/s², leaning 2.3 degrees into the rail |
+| The ride | 131.25 s |
+| The order to the stroll's end | 171.2 s |
+| The window of the transfer | 125.27 degrees along the orbit |
+
+### Known faults
+
+- The person reports not standing for 4 ticks as it crosses the gap of 5 cm round the lift's floor in the deck's hole, where its capsule dips 0.9 mm.
+- The person rises 1.3 cm at the edge of a flush piece of a sharp compound (t88-8wpd). The walkway avoids it.
 
 ## Order of the work
 
