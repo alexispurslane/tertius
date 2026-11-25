@@ -1336,6 +1336,7 @@ public sealed partial class JoltPhysicsBackend
     )
     {
         float dt = (float)stepDt;
+        ScratchProfile.CharactersUpdated++;
         // Jolt reads the system gravity to press the character's weight onto what it stands on.
         world.System.Gravity = weight;
         if (standing)
@@ -1628,9 +1629,24 @@ public sealed partial class JoltPhysicsBackend
     {
         foreach (FrameWorld world in worldList)
         {
-            if (world.WalkingCharacterCount == 0 && world.System.GetNumActiveBodies(BodyType.Rigid) == 0)
+            uint scratchActive = world.System.GetNumActiveBodies(BodyType.Rigid);
+            if (world.WalkingCharacterCount == 0 && scratchActive == 0)
+            {
+                ScratchProfile.SystemsSkipped++;
                 continue;
+            }
+
+            ScratchProfile.SystemsUpdated++;
+            ScratchProfile.ActiveRigidBodies += scratchActive;
+            ScratchProfile.WalkingCharacters += world.WalkingCharacterCount;
+            long scratchUpdate = ScratchProfile.Now();
             PhysicsUpdateError error = world.Update((float)stepDt, jobs);
+            long scratchTook = ScratchProfile.Now() - scratchUpdate;
+            if (scratchTook > ScratchProfile.SlowestSystemUpdate)
+            {
+                ScratchProfile.SlowestSystemUpdate = scratchTook;
+                ScratchProfile.SlowestSystemFrame = $"{world.Frame} active {scratchActive} walking {world.WalkingCharacterCount}";
+            }
             if (error != PhysicsUpdateError.None && !world.ReportedOverflow)
             {
                 world.ReportedOverflow = true;

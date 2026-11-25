@@ -37,6 +37,8 @@ public static class ScriptRunner
         var recorder = new DumpRecorder(world, scene, payloads);
         var dumps = new List<StateDump>();
         var captures = new List<string>();
+        IPlayback? scratchReadouts = ScratchReadouts?.Invoke(world, scene);
+        var scratchProfile = ScratchProfile.On && playback != null ? new ScratchFilmProfile(world) : null;
         for (int i = 0; i < steps.Length; i++)
         {
             ReadyStep step = steps[i];
@@ -71,10 +73,12 @@ public static class ScriptRunner
                     break;
                 // The film is its expansion: for each frame, a run of its ticks and a capture.
                 case ReadyFilm film:
+                    scratchProfile?.Begin(film.Step.Name, film.Step.Every, film.Step.Frames);
                     for (int frame = 0; frame < film.Step.Frames; frame++)
                         if (!RunTicks(film.Step.Every, recordEvents: i < lastDump) ||
                             !Capture(film.Step.FrameName(frame), film.Where, frame))
                             return new(dumps, captures, stopped: true);
+                    scratchProfile?.End();
                     break;
                 case null:
                     // MakeReady makes a ready step of every script step.
@@ -84,20 +88,26 @@ public static class ScriptRunner
             }
         }
 
+        ScratchReadoutsDone?.Invoke(scratchReadouts);
+        scratchProfile?.Write();
         return new(dumps, captures);
 
         // Runs the ticks of a run step, or of a film's frame. Returns false if the playback stopped the run.
         bool RunTicks(int ticks, bool recordEvents)
         {
+            long scratch = ScratchProfile.Now();
             for (int tick = 0; tick < ticks; tick++)
             {
                 if (playback?.WaitForTick() == false)
                     return false;
+                long scratchTick = ScratchProfile.Now();
                 world.Tick();
+                scratchProfile?.TickTook(ScratchProfile.Now() - scratchTick, world.TickNumber);
                 if (recordEvents)
                     recorder.RecordRoutedEvents();
             }
 
+            ScratchProfile.Lap(ScratchProfile.RunnerTicks, scratch);
             return true;
         }
 
@@ -111,12 +121,22 @@ public static class ScriptRunner
             // MakeReady refuses a capture or a film without a playback.
             if (playback is null)
                 throw new UnreachableException("A capture runs only with a playback.");
+            long scratch = ScratchProfile.Now();
+            scratchReadouts?.Capture(world, name);
+            scratch = ScratchProfile.Lap(ScratchProfile.Readouts, scratch);
             if (!playback.Capture(world, name))
                 return false;
+            ScratchProfile.Lap(ScratchProfile.Capture, scratch);
             captures.Add(name);
             return true;
         }
     }
+
+    /// <summary>SCRATCH (t88-hjjm): makes a second playback that reads each capture, such as the Demo's readout log.</summary>
+    public static Func<World, SceneInstance, IPlayback>? ScratchReadouts { get; set; }
+
+    /// <summary>SCRATCH (t88-hjjm): called with that playback when the script ends.</summary>
+    public static Action<IPlayback?>? ScratchReadoutsDone { get; set; }
 
     /// <summary>
     /// A step after its checks, with every name in it resolved. Running it cannot fail for a reason of the script. This is a

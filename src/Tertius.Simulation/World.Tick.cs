@@ -38,9 +38,12 @@ public sealed partial class World
         inTick = true;
         // The physics worker while it runs the step of this tick.
         PhysicsWorker? stepping = null;
+        long scratchTick = ScratchProfile.Now(),
+            scratch = scratchTick;
         try
         {
             PrepareTick();
+            scratch = ScratchProfile.Lap(ScratchProfile.Prepare, scratch);
             if (physicsWorker != null)
             {
                 stepOutput.Clear();
@@ -57,7 +60,9 @@ public sealed partial class World
                 stepping = physicsWorker;
             }
 
+            scratch = ScratchProfile.Now();
             RunGameplay();
+            scratch = ScratchProfile.Lap(ScratchProfile.Gameplay, scratch);
 
             ExceptionDispatchInfo? physicsError = null;
             if (stepping is { } worker)
@@ -65,6 +70,8 @@ public sealed partial class World
                 stepping = null;
                 physicsError = worker.Wait();
             }
+
+            scratch = ScratchProfile.Lap(ScratchProfile.PhysicsWait, scratch);
 
             // A broken contract is a bug in the backend, not a failed step, so the world does not survive it like one.
             // It escapes here, on the ticking thread, with the stack of the physics thread where it broke.
@@ -74,6 +81,7 @@ public sealed partial class World
             Sync(physicsError?.SourceException);
             SyncTimestampTotal += Stopwatch.GetTimestamp() - syncStart;
             SyncCount++;
+            ScratchProfile.Lap(ScratchProfile.Sync, syncStart);
         }
         finally
         {
@@ -81,8 +89,17 @@ public sealed partial class World
             inTick = false;
         }
 
+        long scratchFlush = ScratchProfile.Now();
         FlushLog();
+        ScratchProfile.Lap(ScratchProfile.FlushLog, scratchFlush);
+        ScratchProfile.Lap(ScratchProfile.Tick, scratchTick);
     }
+
+    /// <summary>SCRATCH (t88-hjjm): the sync point's step sums of SyncProfile, in Stopwatch units, and their names.</summary>
+    public long[] ScratchSyncTotals => Profile.Totals;
+
+    /// <summary>SCRATCH (t88-hjjm): the names of <see cref="ScratchSyncTotals"/>.</summary>
+    public static IReadOnlyList<string> ScratchSyncNames => SyncProfile.Names;
 
     /// <summary>
     /// The simulation time at the start of tick <paramref name="tick"/>, in seconds: the same double that <see cref="Time"/>

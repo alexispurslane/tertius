@@ -158,9 +158,11 @@ public sealed class FfmpegVideoSink : ICaptureSink, IDisposable
                 $"A frame of {image.Width}x{image.Height} pixels does not fit the video {path}, which is {width}x{height}.",
                 nameof(image)
             );
+        long scratch = ScratchProfile.Now();
         try
         {
             input.Write(image.Rgba);
+            ScratchProfile.Lap(ScratchProfile.SinkWrite, scratch);
         }
         // A broken pipe: ffmpeg has exited, or is about to.
         catch (IOException ex)

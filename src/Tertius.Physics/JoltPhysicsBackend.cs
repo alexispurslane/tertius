@@ -309,8 +309,10 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 "The step needs a positive delta time."
             );
 
+        long scratchStep = ScratchProfile.Now();
         lock (Gate)
         {
+            long scratch = ScratchProfile.Lap(ScratchProfile.PhysicsGate, scratchStep);
             frames = context.Frames;
             bugReport = output.Errors;
             stepIndex++;
@@ -321,6 +323,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             // between two ticks with no batch, for example to dock a ship, and a batch that failed reconciled nothing.
             ReconcileFrames();
             RefreshFrameStructure();
+            scratch = ScratchProfile.Lap(ScratchProfile.PhysicsFrames, scratch);
             // Before anything reads a record's motion: a hull that becomes dynamic joins the spawned rigid bodies, whose
             // velocities the next pass converts into chords.
             FollowHullMotions(context.Intents.Span);
@@ -333,22 +336,33 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             // the next sync point.
             FollowStaticHulls();
             CaptureHullVelocities();
+            scratch = ScratchProfile.Lap(ScratchProfile.PhysicsBefore, scratch);
             ApplyIntents(context);
             CaptureHullVelocitiesAfterIntents();
             ApplyGravity();
+            scratch = ScratchProfile.Lap(ScratchProfile.PhysicsIntents, scratch);
             UpdateCharacters();
+            scratch = ScratchProfile.Lap(ScratchProfile.PhysicsCharacters, scratch);
             UpdateSystems();
+            scratch = ScratchProfile.Lap(ScratchProfile.PhysicsSystems, scratch);
             // Before anything reads the end of the step: the proper accelerations, the contacts, the hand-offs and the ghosts.
             SnapKinematicBodies();
             ComputeProperAccelerations();
+            scratch = ScratchProfile.Lap(ScratchProfile.PhysicsAfter, scratch);
             CollectContacts(output);
+            scratch = ScratchProfile.Lap(ScratchProfile.PhysicsContacts, scratch);
             HandOffBodies(output);
+            scratch = ScratchProfile.Lap(ScratchProfile.PhysicsHandOffs, scratch);
             // After the ghosts, so that the new ghost of a body that left its system can carry the body's contacts.
             UpdateGhosts();
             WriteEndedContacts(output);
+            scratch = ScratchProfile.Lap(ScratchProfile.PhysicsGhosts, scratch);
             WriteBodies(output);
             WriteFrames(output);
+            ScratchProfile.Lap(ScratchProfile.PhysicsWrite, scratch);
         }
+
+        ScratchProfile.Lap(ScratchProfile.PhysicsStep, scratchStep);
     }
 
     /// <summary>

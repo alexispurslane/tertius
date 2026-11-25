@@ -74,6 +74,20 @@ public static class Program
             return ScriptCommand.FileError;
         }
 
+        // SCRATCH (t88-hjjm): TERTIUS_SCRATCH_READOUTS names a readout log that the run writes from its own captures.
+        if (Environment.GetEnvironmentVariable("TERTIUS_SCRATCH_READOUTS") is { Length: > 0 } readoutsPath)
+        {
+            Tertius.Host.Scripting.ScriptRunner.ScratchReadouts = (world, sceneInstance) => new ReadoutLog(world, sceneInstance);
+            Tertius.Host.Scripting.ScriptRunner.ScratchReadoutsDone = playback =>
+            {
+                if (playback is ReadoutLog log)
+                {
+                    File.WriteAllText(readoutsPath, ReadoutLog.ToCsv(log.Rows));
+                    output.WriteLine($"scratch-readouts {readoutsPath}: {log.Rows.Count} rows");
+                }
+            };
+        }
+
         return ScriptCommand.Run(
             args: rest,
             scenes: DemoScenes.For(grayBox ? null : content),
