@@ -175,7 +175,7 @@ public sealed class BlueDanubeExitTests(BlueDanubeRendezvousRun run)
         Exit.Max(tick => (tick.InStation.Position - docked.Position).Length).Should().BeLessThan(1e-6);
     }
 
-    /// <summary>The person keeps the drawn copy of the pen through the exit: the copy lives in every tick.</summary>
+    /// <summary>The person keeps the held pencil through the exit: the copy lives in every tick.</summary>
     [Fact]
     public void ThePenStaysWithThePersonThroughTheExit() =>
         Exit.Should().OnlyContain(tick => tick.PenFromHand != null, "the person never lets go of the pen");

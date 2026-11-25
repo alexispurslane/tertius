@@ -104,10 +104,8 @@ public static partial class DemoScenes
     /// </list>
     /// </summary>
     /// <remarks>
-    /// <para>A character has no sitting pose for now, so the person stands at <see cref="Shuttle.SeatStand"/>, upright on
-    /// the cabin floor just aft of the seat. The launch step of the demo (docs/plans/blue-danube-demo.md, "The sequence",
-    /// step 2) says that the character leaves its seat: that means that the person floats away from
-    /// <see cref="Shuttle.SeatStand"/>.</para>
+    /// <para>The character capsule stops at <see cref="Shuttle.SeatStand"/>. The attached rig moves the pilot's hips
+    /// over the cushion and bends the knees until both boots rest on the cockpit floor.</para>
     /// <para>Under the climb's thrust, the engine turns a character's up against the cabin's gravity, so the belted person
     /// tips toward the nose, and it floats that way in orbit, because a weightless character keeps its last up. Ticket
     /// ter-yrfa will let a weightless character turn its own up, which will right the person in orbit.</para>
@@ -409,10 +407,29 @@ public static partial class DemoScenes
                     AttachTo = person,
                     AttachOffset = new(Vector3.Transform(center, heading), heading),
                     Render = render,
-                    Components = [new Gait(center)],
+                    RigPose = suit?.Rig?.Rest,
+                    Components = suit?.Rig is { } rig ? [new PilotMotion(rig, center)] : [new Gait(center)],
                 }
             );
+            if (suit?.Rig is not null)
+                world.AddComponent(person, new PilotActions(body));
             scene.Add("person-body", body);
+            Double3 sole = -Double3.UnitY * PersonHalf.Y - center;
+            SuitCamera("boot-camera", new(-1.65, 0.78, -0.85), new(0, 0.66, 0));
+            SuitCamera("glove-camera", new(0.56, 1.42, -0.75), new(0.16, 1.19, -0.34));
+
+            void SuitCamera(string name, Double3 eye, Double3 target) =>
+                scene.Add(
+                    name,
+                    world.Spawn(
+                        new()
+                        {
+                            AttachTo = body,
+                            AttachOffset = LookingAt(sole + eye, sole + target).ToPose(),
+                            Render = new RenderData(),
+                        }
+                    )
+                );
             if (suit is not null)
                 return body;
             scene.Add(
@@ -931,6 +948,11 @@ public static partial class DemoScenes
                 world.Spawn(ViewIn(cabin, LookingAt(new(0.65, 0.15, -5.60), new(-0.75, 0.80, -6.40))))
             );
 
+            scene.Add(
+                "seat-camera",
+                world.Spawn(ViewIn(cabin, LookingAt(new(1.34, 0.48, -11.28), new(0, 0.22, -11.0))))
+            );
+
             // The views of the rendezvous, fitted to the real Pioneer cockpit window openings.
             scene.Add("window-camera", world.Spawn(ViewIn(cabin, new(new(0, 1.00, -10.85), DQuaternion.Identity))));
             var bow = new Double3(0, 5, Shuttle.Hull.Min.Z - 30);
@@ -954,7 +976,7 @@ public static partial class DemoScenes
             );
             scene.Add(
                 "cockpit-camera",
-                world.Spawn(ViewIn(cabin, LookingAt(new(1.15, 1.60, -8.30), new(0.0, 0.85, -11.50))))
+                world.Spawn(ViewIn(cabin, LookingAt(new(1.60, 1.15, -9.0), new(0, 0.58, -11.55))))
             );
             scene.Add(
                 "cockpit-outside-camera",

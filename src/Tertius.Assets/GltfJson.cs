@@ -11,6 +11,7 @@ internal sealed record Gltf(
     GltfScene[]? Scenes,
     GltfNode[]? Nodes,
     GltfMesh[]? Meshes,
+    GltfSkin[]? Skins,
     GltfAccessor[]? Accessors,
     GltfBufferView[]? BufferViews,
     GltfMaterial[]? Materials,
@@ -18,12 +19,15 @@ internal sealed record Gltf(
     GltfImage[]? Images
 );
 
+internal sealed record GltfSkin(int[] Joints, int? InverseBindMatrices);
+
 internal sealed record GltfScene(int[]? Nodes);
 
 internal sealed record GltfNode(
     string? Name,
     int? Mesh,
     int[]? Children,
+    int? Skin,
     float[]? Translation,
     float[]? Rotation,
     float[]? Scale,

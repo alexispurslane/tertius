@@ -131,13 +131,26 @@ internal sealed class GlbBuilder
         return stream.ToArray();
     }
 
-    private int Floats(float[] values, string type)
+    public int Bytes(byte[] values, string type, int count) =>
+        Add(
+            "accessors",
+            new JsonObject
+            {
+                ["bufferView"] = View(values),
+                ["componentType"] = 5121,
+                ["count"] = count,
+                ["type"] = type,
+            }
+        );
+
+    public int Floats(float[] values, string type)
     {
         int view = View([.. values.SelectMany(BitConverter.GetBytes)]);
         int components = type switch
         {
             "VEC2" => 2,
             "VEC3" => 3,
+            "MAT4" => 16,
             _ => 4,
         };
         return Add(

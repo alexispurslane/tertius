@@ -249,7 +249,7 @@ public static class BlueDanube
             Hold: Second
         ),
         // The person at its seat, seen from inside, and then from outside through the starboard cockpit glazing.
-        new(Name: "seated", Camera: "cabin-camera", Every: 1, Until: FilmSection.Now, Hold: Second * 3 / 4),
+        new(Name: "seated", Camera: "seat-camera", Every: 1, Until: FilmSection.Now, Hold: Second * 3 / 4),
         new(
             Name: "seated-outside",
             Camera: "cockpit-outside-camera",
@@ -315,7 +315,7 @@ public static class BlueDanube
         // The hand camera films the end of the fetch, the take and the person holding the pen.
         new(
             Name: "take",
-            Camera: "hand-camera",
+            Camera: "glove-camera",
             Every: 1,
             Until: (world, scene) => PassengerOf(world, scene).Value is Holding or Stopped,
             Hold: Second * 3

@@ -17,8 +17,7 @@ public static partial class DemoScenes
     /// <item>The <c>shuttle</c> parked static at <see cref="StationLayout.ParkedPose"/> in the station's frame, with its
     /// seat, panes, lamps and nozzle, and no flight controls: in the end state every flight control adds nothing.</item>
     /// <item>The <c>person</c> at <see cref="Shuttle.SeatStand"/> in the cabin, at <see cref="StandAtSeat"/>,
-    /// <see cref="Strapped"/>, with the drawn copy
-    /// of the pen in its hand, and its <see cref="Disembark"/> <see cref="Aboard"/>. It faces the nose, as the long run's
+    /// <see cref="Strapped"/>, with the pencil in its hand, and its <see cref="Disembark"/> <see cref="Aboard"/>. It faces the nose, as the long run's
     /// person faces it after the walk to the seat, and its <see cref="WalkHeading"/> turns it toward the walk. It is drawn
     /// as in <c>demo-surface</c>, by <c>person-body</c> and <c>person-visor</c> (see <see cref="DemoSurface.SpawnDrawnBody"/>
     /// ).
@@ -34,7 +33,7 @@ public static partial class DemoScenes
         /// <summary>Half the length of the straight part of the person's capsule, in meters: the capsule is 1.8 m long.</summary>
         public const float CapsuleHalfHeight = 0.6f;
 
-        /// <summary>Where the pen's copy lies in the person's view: at <see cref="Passenger.PenHold"/>, pointing ahead.</summary>
+        /// <summary>Where the pen lies in the person's view: at <see cref="Passenger.PenHold"/>, pointing ahead.</summary>
         public static Pose PenGrip { get; } = new(Passenger.PenHold, Quaternion.Identity);
 
         /// <summary>
@@ -216,7 +215,7 @@ public static partial class DemoScenes
         }
 
         /// <summary>
-        /// Spawns the person at the seat of <paramref name="cabin"/>, strapped in and holding the copy of the pen, with the
+        /// Spawns the person at the seat of <paramref name="cabin"/>, strapped in and holding the pencil, with the
         /// components that take it out of the shuttle into <paramref name="frame"/>, the station's frame, and returns it.
         /// </summary>
         private static Entity SpawnPerson(
@@ -253,12 +252,17 @@ public static partial class DemoScenes
                     MaterialDesc.Color(new(x: 0.85f, y: 0.1f, z: 0.08f, w: 1), UsualRoughness)
                 )
             );
-            Entity copy = world.Spawn(
-                penSpec.HeldCopy(frame: cabin, holder: person, view: personRender.ViewOffset, grip: PenGrip)
+            Entity pencil = world.Spawn(
+                penSpec.Spawn(
+                    frame: cabin,
+                    pose: new(PencilInHand.SeatedGrip(PenGrip.Position), DQuaternion.Identity),
+                    velocity: Double3.Zero,
+                    more: [new PencilInHand(person, PenGrip, cabin)]
+                )
             );
-            scene.Add("pen-copy", copy);
+            scene.Add("pen", pencil);
 
-            world.AddComponent(person, new Passenger(new(cabin, Shuttle.SeatStand), Entity.Null, new Strapped(copy)));
+            world.AddComponent(person, new Passenger(new(cabin, Shuttle.SeatStand), pencil, new Strapped(pencil)));
             world.AddComponent(person, StationExit.Disembark(cabin, frame, scene["lift"]));
             world.AddComponent(person, WheelCoda.Play(scene, frame));
             world.AddComponent(person, new WalkHeading());

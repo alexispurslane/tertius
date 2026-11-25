@@ -121,8 +121,8 @@ internal sealed class LaunchLog
         PassengerState passenger = world.GetComponent<Passenger>(person)!.State;
         bool penLives = world.IsAlive(pen);
         DPose? held =
-            passenger.TryGetValue(out Holding holding) && world.IsAlive(holding.Copy)
-                ? world.PoseIn(holding.Copy, cabin)
+            passenger.TryGetValue(out Holding holding) && world.IsAlive(holding.Pencil)
+                ? world.PoseIn(holding.Pencil, cabin)
                 : null;
         DPose inEarth = world.PoseIn(shuttle, earth);
         Ticks.Add(
@@ -421,7 +421,10 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
     {
         // The push of the tick on which the clip lets go acts in the step beside the next tick, so the snapshots of the
         // first two logged ticks after the release show the pen before the push.
-        List<LaunchTick> free = [.. Log.Where(tick => tick.Clip?.Value is Released).Skip(2)];
+        List<LaunchTick> free =
+        [
+            .. Log.Where(tick => tick.Clip?.Value is Released && tick.Passenger.Value is not Holding).Skip(2),
+        ];
         double dt = run.World.DeltaTime;
 
         free.Should().HaveCountGreaterThan(120);
@@ -446,8 +449,8 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
         world.CopyLiveEntities(live);
 
         world.GetComponent<Passenger>(run.Scene["person"])!.State.Value.Should().BeOfType<Holding>();
-        world.IsAlive(run.Scene["pen"]).Should().BeFalse("the person took the loose pen");
-        live.Where(entity => world.GetComponent<HeldInView>(entity) != null)
+        world.IsAlive(run.Scene["pen"]).Should().BeTrue("the glove holds the same physical pencil");
+        live.Where(entity => world.GetComponent<PencilInHand>(entity) != null)
             .Should()
             .ContainSingle("the person holds the pen");
         Double3
@@ -467,9 +470,10 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
     {
         LaunchTick take = Log.First(tick => tick.Held != null);
 
-        take.Pen.Should().NotBeNull("the loose pen goes one tick after the copy shows");
-        Double3.Distance(take.Held!.Value.Position, take.Pen!.Value.Position).Should().BeLessThan(0.01);
-        (take.Pen.Value.Rotation.AngularVelocityTo(take.Held.Value.Rotation, 1).Length * 180 / Math.PI)
+        LaunchTick before = Log.Last(tick => tick.Tick < take.Tick);
+        before.Pen.Should().NotBeNull();
+        Double3.Distance(take.Held!.Value.Position, before.Pen!.Value.Position).Should().BeLessThan(0.01);
+        (before.Pen.Value.Rotation.AngularVelocityTo(take.Held.Value.Rotation, 1).Length * 180 / Math.PI)
             .Should()
             .BeLessThan(1);
     }

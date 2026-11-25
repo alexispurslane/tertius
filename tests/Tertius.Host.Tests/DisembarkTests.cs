@@ -20,7 +20,7 @@ namespace Tertius.Host.Tests;
 /// <param name="Exit">The case of the person's <see cref="Disembark"/>.</param>
 /// <param name="Belt">The case of the person's <see cref="Passenger"/>.</param>
 /// <param name="FeltGravity">The spin gravity of the station at the person's center, in m/s².</param>
-/// <param name="CopyHeld">True while the pen's drawn copy lives and is attached to the person.</param>
+/// <param name="CopyHeld">True while the pencil follows the person's hand.</param>
 /// <param name="Rotation">The person's rotation in the station's axes.</param>
 /// <param name="Facing">The way that the person faces, the -Z of its view, in the station's axes.</param>
 /// <param name="Lift">The case of the lift's <see cref="Demo.Lift"/>.</param>
@@ -110,8 +110,8 @@ public sealed class ExitRun : IDisposable
         DPose pose = World.PoseIn(person, Station);
         Entity copy = World.GetComponent<Passenger>(person)!.State.Value switch
         {
-            Strapped strapped => strapped.Copy,
-            Unstrapped unstrapped => unstrapped.Copy,
+            Strapped strapped => strapped.Pencil,
+            Unstrapped unstrapped => unstrapped.Pencil,
             _ => Entity.Null,
         };
         return new(
@@ -126,7 +126,7 @@ public sealed class ExitRun : IDisposable
             Exit: World.GetComponent<Disembark>(person)!.State,
             Belt: World.GetComponent<Passenger>(person)!.State,
             FeltGravity: World.Frames.FeltGravity(Station, pose.Position).Length,
-            CopyHeld: !copy.IsNull && World.IsAlive(copy) && World.Attachments.ParentOf(copy) == person,
+            CopyHeld: !copy.IsNull && World.IsAlive(copy) && World.GetComponent<PencilInHand>(copy)?.Holder == person,
             Rotation: pose.Rotation,
             Facing: pose.Rotation.Rotate(
                 (Double3)Vector3.Transform(-Vector3.UnitZ, World.GetRender(person).ViewOffset.Rotation)

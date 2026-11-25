@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using StbImageSharp;
 
@@ -63,6 +64,9 @@ internal static class GlbReader
     /// <summary>One file's JSON and binary chunk, and the textures that its materials have decoded so far.</summary>
     private sealed class FileReader(Gltf gltf, ReadOnlyMemory<byte> bin)
     {
+        private sealed record SkinBinding(Rig Rig, Pose[] Binds, int[] Remap);
+
+        private readonly Dictionary<int, SkinBinding> skins = [];
         private readonly List<TextureData> textures = [];
         private readonly Dictionary<(int Image, bool Srgb), int> textureIndices = [];
         private readonly List<CookedPiece> pieces = [];
@@ -108,7 +112,7 @@ internal static class GlbReader
             GltfNode node = Node(index);
             if (node.Mesh is int mesh)
                 foreach (GltfPrimitive primitive in Mesh(mesh).Primitives ?? [])
-                    parts.Add(Part(primitive, offset, scale));
+                    parts.Add(Part(primitive: primitive, offset: offset, scale: scale, skin: node.Skin));
             foreach (int child in node.Children ?? [])
             {
                 GltfNode childNode = Node(child);
@@ -140,7 +144,7 @@ internal static class GlbReader
             return name.StartsWith(PiecePrefix, StringComparison.Ordinal) ? name[PiecePrefix.Length..] : name;
         }
 
-        private CookedPart Part(GltfPrimitive primitive, Pose offset, Vector3 scale)
+        private CookedPart Part(GltfPrimitive primitive, Pose offset, Vector3 scale, int? skin)
         {
             if ((primitive.Mode ?? TrianglesMode) != TrianglesMode)
                 throw new GlbException(
@@ -150,7 +154,137 @@ internal static class GlbReader
             uint[] indices = TriangleIndices(primitive, vertices.Length);
             bool doubleSided = primitive.Material is int m && MaterialAt(m).DoubleSided;
             MeshData mesh = doubleSided ? WithBackFaces(vertices, indices) : new(vertices, indices);
+            if (skin is int index)
+                mesh = mesh with
+                {
+                    Rigging = Rigging(
+                        index: index,
+                        attributes: primitive.Attributes ?? [],
+                        count: vertices.Length,
+                        doubleSided: doubleSided
+                    ),
+                };
             return new(Mesh: mesh, Material: primitive.Material, Offset: offset, Scale: scale);
+        }
+
+        private MeshRigging Rigging(int index, Dictionary<string, int> attributes, int count, bool doubleSided)
+        {
+            if (!skins.TryGetValue(index, out SkinBinding? skin))
+            {
+                skin = ReadSkin(At(gltf.Skins, index, "skin"));
+                skins.Add(index, skin);
+            }
+            if (
+                !attributes.TryGetValue("JOINTS_0", out int joint)
+                || !attributes.TryGetValue("WEIGHTS_0", out int weight)
+            )
+                throw new GlbException("a skinned primitive needs JOINTS_0 and WEIGHTS_0");
+            GltfAccessor accessor = At(gltf.Accessors, joint, "joint accessor");
+            float[] weights = Floats(weight, 4);
+            if (weights.Length != count * 4 || accessor.Count != count || accessor.Type != "VEC4")
+                throw new GlbException("skin attributes must hold four influences per vertex");
+            int size = accessor.ComponentType switch
+            {
+                5121 => 1,
+                5123 => 2,
+                _ => throw new GlbException("joint indices must be unsigned bytes or shorts"),
+            };
+            ReadOnlySpan<byte> data = Elements(
+                index: joint,
+                accessor: accessor,
+                elementSize: 4 * size,
+                stride: out int stride
+            );
+            var vertices = new VertexSkin[doubleSided ? 2 * count : count];
+            Span<ushort> ids = stackalloc ushort[4];
+            for (int i = 0; i < count; i++)
+            {
+                for (int c = 0; c < 4; c++)
+                {
+                    int start = i * stride + c * size;
+                    ids[c] = size == 1 ? data[start] : BinaryPrimitives.ReadUInt16LittleEndian(data[start..]);
+                    if (ids[c] >= skin.Rig.Joints.Length)
+                        throw new GlbException("vertex joint index lies outside the skin");
+                    ids[c] = (ushort)skin.Remap[ids[c]];
+                }
+                Vector4 influence = new(weights.AsSpan(4 * i, 4));
+                if (
+                    !Vector4.GreaterThanOrEqualAll(influence, Vector4.Zero)
+                    || !float.IsFinite(Vector4.Dot(influence, Vector4.One))
+                    || influence == Vector4.Zero
+                )
+                    throw new GlbException("a skinned vertex needs finite nonnegative weights with a positive sum");
+                vertices[i] = new(Joint0: ids[0], Joint1: ids[1], Joint2: ids[2], Joint3: ids[3], Weights: influence);
+            }
+            if (doubleSided)
+                vertices.AsSpan(0, count).CopyTo(vertices.AsSpan(count));
+            return new(skin.Rig, new(vertices, [.. skin.Binds]), []);
+        }
+
+        private SkinBinding ReadSkin(GltfSkin skin)
+        {
+            if (skin.Joints is not { Length: > 0 and <= Rig.MaxJoints } nodes)
+                throw new GlbException("a cooked skin needs one to 65,535 joints");
+            var indices = new Dictionary<int, int>();
+            for (int i = 0; i < nodes.Length; i++)
+                if (!indices.TryAdd(nodes[i], i))
+                    throw new GlbException("a skin repeats a joint");
+            int[] parents = Enumerable.Repeat(-1, nodes.Length).ToArray();
+            for (int i = 0; i < nodes.Length; i++)
+                foreach (int child in Node(nodes[i]).Children ?? [])
+                    if (indices.TryGetValue(child, out int j))
+                        parents[j] = i;
+            var joints = new List<RigJoint>(nodes.Length);
+            var inverse = new Pose[nodes.Length];
+            int[] remap = Enumerable.Repeat(-1, nodes.Length).ToArray();
+            float[]? matrices = skin.InverseBindMatrices is int bind ? Floats(bind, 16) : null;
+            if (matrices is not null && matrices.Length != 16 * nodes.Length)
+                throw new GlbException("a skin needs one inverse bind per joint");
+            for (int i = 0; i < nodes.Length; i++)
+                Visit(i);
+            try
+            {
+                return new(new Rig([.. joints], []), inverse, remap);
+            }
+            catch (ArgumentException e)
+            {
+                throw new GlbException(e.Message);
+            }
+
+            void Visit(int i)
+            {
+                if (remap[i] >= 0)
+                    return;
+                if (remap[i] == -2)
+                    throw new GlbException("a skin contains a parent cycle");
+                remap[i] = -2;
+                int parent = parents[i];
+                if (parent >= 0)
+                    Visit(parent);
+                int index = joints.Count;
+                GltfNode node = Node(nodes[i]);
+                if (Vector3.DistanceSquared(node.LocalScale(), Vector3.One) > 1e-8f)
+                    throw new GlbException("a cooked joint must have unit scale");
+                joints.Add(new(node.Name ?? $"joint-{i}", parent < 0 ? null : remap[parent], node.LocalPose()));
+                inverse[index] = matrices is null ? Pose.Identity : Bind(matrices.AsSpan(16 * i, 16));
+                remap[i] = index;
+            }
+        }
+
+        private static Pose Bind(ReadOnlySpan<float> m)
+        {
+            Matrix4x4 matrix = MemoryMarshal.Read<Matrix4x4>(MemoryMarshal.AsBytes(m));
+            if (
+                !Matrix4x4.Decompose(
+                    matrix: matrix,
+                    scale: out Vector3 scale,
+                    rotation: out Quaternion rotation,
+                    translation: out Vector3 position
+                )
+                || Vector3.DistanceSquared(scale, Vector3.One) > 1e-8f
+            )
+                throw new GlbException("a cooked joint must have a rigid inverse bind");
+            return new(position, rotation);
         }
 
         /// <summary>
@@ -383,6 +517,7 @@ internal static class GlbReader
                 "VEC2" => 2,
                 "VEC3" => 3,
                 "VEC4" => 4,
+                "MAT4" => 16,
                 _ => 0,
             };
 

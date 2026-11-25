@@ -39,15 +39,29 @@ public sealed class ModelStore(IRenderResources resources, ContentFolders conten
             UploadedFile file => Parts(file: file, piece: reference.Piece, path: path) switch
             {
                 ModelProblem problem => problem,
-                ImmutableArray<PlacedPart> parts => Keep(reference, Upload(parts)),
+                ImmutableArray<PlacedPart> parts => Keep(reference, parts, path),
                 null => throw new UnreachableException("Parts gives parts or a problem."),
             },
             null => throw new UnreachableException("File gives a file or a problem."),
         };
     }
 
-    private StoredModel Keep(AssetReference reference, StoredModel model)
+    private Result<StoredModel, ModelProblem> Keep(
+        AssetReference reference,
+        ImmutableArray<PlacedPart> parts,
+        string path
+    )
     {
+        Rig? rig = null;
+        foreach (PlacedPart part in parts)
+        {
+            if (part.Mesh.Rigging is not { } rigging)
+                continue;
+            if (rig is not null && rig != rigging.Rig)
+                return new MalformedModel(path, "the meshes of one posed model must share a rig");
+            rig = rigging.Rig;
+        }
+        StoredModel model = Upload(parts) with { Rig = rig };
         models.Add(reference, model);
         return model;
     }
@@ -175,4 +189,7 @@ public sealed class ModelStore(IRenderResources resources, ContentFolders conten
 /// The radius about the model's origin that holds every part, in m, for <c>RenderData.BoundingRadius</c> times the
 /// entity's largest scale.
 /// </param>
-public sealed record StoredModel(ModelId Id, BoundingBox Bounds, float BoundingRadius);
+public sealed record StoredModel(ModelId Id, BoundingBox Bounds, float BoundingRadius)
+{
+    public Rig? Rig { get; init; }
+}

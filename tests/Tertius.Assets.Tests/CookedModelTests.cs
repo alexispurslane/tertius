@@ -25,6 +25,84 @@ public sealed class CookedModelTests
     private static CookedPart OnlyPart(CookedModel model) => model.Pieces.Single().Parts.Single();
 
     [Fact]
+    public void ASkinnedPrimitiveRetainsItsJointWeightsAndParentRelativeRestPose()
+    {
+        GlbBuilder glb = SkinnedTriangle();
+        MeshRigging? rigging = Read(glb.Build()).Pieces.SelectMany(piece => piece.Parts).Single().Mesh.Rigging;
+        rigging.Should().NotBeNull();
+        rigging!.Rig.Joints[1].Parent.Should().Be(0);
+        rigging.Rig.Joints[1].Rest.Position.Should().Be(Vector3.UnitY);
+        rigging.Skin!.Vertices[1].Joint0.Should().Be(1);
+        rigging.Skin.InverseBinds[0].Position.Should().Be(Vector3.Zero);
+        rigging.Skin.InverseBinds[1].Position.Should().Be(-Vector3.UnitY);
+        rigging.Skin.Vertices.Skip(3).Should().Equal(rigging.Skin.Vertices.Take(3));
+        rigging.Skin.Vertices[1].Weights.Should().Be(Vector4.UnitX);
+    }
+
+    private static GlbBuilder SkinnedTriangle()
+    {
+        var glb = new GlbBuilder();
+        JsonObject triangle = glb.Triangle(glb.Material(new JsonObject { ["doubleSided"] = true }));
+        triangle["attributes"]!["WEIGHTS_0"] = glb.Floats([1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0], "VEC4");
+        int joints = glb.Bytes([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "VEC4", 3);
+        triangle["attributes"]!["JOINTS_0"] = joints;
+        int hand = glb.Node(new JsonObject { ["name"] = "hand", ["translation"] = new JsonArray(0, 1, 0) });
+        int arm = glb.Root(new JsonObject { ["name"] = "arm", ["children"] = new JsonArray(hand) });
+        glb.Root(new JsonObject { ["skin"] = 0 }, glb.Mesh(triangle));
+        glb.Json["skins"] = new JsonArray(
+            new JsonObject
+            {
+                ["joints"] = new JsonArray(hand, arm),
+                ["inverseBindMatrices"] = glb.Floats(
+                    [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, -1, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+                    "MAT4"
+                ),
+            }
+        );
+
+        return glb;
+    }
+
+    [Theory]
+    [InlineData("missing weights")]
+    [InlineData("wrong weights count")]
+    [InlineData("zero weights")]
+    [InlineData("out of range joint")]
+    [InlineData("duplicate joint")]
+    [InlineData("wrong bind count")]
+    public void AnInvalidSkinGivesAModelProblem(string defect)
+    {
+        GlbBuilder glb = SkinnedTriangle();
+        JsonObject attributes = glb.Json["meshes"]![0]!["primitives"]![0]!["attributes"]!.AsObject();
+        JsonNode skin = glb.Json["skins"]![0]!;
+        switch (defect)
+        {
+            case "missing weights":
+                attributes.Remove("WEIGHTS_0");
+                break;
+            case "wrong weights count":
+                attributes["WEIGHTS_0"] = glb.Floats([1, 0, 0, 0], "VEC4");
+                break;
+            case "zero weights":
+                attributes["WEIGHTS_0"] = glb.Floats(new float[12], "VEC4");
+                break;
+            case "out of range joint":
+                attributes["JOINTS_0"] = glb.Bytes([2, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0], "VEC4", 3);
+                break;
+            case "duplicate joint":
+                skin["joints"] = new JsonArray(0, 0);
+                break;
+            case "wrong bind count":
+                skin["inverseBindMatrices"] = glb.Floats(new float[16], "MAT4");
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(defect));
+        }
+
+        CookedModel.Parse(glb.Build(), Path).Problem.Should().BeOfType<MalformedModel>();
+    }
+
+    [Fact]
     public void EachVertexKeepsItsPositionNormalTangentAndUvInOrder()
     {
         MeshData mesh = OnlyPart(Read(OneTriangle().Build())).Mesh;

@@ -172,7 +172,7 @@ public sealed class BlueDanubeRendezvousRun : IDisposable
     }
 
     /// <summary>
-    /// How far the drawn copy of the pen is from the person's hand, at <see cref="Passenger.PenHold"/> in its view, in
+    /// How far the held pencil is from the person's hand, at <see cref="Passenger.PenHold"/> in its view, in
     /// meters, while the passenger holds a living copy, or null.
     /// </summary>
     private double? PenFromHand(PassengerState passenger, FrameHandle cabin)
@@ -184,17 +184,19 @@ public sealed class BlueDanubeRendezvousRun : IDisposable
         Double3 hand = World
             .PoseIn(person, cabin)
             .TransformPoint(World.GetRender(person).ViewOffset.TransformPoint(Passenger.PenHold));
+        if (passenger.Value is Strapped)
+            hand = new(0.15, Shuttle.SeatCushionY + 0.32, Shuttle.Seat.Center.Z - 0.40);
         return Double3.Distance(hand, World.PoseIn(copy, cabin).Position);
     }
 
-    /// <summary>The drawn copy of the pen that the passenger holds, or <see cref="Entity.Null"/>.</summary>
+    /// <summary>The held pencil that the passenger holds, or <see cref="Entity.Null"/>.</summary>
     private static Entity CopyOf(PassengerState passenger) =>
         passenger.Value switch
         {
-            Holding holding => holding.Copy,
-            Returning returning => returning.Copy,
-            Strapped strapped => strapped.Copy,
-            Unstrapped unstrapped => unstrapped.Copy,
+            Holding holding => holding.Pencil,
+            Returning returning => returning.Pencil,
+            Strapped strapped => strapped.Pencil,
+            Unstrapped unstrapped => unstrapped.Pencil,
             _ => Entity.Null,
         };
 
@@ -270,7 +272,7 @@ public sealed class BlueDanubeLongRunCollection : ICollectionFixture<BlueDanubeR
 /// <param name="Passenger">What the person does.</param>
 /// <param name="CabinAcceleration">The proper acceleration of the shuttle's frame in the last finished step, in m/s², in its axes.</param>
 /// <param name="ShuttleFrame">The shuttle's frame.</param>
-/// <param name="PenFromHand">How far the drawn copy of the pen is from the person's hand, in meters, while the person holds it, or null.</param>
+/// <param name="PenFromHand">How far the held pencil is from the person's hand, in meters, while the person holds it, or null.</param>
 /// <param name="PersonUp">The person's up, the +Y of its pose, in the axes of the shuttle's frame.</param>
 /// <param name="InShadow">True while the cue <see cref="BlueDanube.InEarthsShadow"/> holds: the shuttle is in Earth's shadow.</param>
 /// <param name="ToSun">The direction from Earth's center to the Sun's, a unit vector in earth's axes.</param>
@@ -335,7 +337,7 @@ public sealed record RendezvousTick(
 /// <param name="Station">The station's center in the shuttle's frame, in meters.</param>
 /// <param name="Person">The person's pose in the shuttle's frame.</param>
 /// <param name="Eye">The person's eye in the shuttle's frame, in meters.</param>
-/// <param name="Pen">The center of the drawn copy of the pen in the person's hand, in the shuttle's frame, while the person holds it, or null.</param>
+/// <param name="Pen">The center of the held pencil in the person's hand, in the shuttle's frame, while the person holds it, or null.</param>
 /// <param name="VerticalFov">The world's vertical view angle, in radians.</param>
 /// <param name="Sun">The Sun's center in the shuttle's frame, in meters.</param>
 /// <param name="Moon">The Moon's center in the shuttle's frame, in meters.</param>
@@ -666,7 +668,7 @@ public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run)
     }
 
     /// <summary>
-    /// The strapped passenger keeps the drawn copy of the pen in its hand: in every tick from the first push of the burn to
+    /// The strapped passenger keeps the held pencil in its hand: in every tick from the first push of the burn to
     /// the end of the brake, the copy lives, and it lies within 5 cm of the hand, which it follows one tick late.
     /// </summary>
     [Fact]
@@ -696,7 +698,8 @@ public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run)
     public void TheCockpitCameraShowsTheStrappedPersonWithThePenAndTheNoseWindow()
     {
         Double3 noseWindow = Shuttle.Glass.Single(pane => pane.Id == "pane-nose").Center,
-            half = DemoSurface.PersonHalf;
+            half = new(0.24, 0.47, 0.16);
+        DPose torso = new(new(0, Shuttle.SeatCushionY + 0.43, Shuttle.Seat.Center.Z), DQuaternion.Identity);
         RendezvousFrame[] cockpit =
         [
             .. run.Frames.Where(frame =>
@@ -721,14 +724,14 @@ public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run)
                 .Should()
                 .BeTrue($"the nose window is in the picture of {frame.Name}");
             CrossesTheBox(
-                    frame.Person.InverseTransformPoint(frame.View.Position),
-                    frame.Person.InverseTransformPoint(frame.Pen.Value),
+                    torso.InverseTransformPoint(frame.View.Position),
+                    torso.InverseTransformPoint(frame.Pen.Value),
                     half
                 )
                 .Should()
                 .BeFalse($"the person's body hides the pen in {frame.Name}");
             Picture
-                .Cover(view: frame.View, body: frame.Person, half: half, verticalFov: frame.VerticalFov)
+                .Cover(view: frame.View, body: torso, half: half, verticalFov: frame.VerticalFov)
                 .Should()
                 .BeLessThanOrEqualTo(0.5, frame.Name);
         }

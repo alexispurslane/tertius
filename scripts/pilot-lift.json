@@ -1,0 +1,15 @@
+{
+  "scene": "demo-exit",
+  "window": {"width": 960, "height": 540},
+  "steps": [
+    {"do":"post","to":{"kind":"entity","id":"person"},"event":"LeaveShip","payload":null},
+    {"do":"run","ticks":3708},
+    {"do":"camera","entity":"boot-camera"},
+    {"do":"film","name":"lift","frames":50,"every":2},
+    {"do":"run","ticks":7172},
+    {"do":"camera","entity":"glove-camera"},
+    {"do":"film","name":"hold","frames":30,"every":2},
+    {"do":"post","to":{"kind":"entity","id":"person"},"event":"PlayWithBoxes","payload":null},
+    {"do":"film","name":"release","frames":45,"every":2}
+  ]
+}

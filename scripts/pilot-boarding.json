@@ -1,0 +1,17 @@
+{
+  "scene": "demo-surface",
+  "window": {"width": 960, "height": 540},
+  "steps": [
+    {"do":"run","ticks":30},
+    {"do":"camera","entity":"boot-camera"},
+    {"do":"film","name":"walk","frames":50,"every":2},
+    {"do":"run","ticks":1140},
+    {"do":"camera","entity":"seat-camera"},
+    {"do":"film","name":"sit","frames":55,"every":2},
+    {"do":"run","ticks":201},
+    {"do":"post","to":{"kind":"entity","id":"shuttle"},"event":"Ignition","payload":null},
+    {"do":"run","ticks":19849},
+    {"do":"camera","entity":"glove-camera"},
+    {"do":"film","name":"grasp","frames":155,"every":2}
+  ]
+}
