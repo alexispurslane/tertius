@@ -22,7 +22,10 @@ public sealed class SpawnValidationTests
             "the same component twice",
             "a frame with no bubble",
             "a stale attachment parent",
-            "an attachment parent that owns a root frame"
+            "an attachment parent that owns a root frame",
+            "a model with a mesh",
+            "a model with a material",
+            "a model at a scale that differs along the axes"
         );
 
     /// <summary>A description with the named defect. <paramref name="staleFrame"/> and <paramref name="staleParent"/> are handles that have been destroyed.</summary>
@@ -57,6 +60,23 @@ public sealed class SpawnValidationTests
             "a stale attachment parent" => new() { Frame = root, AttachTo = staleParent },
             // The owner of a root frame is in no frame, so it has none to give a child.
             "an attachment parent that owns a root frame" => new() { AttachTo = root.Entity },
+            // Each part of a model names its own mesh and material, so a row with both is ambiguous.
+            "a model with a mesh" => new()
+            {
+                Frame = root,
+                Render = new RenderData { Model = new(0), Mesh = new(0) },
+            },
+            "a model with a material" => new()
+            {
+                Frame = root,
+                Render = new RenderData { Model = new(0), Material = new(0) },
+            },
+            // A turned part under a scale that differs along the axes is a shear, which no part instance can draw.
+            "a model at a scale that differs along the axes" => new()
+            {
+                Frame = root,
+                Render = new RenderData { Model = new(0), Scale = new(1, 2, 1) },
+            },
             _ => throw new ArgumentOutOfRangeException(nameof(defect), defect, null),
         };
     }
