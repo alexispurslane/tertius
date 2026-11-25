@@ -5,12 +5,17 @@ approval record, the source cache, the staging folder, the download and the list
     nix develop --command python3 -I tools/test_blue_danube_assets.py
 
 The standard library only. No test touches the network or the real package: each one works in a new folder, and a fake
-download function stands in for HTTPS.
+download function stands in for HTTPS. In the assets shell, where TERTIUS_BLENDER names Blender, the file also runs the
+habitat overlay's own check (tools/blue-danube-assets/check_habitat.py):
+
+    nix develop .#assets --command python3 -I tools/test_blue_danube_assets.py
 """
 
 import hashlib
 import importlib.util
 import json
+import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -291,6 +296,18 @@ class PioneersColladaMeshes(unittest.TestCase):
         _, instances, dropped = self.read()
         self.assertEqual(([i.node for i in instances], dropped), (["panel"], ["navlight_red_001"]))
 
+
+@unittest.skipUnless(os.environ.get("TERTIUS_BLENDER"), "needs Blender: run in nix develop .#assets")
+class TheHabitatOverlay(unittest.TestCase):
+    """The ring's galleries (habitat.py) survive a glTF round trip: panes on both faces, their light levels, one level
+    off, and the packed normal map (check_habitat.py, the overlay author's own check)."""
+
+    def test_the_habitat_check_passes_in_blender(self):
+        result = subprocess.run(
+            [os.environ["TERTIUS_BLENDER"], "-b", "--factory-startup", "--python-exit-code", "1", "-P",
+             str(TOOLS / "blue-danube-assets" / "check_habitat.py")],
+            capture_output=True, text=True, check=False)
+        self.assertEqual(result.returncode, 0, result.stdout[-2000:] + result.stderr[-2000:])
 
 if __name__ == "__main__":
     unittest.main()

@@ -54,6 +54,8 @@ def main(argv):
         pieces = _pioneer(convert, sources, report)
     elif convert["kind"] == "gltf":
         pieces = _gltf(convert, sources)
+    elif convert["kind"] == "blend":
+        pieces = _blend(convert, sources, report)
     else:
         raise ValueError(f"unknown conversion kind {convert['kind']!r}")
 
@@ -231,6 +233,112 @@ def _gltf(convert, sources):
     """Imports the glTF file of the sidecar. Returns its mesh objects by name."""
     bpy.ops.import_scene.gltf(filepath=str(sources / convert["file"]))
     return {ob.name: ob for ob in bpy.context.scene.objects if ob.type == "MESH"}
+
+
+# Blender files with a rig.
+
+
+def _blend(convert, sources, report):
+    """Opens the .blend file of the sidecar, poses its armature with the sidecar's fixed bone angles, applies the pose to
+    the kept meshes, rebuilds their materials from the fetched maps, and joins them into one piece standing on height 0,
+    scaled to the sidecar's height. Every other object is removed."""
+    bpy.ops.wm.open_mainfile(filepath=str(sources / convert["file"]))
+    armature = next(ob for ob in bpy.data.objects if ob.type == "ARMATURE")
+    _pose(armature, convert.get("pose", {}))
+    keep = set(convert["keep"])
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    kept = []
+    for ob in list(bpy.data.objects):
+        if ob.type != "MESH" or ob.name not in keep:
+            continue
+        posed = bpy.data.meshes.new_from_object(ob.evaluated_get(depsgraph))
+        posed.transform(ob.matrix_world)
+        baked = bpy.data.objects.new(ob.name + ".posed", posed)
+        bpy.context.scene.collection.objects.link(baked)
+        kept.append(baked)
+    for ob in list(bpy.data.objects):
+        if ob not in kept:
+            bpy.data.objects.remove(ob, do_unlink=True)
+    _blend_materials(convert, sources)
+    piece = _join(kept, convert["piece"])
+    report["sourceHeight"] = _stand(piece, float(convert["height"]))
+    return {piece.name: piece}
+
+
+def _pose(armature, angles):
+    """Clears the armature's animation and constraints, then turns each named bone about the armature's axis by its fixed
+    angle in degrees, about the bone's head, parents before children in the sidecar's order."""
+    armature.animation_data_clear()
+    for bone in armature.pose.bones:
+        for constraint in list(bone.constraints):
+            bone.constraints.remove(constraint)
+        bone.matrix_basis.identity()
+    bpy.context.view_layer.update()
+    for name, (axis, degrees) in angles.items():
+        bone = armature.pose.bones[name]
+        head = bone.matrix.to_translation()
+        turn = Matrix.Translation(head) @ Matrix.Rotation(math.radians(degrees), 4, axis) @ Matrix.Translation(-head)
+        bone.matrix = turn @ bone.matrix
+        bpy.context.view_layer.update()
+
+
+def _blend_materials(convert, sources):
+    """Rebuilds each material whose name ends in a key of the sidecar's materials: its diffuse map, its normal map, with
+    the green channel flipped for a map in the DirectX convention, and the sidecar's roughness."""
+    for material in bpy.data.materials:
+        key = material.name.rsplit("/", 1)[-1]
+        spec = convert.get("materials", {}).get(key)
+        if spec is None:
+            continue
+        tree = material.node_tree
+        tree.nodes.clear()
+        bsdf = tree.nodes.new("ShaderNodeBsdfPrincipled")
+        output = tree.nodes.new("ShaderNodeOutputMaterial")
+        tree.links.new(bsdf.outputs["BSDF"], output.inputs["Surface"])
+        bsdf.inputs["Roughness"].default_value = float(convert.get("roughness", 0.5))
+        bsdf.inputs["Metallic"].default_value = 0.0
+        material.use_backface_culling = True
+        diffuse = tree.nodes.new("ShaderNodeTexImage")
+        diffuse.image = bpy.data.images.load(str(sources / spec["diffuse"]), check_existing=True)
+        tree.links.new(diffuse.outputs["Color"], bsdf.inputs["Base Color"])
+        normal_image = bpy.data.images.load(str(sources / spec["normal"]), check_existing=True)
+        normal_image.colorspace_settings.name = "Non-Color"
+        if spec.get("flipGreen"):
+            rgba = glow.pixels(normal_image)
+            rgba[..., 1] = 1.0 - rgba[..., 1]
+            normal_image = glow.new_image(normal_image.name + ".opengl", rgba)
+            normal_image.colorspace_settings.name = "Non-Color"
+        normal = tree.nodes.new("ShaderNodeTexImage")
+        normal.image = normal_image
+        normal_map = tree.nodes.new("ShaderNodeNormalMap")
+        tree.links.new(normal.outputs["Color"], normal_map.inputs["Color"])
+        tree.links.new(normal_map.outputs["Normal"], bsdf.inputs["Normal"])
+
+
+def _join(objects, name):
+    bpy.context.view_layer.update()
+    for ob in bpy.context.scene.objects:
+        ob.select_set(ob in objects)
+    bpy.context.view_layer.objects.active = objects[0]
+    bpy.ops.object.join()
+    joined = bpy.context.view_layer.objects.active
+    joined.name = name
+    joined.data.name = name
+    return joined
+
+
+def _stand(obj, height):
+    """Scales `obj`'s mesh to `height` meters tall, with its lowest point at height 0 and its footprint centered on the
+    origin. Returns the height before, in the file's units."""
+    points = np.empty(len(obj.data.vertices) * 3)
+    obj.data.vertices.foreach_get("co", points)
+    points = points.reshape(-1, 3)
+    low, high = points.min(axis=0), points.max(axis=0)
+    source_height = float(high[2] - low[2])
+    scale = height / source_height
+    center = Matrix.Translation((-(low[0] + high[0]) / 2, -(low[1] + high[1]) / 2, -low[2]))
+    obj.data.transform(Matrix.Scale(scale, 4) @ center)
+    return round(source_height, 4)
 
 
 # The steps after the load.

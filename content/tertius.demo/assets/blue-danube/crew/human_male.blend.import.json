@@ -1,0 +1,159 @@
+{
+  "source": {
+    "title": "Human male, light armour (Unvanquished)",
+    "authors": [
+      "Angelo (model and textures)",
+      "Stannum (light armour touch-up, gloves)",
+      "RXMT (edited glove texture)"
+    ],
+    "provider": "other",
+    "page": "https://github.com/UnvanquishedAssets/res-players_src.dpkdir/tree/bbf9e8f276b3cf3f4b3fab217f2c947d2dd25515/models/players/human_male",
+    "repository": "https://github.com/UnvanquishedAssets/res-players_src.dpkdir",
+    "commit": "bbf9e8f276b3cf3f4b3fab217f2c947d2dd25515",
+    "upstreamPath": "models/players/human_male",
+    "creditTable": "https://github.com/Unvanquished/unvanquished-documentation-data/blob/master/media-credit-table/models.tsv (rows Male, Light Armour, Glove / edited armour)",
+    "license": "CC-BY-SA-3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/",
+    "attribution": "\"Human male, light armour\" by Angelo, with touch-ups by Stannum and an edited glove texture by RXMT, from Unvanquished (https://github.com/UnvanquishedAssets/res-players_src.dpkdir/tree/bbf9e8f276b3cf3f4b3fab217f2c947d2dd25515/models/players/human_male), CC-BY-SA-3.0. Changed for Tertius: see \"changes\".",
+    "retrieved": "2026-11-24",
+    "files": {
+      "human_male.blend": {
+        "url": "https://raw.githubusercontent.com/UnvanquishedAssets/res-players_src.dpkdir/bbf9e8f276b3cf3f4b3fab217f2c947d2dd25515/models/players/human_male/human_male.blend",
+        "bytes": 2025641,
+        "sha256": "sha256:86b438e60a54ebc6ba93932dd0cc91f30af23ba0e555e4d47610de190e70ab7a"
+      },
+      "body_light.skin": {
+        "url": "https://raw.githubusercontent.com/UnvanquishedAssets/res-players_src.dpkdir/bbf9e8f276b3cf3f4b3fab217f2c947d2dd25515/models/players/human_male/body_light.skin",
+        "bytes": 1099,
+        "sha256": "sha256:355ec8efc35f4da86c9fd3c855155c5694aaf47de08ea9168b4298065b61d159"
+      },
+      "armor.png": {
+        "url": "https://raw.githubusercontent.com/UnvanquishedAssets/res-players_src.dpkdir/bbf9e8f276b3cf3f4b3fab217f2c947d2dd25515/models/players/human_male/armor.png",
+        "bytes": 7562587,
+        "sha256": "sha256:927a312281a595cd5c4b0ecc3c43ece5f029bf55a57f4930b9ef2cca51b8694e"
+      },
+      "armor_n.png": {
+        "url": "https://raw.githubusercontent.com/UnvanquishedAssets/res-players_src.dpkdir/bbf9e8f276b3cf3f4b3fab217f2c947d2dd25515/models/players/human_male/armor_n.png",
+        "bytes": 5146299,
+        "sha256": "sha256:1be16b923bdfc87743ef07ad2b2c1f51224b20a38f155443636b3765a0427d3f"
+      },
+      "base.png": {
+        "url": "https://raw.githubusercontent.com/UnvanquishedAssets/res-players_src.dpkdir/bbf9e8f276b3cf3f4b3fab217f2c947d2dd25515/models/players/human_male/base.png",
+        "bytes": 6838734,
+        "sha256": "sha256:2430d6ab2dfc930ca563a412a28fe81cffb458d2611c808a782bd9c366b08daf"
+      },
+      "base_n.png": {
+        "url": "https://raw.githubusercontent.com/UnvanquishedAssets/res-players_src.dpkdir/bbf9e8f276b3cf3f4b3fab217f2c947d2dd25515/models/players/human_male/base_n.png",
+        "bytes": 6932792,
+        "sha256": "sha256:4902e30a6c729312f7ecc3a4eb0bed0d99a4805ccaa1dc25762dd5c76f7eef08"
+      },
+      "head.jpg": {
+        "url": "https://raw.githubusercontent.com/UnvanquishedAssets/res-players_src.dpkdir/bbf9e8f276b3cf3f4b3fab217f2c947d2dd25515/models/players/human_male/head.jpg",
+        "bytes": 365665,
+        "sha256": "sha256:589daceab1cdf906f04b3ece334794cddf125df886261da40c33ae4804667825"
+      },
+      "head_n.jpg": {
+        "url": "https://raw.githubusercontent.com/UnvanquishedAssets/res-players_src.dpkdir/bbf9e8f276b3cf3f4b3fab217f2c947d2dd25515/models/players/human_male/head_n.jpg",
+        "bytes": 137224,
+        "sha256": "sha256:fb5185960e5e1e9a02e4c6ac49b7322ba98ab0a75fc7a30d4564b8b92338ab1f"
+      },
+      "helmet.png": {
+        "url": "https://raw.githubusercontent.com/UnvanquishedAssets/res-players_src.dpkdir/bbf9e8f276b3cf3f4b3fab217f2c947d2dd25515/models/players/human_male/helmet.png",
+        "bytes": 1637884,
+        "sha256": "sha256:8270e5c2560c32f695921a6fe5e11992cb248aeb50b6aa1406f43cb97fbf7dc2"
+      },
+      "helmet_n.png": {
+        "url": "https://raw.githubusercontent.com/UnvanquishedAssets/res-players_src.dpkdir/bbf9e8f276b3cf3f4b3fab217f2c947d2dd25515/models/players/human_male/helmet_n.png",
+        "bytes": 1274242,
+        "sha256": "sha256:ff535e48c1a4129a42e9dbc9c20a01979bede65785b4614b776af984ecc006af"
+      }
+    },
+    "changes": [
+      "Kept the body, head, helmet and light-armour meshes that body_light.skin lists; dropped the weapons, the plane and the tag objects.",
+      "Posed the armature with fixed bone angles (arms lowered to the sides, see the \"pose\" block) and applied the pose: a static mesh, no rig.",
+      "Scaled to 1.80 m tall with the feet at height 0, and turned to face -Z; converted to one glTF binary.",
+      "Materials rebuilt from the diffuse and normal maps: a non-metal of roughness 0.57. helmet_a.png is not used.",
+      "The green channel of helmet_n.png and head_n.png is flipped to the OpenGL convention: a curl test of the maps found them in the DirectX convention, and base_n.png and armor_n.png in the OpenGL one."
+    ],
+    "approved": {
+      "on": "2026-11-24",
+      "by": "the user, through the ter-9wwx orchestrator",
+      "record": "sha256:da6a766b4ca40536079db172d6bab06938ee4f2ef250016f35e06c49ef85b474"
+    }
+  },
+  "convert": {
+    "kind": "blend",
+    "file": "human_male.blend",
+    "piece": "passenger",
+    "keep": [
+      "armor_chest",
+      "armor_wrist.R",
+      "armor_wrist.L",
+      "armor_shin.L",
+      "armor_knee.L",
+      "armor_shoe.L",
+      "armor_knee.R",
+      "armor_shoe.R",
+      "armor_shin.R",
+      "armor_thigh.L",
+      "armor_thigh.R",
+      "armor_groin",
+      "armor_shoulder.R",
+      "armor_shoulder.L",
+      "armor_neck",
+      "body",
+      "eye.L",
+      "eye.R",
+      "head",
+      "helmet",
+      "teeth_lower",
+      "teeth_upper"
+    ],
+    "pose": {
+      "upper_arm.L": [
+        "Y",
+        13
+      ],
+      "forearm.L": [
+        "Y",
+        8
+      ],
+      "upper_arm.R": [
+        "Y",
+        -13
+      ],
+      "forearm.R": [
+        "Y",
+        -8
+      ]
+    },
+    "height": 1.8,
+    "front": "-X",
+    "materials": {
+      "armor": {
+        "diffuse": "armor.png",
+        "normal": "armor_n.png"
+      },
+      "body": {
+        "diffuse": "base.png",
+        "normal": "base_n.png"
+      },
+      "head": {
+        "diffuse": "head.jpg",
+        "normal": "head_n.jpg",
+        "flipGreen": true
+      },
+      "helmet": {
+        "diffuse": "helmet.png",
+        "normal": "helmet_n.png",
+        "flipGreen": true
+      }
+    },
+    "roughness": 0.57,
+    "glow": {
+      "strength": 60,
+      "threshold": 0.05,
+      "bins": 4
+    }
+  }
+}
