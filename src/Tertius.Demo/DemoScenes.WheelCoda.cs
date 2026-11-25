@@ -117,12 +117,12 @@ public static partial class DemoScenes
 
         /// <summary>
         /// The walk into the stack and through it, from where the stroll ends: to the stack's line across the floor, and
-        /// along +Y into the stack's middle, 1.15 m past its near face.
+        /// along +Y into the stack's middle, 1.45 m past its near face.
         /// </summary>
         public static Waypoint[] Shove(FrameHandle station) =>
             [
                 new(station, Floor.OnFacet(facet: Facet, height: Standing, y: 1)),
-                new(station, Floor.OnFacet(facet: Facet, height: Standing, y: StackY + 0.9)),
+                new(station, Floor.OnFacet(facet: Facet, height: Standing, y: StackY + 1.2)),
             ];
 
         /// <summary>The walk to the stand, straight back along -Y.</summary>

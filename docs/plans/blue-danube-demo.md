@@ -4597,7 +4597,7 @@ On a real World, from the scene `demo-exit`, 2026-11-24:
 Each fault is pinned by a test so that a change shows.
 
 - The person reports not standing for 2 ticks at its hand-off from the cabin's frame into the station's, 9.78 s into the ride. Its place on the floor holds to 0.1 mm across them. The engine reports a character as not standing at a hand-off.
-- The person rides one tick of the lift's motion above its floor: 0.33 m at 20 m/s. The engine moves a standing character with its ground's velocity of the step before, so it stands where the floor was one tick earlier. The gap is v / 60 at every speed and closes at the stop.
+- Resolved in ter-22b9. The original ride left the person's feet 0.33 m above the floor at 20 m/s. The corrected cruise trace stays within 0.030 mm of the moving floor.
 - The climb of the hatch's 0.1 m sill throws the person up at 0.68 m/s. In the deck's 0.19 m/s² it flies for 3.8 s, up to 0.67 m above its stance, before it lands on the deck. Under 1 g the same throw is a hop of 2 cm.
 - In the docking's move out, the belt lets go in the weak, tilted gravity, and the person settles 0.55 m to port of the seat stand, 0.62 m at the landing's jolt.
 
