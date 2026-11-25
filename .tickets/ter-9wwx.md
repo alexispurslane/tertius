@@ -30,3 +30,21 @@ The art direction is a working orbital port. The selected exterior models are th
 **2026-11-25T00:21:56Z**
 
 Acceptance adds a full run on a Linux GPU in the cloud (user, 2026-11-24). Start it only after the combined Release build and the art and physics fit are ready, never while assets are still missing. On a Runpod worker, through the tools/runpod workbench and its spend caps: stage the verified asset inputs, do a fresh setup and build, then run the standard Blue Danube script without a break, from the launch through the docking and the rim arrival to the coda, with real art and the normal film cadence. Settings as the earlier survey: a 1920x1080 window with FSR 3.1 at a fixed 2/3 scale (1280x720 render). Record the hardware, the build, the actual scale, the clocks and the frame count. Report the GPU render time (median and p95 in ms, and as FPS), excluding image readback, capture and encoding; say how they are excluded, and do not subtract separate p95s. Report the wall FPS (rendered frames divided by elapsed render time) separately from provisioning, build time and the film's playback FPS. Give per-section figures where the telemetry allows. Check that the coda ran. Bring back stills or film from the worker and the timing logs. No separate full run on the Mac is needed.
+
+**2026-11-25T02:45:12Z**
+
+Engine model slice, branch ter-9wwx-engine-models (first API commit f8a43397e). ModelId, ModelPart, ModelDesc, CreateModel, RenderData.Model and RenderInstance.Model exist. The batcher's ModelExpansion turns each model instance into one instance per part, so culling, shadows, motion, impostors and environment faces see ordinary instances. Rule: a model draws only at a uniform entity scale (spawn refuses another). Tests: full Checked 11,427 passed, full Release 11,429 passed. ModelRenderTests: the model's image is byte for byte the image of the same parts as plain entities (model-parts.png).
+
+Mutants. Stryker, cloud, a0a549e60, valid: 17 killed, 1 survived, 5 no-mutant, 1 removed. tools/mutate.py: 51 listed, 47 killed, 2 survived as equivalent, 2 build-failed. Rows that were not killed:
+
+| id | place | result | answer |
+|---|---|---|---|
+| Simulation-4888 | World.Entities.cs:452 | survived | Judgment call: the message wording is no behavior. Stryker ignore comment. |
+| Simulation L210, L448, L449, L454, L456 | World.Entities.cs | no-mutant | Listed as S01 to S06: all killed but S01 (build-failed), whose throw Simulation-4716 kills. |
+| Simulation R538 | RenderSnapshotBuilder.cs | removed | The old visibility line; Draws replaces it, and Simulation-3745 to 3750 kill its mutants. |
+| E01 | ModelExpansion.cs:47 | build-failed | Equivalent: always copying gives the same spans as the pass-through. |
+| E08 | ModelExpansion.cs:90 | survived | Equivalent: HasVolume excludes a zero previous scale, and a zero current scale draws in no view. |
+| U07 | UploadQueue.cs:265 | survived | Equivalent: None's value is -1, which fails the unsigned bound. |
+| B02 (first form) | SceneBatcher.cs:439 | build-failed | Rewritten as poses: [], killed. |
+
+Survivors E04, E07, E16, E22, U14 and B01 got tests that kill them (commit 108b082df). Core-4083 to 4089 survived the first run, which was NOT VALID (a Dubious test), and ModelIdTests kills them in the valid run.

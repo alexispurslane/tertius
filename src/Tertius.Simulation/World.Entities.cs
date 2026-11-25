@@ -207,6 +207,8 @@ public sealed partial class World
             );
         if (RigPoseProblem(desc) is { } rigPose)
             throw new ArgumentException($"The new entity cannot take its rig pose: {rigPose}.", nameof(desc));
+        if (ModelRowProblem(desc) is { } modelRow)
+            throw new ArgumentException($"The new entity cannot draw its model: {modelRow}.", nameof(desc));
         (IComponent[] components, EventMask[] wants) = ComponentsByPriority(desc);
         Topic[] subscriptions = desc.Subscriptions is { Count: > 0 } subs ? [.. subs] : [];
         return new(components, wants, subscriptions);
@@ -434,6 +436,25 @@ public sealed partial class World
         for (int morph = 0; morph < pose.Weights.Length; morph++)
             if (!float.IsFinite(pose.Weights[morph]))
                 return $"the weight {pose.Weights[morph]} of the morph {morph} is not finite";
+        return null;
+    }
+
+    /// <summary>
+    /// The reason that a spawn refuses the model of the render row of <paramref name="desc"/>, or null: a row with a model
+    /// and a mesh or a material, or a model at a scale that differs along the axes. A tick can still write either into the
+    /// row, and the renderer then draws the model alone, or nothing (ARCHITECTURE.md, "Models").
+    /// </summary>
+    private static string? ModelRowProblem(SpawnDesc desc)
+    {
+        if (desc.Render is not { } render || render.Model.IsNone)
+            return null;
+        if (!render.Mesh.IsNone || !render.Material.IsNone)
+            // Stryker disable once String : judgment call, the wording of the message is no behavior; the refusal is.
+            return $"the row also names {render.Mesh} and {render.Material}, and each part of a model names its own";
+        // A turned part under such a scale is sheared, and a part instance has no shear.
+        bool uniform = render.Scale.X == render.Scale.Y && render.Scale.Y == render.Scale.Z;
+        if (!uniform)
+            return $"its scale {render.Scale} differs along the axes";
         return null;
     }
 

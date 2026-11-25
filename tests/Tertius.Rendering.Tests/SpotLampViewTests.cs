@@ -40,6 +40,7 @@ public sealed class SpotLampViewTests
                 highestStops: highestStops,
                 meshes: Meshes,
                 materials: MaterialSlots.Of(8),
+                models: [],
                 environment: new WithoutMap(),
                 region: DeformRegion.None,
                 frame: Batchers.FirstFrame(),

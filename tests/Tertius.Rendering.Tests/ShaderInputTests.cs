@@ -28,6 +28,7 @@ public sealed class ShaderInputTests
                 highestStops: Batchers.HighestStops,
                 meshes: Meshes,
                 materials: MaterialSlots.Of(1),
+                models: [],
                 environment: new WithoutMap(),
                 region: DeformRegion.None,
                 frame: Batchers.FirstFrame(),

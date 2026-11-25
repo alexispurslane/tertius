@@ -31,6 +31,7 @@ public sealed class BackFaceRunsTests
                 highestStops: Batchers.HighestStops,
                 meshes: Meshes,
                 materials: MaterialSlots.Of(10),
+                models: [],
                 environment: default,
                 region: DeformRegion.None,
                 frame: Batchers.FirstFrame(),

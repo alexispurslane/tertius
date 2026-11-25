@@ -79,6 +79,9 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     // The entities of this frame's snapshot that hold a light, which the lights carry. Refilled each frame.
     private readonly HashSet<Entity> lightHolders = [];
 
+    // The snapshot's instances with each model expanded into its parts: what every collector of the frame reads.
+    private readonly ModelExpansion expansion = new();
+
     // The commands of one face per depth range, indexed by DepthRanges.
     private readonly RangeRuns[] faceRanges = new RangeRuns[DepthRanges.Count];
 
@@ -99,6 +102,9 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     /// The material slots on the GPU, the default's first. <see cref="MaterialId.None"/> and ids that are not on the GPU
     /// draw with the default material (<see cref="MaterialStore.Resolve"/>).
     /// </param>
+    /// <param name="models">
+    /// The renderer's models by <see cref="ModelId.Value"/>. Each instance of one draws as its parts (<see cref="ModelExpansion"/>).
+    /// </param>
     /// <param name="environment">
     /// The faces that this frame draws of each served map, root first, and their latest irradiance, or no map. The served
     /// maps are those of <paramref name="snapshot"/>'s chain (docs/plans/environment-maps-per-frame.md).
@@ -115,12 +121,15 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         float highestStops,
         ReadOnlySpan<MeshInfo> meshes,
         ReadOnlySpan<MaterialInfo> materials,
+        ReadOnlySpan<ModelDesc> models,
         EnvironmentDraw environment,
         DeformRegion region,
         FrameHistory.PendingFrame frame,
         PreparedScene scene
     )
     {
+        // First, because every collector reads the instances that it gives.
+        expansion.Expand(snapshot, models);
         alpha = ClampAlpha(alpha);
         scene.Reset();
         scene.Camera = InterpolateCamera(
@@ -358,8 +367,8 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     )
     {
         scene.SetStaticMeshes(meshes);
-        ReadOnlySpan<RenderRigPose> poses = CollectionsMarshal.AsSpan(snapshot.RigPoses);
-        ReadOnlySpan<RenderInstance> instances = CollectionsMarshal.AsSpan(snapshot.Instances);
+        ReadOnlySpan<RenderRigPose> poses = expansion.RigPoses;
+        ReadOnlySpan<RenderInstance> instances = expansion.Instances;
         EnsureCapacity(ref entryMeshes, poses.Length);
         for (int entry = 0; entry < poses.Length; entry++)
         {
@@ -424,10 +433,10 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         return scene.AddDeformed(source: mesh, deform: deform, region: region, bound: bound);
     }
 
-    /// <summary>The frame meshes of the snapshot's posed instances, by entry of its rig poses, while they are walked.</summary>
-    private FrameMeshCursor FrameMeshes(RenderSnapshot snapshot, PreparedScene scene) =>
+    /// <summary>The frame meshes of the expanded posed instances, by entry of their rig poses, while they are walked.</summary>
+    private FrameMeshCursor FrameMeshes(PreparedScene scene) =>
         new(
-            poses: CollectionsMarshal.AsSpan(snapshot.RigPoses),
+            poses: expansion.RigPoses,
             entryMeshes: entryMeshes,
             staticMeshCount: scene.StaticMeshCount
         );
@@ -446,11 +455,12 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         PreparedScene scene
     )
     {
-        ReadOnlySpan<RenderInstance> instances = CollectionsMarshal.AsSpan(snapshot.Instances);
-        scene.SubmittedInstances = instances.Length;
+        ReadOnlySpan<RenderInstance> instances = expansion.Instances;
+        // The snapshot's own count, with a model as one, as a frame that the output skips counts it.
+        scene.SubmittedInstances = snapshot.Instances.Count;
         CameraView camera = scene.Camera;
         ReadOnlySpan<MeshInfo> meshes = scene.Meshes;
-        FrameMeshCursor frameMeshes = FrameMeshes(snapshot, scene);
+        FrameMeshCursor frameMeshes = FrameMeshes(scene);
         CollectLightHolders(snapshot);
         bool fitsMaps = scene.Ambient.TryGetValue(out MapAmbient _);
         var join = new MotionJoin(frame: frame, previousEye: scene.PreviousView.Eye);

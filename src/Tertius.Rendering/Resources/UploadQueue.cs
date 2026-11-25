@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// Receives meshes, textures and materials from any thread and hands them to the render thread in one batch per
+/// Receives meshes, textures, materials and models from any thread and hands them to the render thread in one batch per
 /// frame. Ids are dense and assigned under the same lock that queues the data, so a batch never holds a material
 /// whose textures are missing from it or from an earlier batch.
 /// </summary>
@@ -21,6 +21,7 @@ internal sealed class UploadQueue(int maxTextureSize, long deformBytesLimit)
     private int meshCount;
     private int textureCount;
     private int materialCount;
+    private int modelCount;
     private readonly int maxTextureSize = maxTextureSize;
     private readonly long deformBytesLimit = deformBytesLimit;
     private long deformVertexBytes;
@@ -213,6 +214,63 @@ internal sealed class UploadQueue(int maxTextureSize, long deformBytesLimit)
     }
 
     /// <summary>
+    /// Queues a model. Its parts name meshes that this queue made, and materials that it made or
+    /// <see cref="MaterialId.None"/>, so a batch never holds a model whose meshes are missing from it or from an earlier one.
+    /// </summary>
+    /// <exception cref="ArgumentException">
+    /// No parts array, more parts than a part index counts, or a part with no mesh, an id that this queue did not make, an
+    /// offset that is not finite or not a rotation, a scale without volume, or a bounding radius that is negative or not
+    /// finite.
+    /// </exception>
+    public ModelId AddModel(ModelDesc model)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        if (model.Parts.IsDefault)
+            throw new ArgumentException("A model needs a parts array, which may be empty.", nameof(model));
+        // RenderInstance.Part numbers the parts.
+        if (model.Parts.Length > ushort.MaxValue + 1)
+            throw new ArgumentException($"A model has at most {ushort.MaxValue + 1} parts.", nameof(model));
+        foreach (ModelPart part in model.Parts)
+            CheckPartShape(part);
+        lock (gate)
+        {
+            foreach (ModelPart part in model.Parts)
+                CheckPartIds(part);
+            var id = new ModelId(Next(ref modelCount, "models"));
+            pending.Models.Add((id, model));
+            return id;
+        }
+    }
+
+    /// <summary>Refuses a part whose offset is not finite or not a rotation, whose scale has no volume, or whose radius is negative or not finite.</summary>
+    private static void CheckPartShape(in ModelPart part)
+    {
+        bool finite = ShaderInput.IsFinite(part.Offset.Position) && float.IsFinite(part.BoundingRadius);
+        if (!finite)
+            throw new ArgumentException($"The part {part} holds a number that is not finite.", nameof(part));
+        // The rule of a rig's bind rotation: one that the renderer can normalize. A NaN fails the comparison.
+        float lengthSquared = part.Offset.Rotation.LengthSquared();
+        bool isRotation = float.IsFinite(lengthSquared) && lengthSquared > 1e-12f;
+        if (!isRotation)
+            throw new ArgumentException($"The offset rotation of the part {part} is not a rotation.", nameof(part));
+        if (!SceneBatcher.HasVolume(part.Scale))
+            throw new ArgumentException($"The scale of the part {part} has no volume that the batcher draws.", nameof(part));
+        if (part.BoundingRadius < 0)
+            throw new ArgumentException($"The bounding radius of the part {part} is negative.", nameof(part));
+    }
+
+    /// <summary>Refuses a part with no mesh, or with a mesh or a material that this queue did not make.</summary>
+    private void CheckPartIds(in ModelPart part)
+    {
+        bool hasMesh = !part.Mesh.IsNone && (uint)part.Mesh.Value < (uint)meshCount;
+        if (!hasMesh)
+            throw new ArgumentException($"A part names {part.Mesh}, which this renderer did not create.", nameof(part));
+        bool hasMaterial = part.Material.IsNone || (uint)part.Material.Value < (uint)materialCount;
+        if (!hasMaterial)
+            throw new ArgumentException($"A part names {part.Material}, which this renderer did not create.", nameof(part));
+    }
+
+    /// <summary>
     /// Takes the next id from a counter. The counter must not wrap: after <see cref="int.MaxValue"/> it would count
     /// up through the negative numbers to −1, the value of None, and a real resource would then read as None.
     /// </summary>
@@ -259,17 +317,19 @@ internal sealed class UploadQueue(int maxTextureSize, long deformBytesLimit)
         public readonly List<(MeshId Id, StagedMesh Mesh)> Meshes = [];
         public readonly List<(TextureId Id, TextureData Data)> Textures = [];
         public readonly List<(MaterialId Id, MaterialDesc Desc)> Materials = [];
+        public readonly List<(ModelId Id, ModelDesc Desc)> Models = [];
 
         /// <summary>The packed deformation of each entry of <see cref="Meshes"/>, at the same index, or null for a rigid mesh.</summary>
         public readonly List<PackedDeform?> Deforms = [];
 
-        public bool IsEmpty => Meshes.Count == 0 && Textures.Count == 0 && Materials.Count == 0;
+        public bool IsEmpty => Meshes.Count == 0 && Textures.Count == 0 && Materials.Count == 0 && Models.Count == 0;
 
         public void Clear()
         {
             Meshes.Clear();
             Textures.Clear();
             Materials.Clear();
+            Models.Clear();
             Deforms.Clear();
         }
     }

@@ -44,6 +44,7 @@ public sealed class ShadowPassTests
                 highestStops: 0,
                 meshes: Meshes,
                 materials: MaterialSlots.Of(1),
+                models: [],
                 environment: new WithoutMap(),
                 region: DeformRegion.None,
                 frame: Batchers.FirstFrame(),
