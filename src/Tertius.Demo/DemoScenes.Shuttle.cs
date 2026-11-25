@@ -395,8 +395,8 @@ public static partial class DemoScenes
         public static Double3 RampTop { get; } = new(0, CockpitFloorY + 0.9, RampEndZ);
 
         /// <summary>
-        /// Four warm cabin wall lamps mounted on interior structural ribs at Z = -5.0 m (forward ramp ribs) and Z = +0.2 m
-        /// (aft cabin ribs), at Y = 1.25 m on the solid lower walls cleanly below all 21 window openings.
+        /// Four warm diffused cabin wall sconces mounted on interior structural ribs at Z = -5.0 m (forward ramp ribs) and
+        /// Z = +0.2 m (aft cabin ribs), at Y = 1.25 m on the solid lower walls cleanly below all 21 window openings.
         /// </summary>
         public static IReadOnlyList<(string Id, BoundingBox Panel)> Lamps { get; } =
         [
@@ -413,7 +413,23 @@ public static partial class DemoScenes
             ),
         ];
 
-        private static Vector3 LampHalf => new(0.025f, 0.25f, 0.075f);
+        /// <summary>
+        /// Five overhead diffused cabin ceiling panel lights mounted flush under the cabin ceiling bays and flight deck
+        /// overhead (with the cockpit panel directly above the seat and forward of <see cref="SeatStand"/>), giving even
+        /// cabin illumination (~500 lux, 97 W total with <see cref="Lamps"/>) with calm face radiance (&lt; 10 W/(m²·sr)).
+        /// </summary>
+        public static IReadOnlyList<(string Id, BoundingBox Panel, float Power)> CeilingLamps { get; } =
+        [
+            ("lamp-ceiling-aft", new(new(-0.65f, 3.04f, 2.30f), new(0.65f, 3.09f, 3.30f)), 18f),
+            ("lamp-ceiling-mid-aft", new(new(-0.65f, 3.04f, -0.95f), new(0.65f, 3.09f, 0.05f)), 18f),
+            ("lamp-ceiling-ramp", new(new(-0.60f, 3.04f, -3.55f), new(0.60f, 3.09f, -2.55f)), 18f),
+            ("lamp-ceiling-fore", new(new(-0.52f, 3.04f, -6.05f), new(0.52f, 3.09f, -5.15f)), 15f),
+            ("lamp-ceiling-cockpit", new(new(-0.32f, 1.93f, -10.95f), new(0.32f, 1.98f, -10.35f)), 12f),
+        ];
+
+        private static Vector3 LampHalf => new(0.025f, 0.40f, 0.08f);
+
+        private const float WallSconcePower = 4f;
 
         private static RectLightData LampFace(float side) =>
             PanelLight(
@@ -422,8 +438,21 @@ public static partial class DemoScenes
                 across: Vector3.UnitZ,
                 width: 2 * LampHalf.Z,
                 height: 2 * LampHalf.Y,
-                power: CabinLampPower
+                power: WallSconcePower
             );
+
+        private static RectLightData OverheadLampFace(BoundingBox panel, float power)
+        {
+            Vector3 size = panel.Max - panel.Min;
+            return PanelLight(
+                offset: new(0, -size.Y / 2, 0),
+                front: -Vector3.UnitY,
+                across: Vector3.UnitX,
+                width: size.X,
+                height: size.Z,
+                power: power
+            );
+        }
 
         /// <summary>
         /// The pose of <c>sill-camera</c> in shuttle axes: just outside the aft doorway jamb at ankle height looking forward
@@ -719,7 +748,7 @@ public static partial class DemoScenes
             }
         }
 
-        /// <summary>Spawns the four cabin wall <see cref="Lamps"/> in <paramref name="cabin"/>.</summary>
+        /// <summary>Spawns the four cabin wall sconces (<see cref="Lamps"/>) and five overhead panels (<see cref="CeilingLamps"/>) in <paramref name="cabin"/>.</summary>
         public static void SpawnLamps(World world, FrameHandle cabin, SceneInstance scene, IRenderResources resources)
         {
             MeshId mesh = resources.CreateMesh(Primitives.Box(LampHalf));
@@ -743,6 +772,29 @@ public static partial class DemoScenes
                         }
                     )
                 );
+
+            foreach ((string id, BoundingBox panel, float power) in CeilingLamps)
+            {
+                RectLightData light = OverheadLampFace(panel, power);
+                scene.Add(
+                    id,
+                    world.Spawn(
+                        new()
+                        {
+                            Frame = cabin,
+                            Pose = new(panel.Center, DQuaternion.Identity),
+                            Render = new RenderData
+                            {
+                                Mesh = resources.CreateMesh(Primitives.Box(panel.Extents)),
+                                Material = LampPanelMaterial(resources: resources, light: light),
+                                BoundingRadius = panel.Extents.Length(),
+                                Flags = RenderFlags.Visible,
+                                Light = light,
+                            },
+                        }
+                    )
+                );
+            }
         }
 
         /// <summary>Spawns the shuttle parked static at <paramref name="pose"/> in <paramref name="frame"/>.</summary>

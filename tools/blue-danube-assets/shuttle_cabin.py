@@ -628,7 +628,7 @@ def _build_cabin_materials():
     rng = np.random.default_rng(2001)
 
     # 1. Cabin_Floor (1024x1024, 1 tile = ~2.0 m): 4x4 removable 50 cm aerospace deck plates with beveled joints,
-    #    countersunk corner hex bolts, and raised diamond anti-slip tread lugs (~3 cm real pitch).
+    #    countersunk corner hex bolts, raised diamond anti-slip tread lugs (~3 cm real pitch), and gritty foot-traffic wear.
     tu = (xx_h * 4.0) % 1.0
     tv = (yy_h * 4.0) % 1.0
     edge_d = np.minimum(np.minimum(tu, 1.0 - tu), np.minimum(tv, 1.0 - tv))
@@ -648,19 +648,21 @@ def _build_cabin_materials():
         for by in (0.048, 0.952):
             r = np.hypot(tu - bx, tv - by)
             bolt = np.maximum(bolt, np.clip(1.0 - r / 0.018, 0.0, 1.0) - 0.45 * np.clip(1.0 - r / 0.009, 0.0, 1.0))
+    scuff = (_smooth_noise(N_HI, 2011, 8) - 0.5) * 0.06
     grain = (_smooth_noise(N_HI, 2001, 24) - 0.5) * 0.04 + (_smooth_noise(N_HI, 2002, 96) - 0.5) * 0.015
     floor_h = 0.55 - 0.38 * seam + 0.30 * tread - 0.20 * bolt + grain * 0.6
     floor_rgb = np.empty((N_HI, N_HI, 3), dtype=np.float32)
-    base_f = 0.24 + 0.055 * tread - 0.09 * seam - 0.04 * bolt + grain
-    floor_rgb[..., 0] = base_f * 0.96
-    floor_rgb[..., 1] = base_f * 1.00
-    floor_rgb[..., 2] = base_f * 1.06
-    floor_rough = 0.58 - 0.08 * tread + 0.22 * seam + 0.04 * bolt + grain * 0.8
-    floor_metal = 0.34 + 0.14 * tread - 0.26 * seam + 0.28 * bolt
-    mat_floor = _wire_pbr_material("Cabin_Floor", floor_rgb, floor_rough, floor_metal, floor_h, normal_strength=1.05)
+    base_f = np.clip(0.34 + 0.055 * tread - 0.12 * seam - 0.05 * bolt + scuff + grain, 0.14, 0.52)
+    floor_rgb[..., 0] = base_f * 0.97
+    floor_rgb[..., 1] = base_f * 0.99
+    floor_rgb[..., 2] = base_f * 1.03
+    # Keep non-slip grip coating strictly matte-satin (>= 0.58) above ScreenTrace.MaxRoughness (0.50) to avoid GGX firefly snow.
+    floor_rough = np.clip(0.70 - 0.10 * tread + 0.16 * seam - 0.04 * bolt + scuff * 0.5 + grain * 0.7, 0.58, 0.92)
+    floor_metal = np.clip(0.10 + 0.12 * tread - 0.08 * seam + 0.32 * bolt, 0.02, 0.45)
+    mat_floor = _wire_pbr_material("Cabin_Floor", floor_rgb, floor_rough, floor_metal, floor_h, normal_strength=1.00)
 
-    # 2. Cabin_Wall (1024x1024, 1 tile = ~2.2 m): 2x3 modular composite cladding panels with recessed V-grooves,
-    #    perimeter countersunk rivets (~18 cm spacing), subtle quilted contour, and smooth molded-composite finish.
+    # 2. Cabin_Wall (1024x1024, 1 tile = ~2.2 m): 2x3 modular weathered composite cladding panels with recessed V-grooves,
+    #    perimeter countersunk rivets (~18 cm spacing), subtle quilted contour, and gritty operational scuffing.
     wu = (xx_h * 2.0) % 1.0
     wv = (yy_h * 3.0) % 1.0
     w_edge = np.minimum(np.minimum(wu, 1.0 - wu), np.minimum(wv, 1.0 - wv))
@@ -672,19 +674,20 @@ def _build_cabin_materials():
     rv_u = np.clip(1.0 - np.abs(((wv * 4.0) % 1.0) - 0.5) / 0.16, 0.0, 1.0) * near_u.astype(np.float32)
     rv_v = np.clip(1.0 - np.abs(((wu * 6.0) % 1.0) - 0.5) / 0.14, 0.0, 1.0) * near_v.astype(np.float32)
     w_rivets = np.maximum(rv_u, rv_v)
-    w_grain = (_smooth_noise(N_HI, 2003, 20) - 0.5) * 0.03 + (_smooth_noise(N_HI, 2004, 80) - 0.5) * 0.012
+    w_grime = (_smooth_noise(N_HI, 2013, 8) - 0.5) * 0.055
+    w_grain = (_smooth_noise(N_HI, 2003, 20) - 0.5) * 0.032 + (_smooth_noise(N_HI, 2004, 80) - 0.5) * 0.012
     wall_h = 0.72 - 0.40 * w_seam - 0.16 * w_rivets + quilt + w_grain * 0.5
     wall_rgb = np.empty((N_HI, N_HI, 3), dtype=np.float32)
-    base_w = 0.68 - 0.24 * w_seam - 0.10 * w_rivets + quilt * 0.4 + w_grain
+    base_w = np.clip(0.60 - 0.22 * w_seam - 0.10 * w_rivets + quilt * 0.35 + w_grime + w_grain, 0.24, 0.76)
     wall_rgb[..., 0] = base_w * 1.00
-    wall_rgb[..., 1] = base_w * 0.99
-    wall_rgb[..., 2] = base_w * 0.96
-    wall_rough = 0.64 + 0.20 * w_seam - 0.14 * w_rivets + w_grain * 0.6
-    wall_metal = 0.04 + 0.45 * w_rivets
+    wall_rgb[..., 1] = base_w * 0.985
+    wall_rgb[..., 2] = base_w * 0.95
+    wall_rough = np.clip(0.72 + 0.16 * w_seam - 0.12 * w_rivets + w_grime * 0.6 + w_grain * 0.6, 0.56, 0.92)
+    wall_metal = np.clip(0.02 + 0.36 * w_rivets, 0.0, 0.40)
     mat_wall = _wire_pbr_material("Cabin_Wall", wall_rgb, wall_rough, wall_metal, wall_h, normal_strength=0.90)
 
-    # 3. Cabin_Frame (512x512): brushed anodized dark aerospace aluminum with splice seams and pan-head rivet rows.
-    brush = (_smooth_noise(N, 2005, 64) - 0.5) * 0.02 + (_smooth_noise(N, 2006, 16) - 0.5) * 0.025
+    # 3. Cabin_Frame (512x512): bead-blasted gunmetal structural ribs & ceiling beams with splice seams and pan-head rivets.
+    brush = (_smooth_noise(N, 2005, 64) - 0.5) * 0.02 + (_smooth_noise(N, 2006, 16) - 0.5) * 0.03
     fu = (xx * 2.0) % 1.0
     fv = (yy * 4.0) % 1.0
     f_seam = np.clip(1.0 - np.minimum(fu, 1.0 - fu) / 0.025, 0.0, 1.0)
@@ -693,31 +696,31 @@ def _build_cabin_materials():
     )
     frame_h = 0.50 - 0.30 * f_seam + 0.22 * f_rivet + brush * 1.2
     frame_rgb = np.empty((N, N, 3), dtype=np.float32)
-    bf = 0.16 - 0.05 * f_seam + 0.04 * f_rivet + brush * 0.5
-    frame_rgb[..., 0] = bf * 0.95
-    frame_rgb[..., 1] = bf * 1.00
-    frame_rgb[..., 2] = bf * 1.08
-    frame_rough = 0.42 + 0.18 * f_seam - 0.06 * f_rivet + brush * 0.8
-    frame_metal = np.clip(0.76 - 0.30 * f_seam + 0.10 * f_rivet, 0.0, 1.0)
+    bf = np.clip(0.27 - 0.08 * f_seam + 0.05 * f_rivet + brush * 0.6, 0.12, 0.40)
+    frame_rgb[..., 0] = bf * 0.96
+    frame_rgb[..., 1] = bf * 0.99
+    frame_rgb[..., 2] = bf * 1.04
+    frame_rough = np.clip(0.62 + 0.14 * f_seam - 0.04 * f_rivet + brush * 0.8, 0.56, 0.84)
+    frame_metal = np.clip(0.48 - 0.20 * f_seam + 0.10 * f_rivet, 0.20, 0.62)
     mat_frame = _wire_pbr_material("Cabin_Frame", frame_rgb, frame_rough, frame_metal, frame_h, normal_strength=0.75)
 
     # 4. Cabin_Console (512x512): stippled anti-glare charcoal instrument shroud with modular bezel seams & fasteners.
     cu = (xx * 3.0) % 1.0
     cv = (yy * 3.0) % 1.0
     c_seam = np.clip(1.0 - np.minimum(np.minimum(cu, 1.0 - cu), np.minimum(cv, 1.0 - cv)) / 0.022, 0.0, 1.0)
-    c_grain = (_smooth_noise(N, 2007, 48) - 0.5) * 0.03
+    c_grain = (_smooth_noise(N, 2007, 48) - 0.5) * 0.035
     cons_h = 0.55 - 0.32 * c_seam + c_grain * 0.8
-    cons_rgb = np.clip((0.10 - 0.03 * c_seam + c_grain)[..., None] * np.array([1.0, 1.0, 1.05]), 0.04, 0.16)
+    cons_rgb = np.clip((0.20 - 0.05 * c_seam + c_grain)[..., None] * np.array([1.0, 1.0, 1.04]), 0.10, 0.28)
     mat_console = _wire_pbr_material(
         "Cabin_Console",
         cons_rgb,
-        np.full((N, N), 0.82, dtype=np.float32) + 0.10 * c_seam + c_grain * 0.5,
-        np.full((N, N), 0.10, dtype=np.float32),
+        np.clip(np.full((N, N), 0.82, dtype=np.float32) + 0.08 * c_seam + c_grain * 0.5, 0.72, 0.94),
+        np.full((N, N), 0.12, dtype=np.float32),
         cons_h,
         normal_strength=0.65,
     )
 
-    # 5. Cabin_Upholstery (512x512): woven ballistic aerospace fabric with quilted bolster seams and stitch dimples.
+    # 5. Cabin_Upholstery (512x512): worn navy-charcoal ballistic fabric with quilted bolster seams and stitch dimples.
     # Cross-hatched diagonal twill weave (~4 mm yarn scale) + 4 quilted horizontal ribs + stitched borders.
     twill = 0.5 * (
         np.sin((xx + yy) * 48.0 * math.tau) * np.sin((xx - yy) * 48.0 * math.tau)
@@ -730,30 +733,31 @@ def _build_cabin_materials():
         np.clip(1.0 - np.abs(((xx * 32.0) % 1.0) - 0.5) / 0.25, 0.0, 1.0)
         * (np.abs(np.minimum(bolster_v, 1.0 - bolster_v) - 0.065) < 0.015).astype(np.float32)
     )
+    u_wear = (_smooth_noise(N, 2015, 10) - 0.5) * 0.04
     u_h = 0.55 + 0.16 * twill + bolster_curve - 0.32 * b_seam - 0.14 * stitch
     u_rgb = np.empty((N, N, 3), dtype=np.float32)
-    u_rgb[..., 0] = 0.10 + 0.018 * twill - 0.04 * b_seam + 0.05 * stitch
-    u_rgb[..., 1] = 0.15 + 0.022 * twill - 0.05 * b_seam + 0.05 * stitch
-    u_rgb[..., 2] = 0.24 + 0.028 * twill - 0.07 * b_seam + 0.06 * stitch
+    u_rgb[..., 0] = np.clip(0.20 + 0.022 * twill - 0.06 * b_seam + 0.06 * stitch + u_wear, 0.08, 0.34)
+    u_rgb[..., 1] = np.clip(0.24 + 0.026 * twill - 0.07 * b_seam + 0.06 * stitch + u_wear, 0.10, 0.38)
+    u_rgb[..., 2] = np.clip(0.32 + 0.032 * twill - 0.09 * b_seam + 0.07 * stitch + u_wear, 0.14, 0.46)
     mat_seat = _wire_pbr_material(
         "Cabin_Upholstery",
         u_rgb,
-        np.full((N, N), 0.86, dtype=np.float32) + 0.08 * b_seam,
+        np.clip(np.full((N, N), 0.88, dtype=np.float32) + 0.06 * b_seam, 0.80, 0.96),
         np.zeros((N, N), dtype=np.float32),
         u_h,
         normal_strength=0.90,
     )
 
-    # 6. Cabin_Trim: subtle amber/hazard accent metal for airlock threshold & boarding grab handles.
-    mat_trim = _solid_pbr_material("Cabin_Trim", (0.78, 0.54, 0.08), metallic=0.20, roughness=0.46)
+    # 6. Cabin_Trim: weathered industrial safety amber enamel for threshold & grab handles (matte-satin >= 0.62).
+    mat_trim = _solid_pbr_material("Cabin_Trim", (0.68, 0.48, 0.10), metallic=0.10, roughness=0.62)
 
-    # 7. Cabin_Display: backlit cockpit telemetry screen (calm SI-balanced glow so auto-exposure never blooms it out).
+    # 7. Cabin_Display: backlit cockpit telemetry screen (calm SI-balanced glow).
     mat_display = _solid_pbr_material(
         "Cabin_Display",
-        (0.04, 0.12, 0.18),
+        (0.05, 0.14, 0.20),
         metallic=0.05,
-        roughness=0.22,
-        emissive=((0.18, 0.62, 0.78), 0.15),
+        roughness=0.56,
+        emissive=((0.18, 0.62, 0.78), 0.25),
     )
 
     return {

@@ -246,10 +246,11 @@ public static partial class DemoScenes
             );
 
         /// <summary>
-        /// The pose of <c>cabin-camera</c> in the shuttle's frame: in the aft port cabin, looking forward across the doorway,
-        /// center ramp and cockpit seat.
+        /// The pose of <c>cabin-camera</c> in the shuttle's frame: at the starboard side of the cockpit console looking aft
+        /// past the pilot's front, command chair and center ramp toward the passenger cabin, aft bulkhead and starboard
+        /// doorway, so daylight entering the windshield key-lights the pilot instead of blooming into the lens.
         /// </summary>
-        public static DPose CabinCamera { get; } = LookingAt(new(-3.2, 1.35, 3.3), new(0.4, 0.2, -9.5));
+        public static DPose CabinCamera { get; } = LookingAt(new(0.52, 1.05, -11.85), new(-0.10, 0.28, -6.5));
 
         /// <summary>The eye of the person, relative to its center, in its axes: 1.65 m above its feet.</summary>
         public static Vector3 Eye { get; } = new(0, 0.75f, 0);
