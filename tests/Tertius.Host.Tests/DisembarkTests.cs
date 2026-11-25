@@ -443,8 +443,7 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
     /// into the station's, where the engine reports a character as not standing (a known fault). It never takes the rigid
     /// form: the felt gravity at its place stays above twice the zero-gravity threshold. Its velocity is the lift's, so
     /// across the floor it keeps within 2 cm of the place where it boarded. Along the spoke its center stays 0.9 m above
-    /// the floor plus one tick of the lift's motion, 0.33 m at 20 m/s (a known fault): physics moves a standing character
-    /// with its ground's velocity of the step before, so it stands where the floor was one tick earlier.
+    /// the current floor, including the step after the lift changes frames.
     /// </summary>
     [Fact]
     public void ThePersonStandsOnTheLiftForTheWholeRide()
@@ -469,7 +468,11 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
                 .BeLessThan(0.02, $"the person keeps its place on the floor at {s.Time - ride[0].Time:F2} s");
             onFloor
                 .X.Should()
-                .BeApproximately(StationExit.Standing + s.LiftVelocity.Length / 60, 0.02, "a tick behind the floor");
+                .BeApproximately(
+                    StationExit.Standing,
+                    0.02,
+                    "the floor supports the rider at the same simulation time"
+                );
         }
     }
 

@@ -19,6 +19,53 @@ public sealed class WorldCharacterStandingTests
     /// <summary>The height of the center of a person who stands on a floor whose top is at y = 0, plus 2 cm.</summary>
     private const double StandingHeight = 0.92;
 
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(1)]
+    public void AStandingCharacterMeetsTheMovingPlatformsSurfaceAtTheEndOfEachStep(int direction)
+    {
+        using World world = NewWorld(backend: out _);
+        FrameHandle ground = Ground(world, 9.81f);
+        Entity floor = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, -0.25),
+                Body = new(Shape: new BoxShapeDesc(new(3, 0.25f, 3)), Motion: BodyMotion.Kinematic),
+                Components = [new MovingFloor(direction)],
+            }
+        );
+        Entity person = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, StandingHeight),
+                Body = Person,
+            }
+        );
+        Tick(world, 30);
+        double rest = world.PoseInOwnFrame(person).Position.Y - world.PoseInOwnFrame(floor).Position.Y;
+        for (int step = 0; step < 180; step++)
+        {
+            world.Tick();
+            double height = world.PoseInOwnFrame(person).Position.Y - world.PoseInOwnFrame(floor).Position.Y;
+            height.Should().BeApproximately(rest, 0.012, $"the platform carries the rider at step {step}");
+        }
+    }
+
+    private sealed class MovingFloor(int direction) : IComponent
+    {
+        public int Priority => 0;
+        public EventMask Wants => EventMask.Of<Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
+        {
+            double t = Math.Max(0, self.TimeAt(self.Tick + 2) - 0.5);
+            double distance = t < 2 ? t * t : 4 * (t - 1);
+            self.MoveKinematic(new(new(0, -0.25 + direction * distance, 0), DQuaternion.Identity));
+        }
+    }
+
     [Fact]
     public void ACharacterOnAFloorUnderGravityStandsForItsComponentsAndInTheSnapshot()
     {

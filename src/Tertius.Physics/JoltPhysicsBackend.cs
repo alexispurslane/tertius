@@ -338,6 +338,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             ApplyGravity();
             UpdateCharacters();
             UpdateSystems();
+            UpdateRecedingPlatformRiders();
             // Before anything reads the end of the step: the proper accelerations, the contacts, the hand-offs and the ghosts.
             SnapKinematicBodies();
             ComputeProperAccelerations();
