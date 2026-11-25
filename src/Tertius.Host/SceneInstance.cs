@@ -102,7 +102,9 @@ public sealed record Scene(string Name, Func<World, IRenderResources, SceneInsta
 /// <summary>Render resources for a run with no renderer.</summary>
 public static class RenderResources
 {
-    /// <summary>Resources with no renderer behind them. Every mesh, texture and material they make is none, so nothing draws.</summary>
+    /// <summary>
+    /// Resources with no renderer behind them. Every mesh, texture, material and model they make is none, so nothing draws.
+    /// </summary>
     public static IRenderResources None { get; } = new NoResources();
 
     private sealed class NoResources : IRenderResources
@@ -112,5 +114,7 @@ public static class RenderResources
         public TextureId CreateTexture(TextureData texture) => TextureId.None;
 
         public MaterialId CreateMaterial(MaterialDesc material) => MaterialId.None;
+
+        public ModelId CreateModel(ModelDesc model) => ModelId.None;
     }
 }

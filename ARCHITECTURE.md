@@ -47,6 +47,8 @@ src/Tertius.Simulation  World, entities, components, rails components, chunked g
 src/Tertius.Physics     Jolt backend: one PhysicsSystem per frame, intents, gravity, hand-off, ghosts
 src/Tertius.Rendering   Vulkan deferred renderer: G-buffer, depth ranges, lighting, shadows, impostors, the PNG
                         capture sink
+src/Tertius.Assets      cooked model files: asset references, the content root, the glTF binary reader and the
+                        model store, which uploads a model once per render-resource owner
 src/Tertius.Host        threads, window, input, tick pacing, scripted and headless runs, state dumps,
                         the video capture sink, wiring of all modules
 src/Tertius.Demo        the vertical slice game: its scenes and components (its scripts are in scripts/)
@@ -58,8 +60,13 @@ benchmarks/             BenchmarkDotNet benchmarks
 
 - `Tertius.Core` depends on nothing but the base library.
 - `Tertius.Simulation`, `Tertius.Physics` and `Tertius.Rendering` depend only on `Tertius.Core`. They never reference each other. The test projects are the exception. `Tertius.Testing` and the Simulation, Physics and Host test projects reference several modules together. The reason is that every physics test runs the real World on the real Jolt backend.
+- `Tertius.Assets` depends only on `Tertius.Core` and StbImageSharp, which decodes the textures. It reaches the renderer through `IRenderResources` and knows no game and no model by name; a test checks its source for the demo's names.
 - `Tertius.Host` references all modules and connects them through the seams in `Tertius.Core`.
-- `Tertius.Demo` references `Tertius.Host`.
+- `Tertius.Demo` references `Tertius.Host` and `Tertius.Assets`.
+
+### Cooked models
+
+A cooked model is a glTF binary in engine axes (meters, +Y up, the front toward -Z) under `content/<package>/bin/assets/<path>/model.glb`, which a converter writes from a sidecar (tools/README.md, "The Blue Danube art"). A reference `package:path#piece` names it; the piece is a scene root or a node marked as a piece, and no piece names every root piece at its root's pose (docs/plans/asset-pipeline.md, "Models: nodes and pieces"). `ModelStore` belongs to one `IRenderResources` owner. Its `Load` reads a file once, uploads its textures and materials once, each mesh once, and each reference into one `ModelId` whose `ModelPart`s carry their node's offset and scale. It gives the same `StoredModel` (the id, the bounds and the bounding radius) on a repeated load, so every placement shares the handles. A missing file, a broken file and an unknown piece are `ModelProblem` results, not exceptions, and the store keeps no problem, so a later setup run makes the model load. An entity draws a model through `RenderData.Model` with no mesh and no material.
 
 ## Threads and the tick
 
@@ -1369,6 +1376,18 @@ Whether a mesh is closed has one owner: the mesh's record. `StagedMesh.Of` compu
 The batcher cuts the sorted transparent list of each range into runs. A run is a `TransparentRun`, a generated union of three cases: `GlassCommands(Commands, TwoSided)`, a stretch of glass instances, and `FringeCommands(Commands, TwoSided)`, a stretch of fringed instances, each of one-sided or of two-sided materials and with one indirect command per stretch of equal mesh, and `PuffSprites(First, Count)`, a stretch of puffs. `PreparedScene.Transparent` holds the ordered list of runs of each range. The transparent pass pushes the matrix of each range once, then draws its runs in order: a `GlassCommands` run with the glass pipeline and a `FringeCommands` run with the fringe pipeline, each in the variant of its sides and with one `vkCmdDrawIndexedIndirect` over its commands, and a `PuffSprites` run with the puff pipeline and one `vkCmdDraw` over its puffs, with 6 vertices and one instance for each puff. Every pipeline has the scene layout, so the sets and the push constants stay bound between runs. Puffs between two panes of the same mesh split the panes into two commands.
 
 Every command and every view reads the frame's meshes, `PreparedScene.Meshes`: the static meshes as uploaded (`GeometryStore.Meshes`) first, then one frame mesh for each deformed copy of the frame. An instance's `Mesh` is the index of its frame mesh, so a deformed instance is culled by its posed bound and drawn from its copy in every view, and a pass needs no rule of its own for it (see "Skinning and morph targets" below). `PreparedScene.IsDeformed(mesh)` is true exactly for an index at least `StaticMeshCount`: an index range, not a flag beside the index.
+
+#### Models
+
+A model is the reusable form of one rigid piece of a model file: its mesh and material parts, each with a local offset (docs/plans/asset-pipeline.md, "Models: nodes and pieces"). One entity draws one model through the normal scene paths, and every collector of the frame sees each part as an ordinary instance (ter-9wwx).
+
+- Core, render seam: `ModelId` (stored as value + 1, `None` by default), `ModelPart(Mesh, Material, Offset, Scale, BoundingRadius)`, `ModelDesc(Parts)`, `IRenderResources.CreateModel` and `RenderInstance.Model`. A part's `Offset` is a `Pose` relative to the entity, before the entity's scale. Its `Scale` acts in the part's own axes, before the offset. Its `BoundingRadius` holds its scaled mesh around its offset origin, before the entity's scale. A radius of 0 leaves the bound to the mesh, as on an instance.
+- Simulation: `RenderData.Model`. A row draws when it is `Visible` and has a mesh or a model, and the snapshot builder copies the model into the instance. `World.Spawn` refuses, with an `ArgumentException`, a row with a model and a mesh or a material, and a model at a scale that differs along the axes. A turned part under such a scale is a shear, which an instance's position, rotation and scale cannot hold. A part's own scale can differ along its axes. A tick can still write either mistake into the row. The renderer then ignores the row's mesh and material, and draws no part at a scale that differs along the axes.
+- `VulkanRenderer.CreateModel` queues the model through the `UploadQueue`, under the same lock as the meshes and materials. So a part names only a mesh that the renderer made, and a material that it made or `None`. The model needs no GPU memory: the renderer keeps each `ModelDesc` in a list by id.
+- `ModelExpansion`, at the start of `SceneBatcher.Prepare`, replaces each instance of a model by one instance per part, in part order, and every later step reads its list. Part `i` has `Part` = i, the part's mesh and material, the transform entity × offset × part scale, the same for the previous transform, and a bounding radius of the part's radius times the entity's scale. A previous scale that the batcher would not interpolate from counts as the current scale, as in `InterpolatedScale`. Culling, shadow casters and tiles, the motion join (keyed on entity and part), impostors (keyed on entity, part, mesh and material) and the environment faces then need no rule of their own. A part of an entity whose origin lies outside the view still draws. A snapshot without a model passes through with no copy. The expansion renumbers the rig poses, and drops the rig pose of a model instance, so its parts draw as uploaded. `RenderStats.SubmittedInstances` counts a model instance once.
+- `ModelRenderTests` draws a model of two parts with two materials and a turned offset, and the same two meshes as two plain entities at the parts' poses. On MoltenVK the two images are byte for byte the same, and `ReferenceImages/model-parts.png` holds the model's image.
+
+The model slice holds no more of the asset pipeline's design. Later work: model lights, model-wide bounds, one impostor tile per model instance in place of one per part, LODs, `TextureMips` and block compression, `MaterialDesc.EmissiveMap`, the `Replace*` methods and hot reload, and the importer with its `IAssetResolver`.
 
 #### One placement per instance
 

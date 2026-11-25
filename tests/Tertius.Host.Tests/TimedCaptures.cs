@@ -28,6 +28,8 @@ internal sealed class TimedRenderer(VulkanRenderer inner) : IRenderer
 
     public MaterialId CreateMaterial(MaterialDesc material) => inner.CreateMaterial(material);
 
+    public ModelId CreateModel(ModelDesc model) => inner.CreateModel(model);
+
     public void Dispose() => inner.Dispose();
 
     public static double Seconds(long stopwatchTicks) => (double)stopwatchTicks / Stopwatch.Frequency;

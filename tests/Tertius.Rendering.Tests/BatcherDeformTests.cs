@@ -101,8 +101,30 @@ public sealed class BatcherDeformTests
                 highestStops: Batchers.HighestStops,
                 meshes: Meshes,
                 materials: MaterialSlots.Of(8),
+                models: [],
                 environment: environment,
                 region: region,
+                frame: Batchers.FirstFrame(),
+                scene: scene
+            );
+        return scene;
+    }
+
+    /// <summary>Prepares <paramref name="snapshot"/> as <see cref="Prepare"/> does in the roomy region, with <paramref name="models"/>.</summary>
+    private static PreparedScene PrepareWithModels(RenderSnapshot snapshot, ModelDesc[] models)
+    {
+        var scene = new PreparedScene();
+        Batchers
+            .Default()
+            .Prepare(
+                snapshot: snapshot,
+                alpha: 1f,
+                highestStops: Batchers.HighestStops,
+                meshes: Meshes,
+                materials: MaterialSlots.Of(8),
+                models: models,
+                environment: default,
+                region: Roomy,
                 frame: Batchers.FirstFrame(),
                 scene: scene
             );
@@ -129,6 +151,26 @@ public sealed class BatcherDeformTests
                 new BackFaceRuns(ClosedOneSided: new(Solid: new(0, 1), Cutout: default), BothFaces: default),
                 "a deformation moves the vertices and keeps the triangles, so the copy is closed as its mesh is"
             );
+    }
+
+    [Fact]
+    public void APosedInstanceAfterAModelDrawsItsDeformedCopy()
+    {
+        // Two rigid boxes, so that the model's parts shift the posed cylinder's place in the expanded list.
+        ModelPart box = new(Mesh: new(Rigid), Material: new(0), Offset: Pose.Identity, Scale: Vector3.One, BoundingRadius: 1);
+        RenderSnapshot snapshot = Empty();
+        RenderInstance pair = Instance(MeshId.None.Value, new(-3, 0, -10));
+        pair.Mesh = MeshId.None;
+        pair.Model = new(0);
+        snapshot.Instances.Add(pair);
+        AddPosed(snapshot, Instance(Cylinder, new(0, 0, -10)), CylinderRest);
+
+        PreparedScene scene = PrepareWithModels(
+            snapshot,
+            [new([box, box with { Offset = new(new(1, 0, 0), Quaternion.Identity) }])]
+        );
+
+        VertexOffsets(scene).Should().Contain(RegionBase, "the cylinder draws its deformed copy");
     }
 
     [Fact]
@@ -608,6 +650,7 @@ public sealed class BatcherDeformTests
                 highestStops: Batchers.HighestStops,
                 meshes: Meshes,
                 materials: materials,
+                models: [],
                 environment: default,
                 region: Roomy,
                 frame: frame,

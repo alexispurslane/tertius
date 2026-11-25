@@ -62,6 +62,8 @@ public sealed class OutlinesStepTests : IDisposable
 
         public MaterialId CreateMaterial(MaterialDesc material) => inner.CreateMaterial(material);
 
+        public ModelId CreateModel(ModelDesc model) => inner.CreateModel(model);
+
         public void Dispose() => inner.Dispose();
     }
 

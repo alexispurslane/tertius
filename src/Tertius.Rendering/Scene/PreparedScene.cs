@@ -574,7 +574,7 @@ internal sealed class PreparedScene
 
     public int OutlineCount;
 
-    /// <summary>Instances in the snapshot, before any filtering.</summary>
+    /// <summary>Instances in the snapshot, before any filtering, with an instance of a model counted once.</summary>
     public int SubmittedInstances;
 
     /// <summary>The cascade sets of this frame, by set. Sets 0 to <see cref="CascadeSetCount"/> − 1 are valid.</summary>

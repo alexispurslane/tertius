@@ -47,6 +47,7 @@ public sealed class FarShadowTests
                 highestStops: Batchers.HighestStops,
                 meshes: Meshes,
                 materials: MaterialSlots.Of(8),
+                models: [],
                 environment: default,
                 region: DeformRegion.None,
                 frame: Batchers.FirstFrame(),

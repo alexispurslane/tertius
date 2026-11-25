@@ -1,0 +1,66 @@
+{
+  "source": {
+    "title": "Modified Thermos",
+    "authors": [
+      "Alex Weber"
+    ],
+    "provider": "polyhaven",
+    "page": "https://polyhaven.com/a/modified_thermos",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "terms": "https://polyhaven.com/license",
+    "attribution": "\"Modified Thermos\" by Alex Weber, from Poly Haven (https://polyhaven.com/a/modified_thermos), CC0-1.0.",
+    "retrieved": "2026-11-24",
+    "files": {
+      "modified_thermos.gltf": {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/modified_thermos/modified_thermos_1k.gltf",
+        "bytes": 2810,
+        "sha256": "sha256:12f50ac41f809140d856a50d3abd993e9d621db64bd5722fb1aed3c5e99e8d8a"
+      },
+      "modified_thermos.bin": {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/modified_thermos/modified_thermos.bin",
+        "bytes": 370512,
+        "sha256": "sha256:d631b9593c6a0e150c833b834048fbfc1e61aafeb7ccccb0244f640736d66c5a"
+      },
+      "textures/modified_thermos_arm_1k.jpg": {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/modified_thermos/modified_thermos_arm_1k.jpg",
+        "bytes": 762713,
+        "sha256": "sha256:939bdf625e6e84b41773d1f175e026aed8646b09061589e8845fd90c8fda8e85"
+      },
+      "textures/modified_thermos_diff_1k.jpg": {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/modified_thermos/modified_thermos_diff_1k.jpg",
+        "bytes": 672156,
+        "sha256": "sha256:44cf935614f803569640fdde97d5ac41fcb5242050cfc4174ef6c28a13453587"
+      },
+      "textures/modified_thermos_nor_gl_1k.jpg": {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/modified_thermos/modified_thermos_nor_gl_1k.jpg",
+        "bytes": 521345,
+        "sha256": "sha256:0ce69972468eab1a65c099aabe4737da4442d0e561c5e799c11c3bbdc3d303b5"
+      }
+    },
+    "upstreamSizeMm": [
+      142.67507940530777,
+      101.07244178652763,
+      306.22418313578237
+    ],
+    "changes": [
+      "Converted to one glTF binary in engine axes (+Y up, front -Z, meters); the geometry and the textures are unchanged.",
+      "The ambient occlusion channel of the ARM map is not used by the engine."
+    ],
+    "approved": {
+      "on": "2026-11-24",
+      "by": "the user, through the ter-9wwx orchestrator",
+      "record": "sha256:33add2247c97f3beaccfd6bbff791cc4b9511c2f362f2bb4afffc8a76cc5873e"
+    }
+  },
+  "convert": {
+    "kind": "gltf",
+    "file": "modified_thermos.gltf",
+    "front": "-Y",
+    "glow": {
+      "strength": 60,
+      "threshold": 0.05,
+      "bins": 4
+    }
+  }
+}

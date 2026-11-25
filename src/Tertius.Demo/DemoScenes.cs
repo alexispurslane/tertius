@@ -1,3 +1,4 @@
+using Tertius.Assets;
 using System.Numerics;
 using Tertius.Frames.Rails;
 using Tertius.Host;
@@ -301,6 +302,7 @@ public static partial class DemoScenes
         .. RigScenes,
         .. HairCardScenes,
         new("skin-and-hair", SkinAndHair),
+        ArtPreview(ContentFolders.Find()),
     ];
 
     /// <summary>

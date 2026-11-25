@@ -68,8 +68,8 @@ namespace Tertius.Rendering;
 /// <para>Threading: the Create methods, <see cref="Resize"/> and <see cref="CaptureNextFrame"/> may be called from
 /// any thread. <see cref="Render"/> and <see cref="Dispose"/> belong to the render thread.</para>
 /// <para>Ids: each Create method numbers its ids from 0, and none of them is ever None. On an instance,
-/// <see cref="MeshId.None"/> draws nothing and <see cref="MaterialId.None"/> draws with the default material (a white
-/// non-metal of roughness 0.5). In a material, a <see cref="TextureId.None"/> slot uses the built-in default for that
+/// <see cref="MeshId.None"/> draws nothing, unless the instance draws a model, and <see cref="MaterialId.None"/> draws with
+/// the default material (a white non-metal of roughness 0.5). In a material, a <see cref="TextureId.None"/> slot uses the built-in default for that
 /// slot. These defaults live in slots that no id can name.</para>
 /// </remarks>
 public sealed unsafe class VulkanRenderer : IRenderer
@@ -83,6 +83,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private readonly IOutputTarget output;
     private readonly FrameResources[] frames;
     private readonly UploadQueue uploads;
+
+    // The models that the uploads handed over, by ModelId.Value. A model needs no GPU memory: the batcher reads its parts.
+    private readonly List<ModelDesc> models = [];
     private readonly GeometryStore geometry;
     private readonly DeformStore deforms;
 
@@ -556,6 +559,20 @@ public sealed unsafe class VulkanRenderer : IRenderer
         return uploads.AddMaterial(material);
     }
 
+    /// <summary>
+    /// Queues a model. It can be drawn from the next <see cref="Render"/> on: each instance of it draws one instance per
+    /// part (ARCHITECTURE.md, "Models").
+    /// </summary>
+    /// <exception cref="ArgumentException">
+    /// A part names a mesh or a material that this renderer did not create, or no mesh, or has an offset, a scale or a
+    /// bounding radius that cannot draw (<see cref="UploadQueue.AddModel"/>).
+    /// </exception>
+    public ModelId CreateModel(ModelDesc model)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        return uploads.AddModel(model);
+    }
+
     /// <summary>Requests a new output size. It takes effect at the start of the next <see cref="Render"/>.</summary>
     /// <exception cref="ArgumentOutOfRangeException">
     /// A side is negative, or a renderer without a window gets a size that its upscaling cannot draw: an empty one, or
@@ -847,6 +864,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             highestStops: Exposure.HighestStops(frame: FrameNumber, step: pending.ExposureStep),
             meshes: geometry.Meshes,
             materials: materials.Infos,
+            models: CollectionsMarshal.AsSpan(models),
             environment: environment,
             region: region,
             frame: pending,
@@ -990,6 +1008,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private void Upload(FrameResources frame, CommandBuffer commandBuffer)
     {
         UploadQueue.Pending pending = uploads.Drain();
+        // The queue hands the models over in id order, so each lands at its id.
+        foreach ((ModelId _, ModelDesc model) in pending.Models)
+            models.Add(model);
         if (!pending.IsEmpty || textures.Count == 0 || materials.Count == 0)
         {
             device.BeginLabel(commandBuffer, "uploads");

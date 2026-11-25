@@ -146,6 +146,7 @@ public sealed class EnvironmentBoxTests
                 highestStops: Batchers.HighestStops,
                 meshes: Meshes,
                 materials: MaterialSlots.Of(1),
+                models: [],
                 environment: new WithMap(new FaceMask[maps], new IrradianceReading?[maps]),
                 region: DeformRegion.None,
                 frame: Batchers.FirstFrame(),

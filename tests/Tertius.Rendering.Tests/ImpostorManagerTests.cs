@@ -51,13 +51,15 @@ public sealed class ImpostorManagerTests
         public readonly ImpostorManager Manager;
 
         private readonly DeformRegion region;
+        private readonly ModelDesc[] models;
         private readonly FrameHistory history = new(StillRule.Window);
 
-        public Harness(int tiles = 64, DeformRegion region = default)
+        public Harness(int tiles = 64, DeformRegion region = default, ModelDesc[]? models = null)
         {
             Manager = new(tiles);
             Batcher.Processors.Add(Manager);
             this.region = region;
+            this.models = models ?? [];
         }
 
         /// <summary>Batches <paramref name="snapshot"/> as the frame after the ones before it, and commits it as drawn.</summary>
@@ -76,6 +78,7 @@ public sealed class ImpostorManagerTests
                 highestStops: Batchers.HighestStops,
                 meshes: Meshes,
                 materials: Materials,
+                models: models,
                 environment: environment,
                 region: region,
                 frame: frame,
@@ -212,6 +215,37 @@ public sealed class ImpostorManagerTests
             scene.VisibleCount.Should().Be(expected ? 0 : 1);
             harness.Manager.Draws.Length.Should().Be(expected ? 1 : 0);
         }
+    }
+
+    [Fact]
+    public void EachPartOfAFarModelIsAnImpostorOfItsOwn()
+    {
+        // Two balls of the other material, 3 m apart along the entity's X.
+        var pair = new ModelDesc(
+            [
+                new(Mesh: new(Sphere), Material: OtherMaterial, Offset: Pose.Identity, Scale: Vector3.One, BoundingRadius: 1),
+                new(
+                    Mesh: new(Sphere),
+                    Material: OtherMaterial,
+                    Offset: new(new(3, 0, 0), Quaternion.Identity),
+                    Scale: Vector3.One,
+                    BoundingRadius: 1
+                ),
+            ]
+        );
+        var harness = new Harness(models: [pair]);
+        RenderSnapshot snapshot = Snapshot();
+        RenderInstance far = Ball(entity: 5, position: new(0, 0, -DistanceFor(100)));
+        far.Mesh = MeshId.None;
+        far.Material = MaterialId.None;
+        far.Model = new(0);
+        snapshot.Instances.Add(far);
+
+        harness.Run(snapshot);
+
+        harness.Status(5, part: 0, material: OtherMaterial).Impostor.Should().BeTrue();
+        harness.Status(5, part: 1, material: OtherMaterial).Impostor.Should().BeTrue();
+        harness.Manager.Draws.Length.Should().Be(2, "each part keeps its own tile");
     }
 
     [Fact]

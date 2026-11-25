@@ -50,6 +50,7 @@ public sealed class AtmosphereTests
                 highestStops: Batchers.HighestStops,
                 meshes: [],
                 materials: MaterialSlots.Of(1),
+                models: [],
                 environment: new WithoutMap(),
                 region: DeformRegion.None,
                 frame: Batchers.FirstFrame(),

@@ -535,8 +535,7 @@ internal sealed partial class RenderSnapshotBuilder
         foreach (Entity entity in entities.LiveEntitiesIn(start, end - start))
         {
             ref readonly RenderData render = ref entities.FrontRender(entity);
-            // A default mesh is none, so a render row that never set a mesh draws nothing even with Visible set.
-            bool visible = (render.Flags & RenderFlags.Visible) != 0 && !render.Mesh.IsNone;
+            bool visible = Draws(render);
             if (!visible && !render.Light.HasValue)
                 continue;
             if (
@@ -552,7 +551,7 @@ internal sealed partial class RenderSnapshotBuilder
 
             if (visible)
             {
-                // One render row per entity today, so every instance is part 0.
+                // One render row per entity, so every instance is part 0. The renderer numbers the parts of a model.
                 ref RenderInstance instance = ref instances.AddRef();
                 instance = RenderInstance.Create(
                     mesh: render.Mesh,
@@ -568,6 +567,7 @@ internal sealed partial class RenderSnapshotBuilder
                     part: 0,
                     entityGeneration: entity.Generation
                 );
+                instance.Model = render.Model;
                 instance.PreviousPosition = (previous.Position - origin).ToVector3();
                 instance.PreviousRotation = previous.Rotation.ToQuaternion();
                 instance.PreviousScale = PreviousScaleOf(entity, render.Scale);
@@ -585,6 +585,17 @@ internal sealed partial class RenderSnapshotBuilder
                 chainDepth: (ushort)chainDepth[dense]
             );
         }
+    }
+
+    /// <summary>
+    /// Whether <paramref name="render"/> draws an instance: it has <see cref="RenderFlags.Visible"/> and a mesh or a model.
+    /// A default mesh and model are none, so a row that never set either draws nothing even with Visible set.
+    /// </summary>
+    private static bool Draws(in RenderData render)
+    {
+        bool hasVisible = (render.Flags & RenderFlags.Visible) != 0;
+        bool hasShape = !render.Mesh.IsNone || !render.Model.IsNone;
+        return hasVisible && hasShape;
     }
 
     /// <summary>

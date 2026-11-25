@@ -1,0 +1,241 @@
+{
+  "source": {
+    "title": "Lunar Shuttle",
+    "authors": [
+      "Pioneer Developers"
+    ],
+    "provider": "other",
+    "page": "https://github.com/pioneerspacesim/pioneer/tree/999c9b572181d21f6c25102356b922da7937b794/data/models/ships/lunarshuttle",
+    "repository": "https://github.com/pioneerspacesim/pioneer",
+    "commit": "999c9b572181d21f6c25102356b922da7937b794",
+    "upstreamPath": "data/models/ships/lunarshuttle",
+    "license": "CC-BY-SA-3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/",
+    "notice": "Copyright © 2008-2026 Pioneer Developers. Portions copyright © 2013-2014 Meteoric Games Ltd. Pioneer's art is licensed under CC BY-SA 3.0 (Pioneer AUTHORS.txt, \"Licensing\").",
+    "attribution": "\"Lunar Shuttle\" by Pioneer Developers, from Pioneer Space Sim (https://github.com/pioneerspacesim/pioneer/tree/999c9b572181d21f6c25102356b922da7937b794/data/models/ships/lunarshuttle), CC-BY-SA-3.0. Changed for Tertius: see \"changes\".",
+    "retrieved": "2026-11-24",
+    "files": {
+      "lunarshuttle.model": {
+        "url": "https://raw.githubusercontent.com/pioneerspacesim/pioneer/999c9b572181d21f6c25102356b922da7937b794/data/models/ships/lunarshuttle/lunarshuttle.model",
+        "bytes": 410,
+        "sha256": "sha256:01d85e5c5e30a1b0e67c12a6101025ba19c9954d3cdf4135e14b892ba28b16a4"
+      },
+      "lunar_shuttle_hi.dae": {
+        "url": "https://raw.githubusercontent.com/pioneerspacesim/pioneer/999c9b572181d21f6c25102356b922da7937b794/data/models/ships/lunarshuttle/lunar_shuttle_hi.dae",
+        "bytes": 1403891,
+        "sha256": "sha256:532aa75c41a80a0eea60b52274c78f3ab3c244fd153b71149356c50b621506a2"
+      },
+      "lunarshuttle_diff.dds": {
+        "url": "https://raw.githubusercontent.com/pioneerspacesim/pioneer/999c9b572181d21f6c25102356b922da7937b794/data/models/ships/lunarshuttle/lunarshuttle_diff.dds",
+        "bytes": 699192,
+        "sha256": "sha256:54c61138b9af1f55db48d29b8fefbc10fa746771b32d1713be43cb85f44e6cd4"
+      },
+      "lunarshuttle_glow.dds": {
+        "url": "https://raw.githubusercontent.com/pioneerspacesim/pioneer/999c9b572181d21f6c25102356b922da7937b794/data/models/ships/lunarshuttle/lunarshuttle_glow.dds",
+        "bytes": 174904,
+        "sha256": "sha256:3ebc74890ca9c16e50390c97494b762d69d95b59ed5a365ad520ddf8f2cf2aa5"
+      }
+    },
+    "changes": [
+      "Converted from COLLADA and DDS to one glTF binary in engine axes (+Y up, front -Z, meters); the geometry is unchanged.",
+      "Dropped the nodes that Pioneer draws at run time or uses as markers, not as geometry: navigation lights, tags, thruster markers, labels and decals.",
+      "Pioneer's specular maps and specular and shininess values are not used; every material is a non-metal of roughness 0.6.",
+      "The glow map is baked into constant emission: each triangle takes the mean glow over its UV footprint, quantized into at most 4 emission levels.",
+      "The low-detail mesh, the collision mesh, the specular map and the gear animation are not used; the gear stays in the file's rest pose.",
+      "Finish (tools/blue-danube-assets/finish.py, the \"finish\" block of the conversion, fixed parameters and seeds): the diffuse map is desaturated by 30 % and lifted by 35 % on its light texels; grime is drawn near the dorsal hatch and the gear bays and a heat tint near the three nozzles; hazard stripes ring the dorsal hatch, and the markings BD-07 (top) and 07 (belly) are drawn. The geometry is unchanged."
+    ],
+    "approved": {
+      "on": "2026-11-24",
+      "by": "the user, through the ter-9wwx orchestrator",
+      "record": "sha256:f6f860866143def992fdcb64a5f0b0bbb1eb4798b461829916c8a74d89635338"
+    }
+  },
+  "convert": {
+    "kind": "pioneer",
+    "modelFile": "lunarshuttle.model",
+    "finish": {
+      "material": "lunarshuttle_fuselage",
+      "pale": {
+        "lift": 0.35,
+        "desaturate": 0.3,
+        "keepBelow": 0.12,
+        "glowThreshold": 0.05
+      },
+      "wear": [
+        {
+          "kind": "service",
+          "center": [
+            0.2,
+            -0.14,
+            2.35
+          ],
+          "radius": 3.4,
+          "strength": 0.6,
+          "seed": 11
+        },
+        {
+          "kind": "service",
+          "center": [
+            2.35,
+            -2.0,
+            -2.1
+          ],
+          "radius": 2.0,
+          "strength": 0.5,
+          "seed": 12,
+          "mirrorX": true
+        },
+        {
+          "kind": "service",
+          "center": [
+            0.0,
+            6.7,
+            -2.1
+          ],
+          "radius": 1.8,
+          "strength": 0.5,
+          "seed": 13
+        },
+        {
+          "kind": "heat",
+          "center": [
+            2.84,
+            -7.74,
+            0.03
+          ],
+          "radius": 3.2,
+          "strength": 0.75,
+          "seed": 21,
+          "mirrorX": true
+        },
+        {
+          "kind": "heat",
+          "center": [
+            0.0,
+            -7.85,
+            0.0
+          ],
+          "radius": 2.4,
+          "strength": 0.7,
+          "seed": 22
+        }
+      ],
+      "markings": [
+        {
+          "kind": "hazardRing",
+          "center": [
+            0.2,
+            -0.14,
+            2.35
+          ],
+          "normal": [
+            0,
+            0,
+            1
+          ],
+          "inner": 1.6,
+          "outer": 1.95,
+          "stripe": 0.3,
+          "colors": [
+            [
+              0.85,
+              0.62,
+              0.04
+            ],
+            [
+              0.06,
+              0.06,
+              0.06
+            ]
+          ]
+        },
+        {
+          "kind": "text",
+          "text": "BD-07",
+          "center": [
+            0.0,
+            2.75,
+            2.16
+          ],
+          "normal": [
+            0,
+            0,
+            1
+          ],
+          "right": [
+            1,
+            0,
+            0
+          ],
+          "up": [
+            0,
+            1,
+            0
+          ],
+          "height": 0.42,
+          "color": [
+            0.07,
+            0.08,
+            0.09
+          ]
+        },
+        {
+          "kind": "text",
+          "text": "07",
+          "center": [
+            0.0,
+            3.0,
+            -2.16
+          ],
+          "normal": [
+            0,
+            0,
+            -1
+          ],
+          "right": [
+            -1,
+            0,
+            0
+          ],
+          "up": [
+            0,
+            1,
+            0
+          ],
+          "height": 1.2,
+          "color": [
+            0.07,
+            0.08,
+            0.09
+          ]
+        }
+      ]
+    },
+    "meshes": [
+      {
+        "file": "lunar_shuttle_hi.dae",
+        "piece": "shuttle"
+      }
+    ],
+    "front": "+Y",
+    "dropNodes": [
+      "navlight",
+      "tag_",
+      "thruster",
+      "label",
+      "decal",
+      "coll",
+      "light_"
+    ],
+    "glow": {
+      "strength": 60,
+      "threshold": 0.05,
+      "bins": 4
+    },
+    "expectedSize": [
+      20,
+      10,
+      30
+    ]
+  }
+}

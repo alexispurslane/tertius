@@ -1,0 +1,30 @@
+{
+  "scene": "art-preview",
+  "window": { "width": 1280, "height": 720 },
+  "steps": [
+    { "do": "camera", "entity": "overview" },
+    { "do": "film", "name": "overview", "frames": 180, "every": 1 },
+    { "do": "camera", "entity": "station-view" },
+    { "do": "film", "name": "station-view", "frames": 180, "every": 1 },
+    { "do": "camera", "entity": "hub-below" },
+    { "do": "film", "name": "hub-below", "frames": 180, "every": 1 },
+    { "do": "camera", "entity": "hub-above" },
+    { "do": "film", "name": "hub-above", "frames": 180, "every": 1 },
+    { "do": "camera", "entity": "shuttle-front" },
+    { "do": "film", "name": "shuttle-front", "frames": 180, "every": 1 },
+    { "do": "camera", "entity": "shuttle-rear" },
+    { "do": "film", "name": "shuttle-rear", "frames": 180, "every": 1 },
+    { "do": "camera", "entity": "pod-view" },
+    { "do": "film", "name": "pod-view", "frames": 180, "every": 1 },
+    { "do": "camera", "entity": "props-left" },
+    { "do": "film", "name": "props-left", "frames": 180, "every": 1 },
+    { "do": "camera", "entity": "props-right" },
+    { "do": "film", "name": "props-right", "frames": 180, "every": 1 },
+    { "do": "camera", "entity": "passenger-front" },
+    { "do": "film", "name": "passenger-front", "frames": 180, "every": 1 },
+    { "do": "camera", "entity": "passenger-three-quarter" },
+    { "do": "film", "name": "passenger-three-quarter", "frames": 180, "every": 1 },
+    { "do": "camera", "entity": "relief" },
+    { "do": "film", "name": "relief", "frames": 180, "every": 1 }
+  ]
+}

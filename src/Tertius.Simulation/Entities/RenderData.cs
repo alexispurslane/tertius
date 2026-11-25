@@ -4,7 +4,7 @@ namespace Tertius.Simulation;
 
 /// <summary>
 /// The render row of an entity. The snapshot builder draws an entity when <see cref="Flags"/> has
-/// <see cref="RenderFlags.Visible"/> and <see cref="Mesh"/> is not none. Use <c>new RenderData { ... }</c>: the
+/// <see cref="RenderFlags.Visible"/> and <see cref="Mesh"/> or <see cref="Model"/> is not none. Use <c>new RenderData { ... }</c>: the
 /// parameterless constructor sets a unit scale, identity offsets and no mesh. <c>default</c> also has no mesh and no
 /// material, because a default <see cref="MeshId"/> and <see cref="MaterialId"/> are none, but its scale is zero.
 /// </summary>
@@ -15,6 +15,14 @@ public struct RenderData
 
     /// <summary>The material of the mesh, or <see cref="MaterialId.None"/> for the renderer's default material.</summary>
     public MaterialId Material;
+
+    /// <summary>
+    /// The model to draw, or <see cref="ModelId.None"/>. A row with a model has no <see cref="Mesh"/> and no
+    /// <see cref="Material"/>: each part of the model names its own. Its <see cref="Scale"/> is the same along every axis,
+    /// and the renderer derives each part's bounds, so <see cref="BoundingRadius"/> matters only to a planet occluder.
+    /// <see cref="World.Spawn(SpawnDesc)"/> refuses a row that breaks either rule.
+    /// </summary>
+    public ModelId Model;
 
     /// <summary>Scale along the entity's local axes.</summary>
     public Vector3 Scale;

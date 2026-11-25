@@ -1,3 +1,4 @@
+using Tertius.Assets;
 using Tertius.Host;
 using Tertius.Host.Scripting;
 
@@ -8,6 +9,9 @@ public static class Program
     private const string ReadoutsUsage = "Usage: --readouts <script> <log.csv>";
 
     private const string GenerateUsage = "Usage: --generate <file> [<scene>]";
+
+    /// <summary>The option that runs a Blue Danube scene without its converted art, as the gray box that the tests build.</summary>
+    private const string GrayBox = "--gray-box";
 
     /// <summary>
     /// Runs one of the demo's scenes. See <see cref="ScriptCommand"/> and docs/plans/host-and-scripted-runs.md.
@@ -34,7 +38,7 @@ public static class Program
     /// Runs the demo's command line <paramref name="args"/>, with its output and its errors in the writers: a command line
     /// that starts with <c>--generate</c> goes to <see cref="Generate"/>, one that starts with <c>--readouts</c> to
     /// <see cref="Readouts"/>, one that starts with <c>--edit</c> to <see cref="EditCommand"/> with the cut list of
-    /// <see cref="BlueDanubeEdit"/>, and every other one to <see cref="ScriptCommand"/>.
+    /// <see cref="BlueDanubeEdit"/>, and every other one to <see cref="RunScene"/> with this checkout's content root.
     /// Returns the exit code.
     /// </summary>
     public static int Run(string[] args, TextWriter output, TextWriter error) =>
@@ -43,8 +47,52 @@ public static class Program
             ["--generate", ..] => Generate(args, output, error),
             ["--readouts", ..] => Readouts(args: args, scenes: DemoScenes.All, output: output, error: error),
             ["--edit", ..] => EditCommand.Run(args: args, cuts: BlueDanubeEdit.Cuts, output: output, error: error),
-            _ => ScriptCommand.Run(args: args, scenes: DemoScenes.All, output: output, error: error),
+            _ => RunScene(args: args, output: output, error: error, content: ContentFolders.Find()),
         };
+
+    /// <summary>
+    /// Runs a script or a live scene through <see cref="ScriptCommand"/>, after a check that a scene of the art (<see cref="BlueDanubeArt.NeededBy"/>) has its
+    /// converted art under <paramref name="content"/>. Without the art, it names <see cref="BlueDanubeArt.SetupCommand"/>
+    /// and returns <see cref="ScriptCommand.FileError"/>, so a run never looks like a finished one in gray boxes.
+    /// <c>--gray-box</c> skips the check, and the script command never sees it. A script that does not load passes on, so
+    /// that the script command reports its error.
+    /// </summary>
+    public static int RunScene(string[] args, TextWriter output, TextWriter error, ContentFolders? content)
+    {
+        bool grayBox = args.Contains(GrayBox);
+        string[] rest = [.. args.Where(arg => arg != GrayBox)];
+        bool needsArt = !grayBox && SceneOf(rest) is string scene && BlueDanubeArt.NeededBy(scene);
+        IReadOnlyList<AssetReference> missing = needsArt ? BlueDanubeArt.Missing(content) : [];
+        if (missing.Count > 0)
+        {
+            error.WriteLine(
+                $"The Blue Danube art is missing: {string.Join(", ", missing)}. Run `{BlueDanubeArt.SetupCommand}` "
+                    + $"once from the repository's root, or pass {GrayBox} to run the gray-box scene."
+            );
+            return ScriptCommand.FileError;
+        }
+
+        return ScriptCommand.Run(args: rest, scenes: DemoScenes.All, output: output, error: error);
+    }
+
+    /// <summary>The scene that a command line runs: the one after --scene, or the one that the --script file names.</summary>
+    private static string? SceneOf(string[] args)
+    {
+        int at = Array.IndexOf(args, "--scene");
+        if (at >= 0)
+            return at + 1 < args.Length ? args[at + 1] : null;
+        at = Array.IndexOf(args, "--script");
+        if (at < 0 || at + 1 >= args.Length)
+            return null;
+        try
+        {
+            return Script.Load(args[at + 1]).Scene;
+        }
+        catch (Exception ex) when (ex is ScriptException or IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
 
     /// <summary>
     /// <c>--readouts &lt;script&gt; &lt;log.csv&gt;</c> runs the script with no renderer, with its scene from

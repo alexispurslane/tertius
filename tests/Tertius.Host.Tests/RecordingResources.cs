@@ -1,6 +1,9 @@
 namespace Tertius.Host.Tests;
 
-/// <summary>Resources that give each mesh, texture and material its own id, and keep each mesh and each material's description.</summary>
+/// <summary>
+/// Resources that give each mesh, texture, material and model its own id, and keep each mesh's, material's and model's
+/// description.
+/// </summary>
 internal sealed class RecordingResources : IRenderResources
 {
     private int next = 1;
@@ -8,6 +11,8 @@ internal sealed class RecordingResources : IRenderResources
     public Dictionary<MeshId, MeshData> Meshes { get; } = [];
 
     public Dictionary<MaterialId, MaterialDesc> Materials { get; } = [];
+
+    public Dictionary<ModelId, ModelDesc> Models { get; } = [];
 
     public MeshId CreateMesh(MeshData mesh)
     {
@@ -22,6 +27,13 @@ internal sealed class RecordingResources : IRenderResources
     {
         var id = new MaterialId(next++);
         Materials[id] = material;
+        return id;
+    }
+
+    public ModelId CreateModel(ModelDesc model)
+    {
+        var id = new ModelId(next++);
+        Models[id] = model;
         return id;
     }
 }
