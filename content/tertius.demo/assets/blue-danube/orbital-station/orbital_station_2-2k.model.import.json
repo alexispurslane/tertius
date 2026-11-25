@@ -121,7 +121,17 @@
         "roughness": 0.48,
         "spokeCladding": true
       },
+      "facade": {
+        "atlasRelief": true
+      },
+      "floor": {
+        "atlasRelief": true
+      },
+      "tunnels": {
+        "atlasRelief": true
+      },
       "strut": {
+        "atlasRelief": true,
         "roughness": 0.36,
         "metallic": 1
       },

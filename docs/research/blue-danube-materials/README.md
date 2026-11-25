@@ -37,6 +37,21 @@ Both runs use the same [four cameras](normals/hulls.json) and Sun direction. A d
 
 The hub view includes portions of the spokes. The cargo view shows the octagonal door, cross-shaped locking ribs and hinges on three pods. Each percentage uses the entire 1280 × 720 frame. The [measurements](normals/hull-measurements.json) include peak changes.
 
+### Opaque station surfaces
+
+The follow-up cook traces recesses in Pioneer's original texture coordinates. The scale is the median metres per full texture interval on non-emitting triangles with measurable texture area. Each normal map also serves the material's glow copies. Their exported emission colours and strengths match the earlier cook exactly.
+
+| Surface | Metres per texture interval | Authored depth | Triangles with normal maps | Triangles sampled on a sloping edge |
+|---|---:|---|---:|---:|
+| Facade | 104 | 50–75 mm at covers, cladding and window reveals | 50,791 | 7,516 |
+| Floor | 212 | 35 mm deck joints, 80 mm service recesses | 51,959 | 6,614 |
+| Tunnels | 132 | 110 mm behind the diagonal braces | 1,888 | 592 |
+| Strut | 91 | 45 mm sleeve joints, 80 mm sockets | 3,168 | 732 |
+
+The last column counts triangles where at least one of 78 evenly spaced interior samples differs from a level normal by more than one code value in red or green. This can miss thin edges. The flat portions of each plate share the same normal map. The deck paint follows the plates, and the window recesses have level interiors.
+
+The [hub tunnel closeup](normals/hub-tunnel-pair.png) shows the previous cook at left and the new cook at right. Both captures used the Release renderer and the art preview's `hub-above` camera. For these diagnostic copies, both station root nodes moved by (294, 373, −338.5) metres to put the camera inside the upper hub. The highlight follows the lip beside the diagonal brace. At 1280 × 720, 80.78% of pixels changed by at least one RGB code value. The mean absolute channel difference was 1.45 out of 255, including a 0.016-stop exposure change.
+
 ## Verification
 
 The Checked Host coverage run passed 2,168 tests and skipped eight. The Earth material loader covered all 27 measured lines and 90% of its branches. The mutation runner killed all ten selected Demo mutations. The first version of M06 failed to compile. The revised mutation removed the inspection scene's globe maps at their assignment and the scene test caught it.

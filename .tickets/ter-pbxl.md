@@ -21,3 +21,5 @@ The [material report](../docs/research/blue-danube-materials/README.md) records 
 The parent integrates EarthMeshRadius at both globe calls and owns the release film.
 
 The scoped Release Host run passed 94 tests and skipped one opt-in measurement. The earlier full Checked log has no final Rendering or solution verdict.
+
+The opaque station follow-up covers 107,806 triangles across the facade, floor, tunnels and strut. Five focused asset tests passed. All twelve glow copies retain their original emission and share their base normal image. The material report includes the matched hub tunnel closeup and sampled edge coverage.

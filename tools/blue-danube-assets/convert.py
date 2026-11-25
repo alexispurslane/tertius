@@ -187,6 +187,10 @@ def _pioneer_material(name, materials_by_name, override, sources, cache):
         import habitat
         diffuse = habitat.finish_spoke(material)
         material["spoke_cladding"] = True
+    if override.get("atlasRelief"):
+        import habitat
+        import industrial
+        habitat.normal_map(material, name + " recesses", industrial.station_atlas_normal(name))
     if override.get("cargoRelief"):
         import habitat
         habitat.finish_cargo(material)

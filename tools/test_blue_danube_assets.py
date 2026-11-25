@@ -364,6 +364,49 @@ class TheCookedHullNormals(unittest.TestCase):
         normal = 2 * industrial.surface_normal(0.3 * u - 0.4 * v, 0.125) - 1
         np.testing.assert_allclose(normal[4, 4], np.array([-0.3, 0.4, 1]) / np.sqrt(1.25))
 
+    def test_the_facade_window_has_a_recessed_lip_and_a_level_pane(self):
+        import numpy as np
+        industrial = _load("industrial", "blue-danube-assets/industrial.py")
+        normal = 2 * industrial.station_atlas_normal("facade")[::-1] - 1
+        size = len(normal)
+        # Cross the top reveal of the fourth pane in the first row.
+        section = normal[int(30 * size / 480):int(34.5 * size / 480), int(80 * size / 480)]
+        # Image rows increase downwards, opposite Blender's V axis.
+        depth = -(section[:, 1] / section[:, 2]).sum() * 104 / size
+        self.assertAlmostEqual(depth, 0.075, places=4)
+        np.testing.assert_array_equal(section[-1], [0, 0, 1])
+
+    def test_opaque_station_surfaces_share_their_relief_with_each_emission_group(self):
+        import struct
+        cooked = TOOLS.parent / "content/tertius.demo/bin/assets/blue-danube/orbital-station"
+        model = next(cooked.glob("*/model.glb"), None)
+        if not model:
+            self.skipTest("needs cooked Blue Danube station")
+        with model.open("rb") as glb:
+            glb.seek(12)
+            length, _ = struct.unpack("<II", glb.read(8))
+            doc = json.loads(glb.read(length))
+        glow = json.loads(model.with_name("report.json").read_text())["glow"]
+        materials = {mat["name"]: mat for mat in doc["materials"]}
+        for name in ("facade", "floor", "tunnels", "strut"):
+            with self.subTest(material=name):
+                self.assertIn("normalTexture", materials[name])
+                for group in glow.get("hub/" + name, {}).get("groups", []):
+                    copy = materials[group["material"]]
+                    base_texture = doc["textures"][materials[name]["normalTexture"]["index"]]
+                    glow_texture = doc["textures"][copy["normalTexture"]["index"]]
+                    self.assertEqual(glow_texture["source"], base_texture["source"])
+                    strength = copy["extensions"]["KHR_materials_emissive_strength"]["emissiveStrength"]
+                    for factor, source in zip(copy["emissiveFactor"], group["linearColor"]):
+                        self.assertAlmostEqual(factor * strength, 60 * source, delta=0.0031)
+        for mesh in doc["meshes"]:
+            for part in mesh["primitives"]:
+                material = doc["materials"][part["material"]]
+                if material["name"].split(".")[0] in ("facade", "floor", "tunnels", "strut"):
+                    self.assertIn("TANGENT", part["attributes"])
+                if material["name"].startswith(("facade_window", "ring_glass")):
+                    self.assertNotIn("normalTexture", material)
+
     def test_the_active_hub_spoke_and_cargo_materials_have_tangent_space_relief(self):
         import struct
         cooked = TOOLS.parent / "content/tertius.demo/bin/assets/blue-danube"
