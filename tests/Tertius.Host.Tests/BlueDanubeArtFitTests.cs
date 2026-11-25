@@ -217,6 +217,69 @@ public sealed class BlueDanubeArtSceneTests : IDisposable
         drawn.Select(id => world.GetRender(scene[id]).Model).Should().OnlyContain(model => !model.IsNone);
     }
 
+    [Theory]
+    [InlineData("earth-system", "earth-surface")]
+    [InlineData("demo-surface", "earth-surface")]
+    [InlineData("demo-exit", "earth-globe")]
+    public void TheGlobeDrawsWithTheCookedSurfaceMaps(string sceneName, string globe)
+    {
+        ContentFolders content = TinyArt();
+        string folder = Path.Combine(content.Root, "tertius.demo/bin/assets/blue-danube/earth");
+        Directory.CreateDirectory(folder);
+        using (
+            var archive = System.IO.Compression.ZipFile.Open(
+                Path.Combine(folder, "material.zip"),
+                System.IO.Compression.ZipArchiveMode.Create
+            )
+        )
+        {
+            (string Name, byte Red)[] maps = [("color.png", 90), ("normal.png", 128), ("roughness.png", 240)];
+            foreach ((string name, byte red) in maps)
+            {
+                using Stream entry = archive.CreateEntry(name).Open();
+                entry.Write(GlbBuilder.Png([red, 128, 255, 255], width: 1, height: 1));
+            }
+        }
+
+        SceneInstance scene = DemoScenes.For(content).Single(s => s.Name == sceneName).Build(world, resources);
+        MaterialDesc material = resources.Materials[world.GetRender(scene[globe]).Material];
+        resources.Textures[material.BaseColorMap].Should().Be((true, (byte)90));
+        resources.Textures[material.NormalMap].Should().Be((false, (byte)128));
+        resources.Textures[material.MetallicRoughnessMap].Should().Be((false, (byte)240));
+        material.Emissive.Should().Be(Vector3.Zero);
+        MeshData mesh = resources.Meshes[world.GetRender(scene[globe]).Mesh];
+        mesh.Vertices.Min(v => v.TexCoord.Y).Should().BeGreaterThan(0, "the north pole filters inside its own cap");
+        mesh.Vertices.Max(v => v.TexCoord.Y).Should().BeLessThan(1, "the south pole filters inside its own cap");
+    }
+
+    [Fact]
+    public void TheFilmNamesSetupWhenItsModelsAreReadyButTheEarthMaterialIsMissing()
+    {
+        var error = new StringWriter();
+        int code = Program.RunScene(
+            args: ["--scene", "demo-exit", "--unknown-option"],
+            output: new StringWriter(),
+            error: error,
+            content: TinyArt()
+        );
+        code.Should().Be(ScriptCommand.FileError);
+        error.ToString().Should().Contain("Earth material").And.Contain(BlueDanubeArt.SetupCommand);
+    }
+
+    [Fact]
+    public void TheExitGlobesContinentsTurnInTheStationOrbitFrame()
+    {
+        SceneInstance scene = DemoScenes.DemoExit.Build(world, resources);
+        FrameHandle earth = world.GetOwnedFrame(scene["earth"]);
+        Double3 start = world.PoseIn(scene["earth-globe"], earth).Rotation.Rotate(Double3.UnitX);
+        Tertius.Testing.WorldTesting.Tick(world, 2);
+        DQuaternion pose = world.PoseIn(scene["earth-globe"], earth).Rotation;
+        Double3 landmark = pose.Rotate(Double3.UnitX);
+        Double3 expected = DemoScenes.DemoSurface.Date.Ground.RotationAt(world.Time).Rotate(Double3.UnitX);
+        (landmark - expected).Length.Should().BeLessThan(1e-9);
+        (landmark - start).Length.Should().BeGreaterThan(1e-6);
+    }
+
     [Fact]
     public void ThePropsStandWherePoseOfPutsThem()
     {

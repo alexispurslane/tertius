@@ -533,7 +533,13 @@ public static partial class DemoScenes
         {
             var scene = new SceneInstance();
             // On the ground, the daylight's ambient light, not the dim space of the orbit scene, which SunAndEarth sets.
-            FrameHandle earth = SunAndEarth(world: world, resources: resources, scene: scene, date: Date);
+            FrameHandle earth = SunAndEarth(
+                world: world,
+                resources: resources,
+                scene: scene,
+                date: Date,
+                earthMaterial: models?.Earth
+            );
             world.Ambient = Daylight;
             FrameHandle surface = world.GetOwnedFrame(scene["earth-surface"]);
             SpawnFloorAndRamp(world: world, resources: resources, scene: scene, surface: surface);

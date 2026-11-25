@@ -1,0 +1,26 @@
+{
+  "neutral": {
+    "mean_absolute_RGB": 0.0,
+    "percent_pixels_one_code": 0.0,
+    "p95_max_channel": 0.0,
+    "peak_max_channel": 0.0
+  },
+  "physical": {
+    "mean_absolute_RGB": 0.16861528429439665,
+    "percent_pixels_one_code": 27.059548735818396,
+    "p95_max_channel": 1.0,
+    "peak_max_channel": 18.0
+  },
+  "repeat": {
+    "mean_absolute_RGB": 0.0,
+    "percent_pixels_one_code": 0.0,
+    "p95_max_channel": 0.0,
+    "peak_max_channel": 0.0
+  },
+  "exaggerated": {
+    "mean_absolute_RGB": 0.7179046968901931,
+    "percent_pixels_one_code": 43.7911693234094,
+    "p95_max_channel": 4.0,
+    "peak_max_channel": 43.0
+  }
+}

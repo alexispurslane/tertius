@@ -146,11 +146,15 @@ def _pioneer_piece(name, geometries, instances, material_for):
                     continue
                 faces.append(indices)
                 face_materials.append(slot)
+                if material.get("spoke_cladding"):
+                    import industrial
+                    loop_uvs.extend(industrial.spoke_uvs([points[i] for i in indices]))
+                else:
+                    loop_uvs.extend(c[2] for c in tri)
                 for c in tri:
                     n = normal_matrix @ np.array(c[1] if c[1] is not None else (0.0, 0.0, 1.0))
                     length = np.linalg.norm(n)
                     loop_normals.append(tuple(n / length) if length > 0 else (0.0, 0.0, 1.0))
-                    loop_uvs.append(c[2])
     data = bpy.data.meshes.new(name)
     data.from_pydata(points, [], faces)
     for material_name in slots:
@@ -176,10 +180,20 @@ def _pioneer_material(name, materials_by_name, override, sources, cache):
     material.use_backface_culling = True
     tree = material.node_tree
     bsdf = tree.nodes["Principled BSDF"]
-    bsdf.inputs["Roughness"].default_value = PIONEER_ROUGHNESS
-    bsdf.inputs["Metallic"].default_value = 0.0
+    bsdf.inputs["Roughness"].default_value = override.get("roughness", PIONEER_ROUGHNESS)
+    bsdf.inputs["Metallic"].default_value = override.get("metallic", 0.0)
     diffuse = _map(override.get("diffuse"), spec.diffuse, sources)
+    if override.get("spokeCladding"):
+        import habitat
+        diffuse = habitat.finish_spoke(material)
+        material["spoke_cladding"] = True
+    if override.get("cargoRelief"):
+        import habitat
+        habitat.finish_cargo(material)
     if diffuse is not None:
+        if override.get("ringCladding"):
+            import habitat
+            diffuse = habitat.finish_ring(material, diffuse)
         if spec.diffuse_color != (1.0, 1.0, 1.0):
             diffuse = _tinted(diffuse, spec.diffuse_color)
         node = tree.nodes.new("ShaderNodeTexImage")

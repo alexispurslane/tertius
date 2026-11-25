@@ -1,0 +1,43 @@
+{
+  "title": "Earth surface colour, clouds and elevation",
+  "files": {
+    "elevation.dods": {
+      "url": "https://coastwatch.pfeg.noaa.gov/erddap/griddap/etopo180.dods?altitude%5B0:10:10800%5D%5B0:10:21600%5D",
+      "bytes": 9370338,
+      "sha256": "sha256:a14135cf20fe2d0a7a18af72a0999483735c1f7e47cf3dbdc24d819beda61b04",
+      "credit": "NOAA National Geophysical Data Center, ETOPO1 Ice Surface (Amante and Eakins, 2009)",
+      "license": "Free use and redistribution under the dataset license",
+      "source": "https://doi.org/10.7289/V5C8276M",
+      "terms": "https://coastwatch.pfeg.noaa.gov/erddap/griddap/etopo180.das",
+      "stagingMirror": "https://upwell.pfeg.noaa.gov/erddap/griddap/etopo180.dods?altitude%5B0:10:10800%5D%5B0:10:21600%5D"
+    },
+    "clouds8.jpg": {
+      "url": "https://www.solarsystemscope.com/textures/download/8k_earth_clouds.jpg",
+      "bytes": 11619184,
+      "sha256": "sha256:c792eca228989d36ebb45d3ea6ff1198be5e21a25d70d2fbcb2124ffd14ba7f5",
+      "credit": "Solar System Scope, Earth Clouds",
+      "license": "CC BY 4.0",
+      "source": "https://www.solarsystemscope.com/textures/",
+      "terms": "https://creativecommons.org/licenses/by/4.0/"
+    },
+    "june.jpg": {
+      "url": "https://assets.science.nasa.gov/content/dam/science/esd/eo/images/bmng/bmng-base/june/world.200406.3x5400x2700.jpg",
+      "bytes": 1692239,
+      "sha256": "sha256:dc059529b8ed1cfcdd59747a7c3f259c93c1322bf88ca1ec8bab1dd71fcc57f5",
+      "credit": "Reto St\u00f6ckli, NASA Earth Observatory (NASA Goddard Space Flight Center), Blue Marble Next Generation, June 2004 base map",
+      "license": "NASA media usage guidelines permit computer graphical simulations",
+      "source": "https://science.nasa.gov/earth/earth-observatory/blue-marble-next-generation/base-map/#june",
+      "terms": "https://www.nasa.gov/nasa-brand-center/images-and-media/"
+    }
+  },
+  "changes": [
+    "The June base map is resampled and combined with cloud cover in linear light. There is no baked solar disc or specular highlight.",
+    "Earth Clouds by Solar System Scope (CC BY 4.0) is resampled into colour and roughness masks.",
+    "Above-sea-level ETOPO1 slopes become tangent-space normals. The borders continue across the poles."
+  ],
+  "approved": {
+    "on": "2026-11-25",
+    "by": "Blue Danube fidelity orchestrator for ter-pbxl; verified all three files and the hash-identical NOAA staging mirror",
+    "record": "sha256:5066d3cdf605645b9e8be19471473b1ee9999d46bca25b20bd7eee3adbf3a961"
+  }
+}
