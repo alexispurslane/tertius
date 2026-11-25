@@ -78,7 +78,7 @@ public sealed class StationExitGeometryTests : IDisposable
     public void TheLiftsFloorLiesFlushWithTheDeck()
     {
         Double3 middle = StationExit.LiftTop.Position;
-        Ray(middle + new Double3(5, 0, 0), -Double3.UnitX).Should().BeApproximately(5, 1e-3);
+        Ray(middle + new Double3(1, 0, 0), -Double3.UnitX).Should().BeApproximately(1, 1e-3);
         Ray(middle + new Double3(5, Layout.LiftHalf + 1, 0), -Double3.UnitX).Should().BeApproximately(5, 1e-3);
     }
 
@@ -106,6 +106,8 @@ public sealed class StationExitGeometryTests : IDisposable
     [InlineData(-3, 2.5)]
     [InlineData(0, 6)]
     [InlineData(10, 0)]
+    [InlineData(90, 19)]
+    [InlineData(-70, -19)]
     public void TheDeckIsSolidBesideTheLiftsHole(double y, double z) =>
         Ray(new(Layout.Deck + 2, y, z), -Double3.UnitX)
             .Should()
@@ -137,6 +139,38 @@ public sealed class StationExitGeometryTests : IDisposable
         {
             distance.Should().BeApproximately(from - FloorX(z), 0.02, $"the ceiling is open at y = {y} m, z = {z} m");
         }
+    }
+
+    [Fact]
+    public void TheBerthSupportsTheWheelsAtThePioneerFloor()
+    {
+        Double3 berth = new(-100, 11.249, 0);
+        Ray(berth, -Double3.UnitX).Should().BeApproximately(4.611, 0.002);
+        Layout.ParkedBounds.Min.X.Should().BeApproximately(-104.611f, 0.002f);
+    }
+
+    [Fact]
+    public void TheRimLandingGateGuardsTheEmptyShaft()
+    {
+        Double3 place = new(-StationExit.Ride.Foot + 1, 4, Layout.LiftAcross);
+        Ray(place, -Double3.UnitY).Should().BeInRange(1.65, 1.95);
+    }
+
+    [Fact]
+    public void TheRimWaitingRoomHasAWallBehindItsBenches()
+    {
+        Double3 place = new(-Layout.FloorRadius + 1, 0, -5);
+        Ray(place, -Double3.UnitZ).Should().BeInRange(3, 7);
+    }
+
+    [Fact]
+    public void TheLiftCabinEnclosesTheRiderAboveShoulderHeight()
+    {
+        Double3 eye = StationExit.LiftTop.Position + new Double3(1.7, 0, 0);
+        Ray(eye, Double3.UnitX).Should().BeInRange(0.7, 1.4, "a roof over the rider");
+        Ray(eye, Double3.UnitZ).Should().BeApproximately(Layout.LiftHalf - StationExit.RailThickness, 0.001);
+        Ray(eye, -Double3.UnitZ).Should().BeApproximately(Layout.LiftHalf - StationExit.RailThickness, 0.001);
+        Ray(eye, -Double3.UnitY).Should().BeApproximately(Layout.LiftHalf - StationExit.RailThickness, 0.001);
     }
 
     /// <summary>

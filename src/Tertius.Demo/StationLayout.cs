@@ -8,9 +8,8 @@ namespace Tertius.Demo;
 /// The shape of the Blue Danube station in its own axes, from a few named sizes (docs/plans/blue-danube-demo.md, "The
 /// kilometre wheel" and "The fit to the art"). +Y is the axis, about which the station turns, and the angle θ about it runs
 /// from +X toward -Z. The wheel's floor lies <see cref="FloorRadius"/> from the axis, and the station's rate gives one
-/// standard gravity there. The hub is a box along the axis that holds the bay, inside the core of the station's art. The
-/// slot leads through its +Y wall, and its -X wall is the deck: a pier that stands on the core's flat face at
-/// <see cref="CoreFace"/>. The parked hull rests on the deck against the cradle rail. Two spokes, lift shafts, run along +X
+/// standard gravity there. The shuttle enters through the axial mouth of Pioneer's hub and lands on berth 14,
+/// with its wheels on the -X floor and its port side against the cradle rail. Two spokes run along +X
 /// and -X in the plane y = 0, from the hub to the wheel's ceiling. The lift runs in the spoke along -X. Every other place
 /// derives from these sizes, so a change of the bay's place or the bubble moves the docking, the exit and the cameras.
 /// <list type="bullet">
@@ -18,7 +17,7 @@ namespace Tertius.Demo;
 /// <item>The deck's spin gravity is at least <see cref="MinDeckGravity"/>, so a person there keeps its feet.</item>
 /// <item>The floor's facets sag less than <see cref="MaxFloorSag"/> below the circle of their joints.</item>
 /// <item>The hub reaches across the spokes' width along the axis.</item>
-/// <item>The deck stands on the core's face: its top lies nearer the axis than the face, and its underside beyond it.</item>
+/// <item>The deck and its collision slab share one top surface.</item>
 /// <item>The bubble holds every corner of the hull, and leaves the hold point outside, each by more than the shuttle's reach.</item>
 /// <item>The shuttle's frame fits in the station's, and its parked hull fits in the bay, on the deck's side of the cradle rail.</item>
 /// <item>The ceiling's opening is narrower than the spoke's inside and wider than the lift.</item>
@@ -58,25 +57,11 @@ public sealed record StationLayout
     /// <summary>The wheel's segments, and so the facets of its floor: 12.3 m long each, with a sag of 9.4 mm.</summary>
     public int Segments { get; init; } = 1024;
 
-    /// <summary>
-    /// How far the deck's top lies from the axis, in meters. Its spin gravity is ω² times this: 0.501 m/s² for 102.2 m. At
-    /// 8 m it would be 0.039 m/s², below the zero-gravity threshold, where a person floats.
-    /// </summary>
-    public float DeckRadius { get; init; } = 102.2f;
+    /// <summary>The berth 14 floor plane measured on the four floor triangles of Pioneer's converted hub, in metres.</summary>
+    public float DeckRadius { get; init; } = 104.611f;
 
-    /// <summary>
-    /// The thickness of the deck, the pier on the core's face, in meters: 2.5 m above the face and 0.2 m into the art
-    /// behind it. A view from the deck sees about 1.4 m down the lift's hole, so the face, which the lift passes through,
-    /// stays out of sight in the hole's walls.
-    /// </summary>
+    /// <summary>The depth of the collision slab and the reveal around the lift opening, in metres.</summary>
     public float DeckThickness { get; init; } = 2.7f;
-
-    /// <summary>
-    /// How far the core's flat face at θ = 180 degrees lies from the axis, in meters: the face of the station's art that
-    /// the deck stands on. It is 43 m wide across the axis, and no fitting of the art stands on it within 17 m of its middle
-    /// line and from 15 m on the far side of the wheel's plane to 37 m on the slot's side.
-    /// </summary>
-    public float CoreFace { get; init; } = 104.7f;
 
     /// <summary>The thickness of the hub's other walls, in meters.</summary>
     public float HubWall { get; init; } = 0.5f;
@@ -184,15 +169,9 @@ public sealed record StationLayout
             new(DeckRadius, BayAxial + BayHalfAxial, BayHalfAcross)
         );
 
-    /// <summary>The deck, the hub's -X wall: a pier on the core's face, as wide and as long as the bay.</summary>
-    public BoundingBox DeckSlab
-    {
-        get
-        {
-            BoundingBox hub = Hub;
-            return new(hub.Min, new(Deck, hub.Max.Y, hub.Max.Z));
-        }
-    }
+    /// <summary>The four Pioneer berth floor triangles span 178.75 by 41.62 m. The collision slab ends on their edges.</summary>
+    public BoundingBox DeckSlab =>
+        new(new(Deck - DeckThickness, BayAxial - 89.99f, -20.81f), new(Deck, BayAxial + 88.76f, 20.81f));
 
     /// <summary>
     /// The cradle rail on the deck: <see cref="CradleHeight"/> tall and <see cref="CradleThickness"/> thick, along the
@@ -337,8 +316,8 @@ public sealed record StationLayout
             parked = ParkedBounds;
         if (deckGravity < MinDeckGravity)
             yield return $"The deck's spin gravity, {deckGravity:F3} m/s², is below {MinDeckGravity} m/s².";
-        if (!(DeckRadius < CoreFace && CoreFace < DeckRadius + DeckThickness))
-            yield return "The deck does not stand on the core's face.";
+        if (DeckThickness <= 0)
+            yield return "The deck needs a positive thickness.";
         if (sag >= MaxFloorSag)
             yield return $"The floor's facets sag {sag:F4} m, not less than {MaxFloorSag} m.";
         if (hub.Min.Y > -SpokeHalfWidth || hub.Max.Y < SpokeHalfWidth)

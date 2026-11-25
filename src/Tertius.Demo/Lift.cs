@@ -75,7 +75,16 @@ public readonly partial struct LiftEvent;
 /// <param name="top">The platform's pose at the top, in the station's axes, where it spawns.</param>
 /// <param name="outward">The unit direction of the ride, away from the axis along the spoke, in the station's axes.</param>
 /// <param name="profile">The ride's profile.</param>
-public sealed class Lift(FrameHandle station, DPose top, Double3 outward, LiftProfile profile) : IComponent
+/// <param name="deckGate">The landing gate that shuts behind the car at departure.</param>
+/// <param name="rimGate">The landing gate that opens at the foot.</param>
+public sealed class Lift(
+    FrameHandle station,
+    DPose top,
+    Double3 outward,
+    LiftProfile profile,
+    Entity deckGate,
+    Entity rimGate
+) : IComponent
 {
     private readonly FrameHandle station = station;
     private readonly DPose top = top;
@@ -172,6 +181,10 @@ public sealed class Lift(FrameHandle station, DPose top, Double3 outward, LiftPr
         }
 
         State = next;
+        if (old is AtTop && next is Descending)
+            outbox.Send(deckGate, new CloseDoor());
+        if (next is AtFoot)
+            outbox.Send(rimGate, new OpenDoor());
         if (old is Descending { Rider: var rider } && next is AtFoot && !rider.IsNull)
             outbox.Send(rider, new LiftStopped());
     }

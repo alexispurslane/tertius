@@ -65,9 +65,9 @@
     {"do":"camera","entity":"bay-camera"},
     {"do":"film","name":"slot","frames":860,"every":2},
     {"do":"camera","entity":"cockpit-camera"},
-    {"do":"film","name":"move-out","frames":3059,"every":2},
+    {"do":"film","name":"move-out","frames":3131,"every":2},
     {"do":"camera","entity":"bay-camera"},
-    {"do":"film","name":"landing","frames":648,"every":1},
+    {"do":"film","name":"landing","frames":650,"every":1},
     {"do":"camera","entity":"cabin-camera"},
     {"do":"film","name":"docked","frames":180,"every":1}
   ]

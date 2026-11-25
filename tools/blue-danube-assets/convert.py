@@ -354,9 +354,10 @@ def _overlay(convert, pieces, report):
         return
     module = importlib.import_module(overlay["module"])
     parent = pieces[overlay["parent"]]
+    added = list(module.build())
     if overlay.get("openLiftShaft"):
         module.open_lift_shaft(pieces)
-    added = module.build()
+        added.extend(module.landing_signs())
     for obj in added:
         obj.parent = parent
         obj.matrix_parent_inverse = parent.matrix_world.inverted()

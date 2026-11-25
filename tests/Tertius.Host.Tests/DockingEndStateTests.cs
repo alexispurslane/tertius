@@ -52,7 +52,7 @@ public sealed class DockingEndStateTests
             corner.Z.Should().BeInRange(Bay.Min.Z - 1e-5, Bay.Max.Z + 1e-5, $"the corner {corner} lies inside the bay");
         }
 
-        (DemoStation.Layout.ParkedPose.Position - new Double3(-97.2992, 21.4344, -4)).Length.Should().BeLessThan(1e-3);
+        (DemoStation.Layout.ParkedPose.Position - new Double3(-99.7102, 21.4344, -4)).Length.Should().BeLessThan(1e-3);
     }
 
     /// <summary>
@@ -90,8 +90,8 @@ public sealed class DockingEndStateTests
         corners.Max(c => c.Y).Should().BeApproximately(bounds.Max.Y, 1e-4);
         corners.Min(c => c.Z).Should().BeApproximately(bounds.Min.Z, 1e-4);
         corners.Max(c => c.Z).Should().BeApproximately(bounds.Max.Z, 1e-4);
-        (bounds.Min - new Vector3(-102.2f, 6.4136f, -10.92f)).Length().Should().BeLessThan(1e-3f);
-        (bounds.Max - new Vector3(-92.9296f, 35.5f, 2.92f)).Length().Should().BeLessThan(1e-3f);
+        (bounds.Min - new Vector3(-104.611f, 6.4136f, -10.92f)).Length().Should().BeLessThan(1e-3f);
+        (bounds.Max - new Vector3(-95.3406f, 35.5f, 2.92f)).Length().Should().BeLessThan(1e-3f);
     }
 
     /// <summary>
@@ -103,8 +103,8 @@ public sealed class DockingEndStateTests
     {
         BoundingBox hole = DemoStation.Layout.LiftHole,
             parked = DemoStation.Layout.ParkedBounds;
-        (hole.Min - new Vector3(-104.9f, -2.05f, 1.75f)).Length().Should().BeLessThan(1e-4f);
-        (hole.Max - new Vector3(-102.2f, 2.05f, 5.85f)).Length().Should().BeLessThan(1e-4f);
+        (hole.Min - new Vector3(-107.311f, -2.05f, 1.75f)).Length().Should().BeLessThan(1e-4f);
+        (hole.Max - new Vector3(-104.611f, 2.05f, 5.85f)).Length().Should().BeLessThan(1e-4f);
         (parked.Min.Y - hole.Max.Y)
             .Should()
             .BeApproximately(4.3636f, 1e-3f, "the hull's nose ends 4.36 m short of the hole along the axis");
@@ -136,7 +136,7 @@ public sealed class DockingEndStateTests
 
     /// <summary>
     /// The spin gravity at the parked center of mass, ω² r away from the axis, points into the deck and into the cradle
-    /// rail: 0.479 m/s², leaning 2.3 degrees from the deck's normal toward the rail. So the corner holds the hull.
+    /// rail: 0.491 m/s², leaning 2.3 degrees from the deck's normal toward the rail. So the corner holds the hull.
     /// </summary>
     [Fact]
     public void TheSpinPullsTheParkedShuttleIntoTheCorner()
@@ -146,7 +146,7 @@ public sealed class DockingEndStateTests
         Double3 gravity = new Double3(center.X, 0, center.Z) * (rate * rate);
         gravity.X.Should().BeNegative("the spin gravity presses the hull into the deck");
         gravity.Z.Should().BeNegative("the spin gravity presses the hull into the cradle rail");
-        gravity.Length.Should().BeApproximately(0.479, 0.001);
+        gravity.Length.Should().BeApproximately(0.491, 0.001);
         (Math.Atan2(-gravity.Z, -gravity.X) * 180 / Math.PI).Should().BeApproximately(2.3, 0.1);
     }
 
@@ -154,7 +154,7 @@ public sealed class DockingEndStateTests
     /// The station flies its orbit in a root frame with Earth's point gravity, and a dynamic shuttle hull spawns at the
     /// parked pose in the station's turning frame, at rest there, with no push. The deck and the rail hold it: after 10 s
     /// it lies within 3 cm and 0.5 degrees of the pose, still in the station's frame. The cabin's gravity at the seat stand
-    /// is ω² times the seat's distance from the station's axis, 0.483 m/s², and leans 1.7 degrees from the floor's down
+    /// is ω² times the seat's distance from the station's axis, 0.495 m/s², and leans 1.7 degrees from the floor's down
     /// toward port.
     /// </summary>
     [Fact]
@@ -197,7 +197,7 @@ public sealed class DockingEndStateTests
                 0.03 * rate * rate * fromTheAxis,
                 "the cabin feels the spin gravity of its radius"
             );
-        felt.Length.Should().BeApproximately(0.483, 0.005);
+        felt.Length.Should().BeApproximately(0.495, 0.005);
         (Math.Acos(Double3.Dot(felt, -Double3.UnitY) / felt.Length) * 180 / Math.PI)
             .Should()
             .BeApproximately(1.7, 0.3, "the gravity leans from the floor's down");

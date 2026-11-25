@@ -14,17 +14,17 @@ public static partial class DemoScenes
     /// the station turns toward +Z there, the spinward side.
     /// <list type="bullet">
     /// <item>The lift, <c>lift</c>: a kinematic platform 4 m square, whose floor lies flush with the deck in the lift's hole
-    /// at the top. Railings 1.1 m tall close its antispinward, spinward and -Y sides, and it opens toward +Y. Its
+    /// at the top. Its glazed cabin opens toward +Y through a sliding gate at each landing. Its
     /// <see cref="Lift"/> rides it down the spoke on <see cref="Ride"/> to a step above the wheel's floor.</item>
     /// <item>The ceiling's opening: the ceiling is three bands turned by half a segment, and the middle band leaves out
     /// the segment under the spoke (see <see cref="CeilingBands"/>).</item>
-    /// <item>Lamps on the shaft's spinward wall every 150 m, two on the lift's railings, and six under the ceiling round the
+    /// <item>Lamps on the shaft's spinward wall every 150 m, two under the car roof, and six under the ceiling round the
     /// lift's foot.</item>
     /// <item>The views <c>deck-camera</c>, on the deck, <c>shaft-camera</c>, in the shaft below the deck,
     /// <c>ride-camera</c>, on the lift, and <c>wheel-camera</c>, on the floor spinward of the lift's foot.</item>
     /// </list>
     /// </summary>
-    public static class StationExit
+    public static partial class StationExit
     {
         /// <summary>
         /// The person's walk speed on the way out and on the floor, in m/s. The Coriolis force of a walk across the axis,
@@ -43,6 +43,9 @@ public static partial class DemoScenes
 
         /// <summary>How tall the lift's railings stand above its floor, in meters.</summary>
         public const float RailHeight = 1.1f;
+
+        /// <summary>The clear headroom of the lift cabin, in metres.</summary>
+        public const float CabinHeight = 2.75f;
 
         /// <summary>The thickness of a railing, in meters.</summary>
         public const float RailThickness = 0.1f;
@@ -124,16 +127,29 @@ public static partial class DemoScenes
 
         /// <summary>
         /// The boxes of the lift's body, in its own axes, from the middle of its floor's top face: the floor, and the
-        /// railings on its antispinward (-Z), spinward (+Z) and -Y sides, on the floor's edges. Its +Y side is open.
+        /// glazed side walls, back wall, handrail and roof. The +Y wall leaves the landing doorway clear.
         /// </summary>
         public static IEnumerable<BoundingBox> LiftBoxes()
         {
             float half = Layout.LiftHalf,
                 inner = half - RailThickness;
             yield return new(new(-LiftFloorThickness, -half, -half), new(0, half, half));
-            yield return new(new(0, -half, -half), new(RailHeight, half, -inner));
-            yield return new(new(0, -half, inner), new(RailHeight, half, half));
-            yield return new(new(0, -half, -inner), new(RailHeight, -inner, inner));
+            yield return new(new(0, -half, -half), new(CabinHeight, half, -inner));
+            yield return new(new(0, -half, inner), new(CabinHeight, half, half));
+            yield return new(new(0, -half, -inner), new(CabinHeight, -inner, inner));
+            yield return new(new(0, inner, -inner), new(CabinHeight, half, -DoorHalfWidth));
+            yield return new(new(0, inner, DoorHalfWidth), new(CabinHeight, half, inner));
+            // The guard rail stands clear of the back panel on two short brackets.
+            yield return new(
+                new(RailHeight - 0.035f, -inner + 0.09f, -1.6f),
+                new(RailHeight + 0.035f, -inner + 0.15f, 1.6f)
+            );
+            foreach (float z in new[] { -1.25f, 1.25f })
+                yield return new(
+                    new(RailHeight - 0.025f, -inner, z),
+                    new(RailHeight + 0.025f, -inner + 0.09f, z + 0.06f)
+                );
+            yield return new(new(CabinHeight, -half, -half), new(CabinHeight + RailThickness, half, half));
         }
 
         /// <summary>
@@ -223,8 +239,8 @@ public static partial class DemoScenes
             {
                 double hatch = Shuttle.Hatch.Center.Z + Layout.ParkedPose.Position.Y;
                 return Camera(
-                    new(Layout.Deck + 1.7, LiftTop.Position.Y - 7, Layout.LiftAcross + 4),
-                    new(Layout.Deck + 0.9, hatch / 2, Layout.LiftAcross - 2),
+                    new(Layout.Deck + 2.6, LiftTop.Position.Y - 8, Layout.LiftAcross + 12),
+                    new(Layout.Deck + 1.15, hatch / 2 - 3, Layout.LiftAcross - 1),
                     Double3.UnitX
                 );
             }
@@ -260,7 +276,7 @@ public static partial class DemoScenes
         /// The pose of <c>ride-camera</c> on the lift, in the lift's axes: 4 m above the middle of its floor, over its -Y
         /// spinward corner, looking down the shaft past the person, with the top of the picture toward the spinward wall.
         /// </summary>
-        public static DPose RideCamera => Camera(new(4, -1.7, 1.7), new(-4, 0, 0), Double3.UnitZ);
+        public static DPose RideCamera => Camera(new(2.48, -1.72, 1.72), new(0.95, 0, 0), Double3.UnitX);
 
         /// <summary>
         /// The pose of <c>docked-camera</c>: 3 m above the deck, 15 m spinward of the axis's plane and 1 m inside the bay's +Y
@@ -300,7 +316,8 @@ public static partial class DemoScenes
         /// edge, looking across the floor along -Y at the person's feet, with its roof toward the axis. It sees the person's
         /// soles and the floor under them side on, 2 m away.
         /// </summary>
-        public static DPose RideSideCamera => Camera(new(0.4, Layout.LiftHalf, 0), new(0.4, 0, 0), Double3.UnitX);
+        public static DPose RideSideCamera =>
+            Camera(new(0.4, Layout.LiftHalf - 0.19, 0), new(0.4, 0, 0), Double3.UnitX);
 
         private static DPose Camera(Double3 at, Double3 target, Double3 roof) =>
             new(at, AttitudeAutopilot.Facing(target - at, roof));
@@ -311,7 +328,37 @@ public static partial class DemoScenes
         /// </summary>
         public static void Spawn(World world, FrameHandle station, SceneInstance scene, IRenderResources resources)
         {
-            Entity lift = SpawnLift(world: world, station: station, resources: resources);
+            MaterialId cladding = PanelMaterial(resources);
+            Entity deckGate = LandingGate(
+                world: world,
+                frame: station,
+                landing: LiftTop.Position,
+                open: true,
+                resources: resources,
+                cladding: cladding
+            );
+            Entity rimGate = LandingGate(
+                world: world,
+                frame: station,
+                landing: LiftTop.Position with
+                {
+                    X = -Ride.Foot,
+                },
+                open: false,
+                resources: resources,
+                cladding: cladding
+            );
+            scene.Add("deck-gate", deckGate);
+            scene.Add("rim-gate", rimGate);
+            SpawnLanding(world: world, frame: station, resources: resources, cladding: cladding);
+            Entity lift = SpawnLift(
+                world: world,
+                station: station,
+                resources: resources,
+                deckGate: deckGate,
+                rimGate: rimGate,
+                cladding: cladding
+            );
             scene.Add("lift", lift);
             SpawnStair(
                 world: world,
@@ -346,14 +393,40 @@ public static partial class DemoScenes
         }
 
         /// <summary>
-        /// Spawns the lift in <paramref name="station"/> at <see cref="LiftTop"/>: a kinematic body over its boxes, drawn
-        /// yellow, with its <see cref="Lift"/>.
+        /// Spawns the lift in <paramref name="station"/> at <see cref="LiftTop"/>: a kinematic body over its cabin solids, with its <see cref="Lift"/>.
         /// </summary>
-        private static Entity SpawnLift(World world, FrameHandle station, IRenderResources resources)
+        private static Entity SpawnLift(
+            World world,
+            FrameHandle station,
+            IRenderResources resources,
+            Entity deckGate,
+            Entity rimGate,
+            MaterialId cladding
+        )
         {
             BoxMesh mesh = new();
+            BoxMesh glass = new();
             foreach (BoundingBox box in LiftBoxes())
-                mesh.Box(box);
+            {
+                if (
+                    (box.Max.Z - box.Min.Z) < 2 * RailThickness
+                    && (box.Max.Y - box.Min.Y) > 2 * Layout.LiftHalf - RailThickness
+                )
+                {
+                    var window = new BoundingBox(new(1.18f, -1.38f, box.Min.Z), new(2.23f, 1.38f, box.Max.Z));
+                    Opening opening = Opening.ThroughZ(window);
+                    mesh.Box(box, openings: [opening]).Sides(opening);
+                    glass.Box(
+                        window with
+                        {
+                            Min = window.Min with { Z = window.Center.Z - 0.01f },
+                            Max = window.Max with { Z = window.Center.Z + 0.01f },
+                        }
+                    );
+                }
+                else
+                    mesh.Box(box);
+            }
             CompoundShapeDesc shape = new([
                 .. LiftBoxes()
                     .Select(box => new CompoundChild(
@@ -361,28 +434,54 @@ public static partial class DemoScenes
                         new(box.Center, Quaternion.Identity)
                     )),
             ]);
-            return world.Spawn(
+            Entity car = world.Spawn(
                 new()
                 {
                     Frame = station,
                     Pose = LiftTop,
                     Body = new(Shape: shape, Motion: BodyMotion.Kinematic),
-                    Render = Drawn(
+                    Render = PanelRender(
                         resources: resources,
                         mesh: mesh.Build(),
-                        color: new(x: 0.85f, y: 0.7f, z: 0.15f, w: 1),
-                        boundingRadius: shape.BoundingRadius()
-                    ) with
-                    {
-                        Flags = RenderFlags.Visible | RenderFlags.CastsShadow | RenderFlags.NoImpostor,
-                    },
-                    Components = [new Lift(station: station, top: LiftTop, outward: LiftOutward, profile: Ride)],
+                        radius: shape.BoundingRadius(),
+                        material: cladding
+                    ),
+                    Components =
+                    [
+                        new Lift(
+                            station: station,
+                            top: LiftTop,
+                            outward: LiftOutward,
+                            profile: Ride,
+                            deckGate: deckGate,
+                            rimGate: rimGate
+                        ),
+                    ],
                 }
             );
+            world.Spawn(
+                new()
+                {
+                    AttachTo = car,
+                    Render = PanelRender(
+                        resources: resources,
+                        mesh: glass.Build(),
+                        radius: shape.BoundingRadius(),
+                        material: resources.CreateMaterial(
+                            new(
+                                BaseColor: new(x: 0.64f, y: 0.8f, z: 0.84f, w: 0.13f),
+                                Roughness: 0.13f,
+                                Alpha: new GlassAlpha()
+                            )
+                        )
+                    ),
+                }
+            );
+            return car;
         }
 
         /// <summary>
-        /// Spawns the lamps of the shaft and of the wheel's ceiling in <paramref name="station"/>, and two on the railings of
+        /// Spawns the lamps of the shaft and of the wheel's ceiling in <paramref name="station"/>, and two under the roof of
         /// <paramref name="lift"/>: glowing panels 1.2 m square, each of whose face toward the room is a rectangle light.
         /// </summary>
         private static void SpawnLamps(World world, FrameHandle station, Entity lift, IRenderResources resources)
@@ -411,50 +510,27 @@ public static partial class DemoScenes
                         light: towardMinusZ
                     )
                 );
-            SpawnLiftLamps(world: world, lift: lift, resources: resources, material: material, spinward: towardMinusZ);
-            SpawnWheelLamps(world: world, station: station, resources: resources, material: material);
-        }
-
-        /// <summary>
-        /// Spawns the lift's two lamps, attached to <paramref name="lift"/> on the inner faces of its spinward and -Y railings
-        /// at half their height, facing the rider: <paramref name="spinward"/>'s light, and the same toward +Y.
-        /// </summary>
-        private static void SpawnLiftLamps(
-            World world,
-            Entity lift,
-            IRenderResources resources,
-            MaterialId material,
-            RectLightData spinward
-        )
-        {
-            RectLightData towardPlusY = PanelLight(
-                offset: new(0, 0.05f, 0),
-                front: Vector3.UnitY,
-                across: Vector3.UnitZ,
-                width: 1.2f,
-                height: 1.2f,
+            RectLightData down = PanelLight(
+                offset: -0.05f * Vector3.UnitX,
+                front: -Vector3.UnitX,
+                across: Vector3.UnitY,
+                width: 1.8f,
+                height: 0.32f,
                 power: CabinLampPower
             );
-            float inner = Layout.LiftHalf - RailThickness;
-            foreach (
-                (Vector3 at, Vector3 half, RectLightData light) in new[]
-                {
-                    (new Vector3(RailHeight / 2, 0, inner - 0.05f), new Vector3(0.6f, 0.6f, 0.05f), spinward),
-                    (new Vector3(RailHeight / 2, -inner + 0.05f, 0), new Vector3(0.6f, 0.05f, 0.6f), towardPlusY),
-                }
-            )
+            var lampHalf = new Vector3(0.05f, 0.9f, 0.16f);
+            MeshId lamp = resources.CreateMesh(Primitives.Box(lampHalf));
+            MaterialId diffuser = LampPanelMaterial(resources: resources, light: down);
+            foreach (float across in new[] { -1.25f, 1.25f })
                 world.Spawn(
                     new()
                     {
                         AttachTo = lift,
-                        AttachOffset = new(at, Quaternion.Identity),
-                        Render = LampRender(
-                            mesh: resources.CreateMesh(Primitives.Box(half)),
-                            material: material,
-                            light: light
-                        ),
+                        AttachOffset = new(new(CabinHeight - lampHalf.X, 0, across), Quaternion.Identity),
+                        Render = LampRender(mesh: lamp, material: diffuser, light: down),
                     }
                 );
+            SpawnWheelLamps(world: world, station: station, resources: resources, material: material);
         }
 
         /// <summary>

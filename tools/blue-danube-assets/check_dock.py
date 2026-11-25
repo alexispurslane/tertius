@@ -26,5 +26,18 @@ def check(path):
         x = first_surface(y, z)
         assert abs(x + 104.611) < 0.002, f"missing berth deck at ({x}, {y}, {z}) m"
 
+    # The docked hull enters nose first through the +Y port. Sample the swept
+    # cross-section back out to space, then the parked footprint across to the deck.
+    for x in (-4.901, 0, 4.37):
+        for z in (-6.92, 0, 6.92):
+            start = Vector((x, -z, 21.4344 - 14.6))
+            hit, *_ = bpy.context.scene.ray_cast(graph, start, Vector((0, 0, 1)))
+            assert not hit, f"obstruction in axial approach at ({x}, {z})"
+    for y in (6.414, 21.434, 35.5):
+        for z in (-10.92, -4.0, 2.92):
+            start = Vector((0, -z, y - 14.6))
+            hit, point, *_ = bpy.context.scene.ray_cast(graph, start, Vector((-1, 0, 0)))
+            assert hit and abs(point.x + 104.611) < 0.002, f"obstruction before berth at ({y}, {z}): {point}"
+
 
 check(Path(sys.argv[-1]).resolve())

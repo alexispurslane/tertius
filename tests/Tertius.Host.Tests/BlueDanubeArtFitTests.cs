@@ -259,7 +259,10 @@ public sealed class BlueDanubeArtSceneTests : IDisposable
         world.GetRender(scene["person-body"]).Scale.Should().Be(new Vector3(2 * DemoScenes.DemoSurface.PersonHalf.Y));
         scene.EntityOf("person-visor").Should().BeNull("the passenger's model shows its own front");
         scene.EntityOf("station-hub-walls").Should().BeNull("the art draws the hub's outside");
-        scene.EntityOf("station-bay-walls").Should().BeNull("Pioneer models the dock interior and the deck has its own surface");
+        scene
+            .EntityOf("station-bay-walls")
+            .Should()
+            .BeNull("Pioneer models the dock interior and the deck has its own surface");
     }
 
     [Fact]
@@ -274,6 +277,13 @@ public sealed class BlueDanubeArtSceneTests : IDisposable
         scene.EntityOf("terminal-post").Should().BeNull();
         scene.EntityOf("person-visor").Should().NotBeNull();
         scene.EntityOf("station-hub-walls").Should().NotBeNull();
+        MeshData walls = resources.Meshes[world.GetRender(scene["station-hub-walls"]).Mesh];
+        walls
+            .Vertices.Should()
+            .NotContain(
+                v => v.Normal == Vector3.UnitX && Math.Abs(v.Position.X - DemoStation.Layout.Deck) < 0.001f,
+                "the deck and its lift hole already occupy that plane"
+            );
         resources.Models.Should().BeEmpty();
     }
 }

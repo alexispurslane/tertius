@@ -190,7 +190,7 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
     /// <summary>
     /// The scene starts at the docking's end state: the hull is static at <see cref="StationLayout.ParkedPose"/>, its cabin's
     /// frame is a child of the station's, and the person is <see cref="Strapped"/> at its seat with the pen in its hand,
-    /// waiting <see cref="Aboard"/>, with its up against the felt gravity. The felt gravity at the seat stand is 0.482 m/s²,
+    /// waiting <see cref="Aboard"/>, with its up against the felt gravity. The felt gravity at the seat stand is 0.494 m/s²,
     /// ω² times the seat's 98.2 m from the axis, leaning 1.7 degrees toward port.
     /// </summary>
     [Fact]
@@ -219,7 +219,7 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
         start.Belt.Value.Should().BeOfType<Strapped>();
         start.CopyHeld.Should().BeTrue("the person holds the pen");
         start.Exit.Value.Should().Be(new Aboard());
-        felt.Length.Should().BeApproximately(0.482, 0.005);
+        felt.Length.Should().BeApproximately(0.494, 0.005);
         (Math.Acos(Double3.Dot(felt, -Double3.UnitY) / felt.Length) * 180 / Math.PI).Should().BeApproximately(1.7, 0.3);
     }
 
@@ -563,6 +563,14 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
             .WheelFloor.Height(end.Position)
             .Should()
             .BeApproximately(StationExit.Standing, 0.03, "on the wheel's floor");
+    }
+
+    [Fact]
+    public void ArrivalLeavesTheDeckGateShutAndTheRimGateClearOfThePassenger()
+    {
+        double lane = DemoScenes.DemoStation.Layout.LiftAcross;
+        run.World.PoseIn(run.Scene["deck-gate"], run.Station).Position.Z.Should().BeApproximately(lane, 0.005);
+        run.World.PoseIn(run.Scene["rim-gate"], run.Station).Position.Z.Should().BeGreaterThan(lane + 1.5);
     }
 
     /// <summary>
