@@ -9,6 +9,7 @@ pane belongs to one room and takes a constant material, including when unlit.
 import math
 import random
 
+import bmesh
 import bpy
 import numpy as np
 
@@ -200,6 +201,41 @@ def _quads(name, points, materials, indices, uvs=None):
     obj = bpy.data.objects.new(name, mesh)
     bpy.context.collection.objects.link(obj)
     return obj
+
+
+def open_lift_shaft(pieces):
+    """Cut the lift envelope through the berth deck, hub skin and inner rim in source axes.
+
+    The deck leaves 5 cm clearance around the 4 m car. Beyond the deck the
+    imported skins meet the 15 m wide shaft lining. The outer rim stays intact.
+    """
+    def cut(obj, low, high):
+        mesh = bmesh.new()
+        mesh.from_mesh(obj.data)
+        faces = [f for f in mesh.faces if all(
+            max(v.co[i] for v in f.verts) >= low[i] and min(v.co[i] for v in f.verts) <= high[i]
+            for i in range(3)
+        )]
+        for axis in range(3):
+            normal = tuple(int(i == axis) for i in range(3))
+            for limit, sign in ((low[axis], 1), (high[axis], -1)):
+                point = tuple(limit * n for n in normal)
+                geometry = set(faces)
+                for face in faces:
+                    geometry.update(face.edges)
+                    geometry.update(face.verts)
+                result = bmesh.ops.bisect_plane(mesh, geom=list(geometry), plane_co=point, plane_no=normal)
+                faces = [f for f in result["geom"] if isinstance(f, bmesh.types.BMFace)
+                         and (f.calc_center_median()[axis] - limit) * sign >= 0]
+        if not faces:
+            raise ValueError(f"{obj.name} has no surfaces in the shaft cut")
+        bmesh.ops.delete(mesh, geom=faces, context="FACES")
+        mesh.to_mesh(obj.data)
+        mesh.free()
+
+    cut(pieces["hub"], (-110, -5.85, -16.65), (-101, -1.75, -12.55))
+    for piece in ("hub", "ring"):
+        cut(pieces[piece], (-1980, -7.5, -22.1), (-110, 7.5, -7.1))
 
 
 def build():

@@ -354,6 +354,8 @@ def _overlay(convert, pieces, report):
         return
     module = importlib.import_module(overlay["module"])
     parent = pieces[overlay["parent"]]
+    if overlay.get("openLiftShaft"):
+        module.open_lift_shaft(pieces)
     added = module.build()
     for obj in added:
         obj.parent = parent
