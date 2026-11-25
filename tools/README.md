@@ -1551,6 +1551,80 @@ parts = mpfb.freeze(body)
 - `mpfb.freeze` applies the pose, the shape keys and the helper mask, removes the rig and returns plain meshes by part name: `Body`, `Eyes`, `Eyebrows`, `Eyelashes`, `Teeth`, `Tongue` and `Hair`. Each keeps the vertex groups of the bones, for the garment scripts.
 - MPFB writes its logs into Blender's user resource folder. `mpfb.services()` stops with an error unless `BLENDER_USER_RESOURCES` names a folder, and the build tool and the bridge set it. If you start Blender by hand for a test, set it to a scratch folder.
 
+## The Blue Danube art
+
+The Blue Danube scenes draw third-party models: Pioneer's station, lunar shuttle and cargo pod, an Unvanquished passenger and six Poly Haven props. Git holds no file of them, and no converted output. One command sets up a checkout:
+
+```bash
+bash tools/blue-danube-assets/setup.sh
+```
+
+It enters the assets dev shell (`nix develop .#assets`, which holds Blender 5.2.2), then does three things for each model:
+
+1. It fetches every file that the model's sidecar pins into the source cache, `content/tertius.demo/bin/sources/blue-danube/`, and checks the file's size and SHA-256. A file in the cache with the right hash is not downloaded again.
+2. It converts the files in headless Blender into one glTF binary with embedded textures, in engine axes: meters, +Y up, the front toward -Z. The output is `content/tertius.demo/bin/assets/blue-danube/<model path>/model.glb`, with `report.json` (bounds, triangles, textures, glow bins) and `convert.log` beside it.
+3. It writes `model.stamp`, the hash of the sidecar, the sources, the converter's Python files and the Blender version. A model whose stamp matches is not converted again. Two conversions of the same inputs give the same bytes.
+
+The options:
+
+| Option | What it does |
+|---|---|
+| `--staging <folder>` | Takes a file from the folder when a copy there has the pinned size and hash, before it downloads anything. |
+| `--only <text>` | Converts only the models whose path holds the text, such as `--only shuttle`. |
+| `--force` | Converts even when the stamp matches. |
+
+The exit code is 0 when every model is current, 1 for a wrong command line, 2 for a fetch that failed (AS9005 for a failed request, AS9006 for bytes with another hash, AS9007 for a sidecar whose approval record does not match its files), and 3 for a conversion that failed. The first run downloads about 110 MB and takes several minutes. The station takes the longest.
+
+### The sidecars
+
+Each model has one sidecar under `content/tertius.demo/assets/blue-danube/`, named after the model's reference: `lunar-shuttle/lunarshuttle.model.import.json` is the model `tertius.demo:blue-danube/lunar-shuttle/lunarshuttle.model`. A sidecar has two blocks.
+
+- `source`: the title, the authors, the page or repository and commit, the license and its URL, the notice, the date of retrieval, and `files`, the URL, size and SHA-256 of every file. `approved` holds the date, the approver and `record`, the SHA-256 of the canonical JSON of the `archives` and `files`. A change to a pinned file changes the record, so the fetch refuses it until someone approves the new list. `changes` lists every change that the conversion makes, for the notice of an adaptation.
+- `convert`: what the converter does. `kind` is `pioneer` (a Pioneer `.model` file and its COLLADA meshes), `gltf` (a glTF file) or `blend` (a Blender file). `front` names the source axis that the model's front faces, which the converter turns to -Z. The other keys are below.
+
+| Key | Kinds | What it does |
+|---|---|---|
+| `meshes`, `dropNodes` | pioneer | The COLLADA files and the piece that each becomes; the name parts of the marker nodes to leave out. |
+| `keep`, `pose`, `height`, `materials`, `roughness` | blend | The objects to keep, fixed bone angles in degrees, the height of the figure in m with the feet at 0, the maps of each material (`flipGreen` turns a DirectX normal map into the OpenGL convention), and the roughness. |
+| `glow` | all | The bake of a glow map into constant emission: each triangle takes the mean glow of 16 fixed points of its UV footprint, and a fixed k-means sorts the glowing triangles into at most `bins` emissive materials of `strength` times their level. Triangles below `threshold` do not glow. The report counts the triangles whose footprint glows only in part. |
+| `finish` | all | Procedural changes to a diffuse map with fixed parameters and seeds (`tools/blue-danube-assets/finish.py`): `pale` lifts and desaturates the light texels, `wear` draws grime or heat tint about points, and `markings` draws hazard stripes and text. The shuttle uses it. |
+| `override` (in a material) | pioneer | A replacement map for one material: a path relative to the repository and its SHA-256. No sidecar uses one yet. |
+| `maxTextureSize` | all | Scales larger maps down to this size in pixels. |
+| `overlay` | all | Calls `build()` of a Python module in `tools/blue-danube-assets/` after the meshes load, and parents the objects that it returns to the piece `parent`. |
+| `expectedSize` | all | The expected size in m, for the report. |
+
+### The station's overlay
+
+The station's sidecar names `"overlay": {"module": "habitat", "parent": "ring"}`. The converter imports `tools/blue-danube-assets/habitat.py` and calls `habitat.build()` after the ring loads and before the turn to engine axes. It returns three meshes: the gallery panels, the window panes and the window frames. They join the ring piece, keep their constant emission and their tangents, and get no glow bake. `check_habitat.py` checks the build. To change the galleries, edit `habitat.py`. The next setup run converts the station again, because the stamp hashes every Python file of the folder.
+
+### The tests
+
+The fetch, the approval record, the staging folder, the sidecars and Pioneer's file readers have Python tests with the standard library only:
+
+```bash
+nix develop .#assets --command python3 -I tools/test_blue_danube_assets.py
+```
+
+In the assets dev shell, `TERTIUS_BLENDER` is set, and the class `TheHabitatOverlay` also runs `check_habitat.py` in Blender. Outside it, that class skips.
+
+### The runtime side
+
+`src/Tertius.Assets` reads the cooked files. It knows no game and no model by name.
+
+- `AssetReference.Parse("tertius.demo:blue-danube/lunar-shuttle/lunarshuttle.model#shuttle")` parses a reference: the package, the path and an optional piece.
+- `ContentFolders.Find()` finds the `content` folder above the working directory, or the folder in `TERTIUS_CONTENT_ROOT`. `CookedModel(reference)` gives the path of the reference's `.glb`.
+- `new ModelStore(resources, content)` keeps the models of one `IRenderResources`. `Load(reference)` gives a `StoredModel` (its `ModelId`, its bounds and its bounding radius) or a `ModelProblem`: `MissingModel`, `MalformedModel` or `MissingPiece`. A second load of the same reference gives the same `StoredModel` and uploads nothing.
+
+An entity draws a model with `new RenderData { Model = model.Id, BoundingRadius = model.BoundingRadius, Scale = Vector3.One, Flags = RenderFlags.Visible }`. Each part of the model has its own mesh, material and transform, so the model needs one entity.
+
+A Blue Danube scene without its converted art stops with exit code 2, and the message names the setup command. `--gray-box` runs it without the art, as the tests do:
+
+```bash
+dotnet run --project src/Tertius.Demo -c Release -- --script scripts/demo-exit.json --headless --out captures/exit --gray-box
+```
+
+The scene `art-preview` (`scripts/art-preview.json`) places every model under plain lights and films it from fixed cameras, so a change to the converter shows on screen.
+
 ## Git hooks
 
 The folder `.githooks/` holds three git hooks. At its start, the dev shell sets `core.hooksPath` to that folder. Thus the hooks run after you enter the dev shell once. Outside the dev shell, the pre-commit and pre-push hooks run themselves again inside it. The post-commit hook needs only git, so it never enters the dev shell. To skip the pre-commit or the pre-push hook once, add `--no-verify` to `git commit` or `git push`.

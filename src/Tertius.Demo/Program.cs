@@ -51,7 +51,7 @@ public static class Program
         };
 
     /// <summary>
-    /// Runs a script or a live scene through <see cref="ScriptCommand"/>, after a check that a Blue Danube scene has its
+    /// Runs a script or a live scene through <see cref="ScriptCommand"/>, after a check that a scene of the art (<see cref="BlueDanubeArt.NeededBy"/>) has its
     /// converted art under <paramref name="content"/>. Without the art, it names <see cref="BlueDanubeArt.SetupCommand"/>
     /// and returns <see cref="ScriptCommand.FileError"/>, so a run never looks like a finished one in gray boxes.
     /// <c>--gray-box</c> skips the check, and the script command never sees it. A script that does not load passes on, so
@@ -61,7 +61,7 @@ public static class Program
     {
         bool grayBox = args.Contains(GrayBox);
         string[] rest = [.. args.Where(arg => arg != GrayBox)];
-        bool needsArt = !grayBox && SceneOf(rest) is string scene && BlueDanube.Scenes.Contains(scene);
+        bool needsArt = !grayBox && SceneOf(rest) is string scene && BlueDanubeArt.NeededBy(scene);
         IReadOnlyList<AssetReference> missing = needsArt ? BlueDanubeArt.Missing(content) : [];
         if (missing.Count > 0)
         {

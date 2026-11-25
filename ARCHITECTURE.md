@@ -47,6 +47,8 @@ src/Tertius.Simulation  World, entities, components, rails components, chunked g
 src/Tertius.Physics     Jolt backend: one PhysicsSystem per frame, intents, gravity, hand-off, ghosts
 src/Tertius.Rendering   Vulkan deferred renderer: G-buffer, depth ranges, lighting, shadows, impostors, the PNG
                         capture sink
+src/Tertius.Assets      cooked model files: asset references, the content root, the glTF binary reader and the
+                        model store, which uploads a model once per render-resource owner
 src/Tertius.Host        threads, window, input, tick pacing, scripted and headless runs, state dumps,
                         the video capture sink, wiring of all modules
 src/Tertius.Demo        the vertical slice game: its scenes and components (its scripts are in scripts/)
@@ -58,8 +60,13 @@ benchmarks/             BenchmarkDotNet benchmarks
 
 - `Tertius.Core` depends on nothing but the base library.
 - `Tertius.Simulation`, `Tertius.Physics` and `Tertius.Rendering` depend only on `Tertius.Core`. They never reference each other. The test projects are the exception. `Tertius.Testing` and the Simulation, Physics and Host test projects reference several modules together. The reason is that every physics test runs the real World on the real Jolt backend.
+- `Tertius.Assets` depends only on `Tertius.Core` and StbImageSharp, which decodes the textures. It reaches the renderer through `IRenderResources` and knows no game and no model by name; a test checks its source for the demo's names.
 - `Tertius.Host` references all modules and connects them through the seams in `Tertius.Core`.
-- `Tertius.Demo` references `Tertius.Host`.
+- `Tertius.Demo` references `Tertius.Host` and `Tertius.Assets`.
+
+### Cooked models
+
+A cooked model is a glTF binary in engine axes (meters, +Y up, the front toward -Z) under `content/<package>/bin/assets/<path>/model.glb`, which a converter writes from a sidecar (tools/README.md, "The Blue Danube art"). A reference `package:path#piece` names it; the piece is a scene root or a node marked as a piece, and no piece names every root piece at its root's pose (docs/plans/asset-pipeline.md, "Models: nodes and pieces"). `ModelStore` belongs to one `IRenderResources` owner. Its `Load` reads a file once, uploads its textures and materials once, each mesh once, and each reference into one `ModelId` whose `ModelPart`s carry their node's offset and scale. It gives the same `StoredModel` (the id, the bounds and the bounding radius) on a repeated load, so every placement shares the handles. A missing file, a broken file and an unknown piece are `ModelProblem` results, not exceptions, and the store keeps no problem, so a later setup run makes the model load. An entity draws a model through `RenderData.Model` with no mesh and no material.
 
 ## Threads and the tick
 

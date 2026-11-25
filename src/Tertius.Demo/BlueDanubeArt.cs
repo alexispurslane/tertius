@@ -40,6 +40,10 @@ public static class BlueDanubeArt
     public static IReadOnlyList<AssetReference> All { get; } =
         [Station, Shuttle, CargoPod, StorageCart, CagedSconce, Toolbox, Thermos, Stool, StreetSeating, Passenger];
 
+    /// <summary>True for the scenes that draw the art: the Blue Danube scenes and <see cref="DemoScenes.ArtPreview"/>.</summary>
+    public static bool NeededBy(string scene) =>
+        BlueDanube.Scenes.Contains(scene) || scene == DemoScenes.ArtPreviewSceneName;
+
     /// <summary>
     /// The models of <see cref="All"/> whose cooked file is missing under <paramref name="content"/>, or every model when
     /// no content root was found.

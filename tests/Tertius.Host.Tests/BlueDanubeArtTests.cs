@@ -77,6 +77,22 @@ public sealed class BlueDanubeArtTests
     }
 
     [Fact]
+    public void TheArtPreviewWithoutItsArtStopsToo()
+    {
+        var error = new StringWriter();
+
+        int code = Program.RunScene(
+            args: ["--script", Script(DemoScenes.ArtPreviewSceneName), "--headless", "--out", NewFolder()],
+            output: new StringWriter(),
+            error: error,
+            content: EmptyContent()
+        );
+
+        code.Should().Be(ScriptCommand.FileError);
+        error.ToString().Should().Contain(BlueDanubeArt.SetupCommand);
+    }
+
+    [Fact]
     public void GrayBoxSkipsTheArtCheckAndIsNotPassedOn()
     {
         var error = new StringWriter();
