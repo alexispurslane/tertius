@@ -92,3 +92,81 @@ def cargo_skin():
     roughness += (0.36 - roughness) * metal
     response = np.stack((np.ones_like(height), roughness, metal), axis=-1)
     return surface_normal(height, metres / size), response
+
+
+def station_atlas_normal(material):
+    """Recesses traced on 480-unit, top-down views of Pioneer's square atlases."""
+    # Median metres per UV interval on the exported non-emitting triangles.
+    metres = {"facade": 104, "floor": 212, "tunnels": 132, "strut": 91}[material]
+    size = 1024
+    y, x = (np.indices((size, size), dtype=np.float32) + 0.5) * (480 / size)
+    height = np.zeros_like(x)
+
+    def recess(depth, *corners):
+        # Signed distance inside each clockwise edge. Bevel the lip over two texels.
+        cols, rows = zip(*corners)
+        region = np.s_[int(min(rows) * size / 480):math.ceil(max(rows) * size / 480),
+                       int(min(cols) * size / 480):math.ceil(max(cols) * size / 480)]
+        distance = np.full_like(x[region], np.inf)
+        for (ax, ay), (bx, by) in zip(corners, corners[1:] + corners[:1]):
+            dx, dy = bx - ax, by - ay
+            edge = (dx * (y[region] - ay) - dy * (x[region] - ax)) / math.hypot(dx, dy)
+            np.minimum(distance, edge, out=distance)
+        np.minimum(height[region], -depth * _ramp(distance, 2 * 480 / size), out=height[region])
+
+    if material == "facade":
+        # Each window sits behind its reveal. Trace the first row of the curved wall.
+        # Lower rows widen with the wall. The last two rows occupy its left half.
+        bays = [(24, 37, 26.5, 28), (39, 52, 28.5, 30), (57, 71, 30.5, 31.5),
+                (73, 87, 32, 32), (95, 109, 32, 32), (111, 125, 31.5, 30.5),
+                (130, 143, 30, 28.5), (145, 158, 28, 26.5)]
+        for row in range(5):
+            for left, right, y1, y2 in (bays if row < 3 else bays[:4]):
+                left += (left - 88) * 0.044 * row
+                right += (right - 88) * 0.044 * row
+                y1 += 14.7 * row
+                y2 += 14.7 * row
+                recess(0.075, (left, y1), (right, y2), (right, y2 + 4.4), (left, y1 + 4.4))
+        recess(0.055, (156, 406), (164, 406), (162, 417), (156, 417))
+        # Cladding inside the tapered girders and the three framed service covers below.
+        for left, right, top in ((73, 113, 224), (119, 159, 245), (165, 198, 263),
+                                 (204, 235, 279), (241, 272, 291)):
+            shift = (309 - top) * 0.56
+            recess(0.065, (left + shift, top), (right + shift * 0.84, top + 9),
+                   (right, 309), (left, 309))
+        for top, bottom in ((389, 414), (420, 445), (451, 474)):
+            recess(0.05, (176, top), (207, top - 5), (207, bottom), (176, bottom + 1))
+        recess(0.07, (219, 372), (295, 362), (299, 399), (222, 411))
+        recess(0.07, (58, 126), (102, 126), (102, 151), (57, 151))
+    elif material == "floor":
+        # The two landing pads have the same square plate pitch. The yellow circles,
+        # checkerboards and safety stripes cross those plates as paint.
+        for left, top, right, bottom, origin_x, origin_y in (
+            (269, 10, 477, 213, 278, 5), (198, 227, 477, 476, 194, 229),
+        ):
+            pitch = 23.5
+            joint = np.minimum(abs((x - origin_x + pitch / 2) % pitch - pitch / 2),
+                               abs((y - origin_y + pitch / 2) % pitch - pitch / 2))
+            pad = np.minimum(np.minimum(x - left, right - x), np.minimum(y - top, bottom - y))
+            height -= 0.035 * _ramp(pad, 1) * _ramp(0.85 - joint, 0.65)
+        for top in (121, 145, 168):
+            recess(0.08, (66, top), (106, top), (106, top + 9), (66, top + 9))
+        recess(0.08, (120, 257), (159, 257), (159, 460), (120, 460))
+    elif material == "tunnels":
+        # Recess the six triangular bays between the diagonal braces.
+        for top, bottom, ascending in ((33, 168, True), (184, 300, False), (311, 444, True)):
+            left, right = 390, 464
+            if ascending:
+                recess(0.11, (left, top), (right - 5, top), (left, bottom - 8))
+                recess(0.11, (right, top + 8), (right, bottom), (left + 5, bottom))
+            else:
+                recess(0.11, (left + 5, top), (right, top), (right, bottom - 8))
+                recess(0.11, (left, top + 8), (right - 5, bottom), (left, bottom))
+    else:
+        # Sleeve joints on the alloy sections and the inset rectangular service socket.
+        for seam in (285, 339, 387, 421):
+            recess(0.045, (184, seam), (236, seam), (236, seam + 2), (184, seam + 2))
+        recess(0.08, (79, 65), (111, 65), (111, 98), (79, 98))
+        recess(0.08, (142, 339), (153, 330), (175, 330), (181, 338),
+               (181, 371), (172, 379), (153, 379), (142, 368))
+    return surface_normal(height[::-1], metres / size)
