@@ -126,5 +126,7 @@ public sealed class RigsSceneTests : IDisposable
         public TextureId CreateTexture(TextureData texture) => new(next++);
 
         public MaterialId CreateMaterial(MaterialDesc material) => new(next++);
+
+        public ModelId CreateModel(ModelDesc model) => new(next++);
     }
 }

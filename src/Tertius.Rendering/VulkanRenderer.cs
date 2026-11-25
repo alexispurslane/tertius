@@ -556,6 +556,13 @@ public sealed unsafe class VulkanRenderer : IRenderer
         return uploads.AddMaterial(material);
     }
 
+    /// <summary>Not drawn yet: the expansion of models into their parts comes with ter-9wwx.</summary>
+    public ModelId CreateModel(ModelDesc model)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        throw new NotImplementedException("The renderer does not draw models yet (ter-9wwx).");
+    }
+
     /// <summary>Requests a new output size. It takes effect at the start of the next <see cref="Render"/>.</summary>
     /// <exception cref="ArgumentOutOfRangeException">
     /// A side is negative, or a renderer without a window gets a size that its upscaling cannot draw: an empty one, or

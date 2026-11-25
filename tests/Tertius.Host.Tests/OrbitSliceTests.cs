@@ -307,6 +307,8 @@ public sealed class OrbitStartTests
         public TextureId CreateTexture(TextureData texture) => new(next++);
 
         public MaterialId CreateMaterial(MaterialDesc material) => new(next++);
+
+        public ModelId CreateModel(ModelDesc model) => new(next++);
     }
 
     [Fact]
