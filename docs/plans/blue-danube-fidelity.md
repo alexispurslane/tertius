@@ -15,3 +15,11 @@ Review short matched clips first. The full release film uses the established Run
 Use the global NOAA elevation field for the Earth's land and ice. Verify the sign of the slopes, sampling on each side of the date line and at the poles, and the image at orbital distance. Compare a neutral normal map with the measured terrain normals at fixed exposure, geometry, lighting and camera. Show a mountainous region under grazing sunlight as well as the full disc. Label any amplification used to make the difference visible.
 
 Use normal relief at object scale on the shuttle hull and cabin, station panels and spokes, elevator and deck, and cargo pod. Check the existing suit and prop maps in the cooked models. Keep glazing smooth where the material calls for it. Check representative surfaces with matched lighting and a neutral normal map.
+
+## Berth 14 and the rim lift
+
+Pioneer's `station_docking_B.dae` places berth 14 at native coordinates (−104.6094, 0.0822, −3.3508) m. With the station art in engine coordinates the marker lies at (−104.6094, 11.2492, −0.0822) m. The four adjacent floor triangles are at x = −104.611 m. They extend from y = −78.99 to 99.76 m and z = −20.81 to 20.81 m. The marked point sits between the shuttle's wheels and within its parked footprint. The approach follows the common axial entrance and turns toward this floor. The source, revision and licence are recorded in the station import sidecar.
+
+The shuttle wheels touch the imported floor. Four static boxes support it around the lift opening. The car travels down the negative-X spoke inside the original exterior tube. Conversion cuts the 4.10 m deck opening and the 15 m shaft through the back of the hub and the near side of the rim. The outer rim remains solid. The Blender check in `tools/blue-danube-assets/check_dock.py` reads the cooked triangles and checks the flight path, the deck edges around the opening and clearance down to the rim.
+
+Each landing has a sliding gate on the station. The lift closes the deck gate on departure and opens the rim gate at rest. Its glazed walls, roof, handrail and floor form one kinematic body. The station's floor radius is 2,000 m. At the deck, the spin gives 0.513 m/s², rising to 9.80665 m/s² at the rim.

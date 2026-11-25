@@ -1176,6 +1176,8 @@ public sealed partial class JoltPhysicsBackend
 
     // ---- Characters ----
 
+    private readonly List<(FrameWorld World, BodyRecord Rider, CharacterVirtual Character)> recedingPlatformRiders = [];
+
     /// <summary>Moves every character in the walking form. Jolt moves a character in the rigid form in the update of its system.</summary>
     private void UpdateCharacters()
     {
@@ -1188,10 +1190,38 @@ public sealed partial class JoltPhysicsBackend
             {
                 if (member.Character is not { } character)
                     continue;
+                // A platform can change systems between steps. Its replacement has a new body ID.
+                if (character.GroundState == GroundState.OnGround && !world.Bodies.IsAdded(character.GroundBodyId))
+                    character.RefreshContacts(layer: PrimaryLayer(member), physicsSystem: world.System);
+                // A sweep against a retreating platform's start pose stops at the old floor.
+                // Let the rigid step uncover the space that its rider will travel through.
+                if (
+                    character.GroundState == GroundState.OnGround
+                    && ((BodyID)character.GroundBodyId).IsValid
+                    && world.Bodies.GetMotionType(character.GroundBodyId) == MotionType.Kinematic
+                )
+                {
+                    character.UpdateGroundVelocity();
+                    if (Vector3.Dot(character.GroundVelocity, character.GroundNormal) < 0)
+                    {
+                        recedingPlatformRiders.Add((world, member, character));
+                        continue;
+                    }
+                }
                 Vector3 velocity = UpdateCharacter(world, member, character);
                 world.NoteCharacterContacts(character, velocity);
             }
         }
+    }
+
+    private void UpdateRecedingPlatformRiders()
+    {
+        foreach (var (world, rider, character) in recedingPlatformRiders)
+        {
+            Vector3 velocity = UpdateCharacter(world, rider, character);
+            world.NoteCharacterContacts(character, velocity);
+        }
+        recedingPlatformRiders.Clear();
     }
 
     /// <summary>

@@ -19,6 +19,112 @@ public sealed class WorldCharacterStandingTests
     /// <summary>The height of the center of a person who stands on a floor whose top is at y = 0, plus 2 cm.</summary>
     private const double StandingHeight = 0.92;
 
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(1)]
+    public void AStandingCharacterMeetsTheMovingPlatformsSurfaceAtTheEndOfEachStep(int direction)
+    {
+        using World world = NewWorld(backend: out _);
+        FrameHandle ground = Ground(world, 9.81f);
+        Entity floor = SpawnFloor(world, ground, new MovingFloor(direction));
+        Entity person = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, StandingHeight),
+                Body = Person,
+            }
+        );
+        Tick(world, 30);
+        double rest = world.PoseInOwnFrame(person).Position.Y - world.PoseInOwnFrame(floor).Position.Y;
+        for (int step = 0; step < 180; step++)
+        {
+            world.Tick();
+            double height = world.PoseInOwnFrame(person).Position.Y - world.PoseInOwnFrame(floor).Position.Y;
+            height.Should().BeApproximately(rest, 0.012, $"the platform carries the rider at step {step}");
+        }
+    }
+
+    [Fact]
+    public void ACharacterWalksAcrossADescendingFloorAtItsCommandedSpeedAndTouchesAWall()
+    {
+        using World world = NewWorld(backend: out _);
+        FrameHandle ground = Ground(world, 9.81f);
+        SpawnFloor(world, ground, new MovingFloor(-1));
+        Entity wall = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(1.7, 0),
+                Body = new(Shape: new BoxShapeDesc(new(0.1f, 20, 2)), Motion: BodyMotion.Static),
+            }
+        );
+        var pilot = new Pilot();
+        var touches = new CollisionLog();
+        Entity person = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, StandingHeight),
+                Body = Person,
+                Components = [pilot, touches],
+            }
+        );
+
+        Tick(world, 30);
+        pilot.Once = body => body.MoveCharacter(new(0.5f, 0, 0));
+        Tick(world, 60);
+        world.PoseInOwnFrame(person).Position.X.Should().BeApproximately(0.5, 0.02);
+        Tick(world, 140);
+        touches.CountWith(wall).Should().Be(1);
+    }
+
+    [Fact]
+    public void APlatformStartingDownwardCarriesItsRiderOnTheFirstMovingStep()
+    {
+        using World world = NewWorld(backend: out _);
+        FrameHandle ground = Ground(world, 9.81f);
+        Entity floor = SpawnFloor(world, ground, new MovingFloor(-1, initialSpeed: 0.08));
+        Entity person = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, StandingHeight),
+                Body = Person,
+            }
+        );
+        Tick(world, 25);
+        double height = world.PoseInOwnFrame(person).Position.Y - world.PoseInOwnFrame(floor).Position.Y;
+        TickUntil(world, () => world.PoseInOwnFrame(floor).Position.Y < -0.2501, 12).Should().BeLessThan(12);
+        (world.PoseInOwnFrame(person).Position.Y - world.PoseInOwnFrame(floor).Position.Y)
+            .Should()
+            .BeApproximately(height, 0.0005);
+    }
+
+    private static Entity SpawnFloor(World world, FrameHandle ground, MovingFloor motion) =>
+        world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, -0.25),
+                Body = new(Shape: new BoxShapeDesc(new(3, 0.25f, 3)), Motion: BodyMotion.Kinematic),
+                Components = [motion],
+            }
+        );
+
+    private sealed class MovingFloor(int direction, double initialSpeed = 0) : IComponent
+    {
+        public int Priority => 0;
+        public EventMask Wants => EventMask.Of<Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
+        {
+            double t = Math.Max(0, self.TimeAt(self.Tick + 2) - 0.5);
+            double distance = initialSpeed * t + (t < 2 ? t * t : 4 * (t - 1));
+            self.MoveKinematic(new(new(0, -0.25 + direction * distance, 0), DQuaternion.Identity));
+        }
+    }
+
     [Fact]
     public void ACharacterOnAFloorUnderGravityStandsForItsComponentsAndInTheSnapshot()
     {

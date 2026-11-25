@@ -190,8 +190,8 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
     /// <summary>
     /// The scene starts at the docking's end state: the hull is static at <see cref="StationLayout.ParkedPose"/>, its cabin's
     /// frame is a child of the station's, and the person is <see cref="Strapped"/> at its seat with the pen in its hand,
-    /// waiting <see cref="Aboard"/>, with its up against the felt gravity. The felt gravity at the seat stand is 0.482 m/s²,
-    /// ω² times the seat's 98.2 m from the axis, leaning 1.7 degrees toward port.
+    /// waiting <see cref="Aboard"/>, with its up against the felt gravity. The felt gravity at the seat stand is 0.487 m/s²,
+    /// ω² times the seat's 99.39 m from the axis, leaning 2.31 degrees toward port.
     /// </summary>
     [Fact]
     public void TheSceneStartsAtTheDockingsEndState()
@@ -219,10 +219,10 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
         start.Belt.Value.Should().BeOfType<Strapped>();
         start.CopyHeld.Should().BeTrue("the person holds the pen");
         start.Exit.Value.Should().Be(new Aboard());
-        felt.Length.Should().BeApproximately(0.476, 0.005);
+        felt.Length.Should().BeApproximately(0.487, 0.005);
         (Math.Acos(Double3.Dot(felt, -Double3.UnitY) / felt.Length) * 180 / Math.PI)
             .Should()
-            .BeApproximately(2.35, 0.3);
+            .BeApproximately(2.31, 0.3);
     }
 
     /// <summary>
@@ -434,8 +434,7 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
     /// into the station's, where the engine reports a character as not standing (a known fault). It never takes the rigid
     /// form: the felt gravity at its place stays above twice the zero-gravity threshold. Its velocity is the lift's, so
     /// across the floor it keeps within 2 cm of the place where it boarded. Along the spoke its center stays 0.9 m above
-    /// the floor plus one tick of the lift's motion, 0.33 m at 20 m/s (a known fault): physics moves a standing character
-    /// with its ground's velocity of the step before, so it stands where the floor was one tick earlier.
+    /// the current floor, including the step after the lift changes frames.
     /// </summary>
     [Fact]
     public void ThePersonStandsOnTheLiftForTheWholeRide()
@@ -460,7 +459,11 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
                 .BeLessThan(0.02, $"the person keeps its place on the floor at {s.Time - ride[0].Time:F2} s");
             onFloor
                 .X.Should()
-                .BeApproximately(StationExit.Standing + s.LiftVelocity.Length / 60, 0.02, "a tick behind the floor");
+                .BeApproximately(
+                    StationExit.Standing,
+                    0.02,
+                    "the floor supports the rider at the same simulation time"
+                );
         }
     }
 
@@ -554,6 +557,14 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
             .WheelFloor.Height(end.Position)
             .Should()
             .BeApproximately(StationExit.Standing, 0.03, "on the wheel's floor");
+    }
+
+    [Fact]
+    public void ArrivalLeavesTheDeckGateShutAndTheRimGateClearOfThePassenger()
+    {
+        double lane = DemoScenes.DemoStation.Layout.LiftAcross;
+        run.World.PoseIn(run.Scene["deck-gate"], run.Station).Position.Z.Should().BeApproximately(lane, 0.005);
+        run.World.PoseIn(run.Scene["rim-gate"], run.Station).Position.Z.Should().BeGreaterThan(lane + 1.5);
     }
 
     /// <summary>

@@ -19,18 +19,10 @@ public static partial class DemoScenes
     /// closed from outside.</item>
     /// <item>Two spokes, lift shafts, square tubes along +X and -X in the plane y = 0, from the hub's outer face to the
     /// ceiling. One static body, a compound of their 8 wall boxes.</item>
-    /// <item>The hub, a box along the axis that holds the bay. The slot leads through its +Y wall, and its -X wall is the
-    /// deck, a pier on the core's face with the lift's hole, and the cradle rail stands on it. It is built in its own axes,
-    /// whose +Z is the station's +Y (see <see cref="HubTurn"/>), because a box opening runs along X or Z only. Only the deck
-    /// and the rail have bodies: nothing reaches the hub's other walls.</item>
-    /// <item>With the art (<see cref="BlueDanubeModels"/>), the station's model, <c>station-art</c>, at <see cref="ArtPose"/>
-    /// draws the outside: the ring, the habitat galleries, the spokes and the hub's core. The gray-box parts that it
-    /// replaces keep their bodies and draw nothing: the outside of the hub's walls but the deck, and the spoke at θ = 0.
-    /// The hub's walls draw their faces toward the bay. The lift's spoke
-    /// draws only its inside, the shaft. The wheel's floor, ceiling and side walls stay drawn: the art's ring closes round
-    /// them.</item>
-    /// <item>Four bay lamps, glowing panels whose faces are rectangle lights, near the slot and on the bay's far end
-    /// wall. They leave the deck clear for the landing.</item>
+    /// <item>Pioneer's hub draws the axial entrance and berth 14. The four deck colliders meet its floor
+    /// around a 4.10 m lift opening. Without art the scene supplies a holed deck and a five-wall shell.</item>
+    /// <item>The imported ring and hub have openings where the working lift shaft passes through their skins.
+    /// The shaft liner, cradle and four deck-mounted floodlights remain visible with the art.</item>
     /// <item>The views <c>rim-camera</c>, <c>bay-camera</c>, <c>hold-camera</c> and <c>gallery-camera</c>, which turn with
     /// the station, and
     /// <c>far-camera</c>, 7 km out, which does not turn.</item>
@@ -64,14 +56,14 @@ public static partial class DemoScenes
         /// <summary>The quarter turns about the axis of the two spokes from the spoke along +X: none, and half a turn.</summary>
         private static readonly int[] SpokeTurns = [0, 2];
 
-        /// <summary>The demo station's shape: its floor 2,000 m out, its deck 102.2 m out, and its bay on the axis.</summary>
+        /// <summary>The demo station's shape: its floor 2,000 m out, its deck 104.611 m out, and its bay on the axis.</summary>
         public static StationLayout Layout { get; } = new();
 
         /// <summary>
         /// Where the station's art stands in the station's axes: its origin 14.6 m along +Y, unturned. The middle line of the
         /// art's spokes, round tubes 45 m across, lies 14.6 m below its origin along its axis, so they lie in the wheel's
         /// plane y = 0 round the gray box's spokes. They run along ±X, as the gray box's do. So do its ring's middle, 14.6 m
-        /// below its origin, and its core's flat face 104.7 m from the axis along -X.
+        /// below its origin, and its core's flat face 104.611 m from the axis along -X.
         /// </summary>
         public static DPose ArtPose { get; } = new(new(0, 14.6, 0), DQuaternion.Identity);
 
@@ -238,11 +230,8 @@ public static partial class DemoScenes
         /// The boxes of the deck, the hub's -X wall, in the hub's own axes, in four parts round the lift's hole. They touch
         /// without gaps or overlaps.
         /// </summary>
-        public static IEnumerable<BoundingBox> DeckWalls()
-        {
-            (Vector3 outer, Vector3 inner) = HubOwnBox;
-            return AroundDoorway(new(-outer, new(-inner.X, outer.Y, outer.Z)), HubLiftHole.Bounds);
-        }
+        public static IEnumerable<BoundingBox> DeckWalls() =>
+            AroundDoorway(InHubAxes(Layout.DeckSlab), HubLiftHole.Bounds);
 
         /// <summary>The hub's outer and inner half extents in its own axes, whose +Z is the station's +Y: the hub's and the bay's.</summary>
         private static (Vector3 Outer, Vector3 Inner) HubOwnBox
@@ -350,14 +339,6 @@ public static partial class DemoScenes
                 Model: new StandardShading(Metallic: 0.55f)
             );
 
-        /// <summary>The painted steel of the bay's walls with the art: a pale gray, a little worn.</summary>
-        private static MaterialDesc BayPaint { get; } =
-            new(
-                BaseColor: new(x: 0.6f, y: 0.61f, z: 0.63f, w: 1),
-                Roughness: 0.5f,
-                Model: new StandardShading(Metallic: 0.3f)
-            );
-
         /// <summary>The painted steel of the cradle rail: a dull safety yellow, so that the rail reads beside the hull.</summary>
         private static MaterialDesc RailPaint { get; } =
             new(
@@ -424,6 +405,13 @@ public static partial class DemoScenes
                 segments: Layout.Segments
             );
             MeshData floorMesh = floor.Mesh();
+            // Running metres around the circumference and along the wheel axis. The tile is symmetric
+            // along its first axis, so the two half-circles meet at the spoke without a texture seam.
+            foreach (ref Vertex vertex in floorMesh.Vertices.AsSpan())
+                vertex.TexCoord = new(
+                    MathF.Atan2(MathF.Abs(vertex.Position.Z), vertex.Position.X) * Layout.FloorRadius,
+                    vertex.Position.Y
+                );
             ShapeDesc hull = HullShape();
             return world.Spawn(
                 new()
@@ -444,10 +432,44 @@ public static partial class DemoScenes
                     Render = Part(
                         resources: resources,
                         mesh: floorMesh,
-                        color: new(x: 0.62f, y: 0.63f, z: 0.66f, w: 1),
+                        material: PlatformFloor(resources),
                         boundingRadius: floor.Shape().BoundingRadius()
                     ),
                 }
+            );
+        }
+
+        /// <summary>One metre of grey rubber floor tile, with pressed ribs at a pitch of 12.5 cm.</summary>
+        private static MaterialDesc PlatformFloor(IRenderResources resources)
+        {
+            const int size = 64;
+            byte[] rgba = new byte[size * size * 4];
+            float[] heights = new float[size * size];
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                int inset = Math.Min(Math.Min(x, size - 1 - x), Math.Min(y, size - 1 - y));
+                bool tread = (x % 8 is >= 2 and <= 5) && (y % 8 is 3 or 4);
+                byte tone = (inset, tread) switch
+                {
+                    (0, _) => 91,
+                    (_, true) => 137,
+                    _ => 126,
+                };
+                heights[y * size + x] = (inset, tread) switch
+                {
+                    (0, _) => -0.001f,
+                    (_, true) => 0.0018f,
+                    _ => 0,
+                };
+                int i = (y * size + x) * 4;
+                (rgba[i], rgba[i + 1], rgba[i + 2], rgba[i + 3]) = (tone, tone, (byte)(tone - 4), 255);
+            }
+            return new(
+                BaseColor: Vector4.One,
+                Roughness: 0.79f,
+                BaseColorMap: resources.CreateTexture(new(Width: size, Height: size, Rgba: rgba)),
+                NormalMap: resources.CreateTexture(ReliefMap(size, heights))
             );
         }
 
@@ -547,7 +569,7 @@ public static partial class DemoScenes
                 : Part(
                     resources: resources,
                     mesh: new BoxMesh().Sides(Opening.ThroughX(Shaft)).Build(),
-                    material: DeckSteel,
+                    material: StationExit.PanelFinish(resources),
                     boundingRadius: spokeShape.BoundingRadius()
                 );
             scene.Add(
@@ -588,10 +610,8 @@ public static partial class DemoScenes
         }
 
         /// <summary>
-        /// Spawns the hub in <paramref name="frame"/>: the deck with the lift's hole, <c>station-hub</c>, a static body
-        /// drawn in steel; the cradle rail on it, <c>station-cradle</c>; and the hub's other walls with the slot, drawn with no
-        /// body: whole in the gray box, <c>station-hub-walls</c>, and with the art only their faces toward the bay,
-        /// <c>station-bay-walls</c>.
+        /// Spawns the berth deck body and cradle. The imported hub supplies the visible floor.
+        /// The fallback supplies the floor and five walls. Both versions draw the reveal through the lift opening.
         /// </summary>
         private static void SpawnHub(
             World world,
@@ -604,7 +624,7 @@ public static partial class DemoScenes
             Opening hole = HubLiftHole;
             CompoundShapeDesc deckShape = Boxes(DeckWalls());
             (Vector3 outer, Vector3 inner) = HubOwnBox;
-            var deck = new BoundingBox(-outer, new(-inner.X, outer.Y, outer.Z));
+            BoundingBox deck = InHubAxes(Layout.DeckSlab);
             scene.Add(
                 "station-hub",
                 world.Spawn(
@@ -615,7 +635,9 @@ public static partial class DemoScenes
                         Body = new(Shape: deckShape, Motion: BodyMotion.Static),
                         Render = Part(
                             resources: resources,
-                            mesh: new BoxMesh().Box(deck, openings: [hole]).Sides(hole).Build(),
+                            mesh: (grayBox ? new BoxMesh().Box(deck, openings: [hole]) : new BoxMesh())
+                                .Sides(hole)
+                                .Build(),
                             material: DeckSteel,
                             boundingRadius: deckShape.BoundingRadius()
                         ),
@@ -640,15 +662,20 @@ public static partial class DemoScenes
                     }
                 )
             );
+            if (!grayBox)
+                return;
+
             Opening slot = HubSlot;
-            // In the gray box the hub's other walls are drawn whole. With the art, whose hub draws their outside, only their
-            // faces toward the bay are drawn, in painted steel: they face into the bay, so the art hides none of them, and
-            // they hide nothing of the art from outside.
-            BoxMesh walls = grayBox
-                ? new BoxMesh().Box(new BoundingBox(new(-inner.X, -outer.Y, -outer.Z), outer), openings: [slot])
-                : new BoxMesh();
+            // The fallback has five walls. Its sixth face belongs to the holed deck.
+            var walls = new BoxMesh()
+                .Box(new(new(inner.X, -outer.Y, -outer.Z), outer))
+                .Box(new(new(-inner.X, -outer.Y, -outer.Z), new(inner.X, -inner.Y, outer.Z)))
+                .Box(new(new(-inner.X, inner.Y, -outer.Z), new(inner.X, outer.Y, outer.Z)))
+                .Box(new(new(-inner.X, -inner.Y, -outer.Z), new(inner.X, inner.Y, -inner.Z)))
+                .Box(new(new(-inner.X, -inner.Y, inner.Z), new(inner.X, inner.Y, outer.Z)), openings: [slot])
+                .Sides(slot);
             scene.Add(
-                grayBox ? "station-hub-walls" : "station-bay-walls",
+                "station-hub-walls",
                 world.Spawn(
                     new()
                     {
@@ -656,10 +683,8 @@ public static partial class DemoScenes
                         Pose = new(HubCenter, HubTurn),
                         Render = Part(
                             resources: resources,
-                            mesh: walls.Box(new(-inner, inner), inward: true, openings: [slot]).Sides(slot).Build(),
-                            material: grayBox
-                                ? MaterialDesc.Color(new(x: 0.82f, y: 0.82f, z: 0.84f, w: 1), UsualRoughness)
-                                : BayPaint,
+                            mesh: walls.Build(),
+                            material: MaterialDesc.Color(new(x: 0.82f, y: 0.82f, z: 0.84f, w: 1), UsualRoughness),
                             boundingRadius: outer.Length()
                         ),
                     }
@@ -695,23 +720,36 @@ public static partial class DemoScenes
             IRenderResources resources
         )
         {
-            // The bay lamps: glowing panels 1.2 m square, flat on the bay's walls, each a floodlight's rectangle light on its
-            // face toward the bay, in the station's axes. Three stand on the side walls 8 m in from the slot, on the axis
-            // and halfway to the deck, and one in the middle of the far end wall.
             BoundingBox bay = Layout.Bay;
-            float nearSlot = bay.Max.Y - 8,
-                halfway = Layout.Deck / 2;
+            float height = Layout.Deck + 5;
             (Vector3 Wall, Vector3 Inward)[] lamps =
             [
-                (new(0, nearSlot, bay.Max.Z), -Vector3.UnitZ),
-                (new(0, nearSlot, bay.Min.Z), Vector3.UnitZ),
-                (new(halfway, nearSlot, bay.Max.Z), -Vector3.UnitZ),
-                (new(0, bay.Min.Y, 0), Vector3.UnitY),
+                (new(height, 26.5f, bay.Max.Z), -Vector3.UnitZ),
+                (new(height, 29, bay.Min.Z), Vector3.UnitZ),
+                (new(height, 18.5f, bay.Max.Z), -Vector3.UnitZ),
+                (new(height, bay.Min.Y, -11), Vector3.UnitY),
             ];
+            Vector3 mastHalf = new(2.8f, 0.38f, 0.38f);
+            RenderData mast = Part(
+                resources: resources,
+                mesh: Primitives.Box(mastHalf),
+                material: DeckSteel,
+                boundingRadius: mastHalf.Length()
+            );
             MaterialId lampMaterial = LampPanelMaterial(resources: resources, light: BayPanelLight(lamps[0].Inward));
             for (int i = 0; i < lamps.Length; i++)
             {
                 (Vector3 at, Vector3 inward) = lamps[i];
+                Vector3 baseAt = at with { X = Layout.Deck + mastHalf.X };
+                world.Spawn(
+                    new()
+                    {
+                        Frame = frame,
+                        Pose = new(baseAt - inward * mastHalf, DQuaternion.Identity),
+                        Body = new(Shape: new BoxShapeDesc(mastHalf), Motion: BodyMotion.Static),
+                        Render = mast,
+                    }
+                );
                 Vector3 half = new Vector3(0.6f) - 0.55f * Vector3.Abs(inward);
                 scene.Add(
                     $"bay-lamp-{i}",

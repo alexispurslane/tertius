@@ -384,6 +384,12 @@ def _overlay(convert, pieces, report):
         report["overlay"] = overlay_report
     else:
         added = result
+    added = list(added)
+    if overlay.get("openLiftShaft"):
+        import station_dock
+        station_dock.open_lift_shaft(pieces)
+        station_dock.finish_berth(pieces["hub"])
+        added.extend(station_dock.landing_signs())
     for obj in added:
         if obj.get("tertius_piece") == 1:
             continue

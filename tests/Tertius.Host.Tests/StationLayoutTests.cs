@@ -196,18 +196,6 @@ public sealed class StationLayoutTests
     }
 
     /// <summary>
-    /// The deck stands on the core's face of the art: its top lies nearer the axis than the face, so the art does not
-    /// cover it, and its underside beyond the face, so no gap shows between them.
-    /// </summary>
-    [Fact]
-    public void TheDeckStandsOnTheCoresFace()
-    {
-        Demo.DeckSlab.Max.X.Should().Be(Demo.Deck);
-        (-Demo.DeckSlab.Max.X).Should().BeLessThan(Demo.CoreFace);
-        (-Demo.DeckSlab.Min.X).Should().BeGreaterThan(Demo.CoreFace);
-    }
-
-    /// <summary>
     /// The cradle rail stands on the deck along the parked hull's port side, within the bay, as long as the hull, and
     /// no higher than the hull's sides.
     /// </summary>
@@ -231,15 +219,9 @@ public sealed class StationLayoutTests
     [Fact]
     public void TheSpokesStartAtTheDecksUnderside() => Demo.Hub.Min.X.Should().Be(Demo.DeckSlab.Min.X);
 
-    /// <summary>A deck whose top lies beyond the core's face, where the art covers it, is a problem of the layout.</summary>
     [Fact]
-    public void ADeckUnderTheCoresFaceIsAProblem() =>
-        (Demo with { DeckRadius = 105 }).Problems().Should().Contain("The deck does not stand on the core's face.");
-
-    /// <summary>A deck that stops short of the core's face, so that a gap shows under it, is a problem of the layout.</summary>
-    [Fact]
-    public void ADeckThatStopsShortOfTheCoresFaceIsAProblem() =>
-        (Demo with { DeckThickness = 2 }).Problems().Should().Contain("The deck does not stand on the core's face.");
+    public void ADeckWithNoThicknessCannotSupportTheWheels() =>
+        (Demo with { DeckThickness = 0 }).Problems().Should().Contain("The deck needs a positive thickness.");
 
     /// <summary>A cradle rail outside the bay is a problem of the layout.</summary>
     [Fact]
