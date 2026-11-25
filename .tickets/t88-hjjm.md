@@ -23,7 +23,7 @@ This ticket first said that the ring approach and the lift ride simulate at 46 t
 
 A window never draws a still. So this is a cost of headless time-lapse films only, not of real-time play.
 
-Not decided, and left for a decision after this evidence (user, 2026-11-25: "leave optimization for after evidence"):
+The film and timing investigation are complete. The remaining decision concerns image quality and export time:
 
 - whether a film's time-lapse frame should be a still at all;
 - whether it should take fewer warm-up draws;
