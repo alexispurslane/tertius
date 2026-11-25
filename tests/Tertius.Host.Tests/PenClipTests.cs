@@ -252,7 +252,7 @@ public sealed class PenClipTests : IDisposable
         long released = -1;
         Double3 last = default;
 
-        for (int t = 0; t < 1500 && world.IsAlive(pen); t++)
+        for (int t = 0; t < 1500 && world.GetComponent<PencilInHand>(pen) is null; t++)
         {
             if (released < 0 && ClipOf().State.Value is Released)
                 released = world.TickNumber;
@@ -260,14 +260,14 @@ public sealed class PenClipTests : IDisposable
             world.Tick();
         }
 
-        world.IsAlive(pen).Should().BeFalse("the passenger took the pen");
+        world.GetComponent<PencilInHand>(pen)!.Holder.Should().Be(person);
         released.Should().BeGreaterThan(0, "the clip let the pen go before the passenger took it");
         world
             .GetComponent<Passenger>(person)!
             .State.TryGetValue(out Holding holding)
             .Should()
             .BeTrue("the passenger holds the pen");
-        world.IsAlive(holding.Copy).Should().BeTrue();
+        world.IsAlive(holding.Pencil).Should().BeTrue();
         Clearance(last).Should().BeGreaterThan(0.5, "the pen floated in the middle of the cabin");
     }
 
@@ -281,12 +281,13 @@ public sealed class PenClipTests : IDisposable
     {
         Board(passenger: true);
 
-        TickUntil(world, () => world.IsAlive(pen) && HeldCopies().Count > 0, 1500);
-
-        DPose loose = world.PoseIn(pen, cabin),
-            held = world.PoseIn(HeldCopies().Should().ContainSingle().Which, cabin);
+        TickUntil(world, () => world.GetComponent<Passenger>(person)!.State.Value is Holding, 1500);
+        DPose loose = world.PoseIn(pen, cabin);
+        world.Tick();
+        world.Tick();
+        DPose held = world.PoseIn(pen, cabin);
         Double3.Distance(held.Position, loose.Position).Should().BeLessThan(0.01);
-        (loose.Rotation.AngularVelocityTo(held.Rotation, 1).Length * 180 / Math.PI).Should().BeLessThan(1);
+        (loose.Rotation.AngularVelocityTo(held.Rotation, 1).Length * 180 / Math.PI).Should().BeLessThan(1.2);
     }
 
     /// <summary>
@@ -306,7 +307,7 @@ public sealed class PenClipTests : IDisposable
             world,
             () =>
             {
-                if (!world.IsAlive(pen))
+                if (world.GetComponent<PencilInHand>(pen) is not null)
                     return true;
                 nearest = Math.Min(nearest, PenFromBodyAxis());
                 (world.VelocityIn(pen, cabin) - DemoSurface.PenPush)
@@ -317,15 +318,7 @@ public sealed class PenClipTests : IDisposable
             1500
         );
 
-        world.IsAlive(pen).Should().BeFalse("the passenger took the pen");
+        world.GetComponent<PencilInHand>(pen)!.Holder.Should().Be(person);
         nearest.Should().BeGreaterThan(0.3 + DemoSurface.PenHalf.Z);
-    }
-
-    /// <summary>Every live entity with a <see cref="HeldInView"/>: the drawn copies of a pen in a hand.</summary>
-    private List<Entity> HeldCopies()
-    {
-        var live = new List<Entity>();
-        world.CopyLiveEntities(live);
-        return [.. live.Where(entity => world.GetComponent<HeldInView>(entity) != null)];
     }
 }

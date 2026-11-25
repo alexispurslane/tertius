@@ -284,7 +284,7 @@ public sealed class ModelExpansionTests
     }
 
     [Fact]
-    public void TheRigPoseOfAModelInstanceIsDropped()
+    public void EveryPartReceivesTheModelInstancesRigPose()
     {
         RenderSnapshot snapshot = With(ShipAt(Vector3.Zero, Quaternion.Identity, 1));
         snapshot.AddRigPose(
@@ -298,7 +298,7 @@ public sealed class ModelExpansionTests
 
         expansion.Expand(snapshot, [Ship]);
 
-        expansion.RigPoses.IsEmpty.Should().BeTrue("the parts of a model draw as uploaded");
+        expansion.RigPoses.ToArray().Select(p => p.Instance).Should().Equal(0, 1);
     }
 
     [Fact]
@@ -364,7 +364,7 @@ public sealed class ModelExpansionTests
 
         expansion.Expand(snapshot, [Ship]);
 
-        expansion.RigPoses.ToArray().Select(p => p.Instance).Should().Equal(2);
+        expansion.RigPoses.ToArray().Select(p => p.Instance).Should().Equal(0, 1, 2);
     }
 
     [Fact]

@@ -9,8 +9,7 @@ namespace Tertius.Rendering;
 /// reads these, so each part culls, casts, moves and becomes an impostor as an ordinary instance.
 /// </summary>
 /// <remarks>
-/// A snapshot without a model passes through with no copy. The rig pose of a model instance is dropped, so its parts draw
-/// as uploaded.
+/// A snapshot without a model passes through with no copy. Each part of a posed model reads the same joint and weight ranges.
 /// </remarks>
 internal sealed class ModelExpansion
 {
@@ -54,16 +53,19 @@ internal sealed class ModelExpansion
             ref readonly RenderInstance instance = ref source[index];
             // The rig poses come in instance order, so one walk pairs them with their instances.
             bool posed = nextPose < poses.Length && poses[nextPose].Instance == index;
+            int first = instanceCount;
             if (instance.Model.IsNone)
             {
-                if (posed)
-                    AddRigPose(poses[nextPose] with { Instance = instanceCount });
                 Add(instance);
             }
             else
                 AddParts(instance, models);
             if (posed)
+            {
+                for (int part = first; part < instanceCount; part++)
+                    AddRigPose(poses[nextPose] with { Instance = part });
                 nextPose++;
+            }
         }
     }
 

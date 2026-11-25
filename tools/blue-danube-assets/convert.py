@@ -24,7 +24,7 @@ from pathlib import Path
 
 import bpy
 import numpy as np
-from mathutils import Matrix
+from mathutils import Matrix, Vector
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
@@ -64,7 +64,8 @@ def main(argv):
         report["finish"] = finish.apply(convert["finish"], pieces, sources)
     report["glow"] = glow.bake(pieces, convert.get("glow", {}))
     _overlay(convert, pieces, report)
-    _turn_to_front(convert.get("front", "+Y"))
+    if convert["kind"] != "blend":
+        _turn_to_front(convert.get("front", "+Y"))
     _limit_textures(convert.get("maxTextureSize"))
     report["pieces"] = _measure()
     export.write_glb(str(args.out))
@@ -264,23 +265,52 @@ def _blend(convert, sources, report):
     bpy.ops.wm.open_mainfile(filepath=str(sources / convert["file"]))
     armature = next(ob for ob in bpy.data.objects if ob.type == "ARMATURE")
     _pose(armature, convert.get("pose", {}))
-    keep = set(convert["keep"])
+    # Use the relaxed pose as the bind pose. Keep each source vertex's deform groups
+    # and each joint's posed pivot. The source ankle controllers are independent
+    # roots for Blender IK. Runtime ankle motion follows the shin.
+    pivots = {b.name: armature.matrix_world @ b.head for b in armature.pose.bones}
+    parents = {b.name: b.parent.name if b.parent else None for b in armature.pose.bones}
+    for side in ("L", "R"):
+        parents["ankle." + side] = "shin." + side
     depsgraph = bpy.context.evaluated_depsgraph_get()
     kept = []
-    for ob in list(bpy.data.objects):
-        if ob.type != "MESH" or ob.name not in keep:
-            continue
-        posed = bpy.data.meshes.new_from_object(ob.evaluated_get(depsgraph))
+    for name in convert["keep"]:
+        ob = bpy.data.objects[name]
+        posed = bpy.data.meshes.new_from_object(ob.evaluated_get(depsgraph), preserve_all_data_layers=True,
+                                                depsgraph=depsgraph)
         posed.transform(ob.matrix_world)
         baked = bpy.data.objects.new(ob.name + ".posed", posed)
         bpy.context.scene.collection.objects.link(baked)
+        for group in ob.vertex_groups:
+            baked.vertex_groups.new(name=group.name)
         kept.append(baked)
     for ob in list(bpy.data.objects):
         if ob not in kept:
             bpy.data.objects.remove(ob, do_unlink=True)
     _blend_materials(convert, sources)
     piece = _join(kept, convert["piece"])
-    report["sourceHeight"] = _stand(piece, float(convert["height"]))
+    points = np.array([v.co[:] for v in piece.data.vertices])
+    low, high = points.min(axis=0), points.max(axis=0)
+    height = high[2] - low[2]
+    center = Matrix.Translation((-(low[0] + high[0]) / 2, -(low[1] + high[1]) / 2, -low[2]))
+    fit = Matrix.Rotation(FRONT_TURNS[convert["front"]], 4, "Z") @ Matrix.Scale(convert["height"] / height, 4) @ center
+    piece.data.transform(fit)
+    report["sourceHeight"] = float(height)
+    bones = bpy.data.armatures.new("Pilot")
+    rig = bpy.data.objects.new("Pilot", bones)
+    bpy.context.scene.collection.objects.link(rig)
+    bpy.context.view_layer.objects.active = rig
+    bpy.ops.object.mode_set(mode="EDIT")
+    for name, pivot in pivots.items():
+        bone = bones.edit_bones.new(name)
+        bone.head = fit @ pivot
+        bone.tail = bone.head + Vector((0, 0.02, 0))
+    for name, parent in parents.items():
+        if parent:
+            bones.edit_bones[name].parent = bones.edit_bones[parent]
+    bpy.ops.object.mode_set(mode="OBJECT")
+    piece.parent = rig
+    piece.modifiers.new("Pilot", "ARMATURE").object = rig
     return {piece.name: piece}
 
 
@@ -344,20 +374,6 @@ def _join(objects, name):
     joined.name = name
     joined.data.name = name
     return joined
-
-
-def _stand(obj, height):
-    """Scales `obj`'s mesh to `height` meters tall, with its lowest point at height 0 and its footprint centered on the
-    origin. Returns the height before, in the file's units."""
-    points = np.empty(len(obj.data.vertices) * 3)
-    obj.data.vertices.foreach_get("co", points)
-    points = points.reshape(-1, 3)
-    low, high = points.min(axis=0), points.max(axis=0)
-    source_height = float(high[2] - low[2])
-    scale = height / source_height
-    center = Matrix.Translation((-(low[0] + high[0]) / 2, -(low[1] + high[1]) / 2, -low[2]))
-    obj.data.transform(Matrix.Scale(scale, 4) @ center)
-    return round(source_height, 4)
 
 
 # The steps after the load.

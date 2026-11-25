@@ -44,9 +44,7 @@ public readonly record struct CrateSpec(
     /// A drawn copy of the crate in the hands of <paramref name="holder"/>, in <paramref name="frame"/>, the holder's frame,
     /// for a holder whose view offset is <paramref name="view"/>: it has no body, it is attached to the holder at
     /// <paramref name="grip"/> in the view, the place and turn relative to the eye in the view's axes, and a
-    /// <see cref="HeldInView"/> keeps it there. The holder chooses the grip: <see cref="Carry.Hold"/>, unturned, for a
-    /// crate in a person's hands, and the pen's place and turn where the hand takes it for the pen in a
-    /// <see cref="Passenger"/>'s hand.
+    /// <see cref="HeldInView"/> keeps it there. The holder chooses where and how it grips the crate.
     /// </summary>
     public SpawnDesc HeldCopy(FrameHandle frame, Entity holder, Pose view, Pose grip) =>
         new()
@@ -128,18 +126,34 @@ public sealed class Crate(CrateSpec spec) : IComponent
 
     // The number of the tick on which the crate sent its last offer, or null if it has sent none.
     private long? offeredOn;
+    private Entity offeredTo;
 
     public int Priority => 0;
 
-    public EventMask Wants => EventMask.Of<Use>().And<CrateTaken>();
+    public EventMask Wants => EventMask.Of<Use>().And<CrateTaken>().And<GraspPencil>();
 
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
+        if (self.GetComponent<PencilInHand>() is not null)
+            return;
         if (events.Of<CrateTaken>().Any())
         {
             self.Destroy();
             return;
         }
+
+        for (int i = 0; i < events.Count; i++)
+            if (
+                events[i].Is<GraspPencil>()
+                && events[i].Sender == offeredTo
+                && offeredOn is long tick
+                && self.Tick - tick <= AnswerTicks
+            )
+            {
+                self.AddComponent(new PencilInHand(events[i].Sender, events[i].As<GraspPencil>().Grip));
+                offeredOn = null;
+                return;
+            }
 
         // An offer is out while its answer can still come.
         if (offeredOn is long sent && self.Tick - sent < AnswerTicks)
@@ -151,6 +165,7 @@ public sealed class Crate(CrateSpec spec) : IComponent
             return;
         outbox.Send(firstUse.User, new CrateOffer { Crate = spec });
         offeredOn = self.Tick;
+        offeredTo = firstUse.User;
     }
 
     private static bool IsPositiveAndFinite(float value) => value > 0 && float.IsFinite(value);

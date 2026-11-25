@@ -257,7 +257,7 @@ public sealed class PassengerTests : IDisposable
     }
 
     /// <summary>
-    /// The passenger floats to the pen and takes it: the loose pen goes, and the passenger holds a drawn copy of it, away
+    /// The passenger floats to the pen and takes it: the passenger holds the same body, away
     /// from its seat.
     /// </summary>
     [Fact]
@@ -268,12 +268,13 @@ public sealed class PassengerTests : IDisposable
         TickUntil<Holding>(limit: 1200);
         Tick(world, 4);
 
-        world.IsAlive(pen).Should().BeFalse("the passenger took the loose pen");
-        Entity copy = With<HeldInView>().Should().ContainSingle().Which;
+        world.IsAlive(pen).Should().BeTrue("the glove caught the same pencil");
+        Entity copy = With<PencilInHand>().Should().ContainSingle().Which;
         PassengerOf().State.Should().Be(new PassengerState(new Holding(copy)), "the passenger holds the copy");
         world.GetRender(copy).Mesh.Should().Be(Pen.Mesh);
         world.GetRender(copy).Material.Should().Be(Pen.Material);
-        world.GetBody(copy).Should().BeNull("the pen in hand is only drawn");
+        copy.Should().Be(pen);
+        world.GetBody(copy).Should().NotBeNull("the pencil keeps its dynamic body");
         world.GetFrame(copy).Should().Be(cabin);
         FromSeat().Should().BeGreaterThan(2, "the passenger left its seat");
     }
@@ -290,7 +291,7 @@ public sealed class PassengerTests : IDisposable
         TickUntil<Holding>(limit: 1200);
         Tick(world, 4);
 
-        Entity copy = With<HeldInView>().Should().ContainSingle().Which;
+        Entity copy = With<PencilInHand>().Should().ContainSingle().Which;
         DPose personPose = world.PoseInOwnFrame(person);
         DPose copyPose = world.PoseInOwnFrame(copy);
         // The pen's center and its long axis, in the person's axes: +Y up and -Z ahead.
@@ -311,7 +312,7 @@ public sealed class PassengerTests : IDisposable
         double nearest = double.PositiveInfinity;
         int beforeReach = 0;
 
-        for (int t = 0; t < 1200 && world.IsAlive(pen); t++)
+        for (int t = 0; t < 1200 && PassengerOf().State.Value is not Holding; t++)
         {
             nearest = Math.Min(nearest, Double3.Distance(world.PoseIn(pen, cabin).Position, Hand()));
             if (nearest > Passenger.GripReach)
@@ -319,7 +320,8 @@ public sealed class PassengerTests : IDisposable
             world.Tick();
         }
 
-        world.IsAlive(pen).Should().BeFalse();
+        world.IsAlive(pen).Should().BeTrue();
+        PassengerOf().State.Value.Should().BeOfType<Holding>();
         nearest.Should().BeLessThanOrEqualTo(Passenger.GripReach);
         beforeReach.Should().BeGreaterThan(60, "the passenger floats for a while before its hand reaches the pen");
     }
@@ -333,8 +335,29 @@ public sealed class PassengerTests : IDisposable
         TickUntil<Holding>(limit: 1500);
         Tick(world, 4);
 
-        world.IsAlive(pen).Should().BeFalse();
-        With<HeldInView>().Should().ContainSingle();
+        world.IsAlive(pen).Should().BeTrue();
+        PassengerOf().State.Value.Should().BeOfType<Holding>();
+        With<PencilInHand>().Should().ContainSingle();
+    }
+
+    [Fact]
+    public void OpeningTheGloveRestoresTheSamePencilsCollisionFilter()
+    {
+        BoardInSpace();
+        BodyFacts loose = world.Snapshot.BodyOf(pen)!.Value;
+        TakeThePenAndStrapIn();
+        world.Post(Event.Create(target: person, sender: Entity.Null, payload: new LeaveShip()));
+        TickUntil<Unstrapped>(limit: 3);
+        world.Snapshot.BodyOf(pen)!.Value.CollisionGroups.IsEmpty.Should().BeTrue();
+
+        world.Post(Event.Create(target: person, sender: Entity.Null, payload: new PlayWithBoxes()));
+        Tick(world, 5);
+
+        world.GetComponent<PencilInHand>(pen).Should().BeNull();
+        BodyFacts released = world.Snapshot.BodyOf(pen)!.Value;
+        released.Motion.Should().Be(BodyMotion.Dynamic);
+        released.CollisionGroups.Should().Be(loose.CollisionGroups);
+        released.CollisionMask.Should().Be(loose.CollisionMask);
     }
 
     [Fact]
@@ -363,7 +386,7 @@ public sealed class PassengerTests : IDisposable
         Tick(world, 180);
 
         PassengerOf().State.Value.Should().BeOfType<Stopped>("the passenger holds no pen");
-        With<HeldInView>().Should().BeEmpty();
+        With<PencilInHand>().Should().BeEmpty();
         world.VelocityIn(person, cabin).Length.Should().BeLessThan(0.02, "the passenger stops");
     }
 
@@ -378,7 +401,7 @@ public sealed class PassengerTests : IDisposable
         BoardInSpace();
         TickUntil<Holding>(limit: 1200);
         Tick(world, 60);
-        Entity copy = With<HeldInView>().Should().ContainSingle().Which;
+        Entity copy = With<PencilInHand>().Should().ContainSingle().Which;
         FromSeat().Should().BeGreaterThan(2, "the passenger took the pen away from its seat");
 
         FastenBelt();
@@ -402,7 +425,7 @@ public sealed class PassengerTests : IDisposable
 
         PassengerOf().State.Should().Be(new PassengerState(new Strapped(copy)), "the passenger still holds the copy");
         world.IsAlive(copy).Should().BeTrue();
-        With<HeldInView>().Should().Equal(copy);
+        With<PencilInHand>().Should().Equal(copy);
         FromSeat().Should().BeLessThanOrEqualTo(Passenger.BuckleRadius);
     }
 

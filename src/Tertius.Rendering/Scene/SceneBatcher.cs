@@ -191,19 +191,33 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     /// instances that some view may draw and whose mesh deforms. The renderer grows the deform region to it before
     /// <see cref="Prepare"/>.
     /// </summary>
-    public static int DeformNeed(RenderSnapshot snapshot, ReadOnlySpan<MeshInfo> meshes)
+    public static int DeformNeed(
+        RenderSnapshot snapshot,
+        ReadOnlySpan<MeshInfo> meshes,
+        ReadOnlySpan<ModelDesc> models = default
+    )
     {
         int need = 0;
         ReadOnlySpan<RenderInstance> instances = CollectionsMarshal.AsSpan(snapshot.Instances);
         foreach (ref readonly RenderRigPose pose in CollectionsMarshal.AsSpan(snapshot.RigPoses))
         {
             ref readonly RenderInstance instance = ref instances[pose.Instance];
-            int mesh = MeshIndex(instance.Mesh, meshes.Length);
-            if (mesh >= 0 && MayDraw(instance) && meshes[mesh].Deform is { } deform)
-                need += deform.VertexCount;
+            if (!MayDraw(instance))
+                continue;
+            if (instance.Model.IsNone)
+                need += Vertices(instance.Mesh, meshes);
+            else if ((uint)instance.Model.Value < (uint)models.Length)
+                foreach (ModelPart part in models[instance.Model.Value].Parts)
+                    need += Vertices(part.Mesh, meshes);
         }
 
         return need;
+
+        static int Vertices(MeshId id, ReadOnlySpan<MeshInfo> meshes)
+        {
+            int mesh = MeshIndex(id, meshes.Length);
+            return mesh >= 0 ? meshes[mesh].Deform?.VertexCount ?? 0 : 0;
+        }
     }
 
     /// <summary>The faces of the one map that stands for none while the map is off: it draws no face.</summary>

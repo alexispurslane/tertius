@@ -61,7 +61,7 @@ public sealed class CodaRun : IDisposable
                 after--;
         }
 
-        PenCopy = World.GetComponent<Passenger>(person)!.State.Value is Unstrapped { Copy: var copy }
+        PenCopy = World.GetComponent<Passenger>(person)!.State.Value is Unstrapped { Pencil: var copy }
             ? copy
             : Entity.Null;
         Start = Record(0);
@@ -198,7 +198,8 @@ public sealed class WheelCodaTests(CodaRun run) : IClassFixture<CodaRun>
                 1e-6,
                 "the walk starts from rest in the tick of the order, one tick at the start limit"
             );
-        run.World.IsAlive(run.PenCopy).Should().BeFalse("the pen's copy goes");
+        run.World.IsAlive(run.PenCopy).Should().BeTrue("the released pencil keeps its body");
+        run.World.GetComponent<PencilInHand>(run.PenCopy).Should().BeNull();
     }
 
     /// <summary>

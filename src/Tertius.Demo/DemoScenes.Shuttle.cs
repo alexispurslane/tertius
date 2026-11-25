@@ -57,6 +57,9 @@ public static partial class DemoScenes
         /// <summary>The raised cockpit floor height, in meters, in the shuttle's axes.</summary>
         public const float CockpitFloorY = -0.50f;
 
+        /// <summary>The upholstered pan is 0.42 m above the cockpit floor. The armrests extend above it.</summary>
+        public const float SeatCushionY = CockpitFloorY + 0.42f;
+
         /// <summary>Where the 10-degree center cabin ramp starts rising from the aft floor, in meters along Z.</summary>
         public const float RampStartZ = -3.00f;
 

@@ -892,7 +892,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         if (!deformation)
             return DeformRegion.None;
         geometry.ReserveDeformed(
-            vertices: SceneBatcher.DeformNeed(snapshot, geometry.Meshes),
+            vertices: SceneBatcher.DeformNeed(snapshot, geometry.Meshes, CollectionsMarshal.AsSpan(models)),
             kept: keptPositions,
             commandBuffer: commandBuffer,
             barriers: barriers,

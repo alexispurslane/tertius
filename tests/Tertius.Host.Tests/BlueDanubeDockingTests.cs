@@ -90,7 +90,7 @@ public sealed class BlueDanubeDockingTests(BlueDanubeRendezvousRun run)
             .BeNegative("the person stands on the port side of the seat stand, down the felt slope");
     }
 
-    /// <summary>The person keeps the drawn copy of the pen in its hand: in every tick of the docking, the copy lies within 5 cm of the hand.</summary>
+    /// <summary>The person keeps the held pencil in its hand: in every tick of the docking, the copy lies within 5 cm of the hand.</summary>
     [Fact]
     public void ThePenStaysInThePassengersHandThroughTheDocking() =>
         Docking.Should().OnlyContain(tick => tick.PenFromHand != null && tick.PenFromHand < 0.05);

@@ -30,7 +30,7 @@
     {"do":"film","name":"floor","frames":120,"every":1},
     {"do":"camera","entity":"stack-camera"},
     {"do":"post","to":{"kind":"entity","id":"person"},"event":"PlayWithBoxes","payload":null},
-    {"do":"film","name":"stack","frames":1188,"every":1},
+    {"do":"film","name":"stack","frames":1197,"every":1},
     {"do":"camera","entity":"spinward-camera"},
     {"do":"film","name":"spinward","frames":428,"every":1},
     {"do":"camera","entity":"antispinward-camera"},

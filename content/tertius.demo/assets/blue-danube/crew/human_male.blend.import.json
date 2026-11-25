@@ -70,7 +70,7 @@
     },
     "changes": [
       "Kept the body, head, helmet and light-armour meshes that body_light.skin lists; dropped the weapons, the plane and the tag objects.",
-      "Posed the armature with fixed bone angles (arms lowered to the sides, see the \"pose\" block) and applied the pose: a static mesh, no rig.",
+      "Posed the armature with fixed bone angles (arms lowered to the sides, see the \"pose\" block) as the bind pose. Kept the joint pivots and deform weights, and parented the ankle controllers to the shins for runtime posing.",
       "Scaled to 1.80 m tall with the feet at height 0, and turned to face -Z; converted to one glTF binary.",
       "Materials rebuilt from the diffuse and normal maps: a non-metal of roughness 0.57. helmet_a.png is not used.",
       "The green channel of helmet_n.png and head_n.png is flipped to the OpenGL convention: a curl test of the maps found them in the DirectX convention, and base_n.png and armor_n.png in the OpenGL one."

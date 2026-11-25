@@ -604,6 +604,24 @@ public sealed class BatcherDeformTests
     }
 
     [Fact]
+    public void APosedModelReservesVerticesForEverySkinnedPart()
+    {
+        RenderSnapshot snapshot = Empty();
+        AddPosed(snapshot, Instance(Rigid, new(0, 0, -10)) with { Model = new(0) }, CylinderRest);
+        ModelPart part = new(
+            Mesh: new(Cylinder),
+            Material: default,
+            Offset: Pose.Identity,
+            Scale: Vector3.One,
+            BoundingRadius: 1
+        );
+        SceneBatcher
+            .DeformNeed(snapshot, Meshes, [new ModelDesc([part, part])])
+            .Should()
+            .Be(2 * CylinderDeform.VertexCount);
+    }
+
+    [Fact]
     public void DeformNeedCountsTheVerticesOfEveryPosedDeformingInstance()
     {
         RenderSnapshot snapshot = Empty();

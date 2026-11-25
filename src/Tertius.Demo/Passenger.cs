@@ -15,29 +15,29 @@ public readonly record struct Seated(int WeightlessTicks);
 public readonly record struct Fetching;
 
 /// <summary>A <see cref="Passenger"/> holds the pen, and stops where it is.</summary>
-/// <param name="Copy">The drawn copy of the pen in its hand.</param>
-public readonly record struct Holding(Entity Copy);
+/// <param name="Pencil">The dynamic pencil held by the passenger.</param>
+public readonly record struct Holding(Entity Pencil);
 
 /// <summary>Tells a <see cref="Passenger"/> that holds the pen to float back to its seat and strap in.</summary>
 public struct FastenBelt : IEventPayload;
 
 /// <summary>A <see cref="Passenger"/> floats back to its seat with the pen in its hand, to strap in.</summary>
-/// <param name="Copy">The drawn copy of the pen in its hand.</param>
-public readonly record struct Returning(Entity Copy);
+/// <param name="Pencil">The dynamic pencil held by the passenger.</param>
+public readonly record struct Returning(Entity Pencil);
 
 /// <summary>A <see cref="Passenger"/> is strapped in at its seat with the pen in its hand, and never opens its belt.</summary>
-/// <param name="Copy">The drawn copy of the pen in its hand.</param>
-public readonly record struct Strapped(Entity Copy);
+/// <param name="Pencil">The dynamic pencil held by the passenger.</param>
+public readonly record struct Strapped(Entity Pencil);
 
 /// <summary>
 /// A <see cref="Passenger"/> has opened its belt to leave the docked ship, with the pen in its hand. It adds nothing: the
 /// person's <see cref="Disembark"/> walks it out.
 /// </summary>
-/// <param name="Copy">The drawn copy of the pen in its hand.</param>
-public readonly record struct Unstrapped(Entity Copy);
+/// <param name="Pencil">The dynamic pencil held by the passenger.</param>
+public readonly record struct Unstrapped(Entity Pencil);
 
 /// <summary>
-/// A <see cref="Passenger"/> on the wheel's floor has put the pen away to play with the loose boxes: the drawn copy is gone,
+/// A <see cref="Passenger"/> on the wheel's floor has put the pen away to play with the loose boxes,
 /// and the passenger adds nothing. The person's <see cref="BoxPlay"/> plays.
 /// </summary>
 public readonly record struct PenAway;
@@ -70,7 +70,7 @@ public readonly partial struct PassengerState;
 /// <summary>
 /// A passenger who rides out the climb at its seat, and in orbit floats to a loose pen and takes it. Told to fasten its
 /// belt, it floats back to its seat with the pen in its hand and straps in for the burns that follow. Its entity needs a
-/// character body and a view offset, whose eye the pen in its hand follows (see <see cref="HeldInView"/>). It goes through
+/// character body and a view offset, whose eye the pen in its hand follows (see <see cref="PencilInHand"/>). It goes through
 /// the cases of <see cref="PassengerState"/>:
 /// <list type="bullet">
 /// <item><see cref="Boarding"/>: once its center comes within <see cref="BuckleRadius"/> of <paramref name="seat"/>, in
@@ -86,21 +86,20 @@ public readonly partial struct PassengerState;
 /// hand, at <see cref="PenHold"/> in its view, in front of its chest, comes onto the pen. The hand first lines up behind
 /// the pen, on the line ahead of the view, and then closes in along that line, so that the pen comes to the hand from in
 /// front and never touches the body (see <see cref="LineUpGap"/>). Once the hand is within <see cref="GripReach"/> of the
-/// pen, the passenger uses the pen (<see cref="Use"/>), and the pen offers itself. The passenger takes the offer as
-/// <see cref="Carry"/> takes a crate: it tells the pen that it is taken, so that the pen goes, and it holds a drawn copy
-/// of the pen in its hand, where and as the loose pen was, relative to its view. If the pen goes in another way, the
-/// passenger stops.</item>
+/// pen, the passenger uses the pen (<see cref="Use"/>), and the pen offers itself. The passenger answers with <see cref="GraspPencil"/> at the pencil's measured pose.
+/// Its physics body follows the grip until the passenger releases it. If the pencil disappears before the take,
+/// the passenger stops.</item>
 /// <item><see cref="Holding"/>: its thrusters stop it relative to its frame. A <see cref="FastenBelt"/> sends it back to
 /// its seat, in the same tick. In every other case, a <see cref="FastenBelt"/> changes nothing.</item>
 /// <item><see cref="Returning"/>: its thrusters float its center back to <paramref name="seat"/>, with the law of the
 /// fetch: toward the seat at <see cref="ApproachRate"/> per meter of the way that is left, up to <see cref="FloatSpeed"/>.
-/// The drawn copy of the pen stays in its hand. Once its center is within <see cref="BuckleRadius"/> of the seat, it
+/// The pen stays in its hand. Once its center is within <see cref="BuckleRadius"/> of the seat, it
 /// shuts its belt.</item>
-/// <item><see cref="Strapped"/>: the belt holds it at its seat as in <see cref="Seated"/>, with the copy of the pen in
+/// <item><see cref="Strapped"/>: the belt holds it at its seat as in <see cref="Seated"/>, with the pen in
 /// its hand, but it does not open the belt when it is weightless. A <see cref="LeaveShip"/> opens it, in the same tick.</item>
-/// <item><see cref="Unstrapped"/>: the belt is open, and the passenger adds nothing, with the copy of the pen in its hand.
+/// <item><see cref="Unstrapped"/>: the belt is open, and the passenger adds nothing, with the pen in its hand.
 /// The person's <see cref="Disembark"/> walks it out of the docked ship. A <see cref="PlayWithBoxes"/> puts the pen away,
-/// in the same tick: the passenger tells the copy to go.</item>
+/// in the same tick: the passenger opens its glove and the pencil falls.</item>
 /// <item><see cref="PenAway"/>: the passenger adds nothing, and its hands are free for the person's
 /// <see cref="BoxPlay"/>.</item>
 /// <item><see cref="Stopped"/>: its thrusters stop it relative to its frame.</item>
@@ -120,9 +119,6 @@ public readonly partial struct PassengerState;
 /// <para>The passenger floats in straight lines and does not plan a way round the pen: a character does not turn, so the
 /// straight way from its seat to the place where its hand lines up must pass clear of the pen. In the demo, the person
 /// floats face-down, below the pen and well to the side of it, so that way passes clear of the pen.</para>
-/// <para>The copy in the hand becomes live at the sync point of the tick of the take, and the loose pen goes one tick
-/// later, when its <see cref="CrateTaken"/> arrives. So one snapshot holds both, within millimeters of each other, because
-/// the passenger floats with the pen when it takes it.</para>
 /// </remarks>
 /// <param name="seat">Where the passenger's center sits at its seat, in the seat's frame.</param>
 /// <param name="pen">The loose pen, a body with a <see cref="Crate"/> component.</param>
@@ -180,6 +176,9 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
     private readonly Waypoint seat = seat;
     private readonly Entity pen = pen;
 
+    internal Entity LoosePen => pen;
+    internal FrameHandle Cabin => seat.Frame;
+
     /// <summary>
     /// A passenger that starts in <paramref name="start"/>, as a scene that starts in the middle of the flight builds it,
     /// such as the exit's scene, which starts <see cref="Strapped"/> at the docked seat.
@@ -217,16 +216,16 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
             case Fetching:
                 FetchOrTakePen(self: self, events: ref events, outbox: outbox, mass: mass);
                 return;
-            case Holding { Copy: Entity held }:
+            case Holding { Pencil: Entity held }:
                 HoldUntilBelt(self: self, events: ref events, outbox: outbox, held: held, mass: mass);
                 return;
-            case Returning { Copy: Entity held }:
+            case Returning { Pencil: Entity held }:
                 Return(self: self, outbox: outbox, held: held, mass: mass);
                 return;
-            case Strapped { Copy: Entity held }:
-                StayStrapped(self: self, events: ref events, held: held, mass: mass);
+            case Strapped { Pencil: Entity held }:
+                StayStrapped(self: self, events: ref events, outbox: outbox, held: held, mass: mass);
                 return;
-            case Unstrapped { Copy: Entity held }:
+            case Unstrapped { Pencil: Entity held }:
                 PutPenAwayOnPlay(events: ref events, outbox: outbox, held: held);
                 return;
             case PenAway:
@@ -267,11 +266,7 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
     private void FetchOrTakePen(Self self, scoped ref EventList events, Outbox outbox, float mass)
     {
         for (int i = 0; i < events.Count; i++)
-            if (
-                events[i].Is<CrateOffer>()
-                && events[i].Sender == pen
-                && Take(self, outbox, events[i].As<CrateOffer>().Crate)
-            )
+            if (events[i].Is<CrateOffer>() && events[i].Sender == pen && Take(self, outbox))
             {
                 Steer(self: self, outbox: outbox, velocity: Double3.Zero, mass: mass);
                 return;
@@ -294,10 +289,11 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
     }
 
     /// <summary>Stays strapped in its seat with the pen <paramref name="held"/> until it is told to leave the ship.</summary>
-    private void StayStrapped(Self self, scoped ref EventList events, Entity held, float mass)
+    private void StayStrapped(Self self, scoped ref EventList events, Outbox outbox, Entity held, float mass)
     {
         if (events.Of<LeaveShip>().Any())
         {
+            outbox.Send(held, new SeatPencil());
             State = new Unstrapped(held);
             return;
         }
@@ -311,7 +307,7 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
     {
         if (!events.Of<PlayWithBoxes>().Any())
             return;
-        outbox.Send(held, new Destroy());
+        outbox.Send(held, new ReleasePencil());
         State = new PenAway();
     }
 
@@ -348,6 +344,7 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
         double distance = way.Length;
         if (distance <= BuckleRadius)
         {
+            outbox.Send(held, new SeatPencil { Cabin = seat.Frame });
             State = new Strapped(held);
             return;
         }
@@ -411,20 +408,16 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
     }
 
     /// <summary>
-    /// Takes the pen that offers itself as <paramref name="offered"/>, as <see cref="Carry"/> takes a crate, and holds a
-    /// drawn copy of it where and as the snapshot shows the loose pen, relative to the view. False, with nothing taken, when
-    /// the pen is gone by now.
+    /// Measures the pencil's pose relative to the eye at contact and asks its body to follow that grip.
     /// </summary>
-    private bool Take(Self self, Outbox outbox, CrateSpec offered)
+    private bool Take(Self self, Outbox outbox)
     {
         if (self.Snapshot.PoseIn(pen, self.Frame) is not { } penPose)
             return false;
         Pose view = self.Render.ViewOffset;
         var grip = Pose.Compose(view.Inverse(), DPose.Compose(self.PoseIn(self.Frame).Inverse(), penPose).ToPose());
-        outbox.Send(pen, new CrateTaken());
-        State = new Holding(
-            self.Spawn(offered.HeldCopy(frame: self.Frame, holder: self.Entity, view: view, grip: grip))
-        );
+        outbox.Send(pen, new GraspPencil { Grip = grip });
+        State = new Holding(pen);
         return true;
     }
 
