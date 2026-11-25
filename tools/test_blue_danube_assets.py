@@ -346,6 +346,45 @@ class TheEarthMaterial(unittest.TestCase):
         self.assertEqual(earth.polar_border(image, normal=True).getpixel((2, 0)), (245, 205, 250))
 
 
+class TheCookedHullNormals(unittest.TestCase):
+    def test_one_spoke_tile_spans_32_metres_and_the_wrap_crosses_the_seam_continuously(self):
+        import math
+        import numpy as np
+        industrial = _load("industrial", "blue-danube-assets/industrial.py")
+        points = [(x, 56.7 * math.cos(a), 56.7 * math.sin(a) - 14.6)
+                  for x, a in ((0, math.pi - 0.02), (32, math.pi - 0.02), (0, -math.pi + 0.02))]
+        uv = np.asarray(industrial.spoke_uvs(points))
+        np.testing.assert_allclose(uv[1] - uv[0], [1, 0])
+        np.testing.assert_allclose(uv[2] - uv[0], [0, 22 * 0.04 / math.tau])
+
+    def test_a_rising_height_field_tilts_the_normal_downhill_at_the_measured_slope(self):
+        import numpy as np
+        industrial = _load("industrial", "blue-danube-assets/industrial.py")
+        v, u = np.indices((8, 8)) * 0.125
+        normal = 2 * industrial.surface_normal(0.3 * u - 0.4 * v, 0.125) - 1
+        np.testing.assert_allclose(normal[4, 4], np.array([-0.3, 0.4, 1]) / np.sqrt(1.25))
+
+    def test_the_active_hub_spoke_and_cargo_materials_have_tangent_space_relief(self):
+        import struct
+        cooked = TOOLS.parent / "content/tertius.demo/bin/assets/blue-danube"
+        for folder, names in (("orbital-station", ["ring", "spokes", "Gallery panels"]), ("cargo-pod", ["cargo"])):
+            model = next((cooked / folder).glob("*/model.glb"), None)
+            if not model:
+                self.skipTest("needs cooked Blue Danube art")
+            with model.open("rb") as glb:
+                glb.seek(12)
+                length, _ = struct.unpack("<II", glb.read(8))
+                doc = json.loads(glb.read(length))
+            for name in names:
+                index = next(i for i, mat in enumerate(doc["materials"]) if mat["name"] == name)
+                parts = [part for mesh in doc["meshes"] for part in mesh["primitives"] if part["material"] == index]
+                with self.subTest(material=name):
+                    self.assertTrue(parts)
+                    self.assertIn("normalTexture", doc["materials"][index])
+                    self.assertIn("metallicRoughnessTexture", doc["materials"][index]["pbrMetallicRoughness"])
+                    self.assertTrue(all("TANGENT" in part["attributes"] for part in parts))
+
+
 @unittest.skipUnless(os.environ.get("TERTIUS_BLENDER"), "needs Blender: run in nix develop .#assets")
 class TheHabitatOverlay(unittest.TestCase):
     """The ring's galleries (habitat.py) survive a glTF round trip: panes on both faces, their light levels, one level

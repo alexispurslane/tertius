@@ -106,6 +106,7 @@ public static partial class DemoScenes
             ("station-view", hub + new Double3(2600, 1800, -4200), hub),
             ("hub-below", hub + new Double3(260, -560, -300), hub + new Double3(0, -150, 0)),
             ("hub-above", hub + new Double3(260, 520, -300), hub + new Double3(0, 120, 0)),
+            ("spoke", hub + new Double3(800, 40, -58), hub + new Double3(815, 12, -48)),
             ("gallery", hub + new Double3(1847.6, 267, -624.1), hub + new Double3(1831.6, 238.6, -605.1)),
             ("shuttle-front", shuttle + new Double3(-14, 4, -22), shuttle),
             ("shuttle-rear", shuttle + new Double3(-14, 4, 21), shuttle),

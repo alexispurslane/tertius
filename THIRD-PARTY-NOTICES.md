@@ -72,7 +72,7 @@ The Blue Danube demo draws third-party models. Git holds none of their files. `b
 - Authors: the Pioneer Developers. The station ring is by Szilárd Bálint.
 - License: CC BY-SA 3.0, https://creativecommons.org/licenses/by-sa/3.0/. The converted models are adaptations, so they carry the same license.
 - Notice: Copyright © 2008-2026 Pioneer Developers. Portions copyright © 2013-2014 Meteoric Games Ltd. Pioneer's art is licensed under CC BY-SA 3.0 (Pioneer AUTHORS.txt, "Licensing").
-- Changes: the converter turns the COLLADA and DDS files into glTF binaries in engine axes, drops the marker nodes, adapts the station cladding, trim and glazing to metallic-roughness materials, and bakes the glow maps into constant emission. The station gains procedural inhabited galleries (`tools/blue-danube-assets/habitat.py`), and its maps shrink to 2048 px. The shuttle's diffuse map gets a procedural finish: a paler hull, wear, hazard stripes and the markings BD-07 and 07. Each sidecar lists its changes in full.
+- Changes: the converter turns the COLLADA and DDS files into glTF binaries in engine axes, drops the marker nodes, adapts the station cladding, trim and glazing to metallic-roughness materials, and bakes the glow maps into constant emission. The pod's access door, locking ribs and hinges gain relief and a metallic-roughness map. The station gains panelled spokes and procedural inhabited galleries (`tools/blue-danube-assets/habitat.py`), and its maps shrink to 2048 px. The shuttle's diffuse map gets a procedural finish: a paler hull, wear, hazard stripes and the markings BD-07 and 07. Each sidecar lists its changes in full.
 
 ### Unvanquished: the passenger
 

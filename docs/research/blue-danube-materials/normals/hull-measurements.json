@@ -1,0 +1,22 @@
+{
+  "spoke": {
+    "percent_changed": 16.368489583333336,
+    "mean_absolute_RGB": 0.19497106481481483,
+    "peak_max_channel": 35
+  },
+  "hub-above": {
+    "percent_changed": 12.197916666666666,
+    "mean_absolute_RGB": 0.17345522280092593,
+    "peak_max_channel": 86
+  },
+  "gallery": {
+    "percent_changed": 87.0048828125,
+    "mean_absolute_RGB": 1.8348350694444444,
+    "peak_max_channel": 134
+  },
+  "pod-view": {
+    "percent_changed": 14.506510416666666,
+    "mean_absolute_RGB": 0.45369285300925927,
+    "peak_max_channel": 89
+  }
+}

@@ -34,9 +34,10 @@
     "changes": [
       "Converted from COLLADA and DDS to one glTF binary in engine axes (+Y up, front -Z, meters); the geometry is unchanged.",
       "Dropped the nodes that Pioneer draws at run time or uses as markers, not as geometry: navigation lights, tags, thruster markers, labels and decals.",
-      "Pioneer's specular maps and specular and shininess values are not used; every material is a non-metal of roughness 0.6.",
+      "Pioneer's specular maps and specular and shininess values are not used. Authored roughness distinguishes the painted skin, gasket and lid. The hinges and locking ribs expose metal.",
       "The glow map is baked into constant emission: each triangle takes the mean glow over its UV footprint, quantized into at most 4 emission levels.",
-      "The cargo glow and specular maps, glow.dds and specular.dds, were not fetched, so the pod has no glow."
+      "The cargo glow and specular maps, glow.dds and specular.dds, were not fetched, so the pod has no glow.",
+      "Added tangent-space relief aligned with the source octagonal access door, hinges and locking ribs. The source atlas covers 4.479 metres per UV unit on the access face."
     ],
     "approved": {
       "on": "2026-11-24",
@@ -72,6 +73,11 @@
       5,
       5,
       5
-    ]
+    ],
+    "materials": {
+      "cargo": {
+        "cargoRelief": true
+      }
+    }
   }
 }

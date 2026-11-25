@@ -1,0 +1,41 @@
+{
+  "scene": "art-preview",
+  "window": {
+    "width": 1280,
+    "height": 720
+  },
+  "steps": [
+    {
+      "do": "camera",
+      "entity": "spoke"
+    },
+    {
+      "do": "capture",
+      "name": "spoke"
+    },
+    {
+      "do": "camera",
+      "entity": "hub-above"
+    },
+    {
+      "do": "capture",
+      "name": "hub-above"
+    },
+    {
+      "do": "camera",
+      "entity": "gallery"
+    },
+    {
+      "do": "capture",
+      "name": "gallery"
+    },
+    {
+      "do": "camera",
+      "entity": "pod-view"
+    },
+    {
+      "do": "capture",
+      "name": "pod-view"
+    }
+  ]
+}

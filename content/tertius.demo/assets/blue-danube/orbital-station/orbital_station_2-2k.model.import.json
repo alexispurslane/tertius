@@ -66,7 +66,8 @@
       "Added inhabited galleries on both axial faces of the ring: panels with a shared color atlas and normal map, lit and unlit window panes with constant emission, mullions, blinds and arcade walls (tools/blue-danube-assets/habitat.py, a procedural build with a fixed seed). The ring geometry itself is unchanged.",
       "The 4096 px maps are scaled down to 2048 px, to keep the GPU memory of the station near 85 MB.",
       "The ring material has no glow: its ring_glow.dds and ring_diff_s.dds were not fetched.",
-      "The 'unlit' materials (facade, floor, tunnels) are lit like the others; their glow, which Pioneer takes from the diffuse map, becomes the baked emission."
+      "The 'unlit' materials (facade, floor, tunnels) are lit like the others; their glow, which Pioneer takes from the diffuse map, becomes the baked emission.",
+      "Mapped relief on hub and ring truss lips. The spokes use a 32 by 16 metre panel repeat, with recessed seams, hatch seals, hinges and retaining fasteners."
     ],
     "approved": {
       "on": "2026-11-24",
@@ -117,7 +118,8 @@
         "ringCladding": true
       },
       "spokes": {
-        "roughness": 0.48
+        "roughness": 0.48,
+        "spokeCladding": true
       },
       "strut": {
         "roughness": 0.36,

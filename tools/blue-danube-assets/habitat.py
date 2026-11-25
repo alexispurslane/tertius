@@ -10,6 +10,7 @@ import math
 import random
 
 import bpy
+import industrial
 import numpy as np
 
 
@@ -150,6 +151,28 @@ def _response_map(material, name, response):
     tree.links.new(split.outputs["Blue"], shader.inputs["Metallic"])
 
 
+def normal_map(material, name, normals):
+    tree = material.node_tree
+    relief = tree.nodes.new("ShaderNodeTexImage")
+    relief.image = _packed_image(name, normals, "Non-Color")
+    tangent = tree.nodes.new("ShaderNodeNormalMap")
+    tree.links.new(relief.outputs["Color"], tangent.inputs["Color"])
+    tree.links.new(tangent.outputs["Normal"], tree.nodes["Principled BSDF"].inputs["Normal"])
+
+
+def finish_cargo(material):
+    normals, response = industrial.cargo_skin()
+    normal_map(material, "Cargo door and hinges", normals)
+    _response_map(material, "Cargo paint and hardware", response)
+
+
+def finish_spoke(material):
+    colors, normals, response = industrial.spoke_skin()
+    _response_map(material, "Spoke paint and hardware", response)
+    normal_map(material, "Spoke panel joints", normals)
+    return _packed_image("Spoke insulated panels", colors, "sRGB")
+
+
 def finish_ring(material, source):
     """Replace Pioneer's green and yellow atlas swatches and keep the source truss outlines and UV layout."""
     atlas = source.copy()
@@ -171,6 +194,13 @@ def finish_ring(material, source):
     rgb[cladding] = (0.58, 0.61, 0.59)
     rgb[primer] = (0.47, 0.34, 0.16)
     rgb[gasket] = (0.064, 0.072, 0.076)
+    # The hub uses about 1 m per texel here, the outer ring about 0.6 m. Form the structural
+    # lips around the source's dark bays; the relief follows their outlines and never its baked shading.
+    structural = ~(insulated | gasket)
+    height = 0.22 * structural.astype(np.float32) - 0.09 * gasket + 0.045 * primer
+    for axis in (0, 1):
+        height = (np.roll(height, 1, axis) + 2 * height + np.roll(height, -1, axis)) * 0.25
+    normal_map(material, "Ring and hub joints", industrial.surface_normal(height, 1))
     _response_map(material, "Ring surface finishes", finish)
     return _packed_image("Ring cladding", rgb, "sRGB")
 
@@ -185,11 +215,7 @@ def _materials():
     albedo = tree.nodes.new("ShaderNodeTexImage")
     albedo.image = _packed_image("Gallery cladding", colors, "sRGB")
     tree.links.new(albedo.outputs["Color"], shader.inputs["Base Color"])
-    relief = tree.nodes.new("ShaderNodeTexImage")
-    relief.image = _packed_image("Gallery relief", normals, "Non-Color")
-    tangent_map = tree.nodes.new("ShaderNodeNormalMap")
-    tree.links.new(relief.outputs["Color"], tangent_map.inputs["Color"])
-    tree.links.new(tangent_map.outputs["Normal"], shader.inputs["Normal"])
+    normal_map(panels, "Gallery relief", normals)
     # Match cabin lighting to the other station facades (peak channel about 42 W/(m²·sr)).
     window_radiance = 60.0
     panes = []
