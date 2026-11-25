@@ -25,7 +25,9 @@ public sealed class SpawnValidationTests
             "an attachment parent that owns a root frame",
             "a model with a mesh",
             "a model with a material",
-            "a model at a scale that differs along the axes"
+            "a model at a scale that differs along X",
+            "a model at a scale that differs along Y",
+            "a model at a scale that differs along Z"
         );
 
     /// <summary>A description with the named defect. <paramref name="staleFrame"/> and <paramref name="staleParent"/> are handles that have been destroyed.</summary>
@@ -72,10 +74,20 @@ public sealed class SpawnValidationTests
                 Render = new RenderData { Model = new(0), Material = new(0) },
             },
             // A turned part under a scale that differs along the axes is a shear, which no part instance can draw.
-            "a model at a scale that differs along the axes" => new()
+            "a model at a scale that differs along X" => new()
+            {
+                Frame = root,
+                Render = new RenderData { Model = new(0), Scale = new(2, 1, 1) },
+            },
+            "a model at a scale that differs along Y" => new()
             {
                 Frame = root,
                 Render = new RenderData { Model = new(0), Scale = new(1, 2, 1) },
+            },
+            "a model at a scale that differs along Z" => new()
+            {
+                Frame = root,
+                Render = new RenderData { Model = new(0), Scale = new(1, 1, 2) },
             },
             _ => throw new ArgumentOutOfRangeException(nameof(defect), defect, null),
         };
