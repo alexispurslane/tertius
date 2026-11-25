@@ -2,6 +2,8 @@
 
 Ticket: `ter-pq5y`, the last member of the rendering upgrade epic ([rendering-upgrade.md](rendering-upgrade.md)). The user made it the coda of the epic on 2026-10-25.
 
+Current policy (2026-11-25) supersedes the historical Mac timing goals below. Judge renderer frame time and FPS exclusively on Linux Runpod. See the [GPU workbench guide](../../tools/runpod/WORKBENCH.md).
+
 ## Goal
 
 Hold the whole frame to a fixed budget of GPU time, once every feature of the epic is in. Profile each pass to learn why it takes its time, and cut each pass that is over its share.

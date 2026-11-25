@@ -7,7 +7,9 @@ read against the spread of the runs.
 The standard library only.
 """
 
+import contextlib
 import importlib.util
+import io
 import json
 import tempfile
 import unittest
@@ -45,7 +47,7 @@ class Report(unittest.TestCase):
         self.assertEqual([round(run.span, 3) for run in runs["main"]], [8.5, 8.9],
                          "the headless readback is not the renderer's work (ter-fw73)")
 
-    def test_a_variant_whose_runs_all_lie_below_the_bases_runs_is_a_gain_with_its_mac_estimate(self):
+    def test_a_variant_whose_runs_all_lie_below_the_bases_runs_is_a_measured_gain(self):
         for run, (base, variant) in enumerate([(10.0, 9.0), (10.2, 9.1), (10.1, 9.2)], 1):
             self.run_of("main", run, base + 2.0, 2.0)
             self.run_of("cut", run, variant + 2.0, 1.0)
@@ -53,7 +55,11 @@ class Report(unittest.TestCase):
         self.assertAlmostEqual(result.delta_ms, 9.1 - 10.1)
         self.assertAlmostEqual(result.relative, 9.1 / 10.1 - 1)
         self.assertTrue(result.separated)
-        self.assertAlmostEqual(result.mac_ms, (9.1 - 10.1) * ab_report.MAC_FACTOR)
+        report = io.StringIO()
+        with contextlib.redirect_stdout(report):
+            self.assertEqual(ab_report.main([str(self.root)]), 0)
+        self.assertIn("cut against main: -1.000 ms", report.getvalue())
+        self.assertNotIn("Mac", report.getvalue())
 
     def test_a_variant_whose_runs_overlap_the_bases_runs_is_within_the_noise(self):
         for run, (base, variant) in enumerate([(10.0, 9.9), (10.4, 10.3), (10.2, 10.0)], 1):

@@ -1,6 +1,6 @@
 # The GPU workbench
 
-The GPU workbench is a queue of cloud GPU jobs. An agent uses it to measure any change to the renderer: what the change saves in GPU time, and what it does to the image. Each job runs on an RTX 2000 Ada in a Runpod serverless worker and costs a few cents. Up to five jobs run at once. The workbench is the default place to measure. The Mac's GPU lock is only for the three cases in "What still needs the Mac".
+The GPU workbench is a queue of cloud GPU jobs. An agent uses it to measure any change to the renderer: what the change saves in GPU time, and what it does to the image. Each job runs on an RTX 2000 Ada in a Runpod serverless worker and costs a few cents. Up to five jobs run at once. Linux Runpod is the sole reference for renderer frame time and FPS.
 
 The same queue runs CPU jobs on cheaper workers without a GPU: the official Stryker run of a hardening ("Tests in the cloud"). The $30 of credit must last until about 2026-12-07, and most of it goes to measurements of the engine. So the test suites run on the Mac by default, and the cloud runs them only on demand.
 
@@ -11,7 +11,7 @@ The one command is `tools/runpod/gpu_job.py submit`. [README.md](README.md) desc
 1. Time a change that cuts GPU work as an A/B against main inside one job. Read the result as a relative gain, against the spread of the runs.
 2. Compare images, a still or a film, inside one job as well.
 3. Do not compare numbers from two jobs, or from a job and the Mac. Workers differ by about 0.4 % between jobs, and the card is not the Mac.
-4. A gain on the card shows on the Mac at about 2.4 times its size in ms. The frame-time goal, 12 ms on the Mac, holds only after one timed Mac run of the final candidate confirms it, before the merge.
+4. Use matched Linux Runpod measurements for frame-time and FPS decisions. Report the GPU rendering interval separately from capture, encoding and wall-clock throughput.
 5. Run the script, never the key. The script reads the key itself. Never read, print or copy the key's file.
 
 ## Time a change: an A/B against main
@@ -39,7 +39,6 @@ The report prints, for each tree, the GPU frame span of each run without the `ca
 
 - The change of the median against main, in ms and in percent.
 - A verdict. When every run of one side lies below every run of the other side, it prints "every run differs". Otherwise it prints "the runs overlap: within the noise".
-- The estimate on the Mac: the change in ms times 2.4.
 - The passes whose medians moved most.
 
 ### How many runs, and how to read them
@@ -81,17 +80,9 @@ The same job can make stills and films of both trees. Two runs of the same commi
 - For more images, and for films, compute the metric inside the job and send back numbers and small crops. The dev shell has Python with numpy, scipy and pillow, and ffmpeg. Run the metric's script from the tree, for example the daub score of ticket t7-3e22, in a `--run` command after `ab_run.sh`.
 - Several still jobs at once fetch more images: give each job one image or one view.
 
-## What still needs the Mac
+## Local rendering on the Mac
 
-The Mac's GPU lock (`tools/README.md`, "The GPU lock") is only for these:
-
-1. Changes whose cost Linux does not pay: MoltenVK's encoder breaks, the count of dispatches and barriers, and other behavior of MoltenVK or Metal. The card on Linux runs those at almost no cost, so it cannot show their gain.
-2. Changes that depend on Apple's shader compiler: unrolling, register pressure and occupancy. NVIDIA's compiler makes different choices.
-3. One confirmation take of the final candidate before its merge, for the 12 ms goal.
-
-The factor of 2.4 holds only for a change of the amount of work. A change of the form of the work can move the two GPUs in opposite directions. On 2026-11-12 (t2-gfq5), sixteen bilinear corner reads in place of nine gathers saved about 0.5 ms of the deck's frame span on the Mac. On the RTX 2000 Ada, the same change cost 0.80 ms (+8.9 %). So a change of texture access kind (gather against sample), register use or code size needs a run on both machines before its merge.
-
-For everything else, measure on the workbench, and give the Mac's lock to the agents that need it.
+Use the Mac for rendering, image comparisons and correctness tests, including MoltenVK-specific defects. Use the [GPU lock](../README.md#the-gpu-lock) when sharing the local GPU. Base performance acceptance and optimization priorities exclusively on the Linux Runpod worker.
 
 ## Several jobs at once
 

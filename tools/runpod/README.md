@@ -1,6 +1,6 @@
 # Cloud jobs on Runpod: how the queue works
 
-An agent runs a cloud job on a Runpod serverless endpoint. A GPU job is, for example, a build and a timing run of the demo. A CPU job is, for example, the official Stryker run of one module. The agent calls one script, `tools/runpod/gpu_job.py`, and the script keeps the spending within the caps. [WORKBENCH.md](WORKBENCH.md) is the guide for agents: the A/B against main, the quality A/B, what still needs the Mac, the cloud tests, and the costs. This file describes how the queue works. Tickets ter-94uo, ter-a5ev, ter-k7fd and t8-yd4j made the parts.
+An agent runs a cloud job on a Runpod serverless endpoint. A GPU job is, for example, a build and a timing run of the demo. A CPU job is, for example, the official Stryker run of one module. The agent calls one script, `tools/runpod/gpu_job.py`, and the script keeps the spending within the caps. [WORKBENCH.md](WORKBENCH.md) is the guide for agents: the A/B against main, the quality A/B, local rendering and correctness tests, the cloud tests, and the costs. This file describes how the queue works. Tickets ter-94uo, ter-a5ev, ter-k7fd and t8-yd4j made the parts.
 
 | Part | What it does |
 |---|---|

@@ -4,6 +4,8 @@ ARCHITECTURE.md is the binding design, and the code and `tools/README.md` say ho
 
 ## Workflow
 
+- Judge renderer frame time and FPS exclusively on Linux Runpod. Use the Mac for local rendering, visual comparisons and correctness tests. Make performance decisions from matched Runpod measurements at the same resolution and render settings.
+
 - Run every build and test command in the dev shell: `nix develop --command bash -c '<command>'`.
 - `bash tools/test-all.sh` runs every .NET test module in Checked and Release. Checked is the test configuration: Debug's contracts with Release's optimized code. An agent in an isolated worktree cannot run it, because Claude Code refuses a script there: it cannot prove that the script runs no git outside the worktree. Such an agent runs `nix develop --command dotnet test --solution Tertius.slnx -c Checked`, then the same with `-c Release`. Each command builds and runs every test project in about two minutes.
 - The pre-commit hook runs only the Checked tests. Run the Release tests at least once before a merge into main. Run them with `tools/test-all.sh` or with `-c Release`.

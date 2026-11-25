@@ -153,7 +153,7 @@ tools/runpod/README.md says how to build the serverless image.
 
 ## GPU jobs on Runpod
 
-An agent runs a cloud job, on a GPU worker or on a CPU worker, through one script, `tools/runpod/gpu_job.py`, which keeps the spending within the caps. [tools/runpod/WORKBENCH.md](runpod/WORKBENCH.md) is the guide for agents: the A/B against main, the quality A/B, what still needs the Mac, the tests in the cloud, and the costs. [tools/runpod/README.md](runpod/README.md) describes how the queue works: the jobs, the images and endpoints of each kind, the caps, the audit log and the measurements. It also says how to build the serverless image.
+An agent runs a cloud job, on a GPU worker or on a CPU worker, through one script, `tools/runpod/gpu_job.py`, which keeps the spending within the caps. [tools/runpod/WORKBENCH.md](runpod/WORKBENCH.md) is the guide for agents: the A/B against main, the quality A/B, local rendering and correctness tests, the tests in the cloud, and the costs. [tools/runpod/README.md](runpod/README.md) describes how the queue works: the jobs, the images and endpoints of each kind, the caps, the audit log and the measurements. It also says how to build the serverless image.
 
 ## The remotes: GitHub and the knot mirror
 
