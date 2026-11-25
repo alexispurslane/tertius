@@ -1,6 +1,6 @@
 ---
 id: ter-fl8r
-status: open
+status: closed
 deps: []
 links: [ter-x08a]
 created: 2026-11-25T17:53:53Z
@@ -24,3 +24,7 @@ Separate the pre-bloom shading, diffuse and specular contributions at a fixed vi
 **2026-11-25T20:09:42Z**
 
 In the second cut on d392c3ae4 the exterior view into the cockpit at 0:28 is heavily overexposed. Use this frame and the preceding interior-to-exterior camera cut as a second reproduction. The cause of this exterior shot still needs measurement.
+
+**2026-11-25T23:31:04Z**
+
+The replacement exposure and bloom work is tracked separately in ter-ozk7, ter-5uxs and ter-n2n9.

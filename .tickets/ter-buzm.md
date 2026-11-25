@@ -1,7 +1,7 @@
 ---
 id: ter-buzm
 status: open
-deps: [ter-fl8r, ter-2erh, ter-xzj7]
+deps: [ter-ozk7, ter-5uxs, ter-n2n9, ter-heu0, ter-pssi, ter-e76k, ter-qbw8]
 links: []
 created: 2026-11-25T22:58:22Z
 type: epic
@@ -11,8 +11,8 @@ tags: [rendering, blue-danube]
 ---
 # Rendering priorities from the second Blue Danube cut
 
-See docs/plans/blue-danube-rendering-baseline.md. The source is the timed second cut rendered on d392c3ae4. Compare the same shots at the same film cadence and keep the GPU cost of any change visible.
+The [second-cut renderer plan](../docs/plans/blue-danube-rendering-baseline.md) lists the seven priorities in the requested order. The timed film on d392c3ae4 supplies the camera sequence and visual controls.
 
 ## Acceptance Criteria
 
-Review the three named defects in motion on the production route. Record the cause, matched evidence and disposition of each, and the cost of the accepted changes.
+Record each ticket’s reproduction and outcome on the production path. Judge images in motion and use Linux Runpod for frame time and FPS. For shadow resolution decisions include measured GPU memory headroom.

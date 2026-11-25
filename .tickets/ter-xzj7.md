@@ -1,6 +1,6 @@
 ---
 id: ter-xzj7
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-25T22:58:22Z
@@ -17,3 +17,9 @@ The wide locked berth view around 7:27 shows speckle across the dark deck and in
 ## Acceptance Criteria
 
 On an uncompressed sequence, follow a fixed patch of deck and its reflected image where visible. Record the frame-to-frame variation, settled brightness and a close crop of the joints. Identify the first pass with the objectionable pattern. Show matched moving clips retaining the joints and lighting, plus the GPU time excluding readback.
+
+## Notes
+
+**2026-11-25T23:31:04Z**
+
+The investigation of rough surfaces under grazing direct and indirect light across multiple shots is tracked in ter-heu0.

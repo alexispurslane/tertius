@@ -1,6 +1,6 @@
 ---
 id: ter-2erh
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-25T22:58:22Z
@@ -17,3 +17,9 @@ At 3:48–3:50 in the second cut, several soft white discs cross the docking por
 ## Acceptance Criteria
 
 Identify the draw and entity that produce the discs. Compare an original and corrected moving clip at the film cadence. Keep the hub outline and destination legible throughout the approach, and check the launch plume at ignition. If emitter placement or authoring explains the defect, fix it at that owner.
+
+## Notes
+
+**2026-11-25T23:31:04Z**
+
+Removed from the active list by the second-cut priority reset. The recorded discs remain a historical observation. Their relationship to the distant-light instability is unknown.
