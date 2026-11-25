@@ -29,7 +29,7 @@ public sealed class ContentFolders(string root)
             return new(overrideRoot);
         for (DirectoryInfo? folder = new(start); folder is not null; folder = folder.Parent)
         {
-            string content = System.IO.Path.Combine(folder.FullName, "content");
+            string content = Path.Combine(folder.FullName, "content");
             if (Directory.Exists(content))
                 return new(content);
         }
@@ -39,7 +39,5 @@ public sealed class ContentFolders(string root)
 
     /// <summary>The cooked file of <paramref name="reference"/>'s model, which may not exist.</summary>
     public string CookedModel(AssetReference reference) =>
-        System.IO.Path.Combine(
-            [Root, reference.Package, "bin", "assets", .. reference.Path.Split('/'), "model.glb"]
-        );
+        Path.Combine([Root, reference.Package, "bin", "assets", .. reference.Path.Split('/'), "model.glb"]);
 }

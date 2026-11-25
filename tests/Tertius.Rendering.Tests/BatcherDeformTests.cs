@@ -157,7 +157,13 @@ public sealed class BatcherDeformTests
     public void APosedInstanceAfterAModelDrawsItsDeformedCopy()
     {
         // Two rigid boxes, so that the model's parts shift the posed cylinder's place in the expanded list.
-        ModelPart box = new(Mesh: new(Rigid), Material: new(0), Offset: Pose.Identity, Scale: Vector3.One, BoundingRadius: 1);
+        ModelPart box = new(
+            Mesh: new(Rigid),
+            Material: new(0),
+            Offset: Pose.Identity,
+            Scale: Vector3.One,
+            BoundingRadius: 1
+        );
         RenderSnapshot snapshot = Empty();
         RenderInstance pair = Instance(MeshId.None.Value, new(-3, 0, -10));
         pair.Mesh = MeshId.None;

@@ -115,7 +115,8 @@ public static partial class DemoScenes
         /// The bounds of the Lunar Shuttle's model in its own axes, in meters, as the converter reports them: its nose wheel
         /// and its two main wheels reach its lowest point, 3.063 m below its origin.
         /// </summary>
-        public static BoundingBox ArtBounds { get; } = new(new(-4.325f, -3.063f, -10.013f), new(4.325f, 2.731f, 8.166f));
+        public static BoundingBox ArtBounds { get; } =
+            new(new(-4.325f, -3.063f, -10.013f), new(4.325f, 2.731f, 8.166f));
 
         /// <summary>
         /// The box that the hull fits, in meters, in the shuttle's axes: <see cref="ArtBounds"/> at <see cref="ArtScale"/>
@@ -127,15 +128,15 @@ public static partial class DemoScenes
 
         /// <summary>The eight corners of <see cref="Hull"/>, in the shuttle's axes.</summary>
         public static IReadOnlyList<Vector3> HullCorners { get; } =
-            [
-                .. Enumerable
-                    .Range(0, 8)
-                    .Select(corner => new Vector3(
-                        (corner & 1) == 0 ? Hull.Min.X : Hull.Max.X,
-                        (corner & 2) == 0 ? Hull.Min.Y : Hull.Max.Y,
-                        (corner & 4) == 0 ? Hull.Min.Z : Hull.Max.Z
-                    )),
-            ];
+        [
+            .. Enumerable
+                .Range(0, 8)
+                .Select(corner => new Vector3(
+                    (corner & 1) == 0 ? Hull.Min.X : Hull.Max.X,
+                    (corner & 2) == 0 ? Hull.Min.Y : Hull.Max.Y,
+                    (corner & 4) == 0 ? Hull.Min.Z : Hull.Max.Z
+                )),
+        ];
 
         /// <summary>How far the hull's farthest corner lies from the shuttle's origin, in meters.</summary>
         public static float Reach { get; } = Vector3.Max(-Hull.Min, Hull.Max).Length();
@@ -177,19 +178,19 @@ public static partial class DemoScenes
         /// shortens the follow camera's arm, and that rise moved the camera 7 cm along it.
         /// </summary>
         public static Vector3[] Walkway { get; } =
-            [
-                .. new[] { Hatch.Min.Z - 0.3f, Hatch.Max.Z + 0.3f }.SelectMany(z =>
-                    new Vector3[]
-                    {
-                        new(Cabin.X - 0.8f, -Cabin.Y, z),
-                        new(Hull.Max.X, -Cabin.Y, z),
-                        new(Hull.Max.X + BoardingStair.Gap + BoardingStair.LipOverlap, Hatch.Min.Y - 0.03f, z),
-                        new(Hull.Max.X + BoardingStair.Gap + BoardingStair.LipOverlap, Hatch.Min.Y, z),
-                        new(Cabin.X, Hatch.Min.Y, z),
-                        new(Cabin.X - 0.8f, -Cabin.Y + 0.001f, z),
-                    }
-                ),
-            ];
+        [
+            .. new[] { Hatch.Min.Z - 0.3f, Hatch.Max.Z + 0.3f }.SelectMany(z =>
+                new Vector3[]
+                {
+                    new(Cabin.X - 0.8f, -Cabin.Y, z),
+                    new(Hull.Max.X, -Cabin.Y, z),
+                    new(Hull.Max.X + BoardingStair.Gap + BoardingStair.LipOverlap, Hatch.Min.Y - 0.03f, z),
+                    new(Hull.Max.X + BoardingStair.Gap + BoardingStair.LipOverlap, Hatch.Min.Y, z),
+                    new(Cabin.X, Hatch.Min.Y, z),
+                    new(Cabin.X - 0.8f, -Cabin.Y + 0.001f, z),
+                }
+            ),
+        ];
 
         /// <summary>
         /// The porch: a short passage out from the hatch through the model's side to the hull's box, in the shuttle's axes,
@@ -198,11 +199,11 @@ public static partial class DemoScenes
         /// end lies at the hull's starboard face.
         /// </summary>
         public static IReadOnlyList<BoundingBox> Porch { get; } =
-            [
-                new(new(Tram.X, Hatch.Min.Y, Hatch.Min.Z - 0.3f), new(Hull.Max.X, Hatch.Max.Y + 0.1f, Hatch.Min.Z - 0.2f)),
-                new(new(Tram.X, Hatch.Min.Y, Hatch.Max.Z + 0.2f), new(Hull.Max.X, Hatch.Max.Y + 0.1f, Hatch.Max.Z + 0.3f)),
-                new(new(Tram.X, Hatch.Max.Y, Hatch.Min.Z - 0.2f), new(Hull.Max.X, Hatch.Max.Y + 0.1f, Hatch.Max.Z + 0.2f)),
-            ];
+        [
+            new(new(Tram.X, Hatch.Min.Y, Hatch.Min.Z - 0.3f), new(Hull.Max.X, Hatch.Max.Y + 0.1f, Hatch.Min.Z - 0.2f)),
+            new(new(Tram.X, Hatch.Min.Y, Hatch.Max.Z + 0.2f), new(Hull.Max.X, Hatch.Max.Y + 0.1f, Hatch.Max.Z + 0.3f)),
+            new(new(Tram.X, Hatch.Max.Y, Hatch.Min.Z - 0.2f), new(Hull.Max.X, Hatch.Max.Y + 0.1f, Hatch.Max.Z + 0.2f)),
+        ];
 
         /// <summary>
         /// The seat, in the shuttle's axes: a box 0.6 m wide, 0.5 m tall and 0.6 m deep on the cabin floor, centered 1 m to

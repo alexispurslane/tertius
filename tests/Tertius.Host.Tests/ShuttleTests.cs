@@ -34,7 +34,9 @@ public sealed class ShuttleTests : IDisposable
             .Should()
             .BeApproximately(overLanding + BoardingStair.LipOverlap, 1e-5f, "the lip reaches 0.3 m over the landing");
         lip.Min(corner => corner.Y).Should().BeApproximately(landingTop + 0.005f, 1e-5f, "5 mm of air under the lip");
-        lip.Max(corner => corner.Y).Should().BeApproximately(Shuttle.Hatch.Min.Y, 1e-5f, "the lip is the porch's floor");
+        lip.Max(corner => corner.Y)
+            .Should()
+            .BeApproximately(Shuttle.Hatch.Min.Y, 1e-5f, "the lip is the porch's floor");
     }
 
     /// <summary>
@@ -46,7 +48,10 @@ public sealed class ShuttleTests : IDisposable
     {
         Vector3 grown = Vector3.Max(-Shuttle.Hull.Min, Shuttle.Hull.Max) + new Vector3(2),
             inBubble = grown / Shuttle.Bubble;
-        inBubble.LengthSquared().Should().BeLessThanOrEqualTo(1 + 1e-5f, "the grown box's far corner lies in the bubble");
+        inBubble
+            .LengthSquared()
+            .Should()
+            .BeLessThanOrEqualTo(1 + 1e-5f, "the grown box's far corner lies in the bubble");
         (Shuttle.Bubble - new Vector3(15.45f, 11.95f, 29.48f)).Length().Should().BeLessThan(0.01f);
     }
 

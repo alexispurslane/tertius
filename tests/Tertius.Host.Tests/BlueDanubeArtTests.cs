@@ -55,7 +55,10 @@ public sealed class BlueDanubeArtTests
     {
         ContentFolders content = EmptyContent();
 
-        BlueDanubeArt.Problems(content).Should().HaveCount(BlueDanubeArt.All.Count)
+        BlueDanubeArt
+            .Problems(content)
+            .Should()
+            .HaveCount(BlueDanubeArt.All.Count)
             .And.AllSatisfy(problem => problem.Should().BeOfType<MissingModel>());
     }
 
@@ -64,7 +67,10 @@ public sealed class BlueDanubeArtTests
     {
         ContentFolders content = ContentOf("glTF"u8.ToArray());
 
-        BlueDanubeArt.Problems(content).Should().HaveCount(BlueDanubeArt.All.Count)
+        BlueDanubeArt
+            .Problems(content)
+            .Should()
+            .HaveCount(BlueDanubeArt.All.Count)
             .And.AllSatisfy(problem => problem.Should().BeOfType<MalformedModel>());
     }
 

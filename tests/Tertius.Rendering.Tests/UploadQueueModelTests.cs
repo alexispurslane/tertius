@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using System.Numerics;
 
 namespace Tertius.Rendering.Tests;
@@ -131,7 +130,7 @@ public sealed class UploadQueueModelTests
         ModelPart good = PartOf(mesh, material);
         ModelDesc desc = defect switch
         {
-            "no parts array" => new(default(ImmutableArray<ModelPart>)),
+            "no parts array" => new(default),
             "a part without a mesh" => ModelOf(good with { Mesh = MeshId.None }),
             "a mesh that the queue did not make" => ModelOf(good with { Mesh = new(1) }),
             "a material that the queue did not make" => ModelOf(good with { Material = new(1) }),
@@ -141,12 +140,7 @@ public sealed class UploadQueueModelTests
                     Offset = new(new(float.NaN, 0, 0), Quaternion.Identity),
                 }
             ),
-            "an offset rotation that is not a rotation" => ModelOf(
-                good with
-                {
-                    Offset = new(Vector3.Zero, default),
-                }
-            ),
+            "an offset rotation that is not a rotation" => ModelOf(good with { Offset = new(Vector3.Zero, default) }),
             "a scale that is not finite" => ModelOf(good with { Scale = new(1, float.PositiveInfinity, 1) }),
             "a scale with a zero axis" => ModelOf(good with { Scale = new(1, 1, 0) }),
             "a negative bounding radius" => ModelOf(good with { BoundingRadius = -1 }),

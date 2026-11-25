@@ -47,7 +47,10 @@ public sealed class WheelFloorTests
         var under = new Double3(-1999.9, 0, 0);
         WheelFloor.SpinwardAt(under).Should().Be(new Double3(0, 0, 1));
         WheelFloor.UpAt(under).Should().Be(new Double3(1, 0, 0));
-        Floor.Spinward(under, new(-1999.9, 3, 0.5)).Should().BeApproximately(Floor.Radius * Math.Atan2(0.5, 1999.9), 1e-9);
+        Floor
+            .Spinward(under, new(-1999.9, 3, 0.5))
+            .Should()
+            .BeApproximately(Floor.Radius * Math.Atan2(0.5, 1999.9), 1e-9);
         Floor.Spinward(under, new(-1999.9, 0, -0.5)).Should().BeNegative("-Z is antispinward there");
     }
 

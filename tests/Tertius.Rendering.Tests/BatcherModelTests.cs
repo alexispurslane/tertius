@@ -25,18 +25,16 @@ public sealed class BatcherModelTests
     private static readonly Quaternion Quarter = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2);
 
     /// <summary>A box at the entity's origin, and a ball 40 m along the entity's +X.</summary>
-    private static readonly ModelDesc Boom = new(
-        [
-            new(Mesh: new(0), Material: new(1), Offset: Pose.Identity, Scale: Vector3.One, BoundingRadius: 0.866f),
-            new(
-                Mesh: new(1),
-                Material: new(2),
-                Offset: new(new(40, 0, 0), Quaternion.Identity),
-                Scale: Vector3.One,
-                BoundingRadius: 1
-            ),
-        ]
-    );
+    private static readonly ModelDesc Boom = new([
+        new(Mesh: new(0), Material: new(1), Offset: Pose.Identity, Scale: Vector3.One, BoundingRadius: 0.866f),
+        new(
+            Mesh: new(1),
+            Material: new(2),
+            Offset: new(new(40, 0, 0), Quaternion.Identity),
+            Scale: Vector3.One,
+            BoundingRadius: 1
+        ),
+    ]);
 
     private readonly FrameHistory history = new(StillRule.Window);
     private readonly SceneBatcher batcher = Batchers.Default();

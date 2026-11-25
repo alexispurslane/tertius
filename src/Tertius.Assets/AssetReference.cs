@@ -20,7 +20,10 @@ public sealed partial record AssetReference(string Package, string Path, string?
     {
         ArgumentNullException.ThrowIfNull(text);
         if (Form().Match(text) is not { Success: true } match)
-            throw new ArgumentException($"{text} is not a reference of the form package:path or package:path#piece.", nameof(text));
+            throw new ArgumentException(
+                $"{text} is not a reference of the form package:path or package:path#piece.",
+                nameof(text)
+            );
         string path = match.Groups["path"].Value;
         bool leaves = path.Split('/').Any(segment => segment is ".." or "." or "");
         if (leaves)

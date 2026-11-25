@@ -91,7 +91,9 @@ public sealed class StationExitGeometryTests : IDisposable
     {
         double under = Layout.Deck - Layout.HubWall - 0.5;
         foreach (double y in new[] { -Layout.LiftHalf + 0.05, Layout.LiftHalf - 0.05 })
-        foreach (double z in new[] { Layout.LiftAcross - Layout.LiftHalf + 0.05, Layout.LiftAcross + Layout.LiftHalf - 0.05 })
+        foreach (
+            double z in new[] { Layout.LiftAcross - Layout.LiftHalf + 0.05, Layout.LiftAcross + Layout.LiftHalf - 0.05 }
+        )
             Ray(new(under, y, z), -Double3.UnitX)
                 .Should()
                 .BeApproximately(under - FloorX(z), 1e-2, $"nothing lies in the lift's way at y = {y} m, z = {z} m");
@@ -169,7 +171,11 @@ public sealed class StationExitGeometryTests : IDisposable
         landing.Position.Y.Should().BeApproximately(hatch.Y, 1e-4, "the landing lies in front of the hatch");
         landing
             .Position.X.Should()
-            .BeApproximately(StationExit.StairPlace.X + StationExit.Standing, 1e-4, "on the landing, flush with the porch");
+            .BeApproximately(
+                StationExit.StairPlace.X + StationExit.Standing,
+                1e-4,
+                "on the landing, flush with the porch"
+            );
         foot.Position.X.Should().BeApproximately(Layout.Deck + StationExit.Standing, 1e-4, "on the deck");
         foot.Position.Z.Should().BeApproximately(Layout.LiftAcross, 0.25, "in the lift's lane");
         foot.Position.Y.Should().BeGreaterThan(Layout.LiftHalf + 1, "the lane meets the lift from its open side");

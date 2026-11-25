@@ -1,6 +1,5 @@
 using System.Numerics;
 using Tertius.Demo;
-using Tertius.Simulation;
 using Shuttle = Tertius.Demo.DemoScenes.Shuttle;
 
 namespace Tertius.Host.Tests;
@@ -98,8 +97,7 @@ public sealed class StationLayoutTests
 
     /// <summary>The demo's hold point lies 430 m out on the axis, 30 m beyond its bubble.</summary>
     [Fact]
-    public void TheDemosHoldPointLiesFourHundredThirtyMetersOut() =>
-        Demo.HoldPoint.Should().Be(new Double3(0, 430, 0));
+    public void TheDemosHoldPointLiesFourHundredThirtyMetersOut() => Demo.HoldPoint.Should().Be(new Double3(0, 430, 0));
 
     /// <summary>
     /// The hold point lies outside the bubble by more than the shuttle's bounding radius, so the shuttle spins up outside the
@@ -190,7 +188,10 @@ public sealed class StationLayoutTests
     [Fact]
     public void TheBubbleHoldsTheArtsWholeHull()
     {
-        Demo.HullCorners().Should().Contain(new Double3(2028.1f, 269.4f, 0)).And.Contain(new Double3(2028.1f, -269.4f, 0));
+        Demo.HullCorners()
+            .Should()
+            .Contain(new Double3(2028.1f, 269.4f, 0))
+            .And.Contain(new Double3(2028.1f, -269.4f, 0));
         Demo.Bubble.SignedDistance(new Double3(2028.1, 269.4, 0)).Should().BeLessThan(-Shuttle.Reach);
     }
 
@@ -257,6 +258,5 @@ public sealed class StationLayoutTests
 
     /// <summary>A deck so near the axis that a person there floats is a problem of the layout.</summary>
     [Fact]
-    public void ADeckWhereAPersonFloatsIsAProblem() =>
-        (Demo with { DeckRadius = 8 }).Problems().Should().NotBeEmpty();
+    public void ADeckWhereAPersonFloatsIsAProblem() => (Demo with { DeckRadius = 8 }).Problems().Should().NotBeEmpty();
 }

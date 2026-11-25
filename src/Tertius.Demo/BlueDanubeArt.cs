@@ -38,7 +38,7 @@ public static class BlueDanubeArt
 
     /// <summary>Every model that the setup command converts.</summary>
     public static IReadOnlyList<AssetReference> All { get; } =
-        [Station, Shuttle, CargoPod, StorageCart, CagedSconce, Toolbox, Thermos, Stool, StreetSeating, Passenger];
+    [Station, Shuttle, CargoPod, StorageCart, CagedSconce, Toolbox, Thermos, Stool, StreetSeating, Passenger];
 
     /// <summary>True for the scenes that draw the art: the Blue Danube scenes and <see cref="DemoScenes.ArtPreview"/>.</summary>
     public static bool NeededBy(string scene) =>
@@ -53,7 +53,8 @@ public static class BlueDanubeArt
     public static IReadOnlyList<ModelProblem> Problems(ContentFolders? content) =>
         content is null
             ? [.. All.Select(reference => new MissingModel(reference.ToString()))]
-            : [
+            :
+            [
                 .. All.Select(reference => CookedModel.Load(content.CookedModel(reference)))
                     .Select(loaded => loaded.TryGetValue(out ModelProblem problem) ? problem : null)
                     .OfType<ModelProblem>(),
@@ -70,7 +71,8 @@ public static class BlueDanubeArt
             return null;
         var store = new ModelStore(resources, content);
         StoredModel? Of(AssetReference reference) => store.Load(reference).Ok;
-        return (
+        return
+            (
                 Of(Station),
                 Of(Shuttle),
                 Of(CargoPod),
@@ -81,18 +83,19 @@ public static class BlueDanubeArt
                 Of(Stool),
                 Of(StreetSeating),
                 Of(Passenger)
-            ) is (
-                StoredModel station,
-                StoredModel shuttle,
-                StoredModel pod,
-                StoredModel cart,
-                StoredModel sconce,
-                StoredModel toolbox,
-                StoredModel thermos,
-                StoredModel stool,
-                StoredModel seating,
-                StoredModel passenger
             )
+                is (
+                    StoredModel station,
+                    StoredModel shuttle,
+                    StoredModel pod,
+                    StoredModel cart,
+                    StoredModel sconce,
+                    StoredModel toolbox,
+                    StoredModel thermos,
+                    StoredModel stool,
+                    StoredModel seating,
+                    StoredModel passenger
+                )
             ? new(
                 Station: station,
                 Shuttle: shuttle,

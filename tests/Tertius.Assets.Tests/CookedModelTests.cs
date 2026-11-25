@@ -30,10 +30,16 @@ public sealed class CookedModelTests
         MeshData mesh = OnlyPart(Read(OneTriangle().Build())).Mesh;
 
         mesh.Indices.Should().Equal(0u, 1u, 2u);
-        mesh.Vertices.Select(v => v.Position).Should().Equal(new Vector3(0, 0, 0), new Vector3(1, 0, 0), new Vector3(0, 1, 0));
+        mesh.Vertices.Select(v => v.Position)
+            .Should()
+            .Equal(new Vector3(0, 0, 0), new Vector3(1, 0, 0), new Vector3(0, 1, 0));
         mesh.Vertices.Select(v => v.Normal).Should().AllBeEquivalentTo(Vector3.UnitZ);
-        mesh.Vertices.Select(v => v.Tangent).Should().Equal(Vector4.UnitX + Vector4.UnitW, Vector4.UnitX + Vector4.UnitW, Vector4.UnitX - Vector4.UnitW);
-        mesh.Vertices.Select(v => v.TexCoord).Should().Equal(new Vector2(0, 0), new Vector2(1, 0), new Vector2(0.25f, 0.75f));
+        mesh.Vertices.Select(v => v.Tangent)
+            .Should()
+            .Equal(Vector4.UnitX + Vector4.UnitW, Vector4.UnitX + Vector4.UnitW, Vector4.UnitX - Vector4.UnitW);
+        mesh.Vertices.Select(v => v.TexCoord)
+            .Should()
+            .Equal(new Vector2(0, 0), new Vector2(1, 0), new Vector2(0.25f, 0.75f));
     }
 
     [Fact]
@@ -71,7 +77,7 @@ public sealed class CookedModelTests
         var node = new JsonObject { ["name"] = "hull", ["rotation"] = new JsonArray(0f, 1f, 0f, 0f) };
         CookedPiece piece = Read(OneTriangle(node: node).Build()).Pieces.Single();
 
-        Vector3 front = Vector3.Transform(Vector3.UnitZ, piece.Pose.Rotation);
+        var front = Vector3.Transform(Vector3.UnitZ, piece.Pose.Rotation);
         front.Z.Should().BeApproximately(-1, 1e-6f);
         piece.Parts.Single().Offset.Should().Be(Pose.Identity, "the root's own transform is the piece's pose");
     }
@@ -113,7 +119,8 @@ public sealed class CookedModelTests
 
         piece.Name.Should().Be("ring", "a child's mesh belongs to the piece of its root");
         part.Offset.Position.Should().Be(new Vector3(0, 5, 0));
-        Quaternion.Dot(part.Offset.Rotation, Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2))
+        Quaternion
+            .Dot(part.Offset.Rotation, Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2))
             .Should()
             .BeApproximately(1, 1e-6f, "the offset carries the child's quarter turn about +Y");
         part.Scale.Should().Be(new Vector3(3, 3, 3));
@@ -125,7 +132,10 @@ public sealed class CookedModelTests
     {
         var glb = new GlbBuilder();
         int mesh = glb.Mesh(glb.Triangle());
-        int grandchild = glb.Node(new JsonObject { ["name"] = "lamp", ["translation"] = new JsonArray(1f, 0f, 0f) }, mesh);
+        int grandchild = glb.Node(
+            new JsonObject { ["name"] = "lamp", ["translation"] = new JsonArray(1f, 0f, 0f) },
+            mesh
+        );
         int child = glb.Node(
             new JsonObject
             {
@@ -157,7 +167,11 @@ public sealed class CookedModelTests
             mesh
         );
         int hatch = glb.Node(
-            new JsonObject { ["name"] = "hatch", ["extras"] = new JsonObject { ["tertius_piece"] = 1 } },
+            new JsonObject
+            {
+                ["name"] = "hatch",
+                ["extras"] = new JsonObject { ["tertius_piece"] = 1 },
+            },
             mesh
         );
         glb.Root(new JsonObject { ["name"] = "hull", ["children"] = new JsonArray(door, hatch) }, mesh);
@@ -218,7 +232,7 @@ public sealed class CookedModelTests
     [Fact]
     public void AMaterialWithoutFactorsTakesTheGltfDefaults()
     {
-        CookedMaterial read = Read(OneTriangle(new JsonObject()).Build()).Materials.Single();
+        CookedMaterial read = Read(OneTriangle([]).Build()).Materials.Single();
 
         read.BaseColor.Should().Be(Vector4.One);
         (read.Metallic, read.Roughness).Should().Be((1f, 1f), "glTF's defaults are a rough metal");
@@ -227,10 +241,8 @@ public sealed class CookedModelTests
     }
 
     [Fact]
-    public void APrimitiveWithoutAMaterialHasNoneAndDrawsWithTheDefault()
-    {
+    public void APrimitiveWithoutAMaterialHasNoneAndDrawsWithTheDefault() =>
         OnlyPart(Read(OneTriangle().Build())).Material.Should().BeNull();
-    }
 
     [Theory]
     [InlineData("MASK", 0.3f, "cutout at 0.3")]
@@ -262,7 +274,9 @@ public sealed class CookedModelTests
 
         mesh.Indices.Should().Equal(0u, 1u, 2u, 3u, 5u, 4u);
         mesh.Vertices[3].Normal.Should().Be(-Vector3.UnitZ);
-        mesh.Vertices[3].Tangent.Should().Be(new Vector4(x: 1, y: 0, z: 0, w: -1), "the bitangent keeps its direction on the back");
+        mesh.Vertices[3]
+            .Tangent.Should()
+            .Be(new Vector4(x: 1, y: 0, z: 0, w: -1), "the bitangent keeps its direction on the back");
         mesh.Vertices[3].Position.Should().Be(mesh.Vertices[0].Position);
     }
 
@@ -276,7 +290,10 @@ public sealed class CookedModelTests
         int material = glb.Material(
             new JsonObject
             {
-                ["pbrMetallicRoughness"] = new JsonObject { ["baseColorTexture"] = new JsonObject { ["index"] = texture } },
+                ["pbrMetallicRoughness"] = new JsonObject
+                {
+                    ["baseColorTexture"] = new JsonObject { ["index"] = texture },
+                },
             }
         );
         glb.Root(new JsonObject { ["name"] = "hull" }, glb.Mesh(glb.Triangle(material)));
@@ -322,7 +339,10 @@ public sealed class CookedModelTests
         JsonObject Painted() =>
             new()
             {
-                ["pbrMetallicRoughness"] = new JsonObject { ["baseColorTexture"] = new JsonObject { ["index"] = color } },
+                ["pbrMetallicRoughness"] = new JsonObject
+                {
+                    ["baseColorTexture"] = new JsonObject { ["index"] = color },
+                },
             };
         int first = glb.Material(Painted());
         int second = glb.Material(Painted());
@@ -368,7 +388,10 @@ public sealed class CookedModelTests
     [Fact]
     public void AMissingFileIsAMissingModelNotAnException()
     {
-        string path = System.IO.Path.Combine(Directory.CreateTempSubdirectory("tertius-assets-").FullName, "absent.glb");
+        string path = System.IO.Path.Combine(
+            Directory.CreateTempSubdirectory("tertius-assets-").FullName,
+            "absent.glb"
+        );
 
         CookedModel.Load(path).Problem.Should().Be(new MissingModel(path));
     }
@@ -401,7 +424,7 @@ public sealed class CookedModelTests
     [Fact]
     public void AnAccessorPastTheEndOfTheBufferIsMalformedAndNamesTheAccessor()
     {
-        var glb = OneTriangle();
+        GlbBuilder glb = OneTriangle();
         glb.Json["accessors"]![0]!["count"] = 1000;
 
         CookedModel
@@ -425,7 +448,12 @@ public sealed class CookedModelTests
         );
         glb.Root(new JsonObject { ["name"] = "hull" }, glb.Mesh(primitive));
 
-        CookedModel.Parse(glb.Build(), Path).Problem.Should().BeOfType<MalformedModel>().Which.Reason.Should().Contain("7");
+        CookedModel
+            .Parse(glb.Build(), Path)
+            .Problem.Should()
+            .BeOfType<MalformedModel>()
+            .Which.Reason.Should()
+            .Contain("7");
     }
 
     [Fact]
@@ -457,11 +485,19 @@ public sealed class CookedModelTests
         int material = glb.Material(
             new JsonObject
             {
-                ["pbrMetallicRoughness"] = new JsonObject { ["baseColorTexture"] = new JsonObject { ["index"] = texture } },
+                ["pbrMetallicRoughness"] = new JsonObject
+                {
+                    ["baseColorTexture"] = new JsonObject { ["index"] = texture },
+                },
             }
         );
         glb.Root(new JsonObject { ["name"] = "hull" }, glb.Mesh(glb.Triangle(material)));
 
-        CookedModel.Parse(glb.Build(), Path).Problem.Should().BeOfType<MalformedModel>().Which.Reason.Should().Contain("image 0");
+        CookedModel
+            .Parse(glb.Build(), Path)
+            .Problem.Should()
+            .BeOfType<MalformedModel>()
+            .Which.Reason.Should()
+            .Contain("image 0");
     }
 }

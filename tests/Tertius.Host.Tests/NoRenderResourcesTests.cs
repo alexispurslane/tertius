@@ -1,5 +1,4 @@
 using System.Numerics;
-using AwesomeAssertions;
 
 namespace Tertius.Host.Tests;
 

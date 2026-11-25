@@ -20,7 +20,7 @@ public sealed class ArtPreviewTests : IDisposable
 
     private static ContentFolders ConvertedArt()
     {
-        ContentFolders? content = ContentFolders.Find();
+        var content = ContentFolders.Find();
         Assert.SkipWhen(
             content is null || BlueDanubeArt.All.Any(reference => !File.Exists(content.CookedModel(reference))),
             $"The Blue Danube art is not converted: run `{BlueDanubeArt.SetupCommand}`."

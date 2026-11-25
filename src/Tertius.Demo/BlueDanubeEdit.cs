@@ -74,7 +74,11 @@ public static class BlueDanubeEdit
                         Gray: true
                     ),
                     new("Props: Poly Haven, CC0.", 20, Gray: true),
-                    new("Sources, authors and changes: THIRD-PARTY-NOTICES.md in the Tertius repository.", 20, Gray: true),
+                    new(
+                        "Sources, authors and changes: THIRD-PARTY-NOTICES.md in the Tertius repository.",
+                        20,
+                        Gray: true
+                    ),
                 ]
             )
         );

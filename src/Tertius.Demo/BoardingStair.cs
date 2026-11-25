@@ -86,11 +86,7 @@ public sealed record BoardingStair(Vector3 Top, Vector3 Up, Vector3 Out, Vector3
     {
         var blocks = new List<BoundingBox>
         {
-            Block(
-                from: LandingMiddle - Down * (Width / 2),
-                to: LandingMiddle + Down * (Width / 2),
-                height: Height
-            ),
+            Block(from: LandingMiddle - Down * (Width / 2), to: LandingMiddle + Down * (Width / 2), height: Height),
         };
         if (Ramp)
             return blocks;

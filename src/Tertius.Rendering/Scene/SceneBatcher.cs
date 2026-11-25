@@ -435,11 +435,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
 
     /// <summary>The frame meshes of the expanded posed instances, by entry of their rig poses, while they are walked.</summary>
     private FrameMeshCursor FrameMeshes(PreparedScene scene) =>
-        new(
-            poses: expansion.RigPoses,
-            entryMeshes: entryMeshes,
-            staticMeshCount: scene.StaticMeshCount
-        );
+        new(poses: expansion.RigPoses, entryMeshes: entryMeshes, staticMeshCount: scene.StaticMeshCount);
 
     /// <summary>
     /// Places each instance that some view may draw once, with its frame mesh, into the scene's placed instances. The main

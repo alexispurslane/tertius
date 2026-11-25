@@ -76,7 +76,8 @@ public static partial class DemoScenes
         }
 
         /// <summary>Builds the scene as its gray box, with no art.</summary>
-        public static SceneInstance Build(World world, IRenderResources resources) => Build(world, resources, models: null);
+        public static SceneInstance Build(World world, IRenderResources resources) =>
+            Build(world, resources, models: null);
 
         /// <summary>Builds the scene, drawn with <paramref name="models"/>, or as its gray box when they are null.</summary>
         public static SceneInstance Build(World world, IRenderResources resources, BlueDanubeModels? models)

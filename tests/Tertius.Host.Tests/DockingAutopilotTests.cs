@@ -20,7 +20,7 @@ namespace Tertius.Host.Tests;
 public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight flight)
     : IClassFixture<DockingAutopilotTests.DockingFlight>
 {
-    private static readonly double Rate = DemoScenes.DemoStation.Layout.Rate;
+    private static readonly double Rate = DemoStation.Layout.Rate;
 
     private const double Tick = 1.0 / 60,
         Degree = Math.PI / 180;
@@ -151,16 +151,24 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
             AngleBetween(record.Pose.Rotation, StationLayout.DockedRotation)
                 .Should()
                 .BeLessThan(Degree, $"the hull keeps the docked rotation at {record.Time:F2} s");
-            foreach ((double low, double high, double min, double max, string axis) in new[]
-            {
-                (record.HullMin.X, record.HullMax.X, (double)slot.Min.X, (double)slot.Max.X, "X"),
-                (record.HullMin.Z, record.HullMax.Z, slot.Min.Z, slot.Max.Z, "Z"),
-            })
+            foreach (
+                (double low, double high, double min, double max, string axis) in new[]
+                {
+                    (record.HullMin.X, record.HullMax.X, (double)slot.Min.X, (double)slot.Max.X, "X"),
+                    (record.HullMin.Z, record.HullMax.Z, slot.Min.Z, slot.Max.Z, "Z"),
+                }
+            )
             {
                 low.Should()
-                    .BeGreaterThanOrEqualTo(min + 0.5, $"the hull keeps clear of the slot's edges along {axis} at {record.Time:F2} s");
+                    .BeGreaterThanOrEqualTo(
+                        min + 0.5,
+                        $"the hull keeps clear of the slot's edges along {axis} at {record.Time:F2} s"
+                    );
                 high.Should()
-                    .BeLessThanOrEqualTo(max - 0.5, $"the hull keeps clear of the slot's edges along {axis} at {record.Time:F2} s");
+                    .BeLessThanOrEqualTo(
+                        max - 0.5,
+                        $"the hull keeps clear of the slot's edges along {axis} at {record.Time:F2} s"
+                    );
             }
         }
 

@@ -122,7 +122,11 @@ public sealed class WheelCodaGeometryTests
                 .Should()
                 .BeApproximately(
                     release
-                        .FlatLanding(DemoStation.Layout.Rate * DemoStation.Layout.Rate * Floor.Radius, Floor, WheelCoda.BoxHalf)
+                        .FlatLanding(
+                            DemoStation.Layout.Rate * DemoStation.Layout.Rate * Floor.Radius,
+                            Floor,
+                            WheelCoda.BoxHalf
+                        )
                         .Spinward,
                     1e-9
                 );

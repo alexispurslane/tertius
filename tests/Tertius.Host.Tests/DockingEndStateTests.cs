@@ -21,9 +21,7 @@ public sealed class DockingEndStateTests
 
     /// <summary>The corners of the shuttle's hull box at <see cref="StationLayout.ParkedPose"/>, in the station's axes.</summary>
     private static Double3[] ParkedCorners() =>
-        [
-            .. Shuttle.HullCorners.Select(corner => DemoStation.Layout.ParkedPose.TransformPoint(corner)),
-        ];
+        [.. Shuttle.HullCorners.Select(corner => DemoStation.Layout.ParkedPose.TransformPoint(corner))];
 
     /// <summary>The angle between two rotations, in radians.</summary>
     private static double AngleBetween(DQuaternion a, DQuaternion b) => a.AngularVelocityTo(b, 1).Length;
@@ -144,7 +142,7 @@ public sealed class DockingEndStateTests
     public void TheSpinPullsTheParkedShuttleIntoTheCorner()
     {
         Double3 center = DemoStation.Layout.ParkedPose.TransformPoint(HostTesting.ShuttleCenterOfMass);
-        double rate = DemoScenes.DemoStation.Layout.Rate;
+        double rate = DemoStation.Layout.Rate;
         Double3 gravity = new Double3(center.X, 0, center.Z) * (rate * rate);
         gravity.X.Should().BeNegative("the spin gravity presses the hull into the deck");
         gravity.Z.Should().BeNegative("the spin gravity presses the hull into the cradle rail");
@@ -189,7 +187,7 @@ public sealed class DockingEndStateTests
             .Should()
             .BeLessThan(0.5 * Math.PI / 180, "the corner holds the hull's rotation");
 
-        double rate = DemoScenes.DemoStation.Layout.Rate;
+        double rate = DemoStation.Layout.Rate;
         Double3 seat = DemoStation.Layout.ParkedPose.TransformPoint(Shuttle.SeatStand);
         double fromTheAxis = Math.Sqrt(seat.X * seat.X + seat.Z * seat.Z);
         Double3 felt = world.Frames.FeltGravity(world.GetOwnedFrame(shuttle), Shuttle.SeatStand);

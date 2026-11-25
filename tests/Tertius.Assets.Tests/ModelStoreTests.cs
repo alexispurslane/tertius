@@ -83,7 +83,10 @@ public sealed class ModelStoreTests
 
         ModelDesc desc = resources.Models.Single();
         desc.Parts.Should().HaveCount(3);
-        desc.Parts.Select(p => p.Material).Distinct().Should().HaveCount(2, "the hull's paint and glass are two materials");
+        desc.Parts.Select(p => p.Material)
+            .Distinct()
+            .Should()
+            .HaveCount(2, "the hull's paint and glass are two materials");
         resources.Materials[desc.Parts[1].Material.Value].Alpha.Should().Be((AlphaMode)new GlassAlpha());
         ship.Id.Should().Be(new ModelId(0));
     }
@@ -162,7 +165,7 @@ public sealed class ModelStoreTests
     [Fact]
     public void TwoPiecesOfOneFileShareItsMaterialsAndTextures()
     {
-        var glb = Crate();
+        GlbBuilder glb = Crate();
         int mesh = glb.Mesh(glb.Triangle(material: 0));
         glb.Root(new JsonObject { ["name"] = "lid", ["translation"] = new JsonArray(0f, 1f, 0f) }, mesh);
         Write("pack:props/crate.gltf", glb);
@@ -174,13 +177,17 @@ public sealed class ModelStoreTests
 
         lid.Id.Should().NotBe(crate.Id);
         (resources.Textures.Count, resources.Materials.Count).Should().Be((2, 1));
-        resources.Models[1].Parts.Single().Offset.Should().Be(Pose.Identity, "a piece's parts are placed from its own origin");
+        resources
+            .Models[1]
+            .Parts.Single()
+            .Offset.Should()
+            .Be(Pose.Identity, "a piece's parts are placed from its own origin");
     }
 
     [Fact]
     public void AWholeFileReferencePlacesEachRootPieceAtItsRootsPose()
     {
-        var glb = Crate();
+        GlbBuilder glb = Crate();
         int mesh = glb.Mesh(glb.Triangle(material: 0));
         glb.Root(new JsonObject { ["name"] = "lid", ["translation"] = new JsonArray(0f, 1f, 0f) }, mesh);
         Write("pack:props/crate.gltf", glb);
@@ -223,7 +230,7 @@ public sealed class ModelStoreTests
     public void AMissingFileIsAMissingModelAndUploadsNothing()
     {
         var resources = new CountingResources();
-        AssetReference reference = AssetReference.Parse("pack:ships/absent.model");
+        var reference = AssetReference.Parse("pack:ships/absent.model");
 
         ModelProblem? problem = new ModelStore(resources, Content).Load(reference).Problem;
 

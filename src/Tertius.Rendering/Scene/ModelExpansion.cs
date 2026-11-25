@@ -32,9 +32,7 @@ internal sealed class ModelExpansion
     /// and weight ranges still index the snapshot's lists.
     /// </summary>
     public ReadOnlySpan<RenderRigPose> RigPoses =>
-        passThrough is { } snapshot
-            ? CollectionsMarshal.AsSpan(snapshot.RigPoses)
-            : rigPoses.AsSpan(0, rigPoseCount);
+        passThrough is { } snapshot ? CollectionsMarshal.AsSpan(snapshot.RigPoses) : rigPoses.AsSpan(0, rigPoseCount);
 
     /// <summary>
     /// Expands the instances of <paramref name="snapshot"/> with <paramref name="models"/>, indexed by
@@ -91,7 +89,15 @@ internal sealed class ModelExpansion
         float previousScale = interpolates ? owner.PreviousScale.X : scale;
         ReadOnlySpan<ModelPart> parts = models[owner.Model.Value].Parts.AsSpan();
         for (int index = 0; index < parts.Length; index++)
-            Add(PartOf(owner: owner, part: parts[index], index: (ushort)index, scale: scale, previousScale: previousScale));
+            Add(
+                PartOf(
+                    owner: owner,
+                    part: parts[index],
+                    index: (ushort)index,
+                    scale: scale,
+                    previousScale: previousScale
+                )
+            );
     }
 
     /// <summary>
@@ -106,13 +112,19 @@ internal sealed class ModelExpansion
         float previousScale
     )
     {
-        Pose current = Pose.Compose(
+        var current = Pose.Compose(
             parent: new(owner.Position, RotationOf(owner.Rotation)),
-            local: part.Offset with { Position = part.Offset.Position * scale }
+            local: part.Offset with
+            {
+                Position = part.Offset.Position * scale,
+            }
         );
-        Pose previous = Pose.Compose(
+        var previous = Pose.Compose(
             parent: new(owner.PreviousPosition, RotationOf(owner.PreviousRotation)),
-            local: part.Offset with { Position = part.Offset.Position * previousScale }
+            local: part.Offset with
+            {
+                Position = part.Offset.Position * previousScale,
+            }
         );
         return owner with
         {

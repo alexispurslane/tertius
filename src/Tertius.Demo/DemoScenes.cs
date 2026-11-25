@@ -1,5 +1,5 @@
-using Tertius.Assets;
 using System.Numerics;
+using Tertius.Assets;
 using Tertius.Frames.Rails;
 using Tertius.Host;
 using Tertius.Simulation;
@@ -285,34 +285,40 @@ public static partial class DemoScenes
     /// builds as its gray box, with the same bodies.
     /// </summary>
     public static IReadOnlyList<Scene> For(ContentFolders? content) =>
-    [
-        new("drop-box", DropBox),
-        new("orbit", Orbit),
-        new("orbit-cluster", OrbitCluster),
-        new("surface-yard", SurfaceYard),
-        new("deep-yard", DeepYard.Build),
-        new("doorway", Doorway),
-        new("station", Station.Build),
-        new("weightless-push", WeightlessPush),
-        new("demo-meshes", DemoMeshes),
-        new("demo-shuttle", DemoShuttle),
-        new("demo-surface", (world, resources) => DemoSurface.Build(world, resources, BlueDanubeArt.Load(content, resources))),
-        new("spin-station", SpinStation.Build),
-        new("earth-system", EarthSystem.Build),
-        new("mars-air", MarsAir.Build),
-        new("demo-exit", (world, resources) => DemoExit.Build(world, resources, BlueDanubeArt.Load(content, resources))),
-        new("puff-yard", PuffYard),
-        new("pbr-spheres", PbrSpheres),
-        new("reflections", Reflections),
-        new("mirror-balls", MirrorBalls),
-        new("rect-lights", RectLights),
-        .. ShadowScenes,
-        .. BounceLightScenes,
-        .. RigScenes,
-        .. HairCardScenes,
-        new("skin-and-hair", SkinAndHair),
-        ArtPreview(content),
-    ];
+        [
+            new("drop-box", DropBox),
+            new("orbit", Orbit),
+            new("orbit-cluster", OrbitCluster),
+            new("surface-yard", SurfaceYard),
+            new("deep-yard", DeepYard.Build),
+            new("doorway", Doorway),
+            new("station", Station.Build),
+            new("weightless-push", WeightlessPush),
+            new("demo-meshes", DemoMeshes),
+            new("demo-shuttle", DemoShuttle),
+            new(
+                "demo-surface",
+                (world, resources) => DemoSurface.Build(world, resources, BlueDanubeArt.Load(content, resources))
+            ),
+            new("spin-station", SpinStation.Build),
+            new("earth-system", EarthSystem.Build),
+            new("mars-air", MarsAir.Build),
+            new(
+                "demo-exit",
+                (world, resources) => DemoExit.Build(world, resources, BlueDanubeArt.Load(content, resources))
+            ),
+            new("puff-yard", PuffYard),
+            new("pbr-spheres", PbrSpheres),
+            new("reflections", Reflections),
+            new("mirror-balls", MirrorBalls),
+            new("rect-lights", RectLights),
+            .. ShadowScenes,
+            .. BounceLightScenes,
+            .. RigScenes,
+            .. HairCardScenes,
+            new("skin-and-hair", SkinAndHair),
+            ArtPreview(content),
+        ];
 
     /// <summary>
     /// The circle that the ship of the orbit scene starts on, in earth: radius <see cref="OrbitRadius"/>, tilted by
@@ -1161,7 +1167,9 @@ public static partial class DemoScenes
                 new BoxShapeDesc(block.Extents, ConvexRadius: 0),
                 new(block.Center, Quaternion.Identity)
             )),
-            .. ramp.Length > 0 ? [new CompoundChild(new ConvexHullShapeDesc(ramp, ConvexRadius: 0), Pose.Identity)] : Array.Empty<CompoundChild>(),
+            .. ramp.Length > 0
+                ? [new CompoundChild(new ConvexHullShapeDesc(ramp, ConvexRadius: 0), Pose.Identity)]
+                : Array.Empty<CompoundChild>(),
         ]);
         Entity entity = world.Spawn(
             new()
@@ -1210,7 +1218,14 @@ public static partial class DemoScenes
             var tangent = Vector3.Normalize(face[1] - face[0]);
             uint start = (uint)vertices.Count;
             foreach (Vector3 corner in face)
-                vertices.Add(new() { Position = corner, Normal = normal, Tangent = new(tangent, 1) });
+                vertices.Add(
+                    new()
+                    {
+                        Position = corner,
+                        Normal = normal,
+                        Tangent = new(tangent, 1),
+                    }
+                );
             for (uint i = 1; i + 1 < face.Length; i++)
                 indices.AddRange([start, start + i, start + i + 1]);
         }
@@ -1228,7 +1243,10 @@ public static partial class DemoScenes
 
     /// <summary>One mesh of the triangles of <paramref name="a"/> and <paramref name="b"/>.</summary>
     private static MeshData Merged(MeshData a, MeshData b) =>
-        new([.. a.Vertices, .. b.Vertices], [.. a.Indices, .. b.Indices.Select(index => index + (uint)a.Vertices.Length)]);
+        new(
+            [.. a.Vertices, .. b.Vertices],
+            [.. a.Indices, .. b.Indices.Select(index => index + (uint)a.Vertices.Length)]
+        );
 
     private static RenderData Drawn(IRenderResources resources, MeshData mesh, Vector4 color, float boundingRadius) =>
         new()

@@ -156,7 +156,7 @@ public sealed class DemoStationTests : IDisposable
 
         Double3 axis = -DemoSurface.LaunchPlaneNormal;
         Vector3 turn = world.AngularVelocityIn(station, earth);
-        (turn - axis * DemoScenes.DemoStation.Layout.Rate)
+        (turn - axis * DemoStation.Layout.Rate)
             .Length.Should()
             .BeLessThan(1e-6, $"the station turns about {axis}, not at {turn}");
         (world.PoseIn(station, earth).Rotation.Rotate(Double3.UnitY) - axis)
@@ -208,7 +208,7 @@ public sealed class DemoStationTests : IDisposable
 
         Tick(world, 8 * 60);
 
-        double rate = DemoScenes.DemoStation.Layout.Rate;
+        double rate = DemoStation.Layout.Rate;
         double deck = DemoStation.Layout.Deck;
         Double3 felt = world.Frames.FeltGravity(frame, new(deck, 0, 0));
         (felt - new Double3(rate * rate * deck, 0, 0))
@@ -239,12 +239,7 @@ public sealed class DemoStationTests : IDisposable
                 Frame = frame,
                 Pose = new(start, docked),
                 LinearVelocity = new Vector3(0, -1, 0),
-                Body = new(
-                    Shape: Shuttle.HullShape,
-                    Mass: Shuttle.Mass,
-                    LinearDamping: 0,
-                    AngularDamping: 0
-                ),
+                Body = new(Shape: Shuttle.HullShape, Mass: Shuttle.Mass, LinearDamping: 0, AngularDamping: 0),
                 Components = [touches],
             }
         );
@@ -287,7 +282,10 @@ public sealed class DemoStationTests : IDisposable
             bubble.SignedDistance(corner).Should().BeLessThan(-18, $"the bubble holds the hull's corner {corner}");
         bubble
             .MaxRadius.Should()
-            .BeGreaterThan(world.GetRender(station).BoundingRadius, "the bubble holds the drawn station across the axis");
+            .BeGreaterThan(
+                world.GetRender(station).BoundingRadius,
+                "the bubble holds the drawn station across the axis"
+            );
     }
 
     /// <summary>The shuttle's bubble is less than half the station's, so the shuttle's frame fits in the station's.</summary>
@@ -480,7 +478,7 @@ public sealed class DemoStationTests : IDisposable
     public void ABoxReleasedAtRestAboveTheWheelsFloorLandsWhereItsInertialLineSays(double height, double antispinward)
     {
         const double half = 0.2;
-        double rate = DemoScenes.DemoStation.Layout.Rate,
+        double rate = DemoStation.Layout.Rate,
             facet = Math.Tau / DemoStation.Layout.Segments;
         double plane = DemoStation.Layout.FloorRadius * Math.Cos(facet / 2),
             theta = 120.5 * facet;

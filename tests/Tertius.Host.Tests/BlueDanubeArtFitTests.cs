@@ -75,7 +75,9 @@ public sealed class StationPropsTests
             else
             {
                 prop.Place.X.Should().Be(Layout.Deck, $"{prop.Id} stands on the deck");
-                Math.Abs(prop.Place.Z).Should().BeLessThan(bay.Max.Z - reach, $"{prop.Id} stands inside the bay's walls");
+                Math.Abs(prop.Place.Z)
+                    .Should()
+                    .BeLessThan(bay.Max.Z - reach, $"{prop.Id} stands inside the bay's walls");
             }
         }
     }
@@ -97,15 +99,21 @@ public sealed class StationPropsTests
             DemoScenes.WheelCoda.AntispinwardCamera.Position,
             .. StationExit.Stroll(default).Select(waypoint => waypoint.Position),
         ];
-        coda.Should().OnlyContain(place => place.Z > lift.Min.Z, "the stroll and the coda lie spinward of the lift's edge");
+        coda.Should()
+            .OnlyContain(place => place.Z > lift.Min.Z, "the stroll and the coda lie spinward of the lift's edge");
 
         foreach (Prop prop in StationProps.Terminal)
         {
             double reach = StationProps.Reach(prop.Kind);
             (prop.Place.Z + reach).Should().BeLessThan(lift.Min.Z - 1, $"{prop.Id} lies antispinward of the lift");
-            Math.Abs(prop.Place.Y).Should().BeLessThan(Layout.HalfWidth - reach, $"{prop.Id} lies between the side walls");
+            Math.Abs(prop.Place.Y)
+                .Should()
+                .BeLessThan(Layout.HalfWidth - reach, $"{prop.Id} lies between the side walls");
             if (!prop.OnWall)
-                Layout.WheelFloor.Height(prop.Place).Should().BeApproximately(0, 1e-6, $"{prop.Id} stands on the floor");
+                Layout
+                    .WheelFloor.Height(prop.Place)
+                    .Should()
+                    .BeApproximately(0, 1e-6, $"{prop.Id} stands on the floor");
         }
     }
 
@@ -194,7 +202,11 @@ public sealed class BlueDanubeArtSceneTests : IDisposable
         SceneInstance scene = Build(TinyArt());
 
         resources.Models.Should().HaveCount(BlueDanubeArt.All.Count);
-        foreach (IGrouping<PropKind, Prop> kind in StationProps.BayWorkArea.Concat(StationProps.Terminal).GroupBy(p => p.Kind))
+        foreach (
+            IGrouping<PropKind, Prop> kind in StationProps
+                .BayWorkArea.Concat(StationProps.Terminal)
+                .GroupBy(p => p.Kind)
+        )
             kind.Select(prop => world.GetRender(scene[prop.Id]).Model)
                 .Distinct()
                 .Should()
@@ -255,7 +267,8 @@ public sealed class BlueDanubeArtSceneTests : IDisposable
     {
         SceneInstance scene = Build(null);
 
-        StationProps.BayWorkArea.Concat(StationProps.Terminal)
+        StationProps
+            .BayWorkArea.Concat(StationProps.Terminal)
             .Should()
             .OnlyContain(prop => scene.EntityOf(prop.Id) == null, "the gray box draws no prop");
         scene.EntityOf("terminal-post").Should().BeNull();
@@ -275,12 +288,12 @@ public sealed class BlueDanubeArtFitTests
 
     private StoredModel Loaded(AssetReference reference)
     {
-        ContentFolders? content = ContentFolders.Find();
+        var content = ContentFolders.Find();
         Assert.SkipWhen(
             content is null || BlueDanubeArt.All.Any(reference => !File.Exists(content.CookedModel(reference))),
             $"The Blue Danube art is not converted: run `{BlueDanubeArt.SetupCommand}`."
         );
-        return new ModelStore(resources, content!).Load(reference).Ok
+        return new ModelStore(resources, content).Load(reference).Ok
             ?? throw new InvalidOperationException($"The converted model {reference} does not load.");
     }
 
@@ -311,7 +324,9 @@ public sealed class BlueDanubeArtFitTests
             Math.Max(Math.Abs(bounds.Min.Z), bounds.Max.Z)
         );
         radius.Should().BeInRange(layout.HullRadius - 2, layout.HullRadius);
-        Math.Max(-(bounds.Min.Y + up), bounds.Max.Y + up).Should().BeInRange(layout.HullHalfAxial - 2, layout.HullHalfAxial);
+        Math.Max(-(bounds.Min.Y + up), bounds.Max.Y + up)
+            .Should()
+            .BeInRange(layout.HullHalfAxial - 2, layout.HullHalfAxial);
     }
 
     /// <summary>The passenger's model is 1.8 m tall, the capsule's height, so its scale on the drawn body is 1.</summary>

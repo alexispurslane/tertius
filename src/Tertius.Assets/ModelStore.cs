@@ -16,8 +16,8 @@ namespace Tertius.Assets;
 public sealed class ModelStore(IRenderResources resources, ContentFolders content)
 {
     private readonly Dictionary<AssetReference, StoredModel> models = [];
-    private readonly Dictionary<string, UploadedFile> files = new(StringComparer.Ordinal);
-    private readonly Dictionary<MeshData, MeshId> meshes = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<string, UploadedFile> files = [with(StringComparer.Ordinal)];
+    private readonly Dictionary<MeshData, MeshId> meshes = [with(ReferenceEqualityComparer.Instance)];
 
     /// <summary>
     /// The model that <paramref name="reference"/> names, uploaded on the first call. A reference with a piece names that
@@ -116,7 +116,7 @@ public sealed class ModelStore(IRenderResources resources, ContentFolders conten
     /// <summary>Uploads each part's mesh, unless an earlier model uploaded it, and then the model of the parts.</summary>
     private StoredModel Upload(ImmutableArray<PlacedPart> parts)
     {
-        var modelParts = ImmutableArray.CreateBuilder<ModelPart>(parts.Length);
+        ImmutableArray<ModelPart>.Builder modelParts = ImmutableArray.CreateBuilder<ModelPart>(parts.Length);
         Vector3 min = new(float.PositiveInfinity);
         Vector3 max = new(float.NegativeInfinity);
         float modelRadius = 0;

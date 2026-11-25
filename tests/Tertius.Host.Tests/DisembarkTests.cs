@@ -201,9 +201,7 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
         world.GetFrame(shuttle).Should().Be(run.Station);
         world.Frames.Parent(run.Cabin).Should().Be(run.Station, "the cabin's frame is a child of the station's");
         world.Frames.HullMotion(run.Cabin).Should().Be(BodyMotion.Static, "the docked hull is static");
-        (world.PoseIn(shuttle, run.Station).Position - Layout.ParkedPose.Position)
-            .Length.Should()
-            .BeLessThan(1e-6);
+        (world.PoseIn(shuttle, run.Station).Position - Layout.ParkedPose.Position).Length.Should().BeLessThan(1e-6);
         ExitSample start = run.Start;
         start.InCabin.Should().BeTrue();
         Double3 felt = world.Frames.FeltGravity(run.Cabin, Shuttle.SeatStand);
@@ -359,7 +357,9 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
 
         ExitSample boarded = run.Samples.First(s => s.Exit.Value is Riding);
         Double3 off = boarded.Position - middle;
-        new Double3(0, off.Y, off.Z).Length.Should().BeLessThan(Walker.StopRadius + 0.02, "it stops in the lift's middle");
+        new Double3(0, off.Y, off.Z)
+            .Length.Should()
+            .BeLessThan(Walker.StopRadius + 0.02, "it stops in the lift's middle");
         boarded.Standing.Should().BeTrue();
     }
 
@@ -416,15 +416,18 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
     {
         LiftProfile ride = StationExit.Ride;
         ExitSample[] descent = [.. run.Samples.Where(s => s.Lift.Value is Descending)];
-        double start = ((Descending)descent[0].Lift.Value!).Start;
+        double start = ((Descending)descent[0].Lift.Value).Start;
 
         descent.Should().NotBeEmpty();
         run.Samples[0].LiftInStation.Should().BeFalse("the parked shuttle's bubble holds the lift at the top");
         foreach (ExitSample s in descent)
         {
             double elapsed = s.Time - start;
-            Double3 expected = StationExit.LiftTop.Position + StationExit.LiftOutward * (ride.Distance(elapsed) - ride.Top);
-            (s.LiftPosition - expected).Length.Should().BeLessThan(1e-3, $"the lift follows its profile at {elapsed} s");
+            Double3 expected =
+                StationExit.LiftTop.Position + StationExit.LiftOutward * (ride.Distance(elapsed) - ride.Top);
+            (s.LiftPosition - expected)
+                .Length.Should()
+                .BeLessThan(1e-3, $"the lift follows its profile at {elapsed} s");
             (s.LiftVelocity - StationExit.LiftOutward * ride.Speed(elapsed))
                 .Length.Should()
                 .BeLessThan(1e-3, $"the lift's speed follows its profile at {elapsed} s");
@@ -456,13 +459,16 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
         {
             ExitSample s = ride[i];
             if (i != handOff && i != handOff + 1)
-                s.Standing.Should().BeTrue($"the person stands on the lift at {s.Time - ride[0].Time:F2} s into the ride");
-            s.FeltGravity.Should().BeGreaterThan(2 * FrameTree.ZeroGravityThreshold, "the person keeps the walking form");
+                s.Standing.Should()
+                    .BeTrue($"the person stands on the lift at {s.Time - ride[0].Time:F2} s into the ride");
+            s.FeltGravity.Should()
+                .BeGreaterThan(2 * FrameTree.ZeroGravityThreshold, "the person keeps the walking form");
             Double3 onFloor = s.Position - s.LiftPosition;
             new Double3(0, onFloor.Y - boarded.Y, onFloor.Z - boarded.Z)
                 .Length.Should()
                 .BeLessThan(0.02, $"the person keeps its place on the floor at {s.Time - ride[0].Time:F2} s");
-            onFloor.X.Should()
+            onFloor
+                .X.Should()
                 .BeApproximately(StationExit.Standing + s.LiftVelocity.Length / 60, 0.02, "a tick behind the floor");
         }
     }
@@ -516,7 +522,9 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
                     (ride[i + 1].LiftVelocity.X - ride[i - 1].LiftVelocity.X) / (ride[i + 1].Time - ride[i - 1].Time),
                 spin = Layout.Rate * Layout.Rate * -ride[i].Position.X,
                 weight = spin + acceleration;
-            weight.Should().BeGreaterThan(0.45 * spin, $"the rider keeps its weight at {ride[i].Time - ride[0].Time:F2} s");
+            weight
+                .Should()
+                .BeGreaterThan(0.45 * spin, $"the rider keeps its weight at {ride[i].Time - ride[0].Time:F2} s");
         }
 
         double coriolis = 2 * Layout.Rate * ride.Max(s => s.Velocity.Length);
@@ -551,7 +559,10 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
         run.Samples[stroll - 1].Lift.Value.Should().Be(new AtFoot(), "the lift stopped before the stroll");
         ExitSample end = run.Samples[^1];
         end.Standing.Should().BeTrue();
-        Layout.WheelFloor.Height(end.Position).Should().BeApproximately(StationExit.Standing, 0.03, "on the wheel's floor");
+        Layout
+            .WheelFloor.Height(end.Position)
+            .Should()
+            .BeApproximately(StationExit.Standing, 0.03, "on the wheel's floor");
     }
 
     /// <summary>

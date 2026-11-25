@@ -36,7 +36,13 @@ internal sealed class GlbBuilder
     public static byte[] Png(byte[] rgba, int width, int height)
     {
         using var stream = new MemoryStream();
-        new ImageWriter().WritePng(data: rgba, width: width, height: height, components: ColorComponents.RedGreenBlueAlpha, dest: stream);
+        new ImageWriter().WritePng(
+            data: rgba,
+            width: width,
+            height: height,
+            components: ColorComponents.RedGreenBlueAlpha,
+            dest: stream
+        );
         return stream.ToArray();
     }
 
@@ -127,7 +133,7 @@ internal sealed class GlbBuilder
 
     private int Floats(float[] values, string type)
     {
-        int view = View(values.SelectMany(BitConverter.GetBytes).ToArray());
+        int view = View([.. values.SelectMany(BitConverter.GetBytes)]);
         int components = type switch
         {
             "VEC2" => 2,
@@ -148,7 +154,7 @@ internal sealed class GlbBuilder
 
     private int Indices(uint[] values)
     {
-        int view = View(values.SelectMany(BitConverter.GetBytes).ToArray());
+        int view = View([.. values.SelectMany(BitConverter.GetBytes)]);
         return Add(
             "accessors",
             new JsonObject

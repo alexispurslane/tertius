@@ -200,7 +200,13 @@ public static partial class DemoScenes
         /// <see cref="Stroll"/> and <see cref="WalkSpeed"/>.
         /// </summary>
         public static Disembark Disembark(FrameHandle cabin, FrameHandle station, Entity lift) =>
-            new(station: station, lift: lift, wayOut: WayOut(cabin, station), stroll: Stroll(station), walkSpeed: WalkSpeed);
+            new(
+                station: station,
+                lift: lift,
+                wayOut: WayOut(cabin, station),
+                stroll: Stroll(station),
+                walkSpeed: WalkSpeed
+            );
 
         /// <summary>The place <paramref name="height"/> above the wheel's floor at <paramref name="across"/> along Z on the lift's side of the axis, at <paramref name="y"/>.</summary>
         private static Double3 OnFloor(double across, double height, double y)
@@ -274,11 +280,7 @@ public static partial class DemoScenes
         /// work area's cart and pods toward the parked hull's tail, with the ramp and the person on it beyond them.
         /// </summary>
         public static DPose WorkCamera =>
-            Camera(
-                new(Layout.Deck + 1.2, 8, Layout.BayHalfAcross - 1.5),
-                new(Layout.Deck + 1.5, 26, 4),
-                Double3.UnitX
-            );
+            Camera(new(Layout.Deck + 1.2, 8, Layout.BayHalfAcross - 1.5), new(Layout.Deck + 1.5, 26, 4), Double3.UnitX);
 
         /// <summary>
         /// The pose of <c>wheel-terminal-camera</c>: 1.7 m above the wheel's floor, 9 m spinward of the lift's spoke and 10 m to
@@ -327,7 +329,9 @@ public static partial class DemoScenes
             scene.Add("docked-camera", world.Spawn(ViewIn(station, DockedCamera)));
             scene.Add("work-camera", world.Spawn(ViewIn(station, WorkCamera)));
             scene.Add("wheel-terminal-camera", world.Spawn(ViewIn(station, WheelTerminalCamera)));
-            foreach ((string id, DPose pose) in new[] { ("ride-camera", RideCamera), ("ride-side-camera", RideSideCamera) })
+            foreach (
+                (string id, DPose pose) in new[] { ("ride-camera", RideCamera), ("ride-side-camera", RideSideCamera) }
+            )
                 scene.Add(
                     id,
                     world.Spawn(
@@ -444,7 +448,11 @@ public static partial class DemoScenes
                     {
                         AttachTo = lift,
                         AttachOffset = new(at, Quaternion.Identity),
-                        Render = LampRender(mesh: resources.CreateMesh(Primitives.Box(half)), material: material, light: light),
+                        Render = LampRender(
+                            mesh: resources.CreateMesh(Primitives.Box(half)),
+                            material: material,
+                            light: light
+                        ),
                     }
                 );
         }
@@ -454,7 +462,12 @@ public static partial class DemoScenes
         /// lift's foot and the coda, each turned so that its local +X points away from the axis, toward the floor, with a
         /// floodlight's power, because the floor lies 20 m below.
         /// </summary>
-        private static void SpawnWheelLamps(World world, FrameHandle station, IRenderResources resources, MaterialId material)
+        private static void SpawnWheelLamps(
+            World world,
+            FrameHandle station,
+            IRenderResources resources,
+            MaterialId material
+        )
         {
             RectLightData ceilingFace = PanelLight(
                 offset: new(0.05f, 0, 0),

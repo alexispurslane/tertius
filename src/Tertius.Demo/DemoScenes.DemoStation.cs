@@ -171,11 +171,7 @@ public static partial class DemoScenes
                 MeanAnomalyAtEpoch: Math.PI / 2
                     - Math.Sqrt(EarthMu / (OrbitRadius * OrbitRadius * OrbitRadius)) * OverPadAt,
                 Epoch: 0,
-                Attitude: new Spin(
-                    AxialTilt: AxialTilt,
-                    Rate: Layout.Rate,
-                    PhaseAtEpoch: 0
-                )
+                Attitude: new Spin(AxialTilt: AxialTilt, Rate: Layout.Rate, PhaseAtEpoch: 0)
             );
 
         /// <summary>The hub's middle in the station's axes: on the axis, where the hub's span along it is centered.</summary>
@@ -323,7 +319,13 @@ public static partial class DemoScenes
             MeshData mesh,
             Vector4 color,
             float boundingRadius
-        ) => Part(resources: resources, mesh: mesh, material: MaterialDesc.Color(color, UsualRoughness), boundingRadius: boundingRadius);
+        ) =>
+            Part(
+                resources: resources,
+                mesh: mesh,
+                material: MaterialDesc.Color(color, UsualRoughness),
+                boundingRadius: boundingRadius
+            );
 
         /// <summary>A render row of a station part in <paramref name="material"/>: it casts shadows, and has no impostor.</summary>
         private static RenderData Part(
@@ -342,15 +344,27 @@ public static partial class DemoScenes
 
         /// <summary>The steel of the deck, the cradle and the shaft: a dark, worn metal.</summary>
         internal static MaterialDesc DeckSteel { get; } =
-            new(BaseColor: new(x: 0.3f, y: 0.31f, z: 0.33f, w: 1), Roughness: 0.62f, Model: new StandardShading(Metallic: 0.55f));
+            new(
+                BaseColor: new(x: 0.3f, y: 0.31f, z: 0.33f, w: 1),
+                Roughness: 0.62f,
+                Model: new StandardShading(Metallic: 0.55f)
+            );
 
         /// <summary>The painted steel of the bay's walls with the art: a pale gray, a little worn.</summary>
         private static MaterialDesc BayPaint { get; } =
-            new(BaseColor: new(x: 0.6f, y: 0.61f, z: 0.63f, w: 1), Roughness: 0.5f, Model: new StandardShading(Metallic: 0.3f));
+            new(
+                BaseColor: new(x: 0.6f, y: 0.61f, z: 0.63f, w: 1),
+                Roughness: 0.5f,
+                Model: new StandardShading(Metallic: 0.3f)
+            );
 
         /// <summary>The painted steel of the cradle rail: a dull safety yellow, so that the rail reads beside the hull.</summary>
         private static MaterialDesc RailPaint { get; } =
-            new(BaseColor: new(x: 0.62f, y: 0.46f, z: 0.08f, w: 1), Roughness: 0.55f, Model: new StandardShading(Metallic: 0.2f));
+            new(
+                BaseColor: new(x: 0.62f, y: 0.46f, z: 0.08f, w: 1),
+                Roughness: 0.55f,
+                Model: new StandardShading(Metallic: 0.2f)
+            );
 
         /// <summary>
         /// Spawns the station in <paramref name="parent"/>, <c>earth</c> of demo-surface and of earth-system, which does not
@@ -524,8 +538,18 @@ public static partial class DemoScenes
             BoundingBox[] spokes = [.. Spokes()];
             CompoundShapeDesc spokeShape = Boxes(spokes);
             RenderData render = grayBox
-                ? Part(resources: resources, mesh: Whole(spokes), color: new(x: 0.5f, y: 0.52f, z: 0.58f, w: 1), boundingRadius: spokeShape.BoundingRadius())
-                : Part(resources: resources, mesh: new BoxMesh().Sides(Opening.ThroughX(Shaft)).Build(), material: DeckSteel, boundingRadius: spokeShape.BoundingRadius());
+                ? Part(
+                    resources: resources,
+                    mesh: Whole(spokes),
+                    color: new(x: 0.5f, y: 0.52f, z: 0.58f, w: 1),
+                    boundingRadius: spokeShape.BoundingRadius()
+                )
+                : Part(
+                    resources: resources,
+                    mesh: new BoxMesh().Sides(Opening.ThroughX(Shaft)).Build(),
+                    material: DeckSteel,
+                    boundingRadius: spokeShape.BoundingRadius()
+                );
             scene.Add(
                 "station-spokes",
                 world.Spawn(

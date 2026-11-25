@@ -151,10 +151,7 @@ public sealed class Lift(FrameHandle station, DPose top, Double3 outward, LiftPr
         Double3 drift = frames.ConvertVelocity(from: station, to: holder, position: at, v: Double3.Zero);
         return sample with
         {
-            Pose = DPose.Compose(relation, sample.Pose) with
-            {
-                Position = relation.TransformPoint(at) + drift * ahead,
-            },
+            Pose = DPose.Compose(relation, sample.Pose) with { Position = relation.TransformPoint(at) + drift * ahead },
             ChordVelocity = frames.ConvertVelocity(from: station, to: holder, position: at, v: sample.ChordVelocity),
             Velocity = frames.ConvertVelocity(from: station, to: holder, position: at, v: sample.Velocity),
             Acceleration = relation.Rotation.Rotate(sample.Acceleration),

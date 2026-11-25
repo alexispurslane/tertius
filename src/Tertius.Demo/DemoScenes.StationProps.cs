@@ -251,10 +251,7 @@ public static partial class DemoScenes
                     new()
                     {
                         Frame = station,
-                        Pose = new(
-                            PostPlace + up * (PostHeight / 2),
-                            AttitudeAutopilot.Facing(Spinward(up), up)
-                        ),
+                        Pose = new(PostPlace + up * (PostHeight / 2), AttitudeAutopilot.Facing(Spinward(up), up)),
                         Render = new()
                         {
                             Mesh = resources.CreateMesh(Primitives.Box(post)),

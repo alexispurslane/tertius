@@ -11,17 +11,15 @@ public sealed class ContentFoldersTests
     [Fact]
     public void AReferenceNamesItsPackagePathAndPiece()
     {
-        AssetReference reference = AssetReference.Parse("tertius.demo:ships/corvette.model#Hull");
+        var reference = AssetReference.Parse("tertius.demo:ships/corvette.model#Hull");
 
         reference.Should().Be(new AssetReference(Package: "tertius.demo", Path: "ships/corvette.model", Piece: "Hull"));
         reference.ToString().Should().Be("tertius.demo:ships/corvette.model#Hull");
     }
 
     [Fact]
-    public void AReferenceWithoutAFragmentNamesTheWholeFile()
-    {
+    public void AReferenceWithoutAFragmentNamesTheWholeFile() =>
         AssetReference.Parse("pack:props/crate.gltf").Piece.Should().BeNull();
-    }
 
     [Theory]
     [InlineData("no-package-separator")]
@@ -72,24 +70,38 @@ public sealed class ContentFoldersTests
     }
 
     [Fact]
-    public void NoContentFolderAboveTheStartFindsNothing()
-    {
+    public void NoContentFolderAboveTheStartFindsNothing() =>
         // The temporary folder's ancestors hold no content folder on a test machine.
         ContentFolders.Find(start: NewFolder(), overrideRoot: null).Should().BeNull();
-    }
 
     [Fact]
     public void TheLibraryKnowsNoGameOrAssetByName()
     {
         // The library resolves any package's references. A name of the demo's content in its code would tie it to one game.
-        string[] names = ["tertius.demo", "blue-danube", "blue danube", "bluedanube", "pioneer", "poly haven", "polyhaven",
-            "shuttle", "station", "cargo", "habitat"];
+        string[] names =
+        [
+            "tertius.demo",
+            "blue-danube",
+            "blue danube",
+            "bluedanube",
+            "pioneer",
+            "poly haven",
+            "polyhaven",
+            "shuttle",
+            "station",
+            "cargo",
+            "habitat",
+        ];
         string source = Path.Combine(RepositoryRoot(), "src", "Tertius.Assets");
 
         var hits = Directory
             .EnumerateFiles(source, "*.cs", SearchOption.AllDirectories)
             .Where(file => !file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"))
-            .SelectMany(file => names.Where(name => File.ReadAllText(file).Contains(name, StringComparison.OrdinalIgnoreCase)).Select(name => $"{Path.GetFileName(file)}: {name}"))
+            .SelectMany(file =>
+                names
+                    .Where(name => File.ReadAllText(file).Contains(name, StringComparison.OrdinalIgnoreCase))
+                    .Select(name => $"{Path.GetFileName(file)}: {name}")
+            )
             .ToList();
 
         hits.Should().BeEmpty();

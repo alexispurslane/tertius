@@ -25,14 +25,8 @@ public sealed class ModelIdTests
     }
 
     [Fact]
-    public void AModelIdNamesItsValue()
-    {
-        new ModelId(7).ToString().Should().Be("ModelId(7)");
-    }
+    public void AModelIdNamesItsValue() => new ModelId(7).ToString().Should().Be("ModelId(7)");
 
     [Fact]
-    public void TheNoneModelIdNamesItselfNone()
-    {
-        ModelId.None.ToString().Should().Be("ModelId(none)");
-    }
+    public void TheNoneModelIdNamesItselfNone() => ModelId.None.ToString().Should().Be("ModelId(none)");
 }

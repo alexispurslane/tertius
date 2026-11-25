@@ -149,7 +149,13 @@ public static class BlueDanube
             Hold: Second * 2
         ),
         // The passenger terminal at the lift's foot, as the person's stroll starts.
-        new(Name: "wheel-terminal", Camera: "wheel-terminal-camera", Every: 1, Until: FilmSection.Now, Hold: Second * 3),
+        new(
+            Name: "wheel-terminal",
+            Camera: "wheel-terminal-camera",
+            Every: 1,
+            Until: FilmSection.Now,
+            Hold: Second * 3
+        ),
         // The last steps onto the floor, and the person standing still in a full gravity.
         new(
             Name: "floor",

@@ -254,7 +254,10 @@ internal sealed class UploadQueue(int maxTextureSize, long deformBytesLimit)
         if (!isRotation)
             throw new ArgumentException($"The offset rotation of the part {part} is not a rotation.", nameof(part));
         if (!SceneBatcher.HasVolume(part.Scale))
-            throw new ArgumentException($"The scale of the part {part} has no volume that the batcher draws.", nameof(part));
+            throw new ArgumentException(
+                $"The scale of the part {part} has no volume that the batcher draws.",
+                nameof(part)
+            );
         if (part.BoundingRadius < 0)
             throw new ArgumentException($"The bounding radius of the part {part} is negative.", nameof(part));
     }
@@ -267,7 +270,10 @@ internal sealed class UploadQueue(int maxTextureSize, long deformBytesLimit)
             throw new ArgumentException($"A part names {part.Mesh}, which this renderer did not create.", nameof(part));
         bool hasMaterial = part.Material.IsNone || (uint)part.Material.Value < (uint)materialCount;
         if (!hasMaterial)
-            throw new ArgumentException($"A part names {part.Material}, which this renderer did not create.", nameof(part));
+            throw new ArgumentException(
+                $"A part names {part.Material}, which this renderer did not create.",
+                nameof(part)
+            );
     }
 
     /// <summary>

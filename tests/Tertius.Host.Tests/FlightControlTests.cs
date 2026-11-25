@@ -357,7 +357,7 @@ public sealed class FlightControlTests : IDisposable
         );
         (Double3 center, Double3 velocity, Double3 axis) = RendezvousAutopilotTests.StationNow(orbit, station, earth);
         var recorder = new RendezvousAutopilotTests.Recorder();
-        Double3 position = center + axis * (DemoScenes.DemoStation.Layout.BubbleAxial + DemoScenes.Shuttle.Reach + 5);
+        Double3 position = center + axis * (DemoScenes.DemoStation.Layout.BubbleAxial + Shuttle.Reach + 5);
         Entity hull = orbit.Spawn(
             new()
             {

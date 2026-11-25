@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using System.Numerics;
 using Tertius.Testing;
 
@@ -20,18 +19,10 @@ public sealed class ModelExpansionTests
     private static readonly Quaternion Quarter = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2);
 
     /// <summary>A hull at the entity's origin, and a mast 3 m up the entity's +X, turned a quarter about Y and stretched.</summary>
-    private static readonly ModelDesc Ship = new(
-        [
-            new(Mesh: Hull, Material: Paint, Offset: Pose.Identity, Scale: Vector3.One, BoundingRadius: 2),
-            new(
-                Mesh: Mast,
-                Material: Steel,
-                Offset: new(new(3, 0, 0), Quarter),
-                Scale: new(1, 4, 1),
-                BoundingRadius: 4.5f
-            ),
-        ]
-    );
+    private static readonly ModelDesc Ship = new([
+        new(Mesh: Hull, Material: Paint, Offset: Pose.Identity, Scale: Vector3.One, BoundingRadius: 2),
+        new(Mesh: Mast, Material: Steel, Offset: new(new(3, 0, 0), Quarter), Scale: new(1, 4, 1), BoundingRadius: 4.5f),
+    ]);
 
     private static RenderInstance ShipAt(Vector3 position, Quaternion rotation, float scale)
     {
@@ -165,11 +156,18 @@ public sealed class ModelExpansionTests
     public void TwoPlacementsOfOneModelDrawTheSameMeshesAndMaterials()
     {
         RenderInstance[] parts = Expanded(
-            With(ShipAt(new(0, 0, -20), Quaternion.Identity, 1), ShipAt(new(9, 0, -20), Quarter, 1) with { EntityIndex = 8 }),
+            With(
+                ShipAt(new(0, 0, -20), Quaternion.Identity, 1),
+                ShipAt(new(9, 0, -20), Quarter, 1) with
+                {
+                    EntityIndex = 8,
+                }
+            ),
             Ship
         );
 
-        parts.Select(p => (p.EntityIndex, p.Mesh, p.Material))
+        parts
+            .Select(p => (p.EntityIndex, p.Mesh, p.Material))
             .Should()
             .Equal((7u, Hull, Paint), (7u, Mast, Steel), (8u, Hull, Paint), (8u, Mast, Steel));
     }
@@ -197,12 +195,16 @@ public sealed class ModelExpansionTests
     }
 
     [Fact]
-    public void AModelWithoutPartsDrawsNothing()
-    {
+    public void AModelWithoutPartsDrawsNothing() =>
         Expanded(With(ShipAt(Vector3.Zero, Quaternion.Identity, 1)), new ModelDesc([])).Should().BeEmpty();
-    }
 
-    public static TheoryData<float, float, float> StretchedScales => new() { { 2, 1, 1 }, { 1, 2, 1 }, { 1, 1, 2 } };
+    public static TheoryData<float, float, float> StretchedScales =>
+        new()
+        {
+            { 2, 1, 1 },
+            { 1, 2, 1 },
+            { 1, 1, 2 },
+        };
 
     [Theory]
     [MemberData(nameof(StretchedScales))]
@@ -265,7 +267,13 @@ public sealed class ModelExpansionTests
     public void TheRigPoseOfAnInstanceAfterAModelNamesItsPlaceAmongTheParts()
     {
         RenderSnapshot snapshot = With(ShipAt(Vector3.Zero, Quaternion.Identity, 1), BoxAt(new(1, 0, -5), entity: 9));
-        snapshot.AddRigPose(instance: 1, joints: [Pose.Identity], previousJoints: [Pose.Identity], weights: [], previousWeights: []);
+        snapshot.AddRigPose(
+            instance: 1,
+            joints: [Pose.Identity],
+            previousJoints: [Pose.Identity],
+            weights: [],
+            previousWeights: []
+        );
         var expansion = new ModelExpansion();
 
         expansion.Expand(snapshot, [Ship]);
@@ -279,7 +287,13 @@ public sealed class ModelExpansionTests
     public void TheRigPoseOfAModelInstanceIsDropped()
     {
         RenderSnapshot snapshot = With(ShipAt(Vector3.Zero, Quaternion.Identity, 1));
-        snapshot.AddRigPose(instance: 0, joints: [Pose.Identity], previousJoints: [Pose.Identity], weights: [], previousWeights: []);
+        snapshot.AddRigPose(
+            instance: 0,
+            joints: [Pose.Identity],
+            previousJoints: [Pose.Identity],
+            weights: [],
+            previousWeights: []
+        );
         var expansion = new ModelExpansion();
 
         expansion.Expand(snapshot, [Ship]);
@@ -291,7 +305,13 @@ public sealed class ModelExpansionTests
     public void ASnapshotWithoutModelsPassesUnchanged()
     {
         RenderSnapshot snapshot = With(BoxAt(new(1, 0, -5), entity: 2), BoxAt(new(2, 0, -5), entity: 3));
-        snapshot.AddRigPose(instance: 1, joints: [Pose.Identity], previousJoints: [Pose.Identity], weights: [], previousWeights: []);
+        snapshot.AddRigPose(
+            instance: 1,
+            joints: [Pose.Identity],
+            previousJoints: [Pose.Identity],
+            weights: [],
+            previousWeights: []
+        );
         var expansion = new ModelExpansion();
 
         expansion.Expand(snapshot, [Ship]);
@@ -326,8 +346,20 @@ public sealed class ModelExpansionTests
     public void TheRigPoseOfAnInstanceAfterAPosedModelInstanceIsKept()
     {
         RenderSnapshot snapshot = With(ShipAt(Vector3.Zero, Quaternion.Identity, 1), BoxAt(new(1, 0, -5), entity: 9));
-        snapshot.AddRigPose(instance: 0, joints: [Pose.Identity], previousJoints: [Pose.Identity], weights: [], previousWeights: []);
-        snapshot.AddRigPose(instance: 1, joints: [Pose.Identity], previousJoints: [Pose.Identity], weights: [], previousWeights: []);
+        snapshot.AddRigPose(
+            instance: 0,
+            joints: [Pose.Identity],
+            previousJoints: [Pose.Identity],
+            weights: [],
+            previousWeights: []
+        );
+        snapshot.AddRigPose(
+            instance: 1,
+            joints: [Pose.Identity],
+            previousJoints: [Pose.Identity],
+            weights: [],
+            previousWeights: []
+        );
         var expansion = new ModelExpansion();
 
         expansion.Expand(snapshot, [Ship]);

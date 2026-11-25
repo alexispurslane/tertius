@@ -126,7 +126,11 @@ public sealed class BlueDanubeExitTests(BlueDanubeRendezvousRun run)
         Double3 at = landed.PersonInStation;
         Math.Sqrt(at.X * at.X + at.Z * at.Z)
             .Should()
-            .BeInRange(DemoStation.Layout.FloorRadius - 2, DemoStation.Layout.FloorRadius, "the person stands at the foot");
+            .BeInRange(
+                DemoStation.Layout.FloorRadius - 2,
+                DemoStation.Layout.FloorRadius,
+                "the person stands at the foot"
+            );
         Math.Abs(at.Y).Should().BeLessThan(DemoStation.Layout.LiftHalf, "the person stands on the lift");
         landed.PersonVelocityInStation.Length.Should().BeLessThan(0.05, "the lift has stopped");
     }

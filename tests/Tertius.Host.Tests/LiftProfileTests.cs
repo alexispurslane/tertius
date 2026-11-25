@@ -166,9 +166,7 @@ public sealed class LiftProfileTests
         sample.Pose.Position.Should().Be(top.Position + outward * (Profile.Distance(end) - Top));
         sample.Pose.Rotation.Should().Be(top.Rotation);
         sample.Velocity.Should().Be(outward * Profile.Speed(end));
-        sample
-            .ChordVelocity.Should()
-            .Be(outward * ((Profile.Distance(end) - Profile.Distance(end - Tick)) / Tick));
+        sample.ChordVelocity.Should().Be(outward * ((Profile.Distance(end) - Profile.Distance(end - Tick)) / Tick));
         sample.Acceleration.Should().Be(outward * ((Profile.Speed(end) - Profile.Speed(end - Tick)) / Tick));
         sample.AngularVelocity.Should().Be(Double3.Zero);
         sample.AngularAcceleration.Should().Be(Double3.Zero);

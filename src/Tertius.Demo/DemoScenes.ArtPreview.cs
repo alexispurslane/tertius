@@ -52,7 +52,15 @@ public static partial class DemoScenes
         Star(world: world, scene: scene, frame: ground, center: Double3.Zero, direction: new(-30, 45, -40));
         world.Ambient = Daylight;
         if (content is not null)
-            PlaceArt(new PreviewPlacer(world: world, scene: scene, ground: ground, store: new ModelStore(resources, content)), resources);
+            PlaceArt(
+                new PreviewPlacer(
+                    world: world,
+                    scene: scene,
+                    ground: ground,
+                    store: new ModelStore(resources, content)
+                ),
+                resources
+            );
 
         AddPreviewViews(world, scene, ground);
         return scene;
@@ -78,7 +86,12 @@ public static partial class DemoScenes
 
         // The sconces mount on a wall with their backs at z = 0 of their model, so the wall's front face stands there.
         Double3 sconces = feet + new Double3(14, 1.5, 0);
-        place.Box(id: "wall", resources: resources, center: sconces + new Double3(0, 0, 0.05), halfExtents: new(1, 1.2f, 0.05f));
+        place.Box(
+            id: "wall",
+            resources: resources,
+            center: sconces + new Double3(0, 0, 0.05),
+            halfExtents: new(1, 1.2f, 0.05f)
+        );
         place.Model("sconces", BlueDanubeArt.CagedSconce, sconces);
     }
 

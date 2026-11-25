@@ -113,7 +113,10 @@ internal static class GlbReader
             {
                 GltfNode childNode = Node(child);
                 // The child's transform in the piece's axes: the parent's scale stretches the child's translation.
-                Pose childOffset = Pose.Compose(offset, new(scale * childNode.LocalTranslation(), childNode.LocalRotation()));
+                var childOffset = Pose.Compose(
+                    offset,
+                    new(scale * childNode.LocalTranslation(), childNode.LocalRotation())
+                );
                 Vector3 childScale = scale * childNode.LocalScale();
                 if (IsMarked(childNode))
                     marked.Add((child, childOffset, childScale));
@@ -140,7 +143,9 @@ internal static class GlbReader
         private CookedPart Part(GltfPrimitive primitive, Pose offset, Vector3 scale)
         {
             if ((primitive.Mode ?? TrianglesMode) != TrianglesMode)
-                throw new GlbException($"a primitive has mode {primitive.Mode}, and the reader takes triangle lists only");
+                throw new GlbException(
+                    $"a primitive has mode {primitive.Mode}, and the reader takes triangle lists only"
+                );
             Vertex[] vertices = Vertices(primitive.Attributes ?? []);
             uint[] indices = TriangleIndices(primitive, vertices.Length);
             bool doubleSided = primitive.Material is int m && MaterialAt(m).DoubleSided;
@@ -161,8 +166,12 @@ internal static class GlbReader
             float[] positions = Floats(positionAccessor, components: 3);
             float[] normals = Floats(normalAccessor, components: 3);
             int count = positions.Length / 3;
-            float[] tangents = attributes.TryGetValue("TANGENT", out int t) ? Floats(t, components: 4) : new float[4 * count];
-            float[] uvs = attributes.TryGetValue("TEXCOORD_0", out int u) ? Floats(u, components: 2) : new float[2 * count];
+            float[] tangents = attributes.TryGetValue("TANGENT", out int t)
+                ? Floats(t, components: 4)
+                : new float[4 * count];
+            float[] uvs = attributes.TryGetValue("TEXCOORD_0", out int u)
+                ? Floats(u, components: 2)
+                : new float[2 * count];
             if (normals.Length / 3 != count || tangents.Length / 4 != count || uvs.Length / 2 != count)
                 throw new GlbException("the attributes of a primitive have different vertex counts");
 
@@ -172,7 +181,12 @@ internal static class GlbReader
                 {
                     Position = new(positions[3 * i], positions[3 * i + 1], positions[3 * i + 2]),
                     Normal = new(normals[3 * i], normals[3 * i + 1], normals[3 * i + 2]),
-                    Tangent = new(x: tangents[4 * i], y: tangents[4 * i + 1], z: tangents[4 * i + 2], w: tangents[4 * i + 3]),
+                    Tangent = new(
+                        x: tangents[4 * i],
+                        y: tangents[4 * i + 1],
+                        z: tangents[4 * i + 2],
+                        w: tangents[4 * i + 3]
+                    ),
                     TexCoord = new(uvs[2 * i], uvs[2 * i + 1]),
                 };
             return vertices;
@@ -211,7 +225,7 @@ internal static class GlbReader
                 both[vertices.Length + i] = v;
             }
 
-            var allIndices = new uint[indices.Length * 2];
+            uint[] allIndices = new uint[indices.Length * 2];
             indices.CopyTo(allIndices, 0);
             uint back = (uint)vertices.Length;
             for (int i = 0; i < indices.Length; i += 3)
@@ -296,11 +310,16 @@ internal static class GlbReader
                 throw new GlbException($"accessor {index} has component type {accessor.ComponentType}, not float");
             if (Components(accessor.Type) != components)
                 throw new GlbException($"accessor {index} has type {accessor.Type}, not {components} components");
-            var values = new float[accessor.Count * components];
-            ReadOnlySpan<byte> data = Elements(index: index, accessor: accessor, elementSize: 4 * components, stride: out int stride);
+            float[] values = new float[accessor.Count * components];
+            ReadOnlySpan<byte> data = Elements(
+                index: index,
+                accessor: accessor,
+                elementSize: 4 * components,
+                stride: out int stride
+            );
             for (int i = 0; i < accessor.Count; i++)
-                for (int c = 0; c < components; c++)
-                    values[i * components + c] = BinaryPrimitives.ReadSingleLittleEndian(data[(i * stride + 4 * c)..]);
+            for (int c = 0; c < components; c++)
+                values[i * components + c] = BinaryPrimitives.ReadSingleLittleEndian(data[(i * stride + 4 * c)..]);
             return values;
         }
 
@@ -314,8 +333,13 @@ internal static class GlbReader
                 5125 => 4,
                 _ => throw new GlbException($"accessor {index} has index component type {accessor.ComponentType}"),
             };
-            ReadOnlySpan<byte> data = Elements(index: index, accessor: accessor, elementSize: size, stride: out int stride);
-            var values = new uint[accessor.Count];
+            ReadOnlySpan<byte> data = Elements(
+                index: index,
+                accessor: accessor,
+                elementSize: size,
+                stride: out int stride
+            );
+            uint[] values = new uint[accessor.Count];
             for (int i = 0; i < accessor.Count; i++)
             {
                 ReadOnlySpan<byte> at = data[(i * stride)..];

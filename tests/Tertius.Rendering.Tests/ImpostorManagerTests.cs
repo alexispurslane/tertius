@@ -221,18 +221,22 @@ public sealed class ImpostorManagerTests
     public void EachPartOfAFarModelIsAnImpostorOfItsOwn()
     {
         // Two balls of the other material, 3 m apart along the entity's X.
-        var pair = new ModelDesc(
-            [
-                new(Mesh: new(Sphere), Material: OtherMaterial, Offset: Pose.Identity, Scale: Vector3.One, BoundingRadius: 1),
-                new(
-                    Mesh: new(Sphere),
-                    Material: OtherMaterial,
-                    Offset: new(new(3, 0, 0), Quaternion.Identity),
-                    Scale: Vector3.One,
-                    BoundingRadius: 1
-                ),
-            ]
-        );
+        var pair = new ModelDesc([
+            new(
+                Mesh: new(Sphere),
+                Material: OtherMaterial,
+                Offset: Pose.Identity,
+                Scale: Vector3.One,
+                BoundingRadius: 1
+            ),
+            new(
+                Mesh: new(Sphere),
+                Material: OtherMaterial,
+                Offset: new(new(3, 0, 0), Quaternion.Identity),
+                Scale: Vector3.One,
+                BoundingRadius: 1
+            ),
+        ]);
         var harness = new Harness(models: [pair]);
         RenderSnapshot snapshot = Snapshot();
         RenderInstance far = Ball(entity: 5, position: new(0, 0, -DistanceFor(100)));

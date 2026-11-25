@@ -89,7 +89,13 @@ public readonly record struct ModelId
 /// <param name="Offset">The pose of the part's origin relative to the entity, before the entity's scale.</param>
 /// <param name="Scale">The part's own scale, applied in the part's axes before <paramref name="Offset"/>.</param>
 /// <param name="BoundingRadius">The radius around the part's origin that holds its scaled mesh, in m, before the entity's scale.</param>
-public readonly record struct ModelPart(MeshId Mesh, MaterialId Material, Pose Offset, Vector3 Scale, float BoundingRadius);
+public readonly record struct ModelPart(
+    MeshId Mesh,
+    MaterialId Material,
+    Pose Offset,
+    Vector3 Scale,
+    float BoundingRadius
+);
 
 /// <summary>
 /// The parts of one rigid model piece, in their order: the index of a part is its <see cref="RenderInstance.Part"/>. Model

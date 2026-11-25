@@ -30,7 +30,10 @@ public sealed class LiftStateTests
     [Fact]
     public void AnOrderOnTheWayDownOrAtTheFootHasNoRow()
     {
-        LiftState.Next(new Descending(Start: 12.5, Rider: Rider), new LiftOrder(Start: 20, Rider: Rider)).Should().BeNull();
+        LiftState
+            .Next(new Descending(Start: 12.5, Rider: Rider), new LiftOrder(Start: 20, Rider: Rider))
+            .Should()
+            .BeNull();
         LiftState.Next(new AtFoot(), new LiftOrder(Start: 20, Rider: Rider)).Should().BeNull();
     }
 

@@ -357,10 +357,18 @@ public sealed record StationLayout
             yield return "The ceiling's opening is wider than the spoke's inside.";
         if (lift.Min.Z <= -CeilingOpeningHalf || lift.Max.Z >= CeilingOpeningHalf)
             yield return "The lift does not fit through the ceiling's opening.";
-        if (hole.Min.Y <= -spokeInside || hole.Max.Y >= spokeInside || hole.Min.Z <= -spokeInside || hole.Max.Z >= spokeInside)
+        if (
+            hole.Min.Y <= -spokeInside
+            || hole.Max.Y >= spokeInside
+            || hole.Min.Z <= -spokeInside
+            || hole.Max.Z >= spokeInside
+        )
             yield return "The lift's hole does not lie inside the spoke.";
         bool overlaps =
-            hole.Min.Y < parked.Max.Y && hole.Max.Y > parked.Min.Y && hole.Min.Z < parked.Max.Z && hole.Max.Z > parked.Min.Z;
+            hole.Min.Y < parked.Max.Y
+            && hole.Max.Y > parked.Min.Y
+            && hole.Min.Z < parked.Max.Z
+            && hole.Max.Z > parked.Min.Z;
         if (overlaps)
             yield return "The lift's hole lies under the parked hull.";
     }

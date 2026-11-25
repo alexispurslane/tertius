@@ -440,7 +440,8 @@ public static partial class DemoScenes
         /// The scale of the passenger's model <paramref name="suit"/> on the drawn body: the capsule's height, the height of
         /// <see cref="PersonHalf"/>, over the model's height. The converted model is 1.8 m tall, so the scale is 1.
         /// </summary>
-        public static float SuitScale(Assets.StoredModel suit) => 2 * PersonHalf.Y / (suit.Bounds.Max.Y - suit.Bounds.Min.Y);
+        public static float SuitScale(Assets.StoredModel suit) =>
+            2 * PersonHalf.Y / (suit.Bounds.Max.Y - suit.Bounds.Min.Y);
 
         /// <summary>
         /// Where the origin of the passenger's model <paramref name="suit"/> rests relative to the person's center, in
@@ -524,7 +525,8 @@ public static partial class DemoScenes
         }
 
         /// <summary>Builds the scene as its gray box, with no art.</summary>
-        public static SceneInstance Build(World world, IRenderResources resources) => Build(world, resources, models: null);
+        public static SceneInstance Build(World world, IRenderResources resources) =>
+            Build(world, resources, models: null);
 
         /// <summary>Builds the scene, drawn with <paramref name="models"/>, or as its gray box when they are null.</summary>
         public static SceneInstance Build(World world, IRenderResources resources, BlueDanubeModels? models)
