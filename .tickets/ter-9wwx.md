@@ -1,6 +1,6 @@
 ---
 id: ter-9wwx
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-24T23:56:27Z
