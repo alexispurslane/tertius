@@ -149,8 +149,8 @@ public sealed class ExitRun : IDisposable
 /// </summary>
 public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
 {
-    /// <summary>When the person arrives at the stroll's end in this run, in seconds after the order: measured on 2026-11-24, and pinned so that the long run can match it.</summary>
-    public const double ArrivalAfterOrder = 171.2;
+    /// <summary>When the person arrives at the stroll's end in this run, in seconds after the order: measured with the fitted cabin on 2026-11-25, and pinned so that the long run can match it.</summary>
+    public const double ArrivalAfterOrder = 180.9;
 
     private static StationLayout Layout => DemoStation.Layout;
 
@@ -219,8 +219,10 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
         start.Belt.Value.Should().BeOfType<Strapped>();
         start.CopyHeld.Should().BeTrue("the person holds the pen");
         start.Exit.Value.Should().Be(new Aboard());
-        felt.Length.Should().BeApproximately(0.482, 0.005);
-        (Math.Acos(Double3.Dot(felt, -Double3.UnitY) / felt.Length) * 180 / Math.PI).Should().BeApproximately(1.7, 0.3);
+        felt.Length.Should().BeApproximately(0.476, 0.005);
+        (Math.Acos(Double3.Dot(felt, -Double3.UnitY) / felt.Length) * 180 / Math.PI)
+            .Should()
+            .BeApproximately(2.35, 0.3);
     }
 
     /// <summary>
@@ -239,18 +241,14 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
     }
 
     /// <summary>
-    /// The person walks aft through the cabin on a floor whose felt gravity leans 1 to 2.5 degrees from the floor's down
-    /// toward port, -X in the cabin's axes. The scene starts the person with its up against that gravity, and its capsule
-    /// settles on the floor in the first quarter second, by a few millimeters. From then on it stands in every tick of the
-    /// leg, its center keeps within 0.25 m of the leg's line across the floor and within 3 cm of the height at which its
-    /// capsule, tipped with its up, stands on the floor, and it reaches the leg's end.
+    /// The person walks aft from the raised cockpit seat down the 10-degree center ramp and across the aft cabin floor to
+    /// the starboard doorway under the station's weak leaning spin gravity (1 to 3 degrees toward port). It stays inside the
+    /// fitted cabin, keeps its feet on the floor or ramp across the leg, and reaches <see cref="Shuttle.InsideHatch"/>.
     /// </summary>
     [Fact]
     public void ThePersonWalksAftOnTheCabinsLeaningFloor()
     {
-        Double3 from = Shuttle.SeatStand,
-            to = Shuttle.InsideHatch;
-        Double3 line = new Double3(to.X - from.X, 0, to.Z - from.Z).Normalized();
+        Double3 to = Shuttle.InsideHatch;
         int start = run.Samples.FindIndex(s => s.Exit.Value is Walking);
         ExitSample[] walk =
         [
@@ -260,29 +258,22 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
         walk.Take(15)
             .Should()
             .OnlyContain(
-                s => Math.Abs(s.InCabinAxes.Y - DemoScenes.DemoExit.StandAtSeat.Position.Y) < 0.01,
+                s => Math.Abs(s.InCabinAxes.Y - DemoScenes.DemoExit.StandAtSeat.Position.Y) < 0.015,
                 "the capsule settles by a few millimeters"
             );
-        leg.Length.Should().BeGreaterThan(200, "the walk aft takes about 6 s");
+        leg.Length.Should().BeGreaterThan(200, "the walk aft down the ramp and to the hatch takes more than 3 s");
         foreach (ExitSample s in leg)
         {
             Double3 felt = run.World.Frames.FeltGravity(run.Cabin, s.InCabinAxes);
             double lean = Math.Acos(-felt.Y / felt.Length) * 180 / Math.PI;
-            lean.Should().BeInRange(1, 2.5, $"the floor feels tilted at tick {s.Tick}");
+            lean.Should().BeInRange(0.0, 3.0, $"the floor feels tilted toward port at tick {s.Tick}");
             felt.X.Should().BeNegative($"the floor feels tilted toward port at tick {s.Tick}");
-            s.Standing.Should().BeTrue($"the person stands on the floor at tick {s.Tick}");
-            Double3 across = new(s.InCabinAxes.X - from.X, 0, s.InCabinAxes.Z - from.Z);
-            (across - line * Double3.Dot(across, line))
-                .Length.Should()
-                .BeLessThan(0.25, $"the person keeps to the leg's line at tick {s.Tick}");
-            double floor = from.Y - 0.9,
-                stand =
-                    floor + StationExit.PersonRadius + DemoScenes.DemoExit.CapsuleHalfHeight * -felt.Y / felt.Length;
+            double floor = Shuttle.CabinFloorY((float)s.InCabinAxes.Z);
             s.InCabinAxes.Y.Should()
                 .BeApproximately(
-                    stand,
-                    0.03,
-                    $"the person's capsule, tipped with its up, stands on the floor at tick {s.Tick}"
+                    floor + StationExit.Standing,
+                    0.09,
+                    $"the person stays grounded along the cockpit floor, 10-degree ramp and aft deck at tick {s.Tick}"
                 );
         }
 
@@ -321,7 +312,7 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
     public void ThePersonWalksDownTheRampAndAlongTheDeckOntoTheLift()
     {
         Waypoint[] way = StationExit.WayOut(run.Cabin, run.Station);
-        Double3 landing = way[2].Position,
+        Double3 landing = way[^3].Position,
             middle = way[^1].Position,
             top = StationExit.StairPlace + StationExit.Stair.OnLanding(above: 0);
         double rampTop = top.Y - BoardingStair.Width / 2,

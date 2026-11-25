@@ -178,6 +178,9 @@ public static partial class DemoScenes
             Double3 foot = stair + Stair.AtFoot(above: (float)Standing);
             return
             [
+                new(cabin, Shuttle.RampTop),
+                new(cabin, Shuttle.RampFoot),
+                new(cabin, Shuttle.AftAisle),
                 new(cabin, Shuttle.InsideHatch),
                 new(cabin, Shuttle.OnPorch),
                 new(station, stair + Stair.OnLanding(above: (float)Standing)),

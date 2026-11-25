@@ -100,7 +100,8 @@ public static partial class DemoScenes
                 resources: resources,
                 scene: scene,
                 frame: frame,
-                art: models?.Shuttle
+                art: models?.Shuttle,
+                hatchDoor: models?.ShuttleHatchDoor
             );
 
             SpawnFollowCamera(
@@ -186,7 +187,8 @@ public static partial class DemoScenes
             IRenderResources resources,
             SceneInstance scene,
             FrameHandle frame,
-            Assets.StoredModel? art
+            Assets.StoredModel? art,
+            Assets.StoredModel? hatchDoor
         )
         {
             Entity shuttle = Shuttle.Park(
@@ -196,8 +198,21 @@ public static partial class DemoScenes
                 render: Shuttle.HullRender(resources, art)
             );
             scene.Add("shuttle", shuttle);
-            Shuttle.SpawnArt(world: world, hull: shuttle, scene: scene, resources: resources, art: art);
-            return Shuttle.SpawnCabin(world: world, hull: shuttle, scene: scene, resources: resources);
+            Shuttle.SpawnArt(
+                world: world,
+                hull: shuttle,
+                scene: scene,
+                resources: resources,
+                art: art,
+                hatchDoor: hatchDoor
+            );
+            return Shuttle.SpawnCabin(
+                world: world,
+                hull: shuttle,
+                scene: scene,
+                resources: resources,
+                hasArt: art is not null
+            );
         }
 
         /// <summary>

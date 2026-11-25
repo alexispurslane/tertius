@@ -131,7 +131,7 @@ public sealed class DockingEndStateTests
         foot.X.Should().BeApproximately(DemoStation.Layout.Deck, 1e-4, "the stair's foot stands on the deck");
         foot.Z.Should()
             .BeApproximately(DemoStation.Layout.LiftAcross, 0.25, "the stair's foot lies in the lift's lane");
-        (foot.Y - mouth.Max.Y).Should().BeApproximately(2.23, 0.01, "the person walks along the axis to the hole");
+        (foot.Y - mouth.Max.Y).Should().BeApproximately(1.33, 0.02, "the person walks along the axis to the hole");
     }
 
     /// <summary>
@@ -197,10 +197,10 @@ public sealed class DockingEndStateTests
                 0.03 * rate * rate * fromTheAxis,
                 "the cabin feels the spin gravity of its radius"
             );
-        felt.Length.Should().BeApproximately(0.483, 0.005);
+        felt.Length.Should().BeApproximately(0.476, 0.005);
         (Math.Acos(Double3.Dot(felt, -Double3.UnitY) / felt.Length) * 180 / Math.PI)
             .Should()
-            .BeApproximately(1.7, 0.3, "the gravity leans from the floor's down");
+            .BeApproximately(2.35, 0.3, "the gravity leans from the floor's down");
         felt.X.Should().BeNegative("the gravity leans toward port, away from the station's axis");
         world.Errors.Should().BeEmpty();
     }

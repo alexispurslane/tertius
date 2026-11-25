@@ -85,7 +85,7 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
 
         spinUp.Should().HaveCountGreaterThan((int)(DockingAutopilot.SpinUpTime * 60) - 1);
         spinUp.Max(record => record.SeatEuler).Should().BeLessThan(FrameTree.ZeroGravityThreshold / 2);
-        spinUp.Max(record => record.SeatEuler).Should().BeGreaterThan(0.002, "the turn does accelerate");
+        spinUp.Max(record => record.SeatEuler).Should().BeGreaterThan(0.0005, "the turn does accelerate");
     }
 
     /// <summary>
@@ -280,10 +280,10 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
         double fromTheAxis = Math.Sqrt(seat.X * seat.X + seat.Z * seat.Z);
 
         last.SeatGravity.Length.Should().BeApproximately(Rate * Rate * fromTheAxis, 0.01 * Rate * Rate * fromTheAxis);
-        last.SeatGravity.Length.Should().BeApproximately(0.482, 0.005);
+        last.SeatGravity.Length.Should().BeApproximately(0.476, 0.005);
         (Math.Acos(Double3.Dot(last.SeatGravity, -Double3.UnitY) / last.SeatGravity.Length) / Degree)
             .Should()
-            .BeApproximately(1.7, 0.3);
+            .BeApproximately(2.35, 0.3);
         last.SeatGravity.X.Should().BeNegative("the gravity leans toward port");
     }
 

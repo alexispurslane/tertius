@@ -194,12 +194,10 @@ public static partial class DemoScenes
         public static Vector3 PenHalf { get; } = new(0.006f, 0.006f, 0.07f);
 
         /// <summary>
-        /// Where the clip holds the pen, in the shuttle's axes: on the port wall's pillar at z = -1 m, 1.5 m above the cabin
-        /// floor, 2.75 m aft of <see cref="Shuttle.SeatStand"/>, with 1 cm between the pen and the wall. Its length lies along
-        /// the cabin, within the pillar's 0.2 m, so the pen never hangs in front of glass.
+        /// Where the clip holds the pen, in the shuttle's axes: on the port structural rib at z = -6.40 m, 1.5 m above the
+        /// ramp floor and clear of every window opening.
         /// </summary>
-        public static DPose PenClip { get; } =
-            new(new(-Shuttle.Cabin.X + PenHalf.X + 0.01, -Shuttle.Cabin.Y + 1.5, -1), DQuaternion.Identity);
+        public static DPose PenClip { get; } = new(new(-2.55 + PenHalf.X + 0.01, 0.60, -6.40), DQuaternion.Identity);
 
         /// <summary>
         /// The push with which the clip lets the pen go, in m/s, in the shuttle's axes: away from the port wall, toward the
@@ -248,10 +246,10 @@ public static partial class DemoScenes
             );
 
         /// <summary>
-        /// The pose of <c>cabin-camera</c> in the shuttle's frame: in the cabin's aft port corner, looking at the seat and the
-        /// hatch.
+        /// The pose of <c>cabin-camera</c> in the shuttle's frame: in the aft port cabin, looking forward across the doorway,
+        /// center ramp and cockpit seat.
         /// </summary>
-        public static DPose CabinCamera { get; } = LookingAt(new(-2.3, 1.2, 6.8), new(1, -1.3, -4.5));
+        public static DPose CabinCamera { get; } = LookingAt(new(-3.2, 1.35, 3.3), new(0.4, 0.2, -9.5));
 
         /// <summary>The eye of the person, relative to its center, in its axes: 1.65 m above its feet.</summary>
         public static Vector3 Eye { get; } = new(0, 0.75f, 0);
@@ -470,6 +468,9 @@ public static partial class DemoScenes
                 new(surface, PadStairPlace + PadStair.OnLanding(above: 0.9f)),
                 new(cabin, Shuttle.OnPorch),
                 new(cabin, Shuttle.InsideHatch),
+                new(cabin, Shuttle.AftAisle),
+                new(cabin, Shuttle.RampFoot),
+                new(cabin, Shuttle.RampTop),
                 new(cabin, Shuttle.SeatStand),
             ];
 
@@ -481,6 +482,7 @@ public static partial class DemoScenes
             "terminal-camera",
             "apron-camera",
             "cabin-camera",
+            "cockpit-outside-camera",
             "pad-camera",
             "ramp-camera",
             "ramp-top-camera",
@@ -555,7 +557,8 @@ public static partial class DemoScenes
                 earth: earth,
                 surface: surface,
                 station: station,
-                art: models?.Shuttle
+                art: models?.Shuttle,
+                hatchDoor: models?.ShuttleHatchDoor
             );
             SpawnStair(
                 world: world,
@@ -730,7 +733,8 @@ public static partial class DemoScenes
             FrameHandle earth,
             FrameHandle surface,
             Entity station,
-            Assets.StoredModel? art
+            Assets.StoredModel? art,
+            Assets.StoredModel? hatchDoor
         )
         {
             Entity shuttle = Shuttle.Park(
@@ -745,9 +749,22 @@ public static partial class DemoScenes
                 )
             );
             scene.Add("shuttle", shuttle);
-            Shuttle.SpawnArt(world: world, hull: shuttle, scene: scene, resources: resources, art: art);
+            Shuttle.SpawnArt(
+                world: world,
+                hull: shuttle,
+                scene: scene,
+                resources: resources,
+                art: art,
+                hatchDoor: hatchDoor
+            );
             Shuttle.FitActuators(world, shuttle);
-            return Shuttle.SpawnCabin(world: world, hull: shuttle, scene: scene, resources: resources);
+            return Shuttle.SpawnCabin(
+                world: world,
+                hull: shuttle,
+                scene: scene,
+                resources: resources,
+                hasArt: art is not null
+            );
         }
 
         /// <summary>
@@ -865,7 +882,15 @@ public static partial class DemoScenes
             );
             scene.Add(
                 "apron-camera",
-                world.Spawn(ViewIn(surface, LookingAt(new(13, EarthRadius + 3, 10), new(5, EarthRadius + 1.2, 0.5))))
+                world.Spawn(
+                    ViewIn(
+                        surface,
+                        LookingAt(
+                            new(15.5, EarthRadius + 3.5, 11.5),
+                            new(6.0, EarthRadius + 3.6, Shuttle.Hatch.Center.Z)
+                        )
+                    )
+                )
             );
             // The one camera off the ground spawns here, between the apron and pad cameras, as it always did, so the
             // entity slots of the scene stay the same.
@@ -899,20 +924,15 @@ public static partial class DemoScenes
             scene.Add("climb-camera", world.Spawn(ViewIn(cabin, LookingAt(new(0, 41, 29), Double3.Zero))));
             scene.Add(
                 "pen-camera",
-                world.Spawn(ViewIn(cabin, LookingAt(new(-1.5, 1.2, -0.45), new(-1.5, -0.3, -1.6))))
+                world.Spawn(ViewIn(cabin, LookingAt(new(-1.80, 2.00, -5.20), new(-1.40, 0.55, -7.20))))
             );
             scene.Add(
                 "hand-camera",
-                world.Spawn(ViewIn(cabin, LookingAt(new(0.5, -0.9, -0.7), new(-0.7, 0.05, -0.95))))
+                world.Spawn(ViewIn(cabin, LookingAt(new(0.65, 0.15, -5.60), new(-0.75, 0.80, -6.40))))
             );
 
-            // The views of the rendezvous (docs/plans/blue-danube-demo.md, "The shuttle's windows and the cameras"), still in
-            // the shuttle's frame.
-            double eye = -Shuttle.Cabin.Y + 1.65;
-            scene.Add(
-                "window-camera",
-                world.Spawn(ViewIn(cabin, new(new(0, eye, -Shuttle.Cabin.Z + 1.2), DQuaternion.Identity)))
-            );
+            // The views of the rendezvous, fitted to the real Pioneer cockpit window openings.
+            scene.Add("window-camera", world.Spawn(ViewIn(cabin, new(new(0, 1.00, -10.85), DQuaternion.Identity))));
             var bow = new Double3(0, 5, Shuttle.Hull.Min.Z - 30);
             double portOfAstern = 30 * Math.PI / 180;
             scene.Add(
@@ -921,7 +941,7 @@ public static partial class DemoScenes
                     ViewIn(cabin, LookingAt(bow, bow + new Double3(-Math.Sin(portOfAstern), 0, Math.Cos(portOfAstern))))
                 )
             );
-            var portWindow = new Double3(-Shuttle.Cabin.X + 0.6, eye, 4.2);
+            var portWindow = new Double3(-0.75, 0.60, -12.50);
             double aftOfAbeam = 20 * Math.PI / 180;
             scene.Add(
                 "port-window-camera",
@@ -934,7 +954,11 @@ public static partial class DemoScenes
             );
             scene.Add(
                 "cockpit-camera",
-                world.Spawn(ViewIn(cabin, LookingAt(new(1.9, 0.9, -1.4), new(0.7, -1.3, -5.2))))
+                world.Spawn(ViewIn(cabin, LookingAt(new(1.15, 1.60, -8.30), new(0.0, 0.85, -11.50))))
+            );
+            scene.Add(
+                "cockpit-outside-camera",
+                world.Spawn(ViewIn(cabin, LookingAt(new(3.04, 0.51, -15.43), Shuttle.SeatStand + Eye)))
             );
         }
     }

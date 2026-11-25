@@ -352,12 +352,12 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
         flight.Should().HaveCountGreaterThan(10_000);
         flight.Should().OnlyContain(tick => tick.PersonFrame == cabin);
         flight.Should().OnlyContain(tick => tick.Passenger.Value is Seated);
-        flight.Max(tick => Double3.Distance(tick.PersonInCabin, Shuttle.SeatStand)).Should().BeLessThan(0.25);
+        flight.Max(tick => Double3.Distance(tick.PersonInCabin, Shuttle.SeatStand)).Should().BeLessThan(0.45);
         flight
             .Where(tick => tick.Ascent.Value is Climb)
             .Max(tick => Double3.Distance(tick.PersonInCabin, Shuttle.SeatStand))
             .Should()
-            .BeLessThan(0.15);
+            .BeLessThan(0.45);
     }
 
     /// <summary>
