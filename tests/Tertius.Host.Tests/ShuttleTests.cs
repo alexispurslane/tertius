@@ -231,10 +231,10 @@ public sealed class ShuttleTests : IDisposable
         {
             float side = MathF.Sign(panel.Center.X),
                 rib = panel.Center.Z;
-            (panel.Max - panel.Min - new Vector3(0.05f, 0.5f, 0.15f))
+            (panel.Max - panel.Min - new Vector3(0.05f, 0.8f, 0.16f))
                 .Length()
                 .Should()
-                .BeLessThan(1e-5f, $"{id} is 0.05 m thick, 0.5 m tall and 0.15 m wide");
+                .BeLessThan(1e-5f, $"{id} is 0.05 m thick, 0.8 m tall and 0.16 m wide");
             float expectedWall = Shuttle.CabinHalfWidth(rib, panel.Center.Y) - 0.08f;
             (side > 0 ? panel.Max.X : -panel.Min.X)
                 .Should()
@@ -258,7 +258,7 @@ public sealed class ShuttleTests : IDisposable
             DPose pose = world.PoseIn(lamp, cabin);
             (pose.Position - panel.Center).Length.Should().BeLessThan(1e-5, id);
             RectLightData light = world.GetRender(lamp).Light is RectLightData face ? face : default;
-            light.Power.Should().Be(10, $"{id} carries a cabin lamp's light of 10 W, about 3,000 lumens");
+            light.Power.Should().Be(4, $"{id} carries a 4 W diffused wall sconce");
             light.CastsShadow.Should().BeTrue($"the light of {id} casts shadows; its panel does not darken it");
             (light.Offset.Position - new Double3(-side * 0.025, 0, 0))
                 .Length.Should()
@@ -269,7 +269,38 @@ public sealed class ShuttleTests : IDisposable
                 .BeLessThan(1e-6f, $"the face of {id} shines toward the cabin's middle");
             (light.Width, light.Height)
                 .Should()
-                .Be((0.15f, 0.5f), $"the light of {id} is as wide and as tall as its face");
+                .Be((0.16f, 0.8f), $"the light of {id} is as wide and as tall as its face");
+            light.SurfaceRadiance.X.Should().BeLessThan(12f, $"{id} stays a calm diffused wall sconce");
+        }
+    }
+
+    /// <summary>
+    /// Five overhead ceiling panel lamps sit inside the fitted cabin ceiling (aft cabin, ramp and cockpit overhead), cast
+    /// shadows straight down and stay below 12 W/(m²·sr) face radiance so they illuminate the cabin evenly without glare.
+    /// </summary>
+    [Fact]
+    public void TheCeilingLampsSitInsideTheCabinAndShineStraightDownWithCalmRadiance()
+    {
+        SceneInstance scene = DemoScenes.All.Single(s => s.Name == "demo-surface").Build(world, RenderResources.None);
+        FrameHandle cabin = world.GetOwnedFrame(scene["shuttle"]);
+
+        Shuttle.CeilingLamps.Should().HaveCount(5);
+        foreach ((string id, BoundingBox panel, float power) in Shuttle.CeilingLamps)
+        {
+            Shuttle
+                .InsideCabin(panel.Center, margin: 0.01)
+                .Should()
+                .BeTrue($"{id} sits inside the fitted cabin ceiling");
+            Entity lamp = scene[id];
+            world.GetFrame(lamp).Should().Be(cabin);
+            RectLightData light = world.GetRender(lamp).Light is RectLightData face ? face : default;
+            light.Power.Should().Be(power, id);
+            light.CastsShadow.Should().BeTrue($"{id} casts shadows");
+            (Vector3.Transform(Vector3.UnitZ, light.Offset.Rotation) + Vector3.UnitY)
+                .Length()
+                .Should()
+                .BeLessThan(1e-5f, $"{id} shines straight down into the cabin");
+            light.SurfaceRadiance.X.Should().BeLessThan(12f, $"{id} stays a calm diffused panel");
         }
     }
 

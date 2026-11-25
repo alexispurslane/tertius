@@ -402,4 +402,80 @@ public sealed class ShuttleCabinFitTests
             .Should()
             .BeLessThan(0.35, "the passenger stands at the cockpit seat after boarding");
     }
+
+    /// <summary>
+    /// Every textured interior cabin material (floor tread, wall cladding, structural frames, console shroud and seat
+    /// upholstery) stays matte-satin above the specular screen-trace cutoff (roughness &gt;= 0.54) so interior surfaces do
+    /// not trigger stochastic GGX reflection fireflies while retaining their normal relief (ter-x08a).
+    /// </summary>
+    [Fact]
+    public void InteriorCabinMaterialsStayMatteEnoughToAvoidSpecularScreenTraceSnow()
+    {
+        CookedModel model = LoadShuttleModel();
+        // Identify the 5 textured interior materials by excluding the exterior hull (whose MR map contains low-roughness
+        // exposed metal < 0.45 and metallic > 175).
+        List<CookedMaterial> interiorTextured = [];
+        foreach (CookedMaterial mat in model.Materials)
+        {
+            if (mat.MetallicRoughnessMap is not int mrIdx || mat.NormalMap is null)
+                continue;
+            TextureData mr = model.Textures[mrIdx];
+            int bareMetal = 0;
+            byte minRough = 255;
+            for (int i = 0; i < mr.Rgba.Length; i += 4)
+            {
+                byte rough = mr.Rgba[i + 1];
+                byte metal = mr.Rgba[i + 2];
+                if (rough < minRough)
+                    minRough = rough;
+                if (metal > 175)
+                    bareMetal++;
+            }
+
+            if (bareMetal > 2_000)
+                continue;
+
+            interiorTextured.Add(mat);
+            (minRough / 255f)
+                .Should()
+                .BeGreaterThanOrEqualTo(
+                    0.54f,
+                    "every interior cabin material must stay above ScreenTrace.MaxRoughness (0.50) to prevent reflection firefly snow"
+                );
+        }
+
+        interiorTextured
+            .Select(m => m.MetallicRoughnessMap)
+            .Distinct()
+            .Should()
+            .HaveCountGreaterThanOrEqualTo(
+                5,
+                "floor, wall, frame, console and upholstery all carry matte-satin PBR roughness maps"
+            );
+    }
+
+    /// <summary>
+    /// In <c>demo-surface</c>, <see cref="DemoSurface.CabinCamera"/> sits strictly inside the cockpit looking aft away from
+    /// <c>pane-nose</c> so daylight through the windshield key-lights the pilot rather than blooming into the lens, and
+    /// cleanly frames <see cref="Shuttle.SeatStand"/> (ter-x08a).
+    /// </summary>
+    [Fact]
+    public void TheCabinCameraSitsInsideTheCockpitLookingAftAndFramesThePilot()
+    {
+        DPose camera = DemoSurface.CabinCamera;
+        Shuttle
+            .InsideCabin(camera.Position, margin: 0.2)
+            .Should()
+            .BeTrue("cabin-camera stands inside the fitted cockpit clear of the shell");
+
+        Double3 forward = camera.Rotation.Rotate(-Double3.UnitZ);
+        forward
+            .Z.Should()
+            .BeGreaterThan(0.5, "cabin-camera looks aft down the cabin rather than straight into sunlit pane-nose");
+
+        using World world = NewJoltWorld();
+        Double3 pilotChest = Shuttle.SeatStand + new Double3(0, 0.35, 0);
+        Double3 projected = Picture.Project(camera, pilotChest, world.VerticalFov);
+        Picture.Contains(projected).Should().BeTrue("cabin-camera cleanly frames the pilot standing at the seat");
+    }
 }
