@@ -1,7 +1,7 @@
 ---
 id: ter-1m9y
 status: open
-deps: []
+deps: [ter-tiei]
 links: []
 created: 2026-11-25T15:25:33Z
 type: task
