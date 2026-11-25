@@ -84,7 +84,7 @@ public static class BlueDanube
             Name: "unbelt",
             Camera: "cabin-camera",
             Every: 1,
-            Until: (world, scene) => PersonInCabin(world, scene).X > Shuttle.Cabin.X - 0.5,
+            Until: (world, scene) => PersonInCabin(world, scene).X > Shuttle.Hatch.Min.X - 0.5,
             Posts: [new(new ToEntity("person"), nameof(LeaveShip))]
         ),
         // The feet across the hatch's sill, seen from the side in the porch, until the person is out on the lip.
@@ -248,9 +248,15 @@ public static class BlueDanube
             Until: (world, scene) => PassengerOf(world, scene).Value is not Boarding,
             Hold: Second
         ),
-        // The person at its seat, seen from inside, and then from outside through the starboard glass.
+        // The person at its seat, seen from inside, and then from outside through the starboard cockpit glazing.
         new(Name: "seated", Camera: "cabin-camera", Every: 1, Until: FilmSection.Now, Hold: Second * 3 / 4),
-        new(Name: "seated-outside", Camera: "apron-camera", Every: 1, Until: FilmSection.Now, Hold: Second * 3 / 4),
+        new(
+            Name: "seated-outside",
+            Camera: "cockpit-outside-camera",
+            Every: 1,
+            Until: FilmSection.Now,
+            Hold: Second * 3 / 4
+        ),
         new(Name: "pen-on-the-pad", Camera: "pen-camera", Every: 1, Until: FilmSection.Now, Hold: Second),
         new(Name: "on-the-pad", Camera: "pad-camera", Every: 1, Until: FilmSection.Now, Hold: Second),
         // The launch: the ignition, the ramp, and the flight past its top.
@@ -560,13 +566,10 @@ public static class BlueDanube
     }
 
     /// <summary>
-    /// True when <paramref name="position"/>, in the shuttle's frame, lies inside the cabin, 0.1 m from its walls, floor
-    /// and roof.
+    /// True when <paramref name="position"/>, in the shuttle's frame, lies strictly inside the fitted cabin, 0.1 m clear
+    /// of its walls, floor and ceiling.
     /// </summary>
-    public static bool InsideTheCabin(Double3 position) =>
-        Math.Abs(position.X) < Shuttle.Cabin.X - 0.1
-        && Math.Abs(position.Y) < Shuttle.Cabin.Y - 0.1
-        && Math.Abs(position.Z) < Shuttle.Cabin.Z - 0.1;
+    public static bool InsideTheCabin(Double3 position) => Shuttle.InsideCabin(position, margin: 0.1);
 
     /// <summary>The person's position in the frame of the ground, earth-surface, in which the terminal's walls lie.</summary>
     private static Double3 PersonOnTheGround(World world, SceneInstance scene) =>

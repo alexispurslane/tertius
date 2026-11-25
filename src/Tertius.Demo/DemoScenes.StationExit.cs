@@ -168,7 +168,7 @@ public static partial class DemoScenes
 
         /// <summary>
         /// The deck's boarding ramp from the porch down to the deck: its landing reaches spinward (+Z) from the hull, and
-        /// its ramp of 10 degrees runs down along the axis toward the lift (-Y), 18 m long, so the walk to the lift needs no
+        /// its ramp of 10 degrees runs down along the axis toward the lift (-Y), 19.66 m long, so the walk to the lift needs no
         /// turn back and crosses no Coriolis force.
         /// </summary>
         public static BoardingStair Stair =>
@@ -194,6 +194,9 @@ public static partial class DemoScenes
             Double3 foot = stair + Stair.AtFoot(above: (float)Standing);
             return
             [
+                new(cabin, Shuttle.RampTop),
+                new(cabin, Shuttle.RampFoot),
+                new(cabin, Shuttle.AftAisle),
                 new(cabin, Shuttle.InsideHatch),
                 new(cabin, Shuttle.OnPorch),
                 new(station, stair + Stair.OnLanding(above: (float)Standing)),

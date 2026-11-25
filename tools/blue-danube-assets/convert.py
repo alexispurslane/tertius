@@ -16,6 +16,7 @@ glTF's +Y up and Blender's +Y into glTF's -Z, so the converter turns each model 
 import argparse
 import hashlib
 import importlib
+import inspect
 import json
 import math
 import sys
@@ -345,22 +346,35 @@ def _stand(obj, height):
 
 
 def _overlay(convert, pieces, report):
-    """Runs the overlay module that the sidecar names, such as the ring's galleries in habitat.py, and parents the
-    objects that its build() returns to the piece `parent`, so they export as part of that piece. The module works in
-    the source's axes and in the scene's collection, after the glow bake, so the bake leaves its constant emission
-    alone (tools/README.md, "The station overlay")."""
+    """Runs the overlay module that the sidecar names, such as the ring's galleries in habitat.py or the fitted shuttle
+    cabin in shuttle_cabin.py. Objects marked with tertius_piece = 1 stay separate pieces at root; all others are
+    parented to the piece `parent` so they export as part of that piece. The module works in the source's axes and in
+    the scene's collection, after the glow bake, so the bake leaves its constant emission alone (tools/README.md, "The
+    station overlay")."""
     overlay = convert.get("overlay")
     if not overlay:
         return
     module = importlib.import_module(overlay["module"])
     parent = pieces[overlay["parent"]]
-    added = list(module.build())
+    sig = inspect.signature(module.build)
+    if len(sig.parameters) == 0:
+        result = module.build()
+    else:
+        result = module.build(pieces, convert)
+    if isinstance(result, tuple) and len(result) == 2 and isinstance(result[1], dict):
+        added, overlay_report = result
+        report["overlay"] = overlay_report
+    else:
+        added = result
+    added = list(added)
     if overlay.get("openLiftShaft"):
         import station_dock
         station_dock.open_lift_shaft(pieces)
         station_dock.finish_berth(pieces["hub"])
         added.extend(station_dock.landing_signs())
     for obj in added:
+        if obj.get("tertius_piece") == 1:
+            continue
         obj.parent = parent
         obj.matrix_parent_inverse = parent.matrix_world.inverted()
     report["notes"].append(f"Overlay {overlay['module']}.build() added {', '.join(o.name for o in added)} to "

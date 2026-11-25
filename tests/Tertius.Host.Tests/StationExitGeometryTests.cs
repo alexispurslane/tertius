@@ -199,9 +199,9 @@ public sealed class StationExitGeometryTests : IDisposable
     {
         Waypoint[] way = StationExit.WayOut(FrameHandle.Null, frame);
         Double3 hatch = Layout.ParkedPose.TransformPoint(DemoScenes.Shuttle.Hatch.Center);
-        way[1].Position.Should().Be(DemoScenes.Shuttle.OnPorch, "the person steps out onto the porch");
-        Waypoint landing = way[2],
-            foot = way[3];
+        way[^4].Position.Should().Be(DemoScenes.Shuttle.OnPorch, "the person steps out onto the boarding bridge");
+        Waypoint landing = way[^3],
+            foot = way[^2];
         landing.Position.Y.Should().BeApproximately(hatch.Y, 1e-4, "the landing lies in front of the hatch");
         landing
             .Position.X.Should()
@@ -213,7 +213,7 @@ public sealed class StationExitGeometryTests : IDisposable
         foot.Position.X.Should().BeApproximately(Layout.Deck + StationExit.Standing, 1e-4, "on the deck");
         foot.Position.Z.Should().BeApproximately(Layout.LiftAcross, 0.25, "in the lift's lane");
         foot.Position.Y.Should().BeGreaterThan(Layout.LiftHalf + 1, "the lane meets the lift from its open side");
-        foreach (Waypoint point in way[2..])
+        foreach (Waypoint point in way[^3..])
         {
             point.Frame.Should().Be(frame);
             (point.Position.Z - StationExit.PersonRadius - Layout.ParkedBounds.Max.Z).Should().BeGreaterThan(0.5);

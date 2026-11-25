@@ -53,7 +53,7 @@ public sealed class StationPropsTests
     public void TheBayPropsKeepClearOfThePersonsWayTheParkedHullAndTheLift()
     {
         Waypoint[] way = StationExit.WayOut(cabin: default, station: default);
-        Double3[] onDeck = [way[2].Position, way[3].Position, way[4].Position];
+        Double3[] onDeck = [way[^3].Position, way[^2].Position, way[^1].Position];
         BoundingBox bay = Layout.Bay;
 
         foreach (Prop prop in StationProps.BayWorkArea)

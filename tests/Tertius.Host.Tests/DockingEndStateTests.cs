@@ -115,8 +115,8 @@ public sealed class DockingEndStateTests
 
     /// <summary>
     /// The hatch opens toward the station's +Z, onto the deck's stair. The stair's foot lies in the lift's lane, within
-    /// 0.25 m of the lift's middle across the axis, so the person walks straight along the axis down the ramp, 18 m long,
-    /// and on 2.23 m to the hole, with no Coriolis force on the way.
+    /// 0.25 m of the lift's middle across the axis, so the person walks straight along the axis down the ramp, 19.66 m long,
+    /// and on 1.33 m from the foot waypoint to the hole, with no Coriolis force on the way.
     /// </summary>
     [Fact]
     public void TheParkedHatchOpensOntoTheStairInTheLiftsLane()
@@ -131,7 +131,7 @@ public sealed class DockingEndStateTests
         foot.X.Should().BeApproximately(DemoStation.Layout.Deck, 1e-4, "the stair's foot stands on the deck");
         foot.Z.Should()
             .BeApproximately(DemoStation.Layout.LiftAcross, 0.25, "the stair's foot lies in the lift's lane");
-        (foot.Y - mouth.Max.Y).Should().BeApproximately(2.23, 0.01, "the person walks along the axis to the hole");
+        (foot.Y - mouth.Max.Y).Should().BeApproximately(1.33, 0.02, "the person walks along the axis to the hole");
     }
 
     /// <summary>
@@ -154,7 +154,7 @@ public sealed class DockingEndStateTests
     /// The station flies its orbit in a root frame with Earth's point gravity, and a dynamic shuttle hull spawns at the
     /// parked pose in the station's turning frame, at rest there, with no push. The deck and the rail hold it: after 10 s
     /// it lies within 3 cm and 0.5 degrees of the pose, still in the station's frame. The cabin's gravity at the seat stand
-    /// is ω² times the seat's distance from the station's axis, 0.495 m/s², and leans 1.7 degrees from the floor's down
+    /// is ω² times the seat's distance from the station's axis, 0.487 m/s², and leans 2.31 degrees from the floor's down
     /// toward port.
     /// </summary>
     [Fact]
@@ -197,10 +197,10 @@ public sealed class DockingEndStateTests
                 0.03 * rate * rate * fromTheAxis,
                 "the cabin feels the spin gravity of its radius"
             );
-        felt.Length.Should().BeApproximately(0.495, 0.005);
+        felt.Length.Should().BeApproximately(0.487, 0.005);
         (Math.Acos(Double3.Dot(felt, -Double3.UnitY) / felt.Length) * 180 / Math.PI)
             .Should()
-            .BeApproximately(1.7, 0.3, "the gravity leans from the floor's down");
+            .BeApproximately(2.31, 0.3, "the gravity leans from the floor's down");
         felt.X.Should().BeNegative("the gravity leans toward port, away from the station's axis");
         world.Errors.Should().BeEmpty();
     }

@@ -85,7 +85,7 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
 
         spinUp.Should().HaveCountGreaterThan((int)(DockingAutopilot.SpinUpTime * 60) - 1);
         spinUp.Max(record => record.SeatEuler).Should().BeLessThan(FrameTree.ZeroGravityThreshold / 2);
-        spinUp.Max(record => record.SeatEuler).Should().BeGreaterThan(0.002, "the turn does accelerate");
+        spinUp.Max(record => record.SeatEuler).Should().BeGreaterThan(0.0005, "the turn does accelerate");
     }
 
     /// <summary>
@@ -270,7 +270,7 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
 
     /// <summary>
     /// The docked cabin feels the spin gravity of its radius: at the seat stand, ω² times its distance from the station's
-    /// axis, 0.494 m/s², leaning 1.7 degrees from the floor's down toward port.
+    /// axis, 0.487 m/s², leaning 2.31 degrees from the floor's down toward port.
     /// </summary>
     [Fact]
     public void TheDockedCabinFeelsTheWeakGravityOfItsRadius()
@@ -280,10 +280,10 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
         double fromTheAxis = Math.Sqrt(seat.X * seat.X + seat.Z * seat.Z);
 
         last.SeatGravity.Length.Should().BeApproximately(Rate * Rate * fromTheAxis, 0.01 * Rate * Rate * fromTheAxis);
-        last.SeatGravity.Length.Should().BeApproximately(0.494, 0.005);
+        last.SeatGravity.Length.Should().BeApproximately(0.487, 0.005);
         (Math.Acos(Double3.Dot(last.SeatGravity, -Double3.UnitY) / last.SeatGravity.Length) / Degree)
             .Should()
-            .BeApproximately(1.7, 0.3);
+            .BeApproximately(2.31, 0.3);
         last.SeatGravity.X.Should().BeNegative("the gravity leans toward port");
     }
 

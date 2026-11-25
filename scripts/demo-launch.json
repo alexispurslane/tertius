@@ -2,7 +2,7 @@
   "scene": "demo-surface",
   "window": { "width": 1280, "height": 720 },
   "steps": [
-    { "do": "run", "ticks": 1150 },
+    { "do": "run", "ticks": 1360 },
     { "do": "camera", "entity": "cabin-camera" },
     { "do": "capture", "name": "seated" },
     { "do": "dump", "name": "seated" },

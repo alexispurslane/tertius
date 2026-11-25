@@ -46,3 +46,5 @@ The cloud Physics mutation run compiled three changes to the rider update. The t
 | Shorten the push through the stack (D03) | Killed by the short-route knockdown test |
 
 Ten other Stryker source rows did not compile as mutants. P03–P07 exercise the hand-off refresh, direction decision, ground velocity and scheduling in that block. No compiled survivor remains after the listed replays. Full runner outputs are in /private/tmp/ter22-evidence under stryker, listed, replay and onset.
+
+The fitted shuttle and berth 14 share one exit rehearsal. In station coordinates the ramp landing starts at (−101.1452, 24.2344, 3.2200) m. It rises 3.4658 m above the deck at X = −104.6110 m. Its horizontal run is 19.6555 m. The walking waypoint 0.40 m beyond the ramp toe is at (−104.6110, 3.3789, 4.0200) m, 1.3289 m before the lift opening and 0.2200 m from the lift centerline. At the parked seat stand the calculated spin gravity is 0.48735 m/s² and leans 2.3065° toward port.
