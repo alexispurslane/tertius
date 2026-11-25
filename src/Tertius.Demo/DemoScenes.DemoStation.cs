@@ -752,13 +752,11 @@ public static partial class DemoScenes
         /// <summary>Spawns the rim, bay, gallery and hold cameras in <paramref name="frame"/>.</summary>
         private static void SpawnCameras(World world, FrameHandle frame, SceneInstance scene)
         {
-            // The rim camera: at θ = 225 degrees, between the two spokes, 2 m in from the floor's radius and 2 m off the
-            // slot's face of the wheel. It looks at a point on the axis 21.2 m beyond the slot's face, 58.7 m from the
-            // center, so that the cone that it sweeps with the spin passes the Sun and the Moon in the glide. Its roof lies
-            // across the plane of the axis and the camera, so the axis runs across the picture.
+            // At 225 degrees the imported ring's inner glass crosses the view at radius 1,734 m.
+            // The innermost glass vertices are 1,732 m out. Leave 32 m of clearance on the hub side.
             double theta = 5 * Math.PI / 4;
             var across = new Double3(Math.Cos(theta), 0, -Math.Sin(theta));
-            Double3 rim = across * (Layout.FloorRadius - 2) + new Double3(0, Layout.HalfWidth + 2, 0);
+            Double3 rim = across * 1700 + new Double3(0, Layout.HalfWidth + 2, 0);
             var aim = new Double3(0, Layout.SlotFace + 21.2, 0);
             scene.Add(
                 "rim-camera",

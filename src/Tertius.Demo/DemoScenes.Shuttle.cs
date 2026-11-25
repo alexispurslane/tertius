@@ -659,8 +659,8 @@ public static partial class DemoScenes
         /// <summary>
         /// Spawns each pane of <see cref="Glass"/> in <paramref name="cabin"/>, the shuttle's frame, at its center, with its
         /// scene id after <paramref name="prefix"/> and a hyphen when the prefix is not empty, so that each shuttle of a
-        /// scene has its own: the color of the orbit scene's glass, mostly clear with a slight blue tint, with an
-        /// anti-reflection coating (see <see cref="AntiReflective"/>). A pane has no body, because the interior shape is
+        /// scene has its own. The clear glass has an anti-reflection coating (see <see cref="AntiReflective"/>).
+        /// A pane has no body, because the interior shape is
         /// solid at the glass, and it casts no shadow, so sunlight comes in through the holes of the drawn hull. Each pane is
         /// its own instance round its own center, so the renderer sorts it at its real place.
         /// </summary>
@@ -674,7 +674,7 @@ public static partial class DemoScenes
         {
             MaterialId glass = resources.CreateMaterial(
                 new(
-                    BaseColor: new(x: 0.45f, y: 0.65f, z: 1, w: 0.2f),
+                    BaseColor: new(x: 1, y: 1, z: 1, w: 0),
                     Roughness: GlassRoughness,
                     Reflectance: AntiReflective,
                     Alpha: new GlassAlpha()

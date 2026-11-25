@@ -800,6 +800,19 @@ public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run)
             .BeGreaterThan(30, "the Sun stands high over the station's horizon");
     }
 
+    [Fact]
+    public void TheRimCameraKeepsTheHubAndApproachingShuttleInThePicture()
+    {
+        RendezvousFrame[] rim = [.. run.Frames.Where(frame => frame.Of("glide-rim"))];
+
+        rim.Should().NotBeEmpty();
+        foreach (RendezvousFrame frame in rim)
+        {
+            Picture.Contains(Picture.Project(frame.View, frame.Station, frame.VerticalFov)).Should().BeTrue(frame.Name);
+            Picture.Contains(Picture.Project(frame.View, Double3.Zero, frame.VerticalFov)).Should().BeTrue(frame.Name);
+        }
+    }
+
     /// <summary>
     /// The rim camera turns with the station and sweeps a cone round its axis, which passes near the Sun and the Moon: the
     /// Moon's center lies in the picture of some frame of <c>glide-rim</c>, and the Sun's in some frame. In those frames,

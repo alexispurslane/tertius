@@ -197,6 +197,19 @@ public sealed class BlueDanubeArtSceneTests : IDisposable
         DemoScenes.For(content).Single(scene => scene.Name == "demo-surface").Build(world, resources);
 
     [Fact]
+    public void ThePlanetMeshStaysBelowTheBoardingSlab()
+    {
+        SceneInstance scene = Build(null);
+        Entity globe = scene["earth-surface"], slab = scene["floor"];
+        FrameHandle surface = world.GetOwnedFrame(globe);
+        double slabBase = world.PoseIn(slab, surface).Position.Y
+            + resources.Meshes[world.GetRender(slab).Mesh].Vertices.Min(vertex => vertex.Position.Y);
+        float pole = resources.Meshes[world.GetRender(globe).Mesh].Vertices.Max(vertex => vertex.Position.Y);
+
+        ((double)pole).Should().BeLessThanOrEqualTo(slabBase, "the slab owns the visible ground at the pole");
+    }
+
+    [Fact]
     public void EachModelIsUploadedOnceAndEveryPlacementOfAKindSharesIt()
     {
         SceneInstance scene = Build(TinyArt());

@@ -15,6 +15,10 @@ public static partial class DemoScenes
     /// <summary>Earth's mean radius, in meters.</summary>
     public const double EarthRadius = 6.371e6;
 
+    // The terminal's slab extends one meter below the datum. Put the visible globe under its top:
+    // float vertex positions at Earth's radius resolve half meters, while the pad is only 2 cm thick.
+    private const float EarthMeshRadius = (float)(EarthRadius - 1);
+
     /// <summary>
     /// The roughness of every painted part and lamp: the old default gloss of 0.5, converted so that each highlight keeps
     /// its size (docs/plans/pbr-brdf.md, "The demo materials").
@@ -859,7 +863,7 @@ public static partial class DemoScenes
                 Components = [new SpinMotion { Spin = turning }],
                 Render = new RenderData
                 {
-                    Mesh = resources.CreateMesh(EarthMaterial.Globe((float)EarthRadius, mapped: material.HasValue)),
+                    Mesh = resources.CreateMesh(EarthMaterial.Globe(EarthMeshRadius, mapped: material.HasValue)),
                     Material = material ?? GridMaterial(resources),
                     BoundingRadius = (float)EarthRadius,
                     Flags = RenderFlags.Visible | RenderFlags.Celestial | RenderFlags.CastsShadow,

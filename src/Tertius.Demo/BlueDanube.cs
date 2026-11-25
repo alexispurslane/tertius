@@ -231,15 +231,13 @@ public static class BlueDanube
             Until: (world, scene) => Double3.Distance(PersonInCabin(world, scene), Shuttle.OnPorch) < 1.5
         ),
         // The follow camera, which looks through the hatch after the person, meets the hull's side and jumps into the
-        // cabin, so the apron camera films the boarding until the follow camera is in the cabin. The outlines show the
-        // parked shuttle's bubble, which the person walks into.
+        // cabin, so the apron camera films the boarding until the follow camera is in the cabin.
         new(
             Name: "boarding",
             Camera: "apron-camera",
             Every: 1,
             Until: (world, scene) =>
-                InsideTheCabin(world.PoseIn(scene["follow-camera"], world.GetOwnedFrame(scene["shuttle"])).Position),
-            Outlines: true
+                InsideTheCabin(world.PoseIn(scene["follow-camera"], world.GetOwnedFrame(scene["shuttle"])).Position)
         ),
         new(
             Name: "cabin",
@@ -275,15 +273,12 @@ public static class BlueDanube
             Hold: Second
         ),
         // The climb to orbit, as a time-lapse: the ground falls away, the belted person and the pen in the cabin, and the
-        // long climb to the circle 200 km up. The outlines of climb-low show the falling frame that forms round the
-        // shuttle's bubble in the film's first 10 s, and those of climb-high the hand-off out of the turning ground's
-        // bubble, 178.4 km up.
+        // long climb to the circle 200 km up.
         new(
             Name: "climb-low",
             Camera: "climb-camera",
             Every: 4,
-            Until: (world, scene) => Altitude(world, scene) > 15e3,
-            Outlines: true
+            Until: (world, scene) => Altitude(world, scene) > 15e3
         ),
         new(Name: "climb-cabin", Camera: "follow-camera", Every: 4, Until: FilmSection.Now, Hold: Second * 10),
         new(Name: "climb-pen", Camera: "pen-camera", Every: 4, Until: FilmSection.Now, Hold: Second * 4),
@@ -291,12 +286,10 @@ public static class BlueDanube
             Name: "climb-high",
             Camera: "chase-camera",
             Every: 20,
-            Until: (world, scene) => AscentOf(world, scene).Value is Orbit,
-            Outlines: true
+            Until: (world, scene) => AscentOf(world, scene).Value is Orbit
         ),
-        // Orbit: the clip lets the pen go, and the person floats to it and takes it. The outlines of orbit show the shuttle's
-        // own frame and its falling frame on the circle.
-        new(Name: "orbit", Camera: "chase-camera", Every: 1, Until: FilmSection.Now, Hold: Second, Outlines: true),
+        // Orbit: the clip lets the pen go, and the person floats to it and takes it.
+        new(Name: "orbit", Camera: "chase-camera", Every: 1, Until: FilmSection.Now, Hold: Second),
         new(Name: "pen-release", Camera: "pen-camera", Every: 1, Until: PenReleased, Hold: Second * 2),
         // The person floats toward the pen camera on its way to the pen, so the hand camera takes over before the person
         // fills the pen camera's lens.
@@ -396,13 +389,11 @@ public static class BlueDanube
             Every: 4,
             Until: (world, scene) => ToHold(world, scene) < 250
         ),
-        // The outlines show the station's bubble ahead of the shuttle and the shuttle's frames.
         new(
             Name: "glide-rim",
             Camera: "rim-camera",
             Every: 4,
-            Until: (world, scene) => ToHold(world, scene) < 50,
-            Outlines: true
+            Until: (world, scene) => ToHold(world, scene) < 50
         ),
         new(
             Name: "arrival",
@@ -456,15 +447,13 @@ public static class BlueDanube
             Every: 2,
             Until: (world, scene) => DockingOf(world, scene).Value is Entry
         ),
-        // The window camera films the slot ahead until the nose is 10 m from the slot's outer face. The outlines show the
-        // shuttle's entry into the station's turning bubble, 120 m from its center.
+        // The window camera films the slot ahead until the nose is 10 m from the slot's outer face.
         new(
             Name: "entry",
             Camera: "window-camera",
             Every: 4,
             Until: (world, scene) =>
-                InStation(world, scene).Position.Y < DemoStation.Layout.SlotFace - Shuttle.Hull.Min.Z + NoseToSlot,
-            Outlines: true
+                InStation(world, scene).Position.Y < DemoStation.Layout.SlotFace - Shuttle.Hull.Min.Z + NoseToSlot
         ),
         new(
             Name: "slot",

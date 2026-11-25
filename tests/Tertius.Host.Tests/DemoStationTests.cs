@@ -341,6 +341,19 @@ public sealed class DemoStationTests : IDisposable
         world.Errors.Should().BeEmpty();
     }
 
+    [Fact]
+    public void TheRimCameraLooksAtTheHubFromClearOfTheRingsInnerGlazing()
+    {
+        DPose view = world.PoseIn(scene["rim-camera"], frame);
+        double radius = Math.Sqrt(view.Position.X * view.Position.X + view.Position.Z * view.Position.Z);
+
+        // At this azimuth and height, the imported ring_glass crosses the sightline at radius 1,734 m.
+        radius.Should().BeLessThan(1734);
+        Picture.Contains(Picture.Project(view, DemoStation.Layout.Hub.Center, world.VerticalFov))
+            .Should()
+            .BeTrue();
+    }
+
     /// <summary>
     /// <c>bay-camera</c>, a still view in the station's frame near the bay's far wall, sees the whole docking: the corners of
     /// the slot on both faces of its wall, the corners of the parked shuttle's box and the corners of the lift's hole in
