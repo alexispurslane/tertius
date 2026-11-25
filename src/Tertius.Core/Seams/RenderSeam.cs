@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Numerics;
 using System.Runtime.InteropServices;
 
@@ -59,6 +60,42 @@ public readonly record struct TextureId
 
     public override string ToString() => IsNone ? "TextureId(none)" : $"TextureId({Value})";
 }
+
+/// <summary>
+/// A renderer model handle: mesh and material parts drawn with one entity transform (docs/plans/asset-pipeline.md,
+/// "Models: nodes and pieces"). <c>default</c> is <see cref="None"/>.
+/// </summary>
+public readonly record struct ModelId
+{
+    public static ModelId None => default;
+
+    // Stored as value + 1, so that a zeroed struct means "none" rather than id 0.
+    private readonly int raw;
+
+    public ModelId(int value)
+    {
+        raw = value + 1;
+    }
+
+    public int Value => raw - 1;
+    public bool IsNone => raw == 0;
+
+    public override string ToString() => IsNone ? "ModelId(none)" : $"ModelId({Value})";
+}
+
+/// <summary>One mesh with one material, placed in the axes of the entity that draws the model.</summary>
+/// <param name="Mesh">The part's mesh.</param>
+/// <param name="Material">The part's material.</param>
+/// <param name="Offset">The pose of the part's origin relative to the entity, before the entity's scale.</param>
+/// <param name="Scale">The part's own scale, applied in the part's axes before <paramref name="Offset"/>.</param>
+/// <param name="BoundingRadius">The radius around the part's origin that holds its scaled mesh, in m, before the entity's scale.</param>
+public readonly record struct ModelPart(MeshId Mesh, MaterialId Material, Pose Offset, Vector3 Scale, float BoundingRadius);
+
+/// <summary>
+/// The parts of one rigid model piece, in their order: the index of a part is its <see cref="RenderInstance.Part"/>. Model
+/// lights, LODs and model-wide bounds are later work (docs/plans/asset-pipeline.md, "Engine changes").
+/// </summary>
+public sealed record ModelDesc(ImmutableArray<ModelPart> Parts);
 
 [Flags]
 public enum RenderFlags : uint
@@ -124,6 +161,14 @@ public struct RenderInstance
 
     public MeshId Mesh;
     public MaterialId Material;
+
+    /// <summary>
+    /// The model to draw, or <see cref="ModelId.None"/>. With a model, <see cref="Mesh"/> and <see cref="Material"/> are
+    /// None, and the renderer draws each part of the model as an object of its own, with the part's index as its
+    /// <see cref="Part"/>.
+    /// </summary>
+    public ModelId Model;
+
     public RenderFlags Flags;
     public Vector3 Position;
     public Quaternion Rotation;
@@ -461,14 +506,20 @@ public sealed record MaterialDesc(
 }
 
 /// <summary>
-/// The resource half of the renderer: what a scene needs to make the meshes, textures and materials that its render
-/// rows name. The Create methods are thread-safe. Uploads happen on the render thread before the next frame.
+/// The resource half of the renderer: what a scene needs to make the meshes, textures, materials and models that its
+/// render rows name. The Create methods are thread-safe. Uploads happen on the render thread before the next frame.
 /// </summary>
 public interface IRenderResources
 {
     MeshId CreateMesh(MeshData mesh);
     TextureId CreateTexture(TextureData texture);
     MaterialId CreateMaterial(MaterialDesc material);
+
+    /// <summary>
+    /// Makes a model of meshes and materials that this owner created. One id serves every entity that draws the model, so
+    /// they share its meshes and materials.
+    /// </summary>
+    ModelId CreateModel(ModelDesc model);
 }
 
 /// <summary>

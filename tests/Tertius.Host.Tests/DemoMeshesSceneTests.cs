@@ -95,5 +95,7 @@ public sealed class DemoMeshesSceneTests : IDisposable
         public TextureId CreateTexture(TextureData texture) => default;
 
         public MaterialId CreateMaterial(MaterialDesc material) => default;
+
+        public ModelId CreateModel(ModelDesc model) => default;
     }
 }

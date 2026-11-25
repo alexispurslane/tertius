@@ -16,6 +16,12 @@ public struct RenderData
     /// <summary>The material of the mesh, or <see cref="MaterialId.None"/> for the renderer's default material.</summary>
     public MaterialId Material;
 
+    /// <summary>
+    /// The model to draw, or <see cref="ModelId.None"/>. A row with a model has no <see cref="Mesh"/> and no
+    /// <see cref="Material"/>: each part of the model names its own.
+    /// </summary>
+    public ModelId Model;
+
     /// <summary>Scale along the entity's local axes.</summary>
     public Vector3 Scale;
 
