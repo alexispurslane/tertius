@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../Tertius.Core/Tertius.Core.csproj" />
+    <PackageReference Include="StbImageSharp" />
+  </ItemGroup>
+</Project>
