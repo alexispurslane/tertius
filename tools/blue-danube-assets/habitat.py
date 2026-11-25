@@ -151,6 +151,8 @@ def _materials():
     tangent_map = tree.nodes.new("ShaderNodeNormalMap")
     tree.links.new(relief.outputs["Color"], tangent_map.inputs["Color"])
     tree.links.new(tangent_map.outputs["Normal"], shader.inputs["Normal"])
+    # Match cabin lighting to the other station facades (peak channel about 42 W/(m²·sr)).
+    window_radiance = 60.0
     panes = []
     for label, glow in [
         ("Unlit", (0.0, 0.0, 0.0)),
@@ -164,7 +166,7 @@ def _materials():
         shader.inputs["Base Color"].default_value = (0.036, 0.062, 0.075, 1)
         shader.inputs["Roughness"].default_value = 0.24
         shader.inputs["Emission Color"].default_value = (*glow, 1)
-        shader.inputs["Emission Strength"].default_value = 1.0
+        shader.inputs["Emission Strength"].default_value = window_radiance
         panes.append(pane)
     return panels, panes
 

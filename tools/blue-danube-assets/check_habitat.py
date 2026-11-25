@@ -40,18 +40,17 @@ def check_round_trip():
     check.assertGreater(len(glass.polygons), 1000)
     check.assertLess(len(glass.polygons), 30000)
 
-    levels = set()
+    levels = {}
     for slot in {f.material_index for f in glass.polygons}:
         shader = glass.materials[slot].node_tree.nodes.get("Principled BSDF")
         strength = shader.inputs["Emission Strength"].default_value
-        levels.add(
-            tuple(
-                value * strength
-                for value in shader.inputs["Emission Color"].default_value[:3]
-            )
-        )
-    check.assertIn((0.0, 0.0, 0.0), levels)
-    check.assertGreaterEqual(len(levels), 3)
+        peak = max(shader.inputs["Emission Color"].default_value[:3])
+        levels[glass.materials[slot].name] = peak * strength
+    check.assertEqual(levels["Window Unlit"], 0.0)
+    check.assertTrue(0 < levels["Window Curtained"] < 20)
+    for name in ("Window Cabin", "Window Galley"):
+        check.assertGreater(levels[name], 30, name)
+        check.assertLess(levels[name], 80, name)
     panels = bpy.data.objects["Residential galleries"].data.materials[0]
     shader = panels.node_tree.nodes.get("Principled BSDF")
     normal = shader.inputs["Normal"].links[0].from_node
