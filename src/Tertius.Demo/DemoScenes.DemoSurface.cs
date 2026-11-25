@@ -564,16 +564,19 @@ public static partial class DemoScenes
                 place: PadStairPlace,
                 stair: PadStair
             );
-            Entity person = SpawnPerson(
+            SpawnFollowCamera(
                 world: world,
-                resources: resources,
                 scene: scene,
-                surface: surface,
-                cabin: cabin,
-                station: station,
-                suit: models?.Passenger
+                person: SpawnPerson(
+                    world: world,
+                    resources: resources,
+                    scene: scene,
+                    surface: surface,
+                    cabin: cabin,
+                    station: station,
+                    suit: models?.Passenger
+                )
             );
-            SpawnFollowCamera(world: world, scene: scene, person: person);
 
             Entity overview = SpawnGroundCameras(world: world, scene: scene, surface: surface, cabin: cabin);
             SpawnCabinCameras(world: world, scene: scene, cabin: cabin);
@@ -742,28 +745,7 @@ public static partial class DemoScenes
             scene.Add("shuttle", shuttle);
             Shuttle.SpawnArt(world: world, hull: shuttle, scene: scene, resources: resources, art: art);
             Shuttle.FitActuators(world, shuttle);
-            FrameHandle cabin = world.GetOwnedFrame(shuttle);
-            Vector3 seatHalf = Shuttle.Seat.Extents;
-            scene.Add(
-                "seat",
-                world.Spawn(
-                    new()
-                    {
-                        Frame = cabin,
-                        Pose = new(Shuttle.Seat.Center, DQuaternion.Identity),
-                        Render = Drawn(
-                            resources: resources,
-                            mesh: Primitives.Box(seatHalf),
-                            color: new(x: 0.15f, y: 0.25f, z: 0.6f, w: 1),
-                            boundingRadius: seatHalf.Length()
-                        ),
-                    }
-                )
-            );
-            Shuttle.Panes(world: world, cabin: cabin, scene: scene, resources: resources);
-            Shuttle.SpawnLamps(world: world, cabin: cabin, scene: scene, resources: resources);
-            Shuttle.SpawnNozzle(world: world, cabin: cabin, scene: scene, resources: resources);
-            return cabin;
+            return Shuttle.SpawnCabin(world: world, hull: shuttle, scene: scene, resources: resources);
         }
 
         /// <summary>
@@ -911,6 +893,7 @@ public static partial class DemoScenes
         {
             scene.Add("chase-camera", world.Spawn(ViewIn(cabin, LookingAt(new(19.5, 8.5, 34), Double3.Zero))));
             scene.Add("sill-camera", world.Spawn(ViewIn(cabin, Shuttle.SillCamera)));
+
             scene.Add("climb-camera", world.Spawn(ViewIn(cabin, LookingAt(new(0, 41, 29), Double3.Zero))));
             scene.Add(
                 "pen-camera",
@@ -920,6 +903,7 @@ public static partial class DemoScenes
                 "hand-camera",
                 world.Spawn(ViewIn(cabin, LookingAt(new(0.5, -0.9, -0.7), new(-0.7, 0.05, -0.95))))
             );
+
             // The views of the rendezvous (docs/plans/blue-danube-demo.md, "The shuttle's windows and the cameras"), still in
             // the shuttle's frame.
             double eye = -Shuttle.Cabin.Y + 1.65;

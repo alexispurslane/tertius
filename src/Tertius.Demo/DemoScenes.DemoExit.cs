@@ -102,15 +102,18 @@ public static partial class DemoScenes
                 art: models?.Shuttle
             );
 
-            Entity person = SpawnPerson(
+            SpawnFollowCamera(
                 world: world,
-                resources: resources,
                 scene: scene,
-                cabin: cabin,
-                frame: frame,
-                suit: models?.Passenger
+                person: SpawnPerson(
+                    world: world,
+                    resources: resources,
+                    scene: scene,
+                    cabin: cabin,
+                    frame: frame,
+                    suit: models?.Passenger
+                )
             );
-            SpawnFollowCamera(world: world, scene: scene, person: person);
             Entity cabinCamera = world.Spawn(ViewIn(cabin, DemoSurface.CabinCamera));
             scene.Add("cabin-camera", cabinCamera);
             scene.Add("sill-camera", world.Spawn(ViewIn(cabin, Shuttle.SillCamera)));
@@ -193,28 +196,7 @@ public static partial class DemoScenes
             );
             scene.Add("shuttle", shuttle);
             Shuttle.SpawnArt(world: world, hull: shuttle, scene: scene, resources: resources, art: art);
-            FrameHandle cabin = world.GetOwnedFrame(shuttle);
-            Vector3 seatHalf = Shuttle.Seat.Extents;
-            scene.Add(
-                "seat",
-                world.Spawn(
-                    new()
-                    {
-                        Frame = cabin,
-                        Pose = new(Shuttle.Seat.Center, DQuaternion.Identity),
-                        Render = Drawn(
-                            resources: resources,
-                            mesh: Primitives.Box(seatHalf),
-                            color: new(x: 0.15f, y: 0.25f, z: 0.6f, w: 1),
-                            boundingRadius: seatHalf.Length()
-                        ),
-                    }
-                )
-            );
-            Shuttle.Panes(world: world, cabin: cabin, scene: scene, resources: resources);
-            Shuttle.SpawnLamps(world: world, cabin: cabin, scene: scene, resources: resources);
-            Shuttle.SpawnNozzle(world: world, cabin: cabin, scene: scene, resources: resources);
-            return cabin;
+            return Shuttle.SpawnCabin(world: world, hull: shuttle, scene: scene, resources: resources);
         }
 
         /// <summary>

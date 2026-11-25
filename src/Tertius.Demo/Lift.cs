@@ -125,8 +125,16 @@ public sealed class Lift(FrameHandle station, DPose top, Double3 outward, LiftPr
         if (!frames.IsAlive(station))
             return;
         MotionSample sample = profile.Sample(top: top, outward: outward, elapsed: elapsed, step: self.DeltaTime);
-        double ahead = self.TimeAt(self.Tick + 2) - self.TimeAt(self.Tick);
-        self.MoveOnRails(self.Frame == station ? sample : Into(frames: frames, holder: self.Frame, sample: sample, ahead: ahead));
+        self.MoveOnRails(
+            self.Frame == station
+                ? sample
+                : Into(
+                    frames: frames,
+                    holder: self.Frame,
+                    sample: sample,
+                    ahead: self.TimeAt(self.Tick + 2) - self.TimeAt(self.Tick)
+                )
+        );
     }
 
     /// <summary>

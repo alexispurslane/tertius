@@ -412,14 +412,15 @@ public static partial class DemoScenes
             );
 
         /// <summary>
-        /// The pose of <c>sill-camera</c>, in the shuttle's axes: in the porch, 0.3 m above the walkway against its aft wall
-        /// and 0.6 m out from the tram's side, looking forward and in at the hatch's sill. It sees the person's feet cross
-        /// the sill from the side, about 1 m away.
+        /// The pose of <c>sill-camera</c>, in the shuttle's axes: in the porch, 0.35 m above the walkway against its aft wall
+        /// and 0.4 m out from the tram's side, looking forward across the way out and a little down. The person walks from
+        /// the left of the picture to its right, so the camera sees its feet cross the hatch's sill from the side, about
+        /// 0.8 m away.
         /// </summary>
         public static DPose SillCamera { get; } =
             new(
-                new(Tram.X + 0.6, Hatch.Min.Y + 0.3, Hatch.Max.Z + 0.15),
-                AttitudeAutopilot.Facing(new Double3(-0.8, 0, -1), Double3.UnitY)
+                new(Tram.X + 0.4, Hatch.Min.Y + 0.35, Hatch.Max.Z + 0.2),
+                AttitudeAutopilot.Facing(new Double3(0, -0.35, -1), Double3.UnitY)
             );
 
         /// <summary>The radii of the bubble, in meters, in the shuttle's axes.</summary>
@@ -482,6 +483,38 @@ public static partial class DemoScenes
         /// </summary>
         public static DPose NozzlePose(Double3 centerOfMass) =>
             new(new(centerOfMass.X, centerOfMass.Y, NozzleZ), DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2));
+
+        /// <summary>
+        /// Spawns the inside of the cabin of <paramref name="hull"/>, a parked or flying shuttle, in its own frame, and
+        /// returns that frame: the seat, a blue box at <see cref="Seat"/> with no body of its own (the interior shape holds
+        /// it), the panes of <see cref="Glass"/>, the cabin's lamps and the nozzle. Their scene ids are <c>seat</c> and those
+        /// of <see cref="Panes"/>, <see cref="SpawnLamps"/> and <see cref="SpawnNozzle"/>.
+        /// </summary>
+        public static FrameHandle SpawnCabin(World world, Entity hull, SceneInstance scene, IRenderResources resources)
+        {
+            FrameHandle cabin = world.GetOwnedFrame(hull);
+            Vector3 seatHalf = Seat.Extents;
+            scene.Add(
+                "seat",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = cabin,
+                        Pose = new(Seat.Center, DQuaternion.Identity),
+                        Render = Drawn(
+                            resources: resources,
+                            mesh: Primitives.Box(seatHalf),
+                            color: new(x: 0.15f, y: 0.25f, z: 0.6f, w: 1),
+                            boundingRadius: seatHalf.Length()
+                        ),
+                    }
+                )
+            );
+            Panes(world: world, cabin: cabin, scene: scene, resources: resources);
+            SpawnLamps(world: world, cabin: cabin, scene: scene, resources: resources);
+            SpawnNozzle(world: world, cabin: cabin, scene: scene, resources: resources);
+            return cabin;
+        }
 
         /// <summary>
         /// Spawns the nozzle in <paramref name="cabin"/>, the shuttle's frame, at <see cref="NozzlePose"/> for the center of

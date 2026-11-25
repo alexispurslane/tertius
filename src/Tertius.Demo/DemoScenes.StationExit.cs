@@ -257,15 +257,15 @@ public static partial class DemoScenes
         public static DPose RideCamera => Camera(new(4, -1.7, 1.7), new(-4, 0, 0), Double3.UnitZ);
 
         /// <summary>
-        /// The pose of <c>docked-camera</c>: 1.7 m above the deck, 12 m spinward of the axis's plane and 7 m beyond the parked
-        /// hull's tail along the axis, looking at the hull's starboard side above the stair's landing. It sees the docked
-        /// shuttle at three quarters, the person who walks out over the lip and down the ramp beside it, and the bay's work
-        /// area in front.
+        /// The pose of <c>docked-camera</c>: 3 m above the deck, 15 m spinward of the axis's plane and 1 m inside the bay's +Y
+        /// end, behind the parked hull's tail, looking at the hull's starboard side 6 m ahead of its origin. It sees the
+        /// docked shuttle at three quarters from behind, its starboard side with the hatch, and the person who walks out over
+        /// the lip and down the ramp away from the camera. The work area's pods stand to the right of its line of sight.
         /// </summary>
         public static DPose DockedCamera =>
             Camera(
-                new(Layout.Deck + 1.7, Layout.ParkedBounds.Max.Y + 7, 12),
-                new(Layout.Deck + 3, Layout.ParkedPose.Position.Y, 0),
+                new(Layout.Deck + 3, Layout.Bay.Max.Y - 1, 15),
+                new(Layout.Deck + 3, Layout.ParkedPose.Position.Y - 6, 2),
                 Double3.UnitX
             );
 

@@ -248,32 +248,6 @@ public static partial class DemoScenes
             return AroundDoorway(new(-outer, new(-inner.X, outer.Y, outer.Z)), HubLiftHole.Bounds);
         }
 
-        /// <summary>
-        /// The boxes of the hub's other walls, in its own axes, with the slot open: the far end wall across Z, the slot's end
-        /// wall in four parts round the slot, the +X wall between the end walls, and the walls across Y between those. With
-        /// <see cref="DeckWalls"/>, they close the bay, and the boxes touch without gaps or overlaps.
-        /// </summary>
-        public static IEnumerable<BoundingBox> HubWalls()
-        {
-            (Vector3 outer, Vector3 inner) = HubOwnBox;
-            BoundingBox slot = HubSlot.Bounds;
-            yield return new(new(-inner.X, -outer.Y, -outer.Z), new(outer.X, outer.Y, -inner.Z));
-            var end = new BoundingBox(new(-inner.X, -outer.Y, inner.Z), outer);
-            yield return end with
-            {
-                Max = end.Max with { X = slot.Min.X },
-            };
-            yield return end with
-            {
-                Min = end.Min with { X = slot.Max.X },
-            };
-            yield return new(new(slot.Min.X, -outer.Y, inner.Z), new(slot.Max.X, slot.Min.Y, outer.Z));
-            yield return new(new(slot.Min.X, slot.Max.Y, inner.Z), new(slot.Max.X, outer.Y, outer.Z));
-            yield return new(new(inner.X, -outer.Y, -inner.Z), new(outer.X, outer.Y, inner.Z));
-            yield return new(new(-inner.X, -outer.Y, -inner.Z), new(inner.X, -inner.Y, inner.Z));
-            yield return new(new(-inner.X, inner.Y, -inner.Z), new(inner.X, outer.Y, inner.Z));
-        }
-
         /// <summary>The hub's outer and inner half extents in its own axes, whose +Z is the station's +Y: the hub's and the bay's.</summary>
         private static (Vector3 Outer, Vector3 Inner) HubOwnBox
         {
