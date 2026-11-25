@@ -77,3 +77,52 @@ The fit to the art: mutation testing of the changed Demo lines with tools/mutate
 | C20 | BlueDanube.cs:95 | sill section ends at the tram's side | killed | BlueDanubeScriptTests |
 
 Not listed, because no test can see them: the camera poses (sill, docked, work, ride-side, wheel-terminal, gallery) and DemoStation.GalleryFace. The stills checked them by eye.
+
+### Runpod acceptance run (2026-11-25)
+
+The run used one temporary endpoint for each attempt, outside the shared routing: the name `ter9wwx-accept-<image>-<hex>`, which the router's pattern does not match, the GPU kind's image 852556185451 and hardware (RTX 2000 Ada only), 0 to 1 workers and a raised timeout. The script's caps, log, lock and pending records stayed in force, endpoint.json did not change, and each endpoint was deleted and confirmed gone after its job. The wrapper is scratch, not committed.
+
+1. The first attempt had a timeout of 2,400 s and timed out. I had counted 18,844 frames, but the film has 33,688 frames and 332,516 ticks: each film step captures `frames` images, one every `every` ticks. It cost $0.3863.
+2. The second attempt had a timeout of 4,200 s and completed in 3,281 s of execution. It cost $0.5362.
+
+Hardware and build. The GPU was an NVIDIA RTX 2000 Ada Generation with 16 GB, driver 595.112.07 and a 70 W power limit. The CPU was an AMD EPYC 7352 with 48 threads and 251 GB of memory, on Linux 6.8. The build was commit 11161a99b in Release, with .NET 11.0.100-rc.1. The window was 1920x1080, with FSR 3.1 at the default fixed 2/3 scale (1280x720 render).
+
+The fresh setup ran on the worker:
+
+| Step | Time |
+|---|---:|
+| Assets dev shell (Blender download) | 457 s |
+| Fetch and convert of the 10 models | 85 s |
+| Release build | 54 s |
+
+The film ran in one process from the launch to the end of the coda. All 33,688 frames reached the video sink. The script stopped with code 0, and its timed span (timed-start to timed-end) was 2,601.0 s.
+
+GPU time, over all 33,688 frames. Each value is a statistic of the per-frame sums of the passes from `deformation` to `outlines` (`--gpu-run`). That span ends before the `capture` pass (median 2.30 ms), so readback, capture and encoding are outside it. No p95 is a difference of two p95s.
+
+| Measure | Median | p95 | Mean |
+|---|---:|---:|---:|
+| Render, deformation to outlines | 10.67 ms (93.8 FPS) | 15.23 ms (65.7 FPS) | 10.57 ms |
+| Whole frame span, with capture | 12.96 ms | 17.52 ms | 12.86 ms |
+
+Clocks during the film, at 1 s samples:
+
+| Clock | Mean | Range |
+|---|---:|---:|
+| SM | 2,293 MHz | 1,740 to 2,535 MHz |
+| Memory | 7,001 MHz | |
+| Power | 62.0 W of 70 W | |
+| Temperature | 69 °C | maximum 74 °C |
+
+The P-states were P0 and P2.
+
+Wall FPS:
+
+- **Measured, with the frame sink:** 33,687 frame intervals in 2,601.0 s give 12.95 frames/s. The video sink was a scratch reader. It recorded each frame's arrival time and kept 13 stills, and it encoded nothing.
+- **Cost of the frame sink:** about 10 ms per frame, measured twice. A `--video none` run of the opening 1,487 frames took 12.50 ms per frame, and the same frames through the sink took 22.45 ms. In the first attempt, which had no sink, frame 19,231 came 1,746 s after timed-start. In the second attempt it came 1,943 s after.
+- **Estimate without the sink:** about 2,260 s, or about 14.9 frames/s.
+
+The wall rate depends on the simulation, not on the draw. A film step with `every` = N simulates N ticks for each drawn frame, and the film simulates 332,516 ticks for 33,688 frames. The sections that draw every tick run at 35 to 53 frames/s with the sink. The ring approach and glide, at every = 6, cost 50 to 66 ms per tick. The lift ride, at every = 8, costs 46 to 50 ms per tick. A tick at 60 Hz has 16.7 ms. Ticket t88-hjjm holds the table. The telemetry gives GPU figures only for a whole run, so the per-section figures are wall times.
+
+The coda ran: the last frame, 33,687 (end of antispinward), arrived, and its still shows the passenger on the outer-rim floor. The stills are frames 460, 1486, 12073, 16913, 18423, 18573, 26458, 27535, 28022, 29942, 31701, 32975 and 33687.
+
+The log's one line, "RendezvousAutopilot halts: the shuttle is not in the frame that holds its station" at tick 300,880, is the same as on the Mac. The shuttle changes frame there, in the entry.
