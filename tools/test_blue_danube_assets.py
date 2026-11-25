@@ -297,6 +297,55 @@ class PioneersColladaMeshes(unittest.TestCase):
         self.assertEqual(([i.node for i in instances], dropped), (["panel"], ["navlight_red_001"]))
 
 
+class TheEarthMaterial(unittest.TestCase):
+    def test_southward_and_eastward_rises_tilt_the_normal_north_and_west(self):
+        import numpy as np
+        earth = _load("earth", "blue-danube-assets/earth.py")
+        rows, columns = 8, 16
+        y, x = np.indices((rows + 1, columns + 1))
+        elevation = 1000 + x * 50 + y * 75
+        clear = np.zeros((rows, columns))
+        maps, water = earth.surface_maps(np.zeros((rows, columns, 3)), clear, elevation)
+        normal = maps["normal"][3, 4] * 2 - 1
+        north_spacing = 6371000 * np.pi / rows
+        east_spacing = north_spacing * np.sin(3.5 * np.pi / rows)
+        self.assertAlmostEqual(normal[0] / normal[2], -50 / east_spacing, places=10)
+        self.assertAlmostEqual(normal[1] / normal[2], 75 / north_spacing, places=10)
+
+    def test_ocean_floor_relief_cannot_tilt_the_water_and_clouds_break_its_glint(self):
+        import numpy as np
+        earth = _load("earth", "blue-danube-assets/earth.py")
+        elevation = -1 - np.arange(45).reshape(5, 9)
+        clouds = np.zeros((4, 8))
+        clouds[:, 4:] = 1
+        color = np.broadcast_to([0.01, 0.03, 0.10], (4, 8, 3))
+        maps, water = earth.surface_maps(color, clouds, elevation)
+        np.testing.assert_array_equal(maps["normal"], np.broadcast_to([0.5, 0.5, 1], color.shape))
+        self.assertLess(maps["roughness"][1, 1], maps["roughness"][1, 5])
+        mixed = earth.cloud_color(color, clouds, water)
+        self.assertGreater(mixed[0, 0, 2], color[0, 0, 2], "deep water returns some blue daylight")
+        self.assertGreater(mixed[:, 4:].min(), 0.8)
+
+    def test_the_coastal_ocean_normal_stays_level_next_to_a_mountain(self):
+        import numpy as np
+        earth = _load("earth", "blue-danube-assets/earth.py")
+        elevation = np.full((5, 9), -100, dtype=float)
+        elevation[:, 4:] = 1500
+        color = np.broadcast_to([0.02, 0.03, 0.12], (4, 8, 3))
+        maps, water = earth.surface_maps(color, np.zeros((4, 8)), elevation)
+        np.testing.assert_array_equal(maps["normal"][water], np.tile([0.5, 0.5, 1], (water.sum(), 1)))
+
+    def test_filtering_past_the_north_pole_samples_the_opposite_longitude_of_the_same_cap(self):
+        import numpy as np
+        from PIL import Image
+        earth = _load("earth", "blue-danube-assets/earth.py")
+        pixels = np.zeros((128, 256, 3), dtype=np.uint8)
+        pixels[1, 130] = [10, 50, 250]
+        image = Image.fromarray(pixels)
+        self.assertEqual(earth.polar_border(image, normal=False).getpixel((2, 0)), (10, 50, 250))
+        self.assertEqual(earth.polar_border(image, normal=True).getpixel((2, 0)), (245, 205, 250))
+
+
 @unittest.skipUnless(os.environ.get("TERTIUS_BLENDER"), "needs Blender: run in nix develop .#assets")
 class TheHabitatOverlay(unittest.TestCase):
     """The ring's galleries (habitat.py) survive a glTF round trip: panes on both faces, their light levels, one level

@@ -97,7 +97,10 @@ public sealed class ArtPreviewTests : IDisposable
         materials
             .Should()
             .Contain(
-                m => !m.NormalMap.IsNone && m.Model == new StandardShading(Metallic: 0.35f),
+                m =>
+                    !m.NormalMap.IsNone
+                    && !m.MetallicRoughnessMap.IsNone
+                    && m.Model == new StandardShading(Metallic: 1),
                 "the habitat's gallery panels keep their normal map"
             );
     }

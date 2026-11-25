@@ -108,6 +108,9 @@ public static class BlueDanubeArt
                 StreetSeating: seating,
                 Passenger: passenger
             )
+            {
+                Earth = EarthMaterial.Load(content, resources),
+            }
             : null;
     }
 
@@ -129,4 +132,7 @@ public sealed record BlueDanubeModels(
     StoredModel Stool,
     StoredModel StreetSeating,
     StoredModel Passenger
-);
+)
+{
+    public MaterialId? Earth { get; init; }
+}

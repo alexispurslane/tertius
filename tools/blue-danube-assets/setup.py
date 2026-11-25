@@ -50,11 +50,15 @@ def main(argv):
         return 1
 
     sidecars = [s for s in fetch.load_sidecars(ART) if args.only is None or args.only in s.model]
-    if not sidecars:
+    include_earth = args.only is None or args.only in "earth"
+    if not sidecars and not include_earth:
         print(f"No sidecar in {ART} matches {args.only!r}.", file=sys.stderr)
         return 1
     staging = fetch.Staging(args.staging)
     try:
+        if include_earth:
+            _load("earth").cook(ART / "earth/sources.json", CACHE / "earth", COOKED / "earth/material.zip",
+                                staging, fetch, args.force)
         for sidecar in sidecars:
             fetch.check_approval(sidecar.source)
             for path, entry in sorted(sidecar.source["files"].items()):

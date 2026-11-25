@@ -39,14 +39,16 @@ def apertures(district):
 def _atlas():
     h, w = TEXELS, TEXELS * len(DISTRICTS)
     color = np.empty((h, w, 3), np.float32)
+    response = np.empty_like(color)
     height = np.zeros((h, w), np.float32)
     rng = np.random.default_rng(149)
     for i, district in enumerate(DISTRICTS):
         c = color[:, i * TEXELS : (i + 1) * TEXELS]
+        mask = response[:, i * TEXELS : (i + 1) * TEXELS]
         z = height[:, i * TEXELS : (i + 1) * TEXELS]
 
         # Height is in metres. Work in the same metre coordinates as the pane geometry.
-        def box(x0, y0, x1, y1, rgb, relief):
+        def box(x0, y0, x1, y1, rgb, relief, roughness=0.53, metallic=0):
             x0, x1 = np.clip(
                 np.rint(np.array([x0, x1]) * TEXELS / WIDTH).astype(int), 0, TEXELS
             )
@@ -55,7 +57,9 @@ def _atlas():
             )
             c[y0:y1, x0:x1] = rgb
             z[y0:y1, x0:x1] = relief
+            mask[y0:y1, x0:x1] = (1, roughness, metallic)
 
+        mask[:] = (1, 0.86, 0)  # Recessed joints between panels.
         c[:] = (0.10, 0.12, 0.13)
         for column in range(6):
             for row in range(6):
@@ -73,19 +77,19 @@ def _atlas():
                     alloy * tint,
                     0.055,
                 )
-                box(x + 0.40, y + 0.23, x + 0.52, y + 0.35, (0.12, 0.14, 0.14), 0.018)
+                box(x + 0.40, y + 0.23, x + 0.52, y + 0.35, (0.12, 0.14, 0.14), 0.018, 0.38, 1)
                 box(
                     x + WIDTH / 6 - 0.48,
                     y + 3.61,
                     x + WIDTH / 6 - 0.36,
                     y + 3.73,
                     (0.12, 0.14, 0.14),
-                    0.018,
+                    0.018, 0.38, 1,
                 )
         for x, y, width, opening in apertures(district):
-            for margin, tint, relief in [
-                (0.32, (0.17, 0.20, 0.20), 0.16),
-                (0.15, (0.05, 0.07, 0.075), 0.035),
+            for margin, tint, relief, roughness, metallic in [
+                (0.32, (0.17, 0.20, 0.20), 0.16, 0.36, 1),
+                (0.15, (0.05, 0.07, 0.075), 0.035, 0.82, 0),
             ]:
                 box(
                     x - width / 2 - margin,
@@ -93,23 +97,23 @@ def _atlas():
                     x + width / 2 + margin,
                     y + opening / 2 + margin,
                     tint,
-                    relief,
+                    relief, roughness, metallic,
                 )
         if district == "plant":
             # The intake louvers, access panels and pipe runs occupy the windowless bays.
             for x in (3.5, 14.7, 24.4):
                 box(x - 1, 5, x + 3.6, 16, (0.135, 0.16, 0.17), 0.08)
                 for y in np.arange(5.3, 15.9, 0.58):
-                    box(x - 0.8, y, x + 3.4, y + 0.20, (0.32, 0.35, 0.34), 0.18)
+                    box(x - 0.8, y, x + 3.4, y + 0.20, (0.32, 0.35, 0.34), 0.18, 0.42, 1)
             for y in (18, 18.55):
-                box(0.0, y, WIDTH, y + 0.24, (0.37, 0.32, 0.23), 0.20)
+                box(0.0, y, WIDTH, y + 0.24, (0.37, 0.32, 0.23), 0.20, 0.36, 1)
         # Service covers with hinges, a latch and restrained safety markings.
         for x in (4.0, 18.0):
             box(x, 20, x + 6, 23.1, (0.18, 0.21, 0.22), 0.02)
             box(x + 0.18, 20.18, x + 5.82, 22.92, (0.33, 0.35, 0.34), 0.11)
             box(x + 4.8, 21.2, x + 5.15, 21.75, (0.09, 0.11, 0.12), 0.03)
             for y in (20.6, 22.25):
-                box(x + 0.1, y, x + 0.56, y + 0.20, (0.42, 0.43, 0.40), 0.16)
+                box(x + 0.1, y, x + 0.56, y + 0.20, (0.42, 0.43, 0.40), 0.16, 0.32, 1)
         box(0.75, 0.48, WIDTH - 0.75, 0.76, (0.57, 0.39, 0.15), 0.045)
 
     # A height gradient over distance gives the slope. UV V and image rows
@@ -121,7 +125,7 @@ def _atlas():
     for i in range(len(DISTRICTS)):
         normal[:, i * TEXELS : i * TEXELS + 2] = (0, 0, 1)
         normal[:, (i + 1) * TEXELS - 2 : (i + 1) * TEXELS] = (0, 0, 1)
-    return color, normal * 0.5 + 0.5
+    return color, normal * 0.5 + 0.5, response
 
 
 def _packed_image(name, rgb, color_space):
@@ -135,14 +139,49 @@ def _packed_image(name, rgb, color_space):
     return image
 
 
+def _response_map(material, name, response):
+    tree = material.node_tree
+    shader = tree.nodes["Principled BSDF"]
+    texture = tree.nodes.new("ShaderNodeTexImage")
+    texture.image = _packed_image(name, response, "Non-Color")
+    split = tree.nodes.new("ShaderNodeSeparateColor")
+    tree.links.new(texture.outputs["Color"], split.inputs["Color"])
+    tree.links.new(split.outputs["Green"], shader.inputs["Roughness"])
+    tree.links.new(split.outputs["Blue"], shader.inputs["Metallic"])
+
+
+def finish_ring(material, source):
+    """Replace Pioneer's green and yellow atlas swatches and keep the source truss outlines and UV layout."""
+    atlas = source.copy()
+    atlas.scale(2048, 2048)
+    pixels = np.empty(2048 * 2048 * 4, dtype=np.float32)
+    atlas.pixels.foreach_get(pixels)
+    rgb = pixels.reshape(2048, 2048, 4)[..., :3].copy()
+    bpy.data.images.remove(atlas)
+    red, green, blue = np.moveaxis(rgb, 2, 0)
+    cladding = (green > 1.5 * red + 0.06) & (green > 1.5 * blue + 0.06)
+    primer = (red > blue + 0.08) & (green > blue + 0.08)
+    gasket = (red > green + 0.015) & (blue > green + 0.015)
+    # Blue-black bays lie behind light truss members in the source. Keep that silhouette.
+    insulated = (blue > red * 1.2) & ~gasket
+    finish = np.empty_like(rgb)
+    finish[:] = (1, 0.43, 0.95)  # Exposed alloy on the braces.
+    finish[insulated | gasket] = (1, 0.82, 0)
+    finish[primer | cladding] = (1, 0.58, 0)
+    rgb[cladding] = (0.58, 0.61, 0.59)
+    rgb[primer] = (0.47, 0.34, 0.16)
+    rgb[gasket] = (0.064, 0.072, 0.076)
+    _response_map(material, "Ring surface finishes", finish)
+    return _packed_image("Ring cladding", rgb, "sRGB")
+
+
 def _materials():
     panels = bpy.data.materials.new("Gallery panels")
     panels.use_nodes = True
     tree = panels.node_tree
     shader = tree.nodes.get("Principled BSDF")
-    shader.inputs["Metallic"].default_value = 0.35
-    shader.inputs["Roughness"].default_value = 0.62
-    colors, normals = _atlas()
+    colors, normals, response = _atlas()
+    _response_map(panels, "Gallery finishes", response)
     albedo = tree.nodes.new("ShaderNodeTexImage")
     albedo.image = _packed_image("Gallery cladding", colors, "sRGB")
     tree.links.new(albedo.outputs["Color"], shader.inputs["Base Color"])

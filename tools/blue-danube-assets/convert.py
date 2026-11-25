@@ -176,10 +176,13 @@ def _pioneer_material(name, materials_by_name, override, sources, cache):
     material.use_backface_culling = True
     tree = material.node_tree
     bsdf = tree.nodes["Principled BSDF"]
-    bsdf.inputs["Roughness"].default_value = PIONEER_ROUGHNESS
-    bsdf.inputs["Metallic"].default_value = 0.0
+    bsdf.inputs["Roughness"].default_value = override.get("roughness", PIONEER_ROUGHNESS)
+    bsdf.inputs["Metallic"].default_value = override.get("metallic", 0.0)
     diffuse = _map(override.get("diffuse"), spec.diffuse, sources)
     if diffuse is not None:
+        if override.get("ringCladding"):
+            import habitat
+            diffuse = habitat.finish_ring(material, diffuse)
         if spec.diffuse_color != (1.0, 1.0, 1.0):
             diffuse = _tinted(diffuse, spec.diffuse_color)
         node = tree.nodes.new("ShaderNodeTexImage")

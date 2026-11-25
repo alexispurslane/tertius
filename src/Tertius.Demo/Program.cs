@@ -62,7 +62,8 @@ public static class Program
     {
         bool grayBox = args.Contains(GrayBox);
         string[] rest = [.. args.Where(arg => arg != GrayBox)];
-        bool needsArt = !grayBox && SceneOf(rest) is string scene && BlueDanubeArt.NeededBy(scene);
+        string? scene = grayBox ? null : SceneOf(rest);
+        bool needsArt = scene is not null && BlueDanubeArt.NeededBy(scene);
         IReadOnlyList<ModelProblem> problems = needsArt ? BlueDanubeArt.Problems(content) : [];
         if (problems.Count > 0)
         {
@@ -71,6 +72,17 @@ public static class Program
                     + $"`{BlueDanubeArt.SetupCommand}` once from the repository's root, or pass {GrayBox} to run the "
                     + "gray-box scene."
             );
+            return ScriptCommand.FileError;
+        }
+
+        if (
+            scene is not null
+            && BlueDanube.Scenes.Contains(scene)
+            && content is not null
+            && !File.Exists(EarthMaterial.PathIn(content))
+        )
+        {
+            error.WriteLine($"The Earth material is missing. Run `{BlueDanubeArt.SetupCommand}`.");
             return ScriptCommand.FileError;
         }
 

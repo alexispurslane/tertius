@@ -26,7 +26,8 @@ public static partial class DemoScenes
     /// disc there is 0.53 degrees across, as from the ground; <c>earth-moon</c>, in earth, 50,000 km from the Moon on its
     /// sunward side, which shows the Moon and Earth together; <c>station-view</c>, in earth, 300 m from the station's center
     /// along its axis on the slot's side, looking 11 degrees below the station, so that the station stands over Earth's
-    /// limb; <c>pad-view</c>, in earth-surface 22 m from the pole and 6 m up, looking past the pad toward the Sun; and
+    /// limb; <c>pad-view</c>, in earth-surface 22 m from the pole and 6 m up, looking past the pad toward the Sun;
+    /// <c>earth-near</c>, on the same sightline as earth-far at 2.5 Earth radii; and
     /// <c>earth-far</c>, the camera at the start, in earth 50,000 km from Earth's center on its sunward side.</item>
     /// </list>
     /// </summary>
@@ -38,11 +39,20 @@ public static partial class DemoScenes
         /// <summary>The pad's half extents, in meters: 12 by 1 by 12 m.</summary>
         public static Vector3 PadHalf { get; } = new(6, 0.5f, 6);
 
-        public static SceneInstance Build(World world, IRenderResources resources)
+        public static SceneInstance Build(World world, IRenderResources resources) =>
+            Build(world, resources, earthMaterial: null);
+
+        internal static SceneInstance Build(World world, IRenderResources resources, MaterialId? earthMaterial)
         {
             var scene = new SceneInstance();
             EarthDate date = DemoSurface.Date;
-            FrameHandle earth = SunAndEarth(world: world, resources: resources, scene: scene, date: date);
+            FrameHandle earth = SunAndEarth(
+                world: world,
+                resources: resources,
+                scene: scene,
+                date: date,
+                earthMaterial: earthMaterial
+            );
             FrameHandle sun = world.GetOwnedFrame(scene["sun"]);
             FrameHandle surface = world.GetOwnedFrame(scene["earth-surface"]);
 
@@ -88,6 +98,11 @@ public static partial class DemoScenes
             View("pad-view", surface, LookingAt(padEye, new(0, EarthRadius + 8, 0)));
 
             Double3 farEye = (toSun + Double3.UnitX * 0.6).Normalized() * 5e7;
+            // A clear part of the Caucasus at the demo's date, with the Sun 21 degrees above the terrain.
+            const double latitude = 42.5 * Math.PI / 180, meridian = (44.8 + 180) * Math.PI / 180;
+            Double3 caucasus = new(Math.Cos(latitude) * Math.Cos(meridian), Math.Sin(latitude), -Math.Cos(latitude) * Math.Sin(meridian));
+            View("earth-terrain", surface, LookingAt(caucasus * (EarthRadius + 350e3), Double3.Zero));
+            View("earth-near", earth, LookingAt(farEye.Normalized() * (2.5 * EarthRadius), Double3.Zero));
             View("earth-far", earth, LookingAt(farEye, Double3.Zero));
             world.Camera = scene["earth-far"];
             return scene;

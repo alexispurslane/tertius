@@ -1,6 +1,6 @@
 ---
 id: ter-pbxl
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-11-25T15:25:33Z

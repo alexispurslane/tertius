@@ -21,7 +21,14 @@ internal sealed class RecordingResources : IRenderResources
         return id;
     }
 
-    public TextureId CreateTexture(TextureData texture) => new(next++);
+    public Dictionary<TextureId, (bool Srgb, byte FirstRed)> Textures { get; } = [];
+
+    public TextureId CreateTexture(TextureData texture)
+    {
+        var id = new TextureId(next++);
+        Textures[id] = (texture.Srgb, texture.Rgba[0]);
+        return id;
+    }
 
     public MaterialId CreateMaterial(MaterialDesc material)
     {

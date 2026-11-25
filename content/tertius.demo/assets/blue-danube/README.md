@@ -24,3 +24,5 @@ The command downloads the files that the sidecars pin, checks their SHA-256, and
 The reference of a model is its sidecar's path without `.import.json`, in the package `tertius.demo`: `tertius.demo:blue-danube/cargo-pod/cargo.model`. `src/Tertius.Demo/BlueDanubeArt.cs` lists the references, and a test checks that the list matches the sidecars.
 
 To add a model, write its sidecar with the URL, size and SHA-256 of every file, have its file list approved, add its reference to `BlueDanubeArt`, and run the setup command.
+
+The same setup cooks Earth's colour, roughness and topographic normals into `bin/assets/blue-danube/earth/material.zip`. Its source data, credits and usage terms are pinned in [earth/sources.json](earth/sources.json).

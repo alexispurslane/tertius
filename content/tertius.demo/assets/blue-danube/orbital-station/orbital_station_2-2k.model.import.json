@@ -60,7 +60,7 @@
     "changes": [
       "Converted from COLLADA and DDS to one glTF binary in engine axes (+Y up, front -Z, meters); the geometry is unchanged.",
       "Dropped the nodes that Pioneer draws at run time or uses as markers, not as geometry: navigation lights, tags, thruster markers, labels and decals.",
-      "Pioneer's specular maps and specular and shininess values are not used; every material is a non-metal of roughness 0.6.",
+      "Replaced the ring's green and yellow source swatches with painted cladding and primer. A packed roughness and metallic map separates the coatings, gaskets and braces. Struts use bare alloy, spokes painted metal and the original transparent materials smooth glazing. The procedural gallery atlas maps fasteners, window seals, cladding and exposed metal in the same UVs as its relief.",
       "The glow map is baked into constant emission: each triangle takes the mean glow over its UV footprint, quantized into at most 4 emission levels.",
       "Pioneer's station docking bay, station_docking_B.dae, and its collision meshes are not used.",
       "Added inhabited galleries on both axial faces of the ring: panels with a shared color atlas and normal map, lit and unlit window panes with constant emission, mullions, blinds and arcade walls (tools/blue-danube-assets/habitat.py, a procedural build with a fixed seed). The ring geometry itself is unchanged.",
@@ -111,6 +111,24 @@
       4100,
       4100,
       1200
-    ]
+    ],
+    "materials": {
+      "ring": {
+        "ringCladding": true
+      },
+      "spokes": {
+        "roughness": 0.48
+      },
+      "strut": {
+        "roughness": 0.36,
+        "metallic": 1
+      },
+      "ring_glass": {
+        "roughness": 0.16
+      },
+      "facade_window": {
+        "roughness": 0.16
+      }
+    }
   }
 }

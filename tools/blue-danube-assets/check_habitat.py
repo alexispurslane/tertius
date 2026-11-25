@@ -53,6 +53,8 @@ def check_round_trip():
         check.assertLess(levels[name], 80, name)
     panels = bpy.data.objects["Residential galleries"].data.materials[0]
     shader = panels.node_tree.nodes.get("Principled BSDF")
+    for channel in ("Roughness", "Metallic"):
+        check.assertTrue(shader.inputs[channel].is_linked, f"gallery {channel} needs its atlas mask")
     normal = shader.inputs["Normal"].links[0].from_node
     check.assertEqual(normal.type, "NORMAL_MAP")
     check.assertIsNotNone(normal.inputs["Color"].links[0].from_node.image.packed_file)

@@ -85,7 +85,7 @@ public static partial class DemoScenes
             var scene = new SceneInstance();
             FrameHandle earth = world.CreateRootFrame(new(FrameBounds.Sphere(1e8f), GravityField.Point(EarthMu)));
             scene.Add("earth", earth.Entity);
-            SpawnGlobe(world: world, resources: resources, scene: scene, earth: earth);
+            SpawnGlobe(world: world, resources: resources, scene: scene, earth: earth, material: models?.Earth);
 
             Entity station = DemoStation.Spawn(
                 world: world,
@@ -143,14 +143,14 @@ public static partial class DemoScenes
         }
 
         /// <summary>
-        /// Spawns the globe of Earth in <paramref name="earth"/>, Earth's frame, drawn with the grid of <see
-        /// cref="EarthGrid"/>.
+        /// Turns the globe at the demo date's sidereal rate in the nonrotating frame of the station orbit.
         /// </summary>
         private static void SpawnGlobe(
             World world,
             IRenderResources resources,
             SceneInstance scene,
-            FrameHandle earth
+            FrameHandle earth,
+            MaterialId? material
         ) =>
             scene.Add(
                 "earth-globe",
@@ -158,18 +158,17 @@ public static partial class DemoScenes
                     new()
                     {
                         Frame = earth,
-                        Pose = DPose.Identity,
+                        Pose = new(Double3.Zero, DemoSurface.Date.Ground.RotationAt(world.Time)),
+                        FirstMove = new(
+                            DemoSurface.Date.Ground.Sample(Double3.Zero, world.TimeAt(world.TickNumber + 1))
+                        ),
+                        Components = [new SpinMotion { Spin = DemoSurface.Date.Ground }],
                         Render = new RenderData
                         {
-                            Mesh = resources.CreateMesh(Primitives.Sphere((float)(EarthRadius - 1), 256, 128)),
-                            Material = resources.CreateMaterial(
-                                new(
-                                    BaseColor: Vector4.One,
-                                    Roughness: UsualRoughness,
-                                    Reflectance: 0.1f,
-                                    BaseColorMap: resources.CreateTexture(EarthGrid())
-                                )
+                            Mesh = resources.CreateMesh(
+                                EarthMaterial.Globe((float)(EarthRadius - 1), mapped: material.HasValue)
                             ),
+                            Material = material ?? GridMaterial(resources),
                             BoundingRadius = (float)EarthRadius,
                             Flags = RenderFlags.Visible | RenderFlags.Celestial,
                         },

@@ -72,7 +72,7 @@ The Blue Danube demo draws third-party models. Git holds none of their files. `b
 - Authors: the Pioneer Developers. The station ring is by Szilárd Bálint.
 - License: CC BY-SA 3.0, https://creativecommons.org/licenses/by-sa/3.0/. The converted models are adaptations, so they carry the same license.
 - Notice: Copyright © 2008-2026 Pioneer Developers. Portions copyright © 2013-2014 Meteoric Games Ltd. Pioneer's art is licensed under CC BY-SA 3.0 (Pioneer AUTHORS.txt, "Licensing").
-- Changes: the converter turns the COLLADA and DDS files into glTF binaries in engine axes, drops the marker nodes, replaces the specular maps with one roughness, and bakes the glow maps into constant emission. The station gains procedural inhabited galleries (`tools/blue-danube-assets/habitat.py`), and its maps shrink to 2048 px. The shuttle's diffuse map gets a procedural finish: a paler hull, wear, hazard stripes and the markings BD-07 and 07. Each sidecar lists its changes in full.
+- Changes: the converter turns the COLLADA and DDS files into glTF binaries in engine axes, drops the marker nodes, adapts the station cladding, trim and glazing to metallic-roughness materials, and bakes the glow maps into constant emission. The station gains procedural inhabited galleries (`tools/blue-danube-assets/habitat.py`), and its maps shrink to 2048 px. The shuttle's diffuse map gets a procedural finish: a paler hull, wear, hazard stripes and the markings BD-07 and 07. Each sidecar lists its changes in full.
 
 ### Unvanquished: the passenger
 
@@ -87,3 +87,11 @@ The Blue Danube demo draws third-party models. Git holds none of their files. `b
 - Source: https://polyhaven.com, the models `industrial_storage_cart` (Jule Bielitz), `industrial_caged_sconce` (Ulan Cabanilla), `metal_toolbox` (Mateusz Sadek), `modified_thermos` (Alex Weber), `metal_stool_01` (Ulan Cabanilla) and `modular_street_seating` (Stuart Attenborrow).
 - License: CC0 1.0, https://creativecommons.org/publicdomain/zero/1.0/. CC0 asks for no notice. This list names the authors as a courtesy.
 - Changes: none to the geometry or the textures. The converter only turns the axes and writes one glTF binary.
+
+## Earth's surface in Blue Danube
+
+The cooked Earth material includes a June land and ocean mosaic, a cloud composite and terrain normals. The archive includes the source URLs, credits and SHA-256 hashes in `sources.json`.
+
+- Reto Stöckli, NASA Earth Observatory, NASA Goddard Space Flight Center. *Blue Marble Next Generation*, June 2004 base map, resampled and combined with cloud cover. NASA's media guidelines permit use in computer graphical simulations. [Base map](https://science.nasa.gov/earth/earth-observatory/blue-marble-next-generation/base-map/#june) · [NASA media usage guidelines](https://www.nasa.gov/nasa-brand-center/images-and-media/)
+- Solar System Scope. *Earth Clouds*, 8K, used under CC BY 4.0. Tertius resampled the cloud mask and used it to blend surface colour and roughness. [Source](https://www.solarsystemscope.com/textures/) · [License](https://creativecommons.org/licenses/by/4.0/)
+- Amante, C. and B. W. Eakins (2009). *ETOPO1 1 Arc-Minute Global Relief Model*, NOAA National Geophysical Data Center, ice surface registration. Tertius sampled elevations every ten arcminutes and converted above-sea-level slopes to surface normals. NOAA permits free use and redistribution. [Dataset](https://doi.org/10.7289/V5C8276M) · [ERDDAP metadata and terms](https://coastwatch.pfeg.noaa.gov/erddap/griddap/etopo180.das)

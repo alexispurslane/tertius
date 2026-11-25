@@ -75,6 +75,16 @@ public static class BlueDanubeEdit
                     ),
                     new("Props: Poly Haven, CC0.", 20, Gray: true),
                     new(
+                        "Earth imagery by Reto Stöckli, NASA Earth Observatory. Elevation from NOAA ETOPO1.",
+                        20,
+                        Gray: true
+                    ),
+                    new(
+                        "Earth Clouds by Solar System Scope (solarsystemscope.com/textures), adapted under CC BY 4.0.",
+                        20,
+                        Gray: true
+                    ),
+                    new(
                         "Sources, authors and changes: THIRD-PARTY-NOTICES.md in the Tertius repository.",
                         20,
                         Gray: true

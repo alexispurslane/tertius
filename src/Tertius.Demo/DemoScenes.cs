@@ -301,7 +301,10 @@ public static partial class DemoScenes
                 (world, resources) => DemoSurface.Build(world, resources, BlueDanubeArt.Load(content, resources))
             ),
             new("spin-station", SpinStation.Build),
-            new("earth-system", EarthSystem.Build),
+            new(
+                "earth-system",
+                (world, resources) => EarthSystem.Build(world, resources, EarthMaterial.Load(content, resources))
+            ),
             new("mars-air", MarsAir.Build),
             new(
                 "demo-exit",
@@ -744,7 +747,13 @@ public static partial class DemoScenes
     /// frame. earth-surface holds Earth's air (see <see cref="Air.Earth"/>), and earth and the sun hold none. The sun's
     /// root entity holds the sunlight (see <see cref="SunRoot"/>).
     /// </summary>
-    private static FrameHandle SunAndEarth(World world, IRenderResources resources, SceneInstance scene, EarthDate date)
+    private static FrameHandle SunAndEarth(
+        World world,
+        IRenderResources resources,
+        SceneInstance scene,
+        EarthDate date,
+        MaterialId? earthMaterial = null
+    )
     {
         KeplerOrbit earthOrbit = EarthOrbit(date);
         Double3 earthPlace = earthOrbit.StateAt(world.Time, SunMu).Position;
@@ -778,6 +787,7 @@ public static partial class DemoScenes
                 resources: resources,
                 earth: earth,
                 turning: date.Ground,
+                material: earthMaterial,
                 firstStepEnd: firstStepEnd
             )
         );
@@ -829,6 +839,7 @@ public static partial class DemoScenes
         IRenderResources resources,
         FrameHandle earth,
         FrameSpin turning,
+        MaterialId? material,
         double firstStepEnd
     ) =>
         // The ground turns with the sidereal day, from the date's ground turn at time 0, and from its first step, as every
@@ -848,15 +859,8 @@ public static partial class DemoScenes
                 Components = [new SpinMotion { Spin = turning }],
                 Render = new RenderData
                 {
-                    Mesh = resources.CreateMesh(Primitives.Sphere((float)EarthRadius, 256, 128)),
-                    Material = resources.CreateMaterial(
-                        new(
-                            BaseColor: Vector4.One,
-                            Roughness: UsualRoughness,
-                            Reflectance: 0.1f,
-                            BaseColorMap: resources.CreateTexture(EarthGrid())
-                        )
-                    ),
+                    Mesh = resources.CreateMesh(EarthMaterial.Globe((float)EarthRadius, mapped: material.HasValue)),
+                    Material = material ?? GridMaterial(resources),
                     BoundingRadius = (float)EarthRadius,
                     Flags = RenderFlags.Visible | RenderFlags.Celestial | RenderFlags.CastsShadow,
                 },
@@ -1041,6 +1045,16 @@ public static partial class DemoScenes
         double eccentric = 2 * Math.Atan(Math.Sqrt((1 - e) / (1 + e)) * Math.Tan(trueAnomaly / 2));
         return eccentric - e * Math.Sin(eccentric);
     }
+
+    private static MaterialId GridMaterial(IRenderResources resources) =>
+        resources.CreateMaterial(
+            new(
+                BaseColor: Vector4.One,
+                Roughness: UsualRoughness,
+                Reflectance: 0.1f,
+                BaseColorMap: resources.CreateTexture(EarthGrid())
+            )
+        );
 
     /// <summary>
     /// A deep blue planet with light lines every 10 degrees of longitude and latitude, 1024 by 512 sRGB. Each line is 0.7

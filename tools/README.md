@@ -1595,11 +1595,19 @@ Each model has one sidecar under `content/tertius.demo/assets/blue-danube/`, nam
 
 ### The station's overlay
 
+The default Blue Danube setup also cooks Earth's maps. Use `--only earth` to fetch and cook them separately. The manifest in `content/tertius.demo/assets/blue-danube/earth/sources.json` lists each URL, byte count, SHA-256, credit and usage terms. If NOAA's ERDDAP service is unavailable, its listed staging mirror serves the same bytes. A worker can use a copy of the source cache with the ordinary setup command:
+
+```powershell
+bash tools/blue-danube-assets/setup.sh --staging '/path/to/blue-danube/sources'
+```
+
+The output `bin/assets/blue-danube/earth/material.zip` holds PNGs and the manifest. The packer's reflected borders let the repeating texture sampler filter across a pole onto the opposite meridian in the same hemisphere. The opaque colour image composites a static cloud mask over NASA's June base map in linear light. ETOPO1 supplies surface slopes in metres per metre. Water, land and cloud cover control roughness. Atmospheric scattering and cloud shadows would require a separate optical model.
+
 The station's sidecar names `"overlay": {"module": "habitat", "parent": "ring"}`. The converter imports `tools/blue-danube-assets/habitat.py` and calls `habitat.build()` after the ring loads and before the turn to engine axes. It returns three meshes: the gallery panels, the window panes and the window frames. They join the ring piece, keep their constant emission and their tangents, and get no glow bake. `check_habitat.py` checks the build. To change the galleries, edit `habitat.py`. The next setup run converts the station again, because the stamp hashes every Python file of the folder.
 
 ### The tests
 
-The fetch, the approval record, the staging folder, the sidecars and Pioneer's file readers have Python tests with the standard library only:
+The art tests check fetching, approval records, staging, Pioneer file readers, topographic slopes and cloud blending. Run them in the default shell:
 
 ```bash
 nix develop .#assets --command python3 -I tools/test_blue_danube_assets.py

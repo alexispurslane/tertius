@@ -42,6 +42,13 @@ public sealed class BlueDanubeEditTests
     }
 
     [Fact]
+    public void TheClosingCardCreditsTheAdaptedCloudMap()
+    {
+        string closing = string.Join("\n", BlueDanubeEdit.Cuts.Closing.Lines.Select(line => line.Text));
+        closing.Should().Contain("Earth Clouds").And.Contain("Solar System Scope").And.Contain("CC BY 4.0");
+    }
+
+    [Fact]
     public void TheCutListNamesOnlyFilmsOfTheCheckedInScript()
     {
         CutList cuts = BlueDanubeEdit.Cuts;
