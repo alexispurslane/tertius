@@ -6,7 +6,7 @@ namespace Tertius.Demo;
 
 public static partial class DemoScenes
 {
-    /// <summary>The name of the scene of <see cref="ArtPreview"/>.</summary>
+    /// <summary>What a script's "scene" and <c>--scene</c> name to run <see cref="ArtPreview"/>, and what the art check looks for.</summary>
     public const string ArtPreviewSceneName = "art-preview";
 
     /// <summary>Where the station's origin stands in the ground frame: 2.5 km up and 10 km away along -Z, in meters.</summary>
