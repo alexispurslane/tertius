@@ -219,6 +219,7 @@ public static partial class DemoScenes
             );
             scene.Add("person", person);
             DemoSurface.SpawnDrawnBody(world: world, scene: scene, person: person, resources: resources);
+
             var penSpec = new CrateSpec(
                 HalfExtents: DemoSurface.PenHalf,
                 Mass: DemoSurface.PenMass,
@@ -231,6 +232,7 @@ public static partial class DemoScenes
                 penSpec.HeldCopy(frame: cabin, holder: person, view: personRender.ViewOffset, grip: PenGrip)
             );
             scene.Add("pen-copy", copy);
+
             world.AddComponent(person, new Passenger(new(cabin, Shuttle.SeatStand), Entity.Null, new Strapped(copy)));
             world.AddComponent(person, StationExit.Disembark(cabin, frame, scene["lift"]));
             world.AddComponent(person, WheelCoda.Play(scene, frame));

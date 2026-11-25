@@ -340,7 +340,7 @@ public static partial class DemoScenes
             );
             MeshData floorMesh = floor.Mesh();
             ShapeDesc hull = HullShape();
-            Entity station = world.Spawn(
+            return world.Spawn(
                 new()
                 {
                     Frame = parent,
@@ -364,7 +364,6 @@ public static partial class DemoScenes
                     ),
                 }
             );
-            return station;
         }
 
         /// <summary>Spawns the bands of the ceiling in <paramref name="frame"/>.</summary>

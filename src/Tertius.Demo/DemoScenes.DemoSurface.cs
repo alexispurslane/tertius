@@ -404,6 +404,32 @@ public static partial class DemoScenes
                 new(cabin, Shuttle.SeatStand),
             ];
 
+        /// <summary>The views that demo-surface offers, in the order of the views' list.</summary>
+        private static readonly string[] Views =
+        [
+            "overview",
+            "sky-camera",
+            "terminal-camera",
+            "apron-camera",
+            "cabin-camera",
+            "pad-camera",
+            "ramp-camera",
+            "ramp-top-camera",
+            "chase-camera",
+            "climb-camera",
+            "pen-camera",
+            "hand-camera",
+            "follow-camera",
+            "window-camera",
+            "bow-camera",
+            "port-window-camera",
+            "cockpit-camera",
+            "rim-camera",
+            "bay-camera",
+            "hold-camera",
+            "far-camera",
+        ];
+
         /// <summary>
         /// The pose of <c>sky-camera</c> in earth-surface at the world's time: at <see cref="SkyEye"/>, looking toward the
         /// middle between the Sun's direction and the Moon's, 10 degrees lower, with no roll. Both directions are turned
@@ -464,27 +490,8 @@ public static partial class DemoScenes
             SpawnCabinCameras(world: world, scene: scene, cabin: cabin);
             scene.Add("sky-camera", world.Spawn(ViewIn(surface, SkyCamera(world))));
 
-            scene.AddView("overview");
-            scene.AddView("sky-camera");
-            scene.AddView("terminal-camera");
-            scene.AddView("apron-camera");
-            scene.AddView("cabin-camera");
-            scene.AddView("pad-camera");
-            scene.AddView("ramp-camera");
-            scene.AddView("ramp-top-camera");
-            scene.AddView("chase-camera");
-            scene.AddView("climb-camera");
-            scene.AddView("pen-camera");
-            scene.AddView("hand-camera");
-            scene.AddView("follow-camera");
-            scene.AddView("window-camera");
-            scene.AddView("bow-camera");
-            scene.AddView("port-window-camera");
-            scene.AddView("cockpit-camera");
-            scene.AddView("rim-camera");
-            scene.AddView("bay-camera");
-            scene.AddView("hold-camera");
-            scene.AddView("far-camera");
+            foreach (string view in Views)
+                scene.AddView(view);
             world.Camera = overview;
             return scene;
         }
