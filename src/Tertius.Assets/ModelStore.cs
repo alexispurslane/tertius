@@ -83,16 +83,23 @@ public sealed class ModelStore(IRenderResources resources, ContentFolders conten
     private static Result<ImmutableArray<PlacedPart>, ModelProblem> Parts(UploadedFile file, string? piece, string path)
     {
         if (piece is null)
-            return file
-                .Pieces.Where(p => p.IsRoot)
-                .SelectMany(p => p.Parts.Select(part => Place(part: part, pose: p.Pose, scale: p.Scale, file: file)))
-                .ToImmutableArray();
-
-        CookedPiece? named = file.Pieces.FirstOrDefault(p => p.Name == piece);
-        if (named is null)
+            return WholeFile(file);
+        if (file.Pieces.FirstOrDefault(p => p.Name == piece) is not CookedPiece named)
             return new MissingPiece(Path: path, Piece: piece, Pieces: [.. file.Pieces.Select(p => p.Name)]);
-        return named.Parts.Select(part => Place(part: part, pose: Pose.Identity, scale: named.Scale, file: file)).ToImmutableArray();
+        return Piece(named, file);
     }
+
+    /// <summary>The parts of every root piece of <paramref name="file"/>, each piece at its root's pose and scale.</summary>
+    private static ImmutableArray<PlacedPart> WholeFile(UploadedFile file) =>
+        [
+            .. file
+                .Pieces.Where(p => p.IsRoot)
+                .SelectMany(p => p.Parts.Select(part => Place(part: part, pose: p.Pose, scale: p.Scale, file: file))),
+        ];
+
+    /// <summary>The parts of <paramref name="piece"/> from its own origin, at its scale.</summary>
+    private static ImmutableArray<PlacedPart> Piece(CookedPiece piece, UploadedFile file) =>
+        [.. piece.Parts.Select(part => Place(part: part, pose: Pose.Identity, scale: piece.Scale, file: file))];
 
     /// <summary>
     /// <paramref name="part"/> of a piece whose node sits at <paramref name="pose"/> with <paramref name="scale"/>: the

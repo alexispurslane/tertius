@@ -141,7 +141,19 @@ internal static class GlbReader
         {
             if ((primitive.Mode ?? TrianglesMode) != TrianglesMode)
                 throw new GlbException($"a primitive has mode {primitive.Mode}, and the reader takes triangle lists only");
-            Dictionary<string, int> attributes = primitive.Attributes ?? [];
+            Vertex[] vertices = Vertices(primitive.Attributes ?? []);
+            uint[] indices = TriangleIndices(primitive, vertices.Length);
+            bool doubleSided = primitive.Material is int m && MaterialAt(m).DoubleSided;
+            MeshData mesh = doubleSided ? WithBackFaces(vertices, indices) : new(vertices, indices);
+            return new(Mesh: mesh, Material: primitive.Material, Offset: offset, Scale: scale);
+        }
+
+        /// <summary>
+        /// The vertices of a primitive's <paramref name="attributes"/>: POSITION and NORMAL, which it needs, and TANGENT
+        /// and TEXCOORD_0, which are zero when the primitive has none.
+        /// </summary>
+        private Vertex[] Vertices(Dictionary<string, int> attributes)
+        {
             if (!attributes.TryGetValue("POSITION", out int positionAccessor))
                 throw new GlbException("a primitive has no POSITION attribute");
             if (!attributes.TryGetValue("NORMAL", out int normalAccessor))
@@ -149,13 +161,9 @@ internal static class GlbReader
             float[] positions = Floats(positionAccessor, components: 3);
             float[] normals = Floats(normalAccessor, components: 3);
             int count = positions.Length / 3;
-            float[]? tangents = attributes.TryGetValue("TANGENT", out int t) ? Floats(t, components: 4) : null;
-            float[]? uvs = attributes.TryGetValue("TEXCOORD_0", out int u) ? Floats(u, components: 2) : null;
-            bool sameCount =
-                normals.Length / 3 == count
-                && (tangents is null || tangents.Length / 4 == count)
-                && (uvs is null || uvs.Length / 2 == count);
-            if (!sameCount)
+            float[] tangents = attributes.TryGetValue("TANGENT", out int t) ? Floats(t, components: 4) : new float[4 * count];
+            float[] uvs = attributes.TryGetValue("TEXCOORD_0", out int u) ? Floats(u, components: 2) : new float[2 * count];
+            if (normals.Length / 3 != count || tangents.Length / 4 != count || uvs.Length / 2 != count)
                 throw new GlbException("the attributes of a primitive have different vertex counts");
 
             var vertices = new Vertex[count];
@@ -164,21 +172,27 @@ internal static class GlbReader
                 {
                     Position = new(positions[3 * i], positions[3 * i + 1], positions[3 * i + 2]),
                     Normal = new(normals[3 * i], normals[3 * i + 1], normals[3 * i + 2]),
-                    Tangent = tangents is null
-                        ? Vector4.Zero
-                        : new(x: tangents[4 * i], y: tangents[4 * i + 1], z: tangents[4 * i + 2], w: tangents[4 * i + 3]),
-                    TexCoord = uvs is null ? Vector2.Zero : new(uvs[2 * i], uvs[2 * i + 1]),
+                    Tangent = new(x: tangents[4 * i], y: tangents[4 * i + 1], z: tangents[4 * i + 2], w: tangents[4 * i + 3]),
+                    TexCoord = new(uvs[2 * i], uvs[2 * i + 1]),
                 };
-            uint[] indices = primitive.Indices is int accessor ? Indices(accessor) : [.. Enumerable.Range(0, count).Select(i => (uint)i)];
+            return vertices;
+        }
+
+        /// <summary>
+        /// The triangle list of <paramref name="primitive"/>, each index below <paramref name="count"/>: its index accessor,
+        /// or the vertices in order when it has none.
+        /// </summary>
+        private uint[] TriangleIndices(GltfPrimitive primitive, int count)
+        {
+            uint[] indices = primitive.Indices is int accessor
+                ? Indices(accessor)
+                : [.. Enumerable.Range(0, count).Select(i => (uint)i)];
             if (indices.Length % 3 != 0)
                 throw new GlbException($"a triangle list has {indices.Length} indices, not a multiple of 3");
             foreach (uint index in indices)
                 if (index >= count)
                     throw new GlbException($"the index {index} lies past the {count} vertices of its primitive");
-
-            bool doubleSided = primitive.Material is int m && MaterialAt(m).DoubleSided;
-            MeshData mesh = doubleSided ? WithBackFaces(vertices, indices) : new(vertices, indices);
-            return new(Mesh: mesh, Material: primitive.Material, Offset: offset, Scale: scale);
+            return indices;
         }
 
         /// <summary>
