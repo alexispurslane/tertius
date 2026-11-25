@@ -449,6 +449,7 @@ public sealed partial class World
         if (desc.Render is not { } render || render.Model.IsNone)
             return null;
         if (!render.Mesh.IsNone || !render.Material.IsNone)
+            // Stryker disable once String : judgment call, the wording of the message is no behavior; the refusal is.
             return $"the row also names {render.Mesh} and {render.Material}, and each part of a model names its own";
         // A turned part under such a scale is sheared, and a part instance has no shear.
         bool uniform = render.Scale.X == render.Scale.Y && render.Scale.Y == render.Scale.Z;
