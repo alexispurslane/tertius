@@ -277,7 +277,7 @@ public sealed class BlueDanubeArtFitTests
     {
         ContentFolders? content = ContentFolders.Find();
         Assert.SkipWhen(
-            BlueDanubeArt.Missing(content).Count > 0,
+            content is null || BlueDanubeArt.All.Any(reference => !File.Exists(content.CookedModel(reference))),
             $"The Blue Danube art is not converted: run `{BlueDanubeArt.SetupCommand}`."
         );
         return new ModelStore(resources, content!).Load(reference).Ok

@@ -63,12 +63,13 @@ public static class Program
         bool grayBox = args.Contains(GrayBox);
         string[] rest = [.. args.Where(arg => arg != GrayBox)];
         bool needsArt = !grayBox && SceneOf(rest) is string scene && BlueDanubeArt.NeededBy(scene);
-        IReadOnlyList<AssetReference> missing = needsArt ? BlueDanubeArt.Missing(content) : [];
-        if (missing.Count > 0)
+        IReadOnlyList<ModelProblem> problems = needsArt ? BlueDanubeArt.Problems(content) : [];
+        if (problems.Count > 0)
         {
             error.WriteLine(
-                $"The Blue Danube art is missing: {string.Join(", ", missing)}. Run `{BlueDanubeArt.SetupCommand}` "
-                    + $"once from the repository's root, or pass {GrayBox} to run the gray-box scene."
+                $"The Blue Danube art does not load: {string.Join("; ", problems.Select(Describe))}. Run "
+                    + $"`{BlueDanubeArt.SetupCommand}` once from the repository's root, or pass {GrayBox} to run the "
+                    + "gray-box scene."
             );
             return ScriptCommand.FileError;
         }
@@ -80,6 +81,16 @@ public static class Program
             error: error
         );
     }
+
+    /// <summary>One line for a model that does not load: its file and why.</summary>
+    private static string Describe(ModelProblem problem) =>
+        problem switch
+        {
+            MissingModel => $"{problem.Path} is missing",
+            MalformedModel malformed => $"{problem.Path} is malformed ({malformed.Reason})",
+            MissingPiece piece => $"{problem.Path} has no piece {piece.Piece}",
+            _ => problem.Path,
+        };
 
     /// <summary>The scene that a command line runs: the one after --scene, or the one that the --script file names.</summary>
     private static string? SceneOf(string[] args)

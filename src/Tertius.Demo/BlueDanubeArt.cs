@@ -45,11 +45,19 @@ public static class BlueDanubeArt
         BlueDanube.Scenes.Contains(scene) || scene == DemoScenes.ArtPreviewSceneName;
 
     /// <summary>
-    /// The models of <see cref="All"/> whose cooked file is missing under <paramref name="content"/>, or every model when
-    /// no content root was found.
+    /// The problem of each model of <see cref="All"/> whose cooked file under <paramref name="content"/> does not load,
+    /// read by the same reader that the scenes' model store uses, or a missing model for each one when no content root
+    /// was found. Empty when every model loads. A scene that cannot load one model builds as the gray box, so a run checks
+    /// this first and does not film the gray box by mistake.
     /// </summary>
-    public static IReadOnlyList<AssetReference> Missing(ContentFolders? content) =>
-        content is null ? All : [.. All.Where(reference => !File.Exists(content.CookedModel(reference)))];
+    public static IReadOnlyList<ModelProblem> Problems(ContentFolders? content) =>
+        content is null
+            ? [.. All.Select(reference => new MissingModel(reference.ToString()))]
+            : [
+                .. All.Select(reference => CookedModel.Load(content.CookedModel(reference)))
+                    .Select(loaded => loaded.TryGetValue(out ModelProblem problem) ? problem : null)
+                    .OfType<ModelProblem>(),
+            ];
 
     /// <summary>
     /// The models of <see cref="All"/>, uploaded to <paramref name="resources"/> through one store on

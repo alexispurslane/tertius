@@ -22,10 +22,10 @@ public sealed class ArtPreviewTests : IDisposable
     {
         ContentFolders? content = ContentFolders.Find();
         Assert.SkipWhen(
-            BlueDanubeArt.Missing(content).Count > 0,
+            content is null || BlueDanubeArt.All.Any(reference => !File.Exists(content.CookedModel(reference))),
             $"The Blue Danube art is not converted: run `{BlueDanubeArt.SetupCommand}`."
         );
-        return content ?? throw new InvalidOperationException("Missing gives every model when no content root exists.");
+        return content ?? throw new InvalidOperationException("SkipWhen skips without a content root.");
     }
 
     private SceneInstance Build(ContentFolders content) => DemoScenes.ArtPreview(content).Build(world, resources);

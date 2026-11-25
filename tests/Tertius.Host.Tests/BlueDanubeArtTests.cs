@@ -36,12 +36,52 @@ public sealed class BlueDanubeArtTests
         BlueDanubeArt.All.Should().AllSatisfy(r => r.Package.Should().Be("tertius.demo"));
     }
 
+    /// <summary>A content root whose every cooked model file exists but holds <paramref name="bytes"/>.</summary>
+    private static ContentFolders ContentOf(byte[] bytes)
+    {
+        ContentFolders content = EmptyContent();
+        foreach (AssetReference reference in BlueDanubeArt.All)
+        {
+            string path = content.CookedModel(reference);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllBytes(path, bytes);
+        }
+
+        return content;
+    }
+
     [Fact]
-    public void WithoutConvertedArtEveryModelIsMissing()
+    public void WithoutConvertedArtEveryModelHasAProblem()
     {
         ContentFolders content = EmptyContent();
 
-        BlueDanubeArt.Missing(content).Should().HaveCount(BlueDanubeArt.All.Count);
+        BlueDanubeArt.Problems(content).Should().HaveCount(BlueDanubeArt.All.Count)
+            .And.AllSatisfy(problem => problem.Should().BeOfType<MissingModel>());
+    }
+
+    [Fact]
+    public void ACookedFileThatDoesNotLoadIsAProblemToo()
+    {
+        ContentFolders content = ContentOf("glTF"u8.ToArray());
+
+        BlueDanubeArt.Problems(content).Should().HaveCount(BlueDanubeArt.All.Count)
+            .And.AllSatisfy(problem => problem.Should().BeOfType<MalformedModel>());
+    }
+
+    [Fact]
+    public void ABlueDanubeScriptWithUnloadableArtStopsInsteadOfFilmingTheGrayBox()
+    {
+        var error = new StringWriter();
+
+        int code = Program.RunScene(
+            args: ["--script", Script("demo-exit"), "--headless", "--out", NewFolder()],
+            output: new StringWriter(),
+            error: error,
+            content: ContentOf([0, 1, 2, 3])
+        );
+
+        code.Should().Be(ScriptCommand.FileError);
+        error.ToString().Should().Contain("does not load").And.Contain(BlueDanubeArt.SetupCommand);
     }
 
     [Fact]
