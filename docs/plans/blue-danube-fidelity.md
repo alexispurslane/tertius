@@ -9,3 +9,9 @@ The shuttle and station must each have one layout for the surfaces seen from bot
 5. Use the pilot's rig for a walk cycle and for the hand that takes the pencil. Verify the contacts in moving shots.
 
 Review short matched clips first. The full release film uses the established Runpod route, readouts and Marine Band edit. Retain the first cut for comparison.
+
+## Surface normals
+
+Use the global NOAA elevation field for the Earth's land and ice. Verify the sign of the slopes, sampling on each side of the date line and at the poles, and the image at orbital distance. Compare a neutral normal map with the measured terrain normals at fixed exposure, geometry, lighting and camera. Show a mountainous region under grazing sunlight as well as the full disc. Label any amplification used to make the difference visible.
+
+Use normal relief at object scale on the shuttle hull and cabin, station panels and spokes, elevator and deck, and cargo pod. Check the existing suit and prop maps in the cooked models. Keep glazing smooth where the material calls for it. Check representative surfaces with matched lighting and a neutral normal map.
