@@ -110,6 +110,32 @@ public sealed class StationPropsTests
     }
 
     /// <summary>
+    /// <see cref="StationProps.PoseOf"/> stands a floor prop with the middle of its model's bottom on its place, and hangs a
+    /// wall prop with the middle of its model's back, its +Z face, on its place and its front toward the prop's front. The
+    /// bounds are off center on every axis, so each anchor shows, and they are floats, so the places hold to 1e-6 m.
+    /// </summary>
+    [Fact]
+    public void PoseOfStandsAFloorPropOnItsBottomAndHangsAWallPropByItsBack()
+    {
+        var bounds = new BoundingBox(new(-0.4f, -0.2f, -0.6f), new(0.8f, 1.0f, 0.2f));
+        Prop floor = StationProps.BayWorkArea.First(prop => !prop.OnWall),
+            wall = StationProps.BayWorkArea.First(prop => prop.OnWall);
+
+        DPose standing = StationProps.PoseOf(floor, bounds),
+            hanging = StationProps.PoseOf(wall, bounds);
+
+        (standing.TransformPoint(new Double3(0.2, -0.2, -0.2)) - floor.Place)
+            .Length.Should()
+            .BeLessThan(1e-6, "the bottom's middle stands on the place");
+        (hanging.TransformPoint(new Double3(0.2, 0.4, 0.2)) - wall.Place)
+            .Length.Should()
+            .BeLessThan(1e-6, "the back's middle hangs on the place");
+        (hanging.TransformPoint(new Double3(0.2, 0.4, -0.6)) - (wall.Place + wall.Front * 0.8))
+            .Length.Should()
+            .BeLessThan(1e-6, "the front lies 0.8 m out from the wall");
+    }
+
+    /// <summary>
     /// Each prop's up is the up of the floor under it, or under the post that it hangs on: +X on the deck, and toward the
     /// axis across the facet of the wheel's floor. Its front lies across that up, so that its model stands upright.
     /// </summary>
@@ -194,6 +220,22 @@ public sealed class BlueDanubeArtSceneTests : IDisposable
                 .Should()
                 .Match<Double3>(up => (up - prop.Up).Length < 1e-6, $"{prop.Id} stands upright");
         }
+    }
+
+    /// <summary>
+    /// <see cref="DemoScenes.DemoSurface.SuitPlace"/> puts the middle of the passenger model's footprint on the capsule's
+    /// bottom, under the person's center, for a model 1 m tall whose bounds are off center on every axis.
+    /// </summary>
+    [Fact]
+    public void TheSuitStandsOnTheCapsulesBottomWithItsFootprintUnderThePerson()
+    {
+        var suit = new StoredModel(default, new BoundingBox(new(0.2f, 0.1f, -0.4f), new(1.0f, 1.1f, 0.2f)), 1);
+        float scale = DemoScenes.DemoSurface.SuitScale(suit);
+
+        Vector3 footprint = DemoScenes.DemoSurface.SuitPlace(suit) + new Vector3(0.6f, 0.1f, -0.1f) * scale;
+
+        scale.Should().BeApproximately(2 * DemoScenes.DemoSurface.PersonHalf.Y, 1e-6f);
+        (footprint - new Vector3(0, -DemoScenes.DemoSurface.PersonHalf.Y, 0)).Length().Should().BeLessThan(1e-5f);
     }
 
     [Fact]

@@ -18,6 +18,39 @@ public sealed class ShuttleTests : IDisposable
     public void Dispose() => world.Dispose();
 
     /// <summary>
+    /// The porch's lip reaches over the boarding stair's landing, across the gap, and its underside keeps 5 mm of air above
+    /// the landing's top, which lies <see cref="BoardingStair.LipDrop"/> under the porch's floor. So the person steps
+    /// 3.5 cm down onto the landing, and the lip never rests in the landing.
+    /// </summary>
+    [Fact]
+    public void ThePorchsLipReachesOverTheLandingWithAirUnderIt()
+    {
+        float landingTop = Shuttle.Hatch.Min.Y - BoardingStair.LipDrop,
+            overLanding = Shuttle.Hull.Max.X + BoardingStair.Gap;
+        Vector3[] lip = [.. Shuttle.Walkway.Where(corner => corner.X > overLanding)];
+
+        lip.Should().NotBeEmpty("the walkway reaches beyond the gap");
+        lip.Max(corner => corner.X)
+            .Should()
+            .BeApproximately(overLanding + BoardingStair.LipOverlap, 1e-5f, "the lip reaches 0.3 m over the landing");
+        lip.Min(corner => corner.Y).Should().BeApproximately(landingTop + 0.005f, 1e-5f, "5 mm of air under the lip");
+        lip.Max(corner => corner.Y).Should().BeApproximately(Shuttle.Hatch.Min.Y, 1e-5f, "the lip is the porch's floor");
+    }
+
+    /// <summary>
+    /// The shuttle's bubble, an ellipsoid round its origin, holds the hull's box grown by 2 m on every side. So it holds the
+    /// porch's lip, 0.6 m beyond the starboard face, and a person who stands on it, with room to spare.
+    /// </summary>
+    [Fact]
+    public void TheBubbleHoldsTheHullsBoxGrownByTwoMeters()
+    {
+        Vector3 grown = Vector3.Max(-Shuttle.Hull.Min, Shuttle.Hull.Max) + new Vector3(2),
+            inBubble = grown / Shuttle.Bubble;
+        inBubble.LengthSquared().Should().BeLessThanOrEqualTo(1 + 1e-5f, "the grown box's far corner lies in the bubble");
+        (Shuttle.Bubble - new Vector3(15.45f, 11.95f, 29.48f)).Length().Should().BeLessThan(0.01f);
+    }
+
+    /// <summary>
     /// A ball is let go 1.5 m above the cabin floor. The shuttle's frame has no gravity field of its own, so the ball
     /// feels only the opposite of the frame's proper acceleration, which the engine derives from the parked hull's rest
     /// (ARCHITECTURE.md, "How a frame moves"). Over 15 ticks it gains the velocity of a fall with the gravity at the

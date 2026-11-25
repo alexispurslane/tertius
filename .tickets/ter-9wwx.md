@@ -48,3 +48,32 @@ Mutants. Stryker, cloud, a0a549e60, valid: 17 killed, 1 survived, 5 no-mutant, 1
 | B02 (first form) | SceneBatcher.cs:439 | build-failed | Rewritten as poses: [], killed. |
 
 Survivors E04, E07, E16, E22, U14 and B01 got tests that kill them (commit 108b082df). Core-4083 to 4089 survived the first run, which was NOT VALID (a Dubious test), and ModelIdTests kills them in the valid run.
+
+**2026-11-25T06:06:30Z**
+
+The fit to the art: mutation testing of the changed Demo lines with tools/mutate.py (20 listed mutants, Host tests in Checked, 2026-11-25). The Demo has no Stryker run. The first run killed 14. Four survivors got tests that kill them, red on the mutant first, and the mutant that did not compile was rewritten and killed.
+
+| id | place | change | result | killed by |
+|---|---|---|---|---|
+| C01 | DemoScenes.Shuttle.cs:97 | art scale 1.5 | killed | DockingEndStateTests (3 tests) |
+| C02 | DemoScenes.Shuttle.cs:112 | art not 1 m aft | killed | DockingEndStateTests, ShuttleTests |
+| C03 | DemoScenes.Shuttle.cs:164 | doorway flush with the hatch | killed | LoftedHullTests.TheHullsMeshFacesOutOfItsSolid |
+| C04 | DemoScenes.Shuttle.cs:186 | lip 0.3 m thick | survived, then killed | ShuttleTests.ThePorchsLipReachesOverTheLandingWithAirUnderIt (new) |
+| C05 | DemoScenes.Shuttle.cs:427 | bubble without its 2 m margin | survived, then killed | ShuttleTests.TheBubbleHoldsTheHullsBoxGrownByTwoMeters (new) |
+| C06 | Lift.cs:135 | lift predicts one tick less | killed | BlueDanubeExitTests.TheLiftWaitsAtItsTopUntilThePersonRidesIt |
+| C07 | Lift.cs:156 | no drift prediction | build-failed (unused local), rewritten as drift * (0 * ahead), killed | BlueDanubeExitTests.TheLiftWaitsAtItsTopUntilThePersonRidesIt |
+| C08 | Lift.cs:108 | no hold at the top | killed | BlueDanubeExitTests (3 tests) |
+| C09 | Lift.cs:111 | no hold at the foot | survived | Judgment: at the foot the lift lies in the station's frame at rest, where the last descending sample left it, and a kinematic body with no new sample holds still there, so the hold writes the pose that the lift already has. It matters only for a foot inside another frame's bubble, which no scene has. |
+| C10 | Navigation.cs:26 | sweep with the wrong sign | killed | RendezvousAutopilotTests, DemoLaunchTests |
+| C11 | DemoScenes.DemoSurface.cs:443 | suit half height | killed | BlueDanubeArtSceneTests, BlueDanubeArtFitTests |
+| C12 | DemoScenes.DemoSurface.cs:454 | suit footprint not centered in X | survived, then killed | BlueDanubeArtSceneTests.TheSuitStandsOnTheCapsulesBottomWithItsFootprintUnderThePerson (new) |
+| C13 | DemoScenes.StationProps.cs:70 | seating reach too short | killed | BlueDanubeArtFitTests.EachPropsModelLiesWithinItsKindsReach |
+| C14 | DemoScenes.StationProps.cs:128 | pod onto the ramp's lane | killed | StationPropsTests.TheBayPropsKeepClearOfThePersonsWayTheParkedHullAndTheLift |
+| C15 | DemoScenes.StationProps.cs:171 | floor up flipped | killed | StationPropsTests.EveryPropStandsUpright |
+| C16 | DemoScenes.StationProps.cs:198 | wall anchor on the front | survived, then killed | StationPropsTests.PoseOfStandsAFloorPropOnItsBottomAndHangsAWallPropByItsBack (new) |
+| C17 | StationLayout.cs:142 | lift 1 m off the stair's lane | killed | DockingEndStateTests, StationLayoutTests |
+| C18 | StationLayout.cs:136 | hold point on the bubble | killed | StationLayoutTests (3 tests) |
+| C19 | DemoScenes.DemoStation.cs:627 | one id for both walls | killed | BlueDanubeArtSceneTests |
+| C20 | BlueDanube.cs:95 | sill section ends at the tram's side | killed | BlueDanubeScriptTests |
+
+Not listed, because no test can see them: the camera poses (sill, docked, work, ride-side, wheel-terminal, gallery) and DemoStation.GalleryFace. The stills checked them by eye.
