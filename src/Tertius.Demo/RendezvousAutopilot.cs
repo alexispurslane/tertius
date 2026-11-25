@@ -99,7 +99,7 @@ public readonly record struct RendezvousPlan(
     /// <summary>
     /// The demo's plan: a transfer of 170 degrees in 2,560 s, the time of the cheapest transfer of 170 degrees between the
     /// parking orbit and the station's, to the arrival point 1,500 m out on the axis, and then to
-    /// <see cref="DemoScenes.DemoStation.HoldPoint"/>, 150 m out. The window is open from 170 down to 150 degrees.
+    /// the layout's <see cref="StationLayout.HoldPoint"/>, 150 m out. The window is open from 170 down to 150 degrees.
     /// </summary>
     /// <remarks>
     /// The weightless turn rate is 0.002 rad/s, about 0.11 degrees per second. A turn of the hull gives the strapped
@@ -114,7 +114,7 @@ public readonly record struct RendezvousPlan(
         new(
             TransferTime: 2560,
             ArrivalDistance: 1500,
-            HoldDistance: DemoScenes.DemoStation.HoldPoint.Y,
+            HoldDistance: DemoScenes.DemoStation.Layout.HoldPoint.Y,
             WindowOpens: 170 * Math.PI / 180,
             WindowCloses: 150 * Math.PI / 180,
             WeightlessTurnRate: 0.002

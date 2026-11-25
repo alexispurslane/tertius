@@ -36,8 +36,8 @@ public static class BlueDanubeEdit
             [
                 // The coast in the parking orbit, from the insertion to the transfer burn.
                 new("orbit", "night", CheckPanels.ParkingOrbit),
-                // The brake run at the chute's end, the landing and the person on the wheel's floor, to the end of the exit.
-                new("brake-run", BlueDanube.ExitSections[^1].Name, CheckPanels.SpinGravity),
+                // The lift's arrival at the wheel, its stop and the person on the wheel's floor, to the end of the exit.
+                new("foot", BlueDanube.ExitSections[^1].Name, CheckPanels.SpinGravity),
                 // The two throws of the coda, from the walk to the stand to the end of the run.
                 new(BlueDanube.CodaSections[1].Name, BlueDanube.CodaSections[^1].Name, CheckPanels.Throws),
             ],

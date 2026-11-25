@@ -103,13 +103,13 @@ public sealed class BlueDanubeEditTests
     }
 
     [Fact]
-    public void TheSpinGravityPanelSpansTheBrakeRunAndTheFloorToTheEndOfTheRun()
+    public void TheSpinGravityPanelSpansTheLiftsArrivalAndTheFloorToTheEndOfTheRun()
     {
         PanelSpan panel = BlueDanubeEdit.Cuts.Panels.Single(span => span.Panel == CheckPanels.SpinGravity);
 
-        // The slide ends with the film chute, 10 m above the wheel's ceiling, and the brake run and the landing follow. The
-        // panel ends with the person on the floor, before the coda's own panel.
-        IndexOf(panel.FirstFilm).Should().Be(IndexOf("chute") + 1);
+        // The ride's time-lapse ends 100 m above the wheel's ceiling, and the lift's arrival at the foot follows. The panel
+        // ends with the person on the floor, before the coda's own panel.
+        IndexOf(panel.FirstFilm).Should().Be(IndexOf("ride") + 1);
         panel.LastFilm.Should().Be("floor");
     }
 

@@ -12,9 +12,9 @@ public static partial class DemoScenes
     /// of their own until the docking and the exit merge into the long script.
     /// <list type="bullet">
     /// <item>A root frame with Earth's point gravity, which does not turn, with the drawn <c>earth</c> and the <c>sun</c>
-    /// of <c>demo-surface</c>. The <c>station</c> flies its orbit in it (see <see cref="DemoStation"/>), with its chute, its
+    /// of <c>demo-surface</c>. The <c>station</c> flies its orbit in it (see <see cref="DemoStation"/>), with its lift, its
     /// openings, its lamps and its cameras.</item>
-    /// <item>The <c>shuttle</c> parked static at <see cref="DemoStation.ParkedPose"/> in the station's frame, with its
+    /// <item>The <c>shuttle</c> parked static at <see cref="StationLayout.ParkedPose"/> in the station's frame, with its
     /// seat, panes, lamps and nozzle, and no flight controls: in the end state every flight control adds nothing.</item>
     /// <item>The <c>person</c> at <see cref="Shuttle.SeatStand"/> in the cabin, at <see cref="StandAtSeat"/>,
     /// <see cref="Strapped"/>, with the drawn copy
@@ -25,7 +25,7 @@ public static partial class DemoScenes
     /// Its <see cref="BoxPlay"/> of the coda waits <see cref="Idle"/> for <see cref="PlayWithBoxes"/> (see
     /// <see cref="WheelCoda"/>).
     /// The <c>follow-camera</c> is attached to
-    /// it, behind it toward the nose, and so is <c>slide-camera</c> (see <see cref="StationExit.SpawnSlideCamera"/>).
+    /// it, behind it toward the nose. The lift carries <c>ride-camera</c> (see <see cref="StationExit.Spawn"/>).
     /// <c>cabin-camera</c> stands where <c>demo-surface</c> puts it.</item>
     /// </list>
     /// </summary>
@@ -47,10 +47,10 @@ public static partial class DemoScenes
         {
             get
             {
-                Double3 at = DemoStation.ParkedPose.TransformPoint(Shuttle.SeatStand);
+                Double3 at = DemoStation.Layout.ParkedPose.TransformPoint(Shuttle.SeatStand);
                 return DemoStation
-                    .ParkedPose.Rotation.Conjugate()
-                    .Rotate(new Double3(at.X, 0, at.Z) * (SpinStation.Rate * SpinStation.Rate));
+                    .Layout.ParkedPose.Rotation.Conjugate()
+                    .Rotate(new Double3(at.X, 0, at.Z) * (DemoStation.Layout.Rate * DemoStation.Layout.Rate));
             }
         }
 
@@ -88,7 +88,6 @@ public static partial class DemoScenes
 
             Entity person = SpawnPerson(world: world, resources: resources, scene: scene, cabin: cabin, frame: frame);
             SpawnFollowCamera(world: world, scene: scene, person: person);
-            scene.Add("slide-camera", StationExit.SpawnSlideCamera(world, person, frame));
             Entity cabinCamera = world.Spawn(ViewIn(cabin, DemoSurface.CabinCamera));
             scene.Add("cabin-camera", cabinCamera);
 
@@ -101,8 +100,8 @@ public static partial class DemoScenes
                     "cabin-camera",
                     "follow-camera",
                     "deck-camera",
-                    "spoke-camera",
-                    "slide-camera",
+                    "shaft-camera",
+                    "ride-camera",
                     "wheel-camera",
                     "stack-camera",
                     "spinward-camera",
@@ -164,7 +163,7 @@ public static partial class DemoScenes
             Entity shuttle = Shuttle.Park(
                 world: world,
                 frame: frame,
-                pose: DemoStation.ParkedPose,
+                pose: DemoStation.Layout.ParkedPose,
                 render: Shuttle.DrawnHull(resources)
             );
             scene.Add("shuttle", shuttle);
@@ -233,7 +232,7 @@ public static partial class DemoScenes
             );
             scene.Add("pen-copy", copy);
             world.AddComponent(person, new Passenger(new(cabin, Shuttle.SeatStand), Entity.Null, new Strapped(copy)));
-            world.AddComponent(person, StationExit.Disembark(cabin, frame));
+            world.AddComponent(person, StationExit.Disembark(cabin, frame, scene["lift"]));
             world.AddComponent(person, WheelCoda.Play(scene, frame));
             world.AddComponent(person, new WalkHeading());
             return person;

@@ -32,8 +32,8 @@ public sealed class WalkHeading : IComponent
     public const double TurnRate = 4;
 
     /// <summary>
-    /// The speed of the asked walk across the person's up, in m/s, at or below which the heading holds: below the station's
-    /// step into the chute, 0.4 m/s, so the person turns into the chute's top. A walker's slowdown asks for less within
+    /// The speed of the asked walk across the person's up, in m/s, at or below which the heading holds: below a slow step
+    /// of 0.4 m/s, so the person turns into such a step. A walker's slowdown asks for less within
     /// 8 cm of its last waypoint, where the direction to it swings as the person settles, so the heading holds there.
     /// </summary>
     public const double TurnSpeed = 0.25;

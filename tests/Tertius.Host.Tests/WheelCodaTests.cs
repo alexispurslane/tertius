@@ -2,7 +2,6 @@ using Tertius.Demo;
 using Tertius.Physics;
 using Tertius.Simulation;
 using DemoStation = Tertius.Demo.DemoScenes.DemoStation;
-using SpinStation = Tertius.Demo.DemoScenes.SpinStation;
 using WheelCoda = Tertius.Demo.DemoScenes.WheelCoda;
 
 namespace Tertius.Host.Tests;
@@ -30,7 +29,7 @@ public sealed record CodaSample(
 /// <summary>
 /// One run of the scene <c>demo-exit</c> through the exit and the coda: the order <see cref="LeaveShip"/>, ticks until the
 /// person arrives on the wheel's floor and 2 s more, as the film <c>floor</c> holds, then the order
-/// <see cref="PlayWithBoxes"/>, and ticks until the play is over and both thrown boxes have landed, and 3 s more, or 90 s
+/// <see cref="PlayWithBoxes"/>, and ticks until the play is over and both thrown boxes have landed, and 3 s more, or 120 s
 /// at most, on the real Jolt backend without the world's invariant checks. It records every tick of the coda.
 /// </summary>
 public sealed class CodaRun : IDisposable
@@ -53,7 +52,7 @@ public sealed class CodaRun : IDisposable
         Entity person = Scene["person"];
         World.Post(Event.Create(target: person, sender: Entity.Null, payload: new LeaveShip()));
         int after = -1;
-        for (int tick = 0; tick < 120 * 60 && after != 0; tick++)
+        for (int tick = 0; tick < 240 * 60 && after != 0; tick++)
         {
             World.Tick();
             if (after < 0 && World.GetComponent<Disembark>(person)!.State.Value is Arrived)
@@ -68,7 +67,7 @@ public sealed class CodaRun : IDisposable
         Start = Record(0);
         World.Post(Event.Create(target: person, sender: Entity.Null, payload: new PlayWithBoxes()));
         after = -1;
-        for (long tick = 1; tick <= 90 * 60 && after != 0; tick++)
+        for (long tick = 1; tick <= 120 * 60 && after != 0; tick++)
         {
             World.Tick();
             CodaSample sample = Record(tick);
@@ -146,9 +145,9 @@ public sealed class CodaRun : IDisposable
 /// </summary>
 public sealed class WheelCodaTests(CodaRun run) : IClassFixture<CodaRun>
 {
-    private static WheelFloor Floor => DemoStation.WheelFloor;
+    private static WheelFloor Floor => DemoStation.Layout.WheelFloor;
 
-    private static double Gravity => SpinStation.Rate * SpinStation.Rate * Floor.Radius;
+    private static double Gravity => DemoStation.Layout.Rate * DemoStation.Layout.Rate * Floor.Radius;
 
     /// <summary>The first sample in which <paramref name="holds"/> holds.</summary>
     private CodaSample First(Func<CodaSample, bool> holds) => run.Samples.First(holds);
@@ -278,8 +277,10 @@ public sealed class WheelCodaTests(CodaRun run) : IClassFixture<CodaRun>
 
     /// <summary>
     /// Each thrown box flies free and lands where the straight line of its release in inertial space brings it down to the
-    /// floor, to 1 mm: the spinward throw short of the flat field's point by more than 1.5 m, and the antispinward throw long
-    /// of it by more than 3 m. The flight recorder measures the landing from the box's own free places.
+    /// floor, to 1 mm: the spinward throw short of the flat field's point by more than 0.4 m, and the antispinward throw long
+    /// of it by more than 0.5 m, 0.54 m and 0.62 m in the design. The wheel of 2 km turns slowly, at 0.07 rad/s, so the
+    /// straight line bends a throw of about a second less than the old wheel of 100 m did, by 1.5 and 3 m. The flight
+    /// recorder measures the landing from the box's own free places.
     /// </summary>
     [Fact]
     public void EachThrownBoxLandsWhereTheStraightLineOfItsReleaseSays()
@@ -289,7 +290,7 @@ public sealed class WheelCodaTests(CodaRun run) : IClassFixture<CodaRun>
             FlightRecorder flight = run.Flight(i);
             ThrowRelease release = flight.Release!.Value;
             ThrowLanding measured = flight.Landing!.Value;
-            ThrowLanding line = release.Landing(SpinStation.Rate, Floor, WheelCoda.BoxHalf);
+            ThrowLanding line = release.Landing(DemoStation.Layout.Rate, Floor, WheelCoda.BoxHalf);
             double flat = release.FlatLanding(Gravity, Floor, WheelCoda.BoxHalf).Spinward;
             double run1 = Floor.Spinward(release.Place, measured.Place),
                 predicted = Floor.Spinward(release.Place, line.Place);
@@ -303,16 +304,16 @@ public sealed class WheelCodaTests(CodaRun run) : IClassFixture<CodaRun>
                 .BeLessThan(1e-3, $"throw {i} lands where its line meets the floor");
             measured.Time.Should().BeApproximately(line.Time, 1e-3);
             if (i == 0)
-                run1.Should().BeLessThan(flat - 1.5, "spinward, the box lands short of the flat field's point");
+                run1.Should().BeLessThan(flat - 0.4, "spinward, the box lands short of the flat field's point");
             else
                 run1.Should()
-                    .BeLessThan(-Math.Abs(flat) - 3, "antispinward, the box lands long of the flat field's point");
+                    .BeLessThan(-Math.Abs(flat) - 0.5, "antispinward, the box lands long of the flat field's point");
         }
     }
 
     /// <summary>
-    /// Each throw stays in its lane, clear of the chute's trough, below the ceiling 5 m up, and inside the lit stretch of the
-    /// floor round the chute's end, z from -12 to 16 m.
+    /// Each throw stays in its lane, below the ceiling 20 m up, and inside the lit stretch of the floor round the wheel's
+    /// lamps at z = 9 and 21 m, z from 3 to 27 m.
     /// </summary>
     [Fact]
     public void TheThrowsStayInTheirLaneUnderTheCeilingAndInTheLight()
@@ -323,12 +324,16 @@ public sealed class WheelCodaTests(CodaRun run) : IClassFixture<CodaRun>
             ThrowRelease release = flight.Release!.Value;
             double apex = Enumerable
                 .Range(0, (int)(flight.Landing!.Value.Time * 1000))
-                .Max(ms => Floor.Height(release.PlaceAt(ms / 1000.0, SpinStation.Rate)));
-            apex.Should().BeLessThan(5 - 0.5 - WheelCoda.BoxHalf * Math.Sqrt(3), $"throw {i} passes below the ceiling");
-            flight.Landing.Value.Place.Z.Should().BeInRange(-12, 16, $"throw {i} lands in the light");
+                .Max(ms => Floor.Height(release.PlaceAt(ms / 1000.0, DemoStation.Layout.Rate)));
+            apex.Should()
+                .BeLessThan(
+                    DemoStation.Layout.CeilingHeight - 0.5 - WheelCoda.BoxHalf * Math.Sqrt(3),
+                    $"throw {i} passes below the ceiling"
+                );
+            flight.Landing.Value.Place.Z.Should().BeInRange(3, 27, $"throw {i} lands in the light");
             Math.Abs(flight.Landing.Value.Place.Y - WheelCoda.LaneY)
                 .Should()
-                .BeLessThan(0.1, $"throw {i} lands in its lane, 2 m from the trough's line");
+                .BeLessThan(0.1, $"throw {i} lands in its lane");
         }
     }
 

@@ -1,6 +1,5 @@
 using Tertius.Demo;
 using DemoStation = Tertius.Demo.DemoScenes.DemoStation;
-using SpinStation = Tertius.Demo.DemoScenes.SpinStation;
 using StationExit = Tertius.Demo.DemoScenes.StationExit;
 using WheelCoda = Tertius.Demo.DemoScenes.WheelCoda;
 
@@ -13,11 +12,11 @@ namespace Tertius.Host.Tests;
 public sealed class WheelCodaGeometryTests
 {
     private const double VerticalFov = Math.PI / 3;
-    private static WheelFloor Floor => DemoStation.WheelFloor;
+    private static WheelFloor Floor => DemoStation.Layout.WheelFloor;
 
     /// <summary>The predicted landing of throw <paramref name="index"/> of the design: where the straight line of its release lands it.</summary>
     private static ThrowLanding Landing(int index) =>
-        WheelCoda.DesignRelease(index, WheelCoda.PersonBody).Landing(SpinStation.Rate, Floor, WheelCoda.BoxHalf);
+        WheelCoda.DesignRelease(index, WheelCoda.PersonBody).Landing(DemoStation.Layout.Rate, Floor, WheelCoda.BoxHalf);
 
     [Fact]
     public void TheStackStandsOnTheFloorWithItsMiddleInThePersonsWayAndItsSidesClearOfIt()
@@ -47,31 +46,34 @@ public sealed class WheelCodaGeometryTests
     }
 
     /// <summary>
-    /// The throws' lane runs 2 m from the line of the chute's trough, whose rails reach 0.7 m from the middle, so a box
-    /// 0.87 m across its corners passes 0.86 m clear. Each throw starts and lands inside the lit stretch of the floor round
-    /// the chute's end, z from -12 to 16 m, and passes below the ceiling, 5 m above the floor.
+    /// The coda lies spinward of the lift's foot, clear of it: every box and both throws' lane lie more than 7 m spinward of
+    /// the lift's floor. Each throw starts and lands inside the lit stretch of the floor round the wheel's lamps at z = 9
+    /// and 21 m, z from 3 to 27 m, and passes below the ceiling, 20 m above the floor.
     /// </summary>
     [Fact]
-    public void TheDesignsThrowsRunInTheLaneUnderTheCeilingInTheLight()
+    public void TheDesignsThrowsRunInTheLaneSpinwardOfTheLiftUnderTheCeilingInTheLight()
     {
-        (
-            Math.Abs(WheelCoda.LaneY)
-            - StationExit.Chute.HalfWidth
-            - StationExit.PlateThickness
-            - WheelCoda.BoxHalf * Math.Sqrt(3)
-        )
-            .Should()
-            .BeGreaterThan(0.8);
+        float liftEdge = DemoStation.Layout.LiftFootprint.Max.Z;
+        IEnumerable<Double3> boxes = WheelCoda
+            .Stack()
+            .Select(box => box.Pose.Position)
+            .Concat(Enumerable.Range(0, BoxPlayState.Throws).Select(i => WheelCoda.ThrowBoxPose(i).Position));
+        boxes.Should().OnlyContain(box => box.Z - WheelCoda.BoxHalf * Math.Sqrt(2) > liftEdge + 7);
+        (WheelCoda.Stand.Z - liftEdge).Should().BeGreaterThan(7, "the stand lies spinward of the lift");
         for (int i = 0; i < BoxPlayState.Throws; i++)
         {
             ThrowRelease release = WheelCoda.DesignRelease(i, WheelCoda.PersonBody);
             ThrowLanding landing = Landing(i);
             double apex = Enumerable
                 .Range(0, (int)(landing.Time * 1000))
-                .Max(ms => Floor.Height(release.PlaceAt(ms / 1000.0, SpinStation.Rate)));
-            apex.Should().BeLessThan(5 - 0.5 - WheelCoda.BoxHalf * Math.Sqrt(3), $"throw {i} passes below the ceiling");
-            landing.Place.Z.Should().BeInRange(-12, 16);
-            release.Place.Z.Should().BeInRange(-12, 16);
+                .Max(ms => Floor.Height(release.PlaceAt(ms / 1000.0, DemoStation.Layout.Rate)));
+            apex.Should()
+                .BeLessThan(
+                    DemoStation.Layout.CeilingHeight - 0.5 - WheelCoda.BoxHalf * Math.Sqrt(3),
+                    $"throw {i} passes below the ceiling"
+                );
+            landing.Place.Z.Should().BeInRange(3, 27);
+            release.Place.Z.Should().BeInRange(3, 27);
         }
     }
 
@@ -120,7 +122,7 @@ public sealed class WheelCodaGeometryTests
                 .Should()
                 .BeApproximately(
                     release
-                        .FlatLanding(SpinStation.Rate * SpinStation.Rate * Floor.Radius, Floor, WheelCoda.BoxHalf)
+                        .FlatLanding(DemoStation.Layout.Rate * DemoStation.Layout.Rate * Floor.Radius, Floor, WheelCoda.BoxHalf)
                         .Spinward,
                     1e-9
                 );

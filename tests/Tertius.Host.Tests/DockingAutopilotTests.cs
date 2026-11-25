@@ -20,8 +20,9 @@ namespace Tertius.Host.Tests;
 public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight flight)
     : IClassFixture<DockingAutopilotTests.DockingFlight>
 {
-    private const double Rate = DemoScenes.SpinStation.Rate,
-        Tick = 1.0 / 60,
+    private static readonly double Rate = DemoScenes.DemoStation.Layout.Rate;
+
+    private const double Tick = 1.0 / 60,
         Degree = Math.PI / 180;
 
     private IReadOnlyList<DockingFlight.Record> Log => flight.Log;
@@ -66,15 +67,15 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
             .Should()
             .BeTrue("the docking waits until the start");
         Log.Take(start).Should().OnlyContain(record => !record.Added, "the docking adds nothing while it waits");
-        var profile = new SpinUpProfile(Rate, DockingAutopilot.SpinUpTime, DemoStation.DockedRotation);
+        var profile = new SpinUpProfile(Rate, DockingAutopilot.SpinUpTime, StationLayout.DockedRotation);
         Math.Abs(profile.RollAngle(Log[start - 1].Pose.Rotation))
             .Should()
             .BeLessThanOrEqualTo(Rate * Tick / 2 + 1e-4, "the tick of the start read the roll angle inside the window");
     }
 
     /// <summary>
-    /// The spin-up turns the hull with a constant angular acceleration of ω / T, 0.0104 rad/s², about its long axis. At
-    /// the seat stand, 1.35 m from that axis, the Euler term of the turn is about 0.014 m/s². In every tick of the
+    /// The spin-up turns the hull with a constant angular acceleration of ω / T, 0.00233 rad/s², about its long axis. At
+    /// the seat stand, 1.35 m from that axis, the Euler term of the turn is about 0.003 m/s². In every tick of the
     /// spin-up it stays below half the weightless threshold, so the turn's start and end give the strapped person no jolt.
     /// </summary>
     [Fact]
@@ -84,7 +85,7 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
 
         spinUp.Should().HaveCountGreaterThan((int)(DockingAutopilot.SpinUpTime * 60) - 1);
         spinUp.Max(record => record.SeatEuler).Should().BeLessThan(FrameTree.ZeroGravityThreshold / 2);
-        spinUp.Max(record => record.SeatEuler).Should().BeGreaterThan(0.005, "the turn does accelerate");
+        spinUp.Max(record => record.SeatEuler).Should().BeGreaterThan(0.002, "the turn does accelerate");
     }
 
     /// <summary>
@@ -100,8 +101,8 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
 
         (entry.Time - start.Time).Should().BeInRange(DockingAutopilot.SpinUpTime, DockingAutopilot.SpinUpTime + 2);
         entry.AngularVelocity.Length.Should().BeLessThan(0.005);
-        AngleBetween(entry.Pose.Rotation, DemoStation.DockedRotation).Should().BeLessThan(Degree);
-        (entry.Pose.Position - DemoStation.HoldPoint).Length.Should().BeLessThan(0.5);
+        AngleBetween(entry.Pose.Rotation, StationLayout.DockedRotation).Should().BeLessThan(Degree);
+        (entry.Pose.Position - DemoStation.Layout.HoldPoint).Length.Should().BeLessThan(0.5);
     }
 
     /// <summary>
@@ -135,7 +136,7 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
     [Fact]
     public void TheHullPassesTheSlotWithinHalfItsClearance()
     {
-        BoundingBox slot = DemoStation.Slot;
+        BoundingBox slot = DemoStation.Layout.Slot;
         DockingFlight.Record[] inTheSlot =
         [
             .. Log.Where(record => record.HullMinY <= slot.Max.Y && record.HullMaxY >= slot.Min.Y),
@@ -147,7 +148,7 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
             Math.Sqrt(record.Pose.Position.X * record.Pose.Position.X + record.Pose.Position.Z * record.Pose.Position.Z)
                 .Should()
                 .BeLessThan(0.25, $"the origin keeps to the axis at {record.Time:F2} s");
-            AngleBetween(record.Pose.Rotation, DemoStation.DockedRotation)
+            AngleBetween(record.Pose.Rotation, StationLayout.DockedRotation)
                 .Should()
                 .BeLessThan(Degree, $"the hull keeps the docked rotation at {record.Time:F2} s");
             record
@@ -231,11 +232,11 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
 
         docked.Should().BePositive("the shuttle docks");
         DockingFlight.Record landed = Log[docked];
-        Double3 off = landed.Pose.Position - DemoStation.ParkedPose.Position;
+        Double3 off = landed.Pose.Position - DemoStation.Layout.ParkedPose.Position;
         Math.Abs(off.X).Should().BeLessThan(0.03);
         Math.Abs(off.Z).Should().BeLessThan(0.03);
         Math.Abs(off.Y).Should().BeLessThan(0.1);
-        AngleBetween(landed.Pose.Rotation, DemoStation.DockedRotation).Should().BeLessThan(0.5 * Degree);
+        AngleBetween(landed.Pose.Rotation, StationLayout.DockedRotation).Should().BeLessThan(0.5 * Degree);
         Log[docked + 3].Motion.Should().Be(BodyMotion.Static);
         Log[docked + 3].Frame.Should().Be(flight.StationFrame);
     }
@@ -262,7 +263,7 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
 
     /// <summary>
     /// The docked cabin feels the spin gravity of its radius: at the seat stand, ω² times its distance from the station's
-    /// axis, 0.783 m/s², leaning 30 degrees from the floor's down toward port.
+    /// axis, 0.192 m/s², leaning 6 degrees from the floor's down toward port.
     /// </summary>
     [Fact]
     public void TheDockedCabinFeelsTheWeakGravityOfItsRadius()
@@ -272,10 +273,10 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
         double fromTheAxis = Math.Sqrt(seat.X * seat.X + seat.Z * seat.Z);
 
         last.SeatGravity.Length.Should().BeApproximately(Rate * Rate * fromTheAxis, 0.01 * Rate * Rate * fromTheAxis);
-        last.SeatGravity.Length.Should().BeApproximately(0.783, 0.01);
+        last.SeatGravity.Length.Should().BeApproximately(0.192, 0.005);
         (Math.Acos(Double3.Dot(last.SeatGravity, -Double3.UnitY) / last.SeatGravity.Length) / Degree)
             .Should()
-            .BeApproximately(30, 2);
+            .BeApproximately(6, 1);
         last.SeatGravity.X.Should().BeNegative("the gravity leans toward port");
     }
 
@@ -444,7 +445,7 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
                 station,
                 earth
             );
-            Double3 hold = center + axis * DemoStation.HoldPoint.Y;
+            Double3 hold = center + axis * DemoStation.Layout.HoldPoint.Y;
             var recorder = new RendezvousAutopilotTests.Recorder();
             Entity shuttle = world.Spawn(
                 new()

@@ -141,12 +141,12 @@ public static class CheckPanels
     /// <summary>
     /// Spin gravity in the wheel: at r, the row's distance from the station's axis, the felt gravity ω² r of a place at rest
     /// in the station's turning axes, beside the row's felt gravity. ω is the station's spin rate,
-    /// <see cref="DemoScenes.SpinStation.Rate"/>, a constant of the scene as G·M is for the orbit. The panel reads no first
+    /// <see cref="StationLayout.Rate"/> of <see cref="DemoScenes.DemoStation.Layout"/>, a constant of the scene as G·M is for the orbit. The panel reads no first
     /// row: it holds at each frame.
     /// </summary>
     public static string[] SpinGravity(ReadoutRow _, ReadoutRow row)
     {
-        double omega = DemoScenes.SpinStation.Rate,
+        double omega = DemoScenes.DemoStation.Layout.Rate,
             r = row.Axis;
         string[] lines =
         [
@@ -174,7 +174,7 @@ public static class CheckPanels
     /// antispinward. The straight line is the landing of the release's straight line in inertial space
     /// (<see cref="ThrowRelease.Landing"/>), the run is the landing that the box's <see cref="FlightRecorder"/> measured,
     /// and the flat field is the parabola over a flat floor in ω² R, the floor's 1 g (<see cref="ThrowRelease.FlatLanding"/>),
-    /// with ω <see cref="DemoScenes.SpinStation.Rate"/> and R the floor's radius. A throw before its release shows
+    /// with ω <see cref="StationLayout.Rate"/> of <see cref="DemoScenes.DemoStation.Layout"/> and R the floor's radius. A throw before its release shows
     /// <c>waiting</c>, and a throw in the air shows <c>in the air</c> for its run. The panel reads no first row: every
     /// number comes from the row's own record of the throws, in the station's axes. The panel calls the flat field
     /// <c>uniform 1 g</c>, and writes no "fi" and no "fl": libass draws each such pair as one ligature of Menlo's, which
@@ -182,7 +182,7 @@ public static class CheckPanels
     /// </summary>
     public static string[] Throws(ReadoutRow _, ReadoutRow row)
     {
-        double omega = DemoScenes.SpinStation.Rate;
+        double omega = DemoScenes.DemoStation.Layout.Rate;
         string[] lines =
         [
             string.Format(Invariant, "TEXTBOOK CHECK   a box thrown in the wheel, ω {0:F5} rad/s", omega),
@@ -202,8 +202,8 @@ public static class CheckPanels
     {
         if (readout is not { } thrown)
             return string.Format(Invariant, "{0,-12} waiting", name);
-        WheelFloor floor = DemoScenes.DemoStation.WheelFloor;
-        double omega = DemoScenes.SpinStation.Rate,
+        WheelFloor floor = DemoScenes.DemoStation.Layout.WheelFloor;
+        double omega = DemoScenes.DemoStation.Layout.Rate,
             half = DemoScenes.WheelCoda.BoxHalf;
         ThrowRelease release = thrown.Release;
         double speed = release.Velocity.Length;

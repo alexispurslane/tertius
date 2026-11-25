@@ -40,7 +40,7 @@ public readonly record struct WalkProgress(int Next, double Pace)
 /// demo needs one.</para>
 /// <para>The start's acceleration limits only a rise of the speed: the walker keeps the speed that it asked for last, and
 /// asks for at most <see cref="StartAcceleration"/> times a tick more. A fall of the speed applies at once, so the slowdown
-/// before the last waypoint and a slower leg, such as the step into the station's chute, keep their speed to the tick. The
+/// before the last waypoint and a slower leg keep their speed to the tick. The
 /// walk keeps every waypoint and turns at each one at once, because the waypoints thread doorways and a step: the drawn
 /// body turns smoothly instead (see <see cref="WalkHeading"/>).</para>
 /// </remarks>

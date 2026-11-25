@@ -3,14 +3,14 @@ namespace Tertius.Demo;
 /// <summary>A <see cref="Disembark"/> waits aboard for <see cref="LeaveShip"/>.</summary>
 public readonly record struct Aboard;
 
-/// <summary>A <see cref="Disembark"/> walks the way out of the ship to the chute's top.</summary>
+/// <summary>A <see cref="Disembark"/> walks the way out of the ship onto the lift.</summary>
 /// <param name="Walk">How far the walk has come along the way out, and how fast it walks.</param>
 public readonly record struct Walking(WalkProgress Walk);
 
-/// <summary>A <see cref="Disembark"/> slides down the chute, and the chute's friction brakes it.</summary>
-public readonly record struct Sliding;
+/// <summary>A <see cref="Disembark"/> stands on the lift as it rides down the spoke.</summary>
+public readonly record struct Riding;
 
-/// <summary>A <see cref="Disembark"/> walks a few steps on the wheel's floor.</summary>
+/// <summary>A <see cref="Disembark"/> walks a few steps off the lift onto the wheel's floor.</summary>
 /// <param name="Walk">How far the walk has come along the stroll, and how fast it walks.</param>
 public readonly record struct Strolling(WalkProgress Walk);
 
@@ -21,11 +21,8 @@ public readonly record struct Arrived;
 /// <see cref="Disembark"/> starts the walk.</summary>
 public struct LeaveShip : IEventPayload;
 
-/// <summary>A report of <see cref="Disembark"/>'s walk: the person is off its feet over the chute's top.</summary>
-public readonly record struct Dropped;
-
-// The report of Disembark's slide that the person stands on the wheel's floor is Landed, which the docking's machine
-// reports too. It is defined beside DockingAutopilot.
+/// <summary>A report of <see cref="Disembark"/>'s walk: the person stopped in the middle of the lift's floor.</summary>
+public readonly record struct Boarded;
 
 /// <summary>A report of <see cref="Disembark"/>'s stroll: the walker reached its last waypoint.</summary>
 public readonly record struct WalkDone;
@@ -35,15 +32,14 @@ public readonly record struct StationGone;
 
 /// <summary>
 /// What a <see cref="Disembark"/> does, in the order of the exit: <see cref="Aboard"/>, <see cref="Walking"/>,
-/// <see cref="Sliding"/>, <see cref="Strolling"/> and <see cref="Arrived"/>, or <see cref="Halted"/> once the station's frame
-/// is gone. The default value is <see cref="Aboard"/>. It is a generated union (see <see cref="GeneratedUnionAttribute"/>
-/// ), and
-/// <see cref="Next"/> is the whole table of its changes (docs/plans/blue-danube-demo.md, "The exit component").
+/// <see cref="Riding"/>, <see cref="Strolling"/> and <see cref="Arrived"/>, or <see cref="Halted"/> once the station's frame
+/// is gone. The default value is <see cref="Aboard"/>. It is a generated union (see <see cref="GeneratedUnionAttribute"/>),
+/// and <see cref="Next"/> is the whole table of its changes (docs/plans/blue-danube-demo.md, "The exit component").
 /// </summary>
 [GeneratedUnion(
     typeof(Aboard),
     typeof(Walking),
-    typeof(Sliding),
+    typeof(Riding),
     typeof(Strolling),
     typeof(Arrived),
     typeof(Halted),
@@ -59,23 +55,23 @@ public readonly partial struct DisembarkState
         (state, change) switch
         {
             (Aboard, LeaveShip) => new Walking(WalkProgress.Start),
-            (Walking, Dropped) => new Sliding(),
-            (Sliding, Landed) => new Strolling(WalkProgress.Start),
+            (Walking, Boarded) => new Riding(),
+            (Riding, LiftStopped) => new Strolling(WalkProgress.Start),
             (Strolling, WalkDone) => new Arrived(),
-            (Walking or Sliding or Strolling, StationGone) => new Halted(),
+            (Walking or Riding or Strolling, StationGone) => new Halted(),
             _ => null,
         };
 }
 
 /// <summary>
-/// An event of <see cref="Disembark"/>'s machine: the message <see cref="LeaveShip"/>, or a report of a delegate,
-/// <see cref="Dropped"/>, <see cref="Landed"/>, <see cref="WalkDone"/> or <see cref="StationGone"/>. It is a generated union, and
-/// the all-zero value is <see cref="LeaveShip"/>.
+/// An event of <see cref="Disembark"/>'s machine: the messages <see cref="LeaveShip"/> and <see cref="LiftStopped"/>, or a
+/// report of a delegate, <see cref="Boarded"/>, <see cref="WalkDone"/> or <see cref="StationGone"/>. It is a generated union,
+/// and the all-zero value is <see cref="LeaveShip"/>.
 /// </summary>
 [GeneratedUnion(
     typeof(LeaveShip),
-    typeof(Dropped),
-    typeof(Landed),
+    typeof(Boarded),
+    typeof(LiftStopped),
     typeof(WalkDone),
     typeof(StationGone),
     ZeroCase = typeof(LeaveShip)

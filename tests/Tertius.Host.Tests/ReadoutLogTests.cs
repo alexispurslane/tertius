@@ -325,8 +325,8 @@ public sealed class ReadoutLogTests
         {
             ThrowReadout thrown = readout!.Value;
             ThrowLanding line = thrown.Release.Landing(
-                DemoScenes.SpinStation.Rate,
-                DemoScenes.DemoStation.WheelFloor,
+                DemoScenes.DemoStation.Layout.Rate,
+                DemoScenes.DemoStation.Layout.WheelFloor,
                 DemoScenes.WheelCoda.BoxHalf
             );
             Double3.Distance(thrown.Landing!.Value.Place, line.Place).Should().BeLessThan(1e-3);

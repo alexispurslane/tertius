@@ -10,16 +10,16 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public sealed class WheelFloorTests
 {
-    private static WheelFloor Floor => DemoStation.WheelFloor;
+    private static WheelFloor Floor => DemoStation.Layout.WheelFloor;
 
     [Fact]
-    public void TheDemosFloorIsTheWheelsRingOf256FacetsAt100Meters()
+    public void TheDemosFloorIsTheWheelsRingOf1024FacetsAt2000Meters()
     {
-        Floor.Radius.Should().Be(DemoStation.FloorRadius);
-        Floor.Segments.Should().Be(DemoStation.Segments);
+        Floor.Radius.Should().Be(DemoStation.Layout.FloorRadius);
+        Floor.Segments.Should().Be(DemoStation.Layout.Segments);
         Floor
             .FacetDistance.Should()
-            .BeApproximately(100 * Math.Cos(Math.PI / 256), 1e-12, "a facet's middle lies inside the ring's circle");
+            .BeApproximately(2000 * Math.Cos(Math.PI / 1024), 1e-9, "a facet's middle lies inside the ring's circle");
     }
 
     [Fact]
@@ -41,14 +41,14 @@ public sealed class WheelFloorTests
     }
 
     [Fact]
-    public void SpinwardIsTheWayOfTheStationsTurnAtTheChute()
+    public void SpinwardIsTheWayOfTheStationsTurnAtTheLift()
     {
-        // At θ = 180 degrees, under the spoke of the chute, the station's point moves toward +Z.
-        var under = new Double3(-99.9, 0, 0);
+        // At θ = 180 degrees, under the spoke of the lift, the station's point moves toward +Z.
+        var under = new Double3(-1999.9, 0, 0);
         WheelFloor.SpinwardAt(under).Should().Be(new Double3(0, 0, 1));
         WheelFloor.UpAt(under).Should().Be(new Double3(1, 0, 0));
-        Floor.Spinward(under, new(-99.9, 3, 0.5)).Should().BeApproximately(Floor.Radius * Math.Atan2(0.5, 99.9), 1e-9);
-        Floor.Spinward(under, new(-99.9, 0, -0.5)).Should().BeNegative("-Z is antispinward there");
+        Floor.Spinward(under, new(-1999.9, 3, 0.5)).Should().BeApproximately(Floor.Radius * Math.Atan2(0.5, 1999.9), 1e-9);
+        Floor.Spinward(under, new(-1999.9, 0, -0.5)).Should().BeNegative("-Z is antispinward there");
     }
 
     [Fact]

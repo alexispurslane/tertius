@@ -341,7 +341,7 @@ public sealed class PlumeTests : IDisposable
 
         MediumField station = Of("station");
         station.Fills(new(0, 5, 0)).Should().BeTrue("the bay holds air");
-        station.Fills(DemoScenes.DemoStation.HoldPoint).Should().BeFalse("the hold point is in space");
+        station.Fills(DemoScenes.DemoStation.Layout.HoldPoint).Should().BeFalse("the hold point is in space");
         station.Drag.Should().Be(ground.Drag);
     }
 

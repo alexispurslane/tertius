@@ -39,7 +39,7 @@ public sealed class BlueDanubeDockingTests(BlueDanubeRendezvousRun run)
         start.Docking.Value.Should().BeOfType<SpinUp>();
         start.Rendezvous.Value.Should().BeOfType<Hold>();
         start.ShuttleFrame.Should().Be(run.Earth, "the shuttle docks from earth, which holds the station");
-        (start.InStation.Position - DemoStation.HoldPoint)
+        (start.InStation.Position - DemoStation.Layout.HoldPoint)
             .Length.Should()
             .BeLessThan(RendezvousAutopilot.HoldDistanceTolerance);
         Math.Acos(Math.Clamp(Double3.Dot(start.InStation.Rotation.Rotate(-Double3.UnitZ), -Double3.UnitY), -1, 1))
@@ -65,27 +65,26 @@ public sealed class BlueDanubeDockingTests(BlueDanubeRendezvousRun run)
         last.CabinParent.Should().Be(run.StationFrame);
         last.Docking.Value.Should().BeOfType<Docked>();
         last.HullMotion.Should().Be(BodyMotion.Static);
-        Double3 off = last.InStation.Position - DemoStation.ParkedPose.Position;
+        Double3 off = last.InStation.Position - DemoStation.Layout.ParkedPose.Position;
         Math.Abs(off.X).Should().BeLessThan(0.03);
         Math.Abs(off.Z).Should().BeLessThan(0.03);
         Math.Abs(off.Y).Should().BeLessThan(0.1);
-        AngleBetween(last.InStation.Rotation, DemoStation.DockedRotation).Should().BeLessThan(0.5 * Degree);
+        AngleBetween(last.InStation.Rotation, StationLayout.DockedRotation).Should().BeLessThan(0.5 * Degree);
     }
 
     /// <summary>
-    /// The strapped person stays at its seat through the whole docking: within 0.4 m of the seat stand in every tick. The
+    /// The strapped person stays at its seat through the whole docking: within 0.65 m of the seat stand in every tick. The
     /// belt holds it while the felt gravity is weightless or leans more than 45 degrees from the floor's down, and the floor
-    /// holds it otherwise. In the film <c>docked</c> it stands. Changed on purpose from the design's 0.15 m (measured on
-    /// 2026-10-20): when the move out turns the gravity toward the floor, the belt lets go under a gravity that leans 30
-    /// degrees toward port, the person's up turns to that gravity, and its feet settle on the floor about 0.6 m to port of
-    /// where they hung, so its center stands 0.31 m to port of the seat stand and 0.09 m lower, and stays there. The
-    /// landing's jolt moves it 0.06 m more for a moment, 0.37 m at the most.
+    /// holds it otherwise. In the film <c>docked</c> it stands. Changed on purpose from the design's 0.15 m: on the move
+    /// out of 35 m to the deck at 40 m from the axis (ter-9wwx, measured on 2026-11-24), the belt lets go in the move out's
+    /// weak, tilted gravity, and the person settles on the floor 0.55 m to port of the seat stand, and stays there. The
+    /// landing's jolt moves it to 0.62 m for a moment. On the old deck at 8 m it stood 0.31 m to port.
     /// </summary>
     [Fact]
     public void TheStrappedPassengerStaysAtItsSeatThroughTheDocking()
     {
         Docking.Should().OnlyContain(tick => tick.Passenger.Value is Strapped);
-        Docking.Max(tick => (tick.PersonInCabin - Shuttle.SeatStand).Length).Should().BeLessThan(0.4);
+        Docking.Max(tick => (tick.PersonInCabin - Shuttle.SeatStand).Length).Should().BeLessThan(0.65);
         run.DockedEnd.PersonStanding.Should().BeTrue("the person stands at its seat in the docked cabin");
         (run.DockedEnd.PersonInCabin - Shuttle.SeatStand)
             .X.Should()
@@ -121,7 +120,7 @@ public sealed class BlueDanubeDockingTests(BlueDanubeRendezvousRun run)
     public void TheBayCameraSeesTheSlotAndTheParkedHull()
     {
         RendezvousFrame[] frames = [.. run.Frames.Where(frame => frame.Of("slot") || frame.Of("landing"))];
-        Double3[] corners = [.. Corners(DemoStation.Slot), .. Corners(DemoStation.ParkedBounds)];
+        Double3[] corners = [.. Corners(DemoStation.Layout.Slot), .. Corners(DemoStation.Layout.ParkedBounds)];
 
         frames.Should().NotBeEmpty();
         foreach (RendezvousFrame frame in frames)
@@ -141,8 +140,7 @@ public sealed class BlueDanubeDockingTests(BlueDanubeRendezvousRun run)
     public void TheHoldCameraFramesTheHubAndTheShuttleInTheSpinMatch()
     {
         RendezvousFrame[] frames = [.. run.Frames.Where(frame => frame.Of("spin-match"))];
-        Vector3 hub = DemoStation.HubHalf;
-        Double3[] hubCorners = [.. Corners(new(-hub, hub))];
+        Double3[] hubCorners = [.. Corners(DemoStation.Layout.Hub)];
 
         frames.Should().NotBeEmpty();
         foreach (RendezvousFrame frame in frames)
@@ -186,7 +184,7 @@ public sealed class BlueDanubeDockingTests(BlueDanubeRendezvousRun run)
     public void TheWindowCameraSeesTheSlotThroughThePaneOfTheNose()
     {
         HullPane nose = Shuttle.Glass.Single(pane => pane.Id == "pane-nose");
-        var slot = new Double3(0, DemoStation.Slot.Max.Y, 0);
+        var slot = new Double3(0, DemoStation.Layout.Slot.Max.Y, 0);
         RendezvousFrame[] frames = [.. run.Frames.Where(frame => frame.Of("entry"))];
 
         frames.Should().NotBeEmpty();

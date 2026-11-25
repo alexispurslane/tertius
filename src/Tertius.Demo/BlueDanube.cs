@@ -40,6 +40,18 @@ public static class BlueDanube
     /// <summary>How near the slot's outer face the nose comes before the bay camera takes over from the window camera, in meters.</summary>
     private const double NoseToSlot = 10;
 
+    /// <summary>How long the film <c>far</c> films the spin-up from 7 km out, in seconds, before the chase camera takes over.</summary>
+    private const double FarFilmed = 8;
+
+    /// <summary>How far below the deck the person sinks before the ride camera takes over from the shaft camera, in meters.</summary>
+    private const double ShaftFilmed = 30;
+
+    /// <summary>How far above the ceiling the person is when the wheel camera takes over from the ride camera, in meters.</summary>
+    private const double ArrivalFilmed = 100;
+
+    /// <summary>The ticks per frame of the ride's time-lapse: the ride of about 2 minutes plays in about 17 s.</summary>
+    private const int RideEvery = 8;
+
     /// <summary>
     /// The apoapsis above Earth's mean radius at which the burn of the transfer has nearly ended, in meters: 399 km, below
     /// the transfer orbit's 400.5 km.
@@ -54,12 +66,12 @@ public static class BlueDanube
 
     /// <summary>
     /// The sections of the exit (docs/plans/blue-danube-demo.md, "The exit", "Sections of the long script"): the person
-    /// opens its belt and walks out of the hatch, crosses the deck, steps into the chute's top, slides down the spoke,
-    /// lands on the wheel's floor and walks a few steps. Each cue reads the exit component's case or the person's place in
-    /// the station's frame, and none reads the frame that holds the station. They follow the docking's <c>docked</c> at
-    /// the end of <see cref="Sections"/>, and they also run alone in <c>scripts/demo-exit.json</c>, whose scene starts at
-    /// the docking's end state. They come before <see cref="Sections"/> in this file, because a static property's
-    /// initializer runs in the order of the file, and <see cref="Sections"/> reads them.
+    /// opens its belt, walks out of the hatch, crosses the deck onto the lift, rides it down the spoke to the wheel, and
+    /// walks off it onto the floor. Each cue reads the exit component's case or the person's place in the station's frame,
+    /// and none reads the frame that holds the station. They follow the docking's <c>docked</c> at the end of
+    /// <see cref="Sections"/>, and they also run alone in <c>scripts/demo-exit.json</c>, whose scene starts at the docking's
+    /// end state. They come before <see cref="Sections"/> in this file, because a static property's initializer runs in the
+    /// order of the file, and <see cref="Sections"/> reads them.
     /// </summary>
     public static IReadOnlyList<FilmSection> ExitSections { get; } =
     [
@@ -71,38 +83,39 @@ public static class BlueDanube
             Until: (world, scene) => PersonInCabin(world, scene).X > Shuttle.Cabin.X - 0.5,
             Posts: [new(new ToEntity("person"), nameof(LeaveShip))]
         ),
-        // The step down onto the deck, the walk along it and the step into the chute's top.
+        // The step down onto the deck, the walk onto the lift and the lift's start.
         new(
             Name: "deck",
             Camera: "deck-camera",
             Every: 1,
-            Until: (world, scene) => ExitOf(world, scene).Value is Sliding,
-            Hold: Second * 3 / 2
+            Until: (world, scene) => ExitOf(world, scene).Value is Riding,
+            Hold: Second * 3
         ),
-        // The drop through the hole, seen from below in the spoke.
+        // The lift sinks into the shaft, seen from below.
         new(
-            Name: "chute-top",
-            Camera: "spoke-camera",
+            Name: "shaft",
+            Camera: "shaft-camera",
             Every: 1,
-            Until: (world, scene) => PersonInStation(world, scene).X < DemoStation.Deck - 10
+            Until: (world, scene) => PersonInStation(world, scene).X < DemoStation.Layout.Deck - ShaftFilmed
         ),
-        // The slide down the open trough from behind and above the person, filmed every second tick, so it plays at twice
-        // the speed of the simulation.
+        // The ride down the shaft from the lift, as a time-lapse: the shaft's lamps pass, and the ceiling's opening and the
+        // wheel grow below.
         new(
-            Name: "chute",
-            Camera: "slide-camera",
-            Every: 2,
-            Until: (world, scene) => Radius(PersonInStation(world, scene)) > DemoStation.CeilingRadius - 10
+            Name: "ride",
+            Camera: "ride-camera",
+            Every: RideEvery,
+            Until: (world, scene) =>
+                Radius(PersonInStation(world, scene)) > DemoStation.Layout.CeilingRadius - ArrivalFilmed
         ),
-        // The brake run, the landing and the first steps on the floor.
+        // The brake, the lift's arrival at the foot through the ceiling's opening, and the first steps off it.
         new(
-            Name: "brake-run",
+            Name: "foot",
             Camera: "wheel-camera",
             Every: 1,
             Until: (world, scene) => ExitOf(world, scene).Value is Strolling,
-            Hold: Second
+            Hold: Second * 2
         ),
-        // The last steps spinward, and the person standing still in a full gravity.
+        // The last steps onto the floor, and the person standing still in a full gravity.
         new(
             Name: "floor",
             Camera: "follow-camera",
@@ -333,19 +346,19 @@ public static class BlueDanube
             Every: 1,
             Until: (world, scene) => NoseFromStation(world, scene) < NoseOnStation
         ),
-        new(Name: "glide", Camera: "chase-camera", Every: 6, Until: (world, scene) => ToStation(world, scene) < 700),
+        new(Name: "glide", Camera: "chase-camera", Every: 6, Until: (world, scene) => ToHold(world, scene) < 550),
         new(
             Name: "glide-window",
             Camera: "window-camera",
             Every: 4,
-            Until: (world, scene) => ToStation(world, scene) < 400
+            Until: (world, scene) => ToHold(world, scene) < 250
         ),
         // The outlines show the station's bubble ahead of the shuttle and the shuttle's frames.
         new(
             Name: "glide-rim",
             Camera: "rim-camera",
             Every: 4,
-            Until: (world, scene) => ToStation(world, scene) < 200,
+            Until: (world, scene) => ToHold(world, scene) < 50,
             Outlines: true
         ),
         new(
@@ -370,6 +383,14 @@ public static class BlueDanube
             Until: (world, scene) => DockingOf(world, scene).Value is SpinUp,
             Posts: [new(new ToEntity("shuttle"), nameof(Dock))]
         ),
+        // The whole wheel from 7 km out as the shuttle starts to spin up at its axis.
+        new(
+            Name: "far",
+            Camera: "far-camera",
+            Every: 2,
+            Until: (world, scene) =>
+                DockingOf(world, scene).Value is SpinUp { StartTime: var start } && world.Time - start >= FarFilmed
+        ),
         new(
             Name: "spin-up",
             Camera: "chase-camera",
@@ -390,7 +411,7 @@ public static class BlueDanube
             Camera: "window-camera",
             Every: 4,
             Until: (world, scene) =>
-                InStation(world, scene).Position.Y < DemoStation.HubHalf.Y + Shuttle.Hull.Z + NoseToSlot,
+                InStation(world, scene).Position.Y < DemoStation.Layout.SlotFace + Shuttle.Hull.Z + NoseToSlot,
             Outlines: true
         ),
         new(
@@ -404,7 +425,7 @@ public static class BlueDanube
             Camera: "cockpit-camera",
             Every: 2,
             Until: (world, scene) =>
-                Double3.Distance(InStation(world, scene).Position, DemoStation.ParkedPose.Position) < 1
+                Double3.Distance(InStation(world, scene).Position, DemoStation.Layout.ParkedPose.Position) < 1
         ),
         new(
             Name: "landing",
@@ -602,14 +623,16 @@ public static class BlueDanube
         return Double3.Distance(world.PoseIn(scene["shuttle"], earth).Position, arrival);
     }
 
-    /// <summary>How far the shuttle's center is from the station's measured center, in meters.</summary>
-    private static double ToStation(World world, SceneInstance scene)
+    /// <summary>
+    /// How far the shuttle's center is from the station's hold point, on the station's axis from its measured center, in
+    /// meters. The glide's films end at distances from it, so they follow the hold point when the layout moves it.
+    /// </summary>
+    private static double ToHold(World world, SceneInstance scene)
     {
         FrameHandle earth = Earth(world, scene);
-        return Double3.Distance(
-            world.PoseIn(scene["shuttle"], earth).Position,
-            world.PoseIn(scene["station"], earth).Position
-        );
+        DPose station = world.PoseIn(scene["station"], earth);
+        Double3 hold = station.TransformPoint(DemoStation.Layout.HoldPoint);
+        return Double3.Distance(world.PoseIn(scene["shuttle"], earth).Position, hold);
     }
 
     /// <summary>The angle between the shuttle's nose, its -Z, and the direction from its center to the station's, in radians.</summary>

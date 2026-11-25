@@ -166,7 +166,29 @@ public sealed record StationLayout
         );
 
     /// <summary>The box of the parked shuttle: the hull's box, <see cref="Shuttle.Hull"/>, at <see cref="ParkedPose"/>.</summary>
-    public BoundingBox ParkedBounds => BoxAt(ParkedPose, Shuttle.Hull);
+    public BoundingBox ParkedBounds
+    {
+        get
+        {
+            DPose pose = ParkedPose;
+            Vector3 half = Shuttle.Hull,
+                min = new(float.MaxValue),
+                max = new(float.MinValue);
+            foreach (int corner in Enumerable.Range(0, 8))
+            {
+                var local = new Double3(
+                    (corner & 1) == 0 ? -half.X : half.X,
+                    (corner & 2) == 0 ? -half.Y : half.Y,
+                    (corner & 4) == 0 ? -half.Z : half.Z
+                );
+                var at = pose.TransformPoint(local).ToVector3();
+                min = Vector3.Min(min, at);
+                max = Vector3.Max(max, at);
+            }
+
+            return new(min, max);
+        }
+    }
 
     /// <summary>
     /// The shuttle's rotation in the station's axes once it is docked: its nose, -Z, along the station's -Y, into the bay,
@@ -271,25 +293,5 @@ public sealed record StationLayout
             hole.Min.Y < parked.Max.Y && hole.Max.Y > parked.Min.Y && hole.Min.Z < parked.Max.Z && hole.Max.Z > parked.Min.Z;
         if (overlaps)
             yield return "The lift's hole lies under the parked hull.";
-    }
-
-    /// <summary>The axis-aligned box that holds the box of half extents <paramref name="half"/> at <paramref name="pose"/>.</summary>
-    private static BoundingBox BoxAt(DPose pose, Vector3 half)
-    {
-        Vector3 min = new(float.MaxValue),
-            max = new(float.MinValue);
-        foreach (int corner in Enumerable.Range(0, 8))
-        {
-            var local = new Double3(
-                (corner & 1) == 0 ? -half.X : half.X,
-                (corner & 2) == 0 ? -half.Y : half.Y,
-                (corner & 4) == 0 ? -half.Z : half.Z
-            );
-            var at = pose.TransformPoint(local).ToVector3();
-            min = Vector3.Min(min, at);
-            max = Vector3.Max(max, at);
-        }
-
-        return new(min, max);
     }
 }

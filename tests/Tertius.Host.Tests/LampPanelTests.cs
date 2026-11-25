@@ -45,7 +45,7 @@ public sealed class LampPanelTests : IDisposable
     public void TheBayLampsAreRectangleLightsThatFaceIntoTheBay()
     {
         SceneInstance scene = Build("demo-surface");
-        Vector3[] inward = [-Vector3.UnitX, -Vector3.UnitZ, Vector3.UnitZ, Vector3.UnitY];
+        Vector3[] inward = [-Vector3.UnitZ, Vector3.UnitZ, -Vector3.UnitZ, Vector3.UnitY];
 
         foreach (int i in Enumerable.Range(0, inward.Length))
         {

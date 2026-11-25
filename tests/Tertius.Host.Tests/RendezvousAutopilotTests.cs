@@ -539,7 +539,7 @@ public sealed class RendezvousAutopilotTests : IDisposable, IClassFixture<Rendez
             new(
                 TransferTime: 300,
                 ArrivalDistance: 400,
-                HoldDistance: DemoStation.HoldPoint.Y,
+                HoldDistance: DemoStation.Layout.HoldPoint.Y,
                 WindowOpens: 30 * Math.PI / 180,
                 WindowCloses: 10 * Math.PI / 180,
                 WeightlessTurnRate: AttitudeAutopilot.MaxTurnRate

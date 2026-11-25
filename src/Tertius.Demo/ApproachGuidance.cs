@@ -64,12 +64,12 @@ public readonly record struct ApproachGuidance(
         new(BrakeAcceleration: 0.1, SpeedCap: 2, FinalRate: 0.2, VelocityTime: 1, MaxAcceleration: 0.3);
 
     /// <summary>
-    /// The law of the docking's move out, which flies the shuttle from the axis to the landing point in the corner of the
-    /// deck: 0.5 m/s at most, a braking curve of 0.05 m/s², a final rate of 0.2 /s, the error of the velocity taken in 1 s,
-    /// and a correction of at most 0.3 m/s².
+    /// The law of the docking's move out, which flies the shuttle about 38 m from the axis to the landing point in the corner
+    /// of the deck: 1 m/s at most, a braking curve of 0.05 m/s², a final rate of 0.2 /s, the error of the velocity taken in
+    /// 1 s, and a correction of at most 0.3 m/s². At 1 m/s the Coriolis term is 0.14 m/s², below the deck's spin gravity.
     /// </summary>
     public static ApproachGuidance ForMoveOut() =>
-        new(BrakeAcceleration: 0.05, SpeedCap: 0.5, FinalRate: 0.2, VelocityTime: 1, MaxAcceleration: 0.3);
+        new(BrakeAcceleration: 0.05, SpeedCap: 1, FinalRate: 0.2, VelocityTime: 1, MaxAcceleration: 0.3);
 
     /// <summary>
     /// The free acceleration, in m/s², in axes that turn at <paramref name="rate"/> about their origin, of a body whose

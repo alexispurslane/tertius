@@ -11,9 +11,8 @@ public static partial class DemoScenes
     /// loose boxes that the person walks into and knocks over, two loose boxes beside a stand from which the person throws
     /// them the same way, one spinward and one antispinward, the floor marks where a flat field of the floor's gravity
     /// would land each throw, and three still cameras. Every place is in the station's axes, in the lit stretch of the floor
-    /// round the chute's end, on the antispinward side of the axis's middle, away from the chute's trough. The stack and the
-    /// stand lie on facet <see cref="Facet"/>, the facet where the person's stroll ends, 3.7 m spinward of the chute's end:
-    /// the stack at y = 2.5 m and the stand at y = -2 m, across the trough's line from it.
+    /// spinward of the lift's foot. The stack and the stand lie on facet <see cref="Facet"/>, the facet after the one under
+    /// the lift, from 12.3 to 24.5 m spinward of the lift's spoke: the stack at y = 2.5 m and the stand at y = -2 m.
     /// <list type="bullet">
     /// <item>The stack, <c>stack-0</c> to <c>stack-5</c>: six boxes in a wall of three, two and one across the facet, its
     /// face toward the person's arrival at y = 0.</item>
@@ -30,8 +29,8 @@ public static partial class DemoScenes
     /// </summary>
     public static class WheelCoda
     {
-        /// <summary>The facet of the wheel's floor on which the stack and the stand lie: from 2.45 to 4.9 m spinward of the chute's end.</summary>
-        public const int Facet = DemoStation.Segments / 2 + 1;
+        /// <summary>The facet of the wheel's floor on which the stack and the stand lie: the one after the facet under the lift, from 12.3 to 24.5 m spinward of the lift's spoke.</summary>
+        public static int Facet => DemoStation.Layout.Segments / 2 + 1;
 
         /// <summary>Half the size of every loose box, in meters: a box 0.5 m on a side, taller than the 0.4 m step that a character climbs.</summary>
         public const float BoxHalf = 0.25f;
@@ -54,7 +53,7 @@ public static partial class DemoScenes
         /// <summary>The person's center above the floor when it stands, in meters.</summary>
         private const double Standing = 0.9;
 
-        private static WheelFloor Floor => DemoStation.WheelFloor;
+        private static WheelFloor Floor => DemoStation.Layout.WheelFloor;
 
         /// <summary>The place of the stand: the person's center there, over the middle of <see cref="Facet"/> in the lane.</summary>
         public static Double3 Stand { get; } = Floor.OnFacet(facet: Facet, height: Standing, y: LaneY);
@@ -74,8 +73,8 @@ public static partial class DemoScenes
 
         /// <summary>
         /// The pose of <c>antispinward-camera</c>: near the side wall at y = -9 m, 2 m above the floor and 14 m antispinward of
-        /// the stand, looking back across the lane at a point 5.5 m antispinward of the stand. The chute's trough lies beyond
-        /// the lane from it, so it hides nothing of the throw.
+        /// the stand, looking back across the lane at a point 5.5 m antispinward of the stand. The lift's foot lies beside
+        /// it, out of the picture, so it hides nothing of the throw.
         /// </summary>
         public static DPose AntispinwardCamera { get; } = Camera(OnFloor(-14, 2, -9), OnFloor(-5.5, 1.3, LaneY));
 
@@ -153,7 +152,7 @@ public static partial class DemoScenes
         public static Double3 FlatMark(int index, CapsuleShapeDesc body)
         {
             ThrowRelease release = DesignRelease(index, body);
-            double gravity = SpinStation.Rate * SpinStation.Rate * Floor.Radius;
+            double gravity = DemoStation.Layout.Rate * DemoStation.Layout.Rate * Floor.Radius;
             return Floor.Above(
                 WheelFloor.Theta(release.Place) + release.FlatLanding(gravity, Floor, BoxHalf).Spinward / Floor.Radius,
                 0,
@@ -173,7 +172,7 @@ public static partial class DemoScenes
                 throwSpeed: ThrowSpeed,
                 body: PersonBody,
                 floor: Floor,
-                rate: SpinStation.Rate
+                rate: DemoStation.Layout.Rate
             );
 
         /// <summary>The place <paramref name="height"/> above the floor, <paramref name="along"/> meters spinward of the middle of

@@ -50,12 +50,8 @@ public sealed class BlueDanubeExitTests(BlueDanubeRendezvousRun run)
     /// One run of the long script takes the person from its seat in the docked shuttle to the wheel's floor. The run
     /// reaches the film <c>docked</c> and goes on past it. At the end of the film <c>floor</c>, the person's exit component is in
     /// <see cref="Arrived"/>, and the person stands in the station's frame on the wheel's floor and feels a full gravity
-    /// there: ω² × 99.1 m = 9.72 m/s², within 1 percent. It stops within 0.1 m of the stroll's end, still for the last half
-    /// second of the film <c>floor</c>. The world records no error. Measured on 2026-10-21, after the person's walk of
-    /// ter-cdgt, whose walks start from rest, with the coda and with the jets as parts of ter-diu0: the film floor ends at
-    /// tick 305,480, and the run, with the coda, is 306,558 ticks. The script posts the order after tick 302,158, at
-    /// 5,035.97 s, and the person arrives at tick 305,360, at 5,089.33 s, 53.37 s after the order. With the coda alone,
-    /// before the jets as parts, it arrived 52.93 s after the order. It stands 99.10 m from the axis and feels 9.721 m/s².
+    /// there: ω² × 1,999.1 m = 9.802 m/s², within 1 percent. It stops within 0.1 m of the stroll's end, still for the last
+    /// half second of the film <c>floor</c>. The world records no error.
     /// </summary>
     [Fact]
     public void TheLongRunTakesThePersonFromTheDockedSeatToTheWheelsFloor()
@@ -70,7 +66,7 @@ public sealed class BlueDanubeExitTests(BlueDanubeRendezvousRun run)
         end.Exit.Value.Should().Be(new Arrived());
         end.PersonStanding.Should().BeTrue();
         end.PersonFrame.Should().Be(run.StationFrame);
-        end.PersonFeltGravity.Should().BeApproximately(9.72, 0.0972);
+        end.PersonFeltGravity.Should().BeApproximately(9.802, 0.098);
         Double3 strollEnd = StationExit.Stroll(run.StationFrame)[0].Position;
         (end.PersonInStation - strollEnd).Length.Should().BeLessThan(0.1, "the person stops at the stroll's end");
         Exit.TakeLast(30)
@@ -81,13 +77,7 @@ public sealed class BlueDanubeExitTests(BlueDanubeRendezvousRun run)
 
     /// <summary>
     /// The exit takes as long in the long run as in the scene <c>demo-exit</c>, which starts at the docking's end state:
-    /// the person arrives between 50 and 56 s after the order, and the slide tops out between 8 and 10 m/s. Measured on
-    /// 2026-10-21, after the person's walk of ter-cdgt: the person arrives 53.07 s after the order, against 53.10 s in its
-    /// own scene. The slide starts 17.35 s after the order, takes 30.1 s and tops out at 8.87 m/s, as in its own scene.
-    /// With the coda, whose loose boxes rest on the wheel's floor through the whole long run, the person drops into the
-    /// chute 7 ticks sooner in the long run, and its own scene does not change: the person arrives 52.93 s after the
-    /// order, and the slide starts 17.23 s after it and takes 30.1 s. With the jets as parts beside the coda, the person
-    /// arrives 53.37 s after the order in the long run.
+    /// the person arrives within 2 s of its time there, and the lift tops out at its cruise speed of 20 m/s.
     /// </summary>
     [Fact]
     public void TheExitInTheLongRunTakesAsLongAsInItsOwnScene()
@@ -96,34 +86,32 @@ public sealed class BlueDanubeExitTests(BlueDanubeRendezvousRun run)
         RendezvousTick order = run.DockedEnd;
         RendezvousTick arrived = Exit.First(tick => tick.Exit.Value is Arrived);
 
-        (arrived.Time - order.Time).Should().BeInRange(50, 56);
-        Exit.Where(tick => tick.Exit.Value is Sliding)
+        (arrived.Time - order.Time).Should().BeApproximately(DisembarkTests.ArrivalAfterOrder, 2);
+        Exit.Where(tick => tick.Exit.Value is Riding)
             .Max(tick => tick.PersonVelocityInStation.Length)
             .Should()
-            .BeInRange(8, 10);
+            .BeApproximately(StationExit.CruiseSpeed, 0.1);
     }
 
     /// <summary>
-    /// The person lands on its feet on the wheel's floor: the stroll starts in the tick after a step in which the person
-    /// stood on the floor, between the rails, after the brake run slowed it below 3.5 m/s.
+    /// The person rides the lift down standing and steps off onto the wheel's floor: the stroll starts in the tick after
+    /// a step in which the person stood on the lift's floor 0.3 m above the wheel's floor, in the lift's middle across
+    /// the axis, and at rest in the station's axes.
     /// </summary>
     [Fact]
-    public void ThePersonLandsOnItsFeetOnTheWheelsFloor()
+    public void ThePersonStepsOffTheLiftOntoTheWheelsFloor()
     {
         int start = Exit.ToList().FindIndex(tick => tick.Exit.Value is Strolling);
         start.Should().BePositive();
         RendezvousTick landed = Exit[start - 1];
-        landed.Exit.Value.Should().BeOfType<Sliding>();
+        landed.Exit.Value.Should().BeOfType<Riding>();
         landed.PersonStanding.Should().BeTrue();
         Double3 at = landed.PersonInStation;
         Math.Sqrt(at.X * at.X + at.Z * at.Z)
             .Should()
-            .BeInRange(DemoStation.FloorRadius - 1, DemoStation.FloorRadius, "the person stands on the floor");
-        Math.Abs(at.Y).Should().BeLessThan(StationExit.Chute.HalfWidth, "the person lands between the rails");
-        Exit.Where(tick => tick.Exit.Value is Sliding && tick.PersonInStation.X < -(DemoStation.FloorRadius - 1.5))
-            .Max(tick => tick.PersonVelocityInStation.Length)
-            .Should()
-            .BeLessThan(3.5);
+            .BeInRange(DemoStation.Layout.FloorRadius - 2, DemoStation.Layout.FloorRadius, "the person stands at the foot");
+        Math.Abs(at.Y).Should().BeLessThan(DemoStation.Layout.LiftHalf, "the person stands on the lift");
+        landed.PersonVelocityInStation.Length.Should().BeLessThan(0.05, "the lift has stopped");
     }
 
     /// <summary>
@@ -141,12 +129,12 @@ public sealed class BlueDanubeExitTests(BlueDanubeRendezvousRun run)
             );
         int entry = Exit.ToList().FindIndex(tick => tick.PersonFrame == run.StationFrame);
         entry.Should().BePositive();
-        Exit[entry].Exit.Value.Should().BeOfType<Sliding>();
+        Exit[entry].Exit.Value.Should().BeOfType<Riding>();
         Exit[entry]
             .PersonInStation.X.Should()
             .BeInRange(
-                -DemoStation.CeilingRadius,
-                DemoStation.Deck - 0.5,
+                -DemoStation.Layout.CeilingRadius,
+                DemoStation.Layout.Deck - 0.5,
                 "the person enters the station's frame in the spoke"
             );
         Exit.Skip(entry)

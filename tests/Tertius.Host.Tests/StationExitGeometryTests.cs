@@ -7,14 +7,12 @@ using StationExit = Tertius.Demo.DemoScenes.StationExit;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The openings and the chute of the exit (docs/plans/blue-danube-demo.md, "The exit", "The chute"), on the real station
-/// in the real Jolt backend: a hole in the deck over a trough in the spoke at θ = 180 degrees, and an opening in the
-/// wheel's ceiling where the trough passes. Rays along the spoke, -X in the station's axes, find what is solid and what is
-/// open. Every place is in the station's axes.
+/// The lift and the openings of the exit (docs/plans/blue-danube-demo.md, "The lift"), on the real station in the real
+/// Jolt backend: a platform in a hole in the deck at the top of the spoke at θ = 180 degrees, and an opening in the wheel's
+/// ceiling where the platform passes. Rays find what is solid and what is open. Every place is in the station's axes.
 /// </summary>
 public sealed class StationExitGeometryTests : IDisposable
 {
-    private static Chute Chute => StationExit.Chute;
     private readonly JoltPhysicsBackend backend = new(JoltBackendOptions.Unpaced);
     private readonly World world;
     private readonly SceneInstance scene = new();
@@ -41,9 +39,11 @@ public sealed class StationExitGeometryTests : IDisposable
         world.Tick();
     }
 
+    private static StationLayout Layout => DemoStation.Layout;
+
     public void Dispose() => world.Dispose();
 
-    /// <summary>How far a ray from <paramref name="from"/> along <paramref name="direction"/> goes before it meets a body, or null when it meets none within 120 m.</summary>
+    /// <summary>How far a ray from <paramref name="from"/> along <paramref name="direction"/> goes before it meets a body, or null when it meets none within 2,100 m.</summary>
     private double? Ray(Double3 from, Double3 direction)
     {
         var hits = new List<RayCastHit>();
@@ -52,7 +52,7 @@ public sealed class StationExitGeometryTests : IDisposable
             origin: from,
             direction: direction,
             start: 0,
-            end: 120,
+            end: 2100,
             filter: new EveryEntity(),
             kind: RayCastKind.Nearest,
             hits: hits
@@ -65,207 +65,156 @@ public sealed class StationExitGeometryTests : IDisposable
         public bool Accepts(Entity entity) => true;
     }
 
-    /// <summary>
-    /// Where the wheel's floor lies along -X at the place <paramref name="z"/>, y = 0: the floor's facet from θ = 178.59
-    /// to 180 degrees, the chord between its corners 100 m from the axis, or its mirror image for z above 0.
-    /// </summary>
+    /// <summary>Where the wheel's floor lies along -X at the place (y, <paramref name="z"/>): on the plane of the facet under it.</summary>
     private static double FloorX(double z)
     {
-        z = -Math.Abs(z);
-        double step = Math.Tau / DemoStation.Segments,
-            theta = Math.PI - step;
-        Double3 a = new(DemoStation.FloorRadius * Math.Cos(theta), 0, -DemoStation.FloorRadius * Math.Sin(theta)),
-            b = new(-DemoStation.FloorRadius, 0, 0);
-        return a.X + (b.X - a.X) * (z - a.Z) / (b.Z - a.Z);
+        WheelFloor floor = Layout.WheelFloor;
+        Double3 normal = floor.Normal(new Double3(-Layout.FloorRadius, 0, z));
+        return (floor.FacetDistance - z * normal.Z) / normal.X;
+    }
+
+    /// <summary>The lift's floor lies flush with the deck: a ray along -X onto its middle meets it where a ray beside it meets the deck.</summary>
+    [Fact]
+    public void TheLiftsFloorLiesFlushWithTheDeck()
+    {
+        Double3 middle = StationExit.LiftTop.Position;
+        Ray(middle + new Double3(5, 0, 0), -Double3.UnitX).Should().BeApproximately(5, 1e-3);
+        Ray(middle + new Double3(5, Layout.LiftHalf + 1, 0), -Double3.UnitX).Should().BeApproximately(5, 1e-3);
     }
 
     /// <summary>
-    /// The chute's top, the hole in the deck, lies inside the spoke's mouth. Its antispinward face is the plane of the back
-    /// plate's face, and its faces across the axis are the planes of the rails' inner faces, so its faces run on into the
-    /// trough's.
+    /// Below the deck the lift's way is clear down the whole spoke, through the ceiling's opening, to the wheel's floor: a
+    /// ray along -X from under the lift's floor at each corner of the floor, 5 cm in, meets the floor.
     /// </summary>
     [Fact]
-    public void TheChutesTopLiesInsideTheSpokeMouthAndItsFacesRunOnIntoTheTrough()
+    public void TheLiftsWayIsClearToTheWheelsFloor()
     {
-        BoundingBox hole = StationExit.DeckHole,
-            mouth = DemoStation.SpokeMouth;
-        hole.Min.X.Should().Be(mouth.Min.X, "the hole goes through the deck's wall");
-        hole.Max.X.Should().Be(DemoStation.Deck);
-        hole.Min.Y.Should().BeGreaterThanOrEqualTo(mouth.Min.Y);
-        hole.Max.Y.Should().BeLessThanOrEqualTo(mouth.Max.Y);
-        hole.Min.Z.Should().BeGreaterThanOrEqualTo(mouth.Min.Z);
-        hole.Max.Z.Should().BeLessThanOrEqualTo(mouth.Max.Z);
-        ((double)hole.Min.Z)
-            .Should()
-            .BeApproximately(
-                Chute.BackFace,
-                1e-6,
-                "the hole's antispinward face is the plane of the back plate's face"
-            );
-        ((double)hole.Max.Y)
-            .Should()
-            .BeApproximately(Chute.HalfWidth, 1e-6, "the hole's face toward +Y is the plane of a rail's inner face");
-        ((double)hole.Min.Y)
-            .Should()
-            .BeApproximately(-Chute.HalfWidth, 1e-6, "the hole's face toward -Y is the plane of a rail's inner face");
-        Chute.Top.Should().Be(DemoStation.Deck, "the chute's faces start at the deck");
+        double under = Layout.Deck - Layout.HubWall - 0.5;
+        foreach (double y in new[] { -Layout.LiftHalf + 0.05, Layout.LiftHalf - 0.05 })
+        foreach (double z in new[] { Layout.LiftAcross - Layout.LiftHalf + 0.05, Layout.LiftAcross + Layout.LiftHalf - 0.05 })
+            Ray(new(under, y, z), -Double3.UnitX)
+                .Should()
+                .BeApproximately(under - FloorX(z), 1e-2, $"nothing lies in the lift's way at y = {y} m, z = {z} m");
     }
 
-    /// <summary>A ray down the middle of the trough passes through the deck's hole and the ceiling's opening, and meets the wheel's floor.</summary>
-    [Fact]
-    public void ARayDownTheTroughPassesTheDeckAndTheCeilingAndMeetsTheFloor()
-    {
-        var from = new Double3(-6, 0, -0.7);
-        Ray(from, -Double3.UnitX)
-            .Should()
-            .BeApproximately(-6 - FloorX(-0.7), 1e-3, "nothing lies in the trough between the bay and the floor");
-    }
-
-    /// <summary>Rays along -X onto the deck beside the hole, inside the spoke's mouth and beyond it, meet the deck.</summary>
+    /// <summary>Rays along -X onto the deck beside the lift's hole, inside the spoke and beyond it, meet the deck.</summary>
     [Theory]
-    [InlineData(0, 0.5)]
-    [InlineData(0, -1.5)]
-    [InlineData(1.0, -0.6)]
-    [InlineData(-1.0, -0.6)]
-    [InlineData(1.5, 1.5)]
-    [InlineData(5, 0)]
-    public void TheDeckIsSolidBesideTheHole(double y, double z) =>
-        Ray(new(-6, y, z), -Double3.UnitX)
+    [InlineData(0, -0.5)]
+    [InlineData(3, 2.5)]
+    [InlineData(-3, 2.5)]
+    [InlineData(0, 6)]
+    [InlineData(10, 0)]
+    public void TheDeckIsSolidBesideTheLiftsHole(double y, double z) =>
+        Ray(new(Layout.Deck + 2, y, z), -Double3.UnitX)
             .Should()
             .BeApproximately(2, 1e-3, $"the deck is solid at y = {y} m, z = {z} m");
 
     /// <summary>
-    /// Rays along -X from inside the wheel's tube's height, 4.5 m above the ceiling, meet the ceiling everywhere but in
-    /// the opening under the spoke, which the trough passes, and there they meet the floor.
+    /// Rays along -X from 5 m above the ceiling meet the ceiling everywhere but in the opening under the spoke, which the
+    /// lift passes, and there they meet the floor. The opening spans one segment, 12.15 m, across the spoke's inside.
     /// </summary>
     [Theory]
-    [InlineData(0, -0.2, false)]
-    [InlineData(1.2, 0.5, false)]
-    [InlineData(-1.2, 1.0, false)]
-    [InlineData(0, 1.45, true)]
-    [InlineData(0, -1.45, true)]
-    [InlineData(3, 0, true)]
-    [InlineData(-6, -3, true)]
+    [InlineData(0, 0, false)]
+    [InlineData(7, 5.8, false)]
+    [InlineData(-7, -5.8, false)]
+    [InlineData(0, 6.3, true)]
+    [InlineData(0, -6.3, true)]
+    [InlineData(8.5, 0, true)]
+    [InlineData(-12, 3, true)]
     public void TheCeilingIsOpenOnlyUnderTheSpokesMiddle(double y, double z, bool solid)
     {
-        double? distance = Ray(new(-90, y, z), -Double3.UnitX);
+        double from = -(Layout.CeilingRadius - 5);
+        double? distance = Ray(new(from, y, z), -Double3.UnitX);
         if (solid)
         {
             distance.Should().NotBeNull();
-            // The ceiling's face toward the axis is a circle of 94.5 m, and its facets lie within 7 mm inside it.
-            double face = Math.Sqrt(DemoStation.CeilingRadius * DemoStation.CeilingRadius - z * z);
-            distance.Value.Should().BeApproximately(face - 90, 0.01, $"the ceiling is solid at y = {y} m, z = {z} m");
+            double face = Math.Sqrt(Layout.CeilingRadius * Layout.CeilingRadius - z * z);
+            distance.Value.Should().BeApproximately(face + from, 0.02, $"the ceiling is solid at y = {y} m, z = {z} m");
         }
         else
         {
-            distance.Should().BeApproximately(-90 - FloorX(z), 0.01, $"the ceiling is open at y = {y} m, z = {z} m");
+            distance.Should().BeApproximately(from - FloorX(z), 0.02, $"the ceiling is open at y = {y} m, z = {z} m");
         }
-    }
-
-    /// <summary>A ray across the trough meets the back plate's face, and a ray along the axis inside it meets a rail's inner face.</summary>
-    [Fact]
-    public void TheTroughHasABackPlateAndTwoRails()
-    {
-        Ray(new(-50, 0, 0), -Double3.UnitZ)
-            .Should()
-            .BeApproximately(-Chute.BackFace, 1e-3, "the back plate's face lies at z = -1 m");
-        Ray(new(-50, 0, -0.7), Double3.UnitY)
-            .Should()
-            .BeApproximately(Chute.HalfWidth, 1e-3, "a rail's inner face lies at y = 0.6 m");
-        Ray(new(-50, 0, -0.7), -Double3.UnitY)
-            .Should()
-            .BeApproximately(Chute.HalfWidth, 1e-3, "the other rail's inner face lies at y = -0.6 m");
-        Ray(new(-50, 0, -0.2), Double3.UnitY)
-            .Should()
-            .BeApproximately(1.75, 1e-3, "the trough is open toward the spoke's middle beyond its rails");
-        Ray(new(-96, 0, -0.7), -Double3.UnitZ)
-            .Should()
-            .BeApproximately(-Chute.BackFace - 0.7, 1e-3, "the back plate runs on below the ceiling");
-    }
-
-    /// <summary>The trough ends from 2 to 6 cm above the wheel's floor, so the person's feet land on the floor between the rails.</summary>
-    [Fact]
-    public void TheChuteEndsJustAboveTheWheelsFloor()
-    {
-        foreach (double z in new[] { Chute.BackFace - 0.1, Chute.BackFace + 0.6 })
-            (Chute.End - FloorX(z))
-                .Should()
-                .BeInRange(0.02, 0.06, $"the trough's end lies just above the floor at z = {z} m");
     }
 
     /// <summary>
-    /// The person's first waypoint outside lies in front of the hatch, 0.9 m above the deck, and it and the walk along the
-    /// deck from it keep the person's capsule clear of the parked hull, by more than 2 m, and of the chute's top, by
-    /// 0.5 m.
+    /// The lift has railings on its antispinward, spinward and -Y sides, and opens toward +Y: from its middle 0.5 m above
+    /// its floor, rays meet the inner faces of the railings toward -Z, +Z and -Y, and a ray toward +Y leaves it.
     /// </summary>
     [Fact]
-    public void ThePersonsFirstWaypointOutsideIsClearOfTheHullAndTheHole()
+    public void TheLiftHasRailingsOnThreeSidesAndOpensTowardTheAxisPlus()
+    {
+        Double3 middle = StationExit.LiftTop.Position + new Double3(0.5, 0, 0);
+        double inner = Layout.LiftHalf - StationExit.RailThickness;
+        Ray(middle, -Double3.UnitZ).Should().BeApproximately(inner, 1e-3, "the antispinward railing");
+        Ray(middle, Double3.UnitZ).Should().BeApproximately(inner, 1e-3, "the spinward railing");
+        Ray(middle, -Double3.UnitY).Should().BeApproximately(inner, 1e-3, "the railing toward -Y");
+        Ray(middle, Double3.UnitY).Should().BeGreaterThan(Layout.LiftHalf + 1, "the lift opens toward +Y");
+    }
+
+    /// <summary>
+    /// The person's way across the deck keeps its capsule clear of the parked hull, by more than 3 m, and of the lift's
+    /// railings: its lane lies in the lift's middle across the axis, and it meets the lift's open side.
+    /// </summary>
+    [Fact]
+    public void ThePersonsWayAcrossTheDeckIsClearOfTheHullAndTheRailings()
     {
         Waypoint[] way = StationExit.WayOut(FrameHandle.Null, frame);
-        Double3 hatch = DemoStation.ParkedPose.TransformPoint(DemoScenes.Shuttle.Hatch.Center);
-        way[1]
-            .Position.Y.Should()
-            .BeApproximately(hatch.Y, 1e-6, "the first waypoint outside lies in front of the hatch");
-        BoundingBox hull = DemoStation.ParkedBounds,
-            hole = StationExit.DeckHole;
-        foreach (Waypoint point in way[1..3])
+        Double3 hatch = Layout.ParkedPose.TransformPoint(DemoScenes.Shuttle.Hatch.Center);
+        way[1].Position.Y.Should().BeApproximately(hatch.Y, 1e-6, "the first waypoint outside lies in front of the hatch");
+        foreach (Waypoint point in way[1..])
         {
             point.Frame.Should().Be(frame);
-            point.Position.X.Should().BeApproximately(DemoStation.Deck + 0.9, 1e-6, "the person stands on the deck");
-            (point.Position.Z - StationExit.PersonRadius - hull.Max.Z)
-                .Should()
-                .BeGreaterThan(2, $"{point.Position} is clear of the hull");
-            (point.Position.Z - StationExit.PersonRadius - hole.Max.Z)
-                .Should()
-                .BeApproximately(0.5, 1e-6, $"{point.Position} is clear of the chute's top");
+            point.Position.X.Should().BeApproximately(Layout.Deck + StationExit.Standing, 1e-6, "on the deck");
+            point.Position.Z.Should().Be(Layout.LiftAcross, "in the lift's lane");
+            (point.Position.Z - StationExit.PersonRadius - Layout.ParkedBounds.Max.Z).Should().BeGreaterThan(3);
         }
+
+        way[1].Position.Y.Should().BeGreaterThan(Layout.LiftHalf + 1, "the lane meets the lift from its open side");
+        way[^1].Position.Should().Be(StationExit.LiftTop.Position + new Double3(StationExit.Standing, 0, 0));
     }
 
     /// <summary>
     /// Each still camera of the exit holds its places inside its picture. <c>deck-camera</c> sees the corners of the
-    /// hatch's doorway, the corners of the chute's top and a person 1.8 m tall at both ends of the walk along the deck.
-    /// <c>spoke-camera</c> sees the corners of the trough's top under the deck. <c>wheel-camera</c> sees the corners of the
-    /// chute's end, the edges of the ceiling's opening, and a person at the stroll's end.
+    /// hatch's doorway and of the lift's floor. <c>shaft-camera</c> sees the corners of the lift's floor from below.
+    /// <c>wheel-camera</c> sees the lift's floor at the foot, the edges of the ceiling's opening, and a person at the
+    /// stroll's end.
     /// </summary>
     [Fact]
     public void TheCamerasSeeTheirPlaces()
     {
-        DPose parked = DemoStation.ParkedPose;
+        DPose parked = Layout.ParkedPose;
         BoundingBox hatch = DemoScenes.Shuttle.Hatch,
-            hole = StationExit.DeckHole;
+            lift = Layout.LiftFootprint;
         var deck = new List<Double3>();
         foreach (double y in new double[] { hatch.Min.Y, hatch.Max.Y })
         foreach (double z in new double[] { hatch.Min.Z, hatch.Max.Z })
             deck.Add(parked.TransformPoint(new(DemoScenes.Shuttle.Hull.X, y, z)));
-        foreach (double y in new double[] { hole.Min.Y, hole.Max.Y })
-        foreach (double z in new double[] { hole.Min.Z, hole.Max.Z })
-            deck.Add(new(DemoStation.Deck, y, z));
-        foreach (double y in new double[] { 5, 0 })
+        var shaft = new List<Double3>();
+        var wheel = new List<Double3>();
+        double foot = -StationExit.Ride.Foot;
+        foreach (double y in new double[] { lift.Min.Y, lift.Max.Y })
+        foreach (double z in new double[] { lift.Min.Z, lift.Max.Z })
         {
-            deck.Add(new(DemoStation.Deck, y, 0.6));
-            deck.Add(new(DemoStation.Deck + 1.8, y, 0.6));
+            deck.Add(new(Layout.Deck, y, z));
+            shaft.Add(new(Layout.Deck - StationExit.LiftFloorThickness, y, z));
+            wheel.Add(new(foot, y, z));
+            wheel.Add(new(foot + StationExit.RailHeight, y, z));
         }
 
-        var spoke = new List<Double3>();
-        foreach (double y in new double[] { hole.Min.Y, hole.Max.Y })
-        foreach (double z in new double[] { hole.Min.Z, hole.Max.Z })
-            spoke.Add(new(hole.Min.X, y, z));
-        var wheel = new List<Double3>();
-        foreach (double y in new[] { -Chute.HalfWidth - 0.1, Chute.HalfWidth + 0.1 })
-        foreach (double z in new[] { Chute.BackFace - 0.1, Chute.BackFace + 0.6 })
-            wheel.Add(new(Chute.End, y, z));
-        double edge = DemoStation.CeilingRadius + DemoStation.CeilingThickness;
-        foreach (double y in new[] { -1.75, 1.75 })
-        foreach (double z in new[] { -1.16, 1.16 })
-            wheel.Add(new(-Math.Sqrt(edge * edge - z * z), y, z));
-        foreach (double radius in new[] { DemoStation.FloorRadius, DemoStation.FloorRadius - 1.8 })
-            wheel.Add(new(-Math.Sqrt(radius * radius - 4.5 * 4.5), 0, 4.5));
+        double edge = Layout.CeilingRadius + Layout.CeilingThickness,
+            opening = Layout.CeilingOpeningHalf;
+        foreach (double z in new[] { -opening, opening })
+            wheel.Add(new(-Math.Sqrt(edge * edge - z * z), 0, z));
+        Double3 strollEnd = StationExit.Stroll(frame)[^1].Position;
+        wheel.Add(strollEnd);
+        wheel.Add(strollEnd + WheelFloor.UpAt(strollEnd) * 0.9);
 
         foreach (
             (string camera, List<Double3> points) in new[]
             {
                 ("deck-camera", deck),
-                ("spoke-camera", spoke),
+                ("shaft-camera", shaft),
                 ("wheel-camera", wheel),
             }
         )

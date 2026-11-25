@@ -83,7 +83,7 @@ public sealed class RendezvousCoastTests(RendezvousCoastTests.HighOrbitRun run)
             new(
                 TransferTime: 1000,
                 ArrivalDistance: 400,
-                HoldDistance: DemoStation.HoldPoint.Y,
+                HoldDistance: DemoStation.Layout.HoldPoint.Y,
                 WindowOpens: 30 * Math.PI / 180,
                 WindowCloses: 2 * Math.PI / 180,
                 WeightlessTurnRate: AttitudeAutopilot.MaxTurnRate

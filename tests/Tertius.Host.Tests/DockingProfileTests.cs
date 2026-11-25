@@ -13,27 +13,28 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public sealed class DockingProfileTests
 {
-    private const double Rate = DemoScenes.SpinStation.Rate,
-        Duration = 30,
+    private static readonly double Rate = DemoScenes.DemoStation.Layout.Rate;
+
+    private const double Duration = 30,
         Tick = 1.0 / 60;
 
-    private static readonly SpinUpProfile Profile = new(Rate, Duration, DemoStation.DockedRotation);
+    private static readonly SpinUpProfile Profile = new(Rate, Duration, StationLayout.DockedRotation);
 
     /// <summary>
-    /// The lag starts at ω T / 2, 269.2 degrees for the station's rate and 30 s, falls as the square of the time left, and
+    /// The lag starts at ω T / 2, 60.2 degrees for the station's rate and 30 s, falls as the square of the time left, and
     /// is zero from the end of the spin-up on.
     /// </summary>
     [Fact]
     public void TheLagFallsFromHalfTheStationsTurnInTheSpinUpTimeToZero()
     {
-        (Profile.Lag(0) * 180 / Math.PI).Should().BeApproximately(269.2, 0.1);
+        (Profile.Lag(0) * 180 / Math.PI).Should().BeApproximately(60.2, 0.1);
         Profile.Lag(0).Should().BeApproximately(Rate * Duration / 2, 1e-12);
         Profile.Lag(Duration / 2).Should().BeApproximately(Rate * Duration / 8, 1e-12);
         Profile.Lag(Duration).Should().Be(0);
         Profile.Lag(Duration + 5).Should().Be(0);
         Profile
             .Target(Duration)
-            .AngularVelocityTo(DemoStation.DockedRotation, 1)
+            .AngularVelocityTo(StationLayout.DockedRotation, 1)
             .Length.Should()
             .BeLessThan(1e-12, "at the end the target is the docked rotation");
     }
@@ -41,7 +42,7 @@ public sealed class DockingProfileTests
     /// <summary>
     /// The feed-forward, the target's turn about +Y relative to the station, is -ω at the start, so the target holds still
     /// among the stars as the hull does. It is zero at the end, at rest in the station. In between, the turn relative to the
-    /// stars, ω plus the feed-forward, grows in proportion to the time: a constant angular acceleration of ω / T, 0.0104
+    /// stars, ω plus the feed-forward, grows in proportion to the time: a constant angular acceleration of ω / T, 0.00233
     /// rad/s². It is the derivative of the lag, so the target's rotation and its feed-forward agree.
     /// </summary>
     [Fact]
@@ -62,13 +63,13 @@ public sealed class DockingProfileTests
                 .BeApproximately(derivative, 1e-8, "the feed-forward is the derivative of the lag");
         }
 
-        (Rate / Duration).Should().BeApproximately(0.0104, 0.0001);
+        (Rate / Duration).Should().BeApproximately(0.00233, 0.00001);
     }
 
     /// <summary>
     /// At the hold, the shuttle does not turn among the stars, so in the station's axes its roof turns backward at ω, and
     /// the roll angle to the spin-up's first target grows by ω times a tick in each tick. From several starting phases, the
-    /// window catches exactly one tick in each pass of the angle through zero: in 5,000 ticks it catches 4 or 5, never two
+    /// window catches exactly one tick in each pass of the angle through zero: in 20,000 ticks it catches 3 or 4, never two
     /// ticks in a row, and between two catches lie the ticks of one turn of the station.
     /// </summary>
     [Theory]
@@ -81,14 +82,14 @@ public sealed class DockingProfileTests
         DQuaternion first = Profile.Target(0);
         var caught = new List<int>();
 
-        for (int tick = 0; tick < 5000; tick++)
+        for (int tick = 0; tick < 20_000; tick++)
         {
             DQuaternion hull = DQuaternion.FromAxisAngle(Double3.UnitY, phase - Rate * Tick * tick) * first;
             if (Profile.InRollWindow(Profile.RollAngle(hull), Tick))
                 caught.Add(tick);
         }
 
-        caught.Count.Should().BeInRange(4, 5);
+        caught.Count.Should().BeInRange(3, 4);
         double turn = 2 * Math.PI / (Rate * Tick);
         caught
             .Zip(caught.Skip(1), (a, b) => b - a)

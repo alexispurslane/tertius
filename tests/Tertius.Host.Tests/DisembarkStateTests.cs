@@ -13,7 +13,7 @@ public sealed class DisembarkStateTests
         new Aboard(),
         new Walking(new(0, 0)),
         new Walking(new(3, 0)),
-        new Sliding(),
+        new Riding(),
         new Strolling(new(0, 0)),
         new Strolling(new(1, 0)),
         new Arrived(),
@@ -23,8 +23,8 @@ public sealed class DisembarkStateTests
     private static readonly DisembarkEvent[] Events =
     [
         new LeaveShip(),
-        new Dropped(),
-        new Landed(),
+        new Boarded(),
+        new LiftStopped(),
         new WalkDone(),
         new StationGone(),
     ];
@@ -34,22 +34,22 @@ public sealed class DisembarkStateTests
         DisembarkState.Next(new Aboard(), new LeaveShip()).Should().Be((DisembarkState)new Walking(new(0, 0)));
 
     [Fact]
-    public void ADropOverTheChutesTopStartsTheSlide() =>
-        DisembarkState.Next(new Walking(new(3, 0)), new Dropped()).Should().Be((DisembarkState)new Sliding());
+    public void BoardingTheLiftStartsTheRide() =>
+        DisembarkState.Next(new Walking(new(3, 0)), new Boarded()).Should().Be((DisembarkState)new Riding());
 
     [Fact]
-    public void ALandingOnTheWheelsFloorStartsTheStrollAtItsFirstWaypoint() =>
-        DisembarkState.Next(new Sliding(), new Landed()).Should().Be((DisembarkState)new Strolling(new(0, 0)));
+    public void TheLiftsStopAtTheFootStartsTheStrollAtItsFirstWaypoint() =>
+        DisembarkState.Next(new Riding(), new LiftStopped()).Should().Be((DisembarkState)new Strolling(new(0, 0)));
 
     [Fact]
     public void TheEndOfTheStrollEndsTheExit() =>
         DisembarkState.Next(new Strolling(new(1, 0)), new WalkDone()).Should().Be((DisembarkState)new Arrived());
 
     [Fact]
-    public void AStationThatIsGoneHaltsTheWalkTheSlideAndTheStroll()
+    public void AStationThatIsGoneHaltsTheWalkTheRideAndTheStroll()
     {
         DisembarkState.Next(new Walking(new(2, 0)), new StationGone()).Should().Be((DisembarkState)new Halted());
-        DisembarkState.Next(new Sliding(), new StationGone()).Should().Be((DisembarkState)new Halted());
+        DisembarkState.Next(new Riding(), new StationGone()).Should().Be((DisembarkState)new Halted());
         DisembarkState.Next(new Strolling(new(0, 0)), new StationGone()).Should().Be((DisembarkState)new Halted());
     }
 
@@ -63,8 +63,8 @@ public sealed class DisembarkStateTests
         {
             bool row = (state.Value, change.Value) switch
             {
-                (Aboard, LeaveShip) or (Walking, Dropped) or (Sliding, Landed) or (Strolling, WalkDone) => true,
-                (Walking or Sliding or Strolling, StationGone) => true,
+                (Aboard, LeaveShip) or (Walking, Boarded) or (Riding, LiftStopped) or (Strolling, WalkDone) => true,
+                (Walking or Riding or Strolling, StationGone) => true,
                 _ => false,
             };
             DisembarkState? next = DisembarkState.Next(state, change);

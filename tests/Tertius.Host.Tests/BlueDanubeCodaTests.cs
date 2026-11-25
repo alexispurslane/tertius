@@ -1,5 +1,4 @@
 using Tertius.Demo;
-using SpinStation = Tertius.Demo.DemoScenes.SpinStation;
 using WheelCoda = Tertius.Demo.DemoScenes.WheelCoda;
 
 namespace Tertius.Host.Tests;
@@ -56,8 +55,8 @@ public sealed class BlueDanubeCodaTests(BlueDanubeRendezvousRun run)
         {
             FlightRecorder flight = run.World.GetComponent<FlightRecorder>(box)!;
             ThrowLanding line = flight.Release!.Value.Landing(
-                SpinStation.Rate,
-                DemoScenes.DemoStation.WheelFloor,
+                DemoScenes.DemoStation.Layout.Rate,
+                DemoScenes.DemoStation.Layout.WheelFloor,
                 WheelCoda.BoxHalf
             );
             Double3.Distance(flight.Landing!.Value.Place, line.Place).Should().BeLessThan(1e-3);

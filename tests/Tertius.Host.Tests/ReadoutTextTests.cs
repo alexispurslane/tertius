@@ -10,7 +10,7 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public sealed class ReadoutTextTests
 {
-    private static WheelFloor Floor => DemoScenes.DemoStation.WheelFloor;
+    private static WheelFloor Floor => DemoScenes.DemoStation.Layout.WheelFloor;
 
     /// <summary>A row of the person at <paramref name="altitude"/> above Earth's mean radius, on the X axis.</summary>
     private static ReadoutRow At(
@@ -182,21 +182,21 @@ public sealed class ReadoutTextTests
     [Fact]
     public void TheSpinGravityPanelNamesTheStationsSpinRateAndTheRowsDistanceFromTheAxis()
     {
-        string[] panel = CheckPanels.SpinGravity(At(altitude: 400e3), At(altitude: 400e3, axis: 99.104));
+        string[] panel = CheckPanels.SpinGravity(At(altitude: 400e3), At(altitude: 400e3, axis: 1999.104));
 
         panel[0].TrimEnd().Should().Contain("spin gravity");
-        panel[1].TrimEnd().Should().Contain("ω 0.31321 rad/s").And.Contain("r 99.10 m");
+        panel[1].TrimEnd().Should().Contain("ω 0.07002 rad/s").And.Contain("r 1999.10 m");
     }
 
     [Theory]
-    [InlineData(100.0, "9.81 m/s²")]
-    [InlineData(50.0, "4.91 m/s²")]
+    [InlineData(2000.0, "9.81 m/s²")]
+    [InlineData(1000.0, "4.90 m/s²")]
     public void TheSpinGravityPanelSetsOmegaSquaredRAtTheRowsDistanceFromTheAxisBesideTheRunsFeltGravity(
         double axis,
         string textbook
     )
     {
-        // ω² r with ω = 0.31321 rad/s: 9.81 m/s² at 100 m from the axis, and half of it at 50 m.
+        // ω² r with ω = 0.07002 rad/s: 9.81 m/s² at 2,000 m from the axis, and half of it at 1,000 m.
         string[] panel = CheckPanels.SpinGravity(At(altitude: 400e3), At(altitude: 400e3, axis: axis, felt: 9.7213));
 
         panel[2].TrimEnd().Should().Contain("ω²r").And.Contain(textbook).And.EndWith("run 9.72 m/s²");
@@ -205,7 +205,7 @@ public sealed class ReadoutTextTests
     [Fact]
     public void TheLinesOfTheSpinGravityPanelAreOfOneWidth()
     {
-        string[] panel = CheckPanels.SpinGravity(At(altitude: 400e3), At(altitude: 400e3, axis: 99.1, felt: 9.72));
+        string[] panel = CheckPanels.SpinGravity(At(altitude: 400e3), At(altitude: 400e3, axis: 1999.1, felt: 9.72));
 
         panel.Should().HaveCount(3);
         panel.Select(line => line.Length).Distinct().Should().ContainSingle();
@@ -228,12 +228,12 @@ public sealed class ReadoutTextTests
     /// <summary>How far along the floor, in the throw's direction, the straight line of <paramref name="release"/> lands, in two decimals.</summary>
     private static string LineLanding(ThrowRelease release)
     {
-        ThrowLanding line = release.Landing(DemoScenes.SpinStation.Rate, Floor, DemoScenes.WheelCoda.BoxHalf);
+        ThrowLanding line = release.Landing(DemoScenes.DemoStation.Layout.Rate, Floor, DemoScenes.WheelCoda.BoxHalf);
         return Math.Abs(Floor.Spinward(release.Place, line.Place)).ToString("F2", CultureInfo.InvariantCulture) + " m";
     }
 
     private static ReadoutRow Coda(ThrowReadout? first = null, ThrowReadout? second = null) =>
-        At(altitude: 400e3, axis: 99.1, felt: 9.72) with
+        At(altitude: 400e3, axis: 1999.1, felt: 9.72) with
         {
             FirstThrow = first,
             SecondThrow = second,
@@ -272,8 +272,8 @@ public sealed class ReadoutTextTests
         ThrowRelease spinward = Release(1),
             antispinward = Release(-1);
         double theta = WheelFloor.Theta(spinward.Place);
-        var ahead = new ThrowLanding(0.8, Floor.Above(theta + 0.0612, 0.25, -2));
-        var behind = new ThrowLanding(1.7, Floor.Above(theta - 0.1154, 0.25, -2));
+        var ahead = new ThrowLanding(0.8, Floor.Above(theta + 6.12 / Floor.Radius, 0.25, -2));
+        var behind = new ThrowLanding(1.7, Floor.Above(theta - 11.54 / Floor.Radius, 0.25, -2));
 
         string[] panel = CheckPanels.Throws(
             Coda(),

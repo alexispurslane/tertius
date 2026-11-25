@@ -187,7 +187,7 @@ public sealed class DockingAutopilot(Entity station) : IComponent
     public const double LandedTurn = 0.002;
 
     /// <summary>The entry's end, in the station's axes: on the axis at the parked pose's y, (0, 3, 0) m.</summary>
-    public static Double3 EntryEnd { get; } = new(0, DemoStation.ParkedPose.Position.Y, 0);
+    public static Double3 EntryEnd { get; } = new(0, DemoStation.Layout.ParkedPose.Position.Y, 0);
 
     /// <summary>
     /// The landing point, in the station's axes: the parked point moved 0.1 m into the deck and 0.1 m into the bay's -Z wall,
@@ -195,7 +195,7 @@ public sealed class DockingAutopilot(Entity station) : IComponent
     /// them lightly.
     /// </summary>
     public static Double3 LandingPoint { get; } =
-        DemoStation.ParkedPose.Position + new Double3(-LandingPress, 0, -LandingPress);
+        DemoStation.Layout.ParkedPose.Position + new Double3(-LandingPress, 0, -LandingPress);
 
     private readonly Entity station = station;
 
@@ -284,7 +284,7 @@ public sealed class DockingAutopilot(Entity station) : IComponent
             turn = self.AngularVelocityIn(stationFrame);
         // The station's angular velocity relative to the virtual root above the roots, in its own axes.
         Double3 rate = -frames.AngularVelocityRelative(FrameHandle.Null, stationFrame);
-        var profile = new SpinUpProfile(rate.Y, SpinUpTime, DemoStation.DockedRotation);
+        var profile = new SpinUpProfile(rate.Y, SpinUpTime, StationLayout.DockedRotation);
         double time = self.Time;
 
         switch (State)
@@ -308,7 +308,7 @@ public sealed class DockingAutopilot(Entity station) : IComponent
                     rate: rate,
                     target: profile.Target(time - start),
                     targetTurn: profile.TurnRate(time - start),
-                    point: DemoStation.HoldPoint,
+                    point: DemoStation.Layout.HoldPoint,
                     guidance: ApproachGuidance.ForGlide()
                 );
                 return time - start >= SpinUpTime && SpinUpDone(pose, turn) ? new SpunUp() : null;
@@ -323,7 +323,7 @@ public sealed class DockingAutopilot(Entity station) : IComponent
                     pose: pose,
                     velocity: velocity,
                     rate: rate,
-                    target: DemoStation.DockedRotation,
+                    target: StationLayout.DockedRotation,
                     targetTurn: 0,
                     point: EntryEnd,
                     guidance: ApproachGuidance.ForEntry()
@@ -345,7 +345,7 @@ public sealed class DockingAutopilot(Entity station) : IComponent
                     pose: pose,
                     velocity: velocity,
                     rate: rate,
-                    target: DemoStation.DockedRotation,
+                    target: StationLayout.DockedRotation,
                     targetTurn: 0,
                     point: LandingPoint,
                     guidance: ApproachGuidance.ForMoveOut()
@@ -425,7 +425,7 @@ public sealed class DockingAutopilot(Entity station) : IComponent
     /// of minus the axis.
     /// </summary>
     private static bool AtTheHold(in DPose pose, Double3 velocity) =>
-        (pose.Position - DemoStation.HoldPoint).Length < RendezvousAutopilot.HoldDistanceTolerance
+        (pose.Position - DemoStation.Layout.HoldPoint).Length < RendezvousAutopilot.HoldDistanceTolerance
         && velocity.Length < RendezvousAutopilot.HoldSpeedTolerance
         && AngleBetween(pose.Rotation.Rotate(-Double3.UnitZ), -Double3.UnitY) < RendezvousAutopilot.HoldNoseTolerance;
 
@@ -436,9 +436,9 @@ public sealed class DockingAutopilot(Entity station) : IComponent
     /// of the hold point.
     /// </summary>
     private static bool SpinUpDone(in DPose pose, Double3 turn) =>
-        pose.Rotation.AngularVelocityTo(DemoStation.DockedRotation, 1).Length < SpinUpAttitude
+        pose.Rotation.AngularVelocityTo(StationLayout.DockedRotation, 1).Length < SpinUpAttitude
         && turn.Length < SpinUpTurn
-        && (pose.Position - DemoStation.HoldPoint).Length < RendezvousAutopilot.HoldDistanceTolerance;
+        && (pose.Position - DemoStation.Layout.HoldPoint).Length < RendezvousAutopilot.HoldDistanceTolerance;
 
     /// <summary>
     /// True when the hull rests at the parked pose within the landing's tolerances: x and z within <see cref="LandedAcross"/>
@@ -447,11 +447,11 @@ public sealed class DockingAutopilot(Entity station) : IComponent
     /// </summary>
     private static bool RestsAtTheParkedPose(in DPose pose, Double3 velocity, Double3 turn)
     {
-        Double3 off = pose.Position - DemoStation.ParkedPose.Position;
+        Double3 off = pose.Position - DemoStation.Layout.ParkedPose.Position;
         return Math.Abs(off.X) < LandedAcross
             && Math.Abs(off.Z) < LandedAcross
             && Math.Abs(off.Y) < LandedAlong
-            && pose.Rotation.AngularVelocityTo(DemoStation.DockedRotation, 1).Length < LandedAttitude
+            && pose.Rotation.AngularVelocityTo(StationLayout.DockedRotation, 1).Length < LandedAttitude
             && velocity.Length < LandedSpeed
             && turn.Length < LandedTurn;
     }

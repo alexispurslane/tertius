@@ -8,86 +8,31 @@ namespace Tertius.Demo;
 public static partial class DemoScenes
 {
     /// <summary>
-    /// The station of the Blue Danube demo (docs/plans/blue-danube-demo.md, "The station"): a wheel 202 m across on a circle
-    /// 400 km up, in the launch plane, which turns about its axis at <see cref="SpinStation.Rate"/>, so that its floor, 100 m
-    /// from the axis, has one gravity. In its own axes +Y is the axis, about which it turns, and the angle θ about it runs
-    /// from +X toward -Z, as <see cref="RevolvedSolid"/> measures it. The docking slot is on the +Y side.
+    /// The station of the Blue Danube demo (docs/plans/blue-danube-demo.md, "The station" and "The kilometre wheel"): a wheel
+    /// 4 km across on a circle 400 km up, in the launch plane, which turns about its axis at the rate that gives one
+    /// standard gravity on its floor, 2,000 m from the axis. Its shape is <see cref="Layout"/>, in its own axes: +Y is the
+    /// axis, about which it turns, and the angle θ about it runs from +X toward -Z. The docking slot is on the +Y side.
     /// <list type="bullet">
-    /// <item>The wheel: the floor, a ring from 100 to 101 m from the axis and 20 m wide, in 256 segments; the ceiling, a ring
-    /// from 94.5 to 95 m; and two side walls, rings from 95 to 100 m, 0.3 m thick, at y = ±9.85 m. They close the wheel's
-    /// tube, so it looks closed from outside. The floor is the interior shape of the station's own body, as the spin
-    /// station's floor is. The ceiling and the side walls are static bodies in the station's frame.</item>
-    /// <item>Four spokes, square tubes 4 m on a side outside with walls 0.25 m thick, in the plane y = 0 at θ = 0, 90, 180
-    /// and 270 degrees, from the hub's outer face, 8.5 m from the axis, to the ceiling, 94.5 m from it. One static body,
-    /// a compound of their 16 wall boxes.</item>
-    /// <item>The hub, the docking barrel: a square tube along the axis, 17 by 26 by 17 m outside, with walls 0.5 m thick, so
-    /// the bay inside is 16 by 25 by 16 m. The <see cref="Slot"/> leads through its +Y wall. Its -X wall is the
-    /// <see cref="Deck"/>, the landing floor of step 5. It is built in its own axes, whose +Z is the station's +Y (see
+    /// <item>The wheel: the floor, the interior shape of the station's own body; the ceiling, three bands with the lift's
+    /// opening (see <see cref="StationExit.CeilingBands"/>); and two side walls. They close the wheel's tube, so it looks
+    /// closed from outside.</item>
+    /// <item>Two spokes, lift shafts, square tubes along +X and -X in the plane y = 0, from the hub's outer face to the
+    /// ceiling. One static body, a compound of their 8 wall boxes.</item>
+    /// <item>The hub, a box along the axis that holds the bay. The slot leads through its +Y wall, and its -X wall's inner
+    /// face is the deck, with the lift's hole. It is built in its own axes, whose +Z is the station's +Y (see
     /// <see cref="HubTurn"/>), because a box opening runs along X or Z only.</item>
-    /// <item>Four glowing panels whose faces are rectangle lights, the bay lamps, on the bay's +X, +Z and -Z walls near the
-    /// slot and on its far end wall, so the slot glows from inside. They leave the deck clear for the landing.</item>
-    /// <item>The view <c>rim-camera</c>, in the station's frame, 2 m off the slot's face of the wheel near its rim, looks
-    /// across the axis at a point between the hub and <see cref="HoldPoint"/>, with the axis across the picture. It turns
-    /// with the station.</item>
-    /// <item>The view <c>bay-camera</c>, in the station's frame, at <see cref="BayCamera"/> near the bay's far wall, looks
-    /// at <see cref="BayCameraAim"/>, with its roof away from the deck. It sees the slot, the docking and the parked shuttle
-    /// beside the spoke's mouth.</item>
-    /// <item>The view <c>hold-camera</c>, in the station's frame, at <see cref="HoldCamera"/> beyond the hold point and off
-    /// the axis, looks back at <see cref="HoldCameraAim"/>, with the axis across the picture. It frames the shuttle at the
-    /// hold in front and the hub behind it, and turns with the station.</item>
-    /// <item>The exit's chute, openings, lamps and cameras (see <see cref="StationExit.Spawn"/>), and the coda's loose boxes,
-    /// floor marks and cameras on the wheel's floor (see <see cref="WheelCoda.Spawn"/>).</item>
+    /// <item>Four bay lamps, glowing panels whose faces are rectangle lights, near the slot and on the bay's far end
+    /// wall. They leave the deck clear for the landing.</item>
+    /// <item>The views <c>rim-camera</c>, <c>bay-camera</c> and <c>hold-camera</c>, which turn with the station, and
+    /// <c>far-camera</c>, 7 km out, which does not turn.</item>
+    /// <item>The exit's lift, lamps and cameras (see <see cref="StationExit.Spawn"/>), and the coda's loose boxes, floor
+    /// marks and cameras on the wheel's floor (see <see cref="WheelCoda.Spawn"/>).</item>
     /// </list>
-    /// Every part is drawn with <see cref="RenderFlags.NoImpostor"/>: the spin turns the station 18 degrees a second, so an
-    /// impostor's capture would go stale within a few ticks.
+    /// Every part is drawn with <see cref="RenderFlags.NoImpostor"/>: the spin turns the station, so an impostor's capture
+    /// would go stale.
     /// </summary>
     public static class DemoStation
     {
-        /// <summary>The radius of the wheel's floor, the ring's inner face, in meters, at its joints.</summary>
-        public const float FloorRadius = SpinStation.FloorRadius;
-
-        /// <summary>The thickness of the wheel's floor, in meters: it runs from 100 to 101 m from the axis.</summary>
-        public const float FloorThickness = 1;
-
-        /// <summary>Half the wheel's width along the axis, in meters.</summary>
-        public const float HalfWidth = 10;
-
-        /// <summary>The wheel's segments, and so the facets of its floor: 2.45 m long each.</summary>
-        public const int Segments = 256;
-
-        /// <summary>
-        /// The radius of the ceiling's face toward the axis, in meters: it runs from 94.5 to 95 m, 5 m above the floor. The
-        /// ceiling is three bands with an opening under the spoke at θ = 180 degrees (see <see cref="StationExit.CeilingBands"/>).
-        /// </summary>
-        public const float CeilingRadius = 94.5f;
-
-        /// <summary>The thickness of the ceiling, in meters.</summary>
-        public const float CeilingThickness = 0.5f;
-
-        /// <summary>The thickness of each side wall along the axis, in meters.</summary>
-        public const float SideWallThickness = 0.3f;
-
-        /// <summary>The thickness of the hub's walls, in meters.</summary>
-        public const float HubWall = 0.5f;
-
-        /// <summary>
-        /// The room that the slot leaves on each side of the shuttle's cross-section, in meters. A spin mismatch of 3 degrees
-        /// moves a corner of the shuttle, 3.6 m from its axis, by 0.19 m, which this holds.
-        /// </summary>
-        public const float SlotClearance = 1;
-
-        /// <summary>Half the outside width of a spoke, in meters: 4 m on a side.</summary>
-        public const float SpokeHalfWidth = 2;
-
-        /// <summary>The thickness of a spoke's walls, in meters, so 3.5 m on a side inside.</summary>
-        public const float SpokeWall = 0.25f;
-
-        /// <summary>
-        /// The radius of the station's bubble, a sphere, in meters: it holds the hull's 101.5 m with 18.5 m to spare, so a
-        /// body enters the frame before it reaches the hull.
-        /// </summary>
-        public const float Bubble = 120;
-
         /// <summary>The hull's mass, in kilograms, which a kinematic hull does not use.</summary>
         public const float Mass = 1e7f;
 
@@ -104,121 +49,55 @@ public static partial class DemoScenes
         /// </summary>
         public const double DepartureLead = 18;
 
-        /// <summary>
-        /// The deck, the bay's wall at x = -8 m, the inner face of the hub's -X wall, in the station's axes: the landing
-        /// floor of step 5. Its spin gravity is ω² · 8 m = 0.785 m/s², about 8 percent of a gravity.
-        /// </summary>
-        public const float Deck = -8;
+        /// <summary>How far <c>far-camera</c> stands from the station's center, in meters.</summary>
+        public const double FarCameraDistance = 7000;
 
-        /// <summary>
-        /// How far the parked shuttle's tail lies inside the inner face of the slot's wall, in meters. The entry stops the
-        /// shuttle there on the axis, so its tail clears the slot's wall before the hull moves away from the axis.
-        /// </summary>
-        public const float ParkedTailGap = 1.5f;
+        /// <summary>The quarter turns about the axis of the two spokes from the spoke along +X: none, and half a turn.</summary>
+        private static readonly int[] SpokeTurns = [0, 2];
 
-        /// <summary>The wheel's floor, the ring's inner face of <see cref="Segments"/> flat facets at <see cref="FloorRadius"/>.</summary>
-        public static WheelFloor WheelFloor { get; } = new(FloorRadius, Segments);
-
-        /// <summary>The hub's half extents outside, in meters, in the station's axes: 17 by 26 by 17 m.</summary>
-        public static Vector3 HubHalf { get; } = new(8.5f, 13, 8.5f);
-
-        /// <summary>
-        /// The box of the bay's air, in meters, in the station's axes: the hub inside its walls, 16 by 25 by 16 m. The
-        /// shuttle's jets blow their puffs into it as it enters through the slot and lands on the deck, and they slow and stop
-        /// in that air and turn with the station. A frame's air fills one box, so the wheel's ring, which no box holds
-        /// without the space inside the ring, has none: no jet fires there.
-        /// </summary>
-        public static BoundingBox BayAir { get; } =
-            new(-(HubHalf - new Vector3(HubWall)), HubHalf - new Vector3(HubWall));
-
-        /// <summary>
-        /// The hold point, in the station's axes: on the axis, 150 m from the station's center, on the slot's side, outside
-        /// the bubble. The rendezvous ends there.
-        /// </summary>
-        public static Double3 HoldPoint { get; } = new(0, 150, 0);
-
-        /// <summary>
-        /// The slot through the hub's +Y wall, in the station's axes: 6 m along X by 8 m along Z, on the axis. The shuttle
-        /// enters with its belly toward the deck, so its height of 4 m lies along X and its width of 6 m along Z, with
-        /// <see cref="SlotClearance"/> on each side.
-        /// </summary>
-        public static BoundingBox Slot { get; } =
-            new(
-                new(-Shuttle.Hull.Y - SlotClearance, HubHalf.Y - HubWall, -Shuttle.Hull.X - SlotClearance),
-                new(Shuttle.Hull.Y + SlotClearance, HubHalf.Y, Shuttle.Hull.X + SlotClearance)
-            );
+        /// <summary>The demo station's shape: its floor 2,000 m out, its deck 40 m out, and its bay on the axis.</summary>
+        public static StationLayout Layout { get; } = new();
 
         /// <summary>
         /// The turn from the hub's own axes to the station's: a quarter turn about X that takes the hub's +Z to the station's
-        /// +Y, and keeps X, so the deck stays at x = -8 m.
+        /// +Y and the hub's +Y to the station's -Z, and keeps X, so the deck stays on the -X side.
         /// </summary>
         public static DQuaternion HubTurn { get; } = DQuaternion.FromAxisAngle(Double3.UnitX, -Math.PI / 2);
 
         /// <summary>
-        /// The shuttle's rotation in the station's axes once it is docked (docs/plans/blue-danube-demo.md, "The docking"):
-        /// its nose, -Z, along the station's -Y, into the bay, and its roof, +Y, along +X, away from the <see cref="Deck"/>.
-        /// So its belly faces the deck, and its starboard side, +X, with the hatch, faces +Z, toward the middle of the deck.
+        /// Where <c>bay-camera</c> stands, in the station's axes: beside the slot, 5 m across the axis from its edge on the
+        /// side away from the deck and 1.5 m in from the slot's wall, on the bay's middle line. The shuttle's way in and out
+        /// to the deck passes clear of it.
         /// </summary>
-        public static DQuaternion DockedRotation { get; } = AttitudeAutopilot.Facing(-Double3.UnitY, Double3.UnitX);
+        public static Double3 BayCamera { get; } = new(Layout.Slot.Max.X + 5, Layout.Bay.Max.Y - 1.5, 0);
+
+        /// <summary>The point that <c>bay-camera</c> looks at, in the station's axes: 4 m above the deck and 4.5 m in from the slot's wall, on the bay's middle line.</summary>
+        public static Double3 BayCameraAim { get; } = new(Layout.Deck + 4, Layout.Bay.Max.Y - 4.5, 0);
 
         /// <summary>
-        /// Where the docked shuttle stands parked, in the station's axes, with <see cref="DockedRotation"/>: belly on the
-        /// <see cref="Deck"/> at x = -8 m, port side on the bay's -Z wall at z = -8 m, and tail <see cref="ParkedTailGap"/>
-        /// inside the slot's wall. Its center is at (-6, 3, -5) m. It is the only place on the deck where the hull leaves
-        /// <see cref="SpokeMouth"/> free: its hull fills z from -8 to -2 m, 0.25 m clear of the mouth. The spin gravity at
-        /// its center of mass points away from the axis, into the deck and into the -Z wall, so the corner holds the hull
-        /// with no push and no friction. The hatch opens toward +Z, onto the deck beside the mouth.
+        /// Where <c>hold-camera</c> stands, in the station's axes: 20 m beyond the hold point along the axis and 32 m from the
+        /// axis. From here the shuttle at the hold lies 37 m away, and the hub beyond it.
         /// </summary>
-        public static DPose ParkedPose { get; } =
-            new(
-                new(
-                    Deck + Shuttle.Hull.Y,
-                    HubHalf.Y - HubWall - ParkedTailGap - Shuttle.Hull.Z,
-                    -(HubHalf.Z - HubWall) + Shuttle.Hull.X
-                ),
-                DockedRotation
-            );
+        public static Double3 HoldCamera { get; } = Layout.HoldPoint + new Double3(30, 20, 10);
+
+        /// <summary>The point that <c>hold-camera</c> looks at, in the station's axes: on the axis a quarter of the way from the hold point to the hub's middle.</summary>
+        public static Double3 HoldCameraAim { get; } =
+            Layout.HoldPoint + (new Double3(0, Layout.Hub.Center.Y, 0) - Layout.HoldPoint) / 4;
 
         /// <summary>
-        /// The box of the parked shuttle in the station's axes: the hull's box, <see cref="Shuttle.Hull"/>, at
-        /// <see cref="ParkedPose"/>. It runs from x = -8 to -4 m, y = -5 to 11 m and z = -8 to -2 m. The tram's hull fits
-        /// it and touches each of its faces.
+        /// Where <c>far-camera</c> stands relative to the station's center, in the station's axes at the spin's phase 0: 7 km
+        /// out, 63 degrees from the axis on the slot's side, toward the Sun's side of the station at the departure. It looks
+        /// at the station's center, so the whole wheel reads as an ellipse.
         /// </summary>
-        public static BoundingBox ParkedBounds { get; } = BoxAt(ParkedPose, Shuttle.Hull);
+        public static Double3 FarCameraOffset { get; } = new Double3(-0.3, 0.45, 0.84).Normalized() * FarCameraDistance;
 
         /// <summary>
-        /// The mouth of the spoke at θ = 180 degrees in the deck, in the station's axes: the square of the spoke's inside,
-        /// 3.5 m on a side, from y = -1.75 to 1.75 m and z = -1.75 to 1.75 m, through the deck's wall, from the hub's outer
-        /// face at x = -8.5 m to the deck at x = -8 m. The exit's chute starts inside it, so a parked shuttle leaves it free.
+        /// The turn from the station's axes at the spin's phase 0 to earth's: a quarter turn about Z that takes the station's
+        /// +Y to +X, then the ground's turn at the departure about earth's +Y. So the axis lies along the departure axes' +X.
         /// </summary>
-        public static BoundingBox SpokeMouth { get; } =
-            new(
-                new(-HubHalf.X, -(SpokeHalfWidth - SpokeWall), -(SpokeHalfWidth - SpokeWall)),
-                new(Deck, SpokeHalfWidth - SpokeWall, SpokeHalfWidth - SpokeWall)
-            );
-
-        /// <summary>
-        /// Where <c>bay-camera</c> stands, in the station's axes: (6.5, -11.5, 5.5) m, 1 m from the bay's far wall, in the
-        /// corner across from the parked place.
-        /// </summary>
-        public static Double3 BayCamera { get; } = new(6.5, -11.5, 5.5);
-
-        /// <summary>The point that <c>bay-camera</c> looks at, in the station's axes: (-3, 3, -1.5) m, between the slot and the parked shuttle.</summary>
-        public static Double3 BayCameraAim { get; } = new(-3, 3, -1.5);
-
-        /// <summary>
-        /// Where <c>hold-camera</c> stands, in the station's axes: (30, 170, 10) m, 20 m beyond the hold point along the axis
-        /// and 32 m from the axis. A view from beside the hub cannot frame both the hub and the shuttle at the hold with the
-        /// shuttle larger than a speck, because the two lie 150 m apart. From here the shuttle lies 37 m away, and the hub
-        /// 173 m away beyond it, 47 degrees to one side.
-        /// </summary>
-        public static Double3 HoldCamera { get; } = new(30, 170, 10);
-
-        /// <summary>
-        /// The point that <c>hold-camera</c> looks at, in the station's axes: (0, 114, 0) m, on the axis a quarter of the way
-        /// from the hold point to the hub's center.
-        /// </summary>
-        public static Double3 HoldCameraAim { get; } = new(0, 114, 0);
+        public static DQuaternion AxialTilt { get; } =
+            DQuaternion.FromAxisAngle(Double3.UnitY, DemoSurface.GroundTurnAtDeparture)
+            * DQuaternion.FromAxisAngle(Double3.UnitZ, -Math.PI / 2);
 
         /// <summary>
         /// The station's orbit in <c>earth</c>, which does not turn and holds Earth's point gravity
@@ -229,8 +108,7 @@ public static partial class DemoScenes
         /// moving toward -Z there, the way the ramp points at the departure. The departure axes are earth's turned by
         /// <see cref="DemoSurface.GroundTurnAtDeparture"/> about the pole, so the node turns by that angle, and the axial
         /// tilt turns the station's +Y first to +X and then by that angle about the pole: to the departure axes' +X, the
-        /// slot's side. The station spins about that axis at <see cref="SpinStation.Rate"/>, so the axis stays fixed in
-        /// earth.
+        /// slot's side. The station spins about that axis at the layout's rate, so the axis stays fixed in earth.
         /// </summary>
         public static KeplerOrbit Orbit { get; } =
             new(
@@ -243,93 +121,81 @@ public static partial class DemoScenes
                     - Math.Sqrt(EarthMu / (OrbitRadius * OrbitRadius * OrbitRadius)) * OverPadAt,
                 Epoch: 0,
                 Attitude: new Spin(
-                    AxialTilt: DQuaternion.FromAxisAngle(Double3.UnitY, DemoSurface.GroundTurnAtDeparture)
-                        * DQuaternion.FromAxisAngle(Double3.UnitZ, -Math.PI / 2),
-                    Rate: SpinStation.Rate,
+                    AxialTilt: AxialTilt,
+                    Rate: Layout.Rate,
                     PhaseAtEpoch: 0
                 )
             );
 
+        /// <summary>The hub's middle in the station's axes: on the axis, where the hub's span along it is centered.</summary>
+        private static Double3 HubCenter => new(0, Layout.Hub.Center.Y, 0);
+
         /// <summary>The hub's half extents in its own axes, whose +Z is the station's +Y.</summary>
-        private static Vector3 HubOwnHalf => new(HubHalf.X, HubHalf.Z, HubHalf.Y);
-
-        /// <summary>The slot in the hub's own axes: an opening through its +Z wall.</summary>
-        private static Opening HubSlot =>
-            Opening.ThroughZ(new(new(Slot.Min.X, Slot.Min.Z, Slot.Min.Y), new(Slot.Max.X, Slot.Max.Z, Slot.Max.Y)));
-
-        /// <summary>
-        /// The chute's top, <see cref="StationExit.DeckHole"/>, in the hub's own axes: an opening through its -X wall, the
-        /// deck's. The hub's turn takes the station's (x, y, z) from the hub's (x, z, -y), so the hole lies at y from 0.2 to
-        /// 1.0 m and z from -0.6 to 0.6 m there.
-        /// </summary>
-        private static Opening HubDeckHole
+        private static Vector3 HubOwnHalf
         {
             get
             {
-                BoundingBox hole = StationExit.DeckHole;
-                return Opening.ThroughX(
-                    new(new(hole.Min.X, -hole.Max.Z, hole.Min.Y), new(hole.Max.X, -hole.Min.Z, hole.Max.Y))
-                );
+                Vector3 half = Layout.Hub.Extents;
+                return new(half.X, half.Z, half.Y);
             }
+        }
+
+        /// <summary>The slot in the hub's own axes: an opening through its +Z wall.</summary>
+        private static Opening HubSlot => Opening.ThroughZ(InHubAxes(Layout.Slot));
+
+        /// <summary>The lift's hole in the hub's own axes: an opening through its -X wall, the deck's.</summary>
+        private static Opening HubLiftHole => Opening.ThroughX(InHubAxes(Layout.LiftHole));
+
+        /// <summary>
+        /// <paramref name="box"/>, in the station's axes, in the hub's own axes: from the hub's middle, with the station's
+        /// (x, y, z) at the hub's (x, z, -y), as <see cref="HubTurn"/> turns them.
+        /// </summary>
+        private static BoundingBox InHubAxes(BoundingBox box)
+        {
+            var center = HubCenter.ToVector3();
+            Vector3 min = box.Min - center,
+                max = box.Max - center;
+            return new(new(min.X, -max.Z, min.Y), new(max.X, -min.Z, max.Y));
         }
 
         /// <summary>The spoke at θ = 0 as a solid, along +X from the hub's outer face to the ceiling, in the station's axes.</summary>
         private static BoundingBox SpokeSolid =>
-            new(new(HubHalf.X, -SpokeHalfWidth, -SpokeHalfWidth), new(CeilingRadius, SpokeHalfWidth, SpokeHalfWidth));
-
-        /// <summary>The axis-aligned box that holds the box of half extents <paramref name="half"/> at <paramref name="pose"/>.</summary>
-        private static BoundingBox BoxAt(DPose pose, Vector3 half)
-        {
-            Vector3 min = new(float.MaxValue),
-                max = new(float.MinValue);
-            foreach (int corner in Enumerable.Range(0, 8))
-            {
-                var local = new Double3(
-                    (corner & 1) == 0 ? -half.X : half.X,
-                    (corner & 2) == 0 ? -half.Y : half.Y,
-                    (corner & 4) == 0 ? -half.Z : half.Z
-                );
-                var at = pose.TransformPoint(local).ToVector3();
-                min = Vector3.Min(min, at);
-                max = Vector3.Max(max, at);
-            }
-
-            return new(min, max);
-        }
+            new(
+                new(Layout.Hub.Max.X, -Layout.SpokeHalfWidth, -Layout.SpokeHalfWidth),
+                new(Layout.CeilingRadius, Layout.SpokeHalfWidth, Layout.SpokeHalfWidth)
+            );
 
         /// <summary>
-        /// The station's hull, in the station's axes: a compound of three solids. The wheel is a
-        /// solid ring from the ceiling, 94.5 m from the axis, to the floor's outer face, 101 m from it, in 256 segment hulls.
-        /// The spokes and the hub are solid boxes. Its farthest point, a corner of the wheel's rim, lies 101.5 m from the
-        /// center.
+        /// The station's hull, in the station's axes: a compound of the wheel, a solid ring from the ceiling to the floor's
+        /// outer face in one hull per segment, the two spokes as solid boxes, and the hub as a solid box.
         /// </summary>
         public static ShapeDesc HullShape()
         {
             var wheel = (CompoundShapeDesc)
                 RevolvedSolid
                     .Ring(
-                        innerRadius: CeilingRadius,
-                        outerRadius: FloorRadius + FloorThickness,
-                        halfWidth: HalfWidth,
-                        segments: Segments
+                        innerRadius: Layout.CeilingRadius,
+                        outerRadius: Layout.FloorRadius + Layout.FloorThickness,
+                        halfWidth: Layout.HalfWidth,
+                        segments: Layout.Segments
                     )
                     .Shape();
             return new CompoundShapeDesc([
                 .. wheel.Children,
-                .. Enumerable.Range(0, 4).Select(quarter => Box(Turned(SpokeSolid, quarter), Pose.Identity)),
-                Box(new(-HubOwnHalf, HubOwnHalf), new(Vector3.Zero, HubTurn.ToQuaternion())),
+                .. SpokeTurns.Select(quarter => Box(Turned(SpokeSolid, quarter), Pose.Identity)),
+                Box(Layout.Hub, Pose.Identity),
             ]);
         }
 
         /// <summary>
-        /// The boxes of the hub's walls, in its own axes, with the slot and the chute's top open: the far end wall across
-        /// Z, the slot's end wall in four parts round the slot, the walls across X between the end walls, the deck's in four
-        /// parts round the chute's top, and the walls across Y between those. The boxes touch without gaps or overlaps.
+        /// The boxes of the hub's walls, in its own axes, with the slot and the lift's hole open: the far end wall across Z,
+        /// the slot's end wall in four parts round the slot, the walls across X between the end walls, the deck's in four
+        /// parts round the lift's hole, and the walls across Y between those. The boxes touch without gaps or overlaps.
         /// </summary>
         public static IEnumerable<BoundingBox> HubWalls()
         {
             Vector3 outer = HubOwnHalf,
-                inner = outer - new Vector3(HubWall);
+                inner = outer - new Vector3(Layout.HubWall);
             BoundingBox slot = HubSlot.Bounds;
             yield return new(-outer, outer with { Z = -inner.Z });
             var end = new BoundingBox(-outer with { Z = inner.Z }, outer);
@@ -346,7 +212,7 @@ public static partial class DemoScenes
             foreach (
                 BoundingBox part in AroundDoorway(
                     new(new(-outer.X, -outer.Y, -inner.Z), new(-inner.X, outer.Y, inner.Z)),
-                    HubDeckHole.Bounds
+                    HubLiftHole.Bounds
                 )
             )
                 yield return part;
@@ -362,7 +228,7 @@ public static partial class DemoScenes
         private static IEnumerable<BoundingBox> SpokeWalls()
         {
             BoundingBox solid = SpokeSolid;
-            float inner = SpokeHalfWidth - SpokeWall;
+            float inner = Layout.SpokeHalfWidth - Layout.SpokeWall;
             yield return solid with
             {
                 Min = solid.Min with { Y = inner },
@@ -371,16 +237,16 @@ public static partial class DemoScenes
             {
                 Max = solid.Max with { Y = -inner },
             };
-            yield return new(new(solid.Min.X, -inner, inner), new(solid.Max.X, inner, SpokeHalfWidth));
-            yield return new(new(solid.Min.X, -inner, -SpokeHalfWidth), new(solid.Max.X, inner, -inner));
+            yield return new(new(solid.Min.X, -inner, inner), new(solid.Max.X, inner, Layout.SpokeHalfWidth));
+            yield return new(new(solid.Min.X, -inner, -Layout.SpokeHalfWidth), new(solid.Max.X, inner, -inner));
         }
 
         /// <summary>
-        /// The boxes of the four spokes' walls, in the station's axes: those of the spoke at θ = 0, turned by each quarter
-        /// turn about the axis.
+        /// The boxes of the two spokes' walls, in the station's axes: those of the spoke at θ = 0, and the same turned by half
+        /// a turn about the axis, the lift's spoke at θ = 180 degrees.
         /// </summary>
         public static IEnumerable<BoundingBox> Spokes() =>
-            Enumerable.Range(0, 4).SelectMany(quarter => SpokeWalls().Select(box => Turned(box, quarter)));
+            SpokeTurns.SelectMany(quarter => SpokeWalls().Select(box => Turned(box, quarter)));
 
         /// <summary>
         /// <paramref name="box"/> turned by <paramref name="quarter"/> quarter turns about +Y, the way θ grows, from +X
@@ -428,11 +294,10 @@ public static partial class DemoScenes
 
         /// <summary>
         /// Spawns the station in <paramref name="parent"/>, <c>earth</c> of demo-surface and of earth-system, which does not
-        /// turn and holds Earth's point gravity, on <see cref="Orbit"/> at the world's
-        /// time, with its parts, its bay lamps, its <c>rim-camera</c>, its <c>bay-camera</c> and its <c>hold-camera</c>, and adds them to
-        /// <paramref name="scene"/>: the
-        /// owner <c>station</c>, <c>station-ceiling</c>, <c>station-wall-slot</c> and <c>station-wall-far</c>, the side walls
-        /// on the slot's side and the other, <c>station-spokes</c> and <c>station-hub</c>. Returns the station.
+        /// turn and holds Earth's point gravity, on <see cref="Orbit"/> at the world's time, with its parts, its lamps, its
+        /// lift and its cameras, and adds them to <paramref name="scene"/>: the owner <c>station</c>, the ceiling's bands,
+        /// <c>station-wall-slot</c> and <c>station-wall-far</c>, the side walls on the slot's side and the other,
+        /// <c>station-spokes</c> and <c>station-hub</c>. Returns the station.
         /// </summary>
         /// <remarks>
         /// The spawn carries the first motion intent of the orbit, as <see cref="Station.Build"/> does, so the frame is on
@@ -455,6 +320,7 @@ public static partial class DemoScenes
 
             SpawnBayLamps(world: world, frame: frame, scene: scene, resources: resources);
             SpawnCameras(world: world, frame: frame, scene: scene);
+            scene.Add("far-camera", SpawnFarCamera(world: world, station: station, parent: parent));
             return station;
         }
 
@@ -467,10 +333,10 @@ public static partial class DemoScenes
             KeplerOrbit orbit = Orbit;
             (Double3 place, Double3 velocity) = orbit.StateAt(world.Time, EarthMu);
             var floor = RevolvedSolid.Ring(
-                innerRadius: FloorRadius,
-                outerRadius: FloorRadius + FloorThickness,
-                halfWidth: HalfWidth,
-                segments: Segments
+                innerRadius: Layout.FloorRadius,
+                outerRadius: Layout.FloorRadius + Layout.FloorThickness,
+                halfWidth: Layout.HalfWidth,
+                segments: Layout.Segments
             );
             MeshData floorMesh = floor.Mesh();
             ShapeDesc hull = HullShape();
@@ -489,7 +355,7 @@ public static partial class DemoScenes
                         Mass: Mass,
                         InteriorShape: MeshShape(floorMesh)
                     ),
-                    AsFrame = new(FrameBounds.Sphere(Bubble), Medium: Air.Filling(BayAir)),
+                    AsFrame = new(Layout.Bubble, Medium: Air.Filling(Layout.Bay)),
                     Render = Part(
                         resources: resources,
                         mesh: floorMesh,
@@ -544,10 +410,10 @@ public static partial class DemoScenes
         )
         {
             var wall = RevolvedSolid.Ring(
-                innerRadius: CeilingRadius + CeilingThickness,
-                outerRadius: FloorRadius,
-                halfWidth: SideWallThickness / 2,
-                segments: Segments
+                innerRadius: Layout.CeilingRadius + Layout.CeilingThickness,
+                outerRadius: Layout.FloorRadius,
+                halfWidth: Layout.SideWallThickness / 2,
+                segments: Layout.Segments
             );
             ShapeDesc wallShape = wall.Shape();
             RenderData wallRender = Part(
@@ -556,13 +422,8 @@ public static partial class DemoScenes
                 color: new(x: 0.55f, y: 0.57f, z: 0.62f, w: 1),
                 boundingRadius: wallShape.BoundingRadius()
             );
-            foreach (
-                (string id, double y) in new[]
-                {
-                    ("station-wall-slot", HalfWidth - SideWallThickness / 2),
-                    ("station-wall-far", -(HalfWidth - SideWallThickness / 2)),
-                }
-            )
+            double side = Layout.HalfWidth - Layout.SideWallThickness / 2;
+            foreach ((string id, double y) in new[] { ("station-wall-slot", side), ("station-wall-far", -side) })
                 scene.Add(
                     id,
                     world.Spawn(
@@ -604,14 +465,12 @@ public static partial class DemoScenes
             );
         }
 
-        /// <summary>
-        /// Spawns the hub in <paramref name="frame"/>: its walls, with the slot and the hole in the deck.
-        /// </summary>
+        /// <summary>Spawns the hub in <paramref name="frame"/>: its walls, with the slot and the lift's hole in the deck.</summary>
         private static void SpawnHub(World world, FrameHandle frame, SceneInstance scene, IRenderResources resources)
         {
             Vector3 hubOwn = HubOwnHalf;
             Opening slot = HubSlot,
-                hole = HubDeckHole;
+                hole = HubLiftHole;
             CompoundShapeDesc hubShape = Boxes(HubWalls());
             scene.Add(
                 "station-hub",
@@ -619,14 +478,14 @@ public static partial class DemoScenes
                     new()
                     {
                         Frame = frame,
-                        Pose = new(Double3.Zero, HubTurn),
+                        Pose = new(HubCenter, HubTurn),
                         Body = new(Shape: hubShape, Motion: BodyMotion.Static),
                         Render = Part(
                             resources: resources,
                             mesh: new BoxMesh()
                                 .Box(new(-hubOwn, hubOwn), openings: [slot, hole])
                                 .Box(
-                                    new(-(hubOwn - new Vector3(HubWall)), hubOwn - new Vector3(HubWall)),
+                                    new(-(hubOwn - new Vector3(Layout.HubWall)), hubOwn - new Vector3(Layout.HubWall)),
                                     inward: true,
                                     openings: [slot, hole]
                                 )
@@ -653,15 +512,17 @@ public static partial class DemoScenes
         )
         {
             // The bay lamps: glowing panels 1.2 m square, flat on the bay's walls, each a floodlight's rectangle light on its
-            // face toward the bay, in the station's axes. Three stand near the slot, 8 m in from it, and one in the middle of
-            // the far end wall.
-            Vector3 bay = HubHalf - new Vector3(HubWall);
+            // face toward the bay, in the station's axes. Three stand on the side walls 8 m in from the slot, on the axis
+            // and halfway to the deck, and one in the middle of the far end wall.
+            BoundingBox bay = Layout.Bay;
+            float nearSlot = bay.Max.Y - 8,
+                halfway = Layout.Deck / 2;
             (Vector3 Wall, Vector3 Inward)[] lamps =
             [
-                (new(bay.X, bay.Y - 8, 0), -Vector3.UnitX),
-                (new(0, bay.Y - 8, bay.Z), -Vector3.UnitZ),
-                (new(0, bay.Y - 8, -bay.Z), Vector3.UnitZ),
-                (new(0, -bay.Y, 0), Vector3.UnitY),
+                (new(0, nearSlot, bay.Max.Z), -Vector3.UnitZ),
+                (new(0, nearSlot, bay.Min.Z), Vector3.UnitZ),
+                (new(halfway, nearSlot, bay.Max.Z), -Vector3.UnitZ),
+                (new(0, bay.Min.Y, 0), Vector3.UnitY),
             ];
             MaterialId lampMaterial = LampPanelMaterial(resources: resources, light: BayPanelLight(lamps[0].Inward));
             for (int i = 0; i < lamps.Length; i++)
@@ -707,13 +568,13 @@ public static partial class DemoScenes
         /// <summary>Spawns the rim, bay and hold cameras in <paramref name="frame"/>.</summary>
         private static void SpawnCameras(World world, FrameHandle frame, SceneInstance scene)
         {
-            // The rim camera: at θ = 45 degrees, between two spokes, 98 m from the axis and 2 m off the slot's face of the
-            // wheel. It looks at a point on the axis between the hub and the hold point. Its roof lies across the plane of
-            // the axis and the camera, so the axis runs across the picture, outward to the right.
+            // The rim camera: at θ = 45 degrees, between the two spokes, 2 m in from the floor's radius and 2 m off the
+            // slot's face of the wheel. It looks at a point on the axis a third of the way from the slot's face to the hold
+            // point. Its roof lies across the plane of the axis and the camera, so the axis runs across the picture.
             double theta = Math.PI / 4;
             var across = new Double3(Math.Cos(theta), 0, -Math.Sin(theta));
-            Double3 rim = across * 98 + new Double3(0, HalfWidth + 2, 0);
-            var aim = new Double3(0, 60, 0);
+            Double3 rim = across * (Layout.FloorRadius - 2) + new Double3(0, Layout.HalfWidth + 2, 0);
+            var aim = new Double3(0, Layout.SlotFace + (Layout.HoldPoint.Y - Layout.SlotFace) / 3, 0);
             scene.Add(
                 "rim-camera",
                 world.Spawn(
@@ -726,9 +587,9 @@ public static partial class DemoScenes
                 )
             );
 
-            // The bay camera: still in the bay, 1 m from its far wall, in the corner across from the parked place. It looks
-            // at a point between the slot and the parked shuttle, with its roof away from the deck, so it sees the slot, the
-            // nose as it comes through, the move out, the landing in the corner and the spoke's mouth in the deck.
+            // The bay camera: still in the bay, in the corner across from the parked place. It looks at a point between the
+            // axis and the parked shuttle, with its roof away from the deck, so it sees the slot, the nose as it comes
+            // through, the move out and the landing in the corner.
             scene.Add(
                 "bay-camera",
                 world.Spawn(
@@ -753,6 +614,34 @@ public static partial class DemoScenes
                         Render = new RenderData(),
                     }
                 )
+            );
+        }
+
+        /// <summary>
+        /// Spawns <c>far-camera</c>, attached to <paramref name="station"/>: a <see cref="FrameFollowCamera"/> that keeps
+        /// <see cref="FarCameraOffset"/>, turned by <see cref="AxialTilt"/>, in the axes of <paramref name="parent"/>, which does
+        /// not turn. So it does not turn with the station's spin, and looks at the station's center with its roof along the
+        /// axis.
+        /// </summary>
+        private static Entity SpawnFarCamera(World world, Entity station, FrameHandle parent)
+        {
+            Double3 offset = AxialTilt.Rotate(FarCameraOffset);
+            return world.Spawn(
+                new()
+                {
+                    AttachTo = station,
+                    AttachOffset = new(offset.ToVector3(), Quaternion.Identity),
+                    Render = new RenderData(),
+                    Components =
+                    [
+                        new FrameFollowCamera(
+                            reference: parent,
+                            offset: offset,
+                            forward: -offset,
+                            up: AxialTilt.Rotate(Double3.UnitY)
+                        ),
+                    ],
+                }
             );
         }
     }
