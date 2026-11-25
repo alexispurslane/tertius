@@ -4,30 +4,46 @@ status: open
 deps: []
 links: []
 created: 2026-11-25T09:10:12Z
-type: bug
+type: task
 priority: 2
 assignee: Alexis Purslane
-tags: [performance, simulation, demo]
+tags: [performance, rendering, demo]
 ---
-# Blue Danube's ring approach and lift ride simulate at 46 to 66 ms per tick on the Runpod worker's CPU, 3 to 4 times the 16.7 ms of a 60 Hz tick
+# A headless film frame after 6 or more ticks is a still and costs 33 draws: 19 % of the Blue Danube film's frames take 71 % of its wall time
 
-The ter-9wwx acceptance run on Runpod (2026-11-25, commit 11161a99b, AMD EPYC 7352, 48 threads, RTX 2000 Ada) timed every frame of scripts/blue-danube.json in one process. A film step with every = N runs N ticks and then draws one frame (ScriptRunner.RunTicks), so the wall time per frame of a section with a large N is mostly simulation.
+The headless renderer treats a draw after a clock step of at least 0.09 s (`FrameHistory.MeteringStepSeconds`, 5.4 ticks) as a still (decision 32). A still resets every history and draws 32 warm-up draws (`RendererOptions.DefaultWarmUpFrames`) before its shown draw. So each frame of a film step with `every` ≥ 6 costs 33 draws. In `scripts/blue-danube.json` that is 10 sections and 6,495 of the 33,688 frames: climb-high, phasing, night, transfer-night, transfer, closing, ring-approach, glide, ride-side and ride.
 
-Wall ms per tick (frame-arrival times, including one draw per frame and about 10 ms per frame for the run's frame pipe):
+Measured on two instrumented full runs on Runpod (EPYC 7352, RTX 2000 Ada, 1920x1080, FSR 3.1 at 2/3, real encoder):
 
-| Section | every | ms per frame | ms per tick |
-|---|---:|---:|---:|
-| ring-approach | 6 | 396.9 | 66.2 |
-| glide | 6 | 298.5 | 49.8 |
-| ride-side | 8 | 397.1 | 49.6 |
-| ride | 8 | 370.0 | 46.3 |
-| glide-window | 4 | 28.6 | 7.2 |
-| entry | 4 | 28.2 | 7.1 |
-| transfer (orbit) | 60 | 266.8 | 4.5 |
+- The still sections take 1,761 s and 1,919 s of the 2,483 s and 2,692 s of wall time. Their draw time is 239 ms per frame, against 14.9 ms per frame in the other sections.
+- A tick costs 0.37 to 0.60 ms on average in the still sections. All 332,516 ticks take 177 to 180 s.
+- A Mac A/B on one camera: `every` 4 and 5 draw in 18.6 and 18.8 ms per frame, `every` 6 and 8 in 599 and 606 ms.
 
-A draw costs about 13 ms of GPU time and about 25 ms of wall time with the pipe, so ring-approach, glide and the lift ride spend about 40 to 60 ms per tick in the simulation. The other sections near the ring (glide-window, entry, the bay) spend about 7 ms. At 60 ticks per second, a windowed game could not keep real time in these sections on this CPU.
+This ticket first said that the ring approach and the lift ride simulate at 46 to 66 ms per tick. That was wrong. It came from wall time per frame with one draw per frame assumed. docs/research/t88-hjjm-film-profile/README.md has the method, the tables and the limits of the evidence.
 
-Not yet known: which system costs the time, and whether the Mac shows the same. Find out with a CPU profile of a script that starts just before ring-approach and one just before ride (ring-approach starts at about tick 278,000 and ride at about tick 325,000, so the profile needs a saved state or a scene that starts there).
+A window never draws a still. So this is a cost of headless time-lapse films only, not of real-time play.
 
-Raw data: the ter-9wwx note of 2026-11-25 and its result folder.
+Not decided, and left for a decision after this evidence (user, 2026-11-25: "leave optimization for after evidence"):
 
+- whether a film's time-lapse frame should be a still at all;
+- whether it should take fewer warm-up draws;
+- whether the films should keep the cost.
+
+The visual effect of each choice on the time-lapse sections is not measured yet.
+
+## Notes
+
+**2026-11-25: film and profile run.** The scratch instrumentation is commit cc1d04090 on `t88-hjjm-scratch-profile`, not for merge. It records World.Tick's parts, the physics step's phases and Jolt counters, the SyncProfile steps, the capture, the sink write, the garbage collector and the CPU time per section, and one CSV row per tick. It also writes the readout log in the same run.
+
+Runs and costs, as the workbench counted them:
+
+| Job | What it did | Cost |
+|---|---|---:|
+| Worker test | the encoder, the transcode and the relay | $0.0449 |
+| Film run A | rendered and profiled; the transfer was lost because the Mac receiver's runpodctl had no GC root | $1.0439 |
+| Film run B | rendered, profiled and delivered | $0.5788 |
+| Total | | $1.6676 |
+
+Each job used its own temporary endpoint, which was deleted and confirmed gone.
+
+The film is `~/Movies/Blue Danube/blue-danube-2026-11-25.mp4`: 578.48 s, 34,709 frames, 1920x1080 at 60 fps, H.264 faststart, with the US Marine Band recording. A phone copy at 720p and the recoverable yuv444p master with its readouts lie beside it. The recording ends at 549.06 s, so the last 29.4 s are silent.

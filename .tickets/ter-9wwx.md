@@ -126,3 +126,5 @@ The wall rate depends on the simulation, not on the draw. A film step with `ever
 The coda ran: the last frame, 33,687 (end of antispinward), arrived, and its still shows the passenger on the outer-rim floor. The stills are frames 460, 1486, 12073, 16913, 18423, 18573, 26458, 27535, 28022, 29942, 31701, 32975 and 33687.
 
 The log's one line, "RendezvousAutopilot halts: the shuttle is not in the frame that holds its station" at tick 300,880, is the same as on the Mac. The shuttle changes frame there, in the entry.
+
+**Correction (2026-11-25, t88-hjjm).** The paragraph above says that the simulation sets the wall rate, and that the ring approach, glide and the lift ride cost 46 to 66 ms per tick. That is wrong. An instrumented run measured 0.37 to 0.60 ms per tick in those sections. Their frames come after 6 or more ticks, so the headless renderer draws each of them as a still, with 32 warm-up draws before the shown draw. docs/research/t88-hjjm-film-profile/README.md has the evidence.
