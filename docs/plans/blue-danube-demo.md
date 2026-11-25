@@ -10,7 +10,7 @@ A long demo video of the engine, recorded from one unbroken scripted run with th
 2. The shuttle launches up a ramp, like a rocket sled, and flies to orbit. In orbit the character becomes weightless by itself, because the ship's frame falls freely. The character leaves its seat and grabs a pen.
 3. The shuttle burns again and approaches a large spinning station, seen through its windows. The station has a docking slot on its axis.
 4. The shuttle spins up to match the station's rotation, enters the slot, and lands on one side of the docking barrel. Weak spin gravity returns as it moves out to the barrel wall.
-5. The character leaves the ship and takes a chute down a spoke to the outer wheel, where it feels full gravity.
+5. The character leaves the ship, crosses the deck onto a lift, and rides it standing down a spoke 2 km long to the outer wheel, where it feels full gravity (ter-9wwx, see "The kilometre wheel").
 6. The coda: on the wheel's floor, the character knocks over a stack of loose boxes. Then it throws one box spinward and one antispinward. Each lands where its straight line in inertial space says, not where a flat field of 1 g lands it.
 
 ## Rules
@@ -1323,6 +1323,8 @@ None. Every part lives in `src/Tertius.Demo`, `scripts/` and the demo's tests. T
 - Readouts of the spin rate and the felt gravity (see "Proof in the video"). The edit adds them.
 
 ## The exit
+
+Ticket ter-9wwx replaced the chute of this section with a lift, in a wheel of 2 km (see "The kilometre wheel"). The way out, the cameras on the deck and the shape of the exit component stay as this section says. The chute, the slide and the brake run are gone.
 
 Ticket ter-y0e5 designs step 6 of "Order of the work", which is item 5 of "The sequence" (2026-10-20). The person leaves the docked shuttle and walks across the deck. Then it slides down a chute in the spoke at θ = 180 degrees to the wheel's floor, where it feels a full gravity. It starts from the end state of "The docking", from the constants of `DemoScenes.DemoStation`, and it reads nothing that the docking builds. The design needs no engine change.
 
@@ -4501,6 +4503,99 @@ For each test a hand mutation broke the line that it protects, and the test fail
 - One drag, 2 per s, in every air, and the surface's density in the cabin and the bay.
 - The station's air fills the bay only, because a medium fills one box (see "The media").
 - A new section, `burn-chase`, shows the transfer burn from outside. No other section changed.
+
+## The kilometre wheel
+
+Ticket ter-9wwx grows the station to the scale of its art: a wheel whose floor lies 2,000 m from the axis, two spokes that are lift shafts, and a lift in place of the chute (2026-11-24). It builds the physical station and the films in gray boxes. A later fit aligns the hub, the slot, the deck and the bay with the Pioneer hub, and the floor with the Pioneer ring. The scene `spin-station` and its `SpinStation` keep their small wheel of 100 m, and `DemoStation` no longer reads them.
+
+### What the step does
+
+- The station turns at ω = √(g / R) = 0.0700237 rad/s, with g the standard gravity, 9.80665 m/s², and R = 2,000 m. So the floor feels one standard gravity, and the rim moves at 140 m/s.
+- The hall of the wheel is 60 m wide along the axis, with its ceiling 20 m above the floor. The floor is a ring of 1,024 flat facets, each 12.3 m long. A facet's middle lies 4.7 mm inside the circle, below the 2 cm of sag that the layout allows.
+- Two spokes, at θ = 0 and 180 degrees, are boxes 16 m square outside with walls of 0.5 m. The spoke at 180 degrees holds the lift. One ceiling segment is left out under it, turned half a segment, so the opening, 12.15 m across the spin, lies inside the spoke's 15 m.
+- The deck moves out to 40 m from the axis, where the spin gravity is 0.196 m/s², about four times the zero-gravity threshold of the characters. The bay is 80 m across the axis, 25 m along it and 16 m wide. The parked shuttle lies on the deck as before, with its pose shifted only along x.
+- The bubble is an ellipsoid with radii of 2,200 m across the axis and 120 m along it. The hold point lies on the axis 30 m beyond the bubble, at 150 m.
+- The person walks out of the hatch, across the deck and onto the lift through its open +Y side. It orders the lift down. The lift carries it standing down the spoke to 0.3 m above the wheel's floor, and the person walks off it.
+- A far camera, 7 km out and off the axis, films the whole wheel for the first 8 s of the spin-up.
+
+### The layout
+
+`StationLayout` is one record of the station's named constants and every dimension that derives from them. `DemoStation.Layout` is the scene's instance. The hub, the bay, the slot, the parked pose, the hold point, the bubble, the lift's hole and the lift's foot derive from a few constants: `FloorRadius`, `DeckRadius`, `BayHalfAxial`, `BayHalfAcross`, `BayAxial`, `BubbleRadial`, `BubbleAxial` and `HoldBeyondBubble`. The docking, the rendezvous's hold, the exit's legs, the lift, the cameras and the films read the layout, never literals. So the fit can move the slot, the bay and the hold point out along the axis, and grow the bubble's axial radius, without changes to the components.
+
+`StationLayout.Problems()` lists every broken invariant, and the tests run it on the demo's layout and on one moved by the fit's likely numbers, with the bay 300 m out on the axis and the bubble's axial radius 450 m:
+
+- The floor feels the standard gravity, and the deck at least 0.15 m/s².
+- The floor's sag between facets stays below 2 cm.
+- The parked hull lies inside the bay, on the deck and the -Z wall.
+- The hull lies inside the bubble with room for the shuttle, and the hold point lies outside it with room for the shuttle.
+- The shuttle's frame fits in the station's: its bubble is less than half the station's smallest radius.
+- The ceiling's opening and the lift's hole lie inside the spoke, and the lift's hole is clear of the parked hull.
+
+The rendezvous plan limits neither the hold distance nor the arrival distance except that both are positive and finite. The arrival point lies 1,500 m out on the axis, so a hold point up to that distance needs no change there. The glide's films cue on the distance to the hold point, not to the station's center.
+
+### The lift
+
+The lift is a kinematic body in the station's frame, `lift`: a floor 4 m square and 0.2 m thick, with railings 1.1 m tall on its antispinward, spinward and -Y sides. At the top its floor lies flush with the deck, in a hole in the deck's wall. `Lift` moves it on rails along the spoke by `LiftProfile`, a pure record of the ride:
+
+| Phase | Motion | Why |
+|---|---|---|
+| Boost | Acceleration outward of c ω² r, with c = 0.5 and r the floor's radius | The rider keeps half the spin gravity under its feet, so it stands |
+| Cruise | 20 m/s | Below the 50 m/s at which a numeric frame takes a group with a character |
+| Brake | 1 m/s² inward | The rider feels about 1.1 g at the foot |
+
+The boost from rest at r gives r(t) = r₀ cosh(√c ω t), so the ride's speed reaches 20 m/s 60.8 s after the start. The ride takes 150.45 s and ends with the floor 0.3 m above the wheel's floor under its middle.
+
+The exit component has a riding case in place of the slide. The table is `(Walking, Boarded) → Riding`, which sends `Descend` to the lift, and `(Riding, LiftStopped) → Strolling`. The lift sends `LiftStopped` to its rider when it reaches the foot.
+
+The ride in the station's axes has a Coriolis term across the spoke, 2 ω v, which reaches 2.80 m/s² toward antispinward at 20 m/s. The engine's ground holds a standing character against the whole acceleration of its frame, so the person keeps its place on the floor, and a railing stands on that side.
+
+### The lamps and the cameras
+
+Two lamps ride on the lift. Lamps in the shaft stand every 150 m from 140 m out to above the ceiling. Six floodlights light the wheel's floor round the lift's foot and the coda, at z = -9, 9 and 21 m on both sides of the axis.
+
+| Camera | Place | Film |
+|---|---|---|
+| `bay-camera` | Beside the slot, looking at the deck's far end | The docking's landing |
+| `far-camera` | 7 km out, off the axis, in the station's frame | `far`, every 2nd tick, the first 8 s of the spin-up |
+| `deck-camera` | On the deck beyond the lift from the hatch | `deck` |
+| `shaft-camera` | In the spoke 25 m below the deck, looking up at the lift's top | `shaft`, until the person is 30 m down |
+| `ride-camera` | On the lift, 4 m above its floor | `ride`, every 8th tick, until the person is 100 m above the ceiling |
+| `wheel-camera` | On the floor 22 m spinward of the lift, 2 m high | `foot`, from the brake to the first steps off |
+
+The films `spoke-camera` and `slide-camera` are gone, and `shaft-camera` takes the place of `spoke-camera` in `scripts/temporal-upscale-validation.json`. The exit's film after the ride is `foot`, because the rendezvous has a film `arrival` already.
+
+### The coda
+
+The coda moves to the facet after the one under the lift, 12.3 to 24.5 m spinward of the lift's spoke. The wheel of 2 km turns slowly, so the straight line of a throw bends less: the spinward throw lands 0.54 m short of the flat field's point and the antispinward throw 0.62 m long, against 1.5 and 3 m in the wheel of 100 m.
+
+### Measured
+
+On a real World, from the scene `demo-exit`, 2026-11-24:
+
+| Quantity | Value |
+|---|---|
+| Spin gravity at the floor, ω² R | 9.80665 m/s² |
+| Felt gravity at the person's center on the floor, 1,999.09 m from the axis | 9.8022 m/s² |
+| Spin gravity on the deck, ω² × 40 m | 0.196 m/s² |
+| Felt gravity at the parked seat | 0.192 m/s², leaning 6 degrees toward port |
+| Parked hull to the lift's hole across the axis | 2.45 m |
+| The docking from the order to `Docked` | 199.5 s: 30.5 s for the roll window, 30 s of spin-up, 85 s of entry, 54 s of move out and landing |
+| The ride | 150.45 s, 20.0 m/s at most |
+| The weight under the rider's feet along the spoke | at least 0.487 of the spin gravity, 0.093 m/s² at the top |
+| The order to the stroll's end | 171.9 s |
+
+### Known faults
+
+Each fault is pinned by a test so that a change shows.
+
+- The person reports not standing for 2 ticks at its hand-off from the cabin's frame into the station's, 9.78 s into the ride. Its place on the floor holds to 0.1 mm across them. The engine reports a character as not standing at a hand-off.
+- The person rides one tick of the lift's motion above its floor: 0.33 m at 20 m/s. The engine moves a standing character with its ground's velocity of the step before, so it stands where the floor was one tick earlier. The gap is v / 60 at every speed and closes at the stop.
+- The climb of the hatch's 0.1 m sill throws the person up at 0.68 m/s. In the deck's 0.19 m/s² it flies for 3.8 s, up to 0.67 m above its stance, before it lands on the deck. Under 1 g the same throw is a hop of 2 cm.
+- In the docking's move out, the belt lets go in the weak, tilted gravity, and the person settles 0.55 m to port of the seat stand, 0.62 m at the landing's jolt.
+
+### Tests
+
+`StationLayoutTests` checks the invariants on the demo's layout and on the moved one. `LiftProfileTests` checks the profile as pure math. `LiftStateTests` checks the lift's table. `DisembarkTests` runs the exit on a real World and checks the ride, the stand on the lift, the hand-off, the weight and the step off. `StationExitGeometryTests` casts rays at the lift, the deck, the ceiling's opening and the railings.
 
 ## Order of the work
 
