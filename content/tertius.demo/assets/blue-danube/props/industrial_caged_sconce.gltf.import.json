@@ -1,0 +1,71 @@
+{
+  "source": {
+    "title": "Industrial Caged Sconce",
+    "authors": [
+      "Ulan Cabanilla"
+    ],
+    "provider": "polyhaven",
+    "page": "https://polyhaven.com/a/industrial_caged_sconce",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "terms": "https://polyhaven.com/license",
+    "attribution": "\"Industrial Caged Sconce\" by Ulan Cabanilla, from Poly Haven (https://polyhaven.com/a/industrial_caged_sconce), CC0-1.0.",
+    "retrieved": "2026-11-24",
+    "files": {
+      "industrial_caged_sconce.gltf": {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/industrial_caged_sconce/industrial_caged_sconce_1k.gltf",
+        "bytes": 18429,
+        "sha256": "sha256:a2fa6163a5eab0e3f00815a39d0be5f75985c899ca2ed60420e8d77f9c5e086b"
+      },
+      "industrial_caged_sconce.bin": {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/industrial_caged_sconce/industrial_caged_sconce.bin",
+        "bytes": 949472,
+        "sha256": "sha256:fc14f0b5210c1de70ac25e535b676fb1e74e0c10c1901f09992b038f2139ab2a"
+      },
+      "textures/industrial_caged_sconce_arm_1k.jpg": {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/industrial_caged_sconce/industrial_caged_sconce_arm_1k.jpg",
+        "bytes": 770330,
+        "sha256": "sha256:e26d1438541367d9899a56d77d5e1852dc3035222abb431bba780b721fbc7cbe"
+      },
+      "textures/industrial_caged_sconce_diff_1k.jpg": {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/industrial_caged_sconce/industrial_caged_sconce_diff_1k.jpg",
+        "bytes": 621431,
+        "sha256": "sha256:3f6e0006d15a49e144a98b679d4ba1d0af52bb578f01c5ecd4b663837a4ac08c"
+      },
+      "textures/industrial_caged_sconce_emissive_1k.jpg": {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/industrial_caged_sconce/industrial_caged_sconce_emissive_1k.jpg",
+        "bytes": 49946,
+        "sha256": "sha256:0cedf24e7ca8589b3598101ed571e8db51ae4985b45d46326adc7acd5d3ba82d"
+      },
+      "textures/industrial_caged_sconce_nor_gl_1k.jpg": {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/industrial_caged_sconce/industrial_caged_sconce_nor_gl_1k.jpg",
+        "bytes": 715927,
+        "sha256": "sha256:7253ba8d4bcca20479a8bf18e2e2b3fb47b319f5339f40eaffba3677d9886314"
+      }
+    },
+    "upstreamSizeMm": [
+      1210.1812362670898,
+      389.4345611333847,
+      912.8422662615776
+    ],
+    "changes": [
+      "Converted to one glTF binary in engine axes (+Y up, front -Z, meters); the geometry and the textures are unchanged.",
+      "The ambient occlusion channel of the ARM map is not used by the engine."
+    ],
+    "approved": {
+      "on": "2026-11-24",
+      "by": "the user, through the ter-9wwx orchestrator",
+      "record": "sha256:6bff1c739ce267df1fbd9f27006b27e13df6eeb9c1c14c55b1a8fbee5824503f"
+    }
+  },
+  "convert": {
+    "kind": "gltf",
+    "file": "industrial_caged_sconce.gltf",
+    "front": "-Y",
+    "glow": {
+      "strength": 60,
+      "threshold": 0.05,
+      "bins": 4
+    }
+  }
+}

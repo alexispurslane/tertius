@@ -1,0 +1,66 @@
+{
+  "source": {
+    "title": "Metal Stool 01",
+    "authors": [
+      "Ulan Cabanilla"
+    ],
+    "provider": "polyhaven",
+    "page": "https://polyhaven.com/a/metal_stool_01",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "terms": "https://polyhaven.com/license",
+    "attribution": "\"Metal Stool 01\" by Ulan Cabanilla, from Poly Haven (https://polyhaven.com/a/metal_stool_01), CC0-1.0.",
+    "retrieved": "2026-11-24",
+    "files": {
+      "metal_stool_01.gltf": {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/metal_stool_01/metal_stool_01_1k.gltf",
+        "bytes": 2790,
+        "sha256": "sha256:e69a99778cacbbf0a2447971d8917a2463b411cdd2a50ff2c53c2230b4c43881"
+      },
+      "metal_stool_01.bin": {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/metal_stool_01/metal_stool_01.bin",
+        "bytes": 216340,
+        "sha256": "sha256:a57dae498990e7b56cba33b64721d1d0b940ca6352248de149740cd4678d451d"
+      },
+      "textures/metal_stool_01_arm_1k.jpg": {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/metal_stool_01/metal_stool_01_arm_1k.jpg",
+        "bytes": 783046,
+        "sha256": "sha256:eb13e80e9fe232d022b4136e817d4590a7279d8da327d35e525e1aa4cf30e334"
+      },
+      "textures/metal_stool_01_diff_1k.jpg": {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/metal_stool_01/metal_stool_01_diff_1k.jpg",
+        "bytes": 617390,
+        "sha256": "sha256:d11949df1f0c59b5a85145395703a2aa7617e76b80759a5ef80b09e1798acb3d"
+      },
+      "textures/metal_stool_01_nor_gl_1k.jpg": {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/metal_stool_01/metal_stool_01_nor_gl_1k.jpg",
+        "bytes": 667394,
+        "sha256": "sha256:55d71cb01dd9afba245d4513728ce0cde8b112d5a7e1695a68578445c7b02b82"
+      }
+    },
+    "upstreamSizeMm": [
+      351.9909083843231,
+      354.570209980011,
+      882.7742969733663
+    ],
+    "changes": [
+      "Converted to one glTF binary in engine axes (+Y up, front -Z, meters); the geometry and the textures are unchanged.",
+      "The ambient occlusion channel of the ARM map is not used by the engine."
+    ],
+    "approved": {
+      "on": "2026-11-24",
+      "by": "the user, through the ter-9wwx orchestrator",
+      "record": "sha256:e9c9fd3db4d0266279f6fefac23550f96406edea1adf04625a150246691a617e"
+    }
+  },
+  "convert": {
+    "kind": "gltf",
+    "file": "metal_stool_01.gltf",
+    "front": "-Y",
+    "glow": {
+      "strength": 60,
+      "threshold": 0.05,
+      "bins": 4
+    }
+  }
+}

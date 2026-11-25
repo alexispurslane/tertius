@@ -1,0 +1,116 @@
+{
+  "source": {
+    "title": "Orbital Station (ring 2.2 km)",
+    "authors": [
+      "Szilárd Bálint (station ring)",
+      "Pioneer Developers"
+    ],
+    "provider": "other",
+    "page": "https://github.com/pioneerspacesim/pioneer/tree/999c9b572181d21f6c25102356b922da7937b794/data/models/stations/orbital_station",
+    "repository": "https://github.com/pioneerspacesim/pioneer",
+    "commit": "999c9b572181d21f6c25102356b922da7937b794",
+    "upstreamPath": "data/models/stations/orbital_station",
+    "license": "CC-BY-SA-3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/",
+    "notice": "Copyright © 2008-2026 Pioneer Developers. Portions copyright © 2013-2014 Meteoric Games Ltd. Pioneer's art is licensed under CC BY-SA 3.0 (Pioneer AUTHORS.txt, \"Licensing\").",
+    "attribution": "\"Orbital Station (ring 2.2 km)\" by Szilárd Bálint (station ring), Pioneer Developers, from Pioneer Space Sim (https://github.com/pioneerspacesim/pioneer/tree/999c9b572181d21f6c25102356b922da7937b794/data/models/stations/orbital_station), CC-BY-SA-3.0. Changed for Tertius: see \"changes\".",
+    "retrieved": "2026-11-24",
+    "files": {
+      "orbital_station_2-2k.model": {
+        "url": "https://raw.githubusercontent.com/pioneerspacesim/pioneer/999c9b572181d21f6c25102356b922da7937b794/data/models/stations/orbital_station/orbital_station_2-2k.model",
+        "bytes": 1518,
+        "sha256": "sha256:1e5828960f2010a7c63e9134e92818b7290ac6f706d27add8b1a2f18e5452e7d"
+      },
+      "station_ring_2-2k.dae": {
+        "url": "https://raw.githubusercontent.com/pioneerspacesim/pioneer/999c9b572181d21f6c25102356b922da7937b794/data/models/stations/orbital_station/station_ring_2-2k.dae",
+        "bytes": 1474538,
+        "sha256": "sha256:4c2e00feecb03a5abed29264f46cf9731361267a537bc745d4e22c7a91d1cfaf"
+      },
+      "station_hub_B.dae": {
+        "url": "https://raw.githubusercontent.com/pioneerspacesim/pioneer/999c9b572181d21f6c25102356b922da7937b794/data/models/stations/orbital_station/station_hub_B.dae",
+        "bytes": 14023629,
+        "sha256": "sha256:942db4099310509ba01862fd6f5e9d10c93b9c2611fb79d61bfd2c142616e62f"
+      },
+      "facades_diff.dds": {
+        "url": "https://raw.githubusercontent.com/pioneerspacesim/pioneer/999c9b572181d21f6c25102356b922da7937b794/data/models/stations/orbital_station/facades_diff.dds",
+        "bytes": 11184952,
+        "sha256": "sha256:5408550f82ebc7acac41019218f5396853a8518064b110a637a347f60aea88c7"
+      },
+      "floors_diff.dds": {
+        "url": "https://raw.githubusercontent.com/pioneerspacesim/pioneer/999c9b572181d21f6c25102356b922da7937b794/data/models/stations/orbital_station/floors_diff.dds",
+        "bytes": 11184952,
+        "sha256": "sha256:d58d4b5819527930c5cc0d6c28aa5c50a16b51f061f5eca41b5c973c1d33e583"
+      },
+      "ring_diff.dds": {
+        "url": "https://raw.githubusercontent.com/pioneerspacesim/pioneer/999c9b572181d21f6c25102356b922da7937b794/data/models/stations/orbital_station/ring_diff.dds",
+        "bytes": 11184952,
+        "sha256": "sha256:3b1d9a944616817c3d868c48f59b2b523c9115f41cf47b4633a7478673baf8c1"
+      },
+      "spoke_n_misc_diff.dds": {
+        "url": "https://raw.githubusercontent.com/pioneerspacesim/pioneer/999c9b572181d21f6c25102356b922da7937b794/data/models/stations/orbital_station/spoke_n_misc_diff.dds",
+        "bytes": 11184952,
+        "sha256": "sha256:1a02e975e7a7f8ed8074859d01df95c72e7fcee3f98ccbb18d39d87307ee3c2e"
+      },
+      "struts_diff.dds": {
+        "url": "https://raw.githubusercontent.com/pioneerspacesim/pioneer/999c9b572181d21f6c25102356b922da7937b794/data/models/stations/orbital_station/struts_diff.dds",
+        "bytes": 174904,
+        "sha256": "sha256:39f503fe03d7776ac46978c485ff160163d9d281fbccae59617efc514fb32d42"
+      }
+    },
+    "changes": [
+      "Converted from COLLADA and DDS to one glTF binary in engine axes (+Y up, front -Z, meters); the geometry is unchanged.",
+      "Dropped the nodes that Pioneer draws at run time or uses as markers, not as geometry: navigation lights, tags, thruster markers, labels and decals.",
+      "Pioneer's specular maps and specular and shininess values are not used; every material is a non-metal of roughness 0.6.",
+      "The glow map is baked into constant emission: each triangle takes the mean glow over its UV footprint, quantized into at most 4 emission levels.",
+      "Pioneer's station docking bay, station_docking_B.dae, and its collision meshes are not used.",
+      "Added inhabited galleries on both axial faces of the ring: panels with a shared color atlas and normal map, lit and unlit window panes with constant emission, mullions, blinds and arcade walls (tools/blue-danube-assets/habitat.py, a procedural build with a fixed seed). The ring geometry itself is unchanged.",
+      "The 4096 px maps are scaled down to 2048 px, to keep the GPU memory of the station near 85 MB.",
+      "The ring material has no glow: its ring_glow.dds and ring_diff_s.dds were not fetched.",
+      "The 'unlit' materials (facade, floor, tunnels) are lit like the others; their glow, which Pioneer takes from the diffuse map, becomes the baked emission."
+    ],
+    "approved": {
+      "on": "2026-11-24",
+      "by": "the user, through the ter-9wwx orchestrator",
+      "record": "sha256:bc9547d98ebee1ebe267424913d69e3792239bb9063e36adb0d332a8b2c71209"
+    }
+  },
+  "convert": {
+    "kind": "pioneer",
+    "modelFile": "orbital_station_2-2k.model",
+    "meshes": [
+      {
+        "file": "station_ring_2-2k.dae",
+        "piece": "ring"
+      },
+      {
+        "file": "station_hub_B.dae",
+        "piece": "hub"
+      }
+    ],
+    "front": "+Y",
+    "dropNodes": [
+      "navlight",
+      "tag_",
+      "thruster",
+      "label",
+      "decal",
+      "coll",
+      "light_"
+    ],
+    "glow": {
+      "strength": 60,
+      "threshold": 0.05,
+      "bins": 4
+    },
+    "maxTextureSize": 2048,
+    "overlay": {
+      "module": "habitat",
+      "parent": "ring"
+    },
+    "expectedSize": [
+      4100,
+      4100,
+      1200
+    ]
+  }
+}

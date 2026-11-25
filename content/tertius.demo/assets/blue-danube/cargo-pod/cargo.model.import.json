@@ -1,0 +1,77 @@
+{
+  "source": {
+    "title": "Cargo Pod",
+    "authors": [
+      "Pioneer Developers"
+    ],
+    "provider": "other",
+    "page": "https://github.com/pioneerspacesim/pioneer/tree/999c9b572181d21f6c25102356b922da7937b794/data/models/misc/cargo",
+    "repository": "https://github.com/pioneerspacesim/pioneer",
+    "commit": "999c9b572181d21f6c25102356b922da7937b794",
+    "upstreamPath": "data/models/misc/cargo",
+    "license": "CC-BY-SA-3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/",
+    "notice": "Copyright © 2008-2026 Pioneer Developers. Portions copyright © 2013-2014 Meteoric Games Ltd. Pioneer's art is licensed under CC BY-SA 3.0 (Pioneer AUTHORS.txt, \"Licensing\").",
+    "attribution": "\"Cargo Pod\" by Pioneer Developers, from Pioneer Space Sim (https://github.com/pioneerspacesim/pioneer/tree/999c9b572181d21f6c25102356b922da7937b794/data/models/misc/cargo), CC-BY-SA-3.0. Changed for Tertius: see \"changes\".",
+    "retrieved": "2026-11-24",
+    "files": {
+      "cargo.model": {
+        "url": "https://raw.githubusercontent.com/pioneerspacesim/pioneer/999c9b572181d21f6c25102356b922da7937b794/data/models/misc/cargo/cargo.model",
+        "bytes": 227,
+        "sha256": "sha256:5f3722bfd059e3118b10e3ac7a0c89de6dc1d68020ebe704a78fbba7e28d1d10"
+      },
+      "cargopod.dae": {
+        "url": "https://raw.githubusercontent.com/pioneerspacesim/pioneer/999c9b572181d21f6c25102356b922da7937b794/data/models/misc/cargo/cargopod.dae",
+        "bytes": 34353,
+        "sha256": "sha256:20c7789830f226480cf701bd896a09b83bed870e8179762cd571a9fc0ce996ec"
+      },
+      "cargopod.dds": {
+        "url": "https://raw.githubusercontent.com/pioneerspacesim/pioneer/999c9b572181d21f6c25102356b922da7937b794/data/models/misc/cargo/cargopod.dds",
+        "bytes": 699192,
+        "sha256": "sha256:dd5a485e535cf6be6aa7f44d23aa89124758a0a003da222f617e26f082f96da9"
+      }
+    },
+    "changes": [
+      "Converted from COLLADA and DDS to one glTF binary in engine axes (+Y up, front -Z, meters); the geometry is unchanged.",
+      "Dropped the nodes that Pioneer draws at run time or uses as markers, not as geometry: navigation lights, tags, thruster markers, labels and decals.",
+      "Pioneer's specular maps and specular and shininess values are not used; every material is a non-metal of roughness 0.6.",
+      "The glow map is baked into constant emission: each triangle takes the mean glow over its UV footprint, quantized into at most 4 emission levels.",
+      "The cargo glow and specular maps, glow.dds and specular.dds, were not fetched, so the pod has no glow."
+    ],
+    "approved": {
+      "on": "2026-11-24",
+      "by": "the user, through the ter-9wwx orchestrator",
+      "record": "sha256:8cbf87be0c3f46b99c5820987e765ea958dd1befb227677f5ad1db809ba82159"
+    }
+  },
+  "convert": {
+    "kind": "pioneer",
+    "modelFile": "cargo.model",
+    "meshes": [
+      {
+        "file": "cargopod.dae",
+        "piece": "pod"
+      }
+    ],
+    "front": "+Y",
+    "dropNodes": [
+      "navlight",
+      "tag_",
+      "thruster",
+      "label",
+      "decal",
+      "coll",
+      "light_"
+    ],
+    "glow": {
+      "strength": 60,
+      "threshold": 0.05,
+      "bins": 4
+    },
+    "expectedSize": [
+      5,
+      5,
+      5
+    ]
+  }
+}

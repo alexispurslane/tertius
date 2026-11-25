@@ -1,0 +1,66 @@
+{
+  "source": {
+    "title": "Industrial Storage Cart",
+    "authors": [
+      "Jule Bielitz"
+    ],
+    "provider": "polyhaven",
+    "page": "https://polyhaven.com/a/industrial_storage_cart",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "terms": "https://polyhaven.com/license",
+    "attribution": "\"Industrial Storage Cart\" by Jule Bielitz, from Poly Haven (https://polyhaven.com/a/industrial_storage_cart), CC0-1.0.",
+    "retrieved": "2026-11-24",
+    "files": {
+      "industrial_storage_cart.gltf": {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/industrial_storage_cart/industrial_storage_cart_1k.gltf",
+        "bytes": 2878,
+        "sha256": "sha256:f420b66b2e56513542b9598f038eb5f5ce120746735997807e58552049884043"
+      },
+      "industrial_storage_cart.bin": {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/industrial_storage_cart/industrial_storage_cart.bin",
+        "bytes": 664580,
+        "sha256": "sha256:ae46bc3aceda8234515054b3b4595db14e7eb72148100b5c2cafe1de7393410c"
+      },
+      "textures/industrial_storage_cart_arm_1k.jpg": {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/industrial_storage_cart/industrial_storage_cart_arm_1k.jpg",
+        "bytes": 849352,
+        "sha256": "sha256:956ee8d02021aba0b5fdbf393029b0aaabd7d29076caa3a5678e394f79adcca1"
+      },
+      "textures/industrial_storage_cart_diff_1k.jpg": {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/industrial_storage_cart/industrial_storage_cart_diff_1k.jpg",
+        "bytes": 553691,
+        "sha256": "sha256:7e779d7f7385307ebb332aec41bafff10c21972aaf92382f30cacb16957e7d37"
+      },
+      "textures/industrial_storage_cart_nor_gl_1k.jpg": {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/industrial_storage_cart/industrial_storage_cart_nor_gl_1k.jpg",
+        "bytes": 567119,
+        "sha256": "sha256:a4fcd4309516e6005b5f3636399bd801df72fc75986831fad9cc5c31b737070a"
+      }
+    },
+    "upstreamSizeMm": [
+      1603.3486723899841,
+      1102.7454733848572,
+      1377.3844093084335
+    ],
+    "changes": [
+      "Converted to one glTF binary in engine axes (+Y up, front -Z, meters); the geometry and the textures are unchanged.",
+      "The ambient occlusion channel of the ARM map is not used by the engine."
+    ],
+    "approved": {
+      "on": "2026-11-24",
+      "by": "the user, through the ter-9wwx orchestrator",
+      "record": "sha256:d662d38486edcfd6bd1cc97d323705717ef1edfbf14bf88bf79cb321e10f6f98"
+    }
+  },
+  "convert": {
+    "kind": "gltf",
+    "file": "industrial_storage_cart.gltf",
+    "front": "-Y",
+    "glow": {
+      "strength": 60,
+      "threshold": 0.05,
+      "bins": 4
+    }
+  }
+}

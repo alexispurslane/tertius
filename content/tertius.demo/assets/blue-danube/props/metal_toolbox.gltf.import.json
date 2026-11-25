@@ -1,0 +1,66 @@
+{
+  "source": {
+    "title": "Metal Toolbox",
+    "authors": [
+      "Mateusz Sadek"
+    ],
+    "provider": "polyhaven",
+    "page": "https://polyhaven.com/a/metal_toolbox",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "terms": "https://polyhaven.com/license",
+    "attribution": "\"Metal Toolbox\" by Mateusz Sadek, from Poly Haven (https://polyhaven.com/a/metal_toolbox), CC0-1.0.",
+    "retrieved": "2026-11-24",
+    "files": {
+      "metal_toolbox.gltf": {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/metal_toolbox/metal_toolbox_1k.gltf",
+        "bytes": 10717,
+        "sha256": "sha256:9b8d240f1e41e83119771a063e4f4b4bb9ddfefd47f9f5baeda998107aa135c5"
+      },
+      "metal_toolbox.bin": {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/4k/metal_toolbox/metal_toolbox.bin",
+        "bytes": 468892,
+        "sha256": "sha256:fe5551028e5b398c78c86911abf549010f83831c30b01593ca3eb3d8ba7ceae7"
+      },
+      "textures/metal_toolbox_arm_1k.jpg": {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/metal_toolbox/metal_toolbox_arm_1k.jpg",
+        "bytes": 1033149,
+        "sha256": "sha256:97676b2324b105b710904b20bfdeb32bfce3c6b4ccaaf215827b37961fc22763"
+      },
+      "textures/metal_toolbox_diff_1k.jpg": {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/metal_toolbox/metal_toolbox_diff_1k.jpg",
+        "bytes": 661804,
+        "sha256": "sha256:21e1d21880e49db3fde0457d53b78a70db61234a201da9f0181dd0880b110473"
+      },
+      "textures/metal_toolbox_nor_gl_1k.jpg": {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/metal_toolbox/metal_toolbox_nor_gl_1k.jpg",
+        "bytes": 572273,
+        "sha256": "sha256:7ba19a233bcfff9c3d95b62c3a992c8e19cb2d6355c98d6e12bdc756a8af44cf"
+      }
+    },
+    "upstreamSizeMm": [
+      400.0099003314972,
+      292.32875257730484,
+      347.10586071014404
+    ],
+    "changes": [
+      "Converted to one glTF binary in engine axes (+Y up, front -Z, meters); the geometry and the textures are unchanged.",
+      "The ambient occlusion channel of the ARM map is not used by the engine."
+    ],
+    "approved": {
+      "on": "2026-11-24",
+      "by": "the user, through the ter-9wwx orchestrator",
+      "record": "sha256:3267c0796f05cc0f7caf1fa1a28fb3c05e0a1e5da55caca88bf388b0e6134338"
+    }
+  },
+  "convert": {
+    "kind": "gltf",
+    "file": "metal_toolbox.gltf",
+    "front": "-Y",
+    "glow": {
+      "strength": 60,
+      "threshold": 0.05,
+      "bins": 4
+    }
+  }
+}
