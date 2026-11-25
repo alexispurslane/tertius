@@ -54,12 +54,27 @@ public static class BlueDanubeEdit
                     ),
                 ]
             ),
+            // The credits of the third-party models, as their licenses ask (THIRD-PARTY-NOTICES.md, "The Blue Danube
+            // art"). CC BY-SA 3.0 asks for the authors, the license and a note of the changes wherever the film goes.
             Closing: new(
-                8,
+                12,
                 [
-                    new("Gray-box meshes. No textures, no sky, no anti-aliasing.", 32),
                     new("The engine is unfinished. The physics is the point.", 32),
                     new("", 24),
+                    new(
+                        "Station, lunar shuttle and cargo pod: Pioneer Space Sim, by the Pioneer Developers;"
+                            + " the station ring by Szilárd Bálint. CC BY-SA 3.0, adapted.",
+                        20,
+                        Gray: true
+                    ),
+                    new(
+                        "Passenger: \"Human male, light armour\" by Angelo, Stannum and RXMT, from Unvanquished."
+                            + " CC BY-SA 3.0, adapted.",
+                        20,
+                        Gray: true
+                    ),
+                    new("Props: Poly Haven, CC0.", 20, Gray: true),
+                    new("Sources, authors and changes: THIRD-PARTY-NOTICES.md in the Tertius repository.", 20, Gray: true),
                 ]
             )
         );

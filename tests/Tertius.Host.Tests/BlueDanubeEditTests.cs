@@ -15,6 +15,32 @@ public sealed class BlueDanubeEditTests
 
     private static int IndexOf(string film) => Films.ToList().FindIndex(f => f.Name == film);
 
+    /// <summary>
+    /// Every author of a share-alike model in the Blue Danube sidecars, without the part in parentheses: CC BY-SA 3.0
+    /// asks for their credit wherever the film goes.
+    /// </summary>
+    private static IEnumerable<string> ShareAlikeAuthors() =>
+        Directory
+            .EnumerateFiles(
+                Path.Combine(RepositoryRoot(), "content", "tertius.demo", "assets", "blue-danube"),
+                "*.import.json",
+                SearchOption.AllDirectories
+            )
+            .Select(file => System.Text.Json.JsonElement.Parse(File.ReadAllText(file)).GetProperty("source"))
+            .Where(source => source.GetProperty("license").GetString() == "CC-BY-SA-3.0")
+            .SelectMany(source => source.GetProperty("authors").EnumerateArray())
+            .Select(author => author.GetString()!.Split(" (")[0])
+            .Distinct();
+
+    [Fact]
+    public void TheClosingCardCreditsEveryShareAlikeAuthorAndTheLicense()
+    {
+        string closing = string.Join("\n", BlueDanubeEdit.Cuts.Closing.Lines.Select(line => line.Text));
+
+        ShareAlikeAuthors().Should().NotBeEmpty().And.OnlyContain(author => closing.Contains(author));
+        closing.Should().Contain("CC BY-SA 3.0").And.Contain("adapted").And.Contain("THIRD-PARTY-NOTICES.md");
+    }
+
     [Fact]
     public void TheCutListNamesOnlyFilmsOfTheCheckedInScript()
     {
