@@ -306,8 +306,63 @@ public sealed class ModelExpansionTests
         var expansion = new ModelExpansion();
         expansion.Expand(With(ShipAt(Vector3.Zero, Quaternion.Identity, 1)), [Ship]);
 
+        expansion.Expand(With(BoxAt(new(1, 0, -5), entity: 2), ShipAt(Vector3.Zero, Quaternion.Identity, 1)), [Ship]);
+
+        expansion.Instances.ToArray().Select(i => i.EntityIndex).Should().Equal(2u, 7u, 7u);
+    }
+
+    [Fact]
+    public void AnExpansionWithoutAModelAfterOneWithAModelPassesTheSnapshotThrough()
+    {
+        var expansion = new ModelExpansion();
+        expansion.Expand(With(ShipAt(Vector3.Zero, Quaternion.Identity, 1)), [Ship]);
+
         expansion.Expand(With(BoxAt(new(1, 0, -5), entity: 2)), [Ship]);
 
         expansion.Instances.ToArray().Select(i => i.EntityIndex).Should().Equal(2u);
+    }
+
+    [Fact]
+    public void TheRigPoseOfAnInstanceAfterAPosedModelInstanceIsKept()
+    {
+        RenderSnapshot snapshot = With(ShipAt(Vector3.Zero, Quaternion.Identity, 1), BoxAt(new(1, 0, -5), entity: 9));
+        snapshot.AddRigPose(instance: 0, joints: [Pose.Identity], previousJoints: [Pose.Identity], weights: [], previousWeights: []);
+        snapshot.AddRigPose(instance: 1, joints: [Pose.Identity], previousJoints: [Pose.Identity], weights: [], previousWeights: []);
+        var expansion = new ModelExpansion();
+
+        expansion.Expand(snapshot, [Ship]);
+
+        expansion.RigPoses.ToArray().Select(p => p.Instance).Should().Equal(2);
+    }
+
+    [Fact]
+    public void APreviousScaleTooSmallToDrawCountsAsTheCurrentScale()
+    {
+        RenderInstance ship = ShipAt(new(0, 0, -20), Quaternion.Identity, scale: 2);
+        ship.PreviousScale = new(1e-20f);
+
+        RenderInstance mast = Expanded(With(ship), Ship)[1];
+
+        mast.PreviousScale.Should().Be(new Vector3(2, 8, 2));
+    }
+
+    [Fact]
+    public void APreviousScaleOfTheOtherSignCountsAsTheCurrentScale()
+    {
+        // A mirror between two ticks passes through a flat scale, which no view draws.
+        RenderInstance ship = ShipAt(new(0, 0, -20), Quaternion.Identity, scale: 2);
+        ship.PreviousScale = new(-1);
+
+        RenderInstance mast = Expanded(With(ship), Ship)[1];
+
+        mast.PreviousScale.Should().Be(new Vector3(2, 8, 2));
+    }
+
+    [Fact]
+    public void AMirroredModelKeepsAPositiveBoundingRadius()
+    {
+        RenderInstance[] parts = Expanded(With(ShipAt(Vector3.Zero, Quaternion.Identity, scale: -3)), Ship);
+
+        parts.Select(p => p.BoundingRadius).Should().Equal(6f, 13.5f);
     }
 }

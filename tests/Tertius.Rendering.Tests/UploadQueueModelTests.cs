@@ -39,8 +39,24 @@ public sealed class UploadQueueModelTests
         UploadQueue.Pending batch = queue.Drain();
 
         batch.Models.Should().Equal((model, desc));
-        queue.AddModel(desc);
-        queue.Drain().Models.Should().ContainSingle("a drained model does not come again");
+    }
+
+    [Fact]
+    public void EachDrainHandsOverOnlyTheModelsMadeSinceTheLastOne()
+    {
+        UploadQueue queue = NewQueue();
+        MeshId mesh = queue.AddMesh(Primitives.Box(Vector3.One));
+        ModelDesc desc = ModelOf(PartOf(mesh, default));
+
+        // The queue swaps two batches, so the third drain reuses the first batch.
+        int[] counts = new int[3];
+        for (int drain = 0; drain < counts.Length; drain++)
+        {
+            queue.AddModel(desc);
+            counts[drain] = queue.Drain().Models.Count;
+        }
+
+        counts.Should().Equal(1, 1, 1);
     }
 
     [Fact]
