@@ -266,6 +266,17 @@ public sealed class BlueDanubeArtSceneTests : IDisposable
     }
 
     [Fact]
+    public void TheShaftCarAndRimFloorShadeTheirSurfaceRelief()
+    {
+        SceneInstance scene = Build(TinyArt());
+        foreach (string part in new[] { "station-spokes", "lift", "station" })
+        {
+            MaterialDesc material = resources.Materials[world.GetRender(scene[part]).Material];
+            material.NormalMap.Should().NotBe(TextureId.None, $"the {part} uses the relief of its surface");
+        }
+    }
+
+    [Fact]
     public void WithoutTheArtTheSceneKeepsItsGrayBox()
     {
         SceneInstance scene = Build(null);

@@ -39,5 +39,12 @@ def check(path):
             hit, point, *_ = bpy.context.scene.ray_cast(graph, start, Vector((-1, 0, 0)))
             assert hit and abs(point.x + 104.611) < 0.002, f"obstruction before berth at ({y}, {z}): {point}"
 
+    start = Vector((-100, 0, 11.249 - 14.6))
+    hit, _, _, face, obj, _ = bpy.context.scene.ray_cast(graph, start, Vector((-1, 0, 0)))
+    assert hit
+    mat = obj.data.materials[obj.data.polygons[face].material_index]
+    shader = mat.node_tree.nodes.get("Principled BSDF")
+    assert shader.inputs["Normal"].is_linked, "the physical berth deck needs its anti-slip relief"
+
 
 check(Path(sys.argv[-1]).resolve())

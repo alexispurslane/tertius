@@ -328,7 +328,7 @@ public static partial class DemoScenes
         /// </summary>
         public static void Spawn(World world, FrameHandle station, SceneInstance scene, IRenderResources resources)
         {
-            MaterialId cladding = PanelMaterial(resources);
+            MaterialId cladding = resources.CreateMaterial(PanelFinish(resources));
             Entity deckGate = LandingGate(
                 world: world,
                 frame: station,
@@ -370,6 +370,11 @@ public static partial class DemoScenes
                 stair: Stair
             );
             SpawnLamps(world: world, station: station, lift: lift, resources: resources);
+            SpawnCameras(world: world, station: station, scene: scene, lift: lift);
+        }
+
+        private static void SpawnCameras(World world, FrameHandle station, SceneInstance scene, Entity lift)
+        {
             scene.Add("deck-camera", world.Spawn(ViewIn(station, DeckCamera)));
             scene.Add("shaft-camera", world.Spawn(ViewIn(station, ShaftCamera)));
             scene.Add("wheel-camera", world.Spawn(ViewIn(station, WheelCamera)));

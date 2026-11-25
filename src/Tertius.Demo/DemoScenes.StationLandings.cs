@@ -110,10 +110,11 @@ public static partial class DemoScenes
         }
 
         /// <summary>One metre square of powder-coated sheet with an inset gasket and corner fixings. BoxMesh UVs are in metres.</summary>
-        private static MaterialId PanelMaterial(IRenderResources resources)
+        internal static MaterialDesc PanelFinish(IRenderResources resources)
         {
             const int size = 64;
             byte[] pixels = new byte[size * size * 4];
+            float[] heights = new float[size * size];
             for (int y = 0; y < size; y++)
             for (int x = 0; x < size; x++)
             {
@@ -125,6 +126,12 @@ public static partial class DemoScenes
                     1 => 164,
                     _ => screw ? (byte)90 : (byte)179,
                 };
+                heights[y * size + x] = inset switch
+                {
+                    0 => 0,
+                    1 => 0.002f,
+                    _ => screw ? 0.001f : 0.0035f,
+                };
                 int i = (y * size + x) * 4;
                 (pixels[i], pixels[i + 1], pixels[i + 2], pixels[i + 3]) = (
                     tone,
@@ -133,13 +140,12 @@ public static partial class DemoScenes
                     255
                 );
             }
-            return resources.CreateMaterial(
-                new(
-                    BaseColor: Vector4.One,
-                    Roughness: 0.56f,
-                    Model: new StandardShading(0.35f),
-                    BaseColorMap: resources.CreateTexture(new(Width: size, Height: size, Rgba: pixels))
-                )
+            return new(
+                BaseColor: Vector4.One,
+                Roughness: 0.64f,
+                Model: new StandardShading(0.25f),
+                BaseColorMap: resources.CreateTexture(new(Width: size, Height: size, Rgba: pixels)),
+                NormalMap: resources.CreateTexture(ReliefMap(size, heights))
             );
         }
 
@@ -156,5 +162,24 @@ public static partial class DemoScenes
                 BoundingRadius = radius,
                 Flags = RenderFlags.Visible | RenderFlags.CastsShadow | RenderFlags.NoImpostor,
             };
+    }
+
+    /// <summary>Periodic tangent-space normals for a one-metre tile. Heights and texel pitch are in metres.</summary>
+    private static TextureData ReliefMap(int size, float[] heights)
+    {
+        byte[] rgba = new byte[size * size * 4];
+        for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; x++)
+        {
+            float du = heights[y * size + (x + 1) % size] - heights[y * size + (x + size - 1) % size];
+            float dv = heights[((y + 1) % size) * size + x] - heights[((y + size - 1) % size) * size + x];
+            Vector3 n = Vector3.Normalize(new(-du, -dv, 2f / size));
+            int i = (y * size + x) * 4;
+            rgba[i] = (byte)MathF.Round(127.5f * (n.X + 1));
+            rgba[i + 1] = (byte)MathF.Round(127.5f * (n.Y + 1));
+            rgba[i + 2] = (byte)MathF.Round(127.5f * (n.Z + 1));
+            rgba[i + 3] = 255;
+        }
+        return new(Width: size, Height: size, Rgba: rgba, Srgb: false);
     }
 }

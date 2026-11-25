@@ -444,6 +444,7 @@ public static partial class DemoScenes
         {
             const int size = 64;
             byte[] rgba = new byte[size * size * 4];
+            float[] heights = new float[size * size];
             for (int y = 0; y < size; y++)
             for (int x = 0; x < size; x++)
             {
@@ -455,13 +456,20 @@ public static partial class DemoScenes
                     (_, true) => 137,
                     _ => 126,
                 };
+                heights[y * size + x] = (inset, tread) switch
+                {
+                    (0, _) => -0.001f,
+                    (_, true) => 0.0018f,
+                    _ => 0,
+                };
                 int i = (y * size + x) * 4;
                 (rgba[i], rgba[i + 1], rgba[i + 2], rgba[i + 3]) = (tone, tone, (byte)(tone - 4), 255);
             }
             return new(
                 BaseColor: Vector4.One,
                 Roughness: 0.79f,
-                BaseColorMap: resources.CreateTexture(new(Width: size, Height: size, Rgba: rgba))
+                BaseColorMap: resources.CreateTexture(new(Width: size, Height: size, Rgba: rgba)),
+                NormalMap: resources.CreateTexture(ReliefMap(size, heights))
             );
         }
 
@@ -561,7 +569,7 @@ public static partial class DemoScenes
                 : Part(
                     resources: resources,
                     mesh: new BoxMesh().Sides(Opening.ThroughX(Shaft)).Build(),
-                    material: DeckSteel,
+                    material: StationExit.PanelFinish(resources),
                     boundingRadius: spokeShape.BoundingRadius()
                 );
             scene.Add(
