@@ -106,8 +106,8 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
     }
 
     /// <summary>
-    /// The shuttle enters the station's frame where its bounding sphere meets the station's bubble, about 128.8 m from the
-    /// station's center. Across the hand-off, its pose and velocity in the station's frame go on within 1 mm and 1 mm/s of
+    /// The shuttle enters the station's frame where its bounding sphere, the hull box's reach of 17.24 m, meets the station's
+    /// bubble, 400 m out along the axis: about 417.2 m from the station's center. Across the hand-off, its pose and velocity in the station's frame go on within 1 mm and 1 mm/s of
     /// where its motion led, and its cabin frame becomes a child of the station's frame. If this fails, the failure is an
     /// engine bug for its own ticket, which goes to the user.
     /// </summary>
@@ -120,7 +120,7 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
         DockingFlight.Record before = Log[inside - 1],
             after = Log[inside];
         before.Frame.Should().Be(flight.Earth);
-        before.Pose.Position.Length.Should().BeInRange(128.5, 129.5, "the bounding sphere meets the bubble there");
+        before.Pose.Position.Length.Should().BeInRange(416.8, 417.7, "the bounding sphere meets the bubble there");
         (after.Pose.Position - (before.Pose.Position + before.Velocity * Tick)).Length.Should().BeLessThan(1e-3);
         (after.Velocity - before.Velocity).Length.Should().BeLessThan(1e-3);
         Log.Skip(inside)
@@ -129,7 +129,7 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
     }
 
     /// <summary>
-    /// While any part of the hull lies within the slot's depth, from y = 12.5 to 13 m, the hull's origin lies within 0.25 m
+    /// While any part of the hull lies within the slot's depth, from y = 37 to 37.5 m, the hull's origin lies within 0.25 m
     /// of the axis and its rotation within 1 degree of the docked rotation, and every corner of the hull keeps 0.5 m from
     /// the slot's edges, which lie 1 m from the hull's sides in the docked rotation. No contact starts before the move out.
     /// </summary>
@@ -151,18 +151,17 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
             AngleBetween(record.Pose.Rotation, StationLayout.DockedRotation)
                 .Should()
                 .BeLessThan(Degree, $"the hull keeps the docked rotation at {record.Time:F2} s");
-            record
-                .HullMaxAbsX.Should()
-                .BeLessThanOrEqualTo(
-                    slot.Max.X - 0.5,
-                    $"the hull keeps clear of the slot's edges along X at {record.Time:F2} s"
-                );
-            record
-                .HullMaxAbsZ.Should()
-                .BeLessThanOrEqualTo(
-                    slot.Max.Z - 0.5,
-                    $"the hull keeps clear of the slot's edges along Z at {record.Time:F2} s"
-                );
+            foreach ((double low, double high, double min, double max, string axis) in new[]
+            {
+                (record.HullMin.X, record.HullMax.X, (double)slot.Min.X, (double)slot.Max.X, "X"),
+                (record.HullMin.Z, record.HullMax.Z, slot.Min.Z, slot.Max.Z, "Z"),
+            })
+            {
+                low.Should()
+                    .BeGreaterThanOrEqualTo(min + 0.5, $"the hull keeps clear of the slot's edges along {axis} at {record.Time:F2} s");
+                high.Should()
+                    .BeLessThanOrEqualTo(max - 0.5, $"the hull keeps clear of the slot's edges along {axis} at {record.Time:F2} s");
+            }
         }
 
         flight
@@ -263,7 +262,7 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
 
     /// <summary>
     /// The docked cabin feels the spin gravity of its radius: at the seat stand, ω² times its distance from the station's
-    /// axis, 0.192 m/s², leaning 6 degrees from the floor's down toward port.
+    /// axis, 0.482 m/s², leaning 1.7 degrees from the floor's down toward port.
     /// </summary>
     [Fact]
     public void TheDockedCabinFeelsTheWeakGravityOfItsRadius()
@@ -273,10 +272,10 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
         double fromTheAxis = Math.Sqrt(seat.X * seat.X + seat.Z * seat.Z);
 
         last.SeatGravity.Length.Should().BeApproximately(Rate * Rate * fromTheAxis, 0.01 * Rate * Rate * fromTheAxis);
-        last.SeatGravity.Length.Should().BeApproximately(0.192, 0.005);
+        last.SeatGravity.Length.Should().BeApproximately(0.482, 0.005);
         (Math.Acos(Double3.Dot(last.SeatGravity, -Double3.UnitY) / last.SeatGravity.Length) / Degree)
             .Should()
-            .BeApproximately(6, 1);
+            .BeApproximately(1.7, 0.3);
         last.SeatGravity.X.Should().BeNegative("the gravity leans toward port");
     }
 
@@ -323,13 +322,13 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
             StationFrame = world.GetOwnedFrame(station);
             FrameHandle cabin = world.GetOwnedFrame(shuttle);
             DockingAutopilot autopilot = world.GetComponent<DockingAutopilot>(shuttle)!;
-            Double3[] corners = [.. ((ConvexHullShapeDesc)Shuttle.HullShape).Points.Select(point => (Double3)point)];
+            Double3[] corners = [.. Shuttle.HullCorners.Select(point => (Double3)point)];
             world.Post(Event.Create(target: shuttle, sender: Entity.Null, payload: new Dock()));
             OrderTime = world.Time;
 
             var lastSpin = (Double3)world.AngularVelocityIn(shuttle, Earth);
             int docked = 0;
-            for (int tick = 0; tick < 5 * 60 * 60 && docked < 10 * 60; tick++)
+            for (int tick = 0; tick < 10 * 60 * 60 && docked < 10 * 60; tick++)
             {
                 int before = recorder.TicksWithEvents;
                 world.Tick();
@@ -356,8 +355,8 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
                         SeatGravity: world.Frames.FeltGravity(cabin, Shuttle.SeatStand),
                         HullMinY: hull.Min(c => c.Y),
                         HullMaxY: hull.Max(c => c.Y),
-                        HullMaxAbsX: hull.Max(c => Math.Abs(c.X)),
-                        HullMaxAbsZ: hull.Max(c => Math.Abs(c.Z))
+                        HullMin: new(hull.Min(c => c.X), 0, hull.Min(c => c.Z)),
+                        HullMax: new(hull.Max(c => c.X), 0, hull.Max(c => c.Z))
                     )
                 );
                 if (autopilot.State.Value is Docked)
@@ -403,8 +402,8 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
         /// <param name="SeatGravity">The felt gravity at the seat stand, in m/s², in the cabin's axes.</param>
         /// <param name="HullMinY">The lowest y of the hull's corners, in meters.</param>
         /// <param name="HullMaxY">The highest y of the hull's corners, in meters.</param>
-        /// <param name="HullMaxAbsX">The farthest of the hull's corners from the axis along X, in meters.</param>
-        /// <param name="HullMaxAbsZ">The farthest of the hull's corners from the axis along Z, in meters.</param>
+        /// <param name="HullMin">The lowest x and z of the hull's corners, in meters, with y 0.</param>
+        /// <param name="HullMax">The highest x and z of the hull's corners, in meters, with y 0.</param>
         public readonly record struct Record(
             double Time,
             DockingState State,
@@ -419,8 +418,8 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
             Double3 SeatGravity,
             double HullMinY,
             double HullMaxY,
-            double HullMaxAbsX,
-            double HullMaxAbsZ
+            Double3 HullMin,
+            Double3 HullMax
         );
 
         /// <summary>

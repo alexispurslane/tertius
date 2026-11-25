@@ -55,11 +55,14 @@ public sealed class LoftedHullTests
         new(-2.4f, -1.8f),
     ];
 
-    /// <summary>The doorway, <see cref="Shuttle.Hatch"/>, through the starboard wall.</summary>
+    /// <summary>
+    /// The doorway through the starboard wall: <see cref="Shuttle.Hatch"/>, 1.5 cm deeper, so that the wall under it lies
+    /// under the walkway's top.
+    /// </summary>
     private static readonly (double X0, double X1, double Y0, double Y1, double Z0, double Z1) Doorway = (
         2.8,
         3,
-        -1.7,
+        -1.715,
         0.4,
         1.4,
         2.6
@@ -313,7 +316,7 @@ public sealed class LoftedHullTests
 
     /// <summary>
     /// Each triangle has the drawn solid behind it and the outside in front of it, 5 mm away. The thinnest part of the
-    /// solid is the wall below the doorway, 1.7 cm tall at the inner skin. Every face is flat, so each vertex has its
+    /// solid is the wall below the doorway, 2.2 mm tall at the inner skin. Every face is flat, so each vertex has its
     /// triangle's normal.
     /// </summary>
     [Fact]

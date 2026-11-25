@@ -51,5 +51,71 @@ public static class BlueDanubeArt
     public static IReadOnlyList<AssetReference> Missing(ContentFolders? content) =>
         content is null ? All : [.. All.Where(reference => !File.Exists(content.CookedModel(reference)))];
 
+    /// <summary>
+    /// The models of <see cref="All"/>, uploaded to <paramref name="resources"/> through one store on
+    /// <paramref name="content"/>, or null when there is no content root or a model does not load. So a scene draws all of
+    /// the art or none, and without it builds as the gray box.
+    /// </summary>
+    public static BlueDanubeModels? Load(ContentFolders? content, IRenderResources resources)
+    {
+        if (content is null)
+            return null;
+        var store = new ModelStore(resources, content);
+        StoredModel? Of(AssetReference reference) => store.Load(reference).Ok;
+        return (
+                Of(Station),
+                Of(Shuttle),
+                Of(CargoPod),
+                Of(StorageCart),
+                Of(CagedSconce),
+                Of(Toolbox),
+                Of(Thermos),
+                Of(Stool),
+                Of(StreetSeating),
+                Of(Passenger)
+            ) is (
+                StoredModel station,
+                StoredModel shuttle,
+                StoredModel pod,
+                StoredModel cart,
+                StoredModel sconce,
+                StoredModel toolbox,
+                StoredModel thermos,
+                StoredModel stool,
+                StoredModel seating,
+                StoredModel passenger
+            )
+            ? new(
+                Station: station,
+                Shuttle: shuttle,
+                CargoPod: pod,
+                StorageCart: cart,
+                CagedSconce: sconce,
+                Toolbox: toolbox,
+                Thermos: thermos,
+                Stool: stool,
+                StreetSeating: seating,
+                Passenger: passenger
+            )
+            : null;
+    }
+
     private static AssetReference Art(string path) => new(Package: Package, Path: $"blue-danube/{path}", Piece: null);
 }
+
+/// <summary>
+/// The Blue Danube models of one scene, each uploaded once to the scene's render resources (see
+/// <see cref="BlueDanubeArt.Load"/>). Each placement of a model shares its <see cref="StoredModel.Id"/>.
+/// </summary>
+public sealed record BlueDanubeModels(
+    StoredModel Station,
+    StoredModel Shuttle,
+    StoredModel CargoPod,
+    StoredModel StorageCart,
+    StoredModel CagedSconce,
+    StoredModel Toolbox,
+    StoredModel Thermos,
+    StoredModel Stool,
+    StoredModel StreetSeating,
+    StoredModel Passenger
+);

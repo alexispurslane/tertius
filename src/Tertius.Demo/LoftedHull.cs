@@ -667,9 +667,18 @@ public sealed partial class LoftedHull
     /// in the front, the front is two panels at each skin, below and above the pane's line. The panes themselves are not in
     /// this mesh (see <see cref="Panes"/>). Each call builds a new mesh.
     /// </summary>
-    public MeshData Mesh()
+    public MeshData Mesh() => Drawn(outerSkin: true);
+
+    /// <summary>
+    /// The drawn hull seen from inside: <see cref="Mesh"/> without the faces of the outer skin, the outer panels round the
+    /// door and the panes, and the tail's pocket. A model that encloses the hull draws its outside. Each call builds a new
+    /// mesh.
+    /// </summary>
+    public MeshData InteriorMesh() => Drawn(outerSkin: false);
+
+    private MeshData Drawn(bool outerSkin)
     {
-        var mesh = new Builder();
+        var mesh = new Builder { OuterSkin = outerSkin };
         int n = Corners;
         var outer = new Vector3[Bays + 1][];
         var inner = new Vector3[Bays + 1][];
@@ -691,7 +700,7 @@ public sealed partial class LoftedHull
             CellPane[] glass = [.. Cells().Where(cell => cell.Edge == e && cell.Bay == bay)];
             if (glass.Length == 0)
             {
-                mesh.Polygon(normal, outerCell);
+                mesh.OuterPolygon(normal, outerCell);
                 mesh.Polygon(-normal, innerCell);
             }
             else
@@ -706,7 +715,7 @@ public sealed partial class LoftedHull
         FrontPane[] fronts = [.. Fronts()];
         if (fronts.Length == 0)
         {
-            mesh.Polygon(-Vector3.UnitZ, outer[0]);
+            mesh.OuterPolygon(-Vector3.UnitZ, outer[0]);
             mesh.Polygon(Vector3.UnitZ, inner[0]);
         }
         else
@@ -716,7 +725,7 @@ public sealed partial class LoftedHull
             FrontPane nose = fronts[0];
             int[] lower = [.. PanelCorners(nose.ToCorner, nose.FromCorner)],
                 upper = [.. PanelCorners(nose.FromCorner, nose.ToCorner)];
-            mesh.Polygon(-Vector3.UnitZ, [.. lower.Select(k => outer[0][k])]);
+            mesh.OuterPolygon(-Vector3.UnitZ, [.. lower.Select(k => outer[0][k])]);
             mesh.Polygon(Vector3.UnitZ, [.. lower.Select(k => inner[0][k])]);
             HoleThrough(
                 mesh: mesh,
@@ -729,7 +738,7 @@ public sealed partial class LoftedHull
 
         if (pocket == null)
         {
-            mesh.Polygon(Vector3.UnitZ, outer[Bays]);
+            mesh.OuterPolygon(Vector3.UnitZ, outer[Bays]);
             mesh.Polygon(-Vector3.UnitZ, inner[Bays]);
         }
         else
@@ -1048,7 +1057,7 @@ public sealed partial class LoftedHull
         for (int i = 0; i < n; i++)
         {
             int next = (i + 1) % n;
-            mesh.Polygon(normal, [outerPanel[i], outerPanel[next], outer[next], outer[i]]);
+            mesh.OuterPolygon(normal, [outerPanel[i], outerPanel[next], outer[next], outer[i]]);
             mesh.Polygon(-normal, [innerPanel[i], innerPanel[next], inner[next], inner[i]]);
             var reveal = Vector3.Normalize(Vector3.Cross(outer[next] - outer[i], inner[i] - outer[i]));
             mesh.Polygon(
@@ -1088,7 +1097,7 @@ public sealed partial class LoftedHull
         );
         Vector3[] outerHole = Hole(Component(outerPanel[0], axis)),
             innerHole = Hole(Component(innerPanel[0], axis));
-        mesh.Ring(normal, outerPanel, outerHole);
+        mesh.OuterRing(normal, outerPanel, outerHole);
         mesh.Ring(-normal, innerPanel, innerHole);
         Vector3 alongAxis = axis == 0 ? Vector3.UnitY : Vector3.UnitX;
         // The side from hole corner i to the next faces into the hole: the side at the least z faces +Z, the one at the
@@ -1125,18 +1134,18 @@ public sealed partial class LoftedHull
         float outerHalf = cut.Half + cut.Housing;
         Vector3[] back = Square(outerHalf, aft),
             face = Square(outerHalf, front);
-        mesh.Ring(Vector3.UnitZ, outer, mouth);
+        mesh.OuterRing(Vector3.UnitZ, outer, mouth);
         mesh.Ring(-Vector3.UnitZ, inner, back);
         // The sides of a square from corner i to the next face out of it along these.
         Vector3[] outward = [-Vector3.UnitY, Vector3.UnitX, Vector3.UnitY, -Vector3.UnitX];
         for (int i = 0; i < 4; i++)
         {
             int next = (i + 1) % 4;
-            mesh.Polygon(-outward[i], [mouth[i], mouth[next], bottom[next], bottom[i]]);
+            mesh.OuterPolygon(-outward[i], [mouth[i], mouth[next], bottom[next], bottom[i]]);
             mesh.Polygon(outward[i], [back[i], back[next], face[next], face[i]]);
         }
 
-        mesh.Polygon(Vector3.UnitZ, bottom);
+        mesh.OuterPolygon(Vector3.UnitZ, bottom);
         mesh.Polygon(-Vector3.UnitZ, face);
     }
 
@@ -1359,7 +1368,24 @@ public sealed partial class LoftedHull
         private readonly List<Vertex> vertices = [];
         private readonly List<uint> indices = [];
 
+        /// <summary>Whether the faces seen from outside the hull go into the mesh: its outer skin and its tail's pocket.</summary>
+        public bool OuterSkin { get; init; } = true;
+
         public MeshData Build() => new([.. vertices], [.. indices]);
+
+        /// <summary>A <see cref="Polygon"/> seen from outside the hull, drawn only with <see cref="OuterSkin"/>.</summary>
+        public void OuterPolygon(Vector3 normal, Vector3[] corners)
+        {
+            if (OuterSkin)
+                Polygon(normal, corners);
+        }
+
+        /// <summary>A <see cref="Ring"/> seen from outside the hull, drawn only with <see cref="OuterSkin"/>.</summary>
+        public void OuterRing(Vector3 normal, Vector3[] panel, Vector3[] hole)
+        {
+            if (OuterSkin)
+                Ring(normal, panel, hole);
+        }
 
         /// <summary>
         /// A convex panel facing along <paramref name="normal"/>. A triangle, or a quad without a straight corner, is split

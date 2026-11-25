@@ -251,7 +251,7 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
             Double3
                 .Dot(tick.GroundPosition - LaunchRamp.Foot, InclineNormal)
                 .Should()
-                .BeApproximately(Shuttle.Hull.Y, 0.2, $"at tick {tick.Tick}");
+                .BeApproximately(-Shuttle.Hull.Min.Y, 0.2, $"at tick {tick.Tick}");
             Degrees(tick.GroundVelocity, LaunchRamp.Up).Should().BeLessThan(1, $"at tick {tick.Tick}");
         }
     }
@@ -263,7 +263,7 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
     [Fact]
     public void TheShuttleLeavesTheRampAtItsTopAlongIt()
     {
-        LaunchTick? off = Log.FirstOrDefault(tick => AlongTheRamp(tick) > LaunchRamp.Length + Shuttle.Hull.Z);
+        LaunchTick? off = Log.FirstOrDefault(tick => AlongTheRamp(tick) > LaunchRamp.Length + Shuttle.Hull.Max.Z);
 
         off.Should().NotBeNull("the shuttle passes the ramp's top");
 
@@ -336,8 +336,12 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
     /// the engine throttles down to about 0.2 m/s², and the felt gravity leans 14 degrees from the cabin's aft axis toward
     /// its ceiling. So the person's head, toward the nose, dips onto the seat in front of it, and the seat lifts the person
     /// by 66.9 mm, 310 s into the climb. Changed on purpose by ter-4xkz: the bound of the climb was 7 cm, 3 mm above the
-    /// 66.9 mm of the box hull. The tram hull's mass properties, with its center of mass 9 cm low and 36 cm aft, give a
-    /// lift of 72.9 mm, 311 s into the climb. The bound of 8 cm still fails for a person who leaves the seat.
+    /// 66.9 mm of the box hull. The tram hull's mass properties, with its center of mass 9 cm low and 36 cm aft, gave a
+    /// lift of 72.9 mm, 311 s into the climb. Changed on purpose by ter-9wwx: the bound was 8 cm. The hull is now the box
+    /// round the Lunar Shuttle's model, 3.5 times the tram's moment of inertia about the pitch axis, with its center of
+    /// mass 27 cm low and 48 cm forward, so the seat stand lies 3.3 m ahead of it. The hull pitches over at up to
+    /// 0.072 rad/s in the climb's last 10 s, against the tram's 0.053, and the dip lifts the person by 138.8 mm, 306 s into
+    /// the climb. The bound of 15 cm still fails for a person who leaves the seat.
     /// </summary>
     [Fact]
     public void ThePassengerStaysAtItsSeatThroughTheClimb()
@@ -353,7 +357,7 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
             .Where(tick => tick.Ascent.Value is Climb)
             .Max(tick => Double3.Distance(tick.PersonInCabin, Shuttle.SeatStand))
             .Should()
-            .BeLessThan(0.08);
+            .BeLessThan(0.15);
     }
 
     /// <summary>
@@ -379,7 +383,9 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
     /// From the start to the orbit, through the walk, the ramp and the climb, the clip holds the pen on the cabin's port
     /// wall: gravity moves it at most about 8 mm in a step at three gravities, before the clip brings it back. The foot of
     /// the ramp jolts it once: when the hull's tail reaches the foot, at about 27 m/s, the hull stops turning onto the
-    /// incline at once, and in that one step the pen drops about 0.1 m, which the next step takes back.
+    /// incline at once, and in that one step the pen drops about 0.16 m, which the next step takes back. Changed on purpose
+    /// by ter-9wwx: the bound was 0.15 m, over the tram hull's drop of about 0.1 m. The hull is now the box round the Lunar
+    /// Shuttle's model, whose tail lies 6 m farther aft of the cabin, and the step of the jolt drops the pen 0.157 m.
     /// </summary>
     [Fact]
     public void TheClipHoldsThePenOnTheWallUntilTheOrbit()
@@ -392,7 +398,7 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
 
         held.Should().HaveCountGreaterThan(20_000);
         held.Should().OnlyContain(tick => tick.Clip!.Value.Value is Clipped);
-        fromClip.Max().Should().BeLessThan(0.15);
+        fromClip.Max().Should().BeLessThan(0.2);
         fromClip
             .Count(distance => distance > 0.015)
             .Should()

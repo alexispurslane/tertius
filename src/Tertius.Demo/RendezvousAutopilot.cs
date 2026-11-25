@@ -262,7 +262,7 @@ public sealed class RendezvousAutopilot(Entity station, RendezvousPlan plan, dou
 
         DPose pose = self.PoseIn(self.Frame);
         Double3 position = pose.Position,
-            velocity = self.VelocityIn(self.Frame),
+            velocity = Navigation.CenterOfMassVelocity(self, self.Frame),
             nose = pose.Rotation.Rotate(-Double3.UnitZ);
         DPose stationPose = self.Snapshot.PoseIn(station, self.Frame) ?? default;
         Double3 stationVelocity = self.Snapshot.VelocityIn(station, self.Frame) ?? default;

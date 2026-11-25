@@ -277,14 +277,14 @@ public sealed class WalkerTests : IDisposable
             Shuttle.Park(
                 world: world,
                 frame: ground,
-                pose: new(new(0, Shuttle.Hull.Y, 0), DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2))
+                pose: new(new(0, -Shuttle.Hull.Min.Y, 0), DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2))
             )
         );
         // The shuttle's +X, the hatch's side, is the ground's -Z, and its +Z is the ground's +X.
         Entity person = Person(
             ground,
             new(Shuttle.Hatch.Center.Z, 0.95, -15),
-            new Waypoint(cabin, Shuttle.OutsideHatch),
+            new Waypoint(cabin, Shuttle.OnPorch),
             new Waypoint(cabin, Shuttle.InsideHatch),
             new Waypoint(cabin, Shuttle.SeatStand)
         );

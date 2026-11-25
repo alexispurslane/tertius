@@ -33,7 +33,7 @@ public sealed class LaunchRampTests : IDisposable
     private double TailPastTheFoot()
     {
         DPose pose = world.PoseIn(shuttle, world.GetOwnedFrame(scene["earth-surface"]));
-        return LaunchRamp.Foot.Z - pose.TransformPoint(new(0, -Shuttle.Hull.Y, Shuttle.Hull.Z)).Z;
+        return LaunchRamp.Foot.Z - pose.TransformPoint(new(0, Shuttle.Hull.Min.Y, Shuttle.Hull.Max.Z)).Z;
     }
 
     /// <summary>

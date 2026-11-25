@@ -1,3 +1,4 @@
+using System.Numerics;
 using Tertius.Demo;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
@@ -8,40 +9,43 @@ namespace Tertius.Host.Tests;
 
 /// <summary>
 /// The end state of the docking, which the exit starts from (docs/plans/blue-danube-demo.md, "The docking", "The parked
-/// pose and the end state for the exit"): the docked shuttle parks belly on the deck, port side on the bay's -Z wall, with
-/// its tail 1.5 m inside the slot's wall. So it leaves the lift's hole in the deck free, its hatch opens onto the deck
-/// toward that hole, and the spin gravity holds it in the corner. Every place is in the station's axes.
+/// pose and the end state for the exit", "The fit to the art"): the docked shuttle parks on its wheels on the deck, port
+/// side on the cradle rail, with its tail 1.5 m inside the bay's +Y end. So it leaves the lift's hole in the deck free,
+/// its hatch opens spinward onto the deck's stair, whose foot lies in the lift's lane, and the spin gravity holds it
+/// against the rail. Every place is in the station's axes.
 /// </summary>
 public sealed class DockingEndStateTests
 {
     /// <summary>The bay inside the hub's walls, in meters, in the station's axes.</summary>
     private static BoundingBox Bay => DemoStation.Layout.Bay;
 
-    /// <summary>The corners of the shuttle's outer collision shape at <see cref="StationLayout.ParkedPose"/>, in the station's axes.</summary>
+    /// <summary>The corners of the shuttle's hull box at <see cref="StationLayout.ParkedPose"/>, in the station's axes.</summary>
     private static Double3[] ParkedCorners() =>
         [
-            .. ((ConvexHullShapeDesc)Shuttle.HullShape).Points.Select(point =>
-                DemoStation.Layout.ParkedPose.TransformPoint(point)
-            ),
+            .. Shuttle.HullCorners.Select(corner => DemoStation.Layout.ParkedPose.TransformPoint(corner)),
         ];
 
     /// <summary>The angle between two rotations, in radians.</summary>
     private static double AngleBetween(DQuaternion a, DQuaternion b) => a.AngularVelocityTo(b, 1).Length;
 
     /// <summary>
-    /// At the parked pose, every corner of the hull lies inside the bay. The lowest corners lie on the deck at x = -40 m,
-    /// the farthest to port on the bay's -Z wall at z = -8 m, and the tail lies 1.5 m inside the slot wall's inner face.
+    /// At the parked pose, every corner of the hull lies inside the bay. The lowest corners, the wheels, lie on the deck at
+    /// x = -102.2 m, the farthest to port on the cradle rail's face at z = -10.92 m, and the tail lies 1.5 m inside the
+    /// bay's +Y end.
     /// </summary>
     [Fact]
-    public void TheParkedShuttleRestsOnTheDeckWithItsPortSideOnTheBaysWall()
+    public void TheParkedShuttleRestsOnTheDeckWithItsPortSideOnTheCradleRail()
     {
         Double3[] corners = ParkedCorners();
-        corners.Min(c => c.X).Should().BeApproximately(DemoStation.Layout.Deck, 1e-5, "the belly lies on the deck");
-        corners.Min(c => c.Z).Should().BeApproximately(Bay.Min.Z, 1e-5, "the port side lies on the bay's -Z wall");
+        corners.Min(c => c.X).Should().BeApproximately(DemoStation.Layout.Deck, 1e-5, "the wheels stand on the deck");
+        corners
+            .Min(c => c.Z)
+            .Should()
+            .BeApproximately(DemoStation.Layout.CradleAcross, 1e-5, "the port side lies on the cradle rail");
         corners
             .Max(c => c.Y)
             .Should()
-            .BeApproximately(Bay.Max.Y - DemoStation.Layout.ParkedTailGap, 1e-5, "the tail lies inside the slot's wall");
+            .BeApproximately(Bay.Max.Y - DemoStation.Layout.ParkedTailGap, 1e-5, "the tail lies inside the bay's end");
         DemoStation.Layout.ParkedTailGap.Should().Be(1.5f);
         foreach (Double3 corner in corners)
         {
@@ -50,7 +54,7 @@ public sealed class DockingEndStateTests
             corner.Z.Should().BeInRange(Bay.Min.Z - 1e-5, Bay.Max.Z + 1e-5, $"the corner {corner} lies inside the bay");
         }
 
-        DemoStation.Layout.ParkedPose.Position.Should().Be(new Double3(-38, 3, -5));
+        (DemoStation.Layout.ParkedPose.Position - new Double3(-97.2992, 21.4344, -4)).Length.Should().BeLessThan(1e-3);
     }
 
     /// <summary>
@@ -73,7 +77,10 @@ public sealed class DockingEndStateTests
         AngleBetween(DemoStation.Layout.ParkedPose.Rotation, docked).Should().BeLessThan(1e-12);
     }
 
-    /// <summary>The hull's corners at the parked pose lie in <see cref="StationLayout.ParkedBounds"/>, and touch each of its six faces.</summary>
+    /// <summary>
+    /// The hull's corners at the parked pose lie in <see cref="StationLayout.ParkedBounds"/>, and touch each of its six
+    /// faces: 9.27 m tall from the deck, 29.09 m long along the axis from 6.41 m to 35.5 m, and 13.84 m wide from the rail.
+    /// </summary>
     [Fact]
     public void TheParkedHullFitsItsBounds()
     {
@@ -85,57 +92,53 @@ public sealed class DockingEndStateTests
         corners.Max(c => c.Y).Should().BeApproximately(bounds.Max.Y, 1e-4);
         corners.Min(c => c.Z).Should().BeApproximately(bounds.Min.Z, 1e-4);
         corners.Max(c => c.Z).Should().BeApproximately(bounds.Max.Z, 1e-4);
-        bounds.Should().Be(new BoundingBox(new(-40, -5, -8), new(-36, 11, -2)));
+        (bounds.Min - new Vector3(-102.2f, 6.4136f, -10.92f)).Length().Should().BeLessThan(1e-3f);
+        (bounds.Max - new Vector3(-92.9296f, 35.5f, 2.92f)).Length().Should().BeLessThan(1e-3f);
     }
 
     /// <summary>
-    /// The parked shuttle's box and the lift's hole in the deck share no point: 2.45 m of deck lies between them across the
-    /// axis. The hole is the lift's floor, 4 m on a side, with 5 cm round it, through the deck's wall.
+    /// The parked shuttle's box and the lift's hole in the deck share no point: 4.36 m of deck lies between the hull's nose
+    /// and the hole along the axis. The hole is the lift's floor, 4 m on a side, with 5 cm round it, through the deck.
     /// </summary>
     [Fact]
     public void TheParkedShuttleLeavesTheLiftsHoleFree()
     {
         BoundingBox hole = DemoStation.Layout.LiftHole,
             parked = DemoStation.Layout.ParkedBounds;
-        hole.Should().Be(new BoundingBox(new(-40.5f, -2.05f, 0.45f), new(-40, 2.05f, 4.55f)));
-        (hole.Min.Z - parked.Max.Z)
+        (hole.Min - new Vector3(-104.9f, -2.05f, 1.75f)).Length().Should().BeLessThan(1e-4f);
+        (hole.Max - new Vector3(-102.2f, 2.05f, 5.85f)).Length().Should().BeLessThan(1e-4f);
+        (parked.Min.Y - hole.Max.Y)
             .Should()
-            .BeApproximately(2.45f, 1e-5f, "the hull ends 2.45 m short of the hole across the axis");
+            .BeApproximately(4.3636f, 1e-3f, "the hull's nose ends 4.36 m short of the hole along the axis");
         ParkedCorners()
             .Should()
-            .OnlyContain(corner => corner.Z < hole.Min.Z - 2, "no part of the hull reaches over the hole");
+            .OnlyContain(corner => corner.Y > hole.Max.Y + 4, "no part of the hull reaches over the hole");
     }
 
     /// <summary>
-    /// The hatch opens toward the station's +Z, onto the deck between the hull and the lift's hole. Across the deck, its
-    /// doorway lies from 1 to 4 m from the hole, a short walk.
+    /// The hatch opens toward the station's +Z, onto the deck's stair. The stair's foot lies in the lift's lane, within
+    /// 0.25 m of the lift's middle across the axis, so the person walks straight along the axis down the ramp, 18 m long,
+    /// and on 2.23 m to the hole, with no Coriolis force on the way.
     /// </summary>
     [Fact]
-    public void TheParkedHatchOpensOntoTheDeckTowardTheLiftsHole()
+    public void TheParkedHatchOpensOntoTheStairInTheLiftsLane()
     {
         DPose parked = DemoStation.Layout.ParkedPose;
         (parked.Rotation.Rotate(Double3.UnitX) - Double3.UnitZ)
             .Length.Should()
             .BeLessThan(1e-12, "the hatch's outward normal is +Z");
-        BoundingBox hatch = Shuttle.Hatch,
-            mouth = DemoStation.Layout.LiftHole;
-        // The doorway's outer face, in the station's axes: on the hull's starboard face, from the hatch's lowest to its
-        // highest point and from its forward to its aft edge.
-        Double3 a = parked.TransformPoint(new(hatch.Max.X, hatch.Min.Y, hatch.Min.Z));
-        Double3 b = parked.TransformPoint(new(hatch.Max.X, hatch.Max.Y, hatch.Max.Z));
-        (double minY, double maxY) = (Math.Min(a.Y, b.Y), Math.Max(a.Y, b.Y));
-        double doorwayZ = a.Z;
-        doorwayZ.Should().BeApproximately(b.Z, 1e-9);
-        doorwayZ.Should().BeLessThan(mouth.Min.Z, "the doorway lies on the hull's side of the hole");
-        double alongTheAxis = Math.Max(0, Math.Max(minY - mouth.Max.Y, mouth.Min.Y - maxY));
-        double across = mouth.Min.Z - doorwayZ;
-        double walk = Math.Sqrt(alongTheAxis * alongTheAxis + across * across);
-        walk.Should().BeInRange(1, 4, "the person takes a short walk on the deck from the doorway to the hole");
+        BoundingBox mouth = DemoStation.Layout.LiftHole;
+        Double3 foot = DemoScenes.StationExit.StairPlace + DemoScenes.StationExit.Stair.AtFoot(above: 0);
+
+        foot.X.Should().BeApproximately(DemoStation.Layout.Deck, 1e-4, "the stair's foot stands on the deck");
+        foot.Z.Should()
+            .BeApproximately(DemoStation.Layout.LiftAcross, 0.25, "the stair's foot lies in the lift's lane");
+        (foot.Y - mouth.Max.Y).Should().BeApproximately(2.23, 0.01, "the person walks along the axis to the hole");
     }
 
     /// <summary>
-    /// The spin gravity at the parked center of mass, ω² r away from the axis, points into the deck and into the bay's -Z
-    /// wall: 0.188 m/s², leaning 7.5 degrees from the deck's normal toward the wall. So the corner holds the hull.
+    /// The spin gravity at the parked center of mass, ω² r away from the axis, points into the deck and into the cradle
+    /// rail: 0.479 m/s², leaning 2.3 degrees from the deck's normal toward the rail. So the corner holds the hull.
     /// </summary>
     [Fact]
     public void TheSpinPullsTheParkedShuttleIntoTheCorner()
@@ -144,16 +147,16 @@ public sealed class DockingEndStateTests
         double rate = DemoScenes.DemoStation.Layout.Rate;
         Double3 gravity = new Double3(center.X, 0, center.Z) * (rate * rate);
         gravity.X.Should().BeNegative("the spin gravity presses the hull into the deck");
-        gravity.Z.Should().BeNegative("the spin gravity presses the hull into the -Z wall");
-        gravity.Length.Should().BeApproximately(0.188, 0.001);
-        (Math.Atan2(-gravity.Z, -gravity.X) * 180 / Math.PI).Should().BeApproximately(7.5, 0.2);
+        gravity.Z.Should().BeNegative("the spin gravity presses the hull into the cradle rail");
+        gravity.Length.Should().BeApproximately(0.479, 0.001);
+        (Math.Atan2(-gravity.Z, -gravity.X) * 180 / Math.PI).Should().BeApproximately(2.3, 0.1);
     }
 
     /// <summary>
     /// The station flies its orbit in a root frame with Earth's point gravity, and a dynamic shuttle hull spawns at the
-    /// parked pose in the station's turning frame, at rest there, with no push. The corner holds it: after 10 s it lies
-    /// within 3 cm and 0.5 degrees of the pose, still in the station's frame. The cabin's gravity at the seat stand is
-    /// ω² times the seat's distance from the station's axis, 0.192 m/s², and leans 6 degrees from the floor's down
+    /// parked pose in the station's turning frame, at rest there, with no push. The deck and the rail hold it: after 10 s
+    /// it lies within 3 cm and 0.5 degrees of the pose, still in the station's frame. The cabin's gravity at the seat stand
+    /// is ω² times the seat's distance from the station's axis, 0.483 m/s², and leans 1.7 degrees from the floor's down
     /// toward port.
     /// </summary>
     [Fact]
@@ -196,10 +199,10 @@ public sealed class DockingEndStateTests
                 0.03 * rate * rate * fromTheAxis,
                 "the cabin feels the spin gravity of its radius"
             );
-        felt.Length.Should().BeApproximately(0.192, 0.005);
+        felt.Length.Should().BeApproximately(0.483, 0.005);
         (Math.Acos(Double3.Dot(felt, -Double3.UnitY) / felt.Length) * 180 / Math.PI)
             .Should()
-            .BeApproximately(6, 1, "the gravity leans from the floor's down");
+            .BeApproximately(1.7, 0.3, "the gravity leans from the floor's down");
         felt.X.Should().BeNegative("the gravity leans toward port, away from the station's axis");
         world.Errors.Should().BeEmpty();
     }

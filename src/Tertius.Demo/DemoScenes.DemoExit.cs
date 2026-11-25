@@ -75,21 +75,45 @@ public static partial class DemoScenes
             }
         }
 
-        public static SceneInstance Build(World world, IRenderResources resources)
+        /// <summary>Builds the scene as its gray box, with no art.</summary>
+        public static SceneInstance Build(World world, IRenderResources resources) => Build(world, resources, models: null);
+
+        /// <summary>Builds the scene, drawn with <paramref name="models"/>, or as its gray box when they are null.</summary>
+        public static SceneInstance Build(World world, IRenderResources resources, BlueDanubeModels? models)
         {
             var scene = new SceneInstance();
             FrameHandle earth = world.CreateRootFrame(new(FrameBounds.Sphere(1e8f), GravityField.Point(EarthMu)));
             scene.Add("earth", earth.Entity);
             SpawnGlobe(world: world, resources: resources, scene: scene, earth: earth);
 
-            Entity station = DemoStation.Spawn(world: world, parent: earth, scene: scene, resources: resources);
+            Entity station = DemoStation.Spawn(
+                world: world,
+                parent: earth,
+                scene: scene,
+                resources: resources,
+                models: models
+            );
             FrameHandle frame = world.GetOwnedFrame(station);
-            FrameHandle cabin = SpawnShuttle(world: world, resources: resources, scene: scene, frame: frame);
+            FrameHandle cabin = SpawnShuttle(
+                world: world,
+                resources: resources,
+                scene: scene,
+                frame: frame,
+                art: models?.Shuttle
+            );
 
-            Entity person = SpawnPerson(world: world, resources: resources, scene: scene, cabin: cabin, frame: frame);
+            Entity person = SpawnPerson(
+                world: world,
+                resources: resources,
+                scene: scene,
+                cabin: cabin,
+                frame: frame,
+                suit: models?.Passenger
+            );
             SpawnFollowCamera(world: world, scene: scene, person: person);
             Entity cabinCamera = world.Spawn(ViewIn(cabin, DemoSurface.CabinCamera));
             scene.Add("cabin-camera", cabinCamera);
+            scene.Add("sill-camera", world.Spawn(ViewIn(cabin, Shuttle.SillCamera)));
 
             Star(world: world, scene: scene, frame: earth, center: new(0, EarthRadius, 0), direction: new(60, 80, 40));
             world.Ambient = Daylight;
@@ -157,16 +181,18 @@ public static partial class DemoScenes
             World world,
             IRenderResources resources,
             SceneInstance scene,
-            FrameHandle frame
+            FrameHandle frame,
+            Assets.StoredModel? art
         )
         {
             Entity shuttle = Shuttle.Park(
                 world: world,
                 frame: frame,
                 pose: DemoStation.Layout.ParkedPose,
-                render: Shuttle.DrawnHull(resources)
+                render: Shuttle.HullRender(resources, art)
             );
             scene.Add("shuttle", shuttle);
+            Shuttle.SpawnArt(world: world, hull: shuttle, scene: scene, resources: resources, art: art);
             FrameHandle cabin = world.GetOwnedFrame(shuttle);
             Vector3 seatHalf = Shuttle.Seat.Extents;
             scene.Add(
@@ -200,7 +226,8 @@ public static partial class DemoScenes
             IRenderResources resources,
             SceneInstance scene,
             FrameHandle cabin,
-            FrameHandle frame
+            FrameHandle frame,
+            Assets.StoredModel? suit
         )
         {
             var personRender = new RenderData { ViewOffset = new(DemoSurface.Eye, Quaternion.Identity) };
@@ -218,7 +245,7 @@ public static partial class DemoScenes
                 }
             );
             scene.Add("person", person);
-            DemoSurface.SpawnDrawnBody(world: world, scene: scene, person: person, resources: resources);
+            DemoSurface.SpawnDrawnBody(world: world, scene: scene, person: person, resources: resources, suit: suit);
 
             var penSpec = new CrateSpec(
                 HalfExtents: DemoSurface.PenHalf,

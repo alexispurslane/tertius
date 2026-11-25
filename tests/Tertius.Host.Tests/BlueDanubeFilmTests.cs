@@ -150,7 +150,7 @@ public sealed class BlueDanubeFilmRun : IDisposable
 /// <summary>What the camera of one frame of the long script sees.</summary>
 /// <param name="Name">The frame's name, such as <c>fetch-000012</c>.</param>
 /// <param name="PersonCover">The share of the picture that the person's box covers, from 0 to 1 (see
-/// <see cref="Picture.Cover"/>).</param>
+/// <see cref="Picture.Cover(DPose, DPose, Double3, double)"/>).</param>
 /// <param name="PenInPicture">True when the loose pen is alive and its center lies in the picture.</param>
 /// <param name="View">The camera's pose in the shuttle's frame.</param>
 /// <param name="Eye">The person's eye in the shuttle's frame, in meters.</param>
@@ -195,10 +195,22 @@ public static class Picture
 
     /// <summary>
     /// The share of the picture that the box with half extents <paramref name="half"/> around <paramref name="body"/>
-    /// covers: the area of the rectangle round its 8 projected corners, cut to the picture, over the picture's area, or 1
-    /// when a corner lies behind the renderer's near plane.
+    /// covers (see the overload that takes a box).
     /// </summary>
-    public static double Cover(DPose view, DPose body, Double3 half, double verticalFov)
+    public static double Cover(DPose view, DPose body, Double3 half, double verticalFov) =>
+        Cover(
+            view: view,
+            body: body,
+            box: new BoundingBox(-half.ToVector3(), half.ToVector3()),
+            verticalFov: verticalFov
+        );
+
+    /// <summary>
+    /// The share of the picture that <paramref name="box"/>, in the axes of <paramref name="body"/>, covers: the area of
+    /// the rectangle round its 8 projected corners, cut to the picture, over the picture's area, or 1 when a corner lies
+    /// behind the renderer's near plane.
+    /// </summary>
+    public static double Cover(DPose view, DPose body, BoundingBox box, double verticalFov)
     {
         double left = double.PositiveInfinity,
             right = double.NegativeInfinity,
@@ -207,9 +219,9 @@ public static class Picture
         for (int corner = 0; corner < 8; corner++)
         {
             var local = new Double3(
-                (corner & 1) == 0 ? -half.X : half.X,
-                (corner & 2) == 0 ? -half.Y : half.Y,
-                (corner & 4) == 0 ? -half.Z : half.Z
+                (corner & 1) == 0 ? box.Min.X : box.Max.X,
+                (corner & 2) == 0 ? box.Min.Y : box.Max.Y,
+                (corner & 4) == 0 ? box.Min.Z : box.Max.Z
             );
             Double3 at = Project(view, body.TransformPoint(local), verticalFov);
             if (at.Z <= 0.05)

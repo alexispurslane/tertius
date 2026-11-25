@@ -308,13 +308,13 @@ public sealed class ChaseCameraTests : IDisposable
         Entity shuttle = Shuttle.Park(
             world: world,
             frame: ground,
-            pose: new(new(0, Shuttle.Hull.Y, 0), DQuaternion.Identity)
+            pose: new(new(0, -Shuttle.Hull.Min.Y, 0), DQuaternion.Identity)
         );
         FrameHandle cabin = world.GetOwnedFrame(shuttle);
         Entity person = Person(
             ground,
             new(16, 0.95, Shuttle.Hatch.Center.Z),
-            new Walker([new(cabin, Shuttle.OutsideHatch)])
+            new Walker([new(cabin, Shuttle.OnPorch)])
         );
         Entity camera = Camera(person, Vector3.UnitX);
         world.Tick();

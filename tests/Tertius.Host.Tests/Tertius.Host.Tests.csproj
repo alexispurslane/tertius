@@ -12,9 +12,14 @@
     <!-- The physics test double, the scene builders and the test components that the test projects share. -->
     <ProjectReference Include="../Tertius.Testing/Tertius.Testing.csproj" />
     <PackageReference Include="StbImageSharp" />
+    <!-- The tiny models of the art's fake content root (BlueDanubeArtSceneTests). -->
+    <PackageReference Include="StbImageWriteSharp" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="AwesomeAssertions" />
     <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../Tertius.Assets.Tests/GlbBuilder.cs" Link="GlbBuilder.cs" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Tertius.Testing" />

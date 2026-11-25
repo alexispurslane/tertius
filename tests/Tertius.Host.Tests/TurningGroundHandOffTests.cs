@@ -69,7 +69,7 @@ public sealed class TurningGroundHandOffRun : IDisposable
         get
         {
             double bubble = DemoScenes.EarthRadius + DemoScenes.GroundBubbleTop,
-                radius = Shuttle.Hull.Length();
+                radius = Shuttle.Reach;
             return bubble + Math.Max(0.02 * bubble, radius) + radius;
         }
     }

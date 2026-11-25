@@ -94,6 +94,23 @@ public sealed class BlueDanubeExitTests(BlueDanubeRendezvousRun run)
     }
 
     /// <summary>
+    /// The lift waits at the top of its spoke, in its place in the station's axes, through the docking and the walk to it:
+    /// in every tick from the parking orbit until the person rides, its floor's middle lies within 1 mm of
+    /// <see cref="StationExit.LiftTop"/>. The docking ship's bubble takes the lift in as the hull moves out to the deck,
+    /// and a lift that held still in that frame rode 9 m off its top with the hull.
+    /// </summary>
+    [Fact]
+    public void TheLiftWaitsAtItsTopUntilThePersonRidesIt()
+    {
+        RendezvousTick[] waiting = [.. run.Ticks.TakeWhile(tick => tick.Exit.Value is not Riding)];
+        waiting.Should().NotBeEmpty();
+        foreach (RendezvousTick tick in waiting)
+            (tick.LiftInStation - StationExit.LiftTop.Position)
+                .Length.Should()
+                .BeLessThan(1e-3, $"the lift waits at its top at tick {tick.Tick}");
+    }
+
+    /// <summary>
     /// The person rides the lift down standing and steps off onto the wheel's floor: the stroll starts in the tick after
     /// a step in which the person stood on the lift's floor 0.3 m above the wheel's floor, in the lift's middle across
     /// the axis, and at rest in the station's axes.

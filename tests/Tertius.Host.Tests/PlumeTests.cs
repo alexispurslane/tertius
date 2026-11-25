@@ -336,7 +336,7 @@ public sealed class PlumeTests : IDisposable
 
         MediumField cabin = Of("shuttle");
         cabin.Fills(Shuttle.SeatStand).Should().BeTrue();
-        cabin.Fills(new(Shuttle.Hull.X + 1, 0, 0)).Should().BeFalse();
+        cabin.Fills(new(Shuttle.Hull.Max.X + 1, 0, 0)).Should().BeFalse();
         cabin.Drag.Should().Be(ground.Drag);
 
         MediumField station = Of("station");

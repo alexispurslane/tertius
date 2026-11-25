@@ -8,9 +8,9 @@ namespace Tertius.Host.Tests;
 
 /// <summary>
 /// The demo surface: one headless run of the checked-in script scripts/demo-surface.json. The person's walker walks it
-/// from 9 m outside the terminal's entrance through the hall, out of the gate, across the pad, through the parked
-/// shuttle's hatch and along the cabin to the place at the seat: about 44 m at 3 m/s, which takes about 16 s with the
-/// slowdown at the end. The script dumps the state in the hall ("terminal"), on the pad ("apron"), in the hatch
+/// from 9 m outside the terminal's entrance through the hall, out of the gate, across the pad, up the boarding stair,
+/// across the porch, through the parked shuttle's hatch and along the cabin to the place at the seat: about 52 m at
+/// 3 m/s, which takes about 18.5 s with the climb and the slowdown at the end. The script dumps the state in the hall ("terminal"), on the pad ("apron"), in the hatch
 /// ("boarding"), at the seat after the person stopped ("at-the-seat"), and two seconds later ("end"). Every test of the
 /// class reads that one run.
 /// </summary>
@@ -50,7 +50,7 @@ public sealed class DemoSurfaceTests(DemoSurfaceRun run) : IClassFixture<DemoSur
         person
             .Pose.Position.X.Should()
             .BeInRange(
-                Shuttle.OutsideHatch.X,
+                DemoSurface.PadStairPlace.X,
                 DemoSurface.TerminalCenter.X - DemoSurface.TerminalHalf.X,
                 "the person is between the gate and the hatch"
             );
@@ -66,7 +66,7 @@ public sealed class DemoSurfaceTests(DemoSurfaceRun run) : IClassFixture<DemoSur
         EntityRecord person = Dump("boarding").Entity("person");
 
         person.Pose.Frame.Should().Be("shuttle");
-        person.Pose.Position.X.Should().BeInRange(Shuttle.InsideHatch.X, Shuttle.Hull.X + 1);
+        person.Pose.Position.X.Should().BeInRange(Shuttle.InsideHatch.X, Shuttle.Hull.Max.X + 1);
         Math.Abs(person.Pose.Position.Z - Shuttle.Hatch.Center.Z).Should().BeLessThan(Shuttle.Hatch.Extents.Z - 0.3);
     }
 

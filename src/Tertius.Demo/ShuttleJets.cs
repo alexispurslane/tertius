@@ -116,9 +116,9 @@ public sealed class ShuttleJets
         MainEnginePlace = new(centerOfMass.X, centerOfMass.Y, Shuttle.NozzleZ);
 
         Double3 c = centerOfMass;
-        double side = Shuttle.Hull.X,
-            roof = Shuttle.Hull.Y,
-            tail = Shuttle.Hull.Z;
+        double side = Shuttle.Tram.X,
+            roof = Shuttle.Tram.Y,
+            tail = Shuttle.Tram.Z;
         Double3 x = Double3.UnitX,
             y = Double3.UnitY,
             z = Double3.UnitZ;

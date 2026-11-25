@@ -54,8 +54,9 @@ public static class Program
     /// Runs a script or a live scene through <see cref="ScriptCommand"/>, after a check that a scene of the art (<see cref="BlueDanubeArt.NeededBy"/>) has its
     /// converted art under <paramref name="content"/>. Without the art, it names <see cref="BlueDanubeArt.SetupCommand"/>
     /// and returns <see cref="ScriptCommand.FileError"/>, so a run never looks like a finished one in gray boxes.
-    /// <c>--gray-box</c> skips the check, and the script command never sees it. A script that does not load passes on, so
-    /// that the script command reports its error.
+    /// The scenes draw the art under <paramref name="content"/>. <c>--gray-box</c> skips the check and builds every scene as
+    /// its gray box, and the script command never sees it. A script that does not load passes on, so that the script
+    /// command reports its error.
     /// </summary>
     public static int RunScene(string[] args, TextWriter output, TextWriter error, ContentFolders? content)
     {
@@ -72,7 +73,12 @@ public static class Program
             return ScriptCommand.FileError;
         }
 
-        return ScriptCommand.Run(args: rest, scenes: DemoScenes.All, output: output, error: error);
+        return ScriptCommand.Run(
+            args: rest,
+            scenes: DemoScenes.For(grayBox ? null : content),
+            output: output,
+            error: error
+        );
     }
 
     /// <summary>The scene that a command line runs: the one after --scene, or the one that the --script file names.</summary>

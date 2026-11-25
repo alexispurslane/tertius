@@ -153,24 +153,32 @@ public sealed class StationExitGeometryTests : IDisposable
     }
 
     /// <summary>
-    /// The person's way across the deck keeps its capsule clear of the parked hull, by more than 3 m, and of the lift's
-    /// railings: its lane lies in the lift's middle across the axis, and it meets the lift's open side.
+    /// The person's way out leaves the cabin onto the porch, in the shuttle's frame, and then in the station's frame crosses
+    /// the stair's landing, flush with the porch, walks down to the stair's foot on the deck, and along the axis in the
+    /// lift's lane onto the lift's open side. Its capsule keeps clear of the parked hull, by more than 0.5 m on the landing
+    /// and on the deck, and of the lift's railings.
     /// </summary>
     [Fact]
-    public void ThePersonsWayAcrossTheDeckIsClearOfTheHullAndTheRailings()
+    public void ThePersonsWayDownTheStairAndAlongTheDeckIsClearOfTheHullAndTheRailings()
     {
         Waypoint[] way = StationExit.WayOut(FrameHandle.Null, frame);
         Double3 hatch = Layout.ParkedPose.TransformPoint(DemoScenes.Shuttle.Hatch.Center);
-        way[1].Position.Y.Should().BeApproximately(hatch.Y, 1e-6, "the first waypoint outside lies in front of the hatch");
-        foreach (Waypoint point in way[1..])
+        way[1].Position.Should().Be(DemoScenes.Shuttle.OnPorch, "the person steps out onto the porch");
+        Waypoint landing = way[2],
+            foot = way[3];
+        landing.Position.Y.Should().BeApproximately(hatch.Y, 1e-4, "the landing lies in front of the hatch");
+        landing
+            .Position.X.Should()
+            .BeApproximately(StationExit.StairPlace.X + StationExit.Standing, 1e-4, "on the landing, flush with the porch");
+        foot.Position.X.Should().BeApproximately(Layout.Deck + StationExit.Standing, 1e-4, "on the deck");
+        foot.Position.Z.Should().BeApproximately(Layout.LiftAcross, 0.25, "in the lift's lane");
+        foot.Position.Y.Should().BeGreaterThan(Layout.LiftHalf + 1, "the lane meets the lift from its open side");
+        foreach (Waypoint point in way[2..])
         {
             point.Frame.Should().Be(frame);
-            point.Position.X.Should().BeApproximately(Layout.Deck + StationExit.Standing, 1e-6, "on the deck");
-            point.Position.Z.Should().Be(Layout.LiftAcross, "in the lift's lane");
-            (point.Position.Z - StationExit.PersonRadius - Layout.ParkedBounds.Max.Z).Should().BeGreaterThan(3);
+            (point.Position.Z - StationExit.PersonRadius - Layout.ParkedBounds.Max.Z).Should().BeGreaterThan(0.5);
         }
 
-        way[1].Position.Y.Should().BeGreaterThan(Layout.LiftHalf + 1, "the lane meets the lift from its open side");
         way[^1].Position.Should().Be(StationExit.LiftTop.Position + new Double3(StationExit.Standing, 0, 0));
     }
 
@@ -189,7 +197,7 @@ public sealed class StationExitGeometryTests : IDisposable
         var deck = new List<Double3>();
         foreach (double y in new double[] { hatch.Min.Y, hatch.Max.Y })
         foreach (double z in new double[] { hatch.Min.Z, hatch.Max.Z })
-            deck.Add(parked.TransformPoint(new(DemoScenes.Shuttle.Hull.X, y, z)));
+            deck.Add(parked.TransformPoint(new(DemoScenes.Shuttle.Hull.Max.X, y, z)));
         var shaft = new List<Double3>();
         var wheel = new List<Double3>();
         double foot = -StationExit.Ride.Foot;

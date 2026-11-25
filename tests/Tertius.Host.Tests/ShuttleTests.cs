@@ -30,7 +30,7 @@ public sealed class ShuttleTests : IDisposable
         FrameHandle earth = world.CreateRootFrame(
             new(FrameBounds.Sphere(1e7f), GravityField.Point(DemoScenes.EarthMu))
         );
-        double r = DemoScenes.EarthRadius + Shuttle.Hull.Y;
+        double r = DemoScenes.EarthRadius - Shuttle.Hull.Min.Y;
         FrameHandle cabin = world.GetOwnedFrame(
             Shuttle.Park(world: world, frame: earth, pose: new(new(0, r, 0), DQuaternion.Identity))
         );
@@ -167,7 +167,7 @@ public sealed class ShuttleTests : IDisposable
         foreach (double z in new[] { pen.Z - half, pen.Z, pen.Z + half })
         {
             Double3 start = pen with { Z = z },
-                end = start with { X = -Shuttle.Hull.X - 0.1 };
+                end = start with { X = -Shuttle.Tram.X - 0.1 };
             Shuttle
                 .Glass.Should()
                 .NotContain(
@@ -212,7 +212,7 @@ public sealed class ShuttleTests : IDisposable
             panel.Min.Z.Should().BeGreaterThanOrEqualTo(rib - 0.1f, $"{id} lies within its pillar");
             panel.Max.Z.Should().BeLessThanOrEqualTo(rib + 0.1f, $"{id} lies within its pillar");
             Double3 middle = panel.Center,
-                outside = middle with { X = side * (Shuttle.Hull.X + 0.1) };
+                outside = middle with { X = side * (Shuttle.Tram.X + 0.1) };
             Shuttle
                 .Glass.Should()
                 .NotContain(
@@ -317,26 +317,24 @@ public sealed class ShuttleTests : IDisposable
 
     /// <summary>
     /// The engine keeps the center of mass that Jolt computes for the hull's shape, and publishes it in the body facts
-    /// (docs/plans/parts.md, "Settled forks"). The demo's own value comes from the integral of the loft. The two agree
-    /// within 1 mm, so the demo can take the engine's value for the places of its parts and drop its own.
+    /// (docs/plans/parts.md, "Settled forks"). The hull's shape is the box round the Lunar Shuttle's model, so the center
+    /// of mass is the box's middle, within 1 mm: 0.27 m below the cabin's middle and 0.48 m forward of it, since the
+    /// model's wheels reach lower than its roof reaches up, and its nose farther than its tail.
     /// </summary>
     [Fact]
-    public void TheShuttlesHullHasItsCenterOfMassWithinAMillimeterOfTheLoftsIntegral()
+    public void TheShuttlesHullHasItsCenterOfMassInTheMiddleOfTheModelsBox()
     {
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e4f)));
         Entity hull = FreeHull(space, Vector3.Zero);
 
         BodyFacts facts = world.Snapshot.BodyOf(hull).Found();
 
-        Vector3 loft = Shuttle.Loft.MassOf(Shuttle.Mass).CenterOfMass;
         Vector3
-            .Distance(facts.CenterOfMass, loft)
+            .Distance(facts.CenterOfMass, Shuttle.Hull.Center)
             .Should()
-            .BeLessThan(1e-3f, $"the engine's center of mass {facts.CenterOfMass} is the loft's {loft}");
-        facts
-            .CenterOfMass.Length()
-            .Should()
-            .BeGreaterThan(0.1f, "the hull's center of mass is low and aft of its origin");
+            .BeLessThan(1e-3f, $"the engine's center of mass {facts.CenterOfMass} is the box's middle");
+        facts.CenterOfMass.Y.Should().BeApproximately(-0.27f, 0.01f);
+        facts.CenterOfMass.Z.Should().BeApproximately(-0.48f, 0.01f);
     }
 
     /// <summary>
@@ -459,7 +457,7 @@ public sealed class ShuttleTests : IDisposable
             {
                 Frame = ground,
                 Pose = new(
-                    new(0, 1.2 + Shuttle.Hull.Z + 0.01, 0),
+                    new(0, 1.2 + Shuttle.Hull.Max.Z + 0.01, 0),
                     DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2)
                 ),
                 Body = Shuttle.Body(BodyMotion.Dynamic),
@@ -479,14 +477,13 @@ public sealed class ShuttleTests : IDisposable
         world
             .PoseIn(hull, ground)
             .Position.Y.Should()
-            .BeApproximately(1.2 + Shuttle.Hull.Z, 0.01, "it rests on its tail face");
+            .BeApproximately(1.2 + Shuttle.Hull.Max.Z, 0.01, "it rests on its tail face");
     }
 
     /// <summary>
-    /// The tail face is flat across the whole cross-section, as the live world needs to stand the hull on its tail: the
-    /// triangles of the drawn hull at its aft end lie at z = 8 and face aft, their area is the full cross-section's less the
-    /// pocket's mouth, 1.4 m square, and their outline holds every corner of the full cross-section. The outer collision
-    /// shape's points at z = 8 are its eight true corners, so the hull stands on the whole face.
+    /// The tram's tail face is flat across the whole cross-section: the triangles of the drawn hull at its aft end lie at
+    /// z = 8 and face aft, their area is the full cross-section's less the pocket's mouth, 1.4 m square, and their outline
+    /// holds every corner of the full cross-section. The loft's convex shape's points at z = 8 are its eight true corners.
     /// </summary>
     [Fact]
     public void TheTailFaceIsFlatAcrossTheCrossSection()
@@ -533,7 +530,8 @@ public sealed class ShuttleTests : IDisposable
             .BeApproximately(fullArea - 1.4 * 1.4, 1e-4, "the face spans the full cross-section round the pocket");
         outline.Should().Contain(full);
         Shuttle
-            .HullShape.Should()
+            .Loft.Shape()
+            .Should()
             .BeOfType<ConvexHullShapeDesc>()
             .Which.Points.Where(p => p.Z == 8)
             .Select(p => new Vector2(p.X, p.Y))
@@ -543,9 +541,8 @@ public sealed class ShuttleTests : IDisposable
 
     /// <summary>
     /// In the scene <c>demo-shuttle</c>, each shuttle carries the main engine's nozzle in its frame: its axis lies along Z
-    /// through the x and y of the center of mass, where the engine pushes, and the pocket's middle, (0, -0.090). Its aft rim
-    /// lies 5 cm inside the tail face, at z = 7.95, its front at 7.45, and its outside 0.1 m from the walls of the pocket,
-    /// which reach 0.7 m from its middle.
+    /// through the x and y of the center of mass, where the engine pushes. Its aft rim lies 5 cm inside the hull's tail
+    /// face, and its front 0.5 m ahead of that.
     /// </summary>
     [Fact]
     public void TheNozzleIsRecessedOnTheLineOfThrust()
@@ -564,18 +561,16 @@ public sealed class ShuttleTests : IDisposable
                 .BeApproximately(HostTesting.ShuttleCenterOfMass.X, 1e-6, "the axis passes through the center of mass");
             pose.Position.Y.Should()
                 .BeApproximately(HostTesting.ShuttleCenterOfMass.Y, 1e-6, "the axis passes through the center of mass");
-            pose.Position.Y.Should().BeApproximately(-0.090, 1e-3, "the axis passes through the pocket's middle");
 
             Double3[] points =
             [
                 .. mesh.Vertices.Select(vertex => pose.Position + pose.Rotation.Rotate((Double3)vertex.Position)),
             ];
-            points.Max(p => p.Z).Should().BeApproximately(7.95, 1e-5, "the aft rim lies 5 cm inside the tail face");
-            points.Min(p => p.Z).Should().BeApproximately(7.45, 1e-5);
             points
-                .Min(p => 0.7 - Math.Max(Math.Abs(p.X), Math.Abs(p.Y - pose.Position.Y)))
+                .Max(p => p.Z)
                 .Should()
-                .BeApproximately(0.1, 1e-5, "the outside lies 0.1 m from the pocket's walls");
+                .BeApproximately(Shuttle.Hull.Max.Z - 0.05, 1e-5, "the aft rim lies 5 cm inside the tail face");
+            points.Min(p => p.Z).Should().BeApproximately(Shuttle.Hull.Max.Z - 0.55, 1e-5);
         }
     }
 

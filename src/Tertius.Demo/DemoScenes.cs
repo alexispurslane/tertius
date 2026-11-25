@@ -275,7 +275,16 @@ public static partial class DemoScenes
     /// <summary>The thickness of the chamber's walls, in meters.</summary>
     private const float ChamberWall = 0.2f;
 
-    public static IReadOnlyList<Scene> All { get; } =
+    /// <summary>The scenes, each in its gray box: the Blue Danube scenes and <c>art-preview</c> draw no converted art.</summary>
+    public static IReadOnlyList<Scene> All { get; } = For(content: null);
+
+    /// <summary>
+    /// The scenes, with the Blue Danube scenes and <c>art-preview</c> drawing the converted art under
+    /// <paramref name="content"/>. Each build loads the models into its own render resources (see
+    /// <see cref="BlueDanubeArt.Load"/>). Without a content root, or with a model that does not load, a Blue Danube scene
+    /// builds as its gray box, with the same bodies.
+    /// </summary>
+    public static IReadOnlyList<Scene> For(ContentFolders? content) =>
     [
         new("drop-box", DropBox),
         new("orbit", Orbit),
@@ -287,11 +296,11 @@ public static partial class DemoScenes
         new("weightless-push", WeightlessPush),
         new("demo-meshes", DemoMeshes),
         new("demo-shuttle", DemoShuttle),
-        new("demo-surface", DemoSurface.Build),
+        new("demo-surface", (world, resources) => DemoSurface.Build(world, resources, BlueDanubeArt.Load(content, resources))),
         new("spin-station", SpinStation.Build),
         new("earth-system", EarthSystem.Build),
         new("mars-air", MarsAir.Build),
-        new("demo-exit", DemoExit.Build),
+        new("demo-exit", (world, resources) => DemoExit.Build(world, resources, BlueDanubeArt.Load(content, resources))),
         new("puff-yard", PuffYard),
         new("pbr-spheres", PbrSpheres),
         new("reflections", Reflections),
@@ -302,7 +311,7 @@ public static partial class DemoScenes
         .. RigScenes,
         .. HairCardScenes,
         new("skin-and-hair", SkinAndHair),
-        ArtPreview(ContentFolders.Find()),
+        ArtPreview(content),
     ];
 
     /// <summary>
@@ -1124,6 +1133,102 @@ public static partial class DemoScenes
         );
         return ground;
     }
+
+    /// <summary>
+    /// Spawns <paramref name="stair"/> at <paramref name="place"/> in <paramref name="frame"/>, as <paramref name="id"/>: one
+    /// static body of its blocks and its ramp's wedge, drawn in a worn steel, with sharp edges.
+    /// </summary>
+    private static Entity SpawnStair(
+        World world,
+        FrameHandle frame,
+        SceneInstance scene,
+        IRenderResources resources,
+        string id,
+        Double3 place,
+        BoardingStair stair
+    )
+    {
+        IReadOnlyList<BoundingBox> blocks = stair.Blocks();
+        Vector3[] ramp = stair.RampCorners();
+        BoxMesh boxes = new();
+        foreach (BoundingBox block in blocks)
+            boxes.Box(block);
+        MeshData mesh = boxes.Build();
+        if (ramp.Length > 0)
+            mesh = Merged(mesh, Prism(ramp));
+        var shape = new CompoundShapeDesc([
+            .. blocks.Select(block => new CompoundChild(
+                new BoxShapeDesc(block.Extents, ConvexRadius: 0),
+                new(block.Center, Quaternion.Identity)
+            )),
+            .. ramp.Length > 0 ? [new CompoundChild(new ConvexHullShapeDesc(ramp, ConvexRadius: 0), Pose.Identity)] : Array.Empty<CompoundChild>(),
+        ]);
+        Entity entity = world.Spawn(
+            new()
+            {
+                Frame = frame,
+                Pose = new(place, DQuaternion.Identity),
+                Body = new(Shape: shape, Motion: BodyMotion.Static),
+                Render = new RenderData
+                {
+                    Mesh = resources.CreateMesh(mesh),
+                    Material = resources.CreateMaterial(
+                        new(
+                            BaseColor: new(x: 0.36f, y: 0.37f, z: 0.39f, w: 1),
+                            Roughness: 0.6f,
+                            Model: new StandardShading(Metallic: 0.5f)
+                        )
+                    ),
+                    BoundingRadius = shape.BoundingRadius(),
+                    Flags = RenderFlags.Visible | RenderFlags.CastsShadow | RenderFlags.NoImpostor,
+                },
+            }
+        );
+        scene.Add(id, entity);
+        return entity;
+    }
+
+    /// <summary>
+    /// The mesh of a prism over a convex polygon from its <paramref name="corners"/>: one end's corners round the polygon,
+    /// then the other's in the same order. Each face winds counterclockwise from outside, as in <see cref="Primitives"/>.
+    /// </summary>
+    private static MeshData Prism(Vector3[] corners)
+    {
+        int sides = corners.Length / 2;
+        Vector3 middle = corners.Aggregate(Vector3.Zero, (sum, corner) => sum + corner) / corners.Length;
+        var vertices = new List<Vertex>();
+        var indices = new List<uint>();
+        void Face(params Vector3[] face)
+        {
+            var normal = Vector3.Normalize(Vector3.Cross(face[1] - face[0], face[2] - face[0]));
+            if (Vector3.Dot(normal, face[0] - middle) < 0)
+            {
+                Array.Reverse(face);
+                normal = -normal;
+            }
+
+            var tangent = Vector3.Normalize(face[1] - face[0]);
+            uint start = (uint)vertices.Count;
+            foreach (Vector3 corner in face)
+                vertices.Add(new() { Position = corner, Normal = normal, Tangent = new(tangent, 1) });
+            for (uint i = 1; i + 1 < face.Length; i++)
+                indices.AddRange([start, start + i, start + i + 1]);
+        }
+
+        Face(corners[..sides]);
+        Face(corners[sides..]);
+        for (int i = 0; i < sides; i++)
+        {
+            int j = (i + 1) % sides;
+            Face(corners[i], corners[j], corners[j + sides], corners[i + sides]);
+        }
+
+        return new([.. vertices], [.. indices]);
+    }
+
+    /// <summary>One mesh of the triangles of <paramref name="a"/> and <paramref name="b"/>.</summary>
+    private static MeshData Merged(MeshData a, MeshData b) =>
+        new([.. a.Vertices, .. b.Vertices], [.. a.Indices, .. b.Indices.Select(index => index + (uint)a.Vertices.Length)]);
 
     private static RenderData Drawn(IRenderResources resources, MeshData mesh, Vector4 color, float boundingRadius) =>
         new()

@@ -7,22 +7,25 @@ namespace Tertius.Demo;
 public static partial class DemoScenes
 {
     /// <summary>
-    /// The shuttle of the Blue Danube demo (docs/plans/blue-danube-demo.md): a frame owner whose hull fits a box 6 m wide,
-    /// 4 m tall and 16 m long, in the tram shape of <see cref="Loft"/>. In its own axes +Y is up, -Z is the nose and +X is
-    /// starboard.
+    /// The shuttle of the Blue Danube demo (docs/plans/blue-danube-demo.md, "The shuttle's tram shape and glass canopy" and
+    /// "The fit to the art"): a frame owner whose outside is the Lunar Shuttle's model at <see cref="ArtScale"/>, 13.8 m
+    /// wide, 9.3 m tall and 29.1 m long, round a cabin in the tram shape of <see cref="Loft"/>, which fits the box of
+    /// <see cref="Tram"/>. In its own axes +Y is up, -Z is the nose and +X is starboard.
     /// <list type="bullet">
-    /// <item>In its parent frame the hull is the convex hull of the loft, <see cref="HullShape"/>. In its own frame it is
-    /// hollow: the drawn hull's solid in convex pieces, walls 0.2 m thick round a cabin that is the box of
-    /// <see cref="Cabin"/> where the walk, the seat, the pen and the float happen. The <see cref="Hatch"/> leads through the
-    /// starboard wall, and the <see cref="Seat"/>, a static box, stands on the cabin floor. Both are part of the interior
-    /// shape, <see cref="InteriorShape"/>, the static body of the frame's own physics system.</item>
+    /// <item>In its parent frame the hull is the model's box, <see cref="Hull"/> and <see cref="HullShape"/>, whose bottom is
+    /// the plane of the model's three wheels. In its own frame it is hollow: the tram's solid in convex pieces, walls 0.2 m
+    /// thick round a cabin that is the box of <see cref="Cabin"/> where the walk, the seat, the pen and the float happen. The
+    /// <see cref="Hatch"/> leads through the starboard wall into the <see cref="Porch"/>, out through the model's side, over
+    /// the <see cref="Walkway"/>, which starts as a ramp on the cabin floor up to the hatch's sill. The <see cref="Seat"/>, a
+    /// static box, stands on the cabin floor. All are part of the interior shape, <see cref="InteriorShape"/>, the static body of the frame's own physics
+    /// system.</item>
     /// <item>A glass canopy of 40 panes, <see cref="Glass"/>, runs along both sides from 0.7 m above the cabin floor,
     /// over the roof's bevels and the roof, and across the front above the sill. The glass breaks around the hatch. The
     /// panes have no body: the interior shape is solid at the glass. The cabin's <see cref="Lamps"/> hang on the pillars of
     /// the walls.</item>
-    /// <item>The hull has one density, so physics puts its center of mass low and aft of its middle, and gives it the
-    /// principal axes of <see cref="Inertia"/>. The demo reads that center of mass from the engine's
-    /// <see cref="BodyFacts.CenterOfMass"/>.</item>
+    /// <item>The hull's box has one density, so physics puts its center of mass in the box's middle, 0.27 m below and 0.48 m
+    /// ahead of the tram's, and gives it the principal axes of <see cref="Inertia"/>, the shuttle's own. The demo reads that
+    /// center of mass from the engine's <see cref="BodyFacts.CenterOfMass"/>.</item>
     /// <item>The frame has no gravity field of its own. So its contents feel only the opposite of its proper acceleration
     /// (ARCHITECTURE.md, "Gravity"), which the engine derives from the frame's motion: the weight of the ground while the
     /// shuttle stands parked on it, and nothing once the shuttle falls freely in orbit.</item>
@@ -86,14 +89,56 @@ public static partial class DemoScenes
         /// </summary>
         private const float AntiReflective = 0.18f;
 
-        /// <summary>The half extents of the box that the hull fits, in meters, in the shuttle's axes.</summary>
-        public static Vector3 Hull { get; } = new(3, 2, 8);
+        /// <summary>
+        /// The scale of the Lunar Shuttle's model: the art at 1.6 times its size, the smallest scale of 0.05 steps whose
+        /// outside, placed at <see cref="ArtPlace"/>, holds the tram's whole outer skin, so that no wall or pane of the cabin
+        /// shows through it. At 1.55 the tram's roof edges and nose show.
+        /// </summary>
+        public const float ArtScale = 1.6f;
+
+        /// <summary>The half extents of the box that the tram fits, in meters, in the shuttle's axes: its walls, canopy and hatch.</summary>
+        public static Vector3 Tram { get; } = new(3, 2, 8);
 
         /// <summary>
         /// The half extents of the cabin's box inside the walls, in meters, in the shuttle's axes. The bevels along the
         /// cabin's four long edges and the nose cut it.
         /// </summary>
-        public static Vector3 Cabin { get; } = Hull - new Vector3(Wall);
+        public static Vector3 Cabin { get; } = Tram - new Vector3(Wall);
+
+        /// <summary>
+        /// Where the model's origin stands in the shuttle's axes, in meters: 1 m aft of the tram's middle, which puts the
+        /// tram's nose in the model's widest part and its tail in the model's engine section.
+        /// </summary>
+        public static Vector3 ArtPlace { get; } = new(0, 0, 1);
+
+        /// <summary>
+        /// The bounds of the Lunar Shuttle's model in its own axes, in meters, as the converter reports them: its nose wheel
+        /// and its two main wheels reach its lowest point, 3.063 m below its origin.
+        /// </summary>
+        public static BoundingBox ArtBounds { get; } = new(new(-4.325f, -3.063f, -10.013f), new(4.325f, 2.731f, 8.166f));
+
+        /// <summary>
+        /// The box that the hull fits, in meters, in the shuttle's axes: <see cref="ArtBounds"/> at <see cref="ArtScale"/>
+        /// and <see cref="ArtPlace"/>. Its bottom, 4.90 m below the origin, is the plane of the model's wheels, where the
+        /// hull rests on a pad or a deck.
+        /// </summary>
+        public static BoundingBox Hull { get; } =
+            new(ArtBounds.Min * ArtScale + ArtPlace, ArtBounds.Max * ArtScale + ArtPlace);
+
+        /// <summary>The eight corners of <see cref="Hull"/>, in the shuttle's axes.</summary>
+        public static IReadOnlyList<Vector3> HullCorners { get; } =
+            [
+                .. Enumerable
+                    .Range(0, 8)
+                    .Select(corner => new Vector3(
+                        (corner & 1) == 0 ? Hull.Min.X : Hull.Max.X,
+                        (corner & 2) == 0 ? Hull.Min.Y : Hull.Max.Y,
+                        (corner & 4) == 0 ? Hull.Min.Z : Hull.Max.Z
+                    )),
+            ];
+
+        /// <summary>How far the hull's farthest corner lies from the shuttle's origin, in meters.</summary>
+        public static float Reach { get; } = Vector3.Max(-Hull.Min, Hull.Max).Length();
 
         /// <summary>
         /// The box of the cabin's air, in meters, in the hull's axes: the cabin, <see cref="Cabin"/> on each side of the
@@ -108,7 +153,56 @@ public static partial class DemoScenes
         /// steps 0.3 m up onto the sill, within the 0.4 m that a character climbs as a stair.
         /// </summary>
         public static BoundingBox Hatch { get; } =
-            new(new(Cabin.X, -Cabin.Y + 0.1f, 1.4f), new(Hull.X, -Cabin.Y + 2.2f, 2.6f));
+            new(new(Cabin.X, -Cabin.Y + 0.1f, 1.4f), new(Tram.X, -Cabin.Y + 2.2f, 2.6f));
+
+        /// <summary>
+        /// The doorway that the loft cuts through the tram's starboard wall, in the shuttle's axes: the <see cref="Hatch"/>,
+        /// 1.5 cm deeper, so that the wall's piece under it lies that far under the <see cref="Walkway"/>'s top, as near
+        /// the bevel's inner skin as the loft allows. Flush with the walkway's top, the edge of that piece lifted a person
+        /// who walked onto it by 1.3 cm, which edge removal does not stop.
+        /// </summary>
+        private static BoundingBox Doorway { get; } = new(Hatch.Min - new Vector3(0, 0.015f, 0), Hatch.Max);
+
+        /// <summary>
+        /// The walkway, the floor of the way out through the hatch, in the shuttle's axes, as one sharp prism: one end's six
+        /// corners round its cross-section, then the other end's in the same order, the porch's width apart. Inside the
+        /// cabin it is the threshold, a ramp 0.8 m long at 7 degrees from the cabin floor up to the sill's top, so that a
+        /// person walks onto the sill rather than climbing its 0.1 m step, which throws a person up in a weak gravity. It
+        /// runs on flush with the sill through the hatch and the porch to the hull's starboard face, and on as the lip, 3 cm
+        /// thick, over the gap and the edge of a boarding stair's landing on the pad or the deck (see
+        /// <see cref="BoardingStair"/>). The lip is part of the cabin's interior, which no body of the station's frame
+        /// touches, so it passes over the landing in the docking. The walkway is one piece, and the tram's wall under the
+        /// hatch lies under its top (see <see cref="Doorway"/>), because a character that walks across the edge of a flush
+        /// piece of the interior's compound rises 1.3 cm over 0.2 m, which edge removal does not stop. The porch's roof
+        /// shortens the follow camera's arm, and that rise moved the camera 7 cm along it.
+        /// </summary>
+        public static Vector3[] Walkway { get; } =
+            [
+                .. new[] { Hatch.Min.Z - 0.3f, Hatch.Max.Z + 0.3f }.SelectMany(z =>
+                    new Vector3[]
+                    {
+                        new(Cabin.X - 0.8f, -Cabin.Y, z),
+                        new(Hull.Max.X, -Cabin.Y, z),
+                        new(Hull.Max.X + BoardingStair.Gap + BoardingStair.LipOverlap, Hatch.Min.Y - 0.03f, z),
+                        new(Hull.Max.X + BoardingStair.Gap + BoardingStair.LipOverlap, Hatch.Min.Y, z),
+                        new(Cabin.X, Hatch.Min.Y, z),
+                        new(Cabin.X - 0.8f, -Cabin.Y + 0.001f, z),
+                    }
+                ),
+            ];
+
+        /// <summary>
+        /// The porch: a short passage out from the hatch through the model's side to the hull's box, in the shuttle's axes,
+        /// over the <see cref="Walkway"/>, as its two side walls and its roof, each 0.1 m thick. The model's side lies 2.1
+        /// to 2.6 m outside the tram's wall at the hatch, so the porch's walls hide the person's way through it. Its open
+        /// end lies at the hull's starboard face.
+        /// </summary>
+        public static IReadOnlyList<BoundingBox> Porch { get; } =
+            [
+                new(new(Tram.X, Hatch.Min.Y, Hatch.Min.Z - 0.3f), new(Hull.Max.X, Hatch.Max.Y + 0.1f, Hatch.Min.Z - 0.2f)),
+                new(new(Tram.X, Hatch.Min.Y, Hatch.Max.Z + 0.2f), new(Hull.Max.X, Hatch.Max.Y + 0.1f, Hatch.Max.Z + 0.3f)),
+                new(new(Tram.X, Hatch.Max.Y, Hatch.Min.Z - 0.2f), new(Hull.Max.X, Hatch.Max.Y + 0.1f, Hatch.Max.Z + 0.2f)),
+            ];
 
         /// <summary>
         /// The seat, in the shuttle's axes: a box 0.6 m wide, 0.5 m tall and 0.6 m deep on the cabin floor, centered 1 m to
@@ -192,35 +286,52 @@ public static partial class DemoScenes
                         .Select(glass => (glass.Edge, glass.Name, Bay: bay))
                 )
                 .Aggregate(
-                    new LoftedHull([new(-Hull.Z, NoseFront), new(NoseStart, Full), new(Hull.Z, Full)], Wall, Ribs)
-                        .Door(door: Hatch, bay: HatchBay, fromCorner: 2, toCorner: 4)
+                    new LoftedHull([new(-Tram.Z, NoseFront), new(NoseStart, Full), new(Tram.Z, Full)], Wall, Ribs)
+                        .Door(door: Doorway, bay: HatchBay, fromCorner: 2, toCorner: 4)
                         .TailPocket(half: 0.7f, depth: 0.6f, housing: Wall)
                         .Surrounds(rib: 0.1f, fold: 0.06f, solid: 0.1f)
                         .NoseGlass("pane-nose", fromCorner: 3, toCorner: 8),
                     (hull, glass) => hull.Glass($"pane-{glass.Name}-{glass.Bay}", glass.Edge, glass.Bay)
                 );
 
-        /// <summary>The hull in its parent frame: the convex hull of the loft's corners, with the default convex radius.</summary>
-        public static ShapeDesc HullShape { get; } = Loft.Shape();
+        /// <summary>The hull in its parent frame: the box of <see cref="Hull"/>, with the default convex radius.</summary>
+        public static ShapeDesc HullShape { get; } =
+            new CompoundShapeDesc([new(new BoxShapeDesc(Hull.Extents), new(Hull.Center, Quaternion.Identity))]);
 
         /// <summary>
-        /// The hull in its own frame: the drawn hull's solid in convex pieces of convex radius 0, solid at the glass and open at
-        /// the hatch, and the <see cref="Seat"/>. Every piece is sharp, so physics gives the body edge removal.
+        /// The hull in its own frame: the tram's solid in convex pieces of convex radius 0, solid at the glass and open at
+        /// the hatch, the <see cref="Seat"/>, the <see cref="Walkway"/> and the <see cref="Porch"/>. Every piece is sharp,
+        /// so physics gives the body edge removal.
         /// </summary>
         public static ShapeDesc InteriorShape { get; } =
             new CompoundShapeDesc([
                 .. Loft.Interior(),
                 new(new BoxShapeDesc(Seat.Extents, ConvexRadius: 0), new(Seat.Center, Quaternion.Identity)),
+                new(new ConvexHullShapeDesc(Walkway, ConvexRadius: 0), Pose.Identity),
+                .. Porch.Select(box => new CompoundChild(
+                    new BoxShapeDesc(box.Extents, ConvexRadius: 0),
+                    new(box.Center, Quaternion.Identity)
+                )),
             ]);
 
         /// <summary>
         /// The hull's moments of inertia about its principal axes, in kg·m², and those axes in the shuttle's axes, as physics
-        /// derives them for <see cref="HullShape"/> with <see cref="Mass"/>. The long axis tilts about 1 degree from Z. The
-        /// hull's center of mass is the engine's (<see cref="BodyFacts.CenterOfMass"/>), which every component reads from
-        /// the body facts: about 9 cm below and 36 cm aft of the hull's middle, at one density. The user chose one density
-        /// on 2026-10-20, so no ballast moves it onto the middle line (docs/plans/blue-danube-demo.md, "Engine changes").
+        /// derives them for <see cref="HullShape"/> with <see cref="Mass"/>: a box of one density, whose principal axes are
+        /// the shuttle's own. The hull's center of mass is the engine's (<see cref="BodyFacts.CenterOfMass"/>), which every
+        /// component reads from the body facts: the box's middle. The user chose one density on 2026-10-20, so no ballast
+        /// moves it (docs/plans/blue-danube-demo.md, "Engine changes").
         /// </summary>
-        public static PrincipalInertia Inertia { get; } = Loft.MassOf(Mass).Inertia;
+        public static PrincipalInertia Inertia { get; } = BoxInertia(Mass, 2 * Hull.Extents);
+
+        /// <summary>The principal inertia of a box of one density, of <paramref name="mass"/> kilograms and <paramref name="size"/> meters.</summary>
+        private static PrincipalInertia BoxInertia(float mass, Vector3 size)
+        {
+            Vector3 square = size * size;
+            return new(
+                mass / 12 * new Vector3(square.Y + square.Z, square.X + square.Z, square.X + square.Y),
+                Quaternion.Identity
+            );
+        }
 
         /// <summary>
         /// The main engine's nozzle: a ring from 0.5 m to 0.6 m in radius and 0.5 m long, about its own Y axis, in 32
@@ -231,10 +342,11 @@ public static partial class DemoScenes
             RevolvedSolid.Ring(innerRadius: 0.5f, outerRadius: 0.6f, halfWidth: 0.25f, segments: 32);
 
         /// <summary>
-        /// The nozzle's middle along the shuttle's Z, in meters: its aft rim lies 5 cm inside the tail face, so it runs from
-        /// z = 7.45 m to 7.95 m. The main engine's part sits there too (see <see cref="ShuttleJets.MainEnginePlace"/>).
+        /// The nozzle's middle along the shuttle's Z, in meters: its aft rim lies 5 cm inside the hull's tail face, the
+        /// model's engine section, so it runs from z = 13.57 m to 14.02 m. The main engine's part sits there too (see
+        /// <see cref="ShuttleJets.MainEnginePlace"/>), so its plume leaves the model's tail.
         /// </summary>
-        public static double NozzleZ { get; } = Hull.Z - 0.05 - 0.25;
+        public static double NozzleZ { get; } = Hull.Max.Z - 0.05 - 0.25;
 
         /// <summary>
         /// Where a person 1.8 m tall stands at the seat, in the shuttle's axes: the center of its capsule, 0.9 m above the
@@ -244,11 +356,11 @@ public static partial class DemoScenes
         public static Double3 SeatStand { get; } = new(1, -Cabin.Y + 0.9, Seat.Max.Z + 0.45);
 
         /// <summary>
-        /// Where a person 1.8 m tall stands 3 m outside the hatch, in the shuttle's axes: the center of its capsule, 0.9 m
-        /// above the ground under the hull, in line with the hatch. A person who walks from there to
+        /// Where a person 1.8 m tall stands at the porch's open end, in the shuttle's axes: the center of its capsule, 0.9 m
+        /// above the porch's floor, 0.6 m in from the hull's face, in line with the hatch. A person who walks from there to
         /// <see cref="InsideHatch"/> walks straight through the middle of the hatch.
         /// </summary>
-        public static Double3 OutsideHatch { get; } = new(Hull.X + 3, -Hull.Y + 0.9, Hatch.Center.Z);
+        public static Double3 OnPorch { get; } = new(Hull.Max.X - 0.6, Hatch.Min.Y + 0.9, Hatch.Center.Z);
 
         /// <summary>
         /// Where a person 1.8 m tall stands 1.2 m inside the hatch, in the shuttle's axes: the center of its capsule, 0.9 m
@@ -299,8 +411,19 @@ public static partial class DemoScenes
                 power: CabinLampPower
             );
 
+        /// <summary>
+        /// The pose of <c>sill-camera</c>, in the shuttle's axes: in the porch, 0.3 m above the walkway against its aft wall
+        /// and 0.6 m out from the tram's side, looking forward and in at the hatch's sill. It sees the person's feet cross
+        /// the sill from the side, about 1 m away.
+        /// </summary>
+        public static DPose SillCamera { get; } =
+            new(
+                new(Tram.X + 0.6, Hatch.Min.Y + 0.3, Hatch.Max.Z + 0.15),
+                AttitudeAutopilot.Facing(new Double3(-0.8, 0, -1), Double3.UnitY)
+            );
+
         /// <summary>The radii of the bubble, in meters, in the shuttle's axes.</summary>
-        public static Vector3 Bubble { get; } = (Hull + new Vector3(2)) * MathF.Sqrt(3);
+        public static Vector3 Bubble { get; } = (Vector3.Max(-Hull.Min, Hull.Max) + new Vector3(2)) * MathF.Sqrt(3);
 
         /// <summary>
         /// The layers of the shuttle's flight program, in the order in which they run in a tick: the
@@ -411,21 +534,93 @@ public static partial class DemoScenes
             );
 
         /// <summary>
-        /// The drawn hull of <see cref="Loft"/>, in light gray. It casts shadows and is never an impostor: a flat picture of
-        /// the hull alone cannot hold the person inside at its depth, and the hull has few triangles. The scene draws the
-        /// seat, the panes, the lamps and the nozzle apart.
+        /// The drawn hull of the gray box, <see cref="Loft"/> whole, in light gray. It casts shadows and is never an
+        /// impostor: a flat picture of the hull alone cannot hold the person inside at its depth, and the hull has few
+        /// triangles. The scene draws the seat, the panes, the lamps, the porch and the nozzle apart.
         /// </summary>
-        public static RenderData DrawnHull(IRenderResources resources)
+        public static RenderData DrawnHull(IRenderResources resources) => Tramway(resources, Loft.Mesh());
+
+        /// <summary>
+        /// The drawn hull with the Lunar Shuttle's model outside: <see cref="Loft"/> seen from inside, whose outer skin the
+        /// model's attached placement (see <see cref="SpawnArt"/>) hides.
+        /// </summary>
+        public static RenderData DrawnInterior(IRenderResources resources) => Tramway(resources, Loft.InteriorMesh());
+
+        private static RenderData Tramway(IRenderResources resources, MeshData mesh)
         {
             RenderData render = Drawn(
                 resources: resources,
-                mesh: Loft.Mesh(),
+                mesh: mesh,
                 color: new(x: 0.85f, y: 0.85f, z: 0.88f, w: 1),
-                boundingRadius: MathF.Ceiling(Hull.Length())
+                boundingRadius: MathF.Ceiling(Tram.Length())
             );
             render.Flags |= RenderFlags.NoImpostor;
             return render;
         }
+
+        /// <summary>
+        /// The drawn hull of the shuttle <paramref name="hull"/> as a scene shows it: with <paramref name="art"/>, the
+        /// tram seen from inside, and the model, <c>shuttle-art</c> after <paramref name="prefix"/>, attached at
+        /// <see cref="ArtPlace"/>; without it, the gray box's whole tram. Either way the porch, <c>porch</c> after the
+        /// prefix, drawn in the cabin's frame. The hull's render row must be set by the spawn: pass
+        /// <see cref="HullRender"/>.
+        /// </summary>
+        public static void SpawnArt(
+            World world,
+            Entity hull,
+            SceneInstance scene,
+            IRenderResources resources,
+            Assets.StoredModel? art,
+            string prefix = ""
+        )
+        {
+            string Id(string name) => prefix.Length == 0 ? name : $"{prefix}-{name}";
+            BoxMesh walls = new();
+            foreach (BoundingBox box in Porch)
+                walls.Box(box);
+            scene.Add(
+                Id("porch"),
+                world.Spawn(
+                    new()
+                    {
+                        Frame = world.GetOwnedFrame(hull),
+                        Pose = DPose.Identity,
+                        Render = Drawn(
+                            resources: resources,
+                            mesh: Merged(walls.Build(), Prism(Walkway)),
+                            color: new(x: 0.42f, y: 0.43f, z: 0.45f, w: 1),
+                            boundingRadius: Hull.Max.X + Hatch.Max.Z + 1
+                        ) with
+                        {
+                            Flags = RenderFlags.Visible | RenderFlags.CastsShadow | RenderFlags.NoImpostor,
+                        },
+                    }
+                )
+            );
+            if (art is null)
+                return;
+            scene.Add(
+                Id("shuttle-art"),
+                world.Spawn(
+                    new()
+                    {
+                        AttachTo = hull,
+                        AttachOffset = new(ArtPlace, Quaternion.Identity),
+                        Render = new RenderData
+                        {
+                            Model = art.Id,
+                            Scale = new(ArtScale),
+                            BoundingRadius = art.BoundingRadius * ArtScale,
+                            Flags = RenderFlags.Visible | RenderFlags.CastsShadow | RenderFlags.NoImpostor,
+                        },
+                    }
+                )
+            );
+        }
+
+        /// <summary>The hull's render row with <paramref name="art"/> or as the gray box (see <see cref="SpawnArt"/>).</summary>
+        public static RenderData HullRender(IRenderResources resources, Assets.StoredModel? art) =>
+            art is null ? DrawnHull(resources) : DrawnInterior(resources);
 
         /// <summary>
         /// Spawns each pane of <see cref="Glass"/> in <paramref name="cabin"/>, the shuttle's frame, at its center, with its

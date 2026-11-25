@@ -530,7 +530,7 @@ public sealed class RendezvousAutopilotTests : IDisposable, IClassFixture<Rendez
     public sealed class ShortPlanRun : IDisposable
     {
         /// <summary>
-        /// The short plan: a transfer of 300 s to an arrival point 400 m out on the axis, and the demo's hold point, 150 m
+        /// The short plan: a transfer of 300 s to an arrival point 700 m out on the axis, and the demo's hold point, 430 m
         /// out. From 5 km behind the station, the transfer angle is about 19.5 degrees, inside the window from 30 down to 10
         /// degrees. The shuttle carries no crew, and the turn to the brake's direction must end in the 300 s, so the nose
         /// turns at the attitude autopilot's full rate in the trim and the coast too.
@@ -538,7 +538,7 @@ public sealed class RendezvousAutopilotTests : IDisposable, IClassFixture<Rendez
         public static RendezvousPlan Plan { get; } =
             new(
                 TransferTime: 300,
-                ArrivalDistance: 400,
+                ArrivalDistance: 700,
                 HoldDistance: DemoStation.Layout.HoldPoint.Y,
                 WindowOpens: 30 * Math.PI / 180,
                 WindowCloses: 10 * Math.PI / 180,

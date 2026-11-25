@@ -6,19 +6,21 @@ namespace Tertius.Demo;
 
 /// <summary>
 /// The shape of the Blue Danube station in its own axes, from a few named sizes (docs/plans/blue-danube-demo.md, "The
-/// kilometre wheel"). +Y is the axis, about which the station turns, and the angle θ about it runs from +X toward -Z. The
-/// wheel's floor lies <see cref="FloorRadius"/> from the axis, and the station's rate gives one standard gravity there. The
-/// hub is a box along the axis that holds the bay. The slot leads through its +Y wall, and its -X wall's inner face is the
-/// deck. Two spokes, lift shafts, run along +X and -X in the plane y = 0, from the hub to the wheel's ceiling. The lift runs
-/// in the spoke along -X. Every other place derives from these sizes, so a fit to the station's art moves the bay along the
-/// axis or grows the bubble and the docking, the exit and the cameras follow.
+/// kilometre wheel" and "The fit to the art"). +Y is the axis, about which the station turns, and the angle θ about it runs
+/// from +X toward -Z. The wheel's floor lies <see cref="FloorRadius"/> from the axis, and the station's rate gives one
+/// standard gravity there. The hub is a box along the axis that holds the bay, inside the core of the station's art. The
+/// slot leads through its +Y wall, and its -X wall is the deck: a pier that stands on the core's flat face at
+/// <see cref="CoreFace"/>. The parked hull rests on the deck against the cradle rail. Two spokes, lift shafts, run along +X
+/// and -X in the plane y = 0, from the hub to the wheel's ceiling. The lift runs in the spoke along -X. Every other place
+/// derives from these sizes, so a change of the bay's place or the bubble moves the docking, the exit and the cameras.
 /// <list type="bullet">
 /// <item>The floor's gravity is <see cref="StandardGravity"/>, by <see cref="Rate"/>.</item>
 /// <item>The deck's spin gravity is at least <see cref="MinDeckGravity"/>, so a person there keeps its feet.</item>
 /// <item>The floor's facets sag less than <see cref="MaxFloorSag"/> below the circle of their joints.</item>
 /// <item>The hub reaches across the spokes' width along the axis.</item>
+/// <item>The deck stands on the core's face: its top lies nearer the axis than the face, and its underside beyond it.</item>
 /// <item>The bubble holds every corner of the hull, and leaves the hold point outside, each by more than the shuttle's reach.</item>
-/// <item>The shuttle's frame fits in the station's, and its parked hull fits in the bay.</item>
+/// <item>The shuttle's frame fits in the station's, and its parked hull fits in the bay, on the deck's side of the cradle rail.</item>
 /// <item>The ceiling's opening is narrower than the spoke's inside and wider than the lift.</item>
 /// <item>The lift's hole in the deck lies inside the spoke and clear of the parked hull.</item>
 /// </list>
@@ -57,22 +59,45 @@ public sealed record StationLayout
     public int Segments { get; init; } = 1024;
 
     /// <summary>
-    /// How far the deck lies from the axis, in meters. Its spin gravity is ω² times this: 0.196 m/s² for 40 m. At 8 m it
-    /// would be 0.039 m/s², below the zero-gravity threshold, where a person floats.
+    /// How far the deck's top lies from the axis, in meters. Its spin gravity is ω² times this: 0.501 m/s² for 102.2 m. At
+    /// 8 m it would be 0.039 m/s², below the zero-gravity threshold, where a person floats.
     /// </summary>
-    public float DeckRadius { get; init; } = 40;
+    public float DeckRadius { get; init; } = 102.2f;
 
-    /// <summary>The thickness of the hub's walls, in meters.</summary>
+    /// <summary>
+    /// The thickness of the deck, the pier on the core's face, in meters: 2.5 m above the face and 0.2 m into the art
+    /// behind it. A view from the deck sees about 1.4 m down the lift's hole, so the face, which the lift passes through,
+    /// stays out of sight in the hole's walls.
+    /// </summary>
+    public float DeckThickness { get; init; } = 2.7f;
+
+    /// <summary>
+    /// How far the core's flat face at θ = 180 degrees lies from the axis, in meters: the face of the station's art that
+    /// the deck stands on. It is 43 m wide across the axis, and no fitting of the art stands on it within 17 m of its middle
+    /// line and from 15 m on the far side of the wheel's plane to 37 m on the slot's side.
+    /// </summary>
+    public float CoreFace { get; init; } = 104.7f;
+
+    /// <summary>The thickness of the hub's other walls, in meters.</summary>
     public float HubWall { get; init; } = 0.5f;
 
-    /// <summary>Half the length of the bay inside the walls along the axis, in meters.</summary>
-    public float BayHalfAxial { get; init; } = 12.5f;
+    /// <summary>Half the length of the bay inside the walls along the axis, in meters: the deck's length.</summary>
+    public float BayHalfAxial { get; init; } = 26;
 
-    /// <summary>Half the width of the bay inside the walls across the axis, along Z, in meters.</summary>
-    public float BayHalfAcross { get; init; } = 8;
+    /// <summary>Half the width of the bay inside the walls across the axis, along Z, in meters: the deck's width.</summary>
+    public float BayHalfAcross { get; init; } = 16.5f;
 
     /// <summary>Where the bay's middle lies along the axis, in meters, on the slot's side of the wheel's plane or in it.</summary>
-    public float BayAxial { get; init; }
+    public float BayAxial { get; init; } = 11;
+
+    /// <summary>Where the cradle rail's inner face lies across the axis, along Z, in meters: the parked hull's port side.</summary>
+    public float CradleAcross { get; init; } = -10.92f;
+
+    /// <summary>How high the cradle rail stands above the deck, in meters.</summary>
+    public float CradleHeight { get; init; } = 1.5f;
+
+    /// <summary>The thickness of the cradle rail across the axis, in meters.</summary>
+    public float CradleThickness { get; init; } = 0.4f;
 
     /// <summary>Half the outside width of a spoke, in meters.</summary>
     public float SpokeHalfWidth { get; init; } = 8;
@@ -86,14 +111,26 @@ public sealed record StationLayout
     /// </summary>
     public float SlotClearance { get; init; } = 1;
 
-    /// <summary>How far the parked shuttle's tail lies inside the inner face of the slot's wall, in meters.</summary>
+    /// <summary>How far the parked shuttle's tail lies inside the bay's +Y end, in meters.</summary>
     public float ParkedTailGap { get; init; } = 1.5f;
 
+    /// <summary>
+    /// How far the visible hull reaches from the axis, in meters: the outer face of the art's ring, 2,028.1 m. The wheel's
+    /// floor and every other gray-box part lie inside it.
+    /// </summary>
+    public float HullRadius { get; init; } = 2028.1f;
+
+    /// <summary>
+    /// Half the visible hull's length along the axis, in meters: the art's habitat galleries on the ring's two faces, 269.4 m
+    /// on each side of the wheel's plane once the art's spokes lie in it.
+    /// </summary>
+    public float HullHalfAxial { get; init; } = 269.4f;
+
     /// <summary>The bubble's radius across the axis, in meters.</summary>
-    public float BubbleRadial { get; init; } = 2200;
+    public float BubbleRadial { get; init; } = 3000;
 
     /// <summary>The bubble's radius along the axis, in meters.</summary>
-    public float BubbleAxial { get; init; } = 120;
+    public float BubbleAxial { get; init; } = 400;
 
     /// <summary>How far beyond the bubble along the axis the hold point lies, in meters.</summary>
     public double HoldBeyondBubble { get; init; } = 30;
@@ -102,7 +139,7 @@ public sealed record StationLayout
     public float LiftHalf { get; init; } = 2;
 
     /// <summary>Where the middle of the lift's floor lies across the axis, along Z, in meters: spinward of the parked hull.</summary>
-    public float LiftAcross { get; init; } = 2.5f;
+    public float LiftAcross { get; init; } = 3.8f;
 
     /// <summary>The gap round the lift's floor in its hole through the deck, in meters.</summary>
     public float LiftHoleGap { get; init; } = 0.05f;
@@ -123,25 +160,53 @@ public sealed record StationLayout
     public WheelFloor WheelFloor => new(FloorRadius, Segments);
 
     /// <summary>The y of the slot's outer face, the hub's +Y face, in meters.</summary>
-    public float SlotFace => BayAxial + BayHalfAxial + HubWall;
+    public float SlotFace => Bay.Max.Y + HubWall;
 
     /// <summary>
-    /// The hub's outer box: across the axis, the deck and the bay's width with the walls; along the axis, from the slot's
-    /// face back to the bay's far end or past the spokes, whichever lies farther.
+    /// The hub's outer box: across the axis, the deck and its mirror on the +X side, each <see cref="DeckThickness"/>
+    /// thick, and the bay's width with the walls; along the axis, from the slot's face back to the bay's far end or past
+    /// the spokes, whichever lies farther. The spokes start at its ±X faces.
     /// </summary>
-    public BoundingBox Hub =>
+    public BoundingBox Hub
+    {
+        get
+        {
+            BoundingBox bay = Bay;
+            var walls = new Vector3(DeckThickness, HubWall, HubWall);
+            return new(bay.Min - walls, bay.Max + walls);
+        }
+    }
+
+    /// <summary>The bay, the hub inside its walls, from the deck across the axis to its mirror. Its air is the station's medium.</summary>
+    public BoundingBox Bay =>
         new(
-            new(-(DeckRadius + HubWall), MathF.Min(BayAxial - BayHalfAxial, -SpokeHalfWidth) - HubWall, -(BayHalfAcross + HubWall)),
-            new(DeckRadius + HubWall, SlotFace, BayHalfAcross + HubWall)
+            new(Deck, MathF.Min(BayAxial - BayHalfAxial, -SpokeHalfWidth), -BayHalfAcross),
+            new(DeckRadius, BayAxial + BayHalfAxial, BayHalfAcross)
         );
 
-    /// <summary>The bay, the hub inside its walls. Its air is the station's medium.</summary>
-    public BoundingBox Bay
+    /// <summary>The deck, the hub's -X wall: a pier on the core's face, as wide and as long as the bay.</summary>
+    public BoundingBox DeckSlab
     {
         get
         {
             BoundingBox hub = Hub;
-            return new(hub.Min + new Vector3(HubWall), hub.Max - new Vector3(HubWall));
+            return new(hub.Min, new(Deck, hub.Max.Y, hub.Max.Z));
+        }
+    }
+
+    /// <summary>
+    /// The cradle rail on the deck: <see cref="CradleHeight"/> tall and <see cref="CradleThickness"/> thick, along the
+    /// parked hull's port side, which rests on its inner face at <see cref="CradleAcross"/>.
+    /// </summary>
+    public BoundingBox Cradle
+    {
+        get
+        {
+            BoundingBox parked = ParkedBounds;
+            return new(
+                new(Deck, parked.Min.Y, CradleAcross - CradleThickness),
+                new(Deck + CradleHeight, parked.Max.Y, CradleAcross)
+            );
         }
     }
 
@@ -151,17 +216,21 @@ public sealed record StationLayout
     /// </summary>
     public BoundingBox Slot =>
         new(
-            new(-Shuttle.Hull.Y - SlotClearance, SlotFace - HubWall, -Shuttle.Hull.X - SlotClearance),
-            new(Shuttle.Hull.Y + SlotClearance, SlotFace, Shuttle.Hull.X + SlotClearance)
+            new(Shuttle.Hull.Min.Y - SlotClearance, SlotFace - HubWall, Shuttle.Hull.Min.X - SlotClearance),
+            new(Shuttle.Hull.Max.Y + SlotClearance, SlotFace, Shuttle.Hull.Max.X + SlotClearance)
         );
 
     /// <summary>
-    /// Where the docked shuttle stands parked, with <see cref="DockedRotation"/>: belly on the deck, port side on the bay's
-    /// -Z wall, and tail <see cref="ParkedTailGap"/> inside the slot's wall.
+    /// Where the docked shuttle stands parked, with <see cref="DockedRotation"/>: belly on the deck, port side on the
+    /// cradle rail at <see cref="CradleAcross"/>, and tail <see cref="ParkedTailGap"/> inside the bay's +Y end.
     /// </summary>
     public DPose ParkedPose =>
         new(
-            new(Deck + Shuttle.Hull.Y, Bay.Max.Y - ParkedTailGap - Shuttle.Hull.Z, Bay.Min.Z + Shuttle.Hull.X),
+            new(
+                Deck - Shuttle.Hull.Min.Y,
+                Bay.Max.Y - ParkedTailGap - Shuttle.Hull.Max.Z,
+                CradleAcross - Shuttle.Hull.Min.X
+            ),
             DockedRotation
         );
 
@@ -171,17 +240,11 @@ public sealed record StationLayout
         get
         {
             DPose pose = ParkedPose;
-            Vector3 half = Shuttle.Hull,
-                min = new(float.MaxValue),
+            Vector3 min = new(float.MaxValue),
                 max = new(float.MinValue);
-            foreach (int corner in Enumerable.Range(0, 8))
+            foreach (Vector3 corner in Shuttle.HullCorners)
             {
-                var local = new Double3(
-                    (corner & 1) == 0 ? -half.X : half.X,
-                    (corner & 2) == 0 ? -half.Y : half.Y,
-                    (corner & 4) == 0 ? -half.Z : half.Z
-                );
-                var at = pose.TransformPoint(local).ToVector3();
+                var at = pose.TransformPoint(corner).ToVector3();
                 min = Vector3.Min(min, at);
                 max = Vector3.Max(max, at);
             }
@@ -209,9 +272,9 @@ public sealed record StationLayout
     /// </summary>
     public float CeilingOpeningHalf => CeilingRadius * MathF.Sin(MathF.PI / Segments);
 
-    /// <summary>The lift's floor across the axis, in its place at the top, flush with the deck: y and z only, x through the deck's wall.</summary>
+    /// <summary>The lift's floor across the axis, in its place at the top, flush with the deck: y and z only, x through the deck.</summary>
     public BoundingBox LiftFootprint =>
-        new(new(Deck - HubWall, -LiftHalf, LiftAcross - LiftHalf), new(Deck, LiftHalf, LiftAcross + LiftHalf));
+        new(new(Deck - DeckThickness, -LiftHalf, LiftAcross - LiftHalf), new(Deck, LiftHalf, LiftAcross + LiftHalf));
 
     /// <summary>The lift's hole through the deck's wall: its footprint with <see cref="LiftHoleGap"/> round it.</summary>
     public BoundingBox LiftHole
@@ -240,11 +303,14 @@ public sealed record StationLayout
     }
 
     /// <summary>
-    /// The corners of the hull: the wheel's rim and its ceiling's edges, across the axis at θ = 0, and the hub's corners.
-    /// The spokes lie inside these.
+    /// The corners of the hull: the visible hull's rim, <see cref="HullRadius"/> out and <see cref="HullHalfAxial"/> along the
+    /// axis, the wheel's rim and its ceiling's edges, across the axis at θ = 0, and the hub's corners. The spokes lie
+    /// inside these.
     /// </summary>
     public IEnumerable<Double3> HullCorners()
     {
+        foreach (double y in new double[] { -HullHalfAxial, HullHalfAxial })
+            yield return new(HullRadius, y, 0);
         foreach (double radius in new double[] { FloorRadius + FloorThickness, CeilingRadius })
         foreach (double y in new double[] { -HalfWidth, HalfWidth })
             yield return new(radius, y, 0);
@@ -262,7 +328,7 @@ public sealed record StationLayout
     {
         double deckGravity = Rate * Rate * DeckRadius,
             sag = FloorRadius - WheelFloor.FacetDistance,
-            reach = Shuttle.Hull.Length();
+            reach = Shuttle.Reach;
         float spokeInside = SpokeHalfWidth - SpokeWall;
         BoundingBox hub = Hub,
             bay = Bay,
@@ -271,6 +337,8 @@ public sealed record StationLayout
             parked = ParkedBounds;
         if (deckGravity < MinDeckGravity)
             yield return $"The deck's spin gravity, {deckGravity:F3} m/s², is below {MinDeckGravity} m/s².";
+        if (!(DeckRadius < CoreFace && CoreFace < DeckRadius + DeckThickness))
+            yield return "The deck does not stand on the core's face.";
         if (sag >= MaxFloorSag)
             yield return $"The floor's facets sag {sag:F4} m, not less than {MaxFloorSag} m.";
         if (hub.Min.Y > -SpokeHalfWidth || hub.Max.Y < SpokeHalfWidth)
@@ -283,6 +351,8 @@ public sealed record StationLayout
             yield return "The shuttle's frame does not fit in the station's.";
         if (!(bay.Contains(parked.Min + new Vector3(1e-3f)) && bay.Contains(parked.Max - new Vector3(1e-3f))))
             yield return "The parked hull does not fit in the bay.";
+        if (Cradle.Min.Z < bay.Min.Z)
+            yield return "The cradle rail does not fit in the bay.";
         if (CeilingOpeningHalf >= spokeInside)
             yield return "The ceiling's opening is wider than the spoke's inside.";
         if (lift.Min.Z <= -CeilingOpeningHalf || lift.Max.Z >= CeilingOpeningHalf)

@@ -395,8 +395,8 @@ public sealed class ShuttleJetsTests
     /// <summary>The full cross-section of the outer skin, from the hull's convex shape: its corners at the tail face.</summary>
     private static Vector2[] Section() =>
         [
-            .. ((ConvexHullShapeDesc)Shuttle.HullShape)
-                .Points.Where(point => point.Z == Shuttle.Hull.Z)
+            .. ((ConvexHullShapeDesc)Shuttle.Loft.Shape())
+                .Points.Where(point => point.Z == Shuttle.Tram.Z)
                 .Select(point => new Vector2(point.X, point.Y)),
         ];
 
@@ -412,10 +412,10 @@ public sealed class ShuttleJetsTests
         foreach (Double3 center in new[] { DemoCenter, OffCenter })
         foreach (Jet jet in Jets(center).Pairs.SelectMany(Both))
         {
-            jet.Place.Z.Should().BeInRange(-5, Shuttle.Hull.Z, $"{jet.Id} lies in the full cross-section");
+            jet.Place.Z.Should().BeInRange(-5, Shuttle.Tram.Z, $"{jet.Id} lies in the full cross-section");
             var flat = new Vector2((float)jet.Place.X, (float)jet.Place.Y);
             Double3 outward;
-            if (jet.Place.Z == Shuttle.Hull.Z)
+            if (jet.Place.Z == Shuttle.Tram.Z)
             {
                 outward = Double3.UnitZ;
             }
@@ -444,7 +444,7 @@ public sealed class ShuttleJetsTests
     public void TheJetsOnTheTailFaceStayClearOfTheEnginesPocket()
     {
         foreach (Double3 center in new[] { DemoCenter, OffCenter })
-        foreach (Jet jet in Jets(center).Pairs.SelectMany(Both).Where(jet => jet.Place.Z == Shuttle.Hull.Z))
+        foreach (Jet jet in Jets(center).Pairs.SelectMany(Both).Where(jet => jet.Place.Z == Shuttle.Tram.Z))
             Math.Max(Math.Abs(jet.Place.X - center.X), Math.Abs(jet.Place.Y - center.Y))
                 .Should()
                 .BeGreaterThan(0.9 + 0.5, $"{jet.Id} lies 0.5 m clear of the pocket's housing");

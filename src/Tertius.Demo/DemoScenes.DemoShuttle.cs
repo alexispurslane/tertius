@@ -60,7 +60,7 @@ public static partial class DemoScenes
             world.Spawn(
                 ViewIn(
                     ground,
-                    LookingAt(new(LyingShuttleX + 2, 1, Shuttle.Hull.Z + 9), new(LyingShuttleX, 1.9, Shuttle.Hull.Z))
+                    LookingAt(new(LyingShuttleX + 2, 1, Shuttle.Tram.Z + 9), new(LyingShuttleX, 1.9, Shuttle.Tram.Z))
                 )
             )
         );
@@ -69,7 +69,7 @@ public static partial class DemoScenes
             world.Spawn(
                 ViewIn(
                     ground,
-                    LookingAt(new(LyingShuttleX + 3, 6, -Shuttle.Hull.Z - 9), new(LyingShuttleX, 1.5, -Shuttle.Hull.Z))
+                    LookingAt(new(LyingShuttleX + 3, 6, -Shuttle.Tram.Z - 9), new(LyingShuttleX, 1.5, -Shuttle.Tram.Z))
                 )
             )
         );
@@ -100,7 +100,7 @@ public static partial class DemoScenes
             {
                 Frame = ground,
                 Pose = new(
-                    new(0, 2 * ShuttlePadHalf.Y + Shuttle.Hull.Z + 0.01, 0),
+                    new(0, 2 * ShuttlePadHalf.Y + Shuttle.Hull.Max.Z + 0.01, 0),
                     DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2)
                 ),
                 Body = Shuttle.Body(BodyMotion.Dynamic),
@@ -136,7 +136,7 @@ public static partial class DemoScenes
         Entity lying = Shuttle.Park(
             world: world,
             frame: ground,
-            pose: new(new(LyingShuttleX, Shuttle.Hull.Y, 0), DQuaternion.Identity),
+            pose: new(new(LyingShuttleX, -Shuttle.Hull.Min.Y, 0), DQuaternion.Identity),
             render: Shuttle.DrawnHull(resources)
         );
         scene.Add("lying", lying);

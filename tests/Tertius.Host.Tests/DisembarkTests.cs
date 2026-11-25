@@ -150,7 +150,7 @@ public sealed class ExitRun : IDisposable
 public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
 {
     /// <summary>When the person arrives at the stroll's end in this run, in seconds after the order: measured on 2026-11-24, and pinned so that the long run can match it.</summary>
-    public const double ArrivalAfterOrder = 171.9;
+    public const double ArrivalAfterOrder = 171.2;
 
     private static StationLayout Layout => DemoStation.Layout;
 
@@ -190,8 +190,8 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
     /// <summary>
     /// The scene starts at the docking's end state: the hull is static at <see cref="StationLayout.ParkedPose"/>, its cabin's
     /// frame is a child of the station's, and the person is <see cref="Strapped"/> at its seat with the pen in its hand,
-    /// waiting <see cref="Aboard"/>, with its up against the felt gravity. The felt gravity at the seat stand is 0.192 m/s²,
-    /// ω² times the seat's 39.1 m from the axis, leaning 6 degrees toward port.
+    /// waiting <see cref="Aboard"/>, with its up against the felt gravity. The felt gravity at the seat stand is 0.482 m/s²,
+    /// ω² times the seat's 98.2 m from the axis, leaning 1.7 degrees toward port.
     /// </summary>
     [Fact]
     public void TheSceneStartsAtTheDockingsEndState()
@@ -221,8 +221,8 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
         start.Belt.Value.Should().BeOfType<Strapped>();
         start.CopyHeld.Should().BeTrue("the person holds the pen");
         start.Exit.Value.Should().Be(new Aboard());
-        felt.Length.Should().BeApproximately(0.192, 0.005);
-        (Math.Acos(Double3.Dot(felt, -Double3.UnitY) / felt.Length) * 180 / Math.PI).Should().BeApproximately(6, 1);
+        felt.Length.Should().BeApproximately(0.482, 0.005);
+        (Math.Acos(Double3.Dot(felt, -Double3.UnitY) / felt.Length) * 180 / Math.PI).Should().BeApproximately(1.7, 0.3);
     }
 
     /// <summary>
@@ -241,7 +241,7 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
     }
 
     /// <summary>
-    /// The person walks aft through the cabin on a floor whose felt gravity leans 4 to 7 degrees from the floor's down
+    /// The person walks aft through the cabin on a floor whose felt gravity leans 1 to 2.5 degrees from the floor's down
     /// toward port, -X in the cabin's axes. The scene starts the person with its up against that gravity, and its capsule
     /// settles on the floor in the first quarter second, by a few millimeters. From then on it stands in every tick of the
     /// leg, its center keeps within 0.25 m of the leg's line across the floor and within 3 cm of the height at which its
@@ -270,7 +270,7 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
         {
             Double3 felt = run.World.Frames.FeltGravity(run.Cabin, s.InCabinAxes);
             double lean = Math.Acos(-felt.Y / felt.Length) * 180 / Math.PI;
-            lean.Should().BeInRange(4, 7, $"the floor feels tilted at tick {s.Tick}");
+            lean.Should().BeInRange(1, 2.5, $"the floor feels tilted at tick {s.Tick}");
             felt.X.Should().BeNegative($"the floor feels tilted toward port at tick {s.Tick}");
             s.Standing.Should().BeTrue($"the person stands on the floor at tick {s.Tick}");
             Double3 across = new(s.InCabinAxes.X - from.X, 0, s.InCabinAxes.Z - from.Z);
@@ -294,16 +294,17 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
     }
 
     /// <summary>
-    /// The person leaves the cabin through the hatch: its center crosses the hull's starboard face, x = 3 m in the cabin's
-    /// axes, within the doorway, with its whole capsule inside the doorway's width.
+    /// The person leaves the hull through the hatch and the porch: its center crosses the hull's starboard face, the
+    /// porch's open end, x = 6.92 m in the cabin's axes, in the doorway's lane, with its whole capsule inside the
+    /// doorway's width.
     /// </summary>
     [Fact]
     public void ThePersonLeavesThroughTheHatch()
     {
         BoundingBox hatch = Shuttle.Hatch;
-        ExitSample outside = First(s => s.InCabinAxes.X > Shuttle.Hull.X);
+        ExitSample outside = First(s => s.InCabinAxes.X > Shuttle.Hull.Max.X);
         ExitSample inside = run.Samples[run.Samples.IndexOf(outside) - 1];
-        inside.InCabinAxes.X.Should().BeLessThanOrEqualTo(Shuttle.Hull.X);
+        inside.InCabinAxes.X.Should().BeLessThanOrEqualTo(Shuttle.Hull.Max.X);
         outside
             .InCabinAxes.Z.Should()
             .BeInRange(hatch.Min.Z + 0.3, hatch.Max.Z - 0.3, "the capsule fits the doorway's width");
@@ -311,30 +312,49 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
     }
 
     /// <summary>
-    /// On the deck the person walks spinward in the lift's lane and then along the axis onto the lift, through its open +Y
-    /// side. From its first stance on the deck it stands in every tick of both legs, its center keeps within 0.25 m of each
-    /// leg's line, and it stops within the walker's stop radius of the middle of the lift's floor.
+    /// The person walks down the deck's ramp and along the deck onto the lift, through its open +Y side, all in the lift's
+    /// lane along the axis. From 1 s past the ramp's top it stands in every tick, but over the gap of 5 cm round the lift's
+    /// floor in its hole, where the capsule's foot, 0.3 m in radius, dips 0.9 mm and touches neither floor for 4 ticks. On
+    /// the ramp its center stays 0.9 m above the ramp's slope, within 4 cm, and on the deck and the lift 0.9 m above the
+    /// deck, within 3 cm. Its center keeps within 0.25 m of the line from the landing to the lift's middle across the axis,
+    /// and it stops within the walker's stop radius of that middle.
     /// </summary>
     [Fact]
-    public void ThePersonWalksAcrossTheDeckOntoTheLift()
+    public void ThePersonWalksDownTheRampAndAlongTheDeckOntoTheLift()
     {
         Waypoint[] way = StationExit.WayOut(run.Cabin, run.Station);
-        Double3 lane = way[1].Position,
-            middle = way[2].Position;
-        ExitSample[] deck =
+        Double3 landing = way[2].Position,
+            middle = way[^1].Position,
+            top = StationExit.StairPlace + StationExit.Stair.OnLanding(above: 0);
+        double rampTop = top.Y - BoardingStair.Width / 2,
+            rampFoot = rampTop - StationExit.Stair.Run,
+            slope = Math.Tan(BoardingStair.RampSlope);
+        ExitSample[] down =
         [
             .. run
                 .Samples.Where(s => s.Exit.Value is Walking)
-                .SkipWhile(s => !(s.Standing && s.InCabinAxes.X > Shuttle.Hull.X + 0.5)),
+                .SkipWhile(s => s.Position.Z < landing.Z - 0.5)
+                .SkipWhile(s => s.Position.Y > rampTop - 1),
         ];
-        deck.Should().HaveCountGreaterThan(300, "the walk across the deck takes more than 5 s");
-        foreach (ExitSample s in deck)
+        down.Should().HaveCountGreaterThan(18 * 60, "the walk down the ramp and along the deck takes about 20 s");
+        double gapEdge = Layout.LiftFootprint.Max.Y;
+        foreach (ExitSample s in down)
         {
-            s.Standing.Should().BeTrue($"the person stands on the deck at tick {s.Tick}");
-            s.Position.X.Should().BeApproximately(Layout.Deck + StationExit.Standing, 0.03, $"on the deck at tick {s.Tick}");
-            bool onLane = Math.Abs(s.Position.Y - lane.Y) < 0.25,
-                onAxisLeg = Math.Abs(s.Position.Z - lane.Z) < 0.25;
-            (onLane || onAxisLeg).Should().BeTrue($"the person keeps to the legs' lines at tick {s.Tick}, at {s.Position}");
+            bool overGap = s.Position.Y < gapEdge + Layout.LiftHoleGap + 0.3 && s.Position.Y > gapEdge - 0.3;
+            if (!overGap)
+                s.Standing.Should().BeTrue($"the person stands on the ramp or the deck at tick {s.Tick}");
+            bool onRamp = s.Position.Y > rampFoot;
+            double under = Math.Max(Layout.Deck, top.X - (rampTop - s.Position.Y) * slope);
+            s.Position.X.Should()
+                .BeApproximately(
+                    under + StationExit.Standing / (onRamp ? Math.Cos(BoardingStair.RampSlope) : 1),
+                    onRamp ? 0.04 : 0.03,
+                    $"on the ramp or the deck at tick {s.Tick}"
+                );
+            double lane = landing.Z + (middle.Z - landing.Z) * (landing.Y - s.Position.Y) / (landing.Y - middle.Y);
+            Math.Abs(s.Position.Z - lane)
+                .Should()
+                .BeLessThan(0.25, $"the person keeps to the lift's lane at tick {s.Tick}, at {s.Position}");
         }
 
         ExitSample boarded = run.Samples.First(s => s.Exit.Value is Riding);
@@ -344,23 +364,34 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
     }
 
     /// <summary>
-    /// A known fault, pinned so that a change shows: the climb of the hatch's sill, 0.1 m, throws the person up at about
-    /// 0.68 m/s, and in the deck's 0.19 m/s² it flies about 3.8 s and 0.7 m above its stance before it lands on the deck.
-    /// The engine's climb of a stair turns the walk into the plane of the edge it touches. Under 1 g the same throw is a
-    /// hop of 2 cm. The person stays below 1 m above its stance, lands within 5 s, and never leaves the hatch's lane.
+    /// No step of the way out throws the person up. The way has three places where the person leaves its ground for a
+    /// moment: the threshold's ramp onto the hatch's sill, the porch's lip onto the landing, 3.5 cm down, and the ramp's
+    /// top. Each time it leaves the ground for at most 0.8 s and rises at most 2 cm above the higher of its stances before
+    /// and after. Without the threshold, the climb of the sill's 0.1 m step threw the person 0.67 m up for 3.8 s in the
+    /// deck's gravity, because the engine's climb of a stair turns the walk into the plane of the edge it touches. A gap
+    /// of 0.3 m before a landing flush with the porch threw it 0.15 m up.
     /// </summary>
     [Fact]
-    public void TheSillsClimbThrowsThePersonUpForAFewSecondsInTheDecksLowGravity()
+    public void TheWayOutThrowsThePersonUpNowhere()
     {
-        ExitSample[] walk = [.. run.Samples.Where(s => s.Exit.Value is Walking)];
-        int leave = Array.FindIndex(walk, s => !s.Standing && s.Tick > 30);
-        int land = Array.FindIndex(walk, leave, s => s.Standing);
-        leave.Should().BePositive();
-        ExitSample[] flight = walk[leave..land];
-        (flight.Length / 60.0).Should().BeInRange(2, 5, "the hop lasts a few seconds");
-        flight.Max(s => s.Position.X - (Layout.Deck + StationExit.Standing)).Should().BeInRange(0.2, 1);
-        flight.Max(s => s.Velocity.X).Should().BeInRange(0.4, 0.9, "the climb throws the person up");
-        flight.Should().OnlyContain(s => Math.Abs(s.Position.Y - walk[leave].Position.Y) < 0.3);
+        ExitSample[] walk = [.. run.Samples.Where(s => s.Exit.Value is Walking).SkipWhile(s => s.Tick <= 30)];
+        static double Height(ExitSample s) => -Math.Sqrt(s.Position.X * s.Position.X + s.Position.Z * s.Position.Z);
+        int flights = 0;
+        for (int leave = Array.FindIndex(walk, s => !s.Standing); leave > 0; flights++)
+        {
+            int land = Array.FindIndex(walk, leave, s => s.Standing);
+            land.Should().BePositive("the person lands");
+            ExitSample[] flight = walk[leave..land];
+            double stance = Math.Max(Height(walk[leave - 1]), Height(walk[land]));
+            (flight.Length / 60.0).Should().BeLessThanOrEqualTo(0.8, $"the flight from tick {flight[0].Tick} is short");
+            flight
+                .Max(s => Height(s) - stance)
+                .Should()
+                .BeLessThan(0.02, $"the flight from tick {flight[0].Tick} rises no more than 2 cm");
+            leave = Array.FindIndex(walk, land, s => !s.Standing);
+        }
+
+        flights.Should().BePositive("the person leaves its ground at the sill, the lip and the ramp's top");
     }
 
     /// <summary>
@@ -419,7 +450,7 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
         Double3 boarded = ride[0].Position - ride[0].LiftPosition;
         int handOff = Array.FindIndex(ride, s => s.InStation);
 
-        ride.Should().HaveCountGreaterThan(140 * 60, "the ride takes about two and a half minutes");
+        ride.Should().HaveCountGreaterThan(125 * 60, "the ride takes over two minutes");
         handOff.Should().BePositive();
         for (int i = 0; i < ride.Length; i++)
         {
@@ -448,23 +479,23 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
     }
 
     /// <summary>
-    /// The person arrives at the stroll's end about three minutes after the order: 17.5 s of walk to the lift, 150.5 s of
-    /// ride and 3.9 s of stroll.
+    /// The person arrives at the stroll's end about three minutes after the order: 36 s of walk to the lift, down the porch
+    /// and the deck's ramp, 131.3 s of ride and 3.9 s of stroll.
     /// </summary>
     [Fact]
     public void ThePersonArrivesAboutThreeMinutesAfterTheOrder() =>
         First(s => s.Exit.Value is Arrived).Time.Should().BeApproximately(ArrivalAfterOrder, 0.5);
 
     /// <summary>
-    /// The ride takes the profile's time, about two and a half minutes, at 20 m/s at most, below the 50 m/s at which a
-    /// numeric frame takes a group with a character.
+    /// The ride takes the profile's time, 131 s, from the deck at 102.2 m from the axis to the foot, at 20 m/s at most,
+    /// below the 50 m/s at which a numeric frame takes a group with a character.
     /// </summary>
     [Fact]
-    public void TheRideTakesAboutTwoAndAHalfMinutesAtTwentyMetersASecond()
+    public void TheRideTakesAboutTwoMinutesAtTwentyMetersASecond()
     {
         ExitSample[] ride = [.. run.Ride];
         double time = ride[^1].Time - ride[0].Time;
-        time.Should().BeInRange(140, 160);
+        time.Should().BeInRange(125, 140);
         time.Should().BeApproximately(StationExit.Ride.Duration, 0.1);
         ride.Max(s => s.Velocity.Length).Should().BeInRange(19.9, 20.01);
     }

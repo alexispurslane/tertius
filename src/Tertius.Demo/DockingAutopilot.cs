@@ -156,7 +156,7 @@ public sealed class DockingAutopilot(Entity station) : IComponent
     /// <summary>How long the spin-up takes, in seconds.</summary>
     public const double SpinUpTime = 30;
 
-    /// <summary>How far beyond the deck and the wall the landing point lies, in meters.</summary>
+    /// <summary>How far beyond the deck the landing point lies, in meters.</summary>
     public const double LandingPress = 0.1;
 
     /// <summary>
@@ -190,12 +190,14 @@ public sealed class DockingAutopilot(Entity station) : IComponent
     public static Double3 EntryEnd { get; } = new(0, DemoStation.Layout.ParkedPose.Position.Y, 0);
 
     /// <summary>
-    /// The landing point, in the station's axes: the parked point moved 0.1 m into the deck and 0.1 m into the bay's -Z wall,
-    /// (-6.1, 3, -5.1) m. The move out aims there, so the hull meets the deck and the wall at a set speed and presses on
-    /// them lightly.
+    /// The landing point, in the station's axes: the parked point moved 0.1 m into the deck, (-97.4, 21.43, -4) m. The move
+    /// out aims there, so the hull meets the deck at a set speed and presses on it lightly. It does not aim into the cradle
+    /// rail: on the move out's slanted path a hull aimed past the rail's face crosses that face's plane above the rail and
+    /// catches the rail's top edge. Aimed at the face, the hull's port side passes the rail's top 6.6 cm clear and meets
+    /// the face as the wheels meet the deck.
     /// </summary>
     public static Double3 LandingPoint { get; } =
-        DemoStation.Layout.ParkedPose.Position + new Double3(-LandingPress, 0, -LandingPress);
+        DemoStation.Layout.ParkedPose.Position + new Double3(-LandingPress, 0, 0);
 
     private readonly Entity station = station;
 
@@ -280,6 +282,10 @@ public sealed class DockingAutopilot(Entity station) : IComponent
         // Every read is in the station's frame, whichever frame holds the shuttle. Outside the bubble the engine converts
         // them from the frame that holds the station, with the station's turn.
         DPose pose = self.PoseIn(stationFrame);
+        // The origin's velocity, not the center of mass's (see Navigation): the station's frame turns, so a hull still among
+        // the stars at the hold sweeps its center of mass round its origin at the station's rate there, and the hold's and
+        // the landing's speed tolerances are the origin's. The docking's laws turn the nose toward no velocity, so they have
+        // no loop for that sweep to feed.
         Double3 velocity = self.VelocityIn(stationFrame),
             turn = self.AngularVelocityIn(stationFrame);
         // The station's angular velocity relative to the virtual root above the roots, in its own axes.

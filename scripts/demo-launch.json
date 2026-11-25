@@ -46,7 +46,7 @@
     { "do": "capture", "name": "pen-floats" },
     { "do": "run", "ticks": 100 },
     { "do": "capture", "name": "leaving-seat" },
-    { "do": "run", "ticks": 360 },
+    { "do": "run", "ticks": 420 },
     { "do": "camera", "entity": "hand-camera" },
     { "do": "capture", "name": "reaching" },
     { "do": "run", "ticks": 110 },

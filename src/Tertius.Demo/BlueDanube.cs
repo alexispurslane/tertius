@@ -5,6 +5,7 @@ using DemoStation = Tertius.Demo.DemoScenes.DemoStation;
 using DemoSurface = Tertius.Demo.DemoScenes.DemoSurface;
 using LaunchRamp = Tertius.Demo.DemoScenes.LaunchRamp;
 using Shuttle = Tertius.Demo.DemoScenes.Shuttle;
+using StationExit = Tertius.Demo.DemoScenes.StationExit;
 
 namespace Tertius.Demo;
 
@@ -42,6 +43,9 @@ public static class BlueDanube
 
     /// <summary>How long the film <c>far</c> films the spin-up from 7 km out, in seconds, before the chase camera takes over.</summary>
     private const double FarFilmed = 8;
+
+    /// <summary>How long the film <c>gallery</c> films the habitat's galleries after the film <c>far</c>, in seconds.</summary>
+    private const double GalleryFilmed = 5;
 
     /// <summary>How far below the deck the person sinks before the ride camera takes over from the shaft camera, in meters.</summary>
     private const double ShaftFilmed = 30;
@@ -83,6 +87,27 @@ public static class BlueDanube
             Until: (world, scene) => PersonInCabin(world, scene).X > Shuttle.Cabin.X - 0.5,
             Posts: [new(new ToEntity("person"), nameof(LeaveShip))]
         ),
+        // The feet across the hatch's sill, seen from the side in the porch, until the person is out on the lip.
+        new(
+            Name: "sill",
+            Camera: "sill-camera",
+            Every: 1,
+            Until: (world, scene) => PersonInCabin(world, scene).X > Shuttle.Hull.Max.X
+        ),
+        // The docked shuttle at three quarters, and the person beside it over the lip and onto the ramp.
+        new(
+            Name: "parked",
+            Camera: "docked-camera",
+            Every: 1,
+            Until: (world, scene) => PersonInStation(world, scene).Y < RampTop - 2
+        ),
+        // The bay's work area, and the person walking down the ramp beyond it.
+        new(
+            Name: "work",
+            Camera: "work-camera",
+            Every: 1,
+            Until: (world, scene) => PersonInStation(world, scene).Y < RampTop - 10
+        ),
         // The step down onto the deck, the walk onto the lift and the lift's start.
         new(
             Name: "deck",
@@ -97,6 +122,14 @@ public static class BlueDanube
             Camera: "shaft-camera",
             Every: 1,
             Until: (world, scene) => PersonInStation(world, scene).X < DemoStation.Layout.Deck - ShaftFilmed
+        ),
+        // The person's feet on the lift's floor from the side, as the lift speeds up to its cruise, and 2 s at the cruise.
+        new(
+            Name: "ride-side",
+            Camera: "ride-side-camera",
+            Every: RideEvery,
+            Until: (world, scene) => PersonSpeedInStation(world, scene) > StationExit.CruiseSpeed - 0.1,
+            Hold: Second * 2
         ),
         // The ride down the shaft from the lift, as a time-lapse: the shaft's lamps pass, and the ceiling's opening and the
         // wheel grow below.
@@ -115,6 +148,8 @@ public static class BlueDanube
             Until: (world, scene) => ExitOf(world, scene).Value is Strolling,
             Hold: Second * 2
         ),
+        // The passenger terminal at the lift's foot, as the person's stroll starts.
+        new(Name: "wheel-terminal", Camera: "wheel-terminal-camera", Every: 1, Until: FilmSection.Now, Hold: Second * 3),
         // The last steps onto the floor, and the person standing still in a full gravity.
         new(
             Name: "floor",
@@ -187,7 +222,7 @@ public static class BlueDanube
             Name: "pad",
             Camera: "follow-camera",
             Every: 1,
-            Until: (world, scene) => Double3.Distance(PersonInCabin(world, scene), Shuttle.OutsideHatch) < 1.5
+            Until: (world, scene) => Double3.Distance(PersonInCabin(world, scene), Shuttle.OnPorch) < 1.5
         ),
         // The follow camera, which looks through the hatch after the person, meets the hull's side and jumps into the
         // cabin, so the apron camera films the boarding until the follow camera is in the cabin. The outlines show the
@@ -346,6 +381,8 @@ public static class BlueDanube
             Every: 1,
             Until: (world, scene) => NoseFromStation(world, scene) < NoseOnStation
         ),
+        // The whole ring in sunlight from 7 km out, as the shuttle glides in toward the hold.
+        new(Name: "ring-approach", Camera: "far-camera", Every: 6, Until: (world, scene) => ToHold(world, scene) < 900),
         new(Name: "glide", Camera: "chase-camera", Every: 6, Until: (world, scene) => ToHold(world, scene) < 550),
         new(
             Name: "glide-window",
@@ -391,6 +428,15 @@ public static class BlueDanube
             Until: (world, scene) =>
                 DockingOf(world, scene).Value is SpinUp { StartTime: var start } && world.Time - start >= FarFilmed
         ),
+        // The habitat's lit galleries from close by, on the ring's sunward face, as the spin-up goes on.
+        new(
+            Name: "gallery",
+            Camera: "gallery-camera",
+            Every: 2,
+            Until: (world, scene) =>
+                DockingOf(world, scene).Value is SpinUp { StartTime: var start }
+                && world.Time - start >= FarFilmed + GalleryFilmed
+        ),
         new(
             Name: "spin-up",
             Camera: "chase-camera",
@@ -411,7 +457,7 @@ public static class BlueDanube
             Camera: "window-camera",
             Every: 4,
             Until: (world, scene) =>
-                InStation(world, scene).Position.Y < DemoStation.Layout.SlotFace + Shuttle.Hull.Z + NoseToSlot,
+                InStation(world, scene).Position.Y < DemoStation.Layout.SlotFace - Shuttle.Hull.Min.Z + NoseToSlot,
             Outlines: true
         ),
         new(
@@ -548,6 +594,14 @@ public static class BlueDanube
     /// <summary>The person's position in the station's frame.</summary>
     private static Double3 PersonInStation(World world, SceneInstance scene) =>
         world.PoseIn(scene["person"], world.GetOwnedFrame(scene["station"])).Position;
+
+    /// <summary>The person's speed in the station's frame, in m/s.</summary>
+    private static double PersonSpeedInStation(World world, SceneInstance scene) =>
+        world.VelocityIn(scene["person"], world.GetOwnedFrame(scene["station"])).Length;
+
+    /// <summary>The y of the deck's ramp's top, in the station's axes: the landing's far edge along the ramp's way down.</summary>
+    private static double RampTop =>
+        (StationExit.StairPlace + StationExit.Stair.OnLanding(above: 0)).Y - BoardingStair.Width / 2;
 
     /// <summary>How far <paramref name="position"/>, in the station's axes, is from the station's axis, +Y, in meters.</summary>
     private static double Radius(Double3 position) => Math.Sqrt(position.X * position.X + position.Z * position.Z);

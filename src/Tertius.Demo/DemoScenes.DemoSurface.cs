@@ -28,18 +28,20 @@ public static partial class DemoScenes
     /// at z = -4 m. Benches stand along the +Z wall and a check-in counter by the gate. Two lamps under the roof light the
     /// hall.</item>
     /// <item>The <c>shuttle</c> (see <see cref="Shuttle"/>) stands parked at <see cref="ShuttleParked"/>, over the
-    /// origin, unturned: its nose points along -Z and its hatch faces +X, toward the terminal. It rests on the launch
-    /// ramp's bed, 2 cm above the slab. A dark gray <c>pad</c>, only drawn, as thick as that rise, marks the ground round
+    /// origin, unturned: its nose points along -Z and its hatch faces +X, toward the terminal. Its wheels rest on the
+    /// launch ramp's bed, 2 cm above the slab. With the art, the Lunar Shuttle's model is drawn round the cabin (see
+    /// <see cref="Shuttle.SpawnArt"/>). The <c>porch</c> leads from the hatch out through the model's side, and the
+    /// <c>pad-stair</c> (see <see cref="PadStair"/>) leads from its end down to the slab. A dark gray <c>pad</c>, only drawn, as thick as that rise, marks the ground round
     /// it, and a service <c>tower</c> stands on its port side. The <c>seat</c> is drawn in blue, and four lamps on the
     /// pillars of the walls light the cabin (see <see cref="Shuttle.Lamps"/>). The main engine's <c>nozzle</c> sits in the
     /// tail pocket.</item>
     /// <item>The <c>person</c>, the capsule character of the other scenes, 1.8 m tall and of 70 kg, starts 9 m outside the
     /// entrance, at x = 36 m. Its <see cref="Walker"/> walks it through the entrance, round to the gate, out across the pad
-    /// to <see cref="Shuttle.OutsideHatch"/>, through the hatch, and along the cabin to <see cref="Shuttle.SeatStand"/>,
-    /// where it stops and stays (see <see cref="Path"/>). The person enters the shuttle's frame on the pad, about 9.4 m
-    /// from the shuttle's axis, when its bounding sphere touches the bubble. The slab has a ghost in the shuttle's bubble
-    /// (ARCHITECTURE.md, "Ghosts"), so the person walks on in the shuttle's frame on the same ground, and climbs the
-    /// hatch's sill as a stair. The person's own row draws nothing, since a character does not turn. Its view starts
+    /// to the stair's foot, up the stair to <see cref="Shuttle.OnPorch"/>, through the hatch, and along the cabin to
+    /// <see cref="Shuttle.SeatStand"/>, where it stops and stays (see <see cref="Path"/>). The person enters the shuttle's
+    /// frame when its bounding sphere touches the bubble. The slab and the stair have ghosts in the shuttle's bubble
+    /// (ARCHITECTURE.md, "Ghosts"), so the person walks on in the shuttle's frame on the same ground and steps, and walks
+    /// down the threshold's ramp into the cabin. The person's own row draws nothing, since a character does not turn. Its view starts
     /// facing the entrance, and its <see cref="WalkHeading"/> turns the view toward the walk. The attached
     /// <c>person-body</c>, a blue box with the dark <c>person-visor</c> on its front, faces the way of the view and bobs
     /// with each step (see <see cref="SpawnDrawnBody"/> and <see cref="Gait"/>).</item>
@@ -218,7 +220,32 @@ public static partial class DemoScenes
         /// unturned, with its hull's bottom on the launch ramp's bed (<see cref="LaunchRamp.BedTop"/>).
         /// </summary>
         public static DPose ShuttleParked { get; } =
-            new(new(0, LaunchRamp.BedTop + Shuttle.Hull.Y, 0), DQuaternion.Identity);
+            new(new(0, LaunchRamp.BedTop - Shuttle.Hull.Min.Y, 0), DQuaternion.Identity);
+
+        /// <summary>
+        /// Where the pad's boarding stair stands in <c>earth-surface</c>: the middle of its landing's edge, on its top face,
+        /// <see cref="BoardingStair.Gap"/> beyond the hull's starboard face in line with the hatch, <see cref="BoardingStair.LipDrop"/> under the porch.
+        /// </summary>
+        public static Double3 PadStairPlace { get; } =
+            ShuttleParked.Position
+            + new Double3(
+                Shuttle.Hull.Max.X + BoardingStair.Gap,
+                Shuttle.Hatch.Min.Y - BoardingStair.LipDrop,
+                Shuttle.Hatch.Center.Z
+            );
+
+        /// <summary>
+        /// The pad's boarding stair from the slab up to the porch, 3.22 m, toward the terminal along +X: the person climbs
+        /// it to the hatch.
+        /// </summary>
+        public static BoardingStair PadStair { get; } =
+            new(
+                Top: Vector3.Zero,
+                Up: Vector3.UnitY,
+                Out: Vector3.UnitX,
+                Down: Vector3.UnitX,
+                Height: (float)(PadStairPlace.Y - EarthRadius)
+            );
 
         /// <summary>
         /// The pose of <c>cabin-camera</c> in the shuttle's frame: in the cabin's aft port corner, looking at the seat and the
@@ -343,33 +370,53 @@ public static partial class DemoScenes
         }
 
         /// <summary>
-        /// Spawns the drawn body of <paramref name="person"/>, as <c>person-body</c>, and its visor, as <c>person-visor</c>, in
-        /// <paramref name="scene"/>. The person's own row draws nothing, since a character does not turn. The body is a box of
-        /// <see cref="BodyHalf"/> in the person's color, attached to the person, and its <see cref="Gait"/> turns it as the
-        /// person's view and bobs it with each step. The visor is a dark box of <see cref="VisorHalf"/>, attached to the body
-        /// at <see cref="VisorCenter"/>, so that a viewer sees the body's front. Both cast shadows.
+        /// Spawns the drawn body of <paramref name="person"/>, as <c>person-body</c>, in <paramref name="scene"/>. The person's
+        /// own row draws nothing, since a character does not turn. The body is attached to the person, and its
+        /// <see cref="Gait"/> turns it as the person's view and bobs it with each step. With <paramref name="suit"/>, the
+        /// passenger's model, the body draws that model, scaled to the capsule's height and standing on the capsule's
+        /// bottom (see <see cref="SuitScale"/> and <see cref="SuitPlace"/>). Without it, the body is a box of
+        /// <see cref="BodyHalf"/> in the person's color, and a dark box of <see cref="VisorHalf"/>, <c>person-visor</c>,
+        /// attached to it at <see cref="VisorCenter"/>, shows its front. Every part casts shadows.
         /// </summary>
-        public static Entity SpawnDrawnBody(World world, SceneInstance scene, Entity person, IRenderResources resources)
+        public static Entity SpawnDrawnBody(
+            World world,
+            SceneInstance scene,
+            Entity person,
+            IRenderResources resources,
+            Assets.StoredModel? suit
+        )
         {
             var heading = Quaternion.CreateFromAxisAngle(
                 Vector3.UnitY,
                 (float)WalkHeading.Yaw(world.GetRender(person).ViewOffset.Rotation)
             );
+            Vector3 center = suit is null ? BodyCenter : SuitPlace(suit);
+            RenderData render = suit is null
+                ? Drawn(
+                    resources: resources,
+                    mesh: Primitives.Box(BodyHalf),
+                    color: new(x: 0.2f, y: 0.45f, z: 0.8f, w: 1),
+                    boundingRadius: 1
+                )
+                : new RenderData
+                {
+                    Model = suit.Id,
+                    Scale = new(SuitScale(suit)),
+                    BoundingRadius = suit.BoundingRadius * SuitScale(suit),
+                    Flags = RenderFlags.Visible | RenderFlags.CastsShadow,
+                };
             Entity body = world.Spawn(
                 new()
                 {
                     AttachTo = person,
-                    AttachOffset = new(Vector3.Transform(BodyCenter, heading), heading),
-                    Render = Drawn(
-                        resources: resources,
-                        mesh: Primitives.Box(BodyHalf),
-                        color: new(x: 0.2f, y: 0.45f, z: 0.8f, w: 1),
-                        boundingRadius: 1
-                    ),
-                    Components = [new Gait(BodyCenter)],
+                    AttachOffset = new(Vector3.Transform(center, heading), heading),
+                    Render = render,
+                    Components = [new Gait(center)],
                 }
             );
             scene.Add("person-body", body);
+            if (suit is not null)
+                return body;
             scene.Add(
                 "person-visor",
                 world.Spawn(
@@ -390,16 +437,37 @@ public static partial class DemoScenes
         }
 
         /// <summary>
-        /// The walker's path: in <paramref name="surface"/>, just inside the entrance, before the gate and just outside it;
-        /// then in <paramref name="cabin"/>, the shuttle's frame, 3 m outside the hatch, just inside it, and the place at the
-        /// seat. The waypoints on the ship are in its frame, so the path stays right however the shuttle stands.
+        /// The scale of the passenger's model <paramref name="suit"/> on the drawn body: the capsule's height, the height of
+        /// <see cref="PersonHalf"/>, over the model's height. The converted model is 1.8 m tall, so the scale is 1.
+        /// </summary>
+        public static float SuitScale(Assets.StoredModel suit) => 2 * PersonHalf.Y / (suit.Bounds.Max.Y - suit.Bounds.Min.Y);
+
+        /// <summary>
+        /// Where the origin of the passenger's model <paramref name="suit"/> rests relative to the person's center, in
+        /// meters, in the body's axes: under the person's center, with the model's lowest point on the capsule's bottom and
+        /// the middle of its footprint on the person's up. The model faces -Z, as the drawn body does.
+        /// </summary>
+        public static Vector3 SuitPlace(Assets.StoredModel suit)
+        {
+            float scale = SuitScale(suit);
+            BoundingBox bounds = suit.Bounds;
+            return new(-bounds.Center.X * scale, -PersonHalf.Y - bounds.Min.Y * scale, -bounds.Center.Z * scale);
+        }
+
+        /// <summary>
+        /// The walker's path: in <paramref name="surface"/>, just inside the entrance, before the gate and just outside it,
+        /// at the foot of the pad's stair and on its landing; then in <paramref name="cabin"/>, the shuttle's frame, on the
+        /// porch, just inside the hatch, and the place at the seat. The waypoints on the ship are in its frame, so the path
+        /// stays right however the shuttle stands.
         /// </summary>
         public static Waypoint[] Path(FrameHandle surface, FrameHandle cabin) =>
             [
                 new(surface, new(TerminalCenter.X + 2, EarthRadius + 0.9, 0)),
                 new(surface, new(TerminalCenter.X - 2.5, EarthRadius + 0.9, -4)),
                 new(surface, new(TerminalCenter.X - 8, EarthRadius + 0.9, -4)),
-                new(cabin, Shuttle.OutsideHatch),
+                new(surface, PadStairPlace + PadStair.AtFoot(above: 0.9f)),
+                new(surface, PadStairPlace + PadStair.OnLanding(above: 0.9f)),
+                new(cabin, Shuttle.OnPorch),
                 new(cabin, Shuttle.InsideHatch),
                 new(cabin, Shuttle.SeatStand),
             ];
@@ -455,7 +523,11 @@ public static partial class DemoScenes
             return LookingAt(SkyEye, SkyEye + across * Math.Cos(height) + Double3.UnitY * Math.Sin(height));
         }
 
-        public static SceneInstance Build(World world, IRenderResources resources)
+        /// <summary>Builds the scene as its gray box, with no art.</summary>
+        public static SceneInstance Build(World world, IRenderResources resources) => Build(world, resources, models: null);
+
+        /// <summary>Builds the scene, drawn with <paramref name="models"/>, or as its gray box when they are null.</summary>
+        public static SceneInstance Build(World world, IRenderResources resources, BlueDanubeModels? models)
         {
             var scene = new SceneInstance();
             // On the ground, the daylight's ambient light, not the dim space of the orbit scene, which SunAndEarth sets.
@@ -467,14 +539,30 @@ public static partial class DemoScenes
             SpawnPadAndTower(world: world, resources: resources, scene: scene, surface: surface);
 
             // The station spawns before the shuttle, whose rendezvous autopilot takes the station's entity.
-            Entity station = DemoStation.Spawn(world: world, parent: earth, scene: scene, resources: resources);
+            Entity station = DemoStation.Spawn(
+                world: world,
+                parent: earth,
+                scene: scene,
+                resources: resources,
+                models: models
+            );
             FrameHandle cabin = SpawnShuttle(
                 world: world,
                 resources: resources,
                 scene: scene,
                 earth: earth,
                 surface: surface,
-                station: station
+                station: station,
+                art: models?.Shuttle
+            );
+            SpawnStair(
+                world: world,
+                frame: surface,
+                scene: scene,
+                resources: resources,
+                id: "pad-stair",
+                place: PadStairPlace,
+                stair: PadStair
             );
             Entity person = SpawnPerson(
                 world: world,
@@ -482,7 +570,8 @@ public static partial class DemoScenes
                 scene: scene,
                 surface: surface,
                 cabin: cabin,
-                station: station
+                station: station,
+                suit: models?.Passenger
             );
             SpawnFollowCamera(world: world, scene: scene, person: person);
 
@@ -635,14 +724,15 @@ public static partial class DemoScenes
             SceneInstance scene,
             FrameHandle earth,
             FrameHandle surface,
-            Entity station
+            Entity station,
+            Assets.StoredModel? art
         )
         {
             Entity shuttle = Shuttle.Park(
                 world: world,
                 frame: surface,
                 pose: ShuttleParked,
-                render: Shuttle.DrawnHull(resources),
+                render: Shuttle.HullRender(resources, art),
                 components: Shuttle.FlightControls(
                     LaunchRamp.Height + ClimbClearance,
                     new(earth, LaunchPlaneNormal),
@@ -650,6 +740,7 @@ public static partial class DemoScenes
                 )
             );
             scene.Add("shuttle", shuttle);
+            Shuttle.SpawnArt(world: world, hull: shuttle, scene: scene, resources: resources, art: art);
             Shuttle.FitActuators(world, shuttle);
             FrameHandle cabin = world.GetOwnedFrame(shuttle);
             Vector3 seatHalf = Shuttle.Seat.Extents;
@@ -685,7 +776,8 @@ public static partial class DemoScenes
             SceneInstance scene,
             FrameHandle surface,
             FrameHandle cabin,
-            Entity station
+            Entity station,
+            Assets.StoredModel? suit
         )
         {
             // The capsule is 1.8 m tall, and its center rests 0.9 m above the slab. Its eye is a view, which the pen in its
@@ -727,7 +819,7 @@ public static partial class DemoScenes
                 }
             );
             scene.Add("person", person);
-            SpawnDrawnBody(world: world, scene: scene, person: person, resources: resources);
+            SpawnDrawnBody(world: world, scene: scene, person: person, resources: resources, suit: suit);
             return person;
         }
 
@@ -818,6 +910,7 @@ public static partial class DemoScenes
         private static void SpawnCabinCameras(World world, SceneInstance scene, FrameHandle cabin)
         {
             scene.Add("chase-camera", world.Spawn(ViewIn(cabin, LookingAt(new(19.5, 8.5, 34), Double3.Zero))));
+            scene.Add("sill-camera", world.Spawn(ViewIn(cabin, Shuttle.SillCamera)));
             scene.Add("climb-camera", world.Spawn(ViewIn(cabin, LookingAt(new(0, 41, 29), Double3.Zero))));
             scene.Add(
                 "pen-camera",
@@ -834,7 +927,7 @@ public static partial class DemoScenes
                 "window-camera",
                 world.Spawn(ViewIn(cabin, new(new(0, eye, -Shuttle.Cabin.Z + 1.2), DQuaternion.Identity)))
             );
-            var bow = new Double3(0, 5, -Shuttle.Hull.Z - 30);
+            var bow = new Double3(0, 5, Shuttle.Hull.Min.Z - 30);
             double portOfAstern = 30 * Math.PI / 180;
             scene.Add(
                 "bow-camera",

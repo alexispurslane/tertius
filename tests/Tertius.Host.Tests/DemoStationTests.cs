@@ -220,23 +220,27 @@ public sealed class DemoStationTests : IDisposable
     }
 
     /// <summary>
-    /// A box of the shuttle's size, 6 m wide, 4 m tall and 16 m long, starts on the axis 9 m outside the hub's +Y face, at
-    /// rest in the station's axes, with its height along the station's X and its length along the axis, as the shuttle
-    /// enters. It moves inward at 1 m/s. In 18 s it passes through the slot, 6 by 8 m, and lies wholly in the bay, and it
-    /// touches nothing on the way: on the axis, it feels no spin gravity and no Coriolis force.
+    /// A body of the shuttle's hull, the box round the Lunar Shuttle's model, 13.8 m wide, 9.3 m tall and 29.1 m long,
+    /// starts with its nose 1 m outside the hub's +Y face and its center of mass on the axis, at rest in the station's
+    /// axes, with its height along the station's X and its length along the axis, as the shuttle enters. It moves inward
+    /// at 1 m/s. In 32 s it passes through the slot and lies wholly in the bay, and it touches nothing on the way: with its
+    /// center of mass on the axis, it feels no spin gravity and no Coriolis force.
     /// </summary>
     [Fact]
     public void ABoxOfTheShuttlesSizeFliesThroughTheSlotAlongTheAxisWithoutAContact()
     {
         var touches = new Touches();
+        DQuaternion docked = AttitudeAutopilot.Facing(-Double3.UnitY, Double3.UnitX);
+        Double3 centerOfMass = docked.Rotate(Shuttle.Hull.Center),
+            start = new Double3(0, DemoStation.Layout.SlotFace - Shuttle.Hull.Min.Z + 1, 0) - centerOfMass;
         Entity box = world.Spawn(
             new()
             {
                 Frame = frame,
-                Pose = new(new(0, 22, 0), AttitudeAutopilot.Facing(-Double3.UnitY, Double3.UnitX)),
+                Pose = new(start, docked),
                 LinearVelocity = new Vector3(0, -1, 0),
                 Body = new(
-                    Shape: new BoxShapeDesc(Shuttle.Hull),
+                    Shape: Shuttle.HullShape,
                     Mass: Shuttle.Mass,
                     LinearDamping: 0,
                     AngularDamping: 0
@@ -245,14 +249,18 @@ public sealed class DemoStationTests : IDisposable
             }
         );
 
-        Tick(world, 18 * 60);
+        Tick(world, 32 * 60);
 
         touches.Count.Should().Be(0, "the box passes through the slot without touching the hub");
         world.GetFrame(box).Should().Be(frame);
-        Double3 place = world.PoseIn(box, frame).Position;
-        (place - new Double3(0, 4, 0))
+        DPose pose = world.PoseIn(box, frame);
+        Double3 place = pose.Position;
+        (place - (start - new Double3(0, 32, 0)))
             .Length.Should()
             .BeLessThan(0.05, $"the box flies straight along the axis into the bay, not to {place}");
+        (place.Y + docked.Rotate(new Double3(0, 0, Shuttle.Hull.Max.Z)).Y)
+            .Should()
+            .BeLessThan(DemoStation.Layout.Bay.Max.Y, "the tail lies in the bay");
     }
 
     /// <summary>
@@ -375,7 +383,7 @@ public sealed class DemoStationTests : IDisposable
     /// The camera of the long script's film <c>spin-match</c>, a still view in the station's frame, frames both the hub and
     /// the shuttle at the hold point, where the spin-up ends: every corner of the hub's box and of the shuttle's box lies in
     /// the picture, at least a tenth of the half picture from its edges, and the shuttle's box covers at least 1 percent of
-    /// the picture, in any roll about the axis. A view from the wheel's rim shows the shuttle 171 m away, a small speck
+    /// the picture, in any roll about the axis. A view from the wheel's rim shows the shuttle as a small speck
     /// far to the right, and the hub at the left edge.
     /// </summary>
     [Fact]
@@ -384,18 +392,16 @@ public sealed class DemoStationTests : IDisposable
         string camera = BlueDanube.Sections.Single(section => section.Name == "spin-match").Camera;
         DPose view = world.PoseIn(scene[camera], frame);
         BoundingBox hubBox = DemoStation.Layout.Hub;
-        Vector3 hub = hubBox.Extents;
-        var hubPose = new DPose(new Double3(hubBox.Center.X, hubBox.Center.Y, hubBox.Center.Z), DQuaternion.Identity);
 
-        IEnumerable<Double3> Corners(DPose pose, Vector3 half) =>
+        IEnumerable<Double3> Corners(DPose pose, BoundingBox box) =>
             Enumerable
                 .Range(0, 8)
                 .Select(corner =>
                     pose.TransformPoint(
                         new(
-                            (corner & 1) == 0 ? -half.X : half.X,
-                            (corner & 2) == 0 ? -half.Y : half.Y,
-                            (corner & 4) == 0 ? -half.Z : half.Z
+                            (corner & 1) == 0 ? box.Min.X : box.Max.X,
+                            (corner & 2) == 0 ? box.Min.Y : box.Max.Y,
+                            (corner & 4) == 0 ? box.Min.Z : box.Max.Z
                         )
                     )
                 );
@@ -406,7 +412,7 @@ public sealed class DemoStationTests : IDisposable
                 DemoStation.Layout.HoldPoint,
                 DQuaternion.FromAxisAngle(Double3.UnitY, roll) * StationLayout.DockedRotation
             );
-            foreach (Double3 corner in Corners(hubPose, hub).Concat(Corners(shuttle, Shuttle.Hull)))
+            foreach (Double3 corner in Corners(DPose.Identity, hubBox).Concat(Corners(shuttle, Shuttle.Hull)))
             {
                 Double3 at = Picture.Project(view, corner, world.VerticalFov);
                 (at.Z > 0.05 && Math.Abs(at.X) <= 0.9 && Math.Abs(at.Y) <= 0.9)
@@ -415,7 +421,7 @@ public sealed class DemoStationTests : IDisposable
             }
 
             Picture
-                .Cover(view: view, body: shuttle, half: Shuttle.Hull, verticalFov: world.VerticalFov)
+                .Cover(view: view, body: shuttle, box: Shuttle.Hull, verticalFov: world.VerticalFov)
                 .Should()
                 .BeGreaterThan(0.01, $"the shuttle is no speck at a roll of {roll:F2} rad");
         }

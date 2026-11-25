@@ -57,7 +57,7 @@ public sealed class PenClipTests : IDisposable
         Entity shuttle = Shuttle.Park(
             world: world,
             frame: space,
-            pose: WorldTesting.At(0, Shuttle.Hull.Y),
+            pose: WorldTesting.At(0, -Shuttle.Hull.Min.Y),
             components: engine
         );
         cabin = world.GetOwnedFrame(shuttle);

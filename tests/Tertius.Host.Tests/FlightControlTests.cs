@@ -339,8 +339,8 @@ public sealed class FlightControlTests : IDisposable
     }
 
     /// <summary>
-    /// The ascent autopilot reaches its orbit case 130 m out on the demo station's axis, at the station's speed, which is
-    /// its circle's, and closes on the station at 1 m/s. In the earth frame it adds its target, the nose along the velocity,
+    /// The ascent autopilot reaches its orbit case 5 m outside where the hull's reach meets the demo station's bubble on its
+    /// axis, at the station's speed, which is its circle's, and closes on the station at 1 m/s. In the earth frame it adds its target, the nose along the velocity,
     /// in every tick. Then the shuttle enters the station's frame, which has no point gravity, so its law of the nose along
     /// the velocity means nothing there, and it adds no target in any tick of the next second.
     /// </summary>
@@ -357,7 +357,7 @@ public sealed class FlightControlTests : IDisposable
         );
         (Double3 center, Double3 velocity, Double3 axis) = RendezvousAutopilotTests.StationNow(orbit, station, earth);
         var recorder = new RendezvousAutopilotTests.Recorder();
-        Double3 position = center + axis * 130;
+        Double3 position = center + axis * (DemoScenes.DemoStation.Layout.BubbleAxial + DemoScenes.Shuttle.Reach + 5);
         Entity hull = orbit.Spawn(
             new()
             {
@@ -386,7 +386,7 @@ public sealed class FlightControlTests : IDisposable
             .BeOfType<Orbit>("the shuttle flies its circle from the ignition");
         recorder.TicksWithEvents.Should().BeGreaterThan(0, "in the earth frame the orbit case adds its target");
 
-        TickUntil(orbit, () => orbit.GetFrame(hull) == orbit.GetOwnedFrame(station), limit: 60 * 5);
+        TickUntil(orbit, () => orbit.GetFrame(hull) == orbit.GetOwnedFrame(station), limit: 60 * 10);
         int before = recorder.TicksWithEvents;
         Tick(orbit, 60);
 
@@ -564,7 +564,8 @@ public sealed class FlightControlTests : IDisposable
     /// <summary>
     /// A test component at priority 5, after the ascent autopilot: in each tick it keeps the last <see cref="Throttle"/>
     /// and the last <see cref="AttitudeTarget"/> of its entity's events, the hull's state in <paramref name="plane"/> that
-    /// the autopilot read, and the turn from the axes of the hull's frame to those of the plane's frame.
+    /// the autopilot read, its origin's place and its center of mass's velocity (<see cref="Navigation"/>), and the turn
+    /// from the axes of the hull's frame to those of the plane's frame.
     /// </summary>
     private sealed class AscentRecorder(FrameHandle plane) : IComponent
     {
@@ -588,7 +589,7 @@ public sealed class FlightControlTests : IDisposable
                 Target = each;
             DPose inPlane = self.PoseIn(plane);
             Position = inPlane.Position;
-            Velocity = self.VelocityIn(plane);
+            Velocity = Navigation.CenterOfMassVelocity(self, plane);
             FrameInPlane = inPlane.Rotation * self.PoseIn(self.Frame).Rotation.Conjugate();
         }
     }

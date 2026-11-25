@@ -165,7 +165,8 @@ public sealed class BlueDanubeRendezvousRun : IDisposable
                 PersonVelocityInStation: World.VelocityIn(person, StationFrame),
                 PersonFeltGravity: World.Frames.FeltGravity(StationFrame, inStation).Length,
                 PersonHeading: WalkHeading.Yaw(World.GetRender(person).ViewOffset.Rotation),
-                Play: World.GetComponent<BoxPlay>(person)!.State
+                Play: World.GetComponent<BoxPlay>(person)!.State,
+                LiftInStation: World.PoseIn(Scene["lift"], StationFrame).Position
             )
         );
     }
@@ -287,6 +288,7 @@ public sealed class BlueDanubeLongRunCollection : ICollectionFixture<BlueDanubeR
 /// <param name="PersonHeading">The person's heading: the turn of its view about its up, in radians, as
 /// <see cref="WalkHeading.Yaw"/> gives it.</param>
 /// <param name="Play">What the person's <see cref="BoxPlay"/> of the coda does.</param>
+/// <param name="LiftInStation">The middle of the lift's floor in the station's frame, in meters.</param>
 public sealed record RendezvousTick(
     long Tick,
     double Time,
@@ -316,7 +318,8 @@ public sealed record RendezvousTick(
     Double3 PersonVelocityInStation,
     double PersonFeltGravity,
     double PersonHeading,
-    BoxPlayState Play
+    BoxPlayState Play,
+    Double3 LiftInStation
 )
 {
     /// <summary>The shuttle's place relative to the station's center, in meters, in earth's axes.</summary>
@@ -465,11 +468,13 @@ public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run)
 
     /// <summary>
     /// <see cref="DemoScenes.DemoStation.OverPadAt"/> sets the window so that the shuttle arrives where the sun lights the
-    /// station and Earth's limb below it: the transfer starts with the shuttle between 115 and 125 degrees along the orbit.
+    /// station and Earth's limb below it: the transfer starts with the shuttle between 115 and 126 degrees along the orbit.
+    /// Measured on 2026-11-24 at 125.27 degrees, once the ascent steered on the velocity of the hull's center of mass,
+    /// which lies 0.48 m ahead of the shuttle's origin in the Lunar Shuttle's box; it was below 125 before.
     /// </summary>
     [Fact]
-    public void TheWindowOpensBetween115And125DegreesAlongTheOrbit() =>
-        AlongTheOrbit(Window.Position).Should().BeInRange(115, 125);
+    public void TheWindowOpensBetween115And126DegreesAlongTheOrbit() =>
+        AlongTheOrbit(Window.Position).Should().BeInRange(115, 126);
 
     /// <summary>
     /// The burn puts the shuttle on the two-body path that reaches the arrival point at the arrival time, one transfer time

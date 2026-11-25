@@ -56,7 +56,7 @@ public static partial class DemoScenes
         private const float Sink = 5;
 
         /// <summary>Where the incline starts, in <c>earth-surface</c>: on the bed's top, under the parked shuttle's nose.</summary>
-        public static Double3 Foot { get; } = new(0, BedTop, -Shuttle.Hull.Z);
+        public static Double3 Foot { get; } = new(0, BedTop, Shuttle.Hull.Min.Z);
 
         /// <summary>The direction up the incline, a unit vector in the axes of <c>earth-surface</c>.</summary>
         public static Double3 Up { get; } = new(0, Math.Sin(Angle), -Math.Cos(Angle));
@@ -70,7 +70,7 @@ public static partial class DemoScenes
         /// <summary>The boxes of the ramp's static shape, relative to the <see cref="Foot"/>, in the axes of <c>earth-surface</c>.</summary>
         private static CompoundChild[] Shape()
         {
-            float bedLength = 2 * Shuttle.Hull.Z + 1;
+            float bedLength = Shuttle.Hull.Max.Z - Shuttle.Hull.Min.Z + 1;
             Vector3 up = Up.ToVector3(),
                 normal = new(0, (float)Math.Cos(Angle), (float)Math.Sin(Angle));
             return

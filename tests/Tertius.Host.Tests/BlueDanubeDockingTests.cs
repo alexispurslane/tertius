@@ -152,9 +152,9 @@ public sealed class BlueDanubeDockingTests(BlueDanubeRendezvousRun run)
                     .Select(corner =>
                         frame.ShuttleInStation.TransformPoint(
                             new(
-                                (corner & 1) == 0 ? -Shuttle.Hull.X : Shuttle.Hull.X,
-                                (corner & 2) == 0 ? -Shuttle.Hull.Y : Shuttle.Hull.Y,
-                                (corner & 4) == 0 ? -Shuttle.Hull.Z : Shuttle.Hull.Z
+                                (corner & 1) == 0 ? Shuttle.Hull.Min.X : Shuttle.Hull.Max.X,
+                                (corner & 2) == 0 ? Shuttle.Hull.Min.Y : Shuttle.Hull.Max.Y,
+                                (corner & 4) == 0 ? Shuttle.Hull.Min.Z : Shuttle.Hull.Max.Z
                             )
                         )
                     ),
@@ -168,7 +168,7 @@ public sealed class BlueDanubeDockingTests(BlueDanubeRendezvousRun run)
                 .Cover(
                     view: frame.ViewInStation,
                     body: frame.ShuttleInStation,
-                    half: Shuttle.Hull,
+                    box: Shuttle.Hull,
                     verticalFov: frame.VerticalFov
                 )
                 .Should()

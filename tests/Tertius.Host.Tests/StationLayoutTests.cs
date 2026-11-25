@@ -7,15 +7,15 @@ namespace Tertius.Host.Tests;
 
 /// <summary>
 /// The layout of the Blue Danube station, <see cref="StationLayout"/> (docs/plans/blue-danube-demo.md, "The kilometre
-/// wheel"), as pure geometry in the station's axes: +Y is the axis, the slot faces +Y, and the deck is the bay's -X wall.
-/// The demo's layout puts the floor 2,000 m out at one standard gravity. A later fit to the station's art moves the bay
-/// out along the axis and grows the bubble, so the same invariants also hold for a layout with the bay 300 m out.
+/// wheel" and "The fit to the art"), as pure geometry in the station's axes: +Y is the axis, the slot faces +Y, and the
+/// deck is the bay's -X wall, a pier on the core's face of the art. The demo's layout puts the floor 2,000 m out at one
+/// standard gravity. The same invariants also hold for a layout with the bay moved 300 m out along the axis.
 /// </summary>
 public sealed class StationLayoutTests
 {
     private static readonly StationLayout Demo = new();
 
-    /// <summary>A layout for the fit to the art: the bay 300 m out along the axis and the bubble 450 m along it.</summary>
+    /// <summary>A layout with the bay moved 300 m out along the axis and the bubble 450 m along it.</summary>
     private static readonly StationLayout Moved = new() { BayAxial = 300, BubbleAxial = 450 };
 
     public static TheoryData<string> Layouts => ["demo", "moved"];
@@ -51,8 +51,8 @@ public sealed class StationLayoutTests
         (Demo.FloorRadius - Demo.WheelFloor.FacetDistance).Should().BeLessThan(0.02);
 
     /// <summary>
-    /// The parked hull touches the deck with its belly and the bay's -Z wall with its port side, and its tail lies the
-    /// parked tail gap inside the slot wall's inner face.
+    /// The parked hull touches the deck with its belly and the cradle rail with its port side, and its tail lies the
+    /// parked tail gap inside the bay's +Y end.
     /// </summary>
     [Theory]
     [MemberData(nameof(Layouts))]
@@ -62,7 +62,7 @@ public sealed class StationLayoutTests
         BoundingBox parked = layout.ParkedBounds;
 
         parked.Min.X.Should().BeApproximately(layout.Deck, 1e-4f);
-        parked.Min.Z.Should().BeApproximately(layout.Bay.Min.Z, 1e-4f);
+        parked.Min.Z.Should().BeApproximately(layout.CradleAcross, 1e-4f);
         parked.Max.Y.Should().BeApproximately(layout.Bay.Max.Y - layout.ParkedTailGap, 1e-4f);
         var grown = new BoundingBox(layout.Bay.Min - new Vector3(1e-3f), layout.Bay.Max + new Vector3(1e-3f));
         grown.Contains(parked.Min).Should().BeTrue();
@@ -70,8 +70,8 @@ public sealed class StationLayoutTests
     }
 
     /// <summary>
-    /// The spin gravity at the parked hull's center points away from the axis, into the deck and into the -Z wall, so the
-    /// corner holds the hull. It leans about 7.5 degrees from the deck's normal toward the wall.
+    /// The spin gravity at the parked hull's center points away from the axis, into the deck and into the cradle rail, so
+    /// the corner holds the hull. It leans about 2.3 degrees from the deck's normal toward the rail.
     /// </summary>
     [Fact]
     public void TheSpinGravityPressesTheParkedHullIntoTheDeckAndTheWall()
@@ -80,8 +80,8 @@ public sealed class StationLayoutTests
         var gravity = new Double3(center.X, 0, center.Z);
 
         gravity.X.Should().BeNegative("the deck is the bay's -X wall");
-        gravity.Z.Should().BeNegative("the hull rests on the bay's -Z wall");
-        (Math.Atan2(-gravity.Z, -gravity.X) * 180 / Math.PI).Should().BeApproximately(7.5, 0.1);
+        gravity.Z.Should().BeNegative("the hull rests on the cradle rail on its -Z side");
+        (Math.Atan2(-gravity.Z, -gravity.X) * 180 / Math.PI).Should().BeApproximately(2.3, 0.1);
     }
 
     /// <summary>The bay's middle, the slot, the parked hull and the hold point move out along the axis with the bay.</summary>
@@ -96,10 +96,10 @@ public sealed class StationLayoutTests
         Moved.HoldPoint.Y.Should().Be(Moved.BubbleAxial + Moved.HoldBeyondBubble);
     }
 
-    /// <summary>The demo's hold point lies 150 m out on the axis, 30 m beyond its bubble.</summary>
+    /// <summary>The demo's hold point lies 430 m out on the axis, 30 m beyond its bubble.</summary>
     [Fact]
-    public void TheDemosHoldPointLiesOneHundredFiftyMetersOut() =>
-        Demo.HoldPoint.Should().Be(new Double3(0, 150, 0));
+    public void TheDemosHoldPointLiesFourHundredThirtyMetersOut() =>
+        Demo.HoldPoint.Should().Be(new Double3(0, 430, 0));
 
     /// <summary>
     /// The hold point lies outside the bubble by more than the shuttle's bounding radius, so the shuttle spins up outside the
@@ -110,12 +110,13 @@ public sealed class StationLayoutTests
     public void TheHoldPointLiesOutsideTheBubble(string name)
     {
         StationLayout layout = Named(name);
-        layout.Bubble.SignedDistance(layout.HoldPoint).Should().BeGreaterThan(Shuttle.Hull.Length());
+        layout.Bubble.SignedDistance(layout.HoldPoint).Should().BeGreaterThan(Shuttle.Reach);
     }
 
     /// <summary>
-    /// Every corner of the hull, the wheel's rim, the spokes' ends and the hub's corners, lies inside the bubble by more than
-    /// the shuttle's bounding radius, so the shuttle enters the frame before it reaches the hull.
+    /// Every corner of the hull, the art's rim and galleries, the wheel's rim, the spokes' ends and the hub's corners, lies
+    /// inside the bubble by more than the shuttle's bounding radius, so the shuttle enters the frame before it reaches the
+    /// hull.
     /// </summary>
     [Theory]
     [MemberData(nameof(Layouts))]
@@ -123,7 +124,7 @@ public sealed class StationLayoutTests
     {
         StationLayout layout = Named(name);
         foreach (Double3 corner in layout.HullCorners())
-            layout.Bubble.SignedDistance(corner).Should().BeLessThan(-Shuttle.Hull.Length(), $"for the corner {corner}");
+            layout.Bubble.SignedDistance(corner).Should().BeLessThan(-Shuttle.Reach, $"for the corner {corner}");
     }
 
     /// <summary>The shuttle's frame fits in the station's, so it can enter it as a child.</summary>
@@ -181,6 +182,68 @@ public sealed class StationLayoutTests
         layout.Hub.Min.Y.Should().BeLessThanOrEqualTo(-layout.SpokeHalfWidth);
         layout.Hub.Max.Y.Should().BeGreaterThanOrEqualTo(layout.SpokeHalfWidth);
     }
+
+    /// <summary>
+    /// The bubble holds the visible hull of the art, the cylinder 2,028.1 m out and 269.4 m along the axis on each side,
+    /// with room for the shuttle: the art's rim lies among the hull's corners.
+    /// </summary>
+    [Fact]
+    public void TheBubbleHoldsTheArtsWholeHull()
+    {
+        Demo.HullCorners().Should().Contain(new Double3(2028.1f, 269.4f, 0)).And.Contain(new Double3(2028.1f, -269.4f, 0));
+        Demo.Bubble.SignedDistance(new Double3(2028.1, 269.4, 0)).Should().BeLessThan(-Shuttle.Reach);
+    }
+
+    /// <summary>
+    /// The deck stands on the core's face of the art: its top lies nearer the axis than the face, so the art does not
+    /// cover it, and its underside beyond the face, so no gap shows between them.
+    /// </summary>
+    [Fact]
+    public void TheDeckStandsOnTheCoresFace()
+    {
+        Demo.DeckSlab.Max.X.Should().Be(Demo.Deck);
+        (-Demo.DeckSlab.Max.X).Should().BeLessThan(Demo.CoreFace);
+        (-Demo.DeckSlab.Min.X).Should().BeGreaterThan(Demo.CoreFace);
+    }
+
+    /// <summary>
+    /// The cradle rail stands on the deck along the parked hull's port side, within the bay, as long as the hull, and
+    /// no higher than the hull's sides.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Layouts))]
+    public void TheCradleRailStandsOnTheDeckAlongTheParkedHull(string name)
+    {
+        StationLayout layout = Named(name);
+        BoundingBox cradle = layout.Cradle,
+            parked = layout.ParkedBounds;
+
+        cradle.Min.X.Should().Be(layout.Deck);
+        cradle.Max.Z.Should().BeApproximately(parked.Min.Z, 1e-4f);
+        cradle.Min.Y.Should().Be(parked.Min.Y);
+        cradle.Max.Y.Should().Be(parked.Max.Y);
+        cradle.Max.X.Should().BeLessThan(parked.Max.X);
+        cradle.Min.Z.Should().BeGreaterThanOrEqualTo(layout.Bay.Min.Z);
+    }
+
+    /// <summary>The spokes start at the deck's underside, so the lift's shaft meets the deck's hole with no gap.</summary>
+    [Fact]
+    public void TheSpokesStartAtTheDecksUnderside() => Demo.Hub.Min.X.Should().Be(Demo.DeckSlab.Min.X);
+
+    /// <summary>A deck whose top lies beyond the core's face, where the art covers it, is a problem of the layout.</summary>
+    [Fact]
+    public void ADeckUnderTheCoresFaceIsAProblem() =>
+        (Demo with { DeckRadius = 105 }).Problems().Should().Contain("The deck does not stand on the core's face.");
+
+    /// <summary>A deck that stops short of the core's face, so that a gap shows under it, is a problem of the layout.</summary>
+    [Fact]
+    public void ADeckThatStopsShortOfTheCoresFaceIsAProblem() =>
+        (Demo with { DeckThickness = 2 }).Problems().Should().Contain("The deck does not stand on the core's face.");
+
+    /// <summary>A cradle rail outside the bay is a problem of the layout.</summary>
+    [Fact]
+    public void ACradleRailOutsideTheBayIsAProblem() =>
+        (Demo with { CradleAcross = -16.3f }).Problems().Should().Contain("The cradle rail does not fit in the bay.");
 
     /// <summary>Every invariant of the layout holds for the demo's layout and for the moved one.</summary>
     [Theory]

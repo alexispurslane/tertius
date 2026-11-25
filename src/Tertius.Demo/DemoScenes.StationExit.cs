@@ -137,21 +137,52 @@ public static partial class DemoScenes
         }
 
         /// <summary>
+        /// Where the deck's boarding ramp stands in the station's frame: the middle of its landing's edge, on its top face,
+        /// <see cref="BoardingStair.Gap"/> spinward of the parked hull's starboard face in line with the hatch,
+        /// <see cref="BoardingStair.LipDrop"/> under the porch.
+        /// </summary>
+        public static Double3 StairPlace =>
+            Layout.ParkedPose.TransformPoint(
+                new Double3(
+                    Shuttle.Hull.Max.X + BoardingStair.Gap,
+                    Shuttle.Hatch.Min.Y - BoardingStair.LipDrop,
+                    Shuttle.Hatch.Center.Z
+                )
+            );
+
+        /// <summary>
+        /// The deck's boarding ramp from the porch down to the deck: its landing reaches spinward (+Z) from the hull, and
+        /// its ramp of 10 degrees runs down along the axis toward the lift (-Y), 18 m long, so the walk to the lift needs no
+        /// turn back and crosses no Coriolis force.
+        /// </summary>
+        public static BoardingStair Stair =>
+            new(
+                Top: Vector3.Zero,
+                Up: Vector3.UnitX,
+                Out: Vector3.UnitZ,
+                Down: -Vector3.UnitY,
+                Height: (float)(StairPlace.X - Layout.Deck),
+                Ramp: true
+            );
+
+        /// <summary>
         /// The person's way out, from <see cref="Shuttle.SeatStand"/> onto the lift: aft through the cabin to
-        /// <see cref="Shuttle.InsideHatch"/>, in <paramref name="cabin"/>, the shuttle's frame; then in
-        /// <paramref name="station"/>, the station's frame, out of the hatch spinward onto the deck in the lift's lane, and
-        /// along the axis onto the lift through its open +Y side, to the middle of its floor. A person who stands has its
-        /// center <see cref="Standing"/> above the deck.
+        /// <see cref="Shuttle.InsideHatch"/> and out onto <see cref="Shuttle.OnPorch"/>, in <paramref name="cabin"/>, the
+        /// shuttle's frame; then in <paramref name="station"/>, the station's frame, onto the landing of
+        /// <see cref="Stair"/>, down its steps to its foot, and along the axis onto the lift through its open +Y side, to
+        /// the middle of its floor. A person who stands has its center <see cref="Standing"/> above what it stands on.
         /// </summary>
         public static Waypoint[] WayOut(FrameHandle cabin, FrameHandle station)
         {
-            double x = Layout.Deck + Standing,
-                hatch = Shuttle.Hatch.Center.Z + Layout.ParkedPose.Position.Y;
+            Double3 stair = StairPlace;
+            Double3 foot = stair + Stair.AtFoot(above: (float)Standing);
             return
             [
                 new(cabin, Shuttle.InsideHatch),
-                new(station, new(x, hatch, Layout.LiftAcross)),
-                new(station, new(x, LiftTop.Position.Y, Layout.LiftAcross)),
+                new(cabin, Shuttle.OnPorch),
+                new(station, stair + Stair.OnLanding(above: (float)Standing)),
+                new(station, foot),
+                new(station, new(Layout.Deck + Standing, LiftTop.Position.Y, Layout.LiftAcross)),
             ];
         }
 
@@ -225,6 +256,50 @@ public static partial class DemoScenes
         /// </summary>
         public static DPose RideCamera => Camera(new(4, -1.7, 1.7), new(-4, 0, 0), Double3.UnitZ);
 
+        /// <summary>
+        /// The pose of <c>docked-camera</c>: 1.7 m above the deck, 12 m spinward of the axis's plane and 7 m beyond the parked
+        /// hull's tail along the axis, looking at the hull's starboard side above the stair's landing. It sees the docked
+        /// shuttle at three quarters, the person who walks out over the lip and down the ramp beside it, and the bay's work
+        /// area in front.
+        /// </summary>
+        public static DPose DockedCamera =>
+            Camera(
+                new(Layout.Deck + 1.7, Layout.ParkedBounds.Max.Y + 7, 12),
+                new(Layout.Deck + 3, Layout.ParkedPose.Position.Y, 0),
+                Double3.UnitX
+            );
+
+        /// <summary>
+        /// The pose of <c>work-camera</c>: 1.2 m above the deck in the bay's spinward corner near the lift, looking past the
+        /// work area's cart and pods toward the parked hull's tail, with the ramp and the person on it beyond them.
+        /// </summary>
+        public static DPose WorkCamera =>
+            Camera(
+                new(Layout.Deck + 1.2, 8, Layout.BayHalfAcross - 1.5),
+                new(Layout.Deck + 1.5, 26, 4),
+                Double3.UnitX
+            );
+
+        /// <summary>
+        /// The pose of <c>wheel-terminal-camera</c>: 1.7 m above the wheel's floor, 9 m spinward of the lift's spoke and 10 m to
+        /// its +Y side, looking past the stroll's end at the terminal's benches and post, antispinward of the lift's foot.
+        /// </summary>
+        public static DPose WheelTerminalCamera
+        {
+            get
+            {
+                Double3 at = OnFloor(across: 9, height: 1.7, y: 10);
+                return Camera(at, OnFloor(across: -3.5, height: 1, y: 0), WheelFloor.UpAt(at));
+            }
+        }
+
+        /// <summary>
+        /// The pose of <c>ride-side-camera</c> on the lift, in the lift's axes: 0.4 m above the middle of its floor's open +Y
+        /// edge, looking across the floor along -Y at the person's feet, with its roof toward the axis. It sees the person's
+        /// soles and the floor under them side on, 2 m away.
+        /// </summary>
+        public static DPose RideSideCamera => Camera(new(0.4, Layout.LiftHalf, 0), new(0.4, 0, 0), Double3.UnitX);
+
         private static DPose Camera(Double3 at, Double3 target, Double3 roof) =>
             new(at, AttitudeAutopilot.Facing(target - at, roof));
 
@@ -236,22 +311,34 @@ public static partial class DemoScenes
         {
             Entity lift = SpawnLift(world: world, station: station, resources: resources);
             scene.Add("lift", lift);
+            SpawnStair(
+                world: world,
+                frame: station,
+                scene: scene,
+                resources: resources,
+                id: "deck-ramp",
+                place: StairPlace,
+                stair: Stair
+            );
             SpawnLamps(world: world, station: station, lift: lift, resources: resources);
             scene.Add("deck-camera", world.Spawn(ViewIn(station, DeckCamera)));
             scene.Add("shaft-camera", world.Spawn(ViewIn(station, ShaftCamera)));
             scene.Add("wheel-camera", world.Spawn(ViewIn(station, WheelCamera)));
-            DPose ride = RideCamera;
-            scene.Add(
-                "ride-camera",
-                world.Spawn(
-                    new()
-                    {
-                        AttachTo = lift,
-                        AttachOffset = new(ride.Position.ToVector3(), ride.Rotation.ToQuaternion()),
-                        Render = new RenderData(),
-                    }
-                )
-            );
+            scene.Add("docked-camera", world.Spawn(ViewIn(station, DockedCamera)));
+            scene.Add("work-camera", world.Spawn(ViewIn(station, WorkCamera)));
+            scene.Add("wheel-terminal-camera", world.Spawn(ViewIn(station, WheelTerminalCamera)));
+            foreach ((string id, DPose pose) in new[] { ("ride-camera", RideCamera), ("ride-side-camera", RideSideCamera) })
+                scene.Add(
+                    id,
+                    world.Spawn(
+                        new()
+                        {
+                            AttachTo = lift,
+                            AttachOffset = new(pose.Position.ToVector3(), pose.Rotation.ToQuaternion()),
+                            Render = new RenderData(),
+                        }
+                    )
+                );
         }
 
         /// <summary>

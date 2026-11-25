@@ -112,7 +112,7 @@ public sealed class AscentAutopilot(double maxThrust, double orbitRadius, double
     {
         DPose pose = self.PoseIn(plane.Frame);
         Double3 position = pose.Position,
-            velocity = self.VelocityIn(plane.Frame);
+            velocity = Navigation.CenterOfMassVelocity(self, plane.Frame);
         // The turn from the plane frame's axes to those of the hull's frame, by the hull's own two rotations, which come
         // from one record. The targets are found in the plane frame's axes and written in those of the hull's frame.
         DQuaternion intoFrame = self.PoseIn(self.Frame).Rotation * pose.Rotation.Conjugate();

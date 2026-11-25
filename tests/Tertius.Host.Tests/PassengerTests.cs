@@ -63,7 +63,7 @@ public sealed class PassengerTests : IDisposable
         Entity shuttle = Shuttle.Park(
             world: world,
             frame: frame,
-            pose: WorldTesting.At(0, belly + Shuttle.Hull.Y),
+            pose: WorldTesting.At(0, belly - Shuttle.Hull.Min.Y),
             components: engine
         );
         cabin = world.GetOwnedFrame(shuttle);
