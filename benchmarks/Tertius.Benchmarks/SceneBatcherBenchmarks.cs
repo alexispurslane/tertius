@@ -136,6 +136,7 @@ public class SceneBatcherBenchmarks
             highestStops: AutoExposure.Default.MaxStops,
             meshes: Meshes,
             materials: Materials,
+            models: [],
             environment: environment,
             region: Region,
             frame: frame,

@@ -87,6 +87,7 @@ public class ImpostorManagerBenchmarks
             highestStops: AutoExposure.Default.MaxStops,
             meshes: SceneBatcherBenchmarks.Meshes,
             materials: Materials,
+            models: [],
             environment: environment,
             region: DeformRegion.None,
             frame: frame,
