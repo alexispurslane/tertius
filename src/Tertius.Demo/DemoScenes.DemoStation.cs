@@ -667,7 +667,7 @@ public static partial class DemoScenes
 
             Opening slot = HubSlot;
             // The fallback has five walls. Its sixth face belongs to the holed deck.
-            var walls = new BoxMesh()
+            BoxMesh walls = new BoxMesh()
                 .Box(new(new(inner.X, -outer.Y, -outer.Z), outer))
                 .Box(new(new(-inner.X, -outer.Y, -outer.Z), new(inner.X, -inner.Y, outer.Z)))
                 .Box(new(new(-inner.X, inner.Y, -outer.Z), new(inner.X, outer.Y, outer.Z)))

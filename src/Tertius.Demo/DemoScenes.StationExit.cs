@@ -422,7 +422,7 @@ public static partial class DemoScenes
                 )
                 {
                     var window = new BoundingBox(new(1.18f, -1.38f, box.Min.Z), new(2.23f, 1.38f, box.Max.Z));
-                    Opening opening = Opening.ThroughZ(window);
+                    var opening = Opening.ThroughZ(window);
                     mesh.Box(box, openings: [opening]).Sides(opening);
                     glass.Box(
                         window with

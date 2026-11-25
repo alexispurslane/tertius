@@ -20,7 +20,7 @@ public sealed class ShuttleCabinFitTests
 
     private static CookedModel LoadShuttleModel()
     {
-        ContentFolders? content = ContentFolders.Find();
+        var content = ContentFolders.Find();
         Assert.SkipWhen(
             content is null || !File.Exists(content.CookedModel(BlueDanubeArt.Shuttle)),
             $"The Blue Danube art is not converted: run `{BlueDanubeArt.SetupCommand}`."
@@ -48,7 +48,7 @@ public sealed class ShuttleCabinFitTests
                 Vector3 a = ToShuttle(part, verts[indices[i]].Position);
                 Vector3 b = ToShuttle(part, verts[indices[i + 1]].Position);
                 Vector3 c = ToShuttle(part, verts[indices[i + 2]].Position);
-                Vector3 cross = Vector3.Cross(b - a, c - a);
+                var cross = Vector3.Cross(b - a, c - a);
                 float len = cross.Length();
                 if (len < 1e-8f)
                     continue;
@@ -89,16 +89,16 @@ public sealed class ShuttleCabinFitTests
     {
         Vector3 e1 = tri.B - tri.A;
         Vector3 e2 = tri.C - tri.A;
-        Vector3 pvec = Vector3.Cross(dir, e2);
+        var pvec = Vector3.Cross(dir, e2);
         float det = Vector3.Dot(e1, pvec);
         if (MathF.Abs(det) < 1e-8f)
             return false;
         float invDet = 1f / det;
         Vector3 tvec = origin - tri.A;
         float u = Vector3.Dot(tvec, pvec) * invDet;
-        if (u < -1e-4f || u > 1f + 1e-4f)
+        if (u is < -1e-4f or > (1f + 1e-4f))
             return false;
-        Vector3 qvec = Vector3.Cross(tvec, e1);
+        var qvec = Vector3.Cross(tvec, e1);
         float v = Vector3.Dot(dir, qvec) * invDet;
         if (v < -1e-4f || u + v > 1f + 1e-4f)
             return false;
@@ -220,9 +220,9 @@ public sealed class ShuttleCabinFitTests
     public void TheConvertedShuttleHullCarriesSpatiallyVariedMetallicRoughnessAndNormalMaps()
     {
         CookedModel model = LoadShuttleModel();
-        CookedMaterial hull = model
-            .Materials.Where(m => m.MetallicRoughnessMap is not null && m.NormalMap is not null)
-            .FirstOrDefault()!;
+        CookedMaterial hull = model.Materials.FirstOrDefault(m =>
+            m.MetallicRoughnessMap is not null && m.NormalMap is not null
+        )!;
 
         hull.Should().NotBeNull("the converted shuttle hull material must carry both MR and normal maps");
         TextureData mr = model.Textures[hull.MetallicRoughnessMap!.Value];
@@ -348,7 +348,7 @@ public sealed class ShuttleCabinFitTests
     [Fact]
     public void TheHatchDoorClosesInFlightAndOpensWhenParkedWhileTheBoardingBridgeDoesTheOpposite()
     {
-        ContentFolders? content = ContentFolders.Find();
+        var content = ContentFolders.Find();
         Assert.SkipWhen(
             content is null || BlueDanubeArt.All.Any(r => !File.Exists(content.CookedModel(r))),
             $"The Blue Danube art is not converted: run `{BlueDanubeArt.SetupCommand}`."

@@ -562,7 +562,7 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
     [Fact]
     public void ArrivalLeavesTheDeckGateShutAndTheRimGateClearOfThePassenger()
     {
-        double lane = DemoScenes.DemoStation.Layout.LiftAcross;
+        double lane = DemoStation.Layout.LiftAcross;
         run.World.PoseIn(run.Scene["deck-gate"], run.Station).Position.Z.Should().BeApproximately(lane, 0.005);
         run.World.PoseIn(run.Scene["rim-gate"], run.Station).Position.Z.Should().BeGreaterThan(lane + 1.5);
     }

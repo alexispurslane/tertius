@@ -349,9 +349,7 @@ public sealed class DemoStationTests : IDisposable
 
         // At this azimuth and height, the imported ring_glass crosses the sightline at radius 1,734 m.
         radius.Should().BeLessThan(1734);
-        Picture.Contains(Picture.Project(view, DemoStation.Layout.Hub.Center, world.VerticalFov))
-            .Should()
-            .BeTrue();
+        Picture.Contains(Picture.Project(view, DemoStation.Layout.Hub.Center, world.VerticalFov)).Should().BeTrue();
     }
 
     /// <summary>

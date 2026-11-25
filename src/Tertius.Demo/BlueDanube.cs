@@ -395,12 +395,7 @@ public static class BlueDanube
             Every: 4,
             Until: (world, scene) => ToHold(world, scene) < 250
         ),
-        new(
-            Name: "glide-rim",
-            Camera: "rim-camera",
-            Every: 4,
-            Until: (world, scene) => ToHold(world, scene) < 50
-        ),
+        new(Name: "glide-rim", Camera: "rim-camera", Every: 4, Until: (world, scene) => ToHold(world, scene) < 50),
         new(
             Name: "arrival",
             Camera: "cockpit-camera",

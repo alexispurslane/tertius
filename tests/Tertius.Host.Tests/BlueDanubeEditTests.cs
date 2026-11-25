@@ -178,11 +178,9 @@ public sealed class BlueDanubeEditTests
     public void TheDiagnosticFilmsTheSameBoardingShotWithItsFrameOutlines()
     {
         ScriptFilm boarding = Films.Single(film => film.Name == "boarding");
-        Script diagnostic = Script.Load(Path.Combine(RepositoryRoot(), "scripts", "demo-boarding-outlines.json"));
+        var diagnostic = Script.Load(Path.Combine(RepositoryRoot(), "scripts", "demo-boarding-outlines.json"));
 
-        ScriptFilm.Of(diagnostic)
-            .Should()
-            .Equal(boarding with { FirstFrame = 0, Outlines = true });
+        ScriptFilm.Of(diagnostic).Should().Equal(boarding with { FirstFrame = 0, Outlines = true });
     }
 
     [Fact]

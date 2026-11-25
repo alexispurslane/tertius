@@ -174,9 +174,8 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
     public static readonly Vector3 PenHold = new(0.15f, -0.45f, -0.40f);
 
     private readonly Waypoint seat = seat;
-    private readonly Entity pen = pen;
 
-    internal Entity LoosePen => pen;
+    internal Entity LoosePen { get; } = pen;
     internal FrameHandle Cabin => seat.Frame;
 
     /// <summary>
@@ -266,7 +265,7 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
     private void FetchOrTakePen(Self self, scoped ref EventList events, Outbox outbox, float mass)
     {
         for (int i = 0; i < events.Count; i++)
-            if (events[i].Is<CrateOffer>() && events[i].Sender == pen && Take(self, outbox))
+            if (events[i].Is<CrateOffer>() && events[i].Sender == LoosePen && Take(self, outbox))
             {
                 Steer(self: self, outbox: outbox, velocity: Double3.Zero, mass: mass);
                 return;
@@ -376,8 +375,8 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
     private void Fetch(Self self, Outbox outbox, float mass)
     {
         if (
-            self.Snapshot.PoseIn(pen, self.Frame) is not { } penPose
-            || self.Snapshot.VelocityIn(pen, self.Frame) is not { } penVelocity
+            self.Snapshot.PoseIn(LoosePen, self.Frame) is not { } penPose
+            || self.Snapshot.VelocityIn(LoosePen, self.Frame) is not { } penVelocity
         )
         {
             State = new Stopped();
@@ -392,7 +391,7 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
         Double3 ahead = pose.Rotation.Rotate((Double3)view.TransformDirection(-Vector3.UnitZ));
         Double3 way = penPose.Position - hand;
         if (way.Length <= GripReach)
-            outbox.Send(pen, new Use { User = self.Entity });
+            outbox.Send(LoosePen, new Use { User = self.Entity });
         double along = Double3.Dot(way, ahead);
         double gap = Math.Min(LineUpGap, LineUpSlope * (way - ahead * along).Length);
         // From the hand to the place where it lines up, which slides onto the pen as the hand comes onto the line.
@@ -412,12 +411,12 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
     /// </summary>
     private bool Take(Self self, Outbox outbox)
     {
-        if (self.Snapshot.PoseIn(pen, self.Frame) is not { } penPose)
+        if (self.Snapshot.PoseIn(LoosePen, self.Frame) is not { } penPose)
             return false;
         Pose view = self.Render.ViewOffset;
         var grip = Pose.Compose(view.Inverse(), DPose.Compose(self.PoseIn(self.Frame).Inverse(), penPose).ToPose());
-        outbox.Send(pen, new GraspPencil { Grip = grip });
-        State = new Holding(pen);
+        outbox.Send(LoosePen, new GraspPencil { Grip = grip });
+        State = new Holding(LoosePen);
         return true;
     }
 

@@ -1216,7 +1216,7 @@ public sealed partial class JoltPhysicsBackend
 
     private void UpdateRecedingPlatformRiders()
     {
-        foreach (var (world, rider, character) in recedingPlatformRiders)
+        foreach ((FrameWorld? world, BodyRecord? rider, CharacterVirtual? character) in recedingPlatformRiders)
         {
             Vector3 velocity = UpdateCharacter(world, rider, character);
             world.NoteCharacterContacts(character, velocity);

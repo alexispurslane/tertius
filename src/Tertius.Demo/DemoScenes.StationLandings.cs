@@ -172,8 +172,8 @@ public static partial class DemoScenes
         for (int x = 0; x < size; x++)
         {
             float du = heights[y * size + (x + 1) % size] - heights[y * size + (x + size - 1) % size];
-            float dv = heights[((y + 1) % size) * size + x] - heights[((y + size - 1) % size) * size + x];
-            Vector3 n = Vector3.Normalize(new(-du, -dv, 2f / size));
+            float dv = heights[(y + 1) % size * size + x] - heights[(y + size - 1) % size * size + x];
+            var n = Vector3.Normalize(new(-du, -dv, 2f / size));
             int i = (y * size + x) * 4;
             rgba[i] = (byte)MathF.Round(127.5f * (n.X + 1));
             rgba[i + 1] = (byte)MathF.Round(127.5f * (n.Y + 1));

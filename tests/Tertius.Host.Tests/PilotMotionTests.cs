@@ -84,14 +84,14 @@ public sealed class PilotMotionTests : IDisposable
         Double3.Distance(knuckle, world.PoseIn(pen, room).Position).Should().BeLessThan(0.035);
         int finger = rig.JointNamed("finger_middle.01.R")!.Value;
         int wrist = rig.JointNamed("hand.R")!.Value;
-        Pose curl = Pose.Compose(grasp[wrist].Inverse(), grasp[finger]);
+        var curl = Pose.Compose(grasp[wrist].Inverse(), grasp[finger]);
         MathF.Abs(curl.Rotation.W).Should().BeLessThan(0.96f);
 
         world.Post(Event.Create(target: person, sender: Entity.Null, payload: new PlayWithBoxes()));
         Tick(world, 25);
 
         Pose[] open = ModelPose();
-        Pose released = Pose.Compose(open[wrist].Inverse(), open[finger]);
+        var released = Pose.Compose(open[wrist].Inverse(), open[finger]);
         MathF.Abs(released.Rotation.W).Should().BeApproximately(1, 1e-5f);
         Double3
             .Distance(

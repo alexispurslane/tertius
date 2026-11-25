@@ -93,7 +93,7 @@ internal sealed class PilotMotion(Rig rig, Vector3 center) : IComponent
             && self.Snapshot.VelocityIn(person, self.Frame) is { } v
         )
         {
-            Vector3 local = personPose.InverseTransformDirection(v).ToVector3();
+            var local = personPose.InverseTransformDirection(v).ToVector3();
             speed = new Vector2(local.X, local.Z).Length();
         }
         const float step = 0.56f;
@@ -110,8 +110,8 @@ internal sealed class PilotMotion(Rig rig, Vector3 center) : IComponent
         {
             Vector3 origin = DemoScenes.Shuttle.Seat.Center + new Vector3(center.X, 0, center.Z);
             origin.Y = DemoScenes.Shuttle.CockpitFloorY - seatDrop;
-            Pose onSeat = DPose.Compose(inCabin.Inverse(), new(origin, DQuaternion.Identity)).ToPose();
-            Pose offset = Pose.Lerp(standing, onSeat, sitting);
+            var onSeat = DPose.Compose(inCabin.Inverse(), new(origin, DQuaternion.Identity)).ToPose();
+            var offset = Pose.Lerp(standing, onSeat, sitting);
             // The backrest lies between the boarding capsule and the cushion. Pass the armrest on the right.
             offset.Position += onSeat.TransformDirection(Vector3.UnitX) * (0.52f * MathF.Sin(MathF.PI * sitting));
             self.AttachOffset = offset;
@@ -147,7 +147,7 @@ internal sealed class PilotMotion(Rig rig, Vector3 center) : IComponent
     {
         if (!action.Pencil.IsNull && self.Snapshot.PoseIn(action.Pencil, self.Frame) is { } pen)
         {
-            Vector3 point = personPose.InverseTransformPoint(pen.Position).ToVector3();
+            var point = personPose.InverseTransformPoint(pen.Position).ToVector3();
             point = self.AttachOffset.InverseTransformPoint(point);
             Vector3 penAxis = self.AttachOffset.InverseTransformDirection(
                 personPose.InverseTransformDirection(pen.Rotation.Rotate(Double3.UnitZ)).ToVector3()
@@ -176,7 +176,7 @@ internal sealed class PilotMotion(Rig rig, Vector3 center) : IComponent
             float close = Math.Clamp((0.61f - distance) / 0.09f, 0, 1) * reaching;
             foreach (int finger in fingers)
             {
-                Quaternion curl = Quaternion.CreateFromAxisAngle(
+                var curl = Quaternion.CreateFromAxisAngle(
                     bind[finger].InverseTransformDirection(Vector3.UnitZ),
                     -1.08f * close
                 );
@@ -207,7 +207,7 @@ internal sealed class PilotMotion(Rig rig, Vector3 center) : IComponent
         Vector3 line = goal - start;
         if (line.LengthSquared() < 1e-10f)
             return;
-        Vector3 direction = Vector3.Normalize(line);
+        var direction = Vector3.Normalize(line);
         float distance = Math.Clamp(
             line.Length(),
             MathF.Abs(first.Length() - second.Length()) + 0.0001f,

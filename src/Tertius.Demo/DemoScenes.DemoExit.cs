@@ -165,7 +165,9 @@ public static partial class DemoScenes
                         Components = [new SpinMotion { Spin = DemoSurface.Date.Ground }],
                         Render = new RenderData
                         {
-                            Mesh = resources.CreateMesh(EarthMaterial.Globe(EarthMeshRadius, mapped: material.HasValue)),
+                            Mesh = resources.CreateMesh(
+                                EarthMaterial.Globe(EarthMeshRadius, mapped: material.HasValue)
+                            ),
                             Material = material ?? GridMaterial(resources),
                             BoundingRadius = (float)EarthRadius,
                             Flags = RenderFlags.Visible | RenderFlags.Celestial,

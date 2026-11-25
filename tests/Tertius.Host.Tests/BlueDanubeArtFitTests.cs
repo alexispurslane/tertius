@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Numerics;
 using System.Text.Json.Nodes;
 using Tertius.Assets;
@@ -200,9 +201,11 @@ public sealed class BlueDanubeArtSceneTests : IDisposable
     public void ThePlanetMeshStaysBelowTheBoardingSlab()
     {
         SceneInstance scene = Build(null);
-        Entity globe = scene["earth-surface"], slab = scene["floor"];
+        Entity globe = scene["earth-surface"],
+            slab = scene["floor"];
         FrameHandle surface = world.GetOwnedFrame(globe);
-        double slabBase = world.PoseIn(slab, surface).Position.Y
+        double slabBase =
+            world.PoseIn(slab, surface).Position.Y
             + resources.Meshes[world.GetRender(slab).Mesh].Vertices.Min(vertex => vertex.Position.Y);
         float pole = resources.Meshes[world.GetRender(globe).Mesh].Vertices.Max(vertex => vertex.Position.Y);
 
@@ -239,12 +242,7 @@ public sealed class BlueDanubeArtSceneTests : IDisposable
         ContentFolders content = TinyArt();
         string folder = Path.Combine(content.Root, "tertius.demo/bin/assets/blue-danube/earth");
         Directory.CreateDirectory(folder);
-        using (
-            var archive = System.IO.Compression.ZipFile.Open(
-                Path.Combine(folder, "material.zip"),
-                System.IO.Compression.ZipArchiveMode.Create
-            )
-        )
+        using (ZipArchive archive = ZipFile.Open(Path.Combine(folder, "material.zip"), ZipArchiveMode.Create))
         {
             (string Name, byte Red)[] maps = [("color.png", 90), ("normal.png", 128), ("roughness.png", 240)];
             foreach ((string name, byte red) in maps)
@@ -285,7 +283,7 @@ public sealed class BlueDanubeArtSceneTests : IDisposable
         SceneInstance scene = DemoScenes.DemoExit.Build(world, resources);
         FrameHandle earth = world.GetOwnedFrame(scene["earth"]);
         Double3 start = world.PoseIn(scene["earth-globe"], earth).Rotation.Rotate(Double3.UnitX);
-        Tertius.Testing.WorldTesting.Tick(world, 2);
+        WorldTesting.Tick(world, 2);
         DQuaternion pose = world.PoseIn(scene["earth-globe"], earth).Rotation;
         Double3 landmark = pose.Rotate(Double3.UnitX);
         Double3 expected = DemoScenes.DemoSurface.Date.Ground.RotationAt(world.Time).Rotate(Double3.UnitX);

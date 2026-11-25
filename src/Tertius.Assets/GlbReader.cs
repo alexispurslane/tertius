@@ -229,14 +229,14 @@ internal static class GlbReader
             for (int i = 0; i < nodes.Length; i++)
                 if (!indices.TryAdd(nodes[i], i))
                     throw new GlbException("a skin repeats a joint");
-            int[] parents = Enumerable.Repeat(-1, nodes.Length).ToArray();
+            int[] parents = [.. Enumerable.Repeat(-1, nodes.Length)];
             for (int i = 0; i < nodes.Length; i++)
                 foreach (int child in Node(nodes[i]).Children ?? [])
                     if (indices.TryGetValue(child, out int j))
                         parents[j] = i;
             var joints = new List<RigJoint>(nodes.Length);
             var inverse = new Pose[nodes.Length];
-            int[] remap = Enumerable.Repeat(-1, nodes.Length).ToArray();
+            int[] remap = [.. Enumerable.Repeat(-1, nodes.Length)];
             float[]? matrices = skin.InverseBindMatrices is int bind ? Floats(bind, 16) : null;
             if (matrices is not null && matrices.Length != 16 * nodes.Length)
                 throw new GlbException("a skin needs one inverse bind per joint");

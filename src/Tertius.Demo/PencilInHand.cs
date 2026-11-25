@@ -51,14 +51,11 @@ public sealed class PencilInHand(Entity holder, Pose grip, FrameHandle cabin = d
                 seat = belt.Cabin;
         }
         Pose view = self.Snapshot.RenderOf(holder).ViewOffset;
-        DPose target = DPose.Compose(person, Pose.Compose(view, grip).ToDPose());
+        var target = DPose.Compose(person, Pose.Compose(view, grip).ToDPose());
         blend = Math.Clamp(blend + (seated ? 2 : -2) * (float)self.DeltaTime, 0, 1);
         if (blend > 0 && self.Snapshot.PoseIn(seat.Entity, self.Frame) is { } hull)
         {
-            DPose onLap = DPose.Compose(
-                hull,
-                new(SeatedGrip(grip.Position), DQuaternion.FromQuaternion(grip.Rotation))
-            );
+            var onLap = DPose.Compose(hull, new(SeatedGrip(grip.Position), DQuaternion.FromQuaternion(grip.Rotation)));
             target = new(
                 Double3.Lerp(target.Position, onLap.Position, blend),
                 DQuaternion.FromQuaternion(

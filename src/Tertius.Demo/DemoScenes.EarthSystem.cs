@@ -99,8 +99,13 @@ public static partial class DemoScenes
 
             Double3 farEye = (toSun + Double3.UnitX * 0.6).Normalized() * 5e7;
             // A clear part of the Caucasus at the demo's date, with the Sun 21 degrees above the terrain.
-            const double latitude = 42.5 * Math.PI / 180, meridian = (44.8 + 180) * Math.PI / 180;
-            Double3 caucasus = new(Math.Cos(latitude) * Math.Cos(meridian), Math.Sin(latitude), -Math.Cos(latitude) * Math.Sin(meridian));
+            const double latitude = 42.5 * Math.PI / 180,
+                meridian = (44.8 + 180) * Math.PI / 180;
+            Double3 caucasus = new(
+                Math.Cos(latitude) * Math.Cos(meridian),
+                Math.Sin(latitude),
+                -Math.Cos(latitude) * Math.Sin(meridian)
+            );
             View("earth-terrain", surface, LookingAt(caucasus * (EarthRadius + 350e3), Double3.Zero));
             View("earth-near", earth, LookingAt(farEye.Normalized() * (2.5 * EarthRadius), Double3.Zero));
             View("earth-far", earth, LookingAt(farEye, Double3.Zero));

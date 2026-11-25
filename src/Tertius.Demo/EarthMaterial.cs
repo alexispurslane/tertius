@@ -36,7 +36,7 @@ internal static class EarthMaterial
             byte[] png = new byte[entry.Length];
             using Stream stream = entry.Open();
             stream.ReadExactly(png);
-            ImageResult image = ImageResult.FromMemory(png, ColorComponents.RedGreenBlueAlpha);
+            var image = ImageResult.FromMemory(png, ColorComponents.RedGreenBlueAlpha);
             return resources.CreateTexture(new(Width: image.Width, Height: image.Height, Rgba: image.Data, Srgb: srgb));
         }
 

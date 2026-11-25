@@ -1067,7 +1067,7 @@ public static partial class DemoScenes
 
         private static HullPane BuildPane(string id, Vector3[] rawOuter, Vector3 outward, float revealDepth)
         {
-            Vector3 normal = Vector3.Normalize(outward);
+            var normal = Vector3.Normalize(outward);
             Vector3 mid = Vector3.Zero;
             foreach (Vector3 p in rawOuter)
                 mid += p;
@@ -1075,7 +1075,7 @@ public static partial class DemoScenes
 
             // Project onto exact plane (mid, normal) and ensure counterclockwise winding viewed from +normal.
             Vector3[] outer = [.. rawOuter.Select(p => p - normal * Vector3.Dot(p - mid, normal))];
-            Vector3 wound = Vector3.Cross(outer[1] - outer[0], outer[2] - outer[0]);
+            var wound = Vector3.Cross(outer[1] - outer[0], outer[2] - outer[0]);
             if (Vector3.Dot(wound, normal) < 0)
                 Array.Reverse(outer);
 
@@ -1152,7 +1152,7 @@ public static partial class DemoScenes
             for (int i = 0; i < 4; i++)
             {
                 int next = (i + 1) % 4;
-                Vector3 edgeNormal = Vector3.Normalize(Vector3.Cross(front[next] - front[i], normal));
+                var edgeNormal = Vector3.Normalize(Vector3.Cross(front[next] - front[i], normal));
                 AddQuad(a: front[i], b: back[i], c: back[next], d: front[next], n: edgeNormal);
             }
 
@@ -1245,15 +1245,13 @@ public static partial class DemoScenes
             // 6. Solid convex slabs backing all 21 glass panes so physics keeps every window airtight and solid.
             foreach (HullPane pane in Glass)
             {
-                Vector3 n = Vector3.Normalize(
-                    Vector3.Cross(pane.Outer[1] - pane.Outer[0], pane.Outer[2] - pane.Outer[0])
-                );
+                var n = Vector3.Normalize(Vector3.Cross(pane.Outer[1] - pane.Outer[0], pane.Outer[2] - pane.Outer[0]));
                 Vector3 outerMid = (pane.Outer[0] + pane.Outer[1] + pane.Outer[2] + pane.Outer[3]) * 0.25f;
                 Vector3 innerMid = (pane.Inner[0] + pane.Inner[1] + pane.Inner[2] + pane.Inner[3]) * 0.25f;
                 if (Vector3.Dot(n, outerMid - innerMid) < 0)
                     n = -n;
                 // Slightly expand each pane collider in-plane by 0.15 m so seams between adjacent cockpit panes stay airtight.
-                Vector3[] slab = new Vector3[8];
+                var slab = new Vector3[8];
                 for (int i = 0; i < 4; i++)
                 {
                     Vector3 radial = pane.Inner[i] - innerMid;
