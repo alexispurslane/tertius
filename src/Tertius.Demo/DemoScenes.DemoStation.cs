@@ -350,14 +350,6 @@ public static partial class DemoScenes
                 Model: new StandardShading(Metallic: 0.55f)
             );
 
-        /// <summary>The painted steel of the bay's walls with the art: a pale gray, a little worn.</summary>
-        private static MaterialDesc BayPaint { get; } =
-            new(
-                BaseColor: new(x: 0.6f, y: 0.61f, z: 0.63f, w: 1),
-                Roughness: 0.5f,
-                Model: new StandardShading(Metallic: 0.3f)
-            );
-
         /// <summary>The painted steel of the cradle rail: a dull safety yellow, so that the rail reads beside the hull.</summary>
         private static MaterialDesc RailPaint { get; } =
             new(
@@ -640,15 +632,13 @@ public static partial class DemoScenes
                     }
                 )
             );
+            if (!grayBox)
+                return;
+
             Opening slot = HubSlot;
-            // In the gray box the hub's other walls are drawn whole. With the art, whose hub draws their outside, only their
-            // faces toward the bay are drawn, in painted steel: they face into the bay, so the art hides none of them, and
-            // they hide nothing of the art from outside.
-            BoxMesh walls = grayBox
-                ? new BoxMesh().Box(new BoundingBox(new(-inner.X, -outer.Y, -outer.Z), outer), openings: [slot])
-                : new BoxMesh();
+            var walls = new BoxMesh().Box(new BoundingBox(new(-inner.X, -outer.Y, -outer.Z), outer), openings: [slot]);
             scene.Add(
-                grayBox ? "station-hub-walls" : "station-bay-walls",
+                "station-hub-walls",
                 world.Spawn(
                     new()
                     {
@@ -657,9 +647,7 @@ public static partial class DemoScenes
                         Render = Part(
                             resources: resources,
                             mesh: walls.Box(new(-inner, inner), inward: true, openings: [slot]).Sides(slot).Build(),
-                            material: grayBox
-                                ? MaterialDesc.Color(new(x: 0.82f, y: 0.82f, z: 0.84f, w: 1), UsualRoughness)
-                                : BayPaint,
+                            material: MaterialDesc.Color(new(x: 0.82f, y: 0.82f, z: 0.84f, w: 1), UsualRoughness),
                             boundingRadius: outer.Length()
                         ),
                     }

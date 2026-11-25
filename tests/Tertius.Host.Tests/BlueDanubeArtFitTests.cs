@@ -259,7 +259,7 @@ public sealed class BlueDanubeArtSceneTests : IDisposable
         world.GetRender(scene["person-body"]).Scale.Should().Be(new Vector3(2 * DemoScenes.DemoSurface.PersonHalf.Y));
         scene.EntityOf("person-visor").Should().BeNull("the passenger's model shows its own front");
         scene.EntityOf("station-hub-walls").Should().BeNull("the art draws the hub's outside");
-        scene.EntityOf("station-bay-walls").Should().NotBeNull("the bay keeps its inside walls");
+        scene.EntityOf("station-bay-walls").Should().BeNull("Pioneer models the dock interior and the deck has its own surface");
     }
 
     [Fact]
