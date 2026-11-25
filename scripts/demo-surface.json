@@ -18,7 +18,7 @@
     { "do": "camera", "entity": "cabin-camera" },
     { "do": "run", "ticks": 51 },
     { "do": "capture", "name": "in-cabin" },
-    { "do": "run", "ticks": 219 },
+    { "do": "run", "ticks": 420 },
     { "do": "capture", "name": "at-the-seat" },
     { "do": "dump", "name": "at-the-seat" },
     { "do": "run", "ticks": 120 },

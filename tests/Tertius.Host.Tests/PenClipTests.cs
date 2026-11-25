@@ -103,14 +103,19 @@ public sealed class PenClipTests : IDisposable
     private double FromClip() => Double3.Distance(world.PoseIn(pen, cabin).Position, DemoSurface.PenClip.Position);
 
     /// <summary>
-    /// The distance from <paramref name="position"/>, in the shuttle's axes, to the nearest face of the cabin, in meters.
-    /// The cabin is a box centered on the shuttle's origin.
+    /// The distance from <paramref name="position"/>, in the shuttle's axes, to the nearest inner boundary of the fitted
+    /// cabin (side walls, deck floor, ceiling, nose console or aft bulkhead), in meters.
     /// </summary>
-    internal static double Clearance(Double3 position) =>
-        Math.Min(
-            Shuttle.Cabin.X - Math.Abs(position.X),
-            Math.Min(Shuttle.Cabin.Y - Math.Abs(position.Y), Shuttle.Cabin.Z - Math.Abs(position.Z))
-        );
+    internal static double Clearance(Double3 position)
+    {
+        float z = (float)position.Z;
+        float y = (float)position.Y;
+        double side = Shuttle.CabinHalfWidth(z, y) - Math.Abs(position.X);
+        double floor = position.Y - Shuttle.CabinFloorY(z);
+        double ceiling = Shuttle.CabinCeilingY(z) - position.Y;
+        double ends = Math.Min(position.Z - (-13.4), Shuttle.AftBulkheadZ - position.Z);
+        return Math.Min(Math.Min(side, ends), Math.Min(floor, ceiling));
+    }
 
     /// <summary>
     /// Three gravities along the nose for 4 s would throw a loose pen 11.5 m aft, onto the cabin's aft wall. The clip holds

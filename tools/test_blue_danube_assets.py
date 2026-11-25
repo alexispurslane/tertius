@@ -440,5 +440,20 @@ class TheHabitatOverlay(unittest.TestCase):
             capture_output=True, text=True, check=False)
         self.assertEqual(result.returncode, 0, result.stdout[-2000:] + result.stderr[-2000:])
 
+
+class TheShuttleCabinOverlay(unittest.TestCase):
+    """The Lunar Shuttle sidecar keeps its upstream approval record and configures the fitted cabin overlay and PBR maps."""
+
+    SIDECAR = TOOLS.parent / "content" / "tertius.demo" / "assets" / "blue-danube" / "lunar-shuttle" / "lunarshuttle.model.import.json"
+
+    def test_the_shuttle_sidecar_keeps_its_upstream_approval_and_configures_fitted_cabin_and_pbr(self):
+        data = json.loads(self.SIDECAR.read_text(encoding="utf-8"))
+        fetch.check_approval(data["source"])
+        self.assertEqual(data["convert"]["overlay"], {"module": "shuttle_cabin", "parent": "shuttle"})
+        self.assertTrue(data["convert"]["finish"]["pbr"])
+        self.assertTrue(data["convert"]["finish"]["clearWindowGlow"])
+        self.assertTrue(data["source"]["changes"], "procedural edits are documented in source.changes")
+
+
 if __name__ == "__main__":
     unittest.main()

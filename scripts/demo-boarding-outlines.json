@@ -2,9 +2,9 @@
   "scene": "demo-surface",
   "window": { "width": 1280, "height": 720 },
   "steps": [
-    { "do": "run", "ticks": 839 },
+    { "do": "run", "ticks": 873 },
     { "do": "camera", "entity": "apron-camera" },
     { "do": "outlines", "show": true },
-    { "do": "film", "name": "boarding", "frames": 157, "every": 1 }
+    { "do": "film", "name": "boarding", "frames": 113, "every": 1 }
   ]
 }

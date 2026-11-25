@@ -53,10 +53,10 @@ public sealed class TurningGroundHandOffRun : IDisposable
     public static readonly Vector3 CrateHalf = new(0.2f);
 
     /// <summary>
-    /// Where the crate starts, in the shuttle's axes: 1 mm forward of the aft wall's inner face at z = 7.8 m, and to
-    /// starboard of the housing, which reaches 0.9 m from the middle line.
+    /// Where the crate starts, in the shuttle's axes: 1 mm forward of the aft bulkhead's inner face at
+    /// <see cref="Shuttle.AftBulkheadZ"/>, inside the aft passenger cabin.
     /// </summary>
-    public static readonly Double3 CrateStart = new(1.8, 0, Shuttle.Cabin.Z - CrateHalf.Z - 0.001);
+    public static readonly Double3 CrateStart = new(1.8, 0, Shuttle.AftBulkheadZ - CrateHalf.Z - 0.001);
 
     /// <summary>
     /// How far from Earth's center the shuttle's center lies when it leaves earth-surface, by the engine's rule of the
@@ -294,7 +294,7 @@ public sealed class TurningGroundHandOffTests(TurningGroundHandOffRun run) : ICl
         Ticks[run.HandOff + 10]
             .CrateInCabin.Z.Should()
             .BeApproximately(
-                Shuttle.Cabin.Z - TurningGroundHandOffRun.CrateHalf.Z,
+                Shuttle.AftBulkheadZ - TurningGroundHandOffRun.CrateHalf.Z,
                 0.01,
                 "the crate rests on the aft wall"
             );

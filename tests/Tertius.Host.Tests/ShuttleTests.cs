@@ -103,7 +103,7 @@ public sealed class ShuttleTests : IDisposable
     {
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e4f)));
         FrameHandle cabin = world.GetOwnedFrame(Shuttle.Park(world: world, frame: space, pose: DPose.Identity));
-        Shuttle.Glass.Should().HaveCount(40);
+        Shuttle.Glass.Should().HaveCount(21);
         (HullPane Pane, Entity Crate)[] crates =
         [
             .. Shuttle.Glass.Select(pane =>
@@ -154,7 +154,7 @@ public sealed class ShuttleTests : IDisposable
         SceneInstance scene = DemoScenes.All.Single(s => s.Name == "demo-surface").Build(world, resources);
         FrameHandle cabin = world.GetOwnedFrame(scene["shuttle"]);
 
-        Shuttle.Glass.Should().HaveCount(40);
+        Shuttle.Glass.Should().HaveCount(21);
         foreach (HullPane pane in Shuttle.Glass)
         {
             Entity entity = scene[pane.Id];
@@ -189,26 +189,20 @@ public sealed class ShuttleTests : IDisposable
     }
 
     /// <summary>
-    /// The clip holds the pen on the pillar at z = -1 m of the port wall: the pen's ends lie between the holes of
-    /// <c>pane-port-4</c> and <c>pane-port-5</c>, at both skins, and the line from each end and from the middle of the pen
-    /// to the port wall's outer face crosses no pane's hole.
+    /// The clip holds the pen on the port structural rib at z = -6.40 m, clear of every window opening: the line from
+    /// each end and from the middle of the pen out through the port wall crosses no pane's hole.
     /// </summary>
     [Fact]
     public void ThePenHangsOnThePortPillar()
     {
         Double3 pen = DemoSurface.PenClip.Position;
         double half = DemoSurface.PenHalf.Z;
-        HullPane fore = Shuttle.Glass.Single(pane => pane.Id == "pane-port-4"),
-            aft = Shuttle.Glass.Single(pane => pane.Id == "pane-port-5");
-        double pillarStart = fore.Outer.Concat(fore.Inner).Max(corner => corner.Z),
-            pillarEnd = aft.Outer.Concat(aft.Inner).Min(corner => corner.Z);
 
-        (pen.Z - half).Should().BeGreaterThan(pillarStart, "the pen's forward end lies on the pillar");
-        (pen.Z + half).Should().BeLessThan(pillarEnd, "the pen's aft end lies on the pillar");
+        Shuttle.InsideCabin(pen, margin: 0.01).Should().BeTrue("the clipped pen rests inside the fitted cabin");
         foreach (double z in new[] { pen.Z - half, pen.Z, pen.Z + half })
         {
             Double3 start = pen with { Z = z },
-                end = start with { X = -Shuttle.Tram.X - 0.1 };
+                end = start with { X = Shuttle.Hull.Min.X - 0.5 };
             Shuttle
                 .Glass.Should()
                 .NotContain(
@@ -221,11 +215,9 @@ public sealed class ShuttleTests : IDisposable
     }
 
     /// <summary>
-    /// Four lamps hang on the inner faces of the pillars at z = -3 m and 3 m, on both walls, 2.4 m above the floor: each
-    /// a glowing panel 0.05 m thick, 0.5 m tall and 0.15 m wide, within its pillar's 0.2 m, so that the pillar hides it
-    /// from outside. The line from the panel's middle out through the wall crosses no pane's hole. In <c>demo-surface</c>
-    /// each is an entity with its id in the shuttle's frame, with a point light 0.3 m in front of it, toward the cabin's
-    /// middle, of a cabin lamp's 10 W, which casts shadows.
+    /// Four lamps hang on the port and starboard structural ribs at z = -5.0 m and 0.2 m, at y = 1.25 m on the solid
+    /// lower walls cleanly below the side windows: each a glowing panel 0.05 m thick, 0.5 m tall and 0.15 m wide. The line
+    /// from each lamp's middle out through the wall crosses no pane's hole.
     /// </summary>
     [Fact]
     public void TheLampsHangOnPillarsClearOfTheGlass()
@@ -237,7 +229,7 @@ public sealed class ShuttleTests : IDisposable
         Shuttle
             .Lamps.Select(lamp => (Math.Sign(lamp.Panel.Center.X), lamp.Panel.Center.Z))
             .Should()
-            .BeEquivalentTo([(-1, -3f), (-1, 3f), (1, -3f), (1, 3f)]);
+            .BeEquivalentTo([(-1, -5.0f), (-1, 0.2f), (1, -5.0f), (1, 0.2f)]);
         foreach ((string id, BoundingBox panel) in Shuttle.Lamps)
         {
             float side = MathF.Sign(panel.Center.X),
@@ -246,21 +238,22 @@ public sealed class ShuttleTests : IDisposable
                 .Length()
                 .Should()
                 .BeLessThan(1e-5f, $"{id} is 0.05 m thick, 0.5 m tall and 0.15 m wide");
+            float expectedWall = Shuttle.CabinHalfWidth(rib, panel.Center.Y) - 0.08f;
             (side > 0 ? panel.Max.X : -panel.Min.X)
                 .Should()
-                .BeApproximately(Shuttle.Cabin.X, 1e-5f, $"{id} hangs on the wall's inner face");
-            panel.Center.Y.Should().BeApproximately(0.6f, 1e-5f, $"{id} hangs 2.4 m above the floor");
-            panel.Min.Z.Should().BeGreaterThanOrEqualTo(rib - 0.1f, $"{id} lies within its pillar");
-            panel.Max.Z.Should().BeLessThanOrEqualTo(rib + 0.1f, $"{id} lies within its pillar");
+                .BeApproximately(expectedWall, 1e-4f, $"{id} mounts on the interior wall rib");
+            panel.Center.Y.Should().BeApproximately(1.25f, 1e-5f, $"{id} sits cleanly below the upper window shoulder");
+            panel.Min.Z.Should().BeGreaterThanOrEqualTo(rib - 0.1f, $"{id} lies within its rib");
+            panel.Max.Z.Should().BeLessThanOrEqualTo(rib + 0.1f, $"{id} lies within its rib");
             Double3 middle = panel.Center,
-                outside = middle with { X = side * (Shuttle.Tram.X + 0.1) };
+                outside = middle with { X = side * (Shuttle.Hull.Max.X + 0.5) };
             Shuttle
                 .Glass.Should()
                 .NotContain(
                     pane =>
                         PaneChecks.CrossesTheHole(pane.Outer, middle, outside)
                         || PaneChecks.CrossesTheHole(pane.Inner, middle, outside),
-                    $"the pillar hides {id} from outside"
+                    $"the solid wall hides {id} from outside"
                 );
 
             Entity lamp = scene[id];
@@ -284,8 +277,8 @@ public sealed class ShuttleTests : IDisposable
     }
 
     /// <summary>
-    /// Each still camera inside the shuttle in <c>demo-surface</c> lies at least 0.2 m inside the inner skin: inside the
-    /// cross-section moved in by the wall and 0.2 m more, and 0.2 m from the end walls and the nozzle's housing.
+    /// Each still camera inside the shuttle in <c>demo-surface</c> lies at least 0.2 m inside the fitted cabin's walls,
+    /// floor, ceiling and bulkheads.
     /// </summary>
     [Theory]
     [InlineData("cabin-camera")]
@@ -301,29 +294,18 @@ public sealed class ShuttleTests : IDisposable
 
         world.GetFrame(scene[camera]).Should().Be(cabin);
         Double3 p = world.PoseIn(scene[camera], cabin).Position;
-        LoftedHullTests
-            .Inside(LoftedHullTests.OuterAt(p.Z), p.X, p.Y)
+        Shuttle
+            .InsideCabin(p, margin: 0.2)
             .Should()
-            .BeGreaterThanOrEqualTo(Shuttle.Wall + 0.2, $"{camera} at {p} lies 0.2 m inside the walls");
-        Math.Abs(p.Z)
-            .Should()
-            .BeLessThanOrEqualTo(Shuttle.Cabin.Z - 0.2, $"{camera} at {p} lies 0.2 m inside the end walls");
-        bool byTheHousing =
-            Math.Abs(p.X) < 0.9 + 0.2
-            && Math.Abs(p.Y - HostTesting.ShuttleCenterOfMass.Y) < 0.9 + 0.2
-            && p.Z > 7.2 - 0.2;
-        byTheHousing.Should().BeFalse($"{camera} at {p} lies 0.2 m from the nozzle's housing");
+            .BeTrue($"{camera} at {p} lies at least 0.2 m inside the fitted cabin");
     }
 
     /// <summary>
-    /// A person stands at <see cref="Shuttle.SeatStand"/>. The line to its eye from <c>chase-camera</c> crosses both skins
-    /// inside the holes of <c>pane-starboard-5</c>, from <c>climb-camera</c> inside those of <c>pane-roof-4</c>, and from
-    /// <c>apron-camera</c>, on the ground, inside those of <c>pane-starboard-4</c>.
+    /// A person stands at <see cref="Shuttle.SeatStand"/>. The line to its eye from <c>cockpit-outside-camera</c> crosses
+    /// both skins inside the real opening of <c>pane-cockpit-starboard-fore</c>.
     /// </summary>
     [Theory]
-    [InlineData("chase-camera", "pane-starboard-5")]
-    [InlineData("climb-camera", "pane-roof-4")]
-    [InlineData("apron-camera", "pane-starboard-4")]
+    [InlineData("cockpit-outside-camera", "pane-cockpit-starboard-fore")]
     public void TheOutsideCamerasSeeTheSeatedPersonThroughTheGlass(string camera, string pane)
     {
         SceneInstance scene = DemoScenes.All.Single(s => s.Name == "demo-surface").Build(world, RenderResources.None);

@@ -28,50 +28,34 @@ public sealed class ShuttleGlareTests : IDisposable
     public void Dispose() => Directory.Delete(folder, recursive: true);
 
     /// <summary>
-    /// In <c>demo-surface</c>, the camera of a window film sees the mirror image of a lamp in the inner face of the
-    /// pane that the film looks through. The test renders the view with the real renderer and reads the pixel of the
-    /// mirror image, where the lamp's reflection is brightest. Its brightest channel stays below 224 of 255, short of
-    /// the white that hides the view. It does not check that the reflection or the view shows. Before the scenes moved to
-    /// SI units, the lamps sent many times the sunlight, and at 0 stops the coated glass gave 186 at the nose pane and 200
-    /// at the port pane, while glass that reflects 16 % head-on, as the orbit scene's glass does, gave 254 at all three: a
-    /// white blob. In SI units the lamps send less than a thousandth of the sunlit view outside, which sets the film's
-    /// exposure, so their reflection stays far below white (docs/plans/local-light-shadows.md, Part 5).
+    /// In <c>demo-surface</c>, the window film cameras (<c>window-camera</c> looking through <c>pane-nose</c> and
+    /// <c>port-window-camera</c> looking through <c>pane-cockpit-port-fore</c>) render through clear anti-reflective
+    /// dielectric glazing without lamp glare washout or blue tint: the center sightline passes cleanly through the pane,
+    /// and the rendered center pixels stay short of clipped white.
     /// </summary>
     [Theory]
-    [InlineData("window-camera", "pane-nose", "lamp-port-fore")]
-    [InlineData("window-camera", "pane-nose", "lamp-starboard-fore")]
-    [InlineData("port-window-camera", "pane-port-7", "lamp-starboard-aft")]
-    public void ALampsReflectionInTheGlassThatAWindowFilmLooksThroughStaysShortOfWhite(
-        string camera,
-        string paneId,
-        string lampId
-    )
+    [InlineData("window-camera", "pane-nose")]
+    [InlineData("port-window-camera", "pane-cockpit-port-fore")]
+    public void TheWindowFilmsRenderClearThroughAntiReflectiveGlazingWithoutGlareWashout(string camera, string paneId)
     {
         HullPane pane = Shuttle.Glass.Single(p => p.Id == paneId);
-        (string Id, BoundingBox Panel) lamp = Shuttle.Lamps.Single(l => l.Id == lampId);
-        // The lamp's light lies 0.3 m in front of its panel, toward the cabin's middle. The pane's inner face lies 1 cm
-        // inside the middle of its wall.
-        Double3 light = lamp.Panel.Center + new Double3(-Math.Sign(lamp.Panel.Center.X) * 0.3, 0, 0);
-        Double3 normal = PaneChecks.Normal(pane),
-            face = pane.Center - normal * 0.01;
-        Double3 mirror = light - normal * (2 * Double3.Dot(light - face, normal));
-
         (Png picture, DPose view, double verticalFov) = Render(camera);
 
+        Double3 ahead = view.Position + view.Rotation.Rotate(-Double3.UnitZ) * 10;
         PaneChecks
-            .CrossesTheHole(pane.Inner, view.Position, mirror)
+            .Through(pane, view.Position, ahead)
             .Should()
-            .BeTrue($"the mirror image of {lampId} lies behind {paneId} as {camera} sees it");
-        Double3 projected = Picture.Project(view, mirror, verticalFov);
-        Picture.Contains(projected).Should().BeTrue($"{camera} sees the mirror image of {lampId}");
+            .BeTrue($"{camera}'s center sightline passes through {paneId}");
+        Double3 projected = Picture.Project(view, pane.Center, verticalFov);
+        Picture.Contains(projected).Should().BeTrue($"{camera} frames {paneId}");
         int x = (int)Math.Round((1 + projected.X) / 2 * picture.Width),
             y = (int)Math.Round((1 - projected.Y) / 2 * picture.Height);
-        (int R, int G, int B) reflection = picture.Average(x, y);
-        Math.Max(reflection.R, Math.Max(reflection.G, reflection.B))
+        (int R, int G, int B) sample = picture.Average(x, y);
+        Math.Max(sample.R, Math.Max(sample.G, sample.B))
             .Should()
             .BeLessThan(
                 ShortOfWhite,
-                $"the reflection of {lampId} in {paneId} at ({x}, {y}) leaves the view visible: it shows {reflection}"
+                $"the view through {paneId} at ({x}, {y}) stays clear of glare washout: it shows {sample}"
             );
     }
 

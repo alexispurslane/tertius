@@ -46,10 +46,10 @@ public static partial class DemoScenes
         public const float Mass = 1e7f;
 
         /// <summary>
-        /// The world time at which the station passes over the pad, in seconds: 38 s, <see cref="DepartureLead"/> after the
+        /// The world time at which the station passes over the pad, in seconds: 42 s, <see cref="DepartureLead"/> after the
         /// departure. It sets the launch window (docs/plans/blue-danube-demo.md, "The orbits, the window and the times").
         /// </summary>
-        public const double OverPadAt = 38;
+        public const double OverPadAt = 42;
 
         /// <summary>
         /// How long before the station's pass over the pad the shuttle departs, in seconds: 18 s, the lead of the live

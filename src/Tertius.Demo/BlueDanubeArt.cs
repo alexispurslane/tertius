@@ -71,10 +71,12 @@ public static class BlueDanubeArt
             return null;
         var store = new ModelStore(resources, content);
         StoredModel? Of(AssetReference reference) => store.Load(reference).Ok;
+        StoredModel? shuttleModel = Of(Shuttle with { Piece = "shuttle" }) ?? Of(Shuttle);
+        StoredModel? shuttleHatchDoor = Of(Shuttle with { Piece = "hatch_door" });
         return
             (
                 Of(Station),
-                Of(Shuttle),
+                shuttleModel,
                 Of(CargoPod),
                 Of(StorageCart),
                 Of(CagedSconce),
@@ -106,7 +108,8 @@ public static class BlueDanubeArt
                 Thermos: thermos,
                 Stool: stool,
                 StreetSeating: seating,
-                Passenger: passenger
+                Passenger: passenger,
+                ShuttleHatchDoor: shuttleHatchDoor
             )
             {
                 Earth = EarthMaterial.Load(content, resources),
@@ -131,7 +134,8 @@ public sealed record BlueDanubeModels(
     StoredModel Thermos,
     StoredModel Stool,
     StoredModel StreetSeating,
-    StoredModel Passenger
+    StoredModel Passenger,
+    StoredModel? ShuttleHatchDoor = null
 )
 {
     public MaterialId? Earth { get; init; }
