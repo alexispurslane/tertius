@@ -78,6 +78,10 @@ public sealed class ArtPreviewTests : IDisposable
         resources.Models.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// The habitat's cabin windows glow with the overlay's warm color (0.92, 0.65, 0.36) at its window radiance of 60
+    /// (tools/blue-danube-assets/habitat.py), and the gallery panels keep their normal map.
+    /// </summary>
     [Fact]
     public void TheStationKeepsItsLitWindowsAndItsGalleryRelief()
     {
@@ -86,7 +90,10 @@ public sealed class ArtPreviewTests : IDisposable
         store.Load(BlueDanubeArt.Station).Ok.Should().NotBeNull();
 
         MaterialDesc[] materials = [.. resources.Materials.Values];
-        materials.Should().Contain(m => m.Emissive == new Vector3(0.92f, 0.65f, 0.36f), "the habitat's cabin windows glow");
+        Vector3 cabinWindow = new Vector3(0.92f, 0.65f, 0.36f) * 60;
+        materials
+            .Should()
+            .Contain(m => Vector3.Distance(m.Emissive, cabinWindow) < 1e-3f, "the habitat's cabin windows glow");
         materials
             .Should()
             .Contain(
