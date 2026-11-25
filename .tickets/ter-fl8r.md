@@ -15,3 +15,9 @@ The moving cabin view on approach to the cockpit still shows a pale veil and iso
 ## Acceptance Criteria
 
 Separate the pre-bloom shading, diffuse and specular contributions at a fixed viewpoint and exposure. Judge any renderer change on both the cabin and ordinary sunlit materials.
+
+## Notes
+
+**2026-11-25T20:09:42Z**
+
+In the second cut on d392c3ae4 the exterior view into the cockpit at 0:28 is heavily overexposed. Use this frame and the preceding interior-to-exterior camera cut as a second reproduction. The cause of this exterior shot still needs measurement.
