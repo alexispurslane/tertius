@@ -10,6 +10,10 @@ The latest requested model has a [whole visible crop heat-flow reference](WHOLE_
 
 The [continuous motion and physical-sheet study](MOTION_AND_SHEET.md) advances past the repeated-phase accelerated replay (`every = 1`, 96 continuous moving frames, zero resets after draw 0), adds three 128-draw fixed-pose references with split-half convergence checks on the actual 3-triangle shuttle panel mesh (`lunarshuttle.model/model.glb`, 69x pixel area foreshortening), and compares area-aware no-cutoff physical-sheet heat flow against accumulating the isolated diffuse-ray-sourced specular term at the same physical points in both offline sheet coordinates and the live Vulkan renderer.
 
+The [cross-shot validation](CROSS_SHOTS.md) tests the 1:41 candidate and source withdrawals across four other Blue Danube shots (`0:13` doorway, `0:27` cockpit floor and `0:28` dashboard, `4:14.48` and `4:19.82` arrival at both `every = 4` time-lapse and `every = 1` ordinary motion, and `7:27` berth floor), including real camera cuts and reference-frame handoffs.
+
+The [mainstream accumulator and sender-attribution study](MAINSTREAM_AND_SENDER.md) diagnoses the existing shared specular accumulator with `AccumulationTrace`, isolates its Step 4 rough-receiver clamp policy with zero new buffers or spread, attributes the 1:41 panel's upper tail to unique diffuse rays and light-pyramid visibility, and tests fixed-budget probability-weighted diffuse guiding controls.
+
 ## Matched replay
 
 - Base: `860685c71`. Scene: `demo-surface`, with the locally cooked Blue Danube art. `assets.json` records its file hashes.

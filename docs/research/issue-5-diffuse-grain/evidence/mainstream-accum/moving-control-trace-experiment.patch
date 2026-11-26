@@ -1,0 +1,124 @@
+--- a/src/Tertius.Demo/DemoScenes.DemoSurface.cs
++++ b/src/Tertius.Demo/DemoScenes.DemoSurface.cs
+@@ -983,12 +983,52 @@
+             );
+             scene.Add(
+                 "cockpit-camera",
+-                world.Spawn(ViewIn(cabin, LookingAt(new(1.60, 1.15, -9.0), new(0, 0.58, -11.55))))
++                world.Spawn(
++                    new SpawnDesc
++                    {
++                        Frame = cabin,
++                        Pose = LookingAt(new(1.60, 1.15, -9.0), new(0, 0.58, -11.55)),
++                        Render = new RenderData(),
++                        Components = [new Issue5CockpitCamera()],
++                    }
++                )
+             );
+             scene.Add(
+                 "cockpit-outside-camera",
+                 world.Spawn(ViewIn(cabin, LookingAt(new(3.04, 0.51, -15.43), Shuttle.SeatStand + Eye)))
+             );
+         }
++
++        /// <summary>Temporary research component: deterministic slow repeatable camera motion in cabin space.</summary>
++        private sealed class Issue5CockpitCamera : IComponent
++        {
++            private readonly string mode = Environment.GetEnvironmentVariable("TERTIUS_ISSUE5_CAMERA_MODE") ?? "";
++            public int Priority => 0;
++            public EventMask Wants => EventMask.Of<Tick>();
++
++            public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
++            {
++                if (mode.Length == 0 || self.Tick < 87580)
++                    return;
++                double s;
++                if (mode == "move")
++                {
++                    if (self.Tick < 87581)
++                        return;
++                    s = Math.Clamp((self.Tick - 87581) / 95.0, 0.0, 1.0);
++                }
++                else if (mode.StartsWith("fixed:", StringComparison.Ordinal))
++                {
++                    s = double.Parse(mode.AsSpan(6), System.Globalization.CultureInfo.InvariantCulture);
++                }
++                else
++                {
++                    return;
++                }
++                Double3 eye = new Double3(1.60, 1.15, -9.0) + s * new Double3(-0.12, -0.02, -0.08);
++                Double3 target = new Double3(0.0, 0.58, -11.55) + s * new Double3(0.32, 0.10, 0.0);
++                self.SetTransform(LookingAt(eye, target));
++            }
++        }
+     }
+ }
+--- a/src/Tertius.Host/ScriptCommand.cs
++++ b/src/Tertius.Host/ScriptCommand.cs
+@@ -580,6 +580,8 @@
+             Upscaling = new Fsr3Upscaling(new FixedRenderScale(2f / 3), 0),
+         };
+         overrides.ApplyTo(rendererOptions);
++        if (Environment.GetEnvironmentVariable("TERTIUS_ISSUE5_WARMUP") is { Length: > 0 } warmupText)
++            rendererOptions.WarmUpFrames = int.Parse(warmupText, System.Globalization.CultureInfo.InvariantCulture);
+         try
+         {
+             return createRenderer(rendererOptions);
+--- a/src/Tertius.Rendering/VulkanRenderer.cs
++++ b/src/Tertius.Rendering/VulkanRenderer.cs
+@@ -697,6 +697,54 @@
+                 FinishSlot(frame);
+         }
+ 
++        if (Environment.GetEnvironmentVariable("TERTIUS_ISSUE5_DRAW_LOG") is { Length: > 0 } drawLogPath)
++        {
++            if (Path.GetDirectoryName(drawLogPath) is { Length: > 0 } drawDir)
++                Directory.CreateDirectory(drawDir);
++            CameraView cam = LastScene.Camera;
++            Double3 eye = snapshot.OriginInFrame + new Double3(cam.Offset.X, cam.Offset.Y, cam.Offset.Z);
++            Vector2 jitter = context.History.Jitter;
++            var rec = new
++            {
++                globalDraw = history.DrawnFrames - 1,
++                sampleDraw = context.History.DrawIndex,
++                reset = context.History.Reset,
++                captured = sink != null,
++                tick = snapshot.Tick,
++                width = cam.Width,
++                height = cam.Height,
++                eye = new double[] { eye.X, eye.Y, eye.Z },
++                forward = new float[] { cam.Forward.X, cam.Forward.Y, cam.Forward.Z },
++                rightTan = new float[] { cam.Right.X * cam.TanHalfX, cam.Right.Y * cam.TanHalfX, cam.Right.Z * cam.TanHalfX },
++                upTan = new float[] { cam.Up.X * cam.TanHalfY, cam.Up.Y * cam.TanHalfY, cam.Up.Z * cam.TanHalfY },
++                jitter = new float[] { jitter.X, jitter.Y },
++                exposureStops = Exposure.Latest,
++            };
++            File.AppendAllText(drawLogPath, System.Text.Json.JsonSerializer.Serialize(rec) + "\n");
++        }
++        if (Environment.GetEnvironmentVariable("TERTIUS_ISSUE5_TRACE_DIR") is { Length: > 0 } traceDir
++            && sink != null
++            && screenTrace is { } probeTracer
++            && probeTracer.Specular.AccumulationTrace(0) is { } traceImage)
++        {
++            long sd = context.History.DrawIndex;
++            if (sd == 32 || sd == 48 || sd == 64 || sd == 80 || sd == 96 || sd == 112 || sd == 127)
++            {
++                Directory.CreateDirectory(traceDir);
++                string stem = Path.Combine(traceDir, sd.ToString("D6"));
++                foreach (int layer in (int[])[0, 2, 4, 5, 6, 8])
++                {
++                    float[] vals = ReadImageLayer(traceImage, layer);
++                    File.WriteAllBytes($"{stem}.layer{layer}.f32", System.Runtime.InteropServices.MemoryMarshal.AsBytes(vals.AsSpan()).ToArray());
++                }
++                byte[] spec = ReadSpecularTarget();
++                File.WriteAllBytes($"{stem}.specular.u8", spec);
++                float[] dist = ReadDistance();
++                File.WriteAllBytes($"{stem}.distance.f32", System.Runtime.InteropServices.MemoryMarshal.AsBytes(dist.AsSpan()).ToArray());
++                File.WriteAllText(Path.Combine(traceDir, "size.txt"), $"{traceImage.Extent.Width} {traceImage.Extent.Height}");
++            }
++        }
++
+         LastFrameStats = StatsOf(
+             scene: LastScene,
+             impostors: Impostors,

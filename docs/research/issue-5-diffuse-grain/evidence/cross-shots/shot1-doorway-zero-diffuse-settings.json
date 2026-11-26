@@ -1,0 +1,10 @@
+{
+  "shot": "shot1-doorway",
+  "film_timestamps": "0:12.18..0:12.68 (terminal-camera, 30f) | CUT at 0:12.68 | 0:12.68..0:14.18 (follow-camera, 90f, 0:13=s1b-000019)",
+  "mode": "ordinary-motion (every=1, 60 Hz) with real camera cut",
+  "variant": "zero-diffuse",
+  "exposure": -4.056653,
+  "content_root": "/Users/alexispurslane/Development/tertius/content",
+  "base": "269db616849e1fa93f59ee3f3e108733446b793a",
+  "note": "Temporary research patch; restored after this render."
+}

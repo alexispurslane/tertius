@@ -1,0 +1,2216 @@
+{
+  "sender_baseline_byte_identical_to_moving_normal": false,
+  "render_size": [
+    848,
+    477
+  ],
+  "block_size": [
+    424,
+    239
+  ],
+  "sampled_draws": [
+    48,
+    52,
+    56,
+    60,
+    64,
+    68,
+    72,
+    76,
+    80,
+    84,
+    88,
+    92,
+    96,
+    100,
+    104,
+    108
+  ],
+  "light_pyramid_screen_audit": {
+    "ref_draw": 80,
+    "guide_total": 90602.046875,
+    "hit_light_diffuse_total_lum": 93396.47640712839,
+    "regions": {
+      "cabin-floor": {
+        "pixels": 68367,
+        "guide_light_sum": 32304.765625,
+        "guide_light_share": 0.3565566865124977,
+        "hit_light_diffuse_share": 0.34801335407561995,
+        "emissive_lum_sum": 0.0,
+        "direct_diffuse_lum_sum": 421915.1575422119,
+        "guide_over_hit_light_ratio": 0.9938942854861025
+      },
+      "console-cyan-emissive-screens": {
+        "pixels": 1621,
+        "guide_light_sum": 15616.865234375,
+        "guide_light_share": 0.17236768674686745,
+        "hit_light_diffuse_share": 0.16723568203530753,
+        "emissive_lum_sum": 13990.279217578125,
+        "direct_diffuse_lum_sum": 13888.605623632811,
+        "guide_over_hit_light_ratio": 0.9998490195574739
+      },
+      "console-housing": {
+        "pixels": 29058,
+        "guide_light_sum": 7996.4921875,
+        "guide_light_share": 0.08825950917568605,
+        "hit_light_diffuse_share": 0.08695394784623169,
+        "emissive_lum_sum": 0.0,
+        "direct_diffuse_lum_sum": 142478.67599224288,
+        "guide_over_hit_light_ratio": 0.984645093253651
+      },
+      "other-emissive": {
+        "pixels": 15,
+        "guide_light_sum": 3892.58056640625,
+        "guide_light_share": 0.04296349476272525,
+        "hit_light_diffuse_share": 0.0416780204108739,
+        "emissive_lum_sum": 3892.5802499999995,
+        "direct_diffuse_lum_sum": 0.0035820402622222898,
+        "guide_over_hit_light_ratio": 1.0000000812844514
+      },
+      "other-onscreen": {
+        "pixels": 8442,
+        "guide_light_sum": 5047.9833984375,
+        "guide_light_share": 0.055715997293107514,
+        "hit_light_diffuse_share": 0.05477940190900991,
+        "emissive_lum_sum": 0.0,
+        "direct_diffuse_lum_sum": 20401.411427891027,
+        "guide_over_hit_light_ratio": 0.9866659477779433
+      },
+      "overhead-emissive-lamp": {
+        "pixels": 2470,
+        "guide_light_sum": 778.5162963867188,
+        "guide_light_share": 0.008592700973531054,
+        "hit_light_diffuse_share": 0.008335604082174783,
+        "emissive_lum_sum": 1434582.2637999998,
+        "direct_diffuse_lum_sum": 0.0021267447471618652,
+        "guide_over_hit_light_ratio": 1.0000003164825166
+      },
+      "overhead-lamp-and-canopy": {
+        "pixels": 28536,
+        "guide_light_sum": 5243.5087890625,
+        "guide_light_share": 0.05787406543139978,
+        "hit_light_diffuse_share": 0.059509865425708144,
+        "emissive_lum_sum": 0.0,
+        "direct_diffuse_lum_sum": 123736.61155016348,
+        "guide_over_hit_light_ratio": 0.9434144856564811
+      },
+      "pilot-seat": {
+        "pixels": 15691,
+        "guide_light_sum": 5824.75732421875,
+        "guide_light_share": 0.0642894672374779,
+        "hit_light_diffuse_share": 0.0628363834969381,
+        "emissive_lum_sum": 0.0,
+        "direct_diffuse_lum_sum": 86086.10771156577,
+        "guide_over_hit_light_ratio": 0.9925129060174729
+      },
+      "pilot-suit-and-helmet": {
+        "pixels": 25060,
+        "guide_light_sum": 5635.1591796875,
+        "guide_light_share": 0.06219681976348837,
+        "hit_light_diffuse_share": 0.06150965705778654,
+        "emissive_lum_sum": 0.0,
+        "direct_diffuse_lum_sum": 90643.10522667659,
+        "guide_over_hit_light_ratio": 0.9809172928053367
+      },
+      "port-wall": {
+        "pixels": 47117,
+        "guide_light_sum": 3619.33740234375,
+        "guide_light_share": 0.03994763393521566,
+        "hit_light_diffuse_share": 0.04093135768266421,
+        "emissive_lum_sum": 0.0,
+        "direct_diffuse_lum_sum": 108426.20600512391,
+        "guide_over_hit_light_ratio": 0.9467655104974114
+      },
+      "sloped-panel-self": {
+        "pixels": 86345,
+        "guide_light_sum": 2186.9072265625,
+        "guide_light_share": 0.024137503533222467,
+        "hit_light_diffuse_share": 0.03771631577868658,
+        "emissive_lum_sum": 0.0,
+        "direct_diffuse_lum_sum": 14268.431643786967,
+        "guide_over_hit_light_ratio": 0.620827012019532
+      },
+      "starboard-wall": {
+        "pixels": 13275,
+        "guide_light_sum": 668.607666015625,
+        "guide_light_share": 0.0073796088397216466,
+        "hit_light_diffuse_share": 0.007640166859335614,
+        "emissive_lum_sum": 0.0,
+        "direct_diffuse_lum_sum": 22604.18418809161,
+        "guide_over_hit_light_ratio": 0.9369966029877604
+      },
+      "windshield-frame-and-sill": {
+        "pixels": 20245,
+        "guide_light_sum": 1786.574462890625,
+        "guide_light_share": 0.019718919434077355,
+        "hit_light_diffuse_share": 0.02286024333966291,
+        "emissive_lum_sum": 0.0,
+        "direct_diffuse_lum_sum": 32874.98691770744,
+        "guide_over_hit_light_ratio": 0.8367770898730303
+      }
+    }
+  },
+  "crops": {
+    "sloped-panel": {
+      "render_box": [
+        570,
+        26,
+        716,
+        103
+      ],
+      "quantiles_outgoing_lum": {
+        "p50": 1.9173761189631476e-05,
+        "p95": 0.030355265516545448,
+        "p99": 0.42084448583054923,
+        "p995": 0.7233539766584007,
+        "max": 2.864974018752575
+      },
+      "tail_lum_shares": {
+        "top_5pct": 0.9221915625422724,
+        "top_1pct": 0.6043532536951552,
+        "top_05pct": 0.4019720279208927
+      },
+      "all_records": {
+        "name": "all",
+        "receiver_records": 179872,
+        "unique_rays": 52759,
+        "receivers_per_unique_ray": 3.409314050683296,
+        "unique_own_rays": 7216,
+        "unique_block_rays": 45543,
+        "total_outgoing_rgb": [
+          1422.9376575645504,
+          2743.8140589947475,
+          3159.506749660228
+        ],
+        "total_outgoing_lum": 2493.008748316719,
+        "onscreen_vs_offscreen": {
+          "onscreen_lum_share": 0.9712254081052435,
+          "offscreen_env_lum_share": 0.028774591894756497,
+          "onscreen_rgb": [
+            1376.4582056646902,
+            2665.555224839232,
+            3078.0239288713838
+          ],
+          "offscreen_env_rgb": [
+            46.47945189986944,
+            78.25883415549075,
+            81.48282078881311
+          ],
+          "unique_rays_walk_hit": 15310,
+          "unique_rays_walk_miss": 37449,
+          "unique_rays_partial_edge_fade": 10627
+        },
+        "guided_vs_ordinary": {
+          "guided_lum_share": 0.7700204633854856,
+          "ordinary_lum_share": 0.22997953661451434,
+          "guided_rgb": [
+            906.7261694206793,
+            2154.4725387359495,
+            2576.440557896427
+          ],
+          "ordinary_rgb": [
+            516.211488143869,
+            589.3415202587779,
+            583.0661917637793
+          ],
+          "unique_rays_guided": 13301,
+          "unique_rays_guided_counted": 2831,
+          "unique_rays_ordinary": 39458,
+          "unique_rays_ordinary_hit": 5993,
+          "unique_rays_ordinary_miss": 33465
+        },
+        "brightness_vs_brdf_weight": {
+          "incoming_lum_p50_p90_p99": [
+            0.0020373130682855844,
+            0.11701679974794388,
+            9.618562698364258
+          ],
+          "brdf_weight_capped_p50_p90_p99": [
+            0.24652238935232162,
+            3.2527600765228266,
+            4.0
+          ],
+          "brdf_weight_uncapped_p50_p90_p99": [
+            0.24652238935232162,
+            3.2527600765228266,
+            22.150212802886994
+          ],
+          "hit_most_ray_weight_cap4_frac": 0.0862446628713752,
+          "lobe_density_p50_p90": [
+            0.20708674937486649,
+            0.29575031995773315
+          ],
+          "guided_density_p50_p90": [
+            0.0,
+            0.4818208187818521
+          ],
+          "guided_density_gt_zero_frac": 0.28826610033801814
+        },
+        "onscreen_regions": {
+          "cabin-floor": {
+            "receiver_records": 16563,
+            "unique_rays": 4844,
+            "weighted_lum_share_of_subset": 0.07030069717835839,
+            "weighted_rgb": [
+              185.9411117623664,
+              174.2786016945946,
+              153.53347348696502
+            ],
+            "guided_draw_frac": 0.6970959367264384,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.7171921133995056
+          },
+          "console-cyan-emissive-screens": {
+            "receiver_records": 5074,
+            "unique_rays": 1504,
+            "weighted_lum_share_of_subset": 0.5179171859330819,
+            "weighted_rgb": [
+              449.2313410480429,
+              1484.3795440210488,
+              1856.4715019955916
+            ],
+            "guided_draw_frac": 0.9629483642096965,
+            "hit_has_pyramid_light_frac": 0.9992116673236106,
+            "hit_pyramid_light_median": 9.644234657287598
+          },
+          "console-housing": {
+            "receiver_records": 8598,
+            "unique_rays": 2518,
+            "weighted_lum_share_of_subset": 0.3061410943408671,
+            "weighted_rgb": [
+              475.6159790268899,
+              830.8683518956555,
+              939.8812187555038
+            ],
+            "guided_draw_frac": 0.6218888113514771,
+            "hit_has_pyramid_light_frac": 0.9979064898813678,
+            "hit_pyramid_light_median": 0.5513914823532104
+          },
+          "other-emissive": {
+            "receiver_records": 44,
+            "unique_rays": 12,
+            "weighted_lum_share_of_subset": 3.352877152205318e-07,
+            "weighted_rgb": [
+              0.0009194389181328002,
+              0.0008439075110867481,
+              0.0005102471097456397
+            ],
+            "guided_draw_frac": 1.0,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 259.5053405761719
+          },
+          "other-onscreen": {
+            "receiver_records": 1668,
+            "unique_rays": 494,
+            "weighted_lum_share_of_subset": 0.00014144169018671097,
+            "weighted_rgb": [
+              0.3962044884279814,
+              0.34867726010311534,
+              0.2632731349949686
+            ],
+            "guided_draw_frac": 0.8896882494004796,
+            "hit_has_pyramid_light_frac": 0.9778177458033573,
+            "hit_pyramid_light_median": 1.4576612710952759
+          },
+          "overhead-emissive-lamp": {
+            "receiver_records": 4,
+            "unique_rays": 1,
+            "weighted_lum_share_of_subset": 0.0,
+            "weighted_rgb": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "guided_draw_frac": 1.0,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 259.50543212890625
+          },
+          "overhead-lamp-and-canopy": {
+            "receiver_records": 1163,
+            "unique_rays": 344,
+            "weighted_lum_share_of_subset": 0.0006439637027112341,
+            "weighted_rgb": [
+              1.7217316383248271,
+              1.6006605373127785,
+              1.3098972557282043
+            ],
+            "guided_draw_frac": 0.43594153052450557,
+            "hit_has_pyramid_light_frac": 0.937231298366294,
+            "hit_pyramid_light_median": 0.04163919761776924
+          },
+          "pilot-seat": {
+            "receiver_records": 2412,
+            "unique_rays": 723,
+            "weighted_lum_share_of_subset": 0.016076127499982003,
+            "weighted_rgb": [
+              42.04314718006617,
+              39.85157454652048,
+              36.53334197169776
+            ],
+            "guided_draw_frac": 0.5841625207296849,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.7838795781135559
+          },
+          "pilot-suit-and-helmet": {
+            "receiver_records": 6762,
+            "unique_rays": 2008,
+            "weighted_lum_share_of_subset": 0.04889927584486237,
+            "weighted_rgb": [
+              184.48292198026684,
+              108.32926638478962,
+              72.13520687241034
+            ],
+            "guided_draw_frac": 0.5402247855664005,
+            "hit_has_pyramid_light_frac": 0.9937888198757764,
+            "hit_pyramid_light_median": 0.11882901191711426
+          },
+          "port-wall": {
+            "receiver_records": 4616,
+            "unique_rays": 1359,
+            "weighted_lum_share_of_subset": 0.0024871586290179867,
+            "weighted_rgb": [
+              6.714321483798888,
+              6.1260737047369895,
+              5.424869245287047
+            ],
+            "guided_draw_frac": 0.34337088388214904,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.09502948820590973
+          },
+          "sky": {
+            "receiver_records": 980,
+            "unique_rays": 278,
+            "weighted_lum_share_of_subset": 0.0039478518342310085,
+            "weighted_rgb": [
+              17.93390732491997,
+              8.178772245822291,
+              2.490617067950476
+            ],
+            "guided_draw_frac": 0.8214285714285714,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 6.797499179840088
+          },
+          "sloped-panel-self": {
+            "receiver_records": 3586,
+            "unique_rays": 1070,
+            "weighted_lum_share_of_subset": 8.491905079899747e-05,
+            "weighted_rgb": [
+              0.20347470402417894,
+              0.215204531497074,
+              0.20125946729092753
+            ],
+            "guided_draw_frac": 0.0373675404350251,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.0013830970274284482
+          },
+          "starboard-wall": {
+            "receiver_records": 155,
+            "unique_rays": 42,
+            "weighted_lum_share_of_subset": 0.0002026529207928566,
+            "weighted_rgb": [
+              0.5387033318170772,
+              0.5005156207885388,
+              0.45316349136084644
+            ],
+            "guided_draw_frac": 0.49032258064516127,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.010941775515675545
+          },
+          "windshield-frame-and-sill": {
+            "receiver_records": 372,
+            "unique_rays": 113,
+            "weighted_lum_share_of_subset": 0.004382704192637769,
+            "weighted_rgb": [
+              11.634442256815676,
+              10.877138488857904,
+              9.325595879503243
+            ],
+            "guided_draw_frac": 0.4220430107526882,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.10018525645136833
+          }
+        }
+      },
+      "top_5pct": {
+        "name": "top_5pct",
+        "receiver_records": 8994,
+        "unique_rays": 2652,
+        "receivers_per_unique_ray": 3.3914027149321266,
+        "unique_own_rays": 366,
+        "unique_block_rays": 2286,
+        "total_outgoing_rgb": [
+          1248.3351119598374,
+          2544.278048336506,
+          2963.5447100944584
+        ],
+        "total_outgoing_lum": 2299.03163304175,
+        "onscreen_vs_offscreen": {
+          "onscreen_lum_share": 0.9975127613824903,
+          "offscreen_env_lum_share": 0.002487238617509828,
+          "onscreen_rgb": [
+            1243.6041733382835,
+            2538.3124961146364,
+            2957.3690901421146
+          ],
+          "offscreen_env_rgb": [
+            4.730938621556445,
+            5.965552221862409,
+            6.175619952343871
+          ],
+          "unique_rays_walk_hit": 2644,
+          "unique_rays_walk_miss": 8,
+          "unique_rays_partial_edge_fade": 736
+        },
+        "guided_vs_ordinary": {
+          "guided_lum_share": 0.8160546416535682,
+          "ordinary_lum_share": 0.18394535834643203,
+          "guided_rgb": [
+            860.5023511759937,
+            2111.1859611663967,
+            2538.399392879219
+          ],
+          "ordinary_rgb": [
+            387.8327607838437,
+            433.09208717010915,
+            425.14531721523963
+          ],
+          "unique_rays_guided": 1537,
+          "unique_rays_guided_counted": 1537,
+          "unique_rays_ordinary": 1115,
+          "unique_rays_ordinary_hit": 1107,
+          "unique_rays_ordinary_miss": 8
+        },
+        "brightness_vs_brdf_weight": {
+          "incoming_lum_p50_p90_p99": [
+            0.7656564712524414,
+            9.673738479614258,
+            9.70936107635498
+          ],
+          "brdf_weight_capped_p50_p90_p99": [
+            2.573483467102051,
+            4.0,
+            4.0
+          ],
+          "brdf_weight_uncapped_p50_p90_p99": [
+            2.573483467102051,
+            14.037120723724366,
+            36.703855857849106
+          ],
+          "hit_most_ray_weight_cap4_frac": 0.3925950633755837,
+          "lobe_density_p50_p90": [
+            0.12267007678747177,
+            0.21526909768581384
+          ],
+          "guided_density_p50_p90": [
+            0.4511202871799469,
+            6.715866565704346
+          ],
+          "guided_density_gt_zero_frac": 0.9971091839003781
+        },
+        "onscreen_regions": {
+          "cabin-floor": {
+            "receiver_records": 1658,
+            "unique_rays": 482,
+            "weighted_lum_share_of_subset": 0.05211682933047955,
+            "weighted_rgb": [
+              127.48817383717996,
+              119.03268707519601,
+              105.0148987624081
+            ],
+            "guided_draw_frac": 0.43606755126658625,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.7793782353401184
+          },
+          "console-cyan-emissive-screens": {
+            "receiver_records": 2124,
+            "unique_rays": 629,
+            "weighted_lum_share_of_subset": 0.561101769011852,
+            "weighted_rgb": [
+              448.32264367152027,
+              1483.1318797970036,
+              1855.1440697860194
+            ],
+            "guided_draw_frac": 0.9246704331450094,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 9.64968204498291
+          },
+          "console-housing": {
+            "receiver_records": 3761,
+            "unique_rays": 1109,
+            "weighted_lum_share_of_subset": 0.3226948367542239,
+            "weighted_rgb": [
+              453.5374681827777,
+              809.5988213879472,
+              920.2007579624182
+            ],
+            "guided_draw_frac": 0.48098909864397765,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.6272306442260742
+          },
+          "pilot-seat": {
+            "receiver_records": 518,
+            "unique_rays": 149,
+            "weighted_lum_share_of_subset": 0.012616074856655874,
+            "weighted_rgb": [
+              30.607838315951092,
+              28.818331195015933,
+              26.13100115828168
+            ],
+            "guided_draw_frac": 0.32625482625482627,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.8720488846302032
+          },
+          "pilot-suit-and-helmet": {
+            "receiver_records": 780,
+            "unique_rays": 235,
+            "weighted_lum_share_of_subset": 0.04292256098538326,
+            "weighted_rgb": [
+              161.9945294054485,
+              85.33107504340445,
+              44.48066002657297
+            ],
+            "guided_draw_frac": 0.5217948717948718,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 2.3129076957702637
+          },
+          "port-wall": {
+            "receiver_records": 5,
+            "unique_rays": 2,
+            "weighted_lum_share_of_subset": 7.028869371995454e-05,
+            "weighted_rgb": [
+              0.17028918862342834,
+              0.160837110131979,
+              0.1435145102441311
+            ],
+            "guided_draw_frac": 0.0,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.489419549703598
+          },
+          "sky": {
+            "receiver_records": 58,
+            "unique_rays": 18,
+            "weighted_lum_share_of_subset": 0.00330803374140677,
+            "weighted_rgb": [
+              14.907972173252107,
+              6.0783053661532325,
+              1.2276361877760018
+            ],
+            "guided_draw_frac": 0.7413793103448276,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 9.194046974182129
+          },
+          "starboard-wall": {
+            "receiver_records": 4,
+            "unique_rays": 1,
+            "weighted_lum_share_of_subset": 9.071988063210207e-05,
+            "weighted_rgb": [
+              0.2193583808839321,
+              0.20725718140602112,
+              0.1897776648402214
+            ],
+            "guided_draw_frac": 1.0,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.2627875804901123
+          },
+          "windshield-frame-and-sill": {
+            "receiver_records": 60,
+            "unique_rays": 19,
+            "weighted_lum_share_of_subset": 0.00259164812813686,
+            "weighted_rgb": [
+              6.355900182643666,
+              5.953301958385735,
+              4.836774083553442
+            ],
+            "guided_draw_frac": 0.5166666666666667,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.511352002620697
+          }
+        }
+      },
+      "top_1pct": {
+        "name": "top_1pct",
+        "receiver_records": 1799,
+        "unique_rays": 547,
+        "receivers_per_unique_ray": 3.2888482632541134,
+        "unique_own_rays": 83,
+        "unique_block_rays": 464,
+        "total_outgoing_rgb": [
+          554.6877776831388,
+          1725.5656315386295,
+          2141.3682454824448
+        ],
+        "total_outgoing_lum": 1506.6579485356956,
+        "onscreen_vs_offscreen": {
+          "onscreen_lum_share": 0.9999290339889433,
+          "offscreen_env_lum_share": 7.096601105674853e-05,
+          "onscreen_rgb": [
+            554.6451841524173,
+            1725.4438112248704,
+            2141.219488812043
+          ],
+          "offscreen_env_rgb": [
+            0.04259353072162338,
+            0.12182031375863417,
+            0.14875667040069207
+          ],
+          "unique_rays_walk_hit": 547,
+          "unique_rays_walk_miss": 0,
+          "unique_rays_partial_edge_fade": 23
+        },
+        "guided_vs_ordinary": {
+          "guided_lum_share": 0.9319474200296769,
+          "ordinary_lum_share": 0.0680525799703231,
+          "guided_rgb": [
+            514.4527704566717,
+            1608.644370406866,
+            1997.934560816735
+          ],
+          "ordinary_rgb": [
+            40.23500722646713,
+            116.92126113176346,
+            143.43368466570973
+          ],
+          "unique_rays_guided": 512,
+          "unique_rays_guided_counted": 512,
+          "unique_rays_ordinary": 35,
+          "unique_rays_ordinary_hit": 35,
+          "unique_rays_ordinary_miss": 0
+        },
+        "brightness_vs_brdf_weight": {
+          "incoming_lum_p50_p90_p99": [
+            9.653206825256348,
+            9.708380699157715,
+            9.70936107635498
+          ],
+          "brdf_weight_capped_p50_p90_p99": [
+            1.5602515935897827,
+            2.8213931560516357,
+            4.0
+          ],
+          "brdf_weight_uncapped_p50_p90_p99": [
+            1.5602515935897827,
+            2.8213931560516357,
+            5.818613424301147
+          ],
+          "hit_most_ray_weight_cap4_frac": 0.03001667593107282,
+          "lobe_density_p50_p90": [
+            0.10324026644229889,
+            0.11489195376634598
+          ],
+          "guided_density_p50_p90": [
+            5.437994003295898,
+            7.3662638664245605
+          ],
+          "guided_density_gt_zero_frac": 1.0
+        },
+        "onscreen_regions": {
+          "console-cyan-emissive-screens": {
+            "receiver_records": 1289,
+            "unique_rays": 392,
+            "weighted_lum_share_of_subset": 0.7140215303963927,
+            "weighted_rgb": [
+              372.5012740751746,
+              1237.1604311771412,
+              1548.134389904064
+            ],
+            "guided_draw_frac": 0.9317300232738557,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 9.662711143493652
+          },
+          "console-housing": {
+            "receiver_records": 472,
+            "unique_rays": 144,
+            "weighted_lum_share_of_subset": 0.2702597973855071,
+            "weighted_rgb": [
+              140.83925870842833,
+              468.3017740526123,
+              586.1110345800655
+            ],
+            "guided_draw_frac": 0.9449152542372882,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 9.627574920654297
+          },
+          "pilot-suit-and-helmet": {
+            "receiver_records": 34,
+            "unique_rays": 10,
+            "weighted_lum_share_of_subset": 0.014473161567947616,
+            "weighted_rgb": [
+              37.618633974748406,
+              18.618138957439648,
+              6.823952235419346
+            ],
+            "guided_draw_frac": 0.8529411764705882,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 3.0924832820892334
+          },
+          "sky": {
+            "receiver_records": 4,
+            "unique_rays": 1,
+            "weighted_lum_share_of_subset": 0.0011745446390957989,
+            "weighted_rgb": [
+              3.686017394065857,
+              1.363467037677765,
+              0.1501120924949646
+            ],
+            "guided_draw_frac": 1.0,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 4.218625545501709
+          }
+        }
+      },
+      "guided_target_audit": {
+        "unique_guided_rays": 13301,
+        "traced_above_plane_frac": 0.9438388091120968,
+        "walk_hit_frac": 0.7004736485978498,
+        "counted_in_3x3_frac": 0.21284113976392752,
+        "by_target_region": {
+          "cabin-floor": {
+            "unique_guided_rays": 4654,
+            "share_of_guided_rays": 0.3498985038718893,
+            "above_plane_frac": 1.0,
+            "counted_frac": 0.18865492049849591
+          },
+          "console-cyan-emissive-screens": {
+            "unique_guided_rays": 1579,
+            "share_of_guided_rays": 0.11871287873092248,
+            "above_plane_frac": 1.0,
+            "counted_frac": 0.383153894870171
+          },
+          "console-housing": {
+            "unique_guided_rays": 1662,
+            "share_of_guided_rays": 0.12495301105180062,
+            "above_plane_frac": 0.9993983152827918,
+            "counted_frac": 0.394705174488568
+          },
+          "other-emissive": {
+            "unique_guided_rays": 56,
+            "share_of_guided_rays": 0.0042102097586647624,
+            "above_plane_frac": 1.0,
+            "counted_frac": 0.125
+          },
+          "other-onscreen": {
+            "unique_guided_rays": 645,
+            "share_of_guided_rays": 0.04849259454176378,
+            "above_plane_frac": 1.0,
+            "counted_frac": 0.09767441860465116
+          },
+          "overhead-emissive-lamp": {
+            "unique_guided_rays": 22,
+            "share_of_guided_rays": 0.0016540109766182993,
+            "above_plane_frac": 1.0,
+            "counted_frac": 0.0
+          },
+          "overhead-lamp-and-canopy": {
+            "unique_guided_rays": 533,
+            "share_of_guided_rays": 0.040072175024434255,
+            "above_plane_frac": 0.5647279549718575,
+            "counted_frac": 0.14634146341463414
+          },
+          "pilot-seat": {
+            "unique_guided_rays": 820,
+            "share_of_guided_rays": 0.061649500037591155,
+            "above_plane_frac": 1.0,
+            "counted_frac": 0.14390243902439023
+          },
+          "pilot-suit-and-helmet": {
+            "unique_guided_rays": 933,
+            "share_of_guided_rays": 0.07014510187203969,
+            "above_plane_frac": 1.0,
+            "counted_frac": 0.19506966773847803
+          },
+          "port-wall": {
+            "unique_guided_rays": 505,
+            "share_of_guided_rays": 0.037967070145101874,
+            "above_plane_frac": 1.0,
+            "counted_frac": 0.19603960396039605
+          },
+          "sky": {
+            "unique_guided_rays": 1223,
+            "share_of_guided_rays": 0.09194797383655365,
+            "above_plane_frac": 0.9296811120196239,
+            "counted_frac": 0.07931316434995912
+          },
+          "sloped-panel-self": {
+            "unique_guided_rays": 326,
+            "share_of_guided_rays": 0.024509435380798437,
+            "above_plane_frac": 0.08588957055214724,
+            "counted_frac": 0.0
+          },
+          "starboard-wall": {
+            "unique_guided_rays": 98,
+            "share_of_guided_rays": 0.007367867077663333,
+            "above_plane_frac": 0.9897959183673469,
+            "counted_frac": 0.061224489795918366
+          },
+          "windshield-frame-and-sill": {
+            "unique_guided_rays": 245,
+            "share_of_guided_rays": 0.018419667694158336,
+            "above_plane_frac": 0.47346938775510206,
+            "counted_frac": 0.17142857142857143
+          }
+        }
+      }
+    },
+    "panel-cool": {
+      "render_box": [
+        566,
+        149,
+        633,
+        209
+      ],
+      "quantiles_outgoing_lum": {
+        "p50": 2.6403282067803953e-05,
+        "p95": 0.04978376727979617,
+        "p99": 1.7244614163944463,
+        "p995": 3.1298891966342923,
+        "max": 4.5012941263675685
+      },
+      "tail_lum_shares": {
+        "top_5pct": 0.9635657299127541,
+        "top_1pct": 0.7701409289723685,
+        "top_05pct": 0.45493044687194145
+      },
+      "all_records": {
+        "name": "all",
+        "receiver_records": 64320,
+        "unique_rays": 20632,
+        "receivers_per_unique_ray": 3.117487398216363,
+        "unique_own_rays": 3803,
+        "unique_block_rays": 16829,
+        "total_outgoing_rgb": [
+          1179.9356300513905,
+          2915.3881519586994,
+          3506.796940408968
+        ],
+        "total_outgoing_lum": 2589.1306603273133,
+        "onscreen_vs_offscreen": {
+          "onscreen_lum_share": 0.9859056586825223,
+          "offscreen_env_lum_share": 0.014094341317477726,
+          "onscreen_rgb": [
+            1156.017832550182,
+            2875.613112281504,
+            3465.798891706626
+          ],
+          "offscreen_env_rgb": [
+            23.9177975012093,
+            39.77503967720186,
+            40.99804870232479
+          ],
+          "unique_rays_walk_hit": 6704,
+          "unique_rays_walk_miss": 13928,
+          "unique_rays_partial_edge_fade": 5010
+        },
+        "guided_vs_ordinary": {
+          "guided_lum_share": 0.7505153549423867,
+          "ordinary_lum_share": 0.2494846450576133,
+          "guided_rgb": [
+            731.3538864492293,
+            2221.8886361573095,
+            2750.716449985539
+          ],
+          "ordinary_rgb": [
+            448.5817436021624,
+            693.4995158013886,
+            756.0804904234202
+          ],
+          "unique_rays_guided": 5130,
+          "unique_rays_guided_counted": 655,
+          "unique_rays_ordinary": 15502,
+          "unique_rays_ordinary_hit": 3516,
+          "unique_rays_ordinary_miss": 11986
+        },
+        "brightness_vs_brdf_weight": {
+          "incoming_lum_p50_p90_p99": [
+            0.0020031367894262075,
+            0.11241883784532547,
+            9.584897994995117
+          ],
+          "brdf_weight_capped_p50_p90_p99": [
+            0.16993679851293564,
+            2.6812196493148783,
+            4.0
+          ],
+          "brdf_weight_uncapped_p50_p90_p99": [
+            0.16993679851293564,
+            2.6812196493148783,
+            30.251609916686913
+          ],
+          "hit_most_ray_weight_cap4_frac": 0.07335199004975125,
+          "lobe_density_p50_p90": [
+            0.21270881593227386,
+            0.29627665877342224
+          ],
+          "guided_density_p50_p90": [
+            0.0,
+            0.182608500123024
+          ],
+          "guided_density_gt_zero_frac": 0.32063121890547264
+        },
+        "onscreen_regions": {
+          "cabin-floor": {
+            "receiver_records": 5710,
+            "unique_rays": 1849,
+            "weighted_lum_share_of_subset": 0.023939010867818276,
+            "weighted_rgb": [
+              65.52752830050684,
+              61.6282996613871,
+              55.03482799536363
+            ],
+            "guided_draw_frac": 0.5754816112084064,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.6855694949626923
+          },
+          "console-cyan-emissive-screens": {
+            "receiver_records": 1861,
+            "unique_rays": 586,
+            "weighted_lum_share_of_subset": 0.6103683136632448,
+            "weighted_rgb": [
+              548.9904049679692,
+              1816.9823800641725,
+              2272.8830565055378
+            ],
+            "guided_draw_frac": 0.923696937130575,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 9.633902549743652
+          },
+          "console-housing": {
+            "receiver_records": 4433,
+            "unique_rays": 1405,
+            "weighted_lum_share_of_subset": 0.3346390141536092,
+            "weighted_rgb": [
+              488.0189650621824,
+              954.8810777293878,
+              1104.4370210877712
+            ],
+            "guided_draw_frac": 0.4328896909542071,
+            "hit_has_pyramid_light_frac": 0.9970674486803519,
+            "hit_pyramid_light_median": 0.3766324520111084
+          },
+          "other-onscreen": {
+            "receiver_records": 497,
+            "unique_rays": 162,
+            "weighted_lum_share_of_subset": 2.942966862786537e-05,
+            "weighted_rgb": [
+              0.0853605489890266,
+              0.07541189877868222,
+              0.056994662688344744
+            ],
+            "guided_draw_frac": 0.8893360160965795,
+            "hit_has_pyramid_light_frac": 0.993963782696177,
+            "hit_pyramid_light_median": 1.4547384977340698
+          },
+          "overhead-lamp-and-canopy": {
+            "receiver_records": 427,
+            "unique_rays": 144,
+            "weighted_lum_share_of_subset": 0.00018996873524863327,
+            "weighted_rgb": [
+              0.521589915774482,
+              0.49056089567278904,
+              0.41710122239618935
+            ],
+            "guided_draw_frac": 0.36065573770491804,
+            "hit_has_pyramid_light_frac": 0.9836065573770492,
+            "hit_pyramid_light_median": 0.04005717486143112
+          },
+          "pilot-seat": {
+            "receiver_records": 474,
+            "unique_rays": 148,
+            "weighted_lum_share_of_subset": 0.0007861993837661901,
+            "weighted_rgb": [
+              2.1508766019839505,
+              2.0222338251410505,
+              1.8281846581276344
+            ],
+            "guided_draw_frac": 0.5864978902953587,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.7512640357017517
+          },
+          "pilot-suit-and-helmet": {
+            "receiver_records": 3191,
+            "unique_rays": 1018,
+            "weighted_lum_share_of_subset": 0.007570441007467205,
+            "weighted_rgb": [
+              26.649851662196685,
+              18.130137610919782,
+              13.413130774511075
+            ],
+            "guided_draw_frac": 0.4801002820432466,
+            "hit_has_pyramid_light_frac": 0.9793168285803823,
+            "hit_pyramid_light_median": 0.01858321763575077
+          },
+          "port-wall": {
+            "receiver_records": 1379,
+            "unique_rays": 440,
+            "weighted_lum_share_of_subset": 0.00036046938399541455,
+            "weighted_rgb": [
+              1.016774220911039,
+              0.9220170902409591,
+              0.7993007189169902
+            ],
+            "guided_draw_frac": 0.290065264684554,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.08565300703048706
+          },
+          "sky": {
+            "receiver_records": 227,
+            "unique_rays": 73,
+            "weighted_lum_share_of_subset": 0.0029390141648966738,
+            "weighted_rgb": [
+              8.805767052192579,
+              7.438618552884859,
+              5.7795792403165756
+            ],
+            "guided_draw_frac": 0.5638766519823789,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.5741451382637024
+          },
+          "sloped-panel-self": {
+            "receiver_records": 1932,
+            "unique_rays": 627,
+            "weighted_lum_share_of_subset": 4.002454908795398e-05,
+            "weighted_rgb": [
+              0.09483650432566954,
+              0.10630780776155722,
+              0.10298064097914496
+            ],
+            "guided_draw_frac": 0.004140786749482402,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.003149554366245866
+          },
+          "starboard-wall": {
+            "receiver_records": 270,
+            "unique_rays": 83,
+            "weighted_lum_share_of_subset": 0.00032375127417525796,
+            "weighted_rgb": [
+              0.89916089274008,
+              0.8289082261267817,
+              0.7512130355232626
+            ],
+            "guided_draw_frac": 0.08888888888888889,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.10232283547520638
+          },
+          "windshield-frame-and-sill": {
+            "receiver_records": 459,
+            "unique_rays": 169,
+            "weighted_lum_share_of_subset": 0.004720021830584813,
+            "weighted_rgb": [
+              13.256716820410064,
+              12.10715891902284,
+              10.295501164502458
+            ],
+            "guided_draw_frac": 0.23311546840958605,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.06642566621303558
+          }
+        }
+      },
+      "top_5pct": {
+        "name": "top_5pct",
+        "receiver_records": 3216,
+        "unique_rays": 1016,
+        "receivers_per_unique_ray": 3.1653543307086616,
+        "unique_own_rays": 153,
+        "unique_block_rays": 863,
+        "total_outgoing_rgb": [
+          1091.7137644961476,
+          2818.8196086362004,
+          3416.612799574621
+        ],
+        "total_outgoing_lum": 2494.7975745577787,
+        "onscreen_vs_offscreen": {
+          "onscreen_lum_share": 0.9982709490983414,
+          "offscreen_env_lum_share": 0.0017290509016586512,
+          "onscreen_rgb": [
+            1089.0653844176948,
+            2814.1100186581043,
+            3411.317956932902
+          ],
+          "offscreen_env_rgb": [
+            2.648380078453281,
+            4.7095899780955595,
+            5.294842641715031
+          ],
+          "unique_rays_walk_hit": 1008,
+          "unique_rays_walk_miss": 8,
+          "unique_rays_partial_edge_fade": 270
+        },
+        "guided_vs_ordinary": {
+          "guided_lum_share": 0.7732960760067067,
+          "ordinary_lum_share": 0.2267039239932935,
+          "guided_rgb": [
+            715.9216649774462,
+            2208.116648390889,
+            2739.157921512611
+          ],
+          "ordinary_rgb": [
+            375.79209951870143,
+            610.7029602453113,
+            677.4548780620098
+          ],
+          "unique_rays_guided": 355,
+          "unique_rays_guided_counted": 355,
+          "unique_rays_ordinary": 661,
+          "unique_rays_ordinary_hit": 653,
+          "unique_rays_ordinary_miss": 8
+        },
+        "brightness_vs_brdf_weight": {
+          "incoming_lum_p50_p90_p99": [
+            0.6017777919769287,
+            9.647055625915527,
+            9.708945274353027
+          ],
+          "brdf_weight_capped_p50_p90_p99": [
+            4.0,
+            4.0,
+            4.0
+          ],
+          "brdf_weight_uncapped_p50_p90_p99": [
+            4.213871717453003,
+            20.63081932067871,
+            75.84123420715332
+          ],
+          "hit_most_ray_weight_cap4_frac": 0.5295398009950248,
+          "lobe_density_p50_p90": [
+            0.14940376579761505,
+            0.22836360335350037
+          ],
+          "guided_density_p50_p90": [
+            0.13192477822303772,
+            2.919743537902832
+          ],
+          "guided_density_gt_zero_frac": 0.9928482587064676
+        },
+        "onscreen_regions": {
+          "cabin-floor": {
+            "receiver_records": 350,
+            "unique_rays": 113,
+            "weighted_lum_share_of_subset": 0.014792334395221972,
+            "weighted_rgb": [
+              38.80020487285932,
+              36.70873227926481,
+              33.25306217655527
+            ],
+            "guided_draw_frac": 0.19714285714285715,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.7469776272773743
+          },
+          "console-cyan-emissive-screens": {
+            "receiver_records": 621,
+            "unique_rays": 190,
+            "weighted_lum_share_of_subset": 0.6333228650868672,
+            "weighted_rgb": [
+              548.7327769074143,
+              1816.658805477873,
+              2272.539912498737
+            ],
+            "guided_draw_frac": 0.8260869565217391,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 9.640416145324707
+          },
+          "console-housing": {
+            "receiver_records": 2043,
+            "unique_rays": 646,
+            "weighted_lum_share_of_subset": 0.3405781155280362,
+            "weighted_rgb": [
+              470.98622946181865,
+              938.1037110270368,
+              1088.781302724162
+            ],
+            "guided_draw_frac": 0.23250122369065102,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.5552427768707275
+          },
+          "pilot-suit-and-helmet": {
+            "receiver_records": 99,
+            "unique_rays": 30,
+            "weighted_lum_share_of_subset": 0.004154856676371234,
+            "weighted_rgb": [
+              15.23072902068681,
+              9.341344407415765,
+              6.1848178513072405
+            ],
+            "guided_draw_frac": 0.3333333333333333,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 2.675766944885254
+          },
+          "sky": {
+            "receiver_records": 31,
+            "unique_rays": 10,
+            "weighted_lum_share_of_subset": 0.0026879937720300966,
+            "weighted_rgb": [
+              7.7312960933065495,
+              6.556858785484091,
+              5.1642851810513175
+            ],
+            "guided_draw_frac": 0.967741935483871,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.9859691262245178
+          },
+          "starboard-wall": {
+            "receiver_records": 3,
+            "unique_rays": 2,
+            "weighted_lum_share_of_subset": 6.223088340235156e-05,
+            "weighted_rgb": [
+              0.1656605377793312,
+              0.15369756892323494,
+              0.14002112671732903
+            ],
+            "guided_draw_frac": 0.0,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.1448621302843094
+          },
+          "windshield-frame-and-sill": {
+            "receiver_records": 46,
+            "unique_rays": 17,
+            "weighted_lum_share_of_subset": 0.002672552756412474,
+            "weighted_rgb": [
+              7.418487523829175,
+              6.58686911210786,
+              5.254555374375627
+            ],
+            "guided_draw_frac": 0.45652173913043476,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.30877572298049927
+          }
+        }
+      },
+      "top_1pct": {
+        "name": "top_1pct",
+        "receiver_records": 644,
+        "unique_rays": 200,
+        "receivers_per_unique_ray": 3.22,
+        "unique_own_rays": 31,
+        "unique_block_rays": 169,
+        "total_outgoing_rgb": [
+          690.2982105612755,
+          2293.136932849884,
+          2869.6199173927307
+        ],
+        "total_outgoing_lum": 1993.995491975319,
+        "onscreen_vs_offscreen": {
+          "onscreen_lum_share": 0.9998401530876437,
+          "offscreen_env_lum_share": 0.00015984691235648385,
+          "onscreen_rgb": [
+            690.1878003050051,
+            2292.770399259432,
+            2869.1612473335817
+          ],
+          "offscreen_env_rgb": [
+            0.11041025627029186,
+            0.3665335904521751,
+            0.4586700591487938
+          ],
+          "unique_rays_walk_hit": 200,
+          "unique_rays_walk_miss": 0,
+          "unique_rays_partial_edge_fade": 18
+        },
+        "guided_vs_ordinary": {
+          "guided_lum_share": 0.8641908049341509,
+          "ordinary_lum_share": 0.1358091950658492,
+          "guided_rgb": [
+            596.5487846136093,
+            1981.7078862190247,
+            2479.90051817894
+          ],
+          "ordinary_rgb": [
+            93.74942594766617,
+            311.4290466308594,
+            389.7193992137909
+          ],
+          "unique_rays_guided": 173,
+          "unique_rays_guided_counted": 173,
+          "unique_rays_ordinary": 27,
+          "unique_rays_ordinary_hit": 27,
+          "unique_rays_ordinary_miss": 0
+        },
+        "brightness_vs_brdf_weight": {
+          "incoming_lum_p50_p90_p99": [
+            9.645660400390625,
+            9.708380699157715,
+            9.70936107635498
+          ],
+          "brdf_weight_capped_p50_p90_p99": [
+            4.0,
+            4.0,
+            4.0
+          ],
+          "brdf_weight_uncapped_p50_p90_p99": [
+            4.142168760299683,
+            6.943025922775273,
+            10.526683301925667
+          ],
+          "hit_most_ray_weight_cap4_frac": 0.5372670807453416,
+          "lobe_density_p50_p90": [
+            0.12811953574419022,
+            0.14722490310668945
+          ],
+          "guided_density_p50_p90": [
+            2.3885064125061035,
+            3.964252877235416
+          ],
+          "guided_density_gt_zero_frac": 1.0
+        },
+        "onscreen_regions": {
+          "console-cyan-emissive-screens": {
+            "receiver_records": 468,
+            "unique_rays": 146,
+            "weighted_lum_share_of_subset": 0.7229856689585729,
+            "weighted_rgb": [
+              499.1295414103478,
+              1657.8944399488912,
+              2074.641561092353
+            ],
+            "guided_draw_frac": 0.8675213675213675,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 9.647866249084473
+          },
+          "console-housing": {
+            "receiver_records": 176,
+            "unique_rays": 54,
+            "weighted_lum_share_of_subset": 0.2768544841290707,
+            "weighted_rgb": [
+              191.05825889465737,
+              634.8759593105408,
+              794.5196862412287
+            ],
+            "guided_draw_frac": 0.8693181818181818,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 9.656196594238281
+          }
+        }
+      },
+      "guided_target_audit": {
+        "unique_guided_rays": 5130,
+        "traced_above_plane_frac": 0.9409356725146198,
+        "walk_hit_frac": 0.6214424951267057,
+        "counted_in_3x3_frac": 0.1276803118908382,
+        "by_target_region": {
+          "cabin-floor": {
+            "unique_guided_rays": 1772,
+            "share_of_guided_rays": 0.3454191033138402,
+            "above_plane_frac": 1.0,
+            "counted_frac": 0.0981941309255079
+          },
+          "console-cyan-emissive-screens": {
+            "unique_guided_rays": 609,
+            "share_of_guided_rays": 0.11871345029239766,
+            "above_plane_frac": 1.0,
+            "counted_frac": 0.2594417077175698
+          },
+          "console-housing": {
+            "unique_guided_rays": 648,
+            "share_of_guided_rays": 0.12631578947368421,
+            "above_plane_frac": 0.9953703703703703,
+            "counted_frac": 0.27469135802469136
+          },
+          "other-emissive": {
+            "unique_guided_rays": 13,
+            "share_of_guided_rays": 0.00253411306042885,
+            "above_plane_frac": 1.0,
+            "counted_frac": 0.0
+          },
+          "other-onscreen": {
+            "unique_guided_rays": 283,
+            "share_of_guided_rays": 0.05516569200779727,
+            "above_plane_frac": 0.9823321554770318,
+            "counted_frac": 0.045936395759717315
+          },
+          "overhead-emissive-lamp": {
+            "unique_guided_rays": 8,
+            "share_of_guided_rays": 0.0015594541910331384,
+            "above_plane_frac": 1.0,
+            "counted_frac": 0.0
+          },
+          "overhead-lamp-and-canopy": {
+            "unique_guided_rays": 227,
+            "share_of_guided_rays": 0.0442495126705653,
+            "above_plane_frac": 0.5506607929515418,
+            "counted_frac": 0.07929515418502203
+          },
+          "pilot-seat": {
+            "unique_guided_rays": 335,
+            "share_of_guided_rays": 0.06530214424951267,
+            "above_plane_frac": 1.0,
+            "counted_frac": 0.020895522388059702
+          },
+          "pilot-suit-and-helmet": {
+            "unique_guided_rays": 340,
+            "share_of_guided_rays": 0.06627680311890838,
+            "above_plane_frac": 1.0,
+            "counted_frac": 0.13823529411764707
+          },
+          "port-wall": {
+            "unique_guided_rays": 207,
+            "share_of_guided_rays": 0.04035087719298246,
+            "above_plane_frac": 0.9806763285024155,
+            "counted_frac": 0.06763285024154589
+          },
+          "sky": {
+            "unique_guided_rays": 464,
+            "share_of_guided_rays": 0.09044834307992203,
+            "above_plane_frac": 0.8814655172413793,
+            "counted_frac": 0.03879310344827586
+          },
+          "sloped-panel-self": {
+            "unique_guided_rays": 115,
+            "share_of_guided_rays": 0.022417153996101363,
+            "above_plane_frac": 0.10434782608695652,
+            "counted_frac": 0.0
+          },
+          "starboard-wall": {
+            "unique_guided_rays": 34,
+            "share_of_guided_rays": 0.006627680311890838,
+            "above_plane_frac": 1.0,
+            "counted_frac": 0.029411764705882353
+          },
+          "windshield-frame-and-sill": {
+            "unique_guided_rays": 75,
+            "share_of_guided_rays": 0.014619883040935672,
+            "above_plane_frac": 0.5866666666666667,
+            "counted_frac": 0.36
+          }
+        }
+      }
+    },
+    "panel-warm": {
+      "render_box": [
+        490,
+        23,
+        566,
+        86
+      ],
+      "quantiles_outgoing_lum": {
+        "p50": 1.9408169424696096e-05,
+        "p95": 0.030056161918863643,
+        "p99": 0.13186810129660273,
+        "p995": 0.2550761791829062,
+        "max": 2.937333827322721
+      },
+      "tail_lum_shares": {
+        "top_5pct": 0.8340645401950388,
+        "top_1pct": 0.5407841287308588,
+        "top_05pct": 0.4309690119956057
+      },
+      "all_records": {
+        "name": "all",
+        "receiver_records": 76608,
+        "unique_rays": 22571,
+        "receivers_per_unique_ray": 3.394089761197997,
+        "unique_own_rays": 3116,
+        "unique_block_rays": 19455,
+        "total_outgoing_rgb": [
+          633.8515774112676,
+          636.4449548509607,
+          587.327213982457
+        ],
+        "total_outgoing_lum": 632.347301916576,
+        "onscreen_vs_offscreen": {
+          "onscreen_lum_share": 0.9289761694316347,
+          "offscreen_env_lum_share": 0.07102383056836511,
+          "onscreen_rgb": [
+            602.0627572334762,
+            587.9004781969081,
+            539.759142529447
+          ],
+          "offscreen_env_rgb": [
+            31.78882017779341,
+            48.544476654054165,
+            47.568071453010624
+          ],
+          "unique_rays_walk_hit": 6412,
+          "unique_rays_walk_miss": 16159,
+          "unique_rays_partial_edge_fade": 4427
+        },
+        "guided_vs_ordinary": {
+          "guided_lum_share": 0.5678324071723198,
+          "ordinary_lum_share": 0.4321675928276802,
+          "guided_rgb": [
+            346.43858773674265,
+            364.9011764424131,
+            338.46434171420697
+          ],
+          "ordinary_rgb": [
+            287.4129896745253,
+            271.5437784085476,
+            248.86287226825004
+          ],
+          "unique_rays_guided": 5599,
+          "unique_rays_guided_counted": 1060,
+          "unique_rays_ordinary": 16972,
+          "unique_rays_ordinary_hit": 2472,
+          "unique_rays_ordinary_miss": 14500
+        },
+        "brightness_vs_brdf_weight": {
+          "incoming_lum_p50_p90_p99": [
+            0.001988848438486457,
+            0.11690345928072961,
+            9.598447799682617
+          ],
+          "brdf_weight_capped_p50_p90_p99": [
+            0.20333145558834076,
+            2.275451135635376,
+            4.0
+          ],
+          "brdf_weight_uncapped_p50_p90_p99": [
+            0.20333145558834076,
+            2.275451135635376,
+            26.522194194793563
+          ],
+          "hit_most_ray_weight_cap4_frac": 0.0675125313283208,
+          "lobe_density_p50_p90": [
+            0.210943803191185,
+            0.295997753739357
+          ],
+          "guided_density_p50_p90": [
+            0.0,
+            0.3831098973751068
+          ],
+          "guided_density_gt_zero_frac": 0.28173297827903093
+        },
+        "onscreen_regions": {
+          "cabin-floor": {
+            "receiver_records": 6920,
+            "unique_rays": 2036,
+            "weighted_lum_share_of_subset": 0.11869679665162554,
+            "weighted_rgb": [
+              83.76426008976246,
+              74.04387271490224,
+              59.4617679780401
+            ],
+            "guided_draw_frac": 0.6732658959537572,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.7036204934120178
+          },
+          "console-cyan-emissive-screens": {
+            "receiver_records": 2142,
+            "unique_rays": 634,
+            "weighted_lum_share_of_subset": 0.19464768186770287,
+            "weighted_rgb": [
+              42.92029855815377,
+              141.48217882300776,
+              176.89787653295429
+            ],
+            "guided_draw_frac": 0.9663865546218487,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 9.646049499511719
+          },
+          "console-housing": {
+            "receiver_records": 3713,
+            "unique_rays": 1100,
+            "weighted_lum_share_of_subset": 0.17092424444845036,
+            "weighted_rgb": [
+              72.60218744748039,
+              116.51392528703505,
+              129.05125197347866
+            ],
+            "guided_draw_frac": 0.6151360086183679,
+            "hit_has_pyramid_light_frac": 0.9986533800161594,
+            "hit_pyramid_light_median": 0.4970259368419647
+          },
+          "other-emissive": {
+            "receiver_records": 15,
+            "unique_rays": 5,
+            "weighted_lum_share_of_subset": 2.4363990002396143e-07,
+            "weighted_rgb": [
+              0.00016933339803202344,
+              0.00015558057813914794,
+              9.40931234439001e-05
+            ],
+            "guided_draw_frac": 1.0,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 259.5053405761719
+          },
+          "other-onscreen": {
+            "receiver_records": 831,
+            "unique_rays": 246,
+            "weighted_lum_share_of_subset": 0.0006233568535461572,
+            "weighted_rgb": [
+              0.44426650971833703,
+              0.38922533819826916,
+              0.29574795880329763
+            ],
+            "guided_draw_frac": 0.8447653429602888,
+            "hit_has_pyramid_light_frac": 0.9578820697954272,
+            "hit_pyramid_light_median": 1.4068777561187744
+          },
+          "overhead-lamp-and-canopy": {
+            "receiver_records": 666,
+            "unique_rays": 196,
+            "weighted_lum_share_of_subset": 0.004213219757049243,
+            "weighted_rgb": [
+              2.846799852700212,
+              2.657925909782111,
+              2.188918094064684
+            ],
+            "guided_draw_frac": 0.44294294294294295,
+            "hit_has_pyramid_light_frac": 0.9354354354354354,
+            "hit_pyramid_light_median": 0.04481591656804085
+          },
+          "pilot-seat": {
+            "receiver_records": 1171,
+            "unique_rays": 347,
+            "weighted_lum_share_of_subset": 0.054668545771109744,
+            "weighted_rgb": [
+              36.38891404074176,
+              34.338400208474106,
+              31.501391466782742
+            ],
+            "guided_draw_frac": 0.5704526046114432,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.7655491232872009
+          },
+          "pilot-suit-and-helmet": {
+            "receiver_records": 3091,
+            "unique_rays": 916,
+            "weighted_lum_share_of_subset": 0.32053560933125286,
+            "weighted_rgb": [
+              300.15150537507446,
+              182.0888088976937,
+              119.77425986748001
+            ],
+            "guided_draw_frac": 0.48463280491750244,
+            "hit_has_pyramid_light_frac": 0.9909414428987383,
+            "hit_pyramid_light_median": 0.11592526733875275
+          },
+          "port-wall": {
+            "receiver_records": 2242,
+            "unique_rays": 660,
+            "weighted_lum_share_of_subset": 0.015633076027254757,
+            "weighted_rgb": [
+              10.684900489794172,
+              9.771718476878663,
+              8.659148860074675
+            ],
+            "guided_draw_frac": 0.2734165923282783,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.09469162672758102
+          },
+          "sky": {
+            "receiver_records": 485,
+            "unique_rays": 144,
+            "weighted_lum_share_of_subset": 0.03659915552101801,
+            "weighted_rgb": [
+              43.736684441157585,
+              18.819967608099677,
+              5.331264551771462
+            ],
+            "guided_draw_frac": 0.7896907216494845,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 1.593780279159546
+          },
+          "sloped-panel-self": {
+            "receiver_records": 125,
+            "unique_rays": 41,
+            "weighted_lum_share_of_subset": 7.870467631093293e-06,
+            "weighted_rgb": [
+              0.004692059894199158,
+              0.005074636641948876,
+              0.004847048635941994
+            ],
+            "guided_draw_frac": 0.008,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.0046241614036262035
+          },
+          "starboard-wall": {
+            "receiver_records": 51,
+            "unique_rays": 15,
+            "weighted_lum_share_of_subset": 8.794624815864335e-06,
+            "weighted_rgb": [
+              0.005855074914822376,
+              0.005524588136708246,
+              0.005059320102706401
+            ],
+            "guided_draw_frac": 0.19607843137254902,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.01068206038326025
+          },
+          "windshield-frame-and-sill": {
+            "receiver_records": 232,
+            "unique_rays": 72,
+            "weighted_lum_share_of_subset": 0.01241757447027833,
+            "weighted_rgb": [
+              8.512223960684132,
+              7.783700127478589,
+              6.587514784134691
+            ],
+            "guided_draw_frac": 0.43103448275862066,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.10379892960190773
+          }
+        }
+      },
+      "top_5pct": {
+        "name": "top_5pct",
+        "receiver_records": 3831,
+        "unique_rays": 1149,
+        "receivers_per_unique_ray": 3.3342036553524803,
+        "unique_own_rays": 156,
+        "unique_block_rays": 993,
+        "total_outgoing_rgb": [
+          538.8960056658834,
+          528.6314328256994,
+          481.6062334503513
+        ],
+        "total_outgoing_lum": 527.4184616166224,
+        "onscreen_vs_offscreen": {
+          "onscreen_lum_share": 0.9856724933346801,
+          "offscreen_env_lum_share": 0.014327506665319794,
+          "onscreen_rgb": [
+            533.7681133564272,
+            520.4442080755018,
+            473.14503569559844
+          ],
+          "offscreen_env_rgb": [
+            5.127892309457554,
+            8.18722475019726,
+            8.461197754752257
+          ],
+          "unique_rays_walk_hit": 1097,
+          "unique_rays_walk_miss": 52,
+          "unique_rays_partial_edge_fade": 278
+        },
+        "guided_vs_ordinary": {
+          "guided_lum_share": 0.6460243442791178,
+          "ordinary_lum_share": 0.35397565572088224,
+          "guided_rgb": [
+            327.684607793577,
+            346.5301503073424,
+            321.6212563691661
+          ],
+          "ordinary_rgb": [
+            211.2113978723064,
+            182.10128251835704,
+            159.9849770811852
+          ],
+          "unique_rays_guided": 532,
+          "unique_rays_guided_counted": 532,
+          "unique_rays_ordinary": 617,
+          "unique_rays_ordinary_hit": 565,
+          "unique_rays_ordinary_miss": 52
+        },
+        "brightness_vs_brdf_weight": {
+          "incoming_lum_p50_p90_p99": [
+            0.7359952926635742,
+            9.666755676269531,
+            9.708945274353027
+          ],
+          "brdf_weight_capped_p50_p90_p99": [
+            1.5721644163131714,
+            4.0,
+            4.0
+          ],
+          "brdf_weight_uncapped_p50_p90_p99": [
+            1.5721644163131714,
+            9.648244857788086,
+            61.79454956054686
+          ],
+          "hit_most_ray_weight_cap4_frac": 0.25998433829287393,
+          "lobe_density_p50_p90": [
+            0.16072601079940796,
+            0.25202012062072754
+          ],
+          "guided_density_p50_p90": [
+            0.3661775290966034,
+            4.299844741821289
+          ],
+          "guided_density_gt_zero_frac": 0.9584964761158966
+        },
+        "onscreen_regions": {
+          "cabin-floor": {
+            "receiver_records": 854,
+            "unique_rays": 256,
+            "weighted_lum_share_of_subset": 0.10118748437848664,
+            "weighted_rgb": [
+              61.001975957584776,
+              52.44534461055947,
+              40.03070348618807
+            ],
+            "guided_draw_frac": 0.3629976580796253,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.7845450639724731
+          },
+          "console-cyan-emissive-screens": {
+            "receiver_records": 718,
+            "unique_rays": 212,
+            "weighted_lum_share_of_subset": 0.23178590688860978,
+            "weighted_rgb": [
+              42.56138474890544,
+              140.53533903188207,
+              175.74434296931992
+            ],
+            "guided_draw_frac": 0.9233983286908078,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 9.65156364440918
+          },
+          "console-housing": {
+            "receiver_records": 908,
+            "unique_rays": 271,
+            "weighted_lum_share_of_subset": 0.1811721989749103,
+            "weighted_rgb": [
+              59.64947023148432,
+              104.01280302631207,
+              117.48100242958276
+            ],
+            "guided_draw_frac": 0.4669603524229075,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.7220412194728851
+          },
+          "overhead-lamp-and-canopy": {
+            "receiver_records": 11,
+            "unique_rays": 4,
+            "weighted_lum_share_of_subset": 0.0007064079913847348,
+            "weighted_rgb": [
+              0.40764959880995477,
+              0.37228463075037854,
+              0.2721377211933233
+            ],
+            "guided_draw_frac": 1.0,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 5.221986293792725
+          },
+          "pilot-seat": {
+            "receiver_records": 341,
+            "unique_rays": 99,
+            "weighted_lum_share_of_subset": 0.05614081771527461,
+            "weighted_rgb": [
+              31.303904981076172,
+              29.404041375698924,
+              26.65821499186552
+            ],
+            "guided_draw_frac": 0.35777126099706746,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.8784825205802917
+          },
+          "pilot-suit-and-helmet": {
+            "receiver_records": 671,
+            "unique_rays": 205,
+            "weighted_lum_share_of_subset": 0.3602043879641945,
+            "weighted_rgb": [
+              289.10714431394126,
+              169.3030755810064,
+              102.8906597084869
+            ],
+            "guided_draw_frac": 0.2533532041728763,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.24466007947921753
+          },
+          "port-wall": {
+            "receiver_records": 42,
+            "unique_rays": 12,
+            "weighted_lum_share_of_subset": 0.004443922365673577,
+            "weighted_rgb": [
+              2.486702102392463,
+              2.3271631223230314,
+              2.0879053406258956
+            ],
+            "guided_draw_frac": 0.2857142857142857,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.42441418766975403
+          },
+          "sky": {
+            "receiver_records": 54,
+            "unique_rays": 15,
+            "weighted_lum_share_of_subset": 0.04097275508474029,
+            "weighted_rgb": [
+              42.05198782864343,
+              17.299645490935823,
+              4.11119650279052
+            ],
+            "guided_draw_frac": 0.6296296296296297,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 2.4288299083709717
+          },
+          "windshield-frame-and-sill": {
+            "receiver_records": 73,
+            "unique_rays": 23,
+            "weighted_lum_share_of_subset": 0.009058611971405768,
+            "weighted_rgb": [
+              5.197893593587978,
+              4.7445112060339945,
+              3.8688725455461257
+            ],
+            "guided_draw_frac": 0.4246575342465753,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.12575781345367432
+          }
+        }
+      },
+      "top_1pct": {
+        "name": "top_1pct",
+        "receiver_records": 767,
+        "unique_rays": 229,
+        "receivers_per_unique_ray": 3.349344978165939,
+        "unique_own_rays": 28,
+        "unique_block_rays": 201,
+        "total_outgoing_rgb": [
+          374.17285138368607,
+          337.4889349117875,
+          291.4425245039165
+        ],
+        "total_outgoing_lum": 341.9633847222649,
+        "onscreen_vs_offscreen": {
+          "onscreen_lum_share": 0.9993632993179434,
+          "offscreen_env_lum_share": 0.0006367006820562993,
+          "onscreen_rgb": [
+            373.83848484173274,
+            337.2963531613005,
+            291.31915157422924
+          ],
+          "offscreen_env_rgb": [
+            0.33436654195326565,
+            0.19258175048694012,
+            0.12337292968729717
+          ],
+          "unique_rays_walk_hit": 229,
+          "unique_rays_walk_miss": 0,
+          "unique_rays_partial_edge_fade": 23
+        },
+        "guided_vs_ordinary": {
+          "guided_lum_share": 0.756799251818591,
+          "ordinary_lum_share": 0.2432007481814088,
+          "guided_rgb": [
+            266.23498061299324,
+            259.32029081881046,
+            231.72028857655823
+          ],
+          "ordinary_rgb": [
+            107.93787077069283,
+            78.16864409297705,
+            59.72223592735827
+          ],
+          "unique_rays_guided": 175,
+          "unique_rays_guided_counted": 175,
+          "unique_rays_ordinary": 54,
+          "unique_rays_ordinary_hit": 54,
+          "unique_rays_ordinary_miss": 0
+        },
+        "brightness_vs_brdf_weight": {
+          "incoming_lum_p50_p90_p99": [
+            9.590901374816895,
+            9.702378273010254,
+            12.707531471252524
+          ],
+          "brdf_weight_capped_p50_p90_p99": [
+            0.9014868140220642,
+            4.0,
+            4.0
+          ],
+          "brdf_weight_uncapped_p50_p90_p99": [
+            0.9014868140220642,
+            9.725451469421385,
+            20.659107284545914
+          ],
+          "hit_most_ray_weight_cap4_frac": 0.2737940026075619,
+          "lobe_density_p50_p90": [
+            0.11964885145425797,
+            0.19155219197273254
+          ],
+          "guided_density_p50_p90": [
+            2.626487970352173,
+            4.928981304168701
+          ],
+          "guided_density_gt_zero_frac": 1.0
+        },
+        "onscreen_regions": {
+          "cabin-floor": {
+            "receiver_records": 16,
+            "unique_rays": 6,
+            "weighted_lum_share_of_subset": 0.009013568465651736,
+            "weighted_rgb": [
+              4.06407555937767,
+              2.9622504115104675,
+              1.380698375403881
+            ],
+            "guided_draw_frac": 0.9375,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 2.430643141269684
+          },
+          "console-cyan-emissive-screens": {
+            "receiver_records": 269,
+            "unique_rays": 77,
+            "weighted_lum_share_of_subset": 0.2591102185570352,
+            "weighted_rgb": [
+              30.68593752619633,
+              101.89715291610555,
+              127.50046080639275
+            ],
+            "guided_draw_frac": 0.9219330855018587,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 9.66735553741455
+          },
+          "console-housing": {
+            "receiver_records": 161,
+            "unique_rays": 51,
+            "weighted_lum_share_of_subset": 0.14967759913448767,
+            "weighted_rgb": [
+              19.011485543102026,
+              58.57924994826317,
+              72.66671783477068
+            ],
+            "guided_draw_frac": 0.8944099378881988,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 9.592306137084961
+          },
+          "pilot-seat": {
+            "receiver_records": 39,
+            "unique_rays": 11,
+            "weighted_lum_share_of_subset": 0.018422087036197493,
+            "weighted_rgb": [
+              6.664412945947697,
+              6.258637060672951,
+              5.632241252693606
+            ],
+            "guided_draw_frac": 0.4358974358974359,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.9214441776275635
+          },
+          "pilot-suit-and-helmet": {
+            "receiver_records": 243,
+            "unique_rays": 74,
+            "weighted_lum_share_of_subset": 0.4974402915637118,
+            "weighted_rgb": [
+              270.42452060880066,
+              149.45952768163497,
+              79.23349752106344
+            ],
+            "guided_draw_frac": 0.5349794238683128,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 2.3372721672058105
+          },
+          "port-wall": {
+            "receiver_records": 4,
+            "unique_rays": 1,
+            "weighted_lum_share_of_subset": 0.0016259091336861605,
+            "weighted_rgb": [
+              0.5864655524492264,
+              0.5522817671298981,
+              0.5031425803899765
+            ],
+            "guided_draw_frac": 0.0,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.5039853453636169
+          },
+          "sky": {
+            "receiver_records": 24,
+            "unique_rays": 6,
+            "weighted_lum_share_of_subset": 0.05762043328483783,
+            "weighted_rgb": [
+              39.94624511109667,
+              15.400080486274035,
+              2.733644333022906
+            ],
+            "guided_draw_frac": 1.0,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 9.246348857879639
+          },
+          "windshield-frame-and-sill": {
+            "receiver_records": 11,
+            "unique_rays": 3,
+            "weighted_lum_share_of_subset": 0.0064531921423356614,
+            "weighted_rgb": [
+              2.4553419947624207,
+              2.1871728897094727,
+              1.6687488704919815
+            ],
+            "guided_draw_frac": 0.6363636363636364,
+            "hit_has_pyramid_light_frac": 1.0,
+            "hit_pyramid_light_median": 0.8093765377998352
+          }
+        }
+      },
+      "guided_target_audit": {
+        "unique_guided_rays": 5599,
+        "traced_above_plane_frac": 0.942311126986962,
+        "walk_hit_frac": 0.703697088765851,
+        "counted_in_3x3_frac": 0.18931952134309699,
+        "by_target_region": {
+          "cabin-floor": {
+            "unique_guided_rays": 1933,
+            "share_of_guided_rays": 0.3452402214681193,
+            "above_plane_frac": 1.0,
+            "counted_frac": 0.17589239524055872
+          },
+          "console-cyan-emissive-screens": {
+            "unique_guided_rays": 712,
+            "share_of_guided_rays": 0.1271655652795142,
+            "above_plane_frac": 1.0,
+            "counted_frac": 0.28792134831460675
+          },
+          "console-housing": {
+            "unique_guided_rays": 691,
+            "share_of_guided_rays": 0.12341489551705662,
+            "above_plane_frac": 0.9985528219971056,
+            "counted_frac": 0.32127351664254705
+          },
+          "other-emissive": {
+            "unique_guided_rays": 25,
+            "share_of_guided_rays": 0.00446508305054474,
+            "above_plane_frac": 1.0,
+            "counted_frac": 0.16
+          },
+          "other-onscreen": {
+            "unique_guided_rays": 292,
+            "share_of_guided_rays": 0.052152170030362564,
+            "above_plane_frac": 1.0,
+            "counted_frac": 0.10273972602739725
+          },
+          "overhead-emissive-lamp": {
+            "unique_guided_rays": 7,
+            "share_of_guided_rays": 0.0012502232541525273,
+            "above_plane_frac": 1.0,
+            "counted_frac": 0.14285714285714285
+          },
+          "overhead-lamp-and-canopy": {
+            "unique_guided_rays": 230,
+            "share_of_guided_rays": 0.04107876406501161,
+            "above_plane_frac": 0.5304347826086957,
+            "counted_frac": 0.16521739130434782
+          },
+          "pilot-seat": {
+            "unique_guided_rays": 372,
+            "share_of_guided_rays": 0.06644043579210573,
+            "above_plane_frac": 1.0,
+            "counted_frac": 0.13709677419354838
+          },
+          "pilot-suit-and-helmet": {
+            "unique_guided_rays": 366,
+            "share_of_guided_rays": 0.06536881585997499,
+            "above_plane_frac": 1.0,
+            "counted_frac": 0.18032786885245902
+          },
+          "port-wall": {
+            "unique_guided_rays": 200,
+            "share_of_guided_rays": 0.03572066440435792,
+            "above_plane_frac": 1.0,
+            "counted_frac": 0.185
+          },
+          "sky": {
+            "unique_guided_rays": 513,
+            "share_of_guided_rays": 0.09162350419717807,
+            "above_plane_frac": 0.9161793372319688,
+            "counted_frac": 0.08382066276803118
+          },
+          "sloped-panel-self": {
+            "unique_guided_rays": 128,
+            "share_of_guided_rays": 0.02286122521878907,
+            "above_plane_frac": 0.09375,
+            "counted_frac": 0.0
+          },
+          "starboard-wall": {
+            "unique_guided_rays": 31,
+            "share_of_guided_rays": 0.0055367029826754776,
+            "above_plane_frac": 1.0,
+            "counted_frac": 0.0
+          },
+          "windshield-frame-and-sill": {
+            "unique_guided_rays": 99,
+            "share_of_guided_rays": 0.01768172888015717,
+            "above_plane_frac": 0.4444444444444444,
+            "counted_frac": 0.23232323232323232
+          }
+        }
+      }
+    }
+  }
+}

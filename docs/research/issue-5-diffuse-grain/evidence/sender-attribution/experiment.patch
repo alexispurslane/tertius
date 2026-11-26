@@ -1,0 +1,383 @@
+--- a/src/Tertius.Demo/DemoScenes.DemoSurface.cs
++++ b/src/Tertius.Demo/DemoScenes.DemoSurface.cs
+@@ -983,12 +983,52 @@
+             );
+             scene.Add(
+                 "cockpit-camera",
+-                world.Spawn(ViewIn(cabin, LookingAt(new(1.60, 1.15, -9.0), new(0, 0.58, -11.55))))
++                world.Spawn(
++                    new SpawnDesc
++                    {
++                        Frame = cabin,
++                        Pose = LookingAt(new(1.60, 1.15, -9.0), new(0, 0.58, -11.55)),
++                        Render = new RenderData(),
++                        Components = [new Issue5CockpitCamera()],
++                    }
++                )
+             );
+             scene.Add(
+                 "cockpit-outside-camera",
+                 world.Spawn(ViewIn(cabin, LookingAt(new(3.04, 0.51, -15.43), Shuttle.SeatStand + Eye)))
+             );
+         }
++
++        /// <summary>Temporary research component: deterministic slow repeatable camera motion in cabin space.</summary>
++        private sealed class Issue5CockpitCamera : IComponent
++        {
++            private readonly string mode = Environment.GetEnvironmentVariable("TERTIUS_ISSUE5_CAMERA_MODE") ?? "";
++            public int Priority => 0;
++            public EventMask Wants => EventMask.Of<Tick>();
++
++            public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
++            {
++                if (mode.Length == 0 || self.Tick < 87580)
++                    return;
++                double s;
++                if (mode == "move")
++                {
++                    if (self.Tick < 87581)
++                        return;
++                    s = Math.Clamp((self.Tick - 87581) / 95.0, 0.0, 1.0);
++                }
++                else if (mode.StartsWith("fixed:", StringComparison.Ordinal))
++                {
++                    s = double.Parse(mode.AsSpan(6), System.Globalization.CultureInfo.InvariantCulture);
++                }
++                else
++                {
++                    return;
++                }
++                Double3 eye = new Double3(1.60, 1.15, -9.0) + s * new Double3(-0.12, -0.02, -0.08);
++                Double3 target = new Double3(0.0, 0.58, -11.55) + s * new Double3(0.32, 0.10, 0.0);
++                self.SetTransform(LookingAt(eye, target));
++            }
++        }
+     }
+ }
+--- a/src/Tertius.Host/ScriptCommand.cs
++++ b/src/Tertius.Host/ScriptCommand.cs
+@@ -580,6 +580,8 @@
+             Upscaling = new Fsr3Upscaling(new FixedRenderScale(2f / 3), 0),
+         };
+         overrides.ApplyTo(rendererOptions);
++        if (Environment.GetEnvironmentVariable("TERTIUS_ISSUE5_WARMUP") is { Length: > 0 } warmupText)
++            rendererOptions.WarmUpFrames = int.Parse(warmupText, System.Globalization.CultureInfo.InvariantCulture);
+         try
+         {
+             return createRenderer(rendererOptions);
+--- a/src/Tertius.Rendering/VulkanRenderer.cs
++++ b/src/Tertius.Rendering/VulkanRenderer.cs
+@@ -697,6 +697,74 @@
+                 FinishSlot(frame);
+         }
+ 
++        if (Environment.GetEnvironmentVariable("TERTIUS_ISSUE5_DRAW_LOG") is { Length: > 0 } drawLogPath)
++        {
++            if (Path.GetDirectoryName(drawLogPath) is { Length: > 0 } drawDir)
++                Directory.CreateDirectory(drawDir);
++            CameraView cam = LastScene.Camera;
++            Double3 eye = snapshot.OriginInFrame + new Double3(cam.Offset.X, cam.Offset.Y, cam.Offset.Z);
++            Vector2 jitter = context.History.Jitter;
++            var rec = new
++            {
++                globalDraw = history.DrawnFrames - 1,
++                sampleDraw = context.History.DrawIndex,
++                reset = context.History.Reset,
++                captured = sink != null,
++                tick = snapshot.Tick,
++                width = cam.Width,
++                height = cam.Height,
++                eye = new double[] { eye.X, eye.Y, eye.Z },
++                forward = new float[] { cam.Forward.X, cam.Forward.Y, cam.Forward.Z },
++                rightTan = new float[] { cam.Right.X * cam.TanHalfX, cam.Right.Y * cam.TanHalfX, cam.Right.Z * cam.TanHalfX },
++                upTan = new float[] { cam.Up.X * cam.TanHalfY, cam.Up.Y * cam.TanHalfY, cam.Up.Z * cam.TanHalfY },
++                jitter = new float[] { jitter.X, jitter.Y },
++                exposureStops = Exposure.Latest,
++            };
++            File.AppendAllText(drawLogPath, System.Text.Json.JsonSerializer.Serialize(rec) + "\n");
++        }
++        if (Environment.GetEnvironmentVariable("TERTIUS_ISSUE5_SENDER_DIR") is { Length: > 0 } senderDir
++            && sink != null
++            && screenTrace is { } probeTracer
++            && probeTracer.ProbeBlock is { } probeBlock
++            && probeTracer.ProbePixel is { } probePixel)
++        {
++            long sd = context.History.DrawIndex;
++            if (sd >= 48 && sd <= 108 && (sd - 48) % 4 == 0)
++            {
++                Directory.CreateDirectory(senderDir);
++                string stem = Path.Combine(senderDir, sd.ToString("D6"));
++                foreach (int layer in (int[])[0, 1, 2])
++                {
++                    float[] bvals = ReadImageLayer(probeBlock, layer);
++                    File.WriteAllBytes($"{stem}.block{layer}.f32", System.Runtime.InteropServices.MemoryMarshal.AsBytes(bvals.AsSpan()).ToArray());
++                }
++                foreach (int layer in (int[])[0, 1, 2, 3, 4])
++                {
++                    float[] pvals = ReadImageLayer(probePixel, layer);
++                    File.WriteAllBytes($"{stem}.pixel{layer}.f32", System.Runtime.InteropServices.MemoryMarshal.AsBytes(pvals.AsSpan()).ToArray());
++                }
++                float[] lf = ReadImage(probeTracer.LightPyramidImages.Finest);
++                File.WriteAllBytes($"{stem}.lightFinest.f32", System.Runtime.InteropServices.MemoryMarshal.AsBytes(lf.AsSpan()).ToArray());
++                float[] hl = ReadImageLayer(probeTracer.HitLight, 1);
++                File.WriteAllBytes($"{stem}.hitLightDiffuse.f32", System.Runtime.InteropServices.MemoryMarshal.AsBytes(hl.AsSpan()).ToArray());
++                if (sd == 48 || sd == 80)
++                {
++                    float[] dd = ReadImage(targets.DirectDiffuse);
++                    File.WriteAllBytes($"{stem}.directDiffuse.f32", System.Runtime.InteropServices.MemoryMarshal.AsBytes(dd.AsSpan()).ToArray());
++                    float[] em = ReadImage(targets.Emissive);
++                    File.WriteAllBytes($"{stem}.emissive.f32", System.Runtime.InteropServices.MemoryMarshal.AsBytes(em.AsSpan()).ToArray());
++                    byte[] sh = ReadShading();
++                    File.WriteAllBytes($"{stem}.shading.u8", sh);
++                    byte[] sp = ReadSpecularTarget();
++                    File.WriteAllBytes($"{stem}.specular.u8", sp);
++                    float[] di = ReadDistance();
++                    File.WriteAllBytes($"{stem}.distance.f32", System.Runtime.InteropServices.MemoryMarshal.AsBytes(di.AsSpan()).ToArray());
++                }
++                File.WriteAllText(Path.Combine(senderDir, "size.txt"),
++                    $"{probePixel.Extent.Width} {probePixel.Extent.Height} {probeBlock.Extent.Width} {probeBlock.Extent.Height}");
++            }
++        }
++
+         LastFrameStats = StatsOf(
+             scene: LastScene,
+             impostors: Impostors,
+--- a/src/Tertius.Rendering/Frame/DescriptorLayouts.cs
++++ b/src/Tertius.Rendering/Frame/DescriptorLayouts.cs
+@@ -127,13 +127,15 @@
+     /// The storage images of the reflection share in a screen tracer set, after the hit light: the share of each tile
+     /// (<see cref="ScreenTraceImages.ReflectionShare"/>) and the block guide (<see cref="ScreenTraceImages.BlockGuide"/>).
+     /// </summary>
+-    private const uint ScreenTraceShareImages = 2;
++    private const uint ScreenTraceShareImages = 4;
+ 
+     /// <summary>The binding of the reflection share in a screen tracer set, a storage image after the hit light.</summary>
+     public const uint ScreenTraceShareBinding = ScreenTraceHitLightBinding + ScreenTraceHitLightImages;
+ 
+     /// <summary>The binding of the block guide, a storage image after the reflection share.</summary>
+     public const uint ScreenTraceBlockGuideBinding = ScreenTraceShareBinding + 1;
++    public const uint ScreenTraceProbeBlockBinding = ScreenTraceBlockGuideBinding + 1;
++    public const uint ScreenTraceProbePixelBinding = ScreenTraceProbeBlockBinding + 1;
+ 
+     /// <summary>
+     /// The storage images that the light-change age of a precise specular history adds to a screen tracer set after its
+@@ -1293,9 +1295,11 @@
+                 binding: ScreenTraceLightBinding + image,
+                 stages: ShaderStageFlags.ComputeBit
+             );
+-        bindings[^3] = StorageImage(ScreenTraceHitLightBinding);
+-        bindings[^2] = StorageImage(ScreenTraceShareBinding);
+-        bindings[^1] = StorageImage(ScreenTraceBlockGuideBinding);
++        bindings[^5] = StorageImage(ScreenTraceHitLightBinding);
++        bindings[^4] = StorageImage(ScreenTraceShareBinding);
++        bindings[^3] = StorageImage(ScreenTraceBlockGuideBinding);
++        bindings[^2] = StorageImage(ScreenTraceProbeBlockBinding);
++        bindings[^1] = StorageImage(ScreenTraceProbePixelBinding);
+         return CreateLayout(bindings: bindings, name: "screen trace set");
+     }
+ 
+--- a/src/Tertius.Rendering/Frame/ScreenTraceImages.cs
++++ b/src/Tertius.Rendering/Frame/ScreenTraceImages.cs
+@@ -168,6 +168,8 @@
+ 
+     /// <summary>The light-age records, one per parity, with a precise specular history: none with the original.</summary>
+     private GpuImage[] lightAges = [];
++    public GpuImage? ProbeBlock { get; private set; }
++    public GpuImage? ProbePixel { get; private set; }
+ 
+     /// <summary>
+     /// The light-age record that a frame of <paramref name="parity"/> writes, or null with the original specular history
+@@ -272,6 +274,8 @@
+             name: "screen trace reflection share"
+         );
+         BlockGuide = CreateImage(extent: blocks, format: BlockGuideFormat, layers: 1, name: "screen trace block guide");
++        ProbeBlock = CreateImage(extent: blocks, format: Format.R32G32B32A32Sfloat, layers: 3, name: "probe sender block");
++        ProbePixel = CreateImage(extent: extent, format: Format.R32G32B32A32Sfloat, layers: 5, name: "probe sender pixel");
+ 
+         OwnRays = [CreateOwnRayList(extent, "reflection"), CreateOwnRayList(extent, "diffuse")];
+         lightAges = Specular.KeepsLightAge
+@@ -348,6 +352,8 @@
+         layouts.WriteStorageImage(set: set, binding: DescriptorLayouts.ScreenTraceHitLightBinding, image: HitLight);
+         layouts.WriteStorageImage(set: set, binding: DescriptorLayouts.ScreenTraceShareBinding, image: ReflectionShare);
+         layouts.WriteStorageImage(set: set, binding: DescriptorLayouts.ScreenTraceBlockGuideBinding, image: BlockGuide);
++        if (ProbeBlock is { } pb) layouts.WriteStorageImage(set: set, binding: DescriptorLayouts.ScreenTraceProbeBlockBinding, image: pb);
++        if (ProbePixel is { } pp) layouts.WriteStorageImage(set: set, binding: DescriptorLayouts.ScreenTraceProbePixelBinding, image: pp);
+     }
+ 
+     /// <summary>
+@@ -434,6 +440,8 @@
+     /// <summary>Destroys the images and the lists, which <see cref="Resize"/> makes again. The device must be idle.</summary>
+     public void Dispose()
+     {
++        ProbeBlock?.Dispose(); ProbeBlock = null;
++        ProbePixel?.Dispose(); ProbePixel = null;
+         foreach (GpuImage image in (GpuImage[])[.. Records, HitLight, ReflectionShare, BlockGuide, .. lightAges])
+             image.Dispose();
+         lightAges = [];
+--- a/src/Tertius.Rendering/Passes/ScreenTracePass.cs
++++ b/src/Tertius.Rendering/Passes/ScreenTracePass.cs
+@@ -220,6 +220,8 @@
+         // using both.
+         barriers.Image(images.ReflectionShare, ImageUse.StorageCompute);
+         barriers.Image(images.BlockGuide, ImageUse.StorageCompute, discard: kind == 0);
++        if (images.ProbeBlock is { } pb) barriers.Image(pb, ImageUse.StorageCompute);
++        if (images.ProbePixel is { } pp) barriers.Image(pp, ImageUse.StorageCompute);
+     }
+ 
+     public override void Dispose()
+@@ -253,6 +255,8 @@
+             context.Barriers.Image(lightAge, ImageUse.StorageCompute);
+         if (images.LightChangeMask is { } mask)
+             context.Barriers.Image(mask, ImageUse.StorageCompute, discard: true);
++        if (images.ProbeBlock is { } pb) context.Barriers.Image(pb, ImageUse.StorageCompute);
++        if (images.ProbePixel is { } pp) context.Barriers.Image(pp, ImageUse.StorageCompute);
+         kernel.Record(context, side: 1);
+     }
+ 
+--- a/src/Tertius.Rendering/Shaders/screen_trace.glsl
++++ b/src/Tertius.Rendering/Shaders/screen_trace.glsl
+@@ -65,6 +65,8 @@
+ // guided: x its guided density along its direction, y and z its evidence for its tile's share (shareEvidenceOf), and w
+ // the share at which it was drawn. The resolve weighs the ray at each pixel of the block by that share's mixture.
+ layout(set = 3, binding = 29, rgba32f) uniform image2D blockGuide;
++layout(set = 3, binding = 30, rgba32f) uniform image2DArray probeBlockSender;
++layout(set = 3, binding = 31, rgba32f) uniform image2DArray probePixelSender;
+ // The blocks along each side of a tile of the reflection share (ScreenTraceImages.TileBlocks).
+ const int TileBlocks = 8;
+ #include "sent_light.glsl"
+@@ -795,6 +797,12 @@
+     vec3 light;       // the hit's light faded into the miss's, pre-exposed; 0 for a ray that traced nothing
+     float distance;   // from the ray's start to the hit, in m; 0 for a miss
+     bool traced;      // false for a direction below the pixel's geometric plane, which brings no light
++    ivec2 probeHitPixel;
++    ivec2 probeTarget;
++    uint probeFlags;
++    float probeFade;
++    float probeMissLum;
++    float probeLeavingLum;
+ #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+     float age;        // the light age of the hit's pixel, NoLightAge for a miss (MissLightAge under the diagnostic)
+     bool moved;       // whether the hit's pixel carries the plan's moved mark (movedSurfaceAt); false for a miss
+@@ -843,6 +851,12 @@
+     result.light = vec3(0.0);
+     result.distance = 0.0;
+     result.traced = dot(result.direction, p.s.geometricNormal) > 0.0;
++    result.probeHitPixel = ivec2(-1, -1);
++    result.probeTarget = target;
++    result.probeFlags = (result.traced ? 1u : 0u) | (guided ? 4u : 0u);
++    result.probeFade = 0.0;
++    result.probeMissLum = 0.0;
++    result.probeLeavingLum = 0.0;
+ #ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
+     result.age = MissLightAge;
+ #elif defined(TERTIUS_PRECISE_SPECULAR_HISTORY)
+@@ -860,6 +874,7 @@
+     uint steps = kind == KindReflection ? trace.reflectionSteps : trace.diffuseSteps;
+     vec3 missLight = missLightOf(p, pixel, kind, result.direction);
+     result.light = missLight;
++    result.probeMissLum = luminance(missLight);
+     if (walkScreen(depthFinest, depthPyramid, walk, steps, hit, hitPixel, entryShare) != WalkHit)
+     {
+         // A miss has no guided density. A guided ray counts only where it hits a pixel near its target, so a miss brings
+@@ -869,11 +884,15 @@
+             result.light = vec3(0.0);
+         return result;
+     }
++    result.probeFlags |= 2u;
++    result.probeHitPixel = hitPixel;
+     if (findsGuidedDensity)
+     {
+         bool counts;
+         result.guidedDensity = guidedDensityOf(p.origin, result.direction, hitPixel, target, counts);
+         result.density = mixtureDensity(share, result.lobeDensity, result.guidedDensity);
++        if (guided && counts)
++            result.probeFlags |= 8u;
+         if (guided && !counts)
+         {
+             result.light = vec3(0.0);
+@@ -886,6 +905,8 @@
+     float fade = edgeFade(hit) * (1.0 - entryShare);
+     vec4 leaving = imageLoad(hitLight, ivec3(hitPixel, kind));
+     result.light = mix(missLight, leaving.rgb, fade);
++    result.probeFade = fade;
++    result.probeLeavingLum = luminance(leaving.rgb);
+ #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+     if (fade > 0.0)
+     {
+--- a/src/Tertius.Rendering/Shaders/screen_trace_block_rays.comp
++++ b/src/Tertius.Rendering/Shaders/screen_trace_block_rays.comp
+@@ -28,6 +28,12 @@
+     {
+         TracedRay ray = traceFrom(chosen, block, p, rayKind);
+         record = recordOf(ray);
++        if (rayKind == KindDiffuse)
++        {
++            imageStore(probeBlockSender, ivec3(block, 0), vec4(vec2(ray.probeHitPixel), vec2(ray.probeTarget)));
++            imageStore(probeBlockSender, ivec3(block, 1), vec4(float(ray.probeFlags), ray.probeFade, ray.lobeDensity, ray.guidedDensity));
++            imageStore(probeBlockSender, ivec3(block, 2), vec4(ray.probeMissLum, ray.probeLeavingLum, ray.density, ray.distance));
++        }
+         if (rayKind == KindReflection)
+             guide = vec4(ray.guidedDensity, shareEvidenceOf(p, ray), ray.share);
+     }
+--- a/src/Tertius.Rendering/Shaders/screen_trace_own_rays.comp
++++ b/src/Tertius.Rendering/Shaders/screen_trace_own_rays.comp
+@@ -19,7 +19,14 @@
+     {
+         ivec2 pixel = unpackedPixel(rayKind == KindReflection ? reflectionOwnRays.pixels[entry] : diffuseOwnRays.pixels[entry]);
+         // The plan listed only a pixel that starts the kind, from the same G-buffer.
+-        RayRecord record = recordOf(traceFrom(pixel, pixel, tracingPixelAt(pixel), rayKind));
++        TracedRay ray = traceFrom(pixel, pixel, tracingPixelAt(pixel), rayKind);
++        RayRecord record = recordOf(ray);
++        if (rayKind == KindDiffuse)
++        {
++            imageStore(probePixelSender, ivec3(pixel, 0), vec4(vec2(ray.probeHitPixel), vec2(ray.probeTarget)));
++            imageStore(probePixelSender, ivec3(pixel, 1), vec4(float(ray.probeFlags | 16u), ray.probeFade, ray.lobeDensity, ray.guidedDensity));
++            imageStore(probePixelSender, ivec3(pixel, 2), vec4(ray.probeMissLum, ray.probeLeavingLum, ray.density, ray.distance));
++        }
+         imageStore(ownLight, ivec3(pixel, rayKind), record.light);
+         imageStore(ownRay, ivec3(pixel, rayKind), record.ray);
+     }
+--- a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
++++ b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
+@@ -79,6 +79,8 @@
+         // The sky and the impostors: no signal, and the composite reads none there.
+         imageStore(diffuseSample, pixel, vec4(0.0));
+         imageStore(specularSample, pixel, vec4(0.0));
++        imageStore(probePixelSender, ivec3(pixel, 3), vec4(0.0));
++        imageStore(probePixelSender, ivec3(pixel, 4), vec4(0.0));
+ #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+         imageStore(diffuseSampleAge, pixel, uvec4(0u));
+         imageStore(specularSampleAge, pixel, uvec4(0u));
+@@ -108,6 +110,9 @@
+ 
+     float handOver = handOverOf(p);
+     vec3 specularLight = vec3(0.0);
++    vec3 probeDiffSpecOut = vec3(0.0);
++    float probeCappedW = 0.0;
++    float probeUncappedW = 0.0;
+ #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+     // The youngest age code of the rays that the specular sample takes light from, 0 where none brings an age, and
+     // whether one of them hit a moved surface.
+@@ -120,7 +125,12 @@
+ #endif
+     if (handOver > 0.0 && diffuseRay.brings)
+     {
+-        specularLight = handOver * diffuse.light.rgb * specularWeightOf(p, lobes, factors, diffuseRay);
++        vec3 uncappedW = uncappedSpecularWeightOf(p, lobes, factors, diffuseRay.direction, diffuseRay.density);
++        vec3 cappedW = min(uncappedW, vec3(MostRayWeight));
++        specularLight = handOver * diffuse.light.rgb * cappedW;
++        probeDiffSpecOut = factors.specular * specularLight;
++        probeCappedW = max(cappedW.r, max(cappedW.g, cappedW.b));
++        probeUncappedW = max(uncappedW.r, max(uncappedW.g, uncappedW.b));
+ #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+         ageCode = diffuseCode;
+         moved = diffuseMoved;
+@@ -154,6 +164,8 @@
+         hitDistance = reflection.light.a;
+     }
+     imageStore(specularSample, pixel, vec4(min(specularLight, vec3(MaxRadiance)), hitDistance));
++    imageStore(probePixelSender, ivec3(pixel, 3), vec4(probeDiffSpecOut, handOver));
++    imageStore(probePixelSender, ivec3(pixel, 4), vec4(diffuseRay.brings ? luminance(diffuse.light.rgb) : 0.0, probeCappedW, probeUncappedW, (plan & PlanOwnDiffuse) != 0u ? 1.0 : 0.0));
+ #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+     imageStore(specularSampleAge, pixel, uvec4(sampleAgeOf(ageCode, moves || moved)));
+ #endif

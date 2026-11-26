@@ -1,0 +1,46 @@
+--- a/src/Tertius.Rendering/VulkanRenderer.cs
++++ b/src/Tertius.Rendering/VulkanRenderer.cs
+@@ -697,6 +697,32 @@
+                 FinishSlot(frame);
+         }
+ 
++        if (Environment.GetEnvironmentVariable("TERTIUS_ISSUE5_DRAW_LOG") is { Length: > 0 } drawLogPath)
++        {
++            if (Path.GetDirectoryName(drawLogPath) is { Length: > 0 } drawDir)
++                Directory.CreateDirectory(drawDir);
++            CameraView cam = LastScene.Camera;
++            Double3 eye = snapshot.OriginInFrame + new Double3(cam.Offset.X, cam.Offset.Y, cam.Offset.Z);
++            Vector2 jitter = context.History.Jitter;
++            var rec = new
++            {
++                globalDraw = history.DrawnFrames - 1,
++                sampleDraw = context.History.DrawIndex,
++                reset = context.History.Reset,
++                captured = sink != null,
++                tick = snapshot.Tick,
++                width = cam.Width,
++                height = cam.Height,
++                eye = new double[] { eye.X, eye.Y, eye.Z },
++                forward = new float[] { cam.Forward.X, cam.Forward.Y, cam.Forward.Z },
++                rightTan = new float[] { cam.Right.X * cam.TanHalfX, cam.Right.Y * cam.TanHalfX, cam.Right.Z * cam.TanHalfX },
++                upTan = new float[] { cam.Up.X * cam.TanHalfY, cam.Up.Y * cam.TanHalfY, cam.Up.Z * cam.TanHalfY },
++                jitter = new float[] { jitter.X, jitter.Y },
++                exposureStops = Exposure.Latest,
++            };
++            File.AppendAllText(drawLogPath, System.Text.Json.JsonSerializer.Serialize(rec) + "\n");
++        }
++
+         LastFrameStats = StatsOf(
+             scene: LastScene,
+             impostors: Impostors,
+--- a/src/Tertius.Rendering/Shaders/composite_pass.glsl
++++ b/src/Tertius.Rendering/Shaders/composite_pass.glsl
+@@ -86,6 +86,8 @@
+     IndirectLight indirect = screenTraceOn
+         ? IndirectLight(imageLoad(indirectDiffuseLight, pixel).rgb, imageLoad(indirectSpecularLight, pixel).rgb)
+         : closedForm(withAmbientFootprint(s, pixel), V);
++    if (screenTraceOn)
++        indirect.diffuse = vec3(0.0);
+     vec3 indirectDiffuse = factors.diffuse * indirect.diffuse;
+     vec3 indirectSpecular = factors.specular * indirect.specular;
+     if (screenTraceOn)

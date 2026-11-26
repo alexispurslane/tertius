@@ -1,0 +1,10 @@
+{
+  "shot": "shot4-berth",
+  "film_timestamps": "7:24.92..7:25.42 (work-camera, 30f) | CUT at 7:25.42 | 7:25.42..7:27.58 (deck-camera, 130f, 7:27=s4b-000095)",
+  "mode": "ordinary-motion (every=1, 60 Hz) with real camera cut",
+  "variant": "no-diffuse-ray-specular",
+  "exposure": -2.946323,
+  "content_root": "/Users/alexispurslane/Development/tertius/content",
+  "base": "269db616849e1fa93f59ee3f3e108733446b793a",
+  "note": "Temporary research patch; restored after this render."
+}

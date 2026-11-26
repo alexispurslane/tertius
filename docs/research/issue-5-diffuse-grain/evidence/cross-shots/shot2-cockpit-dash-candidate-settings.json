@@ -1,0 +1,10 @@
+{
+  "shot": "shot2-cockpit-dash",
+  "film_timestamps": "0:26.52..0:27.85 (follow-camera, 80f, 0:27=s2a-000029) | CUT at 0:27.85 | 0:27.85..0:28.60 (seat-camera, 45f, 0:28=s2b-000009)",
+  "mode": "ordinary-motion (every=1, 60 Hz) with real camera cut",
+  "variant": "candidate",
+  "exposure": 0.595864,
+  "content_root": "/Users/alexispurslane/Development/tertius/content",
+  "base": "269db616849e1fa93f59ee3f3e108733446b793a",
+  "note": "Temporary research patch; restored after this render."
+}

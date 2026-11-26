@@ -1,0 +1,9 @@
+{
+  "variant": "guided-diffuse-075-tight",
+  "frames": 96,
+  "every": 1,
+  "exposure": 6.0043726,
+  "content_root": "/Users/alexispurslane/Development/tertius/content",
+  "base": "269db616849e1fa93f59ee3f3e108733446b793a",
+  "note": "Temporary research patch; restored after this render."
+}

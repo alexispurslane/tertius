@@ -1,0 +1,10 @@
+{
+  "shot": "shot3b-arrival-late",
+  "film_timestamps": "4:19.05..4:20.38 (cockpit-camera, every=4 time-lapse, 80f, 4:19.82=s3b-000046)",
+  "mode": "true-film time-lapse (every=4, 0.0667 s/frame < 0.09 s still threshold, continuous draws)",
+  "variant": "no-diffuse-ray-specular",
+  "exposure": 2.080374,
+  "content_root": "/Users/alexispurslane/Development/tertius/content",
+  "base": "269db616849e1fa93f59ee3f3e108733446b793a",
+  "note": "Temporary research patch; restored after this render."
+}
