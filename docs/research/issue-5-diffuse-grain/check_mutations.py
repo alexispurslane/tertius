@@ -24,6 +24,11 @@ SPREAD_MUTATIONS = [
     ('break-reciprocity-with-receiver-mask', 'mask[p if side > 0 else q]', 'mask[p]'),
     ('disconnect-nearby-coordinate-phases', 'exchange(dx,dy,1/16)', 'exchange(6*dx,6*dy,1/16)'),
     ('make-exchange-unstable', 'exchange(dx,dy,1/16)', 'exchange(dx,dy,1/4)'),
+    ('accept-either-tangent-plane', 'np.maximum(np.sum(first_tangent**2, axis=-1), np.sum(second_tangent**2, axis=-1))', 'np.minimum(np.sum(first_tangent**2, axis=-1), np.sum(second_tangent**2, axis=-1))'),
+    ('use-the-larger-endpoint-footprint', 'np.minimum(first_radius, second_radius)', 'np.maximum(first_radius, second_radius)'),
+    ('include-normal-separation-in-tangent-distance', 'first_tangent = apart - np.sum(apart * first_normal, axis=-1)[...,None] * first_normal', 'first_tangent = apart'),
+    ('exchange-outside-the-surface-footprint', 'distance_squared <= radius**2', 'distance_squared > radius**2'),
+    ('skip-the-surface-footprint', 'if footprint is not None:', 'if False:'),
 ]
 
 

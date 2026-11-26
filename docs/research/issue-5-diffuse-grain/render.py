@@ -17,9 +17,14 @@ RESOLVE = Path('src/Tertius.Rendering/Shaders/screen_trace_resolve.comp')
 
 
 def modification(variant, original):
-    if variant == 'irregular':
+    if variant in ('irregular', 'tangent'):
         shared = (HERE / 'spread.glsl').read_text().split('vec3 probeSpread(')[0].replace('PROBE_STEP', '1')
-        helper = shared + (HERE / 'irregular.glsl').read_text() + '\n'
+        exchange = (HERE / 'irregular.glsl').read_text()
+        if variant == 'tangent':
+            exchange = (HERE / 'tangent.glsl').read_text() + exchange.replace(
+                '    MaterialFactors otherFactors =',
+                '    if (!probeTangentPair(center, other))\n        return vec3(0.0);\n    MaterialFactors otherFactors =')
+        helper = shared + exchange + '\n'
         original = original.replace('void main()\n{', helper + 'void main()\n{')
         needle = '    float hitDistance = diffuse.light.a;'
         assert original.count(needle) == 1
@@ -58,7 +63,7 @@ def modification(variant, original):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('variant', choices=['normal', 'zero-diffuse', 'closed-diffuse', 'zero-specular', 'no-diffuse-ray-specular', 'raw-normal', 'cap-diffuse-ray-specular', 'raw-source', 'spread-step2', 'spread-step6', 'irregular'])
+    p.add_argument('variant', choices=['normal', 'zero-diffuse', 'closed-diffuse', 'zero-specular', 'no-diffuse-ray-specular', 'raw-normal', 'cap-diffuse-ray-specular', 'raw-source', 'spread-step2', 'spread-step6', 'irregular', 'tangent'])
     p.add_argument('output', type=Path)
     p.add_argument('--limit', type=float)
     p.add_argument('--frames', type=int, default=120, choices=range(3, 121))
@@ -67,7 +72,7 @@ def main():
     args = p.parse_args()
     os.chdir(ROOT)
     args.output.mkdir(parents=True, exist_ok=False)
-    source = RESOLVE if args.variant in ('no-diffuse-ray-specular', 'cap-diffuse-ray-specular', 'raw-source', 'spread-step2', 'spread-step6', 'irregular') else COMPOSITE
+    source = RESOLVE if args.variant in ('no-diffuse-ray-specular', 'cap-diffuse-ray-specular', 'raw-source', 'spread-step2', 'spread-step6', 'irregular', 'tangent') else COMPOSITE
     original = source.read_text()
     changed = modification(args.variant, original)
     if args.variant == 'cap-diffuse-ray-specular':

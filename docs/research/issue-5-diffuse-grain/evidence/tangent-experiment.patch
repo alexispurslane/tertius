@@ -1,0 +1,133 @@
+--- a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
++++ b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
+@@ -66,6 +66,122 @@
+     return min(uncappedSpecularWeightOf(p, lobes, factors, ray.direction, ray.density), vec3(MostRayWeight));
+ }
+ 
++// Research only. The existing diffuse wavelet filter's symmetric exchange, applied to
++// outgoing diffuse-ray-sourced specular before the dedicated reflection contribution.
++const int ProbeStep = 1;
++
++bool probeCompatible(TracingPixel first, TracingPixel second)
++{
++    if (first.ownCard != second.ownCard || first.s.model != second.s.model
++        || abs(first.s.metallic - second.s.metallic) > 0.02
++        || abs(first.s.reflectance - second.s.reflectance) > 0.02
++        || abs(first.s.roughness - second.s.roughness) > 0.05
++        || any(greaterThan(abs(first.s.baseColor - second.s.baseColor), vec3(0.15))))
++        return false;
++    if (handOverOf(first) <= 0.0 || handOverOf(second) <= 0.0
++        || dot(first.s.geometricNormal, second.s.geometricNormal) < 0.984807753
++        || dot(first.normal, second.normal) < 0.965925826)
++        return false;
++    vec3 apart = second.point - first.point;
++    float planeDistance = max(abs(dot(apart, first.s.geometricNormal)),
++        abs(dot(apart, second.s.geometricNormal)));
++    return planeDistance <= 0.01 * min(first.viewDepth, second.viewDepth);
++}
++
++bool probeConnection(ivec2 pixel, ivec2 neighbor, TracingPixel first, TracingPixel second)
++{
++    // The three checked raster cells are identical when the endpoints swap.
++    ivec2 cells[3] = ivec2[3]((3 * pixel + neighbor) / 4,
++        (pixel + neighbor) / 2, (pixel + 3 * neighbor) / 4);
++    for (int i = 0; i < 3; i++)
++    {
++        if (!tracedSurface(cells[i]))
++            return false;
++        TracingPixel middle = tracingPixelAt(cells[i]);
++        if (!probeCompatible(first, middle) || !probeCompatible(second, middle))
++            return false;
++    }
++    return true;
++}
++
++vec3 probeOutgoingAt(ivec2 pixel, TracingPixel p, MaterialFactors factors)
++{
++    uint plan = imageLoad(rayPlan, pixel).r;
++    RayRecord record = recordAt(pixel, KindDiffuse, plan);
++    WeighedRay ray = weighedRayOf(p, record, vec4(0.0), KindDiffuse, plan);
++    SurfaceLobes lobes = lobesOf(p.s, p.V);
++    return ray.brings ? factors.specular * handOverOf(p) * record.light.rgb
++        * specularWeightOf(p, lobes, factors, ray) : vec3(0.0);
++}
++
++// Research only. A circular distance bound in both geometric tangent planes.
++// The existing screen-space candidates and blue-noise anchor stay unchanged.
++float probeSurfaceRadius(TracingPixel p)
++{
++    // Geometric mean of the horizontal and vertical front-facing pixel sizes, in m.
++    vec2 pixelSize = 2.0 * vec2(length(frame.cameraRight.xyz), length(frame.cameraUp.xyz))
++        * frame.viewport.zw * p.viewDepth;
++    return 12.0 * sqrt(pixelSize.x * pixelSize.y);
++}
++
++bool probeTangentPair(TracingPixel first, TracingPixel second)
++{
++    vec3 apart = second.point - first.point;
++    vec3 firstTangent = apart - dot(apart, first.s.geometricNormal) * first.s.geometricNormal;
++    vec3 secondTangent = apart - dot(apart, second.s.geometricNormal) * second.s.geometricNormal;
++    float distanceSquared = max(dot(firstTangent, firstTangent), dot(secondTangent, secondTangent));
++    float radius = min(probeSurfaceRadius(first), probeSurfaceRadius(second));
++    return distanceSquared <= radius * radius;
++}
++// Screen-space diagnosis. Each undirected edge gets one fixed, decorrelated blue-noise
++// decision. The endpoint anchoring makes the decision identical in both directions.
++const ivec2 ProbeWideOffsets[12] = ivec2[12](
++    ivec2(3, 1), ivec2(-1, 3), ivec2(4, -3), ivec2(5, 1),
++    ivec2(-2, 6), ivec2(7, 4), ivec2(-5, 7), ivec2(9, -2),
++    ivec2(3, 10), ivec2(-8, 8), ivec2(11, 4), ivec2(0, -12));
++
++vec3 probeExchange(ivec2 pixel, ivec2 neighbor, TracingPixel center,
++    MaterialFactors factors, vec3 outgoing, float share)
++{
++    if (any(lessThan(neighbor, ivec2(0)))
++        || any(greaterThanEqual(neighbor, ivec2(frame.viewport.xy))) || !tracedSurface(neighbor))
++        return vec3(0.0);
++    TracingPixel other = tracingPixelAt(neighbor);
++    if (!probeCompatible(center, other) || !probeConnection(pixel, neighbor, center, other))
++        return vec3(0.0);
++    if (!probeTangentPair(center, other))
++        return vec3(0.0);
++    MaterialFactors otherFactors = materialFactors(other.s, lobesOf(other.s, other.V));
++    if (any(lessThan(otherFactors.specular, vec3(LeastFactor))))
++        return vec3(0.0);
++    return share * (probeOutgoingAt(neighbor, other, otherFactors) - outgoing);
++}
++
++vec3 probeIrregularSpread(ivec2 pixel, TracingPixel center, MaterialFactors factors, vec3 source)
++{
++    if (handOverOf(center) <= 0.0 || any(lessThan(factors.specular, vec3(LeastFactor))))
++        return source;
++    vec3 outgoing = factors.specular * source;
++    vec3 moved = vec3(0.0);
++    // Eight one-pixel connections join all integer-coordinate phases. Total share <= 1/2.
++    for (int y = -1; y <= 1; y++)
++        for (int x = -1; x <= 1; x++)
++            if (x != 0 || y != 0)
++                moved += probeExchange(pixel, pixel + ivec2(x, y), center, factors, outgoing, 1.0 / 16.0);
++    // 24 candidate wide connections have distinct directions and lengths. Total share <= 1/2.
++    for (int index = 0; index < 12; index++)
++        for (int side = -1; side <= 1; side += 2)
++        {
++            ivec2 neighbor = pixel + side * ProbeWideOffsets[index];
++            ivec2 anchor = side > 0 ? pixel : neighbor;
++            ivec2 noiseCell = anchor + ivec2(37 * index, 53 * index);
++            uint choice = blueNoiseBytesOf(noiseCell, 32u + uint(index)).r;
++            if (choice < 192u)
++                moved += probeExchange(pixel, neighbor, center, factors, outgoing, 1.0 / 48.0);
++        }
++    return (outgoing + moved) / factors.specular;
++}
++
+ void main()
+ {
+     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+@@ -129,6 +245,7 @@
+         seenCode = seenCodeOfRecord(diffuse.ray);
+ #endif
+     }
++    specularLight = probeIrregularSpread(pixel, p, factors, specularLight);
+     float hitDistance = diffuse.light.a;
+     if (startsKind(p, KindReflection))
+     {

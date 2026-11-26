@@ -1,0 +1,61 @@
+......FFF.F
+======================================================================
+FAIL: test_a_sloped_surface_exchanges_with_near_surface_points_and_retains_rgb (test_spread_model.TangentFootprint.test_a_sloped_surface_exchanges_with_near_surface_points_and_retains_rgb)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-f30e47c2-65b62443ba20c1f2/docs/research/issue-5-diffuse-grain/test_spread_model.py", line 86, in test_a_sloped_surface_exchanges_with_near_surface_points_and_retains_rgb
+    np.testing.assert_allclose(result[15,16], 0.)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/nix/store/yfd10hipys5l2ba4xpi2dxhr6vik28ar-python3-3.14.7-env/lib/python3.14/site-packages/numpy/testing/_private/utils.py", line 1780, in assert_allclose
+    assert_array_compare(compare, actual, desired, err_msg=str(err_msg),
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         verbose=verbose, header=header, equal_nan=equal_nan,
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         strict=strict)
+                         ^^^^^^^^^^^^^^
+  File "/nix/store/yfd10hipys5l2ba4xpi2dxhr6vik28ar-python3-3.14.7-env/lib/python3.14/site-packages/numpy/testing/_private/utils.py", line 988, in assert_array_compare
+    raise AssertionError(msg)
+AssertionError: 
+Not equal to tolerance rtol=1e-07, atol=0
+
+Mismatched elements: 3 / 3 (100%)
+Mismatch at indices:
+ [0]: 0.125 (ACTUAL), 0.0 (DESIRED)
+ [1]: 0.25 (ACTUAL), 0.0 (DESIRED)
+ [2]: 0.5 (ACTUAL), 0.0 (DESIRED)
+Max absolute difference among violations: 0.5
+Max relative difference among violations: inf
+ ACTUAL: array([0.125, 0.25 , 0.5  ])
+ DESIRED: array(0.)
+
+======================================================================
+FAIL: test_both_endpoint_planes_must_accept_the_distance (test_spread_model.TangentFootprint.test_both_endpoint_planes_must_accept_the_distance)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-f30e47c2-65b62443ba20c1f2/docs/research/issue-5-diffuse-grain/test_spread_model.py", line 64, in test_both_endpoint_planes_must_accept_the_distance
+    self.assertFalse(tangent_pair(first, second, first_normal, second_normal, 1., 1.))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: array(True) is not false
+
+======================================================================
+FAIL: test_equal_surface_distances_get_the_same_circular_support (test_spread_model.TangentFootprint.test_equal_surface_distances_get_the_same_circular_support)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-f30e47c2-65b62443ba20c1f2/docs/research/issue-5-diffuse-grain/test_spread_model.py", line 57, in test_equal_surface_distances_get_the_same_circular_support
+    self.assertFalse(tangent_pair(origin, np.array([1.2, 0., 0.]), normal, normal, 1., 1.))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: array(True) is not false
+
+======================================================================
+FAIL: test_the_smaller_endpoint_footprint_bounds_both_directions (test_spread_model.TangentFootprint.test_the_smaller_endpoint_footprint_bounds_both_directions)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-f30e47c2-65b62443ba20c1f2/docs/research/issue-5-diffuse-grain/test_spread_model.py", line 71, in test_the_smaller_endpoint_footprint_bounds_both_directions
+    self.assertFalse(tangent_pair(first, second, normal, normal, 3., 1.))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: array(True) is not false
+
+----------------------------------------------------------------------
+Ran 11 tests in 0.038s
+
+FAILED (failures=4)

@@ -1,0 +1,224 @@
+{
+  "normal": {
+    "sloped-panel": {
+      "mean_change_percent": 0.0,
+      "spatial_change_percent": 0.0,
+      "temporal_change_percent": 0.0,
+      "local_wash_error_range_percent": [
+        0.0,
+        0.0
+      ]
+    },
+    "sloped-panel-joint": {
+      "mean_change_percent": 0.0,
+      "spatial_change_percent": 0.0,
+      "temporal_change_percent": 0.0,
+      "local_wash_error_range_percent": [
+        0.0,
+        0.0
+      ]
+    },
+    "floor": {
+      "mean_change_percent": 0.0,
+      "spatial_change_percent": 0.0,
+      "temporal_change_percent": 0.0,
+      "local_wash_error_range_percent": [
+        0.0,
+        0.0
+      ]
+    },
+    "panel-warm": {
+      "mean_change_percent": 0.0,
+      "spatial_change_percent": 0.0,
+      "temporal_change_percent": 0.0,
+      "local_wash_error_range_percent": [
+        0.0,
+        0.0
+      ]
+    },
+    "panel-cool": {
+      "mean_change_percent": 0.0,
+      "spatial_change_percent": 0.0,
+      "temporal_change_percent": 0.0,
+      "local_wash_error_range_percent": [
+        0.0,
+        0.0
+      ]
+    },
+    "helmet-detail": {
+      "mean_change_percent": 0.0,
+      "spatial_change_percent": 0.0,
+      "temporal_change_percent": 0.0,
+      "local_wash_error_range_percent": [
+        0.0,
+        0.0
+      ]
+    },
+    "window-interior": {
+      "mean_change_percent": 0.0,
+      "spatial_change_percent": 0.0,
+      "temporal_change_percent": 0.0,
+      "local_wash_error_range_percent": [
+        0.0,
+        0.0
+      ]
+    },
+    "window-edge": {
+      "mean_change_percent": 0.0,
+      "spatial_change_percent": 0.0,
+      "temporal_change_percent": 0.0,
+      "local_wash_error_range_percent": [
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "irregular": {
+    "sloped-panel": {
+      "mean_change_percent": 7.02956574973852,
+      "spatial_change_percent": -66.49760071343123,
+      "temporal_change_percent": -25.39038069032712,
+      "local_wash_error_range_percent": [
+        5.391219615936279,
+        10.058847427368164
+      ]
+    },
+    "sloped-panel-joint": {
+      "mean_change_percent": 8.344566046376878,
+      "spatial_change_percent": -49.57383535744406,
+      "temporal_change_percent": -32.77891114029834,
+      "local_wash_error_range_percent": [
+        5.383217811584473,
+        16.126489639282227
+      ]
+    },
+    "floor": {
+      "mean_change_percent": 0.12530576704326002,
+      "spatial_change_percent": -1.5853823329557204,
+      "temporal_change_percent": -3.013477436627232,
+      "local_wash_error_range_percent": [
+        0.09264209121465683,
+        0.23094689846038818
+      ]
+    },
+    "panel-warm": {
+      "mean_change_percent": 1.6943676117757045,
+      "spatial_change_percent": -58.61924051945473,
+      "temporal_change_percent": -6.783559527500227,
+      "local_wash_error_range_percent": [
+        0.8508639335632324,
+        3.605201005935669
+      ]
+    },
+    "panel-cool": {
+      "mean_change_percent": 12.410683372726705,
+      "spatial_change_percent": -55.90881847125351,
+      "temporal_change_percent": -17.949009024854846,
+      "local_wash_error_range_percent": [
+        11.198892593383789,
+        17.542564392089844
+      ]
+    },
+    "helmet-detail": {
+      "mean_change_percent": -0.0003788426217621321,
+      "spatial_change_percent": 0.12250967177978023,
+      "temporal_change_percent": 4.0453007172280175,
+      "local_wash_error_range_percent": [
+        0.009614258073270321,
+        0.07147172838449478
+      ]
+    },
+    "window-interior": {
+      "mean_change_percent": 15.570934541161229,
+      "spatial_change_percent": -61.99988844224982,
+      "temporal_change_percent": -43.39908897131238,
+      "local_wash_error_range_percent": [
+        13.841379165649414,
+        17.97870635986328
+      ]
+    },
+    "window-edge": {
+      "mean_change_percent": 5.962462306332528,
+      "spatial_change_percent": -45.43823375927356,
+      "temporal_change_percent": -27.62738133797703,
+      "local_wash_error_range_percent": [
+        3.1621124744415283,
+        13.017427444458008
+      ]
+    }
+  },
+  "tangent": {
+    "sloped-panel": {
+      "mean_change_percent": 5.418465496732883,
+      "spatial_change_percent": -50.765992698079174,
+      "temporal_change_percent": -21.60441423380186,
+      "local_wash_error_range_percent": [
+        4.279216766357422,
+        7.840365886688232
+      ]
+    },
+    "sloped-panel-joint": {
+      "mean_change_percent": 6.268290638624707,
+      "spatial_change_percent": -29.216584157891234,
+      "temporal_change_percent": -12.227142871849573,
+      "local_wash_error_range_percent": [
+        3.736112594604492,
+        11.870505332946777
+      ]
+    },
+    "floor": {
+      "mean_change_percent": 0.11929738172813398,
+      "spatial_change_percent": -1.3219562025334697,
+      "temporal_change_percent": -2.0448475838391267,
+      "local_wash_error_range_percent": [
+        0.08471457660198212,
+        0.21764163672924042
+      ]
+    },
+    "panel-warm": {
+      "mean_change_percent": 1.2847133352357654,
+      "spatial_change_percent": -37.33486289586764,
+      "temporal_change_percent": -1.4687453501314618,
+      "local_wash_error_range_percent": [
+        0.5973204970359802,
+        3.278427839279175
+      ]
+    },
+    "panel-cool": {
+      "mean_change_percent": 9.99516937653826,
+      "spatial_change_percent": -24.68853539260757,
+      "temporal_change_percent": 34.22166873635479,
+      "local_wash_error_range_percent": [
+        9.99518871307373,
+        15.219079971313477
+      ]
+    },
+    "helmet-detail": {
+      "mean_change_percent": -0.0006033419531759066,
+      "spatial_change_percent": 0.12761039821362896,
+      "temporal_change_percent": 4.017405508881544,
+      "local_wash_error_range_percent": [
+        0.009573266841471195,
+        0.07304364442825317
+      ]
+    },
+    "window-interior": {
+      "mean_change_percent": 11.869669391099968,
+      "spatial_change_percent": -46.64515086464143,
+      "temporal_change_percent": -39.777989793069125,
+      "local_wash_error_range_percent": [
+        10.355563163757324,
+        14.445365905761719
+      ]
+    },
+    "window-edge": {
+      "mean_change_percent": 4.482513604381122,
+      "spatial_change_percent": -29.945745547188974,
+      "temporal_change_percent": -26.536560358480777,
+      "local_wash_error_range_percent": [
+        2.5080671310424805,
+        10.027982711791992
+      ]
+    }
+  }
+}

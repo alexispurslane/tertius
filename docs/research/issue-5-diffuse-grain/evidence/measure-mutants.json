@@ -50,5 +50,25 @@
   {
     "name": "make-exchange-unstable",
     "result": "killed"
+  },
+  {
+    "name": "accept-either-tangent-plane",
+    "result": "killed"
+  },
+  {
+    "name": "use-the-larger-endpoint-footprint",
+    "result": "killed"
+  },
+  {
+    "name": "include-normal-separation-in-tangent-distance",
+    "result": "killed"
+  },
+  {
+    "name": "exchange-outside-the-surface-footprint",
+    "result": "killed"
+  },
+  {
+    "name": "skip-the-surface-footprint",
+    "result": "killed"
   }
 ]

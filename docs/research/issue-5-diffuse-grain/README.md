@@ -119,23 +119,100 @@ The grid check directly reuses `luma`, `corr` and `ac` from `docs/research/cut-g
 
 Nine output pixels correspond to the wide control's six-render-pixel stride. The irregular control removes this lattice peak. `evidence/grid-stats.json` retains other lags and all per-frame values.
 
-The window edge remains sharp in the matched crops. This statement concerns geometry, not unchanged lighting on either side. Window-interior brightness rises 15.57% under irregular spreading, with paired display-linear luminance RMS difference 0.000816. The dark interior therefore requires further review despite the sharp edge. The helmet-detail mean changes by less than 0.001%, its spatial detail RMS by +0.12%, and its temporal measure by +4.04%. This retains the dedicated glossy reflection detail in this crop; it does not establish preservation of all rough reflected detail.
+The window edge remains sharp in the matched crops. This statement concerns geometry, not unchanged lighting on either side. Window-interior brightness rises 15.57% under irregular spreading, with paired display-linear luminance RMS difference 0.000756. The dark interior therefore requires further review despite the sharp edge. The helmet-detail mean changes by less than 0.001%, its spatial detail RMS by +0.12%, and its temporal measure by +4.05%. This retains the dedicated glossy reflection detail in this crop; it does not establish preservation of all rough reflected detail.
 
 The three-frame repeat is byte-identical to the first three frames of the 48-frame irregular run. The larger run is not repeated. `evidence/irregular-repeatability.json` records the exact scope. All candidate offsets and endpoint rules are in `irregular.glsl`; `evidence/irregular-experiment.patch` retains the actual live shader.
 
 The irregular shader adds at most 32 neighbor source evaluations and three intermediate-cell checks per accepted candidate, rather than the regular shader's 24 neighbors. Geometry rejection and blue-noise gating reduce the actual count. It recomputes the source from immutable ray records, so it is a diagnostic implementation with extra work. No matched Linux Runpod cost is available. Mac run logs do not establish a shipping performance budget.
+
+## Reciprocal tangent-plane footprint
+
+The `tangent` control keeps the irregular control's candidate pixels, fixed blue-noise decisions, source evaluation and exchange shares. It adds one symmetric distance test after the existing compatibility and connection tests. Both endpoints must accept the pair inside a circular footprint in their geometric tangent planes. A tangent plane is the plane through a surface point, perpendicular to its geometric normal. Shading normals still participate only in the unchanged compatibility test.
+
+The footprint radius is 12 times the geometric mean of the horizontal and vertical front-facing render-pixel sizes at each endpoint's view depth. These sizes are in metres in camera-relative world space. They come from the camera's field of view and the actual 848-by-480 render size. This supplies a depth-dependent world-distance bound without expanding the circle to compensate for a surface viewed at a shallow angle. The pair uses the smaller endpoint radius and the larger endpoint tangent distance.
+
+The actual added shader ends with:
+
+```glsl
+    float distanceSquared = max(dot(firstTangent, firstTangent), dot(secondTangent, secondTangent));
+    float radius = min(probeSurfaceRadius(first), probeSurfaceRadius(second));
+    return distanceSquared <= radius * radius;
+```
+
+where
+
+- `firstTangent` is the vector between the pair's surface points projected into the first endpoint's geometric plane, in metres.
+- `secondTangent` is that vector projected into the second endpoint's geometric plane, in metres.
+- `dot` computes a vector dot product. A tangent vector dotted with itself gives its squared length in square metres.
+- `max` selects the larger of the two squared lengths.
+- `distanceSquared` is that larger squared length, in square metres.
+- `first` and `second` are the two endpoints' existing material, geometry and view records.
+- `probeSurfaceRadius` computes the footprint radius described above, in metres.
+- `min` selects the smaller endpoint radius.
+- `radius` is the radius that both endpoints must accept, in metres.
+
+Swapping the endpoints leaves this decision unchanged. The original local and wide shares still sum to at most one. Rejected shares stay at the center. This retains the original exchange's outgoing-RGB conservation in exact arithmetic. It introduces no clipping, luminance limit or RGB-channel scaling.
+
+The sampling footprint and noise anchor are separate. The footprint now rejects candidates by distance along the surface. The blue-noise anchor still uses the same screen-pixel endpoint and fixed mask frame. The candidates themselves also remain sparse screen-space offsets. This is a tangent-bounded subset of the irregular graph, not uniform sampling of a surface disk, a surface-anchored noise field, or a material grain direction. Rejection also reduces the amount of exchange. A result cannot isolate footprint shape from that reduced exchange strength.
+
+The bounded comparison captures 48 displayed frames at the same 6.0043726-stop exposure, simulation ticks, warm-up rule, output size and local cooked assets as the saved irregular run. It measures frames 16 through 47. The 21 cooked asset hashes still match `assets.json`. The first three tangent frames repeat byte for byte. A separate three-frame normal replay also matches the saved baseline byte for byte after restoring and rebuilding the renderer. `evidence/tangent-verification.json` records both checks, all 48 tangent-frame hashes, the matched settings and the unchanged engine source tree. Neither full 48-frame sequence is repeated.
+
+### Measured outcome
+
+| Control, 32 measured frames | Panel brightness change | Panel spatial grain change | Panel temporal grain change | Warm-patch wash error | Cool-patch wash error |
+|---|---:|---:|---:|---:|---:|
+| Irregular screen-space exchange | +7.03% | -66.50% | -25.39% | 0.85% to 3.61% | 11.20% to 17.54% |
+| Tangent-bounded exchange | +5.42% | -50.77% | -21.60% | 0.60% to 3.28% | 10.00% to 15.22% |
+
+The tangent bound keeps the grid peak absent. Its median correlations at nine and 18 output pixels are -0.00762 and -0.00933. The irregular screen-space control's values are -0.00675 and +0.00359. The same original grid-check functions and the same frames produce both rows. `evidence/tangent-grid-stats.json` holds the full lag and per-frame records.
+
+The tangent bound leaves more fine speckles than the irregular control. It changes the warm and cool wash less, with no channel clipping or source cap. Both warm and cool colors remain visible. The local RGB values below show that the cool light still increases. This is not preservation of the original local wash.
+
+The broad panel's temporal measure improves over normal, but the cool crop behaves differently:
+
+| Crop and control | Spatial grain change | Temporal grain change | Mean brightness change |
+|---|---:|---:|---:|
+| Cool crop, irregular | -55.91% | -17.95% | +12.41% |
+| Cool crop, tangent bound | -24.69% | +34.22% | +10.00% |
+| Window interior, irregular | -62.00% | -43.40% | +15.57% |
+| Window interior, tangent bound | -46.65% | -39.78% | +11.87% |
+
+Thus the tangent bound trades away grain removal and worsens the cool crop's frame-to-frame grain measure, even while the broad panel's measure falls. These measures include motion and the retained 32 warm-up draws between displayed frames. They do not establish perceived flicker during uninterrupted 60 Hz motion. `evidence/tangent.mp4` retains the displayed sequence at the replay's 60 frames per second.
+
+The windshield boundary stays visually sharp at matched frames 9, 24 and 38. No broad halo appears in those inspected crops. The dark window interior still changes: its paired luminance RMS difference from normal is 0.000610 for the tangent bound, versus 0.000756 for irregular exchange. Sharp geometry does not establish unchanged lighting or prove that the approximate connection guard rejects every thin gap. The helmet crop changes in mean brightness by -0.00060%, in spatial detail RMS by +0.13%, and in temporal RMS by +4.02%. Its dedicated glossy detail remains visible in the inspected frames.
+
+The result supplies no evidence that this tangent bound is a better fix. It limits exchange over foreshortened surfaces and modestly reduces wash changes, while leaving more grain and worsening the cool crop's temporal measure. The noise pattern remains anchored in screen space. Testing a surface-anchored pattern would be a separate experiment. No production filter is selected, and issue #5 remains open.
+
+### Local color evidence
+
+Each entry is the time-mean display-linear RGB vector of one local patch, with channel values from zero to one. Patch rows run top to bottom and columns left to right within each fixed crop. These values use the same 32 measured frames. Wash errors above also account for the spatial distribution of color, using the eight-output-pixel blur defined earlier.
+
+| Crop patch | Normal RGB | Irregular RGB | Tangent-bound RGB |
+|---|---|---|---|
+| panel-warm row0-column0 | 0.117832 / 0.106232 / 0.086458 | 0.118828 / 0.107169 / 0.087325 | 0.118476 / 0.106885 / 0.087138 |
+| panel-warm row0-column1 | 0.032648 / 0.030845 / 0.025485 | 0.033414 / 0.031548 / 0.026076 | 0.033196 / 0.031379 / 0.025952 |
+| panel-warm row1-column0 | 0.072744 / 0.065513 / 0.052649 | 0.074077 / 0.066797 / 0.053669 | 0.073774 / 0.066457 / 0.053373 |
+| panel-warm row1-column1 | 0.028188 / 0.026727 / 0.022404 | 0.029004 / 0.027762 / 0.023395 | 0.028814 / 0.027616 / 0.023329 |
+| panel-cool row0-column0 | 0.036950 / 0.040837 / 0.036993 | 0.039013 / 0.045624 / 0.042501 | 0.038768 / 0.045256 / 0.042149 |
+| panel-cool row0-column1 | 0.037178 / 0.044363 / 0.041856 | 0.040324 / 0.052369 / 0.051199 | 0.039686 / 0.050974 / 0.049650 |
+| panel-cool row1-column0 | 0.032257 / 0.036598 / 0.033811 | 0.033766 / 0.040144 / 0.037956 | 0.033552 / 0.039519 / 0.037187 |
+| panel-cool row1-column1 | 0.044317 / 0.053730 / 0.051038 | 0.047149 / 0.061171 / 0.059866 | 0.046334 / 0.058952 / 0.057246 |
+
+`evidence/tangent/results.json` retains all eight crops, all local RGB vectors and the unrounded measures. `evidence/tangent-summary.json` retains derived percentages. The actual temporary shader patch, script, settings and run logs are alongside them.
 
 ## Repeat the experiments
 
 Run one renderer experiment at a time in this checkout. Each output folder must be new. The runner restores all temporary engine edits in a `finally` block. After a diagnostic, build once more before using `--no-build` for unrelated rendering.
 
 ```powershell
-nix develop --command python3 docs/research/issue-5-diffuse-grain/render.py normal captures/issue5-normal --exposure 6.0043726 --content-root '/Users/alexispurslane/Development/tertius/content'
-nix develop --command python3 docs/research/issue-5-diffuse-grain/render.py raw-source captures/issue5-source --frames 48 --exposure 6.0043726 --content-root '/Users/alexispurslane/Development/tertius/content'
-nix develop --command python3 docs/research/issue-5-diffuse-grain/render.py cap-diffuse-ray-specular captures/issue5-cap --frames 48 --limit 10.944249153137207 --exposure 6.0043726 --content-root '/Users/alexispurslane/Development/tertius/content'
-nix develop --command python3 docs/research/issue-5-diffuse-grain/render.py spread-step6 captures/issue5-wide --frames 48 --exposure 6.0043726 --content-root '/Users/alexispurslane/Development/tertius/content'
-nix develop --command python3 docs/research/issue-5-diffuse-grain/render.py irregular captures/issue5-irregular --frames 48 --exposure 6.0043726 --content-root '/Users/alexispurslane/Development/tertius/content'
-nix develop --command python3 docs/research/issue-5-diffuse-grain/analyze.py captures/issue-5-diffuse-grain captures/issue5-analysis --frames 48 --variants normal cap-diffuse-ray-specular spread-step2 spread-step6 --crops docs/research/issue-5-diffuse-grain/crops.json
+nix develop --command python3 docs/research/issue-5-diffuse-grain/render.py normal captures/issue5-repeat/normal --exposure 6.0043726 --content-root '/Users/alexispurslane/Development/tertius/content'
+nix develop --command python3 docs/research/issue-5-diffuse-grain/render.py raw-source captures/issue5-repeat/raw-source --frames 48 --exposure 6.0043726 --content-root '/Users/alexispurslane/Development/tertius/content'
+nix develop --command python3 docs/research/issue-5-diffuse-grain/render.py cap-diffuse-ray-specular captures/issue5-repeat/cap-diffuse-ray-specular --frames 48 --limit 10.944249153137207 --exposure 6.0043726 --content-root '/Users/alexispurslane/Development/tertius/content'
+nix develop --command python3 docs/research/issue-5-diffuse-grain/render.py spread-step6 captures/issue5-repeat/spread-step6 --frames 48 --exposure 6.0043726 --content-root '/Users/alexispurslane/Development/tertius/content'
+nix develop --command python3 docs/research/issue-5-diffuse-grain/render.py irregular captures/issue5-repeat/irregular --frames 48 --exposure 6.0043726 --content-root '/Users/alexispurslane/Development/tertius/content'
+nix develop --command python3 docs/research/issue-5-diffuse-grain/render.py tangent captures/issue5-repeat/tangent --frames 48 --exposure 6.0043726 --content-root '/Users/alexispurslane/Development/tertius/content'
+nix develop --command python3 docs/research/issue-5-diffuse-grain/analyze.py captures/issue5-repeat captures/issue5-repeat/analysis --frames 48 --variants normal irregular tangent --crops docs/research/issue-5-diffuse-grain/irregular-crops.json
+nix develop --command python3 docs/research/issue-5-diffuse-grain/grid_stats.py captures/issue5-repeat captures/issue5-repeat/grid.json --variants normal irregular tangent
 nix develop --command python3 -m unittest discover -s docs/research/issue-5-diffuse-grain -p 'test_*.py'
 ```
 
@@ -143,8 +220,8 @@ nix develop --command python3 -m unittest discover -s docs/research/issue-5-diff
 
 ## Verification and limits
 
-The 13 measurement and exchange-model tests pass. The measurement tests first failed on missing behavior, then passed. The exchange model's impulse, boundaries and constant-wash tests did the same. One surviving normalization mutation led to a behavior test that requires equal distribution to the center and its neighbors. All 13 listed mutations then die, including loss of reciprocity, disconnected coordinate phases and an unstable exchange weight. Line coverage is 31/31 for `measure.py` and 33/33 for `spread_model.py`; the standard-library tracer does not measure branch coverage. The existing renderer-survey suite passes all 96 tests.
+The 18 measurement and exchange-model tests pass. The measurement tests first failed on missing behavior, then passed. The exchange model's impulse, boundaries and constant-wash tests did the same. One surviving normalization mutation led to a behavior test that requires equal distribution to the center and its neighbors. All 18 listed model and measurement mutations die, including loss of reciprocity, disconnected coordinate phases, an unstable exchange weight and loss of either endpoint's tangent bound. The tangent behavior tests first fail on unrestricted exchange and then pass with the added bound. These CPU model mutations do not validate the live shader itself. Line coverage is 31/31 for `measure.py` and 43/43 for `spread_model.py`; the standard-library tracer does not measure branch coverage. The existing renderer-survey suite passes all 96 tests.
 
 Every experimental Release build and real renderer run completed. The normal engine build also passes after restoring the patches. The final engine source has no diff. No full .NET suite, Linux GPU validation, performance benchmark or production hardening is claimed. Mac timing logs are retained only as run records. Renderer performance decisions require matched Linux Runpod measurements.
 
-This one cockpit view does not cover the berth floor, independent camera and light angles, tangent-plane filtering, or normal uninterrupted motion. Those remain required before a production change could close issue #5.
+This one cockpit view does not cover the berth floor, independent camera and light angles, uniform tangent-plane sampling, surface-anchored noise, or normal uninterrupted motion. A production fix still needs matched moving shots and independent camera and light controls before it could close issue #5.

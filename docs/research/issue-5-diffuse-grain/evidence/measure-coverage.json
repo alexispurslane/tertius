@@ -8,8 +8,8 @@
   },
   {
     "file": "spread_model.py",
-    "executable_lines": 33,
-    "covered_lines": 33,
+    "executable_lines": 43,
+    "covered_lines": 43,
     "missed_lines": [],
     "branch_coverage": "Not measured by the standard-library tracer."
   }
