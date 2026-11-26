@@ -222,8 +222,8 @@ public sealed class StillPlaceTests
             ScreenTraceProbe.On(renderer, "still_place_probe.comp");
             Draw(renderer, scene, 1);
             return (
-                Specular: renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Sample(0)),
-                Diffuse: renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.Sample(0))
+                Specular: renderer.ReadImage(renderer.ScreenTraceImages.Specular.Sample(0)),
+                Diffuse: renderer.ReadImage(renderer.ScreenTraceImages.OwnLight)
             );
         }
         finally
@@ -305,7 +305,7 @@ public sealed class StillPlaceTests
 
     private static float[] TraceLayer(VulkanRenderer renderer, int layer) =>
         renderer.ReadImageLayer(
-            renderer.ScreenTraceSignals.Specular.AccumulationTrace(0)
+            renderer.ScreenTraceImages.Specular.AccumulationTrace(0)
                 ?? throw new InvalidOperationException("The accumulation trace is off."),
             layer
         );

@@ -243,7 +243,7 @@ public sealed class GpuTimingTests
             string[] passes = [.. renderer.LastFrameStats.GpuTimings!.Value.Passes.ToArray().Select(pass => pass.Pass)];
             passes
                 .SkipWhile(pass => pass != "G-buffer")
-                .Take(15)
+                .Take(12)
                 .Should()
                 .Equal(
                     [
@@ -255,11 +255,8 @@ public sealed class GpuTimingTests
                         "light pyramid",
                         "ray plan",
                         "reflection rays",
-                        "diffuse rays",
                         "screen trace resolve",
                         "reflection share",
-                        "accumulate indirect diffuse",
-                        "filter indirect diffuse",
                         "accumulate indirect specular",
                         "composite",
                     ],

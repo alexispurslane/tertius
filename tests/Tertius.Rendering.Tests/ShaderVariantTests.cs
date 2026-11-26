@@ -171,7 +171,6 @@ public sealed class HistoryShaderTests
     [Theory]
     [InlineData("accumulate_temporal.comp", "accumulate_temporal.comp")]
     [InlineData("accumulate_spatial.comp", "accumulate_spatial_lightage.comp")]
-    [InlineData("accumulate_diffuse_single_temporal.comp", "accumulate_diffuse_single_temporal.comp")]
     public void AHalfPrecisionHistoryBesideTheLightAgeTakesTheLightAgeVariantOfTheSpatialDispatchAlone(
         string shader,
         string expected

@@ -63,7 +63,7 @@ public sealed class ScreenTraceHardeningTests
         (VulkanRenderer renderer, RenderSnapshot scene) = Wall();
         try
         {
-            renderer.ScreenTraceSignals.Specular.SampleAge(0).Should().NotBeNull("the default history is precise");
+            renderer.ScreenTraceImages.Specular.SampleAge(0).Should().NotBeNull("the default history is precise");
             var probe = ScreenTraceProbe.On(renderer, "record_code_limit_probe.comp");
 
             renderer.Render(scene, 1f);
@@ -75,27 +75,6 @@ public sealed class ScreenTraceHardeningTests
                 values[4 * column].Should().Be(codes[column & 3], "column {0}", column);
                 values[4 * column + 1].Should().Be(column >= 4 ? 1 : 0, "column {0} carries its own mark", column);
             }
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(renderer);
-        }
-    }
-
-    [Fact]
-    public void TheDiffuseResolveCapsAWeightedRayBeforeHalfFloatStorage()
-    {
-        (VulkanRenderer renderer, RenderSnapshot scene) = Wall();
-        try
-        {
-            ScreenTraceProbe.On(renderer, "screen_trace_resolve_setup.comp");
-            ScreenTraceProbe.On(renderer, "screen_trace_resolve.comp");
-
-            renderer.Render(scene, 1f);
-
-            float[] sample = renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.Sample(0));
-            int at = 4 * (Height / 2 * Width + Width / 2);
-            new Vector3(sample[at], sample[at + 1], sample[at + 2]).Should().Be(new Vector3(32256));
         }
         finally
         {
@@ -180,7 +159,7 @@ public sealed class ScreenTraceHardeningTests
                     scene.Time += 1.0 / 60;
                     renderer.Render(scene, 1);
 
-                    float[] history = renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Slow(0));
+                    float[] history = renderer.ReadImage(renderer.ScreenTraceImages.Specular.Slow(0));
                     history[4 * (Height / 2 * Width + Width / 2) + 3].Should().BeGreaterThan(0);
                 },
                 sharing: false
@@ -226,13 +205,13 @@ public sealed class ScreenTraceHardeningTests
         [InlineData(null)]
         [InlineData("precise-capped")]
         [InlineData("precise-uncapped")]
-        public void AConvergedFlatRoughWallSharesItsBlocksRaysOfBothKindsUnderEitherPreciseHistory(string? mode) =>
+        public void AConvergedFlatRoughWallSharesItsBlocksReflectionRaysUnderEitherPreciseHistory(string? mode) =>
             WithHistoryMode(
                 mode,
                 (renderer, scene) =>
                 {
                     renderer.Render(scene, 1);
-                    (int reflection, int diffuse) = renderer.ReadOwnRayCounts();
+                    int reflection = renderer.ReadReflectionRayCount();
 
                     for (int frame = 0; frame < 20; frame++)
                     {
@@ -241,13 +220,9 @@ public sealed class ScreenTraceHardeningTests
                     }
 
                     renderer
-                        .ReadOwnRayCounts()
-                        .Reflection.Should()
+                        .ReadReflectionRayCount()
+                        .Should()
                         .BeLessThan(reflection / 10, "the wall's lobe at roughness 0.3 holds its neighbors' rays");
-                    renderer
-                        .ReadOwnRayCounts()
-                        .Diffuse.Should()
-                        .BeLessThan(diffuse / 10, "the specular control must not force full-rate diffuse rays");
                 }
             );
 
@@ -268,20 +243,11 @@ public sealed class ScreenTraceHardeningTests
                     scene.Time += 1.0 / 60;
                     renderer.Render(scene, 1);
 
-                    TemporalSignal specular = renderer.ScreenTraceSignals.Specular;
-                    TemporalSignal diffuse = renderer.ScreenTraceSignals.Diffuse;
+                    TemporalSignal specular = renderer.ScreenTraceImages.Specular;
                     specular.Slow(0).Format.Should().Be(Silk.NET.Vulkan.Format.R32G32B32A32Sfloat);
                     specular.Sample(0).Format.Should().Be(Silk.NET.Vulkan.Format.R16G16B16A16Sfloat);
                     specular.ReflectionGuide(0).Format.Should().Be(Silk.NET.Vulkan.Format.R16G16B16A16Sfloat);
                     specular.HitImages(0, 0).LastFast.Format.Should().Be(Silk.NET.Vulkan.Format.R16G16B16A16Sfloat);
-                    diffuse.Slow(0).Format.Should().Be(Silk.NET.Vulkan.Format.R16G16B16A16Sfloat);
-                    diffuse
-                        .HitImages(0, 0)
-                        .LastFast.Should()
-                        .BeSameAs(
-                            diffuse.Slow(0),
-                            "the H13 single diffuse history must retain its intentional fast/slow alias"
-                        );
                 }
             );
 

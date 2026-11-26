@@ -10,7 +10,7 @@ layout(local_size_x = 8, local_size_y = 8) in;
 
 uvec2 recordedCodeOf(TracingPixel p, ivec2 pixel, ivec2 cell)
 {
-    uvec3 draw = drawOf(pixel, trace.drawIndex, DirectionDraw[KindReflection]);
+    uvec3 draw = drawOf(pixel, trace.drawIndex, DirectionDraw);
     vec3 drawn = reflectionDirection(p, reflectionNumbersOf(cell, trace.drawIndex, draw));
     return directionCodeOf(directionOfCode(directionCodeOf(drawn)));
 }
@@ -23,9 +23,9 @@ void main()
     vec4 result = vec4(0.0, 0.0, 0.0, 1.0);
     ivec2 chosen;
     TracingPixel p;
-    if (chosenPixelOf(block, KindReflection, chosen, p))
+    if (chosenPixelOf(block, chosen, p))
     {
-        uvec2 recorded = imageLoad(blockRay, ivec3(block, KindReflection)).xy;
+        uvec2 recorded = imageLoad(blockRay, block).xy;
         result = vec4(float(all(equal(recorded, recordedCodeOf(p, chosen, block)))),
                       float(all(equal(recorded, recordedCodeOf(p, chosen, chosen)))), 1.0, 1.0);
     }

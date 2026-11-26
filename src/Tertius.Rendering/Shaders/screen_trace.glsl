@@ -1,10 +1,4 @@
-// The screen tracer (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 6): the one owner of which pixels start a ray of each kind,
-// of a ray's start, its direction and density, its random numbers, its hit point, the light of a hit and of a miss, and
-// the block records. Its five kernels include it: screen_trace_plan.comp, screen_trace_block_rays.comp and
-// screen_trace_own_rays.comp (each of both kinds, by a specialization constant), screen_trace_resolve.comp and
-// screen_trace_share.comp. Set 3 is
-// the tracer set (DescriptorLayouts.ScreenTraceSet, ScreenTraceImages): every image holds the render size, the block
-// records a quarter of it, and each stays in the General layout.
+// Glossy reflection sampling, depth traversal and ray records shared by the screen-trace passes.
 #ifndef TERTIUS_SCREEN_TRACE_GLSL
 #define TERTIUS_SCREEN_TRACE_GLSL
 
@@ -26,45 +20,39 @@ layout(set = 3, binding = 2, rgba16f) uniform readonly image2D directDiffuseLigh
 layout(set = 3, binding = 3, rgba16f) uniform readonly image2D directSpecularLight;
 layout(set = 3, binding = 4, r16ui) uniform readonly uimage2D surfaceTest;      // the pass bits (signals.glsl)
 layout(set = 3, binding = 5, rgba16f) uniform readonly image2D motionTarget;   // the G-buffer's motion target
-// The last frame's diffuse light that a hit reads: the diffuse filter's output, or with the filter off the fast history
-// (ScreenTraceImages.HitDiffuse); and the last frame's specular fast history.
-layout(set = 3, binding = 6, rgba16f) uniform readonly image2D lastDiffuseLight;
-layout(set = 3, binding = 7, rgba16f) uniform readonly image2D lastFastSpecular;
-layout(set = 3, binding = 8, rgba16f) uniform readonly image2D slowDiffuse;    // the last frame's slow histories: a the
+// The reprojected reflection from the previous frame.
+layout(set = 3, binding = 6, rgba16f) uniform readonly image2D lastFastSpecular;
 #include "specular_history.glsl"
-layout(set = 3, binding = 9, SPECULAR_HISTORY_FORMAT) uniform readonly image2D slowSpecular;
-layout(set = 3, binding = 10, r8ui) uniform uimage2D rayPlan;                  // the plan's bits (PlanOwnRay)
-// The records of the rays, layer KindReflection and KindDiffuse: rgb the ray's light, pre-exposed, a its hit distance in
+layout(set = 3, binding = 7, SPECULAR_HISTORY_FORMAT) uniform readonly image2D slowSpecular;
+layout(set = 3, binding = 8, r8ui) uniform uimage2D rayPlan;                  // the plan's bits (PlanOwnRay)
+// The records of the rays, one record per location: rgb the ray's light, pre-exposed, a its hit distance in
 // m, 0 for a miss; and x, y the direction's octahedral code in 16-bit units, z the half bits of log2 of its density per
 // steradian, w RayTraced, with a precise specular history also the hit's light code and moved mark (recordOf). A block's
 // record at the block, an own ray's at its pixel.
-layout(set = 3, binding = 11, rgba16f) uniform image2DArray blockLight;
-layout(set = 3, binding = 12, rgba16ui) uniform uimage2DArray blockRay;
-layout(set = 3, binding = 13, rgba16f) uniform image2DArray ownLight;
-layout(set = 3, binding = 14, rgba16ui) uniform uimage2DArray ownRay;
-// The two samples of the frame, which the resolve writes (TemporalSignal.Sample): rgb the demodulated sample, a 1 for the
-// diffuse sample and the hit distance for the specular sample.
-layout(set = 3, binding = 15, rgba16f) uniform writeonly image2D diffuseSample;
-layout(set = 3, binding = 16, rgba16f) uniform writeonly image2D specularSample;
-OWN_RAY_LIST(3, 17, reflectionOwnRays);
-OWN_RAY_LIST(3, 18, diffuseOwnRays);
+layout(set = 3, binding = 9, rgba16f) uniform image2D blockLight;
+layout(set = 3, binding = 10, rgba16ui) uniform uimage2D blockRay;
+layout(set = 3, binding = 11, rgba16f) uniform image2D ownLight;
+layout(set = 3, binding = 12, rgba16ui) uniform uimage2D ownRay;
+// Reflection radiance in RGB and hit distance in alpha.
+layout(set = 3, binding = 13, rgba16f) uniform writeonly image2D specularSample;
+OWN_RAY_LIST(3, 14, reflectionOwnRays);
 // The light pyramid (ARCHITECTURE.md, "Guided rays", light_pyramid.glsl): each pixel's guide light, and the sums
-// of levels 1 to L, mip m level m + 1, whose padding holds no light. Bindings 19 to 24 are the light age's.
-layout(set = 3, binding = 25) uniform texture2D lightFinest;    // R32F
-layout(set = 3, binding = 26) uniform texture2D lightLevels;    // R32F
-// The hit light (ticket ter-67y3, ScreenTraceImages.HitLight), layer KindReflection and KindDiffuse: rgb the light that
+// of levels 1 to L, mip m level m + 1, whose padding holds no light. Bindings 15 to 19 are the light age's.
+layout(set = 3, binding = 20) uniform texture2D lightFinest;    // R32F
+layout(set = 3, binding = 21) uniform texture2D lightLevels;    // R32F
+// The hit light (ticket ter-67y3, ScreenTraceImages.HitLight), one record per location: rgb the light that
 // leaves each pixel that a walk can hit toward a ray of the kind (leavingLightOf), and a the pixel's moved mark, 1 where
 // its surface moved since the last draw (movedSurfaceAt), else 0. The plan writes it, and a hit reads both.
-layout(set = 3, binding = 27, rgba16f) uniform image2DArray hitLight;
+layout(set = 3, binding = 22, rgba16f) uniform image2D hitLight;
 // The reflection share of each tile of TileBlocks × TileBlocks blocks (ScreenTraceImages.ReflectionShare, GuidedShares):
 // the share of the tile's reflection rays that take the guided draw, after the last drawn frame. The tracer reads it at a
 // pixel's block (tileShareAt), and the share pass moves it after the resolve. It covers the tiles of the largest render
 // size.
-layout(set = 3, binding = 28, r32f) uniform image2D reflectionShare;
+layout(set = 3, binding = 23, r32f) uniform image2D reflectionShare;
 // The guide of each block's reflection ray (ScreenTraceImages.BlockGuide), which the block pass writes while the rays are
 // guided: x its guided density along its direction, y and z its evidence for its tile's share (shareEvidenceOf), and w
 // the share at which it was drawn. The resolve weighs the ray at each pixel of the block by that share's mixture.
-layout(set = 3, binding = 29, rgba32f) uniform image2D blockGuide;
+layout(set = 3, binding = 24, rgba32f) uniform image2D blockGuide;
 // The blocks along each side of a tile of the reflection share (ScreenTraceImages.TileBlocks).
 const int TileBlocks = 8;
 #include "sent_light.glsl"
@@ -81,17 +69,15 @@ const uint RecordMovedMark = 0x8000u;
 // the exact light at the pixel, g the frames since it last changed, or for a light that the record never saw change −(N + 1), where N counts the frames since the
 // frame that first showed the pixel. The fraction of g holds a pending change (ticket tiunr-okzm, recordAgeOf). The plan
 // writes this frame's record from the last frame's, and a hit reads this frame's record at its pixel.
-layout(set = 3, binding = 19, rg32f) uniform readonly image2D lastLightAge;
-layout(set = 3, binding = 20, rg32f) uniform image2D lightAge;
-// The two samples' ages (TemporalSignal.SampleAge), which the resolve writes: the youngest light code of their rays
+layout(set = 3, binding = 15, rg32f) uniform readonly image2D lastLightAge;
+layout(set = 3, binding = 16, rg32f) uniform image2D lightAge;
+// The reflection sample's age (TemporalSignal.SampleAge), which the resolve writes: the youngest light code of their rays
 // (ageCodeOf) and their motion bit (sample_age.glsl).
-layout(set = 3, binding = 21, r16ui) uniform writeonly uimage2D specularSampleAge;
+layout(set = 3, binding = 17, r16ui) uniform writeonly uimage2D specularSampleAge;
 // FSR 3.1's transparency and composition mask (ScreenTraceImages.LightChangeMask), which the resolve writes from this
 // frame's records (lightChangeMaskAt): where the direct light changed, FSR's history keeps to this frame's light (ticket
 // t1-4hij).
-layout(set = 3, binding = 22, r8) uniform writeonly image2D lightChangeMask;
-// The diffuse sample's age (TemporalSignal.SampleAge), which the resolve writes as the specular sample's.
-layout(set = 3, binding = 23, r16ui) uniform writeonly uimage2D diffuseSampleAge;
+layout(set = 3, binding = 18, r8) uniform writeonly image2D lightChangeMask;
 
 // The age of a pixel whose light the record never saw change, in the frame that first shows it: no evidence. Each later
 // frame that shows it unchanged lowers it by one, down to −(MostLightAge + 1).
@@ -192,7 +178,7 @@ float lightChangeMaskAt(ivec2 pixel)
 // The diagnostic of uncovered surfaces (TemporalSignal.UncoveredDiagnostic), which only the capture tool and the tests
 // read: the resolve writes r, the fewest frames seen among the never-changed surfaces that the specular sample's rays
 // hit, or −1 for none. The temporal dispatch writes the other channels.
-layout(set = 3, binding = 24, rgba32f) uniform writeonly image2D uncoveredDiagnostic;
+layout(set = 3, binding = 19, rgba32f) uniform writeonly image2D uncoveredDiagnostic;
 
 // The age of a ray that hit nothing: below every record's age, so that a miss differs from a surface first shown.
 const float MissLightAge = -65536.0;
@@ -238,20 +224,14 @@ bool movedHitOfRecord(uvec4 ray)
 }
 #endif
 
-HISTORY_READER(lastDiffuseLightAt, lastDiffuseLight)
 HISTORY_READER(lastFastSpecularAt, lastFastSpecular)
-HISTORY_READER(slowDiffuseAt, slowDiffuse)
 HISTORY_READER(slowSpecularAt, slowSpecular)
 
 // ScreenTracePushConstants.
 layout(push_constant, std430) uniform ScreenTracePush
 {
     uint drawIndex;          // the draw's index since the last reset (section 6, "Randomness")
-    float maxRoughness;      // ScreenTrace.MaxRoughness: above it, a pixel traces no reflection ray
-    float handOverStart;     // MaxRoughness − HandOverWidth: from it, the specular sample blends in the diffuse rays
     uint reflectionSteps;    // the caps of decision 41
-    uint diffuseSteps;
-    float diffuseShare;      // GuidedShares.Diffuse, or 0 with the guiding off (TERTIUS_GUIDED_RAYS)
     float reflectionCeiling; // GuidedShares.ReflectionCeiling, or 0 with the guiding off
     float rampStart;         // GuidedShares.RampStart and RampEnd, roughnesses
     float rampEnd;
@@ -262,14 +242,8 @@ layout(push_constant, std430) uniform ScreenTracePush
     uint sharesRestart;      // 1 when every tile's share restarts at the ceiling before this draw (ScreenTraceImages.SharesRestart)
 } trace;
 
-// The two ray kinds, which index the record layers and the constants of the draws.
-const uint KindReflection = 0u;
-const uint KindDiffuse = 1u;
-
-// The plan's bits at a pixel: whether it traces its own ray of each kind, bit 0 for a reflection ray and bit 1 for a
-// diffuse ray.
+// Set for a pixel with an individual ray.
 const uint PlanOwnReflection = 1u;
-const uint PlanOwnDiffuse = 2u;
 
 // The largest weight of a ray at a pixel, which trades a small bias for no fireflies (section 6, "The resolve").
 const float MostRayWeight = 4.0;
@@ -277,9 +251,9 @@ const float MostRayWeight = 4.0;
 // The least cosine of a block ray at its chosen pixel, 2^-14, by which the resolve divides.
 const float LeastRayCosine = 0.00006103515625;
 
-// The constants of pcg3d's third value, one per kind and use: a direction takes two dimensions from one draw, its x and y.
-const uint DirectionDraw[2] = uint[2](0x5245u, 0x4446u);   // "RE", "DF"
-const uint TurnDraw[2] = uint[2](0x5254u, 0x4454u);        // the block's turn
+// The constants of pcg3d's third value, one per use: a direction takes two dimensions from one draw, its x and y.
+const uint DirectionDraw = 0x5245u;   // "RE"
+const uint TurnDraw = 0x5254u;        // the block's turn
 // The guided draw: the descent's levels, three per draw from "GD" on, and the target's place in its slab, "GT".
 const uint GuideDraw = 0x4744u;
 const uint TargetDraw = 0x4754u;
@@ -291,7 +265,7 @@ const uint ReflectionGuideSalt = 0x0100u;
 const uint TurnWindowDraw = 0x5250u;
 const uint TurnPhaseDraw = 0x5243u;
 
-// The depth of the box that a guided diffuse ray aims at, as a share of the target's depth
+// The depth of the box that a guided reflection ray aims at, as a share of the target's depth
 // (LightPyramid.TargetDepthShare). It is no thickness: a guided ray that the walk rejects behind a thin surface counts
 // as a miss (https://github.com/alexispurslane/tertius/wiki/back-face-depth-layer, decision 7).
 const float TargetDepthShare = 0.05;
@@ -300,7 +274,7 @@ const float TargetDepthShare = 0.05;
 layout(set = 0, binding = 20) uniform utexture2D blueNoiseMask;
 #include "blue_noise.glsl"
 
-// The draw of a pixel or a block: pcg3d of its packed position, the draw index and a constant per kind and use.
+// The draw of a pixel or a block: pcg3d of its packed position, the draw index and a constant per use.
 uvec3 drawOf(ivec2 position, uint drawIndex, uint constant)
 {
     return pcg3d(uvec3(packedPixel(position), drawIndex, constant));
@@ -362,19 +336,18 @@ TracingPixel tracingPixelAt(ivec2 pixel)
     return p;
 }
 
-// Whether a pixel of a traced surface starts a ray of the kind: every one starts a diffuse ray, and one of a floored
-// roughness up to MaxRoughness a reflection ray.
-bool startsKind(TracingPixel p, uint kind)
+// The composite uses only environment light at the roughness limit.
+bool startsReflection(TracingPixel p)
 {
-    return kind == KindDiffuse || sqrt(p.alpha) <= trace.maxRoughness;
+    return sqrt(p.alpha) < maxTraceRoughness;
 }
 
 // The block's chosen pixel for the kind: the first pixel of the block's turn that starts the ray (section 6, "The ray
 // budget"), or false when none does. The plan, the block's ray and the resolve call it, so all three choose the same
 // pixel.
-bool chosenPixelOf(ivec2 block, uint kind, out ivec2 chosen, out TracingPixel p)
+bool chosenPixelOf(ivec2 block, out ivec2 chosen, out TracingPixel p)
 {
-    uint turn = trace.drawIndex + drawOf(block, 0u, TurnDraw[kind]).x;
+    uint turn = trace.drawIndex + drawOf(block, 0u, TurnDraw).x;
     for (uint k = 0u; k < 4u; k++)
     {
         uint corner = (turn + k) & 3u;
@@ -382,7 +355,7 @@ bool chosenPixelOf(ivec2 block, uint kind, out ivec2 chosen, out TracingPixel p)
         if (all(lessThan(vec2(chosen), frame.viewport.xy)) && tracedSurface(chosen))
         {
             p = tracingPixelAt(chosen);
-            if (startsKind(p, kind))
+            if (startsReflection(p))
                 return true;
         }
     }
@@ -428,45 +401,23 @@ vec3 reflectionDirection(TracingPixel p, vec2 u)
     return reflect(-p.V, h.x * tangent + h.y * bitangent + h.z * p.normal);
 }
 
-// A diffuse ray: cosine-weighted around the lobes' normal, of density cos θ / π.
-vec3 diffuseDirection(TracingPixel p, vec2 u)
-{
-    vec3 tangent, bitangent;
-    basisOf(p.normal, tangent, bitangent);
-    float radius = sqrt(u.x);
-    float phi = 2.0 * PI * u.y;
-    float cosine = sqrt(max(1.0 - u.x, 0.0));
-    return radius * cos(phi) * tangent + radius * sin(phi) * bitangent + cosine * p.normal;
-}
-
-// The ray's density per steradian along `direction`, for the kind.
-float densityOf(TracingPixel p, uint kind, vec3 direction)
-{
-    return kind == KindReflection ? reflectionDensity(p, direction) : max(dot(p.normal, direction), 0.0) / PI;
-}
-
-// The light of a miss along `direction` from the pixel, pre-exposed (section 6, "Misses"): with the map, its lobe at
-// roughness 0.5 for a diffuse ray, and its specular term at the pixel's roughness and footprint for a reflection ray.
-// Without the map, the hemisphere has no direction at a pixel, so a miss reads the pixel's closed form, the hemisphere
-// by the normal's or the lobe's sky share.
-vec3 missLightOf(TracingPixel p, ivec2 pixel, uint kind, vec3 direction)
+// On a miss, use the receiver’s environment along the sampled reflection direction.
+vec3 missLightOf(TracingPixel p, ivec2 pixel, vec3 direction)
 {
     vec3 light;
     if (environmentMapOn)
-        light = kind == KindDiffuse ? environmentLobe(p.s.map, direction, 0.5).rgb
-            : environmentSpecular(p.s.map, p.s.position, direction, p.s.geometricNormal, sqrt(p.alpha),
+        light = environmentSpecular(p.s.map, p.s.position, direction, p.s.geometricNormal, sqrt(p.alpha),
                 withAmbientFootprint(p.s, pixel).reflectionFootprint);
     else
         light = mix(frame.ambientGround.rgb, frame.ambientSky.rgb,
-            kind == KindDiffuse ? p.s.skyFraction : p.s.lobeSkyFraction);
+            p.s.lobeSkyFraction);
     return exposed(light, exposureScale());
 }
 
-// The last frame's light of the signal of `kind` at a reprojection that holds one (lastDiffuseLight, lastFastSpecular),
-// rescaled to its weights and into this frame's exposure.
-vec3 lastLightOf(Reprojection r, uint kind)
+// Reproject the previous reflection into the current exposure.
+vec3 lastLightOf(Reprojection r)
 {
-    vec3 light = kind == KindDiffuse ? lastDiffuseLightAt(r).rgb : lastFastSpecularAt(r).rgb;
+    vec3 light = lastFastSpecularAt(r).rgb;
     // As the accumulator rescales its histories (accumulate_temporal.comp): within 2^±64 and at most MaxRadiance.
     return exposed(light, historyRatio(exposureStops, previousStops));
 }
@@ -484,13 +435,6 @@ bool movesOnScreenAt(ivec2 pixel)
     return (imageLoad(surfaceTest, pixel).r & SurfaceMovesOnScreen) != 0u;
 }
 
-// The light that leaves a pixel toward a ray of each kind, pre-exposed and at most MaxRadiance.
-struct LeavingLight
-{
-    vec3 reflection;   // toward a reflection ray
-    vec3 diffuse;      // toward a diffuse ray, which leaves out the pixel's specular part
-};
-
 // The reprojection of a pixel into the last frame for each signal, by the surface test's pass bits at the pixel.
 struct SignalReprojections
 {
@@ -504,37 +448,32 @@ SignalReprojections reprojectionsAt(ivec2 pixel)
         reprojectionOf(lastPlaceAt(pixel), specularPassBits(imageLoad(surfaceTest, pixel).r)));
 }
 
-// The light that leaves the pixel q of a traced surface toward a ray of each kind (section 6, "Where a hit's light comes
-// from"), from q's material s, its view direction V and its reprojections r: the fresh light that q sends
-// (sent_light.glsl), this frame's direct light and glow times q's surface share, and the last frame's light of both
-// signals at q's place, each times q's material factors. A diffuse ray leaves out q's specular part. Where q fails the
-// surface test, and so in a reset frame, a history is the environment's closed form at q. The plan writes it into the hit
-// light image (ticket ter-67y3), and a hit reads it there (traceFrom).
-LeavingLight leavingLightOf(ivec2 q, ShadingInput s, vec3 V, SignalReprojections r)
+// Radiance available at a screen-space hit, including its reprojected glossy reflection.
+vec3 leavingLightOf(ivec2 q, ShadingInput s, vec3 V, SignalReprojections r)
 {
     MaterialFactors factors = materialFactors(s, lobesOf(s, V));
-    IndirectLight closedLight = IndirectLight(vec3(0.0), vec3(0.0));
-    if (!holdsHistory(r.diffuse) || !holdsHistory(r.specular))
-        closedLight = closedForm(withAmbientFootprint(s, q), V);
-    vec3 diffuseHistory = holdsHistory(r.diffuse) ? lastLightOf(r.diffuse, KindDiffuse) : closedLight.diffuse;
+    IndirectLight closedLight = closedForm(withAmbientFootprint(s, q), V);
     vec3 light = sentDiffuseLight(q, factors.diffuse * imageLoad(directDiffuseLight, q).rgb, r.diffuse)
-        + factors.diffuse * diffuseHistory;
-    vec3 specularHistory = holdsHistory(r.specular) ? lastLightOf(r.specular, KindReflection) : closedLight.specular;
+        + factors.diffuse * closedLight.diffuse;
+    float share = glossyShare(s.roughness);
+    vec3 specularHistory = closedLight.specular;
+    if (share > 0.0 && holdsHistory(r.specular))
+        specularHistory = mix(specularHistory, lastLightOf(r.specular), share);
     vec3 reflection = light
         + factors.specular * (surfaceShare(r.diffuse) * imageLoad(directSpecularLight, q).rgb + specularHistory);
-    return LeavingLight(min(reflection, vec3(MaxRadiance)), min(light, vec3(MaxRadiance)));
+    return min(reflection, vec3(MaxRadiance));
 }
 
 // The light that leaves the pixel q of an impostor toward a ray of either kind: the glow that it sends, times its
 // surface share (sent_light.glsl). An impostor's glow holds all of its light.
-LeavingLight impostorLightAt(ivec2 q)
+vec3 impostorLightAt(ivec2 q)
 {
     vec3 glow = sentDiffuseLight(q, vec3(0.0), surfaceReprojectionAt(q));
-    return LeavingLight(glow, glow);
+    return glow;
 }
 
-// The light that leaves the pixel q toward a ray of each kind: leavingLightOf, or impostorLightAt for an impostor.
-LeavingLight leavingLightAt(ivec2 q)
+// The light that leaves the pixel q toward a ray for reflections: leavingLightOf, or impostorLightAt for an impostor.
+vec3 leavingLightAt(ivec2 q)
 {
     if (texelFetch(gbufferBaseColor, q, 0).a == 0.0)
         return impostorLightAt(q);
@@ -563,8 +502,7 @@ float guideTotal()
 }
 
 // The pixel at which a guided ray from `pixel` aims, each pixel in proportion to its guide light: from the top, each level
-// takes a child in proportion to its light (LightPyramid.Drawn). The total must be above 0. `salt` is 0 for a diffuse ray
-// and ReflectionGuideSalt for a reflection ray.
+// takes a child in proportion to its light (LightPyramid.Drawn). The total must be above 0.
 ivec2 guidedTargetOf(ivec2 pixel, uint salt)
 {
     int top = textureQueryLevels(lightLevels);
@@ -735,14 +673,10 @@ bool guidesReflectionsOf(TracingPixel p)
     return reflectionRampOf(p) > 0.0 && guideTotal() > 0.0;
 }
 
-// The share of the rays of the kind from the pixel that take the guided draw (GuidedShares): the diffuse share, and for a
-// reflection ray its tile's share capped by its roughness's ramp. 0 with the guiding off and while no lit pixel is in
-// view, and the light pyramid is then not read.
-float guidedShareOf(TracingPixel p, uint kind, ivec2 pixel)
+// The fraction of reflection rays steered toward the light pyramid, capped by the receiving lobe.
+float guidedShareOf(TracingPixel p, ivec2 pixel)
 {
-    if (kind == KindReflection)
-        return guidesReflectionsOf(p) ? min(reflectionRampOf(p), tileShareAt(pixel)) : 0.0;
-    return trace.diffuseShare > 0.0 && guideTotal() > 0.0 ? trace.diffuseShare : 0.0;
+    return guidesReflectionsOf(p) ? min(reflectionRampOf(p), tileShareAt(pixel)) : 0.0;
 }
 
 // Whether the reflection ray of the cell takes the guided draw in the draw, at the share: on a fixed pattern in time, an
@@ -765,13 +699,6 @@ bool guidedTurn(ivec2 cell, uint drawIndex, float share)
     return (float(order) + min(fract(sequence + phase), 0.99999994)) * 0.25 < share;
 }
 
-// Whether the ray of the kind takes the guided draw at the share, which must be above 0: a diffuse ray by a coin, the
-// draw's third word, and a reflection ray by its turn (guidedTurn). The diffuse kind keeps its coin: the guide census
-// gives its exact count at most 1.17 times less variance (ter-fe63).
-bool takesGuidedDraw(uint kind, ivec2 cell, uvec3 draw, float share)
-{
-    return kind == KindDiffuse ? unitOf(draw.z) < share : guidedTurn(cell, trace.drawIndex, share);
-}
 
 // The 16-bit units of a unit direction's octahedral code.
 uvec2 directionCodeOf(vec3 direction)
@@ -804,39 +731,34 @@ struct TracedRay
 // Traces the ray of the kind from the pixel that starts it: its draw, its walk to the kind's cap, and its light. A
 // direction below the geometric plane brings no light and traces nothing (section 6, "The ray kinds"). `cell` is the
 // ray's cell of the blue-noise mask: its block for a block's ray, its pixel for a pixel's own ray.
-TracedRay traceFrom(ivec2 pixel, ivec2 cell, TracingPixel p, uint kind)
+TracedRay traceFrom(ivec2 pixel, ivec2 cell, TracingPixel p)
 {
     TracedRay result;
-    uvec3 draw = drawOf(pixel, trace.drawIndex, DirectionDraw[kind]);
-    // A reflection ray draws from the blue-noise mask, a diffuse ray from pcg3d (ARCHITECTURE.md, "Randomness and
-    // determinism").
-    vec2 u = kind == KindReflection ? reflectionNumbersOf(cell, trace.drawIndex, draw)
-                                    : vec2(unitOf(draw.x), unitOf(draw.y));
-    // One draw rule for both kinds (ARCHITECTURE.md, "Guided rays"): while a lit pixel is in view, a ray takes the guided
-    // draw at its kind's share, or else its lobe draw, and it counts with the mixture's density.
-    float share = guidedShareOf(p, kind, pixel);
-    bool guided = share > 0.0 && takesGuidedDraw(kind, cell, draw, share);
+    uvec3 draw = drawOf(pixel, trace.drawIndex, DirectionDraw);
+    vec2 u = reflectionNumbersOf(cell, trace.drawIndex, draw);
+    float share = guidedShareOf(p, pixel);
+    bool guided = share > 0.0 && guidedTurn(cell, trace.drawIndex, share);
     // A rough reflection ray finds its guided density at a share of 0 too: its tile's evidence needs it, so that a tile at
     // 0 can rise again.
-    bool findsGuidedDensity = share > 0.0 || kind == KindReflection && guidesReflectionsOf(p);
+    bool findsGuidedDensity = guidesReflectionsOf(p);
     ivec2 target = ivec2(-1);
     vec3 drawn;
     if (guided)
     {
-        uint salt = kind == KindReflection ? ReflectionGuideSalt : 0u;
+        uint salt = ReflectionGuideSalt;
         target = guidedTargetOf(pixel, salt);
         drawn = normalize(guidedPointOf(pixel, target, salt) - p.origin);
     }
     else
-        drawn = kind == KindReflection ? reflectionDirection(p, u) : diffuseDirection(p, u);
+        drawn = reflectionDirection(p, u);
     // The record holds the direction's code, and the resolve weighs the ray by the code's direction. So an unguided
     // reflection ray walks that direction, and its density is that direction's: at the roughness floor, the rounding of
     // the code alone moves D(h) by several percent. A ray of a share above 0 walks its drawn direction: the guided density
     // is a box function of the direction, and a rounded direction near a box's edge would count where its draw did not
     // land, which loses light. Its lobe density and weight are smooth at the ramp's roughnesses, so the code's rounding
     // moves them by far less than a percent.
-    result.direction = kind == KindReflection && share <= 0.0 ? directionOfCode(directionCodeOf(drawn)) : drawn;
-    result.lobeDensity = densityOf(p, kind, result.direction);
+    result.direction = share <= 0.0 ? directionOfCode(directionCodeOf(drawn)) : drawn;
+    result.lobeDensity = reflectionDensity(p, result.direction);
     result.density = result.lobeDensity;
     result.guidedDensity = 0.0;
     result.share = share;
@@ -857,8 +779,8 @@ TracedRay traceFrom(ivec2 pixel, ivec2 cell, TracingPixel p, uint kind)
     vec2 hit;
     ivec2 hitPixel;
     float entryShare;
-    uint steps = kind == KindReflection ? trace.reflectionSteps : trace.diffuseSteps;
-    vec3 missLight = missLightOf(p, pixel, kind, result.direction);
+    uint steps = trace.reflectionSteps;
+    vec3 missLight = missLightOf(p, pixel, result.direction);
     result.light = missLight;
     if (walkScreen(depthFinest, depthPyramid, walk, steps, hit, hitPixel, entryShare) != WalkHit)
     {
@@ -884,7 +806,7 @@ TracedRay traceFrom(ivec2 pixel, ivec2 cell, TracingPixel p, uint kind)
     vec3 hitPoint = normalize(viewRayThrough(hit)) * texelFetch(gbufferDistance, hitPixel, 0).r;
     result.distance = length(hitPoint - p.origin);
     float fade = edgeFade(hit) * (1.0 - entryShare);
-    vec4 leaving = imageLoad(hitLight, ivec3(hitPixel, kind));
+    vec4 leaving = imageLoad(hitLight, hitPixel);
     result.light = mix(missLight, leaving.rgb, fade);
 #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
     if (fade > 0.0)
@@ -894,13 +816,6 @@ TracedRay traceFrom(ivec2 pixel, ivec2 cell, TracingPixel p, uint kind)
     }
 #endif
     return result;
-}
-
-// The share of the diffuse ray's estimate in the pixel's specular sample: 0 below the hand-over band, 1 above it
-// (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "Rough reflections reuse the diffuse rays").
-float handOverOf(TracingPixel p)
-{
-    return clamp((sqrt(p.alpha) - trace.handOverStart) / (trace.maxRoughness - trace.handOverStart), 0.0, 1.0);
 }
 
 // The weight of a ray's light in the pixel's specular sample before the cap MostRayWeight: the pixel's f_s(ω) cos θ along
@@ -926,7 +841,7 @@ vec2 shareEvidenceOf(TracingPixel p, TracedRay ray)
         return vec2(0.0);
     SurfaceLobes lobes = lobesOf(p.s, p.V);
     vec3 weight = uncappedSpecularWeightOf(p, lobes, materialFactors(p.s, lobes), ray.direction, ray.density);
-    float w = luminance((1.0 - handOverOf(p)) * ray.light * weight);
+    float w = luminance(glossyShare(sqrt(p.alpha)) * ray.light * weight);
     if (!(w > 0.0))
         return vec2(0.0);
     w = min(w, trace.mostEvidenceWeight);
@@ -936,10 +851,10 @@ vec2 shareEvidenceOf(TracingPixel p, TracedRay ray)
 }
 
 // The half bits of log2 of a density: a reflection ray's density passes 65,504, the largest half float, at the roughness
-// floor below an n·v of about 0.3, and its logarithm stays near 17 there. A density below LeastDensity, such as a diffuse
-// ray along its pixel's plane, codes as ZeroDensityCode, which decodes to exactly 0. Both ends test for it: the Vulkan
+// floor below an n·v of about 0.3, and its logarithm stays near 17 there. A density below LeastDensity
+// encodes as ZeroDensityCode, which decodes to exactly 0. Both ends test for it: the Vulkan
 // spec leaves log2 of 0 undefined, and exp2's error at −65,504 allows a denormal, which the resolve's weights would
-// divide by. A hair pixel's diffuse ray can have a density of 0 above its card, where hairResponse is not 0.
+// divide by.
 const float LeastDensity = 7.888609052210118e-31;  // 2^-100, a normal float
 const uint ZeroDensityCode = 0xFBFFu;              // the half bits of −65,504, the least half
 

@@ -50,11 +50,7 @@
     <AccumulationTraceShader Include="Shaders/accumulate_temporal.comp;Shaders/accumulate_spatial.comp" />
     <!-- HistoryInstrumentationSelection lists the shaders of the two items above, and ShaderVariantTests checks the
          list against the embedded shaders. -->
-    <!-- The light-age variant (ticket ter-wkvw): the diffuse signal's spatial dispatch beside a precise specular history,
-         which keeps its half-precision history and acts on its blocks' evidence. The temporal dispatch reads no light
-         age. ShaderVariant.LightAge lists it. TERTIUS_LIGHT_AGE marks every build whose dispatches read the light age:
-         this variant and every variant of a precise history. TERTIUS_REGION_DRIFT marks this variant alone: only the
-         bounce light runs the region's drift test (TemporalSignal.TestsRegionDrift). -->
+    <!-- Half-precision temporal signals can also use the spatial light-age test. -->
     <LightAgeShader Include="Shaders/accumulate_spatial.comp" />
     <GlslInclude Include="Shaders/*.glsl" />
     <None Include="@(GlslShader);@(GlslInclude)" />
@@ -149,7 +145,7 @@
           Inputs="@(LightAgeShader);@(GlslInclude);$(MSBuildProjectFullPath)"
           Outputs="@(LightAgeShader->'$(IntermediateOutputPath)shaders/%(Filename)_lightage%(Extension).spv')">
     <MakeDir Directories="$(IntermediateOutputPath)shaders" />
-    <Exec Command="&quot;$(Glslc)&quot; --target-env=vulkan1.3 -O -Werror -DTERTIUS_LIGHT_AGE -DTERTIUS_REGION_DRIFT -I &quot;$(MSBuildProjectDirectory)/Shaders&quot; -o &quot;$(IntermediateOutputPath)shaders/%(LightAgeShader.Filename)_lightage%(LightAgeShader.Extension).spv&quot; &quot;%(LightAgeShader.FullPath)&quot;" />
+    <Exec Command="&quot;$(Glslc)&quot; --target-env=vulkan1.3 -O -Werror -DTERTIUS_LIGHT_AGE -I &quot;$(MSBuildProjectDirectory)/Shaders&quot; -o &quot;$(IntermediateOutputPath)shaders/%(LightAgeShader.Filename)_lightage%(LightAgeShader.Extension).spv&quot; &quot;%(LightAgeShader.FullPath)&quot;" />
   </Target>
 
   <Target Name="EmbedLightAgeShaders" DependsOnTargets="CompileLightAgeShaders" BeforeTargets="BeforeBuild">

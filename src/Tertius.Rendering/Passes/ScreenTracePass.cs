@@ -115,7 +115,6 @@ internal sealed unsafe class ScreenTraceKernel : IDisposable
     {
         barriers.Image(images.SurfaceTest, ImageUse.StorageCompute);
         barriers.Image(images.Motion, ImageUse.StorageCompute);
-        barriers.Image(slow ? images.Diffuse.Slow(0) : images.HitDiffuse(parity), ImageUse.StorageCompute);
         (_, GpuImage lastFast, GpuImage slowSpecular) = images.Specular.HitImages(part: 0, parity);
         barriers.Image(slow ? slowSpecular : lastFast, ImageUse.StorageCompute);
     }
@@ -129,8 +128,7 @@ internal sealed class ScreenTracePlanPass(ScreenTraceKernel kernel, ScreenTraceI
 
     public override void Record(FrameContext context)
     {
-        foreach (GpuBuffer list in images.OwnRays)
-            OwnRayDispatch.Clear(context, list);
+        OwnRayDispatch.Clear(context, images.OwnRays);
         ScreenTraceKernel.DeclareSurfaces(context);
         kernel.DeclareHistories(context.Barriers, context.History.Parity, slow: true);
         context.Barriers.Image(images.Plan, ImageUse.StorageCompute, discard: true);
@@ -144,8 +142,7 @@ internal sealed class ScreenTracePlanPass(ScreenTraceKernel kernel, ScreenTraceI
             context.Barriers.Image(lastLightAge, ImageUse.StorageCompute);
             context.Barriers.Image(lightAge, ImageUse.StorageCompute, discard: true);
         }
-        foreach (GpuBuffer list in images.OwnRays)
-            context.Barriers.Buffer(list, BufferUse.ComputeWrite);
+        context.Barriers.Buffer(images.OwnRays, BufferUse.ComputeWrite);
         kernel.Record(context, side: 1);
     }
 
@@ -171,12 +168,8 @@ internal sealed class ScreenTracePlanPass(ScreenTraceKernel kernel, ScreenTraceI
     public override void Dispose() => kernel.Dispose();
 }
 
-internal sealed class ScreenTraceRaysPass(
-    ScreenTraceKernel kernel,
-    ScreenTraceImages images,
-    OwnRayDispatch ownRays,
-    int kind
-) : RenderPass
+internal sealed class ScreenTraceRaysPass(ScreenTraceKernel kernel, ScreenTraceImages images, OwnRayDispatch ownRays)
+    : RenderPass
 {
     public override string Name => kernel.Name;
 
@@ -185,9 +178,8 @@ internal sealed class ScreenTraceRaysPass(
         ScreenTraceKernel.DeclareSurfaces(context);
         DeclareRays(context);
         kernel.Record(context, side: 2);
-        foreach (GpuBuffer list in images.OwnRays)
-            context.Barriers.Buffer(list, BufferUse.ComputeIndirectRead);
-        ownRays.Trace(context, images.OwnRays[kind]);
+        context.Barriers.Buffer(images.OwnRays, BufferUse.ComputeIndirectRead);
+        ownRays.Trace(context, images.OwnRays);
     }
 
     private void DeclareRays(FrameContext context)
@@ -207,7 +199,6 @@ internal sealed class ScreenTraceRaysPass(
         barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeRead);
         ScreenTraceKernel.DeclareEnvironment(context);
 
-        // Each kind writes its own layers, but the validation layers' hazard tracking sees one image.
         foreach (GpuImage image in (GpuImage[])[images.BlockLight, images.BlockRay, images.OwnLight, images.OwnRay])
             barriers.Image(image, ImageUse.StorageCompute);
         // A hit reads the light that the plan wrote at its pixel.
@@ -215,11 +206,9 @@ internal sealed class ScreenTraceRaysPass(
         // A hit reads the age that the plan wrote at its pixel.
         if (images.LightAge(context.History.Parity) is { } lightAge)
             barriers.Image(lightAge, ImageUse.StorageCompute);
-        // A reflection ray reads its tile's share, and its block writes the block's guide. Only the reflection kind uses
-        // them, but the diffuse kind's pipeline is the same shader, which the validation layers' hazard tracking sees
-        // using both.
+        // The ray reads its tile's share and writes the guide for the resolve.
         barriers.Image(images.ReflectionShare, ImageUse.StorageCompute);
-        barriers.Image(images.BlockGuide, ImageUse.StorageCompute, discard: kind == 0);
+        barriers.Image(images.BlockGuide, ImageUse.StorageCompute, discard: true);
     }
 
     public override void Dispose()
@@ -241,11 +230,9 @@ internal sealed class ScreenTraceResolvePass(ScreenTraceKernel kernel, ScreenTra
         // A block's reflection ray counts with each pixel's own mixture density at the share that drew it, from the block's
         // guide.
         context.Barriers.Image(images.BlockGuide, ImageUse.StorageCompute);
-        context.Barriers.Image(images.Diffuse.Sample(0), ImageUse.StorageCompute, discard: true);
         context.Barriers.Image(images.Specular.Sample(0), ImageUse.StorageCompute, discard: true);
-        foreach (TemporalSignal signal in (TemporalSignal[])[images.Diffuse, images.Specular])
-            if (signal.SampleAge(0) is { } age)
-                context.Barriers.Image(age, ImageUse.StorageCompute, discard: true);
+        if (images.Specular.SampleAge(0) is { } age)
+            context.Barriers.Image(age, ImageUse.StorageCompute, discard: true);
         if (images.Specular.UncoveredDiagnostic(0) is { } diagnostic)
             context.Barriers.Image(diagnostic, ImageUse.StorageCompute, discard: true);
         // FSR's mask reads the records that the plan wrote around each pixel.

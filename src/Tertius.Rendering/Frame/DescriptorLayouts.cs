@@ -68,9 +68,6 @@ namespace Tertius.Rendering;
 /// level and its bounds as sampled images, the tracer's inputs and outputs as storage images, the own-ray list of each
 /// kind, the light pyramid's finest level and sums as sampled images, and the reflection share and the block guide as
 /// storage images (<see cref="ScreenTraceImages"/>). One per parity of the drawn frames, rewritten on resize.</description></item>
-/// <item><term>filter</term><description>set 3 of <see cref="DiffuseFilterLayout"/>: the input and the output of one
-/// dispatch of the diffuse filter, the diffuse slow history and this frame's diffuse fast history, as storage images for
-/// the compute stage (<see cref="DiffuseFilter"/>). One per dispatch and parity, rewritten on resize.</description></item>
 /// <item><term>light</term><description>set 3 of <see cref="CompositeLayout"/>: the direct light's two images and the two
 /// indirect signals' slow histories, plus the existing specular sample for the opt-in reflection footprint, as storage images for the fragment stage (<see cref="CompositePass"/>). One,
 /// rewritten on resize.</description></item>
@@ -98,12 +95,12 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>
     /// The storage images of a screen tracer set: the direct light's two images, the surface test image, the motion target,
-    /// the two signals' last fast and slow histories, the plan, the four record images and the two samples.
+    /// the reflection histories, the plan, the four ray records and the reflection sample.
     /// </summary>
-    private const uint ScreenTraceStorageImages = 15;
+    private const uint ScreenTraceStorageImages = 12;
 
-    /// <summary>The storage buffers of a screen tracer set: the own-ray list of each kind.</summary>
-    private const uint ScreenTraceStorageBuffers = 2;
+    /// <summary>The storage buffers of a screen tracer set: the individual reflection ray list.</summary>
+    private const uint ScreenTraceStorageBuffers = 1;
 
     /// <summary>
     /// The sampled images of the light pyramid in a screen tracer set, at <see cref="ScreenTraceLightBinding"/> and the
@@ -112,10 +109,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     private const uint ScreenTraceLightImages = 2;
 
     /// <summary>
-    /// The first binding of the light pyramid in a screen tracer set, after the light age's bindings 19 to 23 and its
-    /// diagnostic's binding 24.
+    /// The first binding of the light pyramid in a screen tracer set, after the light age's bindings 15 to 18 and its
+    /// diagnostic's binding 19.
     /// </summary>
-    public const uint ScreenTraceLightBinding = 25;
+    public const uint ScreenTraceLightBinding = 20;
 
     /// <summary>The storage images of the hit light in a screen tracer set: one (<see cref="ScreenTraceImages.HitLight"/>).</summary>
     private const uint ScreenTraceHitLightImages = 1;
@@ -137,51 +134,40 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>
     /// The storage images that the light-change age of a precise specular history adds to a screen tracer set after its
-    /// lists, at bindings 19 to 23: the last and this frame's light-age records, the specular sample's age, FSR's
-    /// light-change mask and the diffuse sample's age, and at binding 24 the uncovered-surface diagnostic
+    /// list at bindings 15 to 18: the last and this frame's light-age records, the specular sample's age, FSR's
+    /// light-change mask, and at binding 19 the uncovered-surface diagnostic
     /// (<see cref="HistoryInstrumentation.LightAgeDiagnostic"/>).
     /// </summary>
     private uint ScreenTraceAgeImages =>
-        (HistoryMode.KeepsLightAge ? 5u : 0u)
+        (HistoryMode.KeepsLightAge ? 4u : 0u)
         + (Instrumentation == HistoryInstrumentation.LightAgeDiagnostic ? 1u : 0u);
 
     /// <summary>
-    /// The signal sets: one per part and parity of the screen tracer's two signals of one part, and of a test's signal of
+    /// The signal sets: one per part and parity of the screen tracer's reflection signal, and of a test's signal of
     /// two parts (<see cref="TemporalSignal"/>).
     /// </summary>
     private const uint SignalSets = 8;
 
     /// <summary>
     /// The storage images of a signal set: nine, with the light-change age of a precise specular history the signal's
-    /// sample age at binding 11 and the anchors' rings at binding 13 (region_drift.glsl), which the spatial dispatch reads,
+    /// sample age at binding 11,
     /// and at binding 12 the instrumentation's image, the uncovered-surface diagnostic or the accumulation trace. The
     /// original history refuses the instrumentation (the constructor).
     /// </summary>
     private uint SignalSetImages =>
-        9u + (HistoryMode.KeepsLightAge ? 2u : 0u) + (Instrumentation == HistoryInstrumentation.None ? 0u : 1u);
+        9u + (HistoryMode.KeepsLightAge ? 1u : 0u) + (Instrumentation == HistoryInstrumentation.None ? 0u : 1u);
 
-    /// <summary>The highest binding that a signal set can hold: 13, the anchors' rings.</summary>
-    private const uint LastSignalBinding = 13;
+    /// <summary>The highest binding that a signal set can hold: 12, the optional diagnostic.</summary>
+    private const uint LastSignalBinding = 12;
 
     /// <summary>The sampled images of a signal set: the last surface history and the last device depth.</summary>
     private const uint SignalSetSampledImages = 2;
 
     /// <summary>
-    /// The filter sets of one diffuse filter, the screen tracer's or a test's (<see cref="DiffuseFilter.Sets"/>).
-    /// </summary>
-    private const uint FilterSets = DiffuseFilter.Sets;
-
-    /// <summary>
-    /// The storage images of a filter set: a dispatch's input and output, the diffuse slow history and this frame's diffuse
-    /// fast history.
-    /// </summary>
-    private const uint FilterSetImages = 4;
-
-    /// <summary>
-    /// The storage images of the light set: the direct light's two images, the two indirect signals' histories, and the
+    /// The storage images of the light set: the direct light's two images, the reflection history, and the
     /// reflection-sharing prototype's specular sample and distance guide (<see cref="CompositePass"/>).
     /// </summary>
-    private const uint LightSetImages = 6;
+    private const uint LightSetImages = 5;
 
     /// <summary>
     /// The storage buffers of the frame set: bindings 1 to 4, 6, 7, 11, 15, 17 and 18, which the vertex stage all sees. The
@@ -309,7 +295,6 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         // The temporal lighting's sets.
         SurfaceTestSet = CreateSurfaceTestSetLayout();
         (SignalSet, LightSet) = CreateTemporalSetLayouts();
-        FilterSet = CreateFilterSetLayout();
         ScreenTraceSet = CreateScreenTraceSetLayout();
 
         (SceneLayout, ImpostorLayout, CompositeLayout, OverlayLayout, PostLayout, BloomLayout) =
@@ -329,7 +314,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             name: "key fill tiles layout"
         );
 
-        (SurfaceTestLayout, AccumulateLayout, DiffuseFilterLayout, ScreenTraceLayout) = CreateTemporalLayouts();
+        (SurfaceTestLayout, AccumulateLayout, ScreenTraceLayout) = CreateTemporalLayouts();
 
         (pool, texturePool) = CreatePools(framesInFlight: (uint)framesInFlight, glowSourceSets: (uint)glowLevels + 1);
     }
@@ -337,12 +322,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>
     /// The temporal lighting's compute layouts: sets 0 to 2 and each one's own set 3, after the sets that they name.
     /// </summary>
-    private (
-        PipelineLayout SurfaceTest,
-        PipelineLayout Accumulate,
-        PipelineLayout Filter,
-        PipelineLayout Trace
-    ) CreateTemporalLayouts() =>
+    private (PipelineLayout SurfaceTest, PipelineLayout Accumulate, PipelineLayout Trace) CreateTemporalLayouts() =>
         (
             ComputeLayout<SurfaceTestPushConstants>(
                 sets: [FrameSet, TextureSet, GBufferSet, SurfaceTestSet],
@@ -351,10 +331,6 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             ComputeLayout<AccumulatePushConstants>(
                 sets: [FrameSet, TextureSet, GBufferSet, SignalSet],
                 name: "accumulate layout"
-            ),
-            ComputeLayout<DiffuseFilterPushConstants>(
-                sets: [FrameSet, TextureSet, GBufferSet, FilterSet],
-                name: "diffuse filter layout"
             ),
             ComputeLayout<ScreenTracePushConstants>(
                 sets: [FrameSet, TextureSet, GBufferSet, ScreenTraceSet],
@@ -556,12 +532,6 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// </summary>
     public DescriptorSetLayout ScreenTraceSet { get; }
 
-    /// <summary>Set 3 of <see cref="DiffuseFilterLayout"/>: the images of one dispatch of the diffuse filter.</summary>
-    public DescriptorSetLayout FilterSet { get; }
-
-    /// <summary>The layout of the diffuse filter's dispatches: sets 0 to 2, the filter set and the push constants.</summary>
-    public PipelineLayout DiffuseFilterLayout { get; }
-
     /// <summary>Sets 0 to 2 of <see cref="SceneLayout"/>, the screen tracer set and <see cref="ScreenTracePushConstants"/>, for the tracer's four passes.</summary>
     public PipelineLayout ScreenTraceLayout { get; }
 
@@ -616,8 +586,6 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public DescriptorSet AllocateLightSet() => Allocate(pool, LightSet, null);
 
     public DescriptorSet AllocateScreenTraceSet() => Allocate(pool, ScreenTraceSet, null);
-
-    public DescriptorSet AllocateFilterSet() => Allocate(pool, FilterSet, null);
 
     public DescriptorSet AllocateTextureSet()
     {
@@ -1065,7 +1033,6 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                         + ScreenTraceHitLightImages
                         + ScreenTraceShareImages
                     ) * ScreenTraceSets
-                    + FilterSetImages * FilterSets
             ),
         ];
 
@@ -1087,8 +1054,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 + EnvironmentLevelsSets
                 + SurfaceTestSets
                 + SignalSets
-                + ScreenTraceSets
-                + FilterSets,
+                + ScreenTraceSets,
             flags: 0,
             name: "descriptor pool"
         );
@@ -1319,21 +1285,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>
     /// Whether this layout's signal set holds <paramref name="binding"/>: 0 to 10 always, 11 and 13 with the light age (the
     /// sample age and the anchors' rings), and 12 with an instrumentation. Every signal shares the layout, and only the
-    /// bounce light writes and reads binding 13 (TemporalSignal.TestsRegionDrift).
     /// </summary>
     private bool SignalSetHolds(uint binding) =>
         binding <= 10
-        || binding is 11 or 13 && HistoryMode.KeepsLightAge
+        || binding == 11 && HistoryMode.KeepsLightAge
         || binding == 12 && Instrumentation != HistoryInstrumentation.None;
-
-    /// <summary>The layout of the filter set: <see cref="FilterSetImages"/> storage images for the compute stage.</summary>
-    private DescriptorSetLayout CreateFilterSetLayout()
-    {
-        Span<DescriptorSetLayoutBinding> filter = stackalloc DescriptorSetLayoutBinding[(int)FilterSetImages];
-        for (uint binding = 0; binding < FilterSetImages; binding++)
-            filter[(int)binding] = StorageImage(binding);
-        return CreateLayout(bindings: filter, name: "filter set");
-    }
 
     /// <summary>A binding of one storage image for the compute stage.</summary>
     private static DescriptorSetLayoutBinding StorageImage(uint binding) =>

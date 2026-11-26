@@ -17,8 +17,6 @@ public sealed class ScreenTraceSettingTests
             { "maximum roughness not a number", Trace with { MaxRoughness = float.NaN } },
             { "reflection steps of 0", Trace with { ReflectionSteps = 0 } },
             { "reflection steps above 4096", Trace with { ReflectionSteps = 4097 } },
-            { "diffuse steps of 0", Trace with { DiffuseSteps = 0 } },
-            { "diffuse steps above 4096", Trace with { DiffuseSteps = 4097 } },
         };
 
     /// <summary>Settings at the edges of every range, which the renderer takes.</summary>
@@ -29,8 +27,8 @@ public sealed class ScreenTraceSettingTests
             { "the default tracer", Trace },
             { "a maximum roughness of the band's width", Trace with { MaxRoughness = ScreenTrace.HandOverWidth } },
             { "a maximum roughness of 1", Trace with { MaxRoughness = 1 } },
-            { "1 step of each kind", Trace with { ReflectionSteps = 1, DiffuseSteps = 1 } },
-            { "4096 steps of each kind", Trace with { ReflectionSteps = 4096, DiffuseSteps = 4096 } },
+            { "1 step of each kind", Trace with { ReflectionSteps = 1 } },
+            { "4096 steps of each kind", Trace with { ReflectionSteps = 4096 } },
         };
 
     [Fact]
@@ -48,7 +46,7 @@ public sealed class ScreenTraceSettingTests
 
         options
             .ScreenTrace.Should()
-            .Be(new ScreenTraceSetting(new ScreenTrace(MaxRoughness: 0.5f, ReflectionSteps: 96, DiffuseSteps: 62)));
+            .Be(new ScreenTraceSetting(new ScreenTrace(MaxRoughness: 0.5f, ReflectionSteps: 96)));
         options.WarmUpFrames.Should().Be(32);
     }
 
@@ -82,9 +80,9 @@ public sealed class ScreenTraceSettingTests
     [Fact]
     public void AProblemNamesTheFieldAndItsValue()
     {
-        ScreenTraceSetting setting = Trace with { DiffuseSteps = 4097 };
+        ScreenTraceSetting setting = Trace with { ReflectionSteps = 4097 };
 
-        setting.Problem.Should().Contain("ScreenTrace.DiffuseSteps").And.Contain("4097");
+        setting.Problem.Should().Contain("ScreenTrace.ReflectionSteps").And.Contain("4097");
     }
 
     [Theory]

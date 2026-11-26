@@ -44,7 +44,7 @@ void main()
     if (texelFetch(gbufferDistance, pixel, 0).r <= 0.0)
     {
         imageStore(specularSample, pixel, vec4(-1.0));
-        imageStore(diffuseSample, pixel, vec4(-1.0));
+        imageStore(ownLight, pixel, vec4(-1.0));
         return;
     }
     Reprojection still = reprojectionOf(lastPlaceAt(pixel), 0xFu);
@@ -55,6 +55,6 @@ void main()
     float pixelPlaceRead = imageLoad(motionTarget, pixel).w != 0.0 ? readsOnly(still, pixel) : 0.5;
     imageStore(specularSample, pixel, vec4(pixelPlaceRead, weightAt(sixtyFourth, pixel),
         weightAt(sixtyFourth, pixel + ivec2(1, 0)), readsOnly(threeHundredth, pixel)));
-    imageStore(diffuseSample, pixel, vec4(weightAt(twoHundredth, pixel + ivec2(1, 0)),
+    imageStore(ownLight, pixel, vec4(weightAt(twoHundredth, pixel + ivec2(1, 0)),
         weightAt(sixtyFourthBack, pixel - ivec2(1, 0)), 0.0, 0.0));
 }

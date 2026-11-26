@@ -48,30 +48,8 @@ internal readonly record struct SignalParameters(
     /// <summary>The roughness from which a pixel takes <see cref="Cap"/>.</summary>
     public const float RoughRoughness = 0.7f;
 
-    /// <summary>
-    /// The diffuse signal's set: a cap of 128 frames at every roughness, and a box widened by two retained deviations
-    /// where its block has no motion evidence (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 7). The region's change gate
-    /// keeps a frozen view's false cuts rare, so a long history keeps its gain (t1-yi11, section 8.7).
-    /// </summary>
-    public static SignalParameters Diffuse =>
-        new(
-            Cap: 128,
-            SmoothCap: 128,
-            FastCap: 4,
-            HistoryFixFrames: 4,
-            ClampSigmas: 2,
-            AntiLagShare: 0.5f,
-            Light: SignalLight.Diffuse,
-            ReflectedPlaceBelow: 0,
-            Confidence: new WidenedBox(RetainedSigmas: 2)
-        );
-
-    /// <summary>The specular signal's set: a cap of 4 frames for a mirror and of 32 for a rough lobe, which reuses the
-    /// diffuse rays, the reflected point's place below <paramref name="reflectedPlaceBelow"/>, and the narrow box, whose
-    /// rare bright samples would show as specks without a spatial filter (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section
-    /// 10).</summary>
-    /// <param name="reflectedPlaceBelow">The start of the hand-over band, from which a sample's hit distance belongs to a
-    /// diffuse ray.</param>
+    /// <summary>The specular history settings. The capped mode ranges from 4 frames for mirrors to 32 for rough lobes.</summary>
+    /// <param name="reflectedPlaceBelow">The roughness below which reprojection also tests the reflected point.</param>
     public static SignalParameters Specular(float reflectedPlaceBelow) =>
         new(
             Cap: 32,

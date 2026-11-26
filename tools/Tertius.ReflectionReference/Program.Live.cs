@@ -140,10 +140,10 @@ internal static partial class Program
             Directory.CreateDirectory(diagnosticPath);
             float[] reconstructed = sharing ? CropAttachment(probe.Read(8), 2) : [];
             float[] hitSample = sharing
-                ? CropAttachment(renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Sample(0)), 4)
+                ? CropAttachment(renderer.ReadImage(renderer.ScreenTraceImages.Specular.Sample(0)), 4)
                 : [];
             float[] distanceGuide = sharing
-                ? CropAttachment(renderer.ReadImage(renderer.ScreenTraceSignals.Specular.ReflectionGuide(0)), 4)
+                ? CropAttachment(renderer.ReadImage(renderer.ScreenTraceImages.Specular.ReflectionGuide(0)), 4)
                 : [];
             if (sharing)
             {
@@ -174,7 +174,7 @@ internal static partial class Program
                 Draw: draw,
                 Inputs: inputs,
                 Distances: CropAttachment(renderer.ReadDistance(), 1),
-                History: CropAttachment(renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Slow(0)), 4)
+                History: CropAttachment(renderer.ReadImage(renderer.ScreenTraceImages.Specular.Slow(0)), 4)
             )
             {
                 ActualExposureStops = stops,

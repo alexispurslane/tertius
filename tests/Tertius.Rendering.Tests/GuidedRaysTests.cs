@@ -3,7 +3,7 @@ using System.Numerics;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The C# copy of the guided diffuse rays (ARCHITECTURE.md, "Guided rays", <see cref="LightPyramid"/>): the light
+/// A cosine-lobe test of the reflection guide (<see cref="LightPyramid"/>): the light
 /// pyramid's sums and its descent, the guided density's Jacobian, and the one-sample mixture's estimate of a receiver's
 /// bounce light against a numerical integral over the cosine lobe. The scenes are synthetic rectangles, walked by the C#
 /// copy of the walk (<see cref="ScreenRay.Walk"/>).
@@ -13,8 +13,9 @@ public sealed class GuidedRaysTests
     private const int Width = 96,
         Height = 54;
 
-    /// <summary>The walk's cap of a diffuse ray, <see cref="ScreenTrace.Default"/>'s.</summary>
+    /// <summary>The maximum number of steps per synthetic ray.</summary>
     private const int DiffuseSteps = 62;
+    private const float GuidedShare = 0.25f;
 
     /// <summary>The light of a ray that hits nothing.</summary>
     private const float MissLight = 0.05f;
@@ -305,7 +306,7 @@ public sealed class GuidedRaysTests
             {
                 (int X, int Y)? target = null;
                 Vector3 direction;
-                if (random.NextSingle() < GuidedShares.Diffuse)
+                if (random.NextSingle() < GuidedShare)
                 {
                     for (int level = 0; level < units.Length; level++)
                         units[level] = random.NextSingle();
@@ -341,7 +342,7 @@ public sealed class GuidedRaysTests
                 return 0;
             ((int X, int Y)? hit, float light) = LightAlong(receiver, direction);
             if (hit is not { } pixel)
-                return target is null ? light / (1 - GuidedShares.Diffuse) : 0;
+                return target is null ? light / (1 - GuidedShare) : 0;
             float guided = Light.GuidedDensity(
                 camera: Camera,
                 depth: Depth,
@@ -364,7 +365,7 @@ public sealed class GuidedRaysTests
             if (!counts)
                 return 0;
             float density = cosine / MathF.PI;
-            return light * density / GuidedShares.MixtureDensity(GuidedShares.Diffuse, density, guided);
+            return light * density / GuidedShares.MixtureDensity(GuidedShare, density, guided);
         }
 
         /// <summary>The pixel that the walk along the direction hits, or null for a miss, and the light that it brings.</summary>

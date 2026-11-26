@@ -40,13 +40,9 @@ namespace Tertius.Rendering;
 /// <item>The direct pass (<see cref="DirectLightPass"/>): one fullscreen pass into the direct light's two images, the
 /// diffuse and the specular light of every light that the main view keeps, each divided by its material factor and
 /// pre-exposed.</item>
-/// <item>The screen tracer (<see cref="ScreenTraceKernel"/>), under <see cref="ScreenTrace"/>: the ray plan, the
-/// reflection rays and the diffuse rays, each kind's block rays and own rays through the depth pyramid, and the resolve,
-/// which writes the samples of the indirect diffuse and indirect specular signals. Then their accumulations
-/// (<see cref="AccumulatePass"/>).</item>
-/// <item>The composite (<see cref="CompositePass"/>): one fullscreen pass into the HDR target, the direct light's
-/// images and the two indirect signals' slow histories times their material factors, plus the emission, capped. Under
-/// <see cref="NoScreenTrace"/>, the environment's closed forms take the place of the histories.</item>
+/// <item>The screen tracer (<see cref="ScreenTraceKernel"/>) traces glossy reflections through the depth pyramid.
+/// The resolve produces the reflection sample for <see cref="AccumulatePass"/>.</item>
+/// <item>The composite combines direct light, emission and environment light with the accumulated reflection.</item>
 /// <item>The skin scatter (<see cref="SkinScatterPass"/>), under <see cref="SeparableSubsurface"/>: the diffuse light of
 /// skin pixels, which the composite writes into the diffuse image, summed along the rows and then the
 /// columns, and the difference added to the lit image at skin pixels.</item>
@@ -101,7 +97,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private readonly SurfaceHistory surfaceHistory;
     private readonly SignalScratch signalScratch;
 
-    // The screen tracer's images and its two signals, under ScreenTrace, or null.
+    // The screen tracer's images and its reflection history, under ScreenTrace, or null.
     private readonly ScreenTraceImages? screenTrace;
     private readonly CompositePass compositePass;
     private readonly BarrierBatch barriers = new();
@@ -1135,9 +1131,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         signalScratch.Resize();
         if (screenTrace is { } tracer)
         {
-            tracer.Diffuse.Resize();
             tracer.Specular.Resize();
-            tracer.Filter?.Resize();
             tracer.Resize();
         }
 
@@ -1311,41 +1305,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
             )
         );
 
-    /// <summary>
-    /// A filter of the diffuse light of <paramref name="signal"/>'s part 0, whose pass the caller adds after the signal's
-    /// accumulation. A test hook: the filter goes with the renderer. The descriptor pool holds the sets of one filter, so
-    /// the renderer must run under <see cref="NoScreenTrace"/>, whose tracer makes no filter.
-    /// </summary>
-    internal DiffuseFilter CreateDiffuseFilter(TemporalSignal signal, DiffuseFilterKernel kernel)
-    {
-        using var shaders = new ShaderLibrary(device, ShaderLibrary.EngineShaders);
-        return CreateDiffuseFilter(shaders, signal, kernel);
-    }
-
-    private DiffuseFilter CreateDiffuseFilter(
-        ShaderLibrary shaders,
-        TemporalSignal signal,
-        DiffuseFilterKernel kernel
-    ) =>
-        Own(
-            new DiffuseFilter(
-                device: device,
-                allocator: Allocator,
-                layouts: layouts,
-                shaders: shaders,
-                targets: targets,
-                signal: signal,
-                kernel: kernel
-            )
-        );
-
-    /// <summary>The screen tracer's two signals. A test hook.</summary>
-    /// <exception cref="InvalidOperationException">The setting is <see cref="NoScreenTrace"/>.</exception>
-    internal (TemporalSignal Diffuse, TemporalSignal Specular) ScreenTraceSignals =>
-        screenTrace is { } tracer
-            ? (tracer.Diffuse, tracer.Specular)
-            : throw new InvalidOperationException("The screen tracer is off.");
-
     /// <summary>The screen tracer's images. A test hook.</summary>
     /// <exception cref="InvalidOperationException">The setting is <see cref="NoScreenTrace"/>.</exception>
     internal ScreenTraceImages ScreenTraceImages =>
@@ -1378,18 +1337,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
     internal DescriptorSet CompositeLightSet => compositePass.LightSet;
 
     /// <summary>
-    /// The counts of the last frame's own-ray lists of the screen tracer: the pixels that traced their own reflection ray
-    /// and their own diffuse ray. A test hook: it waits for the device to be idle and submits its own copy.
+    /// The number of pixels that traced an individual reflection ray in the last frame.
     /// </summary>
     /// <exception cref="InvalidOperationException">The setting is <see cref="NoScreenTrace"/>.</exception>
-    internal (int Reflection, int Diffuse) ReadOwnRayCounts()
-    {
-        GpuBuffer[] lists = ScreenTraceImages.OwnRays;
-        return (
-            OwnRayList.Pixels(ReadBufferWords(lists[0])).Length,
-            OwnRayList.Pixels(ReadBufferWords(lists[1])).Length
-        );
-    }
+    internal int ReadReflectionRayCount() => OwnRayList.Pixels(ReadBufferWords(ScreenTraceImages.OwnRays)).Length;
 
     /// <summary>
     /// The exposure buffer: the stops that the next frame uses, and the stops that the frame before it used, which its
@@ -2241,6 +2192,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 options.LocalShadows is LocalShadowAtlas atlas
                 && TileReadsFor(atlas.Reads, driver) == LocalShadowReads.SixteenCornerMeans,
             ScreenTraceOn = options.ScreenTrace is ScreenTrace,
+            MaxTraceRoughness = options.ScreenTrace is ScreenTrace trace ? trace.MaxRoughness : 0,
             ReflectionSharingPrototype =
                 options.ScreenTrace is ScreenTrace
                 && Environment.GetEnvironmentVariable("TERTIUS_REFLECTION_SHARING") == "1",
@@ -2375,7 +2327,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
-    /// The screen tracer's images under <see cref="ScreenTrace"/>, with its two signals; the depth pyramid's pass after the
+    /// The screen tracer's images under <see cref="ScreenTrace"/>, with its reflection history; the depth pyramid's pass after the
     /// G-buffer; and the tracer's four passes and the two accumulations in <see cref="FrameGraph.Stage.ScreenTrace"/>. Null
     /// under <see cref="NoScreenTrace"/>. The renderer owns them.
     /// </summary>
@@ -2389,12 +2341,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
             FrameGraph.Stage.DepthPyramid,
             new DepthPyramidPass(device: device, shaders: shaders, layouts: layouts, pyramid: pyramid)
         );
-        TemporalSignal diffuse = CreateSignal(
-            shaders: shaders,
-            parameters: SignalParameters.Diffuse,
-            name: "indirect diffuse",
-            parts: 1
-        );
         TemporalSignal specular = CreateSignal(
             shaders: shaders,
             parameters: SignalParameters.Specular(
@@ -2403,10 +2349,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
             name: "indirect specular",
             parts: 1
         );
-        DiffuseFilter? filter =
-            DiffuseFilter.Selected() is { } kernel && diffuse.KeepsFastHistory
-                ? CreateDiffuseFilter(shaders, diffuse, kernel)
-                : null;
         ScreenTraceImages images = Own(
             new ScreenTraceImages(
                 device: device,
@@ -2415,9 +2357,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 targets: targets,
                 surfaces: surfaceHistory,
                 pyramid: pyramid,
-                diffuse: diffuse,
                 specular: specular,
-                filter: filter,
                 guided: LightPyramidPass.SwitchedOn()
             )
         );
@@ -2427,9 +2367,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 new LightPyramidPass(device: device, shaders: shaders, layouts: layouts, images: images)
             );
         AddRayPasses(shaders: shaders, trace: trace, images: images);
-        Graph.Add(FrameGraph.Stage.ScreenTrace, new AccumulatePass(diffuse));
-        if (filter is not null)
-            Graph.Add(FrameGraph.Stage.ScreenTrace, new DiffuseFilterPass(filter));
         Graph.Add(FrameGraph.Stage.ScreenTrace, new AccumulatePass(specular));
         return images;
     }
@@ -2440,17 +2377,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// </summary>
     private void AddRayPasses(ShaderLibrary shaders, ScreenTrace trace, ScreenTraceImages images)
     {
-        ScreenTraceKernel Kernel(string name, string shader, uint kind = 0) =>
+        ScreenTraceKernel Kernel(string name, string shader) =>
             new(
                 device: device,
                 shaders: shaders,
                 layouts: layouts,
                 images: images,
                 setting: trace,
-                constants: ShadingConstants with
-                {
-                    RayKind = kind,
-                },
+                constants: ShadingConstants,
                 name: name,
                 shader: shader
             );
@@ -2458,23 +2392,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
             FrameGraph.Stage.ScreenTrace,
             new ScreenTracePlanPass(Kernel("ray plan", "screen_trace_plan.comp"), images)
         );
-        foreach (int kind in (int[])[0, 1])
-        {
-            ScreenTraceKernel kernel = Kernel(
-                kind == 0 ? "reflection rays" : "diffuse rays",
-                "screen_trace_block_rays.comp",
-                (uint)kind
-            );
-            Graph.Add(
-                FrameGraph.Stage.ScreenTrace,
-                new ScreenTraceRaysPass(
-                    kernel: kernel,
-                    images: images,
-                    ownRays: kernel.CreateOwnRays(shaders),
-                    kind: kind
-                )
-            );
-        }
+        ScreenTraceKernel kernel = Kernel("reflection rays", "screen_trace_block_rays.comp");
+        Graph.Add(
+            FrameGraph.Stage.ScreenTrace,
+            new ScreenTraceRaysPass(kernel: kernel, images: images, ownRays: kernel.CreateOwnRays(shaders))
+        );
         Graph.Add(
             FrameGraph.Stage.ScreenTrace,
             new ScreenTraceResolvePass(Kernel("screen trace resolve", "screen_trace_resolve.comp"), images)

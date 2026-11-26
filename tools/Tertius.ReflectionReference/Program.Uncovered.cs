@@ -100,7 +100,7 @@ internal sealed class UncoveredWriters(string output) : IDisposable
             SquareSums = grainSquares,
             InverseLengthSums = grainInverseLengths,
         };
-        if (renderer.ScreenTraceSignals.Specular.UncoveredDiagnostic(0) is not { } image)
+        if (renderer.ScreenTraceImages.Specular.UncoveredDiagnostic(0) is not { } image)
             return new { Grain = grains };
 
         float[] diagnostic = renderer.ReadImage(image);

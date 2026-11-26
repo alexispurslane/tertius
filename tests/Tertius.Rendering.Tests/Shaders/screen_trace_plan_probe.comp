@@ -11,14 +11,14 @@ void main()
         return;
     ivec2 chosen;
     TracingPixel source;
-    if (!tracedSurface(pixel) || !chosenPixelOf(pixel / 2, KindDiffuse, chosen, source))
+    if (!tracedSurface(pixel) || !chosenPixelOf(pixel / 2, chosen, source))
     {
         imageStore(specularSample, pixel, vec4(0.0));
         return;
     }
     TracingPixel receiver = tracingPixelAt(pixel);
-    float history = all(equal(chosen, pixel)) ? 0.0 : imageLoad(slowDiffuse, pixel).a;
-    imageStore(specularSample, pixel, vec4(float((imageLoad(rayPlan, pixel).r & PlanOwnDiffuse) != 0u),
+    float history = all(equal(chosen, pixel)) ? 0.0 : imageLoad(slowSpecular, pixel).a;
+    imageStore(specularSample, pixel, vec4(float((imageLoad(rayPlan, pixel).r & PlanOwnReflection) != 0u),
         abs(dot(receiver.point - source.point, source.s.geometricNormal)) / receiver.viewDepth,
         dot(receiver.s.geometricNormal, source.s.geometricNormal), history));
 }

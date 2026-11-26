@@ -288,7 +288,7 @@ public sealed class PixelHistoryTests(ITestOutputHelper output)
     /// </summary>
     private static double MedianReceiverLength(VulkanRenderer renderer)
     {
-        float[] slow = renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Slow(0));
+        float[] slow = renderer.ReadImage(renderer.ScreenTraceImages.Specular.Slow(0));
         float[] place = TraceLayer(renderer, Place);
         float[] lengths =
         [
@@ -350,7 +350,7 @@ public sealed class PixelHistoryTests(ITestOutputHelper output)
 
     private static float[] TraceLayer(VulkanRenderer renderer, int layer) =>
         renderer.ReadImageLayer(
-            renderer.ScreenTraceSignals.Specular.AccumulationTrace(0)
+            renderer.ScreenTraceImages.Specular.AccumulationTrace(0)
                 ?? throw new InvalidOperationException("The accumulation trace is off."),
             layer
         );

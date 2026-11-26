@@ -61,7 +61,7 @@ internal sealed unsafe class ReflectionComparisonProbe : Rendering.RenderPass
                 {
                     Name = Name,
                     VertexShader = "lighting.vert",
-                    FragmentShader = renderer.ScreenTraceSignals.Specular.HistoryShader(group.Shader),
+                    FragmentShader = renderer.ScreenTraceImages.Specular.HistoryShader(group.Shader),
                     Layout = context.Layouts.CompositeLayout,
                     ColorFormats = [.. Enumerable.Repeat(Format.R32G32Sfloat, group.Count)],
                     CullMode = CullModeFlags.None,
@@ -85,9 +85,9 @@ internal sealed unsafe class ReflectionComparisonProbe : Rendering.RenderPass
         NumericMetadata ??= RasterDiagnostic.ReadFrame(context, boxGeometry);
         foreach (GpuImage image in context.Targets.GBuffer)
             context.Barriers.Image(image, ImageUse.SampledFragment);
-        context.Barriers.Image(renderer.ScreenTraceSignals.Specular.Slow(0), ImageUse.StorageFragment);
-        context.Barriers.Image(renderer.ScreenTraceSignals.Specular.Sample(0), ImageUse.StorageFragment);
-        context.Barriers.Image(renderer.ScreenTraceSignals.Specular.ReflectionGuide(0), ImageUse.StorageFragment);
+        context.Barriers.Image(renderer.ScreenTraceImages.Specular.Slow(0), ImageUse.StorageFragment);
+        context.Barriers.Image(renderer.ScreenTraceImages.Specular.Sample(0), ImageUse.StorageFragment);
+        context.Barriers.Image(renderer.ScreenTraceImages.Specular.ReflectionGuide(0), ImageUse.StorageFragment);
         context.Barriers.Image(context.Targets.DirectSpecular, ImageUse.StorageFragment);
         foreach (GpuImage image in images)
             context.Barriers.Image(image, ImageUse.ColorAttachment, discard: true);

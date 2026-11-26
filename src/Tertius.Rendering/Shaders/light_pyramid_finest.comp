@@ -1,6 +1,6 @@
 #version 460
 // The finest level of the light pyramid (light_pyramid.glsl): each pixel's guide light, the luminance of the fresh light
-// that the pixel sends toward a diffuse ray, as a hit reads it without its history (sentDiffuseLight in sent_light.glsl):
+// that the pixel sends toward a reflection ray, as a hit reads it without its history (sentDiffuseLight in sent_light.glsl):
 // this frame's direct diffuse light times the diffuse factor, and the glow, times the pixel's surface share. The sky holds
 // none, and an impostor only its glow times its share. One invocation per pixel.
 #extension GL_GOOGLE_include_directive : require

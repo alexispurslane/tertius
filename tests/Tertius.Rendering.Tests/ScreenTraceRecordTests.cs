@@ -89,10 +89,8 @@ public sealed class ScreenTraceRecordTests
         }
     }
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    public void ABlocksRecordedDensityMatchesItsRecordedDirection(int kind)
+    [Fact]
+    public void ABlocksRecordedDensityMatchesItsRecordedDirection()
     {
         const float roughness = 77 / 255f;
         VulkanRenderer renderer = Gpu.Headless(
@@ -108,7 +106,7 @@ public sealed class ScreenTraceRecordTests
             renderer.Render(scene, 1f);
 
             float[] plan = renderer.ReadImage(renderer.ScreenTraceImages.Plan);
-            float[] records = renderer.ReadImageLayer(renderer.ScreenTraceImages.BlockRay, kind);
+            float[] records = renderer.ReadImage(renderer.ScreenTraceImages.BlockRay);
             float[] normals = renderer.ReadNormals();
             CameraView camera = renderer.LastScene.Camera;
             var lobe = new GgxLobe(roughness);
@@ -118,7 +116,7 @@ public sealed class ScreenTraceRecordTests
             {
                 int chosen = Enumerable
                     .Range(0, 4)
-                    .First(corner => ((int)plan[(y + corner / 2) * Width + x + corner % 2] & 1 << kind) == 0);
+                    .First(corner => ((int)plan[(y + corner / 2) * Width + x + corner % 2] & 1) == 0);
                 int pixel = (y + chosen / 2) * Width + x + chosen % 2;
                 int record = 4 * (y / 2 * ((Width + 1) / 2) + x / 2);
                 Vector3 normal = OctahedralNormal.Decode(new(normals[4 * pixel], normals[4 * pixel + 1]));
@@ -131,10 +129,8 @@ public sealed class ScreenTraceRecordTests
                 double cosine = Math.Max(Vector3.Dot(normal, view), 1e-4);
                 double alphaSquared = lobe.Alpha * lobe.Alpha;
                 double expected =
-                    kind == 1
-                        ? Math.Max(Vector3.Dot(normal, direction), 0) / Math.PI
-                        : lobe.Distribution(Vector3.Dot(normal, Vector3.Normalize(view + direction)))
-                            / (2 * (cosine + Math.Sqrt(alphaSquared + (1 - alphaSquared) * cosine * cosine)));
+                    lobe.Distribution(Vector3.Dot(normal, Vector3.Normalize(view + direction)))
+                    / (2 * (cosine + Math.Sqrt(alphaSquared + (1 - alphaSquared) * cosine * cosine)));
                 int code = (int)records[record + 2];
                 double decoded = Math.Pow(2, (double)BitConverter.UInt16BitsToHalf((ushort)code));
                 decoded.Should().BeApproximately(expected, Math.Max(expected * 0.012, 1e-6));

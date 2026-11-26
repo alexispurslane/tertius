@@ -198,7 +198,7 @@ public sealed class DescriptorLayoutsTests
     /// ARCHITECTURE.md, "Required device features", states.
     /// </summary>
     [Fact]
-    public void TheLayoutsNeedOfAStageTenStorageBuffersTwentyThreeStorageImagesAndSeventeenSampledImages()
+    public void TheLayoutsNeedOfAStageTenStorageBuffersNineteenStorageImagesAndSeventeenSampledImages()
     {
         using var device = VulkanDevice.Create(validation: true, surfaceExtensions: [], createSurface: null);
         using var layouts = new DescriptorLayouts(device: device, framesInFlight: 2, glowLevels: 0);
@@ -215,8 +215,8 @@ public sealed class DescriptorLayoutsTests
         all.Max(counts => counts.StorageImages.Most)
             .Should()
             .Be(
-                23,
-                "the screen tracer's compute stage sees fifteen, the light-change age's five, the hit light, the reflection share and the block guide"
+                19,
+                "the screen tracer's compute stage sees twelve, the light-change age's four, the hit light, the reflection share and the block guide"
             );
         all.Max(counts => counts.SampledImages.Most)
             .Should()
@@ -244,11 +244,11 @@ public sealed class DescriptorLayoutsTests
         layouts
             .DescriptorsOf(layouts.ScreenTraceLayout)
             .StorageImages.Compute.Should()
-            .Be(original.DescriptorsOf(original.ScreenTraceLayout).StorageImages.Compute + 5);
+            .Be(original.DescriptorsOf(original.ScreenTraceLayout).StorageImages.Compute + 4);
         layouts
             .DescriptorsOf(layouts.AccumulateLayout)
             .StorageImages.Compute.Should()
-            .Be(original.DescriptorsOf(original.AccumulateLayout).StorageImages.Compute + 2);
+            .Be(original.DescriptorsOf(original.AccumulateLayout).StorageImages.Compute + 1);
     }
 
     [Fact]

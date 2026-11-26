@@ -488,7 +488,7 @@ public sealed class UpscalingRenderTests
             else
                 camera.Width.Should().BeLessThan(beforeWidth);
             renderer.LastDraw.Reset.Should().BeFalse();
-            float[] history = renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Slow(0));
+            float[] history = renderer.ReadImage(renderer.ScreenTraceImages.Specular.Slow(0));
             (int X, int Y) shown = ReflectionTesting.MirrorPixel(
                 panel.Position - scene.Camera.Position,
                 camera.Width,

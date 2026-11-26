@@ -78,6 +78,14 @@ struct IndirectLight
 
 // ShaderConstants.ScreenTraceOn: whether the screen tracer's signals hold the indirect light, so that the composite reads
 // their slow histories rather than the closed form.
+layout(constant_id = 5) const float maxTraceRoughness = 0.5;
+
+// ScreenTrace.HandOverWidth, in perceptual roughness units.
+float glossyShare(float roughness)
+{
+    return clamp((maxTraceRoughness - flooredRoughness(roughness)) / 0.1, 0.0, 1.0);
+}
+
 layout(constant_id = 6) const bool screenTraceOn = false;
 
 // The environment's closed form at a surface, with every direction open (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 8,

@@ -67,7 +67,7 @@ internal sealed class TraceWriters(string output, ReferenceCrop crop) : IDisposa
     /// <param name="dumpWhole">Whether to write the whole trace of this frame.</param>
     public object? Measure(VulkanRenderer renderer, int frame, bool[] plate, float[] history, bool dumpWhole)
     {
-        if (renderer.ScreenTraceSignals.Specular.AccumulationTrace(0) is not { } image)
+        if (renderer.ScreenTraceImages.Specular.AccumulationTrace(0) is not { } image)
             return null;
         float[][] layers =
         [

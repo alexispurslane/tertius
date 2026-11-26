@@ -1,6 +1,0 @@
-#version 460
-// The thin kernel's feedback dispatch (diffuse_filter_wavelet.glsl): 3 × 3 taps, and the writes of both histories.
-#extension GL_GOOGLE_include_directive : require
-#define KernelRadius 1
-#define TERTIUS_FILTER_FEEDBACK
-#include "diffuse_filter_wavelet.glsl"

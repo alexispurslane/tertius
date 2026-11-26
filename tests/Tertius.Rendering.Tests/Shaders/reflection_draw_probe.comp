@@ -16,10 +16,10 @@ void main()
     if (tracedSurface(pixel))
     {
         TracingPixel p = tracingPixelAt(pixel);
-        if (startsKind(p, KindReflection))
+        if (startsReflection(p))
         {
-            vec3 ray = traceFrom(pixel, pixel, p, KindReflection).direction;
-            uvec3 draw = drawOf(pixel, trace.drawIndex, DirectionDraw[KindReflection]);
+            vec3 ray = traceFrom(pixel, pixel, p).direction;
+            uvec3 draw = drawOf(pixel, trace.drawIndex, DirectionDraw);
             vec2 fromMask = reflectionNumbersOf(pixel, trace.drawIndex, draw);
             vec2 fromHash = vec2(unitOf(draw.x), unitOf(draw.y));
             vec3 maskRay = directionOfCode(directionCodeOf(reflectionDirection(p, fromMask)));
