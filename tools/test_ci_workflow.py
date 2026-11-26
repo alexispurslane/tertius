@@ -33,6 +33,16 @@ class CiWorkflow(unittest.TestCase):
         self.assertIn("restore-prefixes-first-match: nix-", text)
         self.assertIn("path: ~/.nuget/packages", text)
 
+    def test_checkouts_are_sparse_and_keep_the_small_cleanup(self):
+        text = Path(__file__).parents[1].joinpath(".github", "workflows", "tests.yml").read_text()
+
+        self.assertEqual(text.count("sparse-checkout: |"), 2)
+        self.assertIn("          .github\n", text)
+        self.assertIn("          src\n", text)
+        self.assertIn("          tools\n", text)
+        self.assertNotIn("/usr/local/lib/android", text)
+        self.assertIn("sudo rm -rf /opt/hostedtoolcache", text)
+
     def test_the_cpu_release_suite_runs_only_on_main(self):
         text = Path(__file__).parents[1].joinpath(".github", "workflows", "tests.yml").read_text()
 
