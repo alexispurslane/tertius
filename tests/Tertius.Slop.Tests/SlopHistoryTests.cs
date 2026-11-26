@@ -11,9 +11,7 @@ public sealed class SlopHistoryTests
 {
     [Fact]
     public void TheTicketsOfACommitAreTheGitHubIssueNumbersInItsMessageInOrderWithoutRepeats() =>
-        Commit("#9: close; tickets for #12 and #9\n\nSee #99.", note: null)
-            .Tickets.Should()
-            .Equal("#9", "#12", "#99");
+        Commit("#9: close; tickets for #12 and #9\n\nSee #99.", note: null).Tickets.Should().Equal("#9", "#12", "#99");
 
     [Theory]
     [InlineData("Clean up code before push")]
@@ -58,10 +56,7 @@ public sealed class SlopHistoryTests
             );
         rows[1]
             .Should()
-            .Be(
-                "a1,2026-10-24T12:00:00+00:00,main,#9 #12,0.365,12041.5,92,0.036,1531,34450"
-                    + new string(',', 16)
-            );
+            .Be("a1,2026-10-24T12:00:00+00:00,main,#9 #12,0.365,12041.5,92,0.036,1531,34450" + new string(',', 16));
     }
 
     [Fact]
