@@ -45,6 +45,12 @@ jobs:
             tests
             tools
 
+      - name: Measure checkout
+        run: |
+          du -sh .
+          git count-objects -vH | grep size-pack
+          df -h /
+
       - name: Free disk space
         run: |
           sudo rm -rf /usr/share/dotnet &
@@ -81,6 +87,16 @@ jobs:
           set -euo pipefail
           nix develop --command python3 -I -m unittest discover -s tools -p 'test_*.py'
           nix develop --command python3 -I -m unittest discover -s tools/runpod -t tools/runpod -p 'test_*.py'
+
+      - name: Record test durations
+        run: |
+          echo "| Module | Duration |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---:|" >> "$GITHUB_STEP_SUMMARY"
+          for log in "$RUNNER_TEMP"/logs/Checked/*.log; do
+            name=$(basename "$log" .log)
+            duration=$(sed $'s/\x1b\[[0-9;]*m//g' "$log" | sed -n 's/^  duration: //p' | tail -1)
+            echo "| $name | $duration |" >> "$GITHUB_STEP_SUMMARY"
+          done
 
       - name: Measure the branch
         env:
@@ -143,6 +159,12 @@ jobs:
             src
             tests
             tools
+
+      - name: Measure checkout
+        run: |
+          du -sh .
+          git count-objects -vH | grep size-pack
+          df -h /
 
       - name: Free disk space
         run: |
