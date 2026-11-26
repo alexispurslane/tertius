@@ -1,0 +1,42 @@
+[
+  {
+    "name": "ignore-spatial-grain",
+    "result": "killed"
+  },
+  {
+    "name": "ignore-temporal-grain",
+    "result": "killed"
+  },
+  {
+    "name": "count-brightness-as-grain",
+    "result": "killed"
+  },
+  {
+    "name": "ignore-brightness-loss",
+    "result": "killed"
+  },
+  {
+    "name": "ignore-paired-error",
+    "result": "killed"
+  },
+  {
+    "name": "ignore-color-change",
+    "result": "killed"
+  },
+  {
+    "name": "skip-local-patches",
+    "result": "killed"
+  },
+  {
+    "name": "redistribute-the-centers-retained-share",
+    "result": "killed"
+  },
+  {
+    "name": "cross-surface-boundaries",
+    "result": "killed"
+  },
+  {
+    "name": "stop-spreading",
+    "result": "killed"
+  }
+]

@@ -1,0 +1,11 @@
+--- a/src/Tertius.Rendering/Shaders/composite_pass.glsl
++++ b/src/Tertius.Rendering/Shaders/composite_pass.glsl
+@@ -87,6 +87,8 @@
+         ? IndirectLight(imageLoad(indirectDiffuseLight, pixel).rgb, imageLoad(indirectSpecularLight, pixel).rgb)
+         : closedForm(withAmbientFootprint(s, pixel), V);
+     vec3 indirectDiffuse = factors.diffuse * indirect.diffuse;
++    if (screenTraceOn)
++        indirect.specular = vec3(0.0);
+     vec3 indirectSpecular = factors.specular * indirect.specular;
+     if (screenTraceOn)
+         indirectSpecular = reflectionSharedAt(pixel, indirectSpecular);

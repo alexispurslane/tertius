@@ -1,0 +1,6 @@
+{
+  "source": "../raw-source/panel-raw-samples.npz",
+  "sha256": "66721774b5112e6d5e00a2a3ca0aa5097c3e27c48f69eb3e309284ccb817159d",
+  "cap_archive_sha256": "66721774b5112e6d5e00a2a3ca0aa5097c3e27c48f69eb3e309284ccb817159d",
+  "identical": true
+}

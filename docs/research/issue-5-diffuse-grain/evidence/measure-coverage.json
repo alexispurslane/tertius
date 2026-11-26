@@ -1,0 +1,16 @@
+[
+  {
+    "file": "measure.py",
+    "executable_lines": 31,
+    "covered_lines": 31,
+    "missed_lines": [],
+    "branch_coverage": "Not measured by the standard-library tracer."
+  },
+  {
+    "file": "spread_model.py",
+    "executable_lines": 14,
+    "covered_lines": 14,
+    "missed_lines": [],
+    "branch_coverage": "Not measured by the standard-library tracer."
+  }
+]

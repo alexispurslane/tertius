@@ -1,0 +1,51 @@
+--- a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
++++ b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
+@@ -129,6 +129,7 @@
+         seenCode = seenCodeOfRecord(diffuse.ray);
+ #endif
+     }
++    vec3 probeDiffuseSpecular = specularLight;
+     float hitDistance = diffuse.light.a;
+     if (startsKind(p, KindReflection))
+     {
+@@ -158,6 +159,6 @@
+     imageStore(specularSampleAge, pixel, uvec4(sampleAgeOf(ageCode, moves || moved)));
+ #endif
+ #ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
+-    imageStore(uncoveredDiagnostic, pixel, vec4(float(seenCode) - 1.0, 0.0, 0.0, 0.0));
++    imageStore(uncoveredDiagnostic, pixel, vec4(probeDiffuseSpecular, handOver));
+ #endif
+ }
+--- a/src/Tertius.Rendering/VulkanRenderer.cs
++++ b/src/Tertius.Rendering/VulkanRenderer.cs
+@@ -697,6 +697,18 @@
+                 FinishSlot(frame);
+         }
+ 
++        if (sink != null && Environment.GetEnvironmentVariable("TERTIUS_ISSUE5_RAW") is { } rawPath
++            && screenTrace is { } probeTracer)
++        {
++            Directory.CreateDirectory(rawPath);
++            GpuImage probeImage = probeTracer.Specular.UncoveredDiagnostic(0) ?? throw new InvalidOperationException();
++            float[] probeValues = ReadImage(probeImage);
++            string probeName = Path.Combine(rawPath, history.DrawnFrames.ToString("D6"));
++            File.WriteAllBytes(probeName + ".sample.f32", System.Runtime.InteropServices.MemoryMarshal.AsBytes(probeValues.AsSpan()).ToArray());
++            File.WriteAllBytes(probeName + ".material.u8", ReadSpecularTarget());
++            File.WriteAllText(Path.Combine(rawPath, "size.txt"), $"{probeImage.Extent.Width} {probeImage.Extent.Height}");
++        }
++
+         LastFrameStats = StatsOf(
+             scene: LastScene,
+             impostors: Impostors,
+--- a/src/Tertius.Rendering/Shaders/accumulate_temporal.comp
++++ b/src/Tertius.Rendering/Shaders/accumulate_temporal.comp
+@@ -324,8 +324,7 @@
+ #ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
+     // The length before the blend, twice, where the diagnostic once kept it before and after the cut.
+     bool holdsCutShare = hasSample && luminance(sampled) >= AgeCutShare * luminance(slow.rgb);
+-    imageStore(uncoveredDiagnostic, pixel, vec4(imageLoad(uncoveredDiagnostic, pixel).r,
+-        hasSample ? historyLength : -1.0, holdsCutShare ? 1.0 : 0.0, historyLength));
++    // The research probe retains the resolve diagnostics without changing lighting.
+ #endif
+ 
+ #ifdef TERTIUS_ACCUMULATION_TRACE

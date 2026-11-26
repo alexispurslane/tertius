@@ -1,0 +1,5 @@
+{
+  "identical_frames": 48,
+  "compared_frames": 48,
+  "method": "SHA-256 of each PNG file, normal vs raw-source, frames0..47"
+}

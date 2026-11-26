@@ -1,0 +1,21 @@
+--- a/src/Tertius.Rendering/VulkanRenderer.cs
++++ b/src/Tertius.Rendering/VulkanRenderer.cs
+@@ -697,6 +697,18 @@
+                 FinishSlot(frame);
+         }
+ 
++        if (sink != null && Environment.GetEnvironmentVariable("TERTIUS_ISSUE5_RAW") is { } rawPath
++            && screenTrace is { } probeTracer)
++        {
++            Directory.CreateDirectory(rawPath);
++            GpuImage probeImage = probeTracer.Specular.Sample(0);
++            float[] probeValues = ReadImage(probeImage);
++            string probeName = Path.Combine(rawPath, history.DrawnFrames.ToString("D6"));
++            File.WriteAllBytes(probeName + ".sample.f32", System.Runtime.InteropServices.MemoryMarshal.AsBytes(probeValues.AsSpan()).ToArray());
++            File.WriteAllBytes(probeName + ".material.u8", ReadSpecularTarget());
++            File.WriteAllText(Path.Combine(rawPath, "size.txt"), $"{probeImage.Extent.Width} {probeImage.Extent.Height}");
++        }
++
+         LastFrameStats = StatsOf(
+             scene: LastScene,
+             impostors: Impostors,

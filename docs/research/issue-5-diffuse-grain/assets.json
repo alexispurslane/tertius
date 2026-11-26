@@ -1,0 +1,110 @@
+{
+  "root": "/Users/alexispurslane/Development/tertius/content/tertius.demo/bin/assets/blue-danube",
+  "files": [
+    {
+      "path": "cargo-pod/cargo.model/model.glb",
+      "bytes": 1108392,
+      "sha256": "33ebb2c037da105046b58fc7aeaebc17c1b789e738c8a0d0acdda98b649b5fce"
+    },
+    {
+      "path": "cargo-pod/cargo.model/report.json",
+      "bytes": 494,
+      "sha256": "de8efc2dee7cef0b490c5b809ca33a4e5728f9c30be12bb70ed564767303fcea"
+    },
+    {
+      "path": "crew/human_male.blend/model.glb",
+      "bytes": 31739944,
+      "sha256": "cad889c7c67289dd9f74f57c9c4f4489f190a3091118de3906d7ad7665a3e14d"
+    },
+    {
+      "path": "crew/human_male.blend/report.json",
+      "bytes": 893,
+      "sha256": "43842a06ea0561d38f9dd6ba74f2c051aedc6ce0c759a6d87078052cba506a27"
+    },
+    {
+      "path": "earth/material.zip",
+      "bytes": 27829898,
+      "sha256": "7dfc5d3c6c3a2201751bedece37e1ad64ce890f8b6d9beb0a9444582bb1068ad"
+    },
+    {
+      "path": "lunar-shuttle/lunarshuttle.model/model.glb",
+      "bytes": 7168352,
+      "sha256": "796463e0bfdfcc534ad69e9f1a481b574beb5866da5e048962471e03bb9b9ed6"
+    },
+    {
+      "path": "lunar-shuttle/lunarshuttle.model/report.json",
+      "bytes": 17375,
+      "sha256": "7dc4aa2becdc05e09130df7bb0f477ee5a0ebb9ffa678b86a0bc56572ed1b256"
+    },
+    {
+      "path": "orbital-station/orbital_station_2-2k.model/model.glb",
+      "bytes": 30278568,
+      "sha256": "6140f41b141b59212708fd94b3803b8ffbaff2b4db8e207a55bc37891886bd8f"
+    },
+    {
+      "path": "orbital-station/orbital_station_2-2k.model/report.json",
+      "bytes": 7777,
+      "sha256": "f05f650d71577742ec6a30198856c0f960c1d306e4bf81f284a7f1d10a1f87c7"
+    },
+    {
+      "path": "props/industrial_caged_sconce.gltf/model.glb",
+      "bytes": 3582796,
+      "sha256": "7b5f1277b6e65edcf54e517323b125c2103ac707ef62f1ab72a2f2acd51d02b7"
+    },
+    {
+      "path": "props/industrial_caged_sconce.gltf/report.json",
+      "bytes": 3763,
+      "sha256": "04ea28663a5125262753cf3b772ca04e17c25940c6b13d68c5c851d440446e59"
+    },
+    {
+      "path": "props/industrial_storage_cart.gltf/model.glb",
+      "bytes": 3110332,
+      "sha256": "6f0601852b3ca836ab7b7c897eb1f4a4fc6093a142c7efb4a2a94f1da51035c6"
+    },
+    {
+      "path": "props/industrial_storage_cart.gltf/report.json",
+      "bytes": 576,
+      "sha256": "34bb949671d6b3bb6c183aa6436397ca436b461562f242e5be9473c814a81dd1"
+    },
+    {
+      "path": "props/metal_stool_01.gltf/model.glb",
+      "bytes": 2374576,
+      "sha256": "683878e58209c1e0fe01cddb3bad99c650f4428616456bde3761caf9eea4436b"
+    },
+    {
+      "path": "props/metal_stool_01.gltf/report.json",
+      "bytes": 520,
+      "sha256": "11f6d33322fa8ef770dbfed3cdc92f71a75ddc31cfb02a28567c0879f188a66a"
+    },
+    {
+      "path": "props/metal_toolbox.gltf/model.glb",
+      "bytes": 3021736,
+      "sha256": "e8e5c5822dd96527e82d39decd2ae39ceaebbfe04e1525aaf8afdab606cb291c"
+    },
+    {
+      "path": "props/metal_toolbox.gltf/report.json",
+      "bytes": 1508,
+      "sha256": "a8fa6ea033bb1bbfec0ac3944fb620cdc462940299fed91a4f10a65abf42fca5"
+    },
+    {
+      "path": "props/modified_thermos.gltf/model.glb",
+      "bytes": 2546192,
+      "sha256": "dd9f0f8f7bb51921288eb4fc5a7105dfbca5246e44ff76c1ac02cd657609a5cf"
+    },
+    {
+      "path": "props/modified_thermos.gltf/report.json",
+      "bytes": 534,
+      "sha256": "dcf8fecd7c795a8fd76ce959cffea7b509aa66625f6def912a95fd69b56ee037"
+    },
+    {
+      "path": "props/modular_street_seating.gltf/model.glb",
+      "bytes": 8134140,
+      "sha256": "6a6a6ebbe4efcfa78bb91b6c8610c7d4880962e329bbd8d6b8343888ed0c2afa"
+    },
+    {
+      "path": "props/modular_street_seating.gltf/report.json",
+      "bytes": 4160,
+      "sha256": "7d03cbd4f75d6f684e65b5ef37dfdcf9abeb9c68f51c897b992f0756c3dbcadf"
+    }
+  ]
+}

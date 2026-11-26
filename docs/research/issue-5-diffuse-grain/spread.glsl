@@ -1,0 +1,76 @@
+// Research only. The existing diffuse wavelet filter's symmetric exchange, applied to
+// outgoing diffuse-ray-sourced specular before the dedicated reflection contribution.
+const int ProbeStep = PROBE_STEP;
+
+bool probeCompatible(TracingPixel first, TracingPixel second)
+{
+    if (first.ownCard != second.ownCard || first.s.model != second.s.model
+        || abs(first.s.metallic - second.s.metallic) > 0.02
+        || abs(first.s.reflectance - second.s.reflectance) > 0.02
+        || abs(first.s.roughness - second.s.roughness) > 0.05
+        || any(greaterThan(abs(first.s.baseColor - second.s.baseColor), vec3(0.15))))
+        return false;
+    if (handOverOf(first) <= 0.0 || handOverOf(second) <= 0.0
+        || dot(first.s.geometricNormal, second.s.geometricNormal) < 0.984807753
+        || dot(first.normal, second.normal) < 0.965925826)
+        return false;
+    vec3 apart = second.point - first.point;
+    float planeDistance = max(abs(dot(apart, first.s.geometricNormal)),
+        abs(dot(apart, second.s.geometricNormal)));
+    return planeDistance <= 0.01 * min(first.viewDepth, second.viewDepth);
+}
+
+bool probeConnection(ivec2 pixel, ivec2 neighbor, TracingPixel first, TracingPixel second)
+{
+    // The three checked raster cells are identical when the endpoints swap.
+    ivec2 cells[3] = ivec2[3]((3 * pixel + neighbor) / 4,
+        (pixel + neighbor) / 2, (pixel + 3 * neighbor) / 4);
+    for (int i = 0; i < 3; i++)
+    {
+        if (!tracedSurface(cells[i]))
+            return false;
+        TracingPixel middle = tracingPixelAt(cells[i]);
+        if (!probeCompatible(first, middle) || !probeCompatible(second, middle))
+            return false;
+    }
+    return true;
+}
+
+vec3 probeOutgoingAt(ivec2 pixel, TracingPixel p, MaterialFactors factors)
+{
+    uint plan = imageLoad(rayPlan, pixel).r;
+    RayRecord record = recordAt(pixel, KindDiffuse, plan);
+    WeighedRay ray = weighedRayOf(p, record, vec4(0.0), KindDiffuse, plan);
+    SurfaceLobes lobes = lobesOf(p.s, p.V);
+    return ray.brings ? factors.specular * handOverOf(p) * record.light.rgb
+        * specularWeightOf(p, lobes, factors, ray) : vec3(0.0);
+}
+
+vec3 probeSpread(ivec2 pixel, TracingPixel center, MaterialFactors factors, vec3 source)
+{
+    if (handOverOf(center) <= 0.0 || any(lessThan(factors.specular, vec3(LeastFactor))))
+        return source;
+    vec3 outgoing = factors.specular * source;
+    vec3 moved = vec3(0.0);
+    for (int y = -2; y <= 2; y++)
+        for (int x = -2; x <= 2; x++)
+        {
+            if (x == 0 && y == 0)
+                continue;
+            ivec2 neighbor = pixel + ProbeStep * ivec2(x, y);
+            if (any(lessThan(neighbor, ivec2(0)))
+                || any(greaterThanEqual(neighbor, ivec2(frame.viewport.xy))) || !tracedSurface(neighbor))
+                continue;
+            TracingPixel other = tracingPixelAt(neighbor);
+            if (!probeCompatible(center, other) || !probeConnection(pixel, neighbor, center, other))
+                continue;
+            MaterialFactors otherFactors = materialFactors(other.s, lobesOf(other.s, other.V));
+            if (any(lessThan(otherFactors.specular, vec3(LeastFactor))))
+                continue;
+            vec3 value = probeOutgoingAt(neighbor, other, otherFactors);
+            // Every accepted pair exchanges exactly 1/25 of its RGB difference.
+            // Rejected weights stay at the center; there is no per-pixel renormalization.
+            moved += (value - outgoing) / 25.0;
+        }
+    return (outgoing + moved) / factors.specular;
+}

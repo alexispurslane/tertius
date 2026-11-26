@@ -1,0 +1,11 @@
+--- a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
++++ b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
+@@ -120,7 +120,7 @@
+ #endif
+     if (handOver > 0.0 && diffuseRay.brings)
+     {
+-        specularLight = handOver * diffuse.light.rgb * specularWeightOf(p, lobes, factors, diffuseRay);
++        specularLight = vec3(0.0);
+ #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+         ageCode = diffuseCode;
+         moved = diffuseMoved;

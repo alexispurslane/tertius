@@ -1,0 +1,218 @@
+{
+  "render_width": 848,
+  "render_height": 477,
+  "frames": 32,
+  "quantity": "Diffuse-ray-sourced specular RGB before limiting and reconstruction; demodulated, pre-exposed by 2^6.0043726.",
+  "crops": {
+    "sloped-panel": {
+      "render_pixel_box": [
+        583,
+        27,
+        715,
+        102
+      ],
+      "sample_count": 316800,
+      "roughness_quantiles": {
+        "min": 0.47843137383461,
+        "median": 0.4901960790157318,
+        "max": 0.5058823823928833
+      },
+      "handover_quantiles": {
+        "min": 0.7843143343925476,
+        "median": 0.901961088180542,
+        "max": 1.0
+      },
+      "full_diffuse_ray_share": 0.0504040404040404,
+      "mean_rgb": [
+        0.11014174669981003,
+        0.21394091844558716,
+        0.24641741812229156
+      ],
+      "luminance_quantiles": {
+        "min": 0.0,
+        "p25": 2.9715648906858405e-05,
+        "p50": 0.0002573928068159148,
+        "p75": 0.003180959669407457,
+        "p90": 0.10060204192996167,
+        "p95": 0.41329923272132874,
+        "p99": 2.7250836968423378,
+        "p995": 10.944249153137207,
+        "p999": 29.609405517578125,
+        "max": 33.50362014770508
+      },
+      "mean_luminance": 0.19431443512439728,
+      "proposed_limit": 2.725083589553833,
+      "baseline_affected_fraction": 0.01,
+      "tail_energy_fraction": 0.7150952219963074,
+      "predicted_raw_luminance_loss_fraction": 0.57485431432724
+    },
+    "sloped-panel-joint": {
+      "render_pixel_box": [
+        540,
+        143,
+        692,
+        258
+      ],
+      "sample_count": 559360,
+      "roughness_quantiles": {
+        "min": 0.0,
+        "median": 0.5215686559677124,
+        "max": 0.8941176533699036
+      },
+      "handover_quantiles": {
+        "min": 0.0,
+        "median": 1.0,
+        "max": 1.0
+      },
+      "full_diffuse_ray_share": 0.7802631578947369,
+      "mean_rgb": [
+        -0.061949118971824646,
+        0.21865500509738922,
+        0.2532305419445038
+      ],
+      "luminance_quantiles": {
+        "min": -0.2125999927520752,
+        "p25": 0.0,
+        "p50": 0.0001416363156749867,
+        "p75": 0.0027137934230268,
+        "p90": 0.07290790453553211,
+        "p95": 0.32433760166168213,
+        "p99": 2.3371152877807617,
+        "p995": 6.656571865081787,
+        "p999": 38.64467239379883,
+        "max": 38.75531768798828
+      },
+      "mean_luminance": 0.16161561012268066,
+      "proposed_limit": 2.3371152877807617,
+      "baseline_affected_fraction": 0.009904176201372997,
+      "tail_energy_fraction": 0.9510857462882996,
+      "predicted_raw_luminance_loss_fraction": 0.807861864566803
+    },
+    "floor": {
+      "render_pixel_box": [
+        477,
+        405,
+        596,
+        470
+      ],
+      "sample_count": 247520,
+      "roughness_quantiles": {
+        "min": 0.6235294342041016,
+        "median": 0.6980392336845398,
+        "max": 0.8666666746139526
+      },
+      "handover_quantiles": {
+        "min": 1.0,
+        "median": 1.0,
+        "max": 1.0
+      },
+      "full_diffuse_ray_share": 1.0,
+      "mean_rgb": [
+        0.11433535814285278,
+        0.2618444263935089,
+        0.3039396405220032
+      ],
+      "luminance_quantiles": {
+        "min": 0.0,
+        "p25": 0.00013273118383949623,
+        "p50": 0.00725132692605257,
+        "p75": 0.0384838841855526,
+        "p90": 0.12223601341247559,
+        "p95": 0.24491387605667114,
+        "p99": 0.8354398608207703,
+        "p995": 17.438127517700195,
+        "p999": 38.61282730102539,
+        "max": 38.77766799926758
+      },
+      "mean_luminance": 0.23356054723262787,
+      "proposed_limit": 0.8354398608207703,
+      "baseline_affected_fraction": 0.009991111829347123,
+      "tail_energy_fraction": 0.8147443532943726,
+      "predicted_raw_luminance_loss_fraction": 0.7790064215660095
+    },
+    "panel-warm": {
+      "render_pixel_box": [
+        491,
+        20,
+        569,
+        86
+      ],
+      "sample_count": 164736,
+      "roughness_quantiles": {
+        "min": 0.48627451062202454,
+        "median": 0.4941176474094391,
+        "max": 0.5411764979362488
+      },
+      "handover_quantiles": {
+        "min": 0.8627457022666931,
+        "median": 0.9411768317222595,
+        "max": 1.0
+      },
+      "full_diffuse_ray_share": 0.2564102564102564,
+      "mean_rgb": [
+        0.09738665074110031,
+        0.10198724269866943,
+        0.09536858648061752
+      ],
+      "luminance_quantiles": {
+        "min": 0.0,
+        "p25": 2.5623787678341614e-05,
+        "p50": 0.0002347718909732066,
+        "p75": 0.00402352528180927,
+        "p90": 0.17009106278419495,
+        "p95": 0.42814695835113525,
+        "p99": 1.690583348274231,
+        "p995": 2.4654436111450195,
+        "p999": 13.692655563354492,
+        "max": 15.215505599975586
+      },
+      "mean_luminance": 0.10055629909038544,
+      "proposed_limit": 1.690583348274231,
+      "baseline_affected_fraction": 0.009833916083916084,
+      "tail_energy_fraction": 0.47917479276657104,
+      "predicted_raw_luminance_loss_fraction": 0.3138439655303955
+    },
+    "panel-cool": {
+      "render_pixel_box": [
+        570,
+        146,
+        636,
+        208
+      ],
+      "sample_count": 130944,
+      "roughness_quantiles": {
+        "min": 0.48627451062202454,
+        "median": 0.5137255191802979,
+        "max": 0.7764706015586853
+      },
+      "handover_quantiles": {
+        "min": 0.8627457022666931,
+        "median": 1.0,
+        "max": 1.0
+      },
+      "full_diffuse_ray_share": 0.9137341153470185,
+      "mean_rgb": [
+        0.18972091376781464,
+        0.4982442855834961,
+        0.6044953465461731
+      ],
+      "luminance_quantiles": {
+        "min": 0.0,
+        "p25": 1.9415319457039004e-05,
+        "p50": 0.00020679133740486577,
+        "p75": 0.002941215003374964,
+        "p90": 0.09737135469913483,
+        "p95": 0.43477580845355984,
+        "p99": 26.46833038330078,
+        "p995": 38.451900482177734,
+        "p999": 38.670936584472656,
+        "max": 38.75531768798828
+      },
+      "mean_luminance": 0.4404117166996002,
+      "proposed_limit": 26.46833038330078,
+      "baseline_affected_fraction": 0.009775171065493646,
+      "tail_energy_fraction": 0.8084501624107361,
+      "predicted_raw_luminance_loss_fraction": 0.22097158432006836
+    }
+  }
+}

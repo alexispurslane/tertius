@@ -1,0 +1,602 @@
+[
+  {
+    "frame": 0,
+    "capture": "cockpit-000000",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 1,
+    "capture": "cockpit-000001",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 2,
+    "capture": "cockpit-000002",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 3,
+    "capture": "cockpit-000003",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 4,
+    "capture": "cockpit-000004",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 5,
+    "capture": "cockpit-000005",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 6,
+    "capture": "cockpit-000006",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 7,
+    "capture": "cockpit-000007",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 8,
+    "capture": "cockpit-000008",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 9,
+    "capture": "cockpit-000009",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 10,
+    "capture": "cockpit-000010",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 11,
+    "capture": "cockpit-000011",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 12,
+    "capture": "cockpit-000012",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 13,
+    "capture": "cockpit-000013",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 14,
+    "capture": "cockpit-000014",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 15,
+    "capture": "cockpit-000015",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 16,
+    "capture": "cockpit-000016",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 17,
+    "capture": "cockpit-000017",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 18,
+    "capture": "cockpit-000018",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 19,
+    "capture": "cockpit-000019",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 20,
+    "capture": "cockpit-000020",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 21,
+    "capture": "cockpit-000021",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 22,
+    "capture": "cockpit-000022",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 23,
+    "capture": "cockpit-000023",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 24,
+    "capture": "cockpit-000024",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 25,
+    "capture": "cockpit-000025",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 26,
+    "capture": "cockpit-000026",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 27,
+    "capture": "cockpit-000027",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 28,
+    "capture": "cockpit-000028",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 29,
+    "capture": "cockpit-000029",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 30,
+    "capture": "cockpit-000030",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 31,
+    "capture": "cockpit-000031",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 32,
+    "capture": "cockpit-000032",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 33,
+    "capture": "cockpit-000033",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 34,
+    "capture": "cockpit-000034",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 35,
+    "capture": "cockpit-000035",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 36,
+    "capture": "cockpit-000036",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 37,
+    "capture": "cockpit-000037",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 38,
+    "capture": "cockpit-000038",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 39,
+    "capture": "cockpit-000039",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 40,
+    "capture": "cockpit-000040",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 41,
+    "capture": "cockpit-000041",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 42,
+    "capture": "cockpit-000042",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 43,
+    "capture": "cockpit-000043",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 44,
+    "capture": "cockpit-000044",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 45,
+    "capture": "cockpit-000045",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 46,
+    "capture": "cockpit-000046",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 47,
+    "capture": "cockpit-000047",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 48,
+    "capture": "cockpit-000048",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 49,
+    "capture": "cockpit-000049",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 50,
+    "capture": "cockpit-000050",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 51,
+    "capture": "cockpit-000051",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 52,
+    "capture": "cockpit-000052",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 53,
+    "capture": "cockpit-000053",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 54,
+    "capture": "cockpit-000054",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 55,
+    "capture": "cockpit-000055",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 56,
+    "capture": "cockpit-000056",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 57,
+    "capture": "cockpit-000057",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 58,
+    "capture": "cockpit-000058",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 59,
+    "capture": "cockpit-000059",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 60,
+    "capture": "cockpit-000060",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 61,
+    "capture": "cockpit-000061",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 62,
+    "capture": "cockpit-000062",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 63,
+    "capture": "cockpit-000063",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 64,
+    "capture": "cockpit-000064",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 65,
+    "capture": "cockpit-000065",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 66,
+    "capture": "cockpit-000066",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 67,
+    "capture": "cockpit-000067",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 68,
+    "capture": "cockpit-000068",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 69,
+    "capture": "cockpit-000069",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 70,
+    "capture": "cockpit-000070",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 71,
+    "capture": "cockpit-000071",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 72,
+    "capture": "cockpit-000072",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 73,
+    "capture": "cockpit-000073",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 74,
+    "capture": "cockpit-000074",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 75,
+    "capture": "cockpit-000075",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 76,
+    "capture": "cockpit-000076",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 77,
+    "capture": "cockpit-000077",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 78,
+    "capture": "cockpit-000078",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 79,
+    "capture": "cockpit-000079",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 80,
+    "capture": "cockpit-000080",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 81,
+    "capture": "cockpit-000081",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 82,
+    "capture": "cockpit-000082",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 83,
+    "capture": "cockpit-000083",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 84,
+    "capture": "cockpit-000084",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 85,
+    "capture": "cockpit-000085",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 86,
+    "capture": "cockpit-000086",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 87,
+    "capture": "cockpit-000087",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 88,
+    "capture": "cockpit-000088",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 89,
+    "capture": "cockpit-000089",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 90,
+    "capture": "cockpit-000090",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 91,
+    "capture": "cockpit-000091",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 92,
+    "capture": "cockpit-000092",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 93,
+    "capture": "cockpit-000093",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 94,
+    "capture": "cockpit-000094",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 95,
+    "capture": "cockpit-000095",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 96,
+    "capture": "cockpit-000096",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 97,
+    "capture": "cockpit-000097",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 98,
+    "capture": "cockpit-000098",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 99,
+    "capture": "cockpit-000099",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 100,
+    "capture": "cockpit-000100",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 101,
+    "capture": "cockpit-000101",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 102,
+    "capture": "cockpit-000102",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 103,
+    "capture": "cockpit-000103",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 104,
+    "capture": "cockpit-000104",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 105,
+    "capture": "cockpit-000105",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 106,
+    "capture": "cockpit-000106",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 107,
+    "capture": "cockpit-000107",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 108,
+    "capture": "cockpit-000108",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 109,
+    "capture": "cockpit-000109",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 110,
+    "capture": "cockpit-000110",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 111,
+    "capture": "cockpit-000111",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 112,
+    "capture": "cockpit-000112",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 113,
+    "capture": "cockpit-000113",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 114,
+    "capture": "cockpit-000114",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 115,
+    "capture": "cockpit-000115",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 116,
+    "capture": "cockpit-000116",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 117,
+    "capture": "cockpit-000117",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 118,
+    "capture": "cockpit-000118",
+    "stops": 6.0043726
+  },
+  {
+    "frame": 119,
+    "capture": "cockpit-000119",
+    "stops": 6.0043726
+  }
+]
