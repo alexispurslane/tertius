@@ -23,6 +23,16 @@ class CiWorkflow(unittest.TestCase):
         self.assertIn("repos/$REPO/issues/comments/$id", text)
         self.assertIn("| .id' | tail -1)", text)
 
+    def test_the_pr_job_shares_one_setup_and_caches_dependencies(self):
+        text = Path(__file__).parents[1].joinpath(".github", "workflows", "tests.yml").read_text()
+
+        self.assertEqual(text.count("ref: ${{ github.event.pull_request.head.sha }}"), 1)
+        self.assertEqual(text.count("nix-community/cache-nix-action@v7"), 2)
+        self.assertEqual(text.count("actions/cache@v4"), 2)
+        self.assertIn("primary-key: nix-", text)
+        self.assertIn("restore-prefixes-first-match: nix-", text)
+        self.assertIn("path: ~/.nuget/packages", text)
+
     def test_the_cpu_release_suite_runs_only_on_main(self):
         text = Path(__file__).parents[1].joinpath(".github", "workflows", "tests.yml").read_text()
 

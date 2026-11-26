@@ -97,7 +97,7 @@ for configuration in ${built[@]+"${built[@]}"}; do
     log="$out/$configuration/$module.log"
     code=$(cat "$log.exit" 2>/dev/null || echo 1)
     # The runner ends with a summary of lines such as "  total: 12". Exit code 8 means that no test ran.
-    count() { sed -n "s/^  $1: \([0-9]*\)$/\1/p" "$log" | tail -1; }
+    count() { sed $'s/\x1b\[[0-9;]*m//g' "$log" | sed -n "s/^  $1: \([0-9]*\)$/\1/p" | tail -1; }
     total=$(count total) failed=$(count failed) succeeded=$(count succeeded) skipped=$(count skipped)
     if [[ -z "$total" ]]; then
       echo "$configuration $module: no summary, exit code $code, see $log"

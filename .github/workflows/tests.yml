@@ -1,5 +1,5 @@
-# Ready pull requests run every CPU-only .NET test in Checked and every Python tools test. Main runs the CPU Release
-# suite after each merge. The aggregate check reports the branch metrics and blocks merging until every required leg passes.
+# One PR job shares its Nix and NuGet setup across CPU tests, Python tests and metrics. Main runs the CPU Release suite
+# with the same caches. The aggregate check reports branch metrics and blocks merging until every required leg passes.
 name: tests
 
 on:
@@ -17,124 +17,60 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  checked:
-    name: CPU tests (Checked)
+  metrics:
+    name: Tests and metrics
     if: ${{ github.event_name == 'pull_request' && !github.event.pull_request.draft }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 180
+    timeout-minutes: 240
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
 
       - name: Free disk space
         run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache
+          sudo rm -rf /usr/share/dotnet &
+          sudo rm -rf /usr/local/lib/android &
+          sudo rm -rf /opt/ghc &
+          sudo rm -rf /usr/local/.ghcup &
+          sudo rm -rf /opt/hostedtoolcache &
+          wait
           df -h /
 
       - uses: cachix/install-nix-action@v32
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
+
+      - name: Restore and save the Nix store
+        uses: nix-community/cache-nix-action@v7
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock', 'native/**') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('Directory.Packages.props', '**/*.csproj', 'global.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
 
       - name: Run the CPU Checked suite
         run: |
           set -euo pipefail
           nix develop --command bash -c 'bash tools/test-all.sh -c Checked -m Core,Simulation,Physics,Assets,Unions,Style,Slop -o "$RUNNER_TEMP/logs" -- --minimum-expected-tests 1'
 
-      - name: Upload failure logs
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: checked-test-logs
-          path: ${{ runner.temp }}/logs
-
-  python:
-    name: Python tools tests
-    if: ${{ github.event_name == 'pull_request' && !github.event.pull_request.draft }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 180
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache
-          df -h /
-
-      - uses: cachix/install-nix-action@v32
-        with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-
       - name: Run every Python tools test
         run: |
           set -euo pipefail
           nix develop --command python3 -I -m unittest discover -s tools -p 'test_*.py'
           nix develop --command python3 -I -m unittest discover -s tools/runpod -t tools/runpod -p 'test_*.py'
-
-  release:
-    name: CPU tests (Release)
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 180
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache
-          df -h /
-
-      - uses: cachix/install-nix-action@v32
-        with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-
-      - name: Run the CPU Release suite
-        run: |
-          set -euo pipefail
-          nix develop --command bash -c 'bash tools/test-all.sh -c Release -m Core,Simulation,Physics,Assets,Unions,Style,Slop -o "$RUNNER_TEMP/logs" -- --minimum-expected-tests 1'
-
-      - name: Upload failure logs
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: release-test-logs
-          path: ${{ runner.temp }}/logs
-
-  metrics:
-    name: Tests and metrics
-    needs: [checked, python]
-    if: ${{ always() && github.event_name == 'pull_request' && !github.event.pull_request.draft }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    permissions:
-      contents: read
-      issues: write
-      pull-requests: write
-    steps:
-      - name: Require every test leg
-        if: ${{ needs.checked.result != 'success' || needs.python.result != 'success' }}
-        run: |
-          echo "Checked tests: ${{ needs.checked.result }}. Python tests: ${{ needs.python.result }}."
-          exit 1
-
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache
-          df -h /
-
-      - uses: cachix/install-nix-action@v32
-        with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
 
       - name: Measure the branch
         env:
@@ -167,3 +103,61 @@ jobs:
           else
             gh api -X POST "repos/$REPO/issues/$PR/comments" -F body=@"$BODY"
           fi
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: checked-test-logs
+          path: ${{ runner.temp }}/logs
+
+  release:
+    name: CPU tests (Release)
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet &
+          sudo rm -rf /usr/local/lib/android &
+          sudo rm -rf /opt/ghc &
+          sudo rm -rf /usr/local/.ghcup &
+          sudo rm -rf /opt/hostedtoolcache &
+          wait
+          df -h /
+
+      - uses: cachix/install-nix-action@v32
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Restore and save the Nix store
+        uses: nix-community/cache-nix-action@v7
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock', 'native/**') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('Directory.Packages.props', '**/*.csproj', 'global.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Run the CPU Release suite
+        run: |
+          set -euo pipefail
+          nix develop --command bash -c 'bash tools/test-all.sh -c Release -m Core,Simulation,Physics,Assets,Unions,Style,Slop -o "$RUNNER_TEMP/logs" -- --minimum-expected-tests 1'
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-test-logs
+          path: ${{ runner.temp }}/logs
