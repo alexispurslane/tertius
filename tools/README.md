@@ -506,7 +506,7 @@ The git hooks keep the metrics of each commit in a git note under `refs/notes/sl
 
 - `measure <tree> --branch <name> --source <source> [--details <file> [--parent <commit>]]` prints the note of a tree or a commit. It measures a copy of the tree's `src`, so the working tree does not matter. The copy also holds the tree's `tests`, `benchmarks` and `scripts`, for the names that they use. With `--details`, it also writes a JSON object to the file: `report`, the JSON of `all` for the tree, and `baseline`, the commit that the report compares the tree with, as `commit` (the short hash) and `note`. The baseline is the nearest noted commit on the first-parent line of `--parent`, by the rule of `summary`, and null without `--parent` or when no commit up to it has a note. The pre-commit hook gives that file to the commit report, with `--parent HEAD` ("Before a commit" below). The note on the output stays one line.
 - `note <from> <tip> --branch <name> --source <source>` attaches notes to the first-parent commits after `<from>` up to `<tip>`. It notes `<tip>`, and each commit that changes C# code under `src` and has no note.
-- `history [git log options and revisions]` prints the noted commits as CSV, newest first. The first columns are commit, date, branch, tickets, erosion, highCcMass, highCcFunctionCount, verbosity, verboseLines and sloc. Type columns follow them (see "Type coherence and source evidence"). The tickets are the ticket ids in the commit message.
+- `history [git log options and revisions]` prints the noted commits as CSV, newest first. The first columns are commit, date, branch, tickets, erosion, highCcMass, highCcFunctionCount, verbosity, verboseLines and sloc. Type columns follow them (see "Type coherence and source evidence"). The tickets are the GitHub issue references in the commit message, such as `#42`.
 - `summary <from> <tip>` prints the summary of the pre-push hook.
 - `backfill` fills missing absolute counts and the type-summary data in every older slop note, including notes of commits off the current branch. It keeps each note's branch, source, measurement time and other text. It preserves existing counts and unknown top-level JSON properties, enriches every readable JSON line, and skips notes that already have all counts and can resume after an interruption.
 
@@ -519,8 +519,8 @@ nix develop --command dotnet run --project tools/Tertius.Slop -c Release -- hist
 ```text
 commit,date,branch,tickets,erosion,highCcMass,highCcFunctionCount,verbosity,verboseLines,sloc
 425971fcd8f38f4ac915f01ed399f0a3adbbd1d8,2026-10-27T14:46:56-04:00,main,,0.20000179206800917,8261.413478927696,73,0.03323593209400714,1854,55783
-17b60932415e135b684414c70bc30d5eae840b04,2026-10-27T14:45:14-04:00,main,ter-tf17,0.20000179206800917,8261.413478927696,73,0.03323593209400714,1854,55783
-aced093a70125d9216036e490e38b3b996153b8f,2026-10-27T11:31:26-04:00,main,ter-vtc7 ter-ylzk,0.20000179206800922,8261.413478927696,73,0.03323593209400714,1854,55783
+17b60932415e135b684414c70bc30d5eae840b04,2026-10-27T14:45:14-04:00,main,#17,0.20000179206800917,8261.413478927696,73,0.03323593209400714,1854,55783
+aced093a70125d9216036e490e38b3b996153b8f,2026-10-27T11:31:26-04:00,main,#7 #12,0.20000179206800922,8261.413478927696,73,0.03323593209400714,1854,55783
 ```
 
 To read the notes of another clone, fetch them first: `git fetch origin refs/notes/slop:refs/notes/slop`.

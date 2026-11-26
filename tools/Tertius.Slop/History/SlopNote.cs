@@ -6,8 +6,8 @@ namespace Tertius.Slop.History;
 /// <summary>
 /// The slop metrics of one commit, as a git note under <c>refs/notes/slop</c> (docs/plans/code-quality-tooling.md,
 /// decision 18): the measures of the commit's tree, and the branch, the hook and the time of the measurement. The note
-/// holds only what git cannot tell later. The tickets of the commit are in its message, so <see cref="Commit"/> reads
-/// them from there.
+/// holds only what git cannot tell later. The GitHub issue references of the commit are in its message, so
+/// <see cref="Commit"/> reads them from there.
 /// </summary>
 public sealed record SlopNote
 {
