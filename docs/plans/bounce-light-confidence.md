@@ -1263,7 +1263,7 @@ After the merge, `ter-ewua` starts from section 15. If the climb's target fails,
 ## References
 
 - Pair research and prototype: `/private/tmp/pair-mottle/notes.md` and `/private/tmp/pair-mottle/design-a/` (`README.md`, `retained-deviation.patch`, `model.py`, `check.py`).
-- Measurements of the gate: `.tickets/ter-18hc.md`, the note of 2026-11-12. Also `/private/tmp/t7-3e22/s/m2/results`, `/private/tmp/t7-3e22/s/w2/results` and `/private/tmp/t7-3e22/lightsl.txt`.
+- Measurements of the gate: `ter-18hc planning notes`, the note of 2026-11-12. Also `/private/tmp/t7-3e22/s/m2/results`, `/private/tmp/t7-3e22/s/w2/results` and `/private/tmp/t7-3e22/lightsl.txt`.
 - Takes T1 to T6: the notes of `t0-f7zv` and `t0-4fth`. Kept data in `/private/tmp/t7-3e22/measure-3/kept`.
 - The notes and scratch of `ter-g3tk`: `/private/tmp/g3tk/` (stand film, climb, cut rule).
 - The CPU models of the first form are in `/private/tmp/bounce-design/`. They use flat periodic planes in float64, with no hit feedback and no geometry. `transport.py` and `peaks.py` model the deviation's transport, the impulse and the edge, and `clamp.py` the light that the box keeps. `blocks.py`, `windows.py`, `specular.py`, `drain4.py` and `detail.py` model the statistical test and are history.

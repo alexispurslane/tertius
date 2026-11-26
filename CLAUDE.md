@@ -11,8 +11,9 @@ ARCHITECTURE.md is the binding design, and the code and `tools/README.md` say ho
 - The pre-commit hook runs only the Checked tests. Run the Release tests at least once before a merge into main. Run them with `tools/test-all.sh` or with `-c Release`.
 - The hook skips a test project whose full Checked run passed on exactly the staged code (tools/README.md, "The test record"). So run the full Checked tests just before a commit, and the commit does not run them again.
 - Run at most four agents that build at once (user, 2026-10-25). The global hook `~/.claude/hooks/heavy_queue.py` allows four heavy runs. On 2026-10-24, two agents brought the load of this 10-core machine to about 23. When four agents build together, each build and test runs slower.
-- Do each ticket or epic on its own branch, named after the ticket, such as `ter-dtw2-vertical-slice`. Never commit work straight to main. The user reads the code in the diff pane of the Claude desktop app, against main.
-- When the ticket closes, merge its branch into main in this checkout, and leave the checkout on main. Other sessions commit ticket notes in this checkout, and the user wants those on main.
+- Track active work in GitHub Issues and the [Tertius project](https://github.com/users/alexispurslane/projects/5). Read the [Tertius issues skill](.agents/skills/tertius-issues/SKILL.md) when planning or updating work.
+- Give each issue or epic a new worktree and branch, named like `issue-9-github-project-management`. Open a draft pull request that closes the issue, and push commits regularly as progress updates.
+- Review once through inline pull-request comments. The builder resolves every finding, then marks the pull request ready and merges it. Close the issue and verify Done on the board. Pull main into other checkouts when their next work needs it.
 - Use git, not jj. This overrides the jj rule in the user's other agent configuration.
 - Push main to `origin` without asking, at least after each epic merges. The user decided on 2026-10-24 that a regular push is better than none.
 - `origin` fetches from GitHub, the primary home since 2026-11-12. It pushes to GitHub, then to the knot, a push mirror (tools/README.md, "The remotes: GitHub and the knot mirror"). If a push fails on one URL, push again.
@@ -103,7 +104,7 @@ Erosion `0.2000` and verbosity `0.0332` remain the historical values for that un
 | [DPose](src/Tertius.Core/Math/Pose.cs) | `21/21 = 1` | `17/13 = 1.3077` | Property traversal now exposes the shared transform storage. Its v2 direct TCC was zero. |
 | [ToneMapPass](src/Tertius.Rendering/Passes/ToneMapPass.cs) | `1/1 = 1` | `11/4 = 2.7500` | The pass hides shader and output selection. Its maximum TCC rests on just one eligible pair. |
 | [TopicSets](src/Tertius.Simulation/Internal/Messaging/TopicSets.cs) | `51/55 = 0.9273` | `83/13 = 6.3846` | Helper traversal connects subscription and membership operations. Their storage updates stay inside the owner. |
-| [EventList](src/Tertius.Simulation/Events/EventList.cs) | `36/36 = 1` | `17/14 = 1.2143` | Maximum TCC coexists with exposed storage bookkeeping. Whole-event writes can bypass mask maintenance. [ter-c8lk](.tickets/ter-c8lk.md) records the defect and proposed ownership fix. |
+| [EventList](src/Tertius.Simulation/Events/EventList.cs) | `36/36 = 1` | `17/14 = 1.2143` | Maximum TCC coexists with exposed storage bookkeeping. Whole-event writes can bypass mask maintenance. The historical review records the defect and proposed ownership fix. |
 
 ### Calibrating a judgment
 

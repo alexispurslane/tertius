@@ -65,7 +65,7 @@ Why the simulation owns the puffs. The renderer knows no frames. A time-lapse fi
 
 ## Decisions
 
-The user settled these on 2026-10-21, in the notes of `.tickets/ter-4zt6.md` and in a correction on lift that came with the brief of this revision:
+The user settled these on 2026-10-21, in the notes of `ter-4zt6 planning notes` and in a correction on lift that came with the brief of this revision:
 
 1. A puff is a loose body without a shape, born in its emitter's frame, living there for its whole life. It fades as it ages.
 2. The simulation owns the puffs and steps them every tick, in doubles. The snapshot carries each puff with a current and a previous position.

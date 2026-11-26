@@ -29,9 +29,9 @@ public sealed class PushSummaryTests
     [Fact]
     public void ACommitRaisesAMetricByTheChangeFromTheNearestNoteBeforeIt()
     {
-        Commit first = Pushed("1", "ter-aaaa: first", highCcMass: 30);
+        Commit first = Pushed("1", "#100: first", highCcMass: 30);
         Commit unnoted = Pushed("2", "docs only", highCcMass: null);
-        Commit third = Pushed("3", "ter-cccc: third", highCcMass: 32);
+        Commit third = Pushed("3", "#300: third", highCcMass: 32);
 
         var summary = PushSummary.Of(
             lastPush: AbsoluteNote(
@@ -99,7 +99,7 @@ public sealed class PushSummaryTests
     [Fact]
     public void TheSummaryNamesTheTicketsAndTheSubjectOfACommitThatRaisedAMetric()
     {
-        Commit raiser = Pushed("abcdef123456", "ter-2x99: the verbosity", highCcMass: 40);
+        Commit raiser = Pushed("abcdef123456", "#9: the verbosity", highCcMass: 40);
 
         string text = PushSummary
             .Of(
@@ -115,14 +115,14 @@ public sealed class PushSummaryTests
             )
             .Describe();
 
-        text.Should().Contain("+10.0  abcdef1  ter-2x99  ter-2x99: the verbosity");
+        text.Should().Contain("+10.0  abcdef1  #9  #9: the verbosity");
     }
 
     [Fact]
     public void ACommitRaisesTheVerbosityByTheChangeOfTheVerbosityAlone()
     {
         Commit raiser = SlopHistoryTests.Commit(
-            "ter-2x99: more words",
+            "#9: more words",
             AbsoluteNote(erosion: 0.30, verbosity: 0.05, highCcMass: 30, highCcFunctionCount: 10, verboseLines: 50)
         ) with
         {
@@ -218,7 +218,7 @@ public sealed class PushSummaryTests
             verboseLines: 30
         );
         Commit diluted = SlopHistoryTests.Commit(
-            "ter-ab12: more code",
+            "#12: more code",
             AbsoluteNote(erosion: 0.25, verbosity: 0.03, highCcMass: 120, highCcFunctionCount: 12, verboseLines: 40)
         ) with
         {
@@ -244,7 +244,7 @@ public sealed class PushSummaryTests
             highCcFunctionCount: 12,
             verboseLines: 40
         );
-        Commit first = SlopHistoryTests.Commit("ter-ab12: first new note", now);
+        Commit first = SlopHistoryTests.Commit("#12: first new note", now);
 
         string text = PushSummary
             .Of(lastPush: SlopNoteTests.Note(erosion: 0.30, verbosity: 0.04), now: now, pushed: [first])

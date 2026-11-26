@@ -1,7 +1,7 @@
 # C# reference measurements with properties, helpers and applicability
 
 This study remeasures the [same pinned source populations](../type-metric-reference-2026-10-30/README.md)
-with `type-metrics-v3` for [ter-6na6](../../../.tickets/ter-6na6.md).
+with `type-metrics-v3` for ter-6na6.
 No external source bytes changed. The Tertius engine source also matches the
 earlier snapshot. These are changes to measurement, not improvements to the
 measured projects. The v2 dataset remains intact.

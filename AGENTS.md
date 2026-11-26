@@ -1,0 +1,1 @@
+Read [CLAUDE.md](CLAUDE.md) for Tertius project instructions. For project management, use the [Tertius issues skill](.agents/skills/tertius-issues/SKILL.md). GitHub Issues and the Tertius project board hold active work.

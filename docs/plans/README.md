@@ -2,7 +2,7 @@
 
 This folder holds one design doc for each feature that the user asked for. A design doc says what to build and why. It does not track progress.
 
-The tickets in `.tickets/` track the work: what comes next, what depends on what, and what is done. Each epic ticket names its design doc, and each design doc names its epic ticket. Run `tk ready` to list the work whose dependencies are done, and `tk dep tree <id>` to see what a ticket waits for. The tickets hold the order.
+GitHub Issues and the [Tertius project](https://github.com/users/alexispurslane/projects/5) track the work: what comes next, what is active and what is done. Each epic links its design document in the wiki. Native sub-issues hold the component steps.
 
 ARCHITECTURE.md stays the binding design. When a feature is done, its decisions move into ARCHITECTURE.md.
 

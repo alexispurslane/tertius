@@ -85,10 +85,10 @@ class Trees(Job):
         self.assertEqual(result["status"], "ok", result)
         self.assertEqual(base64.b64decode(result["files"]["both.txt"]).decode(), "main\nbranch\n")
 
-    def test_a_tree_leaves_out_the_docs_and_the_tickets(self):
-        sha = self.commit({**SHELL_FILES, "a.txt": "x\n", "docs/report.md": "research\n", ".tickets/t.md": "note\n"})
+    def test_a_tree_leaves_out_only_the_docs(self):
+        sha = self.commit({**SHELL_FILES, "a.txt": "x\n", "docs/report.md": "research\n", "notes/t.md": "note\n"})
         result = self.run_job(trees={"t": {"sha": sha, "ref": self.ref(sha)}},
-                              commands=["test -f t/a.txt && test ! -e t/docs && test ! -e t/.tickets"])
+                              commands=["test -f t/a.txt && test ! -e t/docs && test -f t/notes/t.md"])
         self.assertEqual(result["status"], "ok", result["log"])
 
     def test_a_ref_that_names_another_commit_fails_the_job_and_runs_no_command(self):

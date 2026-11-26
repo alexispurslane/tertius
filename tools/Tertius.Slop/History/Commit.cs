@@ -22,8 +22,8 @@ public sealed partial record Commit
     /// <summary>The slop note, or null for a commit that no hook measured.</summary>
     public required SlopNote? Note { get; init; }
 
-    /// <summary>The ticket ids that the message names, such as <c>ter-2x99</c>, in order and without repeats.</summary>
-    public IReadOnlyList<string> Tickets => [.. TicketId().Matches(Message).Select(match => match.Value).Distinct()];
+    /// <summary>The GitHub issue references that the message names, such as <c>#9</c>, in order and without repeats.</summary>
+    public IReadOnlyList<string> Tickets => [.. IssueNumber().Matches(Message).Select(match => match.Value).Distinct()];
 
     /// <summary>The first line of the message.</summary>
     public string Subject => Message.Split('\n')[0].TrimEnd();
@@ -31,9 +31,9 @@ public sealed partial record Commit
     /// <summary>The hash in its short form of 7 characters, as git prints it.</summary>
     public string ShortSha => Sha[..Math.Min(7, Sha.Length)];
 
-    // A ticket id of the tk tickets: "ter-" and 4 letters or digits, not part of a longer word.
-    [GeneratedRegex("(?<![a-z0-9-])ter-[a-z0-9]{4}(?![a-z0-9])")]
-    private static partial Regex TicketId();
+    // A GitHub issue number, not part of a longer alphanumeric token.
+    [GeneratedRegex("(?<![a-z0-9])#[1-9][0-9]*(?![a-z0-9])", RegexOptions.IgnoreCase)]
+    private static partial Regex IssueNumber();
 }
 
 /// <summary>Commits with their slop notes, newest first, as <c>git log</c> gives them.</summary>

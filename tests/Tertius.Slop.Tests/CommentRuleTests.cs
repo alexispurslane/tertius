@@ -353,13 +353,14 @@ public sealed class CommentRuleTests
 
     [Theory]
     [InlineData("// TODO: merge the two tables.")]
+    [InlineData("// TODO(ter-a3ya): old ticket ids do not count as GitHub issues.")]
     [InlineData("// FIXME the order is wrong.")]
     [InlineData("/* HACK: skip the first frame. */")]
     public void ATodoWithoutATicketIdIsFlagged(string comment) =>
         Source.RulesIn($"{comment}\nclass C {{ }}").Should().Equal("todo-without-ticket");
 
     [Theory]
-    [InlineData("// TODO(ter-a3ya): merge the two tables.")]
+    [InlineData("// TODO(#42): merge the two tables.")]
     [InlineData("// The todo list of the frame.")]
     public void ATodoWithATicketIdOrTheWordInProseIsNotFlagged(string comment) =>
         Source.RulesIn($"{comment}\nclass C {{ }}").Should().BeEmpty();

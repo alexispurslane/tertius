@@ -972,12 +972,12 @@ The rewrite of 2026-10-18 removed the sections "The velocity convention", "Conve
 | `ter-xdt8`'s `rails-components.md`, line 591, "The step record of the last finished step" | "Conversions between frames" | This doc, "V3, the angular acceleration of a frame's last record" | `ter-xdt8`, or else `ter-1bnq` |
 | `ter-xdt8`'s `rails-components.md`, line 712, "Limits of the rule" | "The rotation terms" | This doc, "The proper acceleration of a frame" | `ter-xdt8`, or else `ter-1bnq` |
 | `ter-xdt8`'s `rails-components.md`, line 800, "What goes, and the docs to change" | "Conversions between frames" and a paragraph at the end of "The rotation terms" | This doc, "V7, the relative motion of two frames" and "The proper acceleration of a frame", which hold both since the rewrite | `ter-xdt8` |
-| `.tickets/ter-1bnq.md` | "Section 'The rotation terms'" | This doc, "The two-turn update", "Values" and "The flow per kind of entity" | A note on the ticket (see below) |
-| `.tickets/ter-n44b.md` | "Sections 'Content' and 'Tests'" | This doc, "Content" and "Scenes and tests" | A note on the ticket (see below) |
+| `ter-1bnq planning notes` | "Section 'The rotation terms'" | This doc, "The two-turn update", "Values" and "The flow per kind of entity" | A note on the ticket (see below) |
+| `ter-n44b planning notes` | "Sections 'Content' and 'Tests'" | This doc, "Content" and "Scenes and tests" | A note on the ticket (see below) |
 
 ## Notes for the tickets
 
-This design check changes no file in `.tickets/`. The tickets' texts should take these notes:
+This design check changes no file in `historical ticket archive/`. The tickets' texts should take these notes:
 
 - `ter-s9m0`: the design was rewritten on 2026-10-18 after a design check, with the user's answers to forks F1 to F8 (see "Decisions"). A second check on the same day fixed its gaps, and the user answered its three forks on the same day (O1 to O3 in "Decisions"). Replace the dependency on `ter-ozm8` by one on `ter-xdt8`: `ter-1bnq` needs only `ter-xdt8` of the rails epic, and no ticket of spin gravity needs `ter-zg77`.
 - `ter-rb26` and `ter-ozm8`: their notes say that spin gravity starts when the rails epic closes. Spin gravity now starts when `ter-xdt8` merges, and stage 1 of `ter-1bnq` can start before. The demo steps keep their own dependencies.

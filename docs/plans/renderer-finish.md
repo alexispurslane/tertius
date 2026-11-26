@@ -35,7 +35,7 @@ The epic reads this as three measurable conditions and one rule:
 
 ### Made by the user
 
-1. Blotches: the diffuse rays aim half by angle and half at the bright lit pixels of the draw (guided diffuse rays, ticket `ter-05wb`). Screen probes stay the fallback. This reverses a part of the choice of 2026-11-08, which wanted a spatial filter "not a clamp and not importance-sampled rays" (`.tickets/ter-9371.md`). (User, 2026-11-09)
+1. Blotches: the diffuse rays aim half by angle and half at the bright lit pixels of the draw (guided diffuse rays, ticket `ter-05wb`). Screen probes stay the fallback. This reverses a part of the choice of 2026-11-08, which wanted a spatial filter "not a clamp and not importance-sampled rays" (`ter-9371 planning notes`). (User, 2026-11-09)
 2. Slow updates: the bounce-light history is cut on evidence only. A ray brings back the light-change age of the pixel that it hit. The history then drops the draws from before that change (ticket `ter-wkvw`). Hits keep reading the filtered light. The fresh hit light, in which a hit reads the fast history again, is not built. (User, 2026-11-09)
 3. Shared reflection rays: if the block's reflection ray lies inside a pixel's own reflection lobe, the pixel uses that ray (sharing by lobe fit). A lobe is the cone of directions from which a surface reflects light toward the eye. Sharing by a fixed roughness is not built. (User, 2026-11-09)
 4. Diffuse filter: the thinner kernel, six steps of a 3 × 3 grid in place of five steps of a 5 × 5 grid. The coarse steps at half size are not built. (User, 2026-11-09)
@@ -206,7 +206,7 @@ This part gives each problem in a few lines. Sections 2 and 3 of the proposal ho
 
 ### Blotches
 
-Bright and dark patches, 20 to 60 pixels wide, sit in the bounce light and move from draw to draw. The cause is a count of rays. One diffuse ray serves a block of 2 × 2 pixels and aims by angle only. Take the bay's sunbeam and the cabin walk. There, 0.13 to 2.1 % of the rays hit a small sunlit patch about 100 times brighter than the walls. Those rays carry 36 to 86 % of the bounce light (`.tickets/ter-05wb.md`). No history and no filter averages so few hits without a wider blur or a longer delay.
+Bright and dark patches, 20 to 60 pixels wide, sit in the bounce light and move from draw to draw. The cause is a count of rays. One diffuse ray serves a block of 2 × 2 pixels and aims by angle only. Take the bay's sunbeam and the cabin walk. There, 0.13 to 2.1 % of the rays hit a small sunlit patch about 100 times brighter than the walls. Those rays carry 36 to 86 % of the bounce light (`ter-05wb planning notes`). No history and no filter averages so few hits without a wider blur or a longer delay.
 
 The fix is decision 1. Half of the diffuse rays pick a target pixel in proportion to its direct light in this draw. Each ray's weight divides by the chance of its direction under both rules together (multiple importance sampling, [Veach 1997]). Nothing is kept between pixels or draws, so this is not ReSTIR. The prototype cut the small blotches in the bay from 1.5 to 0.4 % of the lit pixels. It cost 0.35 to 0.39 ms. It also lowered the lamp hall's mean bounce light by 4.8 % through the clamp. The builder of step 5 tries a guided share of a quarter against that loss.
 
@@ -234,7 +234,7 @@ The forecast after the plan is about 20 to 21 ms for the deck, so the ship inter
 
 ### Light lost to the clamp
 
-The clamp keeps the slow history inside the range of the fast histories of the 3 × 3 pixels around it. A rare bright sample lies outside that range, so the clamp cuts real light: 22 to 27 % of the cabin's bounce light. The user keeps the clamp, because it makes a lamp switch settle 1.5 to 3 times faster (`.tickets/ter-18hc.md`). The guided rays shrink the jumps, and the prototype's cabin read 23 % brighter. Step 12 measures the loss again.
+The clamp keeps the slow history inside the range of the fast histories of the 3 × 3 pixels around it. A rare bright sample lies outside that range, so the clamp cuts real light: 22 to 27 % of the cabin's bounce light. The user keeps the clamp, because it makes a lamp switch settle 1.5 to 3 times faster (`ter-18hc planning notes`). The guided rays shrink the jumps, and the prototype's cabin read 23 % brighter. Step 12 measures the loss again.
 
 ### Specks and grain
 

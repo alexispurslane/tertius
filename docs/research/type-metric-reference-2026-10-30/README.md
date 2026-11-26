@@ -1,6 +1,6 @@
 # Historical C# references for direct TCC and depth
 
-Measured on 2026-10-30 for [ter-1k3c](../../../.tickets/ter-1k3c.md).
+Measured on 2026-10-30 for ter-1k3c.
 
 These are selected reference cases from established C# projects. Stable releases
 published before 2021-01-01 provide a comparison period before widespread AI

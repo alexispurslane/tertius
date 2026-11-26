@@ -151,7 +151,7 @@ Use `-maxThreads 2`. At the default parallelism, the GPU tests run out of the ca
 - A command's text is in its shell's command line. So `pkill -f` or `pgrep -f` with a pattern from the command finds the command itself. Match a process by its name, with `pgrep -x`.
 - When a command ends, every process that it started in the background stops too. Start and use such a process in the same command.
 - If a command fails, Runpod marks the job FAILED. `result.json` keeps the handler's own result in `status` and Runpod's in `runpodStatus`.
-- A tree has no `docs/` and no `.tickets/`, because the worker does not fetch them. No build or run reads them. A job that needs a file from `docs/` must copy it elsewhere in its commit.
+- A tree has no `docs/`, because the worker does not fetch it. No build or run reads it. A job that needs a file from `docs/` must copy it elsewhere in its commit.
 - Each tree's commit becomes public. Before the push, the script scans the new commits for secrets, and a finding refuses the job. Never commit a secret, also not on a branch.
 - If a job's commits change `flake.nix`, `flake.lock` or `native/`, the job needs an image of that dev shell. Without one, the script refuses the job and names the missing image. Build it with a tag, then send the job again: `git push --no-verify git@github.com:alexispurslane/tertius.git <commit>:refs/tags/gpu-image-<name>`. The build takes about 14 minutes. The script then creates a new endpoint for that image by itself ([README.md](README.md), "A new dev shell").
 - A refusal that names the watchdog means that the watchdog or the orchestrator stopped the endpoints (the file `stopped-by-watchdog`). Wait for the orchestrator.

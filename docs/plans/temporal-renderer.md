@@ -40,7 +40,7 @@ The renderer reuses each pixel's light from earlier frames. Every lit surface ge
 
 ### Made by the user
 
-These come from `.tickets/ter-89xq.md`, the brief of this ticket and its notes. The design holds them and does not reopen them.
+These come from `ter-89xq planning notes`, the brief of this ticket and its notes. The design holds them and does not reopen them.
 
 1. The renderer is temporal. Decision 8 of [rendering-performance.md](rendering-performance.md) no longer holds. (User, 2026-11-02)
 2. FSR 3.1's upscaler is the one TAA and the one upscaler, with dynamic resolution from the start. Frame generation is out of this epic (`ter-hdbw`). (User, 2026-11-02 and 2026-11-03)
@@ -1439,7 +1439,7 @@ This list proposes the fates. This ticket edits no other ticket.
 | `ter-gnwg` | One upload entry for each mesh and its deformation | Kept | Ticket 2 keeps the deformed positions in `DeformPass`, not in the upload queue. |
 | `ter-e3xg` | Planet surfaces with terrain, a design | Kept | Its far patches draw as impostors, which this design keeps. |
 
-The list matches the `.tickets` folder on 2026-11-03. It holds every open ticket with the tag `rendering`, and every open ticket that names code in `src/Tertius.Rendering`. Content tickets outside the renderer do not change, for example `ter-trz2`, the cracks in the demo's geometry, and the asset pipeline's tickets under `ter-kge6`.
+The list matches the `historical ticket archive` folder on 2026-11-03. It holds every open ticket with the tag `rendering`, and every open ticket that names code in `src/Tertius.Rendering`. Content tickets outside the renderer do not change, for example `ter-trz2`, the cracks in the demo's geometry, and the asset pipeline's tickets under `ter-kge6`.
 
 ## 14. The order of work
 

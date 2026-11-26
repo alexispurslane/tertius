@@ -6,13 +6,13 @@ The reference is the 1080p, 60 fps second cut in `~/Movies/Blue Danube/blue-danu
 
 | Order | Work | Acceptance evidence |
 |---:|---|---|
-| 1 | [Exposure before bloom](../../.tickets/ter-ozk7.md) | Vary bloom from off to strong. The image halo should change while the meter histogram and exposure stay identical, including on subsequent frames. |
-| 2 | [Bloom from unclipped source brightness](../../.tickets/ter-5uxs.md) | At fixed exposure, measure the halos of two sources bright enough to clip to the same stored HDR value. Also check a sunlit hull against a genuinely luminous source. |
-| 3 | [Immediate exposure on a cut](../../.tickets/ter-n2n9.md) | Compare the first displayed frame after each cut to the settled destination view. Use the cut outside at 0:28.60 and back inside at 0:29.35. Track gradual adaptation on a continuous walk through the hatch. |
-| 4 | [Grain on rough surfaces at grazing incidence](../../.tickets/ter-heu0.md) | Check multiple cabin and berth angles, including the deck at 7:27. Vary the light angle separately from the viewing angle. Compare direct and indirect lighting at the same exposure. |
-| 5 | [Distant lights boiling](../../.tickets/ter-pssi.md) | Identify a distant source whose brightness or footprint fluctuates. Track it through still and moving camera sequences, then isolate the first unstable pass. |
-| 6 | [Jagged nearby shadow edges from distant lights](../../.tickets/ter-e76k.md) | Measure the shadow texel size on the nearby receiver and peak GPU memory use on Linux Runpod. Compare the edge quality and memory cost of candidate changes before choosing a shadow resolution. |
-| 7 | [GPU memory footprint](../../.tickets/ter-qbw8.md) | Measure peak device-local use and its largest contributors. Choose a smaller-GPU budget from the results and verify savings at matched quality. Share the measurements with the shadow ticket. |
+| 1 | Exposure before bloom | Vary bloom from off to strong. The image halo should change while the meter histogram and exposure stay identical, including on subsequent frames. |
+| 2 | Bloom from unclipped source brightness | At fixed exposure, measure the halos of two sources bright enough to clip to the same stored HDR value. Also check a sunlit hull against a genuinely luminous source. |
+| 3 | Immediate exposure on a cut | Compare the first displayed frame after each cut to the settled destination view. Use the cut outside at 0:28.60 and back inside at 0:29.35. Track gradual adaptation on a continuous walk through the hatch. |
+| 4 | Grain on rough surfaces at grazing incidence | Check multiple cabin and berth angles, including the deck at 7:27. Vary the light angle separately from the viewing angle. Compare direct and indirect lighting at the same exposure. |
+| 5 | Distant lights boiling | Identify a distant source whose brightness or footprint fluctuates. Track it through still and moving camera sequences, then isolate the first unstable pass. |
+| 6 | Jagged nearby shadow edges from distant lights | Measure the shadow texel size on the nearby receiver and peak GPU memory use on Linux Runpod. Compare the edge quality and memory cost of candidate changes before choosing a shadow resolution. |
+| 7 | GPU memory footprint | Measure peak device-local use and its largest contributors. Choose a smaller-GPU budget from the results and verify savings at matched quality. Share the measurements with the shadow ticket. |
 
 ## Measurements to repeat
 
@@ -26,8 +26,8 @@ Review sampled the edited film at six-second intervals and checked shorter seque
 
 | Responsibility | Open work |
 |---|---|
-| Supported Vulkan devices and window sizes | [Linux test failures](../../.tickets/t70-0pr5.md), [nonfinite history samples](../../.tickets/ter-dbzx.md), [descriptor pool counts](../../.tickets/ter-byim.md), [recovery after a failed frame](../../.tickets/ter-nua7.md), [fixed window dimensions and framing](../../.tickets/t10-yb2s.md) |
-| Capture and edit | [Time-lapse warm-up cost](../../.tickets/t88-hjjm.md), [editor input frame rate](../../.tickets/ter-onkj.md) |
-| Build and verification | [GPU test output collisions](../../.tickets/ter-ddk8.md), [GPU lock waits counted as mutant kills](../../.tickets/tc-5azv.md), [Mac Vulkan packaging](../../.tickets/t2-q0uk.md), [repeatable normal baking](../../.tickets/ter-b4k3.md) |
+| Supported Vulkan devices and window sizes | Linux test failures, nonfinite history samples, descriptor pool counts, recovery after a failed frame, fixed window dimensions and framing |
+| Capture and edit | Time-lapse warm-up cost, editor input frame rate |
+| Build and verification | GPU test output collisions, GPU lock waits counted as mutant kills, Mac Vulkan packaging, repeatable normal baking |
 
-The [film review epic](../../.tickets/ter-buzm.md) tracks the seven priorities above. The closed research tickets retain the earlier results, including rejected candidates and work that stopped at a branch checkpoint. Reopen a technique when a current reproduction identifies the signal it would change.
+The film review epic tracks the seven priorities above. The closed research tickets retain the earlier results, including rejected candidates and work that stopped at a branch checkpoint. Reopen a technique when a current reproduction identifies the signal it would change.

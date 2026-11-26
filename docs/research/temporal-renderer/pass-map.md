@@ -100,7 +100,7 @@ References on the branch: `src/Tertius.Rendering/UpscalingSetting.cs:65`, `src/T
 
 It is a static spatial upscaling experiment. It has no temporal histories, no motion vectors, no jitter and no controller of dynamic resolution. A resize destroys and rebuilds the images and needs an idle device.
 
-`.tickets/ter-htg7.md:3` is open and blocked by ter-b2da. Its merge procedure has these steps (`.tickets/ter-htg7.md:21`): bring in current main, reconcile the renderer, resource and layout changes, and update ARCHITECTURE.md. Then rerun the Checked and Release tests, review captures, and do the skipped coverage and mutation work. A later note approves the demo's scale 0.77 and a sharpness of one stop (`.tickets/ter-htg7.md:30`).
+`ter-htg7 planning notes` is open and blocked by ter-b2da. Its merge procedure has these steps (`ter-htg7 planning notes`): bring in current main, reconcile the renderer, resource and layout changes, and update ARCHITECTURE.md. Then rerun the Checked and Release tests, review captures, and do the skipped coverage and mutation work. A later note approves the demo's scale 0.77 and a sharpness of one stop (`ter-htg7 planning notes`).
 
 The reusable part is the size split. Merging its FSR 1 and SMAA pipeline as it is does not carry out the FSR 3.1 decision.
 
@@ -151,11 +151,11 @@ These places state that nothing accumulates over frames, or build on that rule. 
 
 Tickets:
 
-- The original effects: `.tickets/ter-b3h5.md` lines 21 and 36, `.tickets/ter-jxv9.md:21`, `.tickets/ter-a24f.md:32`, `.tickets/ter-zi4i.md:15`.
-- Performance limits: `.tickets/ter-izsu.md:30`, `.tickets/ter-ff6y.md:26`, `.tickets/ter-of1p.md:30`, `.tickets/ter-3g1g.md:26`.
-- Reflection alternatives: `.tickets/ter-y8z0.md` lines 121 and 127, `.tickets/ter-f3g2.md` lines 15, 30, 37, 42 and 125, `.tickets/ter-rnjk.md:13`, `.tickets/ter-nw4a.md:15`, `.tickets/ter-jw7g.md:15`.
-- Other limits and history: `.tickets/ter-k96l.md:38`, `.tickets/ter-rjts.md:136`, `.tickets/ter-1r63.md:13`, `.tickets/ter-7gtc.md:14`, `.tickets/ter-p349.md:15`.
-- The superseding decision: `.tickets/ter-89xq.md` lines 14 and 27.
+- The original effects: `ter-b3h5 planning notes` lines 21 and 36, `ter-jxv9 planning notes`, `ter-a24f planning notes`, `ter-zi4i planning notes`.
+- Performance limits: `ter-izsu planning notes`, `ter-ff6y planning notes`, `ter-of1p planning notes`, `ter-3g1g planning notes`.
+- Reflection alternatives: `ter-y8z0 planning notes` lines 121 and 127, `ter-f3g2 planning notes` lines 15, 30, 37, 42 and 125, `ter-rnjk planning notes`, `ter-nw4a planning notes`, `ter-jw7g planning notes`.
+- Other limits and history: `ter-k96l planning notes`, `ter-rjts planning notes`, `ter-1r63 planning notes`, `ter-7gtc planning notes`, `ter-p349 planning notes`.
+- The superseding decision: `ter-89xq planning notes` lines 14 and 27.
 
 Code assumptions: `src/Tertius.Rendering/Shaders/skin_scatter_rows.comp:4`, `src/Tertius.Rendering/Shaders/gtao.glsl:141` and `src/Tertius.Rendering/Shading/OcclusionNoise.cs:5`. If that pass stays spatial, the skin scatter comment stays right.
 

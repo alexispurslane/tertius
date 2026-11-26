@@ -38,10 +38,10 @@ An allowance reserves time for work that is not measured. A nominal range combin
 | L | `/Users/alexispurslane/Development/tertius/docs/research/temporal-renderer/lean-trace-spike.md` | Variant definitions: 89–98. Plan and resolve: 146–155. Ray counts: 261–267. |
 | S | `/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/docs/research/temporal-renderer/profiling-spike.md` | Top-clock sums: 48–85. Cap quality: 195–235. Split-pass costs: 339–369. Limits: 586–599. Recommendation: 645–681. |
 | Q | `/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/review-table.md` | Measured paired V6-at-62 sums: rows 14, 26, 38, and 50. |
-| T9 | `/Users/alexispurslane/Development/tertius/.tickets/ter-9nrc.md` | Removal: 69. Measurement method: 73. Revised times and hall explanation: 74–78. |
-| TG | `/Users/alexispurslane/Development/tertius/.tickets/ter-gayt.md` | Earlier budget note: 22. It predates this recalculation. |
-| TB | `/Users/alexispurslane/Development/tertius/.tickets/ter-bqun.md` | Runtime light cap and its acceptance: 15. |
-| TM | `/Users/alexispurslane/Development/tertius/.tickets/ter-ohqr.md` | Already-built kept positions, motion target, and surface test: 28–34. |
+| T9 | `ter-9nrc planning notes` | Removal: 69. Measurement method: 73. Revised times and hall explanation: 74–78. |
+| TG | `ter-gayt planning notes` | Earlier budget note: 22. It predates this recalculation. |
+| TB | `ter-bqun planning notes` | Runtime light cap and its acceptance: 15. |
+| TM | `ter-ohqr planning notes` | Already-built kept positions, motion target, and surface test: 28–34. |
 
 The raw run name is `<view>-<size>-r<round>-<build>`. Each JSON file sits inside a directory with that name. Its matching clock log is beside that directory. The branch rows describe the renderer after sampling and direct accumulation are removed. The base rows use the former sampling path. Sources: R, `/private/tmp/9nrc/runs.txt`, and T9:69–78.
 

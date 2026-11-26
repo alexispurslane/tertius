@@ -24,7 +24,7 @@ python3 -I tools/runpod/gpu_job.py submit --agent <your name> \
     --output 'branch/out/*.json' --out <folder>
 ```
 
-- Each `--tree NAME=REF` becomes the folder `NAME` in the job's work folder. It holds the files of the commit of `REF`, without `docs/` and `.tickets/`. Commit your change first. The commit need not be on GitHub, because the script publishes it.
+- Each `--tree NAME=REF` becomes the folder `NAME` in the job's work folder. It holds the files of the commit of `REF`, without `docs/`. Commit your change first. The commit need not be on GitHub, because the script publishes it.
 - Each `--run` command runs in the work folder, in the image's dev shell. The first command that fails ends the job.
 - `--kind gpu`, the default, runs the job on an RTX 2000 Ada. `--kind cpu` runs it on a CPU worker of 2 vCPUs and 4 GB of memory, with no GPU, at an eighth of the price.
 - `--timeout` gives the seconds of all commands together, a positive number. It is at most the kind's `job_seconds` in `endpoint.json`: 840 s for a GPU job and 7,140 s for a CPU job. The handler stops the commands at that limit and still sends back the log and the files.
@@ -48,7 +48,7 @@ A job names its trees' commits, not their files. Before the job, the script does
 6. It sends the job. Its input holds the protocol, the repository's URL, and each tree's commit and hidden ref.
 7. It deletes the hidden refs that are older than the three days before today. So the refs of four UTC days stay: today's and those of the three days before.
 
-The worker makes each tree as a sparse, shallow, partial clone. Such a clone fetches the objects of one commit only, without `docs/` and `.tickets/`. It fetches the hidden ref and makes sure that the ref names the job's commit. If the ref names another commit, the job fails before any command runs. A tree's fetch took about 2 s on 2026-11-12.
+The worker makes each tree as a sparse, shallow, partial clone. Such a clone fetches the objects of one commit only, without `docs/`. It fetches the hidden ref and makes sure that the ref names the job's commit. If the ref names another commit, the job fails before any command runs. A tree's fetch took about 2 s on 2026-11-12.
 
 The job's input no longer holds the trees' files. So its size limit of 10 MB no longer limits how far a tree can be from the image's commit.
 

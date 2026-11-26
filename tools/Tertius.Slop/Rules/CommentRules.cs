@@ -305,11 +305,11 @@ public sealed class CommentedOutCode : IRule
     }
 }
 
-/// <summary>A TODO, FIXME, HACK or XXX comment without a ticket id.</summary>
+/// <summary>A TODO, FIXME, HACK or XXX comment without a GitHub issue reference.</summary>
 public sealed partial class TodoWithoutTicket : IRule
 {
     public string Id => "todo-without-ticket";
-    public string Message => "A TODO without a ticket id: make a ticket with tk create and name it, or do the work.";
+    public string Message => "A TODO without a GitHub issue: open an issue and name its number, or do the work.";
     public string Source => "The user";
 
     public IEnumerable<TextSpan> Find(SyntaxNode node, RuleContext context) =>
@@ -320,7 +320,7 @@ public sealed partial class TodoWithoutTicket : IRule
                     trivia.IsKind(SyntaxKind.SingleLineCommentTrivia)
                     || trivia.IsKind(SyntaxKind.MultiLineCommentTrivia)
                 )
-                .Where(trivia => Todo().IsMatch(trivia.ToString()) && !Ticket().IsMatch(trivia.ToString()))
+                .Where(trivia => Todo().IsMatch(trivia.ToString()) && !IssueNumber().IsMatch(trivia.ToString()))
                 .Select(trivia => trivia.Span),
             _ => [],
         };
@@ -328,8 +328,8 @@ public sealed partial class TodoWithoutTicket : IRule
     [GeneratedRegex(@"\b(TODO|FIXME|HACK|XXX)\b")]
     private static partial Regex Todo();
 
-    [GeneratedRegex(@"\bter-[0-9a-z]{4}\b")]
-    private static partial Regex Ticket();
+    [GeneratedRegex(@"(?<![a-z0-9])#[1-9][0-9]*(?![a-z0-9])", RegexOptions.IgnoreCase)]
+    private static partial Regex IssueNumber();
 }
 
 /// <summary>A region directive.</summary>

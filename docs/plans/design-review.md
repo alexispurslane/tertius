@@ -14,7 +14,7 @@ Find the design problems in every module before more code builds on them. The re
 
 ## Known items
 
-The known items are the child tickets of `ter-tanj`. Run `tk show ter-tanj` to list them.
+The known items are the child issues of the design review epic.
 
 ## Report
 

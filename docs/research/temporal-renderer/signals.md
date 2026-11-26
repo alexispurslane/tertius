@@ -6,7 +6,7 @@ Short answer: temporal sampling can replace much of today's blur, but it cannot 
 
 One correction to the accumulator model matters. One shared disocclusion test can show whether the visible surface also existed last frame. Reflections also need checks on the reflected history, because surface motion alone does not describe reflection motion. AMD's denoiser compares the surface's reprojection with the reflection's reprojection. [1]
 
-On 2026-11-03 the user chose a shared screen tracer for bounce light: diffuse rays through the same trace as the reflection rays. It is neither design of section 5. See `.tickets/ter-89xq.md`.
+On 2026-11-03 the user chose a shared screen tracer for bounce light: diffuse rays through the same trace as the reflection rays. It is neither design of section 5. See `ter-89xq planning notes`.
 
 ## 1. Stochastic reflections
 

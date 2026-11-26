@@ -366,7 +366,7 @@ The quarter texel holds at a straight edge of a wide caster. A receiver that a c
 because the share falls faster with the lit fraction f: f = 0.7 gives a share of 0.4 under D = 1/2 and 0.2 under D = 5/8.
 Under the middle of a strip of n texels along the grid, the 4 comparisons per axis see n texels in 4, so the share is
 1 − n/2 under D = 1/2 and 1 − 2n/3 under D = 5/8. A caster narrower than 1.5 texels casts 8/3 of its true shadow,
-against 2. The section "A stated limit of the rule" of `.tickets/t1-gout.md` has the table by width. My integration of
+against 2. The section "A stated limit of the rule" of `t1-gout planning notes` has the table by width. My integration of
 the same box model gives the same rows. `ShadowTests.AStripOneTexelWideLetsAThirdOfTheSunThroughUnderItsMiddle` measures
 the strip of one texel: 0.333 at all 11 heights under D = 5/8, and 0.500 under D = 1/2.
 

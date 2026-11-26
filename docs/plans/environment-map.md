@@ -1087,7 +1087,7 @@ If the atmosphere dims the stars, by its transmittance or by its own brightness,
 | docs/plans/local-light-shadows.md | Line 196: the hemisphere is the ambient light only with the map off. The light list keeps the lights of every view of a frame. |
 | docs/plans/renderer-snapshot-tests.md | Line 19: the snapshot tests set the map's setting in their options, `NoEnvironmentMap` or six faces per frame, so the deterministic switch has no map of its own to turn off. |
 | docs/plans/editor.md | `ViewOptions` gains an `EnvironmentMapSetting`, which a view passes to `RendererOptions`, as it passes `Impostors`. |
-| .tickets/ter-6vhj.md | A note: the sky color reaches the map through `skyRadiance`, and a dimming of the stars goes into the star code that the sky and the reflections share (this doc, "The atmosphere"). |
+| ter-6vhj planning notes | A note: the sky color reaches the map through `skyRadiance`, and a dimming of the stars goes into the star code that the sky and the reflections share (this doc, "The atmosphere"). |
 
 ## Known limits
 
