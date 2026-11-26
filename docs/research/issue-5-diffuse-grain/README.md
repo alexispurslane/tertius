@@ -94,7 +94,36 @@ The small spread turns speckles into broad patches. The wide spread retains an o
 
 RGB energy conservation at this intermediate stage does not preserve a local displayed wash after temporal reconstruction and tone mapping. Cool-patch wash error is 22.56% to 33.27% for the small spread, and 11.73% to 24.91% for the wide spread. The helmet detail's mean brightness changes by less than 0.007%. The window edge remains geometrically sharp in the retained crops, with light changing on its surfaces. The sparse-grid artifacts and wash changes prevent treating either regular control as a finished fix.
 
-An irregular reciprocal exchange is the next bounded comparison. Its record will follow in this draft research branch.
+## Irregular reciprocal exchange
+
+The matched irregular control changes only the neighborhood sampling and weights. It keeps the regular controls' source calculation, outgoing-RGB exchange, surface tests and connection tests. It uses eight one-pixel connections, plus 24 candidate wide connections at 12 different directions and lengths. Their radii range from 3.16 to 12 render pixels. The one-pixel connections join different coordinate phases, including across the ray reuse and reconstruction blocks. No filter boundary follows an 8-by-8 block or a crop boundary.
+
+Each local connection exchanges 1/16. Each accepted wide connection exchanges 1/48. A wide connection opens when its own deterministic blue-noise byte is below 192, about 75% of edges. The blue-noise address uses the same endpoint anchor in both directions, a different spatial offset for each direction, and fixed mask frames 32 through 43. Consequently both endpoints make the same decision and exchange the same RGB share. Local shares sum to at most 1/2 and wide shares to at most 1/2. Rejected shares stay at the center. These bounds are for exact arithmetic; normal floating-point roundoff still applies.
+
+The blue-noise pattern stays fixed between frames. It does not rotate a single lattice per receiver or per frame. It is anchored in screen space and repeats with the existing mask's 128-cell period. Motion across that screen-space pattern remains a limitation. This is an interim screen-space neighborhood, not an isotropic disk projected from a geometric tangent plane. The geometry test remains unchanged so the experiment isolates the sampling change.
+
+| Control, 32 measured frames | Panel brightness change | Spatial grain change | Temporal grain change | Warm-patch wash error | Cool-patch wash error |
+|---|---:|---:|---:|---:|---:|
+| Regular wide spread | +9.53% | -78.19% | -24.81% | 1.05% to 5.09% | 11.73% to 24.91% |
+| Irregular reciprocal spread | +7.03% | -66.50% | -25.39% | 0.85% to 3.61% | 11.20% to 17.54% |
+
+The irregular control removes the visible regular rows and leaves uneven grain. It removes less fine-grain RMS than the regular wide control. It also changes the local wash less. It still brightens the panel and changes its cool wash, so it is not a validated fix.
+
+The grid check directly reuses `luma`, `corr` and `ac` from `docs/research/cut-grid-probe/tools/roi.py`, the functions used by that experiment's production record. It subtracts a Gaussian blur of sigma three output pixels from encoded Rec. 601 luma, then averages correlations along the two image axes. These dimensionless grid scores use the original grid method, separately from the display-linear grain and RGB-wash measures. The table shows the median over frames 16 through 47.
+
+| Control | Correlation at 9 output pixels | Correlation at 18 output pixels |
+|---|---:|---:|
+| Normal | 0.01744 | 0.00491 |
+| Regular wide spread | 0.47376 | 0.35301 |
+| Irregular reciprocal spread | -0.00675 | 0.00359 |
+
+Nine output pixels correspond to the wide control's six-render-pixel stride. The irregular control removes this lattice peak. `evidence/grid-stats.json` retains other lags and all per-frame values.
+
+The window edge remains sharp in the matched crops. This statement concerns geometry, not unchanged lighting on either side. Window-interior brightness rises 15.57% under irregular spreading, with paired display-linear luminance RMS difference 0.000816. The dark interior therefore requires further review despite the sharp edge. The helmet-detail mean changes by less than 0.001%, its spatial detail RMS by +0.12%, and its temporal measure by +4.04%. This retains the dedicated glossy reflection detail in this crop; it does not establish preservation of all rough reflected detail.
+
+The three-frame repeat is byte-identical to the first three frames of the 48-frame irregular run. The larger run is not repeated. `evidence/irregular-repeatability.json` records the exact scope. All candidate offsets and endpoint rules are in `irregular.glsl`; `evidence/irregular-experiment.patch` retains the actual live shader.
+
+The irregular shader adds at most 32 neighbor source evaluations and three intermediate-cell checks per accepted candidate, rather than the regular shader's 24 neighbors. Geometry rejection and blue-noise gating reduce the actual count. It recomputes the source from immutable ray records, so it is a diagnostic implementation with extra work. No matched Linux Runpod cost is available. Mac run logs do not establish a shipping performance budget.
 
 ## Repeat the experiments
 
@@ -105,6 +134,7 @@ nix develop --command python3 docs/research/issue-5-diffuse-grain/render.py norm
 nix develop --command python3 docs/research/issue-5-diffuse-grain/render.py raw-source captures/issue5-source --frames 48 --exposure 6.0043726 --content-root '/Users/alexispurslane/Development/tertius/content'
 nix develop --command python3 docs/research/issue-5-diffuse-grain/render.py cap-diffuse-ray-specular captures/issue5-cap --frames 48 --limit 10.944249153137207 --exposure 6.0043726 --content-root '/Users/alexispurslane/Development/tertius/content'
 nix develop --command python3 docs/research/issue-5-diffuse-grain/render.py spread-step6 captures/issue5-wide --frames 48 --exposure 6.0043726 --content-root '/Users/alexispurslane/Development/tertius/content'
+nix develop --command python3 docs/research/issue-5-diffuse-grain/render.py irregular captures/issue5-irregular --frames 48 --exposure 6.0043726 --content-root '/Users/alexispurslane/Development/tertius/content'
 nix develop --command python3 docs/research/issue-5-diffuse-grain/analyze.py captures/issue-5-diffuse-grain captures/issue5-analysis --frames 48 --variants normal cap-diffuse-ray-specular spread-step2 spread-step6 --crops docs/research/issue-5-diffuse-grain/crops.json
 nix develop --command python3 -m unittest discover -s docs/research/issue-5-diffuse-grain -p 'test_*.py'
 ```
@@ -113,7 +143,7 @@ nix develop --command python3 -m unittest discover -s docs/research/issue-5-diff
 
 ## Verification and limits
 
-The 11 measurement and exchange-model tests pass. The measurement tests first failed on missing behavior, then passed. The exchange model's impulse, boundaries and constant-wash tests did the same. One surviving normalization mutation led to a behavior test that requires equal distribution to the center and its neighbors. All ten listed mutations then die. Line coverage is 31/31 for `measure.py` and 14/14 for `spread_model.py`; the standard-library tracer does not measure branch coverage. The existing renderer-survey suite passes all 96 tests.
+The 13 measurement and exchange-model tests pass. The measurement tests first failed on missing behavior, then passed. The exchange model's impulse, boundaries and constant-wash tests did the same. One surviving normalization mutation led to a behavior test that requires equal distribution to the center and its neighbors. All 13 listed mutations then die, including loss of reciprocity, disconnected coordinate phases and an unstable exchange weight. Line coverage is 31/31 for `measure.py` and 33/33 for `spread_model.py`; the standard-library tracer does not measure branch coverage. The existing renderer-survey suite passes all 96 tests.
 
 Every experimental Release build and real renderer run completed. The normal engine build also passes after restoring the patches. The final engine source has no diff. No full .NET suite, Linux GPU validation, performance benchmark or production hardening is claimed. Mac timing logs are retained only as run records. Renderer performance decisions require matched Linux Runpod measurements.
 

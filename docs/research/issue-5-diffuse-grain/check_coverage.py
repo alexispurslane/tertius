@@ -19,7 +19,7 @@ def main():
     reports = []
     for filename in ['measure.py', 'spread_model.py']:
         source = HERE / filename
-        executable = {line for line in trace._find_executable_linenos(str(source)) if line > 0}
+        executable = {line for line in trace._find_executable_linenos(str(source)) if isinstance(line, int) and line > 0}
         executed = {line for (path, line), count in tracer.results().counts.items()
                     if Path(path).resolve() == source and count}
         reports.append(dict(file=filename, executable_lines=len(executable),

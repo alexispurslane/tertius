@@ -21,6 +21,9 @@ SPREAD_MUTATIONS = [
     ('redistribute-the-centers-retained-share', '/ 25', '/ 24'),
     ('cross-surface-boundaries', '(surface[p] == surface[q])[..., None]', 'np.ones_like(surface[p], dtype=bool)[..., None]'),
     ('stop-spreading', 'result[p] += agrees * (image[q] - image[p]) / 25', 'result[p] += 0'),
+    ('break-reciprocity-with-receiver-mask', 'mask[p if side > 0 else q]', 'mask[p]'),
+    ('disconnect-nearby-coordinate-phases', 'exchange(dx,dy,1/16)', 'exchange(6*dx,6*dy,1/16)'),
+    ('make-exchange-unstable', 'exchange(dx,dy,1/16)', 'exchange(dx,dy,1/4)'),
 ]
 
 

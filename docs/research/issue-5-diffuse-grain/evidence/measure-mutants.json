@@ -38,5 +38,17 @@
   {
     "name": "stop-spreading",
     "result": "killed"
+  },
+  {
+    "name": "break-reciprocity-with-receiver-mask",
+    "result": "killed"
+  },
+  {
+    "name": "disconnect-nearby-coordinate-phases",
+    "result": "killed"
+  },
+  {
+    "name": "make-exchange-unstable",
+    "result": "killed"
   }
 ]
