@@ -171,7 +171,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
                     framesInFlight: options.FramesInFlight,
                     glowLevels: GlowLevelsOf(options.Bloom),
                     historyMode: historyMode,
-                    instrumentation: instrumentation
+                    instrumentation: instrumentation,
+                    lightVolume: options.LightVolume
                 )
             );
             output = Own(createOutput(device, Allocator));
@@ -1334,6 +1335,13 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 ?? throw new InvalidOperationException("The original specular history keeps no light age.")
         );
 
+    internal uint ReadVolumeLightEvaluations() =>
+        ReadBufferWords(
+            Graph.Passes.OfType<LightVolumePass>().Single().Buffer,
+            offset: LightVolumePass.CounterOffset,
+            bytes: sizeof(uint)
+        )[0];
+
     internal DescriptorSet CompositeLightSet => compositePass.LightSet;
 
     /// <summary>
@@ -1488,12 +1496,13 @@ public sealed unsafe class VulkanRenderer : IRenderer
         targets.Pyramid ?? throw new InvalidOperationException("The screen tracer is off.");
 
     /// <summary>The words of <paramref name="buffer"/>. A test hook: it waits for the device to be idle and submits its own copy.</summary>
-    private uint[] ReadBufferWords(GpuBuffer buffer)
+    private uint[] ReadBufferWords(GpuBuffer buffer, ulong offset = 0, ulong? bytes = null)
     {
+        ulong size = bytes ?? buffer.Size - offset;
         using var readback = GpuBuffer.Create(
             device: device,
             allocator: Allocator,
-            size: buffer.Size,
+            size: size,
             usage: BufferUsageFlags.TransferDstBit,
             memoryUsage: MemoryUsage.Readback,
             name: "buffer readback"
@@ -1504,7 +1513,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             local.Buffer(buffer, BufferUse.TransferSource);
             local.Buffer(readback, BufferUse.TransferDestination);
             local.Flush(device.Vk, commandBuffer);
-            var region = new BufferCopy(srcOffset: 0, dstOffset: 0, size: buffer.Size);
+            var region = new BufferCopy(srcOffset: offset, dstOffset: 0, size: size);
             device.Vk.CmdCopyBuffer(
                 commandBuffer: commandBuffer,
                 srcBuffer: buffer.Handle,
@@ -1515,7 +1524,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             local.Buffer(readback, BufferUse.HostRead);
             local.Flush(device.Vk, commandBuffer);
         });
-        return new ReadOnlySpan<uint>(readback.Mapped, (int)(buffer.Size / sizeof(uint))).ToArray();
+        return new ReadOnlySpan<uint>(readback.Mapped, (int)(size / sizeof(uint))).ToArray();
     }
 
     /// <summary>
@@ -2192,7 +2201,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 options.LocalShadows is LocalShadowAtlas atlas
                 && TileReadsFor(atlas.Reads, driver) == LocalShadowReads.SixteenCornerMeans,
             ScreenTraceOn = options.ScreenTrace is ScreenTrace,
-            MaxTraceRoughness = options.ScreenTrace is ScreenTrace trace ? trace.MaxRoughness : 0,
+            MaxTraceRoughness = options.ScreenTrace is ScreenTrace trace
+                ? trace.MaxRoughness
+                : ScreenTrace.Default.MaxRoughness,
             ReflectionSharingPrototype =
                 options.ScreenTrace is ScreenTrace
                 && Environment.GetEnvironmentVariable("TERTIUS_REFLECTION_SHARING") == "1",
@@ -2285,7 +2296,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
         new(
             cascadedLights: options.CascadedLights,
             shadowMapSize: ShadowMap.Size,
-            depthRangeScale: ShadowMap.DepthRangeScale
+            depthRangeScale: ShadowMap.DepthRangeScale,
+            lightVolume: options.LightVolume
         );
 
     /// <summary>The environment map that <paramref name="options"/> ask for, which the renderer owns, or null for none.</summary>
@@ -2443,6 +2455,18 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 keyFill: keyFillImages
             )
         );
+        LightVolumePass? volume = null;
+        if (layouts.VolumeSet.Handle != 0)
+        {
+            volume = new LightVolumePass(
+                device: device,
+                allocator: Allocator,
+                layouts: layouts,
+                shaders: shaders,
+                constants: ShadingConstants
+            );
+            Graph.Add(FrameGraph.Stage.Composite, volume);
+        }
         var composite = new CompositePass(
             device: device,
             shaders: shaders,
@@ -2450,6 +2474,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             constants: ShadingConstants,
             scatter: ScatterImages is not null,
             tracer: screenTrace,
+            volume: volume,
             targets: targets
         );
         Graph.Add(FrameGraph.Stage.Composite, composite);

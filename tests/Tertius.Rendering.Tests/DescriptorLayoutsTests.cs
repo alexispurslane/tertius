@@ -197,18 +197,27 @@ public sealed class DescriptorLayoutsTests
     /// The per-stage limits that the renderer needs of a device: the most that one stage of any of its layouts sees, which
     /// ARCHITECTURE.md, "Required device features", states.
     /// </summary>
-    [Fact]
-    public void TheLayoutsNeedOfAStageTenStorageBuffersNineteenStorageImagesAndSeventeenSampledImages()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TheLayoutsNeedOfAStageTenStorageBuffersNineteenStorageImagesAndSeventeenSampledImages(bool lightVolume)
     {
         using var device = VulkanDevice.Create(validation: true, surfaceExtensions: [], createSurface: null);
-        using var layouts = new DescriptorLayouts(device: device, framesInFlight: 2, glowLevels: 0);
+        using var layouts = new DescriptorLayouts(
+            device: device,
+            framesInFlight: 2,
+            glowLevels: 0,
+            lightVolume: lightVolume
+        );
 
         LimitedDescriptors[] all =
         [
             .. typeof(DescriptorLayouts)
                 .GetProperties()
                 .Where(property => property.PropertyType == typeof(PipelineLayout))
-                .Select(property => layouts.DescriptorsOf((PipelineLayout)property.GetValue(layouts)!)),
+                .Select(property => (PipelineLayout)property.GetValue(layouts)!)
+                .Where(layout => layout.Handle != 0)
+                .Select(layouts.DescriptorsOf),
         ];
 
         all.Max(counts => counts.StorageBuffers.Most).Should().Be(10, "the frame set's vertex stage sees ten");

@@ -45,7 +45,7 @@
        Files ending in .glsl are includes. A change to any include recompiles every stage. -->
   <ItemGroup>
     <GlslShader Include="Shaders/*.vert;Shaders/*.frag;Shaders/*.comp" />
-    <PreciseHistoryShader Include="Shaders/accumulate_temporal.comp;Shaders/accumulate_spatial.comp;Shaders/screen_trace_*.comp;Shaders/composite.frag;Shaders/composite_scatter.frag" />
+    <PreciseHistoryShader Include="Shaders/accumulate_temporal.comp;Shaders/accumulate_spatial.comp;Shaders/screen_trace_*.comp;Shaders/composite.frag;Shaders/composite_scatter.frag;Shaders/composite_volume.frag;Shaders/composite_volume_scatter.frag" />
     <LightAgeDiagnosticShader Include="Shaders/accumulate_temporal.comp;Shaders/screen_trace_*.comp" />
     <AccumulationTraceShader Include="Shaders/accumulate_temporal.comp;Shaders/accumulate_spatial.comp" />
     <!-- HistoryInstrumentationSelection lists the shaders of the two items above, and ShaderVariantTests checks the

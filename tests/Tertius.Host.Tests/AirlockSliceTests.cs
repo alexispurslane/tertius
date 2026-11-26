@@ -148,8 +148,10 @@ public sealed class AirlockSliceTests(AirlockRun run) : IClassFixture<AirlockRun
         run.ValidationMessages.Should().BeEmpty();
     }
 
+    // The closed chamber cuts the ambient light reaching the hatch. Check its hue across exposures
+    // and require enough red to distinguish the painted door from black space.
     private static void ExpectOrange((int R, int G, int B) color, string what) =>
-        (color.R > color.G + 20 && color.G > color.B + 10)
+        (color.R > 32 && color.R > 1.25 * color.G && color.G > 1.4 * color.B)
             .Should()
             .BeTrue($"{what} is the orange of a door, not {color}");
 

@@ -31,7 +31,12 @@ internal readonly record struct MeshInfo(
 /// <param name="cascadedLights">How many far lights get a cascade set, 0 to <see cref="RendererOptions.MaxCascadedLights"/>.</param>
 /// <param name="shadowMapSize">The side of each cascade's shadow map in texels, <see cref="ShadowMap.Size"/>.</param>
 /// <param name="depthRangeScale">How many times deeper than wide each cascade box is, <see cref="ShadowMap.DepthRangeScale"/>.</param>
-internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float depthRangeScale)
+internal sealed class SceneBatcher(
+    int cascadedLights,
+    int shadowMapSize,
+    float depthRangeScale,
+    bool lightVolume = false
+)
 {
     private const float DefaultVerticalFov = MathF.PI / 3f;
 
@@ -1436,10 +1441,11 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     /// or its reach sphere is not outside the frustum of a drawn face of a map that keeps the light: a map at or above
     /// the light's map, in the map's axes.
     /// </summary>
-    private static bool Reaches(ReadOnlySpan<FaceMask> faces, Quaternion[] axes, in PreparedLight light) =>
+    private bool Reaches(ReadOnlySpan<FaceMask> faces, Quaternion[] axes, in PreparedLight light) =>
         ShaderInput.InPositionRange(light.Position, 0f)
         && (
             light.InMainView
+            || (lightVolume && LightVolumePass.Intersects(light.Position, light.Reach))
             || AnyFaceKeeps(faces: faces, lightMap: light.Map, axes: axes, center: light.Position, radius: light.Reach)
         );
 

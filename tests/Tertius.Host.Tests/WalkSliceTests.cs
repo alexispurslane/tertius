@@ -113,6 +113,19 @@ public sealed class WalkSliceTests(WalkRun run) : IClassFixture<WalkRun>
     }
 
     [Fact]
+    public void TheEnclosedDeckStaysLampLitAcrossTheLocalLightGrids()
+    {
+        Png cabin = run.Capture("cabin");
+        // The first two probes straddle the far edge of the local lighting on the same floor.
+        // The last two lie under the solid roof where sunlight leaked onto the deck.
+        foreach ((int x, int y) in new[] { (425, 495), (425, 515), (550, 600), (690, 548) })
+        {
+            (int red, _, int blue) = cabin.Average(x, y);
+            (red - blue).Should().BeGreaterThan(10, $"the enclosed deck at ({x}, {y}) receives warm lamplight");
+        }
+    }
+
+    [Fact]
     public void ThroughTheNoseWindowAheadThePersonSeesDarkSpace()
     {
         // The nose window is 6 m wide and 2 m tall, centered at eye height, so it is in the middle of the image. The ship's

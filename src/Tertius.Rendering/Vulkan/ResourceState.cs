@@ -63,6 +63,7 @@ internal enum BufferUse
 
     /// <summary>Read and written as a storage buffer in a compute shader, as by atomic adds.</summary>
     ComputeWrite,
+    FragmentWrite,
 
     /// <summary>
     /// Read as the command of an indirect dispatch and as a storage buffer in a compute shader, as the reflections' own-ray
@@ -175,6 +176,11 @@ internal static class ResourceUses
                 ImageLayout.Undefined,
                 PipelineStageFlags2.ComputeShaderBit,
                 AccessFlags2.ShaderStorageReadBit
+            ),
+            BufferUse.FragmentWrite => new(
+                ImageLayout.Undefined,
+                PipelineStageFlags2.FragmentShaderBit,
+                AccessFlags2.ShaderStorageReadBit | AccessFlags2.ShaderStorageWriteBit
             ),
             BufferUse.ComputeWrite => new(
                 ImageLayout.Undefined,
