@@ -1,0 +1,42 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#define VOLUME_SET 0
+#define VOLUME_ACCESS
+#include "volume.glsl"
+layout(local_size_x = 64) in;
+layout(push_constant) uniform Source
+{
+    uint bounceNumber;
+}
+pass;
+void main()
+{
+    int cell = int(gl_GlobalInvocationID.x), direction = int(gl_WorkGroupID.y);
+    int level = cell / Cells;
+    ivec3 c = coordinates(cell % Cells);
+    vec3 step = vec3(directionStep(direction));
+    vec3 projected = step / max(max(abs(step.x), abs(step.y)), abs(step.z));
+    float front = 0, back = 0;
+    vec3 source = vec3(0);
+    for (int side = 0; side < 6; ++side)
+    {
+        int k = cell * 6 + side;
+        ivec4 an = volume.surfaces[k].areaNormal;
+        if (an.w == 0)
+            continue;
+        float area = dot(vec3(an.xyz), projected) / 4096.0;
+        back += max(-area, 0);
+        if (area <= 0)
+            continue;
+        front += area;
+        vec3 light = volume.whiteLight[(level * Tiles + tileIndex(c)) * 6 + side].rgb;
+        if (pass.bounceNumber != 0u)
+            light += volume.bounce[k].rgb;
+        source += area * (vec3(volume.surfaces[k].emission.rgb) * 16.0 + vec3(volume.surfaces[k].color.rgb) * light) /
+                  float(an.w);
+    }
+    float clear = 1.0 - min(1.0, max(front, back));
+
+    vec4 transfer = vec4(source / max(1.0, front), clear);
+    volume.field[(level * Directions + direction) * Cells + cellIndex(c)] = floatBitsToUint(transfer);
+}

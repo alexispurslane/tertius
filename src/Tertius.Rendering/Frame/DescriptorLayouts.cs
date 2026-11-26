@@ -259,7 +259,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         int framesInFlight,
         int glowLevels,
         SpecularHistoryMode historyMode = SpecularHistoryMode.PreciseUncapped,
-        HistoryInstrumentation instrumentation = HistoryInstrumentation.None
+        HistoryInstrumentation instrumentation = HistoryInstrumentation.None,
+        bool lightVolume = false
     )
     {
         if (instrumentation != HistoryInstrumentation.None && !historyMode.KeepsLightAge)
@@ -294,6 +295,19 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
         // The temporal lighting's sets.
         SurfaceTestSet = CreateSurfaceTestSetLayout();
+        if (lightVolume)
+        {
+            VolumeSet = CreateLayout(
+                bindings: [StorageBuffer(0, ShaderStageFlags.FragmentBit | ShaderStageFlags.ComputeBit)],
+                name: "light volume set"
+            );
+            VolumeDrawLayout = CreatePipelineLayout(
+                sets: [FrameSet, TextureSet, GBufferSet, VolumeSet],
+                push: DrawPush,
+                name: "light volume raster layout"
+            );
+            VolumeSweepLayout = ComputeLayout<uint>(sets: [VolumeSet], name: "light volume sweep layout");
+        }
         (SignalSet, LightSet) = CreateTemporalSetLayouts();
         ScreenTraceSet = CreateScreenTraceSetLayout();
 
@@ -546,6 +560,12 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>The descriptors of <paramref name="type"/> that the shared pool holds.</summary>
     internal uint SharedPoolSizeOf(DescriptorType type) => pool.SizeOf(type);
+
+    public DescriptorSetLayout VolumeSet { get; }
+    public PipelineLayout VolumeDrawLayout { get; }
+    public PipelineLayout VolumeSweepLayout { get; }
+
+    public DescriptorSet AllocateVolumeSet() => Allocate(pool, VolumeSet, null);
 
     public DescriptorSet AllocateFrameSet() => Allocate(pool, FrameSet, null);
 
@@ -987,6 +1007,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 (FrameSetStorageBuffers + DeformSetStorageBuffers) * frames
                     + 2
                     + ScreenTraceStorageBuffers * ScreenTraceSets
+                    + (VolumeSet.Handle == 0 ? 0u : 2u)
                     + 2
             ),
             // Three per frame set (the material sampler and the immutable linear clamp and environment samplers), the
@@ -1047,6 +1068,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         SetPool shared = CreatePool(
             sizes: SharedPoolSizes(frames, glowSourceSets),
             maxSets: 2 * frames
+                + (VolumeSet.Handle == 0 ? 0u : 1u)
                 + 12
                 + Pyramids
                 + glowSourceSets
@@ -1276,9 +1298,12 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 signal[count++] = binding is 7 or 8
                     ? Image(binding: binding, stages: ShaderStageFlags.ComputeBit)
                     : StorageImage(binding);
-        Span<DescriptorSetLayoutBinding> light = stackalloc DescriptorSetLayoutBinding[(int)LightSetImages];
+        Span<DescriptorSetLayoutBinding> light =
+            stackalloc DescriptorSetLayoutBinding[(int)LightSetImages + (VolumeSet.Handle == 0 ? 0 : 1)];
         for (uint binding = 0; binding < LightSetImages; binding++)
             light[(int)binding] = StorageImage(binding: binding, stages: ShaderStageFlags.FragmentBit);
+        if (VolumeSet.Handle != 0)
+            light[^1] = StorageBuffer(LightSetImages, ShaderStageFlags.FragmentBit);
         return (CreateLayout(bindings: signal, name: "signal set"), CreateLayout(bindings: light, name: "light set"));
     }
 

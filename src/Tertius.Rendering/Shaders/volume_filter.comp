@@ -1,0 +1,49 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#define VOLUME_SET 0
+#define VOLUME_ACCESS
+#include "volume.glsl"
+layout(local_size_x = 64) in;
+layout(push_constant) uniform Filter
+{
+    uint finalPass;
+}
+pass;
+void main()
+{
+    int cell = int(gl_GlobalInvocationID.x), side = int(gl_WorkGroupID.y);
+    int k = cell * 6 + side;
+    if (pass.finalPass == 0u && volume.surfaces[k].areaNormal.w == 0)
+        return;
+    int level = cell / Cells;
+    vec3 n = axisNormal(side);
+    if (pass.finalPass == 0u)
+    {
+        vec3 areaNormal = vec3(volume.surfaces[k].areaNormal.xyz);
+        if (any(notEqual(areaNormal, vec3(0))))
+            n = normalize(areaNormal);
+    }
+    vec4 diffuse = vec4(0), specular = vec4(0);
+    vec2 total = vec2(0);
+    for (int d = 0; d < Directions; ++d)
+    {
+        vec3 step = vec3(directionStep(d));
+        float cosine = dot(-normalize(step), n);
+        if (cosine <= 0.0)
+            continue;
+        // All octants use the same four angular samples.
+        float weight = cosine;
+        float glossy = weight * cosine * cosine * cosine;
+        vec4 light = incomingOf(volume.field[(level * Directions + d) * Cells + cell % Cells]);
+        diffuse += weight * light;
+        specular += glossy * light;
+        total += vec2(weight, glossy);
+    }
+    if (pass.finalPass == 0u)
+        volume.bounce[k] = diffuse / total.x;
+    else
+    {
+        volume.filtered[cell * 12 + side] = diffuse / total.x;
+        volume.filtered[cell * 12 + 6 + side] = specular / total.y;
+    }
+}

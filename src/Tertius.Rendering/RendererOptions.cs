@@ -100,6 +100,9 @@ public sealed class RendererOptions
     /// </summary>
     public ScreenTraceSetting ScreenTrace { get; set; } = Rendering.ScreenTrace.Default;
 
+    /// <summary>Gather local indirect lighting from live geometry in nested directional grids.</summary>
+    public bool LightVolume { get; set; } = Environment.GetEnvironmentVariable("TERTIUS_LIGHT_VOLUME") != "0";
+
     /// <summary>
     /// The warm-up draws of a headless still under <see cref="ScreenTrace"/>, 0 to <see cref="MaxWarmUpFrames"/>: the
     /// draws of the still's snapshot before the shown one, in which the tracer's signals converge
