@@ -51,19 +51,30 @@ HEAT_MUTATIONS = [
     ('use-the-wrong-rectangular-cell-scale', 'np.arange(width)/width', 'np.arange(width)/height'),
 ]
 
+PHYSICAL_SHEET_MUTATIONS = [
+    ('ignore-cell-area-weighting', 'vals.append(1.0 / active_areas[i])', 'vals.append(np.full_like(active_areas[i], 1.0 / (spacing * spacing)))'),
+    ('stop-area-aware-heat', 'moved = expm_multiply(diffusion_amount * op, vec)', 'moved = vec.copy()'),
+    ('double-area-aware-heat-amount', 'moved = expm_multiply(diffusion_amount * op, vec)', 'moved = expm_multiply(2.0 * diffusion_amount * op, vec)'),
+    ('reset-physical-accumulation-each-draw', 'counts[obs] = np.minimum(counts[obs] + 1.0, float(window))', 'counts[obs] = 1.0'),
+    ('ignore-batch-divergence', 'rel_rms = float(100.0 * np.sqrt(np.mean((va - vb) ** 2) / max(np.mean((0.5 * (va + vb)) ** 2), 1e-20)))', 'rel_rms = 0.0'),
+    ('distort-hinge-unfolding-distance', 'w2 = u2 + along * e2_hat + dist * n2', 'w2 = u2 + along * e2_hat + 0.5 * dist * n2'),
+]
+
 
 def main():
     results = []
     with tempfile.TemporaryDirectory(prefix='issue-5-measures-') as scratch:
         folder = Path(scratch)
         for filename in ['measure.py', 'spread_model.py', 'test_measure.py', 'test_spread_model.py',
-                         'multiscale.py', 'connected_model.py', 'test_clumps.py', 'heat_reference.py', 'test_heat.py']:
+                         'multiscale.py', 'connected_model.py', 'test_clumps.py', 'heat_reference.py', 'test_heat.py',
+                         'physical_sheet.py', 'test_physical_sheet.py']:
             (folder / filename).write_text((HERE / filename).read_text())
         for filename, mutations, tests in [('measure.py', MEASURE_MUTATIONS, 'test_measure.py'),
                                             ('spread_model.py', SPREAD_MUTATIONS, 'test_spread_model.py'),
                                             ('multiscale.py', CLUMP_MUTATIONS, 'test_clumps.py'),
                                             ('connected_model.py', CONNECTED_MUTATIONS, 'test_clumps.py'),
-                                            ('heat_reference.py', HEAT_MUTATIONS, 'test_heat.py')]:
+                                            ('heat_reference.py', HEAT_MUTATIONS, 'test_heat.py'),
+                                            ('physical_sheet.py', PHYSICAL_SHEET_MUTATIONS, 'test_physical_sheet.py')]:
             source = (HERE / filename).read_text()
             for name, before, after in mutations:
                 assert source.count(before) == 1, name

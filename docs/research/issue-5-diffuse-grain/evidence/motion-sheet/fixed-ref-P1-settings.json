@@ -1,0 +1,13 @@
+{
+  "variant": "fixed-ref",
+  "frames": 1,
+  "every": 1,
+  "accum_cap": null,
+  "fixed_s": 0.5052631578947369,
+  "extra_ticks": 48,
+  "warmup": 159,
+  "exposure": 6.0043726,
+  "content_root": "/Users/alexispurslane/Development/tertius/content",
+  "base": "09d0933e9d61aee7e18adb5b04c6ce78c0d6806c",
+  "note": "Temporary research patch; restored after this render."
+}

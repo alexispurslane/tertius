@@ -33,3 +33,9 @@ Every row ran through `check_mutations.py` in an isolated temporary directory. A
 | double-the-diffusion-width-squared | killed |
 | lose-heat-channel-energy | killed |
 | use-the-wrong-rectangular-cell-scale | killed |
+| ignore-cell-area-weighting | killed |
+| stop-area-aware-heat | killed |
+| double-area-aware-heat-amount | killed |
+| reset-physical-accumulation-each-draw | killed |
+| ignore-batch-divergence | killed |
+| distort-hinge-unfolding-distance | killed |

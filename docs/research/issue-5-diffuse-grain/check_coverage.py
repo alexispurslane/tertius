@@ -17,7 +17,7 @@ def main():
     tracer = trace.Trace(count=True, trace=False)
     outcome = tracer.runfunc(run_tests)
     reports = []
-    for filename in ['measure.py', 'spread_model.py', 'multiscale.py', 'connected_model.py', 'heat_reference.py']:
+    for filename in ['measure.py', 'spread_model.py', 'multiscale.py', 'connected_model.py', 'heat_reference.py', 'physical_sheet.py']:
         source = HERE / filename
         executable = {line for line in trace._find_executable_linenos(str(source)) if isinstance(line, int) and line > 0}
         executed = {line for (path, line), count in tracer.results().counts.items()

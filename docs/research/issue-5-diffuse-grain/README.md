@@ -8,6 +8,8 @@ Visible clumps count as a failure even when pixel RMS falls. The [clump follow-u
 
 The latest requested model has a [whole visible crop heat-flow reference](WHOLE_SHEET.md), with a center peak and no distance cutoff. It conserves source RGB but remains an offline fixed-crop reference without true topology or motion anchoring.
 
+The [continuous motion and physical-sheet study](MOTION_AND_SHEET.md) advances past the repeated-phase accelerated replay (`every = 1`, 96 continuous moving frames, zero resets after draw 0), adds three 128-draw fixed-pose references with split-half convergence checks on the actual 3-triangle shuttle panel mesh (`lunarshuttle.model/model.glb`, 69x pixel area foreshortening), and compares area-aware no-cutoff physical-sheet heat flow against accumulating the isolated diffuse-ray-sourced specular term at the same physical points in both offline sheet coordinates and the live Vulkan renderer.
+
 ## Matched replay
 
 - Base: `860685c71`. Scene: `demo-surface`, with the locally cooked Blue Danube art. `assets.json` records its file hashes.

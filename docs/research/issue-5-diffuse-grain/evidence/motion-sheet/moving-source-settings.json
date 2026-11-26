@@ -1,0 +1,13 @@
+{
+  "variant": "moving-source",
+  "frames": 96,
+  "every": 1,
+  "accum_cap": null,
+  "fixed_s": null,
+  "extra_ticks": 0,
+  "warmup": 32,
+  "exposure": 6.0043726,
+  "content_root": "/Users/alexispurslane/Development/tertius/content",
+  "base": "09d0933e9d61aee7e18adb5b04c6ce78c0d6806c",
+  "note": "Temporary research patch; restored after this render."
+}

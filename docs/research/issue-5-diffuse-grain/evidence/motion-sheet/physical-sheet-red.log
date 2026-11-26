@@ -1,0 +1,19 @@
+E
+======================================================================
+ERROR: test_physical_sheet (unittest.loader._FailedTest.test_physical_sheet)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: test_physical_sheet
+Traceback (most recent call last):
+  File "/nix/store/yfd10hipys5l2ba4xpi2dxhr6vik28ar-python3-3.14.7-env/lib/python3.14/unittest/loader.py", line 141, in loadTestsFromName
+    module = __import__(module_name)
+  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-f30e47c2-65b62443ba20c1f2/docs/research/issue-5-diffuse-grain/test_physical_sheet.py", line 6, in <module>
+    from physical_sheet import (
+    ...<7 lines>...
+    )
+ModuleNotFoundError: No module named 'physical_sheet'
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)

@@ -1,0 +1,64 @@
+[
+  {
+    "file": "measure.py",
+    "executable_lines": 31,
+    "covered_lines": 31,
+    "missed_lines": [],
+    "branch_coverage": "Not measured by the standard-library tracer."
+  },
+  {
+    "file": "spread_model.py",
+    "executable_lines": 43,
+    "covered_lines": 43,
+    "missed_lines": [],
+    "branch_coverage": "Not measured by the standard-library tracer."
+  },
+  {
+    "file": "multiscale.py",
+    "executable_lines": 15,
+    "covered_lines": 15,
+    "missed_lines": [],
+    "branch_coverage": "Not measured by the standard-library tracer."
+  },
+  {
+    "file": "connected_model.py",
+    "executable_lines": 28,
+    "covered_lines": 27,
+    "missed_lines": [
+      17
+    ],
+    "branch_coverage": "Not measured by the standard-library tracer."
+  },
+  {
+    "file": "heat_reference.py",
+    "executable_lines": 9,
+    "covered_lines": 9,
+    "missed_lines": [],
+    "branch_coverage": "Not measured by the standard-library tracer."
+  },
+  {
+    "file": "physical_sheet.py",
+    "executable_lines": 388,
+    "covered_lines": 371,
+    "missed_lines": [
+      101,
+      157,
+      258,
+      259,
+      260,
+      261,
+      262,
+      263,
+      264,
+      286,
+      287,
+      288,
+      289,
+      290,
+      291,
+      335,
+      351
+    ],
+    "branch_coverage": "Not measured by the standard-library tracer."
+  }
+]

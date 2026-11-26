@@ -1,0 +1,3346 @@
+{
+  "scope": "Continuous ordinary draw phases with slow repeatable camera motion (every=1, 96 frames), 3 fixed-pose 128-draw multi-phase references with batch convergence cross-checks, actual lunarshuttle_fuselage 3-triangle cockpit panel sheet in physical metres with area-aware no-cutoff heat flow, and matched live full-pipeline continuous renders.",
+  "fixed_references": {
+    "P0": {
+      "tick": 87582,
+      "eye": [
+        1.6,
+        1.15,
+        -9
+      ],
+      "total_draws": 160,
+      "settled_draws": 128,
+      "sample_draw_range": [
+        32,
+        159
+      ],
+      "resets_after_draw_0": 0,
+      "stable_sheet_cells": 2947,
+      "observed_sheet_area_m2": 1.1667264274603173,
+      "total_panel_sheet_area_m2": 4.516624851825277,
+      "pixel_physical_area_cm2_min_median_max": [
+        0.02223106008002093,
+        0.09893485196364431,
+        1.5263990041205513
+      ],
+      "pixel_area_p99_over_p01_ratio": 68.66064859823427,
+      "early_vs_late_64_draws": {
+        "mean_rgb_a": [
+          0.011705935567090833,
+          0.02303322233871281,
+          0.026577488904918078
+        ],
+        "mean_rgb_b": [
+          0.01175459525015884,
+          0.0232014436491438,
+          0.026799914057036068
+        ],
+        "mean_rgb_relative_diff_percent": 0.7608650796614542,
+        "relative_rms_percent": 81.28990189941177,
+        "wash_relative_rms_percent": 11.620639293785484,
+        "cell_count": 2947
+      },
+      "even_vs_odd_64_draws": {
+        "mean_rgb_a": [
+          0.01160421313995257,
+          0.022916061062999222,
+          0.02646293794785807
+        ],
+        "mean_rgb_b": [
+          0.011856317677297138,
+          0.023318604924857315,
+          0.026914465014096212
+        ],
+        "mean_rgb_relative_diff_percent": 1.7613849464526405,
+        "relative_rms_percent": 82.06287117823969,
+        "wash_relative_rms_percent": 8.943003586481984,
+        "cell_count": 2947
+      },
+      "reference_bands_physical_cells": {
+        "1": {
+          "cells": 2935,
+          "rgb_rms": 0.0029583515716101435,
+          "persistent_rgb_rms": 0.0029583515716101435,
+          "temporal_rgb_rms": 0.0
+        },
+        "2": {
+          "cells": 2888,
+          "rgb_rms": 0.00276964101562381,
+          "persistent_rgb_rms": 0.00276964101562381,
+          "temporal_rgb_rms": 0.0
+        },
+        "4": {
+          "cells": 2595,
+          "rgb_rms": 0.0032750533208809342,
+          "persistent_rgb_rms": 0.0032750533208809342,
+          "temporal_rgb_rms": 0.0
+        },
+        "8": {
+          "cells": 1000,
+          "rgb_rms": 0.003957798556372877,
+          "persistent_rgb_rms": 0.003957798556372877,
+          "temporal_rgb_rms": 0.0
+        }
+      }
+    },
+    "P1": {
+      "tick": 87630,
+      "eye": [
+        1.5393684210526317,
+        1.139894736842105,
+        -9.04042105263158
+      ],
+      "total_draws": 160,
+      "settled_draws": 128,
+      "sample_draw_range": [
+        32,
+        159
+      ],
+      "resets_after_draw_0": 0,
+      "stable_sheet_cells": 2929,
+      "observed_sheet_area_m2": 1.1586739439565337,
+      "total_panel_sheet_area_m2": 4.516624851825277,
+      "pixel_physical_area_cm2_min_median_max": [
+        0.021451509838889483,
+        0.09009220264432817,
+        1.4832834342336116
+      ],
+      "pixel_area_p99_over_p01_ratio": 69.14587576230015,
+      "early_vs_late_64_draws": {
+        "mean_rgb_a": [
+          0.011333200612671448,
+          0.02303874096839874,
+          0.02676188938788379
+        ],
+        "mean_rgb_b": [
+          0.011513385221039191,
+          0.023420783958368493,
+          0.027219850180036524
+        ],
+        "mean_rgb_relative_diff_percent": 1.665906576881595,
+        "relative_rms_percent": 73.78230346213057,
+        "wash_relative_rms_percent": 10.513207272186555,
+        "cell_count": 2929
+      },
+      "even_vs_odd_64_draws": {
+        "mean_rgb_a": [
+          0.011375598148662536,
+          0.023084597283373136,
+          0.026805697608053083
+        ],
+        "mean_rgb_b": [
+          0.011470987685048097,
+          0.023374927643394095,
+          0.027176041959867107
+        ],
+        "mean_rgb_relative_diff_percent": 1.2838925424411287,
+        "relative_rms_percent": 77.0151254940326,
+        "wash_relative_rms_percent": 8.314259686638563,
+        "cell_count": 2929
+      },
+      "reference_bands_physical_cells": {
+        "1": {
+          "cells": 2914,
+          "rgb_rms": 0.0029909620330222063,
+          "persistent_rgb_rms": 0.0029909620330222063,
+          "temporal_rgb_rms": 0.0
+        },
+        "2": {
+          "cells": 2866,
+          "rgb_rms": 0.0028534520267557563,
+          "persistent_rgb_rms": 0.0028534520267557563,
+          "temporal_rgb_rms": 0.0
+        },
+        "4": {
+          "cells": 2604,
+          "rgb_rms": 0.0036149678629717017,
+          "persistent_rgb_rms": 0.0036149678629717017,
+          "temporal_rgb_rms": 0.0
+        },
+        "8": {
+          "cells": 967,
+          "rgb_rms": 0.004649631678064873,
+          "persistent_rgb_rms": 0.004649631678064873,
+          "temporal_rgb_rms": 0.0
+        }
+      }
+    },
+    "P2": {
+      "tick": 87677,
+      "eye": [
+        1.48,
+        1.13,
+        -9.08
+      ],
+      "total_draws": 160,
+      "settled_draws": 128,
+      "sample_draw_range": [
+        32,
+        159
+      ],
+      "resets_after_draw_0": 0,
+      "stable_sheet_cells": 2915,
+      "observed_sheet_area_m2": 1.152737191749504,
+      "total_panel_sheet_area_m2": 4.516624851825277,
+      "pixel_physical_area_cm2_min_median_max": [
+        0.020673846313423627,
+        0.08226866421653876,
+        1.4376886461253358
+      ],
+      "pixel_area_p99_over_p01_ratio": 69.54142080430566,
+      "early_vs_late_64_draws": {
+        "mean_rgb_a": [
+          0.010664932644485267,
+          0.02202481512102797,
+          0.02567941984293844
+        ],
+        "mean_rgb_b": [
+          0.010622090244715962,
+          0.021687146055321505,
+          0.025225948160145627
+        ],
+        "mean_rgb_relative_diff_percent": 1.6109553141908866,
+        "relative_rms_percent": 72.29418476724109,
+        "wash_relative_rms_percent": 8.843362958244967,
+        "cell_count": 2915
+      },
+      "even_vs_odd_64_draws": {
+        "mean_rgb_a": [
+          0.010530067339393693,
+          0.021478659644010568,
+          0.02498365458205714
+        ],
+        "mean_rgb_b": [
+          0.010756955549807528,
+          0.022233301532338864,
+          0.025921713421026994
+        ],
+        "mean_rgb_relative_diff_percent": 3.4807790460855177,
+        "relative_rms_percent": 71.50645689174021,
+        "wash_relative_rms_percent": 8.753027752643677,
+        "cell_count": 2915
+      },
+      "reference_bands_physical_cells": {
+        "1": {
+          "cells": 2900,
+          "rgb_rms": 0.0025943068125627152,
+          "persistent_rgb_rms": 0.0025943068125627152,
+          "temporal_rgb_rms": 0.0
+        },
+        "2": {
+          "cells": 2856,
+          "rgb_rms": 0.002909647351239911,
+          "persistent_rgb_rms": 0.002909647351239911,
+          "temporal_rgb_rms": 0.0
+        },
+        "4": {
+          "cells": 2606,
+          "rgb_rms": 0.0037670561976632265,
+          "persistent_rgb_rms": 0.0037670561976632265,
+          "temporal_rgb_rms": 0.0
+        },
+        "8": {
+          "cells": 932,
+          "rgb_rms": 0.00458224349517922,
+          "persistent_rgb_rms": 0.00458224349517922,
+          "temporal_rgb_rms": 0.0
+        }
+      }
+    },
+    "cross_pose_view_change": {
+      "common_cells": 2820,
+      "common_area_m2": 1.1169526117109019,
+      "P0_vs_P1": {
+        "mean_rgb_a": [
+          0.011914422955116329,
+          0.02382271316462049,
+          0.02758541612189798
+        ],
+        "mean_rgb_b": [
+          0.011582381138853178,
+          0.023710289598658396,
+          0.027584294309574098
+        ],
+        "mean_rgb_relative_diff_percent": 0.9162662932442719,
+        "relative_rms_percent": 56.310722211872644,
+        "wash_relative_rms_percent": 10.384188936379655,
+        "cell_count": 2820
+      },
+      "P1_vs_P2": {
+        "mean_rgb_a": [
+          0.011582381138853178,
+          0.023710289598658396,
+          0.027584294309574098
+        ],
+        "mean_rgb_b": [
+          0.010775973538725924,
+          0.022239672382445078,
+          0.02592467804876565
+        ],
+        "mean_rgb_relative_diff_percent": 6.377951510044837,
+        "relative_rms_percent": 51.739727579389424,
+        "wash_relative_rms_percent": 11.112778657921936,
+        "cell_count": 2820
+      },
+      "P0_vs_P2": {
+        "mean_rgb_a": [
+          0.011914422955116329,
+          0.02382271316462049,
+          0.02758541612189798
+        ],
+        "mean_rgb_b": [
+          0.010775973538725924,
+          0.022239672382445078,
+          0.02592467804876565
+        ],
+        "mean_rgb_relative_diff_percent": 6.907293881741082,
+        "relative_rms_percent": 58.45938834218537,
+        "wash_relative_rms_percent": 18.15799185983324,
+        "cell_count": 2820
+      }
+    }
+  },
+  "physical_sheet_study": {
+    "grid_spacing_m": 0.02,
+    "total_active_cells": 11541,
+    "total_panel_area_m2": 4.516624851825277,
+    "moving_sequence_frames": [
+      32,
+      95
+    ],
+    "moving_sequence_common_cells": 2882,
+    "moving_sequence_common_area_m2": 1.1395830532142028,
+    "resets_after_draw_0": 0,
+    "captured_sample_draw_range": [
+      32,
+      127
+    ],
+    "controls": {
+      "raw-per-draw": {
+        "max_physical_area_weighted_rgb_drift": 0.0,
+        "bands_frames_32_to_95": {
+          "1": {
+            "cells": 2870,
+            "rgb_rms": 0.02459909357267055,
+            "persistent_rgb_rms": 0.0037473034598449486,
+            "temporal_rgb_rms": 0.024311995421536992
+          },
+          "2": {
+            "cells": 2823,
+            "rgb_rms": 0.013690929484594822,
+            "persistent_rgb_rms": 0.0030951509934753103,
+            "temporal_rgb_rms": 0.013336475939307828
+          },
+          "4": {
+            "cells": 2552,
+            "rgb_rms": 0.008105006428442182,
+            "persistent_rgb_rms": 0.003727091710669473,
+            "temporal_rgb_rms": 0.007197215891256006
+          },
+          "8": {
+            "cells": 919,
+            "rgb_rms": 0.005436211619572827,
+            "persistent_rgb_rms": 0.004596887708343322,
+            "temporal_rgb_rms": 0.0029018994072263597
+          }
+        },
+        "vs_fixed_ref_P1_frame48": {
+          "area_weighted_mean_rgb_ref": [
+            0.011446072796025391,
+            0.02329213706626533,
+            0.027066532860702312
+          ],
+          "area_weighted_mean_rgb_est": [
+            0.010569845313321497,
+            0.021201437507672907,
+            0.02455359980758482
+          ],
+          "area_weighted_relative_rms_percent": 339.6567288960976,
+          "area_weighted_wash_relative_rms_percent": 33.018489259082465,
+          "patches": {
+            "sheet-q00": {
+              "cells": 358,
+              "ref_mean_rgb": [
+                0.014381744578938533,
+                0.033182225919601745,
+                0.039411948048525235
+              ],
+              "est_mean_rgb": [
+                0.009662841247790174,
+                0.017783570319720072,
+                0.020141245160103814
+              ],
+              "wash_relative_rms_percent": 37.162906740729326
+            },
+            "sheet-q01": {
+              "cells": 1510,
+              "ref_mean_rgb": [
+                0.010984879531476038,
+                0.021207521507172478,
+                0.024379004221654472
+              ],
+              "est_mean_rgb": [
+                0.011587051443337895,
+                0.024354032487041762,
+                0.028479012617297163
+              ],
+              "wash_relative_rms_percent": 26.19217553725923
+            },
+            "sheet-q10": {
+              "cells": 1046,
+              "ref_mean_rgb": [
+                0.011075572212898491,
+                0.022855725796906614,
+                0.026650299323689786
+              ],
+              "est_mean_rgb": [
+                0.009167660915582188,
+                0.017292841517988444,
+                0.01977340778059563
+              ],
+              "wash_relative_rms_percent": 38.811989314162616
+            },
+            "sheet-q11": {
+              "cells": 15,
+              "ref_mean_rgb": [
+                0.015215242709783241,
+                0.03297367179844922,
+                0.038807289750138516
+              ],
+              "est_mean_rgb": [
+                0.026745781582648894,
+                0.05518014042680083,
+                0.06450781118575821
+              ],
+              "wash_relative_rms_percent": 21.662036200923637
+            }
+          }
+        },
+        "vs_fixed_ref_P2_frame95": {
+          "area_weighted_mean_rgb_ref": [
+            0.010660694154015493,
+            0.021911975914212924,
+            0.02552315938672308
+          ],
+          "area_weighted_mean_rgb_est": [
+            0.011908905473710664,
+            0.02420055057405158,
+            0.028095650025430463
+          ],
+          "area_weighted_relative_rms_percent": 438.4317060370811,
+          "area_weighted_wash_relative_rms_percent": 39.21735857209755,
+          "patches": {
+            "sheet-q00": {
+              "cells": 325,
+              "ref_mean_rgb": [
+                0.014753807769314056,
+                0.03480999988507968,
+                0.0415138878005455
+              ],
+              "est_mean_rgb": [
+                0.017353521764644813,
+                0.040179486823808744,
+                0.04765380518805689
+              ],
+              "wash_relative_rms_percent": 28.404249360682428
+            },
+            "sheet-q01": {
+              "cells": 1490,
+              "ref_mean_rgb": [
+                0.010316248802775142,
+                0.02062853982966488,
+                0.023906046579018635
+              ],
+              "est_mean_rgb": [
+                0.009806731488671028,
+                0.018389377292921838,
+                0.020984630393030414
+              ],
+              "wash_relative_rms_percent": 30.40525875513216
+            },
+            "sheet-q10": {
+              "cells": 1076,
+              "ref_mean_rgb": [
+                0.009882676582266457,
+                0.01978581932438112,
+                0.022929811599604947
+              ],
+              "est_mean_rgb": [
+                0.013117040785278452,
+                0.027477804025508347,
+                0.03213824959779321
+              ],
+              "wash_relative_rms_percent": 56.59458762745576
+            },
+            "sheet-q11": {
+              "cells": 24,
+              "ref_mean_rgb": [
+                0.012900817447667832,
+                0.0267192047154603,
+                0.031188303942112697
+              ],
+              "est_mean_rgb": [
+                0.01657674087807957,
+                0.027742852214093915,
+                0.030930830634626243
+              ],
+              "wash_relative_rms_percent": 31.319160526851302
+            }
+          }
+        }
+      },
+      "per-draw-heat-4cm": {
+        "max_physical_area_weighted_rgb_drift": 4.3368086899420177e-16,
+        "bands_frames_32_to_95": {
+          "1": {
+            "cells": 2870,
+            "rgb_rms": 0.009663582070496238,
+            "persistent_rgb_rms": 0.0017158075109332553,
+            "temporal_rgb_rms": 0.009510038013522416
+          },
+          "2": {
+            "cells": 2823,
+            "rgb_rms": 0.009896721415749874,
+            "persistent_rgb_rms": 0.0025851509846222718,
+            "temporal_rgb_rms": 0.009553119342270811
+          },
+          "4": {
+            "cells": 2552,
+            "rgb_rms": 0.007396604157009133,
+            "persistent_rgb_rms": 0.0035219686358973564,
+            "temporal_rgb_rms": 0.006504267059649388
+          },
+          "8": {
+            "cells": 919,
+            "rgb_rms": 0.005285446904276606,
+            "persistent_rgb_rms": 0.004482352585939199,
+            "temporal_rgb_rms": 0.002800797078199585
+          }
+        },
+        "vs_fixed_ref_P1_frame48": {
+          "area_weighted_mean_rgb_ref": [
+            0.011446072796025391,
+            0.02329213706626533,
+            0.027066532860702312
+          ],
+          "area_weighted_mean_rgb_est": [
+            0.010534062215926693,
+            0.021140906880735527,
+            0.02448655670036127
+          ],
+          "area_weighted_relative_rms_percent": 91.08338967589431,
+          "area_weighted_wash_relative_rms_percent": 31.01837567387576,
+          "patches": {
+            "sheet-q00": {
+              "cells": 358,
+              "ref_mean_rgb": [
+                0.014381744578938533,
+                0.033182225919601745,
+                0.039411948048525235
+              ],
+              "est_mean_rgb": [
+                0.010342137422910546,
+                0.01985274758292085,
+                0.022704529895927975
+              ],
+              "wash_relative_rms_percent": 35.58906838778584
+            },
+            "sheet-q01": {
+              "cells": 1510,
+              "ref_mean_rgb": [
+                0.010984879531476038,
+                0.021207521507172478,
+                0.024379004221654472
+              ],
+              "est_mean_rgb": [
+                0.011429074232517059,
+                0.024007672544400206,
+                0.028071763305995395
+              ],
+              "wash_relative_rms_percent": 23.48978405041299
+            },
+            "sheet-q10": {
+              "cells": 1046,
+              "ref_mean_rgb": [
+                0.011075572212898491,
+                0.022855725796906614,
+                0.026650299323689786
+              ],
+              "est_mean_rgb": [
+                0.009146935210746124,
+                0.017134165477149816,
+                0.019563262148447533
+              ],
+              "wash_relative_rms_percent": 37.11790939675499
+            },
+            "sheet-q11": {
+              "cells": 15,
+              "ref_mean_rgb": [
+                0.015215242709783241,
+                0.03297367179844922,
+                0.038807289750138516
+              ],
+              "est_mean_rgb": [
+                0.021340308457916263,
+                0.041198598258375976,
+                0.04747879079159562
+              ],
+              "wash_relative_rms_percent": 18.917435689693644
+            }
+          }
+        },
+        "vs_fixed_ref_P2_frame95": {
+          "area_weighted_mean_rgb_ref": [
+            0.010660694154015493,
+            0.021911975914212924,
+            0.02552315938672308
+          ],
+          "area_weighted_mean_rgb_est": [
+            0.011874554808411816,
+            0.02415564306007099,
+            0.028049212434000395
+          ],
+          "area_weighted_relative_rms_percent": 119.16911131840176,
+          "area_weighted_wash_relative_rms_percent": 36.2080349753731,
+          "patches": {
+            "sheet-q00": {
+              "cells": 325,
+              "ref_mean_rgb": [
+                0.014753807769314056,
+                0.03480999988507968,
+                0.0415138878005455
+              ],
+              "est_mean_rgb": [
+                0.017579433311129038,
+                0.040700286819159784,
+                0.04826951122123082
+              ],
+              "wash_relative_rms_percent": 24.581541404573905
+            },
+            "sheet-q01": {
+              "cells": 1490,
+              "ref_mean_rgb": [
+                0.010316248802775142,
+                0.02062853982966488,
+                0.023906046579018635
+              ],
+              "est_mean_rgb": [
+                0.009947275329201474,
+                0.01892000309395461,
+                0.021659114081365796
+              ],
+              "wash_relative_rms_percent": 28.398389806488005
+            },
+            "sheet-q10": {
+              "cells": 1076,
+              "ref_mean_rgb": [
+                0.009882676582266457,
+                0.01978581932438112,
+                0.022929811599604947
+              ],
+              "est_mean_rgb": [
+                0.012890120409713608,
+                0.026683281647219614,
+                0.031138161386854636
+              ],
+              "wash_relative_rms_percent": 52.58415100135381
+            },
+            "sheet-q11": {
+              "cells": 24,
+              "ref_mean_rgb": [
+                0.012900817447667832,
+                0.0267192047154603,
+                0.031188303942112697
+              ],
+              "est_mean_rgb": [
+                0.010914942508506656,
+                0.018127738310536757,
+                0.020155669706931008
+              ],
+              "wash_relative_rms_percent": 29.218606959381056
+            }
+          }
+        }
+      },
+      "per-draw-heat-8cm": {
+        "max_physical_area_weighted_rgb_drift": 1.429412144204889e-15,
+        "bands_frames_32_to_95": {
+          "1": {
+            "cells": 2870,
+            "rgb_rms": 0.002770514538782066,
+            "persistent_rgb_rms": 0.0007285116891803479,
+            "temporal_rgb_rms": 0.0026730173078995203
+          },
+          "2": {
+            "cells": 2823,
+            "rgb_rms": 0.005277442612262847,
+            "persistent_rgb_rms": 0.0018467028899490157,
+            "temporal_rgb_rms": 0.004943792973212132
+          },
+          "4": {
+            "cells": 2552,
+            "rgb_rms": 0.0058762040592732,
+            "persistent_rgb_rms": 0.0030521351806633906,
+            "temporal_rgb_rms": 0.005021378793237539
+          },
+          "8": {
+            "cells": 919,
+            "rgb_rms": 0.004921935673300452,
+            "persistent_rgb_rms": 0.004203479929038279,
+            "temporal_rgb_rms": 0.002560509179495345
+          }
+        },
+        "vs_fixed_ref_P1_frame48": {
+          "area_weighted_mean_rgb_ref": [
+            0.011446072796025391,
+            0.02329213706626533,
+            0.027066532860702312
+          ],
+          "area_weighted_mean_rgb_est": [
+            0.010510176082133702,
+            0.021090202762574926,
+            0.024426979020924132
+          ],
+          "area_weighted_relative_rms_percent": 54.69164101085471,
+          "area_weighted_wash_relative_rms_percent": 27.617646053088478,
+          "patches": {
+            "sheet-q00": {
+              "cells": 358,
+              "ref_mean_rgb": [
+                0.014381744578938533,
+                0.033182225919601745,
+                0.039411948048525235
+              ],
+              "est_mean_rgb": [
+                0.011348233431249249,
+                0.023061715318863613,
+                0.026704210234583473
+              ],
+              "wash_relative_rms_percent": 32.7147449695038
+            },
+            "sheet-q01": {
+              "cells": 1510,
+              "ref_mean_rgb": [
+                0.010984879531476038,
+                0.021207521507172478,
+                0.024379004221654472
+              ],
+              "est_mean_rgb": [
+                0.011281357816644912,
+                0.02356562173457796,
+                0.027525287382356996
+              ],
+              "wash_relative_rms_percent": 18.249357433035204
+            },
+            "sheet-q10": {
+              "cells": 1046,
+              "ref_mean_rgb": [
+                0.011075572212898491,
+                0.022855725796906614,
+                0.026650299323689786
+              ],
+              "est_mean_rgb": [
+                0.008960627967187254,
+                0.016516909034001246,
+                0.01879081921993025
+              ],
+              "wash_relative_rms_percent": 34.68501500953128
+            },
+            "sheet-q11": {
+              "cells": 15,
+              "ref_mean_rgb": [
+                0.015215242709783241,
+                0.03297367179844922,
+                0.038807289750138516
+              ],
+              "est_mean_rgb": [
+                0.021083605565747645,
+                0.04398360534621843,
+                0.05141299325157549
+              ],
+              "wash_relative_rms_percent": 14.06731832279612
+            }
+          }
+        },
+        "vs_fixed_ref_P2_frame95": {
+          "area_weighted_mean_rgb_ref": [
+            0.010660694154015493,
+            0.021911975914212924,
+            0.02552315938672308
+          ],
+          "area_weighted_mean_rgb_est": [
+            0.01185529095330939,
+            0.024112599803115337,
+            0.027998339416419674
+          ],
+          "area_weighted_relative_rms_percent": 62.57808680099539,
+          "area_weighted_wash_relative_rms_percent": 30.390374027051664,
+          "patches": {
+            "sheet-q00": {
+              "cells": 325,
+              "ref_mean_rgb": [
+                0.014753807769314056,
+                0.03480999988507968,
+                0.0415138878005455
+              ],
+              "est_mean_rgb": [
+                0.01706026230257927,
+                0.03889537643671696,
+                0.04600948194502035
+              ],
+              "wash_relative_rms_percent": 17.989882921711036
+            },
+            "sheet-q01": {
+              "cells": 1490,
+              "ref_mean_rgb": [
+                0.010316248802775142,
+                0.02062853982966488,
+                0.023906046579018635
+              ],
+              "est_mean_rgb": [
+                0.010096548218849461,
+                0.019412727732554116,
+                0.022273983683417427
+              ],
+              "wash_relative_rms_percent": 24.271781088782078
+            },
+            "sheet-q10": {
+              "cells": 1076,
+              "ref_mean_rgb": [
+                0.009882676582266457,
+                0.01978581932438112,
+                0.022929811599604947
+              ],
+              "est_mean_rgb": [
+                0.012793110076259188,
+                0.026411452530612903,
+                0.03080419094175395
+              ],
+              "wash_relative_rms_percent": 44.699693186702945
+            },
+            "sheet-q11": {
+              "cells": 24,
+              "ref_mean_rgb": [
+                0.012900817447667832,
+                0.0267192047154603,
+                0.031188303942112697
+              ],
+              "est_mean_rgb": [
+                0.010501860201626485,
+                0.01827550210221986,
+                0.02054882406210287
+              ],
+              "wash_relative_rms_percent": 23.15231477750234
+            }
+          }
+        }
+      },
+      "per-draw-heat-16cm": {
+        "max_physical_area_weighted_rgb_drift": 3.2404634531246757e-15,
+        "bands_frames_32_to_95": {
+          "1": {
+            "cells": 2870,
+            "rgb_rms": 0.0005404047761949699,
+            "persistent_rgb_rms": 0.0002618028534264346,
+            "temporal_rgb_rms": 0.0004727542575927924
+          },
+          "2": {
+            "cells": 2823,
+            "rgb_rms": 0.001653784320991796,
+            "persistent_rgb_rms": 0.0008661645076218457,
+            "temporal_rgb_rms": 0.001408815682087086
+          },
+          "4": {
+            "cells": 2552,
+            "rgb_rms": 0.0032883716225825354,
+            "persistent_rgb_rms": 0.002051040235966742,
+            "temporal_rgb_rms": 0.0025703349740163425
+          },
+          "8": {
+            "cells": 919,
+            "rgb_rms": 0.003973287775379072,
+            "persistent_rgb_rms": 0.0034652757805828374,
+            "temporal_rgb_rms": 0.0019439340293545939
+          }
+        },
+        "vs_fixed_ref_P1_frame48": {
+          "area_weighted_mean_rgb_ref": [
+            0.011446072796025391,
+            0.02329213706626533,
+            0.027066532860702312
+          ],
+          "area_weighted_mean_rgb_est": [
+            0.010501953564386905,
+            0.02104744526434391,
+            0.024371086257840777
+          ],
+          "area_weighted_relative_rms_percent": 47.44157963717222,
+          "area_weighted_wash_relative_rms_percent": 24.800649583845466,
+          "patches": {
+            "sheet-q00": {
+              "cells": 358,
+              "ref_mean_rgb": [
+                0.014381744578938533,
+                0.033182225919601745,
+                0.039411948048525235
+              ],
+              "est_mean_rgb": [
+                0.012526375262991595,
+                0.02671209410472245,
+                0.03125108625282295
+              ],
+              "wash_relative_rms_percent": 29.672490984908013
+            },
+            "sheet-q01": {
+              "cells": 1510,
+              "ref_mean_rgb": [
+                0.010984879531476038,
+                0.021207521507172478,
+                0.024379004221654472
+              ],
+              "est_mean_rgb": [
+                0.011095987557723022,
+                0.022848279963262292,
+                0.026609209303906686
+              ],
+              "wash_relative_rms_percent": 13.337005746702152
+            },
+            "sheet-q10": {
+              "cells": 1046,
+              "ref_mean_rgb": [
+                0.011075572212898491,
+                0.022855725796906614,
+                0.026650299323689786
+              ],
+              "est_mean_rgb": [
+                0.00885090016805992,
+                0.016240912772577155,
+                0.01845849576690675
+              ],
+              "wash_relative_rms_percent": 33.08887927494642
+            },
+            "sheet-q11": {
+              "cells": 15,
+              "ref_mean_rgb": [
+                0.015215242709783241,
+                0.03297367179844922,
+                0.038807289750138516
+              ],
+              "est_mean_rgb": [
+                0.01834606962283749,
+                0.0420327886972345,
+                0.049937878811876966
+              ],
+              "wash_relative_rms_percent": 5.215609465355134
+            }
+          }
+        },
+        "vs_fixed_ref_P2_frame95": {
+          "area_weighted_mean_rgb_ref": [
+            0.010660694154015493,
+            0.021911975914212924,
+            0.02552315938672308
+          ],
+          "area_weighted_mean_rgb_est": [
+            0.011827710979613616,
+            0.024024627881447342,
+            0.027888609474047983
+          ],
+          "area_weighted_relative_rms_percent": 47.17169473691142,
+          "area_weighted_wash_relative_rms_percent": 24.15390253317681,
+          "patches": {
+            "sheet-q00": {
+              "cells": 325,
+              "ref_mean_rgb": [
+                0.014753807769314056,
+                0.03480999988507968,
+                0.0415138878005455
+              ],
+              "est_mean_rgb": [
+                0.016355175016868912,
+                0.03673822172773385,
+                0.04335400887371818
+              ],
+              "wash_relative_rms_percent": 16.68647933387362
+            },
+            "sheet-q01": {
+              "cells": 1490,
+              "ref_mean_rgb": [
+                0.010316248802775142,
+                0.02062853982966488,
+                0.023906046579018635
+              ],
+              "est_mean_rgb": [
+                0.01027790127896697,
+                0.019904600604222795,
+                0.022871619158959872
+              ],
+              "wash_relative_rms_percent": 20.135822324732874
+            },
+            "sheet-q10": {
+              "cells": 1076,
+              "ref_mean_rgb": [
+                0.009882676582266457,
+                0.01978581932438112,
+                0.022929811599604947
+              ],
+              "est_mean_rgb": [
+                0.012588987541005368,
+                0.025845767895258682,
+                0.030109657835729033
+              ],
+              "wash_relative_rms_percent": 33.977997948180175
+            },
+            "sheet-q11": {
+              "cells": 24,
+              "ref_mean_rgb": [
+                0.012900817447667832,
+                0.0267192047154603,
+                0.031188303942112697
+              ],
+              "est_mean_rgb": [
+                0.01430056860084913,
+                0.03073336590065892,
+                0.03611535564832468
+              ],
+              "wash_relative_rms_percent": 13.65937530976231
+            }
+          }
+        }
+      },
+      "physical-accum-16": {
+        "max_physical_area_weighted_rgb_drift": 0.0,
+        "bands_frames_32_to_95": {
+          "1": {
+            "cells": 2870,
+            "rgb_rms": 0.004822459002035245,
+            "persistent_rgb_rms": 0.0033258261709365093,
+            "temporal_rgb_rms": 0.003492132744759936
+          },
+          "2": {
+            "cells": 2823,
+            "rgb_rms": 0.0036641014756567778,
+            "persistent_rgb_rms": 0.003089165953202101,
+            "temporal_rgb_rms": 0.001970455109229117
+          },
+          "4": {
+            "cells": 2552,
+            "rgb_rms": 0.003841892201617695,
+            "persistent_rgb_rms": 0.0036794162723596787,
+            "temporal_rgb_rms": 0.0011054553738372545
+          },
+          "8": {
+            "cells": 919,
+            "rgb_rms": 0.0045626492979920635,
+            "persistent_rgb_rms": 0.00452488883431488,
+            "temporal_rgb_rms": 0.0005857897690810266
+          }
+        },
+        "vs_fixed_ref_P1_frame48": {
+          "area_weighted_mean_rgb_ref": [
+            0.011446072796025391,
+            0.02329213706626533,
+            0.027066532860702312
+          ],
+          "area_weighted_mean_rgb_est": [
+            0.011545030157870428,
+            0.023189589168450913,
+            0.026881810862296553
+          ],
+          "area_weighted_relative_rms_percent": 76.7505504550991,
+          "area_weighted_wash_relative_rms_percent": 6.124651551961384,
+          "patches": {
+            "sheet-q00": {
+              "cells": 358,
+              "ref_mean_rgb": [
+                0.014381744578938533,
+                0.033182225919601745,
+                0.039411948048525235
+              ],
+              "est_mean_rgb": [
+                0.014429170925320211,
+                0.03344436530399914,
+                0.03975662678707074
+              ],
+              "wash_relative_rms_percent": 6.336447044434176
+            },
+            "sheet-q01": {
+              "cells": 1510,
+              "ref_mean_rgb": [
+                0.010984879531476038,
+                0.021207521507172478,
+                0.024379004221654472
+              ],
+              "est_mean_rgb": [
+                0.011192842847120318,
+                0.020903279038179474,
+                0.02386496800122346
+              ],
+              "wash_relative_rms_percent": 6.3965249486250695
+            },
+            "sheet-q10": {
+              "cells": 1046,
+              "ref_mean_rgb": [
+                0.011075572212898491,
+                0.022855725796906614,
+                0.026650299323689786
+              ],
+              "est_mean_rgb": [
+                0.011013981170935078,
+                0.02288613987778859,
+                0.026722230045458064
+              ],
+              "wash_relative_rms_percent": 5.58934457795778
+            },
+            "sheet-q11": {
+              "cells": 15,
+              "ref_mean_rgb": [
+                0.015215242709783241,
+                0.03297367179844922,
+                0.038807289750138516
+              ],
+              "est_mean_rgb": [
+                0.016701884988071816,
+                0.03540693573347659,
+                0.04155817603233194
+              ],
+              "wash_relative_rms_percent": 5.013370209915633
+            }
+          }
+        },
+        "vs_fixed_ref_P2_frame95": {
+          "area_weighted_mean_rgb_ref": [
+            0.010660694154015493,
+            0.021911975914212924,
+            0.02552315938672308
+          ],
+          "area_weighted_mean_rgb_est": [
+            0.010871161655186229,
+            0.022067369542326323,
+            0.025627716103067116
+          ],
+          "area_weighted_relative_rms_percent": 77.39574531477905,
+          "area_weighted_wash_relative_rms_percent": 6.097401363697448,
+          "patches": {
+            "sheet-q00": {
+              "cells": 325,
+              "ref_mean_rgb": [
+                0.014753807769314056,
+                0.03480999988507968,
+                0.0415138878005455
+              ],
+              "est_mean_rgb": [
+                0.014871366279754165,
+                0.03487256165039961,
+                0.041525239955363766
+              ],
+              "wash_relative_rms_percent": 7.175913102545866
+            },
+            "sheet-q01": {
+              "cells": 1490,
+              "ref_mean_rgb": [
+                0.010316248802775142,
+                0.02062853982966488,
+                0.023906046579018635
+              ],
+              "est_mean_rgb": [
+                0.010495734911806356,
+                0.020594729466343404,
+                0.023751256783633278
+              ],
+              "wash_relative_rms_percent": 4.6692888542311275
+            },
+            "sheet-q10": {
+              "cells": 1076,
+              "ref_mean_rgb": [
+                0.009882676582266457,
+                0.01978581932438112,
+                0.022929811599604947
+              ],
+              "est_mean_rgb": [
+                0.010157601367850511,
+                0.02019344717949724,
+                0.023371468963857025
+              ],
+              "wash_relative_rms_percent": 7.211019663863954
+            },
+            "sheet-q11": {
+              "cells": 24,
+              "ref_mean_rgb": [
+                0.012900817447667832,
+                0.0267192047154603,
+                0.031188303942112697
+              ],
+              "est_mean_rgb": [
+                0.013372919283374547,
+                0.02854526156897107,
+                0.0335214748101859
+              ],
+              "wash_relative_rms_percent": 5.8526518112214205
+            }
+          }
+        }
+      },
+      "physical-accum-32": {
+        "max_physical_area_weighted_rgb_drift": 0.0,
+        "bands_frames_32_to_95": {
+          "1": {
+            "cells": 2870,
+            "rgb_rms": 0.003974172901618308,
+            "persistent_rgb_rms": 0.0032916993352071324,
+            "temporal_rgb_rms": 0.0022268286280165816
+          },
+          "2": {
+            "cells": 2823,
+            "rgb_rms": 0.0034480473683110315,
+            "persistent_rgb_rms": 0.003188985439881445,
+            "temporal_rgb_rms": 0.001311259897328052
+          },
+          "4": {
+            "cells": 2552,
+            "rgb_rms": 0.0037434749532923406,
+            "persistent_rgb_rms": 0.0036664580132696467,
+            "temporal_rgb_rms": 0.0007554405091454173
+          },
+          "8": {
+            "cells": 919,
+            "rgb_rms": 0.004428563409832833,
+            "persistent_rgb_rms": 0.004410070386162619,
+            "temporal_rgb_rms": 0.0004042932895828195
+          }
+        },
+        "vs_fixed_ref_P1_frame48": {
+          "area_weighted_mean_rgb_ref": [
+            0.011446072796025391,
+            0.02329213706626533,
+            0.027066532860702312
+          ],
+          "area_weighted_mean_rgb_est": [
+            0.01165338270126826,
+            0.02329489253341747,
+            0.026976470082749057
+          ],
+          "area_weighted_relative_rms_percent": 67.38274719385169,
+          "area_weighted_wash_relative_rms_percent": 6.831404528621,
+          "patches": {
+            "sheet-q00": {
+              "cells": 358,
+              "ref_mean_rgb": [
+                0.014381744578938533,
+                0.033182225919601745,
+                0.039411948048525235
+              ],
+              "est_mean_rgb": [
+                0.013959326398278467,
+                0.031845825183788215,
+                0.03775212176959051
+              ],
+              "wash_relative_rms_percent": 4.50302583842517
+            },
+            "sheet-q01": {
+              "cells": 1510,
+              "ref_mean_rgb": [
+                0.010984879531476038,
+                0.021207521507172478,
+                0.024379004221654472
+              ],
+              "est_mean_rgb": [
+                0.01127709015007681,
+                0.020799924912631183,
+                0.02367781500351091
+              ],
+              "wash_relative_rms_percent": 7.671146762076961
+            },
+            "sheet-q10": {
+              "cells": 1046,
+              "ref_mean_rgb": [
+                0.011075572212898491,
+                0.022855725796906614,
+                0.026650299323689786
+              ],
+              "est_mean_rgb": [
+                0.01135916097178048,
+                0.023893490587865152,
+                0.027964392921031388
+              ],
+              "wash_relative_rms_percent": 6.903196988264197
+            },
+            "sheet-q11": {
+              "cells": 15,
+              "ref_mean_rgb": [
+                0.015215242709783241,
+                0.03297367179844922,
+                0.038807289750138516
+              ],
+              "est_mean_rgb": [
+                0.016236643052658113,
+                0.033473798563642944,
+                0.03911606255108114
+              ],
+              "wash_relative_rms_percent": 3.0488582130466026
+            }
+          }
+        },
+        "vs_fixed_ref_P2_frame95": {
+          "area_weighted_mean_rgb_ref": [
+            0.010660694154015493,
+            0.021911975914212924,
+            0.02552315938672308
+          ],
+          "area_weighted_mean_rgb_est": [
+            0.011082899770970468,
+            0.022448722264176373,
+            0.02606598003696002
+          ],
+          "area_weighted_relative_rms_percent": 61.30542433772085,
+          "area_weighted_wash_relative_rms_percent": 6.30405526151439,
+          "patches": {
+            "sheet-q00": {
+              "cells": 325,
+              "ref_mean_rgb": [
+                0.014753807769314056,
+                0.03480999988507968,
+                0.0415138878005455
+              ],
+              "est_mean_rgb": [
+                0.014592723872293416,
+                0.03374127540918781,
+                0.04010239769260648
+              ],
+              "wash_relative_rms_percent": 6.661389961534928
+            },
+            "sheet-q01": {
+              "cells": 1490,
+              "ref_mean_rgb": [
+                0.010316248802775142,
+                0.02062853982966488,
+                0.023906046579018635
+              ],
+              "est_mean_rgb": [
+                0.010827582338736869,
+                0.021141729951693184,
+                0.024363648230175932
+              ],
+              "wash_relative_rms_percent": 5.709928431887665
+            },
+            "sheet-q10": {
+              "cells": 1076,
+              "ref_mean_rgb": [
+                0.009882676582266457,
+                0.01978581932438112,
+                0.022929811599604947
+              ],
+              "est_mean_rgb": [
+                0.010340096052813563,
+                0.020783652753345948,
+                0.024110064066675402
+              ],
+              "wash_relative_rms_percent": 7.031102731862436
+            },
+            "sheet-q11": {
+              "cells": 24,
+              "ref_mean_rgb": [
+                0.012900817447667832,
+                0.0267192047154603,
+                0.031188303942112697
+              ],
+              "est_mean_rgb": [
+                0.013896098088721909,
+                0.029228698741322195,
+                0.03423451179886419
+              ],
+              "wash_relative_rms_percent": 4.167803499568324
+            }
+          }
+        }
+      },
+      "physical-accum-64": {
+        "max_physical_area_weighted_rgb_drift": 0.0,
+        "bands_frames_32_to_95": {
+          "1": {
+            "cells": 2870,
+            "rgb_rms": 0.0038638946713303963,
+            "persistent_rgb_rms": 0.003549022334697576,
+            "temporal_rgb_rms": 0.001527783524899126
+          },
+          "2": {
+            "cells": 2823,
+            "rgb_rms": 0.0034797895670054288,
+            "persistent_rgb_rms": 0.003358100128765514,
+            "temporal_rgb_rms": 0.0009121945822163539
+          },
+          "4": {
+            "cells": 2552,
+            "rgb_rms": 0.003725900768115716,
+            "persistent_rgb_rms": 0.0036901203606674363,
+            "temporal_rgb_rms": 0.0005151196537047595
+          },
+          "8": {
+            "cells": 919,
+            "rgb_rms": 0.004339390309164128,
+            "persistent_rgb_rms": 0.004330916911384247,
+            "temporal_rgb_rms": 0.00027104789605063463
+          }
+        },
+        "vs_fixed_ref_P1_frame48": {
+          "area_weighted_mean_rgb_ref": [
+            0.011446072796025391,
+            0.02329213706626533,
+            0.027066532860702312
+          ],
+          "area_weighted_mean_rgb_est": [
+            0.011674125900403589,
+            0.0233012324089739,
+            0.02697540809935412
+          ],
+          "area_weighted_relative_rms_percent": 67.90327863229214,
+          "area_weighted_wash_relative_rms_percent": 7.533581231957533,
+          "patches": {
+            "sheet-q00": {
+              "cells": 358,
+              "ref_mean_rgb": [
+                0.014381744578938533,
+                0.033182225919601745,
+                0.039411948048525235
+              ],
+              "est_mean_rgb": [
+                0.01382674263648981,
+                0.03141387359034868,
+                0.03721425653366264
+              ],
+              "wash_relative_rms_percent": 4.904937000264627
+            },
+            "sheet-q01": {
+              "cells": 1510,
+              "ref_mean_rgb": [
+                0.010984879531476038,
+                0.021207521507172478,
+                0.024379004221654472
+              ],
+              "est_mean_rgb": [
+                0.011289313961343571,
+                0.02074358005473301,
+                0.023592841940647074
+              ],
+              "wash_relative_rms_percent": 8.185506182280347
+            },
+            "sheet-q10": {
+              "cells": 1046,
+              "ref_mean_rgb": [
+                0.011075572212898491,
+                0.022855725796906614,
+                0.026650299323689786
+              ],
+              "est_mean_rgb": [
+                0.011443501779374083,
+                0.024136654709201264,
+                0.028263498942607778
+              ],
+              "wash_relative_rms_percent": 8.045537032258292
+            },
+            "sheet-q11": {
+              "cells": 15,
+              "ref_mean_rgb": [
+                0.015215242709783241,
+                0.03297367179844922,
+                0.038807289750138516
+              ],
+              "est_mean_rgb": [
+                0.016262887123794607,
+                0.033525679263641035,
+                0.03918540736043389
+              ],
+              "wash_relative_rms_percent": 4.325372487722879
+            }
+          }
+        },
+        "vs_fixed_ref_P2_frame95": {
+          "area_weighted_mean_rgb_ref": [
+            0.010660694154015493,
+            0.021911975914212924,
+            0.02552315938672308
+          ],
+          "area_weighted_mean_rgb_est": [
+            0.01130811977954684,
+            0.022832317011382355,
+            0.0264971428766462
+          ],
+          "area_weighted_relative_rms_percent": 56.53711154106965,
+          "area_weighted_wash_relative_rms_percent": 8.966313125347831,
+          "patches": {
+            "sheet-q00": {
+              "cells": 325,
+              "ref_mean_rgb": [
+                0.014753807769314056,
+                0.03480999988507968,
+                0.0415138878005455
+              ],
+              "est_mean_rgb": [
+                0.01430417431087424,
+                0.032700958462605755,
+                0.03880232350715886
+              ],
+              "wash_relative_rms_percent": 7.608223926737745
+            },
+            "sheet-q01": {
+              "cells": 1490,
+              "ref_mean_rgb": [
+                0.010316248802775142,
+                0.02062853982966488,
+                0.023906046579018635
+              ],
+              "est_mean_rgb": [
+                0.011101653531730043,
+                0.021422253841019735,
+                0.024626695262897614
+              ],
+              "wash_relative_rms_percent": 8.759569691619745
+            },
+            "sheet-q10": {
+              "cells": 1076,
+              "ref_mean_rgb": [
+                0.009882676582266457,
+                0.01978581932438112,
+                0.022929811599604947
+              ],
+              "est_mean_rgb": [
+                0.010646640519933404,
+                0.021737034497871673,
+                0.02529537861807618
+              ],
+              "wash_relative_rms_percent": 10.425310143688625
+            },
+            "sheet-q11": {
+              "cells": 24,
+              "ref_mean_rgb": [
+                0.012900817447667832,
+                0.0267192047154603,
+                0.031188303942112697
+              ],
+              "est_mean_rgb": [
+                0.014219299080587977,
+                0.029283257992333948,
+                0.03417671854367118
+              ],
+              "wash_relative_rms_percent": 3.3598009029412435
+            }
+          }
+        }
+      },
+      "physical-accum32-heat4cm": {
+        "max_physical_area_weighted_rgb_drift": 2.914335439641036e-16,
+        "bands_frames_32_to_95": {
+          "1": {
+            "cells": 2870,
+            "rgb_rms": 0.00190857557969431,
+            "persistent_rgb_rms": 0.0016693702509465583,
+            "temporal_rgb_rms": 0.0009251290227098579
+          },
+          "2": {
+            "cells": 2823,
+            "rgb_rms": 0.0028180279777913937,
+            "persistent_rgb_rms": 0.0026534121180850773,
+            "temporal_rgb_rms": 0.0009490446855729787
+          },
+          "4": {
+            "cells": 2552,
+            "rgb_rms": 0.0035265806913271514,
+            "persistent_rgb_rms": 0.003459681024953652,
+            "temporal_rgb_rms": 0.0006836509182449312
+          },
+          "8": {
+            "cells": 919,
+            "rgb_rms": 0.004323199799597338,
+            "persistent_rgb_rms": 0.004305465958607784,
+            "temporal_rgb_rms": 0.0003911769248153787
+          }
+        },
+        "vs_fixed_ref_P1_frame48": {
+          "area_weighted_mean_rgb_ref": [
+            0.011446072796025391,
+            0.02329213706626533,
+            0.027066532860702312
+          ],
+          "area_weighted_mean_rgb_est": [
+            0.011658867047038895,
+            0.02326515197388711,
+            0.026932276241436678
+          ],
+          "area_weighted_relative_rms_percent": 39.34192102053937,
+          "area_weighted_wash_relative_rms_percent": 6.621550134606135,
+          "patches": {
+            "sheet-q00": {
+              "cells": 358,
+              "ref_mean_rgb": [
+                0.014381744578938533,
+                0.033182225919601745,
+                0.039411948048525235
+              ],
+              "est_mean_rgb": [
+                0.013942179314741555,
+                0.031813516810509916,
+                0.03771769530816602
+              ],
+              "wash_relative_rms_percent": 3.936342220048149
+            },
+            "sheet-q01": {
+              "cells": 1510,
+              "ref_mean_rgb": [
+                0.010984879531476038,
+                0.021207521507172478,
+                0.024379004221654472
+              ],
+              "est_mean_rgb": [
+                0.011316769163424901,
+                0.020846511451297463,
+                0.02372296932132926
+              ],
+              "wash_relative_rms_percent": 7.944013913640199
+            },
+            "sheet-q10": {
+              "cells": 1046,
+              "ref_mean_rgb": [
+                0.011075572212898491,
+                0.022855725796906614,
+                0.026650299323689786
+              ],
+              "est_mean_rgb": [
+                0.011335095775436177,
+                0.023783585415616978,
+                0.027823026773179407
+              ],
+              "wash_relative_rms_percent": 5.9884286180057344
+            },
+            "sheet-q11": {
+              "cells": 15,
+              "ref_mean_rgb": [
+                0.015215242709783241,
+                0.03297367179844922,
+                0.038807289750138516
+              ],
+              "est_mean_rgb": [
+                0.015389567924902413,
+                0.031413091962578424,
+                0.036629099793970124
+              ],
+              "wash_relative_rms_percent": 2.3701944482642503
+            }
+          }
+        },
+        "vs_fixed_ref_P2_frame95": {
+          "area_weighted_mean_rgb_ref": [
+            0.010660694154015493,
+            0.021911975914212924,
+            0.02552315938672308
+          ],
+          "area_weighted_mean_rgb_est": [
+            0.01108113915087091,
+            0.02241123638498708,
+            0.026015219950816727
+          ],
+          "area_weighted_relative_rms_percent": 37.81485969806622,
+          "area_weighted_wash_relative_rms_percent": 6.259298271449774,
+          "patches": {
+            "sheet-q00": {
+              "cells": 325,
+              "ref_mean_rgb": [
+                0.014753807769314056,
+                0.03480999988507968,
+                0.0415138878005455
+              ],
+              "est_mean_rgb": [
+                0.014569810288830528,
+                0.0336228334425499,
+                0.039945388619576916
+              ],
+              "wash_relative_rms_percent": 6.560434962134607
+            },
+            "sheet-q01": {
+              "cells": 1490,
+              "ref_mean_rgb": [
+                0.010316248802775142,
+                0.02062853982966488,
+                0.023906046579018635
+              ],
+              "est_mean_rgb": [
+                0.01082716428748715,
+                0.021138165240433788,
+                0.024359901939151052
+              ],
+              "wash_relative_rms_percent": 5.772260462161668
+            },
+            "sheet-q10": {
+              "cells": 1076,
+              "ref_mean_rgb": [
+                0.009882676582266457,
+                0.01978581932438112,
+                0.022929811599604947
+              ],
+              "est_mean_rgb": [
+                0.010338175791783807,
+                0.020712608334714413,
+                0.024013238814028243
+              ],
+              "wash_relative_rms_percent": 6.893322605561818
+            },
+            "sheet-q11": {
+              "cells": 24,
+              "ref_mean_rgb": [
+                0.012900817447667832,
+                0.0267192047154603,
+                0.031188303942112697
+              ],
+              "est_mean_rgb": [
+                0.014095313168401388,
+                0.029650078823272225,
+                0.0347220714875188
+              ],
+              "wash_relative_rms_percent": 3.6511456165310414
+            }
+          }
+        }
+      },
+      "physical-accum64-heat4cm": {
+        "max_physical_area_weighted_rgb_drift": 3.5041414214731503e-16,
+        "bands_frames_32_to_95": {
+          "1": {
+            "cells": 2870,
+            "rgb_rms": 0.0019120363663507635,
+            "persistent_rgb_rms": 0.0017973377928768677,
+            "temporal_rgb_rms": 0.0006522728911616218
+          },
+          "2": {
+            "cells": 2823,
+            "rgb_rms": 0.0028362143033245136,
+            "persistent_rgb_rms": 0.0027579175703131274,
+            "temporal_rgb_rms": 0.0006618173839819365
+          },
+          "4": {
+            "cells": 2552,
+            "rgb_rms": 0.0035087711563863,
+            "persistent_rgb_rms": 0.0034776052107213006,
+            "temporal_rgb_rms": 0.0004666230022754037
+          },
+          "8": {
+            "cells": 919,
+            "rgb_rms": 0.004237205931981625,
+            "persistent_rgb_rms": 0.004229048377913949,
+            "temporal_rgb_rms": 0.00026280016606475563
+          }
+        },
+        "vs_fixed_ref_P1_frame48": {
+          "area_weighted_mean_rgb_ref": [
+            0.011446072796025391,
+            0.02329213706626533,
+            0.027066532860702312
+          ],
+          "area_weighted_mean_rgb_est": [
+            0.011675174399548236,
+            0.02327039592502571,
+            0.026931628022802665
+          ],
+          "area_weighted_relative_rms_percent": 39.74671828351745,
+          "area_weighted_wash_relative_rms_percent": 7.341849343398844,
+          "patches": {
+            "sheet-q00": {
+              "cells": 358,
+              "ref_mean_rgb": [
+                0.014381744578938533,
+                0.033182225919601745,
+                0.039411948048525235
+              ],
+              "est_mean_rgb": [
+                0.013829951407722758,
+                0.03144192644718338,
+                0.03725441907988954
+              ],
+              "wash_relative_rms_percent": 4.5972771647634385
+            },
+            "sheet-q01": {
+              "cells": 1510,
+              "ref_mean_rgb": [
+                0.010984879531476038,
+                0.021207521507172478,
+                0.024379004221654472
+              ],
+              "est_mean_rgb": [
+                0.011317012533878788,
+                0.020779450072644805,
+                0.023628431147215866
+              ],
+              "wash_relative_rms_percent": 8.485065740244938
+            },
+            "sheet-q10": {
+              "cells": 1046,
+              "ref_mean_rgb": [
+                0.011075572212898491,
+                0.022855725796906614,
+                0.026650299323689786
+              ],
+              "est_mean_rgb": [
+                0.011418383368979431,
+                0.024020622674384904,
+                0.02811410003302118
+              ],
+              "wash_relative_rms_percent": 7.114725682857386
+            },
+            "sheet-q11": {
+              "cells": 15,
+              "ref_mean_rgb": [
+                0.015215242709783241,
+                0.03297367179844922,
+                0.038807289750138516
+              ],
+              "est_mean_rgb": [
+                0.015358204249663028,
+                0.03135113748526312,
+                0.0365636402866445
+              ],
+              "wash_relative_rms_percent": 3.6218902609863517
+            }
+          }
+        },
+        "vs_fixed_ref_P2_frame95": {
+          "area_weighted_mean_rgb_ref": [
+            0.010660694154015493,
+            0.021911975914212924,
+            0.02552315938672308
+          ],
+          "area_weighted_mean_rgb_est": [
+            0.011306249572136244,
+            0.022793794331345693,
+            0.026444961284731852
+          ],
+          "area_weighted_relative_rms_percent": 38.47853964529834,
+          "area_weighted_wash_relative_rms_percent": 8.712136355858432,
+          "patches": {
+            "sheet-q00": {
+              "cells": 325,
+              "ref_mean_rgb": [
+                0.014753807769314056,
+                0.03480999988507968,
+                0.0415138878005455
+              ],
+              "est_mean_rgb": [
+                0.014331463876848772,
+                0.03281767341159532,
+                0.0389501107194205
+              ],
+              "wash_relative_rms_percent": 7.364517947877379
+            },
+            "sheet-q01": {
+              "cells": 1490,
+              "ref_mean_rgb": [
+                0.010316248802775142,
+                0.02062853982966488,
+                0.023906046579018635
+              ],
+              "est_mean_rgb": [
+                0.011096519452845852,
+                0.021392915173452546,
+                0.024588977173266857
+              ],
+              "wash_relative_rms_percent": 8.635861183893953
+            },
+            "sheet-q10": {
+              "cells": 1076,
+              "ref_mean_rgb": [
+                0.009882676582266457,
+                0.01978581932438112,
+                0.022929811599604947
+              ],
+              "est_mean_rgb": [
+                0.010638205515902588,
+                0.021637922847976276,
+                0.025162696329258914
+              ],
+              "wash_relative_rms_percent": 9.965592482703062
+            },
+            "sheet-q11": {
+              "cells": 24,
+              "ref_mean_rgb": [
+                0.012900817447667832,
+                0.0267192047154603,
+                0.031188303942112697
+              ],
+              "est_mean_rgb": [
+                0.014328666458143015,
+                0.029339133257666527,
+                0.03419284437492484
+              ],
+              "wash_relative_rms_percent": 3.249443981933911
+            }
+          }
+        }
+      }
+    }
+  },
+  "live_moving_study": {
+    "measured_frames": [
+      16,
+      95
+    ],
+    "draw_checks": {
+      "moving-normal": {
+        "total_draws": 128,
+        "captured_frames": 96,
+        "resets_after_draw_0": 0,
+        "sample_draw_range": [
+          32,
+          127
+        ]
+      },
+      "moving-connected": {
+        "total_draws": 128,
+        "captured_frames": 96,
+        "resets_after_draw_0": 0,
+        "sample_draw_range": [
+          32,
+          127
+        ]
+      },
+      "moving-source-accum": {
+        "total_draws": 128,
+        "captured_frames": 96,
+        "resets_after_draw_0": 0,
+        "sample_draw_range": [
+          32,
+          127
+        ]
+      },
+      "moving-source-accum-spread": {
+        "total_draws": 128,
+        "captured_frames": 96,
+        "resets_after_draw_0": 0,
+        "sample_draw_range": [
+          32,
+          127
+        ]
+      },
+      "moving-no-diffuse-ray-specular": {
+        "total_draws": 128,
+        "captured_frames": 96,
+        "resets_after_draw_0": 0,
+        "sample_draw_range": [
+          32,
+          127
+        ]
+      }
+    },
+    "probe_identity": {
+      "byte_identical_all_frames": true,
+      "frame_count": 96
+    },
+    "crops": {
+      "sloped-panel": {
+        "moving-normal": {
+          "grain": {
+            "mean_luminance": 0.024702144553318883,
+            "spatial_rms": 0.003807550745113825,
+            "temporal_rms": 0.0019659879215299094
+          },
+          "compare": {
+            "mean_change_percent": -8.881784197001252e-14,
+            "paired_rms": 0.0
+          },
+          "spatial_change_percent": 0.0,
+          "temporal_change_percent": 0.0,
+          "local_wash": {
+            "row0-column0": {
+              "baseline_mean_rgb": [
+                0.021161310016409113,
+                0.022091045064517423,
+                0.019057087992795072
+              ],
+              "variant_mean_rgb": [
+                0.021161310016409113,
+                0.022091045064517423,
+                0.019057087992795072
+              ],
+              "wash_relative_rms_percent": 0.0
+            },
+            "row0-column1": {
+              "baseline_mean_rgb": [
+                0.020944546978119427,
+                0.02285626940283106,
+                0.020126188941917967
+              ],
+              "variant_mean_rgb": [
+                0.020944546978119427,
+                0.02285626940283106,
+                0.020126188941917967
+              ],
+              "wash_relative_rms_percent": 0.0
+            },
+            "row1-column0": {
+              "baseline_mean_rgb": [
+                0.025358839964544945,
+                0.028152006075429895,
+                0.025170292508223387
+              ],
+              "variant_mean_rgb": [
+                0.025358839964544945,
+                0.028152006075429895,
+                0.025170292508223387
+              ],
+              "wash_relative_rms_percent": 0.0
+            },
+            "row1-column1": {
+              "baseline_mean_rgb": [
+                0.024823802638840122,
+                0.028388747022670968,
+                0.02580352531234536
+              ],
+              "variant_mean_rgb": [
+                0.024823802638840122,
+                0.028388747022670968,
+                0.02580352531234536
+              ],
+              "wash_relative_rms_percent": 0.0
+            }
+          }
+        },
+        "moving-connected": {
+          "grain": {
+            "mean_luminance": 0.026284295761107447,
+            "spatial_rms": 0.0007013028597820252,
+            "temporal_rms": 0.0008616969598868202
+          },
+          "compare": {
+            "mean_change_percent": 6.404914376456317,
+            "paired_rms": 0.006617185329201135
+          },
+          "spatial_change_percent": -81.58126032379222,
+          "temporal_change_percent": -56.16977345332532,
+          "local_wash": {
+            "row0-column0": {
+              "baseline_mean_rgb": [
+                0.021161310016409113,
+                0.022091045064517423,
+                0.019057087992795072
+              ],
+              "variant_mean_rgb": [
+                0.0217801430034077,
+                0.023165361233349974,
+                0.020226654495854618
+              ],
+              "wash_relative_rms_percent": 5.01933141601099
+            },
+            "row0-column1": {
+              "baseline_mean_rgb": [
+                0.020944546978119427,
+                0.02285626940283106,
+                0.020126188941917967
+              ],
+              "variant_mean_rgb": [
+                0.021439006599858798,
+                0.02401345821967915,
+                0.021451853814146403
+              ],
+              "wash_relative_rms_percent": 5.007843662503117
+            },
+            "row1-column0": {
+              "baseline_mean_rgb": [
+                0.025358839964544945,
+                0.028152006075429895,
+                0.025170292508223387
+              ],
+              "variant_mean_rgb": [
+                0.026447960247885354,
+                0.03078333981421351,
+                0.028168994150689866
+              ],
+              "wash_relative_rms_percent": 9.509296822115584
+            },
+            "row1-column1": {
+              "baseline_mean_rgb": [
+                0.024823802638840122,
+                0.028388747022670968,
+                0.02580352531234536
+              ],
+              "variant_mean_rgb": [
+                0.0256715632159437,
+                0.030625557697101114,
+                0.028379058421271128
+              ],
+              "wash_relative_rms_percent": 8.145308020673891
+            }
+          }
+        },
+        "moving-source-accum": {
+          "grain": {
+            "mean_luminance": 0.026442776534163104,
+            "spatial_rms": 0.000929534018845244,
+            "temporal_rms": 0.0008088532748577352
+          },
+          "compare": {
+            "mean_change_percent": 7.046481236020186,
+            "paired_rms": 0.006861750182019485
+          },
+          "spatial_change_percent": -75.58708784017911,
+          "temporal_change_percent": -58.857668147406784,
+          "local_wash": {
+            "row0-column0": {
+              "baseline_mean_rgb": [
+                0.021161310016409113,
+                0.022091045064517423,
+                0.019057087992795072
+              ],
+              "variant_mean_rgb": [
+                0.02189637569157292,
+                0.02280778184333026,
+                0.019670894530310738
+              ],
+              "wash_relative_rms_percent": 4.086594960535936
+            },
+            "row0-column1": {
+              "baseline_mean_rgb": [
+                0.020944546978119427,
+                0.02285626940283106,
+                0.020126188941917967
+              ],
+              "variant_mean_rgb": [
+                0.02197151409561883,
+                0.024826593982265333,
+                0.02230894073675978
+              ],
+              "wash_relative_rms_percent": 8.678160385883967
+            },
+            "row1-column0": {
+              "baseline_mean_rgb": [
+                0.025358839964544945,
+                0.028152006075429895,
+                0.025170292508223387
+              ],
+              "variant_mean_rgb": [
+                0.026371437282625417,
+                0.02977886323542291,
+                0.02686111608359945
+              ],
+              "wash_relative_rms_percent": 5.9651139771871815
+            },
+            "row1-column1": {
+              "baseline_mean_rgb": [
+                0.024823802638840122,
+                0.028388747022670968,
+                0.02580352531234536
+              ],
+              "variant_mean_rgb": [
+                0.026280421773270474,
+                0.03169857240013033,
+                0.02953657481751304
+              ],
+              "wash_relative_rms_percent": 12.257531807177733
+            }
+          }
+        },
+        "moving-source-accum-spread": {
+          "grain": {
+            "mean_luminance": 0.026532211358732787,
+            "spatial_rms": 0.0006022679916005593,
+            "temporal_rms": 0.0008048543682845054
+          },
+          "compare": {
+            "mean_change_percent": 7.40853411113247,
+            "paired_rms": 0.006810990146503234
+          },
+          "spatial_change_percent": -84.18227275438308,
+          "temporal_change_percent": -59.06107257982659,
+          "local_wash": {
+            "row0-column0": {
+              "baseline_mean_rgb": [
+                0.021161310016409113,
+                0.022091045064517423,
+                0.019057087992795072
+              ],
+              "variant_mean_rgb": [
+                0.021928837763773912,
+                0.02290883389220393,
+                0.019802513805954377
+              ],
+              "wash_relative_rms_percent": 4.324740363357792
+            },
+            "row0-column1": {
+              "baseline_mean_rgb": [
+                0.020944546978119427,
+                0.02285626940283106,
+                0.020126188941917967
+              ],
+              "variant_mean_rgb": [
+                0.02197192526113442,
+                0.02490223175490383,
+                0.022422863949650512
+              ],
+              "wash_relative_rms_percent": 8.977040965651344
+            },
+            "row1-column0": {
+              "baseline_mean_rgb": [
+                0.025358839964544945,
+                0.028152006075429895,
+                0.025170292508223387
+              ],
+              "variant_mean_rgb": [
+                0.026346737004731852,
+                0.02991918195715251,
+                0.027059649753693907
+              ],
+              "wash_relative_rms_percent": 6.28928597463075
+            },
+            "row1-column1": {
+              "baseline_mean_rgb": [
+                0.024823802638840122,
+                0.028388747022670968,
+                0.02580352531234536
+              ],
+              "variant_mean_rgb": [
+                0.02625228560172413,
+                0.0318252484968092,
+                0.02970442645551426
+              ],
+              "wash_relative_rms_percent": 12.53659788249572
+            }
+          }
+        },
+        "moving-no-diffuse-ray-specular": {
+          "grain": {
+            "mean_luminance": 0.018950276687107522,
+            "spatial_rms": 0.0005172920239076492,
+            "temporal_rms": 0.0006726260478753188
+          },
+          "compare": {
+            "mean_change_percent": -23.28489275008545,
+            "paired_rms": 0.008847500091692854
+          },
+          "spatial_change_percent": -86.41404780825357,
+          "temporal_change_percent": -65.78686773660904,
+          "local_wash": {
+            "row0-column0": {
+              "baseline_mean_rgb": [
+                0.021161310016409113,
+                0.022091045064517423,
+                0.019057087992795072
+              ],
+              "variant_mean_rgb": [
+                0.017982177204134073,
+                0.017380959607353082,
+                0.014270399944797554
+              ],
+              "wash_relative_rms_percent": 20.792716701792706
+            },
+            "row0-column1": {
+              "baseline_mean_rgb": [
+                0.020944546978119427,
+                0.02285626940283106,
+                0.020126188941917967
+              ],
+              "variant_mean_rgb": [
+                0.017898524973496418,
+                0.017392318493063486,
+                0.014280551060943152
+              ],
+              "wash_relative_rms_percent": 23.32854457867391
+            },
+            "row1-column0": {
+              "baseline_mean_rgb": [
+                0.025358839964544945,
+                0.028152006075429895,
+                0.025170292508223387
+              ],
+              "variant_mean_rgb": [
+                0.02140304656428089,
+                0.020960162009515133,
+                0.017362336102178626
+              ],
+              "wash_relative_rms_percent": 25.47321493941902
+            },
+            "row1-column1": {
+              "baseline_mean_rgb": [
+                0.024823802638840122,
+                0.028388747022670968,
+                0.02580352531234536
+              ],
+              "variant_mean_rgb": [
+                0.02091635210100973,
+                0.02056345455858538,
+                0.01711470819303631
+              ],
+              "wash_relative_rms_percent": 27.121750298007196
+            }
+          }
+        }
+      },
+      "panel-warm": {
+        "moving-normal": {
+          "grain": {
+            "mean_luminance": 0.02971217110409002,
+            "spatial_rms": 0.00252345726003659,
+            "temporal_rms": 0.0015993082031242852
+          },
+          "compare": {
+            "mean_change_percent": -3.3306690738754696e-14,
+            "paired_rms": 0.0
+          },
+          "spatial_change_percent": 0.0,
+          "temporal_change_percent": 0.0,
+          "local_wash": {
+            "row0-column0": {
+              "baseline_mean_rgb": [
+                0.04720303354491672,
+                0.042453785420047414,
+                0.03406421246917843
+              ],
+              "variant_mean_rgb": [
+                0.04720303354491672,
+                0.042453785420047414,
+                0.03406421246917843
+              ],
+              "wash_relative_rms_percent": 0.0
+            },
+            "row0-column1": {
+              "baseline_mean_rgb": [
+                0.023008551072224766,
+                0.022159278272222784,
+                0.018235897592007493
+              ],
+              "variant_mean_rgb": [
+                0.023008551072224766,
+                0.022159278272222784,
+                0.018235897592007493
+              ],
+              "wash_relative_rms_percent": 0.0
+            },
+            "row1-column0": {
+              "baseline_mean_rgb": [
+                0.035281306485341155,
+                0.0327565233071565,
+                0.026499371362374294
+              ],
+              "variant_mean_rgb": [
+                0.035281306485341155,
+                0.0327565233071565,
+                0.026499371362374294
+              ],
+              "wash_relative_rms_percent": 0.0
+            },
+            "row1-column1": {
+              "baseline_mean_rgb": [
+                0.022063173126483523,
+                0.02163999639949774,
+                0.018220822898213546
+              ],
+              "variant_mean_rgb": [
+                0.022063173126483523,
+                0.02163999639949774,
+                0.018220822898213546
+              ],
+              "wash_relative_rms_percent": 0.0
+            }
+          }
+        },
+        "moving-connected": {
+          "grain": {
+            "mean_luminance": 0.03062609709469049,
+            "spatial_rms": 0.0006617021272618729,
+            "temporal_rms": 0.0009122022830822288
+          },
+          "compare": {
+            "mean_change_percent": 3.0759313663034638,
+            "paired_rms": 0.004369958651387739
+          },
+          "spatial_change_percent": -73.77795385160285,
+          "temporal_change_percent": -42.96269591438219,
+          "local_wash": {
+            "row0-column0": {
+              "baseline_mean_rgb": [
+                0.04720303354491672,
+                0.042453785420047414,
+                0.03406421246917843
+              ],
+              "variant_mean_rgb": [
+                0.048730854859410505,
+                0.04333740699212811,
+                0.034645503793641605
+              ],
+              "wash_relative_rms_percent": 2.697488686241083
+            },
+            "row0-column1": {
+              "baseline_mean_rgb": [
+                0.023008551072224766,
+                0.022159278272222784,
+                0.018235897592007493
+              ],
+              "variant_mean_rgb": [
+                0.023797199069185968,
+                0.02281293635970181,
+                0.018773660310454767
+              ],
+              "wash_relative_rms_percent": 3.2257810401570968
+            },
+            "row1-column0": {
+              "baseline_mean_rgb": [
+                0.035281306485341155,
+                0.0327565233071565,
+                0.026499371362374294
+              ],
+              "variant_mean_rgb": [
+                0.03684185670262768,
+                0.0338422169801806,
+                0.027291289304041136
+              ],
+              "wash_relative_rms_percent": 3.642242404360801
+            },
+            "row1-column1": {
+              "baseline_mean_rgb": [
+                0.022063173126483523,
+                0.02163999639949774,
+                0.018220822898213546
+              ],
+              "variant_mean_rgb": [
+                0.022692893360787694,
+                0.022509042653258357,
+                0.019116161089063263
+              ],
+              "wash_relative_rms_percent": 3.9556384999068746
+            }
+          }
+        },
+        "moving-source-accum": {
+          "grain": {
+            "mean_luminance": 0.030664108249459622,
+            "spatial_rms": 0.0006660058815849593,
+            "temporal_rms": 0.000874741963217858
+          },
+          "compare": {
+            "mean_change_percent": 3.203862625974696,
+            "paired_rms": 0.004569986187556616
+          },
+          "spatial_change_percent": -73.60740393220283,
+          "temporal_change_percent": -45.304978645827646,
+          "local_wash": {
+            "row0-column0": {
+              "baseline_mean_rgb": [
+                0.04720303354491672,
+                0.042453785420047414,
+                0.03406421246917843
+              ],
+              "variant_mean_rgb": [
+                0.04799867605433451,
+                0.043307869373174025,
+                0.03488093063790514
+              ],
+              "wash_relative_rms_percent": 2.17987228191579
+            },
+            "row0-column1": {
+              "baseline_mean_rgb": [
+                0.023008551072224766,
+                0.022159278272222784,
+                0.018235897592007493
+              ],
+              "variant_mean_rgb": [
+                0.02389467008299881,
+                0.023066891265821215,
+                0.019055297619576823
+              ],
+              "wash_relative_rms_percent": 4.443084242317828
+            },
+            "row1-column0": {
+              "baseline_mean_rgb": [
+                0.035281306485341155,
+                0.0327565233071565,
+                0.026499371362374294
+              ],
+              "variant_mean_rgb": [
+                0.03707541615284257,
+                0.03415029796810254,
+                0.027542559321349143
+              ],
+              "wash_relative_rms_percent": 4.373062866233238
+            },
+            "row1-column1": {
+              "baseline_mean_rgb": [
+                0.022063173126483523,
+                0.02163999639949774,
+                0.018220822898213546
+              ],
+              "variant_mean_rgb": [
+                0.022860784868487218,
+                0.022228636386205883,
+                0.018653070191003297
+              ],
+              "wash_relative_rms_percent": 3.399627221621927
+            }
+          }
+        },
+        "moving-source-accum-spread": {
+          "grain": {
+            "mean_luminance": 0.030853365390079726,
+            "spatial_rms": 0.0005842278450158238,
+            "temporal_rms": 0.0008772138374866546
+          },
+          "compare": {
+            "mean_change_percent": 3.8408310250764632,
+            "paired_rms": 0.0045593515298988085
+          },
+          "spatial_change_percent": -76.84811808513243,
+          "temporal_change_percent": -45.15041967689547,
+          "local_wash": {
+            "row0-column0": {
+              "baseline_mean_rgb": [
+                0.04720303354491672,
+                0.042453785420047414,
+                0.03406421246917843
+              ],
+              "variant_mean_rgb": [
+                0.04837687535148458,
+                0.04347067302408205,
+                0.03496675592075734
+              ],
+              "wash_relative_rms_percent": 2.6501956029561455
+            },
+            "row0-column1": {
+              "baseline_mean_rgb": [
+                0.023008551072224766,
+                0.022159278272222784,
+                0.018235897592007493
+              ],
+              "variant_mean_rgb": [
+                0.02398819786392751,
+                0.023112243845113616,
+                0.019081948689443053
+              ],
+              "wash_relative_rms_percent": 4.697180368069683
+            },
+            "row1-column0": {
+              "baseline_mean_rgb": [
+                0.035281306485341155,
+                0.0327565233071565,
+                0.026499371362374294
+              ],
+              "variant_mean_rgb": [
+                0.03754956511359506,
+                0.03440994087933796,
+                0.027724780395971853
+              ],
+              "wash_relative_rms_percent": 5.297615643757823
+            },
+            "row1-column1": {
+              "baseline_mean_rgb": [
+                0.022063173126483523,
+                0.02163999639949774,
+                0.018220822898213546
+              ],
+              "variant_mean_rgb": [
+                0.02304680589084666,
+                0.022430788941878582,
+                0.01886873649462988
+              ],
+              "wash_relative_rms_percent": 4.206214428231521
+            }
+          }
+        },
+        "moving-no-diffuse-ray-specular": {
+          "grain": {
+            "mean_luminance": 0.025977091108029673,
+            "spatial_rms": 0.0005315100714296563,
+            "temporal_rms": 0.0007962899880620211
+          },
+          "compare": {
+            "mean_change_percent": -12.570875359378253,
+            "paired_rms": 0.005850138766139625
+          },
+          "spatial_change_percent": -78.9372271190379,
+          "temporal_change_percent": -50.21034804258176,
+          "local_wash": {
+            "row0-column0": {
+              "baseline_mean_rgb": [
+                0.04720303354491672,
+                0.042453785420047414,
+                0.03406421246917843
+              ],
+              "variant_mean_rgb": [
+                0.042213062031778284,
+                0.03849191445251696,
+                0.03104434074576422
+              ],
+              "wash_relative_rms_percent": 9.555859558761458
+            },
+            "row0-column1": {
+              "baseline_mean_rgb": [
+                0.023008551072224766,
+                0.022159278272222784,
+                0.018235897592007493
+              ],
+              "variant_mean_rgb": [
+                0.019876807765385508,
+                0.018982786433987264,
+                0.015490032051779823
+              ],
+              "wash_relative_rms_percent": 14.108746720241117
+            },
+            "row1-column0": {
+              "baseline_mean_rgb": [
+                0.035281306485341155,
+                0.0327565233071565,
+                0.026499371362374294
+              ],
+              "variant_mean_rgb": [
+                0.030609719508079888,
+                0.028558367402493214,
+                0.023019888671284943
+              ],
+              "wash_relative_rms_percent": 12.899782385009258
+            },
+            "row1-column1": {
+              "baseline_mean_rgb": [
+                0.022063173126483523,
+                0.02163999639949774,
+                0.018220822898213546
+              ],
+              "variant_mean_rgb": [
+                0.01894170907832571,
+                0.018070783554219552,
+                0.01490599797521887
+              ],
+              "wash_relative_rms_percent": 16.150991376674575
+            }
+          }
+        }
+      },
+      "panel-cool": {
+        "moving-normal": {
+          "grain": {
+            "mean_luminance": 0.04715342731821674,
+            "spatial_rms": 0.015974325613177135,
+            "temporal_rms": 0.009371106122041159
+          },
+          "compare": {
+            "mean_change_percent": 0.0,
+            "paired_rms": 0.0
+          },
+          "spatial_change_percent": 0.0,
+          "temporal_change_percent": 0.0,
+          "local_wash": {
+            "row0-column0": {
+              "baseline_mean_rgb": [
+                0.035344191171647915,
+                0.045386061154386384,
+                0.043676145754242134
+              ],
+              "variant_mean_rgb": [
+                0.035344191171647915,
+                0.045386061154386384,
+                0.043676145754242134
+              ],
+              "wash_relative_rms_percent": 0.0
+            },
+            "row0-column1": {
+              "baseline_mean_rgb": [
+                0.03588322627416733,
+                0.047094101529528726,
+                0.04604495178219148
+              ],
+              "variant_mean_rgb": [
+                0.03588322627416733,
+                0.047094101529528726,
+                0.04604495178219148
+              ],
+              "wash_relative_rms_percent": 0.0
+            },
+            "row1-column0": {
+              "baseline_mean_rgb": [
+                0.040173911548774914,
+                0.05359969639090559,
+                0.05283325663933303
+              ],
+              "variant_mean_rgb": [
+                0.040173911548774914,
+                0.05359969639090559,
+                0.05283325663933303
+              ],
+              "wash_relative_rms_percent": 0.0
+            },
+            "row1-column1": {
+              "baseline_mean_rgb": [
+                0.04039543080015693,
+                0.0529219106533229,
+                0.051568255670984074
+              ],
+              "variant_mean_rgb": [
+                0.04039543080015693,
+                0.0529219106533229,
+                0.051568255670984074
+              ],
+              "wash_relative_rms_percent": 0.0
+            }
+          }
+        },
+        "moving-connected": {
+          "grain": {
+            "mean_luminance": 0.053284170684498665,
+            "spatial_rms": 0.0029526807275054873,
+            "temporal_rms": 0.0022643909999305848
+          },
+          "compare": {
+            "mean_change_percent": 13.001691955302341,
+            "paired_rms": 0.027131451816054745
+          },
+          "spatial_change_percent": -81.51608525451718,
+          "temporal_change_percent": -75.83645974721533,
+          "local_wash": {
+            "row0-column0": {
+              "baseline_mean_rgb": [
+                0.035344191171647915,
+                0.045386061154386384,
+                0.043676145754242134
+              ],
+              "variant_mean_rgb": [
+                0.037406536969563274,
+                0.05100936077325231,
+                0.050250038888345075
+              ],
+              "wash_relative_rms_percent": 12.74921716313266
+            },
+            "row0-column1": {
+              "baseline_mean_rgb": [
+                0.03588322627416733,
+                0.047094101529528726,
+                0.04604495178219148
+              ],
+              "variant_mean_rgb": [
+                0.03883110533020032,
+                0.055323106026939746,
+                0.055792298625380043
+              ],
+              "wash_relative_rms_percent": 17.197092397315654
+            },
+            "row1-column0": {
+              "baseline_mean_rgb": [
+                0.040173911548774914,
+                0.05359969639090559,
+                0.05283325663933303
+              ],
+              "variant_mean_rgb": [
+                0.04232471295447569,
+                0.05991989520731482,
+                0.0604155421097034
+              ],
+              "wash_relative_rms_percent": 12.58388794837822
+            },
+            "row1-column1": {
+              "baseline_mean_rgb": [
+                0.04039543080015693,
+                0.0529219106533229,
+                0.051568255670984074
+              ],
+              "variant_mean_rgb": [
+                0.043131822707965256,
+                0.0607406413061082,
+                0.06089813884378063
+              ],
+              "wash_relative_rms_percent": 14.468111513086832
+            }
+          }
+        },
+        "moving-source-accum": {
+          "grain": {
+            "mean_luminance": 0.05004376677721088,
+            "spatial_rms": 0.0025417316221122608,
+            "temporal_rms": 0.0013016580716526216
+          },
+          "compare": {
+            "mean_change_percent": 6.129648730491155,
+            "paired_rms": 0.028524080077710803
+          },
+          "spatial_change_percent": -84.0886452194539,
+          "temporal_change_percent": -86.10987801545565,
+          "local_wash": {
+            "row0-column0": {
+              "baseline_mean_rgb": [
+                0.035344191171647915,
+                0.045386061154386384,
+                0.043676145754242134
+              ],
+              "variant_mean_rgb": [
+                0.0367876395873679,
+                0.048369094730577815,
+                0.04687772760613963
+              ],
+              "wash_relative_rms_percent": 7.329858628518364
+            },
+            "row0-column1": {
+              "baseline_mean_rgb": [
+                0.03588322627416733,
+                0.047094101529528726,
+                0.04604495178219148
+              ],
+              "variant_mean_rgb": [
+                0.03777826785507878,
+                0.05121262920717928,
+                0.05062852238433392
+              ],
+              "wash_relative_rms_percent": 8.895572809746309
+            },
+            "row1-column0": {
+              "baseline_mean_rgb": [
+                0.040173911548774914,
+                0.05359969639090559,
+                0.05283325663933303
+              ],
+              "variant_mean_rgb": [
+                0.04036764419713087,
+                0.053897150965500545,
+                0.05303181332651922
+              ],
+              "wash_relative_rms_percent": 4.210959944338771
+            },
+            "row1-column1": {
+              "baseline_mean_rgb": [
+                0.04039543080015693,
+                0.0529219106533229,
+                0.051568255670984074
+              ],
+              "variant_mean_rgb": [
+                0.042498324466906844,
+                0.05854139812297571,
+                0.05816208876393125
+              ],
+              "wash_relative_rms_percent": 10.274844051587513
+            }
+          }
+        },
+        "moving-source-accum-spread": {
+          "grain": {
+            "mean_luminance": 0.05161079080547368,
+            "spatial_rms": 0.001172841968868938,
+            "temporal_rms": 0.0012289985615518686
+          },
+          "compare": {
+            "mean_change_percent": 9.452893969246912,
+            "paired_rms": 0.02853102543290795
+          },
+          "spatial_change_percent": -92.65795629017687,
+          "temporal_change_percent": -86.8852348319776,
+          "local_wash": {
+            "row0-column0": {
+              "baseline_mean_rgb": [
+                0.035344191171647915,
+                0.045386061154386384,
+                0.043676145754242134
+              ],
+              "variant_mean_rgb": [
+                0.037361066458648645,
+                0.05008286952691773,
+                0.04893267932394939
+              ],
+              "wash_relative_rms_percent": 10.47608562223299
+            },
+            "row0-column1": {
+              "baseline_mean_rgb": [
+                0.03588322627416733,
+                0.047094101529528726,
+                0.04604495178219148
+              ],
+              "variant_mean_rgb": [
+                0.038417921275886786,
+                0.05306967010472734,
+                0.05284440752291032
+              ],
+              "wash_relative_rms_percent": 12.463768245715654
+            },
+            "row1-column0": {
+              "baseline_mean_rgb": [
+                0.040173911548774914,
+                0.05359969639090559,
+                0.05283325663933303
+              ],
+              "variant_mean_rgb": [
+                0.04089598834390406,
+                0.055415454701761034,
+                0.054859328208633436
+              ],
+              "wash_relative_rms_percent": 6.06081481137071
+            },
+            "row1-column1": {
+              "baseline_mean_rgb": [
+                0.04039543080015693,
+                0.0529219106533229,
+                0.051568255670984074
+              ],
+              "variant_mean_rgb": [
+                0.0431861967325636,
+                0.060623256781307,
+                0.060691771717812974
+              ],
+              "wash_relative_rms_percent": 13.864281049209678
+            }
+          }
+        },
+        "moving-no-diffuse-ray-specular": {
+          "grain": {
+            "mean_luminance": 0.02757797617268819,
+            "spatial_rms": 0.0007292425925038807,
+            "temporal_rms": 0.0008453674256643715
+          },
+          "compare": {
+            "mean_change_percent": -41.51437606734895,
+            "paired_rms": 0.0349086720424291
+          },
+          "spatial_change_percent": -95.43490842641688,
+          "temporal_change_percent": -90.97900061470824,
+          "local_wash": {
+            "row0-column0": {
+              "baseline_mean_rgb": [
+                0.035344191171647915,
+                0.045386061154386384,
+                0.043676145754242134
+              ],
+              "variant_mean_rgb": [
+                0.02657519403227211,
+                0.02592828266200477,
+                0.021482234189955512
+              ],
+              "wash_relative_rms_percent": 42.79222998515236
+            },
+            "row0-column1": {
+              "baseline_mean_rgb": [
+                0.03588322627416733,
+                0.047094101529528726,
+                0.04604495178219148
+              ],
+              "variant_mean_rgb": [
+                0.026312490343531586,
+                0.025426590351829044,
+                0.021127488945433964
+              ],
+              "wash_relative_rms_percent": 45.8760765110855
+            },
+            "row1-column0": {
+              "baseline_mean_rgb": [
+                0.040173911548774914,
+                0.05359969639090559,
+                0.05283325663933303
+              ],
+              "variant_mean_rgb": [
+                0.029886520673586423,
+                0.030002789695367342,
+                0.025548979080839414
+              ],
+              "wash_relative_rms_percent": 44.033150738069
+            },
+            "row1-column1": {
+              "baseline_mean_rgb": [
+                0.04039543080015693,
+                0.0529219106533229,
+                0.051568255670984074
+              ],
+              "variant_mean_rgb": [
+                0.030043033367180665,
+                0.02992353198944056,
+                0.025174391342236604
+              ],
+              "wash_relative_rms_percent": 44.27537568316205
+            }
+          }
+        }
+      },
+      "windshield-edge": {
+        "moving-normal": {
+          "grain": {
+            "mean_luminance": 0.03706365793888942,
+            "spatial_rms": 0.010923329516170172,
+            "temporal_rms": 0.0068639805423866855
+          },
+          "compare": {
+            "mean_change_percent": 0.0,
+            "paired_rms": 0.0
+          },
+          "spatial_change_percent": 0.0,
+          "temporal_change_percent": 0.0
+        },
+        "moving-connected": {
+          "grain": {
+            "mean_luminance": 0.03970086734224559,
+            "spatial_rms": 0.006209310282475067,
+            "temporal_rms": 0.0042823314194311984
+          },
+          "compare": {
+            "mean_change_percent": 7.11535112833277,
+            "paired_rms": 0.015527369960718818
+          },
+          "spatial_change_percent": -43.15551615207418,
+          "temporal_change_percent": -37.6115448902164
+        },
+        "moving-source-accum": {
+          "grain": {
+            "mean_luminance": 0.039118119391042296,
+            "spatial_rms": 0.005934972753144564,
+            "temporal_rms": 0.003963669043765153
+          },
+          "compare": {
+            "mean_change_percent": 5.543061765625712,
+            "paired_rms": 0.016976872741162472
+          },
+          "spatial_change_percent": -45.666998836217246,
+          "temporal_change_percent": -42.25407517855609
+        },
+        "moving-source-accum-spread": {
+          "grain": {
+            "mean_luminance": 0.03978419450467992,
+            "spatial_rms": 0.00580760885124361,
+            "temporal_rms": 0.003958216159059365
+          },
+          "compare": {
+            "mean_change_percent": 7.340172873050266,
+            "paired_rms": 0.0169861983851145
+          },
+          "spatial_change_percent": -46.83297942585718,
+          "temporal_change_percent": -42.33351719725231
+        },
+        "moving-no-diffuse-ray-specular": {
+          "grain": {
+            "mean_luminance": 0.028011514004645834,
+            "spatial_rms": 0.005732357158645638,
+            "temporal_rms": 0.0038927327912435814
+          },
+          "compare": {
+            "mean_change_percent": -24.423234072494317,
+            "paired_rms": 0.020581788626921022
+          },
+          "spatial_change_percent": -47.52188744137181,
+          "temporal_change_percent": -43.28753167050743
+        }
+      },
+      "window-interior": {
+        "moving-normal": {
+          "grain": {
+            "mean_luminance": 0.0015945486585457354,
+            "spatial_rms": 0.00039968753522965717,
+            "temporal_rms": 0.0003058338510095246
+          },
+          "compare": {
+            "mean_change_percent": 2.220446049250313e-14,
+            "paired_rms": 0.0
+          },
+          "spatial_change_percent": 0.0,
+          "temporal_change_percent": 0.0
+        },
+        "moving-connected": {
+          "grain": {
+            "mean_luminance": 0.001779649692302357,
+            "spatial_rms": 0.00014394563003682363,
+            "temporal_rms": 0.00023357206987687187
+          },
+          "compare": {
+            "mean_change_percent": 11.608365336774252,
+            "paired_rms": 0.0007214981333348663
+          },
+          "spatial_change_percent": -63.985459302824225,
+          "temporal_change_percent": -23.627790348950704
+        },
+        "moving-source-accum": {
+          "grain": {
+            "mean_luminance": 0.0019482790881075367,
+            "spatial_rms": 0.00015019999967524997,
+            "temporal_rms": 0.00022146737483597016
+          },
+          "compare": {
+            "mean_change_percent": 22.183733789874548,
+            "paired_rms": 0.0008062692553291589
+          },
+          "spatial_change_percent": -62.42064451948788,
+          "temporal_change_percent": -27.58572208245418
+        },
+        "moving-source-accum-spread": {
+          "grain": {
+            "mean_luminance": 0.001992278395427453,
+            "spatial_rms": 0.00013332938884218632,
+            "temporal_rms": 0.00021532299300410426
+          },
+          "compare": {
+            "mean_change_percent": 24.94309187431487,
+            "paired_rms": 0.0008145932036292459
+          },
+          "spatial_change_percent": -66.64159447314854,
+          "temporal_change_percent": -29.59478086112892
+        },
+        "moving-no-diffuse-ray-specular": {
+          "grain": {
+            "mean_luminance": 0.0006051365324234269,
+            "spatial_rms": 0.00011720831493734612,
+            "temporal_rms": 0.00019070285207951077
+          },
+          "compare": {
+            "mean_change_percent": -62.04966658243435,
+            "paired_rms": 0.0012468945944585953
+          },
+          "spatial_change_percent": -70.67501370289189,
+          "temporal_change_percent": -37.64494955348429
+        }
+      },
+      "helmet-detail": {
+        "moving-normal": {
+          "grain": {
+            "mean_luminance": 0.16179842442567124,
+            "spatial_rms": 0.04161105693359459,
+            "temporal_rms": 0.026327445151479015
+          },
+          "compare": {
+            "mean_change_percent": 8.881784197001252e-14,
+            "paired_rms": 0.0
+          },
+          "spatial_change_percent": 0.0,
+          "temporal_change_percent": 0.0
+        },
+        "moving-connected": {
+          "grain": {
+            "mean_luminance": 0.1618037212839376,
+            "spatial_rms": 0.041616165459237325,
+            "temporal_rms": 0.02632732572898579
+          },
+          "compare": {
+            "mean_change_percent": 0.0032737390894377327,
+            "paired_rms": 0.0006285338951896209
+          },
+          "spatial_change_percent": 0.012276846634495797,
+          "temporal_change_percent": -0.0004536045656422516
+        },
+        "moving-source-accum": {
+          "grain": {
+            "mean_luminance": 0.16159591873631285,
+            "spatial_rms": 0.041616941243133025,
+            "temporal_rms": 0.02632522327848283
+          },
+          "compare": {
+            "mean_change_percent": -0.12515924680792656,
+            "paired_rms": 0.002020602423861194
+          },
+          "spatial_change_percent": 0.01414121623448672,
+          "temporal_change_percent": -0.008439379451374851
+        },
+        "moving-source-accum-spread": {
+          "grain": {
+            "mean_luminance": 0.1616056724496368,
+            "spatial_rms": 0.0416206758377796,
+            "temporal_rms": 0.026318367180291756
+          },
+          "compare": {
+            "mean_change_percent": -0.11913093512405659,
+            "paired_rms": 0.002083674771287388
+          },
+          "spatial_change_percent": 0.02311622173010175,
+          "temporal_change_percent": -0.03448101832527195
+        },
+        "moving-no-diffuse-ray-specular": {
+          "grain": {
+            "mean_luminance": 0.16023278276216354,
+            "spatial_rms": 0.041965629857630894,
+            "temporal_rms": 0.02664399587829691
+          },
+          "compare": {
+            "mean_change_percent": -0.967649511461588,
+            "paired_rms": 0.004238243478806754
+          },
+          "spatial_change_percent": 0.8521122753554433,
+          "temporal_change_percent": 1.2023602176229886
+        }
+      }
+    },
+    "multiscale_sloped_panel": {
+      "moving-normal": {
+        "1": {
+          "pixels": 19957,
+          "rgb_rms": 0.0019711411680984896,
+          "persistent_rgb_rms": 0.0006807800320782422,
+          "temporal_rgb_rms": 0.0018498475754764837
+        },
+        "2": {
+          "pixels": 17845,
+          "rgb_rms": 0.0017027176821867423,
+          "persistent_rgb_rms": 0.0006615158632202646,
+          "temporal_rgb_rms": 0.001568962800049555
+        },
+        "4": {
+          "pixels": 15396,
+          "rgb_rms": 0.0010568671042213706,
+          "persistent_rgb_rms": 0.0004203367466477694,
+          "temporal_rgb_rms": 0.0009696829870647594
+        },
+        "8": {
+          "pixels": 11321,
+          "rgb_rms": 0.0005648383626261601,
+          "persistent_rgb_rms": 0.00025656563259664834,
+          "temporal_rgb_rms": 0.0005032061725222408
+        },
+        "16": {
+          "pixels": 11321,
+          "rgb_rms": 0.0005553309001427081,
+          "persistent_rgb_rms": 0.0004720466099493664,
+          "temporal_rgb_rms": 0.00029251394272516507
+        }
+      },
+      "moving-connected": {
+        "1": {
+          "pixels": 19957,
+          "rgb_rms": 0.0002421354599942998,
+          "persistent_rgb_rms": 6.920237135515474e-05,
+          "temporal_rgb_rms": 0.00023203580065471455
+        },
+        "2": {
+          "pixels": 17845,
+          "rgb_rms": 0.00035291943868590546,
+          "persistent_rgb_rms": 0.00011385809225928964,
+          "temporal_rgb_rms": 0.00033404859680808373
+        },
+        "4": {
+          "pixels": 15396,
+          "rgb_rms": 0.0005893540262556426,
+          "persistent_rgb_rms": 0.00018471967002528896,
+          "temporal_rgb_rms": 0.000559657763074439
+        },
+        "8": {
+          "pixels": 11321,
+          "rgb_rms": 0.0006344767485271902,
+          "persistent_rgb_rms": 0.00024937879913239846,
+          "temporal_rgb_rms": 0.0005834131974552154
+        },
+        "16": {
+          "pixels": 11321,
+          "rgb_rms": 0.0006781711149719974,
+          "persistent_rgb_rms": 0.0005367265476311735,
+          "temporal_rgb_rms": 0.00041453669831546125
+        }
+      },
+      "moving-source-accum": {
+        "1": {
+          "pixels": 19957,
+          "rgb_rms": 0.00047784267588864775,
+          "persistent_rgb_rms": 0.00026408949334888086,
+          "temporal_rgb_rms": 0.0003982340548008854
+        },
+        "2": {
+          "pixels": 17845,
+          "rgb_rms": 0.0006689263365332982,
+          "persistent_rgb_rms": 0.0004207410577782538,
+          "temporal_rgb_rms": 0.0005200378890114599
+        },
+        "4": {
+          "pixels": 15396,
+          "rgb_rms": 0.0006475835798562404,
+          "persistent_rgb_rms": 0.00047390473438712526,
+          "temporal_rgb_rms": 0.0004413375076116825
+        },
+        "8": {
+          "pixels": 11321,
+          "rgb_rms": 0.00045235950237913124,
+          "persistent_rgb_rms": 0.0003775495661563723,
+          "temporal_rgb_rms": 0.0002491695095468751
+        },
+        "16": {
+          "pixels": 11321,
+          "rgb_rms": 0.0006311504131639278,
+          "persistent_rgb_rms": 0.0006051650334597779,
+          "temporal_rgb_rms": 0.00017923762527611965
+        }
+      },
+      "moving-source-accum-spread": {
+        "1": {
+          "pixels": 19957,
+          "rgb_rms": 0.00020283316596521407,
+          "persistent_rgb_rms": 0.00010864785575191626,
+          "temporal_rgb_rms": 0.00017128028682829465
+        },
+        "2": {
+          "pixels": 17845,
+          "rgb_rms": 0.00037051623424744483,
+          "persistent_rgb_rms": 0.00024389932934293674,
+          "temporal_rgb_rms": 0.00027891826219696175
+        },
+        "4": {
+          "pixels": 15396,
+          "rgb_rms": 0.0004987985531123431,
+          "persistent_rgb_rms": 0.00037030207946155065,
+          "temporal_rgb_rms": 0.0003341801408423581
+        },
+        "8": {
+          "pixels": 11321,
+          "rgb_rms": 0.0004058760923003633,
+          "persistent_rgb_rms": 0.0003345972211974274,
+          "temporal_rgb_rms": 0.00022973920402920536
+        },
+        "16": {
+          "pixels": 11321,
+          "rgb_rms": 0.0006155646560994867,
+          "persistent_rgb_rms": 0.000585405386991753,
+          "temporal_rgb_rms": 0.00019031652245644668
+        }
+      },
+      "moving-no-diffuse-ray-specular": {
+        "1": {
+          "pixels": 19957,
+          "rgb_rms": 0.00013135726770710737,
+          "persistent_rgb_rms": 4.5119987427041086e-05,
+          "temporal_rgb_rms": 0.00012336498090649684
+        },
+        "2": {
+          "pixels": 17845,
+          "rgb_rms": 0.00011392528540457088,
+          "persistent_rgb_rms": 5.352180771459817e-05,
+          "temporal_rgb_rms": 0.00010057030751406954
+        },
+        "4": {
+          "pixels": 15396,
+          "rgb_rms": 0.00011342490694230021,
+          "persistent_rgb_rms": 8.236924110670702e-05,
+          "temporal_rgb_rms": 7.797767394821819e-05
+        },
+        "8": {
+          "pixels": 11321,
+          "rgb_rms": 0.00018602530615489463,
+          "persistent_rgb_rms": 0.0001667328472962586,
+          "temporal_rgb_rms": 8.24958917916813e-05
+        },
+        "16": {
+          "pixels": 11321,
+          "rgb_rms": 0.0004158412259760421,
+          "persistent_rgb_rms": 0.0003936856964346618,
+          "temporal_rgb_rms": 0.0001339234768217024
+        }
+      }
+    },
+    "windshield_glass_opening": {
+      "box": [
+        660,
+        230,
+        750,
+        300
+      ],
+      "results": {
+        "moving-normal": {
+          "mean_luma": 0.023939929997765425,
+          "mean_change_percent": 0.0,
+          "paired_rms": 0.0
+        },
+        "moving-connected": {
+          "mean_luma": 0.023939210761837575,
+          "mean_change_percent": -0.003004335968892491,
+          "paired_rms": 0.00018869059178105755
+        },
+        "moving-source-accum": {
+          "mean_luma": 0.023941066775896604,
+          "mean_change_percent": 0.0047484605480763165,
+          "paired_rms": 0.00029259061737936493
+        },
+        "moving-source-accum-spread": {
+          "mean_luma": 0.023941864278129974,
+          "mean_change_percent": 0.00807972439655913,
+          "paired_rms": 0.0002723405627196426
+        },
+        "moving-no-diffuse-ray-specular": {
+          "mean_luma": 0.023923795089987005,
+          "mean_change_percent": -0.06739747267400231,
+          "paired_rms": 0.00028907834617332786
+        }
+      }
+    }
+  }
+}

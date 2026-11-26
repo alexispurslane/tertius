@@ -1,0 +1,142 @@
+[
+  {
+    "name": "ignore-spatial-grain",
+    "result": "killed"
+  },
+  {
+    "name": "ignore-temporal-grain",
+    "result": "killed"
+  },
+  {
+    "name": "count-brightness-as-grain",
+    "result": "killed"
+  },
+  {
+    "name": "ignore-brightness-loss",
+    "result": "killed"
+  },
+  {
+    "name": "ignore-paired-error",
+    "result": "killed"
+  },
+  {
+    "name": "ignore-color-change",
+    "result": "killed"
+  },
+  {
+    "name": "skip-local-patches",
+    "result": "killed"
+  },
+  {
+    "name": "redistribute-the-centers-retained-share",
+    "result": "killed"
+  },
+  {
+    "name": "cross-surface-boundaries",
+    "result": "killed"
+  },
+  {
+    "name": "stop-spreading",
+    "result": "killed"
+  },
+  {
+    "name": "break-reciprocity-with-receiver-mask",
+    "result": "killed"
+  },
+  {
+    "name": "disconnect-nearby-coordinate-phases",
+    "result": "killed"
+  },
+  {
+    "name": "make-exchange-unstable",
+    "result": "killed"
+  },
+  {
+    "name": "accept-either-tangent-plane",
+    "result": "killed"
+  },
+  {
+    "name": "use-the-larger-endpoint-footprint",
+    "result": "killed"
+  },
+  {
+    "name": "include-normal-separation-in-tangent-distance",
+    "result": "killed"
+  },
+  {
+    "name": "exchange-outside-the-surface-footprint",
+    "result": "killed"
+  },
+  {
+    "name": "skip-the-surface-footprint",
+    "result": "killed"
+  },
+  {
+    "name": "ignore-persistent-clumps",
+    "result": "killed"
+  },
+  {
+    "name": "ignore-moving-color-clumps",
+    "result": "killed"
+  },
+  {
+    "name": "count-linear-wash-as-a-clump",
+    "result": "killed"
+  },
+  {
+    "name": "let-dense-connections-jump-holes",
+    "result": "killed"
+  },
+  {
+    "name": "lose-dense-source-energy",
+    "result": "killed"
+  },
+  {
+    "name": "use-receiver-reach-instead-of-pair-reach",
+    "result": "killed"
+  },
+  {
+    "name": "ignore-zero-reach-dark-patches",
+    "result": "killed"
+  },
+  {
+    "name": "stop-whole-crop-diffusion",
+    "result": "killed"
+  },
+  {
+    "name": "double-the-diffusion-width-squared",
+    "result": "killed"
+  },
+  {
+    "name": "lose-heat-channel-energy",
+    "result": "killed"
+  },
+  {
+    "name": "use-the-wrong-rectangular-cell-scale",
+    "result": "killed"
+  },
+  {
+    "name": "ignore-cell-area-weighting",
+    "result": "killed"
+  },
+  {
+    "name": "stop-area-aware-heat",
+    "result": "killed"
+  },
+  {
+    "name": "double-area-aware-heat-amount",
+    "result": "killed"
+  },
+  {
+    "name": "reset-physical-accumulation-each-draw",
+    "result": "killed"
+  },
+  {
+    "name": "ignore-batch-divergence",
+    "result": "killed"
+  },
+  {
+    "name": "distort-hinge-unfolding-distance",
+    "result": "killed"
+  }
+]

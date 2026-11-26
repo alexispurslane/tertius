@@ -1,0 +1,215 @@
+--- a/src/Tertius.Demo/DemoScenes.DemoSurface.cs
++++ b/src/Tertius.Demo/DemoScenes.DemoSurface.cs
+@@ -983,12 +983,52 @@
+             );
+             scene.Add(
+                 "cockpit-camera",
+-                world.Spawn(ViewIn(cabin, LookingAt(new(1.60, 1.15, -9.0), new(0, 0.58, -11.55))))
++                world.Spawn(
++                    new SpawnDesc
++                    {
++                        Frame = cabin,
++                        Pose = LookingAt(new(1.60, 1.15, -9.0), new(0, 0.58, -11.55)),
++                        Render = new RenderData(),
++                        Components = [new Issue5CockpitCamera()],
++                    }
++                )
+             );
+             scene.Add(
+                 "cockpit-outside-camera",
+                 world.Spawn(ViewIn(cabin, LookingAt(new(3.04, 0.51, -15.43), Shuttle.SeatStand + Eye)))
+             );
+         }
++
++        /// <summary>Temporary research component: deterministic slow repeatable camera motion in cabin space.</summary>
++        private sealed class Issue5CockpitCamera : IComponent
++        {
++            private readonly string mode = Environment.GetEnvironmentVariable("TERTIUS_ISSUE5_CAMERA_MODE") ?? "";
++            public int Priority => 0;
++            public EventMask Wants => EventMask.Of<Tick>();
++
++            public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
++            {
++                if (mode.Length == 0 || self.Tick < 87580)
++                    return;
++                double s;
++                if (mode == "move")
++                {
++                    if (self.Tick < 87581)
++                        return;
++                    s = Math.Clamp((self.Tick - 87581) / 95.0, 0.0, 1.0);
++                }
++                else if (mode.StartsWith("fixed:", StringComparison.Ordinal))
++                {
++                    s = double.Parse(mode.AsSpan(6), System.Globalization.CultureInfo.InvariantCulture);
++                }
++                else
++                {
++                    return;
++                }
++                Double3 eye = new Double3(1.60, 1.15, -9.0) + s * new Double3(-0.12, -0.02, -0.08);
++                Double3 target = new Double3(0.0, 0.58, -11.55) + s * new Double3(0.32, 0.10, 0.0);
++                self.SetTransform(LookingAt(eye, target));
++            }
++        }
+     }
+ }
+--- a/src/Tertius.Host/ScriptCommand.cs
++++ b/src/Tertius.Host/ScriptCommand.cs
+@@ -580,6 +580,8 @@
+             Upscaling = new Fsr3Upscaling(new FixedRenderScale(2f / 3), 0),
+         };
+         overrides.ApplyTo(rendererOptions);
++        if (Environment.GetEnvironmentVariable("TERTIUS_ISSUE5_WARMUP") is { Length: > 0 } warmupText)
++            rendererOptions.WarmUpFrames = int.Parse(warmupText, System.Globalization.CultureInfo.InvariantCulture);
+         try
+         {
+             return createRenderer(rendererOptions);
+--- a/src/Tertius.Rendering/VulkanRenderer.cs
++++ b/src/Tertius.Rendering/VulkanRenderer.cs
+@@ -697,6 +697,32 @@
+                 FinishSlot(frame);
+         }
+ 
++        if (Environment.GetEnvironmentVariable("TERTIUS_ISSUE5_DRAW_LOG") is { Length: > 0 } drawLogPath)
++        {
++            if (Path.GetDirectoryName(drawLogPath) is { Length: > 0 } drawDir)
++                Directory.CreateDirectory(drawDir);
++            CameraView cam = LastScene.Camera;
++            Double3 eye = snapshot.OriginInFrame + new Double3(cam.Offset.X, cam.Offset.Y, cam.Offset.Z);
++            Vector2 jitter = context.History.Jitter;
++            var rec = new
++            {
++                globalDraw = history.DrawnFrames - 1,
++                sampleDraw = context.History.DrawIndex,
++                reset = context.History.Reset,
++                captured = sink != null,
++                tick = snapshot.Tick,
++                width = cam.Width,
++                height = cam.Height,
++                eye = new double[] { eye.X, eye.Y, eye.Z },
++                forward = new float[] { cam.Forward.X, cam.Forward.Y, cam.Forward.Z },
++                rightTan = new float[] { cam.Right.X * cam.TanHalfX, cam.Right.Y * cam.TanHalfX, cam.Right.Z * cam.TanHalfX },
++                upTan = new float[] { cam.Up.X * cam.TanHalfY, cam.Up.Y * cam.TanHalfY, cam.Up.Z * cam.TanHalfY },
++                jitter = new float[] { jitter.X, jitter.Y },
++                exposureStops = Exposure.Latest,
++            };
++            File.AppendAllText(drawLogPath, System.Text.Json.JsonSerializer.Serialize(rec) + "\n");
++        }
++
+         LastFrameStats = StatsOf(
+             scene: LastScene,
+             impostors: Impostors,
+--- a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
++++ b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
+@@ -66,6 +66,102 @@
+     return min(uncappedSpecularWeightOf(p, lobes, factors, ray.direction, ray.density), vec3(MostRayWeight));
+ }
+ 
++// Research only. The existing diffuse wavelet filter's symmetric exchange, applied to
++// outgoing diffuse-ray-sourced specular before the dedicated reflection contribution.
++const int ProbeStep = 1;
++
++bool probeCompatible(TracingPixel first, TracingPixel second)
++{
++    if (first.ownCard != second.ownCard || first.s.model != second.s.model
++        || abs(first.s.metallic - second.s.metallic) > 0.02
++        || abs(first.s.reflectance - second.s.reflectance) > 0.02
++        || abs(first.s.roughness - second.s.roughness) > 0.05
++        || any(greaterThan(abs(first.s.baseColor - second.s.baseColor), vec3(0.15))))
++        return false;
++    if (handOverOf(first) <= 0.0 || handOverOf(second) <= 0.0
++        || dot(first.s.geometricNormal, second.s.geometricNormal) < 0.984807753
++        || dot(first.normal, second.normal) < 0.965925826)
++        return false;
++    vec3 apart = second.point - first.point;
++    float planeDistance = max(abs(dot(apart, first.s.geometricNormal)),
++        abs(dot(apart, second.s.geometricNormal)));
++    return planeDistance <= 0.01 * min(first.viewDepth, second.viewDepth);
++}
++
++bool probeConnection(ivec2 pixel, ivec2 neighbor, TracingPixel first, TracingPixel second)
++{
++    // The three checked raster cells are identical when the endpoints swap.
++    ivec2 cells[3] = ivec2[3]((3 * pixel + neighbor) / 4,
++        (pixel + neighbor) / 2, (pixel + 3 * neighbor) / 4);
++    for (int i = 0; i < 3; i++)
++    {
++        if (!tracedSurface(cells[i]))
++            return false;
++        TracingPixel middle = tracingPixelAt(cells[i]);
++        if (!probeCompatible(first, middle) || !probeCompatible(second, middle))
++            return false;
++    }
++    return true;
++}
++
++vec3 probeOutgoingAt(ivec2 pixel, TracingPixel p, MaterialFactors factors)
++{
++    uint plan = imageLoad(rayPlan, pixel).r;
++    RayRecord record = recordAt(pixel, KindDiffuse, plan);
++    WeighedRay ray = weighedRayOf(p, record, vec4(0.0), KindDiffuse, plan);
++    SurfaceLobes lobes = lobesOf(p.s, p.V);
++    return ray.brings ? factors.specular * handOverOf(p) * record.light.rgb
++        * specularWeightOf(p, lobes, factors, ray) : vec3(0.0);
++}
++
++// Research: a dense disk, positive at every integer offset strictly inside radius 11.
++// The full-disk normalizer includes the center. Rejected shares stay at the center.
++bool probeDenseConnection(ivec2 pixel, ivec2 neighbor, TracingPixel first, TracingPixel second)
++{
++    ivec2 delta = abs(neighbor - pixel);
++    int steps = max(delta.x, delta.y);
++    for (int i = 1; i < steps; i++)
++    {
++        // Reversing endpoints visits the exact same 8-connected raster path.
++        ivec2 cell = (pixel * (steps - i) + neighbor * i + ivec2(steps / 2)) / steps;
++        if (!tracedSurface(cell))
++            return false;
++        TracingPixel middle = tracingPixelAt(cell);
++        if (!probeCompatible(first, middle) || !probeCompatible(second, middle))
++            return false;
++    }
++    return true;
++}
++
++vec3 probeConnectedSpread(ivec2 pixel, TracingPixel center, MaterialFactors factors, vec3 source)
++{
++    if (handOverOf(center) <= 0.0 || any(lessThan(factors.specular, vec3(LeastFactor))))
++        return source;
++    vec3 outgoing = factors.specular * source;
++    vec3 moved = vec3(0.0);
++    for (int y = -10; y <= 10; y++)
++        for (int x = -10; x <= 10; x++)
++        {
++            int distanceSquared = x * x + y * y;
++            if (distanceSquared == 0 || distanceSquared >= 121)
++                continue;
++            ivec2 neighbor = pixel + ivec2(x, y);
++            if (any(lessThan(neighbor, ivec2(0)))
++                || any(greaterThanEqual(neighbor, ivec2(frame.viewport.xy))) || !tracedSurface(neighbor))
++                continue;
++            TracingPixel other = tracingPixelAt(neighbor);
++            if (!probeCompatible(center, other) || !probeDenseConnection(pixel, neighbor, center, other))
++                continue;
++            MaterialFactors otherFactors = materialFactors(other.s, lobesOf(other.s, other.V));
++            if (any(lessThan(otherFactors.specular, vec3(LeastFactor))))
++                continue;
++            float falloff = 1.0 - float(distanceSquared) / 121.0;
++            float share = falloff * falloff / 126.71545659449492;
++            moved += share * (probeOutgoingAt(neighbor, other, otherFactors) - outgoing);
++        }
++    return (outgoing + moved) / factors.specular;
++}
++
+ void main()
+ {
+     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+@@ -129,6 +225,7 @@
+         seenCode = seenCodeOfRecord(diffuse.ray);
+ #endif
+     }
++    specularLight = probeConnectedSpread(pixel, p, factors, specularLight);
+     float hitDistance = diffuse.light.a;
+     if (startsKind(p, KindReflection))
+     {
