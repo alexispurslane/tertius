@@ -1,0 +1,40 @@
+.....F
+======================================================================
+FAIL: test_variable_reach_keeps_rgb_and_cannot_enter_a_zero_reach_dark_patch (test_clumps.ConnectedSupport.test_variable_reach_keeps_rgb_and_cannot_enter_a_zero_reach_dark_patch)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-f30e47c2-65b62443ba20c1f2/docs/research/issue-5-diffuse-grain/test_clumps.py", line 57, in test_variable_reach_keeps_rgb_and_cannot_enter_a_zero_reach_dark_patch
+    np.testing.assert_allclose(out[:,13:],image[:,13:])
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/nix/store/yfd10hipys5l2ba4xpi2dxhr6vik28ar-python3-3.14.7-env/lib/python3.14/site-packages/numpy/testing/_private/utils.py", line 1780, in assert_allclose
+    assert_array_compare(compare, actual, desired, err_msg=str(err_msg),
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         verbose=verbose, header=header, equal_nan=equal_nan,
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         strict=strict)
+                         ^^^^^^^^^^^^^^
+  File "/nix/store/yfd10hipys5l2ba4xpi2dxhr6vik28ar-python3-3.14.7-env/lib/python3.14/site-packages/numpy/testing/_private/utils.py", line 988, in assert_array_compare
+    raise AssertionError(msg)
+AssertionError: 
+Not equal to tolerance rtol=1e-07, atol=0
+
+Mismatched elements: 900 / 900 (100%)
+First 5 mismatches are at indices:
+ [0, 0, 0]: 1.231264518769029 (ACTUAL), 0.2073426100666964 (DESIRED)
+ [0, 0, 1]: 2.784033832694953 (ACTUAL), 3.824383642663598 (DESIRED)
+ [0, 0, 2]: 2.3517569763936748 (ACTUAL), 2.880405700861471 (DESIRED)
+ [0, 1, 0]: 2.9246886661006077 (ACTUAL), 3.9550943946926167 (DESIRED)
+ [0, 1, 1]: 1.268761935585143 (ACTUAL), 0.47510843719316087 (DESIRED)
+Max absolute difference among violations: 1.96385475
+Max relative difference among violations: 3256.49909527
+ ACTUAL: array([[[1.231265, 2.784034, 2.351757],
+        [2.924689, 1.268762, 1.712904],
+        [2.036498, 2.415094, 1.58166 ],...
+ DESIRED: array([[[2.073426e-01, 3.824384e+00, 2.880406e+00],
+        [3.955094e+00, 4.751084e-01, 1.500087e+00],
+        [2.009016e+00, 2.988894e+00, 1.244124e+00],...
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.123s
+
+FAILED (failures=1)

@@ -4,13 +4,17 @@ The 1:41 cockpit panel's fine speckles travel through indirect specular light. M
 
 These are diagnostic experiments. Every engine edit is a temporary patch. The committed engine source stays unchanged. None of the controls is a validated fix for [issue #5](https://github.com/alexispurslane/tertius/issues/5).
 
+Visible clumps count as a failure even when pixel RMS falls. The [clump follow-up](CLUMPS.md) records connected spreading, independent source samples, consecutive-draw donor evidence and two offline adaptive-reach controls. None passes the full visual and color requirement.
+
+The latest requested model has a [whole visible crop heat-flow reference](WHOLE_SHEET.md), with a center peak and no distance cutoff. It conserves source RGB but remains an offline fixed-crop reference without true topology or motion anchoring.
+
 ## Matched replay
 
 - Base: `860685c71`. Scene: `demo-surface`, with the locally cooked Blue Danube art. `assets.json` records its file hashes.
 - Film time: 100.00 to 101.98 seconds, including the five-second opening card. This is `night` frames 300 through 419. The short script advances the original posts, camera choices and simulation ticks, replacing earlier films with runs.
 - The segment starts after 87,581 simulation ticks. Each displayed frame advances 120 ticks. The cockpit camera follows the ship; the panel moves little in screen space. This does not test a walking camera.
 - Output: 1280 by 720 pixels. Actual internal rendering: 848 by 480 pixels, with the default FSR upscale. Exposure stays at 6.0043726 stops in every comparison.
-- Each displayed frame has 32 unrecorded warm-up draws before its captured draw. This follows the original accelerated shot's still rule. It limits claims about ordinary, uninterrupted 60 Hz motion and flicker. `evidence/raw-source/draws.json` retains the draw numbers.
+- Each displayed frame has 32 unrecorded warm-up draws before its captured draw. This follows the original accelerated shot's still rule. Every accelerated displayed frame resets the history and captures the same sampling phase, draw index 32. The consecutive-draw probe confirms this reset. Temporal measures here therefore describe scene motion through a repeated sampling phase, not independent successive noise or ordinary uninterrupted 60 Hz flicker. `evidence/raw-source/draws.json` retains the draw numbers.
 - The checked-in `docs/media/blue-danube-demo.mp4` shows an older gray-box scene at 1:41. It is not the visual reference for the current cooked art. The scene and simulation sequence replay successfully.
 
 The long controls have 120 displayed frames. Measurements omit frames 0 through 15, leaving 104 frames. The source, cap and spread experiments have 48 displayed frames. Their measurements use frames 16 through 47, leaving 32 frames. Compare numbers only within their table.
@@ -220,7 +224,7 @@ nix develop --command python3 -m unittest discover -s docs/research/issue-5-diff
 
 ## Verification and limits
 
-The 18 measurement and exchange-model tests pass. The measurement tests first failed on missing behavior, then passed. The exchange model's impulse, boundaries and constant-wash tests did the same. One surviving normalization mutation led to a behavior test that requires equal distribution to the center and its neighbors. All 18 listed model and measurement mutations die, including loss of reciprocity, disconnected coordinate phases, an unstable exchange weight and loss of either endpoint's tangent bound. The tangent behavior tests first fail on unrestricted exchange and then pass with the added bound. These CPU model mutations do not validate the live shader itself. Line coverage is 31/31 for `measure.py` and 43/43 for `spread_model.py`; the standard-library tracer does not measure branch coverage. The existing renderer-survey suite passes all 96 tests.
+The 30 measurement and exchange-model tests pass. The measurement tests first failed on missing behavior, then passed. The exchange model's impulse, boundaries and constant-wash tests did the same. One surviving normalization mutation led to a behavior test that requires equal distribution to the center and its neighbors. All 29 listed model and measurement mutations die, including loss of reciprocity, disconnected coordinate phases, an unstable exchange weight and loss of either endpoint's tangent bound. The tangent behavior tests first fail on unrestricted exchange and then pass with the added bound. These CPU model mutations do not validate the live shader itself. Line coverage is 31/31 for `measure.py` and 43/43 for `spread_model.py`, 15/15 for `multiscale.py` and 27/28 for `connected_model.py` and 9/9 for `heat_reference.py`; the standard-library tracer does not measure branch coverage. The uncovered line skips an offset larger than a small input image. The measured 74-by-130 panel crop and the 25-by-25 test fixtures exceed the kernel radius, so that guard does not run in these cases. The existing renderer-survey suite passes all 96 tests.
 
 Every experimental Release build and real renderer run completed. The normal engine build also passes after restoring the patches. The final engine source has no diff. No full .NET suite, Linux GPU validation, performance benchmark or production hardening is claimed. Mac timing logs are retained only as run records. Renderer performance decisions require matched Linux Runpod measurements.
 

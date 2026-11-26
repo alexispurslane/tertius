@@ -1,0 +1,293 @@
+{
+  "scope": "OFFLINE outgoing source, 25 distinct draw phases at one fixed cockpit pose. Full 74x130 visible crop, rectangular grid, uniform screen-cell area, insulating crop boundary. True topology, physical area, hidden geometry and motion/reprojection are unavailable. This is spatial accumulation of each draw independently; no temporal accumulation.",
+  "variants": {
+    "heat-width3": {
+      "diffusion_amount": 2.25,
+      "interior_impulse_rms_radius_render_cells": 3.0,
+      "hard_cutoff": null,
+      "max_rgb_sum_drift": 1.0516032489249483e-12,
+      "mean_rgb_before": [
+        0.007967097324584891,
+        0.015410245850838679,
+        0.017758260558413785
+      ],
+      "mean_rgb_after": [
+        0.007967097324584867,
+        0.015410245850838633,
+        0.01775826055841378
+      ],
+      "local_wash": {
+        "row0-column0": {
+          "baseline_mean_rgb": [
+            0.007100850512443005,
+            0.011186556422418848,
+            0.012288896259739654
+          ],
+          "variant_mean_rgb": [
+            0.007099229738651446,
+            0.011203649604967043,
+            0.01231166217765208
+          ],
+          "wash_relative_rms_percent": 0.4541043403703767
+        },
+        "row0-column1": {
+          "baseline_mean_rgb": [
+            0.007335674517704842,
+            0.014431084094242697,
+            0.016715511832837267
+          ],
+          "variant_mean_rgb": [
+            0.007360720102862012,
+            0.014475766302459059,
+            0.016765495001032985
+          ],
+          "wash_relative_rms_percent": 0.45936086048311714
+        },
+        "row1-column0": {
+          "baseline_mean_rgb": [
+            0.00784814685080764,
+            0.014182885174447837,
+            0.016086420427817417
+          ],
+          "variant_mean_rgb": [
+            0.007849261058851375,
+            0.014203106494689397,
+            0.01611659376148421
+          ],
+          "wash_relative_rms_percent": 0.4570608065055867
+        },
+        "row1-column1": {
+          "baseline_mean_rgb": [
+            0.009583717417384292,
+            0.021840457712245243,
+            0.025942213713260564
+          ],
+          "variant_mean_rgb": [
+            0.009559178397974901,
+            0.021758461001239078,
+            0.025839291293485746
+          ],
+          "wash_relative_rms_percent": 0.5923540831362608
+        }
+      },
+      "bands_render_cells": {
+        "1": {
+          "rgb_rms": 0.0074874469875157775,
+          "luminance_rms": 0.006918011718373372,
+          "persistent_rgb_rms": 0.0014212321951542065,
+          "temporal_rgb_rms": 0.007351323788156542
+        },
+        "2": {
+          "rgb_rms": 0.010840024269677584,
+          "luminance_rms": 0.010012767135218405,
+          "persistent_rgb_rms": 0.001962344540103698,
+          "temporal_rgb_rms": 0.010660925385402725
+        },
+        "4": {
+          "rgb_rms": 0.008827288267503095,
+          "luminance_rms": 0.008152301196938931,
+          "persistent_rgb_rms": 0.0016039094229156586,
+          "temporal_rgb_rms": 0.008680350956077764
+        },
+        "8": {
+          "rgb_rms": 0.0054629186688760255,
+          "luminance_rms": 0.005050298959650586,
+          "persistent_rgb_rms": 0.0013094295647832106,
+          "temporal_rgb_rms": 0.005303666146886119
+        }
+      }
+    },
+    "heat-width5.5": {
+      "diffusion_amount": 7.5625,
+      "interior_impulse_rms_radius_render_cells": 5.5,
+      "hard_cutoff": null,
+      "max_rgb_sum_drift": 8.810729923425242e-13,
+      "mean_rgb_before": [
+        0.007967097324584891,
+        0.015410245850838679,
+        0.017758260558413785
+      ],
+      "mean_rgb_after": [
+        0.007967097324584888,
+        0.015410245850838724,
+        0.017758260558414007
+      ],
+      "local_wash": {
+        "row0-column0": {
+          "baseline_mean_rgb": [
+            0.007100850512443005,
+            0.011186556422418848,
+            0.012288896259739654
+          ],
+          "variant_mean_rgb": [
+            0.007071612464503373,
+            0.01118224561606041,
+            0.01229401940360411
+          ],
+          "wash_relative_rms_percent": 1.3846527742768002
+        },
+        "row0-column1": {
+          "baseline_mean_rgb": [
+            0.007335674517704842,
+            0.014431084094242697,
+            0.016715511832837267
+          ],
+          "variant_mean_rgb": [
+            0.007373746057582186,
+            0.014493413125210177,
+            0.016780854080917566
+          ],
+          "wash_relative_rms_percent": 1.3939853847759456
+        },
+        "row1-column0": {
+          "baseline_mean_rgb": [
+            0.00784814685080764,
+            0.014182885174447837,
+            0.016086420427817417
+          ],
+          "variant_mean_rgb": [
+            0.007883469808258714,
+            0.014308182474629493,
+            0.01624794871193594
+          ],
+          "wash_relative_rms_percent": 1.372320777187983
+        },
+        "row1-column1": {
+          "baseline_mean_rgb": [
+            0.009583717417384292,
+            0.021840457712245243,
+            0.025942213713260564
+          ],
+          "variant_mean_rgb": [
+            0.009539560967995476,
+            0.021657142187454567,
+            0.025710220037197477
+          ],
+          "wash_relative_rms_percent": 1.843194840064999
+        }
+      },
+      "bands_render_cells": {
+        "1": {
+          "rgb_rms": 0.0018831191111282925,
+          "luminance_rms": 0.0017392092271962085,
+          "persistent_rgb_rms": 0.0003363632503675046,
+          "temporal_rgb_rms": 0.0018528349496106818
+        },
+        "2": {
+          "rgb_rms": 0.004529981264127035,
+          "luminance_rms": 0.004183673034185174,
+          "persistent_rgb_rms": 0.0008018295310028305,
+          "temporal_rgb_rms": 0.004458452607862256
+        },
+        "4": {
+          "rgb_rms": 0.006019056698480494,
+          "luminance_rms": 0.005558272662616829,
+          "persistent_rgb_rms": 0.0011412164267621048,
+          "temporal_rgb_rms": 0.00590987889950473
+        },
+        "8": {
+          "rgb_rms": 0.004880673292077137,
+          "luminance_rms": 0.004513715442559642,
+          "persistent_rgb_rms": 0.0011958341243796182,
+          "temporal_rgb_rms": 0.004731907916577024
+        }
+      }
+    },
+    "heat-width11": {
+      "diffusion_amount": 30.25,
+      "interior_impulse_rms_radius_render_cells": 11.0,
+      "hard_cutoff": null,
+      "max_rgb_sum_drift": 8.810729923425242e-13,
+      "mean_rgb_before": [
+        0.007967097324584891,
+        0.015410245850838679,
+        0.017758260558413785
+      ],
+      "mean_rgb_after": [
+        0.007967097324584846,
+        0.015410245850838397,
+        0.017758260558413987
+      ],
+      "local_wash": {
+        "row0-column0": {
+          "baseline_mean_rgb": [
+            0.007100850512443005,
+            0.011186556422418848,
+            0.012288896259739654
+          ],
+          "variant_mean_rgb": [
+            0.0070171931306178955,
+            0.011151702772191683,
+            0.012277642342750032
+          ],
+          "wash_relative_rms_percent": 3.9921375228921385
+        },
+        "row0-column1": {
+          "baseline_mean_rgb": [
+            0.007335674517704842,
+            0.014431084094242697,
+            0.016715511832837267
+          ],
+          "variant_mean_rgb": [
+            0.007379393950308924,
+            0.014556469990363367,
+            0.01685893395202732
+          ],
+          "wash_relative_rms_percent": 3.9808613199866505
+        },
+        "row1-column0": {
+          "baseline_mean_rgb": [
+            0.00784814685080764,
+            0.014182885174447837,
+            0.016086420427817417
+          ],
+          "variant_mean_rgb": [
+            0.007953363241742666,
+            0.01447716802893437,
+            0.016450145298118456
+          ],
+          "wash_relative_rms_percent": 3.7696972658028303
+        },
+        "row1-column1": {
+          "baseline_mean_rgb": [
+            0.009583717417384292,
+            0.021840457712245243,
+            0.025942213713260564
+          ],
+          "variant_mean_rgb": [
+            0.009518438975670255,
+            0.02145564261186518,
+            0.025446320640759263
+          ],
+          "wash_relative_rms_percent": 5.6722437168659905
+        }
+      },
+      "bands_render_cells": {
+        "1": {
+          "rgb_rms": 0.00027942102338157735,
+          "luminance_rms": 0.0002579853209771798,
+          "persistent_rgb_rms": 5.60014736396804e-05,
+          "temporal_rgb_rms": 0.00027375160868530466
+        },
+        "2": {
+          "rgb_rms": 0.0009496479563203238,
+          "luminance_rms": 0.000876741095117704,
+          "persistent_rgb_rms": 0.0001959852277560479,
+          "temporal_rgb_rms": 0.0009292045154027061
+        },
+        "4": {
+          "rgb_rms": 0.0023266423257042057,
+          "luminance_rms": 0.0021484965554403306,
+          "persistent_rgb_rms": 0.0005216957422142078,
+          "temporal_rgb_rms": 0.002267398964521648
+        },
+        "8": {
+          "rgb_rms": 0.0033472461585740865,
+          "luminance_rms": 0.003100533212364965,
+          "persistent_rgb_rms": 0.0008862062172899955,
+          "temporal_rgb_rms": 0.003227800394467653
+        }
+      }
+    }
+  }
+}

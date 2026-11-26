@@ -1,0 +1,41 @@
+FFF.F
+======================================================================
+FAIL: test_a_persistent_clump_is_detected_without_inventing_flicker (test_clumps.ClumpMeasures.test_a_persistent_clump_is_detected_without_inventing_flicker)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-f30e47c2-65b62443ba20c1f2/docs/research/issue-5-diffuse-grain/test_clumps.py", line 14, in test_a_persistent_clump_is_detected_without_inventing_flicker
+    self.assertGreater(row['persistent_rgb_rms'],0.001)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0.0 not greater than 0.001
+
+======================================================================
+FAIL: test_an_equal_luminance_color_clump_is_still_detected (test_clumps.ClumpMeasures.test_an_equal_luminance_color_clump_is_still_detected)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-f30e47c2-65b62443ba20c1f2/docs/research/issue-5-diffuse-grain/test_clumps.py", line 27, in test_an_equal_luminance_color_clump_is_still_detected
+    self.assertGreater(row['rgb_rms'],0.001)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0.0 not greater than 0.001
+
+======================================================================
+FAIL: test_moving_clumps_increase_temporal_color_fluctuation (test_clumps.ClumpMeasures.test_moving_clumps_increase_temporal_color_fluctuation)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-f30e47c2-65b62443ba20c1f2/docs/research/issue-5-diffuse-grain/test_clumps.py", line 21, in test_moving_clumps_increase_temporal_color_fluctuation
+    self.assertGreater(row['temporal_rgb_rms'],0.001)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0.0 not greater than 0.001
+
+======================================================================
+FAIL: test_an_impulse_has_positive_connected_support_and_finite_reach (test_clumps.ConnectedSupport.test_an_impulse_has_positive_connected_support_and_finite_reach)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-f30e47c2-65b62443ba20c1f2/docs/research/issue-5-diffuse-grain/test_clumps.py", line 36, in test_an_impulse_has_positive_connected_support_and_finite_reach
+    self.assertTrue(np.all(out[...,0][r2<121]>0))
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: np.False_ is not true
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.031s
+
+FAILED (failures=4)

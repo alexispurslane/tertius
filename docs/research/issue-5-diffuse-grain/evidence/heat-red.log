@@ -1,0 +1,23 @@
+.FF.
+======================================================================
+FAIL: test_an_impulse_at_the_boundary_keeps_its_rgb_inside_the_domain (test_heat.InsulatingHeat.test_an_impulse_at_the_boundary_keeps_its_rgb_inside_the_domain)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-f30e47c2-65b62443ba20c1f2/docs/research/issue-5-diffuse-grain/test_heat.py", line 23, in test_an_impulse_at_the_boundary_keeps_its_rgb_inside_the_domain
+    self.assertGreater(result[0,1,2],0)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+AssertionError: np.float64(0.0) not greater than 0
+
+======================================================================
+FAIL: test_an_impulse_has_nonzero_tails_beyond_eleven_cells (test_heat.InsulatingHeat.test_an_impulse_has_nonzero_tails_beyond_eleven_cells)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-f30e47c2-65b62443ba20c1f2/docs/research/issue-5-diffuse-grain/test_heat.py", line 11, in test_an_impulse_has_nonzero_tails_beyond_eleven_cells
+    self.assertGreater(result[32,47,2],1e-6)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: np.float64(0.0) not greater than 1e-06
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.001s
+
+FAILED (failures=2)

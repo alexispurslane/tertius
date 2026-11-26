@@ -12,5 +12,28 @@
     "covered_lines": 43,
     "missed_lines": [],
     "branch_coverage": "Not measured by the standard-library tracer."
+  },
+  {
+    "file": "multiscale.py",
+    "executable_lines": 15,
+    "covered_lines": 15,
+    "missed_lines": [],
+    "branch_coverage": "Not measured by the standard-library tracer."
+  },
+  {
+    "file": "connected_model.py",
+    "executable_lines": 28,
+    "covered_lines": 27,
+    "missed_lines": [
+      17
+    ],
+    "branch_coverage": "Not measured by the standard-library tracer."
+  },
+  {
+    "file": "heat_reference.py",
+    "executable_lines": 9,
+    "covered_lines": 9,
+    "missed_lines": [],
+    "branch_coverage": "Not measured by the standard-library tracer."
   }
 ]

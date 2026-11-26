@@ -1,0 +1,9 @@
+timed-start
+timed-end
+captures/issue-5-diffuse-grain/source-draws/frames/cockpit-000000.png
+captures/issue-5-diffuse-grain/source-draws/frames/cockpit-000001.png
+captures/issue-5-diffuse-grain/source-draws/frames/cockpit-000002.png
+captures/issue-5-diffuse-grain/source-draws/frames/gpu-timings.json
+On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, "GPU trace").
+GPU frame span: mean 15.275 ms, median 14.986 ms, p95 15.898 ms over 3 frames
+captures/issue-5-diffuse-grain/source-draws/frames/exposure.json

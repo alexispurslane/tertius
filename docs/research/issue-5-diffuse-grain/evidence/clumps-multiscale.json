@@ -1,0 +1,692 @@
+{
+  "frames": [
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47
+  ],
+  "method": "Display-linear RGB DoG sigma s minus sigma 2s; same mask for every variant at each scale. Exclude zero-specular time-mean luminance gradient > 0.001 per output pixel and all pixels within 6s of it. Persistent = temporal mean of band. Temporal = band minus its temporal mean. No motion registration.",
+  "crops": {
+    "sloped-panel": {
+      "box": [
+        880,
+        40,
+        1080,
+        155
+      ],
+      "pixels_at_scale": {
+        "1": 23000,
+        "2": 23000,
+        "4": 23000,
+        "8": 21000,
+        "16": 9142
+      },
+      "variants": {
+        "normal": {
+          "1": {
+            "rgb_rms": 0.0030271729920059443,
+            "luminance_rms": 0.0028472886928771327,
+            "persistent_rgb_rms": 0.003025725483894348,
+            "temporal_rgb_rms": 9.36027936404571e-05
+          },
+          "2": {
+            "rgb_rms": 0.0022749537602066994,
+            "luminance_rms": 0.002146339873261274,
+            "persistent_rgb_rms": 0.002274411264806986,
+            "temporal_rgb_rms": 4.968065331922844e-05
+          },
+          "4": {
+            "rgb_rms": 0.0012937805149704218,
+            "luminance_rms": 0.0012243511415522155,
+            "persistent_rgb_rms": 0.0012935432605445385,
+            "temporal_rgb_rms": 2.4778930310276337e-05
+          },
+          "8": {
+            "rgb_rms": 0.0006253541796468198,
+            "luminance_rms": 0.0005939871115274811,
+            "persistent_rgb_rms": 0.0006252202438190579,
+            "temporal_rgb_rms": 1.2943719411850907e-05
+          },
+          "16": {
+            "rgb_rms": 0.0006172636058181524,
+            "luminance_rms": 0.0006192546322794633,
+            "persistent_rgb_rms": 0.0006172155262902379,
+            "temporal_rgb_rms": 7.704069503233768e-06
+          }
+        },
+        "spread-step6": {
+          "1": {
+            "rgb_rms": 0.0007211341289803386,
+            "luminance_rms": 0.0006855920667691291,
+            "persistent_rgb_rms": 0.0007187770679593086,
+            "temporal_rgb_rms": 5.825707194162533e-05
+          },
+          "2": {
+            "rgb_rms": 0.0005579079152084887,
+            "luminance_rms": 0.0005309754740910859,
+            "persistent_rgb_rms": 0.000557113962713629,
+            "temporal_rgb_rms": 2.9754097340628505e-05
+          },
+          "4": {
+            "rgb_rms": 0.000308421062072739,
+            "luminance_rms": 0.0002978606780777993,
+            "persistent_rgb_rms": 0.00030805717688053846,
+            "temporal_rgb_rms": 1.4977327737142332e-05
+          },
+          "8": {
+            "rgb_rms": 0.00033014570362865925,
+            "luminance_rms": 0.00032807031110172584,
+            "persistent_rgb_rms": 0.00033004736178554595,
+            "temporal_rgb_rms": 8.057415470830165e-06
+          },
+          "16": {
+            "rgb_rms": 0.0005601610755547881,
+            "luminance_rms": 0.0005664971142592308,
+            "persistent_rgb_rms": 0.0005601365119218826,
+            "temporal_rgb_rms": 5.2461800805758685e-06
+          }
+        },
+        "irregular": {
+          "1": {
+            "rgb_rms": 0.0012808884494006634,
+            "luminance_rms": 0.0012122977862140975,
+            "persistent_rgb_rms": 0.001279513817280531,
+            "temporal_rgb_rms": 5.9325782785890624e-05
+          },
+          "2": {
+            "rgb_rms": 0.001313406741246581,
+            "luminance_rms": 0.0012458904879149248,
+            "persistent_rgb_rms": 0.0013130423612892628,
+            "temporal_rgb_rms": 3.0939663702156395e-05
+          },
+          "4": {
+            "rgb_rms": 0.0009032391244545579,
+            "luminance_rms": 0.0008601861463929505,
+            "persistent_rgb_rms": 0.0009030986693687737,
+            "temporal_rgb_rms": 1.592984699527733e-05
+          },
+          "8": {
+            "rgb_rms": 0.0005538081168197095,
+            "luminance_rms": 0.000533321048921779,
+            "persistent_rgb_rms": 0.0005537471733987331,
+            "temporal_rgb_rms": 8.21711728349328e-06
+          },
+          "16": {
+            "rgb_rms": 0.0006678940844722092,
+            "luminance_rms": 0.0006726862869372723,
+            "persistent_rgb_rms": 0.0006678738864138722,
+            "temporal_rgb_rms": 5.187765509617748e-06
+          }
+        },
+        "tangent": {
+          "1": {
+            "rgb_rms": 0.0017810123972594738,
+            "luminance_rms": 0.0016779399975712112,
+            "persistent_rgb_rms": 0.001779793412424624,
+            "temporal_rgb_rms": 6.588451651623473e-05
+          },
+          "2": {
+            "rgb_rms": 0.0016906962264329195,
+            "luminance_rms": 0.001599620268667137,
+            "persistent_rgb_rms": 0.0016902979696169496,
+            "temporal_rgb_rms": 3.6698686017189175e-05
+          },
+          "4": {
+            "rgb_rms": 0.0011010912712663412,
+            "luminance_rms": 0.0010470611763461989,
+            "persistent_rgb_rms": 0.001100923283956945,
+            "temporal_rgb_rms": 1.9230068573961034e-05
+          },
+          "8": {
+            "rgb_rms": 0.000608134432695806,
+            "luminance_rms": 0.0005839439043329105,
+            "persistent_rgb_rms": 0.0006080515449866652,
+            "temporal_rgb_rms": 1.0039819244411774e-05
+          },
+          "16": {
+            "rgb_rms": 0.0006961722974665463,
+            "luminance_rms": 0.0007016151064156308,
+            "persistent_rgb_rms": 0.0006961415056139231,
+            "temporal_rgb_rms": 6.546444637933746e-06
+          }
+        },
+        "connected": {
+          "1": {
+            "rgb_rms": 0.00042723797378130257,
+            "luminance_rms": 0.0004031350351184902,
+            "persistent_rgb_rms": 0.0004222101124469191,
+            "temporal_rgb_rms": 6.535220018122345e-05
+          },
+          "2": {
+            "rgb_rms": 0.0005689774407073855,
+            "luminance_rms": 0.0005357898436188873,
+            "persistent_rgb_rms": 0.0005678004235960543,
+            "temporal_rgb_rms": 3.657827619463205e-05
+          },
+          "4": {
+            "rgb_rms": 0.000884012843016535,
+            "luminance_rms": 0.000834364680135246,
+            "persistent_rgb_rms": 0.0008837927598506212,
+            "temporal_rgb_rms": 1.9723533114301972e-05
+          },
+          "8": {
+            "rgb_rms": 0.001025501056574285,
+            "luminance_rms": 0.0009713492153991426,
+            "persistent_rgb_rms": 0.001025445875711739,
+            "temporal_rgb_rms": 1.0643762834661175e-05
+          },
+          "16": {
+            "rgb_rms": 0.0011053014313802123,
+            "luminance_rms": 0.0010909782390436168,
+            "persistent_rgb_rms": 0.0011052772169932723,
+            "temporal_rgb_rms": 7.322426881728461e-06
+          }
+        },
+        "independent1": {
+          "1": {
+            "rgb_rms": 0.0010640118271112442,
+            "luminance_rms": 0.0010138288146261938,
+            "persistent_rgb_rms": 0.0010622672270983458,
+            "temporal_rgb_rms": 6.0905767895746976e-05
+          },
+          "2": {
+            "rgb_rms": 0.0008026462164707482,
+            "luminance_rms": 0.0007681469144744231,
+            "persistent_rgb_rms": 0.0008020473760552704,
+            "temporal_rgb_rms": 3.0999031878309324e-05
+          },
+          "4": {
+            "rgb_rms": 0.0005205165361985564,
+            "luminance_rms": 0.0005002683274940708,
+            "persistent_rgb_rms": 0.0005202689208090305,
+            "temporal_rgb_rms": 1.6052326827775687e-05
+          },
+          "8": {
+            "rgb_rms": 0.00038835147279314697,
+            "luminance_rms": 0.0003812937868718683,
+            "persistent_rgb_rms": 0.00038826235686428845,
+            "temporal_rgb_rms": 8.319185326399747e-06
+          },
+          "16": {
+            "rgb_rms": 0.0006173810688778758,
+            "luminance_rms": 0.0006177929686594243,
+            "persistent_rgb_rms": 0.0006173601723276079,
+            "temporal_rgb_rms": 5.080607479612809e-06
+          }
+        },
+        "independent4": {
+          "1": {
+            "rgb_rms": 0.0008037915686145425,
+            "luminance_rms": 0.0007635368748655786,
+            "persistent_rgb_rms": 0.0008015249040909111,
+            "temporal_rgb_rms": 6.032218880136497e-05
+          },
+          "2": {
+            "rgb_rms": 0.000631853356026113,
+            "luminance_rms": 0.0006018946008920159,
+            "persistent_rgb_rms": 0.000631102011539042,
+            "temporal_rgb_rms": 3.080389433307573e-05
+          },
+          "4": {
+            "rgb_rms": 0.0003981985792052001,
+            "luminance_rms": 0.0003839916957587908,
+            "persistent_rgb_rms": 0.00039789421134628356,
+            "temporal_rgb_rms": 1.5566129150101915e-05
+          },
+          "8": {
+            "rgb_rms": 0.0003370540216565132,
+            "luminance_rms": 0.0003353673096174838,
+            "persistent_rgb_rms": 0.0003369592013768852,
+            "temporal_rgb_rms": 7.994739462446887e-06
+          },
+          "16": {
+            "rgb_rms": 0.0006541734328493476,
+            "luminance_rms": 0.0006488700876291929,
+            "persistent_rgb_rms": 0.0006541514303535223,
+            "temporal_rgb_rms": 5.361183411878301e-06
+          }
+        }
+      }
+    },
+    "panel-warm": {
+      "box": [
+        740,
+        30,
+        860,
+        130
+      ],
+      "pixels_at_scale": {
+        "1": 6077,
+        "2": 5368,
+        "4": 4065,
+        "8": 1364,
+        "16": 0
+      },
+      "variants": {
+        "normal": {
+          "1": {
+            "rgb_rms": 0.002410375978797674,
+            "luminance_rms": 0.0020537475168047633,
+            "persistent_rgb_rms": 0.002409388544037938,
+            "temporal_rgb_rms": 6.8979526986368e-05
+          },
+          "2": {
+            "rgb_rms": 0.0012217734474688768,
+            "luminance_rms": 0.0011310646906883266,
+            "persistent_rgb_rms": 0.0012212753063067794,
+            "temporal_rgb_rms": 3.4883389162132517e-05
+          },
+          "4": {
+            "rgb_rms": 0.0007910332060419023,
+            "luminance_rms": 0.0007554376669448009,
+            "persistent_rgb_rms": 0.0007908449042588472,
+            "temporal_rgb_rms": 1.7258977095480077e-05
+          },
+          "8": {
+            "rgb_rms": 0.000761947943829,
+            "luminance_rms": 0.0007784725774044615,
+            "persistent_rgb_rms": 0.0007618952658958733,
+            "temporal_rgb_rms": 8.964346307038795e-06
+          },
+          "16": null
+        },
+        "spread-step6": {
+          "1": {
+            "rgb_rms": 0.0006927426438778639,
+            "luminance_rms": 0.0005607014332828873,
+            "persistent_rgb_rms": 0.0006895441911183298,
+            "temporal_rgb_rms": 6.649202987318859e-05
+          },
+          "2": {
+            "rgb_rms": 0.0003870028886012733,
+            "luminance_rms": 0.0003318237238292636,
+            "persistent_rgb_rms": 0.00038586469599977136,
+            "temporal_rgb_rms": 2.9659224310307764e-05
+          },
+          "4": {
+            "rgb_rms": 0.0002789685095194727,
+            "luminance_rms": 0.00028290150639076955,
+            "persistent_rgb_rms": 0.0002786035183817148,
+            "temporal_rgb_rms": 1.4265741810959298e-05
+          },
+          "8": {
+            "rgb_rms": 0.0006498905131593347,
+            "luminance_rms": 0.0006809326021648306,
+            "persistent_rgb_rms": 0.0006498540751636028,
+            "temporal_rgb_rms": 6.881340141262626e-06
+          },
+          "16": null
+        },
+        "irregular": {
+          "1": {
+            "rgb_rms": 0.0011288399109616876,
+            "luminance_rms": 0.001006983217127429,
+            "persistent_rgb_rms": 0.0011271785479038954,
+            "temporal_rgb_rms": 6.122096965555102e-05
+          },
+          "2": {
+            "rgb_rms": 0.0009810676565393806,
+            "luminance_rms": 0.0009099604894301443,
+            "persistent_rgb_rms": 0.0009805865120142698,
+            "temporal_rgb_rms": 3.071921310038306e-05
+          },
+          "4": {
+            "rgb_rms": 0.0005703374627046287,
+            "luminance_rms": 0.0005588971413727584,
+            "persistent_rgb_rms": 0.0005701391492038965,
+            "temporal_rgb_rms": 1.503885960119078e-05
+          },
+          "8": {
+            "rgb_rms": 0.0007306509651243687,
+            "luminance_rms": 0.0007550408079389972,
+            "persistent_rgb_rms": 0.0007305975304916501,
+            "temporal_rgb_rms": 8.842363058647607e-06
+          },
+          "16": null
+        },
+        "tangent": {
+          "1": {
+            "rgb_rms": 0.001911401515826583,
+            "luminance_rms": 0.0017083534469207664,
+            "persistent_rgb_rms": 0.0019101239740848541,
+            "temporal_rgb_rms": 6.987185042817146e-05
+          },
+          "2": {
+            "rgb_rms": 0.001520358957350254,
+            "luminance_rms": 0.0014207282920880517,
+            "persistent_rgb_rms": 0.0015199377667158842,
+            "temporal_rgb_rms": 3.5783163184532896e-05
+          },
+          "4": {
+            "rgb_rms": 0.0007839013705961406,
+            "luminance_rms": 0.0007607714508697587,
+            "persistent_rgb_rms": 0.0007836808799766004,
+            "temporal_rgb_rms": 1.8591767002362758e-05
+          },
+          "8": {
+            "rgb_rms": 0.0007647009915672243,
+            "luminance_rms": 0.0007849988539201924,
+            "persistent_rgb_rms": 0.0007646511658094823,
+            "temporal_rgb_rms": 8.725798579689581e-06
+          },
+          "16": null
+        },
+        "connected": {
+          "1": {
+            "rgb_rms": 0.0004316686827223748,
+            "luminance_rms": 0.00037675776108950465,
+            "persistent_rgb_rms": 0.00042717871838249266,
+            "temporal_rgb_rms": 6.209814455360174e-05
+          },
+          "2": {
+            "rgb_rms": 0.0004900418571196496,
+            "luminance_rms": 0.0004544591155280004,
+            "persistent_rgb_rms": 0.000489008380100131,
+            "temporal_rgb_rms": 3.1810002838028595e-05
+          },
+          "4": {
+            "rgb_rms": 0.0006129824905656278,
+            "luminance_rms": 0.000543816287684379,
+            "persistent_rgb_rms": 0.0006127842352725565,
+            "temporal_rgb_rms": 1.5590127077302895e-05
+          },
+          "8": {
+            "rgb_rms": 0.0007206321461126208,
+            "luminance_rms": 0.0007314929166979767,
+            "persistent_rgb_rms": 0.0007205739966593683,
+            "temporal_rgb_rms": 9.15746386453975e-06
+          },
+          "16": null
+        },
+        "independent1": {
+          "1": {
+            "rgb_rms": 0.0005468654562719166,
+            "luminance_rms": 0.0005168793147232282,
+            "persistent_rgb_rms": 0.000542973168194294,
+            "temporal_rgb_rms": 6.51305090286769e-05
+          },
+          "2": {
+            "rgb_rms": 0.00043064012425020337,
+            "luminance_rms": 0.00041926418242800746,
+            "persistent_rgb_rms": 0.0004293980891816318,
+            "temporal_rgb_rms": 3.268286309321411e-05
+          },
+          "4": {
+            "rgb_rms": 0.0003463003959041089,
+            "luminance_rms": 0.00034559430189668957,
+            "persistent_rgb_rms": 0.000345889973687008,
+            "temporal_rgb_rms": 1.685498318693135e-05
+          },
+          "8": {
+            "rgb_rms": 0.0006064251065254211,
+            "luminance_rms": 0.0006304567179412181,
+            "persistent_rgb_rms": 0.0006063585169613361,
+            "temporal_rgb_rms": 8.986927241494413e-06
+          },
+          "16": null
+        },
+        "independent4": {
+          "1": {
+            "rgb_rms": 0.00044646760215982795,
+            "luminance_rms": 0.0004193194156081041,
+            "persistent_rgb_rms": 0.0004417805466800928,
+            "temporal_rgb_rms": 6.452343222917989e-05
+          },
+          "2": {
+            "rgb_rms": 0.00035318275331519544,
+            "luminance_rms": 0.0003397713755999535,
+            "persistent_rgb_rms": 0.00035172596108168364,
+            "temporal_rgb_rms": 3.2045660191215575e-05
+          },
+          "4": {
+            "rgb_rms": 0.00031412640237249434,
+            "luminance_rms": 0.0003145837245227138,
+            "persistent_rgb_rms": 0.0003137288149446249,
+            "temporal_rgb_rms": 1.5799456377862953e-05
+          },
+          "8": {
+            "rgb_rms": 0.0006788328755646944,
+            "luminance_rms": 0.0007048057586855665,
+            "persistent_rgb_rms": 0.0006787858437746763,
+            "temporal_rgb_rms": 7.995036867214367e-06
+          },
+          "16": null
+        }
+      }
+    },
+    "panel-cool": {
+      "box": [
+        860,
+        220,
+        960,
+        315
+      ],
+      "pixels_at_scale": {
+        "1": 5791,
+        "2": 3926,
+        "4": 1481,
+        "8": 52,
+        "16": 0
+      },
+      "variants": {
+        "normal": {
+          "1": {
+            "rgb_rms": 0.00927689764648676,
+            "luminance_rms": 0.00876367200265507,
+            "persistent_rgb_rms": 0.009275766089558601,
+            "temporal_rgb_rms": 0.0001448950351914391
+          },
+          "2": {
+            "rgb_rms": 0.006744560785591602,
+            "luminance_rms": 0.006373100267818407,
+            "persistent_rgb_rms": 0.0067442250438034534,
+            "temporal_rgb_rms": 6.733370537403971e-05
+          },
+          "4": {
+            "rgb_rms": 0.003815547563135624,
+            "luminance_rms": 0.0035979072070150627,
+            "persistent_rgb_rms": 0.003815353848040104,
+            "temporal_rgb_rms": 3.842194200842641e-05
+          },
+          "8": {
+            "rgb_rms": 0.0017776975873857737,
+            "luminance_rms": 0.0016235531999827886,
+            "persistent_rgb_rms": 0.0017775611486285925,
+            "temporal_rgb_rms": 2.2007678126101382e-05
+          },
+          "16": null
+        },
+        "spread-step6": {
+          "1": {
+            "rgb_rms": 0.002642065053805709,
+            "luminance_rms": 0.0024857093287683706,
+            "persistent_rgb_rms": 0.002640697406604886,
+            "temporal_rgb_rms": 8.500190597260371e-05
+          },
+          "2": {
+            "rgb_rms": 0.0019646133296191692,
+            "luminance_rms": 0.0018638396207722738,
+            "persistent_rgb_rms": 0.0019641227554529905,
+            "temporal_rgb_rms": 4.391172114992514e-05
+          },
+          "4": {
+            "rgb_rms": 0.0011480418033897877,
+            "luminance_rms": 0.0011131751111159319,
+            "persistent_rgb_rms": 0.0011477703228592873,
+            "temporal_rgb_rms": 2.496002707630396e-05
+          },
+          "8": {
+            "rgb_rms": 0.0012160948244854808,
+            "luminance_rms": 0.0011151046519171644,
+            "persistent_rgb_rms": 0.0012160203186795115,
+            "temporal_rgb_rms": 1.3465036317938939e-05
+          },
+          "16": null
+        },
+        "irregular": {
+          "1": {
+            "rgb_rms": 0.005012628622353077,
+            "luminance_rms": 0.0046857415678093735,
+            "persistent_rgb_rms": 0.005010739900171757,
+            "temporal_rgb_rms": 0.00013759666762780398
+          },
+          "2": {
+            "rgb_rms": 0.0048637292347848415,
+            "luminance_rms": 0.004568779281756125,
+            "persistent_rgb_rms": 0.0048631844110786915,
+            "temporal_rgb_rms": 7.27968945284374e-05
+          },
+          "4": {
+            "rgb_rms": 0.002789162565022707,
+            "luminance_rms": 0.002604334566315828,
+            "persistent_rgb_rms": 0.002789078513160348,
+            "temporal_rgb_rms": 2.1636484234477393e-05
+          },
+          "8": {
+            "rgb_rms": 0.0011880331439897418,
+            "luminance_rms": 0.00105919401160948,
+            "persistent_rgb_rms": 0.0011879656231030822,
+            "temporal_rgb_rms": 1.2670780051848851e-05
+          },
+          "16": null
+        },
+        "tangent": {
+          "1": {
+            "rgb_rms": 0.008413798175752163,
+            "luminance_rms": 0.00789434985272069,
+            "persistent_rgb_rms": 0.008407115936279297,
+            "temporal_rgb_rms": 0.0003352732164785266
+          },
+          "2": {
+            "rgb_rms": 0.0072961049154400826,
+            "luminance_rms": 0.006863804091817367,
+            "persistent_rgb_rms": 0.007292403839528561,
+            "temporal_rgb_rms": 0.00023236486595124006
+          },
+          "4": {
+            "rgb_rms": 0.0035886550322175026,
+            "luminance_rms": 0.0033628959142665035,
+            "persistent_rgb_rms": 0.0035885248798877,
+            "temporal_rgb_rms": 3.056654895772226e-05
+          },
+          "8": {
+            "rgb_rms": 0.0011995554668828845,
+            "luminance_rms": 0.0010989537622162562,
+            "persistent_rgb_rms": 0.0011994735104963183,
+            "temporal_rgb_rms": 1.4021457900526002e-05
+          },
+          "16": null
+        },
+        "connected": {
+          "1": {
+            "rgb_rms": 0.0016738821286708117,
+            "luminance_rms": 0.0015627532220618453,
+            "persistent_rgb_rms": 0.0016703699948266149,
+            "temporal_rgb_rms": 0.00010837704758159816
+          },
+          "2": {
+            "rgb_rms": 0.002252139849588275,
+            "luminance_rms": 0.002122002904949161,
+            "persistent_rgb_rms": 0.002251268597319722,
+            "temporal_rgb_rms": 6.264125113375485e-05
+          },
+          "4": {
+            "rgb_rms": 0.0030422175768762827,
+            "luminance_rms": 0.002820596988626676,
+            "persistent_rgb_rms": 0.0030420550610870123,
+            "temporal_rgb_rms": 3.144661241094582e-05
+          },
+          "8": {
+            "rgb_rms": 0.0029472263995558023,
+            "luminance_rms": 0.002701886049091461,
+            "persistent_rgb_rms": 0.0029471907764673233,
+            "temporal_rgb_rms": 1.4419538274523802e-05
+          },
+          "16": null
+        },
+        "independent1": {
+          "1": {
+            "rgb_rms": 0.004116872325539589,
+            "luminance_rms": 0.003843728455795365,
+            "persistent_rgb_rms": 0.004115260671824217,
+            "temporal_rgb_rms": 0.0001151819305960089
+          },
+          "2": {
+            "rgb_rms": 0.0033173048868775368,
+            "luminance_rms": 0.003101019937779721,
+            "persistent_rgb_rms": 0.003316769376397133,
+            "temporal_rgb_rms": 5.9601967222988605e-05
+          },
+          "4": {
+            "rgb_rms": 0.0018044947646558285,
+            "luminance_rms": 0.0016970092777926142,
+            "persistent_rgb_rms": 0.0018042793963104486,
+            "temporal_rgb_rms": 2.7876285457750782e-05
+          },
+          "8": {
+            "rgb_rms": 0.0003557506715878844,
+            "luminance_rms": 0.0003080682719024385,
+            "persistent_rgb_rms": 0.00035562197444960475,
+            "temporal_rgb_rms": 9.568590030539781e-06
+          },
+          "16": null
+        },
+        "independent4": {
+          "1": {
+            "rgb_rms": 0.0024060935247689486,
+            "luminance_rms": 0.0022385462792279135,
+            "persistent_rgb_rms": 0.002404114929959178,
+            "temporal_rgb_rms": 9.755440260050818e-05
+          },
+          "2": {
+            "rgb_rms": 0.0018910178914666176,
+            "luminance_rms": 0.0017680879964159571,
+            "persistent_rgb_rms": 0.0018903841264545918,
+            "temporal_rgb_rms": 4.895274469163269e-05
+          },
+          "4": {
+            "rgb_rms": 0.0008919649408198893,
+            "luminance_rms": 0.0008353819926771487,
+            "persistent_rgb_rms": 0.0008916605729609728,
+            "temporal_rgb_rms": 2.3299382519326173e-05
+          },
+          "8": {
+            "rgb_rms": 0.0010357378050684929,
+            "luminance_rms": 0.0009598627386965705,
+            "persistent_rgb_rms": 0.0010356935672461987,
+            "temporal_rgb_rms": 9.565249456500169e-06
+          },
+          "16": null
+        }
+      }
+    }
+  }
+}

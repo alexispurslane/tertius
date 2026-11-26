@@ -1,0 +1,40 @@
+<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;font-family:var(--font-sans);color:var(--foreground)}h3{font-size:16px;margin:12px 0}p{font-size:13px;line-height:1.5;color:var(--muted-foreground)}svg{width:100%;height:auto}text{font-family:var(--font-sans);fill:var(--foreground);font-size:13px}.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:13px}.key{display:inline-block;width:12px;height:3px;vertical-align:middle;margin-right:6px}</style></head><body><h3>Spatial color fluctuation across patch sizes</h3><p>Panel RGB RMS after removing smooth wash and excluding geometry edges. Lower values mean less color fluctuation in that band; they do not prove a clean image.</p><div class="legend">
+<span><i class="key" style="background:var(--chart-1)"></i>Normal</span>
+<span><i class="key" style="background:var(--chart-2)"></i>Irregular</span>
+<span><i class="key" style="background:var(--chart-3)"></i>Connected disk</span>
+<span><i class="key" style="background:var(--chart-4)"></i>Four source samples</span>
+</div><svg viewBox="0 0 650 300" role="img" aria-label="Multiscale color fluctuation. Connected spreading reduces the fine band but exceeds normal at broad scales.">
+<line x1="64" x2="610" y1="246.0" y2="246.0" stroke="var(--border)"/><text x="8" y="251.0">0.000</text>
+<line x1="64" x2="610" y1="182.36363636363637" y2="182.36363636363637" stroke="var(--border)"/><text x="8" y="187.36363636363637">0.001</text>
+<line x1="64" x2="610" y1="118.72727272727272" y2="118.72727272727272" stroke="var(--border)"/><text x="8" y="123.72727272727272">0.002</text>
+<line x1="64" x2="610" y1="55.09090909090909" y2="55.09090909090909" stroke="var(--border)"/><text x="8" y="60.09090909090909">0.003</text>
+<text x="68" y="270" text-anchor="middle">1</text>
+<text x="200" y="270" text-anchor="middle">2</text>
+<text x="332" y="270" text-anchor="middle">4</text>
+<text x="464" y="270" text-anchor="middle">8</text>
+<text x="596" y="270" text-anchor="middle">16</text>
+<polyline points="68,53.361718690530836 200,101.23021525957367 332,163.66851268370044 464,206.2047340224751 596,206.71958872066304" fill="none" stroke="var(--chart-1)" stroke-width="3"/>
+<circle cx="68" cy="53.361718690530836" r="4" fill="var(--chart-1)"/>
+<circle cx="200" cy="101.23021525957367" r="4" fill="var(--chart-1)"/>
+<circle cx="332" cy="163.66851268370044" r="4" fill="var(--chart-1)"/>
+<circle cx="464" cy="206.2047340224751" r="4" fill="var(--chart-1)"/>
+<circle cx="596" cy="206.71958872066304" r="4" fill="var(--chart-1)"/>
+<polyline points="68,164.48891685632142 200,162.4195710115812 332,188.52114662561905 464,210.7576652932912 596,203.4976491699503" fill="none" stroke="var(--chart-2)" stroke-width="3"/>
+<circle cx="68" cy="164.48891685632142" r="4" fill="var(--chart-2)"/>
+<circle cx="200" cy="162.4195710115812" r="4" fill="var(--chart-2)"/>
+<circle cx="332" cy="188.52114662561905" r="4" fill="var(--chart-2)"/>
+<circle cx="464" cy="210.7576652932912" r="4" fill="var(--chart-2)"/>
+<circle cx="596" cy="203.4976491699503" r="4" fill="var(--chart-2)"/>
+<polyline points="68,218.81212894118983 200,209.7923446822573 332,189.74463726258415 464,180.74084185436368 596,175.66263618489558" fill="none" stroke="var(--chart-3)" stroke-width="3"/>
+<circle cx="68" cy="218.81212894118983" r="4" fill="var(--chart-3)"/>
+<circle cx="200" cy="209.7923446822573" r="4" fill="var(--chart-3)"/>
+<circle cx="332" cy="189.74463726258415" r="4" fill="var(--chart-3)"/>
+<circle cx="464" cy="180.74084185436368" r="4" fill="var(--chart-3)"/>
+<circle cx="596" cy="175.66263618489558" r="4" fill="var(--chart-3)"/>
+<polyline points="68,194.84962745180184 200,205.79115007106554 332,220.66009041421455 464,224.55110771276733 596,204.3707815459506" fill="none" stroke="var(--chart-4)" stroke-width="3"/>
+<circle cx="68" cy="194.84962745180184" r="4" fill="var(--chart-4)"/>
+<circle cx="200" cy="205.79115007106554" r="4" fill="var(--chart-4)"/>
+<circle cx="332" cy="220.66009041421455" r="4" fill="var(--chart-4)"/>
+<circle cx="464" cy="224.55110771276733" r="4" fill="var(--chart-4)"/>
+<circle cx="596" cy="204.3707815459506" r="4" fill="var(--chart-4)"/>
+<text x="330" y="295" text-anchor="middle">Gaussian band scale, output pixels</text></svg><p>The connected disk increases scale-8 color fluctuation by 63.99% and scale-16 fluctuation by 79.06%. It turns fine speckles into broad blobs. Four source samples avoid that broad increase but fail the local cyan wash check.</p><p>Matched frames 16–47, exposure 6.0043726 stops. The replay resets before each displayed frame and repeats sampling phase 32. These temporal samples do not establish ordinary-motion flicker.</p></body></html>

@@ -1,0 +1,99 @@
+--- a/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
++++ b/src/Tertius.Rendering/Shaders/screen_trace_resolve.comp
+@@ -118,18 +118,33 @@
+     // The fewest frames seen plus 1 of the never-changed surfaces that those rays hit, 0 where none hits one.
+     uint seenCode = 0u;
+ #endif
+-    if (handOver > 0.0 && diffuseRay.brings)
++    float hitDistance = diffuse.light.a;
++    if (handOver > 0.0)
+     {
+-        specularLight = handOver * diffuse.light.rgb * specularWeightOf(p, lobes, factors, diffuseRay);
++        hitDistance = 0.0;
++        for (uint probeSample = 1u; probeSample <= 4u; probeSample++)
++        {
++            // Same diffuse-kind hit and miss light and walk budget; a new GGX direction and its density.
++            RayRecord probeRecord = recordOf(traceFrom(pixel, pixel, p, KindDiffuse, probeSample));
++            WeighedRay probeRay = weighedRayOf(p, probeRecord, vec4(0.0), KindDiffuse, plan);
++            hitDistance += probeRecord.light.a / float(4u);
++            if (!probeRay.brings)
++                continue;
++            specularLight += handOver * probeRecord.light.rgb
++                * specularWeightOf(p, lobes, factors, probeRay) / float(4u);
+ #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+-        ageCode = diffuseCode;
+-        moved = diffuseMoved;
++            uint probeCode = ageCodeOfRecord(probeRecord.ray);
++            if (probeCode != 0u)
++                ageCode = ageCode == 0u ? probeCode : min(ageCode, probeCode);
++            moved = moved || movedHitOfRecord(probeRecord.ray);
+ #endif
+ #ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
+-        seenCode = seenCodeOfRecord(diffuse.ray);
++            uint probeSeen = seenCodeOfRecord(probeRecord.ray);
++            if (probeSeen != 0u)
++                seenCode = seenCode == 0u ? probeSeen : min(seenCode, probeSeen);
+ #endif
++        }
+     }
+-    float hitDistance = diffuse.light.a;
+     if (startsKind(p, KindReflection))
+     {
+         RayRecord reflection = recordAt(pixel, KindReflection, plan);
+--- a/src/Tertius.Rendering/Shaders/screen_trace.glsl
++++ b/src/Tertius.Rendering/Shaders/screen_trace.glsl
+@@ -804,17 +804,18 @@
+ // Traces the ray of the kind from the pixel that starts it: its draw, its walk to the kind's cap, and its light. A
+ // direction below the geometric plane brings no light and traces nothing (section 6, "The ray kinds"). `cell` is the
+ // ray's cell of the blue-noise mask: its block for a block's ray, its pixel for a pixel's own ray.
+-TracedRay traceFrom(ivec2 pixel, ivec2 cell, TracingPixel p, uint kind)
++TracedRay traceFrom(ivec2 pixel, ivec2 cell, TracingPixel p, uint kind, uint probeSample)
+ {
+     TracedRay result;
+-    uvec3 draw = drawOf(pixel, trace.drawIndex, DirectionDraw[kind]);
++    uvec3 draw = drawOf(pixel, trace.drawIndex, DirectionDraw[kind] ^ (0x9E3779B9u * probeSample));
+     // A reflection ray draws from the blue-noise mask, a diffuse ray from pcg3d (ARCHITECTURE.md, "Randomness and
+     // determinism").
+-    vec2 u = kind == KindReflection ? reflectionNumbersOf(cell, trace.drawIndex, draw)
++    vec2 u = probeSample > 0u ? reflectionNumbersOf(cell, trace.drawIndex + 31u * probeSample, draw)
++        : kind == KindReflection ? reflectionNumbersOf(cell, trace.drawIndex, draw)
+                                     : vec2(unitOf(draw.x), unitOf(draw.y));
+     // One draw rule for both kinds (ARCHITECTURE.md, "Guided rays"): while a lit pixel is in view, a ray takes the guided
+     // draw at its kind's share, or else its lobe draw, and it counts with the mixture's density.
+-    float share = guidedShareOf(p, kind, pixel);
++    float share = probeSample > 0u ? 0.0 : guidedShareOf(p, kind, pixel);
+     bool guided = share > 0.0 && takesGuidedDraw(kind, cell, draw, share);
+     // A rough reflection ray finds its guided density at a share of 0 too: its tile's evidence needs it, so that a tile at
+     // 0 can rise again.
+@@ -828,15 +829,15 @@
+         drawn = normalize(guidedPointOf(pixel, target, salt) - p.origin);
+     }
+     else
+-        drawn = kind == KindReflection ? reflectionDirection(p, u) : diffuseDirection(p, u);
++        drawn = kind == KindReflection || probeSample > 0u ? reflectionDirection(p, u) : diffuseDirection(p, u);
+     // The record holds the direction's code, and the resolve weighs the ray by the code's direction. So an unguided
+     // reflection ray walks that direction, and its density is that direction's: at the roughness floor, the rounding of
+     // the code alone moves D(h) by several percent. A ray of a share above 0 walks its drawn direction: the guided density
+     // is a box function of the direction, and a rounded direction near a box's edge would count where its draw did not
+     // land, which loses light. Its lobe density and weight are smooth at the ramp's roughnesses, so the code's rounding
+     // moves them by far less than a percent.
+-    result.direction = kind == KindReflection && share <= 0.0 ? directionOfCode(directionCodeOf(drawn)) : drawn;
+-    result.lobeDensity = densityOf(p, kind, result.direction);
++    result.direction = (kind == KindReflection || probeSample > 0u) && share <= 0.0 ? directionOfCode(directionCodeOf(drawn)) : drawn;
++    result.lobeDensity = probeSample > 0u ? reflectionDensity(p, result.direction) : densityOf(p, kind, result.direction);
+     result.density = result.lobeDensity;
+     result.guidedDensity = 0.0;
+     result.share = share;
+@@ -896,6 +897,12 @@
+     return result;
+ }
+ 
++// Research: standard callers keep their original draw, density and source light.
++TracedRay traceFrom(ivec2 pixel, ivec2 cell, TracingPixel p, uint kind)
++{
++    return traceFrom(pixel, cell, p, kind, 0u);
++}
++
+ // The share of the diffuse ray's estimate in the pixel's specular sample: 0 below the hand-over band, 1 above it
+ // (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "Rough reflections reuse the diffuse rays").
+ float handOverOf(TracingPixel p)

@@ -1,0 +1,25 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+/nix/store/y2lhcl4kk7x10nprsgim8sscjb4k3f52-dotnet-sdk-11.0.100-rc.1.26425.128/share/dotnet/sdk/11.0.100-rc.1.26425.128/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.RuntimeIdentifierInference.targets(385,5): message NETSDK1057: You are using a preview version of .NET. See: https://aka.ms/dotnet-support-policy [/Users/alexispurslane/.t3/worktrees/tertius/t3-f30e47c2-65b62443ba20c1f2/src/Tertius.Demo/Tertius.Demo.csproj]
+/nix/store/y2lhcl4kk7x10nprsgim8sscjb4k3f52-dotnet-sdk-11.0.100-rc.1.26425.128/share/dotnet/sdk/11.0.100-rc.1.26425.128/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.RuntimeIdentifierInference.targets(385,5): message NETSDK1057: You are using a preview version of .NET. See: https://aka.ms/dotnet-support-policy [/Users/alexispurslane/.t3/worktrees/tertius/t3-f30e47c2-65b62443ba20c1f2/analyzers/Tertius.Unions/Tertius.Unions.csproj]
+  Tertius.Style -> /Users/alexispurslane/.t3/worktrees/tertius/t3-f30e47c2-65b62443ba20c1f2/analyzers/Tertius.Style/bin/Release/netstandard2.0/Tertius.Style.dll
+  Tertius.Unions -> /Users/alexispurslane/.t3/worktrees/tertius/t3-f30e47c2-65b62443ba20c1f2/analyzers/Tertius.Unions/bin/Release/netstandard2.0/Tertius.Unions.dll
+/nix/store/y2lhcl4kk7x10nprsgim8sscjb4k3f52-dotnet-sdk-11.0.100-rc.1.26425.128/share/dotnet/sdk/11.0.100-rc.1.26425.128/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.RuntimeIdentifierInference.targets(385,5): message NETSDK1057: You are using a preview version of .NET. See: https://aka.ms/dotnet-support-policy [/Users/alexispurslane/.t3/worktrees/tertius/t3-f30e47c2-65b62443ba20c1f2/src/Tertius.Core/Tertius.Core.csproj]
+/nix/store/y2lhcl4kk7x10nprsgim8sscjb4k3f52-dotnet-sdk-11.0.100-rc.1.26425.128/share/dotnet/sdk/11.0.100-rc.1.26425.128/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.RuntimeIdentifierInference.targets(385,5): message NETSDK1057: You are using a preview version of .NET. See: https://aka.ms/dotnet-support-policy [/Users/alexispurslane/.t3/worktrees/tertius/t3-f30e47c2-65b62443ba20c1f2/src/Tertius.Assets/Tertius.Assets.csproj]
+/nix/store/y2lhcl4kk7x10nprsgim8sscjb4k3f52-dotnet-sdk-11.0.100-rc.1.26425.128/share/dotnet/sdk/11.0.100-rc.1.26425.128/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.RuntimeIdentifierInference.targets(385,5): message NETSDK1057: You are using a preview version of .NET. See: https://aka.ms/dotnet-support-policy [/Users/alexispurslane/.t3/worktrees/tertius/t3-f30e47c2-65b62443ba20c1f2/src/Tertius.Host/Tertius.Host.csproj]
+/nix/store/y2lhcl4kk7x10nprsgim8sscjb4k3f52-dotnet-sdk-11.0.100-rc.1.26425.128/share/dotnet/sdk/11.0.100-rc.1.26425.128/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.RuntimeIdentifierInference.targets(385,5): message NETSDK1057: You are using a preview version of .NET. See: https://aka.ms/dotnet-support-policy [/Users/alexispurslane/.t3/worktrees/tertius/t3-f30e47c2-65b62443ba20c1f2/src/Tertius.Simulation/Tertius.Simulation.csproj]
+/nix/store/y2lhcl4kk7x10nprsgim8sscjb4k3f52-dotnet-sdk-11.0.100-rc.1.26425.128/share/dotnet/sdk/11.0.100-rc.1.26425.128/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.RuntimeIdentifierInference.targets(385,5): message NETSDK1057: You are using a preview version of .NET. See: https://aka.ms/dotnet-support-policy [/Users/alexispurslane/.t3/worktrees/tertius/t3-f30e47c2-65b62443ba20c1f2/src/Tertius.Physics/Tertius.Physics.csproj]
+  Tertius.Core -> /Users/alexispurslane/.t3/worktrees/tertius/t3-f30e47c2-65b62443ba20c1f2/src/Tertius.Core/bin/Release/net11.0/Tertius.Core.dll
+  Tertius.Assets -> /Users/alexispurslane/.t3/worktrees/tertius/t3-f30e47c2-65b62443ba20c1f2/src/Tertius.Assets/bin/Release/net11.0/Tertius.Assets.dll
+  Tertius.Simulation -> /Users/alexispurslane/.t3/worktrees/tertius/t3-f30e47c2-65b62443ba20c1f2/src/Tertius.Simulation/bin/Release/net11.0/Tertius.Simulation.dll
+  Tertius.Physics -> /Users/alexispurslane/.t3/worktrees/tertius/t3-f30e47c2-65b62443ba20c1f2/src/Tertius.Physics/bin/Release/net11.0/Tertius.Physics.dll
+/nix/store/y2lhcl4kk7x10nprsgim8sscjb4k3f52-dotnet-sdk-11.0.100-rc.1.26425.128/share/dotnet/sdk/11.0.100-rc.1.26425.128/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.RuntimeIdentifierInference.targets(385,5): message NETSDK1057: You are using a preview version of .NET. See: https://aka.ms/dotnet-support-policy [/Users/alexispurslane/.t3/worktrees/tertius/t3-f30e47c2-65b62443ba20c1f2/src/Tertius.Rendering/Tertius.Rendering.csproj]
+  Tertius.Rendering -> /Users/alexispurslane/.t3/worktrees/tertius/t3-f30e47c2-65b62443ba20c1f2/src/Tertius.Rendering/bin/Release/net11.0/Tertius.Rendering.dll
+  Tertius.Host -> /Users/alexispurslane/.t3/worktrees/tertius/t3-f30e47c2-65b62443ba20c1f2/src/Tertius.Host/bin/Release/net11.0/Tertius.Host.dll
+  Tertius.Demo -> /Users/alexispurslane/.t3/worktrees/tertius/t3-f30e47c2-65b62443ba20c1f2/src/Tertius.Demo/bin/Release/net11.0/Tertius.Demo.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:24.12

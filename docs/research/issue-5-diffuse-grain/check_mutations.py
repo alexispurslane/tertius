@@ -31,15 +31,39 @@ SPREAD_MUTATIONS = [
     ('skip-the-surface-footprint', 'if footprint is not None:', 'if False:'),
 ]
 
+CLUMP_MUTATIONS = [
+    ('ignore-persistent-clumps', 'persistent_rgb_rms=float(np.sqrt(np.mean(persistent**2)))', 'persistent_rgb_rms=0.'),
+    ('ignore-moving-color-clumps', 'temporal_rgb_rms=float(np.sqrt(np.mean(temporal**2)))', 'temporal_rgb_rms=0.'),
+    ('count-linear-wash-as-a-clump', 'values=band[:,mask,:]', 'values=frames[:,mask,:]'),
+]
+
+CONNECTED_MUTATIONS = [
+    ('let-dense-connections-jump-holes', 'for i in range(1,steps):', 'for i in range(1,1):'),
+    ('lose-dense-source-energy', 'normalizer=sum(w for x,y,w in offsets)', 'normalizer=0.5*sum(w for x,y,w in offsets)'),
+    ('use-receiver-reach-instead-of-pair-reach', 'np.minimum(reach[p],reach[q])', 'reach[p]'),
+    ('ignore-zero-reach-dark-patches', 'if reach is not None:', 'if False:'),
+]
+
+HEAT_MUTATIONS = [
+    ('stop-whole-crop-diffusion', 'np.exp(amount*rate)', 'np.exp(0*rate)'),
+    ('double-the-diffusion-width-squared', 'amount*rate', '2*amount*rate'),
+    ('lose-heat-channel-energy', 'rate=row_rate[:,None]+column_rate[None,:]', 'rate=row_rate[:,None]+column_rate[None,:]+0.01'),
+    ('use-the-wrong-rectangular-cell-scale', 'np.arange(width)/width', 'np.arange(width)/height'),
+]
+
 
 def main():
     results = []
     with tempfile.TemporaryDirectory(prefix='issue-5-measures-') as scratch:
         folder = Path(scratch)
-        for filename in ['measure.py', 'spread_model.py', 'test_measure.py', 'test_spread_model.py']:
+        for filename in ['measure.py', 'spread_model.py', 'test_measure.py', 'test_spread_model.py',
+                         'multiscale.py', 'connected_model.py', 'test_clumps.py', 'heat_reference.py', 'test_heat.py']:
             (folder / filename).write_text((HERE / filename).read_text())
         for filename, mutations, tests in [('measure.py', MEASURE_MUTATIONS, 'test_measure.py'),
-                                            ('spread_model.py', SPREAD_MUTATIONS, 'test_spread_model.py')]:
+                                            ('spread_model.py', SPREAD_MUTATIONS, 'test_spread_model.py'),
+                                            ('multiscale.py', CLUMP_MUTATIONS, 'test_clumps.py'),
+                                            ('connected_model.py', CONNECTED_MUTATIONS, 'test_clumps.py'),
+                                            ('heat_reference.py', HEAT_MUTATIONS, 'test_heat.py')]:
             source = (HERE / filename).read_text()
             for name, before, after in mutations:
                 assert source.count(before) == 1, name
