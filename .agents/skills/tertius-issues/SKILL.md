@@ -13,13 +13,25 @@ Load the `ste80-humanizer` skill before writing or editing an issue, pull reques
 
 The project is user project 5 under `alexispurslane`. Its columns have these meanings:
 
-| Status | Meaning |
-|---|---|
-| Backlog | Recorded, but not selected for work |
-| Todo | Selected and ready for a builder |
-| In Progress | A builder has a branch and an active or draft pull request |
-| In Review | The pull request has its one review round |
-| Done | Merged and verified, with the issue closed |
+| Status | Actual state that requires this column | Leave this column when |
+|---|---|---|
+| Backlog | The idea is recorded, but it is not selected or is not ready for a builder | Acceptance criteria, labels and related links are complete and the orchestrator selects it |
+| Todo | The issue is ready for a builder, but nobody has started its branch | A builder creates the worktree or branch |
+| In Progress | The builder is editing, testing or pushing on a branch or draft pull request | The builder launches the review round |
+| In Review | The reviewer is commenting, the builder is resolving findings, or CI is running on a ready pull request | The pull request merges, or it returns to draft for more work |
+| Done | The pull request merged, the required evidence is linked, and the issue is closed | Reopen the issue and move it to Todo if the outcome regresses or was not delivered |
+
+These are invariants, not suggestions:
+
+- Change the status in the same action that changes the work. Do not leave status updates for the end of a session.
+- Never leave a draft pull request in Todo or In Review. It belongs to In Progress. A ready pull request belongs to In Review. A merged pull request belongs to Done.
+- An issue with an active branch belongs to In Progress even before its first pull request exists.
+- An issue with no active worker, branch or pull request belongs to Todo or Backlog. Say which in a comment when work stops.
+- A closed unmerged pull request cannot stay In Review. Return its issue to Todo with the reason and the next action.
+- A merged pull request cannot leave its issue open or In Review. Link the evidence, close the issue and set Done immediately.
+- An epic stays in its current column until every native sub-issue is Done. Then verify its outcome, close it and set it to Done.
+- When a blocker stops active work, record the blocker and the unblocking condition. Return the issue to Todo if nobody is working on it.
+- At the start and end of orchestration, compare every open issue with its branch and pull request. Correct any mismatch before continuing.
 
 Set the native issue type to Bug or Feature. An epic has native type Feature and the `epic` label. A standalone feature has native type Feature and the `feature` label. A bug has native type Bug and the `bug` label.
 
@@ -48,11 +60,80 @@ Apply the work labels that describe the change:
 
 Use `experiment` instead of `production` for work whose result is evidence rather than a production change. Use `tooling` for harness work even when it also touches an engine subsystem.
 
+## Reconcile the board
+
+Run this audit at the start and end of every orchestration action, not only at the end of a session:
+
+```powershell
+gh project item-list 5 --owner alexispurslane --limit 200 --format json
+gh issue list --repo alexispurslane/tertius --state open --limit 200 --json number,title,labels,issueType,parent,subIssues,url
+gh pr list --repo alexispurslane/tertius --state open --limit 200 --json number,title,isDraft,headRefName,url
+```
+
+For each open issue, inspect its native sub-issues, active branch, draft or ready pull request, latest review and latest required check. Set the column from the table above. Do not infer active work from the column itself.
+
 ## Plan the issue
 
 Search the open epics, their native sub-issues and related closed issues before creating work. A standalone feature delivers one outcome that a person can verify. An epic groups outcomes that share a user-visible goal. Give an epic native sub-issues for those outcomes. Keep exactly one level: a sub-issue must not have sub-issues of its own.
 
-Read [issue-bodies.md](references/issue-bodies.md) before writing. Use the feature format for standalone features, feature sub-issues and epics. Use the bug format for defects. Keep the section names and order. The Expected section of a bug is its acceptance criterion.
+Use these exact section names and order. Replace every placeholder with useful content. Do not drop a section.
+
+For a standalone feature, a feature sub-issue or an epic:
+
+```markdown
+# Executive Summary
+
+- <Highlight of the goal and main outcome.>
+- <Highlight of the most important constraint or evidence.>
+- <Optional third highlight.>
+
+# Context
+
+<Only the engine context needed to understand the goal. Link related issues and the wiki design section.>
+
+# Description
+
+<The goal and its intended result. An epic names the outcomes of its native sub-issues.>
+
+# Acceptance Criteria
+
+1. <The most important observable change and the test or evidence that proves it.>
+2. <The next observable change and its test or evidence.>
+3. <The remaining architecture, documentation or verification requirement.>
+```
+
+Order acceptance criteria by importance. Describe engine behavior, tests, architecture or other observable results. Do not prescribe a code-shaped checklist.
+
+For a bug:
+
+```markdown
+# Executive Summary
+
+- <The observed defect and its effect.>
+- <The expected behavior and main evidence.>
+
+# Context
+
+<The engine context, reproduction location and related issue links.>
+
+# Actual
+
+<What happens now, with the reproduction and measured result.>
+
+# Expected
+
+<What must happen instead, with the test or measurement that proves it. This is the acceptance criterion.>
+
+# Diagnosis
+
+<The first supported hypothesis and the evidence that will confirm or reject it. Do not present a guess as a settled cause.>
+
+# Preventative measures
+
+<The tests, checks or design changes that will prevent this class of defect.>
+```
+
+The Expected section of a bug is its acceptance criterion.
 
 Link every related issue explicitly:
 
@@ -89,7 +170,7 @@ Read the branch back after a failed push or pull-request creation. Do not create
 
 ## Review once
 
-The builder launches one reviewer as a subagent. The reviewer reads the issue and acceptance criteria, inspects the diff against `main` locally, checks the tests and leaves inline comments on the pull-request diff. A review finding names the file, the changed line, the problem and the evidence needed to resolve it.
+The builder moves the issue and pull request to In Review, then launches one reviewer as a subagent. The reviewer reads the issue and acceptance criteria, inspects the diff against `main` locally, checks the tests and leaves inline comments on the pull-request diff. A review finding names the file, the changed line, the problem and the evidence needed to resolve it.
 
 The reviewer can post comments directly. To avoid repeated GitHub calls, it can instead return one JSON array to the builder:
 
@@ -113,15 +194,24 @@ gh api repos/alexispurslane/tertius/pulls/<pr-number>/comments -f body='<finding
 
 The builder owns the response. Read every inline comment, fix the code and tests, reply with the evidence, resolve each thread and push. Use subagents for independent findings when that saves time. Do not start another review round by default.
 
+## Use CI as the merge gate
+
+A draft pull request is a progress stream. It does not run the required suite. When the builder marks the pull request ready, GitHub Actions runs every test in Checked and Release on the exact branch head. Every later push to that ready pull request runs the suite again. Local runs help development, but they do not replace the required check.
+
+After the tests pass, the workflow comments on the pull request with the branch's measured metrics. The table includes erosion, verbosity, high CC mass, high CC function count, verbose lines, SLOC, TCC, depth and the supporting counts and provenance reported by the metrics tool. Read the table as described in `CLAUDE.md`, "Interpreting code quality metrics". A number alone does not prove an improvement.
+
+The `Tests and metrics` check is required on `main`. A merge is allowed only when the current head has a passing check, every review thread is resolved and the metrics comment belongs to that head. If any later push changes the head, wait for the new check and the new comment.
+
 ## Merge and close
 
 1. Confirm that every finding has a reply and a resolution.
-2. Run the required Checked and Release tests and any evidence named by the issue.
-3. Update `ARCHITECTURE.md` when engine behavior changed. Update the wiki when a design decision changed.
-4. Mark the pull request ready with `gh pr ready <number>`, then merge it with `gh pr merge <number> --merge`.
-5. Verify that the issue closed. Close it manually with the result and evidence if the link did not close it.
-6. Verify Done on the board. Close an epic only when every sub-issue is Done.
-7. Pull `main` into other checkouts before their next dependent change or when their shared files need the merge.
+2. Mark the pull request ready with `gh pr ready <number>`. Confirm that its issue and pull request are In Review.
+3. Wait for the required `Tests and metrics` check and read the metrics comment. Add any other evidence named by the issue.
+4. Update `ARCHITECTURE.md` when engine behavior changed. Update the wiki when a design decision changed. Push again if needed and wait for the new check.
+5. Merge with `gh pr merge <number> --merge`.
+6. Verify that the issue closed. Close it manually with the result and evidence if the link did not close it.
+7. Set both the issue and pull request to Done immediately. Close an epic only when every sub-issue is Done.
+8. Pull `main` into other checkouts before their next dependent change or when their shared files need the merge.
 
 ## Keep design documents in the wiki
 
