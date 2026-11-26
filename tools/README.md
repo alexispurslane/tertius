@@ -22,7 +22,7 @@ Checked Core: total 512, failed 1, succeeded 511, skipped 0, exit code 2
 The options:
 
 - `-c Checked,Release` gives the build configurations, separated by commas. The default is Checked and Release. Checked has the contracts of Debug and the optimized code of Release (`Directory.Build.targets`). The tests run about five times faster in Checked than in Debug, and Debug stays unoptimized for the debugger.
-- `-m Core,Physics` gives the test modules, separated by commas. The default is all eight: Core, Simulation, Physics, Rendering, Host, Unions (the tests of the union generator), Style (the tests of the style analyzer) and Slop (the tests of the slop metrics).
+- `-m Core,Physics` gives the test modules, separated by commas. The default is all nine: Core, Simulation, Physics, Rendering, Assets, Host, Unions (the tests of the union generator), Style (the tests of the style analyzer) and Slop (the tests of the slop metrics).
 - `-j <runs>` gives the most test processes that run at once. The default, 0, runs every configuration and module at once.
 - `-o <folder>` gives the folder for the logs. The default is a new temporary folder, and the first line of the output names it. The script writes `<folder>/<configuration>/build.log` and one `<folder>/<configuration>/<module>.log` with the full test output of each module.
 - Everything after `--` goes to each `dotnet test` command unchanged, for example a filter:

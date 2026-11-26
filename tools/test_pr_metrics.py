@@ -47,7 +47,7 @@ class MetricsComment(unittest.TestCase):
         text = pr_metrics.markdown(report, head="deadbeef", run_url="https://example.test/run/1")
 
         self.assertTrue(text.startswith("<!-- tertius-metrics -->\n"))
-        self.assertIn("Tests and metrics passed for `deadbeef`", text)
+        self.assertIn("CPU Checked and Python tools tests passed for `deadbeef`", text)
         self.assertIn("[View the CI run](https://example.test/run/1)", text)
         self.assertIn("| Erosion | 0.183 | High CC mass 8855.8 of 20687.9, from 79 of 4012 functions above CC 10 |", text)
         self.assertIn("| Verbosity | 0.024 | 1608 of 66733 lines: 1500 flagged, 108 cloned |", text)
@@ -61,6 +61,11 @@ class MetricsComment(unittest.TestCase):
         self.assertIn("| Types measured | 1124 | Types in source analysis |", text)
         self.assertIn("| Metric version | type-metrics-v3 | Counting rules |", text)
         self.assertIn("| References | abc123 | Metadata references |", text)
+
+    def test_tool_logs_before_the_json_do_not_change_the_report(self):
+        report = pr_metrics.loads('nix download log\n{"erosion": {"erosion": 0.2}, "verbosity": {}}\n')
+
+        self.assertEqual(report["erosion"]["erosion"], 0.2)
 
     def test_an_older_report_without_class_metrics_reports_that_they_are_unavailable(self):
         report = {"erosion": {"erosion": 0.2, "sloc": 100}, "verbosity": {"verbosity": 0.03}}

@@ -9,7 +9,7 @@ class CiWorkflow(unittest.TestCase):
     def test_the_required_check_runs_cpu_checked_tests_and_reports_metrics(self):
         text = Path(__file__).parents[1].joinpath(".github", "workflows", "tests.yml").read_text()
 
-        self.assertIn("ready_for_review", text)
+        self.assertIn("types: [opened, ready_for_review, synchronize, reopened]", text)
         self.assertIn("synchronize", text)
         self.assertIn("reopened", text)
         self.assertIn("!github.event.pull_request.draft", text)

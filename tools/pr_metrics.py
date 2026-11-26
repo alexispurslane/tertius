@@ -6,6 +6,11 @@ import json
 from pathlib import Path
 
 
+def loads(text: str) -> dict:
+    """Read the first JSON object, ignoring tool logs before it."""
+    return json.JSONDecoder().raw_decode(text[text.index("{"):])[0]
+
+
 def markdown(report: dict, head: str, run_url: str) -> str:
     """The Markdown table for the measured branch, with every available supporting count."""
     erosion = report["erosion"]
@@ -29,7 +34,7 @@ def markdown(report: dict, head: str, run_url: str) -> str:
         "<!-- tertius-metrics -->",
         "## Branch metrics",
         "",
-        f"Tests and metrics passed for `{head}`. [View the CI run]({run_url}).",
+        f"CPU Checked and Python tools tests passed for `{head}`. [View the CI run]({run_url}).",
         "",
         "| Metric | Value | Evidence |",
         "|---|---:|---|",
@@ -85,7 +90,7 @@ def main():
     parser.add_argument("--run-url", required=True, help="The URL of this GitHub Actions run")
     parser.add_argument("--output", type=Path, help="Write the comment here instead of stdout")
     args = parser.parse_args()
-    text = markdown(json.loads(args.report.read_text()), args.head, args.run_url)
+    text = markdown(loads(args.report.read_text()), args.head, args.run_url)
     if args.output:
         args.output.write_text(text)
     else:
