@@ -1,4 +1,4 @@
-// The direct light of a pixel under key and fill (docs/plans/light-pairs.md, "Key and fill"): every light of the main
+// The direct light of a pixel under key and fill (https://github.com/alexispurslane/tertius/wiki/light-pairs, "Key and fill"): every light of the main
 // view with its shadow, as directLight takes them, but each light's response is its full response only by its key
 // share, and its fill response by the rest. The fill response is the light's diffuse light as a point light gives it,
 // with no shine. Only direct_key_fill.frag and key_fill_corners.frag include it.

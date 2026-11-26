@@ -1,4 +1,4 @@
-// The tail of a pyramid's build (docs/plans/screen-space-reflections.md, "The depth pyramid", and PyramidTail): each cell
+// The tail of a pyramid's build (https://github.com/alexispurslane/tertius/wiki/screen-space-reflections, "The depth pyramid", and PyramidTail): each cell
 // merges the up to four cells under it, as the pyramid's down shader does, for every mip from the tail's first to 1 × 1,
 // in one workgroup, with a barrier of the workgroup between two mips instead of a dispatch per mip. The merges are the
 // down shader's, in its order, so the tail gives the bits of a dispatch per mip. PyramidTail chooses the first mip; its

@@ -28,7 +28,7 @@ diff --color=auto -ru base/shadows.glsl A-bounds/shadows.glsl
 +    return clamp((lit - 0.5) / width + 0.5, 0.0, 1.0);
 +}
 +
- // The lit fraction of a near light's shadow filter at a world position (docs/plans/local-light-shadows.md, "Sampling"):
+ // The lit fraction of a near light's shadow filter at a world position (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, "Sampling"):
  // the one tile of a spot light, or the tile of the cube face of a point light that holds the direction from the light to
  // the position. The filter's FilterTapsPerAxis × FilterTapsPerAxis PCF taps (the reads below are written for 4), computed
 @@ -372,7 +381,7 @@

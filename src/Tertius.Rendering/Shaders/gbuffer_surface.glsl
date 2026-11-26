@@ -1,6 +1,6 @@
 // The lit surface that the G-buffer holds at a pixel. The direct pass, the composite, the screen tracer and the
 // accumulator read a lit pixel's surface only through it. So does the reflection's footprint, which the closed form of
-// the environment's specular term reads from the G-buffer (docs/plans/environment-map.md, "Where it runs"), only where
+// the environment's specular term reads from the G-buffer (https://github.com/alexispurslane/tertius/wiki/environment-map, "Where it runs"), only where
 // that term reads it (withAmbientFootprint). The pixel must lie inside the G-buffer: texelFetch outside an image is
 // undefined.
 #ifndef TERTIUS_GBUFFER_SURFACE_GLSL

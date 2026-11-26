@@ -1,4 +1,4 @@
-// An own-ray list (docs/plans/temporal-renderer.md, section 6, "The ray budget"): the pixels that trace a ray of their
+// An own-ray list (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 6, "The ray budget"): the pixels that trace a ray of their
 // own, which a dispatch appends and an indirect dispatch of OwnRayGroupSize invocations per workgroup traces. OwnRayList
 // is the C# side of this layout, and OwnRayDispatch clears the header to OwnRayList.EmptyHeader before the appends. The
 // screen tracer keeps one list per ray kind, and no other reflection list exists. GLSL

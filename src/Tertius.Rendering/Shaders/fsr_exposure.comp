@@ -1,6 +1,6 @@
 #version 460
 
-// FSR's exposure step (docs/plans/temporal-renderer.md, decision 31): AMD's ratio of this frame's pre-exposure to the
+// FSR's exposure step (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, decision 31): AMD's ratio of this frame's pre-exposure to the
 // last frame's, which AMD's host computes on the CPU, written into FSR's constant buffer on the GPU, because the CPU
 // learns the exposure only frames late. AMD's shaders multiply the history by it when the exposure changes. One
 // invocation, before FSR's first pass.

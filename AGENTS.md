@@ -9,11 +9,12 @@ Set each status from the work itself, in the same action that changes it:
 | Backlog | Unselected work, or work that is not ready for a builder |
 | Todo | Ready work with no active branch or pull request |
 | In Progress | An active worktree, branch or draft pull request |
-| In Review | An active review round, findings being resolved, or CI running on a ready pull request |
+| In Review | A ready pull request waiting for CI or final resolution after its review round |
 | Done | A merged pull request, linked evidence and a closed issue |
 
 - Never leave a draft pull request in Todo or In Review.
-- Move an issue to In Review when the builder launches the reviewer.
+- Keep a draft pull request In Progress while the reviewer comments and the builder resolves findings. Move it to In Review when it becomes ready.
+- Resolve each review thread as soon as its fix is pushed and its evidence is replied. Do not leave fixed findings open while other findings remain open.
 - Return an issue to Todo if work stops or its pull request closes unmerged. Record the reason and next action.
 - Close the issue and set Done immediately after its pull request merges. Do not leave merged work open or In Review.
 - Close an epic only after every native sub-issue is Done.
@@ -21,7 +22,7 @@ Set each status from the work itself, in the same action that changes it:
 
 ## Merge through CI
 
-Keep a pull request as a draft while the builder pushes progress. Mark it ready after the review findings are resolved. GitHub Actions then runs every CPU-only .NET test in Checked and every Python tools test on the branch head and on every later push. The required `Tests and metrics` check must pass before merge. The CPU Release suite runs on `main` after merges. GPU tests remain optional local feedback.
+Keep a pull request as a draft while the builder pushes progress. Mark it ready after the review findings are resolved. GitHub Actions then runs every test in the seven CPU-only .NET test projects (Core, Simulation, Physics, Assets, Unions, Style and Slop) in Checked and every Python tools test on the branch head and on every later push. The required `Tests and metrics` check must pass before merge. The same seven projects run in Release on `main` after merges. GPU tests remain optional local feedback.
 
 After the tests pass, the workflow comments with erosion, verbosity, high CC mass, high CC function count, verbose lines, SLOC, TCC, depth and the supporting counts and provenance from the metrics tool. Read the comment and judge the numbers as `AGENTS.md` instructs. The comment and the passing check must belong to the head being merged.
 
@@ -35,15 +36,15 @@ ARCHITECTURE.md is the binding design, and the code and `tools/README.md` say ho
 
 - Run every build and test command in the dev shell: `nix develop --command bash -c '<command>'`.
 - `bash tools/test-all.sh` runs every .NET test module in Checked and Release. Checked is the test configuration: Debug's contracts with Release's optimized code. An agent in an isolated worktree cannot run it, because Claude Code refuses a script there: it cannot prove that the script runs no git outside the worktree. Such an agent runs `nix develop --command dotnet test --solution Tertius.slnx -c Checked`, then the same with `-c Release`. Each command builds and runs every test project in about two minutes.
-- The pre-commit hook runs only the Checked tests for local feedback. GitHub Actions is the merge authority. It runs every CPU-only .NET test in Checked and every Python tools test when a pull request becomes ready and after every later push. The required `Tests and metrics` check must pass on the merged head. The CPU Release suite runs on `main` after merges. GPU tests and local Release runs are optional feedback through `tools/test-all.sh` or `-c Release`.
+- The pre-commit hook runs only the Checked tests for local feedback. GitHub Actions is the merge authority. It runs every test in the seven CPU-only .NET test projects in Checked and every Python tools test when a pull request becomes ready and after every later push. The required `Tests and metrics` check must pass on the merged head. The same seven projects run in Release on `main` after merges. GPU tests and local Release runs are optional feedback through `tools/test-all.sh` or `-c Release`.
 - The hook skips a test project whose full Checked run passed on exactly the staged code (tools/README.md, "The test record"). So run the full Checked tests just before a commit, and the commit does not run them again.
-- Run at most four agents that build at once (user, 2026-10-25). The global hook `~/.claude/hooks/heavy_queue.py` allows four heavy runs. On 2026-10-24, two agents brought the load of this 10-core machine to about 23. When four agents build together, each build and test runs slower.
+- On the user's Mac, run at most four agents that build at once (user, 2026-10-25). The global hook `~/.claude/hooks/heavy_queue.py` allows four heavy runs. On 2026-10-24, two agents brought the load of this 10-core machine to about 23. When four agents build together, each build and test runs slower.
 - Use git, not jj. This overrides the jj rule in the user's other agent configuration.
 - Do not push `main` directly. It is protected. Merge pull requests through GitHub, then pull `main` to update local checkouts.
 - `origin` fetches from GitHub, the primary home since 2026-11-12. It pushes to GitHub, then to the knot, a push mirror (tools/README.md, "The remotes: GitHub and the knot mirror"). If a push fails on one URL, push again.
 - The last step of every ticket that changes the engine updates ARCHITECTURE.md to match the code, before the merge. It is part of the public engine docs.
 - At the end of every piece of work that shows on screen, send the user two to four screenshots of the rendered game. The user often follows from a phone and cannot run the game. Take them with a headless run of the real renderer, `dotnet run --project src/Tertius.Demo -- --script scripts/<name>.json --headless --out <folder>`. Look at each image first, and give each a one-line caption.
-- Read the Jolt pitfalls in project memory, `~/.claude/projects/-Users-alexispurslane-Development-tertius/memory/tertius-jolt-pitfalls.md`, before you touch Jolt interop. A subagent gets no memory, so it reads that file. The double-precision Jolt library comes from `native/joltc.nix`.
+- On the user's Mac, read the Jolt pitfalls in project memory, `~/.claude/projects/-Users-alexispurslane-Development-tertius/memory/tertius-jolt-pitfalls.md`, before you touch Jolt interop. A subagent gets no memory, so it reads that file. This file can be absent on other machines. The double-precision Jolt library comes from `native/joltc.nix`.
 
 ## Style
 
@@ -150,5 +151,5 @@ Splitting a type can remove non-sharing pairs and raise TCC without changing its
   - Any agent, also a subagent, can run the official Stryker command. Stryker starts only through `tools/stryker/run.py`, which takes the lock `/tmp/tertius-stryker.lock`. The lock keeps Stryker runs one at a time on the machine, because two runs compete for the CPU and their tests time out.
   - While an official run on the Mac goes on, build or test no Checked test project of the same worktree, and do not commit there. Stryker copies its mutated assembly into their output, and such a build replaces it. The run then prints NOT VALID. A cloud run builds nothing in the worktree.
   - Each epic runs coverage on its changed lines before the merge. A Stryker run over the whole vertical slice took hours, so mutation testing stays on the changed lines.
-- Where the tests run: only the official Stryker run goes to the cloud by default. GitHub Actions runs every CPU-only .NET test in Checked and every Python tools test on ready pull requests, then the CPU Release suite on `main`. The pre-commit hook, the `tools/mutate.py` list and optional local Release or GPU runs stay on the Mac. A GPU mutant takes about 63 s in the cloud against 40 s on the Mac. An agent can send the CPU-only test projects to the cloud's CPU workers to keep them off the Mac. GPU test shards go to the cloud only on demand, when an agent is blocked on the Mac (tools/runpod/WORKBENCH.md, "Tests in the cloud").
+- Where the tests run: only the official Stryker run goes to the cloud by default. GitHub Actions runs every test in the seven CPU-only .NET test projects in Checked and every Python tools test on ready pull requests, then the same seven projects in Release on `main`. The pre-commit hook, the `tools/mutate.py` list and optional local Release or GPU runs stay on the Mac. A GPU mutant takes about 63 s in the cloud against 40 s on the Mac. An agent can send the CPU-only test projects to the cloud's CPU workers to keep them off the Mac. GPU test shards go to the cloud only on demand, when an agent is blocked on the Mac (tools/runpod/WORKBENCH.md, "Tests in the cloud").
 - A snapshot test proves only that nothing changed. So the first approval of a reference image is a real review against the scene description. If an agent adds or re-approves a reference image, or sees a snapshot fail, it opens three images with the Read tool. They are the reference, the actual image and the FLIP heat map, and its report describes them.

@@ -1,4 +1,4 @@
-// Key and fill (docs/plans/light-pairs.md, "Key and fill"): what the corner pass, the tile pass and the direct pass
+// Key and fill (https://github.com/alexispurslane/tertius/wiki/light-pairs, "Key and fill"): what the corner pass, the tile pass and the direct pass
 // share. A corner is a point of a grid of TileSize render pixels, and a tile is the square between four corners. The
 // corner pass (key_fill_corners.frag) ranks the lights at each corner in Groups groups, one fragment per corner and
 // group, and leaves each group's candidates. The tile pass (key_fill_tiles.comp) merges them into each corner's key

@@ -23,7 +23,7 @@ float skyFraction(vec4 hemisphere, vec3 position, vec3 normal)
 }
 
 // How much of the light that the specular lobe gathers comes from the sky: the lobe-sky table at the tilt of the lobe's
-// dominant direction (docs/plans/pbr-brdf.md, "The ambient light's specular part"). V points from the surface to the
+// dominant direction (https://github.com/alexispurslane/tertius/wiki/pbr-brdf, "The ambient light's specular part"). V points from the surface to the
 // eye. A hemisphere with w 0 gives 0.5 everywhere, as skyFraction does.
 float lobeSkyFraction(vec4 hemisphere, vec3 position, vec3 normal, vec3 V, float roughness)
 {

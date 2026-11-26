@@ -24,7 +24,7 @@ index 608fba090..7aa238bc0 100644
 +/// bounds as a storage image, for the compute stage. One for the cascades and one with the atlas, each written once.</description></item>
  /// <item><term>deform</term><description>the set of <see cref="DeformLayout"/>: the deform region's window of the vertex
  /// buffer, the deform vertices, the morph deltas, the frame's pose rows and its job table, five storage buffers for the
- /// compute stage (docs/plans/skinning-and-morphs.md, "The pass"), and this frame's kept positions (binding 5). One per
+ /// compute stage (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "The pass"), and this frame's kept positions (binding 5). One per
 @@ -426,12 +427,12 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
      public PipelineLayout ScatterLayout { get; }
  
@@ -351,7 +351,7 @@ index b940a197d..e4923ee90 100644
 @@ -20,7 +20,8 @@ namespace Tertius.Rendering;
  /// <para><see cref="Record"/> draws each cascade into its layer of the <see cref="ShadowMap"/> with a depth-only
  /// vkCmdDrawIndexedIndirect per run, from the same global vertex, index and instance buffers as the G-buffer pass. The
- /// cutout run's pipeline discards a texel below its material's cutoff (docs/plans/skin-and-hair.md). It clears the
+ /// cutout run's pipeline discards a texel below its material's cutoff (https://github.com/alexispurslane/tertius/wiki/skin-and-hair). It clears the
 -/// layers of a set without casters too, because the shading passes sample every set that a light names. Depth clamping
 +/// layers of a set without casters too, because the shading passes sample every set that a light names. Then it writes
 +/// the bounds of every layer that it drew (<see cref="ShadowMap.Bounds"/>), which the lookups read first. Depth clamping

@@ -5,7 +5,7 @@
 #include "vectors.glsl"
 
 // ShaderConstants.CutoutAlphaId: true in the cutout pipeline of an opaque pass, false in its solid pipeline and in every
-// other, where the driver drops the test and the pipeline keeps its early depth writes (docs/plans/skin-and-hair.md, "The
+// other, where the driver drops the test and the pipeline keeps its early depth writes (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The
 // cutout test").
 layout(constant_id = 1) const bool cutoutAlpha = false;
 layout(constant_id = 8) const bool mainView = false;
@@ -15,7 +15,7 @@ struct SurfaceSample
     vec4 baseColor;       // linear RGB and alpha
     vec3 normal;          // unit world-space normal after normal mapping
     vec3 geometricNormal; // the unit interpolated vertex normal: the surface that the shadow maps see. For hair, turned
-                          // toward the eye (docs/plans/skin-and-hair.md, "Both sides of a hair card")
+                          // toward the eye (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "Both sides of a hair card")
     float metallic;       // 0 to 1
     float roughness;      // r₀, 0 to 1, before the BRDF's floor
     float reflectance;    // 0 to 1: a non-metal's F0 is 0.16 times its square
@@ -57,7 +57,7 @@ vec3 normalMapped(uint normalMap, vec2 uv, vec3 n, vec4 vertexTangent)
     return mappedLengthSq > 1e-12 ? mapped * inversesqrt(mappedLengthSq) : n;
 }
 
-// T, the strand from root to tip (docs/plans/skin-and-hair.md, "The strand and the fiber normal"): the axis of the shading
+// T, the strand from root to tip (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The strand and the fiber normal"): the axis of the shading
 // frame of the unit shading normal `n`, after the normal map, that the strand direction's code names: 0 +u, 1 −u, 2 +v,
 // 3 −v. v shrinks along the frame's bitangent, as in glTF, so +v is the bitangent's opposite. HairFiber.Strand is the C#
 // copy.
@@ -79,7 +79,7 @@ bool reachesCutoff(float alpha, float cutoff)
 
 // V is the unit direction toward the eye, and also the normal of a surface whose interpolated vertex normal has no
 // direction. A hair's shading normal is its fiber normal, so every pass that shades the sample sees the fiber, not the
-// card's plane (docs/plans/skin-and-hair.md, "The strand and the fiber normal"). In a cutout pipeline, a texel below the
+// card's plane (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The strand and the fiber normal"). In a cutout pipeline, a texel below the
 // material's cutoff is discarded.
 SurfaceSample sampleMaterial(uint materialIndex, vec2 uv, vec3 vertexNormal, vec4 vertexTangent, vec3 V)
 {
@@ -108,7 +108,7 @@ SurfaceSample sampleMaterial(uint materialIndex, vec2 uv, vec3 vertexNormal, vec
     {
         // The strand first, from the frame that the mesh gives, so that it runs the same way seen from either side.
         s.strand = strandOf((m.shading >> 2) & 3u, s.normal, vertexTangent);
-        // A hair card has no back, and the passes that shade draw its back faces (docs/plans/skin-and-hair.md, "Both sides
+        // A hair card has no back, and the passes that shade draw its back faces (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "Both sides
         // of a hair card"): seen from behind, its normals turn toward the eye, as those of the card seen from the front.
         s.geometricNormal = turnedToward(s.geometricNormal, V);
         s.normal = fiberNormal(s.strand, V, turnedToward(s.normal, V));

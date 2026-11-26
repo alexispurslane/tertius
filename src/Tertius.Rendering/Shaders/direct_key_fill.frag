@@ -1,5 +1,5 @@
 #version 460
-// The direct pass under key and fill (docs/plans/light-pairs.md, "Key and fill"): direct.frag with the light of each
+// The direct pass under key and fill (https://github.com/alexispurslane/tertius/wiki/light-pairs, "Key and fill"): direct.frag with the light of each
 // lit pixel from its tile's key lights and fill (key_fill_light.glsl) in place of every light of the list.
 #extension GL_GOOGLE_include_directive : require
 #include "frame.glsl"

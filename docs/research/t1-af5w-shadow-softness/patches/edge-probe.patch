@@ -1,7 +1,7 @@
 --- a/src/Tertius.Rendering/Shaders/direct_key_fill.frag	2026-11-23 09:16:04
 +++ b/src/Tertius.Rendering/Shaders/direct_key_fill.frag	2026-11-23 09:25:31
 @@ -2,6 +2,8 @@
- // The direct pass under key and fill (docs/plans/light-pairs.md, "Key and fill"): direct.frag with the light of each
+ // The direct pass under key and fill (https://github.com/alexispurslane/tertius/wiki/light-pairs, "Key and fill"): direct.frag with the light of each
  // lit pixel from its tile's key lights and fill (key_fill_light.glsl) in place of every light of the list.
  #extension GL_GOOGLE_include_directive : require
 +// SCRATCH (t1-af5w): the shadow-edge probe (lighting.glsl).

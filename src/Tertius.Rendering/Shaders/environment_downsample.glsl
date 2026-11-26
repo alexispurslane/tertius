@@ -1,5 +1,5 @@
 // A run of up to three levels of a cube array's mips, k + 1 to k + 3, from level k (EnvironmentPrefilterPass.cs,
-// docs/plans/environment-map.md, "The radiance map's mips", and docs/plans/environment-map-distances.md, "The level
+// https://github.com/alexispurslane/tertius/wiki/environment-map, "The radiance map's mips", and https://github.com/alexispurslane/tertius/wiki/environment-map-distances, "The level
 // chain"). Each texel of a level is the mean of its four children in the level above it, weighted by each child's solid
 // angle, in every channel. So a texel of the radiance map holds the mean radiance over its own solid angle, and its alpha
 // the open-sky share of that solid angle, wherever it lies on the face. A texel of the distance cube holds the mean inverse

@@ -27,7 +27,7 @@ layout(location = 4) out float outDistance;
 layout(location = 5) out uvec4 outShading;
 layout(location = 6) out vec4 outMotion;
 
-// The map code (docs/plans/environment-maps-per-frame.md, decision 20): map i owns the codes 255 − 2i and 256 − 2i of the
+// The map code (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame, decision 20): map i owns the codes 255 − 2i and 256 − 2i of the
 // 8-bit alpha, and the value lies between them, so either rounding that the conversion to UNORM may take names map i.
 // Map 0 writes 1.0, which converts to 255 exactly. MapCode.Of is the C# twin, and mapOfCode in gbuffer_inputs.glsl reads it.
 float mapCode(uint map)
@@ -62,8 +62,8 @@ void main()
     // Euclidean distance, not depth: the direct and ambient passes rebuild the position as ray × distance, which does not
     // depend on which depth range drew the pixel.
     outDistance = length(inPosition - draw.eye.xyz);
-    // The model's code, a hair's strand and card code (docs/plans/skin-and-hair.md, "The shading target"), and whether
-    // the entity holds a light, whose face its glow is (docs/plans/screen-space-illumination.md, "The bounce source").
+    // The model's code, a hair's strand and card code (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The shading target"), and whether
+    // the entity holds a light, whose face its glow is (https://github.com/alexispurslane/tertius/wiki/screen-space-illumination, "The bounce source").
     outShading = uvec4(s.model == ShadingHair ? strandCode(s.strand) : uvec2(0u),
                        lightModelAndCardWords(inInstanceWords.z, s.model, inInstanceWords.w));
     outMotion = motionOf(inMotionNow, inMotionLast);

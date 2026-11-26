@@ -4,7 +4,7 @@
 // of touching a GPU. So each value below comes from AMD's code, never from the engine's C# host that the tests check
 // against it.
 //
-// The engine's choices (docs/plans/temporal-renderer.md, section 5) are the inputs: HDR color, reversed infinite depth
+// The engine's choices (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 5) are the inputs: HDR color, reversed infinite depth
 // (cameraNear = FLT_MAX, cameraFar = the near plane, as AMD's sample passes it), motion vectors at the render size with
 // the render size as their scale, no jitter cancellation, no automatic exposure, no sharpening, 1 m per view unit, and a
 // device whose wave lanes are 32 wide, so that AMD's host takes the reference Lanczos and 32-bit math.
@@ -505,7 +505,7 @@ void PrintSequence(const Sequence& sequence)
         recorder.staged.clear();
         recorder.stagedSizes.clear();
         stagingUsed = 0;
-        // The external images live at the largest render size, as the engine's do (docs/plans/temporal-renderer.md,
+        // The external images live at the largest render size, as the engine's do (https://github.com/alexispurslane/tertius/wiki/temporal-renderer,
         // "The images").
         FfxFsr3UpscalerGenerateReactiveDescription reactive = {};
         reactive.commandList = reinterpret_cast<FfxCommandList>(&recorder);

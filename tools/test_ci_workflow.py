@@ -16,10 +16,12 @@ class CiWorkflow(unittest.TestCase):
         self.assertIn("name: Tests and metrics", text)
         self.assertIn("bash tools/test-all.sh -c Checked -m Core,Simulation,Physics,Assets,Unions,Style,Slop", text)
         self.assertIn("python3 -I -m unittest discover -s tools -p 'test_*.py'", text)
+        self.assertIn("python3 -I -m unittest discover -s tools/runpod -t tools/runpod -p 'test_*.py'", text)
         self.assertIn("Tertius.Slop.dll all .", text)
         self.assertIn("tools/pr_metrics.py", text)
         self.assertIn("<!-- tertius-metrics -->", text)
         self.assertIn("repos/$REPO/issues/comments/$id", text)
+        self.assertIn("| .id' | tail -1)", text)
 
     def test_the_cpu_release_suite_runs_only_on_main(self):
         text = Path(__file__).parents[1].joinpath(".github", "workflows", "tests.yml").read_text()

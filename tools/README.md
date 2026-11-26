@@ -6,7 +6,7 @@ Run every command in the dev shell, from the repository root. The build copies t
 
 ## Every test project in one command
 
-For local feedback, `tools/test-all.sh` builds the solution once per build configuration. Then it runs every test project in every configuration with `--no-build`, all at the same time, one process each. Each process also runs its own test classes in parallel. GitHub Actions runs every CPU-only .NET test in Checked and every Python tools test when a pull request becomes ready and after every later push. The CPU Release suite runs on `main` after merges. The required `Tests and metrics` check blocks merging until it passes on the current head. The script works from any folder in the repository:
+For local feedback, `tools/test-all.sh` builds the solution once per build configuration. Then it runs every test project in every configuration with `--no-build`, all at the same time, one process each. Each process also runs its own test classes in parallel. GitHub Actions runs every test in the seven CPU-only .NET test projects (Core, Simulation, Physics, Assets, Unions, Style and Slop) in Checked and every Python tools test when a pull request becomes ready and after every later push. The same seven projects run in Release on `main` after merges. The required `Tests and metrics` check blocks merging until it passes on the current head. The script works from any folder in the repository:
 
 ```bash
 nix develop --command bash -c 'bash tools/test-all.sh'
@@ -293,7 +293,7 @@ By default, run this one official run in the cloud. Run the command from the bra
 python3 -I tools/stryker/cloud.py main /tmp/<ticket>-stryker --agent <your name>
 ```
 
-`cloud.py` runs `changed.py` on each module on its own CPU worker, all at once, and prints the merged table ("A run on another machine" below). Only the official Stryker run goes to the cloud by default. The `tools/mutate.py` list, the pre-commit hook and optional local test runs stay on the Mac. The required CPU Checked suite runs in GitHub Actions on ready pull requests, and the CPU Release suite runs on `main` after merges. To run the official run on the Mac, run it in the dev shell on the branch:
+`cloud.py` runs `changed.py` on each module on its own CPU worker, all at once, and prints the merged table ("A run on another machine" below). Only the official Stryker run goes to the cloud by default. The `tools/mutate.py` list, the pre-commit hook and optional local test runs stay on the Mac. The required suite of the seven CPU-only .NET test projects runs in Checked on ready pull requests, and those projects run in Release on `main` after merges. To run the official run on the Mac, run it in the dev shell on the branch:
 
 ```bash
 nix develop --command python3 -I tools/stryker/changed.py main /tmp/<ticket>-stryker

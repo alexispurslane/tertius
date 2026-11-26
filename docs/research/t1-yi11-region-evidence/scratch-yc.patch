@@ -88,7 +88,7 @@ index e25ddfb..4ceadd1 100644
 +++ b/src/Tertius.Rendering/Frame/SignalParameters.cs
 @@ -52,10 +52,14 @@ internal readonly record struct SignalParameters(
      /// The diffuse signal's set: a cap of 32 frames at every roughness, and a box widened by two retained deviations
-     /// where its block has no motion evidence (docs/plans/bounce-light-confidence.md, section 7).
+     /// where its block has no motion evidence (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 7).
      /// </summary>
 +    private static readonly int ProbeDiffuseCap =
 +        int.TryParse(Environment.GetEnvironmentVariable("TERTIUS_X_DIFFUSE_CAP"), out int probeCap) ? probeCap : 32;
@@ -204,7 +204,7 @@ index 7fd8cf0..c0e09b4 100644
      /// </summary>
      public uint RegionSlot;
  
-+    // PROBE (tools/renderer-survey, never commit to src): the knobs of docs/plans/bounce-light-confidence.md (section 21),
++    // PROBE (tools/renderer-survey, never commit to src): the knobs of https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence (section 21),
 +    // read once from the environment (ProbeX). A knob that is not set keeps the build's value. TERTIUS_A_RETAINED_SIGMAS
 +    // sets the widening of a widened box. TERTIUS_A_NO_CLAMP=1, for the truth, turns both signals' clamps off (a negative
 +    // ClampSigmas, which accumulate_spatial.comp reads as "no clamp", so the anti-lag sees no move either) and the
@@ -230,7 +230,7 @@ index 7fd8cf0..c0e09b4 100644
 +    private static readonly bool ProbeNoClamp = Environment.GetEnvironmentVariable("TERTIUS_A_NO_CLAMP") == "1";
 +
 +    /// <summary>
-+    /// PROBE: Design X's evidence knobs (docs/plans/bounce-light-confidence.md, section 21) and the rule of
++    /// PROBE: Design X's evidence knobs (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 21) and the rule of
 +    /// evidenceOfSample under them, which the census repeats on the CPU. The probe's resolve writes a sample's moved mark in
 +    /// bit 15 of its age and the pixel's own motion in bit 14, which no light code reaches (MostCodedAge 16,382), so that
 +    /// the census and TERTIUS_X_CAUSES tell the two causes of motion apart.
@@ -503,7 +503,7 @@ index 9a1da8e..66cee85 100644
 @@ -5,7 +5,8 @@
  // workgroup is a block of 8 × 8 pixels, and the block's evidence level, the strongest of its pixels' samples, acts on
  // every pixel of it in this draw: motion evidence drops the box's widening, and light evidence cuts the length to at most
- // FullRateFrames and leaves the box (docs/plans/bounce-light-confidence.md, section 8). The bounce light also takes the
+ // FullRateFrames and leaves the box (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8). The bounce light also takes the
 -// region evidence of its block (region_drift.glsl, TERTIUS_REGION_DRIFT), which cuts the length in the same way.
 +// region evidence of its block (region_drift.glsl, TERTIUS_REGION_DRIFT), which cuts the length to the region's cap, from
 +// FullRateFrames up, and leaves the box.
@@ -545,7 +545,7 @@ index 9a1da8e..66cee85 100644
  // The evidence level of one sample, from its age (sample_age.glsl): light evidence where one of its rays saw a recent
  // light change, motion evidence where it saw motion. This is the one place that chooses the action of motion: a moved
  // object narrows the box and does not cut, because a cut makes the pixels trace their own rays for as long as the motion
- // lasts (docs/plans/bounce-light-confidence.md, section 8.2, open point 1).
+ // lasts (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.2, open point 1).
  uint evidenceOfSample(uint sampleAge)
  {
 -    if (recentLightCode(lightCodeOf(sampleAge)))
@@ -706,7 +706,7 @@ index 7251102..4a44194 100644
 @@ -92,6 +99,15 @@ void main()
          indirectSpecular = reflectionSharedAt(pixel, indirectSpecular);
      // Each part is finite and at most a few times MaxRadiance, so the sum is finite, and the cap keeps the surfaces' share
-     // (docs/plans/screen-space-illumination.md, "The cap at MaxRadiance").
+     // (https://github.com/alexispurslane/tertius/wiki/screen-space-illumination, "The cap at MaxRadiance").
 +    if (probeSignal != 0)
 +    {
 +        // PROBE: each signal alone, and its share of D for the skin scatter, so that the three signals add up.
@@ -809,7 +809,7 @@ index 3386bf2..1a3e4f1 100644
 +// of two means of W draws. Only the excess u = |D| − bar is a change that the noise does not explain, so a drift at or
 +// under the bar gives 0. Above it, n = (W s1 / (√2 u))^(2/3): a history of n draws lags a drift of u per window by
 +// n u / W, and its noise is s1 / sqrt(2 n), and n is the length at which the two are equal
-+// (docs/plans/bounce-light-confidence.md, section 8.7). So a drift just
++// (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.7). So a drift just
 +// above the bar, as a still's noise gives it, leaves a long history, and a drift far above it cuts to FullRateFrames. 0
 +// until 2 W valid draws in a row exist. The older window's spread is a measured quantity: a step inside the newer window
 +// does not raise it. Where s1 is 0, a drift of 0 gives 0 and any other drift the cut of FullRateFrames, with no division
@@ -870,13 +870,13 @@ index 87e5663..25da748 100644
 @@ -22,8 +26,10 @@ const uint LightCodeMask = 0x7FFFu;
  const uint RecentLightAge = 7u;
  
- // A pixel traces its own ray of a kind while its history of that kind is shorter than this (docs/plans/temporal-renderer.md,
+ // A pixel traces its own ray of a kind while its history of that kind is shorter than this (https://github.com/alexispurslane/tertius/wiki/temporal-renderer,
 -// section 6, "The ray budget"). The screen tracer's plan reads it, and so does the spatial dispatch, whose light and region
 -// evidence cut a history to it: the shortest length that keeps the block's shared ray.
 +// section 6, "The ray budget"). The screen tracer's plan reads it, and so does the spatial dispatch, whose light evidence
 +// cuts a history to it, and whose region evidence cuts a history to it at the shortest: the shortest length that keeps the
 +// block's shared ray. A shorter restart made every pixel of the block trace its own rays
-+// (docs/plans/bounce-light-confidence.md, section 2.2, record of 2026-11-22).
++// (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 2.2, record of 2026-11-22).
  const float FullRateFrames = 8.0;
  
  // The sample age of a sample whose rays bring the light code `lightCode`, with the motion bit where `motion` holds.
@@ -961,7 +961,7 @@ index ad7a9eb..9e142a6 100644
      private static UpscalingSetting UpscalingOf(RendererOptions options, bool headless) =>
          headless ? options.Upscaling.ForHeadless() : options.Upscaling;
  
-+    // PROBE (tools/renderer-survey, never commit to src): the evidence census of docs/plans/bounce-light-confidence.md
++    // PROBE (tools/renderer-survey, never commit to src): the evidence census of https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence
 +    // (section 21). With TERTIUS_X_CENSUS=<folder>, each draw reads back the sample age of each part of each signal that
 +    // has one, and appends to <folder>/census.txt one line per signal and part:
 +    // "<draw> <draw index since the last reset> <1 if the draw reset, else 0> <light> <part>", then the blocks of 8 x 8

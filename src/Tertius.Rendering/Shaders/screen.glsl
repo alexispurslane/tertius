@@ -1,4 +1,4 @@
-// The screen's geometry in the camera-relative world axes (docs/plans/screen-space-reflections.md, "The ray's image on
+// The screen's geometry in the camera-relative world axes (https://github.com/alexispurslane/tertius/wiki/screen-space-reflections, "The ray's image on
 // the screen"). CameraView holds the unjittered C# geometry; this file also applies the frame's current and previous jitter.
 #ifndef TERTIUS_SCREEN_GLSL
 #define TERTIUS_SCREEN_GLSL

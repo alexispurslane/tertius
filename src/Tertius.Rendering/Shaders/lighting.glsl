@@ -1,22 +1,22 @@
 // The lighting model, shared by the deferred direct and ambient passes, the transparent forward pass, the impostor
 // capture, the environment faces and the lit puffs.
 //
-// The PBR BRDF (docs/plans/pbr-brdf.md, "The BRDF"): Lambert diffuse, plus GGX with the height-correlated Smith
+// The PBR BRDF (https://github.com/alexispurslane/tertius/wiki/pbr-brdf, "The BRDF"): Lambert diffuse, plus GGX with the height-correlated Smith
 // visibility term and Schlick's Fresnel term, with Filament's multiple-scattering energy compensation from the DFG table:
 //   f = c_diff / π + D · Vis · F · c,   c_diff = b (1 − m),   F0 = (1 − m) · 0.16 ρ² + m · b
-// Each light of the one light list adds f · E · (N·L), where E is its irradiance (docs/plans/local-light-shadows.md, "The
-// shaders"), and its specular part sees the light as a sphere of its radius (docs/plans/pbr-brdf.md, "Sized lights").
+// Each light of the one light list adds f · E · (N·L), where E is its irradiance (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, "The
+// shaders"), and its specular part sees the light as a sphere of its radius (https://github.com/alexispurslane/tertius/wiki/pbr-brdf, "Sized lights").
 // A tube light is a capsule, whose diffuse part takes its vector irradiance and whose specular part its representative
 // point (ARCHITECTURE.md, "Tube lights"). A rectangle light is a one-sided face, whose E is its face radiance: its diffuse
 // part takes the edge sum cut at the horizon and its specular part the LTC of the lobe (ARCHITECTURE.md, "Rectangle
 // lights").
 // A hair pixel takes each light's response of a fiber instead (hair.glsl), from either side of its card, and its
-// ambient light at its fiber normal, its shading normal (docs/plans/skin-and-hair.md, "The hair model"). A skin pixel
+// ambient light at its fiber normal, its shading normal (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The hair model"). A skin pixel
 // shades as the standard model, with metallic 0. The ambient light comes from one ambient source,
 // the scene environment map while it is on and the hemisphere while it is off, which gives a diffuse and a specular
-// term (docs/plans/environment-map.md, "The one source of the ambient light"). The forward passes read the ambient
+// term (https://github.com/alexispurslane/tertius/wiki/environment-map, "The one source of the ambient light"). The forward passes read the ambient
 // light through ambientTerms, with every direction open. The deferred surfaces take their indirect light from the
-// screen tracer's signals, or from the closed form of temporal.glsl (docs/plans/temporal-renderer.md, section 9).
+// screen tracer's signals, or from the closed form of temporal.glsl (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 9).
 // lobesRadiance pre-exposes the sum and caps it at MaxRadiance, the surfaces' share of the HDR image (exposure.glsl).
 //
 // A light's shadow slot says how its shadows dim it (shadows.glsl): a far light by its far shadows (a sphere per caster,
@@ -32,7 +32,7 @@
 #include "atmosphere.glsl"
 #include "environment.glsl"
 
-// How a view samples every light's shadow maps (docs/plans/environment-map.md, "The shadow maps in a face").
+// How a view samples every light's shadow maps (https://github.com/alexispurslane/tertius/wiki/environment-map, "The shadow maps in a face").
 const uint ShadowMapsNone = 0u;       // far shadows only: the impostor capture
 const uint ShadowMapsMainView = 1u;   // the cascades by view depth with their blend bands, and the tiles: direct, transparent, lit puffs
 const uint ShadowMapsHolding = 2u;    // the finest cascade whose box holds the point, and the tiles: the environment faces
@@ -99,7 +99,7 @@ SurfaceLobes lobesOf(ShadingInput s, vec3 V)
 }
 
 // The light of one light toward V per unit irradiance, its diffuse part and its specular part
-// (docs/plans/skin-and-hair.md, "The light of each model"). The diffuse part has the diffuse color in it, as
+// (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The light of each model"). The diffuse part has the diffuse color in it, as
 // AmbientTerms.diffuse has. DirectTerms in C# is the copy.
 struct DirectTerms
 {
@@ -117,7 +117,7 @@ vec3 halfVectorOf(vec3 L, vec3 V, vec3 fallback)
 
 #include "hair.glsl"
 
-// D · Vis · F · c · (N·l) of a light whose angular radius has the sine lightSine (docs/plans/pbr-brdf.md, "Sized
+// D · Vis · F · c · (N·l) of a light whose angular radius has the sine lightSine (https://github.com/alexispurslane/tertius/wiki/pbr-brdf, "Sized
 // lights"): l is the representative point of the sphere (sphereLightDirection), and D takes the widened lobe's
 // normalization (sphereNormalization). A light of radius 0 is a point light: l = L, with the same operations as before
 // the sized lights, so its image does not change.
@@ -475,7 +475,7 @@ void lightIrradiance(uint index, bool tinted, uint shape, vec3 position, out Lig
             falloff *= smoothstep(light.directionCosOuter.w, light.spotRadius.x, dot(-p.L, light.directionCosOuter.xyz));
     }
     vec3 irradiance = light.intensityKind.rgb * falloff;
-    // The atmosphere's sun takes the air's tint at the lit point (docs/plans/atmosphere.md, "The sun's tint"). The tint
+    // The atmosphere's sun takes the air's tint at the lit point (https://github.com/alexispurslane/tertius/wiki/atmosphere, "The sun's tint"). The tint
     // is at most 1, so the product stays finite.
     if (tinted && index == frame.counts.y)
         irradiance *= sunTintAt(position);
@@ -575,7 +575,7 @@ AmbientTerms environmentAmbient(ShadingInput s, SurfaceLobes lobes, vec3 V)
 }
 
 // The ambient light of a surface point in its two terms, with every direction open, from the frame's ambient source:
-// the map while it is on and the hemisphere while it is off (docs/plans/environment-map.md, "The one source of the
+// the map while it is on and the hemisphere while it is off (https://github.com/alexispurslane/tertius/wiki/environment-map, "The one source of the
 // ambient light"). ambientLight reads the ambient light only through this function. V points from the surface to the
 // eye.
 AmbientTerms ambientTerms(ShadingInput s, SurfaceLobes lobes, vec3 V)
@@ -590,9 +590,9 @@ vec3 ambientLight(ShadingInput s, SurfaceLobes lobes, vec3 V)
     return terms.diffuse + terms.specular;
 }
 
-// Whether a view keeps a light of the list (docs/plans/environment-map.md, decision 20): the main view the lights whose
+// Whether a view keeps a light of the list (https://github.com/alexispurslane/tertius/wiki/environment-map, decision 20): the main view the lights whose
 // reach touches its frustum, and a face of map i the lights whose map is at most i
-// (docs/plans/environment-maps-per-frame.md, decision 13).
+// (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame, decision 13).
 bool viewKeeps(uint view, GpuLight light)
 {
     return view == MainView ? light.inMainView != 0u : light.map <= view;
@@ -809,20 +809,20 @@ DirectTerms modelLight(
 // of the list, then the tubes, then the rectangles, each in the order of the list, so the sum rounds the same way on
 // every run.
 // A light adds only where takesLight says. A hair card's shadow lookups take its geometric normal turned toward the
-// light, the side that the light sees (docs/plans/skin-and-hair.md, decision 27). The result is plain radiance: no ambient light, no emission and no exposure. The direct pass divides it
+// light, the side that the light sees (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, decision 27). The result is plain radiance: no ambient light, no emission and no exposure. The direct pass divides it
 // by its material factors into the direct light's images (Shaders/direct.frag).
 //
 // A pixel has one model, so directLight chooses the model once per pixel, before the loop over the lights, and each
 // model has a loop of its own. Chosen per light inside one loop, the hair's code made the direct pass of demo-exit's deck
 // about 0.5 ms slower with no hair on screen. The trade-off: a subgroup that holds hair and other pixels runs both loops,
 // so it pays each light's irradiance and shadow lookups twice. A view of hair under 16 shadowed lamps, about a third of
-// whose pixel blocks hold both, showed no measurable cost of it (docs/plans/skin-and-hair.md, "The shading models'
+// whose pixel blocks hold both, showed no measurable cost of it (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The shading models'
 // cost").
 //
 // For the same reason, the frame chooses between a loop with the air's tint and one without it: only a frame whose list
 // holds the atmosphere's sun takes the loop that compares each light with it. In every frame, the test of the tint inside
 // the one loop, never true without an atmosphere, made the direct pass of demo-exit's deck about 0.2 ms slower. The
-// choice takes that off, and about 0.05 ms off its transparent pass (docs/plans/skin-and-hair.md, "What remains"). The
+// choice takes that off, and about 0.05 ms off its transparent pass (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "What remains"). The
 // choice is the same for every pixel of a frame.
 DirectTerms directLight(ShadingInput s, SurfaceLobes lobes, vec3 V, uint shadowMaps, uint view)
 {
@@ -847,7 +847,7 @@ vec3 directSum(DirectTerms terms)
 // The reflected light is capped before it is multiplied, so the product stays a finite single float (exposure.glsl).
 // V points from the surface to the eye. Impostor captures pass ShadowMapsNone and an exposure of 1, because the atlas
 // stores radiance. The main view's opaque surfaces split the same cap over the direct and the ambient pass
-// (docs/plans/screen-space-illumination.md, "The cap at MaxRadiance").
+// (https://github.com/alexispurslane/tertius/wiki/screen-space-illumination, "The cap at MaxRadiance").
 vec3 lobesRadiance(
     ShadingInput s, SurfaceLobes lobes, vec3 preExposedEmission, vec3 V, uint shadowMaps, float exposure)
 {
@@ -869,7 +869,7 @@ vec3 directRadiance(ShadingInput s, vec3 emission, vec3 V, uint shadowMaps, uint
     return min(directSum(directLight(s, lobes, V, shadowMaps, view)) + emission, vec3(MaxRadiance));
 }
 
-// The light that a lit puff at `position` sends toward the eye (docs/plans/particles.md, "Lit puffs"). A puff has no
+// The light that a lit puff at `position` sends toward the eye (https://github.com/alexispurslane/tertius/wiki/particles, "Lit puffs"). A puff has no
 // surface and no normal: it scatters the light that reaches its center equally in every direction, which is the mean over
 // every facing of a matte surface lit by the same lights. The mean of the cosine over every facing is 1/4, so each light
 // gives albedo / (4π) times its irradiance and visibility. The ambient light gives the albedo times the mean radiance of
@@ -911,7 +911,7 @@ vec3 scatteredLight(vec3 albedo, vec3 position, uint map)
 #include "reflection_footprint.glsl"
 
 // The ShadingInput of a surface that a forward pass shades from its material's sample `s` at `position`: the glass and
-// the fringe of the transparent pass and the impostor captures (docs/plans/skin-and-hair.md, "The fringe"). An
+// the fringe of the transparent pass and the impostor captures (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The fringe"). An
 // environment face fills its own from its surface record (face_surface.glsl). The reflection's footprint comes from the
 // screen derivatives, so the caller calls this before any discard.
 // The sky shares serve the hemisphere alone, and are 0 while the environment map is on. A forward surface is not in the

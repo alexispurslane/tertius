@@ -10,13 +10,13 @@
 // The light pass of an environment face (EnvironmentFacePass.cs): one fullscreen triangle over the face, after its
 // surfaces wrote the surface record (face_surface.glsl). It writes every texel of the face once.
 //
-// A texel with a surface takes the light of impostor_capture.frag without the ambient light (docs/plans/environment-map.md,
+// A texel with a surface takes the light of impostor_capture.frag without the ambient light (https://github.com/alexispurslane/tertius/wiki/environment-map,
 // "How a face is lit"): every light, a cascade set by the finest cascade whose box holds the point, and the glow that
 // the surface sends, in plain radiance, seen through the atmosphere's haze. Beside the light, it writes the surface's
-// inverse distance from the eye to the distance cube (docs/plans/environment-map-distances.md, "How the capture writes
+// inverse distance from the eye to the distance cube (https://github.com/alexispurslane/tertius/wiki/environment-map-distances, "How the capture writes
 // it"). A texel without a surface shows the sky without the stars, with an open-sky share of 1. The readers add the
-// stars for each pixel (docs/plans/environment-map.md, "What a face draws"). The sky is infinitely far, so its inverse
-// distance is 0 (docs/plans/environment-map-distances.md, "The quantity").
+// stars for each pixel (https://github.com/alexispurslane/tertius/wiki/environment-map, "What a face draws"). The sky is infinitely far, so its inverse
+// distance is 0 (https://github.com/alexispurslane/tertius/wiki/environment-map-distances, "The quantity").
 
 // FaceLightPushConstants in GpuTypes.cs: the face's basis, forward.w the inverse of the face size, and the face's map.
 layout(push_constant, std430) uniform FaceLightPush
@@ -46,11 +46,11 @@ void main()
     }
 
     // A face of map i keeps the lights of maps 0 to i: a map leaves out the lamps of the subtree that it leaves out
-    // (docs/plans/environment-maps-per-frame.md, decision 13).
+    // (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame, decision 13).
     // A face's eye is the camera's, at the origin. A surface there has no direction toward it (towardEye in draw.glsl).
     vec3 V = normalizedOr(vec3(0.0) - s.position, -frame.cameraForward.xyz);
     vec3 radiance = directRadiance(s, glow, V, ShadowMapsHolding, face.map);
-    // The face sees the surface through the same haze as the main view, from the same eye (docs/plans/atmosphere.md,
+    // The face sees the surface through the same haze as the main view, from the same eye (https://github.com/alexispurslane/tertius/wiki/atmosphere,
     // "The haze"). Both parts are at most MaxRadiance, and so is their convex sum.
     outColor = vec4(throughAir(radiance, vec3(1.0), s.position, frame.atmosphere.haze.rgb), 0.0);
     // The radial distance along the texel's direction, not the depth along the face's axis, so that both sides of a seam

@@ -236,8 +236,8 @@ index b25980c42..bd7f34442 100644
  // frame's fast history around the pixel, shortens the length by the clamp's move, and writes the slow history. The
  // workgroup is a block of 8 × 8 pixels, and the block's evidence level, the strongest of its pixels' samples, acts on
  // every pixel of it in this draw: motion evidence drops the box's widening, and light evidence cuts the length to the
--// fast cap and leaves the box (docs/plans/bounce-light-confidence.md, section 8).
-+// fast cap and leaves the box (docs/plans/bounce-light-confidence.md, section 8). A signal with a light age also takes the
+-// fast cap and leaves the box (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8).
++// fast cap and leaves the box (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8). A signal with a light age also takes the
 +// region evidence of its block (region_drift.glsl), which cuts the length to FullRateFrames and leaves the box.
  #extension GL_GOOGLE_include_directive : require
  #include "accumulate.glsl"
@@ -322,7 +322,7 @@ index 000000000..0262b1f40
 --- /dev/null
 +++ b/src/Tertius.Rendering/Shaders/region_drift.glsl
 @@ -0,0 +1,232 @@
-+// The region's drift (docs/plans/bounce-light-confidence.md, section 8.7; ticket t0-acxm): the second source of a block's
++// The region's drift (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.7; ticket t0-acxm): the second source of a block's
 +// light evidence. The test runs at anchor blocks only, every AnchorStepBlocks-th block in x and in y: the regions of two
 +// neighbor blocks share 272 of their 289 taps, so their answers are nearly one answer. An anchor's workgroup of the
 +// spatial dispatch sums the taps of its region, keeps the anchor's ring of its region's light and tests whether that light
@@ -562,7 +562,7 @@ index 38e80a842..bc0fffb27 100644
  // step after k draws, holds it within 5 % by the end (section 8.3).
  const uint RecentLightAge = 7u;
  
-+// A pixel traces its own ray of a kind while its history of that kind is shorter than this (docs/plans/temporal-renderer.md,
++// A pixel traces its own ray of a kind while its history of that kind is shorter than this (https://github.com/alexispurslane/tertius/wiki/temporal-renderer,
 +// section 6, "The ray budget"). The screen tracer's plan reads it, and so does the spatial dispatch, whose region evidence
 +// cuts a history to it: the shortest length that keeps the block's shared ray.
 +const float FullRateFrames = 8.0;

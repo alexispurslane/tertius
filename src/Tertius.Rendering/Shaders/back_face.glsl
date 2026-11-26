@@ -1,4 +1,4 @@
-// The fragment rule of the back-face pass (docs/plans/back-face-depth-layer.md, decision 4): which of its fragments count
+// The fragment rule of the back-face pass (https://github.com/alexispurslane/tertius/wiki/back-face-depth-layer, decision 4): which of its fragments count
 // for a pixel, and the back share that a counted fragment writes. The pass's depth test keeps the nearest counted one.
 #ifndef TERTIUS_BACK_FACE_GLSL
 #define TERTIUS_BACK_FACE_GLSL

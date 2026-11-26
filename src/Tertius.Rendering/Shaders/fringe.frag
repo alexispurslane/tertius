@@ -6,7 +6,7 @@
 #include "material.glsl"
 #include "lighting.glsl"
 
-// The fringe of a fringed material in the transparent pass (docs/plans/skin-and-hair.md, "The fringe"): transparent.frag
+// The fringe of a fringed material in the transparent pass (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The fringe"): transparent.frag
 // with coverage in place of opacity. A texel whose alpha a is above 0 and below the cutoff covers a share a of its pixel,
 // Porter and Duff's "over": the target becomes a · L + (1 − a) · target. The core drew in the G-buffer pass.
 
@@ -41,7 +41,7 @@ void main()
     // the glass's bound, which keeps the blend inside the half float's range (ARCHITECTURE.md, "Portable Vulkan").
     vec3 radiance = surfaceRadiance(shading, exposed(s.emissive, exposure), V, ShadowMapsMainView, exposure);
     // The haze between the eye and the fringe stands in for the share that it covers, as for a pane
-    // (docs/plans/atmosphere.md, "The haze"). Each part is at most MaxRadiance · a, and so is their convex sum.
+    // (https://github.com/alexispurslane/tertius/wiki/atmosphere, "The haze"). Each part is at most MaxRadiance · a, and so is their convex sum.
     vec3 seen = throughAir(radiance * coverage, vec3(coverage), inPosition, exposed(frame.atmosphere.haze.rgb, exposure));
     outColor = vec4(seen, 0.0);
     outTransmittance = vec4(vec3(1.0 - coverage), 0.0);

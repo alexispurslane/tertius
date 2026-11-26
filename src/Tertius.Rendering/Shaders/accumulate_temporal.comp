@@ -1,12 +1,12 @@
 #version 460
-// The temporal dispatch of an accumulation (docs/plans/temporal-renderer.md, section 8, "The model", steps 1 and 2):
+// The temporal dispatch of an accumulation (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 8, "The model", steps 1 and 2):
 // one invocation per pixel reprojects the last frame's slow and fast histories through the surface test, rescales them
 // by the exposure ratio and blends the sample in. The specular signal also tests the reflected point's place and that
 // place's hit distances (section 8, "The specular signal's own tests"). It writes the slow history into the scratch
 // image, so that the spatial dispatch reads the neighbors' results while it writes the slow history, and this frame's
 // fast history. The diffuse signal's fast history keeps in alpha the retained deviation: the standard deviation of the
 // luminance of the samples that the slow history averages, weighted as it weighs them
-// (docs/plans/bounce-light-confidence.md, section 6). The clamp's box and the diffuse filter read it. The reflections
+// (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 6). The clamp's box and the diffuse filter read it. The reflections
 // keep none, because their fast history's alpha holds the hit distance. It reads no light age: the spatial dispatch acts on
 // the samples' evidence after the blend (sections 4 and 8.4).
 #extension GL_GOOGLE_include_directive : require
@@ -44,7 +44,7 @@ layout(set = 3, binding = 12, rgba32f) uniform image2D uncoveredDiagnostic;
 
 // The share of the slow history's luminance that the diagnostic reports a sample to hold. Until ter-g3tk, only a sample
 // that held it could cut the history before the blend. No sample cuts there now (section 4 of
-// docs/plans/bounce-light-confidence.md), and the share is only an observation for tools/Tertius.ReflectionReference.
+// https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence), and the share is only an observation for tools/Tertius.ReflectionReference.
 const float AgeCutShare = 0.25;
 #endif
 
@@ -320,7 +320,7 @@ void main()
     // dispatch, so that every sample takes its normal weight. A cut before the blend gave exactly the sample that brought
     // a young code the weight 1 / (age + 1), and such a sample is often far brighter than the mean, as a ray that hits a
     // sun strip whose record the jitter keeps young. The weight then depended on the sample's own value, which biased the
-    // bounce history up by 6 to 11 % in a still cabin (docs/plans/bounce-light-confidence.md, section 4).
+    // bounce history up by 6 to 11 % in a still cabin (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 4).
 #ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
     // The length before the blend, twice, where the diagnostic once kept it before and after the cut.
     bool holdsCutShare = hasSample && luminance(sampled) >= AgeCutShare * luminance(slow.rgb);

@@ -1,5 +1,5 @@
 #version 460
-// The surface test pass (docs/plans/temporal-renderer.md, section 8, "The surface test", and decision 24): one invocation
+// The surface test pass (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 8, "The surface test", and decision 24): one invocation
 // per pixel finds the pixel's surface in the last drawn frame and tests the 2 × 2 texels of the last surface history
 // around its last place. It writes the surface test image, this frame's surface history, FSR's device depth and the
 // sky's motion, because each of these reads the distance target once. The surface test image also holds the pixel's two

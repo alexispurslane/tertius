@@ -1,5 +1,5 @@
 #version 460
-// The tail of the depth pyramid (docs/plans/screen-space-reflections.md, "The depth pyramid"): pyramid_tail.glsl over
+// The tail of the depth pyramid (https://github.com/alexispurslane/tertius/wiki/screen-space-reflections, "The depth pyramid"): pyramid_tail.glsl over
 // the bounds of depth_pyramid_down.comp, whose merges are exact.
 #extension GL_GOOGLE_include_directive : require
 #extension GL_EXT_samplerless_texture_functions : require

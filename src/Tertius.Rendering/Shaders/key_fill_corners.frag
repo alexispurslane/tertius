@@ -1,5 +1,5 @@
 #version 460
-// The corner pass of key and fill (docs/plans/light-pairs.md, "Key and fill"): one fragment per corner of the tile grid
+// The corner pass of key and fill (https://github.com/alexispurslane/tertius/wiki/light-pairs, "Key and fill"): one fragment per corner of the tile grid
 // and per group of lights. The target holds GroupSide × GroupSide copies of the corner grid side by side, and the copy
 // of a fragment is its group (cornerGroup in key_fill.glsl). A fragment ranks only the lights of its group, every
 // Groups-th light of the light list from the group's own place. It writes the group's candidates: the lights of the

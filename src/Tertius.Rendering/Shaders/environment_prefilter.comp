@@ -8,7 +8,7 @@ const float PI = 3.14159265358979323846;
 #include "cube_faces.glsl"
 
 // A run of up to four levels of the environment map's specular map (EnvironmentPrefilterPass.cs,
-// docs/plans/environment-map.md, "The specular levels"). Level 0 is the radiance map's level 0, texel for texel. Level k ≥ 1 is the prefilter of Karis 2013
+// https://github.com/alexispurslane/tertius/wiki/environment-map, "The specular levels"). Level 0 is the radiance map's level 0, texel for texel. Level k ≥ 1 is the prefilter of Karis 2013
 // with n = v = r, over N Hammersley samples with filtered importance sampling (Křivánek and Colbert 2008), in all four
 // channels, so the alpha is the open-sky share along the lobe. The dispatch prefilters one map m: it reads cube m of the
 // radiance map and writes layers 6m to 6m + 5. A map lies in its own axes, and so do its texels' rays, so the prefilter

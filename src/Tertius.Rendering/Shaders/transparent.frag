@@ -51,7 +51,7 @@ void main()
     // of the radiance behind, and never takes such a factor. The blend keeps the target's alpha, so neither alpha
     // matters.
     // The haze between the eye and the pane stands in for the share of the haze's light that the pane hides, 1 − T
-    // (docs/plans/atmosphere.md, "The haze"). The pane's bound holds: each part is at most MaxRadiance · (1 − T).
+    // (https://github.com/alexispurslane/tertius/wiki/atmosphere, "The haze"). The pane's bound holds: each part is at most MaxRadiance · (1 − T).
     outColor = vec4(throughAir(radiance, 1.0 - transmittance, inPosition, exposed(frame.atmosphere.haze.rgb, exposure)), 0.0);
     outTransmittance = vec4(transmittance, 0.0);
 }

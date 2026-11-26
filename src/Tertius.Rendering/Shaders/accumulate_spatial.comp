@@ -1,10 +1,10 @@
 #version 460
-// The spatial dispatch of an accumulation (docs/plans/temporal-renderer.md, section 8, steps 3 to 5): one invocation
+// The spatial dispatch of an accumulation (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 8, steps 3 to 5): one invocation
 // per pixel fixes a short history from its neighbors in the scratch image, clamps the slow history into the box of this
 // frame's fast history around the pixel, shortens the length by the clamp's move, and writes the slow history. The
 // workgroup is a block of 8 × 8 pixels, and the block's evidence level, the strongest of its pixels' samples, acts on
 // every pixel of it in this draw: motion evidence drops the box's widening, and light evidence cuts the length to at most
-// FullRateFrames and leaves the box (docs/plans/bounce-light-confidence.md, section 8). The bounce light also takes the
+// FullRateFrames and leaves the box (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8). The bounce light also takes the
 // region evidence of its block (region_drift.glsl, TERTIUS_REGION_DRIFT), which cuts the length in the same way.
 #extension GL_GOOGLE_include_directive : require
 #include "accumulate.glsl"
@@ -82,7 +82,7 @@ shared uint blockEvidence;
 // The evidence level of one sample, from its age (sample_age.glsl): light evidence where one of its rays saw a recent
 // light change, motion evidence where it saw motion. This is the one place that chooses the action of motion: a moved
 // object narrows the box and does not cut, because a cut makes the pixels trace their own rays for as long as the motion
-// lasts (docs/plans/bounce-light-confidence.md, section 8.2, open point 1).
+// lasts (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.2, open point 1).
 uint evidenceOfSample(uint sampleAge)
 {
     if (recentLightCode(lightCodeOf(sampleAge)))
@@ -204,7 +204,7 @@ void accumulateAt(ivec2 pixel, uint evidence)
         vec3 mean = own.rgb + meanOffset;
         vec3 sigma = sqrt(max(squares / count - meanOffset * meanOffset, vec3(0.0)));
         // The box holds every excursion that the history's own samples explain: at least retainedSigmas retained
-        // deviations, in the chroma of the history, which holds the excess (docs/plans/bounce-light-confidence.md,
+        // deviations, in the chroma of the history, which holds the excess (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence,
         // section 7). The reflections' narrow box takes none. Motion evidence drops the widening for this draw, so that
         // the box measures a change of unknown size. Light and region evidence keep it: the cut below already bounds the
         // length, and a box without its widening would cut the rare bright light that the history holds (section 8.2).

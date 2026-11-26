@@ -289,7 +289,7 @@ index 000000000..0e791a62e
 +namespace Tertius.Rendering;
 +
 +/// <summary>
-+/// The images and the tile records of key and fill (docs/plans/light-pairs.md, "Key and fill"), under
++/// The images and the tile records of key and fill (https://github.com/alexispurslane/tertius/wiki/light-pairs, "Key and fill"), under
 +/// <see cref="KeyAndFill"/>: the three images that the corner pass draws, one texel per corner of the tile grid, and the
 +/// buffer of one record per tile that the tile pass writes and the direct pass reads, at
 +/// <see cref="TilesBinding"/> of the G-buffer set. All have the size of the targets' largest render size. A frame of a
@@ -428,7 +428,7 @@ index 000000000..ef7f17a7b
 +
 +/// <summary>
 +/// The direct pass shades in full only the key lights of each pixel, and takes every other light from the fill
-+/// (docs/plans/light-pairs.md, "Key and fill"). The key lights of a screen corner are the at most
++/// (https://github.com/alexispurslane/tertius/wiki/light-pairs, "Key and fill"). The key lights of a screen corner are the at most
 +/// <paramref name="KeyLights"/> lights that show the most light there before their shadows. A corner is a point of a grid
 +/// of <see cref="TileSize"/> render pixels. Each light has a key share at each corner (<see cref="KeyShare"/>), and a
 +/// pixel takes each light's key share from the four corners around it. The fill of a corner is the diffuse light of every
@@ -507,13 +507,13 @@ index 8a86a889b..18f0ba91b 100644
 --- a/src/Tertius.Rendering/Passes/DirectLightPass.cs
 +++ b/src/Tertius.Rendering/Passes/DirectLightPass.cs
 @@ -6,26 +6,32 @@ namespace Tertius.Rendering;
- /// "Direct light" (docs/plans/temporal-renderer.md, section 7): one fullscreen pass over all depth ranges that takes every
+ /// "Direct light" (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 7): one fullscreen pass over all depth ranges that takes every
  /// light of the main view with its shadows at each lit pixel, and writes its two parts, the diffuse and the specular light,
  /// each divided by its material factor and pre-exposed, into <see cref="RenderTargets.DirectDiffuse"/> and
 -/// <see cref="RenderTargets.DirectSpecular"/>. Sky and impostor pixels get 0.
 +/// <see cref="RenderTargets.DirectSpecular"/>. Sky and impostor pixels get 0. Under <see cref="KeyAndFill"/>, each lit
 +/// pixel takes the key lights and the fill of its tile's record instead, which <see cref="KeyFillPass"/> wrote
-+/// (docs/plans/light-pairs.md, "Key and fill").
++/// (https://github.com/alexispurslane/tertius/wiki/light-pairs, "Key and fill").
  /// </summary>
  internal sealed unsafe class DirectLightPass : RenderPass
  {
@@ -562,7 +562,7 @@ index 000000000..9ef964f98
 +namespace Tertius.Rendering;
 +
 +/// <summary>
-+/// "Key and fill" (docs/plans/light-pairs.md, "Key and fill"), under <see cref="KeyAndFill"/>, right before the direct
++/// "Key and fill" (https://github.com/alexispurslane/tertius/wiki/light-pairs, "Key and fill"), under <see cref="KeyAndFill"/>, right before the direct
 +/// pass: the corner pass draws one fragment per corner of the frame's tile grid, which writes the corner's key lights and
 +/// its fill (Shaders/key_fill_corners.frag), and the tile pass gathers each tile's four corners into its record
 +/// (Shaders/key_fill_tiles.comp), which the direct pass reads.
@@ -706,7 +706,7 @@ index e1a6e5a2b..0cd9e9fb2 100644
 +    /// Which pairs of a pixel and a light the direct pass shades in full: every pair, or under <see cref="KeyAndFill"/>
 +    /// only each pixel's key lights, with the other lights' diffuse light from the fill. The default is
 +    /// <see cref="EveryLightPair"/>. Under <see cref="KeyAndFill"/>, the corner images and the tile records take about 5
-+    /// bytes per pixel, about 10 MB at 1920 × 1080 (docs/plans/light-pairs.md, "Key and fill").
++    /// bytes per pixel, about 10 MB at 1920 × 1080 (https://github.com/alexispurslane/tertius/wiki/light-pairs, "Key and fill").
 +    /// </summary>
 +    public LightPairSetting LightPairs { get; set; }
 +
@@ -754,7 +754,7 @@ index 000000000..e3f1f5a00
 +++ b/src/Tertius.Rendering/Shaders/direct_key_fill.frag
 @@ -0,0 +1,33 @@
 +#version 460
-+// The direct pass under key and fill (docs/plans/light-pairs.md, "Key and fill"): direct.frag with the light of each
++// The direct pass under key and fill (https://github.com/alexispurslane/tertius/wiki/light-pairs, "Key and fill"): direct.frag with the light of each
 +// lit pixel from its tile's key lights and fill (key_fill_light.glsl) in place of every light of the list.
 +#extension GL_GOOGLE_include_directive : require
 +#include "frame.glsl"
@@ -813,7 +813,7 @@ index 5d5fe3923..c7bda5390 100644
 +#include "key_fill.glsl"
 +layout(set = 2, binding = 7, std430) readonly buffer LightTileBlock { LightTile lightTiles[]; };
 +
- // The map that a lit pixel's map code names (docs/plans/environment-maps-per-frame.md, decision 20): code c of the 8-bit
+ // The map that a lit pixel's map code names (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame, decision 20): code c of the 8-bit
  // alpha, from 1 to 255, names map (256 − c) / 2, rounded down. MapCode.MapOf is the C# twin. Code 0 marks an unlit pixel,
  // which no caller passes here.
 diff --git a/src/Tertius.Rendering/Shaders/key_fill.glsl b/src/Tertius.Rendering/Shaders/key_fill.glsl
@@ -822,7 +822,7 @@ index 000000000..1e5578988
 --- /dev/null
 +++ b/src/Tertius.Rendering/Shaders/key_fill.glsl
 @@ -0,0 +1,76 @@
-+// Key and fill (docs/plans/light-pairs.md, "Key and fill"): what the corner pass, the tile pass and the direct pass
++// Key and fill (https://github.com/alexispurslane/tertius/wiki/light-pairs, "Key and fill"): what the corner pass, the tile pass and the direct pass
 +// share. A corner is a point of a grid of TileSize render pixels, and a tile is the square between four corners. The
 +// corner pass (key_fill_corners.frag) gives each corner its key lights with their key shares, and its fill: the diffuse
 +// light of every light's other share with its shadow. The tile pass (key_fill_tiles.comp) gathers a tile's four corners
@@ -905,7 +905,7 @@ index 000000000..81e1bbe67
 +++ b/src/Tertius.Rendering/Shaders/key_fill_corners.frag
 @@ -0,0 +1,165 @@
 +#version 460
-+// The corner pass of key and fill (docs/plans/light-pairs.md, "Key and fill"): one fragment per corner of the tile grid.
++// The corner pass of key and fill (https://github.com/alexispurslane/tertius/wiki/light-pairs, "Key and fill"): one fragment per corner of the tile grid.
 +// It samples the surface at the corner's pixel, ranks every light of the main view by its importance there, and writes
 +// the corner's key lights with their key shares, and its fill. A corner whose own pixel holds no lit surface samples
 +// the nearest lit pixel of the tiles around it instead (nearestLitPixel), so that a thin object between corners, such as
@@ -1075,7 +1075,7 @@ index 000000000..992f4c05b
 --- /dev/null
 +++ b/src/Tertius.Rendering/Shaders/key_fill_light.glsl
 @@ -0,0 +1,115 @@
-+// The direct light of a pixel under key and fill (docs/plans/light-pairs.md, "Key and fill"): each key light of the
++// The direct light of a pixel under key and fill (https://github.com/alexispurslane/tertius/wiki/light-pairs, "Key and fill"): each key light of the
 +// pixel's tile by its key share, as directLight shades it, and the tile's fill. Only direct_key_fill.frag includes it.
 +#ifndef TERTIUS_KEY_FILL_LIGHT_GLSL
 +#define TERTIUS_KEY_FILL_LIGHT_GLSL
@@ -1197,7 +1197,7 @@ index 000000000..4cc123f37
 +++ b/src/Tertius.Rendering/Shaders/key_fill_tiles.comp
 @@ -0,0 +1,72 @@
 +#version 460
-+// The tile pass of key and fill (docs/plans/light-pairs.md, "Key and fill"): one invocation per tile gathers its four
++// The tile pass of key and fill (https://github.com/alexispurslane/tertius/wiki/light-pairs, "Key and fill"): one invocation per tile gathers its four
 +// corners from the corner pass's images into the tile's record, which is all that the direct pass reads of a pixel's
 +// tile. The record's list holds each key light of the four corners once, with its key share at each corner, in the order
 +// of the shapes, so that the direct pass keeps a loop per shape (lighting.glsl, modelLight).
@@ -1472,7 +1472,7 @@ index 000000000..0d198a34a
 +namespace Tertius.Rendering.Tests;
 +
 +/// <summary>
-+/// Key and fill on the GPU (docs/plans/light-pairs.md, "Key and fill"): a scene with no more lamps than key lights
++/// Key and fill on the GPU (https://github.com/alexispurslane/tertius/wiki/light-pairs, "Key and fill"): a scene with no more lamps than key lights
 +/// renders as with every light pair, the fill returns the diffuse light of the lamps that are not key, and no step
 +/// shows at the edges of the screen tiles. The exposure is fixed at 0 stops, so the HDR image holds plain radiance. A
 +/// square 3 m wide stands 3 m ahead of the camera and faces it, with no ambient light and bulbs 1 m in front of it.
@@ -1637,7 +1637,7 @@ index 000000000..2e07c18ed
 +namespace Tertius.Rendering.Tests;
 +
 +/// <summary>
-+/// The key share of a light at a screen corner (docs/plans/light-pairs.md, "Key and fill"): which lights a corner shades
++/// The key share of a light at a screen corner (https://github.com/alexispurslane/tertius/wiki/light-pairs, "Key and fill"): which lights a corner shades
 +/// in full, and how a light moves between key and fill.
 +/// </summary>
 +public sealed class KeyAndFillTests

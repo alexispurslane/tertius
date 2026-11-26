@@ -31,7 +31,7 @@ struct GpuInstance
     uint placedIndex;
 };                            // std430: 92 bytes of members, a stride of 96
 
-// A hair pixel's card code (docs/plans/skin-and-hair.md, "The card number"): the number of its card in its mesh, mixed
+// A hair pixel's card code (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The card number"): the number of its card in its mesh, mixed
 // with its instance's place into 13 bits. 5063, about 2^13 / φ and odd, puts neighbor instances' codes far apart, and the
 // cards of one instance take distinct codes up to 2^13 cards. CardCode.Of is the C# twin.
 uint cardCode(uint card, uint placedIndex)
@@ -72,11 +72,11 @@ const uint ShadingHair = 2u;
 
 // ShaderConstants.DropsFibers, at ShaderConstants.DropsFibersId: true drops the fiber's code, the hair branch of
 // sampleMaterial and the fiber's light loop, so that a ShadingHair surface shades as a standard one
-// (docs/plans/skin-and-hair.md, "Cost"). Only the one-sided variant of a SidedPipeline sets it, which no hair material
+// (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "Cost"). Only the one-sided variant of a SidedPipeline sets it, which no hair material
 // reaches, because only a hair material draws both sides.
 layout(constant_id = 3) const bool dropsFibers = false;
 
-// The shading target's B and A (docs/plans/skin-and-hair.md, "The shading target"): bit 0 of B is the light mark, bits 0
+// The shading target's B and A (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The shading target"): bit 0 of B is the light mark, bits 0
 // and 1 of A the model's code, and the 13 bits above them, 7 of B and 6 of A, a hair pixel's card code, 0 for another
 // model. CardCode (Channels, Read, LightMarkOf and ModelOf) holds the C# twins.
 uvec2 lightModelAndCardWords(uint holdsLight, uint model, uint cardCode)
@@ -151,7 +151,7 @@ struct GpuShadowTile
     float unused;
 };                            // std430: 80 bytes
 
-// The atmosphere of the frame (GpuAtmosphere in GpuTypes.cs, docs/plans/atmosphere.md). Without one, every value is 0 but
+// The atmosphere of the frame (GpuAtmosphere in GpuTypes.cs, https://github.com/alexispurslane/tertius/wiki/atmosphere). Without one, every value is 0 but
 // the tint, which is 1.
 struct GpuAtmosphere
 {
@@ -212,7 +212,7 @@ layout(set = 0, binding = 0, std140) uniform FrameBlock
     GpuCascadeSet cascadeSets[4];   // ShadowCascades.MaxSets; set i belongs to the light whose slot names it
     vec4 mapAxes[42];         // R_i: the axes of map i's frame in world axes, a unit quaternion (xyz, w), root first
     GpuAtmosphere atmosphere; // the air that the camera looks through
-    // The last drawn frame's camera, for the motion vectors (docs/plans/temporal-renderer.md, section 3). Both matrices
+    // The last drawn frame's camera, for the motion vectors (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 3). Both matrices
     // have no jitter and no translation, and only their x, y and w rows count: clip w is the view depth.
     mat4 motionViewProj;      // this frame's clip space from world space
     mat4 previousViewProj;    // the last frame's clip space from a position relative to the last frame's eye
@@ -244,7 +244,7 @@ const uint MotionNew = 2u;
 // GpuMotion.NoKeptCopy: the previous first vertex of an instance whose last frame kept no copy of its vertex count.
 const uint NoKeptCopy = 0xFFFFFFFFu;
 
-// Where one placed instance was in the last drawn frame (GpuMotion, docs/plans/temporal-renderer.md, "The placement
+// Where one placed instance was in the last drawn frame (GpuMotion, https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "The placement
 // history").
 struct GpuMotion
 {

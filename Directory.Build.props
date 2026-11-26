@@ -12,7 +12,7 @@
     <!-- CS1591, a public member without a doc comment, stays off until the doc comment rewrite (ter-9yg8). -->
     <NoWarn>$(NoWarn);CS1591</NoWarn>
     <!--
-      Switches over closed sets (docs/plans/code-quality-tooling.md, decision 14). CS8524 reports an enum switch expression
+      Switches over closed sets (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling, decision 14). CS8524 reports an enum switch expression
       that names every member but not unnamed values such as (E)7. Off, so such a switch needs no discard arm, and the
       compiler reports a missing member with CS8509. An unnamed value throws SwitchExpressionException. The build runs the
       IDE analyzers for IDE0010, IDE0063 (a using block that can be a using declaration), IDE0033 (Item1 on a named tuple),
@@ -53,7 +53,7 @@
     <PackageReference Include="Roslynator.Analyzers" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers" />
   </ItemGroup>
   <!--
-    The union generator writes the members of every [GeneratedUnion] struct (docs/plans/union-tooling.md). The style
+    The union generator writes the members of every [GeneratedUnion] struct (https://github.com/alexispurslane/tertius/wiki/union-tooling). The style
     analyzer leaves it out: the style analyzer is the one analyzer that the union analyzer would check, and the union
     project takes the style analyzer, so each referencing the other would make a cycle.
   -->

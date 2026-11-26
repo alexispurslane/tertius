@@ -1,7 +1,7 @@
 // The reflection's footprint f of a forward pass, from the screen derivatives: the transparent pass and the impostor
 // capture. The deferred surfaces' closed form, the screen tracer's misses and its hits' closed form take f from the
 // G-buffer through withAmbientFootprint (gbuffer_surface.glsl) where the environment's specular term reads f, and p
-// elsewhere, which gives the same light (docs/plans/environment-map.md, "Where it runs").
+// elsewhere, which gives the same light (https://github.com/alexispurslane/tertius/wiki/environment-map, "Where it runs").
 #ifndef TERTIUS_REFLECTION_FOOTPRINT_GLSL
 #define TERTIUS_REFLECTION_FOOTPRINT_GLSL
 

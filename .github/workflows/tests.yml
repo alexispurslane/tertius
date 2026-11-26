@@ -73,6 +73,7 @@ jobs:
         run: |
           set -euo pipefail
           nix develop --command python3 -I -m unittest discover -s tools -p 'test_*.py'
+          nix develop --command python3 -I -m unittest discover -s tools/runpod -t tools/runpod -p 'test_*.py'
 
   release:
     name: CPU tests (Release)
@@ -160,7 +161,7 @@ jobs:
             echo "The pull request moved to $now. This run is stale."
             exit 1
           fi
-          id=$(gh api "repos/$REPO/issues/$PR/comments" --paginate --jq '[.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- tertius-metrics -->")))] | last | .id // empty')
+          id=$(gh api "repos/$REPO/issues/$PR/comments" --paginate --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- tertius-metrics -->"))) | .id' | tail -1)
           if [ -n "$id" ]; then
             gh api -X PATCH "repos/$REPO/issues/comments/$id" -F body=@"$BODY"
           else

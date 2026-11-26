@@ -1,7 +1,7 @@
 // The G-buffer as the direct pass, the composite, the screen tracer and the transparent pass read it (set 2), the cascade
 // sets of the far lights, the local shadow atlas of the near lights, and the shading target
-// (docs/plans/skin-and-hair.md, "The shading target"). Binding 7 held the estimate target of the occlusion passes,
-// which the screen tracer replaced (docs/plans/temporal-renderer.md, section 12). All G-buffer
+// (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The shading target"). Binding 7 held the estimate target of the occlusion passes,
+// which the screen tracer replaced (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 12). All G-buffer
 // targets have the output's size and are read with texelFetch at gl_FragCoord, so they need no sampler.
 #ifndef TERTIUS_GBUFFER_INPUTS_GLSL
 #define TERTIUS_GBUFFER_INPUTS_GLSL
@@ -46,7 +46,7 @@ vec4 specularAt(ivec2 pixel)
     return vec4(texelFetch(gbufferSpecular, pixel, 0)) / 255.0;
 }
 
-// The map that a lit pixel's map code names (docs/plans/environment-maps-per-frame.md, decision 20): code c of the 8-bit
+// The map that a lit pixel's map code names (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame, decision 20): code c of the 8-bit
 // alpha, from 1 to 255, names map (256 − c) / 2, rounded down. MapCode.MapOf is the C# twin. Code 0 marks an unlit pixel,
 // which no caller passes here.
 uint mapOfCode(float alpha)

@@ -1,4 +1,4 @@
-// The reprojection of the temporal signals (docs/plans/temporal-renderer.md, section 8, "The surface test"): a point's
+// The reprojection of the temporal signals (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 8, "The surface test"): a point's
 // place in the last drawn frame's image, the surface test of the 2 × 2 texels of the last surface history around a
 // place, and the bilinear weights of those taps, by which every reader of a history reprojects it. Needs frame.glsl and
 // octahedral.glsl.

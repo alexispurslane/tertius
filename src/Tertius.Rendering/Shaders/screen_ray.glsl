@@ -1,5 +1,5 @@
 // The image of a ray on the screen and the geometry of the depth pyramid's cells that a walk crosses
-// (docs/plans/temporal-renderer.md, section 6, "The traversal"). ScreenRay and CameraView.EdgeFade are the C# copy.
+// (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 6, "The traversal"). ScreenRay and CameraView.EdgeFade are the C# copy.
 // Change both together.
 #ifndef TERTIUS_SCREEN_RAY_GLSL
 #define TERTIUS_SCREEN_RAY_GLSL

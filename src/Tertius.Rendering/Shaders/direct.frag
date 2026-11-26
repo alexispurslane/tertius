@@ -1,5 +1,5 @@
 #version 460
-// The direct pass (docs/plans/temporal-renderer.md, section 7): the direct light of each lit pixel in its two parts, the
+// The direct pass (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 7): the direct light of each lit pixel in its two parts, the
 // diffuse and the specular light of every light of the main view with its shadows, as the loop of the forward passes takes
 // them, each divided by its material factor and pre-exposed (RenderTargets.DirectDiffuse and DirectSpecular). No ambient
 // light and no emission: the composite adds both.

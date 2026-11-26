@@ -1,9 +1,9 @@
-// The composite (docs/plans/temporal-renderer.md, section 9, "The composite"): at each lit pixel, the light of section 1
+// The composite (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 9, "The composite"): at each lit pixel, the light of section 1
 // into the HDR image, capped at MaxRadiance. It multiplies the direct light's two images and the two indirect terms back
 // by their material factors (decision 18), and adds the emission. The indirect terms are the screen tracer's slow
 // histories under ScreenTrace, and the environment's closed forms under NoScreenTrace (section 8, "The zero cases"). The sky's pixels get the sky and the stars, and an impostor's pixels their baked light.
 // Under the scatter it also writes the diffuse image, the diffuse factor times the two diffuse terms and the skin mask at
-// skin, and 0 elsewhere (docs/plans/skin-and-hair.md, "The diffuse light D"). composite.frag and composite_scatter.frag,
+// skin, and 0 elsewhere (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The diffuse light D"). composite.frag and composite_scatter.frag,
 // which defines SCATTER_OUTPUT, include it: the diffuse image is a second color attachment only then. A test's probe
 // defines TERTIUS_DIRECT_LIGHT_ONLY, which leaves out the ambient light and the sky: the direct light and the emission.
 // With TERTIUS_DIRECT_DIFFUSE_ONLY too, it writes the diffuse part alone.
@@ -91,7 +91,7 @@ void main()
     if (screenTraceOn)
         indirectSpecular = reflectionSharedAt(pixel, indirectSpecular);
     // Each part is finite and at most a few times MaxRadiance, so the sum is finite, and the cap keeps the surfaces' share
-    // (docs/plans/screen-space-illumination.md, "The cap at MaxRadiance").
+    // (https://github.com/alexispurslane/tertius/wiki/screen-space-illumination, "The cap at MaxRadiance").
     outColor = vec4(
         min(directDiffuse + directSpecular + indirectDiffuse + indirectSpecular + emissive, vec3(MaxRadiance)), 1.0);
     // D, at most MaxRadiance, and the mask, which marks the skin pixels that alone the scatter passes spread.

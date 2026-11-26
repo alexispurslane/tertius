@@ -1,4 +1,4 @@
-// The painted atmosphere per point (docs/plans/atmosphere.md, "The model"): the air's density share at a point, the
+// The painted atmosphere per point (https://github.com/alexispurslane/tertius/wiki/atmosphere, "The model"): the air's density share at a point, the
 // sun's tint there, the day factor there, and the haze between the eye and a surface. frame.atmosphere holds the planet's
 // shape, the sun's place, the eye's height and share, and the look, which PaintedAtmosphere.cs prepares at the
 // interpolated eye. Without an atmosphere, 1 / H and 1 / the haze distance are 0 and the tint is 1, so the haze lets

@@ -1,4 +1,4 @@
-// The sample age of a signal (docs/plans/bounce-light-confidence.md, section 8.5): the R16UI image per signal that the
+// The sample age of a signal (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.5): the R16UI image per signal that the
 // screen tracer's resolve writes and both dispatches of the accumulation read (TemporalSignal.SampleAge). It carries what
 // the rays of the pixel's sample saw in this draw: bits 0 to 14 the youngest light code of those rays, and bit 15 the
 // sample's motion bit. A light code is 0 for no light age, else the light age of the hit plus 1. The motion bit is set
@@ -21,7 +21,7 @@ const uint LightCodeMask = 0x7FFFu;
 // (section 8.3).
 const uint RecentLightAge = 7u;
 
-// A pixel traces its own ray of a kind while its history of that kind is shorter than this (docs/plans/temporal-renderer.md,
+// A pixel traces its own ray of a kind while its history of that kind is shorter than this (https://github.com/alexispurslane/tertius/wiki/temporal-renderer,
 // section 6, "The ray budget"). The screen tracer's plan reads it, and so does the spatial dispatch, whose light and region
 // evidence cut a history to it: the shortest length that keeps the block's shared ray.
 const float FullRateFrames = 8.0;

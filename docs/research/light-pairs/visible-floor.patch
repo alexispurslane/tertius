@@ -441,10 +441,10 @@ index 7a712e883..2609f9940 100644
 +++ b/tests/Tertius.Rendering.Tests/TestSupport.cs
 @@ -48,7 +48,8 @@ internal static class Gpu
      /// is off unless asked for, so the hemisphere lights the tests. Local shadows are off unless asked for, as the
-     /// impostors are (docs/plans/local-light-shadows.md, "Decisions"). One far light has a cascade set unless asked for,
+     /// impostors are (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, "Decisions"). One far light has a cascade set unless asked for,
      /// the renderer's default. The deformation is on unless asked for, the renderer's default. The skin scatter is off
--    /// unless asked for, because the zero case of the setting is off (docs/plans/skin-and-hair.md, decision 29).
-+    /// unless asked for, because the zero case of the setting is off (docs/plans/skin-and-hair.md, decision 29). Every
+-    /// unless asked for, because the zero case of the setting is off (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, decision 29).
++    /// unless asked for, because the zero case of the setting is off (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, decision 29). Every
 +    /// light pair is shaded unless asked for, the renderer's default.
      /// </summary>
      public static VulkanRenderer Headless(

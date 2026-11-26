@@ -1,5 +1,5 @@
 // The scene environment maps' light, for the ambient source of lighting.glsl and the lit puffs
-// (docs/plans/environment-map.md, "Reading the map", and docs/plans/environment-maps-per-frame.md, "The readers"). Each
+// (https://github.com/alexispurslane/tertius/wiki/environment-map, "Reading the map", and https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame, "The readers"). Each
 // chain frame's map holds plain radiance in the axes of its frame, so every reader names its map and turns its direction
 // into the map's axes first.
 #ifndef TERTIUS_ENVIRONMENT_GLSL
@@ -13,7 +13,7 @@
 // ShaderConstants.EnvironmentMap: true while the renderer's setting is SceneEnvironmentMap, fixed for its life.
 layout(constant_id = 0) const bool environmentMapOn = false;
 
-// Whether the ambient light skips the work of its terms that add nothing to the image (docs/plans/environment-map.md,
+// Whether the ambient light skips the work of its terms that add nothing to the image (https://github.com/alexispurslane/tertius/wiki/environment-map,
 // "Cost"). A test build defines TERTIUS_EVERY_AMBIENT_TERM for its reference image, which computes every term
 // (AmbientSkipsTests); the engine's build never does.
 #ifdef TERTIUS_EVERY_AMBIENT_TERM
@@ -94,11 +94,11 @@ vec3 environmentSpecular(uint map, vec3 position, vec3 d, vec3 geometricNormal, 
 const float LobeAlphaPerWidth = 0.12108;
 
 // The lower bound on the roughness of a read for a part, GgxLobe.MinPieceRoughness: a sharper read lets a small bright
-// part of the map show in some texels and not in their neighbors (docs/plans/screen-space-illumination.md, decision 42).
+// part of the map show in some texels and not in their neighbors (https://github.com/alexispurslane/tertius/wiki/screen-space-illumination, decision 42).
 const float MinPieceRoughness = 0.5;
 
 // The roughness of the specular map's lobe that blurs a read over a part of the sky `width` rad wide:
-// max(sqrt(LobeAlphaPerWidth · width), MinPieceRoughness) (docs/plans/screen-space-illumination.md, decisions 41 and
+// max(sqrt(LobeAlphaPerWidth · width), MinPieceRoughness) (https://github.com/alexispurslane/tertius/wiki/screen-space-illumination, decisions 41 and
 // 42). Only a part wider than 2.07 rad keeps 95 % of the lobe's weight on itself. A narrower part takes the bound's
 // lobe, which puts up to 11 % of its weight beyond either end of a part 0.95 rad wide and 24 % beyond a part 0.5 rad
 // wide. GgxLobe.RoughnessForWidth is the C# copy.

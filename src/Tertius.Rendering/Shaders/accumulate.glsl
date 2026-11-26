@@ -1,4 +1,4 @@
-// The accumulator of a temporal signal (docs/plans/temporal-renderer.md, section 8, "The model"): the images of one part of
+// The accumulator of a temporal signal (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 8, "The model"): the images of one part of
 // a signal (TemporalSignal.cs), its parameter set, and what both of its dispatches share. accumulate_temporal.comp
 // reprojects and blends, and accumulate_spatial.comp fixes and clamps.
 #ifndef TERTIUS_ACCUMULATE_GLSL
@@ -27,7 +27,7 @@ layout(set = 3, binding = 8) uniform texture2D lastDeviceDepth;               //
 #ifdef TERTIUS_LIGHT_AGE
 // The sample's age (sample_age.glsl, TemporalSignal.SampleAge), which the resolve writes: the youngest light code of its
 // rays and its motion bit. The temporal dispatch cuts the history to the light code's age, and the spatial dispatch forms
-// its block's evidence from both (docs/plans/bounce-light-confidence.md, section 8.4).
+// its block's evidence from both (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.4).
 layout(set = 3, binding = 11, r16ui) uniform readonly uimage2D sampleAge;
 #endif
 

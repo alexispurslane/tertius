@@ -1,4 +1,4 @@
-// The exposure's meter (docs/plans/auto-exposure.md, "The math"). ExposureMeter.cs is the C# copy. Change both together.
+// The exposure's meter (https://github.com/alexispurslane/tertius/wiki/auto-exposure, "The math"). ExposureMeter.cs is the C# copy. Change both together.
 #ifndef TERTIUS_METER_GLSL
 #define TERTIUS_METER_GLSL
 

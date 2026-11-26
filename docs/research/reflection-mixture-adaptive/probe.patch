@@ -94,7 +94,7 @@ diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/Frame/FrameHistory.cs 
 -
 -/// <summary>
  /// The identity of an instance from frame to frame: its entity and its render part
- /// (docs/plans/temporal-renderer.md, "The key of an object").
+ /// (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "The key of an object").
  /// </summary>
 @@ -189,23 +173,6 @@
      public int DrawsOf(float step) => IsStill(step) ? rule.WarmUpDraws + 1 : 1;
@@ -169,7 +169,7 @@ diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/Frame/FrameHistory.cs 
 -
          /// <summary>
          /// The step in s by which the draw's adapt step moves the exposure: the clock step, or for a draw of a still its share
-         /// of the still rule (docs/plans/temporal-renderer.md, "The still rule").
+         /// of the still rule (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "The still rule").
 @@ -398,10 +353,7 @@
  
          public float FsrFrameMilliseconds => history.derived.FsrFrameMilliseconds;
@@ -305,7 +305,7 @@ diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/Frame/SignalParameters
 +++ b/src/Tertius.Rendering/Frame/SignalParameters.cs	2026-11-23 13:46:05
 @@ -52,10 +52,15 @@
      /// The diffuse signal's set: a cap of 32 frames at every roughness, and a box widened by two retained deviations
-     /// where its block has no motion evidence (docs/plans/bounce-light-confidence.md, section 7).
+     /// where its block has no motion evidence (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 7).
      /// </summary>
 +    private static readonly int ProbeDiffuseCap =
 +        Environment.GetEnvironmentVariable("TERTIUS_PROBE_DIFFUSE_CAP") is { Length: > 0 } cap
@@ -1108,7 +1108,7 @@ diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/Shaders/composite_pass
 @@ -92,6 +99,15 @@
          indirectSpecular = reflectionSharedAt(pixel, indirectSpecular);
      // Each part is finite and at most a few times MaxRadiance, so the sum is finite, and the cap keeps the surfaces' share
-     // (docs/plans/screen-space-illumination.md, "The cap at MaxRadiance").
+     // (https://github.com/alexispurslane/tertius/wiki/screen-space-illumination, "The cap at MaxRadiance").
 +    if (probeSignal != 0)
 +    {
 +        // PROBE: each signal alone, and its share of D for the skin scatter, so that the three signals add up.
@@ -1169,7 +1169,7 @@ diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/Shaders/screen_trace.g
 @@ -266,7 +282,9 @@
  // The depth of the box that a guided diffuse ray aims at, as a share of the target's depth
  // (LightPyramid.TargetDepthShare). It is no thickness: a guided ray that the walk rejects behind a thin surface counts
- // as a miss (docs/plans/back-face-depth-layer.md, decision 7).
+ // as a miss (https://github.com/alexispurslane/tertius/wiki/back-face-depth-layer, decision 7).
 -const float TargetDepthShare = 0.05;
 +// PROBE (t1-cyhy): flag 4 of trace.probeExactGuided sets the scratch thin box, 0.0125. The draw and the density both read
 +// it, so the estimate stays unbiased. The engine's C# copy (LightPyramid.TargetDepthShare) is unchanged.
@@ -1858,7 +1858,7 @@ diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/Upscaling/RenderScaleC
 -/// So the dear catch-up draws after a reset never move the ordinary request, and the draw after them returns to it at
 -/// once (ter-bcwr). A kind without a fitted model asks for the scale of the kind before it: a catch-up draw asks for the
 -/// ordinary scale, as at the first reset of a run, and an ordinary draw for the target's largest scale. Missing timings
--/// leave the scales unchanged (docs/plans/temporal-renderer.md, section 4).
+-/// leave the scales unchanged (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 4).
 -///
 -/// A measurement is the cost of the scene at the drawn area with the GPU at its working speed. The first draw that Drew
 -/// recorded in the controller's life is no such measurement, so Measure fits no model from it and moves no request, in
@@ -1871,7 +1871,7 @@ diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/Upscaling/RenderScaleC
 +/// RequestedScale, or at the smallest inside the limits when none is, and Drew records the scale that the draw realized
 +/// under its frame number. Measure consumes that
 +/// finished frame's timings, so that the cost model describes the area that was drawn, not the request. Missing
-+/// timings leave the scale unchanged (docs/plans/temporal-renderer.md, section 4).
++/// timings leave the scale unchanged (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 4).
  /// </summary>
  /// <remarks>
 -/// Invariants, checked on demand by AssertInvariants: each kind's request stays in the target's range, and its fitted
@@ -2095,7 +2095,7 @@ diff -ruN -x bin -x obj -x *.orig a/src/Tertius.Rendering/VulkanRenderer.cs b/sr
  
      /// <summary>Requests a new output size. It takes effect at the start of the next <see cref="Render"/>.</summary>
 @@ -625,7 +647,7 @@
-         // (docs/plans/temporal-renderer.md, "The still rule"). Only the shown draw takes the capture.
+         // (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "The still rule"). Only the shown draw takes the capture.
          int draws = history.DrawsOf(step);
          for (int draw = 0; draw < draws; draw++)
 -            if (!DrawFrame(snapshot: snapshot, alpha: alpha, step: step, draw: draw, takeCapture: draw == draws - 1))

@@ -1,4 +1,4 @@
-// One pass of the separable skin scatter at one skin pixel (docs/plans/skin-and-hair.md, "The two passes"), and set 3
+// One pass of the separable skin scatter at one skin pixel (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The two passes"), and set 3
 // of the scatter passes. SkinScatter.Pass in Shading/ is the C# copy. Change both together.
 #ifndef TERTIUS_SKIN_SCATTER_GLSL
 #define TERTIUS_SKIN_SCATTER_GLSL

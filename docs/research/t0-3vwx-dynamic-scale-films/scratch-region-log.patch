@@ -61,6 +61,6 @@
 +            stream.Write(layerBytes);
 +    }
 +
-     // PROBE (tools/renderer-survey, never commit to src): the evidence census of docs/plans/bounce-light-confidence.md
+     // PROBE (tools/renderer-survey, never commit to src): the evidence census of https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence
      // (section 21). With TERTIUS_X_CENSUS=<folder>, each draw reads back the sample age of each part of each signal that
      // has one, and appends to <folder>/census.txt one line per signal and part:

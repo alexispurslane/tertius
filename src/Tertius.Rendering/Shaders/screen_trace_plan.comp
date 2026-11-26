@@ -1,5 +1,5 @@
 #version 460
-// The ray plan of the screen tracer (docs/plans/temporal-renderer.md, section 6, "The ray budget"): one invocation per
+// The ray plan of the screen tracer (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 6, "The ray budget"): one invocation per
 // pixel writes the light that leaves the pixel toward a ray of each kind into the hit light image, and decides, for each kind that the pixel starts, whether it traces a ray of its own, writes the plan's bits and
 // lists the pixel in the kind's own-ray list. A block's chosen pixel traces the block's ray instead. Another pixel traces
 // its own ray while its history of the kind is shorter than FullRateFrames, or where the block's ray does not fit it. With
@@ -172,7 +172,7 @@ const float LobeFitShare = 0.5;
 
 // Whether the block's reflection ray from its chosen pixel c lies inside the pixel p's own reflection lobe: the two
 // pixels' mirror directions, each its view direction reflected about its lobe normal, lie within LobeFitShare of the
-// reflected lobe's width, 2 atan α, apart (docs/plans/temporal-renderer.md, section 6, "Shared reflection rays by lobe
+// reflected lobe's width, 2 atan α, apart (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 6, "Shared reflection rays by lobe
 // fit"). The chord between the directions keeps its precision at the roughness floor's lobe of 0.004 rad, and up to
 // MaxRoughness it stays within 0.25 % of its angle. The bound is the angle, not its chord through sin, whose absolute
 // error the Vulkan spec allows up to 2^-11, half the bound at the roughness floor.
