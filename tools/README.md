@@ -6,7 +6,7 @@ Run every command in the dev shell, from the repository root. The build copies t
 
 ## Every test project in one command
 
-`tools/test-all.sh` builds the solution once per build configuration. Then it runs every test project in every configuration with `--no-build`, all at the same time, one process each. Each process also runs its own test classes in parallel. The script works from any folder in the repository:
+For local feedback, `tools/test-all.sh` builds the solution once per build configuration. Then it runs every test project in every configuration with `--no-build`, all at the same time, one process each. Each process also runs its own test classes in parallel. GitHub Actions runs the full suite when a pull request becomes ready and after every later push. The required `Tests and metrics` check blocks merging until it passes on the current head. The script works from any folder in the repository:
 
 ```bash
 nix develop --command bash -c 'bash tools/test-all.sh'
@@ -293,7 +293,7 @@ By default, run this one official run in the cloud. Run the command from the bra
 python3 -I tools/stryker/cloud.py main /tmp/<ticket>-stryker --agent <your name>
 ```
 
-`cloud.py` runs `changed.py` on each module on its own CPU worker, all at once, and prints the merged table ("A run on another machine" below). Only the official Stryker run goes to the cloud by default. The `tools/mutate.py` list, the pre-commit hook, the Checked and Release suites and the Mac pass of the GPU tests before a merge stay on the Mac. To run the official run on the Mac, run it in the dev shell on the branch:
+`cloud.py` runs `changed.py` on each module on its own CPU worker, all at once, and prints the merged table ("A run on another machine" below). Only the official Stryker run goes to the cloud by default. The `tools/mutate.py` list, the pre-commit hook and optional local test runs stay on the Mac. The required Checked and Release suites run in GitHub Actions on ready pull requests. To run the official run on the Mac, run it in the dev shell on the branch:
 
 ```bash
 nix develop --command python3 -I tools/stryker/changed.py main /tmp/<ticket>-stryker
@@ -524,6 +524,17 @@ aced093a70125d9216036e490e38b3b996153b8f,2026-10-27T11:31:26-04:00,main,#7 #12,0
 ```
 
 To read the notes of another clone, fetch them first: `git fetch origin refs/notes/slop:refs/notes/slop`.
+
+### Pull-request metrics
+
+`tools/pr_metrics.py` turns the JSON of `measure` into the metrics comment of a pull request. GitHub Actions runs it after the full test suite passes. The table reports erosion, verbosity, high CC mass, high CC function count, verbose lines, SLOC, TCC, depth and the supporting counts and provenance. A later CI run updates the same comment. The marker `<!-- tertius-metrics -->` identifies it.
+
+```powershell
+nix develop --command dotnet run --project tools/Tertius.Slop -c Release -- measure HEAD --branch <branch> --source pre-push | Set-Content metrics.json
+nix develop --command python3 -I tools/pr_metrics.py metrics.json --head <commit> --run-url <ci-url>
+```
+
+`tools/test_pr_metrics.py` checks the table's content and its handling of older notes without class metrics.
 
 ### Exit codes and run time
 
@@ -1668,7 +1679,7 @@ The tests of the changed code are:
 | A file in `tests/Tertius.X.Tests` | The test classes in that file |
 | A file in `tests/Tertius.Testing` or `benchmarks/` | None. The hook only builds it. |
 
-The hook does not build or test the projects downstream of a change. Run `tools/test-all.sh` before a merge into main for that.
+The hook does not build or test the projects downstream of a change. The required GitHub Actions run covers them on every ready pull request. Run `tools/test-all.sh` locally when that feedback is useful before the CI run.
 
 If a staged file also holds unstaged changes, the hook says so. The build and the tests see the working tree, not only the staged changes.
 

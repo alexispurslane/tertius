@@ -9,6 +9,7 @@ from pathlib import Path
 def markdown(note: dict, head: str, run_url: str) -> str:
     """The Markdown table for the measured branch, with every available supporting count."""
     lines = [
+        "<!-- tertius-metrics -->",
         f"## Branch metrics",
         "",
         f"Tests and metrics passed for `{head}`. [View the CI run]({run_url}).",

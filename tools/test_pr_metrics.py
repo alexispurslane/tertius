@@ -33,6 +33,7 @@ class MetricsComment(unittest.TestCase):
 
         text = pr_metrics.markdown(note, head="deadbeef", run_url="https://example.test/run/1")
 
+        self.assertTrue(text.startswith("<!-- tertius-metrics -->\n"))
         self.assertIn("Tests and metrics passed for `deadbeef`", text)
         self.assertIn("[View the CI run](https://example.test/run/1)", text)
         self.assertIn("| Erosion | 0.1831 | Ratio of high CC function mass to all function mass |", text)
