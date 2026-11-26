@@ -30,6 +30,10 @@ layout(location = 0) out vec4 outColor;
 layout(location = 1) out vec4 outDiffuse;
 #endif
 
+#ifdef LIGHT_VOLUME
+#include "volume_receive.glsl"
+#endif
+
 void writeDiffuse(vec4 value)
 {
 #ifdef SCATTER_OUTPUT
@@ -84,6 +88,9 @@ void main()
     IndirectLight indirect = closedForm(withAmbientFootprint(s, pixel), V);
     vec3 indirectDiffuse = factors.diffuse * indirect.diffuse;
     vec3 indirectSpecular = factors.specular * indirect.specular;
+#ifdef LIGHT_VOLUME
+    applyLightVolume(s, V, factors, indirectDiffuse, indirectSpecular);
+#endif
     float share = glossyShare(s.roughness);
     if (screenTraceOn && share > 0.0)
     {

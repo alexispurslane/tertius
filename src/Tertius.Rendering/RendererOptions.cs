@@ -92,13 +92,13 @@ public sealed class RendererOptions
     public BloomSetting Bloom { get; set; } = Rendering.Bloom.Default;
 
     /// <summary>
-    /// The screen tracer, which gives every lit surface its reflections and its bounce light from what is on the screen
-    /// (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 6), or <see cref="NoScreenTrace"/>, under which each surface takes the
-    /// environment's closed forms with every direction open. The default is <see cref="ScreenTrace.Default"/>. Its images,
-    /// its two signals and the depth pyramid take about 180 bytes per pixel, about 370 MB at 1920 × 1080 (ARCHITECTURE.md,
-    /// "The screen tracer").
+    /// Glossy screen-space reflections. The directional light volume supplies diffuse light and broad reflections.
+    /// A screen-space miss takes the environment. The default is <see cref="ScreenTrace.Default"/>.
     /// </summary>
     public ScreenTraceSetting ScreenTrace { get; set; } = Rendering.ScreenTrace.Default;
+
+    /// <summary>Local diffuse light and broad reflections from live geometry. Enabled by default.</summary>
+    public bool LightVolume { get; set; } = Environment.GetEnvironmentVariable("TERTIUS_LIGHT_VOLUME") != "0";
 
     /// <summary>
     /// The warm-up draws of a headless still under <see cref="ScreenTrace"/>, 0 to <see cref="MaxWarmUpFrames"/>: the

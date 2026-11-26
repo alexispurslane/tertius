@@ -71,7 +71,8 @@ internal static class Gpu
         int warmUpFrames = RendererOptions.DefaultWarmUpFrames,
         bool passTimestamps = true,
         LightPairSetting lightPairs = default,
-        bool outputDither = true
+        bool outputDither = true,
+        bool lightVolume = false
     ) =>
         VulkanRenderer.CreateHeadless(
             new()
@@ -96,6 +97,7 @@ internal static class Gpu
                 PassTimestamps = passTimestamps,
                 LightPairs = lightPairs,
                 OutputDither = outputDither,
+                LightVolume = lightVolume,
             }
         );
 

@@ -36,6 +36,7 @@ public sealed class ScriptCommandCaptureTests : IDisposable
         "screen trace resolve",
         "reflection share",
         "accumulate indirect specular",
+        "directional light volume",
         "composite",
         "scatter rows",
         "scatter columns",
