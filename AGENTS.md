@@ -39,7 +39,7 @@ ARCHITECTURE.md is the binding design, and the code and `tools/README.md` say ho
 - The hook skips a test project whose full Checked run passed on exactly the staged code (tools/README.md, "The test record"). So run the full Checked tests just before a commit, and the commit does not run them again.
 - Run at most four agents that build at once (user, 2026-10-25). The global hook `~/.claude/hooks/heavy_queue.py` allows four heavy runs. On 2026-10-24, two agents brought the load of this 10-core machine to about 23. When four agents build together, each build and test runs slower.
 - Use git, not jj. This overrides the jj rule in the user's other agent configuration.
-- Push main to `origin` without asking, at least after each epic merges. The user decided on 2026-10-24 that a regular push is better than none.
+- Do not push `main` directly. It is protected. Merge pull requests through GitHub, then pull `main` to update local checkouts.
 - `origin` fetches from GitHub, the primary home since 2026-11-12. It pushes to GitHub, then to the knot, a push mirror (tools/README.md, "The remotes: GitHub and the knot mirror"). If a push fails on one URL, push again.
 - The last step of every ticket that changes the engine updates ARCHITECTURE.md to match the code, before the merge. It is part of the public engine docs.
 - At the end of every piece of work that shows on screen, send the user two to four screenshots of the rendered game. The user often follows from a phone and cannot run the game. Take them with a headless run of the real renderer, `dotnet run --project src/Tertius.Demo -- --script scripts/<name>.json --headless --out <folder>`. Look at each image first, and give each a one-line caption.
