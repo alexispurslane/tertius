@@ -31,6 +31,8 @@ class CiWorkflow(unittest.TestCase):
         self.assertEqual(text.count("actions/cache@v4"), 2)
         self.assertIn("primary-key: nix-", text)
         self.assertIn("restore-prefixes-first-match: nix-", text)
+        self.assertIn("hashFiles('flake.lock', 'native/**')", text)
+        self.assertIn("hashFiles('Directory.Packages.props', '**/*.csproj', 'global.json')", text)
         self.assertIn("path: ~/.nuget/packages", text)
 
     def test_checkouts_are_sparse_and_keep_the_small_cleanup(self):
