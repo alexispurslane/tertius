@@ -136,7 +136,7 @@ public sealed class FrameMotionTests
         test.World.PoseInOwnFrame(station.Entity).Position.Should().Be(new Double3(50, 6, 7));
     }
 
-    // ---- The step record of a write (docs/plans/rails-components.md, "One motion record per frame") ----------------
+    // ---- The step record of a write (https://github.com/alexispurslane/tertius/wiki/rails-components, "One motion record per frame") ----------------
 
     [Fact]
     public void AFrameWithoutABodyFollowsItsOwnersWriteAtTheSyncPointOfTheTickAndTakesItAsItsStepRecord()

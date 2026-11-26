@@ -6,7 +6,7 @@ namespace Tertius.Host.Tests;
 
 /// <summary>
 /// A ring of <see cref="RevolvedSolid"/> with one segment left out (<see cref="RevolvedSolid.LeavingOut"/>), as the middle
-/// band of the station's ceiling leaves out the segment under a spoke (docs/plans/blue-danube-demo.md, "The exit", "The
+/// band of the station's ceiling leaves out the segment under a spoke (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The exit", "The
 /// chute"). The segment is open: no hull of the shape and no triangle of the mesh lies there. The mesh stays closed,
 /// because it caps the ring's cut ends.
 /// </summary>

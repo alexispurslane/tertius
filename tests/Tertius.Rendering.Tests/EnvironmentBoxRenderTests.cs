@@ -6,7 +6,7 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// Automatic enclosure lookup in real specular readers. The box predicts a capture direction, not a geometry hit
-/// (docs/plans/semantic-frame-box-projection.md). The camera looks down −Z and the floor lies 1 m below it.
+/// (https://github.com/alexispurslane/tertius/wiki/semantic-frame-box-projection). The camera looks down −Z and the floor lies 1 m below it.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class EnvironmentBoxRenderTests

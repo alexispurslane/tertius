@@ -7,7 +7,7 @@ namespace Tertius.Physics.Tests;
 
 /// <summary>
 /// A plain kinematic body, the body of an entity that owns no frame, moves on rails as a kinematic hull does
-/// (docs/plans/rails-components.md, "The flow per kind of entity"): physics aims it at the end of each motion intent and
+/// (https://github.com/alexispurslane/tertius/wiki/rails-components, "The flow per kind of entity"): physics aims it at the end of each motion intent and
 /// puts it exactly there after the update, and the body state of the step carries the step record's pose and instant
 /// velocity, which step 2 writes into the transform row. A hand-off carries the record's instant velocity. The world runs on
 /// the real backend.
@@ -298,7 +298,7 @@ public sealed class PlainBodyOnRailsTests
 
     /// <summary>
     /// The velocity that gameplay reads for a plain body is that of its origin, the point that its pose names, as for every
-    /// body (docs/plans/real-physics-in-tests.md, "The velocity point"). So a plain body on rails whose centre of mass lies
+    /// body (https://github.com/alexispurslane/tertius/wiki/real-physics-in-tests, "The velocity point"). So a plain body on rails whose centre of mass lies
     /// 1 m from its origin reads the instant velocity of its rails, not that plus the turn of the arm to its centre of mass,
     /// which is 0.5 m/s and more here.
     /// </summary>

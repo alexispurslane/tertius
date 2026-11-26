@@ -6,7 +6,7 @@ namespace Tertius.Simulation.Tests;
 /// <summary>
 /// A Kepler frame takes its G·M from the point gravity of its parent frame, so a Kepler frame and the loose bodies in
 /// its parent fall on the same G·M. Its <see cref="KeplerMotion"/> checks that rule, and the World checks nothing
-/// (docs/plans/rails-components.md, "Where the checks of rails motion live"): a KeplerMotion whose parent has no point
+/// (https://github.com/alexispurslane/tertius/wiki/rails-components, "Where the checks of rails motion live"): a KeplerMotion whose parent has no point
 /// gravity with a G·M above 0 writes no sample, so its frame holds still, and it logs that once. So a spawn, a
 /// <see cref="KeplerMotion"/> added later and a new gravity field for the parent never throw, and a new G·M of the parent moves the frame from the next sample
 /// on. A frame whose parent dies moves up into the grandparent, and orbits the grandparent's G·M, or holds still there.

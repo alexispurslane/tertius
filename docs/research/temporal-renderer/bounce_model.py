@@ -1,4 +1,4 @@
-"""The model of the many bounces' lag in docs/plans/temporal-renderer.md, section 6, "How the later bounces settle".
+"""The model of the many bounces' lag in https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 6, "How the later bounces settle".
 
 Tool code for the design: it never ships, and ticket 6 runs it again when it tunes ClampSigmas and AntiLagShare.
 It uses only the standard library, so that it runs with `python3 -I` in the dev shell.

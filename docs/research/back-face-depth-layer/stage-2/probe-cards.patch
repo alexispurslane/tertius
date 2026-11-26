@@ -943,7 +943,7 @@ index 5638725a9..88d0a53c5 100644
 +    uint probeBackFacesOnly;
 +};                            // std430: 96 bytes of members, a stride of 96
  
- // A hair pixel's card code (docs/plans/skin-and-hair.md, "The card number"): the number of its card in its mesh, mixed
+ // A hair pixel's card code (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The card number"): the number of its card in its mesh, mixed
  // with its instance's place into 13 bits. 5063, about 2^13 / φ and odd, puts neighbor instances' codes far apart, and the
 diff --git a/src/Tertius.Rendering/Shaders/screen_trace.glsl b/src/Tertius.Rendering/Shaders/screen_trace.glsl
 index ab75b4398..6217374d5 100644

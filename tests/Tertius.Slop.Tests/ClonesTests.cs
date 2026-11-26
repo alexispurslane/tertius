@@ -3,7 +3,7 @@ using AwesomeAssertions;
 namespace Tertius.Slop.Tests;
 
 /// <summary>
-/// The clones of src and their lines, from jscpd with the settings of Clones.Find (docs/plans/code-quality-tooling.md,
+/// The clones of src and their lines, from jscpd with the settings of Clones.Find (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling,
 /// decision 17). The tests that run jscpd need it on the search path, as the dev shell has it.
 /// </summary>
 public sealed class ClonesTests : IDisposable

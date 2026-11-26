@@ -1,4 +1,4 @@
-// The terms of the PBR BRDF and the reads of its tables (docs/plans/pbr-brdf.md, "The BRDF"). Each function has a C#
+// The terms of the PBR BRDF and the reads of its tables (https://github.com/alexispurslane/tertius/wiki/pbr-brdf, "The BRDF"). Each function has a C#
 // twin in Tertius.Rendering/Shading, which BrdfShaderTests pins.
 #ifndef TERTIUS_BRDF_GLSL
 #define TERTIUS_BRDF_GLSL
@@ -70,7 +70,7 @@ vec3 sphereLightDirection(vec3 L, vec3 R, float lightSine)
 }
 
 // GgxLobe.SphereNormalization: (α / α′)², the normalization of the lobe that a sphere light widens (Karis 2013, p. 16,
-// equation 14), with α′ = min(α + sin ϕ / (2 √(v·h)), 1) (docs/plans/pbr-brdf.md, "Sized lights"). Karis's equation 10
+// equation 14), with α′ = min(α + sin ϕ / (2 √(v·h)), 1) (https://github.com/alexispurslane/tertius/wiki/pbr-brdf, "Sized lights"). Karis's equation 10
 // adds sin ϕ / 3. The half vectors of the light's disc span 1 / (4 v·h) of its solid angle, so a mirror shows the light's
 // own radiance when the radius of their cone, sin ϕ / (2 √(v·h)), widens α.
 float sphereNormalization(float alpha, float lightSine, float VdotH)

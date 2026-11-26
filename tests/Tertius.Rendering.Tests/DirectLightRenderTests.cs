@@ -4,7 +4,7 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The direct light of the main view (docs/plans/temporal-renderer.md, section 7): the exact loop takes every light of
+/// The direct light of the main view (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 7): the exact loop takes every light of
 /// the main view in each frame, and the composite reads that frame's light, so a frame shows no light of the frames
 /// before it. The renderer has the renderer's default direct light: the tests set no option for it.
 /// </summary>

@@ -3,7 +3,7 @@ using static Tertius.Rendering.Tests.BrdfTesting;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The specular lobe of a sphere light in the C# BRDF (docs/plans/pbr-brdf.md, "Sized lights"): Karis's representative
+/// The specular lobe of a sphere light in the C# BRDF (https://github.com/alexispurslane/tertius/wiki/pbr-brdf, "Sized lights"): Karis's representative
 /// point with the widened lobe's normalization. The light keeps about the energy of a point light of the same
 /// irradiance, and a mirror never shows it brighter than the light's own surface. A white metal has F = 1, so the
 /// specular part is the compensated lobe alone.

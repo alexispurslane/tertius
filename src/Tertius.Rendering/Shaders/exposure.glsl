@@ -1,4 +1,4 @@
-// The exposure of the frame and pre-exposure (docs/plans/auto-exposure.md, "Pre-exposure").
+// The exposure of the frame and pre-exposure (https://github.com/alexispurslane/tertius/wiki/auto-exposure, "Pre-exposure").
 #ifndef TERTIUS_EXPOSURE_GLSL
 #define TERTIUS_EXPOSURE_GLSL
 

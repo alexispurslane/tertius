@@ -3,7 +3,7 @@ using AwesomeAssertions;
 namespace Tertius.Slop.Tests;
 
 /// <summary>
-/// The syntactic cyclomatic complexity of a function (docs/plans/code-quality-tooling.md, decision 16): 1, plus 1 for
+/// The syntactic cyclomatic complexity of a function (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling, decision 16): 1, plus 1 for
 /// each construct that branches, and 1 for a whole switch.
 /// </summary>
 public sealed class ComplexityTests

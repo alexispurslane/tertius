@@ -5,7 +5,7 @@ namespace Tertius.Rendering;
 /// <summary>
 /// The exposure buffer, the one store of the exposure in stops that the passes use, the histogram of the exposure's
 /// meter, and one readback buffer per frame slot, through which the CPU reports the exposure of a finished frame
-/// (docs/plans/auto-exposure.md, "The exposure on the GPU") and bounds the exposure of the frames after it.
+/// (https://github.com/alexispurslane/tertius/wiki/auto-exposure, "The exposure on the GPU") and bounds the exposure of the frames after it.
 /// </summary>
 /// <remarks>
 /// <list type="bullet">

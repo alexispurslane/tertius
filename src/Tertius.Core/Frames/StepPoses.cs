@@ -2,7 +2,7 @@ namespace Tertius;
 
 /// <summary>
 /// The poses of a frame in another frame, its parent here, at both ends of one physics step: the rule by which a chord
-/// converts between the two frames (docs/plans/spin-gravity.md, "The two conversion rules"). A chord is the change of a
+/// converts between the two frames (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The two conversion rules"). A chord is the change of a
 /// body's coordinates over the step divided by the step, so it converts by where the frame stood at both ends of the step,
 /// c' = (P_end x_end − P_start (x_end − c dt)) / dt, and an angular chord by the rotations there,
 /// exp(Ω' dt) = P_end.Rotation · exp(Ω dt) · P_start.Rotation⁻¹. The rule of an instant velocity, which

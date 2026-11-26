@@ -5,7 +5,7 @@ using static Tertius.Simulation.Tests.RenderSnapshotSupport;
 namespace Tertius.Simulation.Tests;
 
 /// <summary>
-/// What the renderer needs to follow an object from frame to frame (docs/plans/temporal-renderer.md, section 3): each
+/// What the renderer needs to follow an object from frame to frame (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 3): each
 /// instance carries the generation of its entity, so that a slot that a new entity reuses gives a new key, and its scale at
 /// the previous build by the rule of the previous transforms. Each light carries the generation of its entity too, because
 /// ReSTIR keys its lights.

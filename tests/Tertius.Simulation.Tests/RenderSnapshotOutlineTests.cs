@@ -6,7 +6,7 @@ using Tertius.Physics;
 namespace Tertius.Simulation.Tests;
 
 /// <summary>
-/// The frame outlines of the render snapshot (docs/plans/blue-danube-demo.md, "Change 3: frame outlines"). With
+/// The frame outlines of the render snapshot (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "Change 3: frame outlines"). With
 /// <see cref="World.ShowFrameOutlines"/> on, the snapshot carries one <see cref="FrameOutline"/> for each frame that is not a
 /// root, in the dense order of the frame tree. A semantic frame shows its bubble. A numeric frame shows its contents sphere:
 /// the smallest sphere centred on its origin that holds the bounding sphere of each body whose physics home it is and the

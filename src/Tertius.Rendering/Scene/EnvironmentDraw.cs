@@ -5,14 +5,14 @@ internal readonly record struct WithoutMap;
 
 /// <summary>
 /// The faces that this frame draws of each served map, root first, and the latest irradiance reading of each, null before
-/// its first (docs/plans/environment-maps-per-frame.md, "Which faces a frame draws"). Both hold M entries, one per served
+/// its first (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame, "Which faces a frame draws"). Both hold M entries, one per served
 /// map.
 /// </summary>
 internal readonly record struct WithMap(ReadOnlyMemory<FaceMask> Faces, ReadOnlyMemory<IrradianceReading?> Irradiance);
 
 /// <summary>
-/// What the batcher prepares for the map this frame (docs/plans/environment-map.md, "Which faces a frame draws"). Its
-/// zero value is <see cref="WithoutMap"/>. This is a generated union (docs/plans/union-tooling.md).
+/// What the batcher prepares for the map this frame (https://github.com/alexispurslane/tertius/wiki/environment-map, "Which faces a frame draws"). Its
+/// zero value is <see cref="WithoutMap"/>. This is a generated union (https://github.com/alexispurslane/tertius/wiki/union-tooling).
 /// </summary>
 [GeneratedUnion(typeof(WithoutMap), typeof(WithMap), ZeroCase = typeof(WithoutMap))]
 internal readonly partial struct EnvironmentDraw;
@@ -27,8 +27,8 @@ internal readonly record struct HemisphereAmbient(AmbientLight Light);
 internal readonly record struct MapAmbient(ReadOnlyMemory<IrradianceReading?> Irradiance);
 
 /// <summary>
-/// The ambient light of a frame as the CPU knows it (docs/plans/environment-map.md, "Impostors"). This is a generated
-/// union (docs/plans/union-tooling.md).
+/// The ambient light of a frame as the CPU knows it (https://github.com/alexispurslane/tertius/wiki/environment-map, "Impostors"). This is a generated
+/// union (https://github.com/alexispurslane/tertius/wiki/union-tooling).
 /// </summary>
 [GeneratedUnion(typeof(HemisphereAmbient), typeof(MapAmbient))]
 internal readonly partial struct AmbientSource;

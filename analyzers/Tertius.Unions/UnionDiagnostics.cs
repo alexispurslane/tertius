@@ -23,7 +23,7 @@ internal static class UnionDiagnostics
         id: "TU1002",
         title: "A generated union takes struct cases only",
         messageFormat: "The case '{0}' of the union '{1}' is a class. A closed set of classes is a built-in union "
-            + "(docs/plans/union-tooling.md, decision 1).",
+            + "(https://github.com/alexispurslane/tertius/wiki/union-tooling, decision 1).",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true

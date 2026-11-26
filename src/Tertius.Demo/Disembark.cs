@@ -5,7 +5,7 @@ namespace Tertius.Demo;
 
 /// <summary>
 /// Walks a person out of a docked ship onto a lift, rides it down a spoke and walks onto the wheel's floor of a spinning
-/// station, step 6 of the Blue Danube demo (docs/plans/blue-danube-demo.md, "The exit"). It is a flat state machine: its
+/// station, step 6 of the Blue Danube demo (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The exit"). It is a flat state machine: its
 /// cases are <see cref="DisembarkState"/>, its events <see cref="DisembarkEvent"/>, and <see cref="DisembarkState.Next"/> is
 /// the whole table of its changes. Its entity needs a character body.
 /// <list type="bullet">

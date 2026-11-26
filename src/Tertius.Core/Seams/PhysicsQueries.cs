@@ -58,7 +58,7 @@ public readonly record struct QueryCapsule(float HalfHeight, float Radius);
 /// </summary>
 /// <remarks>
 /// This is a union of <see cref="QuerySphere"/>, <see cref="QueryBox"/> and <see cref="QueryCapsule"/>, whose union
-/// members the union generator writes (docs/plans/union-tooling.md). The constructors do not check sizes: a sphere of
+/// members the union generator writes (https://github.com/alexispurslane/tertius/wiki/union-tooling). The constructors do not check sizes: a sphere of
 /// radius 0 is a shape that holds a size that no query can use, and <see cref="Problem"/> says why, so that the query that
 /// gets it can name the shape. The cases share their slots by type: the radius of a sphere and the half height of a
 /// capsule share one float slot.

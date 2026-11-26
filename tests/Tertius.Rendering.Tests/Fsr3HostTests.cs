@@ -6,7 +6,7 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The host calculations of <see cref="Fsr3Upscaler"/> against the golden values that tools/fsr3-golden/ prints from
-/// AMD's own host code of FSR 3.1.4 (docs/plans/temporal-renderer.md, "The host"): the jitter, the constants of each
+/// AMD's own host code of FSR 3.1.4 (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "The host"): the jitter, the constants of each
 /// frame, the luminance pyramid's constants, the dispatches, the reactive mask generator and the images. A value from
 /// AMD's math library, such as the tangent of the field of view, may differ by one unit in the last place on another C
 /// library, so those compare within one.

@@ -318,7 +318,7 @@ internal sealed partial class RenderSnapshotBuilder
 
     /// <summary>
     /// Writes the chain of <paramref name="cameraFrame"/> into <paramref name="snapshot"/>, camera first, and the chain
-    /// depth of every frame by dense index (docs/plans/environment-maps-per-frame.md, decision 17).
+    /// depth of every frame by dense index (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame, decision 17).
     /// </summary>
     /// <remarks>
     /// A frame off the chain takes its tree parent's depth, which the dense order gives first, and a root of another tree
@@ -493,7 +493,7 @@ internal sealed partial class RenderSnapshotBuilder
 
     /// <summary>
     /// Adds the rig pose of every posed instance to <paramref name="snapshot"/>, and places it for the next build
-    /// (docs/plans/skinning-and-morphs.md, "The rig pose in the snapshot"). The previous rig pose follows the rule of the
+    /// (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "The rig pose in the snapshot"). The previous rig pose follows the rule of the
     /// previous transforms: the placed copy of the build before when the build interpolates, and the current one otherwise.
     /// </summary>
     /// <remarks>

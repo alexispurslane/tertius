@@ -5,7 +5,7 @@ using static Tertius.Testing.WorldTesting;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// A triangle mesh as the interior of a frame owner (ter-imi5, item 3 of docs/plans/complete-ghosts.md), on the World and
+/// A triangle mesh as the interior of a frame owner (ter-imi5, item 3 of https://github.com/alexispurslane/tertius/wiki/complete-ghosts), on the World and
 /// the real backend. The interior is the body in the frame's own system that people stand on. It is static while the hull
 /// is static, and kinematic and at rest in the frame's own system while the hull moves (see
 /// <c>JoltPhysicsBackend.InteriorMotion</c>). Jolt simulates a kinematic mesh against dynamic bodies only when the mesh has

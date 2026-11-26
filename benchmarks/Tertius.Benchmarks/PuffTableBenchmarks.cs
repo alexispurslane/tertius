@@ -7,7 +7,7 @@ using Tertius.Simulation;
 namespace Tertius.Benchmarks;
 
 /// <summary>
-/// The cost of the puffs in the sync point (ter-4zt6, task 3, docs/plans/particles.md, "Task 3"), on one thread, in a World
+/// The cost of the puffs in the sync point (ter-4zt6, task 3, https://github.com/alexispurslane/tertius/wiki/particles, "Task 3"), on one thread, in a World
 /// without physics, between ticks. Three frames:
 /// <list type="bullet">
 /// <item><c>earth</c>: a root frame with Earth's point field, no turn and no medium. The puffs lie 6,800 km from its origin.</item>

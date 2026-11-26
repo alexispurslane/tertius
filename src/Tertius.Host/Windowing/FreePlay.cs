@@ -12,7 +12,7 @@ public sealed record RecordTo(string Path, string Scene, ScriptWindow Window);
 
 /// <summary>
 /// Free play on the simulation thread: ticks the world until the playback stops, and hands the world what the window's
-/// input asked for. See docs/plans/host-and-scripted-runs.md, "The window" and "Recording free play".
+/// input asked for. See https://github.com/alexispurslane/tertius/wiki/host-and-scripted-runs, "The window" and "Recording free play".
 /// </summary>
 /// <remarks>
 /// The main thread must not post an input event to the world, because the tick that the post joins would then depend on

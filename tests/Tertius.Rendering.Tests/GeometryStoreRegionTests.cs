@@ -2,9 +2,9 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// When <see cref="GeometryStore.ReserveDeformed"/> keeps the vertex buffer: for a need that the deform region already
-/// holds, and for a need past the most that the window of the region allows (docs/plans/skinning-and-morphs.md, "Buffers
+/// holds, and for a need past the most that the window of the region allows (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "Buffers
 /// and the region"). The kept positions grow with the region, and a growth that no drawn frame followed is copied again
-/// by the next frame (docs/plans/temporal-renderer.md, "Kept deformed positions"). A validating headless device; the
+/// by the next frame (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "Kept deformed positions"). A validating headless device; the
 /// recorded commands are never submitted.
 /// </summary>
 public sealed class GeometryStoreRegionTests

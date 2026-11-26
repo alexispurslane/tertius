@@ -16,7 +16,7 @@ using StationProps = Tertius.Demo.DemoScenes.StationProps;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The places of the station's props (docs/plans/blue-danube-demo.md, "The fit to the art"), which need no art: every prop
+/// The places of the station's props (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The fit to the art"), which need no art: every prop
 /// keeps its kind's reach and a person's width clear of the person's way, the parked hull and the lift, and the terminal's
 /// props lie antispinward of the lift's foot, away from the stroll and the coda. Every place is in the station's axes.
 /// </summary>
@@ -374,7 +374,7 @@ public sealed class BlueDanubeArtSceneTests : IDisposable
 }
 
 /// <summary>
-/// The converted Blue Danube art against the numbers that the fit takes from it (docs/plans/blue-danube-demo.md, "The fit
+/// The converted Blue Danube art against the numbers that the fit takes from it (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The fit
 /// to the art"). The tests skip without the converted art.
 /// </summary>
 public sealed class BlueDanubeArtFitTests

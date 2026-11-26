@@ -8,7 +8,7 @@ using Tertius.Simulation;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// Falling numeric frames near the ship (docs/plans/numeric-frames.md): one headless run of the checked-in script
+/// Falling numeric frames near the ship (https://github.com/alexispurslane/tertius/wiki/numeric-frames): one headless run of the checked-in script
 /// scripts/orbit-cluster.json in the scene orbit-cluster (see DemoScenes.OrbitCluster), with a log of every tick. The
 /// spacewalker, 15 m out from the hatch in earth, thrusts 10 s along the orbit, coasts 5 s, thrusts back 20 s (10 s to
 /// stop and 10 s to come back), coasts 5 s and thrusts 10 s along the orbit to stop. Two crates drift from 50 m above
@@ -221,7 +221,7 @@ public sealed class OrbitClusterTests(OrbitClusterRun run) : IClassFixture<Orbit
     // How much a key body's change of step relative to the ship, less any thrust, may differ at a change of frame or
     // physics home from two ticks later, in meters: 0.05 mm. Float rounding of a body's place in a numeric frame moves it
     // by under a micrometer. The ship's frame turns once per orbit, and physics keeps a free body on its inertial line in
-    // every turning frame (docs/plans/spin-gravity.md), so the Coriolis term (2ωv, 0.011 m/s² at 5 m/s) acts on the thrown
+    // every turning frame (https://github.com/alexispurslane/tertius/wiki/spin-gravity), so the Coriolis term (2ωv, 0.011 m/s² at 5 m/s) acts on the thrown
     // crate in the ship's axes on both sides of the ship's bubble, and its hand-off does not change its step. Before the
     // rotation terms, the ship's frame left that term out, and the hand-off changed the crate's step by about 3
     // micrometers. A hand-off that went through float coordinates in earth, 6771 km from its center, would move a body

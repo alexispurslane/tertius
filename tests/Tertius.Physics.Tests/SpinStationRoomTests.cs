@@ -6,7 +6,7 @@ namespace Tertius.Physics.Tests;
 
 /// <summary>
 /// Frames that physics does not move, at rest in a turning frame, on the World and the real Jolt backend
-/// (docs/plans/spin-gravity.md, "The proper acceleration of a frame"): the accelerometer rule gives such a frame its
+/// (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The proper acceleration of a frame"): the accelerometer rule gives such a frame its
 /// acceleration minus the gravity at its place, and the gravity at its place holds the parent's rotation terms. So a room at
 /// rest in a spinning station is pushed toward the axis by ω² R, and its contents feel that reversed, plus the room's own
 /// rotation terms, ω² (R + r) in all.

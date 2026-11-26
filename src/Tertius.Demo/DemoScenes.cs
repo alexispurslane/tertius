@@ -21,13 +21,13 @@ public static partial class DemoScenes
 
     /// <summary>
     /// The roughness of every painted part and lamp: the old default gloss of 0.5, converted so that each highlight keeps
-    /// its size (docs/plans/pbr-brdf.md, "The demo materials").
+    /// its size (https://github.com/alexispurslane/tertius/wiki/pbr-brdf, "The demo materials").
     /// </summary>
     public const float UsualRoughness = 0.38f;
 
     /// <summary>
     /// The roughness of both glasses: their old gloss of 0.9, converted so that each highlight keeps its size
-    /// (docs/plans/pbr-brdf.md, "The demo materials").
+    /// (https://github.com/alexispurslane/tertius/wiki/pbr-brdf, "The demo materials").
     /// </summary>
     public const float GlassRoughness = 0.18f;
 
@@ -42,7 +42,7 @@ public static partial class DemoScenes
     /// bubble of earth-surface ends there. A body leaves that bubble only when its center lies outside it by its bounding
     /// sphere plus the exit margin, 2 percent of the bubble's radius (ARCHITECTURE.md, "Hand-off", rule 2), so a shuttle
     /// that climbs out of it leaves 178.4 km up, below the demo's parking orbit at 200 km
-    /// (docs/plans/blue-danube-demo.md, "The hand-off").
+    /// (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The hand-off").
     /// </summary>
     public const double GroundBubbleTop = 50e3;
 

@@ -5,7 +5,7 @@ using static Tertius.Rendering.Tests.BrdfTesting;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The fringe of a fringed material in the transparent pass (docs/plans/skin-and-hair.md, "The fringe"): a texel whose
+/// The fringe of a fringed material in the transparent pass (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The fringe"): a texel whose
 /// alpha a is above 0 and below the cutoff covers a share a of its pixel, "over" what lies behind, and a clear texel draws
 /// nothing. The cards are the plane mesh, 2 m square, facing the camera 3 m ahead, with a cutoff of 0.5, in front of a
 /// square 6 m ahead that emits light. The exposure is fixed at 0 stops. Each test reads the HDR image.

@@ -4,7 +4,7 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The short-history fix, step 3 of accumulate_spatial.comp (docs/plans/temporal-renderer.md, section 8, step 3): a
+/// The short-history fix, step 3 of accumulate_spatial.comp (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 8, step 3): a
 /// history shorter than 4 frames takes the length-weighted mean of 9 taps of its surface. The specular signal turns the
 /// 3 × 3 square per pixel at spacings 4 and 2, by the blue-noise mask, so that the rare bright samples after a camera cut
 /// spread without a regular lattice (t1-3er4, docs/research/cut-grid-probe). The diffuse signal keeps the square. A wall

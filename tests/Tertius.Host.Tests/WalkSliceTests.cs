@@ -119,9 +119,9 @@ public sealed class WalkSliceTests(WalkRun run) : IClassFixture<WalkRun>
         // nose points along its motion, level, and Earth's horizon is 19.8 degrees below level, out of the window's view.
         // Space is black, and the pane in the window adds its own lamp-lit color, a dark blue gray. The C# BRDF gives the
         // pane at most 22 % more light here than Blinn-Phong did, mostly because its diffuse part no longer gives up the
-        // Fresnel share (docs/plans/pbr-brdf.md, "Decisions", 13). So the bound of 90 grew by that share, to 110: the tone
+        // Fresnel share (https://github.com/alexispurslane/tertius/wiki/pbr-brdf, "Decisions", 13). So the bound of 90 grew by that share, to 110: the tone
         // curve and the sRGB curve grow less than in proportion at these levels. Since the lamps reach as far as their power
-        // carries (docs/plans/local-light-shadows.md, Part 4), not 10 m, they light the pane at full strength, and at the
+        // carries (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, Part 4), not 10 m, they light the pane at full strength, and at the
         // fixed exposure of 0 stops it shows a lighter gray, (82, 84, 85), still a little blue. So the bound grew to 270.
         (int r, int g, int b) window = run.Capture("cabin").Average(640, 360);
 

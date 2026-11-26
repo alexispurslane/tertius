@@ -8,7 +8,7 @@ using SpinUp = Tertius.Demo.SpinUp;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The docking in the checked-in long script, scripts/blue-danube.json (docs/plans/blue-danube-demo.md, "The docking"): the
+/// The docking in the checked-in long script, scripts/blue-danube.json (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The docking"): the
 /// run of <see cref="BlueDanubeRendezvousRun"/> goes on from the rendezvous's hold through the film <c>docked</c>, and the
 /// exit's films follow it (see <see cref="BlueDanubeExitTests"/>). The
 /// shuttle spins up at the hold point, enters the station's turning frame at its bubble, passes the slot, moves out to the
@@ -96,7 +96,7 @@ public sealed class BlueDanubeDockingTests(BlueDanubeRendezvousRun run)
         Docking.Should().OnlyContain(tick => tick.PenFromHand != null && tick.PenFromHand < 0.05);
 
     /// <summary>
-    /// The person sits at its seat from the parking orbit through the docking, so its heading holds (docs/plans/blue-danube-demo.md,
+    /// The person sits at its seat from the parking orbit through the docking, so its heading holds (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo,
     /// "The person's walk"): in every tick to the end of the film <c>docked</c>, it lies within 0.01 radians of its heading in
     /// the first tick of the orbit. This covers the fetch of the pen in orbit, where the person floats, and the move out,
     /// where the belt lets go and the person's feet settle on the floor to port.

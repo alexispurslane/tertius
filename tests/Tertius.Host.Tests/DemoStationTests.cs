@@ -11,7 +11,7 @@ namespace Tertius.Host.Tests;
 
 /// <summary>
 /// The station of the Blue Danube demo in the scene <c>demo-surface</c>, built without a script, on the World and the real
-/// Jolt backend (docs/plans/blue-danube-demo.md, "The station" and "The station's plane"): a wheel 202 m across on a
+/// Jolt backend (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The station" and "The station's plane"): a wheel 202 m across on a
 /// circle 400 km up in <c>earth</c>, which does not turn, in the launch plane, that turns about its axis at the rate that
 /// gives one gravity on its floor. In the station's own axes, +Y is the axis and the slot faces +Y. In <c>earth</c>, the
 /// axis points along the launch plane's normal, reversed, the departure axes' +X. The pure tests pin the plane and the
@@ -85,7 +85,7 @@ public sealed class DemoStationTests : IDisposable
 
     /// <summary>
     /// At the world's time 0, the Sun's direction from Earth lies 56.1 degrees from the station's axis on the slot's side,
-    /// within 0.5 degrees. The plane of the orbit was chosen for that light (docs/plans/blue-danube-demo.md, "The station's
+    /// within 0.5 degrees. The plane of the orbit was chosen for that light (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The station's
     /// plane"): the sun meets the slot's face at an angle, neither edge-on nor square.
     /// </summary>
     [Fact]
@@ -299,7 +299,7 @@ public sealed class DemoStationTests : IDisposable
     /// <summary>
     /// On the ground, the parked shuttle's rendezvous autopilot halts at a <see cref="Rendezvous"/> order: the shuttle is in
     /// the turning earth-surface, and the station is in earth, so its guard finds the station outside the shuttle's frame
-    /// (docs/plans/blue-danube-demo.md, "The shuttle's flight in the turning ground"). In the run the order comes in orbit,
+    /// (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The shuttle's flight in the turning ground"). In the run the order comes in orbit,
     /// after the hand-off into earth, and the autopilot flies (<see cref="BlueDanubeRendezvousTests"/>).
     /// </summary>
     [Fact]
@@ -480,7 +480,7 @@ public sealed class DemoStationTests : IDisposable
     /// box's place at the release, the scene's rate and the station's rotations in <c>earth</c> after each tick, never from
     /// the turns that the engine derives. The landing is where the straight line through the box's last two free places in
     /// those axes brings its lowest face to the facet's plane, while the station turns on at its rate. It lies antispinward
-    /// of the release point by about 21 mm from 1.0 m and about 39 mm from 1.5 m (docs/plans/blue-danube-demo.md, "The
+    /// of the release point by about 21 mm from 1.0 m and about 39 mm from 1.5 m (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The
     /// coda").
     /// </summary>
     [Theory]

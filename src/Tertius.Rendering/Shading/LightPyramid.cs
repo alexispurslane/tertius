@@ -16,7 +16,7 @@ internal sealed class LightPyramid
     /// How deep a pixel's target box reaches behind its center, the front of its slab, as a share of its view depth. A
     /// ray from a low angle meets the front of the slabs, and one from behind enters a slab near its front. It is no
     /// thickness: a guided ray that the walk rejects behind a thin surface counts as a miss, so the estimate stays
-    /// unbiased (docs/plans/back-face-depth-layer.md, decision 7). TargetDepthShare in screen_trace.glsl is the GLSL copy.
+    /// unbiased (https://github.com/alexispurslane/tertius/wiki/back-face-depth-layer, decision 7). TargetDepthShare in screen_trace.glsl is the GLSL copy.
     /// </summary>
     public const float TargetDepthShare = 0.05f;
 

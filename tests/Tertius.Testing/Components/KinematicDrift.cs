@@ -5,7 +5,7 @@ namespace Tertius.Testing;
 /// <summary>
 /// Moves a kinematic body along a straight line at a constant <see cref="Velocity"/> in its frame, with no turn. A kinematic
 /// body moves only by its motion intents and teleports, and holds still in a step without one, so a spawn velocity no longer
-/// drifts it (docs/plans/rails-components.md, "The flow per kind of entity"). In every tick the component writes the end pose
+/// drifts it (https://github.com/alexispurslane/tertius/wiki/rails-components, "The flow per kind of entity"). In every tick the component writes the end pose
 /// one step further along the line from where the body starts the next step (see <see cref="Self.PoseAtNextStepStartIn"/>
 /// ).
 /// The component first runs in the tick after the spawn, so a spawn through <see cref="Drifting"/> also carries the end pose

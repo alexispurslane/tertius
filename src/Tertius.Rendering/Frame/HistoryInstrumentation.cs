@@ -34,7 +34,7 @@ internal readonly record struct ShaderVariant(string Suffix, string[] Shaders)
     /// <summary>
     /// The LightAgeShader items of Tertius.Rendering.csproj (ticket ter-wkvw): the spatial dispatch of a half-precision
     /// history whose samples have a light age, the diffuse signal's beside a precise specular history. It acts on its
-    /// block's evidence, as the precise variants do (docs/plans/bounce-light-confidence.md, section 8.4). The temporal
+    /// block's evidence, as the precise variants do (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.4). The temporal
     /// dispatch reads no light age: no cut runs before the blend (section 4).
     /// </summary>
     public static readonly ShaderVariant LightAge = new(Suffix: "_lightage", Shaders: ["accumulate_spatial.comp"]);

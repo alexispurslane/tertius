@@ -4,8 +4,8 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// Draws the faces of the environment maps that this frame draws (stage <see cref="FrameGraph.Stage.EnvironmentFaces"/>,
-/// docs/plans/environment-map.md, "The capture"), map by map, into level 0 of each face's layer of the radiance maps and of
-/// the distance cubes (docs/plans/environment-map-distances.md, "How the capture writes it"). The prefilter pass derives
+/// https://github.com/alexispurslane/tertius/wiki/environment-map, "The capture"), map by map, into level 0 of each face's layer of the radiance maps and of
+/// the distance cubes (https://github.com/alexispurslane/tertius/wiki/environment-map-distances, "How the capture writes it"). The prefilter pass derives
 /// the mips.
 /// </summary>
 /// <remarks>
@@ -16,15 +16,15 @@ namespace Tertius.Rendering;
 /// writes the sky where the record holds no surface. A forward face ran the light loop for every fragment of every
 /// small triangle, which cost the deck 0.11 ms more of its mean frame (ticket t2-zcr4).</para>
 /// <para>A surface adds its emission only when its entity holds no light: the glow of a lamp is its light's face, and the
-/// lamp's power reaches the room once, through its light (docs/plans/environment-map.md, "How a face is lit").</para>
+/// lamp's power reaches the room once, through its light (https://github.com/alexispurslane/tertius/wiki/environment-map, "How a face is lit").</para>
 /// <para>The light pass writes a texel's radiance and its inverse distance from the eye together, as two color
 /// attachments. So each texel of the distance cube describes the surface that the radiance map's texel shows: the sky's
 /// 0, or the surface of the record.</para>
-/// <para>A face looks along its map's axes (docs/plans/environment-maps-per-frame.md, decision 9), and keeps the lights of
+/// <para>A face looks along its map's axes (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame, decision 9), and keeps the lights of
 /// its map and the maps outside it (decision 13).</para>
 /// <para>A face is a mirror image of a right-handed camera, so the surface pipelines' front faces are clockwise. Each range
 /// draws its solid run, then its cutout run, whose pipeline discards a texel below its material's cutoff: a face has no
-/// transparent pass, so it sees the core of a fringed material alone (docs/plans/skin-and-hair.md).</para>
+/// transparent pass, so it sees the core of a fringed material alone (https://github.com/alexispurslane/tertius/wiki/skin-and-hair).</para>
 /// </remarks>
 internal sealed unsafe class EnvironmentFacePass : RenderPass
 {

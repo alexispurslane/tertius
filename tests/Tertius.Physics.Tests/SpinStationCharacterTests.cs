@@ -5,7 +5,7 @@ using static Tertius.Testing.WorldTesting;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// Characters in a turning frame, on the World and the real Jolt backend (docs/plans/spin-gravity.md, "Characters"). The
+/// Characters in a turning frame, on the World and the real Jolt backend (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Characters"). The
 /// station of the tests is a frame without a body and without a field, which turns in place in a root frame without a field
 /// about its +Y at 0.31321 rad/s, the rate that gives 9.81 m/s² at 100 m, from its first step: its spawn carries its first
 /// motion intent. The root frame's axes are inertial space. Its floor is a static slab whose face toward the axis lies at
@@ -198,7 +198,7 @@ public sealed class SpinStationCharacterTests
     /// centrifugal term, which on the flat floor 4 m from its middle leans 2.3 degrees along it, nor the Coriolis term of
     /// 1.25 m/s² changes its velocity. Its up is against the centrifugal term, which leans along the floor away from the
     /// floor's middle, and it walks with the part of its asked velocity across its up, turned into the floor's plane at the
-    /// same speed (docs/plans/spin-gravity.md, "Characters", fork F6): 2 m/s times the cosine of that lean, 4 m from the
+    /// same speed (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Characters", fork F6): 2 m/s times the cosine of that lean, 4 m from the
     /// middle 1.6 mm/s less than 2 m/s. So it moves at that speed along the floor in every step after the one in which the
     /// walk changes, rests on the floor, and stands in every step.
     /// </summary>
@@ -485,7 +485,7 @@ public sealed class SpinStationCharacterTests
     /// ridge plus the torque of the effective gravity on the plank, whose center lies 0.25 m above the ridge, over the
     /// plank's moment of inertia about the ridge. The weight input is the effective gravity plus the Coriolis term on the
     /// person's velocity, and for a standing character its part along up presses along the ground's normal
-    /// (docs/plans/spin-gravity.md, "Characters"). On a flat plank that is the whole weight, m (ω² r ± 2 ω v), with no term
+    /// (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Characters"). On a flat plank that is the whole weight, m (ω² r ± 2 ω v), with no term
     /// of the floor's curvature: on the curved floor of a station the turns of its faces add m v² / r, which makes
     /// m (ω r ± v)² / r.
     /// <para>Jolt presses only in an update in which the character touches its ground. A held character moves with its

@@ -8,7 +8,7 @@ using Tertius.Simulation;
 namespace Tertius.Demo;
 
 /// <summary>
-/// What the engine said at one frame of a script, for the readouts of the demo edit (docs/plans/blue-danube-demo.md, "The
+/// What the engine said at one frame of a script, for the readouts of the demo edit (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The
 /// readout log"). Every quantity is about the scene's <c>person</c>, in the frame <c>earth</c>, which has its origin at
 /// Earth's center and does not turn: the frame of the guidance and of the parking orbit's textbook check. A speed in the
 /// turning <c>earth-surface</c> misses the ground's turn, up to 480 m/s on an orbit 200 km up.
@@ -39,7 +39,7 @@ public readonly record struct ReadoutRow(
 
 /// <summary>
 /// One throw of the coda, as the <see cref="FlightRecorder"/> of its box records it, in the station's own frame: its origin
-/// at the station's center, its axes those of the station, which turn with it (docs/plans/blue-danube-demo.md, "The coda").
+/// at the station's center, its axes those of the station, which turn with it (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The coda").
 /// </summary>
 /// <param name="Release">The box's place and instant velocity in its first tick after the throw.</param>
 /// <param name="Landing">Where and when the box came down to the floor, or null before the landing.</param>

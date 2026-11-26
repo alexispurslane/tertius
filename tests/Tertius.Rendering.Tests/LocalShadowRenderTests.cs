@@ -4,7 +4,7 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The local shadow atlas on the GPU (docs/plans/local-light-shadows.md, Part 6): near spot and point lights that cast
+/// The local shadow atlas on the GPU (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, Part 6): near spot and point lights that cast
 /// shadows shadow their casters onto every surface that the shading passes light, within the tile budget, from cached
 /// tiles as from drawn ones. The exposure is fixed at 0 stops, no ambient light and no star light the scenes, so a
 /// shadowed surface is black. The camera is at the origin and looks down −Z unless a test turns it.

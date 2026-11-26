@@ -4,7 +4,7 @@ namespace Tertius.Slop.Tests;
 
 /// <summary>
 /// The verbosity rules about exceptions and defensive guards, ported from the scb-check slop rules
-/// (docs/plans/code-quality-tooling.md, decision 17): for each rule, code that it flags and a near miss.
+/// (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling, decision 17): for each rule, code that it flags and a near miss.
 /// </summary>
 public sealed class ExceptionRuleTests
 {

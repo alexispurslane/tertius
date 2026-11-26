@@ -33,7 +33,7 @@ public readonly record struct Scrolled(Vector2 Delta);
 /// <see cref="EventTypeRegistry.MaxPayloadSize"/>.
 /// </summary>
 /// <remarks>
-/// The union generator writes its union members (docs/plans/union-tooling.md). The default value holds no case: nothing
+/// The union generator writes its union members (https://github.com/alexispurslane/tertius/wiki/union-tooling). The default value holds no case: nothing
 /// sends it, and a component that matches the cases ignores it. The cases share their slots by type: the key case and the
 /// button case share their code and their flag, and the move case and the scroll case share their delta. It is 16 bytes.
 /// Scripts and recordings write an input event as JSON in the form of <see cref="InputEventJsonConverter"/>.

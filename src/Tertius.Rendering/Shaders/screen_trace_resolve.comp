@@ -1,5 +1,5 @@
 #version 460
-// The resolve of the screen tracer (docs/plans/temporal-renderer.md, section 6, "The resolve"): one invocation per pixel
+// The resolve of the screen tracer (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 6, "The resolve"): one invocation per pixel
 // writes the pixel's diffuse and specular samples from its own ray of each kind, where the plan gave it one, or else from
 // its block's ray, reweighted for the pixel. A pixel above the hand-over band takes its specular sample from its diffuse
 // ray alone, and one inside the band blends the two estimates by its roughness ("Rough reflections reuse the diffuse

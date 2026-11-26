@@ -4,7 +4,7 @@ using System.Text;
 namespace Tertius.Slop.History;
 
 /// <summary>
-/// What the pre-push hook prints about the slop metrics (docs/plans/code-quality-tooling.md, decision 18): the metrics
+/// What the pre-push hook prints about the slop metrics (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling, decision 18): the metrics
 /// at the last push against now, and the pushed commits whose notes raised a metric the most. It is a report, so it
 /// never stops a push.
 /// </summary>

@@ -27,7 +27,7 @@ internal readonly record struct Cone(Vector3 Axis, float CosInner, float CosOute
 
     /// <summary>
     /// The cone of a spot light with the unit <paramref name="axis"/>, its half-angles clamped, and its inner edge moved
-    /// inward where it lies too near the outer edge or beyond it (docs/plans/local-light-shadows.md, "Portable Vulkan").
+    /// inward where it lies too near the outer edge or beyond it (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, "Portable Vulkan").
     /// </summary>
     public static Cone Of(Vector3 axis, float innerAngle, float outerAngle)
     {
@@ -53,7 +53,7 @@ internal readonly record struct RectFace(Vector3 HalfWidth, Vector3 HalfHeight);
 /// <summary>
 /// Which directions a light sends its power to: <see cref="EveryDirection"/> for a point or tube light, a <see cref="Cone"/>
 /// for a spot light, a <see cref="RectFace"/> for a rectangle light. The default value is EveryDirection with no segment.
-/// This is a generated union (docs/plans/union-tooling.md).
+/// This is a generated union (https://github.com/alexispurslane/tertius/wiki/union-tooling).
 /// </summary>
 [GeneratedUnion(typeof(EveryDirection), typeof(Cone), typeof(RectFace), ZeroCase = typeof(EveryDirection))]
 internal readonly partial struct LightSpread;
@@ -61,13 +61,13 @@ internal readonly partial struct LightSpread;
 /// <summary>
 /// Whether the main view keeps a light, and the tier in which every shadow budget ranks it: a higher value ranks first,
 /// and inside a tier the higher <see cref="LightUnits.RankIrradiance"/> ranks first, ties in list order
-/// (docs/plans/local-light-shadows.md, decision 24). The zero value is FaceOnly.
+/// (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, decision 24). The zero value is FaceOnly.
 /// </summary>
 internal enum MainViewTier : byte
 {
     /// <summary>
     /// Only a drawn face of a map keeps the light. It ranks last, so it cannot take a slot from a light of the main view
-    /// and change the main view's pixels (docs/plans/environment-map.md, decision 20).
+    /// and change the main view's pixels (https://github.com/alexispurslane/tertius/wiki/environment-map, decision 20).
     /// </summary>
     FaceOnly,
 
@@ -128,7 +128,7 @@ internal struct PreparedLight
     /// <summary>
     /// Whether the light can reach the main view's frustum: a point light's reach sphere, or a spot light's cone cut at its
     /// reach (<see cref="CameraView.Culls(Vector3, in Cone, float)"/>). False for a light that only a drawn face of a map keeps:
-    /// the main view's shaders and its impostors' light signatures leave it out (docs/plans/environment-map.md, decision
+    /// the main view's shaders and its impostors' light signatures leave it out (https://github.com/alexispurslane/tertius/wiki/environment-map, decision
     /// 20). Derived from <see cref="Tier"/>.
     /// </summary>
     public readonly bool InMainView => Tier != MainViewTier.FaceOnly;

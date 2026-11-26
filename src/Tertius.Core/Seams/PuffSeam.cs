@@ -20,7 +20,7 @@ public readonly record struct LitPuffs(Vector3 Albedo);
 /// all-zero default, and it holds no case. A look with the empty shading is not valid, so its emitter makes no puffs.
 /// </summary>
 /// <remarks>
-/// The union generator writes its union members (docs/plans/union-tooling.md). Both cases keep their one color in the
+/// The union generator writes its union members (https://github.com/alexispurslane/tertius/wiki/union-tooling). Both cases keep their one color in the
 /// same slot, because a value holds only one case, so the union is 16 bytes. Equality needs the same case and the same
 /// color, and counts a NaN as equal to a NaN, as <see cref="Vector3.Equals(Vector3)"/> does.
 /// </remarks>

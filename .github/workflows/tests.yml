@@ -1,0 +1,163 @@
+# One PR job shares its Nix and NuGet setup across CPU tests, Python tests and metrics. Main runs the CPU Release suite
+# with the same caches. The aggregate check reports branch metrics and blocks merging until every required leg passes.
+name: tests
+
+on:
+  pull_request:
+    types: [opened, ready_for_review, synchronize, reopened]
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-and-metrics-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  metrics:
+    name: Tests and metrics
+    if: ${{ github.event_name == 'pull_request' && !github.event.pull_request.draft }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet &
+          sudo rm -rf /usr/local/lib/android &
+          sudo rm -rf /opt/ghc &
+          sudo rm -rf /usr/local/.ghcup &
+          sudo rm -rf /opt/hostedtoolcache &
+          wait
+          df -h /
+
+      - uses: cachix/install-nix-action@v32
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Restore and save the Nix store
+        uses: nix-community/cache-nix-action@v7
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock', 'native/**') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('Directory.Packages.props', '**/*.csproj', 'global.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Run the CPU Checked suite
+        run: |
+          set -euo pipefail
+          nix develop --command bash -c 'bash tools/test-all.sh -c Checked -m Core,Simulation,Physics,Assets,Unions,Style,Slop -o "$RUNNER_TEMP/logs" -- --minimum-expected-tests 1'
+
+      - name: Run every Python tools test
+        run: |
+          set -euo pipefail
+          nix develop --command python3 -I -m unittest discover -s tools -p 'test_*.py'
+          nix develop --command python3 -I -m unittest discover -s tools/runpod -t tools/runpod -p 'test_*.py'
+
+      - name: Measure the branch
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          nix develop --command bash -c 'dotnet build tools/Tertius.Slop -c Release -v quiet -nologo && dotnet tools/Tertius.Slop/bin/Release/net11.0/Tertius.Slop.dll all .' > metrics.json
+          nix develop --command python3 -I tools/pr_metrics.py metrics.json --head "$HEAD_SHA" --run-url "$RUN_URL" --output metrics.md
+          cat metrics.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create or update the metrics comment
+        if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          BODY: metrics.md
+        run: |
+          set -euo pipefail
+          now=$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha)
+          if [ "$now" != "$HEAD" ]; then
+            echo "The pull request moved to $now. This run is stale."
+            exit 1
+          fi
+          id=$(gh api "repos/$REPO/issues/$PR/comments" --paginate --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- tertius-metrics -->"))) | .id' | tail -1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$id" -F body=@"$BODY"
+          else
+            gh api -X POST "repos/$REPO/issues/$PR/comments" -F body=@"$BODY"
+          fi
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: checked-test-logs
+          path: ${{ runner.temp }}/logs
+
+  release:
+    name: CPU tests (Release)
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet &
+          sudo rm -rf /usr/local/lib/android &
+          sudo rm -rf /opt/ghc &
+          sudo rm -rf /usr/local/.ghcup &
+          sudo rm -rf /opt/hostedtoolcache &
+          wait
+          df -h /
+
+      - uses: cachix/install-nix-action@v32
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Restore and save the Nix store
+        uses: nix-community/cache-nix-action@v7
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock', 'native/**') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('Directory.Packages.props', '**/*.csproj', 'global.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Run the CPU Release suite
+        run: |
+          set -euo pipefail
+          nix develop --command bash -c 'bash tools/test-all.sh -c Release -m Core,Simulation,Physics,Assets,Unions,Style,Slop -o "$RUNNER_TEMP/logs" -- --minimum-expected-tests 1'
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-test-logs
+          path: ${{ runner.temp }}/logs

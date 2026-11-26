@@ -1,7 +1,7 @@
 namespace Tertius.Rendering;
 
 /// <summary>A material at one point, after its maps, as the BRDF reads it.</summary>
-/// <remarks>The terms and their sources are in docs/plans/pbr-brdf.md, "The BRDF".</remarks>
+/// <remarks>The terms and their sources are in https://github.com/alexispurslane/tertius/wiki/pbr-brdf, "The BRDF".</remarks>
 internal readonly record struct MaterialSample(Double3 BaseColor, double Metallic, double Roughness, double Reflectance)
 {
     // A normal map can turn the shading normal away from the eye, and the visibility term divides by μ.
@@ -45,7 +45,7 @@ internal readonly record struct MaterialSample(Double3 BaseColor, double Metalli
     /// <summary>
     /// <see cref="Reflected"/> in its two parts, the C# copy of surfaceResponse: c_diff / π · (n·l) toward the light's
     /// center, and the compensated lobe times n·l toward the representative point of a sphere light, normalized
-    /// (docs/plans/pbr-brdf.md, "Sized lights"). A light of radius 0 is a point light.
+    /// (https://github.com/alexispurslane/tertius/wiki/pbr-brdf, "Sized lights"). A light of radius 0 is a point light.
     /// </summary>
     /// <param name="lightSine">sin ϕ of the light's angular radius at the point, R / d: 0 for a point light.</param>
     public DirectTerms ReflectedTerms(

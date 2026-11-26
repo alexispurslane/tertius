@@ -10,7 +10,7 @@ namespace Tertius.Demo;
 public readonly record struct BoxThrow(Entity Box, Double3 Aim);
 
 /// <summary>
-/// The coda of the Blue Danube demo on the wheel's floor (docs/plans/blue-danube-demo.md, "The coda"): the person walks
+/// The coda of the Blue Danube demo on the wheel's floor (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The coda"): the person walks
 /// into a stack of loose boxes and through it, so that the stack falls, walks to a stand, and throws two loose boxes from
 /// it the same way, one spinward and one antispinward. It is a flat state machine: its cases are
 /// <see cref="BoxPlayState"/>, its events <see cref="BoxPlayEvent"/>, and <see cref="BoxPlayState.Next"/> is the whole

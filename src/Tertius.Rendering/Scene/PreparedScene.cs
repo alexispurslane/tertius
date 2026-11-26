@@ -215,7 +215,7 @@ internal struct CameraView
 
     /// <summary>
     /// The view ray through a position on the screen, in pixels from the top left. Its component along Forward is 1.
-    /// The C# copy of viewRayThrough in screen.glsl (docs/plans/screen-space-reflections.md, "Terms").
+    /// The C# copy of viewRayThrough in screen.glsl (https://github.com/alexispurslane/tertius/wiki/screen-space-reflections, "Terms").
     /// </summary>
     public readonly Vector3 ViewRayThrough(Vector2 pixel)
     {
@@ -313,7 +313,7 @@ internal struct PreparedInstance
 internal readonly record struct CommandRange(int First, int Count);
 
 /// <summary>
-/// The opaque commands of one view: the solid draws, then the cutout draws (docs/plans/skin-and-hair.md, "The alpha modes
+/// The opaque commands of one view: the solid draws, then the cutout draws (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The alpha modes
 /// in the passes"). An opaque pass draws the solid run first, so that the early depth writes of its solid pipeline hide
 /// the cutout fragments behind solid surfaces before their shader runs (decision 25).
 /// </summary>
@@ -336,7 +336,7 @@ internal readonly record struct OpaqueRuns(CommandRange Solid, CommandRange Cuto
 
 /// <summary>
 /// The opaque commands of one view of a pass that shades: the runs of the one-sided materials, whose back faces the pass
-/// culls, and those of the two-sided ones, hair, whose back faces it draws (docs/plans/skin-and-hair.md, "Both sides of a
+/// culls, and those of the two-sided ones, hair, whose back faces it draws (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "Both sides of a
 /// hair card"). The pass draws both solid runs before both cutout runs (decision 25). The shadow views cull no face, so
 /// their commands are one <see cref="OpaqueRuns"/>.
 /// </summary>
@@ -346,7 +346,7 @@ internal readonly record struct SidedRuns(OpaqueRuns OneSided, OpaqueRuns TwoSid
     public int Count => OneSided.Count + TwoSided.Count;
 }
 
-/// <summary>The opaque runs of one depth range, as the back-face pass draws them (docs/plans/back-face-depth-layer.md, decision 4).</summary>
+/// <summary>The opaque runs of one depth range, as the back-face pass draws them (https://github.com/alexispurslane/tertius/wiki/back-face-depth-layer, decision 4).</summary>
 /// <param name="ClosedOneSided">The instances of a closed mesh with a one-sided material: the pass draws their back faces.</param>
 /// <param name="BothFaces">The instances of a two-sided material or of an open mesh: the pass draws both faces.</param>
 internal readonly record struct BackFaceRuns(OpaqueRuns ClosedOneSided, OpaqueRuns BothFaces);
@@ -468,7 +468,7 @@ internal readonly record struct PuffSprites(int First, int Count);
 /// <summary>
 /// One stretch of the transparent pass's sorted list of one depth range that one draw covers: <see cref="GlassCommands"/>,
 /// <see cref="FringeCommands"/> or <see cref="PuffSprites"/>. The empty value is the all-zero default, and it holds no case.
-/// This is a generated union (docs/plans/union-tooling.md): the union generator writes its members.
+/// This is a generated union (https://github.com/alexispurslane/tertius/wiki/union-tooling): the union generator writes its members.
 /// </summary>
 [GeneratedUnion(typeof(GlassCommands), typeof(FringeCommands), typeof(PuffSprites))]
 internal readonly partial struct TransparentRun;
@@ -554,7 +554,7 @@ internal sealed class PreparedScene
 
     /// <summary>
     /// The place in <see cref="Lights"/> of the sun of the snapshot's atmosphere (<see cref="RenderAtmosphere.Sun"/>), whose
-    /// light takes the air's tint, or null when the list holds no such sun (docs/plans/atmosphere.md, "The sun's tint").
+    /// light takes the air's tint, or null when the list holds no such sun (https://github.com/alexispurslane/tertius/wiki/atmosphere, "The sun's tint").
     /// </summary>
     public int? AirSunLight;
 
@@ -627,7 +627,7 @@ internal sealed class PreparedScene
     /// <summary>The geometry enclosures of the served groups, before visibility culling, in map axes and meters.</summary>
     public MapBoxArray MapBoxes;
 
-    // The frame meshes, the jobs and their pose rows (docs/plans/skinning-and-morphs.md, "Posing in the batcher").
+    // The frame meshes, the jobs and their pose rows (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "Posing in the batcher").
     private MeshInfo[] meshes = new MeshInfo[64];
     private int meshCount;
     private DeformJob[] deforms = new DeformJob[8];

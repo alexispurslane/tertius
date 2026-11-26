@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// A map's diffuse light D as the CPU reads it back: the last level of its irradiance cube (docs/plans/environment-map.md,
+/// A map's diffuse light D as the CPU reads it back: the last level of its irradiance cube (https://github.com/alexispurslane/tertius/wiki/environment-map,
 /// "The irradiance"), <see cref="IrradianceCube.CoarsestSize"/> × <see cref="IrradianceCube.CoarsestSize"/> texels of each
 /// face in layer, row and column order. Each texel holds the mean of D over a quarter of its face, and the 24 quarters
 /// span the same solid angle. The impostors' signature of the light compares two of them.

@@ -6,9 +6,9 @@ using static Tertius.Testing.WorldTesting;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// Following frames for motion that is no orbit (test 8 of docs/plans/rails-components.md, ticket ter-zg77): a numeric frame
+/// Following frames for motion that is no orbit (test 8 of https://github.com/alexispurslane/tertius/wiki/rails-components, ticket ter-zg77): a numeric frame
 /// that holds a fast or far kinematic body at its origin, its anchor, and lands at every sync point on the step record of
-/// the anchor's motion intent (docs/plans/numeric-frames.md, "Following frames"). A test component drives the anchor along a
+/// the anchor's motion intent (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Following frames"). A test component drives the anchor along a
 /// straight line at 2 km/s with end poses, in a frame without gravity, so the line is the anchor's true path. The world runs
 /// on the real backend.
 /// </summary>

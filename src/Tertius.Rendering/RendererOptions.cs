@@ -93,7 +93,7 @@ public sealed class RendererOptions
 
     /// <summary>
     /// The screen tracer, which gives every lit surface its reflections and its bounce light from what is on the screen
-    /// (docs/plans/temporal-renderer.md, section 6), or <see cref="NoScreenTrace"/>, under which each surface takes the
+    /// (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 6), or <see cref="NoScreenTrace"/>, under which each surface takes the
     /// environment's closed forms with every direction open. The default is <see cref="ScreenTrace.Default"/>. Its images,
     /// its two signals and the depth pyramid take about 180 bytes per pixel, about 370 MB at 1920 × 1080 (ARCHITECTURE.md,
     /// "The screen tracer").
@@ -103,13 +103,13 @@ public sealed class RendererOptions
     /// <summary>
     /// The warm-up draws of a headless still under <see cref="ScreenTrace"/>, 0 to <see cref="MaxWarmUpFrames"/>: the
     /// draws of the still's snapshot before the shown one, in which the tracer's signals converge
-    /// (docs/plans/temporal-renderer.md, section 10, "The still rule"). The default is 32.
+    /// (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 10, "The still rule"). The default is 32.
     /// </summary>
     public int WarmUpFrames { get; set; } = DefaultWarmUpFrames;
 
     /// <summary>
     /// The warm-up draws of a still unless the options give another count: the design's count
-    /// (docs/plans/temporal-renderer.md, section 10, "The still rule").
+    /// (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 10, "The still rule").
     /// </summary>
     public const int DefaultWarmUpFrames = 32;
 
@@ -118,20 +118,20 @@ public sealed class RendererOptions
 
     /// <summary>
     /// Whether skin scatters its diffuse light under the surface, or <see cref="NoSubsurface"/>. On by default. The scatter
-    /// image and the row image take 16 bytes per pixel, about 33 MB at 1920 × 1080 (docs/plans/skin-and-hair.md, "Cost").
+    /// image and the row image take 16 bytes per pixel, about 33 MB at 1920 × 1080 (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "Cost").
     /// </summary>
     public SubsurfaceSetting Subsurface { get; set; } = SeparableSubsurface.Default;
 
     /// <summary>
     /// The ambient light: a map of the scene around the camera, or <see cref="NoEnvironmentMap"/> for the hemisphere of
     /// World.Ambient. The default is <see cref="SceneEnvironmentMap.Default"/>: 128 texels per face, one face per frame, about
-    /// 2 MB (docs/plans/environment-map.md, "The setting").
+    /// 2 MB (https://github.com/alexispurslane/tertius/wiki/environment-map, "The setting").
     /// </summary>
     public EnvironmentMapSetting EnvironmentMap { get; set; } = SceneEnvironmentMap.Default;
 
     /// <summary>
     /// Whether posed instances draw their meshes deformed by their rig poses, in every pass. Off, each draws as uploaded.
-    /// On by default. Each deformed instance takes 52 bytes of device memory per vertex (docs/plans/skinning-and-morphs.md,
+    /// On by default. Each deformed instance takes 52 bytes of device memory per vertex (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs,
     /// "Memory and cost").
     /// </summary>
     public bool Deformation { get; set; } = true;

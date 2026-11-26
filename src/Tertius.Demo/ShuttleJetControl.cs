@@ -24,7 +24,7 @@ public struct Torque : IEventPayload
 }
 
 /// <summary>
-/// The control of the shuttle's main engine and jets, which are parts of the hull (docs/plans/blue-danube-demo.md, "The
+/// The control of the shuttle's main engine and jets, which are parts of the hull (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The
 /// jets as parts"). <see cref="Fit"/> builds it outside a tick: it reads the hull's center of mass from the engine's
 /// <see cref="BodyFacts.CenterOfMass"/>, places the jets for it (<see cref="ShuttleJets"/>), spawns 25 attached entities of
 /// the hull, the main engine's part at <see cref="ShuttleJets.MainEnginePlace"/> with a <see cref="MainEngine"/> and one part

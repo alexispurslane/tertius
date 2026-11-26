@@ -14,7 +14,7 @@ public struct JetForce : IEventPayload
 }
 
 /// <summary>
-/// A person's back jet, on its part of the person (docs/plans/parts.md, "The demo's use"): in each tick that brings a
+/// A person's back jet, on its part of the person (https://github.com/alexispurslane/tertius/wiki/parts, "The demo's use"): in each tick that brings a
 /// <see cref="JetForce"/>, it pushes with its force, turned from the person's axes into those of its frame, and blows its
 /// cold gas, <see cref="Plume"/>, at the throttle that the force's size is of <see cref="PersonControl.ThrustForce"/>. It
 /// turns its own offset so that its puffs leave against the force. The engine carries the push to the person's body. A
@@ -35,7 +35,7 @@ public sealed class BackJet : IComponent
     /// <summary>
     /// The back jet's exhaust: cold gas, at three quarters of the air's temperature, lit pale gray, in small puffs that live
     /// 1.5 s. At full thrust 30 puffs leave each second at 3 m/s, so that in the cabin's air they stop within about 2 m of
-    /// the person (docs/plans/blue-danube-demo.md, "The plumes").
+    /// the person (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The plumes").
     /// </summary>
     public static Plume Plume { get; } =
         new(

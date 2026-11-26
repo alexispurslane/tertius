@@ -6,7 +6,7 @@ using static Tertius.Testing.WorldTesting;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// The wake rule of a following frame (ticket ter-zg77, docs/plans/numeric-frames.md, "Following frames"). A body that sleeps
+/// The wake rule of a following frame (ticket ter-zg77, https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Following frames"). A body that sleeps
 /// has no local velocity, so it moves with its frame. The members of a frame feel the frame's push, reversed: what an
 /// accelerometer at its origin reads. Physics wakes the members of a frame when its push moves more than
 /// <see cref="JoltBackendOptions.WakeAccelerationThreshold"/> from its value at their last wake. The push of a following frame

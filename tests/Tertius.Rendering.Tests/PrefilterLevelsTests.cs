@@ -2,7 +2,7 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The levels of the specular map: how many, the roughness that each holds, the level that a roughness reads, and the
-/// level that a prefilter sample reads (docs/plans/environment-map.md, "The specular levels").
+/// level that a prefilter sample reads (https://github.com/alexispurslane/tertius/wiki/environment-map, "The specular levels").
 /// </summary>
 public sealed class PrefilterLevelsTests
 {
@@ -27,7 +27,7 @@ public sealed class PrefilterLevelsTests
 
     /// <summary>
     /// A level of a quarter of the texels splits each texel's samples among four times the invocations, so that no level
-    /// waits on a longer chain of texture reads than it needs (docs/plans/environment-map.md, "The specular levels").
+    /// waits on a longer chain of texture reads than it needs (https://github.com/alexispurslane/tertius/wiki/environment-map, "The specular levels").
     /// </summary>
     [Theory]
     [InlineData(EnvironmentMapSetting.MinFaceSize)]

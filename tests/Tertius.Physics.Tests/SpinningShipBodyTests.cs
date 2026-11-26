@@ -6,7 +6,7 @@ namespace Tertius.Physics.Tests;
 
 /// <summary>
 /// A free body inside a frame whose dynamic hull physics spins up, on the World and the real Jolt backend
-/// (docs/plans/spin-gravity.md, "V1, the turn of the step in flight", fork F3, and "Acceptance tests"). Physics turns the
+/// (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V1, the turn of the step in flight", fork F3, and "Acceptance tests"). Physics turns the
 /// hull in the step in flight, so the frame tree does not know that turn when the step starts: it predicts it from the
 /// hull's last record, the rate of that record plus its angular acceleration times the step. So the contents of a hull that
 /// spins up feel the Euler force one step late, the same lag as the hull's proper acceleration.
@@ -127,7 +127,7 @@ public sealed class SpinningShipBodyTests
     /// a body to sleep it sets its velocities to zero, which is no motion of the step: the hull's last angular velocity
     /// does not reverse. So the frame tree predicts no turn for the step after the sleep, and from the step after that the
     /// ship is no turning frame, so its contents keep the results of a hull that does not turn, to the bit
-    /// (docs/plans/spin-gravity.md, "V1, the turn of the step in flight"). A record that read the reset as an angular
+    /// (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V1, the turn of the step in flight"). A record that read the reset as an angular
     /// acceleration of −ω/dt would turn the frame back by its last rate for one step.
     /// </summary>
     [Fact]

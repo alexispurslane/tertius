@@ -8,12 +8,12 @@ namespace Tertius.Demo;
 public static partial class DemoScenes
 {
     /// <summary>
-    /// The first part of the Blue Danube demo (docs/plans/blue-danube-demo.md, "The sequence", step 1): a launch pad and a
+    /// The first part of the Blue Danube demo (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The sequence", step 1): a launch pad and a
     /// boarding terminal on Earth's surface, a parked shuttle on the pad, and a passenger who walks through the terminal and
     /// boards the shuttle.
     /// <list type="bullet">
     /// <item>The world is the Earth system of <see cref="SunAndEarth"/> at the demo's <see cref="Date"/>
-    /// (docs/plans/blue-danube-demo.md, "The demo in the Earth system"): the Sun is the root frame <c>sun</c>; <c>earth</c>
+    /// (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The demo in the Earth system"): the Sun is the root frame <c>sun</c>; <c>earth</c>
     /// goes round it on Earth's Kepler orbit and does not turn; <c>earth-surface</c> sits at Earth's center, turns once per
     /// sidereal day about the north pole, earth's +Y, draws Earth, casts Earth's shadow, and its bubble ends 50 km up; the
     /// <c>moon</c> goes round Earth in earth. The demo keeps the world's own sunlight and ambient light, with which every
@@ -50,7 +50,7 @@ public static partial class DemoScenes
     /// <c>apron-camera</c>, 3 m up off the shuttle's aft starboard quarter, between the shuttle and the terminal's gate side,
     /// sees the hatch, the walk across the pad and the person's step into the hatch, with the terminal off to its right;
     /// <c>cabin-camera</c>, in the shuttle's frame in the cabin's aft port corner, sees the seat and the hatch.</item>
-    /// <item>The launch (docs/plans/blue-danube-demo.md, "The sequence", step 2): the <c>ramp</c> (see
+    /// <item>The launch (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The sequence", step 2): the <c>ramp</c> (see
     /// <see cref="LaunchRamp"/>) starts under the parked shuttle and rises at 30 degrees along -Z. The shuttle carries its
     /// <see cref="Shuttle.FlightControls"/> and its actuators (see <see cref="Shuttle.FitActuators"/>): the main engine and
     /// the jets are parts of the hull. The flight controls wait for an <see cref="Ignition"/> that a script posts to it. Then the
@@ -120,7 +120,7 @@ public static partial class DemoScenes
 
         /// <summary>
         /// The ground's turn at the departure, the angle in radians about earth's +Y from earth's axes to the ground's axes:
-        /// 142.6 degrees (docs/plans/blue-danube-demo.md, "The station's plane"). At the June solstice the Sun's direction
+        /// 142.6 degrees (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The station's plane"). At the June solstice the Sun's direction
         /// across the pad's up is earth's -Z. This turn sets the ramp 142.6 degrees from it, so that the Sun stands behind
         /// the launch and 37.4 degrees out of the launch plane on the slot's side. So the station's orbit keeps a β of 33.9
         /// degrees, and the Sun meets the slot's face at 56 degrees from the station's axis.

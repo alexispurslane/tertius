@@ -4,7 +4,7 @@ using AwesomeAssertions;
 namespace Tertius.Core.Tests;
 
 /// <summary>
-/// The test meshes with rigging (docs/plans/skinning-and-morphs.md, "Part 1: the seam"): the closed tube of both bending
+/// The test meshes with rigging (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "Part 1: the seam"): the closed tube of both bending
 /// cylinders, the bending cylinder's skin, the morphing box's two morphs, and the twist of the twisting, bending cylinder.
 /// </summary>
 public sealed class PrimitivesRigTests

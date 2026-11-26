@@ -1,4 +1,4 @@
-// The light of the sky (docs/plans/environment-map.md, "The reflected stars" and "The atmosphere"): the sky without the
+// The light of the sky (https://github.com/alexispurslane/tertius/wiki/environment-map, "The reflected stars" and "The atmosphere"): the sky without the
 // stars, the stars of the sky pixels, and the stars as a reflection's lobe sees them. StarField.cs is the C# copy of the
 // star code. Directions are in camera-relative world axes, and each function turns them into root axes by the conjugate of
 // frame.rootRotation, so the stars are fixed to the root frame. Needs frame.glsl.
@@ -10,7 +10,7 @@
 const float StarCells = 150.0;                       // StarField.CellsPerUnit: cells per unit of direction
 const float StarCellWidth = 1.0 / StarCells;         // c, in rad
 const float StarShare = 0.02;                        // one cell in 50 holds a star
-// StarField.UnitRadiance: the peak radiance, in W/(m²·sr), of a star of brightness 1 (docs/plans/local-light-shadows.md,
+// StarField.UnitRadiance: the peak radiance, in W/(m²·sr), of a star of brightness 1 (https://github.com/alexispurslane/tertius/wiki/local-light-shadows,
 // settled fork 1, physical stars). At 1080p and a 60° view, the brightest stars then send about 10⁻⁸ W/m².
 const float StarUnitRadiance = 1.0 / 1024.0;
 const float StarMeanBrightness = StarUnitRadiance * (0.05 + 3.0 / 9.0);   // E[brightness]
@@ -54,7 +54,7 @@ bool starOfCell(vec3 cell, out vec3 star, out vec3 peak)
     return true;
 }
 
-// The sky's light without the stars, in plain radiance (docs/plans/atmosphere.md, "The sky"): the painted sky of the
+// The sky's light without the stars, in plain radiance (https://github.com/alexispurslane/tertius/wiki/atmosphere, "The sky"): the painted sky of the
 // camera's atmosphere, one color in every direction, which PaintedAtmosphere.cs scales by the time of day and the air's
 // density at the eye and caps at MaxRadiance. Black without an atmosphere.
 vec3 skyRadiance(vec3 direction)

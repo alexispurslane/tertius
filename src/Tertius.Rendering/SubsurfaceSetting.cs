@@ -8,7 +8,7 @@ public readonly record struct NoSubsurface;
 
 /// <summary>
 /// Skin scatters its diffuse light under the surface by the separable screen-space method: a pass along the rows and
-/// one along the columns with the kernel of the human skin profile (docs/plans/skin-and-hair.md, "Skin").
+/// one along the columns with the kernel of the human skin profile (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "Skin").
 /// </summary>
 /// <param name="TapsPerSide">The taps on each side of the center in each pass, 1 to <see cref="MaxTapsPerSide"/>.</param>
 public readonly record struct SeparableSubsurface(int TapsPerSide)
@@ -21,7 +21,7 @@ public readonly record struct SeparableSubsurface(int TapsPerSide)
 }
 
 /// <summary>
-/// Whether skin scatters its diffuse light under the surface (docs/plans/skin-and-hair.md, decision 29):
+/// Whether skin scatters its diffuse light under the surface (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, decision 29):
 /// <see cref="NoSubsurface"/> or <see cref="SeparableSubsurface"/>. The default value is NoSubsurface. It is a
 /// generated union (see <see cref="GeneratedUnionAttribute"/>).
 /// </summary>

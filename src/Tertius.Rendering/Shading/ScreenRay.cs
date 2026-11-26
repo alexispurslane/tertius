@@ -24,7 +24,7 @@ internal enum SegmentEnd
 
 /// <summary>
 /// The image of a ray on the screen: the C# copy of ScreenRay in screen_ray.glsl, in 32-bit floats as the GPU
-/// computes (docs/plans/screen-space-reflections.md, "The ray's image on the screen" and "The trace through the
+/// computes (https://github.com/alexispurslane/tertius/wiki/screen-space-reflections, "The ray's image on the screen" and "The trace through the
 /// pyramid"). At the parameter s from 0 to End, the image is at Start + s · Step in pixels, with the inverse depth
 /// StartInverseDepth + s · StepInverseDepth in 1/m.
 /// </summary>
@@ -49,7 +49,7 @@ internal readonly record struct ScreenRay(
 
     /// <summary>
     /// The cosine between the ray and the geometric normal below which a ray fades out, for a pixel of every model
-    /// (docs/plans/skin-and-hair.md, decision 35).
+    /// (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, decision 35).
     /// </summary>
     public const float SurfaceFadeCosine = 0.05f;
 
@@ -149,7 +149,7 @@ internal readonly record struct ScreenRay(
         Math.Clamp(Vector3.Dot(direction, geometricNormal) / SurfaceFadeCosine, 0, 1);
 
     /// <summary>
-    /// The two-depth walk, as walkScreen in screen_walk.glsl walks it (docs/plans/temporal-renderer.md, section 6, "The
+    /// The two-depth walk, as walkScreen in screen_walk.glsl walks it (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 6, "The
     /// traversal"). A step reads one cell's slab: the bounds of a level above 0, or a pixel's slab at the finest level. A
     /// ray that passes in front of the cell's slab or behind it crosses the cell and goes up a level, one that meets the
     /// slab of a level above 0 goes down a level to where it enters it, and one that meets a pixel's slab hits,
@@ -328,7 +328,7 @@ internal readonly record struct RayOutOfSteps(int Steps);
 
 /// <summary>
 /// The result of a trace: <see cref="RayHit"/>, <see cref="RayLeftTheSegment"/> or <see cref="RayOutOfSteps"/>.
-/// This is a generated union (docs/plans/union-tooling.md): the union generator writes its members.
+/// This is a generated union (https://github.com/alexispurslane/tertius/wiki/union-tooling): the union generator writes its members.
 /// </summary>
 [GeneratedUnion(typeof(RayHit), typeof(RayLeftTheSegment), typeof(RayOutOfSteps))]
 internal readonly partial struct RayTrace;

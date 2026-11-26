@@ -5,7 +5,7 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The deform pass on the GPU: its copies match the C# deformation, every pass draws them, and the region grows
-/// (docs/plans/skinning-and-morphs.md, "The deformation on the GPU"). The cylinders are 2 m long and 0.2 m wide, with
+/// (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "The deformation on the GPU"). The cylinders are 2 m long and 0.2 m wide, with
 /// Base at the origin and Tip 1 m up, and stand 6 m in front of the camera.
 /// </summary>
 [Collection(GpuCollection.Name)]
@@ -77,7 +77,7 @@ public sealed class DeformationGpuTests
 
     /// <summary>
     /// Every number of <paramref name="actual"/> lies within 10^−5 × (1 + |expected|) of <paramref name="expected"/>: the GPU
-    /// may fuse a multiply and an add (docs/plans/skinning-and-morphs.md, "The math, and its C# copy").
+    /// may fuse a multiply and an add (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "The math, and its C# copy").
     /// </summary>
     private static void ShouldMatch(ReadOnlySpan<GpuVertex> actual, GpuVertex[] expected, string copy)
     {

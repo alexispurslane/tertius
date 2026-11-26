@@ -16,7 +16,7 @@ public static partial class DemoScenes
     private static readonly double[] HairCardTurns = [-60, -30, 0, 30, 60];
 
     /// <summary>
-    /// The review scenes of hair shading (docs/plans/skin-and-hair.md): the fans lit from the front and from behind, and
+    /// The review scenes of hair shading (https://github.com/alexispurslane/tertius/wiki/skin-and-hair): the fans lit from the front and from behind, and
     /// the rugs of the hair reflections.
     /// </summary>
     private static IEnumerable<Scene> HairCardScenes =>

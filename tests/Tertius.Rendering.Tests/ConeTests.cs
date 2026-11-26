@@ -4,7 +4,7 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// <see cref="Cone.Of"/>: the clamped angles and the two cosines of a spot light's cone, whose edges the shader's
-/// smoothstep fades between (docs/plans/local-light-shadows.md, "Portable Vulkan").
+/// smoothstep fades between (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, "Portable Vulkan").
 /// </summary>
 public sealed class ConeTests
 {

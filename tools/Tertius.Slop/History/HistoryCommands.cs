@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace Tertius.Slop.History;
 
 /// <summary>
-/// The commands of the slop history (tools/README.md, "Slop metrics"; docs/plans/code-quality-tooling.md, decision
+/// The commands of the slop history (tools/README.md, "Slop metrics"; https://github.com/alexispurslane/tertius/wiki/code-quality-tooling, decision
 /// 18). <c>measure</c> and <c>note</c> write the metrics of commits for the git hooks, and <c>history</c> and
 /// <c>summary</c> read them. <c>backfill</c> adds missing absolute counts to old notes.
 /// </summary>

@@ -25,7 +25,7 @@ internal readonly record struct TimestampClock(uint ValidBits, float Period)
     /// <summary>
     /// Writes the time of each pass into <paramref name="timings"/>, and returns the frame's GPU span: pass i takes the
     /// time from timestamp i to timestamp i + 1, and the span is the time from the stamp before the first pass to the
-    /// stamp after the last (docs/plans/rendering-performance.md, "Terms"). Writes nothing and returns null when a result
+    /// stamp after the last (https://github.com/alexispurslane/tertius/wiki/rendering-performance, "Terms"). Writes nothing and returns null when a result
     /// is not available, which is no timing, never a time of 0.
     /// </summary>
     /// <param name="results">A timestamp and its availability for each query: one before the first pass, one after each pass.</param>

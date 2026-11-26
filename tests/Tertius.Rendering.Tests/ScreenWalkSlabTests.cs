@@ -5,7 +5,7 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The shader's walk reads a cell's slab as the depth pyramid stores it: from the stored front w to the stored back w,
-/// with no thickness of its own (docs/plans/back-face-depth-layer.md, "The walk"). It compares the slab with the ray's
+/// with no thickness of its own (https://github.com/alexispurslane/tertius/wiki/back-face-depth-layer, "The walk"). It compares the slab with the ray's
 /// inverse depth as the walk keeps it: computed from s after a crossing, and the solved bound after a descent
 /// (ter-186q, t53-eyrv). Rays run across a wall, a sheet or a far box that faces the eye and fills the screen.
 /// </summary>

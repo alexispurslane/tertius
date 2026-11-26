@@ -24,7 +24,7 @@ internal readonly record struct MeshInfo(
 /// Turns a <see cref="RenderSnapshot"/> into GPU-ready arrays on the render thread: interpolates the camera, the
 /// instances, once for every view, the lights and the puffs, culls them, assigns depth ranges, sorts, and builds one
 /// indirect command per stretch of instances that share a depth range, an opaque run and a mesh. It chooses the far
-/// lights' shadow slots, fits their cascade sets, and gives them their far shadows (docs/plans/local-light-shadows.md).
+/// lights' shadow slots, fits their cascade sets, and gives them their far shadows (https://github.com/alexispurslane/tertius/wiki/local-light-shadows).
 /// The glass instances, the fringes and the puffs sort together back to front, and the batcher cuts that list into the
 /// runs of the transparent pass. Allocates nothing once its arrays have grown to the scene.
 /// </summary>
@@ -107,7 +107,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     /// </param>
     /// <param name="environment">
     /// The faces that this frame draws of each served map, root first, and their latest irradiance, or no map. The served
-    /// maps are those of <paramref name="snapshot"/>'s chain (docs/plans/environment-maps-per-frame.md).
+    /// maps are those of <paramref name="snapshot"/>'s chain (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame).
     /// </param>
     /// <param name="region">The deform region that this frame's deformed copies fill.</param>
     /// <param name="frame">
@@ -366,7 +366,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     }
 
     /// <summary>
-    /// Decides the frame mesh of each posed instance, in the snapshot's order (docs/plans/skinning-and-morphs.md, "Posing
+    /// Decides the frame mesh of each posed instance, in the snapshot's order (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "Posing
     /// in the batcher"): a deformed copy when <see cref="DeformedCopy"/> makes one, else its static mesh, counted as drawn
     /// as uploaded. An instance whose mesh is not on the GPU, or that no view draws, is left to the collectors, which skip
     /// it, so that no job arises that no draw reads.
@@ -621,7 +621,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
 
     /// <summary>
     /// Fills <see cref="lightHolders"/> with the entity of each light of <paramref name="snapshot"/>, whether it shines or
-    /// not: an entity's glow is its light's face either way (docs/plans/screen-space-illumination.md, "The bounce source").
+    /// not: an entity's glow is its light's face either way (https://github.com/alexispurslane/tertius/wiki/screen-space-illumination, "The bounce source").
     /// </summary>
     private void CollectLightHolders(RenderSnapshot snapshot)
     {
@@ -645,7 +645,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     /// <summary>
     /// Whether an instance whose material draws as <paramref name="alpha"/> draws in the transparent pass alone: glass. The
     /// shadow views still draw glass, from the placed instances that cast shadows (PreparedScene.Placed;
-    /// docs/plans/skin-and-hair.md, "The alpha modes in the passes").
+    /// https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The alpha modes in the passes").
     /// </summary>
     private static bool IsGlass(AlphaMode alpha) =>
         alpha switch
@@ -669,7 +669,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     /// Prepares one view for each face that a map of <paramref name="faces"/> draws, map by map and each map's in layer
     /// order, after the main view's instances and commands: the opaque instances of the snapshot that the map draws (the
     /// draw rule) and that the face does not cull in the map's axes, by their depth along its axis, as geometry and with no
-    /// impostor (docs/plans/environment-map.md, "Culling and level of detail", and docs/plans/environment-maps-per-frame.md,
+    /// impostor (https://github.com/alexispurslane/tertius/wiki/environment-map, "Culling and level of detail", and https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame,
     /// "What a map draws"). It reads them from the placed instances (<see cref="PlaceInstances"/>).
     /// </summary>
     /// <param name="faces">The faces of each served map, root first.</param>
@@ -748,7 +748,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
 
     /// <summary>
     /// Whether the maps draw a placed instance: it is visible and not glass. A fringed instance draws its core, as in every
-    /// opaque pass (docs/plans/skin-and-hair.md, "The alpha modes in the passes").
+    /// opaque pass (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The alpha modes in the passes").
     /// </summary>
     private static bool DrawsInMaps(in PreparedInstance instance) =>
         (instance.Flags & RenderFlags.Visible) != 0 && !IsGlass(instance.Alpha);
@@ -1106,8 +1106,8 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     /// <summary>
     /// Keeps each light of the snapshot, in its order, that <see cref="Shines(in RenderLight)"/> and whose reach can touch the
     /// main view or a face that keeps it: a face of a map at or above the light's map
-    /// (docs/plans/environment-maps-per-frame.md, decision 13). One light list serves every view of the frame
-    /// (docs/plans/environment-map.md, decision 20), each marked with whether the main view keeps it. Then chooses the far
+    /// (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame, decision 13). One light list serves every view of the frame
+    /// (https://github.com/alexispurslane/tertius/wiki/environment-map, decision 20), each marked with whether the main view keeps it. Then chooses the far
     /// lights' slots (<see cref="FarShadows.Choose"/>).
     /// </summary>
     /// <param name="cutoffIrradiance">E_cut of the frame, in W/m², where each light's reach ends.</param>
@@ -1122,7 +1122,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     {
         ReadOnlySpan<RenderLight> lights = CollectionsMarshal.AsSpan(snapshot.Lights);
         // The atmosphere names its sun by its index in the snapshot's lights, and the scene by its place in the kept lights
-        // (docs/plans/atmosphere.md, "The sun's tint").
+        // (https://github.com/alexispurslane/tertius/wiki/atmosphere, "The sun's tint").
         int? sun = snapshot.Atmosphere?.Sun;
         for (int i = 0; i < lights.Length; i++)
         {
@@ -1332,7 +1332,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     internal const float MinRectSide = 1e-6f;
 
     /// <summary>
-    /// Whether a light shines (docs/plans/local-light-shadows.md, decision 20): its places and color are finite, each color
+    /// Whether a light shines (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, decision 20): its places and color are finite, each color
     /// channel is 0 or more and one is above 0, its power is finite and above 0, its radius is finite and 0 or more, a spot
     /// light's axes and cone angles are finite, a tube light's axes are finite and its length from 0 to twice
     /// <see cref="ShaderInput.PositionLimit"/>, a rectangle light's rotations are finite and its sides from
@@ -1601,7 +1601,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     /// <summary>
     /// The view-projection of a camera at the eye with <paramref name="rotation"/>, with no jitter and no translation, in
     /// System.Numerics row-vector form: clip x and y as the main view's, with y down, and clip w the view depth. Clip z is
-    /// 0, because the motion vectors take only x, y and w (docs/plans/temporal-renderer.md, "Jitter").
+    /// 0, because the motion vectors take only x, y and w (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "Jitter").
     /// </summary>
     internal static Matrix4x4 MotionProjection(Quaternion rotation, float tanHalfX, float tanHalfY)
     {
@@ -1632,7 +1632,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     private static void WriteConstants(RenderSnapshot snapshot, PreparedScene scene)
     {
         CameraView camera = scene.Camera;
-        // The frame constants hold the hemisphere only while it is the light (docs/plans/environment-map.md, "The
+        // The frame constants hold the hemisphere only while it is the light (https://github.com/alexispurslane/tertius/wiki/environment-map, "The
         // hemisphere and the lobe-sky table while the map is on").
         (Vector3 sky, Vector3 ground) = scene.Ambient switch
         {
@@ -1686,7 +1686,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     }
 
     /// <summary>
-    /// The constants of the motion vectors (docs/plans/temporal-renderer.md, "The previous camera and the frame tree"):
+    /// The constants of the motion vectors (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "The previous camera and the frame tree"):
     /// both frames' motion projections, and the last drawn frame's camera relative to this frame's eye.
     /// </summary>
     private static void WriteMotionConstants(PreparedScene scene)

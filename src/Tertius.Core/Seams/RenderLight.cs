@@ -4,7 +4,7 @@ namespace Tertius;
 
 /// <summary>
 /// A point light of the snapshot: a sphere that sends its power the same in every direction. Its places follow the
-/// rules of the position of a <see cref="RenderInstance"/> (docs/plans/local-light-shadows.md, "Light data").
+/// rules of the position of a <see cref="RenderInstance"/> (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, "Light data").
 /// </summary>
 /// <param name="EntityIndex">
 /// The slot of the entity that carries the light. It names the light within one snapshot. A new entity can take the slot
@@ -40,7 +40,7 @@ public readonly record struct PointRenderLight(
 
 /// <summary>
 /// A spot light of the snapshot: a sphere that sends its power through a cone around one axis. Its places and axes follow
-/// the rules of the position of a <see cref="RenderInstance"/> (docs/plans/local-light-shadows.md, "Light data").
+/// the rules of the position of a <see cref="RenderInstance"/> (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, "Light data").
 /// </summary>
 /// <param name="EntityIndex">As for <see cref="PointRenderLight"/>: the slot names the light within one snapshot.</param>
 /// <param name="EntityGeneration">As for <see cref="PointRenderLight"/>.</param>
@@ -160,7 +160,7 @@ public readonly record struct RectRenderLight(
 /// The default value holds no light. The renderer skips it.
 /// </summary>
 /// <remarks>
-/// The union generator writes its union members (docs/plans/union-tooling.md). A light reads only the values of its own
+/// The union generator writes its union members (https://github.com/alexispurslane/tertius/wiki/union-tooling). A light reads only the values of its own
 /// case. The cases share their slots by type, so the union takes the fields of one spot light, a rectangle light's two
 /// rotations and its kind byte, 120 bytes: a tube light's fields fit in a spot light's.
 /// Equality needs the same case and the same values, and counts a NaN as equal to a NaN, as

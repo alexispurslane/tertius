@@ -116,7 +116,7 @@ index e25ddfb..4ceadd1 100644
 +++ b/src/Tertius.Rendering/Frame/SignalParameters.cs
 @@ -52,10 +52,14 @@ internal readonly record struct SignalParameters(
      /// The diffuse signal's set: a cap of 32 frames at every roughness, and a box widened by two retained deviations
-     /// where its block has no motion evidence (docs/plans/bounce-light-confidence.md, section 7).
+     /// where its block has no motion evidence (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 7).
      /// </summary>
 +    private static readonly int ProbeDiffuseCap =
 +        int.TryParse(Environment.GetEnvironmentVariable("TERTIUS_X_DIFFUSE_CAP"), out int probeCap) ? probeCap : 32;
@@ -241,7 +241,7 @@ index 7fd8cf0..c0e09b4 100644
      /// </summary>
      public uint RegionSlot;
  
-+    // PROBE (tools/renderer-survey, never commit to src): the knobs of docs/plans/bounce-light-confidence.md (section 21),
++    // PROBE (tools/renderer-survey, never commit to src): the knobs of https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence (section 21),
 +    // read once from the environment (ProbeX). A knob that is not set keeps the build's value. TERTIUS_A_RETAINED_SIGMAS
 +    // sets the widening of a widened box. TERTIUS_A_NO_CLAMP=1, for the truth, turns both signals' clamps off (a negative
 +    // ClampSigmas, which accumulate_spatial.comp reads as "no clamp", so the anti-lag sees no move either) and the
@@ -267,7 +267,7 @@ index 7fd8cf0..c0e09b4 100644
 +    private static readonly bool ProbeNoClamp = Environment.GetEnvironmentVariable("TERTIUS_A_NO_CLAMP") == "1";
 +
 +    /// <summary>
-+    /// PROBE: Design X's evidence knobs (docs/plans/bounce-light-confidence.md, section 21) and the rule of
++    /// PROBE: Design X's evidence knobs (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 21) and the rule of
 +    /// evidenceOfSample under them, which the census repeats on the CPU. The probe's resolve writes a sample's moved mark in
 +    /// bit 15 of its age and the pixel's own motion in bit 14, which no light code reaches (MostCodedAge 16,382), so that
 +    /// the census and TERTIUS_X_CAUSES tell the two causes of motion apart.
@@ -596,7 +596,7 @@ index 9a1da8e..a955f63 100644
 --- a/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
 +++ b/src/Tertius.Rendering/Shaders/accumulate_spatial.comp
 @@ -36,9 +36,16 @@ shared uint blockEvidence;
- // lasts (docs/plans/bounce-light-confidence.md, section 8.2, open point 1).
+ // lasts (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.2, open point 1).
  uint evidenceOfSample(uint sampleAge)
  {
 -    if (recentLightCode(lightCodeOf(sampleAge)))
@@ -685,7 +685,7 @@ index 7251102..4a44194 100644
 @@ -92,6 +99,15 @@ void main()
          indirectSpecular = reflectionSharedAt(pixel, indirectSpecular);
      // Each part is finite and at most a few times MaxRadiance, so the sum is finite, and the cap keeps the surfaces' share
-     // (docs/plans/screen-space-illumination.md, "The cap at MaxRadiance").
+     // (https://github.com/alexispurslane/tertius/wiki/screen-space-illumination, "The cap at MaxRadiance").
 +    if (probeSignal != 0)
 +    {
 +        // PROBE: each signal alone, and its share of D for the skin scatter, so that the three signals add up.
@@ -1230,7 +1230,7 @@ index ad7a9eb..8ccd382 100644
      private static UpscalingSetting UpscalingOf(RendererOptions options, bool headless) =>
          headless ? options.Upscaling.ForHeadless() : options.Upscaling;
  
-+    // PROBE (tools/renderer-survey, never commit to src): the evidence census of docs/plans/bounce-light-confidence.md
++    // PROBE (tools/renderer-survey, never commit to src): the evidence census of https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence
 +    // (section 21). With TERTIUS_X_CENSUS=<folder>, each draw reads back the sample age of each part of each signal that
 +    // has one, and appends to <folder>/census.txt one line per signal and part:
 +    // "<draw> <draw index since the last reset> <1 if the draw reset, else 0> <light> <part>", then the blocks of 8 x 8

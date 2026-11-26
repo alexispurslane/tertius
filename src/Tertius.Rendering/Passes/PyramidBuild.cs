@@ -3,7 +3,7 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The compute pipelines of one pyramid's build, and its dispatches (docs/plans/screen-space-reflections.md, "The
+/// The compute pipelines of one pyramid's build, and its dispatches (https://github.com/alexispurslane/tertius/wiki/screen-space-reflections, "The
 /// passes"): the finest level, the first level from a G-buffer image or the finest level, each level from the one below,
 /// and the tail (<see cref="PyramidTail"/>). Each dispatch writes one mip, one invocation per texel in 8 × 8 workgroups,
 /// after a barrier on the image.

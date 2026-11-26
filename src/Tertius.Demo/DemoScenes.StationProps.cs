@@ -9,7 +9,7 @@ namespace Tertius.Demo;
 public static partial class DemoScenes
 {
     /// <summary>
-    /// The props of the Blue Danube art in the station (docs/plans/blue-danube-demo.md, "The fit to the art"): a work area
+    /// The props of the Blue Danube art in the station (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The fit to the art"): a work area
     /// on the bay's deck, spinward of the stair's ramp, and a passenger terminal on the wheel's floor at the lift's foot,
     /// antispinward of it. Every place is in the station's axes. The props are drawn models with no body, since nothing
     /// touches them: each keeps <see cref="Reach"/> of its kind plus a person's width clear of the person's way, the parked

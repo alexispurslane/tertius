@@ -7,7 +7,7 @@ namespace Tertius.Demo;
 public static partial class DemoScenes
 {
     /// <summary>
-    /// The shuttle of the Blue Danube demo (docs/plans/blue-danube-fidelity.md, ter-tiei): a frame owner whose outside and
+    /// The shuttle of the Blue Danube demo (https://github.com/alexispurslane/tertius/wiki/blue-danube-fidelity, ter-tiei): a frame owner whose outside and
     /// fitted interior are the Lunar Shuttle's model at <see cref="ArtScale"/>, 13.8 m wide, 9.3 m tall and 29.1 m long,
     /// with 21 real window openings (5 cockpit + 16 side cabin) and a starboard boarding doorway fitted directly to
     /// Pioneer's fuselage. In its own axes +Y is up, -Z is the nose and +X is starboard.

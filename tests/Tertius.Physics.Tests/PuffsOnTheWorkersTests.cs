@@ -3,7 +3,7 @@ using Tertius.Simulation;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// The pieces of the puffs that run on the gameplay workers (docs/plans/particles.md, "The parallel pieces"): the step of
+/// The pieces of the puffs that run on the gameplay workers (https://github.com/alexispurslane/tertius/wiki/particles, "The parallel pieces"): the step of
 /// 2b in equal slices of the rows. A world on four workers, with each threshold forced down to 1 so that every step of its
 /// small table takes the workers, must keep the rows, the ranges, the looks and the snapshot's puffs of a world on one
 /// thread, bit for bit, in every tick.

@@ -64,7 +64,7 @@ void main()
     outDistance = length(world - draw.eye.xyz);
     // The standard code: the pixel is unlit, which the base color's alpha of 0 says, and holds no strand. Its light mark
     // is its instance's, so that a lamp's billboard sends no glow to a tracer's hit beside its light
-    // (docs/plans/temporal-renderer.md, decision 36).
+    // (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, decision 36).
     outShading = uvec4(0u, 0u, lightModelAndCardWords(instance.holdsLight, ShadingStandard, 0u));
     // The billboard moves with its object's center: a turn of the object since the last frame does not move the
     // billboard's point.

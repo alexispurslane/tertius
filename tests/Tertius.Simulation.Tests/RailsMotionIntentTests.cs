@@ -7,7 +7,7 @@ namespace Tertius.Simulation.Tests;
 /// <summary>
 /// Full samples as motion intents: the motion samples that the owners of frames write with <see cref="Self.MoveOnRails"/>
 /// into their intents (<see cref="PhysicsIntent.Move"/>), what a sample must hold, how the World swaps and converts them with
-/// the rest of the intent, and how a frame follows them (docs/plans/rails-components.md, "Rails motion for every entity"). A
+/// the rest of the intent, and how a frame follows them (https://github.com/alexispurslane/tertius/wiki/rails-components, "Rails motion for every entity"). A
 /// sample that tick N writes is the motion intent of step N + 1, and the frame stands on it at the sync point of tick N + 1.
 /// The tests read the next step's intent between ticks. Also the public reads that a rails component needs:
 /// <see cref="Self.TimeAt"/>, <see cref="Self.OwnedFrame"/> and <see cref="Self.PoseAtNextStepStartIn"/>. RailsFollowTests
@@ -208,7 +208,7 @@ public sealed class RailsMotionIntentTests
         test.World.Destroy(parent.Entity);
 
         // The parent dies before the step that applies the intent, so it keeps its relation at the moment of its death at
-        // both ends of that step (docs/plans/spin-gravity.md, "V7, the relative motion of two frames"): its pose, with its
+        // both ends of that step (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V7, the relative motion of two frames"): its pose, with its
         // row's velocities and no accelerations, the relation by which the rows of its contents convert at the same moment.
         // Its own acceleration on its orbit stays out, as the design accepts for a frame that dies. Its spin still gives the
         // sample the rotation terms of a turning frame.
@@ -485,7 +485,7 @@ public sealed class RailsMotionIntentTests
     }
 
     /// <summary>
-    /// A mod's rails component can do what <see cref="SpinMotion"/> does with public reads only (docs/plans/rails-components.md,
+    /// A mod's rails component can do what <see cref="SpinMotion"/> does with public reads only (https://github.com/alexispurslane/tertius/wiki/rails-components,
     /// "The rails components"). This turntable holds its frame still at the place where the frame stands when the step of its
     /// sample starts. After a swap from a moving motion, that place is where the last sample of the old motion leaves the
     /// frame, so the frame stops there for good.

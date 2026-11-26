@@ -4,9 +4,9 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The depth pyramid pass, under <see cref="ScreenTrace"/> (docs/plans/screen-space-reflections.md, "The depth
+/// The depth pyramid pass, under <see cref="ScreenTrace"/> (https://github.com/alexispurslane/tertius/wiki/screen-space-reflections, "The depth
 /// pyramid"): levels 1 to L of the slabs, one dispatch per level below the tail and one for the tail. Then the finest
-/// level, each pixel's slab, in one more dispatch (docs/plans/back-face-depth-layer.md, "The model"). Level 1 and the
+/// level, each pixel's slab, in one more dispatch (https://github.com/alexispurslane/tertius/wiki/back-face-depth-layer, "The model"). Level 1 and the
 /// finest level read the pixels' surfaces, which the distance target and the normals target's geometric normals give,
 /// and the back share of <see cref="BackFacePass"/>.
 /// </summary>

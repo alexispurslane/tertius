@@ -5,7 +5,7 @@ description: How to model, build or change a 3D model of Tertius in Blender, suc
 
 # Procedural modeling in Blender
 
-This skill teaches the way of work for the models of Tertius. The design is in `docs/plans/asset-pipeline.md`, "Scripted models". The tools are in `tools/README.md`, "Scripted models in Blender". Long detail is in [reference.md](reference.md) next to this file.
+This skill teaches the way of work for the models of Tertius. The design is in `https://github.com/alexispurslane/tertius/wiki/asset-pipeline`, "Scripted models". The tools are in `tools/README.md`, "Scripted models in Blender". Long detail is in [reference.md](reference.md) next to this file.
 
 ## 1. The scripts are the only source
 
@@ -129,7 +129,7 @@ reference.md, "Pitfalls", explains each one.
 
 ## 10. A human with MPFB
 
-A person comes from MPFB 2.0.18, the MakeHuman add-on, which runs inside the build through `tertius_blender.mpfb`. MPFB makes the body, the skin, the eyes, eyebrows, eyelashes, teeth, tongue, hair and the rig. Your scripts make every garment and every piece of equipment. Never use a clothes asset or a finished model of a person, a garment or equipment. The design is in `docs/plans/asset-pipeline.md`, "Humans from MPFB". reference.md, "A human with MPFB", has the slider table, the asset names, the bone axes, the garment methods and the pitfalls.
+A person comes from MPFB 2.0.18, the MakeHuman add-on, which runs inside the build through `tertius_blender.mpfb`. MPFB makes the body, the skin, the eyes, eyebrows, eyelashes, teeth, tongue, hair and the rig. Your scripts make every garment and every piece of equipment. Never use a clothes asset or a finished model of a person, a garment or equipment. The design is in `https://github.com/alexispurslane/tertius/wiki/asset-pipeline`, "Humans from MPFB". reference.md, "A human with MPFB", has the slider table, the asset names, the bone axes, the garment methods and the pitfalls.
 
 1. The assets shell holds MPFB and the MakeHuman body-part assets (section 2). MPFB runs only in a Blender whose `BLENDER_USER_RESOURCES` names a scratch folder: the build tool and the bridge set it. For a Blender that you start yourself, see reference.md, "Without the MCP tools".
 2. Copy the crew member, `content/tertius.demo/assets/characters/crew.model/`. It is a complete human in a jumpsuit, with the face and the hair in view. The astronaut next to it is the example of a person inside equipment.

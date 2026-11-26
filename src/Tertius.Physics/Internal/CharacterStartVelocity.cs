@@ -5,7 +5,7 @@ namespace Tertius.Physics;
 /// <summary>
 /// The start of the update of a standing character that does not jump: the ground's velocity plus the walk, relative to
 /// the character's home, in m/s. It takes no gravity and no rotation term, because the ground holds the character against
-/// the whole acceleration of its frame (docs/plans/spin-gravity.md, "Characters").
+/// the whole acceleration of its frame (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Characters").
 /// </summary>
 internal readonly record struct HeldStart(Vector3 Velocity);
 
@@ -54,10 +54,10 @@ internal readonly record struct ChordStart(Double3 Velocity);
 
 /// <summary>
 /// What the velocity of a walking character means at the start of its update, which decides its velocity rule
-/// (docs/plans/spin-gravity.md, "Characters"): <see cref="HeldStart"/>, <see cref="InstantStart"/> or
+/// (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Characters"): <see cref="HeldStart"/>, <see cref="InstantStart"/> or
 /// <see cref="ChordStart"/>. The character's update builds one case after its standing test and reads it with a switch.
 /// The default holds no case, which only a bug produces.
-/// This is a generated union (docs/plans/union-tooling.md): the union generator writes its members.
+/// This is a generated union (https://github.com/alexispurslane/tertius/wiki/union-tooling): the union generator writes its members.
 /// </summary>
 [GeneratedUnion(typeof(HeldStart), typeof(InstantStart), typeof(ChordStart))]
 internal readonly partial struct CharacterStartVelocity;

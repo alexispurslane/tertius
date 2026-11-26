@@ -1,5 +1,5 @@
 # blender-mcp: the official Blender Lab MCP server (https://projects.blender.org/lab/blender_mcp), and its Blender
-# add-on. Agents model through it (docs/plans/asset-pipeline.md, "Scripted models").
+# add-on. Agents model through it (https://github.com/alexispurslane/tertius/wiki/asset-pipeline, "Scripted models").
 # The server is pure Python. It needs the Python package mcp below version 2, and the pinned nixpkgs has mcp 1.x.
 # The assertion below stops the build if a nixpkgs update brings mcp 2, instead of a server that fails at run time.
 {

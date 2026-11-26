@@ -6,7 +6,7 @@ using static Tertius.Testing.WorldTesting;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// The proper acceleration of a frame, on the World and the real backend (docs/plans/rails-components.md, "The proper
+/// The proper acceleration of a frame, on the World and the real backend (https://github.com/alexispurslane/tertius/wiki/rails-components, "The proper
 /// acceleration of a frame"). Step 2 of every sync point derives it from the frame's step record by one rule: the
 /// frame's acceleration minus the gravity that acts at its place, in the frame's own axes. Physics measures a dynamic
 /// hull's value by the same rule. No gameplay writes it. The ground of these tests is a root frame with a uniform gravity

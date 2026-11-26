@@ -7,7 +7,7 @@ namespace Tertius.Demo;
 public static partial class DemoScenes
 {
     /// <summary>
-    /// The places of the coda on the wheel's floor, after the exit (docs/plans/blue-danube-demo.md, "The coda"): a stack of
+    /// The places of the coda on the wheel's floor, after the exit (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The coda"): a stack of
     /// loose boxes that the person walks into and knocks over, two loose boxes beside a stand from which the person throws
     /// them the same way, one spinward and one antispinward, the floor marks where a flat field of the floor's gravity
     /// would land each throw, and three still cameras. Every place is in the station's axes, in the lit stretch of the floor

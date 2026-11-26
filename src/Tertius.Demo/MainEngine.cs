@@ -41,7 +41,7 @@ public sealed class MainEngine(float maxThrust) : IComponent
     /// <summary>
     /// The main engine's exhaust: hot gas, three times as hot as the air, that glows orange and white and lives 6 s, from
     /// 1 m across at the nozzle to 24 m. At full throttle 240 puffs leave each second at 30 m/s, tracer puffs far slower
-    /// than real exhaust, which hang behind the shuttle and mark its path (docs/plans/blue-danube-demo.md, "The plumes").
+    /// than real exhaust, which hang behind the shuttle and mark its path (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The plumes").
     /// </summary>
     public static Plume Plume { get; } =
         new(

@@ -65,7 +65,7 @@ public static partial class DemoScenes
 
     /// <summary>
     /// The orbit scene (see <see cref="Orbit"/>), with three things near its ship that only falling numeric frames
-    /// (docs/plans/numeric-frames.md) get right. Each of them moves at orbital speed in earth, where a float velocity steps
+    /// (https://github.com/alexispurslane/tertius/wiki/numeric-frames) get right. Each of them moves at orbital speed in earth, where a float velocity steps
     /// by 0.5 mm/s.
     /// <list type="bullet">
     /// <item>The <c>spacewalker</c>, a person like the orbit scene's, floats in earth 15 m out from the hatch to port (see

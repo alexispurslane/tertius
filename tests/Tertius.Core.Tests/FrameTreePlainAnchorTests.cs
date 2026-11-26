@@ -4,7 +4,7 @@ namespace Tertius.Core.Tests;
 
 /// <summary>
 /// Following frames whose anchor is a plain kinematic body, the body of an entity that owns no frame
-/// (docs/plans/numeric-frames.md, "Following frames", ticket ter-zg77), on a tree built in the test. The anchor is a member
+/// (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Following frames", ticket ter-zg77), on a tree built in the test. The anchor is a member
 /// of its following frame's system, at the origin, and the tree keeps it by entity. The tests run
 /// <see cref="FrameTree.UpdateNumericFrames"/> with plain body records at the defaults of
 /// <see cref="NumericFrameOptions"/>,

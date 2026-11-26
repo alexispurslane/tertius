@@ -60,7 +60,7 @@ diff --color=auto -ruN -x bin -x obj -x *.orig base/src/Tertius.Rendering/Frame/
 +++ probe/src/Tertius.Rendering/Frame/SignalParameters.cs	2026-11-23 13:46:05
 @@ -52,10 +52,15 @@
      /// The diffuse signal's set: a cap of 32 frames at every roughness, and a box widened by two retained deviations
-     /// where its block has no motion evidence (docs/plans/bounce-light-confidence.md, section 7).
+     /// where its block has no motion evidence (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 7).
      /// </summary>
 +    private static readonly int ProbeDiffuseCap =
 +        Environment.GetEnvironmentVariable("TERTIUS_PROBE_DIFFUSE_CAP") is { Length: > 0 } cap
@@ -727,7 +727,7 @@ diff --color=auto -ruN -x bin -x obj -x *.orig base/src/Tertius.Rendering/Shader
 @@ -92,6 +99,15 @@
          indirectSpecular = reflectionSharedAt(pixel, indirectSpecular);
      // Each part is finite and at most a few times MaxRadiance, so the sum is finite, and the cap keeps the surfaces' share
-     // (docs/plans/screen-space-illumination.md, "The cap at MaxRadiance").
+     // (https://github.com/alexispurslane/tertius/wiki/screen-space-illumination, "The cap at MaxRadiance").
 +    if (probeSignal != 0)
 +    {
 +        // PROBE: each signal alone, and its share of D for the skin scatter, so that the three signals add up.
@@ -771,7 +771,7 @@ diff --color=auto -ruN -x bin -x obj -x *.orig base/src/Tertius.Rendering/Shader
 @@ -266,7 +272,9 @@
  // The depth of the box that a guided diffuse ray aims at, as a share of the target's depth
  // (LightPyramid.TargetDepthShare). It is no thickness: a guided ray that the walk rejects behind a thin surface counts
- // as a miss (docs/plans/back-face-depth-layer.md, decision 7).
+ // as a miss (https://github.com/alexispurslane/tertius/wiki/back-face-depth-layer, decision 7).
 -const float TargetDepthShare = 0.05;
 +// PROBE (t1-cyhy): flag 4 of trace.probeExactGuided sets the scratch thin box, 0.0125. The draw and the density both read
 +// it, so the estimate stays unbiased. The engine's C# copy (LightPyramid.TargetDepthShare) is unchanged.

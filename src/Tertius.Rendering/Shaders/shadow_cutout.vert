@@ -3,7 +3,7 @@
 #include "frame.glsl"
 #include "draw.glsl"
 
-// The cutout casters of a shadow map (docs/plans/skin-and-hair.md, "The cutout test"): shadow.vert, which also passes the
+// The cutout casters of a shadow map (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The cutout test"): shadow.vert, which also passes the
 // texture coordinate and the material, so that shadow_cutout.frag can test the base color's alpha against the cutoff.
 layout(location = 0) in vec3 inPosition;
 layout(location = 3) in vec2 inTexCoord;

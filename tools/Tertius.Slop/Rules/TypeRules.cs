@@ -6,7 +6,7 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace Tertius.Slop.Rules;
 
-// The verbosity rules of the user's about types, and about code that nothing uses (docs/plans/code-quality-tooling.md,
+// The verbosity rules of the user's about types, and about code that nothing uses (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling,
 // decision 17). The rules that need the uses of a name read them from the syntax of src and from the text of the files
 // outside src (RuleContext).
 

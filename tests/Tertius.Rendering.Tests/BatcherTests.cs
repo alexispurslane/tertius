@@ -1040,7 +1040,7 @@ public sealed class BatcherTests
 
     /// <summary>
     /// An entity that holds a light sends its power through that light, so its glow is the light's face and bounces no
-    /// light of its own (docs/plans/screen-space-illumination.md, "The bounce source"). The lights of the snapshot carry
+    /// light of its own (https://github.com/alexispurslane/tertius/wiki/screen-space-illumination, "The bounce source"). The lights of the snapshot carry
     /// their entities, so the batcher marks the GPU instances of those entities alone.
     /// </summary>
     [Fact]
@@ -1458,7 +1458,7 @@ public sealed class BatcherTests
             );
     }
 
-    // Maps per frame (docs/plans/environment-maps-per-frame.md). The chain of three below is the camera's frame, id 2, its
+    // Maps per frame (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame). The chain of three below is the camera's frame, id 2, its
     // parent, id 1, and the root, id 0, all in the camera's axes: depth 0 takes map 2, depth 1 map 1, and depth 2 map 0.
 
     /// <summary>An empty snapshot with no light that shines, whose camera's chain has three frames, all in the camera's axes.</summary>

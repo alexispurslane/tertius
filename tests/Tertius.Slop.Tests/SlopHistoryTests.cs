@@ -4,33 +4,32 @@ using Tertius.Slop.History;
 namespace Tertius.Slop.Tests;
 
 /// <summary>
-/// The history of the slop metrics (docs/plans/code-quality-tooling.md, decision 18): the commits whose notes hold them,
+/// The history of the slop metrics (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling, decision 18): the commits whose notes hold them,
 /// as CSV, and the tickets of each commit, which its message names.
 /// </summary>
 public sealed class SlopHistoryTests
 {
     [Fact]
-    public void TheTicketsOfACommitAreTheTicketIdsInItsMessageInOrderWithoutRepeats() =>
-        Commit("ter-2x99: close; tickets for ter-ab12 and ter-2x99\n\nSee ter-zz9y.", note: null)
-            .Tickets.Should()
-            .Equal("ter-2x99", "ter-ab12", "ter-zz9y");
+    public void TheTicketsOfACommitAreTheGitHubIssueNumbersInItsMessageInOrderWithoutRepeats() =>
+        Commit("#9: close; tickets for #12 and #9\n\nSee #99.", note: null).Tickets.Should().Equal("#9", "#12", "#99");
 
     [Theory]
     [InlineData("Clean up code before push")]
-    [InlineData("ter-2x9: a short id, and a long one ter-2x999")]
+    [InlineData("An old ticket id, ter-2x99, is not a GitHub issue reference")]
+    [InlineData("A color, #abcd, and an issue number with a suffix, #12ab, are not issue references")]
     [InlineData("Split the inter-face code")]
     public void AMessageWithoutATicketIdHasNoTickets(string message) =>
         Commit(message, note: null).Tickets.Should().BeEmpty();
 
     [Fact]
     public void TheSubjectOfACommitIsTheFirstLineOfItsMessage() =>
-        Commit("ter-2x99: the verbosity\n\nThe body.", note: null).Subject.Should().Be("ter-2x99: the verbosity");
+        Commit("#9: the verbosity\n\nThe body.", note: null).Subject.Should().Be("#9: the verbosity");
 
     [Fact]
     public void TheCsvHasOneRowPerNotedCommitWithItsDateBranchTicketsAndMeasures()
     {
         Commit noted = Commit(
-            "ter-2x99: x, and ter-ab12",
+            "#9: x, and #12",
             SlopNote.Parse(
                 """{"erosion":0.365,"verbosity":0.036,"highCcMass":12041.5,"highCcFunctionCount":92,"verboseLines":1531,"sloc":34450,"branch":"main","source":"pre-commit","measured":"2026-10-24T12:00:00+00:00"}"""
             )
@@ -57,10 +56,7 @@ public sealed class SlopHistoryTests
             );
         rows[1]
             .Should()
-            .Be(
-                "a1,2026-10-24T12:00:00+00:00,main,ter-2x99 ter-ab12,0.365,12041.5,92,0.036,1531,34450"
-                    + new string(',', 16)
-            );
+            .Be("a1,2026-10-24T12:00:00+00:00,main,#9 #12,0.365,12041.5,92,0.036,1531,34450" + new string(',', 16));
     }
 
     [Fact]

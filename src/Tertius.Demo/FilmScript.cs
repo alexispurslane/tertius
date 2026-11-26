@@ -45,7 +45,7 @@ public sealed record FilmSection(
 }
 
 /// <summary>
-/// Writes a script of film steps for one unbroken run of a scene, section by section (docs/plans/blue-danube-demo.md,
+/// Writes a script of film steps for one unbroken run of a scene, section by section (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo,
 /// "The long script"). A script is a fixed list of steps, so the generator first rehearses the run: it builds the scene in
 /// a new world, as the command does, and runs each section's ticks until its cue holds. The engine is deterministic, so a
 /// run of the script reaches each cue at the same tick.

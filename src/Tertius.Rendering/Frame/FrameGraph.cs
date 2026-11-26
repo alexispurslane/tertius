@@ -305,7 +305,7 @@ internal sealed class FrameGraph : IDisposable
     {
         /// <summary>
         /// The deform pass, under <see cref="RendererOptions.Deformation"/>: first, because every pass that draws a mesh
-        /// draws the deformed copies that it writes (docs/plans/skinning-and-morphs.md, "Barriers and the frame graph").
+        /// draws the deformed copies that it writes (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "Barriers and the frame graph").
         /// </summary>
         Deformation,
         ShadowMaps,
@@ -329,7 +329,7 @@ internal sealed class FrameGraph : IDisposable
 
         /// <summary>
         /// The surface test: after the G-buffer pass, whose distance, normals, roughness and motion target it reads,
-        /// and before the temporal passes, which read its pass bits (docs/plans/temporal-renderer.md, "The frame's order").
+        /// and before the temporal passes, which read its pass bits (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "The frame's order").
         /// </summary>
         SurfaceTest,
 
@@ -341,14 +341,14 @@ internal sealed class FrameGraph : IDisposable
 
         /// <summary>
         /// The direct pass: after the G-buffer pass and the shadow maps, which it reads. It writes the direct light's two
-        /// images (docs/plans/temporal-renderer.md, "The frame's order").
+        /// images (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "The frame's order").
         /// </summary>
         DirectLight,
 
         /// <summary>
         /// The screen tracer's four passes and the two indirect accumulations, under <see cref="ScreenTrace"/>: after the
         /// direct pass, whose images a hit reads, and after the surface test, whose pass bits the plan and a hit's history
-        /// read. Each accumulation follows the resolve, which writes its sample (docs/plans/temporal-renderer.md, "The
+        /// read. Each accumulation follows the resolve, which writes its sample (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "The
         /// frame's order").
         /// </summary>
         ScreenTrace,
@@ -361,7 +361,7 @@ internal sealed class FrameGraph : IDisposable
 
         /// <summary>
         /// The skin scatter's two passes, under <see cref="SeparableSubsurface"/>: after the composite, so that the
-        /// scattered light holds the indirect light (docs/plans/skin-and-hair.md, decision 18). A tracer hit reads the
+        /// scattered light holds the indirect light (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, decision 18). A tracer hit reads the
         /// histories before this scatter, so reflected skin has no scatter yet (ter-x8bz).
         /// </summary>
         SkinScatter,
@@ -369,7 +369,7 @@ internal sealed class FrameGraph : IDisposable
         /// <summary>
         /// The haze of the atmosphere over the opaque surfaces: after the composite and the scatter, so that it covers
         /// each surface's whole light, and before the transparent pass, whose panes and puffs take their own haze over the hazed image
-        /// (docs/plans/atmosphere.md, "The haze").
+        /// (https://github.com/alexispurslane/tertius/wiki/atmosphere, "The haze").
         /// </summary>
         Haze,
         Transparent,

@@ -4,7 +4,7 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// The scratch images of the signals' accumulations, one per part, RGBA16F plus optional RGBA32F specular scratch: the temporal dispatch
-/// writes its slow history into one, and the spatial dispatch reads its neighbors from it (docs/plans/temporal-renderer.md,
+/// writes its slow history into one, and the spatial dispatch reads its neighbors from it (https://github.com/alexispurslane/tertius/wiki/temporal-renderer,
 /// section 8, "Images"). The signals accumulate one after another, so they share these images.
 /// </summary>
 internal sealed class SignalScratch : IDisposable

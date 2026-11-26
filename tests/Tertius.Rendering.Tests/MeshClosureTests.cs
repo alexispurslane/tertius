@@ -3,7 +3,7 @@ using System.Numerics;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// Whether a mesh bounds a volume (docs/plans/back-face-depth-layer.md, decision 5): the weld of its positions, the
+/// Whether a mesh bounds a volume (https://github.com/alexispurslane/tertius/wiki/back-face-depth-layer, decision 5): the weld of its positions, the
 /// pairing rule on its directed edges, the triangles that do not count, and the flag of a staged mesh. No GPU needed.
 /// </summary>
 public sealed class MeshClosureTests

@@ -117,7 +117,7 @@ public static class Primitives
     /// <summary>
     /// A closed tube along +Y from 0 to <paramref name="length"/> that bends at its middle. Its rig has the joint Base at
     /// the origin and its child Tip at half the length, and its skin blends the two over the middle quarter
-    /// (docs/plans/skinning-and-morphs.md, "Part 1: the seam").
+    /// (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "Part 1: the seam").
     /// </summary>
     public static MeshData BendingCylinder(float radius, float length, int segments = 24, int rings = 16)
     {

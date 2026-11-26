@@ -6,12 +6,12 @@ using Tertius.Rendering;
 namespace Tertius.Benchmarks;
 
 /// <summary>
-/// The CPU cost of the environment maps' culled views (docs/plans/environment-map.md, "Cost", and
-/// docs/plans/environment-maps-per-frame.md, "Memory and cost"): one <see cref="SceneBatcher.Prepare"/> of a snapshot of
+/// The CPU cost of the environment maps' culled views (https://github.com/alexispurslane/tertius/wiki/environment-map, "Cost", and
+/// https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame, "Memory and cost"): one <see cref="SceneBatcher.Prepare"/> of a snapshot of
 /// 20,000 instances, the size that <see cref="RenderSnapshotBenchmarks"/> builds, on one thread. With one map, the camera
 /// in the root frame: the map off, one face and six faces. With four maps, the chain of the cabin of demo-surface: one face
 /// and a refresh of all 24 faces. Beside the grid, 0, 1 or 100 posed instances of a tube whose rig is a chain of 53 joints,
-/// the joints of MPFB's game-engine rig, measure the cost of posing (docs/plans/skinning-and-morphs.md, "Memory and cost").
+/// the joints of MPFB's game-engine rig, measure the cost of posing (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "Memory and cost").
 /// <list type="bullet">
 /// <item>The instances are unit cubes in a grid of 100 by 100 by 2, 1 m apart, 100 m in front of the camera, which sits
 /// at the render origin and looks down -Z at 1920x1080. So the main view sees each of them.</item>

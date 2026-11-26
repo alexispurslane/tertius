@@ -265,7 +265,7 @@ public sealed class SpacewalkSliceTests(SpacewalkRun run) : IClassFixture<Spacew
     /// inside the hull's port face, which Earth lights to about 290. Only what Earth does not light is that dark there:
     /// the top of the hatch's sill, which reaches the port face, and the chamber's floor beyond it, which shows through
     /// the open hatch. The cabin's lamps cast shadows, so the chamber's walls and its shut inner door keep their light out
-    /// (docs/plans/local-light-shadows.md, Part 6). The windows of the port wall show the cabin too, so the columns must
+    /// (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, Part 6). The windows of the port wall show the cabin too, so the columns must
     /// leave them out.
     /// </summary>
     private static (int First, int Last) DarkThroughTheHatch(Png image, int from, int to)

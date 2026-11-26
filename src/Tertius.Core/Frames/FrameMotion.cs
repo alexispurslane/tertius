@@ -6,7 +6,7 @@ namespace Tertius;
 /// motion of a body converts between two frames: physics converts a body that hands off with it, and a motion intent
 /// converts a full sample with it (see <see cref="Frames.Rails.MotionSample.Converted"/>) when its entity changes frame
 /// (see <c>World.ConvertIntent</c>). The conversions follow ARCHITECTURE.md, hand-off rule 5: v' = R⁻¹(v − v_frame − ω × r).
-/// The rules of the accelerations, with the frame's rotation terms, are those of docs/plans/spin-gravity.md, "V7, the
+/// The rules of the accelerations, with the frame's rotation terms, are those of https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V7, the
 /// relative motion of two frames". Every producer states both accelerations: the motion of a frame at the start of a step
 /// states an explicit zero for each, because a value left out would drop a record's accelerations without a word.
 /// </summary>

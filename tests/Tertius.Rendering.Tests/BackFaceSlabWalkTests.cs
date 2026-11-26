@@ -4,7 +4,7 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The walk over the real slab on the GPU (docs/plans/back-face-depth-layer.md, "The acceptance"): a box whose front faces
+/// The walk over the real slab on the GPU (https://github.com/alexispurslane/tertius/wiki/back-face-depth-layer, "The acceptance"): a box whose front faces
 /// the eye 5 m away, under the sun and before the sky. Its back face ends its slab, also where the back face lies nearer
 /// or farther than a tenth of the box's distance. Rays from the sky below the box run up the screen behind its front, each
 /// at one view depth (screen_walk_depth_probe.comp).

@@ -667,7 +667,7 @@ public sealed class DiffuseFilterRenderTests(ITestOutputHelper output)
     public void ASingleBrightRayBlockSampleNeverGrowsMoreConspicuousOverThe32DrawsAfterIt()
     {
         // A luminance stop whose deviation shrinks faster than the light that it describes concentrates the old excess
-        // again: the peak grew 42 times in the CPU model (docs/plans/bounce-light-confidence.md, section 7). Carried
+        // again: the peak grew 42 times in the CPU model (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 7). Carried
         // with the light, the deviation lets the peak rise a little in the first draws and then only fall. At a cap of
         // 32 the peak fell to 0.36 of its first value in 32 draws, the slow blend's (31 / 32)^32. At a cap of 128 it
         // rises by 0.3 %, stays for 5 draws, and then falls by about 0.6 % a draw, near the slow blend's 1 / 128. While
@@ -817,7 +817,7 @@ public sealed class DiffuseFilterRenderTests(ITestOutputHelper output)
     {
         // Halves of light 1 and 2, each ray block's sample 50 % above or below its half's light in each draw. A deviation
         // carried by the shares in every step widened the CPU model's 10 to 90 % rise to 32 pixels; with the paper's rule
-        // after the feedback step it stays near 12 (docs/plans/bounce-light-confidence.md, section 7). The design's bound
+        // after the feedback step it stays near 12 (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 7). The design's bound
         // was 16 pixels. The CPU model with this test's image and measure gives 15, this GPU 17 to 18, and the filter
         // before the retained deviation at most 16: 20 held the measured width at a cap of 32 (t0-anp3). The feedback
         // spreads the edge once in each draw that a history keeps, so a longer cap widens it: this GPU measures 16 at a

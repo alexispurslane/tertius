@@ -145,7 +145,7 @@ public static class Scenes
     /// The owner of a frame on a Kepler orbit in <paramref name="space"/>, an <see cref="AsteroidSpace"/>, whose
     /// <see cref="KeplerMotion"/> moves it on a circular orbit of 5 km at phase 0 (see <see cref="RailsSpawn"/>): its hull, of
     /// <paramref name="body"/>, starts on the orbit at the world's time, at (5000, 0, 0) at time 0, and moves along -Z at 2 km/s,
-    /// so it lives in a following frame of its own (docs/plans/numeric-frames.md, "Anchors", rule 3). Its bubble is a sphere
+    /// so it lives in a following frame of its own (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Anchors", rule 3). Its bubble is a sphere
     /// of 1 cm, so that no body near the hull enters it. A static body that the hull passes is an anchor at rest, which no
     /// home shares with the hull: a group that links the two lives in the static body's home, and that home keeps a ghost
     /// of the hull. The spawn carries the orbit's sample of the first step as its first motion intent, so the hull is on

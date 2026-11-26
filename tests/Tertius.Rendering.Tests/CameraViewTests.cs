@@ -4,7 +4,7 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The screen's geometry of the camera that the reflection trace uses: view rays, the projection of points to pixels,
-/// inverse depth and the edge fade (docs/plans/screen-space-reflections.md, "The ray's image on the screen"). Also the
+/// inverse depth and the edge fade (https://github.com/alexispurslane/tertius/wiki/screen-space-reflections, "The ray's image on the screen"). Also the
 /// cull of a spot lamp's cone cut at its reach (ARCHITECTURE.md, "The reach from the exposure"), and the eye's distance to
 /// the point of a lamp's axis in view nearest the eye, by which the shadow budgets rank a spot lamp (ARCHITECTURE.md,
 /// "Local shadows", the rank).

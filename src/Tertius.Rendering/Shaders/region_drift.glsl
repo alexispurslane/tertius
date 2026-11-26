@@ -1,4 +1,4 @@
-// The region's drift (docs/plans/bounce-light-confidence.md, section 8.7; ticket t0-acxm): the second source of a block's
+// The region's drift (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.7; ticket t0-acxm): the second source of a block's
 // light evidence. The test runs at anchor blocks only, every AnchorStepBlocks-th block in x and in y: the regions of two
 // neighbor blocks share 272 of their 289 taps, so their answers are nearly one answer. An anchor's workgroup of the
 // spatial dispatch sums the taps of its region, keeps the anchor's ring of its region's light and tests whether that light

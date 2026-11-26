@@ -5,7 +5,7 @@ using static Tertius.Testing.WorldTesting;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// Bodies that rest on the floor of a turning frame, on the World and the real Jolt backend (docs/plans/spin-gravity.md,
+/// Bodies that rest on the floor of a turning frame, on the World and the real Jolt backend (https://github.com/alexispurslane/tertius/wiki/spin-gravity,
 /// "V4, the acceleration that the frame gave a body" and "V6, the velocity shadow"). The station of the tests is a frame
 /// without a body and without a field, which turns in place in a root frame without a field about its +Y at 0.31321
 /// rad/s, the rate that gives 9.81 m/s² at 100 m, from its first step: its spawn carries its first motion intent, so the
@@ -217,7 +217,7 @@ public sealed class SpinStationFloorTests
     public void CratesSpawnedOnTheFloorOfAStationThatCarriesItsFirstMotionIntentStayOnTheFloorFromTheFirstStepAndPressOnItWithOmegaSquaredR()
     {
         // The station's spawn carries its first motion intent, so in its first step it turns at its full rate, and its
-        // first V2 is its first V1 (docs/plans/spin-gravity.md, "Frames without a last turn"). A crate spawned at rest on
+        // first V2 is its first V1 (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Frames without a last turn"). A crate spawned at rest on
         // its floor takes the velocity of the floor under it from its first step, with no spin-up: it stays where it was
         // spawned, and the floor holds it against ω² r, about 9.76 m/s² at 99.5 m from the axis.
         using World world = NewWorld(backend: out _, debugChecks: false);
@@ -284,13 +284,13 @@ public sealed class SpinStationFloorTests
     public void CratesSpawnedOnTheFloorOfAStationWithoutItsFirstMotionIntentKeepTheirPlaceInInertialSpaceWhileTheFloorSlidesUnderThem()
     {
         // Without a first motion intent the station holds still in its first step, and in its second it turns at its full
-        // rate against a V2 that did not turn: it spins up in one step (docs/plans/spin-gravity.md, "Frames without a last
+        // rate against a V2 that did not turn: it spins up in one step (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Frames without a last
         // turn"). The crates were at rest on a floor that held still, so they keep their place in inertial space, as on a
         // real floor that starts to turn at full rate all at once: in the station's axes the floor slides under them at
         // ω r, 31.2 m/s, and nothing presses them on it, so no friction acts. The floor is flat, and the crates sit on its
         // half that turns away from them: on its other half, a crate's outer corner lies farther from the axis than the
         // floor's face, and the turning floor sweeps into it.
-        // The crates have no damping, which would slow them relative to the station's axes (docs/plans/spin-gravity.md,
+        // The crates have no damping, which would slow them relative to the station's axes (https://github.com/alexispurslane/tertius/wiki/spin-gravity,
         // "Jolt's damping in the shadow"), so that their expected path is their place in inertial space.
         using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world, firstMove: false);
@@ -464,7 +464,7 @@ public sealed class SpinStationFloorTests
     public void AShipThatHoldsItsRadiusInTheStationByThrustReadsItsThrust()
     {
         // The ship's accelerometer reads its thrust, in its axes, which are the station's: the rotation terms of the update
-        // are no push on the ship (docs/plans/spin-gravity.md, "V4, the acceleration that the frame gave a body").
+        // are no push on the ship (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V4, the acceleration that the frame gave a body").
         HoverRun run = Hover();
 
         run.FromRadius.Should()
@@ -483,7 +483,7 @@ public sealed class SpinStationFloorTests
         // thrust is fixed in the frame's axes too, so the same rule keeps the ship on the path of its thrust. Unturned,
         // the cross term ω |a| dt = 0.026 m/s² pushes the ship sideways, and it leaves its path by 0.11 m in 3 s
         // (measured). With the intent's force turned by R_n in the update's chord, the ship keeps to its path within 5e-5 m
-        // (measured; docs/plans/spin-gravity.md, "The two-turn update").
+        // (measured; https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The two-turn update").
         Hover()
             .FromPath.Should()
             .BeLessThan(1e-3, "the ship follows the path of its thrust in the turning station");

@@ -1,6 +1,6 @@
 # The back-face depth layer: sources, cost and two designs
 
-This is the record of stage 1 of the epic `ter-kh4g`, of 2026-11-14. It holds three parts: the sources of the technique, the measured cost of a throwaway back-face pass, and two designs. It decides nothing. Alexis chooses between the designs, and the design document in `docs/plans/` follows that choice.
+This is the record of stage 1 of the epic `ter-kh4g`, of 2026-11-14. It holds three parts: the sources of the technique, the measured cost of a throwaway back-face pass, and two designs. It decides nothing. Alexis chooses between the designs, and the design document in `https://github.com/alexispurslane/tertius/wiki/` follows that choice.
 
 The companion file [sources.md](sources.md) holds every source with exact quotes and the addresses of the pages. A research child agent wrote it from the pages that it read on 2026-11-14.
 
@@ -591,7 +591,7 @@ The cause of the loss is not known (`t1-i54g`). The stair case of the probe's ti
 
 ## Stage 2: the open research
 
-Stage 2 started on 2026-11-15. The parent agent answered the two questions of stage 1b with "research first". So three experiments ran before the design: the cards and the sheets, the pass's cost by vertex count, and a reference for the fade. Each has its own record in [stage-2](stage-2). The design that follows from them is [docs/plans/back-face-depth-layer.md](../../plans/back-face-depth-layer.md).
+Stage 2 started on 2026-11-15. The parent agent answered the two questions of stage 1b with "research first". So three experiments ran before the design: the cards and the sheets, the pass's cost by vertex count, and a reference for the fade. Each has its own record in [stage-2](stage-2). The design that follows from them is [https://github.com/alexispurslane/tertius/wiki/back-face-depth-layer](../https://github.com/alexispurslane/tertius/wiki/back-face-depth-layer).
 
 ### Cards and open meshes
 

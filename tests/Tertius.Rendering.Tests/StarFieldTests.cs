@@ -4,7 +4,7 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The C# copy of the star field: the stars of the cells that the sky reads, the width and the window of a reflected
-/// star, the fade into the mean star radiance, and the light that each keeps (docs/plans/environment-map.md,
+/// star, the fade into the mean star radiance, and the light that each keeps (https://github.com/alexispurslane/tertius/wiki/environment-map,
 /// "The reflected stars").
 /// </summary>
 public sealed class StarFieldTests
@@ -307,7 +307,7 @@ public sealed class StarFieldTests
     [Fact]
     public void TheBrightestStarSendsAboutTheIrradianceOfTheBrightestRealStars()
     {
-        // Settled fork 1, physical stars (docs/plans/local-light-shadows.md): the brightest stars of the sky send about
+        // Settled fork 1, physical stars (https://github.com/alexispurslane/tertius/wiki/local-light-shadows): the brightest stars of the sky send about
         // 10⁻⁸ W/m². A star of the sky is a Gaussian of peak b and width p, so it sends b π p².
         float brightest = Cells(new(140, -20, -20), new(150, 20, 20))
             .Select(StarField.OfCell)
@@ -346,7 +346,7 @@ public sealed class StarFieldTests
     }
 
     /// <summary>
-    /// The footprint that the ambient pass skips (docs/plans/environment-map.md, "Cost"): wherever the lobe alone ends
+    /// The footprint that the ambient pass skips (https://github.com/alexispurslane/tertius/wiki/environment-map, "Cost"): wherever the lobe alone ends
     /// the fade at the pixel angle p, every footprint of at least p gives the reflected stars of p.
     /// </summary>
     [Theory]

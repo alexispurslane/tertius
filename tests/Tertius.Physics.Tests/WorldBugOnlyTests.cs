@@ -165,7 +165,7 @@ public sealed class WorldBugOnlyTests
 
     /// <summary>
     /// The guard of every writer, the drops of step 4 and the check of a spawn let a body take only a motion intent whose
-    /// case its motion in the step takes (docs/plans/rails-components.md, "The flow per kind of entity"). So physics meets
+    /// case its motion in the step takes (https://github.com/alexispurslane/tertius/wiki/rails-components, "The flow per kind of entity"). So physics meets
     /// any other only through a bug. A test stands in for that bug: it gives the step a motion intent that the body's motion
     /// refuses. A Release build ignores the motion intent, so the body stays where it rests, and records the bug.
     /// </summary>

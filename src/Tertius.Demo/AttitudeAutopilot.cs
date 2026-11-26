@@ -54,7 +54,7 @@ public struct AttitudeTarget : IEventPayload
 /// The autopilot reads the body's rotation and angular velocity at the end of the last finished step. The jets get their
 /// throttles by message, so they push in the next tick, and physics applies the push in the step of the tick after that.
 /// So the autopilot acts on what it read three steps late. <see cref="RateTime"/> is 20 steps, so that lag costs the loop
-/// little (docs/plans/blue-danube-demo.md, "The jets as parts").
+/// little (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The jets as parts").
 /// </remarks>
 /// <param name="inertia">The moments of inertia of the body about its principal axes, in kg·m², and those axes in its own axes.</param>
 public sealed class AttitudeAutopilot(PrincipalInertia inertia) : IComponent

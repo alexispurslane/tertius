@@ -1,6 +1,6 @@
 """Tool code. Fits the playable Lunar Shuttle cabin, real window openings, starboard boarding doorway, stowable hatch
 door and textured PBR cabin interior directly to Pioneer's lunar_shuttle_hi.dae geometry (ter-tiei,
-docs/plans/blue-danube-fidelity.md).
+https://github.com/alexispurslane/tertius/wiki/blue-danube-fidelity).
 
 Runs as the overlay of content/tertius.demo/assets/blue-danube/lunar-shuttle/lunarshuttle.model.import.json, inside
 headless Blender in Pioneer's native source axes (+X starboard, +Y nose, +Z up, scale 1.0) before convert.py turns the

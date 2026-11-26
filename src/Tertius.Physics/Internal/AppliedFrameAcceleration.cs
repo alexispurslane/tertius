@@ -4,7 +4,7 @@ namespace Tertius.Physics;
 
 /// <summary>
 /// The acceleration that a body's frame gave it in the last step in which physics moved it, in the axes of its home
-/// (docs/plans/spin-gravity.md, "V4, the acceleration that the frame gave a body"). The accelerometer of a dynamic hull's
+/// (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V4, the acceleration that the frame gave a body"). The accelerometer of a dynamic hull's
 /// frame reads every change of the hull's velocity over the step that is not in <see cref="Total"/> as proper
 /// acceleration (see JoltPhysicsBackend.ComputeProperAccelerations).
 /// </summary>

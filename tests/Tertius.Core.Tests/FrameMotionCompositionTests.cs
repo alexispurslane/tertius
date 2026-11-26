@@ -3,7 +3,7 @@ using AwesomeAssertions;
 namespace Tertius.Core.Tests;
 
 /// <summary>
-/// The motion of a frame through another frame, and the motion of a parent in its frame (docs/plans/spin-gravity.md, "V7,
+/// The motion of a frame through another frame, and the motion of a parent in its frame (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V7,
 /// the relative motion of two frames"): <see cref="FrameMotion.MotionToParent"/> composes the motion of an inner frame in a
 /// middle frame with the motion of the middle frame in its parent, and <see cref="FrameMotion.Inverse"/> turns the motion of
 /// a frame in its parent into the motion of the parent in the frame. <see cref="FrameTree.MotionRelativeInStep"/> composes

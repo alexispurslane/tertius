@@ -3,7 +3,7 @@ using System.Numerics;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The strand's octahedral code of two bytes in the shading target (docs/plans/skin-and-hair.md, "The shading target").
+/// The strand's octahedral code of two bytes in the shading target (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The shading target").
 /// </summary>
 public sealed class StrandCodeTests
 {

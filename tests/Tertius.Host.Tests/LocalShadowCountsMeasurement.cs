@@ -8,7 +8,7 @@ using static Tertius.Host.Tests.HostTesting;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The counts of the cost of the shadows of every light (docs/plans/local-light-shadows.md, "Cost"), which the GPU
+/// The counts of the cost of the shadows of every light (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, "Cost"), which the GPU
 /// timings of a headless run leave out: for each lamp hall and each star scene, at 1920x1080 with a scripted run's
 /// options and the cost's budget of tiles, the <see cref="RenderStats"/> of the first frame after 10 ticks and of the third
 /// frame after it, one tick apart: the lights, the tiles in use and drawn, the casters, the cascade sets and the shadow

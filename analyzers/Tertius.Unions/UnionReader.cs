@@ -12,7 +12,7 @@ internal sealed record UnionResult(UnionModel? Model, EquatableArray<Diagnostic>
 
 /// <summary>
 /// Reads a struct marked <c>[GeneratedUnion]</c> into a <see cref="UnionModel"/>: it checks the declaration, decides
-/// how each case is stored, and shares the slots by type (docs/plans/union-tooling.md, "Storage").
+/// how each case is stored, and shares the slots by type (https://github.com/alexispurslane/tertius/wiki/union-tooling, "Storage").
 /// </summary>
 internal static class UnionReader
 {

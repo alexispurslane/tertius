@@ -708,7 +708,7 @@ public partial class NumericFrameStickOutGhostTests
         // The station holds still for its first step, so the planet's gravity pulls on its contents then, and stands on its
         // rails from the second sync point on. The crate and the rock come once it falls freely on its orbit, as they did
         // before the station could have a first motion intent: the hull's new following frame starts with the hull's instant
-        // velocity, and its first step plan lands it on the orbit with an acceleration that is not the orbit's (docs/plans/
+        // velocity, and its first step plan lands it on the orbit with an acceleration that is not the orbit's (https://github.com/alexispurslane/tertius/wiki/
         // rails-components.md, "The step plan of a following frame").
         Tick(world, 2);
         long start = world.TickNumber;

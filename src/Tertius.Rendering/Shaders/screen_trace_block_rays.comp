@@ -1,5 +1,5 @@
 #version 460
-// The block rays of one kind of the screen tracer (docs/plans/temporal-renderer.md, section 6): each 2 × 2 block's ray from
+// The block rays of one kind of the screen tracer (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 6): each 2 × 2 block's ray from
 // its chosen pixel, with the ray's setup, its walk and its light in one invocation (decision 40), into the block's record,
 // and while the rays are guided each reflection ray's guide (ScreenTraceImages.BlockGuide).
 // screen_trace_own_rays.comp traces the listed pixels' own rays. The two stay separate shaders, so that neither pipeline

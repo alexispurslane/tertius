@@ -19,7 +19,7 @@ internal readonly record struct FarShadowsOnly(OccluderRange Occluders);
 internal readonly record struct AtlasTiles(int First, int Count);
 
 /// <summary>
-/// How a light casts shadows in a frame, its shadow slot (docs/plans/local-light-shadows.md, "Shadows of each light"). The
+/// How a light casts shadows in a frame, its shadow slot (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, "Shadows of each light"). The
 /// empty value is the all-zero default: it holds no case and means no shadows. This is a generated union.
 /// </summary>
 [GeneratedUnion(typeof(CascadeSet), typeof(FarShadowsOnly), typeof(AtlasTiles))]

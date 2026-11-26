@@ -4,7 +4,7 @@ using AwesomeAssertions;
 namespace Tertius.Core.Tests;
 
 /// <summary>
-/// The sizes of the unions of Core that the union generator writes (docs/plans/union-tooling.md, "Conversion"). Each
+/// The sizes of the unions of Core that the union generator writes (https://github.com/alexispurslane/tertius/wiki/union-tooling, "Conversion"). Each
 /// size is the size of the hand-written union before the conversion, or less, so that no table, event or intent that
 /// holds one grows. The unions whose own test files pin their size (HemisphereUp, PuffShading, RenderLight and
 /// FrameOutline) are not repeated here.
@@ -28,7 +28,7 @@ public sealed class UnionSizeTests
     [Fact]
     public void AMediumFieldTakesOneHundredAndFourBytes() =>
         // The two cases share their float slots, and a planet's look adds its sky, its optional haze and its optional tint
-        // (docs/plans/atmosphere.md, "The types"). The frame tree holds one medium per frame, so the size matters little.
+        // (https://github.com/alexispurslane/tertius/wiki/atmosphere, "The types"). The frame tree holds one medium per frame, so the size matters little.
         Unsafe.SizeOf<MediumField>().Should().Be(104);
 
     [Fact]

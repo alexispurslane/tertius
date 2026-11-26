@@ -60,7 +60,7 @@ A count of both shaders takes 8 to 14 seconds on the M1 Max.
 
 ## The count for the direct shader's register budget (t0-t2oq, 2026-11-23)
 
-The orchestrator picked design 2 of `.tickets/t0-t2oq.md`, "The direct shader's register budget: two designs": one loop over the shadowed lights fills a local array of visibilities before the response loops, and the response loops read the array and hold no shadow read. Its gate was this count: in the form with the three blocked features, both direct shaders keep at least 8 registers of room, so a highest register of 107 or less. If the form failed the gate at every size of the array, design 1 (the visibility in a pass of its own) became the build.
+The orchestrator picked design 2 of `t0-t2oq planning notes`, "The direct shader's register budget: two designs": one loop over the shadowed lights fills a local array of visibilities before the response loops, and the response loops read the array and hold no shadow read. Its gate was this count: in the form with the three blocked features, both direct shaders keep at least 8 registers of room, so a highest register of 107 or less. If the form failed the gate at every size of the array, design 1 (the visibility in a pass of its own) became the build.
 
 A count shows the compiler's choice, not a time. Nothing here was timed.
 

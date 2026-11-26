@@ -5,7 +5,7 @@ public readonly record struct ThrowLanding(double Time, Double3 Place);
 
 /// <summary>
 /// The release of a box in a station whose frame falls freely and turns about its +Y at a steady rate, and the two
-/// predictions of its landing that the coda sets side by side (docs/plans/blue-danube-demo.md, "The coda"). A free box
+/// predictions of its landing that the coda sets side by side (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The coda"). A free box
 /// moves on a straight line in inertial space: through its place, at its velocity relative to the station plus the
 /// velocity ω × r of the station's point there. In the station's turning axes, that line bends. The flat field is the
 /// textbook's other answer: a parabola over a flat floor in a field of one strength that does not turn.

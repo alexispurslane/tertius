@@ -1,4 +1,4 @@
-// The motion target (docs/plans/temporal-renderer.md, "Jitter"): for each pixel, xy the last drawn frame's place of its
+// The motion target (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "Jitter"): for each pixel, xy the last drawn frame's place of its
 // surface point minus this frame's place, in units of the image's width and height, with y down the image, and z the
 // ratio of the point's view depth in the last frame to its view depth in this frame. Needs frame.glsl.
 #ifndef TERTIUS_MOTION_GLSL
@@ -58,7 +58,7 @@ vec4 motionApart(vec3 point, vec4 target)
     return vec4(apart, rounding, abs(target.z - still.z), MotionRounding * max(still.z, 1.0));
 }
 
-// Whether a surface point moved since the last draw (docs/plans/bounce-light-confidence.md, section 8.4): its place
+// Whether a surface point moved since the last draw (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.4): its place
 // leaves a still point's by at least LeastMotion pixels and by more than the rounding, or its depth ratio by more than
 // the rounding. `point` and `target` are motionApart's.
 bool movedSurface(vec3 point, vec4 target)
@@ -68,7 +68,7 @@ bool movedSurface(vec3 point, vec4 target)
 }
 
 // Whether a pixel's surface point moves on screen since the last draw by at least LeastMotion pixels, by its motion
-// target `target`: the camera's moves count as well as the surface's (docs/plans/bounce-light-confidence.md, section
+// target `target`: the camera's moves count as well as the surface's (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section
 // 8.4).
 bool movesOnScreen(vec4 target)
 {

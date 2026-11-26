@@ -3,7 +3,7 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The two variants of a pipeline that shades (docs/plans/skin-and-hair.md, "Both sides of a hair card", and "Cost"):
+/// The two variants of a pipeline that shades (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "Both sides of a hair card", and "Cost"):
 /// the two-sided variant draws hair, and the one-sided variant draws every other material, so only the two-sided variant
 /// keeps the code that shades a fiber.
 /// </summary>

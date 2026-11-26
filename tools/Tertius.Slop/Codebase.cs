@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 namespace Tertius.Slop;
 
 /// <summary>
-/// The C# source of a repository that the slop metrics read (docs/plans/code-quality-tooling.md, decision 16): every
+/// The C# source of a repository that the slop metrics read (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling, decision 16): every
 /// file under <c>src</c> that a person wrote, ordered by path. The build output in <c>obj</c> and <c>bin</c> and the
 /// generated files are not part of it. It also holds the names that the files outside <c>src</c> use, so that a rule
 /// can tell code that nothing uses from code that only a test or a script uses (decision 17).

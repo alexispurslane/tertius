@@ -220,7 +220,7 @@ public sealed class HistoryCommandTests : IDisposable
         git.Write("README.md", "docs");
         string docs = git.Commit("docs only");
         git.Write("src/A.cs", Long);
-        string source = git.Commit("ter-ab12: more code");
+        string source = git.Commit("#12: more code");
         git.Write("README.md", "more docs");
         string tip = git.Commit("docs again");
 
@@ -361,11 +361,11 @@ public sealed class HistoryCommandTests : IDisposable
     public void TheHistoryCommandPrintsTheNotedCommitsAsCsvNewestFirst()
     {
         git.Write("src/A.cs", Short);
-        NoteAt(git.Commit("ter-aaaa: first"));
+        NoteAt(git.Commit("#100: first"));
         git.Write("README.md", "docs");
         git.Commit("docs only");
         git.Write("src/A.cs", Long);
-        NoteAt(git.Commit("ter-bbbb: third"));
+        NoteAt(git.Commit("#200: third"));
 
         int exit = Run("history");
 
@@ -380,7 +380,7 @@ public sealed class HistoryCommandTests : IDisposable
             .Select(line => line.Split(','))
             .Select(cells => (cells[3], cells[9]))
             .Should()
-            .Equal(("ter-bbbb", "8"), ("ter-aaaa", "4"));
+            .Equal(("#200", "8"), ("#100", "4"));
     }
 
     [Fact]
@@ -412,7 +412,7 @@ public sealed class HistoryCommandTests : IDisposable
         git.Commit("docs only");
         string ifs = string.Concat(Enumerable.Range(0, 11).Select(i => $"        if (x == {i}) return {i};\n"));
         git.Write("src/A.cs", $"class A\n{{\n    int F(int x)\n    {{\n{ifs}        return 0;\n    }}\n}}\n");
-        string complex = git.Commit("ter-ab12: a complex function");
+        string complex = git.Commit("#12: a complex function");
         NoteAt(complex);
 
         int exit = Run("summary", pushed, "HEAD");
@@ -422,7 +422,7 @@ public sealed class HistoryCommandTests : IDisposable
             .ToString()
             .Should()
             .Contain("Erosion 1.0000 (+1.0000)")
-            .And.Contain($"+46.5  {complex[..7]}  ter-ab12  ter-ab12: a complex function");
+            .And.Contain($"+46.5  {complex[..7]}  #12  #12: a complex function");
     }
 
     [Fact]
@@ -432,10 +432,10 @@ public sealed class HistoryCommandTests : IDisposable
         string pushed = git.Commit("first");
         NoteAt(pushed);
         git.Write("src/A.cs", Complex);
-        string complex = git.Commit("ter-ab12: a complex function");
+        string complex = git.Commit("#12: a complex function");
         NoteAt(complex);
         git.Write("src/B.cs", Long);
-        string simple = git.Commit("ter-cd34: simple functions beside it");
+        string simple = git.Commit("#34: simple functions beside it");
         NoteAt(simple);
 
         Run("summary", pushed, "HEAD");
@@ -454,7 +454,7 @@ public sealed class HistoryCommandTests : IDisposable
         string pushed = git.Commit("first");
         NoteAt(pushed);
         git.Write("src/A.cs", Complex);
-        NoteAt(git.Commit("ter-ab12: a complex function"));
+        NoteAt(git.Commit("#12: a complex function"));
         git.Write("README.md", "docs");
         git.Commit("docs only");
 

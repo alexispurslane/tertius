@@ -1,4 +1,4 @@
-"""MPFB 2, the MakeHuman add-on for Blender, for model scripts (docs/plans/asset-pipeline.md, "Humans from MPFB").
+"""MPFB 2, the MakeHuman add-on for Blender, for model scripts (https://github.com/alexispurslane/tertius/wiki/asset-pipeline, "Humans from MPFB").
 
 A model script makes a human with MPFB's own code, in this order:
 

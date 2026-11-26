@@ -5,7 +5,7 @@ namespace Tertius.Host.Tests;
 
 /// <summary>
 /// The docking's one flat state machine, <see cref="DockingAutopilot.Next"/>, row by row, with no World
-/// (docs/plans/blue-danube-demo.md, "The docking", "The phases"). Each row is one case and one event: the order
+/// (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The docking", "The phases"). Each row is one case and one event: the order
 /// <see cref="Dock"/> from the script, or a report of the case that flew the tick.
 /// </summary>
 public sealed class DockingMachineTests

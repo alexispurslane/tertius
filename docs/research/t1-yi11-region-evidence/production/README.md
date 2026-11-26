@@ -4,7 +4,7 @@ This record checks the production code of t1-yi11 (commit `8081c945d`) in the re
 `3cfcfd2b3`. The review base has the same `src/` as `7dae0342b`, the baseline that the ticket names. The pictures and
 numbers below come from 2026-11-24, on this Mac (Apple M-series GPU, MoltenVK).
 
-Terms, as in `docs/plans/bounce-light-confidence.md`, section 8.7:
+Terms, as in `https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence`, section 8.7:
 
 - **prod** is the production code: diffuse cap 128, the change gate in `regionRing.a`, the open gate's signed test and
   the closed gate's signed neighbor Welch test.

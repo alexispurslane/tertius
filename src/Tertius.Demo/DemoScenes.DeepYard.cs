@@ -11,7 +11,7 @@ public static partial class DemoScenes
     /// 2 m, that drifts through space at <see cref="DriftSpeed"/>. Its bodies are fast relative to space and slow relative
     /// to each other, so the engine holds them in falling numeric frames that move with the yard, and those frames lie
     /// farther than 10^9 m from space's origin, so the engine nests them under a nesting frame on the grid of 2^20 m. See
-    /// docs/plans/numeric-frames.md, "Nesting for vast distances".
+    /// https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Nesting for vast distances".
     /// <list type="bullet">
     /// <item>The root frame <c>space</c> has no gravity. Its origin is where the light comes from.</item>
     /// <item>The yard's center, <see cref="Center"/> at the start, lies one light-year from space's origin along -Z. The

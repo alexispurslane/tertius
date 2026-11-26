@@ -6,7 +6,7 @@ using static Tertius.Rendering.Tests.BrdfTesting;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// Hair shaded as fibers on the GPU (docs/plans/skin-and-hair.md, "The hair model", "Hair in each pass"): the light of a
+/// Hair shaded as fibers on the GPU (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The hair model", "Hair in each pass"): the light of a
 /// hair pixel depends on its strand, the eye and the light, never on its card's plane. The cards are the plane mesh,
 /// 2 m square, 3 m ahead, whose strands run along +v. The exposure is fixed at 0 stops, so the HDR image holds radiance.
 /// </summary>
@@ -590,7 +590,7 @@ public sealed class HairRenderTests
     public void AHairCardLitFromBehindDoesNotShadowItself()
     {
         // The card casts into the sun's cascades. Its shadow lookups offset the point toward the light, off the card's
-        // side that the light sees (docs/plans/skin-and-hair.md, decision 27).
+        // side that the light sees (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, decision 27).
         var toSun = Vector3.Normalize(new(0.2f, 0.3f, -0.93f));
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try

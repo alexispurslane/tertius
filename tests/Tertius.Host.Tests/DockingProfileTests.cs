@@ -3,7 +3,7 @@ using Tertius.Demo;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The profile of the docking's spin-up, <see cref="SpinUpProfile"/> (docs/plans/blue-danube-demo.md, "The spin-up and the
+/// The profile of the docking's spin-up, <see cref="SpinUpProfile"/> (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The spin-up and the
 /// roll"), as pure math, in the station's axes. The spin-up turns the shuttle about the station's axis, +Y, from still among
 /// the stars to the station's rate in 30 s, with a constant angular acceleration. Its attitude target trails the docked
 /// rotation by the lag λ(τ) = ω (T - τ)² / (2T), which falls to zero. The roll is folded into the start: the spin-up starts

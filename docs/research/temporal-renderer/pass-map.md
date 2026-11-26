@@ -100,7 +100,7 @@ References on the branch: `src/Tertius.Rendering/UpscalingSetting.cs:65`, `src/T
 
 It is a static spatial upscaling experiment. It has no temporal histories, no motion vectors, no jitter and no controller of dynamic resolution. A resize destroys and rebuilds the images and needs an idle device.
 
-`.tickets/ter-htg7.md:3` is open and blocked by ter-b2da. Its merge procedure has these steps (`.tickets/ter-htg7.md:21`): bring in current main, reconcile the renderer, resource and layout changes, and update ARCHITECTURE.md. Then rerun the Checked and Release tests, review captures, and do the skipped coverage and mutation work. A later note approves the demo's scale 0.77 and a sharpness of one stop (`.tickets/ter-htg7.md:30`).
+`ter-htg7 planning notes` is open and blocked by ter-b2da. Its merge procedure has these steps (`ter-htg7 planning notes`): bring in current main, reconcile the renderer, resource and layout changes, and update ARCHITECTURE.md. Then rerun the Checked and Release tests, review captures, and do the skipped coverage and mutation work. A later note approves the demo's scale 0.77 and a sharpness of one stop (`ter-htg7 planning notes`).
 
 The reusable part is the size split. Merging its FSR 1 and SMAA pipeline as it is does not carry out the FSR 3.1 decision.
 
@@ -110,7 +110,7 @@ The reusable part is the size split. Merging its FSR 1 and SMAA pipeline as it i
 
 Reference images are compared with FLIP, a perceptual difference measure, with a default tolerance of 0.1. Approval uses `TERTIUS_APPROVE_SNAPSHOTS=1`. A failure writes the actual image and a heat map (`tests/Tertius.Rendering.Tests/ReferenceImages.cs:22` and line 67). Seven approved reference PNGs exist.
 
-The planned switch for deterministic rendering is not in `RendererOptions`. The plan still describes it at `docs/plans/renderer-snapshot-tests.md:16`.
+The planned switch for deterministic rendering is not in `RendererOptions`. The plan still describes it at `https://github.com/alexispurslane/tertius/wiki/renderer-snapshot-tests:16`.
 
 Headless runs use:
 
@@ -136,26 +136,26 @@ These places state that nothing accumulates over frames, or build on that rule. 
 
 | Document | Lines |
 |---|---|
-| `docs/plans/rendering-performance.md` | 34, 50, 99, and the exclusion of dynamic resolution at 100 |
-| `docs/plans/rendering-upgrade.md` | 47 |
-| `docs/plans/renderer-snapshot-tests.md` | 16, 19 |
-| `docs/plans/ambient-occlusion.md` | 53, 72, 211, 350, 568, 578 |
-| `docs/plans/screen-space-illumination.md` | 26, 76, 87, 137, 145, 1004, 1052, 1060, 1061, 1374, 1632 |
-| `docs/plans/screen-space-reflections.md` | 54, 62, 95, 465, 1445, 1447 |
-| `docs/plans/screen-space-artifacts.md` | 16 |
-| `docs/plans/environment-map-distances.md` | 22, 83, 734 |
-| `docs/plans/environment-maps-per-frame.md` | 507, 513 |
-| `docs/plans/skinning-and-morphs.md` | 784, 791 |
-| `docs/plans/skin-and-hair.md` | 75, 101, 111, 721, 792, 1307 |
+| `https://github.com/alexispurslane/tertius/wiki/rendering-performance` | 34, 50, 99, and the exclusion of dynamic resolution at 100 |
+| `https://github.com/alexispurslane/tertius/wiki/rendering-upgrade` | 47 |
+| `https://github.com/alexispurslane/tertius/wiki/renderer-snapshot-tests` | 16, 19 |
+| `https://github.com/alexispurslane/tertius/wiki/ambient-occlusion` | 53, 72, 211, 350, 568, 578 |
+| `https://github.com/alexispurslane/tertius/wiki/screen-space-illumination` | 26, 76, 87, 137, 145, 1004, 1052, 1060, 1061, 1374, 1632 |
+| `https://github.com/alexispurslane/tertius/wiki/screen-space-reflections` | 54, 62, 95, 465, 1445, 1447 |
+| `https://github.com/alexispurslane/tertius/wiki/screen-space-artifacts` | 16 |
+| `https://github.com/alexispurslane/tertius/wiki/environment-map-distances` | 22, 83, 734 |
+| `https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame` | 507, 513 |
+| `https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs` | 784, 791 |
+| `https://github.com/alexispurslane/tertius/wiki/skin-and-hair` | 75, 101, 111, 721, 792, 1307 |
 | `ARCHITECTURE.md` | 2117, 2305, and the fixed-noise description at 2116 |
 
 Tickets:
 
-- The original effects: `.tickets/ter-b3h5.md` lines 21 and 36, `.tickets/ter-jxv9.md:21`, `.tickets/ter-a24f.md:32`, `.tickets/ter-zi4i.md:15`.
-- Performance limits: `.tickets/ter-izsu.md:30`, `.tickets/ter-ff6y.md:26`, `.tickets/ter-of1p.md:30`, `.tickets/ter-3g1g.md:26`.
-- Reflection alternatives: `.tickets/ter-y8z0.md` lines 121 and 127, `.tickets/ter-f3g2.md` lines 15, 30, 37, 42 and 125, `.tickets/ter-rnjk.md:13`, `.tickets/ter-nw4a.md:15`, `.tickets/ter-jw7g.md:15`.
-- Other limits and history: `.tickets/ter-k96l.md:38`, `.tickets/ter-rjts.md:136`, `.tickets/ter-1r63.md:13`, `.tickets/ter-7gtc.md:14`, `.tickets/ter-p349.md:15`.
-- The superseding decision: `.tickets/ter-89xq.md` lines 14 and 27.
+- The original effects: `ter-b3h5 planning notes` lines 21 and 36, `ter-jxv9 planning notes`, `ter-a24f planning notes`, `ter-zi4i planning notes`.
+- Performance limits: `ter-izsu planning notes`, `ter-ff6y planning notes`, `ter-of1p planning notes`, `ter-3g1g planning notes`.
+- Reflection alternatives: `ter-y8z0 planning notes` lines 121 and 127, `ter-f3g2 planning notes` lines 15, 30, 37, 42 and 125, `ter-rnjk planning notes`, `ter-nw4a planning notes`, `ter-jw7g planning notes`.
+- Other limits and history: `ter-k96l planning notes`, `ter-rjts planning notes`, `ter-1r63 planning notes`, `ter-7gtc planning notes`, `ter-p349 planning notes`.
+- The superseding decision: `ter-89xq planning notes` lines 14 and 27.
 
 Code assumptions: `src/Tertius.Rendering/Shaders/skin_scatter_rows.comp:4`, `src/Tertius.Rendering/Shaders/gtao.glsl:141` and `src/Tertius.Rendering/Shading/OcclusionNoise.cs:5`. If that pass stays spatial, the skin scatter comment stays right.
 

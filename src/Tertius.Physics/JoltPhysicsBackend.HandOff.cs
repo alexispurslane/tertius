@@ -482,7 +482,7 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// The poses of <paramref name="frame"/> in <paramref name="parent"/> at both ends of the step, by which a ghost converts
-    /// its real body's chords between the two (docs/plans/spin-gravity.md, "The two conversion rules"), when the frame turns
+    /// its real body's chords between the two (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The two conversion rules"), when the frame turns
     /// against its parent in the step: when the turn of the step in flight of the frame or of the parent is not the identity
     /// (see <see cref="FrameTree.StepTurn"/>). The end is <paramref name="end"/>, the pose of the frame's step record (see
     /// <see cref="MotionOf"/>), and the start the frame's pose where the step started (see <see cref="StartPoseOf"/>). Null
@@ -503,7 +503,7 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// The pose of <paramref name="frame"/> in its tree parent where the step started: the pose of the teleport that its
     /// level took in the step, else its tree pose, as the frame tree's BeginStep takes the start of a level
-    /// (docs/plans/spin-gravity.md, "V1, the turn of the step in flight"). A hull's teleport is in the hull's home, the
+    /// (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V1, the turn of the step in flight"). A hull's teleport is in the hull's home, the
     /// frame's tree parent (see <see cref="ApplyBodyIntent"/> and <see cref="TeleportStaticHull"/>). A frame without a hull
     /// takes the teleport of an intent whose motion intent gives the frame its step record (see
     /// <see cref="PhysicsIntent.StepRecord"/>), and holds still where it stands otherwise (see <see cref="PredictRecord"/>).
@@ -523,7 +523,7 @@ public sealed partial class JoltPhysicsBackend
     }
 
     /// <summary>
-    /// Keeps a ghost of each body in every system whose bodies can touch it (docs/plans/complete-ghosts.md): in each child
+    /// Keeps a ghost of each body in every system whose bodies can touch it (https://github.com/alexispurslane/tertius/wiki/complete-ghosts): in each child
     /// frame whose content it reaches, and, for a body that can move and sticks out of its bubble, in the bubble's tree
     /// parent and in each sibling frame whose content it reaches. The content of a frame is its bubble grown by its
     /// excess, how far the bounding spheres of the members of the frame's systems that can move reach beyond the bubble
@@ -864,7 +864,7 @@ public sealed partial class JoltPhysicsBackend
     /// anchor rests in a following frame of its own, so that velocity is about the anchor's speed in the home's system, and
     /// the ghost has no linear cast there: the limit that the doc accepts for anchors that move differently. The ghost has
     /// the anchor's own layer, so it meets what the anchor meets: a hull's ghost only static bodies and other hulls, and a
-    /// plain kinematic body's ghost what that body's layer and collision groups name (docs/plans/numeric-frames.md,
+    /// plain kinematic body's ghost what that body's layer and collision groups name (https://github.com/alexispurslane/tertius/wiki/numeric-frames,
     /// "Following frames").
     /// </summary>
     private void WantAnchorGhosts(BodyRecord anchor, ReadOnlySpan<NumericGhost> anchorGhosts, in BodySnapshot s)

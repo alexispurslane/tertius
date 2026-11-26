@@ -8,7 +8,7 @@ namespace Tertius.Rendering;
 /// The constant buffer <c>cbFSR3Upscaler</c> of AMD's FSR 3.1.4 passes, in the layout of AMD's
 /// <c>Fsr3UpscalerConstants</c> (ffx_fsr3upscaler_private.h), which is also the buffer's std140 layout. The CPU writes
 /// every field as AMD's host does (<see cref="Next"/>), except <see cref="DeltaPreExposure"/>, which the exposure step
-/// writes on the GPU (docs/plans/temporal-renderer.md, decision 31).
+/// writes on the GPU (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, decision 31).
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct Fsr3Constants

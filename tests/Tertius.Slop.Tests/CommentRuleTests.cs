@@ -3,7 +3,7 @@ using AwesomeAssertions;
 namespace Tertius.Slop.Tests;
 
 /// <summary>
-/// The verbosity rules about comments and directives (docs/plans/code-quality-tooling.md, decision 17): a decorative
+/// The verbosity rules about comments and directives (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling, decision 17): a decorative
 /// banner, from scb-check, and the user's rules for a comment that repeats the code under it, a doc comment that repeats
 /// a name, commented-out code, a TODO without a ticket and a region.
 /// </summary>
@@ -353,13 +353,14 @@ public sealed class CommentRuleTests
 
     [Theory]
     [InlineData("// TODO: merge the two tables.")]
+    [InlineData("// TODO(ter-a3ya): old ticket ids do not count as GitHub issues.")]
     [InlineData("// FIXME the order is wrong.")]
     [InlineData("/* HACK: skip the first frame. */")]
     public void ATodoWithoutATicketIdIsFlagged(string comment) =>
         Source.RulesIn($"{comment}\nclass C {{ }}").Should().Equal("todo-without-ticket");
 
     [Theory]
-    [InlineData("// TODO(ter-a3ya): merge the two tables.")]
+    [InlineData("// TODO(#42): merge the two tables.")]
     [InlineData("// The todo list of the frame.")]
     public void ATodoWithATicketIdOrTheWordInProseIsNotFlagged(string comment) =>
         Source.RulesIn($"{comment}\nclass C {{ }}").Should().BeEmpty();

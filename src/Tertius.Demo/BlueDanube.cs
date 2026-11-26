@@ -10,7 +10,7 @@ using StationExit = Tertius.Demo.DemoScenes.StationExit;
 namespace Tertius.Demo;
 
 /// <summary>
-/// The Blue Danube demo's one unbroken run, as a script of film steps (docs/plans/blue-danube-demo.md, "The long script"):
+/// The Blue Danube demo's one unbroken run, as a script of film steps (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The long script"):
 /// one <see cref="FilmSection"/> for each part of the sequence, in its order, in the scene <c>demo-surface</c>. Today the
 /// sections cover the parts that exist: the walk through the terminal into the shuttle, the launch to orbit with the pen,
 /// the rendezvous with the station, to the hold point on its axis, the docking in the station's bay, and the exit down the
@@ -69,7 +69,7 @@ public static class BlueDanube
     public static ScriptWindow Window { get; } = new(1280, 720);
 
     /// <summary>
-    /// The sections of the exit (docs/plans/blue-danube-demo.md, "The exit", "Sections of the long script"): the person
+    /// The sections of the exit (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The exit", "Sections of the long script"): the person
     /// opens its belt, walks out of the hatch, crosses the deck onto the lift, rides it down the spoke to the wheel, and
     /// walks off it onto the floor. Each cue reads the exit component's case or the person's place in the station's frame,
     /// and none reads the frame that holds the station. They follow the docking's <c>docked</c> at the end of
@@ -167,7 +167,7 @@ public static class BlueDanube
     ];
 
     /// <summary>
-    /// The sections of the coda (docs/plans/blue-danube-demo.md, "The coda", "Sections of the long script"): the person puts
+    /// The sections of the coda (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The coda", "Sections of the long script"): the person puts
     /// the pen away and walks into the stack of loose boxes, which falls, then walks to the stand and throws one box
     /// spinward and one antispinward. Each cue reads the person's <see cref="BoxPlay"/> or the flight recorder of a thrown
     /// box. They follow the exit's sections, in the long script and in <c>scripts/demo-exit.json</c>, and come before
@@ -313,7 +313,7 @@ public static class BlueDanube
             Until: (world, scene) => PassengerOf(world, scene).Value is Holding or Stopped,
             Hold: Second * 3
         ),
-        // The rendezvous (docs/plans/blue-danube-demo.md, "Sections of the long script"): the person floats back to its
+        // The rendezvous (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "Sections of the long script"): the person floats back to its
         // seat with the pen and straps in. Then the shuttle waits in the parking orbit for its window, burns onto the
         // transfer in Earth's night, flies half an orbit to the arrival point, brakes there, and glides along the station's
         // axis to the hold point. Earth casts its shadow, and the parts in Earth's night are filmed from the cabin, where the
@@ -343,7 +343,7 @@ public static class BlueDanube
             Limit: Second * 2300
         ),
         // The first seconds of the transfer burn from outside, in Earth's night, where the main engine's plume glows behind
-        // the dark hull (docs/plans/blue-danube-demo.md, "The plumes").
+        // the dark hull (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The plumes").
         new(Name: "burn-chase", Camera: "chase-camera", Every: 2, Until: FilmSection.Now, Hold: Second * 6),
         // The cabin is also weightless in the tick before the burn starts, so the end of the burn needs the transfer's
         // apoapsis too.
@@ -407,7 +407,7 @@ public static class BlueDanube
         // two films take the 5 s that the hold had alone, so the run ends at the same tick.
         new(Name: "hold", Camera: "rim-camera", Every: 1, Until: FilmSection.Now, Hold: Second * 3),
         new(Name: "hold-chase", Camera: "chase-camera", Every: 1, Until: FilmSection.Now, Hold: Second * 2),
-        // The docking (docs/plans/blue-danube-demo.md, "The docking", "Sections of the long script"): the shuttle waits at
+        // The docking (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The docking", "Sections of the long script"): the shuttle waits at
         // the hold for the station's turn to bring its deck to the right roll, spins up to the station's rate, enters the
         // slot along the axis, moves out to the corner of the deck and lands there. The cues read the docking autopilot's
         // case and places in the station's frame, because the shuttle's frame changes at the hand-off.

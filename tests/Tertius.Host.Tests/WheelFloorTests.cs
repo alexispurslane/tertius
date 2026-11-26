@@ -4,7 +4,7 @@ using DemoStation = Tertius.Demo.DemoScenes.DemoStation;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The wheel's floor as the coda reads it (docs/plans/blue-danube-demo.md, "The coda"): a ring of flat facets in the
+/// The wheel's floor as the coda reads it (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The coda"): a ring of flat facets in the
 /// station's axes, with the angle θ about +Y from +X toward -Z, the way of the station's turn, so spinward is the way of
 /// growing θ. Pure, with no World.
 /// </summary>

@@ -1,7 +1,7 @@
 namespace Tertius.Demo;
 
 /// <summary>
-/// The floor of a station's wheel as the coda reads it (docs/plans/blue-danube-demo.md, "The coda"): the inner face of a
+/// The floor of a station's wheel as the coda reads it (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The coda"): the inner face of a
 /// ring about the station's +Y, <paramref name="Radius"/> from the axis at its joints, made of <paramref name="Segments"/>
 /// flat facets, as <see cref="RevolvedSolid.Ring"/> builds it. Every place is in the station's axes. The angle θ of a
 /// place runs about +Y from +X toward -Z, as RevolvedSolid measures it, and facet k spans θ from k to k + 1 times

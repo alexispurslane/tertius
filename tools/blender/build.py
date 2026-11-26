@@ -5,7 +5,7 @@
 
 The first run writes model.blend, textures/ and, with --views, views/ into the output folder. The second run opens
 model.blend and writes model.glb. Its single thread makes the tangents of the export the same on every run. Both runs
-write build.json. See docs/plans/asset-pipeline.md, "The build tool".
+write build.json. See https://github.com/alexispurslane/tertius/wiki/asset-pipeline, "The build tool".
 """
 
 import argparse

@@ -7,7 +7,7 @@ internal readonly record struct ProfileGaussian(double Variance, Double3 Weight)
 
 /// <summary>
 /// A diffusion profile R_c(r), a sum of Gaussians per color channel, and the kernel of taps made from its marginal
-/// (docs/plans/skin-and-hair.md, "The profile and the kernel").
+/// (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The profile and the kernel").
 /// </summary>
 internal sealed record SkinProfile(ImmutableArray<ProfileGaussian> Gaussians)
 {
@@ -129,7 +129,7 @@ internal readonly record struct ScatterTap(double Offset, Double3 Weight);
 /// <summary>
 /// The taps of one pass of the separable scatter, in the order of their offsets, with the center in the middle, and the
 /// unit of their offsets for the slope rule. The renderer uploads them as 2n + 1 vec4 and the width scale after them
-/// (docs/plans/skin-and-hair.md, "The profile and the kernel").
+/// (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The profile and the kernel").
 /// </summary>
 /// <param name="WidthScale">
 /// How many times wider than the measured profile the offsets are, above 0. The slope rule divides offsets by it.

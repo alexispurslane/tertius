@@ -4,7 +4,7 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The readers of the scene environment map (docs/plans/environment-map.md, "Reading the map"): with the map on, the
+/// The readers of the scene environment map (https://github.com/alexispurslane/tertius/wiki/environment-map, "Reading the map"): with the map on, the
 /// ambient light of the ambient pass, the glass, the impostor captures and the lit puffs comes from the map, and the
 /// hemisphere lights nothing. The camera is at the render origin with identity rotation, so it looks down −Z with +Y up.
 /// A headless draw at an unchanged snapshot time is a long step, so each draw refreshes every face of the map.
@@ -255,7 +255,7 @@ public sealed class EnvironmentLightingTests
 
     /// <summary>
     /// The tolerance on the map's diffuse light D, as a share of its largest D, the light toward its one small bright
-    /// light (docs/plans/environment-map.md, "The irradiance").
+    /// light (https://github.com/alexispurslane/tertius/wiki/environment-map, "The irradiance").
     /// </summary>
     private const double DiffuseTolerance = 0.03;
 
@@ -352,7 +352,7 @@ public sealed class EnvironmentLightingTests
     /// color times D, and the specular term does not depend on the base color of a non-metal, so the difference is D under
     /// the fixed exposure of 0 stops. The exact D comes from the map of the white render, whose D the difference holds. The
     /// map draws the sphere black in both renders, because a face lights its surfaces only by the lights of the list
-    /// (docs/plans/environment-map.md, decision 17) and the glowing ball is emission: the two maps' exact D measured the
+    /// (https://github.com/alexispurslane/tertius/wiki/environment-map, decision 17) and the glowing ball is emission: the two maps' exact D measured the
     /// same to within 0.001 % of the peak. So the two renders' specular terms are the same too.
     /// </summary>
     private static (float[] Diffuse, ExactDiffuse Exact) MatteSphereDiffuse(
@@ -994,7 +994,7 @@ public sealed class EnvironmentLightingTests
     }
 
     /// <summary>
-    /// The reflected stars (docs/plans/environment-map.md, "The reflected stars"), which render many frames each
+    /// The reflected stars (https://github.com/alexispurslane/tertius/wiki/environment-map, "The reflected stars"), which render many frames each
     /// (tests/STYLE.md, "Long tests"). The view is 10° high at 320 × 180, so a pixel spans about 9.7 · 10⁻⁴ rad, as at
     /// 1080p and 60°. Hable's curve shows the HDR image, so that each pixel turns back into its radiance.
     /// </summary>

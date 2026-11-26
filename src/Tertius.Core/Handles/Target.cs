@@ -2,7 +2,7 @@ namespace Tertius;
 
 /// <summary>
 /// The recipient of a message: one entity, the subscribers of a topic, or every live entity.
-/// The union generator writes its union members (docs/plans/union-tooling.md). The entity's index and generation share
+/// The union generator writes its union members (https://github.com/alexispurslane/tertius/wiki/union-tooling). The entity's index and generation share
 /// their two <c>uint</c> slots with the topic's generation, and the topic's id has an <c>int</c> slot, so a target is 16
 /// bytes, as the hand-written union that packed every case into one 64-bit number was.
 /// </summary>

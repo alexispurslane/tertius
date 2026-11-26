@@ -4,7 +4,7 @@
 #include "material.glsl"
 
 // The cutout casters of a shadow map: a texel of the base color whose alpha is below the material's cutoff casts no
-// shadow (docs/plans/skin-and-hair.md, "The cutout test"). Depth only: the rasterizer writes the depth of what remains.
+// shadow (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The cutout test"). Depth only: the rasterizer writes the depth of what remains.
 layout(location = 0) in vec2 inTexCoord;
 layout(location = 1) flat in uint inMaterial;
 

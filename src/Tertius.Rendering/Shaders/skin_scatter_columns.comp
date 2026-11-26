@@ -1,5 +1,5 @@
 #version 460
-// The skin scatter's pass along the columns, "scatter columns" (docs/plans/skin-and-hair.md, "The two passes"): the
+// The skin scatter's pass along the columns, "scatter columns" (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The two passes"): the
 // scattered light S, the kernel's sum of the row image along the column, at each skin pixel, and HDR += S − D there.
 // Every other pixel keeps its value.
 #extension GL_GOOGLE_include_directive : require
@@ -18,7 +18,7 @@ void main()
         return;
     vec3 scattered = scatterAlong(pixel, ivec2(0, 1), imageLoad(rowImage, pixel).rgb);
     vec4 lit = imageLoad(hdrImage, pixel);
-    // Every input is finite and at most 2 · MaxRadiance, so the clamp acts on finite values (docs/plans/skin-and-hair.md,
+    // Every input is finite and at most 2 · MaxRadiance, so the clamp acts on finite values (https://github.com/alexispurslane/tertius/wiki/skin-and-hair,
     // "Portable Vulkan").
     imageStore(hdrImage, pixel, vec4(clamp(lit.rgb + scattered - diffuse.rgb, 0.0, MaxRadiance), lit.a));
 }

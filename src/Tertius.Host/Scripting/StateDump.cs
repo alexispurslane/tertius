@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 namespace Tertius.Host.Scripting;
 
 /// <summary>
-/// The state of the world at one moment of a scripted run. See docs/plans/host-and-scripted-runs.md, "State dumps".
+/// The state of the world at one moment of a scripted run. See https://github.com/alexispurslane/tertius/wiki/host-and-scripted-runs, "State dumps".
 /// </summary>
 /// <param name="Name">The name of the dump step.</param>
 /// <param name="Tick">The number of completed ticks, <c>World.TickNumber</c>.</param>

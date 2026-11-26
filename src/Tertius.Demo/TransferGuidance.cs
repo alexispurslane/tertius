@@ -5,7 +5,7 @@ namespace Tertius.Demo;
 /// <summary>
 /// The guidance of the shuttle's transfer to the station, in a frame whose origin is the planet's center, the center of
 /// its point gravity, and which does not turn. It steers from the measured states of the shuttle and the station alone,
-/// so it corrects every error of the steps before (docs/plans/blue-danube-demo.md, "The transfer guidance").
+/// so it corrects every error of the steps before (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The transfer guidance").
 /// </summary>
 /// <remarks>
 /// <para>The arrival point lies a distance along the station's axis from the station's place at the arrival time, which

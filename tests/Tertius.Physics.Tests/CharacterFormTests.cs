@@ -678,7 +678,7 @@ public sealed class CharacterFormTests
     }
 
     /// <summary>
-    /// Changed on purpose by ter-1b21 (docs/plans/spin-gravity.md, "Characters", fork F5): up follows the gravity in the
+    /// Changed on purpose by ter-1b21 (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Characters", fork F5): up follows the gravity in the
     /// air too. Before, this test was ACharacterThatWalksAgainKeepsTheUpThatItHadBeforeItWasWeightless: a character that
     /// touched nothing kept the up of before its rigid form under the new gravity, as in free fall. Since the user's choice
     /// of 2026-10-20 a character in the air turns its up at most at the air rate, so the quarter turn takes about 1.6 s at

@@ -6,7 +6,7 @@ namespace Tertius.Core.Tests;
 
 /// <summary>
 /// How the frame tree fixes the turns of every frame before a step (<see cref="FrameTree.BeginStep"/>,
-/// docs/plans/spin-gravity.md, "V1, the turn of the step in flight", "V2, the turn of the step that ended" and "V3, the
+/// https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V1, the turn of the step in flight", "V2, the turn of the step that ended" and "V3, the
 /// angular acceleration of a frame's last record"), on a tree built in the test. Each step of a test is the work of one
 /// tick around a step: the tree updates, fixes the turns of the step from the intents of the step, and then takes the
 /// step records of the step at step 2 of the sync point (see <see cref="RunStep"/>).
@@ -810,7 +810,7 @@ public sealed class FrameTreeBeginStepTests
     {
         // The point of the tests above, in the station with a field. Its origin falls as a free body there falls, with the
         // turned field and the rotation terms of its place and chord, so an accelerometer at the origin reads nothing. The push
-        // is what wakes the members of a frame (docs/plans/spin-gravity.md, "The wake"): left with the rotation terms at the
+        // is what wakes the members of a frame (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The wake"): left with the rotation terms at the
         // origin, the centrifugal and the Coriolis term of a point at rest in inertial space, ω² r = 981 m/s² here, it would
         // change as the frame moves, and wake its sleeping members in every step.
         FrameHandle station = Frame(space, DPose.Identity);

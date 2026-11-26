@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 namespace Tertius.Slop;
 
 /// <summary>
-/// The clones that jscpd finds in src (docs/plans/code-quality-tooling.md, decision 17), and their lines. A clone line
+/// The clones that jscpd finds in src (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling, decision 17), and their lines. A clone line
 /// is a line of either copy of a clone. The commit report names the clones that a commit changes.
 /// </summary>
 /// <param name="all">Every clone, ordered by its first copy, then by its second.</param>

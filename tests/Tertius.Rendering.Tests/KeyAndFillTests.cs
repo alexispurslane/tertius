@@ -1,7 +1,7 @@
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The key share of a light at a screen corner (docs/plans/light-pairs.md, "Key and fill"): which lights a corner shades
+/// The key share of a light at a screen corner (https://github.com/alexispurslane/tertius/wiki/light-pairs, "Key and fill"): which lights a corner shades
 /// in full, and how a light moves between its full response and its fill response. A light's loss is what its fill
 /// response loses of its full response at the corner.
 /// </summary>

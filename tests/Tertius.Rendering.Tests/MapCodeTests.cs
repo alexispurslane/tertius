@@ -2,7 +2,7 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The map code in the alpha of the G-buffer's base color: the value that each map writes, and the map that each stored
-/// code names, under either rounding that Vulkan allows (docs/plans/environment-maps-per-frame.md, decision 20).
+/// code names, under either rounding that Vulkan allows (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame, decision 20).
 /// </summary>
 public sealed class MapCodeTests
 {

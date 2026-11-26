@@ -2,7 +2,7 @@
 #extension GL_GOOGLE_include_directive : require
 #include "cube_faces.glsl"
 
-// Level 0 of one map's irradiance cube (EnvironmentPrefilterPass.cs, docs/plans/environment-map.md, "The irradiance"):
+// Level 0 of one map's irradiance cube (EnvironmentPrefilterPass.cs, https://github.com/alexispurslane/tertius/wiki/environment-map, "The irradiance"):
 // D(n) at the center of each texel, the mean of the radiance map's level of SourceFaceSize texels over the hemisphere of n,
 // each source texel weighted by its solid angle times max(n·ω, 0), in all four channels. IrradianceCube.Convolve is the C#
 // copy. The dispatch convolves the run of faces from firstFace of map m: it reads cube m of the radiance map and writes

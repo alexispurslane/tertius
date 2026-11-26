@@ -8,7 +8,7 @@ namespace Tertius.Rendering;
 /// adds the puffs to it, sorted together back to front across all ranges (far range first). Glass and a fringe add their
 /// light and multiply what lies behind by the share that they let through (<see cref="BlendMode.Transmittance"/>). Each
 /// range draws its runs in order: a <see cref="GlassCommands"/> run with the glass pipeline, a <see cref="FringeCommands"/>
-/// run with the fringe pipeline, which blends a texel below the cutoff by its coverage (docs/plans/skin-and-hair.md, "The
+/// run with the fringe pipeline, which blends a texel below the cutoff by its coverage (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The
 /// fringe"), each in the variant that draws back faces for a two-sided run, and a <see cref="PuffSprites"/> run with the
 /// puff pipeline, one instanced draw of 6 vertices per puff. So
 /// glass dims a puff behind it and leaves one in front of it as it is. There is no depth buffer here: occlusion by opaque surfaces in any range uses the G-buffer distance, and depth

@@ -20,7 +20,7 @@ public readonly record struct PointGravity(double Mu)
 /// <summary>
 /// The gravity field of one frame: <see cref="UniformGravity"/>, <see cref="PointGravity"/> or neither, which is no
 /// gravity. An object feels only the field of the frame that it is in.
-/// The union generator writes its union members (docs/plans/union-tooling.md). The empty union is the all-zero default,
+/// The union generator writes its union members (https://github.com/alexispurslane/tertius/wiki/union-tooling). The empty union is the all-zero default,
 /// <see cref="None"/>, and its <c>HasValue</c> is false. A field holds the values of its own case and nothing else, so no
 /// field is a uniform field that also has a G·M.
 /// </summary>

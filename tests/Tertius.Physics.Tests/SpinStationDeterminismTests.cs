@@ -4,7 +4,7 @@ using static Tertius.Testing.WorldTesting;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// The rotation terms keep a run deterministic, on the World and the real Jolt backend (docs/plans/spin-gravity.md,
+/// The rotation terms keep a run deterministic, on the World and the real Jolt backend (https://github.com/alexispurslane/tertius/wiki/spin-gravity,
 /// "Acceptance tests"): a scene in a turning station gives the same events and the same state, to the bit, in every run,
 /// with one gameplay thread and one Jolt thread or with four of each.
 /// </summary>

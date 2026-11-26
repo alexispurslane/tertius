@@ -4,7 +4,7 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The CPU's reading of a map's diffuse light: the last level of its irradiance cube, its mean radiance and the halves it
-/// reads back (docs/plans/environment-map.md, "The irradiance").
+/// reads back (https://github.com/alexispurslane/tertius/wiki/environment-map, "The irradiance").
 /// </summary>
 public sealed class IrradianceTests
 {

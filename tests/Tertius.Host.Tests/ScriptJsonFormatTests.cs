@@ -7,7 +7,7 @@ namespace Tertius.Host.Tests;
 /// <summary>
 /// The exact JSON that scripts and dumps write for steps and event targets, and the exact words with which the strict
 /// reader refuses a bad step or target. They pin the format, so that the way the code reads and writes steps and targets
-/// can change without changing a script, a recording or a dump. See docs/plans/host-and-scripted-runs.md, "Script format".
+/// can change without changing a script, a recording or a dump. See https://github.com/alexispurslane/tertius/wiki/host-and-scripted-runs, "Script format".
 /// </summary>
 public sealed class ScriptJsonFormatTests
 {

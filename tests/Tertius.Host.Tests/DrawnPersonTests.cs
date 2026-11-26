@@ -6,7 +6,7 @@ using DemoSurface = Tertius.Demo.DemoScenes.DemoSurface;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The drawn person of the demo's scenes <c>demo-surface</c> and <c>demo-exit</c> (docs/plans/blue-danube-demo.md, "The
+/// The drawn person of the demo's scenes <c>demo-surface</c> and <c>demo-exit</c> (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The
 /// person's walk"): the person's own row draws nothing, and an attached body with a visor on its front carries the look.
 /// The person's view turns toward its walk, and the body follows the view and bobs with each step. The body lies inside
 /// the box that the cameras and the film checks take for the person, <see cref="DemoSurface.PersonHalf"/>, at every

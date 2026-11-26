@@ -2,7 +2,7 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The card code of a hair pixel in the shading target's 13 spare bits of B and A, beside the light mark and the model's
-/// code (docs/plans/skin-and-hair.md, "The shading target").
+/// code (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The shading target").
 /// </summary>
 public sealed class CardCodeTests
 {

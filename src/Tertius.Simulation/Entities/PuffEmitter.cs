@@ -1,7 +1,7 @@
 namespace Tertius.Simulation;
 
 /// <summary>
-/// The puffs that an entity leaves behind it (docs/plans/particles.md, "The emitter and the look"): a component writes it
+/// The puffs that an entity leaves behind it (https://github.com/alexispurslane/tertius/wiki/particles, "The emitter and the look"): a component writes it
 /// into its own entity's render row, <see cref="RenderData.Emitter"/>, as it writes the entity's light. Puffs leave the
 /// origin of the entity along its local -Z, in a cone of half-angle <see cref="Spread"/>, at <see cref="Speed"/> relative
 /// to the entity, and <see cref="Rate"/> of them in each second. Each puff is born in the entity's frame and lives there

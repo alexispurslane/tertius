@@ -64,7 +64,7 @@ namespace Tertius.Rendering;
 /// </list>
 /// <para>A headless frame whose step is 0, endless or at least <see cref="FrameHistory.MeteringStepSeconds"/> is a still:
 /// it resets every history and draws its warm-up draws before the shown draw, the first of which adapts the exposure and
-/// draws all six faces of the environment map (docs/plans/temporal-renderer.md, "The still rule").</para>
+/// draws all six faces of the environment map (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "The still rule").</para>
 /// <para>Threading: the Create methods, <see cref="Resize"/> and <see cref="CaptureNextFrame"/> may be called from
 /// any thread. <see cref="Render"/> and <see cref="Dispose"/> belong to the render thread.</para>
 /// <para>Ids: each Create method numbers its ids from 0, and none of them is ever None. On an instance,
@@ -639,7 +639,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             wallSeconds: Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency
         );
         // A draw that continues the last frame is 1 draw, and a headless still adds its warm-up draws before the shown draw
-        // (docs/plans/temporal-renderer.md, "The still rule"). Only the shown draw takes the capture.
+        // (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "The still rule"). Only the shown draw takes the capture.
         int draws = history.DrawsOf(step);
         for (int draw = 0; draw < draws; draw++)
             if (!DrawFrame(snapshot: snapshot, alpha: alpha, step: step, draw: draw, takeCapture: draw == draws - 1))
@@ -692,7 +692,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         {
             slotCaptures[frame.Index] = new(Sink: sink, Buffer: capture, Extent: image.Extent);
             // A capture that waits for its frame hands it over now. Its frame has finished, so the stats below describe it
-            // (docs/plans/auto-exposure.md, "Writers and readers").
+            // (https://github.com/alexispurslane/tertius/wiki/auto-exposure, "Writers and readers").
             if (!capturesInFlight)
                 FinishSlot(frame);
         }
@@ -885,7 +885,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <summary>
     /// Grows the deform region to the copies that <paramref name="snapshot"/> needs and gives it, or gives the empty region
     /// with the deformation off. After the uploads, because the need reads this frame's meshes, and before the batch,
-    /// which fills the region (docs/plans/skinning-and-morphs.md, "Every new value, its writers and its readers").
+    /// which fills the region (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "Every new value, its writers and its readers").
     /// </summary>
     private DeformRegion ReserveRegion(RenderSnapshot snapshot, CommandBuffer commandBuffer)
     {

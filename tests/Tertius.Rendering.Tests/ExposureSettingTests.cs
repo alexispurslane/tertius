@@ -1,7 +1,7 @@
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The exposure setting (docs/plans/auto-exposure.md, "The setting"): its default value, the ranges that the renderer
+/// The exposure setting (https://github.com/alexispurslane/tertius/wiki/auto-exposure, "The setting"): its default value, the ranges that the renderer
 /// refuses when it is made, and the exposure that the first frame seeds.
 /// </summary>
 public sealed class ExposureSettingTests

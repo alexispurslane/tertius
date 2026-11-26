@@ -2,7 +2,7 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The size of the deform region, of the pose buffer and the job table, and the dispatches of the deform pass, without a GPU
-/// (docs/plans/skinning-and-morphs.md, "Buffers and the region" and "The pass").
+/// (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "Buffers and the region" and "The pass").
 /// </summary>
 public sealed class DeformRegionTests
 {

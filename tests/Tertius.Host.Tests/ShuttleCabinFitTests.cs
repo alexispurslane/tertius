@@ -9,7 +9,7 @@ using Shuttle = Tertius.Demo.DemoScenes.Shuttle;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The fitted Lunar Shuttle cabin against the converted Pioneer model (ter-tiei, docs/plans/blue-danube-fidelity.md):
+/// The fitted Lunar Shuttle cabin against the converted Pioneer model (ter-tiei, https://github.com/alexispurslane/tertius/wiki/blue-danube-fidelity):
 /// opaque hull panels block front-face rays in both directions, every window opening and the starboard doorway pass rays
 /// cleanly in both directions without hitting opaque hull geometry, the glazing is clear dielectric glass, and the hull
 /// carries spatially varied metallic/roughness and normal maps.

@@ -6,7 +6,7 @@ using static Tertius.Rendering.Tests.ReflectionTesting;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The screen tracer (docs/plans/temporal-renderer.md, section 6) and its two indirect signals, under
+/// The screen tracer (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 6) and its two indirect signals, under
 /// <see cref="ScreenTrace.Default"/> at a fixed exposure of 0 stops: the light that its samples converge to, where a hit's
 /// light comes from, the share of a blocker, the later bounces, a sample at every lit pixel, the ray plan and its
 /// own rays, and the walk against its C# copy.
@@ -431,7 +431,7 @@ public sealed class ScreenTraceRenderTests
         // with f the panel's form factor, the cosine-weighted share of the hemisphere that the panel covers. At 0.95 m the
         // panel covers a third of it, at 4.95 m about 4 %. There the panel's rays are rare and bright, and a clamp of the
         // slow history into the box of the fast histories alone read about half of the panel's share (ter-18hc). The
-        // retained deviation widens the box to hold them (docs/plans/bounce-light-confidence.md, section 7).
+        // retained deviation widens the box to hold them (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 7).
         const float sky = 0.2f;
         const float glow = 2f;
         var receiver = new Vector3(0, FloorHeight, -7);
@@ -469,7 +469,7 @@ public sealed class ScreenTraceRenderTests
     }
 
     /// <summary>
-    /// The bounce light's retained deviation and its filter against real rays (docs/plans/bounce-light-confidence.md,
+    /// The bounce light's retained deviation and its filter against real rays (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence,
     /// decision 6). Each test makes a renderer with the diffuse filter off by its debug switch, so the class holds the
     /// process environment.
     /// </summary>
@@ -676,7 +676,7 @@ public sealed class ScreenTraceRenderTests
             // real bounce light, whose hits also read the last draw's filtered light. Nothing in the still changes, so no
             // sample of either signal may bring a recent light code or a motion bit after the histories fill. Evidence
             // reads what the rays saw, not the samples' statistics, so noise cannot count as a change
-            // (docs/plans/bounce-light-confidence.md, section 16, point 4).
+            // (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 16, point 4).
             var receiver = new Vector3(0, FloorHeight, -7);
             VulkanRenderer renderer = Tracing();
             try
@@ -735,7 +735,7 @@ public sealed class ScreenTraceRenderTests
             // rays that run away from the eye hit it. The wall's pixels do not move, so a wall sample's motion bit comes
             // only from such a ray, which hit a surface that the ray plan marks as moved. A block of 8 × 8 pixels with
             // such a sample and no recent light code has motion evidence, which drops the widening of the block's box
-            // in that draw (docs/plans/bounce-light-confidence.md, section 8.2), the action that
+            // in that draw (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.2), the action that
             // AccumulatorRenderTests.AMovingWallNarrowsTheBoxOfItsBlocksWhileItMoves pins. After the box stops, the light
             // codes of its last moves stay recent for at most 11 draws (section 8.3), so from 16 draws after the stop no
             // block of the wall has evidence, and the widened box returns.

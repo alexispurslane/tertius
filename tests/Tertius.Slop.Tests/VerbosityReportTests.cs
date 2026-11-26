@@ -4,7 +4,7 @@ using Tertius.Slop.Rules;
 namespace Tertius.Slop.Tests;
 
 /// <summary>
-/// The verbosity of a codebase (docs/plans/code-quality-tooling.md, decision 17): the share of its lines of code that a
+/// The verbosity of a codebase (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling, decision 17): the share of its lines of code that a
 /// rule flags or that jscpd finds in a clone. A covered line counts once, and a blank line never counts.
 /// </summary>
 public sealed class VerbosityReportTests

@@ -421,7 +421,7 @@ public sealed partial class World
 
     /// <summary>
     /// The running entity's intent, for writing a push: a force, a torque, an impulse or an angular impulse
-    /// (docs/plans/parts.md, "The public API"). For an entity with a body, its own intent. For a part, an attached entity
+    /// (https://github.com/alexispurslane/tertius/wiki/parts, "The public API"). For an entity with a body, its own intent. For a part, an attached entity
     /// whose chain root has a body, the part's own intent, which the sync point carries to the root's body at the part's
     /// place. The guard reads the part's link and the root's body description, which nothing writes during a tick, so the
     /// part's worker may read them while the root runs on another. Throws <see cref="InvalidOperationException"/> for an
@@ -445,7 +445,7 @@ public sealed partial class World
     /// <c>SetAngularVelocity</c>. Throws <see cref="InvalidOperationException"/> as <see cref="WritableIntent"/> does, and
     /// also when the body is kinematic in the step that applies the velocity (see <see cref="NextStepMotion"/>, which counts
     /// a change of motion that the entity wrote earlier in the tick), hull or plain: a kinematic body moves only by its
-    /// motion intents and teleports, and holds still in a step without one (docs/plans/rails-components.md, "The flow per
+    /// motion intents and teleports, and holds still in a step without one (https://github.com/alexispurslane/tertius/wiki/rails-components, "The flow per
     /// kind of entity").
     /// </summary>
     internal ref PhysicsIntent WritableMotionIntent(Entity entity, string call)
@@ -467,7 +467,7 @@ public sealed partial class World
     /// <summary>
     /// The reason that <paramref name="entity"/> refuses the case of <paramref name="intent"/> in the next step, the step that
     /// applies the intents written in this tick, or null when it takes it: the one guard of every motion intent
-    /// (docs/plans/rails-components.md, "The flow per kind of entity"). An attached entity and a character refuse every case.
+    /// (https://github.com/alexispurslane/tertius/wiki/rails-components, "The flow per kind of entity"). An attached entity and a character refuse every case.
     /// An end pose and a full sample need a body that is kinematic in the next step (see <see cref="NextStepMotion"/>), no
     /// body, or the owner of a root frame, whose body is only the frame's static interior. A steer target needs a body that
     /// is dynamic in the next step. No motion intent is never refused. The writers of a motion intent throw with this reason,

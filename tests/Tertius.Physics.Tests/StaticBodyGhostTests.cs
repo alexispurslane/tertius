@@ -8,7 +8,7 @@ namespace Tertius.Physics.Tests;
 
 /// <summary>
 /// A static body that is not a hull has a ghost in each child frame whose content it reaches, as a hull has, so that the
-/// bodies of the child meet it (ticket ter-xxmj, docs/plans/complete-ghosts.md). The content of a frame is its bubble, grown
+/// bodies of the child meet it (ticket ter-xxmj, https://github.com/alexispurslane/tertius/wiki/complete-ghosts). The content of a frame is its bubble, grown
 /// until it holds the bounding sphere of every member that can move. The ghost has the static body's own layer, so it meets
 /// hulls too (fork F1), and it is static in Jolt while it holds still in its system. Each scene runs across frames and with
 /// the same bodies in one frame, and both runs hear the same events.

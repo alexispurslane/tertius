@@ -27,7 +27,7 @@ vec3 octDecode(vec2 encoded)
     return normalize(octDecodeUnnormalized(encoded));
 }
 
-// The strand's octahedral code in the shading target's R and G (docs/plans/skin-and-hair.md, "The shading target").
+// The strand's octahedral code in the shading target's R and G (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The shading target").
 // StrandCode is the C# twin. floor(x + 0.5) rounds, because GLSL's round leaves its ties to the driver. A unit strand's
 // code lies in [−1, 1]², so the clamp only bounds rounding, on finite values.
 uvec2 strandCode(vec3 strand)

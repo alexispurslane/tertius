@@ -244,7 +244,7 @@ public sealed class BlueDanubeFilmTests(BlueDanubeFilmRun run) : IClassFixture<B
 {
     /// <summary>
     /// The film <c>sky</c>, from <c>sky-camera</c> ahead of the parked nose, shows the low Sun and the crescent Moon over
-    /// the parked shuttle (docs/plans/blue-danube-demo.md, "The Sun and the Moon in the films"): in every frame of it, the
+    /// the parked shuttle (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The Sun and the Moon in the films"): in every frame of it, the
     /// centers of the Sun, the Moon and the shuttle lie in the picture, and a ray from the camera toward the Sun, and one
     /// toward the Moon, meets no body of earth-surface.
     /// </summary>

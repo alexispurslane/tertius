@@ -7,7 +7,7 @@ namespace Tertius.Physics.Tests;
 
 /// <summary>
 /// The first motion intent of a spawn, <see cref="SpawnDesc.FirstMove"/>, on the World and the real backend
-/// (docs/plans/rails-components.md, "The first motion intent of a spawn"). It is the motion intent that the new entity
+/// (https://github.com/alexispurslane/tertius/wiki/rails-components, "The first motion intent of a spawn"). It is the motion intent that the new entity
 /// would have written in the spawn's tick, and the step after the spawn applies it, so that a frame on rails stands on its
 /// rails from its first step. A spawn refuses a case that its entity would refuse.
 /// </summary>

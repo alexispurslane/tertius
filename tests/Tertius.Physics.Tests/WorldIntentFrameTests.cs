@@ -178,7 +178,7 @@ public sealed class WorldIntentFrameTests
 
     /// <summary>
     /// A kinematic cube that hands off out of a ship that cruises on end poses at 30 m/s gets the end pose of the hand-off's
-    /// tick where the ship ends the step that applies it (docs/plans/spin-gravity.md, "V7, the relative motion of two
+    /// tick where the ship ends the step that applies it (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V7, the relative motion of two
     /// frames"): an end pose is a pose at the end of the step, so it converts by the ship's end pose of that step, and not by
     /// where the ship stands at the sync point, half a meter behind.
     /// </summary>
@@ -698,7 +698,7 @@ public sealed class WorldIntentFrameTests
     /// The owner of a cabin turns it by a teleport in the tick in which a ball enters the cabin's bubble, and gameplay sets
     /// the ball's velocity relative to space in that tick. The teleport and the velocity both act at the start of the next
     /// step, so the velocity converts into the cabin by the cabin's pose at the teleport, not by its pose in the tree before
-    /// it (docs/plans/spin-gravity.md, "V7, the relative motion of two frames"), and the ball moves in space as gameplay set it.
+    /// it (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V7, the relative motion of two frames"), and the ball moves in space as gameplay set it.
     /// </summary>
     [Fact]
     public void AVelocitySetInTheTickOfAHandOffIntoAFrameThatTeleportsConvertsByTheTeleportsPose()

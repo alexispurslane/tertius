@@ -9,7 +9,7 @@ namespace Tertius.Host.Tests;
 /// <summary>
 /// The <c>film</c> step on the real headless renderer: it is the same as its expansion into run and capture steps, in its
 /// images and in the state that it leaves, and a camera that dies during a film stops the run at the next frame. See
-/// docs/plans/blue-danube-demo.md, change 2, "The film step".
+/// https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, change 2, "The film step".
 /// </summary>
 public sealed class FilmStepTests : IDisposable
 {

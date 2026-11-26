@@ -4,7 +4,7 @@ using static Tertius.Rendering.Tests.ExposureScenes;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The shaders of the exposure pass against their C# copy, <see cref="ExposureMeter"/> (docs/plans/auto-exposure.md,
+/// The shaders of the exposure pass against their C# copy, <see cref="ExposureMeter"/> (https://github.com/alexispurslane/tertius/wiki/auto-exposure,
 /// "The GPU tests that pin the shaders to the C# copy"): the meter reads the top-left pixel of each 2 × 2 block of the
 /// image and puts each such surface pixel in the bin of its pre-exposed luminance, and the adapt step moves the exposure
 /// as the C# copy does from the same histogram.

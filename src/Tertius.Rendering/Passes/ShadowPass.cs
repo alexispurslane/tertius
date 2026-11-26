@@ -19,7 +19,7 @@ namespace Tertius.Rendering;
 /// steady state.</para>
 /// <para><see cref="Record"/> draws each cascade into its layer of the <see cref="ShadowMap"/> with a depth-only
 /// vkCmdDrawIndexedIndirect per run, from the same global vertex, index and instance buffers as the G-buffer pass. The
-/// cutout run's pipeline discards a texel below its material's cutoff (docs/plans/skin-and-hair.md). It clears the
+/// cutout run's pipeline discards a texel below its material's cutoff (https://github.com/alexispurslane/tertius/wiki/skin-and-hair). It clears the
 /// layers of a set without casters too, because the shading passes sample every set that a light names. Depth clamping
 /// pancakes casters between a cascade box and its light onto the box's light side, and the rasterizer adds a slope-scaled
 /// depth bias. Faces are not culled, so single-sided meshes such as planes cast shadows too.</para>
@@ -206,7 +206,7 @@ internal sealed unsafe class ShadowPass : RenderPass
     {
         for (int layer = 0; layer < scene.CascadeSetCount * ShadowCascades.Count; layer++)
         {
-            // The solid run first: the order in which every opaque pass draws (docs/plans/skin-and-hair.md, decision 25).
+            // The solid run first: the order in which every opaque pass draws (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, decision 25).
             CommandRange solid = EmitRun(
                 scene: scene,
                 meshes: meshes,

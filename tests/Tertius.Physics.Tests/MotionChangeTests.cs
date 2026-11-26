@@ -7,7 +7,7 @@ using static Tertius.Testing.WorldTesting;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// A change of motion is a swap of components and a change of the hull's motion (docs/plans/rails-components.md, "Changes
+/// A change of motion is a swap of components and a change of the hull's motion (https://github.com/alexispurslane/tertius/wiki/rails-components, "Changes
 /// of motion"). The owner of a frame changes its hull's motion in a tick with <c>Self.Body.SetMotion</c>. Step k is the
 /// physics step that runs beside tick k. A change written in tick 1 is in the intents that step 2 applies: physics gives
 /// the Jolt body the new motion type at the start of step 2, and every reader that asks about step 2 derives the new
@@ -691,7 +691,7 @@ public sealed class MotionChangeTests
     /// static body from the step that parks the hull, and the ghost of one that unparks stands for a moving body again.
     /// Physics makes the ghost again at each change, as a new body with the new motion's contact motion, so that Jolt offers
     /// its pairs to the contact filter again: the parked ship's ghost holds still in the station, so it is static in Jolt,
-    /// and the ghost of a ship that moves is kinematic (docs/plans/complete-ghosts.md, case 3b).
+    /// and the ghost of a ship that moves is kinematic (https://github.com/alexispurslane/tertius/wiki/complete-ghosts, case 3b).
     /// </summary>
     [Fact]
     public void TheGhostOfAHullStandsForABodyOfItsNewMotion()

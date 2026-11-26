@@ -106,7 +106,7 @@ public sealed class WorldFacingFrameTests
 
     /// <summary>
     /// Round a heavier planet (see <see cref="HeavyPlanetMu"/>), the station's hull moves at 2 km/s on its orbit, so it rests
-    /// in a following frame of its own (ter-dhkf, docs/plans/numeric-frames.md, "Anchors", rule 3), which never rotates, and
+    /// in a following frame of its own (ter-dhkf, https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Anchors", rule 3), which never rotates, and
     /// the hull turns there with the frame, at 0.4 rad/s. Before rule 3, the hull lived in the planet's own system.
     /// </summary>
     [Fact]

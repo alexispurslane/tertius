@@ -143,7 +143,7 @@ public sealed class ExitRun : IDisposable
 }
 
 /// <summary>
-/// The exit on the real World (docs/plans/blue-danube-demo.md, "The exit" and "The lift"): from the docking's end state,
+/// The exit on the real World (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The exit" and "The lift"): from the docking's end state,
 /// the person opens its belt, walks out of the hatch and across the deck onto the lift, rides it standing down the spoke,
 /// and walks off it onto the wheel's floor. Every place is in the station's axes unless it names the cabin's.
 /// </summary>
@@ -158,7 +158,7 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
     private ExitSample First(Func<ExitSample, bool> holds) => run.Samples.First(holds);
 
     /// <summary>
-    /// The person faces its way (docs/plans/blue-danube-demo.md, "The person's walk"): in the ticks of the walk out and of
+    /// The person faces its way (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The person's walk"): in the ticks of the walk out and of
     /// the stroll in which it stands and moves across its up at 0.9 m/s or more, it faces within 10 degrees of that motion
     /// in 9 ticks of 10 or more. The rest are the ticks of a turn at a waypoint. It starts facing the nose, and its way out
     /// leads aft, so without a turn it would face its back to the walk.

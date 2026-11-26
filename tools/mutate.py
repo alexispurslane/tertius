@@ -59,7 +59,7 @@ import mutation_table  # noqa: E402
 from processes import Stopped, run_logged, stop_on_signals  # noqa: E402
 
 CONFIGURATION = 'Checked'
-TEST_TIMEOUT = 120  # seconds; CLAUDE.md, Testing
+TEST_TIMEOUT = 120  # seconds; AGENTS.md, Testing
 REQUIRED = {'id': str, 'file': str, 'line': int, 'original': str, 'replacement': str, 'project': str}
 OPTIONAL = {'note': str}
 

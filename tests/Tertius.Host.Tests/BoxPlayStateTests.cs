@@ -3,7 +3,7 @@ using Tertius.Demo;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The table of the coda's flat state machine, <see cref="BoxPlayState.Next"/> (docs/plans/blue-danube-demo.md, "The
+/// The table of the coda's flat state machine, <see cref="BoxPlayState.Next"/> (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The
 /// coda", "The box play component"), with no World: each row, and no row for every other pair of a state and an event.
 /// </summary>
 public sealed class BoxPlayStateTests

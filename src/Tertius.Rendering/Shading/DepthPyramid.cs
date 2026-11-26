@@ -3,7 +3,7 @@ using System.Numerics;
 namespace Tertius.Rendering;
 
 /// <summary>The slab of a cell of the depth pyramid, in inverse view depth: the interval of w that the walk treats as
-/// solid there (docs/plans/back-face-depth-layer.md, "The terms").</summary>
+/// solid there (https://github.com/alexispurslane/tertius/wiki/back-face-depth-layer, "The terms").</summary>
 /// <param name="Near">The front w of the slab, in 1/m: the largest w of the cell's surface pixels. 0 without a surface.
 /// </param>
 /// <param name="Back">The back w of the slab, in 1/m: the smallest back w of its pixels. <see cref="EmptyBack"/> without
@@ -30,7 +30,7 @@ internal readonly record struct CellBounds(float Near, float Back)
 
     /// <summary>
     /// The w of the back of what is solid behind a surface at <paramref name="inverseDepth"/> whose back share is
-    /// <paramref name="share"/> (docs/plans/back-face-depth-layer.md, decision 3): w · share for a share between 0 and 1,
+    /// <paramref name="share"/> (https://github.com/alexispurslane/tertius/wiki/back-face-depth-layer, decision 3): w · share for a share between 0 and 1,
     /// and w itself for a sheet, whose share is 0 or 1. slabBack in depth_pyramid.glsl is the GLSL copy.
     /// </summary>
     public static float SlabBack(float inverseDepth, float share) =>
@@ -151,7 +151,7 @@ internal readonly record struct PixelPlane(Vector2 Center, float CenterInverseDe
 }
 
 /// <summary>
-/// The surface of a depth sample that sees a surface (docs/plans/screen-space-reflections.md, "The pixel's surface"):
+/// The surface of a depth sample that sees a surface (https://github.com/alexispurslane/tertius/wiki/screen-space-reflections, "The pixel's surface"):
 /// its <see cref="PixelPlane"/> over the part of its square, one unit of its grid wide, where the plane holds. Toward
 /// each edge neighbor the part reaches the sample's edge where the neighbor continues the plane, or lies beyond the
 /// image, and stops at the sample's center line otherwise. Past the part, the surface keeps the plane's value at the
@@ -289,8 +289,8 @@ internal readonly record struct PixelSurface(
 
 /// <summary>
 /// The depth pyramid on the CPU: the C# copy of depth_pyramid.glsl and the pyramid shaders. Cell (x, y) of level k
-/// covers the pixels whose coordinates shifted right by k give (x, y) (docs/plans/screen-space-reflections.md, "The
-/// depth pyramid"). Every level holds slabs: a front w and a back w (docs/plans/back-face-depth-layer.md).
+/// covers the pixels whose coordinates shifted right by k give (x, y) (https://github.com/alexispurslane/tertius/wiki/screen-space-reflections, "The
+/// depth pyramid"). Every level holds slabs: a front w and a back w (https://github.com/alexispurslane/tertius/wiki/back-face-depth-layer).
 /// </summary>
 /// <remarks>
 /// <list type="bullet">
@@ -453,11 +453,11 @@ internal sealed class DepthPyramid
         x < 0 || y < 0 || x >= Width || y >= Height ? null : surfaces[y * Width + x];
 
     /// <summary>The center w of a pixel, R of the finest level: the inverse view depth of its center, in 1/m, or 0 for
-    /// a pixel that sees the sky or lies outside the screen (docs/plans/temporal-renderer.md, decision 40).</summary>
+    /// a pixel that sees the sky or lies outside the screen (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, decision 40).</summary>
     public float Finest(int x, int y) => Surface(x, y)?.CenterInverseDepth ?? 0;
 
     /// <summary>
-    /// The slab of a pixel, the finest level's texel (docs/plans/back-face-depth-layer.md, decision 3): its center w, and
+    /// The slab of a pixel, the finest level's texel (https://github.com/alexispurslane/tertius/wiki/back-face-depth-layer, decision 3): its center w, and
     /// the back w of that or its plane's far w, whichever lies farther. A sheet's slab so reaches the far end of its plane
     /// over its square. (0, 0) for a pixel that sees the sky or lies outside the screen. pixelSlab in depth_pyramid.glsl
     /// is the GLSL copy.

@@ -2,7 +2,7 @@ namespace Tertius.Assets;
 
 /// <summary>
 /// The content root: the folder that holds the package folders, each with its cooked output in <c>bin/assets/</c>
-/// (docs/plans/content-packages.md). A cooked model lies in the folder named after its source file.
+/// (https://github.com/alexispurslane/tertius/wiki/content-packages). A cooked model lies in the folder named after its source file.
 /// </summary>
 /// <param name="root">The folder that holds the package folders, such as a checkout's <c>content</c> folder.</param>
 public sealed class ContentFolders(string root)

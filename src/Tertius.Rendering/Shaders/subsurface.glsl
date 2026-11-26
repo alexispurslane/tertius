@@ -1,4 +1,4 @@
-// The constants of the skin scatter's passes (docs/plans/skin-and-hair.md, "The two passes"). ShaderConstants sets the
+// The constants of the skin scatter's passes (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The two passes"). ShaderConstants sets the
 // specialization constant for the renderer's life.
 #ifndef TERTIUS_SUBSURFACE_GLSL
 #define TERTIUS_SUBSURFACE_GLSL

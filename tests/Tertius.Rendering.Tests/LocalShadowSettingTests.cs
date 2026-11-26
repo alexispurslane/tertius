@@ -5,7 +5,7 @@ namespace Tertius.Rendering.Tests;
 /// <summary>
 /// <see cref="LocalShadowSetting"/>, <see cref="RendererOptions.LocalShadows"/> and
 /// <see cref="RendererOptions.CascadedLights"/>: the zero case, the defaults of the options, and the rules that refuse a
-/// setting when the renderer is made (docs/plans/local-light-shadows.md, "The setting").
+/// setting when the renderer is made (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, "The setting").
 /// </summary>
 public sealed class LocalShadowSettingTests
 {

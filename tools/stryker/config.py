@@ -9,7 +9,7 @@ import argparse, json, os, subprocess, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from changed_lines import repo_root, changed_lines, runs  # noqa: E402
 
-# The official settings, from the calibration of ter-hxca (.tickets/ter-hxca.md, the calibration note).
+# The official settings, from the calibration recorded in the commit history of 2026-11-01 and 2026-11-02.
 # Concurrency: the test hosts that run at once. Stryker.NET 5.0.0 under its MTP runner reports killed mutants as
 # Survived at a concurrency above 1, and the count changes from run to run (issue #3832, tools/README.md, "Stryker.NET
 # pitfalls"). Raise it only when tools/stryker/compare.py shows the same result for every mutant against concurrency 1.

@@ -5,7 +5,7 @@ using static Tertius.Testing.WorldTesting;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// The membership rules of numeric frames (docs/plans/numeric-frames.md, "Membership", step 4): at each sync point the
+/// The membership rules of numeric frames (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Membership", step 4): at each sync point the
 /// engine puts fast or far bodies into numeric frames, merges frames before their members can touch, splits groups that
 /// stay apart, drains common velocity into the frame and collects empty frames.
 /// </summary>

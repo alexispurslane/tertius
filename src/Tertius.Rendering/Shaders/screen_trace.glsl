@@ -1,4 +1,4 @@
-// The screen tracer (docs/plans/temporal-renderer.md, section 6): the one owner of which pixels start a ray of each kind,
+// The screen tracer (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 6): the one owner of which pixels start a ray of each kind,
 // of a ray's start, its direction and density, its random numbers, its hit point, the light of a hit and of a miss, and
 // the block records. Its five kernels include it: screen_trace_plan.comp, screen_trace_block_rays.comp and
 // screen_trace_own_rays.comp (each of both kinds, by a specialization constant), screen_trace_resolve.comp and
@@ -71,7 +71,7 @@ const int TileBlocks = 8;
 
 // A record's w: bit 0 whether its ray traced. A ray below its pixel's geometric plane, and a block that no pixel starts,
 // trace nothing. With a precise specular history, bits 1 to 14 hold the hit's light code (RecordCodeBits) and bit 15 its
-// moved mark (RecordMovedMark), so the rays take no new storage (docs/plans/bounce-light-confidence.md, section 8.5).
+// moved mark (RecordMovedMark), so the rays take no new storage (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.5).
 const uint RayTraced = 1u;
 const uint RecordCodeBits = 0x3FFFu;
 const uint RecordMovedMark = 0x8000u;
@@ -102,7 +102,7 @@ const float MostLightAge = 32766.0;
 
 // The largest age that a light code holds: the code, the age plus 1, fills the 14 bits of a ray record's w between
 // RayTraced and the moved mark (recordOf). An older light codes as this age, which changes no cut while a history holds
-// fewer frames (docs/plans/bounce-light-confidence.md, section 8.5).
+// fewer frames (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.5).
 const float MostCodedAge = 16382.0;
 
 // The draws in a row that a light must stay outside the range of the last exact light to count as a change
@@ -147,7 +147,7 @@ bool changingLight(float g)
     return recent || pendingDrawsOfRecord(g) > 0.0;
 }
 
-// Whether a change of the light covers an area at a pixel (docs/plans/sub-pixel-strips.md, section 5.2): whether the
+// Whether a change of the light covers an area at a pixel (https://github.com/alexispurslane/tertius/wiki/sub-pixel-strips, section 5.2): whether the
 // opening of the changing records by a 3 × 3 block holds the pixel, that is whether some 3 × 3 block around it changes
 // whole. `changing` holds changingLight of the 5 × 5 records around the pixel, row by row, the pixel in the middle, and the
 // pixel must be changing. A moving light or caster, or a lamp that switches, changes the light of a band many pixels wide,
@@ -293,7 +293,7 @@ const uint TurnPhaseDraw = 0x5243u;
 
 // The depth of the box that a guided diffuse ray aims at, as a share of the target's depth
 // (LightPyramid.TargetDepthShare). It is no thickness: a guided ray that the walk rejects behind a thin surface counts
-// as a miss (docs/plans/back-face-depth-layer.md, decision 7).
+// as a miss (https://github.com/alexispurslane/tertius/wiki/back-face-depth-layer, decision 7).
 const float TargetDepthShare = 0.05;
 
 // The reflection rays' blue-noise mask (BlueNoiseMask), which blue_noise.glsl reads.
@@ -897,7 +897,7 @@ TracedRay traceFrom(ivec2 pixel, ivec2 cell, TracingPixel p, uint kind)
 }
 
 // The share of the diffuse ray's estimate in the pixel's specular sample: 0 below the hand-over band, 1 above it
-// (docs/plans/temporal-renderer.md, "Rough reflections reuse the diffuse rays").
+// (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "Rough reflections reuse the diffuse rays").
 float handOverOf(TracingPixel p)
 {
     return clamp((sqrt(p.alpha) - trace.handOverStart) / (trace.maxRoughness - trace.handOverStart), 0.0, 1.0);

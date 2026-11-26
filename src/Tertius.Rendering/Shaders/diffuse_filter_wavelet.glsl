@@ -11,7 +11,7 @@
 // no stop acts, as on an even surface, it is the paper's mean. The variance of the luminance follows the same shares, as
 // the paper's mean of independent taps. The feedback step instead carries the deviation with the light by the shares
 // themselves, a bound for taps of any correlation, and writes the light into the slow history, which keeps its length,
-// and the deviation into the fast history as its retained deviation (docs/plans/bounce-light-confidence.md, section 7).
+// and the deviation into the fast history as its retained deviation (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 7).
 #ifndef TERTIUS_DIFFUSE_FILTER_WAVELET_GLSL
 #define TERTIUS_DIFFUSE_FILTER_WAVELET_GLSL
 

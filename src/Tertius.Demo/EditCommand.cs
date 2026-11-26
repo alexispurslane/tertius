@@ -7,7 +7,7 @@ using Tertius.Host.Scripting;
 namespace Tertius.Demo;
 
 /// <summary>
-/// <c>--edit</c>: turns the master video of a script into the final video (docs/plans/blue-danube-demo.md, "The edit"). It
+/// <c>--edit</c>: turns the master video of a script into the final video (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The edit"). It
 /// keeps the stretches of the cut list, draws the readouts of the readout log on each frame, puts the title cards before and
 /// after, adds the music, and encodes one MP4 with ffmpeg from the dev shell.
 /// </summary>

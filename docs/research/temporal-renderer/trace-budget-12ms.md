@@ -1,6 +1,6 @@
 # Screen tracer room under a 12.0 ms GPU target
 
-A read-only researcher (GPT 6.1 SOL) wrote this report on 2026-11-04 for `ter-gayt`, as `/private/tmp/trace-budget-12ms.md`. The design update `ter-jxjx` kept its content as the source of section 11 of [temporal-renderer.md](../../plans/temporal-renderer.md). It changed only the punctuation and a few words to the project's writing rules. The source keys name files outside the repository, such as `/private/tmp/9nrc/runs/`, which can be gone. Their line numbers refer to the files as they were on 2026-11-04.
+A read-only researcher (GPT 6.1 SOL) wrote this report on 2026-11-04 for `ter-gayt`, as `/private/tmp/trace-budget-12ms.md`. The design update `ter-jxjx` kept its content as the source of section 11 of [temporal-renderer.md](../https://github.com/alexispurslane/tertius/wiki/temporal-renderer). It changed only the punctuation and a few words to the project's writing rules. The source keys name files outside the repository, such as `/private/tmp/9nrc/runs/`, which can be gone. Their line numbers refer to the files as they were on 2026-11-04.
 
 Read-only research, November 4, 2026. No repository or worktree file changed. No build, test, or GPU work ran.
 
@@ -33,15 +33,15 @@ An allowance reserves time for work that is not measured. A nominal range combin
 | U | `/private/tmp/9nrc/tool/summary.py` | Clock definition: 1–4. Clock extraction: 9–12. Per-run conversion: 23–30. |
 | W | `/private/tmp/9nrc/windowed.txt` | Diagnostic single-pass rows only. Not used to price a removed or retained pass alone. |
 | G | `/Users/alexispurslane/Development/tertius/docs/research/temporal-renderer/gpu-calibration.md` | Conversion: 206–232. FSR: 276–289. Remaining design allowances: 381–390. Limits: 439–450. |
-| P | `/Users/alexispurslane/Development/tertius/docs/plans/temporal-renderer.md` | Pass changes: 232–260. Section 11: 1132–1163. Measurement method: 1167–1171. |
+| P | `/Users/alexispurslane/Development/tertius/https://github.com/alexispurslane/tertius/wiki/temporal-renderer` | Pass changes: 232–260. Section 11: 1132–1163. Measurement method: 1167–1171. |
 | M | `/Users/alexispurslane/Development/tertius/docs/research/temporal-renderer/pass-map.md` | Timestamp warning: 17. Removed passes: 30–39. Output passes: 43–49. |
 | L | `/Users/alexispurslane/Development/tertius/docs/research/temporal-renderer/lean-trace-spike.md` | Variant definitions: 89–98. Plan and resolve: 146–155. Ray counts: 261–267. |
 | S | `/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/docs/research/temporal-renderer/profiling-spike.md` | Top-clock sums: 48–85. Cap quality: 195–235. Split-pass costs: 339–369. Limits: 586–599. Recommendation: 645–681. |
 | Q | `/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/review-table.md` | Measured paired V6-at-62 sums: rows 14, 26, 38, and 50. |
-| T9 | `/Users/alexispurslane/Development/tertius/.tickets/ter-9nrc.md` | Removal: 69. Measurement method: 73. Revised times and hall explanation: 74–78. |
-| TG | `/Users/alexispurslane/Development/tertius/.tickets/ter-gayt.md` | Earlier budget note: 22. It predates this recalculation. |
-| TB | `/Users/alexispurslane/Development/tertius/.tickets/ter-bqun.md` | Runtime light cap and its acceptance: 15. |
-| TM | `/Users/alexispurslane/Development/tertius/.tickets/ter-ohqr.md` | Already-built kept positions, motion target, and surface test: 28–34. |
+| T9 | `ter-9nrc planning notes` | Removal: 69. Measurement method: 73. Revised times and hall explanation: 74–78. |
+| TG | `ter-gayt planning notes` | Earlier budget note: 22. It predates this recalculation. |
+| TB | `ter-bqun planning notes` | Runtime light cap and its acceptance: 15. |
+| TM | `ter-ohqr planning notes` | Already-built kept positions, motion target, and surface test: 28–34. |
 
 The raw run name is `<view>-<size>-r<round>-<build>`. Each JSON file sits inside a directory with that name. Its matching clock log is beside that directory. The branch rows describe the renderer after sampling and direct accumulation are removed. The base rows use the former sampling path. Sources: R, `/private/tmp/9nrc/runs.txt`, and T9:69–78.
 

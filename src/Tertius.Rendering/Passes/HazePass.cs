@@ -4,7 +4,7 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// One fullscreen pass over all depth ranges that lays the atmosphere's haze over the opaque surfaces of the HDR image
-/// (docs/plans/atmosphere.md, "The haze"), through a dual-source blend: the haze's light times (1 − T) plus the image times
+/// (https://github.com/alexispurslane/tertius/wiki/atmosphere, "The haze"), through a dual-source blend: the haze's light times (1 − T) plus the image times
 /// T, where T is what the air between the eye and the surface lets through. A frame whose atmosphere has no haze records
 /// nothing, so it costs nothing.
 /// </summary>

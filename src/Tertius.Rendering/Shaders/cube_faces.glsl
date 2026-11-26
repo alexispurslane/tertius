@@ -1,4 +1,4 @@
-// The six faces of a cube map, after Vulkan's table of cube map face selection (docs/plans/environment-map.md, "The
+// The six faces of a cube map, after Vulkan's table of cube map face selection (https://github.com/alexispurslane/tertius/wiki/environment-map, "The
 // faces and their axes"). CubeFaces.cs is the C# copy. A face's right is the way the texel column s grows, and its up the
 // way the row t falls, because row 0 is the top of the image.
 #ifndef TERTIUS_CUBE_FACES_GLSL

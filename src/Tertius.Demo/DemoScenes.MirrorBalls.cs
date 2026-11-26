@@ -44,7 +44,7 @@ public static partial class DemoScenes
     private static readonly Double3 PlateReflection = new Double3(0, 0.8, -0.6).Normalized();
 
     /// <summary>
-    /// The scene mirror-balls, the review scene of the environment map (docs/plans/environment-map.md, "Part 6"): the
+    /// The scene mirror-balls, the review scene of the environment map (https://github.com/alexispurslane/tertius/wiki/environment-map, "Part 6"): the
     /// shuttle of <see cref="Shuttle"/> in Earth orbit, with mirrors beside it.
     /// <list type="bullet">
     /// <item>The <c>shuttle</c> starts 400 km up on <see cref="ShipOrbit"/>, <see cref="MirrorBallsOrbitPhase"/> past

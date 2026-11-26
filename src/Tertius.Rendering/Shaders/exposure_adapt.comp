@@ -2,7 +2,7 @@
 #extension GL_GOOGLE_include_directive : require
 #include "meter.glsl"
 
-// The exposure's adapt step (docs/plans/auto-exposure.md, "The math"): the trimmed mean and the bright edge of the
+// The exposure's adapt step (https://github.com/alexispurslane/tertius/wiki/auto-exposure, "The math"): the trimmed mean and the bright edge of the
 // histogram, the target, and the approach of the exposure toward it. Dispatched as one workgroup.
 
 layout(local_size_x = 256) in;

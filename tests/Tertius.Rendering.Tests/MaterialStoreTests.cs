@@ -3,7 +3,7 @@ using System.Numerics;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// A material's row in the material buffer and its slot's facts for the batcher (docs/plans/skin-and-hair.md, "The
+/// A material's row in the material buffer and its slot's facts for the batcher (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The
 /// material on the GPU"). The slot tests upload through a headless renderer.
 /// </summary>
 [Collection(GpuCollection.Name)]

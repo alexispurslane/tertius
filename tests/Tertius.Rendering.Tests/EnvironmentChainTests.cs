@@ -3,7 +3,7 @@ using System.Numerics;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The served chain, the map of an object, the draw rule and the kept maps (docs/plans/environment-maps-per-frame.md,
+/// The served chain, the map of an object, the draw rule and the kept maps (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame,
 /// "The served chain and the map of an object", decisions 8 to 10 and 19). The frame ids of the cabin's chain are 10 for
 /// the sun, 11 for earth, 12 for earth-surface and 13 for the shuttle.
 /// </summary>

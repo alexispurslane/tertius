@@ -113,7 +113,7 @@ public sealed class WorldWakeTests
         world.Errors.Should().BeEmpty();
     }
 
-    // ---- A static hull follows its owner's teleport (docs/plans/rails-components.md, "Frames without a body, and static frames") ----
+    // ---- A static hull follows its owner's teleport (https://github.com/alexispurslane/tertius/wiki/rails-components, "Frames without a body, and static frames") ----
 
     /// <summary>
     /// The owner of a parked platform teleports its static hull 20 m away and turns it a quarter turn. The teleport acts in

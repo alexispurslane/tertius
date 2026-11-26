@@ -2,7 +2,7 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// The shading word of a material, the C# twin of the shaders' reads of <c>GpuMaterial.shading</c>
-/// (docs/plans/skin-and-hair.md, "The material on the GPU"): bits 0 and 1 hold the model's code, and bits 2 and 3 a hair's
+/// (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The material on the GPU"): bits 0 and 1 hold the model's code, and bits 2 and 3 a hair's
 /// strand direction.
 /// </summary>
 internal static class ShadingCode

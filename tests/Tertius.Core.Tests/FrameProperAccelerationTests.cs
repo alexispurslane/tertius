@@ -5,7 +5,7 @@ using Tertius.Frames.Rails;
 namespace Tertius.Core.Tests;
 
 /// <summary>
-/// The rule that gives a frame its proper acceleration, on a tree built in the test (docs/plans/rails-components.md, "The
+/// The rule that gives a frame its proper acceleration, on a tree built in the test (https://github.com/alexispurslane/tertius/wiki/rails-components, "The
 /// proper acceleration of a frame"): a frame's proper acceleration is its acceleration over the step minus the gravity
 /// that acts at its place where the step starts, in the frame's own axes. The gravity at its place is its semantic
 /// parent's field there minus the parent's own proper acceleration. The tests run step 2 of the sync point on the tree
@@ -19,7 +19,7 @@ public sealed class FrameProperAccelerationTests
     private const double OrbitSpeed = 7_672.6;
     private const double Dt = 1.0 / 60;
 
-    // ---- The rotation terms of a turning parent (docs/plans/spin-gravity.md, "The proper acceleration of a frame") ------
+    // ---- The rotation terms of a turning parent (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The proper acceleration of a frame") ------
     // The station turns in place in a root frame without a field about its +Y. A rate ω about +Y gives a place at (r, 0, 0)
     // the centrifugal acceleration (ω² r, 0, 0), a chord (u, 0, 0) the Coriolis acceleration (0, 0, 2 ω u), and an angular
     // acceleration α about +Y the Euler acceleration (0, 0, α r). The gravity at a frame's place in the station is the sum

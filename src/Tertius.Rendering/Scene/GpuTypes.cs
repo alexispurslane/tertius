@@ -9,7 +9,7 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// A vertex as the global vertex buffer holds it: a staged <see cref="Vertex"/> and the number of its card in its mesh,
-/// <see cref="MeshCards.Number"/>, which a hair pixel's card code takes (docs/plans/skin-and-hair.md, "The card number").
+/// <see cref="MeshCards.Number"/>, which a hair pixel's card code takes (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The card number").
 /// 52 bytes. deform.comp writes the same layout into the deform region.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
@@ -38,7 +38,7 @@ internal struct GpuVertex
         };
 }
 
-/// <summary>How a drawn instance relates to the last drawn frame (docs/plans/temporal-renderer.md, "The placement history").</summary>
+/// <summary>How a drawn instance relates to the last drawn frame (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "The placement history").</summary>
 internal enum MotionKind : uint
 {
     /// <summary>The last frame drew the instance's key with the same mesh: it moves from the rows that the last frame drew.</summary>
@@ -53,7 +53,7 @@ internal enum MotionKind : uint
 
 /// <summary>
 /// Where one placed instance was in the last drawn frame, by <see cref="PreparedInstance.PlacedIndex"/>
-/// (docs/plans/temporal-renderer.md, "The placement history"). 64 bytes in std430.
+/// (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "The placement history"). 64 bytes in std430.
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Size = 64)]
 internal struct GpuMotion
@@ -99,15 +99,15 @@ internal struct GpuInstance
     public Vector4 Hemisphere;
 
     /// <summary>
-    /// The instance's map: the index, root first, of the environment map that lights it (docs/plans/environment-maps-per-frame.md,
+    /// The instance's map: the index, root first, of the environment map that lights it (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame,
     /// "The served chain and the map of an object"). 0 with the map off.
     /// </summary>
     public uint Map;
 
     /// <summary>
     /// 1 when the instance's entity holds a light, whose face its glow is, else 0. The shaders' <c>glowSent</c>
-    /// (frame.glsl) reads it: such a glow bounces no light (docs/plans/screen-space-illumination.md, "The bounce source"),
-    /// and the environment map leaves it out (docs/plans/environment-map.md, "How a face is lit").
+    /// (frame.glsl) reads it: such a glow bounces no light (https://github.com/alexispurslane/tertius/wiki/screen-space-illumination, "The bounce source"),
+    /// and the environment map leaves it out (https://github.com/alexispurslane/tertius/wiki/environment-map, "How a face is lit").
     /// </summary>
     public uint HoldsLight;
 
@@ -329,13 +329,13 @@ internal struct GpuLight
 
     /// <summary>
     /// The light's map: the map of the entity that carries it. A face of map i keeps the light only when this is at most i
-    /// (docs/plans/environment-maps-per-frame.md, decision 13).
+    /// (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame, decision 13).
     /// </summary>
     public uint Map;
 
     /// <summary>
     /// 1 when the main view keeps the light (<see cref="PreparedLight.InMainView"/>), else 0. The main view's shaders add
-    /// only the lights with 1 (docs/plans/environment-map.md, decision 20).
+    /// only the lights with 1 (https://github.com/alexispurslane/tertius/wiki/environment-map, decision 20).
     /// </summary>
     public uint InMainView;
 
@@ -566,16 +566,16 @@ internal struct GpuFrameConstants
 
     /// <summary>
     /// R_i, the axes of map i's frame in world axes, interpolated, as a unit quaternion (x, y, z, w), for the served maps,
-    /// root first (docs/plans/environment-maps-per-frame.md, decision 9). The entries past the served maps are not read.
+    /// root first (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame, decision 9). The entries past the served maps are not read.
     /// </summary>
     public MapAxesArray MapAxes;
 
-    /// <summary>The atmosphere of the frame (docs/plans/atmosphere.md, "The renderer").</summary>
+    /// <summary>The atmosphere of the frame (https://github.com/alexispurslane/tertius/wiki/atmosphere, "The renderer").</summary>
     public GpuAtmosphere Atmosphere;
 
     /// <summary>
     /// This frame's view-projection without jitter and without translation, which the motion vectors take
-    /// (docs/plans/temporal-renderer.md, "Jitter"). Only its x, y and w rows count.
+    /// (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "Jitter"). Only its x, y and w rows count.
     /// </summary>
     public Matrix4x4 MotionViewProj;
 
@@ -618,7 +618,7 @@ internal struct MapBoxArray
 
 /// <summary>
 /// The atmosphere in the frame block (std140), 96 bytes: what the shaders of atmosphere.glsl and sky.glsl read
-/// (docs/plans/atmosphere.md, "The renderer"). Without an atmosphere every value is 0 but the tint, which is 1, so the sky
+/// (https://github.com/alexispurslane/tertius/wiki/atmosphere, "The renderer"). Without an atmosphere every value is 0 but the tint, which is 1, so the sky
 /// is black, the haze lets everything through, there is no sun and no light takes a tint.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
@@ -680,7 +680,7 @@ internal struct ShadowMatrices
 
 /// <summary>
 /// The uniform block ScatterKernel of Shaders/skin_scatter.glsl (std140), which <see cref="ScatterImages.Kernel"/> holds: a
-/// <see cref="ScatterKernel"/> as singles (docs/plans/skin-and-hair.md, "The two passes"). 532 bytes.
+/// <see cref="ScatterKernel"/> as singles (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The two passes"). 532 bytes.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct GpuScatterKernel

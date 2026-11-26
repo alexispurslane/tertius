@@ -3,7 +3,7 @@ using Tertius.Simulation;
 namespace Tertius.Demo;
 
 /// <summary>
-/// One of the shuttle's jets, on its part of the hull (docs/plans/blue-danube-demo.md, "The jets as parts"): in each tick
+/// One of the shuttle's jets, on its part of the hull (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The jets as parts"): in each tick
 /// that brings a <see cref="Throttle"/>, it pushes along its <see cref="Jet"/>'s push, turned by the hull's rotation in its
 /// frame, with the throttle's value times the jet's thrust (see <see cref="Jet.Force"/>), and blows its cold gas,
 /// <see cref="Plume"/>, at that throttle. The engine carries the push to the hull's body at the part's place. A tick
@@ -26,7 +26,7 @@ public sealed class JetThruster(Jet jet) : IComponent
     /// <summary>
     /// The jets' exhaust: cold gas, at three quarters of the air's temperature, that the sun and the lamps light pale gray
     /// and that lives 3 s, from 0.6 m across to 6 m. At full throttle 50 puffs leave each second at 20 m/s
-    /// (docs/plans/blue-danube-demo.md, "The plumes").
+    /// (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The plumes").
     /// </summary>
     public static Plume Plume { get; } =
         new(

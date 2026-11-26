@@ -9,7 +9,7 @@ namespace Tertius.Demo;
 public static partial class DemoScenes
 {
     /// <summary>
-    /// The station of the Blue Danube demo (docs/plans/blue-danube-demo.md, "The station" and "The kilometre wheel"): a wheel
+    /// The station of the Blue Danube demo (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The station" and "The kilometre wheel"): a wheel
     /// 4 km across on a circle 400 km up, in the launch plane, which turns about its axis at the rate that gives one
     /// standard gravity on its floor, 2,000 m from the axis. Its shape is <see cref="Layout"/>, in its own axes: +Y is the
     /// axis, about which it turns, and the angle θ about it runs from +X toward -Z. The docking slot is on the +Y side.
@@ -39,13 +39,13 @@ public static partial class DemoScenes
 
         /// <summary>
         /// The world time at which the station passes over the pad, in seconds: 42 s, <see cref="DepartureLead"/> after the
-        /// departure. It sets the launch window (docs/plans/blue-danube-demo.md, "The orbits, the window and the times").
+        /// departure. It sets the launch window (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The orbits, the window and the times").
         /// </summary>
         public const double OverPadAt = 42;
 
         /// <summary>
         /// How long before the station's pass over the pad the shuttle departs, in seconds: 18 s, the lead of the live
-        /// world's ground departure before the station's pass (docs/plans/live-world.md, "Departures"). It sets the
+        /// world's ground departure before the station's pass (https://github.com/alexispurslane/tertius/wiki/live-world, "Departures"). It sets the
         /// departure, <see cref="DemoSurface.DepartureAt"/>.
         /// </summary>
         public const double DepartureLead = 18;
@@ -144,7 +144,7 @@ public static partial class DemoScenes
 
         /// <summary>
         /// The station's orbit in <c>earth</c>, which does not turn and holds Earth's point gravity
-        /// (docs/plans/blue-danube-demo.md, "The station's plane"): a polar circle of <see cref="OrbitRadius"/> in the launch
+        /// (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The station's plane"): a polar circle of <see cref="OrbitRadius"/> in the launch
         /// plane, whose normal is <see cref="DemoSurface.LaunchPlaneNormal"/>. In the departure axes, the ground's axes at
         /// <see cref="DemoSurface.DepartureAt"/>, the orbit is the circle whose normal is -X: at mean anomaly 0 the station
         /// is at +Z and moves toward +Y, and it passes over the pad, at mean anomaly 90 degrees, at <see cref="OverPadAt"/>,

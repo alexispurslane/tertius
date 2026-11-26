@@ -68,7 +68,7 @@ public readonly record struct Halted;
 public readonly partial struct RendezvousState;
 
 /// <summary>
-/// The places, the time and the window of a rendezvous (docs/plans/blue-danube-demo.md, "The orbits, the window and the
+/// The places, the time and the window of a rendezvous (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The orbits, the window and the
 /// times"). The demo flies <see cref="Demo"/>. A test flies a short plan, because the demo's takes an hour.
 /// </summary>
 /// <param name="TransferTime">How long the transfer takes, from the window to the arrival time, in seconds.</param>
@@ -123,7 +123,7 @@ public readonly record struct RendezvousPlan(
 
 /// <summary>
 /// The second layer of the shuttle's flight program: it flies the shuttle from its parking orbit to the hold point of its
-/// <paramref name="station"/>, on the <paramref name="plan"/> (docs/plans/blue-danube-demo.md, "The rendezvous autopilot").
+/// <paramref name="station"/>, on the <paramref name="plan"/> (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The rendezvous autopilot").
 /// In the ticks that it steers, it adds an <see cref="AttitudeTarget"/> for the <see cref="AttitudeAutopilot"/>, and a
 /// <see cref="Throttle"/> for the <see cref="MainEngine"/> and a <see cref="Translation"/> for the translation pairs of
 /// the <see cref="ShuttleJetControl"/> when they push. Those actuators read them after it (see <see cref="Priority"/>). Its

@@ -5,7 +5,7 @@ using static Tertius.Rendering.Tests.BrdfTesting;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The test that pins the shaders to the C# BRDF (docs/plans/pbr-brdf.md, "The GPU test that pins the shaders to the C#
+/// The test that pins the shaders to the C# BRDF (https://github.com/alexispurslane/tertius/wiki/pbr-brdf, "The GPU test that pins the shaders to the C#
 /// copy"). A grid of squares faces the camera: one column per roughness, one row per kind and tilt. Each square's light
 /// at the pixel of its center must show as an emissive square of the C# value shows.
 /// </summary>

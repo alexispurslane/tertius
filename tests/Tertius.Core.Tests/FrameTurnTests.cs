@@ -4,7 +4,7 @@ namespace Tertius.Core.Tests;
 
 /// <summary>
 /// The turn of a frame's axes over one step, and the two-turn update that keeps a free body on its inertial line in those
-/// axes (docs/plans/spin-gravity.md, "The two-turn update", "The angular form" and "The chord rule and the two conversion
+/// axes (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The two-turn update", "The angular form" and "The chord rule and the two conversion
 /// rules"). The tests with literal results use a frame that turns by a quarter turn about +Z in each step of 1 s, so that
 /// every place and chord is a small vector that can be checked by hand. The axes turn by +90° about +Z, so the coordinates
 /// of a direction that is fixed in inertial space turn by −90°: (x, y, z) becomes (y, −x, z).

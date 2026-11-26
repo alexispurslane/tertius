@@ -41,10 +41,10 @@
       {
         "files": [
           "README.md",
+          "AGENTS.md",
           "ARCHITECTURE.md",
           "GUIDE.md",
-          "tools/README.md",
-          "docs/plans/*.md"
+          "tools/README.md"
         ]
       }
     ],

@@ -36,7 +36,7 @@ The bar is the user's: stills and films look good and show no visible bug, that 
 
 ## 3. What I verified, what I read, what I guess
 
-I read the code of `screen_trace.glsl`, `screen_trace_plan.comp`, `accumulate_spatial.comp`, `environment.glsl`, `environment_face_light.frag`, `frame.glsl` and `SignalParameters.cs` on this branch (main at `54bf2768d`). Every quoted snippet comes from these files. I read ARCHITECTURE.md's sections on the screen tracer, the frame history, the accumulator, the environment map and the shadows. I read `docs/plans/renderer-finish.md`, `temporal-renderer.md` (sections 6 and 8), the handoff of 2026-11-14, Design X's doc on its branch (sections 1 and 2), the stage 2 reference of the back-face layer, the frame-time sweep's report, and about 70 tickets.
+I read the code of `screen_trace.glsl`, `screen_trace_plan.comp`, `accumulate_spatial.comp`, `environment.glsl`, `environment_face_light.frag`, `frame.glsl` and `SignalParameters.cs` on this branch (main at `54bf2768d`). Every quoted snippet comes from these files. I read ARCHITECTURE.md's sections on the screen tracer, the frame history, the accumulator, the environment map and the shadows. I read `https://github.com/alexispurslane/tertius/wiki/renderer-finish`, `temporal-renderer.md` (sections 6 and 8), the handoff of 2026-11-14, Design X's doc on its branch (sections 1 and 2), the stage 2 reference of the back-face layer, the frame-time sweep's report, and about 70 tickets.
 
 I built nothing, ran nothing and used no GPU. Every number with a source is a measurement by another agent, and the text names the source. A number marked "estimate" is my own arithmetic. A sentence marked "reading" is my interpretation, not a measurement.
 

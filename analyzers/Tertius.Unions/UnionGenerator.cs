@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace Tertius.Unions;
 
 /// <summary>
-/// Writes the members of every struct marked <c>[GeneratedUnion]</c> (docs/plans/union-tooling.md): a constructor and
+/// Writes the members of every struct marked <c>[GeneratedUnion]</c> (https://github.com/alexispurslane/tertius/wiki/union-tooling): a constructor and
 /// an implicit conversion per case, <c>HasValue</c>, <c>Value</c>, a <c>TryGetValue</c> per case, equality and
 /// <c>ToString</c>. <see cref="UnionReader"/> decides the storage, and <see cref="UnionWriter"/> writes the source.
 /// </summary>

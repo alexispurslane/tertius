@@ -4,7 +4,7 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// Helpers for the GPU tests of the screen tracer's reflections (docs/plans/temporal-renderer.md, section 6): scenes over
+/// Helpers for the GPU tests of the screen tracer's reflections (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 6): scenes over
 /// a floor 1.5 m below the eye, reads of the HDR image, and the C# depth pyramid of a frame. The camera of <see cref="Gpu.Snapshot"/> sits at the origin and looks down −Z with +Y up.
 /// </summary>
 /// <remarks>

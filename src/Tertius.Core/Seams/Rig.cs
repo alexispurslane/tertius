@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 
 namespace Tertius;
 
-/// <summary>A rigid frame of a <see cref="Rig"/> (docs/plans/skinning-and-morphs.md, "The mesh data").</summary>
+/// <summary>A rigid frame of a <see cref="Rig"/> (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "The mesh data").</summary>
 /// <param name="Name">The joint's name, unique among the rig's joints.</param>
 /// <param name="Parent">The index of the parent joint, below the joint's own index, or null for a root joint.</param>
 /// <param name="Rest">The joint pose at rest, relative to the parent joint or to the model's origin.</param>
@@ -17,7 +17,7 @@ public readonly record struct RigMorph(string Name, float Rest);
 
 /// <summary>
 /// The joints of a model, parents before children, and its morphs. The meshes of one model share one rig, and an entity's
-/// <see cref="RigPose"/> poses it (docs/plans/skinning-and-morphs.md).
+/// <see cref="RigPose"/> poses it (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs).
 /// </summary>
 /// <remarks>
 /// <list type="bullet">
@@ -127,7 +127,7 @@ public sealed class Rig
 
 /// <summary>
 /// A joint pose for every joint of a <see cref="Rig"/>, in the rig's order, and a weight for every morph. An entity's
-/// rig pose is its state (docs/plans/skinning-and-morphs.md, "Terms").
+/// rig pose is its state (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "Terms").
 /// </summary>
 /// <param name="Joints">Each joint's pose relative to its parent joint, or to the model's origin for a root joint.</param>
 /// <param name="Weights">Each morph's weight: 0 adds none of a target's deltas, and 1 adds all of them.</param>

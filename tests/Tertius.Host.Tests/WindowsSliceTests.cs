@@ -88,7 +88,7 @@ public sealed class WindowsSliceTests(WindowsRun run) : IClassFixture<WindowsRun
         // cabin. The window spans rows 296 to 410 and columns 537 to 686. The starboard wall shows above row 352, and the
         // floor below row 355.
         //
-        // Changed on purpose by the move to SI units (docs/plans/local-light-shadows.md, Part 5): the lamps send less than a
+        // Changed on purpose by the move to SI units (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, Part 5): the lamps send less than a
         // thousandth of the light of sunlit Earth, so at the exposure that the Earth-lit hull sets the cabin floor through the
         // pane shows far darker than the port face, as a window does by day. Before, the lamps sent 10 times the sunlight
         // and the cabin showed brighter than the dark port face. What shows of the floor is the environment map's light,

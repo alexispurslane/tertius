@@ -5,7 +5,7 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The deformation in C#: the packing of a deforming mesh, the pose rows and the posed bound of a rig pose, and the copy
-/// of deform.comp for one vertex (docs/plans/skinning-and-morphs.md, "The math, and its C# copy"). No GPU needed. The
+/// of deform.comp for one vertex (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "The math, and its C# copy"). No GPU needed. The
 /// cylinders are 2 m long, with Base at the origin and Tip 1 m up.
 /// </summary>
 public sealed class MeshDeformTests

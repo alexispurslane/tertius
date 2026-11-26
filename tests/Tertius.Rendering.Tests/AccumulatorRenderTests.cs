@@ -5,7 +5,7 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The accumulator of a signal (docs/plans/temporal-renderer.md, section 8): a constant sample stays constant, a step of the
+/// The accumulator of a signal (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 8): a constant sample stays constant, a step of the
 /// sample reaches the history within the bound of the anti-lag, a sample that is not finite counts as no sample, a pixel
 /// without a sample or a history takes the closed form, and the specular signal's cap and own tests. The test makes a
 /// signal of two parts, and a test pass, its producer, writes a chosen sample into both parts in each frame. The camera stands still before a wall that fills the view, and each frame steps one tick,
@@ -286,7 +286,7 @@ public sealed partial class AccumulatorRenderTests
         // weight of 1/16, and the box stays wide and holds the step. Then the light evidence cuts the length to
         // FullRateFrames, so each later draw of the evidence blends its sample with the weight 1/9. After the seven draws
         // of the evidence, the history keeps 15/16 × (8/9)^6 = 0.462 of the old light
-        // (docs/plans/bounce-light-confidence.md, sections 4 and 8.3).
+        // (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, sections 4 and 8.3).
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
         try
         {
@@ -848,7 +848,7 @@ public sealed partial class AccumulatorRenderTests
     {
         // The samples' mean is 1 + 32 / 32 = 2. A clamp into the box of the fast histories alone cuts the rare bright
         // samples and reads low (ticket ter-18hc). The retained deviation widens the box to hold them
-        // (docs/plans/bounce-light-confidence.md, section 7).
+        // (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 7).
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
         try
         {
@@ -1380,7 +1380,7 @@ public sealed partial class AccumulatorRenderTests
     public void ARecentLightCodeInABlockCutsEveryContributingHistoryOfItsBlockToFullRateFrames()
     {
         // One pixel of the center block brings the light code 5, a light that changed 4 draws ago: light evidence for
-        // the whole block (docs/plans/bounce-light-confidence.md, section 8.2).
+        // the whole block (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.2).
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
         try
         {
@@ -1648,7 +1648,7 @@ public sealed partial class AccumulatorRenderTests
     public void ALightCodeWithTheMotionBitStillGivesItsBlockLightEvidence()
     {
         // The light code 3 with the motion bit: the stronger level wins, so the block's history is cut to FullRateFrames
-        // after the blend, as without the bit (docs/plans/bounce-light-confidence.md, section 8.4).
+        // after the blend, as without the bit (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.4).
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
         try
         {
@@ -1674,7 +1674,7 @@ public sealed partial class AccumulatorRenderTests
     {
         // Light evidence stands above motion, so a block whose samples bring both keeps the widened box, as light
         // evidence alone does, and its length falls to FullRateFrames. No take has measured such a block under a moving
-        // view since the cut moved to 8 draws (docs/plans/bounce-light-confidence.md, section 8.2, ticket tc-tc8c).
+        // view since the cut moved to 8 draws (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.2, ticket tc-tc8c).
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
         try
         {
@@ -1704,7 +1704,7 @@ public sealed partial class AccumulatorRenderTests
         // strip whose record the jitter keeps young. The blend gives the sample its normal weight, 1 / 16 at the cap of
         // 16, and only after the blend does the block's light evidence cut the length to FullRateFrames. A cut before the
         // blend would give exactly this bright sample the weight 1, so the weight would depend on the sample's own value
-        // and bias the history up (docs/plans/bounce-light-confidence.md, section 4). The box is wide enough that the
+        // and bias the history up (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 4). The box is wide enough that the
         // clamp moves nothing.
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
             parameters: Parameters with
@@ -2556,7 +2556,7 @@ public sealed partial class AccumulatorRenderTests
     public void TheReflectionsRefuseAWidenedBox()
     {
         // The reflections' fast alpha holds the hit distance, so a widened box would widen by it
-        // (docs/plans/bounce-light-confidence.md, section 13).
+        // (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 13).
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
         {
@@ -2576,7 +2576,7 @@ public sealed partial class AccumulatorRenderTests
     }
 
     /// <summary>
-    /// The evidence under each specular history (docs/plans/bounce-light-confidence.md, sections 8 and 10): the reflections
+    /// The evidence under each specular history (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, sections 8 and 10): the reflections
     /// beside a precise history act on the light codes of their rays, and a history without a light age keeps the narrow
     /// box, which no evidence could narrow again.
     /// </summary>
@@ -2699,7 +2699,7 @@ public sealed partial class AccumulatorRenderTests
     }
 
     /// <summary>
-    /// The region's drift (region_drift.glsl, docs/plans/bounce-light-confidence.md, section 8.7): an anchor block whose
+    /// The region's drift (region_drift.glsl, https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.7): an anchor block whose
     /// region's light moves gives every block of its region region evidence in the next draw, which cuts the block's bounce
     /// history to at most FullRateFrames. The scene of 64 × 36 pixels has one anchor, block 0, whose region holds every
     /// block. Its runs of hundreds of draws run beside the rest of the class (tests/STYLE.md, "Long tests").
@@ -2816,7 +2816,7 @@ public sealed partial class AccumulatorRenderTests
             // at FullRateFrames, so each draw blends its sample at the weight 1/9, and a mean of that weight trails a steady
             // fall by 8 draws: 0.04 of light, 8 % of the light at the end. Without the evidence the history of 32 draws
             // trails by about 30 draws, and the widened box holds the noisy samples' spread: 0.647 at the end
-            // (docs/plans/bounce-light-confidence.md, section 8.7).
+            // (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.7).
             (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
                 parameters: SignalParameters.Diffuse
             );
@@ -2931,7 +2931,7 @@ public sealed partial class AccumulatorRenderTests
         public void LightEvidenceCutsASettledBounceHistoryToTheLengthOfTheRegionsCut()
         {
             // One rule for both kinds of evidence of a change of unknown size: each cuts a settled history to
-            // FullRateFrames, the shortest length that keeps the block's shared ray (docs/plans/bounce-light-confidence.md,
+            // FullRateFrames, the shortest length that keeps the block's shared ray (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence,
             // section 8.2). At the end of the fall the region evidence holds every history at its cut, and then one draw
             // also brings light evidence, the stronger level.
             (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
@@ -3550,7 +3550,7 @@ public sealed partial class AccumulatorRenderTests
         public void AMovedRegionDoesNotShortenTheReflectionsHistory()
         {
             // Only the bounce light runs the region's test: the reflections' test fired in still views and brought
-            // bright specks into the bay film (docs/plans/bounce-light-confidence.md, section 8.7). After the same fall,
+            // bright specks into the bay film (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.7). After the same fall,
             // the bounce light's region evidence lasts into the stand (AfterTheRegionsLightStandsStillItsEvidenceEndsWithin
             // TwoWindows).
             // In the stand the reflections' histories grow past FullRateFrames, so a region cut would end one at exactly

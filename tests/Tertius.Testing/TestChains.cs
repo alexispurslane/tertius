@@ -3,7 +3,7 @@ using System.Numerics;
 namespace Tertius.Testing;
 
 /// <summary>
-/// The camera's chain in a hand-built render snapshot (docs/plans/environment-maps-per-frame.md). A test names each
+/// The camera's chain in a hand-built render snapshot (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame). A test names each
 /// object's chain depth and each chain frame, as the snapshot builder does, so that no default stands in for them.
 /// </summary>
 public static class TestChains

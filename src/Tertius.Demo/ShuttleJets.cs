@@ -27,7 +27,7 @@ public readonly record struct Jet(string Id, Double3 Place, Double3 Push, double
 public readonly record struct JetPair(string Name, Jet First, Jet Second);
 
 /// <summary>
-/// The jets of the shuttle and the allocation of their throttles (docs/plans/blue-danube-demo.md, "The jets as parts"),
+/// The jets of the shuttle and the allocation of their throttles (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The jets as parts"),
 /// for a hull whose center of mass lies at <c>centerOfMass</c>, in meters in the hull's axes. Every place,
 /// force and torque here is in the hull's axes: +X starboard, +Y up, -Z the nose.
 /// <list type="bullet">

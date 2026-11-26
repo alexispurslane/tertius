@@ -6,7 +6,7 @@ namespace Tertius.Host.Tests;
 
 /// <summary>
 /// The light of the spin-station scene: a hub lamp on the station's spin axis inside the ring, which lights the floor
-/// radially and turns with the station (docs/plans/local-light-shadows.md, decision 17's settlement).
+/// radially and turns with the station (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, decision 17's settlement).
 /// </summary>
 public sealed class SpinStationSceneTests : IDisposable
 {

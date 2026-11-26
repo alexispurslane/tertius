@@ -7,7 +7,7 @@ namespace Tertius.Simulation.Tests;
 /// <summary>
 /// An entity's rig pose is its state: it writes the pose of its own joints and the weights of its own morphs in its tick,
 /// the sync point publishes them with its render row, and each render snapshot carries the rig pose of the tick and of the
-/// build before (docs/plans/skinning-and-morphs.md, "The rig pose in the simulation" and "The rig pose in the snapshot").
+/// build before (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "The rig pose in the simulation" and "The rig pose in the snapshot").
 /// </summary>
 public sealed class RigPoseTests
 {

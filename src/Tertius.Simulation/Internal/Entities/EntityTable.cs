@@ -56,7 +56,7 @@ namespace Tertius.Simulation;
 /// <item>Each live entity in a chunk's list of pushers is listed there once, has no body, has a written intent, and is not
 /// among the chunk's intent writers. Each live entity among the <see cref="FrontPushers"/> is listed once, has no body,
 /// is not in <see cref="IntentEntities"/>, and holds an empty front intent: the flow of the sync point carried its push
-/// (docs/plans/parts.md).</item>
+/// (https://github.com/alexispurslane/tertius/wiki/parts).</item>
 /// <item>A live entity is in its chunk's list of motion changers, once, exactly when its back intent has
 /// <see cref="IntentFlags.SetMotion"/>. Each motion changer is also an intent writer. A changer that died stays in the
 /// list until the swap, as a dead intent writer does. A live entity is in the list of front motion changers, once, exactly
@@ -967,7 +967,7 @@ internal sealed partial class EntityTable
     /// <summary>
     /// The running entity's back pose, for writing. The entity must have no body: physics owns those transforms. The write
     /// also sets the row's velocities to zero, so it leaves the entity at rest, as the write of a frame's owner leaves the
-    /// frame (docs/plans/rails-components.md, "The transform row of an entity without body or frame"). Throws
+    /// frame (https://github.com/alexispurslane/tertius/wiki/rails-components, "The transform row of an entity without body or frame"). Throws
     /// <see cref="StaleEntityException"/> for a stale handle. Worker-safe for the running entity.
     /// </summary>
     public ref DPose WritableTransform(Entity entity)
@@ -1139,7 +1139,7 @@ internal sealed partial class EntityTable
 
     /// <summary>
     /// The running part's back intent, for writing a push: a force, a torque, an impulse or an angular impulse, in the axes
-    /// of the frame that the part is in during the tick (docs/plans/parts.md, "The public API"). The part has no body. Its
+    /// of the frame that the part is in during the tick (https://github.com/alexispurslane/tertius/wiki/parts, "The public API"). The part has no body. Its
     /// first push of the tick lists it among its chunk's pushers, not among the intent writers, and names the part's frame
     /// in the intent. The swap hands the pushers on (see <see cref="FrontPushers"/>), and the flow of the sync point carries
     /// each push to the part's chain root. The caller checks that the part's chain root has a body. Throws

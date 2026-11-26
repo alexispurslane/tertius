@@ -43,13 +43,13 @@ public sealed class FrameHullTests
 
     /// <summary>
     /// The kinematic hull of a frame whose Kepler orbit moves it at 7.5 km/s rests in a following frame of its own (ter-dhkf,
-    /// docs/plans/numeric-frames.md, "Anchors", rule 3), so its body state is at the frame's pose in that following frame, the
+    /// https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Anchors", rule 3), so its body state is at the frame's pose in that following frame, the
     /// following frame's origin with the frame's rotation, and its kinematic velocity there, added to the following frame's chord,
     /// is the orbital velocity. Before rule 3, the hull lived in the planet's own system at the orbit's place.
     /// <para>
     /// A new frame on rails holds still at the pose of its spawn description for its first step, because its component has
     /// written no sample yet. The component's first run teleports the hull onto its rails, and the hull's first sample acts
-    /// one step later (docs/plans/rails-components.md, "Other rules" in "The rails components"). So the test checks the hull
+    /// one step later (https://github.com/alexispurslane/tertius/wiki/rails-components, "Other rules" in "The rails components"). So the test checks the hull
     /// from the sync point of the third tick on. In the step of the second tick, physics aims the hull at the place of its
     /// first sample, and the following frame jumps to the hull at the sync point, so the body state of that step is a few
     /// millimetres from the tree's origin.

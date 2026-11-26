@@ -213,7 +213,7 @@ public sealed class OrbitSliceTests(OrbitRun run) : IClassFixture<OrbitRun>
 
         double irradiance = sun.Power / (4 * Math.PI * distance * distance);
 
-        // The scene is in SI units (docs/plans/local-light-shadows.md, decision 44): the Sun's whole power, which gives
+        // The scene is in SI units (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, decision 44): the Sun's whole power, which gives
         // 1,361 W/m² at 1 AU. Earth's distance runs from 0.983 to 1.017 AU over a year.
         irradiance.Should().BeInRange(1361 / (1.017 * 1.017), 1361 / (0.983 * 0.983));
     }
@@ -280,7 +280,7 @@ public sealed class OrbitStartTests
         // faces Earth. Physics takes a person's gravity at the capsule's center, so a person on a spacewalk floats: on the
         // roof or against a side, the center is 0.92 m or 0.32 m out from the hull. The field ends at the cabin, inside
         // the slabs. The ship turns on its facing orbit, but the reads come before its first step, when it has no turns yet,
-        // so the effective gravity is the linear gravity (docs/plans/spin-gravity.md, "V5, the effective gravity").
+        // so the effective gravity is the linear gravity (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V5, the effective gravity").
         world.Frames.EffectiveGravity(ship, new(3, -2, 20)).Should().Be(new Double3(0, -9.81f, 0));
         world.Frames.EffectiveGravity(ship, new(0, 4.92, 0)).Should().Be(Double3.Zero);
         world.Frames.EffectiveGravity(ship, new(10.32, 0, 0)).Should().Be(Double3.Zero);
@@ -348,7 +348,7 @@ public sealed class OrbitSliceImageTests : IDisposable
 
     /// <summary>
     /// The fixed exposure that shows the physical stars, in stops: 10, which undoes their scale of 2⁻¹⁰ W/(m²·sr)
-    /// (docs/plans/local-light-shadows.md, settled fork 1).
+    /// (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, settled fork 1).
     /// </summary>
     private const float StarStops = 10;
 

@@ -4,7 +4,7 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// Whether a mesh bounds a volume: after a weld of its positions, every directed edge has as many triangles as its
-/// reverse edge, and the mesh has at least one triangle that is not degenerate (docs/plans/back-face-depth-layer.md,
+/// reverse edge, and the mesh has at least one triangle that is not degenerate (https://github.com/alexispurslane/tertius/wiki/back-face-depth-layer,
 /// decision 5).
 /// </summary>
 internal static class MeshClosure

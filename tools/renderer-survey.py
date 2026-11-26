@@ -41,7 +41,7 @@ CASES = ROOT / "tools" / "renderer-survey" / "cases.json"
 PROBE_PATCH = ROOT / "tools" / "renderer-survey" / "probe.patch"
 DEMO = ROOT / "src" / "Tertius.Demo" / "bin" / "Release" / "net11.0" / "Tertius.Demo"
 
-# The budget's configuration (docs/plans/rendering-performance.md, decision 1): 1920 x 1080 output, which a headless
+# The budget's configuration (https://github.com/alexispurslane/tertius/wiki/rendering-performance, decision 1): 1920 x 1080 output, which a headless
 # renderer draws at its fixed render scale of 2/3, 1280 x 720, and upscales with FSR 3.1.
 SIZE = "1920x1080"
 # Render pixels per output pixel on each axis at that scale.
@@ -99,7 +99,7 @@ GRID = 3
 # changes by more than this share over SETTLE_GOAL draws.
 REGION_CHANGE = 0.10
 
-# The verdict thresholds (docs/plans/renderer-finish.md, "Measures and thresholds", gives their reasons).
+# The verdict thresholds (https://github.com/alexispurslane/tertius/wiki/renderer-finish, "Measures and thresholds", gives their reasons).
 SPECKS_LIMIT = 1.0
 BLOTCH_LIMIT = 0.04
 FLICKER_LIMIT = 0.006
@@ -368,7 +368,7 @@ def walk_settle(after: list, control: list) -> list:
 # The stand film of ticket ter-g3tk (/private/tmp/g3tk/run_dgate.sh): the walk's view without the walk, one light signal
 # alone, a still and then one film frame every tick, against the film's own end level. In the orbit cabin, the sun turns
 # against the ship at world ticks 300 to 306, and the bounce light that its sunlit sill strips give falls by 35 to 40 %
-# (docs/plans/bounce-light-confidence.md, section 10). The case's settle counts from its settleTick.
+# (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 10). The case's settle counts from its settleTick.
 
 
 def stand_script(case: dict) -> dict:
@@ -597,7 +597,7 @@ def stand_result(case: dict, film: list, end: list) -> dict:
     the mean of the last half of the end stills, as /private/tmp/g3tk/walk_split.py took it. A window's excess is its
     mean light over the end level, less 1. A settle counts the draws until a region stays within SETTLE_TOLERANCE of its
     end level, from the film's first frame and from the frame that shows case["settleTick"]. The verdict reads the
-    settle of case["region"] after that tick: acceptance 7 of docs/plans/bounce-light-confidence.md names r11, because
+    settle of case["region"] after that tick: acceptance 7 of https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence names r11, because
     r10 and r12 wander by about 5 % with the sampling fault of ticket ter-g3tk."""
     level = mean_rows(end[len(end) // 2:])
     excess = []
@@ -623,7 +623,7 @@ def stand_result(case: dict, film: list, end: list) -> dict:
 # The climb's yardstick is the band's light with the filter off, the mean of the unfiltered stills from this one on: from
 # draw 198, after the filter-off light reaches its plateau by about draw 132 (t0-f7zv, take T2a).
 CLIMB_PLATEAU_FIRST = 5
-# The target of acceptance 11 of docs/plans/bounce-light-confidence.md: the band's peak lies within this share of its
+# The target of acceptance 11 of https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence: the band's peak lies within this share of its
 # light with the filter off.
 CLIMB_LIMIT = 0.10
 
@@ -736,7 +736,7 @@ def lag_verdict(result: dict) -> list:
 
 
 # ---------------------------------------------------------------------------------------------------------------------
-# The evidence census (docs/plans/bounce-light-confidence.md, section 21, take T12). The probe's TERTIUS_X_CENSUS appends,
+# The evidence census (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 21, take T12). The probe's TERTIUS_X_CENSUS appends,
 # for every draw and each part of each signal with a light age, the blocks of 8 x 8 pixels at each evidence level as the
 # spatial dispatch acts on them, and the blocks and the pixels with a sample of each cause, whatever TERTIUS_X_CAUSES
 # lets act. These functions reduce it to shares of block-draws for each signal, its parts pooled.
@@ -895,7 +895,7 @@ def render(out: Path, script: dict, *, binary: Path, env: dict | None = None, ex
 
 def emulators() -> int:
     """The Android emulators that run now. On 2026-11-09 a run beside one raised the p95 of bay-sunbeam from 24.3 to
-    33.8 ms at the same clock (docs/plans/renderer-finish.md, decision 9)."""
+    33.8 ms at the same clock (https://github.com/alexispurslane/tertius/wiki/renderer-finish, decision 9)."""
     found = subprocess.run(["pgrep", "-f", "qemu-system"], capture_output=True, text=True).stdout.split()
     return len(found)
 

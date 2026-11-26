@@ -1,6 +1,6 @@
 # Spike: the GPU time of the screen trace on the M1 Max (ter-toaw)
 
-The screen trace does not fit the budget. The budget of [temporal-renderer.md](../../plans/temporal-renderer.md), section 11, gives the whole screen tracer 0.8 to 1.7 ms at a render size of 1280 x 720. With own rays for 10 % of the pixels, the trace alone takes about 10.0 ms. With own rays for 25 %, it takes 14.3 to 14.5 ms. That is 5.9 to 8.5 times the high end of the budget, on demo-exit's deck view and on its floor view alike. The orchestrator takes this result to the user before ticket 4 (ter-gayt) starts.
+The screen trace does not fit the budget. The budget of [temporal-renderer.md](../https://github.com/alexispurslane/tertius/wiki/temporal-renderer), section 11, gives the whole screen tracer 0.8 to 1.7 ms at a render size of 1280 x 720. With own rays for 10 % of the pixels, the trace alone takes about 10.0 ms. With own rays for 25 %, it takes 14.3 to 14.5 ms. That is 5.9 to 8.5 times the high end of the budget, on demo-exit's deck view and on its floor view alike. The orchestrator takes this result to the user before ticket 4 (ter-gayt) starts.
 
 ## Result
 

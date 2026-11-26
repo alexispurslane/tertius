@@ -22,7 +22,7 @@ public readonly record struct FacesParent;
 /// <summary>
 /// How a Kepler frame turns as it orbits: <see cref="Spin"/> or <see cref="FacesParent"/>. Each case holds only its own
 /// values, so a frame that faces its parent has no tilt and no spin rate.
-/// The union generator writes its union members (docs/plans/union-tooling.md). The empty union is the all-zero default,
+/// The union generator writes its union members (https://github.com/alexispurslane/tertius/wiki/union-tooling). The empty union is the all-zero default,
 /// and its <c>HasValue</c> is false. It is no attitude, so an orbit with it is not valid (see
 /// <see cref="KeplerOrbit.IsValid"/>): every producer of an orbit names the attitude that it means.
 /// </summary>

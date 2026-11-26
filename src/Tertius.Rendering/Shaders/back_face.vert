@@ -3,7 +3,7 @@
 #include "frame.glsl"
 #include "draw.glsl"
 
-// The back-face pass's solid runs (docs/plans/back-face-depth-layer.md, decision 4): the G-buffer's instances and
+// The back-face pass's solid runs (https://github.com/alexispurslane/tertius/wiki/back-face-depth-layer, decision 4): the G-buffer's instances and
 // indirect commands, with a range's jittered matrix in draw.viewProj. Only the position attribute is bound.
 layout(location = 0) in vec3 inPosition;
 

@@ -165,7 +165,7 @@ public sealed class HandOffTests
 
     /// <summary>
     /// A ball leaves a ship whose dynamic hull spins at 0.2 rad/s. Physics keeps a free body on its inertial line in every
-    /// turning frame (docs/plans/spin-gravity.md, "The two-turn update"), so in space the ball moves on one straight line,
+    /// turning frame (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The two-turn update"), so in space the ball moves on one straight line,
     /// before the hand-off and after it. Before the rotation terms, no Coriolis force acted in the ship, the ball flew
     /// straight in the ship's turning axes, and the test predicted the hand-off from one step of its velocity there; with
     /// the rotation terms that prediction misses by the centrifugal and Coriolis terms times a step, 0.07 m/s. So the test
@@ -320,7 +320,7 @@ public sealed class HandOffTests
         FrameHandle planet = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f), GravityField.Point(mu)));
         FrameHandle station = SpawnFacingStation(world, planet);
         // The ball comes 5 s before apoapsis and drifts out along +Z at 3 m/s, so it leaves the bubble near apoapsis. The
-        // station's turn flings a body away from its axis (docs/plans/spin-gravity.md, "The two-turn update"): before the
+        // station's turn flings a body away from its axis (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The two-turn update"): before the
         // rotation terms the test spawned the ball with the station at periapsis, drifting at 1 m/s, and it left 15.7 s
         // later, but in a station turning at 0.389 rad/s that ball leaves after 5.3 s, far from apoapsis.
         TickUntil(world, () => world.Time >= FacingOval.Period(mu) / 2 - 5, 1200);

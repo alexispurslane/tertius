@@ -4,7 +4,7 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The painted atmosphere on screen (docs/plans/atmosphere.md): the sky behind the ground, the haze over far surfaces and
+/// The painted atmosphere on screen (https://github.com/alexispurslane/tertius/wiki/atmosphere): the sky behind the ground, the haze over far surfaces and
 /// the tint of the sun's light, in the main view and in the environment faces. The camera is at the render origin with
 /// identity rotation, so it looks down −Z with +Y up, and it stands on the surface of a Mars-like planet whose center lies
 /// below it. The exposure is fixed at 0 stops.
@@ -557,7 +557,7 @@ public sealed class AtmosphereRenderTests
     // ---- The haze in the reflections ------------------------------------------------------------------------------
 
     // Without the screen tracer, the environment map's face shows a far surface through the haze. A ray's hit shows the
-    // hit's light without the haze along the ray (docs/plans/temporal-renderer.md, "Where a hit's light comes from"), and
+    // hit's light without the haze along the ray (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "Where a hit's light comes from"), and
     // ter-XXXX holds that gap.
     [Fact]
     public void AReflectionWithoutTheTracerShowsAFarSurfaceThroughTheHaze()

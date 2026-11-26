@@ -5,7 +5,7 @@ using AwesomeAssertions;
 namespace Tertius.Core.Tests;
 
 /// <summary>
-/// A rig (docs/plans/skinning-and-morphs.md, "The mesh data"): what its constructor refuses, its rest pose, and the
+/// A rig (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "The mesh data"): what its constructor refuses, its rest pose, and the
 /// lookup of a joint or a morph by name.
 /// </summary>
 public sealed class RigTests

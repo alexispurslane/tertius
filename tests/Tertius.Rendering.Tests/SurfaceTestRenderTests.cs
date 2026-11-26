@@ -4,11 +4,11 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The surface test (docs/plans/temporal-renderer.md, section 8, "The surface test"): once per frame, each pixel finds
+/// The surface test (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 8, "The surface test"): once per frame, each pixel finds
 /// its surface's previous place and tests the 2 × 2 texels of the last surface history around it. The same pass writes
 /// this frame's surface history and the device depth that FSR reads. Each test reads the pass's images after a second
 /// frame, one tick after the first, so that it continues the first frame: a second draw of the same time is a still, which
-/// resets every history (docs/plans/temporal-renderer.md, "The still rule").
+/// resets every history (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "The still rule").
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class SurfaceTestRenderTests

@@ -6,7 +6,7 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace Tertius.Slop.Rules;
 
-// The verbosity rules about whole functions and their locals (docs/plans/code-quality-tooling.md, decision 17): three
+// The verbosity rules about whole functions and their locals (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling, decision 17): three
 // rules of the user's, and the scb-check rule for a short helper used once.
 
 /// <summary>A method whose whole body passes its parameters to another method.</summary>

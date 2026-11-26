@@ -4,7 +4,7 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// Helpers for the GPU tests of the BRDF (docs/plans/pbr-brdf.md, "Tests"): the geometry of what a pixel sees, the
+/// Helpers for the GPU tests of the BRDF (https://github.com/alexispurslane/tertius/wiki/pbr-brdf, "Tests"): the geometry of what a pixel sees, the
 /// lobe's sky share as the shaders compute it, and the displayed color of a radiance.
 /// </summary>
 internal static class BrdfTesting

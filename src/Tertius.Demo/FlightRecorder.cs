@@ -4,7 +4,7 @@ namespace Tertius.Demo;
 
 /// <summary>
 /// Records the flight of its own thrown box in a station that turns at a steady rate: the release, and where the box came
-/// down to the floor (docs/plans/blue-danube-demo.md, "The coda", "The measure of a landing"). It reads only its own
+/// down to the floor (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The coda", "The measure of a landing"). It reads only its own
 /// entity, in the station's frame, in every tick. Its entity needs a body.
 /// <list type="bullet">
 /// <item>The release is the box's place and instant velocity in its first tick, which reads the state of its spawn.</item>

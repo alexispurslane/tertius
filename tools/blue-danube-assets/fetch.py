@@ -1,5 +1,5 @@
 """Tool code. The fetch of the Blue Danube art: the sidecars, their approval records, and the source cache that holds
-exactly the pinned bytes of each fetched file (docs/plans/asset-pipeline.md, "Fetched sources").
+exactly the pinned bytes of each fetched file (https://github.com/alexispurslane/tertius/wiki/asset-pipeline, "Fetched sources").
 
 The standard library only, so that the tests run in the default dev shell."""
 

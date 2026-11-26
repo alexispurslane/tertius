@@ -1,6 +1,6 @@
 # AMD's FidelityFX SDK v1.1.4 (FSR 3.1 upscaler 3.1.4), only the folders that tools/fsr3-golden/ builds from: the host
 # code of the upscaler, its shared helpers and the GPU headers that the host code includes. The tool runs AMD's own host
-# calculations and prints the golden values that the tests of Fsr3Upscaler hold (docs/plans/temporal-renderer.md,
+# calculations and prints the golden values that the tests of Fsr3Upscaler hold (https://github.com/alexispurslane/tertius/wiki/temporal-renderer,
 # "The host"). The engine's copy of the GLSL shaders is in src/Tertius.Rendering/ThirdParty/Fsr3, whose README names
 # the same revision. The dev shell gives this folder as TERTIUS_FFX_SDK.
 # License: MIT (sdk/LICENSE.txt).

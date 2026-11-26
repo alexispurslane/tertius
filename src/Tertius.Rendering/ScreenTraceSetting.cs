@@ -2,13 +2,13 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// No screen tracer: the renderer records no ray plan, no rays and no resolve, and accumulates no indirect signal. Every
-/// surface takes the environment's closed forms with every direction open (docs/plans/temporal-renderer.md, section 8,
+/// surface takes the environment's closed forms with every direction open (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 8,
 /// "The zero cases").
 /// </summary>
 public readonly record struct NoScreenTrace;
 
 /// <summary>
-/// The screen tracer (docs/plans/temporal-renderer.md, section 6): each lit pixel gets a diffuse and a specular sample in
+/// The screen tracer (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 6): each lit pixel gets a diffuse and a specular sample in
 /// every frame, from rays that walk the depth pyramid's two depths. The two indirect signals accumulate them.
 /// </summary>
 /// <param name="MaxRoughness">
@@ -36,7 +36,7 @@ public readonly record struct ScreenTrace(float MaxRoughness, int ReflectionStep
 }
 
 /// <summary>
-/// Whether the screen tracer runs (docs/plans/temporal-renderer.md, section 6): <see cref="NoScreenTrace"/> or
+/// Whether the screen tracer runs (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 6): <see cref="NoScreenTrace"/> or
 /// <see cref="ScreenTrace"/>. The default value is NoScreenTrace. It is a generated union (see
 /// <see cref="GeneratedUnionAttribute"/>).
 /// </summary>

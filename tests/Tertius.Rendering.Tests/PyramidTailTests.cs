@@ -4,7 +4,7 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// Which mips of the depth pyramid image the tail dispatch builds (docs/plans/screen-space-reflections.md, "The passes"),
+/// Which mips of the depth pyramid image the tail dispatch builds (https://github.com/alexispurslane/tertius/wiki/screen-space-reflections, "The passes"),
 /// with no GPU: one workgroup builds every mip from the first one that its shared memory holds, after one dispatch per
 /// larger mip, so the small mips cost one barrier instead of one each.
 /// </summary>

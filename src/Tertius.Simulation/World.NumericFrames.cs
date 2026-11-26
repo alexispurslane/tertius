@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 namespace Tertius.Simulation;
 
 /// <summary>
-/// The engine's part in numeric frames (docs/plans/numeric-frames.md): frames that the engine makes around a group of
+/// The engine's part in numeric frames (https://github.com/alexispurslane/tertius/wiki/numeric-frames): frames that the engine makes around a group of
 /// bodies, only for precision. Gameplay never sees them. The tree decides and changes the frames at each sync point
 /// (<see cref="FrameTree.UpdateNumericFrames"/>), and nothing else changes them; the World gathers the bodies for it and
 /// applies the moves to the rows.
@@ -73,7 +73,7 @@ public sealed partial class World
         // The interior of a frame owner is a body at rest at the frame's origin, in the frame's own system, which no
         // numeric update moves. Physics keeps it static while the hull is static and kinematic while the hull can move,
         // and the update counts it as a static anchor in either motion, which fixes each group that it links in that
-        // system (docs/plans/numeric-frames.md, "Anchors"). A root frame has an interior and no hull.
+        // system (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Anchors"). A root frame has an interior and no hull.
         if (!own.IsNull)
             numericBodies.Add(
                 new()
@@ -115,7 +115,7 @@ public sealed partial class World
                 ThrustAcceleration = ThrustAcceleration(entity, motion, mass),
                 Static = motion == BodyMotion.Static,
                 // A kinematic body, hull or plain, moves only by its motion intents and teleports, so it lives in a following
-                // frame of its own when they move it fast or far (docs/plans/numeric-frames.md, "Following frames").
+                // frame of its own when they move it fast or far (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Following frames").
                 Kinematic = motion == BodyMotion.Kinematic,
                 // A hull that is not dynamic moves only as its frame's step records say.
                 Fixed = !own.IsNull && motion != BodyMotion.Dynamic,

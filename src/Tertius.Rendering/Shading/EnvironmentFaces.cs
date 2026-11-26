@@ -1,8 +1,8 @@
 namespace Tertius.Rendering;
 
 /// <summary>
-/// Which faces of the served maps a drawn frame draws (docs/plans/environment-map.md, "Which faces a frame draws", and
-/// docs/plans/environment-maps-per-frame.md, "Which faces a frame draws"). Slot s is face s mod 6 of map ⌊s / 6⌋.
+/// Which faces of the served maps a drawn frame draws (https://github.com/alexispurslane/tertius/wiki/environment-map, "Which faces a frame draws", and
+/// https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame, "Which faces a frame draws"). Slot s is face s mod 6 of map ⌊s / 6⌋.
 /// </summary>
 internal static class EnvironmentFaces
 {

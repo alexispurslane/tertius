@@ -2,6 +2,8 @@
 
 Tertius is a game engine in C# for space-scale scenes and dense immersive-sim interactions at once. It runs on Jolt Physics in double precision and draws with a deferred Vulkan renderer. It is an engine, not a game. It is unfinished, and it changes fast.
 
+Follow current work on the [Tertius project board](https://github.com/users/alexispurslane/projects/5). The [second-cut renderer epic](https://github.com/alexispurslane/tertius/issues/1) links its seven native sub-issues.
+
 <video src="docs/media/blue-danube-demo.mp4" controls width="100%"></video>
 
 The demo video, 6 minutes 50 seconds at 960 × 540: [docs/media/blue-danube-demo.mp4](docs/media/blue-danube-demo.mp4). It is one unbroken run of the engine. A person boards a shuttle at the North Pole of a turning Earth. The shuttle launches up a ramp, docks with a spinning station in orbit, and the person walks out onto the floor of the station's wheel and throws boxes in its spin gravity. The readouts on screen come from the run, and the check panels set them beside the textbook's numbers.
@@ -69,7 +71,7 @@ nix develop --command bash -c 'dotnet run --project src/Tertius.Demo -- --scene 
 
 - [src](src) holds the modules. Tertius.Core holds the math, handles, messages and the frame tree, and it depends on nothing. Tertius.Simulation, Tertius.Physics and Tertius.Rendering each depend only on Core. Tertius.Host holds the window, the threads and the script runner, and Tertius.Demo holds the demo scenes.
 - [tests](tests) holds one xUnit project per module.
-- [ARCHITECTURE.md](ARCHITECTURE.md) is the binding design, and [docs/plans](docs/plans/README.md) holds the design docs.
+- [ARCHITECTURE.md](ARCHITECTURE.md) is the binding design, and the [GitHub wiki](https://github.com/alexispurslane/tertius/wiki) holds the design docs.
 - [scripts](scripts) holds the JSON scripts for the demo scenes.
 - [tools](tools/README.md) holds the helpers for coverage, mutation testing, duplicate code and the docs site, and [native](native) builds the Jolt library.
 

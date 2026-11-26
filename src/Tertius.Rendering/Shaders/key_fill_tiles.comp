@@ -1,5 +1,5 @@
 #version 460
-// The tile pass of key and fill (docs/plans/light-pairs.md, "Key and fill"): one invocation per tile merges the
+// The tile pass of key and fill (https://github.com/alexispurslane/tertius/wiki/light-pairs, "Key and fill"): one invocation per tile merges the
 // candidates of each of its four corners into the corner's keys, and gathers the four corners into the tile's record,
 // which is all that the direct pass reads of a pixel's tile.
 //

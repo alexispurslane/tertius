@@ -5,7 +5,7 @@ using static Tertius.Rendering.Tests.BrdfTesting;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The lights in SI units on the GPU (docs/plans/local-light-shadows.md, Part 4): a point light of power P lights a
+/// The lights in SI units on the GPU (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, Part 4): a point light of power P lights a
 /// surface d meters away with P / (4π d²), a spot light with the intensity of its cone, a light beyond its reach adds
 /// nothing, and a star 1 AU away lights as the old sun did for the same irradiance. Far lights shadow with their own
 /// cascade sets while the budget lasts, and with far shadows only after it. The exposure is fixed at 0 stops, where

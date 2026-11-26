@@ -51,12 +51,12 @@ index 7a03f1542..97975fc8d 100644
      /// <summary>
 -    /// The LightAgeShader items of Tertius.Rendering.csproj (ticket ter-wkvw): the spatial dispatch of a half-precision
 -    /// history whose samples have a light age, the diffuse signal's beside a precise specular history. It acts on its
--    /// block's evidence, as the precise variants do (docs/plans/bounce-light-confidence.md, section 8.4). The temporal
+-    /// block's evidence, as the precise variants do (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.4). The temporal
 -    /// dispatch reads no light age: no cut runs before the blend (section 4).
 +    /// The LightAgeShader items of Tertius.Rendering.csproj (ticket ter-wkvw): both dispatches of a half-precision history
 +    /// whose samples have a light age, the diffuse signal's beside a precise specular history, as the precise variants
 +    /// have them. The temporal dispatch stores its blocks' taps for the region's drift (ticket t0-acxm), and the
-+    /// spatial dispatch tests the drift and acts on its block's evidence (docs/plans/bounce-light-confidence.md, sections 8.4 and 8.6). No cut
++    /// spatial dispatch tests the drift and acts on its block's evidence (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, sections 8.4 and 8.6). No cut
 +    /// runs before the blend (section 4).
      /// </summary>
 -    public static readonly ShaderVariant LightAge = new(Suffix: "_lightage", Shaders: ["accumulate_spatial.comp"]);
@@ -268,8 +268,8 @@ index b25980c42..e620bc196 100644
  // frame's fast history around the pixel, shortens the length by the clamp's move, and writes the slow history. The
  // workgroup is a block of 8 × 8 pixels, and the block's evidence level, the strongest of its pixels' samples, acts on
  // every pixel of it in this draw: motion evidence drops the box's widening, and light evidence cuts the length to the
--// fast cap and leaves the box (docs/plans/bounce-light-confidence.md, section 8).
-+// fast cap and leaves the box (docs/plans/bounce-light-confidence.md, section 8). A signal with a light age also takes the
+-// fast cap and leaves the box (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8).
++// fast cap and leaves the box (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8). A signal with a light age also takes the
 +// region evidence of its block (region_drift.glsl), which cuts the length to FullRateFrames and leaves the box.
  #extension GL_GOOGLE_include_directive : require
  #include "accumulate.glsl"
@@ -396,7 +396,7 @@ index 000000000..fb7212975
 --- /dev/null
 +++ b/src/Tertius.Rendering/Shaders/region_drift.glsl
 @@ -0,0 +1,200 @@
-+// The region's drift (docs/plans/bounce-light-confidence.md, section 8.6; ticket t0-acxm): the second source of a block's
++// The region's drift (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.6; ticket t0-acxm): the second source of a block's
 +// light evidence. The temporal dispatch stores one tap per block of 8 × 8 pixels. The spatial dispatch, whose workgroup is
 +// one block, sums its region's taps, keeps the block's ring of its region's light and tests whether that light moved
 +// (regionLightMoved). The ring's layout and the test live only here: the spatial dispatch takes the answer. The two
@@ -604,7 +604,7 @@ index 38e80a842..bc0fffb27 100644
  // step after k draws, holds it within 5 % by the end (section 8.3).
  const uint RecentLightAge = 7u;
  
-+// A pixel traces its own ray of a kind while its history of that kind is shorter than this (docs/plans/temporal-renderer.md,
++// A pixel traces its own ray of a kind while its history of that kind is shorter than this (https://github.com/alexispurslane/tertius/wiki/temporal-renderer,
 +// section 6, "The ray budget"). The screen tracer's plan reads it, and so does the spatial dispatch, whose region evidence
 +// cuts a history to it: the shortest length that keeps the block's shared ray.
 +const float FullRateFrames = 8.0;
@@ -680,7 +680,7 @@ index dfd45fd5f..5dab6842b 100644
      }
 +
 +    /// <summary>
-+    /// The region's drift (region_drift.glsl, docs/plans/bounce-light-confidence.md, section 8.6): a block whose region's
++    /// The region's drift (region_drift.glsl, https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.6): a block whose region's
 +    /// light moves gets region evidence, which cuts its bounce history to at most FullRateFrames. Its runs of hundreds of
 +    /// draws run beside the rest of the class (tests/STYLE.md, "Long tests").
 +    /// </summary>
@@ -780,7 +780,7 @@ index dfd45fd5f..5dab6842b 100644
 +        {
 +            // The trail's bound. A history of 32 draws trails a steady fall by 15.5 draws of it, 15.5 % of the light at the
 +            // end of a fall from 1 to 0.5 in 100 draws, and the widened box holds the noisy samples' spread. Region evidence
-+            // holds the history at 8 draws, which trail by 3.5 draws: 3.5 % (docs/plans/bounce-light-confidence.md,
++            // holds the history at 8 draws, which trail by 3.5 draws: 3.5 % (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence,
 +            // section 8.6).
 +            (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
 +                parameters: SignalParameters.Diffuse

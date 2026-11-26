@@ -4,7 +4,7 @@ using Tertius.Physics;
 namespace Tertius.Simulation.Tests;
 
 /// <summary>
-/// The render snapshot when numeric frames come and go under the camera (docs/plans/numeric-frames.md, "What gameplay
+/// The render snapshot when numeric frames come and go under the camera (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "What gameplay
 /// never sees"): the camera's motion between two builds stays smooth.
 /// </summary>
 public sealed class RenderSnapshotNumericFrameTests

@@ -6,7 +6,7 @@ namespace Tertius.Testing;
 
 /// <summary>
 /// Helpers for tests that run the simulation's <see cref="World"/> on the real <see cref="JoltPhysicsBackend"/>, which
-/// every test of physics does (docs/plans/real-physics-in-tests.md). The scenes that several tests share are in
+/// every test of physics does (https://github.com/alexispurslane/tertius/wiki/real-physics-in-tests). The scenes that several tests share are in
 /// <see cref="Scenes"/>.
 /// </summary>
 public static class WorldTesting

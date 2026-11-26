@@ -4,7 +4,7 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The images of the surface test (docs/plans/temporal-renderer.md, section 8, "The surface test" and "Images"): two
+/// The images of the surface test (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 8, "The surface test" and "Images"): two
 /// surface histories and two device depths, which alternate between frames by the parity of the drawn frames
 /// (<see cref="FrameHistory.PendingFrame.Parity"/>), and the surface test image, all at the targets' size, and the two
 /// sets of the surface test, one per parity. The last frame's device depth is the one store of its view depths: a half

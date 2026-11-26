@@ -3,7 +3,7 @@ using AwesomeAssertions;
 namespace Tertius.Slop.Tests;
 
 /// <summary>
-/// The mass of a function and the erosion of a codebase (docs/plans/code-quality-tooling.md, decision 16):
+/// The mass of a function and the erosion of a codebase (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling, decision 16):
 /// mass = CC * sqrt(SLOC), and the erosion is the share of the mass in functions with CC above 10.
 /// </summary>
 public sealed class ErosionReportTests

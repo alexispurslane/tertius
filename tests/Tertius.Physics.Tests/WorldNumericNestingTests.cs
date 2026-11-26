@@ -4,7 +4,7 @@ using Tertius.Simulation;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// Numeric frames at vast distances (docs/plans/numeric-frames.md, "Nesting for vast distances", step 5). A numeric frame
+/// Numeric frames at vast distances (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Nesting for vast distances", step 5). A numeric frame
 /// far from its parent's origin moves under a resting frame on a coarse grid near it, so no position in a parent grows
 /// large. Reads and the render snapshot between nearby entities compose through their lowest common ancestor, so no large
 /// number enters them.

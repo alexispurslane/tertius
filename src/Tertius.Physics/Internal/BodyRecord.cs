@@ -57,7 +57,7 @@ internal struct GhostBody
     /// The role of the ghost's object layer, which <c>JoltPhysicsBackend.GhostLayer</c> turns into the layer with the
     /// record's collision groups and mask. It is set when the ghost is made and never changes: a ghost that needs another
     /// role is made again. A child ghost of a static body has the body's own role, and a child ghost of a hull the static
-    /// role of the owner's interior, so both meet hulls as their real bodies do (fork F1 of docs/plans/complete-ghosts.md).
+    /// role of the owner's interior, so both meet hulls as their real bodies do (fork F1 of https://github.com/alexispurslane/tertius/wiki/complete-ghosts).
     /// A child ghost of a plain body that can move has the <see cref="BodyLayer.Ghost"/> role, as it meets no hull. A
     /// stick-out ghost in a sibling of the bubble that its body sticks out of has the role of a child ghost, since the
     /// sibling's system holds no hull of a frame that holds the body either. A stick-out ghost in the bubble's tree parent,
@@ -196,7 +196,7 @@ internal sealed class BodyRecord
     /// The change of Jolt's linear and angular velocity that the impulses of <see cref="ImpulseStep"/> made at the start of
     /// that step, in the axes of the body's home then: the difference of Jolt's velocities before and after them, exact in
     /// doubles. The update of a turning frame takes each change out of Jolt's velocity, which it reads as the chord of the
-    /// step that ended, and puts it back as a change of the step in flight (docs/plans/spin-gravity.md, "Impulses").
+    /// step that ended, and puts it back as a change of the step in flight (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Impulses").
     /// </summary>
     public Double3 ImpulseVelocityChange,
         ImpulseAngularVelocityChange;
@@ -215,7 +215,7 @@ internal sealed class BodyRecord
 
     /// <summary>
     /// The acceleration that the body's frame gave it in the last step in which physics moved it, in the axes of its home
-    /// (V4 of docs/plans/spin-gravity.md): the linear gravity, to a dynamic rigid body while it was awake and to a character
+    /// (V4 of https://github.com/alexispurslane/tertius/wiki/spin-gravity): the linear gravity, to a dynamic rigid body while it was awake and to a character
     /// that the ground did not hold (zero when it did), and the change that a turning frame's update made beyond it. A
     /// sleeping dynamic hull gets the effective gravity, with the centrifugal and the Euler term of a turning frame, against
     /// which it rests.
@@ -224,7 +224,7 @@ internal sealed class BodyRecord
 
     /// <summary>
     /// For a dynamic body in a turning frame: what the last two-turn update expects of it at the end of its step (V6 of
-    /// docs/plans/spin-gravity.md), or none. Every new primary body starts without one, and so does a body after a
+    /// https://github.com/alexispurslane/tertius/wiki/spin-gravity), or none. Every new primary body starts without one, and so does a body after a
     /// teleport, a velocity that the game sets, an impulse or a steer target, or after it falls asleep.
     /// </summary>
     public VelocityShadow Shadow;
@@ -265,7 +265,7 @@ internal sealed class BodyRecord
 
     /// <summary>
     /// True when the body's ghosts reach the content of a frame, its bubble grown by its excess, and not only its bubble
-    /// (fork F2 of docs/plans/complete-ghosts.md): a static body, a kinematic body or a hull. The stick-out ghost of a member
+    /// (fork F2 of https://github.com/alexispurslane/tertius/wiki/complete-ghosts): a static body, a kinematic body or a hull. The stick-out ghost of a member
     /// of the frame in the frame's tree parent is kinematic and has the ghost role, so it meets none of them but a sensor,
     /// and only a ghost of the body in the frame brings the two together. A dynamic plain body or a character reaches only the bubble: a member
     /// that sticks out meets it through the member's own stick-out ghost, and a ghost of the body in the frame would make

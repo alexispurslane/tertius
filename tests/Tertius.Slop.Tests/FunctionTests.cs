@@ -3,7 +3,7 @@ using AwesomeAssertions;
 namespace Tertius.Slop.Tests;
 
 /// <summary>
-/// Which declarations are functions, and how a function is named and placed (docs/plans/code-quality-tooling.md,
+/// Which declarations are functions, and how a function is named and placed (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling,
 /// decision 16).
 /// </summary>
 public sealed class FunctionTests

@@ -6,7 +6,7 @@ using Shuttle = Tertius.Demo.DemoScenes.Shuttle;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The demo shuttle's jets as parts, on the World and the real Jolt backend (docs/plans/blue-danube-demo.md, "The jets as
+/// The demo shuttle's jets as parts, on the World and the real Jolt backend (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The jets as
 /// parts"): fitting the jets spawns the main engine and the 24 jets as attached entities of the hull and adds their
 /// <see cref="ShuttleJetControl"/>, which in each tick sends each part its throttle by message, from the
 /// <see cref="Throttle"/>, the

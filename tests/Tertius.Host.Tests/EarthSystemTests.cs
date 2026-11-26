@@ -71,7 +71,7 @@ public sealed class EarthSystemTests : IDisposable
     /// earth-surface sits at earth's center, turns about earth's +Y, the north pole, at the sidereal rate, from the ground's
     /// turn of the demo's date (<see cref="DemoScenes.DemoSurface.Date"/>), and its bubble
     /// is a sphere that ends at the stratopause, 50 km above Earth's mean radius. So the exit of a shuttle that climbs
-    /// out of it lies below the parking orbit (docs/plans/blue-danube-demo.md, "The hand-off").
+    /// out of it lies below the parking orbit (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The hand-off").
     /// </summary>
     [Fact]
     public void EarthSurfaceTurnsAtTheSiderealRateInEarthAndItsBubbleEnds50KmUp()

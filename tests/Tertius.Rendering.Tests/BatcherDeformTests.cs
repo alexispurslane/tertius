@@ -4,7 +4,7 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// Posing in the batcher (docs/plans/skinning-and-morphs.md, "Posing in the batcher"): which posed instance draws a
+/// Posing in the batcher (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "Posing in the batcher"): which posed instance draws a
 /// deformed copy, where the copies lie in the deform region, and that every view draws and culls the copy. No GPU needed.
 /// The camera sits at the render origin and looks down −Z.
 /// </summary>

@@ -5,7 +5,7 @@ using static Tertius.Host.Tests.HostTesting;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The exit's short script (docs/plans/blue-danube-demo.md, "The exit", "Sections of the long script"): the checked-in
+/// The exit's short script (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The exit", "Sections of the long script"): the checked-in
 /// scripts/demo-exit.json is what the generator writes for the scene <c>demo-exit</c> from the exit's sections and the coda's, and it
 /// films them in their order. <see cref="CheckedInScriptsTests"/> runs the checks of a run over every checked-in script.
 /// </summary>

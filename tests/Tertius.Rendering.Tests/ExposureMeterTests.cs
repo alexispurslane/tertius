@@ -3,7 +3,7 @@ using System.Numerics;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The C# copy of the exposure's meter and approach (docs/plans/auto-exposure.md, "The math"): the bin of a luminance,
+/// The C# copy of the exposure's meter and approach (https://github.com/alexispurslane/tertius/wiki/auto-exposure, "The math"): the bin of a luminance,
 /// the trimmed mean and the bright edge of a histogram, the target that maps the mean to middle gray or the bright edge
 /// to 1, whichever is lower, inside the clamp, and the frame-rate independent approach toward it with one time constant
 /// per direction, and the highest exposure that a frame can use, which sets the lights' reach.

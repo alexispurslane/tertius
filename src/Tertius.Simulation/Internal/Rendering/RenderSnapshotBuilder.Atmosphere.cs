@@ -6,7 +6,7 @@ namespace Tertius.Simulation;
 internal sealed partial class RenderSnapshotBuilder
 {
     /// <summary>
-    /// Gives <paramref name="snapshot"/> the air that the camera looks through (docs/plans/atmosphere.md, "The snapshot
+    /// Gives <paramref name="snapshot"/> the air that the camera looks through (https://github.com/alexispurslane/tertius/wiki/atmosphere, "The snapshot
     /// build"): the planet medium of the atmosphere's frame (see <see cref="AtmosphereFrame"/>), with the frame's origin
     /// placed as an instance is, and the planet's sun among the snapshot's lights. A world without a planet medium leaves
     /// the snapshot without an atmosphere. It runs after the frame poses, which it reads, and after the lights.

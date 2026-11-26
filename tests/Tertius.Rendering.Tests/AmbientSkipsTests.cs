@@ -4,7 +4,7 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The composite skips the work of the map's terms that add nothing to the image (docs/plans/environment-map.md,
+/// The composite skips the work of the map's terms that add nothing to the image (https://github.com/alexispurslane/tertius/wiki/environment-map,
 /// "Cost"): the footprint where the lobe alone ends the stars' fade, and the reflected stars where the lobe sees no open
 /// sky. The reference is the same pass built by this project with TERTIUS_EVERY_AMBIENT_TERM, which computes every term:
 /// composite.frag without the skin scatter, and composite_scatter.frag, the default renderer's pass, under it.

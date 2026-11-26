@@ -212,7 +212,7 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
         leaving.Velocity.Y.Should().BeApproximately(-4.5 * GravityPerTick, 1e-3);
         // The ship turns once per orbit about its own X, at ω = 1.13e-3 rad/s. In the ship's turning axes the Coriolis term
         // −2 ω × v acts on the crate's velocity along -Y, so in its second in the ship's frame that velocity bends toward
-        // -Z at 2 ω |v_y|, about 1.7e-3 m/s² (docs/plans/spin-gravity.md: physics keeps a free body on its inertial line in
+        // -Z at 2 ω |v_y|, about 1.7e-3 m/s² (https://github.com/alexispurslane/tertius/wiki/spin-gravity: physics keeps a free body on its inertial line in
         // every turning frame). Before the rotation terms, the crate flew straight in the ship's axes and this was zero.
         // The cabin's gravity pulled the crate only in its first five steps, so v_y was −4.5 ticks of gravity nearly all
         // the way. The centrifugal term, ω² r = 3e-5 m/s² at 22 m, is far below the bound.
@@ -247,7 +247,7 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
         // Earth. Three ticks after the throw, the crate is 1.5 m ahead in the hatch, and the copy is gone from the bottom
         // right, where the chamber shows.
         //
-        // Changed on purpose by the move to SI units (docs/plans/local-light-shadows.md, Part 5): the cabin's lamps send
+        // Changed on purpose by the move to SI units (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, Part 5): the cabin's lamps send
         // less than a thousandth of the light of sunlit Earth, which lights the chamber through the open hatch. Since the
         // lamps cast shadows (Part 6), the chamber's walls and its shut inner door keep their light out altogether.
         //

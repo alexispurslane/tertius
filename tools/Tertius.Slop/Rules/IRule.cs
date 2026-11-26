@@ -8,7 +8,7 @@ public interface IRule
 {
     /// <summary>
     /// Every rule: the ports of the scb-check slop rules that have a meaning in C#, then the rules of the user's
-    /// (docs/plans/code-quality-tooling.md, decision 17, lists the rules that were left out and why).
+    /// (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling, decision 17, lists the rules that were left out and why).
     /// </summary>
     static readonly IReadOnlyList<IRule> All =
     [

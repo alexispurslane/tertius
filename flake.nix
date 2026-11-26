@@ -161,7 +161,7 @@
           default = pkgs.mkShell common;
 
           # The assets shell: the default shell plus Blender and the Blender MCP server, for scripted models and
-          # conversions (docs/plans/asset-pipeline.md, decision 4 and "Scripted models"). Blender finds the MCP add-on
+          # conversions (https://github.com/alexispurslane/tertius/wiki/asset-pipeline, decision 4 and "Scripted models"). Blender finds the MCP add-on
           # and MPFB in the system extension repository of BLENDER_SYSTEM_EXTENSIONS, so nothing is installed.
           assets = pkgs.mkShell (
             common

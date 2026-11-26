@@ -1,4 +1,4 @@
-// The shadows of the lights (docs/plans/local-light-shadows.md): the cascade sets of the far lights (ShadowCascades.cs,
+// The shadows of the lights (https://github.com/alexispurslane/tertius/wiki/local-light-shadows): the cascade sets of the far lights (ShadowCascades.cs,
 // ShadowPass.cs), the far shadows of each far light, and the tiles of the near lights (ShadowTiles.cs, LocalShadowPass.cs).
 // Needs frame.glsl and gbuffer_inputs.glsl.
 //
@@ -13,7 +13,7 @@
 // puts no light inside a shadow (t8-rjno, t1-gout). The tiles compute their filter with exact weights, from nine
 // gathers or from sixteen reads at texel corners (tileLitFraction), and keep the symmetric filter (tileShadow).
 //
-// Bias, the same model for the cascades and the tiles (docs/plans/local-light-shadows.md, decision 33), in parts that
+// Bias, the same model for the cascades and the tiles (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, decision 33), in parts that
 // each scale with the texel size:
 //  - The shadow passes add a slope-scaled depth bias to the casters, ShadowBias.SlopeBias. Every tap compares against
 //    the receiver's own depth, and the filter compares texels up to its reach, 2.5 texels, from the lookup along each
@@ -148,7 +148,7 @@ float cascadeShadow(uint set, vec3 position, vec3 geometricNormal, float sinThet
 }
 
 // The views that are not the main view, the environment faces, pick the finest cascade whose box holds the point
-// (docs/plans/environment-map.md, "The shadow maps in a face"). View depth along the camera's forward axis holds
+// (https://github.com/alexispurslane/tertius/wiki/environment-map, "The shadow maps in a face"). View depth along the camera's forward axis holds
 // only for points in the main view's frustum: a point behind the camera has a negative depth, and cascade 0 does not hold
 // it once it lies more than a few meters back. Each set has its own boxes, along its own light.
 
@@ -327,7 +327,7 @@ bool fullyShadowed(TileLookup t)
     return t.ndc.z < t.bounds.x;
 }
 
-// The lit fraction of a near light's shadow filter at a world position (docs/plans/local-light-shadows.md, "Sampling"):
+// The lit fraction of a near light's shadow filter at a world position (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, "Sampling"):
 // the one tile of a spot light, or the tile of the cube face of a point light that holds the direction from the light to
 // the position. The filter's FilterTapsPerAxis × FilterTapsPerAxis PCF taps (the reads below are written for 4), computed
 // with exact weights, with the normal offset at the receiver's distance and the casters' slope-scaled bias, as the

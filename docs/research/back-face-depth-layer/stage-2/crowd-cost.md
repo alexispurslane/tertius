@@ -11,7 +11,7 @@ Each section gives the measured facts first. A paragraph that starts with "Readi
 - A drawn vertex is one vertex of one drawn instance: the mesh's vertex count times its instances, summed over the pass's draw commands.
 - The own time is the median time of the `back faces` pass over a run's 120 filmed frames, from the card's time stamps.
 - The frame cost of a side is its GPU frame span minus that of the side `off` in the same round. The card's span leaves out the `capture` pass.
-- A figure is one skinned cylinder of `rigs-crowd`: 20,202 vertices, the size of a person in [docs/plans/skinning-and-morphs.md](../../../plans/skinning-and-morphs.md), "Memory and cost".
+- A figure is one skinned cylinder of `rigs-crowd`: 20,202 vertices, the size of a person in [https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs](../../https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs), "Memory and cost".
 
 ## Summary
 
@@ -235,7 +235,7 @@ Reading: the remedy leaves out no instance in any view, so it saves nothing. A r
 
 ### Draw a coarser copy of a mesh
 
-The engine holds no coarser copy of a mesh. [docs/plans/asset-pipeline.md](../../../plans/asset-pipeline.md), decision 15, plans LODs as coarser index lists over the same vertices. No code builds them yet. So I built none.
+The engine holds no coarser copy of a mesh. [https://github.com/alexispurslane/tertius/wiki/asset-pipeline](../../https://github.com/alexispurslane/tertius/wiki/asset-pipeline), decision 15, plans LODs as coarser index lists over the same vertices. No code builds them yet. So I built none.
 
 ### Leave out every instance that an impostor replaces
 

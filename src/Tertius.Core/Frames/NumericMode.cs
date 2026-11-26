@@ -2,7 +2,7 @@ namespace Tertius;
 
 /// <summary>
 /// How a frame moves as a numeric frame: a frame that the engine makes around a group of bodies, only for precision. See
-/// docs/plans/numeric-frames.md.
+/// https://github.com/alexispurslane/tertius/wiki/numeric-frames.
 /// </summary>
 internal enum NumericMode : byte
 {
@@ -28,7 +28,7 @@ internal enum NumericMode : byte
 
     /// <summary>
     /// A following frame: it holds one fast or far kinematic body at rest at its origin, its anchor, and follows the
-    /// anchor's motion intents (docs/plans/numeric-frames.md, "Following frames", and "Anchors", rule 3). The anchor is a
+    /// anchor's motion intents (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Following frames", and "Anchors", rule 3). The anchor is a
     /// hull, whose frame hangs at the origin, or a plain body, which is a member of the frame's system there. At each sync
     /// point the frame takes the place of its step plan, the record of the anchor's motion intent of the step that ends
     /// then, or in a step without one the record of a kinematic body that holds still where the step starts, and the plan's

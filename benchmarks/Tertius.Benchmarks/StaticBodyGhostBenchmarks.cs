@@ -6,7 +6,7 @@ using Tertius.Simulation;
 namespace Tertius.Benchmarks;
 
 /// <summary>
-/// The cost of the child ghosts of static bodies in the ghost pass (ter-imi5, docs/plans/complete-ghosts.md, "Cost"). One
+/// The cost of the child ghosts of static bodies in the ghost pass (ter-imi5, https://github.com/alexispurslane/tertius/wiki/complete-ghosts, "Cost"). One
 /// tick of a station, a root frame with a gravity of 1 g, whose floor is a static slab of 200 m by 160 m. On the floor
 /// stand <see cref="Props"/> static boxes of 1 m, in 40 rows of 50, 4 m apart. <see cref="DockedShips"/> parked ships, 48 m
 /// apart along X, each a static hull of 4 m by 2 m by 10 m that owns a bubble of radius 10 m, stand 1 m above the floor.

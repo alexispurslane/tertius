@@ -3,7 +3,7 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The C# side of the own-ray list of the half-resolution reflections (docs/plans/screen-space-reflections.md, "Rays at
+/// The C# side of the own-ray list of the half-resolution reflections (https://github.com/alexispurslane/tertius/wiki/screen-space-reflections, "Rays at
 /// outlines"), with no GPU: what the read hook decodes from its words, and the largest screen whose list one storage
 /// buffer descriptor covers.
 /// </summary>

@@ -53,7 +53,7 @@ Alexis's rule applies: prefer the real mechanism. When a redesign replaces a qui
 1. Find the sources of the technique. One candidate is McGuire and Mara, "Efficient GPU Screen-Space Ray Tracing" (JCGT, 2014). Also find how current engines get a surface's thickness. For each source, state its situation: scene scale, hardware, quality target and the systems that it relies on, such as a denoiser. Then say whether it fits Tertius.
 2. Measure the frame cost before a design is final. Build a throwaway depth-only pass of back faces. Time it on the deck and in the cabin, on the Mac. Then time it in one workbench job on the RTX 2000 Ada, against main in the same job.
 3. Write two designs, as Alexis's rule asks: a compact table, a usage example of each, what both share, and one AskUserQuestion per point where they differ.
-4. Create the epic's design doc in `docs/plans/` and its tickets. The epic ticket is `ter-kh4g`.
+4. Create the epic's design doc in `https://github.com/alexispurslane/tertius/wiki/` and its tickets. The epic ticket is `ter-kh4g`.
 
 ### Points that the design covers
 
@@ -195,7 +195,7 @@ On 2026-11-12 at 23:25 the account's weekly Claude limit stopped every agent for
 ## Part 5. Lessons that cost time
 
 - Build a worktree under `/tmp` from its `/private/tmp` path. Otherwise `.editorconfig` does not apply, and the build fails with CS1573.
-- In the shared main checkout, stage a new ticket by its exact path. `git add .tickets/` stages other sessions' notes.
+- Keep active work in GitHub Issues. Do not store progress notes in the source checkout.
 - Git merges two equal edits of a hand-kept count without a conflict, and the sum can be wrong (`ter-byim`).
 - On Apple's GPU, one more register can cost a whole gain: the key-and-fill shader lost 0.35 ms at register 116 (`t2-x53j`). On the RTX card, a change of texture access kind can move timing in the opposite direction from the Mac. Time such a change on both machines.
 - Vulkan leaves the rounding of a 32-bit to 16-bit float conversion to the driver unless the shader declares RoundingModeRTE. NVIDIA rounds toward zero, and the Mac rounds to nearest.

@@ -8,7 +8,7 @@ namespace Tertius.Physics.Tests;
 /// <summary>
 /// A ghost is a kinematic copy of a body in the physics system of another frame. No body of a group can move a ghost, so
 /// the merge test counts the place of each ghost as infinitely heavy, as it counts an anchor (ticket ter-4psc,
-/// docs/plans/numeric-frames.md, "Bubbles and ghosts"). A body that may touch the ghost of a body that sticks out of a
+/// https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Bubbles and ghosts"). A body that may touch the ghost of a body that sticks out of a
 /// semantic child joins the group of the child's hull, because the ghost lives in the home of that hull. A body that may
 /// touch a ghost that is fixed in its semantic frame's own system stays in that system. So a body meets every ghost in
 /// the system where it lives, and gameplay hears the same contacts as without numeric frames. These tests run the World on
@@ -817,7 +817,7 @@ public sealed class GhostPlaceTests
     /// <summary>
     /// A far station: a root frame with a point gravity of <see cref="FarMu"/>, and in it the owner of a Kepler frame on a
     /// circular orbit of <see cref="Far"/>, at 2.44 m/s, with the hull of <see cref="ShipHull"/> and a bubble of radius 40 m.
-    /// Its hull lives in a following frame of its own (docs/plans/numeric-frames.md, "Anchors", rule 3). A crate floats at
+    /// Its hull lives in a following frame of its own (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Anchors", rule 3). A crate floats at
     /// (0, 40, 0) in the station, on the edge of its bubble, and so sticks out of it. <see cref="CratePlace"/> is the
     /// crate's place in space at the spawn, <see cref="Up"/> the station's +Y in space, and <see cref="Forward"/> the
     /// direction of the station's velocity in space.

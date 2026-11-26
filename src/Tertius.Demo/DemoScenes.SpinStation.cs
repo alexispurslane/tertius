@@ -9,7 +9,7 @@ public static partial class DemoScenes
 {
     /// <summary>
     /// The scene <c>spin-station</c>: a station that turns about its axis, so that its floor holds people and crates against
-    /// spin gravity (docs/plans/spin-gravity.md, "Content" and "Scenes and tests"). The name <c>station</c> is taken by the
+    /// spin gravity (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Content" and "Scenes and tests"). The name <c>station</c> is taken by the
     /// orbiting station of ter-dhkf (see <see cref="Station"/>). Angles θ about the station's axis follow
     /// <see cref="RevolvedSolid"/>: they run from the station's +X toward its -Z, the way the station turns, so a point of
     /// the floor moves toward growing θ, and spinward is the way of growing θ.

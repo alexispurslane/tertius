@@ -28,7 +28,7 @@ internal readonly record struct NumericBody
 
     /// <summary>
     /// The velocity relative to <see cref="Semantic"/> of the body's origin, the point at <see cref="Position"/>, as every
-    /// body velocity on the physics seam is (docs/plans/real-physics-in-tests.md, "The velocity point").
+    /// body velocity on the physics seam is (https://github.com/alexispurslane/tertius/wiki/real-physics-in-tests, "The velocity point").
     /// </summary>
     public Double3 Velocity { get; init; }
 
@@ -102,7 +102,7 @@ internal readonly record struct NumericBody
     /// <summary>
     /// It is <see cref="Kinematic"/>: a hull or a plain body that only its motion intents and teleports move. When it is
     /// fast or far in its semantic frame, it lives in a following frame of its own, which follows its motion intents
-    /// (<see cref="NumericMode.Following"/>), where it rests at the origin as the frame's anchor (docs/plans/numeric-frames.md,
+    /// (<see cref="NumericMode.Following"/>), where it rests at the origin as the frame's anchor (https://github.com/alexispurslane/tertius/wiki/numeric-frames,
     /// "Anchors", rule 3, and "Following frames"). It is a read of the motion, so no body can follow without being kinematic.
     /// </summary>
     public bool Follows => Kinematic;
@@ -160,7 +160,7 @@ internal readonly record struct NumericBody
 
     /// <summary>
     /// True when physics lets the body's ghosts reach the content of a frame, its bubble grown by its excess, and not only
-    /// its bubble (fork F2 of docs/plans/complete-ghosts.md): a static body, a kinematic body or a hull. The stick-out ghost
+    /// its bubble (fork F2 of https://github.com/alexispurslane/tertius/wiki/complete-ghosts): a static body, a kinematic body or a hull. The stick-out ghost
     /// of a member of the frame in the frame's tree parent meets none of them but a sensor, so only a ghost of the body in
     /// the frame brings them together with the frame's members. A dynamic plain body or a character reaches only the bubble,
     /// as in <c>BodyRecord.GhostsReachContent</c> of the physics backend.
@@ -246,14 +246,14 @@ internal readonly record struct NumericGroup(
 );
 
 /// <summary>
-/// The decisions of the membership and nesting rules of numeric frames (docs/plans/numeric-frames.md, "Membership" and
+/// The decisions of the membership and nesting rules of numeric frames (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Membership" and
 /// "Nesting for vast distances"), and of the places of the ghosts that the merge test takes as inputs ("Bubbles and
 /// ghosts"), as pure functions of plain data. <see cref="FrameTree.UpdateNumericFrames"/> calls them and acts on the tree.
 /// </summary>
 internal static class NumericFrameRules
 {
     /// <summary>
-    /// True when <paramref name="body"/> is an anchor in the rules of the update (docs/plans/numeric-frames.md, "Anchors" and
+    /// True when <paramref name="body"/> is an anchor in the rules of the update (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Anchors" and
     /// "Following frames"): no force moves it, and no group can take it into another home, so it counts as infinitely heavy,
     /// and a group that the merge test links to it takes its home. The split clock of a numeric frame holds none of its
     /// anchors, and an anchor gets no leave clock. A static body, a hull that is not dynamic and the interior of a frame
@@ -358,7 +358,7 @@ internal static class NumericFrameRules
 
     /// <summary>
     /// True when <paramref name="body"/>, a body that follows (see <see cref="NumericBody.Follows"/>), lives in a following
-    /// frame of its own as its anchor (docs/plans/numeric-frames.md, "Anchors", rule 3, and "Following frames"): when the
+    /// frame of its own as its anchor (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Anchors", rule 3, and "Following frames"): when the
     /// speed and distance rules that give any body a numeric frame give one to the body alone, by its velocity and its place
     /// in its semantic frame. A body in a numeric frame keeps it down to the thresholds to leave one, as any group does. Its
     /// motion intents move the body, so its own motion decides, never the group that the merge test links it to. A kinematic
@@ -459,7 +459,7 @@ internal static class NumericFrameRules
     /// body that can stick out counts, so a static body does not. Zero while every body stays inside. Physics gives a body
     /// of the frame's semantic parent a ghost in the frame when its bounding sphere reaches the bubble grown by the excess,
     /// the frame's content, and so does the sibling test of a body that sticks out of a sibling bubble (fork F2 of
-    /// docs/plans/complete-ghosts.md).
+    /// https://github.com/alexispurslane/tertius/wiki/complete-ghosts).
     /// </summary>
     internal static double ContentExcess(
         FrameBounds bubble,
@@ -628,7 +628,7 @@ internal static class NumericFrameRules
 
     /// <summary>
     /// The motion of the group <paramref name="members"/>, which is not empty. An anchor counts as infinitely heavy
-    /// (docs/plans/numeric-frames.md, "Anchors", rule 2):
+    /// (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Anchors", rule 2):
     /// <list type="bullet">
     /// <item>A body that lives in a following frame of its own (see <see cref="FollowsInFrame"/>) moves as its motion
     /// intents say, so it adds nothing to the group's motion, and the first such body among the members is the group's

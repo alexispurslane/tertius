@@ -3,7 +3,7 @@ using System.Numerics;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// A C# copy of the specular prefilter (docs/plans/environment-map.md, "The specular levels"), for the GPU tests: Karis's
+/// A C# copy of the specular prefilter (https://github.com/alexispurslane/tertius/wiki/environment-map, "The specular levels"), for the GPU tests: Karis's
 /// sum over the Hammersley samples of a level, each a trilinear read of a radiance map that the test read back. The reads
 /// cross a face's edge into the next face, as Vulkan's cube filtering does. At a corner of the cube, where Vulkan takes
 /// the mean of three texels, this copy takes the one that the direction through the missing texel's center meets.

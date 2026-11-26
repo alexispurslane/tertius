@@ -19,9 +19,9 @@ internal enum EnvironmentImage
 }
 
 /// <summary>
-/// The scene environment maps, one for each served frame of the camera's chain (docs/plans/environment-map.md, "Images and
-/// buffers", and docs/plans/environment-maps-per-frame.md, "Images, buffers, growth and descriptors"): the radiance maps
-/// and the distance cubes that the face pass draws (docs/plans/environment-map-distances.md, "The distance store"), the
+/// The scene environment maps, one for each served frame of the camera's chain (https://github.com/alexispurslane/tertius/wiki/environment-map, "Images and
+/// buffers", and https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame, "Images, buffers, growth and descriptors"): the radiance maps
+/// and the distance cubes that the face pass draws (https://github.com/alexispurslane/tertius/wiki/environment-map-distances, "The distance store"), the
 /// specular maps and the irradiance cubes that the prefilter derives from the radiance maps, one readback
 /// buffer per frame slot for the cubes' last level, and the CPU state of which faces a frame draws. Map i, root first, is
 /// cube i of each cube array, layers 6i to 6i + 5. One set of maps serves every frame in flight.
@@ -172,7 +172,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     public GpuImage Radiance => images.Radiance;
 
     /// <summary>
-    /// The distance cubes (docs/plans/environment-map-distances.md, "The distance store"): an R16F cube array with the
+    /// The distance cubes (https://github.com/alexispurslane/tertius/wiki/environment-map-distances, "The distance store"): an R16F cube array with the
     /// radiance maps' face size and levels, one cube per map. Level 0 holds w = 1000 m over the distance from the eye to the
     /// surface that the radiance map's texel shows, along the texel's direction, in km⁻¹, and 0 for the sky. Each later
     /// level holds the mean of its children over their solid angles, as the radiance maps' mips do.
@@ -230,7 +230,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     public ReadOnlyMemory<IrradianceReading?> ReadingsOf(int maps) => readings.AsMemory(0, maps);
 
     /// <summary>
-    /// The one choke point of the maps' automatic machinery (docs/plans/environment-maps-per-frame.md, "Which faces a frame
+    /// The one choke point of the maps' automatic machinery (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame, "Which faces a frame
     /// draws", decision 26): grows the images when the served chain is longer than ever before, then returns the faces that
     /// drawn frame <paramref name="frame"/> draws of each served map. A map draws every face when it is not kept from
     /// <see cref="DrawnFor"/> or the draw refreshes every face, and its slots in turn otherwise. Apart from a growth,
@@ -702,7 +702,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
 
 /// <summary>
 /// One cube array of the environment maps that the face pass draws as a color attachment and the downsample levels
-/// (docs/plans/environment-map-distances.md, "The flow of a frame"): its image, the views and sets that the two passes bind,
+/// (https://github.com/alexispurslane/tertius/wiki/environment-map-distances, "The flow of a frame"): its image, the views and sets that the two passes bind,
 /// and the use of its readers.
 /// </summary>
 internal sealed class DrawnCube(GpuImage image, ImageUse readers, ImageView[] faceViews, DescriptorSet[] downsampleSets)

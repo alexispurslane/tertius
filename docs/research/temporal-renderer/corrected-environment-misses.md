@@ -9,7 +9,7 @@ The parent owns coverage, mutation testing, integration and ticket closure.
 
 ## Scope and source situation
 
-This is Design A of [the temporal renderer](../../plans/temporal-renderer.md), decision 35 and section 14, item 8.
+This is Design A of [the temporal renderer](../https://github.com/alexispurslane/tertius/wiki/temporal-renderer), decision 35 and section 14, item 8.
 Every specular reader searches the distance cube from its receiving surface point.
 A distance cube stores the inverse distance to the nearest surface along each direction from the eye.
 The receiving surface point is relative to the eye, in meters and world axes.
@@ -274,7 +274,7 @@ The shared build input Git blob identities are:
 | `Directory.Packages.props` | `2eddc1ae5cf92ce5fa41cdb568e3ae33203be15e` |
 | `global.json` | `3140116df397728023ec76c8db41310c2c87e18f` |
 
-The original launch brief is preserved verbatim in `.tickets/ter-7tnv.md` before the final commit.
+The original launch brief is preserved verbatim in `ter-7tnv planning notes` before the final commit.
 No coverage or mutation pass was run in this worker.
 
 ## Review fix, 2026-11-05
@@ -401,6 +401,6 @@ it ran no tests and is not red or green evidence.
 The harness's bundled patch tool was then used for every source edit.
 
 Every worker-owned command finished before the final commit.
-The original launch brief was compared byte for byte with the copy preserved in `.tickets/ter-7tnv.md`.
+The original launch brief was compared byte for byte with the copy preserved in `ter-7tnv planning notes`.
 No agents, workflows, checkout changes, coverage or mutation runs, merges, pushes, PR publication or ticket closure occurred.
 No unresolved in-scope fork remains; the parent's hardening and integration decisions remain with the parent.

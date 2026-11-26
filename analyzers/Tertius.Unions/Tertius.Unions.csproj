@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
-    The union generator (docs/plans/union-tooling.md). Roslyn loads generators into the compiler, which runs on
+    The union generator (https://github.com/alexispurslane/tertius/wiki/union-tooling). Roslyn loads generators into the compiler, which runs on
     netstandard2.0, so this project targets it and C# 12, whatever Directory.Build.props sets for the engine.
     Directory.Build.props references this project as an analyzer from every other project.
   -->

@@ -3,7 +3,7 @@ namespace Tertius;
 /// <summary>
 /// Makes a partial struct a custom C# 15 union of <paramref name="cases"/>, whose members the union generator in
 /// <c>analyzers/Tertius.Unions</c> writes: a constructor and an implicit conversion per case, <c>HasValue</c>,
-/// <c>Value</c>, a <c>TryGetValue</c> per case, equality and <c>ToString</c> (docs/plans/union-tooling.md).
+/// <c>Value</c>, a <c>TryGetValue</c> per case, equality and <c>ToString</c> (https://github.com/alexispurslane/tertius/wiki/union-tooling).
 /// </summary>
 /// <param name="cases">The case types, all structs, in the order of their kinds.</param>
 [AttributeUsage(AttributeTargets.Struct)]

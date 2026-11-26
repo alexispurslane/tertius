@@ -5,7 +5,7 @@ using Tertius.Frames.Rails;
 namespace Tertius.Core.Tests;
 
 /// <summary>
-/// Step 2 of the sync point on a tree built in the test (<see cref="FrameTree.TakeStepRecords"/>, docs/plans/rails-components.md,
+/// Step 2 of the sync point on a tree built in the test (<see cref="FrameTree.TakeStepRecords"/>, https://github.com/alexispurslane/tertius/wiki/rails-components,
 /// "The step record of the last finished step"): every frame that is not numeric takes its step record, and the kind of its
 /// owner decides where the record comes from. A frame with a hull takes the record that physics released for the hull, and
 /// holds still without one. A frame without a hull takes the record of its owner's motion intent in the intents that the

@@ -185,7 +185,7 @@ public sealed class AirlockSliceTests(AirlockRun run) : IClassFixture<AirlockRun
         // on the floor. Each probe sits well inside its region: the hull ends at row 596, above Earth, and the chamber
         // floor spans rows 479 to 512 and columns 584 to 695.
         //
-        // Changed on purpose by the move to SI units (docs/plans/local-light-shadows.md, Part 5): at the exposure that
+        // Changed on purpose by the move to SI units (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, Part 5): at the exposure that
         // Earth sets the chamber floor shows far darker than the Earth-lit port face. Before, the lamps sent 10 times the
         // sunlight, cast no shadows, lit the floor through the chamber's walls, and the floor showed brighter than the face.
         // The floor is dark but not black, about (1, 2, 5): black space would show there if the hatch showed no floor.

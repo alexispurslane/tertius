@@ -1,5 +1,5 @@
-// The depth pyramid (docs/plans/screen-space-reflections.md, "The depth pyramid", docs/plans/temporal-renderer.md,
-// section 6, and docs/plans/back-face-depth-layer.md). Every level holds slabs: the interval of inverse view depth w,
+// The depth pyramid (https://github.com/alexispurslane/tertius/wiki/screen-space-reflections, "The depth pyramid", https://github.com/alexispurslane/tertius/wiki/temporal-renderer,
+// section 6, and https://github.com/alexispurslane/tertius/wiki/back-face-depth-layer). Every level holds slabs: the interval of inverse view depth w,
 // in 1/m, that the walk treats as solid, as (front w, back w). The finest level holds each pixel's slab (pixelSlab,
 // depth_pyramid_finest.comp). A cell of level 1 merges its pixels' slab bounds (pixelSlabBounds) from their surfaces
 // (pixelSurface). The merge takes the largest front w and the smallest back w. A cell with no surface holds the empty
@@ -110,7 +110,7 @@ bool continuesPlane(PixelPlane plane, ivec2 neighbor)
     return neighborContinues(plane, inside, seesSurface, other);
 }
 
-// The surface of a depth sample that sees a surface (docs/plans/screen-space-reflections.md, "The pixel's surface"). It
+// The surface of a depth sample that sees a surface (https://github.com/alexispurslane/tertius/wiki/screen-space-reflections, "The pixel's surface"). It
 // is the sample's plane over the part of its square from low to high, in a square one unit of its grid wide. Toward
 // each edge neighbor the part reaches the sample's edge where the neighbor continues the plane. Otherwise it stops at
 // the sample's center line.
@@ -170,7 +170,7 @@ vec2 pixelBounds(ivec2 pixel)
 }
 
 // The w of the back of what is solid behind a surface at inverse depth `w` whose back share is `share`
-// (docs/plans/back-face-depth-layer.md, decision 3, and CellBounds.SlabBack). It is `w * share` for a share between 0
+// (https://github.com/alexispurslane/tertius/wiki/back-face-depth-layer, decision 3, and CellBounds.SlabBack). It is `w * share` for a share between 0
 // and 1. A sheet, whose share is 0 or 1, gets `w` itself.
 float slabBack(float w, float share)
 {

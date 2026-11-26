@@ -3,7 +3,7 @@ using AwesomeAssertions;
 namespace Tertius.Slop.Tests;
 
 /// <summary>
-/// Which files of a repository the slop metrics read (docs/plans/code-quality-tooling.md, decision 16): the C# files
+/// Which files of a repository the slop metrics read (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling, decision 16): the C# files
 /// under <c>src</c> that a person wrote, and not the build output or generated files. Each test builds a repository in
 /// a new temporary folder.
 /// </summary>
@@ -131,7 +131,7 @@ public sealed class CodebaseTests : IDisposable
     {
         Write("src/Ship.cs", "static class Ship { }");
         Write("tools/Tool.cs", "class Tool { void F() => Ship.Sail(); }");
-        Write("docs/plans/ship.md", "Ship.Dock moves the ship.");
+        Write("https://github.com/alexispurslane/tertius/wiki/ship.md", "Ship.Dock moves the ship.");
         Write("tests/Tertius.Core.Tests/obj/Checked/Generated.cs", "class Generated { void F() => Ship.Hide(); }");
         Write("tests/Tertius.Core.Tests/notes.txt", "Ship.Turn");
 

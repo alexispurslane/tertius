@@ -2,7 +2,7 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The checks of an <see cref="EnvironmentMapSetting"/> and of <see cref="RendererOptions.EnvironmentMap"/>
-/// (docs/plans/environment-map.md, "The setting").
+/// (https://github.com/alexispurslane/tertius/wiki/environment-map, "The setting").
 /// </summary>
 public sealed class EnvironmentMapSettingTests
 {

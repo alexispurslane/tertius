@@ -252,7 +252,7 @@ public sealed class CharacterFormNumericFrameTests
     /// The scene of
     /// <see cref="ACharacterAtRestBesideAKeplerHullIsRigidInTheHullsFollowingFrameAndWalksInEarthsOwnSystemAndStaysBesideTheHull"/>
     /// with numeric frames, with a first motion intent of the hull. The hull's new following frame K starts with the chord
-    /// velocity that the numeric frames expect (docs/plans/rails-components.md, "The first step of a new following frame").
+    /// velocity that the numeric frames expect (https://github.com/alexispurslane/tertius/wiki/rails-components, "The first step of a new following frame").
     /// So K's acceleration is the pull of 8.6 m/s² in each planned step, the first included, where it lands on its anchor's
     /// plan. The gravity in K is the tidal pull in every step, and the character at rest in K has the rigid form from its
     /// first step on. When K started with the hull's instant velocity, its first planned step took half the pull, and the

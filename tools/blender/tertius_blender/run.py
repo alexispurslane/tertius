@@ -1,5 +1,5 @@
 """Runs model scripts. The build tool and an agent's execute_blender_code call use the same functions, so a script
-runs the same way in both (docs/plans/asset-pipeline.md, "Model scripts").
+runs the same way in both (https://github.com/alexispurslane/tertius/wiki/asset-pipeline, "Model scripts").
 
 An agent in the bridge:
 

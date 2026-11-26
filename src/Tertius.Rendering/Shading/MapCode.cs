@@ -2,7 +2,7 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// The map code in the alpha of the G-buffer's base color, the C# twin of mapCode and mapOfCode in the shaders
-/// (docs/plans/environment-maps-per-frame.md, decision 20). Map i owns the 8-bit codes 255 − 2i and 256 − 2i, and code 0
+/// (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame, decision 20). Map i owns the 8-bit codes 255 − 2i and 256 − 2i, and code 0
 /// marks an unlit pixel.
 /// </summary>
 internal static class MapCode

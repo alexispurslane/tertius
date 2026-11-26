@@ -6,8 +6,8 @@ using static Tertius.Host.Tests.HostTesting;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The review scenes of hair, skin and the screen-space reflections (docs/plans/skin-and-hair.md and
-/// docs/plans/screen-space-reflections.md): <c>hair-cards</c>, <c>hair-cards-backlit</c>, <c>hair-bent-cards</c>,
+/// The review scenes of hair, skin and the screen-space reflections (https://github.com/alexispurslane/tertius/wiki/skin-and-hair and
+/// https://github.com/alexispurslane/tertius/wiki/screen-space-reflections): <c>hair-cards</c>, <c>hair-cards-backlit</c>, <c>hair-bent-cards</c>,
 /// <c>hair-rugs</c>, <c>skin-and-hair</c> and <c>reflections</c>. Each scene has the views that its builder names, and
 /// the views that the tests below check look at what the builder says they show. The scenes with a checked-in script have
 /// one of their own name: <c>hair-bent-cards.json</c>, <c>hair-rugs.json</c>, <c>skin-and-hair.json</c> and

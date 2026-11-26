@@ -1,5 +1,5 @@
 #version 460
-// The skin scatter's pass along the rows, "scatter rows" (docs/plans/skin-and-hair.md, "The two passes"): the kernel's
+// The skin scatter's pass along the rows, "scatter rows" (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The two passes"): the kernel's
 // sum of D along the row at each skin pixel, into the row image. Every other pixel of the row image gets 0, so the image
 // holds no value from an earlier frame.
 #extension GL_GOOGLE_include_directive : require

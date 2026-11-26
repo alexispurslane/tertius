@@ -1,5 +1,5 @@
 """The outputs of a build: the .blend file and the .glb file, with the export conventions of the asset pipeline
-(docs/plans/asset-pipeline.md, "The build tool"). The converter of the importer exports through write_glb too, so a
+(https://github.com/alexispurslane/tertius/wiki/asset-pipeline, "The build tool"). The converter of the importer exports through write_glb too, so a
 converted file and a scripted model leave Blender with one set of options."""
 
 import bpy

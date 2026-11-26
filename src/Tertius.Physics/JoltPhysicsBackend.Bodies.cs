@@ -21,7 +21,7 @@ public sealed partial class JoltPhysicsBackend
     {
         /// <summary>
         /// The linear velocity of the body's origin, the point that <see cref="Pose"/> names, which every report carries
-        /// (docs/plans/real-physics-in-tests.md, "The velocity point").
+        /// (https://github.com/alexispurslane/tertius/wiki/real-physics-in-tests, "The velocity point").
         /// </summary>
         public Double3 OriginVelocity => PointVelocity(Linear, Angular, Pose.Position - CenterOfMass);
     }
@@ -344,7 +344,7 @@ public sealed partial class JoltPhysicsBackend
     /// The velocities that the hull of a record's frame needs, in Jolt's terms, to move like the frame in the tree when the
     /// hull is at <paramref name="pose"/>: the linear velocity of the hull's center of mass, and the angular velocity. A
     /// kinematic hull gets none: it moves only by its owner's motion intents, toward the end of each end pose or full sample,
-    /// so without one it holds still in its tree parent, also in its first step (docs/plans/rails-components.md, "The flow
+    /// so without one it holds still in its tree parent, also in its first step (https://github.com/alexispurslane/tertius/wiki/rails-components, "The flow
     /// per kind of entity").
     /// </summary>
     private (Vector3 Linear, Vector3 Angular) HullVelocityFromTree(BodyRecord record, in DPose pose)
@@ -433,7 +433,7 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// The Jolt motion of the interior of the frame that a record owns: static while the hull is static, and kinematic
-    /// otherwise, at rest in the frame's own system (fork F4 of docs/plans/complete-ghosts.md). So a sensor detects the
+    /// otherwise, at rest in the frame's own system (fork F4 of https://github.com/alexispurslane/tertius/wiki/complete-ghosts). So a sensor detects the
     /// owner in the frame as a body of the hull's motion, as it detects the hull in the frame's tree parent and the hull's
     /// ghosts in other frames: a static or kinematic sensor detects the interior of a ship that moves, and only a dynamic
     /// sensor detects the interior of a parked ship. A kinematic interior at rest falls asleep as any body does. A root
@@ -865,7 +865,7 @@ public sealed partial class JoltPhysicsBackend
     /// reads a record's motion: the spawn velocities, the static hulls, the hull velocities and the intents. The hull and the
     /// interior keep their bodies and their systems, and the hull takes the frame's pose and velocity from the tree (see
     /// <see cref="ApplyHullMotion"/>). Once every hull of the step has its new motion, every pair of their bodies follows the
-    /// new motions at once (case 3b of docs/plans/complete-ghosts.md): each ghost of such a hull is made again (see
+    /// new motions at once (case 3b of https://github.com/alexispurslane/tertius/wiki/complete-ghosts): each ghost of such a hull is made again (see
     /// <see cref="MakeGhostsAgain"/>), so that Jolt offers its pairs to the contact filter with the new motion, and each
     /// started pair of the hull and of the interior that the new motions cannot make ends (see
     /// <see cref="EndPairsThatCannotTouch"/>). So the order of the owners does not change the result. Jolt finds the new

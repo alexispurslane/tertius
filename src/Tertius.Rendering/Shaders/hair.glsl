@@ -1,4 +1,4 @@
-// The light of a hair fiber (docs/plans/skin-and-hair.md, "The hair model"): a diffuse part along the strand (Kajiya and
+// The light of a hair fiber (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The hair model"): a diffuse part along the strand (Kajiya and
 // Kay 1989), normalized so that an even light returns the fiber's color, and two highlights shifted along the strand
 // (Scheuermann 2004), each a Gaussian of unit area in the longitudinal angle with Marschner's azimuthal term. HairFiber
 // is the C# copy. lighting.glsl includes this file after ShadingInput, SurfaceLobes, DirectTerms and halfVectorOf.

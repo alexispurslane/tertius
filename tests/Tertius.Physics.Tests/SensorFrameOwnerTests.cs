@@ -7,7 +7,7 @@ namespace Tertius.Physics.Tests;
 
 /// <summary>
 /// A sensor detects the same things of a frame owner in every frame (ticket ter-7ul9, item 3 of
-/// docs/plans/complete-ghosts.md). The owner is a body of the hull's motion everywhere: the hull in the frame's tree parent,
+/// https://github.com/alexispurslane/tertius/wiki/complete-ghosts). The owner is a body of the hull's motion everywhere: the hull in the frame's tree parent,
 /// the interior in the frame itself, which is kinematic and at rest while the hull moves and static while the hull is
 /// static, and the hull's ghost in any other frame, which meets what the hull meets. So by Jolt's rule a sensor detects a
 /// ship whose hull moves, and only a dynamic sensor detects a parked ship (fork F4). A change of the hull's motion ends each

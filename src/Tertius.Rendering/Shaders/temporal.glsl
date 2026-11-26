@@ -1,4 +1,4 @@
-// What the temporal signals share (docs/plans/temporal-renderer.md, sections 1 and 8): the material factors, by which a
+// What the temporal signals share (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, sections 1 and 8): the material factors, by which a
 // producer divides its light and the composite multiplies it back in (decision 18), and the test of a neighbor's surface,
 // which the accumulator's fix and clamp read.
 #ifndef TERTIUS_TEMPORAL_GLSL
@@ -80,7 +80,7 @@ struct IndirectLight
 // their slow histories rather than the closed form.
 layout(constant_id = 6) const bool screenTraceOn = false;
 
-// The environment's closed form at a surface, with every direction open (docs/plans/temporal-renderer.md, section 8,
+// The environment's closed form at a surface, with every direction open (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 8,
 // "The zero cases"): the irradiance term at the shading normal and the specular term along the lobe's dominant direction,
 // from the map while it is on and from the hemisphere while it is off, pre-exposed. A pixel without a sample and without
 // a history takes it, and so does a tracer's hit whose surface has no history. It is demodulated: the specular term is

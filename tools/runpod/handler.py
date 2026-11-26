@@ -9,7 +9,7 @@ and the globs of its outputs:
      "commands": ["cd main && dotnet build src/Tertius.Demo -c Release"], "outputs": ["main/out/*.json"],
      "seconds": 600}
 
-Each tree is a shallow, sparse checkout of its commit without docs/ and .tickets/, which no build reads. A commit
+Each tree is a shallow, sparse checkout of its commit without docs/, which no build reads. A commit
 whose dev shell (flake.nix, flake.lock, native/) differs from the one that the image baked is refused, because its
 commands would run in the wrong shell. The commands run one after another in the work folder, each in the dev shell,
 and the first failure ends the job. The result holds each command's exit code and time, the end of the log, and the
@@ -39,7 +39,7 @@ JOB_REF = re.compile(r"^refs/gpu-jobs/[A-Za-z0-9/._-]+$")
 # The files of the dev shell. A commit runs only in the shell that the image built from the same files.
 SHELL_PATHS = ["flake.nix", "flake.lock", "native"]
 # A tree leaves these out: no build reads them, and research files there grow by megabytes an hour.
-SPARSE = ["/*", "!/docs/", "!/.tickets/"]
+SPARSE = ["/*", "!/docs/"]
 
 
 @dataclass(frozen=True)

@@ -7,7 +7,7 @@ using static Tertius.Host.Tests.HostTesting;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The meshes that the back-face pass draws in the demo's scripted scenes (docs/plans/back-face-depth-layer.md, decision
+/// The meshes that the back-face pass draws in the demo's scripted scenes (https://github.com/alexispurslane/tertius/wiki/back-face-depth-layer, decision
 /// 5). The pass draws both faces of an open mesh, so an open mesh with a one-sided material loses no back face, but the
 /// demo has none today. Entities that a scene spawns after its build are not counted.
 /// </summary>

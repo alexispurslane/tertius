@@ -6,7 +6,7 @@ namespace Tertius.Demo;
 public static partial class DemoScenes
 {
     /// <summary>
-    /// The launch ramp of the Blue Danube demo (docs/plans/blue-danube-demo.md, "The sequence", step 2): a straight track
+    /// The launch ramp of the Blue Danube demo (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The sequence", step 2): a straight track
     /// up which the shuttle slides like a rocket sled. It is one static body in the frame <c>earth-surface</c>, at the north
     /// pole, where +Y is up and the parked shuttle's nose points along -Z.
     /// <list type="bullet">

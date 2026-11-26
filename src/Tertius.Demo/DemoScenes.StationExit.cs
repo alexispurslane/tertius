@@ -7,7 +7,7 @@ namespace Tertius.Demo;
 public static partial class DemoScenes
 {
     /// <summary>
-    /// The station's parts for the exit, step 6 of the Blue Danube demo (docs/plans/blue-danube-demo.md, "The exit" and
+    /// The station's parts for the exit, step 6 of the Blue Danube demo (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The exit" and
     /// "The lift"): the lift in the spoke at θ = 180 degrees, its hole through the deck, the ceiling's opening where it
     /// passes, the lamps of the shaft, of the lift and of the wheel round the lift's foot, and the exit's cameras. Every place
     /// is in the station's axes, from <see cref="DemoStation.Layout"/>: +Y is the axis, the lift's spoke runs along -X, and

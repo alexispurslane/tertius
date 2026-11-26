@@ -102,7 +102,7 @@ public readonly partial struct DockingEvent;
 
 /// <summary>
 /// The third layer of the shuttle's flight program: it docks the shuttle in its <paramref name="station"/> from the hold
-/// point (docs/plans/blue-danube-demo.md, "The docking"). From the spin-up to the landing, it adds an
+/// point (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The docking"). From the spin-up to the landing, it adds an
 /// <see cref="AttitudeTarget"/> for the <see cref="AttitudeAutopilot"/> and a <see cref="Translation"/> for the
 /// <see cref="ShuttleJetControl"/> in every tick, so the targets and the translations of the layers before it never reach
 /// the actuators. It adds no <see cref="Throttle"/>, so the main engine stays off.

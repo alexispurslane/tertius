@@ -63,7 +63,7 @@ internal sealed class UploadQueue(int maxTextureSize, long deformBytesLimit)
 
     /// <summary>
     /// The bytes of the deform vertices and of the deltas after <paramref name="deform"/>. Each store holds at most the
-    /// device's maxStorageBufferRange (docs/plans/skinning-and-morphs.md, "Buffers and the region").
+    /// device's maxStorageBufferRange (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "Buffers and the region").
     /// </summary>
     /// <exception cref="InvalidOperationException">The deform vertices or the deltas pass the device's limit.</exception>
     private (long VertexBytes, long DeltaBytes) DeformBytesWith(PackedDeform deform)
@@ -80,7 +80,7 @@ internal sealed class UploadQueue(int maxTextureSize, long deformBytesLimit)
 
     /// <summary>
     /// Refuses rigging that does not match its mesh of <paramref name="vertexCount"/> vertices, so that no shader reads
-    /// past a palette, a weight row or a store, and no NaN reaches one (docs/plans/skinning-and-morphs.md, "The mesh data").
+    /// past a palette, a weight row or a store, and no NaN reaches one (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "The mesh data").
     /// </summary>
     private static void CheckRigging(MeshRigging rigging, int vertexCount)
     {

@@ -4,7 +4,7 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The C# copy of a screen ray: its image on the screen, where it ends, its origin and its surface fade, and the walk's
-/// hits on a planet at the ray's vanishing point (docs/plans/screen-space-reflections.md, "The ray's image on the
+/// hits on a planet at the ray's vanishing point (https://github.com/alexispurslane/tertius/wiki/screen-space-reflections, "The ray's image on the
 /// screen"). <see cref="ScreenWalkTests"/> holds the walk's other tests. The scenes are synthetic: rectangles seen by a
 /// camera built by hand.
 /// </summary>
@@ -146,7 +146,7 @@ public sealed class ScreenRayTests
     }
 
     // The rounding of the ray's inverse depth near its vanishing point is larger than the slab of a surface 10,000 km
-    // away (docs/plans/screen-space-reflections.md, "Precision and determinism"). When the walk computed the inverse
+    // away (https://github.com/alexispurslane/tertius/wiki/screen-space-reflections, "Precision and determinism"). When the walk computed the inverse
     // depth at a descent's entry from s, it left 209 of these 3,613 rays at the vanishing point without meeting the
     // slab, and gave 531 hits an entry share of 0.05 to 0.59 (ter-186q).
     [Fact]

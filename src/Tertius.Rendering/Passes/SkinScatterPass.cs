@@ -4,7 +4,7 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// One pass of the skin scatter under <see cref="SeparableSubsurface"/> (docs/plans/skin-and-hair.md, "The two passes"):
+/// One pass of the skin scatter under <see cref="SeparableSubsurface"/> (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The two passes"):
 /// "scatter rows" sums D along the rows into the row image, and "scatter columns" sums the row image along the columns
 /// and adds S − D to the HDR image at each skin pixel. One invocation per pixel, in 8 × 8 workgroups, over sets 0 to 2 of
 /// the scene layout and the scatter set.

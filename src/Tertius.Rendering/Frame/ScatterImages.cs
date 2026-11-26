@@ -7,7 +7,7 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// The skin scatter's row image, its kernel and its set, which binds the targets' diffuse image as its source
-/// (docs/plans/skin-and-hair.md, "The two passes"). Only <see cref="SeparableSubsurface"/> makes them. The rows pass
+/// (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The two passes"). Only <see cref="SeparableSubsurface"/> makes them. The rows pass
 /// writes the row image, and the columns pass adds S − D to the HDR image.
 /// </summary>
 internal sealed unsafe class ScatterImages : IDisposable
@@ -80,7 +80,7 @@ internal sealed unsafe class ScatterImages : IDisposable
 
     /// <summary>
     /// Copies the kernel of <see cref="SkinProfile.Human"/> at the setting's taps into its buffer, in the first frame
-    /// only: the kernel never changes after the images are made (docs/plans/skin-and-hair.md, decision 17).
+    /// only: the kernel never changes after the images are made (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, decision 17).
     /// </summary>
     public void Upload(CommandBuffer commandBuffer, StagingArena staging, BarrierBatch barriers)
     {

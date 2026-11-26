@@ -351,7 +351,7 @@ public sealed partial class World
     /// other entity moves only by its motion intents, its teleports, its transform writes or its parent, so a velocity at its
     /// spawn would claim a motion that nothing carries out. A kinematic hull is the one exception: its spawn velocity is its
     /// frame's velocity until its first sync point, from which the numeric update gives a fast hull its following frame at
-    /// spawn (docs/plans/rails-components.md, "Which entity takes a spawn velocity").
+    /// spawn (https://github.com/alexispurslane/tertius/wiki/rails-components, "Which entity takes a spawn velocity").
     /// </summary>
     private static string? SpawnVelocityProblem(SpawnDesc desc)
     {
@@ -507,7 +507,7 @@ public sealed partial class World
 
         WriteSpawnRows(entity: entity, desc: desc, plan: plan, row: row, own: own);
         // The first motion intent, relative to the spawn's frame, goes into the new entity's front intent, which the next step
-        // applies as an intent that the entity wrote in the spawn's tick (docs/plans/rails-components.md, "The first motion
+        // applies as an intent that the entity wrote in the spawn's tick (https://github.com/alexispurslane/tertius/wiki/rails-components, "The first motion
         // intent of a spawn"). Step 6 runs after the swap of step 4, and a spawn outside a tick goes live at the call, so either
         // way the next step is the entity's first.
         if (desc.FirstMove.HasValue)
@@ -539,7 +539,7 @@ public sealed partial class World
         foreach (IComponent component in plan.Components)
             InitializeComponentType(component.GetType());
         // The backend keeps the shape that it built for the description, so the center of mass costs no second build. The
-        // lever of every part of the entity is measured from it (docs/plans/parts.md).
+        // lever of every part of the entity is measured from it (https://github.com/alexispurslane/tertius/wiki/parts).
         Vector3 centerOfMass =
             desc.Body is { } spawnBody && Physics != null ? Physics.ShapeCenterOfMass(spawnBody.Shape) : Vector3.Zero;
         Entities.Activate(
@@ -584,7 +584,7 @@ public sealed partial class World
         // Every new frame stands at the pose of its spawn description, with its velocities. Its first step runs before its
         // components do, so a frame on rails follows the first motion intent of its spawn in that step, or without one
         // holds still there, and the first sample of its rails component puts it on its rails in the second step
-        // (docs/plans/rails-components.md, "The first motion intent of a spawn").
+        // (https://github.com/alexispurslane/tertius/wiki/rails-components, "The first motion intent of a spawn").
         Frames.SetTreeLinearVelocity(own, desc.LinearVelocity);
         Frames.SetAngularVelocity(own, desc.AngularVelocity);
         physicsChanges.FramesCreated.Add(own);

@@ -4,7 +4,7 @@ using AwesomeAssertions;
 namespace Tertius.Simulation.Tests;
 
 /// <summary>
-/// When the step of 2b takes the workers (docs/plans/particles.md, "The parallel pieces"): from
+/// When the step of 2b takes the workers (https://github.com/alexispurslane/tertius/wiki/particles, "The parallel pieces"): from
 /// <see cref="PuffTable.StepParallelThreshold"/> live puffs on, in a table with workers. The table is built by hand, as in
 /// PuffRuleTests, on four workers that count their tasks, so a test sees whether a step took them. PuffsOnTheWorkersTests,
 /// in the physics tests, compares the steps on the workers with the steps on one thread.

@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 namespace Tertius.Host.Scripting;
 
 /// <summary>
-/// A scripted run: the scene to build, then steps that run in file order. See docs/plans/host-and-scripted-runs.md,
+/// A scripted run: the scene to build, then steps that run in file order. See https://github.com/alexispurslane/tertius/wiki/host-and-scripted-runs,
 /// "Script format".
 /// </summary>
 /// <param name="Scene">The name of the scene that the program builds before the first step.</param>
@@ -219,7 +219,7 @@ public sealed record CameraStep(string Entity);
 /// <paramref name="Frames"/> repetitions of a <see cref="RunStep"/> of <paramref name="Every"/> ticks followed by a
 /// <see cref="CaptureStep"/> named <see cref="FrameName"/>, so it runs <paramref name="Frames"/> ×
 /// <paramref name="Every"/>
-/// ticks, and its first capture comes after its first <paramref name="Every"/> ticks. See docs/plans/blue-danube-demo.md,
+/// ticks, and its first capture comes after its first <paramref name="Every"/> ticks. See https://github.com/alexispurslane/tertius/wiki/blue-danube-demo,
 /// change 2.
 /// </summary>
 /// <param name="Name">The name of the film. Its frames are named after it, so it follows the grammar of a scene id and has at most

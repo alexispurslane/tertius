@@ -665,7 +665,7 @@
 @@ -92,6 +99,15 @@
          indirectSpecular = reflectionSharedAt(pixel, indirectSpecular);
      // Each part is finite and at most a few times MaxRadiance, so the sum is finite, and the cap keeps the surfaces' share
-     // (docs/plans/screen-space-illumination.md, "The cap at MaxRadiance").
+     // (https://github.com/alexispurslane/tertius/wiki/screen-space-illumination, "The cap at MaxRadiance").
 +    if (probeSignal != 0)
 +    {
 +        // PROBE: each signal alone, and its share of D for the skin scatter, so that the three signals add up.

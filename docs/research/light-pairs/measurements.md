@@ -2,7 +2,7 @@
 
 Each row is one run of `tools/gpu-trace.sh --no-counters --start 1 --frames 120` on 2026-11-11, on the M1 Max at about 1291 MHz. The deck is `scripts/temporal-upscale-timing.json`, the hall is `scripts/lamp-hall-64-moving.json`, and the stars scene is `scripts/stars-1.json`. The times are busy medians in ms. The exposure is that of the first timed frame, in stops.
 
-A deck variant without a fixed exposure whose exposure differs from main's 0.704 stops proves nothing about its own change. The exposure moves each lamp's reach, so the variant shades other pairs than main (`docs/plans/light-pairs.md`, "How the cost was measured").
+A deck variant without a fixed exposure whose exposure differs from main's 0.704 stops proves nothing about its own change. The exposure moves each lamp's reach, so the variant shades other pairs than main (`https://github.com/alexispurslane/tertius/wiki/light-pairs`, "How the cost was measured").
 
 A trace is lost when xctrace does not end after the run. The run's own frame span then stands in the last column.
 

@@ -1,6 +1,6 @@
 namespace Tertius.Rendering;
 
-/// <summary>The GGX lobe of one roughness (docs/plans/pbr-brdf.md, "The terms").</summary>
+/// <summary>The GGX lobe of one roughness (https://github.com/alexispurslane/tertius/wiki/pbr-brdf, "The terms").</summary>
 internal readonly record struct GgxLobe
 {
     public const double MinRoughness = 0.045;
@@ -25,7 +25,7 @@ internal readonly record struct GgxLobe
     /// <summary>Clamps <paramref name="roughness"/> to the range from <see cref="MinRoughness"/> to 1.</summary>
     public GgxLobe(double roughness)
     {
-        // The one place of the roughness floor in C# (docs/plans/pbr-brdf.md, "The roughness floor").
+        // The one place of the roughness floor in C# (https://github.com/alexispurslane/tertius/wiki/pbr-brdf, "The roughness floor").
         Roughness = Math.Clamp(roughness, MinRoughness, 1);
         Alpha = Roughness * Roughness;
     }
@@ -39,7 +39,7 @@ internal readonly record struct GgxLobe
     /// <summary>
     /// The roughness of the specular map's lobe that blurs a read over a part of the sky <paramref name="width"/> rad
     /// wide: max(√(<see cref="AlphaPerWidth"/> · width), <see cref="MinPieceRoughness"/>)
-    /// (docs/plans/screen-space-illumination.md, decisions 41 and 42). Only a part wider than 2.07 rad keeps 95 % of the
+    /// (https://github.com/alexispurslane/tertius/wiki/screen-space-illumination, decisions 41 and 42). Only a part wider than 2.07 rad keeps 95 % of the
     /// lobe's weight on itself. A narrower part takes the bound's lobe, which puts up to 11 % of its weight beyond either
     /// end of a part 0.95 rad wide and 24 % beyond a part 0.5 rad wide. roughnessForWidth in environment.glsl is the GPU
     /// copy.
@@ -66,7 +66,7 @@ internal readonly record struct GgxLobe
 
     /// <summary>
     /// (α / α′)², the normalization of the lobe that a sphere light widens (Karis 2013, p. 16, equation 14), with
-    /// α′ = min(α + sin ϕ / (2 √(v·h)), 1) (docs/plans/pbr-brdf.md, "Sized lights"). 1 for a light of radius 0.
+    /// α′ = min(α + sin ϕ / (2 √(v·h)), 1) (https://github.com/alexispurslane/tertius/wiki/pbr-brdf, "Sized lights"). 1 for a light of radius 0.
     /// sphereNormalization in brdf.glsl is the GPU copy.
     /// </summary>
     /// <param name="lightSine">sin ϕ of the light's angular radius ϕ at the point, R / d, from 0 to 1.</param>

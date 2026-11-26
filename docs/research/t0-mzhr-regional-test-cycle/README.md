@@ -28,12 +28,12 @@ The ticket's section "Design (line orchestrator, 2026-11-14)" holds the reasons 
 - r11: the center region of the survey's 3 x 3 grid of the image.
 - Slow history: a pixel's mean of its past samples of one light signal, with the weight 1 / length. Its length grows by one per draw up to a cap of 32 draws for a rough surface. So it acts as an exponential mean with the weight 1/32.
 - Fast history: the same mean with a length of at most 4 draws, the fast cap.
-- Light evidence: a sign in a ray block's samples that the light that they saw changed in the last 7 draws (the light-change age). It cuts the history's length (`docs/plans/bounce-light-confidence.md`, section 8).
+- Light evidence: a sign in a ray block's samples that the light that they saw changed in the last 7 draws (the light-change age). It cuts the history's length (`https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence`, section 8).
 - Specks: groups of bright pixels, per 10,000 visible pixels. A speck pixel is brighter than twice the median of its 7 x 7 window (tools/README.md, "The measures").
 - Blotch: the survey's 90th percentile of the blurred still's relative error against the build's own long mean.
 - Daub: `daub.py`'s 90th percentile of the error at 2 to 24 render pixels across, against the reference. Broad: the same at about 36 pixels and above.
 - Lag: a lag film's difference from a still of the same state, divided by the film's change per draw, in draws. Lag error: that difference as a share of the light.
-- Acceptance 9: item 9 of `docs/plans/bounce-light-confidence.md`, line 962. A film's median lag error can rise by at most 0.005 against main.
+- Acceptance 9: item 9 of `https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence`, line 962. A film's median lag error can rise by at most 0.005 against main.
 
 ## The scratch switches
 
@@ -119,7 +119,7 @@ public static int JitterPeriod(int phases) => LongJitter ? LongJitterPeriod : ph
 return Fsr3Upscaler.JitterOffset((int)(DrawIndex % phases), phases);
 ```
 
-where `phases` = the result of `JitterPeriod`, 746,496 under the switch. `JitterOffset(index, period)` takes Halton point `index % period + 1`. For a draw index below 18, `index % 746496` equals `index % 18`, so the first 18 draws after a reset take AMD's offsets. `docs/plans/sub-pixel-strips.md`, section 5.1, specifies this sequence.
+where `phases` = the result of `JitterPeriod`, 746,496 under the switch. `JitterOffset(index, period)` takes Halton point `index % period + 1`. For a draw index below 18, `index % 746496` equals `index % 18`, so the first 18 draws after a reset take AMD's offsets. `https://github.com/alexispurslane/tertius/wiki/sub-pixel-strips`, section 5.1, specifies this sequence.
 
 ## The control runs
 

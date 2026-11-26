@@ -56,7 +56,7 @@ public readonly partial struct LiftEvent;
 
 /// <summary>
 /// A lift's platform, a kinematic plain body that rides down a spoke of a spinning station on <paramref name="profile"/>
-/// (docs/plans/blue-danube-demo.md, "The lift"). It is a flat state machine: its cases are <see cref="LiftState"/>, and
+/// (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The lift"). It is a flat state machine: its cases are <see cref="LiftState"/>, and
 /// <see cref="LiftState.Next"/> is the whole table of its changes. In each tick it writes the profile's full sample of the
 /// step, from <paramref name="top"/> along <paramref name="outward"/>: at the top the profile's start, at the foot its end,
 /// and in the ride the sample of that step. A <see cref="Descend"/> starts the ride at the start of the next step, and at

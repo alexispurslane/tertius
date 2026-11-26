@@ -4,7 +4,7 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The prefilter of the environment map on the GPU (docs/plans/environment-map.md, "The prefilter"): the specular
+/// The prefilter of the environment map on the GPU (https://github.com/alexispurslane/tertius/wiki/environment-map, "The prefilter"): the specular
 /// levels, the open-sky share and the irradiance, against the radiance map they derive from and their C# copies.
 /// </summary>
 [Collection(GpuCollection.Name)]
@@ -268,7 +268,7 @@ public sealed class EnvironmentPrefilterTests
 
     /// <summary>
     /// Every texel of every level of the distance cube is the mean of its four children's inverse distances, by their exact
-    /// solid angles: the rule of the radiance map's mips (docs/plans/environment-map-distances.md, "The level chain"). Each
+    /// solid angles: the rule of the radiance map's mips (https://github.com/alexispurslane/tertius/wiki/environment-map-distances, "The level chain"). Each
     /// of three maps holds the scene in its own axes, so each makes its levels from its own faces. At 32 texels the chain
     /// takes two dispatches and at 128 three.
     /// </summary>
@@ -327,7 +327,7 @@ public sealed class EnvironmentPrefilterTests
 
     /// <summary>
     /// A texel of level 1 whose two upper children see a wall 4 m away and whose two lower children see the sky holds the
-    /// mean of their inverse distances, half the wall's, because the sky's is 0 (docs/plans/environment-map-distances.md,
+    /// mean of their inverse distances, half the wall's, because the sky's is 0 (https://github.com/alexispurslane/tertius/wiki/environment-map-distances,
     /// "The level chain", design A). The wall's lower edge lies on the line between rows 14 and 15 of face +X.
     /// </summary>
     [Fact]

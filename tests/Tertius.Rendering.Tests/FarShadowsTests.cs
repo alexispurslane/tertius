@@ -6,9 +6,9 @@ namespace Tertius.Rendering.Tests;
 /// <summary>
 /// <see cref="FarShadows.Choose"/>: which far lights get a cascade set, which get far shadows only and which get no slot,
 /// by the irradiance at which they rank (<see cref="LightUnits.RankIrradiance"/>), here at the eye, with ties in list order
-/// (docs/plans/local-light-shadows.md, "Shadows of each light"), in the tiers of <see cref="MainViewTier"/>: the main view's
+/// (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, "Shadows of each light"), in the tiers of <see cref="MainViewTier"/>: the main view's
 /// lights whose light falls in view, then its spot lamps whose axis misses the view, then the lights that only a face of a
-/// map keeps (docs/plans/environment-map.md, decision 20). A far spot lamp is rare, but a lamp of 2 × 10^14 W/sr
+/// map keeps (https://github.com/alexispurslane/tertius/wiki/environment-map, decision 20). A far spot lamp is rare, but a lamp of 2 × 10^14 W/sr
 /// reaches 2.3 × 10^7 m at −10 stops, so its cone can reach the view from a far distance.
 /// </summary>
 public sealed class FarShadowsTests

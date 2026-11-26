@@ -2,7 +2,7 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The deform pass's job table, the search by which each workgroup finds its job, and the grid of its one dispatch,
-/// without a GPU (docs/plans/skinning-and-morphs.md, "The pass").
+/// without a GPU (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "The pass").
 /// </summary>
 public sealed class DeformJobsTests
 {

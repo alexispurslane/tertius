@@ -26,7 +26,7 @@ public readonly record struct MotionSample(
     /// This sample in another frame, which the two relations call the parent: <paramref name="start"/> and
     /// <paramref name="end"/>, the motion of the sample's frame relative to it where the step of <paramref name="step"/>
     /// seconds starts and where it ends (see <see cref="FrameTree.MotionRelativeInStep"/>). Each part converts by the moment
-    /// that it describes (docs/plans/spin-gravity.md, "V7, the relative motion of two frames" and "The two conversion
+    /// that it describes (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V7, the relative motion of two frames" and "The two conversion
     /// rules"). The pose, the instant velocity, the acceleration, the angular velocity and the angular acceleration describe
     /// the end of the step, so they convert by <paramref name="end"/>, by the rules of a point and of a body in a frame that
     /// moves, turns and spins up (see <see cref="FrameMotion"/>), which hold the frame's rotation terms. The chord is the

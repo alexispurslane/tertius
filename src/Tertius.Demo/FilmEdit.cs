@@ -4,7 +4,7 @@ using Tertius.Host.Scripting;
 namespace Tertius.Demo;
 
 /// <summary>
-/// One film of a script, and where its frames lie in the script's video (docs/plans/blue-danube-demo.md, "The cut list").
+/// One film of a script, and where its frames lie in the script's video (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The cut list").
 /// The video holds one frame for each capture of the script, so frame k of the video is capture k of the run.
 /// </summary>
 /// <param name="Name">The film's name.</param>
@@ -192,7 +192,7 @@ public sealed record TitleCard(double Seconds, IReadOnlyList<CardLine> Lines)
 }
 
 /// <summary>
-/// The cut list of an edit (docs/plans/blue-danube-demo.md, "The cut list"): every film of the script becomes one stretch
+/// The cut list of an edit (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The cut list"): every film of the script becomes one stretch
 /// in the script's order, less its trims, with the parts' titles, the check panels, and a card before and after.
 /// </summary>
 public sealed record CutList(

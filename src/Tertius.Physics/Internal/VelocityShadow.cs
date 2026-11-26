@@ -4,7 +4,7 @@ namespace Tertius.Physics;
 
 /// <summary>
 /// What the two-turn update of a turning frame expects of a dynamic body at the end of the step that it wrote
-/// (docs/plans/spin-gravity.md, "V6, the velocity shadow"). The next update starts from these doubles while Jolt's float
+/// (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V6, the velocity shadow"). The next update starts from these doubles while Jolt's float
 /// velocity agrees with them to rounding, so that the rounding of Jolt's floats does not pile up over many steps.
 /// </summary>
 /// <param name="Chord">The double chord that the update gave the body, relative to its home, in m/s, with Jolt's damping.</param>
@@ -48,8 +48,8 @@ internal readonly record struct ShadowTracking(Double3 Chord, Double3 Place, Vec
 /// <summary>
 /// A dynamic body's velocity shadow: <see cref="ShadowTracking"/>, or none. The default holds no case: the body has no
 /// shadow, and the next update starts from Jolt's velocity. Only a dynamic body whose system's semantic frame is a turning
-/// frame keeps one (docs/plans/spin-gravity.md, fork F8).
-/// This is a generated union (docs/plans/union-tooling.md): the union generator writes its members.
+/// frame keeps one (https://github.com/alexispurslane/tertius/wiki/spin-gravity, fork F8).
+/// This is a generated union (https://github.com/alexispurslane/tertius/wiki/union-tooling): the union generator writes its members.
 /// </summary>
 [GeneratedUnion(typeof(ShadowTracking))]
 internal readonly partial struct VelocityShadow

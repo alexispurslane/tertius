@@ -51,12 +51,12 @@ index 7a03f1542..6a563abd0 100644
      /// <summary>
 -    /// The LightAgeShader items of Tertius.Rendering.csproj (ticket ter-wkvw): the spatial dispatch of a half-precision
 -    /// history whose samples have a light age, the diffuse signal's beside a precise specular history. It acts on its
--    /// block's evidence, as the precise variants do (docs/plans/bounce-light-confidence.md, section 8.4). The temporal
+-    /// block's evidence, as the precise variants do (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.4). The temporal
 -    /// dispatch reads no light age: no cut runs before the blend (section 4).
 +    /// The LightAgeShader items of Tertius.Rendering.csproj (ticket ter-wkvw): both dispatches of a half-precision history
 +    /// whose samples have a light age, the diffuse signal's beside a precise specular history, as the precise variants
 +    /// have them. The temporal dispatch stores its blocks' taps for the region drift pass (ticket t0-acxm), and the
-+    /// spatial dispatch acts on its block's evidence (docs/plans/bounce-light-confidence.md, sections 8.4 and 8.6). No cut
++    /// spatial dispatch acts on its block's evidence (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, sections 8.4 and 8.6). No cut
 +    /// runs before the blend (section 4).
      /// </summary>
 -    public static readonly ShaderVariant LightAge = new(Suffix: "_lightage", Shaders: ["accumulate_spatial.comp"]);
@@ -391,7 +391,7 @@ index 000000000..ed7954da1
 +// The region drift pass of a signal with a light age (region_drift.glsl): one invocation per block of 8 × 8 pixels. It
 +// takes the region's light of this draw from the taps that the temporal dispatch stored, writes it into the block's ring,
 +// and tests the ring's newer window against its older one. The spatial dispatch reads the result
-+// (docs/plans/bounce-light-confidence.md, section 8.6).
++// (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.6).
 +#extension GL_GOOGLE_include_directive : require
 +#include "accumulate.glsl"
 +#include "region_drift.glsl"
@@ -475,7 +475,7 @@ index 000000000..3b6afebed
 --- /dev/null
 +++ b/src/Tertius.Rendering/Shaders/region_drift.glsl
 @@ -0,0 +1,55 @@
-+// The region's drift (docs/plans/bounce-light-confidence.md, section 8.6; ticket t0-acxm): the second source of a block's
++// The region's drift (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.6; ticket t0-acxm): the second source of a block's
 +// light evidence. The temporal dispatch stores one tap per block of 8 × 8 pixels, the region drift pass keeps each block's
 +// ring of its region's light and tests whether that light moved, and the spatial dispatch reads the test. The three images
 +// are a signal's with a light age (TemporalSignal), at block resolution. Needs accumulate.glsl.

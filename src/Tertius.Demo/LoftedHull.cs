@@ -34,7 +34,7 @@ public readonly record struct HullPane(string Id, Vector3 Center, Vector3[] Oute
 /// A hull lofted through cross-sections along its length, with a wall of one thickness: a mesh to draw, an outer collision
 /// shape and an interior shape that match it, and its mass properties, all from one description, as
 /// <see cref="RevolvedSolid"/> and <see cref="BoxMesh"/> give theirs. All positions are in the hull's own axes, in
-/// meters. The design is docs/plans/blue-danube-demo.md, "The shuttle's tram shape and glass canopy".
+/// meters. The design is https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The shuttle's tram shape and glass canopy".
 /// </summary>
 /// <remarks>
 /// <para>

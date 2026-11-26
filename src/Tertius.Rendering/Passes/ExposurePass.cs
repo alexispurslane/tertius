@@ -3,7 +3,7 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The exposure pass, under <see cref="AutoExposure"/> (docs/plans/auto-exposure.md, "The exposure pass"): it clears
+/// The exposure pass, under <see cref="AutoExposure"/> (https://github.com/alexispurslane/tertius/wiki/auto-exposure, "The exposure pass"): it clears
 /// the histogram, meters into it the top-left pixel of each 2 × 2 block of the HDR image when it is a surface pixel, and
 /// moves the exposure buffer toward the target by this draw's step. Two compute dispatches, on the graphics queue.
 /// </summary>

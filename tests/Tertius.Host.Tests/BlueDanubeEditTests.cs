@@ -91,7 +91,7 @@ public sealed class BlueDanubeEditTests
     public void TheEditKeepsEveryFrameOfTheCheckedInScript()
     {
         // The user's decision of 2026-10-20: keep every frame where any part of the shuttle or the station shows, however
-        // dark. A measure of the round-2 master found one of them in every frame (docs/plans/blue-danube-demo.md, "The
+        // dark. A measure of the round-2 master found one of them in every frame (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The
         // dark frames").
         IReadOnlyList<Stretch> stretches = Stretch.Of(Films, BlueDanubeEdit.Cuts.Trims);
 

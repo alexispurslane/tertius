@@ -1,6 +1,6 @@
 # The real takes of the region's cap (t0-qvm1)
 
-The build caps a region's histories by the size of its drift above the bar (docs/plans/bounce-light-confidence.md, section 8.7, "The region's cap"). This record holds the acceptance takes of the ticket's design note of 2026-11-23: real engine runs of main's code against the build. The replay that chose the form is `../t0-qvm1-region-repair-replay/`.
+The build caps a region's histories by the size of its drift above the bar (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.7, "The region's cap"). This record holds the acceptance takes of the ticket's design note of 2026-11-23: real engine runs of main's code against the build. The replay that chose the form is `../t0-qvm1-region-repair-replay/`.
 
 ## The sides and the builds
 

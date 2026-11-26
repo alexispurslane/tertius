@@ -1,6 +1,6 @@
 # XeGTAO reference files
 
-These files come from GameTechDev/XeGTAO (https://github.com/GameTechDev/XeGTAO), commit `a5b1686c7ea37788eeb3576b5be47f7c03db532c` of 2024-04-22, under the MIT license in `LICENSE`. The build does not compile them. They are the reference for the GLSL port of GTAO. The design is in `docs/plans/ambient-occlusion.md`.
+These files come from GameTechDev/XeGTAO (https://github.com/GameTechDev/XeGTAO), commit `a5b1686c7ea37788eeb3576b5be47f7c03db532c` of 2024-04-22, under the MIT license in `LICENSE`. The build does not compile them. They are the reference for the GLSL port of GTAO. The design is in `https://github.com/alexispurslane/tertius/wiki/ambient-occlusion`.
 
 | File | Source | Change |
 |---|---|---|

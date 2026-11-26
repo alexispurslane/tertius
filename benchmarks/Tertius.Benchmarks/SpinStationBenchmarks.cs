@@ -8,7 +8,7 @@ using Tertius.Simulation;
 namespace Tertius.Benchmarks;
 
 /// <summary>
-/// The cost of the rotation terms on awake dynamic bodies (ter-1bnq, docs/plans/spin-gravity.md, "Cost to measure"): the
+/// The cost of the rotation terms on awake dynamic bodies (ter-1bnq, https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Cost to measure"): the
 /// two-turn update, the angular form and the velocity shadow, per body per step. One tick of a station, a frame without a
 /// field that turns in place about its +Y at <see cref="Rate"/> in a root frame without a field, and 1,000 crates of
 /// 0.5 m half extent on a grid of 10 by 10 by 10, 3 m apart, 30 m to 57 m from the axis. The station's spawn carries no
@@ -77,7 +77,7 @@ public class SpinStationCrateBenchmarks
 }
 
 /// <summary>
-/// The cost of the wake test's reach in a frame whose turn changes in every step (ter-1bnq, docs/plans/spin-gravity.md, "The
+/// The cost of the wake test's reach in a frame whose turn changes in every step (ter-1bnq, https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The
 /// wake"): one tick of a ship, a frame with a dynamic hull, a ball of 5 m and 100 t, that spins at 0.3 rad/s about its +Y in
 /// a root frame without a field, and 1,000 crates in its bubble on the grid of <see cref="SpinStationCrateBenchmarks"/>.
 /// The crates spawn at rest in inertial space, so they circle in the ship's axes, all awake, and stay in its bubble. With
@@ -150,7 +150,7 @@ public class DampedSpinningShipBenchmarks
 }
 
 /// <summary>
-/// The cost of the character update in a turning frame (ter-1bnq, docs/plans/spin-gravity.md, "Cost to measure"): one tick
+/// The cost of the character update in a turning frame (ter-1bnq, https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Cost to measure"): one tick
 /// of 100 people who stand on a static floor, on a grid of 10 by 10, 3 m apart. The floor's face lies 100 m from the
 /// station's axis along its +X. With <see cref="Turning"/>, the station turns at 0.31321 rad/s, which gives 9.81 m/s² at
 /// 100 m, and its spawn carries its first motion intent, so the people turn with it from their first step. Without it the
@@ -242,7 +242,7 @@ public class SpinStationCharacterBenchmarks
 }
 
 /// <summary>
-/// The cost of <see cref="FrameTree.BeginStep"/> (ter-1bnq, docs/plans/spin-gravity.md, "Cost to measure"): one pass over
+/// The cost of <see cref="FrameTree.BeginStep"/> (ter-1bnq, https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Cost to measure"): one pass over
 /// 1,000 frames, a root and 333 chains of 3 levels below it. Each frame lies 10 m from its parent's origin. With
 /// <see cref="Turning"/>, the motion intent of each frame's owner is the sample of a spin at 0.1 rad/s about its parent's
 /// +Y, so every level turns and every frame below the root composes its turn from its parent's. Without it no frame has a

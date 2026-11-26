@@ -4,7 +4,7 @@ using AwesomeAssertions;
 namespace Tertius.Simulation.Tests;
 
 /// <summary>
-/// The pure rules of a puff, with no World (docs/plans/particles.md, "The rule of motion" and "Births"): how a row steps in
+/// The pure rules of a puff, with no World (https://github.com/alexispurslane/tertius/wiki/particles, "The rule of motion" and "Births"): how a row steps in
 /// its frame's loose-body step, how many puffs an emitter makes in a step and at what age, the seed and the direction of a
 /// puff, the newborn's state, and which emitters make puffs. The steps of the tests are built by hand. A turning step is
 /// the step of a station that spins about its +Y at 0.31321 rad/s, the rate that gives 9.81 m/s² at 100 m.

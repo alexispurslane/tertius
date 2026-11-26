@@ -4,7 +4,7 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The light list on the CPU (docs/plans/local-light-shadows.md, Part 4): which lights of the snapshot the batcher keeps,
+/// The light list on the CPU (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, Part 4): which lights of the snapshot the batcher keeps,
 /// interpolated by alpha, how a kept light reaches the shaders, and the far shadows of each far light, cut from the frame's
 /// casters, which the batcher interpolates once. No GPU needed. The camera sits at the render origin and looks down −Z at
 /// 1600 × 900 with a 60 degree field of view, so one pixel is about 1.28e-3 rad. Unless a test names another, the frame's
@@ -162,7 +162,7 @@ public sealed class BatcherLightTests
 
     /// <summary>
     /// The shadow tiles follow a light from frame to frame by its whole entity, slot and generation, because a new entity
-    /// can take the slot of a destroyed one (docs/plans/local-light-shadows.md, "The cache"). The batcher builds that entity.
+    /// can take the slot of a destroyed one (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, "The cache"). The batcher builds that entity.
     /// </summary>
     [Fact]
     public void AKeptLightCarriesTheSlotAndTheGenerationOfItsEntity()

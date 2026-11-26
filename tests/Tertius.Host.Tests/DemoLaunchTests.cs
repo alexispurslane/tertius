@@ -84,7 +84,7 @@ internal sealed record LaunchTick(
 /// <summary>
 /// A ball at rest in the cabin, 7 s after the engines stop, and where it is after 5 s. The attitude autopilot turns the
 /// shuttle from its climb to face the planet for about 5 s after the engines stop, at up to 0.1 rad/s. A free body keeps
-/// its inertial motion while the cabin's turn changes under it (docs/plans/spin-gravity.md), so a ball put there 2 s after
+/// its inertial motion while the cabin's turn changes under it (https://github.com/alexispurslane/tertius/wiki/spin-gravity), so a ball put there 2 s after
 /// the engines stop leaves its place by about 1 m in 5 s. From 7 s the cabin turns at the orbit's rate, about 1.2e-3 rad/s,
 /// and its rate changes by less than 4e-5 rad/s more, which moves the ball by about 1 mm in 5 s.
 /// </summary>
@@ -331,7 +331,7 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
     /// 27 m/s, the hull stops turning onto the incline at once, and the belt's push against the cabin's gravity lags that
     /// jolt by a step, so the person swings about 0.17 m and back. In the climb, the thrust changes smoothly, and the
     /// person stays within 8 cm of its seat. Changed on purpose by ter-1b21: the bound of the climb was 1 cm. A character's
-    /// up now follows its gravity in the air too, at most at the air rate (docs/plans/spin-gravity.md, "Characters", fork
+    /// up now follows its gravity in the air too, at most at the air rate (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Characters", fork
     /// F5, the user's choice of 2026-10-20), and nothing holds the belted person's up to the seat. At the end of the climb
     /// the engine throttles down to about 0.2 m/s², and the felt gravity leans 14 degrees from the cabin's aft axis toward
     /// its ceiling. So the person's head, toward the nose, dips onto the seat in front of it, and the seat lifts the person
@@ -361,7 +361,7 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
     }
 
     /// <summary>
-    /// The person sits at its seat from the ignition, so its heading holds (docs/plans/blue-danube-demo.md, "The person's
+    /// The person sits at its seat from the ignition, so its heading holds (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The person's
     /// walk"): in every tick from the ignition to the end of the run, it lies within 0.01 radians of its heading at the
     /// ignition. This covers the jolt at the ramp's foot, the climb, where the seat lifts the person, and the fetch of the
     /// pen in orbit, where the person floats.
@@ -413,7 +413,7 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
     /// the rotation terms of the cabin's turn (see <see cref="FrameTree.FeltGravity"/>), so it lets go about 2.9 s after the
     /// engines stop, once the change of the turn that the attitude autopilot makes has settled. The autopilot turns the
     /// cabin for about 5 s after the engines stop, so the cabin still turns then, and in the cabin's turning axes the pen's
-    /// velocity changes by the rotation terms (docs/plans/spin-gravity.md, "The model from scratch"). Before the rotation
+    /// velocity changes by the rotation terms (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The model from scratch"). Before the rotation
     /// terms, the test asked for the push's velocity in the cabin's axes.
     /// </summary>
     [Fact]

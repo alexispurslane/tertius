@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace Tertius.Slop.Rules;
 
-// The verbosity rules of the user's about parameters and what a function returns (docs/plans/code-quality-tooling.md,
+// The verbosity rules of the user's about parameters and what a function returns (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling,
 // decision 17).
 
 /// <summary>A return of -1 or an empty string, in a function that is not a Try method.</summary>

@@ -4,7 +4,7 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The light of a hair fiber, a diffuse part and two highlights shifted along the strand, and the strand and the fiber
-/// normal of a card's point (docs/plans/skin-and-hair.md, "The hair model", "The strand and the fiber normal"). Directions
+/// normal of a card's point (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The hair model", "The strand and the fiber normal"). Directions
 /// are given by their longitudinal angle θ from the plane across the strand and their azimuth φ around it.
 /// </summary>
 public sealed class HairFiberTests

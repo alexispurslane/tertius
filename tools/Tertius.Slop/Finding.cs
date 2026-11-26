@@ -1,7 +1,7 @@
 namespace Tertius.Slop;
 
 /// <summary>
-/// One place that a verbosity rule flags (docs/plans/code-quality-tooling.md, decision 17): the lines of the node that
+/// One place that a verbosity rule flags (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling, decision 17): the lines of the node that
 /// the rule's rewrite would replace or delete.
 /// </summary>
 public readonly record struct Finding

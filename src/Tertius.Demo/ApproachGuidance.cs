@@ -2,7 +2,7 @@ namespace Tertius.Demo;
 
 /// <summary>
 /// The one law of the brake, the glide, the hold and the docking. It flies a point to a target point and stops it there
-/// (docs/plans/blue-danube-demo.md, "The approach guidance" and "The docking", "The law"). The positions and the velocity are
+/// (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The approach guidance" and "The docking", "The law"). The positions and the velocity are
 /// in one set of axes that moves with the target, such as the station's: the rendezvous flies in the axes of the frame that
 /// holds the station, relative to the station's center, and the docking flies in the station's turning axes.
 /// </summary>

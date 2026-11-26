@@ -49,7 +49,7 @@ Every take ran on this Mac (Apple M1 Max, MoltenVK) under `tools/gpu-lock.sh`, u
 
 ## Acceptance points 1 to 14
 
-The points are those of `docs/plans/bounce-light-confidence.md`, section 22. "Pass" and "fail" are by the point's own words.
+The points are those of `https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence`, section 22. "Pass" and "fail" are by the point's own words.
 
 | Point | M | X | The numbers |
 |---|---|---|---|

@@ -7,7 +7,7 @@ namespace Tertius.Host.Tests;
 /// <summary>
 /// The demo's generator of lofted hulls, <see cref="LoftedHull"/>, with no World: the shuttle's hull,
 /// <see cref="Shuttle.Loft"/>, and small hulls that show one rule each. The expected geometry comes from the tables of
-/// docs/plans/blue-danube-demo.md, "The shuttle's tram shape and glass canopy", worked out here, not from the generator.
+/// https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The shuttle's tram shape and glass canopy", worked out here, not from the generator.
 /// All positions are in the hull's axes, in meters: +Y is up, -Z is the nose and +X is starboard.
 /// </summary>
 public sealed class LoftedHullTests

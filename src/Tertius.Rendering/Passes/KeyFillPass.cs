@@ -3,7 +3,7 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// "Key and fill" (docs/plans/light-pairs.md, "Key and fill"), under <see cref="KeyAndFill"/>, right before the direct
+/// "Key and fill" (https://github.com/alexispurslane/tertius/wiki/light-pairs, "Key and fill"), under <see cref="KeyAndFill"/>, right before the direct
 /// pass. The corner pass draws one fragment per corner of the frame's tile grid and group of lights, which writes the
 /// group's candidates for the corner's key lights, and the distance and the normal of the corner's surface
 /// (Shaders/key_fill_corners.frag). The tile pass merges the candidates of each corner and gathers each tile's four

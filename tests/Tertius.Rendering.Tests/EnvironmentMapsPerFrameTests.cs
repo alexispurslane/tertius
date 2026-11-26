@@ -4,7 +4,7 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// Scenes for the GPU tests of maps per frame (docs/plans/environment-maps-per-frame.md, "Tests", Part 3). The room is the
+/// Scenes for the GPU tests of maps per frame (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame, "Tests", Part 3). The room is the
 /// camera's frame, id 1, and the outside is its parent and the root, id 0, both in the camera's axes. The room is a box
 /// 6 m wide around the eye, open toward −Z: its walls and ceiling glow while its lamps are on, and its floor is matte.
 /// Outside lie a matte ground 3.5 m below the eye and a blue glowing square 40 m above it, the sky. The sun is off, so the
@@ -110,7 +110,7 @@ internal sealed class RoomScenes(VulkanRenderer renderer)
 }
 
 /// <summary>
-/// Environment maps per frame on the GPU (docs/plans/environment-maps-per-frame.md): each frame of the camera's chain has a
+/// Environment maps per frame on the GPU (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame): each frame of the camera's chain has a
 /// map of its own, an object takes the map of its chain frame, a map leaves out the subtree below it, its lamps included,
 /// and lies in its frame's axes, and a change of the camera's frame redraws only the maps that changed.
 /// </summary>
@@ -744,7 +744,7 @@ public sealed class EnvironmentMapsPerFrameTests
 
     /// <summary>
     /// A map with no drawn face keeps every level of its distance cube, as it keeps its radiance (decision 12): its
-    /// levels are a pure function of its own faces' level 0 (docs/plans/environment-map-distances.md, "The level
+    /// levels are a pure function of its own faces' level 0 (https://github.com/alexispurslane/tertius/wiki/environment-map-distances, "The level
     /// chain").
     /// </summary>
     [Fact]

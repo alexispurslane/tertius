@@ -63,7 +63,7 @@ public sealed class DeviceFeatureTests
     public void TheDeviceRequiresStoresInTheFragmentStage()
     {
         // Under the skin scatter, the ambient pass adds D's ambient part to the diffuse image with a storage write at skin
-        // pixels alone (docs/plans/skin-and-hair.md, decision 14).
+        // pixels alone (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, decision 14).
         PhysicalDeviceFeatures withoutIt = Core with
         {
             FragmentStoresAndAtomics = false,
@@ -75,7 +75,7 @@ public sealed class DeviceFeatureTests
     [Fact]
     public void ADeviceWithoutCubeArraysIsRefusedByItsName()
     {
-        // The environment maps of the chain's frames are one cube array (docs/plans/environment-maps-per-frame.md, decision 18).
+        // The environment maps of the chain's frames are one cube array (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame, decision 18).
         PhysicalDeviceFeatures withoutIt = Core with
         {
             ImageCubeArray = false,
@@ -99,7 +99,7 @@ public sealed class DeviceFeatureTests
     [Fact]
     public void ADeviceWithoutStorageWritesWithoutAFormatIsRefusedByItsName()
     {
-        // AMD's accumulate pass of FSR 3.1 declares its output image with no format (docs/plans/temporal-renderer.md,
+        // AMD's accumulate pass of FSR 3.1 declares its output image with no format (https://github.com/alexispurslane/tertius/wiki/temporal-renderer,
         // "FSR 3.1"), which only this feature lets a shader write.
         PhysicalDeviceFeatures withoutIt = Core with
         {

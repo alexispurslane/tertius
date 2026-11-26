@@ -29,7 +29,7 @@ internal sealed record HandOffTick(
 /// <summary>
 /// One run of the scene <c>earth-system</c> with the real shuttle's hull, dynamic, spawned in the turning
 /// <c>earth-surface</c> 1 km below the radius at which it leaves the bubble, <see cref="ExitRadius"/>, and 200 km from the
-/// axis of its turn (docs/plans/blue-danube-demo.md, "The hand-off"), in a world that starts at
+/// axis of its turn (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The hand-off"), in a world that starts at
 /// <see cref="StartTime"/>, with the ground turned as at the demo's departure. It moves at 1 km/s out from Earth's center and 1 km/s across, along -Z of earth-surface,
 /// with its nose along that velocity and its roof away from Earth. A <see cref="ThirdThrottle"/> gives its
 /// <see cref="MainEngine"/> a throttle of 1/3 in every tick, about 9.81 m/s² along the nose. A crate of 0.4 m rests on the
@@ -161,7 +161,7 @@ public sealed class TurningGroundHandOffRun : IDisposable
 }
 
 /// <summary>
-/// The first hand-off of a dynamic hull that owns a cabin frame out of a turning frame (docs/plans/blue-danube-demo.md,
+/// The first hand-off of a dynamic hull that owns a cabin frame out of a turning frame (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo,
 /// "The hand-off"): the thrusting shuttle of <see cref="TurningGroundHandOffRun"/> leaves the turning
 /// <c>earth-surface</c> through the top of its bubble, past the exit margin, into <c>earth</c>, which does not turn. Across the hand-off its
 /// motion in <c>earth</c> stays that of gravity and thrust, its cabin's proper acceleration stays that of the thrust, and

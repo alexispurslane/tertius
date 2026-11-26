@@ -6,7 +6,7 @@ using Buffer = Silk.NET.Vulkan.Buffer;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// <see cref="Fsr3Upscaler"/> on the GPU, over AMD's pinned shaders (docs/plans/temporal-renderer.md, "FSR 3.1"): no
+/// <see cref="Fsr3Upscaler"/> on the GPU, over AMD's pinned shaders (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "FSR 3.1"): no
 /// message under synchronization validation, the history over frames, resets and exposure changes, a reference image,
 /// the exposure step, the reactive mask generator, refused inputs and determinism. Most tests wait for each frame.
 /// </summary>

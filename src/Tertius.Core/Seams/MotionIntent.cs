@@ -4,7 +4,7 @@ namespace Tertius;
 
 /// <summary>
 /// The pose of an entity at the end of the next step, with nothing about the motion on the way: the entity moves to it at
-/// a constant velocity from where the step starts (docs/plans/rails-components.md, "MoveKinematic as an end pose").
+/// a constant velocity from where the step starts (https://github.com/alexispurslane/tertius/wiki/rails-components, "MoveKinematic as an end pose").
 /// </summary>
 /// <param name="Pose">The pose at the end of the step, relative to the entity's frame, in its axes.</param>
 public readonly record struct EndPose(DPose Pose);
@@ -18,11 +18,11 @@ public readonly record struct SteerTarget(DPose Pose);
 
 /// <summary>
 /// How an entity moves in one step, which a component of the entity writes for the next step: an <see cref="EndPose"/>, a
-/// full <see cref="MotionSample"/>, or a <see cref="SteerTarget"/> (docs/plans/rails-components.md, "The motion intent").
+/// full <see cref="MotionSample"/>, or a <see cref="SteerTarget"/> (https://github.com/alexispurslane/tertius/wiki/rails-components, "The motion intent").
 /// An end pose and a full sample are the motion itself, for a kinematic body or an entity without a body. A steer target is
 /// an input that physics integrates for a dynamic body. The empty union is the all-zero default: the entity has no motion
 /// intent in the step.
-/// The union generator writes its union members (docs/plans/union-tooling.md). The three cases share the slot of their
+/// The union generator writes its union members (https://github.com/alexispurslane/tertius/wiki/union-tooling). The three cases share the slot of their
 /// pose, and only a full sample fills the five slots of its velocities and accelerations.
 /// </summary>
 [GeneratedUnion(typeof(EndPose), typeof(MotionSample), typeof(SteerTarget))]
@@ -44,7 +44,7 @@ public readonly partial struct MotionIntent
         };
 
     /// <summary>
-    /// How a frame follows when it takes the record of this intent (docs/plans/rails-components.md, "The follow kind"):
+    /// How a frame follows when it takes the record of this intent (https://github.com/alexispurslane/tertius/wiki/rails-components, "The follow kind"):
     /// <see cref="FollowKind.Rails"/> for a full sample, <see cref="FollowKind.Kinematic"/> for an end pose, and
     /// <see cref="FollowKind.Static"/> for a steer target and the empty union, which give no record (see
     /// <see cref="FrameTree.FollowKindInStep"/>).
@@ -62,7 +62,7 @@ public readonly partial struct MotionIntent
     /// The step record of this intent, the entity's motion over a step that starts at <paramref name="stepStart"/> and lasts
     /// <paramref name="step"/> seconds, both in the intent's frame. A full sample is its own record. An end pose gives the
     /// motion at a constant velocity from <paramref name="stepStart"/> to the end pose, as Jolt moves a kinematic body to
-    /// its target (docs/plans/rails-components.md, "MoveKinematic as an end pose"): the chord is also the instant velocity,
+    /// its target (https://github.com/alexispurslane/tertius/wiki/rails-components, "MoveKinematic as an end pose"): the chord is also the instant velocity,
     /// the angular velocity turns the start's rotation into the end's, and both accelerations are zero. A steer target gives
     /// no record, because physics measures the motion of a dynamic body, and neither does the empty union: both return null.
     /// </summary>
@@ -97,7 +97,7 @@ public readonly partial struct MotionIntent
     /// This intent in another frame, which the two relations call the parent: <paramref name="start"/> and
     /// <paramref name="end"/>, the motion of the intent's frame relative to it where the step of <paramref name="step"/>
     /// seconds that applies the intent starts and where it ends (see <see cref="FrameTree.MotionRelativeInStep"/>). Each
-    /// part converts by the moment that it describes (docs/plans/spin-gravity.md, "V7, the relative motion of two frames").
+    /// part converts by the moment that it describes (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V7, the relative motion of two frames").
     /// An end pose and a steer target are poses at the end of the step, so they convert by the pose of
     /// <paramref name="end"/> and keep their case, and the frames' motion gives them no velocity. A full sample converts by
     /// <see cref="MotionSample.Converted"/>. The empty union stays empty.
@@ -113,7 +113,7 @@ public readonly partial struct MotionIntent
 
     /// <summary>
     /// Which rule of the guard refuses this motion intent for an entity in the step that applies it, or
-    /// <see cref="MotionIntentRefusal.None"/> when the entity takes it (docs/plans/rails-components.md, "The flow per kind of
+    /// <see cref="MotionIntentRefusal.None"/> when the entity takes it (https://github.com/alexispurslane/tertius/wiki/rails-components, "The flow per kind of
     /// entity"). The rules, in this order:
     /// <list type="number">
     /// <item>An attached entity refuses every case: its pose follows its parent.</item>

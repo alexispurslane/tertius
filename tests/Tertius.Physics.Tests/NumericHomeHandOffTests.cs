@@ -46,7 +46,7 @@ public sealed class NumericHomeHandOffTests
     /// <summary>
     /// The default membership rules, but with a merge test that reaches only the bounding spheres, without the lookahead of
     /// 2 s and the split margin of 10 m. The ship's interior is a static body at the ship's origin, an anchor that keeps
-    /// every body that the merge test links to it in the ship's own system (docs/plans/numeric-frames.md, "Anchors"). With
+    /// every body that the merge test links to it in the ship's own system (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Anchors"). With
     /// the default reach, 2 s of the crate's 60 m/s, the interior would keep the crate there until it left the bubble. With
     /// this reach, the crate is clear of the interior after the step of the throw, 1 m beyond the 5.2 m where their spheres
     /// touch, so it falls in a numeric frame of its own below the ship, which is the case that these tests are about.

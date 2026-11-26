@@ -18,7 +18,7 @@ public readonly record struct UniformMedium(float Density, float Drag, BoundingB
 /// above the planet's radius. Below the radius the density stays at the surface density. It matches
 /// <see cref="PointGravity"/>, centred on the frame's origin. It also holds the air's look, which the renderer paints for a
 /// camera whose chain holds the frame, or for a camera whose chain holds no planet medium when this air is the densest at
-/// its eye (docs/plans/atmosphere.md): the sky, the haze and the sun's tint. Each part of the
+/// its eye (https://github.com/alexispurslane/tertius/wiki/atmosphere): the sky, the haze and the sun's tint. Each part of the
 /// look defaults to none.
 /// </summary>
 /// <param name="Radius">The radius of the planet, in m, 0 or more.</param>
@@ -53,7 +53,7 @@ public readonly record struct PlanetMedium(
 }
 
 /// <summary>
-/// The haze of a planet's air (docs/plans/atmosphere.md, "The haze"): a surface seen through the air fades toward
+/// The haze of a planet's air (https://github.com/alexispurslane/tertius/wiki/atmosphere, "The haze"): a surface seen through the air fades toward
 /// <paramref name="Radiance"/> with the air that lies between it and the eye.
 /// </summary>
 /// <param name="Radiance">
@@ -66,12 +66,12 @@ public readonly record struct PlanetMedium(
 public readonly record struct PlanetHaze(Vector3 Radiance, float Distance);
 
 /// <summary>
-/// The medium of one frame: the gas that fills it, at rest in the frame's axes (docs/plans/particles.md, "The frame's
+/// The medium of one frame: the gas that fills it, at rest in the frame's axes (https://github.com/alexispurslane/tertius/wiki/particles, "The frame's
 /// medium"). It is <see cref="UniformMedium"/>, <see cref="PlanetMedium"/> or neither, which is no medium: vacuum. The
 /// frame tree holds one per frame beside its gravity field, and it matches the gravity field in who sets it, when, which
 /// step it describes and where it is stored. Only puffs read a medium: physics reads none, and each body keeps its own
 /// damping.
-/// The union generator writes its union members (docs/plans/union-tooling.md), as it does for
+/// The union generator writes its union members (https://github.com/alexispurslane/tertius/wiki/union-tooling), as it does for
 /// <see cref="GravityField"/>. The empty union is the all-zero default, <see cref="None"/>, and its <c>HasValue</c> is false.
 /// </summary>
 [GeneratedUnion(typeof(UniformMedium), typeof(PlanetMedium))]

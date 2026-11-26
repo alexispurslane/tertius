@@ -1,5 +1,5 @@
 #version 460
-// The own rays of one kind of the screen tracer (docs/plans/temporal-renderer.md, section 6): an indirect dispatch of the
+// The own rays of one kind of the screen tracer (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 6): an indirect dispatch of the
 // kind's own-ray list, which traces each listed pixel's ray into the pixel's record, as screen_trace_block_rays.comp
 // traces a block's.
 #extension GL_GOOGLE_include_directive : require
