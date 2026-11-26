@@ -104,7 +104,7 @@ public sealed class DebugReflectedPlaceTests
                     renderer.Render(scene, 1);
                 }
                 return renderer.ReadImageLayer(
-                    renderer.ScreenTraceSignals.Specular.AccumulationTrace(0)
+                    renderer.ScreenTraceImages.Specular.AccumulationTrace(0)
                         ?? throw new InvalidOperationException("The accumulation trace is off."),
                     Lengths
                 );

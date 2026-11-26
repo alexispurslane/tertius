@@ -41,7 +41,7 @@ void main()
     {
         SurfaceLobes lobes = lobesOf(p.s, p.V);
         vec3 weight = uncappedSpecularWeightOf(p, lobes, materialFactors(p.s, lobes), direction, density);
-        w = luminance((1.0 - handOverOf(p)) * light * weight);
+        w = luminance(glossyShare(sqrt(p.alpha)) * light * weight);
     }
     imageStore(blockGuide, block, vec4(shareEvidenceOf(p, ray), w, lobe));
 }

@@ -13,7 +13,7 @@ internal sealed class ScreenTraceProbe(VulkanRenderer renderer, string shader) :
         return probe;
     }
 
-    public float[] Read() => renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Sample(0));
+    public float[] Read() => renderer.ReadImage(renderer.ScreenTraceImages.Specular.Sample(0));
 
     public void InvalidateImages()
     {
@@ -49,8 +49,7 @@ internal sealed class ScreenTraceProbe(VulkanRenderer renderer, string shader) :
         context.Barriers.Image(renderer.ScreenTraceImages.HitLight, ImageUse.StorageCompute);
         context.Barriers.Image(renderer.ScreenTraceImages.ReflectionShare, ImageUse.StorageCompute);
         context.Barriers.Image(renderer.ScreenTraceImages.BlockGuide, ImageUse.StorageCompute);
-        context.Barriers.Image(renderer.ScreenTraceSignals.Diffuse.Sample(0), ImageUse.StorageCompute);
-        context.Barriers.Image(renderer.ScreenTraceSignals.Specular.Sample(0), ImageUse.StorageCompute);
+        context.Barriers.Image(renderer.ScreenTraceImages.Specular.Sample(0), ImageUse.StorageCompute);
         // A probe of the resolve writes FSR's mask from the records around each pixel, as the resolve does.
         if (renderer.ScreenTraceImages.LightAge(context.History.Parity) is { } lightAge)
             context.Barriers.Image(lightAge, ImageUse.StorageCompute);

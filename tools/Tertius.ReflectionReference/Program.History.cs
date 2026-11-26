@@ -145,17 +145,17 @@ internal static partial class Program
                 JsonSerializer.Serialize(
                     new
                     {
-                        Engine = selectedShaders.Select(renderer.ScreenTraceSignals.Specular.HistoryShader),
+                        Engine = selectedShaders.Select(renderer.ScreenTraceImages.Specular.HistoryShader),
                         Probe = ReflectionComparisonProbe
                             .OutputGroups.Select(group =>
-                                renderer.ScreenTraceSignals.Specular.HistoryShader(group.Shader)
+                                renderer.ScreenTraceImages.Specular.HistoryShader(group.Shader)
                             )
                             .Append(
-                                renderer.ScreenTraceSignals.Specular.HistoryShader("reflection_comparison_shared.frag")
+                                renderer.ScreenTraceImages.Specular.HistoryShader("reflection_comparison_shared.frag")
                             ),
                         ActualReconstructionAttachment = 8,
                         UnfilteredIdentityChannel = 1,
-                        SlowStorage = renderer.ScreenTraceSignals.Specular.Slow(0).Format.ToString(),
+                        SlowStorage = renderer.ScreenTraceImages.Specular.Slow(0).Format.ToString(),
                         SampleFastAndGuideStorage = Format.R16G16B16A16Sfloat.ToString(),
                     },
                     JsonOptions
@@ -276,7 +276,7 @@ internal static partial class Program
                                 scene.Instances[0].Position.Y,
                                 scene.Instances[0].Position.Z,
                             },
-                            ReflectionOwnRays = frame < 0 ? (int?)null : renderer.ReadOwnRayCounts().Reflection,
+                            ReflectionOwnRays = frame < 0 ? (int?)null : renderer.ReadReflectionRayCount(),
                             Measurement = measurement,
                         }
                     )
@@ -336,7 +336,7 @@ internal static partial class Program
         HistoryInstrumentation instrumentation
     )
     {
-        TemporalSignal specular = renderer.ScreenTraceSignals.Specular;
+        TemporalSignal specular = renderer.ScreenTraceImages.Specular;
         Format expected =
             control == SpecularHistoryMode.Original ? Format.R16G16B16A16Sfloat : Format.R32G32B32A32Sfloat;
         bool formats =
@@ -381,10 +381,10 @@ internal static partial class Program
         float[][] fields = [.. Enumerable.Range(0, 8).Select(probe.Read)];
         float[] fullOutput = probe.Read(8);
         float[] output = CropAttachment(fullOutput, 2);
-        float[] fullHistory = renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Slow(0));
+        float[] fullHistory = renderer.ReadImage(renderer.ScreenTraceImages.Specular.Slow(0));
         float[] history = CropAttachment(fullHistory, 4);
         object? lightAgeCounts = null;
-        if (renderer.ScreenTraceSignals.Specular.SampleAge(0) is { } sampleAge)
+        if (renderer.ScreenTraceImages.Specular.SampleAge(0) is { } sampleAge)
         {
             // The file keeps the light code alone: the motion bit is the accumulator's evidence, not an age.
             foreach (float code in CropAttachment(renderer.ReadImage(sampleAge), 1))
@@ -490,7 +490,7 @@ internal static partial class Program
             WriteFloats(Path.Combine(folder, "reconstructed-output.f32"), output);
             WriteFloats(
                 Path.Combine(folder, "reflection-distance-guide.f32"),
-                CropAttachment(renderer.ReadImage(renderer.ScreenTraceSignals.Specular.ReflectionGuide(0)), 4)
+                CropAttachment(renderer.ReadImage(renderer.ScreenTraceImages.Specular.ReflectionGuide(0)), 4)
             );
         }
         if (frame == 0)

@@ -1,7 +1,6 @@
 // The composite (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 9, "The composite"): at each lit pixel, the light of section 1
 // into the HDR image, capped at MaxRadiance. It multiplies the direct light's two images and the two indirect terms back
-// by their material factors (decision 18), and adds the emission. The indirect terms are the screen tracer's slow
-// histories under ScreenTrace, and the environment's closed forms under NoScreenTrace (section 8, "The zero cases"). The sky's pixels get the sky and the stars, and an impostor's pixels their baked light.
+// by their material factors and adds emission. Glossy surfaces blend their reflection history with the environment.
 // Under the scatter it also writes the diffuse image, the diffuse factor times the two diffuse terms and the skin mask at
 // skin, and 0 elsewhere (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The diffuse light D"). composite.frag and composite_scatter.frag,
 // which defines SCATTER_OUTPUT, include it: the diffuse image is a second color attachment only then. A test's probe
@@ -19,9 +18,8 @@
 // NoScreenTrace, bindings 2 and 3 hold the direct images, which the composite does not read.
 layout(set = 3, binding = 0, rgba16f) uniform readonly image2D directDiffuseLight;
 layout(set = 3, binding = 1, rgba16f) uniform readonly image2D directSpecularLight;
-layout(set = 3, binding = 2, rgba16f) uniform readonly image2D indirectDiffuseLight;
 #include "specular_history.glsl"
-layout(set = 3, binding = 3, SPECULAR_HISTORY_FORMAT) uniform readonly image2D indirectSpecularLight;
+layout(set = 3, binding = 2, SPECULAR_HISTORY_FORMAT) uniform readonly image2D indirectSpecularLight;
 
 #include "reflection_sharing_prototype.glsl"
 
@@ -83,13 +81,15 @@ void main()
     outColor = vec4(min(directDiffuse + directSpecular + emissive, vec3(MaxRadiance)), 1.0);
     return;
 #endif
-    IndirectLight indirect = screenTraceOn
-        ? IndirectLight(imageLoad(indirectDiffuseLight, pixel).rgb, imageLoad(indirectSpecularLight, pixel).rgb)
-        : closedForm(withAmbientFootprint(s, pixel), V);
+    IndirectLight indirect = closedForm(withAmbientFootprint(s, pixel), V);
     vec3 indirectDiffuse = factors.diffuse * indirect.diffuse;
     vec3 indirectSpecular = factors.specular * indirect.specular;
-    if (screenTraceOn)
-        indirectSpecular = reflectionSharedAt(pixel, indirectSpecular);
+    float share = glossyShare(s.roughness);
+    if (screenTraceOn && share > 0.0)
+    {
+        vec3 glossy = factors.specular * imageLoad(indirectSpecularLight, pixel).rgb;
+        indirectSpecular = mix(indirectSpecular, reflectionSharedAt(pixel, glossy), share);
+    }
     // Each part is finite and at most a few times MaxRadiance, so the sum is finite, and the cap keeps the surfaces' share
     // (https://github.com/alexispurslane/tertius/wiki/screen-space-illumination, "The cap at MaxRadiance").
     outColor = vec4(

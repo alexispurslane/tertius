@@ -1,4 +1,4 @@
-// The fresh light that a pixel sends toward a diffuse ray (ARCHITECTURE.md, "Surface share"): the light that this draw
+// The fresh light that a pixel sends toward a reflection ray (ARCHITECTURE.md, "Surface share"): the light that this draw
 // computed for the pixel's surface before any history, times the pixel's surface share. Its two readers include it, the
 // plan's hit light (screen_trace.glsl, leavingLightOf) and the guide's finest level (light_pyramid_finest.comp), so that
 // the guide aims by the light that a hit reads. The share needs the pixel's surface reprojection, so this file also gives

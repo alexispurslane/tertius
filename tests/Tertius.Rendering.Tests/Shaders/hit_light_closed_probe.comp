@@ -17,14 +17,14 @@ void main()
     SignalReprojections r = reprojectionsAt(pixel);
     if (tracedSurface(pixel) && holdsHistory(r.diffuse) && !holdsHistory(r.specular))
     {
-        LeavingLight leaving = leavingLightAt(pixel);
+        vec3 leaving = leavingLightAt(pixel);
         ShadingInput s = materialAt(pixel);
         vec3 V = -normalize(viewRayThrough(vec2(pixel) + 0.5));
         MaterialFactors factors = materialFactors(s, lobesOf(s, V));
         IndirectLight closedLight = closedForm(withAmbientFootprint(s, pixel), V);
-        part = vec4(leaving.reflection - leaving.diffuse, 1.0);
-        expected = vec4(factors.specular * (imageLoad(directSpecularLight, pixel).rgb + closedLight.specular), 1.0);
+        part = vec4(leaving, 1.0);
+        expected = vec4(sentDiffuseLight(pixel, factors.diffuse * imageLoad(directDiffuseLight, pixel).rgb, r.diffuse) + factors.diffuse * closedLight.diffuse + factors.specular * (imageLoad(directSpecularLight, pixel).rgb + closedLight.specular), 1.0);
     }
     imageStore(specularSample, pixel, part);
-    imageStore(diffuseSample, pixel, expected);
+    imageStore(ownLight, pixel, expected);
 }

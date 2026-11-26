@@ -22,12 +22,13 @@ public sealed class ShaderConstantsTests
         {
             [ShaderConstants.EnvironmentMapId] = False,
             [ShaderConstants.ScreenTraceOnId] = False,
+            [ShaderConstants.MaxTraceRoughnessId] = new(Type: "float", Default: BitConverter.SingleToUInt32Bits(0.5f)),
             [ShaderConstants.ReflectionSharingPrototypeId] = False,
         },
         ["screen_trace_block_rays.comp"] = new()
         {
+            [ShaderConstants.MaxTraceRoughnessId] = new(Type: "float", Default: BitConverter.SingleToUInt32Bits(0.5f)),
             [ShaderConstants.EnvironmentMapId] = False,
-            [ShaderConstants.RayKindId] = new(Type: "uint", Default: 0),
         },
         // A face's surfaces only sample their material: the light pass of the face holds the lights' constants.
         ["environment_face.frag"] = new()
@@ -148,6 +149,9 @@ public sealed class ShaderConstantsTests
             {
                 case OpTypeBool:
                     types[operands[0]] = "bool";
+                    break;
+                case 22: // OpTypeFloat
+                    types[operands[0]] = "float";
                     break;
                 case OpTypeInt:
                     types[operands[0]] = operands[2] == 1 ? "int" : "uint";

@@ -29,15 +29,14 @@ public sealed class OwnRayResetRenderTests
                 )
             );
             renderer.Render(scene, 1f);
-            (int reflection, int diffuse) = renderer.ReadOwnRayCounts();
-            reflection.Should().BeGreaterThan(0);
-            diffuse.Should().BeGreaterThan(0);
+            renderer.Graph.Passes.OfType<ScreenTraceRaysPass>().Should().ContainSingle();
+            renderer.ReadReflectionRayCount().Should().BeGreaterThan(0);
             scene.Instances.Clear();
             scene.Time += 1.0 / 60;
 
             renderer.Render(scene, 1f);
 
-            renderer.ReadOwnRayCounts().Should().Be((0, 0));
+            renderer.ReadReflectionRayCount().Should().Be(0);
         }
         finally
         {

@@ -11,12 +11,6 @@ void main()
         return;
     const float densities[8] = float[8](0.0, 1e-35, 1e-30, 0.001, 0.1, 1.0, 4.0, 100000.0);
     float density = densities[pixel.x & 7];
-    if ((pixel.x & 7) == 0)
-    {
-        TracingPixel receiver = tracingPixelAt(pixel);
-        receiver.normal = vec3(0.0, 1.0, 0.0);
-        density = densityOf(receiver, KindDiffuse, vec3(1.0, 0.0, 0.0));
-    }
     uint code = densityCodeOf(density);
     float decoded = densityOfCode(code);
     imageStore(specularSample, pixel, vec4(float(code & 255u), float(code >> 8),

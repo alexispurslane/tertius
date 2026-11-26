@@ -99,7 +99,7 @@ internal sealed unsafe class GeometryAuditPass : Rendering.RenderPass
             name: Name + " owned depth"
         );
         originals[0] = context.Targets.Distance;
-        originals[1] = renderer.ScreenTraceSignals.Specular.Slow(0);
+        originals[1] = renderer.ScreenTraceImages.Specular.Slow(0);
         originals[2] = context.Targets.Hdr;
         for (int index = 0; index < originals.Length; index++)
         {

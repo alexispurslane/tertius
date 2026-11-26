@@ -12,7 +12,7 @@ public sealed class AccumulatePushConstantsTests
     [InlineData(37L)]
     [InlineData(int.MaxValue + 5L)]
     [InlineData(uint.MaxValue + 3L)]
-    public void ThePushConstantsCarryTheDrawIndexModuloTwoToTheThirtyTwoAndItsRingLayer(long drawIndex)
+    public void ThePushConstantsCarryTheDrawIndexModuloTwoToTheThirtyTwo(long drawIndex)
     {
         var push = AccumulatePushConstants.Of(
             parameters: SignalParameters.Specular(0.4f),
@@ -21,6 +21,5 @@ public sealed class AccumulatePushConstantsTests
         );
 
         push.DrawIndex.Should().Be(unchecked((uint)drawIndex));
-        push.RegionSlot.Should().Be((uint)(drawIndex % TemporalSignal.RegionRingDraws));
     }
 }

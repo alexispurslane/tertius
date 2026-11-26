@@ -13,8 +13,7 @@ void main()
     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
     if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
         return;
-    LeavingLight leaving = leavingLightAt(pixel);
+    vec3 leaving = leavingLightAt(pixel);
     float walkHits = !hittable(pixel) ? 0.0 : texelFetch(gbufferBaseColor, pixel, 0).a == 0.0 ? 2.0 : 1.0;
-    imageStore(specularSample, pixel, vec4(leaving.reflection, walkHits));
-    imageStore(diffuseSample, pixel, vec4(leaving.diffuse, walkHits));
+    imageStore(specularSample, pixel, vec4(leaving, walkHits));
 }

@@ -1,7 +1,0 @@
-#version 460
-// The wide kernel's feedback dispatch (diffuse_filter_wavelet.glsl): the paper's 5 × 5 taps, and the writes of both
-// histories.
-#extension GL_GOOGLE_include_directive : require
-#define KernelRadius 2
-#define TERTIUS_FILTER_FEEDBACK
-#include "diffuse_filter_wavelet.glsl"

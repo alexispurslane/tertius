@@ -7,14 +7,14 @@
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
-vec4 rayOf(ivec2 pixel, uint kind)
+vec4 rayOf(ivec2 pixel)
 {
     if (!tracedSurface(pixel))
         return vec4(0.0, -1.0, 0.0, 1.0);
     TracingPixel p = tracingPixelAt(pixel);
-    if (!startsKind(p, kind))
+    if (!startsReflection(p))
         return vec4(0.0, -1.0, 0.0, 1.0);
-    TracedRay ray = traceFrom(pixel, pixel, p, kind);
+    TracedRay ray = traceFrom(pixel, pixel, p);
     return vec4(ray.light.r, ray.distance, 0.0, 1.0);
 }
 
@@ -23,6 +23,5 @@ void main()
     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
     if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
         return;
-    imageStore(specularSample, pixel, rayOf(pixel, KindReflection));
-    imageStore(diffuseSample, pixel, rayOf(pixel, KindDiffuse));
+    imageStore(specularSample, pixel, rayOf(pixel));
 }

@@ -67,7 +67,7 @@ public sealed class EnvironmentBoxRenderTests
             snapshot.Time += 1.0 / 60;
             renderer.Render(snapshot, 1f);
             float[] actual = probe.Read();
-            float[] expected = renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.Sample(0));
+            float[] expected = renderer.ReadImage(renderer.ScreenTraceImages.OwnLight);
 
             expected[0].Should().BeLessThan(0.05f);
             expected[4].Should().BeGreaterThan(1, "the other receiving point projects onto the captured stripe");
@@ -164,7 +164,7 @@ public sealed class EnvironmentBoxRenderTests
                     .Should()
                     .Be((renderWidth, renderHeight));
                 float[] actual = probe.Read();
-                float[] expected = renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.Sample(0));
+                float[] expected = renderer.ReadImage(renderer.ScreenTraceImages.OwnLight);
                 expected[0].Should().BeLessThan(0.05f);
                 expected[4].Should().BeGreaterThan(1);
                 actual[0].Should().BeApproximately(expected[0], 0.005f);
@@ -298,7 +298,7 @@ public sealed class EnvironmentBoxRenderTests
             renderer.Graph.Add(FrameGraph.Stage.Composite, draws);
             RenderSnapshot snapshot = MirrorFacingTheCamera(renderer);
             renderer.Render(snapshot, 1f);
-            float[] first = renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Slow(0));
+            float[] first = renderer.ReadImage(renderer.ScreenTraceImages.Specular.Slow(0));
             draws.Indices.Should().Equal(Enumerable.Range(0, 33).Select(index => (long)index));
             draws.Resets.Count(reset => reset).Should().Be(1);
             first.Where((_, index) => index % 4 == 3).Max().Should().BeGreaterThan(1, "reflection history accumulated");
@@ -308,27 +308,6 @@ public sealed class EnvironmentBoxRenderTests
 
             draws.Indices[^1].Should().Be(33);
             draws.Resets[^1].Should().BeFalse();
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(renderer);
-        }
-    }
-
-    [Fact]
-    public void ADiffuseMissKeepsItsDirectionalReadBesideANearWall()
-    {
-        VulkanRenderer renderer = Renderer(ScreenTrace.Default, new FixedExposure(0));
-        try
-        {
-            var probe = ScreenTraceProbe.On(renderer, "map_diffuse_miss_probe.comp");
-            RenderSnapshot snapshot = StripeAboveAFloor(renderer, glass: false);
-            renderer.Render(snapshot, 1f);
-
-            float[] actual = probe.Read();
-            float[] directional = renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.Sample(0));
-            actual.Should().Equal(directional, "a diffuse miss keeps the old direction and roughness 0.5");
-            actual.Where((_, index) => index % 4 != 3).Max().Should().BeGreaterThan(0.1f);
         }
         finally
         {
@@ -662,18 +641,17 @@ public sealed class EnvironmentBoxRenderTests
         }
     }
 
-    private sealed unsafe class DirectionOnlyComposite : RenderPass
+    private sealed unsafe class DirectionOnlyComposite(DescriptorSet lightSet) : RenderPass
     {
         private VulkanDevice? device;
         private Pipeline pipeline;
-        private DescriptorSet lightSet;
 
         public override string Name => "composite, direction only";
 
         public static void Replace(VulkanRenderer renderer)
         {
             renderer.Graph.Skipped.Add("composite");
-            renderer.Graph.Add(FrameGraph.Stage.Composite, new DirectionOnlyComposite());
+            renderer.Graph.Add(FrameGraph.Stage.Composite, new DirectionOnlyComposite(renderer.CompositeLightSet));
         }
 
         public override void Prepare(FrameContext context)
@@ -692,15 +670,7 @@ public sealed class EnvironmentBoxRenderTests
                 CullMode = CullModeFlags.None,
                 Constants = new ShaderConstants(EnvironmentMap: true),
             }.Create(device, shaders);
-            lightSet = context.Layouts.AllocateLightSet();
-            // The six light images of CompositePass without the reflection-sharing prototype: the direct light twice,
-            // then its specular part where the prototype's sample and guide would be.
-            for (uint binding = 0; binding < 6; binding++)
-                context.Layouts.WriteStorageImage(
-                    set: lightSet,
-                    binding: binding,
-                    image: binding is 0 or 2 ? context.Targets.DirectDiffuse : context.Targets.DirectSpecular
-                );
+
         }
 
         public override void Record(FrameContext context)

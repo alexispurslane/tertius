@@ -13,8 +13,6 @@ namespace Tertius.Rendering.Tests;
 [Collection(ProcessEnvironmentCollection.Name)]
 public sealed class HitLightImageTests
 {
-    private const string FilterSwitch = "TERTIUS_DIFFUSE_FILTER";
-
     private const string GuidedSwitch = "TERTIUS_GUIDED_RAYS";
 
     /// <summary>The cap of the tracer's light, ShaderInput.MaxRadiance: below the largest half float.</summary>
@@ -27,8 +25,7 @@ public sealed class HitLightImageTests
     private const double Tick = 1.0 / 60.0;
 
     /// <summary>The markers of hit_light_marker_probe.comp in each channel of the reflection layer and the diffuse layer.</summary>
-    private const float ReflectionMarker = 1000,
-        DiffuseMarker = 3000;
+    private const float ReflectionMarker = 1000;
 
     /// <summary>
     /// After <paramref name="frames"/> frames, with the guided rays' switch at <paramref name="guided"/> and with or without
@@ -40,7 +37,7 @@ public sealed class HitLightImageTests
     [InlineData(8, null, false)]
     [InlineData(8, "off", false)]
     [InlineData(1, null, true)]
-    public void TheHitLightImageHoldsTheLightThatLeavesEachHittablePixelTowardARayOfEachKind(
+    public void TheHitLightImageHoldsTheLightThatLeavesEachHittablePixelTowardAReflectionRay(
         int frames,
         string? guided,
         bool environmentMap
@@ -48,9 +45,7 @@ public sealed class HitLightImageTests
     {
         // Without the filter, a hit reads the last fast history, which no pass of the frame writes again, so the probe after
         // the tracer's stage computes the light from the same images as the plan.
-        string? previous = Environment.GetEnvironmentVariable(FilterSwitch);
         string? previousGuided = Environment.GetEnvironmentVariable(GuidedSwitch);
-        Environment.SetEnvironmentVariable(FilterSwitch, "off");
         Environment.SetEnvironmentVariable(GuidedSwitch, guided);
         (VulkanRenderer renderer, RenderSnapshot scene) = GlossyFloorBeforeAWall(environmentMap: environmentMap);
         try
@@ -58,45 +53,33 @@ public sealed class HitLightImageTests
             var probe = ScreenTraceProbe.On(renderer, "hit_light_probe.comp");
             Draw(renderer, scene, frames);
 
-            float[][] leaving = [probe.Read(), renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.Sample(0))];
-            float[][] stored =
-            [
-                .. Enumerable
-                    .Range(0, ScreenTraceImages.Kinds)
-                    .Select(kind => renderer.ReadImageLayer(renderer.ScreenTraceImages.HitLight, kind)),
-            ];
-            int hittable = 0,
-                specular = 0;
+            float[] leaving = probe.Read();
+            float[] stored = renderer.ReadImage(renderer.ScreenTraceImages.HitLight);
+            int hittable = 0;
             for (int at = 0; at < 4 * Width * Height; at += 4)
             {
-                if (leaving[0][at + 3] == 0)
+                if (leaving[at + 3] == 0)
                     continue;
                 hittable++;
-                for (int kind = 0; kind < ScreenTraceImages.Kinds; kind++)
                 for (int channel = 0; channel < 3; channel++)
                 {
-                    float expected = leaving[kind][at + channel];
-                    stored[kind]
-                        [at + channel]
+                    float expected = leaving[at + channel];
+                    stored[at + channel]
                         .Should()
-                        .BeApproximately(expected, 1e-3f * expected + 1e-6f, "pixel {0}, kind {1}", at / 4, kind);
+                        .BeApproximately(expected, 1e-3f * expected + 1e-6f, "pixel {0}", at / 4);
                 }
-                if (leaving[0][at] > 1.05f * leaving[1][at])
-                    specular++;
             }
             hittable.Should().BeGreaterThan(Width * Height / 2, "the floor and the wall fill most of the view");
-            specular.Should().BePositive("the metal floor sends its light toward a reflection ray only");
         }
         finally
         {
             Gpu.DisposeAndAssertClean(renderer);
-            Environment.SetEnvironmentVariable(FilterSwitch, previous);
             Environment.SetEnvironmentVariable(GuidedSwitch, previousGuided);
         }
     }
 
     [Fact]
-    public void ARaysHitTakesItsLightFromTheHitLightImageOfItsKind()
+    public void ARaysHitTakesItsLightFromTheHitLightImage()
     {
         (VulkanRenderer renderer, RenderSnapshot scene) = GlossyFloorBeforeAWall();
         try
@@ -105,12 +88,8 @@ public sealed class HitLightImageTests
             var rays = ScreenTraceProbe.On(renderer, "hit_light_trace_probe.comp");
             Draw(renderer, scene, frames: 8);
 
-            float[] reflection = rays.Read();
-            float[] diffuse = renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.Sample(0));
-            foreach (
-                (float[] traced, float marker) in (ValueTuple<float[], float>[])
-                    [(reflection, ReflectionMarker), (diffuse, DiffuseMarker)]
-            )
+            float[] traced = rays.Read();
+            const float marker = ReflectionMarker;
             {
                 float[] hitLights =
                 [
@@ -134,7 +113,7 @@ public sealed class HitLightImageTests
     }
 
     [Fact]
-    public void AGlowAboveTheLargestRadianceStoresAtMostMaxRadianceInBothLayers()
+    public void AGlowAboveTheLargestRadianceStoresAtMostMaxRadiance()
     {
         // A half float holds at most 65,504, and a driver that is not Metal stores infinity above it. The plan caps the
         // light at MaxRadiance, as every light of the tracer. The G-buffer already caps the glow, so the sun is bright too:
@@ -144,12 +123,9 @@ public sealed class HitLightImageTests
         {
             Draw(renderer, scene, frames: 2);
 
-            for (int kind = 0; kind < ScreenTraceImages.Kinds; kind++)
-            {
-                float[] stored = renderer.ReadImageLayer(renderer.ScreenTraceImages.HitLight, kind);
-                float most = Enumerable.Range(0, Width * Height).Max(pixel => stored[4 * pixel]);
-                most.Should().Be(MaxRadiance, "the panel and the sunlit wall send more than the cap, kind {0}", kind);
-            }
+            float[] stored = renderer.ReadImage(renderer.ScreenTraceImages.HitLight);
+            float most = Enumerable.Range(0, Width * Height).Max(pixel => stored[4 * pixel]);
+            most.Should().Be(MaxRadiance, "the panel and the sunlit wall send more than the cap");
         }
         finally
         {
@@ -178,7 +154,7 @@ public sealed class HitLightImageTests
             Draw(renderer, scene, frames: 1);
 
             float[] part = probe.Read();
-            float[] expected = renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.Sample(0));
+            float[] expected = renderer.ReadImage(renderer.ScreenTraceImages.OwnLight);
             float[] plan = renderer.ReadImage(renderer.ScreenTraceImages.Plan);
             int tested = 0,
                 ownReflections = 0;
@@ -214,12 +190,10 @@ public sealed class HitLightImageTests
     }
 
     [Fact]
-    public void TheHitLightImageHoldsAnImpostorsGlowInBothLayers()
+    public void TheHitLightImageHoldsAnImpostorsGlow()
     {
         // The impostor rule counts output pixels, so the view must be large enough that the floor and the wall stay
         // geometry while a small sphere becomes an impostor.
-        string? previous = Environment.GetEnvironmentVariable(FilterSwitch);
-        Environment.SetEnvironmentVariable(FilterSwitch, "off");
         const int width = 640,
             height = 360;
         (VulkanRenderer renderer, RenderSnapshot scene) = GlossyFloorBeforeAWall(
@@ -245,22 +219,15 @@ public sealed class HitLightImageTests
             Draw(renderer, scene, frames: 4);
 
             float[] leaving = probe.Read();
-            float[][] stored =
-            [
-                .. Enumerable
-                    .Range(0, ScreenTraceImages.Kinds)
-                    .Select(kind => renderer.ReadImageLayer(renderer.ScreenTraceImages.HitLight, kind)),
-            ];
+            float[] stored = renderer.ReadImage(renderer.ScreenTraceImages.HitLight);
             int impostor = 0;
             for (int at = 0; at < 4 * width * height; at += 4)
             {
                 if (leaving[at + 3] != 2)
                     continue;
                 impostor++;
-                for (int kind = 0; kind < ScreenTraceImages.Kinds; kind++)
                 for (int channel = 0; channel < 3; channel++)
-                    stored[kind]
-                        [at + channel]
+                    stored[at + channel]
                         .Should()
                         .BeApproximately(
                             leaving[at + channel],
@@ -275,7 +242,6 @@ public sealed class HitLightImageTests
         finally
         {
             Gpu.DisposeAndAssertClean(renderer);
-            Environment.SetEnvironmentVariable(FilterSwitch, previous);
         }
     }
 

@@ -13,6 +13,6 @@ void main()
         return;
     ivec2 block = ivec2(pixel.y * 5, pixel.y * 3) & 127;
     uint drawIndex = uint(pixel.x);
-    vec2 u = reflectionNumbersOf(block, drawIndex, drawOf(block, drawIndex, DirectionDraw[KindReflection]));
+    vec2 u = reflectionNumbersOf(block, drawIndex, drawOf(block, drawIndex, DirectionDraw));
     imageStore(specularSample, pixel, vec4(floor(u * 8.0), vec2(blueNoiseBytesOf(block, drawIndex))));
 }

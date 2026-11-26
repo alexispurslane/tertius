@@ -515,7 +515,7 @@ public sealed class ReflectionSharingTests
             );
             var pulse = new PulsePass(
                 renderer: renderer,
-                target: renderer.ScreenTraceSignals.Specular.Slow(0),
+                target: renderer.ScreenTraceImages.Specular.Slow(0),
                 surfaceCase: surfaceCase,
                 hitDistance: hitDistance,
                 hitSupport: hitSupport
@@ -538,7 +538,7 @@ public sealed class ReflectionSharingTests
                 pulse.Uploaded,
                 shared,
                 original,
-                renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Sample(0))
+                renderer.ReadImage(renderer.ScreenTraceImages.Specular.Sample(0))
             );
         }
         finally
@@ -570,7 +570,7 @@ public sealed class ReflectionSharingTests
             {
                 Name = Name,
                 VertexShader = "lighting.vert",
-                FragmentShader = renderer.ScreenTraceSignals.Specular.HistoryShader("reflection_sharing_pulse.frag"),
+                FragmentShader = renderer.ScreenTraceImages.Specular.HistoryShader("reflection_sharing_pulse.frag"),
                 Layout = context.Layouts.CompositeLayout,
                 ColorFormats = [RenderTargets.DistanceFormat, RenderTargets.NormalFormat],
                 CullMode = CullModeFlags.None,
@@ -587,8 +587,8 @@ public sealed class ReflectionSharingTests
         {
             GpuImage distance = context.Targets.GBuffer[4];
             GpuImage normal = context.Targets.GBuffer[1];
-            GpuImage sample = renderer.ScreenTraceSignals.Specular.Sample(0);
-            GpuImage guide = renderer.ScreenTraceSignals.Specular.ReflectionGuide(0);
+            GpuImage sample = renderer.ScreenTraceImages.Specular.Sample(0);
+            GpuImage guide = renderer.ScreenTraceImages.Specular.ReflectionGuide(0);
             context.Barriers.Image(target, ImageUse.StorageFragment);
             context.Barriers.Image(sample, ImageUse.StorageFragment);
             context.Barriers.Image(guide, ImageUse.StorageFragment);

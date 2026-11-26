@@ -10,7 +10,7 @@ void main()
     ivec2 block = ivec2(gl_GlobalInvocationID.xy);
     if (any(greaterThanEqual(vec2(block), frame.viewport.xy)))
         return;
-    vec2 first = reflectionNumbersOf(block, 7u, drawOf(block, 7u, DirectionDraw[KindReflection]));
-    vec2 next = reflectionNumbersOf(block, 71u, drawOf(block, 71u, DirectionDraw[KindReflection]));
+    vec2 first = reflectionNumbersOf(block, 7u, drawOf(block, 7u, DirectionDraw));
+    vec2 next = reflectionNumbersOf(block, 71u, drawOf(block, 71u, DirectionDraw));
     imageStore(specularSample, block, vec4(first, next));
 }

@@ -11,6 +11,5 @@ void main()
     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
     if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
         return;
-    imageStore(hitLight, ivec3(pixel, KindReflection), vec4(1000.0));
-    imageStore(hitLight, ivec3(pixel, KindDiffuse), vec4(3000.0));
+    imageStore(hitLight, pixel, vec4(1000.0));
 }

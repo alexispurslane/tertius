@@ -243,7 +243,9 @@ public sealed class PortableFloatTests
         VulkanRenderer renderer = Headless(stops: 64);
         try
         {
-            RenderSnapshot snapshot = PlaneAhead(renderer.CreateMesh(PlaneWithNormals(Vector3.UnitY)), Matte(renderer));
+            // A white receiver preserves the direct pass's capped radiance when the composite restores its albedo.
+            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.6f));
+            RenderSnapshot snapshot = PlaneAhead(renderer.CreateMesh(PlaneWithNormals(Vector3.UnitY)), white);
             snapshot.Lights.Add(
                 Gpu.Lamp(
                     position: new(0, 0, -2),

@@ -27,7 +27,11 @@ public sealed class ShortHistoryFixRenderTests
     /// <summary>A pixel's offset from a bright sample, in render pixels.</summary>
     private readonly record struct Tap(int X, int Y);
 
-    private static readonly SignalParameters Diffuse = SignalParameters.Diffuse with { Cap = 16, SmoothCap = 16 };
+    private static readonly SignalParameters Diffuse = AccumulatorRenderTests.DiffuseTestSignal with
+    {
+        Cap = 16,
+        SmoothCap = 16,
+    };
 
     /// <summary>The bright sample's place in cell (i, j), moved by <paramref name="shift"/> draws: 6 to 9 pixels into the cell.</summary>
     private static (int Column, int Row) BrightPlace(int i, int j, int shift = 0) =>

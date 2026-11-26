@@ -8,28 +8,23 @@ namespace Tertius.Rendering;
 public readonly record struct NoScreenTrace;
 
 /// <summary>
-/// The screen tracer (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 6): each lit pixel gets a diffuse and a specular sample in
-/// every frame, from rays that walk the depth pyramid's two depths. The two indirect signals accumulate them.
+/// Stochastic screen-space reflections from glossy surfaces.
 /// </summary>
-/// <param name="MaxRoughness">
-/// The roughness above which a pixel traces no reflection ray, and its specular sample comes from the diffuse rays alone:
-/// <see cref="HandOverWidth"/> to 1.
-/// </param>
+/// <param name="MaxRoughness">The perceptual roughness at which the environment fully supplies the reflection.</param>
 /// <param name="ReflectionSteps">The most steps of a reflection ray's walk, 1 to <see cref="MaxStepsLimit"/>. A walk that takes them all misses.</param>
-/// <param name="DiffuseSteps">The most steps of a diffuse ray's walk, 1 to <see cref="MaxStepsLimit"/>.</param>
-public readonly record struct ScreenTrace(float MaxRoughness, int ReflectionSteps, int DiffuseSteps)
+public readonly record struct ScreenTrace(float MaxRoughness, int ReflectionSteps)
 {
     /// <summary>
     /// The width of the roughness band below <see cref="MaxRoughness"/> in which the specular sample blends the
-    /// reflection ray's estimate into the diffuse rays' estimate, linearly by the roughness, so that no edge shows.
+    /// reflection ray's estimate into the environment reflection, linearly by the roughness, so that no edge shows.
     /// </summary>
     public const float HandOverWidth = 0.1f;
 
     /// <summary>The most steps of a walk, far past the caps of the design: it bounds the worst frame.</summary>
     public const int MaxStepsLimit = 4096;
 
-    /// <summary>The design's setting: a MaxRoughness of 0.5, and the caps of decision 41, 96 and 62 steps.</summary>
-    public static ScreenTrace Default => new(MaxRoughness: 0.5f, ReflectionSteps: 96, DiffuseSteps: 62);
+    /// <summary>The design's setting: a MaxRoughness of 0.5, and a limit of 96 steps per reflection ray.</summary>
+    public static ScreenTrace Default => new(MaxRoughness: 0.5f, ReflectionSteps: 96);
 
     /// <summary>The roughness below which the specular sample is the reflection ray's alone: the start of the hand-over band.</summary>
     internal float HandOverStart => MaxRoughness - HandOverWidth;
@@ -58,8 +53,6 @@ public readonly partial struct ScreenTraceSetting
             return $"ScreenTrace.MaxRoughness must lie from {ScreenTrace.HandOverWidth} to 1, not {trace.MaxRoughness}.";
         if (trace.ReflectionSteps is < 1 or > ScreenTrace.MaxStepsLimit)
             return $"ScreenTrace.ReflectionSteps must be 1 to {ScreenTrace.MaxStepsLimit}, not {trace.ReflectionSteps}.";
-        if (trace.DiffuseSteps is < 1 or > ScreenTrace.MaxStepsLimit)
-            return $"ScreenTrace.DiffuseSteps must be 1 to {ScreenTrace.MaxStepsLimit}, not {trace.DiffuseSteps}.";
         return null;
     }
 }

@@ -42,11 +42,7 @@ public sealed class AccumulationTraceTests(ITestOutputHelper output)
             Jittered,
             (renderer, _) =>
             {
-                renderer.ScreenTraceSignals.Specular.AccumulationTrace(0).Should().NotBeNull();
-                renderer
-                    .ScreenTraceSignals.Diffuse.AccumulationTrace(0)
-                    .Should()
-                    .BeNull("the trace observes the specular history alone, at 144 bytes per pixel");
+                renderer.ScreenTraceImages.Specular.AccumulationTrace(0).Should().NotBeNull();
             }
         );
 
@@ -251,7 +247,7 @@ public sealed class AccumulationTraceTests(ITestOutputHelper output)
                 // block's edge) or of a view depth more than 10 % away (the floor near the horizon), so the test takes
                 // the boxes whose nine pixels share the pixel's normal and lie within 5 % of its distance.
                 float[] fast = renderer.ReadImage(
-                    renderer.ScreenTraceSignals.Specular.Fast(part: 0, parity: (int)(renderer.DrawnFrames & 1) ^ 1)
+                    renderer.ScreenTraceImages.Specular.Fast(part: 0, parity: (int)(renderer.DrawnFrames & 1) ^ 1)
                 );
                 float[] mean = TraceLayer(renderer, Mean);
                 float[] deviation = TraceLayer(renderer, Deviation);
@@ -404,11 +400,11 @@ public sealed class AccumulationTraceTests(ITestOutputHelper output)
         0.2126f * rgba[4 * pixel] + 0.7152f * rgba[4 * pixel + 1] + 0.0722f * rgba[4 * pixel + 2];
 
     private static float[] Slow(VulkanRenderer renderer) =>
-        renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Slow(0));
+        renderer.ReadImage(renderer.ScreenTraceImages.Specular.Slow(0));
 
     private static float[] TraceLayer(VulkanRenderer renderer, int layer) =>
         renderer.ReadImageLayer(
-            renderer.ScreenTraceSignals.Specular.AccumulationTrace(0)
+            renderer.ScreenTraceImages.Specular.AccumulationTrace(0)
                 ?? throw new InvalidOperationException("The accumulation trace is off."),
             layer
         );
@@ -453,8 +449,7 @@ public sealed class AccumulationTraceTests(ITestOutputHelper output)
                     result =
                     [
                         Slow(renderer),
-                        renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Sample(0)),
-                        renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.Slow(0)),
+                        renderer.ReadImage(renderer.ScreenTraceImages.Specular.Sample(0)),
                         renderer.ReadHdr(),
                     ];
                 },

@@ -1,10 +1,5 @@
 #version 460
-// The ray plan of the screen tracer (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 6, "The ray budget"): one invocation per
-// pixel writes the light that leaves the pixel toward a ray of each kind into the hit light image, and decides, for each kind that the pixel starts, whether it traces a ray of its own, writes the plan's bits and
-// lists the pixel in the kind's own-ray list. A block's chosen pixel traces the block's ray instead. Another pixel traces
-// its own ray while its history of the kind is shorter than FullRateFrames, or where the block's ray does not fit it. With
-// the precise specular history, a block's reflection ray fits a pixel only inside the pixel's reflection lobe
-// ("Shared reflection rays by lobe fit").
+// Write the hit radiance and allocate individual rays where a shared reflection would lose detail.
 #extension GL_GOOGLE_include_directive : require
 #include "screen_trace.glsl"
 
@@ -146,23 +141,14 @@ vec2 lightAgeOf(ivec2 pixel)
 
 #endif
 
-// The length of the pixel's history of the kind at its place in the last frame, in frames: the slow history's alpha,
-// through the reprojection of the surface place, its taps, pass bits and weights, as the accumulator reads it. The
-// specular signal's plan reads the surface place alone, because the reflected place needs this frame's hit distance.
-float historyLengthOf(SignalReprojections r, uint kind)
-{
-    return kind == KindDiffuse ? slowDiffuseAt(r.diffuse).a : slowSpecularAt(r.specular).a;
-}
-
 // Writes the hit light of both kinds at the pixel.
-void storeHitLight(ivec2 pixel, LeavingLight leaving)
+void storeHitLight(ivec2 pixel, vec3 leaving)
 {
     float moved = 0.0;
 #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
     moved = movedSurfaceAt(pixel) ? 1.0 : 0.0;
 #endif
-    imageStore(hitLight, ivec3(pixel, KindReflection), vec4(leaving.reflection, moved));
-    imageStore(hitLight, ivec3(pixel, KindDiffuse), vec4(leaving.diffuse, moved));
+    imageStore(hitLight, pixel, vec4(leaving, moved));
 }
 
 #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
@@ -188,12 +174,12 @@ const float PlaneFitShare = 0.1;
 // Whether the block's ray of the kind from its chosen pixel c fits the pixel p: c's plane passes p's surface point
 // within PlaneFitShare of p's view depth, and their geometric normals lie within 25°. With the precise specular
 // history, a reflection ray must also lie inside p's reflection lobe.
-bool fits(TracingPixel p, TracingPixel c, uint kind)
+bool fits(TracingPixel p, TracingPixel c)
 {
     bool fit = abs(dot(p.point - c.point, c.s.geometricNormal)) <= PlaneFitShare * p.viewDepth
         && dot(p.s.geometricNormal, c.s.geometricNormal) >= SameNormalCosine;
 #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
-    fit = fit && (kind != KindReflection || insideLobe(p, c));
+    fit = fit && insideLobe(p, c);
 #endif
     return fit;
 }
@@ -214,25 +200,13 @@ void main()
         TracingPixel p = tracingPixelAt(pixel);
         SignalReprojections r = reprojectionsAt(pixel);
         storeHitLight(pixel, leavingLightOf(pixel, p.s, p.V, r));
-        for (uint kind = KindReflection; kind <= KindDiffuse; kind++)
+        ivec2 chosen;
+        TracingPixel c;
+        if (startsReflection(p) && chosenPixelOf(pixel / 2, chosen, c) && any(notEqual(chosen, pixel))
+            && (slowSpecularAt(r.specular).a < FullRateFrames || !fits(p, c)))
         {
-            ivec2 chosen;
-            TracingPixel c;
-            // A pixel that starts the kind gives its block a chosen pixel.
-            if (!startsKind(p, kind) || !chosenPixelOf(pixel / 2, kind, chosen, c) || all(equal(chosen, pixel)))
-                continue;
-            if (historyLengthOf(r, kind) >= FullRateFrames && fits(p, c, kind))
-                continue;
-            if (kind == KindReflection)
-            {
-                plan |= PlanOwnReflection;
-                APPEND_OWN_RAY(reflectionOwnRays, pixel)
-            }
-            else
-            {
-                plan |= PlanOwnDiffuse;
-                APPEND_OWN_RAY(diffuseOwnRays, pixel)
-            }
+            plan = PlanOwnReflection;
+            APPEND_OWN_RAY(reflectionOwnRays, pixel)
         }
     }
     // The sky's hit light stays as it is, because no walk hits it.

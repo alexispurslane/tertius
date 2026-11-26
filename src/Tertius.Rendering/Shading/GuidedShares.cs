@@ -1,13 +1,9 @@
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The guided shares of the two ray kinds (ARCHITECTURE.md, "Guided rays"): the probability that a ray of a kind takes the
-/// guided draw, which aims at a pixel of the light pyramid, in place of its lobe draw. Every ray of a guided kind counts
-/// with the density of the one-sample mixture of the two draws (<see cref="MixtureDensity"/>), so its estimate stays
-/// unbiased at any share that is known when the ray is weighed.
 /// <para>
-/// The diffuse kind's share is fixed. The reflection kind's share follows the draws: each tile of 8 × 8 blocks holds one
-/// share, which each draw moves down the slope of the second moment of the tile's reflection samples, between 0 and
+/// Each tile of 8 × 8 reflection blocks stores the probability of aiming a ray at a pixel of the light pyramid.
+/// Each draw moves that probability down the slope of the second moment of the tile's reflection samples, between 0 and
 /// <see cref="ReflectionCeiling"/> (ticket ter-fe63). A tile whose guided draws bring little light, such as a floor whose
 /// guide aims at its own plane, falls to 0; a tile whose lobe rarely finds a small bright sender rises to the ceiling. A
 /// ramp over the roughness caps each pixel's share, so that a sharp lobe takes no guided draw.
@@ -18,9 +14,6 @@ namespace Tertius.Rendering;
 /// </summary>
 internal static class GuidedShares
 {
-    /// <summary>The share of the diffuse rays that take the guided draw.</summary>
-    public const float Diffuse = 0.25f;
-
     /// <summary>
     /// The largest share of a tile's reflection rays, and each tile's share when the shares restart. Stage 1 of ter-fe63
     /// chose it over 0.5: it keeps 96 % of the sunlit nose's cut in specks, settles about twice as fast where the share

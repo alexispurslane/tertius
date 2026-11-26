@@ -76,8 +76,13 @@ public sealed class SurfaceShareTests
     [Fact]
     public void ASurfaceInTheDrawThatFirstShowsItSendsItsShareOfItsDirectDiffuseLight()
     {
-        float[] jittered = LightOfASunlitPanel(jitter: "always", metallic: 0, drawsShowingIt: 1, read: DiffuseHitLight);
-        float[] still = LightOfASunlitPanel(jitter: "none", metallic: 0, drawsShowingIt: 1, read: DiffuseHitLight);
+        float[] jittered = LightOfASunlitPanel(
+            jitter: "always",
+            metallic: 0,
+            drawsShowingIt: 1,
+            read: ReflectionHitLight
+        );
+        float[] still = LightOfASunlitPanel(jitter: "none", metallic: 0, drawsShowingIt: 1, read: ReflectionHitLight);
 
         AssertShareOf(jittered: jittered, still: still, share: 1f / 3, channels: 4);
     }
@@ -102,8 +107,13 @@ public sealed class SurfaceShareTests
     [Fact]
     public void ASurfaceSendsAllOfItsDirectDiffuseLightFromItsSecondDraw()
     {
-        float[] jittered = LightOfASunlitPanel(jitter: "always", metallic: 0, drawsShowingIt: 2, read: DiffuseHitLight);
-        float[] still = LightOfASunlitPanel(jitter: "none", metallic: 0, drawsShowingIt: 2, read: DiffuseHitLight);
+        float[] jittered = LightOfASunlitPanel(
+            jitter: "always",
+            metallic: 0,
+            drawsShowingIt: 2,
+            read: ReflectionHitLight
+        );
+        float[] still = LightOfASunlitPanel(jitter: "none", metallic: 0, drawsShowingIt: 2, read: ReflectionHitLight);
 
         AssertShareOf(jittered: jittered, still: still, share: 1, channels: 4);
     }
@@ -144,9 +154,6 @@ public sealed class SurfaceShareTests
     }
 
     /// <summary>The hit light's diffuse layer: four floats per pixel.</summary>
-    private static float[] DiffuseHitLight(VulkanRenderer renderer) =>
-        renderer.ReadImageLayer(renderer.ScreenTraceImages.HitLight, 1);
-
     /// <summary>The hit light's reflection layer: four floats per pixel.</summary>
     private static float[] ReflectionHitLight(VulkanRenderer renderer) =>
         renderer.ReadImageLayer(renderer.ScreenTraceImages.HitLight, 0);
@@ -359,9 +366,9 @@ public sealed class SurfaceShareTests
                         )
                     );
                     Draw(renderer, scene, draws: 1);
-                    float[] first = renderer.ReadImageLayer(renderer.ScreenTraceImages.HitLight, 1);
+                    float[] first = renderer.ReadImage(renderer.ScreenTraceImages.HitLight);
                     Draw(renderer, scene, draws: 1);
-                    float[] second = renderer.ReadImageLayer(renderer.ScreenTraceImages.HitLight, 1);
+                    float[] second = renderer.ReadImage(renderer.ScreenTraceImages.HitLight);
 
                     renderer.LastFrameStats.Impostors.Should().BePositive("the small sphere is an impostor");
                     (int X, int Y) center = PixelOf(new(0, 0, -6), width, height);
@@ -422,125 +429,6 @@ public sealed class SurfaceShareTests
             }
         );
 
-    /// <summary>
-    /// A white strip 0.06 pixels tall on screen hangs 5 m ahead under a sun from behind the eye, with the sky behind it. Its
-    /// row shows the strip in one jitter phase of 8 and the sky in the others, so the strip's pixels never hold a history.
-    /// A ceiling above, which the sun does not light, takes the strip's bounce. Over the 8 phases the strip deserves one
-    /// draw in 8 of its light. A ceiling sample that reads its full light in the one draw that shows it is a speck that the
-    /// accumulator cannot average away. Main's largest sample was 1.2 times the strip's full light.
-    /// </summary>
-    [Fact]
-    public void NoCeilingSampleReadsMoreThanTwiceTheShareOfTheLightOfASunlitStripThinnerThanAPixel() =>
-        WithJitter(
-            "always",
-            () =>
-            {
-                float fullLight = HitLightOfAThickStrip();
-                (VulkanRenderer renderer, RenderSnapshot scene) = StripUnderACeiling(StripPixels);
-                try
-                {
-                    Draw(renderer, scene, draws: Phases);
-                    float largest = 0;
-                    int stripDraws = 0;
-                    for (int draw = 0; draw < 6 * Phases; draw++)
-                    {
-                        Draw(renderer, scene, draws: 1);
-                        float[] samples = renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.Sample(0));
-                        float[] distances = renderer.ReadDistance();
-                        if (distances[StripRow * Width + Width / 2] > 0)
-                            stripDraws++;
-                        for (int y = 0; y < StripRow - 4; y++)
-                        for (int x = 0; x < Width; x++)
-                            if (distances[y * Width + x] > 0)
-                                largest = Math.Max(largest, Luminance(samples, y * Width + x));
-                    }
-
-                    stripDraws.Should().Be(6, "the row shows the strip in one phase of 8");
-                    largest.Should().BeLessThan(2 * fullLight / Phases, "the strip's full light is {0}", fullLight);
-                }
-                finally
-                {
-                    Gpu.DisposeAndAssertClean(renderer);
-                }
-            }
-        );
-
-    /// <summary>
-    /// The diffuse hit light of the strip's middle pixel when the strip is 3 pixels tall, so that every draw shows it: its
-    /// full fresh light.
-    /// </summary>
-    private static float HitLightOfAThickStrip()
-    {
-        (VulkanRenderer renderer, RenderSnapshot scene) = StripUnderACeiling(3);
-        try
-        {
-            Draw(renderer, scene, draws: 4);
-            float[] hit = renderer.ReadImageLayer(renderer.ScreenTraceImages.HitLight, 1);
-            return Luminance(hit, StripRow * Width + Width / 2);
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(renderer);
-        }
-    }
-
-    /// <summary>The pixel row that holds the strip, one below the middle of the view.</summary>
-    private const int StripRow = Height / 2 - 1;
-
-    /// <summary>The strip's distance ahead, in m.</summary>
-    private const float StripDistance = 5;
-
-    /// <summary>The strip's height on screen, in pixels: less than the 1/9 pixel between two phases' jitter.</summary>
-    private const float StripPixels = 0.06f;
-
-    /// <summary>
-    /// The strip's center: on the place in <see cref="StripRow"/> where the first jitter phase's sample lies, so that the
-    /// row shows it in that phase alone.
-    /// </summary>
-    private static Vector3 StripCenter =>
-        new(0, HeightOfRow(StripRow + 0.5f + Fsr3Upscaler.JitterOffset(0, Phases).Y), -StripDistance);
-
-    /// <summary>
-    /// The height at <see cref="StripDistance"/> of the place <paramref name="row"/> pixels from the view's top.
-    /// </summary>
-    private static float HeightOfRow(float row) => (1 - 2 * row / Height) * MathF.Tan(Gpu.Fov / 2) * StripDistance;
-
-    /// <summary>The height and depth in m of a strip <paramref name="pixels"/> tall on screen.</summary>
-    private static float StripHeight(float pixels) => HeightOfRow(0) - HeightOfRow(pixels);
-
-    /// <summary>
-    /// The strip under the ceiling: a white strip 6 m wide and <paramref name="pixels"/> tall and deep on screen at
-    /// <see cref="StripCenter"/>, under a sun of 30 behind the eye and 17° up, which lights its front and its top; and a
-    /// white ceiling 1.2 m above the eye from
-    /// 2 m to 9 m ahead, whose underside the sun does not light. No floor: the sky lies behind and below the strip.
-    /// </summary>
-    private static (VulkanRenderer Renderer, RenderSnapshot Scene) StripUnderACeiling(float pixels)
-    {
-        VulkanRenderer renderer = Gpu.Headless(
-            width: Width,
-            height: Height,
-            screenTrace: ScreenTrace.Default,
-            warmUpFrames: 0
-        );
-        RenderSnapshot scene = Gpu.Snapshot(Vector3.Normalize(new(0, 0.3f, 1)), starIrradiance: 30);
-        MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
-        MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 1f));
-        scene.Instances.Add(
-            Block(
-                box: box,
-                material: white,
-                center: StripCenter,
-                size: new(6, StripHeight(pixels), StripHeight(pixels))
-            )
-        );
-        scene.Instances.Add(Block(box: box, material: white, center: new(0, 1.25f, -5.5f), size: new(20, 0.1f, 7)));
-        return (renderer, scene);
-    }
-
-    /// <summary>
-    /// A white wall 8 m ahead in the dark, a scene that the panel of <see cref="Panel"/> joins: only the panel's glow lights
-    /// anything.
-    /// </summary>
     private static (VulkanRenderer Renderer, RenderSnapshot Scene) WallBehindAPanel()
     {
         VulkanRenderer renderer = Gpu.Headless(
@@ -596,7 +484,7 @@ public sealed class SurfaceShareTests
     private static List<float> HitLightOfThePanel(VulkanRenderer renderer, Vector3? center = null)
     {
         float[] reflection = renderer.ReadImageLayer(renderer.ScreenTraceImages.HitLight, 0);
-        float[] diffuse = renderer.ReadImageLayer(renderer.ScreenTraceImages.HitLight, 1);
+        float[] diffuse = renderer.ReadImage(renderer.ScreenTraceImages.HitLight);
         var sent = new List<float>();
         foreach ((int x, int y) in InsideThePanel(center ?? PanelCenter))
         {
@@ -609,9 +497,6 @@ public sealed class SurfaceShareTests
         sent.Count.Should().BeGreaterThan(30, "the panel covers about 13 by 9 pixels");
         return sent;
     }
-
-    private static float Luminance(float[] rgba, int pixel) =>
-        0.2126f * rgba[4 * pixel] + 0.7152f * rgba[4 * pixel + 1] + 0.0722f * rgba[4 * pixel + 2];
 
     /// <summary>Draws <paramref name="draws"/> draws of <paramref name="scene"/>, each one tick after the last.</summary>
     private static void Draw(VulkanRenderer renderer, RenderSnapshot scene, int draws)

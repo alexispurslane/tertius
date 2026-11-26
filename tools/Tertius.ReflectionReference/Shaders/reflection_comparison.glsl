@@ -3,7 +3,7 @@
 #include "temporal.glsl"
 
 #include "specular_history.glsl"
-layout(set = 3, binding = 3, SPECULAR_HISTORY_FORMAT) uniform readonly image2D indirectSpecularLight;
+layout(set = 3, binding = 2, SPECULAR_HISTORY_FORMAT) uniform readonly image2D indirectSpecularLight;
 layout(location = 0) in vec3 inRay;
 #if PROBE_GROUP == 0
 layout(location = 0) out vec2 outLight;

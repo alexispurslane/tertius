@@ -559,7 +559,7 @@ public sealed class ReflectionShareRenderTests
             {
                 scene.Time += Tick;
                 renderer.Render(scene, 1f);
-                float[] sample = renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Sample(0));
+                float[] sample = renderer.ReadImage(renderer.ScreenTraceImages.Specular.Sample(0));
                 for (int pixel = Width * (Height / 2 + 4); pixel < Width * Height; pixel++)
                 {
                     sum += 0.2126 * sample[4 * pixel] + 0.7152 * sample[4 * pixel + 1] + 0.0722 * sample[4 * pixel + 2];
@@ -589,7 +589,7 @@ public sealed class ReflectionShareRenderTests
             scene.Instances.Add(Floor(renderer, Mirror(Glossy)));
             scene.Time += Tick;
             renderer.Render(scene, 1f);
-            return renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Sample(0));
+            return renderer.ReadImage(renderer.ScreenTraceImages.Specular.Sample(0));
         }
         finally
         {
@@ -605,7 +605,7 @@ public sealed class ReflectionShareRenderTests
         {
             scene.Time += Tick;
             renderer.Render(scene, 1f);
-            return renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Sample(0));
+            return renderer.ReadImage(renderer.ScreenTraceImages.Specular.Sample(0));
         }
         finally
         {
@@ -727,7 +727,7 @@ public sealed class ReflectionShareRenderTests
                 renderer.Render(scene, 1f);
                 if (frame < skipped)
                     continue;
-                float[] sample = renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Sample(0));
+                float[] sample = renderer.ReadImage(renderer.ScreenTraceImages.Specular.Sample(0));
                 double frameSum = 0;
                 for (int pixel = 0; pixel < floor.Length; pixel++)
                 {

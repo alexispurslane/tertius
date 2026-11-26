@@ -2,8 +2,8 @@
 #define TERTIUS_REFLECTION_SHARING_PROTOTYPE_GLSL
 
 #include "reflection_distance_guide.glsl"
-layout(set = 3, binding = 4, rgba16f) uniform readonly image2D reflectionHitSample;
-layout(set = 3, binding = 5, rgba16f) uniform readonly image2D reflectionDistanceHistory;
+layout(set = 3, binding = 3, rgba16f) uniform readonly image2D reflectionHitSample;
+layout(set = 3, binding = 4, rgba16f) uniform readonly image2D reflectionDistanceHistory;
 
 struct ReflectionSharingReceiver
 {

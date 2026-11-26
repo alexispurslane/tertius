@@ -189,9 +189,8 @@ public sealed class PlaceTraceTests(ITestOutputHelper output)
                 DrawMoving(renderer, scene, 10);
                 result =
                 [
-                    renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Slow(0)),
-                    renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Sample(0)),
-                    renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.Slow(0)),
+                    renderer.ReadImage(renderer.ScreenTraceImages.Specular.Slow(0)),
+                    renderer.ReadImage(renderer.ScreenTraceImages.Specular.Sample(0)),
                     renderer.ReadHdr(),
                     renderer.ReadPostHdr(),
                 ];
@@ -206,7 +205,7 @@ public sealed class PlaceTraceTests(ITestOutputHelper output)
     private static float[] TraceLayer(VulkanRenderer renderer, int layer)
     {
         GpuImage trace =
-            renderer.ScreenTraceSignals.Specular.AccumulationTrace(0)
+            renderer.ScreenTraceImages.Specular.AccumulationTrace(0)
             ?? throw new InvalidOperationException("The accumulation trace is off.");
         if (layer >= trace.ArrayLayers)
             throw new InvalidOperationException($"The accumulation trace has no layer {layer}.");

@@ -6,7 +6,7 @@
 // image, so that the spatial dispatch reads the neighbors' results while it writes the slow history, and this frame's
 // fast history. The diffuse signal's fast history keeps in alpha the retained deviation: the standard deviation of the
 // luminance of the samples that the slow history averages, weighted as it weighs them
-// (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 6). The clamp's box and the diffuse filter read it. The reflections
+// (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 6). The widened clamp reads it. The reflections
 // keep none, because their fast history's alpha holds the hit distance. It reads no light age: the spatial dispatch acts on
 // the samples' evidence after the blend (sections 4 and 8.4).
 #extension GL_GOOGLE_include_directive : require
@@ -19,8 +19,7 @@
 #include "neighbor_limit_prototype.glsl"
 
 // The draws of the retained deviation's window: 32, the bounce light's cap before t1-yi11. A half-float store cannot
-// follow a weight below about 2^−11, so the bounce light's cap of 128 (SignalParameters.Diffuse) and an uncapped
-// history take this window too.
+// follow a weight below about 2^−11, so signals with longer histories also use this window.
 const float DeviationFrames = 32.0;
 
 // The share of the fast history's luminance F within which a sample's weighted step is the store's rounding, not noise.

@@ -830,12 +830,6 @@ internal struct AccumulatePushConstants
     public float RetainedSigmas;
 
     /// <summary>
-    /// The ring layer of this draw in the region's drift test: the draw's index since the last reset modulo
-    /// <see cref="TemporalSignal.RegionRingDraws"/> (region_drift.glsl).
-    /// </summary>
-    public uint RegionSlot;
-
-    /// <summary>
     /// The draw's index since the last reset (<see cref="FrameHistory.PendingFrame.DrawIndex"/>) modulo 2^32: the frame of
     /// the blue-noise mask from which the specular short-history fix chooses each pixel's turned square
     /// (accumulate_spatial.comp, step 3).
@@ -854,7 +848,6 @@ internal struct AccumulatePushConstants
             Light = (uint)parameters.Light,
             ReflectedPlaceBelow = parameters.ReflectedPlaceBelow,
             Reset = reset ? 1u : 0u,
-            RegionSlot = (uint)(drawIndex % TemporalSignal.RegionRingDraws),
             DrawIndex = unchecked((uint)drawIndex),
             RetainedSigmas = parameters.Confidence switch
             {
@@ -863,16 +856,6 @@ internal struct AccumulatePushConstants
                 null => throw new ArgumentException("A signal's parameters need confidence rules.", nameof(parameters)),
             },
         };
-}
-
-/// <summary>
-/// The push constants of a wavelet dispatch of the diffuse filter, diffuse_filter_wavelet.comp (<see cref="DiffuseFilter"/>).
-/// </summary>
-[StructLayout(LayoutKind.Sequential)]
-internal struct DiffuseFilterPushConstants
-{
-    /// <summary>The distance between the kernel's taps, in pixels: 2^i in dispatch i.</summary>
-    public int Step;
 }
 
 /// <summary>
@@ -885,16 +868,7 @@ internal struct ScreenTracePushConstants
     /// <summary>The draw's index since the last reset (<see cref="FrameHistory.PendingFrame.DrawIndex"/>), the second value of every draw.</summary>
     public uint DrawIndex;
 
-    public float MaxRoughness;
-
-    /// <summary><see cref="ScreenTrace.MaxRoughness"/> − <see cref="ScreenTrace.HandOverWidth"/>.</summary>
-    public float HandOverStart;
-
     public uint ReflectionSteps;
-    public uint DiffuseSteps;
-
-    /// <summary>The share of the diffuse rays that the guided draw gives: <see cref="GuidedShares.Diffuse"/>, or 0 with the guiding off.</summary>
-    public float DiffuseShare;
 
     /// <summary>The largest share of a tile's reflection rays, <see cref="GuidedShares.ReflectionCeiling"/>, or 0 with the guiding off.</summary>
     public float ReflectionCeiling;
@@ -929,11 +903,7 @@ internal struct ScreenTracePushConstants
         new()
         {
             DrawIndex = unchecked((uint)frame.DrawIndex),
-            MaxRoughness = trace.MaxRoughness,
-            HandOverStart = trace.HandOverStart,
             ReflectionSteps = (uint)trace.ReflectionSteps,
-            DiffuseSteps = (uint)trace.DiffuseSteps,
-            DiffuseShare = guided ? GuidedShares.Diffuse : 0,
             ReflectionCeiling = guided ? GuidedShares.ReflectionCeiling : 0,
             RampStart = GuidedShares.RampStart,
             RampEnd = GuidedShares.RampEnd,

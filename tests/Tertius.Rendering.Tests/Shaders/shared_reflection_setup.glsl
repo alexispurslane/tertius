@@ -40,15 +40,15 @@ void main()
 #if OwnRays
     float own = reflectionDensity(tracingPixelAt(pixel), direction);
     RayRecord record = sharedReflection(direction, mixtureDensity(GuideShare, own, guided));
-    imageStore(ownLight, ivec3(pixel, KindReflection), record.light);
-    imageStore(ownRay, ivec3(pixel, KindReflection), record.ray);
+    imageStore(ownLight, pixel, record.light);
+    imageStore(ownRay, pixel, record.ray);
     imageStore(rayPlan, pixel, uvec4(PlanOwnReflection));
 #else
     if (all(equal(pixel, first)))
     {
         RayRecord record = sharedReflection(direction, reflectionDensity(c, direction) * RecordedDensityScale);
-        imageStore(blockLight, ivec3(pixel / 2, KindReflection), record.light);
-        imageStore(blockRay, ivec3(pixel / 2, KindReflection), record.ray);
+        imageStore(blockLight, pixel / 2, record.light);
+        imageStore(blockRay, pixel / 2, record.ray);
         imageStore(blockGuide, pixel / 2, vec4(guided, 0.0, 0.0, GuideShare));
     }
     imageStore(rayPlan, pixel, uvec4(0u));

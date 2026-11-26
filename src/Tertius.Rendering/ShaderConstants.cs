@@ -43,8 +43,8 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
     /// <summary>The constant_id of writesMotion in mesh.vert.</summary>
     public const uint WritesMotionId = 4;
 
-    /// <summary>The constant_id of rayKind in screen_trace_block_rays.comp and screen_trace_own_rays.comp.</summary>
-    public const uint RayKindId = 5;
+    /// <summary>The constant_id of maxTraceRoughness in temporal.glsl.</summary>
+    public const uint MaxTraceRoughnessId = 5;
 
     /// <summary>The constant_id of screenTraceOn in temporal.glsl.</summary>
     public const uint ScreenTraceOnId = 6;
@@ -85,11 +85,8 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
     /// </summary>
     public SubsurfaceSetting Subsurface { get; init; }
 
-    /// <summary>
-    /// The ray kind of a pipeline of the screen tracer's rays: 0 reflection rays, 1 diffuse rays (screen_trace.glsl), which
-    /// only <see cref="ScreenTraceKernel"/> sets.
-    /// </summary>
-    public uint RayKind { get; init; }
+    /// <summary>The roughness where the composite and tracer switch fully to the environment.</summary>
+    public float MaxTraceRoughness { get; init; } = ScreenTrace.Default.MaxRoughness;
 
     /// <summary>
     /// True in the back-face pass's pipelines of the runs whose both faces it draws (<see cref="BackFaceRuns.BothFaces"/>):
@@ -127,7 +124,7 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
             (ScatterTapsPerSideId, (uint)tapsPerSide),
             (DropsFibersId, VkBool(values.DropsFibers)),
             (WritesMotionId, VkBool(values.WritesMotion)),
-            (RayKindId, values.RayKind),
+            (MaxTraceRoughnessId, BitConverter.SingleToUInt32Bits(values.MaxTraceRoughness)),
             (ScreenTraceOnId, VkBool(values.ScreenTraceOn)),
             (BothFacesId, VkBool(values.BothFaces)),
             (MainViewId, VkBool(values.MainView)),
