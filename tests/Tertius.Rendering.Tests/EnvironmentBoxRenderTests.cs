@@ -670,7 +670,6 @@ public sealed class EnvironmentBoxRenderTests
                 CullMode = CullModeFlags.None,
                 Constants = new ShaderConstants(EnvironmentMap: true),
             }.Create(device, shaders);
-
         }
 
         public override void Record(FrameContext context)
